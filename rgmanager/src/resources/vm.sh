@@ -6,11 +6,12 @@ export PATH
 
 . $(dirname $0)/ocf-shellfuncs || exit 1
 
-. $(dirname $0)/ocf-shellfuncs
+#
+# Virtual Machine start/stop script (requires the virsh command)
+#
 
-#
-# Virtual Machine start/stop script (requires the xm command)
-#
+# Indeterminate state: xend/libvirtd is down.
+export OCF_APP_ERR_INDETERMINATE=150
 
 meta_data()
 {
@@ -108,97 +109,26 @@ meta_data()
             <content type="string"/>
         </parameter>
 
-	<parameter name="memory" reconfig="1">
-	    <longdesc lang="en">
-		Memory size.  This can be reconfigured on the fly.
-	    </longdesc>
-	    <shortdesc lang="en">
-		Memory Size
-	    </shortdesc>
-            <content type="integer"/>
-        </parameter>
-
        <parameter name="migration_mapping">
            <longdesc lang="en">
                Mapping of the hostname of a target cluster member to a different hostname
            </longdesc>
            <shortdesc lang="en">
-               memeberhost:targethost,memeberhost:targethost ..
+               memberhost:targethost,memberhost:targethost ..
            </shortdesc>
             <content type="string"/>
         </parameter>
 
-	<parameter name="bootloader">
+	<parameter name="use_virsh">
 	    <longdesc lang="en">
-		Boot loader that can start the VM from physical image
+	    	Use virsh instead of XM
 	    </longdesc>
 	    <shortdesc lang="en">
-		Boot loader that can start the VM from physical image
+	    	If set to 1, vm.sh will use the virsh command to manage
+		virtual machines instead of xm.  This is required when
+		using non-Xen virtual machines (e.g. qemu / KVM).
 	    </shortdesc>
-            <content type="string"/>
-        </parameter>
-
-	<parameter name="path">
-	    <longdesc lang="en">
-	    	Path specification 'xm create' will search for the specified
-		VM configuration file
-	    </longdesc>
-	    <shortdesc lang="en">
-	    	Path to virtual machine configuration files
-	    </shortdesc>
-            <content type="string"/>
-        </parameter>
-
-
-	<parameter name="rootdisk_physical" unique="1">
-	    <longdesc lang="en">
-		Root disk for the virtual machine.  (physical, on the host)
-	    </longdesc>
-	    <shortdesc lang="en">
-		Root disk (physical)
-	    </shortdesc>
-            <content type="string"/>
-        </parameter>
-        
-	<parameter name="rootdisk_virtual">
-	    <longdesc lang="en">
-		Root disk for the virtual machine.  (as presented to the VM)
-	    </longdesc>
-	    <shortdesc lang="en">
-		Root disk (virtual)
-	    </shortdesc>
-            <content type="string"/>
-        </parameter>
-
-
-	<parameter name="swapdisk_physical" unique="1">
-	    <longdesc lang="en">
-		Swap disk for the virtual machine.  (physical, on the host)
-	    </longdesc>
-	    <shortdesc lang="en">
-		Swap disk (physical)
-	    </shortdesc>
-            <content type="string"/>
-        </parameter>
-        
-	<parameter name="swapdisk_virtual">
-	    <longdesc lang="en">
-		Swap disk for the virtual machine.  (as presented to the VM)
-	    </longdesc>
-	    <shortdesc lang="en">
-		Swap disk (virtual)
-	    </shortdesc>
-            <content type="string"/>
-        </parameter>
-
-	<parameter name="vif">
-	    <longdesc lang="en">
-		Virtual interface MAC address
-	    </longdesc>
-	    <shortdesc lang="en">
-		Virtual interface MAC address
-	    </shortdesc>
-            <content type="string"/>
+            <content type="integer" default="1"/>
         </parameter>
 
 	<parameter name="migrate">
@@ -260,19 +190,41 @@ meta_data()
         </parameter>
 
         <parameter name="restart_expire_time" reconfig="1">
-            <longdesc lang="en">
-	    	Restart expiration time
-            </longdesc>
-            <shortdesc lang="en">
-	    	Restart expiration time.  A restart is forgotten
-		after this time.  When combined with the max_restarts
-		option, this lets administrators specify a threshold
-		for when to fail over services.  If max_restarts
-		is exceeded in this given expiration time, the service
-		is relocated instead of restarted again.
-            </shortdesc>
             <content type="string" default="0"/>
         </parameter>
+
+	<parameter name="hypervisor">
+            <shortdesc lang="en">
+		Hypervisor
+            </shortdesc >
+            <longdesc lang="en">
+		Specify hypervisor tricks to use.  Default = auto.
+		Other supported options are xen and qemu.
+            </longdesc>
+	    <content type="string" default="auto" />
+	</parameter>
+
+	<parameter name="hypervisor_uri">
+            <shortdesc lang="en">
+		Hypervisor URI
+            </shortdesc >
+            <longdesc lang="en">
+		Hypervisor URI.  Generally, this is keyed off of the
+		hypervisor and does not need to be set.
+            </longdesc>
+	    <content type="string" default="auto" />
+	</parameter>
+
+	<parameter name="migration_uri">
+            <shortdesc lang="en">
+		Migration URI
+            </shortdesc >
+            <longdesc lang="en">
+		Migration URI.  Generally, this is keyed off of the
+		hypervisor and does not need to be set.
+            </longdesc>
+	    <content type="string" default="auto" />
+	</parameter>
 
     </parameters>
 
@@ -287,9 +239,6 @@ meta_data()
 	     NOT OCF COMPATIBLE AT ALL -->
 	<action name="reconfig" timeout="10"/>
 
-	<!-- Suspend: if available, suspend this resource instead of
-	     doing a full stop. -->
-	<!-- <action name="suspend" timeout="10m"/> -->
 	<action name="migrate" timeout="10m"/>
 
         <action name="meta-data" timeout="5"/>
@@ -309,68 +258,60 @@ EOT
 }
 
 
+build_virsh_cmdline()
+{
+	declare cmdline=""
+	declare operation=$1
+
+	if [ -n "$OCF_RESKEY_hypervisor_uri" ]; then
+		cmdline="$cmdline -c $OCF_RESKEY_hypervisor_uri"
+	fi
+
+	cmdline="$cmdline $operation $OCF_RESKEY_name"
+		
+	echo $cmdline
+}
+
+
+# this is only used on startup
 build_xm_cmdline()
 {
+	declare operation=$1
 	#
 	# Virtual domains should never restart themselves when 
 	# controlled externally; the external monitoring app
 	# should.
 	#
 	declare cmdline="on_shutdown=\"destroy\" on_reboot=\"destroy\" on_crash=\"destroy\""
-	declare varp val temp
 
-	#
-	# Transliterate the OCF_RESKEY_* to something the xm
-	# command can recognize.
-	#
-	for var in ${!OCF_RESKEY_*}; do
-		varp=${var/OCF_RESKEY_/}
-		val=`eval "echo \\$$var"`
-
-		case $varp in
-		bootloader)
-			cmdline="$cmdline bootloader=\"$val\""
-			;;
-		rootdisk_physical)
-			[ -n "$OCF_RESKEY_rootdisk_virtual" ] || exit 2
-			cmdline="$cmdline disk=\"phy:$val,$OCF_RESKEY_rootdisk_virtual,w\""
-			;;
-		swapdisk_physical)
-			[ -n "$OCF_RESKEY_swapdisk_virtual" ] || exit 2
-			cmdline="$cmdline disk=\"phy:$val,$OCF_RESKEY_swapdisk_virtual,w\""
-			;;
-		vif)
-			cmdline="$cmdline vif=\"mac=$val\""
-			;;
-		recovery|autostart|domain)
-			;;
-		memory)
-			cmdline="$cmdline $varp=$val"
-			;;
-		swapdisk_virtual)
-			;;
-		rootdisk_virtual)
-			;;
-		name)	# Do nothing with name; add it later
-			;;
-		path)
-			cmdline="$cmdline --path=\"$val\""
-			;;
-		migrate)
-			;;
-		snapshot)
-			;;
-		*)
-			cmdline="$cmdline $varp=\"$val\""
-			;;
-		esac
-	done
+	if [ -n "$OCF_RESKEY_path" ]; then
+		operation="$operation --path=\"$OCF_RESKEY_path\""
+	fi
 
 	if [ -n "$OCF_RESKEY_name" ]; then
-		cmdline="$OCF_RESKEY_name $cmdline"
+		cmdline="$operation $OCF_RESKEY_name $cmdline"
 	fi
 
 	echo $cmdline
+}
+
+
+do_xm_start()
+{
+	# Use /dev/null for the configuration file, if xmdefconfig
+	# doesn't exist...
+	#
+	declare cmdline
+
+	echo -n "Virtual machine $OCF_RESKEY_name is "
+	do_status && return 0
+
+	cmdline="`build_xm_cmdline create`"
+
+	ocf_log debug "xm $cmdline"
+
+	eval xm $cmdline
+	return $?
 }
 
 
@@ -378,20 +319,18 @@ build_xm_cmdline()
 # Start a virtual machine given the parameters from
 # the environment.
 #
-do_start()
+do_virsh_start()
 {
-	# Use /dev/null for the configuration file, if xmdefconfig
-	# doesn't exist...
-	#
 	declare cmdline
 	declare snapshotimage
 
-	status && return 0
+	echo -n "Virtual machine $OCF_RESKEY_name is "
+	do_status && return 0
 
 	snapshotimage="$OCF_RESKEY_snapshot/$OCF_RESKEY_name"
 
         if [ -n "$OCF_RESKEY_snapshot" -a -f "$snapshotimage" ]; then
-		eval xm restore $snapshotimage
+		eval virsh restore $snapshotimage
 		if [ $? -eq 0 ]; then
 			rm -f $snapshotimage
 			return 0
@@ -399,38 +338,29 @@ do_start()
 		return 1
 	fi
 
-	cmdline="`build_xm_cmdline`"
+	cmdline="virsh $(build_virsh_cmdline start)"
+	ocf_log debug "$cmdline"
 
-	echo "# xm command line: $cmdline"
-
-	eval xm create $cmdline
+	$cmdline
 	return $?
 }
 
 
-#
-# Stop a VM.  Try to shut it down.  Wait a bit, and if it
-# doesn't shut down, destroy it.
-#
-do_stop()
+do_xm_stop()
 {
 	declare -i timeout=60
 	declare -i ret=1
 	declare st
 
-	if [ -n "$OCF_RESKEY_snapshot" ]; then
-		xm save $OCF_RESKEY_name "$OCF_RESKEY_snapshot/$OCF_RESKEY_name"
-	fi
-
 	for op in $*; do
-		echo xm $op $OCF_RESKEY_name ...
+		echo "CMD: xm $op $OCF_RESKEY_name"
 		xm $op $OCF_RESKEY_name
 
 		timeout=60
 		while [ $timeout -gt 0 ]; do
 			sleep 5
 			((timeout -= 5))
-			status || return 0
+			do_status&>/dev/null || return 0
 			while read dom state; do
 				#
 				# State is "stopped".  Kill it.
@@ -451,17 +381,143 @@ do_stop()
 
 
 #
-# Reconfigure a running VM.  Currently, all we support is
-# memory ballooning.
+# Stop a VM.  Try to shut it down.  Wait a bit, and if it
+# doesn't shut down, destroy it.
+#
+do_virsh_stop()
+{
+	declare -i timeout=60
+	declare -i ret=1
+	declare state
+
+	state=$(do_status)
+	[ $? -eq 0 ] || return 0
+
+	if [ -n "$OCF_RESKEY_snapshot" ]; then
+		virsh save $OCF_RESKEY_name "$OCF_RESKEY_snapshot/$OCF_RESKEY_name"
+	fi
+
+	for op in $*; do
+		echo virsh $op $OCF_RESKEY_name ...
+		virsh $op $OCF_RESKEY_name
+
+		timeout=60
+		while [ $timeout -gt 0 ]; do
+			sleep 5
+			((timeout -= 5))
+			state=$(do_status)
+			[ $? -eq 0 ] || return 0
+
+			if [ "$state" = "paused" ]; then
+				virsh destroy $OCF_RESKEY_name
+			fi
+		done
+	done
+
+	return 1
+}
+
+
+do_start()
+{
+	if [ "$OCF_RESKEY_use_virsh" = "1" ]; then
+		do_virsh_start $*
+		return $?
+	fi
+
+	do_xm_start $*
+	return $?
+}
+
+
+do_stop()
+{
+	declare domstate rv
+
+	domstate=$(do_status)
+	rv=$?
+	ocf_log debug "Virtual machine $OCF_RESKEY_name is $domstate"
+	if [ $rv -eq $OCF_APP_ERR_INDETERMINATE ]; then
+		ocf_log crit "xend/libvirtd is dead; cannot stop $OCF_RESKEY_name"
+		return 1
+	fi
+
+	if [ "$OCF_RESKEY_use_virsh" = "1" ]; then
+		do_virsh_stop $*
+		return $?
+	fi
+
+	do_xm_stop $*
+	return $?
+}
+
+
+#
+# Reconfigure a running VM.
 #
 reconfigure()
 {
-	if [ -n "$OCF_RESKEY_memory" ]; then
-		echo "xm balloon $OCF_RESKEY_name $OCF_RESKEY_memory"
-		xm balloon $OCF_RESKEY_name $OCF_RESKEY_memory
-		return $?
-	fi
 	return 0
+}
+
+
+xm_status()
+{
+	service xend status &> /dev/null
+	if [ $? -ne 0 ]; then 
+		# if xend died
+		echo indeterminate
+		return $OCF_APP_ERR_INDETERMINATE
+	fi
+
+	xm list $OCF_RESKEY_name &> /dev/null
+	if [ $? -eq 0 ]; then
+		echo "running"
+		return 0
+	fi
+	xm list migrating-$OCF_RESKEY_name &> /dev/null
+	if [ $? -eq 0 ]; then
+		echo "running"
+		return 0
+	fi
+	echo "not running"
+	return 1
+}
+
+
+virsh_status()
+{
+	declare state pid
+
+	if [ "$OCF_RESKEY_hypervisor" = "xen" ]; then
+		service xend status &> /dev/null
+		if [ $? -ne 0 ]; then 
+			echo indeterminate
+			return $OCF_APP_ERR_INDETERMINATE
+		fi
+	fi
+
+	#
+	# libvirtd is required when using virsh even though
+	# not specifically when also using Xen.  This is because
+	# libvirtd is required for migration.
+	#
+	pid=$(pidof libvirtd)
+	if [ -z "$pid" ]; then 
+		echo indeterminate
+		return $OCF_APP_ERR_INDETERMINATE
+	fi
+
+	state=$(virsh domstate $OCF_RESKEY_name)
+
+	echo $state
+
+	if [ "$state" = "running" ] || [ "$state" = "paused" ] ||
+	   [ "$state" = "idle" ]; then
+		return 0
+	fi
+
+	return 1
 }
 
 
@@ -471,34 +527,198 @@ reconfigure()
 #
 do_status()
 {
-	xm list $OCF_RESKEY_name &> /dev/null
-	if [ $? -eq 0 ]; then
-		return 0
+	if [ "$OCF_RESKEY_use_virsh" = "1" ]; then
+		virsh_status
+		return $?
 	fi
-	xm list migrating-$OCF_RESKEY_name &> /dev/null
+
+	xm_status
 	return $?
 }
 
 
-verify_all()
+validate_all()
 {
-	declare errors=0
+	[ "$(id -u)" = "0" ] || return 1
 
-	if [ -n "$OCF_RESKEY_bootloader" ] && \
-	   ! [ -x "$OCF_RESKEY_bootloader" ]; then
-		echo "$OCF_RESKEY_bootloader is not executable"
-		((errors++))
+	#
+	# If someone selects a hypervisor, honor it.
+	# Otherwise, ask virsh what the hypervisor is.
+	#
+	if [ -z "$OCF_RESKEY_hypervisor" ] ||
+	   [ "$OCF_RESKEY_hypervisor" = "auto" ]; then
+		export OCF_RESKEY_hypervisor="`virsh version | grep \"Running hypervisor:\" | awk '{print $3}' | tr A-Z a-z`"
+		if [ -z "$OCF_RESKEY_hypervisor" ]; then
+			ocf_log err "Could not determine Hypervisor"
+			return $OCF_ERR_ARGS
+		fi
+		echo Hypervisor: $OCF_RESKEY_hypervisor 
 	fi
+
+	#
+	# Xen hypervisor only for when use_virsh = 0.
+	#
+	if [ "$OCF_RESKEY_use_virsh" = "0" ]; then
+		if [ "$OCF_RESKEY_hypervisor" != "xen" ]; then
+			ocf_log err "Cannot use $OCF_RESKEY_hypervisor hypervisor without using virsh"
+			return $OCF_ERR_ARGS
+		fi
+	else
+	
+		#
+		# If no path is set, use virsh.  Otherwise, use xm.
+		# xm only works with Xen.
+		#
+		if [ -z "$OCF_RESKEY_path" ] ||
+		   [ "$OCF_RESKEY_path" = "/etc/xen" ]; then
+			echo "Management tool: virsh"
+			export OCF_RESKEY_use_virsh=1
+		else
+			echo "Management tool: xm"
+			export OCF_RESKEY_use_virsh=0
+		fi
+	fi
+
+	#
+	# Set the hypervisor URI
+	#
+	if [ -z "$OCF_RESKEY_hypervisor_uri" -o "$OCF_RESKEY_hypervisor_uri" = "auto" ] &&
+	   [ "$OCF_RESKEY_use_virsh" = "1" ]; then
+
+		# Virsh makes it easier to do this.  Really.
+		if [ "$OCF_RESKEY_hypervisor" = "qemu" ]; then
+			OCF_RESKEY_hypervisor_uri="qemu:///system"
+		fi
+
+		# I just need to believe in it more.
+		if [ "$OCF_RESKEY_hypervisor" = "xen" ]; then
+			OCF_RESKEY_hypervisor_uri="xen:///"
+		fi
+
+		echo Hypervisor URI: $OCF_RESKEY_hypervisor_uri
+	fi
+
+	#
+	# Set the migration URI
+	#
+	if [ -z "$OCF_RESKEY_migration_uri" -o "$OCF_RESKEY_migration_uri" = "auto" ] &&
+	   [ "$OCF_RESKEY_use_virsh" = "1" ]; then
+
+		# Virsh makes it easier to do this.  Really.
+		if [ "$OCF_RESKEY_hypervisor" = "qemu" ]; then
+			export OCF_RESKEY_migration_uri="qemu+ssh://%s/system"
+		fi
+
+		# I just need to believe in it more.
+		if [ "$OCF_RESKEY_hypervisor" = "xen" ]; then
+			export OCF_RESKEY_migration_uri="xenmigr://%s/"
+		fi
+
+		[ -n "$OCF_RESKEY_migration_uri" ] && echo Migration URI format: $(printf $OCF_RESKEY_migration_uri target_host)
+	fi
+
+	if [ -z "$OCF_RESKEY_name" ]; then
+		echo No domain name specified
+		return $OCF_ERR_ARGS
+	fi
+
+	#virsh list --all | awk '{print $2}' | grep -q "^$OCF_RESKEY_name\$"
+	return $?
 }
 
 
-migrate()
+virsh_migrate()
+{
+	declare $target=$1
+	declare rv=1
+
+	#
+	# Xen and qemu have different migration mechanisms
+	#
+	if [ "$OCF_RESKEY_hypervisor" = "xen" ]; then 
+		cmd="virsh migrate $migrate_opt $OCF_RESKEY_name $OCF_RESKEY_hypervisor_uri $(printf $OCF_RESKEY_migration_uri $target)"
+		ocf_log debug "$cmd"
+		
+		err=$($cmd 2>&1 | head -1; exit ${PIPESTATUS[0]})
+		rv=$?
+	elif [ "$OCF_RESKEY_hypervisor" = "qemu" ]; then
+		cmd="virsh migrate $migrate_opt $OCF_RESKEY_name $(printf $OCF_RESKEY_migration_uri $target)"
+		ocf_log debug "$cmd"
+		
+		err=$($cmd 2>&1 | head -1; exit ${PIPESTATUS[0]})
+		rv=$?
+	fi
+
+	if [ $rv -ne 0 ]; then
+		ocf_log err "Migrate $OCF_RESKEY_name to $target failed:"
+		ocf_log err "$err"
+
+		if [ "$err" != "${err/does not exist/}" ]; then
+			return $OCF_NOT_RUNNING
+		fi
+		if [ "$err" != "${err/Domain not found/}" ]; then
+			return $OCF_NOT_RUNNING
+		fi
+		if [ "$err" != "${err/Connection refused/}" ]; then
+			return $OCF_ERR_CONFIGURED
+		fi
+
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $rv
+}
+
+
+#
+# XM migrate
+#
+xm_migrate()
 {
 	declare target=$1
-	declare errstr rv migrate_opt
+	declare errstr rv migrate_opt cmd
+
+	rv=1
 
 	if [ "$OCF_RESKEY_migrate" = "live" ]; then
 		migrate_opt="-l"
+	fi
+
+	# migrate() function  sets target using migration_mapping;
+	# no need to do it here anymore
+	cmd="xm migrate $migrate_opt $OCF_RESKEY_name $target"
+	ocf_log debug "$cmd"
+
+	err=$($cmd 2>&1 | head -1; exit ${PIPESTATUS[0]})
+	rv=$?
+
+	if [ $rv -ne 0 ]; then
+		ocf_log err "Migrate $OCF_RESKEY_name to $target failed:"
+		ocf_log err "$err"
+
+		if [ "$err" != "${err/does not exist/}" ]; then
+			return $OCF_NOT_RUNNING
+		fi
+		if [ "$err" != "${err/Connection refused/}" ]; then
+			return $OCF_ERR_CONFIGURED
+		fi
+
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $?
+}
+
+# 
+# Virsh migrate
+#
+migrate()
+{
+	declare target=$1
+	declare rv migrate_opt
+
+	if [ "$OCF_RESKEY_migrate" = "live" ]; then
+		migrate_opt="--live"
 	fi
 
 	# Patch from Marcelo Azevedo to migrate over private
@@ -507,49 +727,48 @@ migrate()
                 target=${OCF_RESKEY_migration_mapping#*$target:} target=${target%%,*}
         fi
 
-	err=$(xm migrate $migrate_opt $OCF_RESKEY_name $target 2>&1 | head -1; exit ${PIPESTATUS[0]})
-	rv=$?
-
-	if [ $rv -ne 0 ]; then
-		if [ "$err" != "${err/does not exist/}" ]; then
-			ocf_log warn "Trying to migrate '$OCF_RESKEY_name' - domain does not exist"
-			return $OCF_NOT_RUNNING
-		fi
-		if [ "$err" != "${err/Connection refused/}" ]; then
-			ocf_log warn "Trying to migrate '$OCF_RESKEY_name' - connect refused"
-			return $OCF_ERR_CONFIGURED
-		fi
+	if [ "$OCF_RESKEY_use_virsh" = "1" ]; then
+		virsh_migrate $target
+		rv=$?
+	else
+		xm_migrate $target
+		rv=$?
 	fi
 
-	return $?
+	return $rv
 }
 
 #
-# A Resource group is abstract, but the OCF RA API doesn't allow for abstract
-# resources, so here it is.
+#
 #
 
 case $1 in
 	start)
+		validate_all || exit $OCF_ERR_ARGS
 		do_start
 		exit $?
 		;;
 	stop)
+		validate_all || exit $OCF_ERR_ARGS
 		do_stop shutdown destroy
 		exit $?
 		;;
 	kill)
-		stop destroy
+		validate_all || exit $OCF_ERR_ARGS
+		do_stop destroy
 		exit $?
 		;;
 	recover|restart)
 		exit 0
 		;;
 	status|monitor)
+		validate_all || exit $OCF_ERR_ARGS
+		echo -n "Virtual machine $OCF_RESKEY_name is "
 		do_status
 		exit $?
 		;;
 	migrate)
+		validate_all || exit $OCF_ERR_ARGS
 		migrate $2 # Send VM to this node
 		exit $?
 		;;
@@ -557,6 +776,7 @@ case $1 in
 		exit 0
 		;;
 	reconfig)
+		validate_all || exit $OCF_ERR_ARGS
 		echo "$0 RECONFIGURING $OCF_RESKEY_memory"
 		reconfigure
 		exit $?
@@ -566,7 +786,7 @@ case $1 in
 		exit 0
 		;;
 	validate-all)
-		verify_all
+		validate_all
 		exit $?
 		;;
 	*)
