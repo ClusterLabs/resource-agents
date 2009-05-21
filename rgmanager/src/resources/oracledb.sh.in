@@ -217,8 +217,8 @@ meta_data()
 	<action name="status" timeout="10"/>
 	<action name="monitor" timeout="10"/>
 
-	<action name="status" depth="10" timeout="30" interval="5m"/>
-	<action name="monitor" depth="10" timeout="30" interval="5m"/>
+	<action name="status" depth="10" timeout="30" interval="30"/>
+	<action name="monitor" depth="10" timeout="30" interval="30"/>
 
 	<action name="meta-data" timeout="5"/>
 	<action name="validate-all" timeout="5"/>
@@ -294,6 +294,7 @@ start_db()
 	grep -q "failure" $logfile
 	if [ $? -eq 0 ]; then
 		echo "ORACLE_SID Incorrectly set?"
+		rm -f $tmpfile
 		echo "See $logfile for more information."
 		return 1
 	fi
@@ -356,7 +357,8 @@ force_cleanup()
 	declare pids
 	declare pid
 
-	pids=`ps ax | grep $ORACLE_HOME | grep -v grep | awk '{print $1}'`
+	# Patch from Shane Bradley to fix 471266
+	pids=`ps ax | grep $ORACLE_HOME | grep "ora_.*_${ORACLE_SID}" | grep -v grep | awk '{print $1}'`
 
 	initlog -n $SCRIPT -s "<err> Not all Oracle processes exited cleanly, killing"
 	
@@ -804,7 +806,6 @@ status_oracle()
 {
 	declare -i subsys_lock=1
 	declare -i last 
-	declare -i depth=$1
 
 	#
 	# Check for lock file.  Crude and rudimentary, but it works
