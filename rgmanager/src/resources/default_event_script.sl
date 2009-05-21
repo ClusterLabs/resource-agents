@@ -254,6 +254,154 @@ define allowed_nodes(service)
 	return anodes;
 }
 
+%
+% Returns the set of online nodes in preferred/shuffled order which
+% are allowed to run this service.  Gives highest preference to current
+% owner if nofailback is specified.
+% 
+define allowed_nodes(service)
+{
+	variable anodes;
+	variable online;
+	variable nodes_domain;
+	variable ordered, restricted, nofailback;
+	variable state, owner;
+	variable depends;
+
+	(nofailback, restricted, ordered, nodes_domain) =
+			service_domain_info(service);
+	(owner, state) = service_status(service);
+
+	anodes = nodes_online();
+
+	% Shuffle the array so we don't start all services on the same
+	% node.  TODO - add RR, Least-services, placement policies...
+	online = shuffle(anodes);
+
+	if (restricted == 1) {
+		anodes = intersection(nodes_domain, online);
+	} else {
+		% Ordered failover domains (nodes_domain) unioned with the
+		% online nodes basically just reorders the online node list
+		% according to failover domain priority rules.
+		anodes = union(intersection(nodes_domain, online),
+			       online);
+	}
+
+	if ((nofailback == 1) or (ordered == 0)) {
+		
+		if ((owner < 0) or (node_in_set(anodes, owner) == 0)) {
+			return anodes;
+		}
+		
+		% Because union takes left as priority, we can
+		% return the union of the current owner with the
+		% allowed node list.  This means the service will
+		% remain on the same node it's currently on.
+		return union(owner, anodes);
+	}
+
+	return anodes;
+}
+
+define string_list(thelist, delimiter)
+{
+	variable index;
+	variable output="";
+
+	if (length(thelist) == 0) {
+		return output;
+	}
+  
+	for (index=0; index < length(thelist)-1; index++) {
+		output=output+string(thelist[index])+delimiter;
+	}
+	return output+thelist[index];
+}
+
+% this function gets the smallest property from a given list of services
+% if the list only exists of one element the property itself is returned
+% if the given property is not found 0 is returned
+define services_min_attribute(services, property)
+{
+	variable x;
+	variable min_property=-1;
+	variable tmp_property;
+
+	for (x = 0; x < length(services); x++) {
+		tmp_property=service_property(services[x], property);
+		if (tmp_property == NULL) {
+			tmp_property=0;
+		} else {
+			tmp_property=atoi(tmp_property);
+		}
+		if ((min_property < 0) or (tmp_property < min_property)) {
+			min_property=tmp_property;
+		}
+		%debug("services_min_attribute: ",services[x]," attribute: ",min_property, "tmp: ", tmp_property, " min: ", min_property);
+	}
+
+	%debug("services_min_attribute: (", string_list(services, ", "),")[",property,"]: ",min_property);
+
+	return min_property;
+}
+
+% This function will sort a given service_list by the given attribute name and
+% return the list
+define sorted_service_list(services, attribute)
+{
+	variable work_queue={};
+	variable sorted_list={}, tmp, tmp2;
+	variable x, y;
+	variable cur_min_prop=0;
+	variable service_prop=0;
+
+	y=0;
+	%debug("sorted_service_list: ", strjoin(services, ", "));
+	for (x=0; x<length(services); x++) {
+		list_append(work_queue, string(services[x]));
+	}
+
+	%debug("sorted_service_list: work_queue ", string_list(work_queue, ", "));
+	while (length(work_queue) > 0) {
+		cur_min_prop=services_min_attribute(work_queue, attribute);
+		%debug("sorted_service_list sorting services list for attribute ", attribute, " cur_min: ",cur_min_prop);
+		for (x = 0; x < length(work_queue); x++) {
+			service_prop=service_property(work_queue[x], "priority");
+			if (service_prop == NULL) {
+				service_prop=0;
+			} else {
+				service_prop=atoi(service_prop);
+			}
+			%debug("sorted_service_list: ",work_queue[x], " property[", attribute,"]: ",service_prop);
+			if (cur_min_prop==service_prop) {
+				%debug("sorted_service_list: adding service ",work_queue[x]," to sorted. work_queue: ", string_list(work_queue, ", "));
+				list_append(sorted_list, work_queue[x]);
+				%debug("sorted_service_list: sorted_list: ", string_list(sorted_list, ", "));
+				%debug("sorted_service_list: removing service ",work_queue[x], " from work_queue ", string_list(work_queue, ", "));
+				list_delete(work_queue, x);
+				x=x-1;
+				%debug("sorted_service_list: work_queue: ",string_list(work_queue, ", "));
+				y=y+1;
+			}
+		}
+	}
+
+	debug("sorted_service_list ", string_list(sorted_list, ", "));
+	return sorted_list;
+}
+
+define sortedservices_node_event_handler(services, attribute) {
+	variable x;
+	variable nodes;
+
+	services=sorted_service_list(services, attribute);
+	for (x = 0; x < length(services); x++) {
+		debug("Executing sortedservices node event handler for service: ", services[x]);
+		nodes = allowed_nodes(services[x]);
+		()=move_or_start(services[x], nodes);
+	}
+}
 
 define default_node_event_handler()
 {
@@ -447,7 +595,7 @@ define default_user_event_handler()
 }
 
 if (event_type == EVENT_NODE)
-	default_node_event_handler();
+	sortedservices_node_event_handler(service_list(), "priority");
 if (event_type == EVENT_SERVICE)
 	default_service_event_handler();
 if (event_type == EVENT_CONFIG)

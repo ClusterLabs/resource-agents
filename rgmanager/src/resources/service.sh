@@ -197,16 +197,31 @@ meta_data()
             <content type="string" default="0"/>
         </parameter>
 
+	<parameter name="priority">
+	    <longdesc lang="en">
+		Priority for the service.  In a failover scenario, this
+		indicates the ordering of the service (1 is processed
+		first, 2 is processed second, etc.).  This overrides the
+		order presented in cluster.conf.  This option only has
+		an effect if central processing within rgmanager is turned
+		on.
+	    </longdesc>
+	    <shortdesc lang="en">
+		Service priority
+	    </shortdesc>
+	    <content type="integer" default="0"/>
+	</parameter>
+
     </parameters>
 
     <actions>
         <action name="start" timeout="5"/>
         <action name="stop" timeout="5"/>
 	
-	<!-- No-ops.  Groups are abstract resource types.
+	<!-- No-ops.  Groups are abstract resource types. 
         <action name="status" timeout="5" interval="1h"/>
         <action name="monitor" timeout="5" interval="1h"/>
-       	 -->
+ -->
 
         <action name="reconfig" timeout="5"/>
         <action name="recover" timeout="5"/>
