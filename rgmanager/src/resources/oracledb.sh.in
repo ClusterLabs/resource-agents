@@ -291,7 +291,8 @@ start_db()
 	# ORA-.....: failure, we failed
 	#
 
-	grep -q "failure" $logfile
+	rm -f $tmpfile
+	grep -q "^ORA-" $logfile
 	if [ $? -eq 0 ]; then
 		echo "ORACLE_SID Incorrectly set?"
 		rm -f $tmpfile
@@ -336,7 +337,8 @@ stop_db()
 	# 
 	# If we see 'failure' in the log, we're done.
 	#
-	grep -q failure $logfile
+	rm -f $tmpfile
+	grep -q "^ORA-" $logfile
 	if [ $? -eq 0 ]; then
 		echo_failure
 		echo
