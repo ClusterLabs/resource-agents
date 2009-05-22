@@ -116,8 +116,12 @@ EOT
 
 	IFS_old="$IFS"
 	IFS=$'\n'
-	for i in `"$APACHE_parseConfig" -D"$OCF_RESKEY_name" < "$originalConfigFile" | grep -E '(^Listen)|(^Port)' | grep -v ':'`; do 
+	for i in `"$APACHE_parseConfig" -D"$OCF_RESKEY_name" < "$originalConfigFile" | grep -P '(^Listen)|(^Port)' `; do 
 		port=`echo $i | sed 's/^Listen \(.*\)/\1/;s/^Port \(.*\)/\1/'`;
+		testcond=`echo $port|grep :`
+		if [ $testcond ]; then
+			port=`echo $port|awk -F : '{print $2}'`
+		fi
 		IFS=$' ';
 		for z in $ip_addresses; do 
 			echo "Listen $z:$port" >> "$generatedConfigFile";
