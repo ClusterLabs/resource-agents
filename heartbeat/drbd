@@ -30,11 +30,6 @@
 # OCF instance parameters
 #	OCF_RESKEY_drbd_resource
 #	OCF_RESKEY_drbdconf
-#	OCF_RESKEY_CRM_meta_clone_max
-#	OCF_RESKEY_CRM_meta_clone_node_max
-#	OCF_RESKEY_master_max
-#	OCF_RESKEY_master_node_max
-
 
 #######################################################################
 # Initialization:
@@ -90,40 +85,6 @@ which can then be used in drbd.conf.
 <shortdesc lang="en">Override drbd hostname</shortdesc>
 <content type="boolean" default="no"/>
 </parameter>
-
-
-<parameter name="clone_max" required="1">
-<longdesc lang="en">
-Number of clones of this drbd resource. Do not fiddle with the default.
-</longdesc>
-<shortdesc lang="en">Number of clones</shortdesc>
-<content type="integer" default="2"/>
-</parameter>
-
-<parameter name="clone_node_max" required="1">
-<longdesc lang="en">
-Clones per node. Do not fiddle with the default.
-</longdesc>
-<shortdesc lang="en">Number of nodes</shortdesc>
-<content type="integer" default="1"/>
-</parameter>
-
-<parameter name="master_max" required="1">
-<longdesc lang="en">
-Maximum number of active primaries. Do not fiddle with the default.
-</longdesc>
-<shortdesc lang="en">Number of primaries</shortdesc>
-<content type="integer" default="1"/>
-</parameter>
-
-<parameter name="master_node_max" required="1">
-<longdesc lang="en">
-Maximum number of primaries per node. Do not fiddle with the default.
-</longdesc>
-<shortdesc lang="en">Number of primaries per node</shortdesc>
-<content type="integer" default="1"/>
-</parameter>
-</parameters>
 
 <actions>
 <action name="start"   timeout="240" />
@@ -579,8 +540,8 @@ drbd_validate_all () {
 	
 	if [ "$OCF_RESKEY_CRM_meta_clone_max" -ne 2 ] \
 	 || [ "$OCF_RESKEY_CRM_meta_clone_node_max" -ne 1 ] \
-	 || [ "$OCF_RESKEY_master_node_max" -ne 1 ] \
-	 || [ "$OCF_RESKEY_master_max" -ne 1 ] ; then
+	 || [ "$OCF_RESKEY_CRM_meta_master_node_max" -ne 1 ] \
+	 || [ "$OCF_RESKEY_CRM_meta_master_max" -ne 1 ] ; then
 		ocf_log err "Clone options misconfigured."
 		exit $OCF_ERR_CONFIGURED
 	fi
