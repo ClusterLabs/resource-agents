@@ -108,8 +108,8 @@ The WAS profile name.
 <actions>
 <action name="start" timeout="300" />
 <action name="stop" timeout="300" />
-<action name="status" depth="0" timeout="30" interval="10" start-delay="10" />
-<action name="monitor" depth="0" timeout="30" interval="10" start-delay="10" />
+<action name="status" depth="0" timeout="30" interval="10" start-delay="0" />
+<action name="monitor" depth="0" timeout="30" interval="10" start-delay="0" />
 <action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 <action name="methods" timeout="5" />

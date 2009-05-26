@@ -57,8 +57,8 @@ The file containing the hosts to send WinPopup messages to.
 <actions>
 <action name="start" timeout="30" />
 <action name="stop" timeout="30" />
-<action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
-<action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="status" depth="0" timeout="10" interval="10" start-delay="0" />
+<action name="monitor" depth="0" timeout="10" interval="10" start-delay="0" />
 <action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 </actions>

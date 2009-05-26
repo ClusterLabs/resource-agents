@@ -178,7 +178,7 @@ Oracle instance we are willing to listen.
 <action name="start" timeout="120" />
 <action name="stop" timeout="120" />
 <action name="status" timeout="5" />
-<action name="monitor" depth="0" timeout="30" interval="120" start-delay="10" />
+<action name="monitor" depth="0" timeout="30" interval="120" start-delay="0" />
 <action name="validate-all" timeout="5" />
 <action name="methods" timeout="5" />
 <action name="meta-data" timeout="5" />
