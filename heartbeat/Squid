@@ -158,7 +158,7 @@ the configuration file given by "syslog_ng_conf" as a basename part,
 <action name="start" timeout="60s" />
 <action name="stop" timeout="120s" />
 <action name="status" timeout="60" />
-<action name="monitor" depth="0" timeout="30s" interval="10s" start-delay="10s" />
+<action name="monitor" depth="0" timeout="30s" interval="10s" start-delay="0" />
 <action name="meta-data" timeout="5s" />
 <action name="validate-all"  timeout="5"/>
 </actions>

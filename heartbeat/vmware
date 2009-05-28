@@ -303,7 +303,7 @@ vmware-vim-cmd executable path
 <action name="start"        timeout="300" />
 <action name="stop"         timeout="300" />
 <action name="monitor"      timeout="30" interval="300" depth="0"
-start-delay="60" />
+start-delay="0" />
 <action name="meta-data"    timeout="5" />
 </actions>
 </resource-agent>

@@ -85,7 +85,7 @@ If set, the volume group will be activated exclusively.
 <action name="start" timeout="30" />
 <action name="stop" timeout="30" />
 <action name="status" timeout="30" />
-<action name="monitor" depth="0" timeout="30" interval="10" start-delay="10" />
+<action name="monitor" depth="0" timeout="30" interval="10" start-delay="0" />
 <action name="methods" timeout="5" />
 <action name="meta-data" timeout="5" />
 <action name="validate-all" timeout="5" />
