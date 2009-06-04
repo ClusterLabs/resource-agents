@@ -249,7 +249,7 @@ iscsi_start() {
 	else
 		$add_disk $portal $OCF_RESKEY_target ||
 			return $OCF_ERR_GENERIC
-		case "$OCF_RESKEY_udev" in
+		case "$udev" in
 		[Yy]es) wait_for_udev ||
 			return $OCF_ERR_GENERIC
 		;;
