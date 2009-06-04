@@ -236,7 +236,7 @@ Additional parameters which are passed to the mysqld on startup.
 <action name="start" timeout="120" />
 <action name="stop" timeout="120" />
 <action name="status" timeout="60" />
-<action name="monitor" depth="0" timeout="30" interval="10" start-delay="10" />
+<action name="monitor" depth="0" timeout="30" interval="10" start-delay="0" />
 <action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 </actions>
@@ -419,7 +419,7 @@ mysql_stop() {
 
     ocf_log info "MySQL stopped";
     rm -f /var/lock/subsys/mysqld
-    rm -f $OCF_RESKEY_datadir/mysql.sock
+    rm -f $OCF_RESKEY_socket
     return $OCF_SUCCESS
 }
 

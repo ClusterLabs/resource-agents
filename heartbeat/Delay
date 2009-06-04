@@ -79,8 +79,8 @@ Defaults to "startdelay" if unspecified.
 <actions>
 <action name="start" timeout="30" />
 <action name="stop" timeout="30" />
-<action name="status" depth="0" timeout="30" interval="10" start-delay="30" />
-<action name="monitor" depth="0" timeout="30" interval="10" start-delay="30" />
+<action name="status" depth="0" timeout="30" interval="10" start-delay="0" />
+<action name="monitor" depth="0" timeout="30" interval="10" start-delay="0" />
 <action name="meta-data" timeout="5" />
 <action name="validate-all" timeout="5" />
 </actions>

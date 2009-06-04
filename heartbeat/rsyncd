@@ -89,7 +89,7 @@ limit. A value of zero specifies no limit.
 <actions>
 <action name="start" timeout="90"/>
 <action name="stop" timeout="100"/>
-<action name="monitor" depth="10" timeout="30s" interval="60s" start-delay="1s" />
+<action name="monitor" depth="10" timeout="30s" interval="60s" start-delay="0" />
 <action name="validate-all" timeout="30s"/>
 <action name="meta-data"  timeout="5s"/>
 </actions>

@@ -145,7 +145,7 @@ Resource script for SAP. It manages a SAP Instance as an HA resource.
 <action name="start" timeout="180" />
 <action name="stop" timeout="240" />
 <action name="status" timeout="60" />
-<action name="monitor" depth="0" timeout="60" interval="120" start-delay="240" />
+<action name="monitor" depth="0" timeout="60" interval="120" start-delay="0" />
 <action name="promote" timeout="320" />
 <action name="demote" timeout="320" />
 <action name="validate-all" timeout="5" />

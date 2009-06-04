@@ -1,0 +1,365 @@
+#!/bin/sh
+#
+# Resource script for MySQL Proxy
+#
+# Description:  Manages MySQL Proxy as an OCF resource in
+#               an high-availability setup.
+#
+#               Tested with mysql-proxy 0.7.0 on Debian 5.0.
+#               Based on the mysql and Pure-Ftpd OCF resource agents.
+#
+# Author:       Raoul Bhatia <r.bhatia@ipax.at> : Original Author
+# License:      GNU General Public License (GPL)
+#
+#
+#       usage: $0 {start|stop|reload|status|monitor|validate-all|meta-data}
+#
+#       The "start" arg starts a MySQL Proxy instance
+#
+#       The "stop" arg stops it.
+#
+# TODO
+# * add error checking like in mysql ocf ra (e.g. socketdir)
+# * verify if mysql-proxy supports multiple --proxy-address(es)
+#
+# Test via
+# */usr/sbin/ocf-tester -n mp /usr/lib/ocf/resource.d/heartbeat/mysql-proxy
+# */usr/sbin/ocf-tester -n ms -o binary="/usr/sbin/mysql-proxy" -o defaults_file="" -o parameters="--proxy-skip-profiling" \
+#       -o admin_address="127.0.0.1:4041" -o proxy_backend_addresses="192.168.100.200:42006" \
+#       -o proxy_address="/var/run/mysqld/mysqld.sock" /usr/lib/ocf/resource.d/heartbeat/mysql-proxy
+#
+# * adding two mysql-instances (mysql-proxy-tcp and mysql-proxy-socket) and killing mysql-proxy-tcp
+#   beware, that as of mysql-proxy 0.7.0 (and possibly later), the socket is not automatically removed
+#
+#
+# OCF parameters:
+#  OCF_RESKEY_binary
+#  OCF_RESKEY_defaults_file
+#  OCF_RESKEY_proxy_backend_addresses
+#  OCF_RESKEY_proxy_read_only_backend_addresses
+#  OCF_RESKEY_proxy_address
+#  OCF_RESKEY_admin_address
+#  OCF_RESKEY_parameters
+#  OCF_RESKEY_pidfile
+#
+##########################################################################
+
+# Initialization:
+
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+
+: ${OCF_RESKEY_binary="/usr/sbin/mysql-proxy"}
+: ${OCF_RESKEY_defaults_file=""}
+: ${OCF_RESKEY_proxy_backend_addresses="127.0.0.1:3306"}
+: ${OCF_RESKEY_proxy_read_only_backend_addresses=""}
+: ${OCF_RESKEY_proxy_address=":4040"}
+: ${OCF_RESKEY_admin_address="127.0.0.1:4041"}
+: ${OCF_RESKEY_parameters=""}
+: ${OCF_RESKEY_pidfile="${HA_RSCTMP}/mysql-proxy-${OCF_RESOURCE_INSTANCE}.pid"}
+USAGE="Usage: $0 {start|stop|reload|status|monitor|validate-all|meta-data}";
+
+##########################################################################
+
+usage() {
+    echo $USAGE >&2
+}
+
+meta_data() {
+        cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="mysql-proxy">
+<version>0.1</version>
+<longdesc lang="en">
+This script manages MySQL Proxy as an OCF resource in a high-availability setup.
+Tested with MySQL Proxy 0.7.0 on Debian 5.0.
+</longdesc>
+<shortdesc lang="en">OCF Resource Agent compliant MySQL Proxy script.</shortdesc>
+
+<parameters>
+
+<parameter name="binary" unique="0" required="0">
+<longdesc lang="en">
+Full path to the MySQL Proxy binary.
+For example, "/usr/sbin/mysql-proxy".
+</longdesc>
+<shortdesc lang="en">Full path to MySQL Proxy binary</shortdesc>
+<content type="string" default="/usr/sbin/mysql-proxy" />
+</parameter>
+
+<parameter name="defaults_file" unique="1" required="0">
+<longdesc lang="en">
+Full path to a MySQL Proxy configuration file.
+For example, "/etc/mysql-proxy.conf".
+</longdesc>
+<shortdesc lang="en">Full path to configuration file</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="proxy_backend_addresses" unique="0" required="0">
+<longdesc lang="en">
+Address:port of the remote backend-servers (default: 127.0.0.1:3306).
+</longdesc>
+<shortdesc lang="en"></shortdesc>
+<content type="string" default="127.0.0.1:3306" />
+</parameter>
+
+<parameter name="proxy_read_only_backend_addresses" unique="0" required="0">
+<longdesc lang="en">
+Address:port of the remote slave-server (default: not set).
+</longdesc>
+<shortdesc lang="en"></shortdesc>
+<content type="string" default="127.0.0.1:3306" />
+</parameter>
+
+<parameter name="proxy_address" unique="0" required="0">
+<longdesc lang="en">
+Listening address:port of the proxy-server (default: :4040).
+You can also specify a socket like "/tmp/mysql-proxy.sock".
+</longdesc>
+<shortdesc lang="en"></shortdesc>
+<content type="string" default=":4040" />
+</parameter>
+
+<parameter name="admin_address" unique="0" required="0">
+<longdesc lang="en">
+Listening address:port of the admin-server (default: 127.0.0.1:4041).
+</longdesc>
+<shortdesc lang="en"></shortdesc>
+<content type="string" default="127.0.0.1:4041" />
+</parameter>
+
+<parameter name="parameters" unique="0" required="0">
+<longdesc lang="en">
+The MySQL Proxy daemon may be called with additional parameters.
+Specify any of them here.
+</longdesc>
+<shortdesc lang="en"></shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="pidfile" unique="1" required="0">
+<longdesc lang="en">PID file</longdesc>
+<shortdesc lang="en">PID file</shortdesc>
+<content type="string" default="${HA_RSCTMP}/mysql-proxy-${OCF_RESOURCE_INSTANCE}.pid" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"   timeout="90" />
+<action name="stop"    timeout="100" />
+<action name="reload"  timeout="100" />
+<action name="monitor" depth="10"  timeout="20s" interval="60s" start-delay="0" />
+<action name="validate-all"  timeout="30s" />
+<action name="meta-data"  timeout="5s" />
+</actions>
+</resource-agent>
+END
+        exit $OCF_SUCCESS
+}
+
+isRunning()
+{
+    kill -0 "$1" 2>/dev/null
+}
+
+mysqlproxy_status()
+{
+    if [ -f "${pidfile}" ]; then
+    # MySQL Proxy is probably running
+        PID=`head -n 1 "${pidfile}"`
+        if [ ! -z "$PID" ] ; then
+            isRunning "$PID"
+            return $?
+        fi
+    fi
+
+    # MySQL Proxy is not running
+    false
+}
+
+mysqlproxy_start()
+{
+    # if MySQL Proxy is running return success
+    if mysqlproxy_status ; then
+        ocf_log info "MySQL Proxy already running."
+        exit $OCF_SUCCESS
+    fi
+
+    # check that the MySQL Proxy binary exists and can be executed
+    if [ ! -x "$binary" ]; then
+        ocf_log err "MySQL Proxy binary '$binary' does not exist or cannot be executed."
+        exit $OCF_ERR_GENERIC
+    fi
+
+    # check if the MySQL Proxy defaults-file exist
+    PARAM_PREFIX=''
+    if [ -f "$defaults_file" ]; then
+        PARAM_PREFIX="--defaults-file=$defaults_file "
+    fi
+
+    # split multiple proxy-address options.
+    # currently unsupported but let us hope for the future ;)
+    for pa in $proxy_address; do
+        [ -z "$pa" ] && continue
+        OPTIONS=" $OPTIONS --proxy-address=$pa"
+    done
+
+    # split multiple proxy-backend-addresses options.
+    for pba in $proxy_backend_addresses; do
+        [ -z "$pba" ] && continue
+        OPTIONS=" $OPTIONS --proxy-backend-addresses=$pba"
+    done
+
+    # split multiple proxy-backend-addresses options.
+    for proba in $proxy_read_only_backend_addresses; do
+        [ -z "$proba" ] && continue
+        OPTIONS=" $OPTIONS --proxy-read-only-backend-addresses=$proba"
+    done
+
+    # build $OPTIONS and add addmin-address and pidfile
+    OPTIONS="$PARAM_PREFIX $OPTIONS --admin-address=$admin_address --pid-file=${pidfile} $PARAM_SUFFIX"
+
+    # start MySQL Proxy
+    #start-stop-daemon --start --quiet --pidfile $pidfile --make-pidfile --name mysql-proxy --startas $binary -b -- $OPTIONS
+    $binary --daemon $OPTIONS
+    ret=$?
+
+    if [ $ret -ne 0 ]; then
+        ocf_log err "MySQL Proxy returned error." $ret
+        exit $OCF_ERR_GENERIC
+    fi
+
+    exit $OCF_SUCCESS
+}
+
+
+mysqlproxy_stop()
+{
+    if mysqlproxy_status ; then
+        #start-stop-daemon --stop --quiet --retry 3 --exec $binary --pidfile $pidfile
+        /bin/kill `cat "${pidfile}"`
+        ret=$?
+
+        if [ $ret -ne 0 ]; then
+            ocf_log err "MySQL Proxy returned an error while stopping." $ret
+            exit $OCF_ERR_GENERIC
+        fi
+
+        # grant some time for shutdown and recheck
+        sleep 1
+        if mysqlproxy_status ; then
+            ocf_log err "MySQL Proxy failed to stop."
+            exit $OCF_ERR_GENERIC
+        fi
+
+        # remove dangling socketfile, if specified
+        for pa in $proxy_address; do
+            if [ -S "$pa" ]; then
+                ocf_log info "Removing dangling socket file '$pa'."
+                rm -f "$pa"
+            fi
+        done
+
+        # remove dangling pidfile
+        if [ -f "${pidfile}" ]; then
+            ocf_log info "Removing dangling pidfile '${pidfile}'."
+            rm -f "${pidfile}"
+        fi
+    fi
+
+    exit $OCF_SUCCESS
+}
+
+mysqlproxy_reload()
+{
+    if mysqlproxy_status; then
+        ocf_log info "Reloading MySQL Proxy."
+        kill -HUP `cat ${pidfile}`
+    fi
+}
+
+mysqlproxy_monitor()
+{
+    if mysqlproxy_status ; then
+        return $OCF_SUCCESS
+    fi
+
+    return $OCF_NOT_RUNNING
+}
+
+mysqlproxy_validate_all()
+{
+
+    # @TODO
+    return $OCF_SUCCESS
+}
+
+#
+# Main
+#
+
+if [ $# -ne 1 ]; then
+    usage
+    exit $OCF_ERR_ARGS
+fi
+
+pidfile=$OCF_RESKEY_pidfile
+binary=$OCF_RESKEY_binary
+defaults_file=$OCF_RESKEY_defaults_file
+proxy_backend_addresses=$OCF_RESKEY_proxy_backend_addresses
+proxy_read_only_backend_addresses=$OCF_RESKEY_proxy_read_only_backend_addresses
+admin_address=$OCF_RESKEY_admin_address
+proxy_address=$OCF_RESKEY_proxy_address
+
+# debugging stuff
+#echo OCF_RESKEY_binary=$OCF_RESKEY_binary >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
+#echo OCF_RESKEY_defaults_file=$OCF_RESKEY_defaults_file >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
+#echo OCF_RESKEY_proxy_backend_addresses=$OCF_RESKEY_proxy_backend_addresses >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
+#echo OCF_RESKEY_proxy_read_only_backend_addresses=$OCF_RESKEY_proxy_read_only_backend_addresses >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
+#echo OCF_RESKEY_proxy_address=$OCF_RESKEY_proxy_address >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
+#echo OCF_RESKEY_admin_address=$OCF_RESKEY_admin_address >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
+#echo OCF_RESKEY_parameters=$OCF_RESKEY_parameters >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
+#echo OCF_RESKEY_pidfile=$OCF_RESKEY_pidfile >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
+
+
+case $1 in
+    start)      mysqlproxy_start
+                ;;
+
+    stop)       mysqlproxy_stop
+                ;;
+
+    reload)     mysqlproxy_reload
+                ;;
+
+    status)     if mysqlproxy_status; then
+                    ocf_log info "MySQL Proxy is running."
+                    exit $OCF_SUCCESS
+                else
+                    ocf_log info "MySQL Proxy is stopped."
+                    exit $OCF_NOT_RUNNING
+                fi
+                ;;
+
+    monitor)    mysqlproxy_monitor
+                exit $?
+                ;;
+
+    validate-all)   mysqlproxy_validate_all
+                    exit $?
+                    ;;
+
+    meta-data)  meta_data
+                ;;
+
+    usage)      usage
+                exit $OCF_SUCCESS
+                ;;
+
+    *)          usage
+                exit $OCF_ERR_UNIMPLEMENTED
+                ;;
+esac
+

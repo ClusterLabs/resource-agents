@@ -30,11 +30,6 @@
 # OCF instance parameters
 #	OCF_RESKEY_drbd_resource
 #	OCF_RESKEY_drbdconf
-#	OCF_RESKEY_CRM_meta_clone_max
-#	OCF_RESKEY_CRM_meta_clone_node_max
-#	OCF_RESKEY_master_max
-#	OCF_RESKEY_master_node_max
-
 
 #######################################################################
 # Initialization:
@@ -91,48 +86,14 @@ which can then be used in drbd.conf.
 <content type="boolean" default="no"/>
 </parameter>
 
-
-<parameter name="clone_max" required="1">
-<longdesc lang="en">
-Number of clones of this drbd resource. Do not fiddle with the default.
-</longdesc>
-<shortdesc lang="en">Number of clones</shortdesc>
-<content type="integer" default="2"/>
-</parameter>
-
-<parameter name="clone_node_max" required="1">
-<longdesc lang="en">
-Clones per node. Do not fiddle with the default.
-</longdesc>
-<shortdesc lang="en">Number of nodes</shortdesc>
-<content type="integer" default="1"/>
-</parameter>
-
-<parameter name="master_max" required="1">
-<longdesc lang="en">
-Maximum number of active primaries. Do not fiddle with the default.
-</longdesc>
-<shortdesc lang="en">Number of primaries</shortdesc>
-<content type="integer" default="1"/>
-</parameter>
-
-<parameter name="master_node_max" required="1">
-<longdesc lang="en">
-Maximum number of primaries per node. Do not fiddle with the default.
-</longdesc>
-<shortdesc lang="en">Number of primaries per node</shortdesc>
-<content type="integer" default="1"/>
-</parameter>
-</parameters>
-
 <actions>
 <action name="start"   timeout="240" />
 <action name="promote"   timeout="90" />
 <action name="demote"   timeout="90" />
 <action name="notify"   timeout="90" />
 <action name="stop"    timeout="100" />
-<action name="monitor" depth="0"  timeout="20" interval="20" start-delay="1m" role="Slave" />
-<action name="monitor" depth="0"  timeout="20" interval="10" start-delay="1m" role="Master" />
+<action name="monitor" depth="0"  timeout="20" interval="20" start-delay="0" role="Slave" />
+<action name="monitor" depth="0"  timeout="20" interval="10" start-delay="0" role="Master" />
 <action name="meta-data"  timeout="5" />
 <action name="validate-all"  timeout="30" />
 </actions>
@@ -232,9 +193,38 @@ is_drbd_enabled () {
 	return 1
 }
 
-
+get_drbd_ver() {
+	# returns 2 for unsupported (not 0.7.x or < 8.x)
+	# returns 1 for versions prior to 8.3.x
+	# returns 0 otherwise
+	drbdadm  | grep Version | awk '{print $2}' |
+	awk -F. '
+		{
+			if( $1 == "0" ) # 0.7.x
+				{ v1 = $2; v2 = $3; }
+			else
+				{ v1 = $1; v2 = $2; }
+		}
+		v1 < 7 { exit 2; }
+		v1 == 7 || (v1 == 8 && v2 < 3) { exit 1; } # use state
+		# otherwise use role
+	'
+}
+get_status_cmd() {
+	get_drbd_ver
+	rc=$?
+	if [ $rc -ge 2 ]; then
+		ocf_log err "Cannot parse output of 'drbdadm | grep Version'"
+		exit $OCF_ERR_GENERIC 
+	elif [ $rc -eq 1 ]; then
+		echo state
+	else
+		echo role
+	fi
+}
 drbd_get_status() {
-	DRBD_STATE=$(do_drbdadm state $RESOURCE)
+	cmd=`get_status_cmd`
+	DRBD_STATE=$(do_drbdadm "$cmd" $RESOURCE)
 	DRBD_STATE_LOCAL=$(echo $DRBD_STATE | sed -e 's#/.*##')
 	DRBD_STATE_REMOTE=$(echo $DRBD_STATE | sed -e 's#.*/##')
 	DRBD_CSTATE=$(do_drbdadm cstate $RESOURCE)
@@ -550,8 +540,8 @@ drbd_validate_all () {
 	
 	if [ "$OCF_RESKEY_CRM_meta_clone_max" -ne 2 ] \
 	 || [ "$OCF_RESKEY_CRM_meta_clone_node_max" -ne 1 ] \
-	 || [ "$OCF_RESKEY_master_node_max" -ne 1 ] \
-	 || [ "$OCF_RESKEY_master_max" -ne 1 ] ; then
+	 || [ "$OCF_RESKEY_CRM_meta_master_node_max" -ne 1 ] \
+	 || [ "$OCF_RESKEY_CRM_meta_master_max" -ne 1 ] ; then
 		ocf_log err "Clone options misconfigured."
 		exit $OCF_ERR_CONFIGURED
 	fi

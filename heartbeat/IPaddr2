@@ -225,8 +225,8 @@ You really shouldn't be touching this.
 <actions>
 <action name="start"   timeout="90" />
 <action name="stop"    timeout="100" />
-<action name="status" depth="10"  timeout="20s" interval="10s" start-delay="5s" />
-<action name="monitor" depth="10"  timeout="20s" interval="10s" start-delay="5s" />
+<action name="status" depth="10"  timeout="20s" interval="10s" start-delay="0" />
+<action name="monitor" depth="10"  timeout="20s" interval="10s" start-delay="0" />
 <action name="meta-data"  timeout="5s" />
 <action name="validate-all"  timeout="20s" />
 </actions>
@@ -282,7 +282,7 @@ ip_init() {
 
 	if [ $LVS_SUPPORT -gt 0 ] && [ $IP_INC_GLOBAL -gt 1 ]; then
 		ocf_log err "LVS and load sharing do not go together well"
-		exit OCF_ERR_ARGS
+		exit $OCF_ERR_ARGS
 	fi
 
 	ARP_INTERVAL_MS=${OCF_RESKEY_arp_interval:-200}

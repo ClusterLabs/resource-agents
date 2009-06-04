@@ -153,7 +153,7 @@ services.
 <action name="stop" timeout="40" />
 <action name="migrate_from" timeout="120" />
 <action name="migrate_to" timeout="120" />
-<action name="monitor" depth="0" timeout="30" interval="10" start-delay="120" />
+<action name="monitor" depth="0" timeout="30" interval="10" start-delay="0" />
 <action name="meta-data" timeout="5" />
 <action name="validate-all" timeout="5" />
 </actions>

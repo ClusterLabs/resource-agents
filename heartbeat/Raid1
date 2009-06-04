@@ -154,8 +154,8 @@ supposed to own them.
 <actions>
 <action name="start" timeout="10" />
 <action name="stop" timeout="10" />
-<action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
-<action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="status" depth="0" timeout="10" interval="10" start-delay="0" />
+<action name="monitor" depth="0" timeout="10" interval="10" start-delay="0" />
 <action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 </actions>
@@ -260,21 +260,30 @@ raid1_stop() {
 }
 
 #
+# monitor: a less noisy status
+#
+raid1_monitor() {
+	# check if the md device exists first
+	[ -b $MDDEV ] && 
+		grep -e "^$MD[ \t:]" /proc/mdstat >/dev/null &&
+	    return $OCF_SUCCESS
+	return $OCF_NOT_RUNNING
+}
+
+#
 # STATUS: is the raid device online or offline?
 #
-raid1_status() { 
-
+raid1_status() {
 	# See if the MD device is online
-	grep -e "^$MD[ \t:]" /proc/mdstat >/dev/null
-	if [ $? -ne 0 ] ; then
+	raid1_monitor
+	rc=$?
+	if [ $rc -ne $OCF_SUCCESS ]; then
 	    echo "stopped"
-	    return $OCF_NOT_RUNNING
 	else
 	    echo "running"
-	    return $OCF_SUCCESS
 	fi
-
-}    
+	return $rc
+}
 
 raid1_validate_all() {
     # Utilities used by this script
@@ -358,7 +367,7 @@ if [ -z "$MDDEV" ] ; then
 	exit $OCF_ERR_ARGS
 fi
 
-if [ ! -b "$MDDEV" ] ; then
+if [ -e "$MDDEV" -a ! -b "$MDDEV" ] ; then
 	ocf_log err "$MDDEV is not a block device!"
 	exit $OCF_ERR_ARGS
 fi
@@ -369,9 +378,8 @@ MD=`echo $MDDEV | sed -e 's/\/dev\///'`
 
 HAVE_RAIDTOOLS=false
 if 
-    have_binary $RAIDSTART
+    have_binary $RAIDSTART >/dev/null 2>&1
 then
-  check_binary $RAIDSTOP
   HAVE_RAIDTOOLS=true
 else
   check_binary $MDADM
@@ -394,8 +402,11 @@ case "$1" in
   stop)
 	raid1_stop
 	;;
-  status|monitor) 
+  status) 
 	raid1_status
+	;;
+  monitor) 
+	raid1_monitor
 	;;
   validate-all)
 	raid1_validate_all

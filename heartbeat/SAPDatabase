@@ -158,7 +158,7 @@ Resource script for SAP databases. It manages a SAP database of any type as an H
 <action name="start" timeout="1800" />
 <action name="stop" timeout="1800" />
 <action name="status" timeout="60" />
-<action name="monitor" depth="0" timeout="60" interval="120" start-delay="180" />
+<action name="monitor" depth="0" timeout="60" interval="120" start-delay="0" />
 <action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 <action name="methods" timeout="5" />

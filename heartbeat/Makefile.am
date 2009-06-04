@@ -48,6 +48,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 		        IPaddr2		\
 		        drbd		\
 			anything		\
+			AoEtarget		\
 			apache		\
 			AudibleAlarm	\
 			db2		\
@@ -67,6 +68,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			ManageRAID	\
 			ManageVE	\
 			mysql		\
+			mysql-proxy		\
 			nfsserver	\
 			oracle		\
 			oralsnr		\

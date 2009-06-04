@@ -195,7 +195,7 @@ netmask for ARP - in nonstandard hexadecimal format.
 <actions>
 <action name="start"   timeout="90" />
 <action name="stop"    timeout="100" />
-<action name="monitor" depth="10"  timeout="20s" interval="5s" start-delay="1s" />
+<action name="monitor" depth="10"  timeout="20s" interval="5s" start-delay="0" />
 <action name="validate-all"  timeout="30s" />
 <action name="meta-data"  timeout="5s" />
 </actions>
@@ -247,7 +247,7 @@ lvs_restore_loopback() {
     CMD="OCF_RESKEY_cidr_netmask=32 OCF_RESKEY_ip=$1 OCF_RESKEY_nic=$ifname $FINDIF"
     if
       NICINFO=`eval $CMD`
-      NICINFO=`echo $NICINFO | tr -s " "`
+      NICINFO=`echo $NICINFO | tr "	" " " | tr -s " "`
     then
 	netmask_text=`echo "$NICINFO" | cut -f3 -d " "`
 	broadcast=`echo "$NICINFO" | cut -f5 -d " "`

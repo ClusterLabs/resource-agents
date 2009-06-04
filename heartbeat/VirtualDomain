@@ -127,18 +127,37 @@ VirtualDomain_Define() {
 
 VirtualDomain_Status() {
     rc=$OCF_ERR_GENERIC
-    status="`virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME`"
-    case $status in
-	"shut off"|"no state")
-	    # shut off: domain is defined, but not started
-	    # no state: domain is migrating (migration target only)
-	    rc=$OCF_NOT_RUNNING
-	    ;;
-	running|paused|blocked|idle)
-	    rc=$OCF_SUCCESS
-	    ;;
-    esac
-    ocf_log debug "Virtual domain $DOMAIN_NAME is currently $status."
+    status="no state"
+    while [ "$status" = "no state" ]; do
+        status="`virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME`"
+        case "$status" in
+	    "shut off")
+	        # shut off: domain is defined, but not started
+		ocf_log debug "Virtual domain $DOMAIN_NAME is currently $status."
+	        rc=$OCF_NOT_RUNNING
+	        ;;
+	    running|paused|idle|blocked)
+		# running: domain is currently actively consuming cycles
+		# paused: domain is paused (suspended)
+		# idle: domain is running but idle
+		# blocked: synonym for idle used by legacy Xen versions
+		ocf_log debug "Virtual domain $DOMAIN_NAME is currently $status."
+	        rc=$OCF_SUCCESS
+	        ;;
+            "no state")
+		# "no state" may occur when the domain is currently
+		# being migrated (on the migration target only), or
+		# whenever virsh can't reliably obtain the domain
+		# state.
+		ocf_log info "Virtual domain $DOMAIN_NAME currently has no state, retrying."
+		;;
+            *)
+		# any other output is unexpected.
+                ocf_log error "Virtual domain $DOMAIN_NAME has unknown status \"$status\"!"
+                ;;
+        esac
+	sleep 1
+    done
     return $rc
 }
 
@@ -201,14 +220,14 @@ VirtualDomain_Migrate_To() {
 	remoteuri=$(echo ${OCF_RESKEY_hypervisor} | sed -e "s,\(.*\)://[^/:]*\(:\?[0-9]*\)/\(.*\),\1${transport_suffix}://${target_node}\2/\3,")
 
 	# OK, we know where to connect to. Now do the actual migration.
-	ocf_log info "$DOMAIN_NAME: Starting live migration to ${remoteuri}"
+	ocf_log info "$DOMAIN_NAME: Starting live migration to ${target_node} (using remote hypervisor URI ${remoteuri})."
 	virsh ${VIRSH_OPTIONS} migrate --live $DOMAIN_NAME ${remoteuri}
 	rc=$?
 	if [ $rc -ne 0 ]; then
 	    ocf_log err "$DOMAIN_NAME: live migration to ${remoteuri} failed: $rc"
 	    return $OCF_ERR_GENERIC
 	else 
-	    ocf_log info "$DOMAIN_NAME: live migration to ${remoteuri} succeeded."
+	    ocf_log info "$DOMAIN_NAME: live migration to ${target_node} succeeded."
 	    return $OCF_SUCCESS
 	fi
     else
@@ -219,8 +238,10 @@ VirtualDomain_Migrate_To() {
 
 VirtualDomain_Migrate_From() {
     while sleep 1; do
-	VirtualDomain_Monitor && return $OCF_SUCCESS
+	VirtualDomain_Monitor && break
     done
+    ocf_log info "$DOMAIN_NAME: live migration from ${OCF_RESKEY_CRM_meta_migrate_source} succeeded."
+    return $OCF_SUCCESS
 }
 
 VirtualDomain_Monitor() {
