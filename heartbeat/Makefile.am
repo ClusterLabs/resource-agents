@@ -22,12 +22,10 @@ EXTRA_DIST		= $(ocf_SCRIPTS) ra-api-1.dtd
 
 INCLUDES		= -I$(top_srcdir)/include -I$(top_srcdir)/linux-ha
 
-dtddir			= $(HA_NOARCHDATAHBDIR)
-ocfdir		    = @OCF_RA_DIR@/heartbeat
+ocfdir		        = $(OCF_RA_DIR)/heartbeat
 
+dtddir			= $(datadir)/$(PACKAGE)
 dtd_SCRIPTS		= ra-api-1.dtd
-
-gliblib                 = @GLIBLIB@
 
 if USE_IPV6ADDR
 ocf_PROGRAMS           = IPv6addr
@@ -37,18 +35,15 @@ endif
 
 IPv6addr_SOURCES        = IPv6addr.c
 
-IPv6addr_LDADD          = $(top_builddir)/lib/clplumbing/libplumb.la    \
-                        $(gliblib) @LIBNETLIBS@
-
-
+IPv6addr_LDADD          = $(top_builddir)/lib/clplumbing/libplumb.la $(LIBNETLIBS)
 
 ocf_SCRIPTS	     =  ClusterMon 	\
 			Dummy		\
 		        IPaddr		\
 		        IPaddr2		\
 		        drbd		\
-			anything		\
-			AoEtarget		\
+			anything	\
+			AoEtarget	\
 			apache		\
 			AudibleAlarm	\
 			db2		\
@@ -68,7 +63,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			ManageRAID	\
 			ManageVE	\
 			mysql		\
-			mysql-proxy		\
+			mysql-proxy	\
 			nfsserver	\
 			oracle		\
 			oralsnr		\
@@ -84,14 +79,14 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			SendArp		\
 			ServeRAID	\
 			SphinxSearchDaemon	\
-			Squid	\
+			Squid		\
 			Stateful	\
 			SysInfo		\
-			scsi2reservation	\
+			scsi2reservation \
 			sfex		\
 			tomcat		\
 			VIPArip		\
-			VirtualDomain \
+			VirtualDomain	\
 			vmware		\
 			WAS		\
 			WAS6		\
@@ -103,7 +98,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			.ocf-directories \
 			.ocf-returncodes
 
-commondir	     = @HA_LIBHBDIR@
 # Legacy locations
+commondir	     = $(libdir)/heartbeat
 common_SCRIPTS	     = ocf-shellfuncs ocf-returncodes
 

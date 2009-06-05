@@ -291,7 +291,7 @@ declare -i retcode_grep
 
 $TEST -z "$OCF_RESKEY_raidname"
 retcode_test=$?
-$ECHO "$OCF_RESKEY_raidname" | $GREP -qEe "^[[:alnum:]\_]+$"
+echo "$OCF_RESKEY_raidname" | $GREP -qEe "^[[:alnum:]\_]+$"
 retcode_grep=$?
 
 if [[ $retcode_test != 1 || $retcode_grep != 0 ]]; then
@@ -301,7 +301,7 @@ fi
 
 RAID_UUID=${OCF_RESKEY_raidname}_UUID
 
-$ECHO ${!RAID_UUID} | $GREP -qEe "^[[:alnum:]]{8}:[[:alnum:]]{8}:[[:alnum:]]{8}:[[:alnum:]]{8}$"
+echo ${!RAID_UUID} | $GREP -qEe "^[[:alnum:]]{8}:[[:alnum:]]{8}:[[:alnum:]]{8}:[[:alnum:]]{8}$"
 if [[ $? != 0 ]]; then
   ocf_log err "${OCF_RESKEY_raidname}_UUID is invalid."
   exit $OCF_ERR_ARGS
@@ -309,7 +309,7 @@ fi
 
 RAID_DEV=${OCF_RESKEY_raidname}_DEV
 
-$ECHO ${!RAID_DEV} | $GREP -qEe "^md[0-9]+$"
+echo ${!RAID_DEV} | $GREP -qEe "^md[0-9]+$"
 if [[ $? != 0 ]]; then
   ocf_log err "${OCF_RESKEY_raidname}_DEV is invalid."
   exit $OCF_ERR_ARGS
@@ -318,7 +318,7 @@ fi
 RAID_DEVPATH=/dev/${!RAID_DEV/md/md\/}
 RAID_MOUNTPOINT=${OCF_RESKEY_raidname}_MOUNTPOINT
 
-$ECHO ${!RAID_MOUNTPOINT} | $GREP -qEe "^[[:alnum:]\/\_\"\ ]+$"
+echo ${!RAID_MOUNTPOINT} | $GREP -qEe "^[[:alnum:]\/\_\"\ ]+$"
 if [[ $? != 0 ]]; then
   ocf_log err "${OCF_RESKEY_raidname}_MOUNTPOINT is invalid."
   exit $OCF_ERR_ARGS
@@ -326,7 +326,7 @@ fi
 
 RAID_MOUNTOPTIONS=${OCF_RESKEY_raidname}_MOUNTOPTIONS
 
-$ECHO ${!RAID_MOUNTOPTIONS} | $GREP -qEe "^[[:alpha:]\,]+$"
+echo ${!RAID_MOUNTOPTIONS} | $GREP -qEe "^[[:alpha:]\,]+$"
 if [[ $? != 0 ]]; then
   ocf_log err "${OCF_RESKEY_raidname}_MOUNTOPTIONS is invalid."
   exit $OCF_ERR_ARGS
@@ -349,7 +349,7 @@ check_binary $UMOUNT
 check_binary $GREP
 check_binary $CAT
 check_binary $TEST
-check_binary $ECHO
+check_binary echo
 
 
 #

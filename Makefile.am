@@ -26,10 +26,6 @@ tgz:
 	hg archive -t tgz $(TARFILE)
 	echo Rebuilt $(TARFILE) on `date`
 
-clean-generic:
-	find . -name ".gres.*" -exec rm \{\} \;
-	find . -name "*~" -exec rm \{\} \;
-
 dist-clean-local:
 	rm -f autoconf automake autoheader $(TARFILE)
 

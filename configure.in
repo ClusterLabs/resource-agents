@@ -1,19 +1,31 @@
 dnl
-dnl autoconf for heartbeat
-dnl	Started by David Lee <T.D.Lee@durham.ac.uk> December 2000
-dnl automake stuff
-dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
+dnl autoconf for Agents
 dnl
 dnl License: GNU General Public License (GPL)
 
-dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_INIT(configure.in)
+dnl ===============================================
+dnl Bootstrap 
+dnl ===============================================
 AC_PREREQ(2.53)
 
-AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.552 $) dnl cvs revision
-AC_CANONICAL_HOST
+dnl Suggested structure:
+dnl     information on the package
+dnl     checks for programs
+dnl     checks for libraries
+dnl     checks for header files
+dnl     checks for types
+dnl     checks for structures
+dnl     checks for compiler characteristics
+dnl     checks for library functions
+dnl     checks for system services
 
+AC_INIT(glue, 1.0.0, pacemaker@oss.clusterlabs.org)
+CRM_DTD_VERSION="1.0"
+
+PKG_FEATURES=""
+
+AC_CONFIG_AUX_DIR(.)
+AC_CANONICAL_HOST
 
 dnl Where #defines go (e.g. `AC_CHECK_HEADERS' below)
 dnl
@@ -23,68 +35,62 @@ dnl   - include/config.h.in is generated automatically by autoheader
 dnl   - NOT to be included in any header files except lha_internal.h
 dnl     (which is also not to be included in any other header files)
 dnl
-dnl External header: include/hb_config.h
+dnl External header: include/agent_config.h
 dnl   - Contains a subset of defines checked here
-dnl   - Manually edit include/hb_config.h.in to have configure include
-dnl     new defines
+dnl   - Manually edit include/agent_config.h.in to have configure include new defines
 dnl   - Should not include HAVE_* defines
 dnl   - Safe to include anywhere
 AM_CONFIG_HEADER(include/config.h include/agent_config.h)
 ALL_LINGUAS="en fr"
 
-AC_ARG_WITH(hapkgversion,
-    [  --with-hapkgversion=name     Override package version (if you're a packager needing to pretend) ],
-    [ HAPKGVERSION="$withval" ],
-    [ HAPKGVERSION="" ],
-)
+AC_ARG_WITH(version,
+    [  --with-version=version   Override package version (if you're a packager needing to pretend) ],
+    [ PACKAGE_VERSION="$withval" ])
 
-if test -z "$HAPKGVERSION" ; then
-   HAPKGVERSION="0.7"
-fi
-AM_INIT_AUTOMAKE(agents, $HAPKGVERSION)
+AC_ARG_WITH(pkg-name,
+    [  --with-pkg-name=name     Override package name (if you're a packager needing to pretend) ],
+    [ PACKAGE_NAME="$withval" ])
 
-HB_PKG=heartbeat
+AM_INIT_AUTOMAKE($PACKAGE_NAME, $PACKAGE_VERSION)
+AC_DEFINE_UNQUOTED(AGENTS_VERSION, "$PACKAGE_VERSION", Current agents version)
+
 CC_IN_CONFIGURE=yes
 export CC_IN_CONFIGURE
 
-echo Our Host OS: $host_os/$host
+LDD=ldd
 
-dnl This OS-based decision-making is poor autotools practice;
-dnl feature-based mechanisms are strongly preferred.
-dnl
-dnl So keep this section to a bare minimum; regard as a "necessary evil". 
+dnl ========================================================================
+dnl Compiler characteristics
+dnl ========================================================================
 
-pf_argv_set=""
-case "$host_os" in
-*bsd*)		AC_DEFINE_UNQUOTED(ON_BSD,     1, Compiling for BSD platform);;
-*linux*)	AC_DEFINE_UNQUOTED(ON_LINUX,   1, Compiling for Linux platform);;
-darwin*)	AC_DEFINE_UNQUOTED(ON_DARWIN,  1, Compiling for Darwin platform);;
-*solaris*)	AC_DEFINE_UNQUOTED(ON_SOLARIS, 1, Compiling for Solaris platform);;
-esac
+AC_PROG_CC dnl Can force other with environment variable "CC".
+AM_PROG_CC_C_O
+AC_PROG_CC_STDC
 
-LIBS="$LIBS -L${prefix}/lib"
-CFLAGS="$CFLAGS -I${prefix}/include"
+AC_C_STRINGIZE
+AC_TYPE_SIZE_T
+AC_CHECK_SIZEOF(char)
+AC_CHECK_SIZEOF(short)
+AC_CHECK_SIZEOF(int)
+AC_CHECK_SIZEOF(long)
+AC_CHECK_SIZEOF(long long)
+AC_STRUCT_TIMEZONE
 
-AC_SUBST(REBOOT_OPTIONS)
-AC_SUBST(POWEROFF_OPTIONS)
-AC_DEFINE_UNQUOTED(REBOOT_OPTIONS, "$REBOOT_OPTIONS", reboot options)
-AC_DEFINE_UNQUOTED(POWEROFF_OPTIONS, "$POWEROFF_OPTIONS", poweroff options)
+dnl ===============================================
+dnl Helpers 
+dnl ===============================================
+cc_supports_flag() {
+         local CFLAGS="$@"
+         AC_MSG_CHECKING(whether $CC supports "$@")
+         AC_COMPILE_IFELSE([int main(){return 0;}] ,[RC=0; AC_MSG_RESULT(yes)],[RC=1; AC_MSG_RESULT(no)])
+         return $RC
+}
 
-dnl Info for building/packaging systems.
-dnl
-dnl "pkg" (typically Solaris) generally suggests package names of the form:
-dnl	COMPname
-dnl where:
-dnl	COMP: (upper case) resembles a four character company "stock ticker";
-dnl	name: (lower case) is short-form (few character) product name.
-dnl
-dnl It is also conventional for the name to be closely related to the
-dnl installation location, typically "/opt/COMPname".
-dnl
-dnl See "linux-ha-dev" discussion, "heartbeat package name", from 12/Oct/2005.
-dnl "LXHAhb" seems the least evil compromise for a default.
-dnl Any site or packager may, of course, override this.
-dnl
+dnl ===============================================
+dnl Configure Options
+dnl ===============================================
+
+dnl Some systems, like Solaris require a custom package name
 AC_ARG_WITH(pkgname,
     [  --with-pkgname=name     name for pkg (typically for Solaris) ],
     [ PKGNAME="$withval" ],
@@ -92,258 +98,299 @@ AC_ARG_WITH(pkgname,
   )
 AC_SUBST(PKGNAME)
 
+AC_ARG_ENABLE([ansi],
+[  --enable-ansi force GCC to compile to ANSI/ANSI standard for older compilers.
+     [default=yes]])
 
+AC_ARG_ENABLE([fatal-warnings],
+[  --enable-fatal-warnings very pedantic and fatal warnings for gcc
+     [default=yes]])
 
-dnl Keep copy of original (default) prefix and localstatedir
-localstatedir_orig="$localstatedir"
-prefix_orig="$prefix"
+INITDIR=""
+AC_ARG_WITH(initdir,
+    [  --with-initdir=DIR      directory for init (rc) scripts [${INITDIR}]],
+    [ INITDIR="$withval" ])
 
-prefix=`eval echo "$prefix"`
-case $prefix in
-  NONE)	prefix=/usr/local;;
-esac
-var() {
-  case $1 in
-    *'${'*)	res=`eval echo "$1"`;;
-    *)		res="$1";;
-  esac
-  case "$res" in
-    ""|NONE)	echo "$2";;
-    *)		echo "$res";;
-  esac
-}
+OCF_ROOT_DIR="/usr/lib/ocf"
+AC_ARG_WITH(ocf-root,
+    [  --with-ocf-root=DIR      directory for OCF scripts [${OCF_ROOT_DIR}]],
+    [ if test x"$withval" = xprefix; then OCF_ROOT_DIR=${prefix}; else
+	 OCF_ROOT_DIR="$withval"; fi ])
 
-dnl expand directories
-exec_prefix=`var "$exec_prefix" "$prefix"`
-bindir=`var "$bindir" "$exec_prefix/bin"`
-sbindir=`var "$sbindir" "$exec_prefix/sbin"`
-datarootdir=`var "$datarootdir" "$prefix/share"`
-datadir=`var "$datadir" "$prefix/share"`
-sysconfdir=`var "$sysconfdir" "$prefix/etc"`
-sharedstatedir=`var "$sharedstatedir" "$prefix/com"`
-localstatedir=`var "$localstatedir" "$prefix/var"`
-includedir=`var "$includedir" "$exec_prefix/include"`
-oldincludedir=`var "$oldincludedir" "$exec_prefix/include"`
-infodir=`var "$infodir" "$prefix/info"`
-mandir=`var "$mandir" "$exec_prefix/man"`
-docdir=${datadir}/doc/${HB_PKG}-${VERSION}
-stdocdir=${datadir}/doc/${HB_PKG}-${VERSION}/stonith
-libdir=`var "$libdir" "$exec_prefix/lib"`
-libexecdir=`var "$libexecdir" "$exec_prefix/libexec"`
-noarchlibdir=`var "$noarchlibdir" "$prefix/lib"`
+dnl ===============================================
+dnl General Processing
+dnl ===============================================
 
+INIT_EXT=""
+echo Our Host OS: $host_os/$host
 
-
-LDD=ldd
-dnl Which C compiler?
-dnl Defaults to GNU C compiler if available.
-dnl Always tries to set the compiler to ANSI C via options (AM)
-dnl Can force other with environment variable "CC".
-AC_PROG_CC
-AC_PROG_CC_STDC
-AM_PROG_CC_C_O
-
-dnl	The GNU conventions for installation directories don't always
-dnl	sit well with this software.  In particular, GNU's stated:
-dnl
-dnl	   '$(localstatedir)' should normally be '/usr/local/var', ...
-dnl
-dnl	is poor for us: much better would be somewhere under '/var'.
-dnl
-dnl	Here within "configure" it would be poor practice for us to interfere
-dnl	with such values, irrespective of our opinion:
-dnl	1. user perspective: we would have gone behind their back;
-dnl	2. autoconf perspective: autoconf should avoid any OS-specific mindset.
-dnl
-dnl	So if localstatedir still has its default value, we issue an advisory
-dnl	warning and inform folk of our own "ConfigureMe", which is ideally
-dnl	suited for setting such aspects (by user, and per-OS).
-dnl
-dnl	[ Another option would be to detect, and to warn of, (post-expansion)
-dnl	non-"/var/[...]" values: something like:
-dnl		if test `expr "$localstatedir" : '^/var/.*'` -ge '5' \
-dnl			-o `expr "$localstatedir" : '^/var.*'` -eq '4'
-dnl		then <OK> else <WARN> fi
-dnl	]
-
-# If original localstatedir had defaulted then sanity-check the result.
-if test "x$localstatedir_orig" = 'x${prefix}/var' &&	# Note quote types
-   test "x$prefix_orig" = xNONE
-then
-	SNOOZING=10
-	AC_MSG_WARN(value/default "--localstatedir=$localstatedir" is poor.)
-	AC_MSG_WARN("/var/something" is strongly recommended.)
-	AC_MSG_WARN(We also recommend using "ConfigureMe".)
-	AC_MSG_WARN(Sleeping for $SNOOZING seconds.)
-	sleep $SNOOZING
+if test "X$OCF_ROOT_DIR" = X; then
+  OCF_ROOT_DIR="/usr/lib/ocf"
 fi
 
-HA_LIBDIR="${libdir}"
-AC_SUBST(HA_LIBDIR)
-AC_DEFINE_UNQUOTED(HA_LIBDIR,"$HA_LIBDIR", lib directory)
+AC_MSG_NOTICE(Sanitizing prefix: ${prefix})
+case $prefix in
+  NONE)	prefix=/usr;;
+esac
 
-HA_DATADIR="${datadir}"
-AC_SUBST(HA_DATADIR)
-AC_DEFINE_UNQUOTED(HA_DATADIR,"$HA_DATADIR", data (arch-independent) directory)
+AC_MSG_NOTICE(Sanitizing exec_prefix: ${exec_prefix})
+case $exec_prefix in
+  dnl For consistency with Heartbeat, map NONE->$prefix
+  NONE)	  exec_prefix=$prefix;;
+  prefix) exec_prefix=$prefix;;
+esac
 
-HA_NOARCHDATAHBDIR="$HA_DATADIR/${HB_PKG}"
-AC_SUBST(HA_NOARCHDATAHBDIR)
-AC_DEFINE_UNQUOTED(HA_NOARCHDATAHBDIR,"$HA_NOARCHDATAHBDIR", $HB_PKG noarch data directory)
+AC_MSG_NOTICE(Sanitizing INITDIR: ${INITDIR})
+case $INITDIR in
+  prefix) INITDIR=$prefix;;
+  "")
+    AC_MSG_CHECKING(which init (rc) directory to use)
+      for initdir in /etc/init.d /etc/rc.d/init.d /sbin/init.d	\
+	   /usr/local/etc/rc.d /etc/rc.d
+      do
+        if
+          test -d $initdir
+        then
+          INITDIR=$initdir
+          break
+        fi
+      done
+      AC_MSG_RESULT($INITDIR);;
+esac
+AC_SUBST(INITDIR)
 
-HA_VARRUNDIR="${localstatedir}/run"
-AC_SUBST(HA_VARRUNDIR)
-AC_DEFINE_UNQUOTED(HA_VARRUNDIR,"$HA_VARRUNDIR", var run directory)
+AC_MSG_NOTICE(Sanitizing libdir: ${libdir})
+case $libdir in
+  dnl For consistency with Heartbeat, map NONE->$prefix
+  *prefix*|NONE)
+    AC_MSG_CHECKING(which lib directory to use)
+    for aDir in lib64 lib
+    do
+      trydir="${exec_prefix}/${aDir}"
+      if
+        test -d ${trydir}
+      then
+        libdir=${trydir}
+        break
+      fi
+    done
+    AC_MSG_RESULT($libdir);
+    ;;
+esac
 
-HA_VARRUNHBDIR="$HA_VARRUNDIR/${HB_PKG}"
-AC_SUBST(HA_VARRUNHBDIR)
-AC_DEFINE_UNQUOTED(HA_VARRUNHBDIR,"$HA_VARRUNHBDIR", var run heartbeat directory)
+dnl Expand autoconf variables so that we dont end up with '${prefix}' 
+dnl in #defines and python scripts
+dnl NOTE: Autoconf deliberately leaves them unexpanded to allow
+dnl    make exec_prefix=/foo install
+dnl No longer being able to do this seems like no great loss to me...
 
-HA_VARRUNHBRSCDIR="$HA_VARRUNHBDIR/rsctmp"
-AC_SUBST(HA_VARRUNHBRSCDIR)
-AC_DEFINE_UNQUOTED(HA_VARRUNHBRSCDIR,"$HA_VARRUNHBRSCDIR", var run heartbeat rsctmp directory)
+eval prefix="`eval echo ${prefix}`"
+eval exec_prefix="`eval echo ${exec_prefix}`"
+eval bindir="`eval echo ${bindir}`"
+eval sbindir="`eval echo ${sbindir}`"
+eval libexecdir="`eval echo ${libexecdir}`"
+eval datadir="`eval echo ${datadir}`"
+eval sysconfdir="`eval echo ${sysconfdir}`"
+eval sharedstatedir="`eval echo ${sharedstatedir}`"
+eval localstatedir="`eval echo ${localstatedir}`"
+eval libdir="`eval echo ${libdir}`"
+eval includedir="`eval echo ${includedir}`"
+eval oldincludedir="`eval echo ${oldincludedir}`"
+eval infodir="`eval echo ${infodir}`"
+eval mandir="`eval echo ${mandir}`"
 
-dnl Test the default first (priority) and last (to make sure some value is set)
-AC_MSG_CHECKING(for the location of the lock directory)
-for HA_VARLOCKDIR in ${localstatedir}/lock ${localstatedir}/spool/lock ${localstatedir}/spool/locks ${localstatedir}/lock
-do
+dnl Home-grown variables
+eval INITDIR="${INITDIR}"
+eval docdir="`eval echo ${docdir}`"
+
+for j in prefix exec_prefix bindir sbindir libexecdir datadir sysconfdir \
+    sharedstatedir localstatedir libdir includedir oldincludedir infodir \
+    mandir INITDIR docdir
+do 
+  dirname=`eval echo '${'${j}'}'`
   if
-    test -d "$HA_VARLOCKDIR"
+    test ! -d "$dirname"
   then
-    AC_MSG_RESULT($HA_VARLOCKDIR)
+    AC_MSG_WARN([$j directory ($dirname) does not exist!])
+  fi
+done
+
+dnl This OS-based decision-making is poor autotools practice;
+dnl feature-based mechanisms are strongly preferred.
+dnl
+dnl So keep this section to a bare minimum; regard as a "necessary evil". 
+
+REBOOT_OPTIONS="-f"
+POWEROFF_OPTIONS="-f"
+
+case "$host_os" in
+*bsd*)		LIBS="-L/usr/local/lib"
+		CPPFLAGS="$CPPFLAGS -I/usr/local/include"
+		INIT_EXT=".sh"
+		;;
+*solaris*)
+		REBOOT_OPTIONS="-n"
+		POWEROFF_OPTIONS="-n"
+		;;
+*linux*)	
+		AC_DEFINE_UNQUOTED(ON_LINUX, 1, Compiling for Linux platform)
+		POWEROFF_OPTIONS="-nf"
+		REBOOT_OPTIONS="-nf"
+ 		;;
+darwin*)	
+		AC_DEFINE_UNQUOTED(ON_DARWIN, 1, Compiling for Darwin platform)
+  		LIBS="$LIBS -L${prefix}/lib"
+  		CFLAGS="$CFLAGS -I${prefix}/include"
+		;;
+esac
+
+dnl Eventually remove this 
+dnl CFLAGS="$CFLAGS -I${prefix}/include/heartbeat"
+
+AC_SUBST(INIT_EXT)
+AC_DEFINE_UNQUOTED(HA_LOG_FACILITY, LOG_DAEMON, Default logging facility)
+
+AC_MSG_NOTICE(Host CPU: $host_cpu)
+
+case "$host_cpu" in
+  ppc64|powerpc64)
+    case $CFLAGS in
+     *powerpc64*)			;;
+     *)	if test "$GCC" = yes; then
+	  CFLAGS="$CFLAGS -m64"
+	fi				;;
+    esac
+esac
+
+AC_MSG_CHECKING(which format is needed to print uint64_t)
+case "$host_cpu" in
+  s390x)U64T="%lu";;
+  *64*) U64T="%lu";;
+  *)    U64T="%llu";;
+esac
+AC_MSG_RESULT($U64T)
+AC_DEFINE_UNQUOTED(U64T, "$U64T", Correct printf format for logging uint64_t)
+
+AC_CHECK_HEADERS(heartbeat/hb_config.h)
+if test "$ac_cv_header_heartbeat_hb_config_h" != "yes"; then
+   AC_MSG_FAILURE(The heartbeat-common development headers were not found)
+fi
+
+dnl Variables needed for substitution
+
+GLUE_STATE_DIR=${localstatedir}/run
+AC_DEFINE_UNQUOTED(GLUE_STATE_DIR,"$GLUE_STATE_DIR", Where to keep state files and sockets)
+AC_SUBST(GLUE_STATE_DIR)
+
+AC_DEFINE_UNQUOTED(HA_VARRUNDIR,"$GLUE_STATE_DIR", Where Heartbeat keeps state files and sockets - old name)
+AC_SUBST(HA_VARRUNDIR)
+
+dnl Eventually move out of the heartbeat dir tree and create symlinks when needed
+HA_VARLIBHBDIR=${localstatedir}/lib/heartbeat
+AC_DEFINE_UNQUOTED(HA_VARLIBHBDIR,"$HA_VARLIBHBDIR", Whatever this used to mean)
+AC_SUBST(HA_VARLIBHBDIR)
+
+AC_DEFINE_UNQUOTED(OCF_ROOT_DIR,"$OCF_ROOT_DIR", OCF root directory - specified by the OCF standard)
+AC_SUBST(OCF_ROOT_DIR)
+
+OCF_RA_DIR="${OCF_ROOT_DIR}/resource.d/"
+AC_DEFINE_UNQUOTED(OCF_RA_DIR,"$OCF_RA_DIR", Location for OCF RAs)
+AC_SUBST(OCF_RA_DIR)
+
+AC_PATH_PROGS(HG, hg false)
+AC_MSG_CHECKING(build version)
+BUILD_VERSION=unknown
+if test -f $srcdir/.hg_archival.txt; then
+   BUILD_VERSION=`cat $srcdir/.hg_archival.txt | awk '/node:/ { print $2 }'`
+elif test -x $HG -a -d .hg; then
+   BUILD_VERSION=`$HG id -itb`
+   if test $? != 0; then
+       BUILD_VERSION=unknown
+   fi
+fi
+
+AC_DEFINE_UNQUOTED(BUILD_VERSION, "$BUILD_VERSION", Build version)
+AC_MSG_RESULT($BUILD_VERSION)
+AC_SUBST(BUILD_VERSION)
+
+dnl ===============================================
+dnl Program Paths
+dnl ===============================================
+
+PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin"
+export PATH
+
+AM_PATH_PYTHON
+AC_CHECK_PROGS(MAKE, gmake make)
+AC_PATH_PROGS(HTML2TXT, lynx w3m)
+AC_PATH_PROGS(HELP2MAN, help2man)
+AC_PATH_PROGS(POD2MAN, pod2man, pod2man)
+AC_PATH_PROGS(SSH, ssh, /usr/bin/ssh)
+AC_PATH_PROGS(SCP, scp, /usr/bin/scp)
+AC_PATH_PROGS(HG, hg, /bin/false)
+AC_PATH_PROGS(TAR, tar)
+AC_PATH_PROGS(MD5, md5)
+AC_PATH_PROGS(RPM, rpm)
+AC_PATH_PROGS(TEST, test)
+AC_PATH_PROGS(PING, ping, /bin/ping)
+AC_PATH_PROGS(IFCONFIG, ifconfig, /sbin/ifconfig)
+AC_PATH_PROGS(MAILCMD, mailx mail)
+AC_PATH_PROGS(EGREP, egrep)
+AC_PATH_PROGS(PKGCONFIG, pkg-config)
+AC_PATH_PROGS(XML2CONFIG, xml2-config)
+AC_PATH_PROGS(VALGRIND_BIN, valgrind, /usr/bin/valgrind)
+AC_DEFINE_UNQUOTED(VALGRIND_BIN, "$VALGRIND_BIN", Valgrind command)
+
+AC_SUBST(MAILCMD)
+AC_SUBST(EGREP)
+AC_SUBST(SHELL)
+AC_SUBST(PING)
+AC_SUBST(TEST)
+AC_SUBST(RPM)
+
+AC_MSG_CHECKING(ifconfig option to list interfaces)
+for IFCONFIG_A_OPT in  "-A" "-a" ""
+do
+  $IFCONFIG $IFCONFIG_A_OPT > /dev/null 2>&1
+  if
+    test "$?" = 0
+  then
+    AC_DEFINE_UNQUOTED(IFCONFIG_A_OPT, "$IFCONFIG_A_OPT", option for ifconfig command)
+    AC_MSG_RESULT($IFCONFIG_A_OPT)
     break
   fi
 done
 
-AC_SUBST(HA_VARLOCKDIR)
-AC_DEFINE_UNQUOTED(HA_VARLOCKDIR,"$HA_VARLOCKDIR", System lock directory)
+AC_SUBST(IFCONFIG_A_OPT)
 
-#
-#	Other interesting variables: ${host_vendor} and ${host_os}
-#			sample values:	suse		linux
-#
-
-dnl *************************************************************************
-PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin"
-export PATH
-dnl checks for programs
-dnl
-AM_PATH_PYTHON
-
-dnl Replacing AC_PROG_LIBTOOL with AC_CHECK_PROG because LIBTOOL
-dnl was NOT being expanded all the time thus causing things to fail.
-AC_CHECK_PROGS(MAKE, gmake make)
-AC_MSG_CHECKING(for gmake or make)
 if test x"${MAKE}" = x""; then
-   AC_MSG_ERROR(not found)
+   AC_MSG_ERROR(You need (g)make installed in order to build ${PACKAGE})
+fi
+
+AM_CONDITIONAL(BUILD_HELP, test x"${HELP2MAN}" != x"")
+if test x"${HELP2MAN}" != x""; then
+   PKG_FEATURES="$PKG_FEATURES manpages"
+fi
+
+dnl ===============================================
+dnl Libraries
+dnl ===============================================
+AC_CHECK_LIB(socket, socket)			
+AC_CHECK_LIB(gnugetopt, getopt_long)		dnl if available
+
+if test x"${PKGCONFIG}" = x""; then
+   AC_MSG_ERROR(You need pkgconfig installed in order to build ${PACKAGE})
+fi
+
+if test "x${enable_thread_safe}" = "xyes"; then
+        GPKGNAME="gthread-2.0"
 else
-   AC_MSG_RESULT($MAKE)
+        GPKGNAME="glib-2.0"
 fi
 
-AC_PATH_PROGS(HTML2TXT, lynx w3m)
-case $HTML2TXT in
-  */*)	;;
-  *)	HTML2TXT="";;
-esac
-AC_PATH_PROGS(POD2MAN, pod2man, pod2man)
-AC_PATH_PROGS(ROUTE, route)
-AC_PATH_PROGS(RPM, rpmbuild)
-if test x"${RPM}" = x""; then
-    AC_PATH_PROGS(RPM, rpm)
-fi
-AC_DEFINE_UNQUOTED(ROUTE, "$ROUTE", path to route command)
-AC_PATH_PROGS(NETSTAT, netstat, /sbin/netstat)
-AC_DEFINE_UNQUOTED(NETSTAT, "$NETSTAT", path to the netstat command)
-AC_PATH_PROGS(PING, ping, /bin/ping)
-AC_PATH_PROGS(IFCONFIG, ifconfig, /sbin/ifconfig)
-AC_PATH_PROGS(SSH, ssh, /usr/bin/ssh)
-AC_PATH_PROGS(SCP, scp, /usr/bin/scp)
-AC_PATH_PROGS(PYTHON, python)
-
-dnl Need a "mail" program which can handle "-s subject" flag.
-dnl Ideally would write a suitable autoconf test here.
-dnl Pragmatically observe:
-dnl   Solaris: "mail" doesn't offer "-s", but "mailx" does.  Want "mailx".
-dnl   Linux: "mail" offers "-s".  Some releases have "mailx" symlink to "mail".
-dnl   *BSD: Online man pages suggest similar to Linux.
-dnl   HP-UX: Online man pages suggest similar to Solaris.
-dnl Thus "mailx", if it exists, should always be good; look for it first.
-AC_PATH_PROGS(MAILCMD, mailx mail)
-AC_SUBST(MAILCMD)
-
-AC_DEFINE_UNQUOTED(IFCONFIG, "$IFCONFIG", path to the ifconfig command)
-AC_PATH_PROGS(GETENT, getent)
-AC_PATH_PROGS(IP2UTIL, ip, /sbin/ip)
-AC_PATH_PROGS(XML2CONFIG, xml2-config)
-
-AC_PATH_PROGS(REBOOT, reboot, /sbin/reboot)
-AC_PATH_PROGS(POWEROFF_CMD, poweroff, /sbin/poweroff)
-AC_SUBST(REBOOT)
-AC_SUBST(POWEROFF_CMD)
-AC_DEFINE_UNQUOTED(REBOOT, "$REBOOT", path to the reboot command)
-AC_DEFINE_UNQUOTED(POWEROFF_CMD, "$POWEROFF_CMD", path to the poweroff command)
-
-dnl "whoami", if it exists, may be hidden away on some System-V (e.g. Solaris)
-AC_PATH_PROGS(WHOAMI, whoami, , ${PATH}:/usr/ucb)
-AC_PATH_PROGS(SWIG, swig)
-AC_SUBST(SWIG)
-AC_PATH_PROGS(EGREP, egrep)
-AC_SUBST(EGREP)
-AC_PATH_PROGS(MSGFMT, msgfmt, [msgfmt not found],)
-AC_SUBST(MSGFMT)
-AC_PATH_PROGS(HG, hg, /usr/local/hg)
-AC_SUBST(HG)
-
-AC_PATH_PROGS(GZIP_PROG, gzip)
-AC_PATH_PROGS(TAR, tar)
-AC_PATH_PROGS(MD5, md5)
-AC_SUBST(GZIP_PROG)
-AC_SUBST(TAR)
-AC_SUBST(MD5)
-
-dnl The "test" program can be different from the "sh" builtin.
-AC_PATH_PROGS(TEST, test)
-AC_PATH_PROGS(PKGCONFIG, pkg-config)
-
-dnl ************************************************************************
-dnl Check whether non-root user can chown.
-dnl ************************************************************************
-
-if test -n "$WHOAMI"; then
-  IAM=`$WHOAMI`
-fi
-AC_MSG_CHECKING(if chown works for non-root)
-
-F="./.chown-test.$$"
-touch $F
-
-if
-  case "$IAM" in
-    root)	chown nobody $F;
-       		su nobody -c "chown root $F";;
-    *)	chown root $F
-  esac >/dev/null 2>&1
+if 
+   $PKGCONFIG --exists $GPKGNAME
 then
-  nonroot_chown=yes
-  AC_MSG_RESULT(yes)
-else
-  nonroot_chown=no
-  AC_MSG_RESULT(no)
-fi
-rm -f $F
-AM_CONDITIONAL(NONROOT_CHOWN, test "$nonroot_chown" = yes )
-
-EXTRAGLIBMSG="-"
-
-AC_MSG_CHECKING(for pkg-config)
-if test "X${PKGCONFIG}" = "X"; then
-	AC_MSG_ERROR(not found)
-fi
-AC_MSG_RESULT(${PKGCONFIG})
-
-GPKGNAME="glib-2.0"
-AC_MSG_CHECKING(for glib configuration)
-
-if test "X${PKGCONFIG}" != "X" && $PKGCONFIG --exists $GPKGNAME; then
 	GLIBCONFIG="$PKGCONFIG $GPKGNAME"
 else
 	set -x
@@ -353,10 +400,76 @@ else
 	$PKGCONFIG $GPKGNAME; echo $?
 	set +x
         
-	AC_MSG_ERROR(not found)
-
+	AC_MSG_ERROR(You need glib2-devel installed in order to build ${PACKAGE})
 fi
 AC_MSG_RESULT(using $GLIBCONFIG)
+
+if test "X$GLIBCONFIG" != X; then
+	AC_MSG_CHECKING(for special glib includes: )
+	GLIBHEAD=`$GLIBCONFIG --cflags`
+	AC_MSG_RESULT($GLIBHEAD)
+	CPPFLAGS="$CPPFLAGS $GLIBHEAD"
+
+	AC_MSG_CHECKING(for glib library flags)
+	GLIBLIB=`$GLIBCONFIG --libs`
+	AC_MSG_RESULT($GLIBLIB)
+	LIBS="$LIBS $GLIBLIB"
+fi
+
+dnl ========================================================================
+dnl Headers
+dnl ========================================================================
+
+AC_HEADER_STDC
+
+dnl ========================================================================
+dnl Functions
+dnl ========================================================================
+
+dnl 'reboot()' system call: one argument (e.g. Linux) or two (e.g. Solaris)?
+dnl
+AC_CACHE_CHECK([number of arguments in reboot system call],
+  ac_cv_REBOOT_ARGS,[
+    AC_TRY_COMPILE(
+      [#include <sys/reboot.h>],
+      [(void)reboot(0);],
+      ac_cv_REBOOT_ARGS=1,
+      [AC_TRY_COMPILE(
+        [#include <sys/reboot.h>],
+        [(void)reboot(0,(void *)0);],
+        ac_cv_REBOOT_ARGS=2,
+        ac_cv_REBOOT_ARGS=0
+      )],
+      ac_cv_REBOOT_ARGS=0
+    )
+  ]
+)
+dnl Argument count of 0 suggests no known 'reboot()' call.
+if test "$ac_cv_REBOOT_ARGS" -ge "1"; then
+  AC_DEFINE_UNQUOTED(REBOOT_ARGS,$ac_cv_REBOOT_ARGS,[number of arguments for reboot system call])
+fi
+
+AC_PATH_PROGS(REBOOT, reboot, /sbin/reboot)
+AC_SUBST(REBOOT)
+AC_SUBST(REBOOT_OPTIONS)
+AC_DEFINE_UNQUOTED(REBOOT, "$REBOOT", path to the reboot command)
+AC_DEFINE_UNQUOTED(REBOOT_OPTIONS, "$REBOOT_OPTIONS", reboot options)
+
+AC_PATH_PROGS(POWEROFF_CMD, poweroff, /sbin/poweroff)
+AC_SUBST(POWEROFF_CMD)
+AC_SUBST(POWEROFF_OPTIONS)
+AC_DEFINE_UNQUOTED(POWEROFF_CMD, "$POWEROFF_CMD", path to the poweroff command)
+AC_DEFINE_UNQUOTED(POWEROFF_OPTIONS, "$POWEROFF_OPTIONS", poweroff options)
+
+dnl ========================================================================
+dnl Functions
+dnl ========================================================================
+
+AC_CHECK_FUNCS(getopt, AC_DEFINE(HAVE_DECL_GETOPT,  1, [Have getopt function]))
+
+dnl ========================================================================
+dnl   libnet
+dnl ========================================================================
 
 AC_ARG_ENABLE([libnet],
  [  --enable-libnet 	Use libnet for ARP based funcationality, [default=try]], 
@@ -388,8 +501,8 @@ if test "x$enable_libnet" != "xno"; then
    AC_CHECK_LIB(nsl, t_open)			dnl -lnsl
    AC_CHECK_LIB(socket, socket)			dnl -lsocket
    AC_CHECK_LIB(net, libnet_get_hwaddr, LIBNETLIBS=" -lnet", [])
-fi
-
+ fi
+ 
 AC_MSG_CHECKING(for libnet)
 if test "x$LIBNETLIBS" != "x" -o "x$enable_libnet" = "xlibnet11"; then
       LIBNETDEFINES=""
@@ -442,262 +555,112 @@ dnl * Check for netinet/icmp6.h to enable the IPv6addr resource agent
 AC_CHECK_HEADERS(netinet/icmp6.h,[],[],[#include <sys/types.h>])
 AM_CONDITIONAL(USE_IPV6ADDR, test "$ac_cv_header_netinet_icmp6_h" = yes -a "$new_libnet" = yes )
 
-sendarp_linux=0
-case $host_os in
-     *Linux*|*linux*) sendarp_linux=1;;
-esac
+dnl ========================================================================
+dnl checks for library functions to replace them
+dnl
+dnl     NoSuchFunctionName:
+dnl             is a dummy function which no system supplies.  It is here to make
+dnl             the system compile semi-correctly on OpenBSD which doesn't know
+dnl             how to create an empty archive
+dnl
+dnl     scandir: Only on BSD.
+dnl             System-V systems may have it, but hidden and/or deprecated.
+dnl             A replacement function is supplied for it.
+dnl
+dnl     setenv: is some bsdish function that should also be avoided (use
+dnl             putenv instead)
+dnl             On the other hand, putenv doesn't provide the right API for the
+dnl             code and has memory leaks designed in (sigh...)  Fortunately this
+dnl             A replacement function is supplied for it.
+dnl
+dnl     strerror: returns a string that corresponds to an errno.
+dnl             A replacement function is supplied for it.
+dnl
+dnl     unsetenv: is some bsdish function that should also be avoided (No 
+dnl             replacement)
+dnl             A replacement function is supplied for it.
+dnl
+dnl	strnlen: is a gnu function similar to strlen, but safer.
+dnl		We wrote a tolearably-fast replacement function for it.
+dnl
+dnl	strndup: is a gnu function similar to strdup, but safer.
+dnl		We wrote a tolearably-fast replacement function for it.
+dnl
+dnl	daemon: is a GNU function.  The daemon() function is for programs wishing to
+dnl             detach themselves from the controlling terminal and run in the
+dnl             background as system daemon
+dnl             A replacement function is supplied for it.
 
-AC_SUBST(LIBNETLIBS)
-AC_SUBST(LIBNETDEFINES)
-AC_DEFINE(HAVE_LIBNET_API, test "x$libnet_version" != "xnone", Libnet API)
+AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv strnlen strndup daemon strlcpy strlcat)
 
-AM_CONDITIONAL(SENDARP_LINUX, test $sendarp_linux = 1 )
-AM_CONDITIONAL(USE_LIBNET, test "x$libnet_version" != "xnone" )
+dnl ========================================================================
+dnl Compiler flags
+dnl ========================================================================
 
+dnl Make sure that CFLAGS is not exported. If the user did
+dnl not have CFLAGS in their environment then this should have
+dnl no effect. However if CFLAGS was exported from the user's
+dnl environment, then the new CFLAGS will also be exported
+dnl to sub processes.
 
-AC_MSG_CHECKING(where is python installed)
-if test "x${PYTHON}" = x; then
-  PYTHON="/usr/bin/env python";
+CC_ERRORS=""
+CC_EXTRAS=""
+
+if export | fgrep " CFLAGS=" > /dev/null; then
+	export -n CFLAGS || true # We don't want to bomb out if this fails
 fi
-AC_MSG_RESULT(using $PYTHON);
 
-AC_MSG_CHECKING(if netstat supports -f inet flag)
-$NETSTAT -rn -f inet > /dev/null 2>&1
-if test x"$?" = x"0"; then
-	AC_DEFINE(NETSTATPARM, "-rn -f inet ", parameters to netstat to retrieve route information)
-	AC_MSG_RESULT(yes)
+if test "$GCC" != yes; then
+        CFLAGS="$CFLAGS -g"
+	enable_fatal_warnings=no
 else
-	AC_DEFINE(NETSTATPARM, "-rn ", parameters to netstat to retrieve route information)
-	AC_MSG_RESULT(no)
-fi
+        CFLAGS="$CFLAGS -ggdb3 -O0"
 
-AC_MSG_CHECKING(for ping)
-if test X${PING} = X
-then
-  AC_MSG_ERROR(not found)
-fi
-AC_MSG_RESULT($PING)
+	# We had to eliminate -Wnested-externs because of libtool changes
+        EXTRA_FLAGS="-fgnu89-inline
+		-fstack-protector-all
+		-Wall
+		-Waggregate-return
+		-Wbad-function-cast 
+		-Wcast-qual 
+		-Wcast-align 
+		-Wdeclaration-after-statement
+		-Wendif-labels
+		-Wfloat-equal
+		-Wformat=2
+		-Wformat-security
+		-Wformat-nonliteral
+		-Winline
+		-Wmissing-prototypes 
+		-Wmissing-declarations 
+		-Wmissing-format-attribute
+		-Wnested-externs
+		-Wno-long-long
+		-Wno-strict-aliasing
+		-Wpointer-arith 
+		-Wstrict-prototypes
+    		-Wunsigned-char
+		-Wwrite-strings"
 
-dnl Determine if we use -w1 or -t1 for ping (in PYTHON Scripts)
+# Additional warnings it might be nice to enable one day
+#		-Wshadow
+#		-Wunreachable-code
 
-AC_MSG_CHECKING(ping option for timeout - w or t)
-for PING_TIMEOUT_OPT in "-w1" "-t1"
-do
-  $PING -nq -c1 $PING_TIMEOUT_OPT localhost > /dev/null 2>&1
-  if
-    test "$?" = 0
-  then
-    AC_DEFINE_UNQUOTED(PING_TIMEOUT_OPT, "$PING_TIMEOUT_OPT", option for ping timeout)
-    AC_MSG_RESULT($PING_TIMEOUT_OPT)
-    break
-  fi
-done
-AC_SUBST(PING_TIMEOUT_OPT)
-
-
-dnl Determining a route (particularly for "findif").
-dnl There are various mechanisms on different systems.
-dnl Some mechanisms require root access to evaluate, but configure is often
-dnl (indeed, some say should be always) running non-root.
-dnl
-dnl Therefore much of the determination has to be run-time.
-dnl So the principle here, at configure time, is to explore what might be
-dnl available, and offer as much as possible to run-time.
-dnl
-AC_DEFINE(ROUTEPARM, "-n get", paramters for route to retrieve route information)
-AC_DEFINE(PROCROUTE, "/proc/net/route", path were to find route information in proc)
-
-
-AC_MSG_CHECKING(ifconfig option to list interfaces)
-for IFCONFIG_A_OPT in  "-A" "-a" ""
-do
-  $IFCONFIG $IFCONFIG_A_OPT > /dev/null 2>&1
-  if
-    test "$?" = 0
-  then
-    AC_DEFINE_UNQUOTED(IFCONFIG_A_OPT, "$IFCONFIG_A_OPT", option for ifconfig command)
-    AC_MSG_RESULT($IFCONFIG_A_OPT)
-    break
-  fi
-done
-
-AC_SUBST(IFCONFIG_A_OPT)
-AC_SUBST(WHOAMI)
-
-AC_SUBST(HTML2TXT)
-AC_SUBST(POD2MAN)
-AC_SUBST(ROUTEPARM)
-AC_SUBST(PROCROUTE)
-
-dnl
-dnl	Glib allows its headers/libraries to be installed anywhere.
-dnl	And they provide a command to let you know where they are.
-dnl	This is nice, but having them in standard places is nice too ;-)
-dnl
-
-if test "X$GLIBCONFIG" != X; then
-	AC_MSG_CHECKING(for special glib includes: )
-	GLIBHEAD=`$GLIBCONFIG --cflags`
-	AC_MSG_RESULT($GLIBHEAD)
-
-	CPPFLAGS="$CPPFLAGS $GLIBHEAD"
-	AC_SUBST(GLIBHEAD)
-
-	dnl Note: Not bundling "GLIBLIB" with general "LIBS".
-	dnl	1. Only very few programs require GLIBLIB
-	dnl		(This isn't true anymore -- AlanR)
-	dnl	2. Danger of creating run-time dependency on build-time LD_LIBRARY_PATH
-	AC_MSG_CHECKING(for glib library flags)
-	GLIBLIB=`$GLIBCONFIG --libs`
-	AC_MSG_RESULT($GLIBLIB)
-	AC_SUBST(GLIBLIB)
-fi
-
-dnl ************************************************************************
-dnl  Handy function for checking for typedefs or struct defs
-dnl ************************************************************************
-
-check_for_type() {
-  type="$1"
-  headers=""
-  shift
-  for arg
-  do
-    headers="${headers}${arg}
-"
-  done
-  program="if ((${type} *) 0)  return 0;
-    if (sizeof(${type}))  return 0; 
-    return 0;"
-  have="HAVE_`echo "$type" | tr ' ' '_' | dd conv=ucase 2>/dev/null`"
-  varhave="heartbeat_cv_$have"
-
-  AC_CACHE_CHECK([for type $type ],$varhave,[
-    AC_TRY_COMPILE([$headers], [$program], eval $varhave=yes, eval $varhave=no
-    , eval $varhave=cross)
-  ])
-  if test x"`eval echo '${'$varhave'}'`" = xyes; then
-    return 0
-  fi
-  return 1
-}
-
-check_for_type_member() {
-  type="$1"
-  member="$2"
-  headers=""
-  shift
-  shift
-  for arg
-  do
-    headers="${headers}${arg}
-"
-  done
-  program="${type} foo;
-    if ((${type} *) 0)  return 0;
-    if (sizeof(${type}))  return 0;
-    if (sizeof(foo))  return 0;
-    (void*)foo.${member};
-    return 0;"
-  have="HAVE_`echo "$type" | tr ' ' '_' | dd conv=ucase 2>/dev/null`"
-  varhave="heartbeat_cv_$have"
-
-  AC_CACHE_CHECK([for type $type ],$varhave,[
-    AC_TRY_COMPILE([$headers], [$program], eval $varhave=yes, eval $varhave=no
-    , eval $varhave=cross)
-  ])
-  if test x"`eval echo '${'$varhave'}'`" = xyes; then
-    return 0
-  fi
-  return 1
-}
-
-dnl ************************************************************************
-dnl  checks for typedefs
-dnl
-
-dnl if not known on this system, #define size_t unsigned
-AC_TYPE_SIZE_T
-
-dnl ************************************************************************
-dnl checks for compiler characteristics
-dnl
-
-dnl Warnings for C compilers.  Note: generic, portable warnings only.
-dnl Things likely to be specific to a particular OS or module should be
-dnl carefully handled afterwards.
-
-AC_C_STRINGIZE
-
-dnl **********************************************************************
-dnl      Check the size of the integer types
-dnl      So we can have integers of known sizes as needed
-dnl
-AC_CHECK_SIZEOF(char)
-AC_CHECK_SIZEOF(short)
-AC_CHECK_SIZEOF(int)
-AC_CHECK_SIZEOF(long)
-AC_CHECK_SIZEOF(long long)
-
-AC_ARG_ENABLE([fatal-warnings],
-[  --enable-fatal-warnings very pedantic and fatal warnings for gcc
-                          [default=yes]],
-                          [], [enable_fatal_warnings=unknown])
-
-if test "$GCC" = yes; then
-
-	cc_supports_flag() {
-	  AC_MSG_CHECKING(whether $CC supports "$@")
-	  Cfile=/tmp/foo${$}
-	  touch ${Cfile}.c
-	  $CC -c "$@" ${Cfile}.c -o ${Cfile}.o >/dev/null 2>&1
-          rc=$?
-	  rm -f ${Cfile}.c ${Cfile}.o
-          case $rc in
-            0) AC_MSG_RESULT(yes);;
-            *) AC_MSG_RESULT(no);;
-          esac
-          return $rc
-	}
-
-	EXTRA_WARNINGS=""
-        WARNLIST="all missing-prototypes 
-		missing-declarations 
-		strict-prototypes 
-		declaration-after-statement
-		pointer-arith 
-		write-strings
-		cast-qual cast-align 
-		bad-function-cast 
-		inline
-		missing-format-attribute
-		format=2
-		format-security
-		format-nonliteral
-		no-long-long
-		no-strict-aliasing"
-
-	for j in $WARNLIST
+	for j in $EXTRA_FLAGS
 	do
 	  if
-	    cc_supports_flag -W$j
+	    cc_supports_flag $j
 	  then
-            case $j in
-               "no-long-long")
-        		if test "${enable_no_long_long}" = "yes"; then
-			  EXTRA_WARNINGS="$EXTRA_WARNINGS -W$j"
-			fi;;
-
-               *)	EXTRA_WARNINGS="$EXTRA_WARNINGS -W$j";;
-            esac
+	    CC_EXTRAS="$CC_EXTRAS $j"
 	  fi
 	done
 
-dnl Add any system specific options here.
+dnl In lib/ais/Makefile.am there's a gcc option available as of v4.x
 
-	if test "${enable_ansi}" = "unknown"; then
-        	enable_ansi=yes
-        fi
+	GCC_MAJOR=`gcc -v 2>&1 | awk 'END{print $3}' | sed 's/[.].*//'`
+	AM_CONDITIONAL(GCC_4, test "${GCC_MAJOR}" = 4)
+
+dnl System specific options
 
 	case "$host_os" in
   	*linux*|*bsd*)
@@ -705,67 +668,25 @@ dnl Add any system specific options here.
         		enable_fatal_warnings=yes
         	fi
           	;;
-  	*solaris*)
-          	;;
 	esac
 
-	if test "${enable_ansi}" = yes && cc_supports_flag -std=iso9899:199409 ; then
-	echo "Enabling ANSI Compatibility on this platform"
-	ANSI="-ansi -D_GNU_SOURCE -DANSI_ONLY"
-	fi
-
-	if test "${enable_fatal_warnings}" = yes && cc_supports_flag -Werror ; then
-          echo "Enabling Fatal Warnings (-Werror) on this platform"
-    	  FATAL_WARNINGS="-Werror"
+	if test "x${enable_fatal_warnings}" != xno && cc_supports_flag -Werror ; then
+	   enable_fatal_warnings=yes
+	else
+	   enable_fatal_warnings=no
         fi
-        
-	if test "$enable_traditional_warning" = yes && \
-		 cc_supports_flag -Wtraditional; then
-	  echo "Enabling traditional warnings"
-    	  EXTRA_WARNINGS="$EXTRA_WARNINGS -Wtraditional"
+
+	if test "x${enable_ansi}" != xno && cc_supports_flag -std=iso9899:199409 ; then
+	  AC_MSG_NOTICE(Enabling ANSI Compatibility)
+	  CC_EXTRAS="$CC_EXTRAS -ansi -D_GNU_SOURCE -DANSI_ONLY"
 	fi
 
-
-	CC_WARNINGS="$EXTRA_WARNINGS $FATAL_WARNINGS $ANSI" 
-	NON_FATAL_CC_WARNINGS="$EXTRA_WARNINGS"
-
-dnl Inline semantics are to be changed as of gcc v4.3. Since
-dnl 4.1.3 gcc issues a warning in case there are inlines. That's the
-dnl case with glib2.
-
-	ver2num() {
-		awk -F. '{print $3+($2+($1*100))*100;}'
-	}
-	GCCVER=`gcc -v 2>&1 | awk 'END{print $3}' |
-		ver2num`
-	firstver=40103 # 4.1.3
-	lastver=40300 # 4.3.0
-
-	if test $GCCVER -ge $firstver -a $GCCVER -lt $lastver; then
-		CFLAGS="$CFLAGS -fgnu89-inline"
-	fi
-
-	if test "x${ENABLE_SNMP}" = "xyes" &&
-			echo "${SNMPLIB}" | grep netsnmp >/dev/null; then
-		inline_ver=`echo 4.3.0 | ver2num`
-		if test $GCCVER -ge $inline_ver; then
-			CFLAGS="$CFLAGS -DNETSNMP_BROKEN_INLINE"
-		fi
-	fi
-
+  	AC_MSG_NOTICE(Activated additional gcc flags: ${CC_EXTRAS})
 fi
 
-if
-  test  -z "${IP2UTIL}" -o ! -x "${IP2UTIL}"
-then
-  IP2UTIL=/sbin/ip
-fi
+CFLAGS="$CFLAGS $CC_EXTRAS"
 
-dnl
-dnl Lex and yacc can't be trusted to produce code that won't produce
-dnl warnings
-dnl
-NON_FATAL_CFLAGS="$CFLAGS $NON_FATAL_CC_WARNINGS"
+NON_FATAL_CFLAGS="$CFLAGS"
 AC_SUBST(NON_FATAL_CFLAGS)
 
 dnl
@@ -775,143 +696,55 @@ dnl AC_*FUNCS() calls above from working.  In particular, -Werror will
 dnl *always* cause us troubles if we set it before here.
 dnl
 dnl
-CFLAGS="$CFLAGS $CC_WARNINGS"
-
-dnl
-dnl Make sure that CFLAGS is not exported. If the user did
-dnl not have CFLAGS in their environment then this should have
-dnl no effect. However if CFLAGS was exported from the user's
-dnl environment, then the new CFLAGS will also be exported
-dnl to sub processes. This causes a problem when configure
-dnl is run in the libltdl directory. Horms 16th July 2002
-dnl
-
-if export | fgrep " CFLAGS=" > /dev/null; then
-	export -n CFLAGS || true # We don't want to bomb out if this fails
+if test "x${enable_fatal_warnings}" = xyes ; then
+   AC_MSG_NOTICE(Enabling Fatal Warnings)
+   CFLAGS="$CFLAGS -Werror"
 fi
+AC_SUBST(CFLAGS)
 
-if test "$GCC" = yes; then
-  CFLAGS="$CFLAGS -ggdb3"
-  if
-    cc_supports_flag -funsigned-char
-  then
-    CFLAGS="$CFLAGS -funsigned-char"
-  fi
-else
-  CFLAGS="$CFLAGS -g"
-fi
-dnl AC_SUBST(CC_WARNINGS)
+dnl This is useful for use in Makefiles that need to remove one specific flag
+CFLAGS_COPY="$CFLAGS"
+AC_SUBST(CFLAGS_COPY)
 
-dnl ************ OCF (Open Cluster Framework) **********************
-dnl Should be consistent with the OCF standard fixed pathname /usr/lib/ocf
-dnl Changing it from this value violates the OCF standard. 
-dnl This is why it is not affected by the PREFIX setting.
-dnl We do not recommend changing it.
-dnl
-OCF_ROOT_DIR="/usr/lib/ocf"
-AC_ARG_WITH(ocf-root,
-    [  --with-ocf-root=DIR      directory for OCF scripts [${OCF_ROOT_DIR}]],
-    [ if test x"$withval" = xprefix; then OCF_ROOT_DIR=${prefix}; else
-	 OCF_ROOT_DIR="$withval"; fi ])
-
-AC_MSG_CHECKING(OCF directory)
-if test "X$OCF_ROOT_DIR" = X; then
-  AC_MSG_ERROR(Not specified)
-fi
-AC_MSG_RESULT($OCF_ROOT_DIR)
-
-AC_SUBST(OCF_ROOT_DIR)
-AC_DEFINE_UNQUOTED(OCF_ROOT_DIR,"$OCF_ROOT_DIR", OCF root directory - specified by the OCF standard)
-
-OCF_RA_DIR="${OCF_ROOT_DIR}/resource.d/"
-AC_SUBST(OCF_RA_DIR)
-AC_DEFINE_UNQUOTED(OCF_RA_DIR,"$OCF_RA_DIR", Location for OCF RAs)
-
-dnl **********************************************************************
-dnl 'AWK' had been determined via 'aclocal.m4' as the simple name, using
-dnl the current PATH (i.e. in the context of 'configure').
-dnl
-dnl Things within heartbeat will use 'AWK', but from a different context,
-dnl so we should determine, and substitute, the full path.
-dnl
-dnl Note: Even that may have a flaw, e.g. if 'configure' finds (say) 'gawk',
-dnl which we here convert to '/path/to/gawk', but the run-time machine lacks it.
-dnl We won't worry about that for now.
-dnl (David Lee; March 2007)
-AC_PATH_PROGS([AWK], $AWK)
-
-MAKE="${MAKE} \$(QUIET_MAKE_OPTS)"
+AC_SUBST(LOCALE)
 
 AC_SUBST(CC)
 AC_SUBST(MAKE)
-AC_SUBST(LIBTOOL)
-AC_SUBST(PRETTY_CC)
-AC_SUBST(REAL_CC)
-AC_SUBST(QUIET_MAKE_OPTS)
-AC_SUBST(QUIET_LIBTOOL_OPTS)
-
-dnl *** "echo" adjustments (begin) ***
-dnl Some run-time scripts require options to "echo".
-dnl This configure is already determining and using "ac_n" and "ac_c"
-dnl for internal use, so make available externally.
-dnl (Not sure how "future proof" this is, but it at least seems clean.)
-dnl
-dnl This must be close to the end of "configure.in" otherwise it interferes
-dnl with output from the AC_MSG_*() macros.
-ECHO_N="$ac_n"
-ECHO_C="$ac_c"
-
-case $ac_n in
-  -n)	ECHO_E="-e";;
-  *)	ECHO_E="";;
-esac
-
-ECHO_CMD="echo"
-if
-  test -x /usr/linux/bin/echo
-then
-  #	This is for AIX.  I'm not sure it's necessary...
-  ECHO_CMD="/usr/linux/bin/echo"
-  ECHO_N="-n"
-  ECHO_E="-e"
-fi
-
-AC_SUBST(ECHO_N)
-AC_SUBST(ECHO_C)
-AC_SUBST(ECHO_E)
-AC_SUBST(ECHO_CMD)
-dnl *** "echo" adjustments (end) ***
 
 dnl The Makefiles and shell scripts we output
 AC_CONFIG_FILES(Makefile				        \
-	heartbeat/Makefile					\
-	heartbeat/.ocf-binaries					\
-	heartbeat/.ocf-directories				\
-	heartbeat/.ocf-shellfuncs				\
-	heartbeat/ocf-returncodes				\
-	heartbeat/ocf-shellfuncs				\
+heartbeat/Makefile						\
+   heartbeat/.ocf-binaries					\
+   heartbeat/.ocf-directories					\
+   heartbeat/.ocf-shellfuncs					\
+   heartbeat/ocf-returncodes					\
+   heartbeat/ocf-shellfuncs					\
 		)
 
 dnl Now process the entire list of files added by previous 
 dnl  calls to AC_CONFIG_FILES()
 AC_OUTPUT()
 
-dnl subpackages configuration - perhaps configure it properly some other time
-dnl when it has been discussed at linux-ha-dev
-dnl AC_CONFIG_SUBDIRS(stonith heartbeat)
-
 dnl *****************
 dnl Configure summary
 dnl *****************
 
-eval my_localstatedir="`eval echo ${localstatedir}`"
-
 AC_MSG_RESULT([])
 AC_MSG_RESULT([$PACKAGE configuration:])
-AC_MSG_RESULT([  Version                  = "$VERSION"])
+AC_MSG_RESULT([  Version                  = ${VERSION} (Build: $BUILD_VERSION)])
+AC_MSG_RESULT([  Features                 =${PKG_FEATURES}])
+AC_MSG_RESULT([])
+AC_MSG_RESULT([  Prefix                   = ${prefix}])
+AC_MSG_RESULT([  Executables              = ${sbindir}])
+AC_MSG_RESULT([  Man pages                = ${mandir}])
+AC_MSG_RESULT([  Libraries                = ${libdir}])
+AC_MSG_RESULT([  Header files             = ${includedir}])
+AC_MSG_RESULT([  Arch-independent files   = ${datadir}])
+AC_MSG_RESULT([  State information        = ${localstatedir}])
+AC_MSG_RESULT([  System configuration     = ${sysconfdir}])
+AC_MSG_RESULT([  AIS Plugins              = ${LCRSODIR}])
+AC_MSG_RESULT([])
+AC_MSG_RESULT([  CFLAGS                   = ${CFLAGS}])
+AC_MSG_RESULT([  Libraries                = ${LIBS}])
+AC_MSG_RESULT([  Stack Libraries          = ${CLUSTERLIBS}])
 
-AC_MSG_RESULT([  State information        = "$my_localstatedir"])
-
-AC_MSG_RESULT([  CC_WARNINGS              = "${CC_WARNINGS}"])
-AC_MSG_RESULT([  Mangled CFLAGS           = "${CFLAGS}"])
-AC_MSG_RESULT([  Libraries                = "${LIBS}"])
