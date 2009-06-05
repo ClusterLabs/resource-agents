@@ -166,6 +166,8 @@ static int assign_addr6(struct in6_addr* addr6, int prefix_len, char* if_name);
 static int unassign_addr6(struct in6_addr* addr6, int prefix_len, char* if_name);
 int is_addr6_available(struct in6_addr* addr6);
 static int send_ua(struct in6_addr* src_ip, char* if_name);
+static uint16_t icmpv6_cksum(struct in6_addr* src_ip, struct libnet_in6_addr* dst_ip, char* payload, int payload_len);
+static uint32_t cksum_sum(uint16_t *addr, int len, int ntoh);
 
 int
 main(int argc, char* argv[])
@@ -374,6 +376,58 @@ monitor_addr6(struct in6_addr* addr6, int prefix_len)
 	return OCF_NOT_RUNNING;
 }
 
+/* compute ICMPv6 checksum */
+static uint32_t
+cksum_sum(uint16_t *addr, int len, int ntoh)
+{
+ uint16_t * w   = addr;
+ uint16_t   ret = 0;
+ uint32_t   sum = 0;
+
+ while (len > 1) {
+  ret = *w++;
+  if (ntoh) ret = ntohs(ret);
+  sum += ret;
+  len -= 2;
+ }
+
+ if (len == 1) {
+  *(unsigned char *) (&ret) = *(unsigned char *) w;
+  sum += ret;
+ }
+
+ return sum;
+}
+
+static uint16_t
+icmpv6_cksum(struct in6_addr* src_ip, struct libnet_in6_addr* dst_ip, char* payload, int payload_len)
+{
+ uint32_t sum = 0;
+ uint16_t val = 0;
+
+ /* IPv6 pseudo header */
+ sum += cksum_sum( src_ip->s6_addr16, 16, 1 );
+ sum += cksum_sum( (uint16_t *)dst_ip, 16, 1 );
+ val = payload_len + (2 * sizeof(uint32_t));
+ sum += cksum_sum( &val, 2, 0 );
+ val = 58;
+ sum += cksum_sum( &val, 2, 0 );
+
+ /* ICMPv6 packet */
+ val = 0x8800;
+ sum += cksum_sum( &val, 2, 0 );
+ val = 0x2000;
+ sum += cksum_sum( &val, 2, 0 );
+ sum += cksum_sum( (uint16_t *)payload, payload_len, 1 );
+
+ /* perform 16-bit one's complement of sum */
+ sum = (sum >> 16) + (sum & 0xffff);
+ sum += (sum >> 16);
+ val = ~sum;
+
+ return val;
+}
+
 /* Send an unsolicited advertisement packet
  * Please refer to rfc2461
  */
@@ -418,7 +472,7 @@ send_ua(struct in6_addr* src_ip, char* if_name)
 
 	libnet_seed_prand(l);
 	/* 0x2000: RSO */
-	libnet_build_icmpv4_echo(136,0,0,0x2000,0,(u_int8_t *)payload
+	libnet_build_icmpv4_echo(136,0,icmpv6_cksum(src_ip,&dst_ip,payload,sizeof(payload)),0x2000,0,(u_int8_t *)payload
 			,sizeof(payload), l, LIBNET_PTAG_INITIALIZER);
 	libnet_build_ipv6(0,0,LIBNET_ICMPV6_H + sizeof(payload),IPPROTO_ICMP6,
 				255,*(struct libnet_in6_addr*)src_ip,
