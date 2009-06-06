@@ -86,6 +86,19 @@ cc_supports_flag() {
          return $RC
 }
 
+extract_header_define() {
+	  AC_MSG_CHECKING(for $2 in $1)
+	  Cfile=/tmp/extract_define.$2.${$}
+	  printf "#include <stdio.h>\n" > ${Cfile}.c
+	  printf "#include <%s>\n" $1 >> ${Cfile}.c
+	  printf "int main(int argc, char **argv) { printf(\"%%s\", %s); return 0; }\n" $2 >> ${Cfile}.c
+	  $CC $CFLAGS ${Cfile}.c -o ${Cfile}
+	  value=`${Cfile}`
+	  AC_MSG_RESULT($value)
+	  printf $value
+	  rm -f ${Cfile}.c ${Cfile}
+	}
+
 dnl ===============================================
 dnl Configure Options
 dnl ===============================================
@@ -123,10 +136,6 @@ dnl ===============================================
 
 INIT_EXT=""
 echo Our Host OS: $host_os/$host
-
-if test "X$OCF_ROOT_DIR" = X; then
-  OCF_ROOT_DIR="/usr/lib/ocf"
-fi
 
 AC_MSG_NOTICE(Sanitizing prefix: ${prefix})
 case $prefix in
@@ -271,12 +280,18 @@ esac
 AC_MSG_RESULT($U64T)
 AC_DEFINE_UNQUOTED(U64T, "$U64T", Correct printf format for logging uint64_t)
 
-AC_CHECK_HEADERS(heartbeat/hb_config.h)
-if test "$ac_cv_header_heartbeat_hb_config_h" != "yes"; then
-   AC_MSG_FAILURE(The heartbeat-common development headers were not found)
-fi
 
 dnl Variables needed for substitution
+
+AC_CHECK_HEADERS(glue_config.h)
+if test "X$OCF_ROOT_DIR" = X; then
+  if test "$ac_cv_header_glue_config_h" != "yes"; then
+    AC_MSG_FAILURE(The cluster-glue development headers were not found)
+  fi
+  OCF_ROOT_DIR=`extract_header_define glue_config.h OCF_ROOT_DIR`
+fi
+AC_DEFINE_UNQUOTED(OCF_ROOT_DIR,"$OCF_ROOT_DIR", OCF root directory - specified by the OCF standard)
+AC_SUBST(OCF_ROOT_DIR)
 
 GLUE_STATE_DIR=${localstatedir}/run
 AC_DEFINE_UNQUOTED(GLUE_STATE_DIR,"$GLUE_STATE_DIR", Where to keep state files and sockets)
@@ -289,9 +304,6 @@ dnl Eventually move out of the heartbeat dir tree and create symlinks when neede
 HA_VARLIBHBDIR=${localstatedir}/lib/heartbeat
 AC_DEFINE_UNQUOTED(HA_VARLIBHBDIR,"$HA_VARLIBHBDIR", Whatever this used to mean)
 AC_SUBST(HA_VARLIBHBDIR)
-
-AC_DEFINE_UNQUOTED(OCF_ROOT_DIR,"$OCF_ROOT_DIR", OCF root directory - specified by the OCF standard)
-AC_SUBST(OCF_ROOT_DIR)
 
 OCF_RA_DIR="${OCF_ROOT_DIR}/resource.d/"
 AC_DEFINE_UNQUOTED(OCF_RA_DIR,"$OCF_RA_DIR", Location for OCF RAs)
