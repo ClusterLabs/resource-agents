@@ -35,7 +35,7 @@ endif
 
 IPv6addr_SOURCES        = IPv6addr.c
 
-IPv6addr_LDADD          = $(top_builddir)/lib/clplumbing/libplumb.la $(LIBNETLIBS)
+IPv6addr_LDADD          = -lplumb $(LIBNETLIBS)
 
 ocf_SCRIPTS	     =  ClusterMon 	\
 			Dummy		\

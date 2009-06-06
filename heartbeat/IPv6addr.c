@@ -83,7 +83,7 @@
  *	return 2(OCF_ERR_ARGS) for invalid or excess argument(s)
  */
 
-#include <lha_internal.h>
+#include <config.h>
 
 #include <stdlib.h>
 #include <sys/types.h>
@@ -189,7 +189,7 @@ main(int argc, char* argv[])
 
 	/* open system log */
 	cl_log_set_entity(APP_NAME);
-	cl_log_set_facility(HA_LOG_FACILITY);
+	cl_log_set_facility(LOG_DAEMON);
 
 	/* the meta-data dont need any parameter */
 	if (0 == strncmp(META_DATA_CMD, argv[1], strlen(META_DATA_CMD))) {

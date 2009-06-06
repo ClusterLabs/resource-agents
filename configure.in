@@ -560,6 +560,7 @@ else
    AC_CHECK_LIB($libnet,libnet_init,
       [new_libnet=yes; AC_DEFINE(HAVE_LIBNET_1_1_API, 1, Libnet 1.1 API)],
       [new_libnet=no; AC_DEFINE(HAVE_LIBNET_1_0_API, 1, Libnet 1.0 API)],$LIBNETLIBS)
+   AC_SUBST(LIBNETLIBS)
 fi
 
 dnl ************************************************************************
