@@ -85,6 +85,7 @@ which can then be used in drbd.conf.
 <shortdesc lang="en">Override drbd hostname</shortdesc>
 <content type="boolean" default="no"/>
 </parameter>
+</parameters>
 
 <actions>
 <action name="start"   timeout="240" />
