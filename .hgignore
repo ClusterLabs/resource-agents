@@ -1,0 +1,79 @@
+syntax: glob
+
+
+# Autofoo entries
+*.o
+*.la
+*.lo
+*.loT
+*.pyc
+.libs
+.deps
+*.cache
+*.upgrade.xml
+.cvsignore
+compile
+configure
+configure.status
+configure.lineno
+depcomp
+aclocal.m4
+libtool
+ltmain.sh
+ltconfig
+libltdl
+mkinstalldirs
+install-sh
+missing
+py-compile
+autom4te*
+libtool.m4
+ltdl.m4
+libltdl.tar
+autoconf
+autoheader
+automake
+ylwrap
+
+# BEAM Entries
+*.beam
+parser-messages
+MISC_ERRORS
+cscope.files
+cscope.out
+patches
+updates
+logs
+
+# OS and Editor Artifacts
+.DS_Store
+.bomb
+*.rej
+*.bz2
+*.sed
+*.diff
+*.patch
+*.gres
+*~
+
+# Misc
+HTML
+TAGS
+GPATH
+GRTAGS
+GSYMS
+GTAGS
+.gres.*
+*.orig
+.gdb_history
+*~ 
+\#*
+.changes
+pacemaker.tar.gz
+
+# Entries better done as regexp's to avoid matching too broadly
+syntax: regexp
+^config\.*
+README$
+Makefile$
+Makefile.in$

@@ -1,0 +1,336 @@
+Shared Disk File EXclusiveness Control Program version 1.3
+OCF Resource Agent for Heartbeat v2
+FOR USE IN LINUX 2.6 KERNEL OPERATING SYSTEM ENVIRONMENTS ONLY. 
+
+Copyright (c) 2007 NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+
+Note: Before using this information and the product it supports, 
+read the general information in section 4.0 "Trademarks and Notices" 
+in this document.
+
+Last Update Date:  10/10/2007
+
+
+=======================================================================
+CONTENTS
+--------
+1.0  Overview
+2.0  Installation and Setup Instructions
+3.0  Configuration Information
+4.0  Trademarks and Notices
+5.0  Disclaimer
+
+=======================================================================
+
+1.0   Overview
+--------------
+Shared Disk File EXclusiveness Control Program, called "SF-EX" for short, 
+can prevent a destruction of data on shared disk file system due to 
+Split-Brain.
+
+=======================================================================
+
+1.1  Limitations
+---------------------
+This program is tested on the following environment.
+
+	Heartbeat 2.1.2-2
+	Red Hat Enterprise Linux ES release 4 (Nahant Update 5) EM64T
+
+=======================================================================
+
+2.0   Installation and Setup Instructions
+-----------------------------------------
+
+	2.1.1 Prerequisites
+		SF-EX is released as a source-code package in the format
+		of a gunzip compressed tar file. To unpack the source
+		package, type the following command in the Linux console
+		window:
+		
+		$ tar zxf sfex-1.3.tar.gz
+
+		The source files will uncompress to the "sf-ex-x.x"
+            	directory. 
+
+	2.1.3 Build and Installation
+
+		Change unpacked directory first.
+
+		$ cd sfex-1.3
+
+		Type the following command in the Linux console window:
+		Press Enter after each command.
+		
+		$ ./configure
+		$ make
+		$ su
+		(you need root's password)
+		# make install
+
+		"make install" will copy the modules to /usr/lib64/heartbeat
+
+		NOTE: "make install" should be done on all nodes
+		which Heartbeat would run.
+
+		NOTE: in case of 32bit system
+		If you want to run SF-EX on 32bit system, the modules
+		should be setup on /usr/lib/heartbeat.
+		Use the following configure option on 32bit system.
+
+		$ ./configure --with-lib-dir=/usr/lib/heartbeat
+
+	2.1.3 Initialization of a device
+		Before running SF-EX, one device should be initialized
+		as below.
+		
+		sfex_init [-b <blocksize>] [-n <numlocks>] <device>
+
+		Example:
+		# /usr/lib/heartbeat/sfex_init -b 512 -n 10 /dev/sdb1
+
+		Initialized device is going to be used as a control area
+		for SF-EX.
+		See 3.2.2, if further information is necessary.
+
+	2.1.4 Access without O_DIRECT
+		If you are planning to access a device without using
+		O_DIRECT, the following option is available.
+
+		Example:
+		$ ./configure -enable-directio=no
+
+		Default value for --enable-directio is "yes".
+
+=======================================================================
+
+3.0 Configuration Information
+-----------------------------
+
+3.1 Configuration Settings
+--------------------------
+
+	3.1.1 Edit your cib.xml
+		The following example shows a typical configuration
+		for SF-EX and Filesystem.
+		
+	3.1.2 Example for cib.xml
+		
+		/dev/sda1	control area for SF-EX
+		/dev/sda2	Filesystem
+
+--- skip ---
+<resources>
+ <group id="grp">
+  <primitive id="prmEx" class="ocf" type="sfex" provider="heartbeat">
+   <operations>
+    <op id="ex_start"   name="start"   timeout="180s" on_fail="fence"/>
+    <op id="ex_monitor" name="monitor" timeout="60s"  on_fail="fence" interval="10s" />
+    <op id="ex_stop"    name="stop"    timeout="60s"  on_fail="fence"/>
+   </operations>
+   <instance_attributes id="atrEx">
+    <attributes>
+     <nvpair id="dsk" name="device"            value="/dev/sda1"/>
+     <nvpair id="idx" name="index"             value="1"/>
+     <nvpair id="clt" name="collision_timeout" value="1"/>
+     <nvpair id="lct" name="lock_timeout"      value="70"/>
+     <nvpair id="mnt" name="monitor_interval"  value="10"/>
+     <nvpair id="fck" name="fsck"              value="/sbin/fsck -p /dev/sdb2"/>
+     <nvpair id="fcm" name="fsck_mode"         value="check"/>
+     <nvpair id="hlt" name="halt"              value="/sbin/halt -f -n -p"/>
+    </attributes>
+   </instance_attributes>
+  </primitive>
+  <primitive id="prmFs" class="ocf" type="Filesystem" provider="heartbeat">
+   <operations>
+    <op id="fs_start"   name="start"   timeout="60s"  on_fail="fence"/>
+    <op id="fs_monitor" name="monitor" timeout="60s"  on_fail="fence" interval="10s" />
+    <op id="fs_stop"    name="stop"    timeout="60s"  on_fail="fence"/>
+   </operations>
+   <instance_attributes id="atrFs">
+    <attributes>
+     <nvpair id="dev"  name="device"           value="/dev/sdb2"/>
+     <nvpair id="dir"  name="directory"        value="/mnt/shared-disk"/>
+     <nvpair id="fst"  name="fstype"           value="ext3"/>
+    </attributes>
+   </instance_attributes>
+  </primitive>
+ </group>
+</resources>
+--- skip ---
+
+
+3.2 Outline of each module
+--------------------------
+	3.2.1 sfex
+		Resource Agent script for Heartbeat.
+
+	3.2.2 sfex_init
+		sfex_init [-b <blocksize>] [-n <numlocks>] <device>
+
+		-b <blocksize> --- The size of the block is specified 
+		by the number of bytes. In general, to prevent a partial 
+		writing to the disk, the size of block is set to 512 
+		bytes etc. 
+		Note a set value because this value is used also for 
+		the alignment adjustment in the input-output buffer in 
+		the program when direct I/O is used(When you specify 
+		 --enable-directio option for configure script). 
+		(In Linux kernel 2.6, "direct I/O " does not work if this 
+		value is not a multiple of 512.) Default is 512 bytes.
+
+		-n <numlocks> --- The number of storing lock data is 
+		specified by integer of one or more. When you want to 
+		control two or more resources by one meta-data, you set 
+		the value of two or more to numlocks. A necessary disk 
+		area for meta data are (blocksize*(1+numlocks))bytes. 
+		Default is 1.
+
+		<device> --- This is file path which stored mata-data. 
+		It is usually expressed in "/dev/...", because it is 
+		partition on the shared disk.
+
+		exit code --- 
+		0 - Normal end. 
+		3 - Error occurs while 	processing it. 
+    		    The content of the error is displayed into stderr. 
+		4 - The mistake is found in the command line parameter.
+
+	3.2.3 sfex_stat
+		sfex_stat [-i <index>] <device>
+
+		-i <index> --- The index is number of the resource that 
+		display the lock. This number is specified by the integer 
+		of one or more. When two or more resources are exclusively 
+		controlled by one meta-data, this option is used. 
+		Default is 1.
+
+		<device> --- This is file path which stored mata-data. 
+		It is usually expressed in "/dev/...", because it is 
+		partition on the shared disk.
+
+		exit code --- 
+		0 - Normal end. Own node is holding lock. 
+		2 - Normal end. Own node does not hold a lock. 
+		3 - Error occurs while processing it. 
+		    The content of the error is displayed into stderr. 
+		4 - The mistake is found in the command line parameter.
+
+	3.2.4 sfex_lock
+		sfex_lock 
+			[-i <index>] 
+			[-c <collision_timeout>] 
+			[-t <lock_timeout>] 
+			<device>
+
+		-i <index> --- The index is number of the resource that 
+		acquire the lock. This number is specified by the integer 
+		of one or more. When two or more resources are exclusively 
+		controlled by one meta-data, this option is used. 
+		Default is 1.
+
+		-c <collision_timeout> --- The waiting time to detect 
+		the collision of the lock with other nodes is specified. 
+		Time that is very longer than "once synchronous read from 
+		device which stored meta-data + once 
+		synchronous write" is specified usually. Default is 1 second.
+		This value need not be changed by using this option usually.  
+		Because it is not thought to take one second or more to 
+		synchronous read and write.
+
+		-t <lock_timeout> --- This specifies the validity term 
+		of lock. The unit is a second. This timer prevents the 
+		resource being locked for a long time when node crashes 
+		with the lock acquired. Therefore, the lock holding node 
+		must update lock data at intervals that are shorter than 
+		this timer. The sfex_update command is used for updating 
+		lock. Default is 60 seconds.
+
+		<device> --- This is file path which stored mata-data. 
+		It is usually expressed in "/dev/...", because it is 
+		partition on the shared disk.
+
+		exit code --- 
+		0 - Acquire a lock from unlock status. 
+		1 - Acquire a lock from lock timeout status. 
+		2 - Lock acquisition failed. 
+		3 - Error occurs while processing it. The content of the 
+		    error is displayed into stderr. 
+		4 - The mistake is found in the command line parameter.
+
+	3.2.5 sfex_unlock
+		sfex_unlock [-i <index>] <device>
+
+		-i <index> --- The index is number of the resource that 
+		releases the lock. This number is specified by the integer 
+		of one or more. When two or more resources are exclusively 
+		controlled by one meta-data, this option is used. 
+		Default is 1.
+
+		<device> --- This is file path which stored mata-data. 
+		It is usually expressed in "/dev/...", because it is 
+		partition on the shared disk.
+
+		exit code --- 
+		0 - Lock release success. 
+		1 - Lock release done already. 
+		    The lock has already been acquired by other nodes. 
+		3 - Error occurs while processing it. 
+		    The content of the error is displayed into stderr. 
+		4 - The mistake is found in the command line parameter.
+
+	3.2.6 sfex_update
+		sfex_update [-i <index>] <device>
+
+		-i <index> --- The index is number of the resource that 
+		update the lock. This number is specified by the integer 
+		of one or more. When two or more resources are exclusively 
+		controlled by one meta-data, this option is used.
+		Default is 1.
+
+		<device> --- This is file path which stored mata-data. 
+		It is usually expressed in "/dev/...", because it is 
+		partition on the shared disk.
+
+		exit code --- 
+		0 - Lock update success. 
+		2 - Lock update failed. 
+		    The lock is acquired by other nodes. 
+		3 - Error occurs while processing it. 
+		    The content of the error is displayed into stderr. 
+		4 - The mistake is found in the command line parameter.
+
+=======================================================================
+
+4.0   Trademarks and Notices
+----------------------------
+
+	Heartbeat is a registered trademark of The High Availability 
+        Linux Project.
+
+	Linux is a registered trademark of Linus Torvalds.
+
+	Other company, product, and service names may be 
+	trademarks or service marks of others.
+
+=======================================================================
+
+5.0   Disclaimer
+----------------
+
+	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND 
+	CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+	INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
+	MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE AND 
+	PARTICULARLY THE NON-INFRINGEMENT OF ANY THIRD PARTY'S 
+	INTELLECTUAL PROPERTY RIGHTS ARE DISCLAIMED. IN NO EVENT 
+	SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY 
+	DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
+	CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT 
+	OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
+	OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF 
+	LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+	(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE 
+	USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH 
+	DAMAGE.
+

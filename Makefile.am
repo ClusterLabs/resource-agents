@@ -19,7 +19,7 @@
 MAINTAINERCLEANFILES    = Makefile.in aclocal.m4 configure DRF/config-h.in \
                         DRF/stamp-h.in libtool.m4 ltdl.m4 libltdl.tar
 
-SUBDIRS	= heartbeat
+SUBDIRS	= heartbeat tools
 
 tgz:
 	rm -f $(TARFILE)

@@ -563,6 +563,18 @@ else
    AC_SUBST(LIBNETLIBS)
 fi
 
+sendarp_linux=0
+case $host_os in
+     *Linux*|*linux*) sendarp_linux=1;;
+esac
+
+AC_SUBST(LIBNETLIBS)
+AC_SUBST(LIBNETDEFINES)
+AC_DEFINE(HAVE_LIBNET_API, test "x$libnet_version" != "xnone", Libnet API)
+
+AM_CONDITIONAL(SENDARP_LINUX, test $sendarp_linux = 1 )
+AM_CONDITIONAL(USE_LIBNET, test "x$libnet_version" != "xnone" )
+
 dnl ************************************************************************
 dnl * Check for netinet/icmp6.h to enable the IPv6addr resource agent
 AC_CHECK_HEADERS(netinet/icmp6.h,[],[],[#include <sys/types.h>])
@@ -732,6 +744,8 @@ heartbeat/Makefile						\
    heartbeat/.ocf-shellfuncs					\
    heartbeat/ocf-returncodes					\
    heartbeat/ocf-shellfuncs					\
+tools/Makefile							\
+   tools/ocf-tester						\
 		)
 
 dnl Now process the entire list of files added by previous 
