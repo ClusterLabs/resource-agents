@@ -204,6 +204,43 @@ END
         exit $OCF_SUCCESS
 }
 
+# The 'ping' command takes highly OS-dependent arguments, so this
+# function creates a suitable argument list for the host OS's 'ping'.
+# We use a subset of its functionality:
+# 1. single packet
+# 2. reasonable timeout (say 1 second)
+#
+# arguments:
+#	$1: IP address to ping
+# result string:
+#	arguments for ping command
+#
+# If more flexibility is needed, they could be specified in the environment
+# to this function, to adjust the resulting 'ping' arguments.
+#	David Lee <t.d.lee@durham.ac.uk> May 2007
+pingargs() {
+	_baseip=$1
+	_timeout=1	# seconds
+	_pktcount=1
+	_systype="`uname -s`"
+	case $_systype in
+		Linux)
+			# Default is perpetual ping: need "-c $_pktcount".
+			# -c count -t timetolive -q(uiet) -n(umeric) -W timeout
+			_pingargs="-c $_pktcount -q -n $_baseip"
+			;;
+		SunOS)
+			# Default is immediate (or timeout) return.
+			_pingargs="$_baseip $_timeout"
+			;;
+		*)
+			_pingargs="-c $_pktcount $_baseip"
+			;;
+	esac
+
+	echo "$_pingargs"
+}
+
 #      On Linux systems the (hidden) loopback interface may
 #      conflict with the requested IP address. If so, this
 #      unoriginal code will remove the offending loopback address

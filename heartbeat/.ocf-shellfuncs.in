@@ -41,7 +41,6 @@ unset LC_ALL; export LC_ALL
 unset LANGUAGE; export LANGUAGE
 
 __SCRIPT_NAME=`basename $0`
-. @HA_HBCONF_DIR@/shellfuncs
 
 if [ -z "$OCF_ROOT" ]; then
     : ${OCF_ROOT=@OCF_ROOT_DIR@}
@@ -155,6 +154,76 @@ __ocf_set_defaults() {
 	fi
 }
 
+hadate() {
+  date "+${HA_DATEFMT}"
+}
+
+ha_log() {
+	if [ "x${HA_LOGD}" = "xyes" ] ; then 
+		ha_logger -t "${HA_LOGTAG}" "$@"
+		if [ "$?" -eq "0" ] ; then
+			return 0
+		fi
+	fi
+
+	if
+	  [ -n "$HA_LOGFACILITY" ]
+        then
+	  : logging through syslog
+	  # loglevel is unknown, use 'notice' for now
+          loglevel=notice
+          case "${*}" in
+            *ERROR*)		loglevel=err;;
+            *WARN*)		loglevel=warning;;
+            *INFO*|info)	loglevel=info;;
+	  esac
+	  logger -t "$HA_LOGTAG" -p ${HA_LOGFACILITY}.${loglevel} "${*}"
+        fi	
+        if
+	  [ -n "$HA_LOGFILE" ]
+	then
+	  : appending to $HA_LOGFILE
+	  Echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_LOGFILE
+	else
+	  Echo `hadate`"${*}" >&2
+	fi
+        if
+          [ -n "$HA_DEBUGLOG" ]
+        then
+          : appending to $HA_DEBUGLOG
+          Echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_DEBUGLOG
+        fi
+}
+
+ha_debug() {
+
+        if [ "x${HA_debug}" = "x0" ] ; then
+                return 0
+        fi
+
+        if [ "x${HA_LOGD}" = "xyes" ] ; then  
+		ha_logger -t "${HA_LOGTAG}" -D "ha-debug" "$@"
+                if [ "$?" -eq "0" ] ; then
+                        return 0
+                fi
+        fi
+
+	if
+	  [ -n "$HA_LOGFACILITY" ]
+	then
+	  : logging through syslog
+	  logger -t "$HA_LOGTAG" -p "${HA_LOGFACILITY}.debug" "${*}"
+	fi
+        if
+	  [ -n "$HA_DEBUGLOG" ]
+	then
+	  : appending to $HA_DEBUGLOG
+	  Echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_DEBUGLOG
+	else
+	  Echo "$HA_LOGTAG:	`hadate`${*}:	${HA_LOGFACILITY}" >&2
+	fi
+}
+
 ocf_log() {
 	# TODO: Revisit and implement internally.
 	if
@@ -239,6 +308,126 @@ ocf_take_lock() {
 ocf_release_lock_on_exit() {
     lockfile=$1
     trap "rm -f $lockfile" EXIT
+}
+
+# usage: dirname DIR
+dirname()
+{
+	local a
+	local b
+
+	[ $# = 1 ] || return 1
+	a="$1"
+	while [ 1 ]; do
+		b="${a%/}"
+		[ "$a" = "$b" ] && break
+		a="$b"
+	done
+	b=${a%/*}
+	[ -z "$b" -o "$a" = "$b"  ] && b="."
+
+	echo "$b"
+	return 0
+}
+
+#
+# pseudo_resource status tracking function...
+#
+# This allows pseudo resources to give correct status information.  As we add
+# resource monitoring, and better resource tracking in general, this will
+# become essential.
+#
+# These scripts work because ${HA_RSCTMP} is cleaned out every time
+# heartbeat is started.
+#
+# We create "resource-string" tracking files under ${HA_RSCTMP} in a
+# very simple way:
+#
+#	Existence of "${HA_RSCTMP}/resource-string" means that we consider
+#	the resource named by "resource-string" to be running.
+#
+# Note that "resource-string" needs to be unique.  Using the resource type
+# plus the resource instance arguments to make up the resource string
+# is probably sufficient...
+#
+# usage: ha_pseudo_resource resource-string op [tracking_file]
+# 	where op is {start|stop|monitor|status|restart|reload|print}
+#	print is a special op which just prints the tracking file location
+#	user can override our choice of the tracking file location by
+#		specifying it as the third arg
+#	Note that all operations are silent...
+#
+ha_pseudo_resource()
+{
+  ha_resource_tracking_file="${3:-${HA_RSCTMP}/$1}"
+  case $2 in
+    start|restart|reload)  touch "$ha_resource_tracking_file";;
+    stop) rm -f "$ha_resource_tracking_file";;
+    status|monitor)
+           if
+             [ -f "$ha_resource_tracking_file" ]
+           then
+             return 0
+           else
+             case $2 in
+               status)	return 3;;
+               *)	return 7;;
+             esac
+           fi;;
+    print)  echo "$ha_resource_tracking_file";;
+    *)	return 3;;
+  esac
+}
+
+# usage: rmtempdir TMPDIR
+rmtempdir()
+{
+	[ $# = 1 ] || return 1
+	if [ -e "$1" ]; then
+		rmdir "$1" || return 1
+	fi
+	return 0
+}
+
+# usage: maketempfile [-d]
+maketempfile()
+{
+	local dir="no"
+	local name
+
+	if [ $# = 1 -a "$1" = "-d" ]; then
+		dir="yes"
+	elif [ $# != 0 ]; then
+		return 1
+	fi
+
+	name=$(maketempdir) || return $?
+
+	if [ "$dir" = "yes" ]; then
+		echo "$name"
+		return 0
+	fi
+
+	name="$name/tmpfile"
+
+	if ! touch "$name"; then
+		rmtempdir
+		return 1
+	fi
+
+	echo "$name"
+	return 0
+}
+
+# usage: rmtempfile TMPFILE
+rmtempfile ()
+{
+	[ $# = 1 ] || return 1
+	if [ -e "$1" ]; then
+		rm "$1" || return 1
+	fi
+	rmtempdir $(dirname "$1") || return 1
+	return 0
 }
 
 __ocf_set_defaults "$@"
