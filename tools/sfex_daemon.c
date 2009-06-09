@@ -52,7 +52,7 @@ static int lock_index_check(void)
 		SFEX_LOG_ERR("%s: ERROR: index %d is too large. %d locks are stored.\n",
 				progname, lock_index, cdata.numlocks);
 		return -1;
-		//exit(EXIT_FAILURE);
+		/*exit(EXIT_FAILURE);*/
 	}
 
 	if (cdata.blocksize != sector_size) {
@@ -134,7 +134,7 @@ static void failure_todo(void)
 #ifdef SFEX_TESTING	
 	exit(EXIT_FAILURE);
 #else
-	//execl("/usr/sbin/crm_resource", "crm_resource", "-F", "-r", rsc_id, "-H", nodename, NULL); 
+	/*execl("/usr/sbin/crm_resource", "crm_resource", "-F", "-r", rsc_id, "-H", nodename, NULL); */
 	int ret;
 	ret = write(sysrq_fd, "b\n", 2);
 	if (ret == -1) {
@@ -188,7 +188,7 @@ static void release_lock(void)
 	/* lock release */
 	ldata.status = SFEX_STATUS_UNLOCK;
 	if (write_lockdata(&cdata, &ldata, lock_index) == -1) {
-		//FIXME: We are going to self-stop
+	    /*FIXME: We are going to self-stop */
 		exit(EXIT_FAILURE);
 	}
 	SFEX_LOG_INFO("lock released\n");
