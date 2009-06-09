@@ -21,7 +21,7 @@ MAINTAINERCLEANFILES    = Makefile.in
 
 INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include
 
-halibdir		= $(libdir)/@HB_PKG@
+halibdir		= $(libdir)/heartbeat
 
 sbin_SCRIPTS		= ocf-tester
 
@@ -32,7 +32,7 @@ if USE_LIBNET
 halib_PROGRAMS		+= send_arp
 send_arp_SOURCES	= send_arp.libnet.c
 send_arp_CFLAGS		= @LIBNETDEFINES@
-sfex_daemon_LDADD	= $(GLIBLIB) -lplumb @LIBNETLIBS@
+send_arp_LDADD		= $(GLIBLIB) -lplumb @LIBNETLIBS@
 else
 
 if SENDARP_LINUX

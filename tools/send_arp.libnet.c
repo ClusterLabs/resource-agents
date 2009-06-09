@@ -27,7 +27,18 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include <lha_internal.h>
+/* Needs to be defined before any other includes, otherwise some system
+ * headers do not behave as expected! Major black magic... */
+#undef _GNU_SOURCE  /* in case it was defined on the command line */
+#define _GNU_SOURCE
+
+#include <config.h>
+#include <sys/param.h>
+
+#define USE_GNU
+#if defined(ANSI_ONLY) && !defined(inline)
+#	define inline	/* nothing */
+#endif
 
 #include <limits.h>
 #include <libnet.h>
