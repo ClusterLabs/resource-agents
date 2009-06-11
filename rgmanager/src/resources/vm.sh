@@ -109,7 +109,7 @@ meta_data()
             <content type="string"/>
         </parameter>
 
-       <parameter name="migration_mapping">
+       <parameter name="migration_mapping" reconfig="1">
            <longdesc lang="en">
                Mapping of the hostname of a target cluster member to a different hostname
            </longdesc>
