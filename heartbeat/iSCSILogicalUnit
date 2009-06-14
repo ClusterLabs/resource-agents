@@ -1,0 +1,254 @@
+#!/bin/bash
+#
+#
+#   iSCSILogicalUnit OCF RA. Exports and manages iSCSI Logical Units.
+#				  
+#       Copyright (c) 2009 LINBIT HA-Solutions GmbH, Florian Haas
+# 			 All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+LC_ALL="C"
+LANG="C"
+
+# Defaults
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="iSCSILogicalUnit" version="0.9">
+<version>0.9</version>
+
+<longdesc lang="en">
+Manages iSCSI targets. An iSCSI target is a collection of SCSI Logical
+Units (LUs) exported via a daemon that speaks the iSCSI protocol.
+</longdesc>
+<shortdesc lang="en">iSCSI target export agent</shortdesc>
+
+<parameters>
+<parameter name="implementation" required="1" unique="0">
+<longdesc lang="en">
+The iSCSI target daemon implementation. Must be one of "iet", "tgt",
+or "lio".
+</longdesc>
+<shortdesc lang="en">iSCSI target daemon implementation</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="tid" required="1" unique="0">
+<longdesc lang="en">
+The numeric target ID. Must not be zero.
+</longdesc>
+<shortdesc lang="en">iSCSI target ID</shortdesc>
+<content type="integer" />
+</parameter>
+
+<parameter name="lun" required="1" unique="0">
+<longdesc lang="en">
+The Logical Unit number (LUN) exposed to initiators.
+</longdesc>
+<shortdesc lang="en">Logical Unit number (LUN)</shortdesc>
+<content type="integer" />
+</parameter>
+
+<parameter name="path" required="1" unique="0">
+<longdesc lang="en">
+The path to the block device exposed. Some implementations allow this
+to be a regular file, too.
+</longdesc>
+<shortdesc lang="en">Block device (or file) path</shortdesc>
+<content type="string" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="10" />
+<action name="stop"         timeout="10" />
+<action name="monitor"      timeout="10" interval="10" depth="0" start-delay="0" />
+<action name="meta-data"    timeout="5" />
+<action name="validate-all"   timeout="10" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+iSCSILogicalUnit_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+iSCSILogicalUnit_start() {
+    iSCSILogicalUnit_monitor
+    if [ $? =  $OCF_SUCCESS ]; then
+	return $OCF_SUCCESS
+    fi
+
+    case $OCF_RESKEY_implementation in
+	iet)
+	    ietadm --op new \
+		--tid=${OCF_RESKEY_tid} \
+		--lun=${OCF_RESKEY_lun} \
+		--params Path=${OCF_RESKEY_path} && return $OCF_SUCCESS
+	    ;;
+    esac
+    return $OCF_ERR_GENERIC
+}
+
+iSCSILogicalUnit_stop() {
+    iSCSILogicalUnit_monitor
+    if [ $? =  $OCF_SUCCESS ]; then
+	case $OCF_RESKEY_implementation in
+	    iet)
+		ietadm --op delete \
+		    --tid=${OCF_RESKEY_tid} \
+		    --lun=${OCF_RESKEY_lun} && return $OCF_SUCCESS
+		;;
+	esac
+    else
+	return $OCF_SUCCESS
+    fi
+    return $OCF_ERR_GENERIC
+}
+
+iSCSILogicalUnit_monitor() {
+    case $OCF_RESKEY_implementation in
+	iet)
+	    # FIXME: this looks for a matching LUN and path, but does
+	    # not actually test for the correct target ID.
+	    grep -E -q "[[:space:]]+lun:${OCF_RESKEY_lun}.*path:${OCF_RESKEY_path}" /proc/net/iet/volume && return $OCF_SUCCESS
+	    ;;
+    esac
+    
+    return $OCF_NOT_RUNNING
+}
+
+iSCSILogicalUnit_validate() {
+    # Do we have all required variables?
+    for var in implementation tid lun path; do
+	param="OCF_RESKEY_${var}"
+	if [ -z "${!param}" ]; then
+	    ocf_log error "Missing resource parameter \"$var\"!"
+	    return $OCF_ERR_CONFIGURED
+	fi
+    done
+
+    # Do we have all required binaries?
+    case $OCF_RESKEY_implementation in
+	iet)
+	    check_binary ietadm || return $OCF_ERR_INSTALLED
+	    ;;
+	*)
+	    # and by the way, is the implementation supported?
+	    ocf_log error "Unsupported iSCSI target implementation \"$OCF_RESKEY_implementation\"!"
+	    return $OCF_ERR_CONFIGURED
+    esac
+
+    # Do we have a valid target ID?
+    [ $OCF_RESKEY_tid -ge 1 ]
+    case $? in
+	0)
+	    # OK
+	    ;;
+	1)
+	    ocf_log err "Invalid target ID $OCF_RESKEY_tid (must be greater than 0)."
+	    return $OCF_ERR_CONFIGURED
+	    ;;
+	*)
+	    ocf_log err "Invalid target ID $OCF_RESKEY_tid (must be an integer)."
+	    return $OCF_ERR_CONFIGURED
+    esac
+
+    # Do we have a valid LUN?
+    case $OCF_RESKEY_implementation in
+	iet)
+	    # IET allows LUN 0 and up
+	    [ $OCF_RESKEY_lun -ge 0 ]
+	    case $? in
+		0)
+	            # OK
+		    ;;
+		1)
+		    ocf_log err "Invalid LUN $OCF_RESKEY_lun (must be a non-negative integer)."
+		    return $OCF_ERR_CONFIGURED
+		    ;;
+		*)
+		    ocf_log err "Invalid LUN $OCF_RESKEY_lun (must be an integer)."
+		    return $OCF_ERR_CONFIGURED
+		    ;;
+	    esac
+	    ;;
+    esac
+
+    # Is the required kernel functionality available?
+    case $OCF_RESKEY_implementation in
+	iet)
+	    [ -d /proc/net/iet ]
+	    if [ $? -ne 0 ]; then
+		ocf_log err "/proc/net/iet does not exist or is not a directory -- check if required modules are loaded."
+		return $OCF_ERR_INSTALLED
+	    fi
+	    ;;
+    esac
+
+    return $OCF_SUCCESS
+}
+
+
+case $1 in
+  meta-data)
+	meta_data
+	exit $OCF_SUCCESS
+	;;
+  usage|help)
+	iSCSILogicalUnit_usage
+	exit $OCF_SUCCESS
+	;;
+esac
+
+# Everything except usage and meta-data must pass the validate test
+iSCSILogicalUnit_validate || exit $?
+
+case $__OCF_ACTION in
+start)		iSCSILogicalUnit_start;;
+stop)		iSCSILogicalUnit_stop;;
+monitor)	iSCSILogicalUnit_monitor;;
+reload)		ocf_log err "Reloading..."
+	        iSCSILogicalUnit_start
+		;;
+validate-all)	;;
+*)		iSCSILogicalUnit_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc

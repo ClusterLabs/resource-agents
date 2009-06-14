@@ -1,0 +1,243 @@
+#!/bin/bash
+#
+#
+# 	iSCSITarget OCF RA. Exports and manages iSCSI targets.
+#
+#       Copyright (c) 2009 LINBIT HA-Solutions GmbH, Florian Haas
+# 			 All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+LC_ALL="C"
+LANG="C"
+
+# Defaults
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="iSCSITarget" version="0.9">
+<version>0.9</version>
+
+<longdesc lang="en">
+Manages iSCSI targets. An iSCSI target is a collection of SCSI Logical
+Units (LUs) exported via a daemon that speaks the iSCSI protocol.
+</longdesc>
+<shortdesc lang="en">iSCSI target export agent</shortdesc>
+
+<parameters>
+<parameter name="implementation" required="1" unique="0">
+<longdesc lang="en">
+The iSCSI target daemon implementation. Must be one of "iet", "tgt",
+or "lio".
+</longdesc>
+<shortdesc lang="en">iSCSI target daemon implementation</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="tid" required="1" unique="0">
+<longdesc lang="en">
+The numeric target ID. Must not be zero.
+</longdesc>
+<shortdesc lang="en">iSCSI target ID</shortdesc>
+<content type="integer" />
+</parameter>
+
+<parameter name="name" required="1" unique="1">
+<longdesc lang="en">
+The logical target name. Should follow the conventional
+"iqn.yyyy-mm.&lt;reversed domain name&gt;[:identifier]" syntax.
+</longdesc>
+<shortdesc lang="en">iSCSI target name</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="params" required="0" unique="0">
+<longdesc lang="en">
+Target parameters. A space-separated list of "name=value" pairs which
+will be passed through to the iSCSI daemon's management interface. The
+supported parameters are implementation dependent.
+</longdesc>
+<shortdesc lang="en">List of iSCSI target parameters</shortdesc>
+<content type="string" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="10" />
+<action name="stop"         timeout="10" />
+<action name="monitor"      timeout="10" interval="10" depth="0" start-delay="0" />
+<action name="meta-data"    timeout="5" />
+<action name="validate-all"   timeout="10" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+iSCSITarget_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+iSCSITarget_start() {
+    iSCSITarget_monitor
+    if [ $? =  $OCF_SUCCESS ]; then
+	return $OCF_SUCCESS
+    fi
+
+    local param
+    local name
+    local value
+
+    case $OCF_RESKEY_implementation in
+	iet)
+	    ietadm --op new \
+		--tid=${OCF_RESKEY_tid} \
+		--params Name=${OCF_RESKEY_name} || return $OCF_ERR_GENERIC
+	    for param in ${OCF_RESKEY_params}; do
+		name=${param%=*}
+		value=${param#*=}
+		ietadm --op update \
+		    --tid=${OCF_RESKEY_tid} \
+		    --params ${name}=${value} || return $OCF_ERR_GENERIC
+	    done
+	    return $OCF_SUCCESS
+	    ;;
+    esac
+    return $OCF_ERR_GENERIC
+}
+
+iSCSITarget_stop() {
+    iSCSITarget_monitor
+    if [ $? =  $OCF_SUCCESS ]; then
+	case $OCF_RESKEY_implementation in
+	    iet)
+		ietadm --op delete \
+		    --tid=${OCF_RESKEY_tid} && return $OCF_SUCCESS
+		;;
+	esac
+    else
+	return $OCF_SUCCESS
+    fi
+    return $OCF_ERR_GENERIC
+}
+
+iSCSITarget_monitor() {
+    case $OCF_RESKEY_implementation in
+	iet)
+	    grep -q "tid:${OCF_RESKEY_tid} name:${OCF_RESKEY_name}" /proc/net/iet/volume && return $OCF_SUCCESS
+	    ;;
+    esac
+    
+    return $OCF_NOT_RUNNING
+}
+
+iSCSITarget_validate() {
+    # Do we have all required variables?
+    for var in implementation tid name; do
+	param="OCF_RESKEY_${var}"
+	if [ -z "${!param}" ]; then
+	    ocf_log error "Missing resource parameter \"$var\"!"
+	    return $OCF_ERR_CONFIGURED
+	fi
+    done
+
+    # Do we have all required binaries?
+    case $OCF_RESKEY_implementation in
+	iet)
+	    check_binary ietadm || return $OCF_ERR_INSTALLED
+	    ;;
+	*)
+	    # and by the way, is the implementation supported?
+	    ocf_log error "Unsupported iSCSI target implementation \"$OCF_RESKEY_implementation\"!"
+	    return $OCF_ERR_CONFIGURED
+    esac
+
+    # Do we have a valid target ID?
+    [ $OCF_RESKEY_tid -ge 1 ]
+    case $? in
+	0)
+	    # OK
+	    ;;
+	1)
+	    ocf_log err "Invalid target ID $OCF_RESKEY_tid (must be greater than 0)."
+	    return $OCF_ERR_CONFIGURED
+	    ;;
+	*)
+	    ocf_log err "Invalid target ID $OCF_RESKEY_tid (must be an integer)."
+	    return $OCF_ERR_CONFIGURED
+    esac
+
+    # Is the required kernel functionality available?
+    case $OCF_RESKEY_implementation in
+	iet)
+	    [ -d /proc/net/iet ]
+	    if [ $? -ne 0 ]; then
+		ocf_log err "/proc/net/iet does not exist or is not a directory -- check if required modules are loaded."
+		return $OCF_ERR_INSTALLED
+	    fi
+	    ;;
+    esac
+
+    return $OCF_SUCCESS
+}
+
+
+case $1 in
+  meta-data)
+	meta_data
+	exit $OCF_SUCCESS
+	;;
+  usage|help)
+	iSCSITarget_usage
+	exit $OCF_SUCCESS
+	;;
+esac
+
+# Everything except usage and meta-data must pass the validate test
+iSCSITarget_validate || exit $?
+
+case $__OCF_ACTION in
+start)		iSCSITarget_start;;
+stop)		iSCSITarget_stop;;
+monitor)	iSCSITarget_monitor;;
+reload)		ocf_log err "Reloading..."
+	        iSCSITarget_start
+		;;
+validate-all)	;;
+*)		iSCSITarget_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
