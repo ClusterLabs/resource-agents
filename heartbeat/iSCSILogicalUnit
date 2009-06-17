@@ -33,6 +33,11 @@ LC_ALL="C"
 LANG="C"
 
 # Defaults
+# Set a default implementation based on software installed
+if have_binary ietadm; then
+    OCF_RESKEY_implementation_default="iet"
+fi
+: ${OCF_RESKEY_implementation=${OCF_RESKEY_implementation_default}}
 #######################################################################
 
 meta_data() {
@@ -49,13 +54,15 @@ Units (LUs) exported via a daemon that speaks the iSCSI protocol.
 <shortdesc lang="en">iSCSI target export agent</shortdesc>
 
 <parameters>
-<parameter name="implementation" required="1" unique="0">
+<parameter name="implementation" required="0" unique="0">
 <longdesc lang="en">
 The iSCSI target daemon implementation. Must be one of "iet", "tgt",
-or "lio".
+or "lio". If unspecified, an implementation is selected based on the
+availability of management utilities, with "iet" being tried first,
+them "tgt", then "lio".
 </longdesc>
 <shortdesc lang="en">iSCSI target daemon implementation</shortdesc>
-<content type="string" />
+<content type="string" default="${OCF_RESKEY_implementation_default}"/>
 </parameter>
 
 <parameter name="tid" required="1" unique="0">
@@ -98,6 +105,31 @@ END
 
 #######################################################################
 
+do_cmd() {
+    # Wrap local commands to capture their exit code and output. Some
+    # implementations (IET, notably) have management commands with
+    # very terse output. It helps to at least capture exit codes in
+    # the logs.
+    local cmd="$*"
+    ocf_log debug "Calling $cmd"
+    local cmd_out
+    cmd_out=$($cmd 2>&1)
+    ret=$?
+    
+    if [ $ret -ne 0 ]; then
+	ocf_log err "Called \"$cmd\""
+	ocf_log err "Exit code $ret"
+	ocf_log err "Command output: \"$cmd_out\""
+    else
+	ocf_log debug "Exit code $ret"
+	ocf_log debug "Command output: \"$cmd_out\""
+    fi
+    
+    echo $cmd_out
+    return $ret
+}
+
+
 iSCSILogicalUnit_usage() {
 	cat <<END
 usage: $0 {start|stop|monitor|validate-all|meta-data}
@@ -114,7 +146,7 @@ iSCSILogicalUnit_start() {
 
     case $OCF_RESKEY_implementation in
 	iet)
-	    ietadm --op new \
+	    do_cmd ietadm --op new \
 		--tid=${OCF_RESKEY_tid} \
 		--lun=${OCF_RESKEY_lun} \
 		--params Path=${OCF_RESKEY_path} && return $OCF_SUCCESS
@@ -128,7 +160,7 @@ iSCSILogicalUnit_stop() {
     if [ $? =  $OCF_SUCCESS ]; then
 	case $OCF_RESKEY_implementation in
 	    iet)
-		ietadm --op delete \
+		do_cmd ietadm --op delete \
 		    --tid=${OCF_RESKEY_tid} \
 		    --lun=${OCF_RESKEY_lun} && return $OCF_SUCCESS
 		;;
