@@ -36,6 +36,8 @@ LANG="C"
 # Set a default implementation based on software installed
 if have_binary ietadm; then
     OCF_RESKEY_implementation_default="iet"
+elif have_binary tgtadm; then
+    OCF_RESKEY_implementation_default="tgt"
 fi
 : ${OCF_RESKEY_implementation=${OCF_RESKEY_implementation_default}}
 #######################################################################
@@ -164,6 +166,21 @@ iSCSITarget_start() {
 	    done
 	    return $OCF_SUCCESS
 	    ;;
+	tgt)
+	    do_cmd tgtadm --lld iscsi --op new --mode target \
+		--tid=${OCF_RESKEY_tid} \
+		--targetname ${OCF_RESKEY_name} || return $OCF_ERR_GENERIC
+	    for param in ${OCF_RESKEY_params}; do
+		name=${param%=*}
+		value=${param#*=}
+		do_cmd tgtadm --lld iscsi --op update --mode target \
+		    --tid=${OCF_RESKEY_tid} \
+		    --name=${name} --value=${value} || return $OCF_ERR_GENERIC
+	    done
+	    do_cmd tgtadm --lld iscsi --op bind --mode target \
+		--tid=${OCF_RESKEY_tid} \
+		--initiator-address=ALL && return $OCF_SUCCESS
+	    ;;
     esac
     return $OCF_ERR_GENERIC
 }
@@ -193,6 +210,29 @@ iSCSITarget_stop() {
 		do_cmd ietadm --op delete \
 		    --tid=${OCF_RESKEY_tid} && return $OCF_SUCCESS
 		;;
+	    tgt)
+		# Close existing connections. There is no other way to
+		# do this in tgt than to parse the output of "tgtadm --op
+		# show".
+		local line
+		tgtadm --lld iscsi --op show --mode target \
+		    | sed -ne '/^Target '${OCF_RESKEY_tid}':/,/^Target/ {
+                          /^[[:space:]]*I_T nexus: \([0-9]\+\)/ {
+                             s/^.*: \([0-9]*\).*/--sid=\1/; h;
+                          };
+                          /^[[:space:]]*Connection: \([0-9]\+\)/ { 
+                              s/^.*: \([0-9]*\).*/--cid=\1/; G; s/\n/ /;p; 
+                          }; 
+                          /^[[:space:]]*LUN information:/ q; 
+                      }' \
+		    | while read line; do
+		         # $line looks like "--sid=X --cid=Y"
+		         do_cmd tgtadm --lld iscsi --op delete --mode connection \
+			     --tid ${OCF_RESKEY_tid} $line
+		done
+		do_cmd tgtadm --lld iscsi --op delete --mode target \
+		    --tid ${OCF_RESKEY_tid} && return $OCF_SUCCESS
+		;;
 	esac
     else
 	return $OCF_SUCCESS
@@ -204,6 +244,10 @@ iSCSITarget_monitor() {
     case $OCF_RESKEY_implementation in
 	iet)
 	    grep -q "tid:${OCF_RESKEY_tid} name:${OCF_RESKEY_name}" /proc/net/iet/volume && return $OCF_SUCCESS
+	    ;;
+	tgt)
+	    do_cmd tgtadm --lld iscsi --op show --mode target \
+		| grep -q "Target ${OCF_RESKEY_tid}: ${OCF_RESKEY_name}" && return $OCF_SUCCESS
 	    ;;
     esac
     
@@ -224,6 +268,9 @@ iSCSITarget_validate() {
     case $OCF_RESKEY_implementation in
 	iet)
 	    check_binary ietadm || return $OCF_ERR_INSTALLED
+	    ;;
+	tgt)
+	    check_binary tgtadm || return $OCF_ERR_INSTALLED
 	    ;;
 	*)
 	    # and by the way, is the implementation supported?
@@ -254,6 +301,9 @@ iSCSITarget_validate() {
 		ocf_log err "/proc/net/iet does not exist or is not a directory -- check if required modules are loaded."
 		return $OCF_ERR_INSTALLED
 	    fi
+	    ;;
+	tgt)
+	    # tgt is userland only
 	    ;;
     esac
 
