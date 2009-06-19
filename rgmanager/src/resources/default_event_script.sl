@@ -36,7 +36,7 @@ define separate_nodes(node_list)
 	len = length(services);
 	for (x = 0; x < len; x++) {
 
-		(owner, state) = service_status(services[x]);
+		(,,, owner, state) = service_status(services[x]);
 		if (owner < 0) {
 			continue;
 		}
@@ -99,7 +99,7 @@ define exclusive_prioritize(svc, node_list)
 			continue;
 		}
 
-		(owner, state) = service_status(services[x]);
+		(,,, owner, state) = service_status(services[x]);
 		if (owner < 0) {
 			continue;
 		}
@@ -148,14 +148,14 @@ define move_or_start(service, node_list)
 
 	depends = service_property(service, "depend");
 	if (depends != "") {
-		(owner, state) = service_status(depends);
+		(,,, owner, state) = service_status(depends);
 		if (owner < 0) {
 			debug(service, " is not runnable; dependency not met");
 			return ERR_DEPEND;
 		}
 	}
 
-	(owner, state) = service_status(service);
+	(,,, owner, state) = service_status(service);
 	debug("Evaluating ", service, " state=", state, " owner=", owner);
 
 	len = length(node_list);
@@ -220,7 +220,7 @@ define allowed_nodes(service)
 	(nofailback, restricted, ordered, nodes_domain) =
 			service_domain_info(service);
 
-	(owner, state) = service_status(service);
+	(,,, owner, state) = service_status(service);
 
 	anodes = nodes_online();
 
@@ -270,7 +270,7 @@ define allowed_nodes(service)
 
 	(nofailback, restricted, ordered, nodes_domain) =
 			service_domain_info(service);
-	(owner, state) = service_status(service);
+	(,,, owner, state) = service_status(service);
 
 	anodes = nodes_online();
 
@@ -481,7 +481,7 @@ define default_service_event_handler()
 			continue;
 		}
 
-		(owner, state) = service_status(services[x]);
+		(,,, owner, state) = service_status(services[x]);
 		if ((service_state == "started") and (owner < 0) and
 		    (state == "stopped")) {
 			info("Dependency met; starting ", services[x]);
@@ -514,7 +514,7 @@ define default_user_event_handler()
 	variable owner, state;
 
 	nodes = allowed_nodes(service_name);
-	(owner, state) = service_status(service_name);
+	(,,, owner, state) = service_status(service_name);
 
 	if (user_request == USER_RESTART) {
 
