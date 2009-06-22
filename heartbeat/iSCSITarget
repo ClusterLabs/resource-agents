@@ -58,10 +58,10 @@ Units (LUs) exported via a daemon that speaks the iSCSI protocol.
 <parameters>
 <parameter name="implementation" required="0" unique="0">
 <longdesc lang="en">
-The iSCSI target daemon implementation. Must be one of "iet", "tgt",
-or "lio". If unspecified, an implementation is selected based on the
+The iSCSI target daemon implementation. Must be one of "iet" or "tgt".
+If unspecified, an implementation is selected based on the
 availability of management utilities, with "iet" being tried first,
-them "tgt", then "lio".
+then "tgt".
 </longdesc>
 <shortdesc lang="en">iSCSI target daemon implementation</shortdesc>
 <content type="string" default="${OCF_RESKEY_implementation_default}"/>
