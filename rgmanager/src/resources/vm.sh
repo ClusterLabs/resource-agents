@@ -131,6 +131,15 @@ meta_data()
             <content type="integer" default="1"/>
         </parameter>
 
+	<parameter name="xmlfile">
+	    <longdesc lang="en">
+	    	Use xmlfile to create the vm (libvirt)
+	    </longdesc>
+	    <shortdesc lang="en">
+	    </shortdesc>
+            <content type="string"/>
+	</parameter>
+
 	<parameter name="migrate">
 	    <longdesc lang="en">
 	    	Migration type live or pause, default = live.
@@ -338,7 +347,13 @@ do_virsh_start()
 		return 1
 	fi
 
-	cmdline="virsh $(build_virsh_cmdline start)"
+	if [ -n "$OCF_RESKEY_xmlfile" -a -f "$OCF_RESKEY_xmlfile" ]; then
+		# TODO: try to use build_virsh_cmdline for the hypervisor_uri
+		cmdline="virsh create $OCF_RESKEY_xmlfile"
+	else
+		cmdline="virsh $(build_virsh_cmdline start)"
+	fi
+
 	ocf_log debug "$cmdline"
 
 	$cmdline
