@@ -40,7 +40,7 @@ define nodelist_online(service_name) {
 %
 define follow_service(svc1, svc2, master) %, followslave)
 {
-	variable state, owner_svc1, owner_svc2;
+	variable state_svc1, state_svc2, owner_svc1, owner_svc2;
 	variable nodes1, nodes2, allowed;
 
 	debug("*** FOLLOW_SERVICE: follow_service(",svc1,", ",svc2,", ", master, ")");
@@ -55,11 +55,11 @@ define follow_service(svc1, svc2, master) %, followslave)
 	}
 
 	% get infos we need to decide further
-	(owner_svc1, state) = service_status(svc1);
-	(owner_svc2, state) = service_status(svc2);
+	(,,, owner_svc1, state_svc1) = service_status(svc1);
+	(,,, owner_svc2, state_svc2) = service_status(svc2);
 	nodes1 = nodelist_online(svc1);
 	nodes2 = nodelist_online(svc2);
-	debug("*** FOLLOW_SERVICE: service_status(",svc1,"): ", service_status(svc1));
+	debug("*** FOLLOW_SERVICE: service_status(",svc1,"): ", state_svc1);
 	debug("*** FOLLOW_SERVICE: owner_svc1: ", owner_svc1, ", owner_svc2: ", owner_svc2, ", nodes1: ", nodes1, ", nodes2: ", nodes2);
 
 	if (((event_type == EVENT_NODE)    and (owner_svc1 == node_id) and (node_state == NODE_OFFLINE) and (owner_svc2 >=0)) or 
@@ -91,7 +91,7 @@ define follow_service(svc1, svc2, master) %, followslave)
 		% either svc2 is the master or there are node were to start svc2
 		if ((master == svc2) or (length(allowed) > 0)) {
 			()=service_stop(svc2);
-        	()=service_start(svc2, allowed);
+			()=service_start(svc2, allowed);
 		} 
 	}
 	else if (((event_type == EVENT_NODE) and (owner_svc2 == node_id) and (node_state == NODE_OFFLINE) and (owner_svc2 >=0)) or 
