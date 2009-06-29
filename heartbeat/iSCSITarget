@@ -94,6 +94,18 @@ supported parameters are implementation dependent.
 <content type="string" />
 </parameter>
 
+<parameter name="initiators" required="0" unique="0">
+<longdesc lang="en">
+Allowed initiators. A space-separated list of initiators allowed to
+connect to this target. Initiators may be listed in any syntax
+the target implementation allows. If this parameter is empty or
+not set, access to this target will be allowed from any initiator.
+</longdesc>
+<shortdesc lang="en">List of iSCSI initiators allowed to connect
+to this target</shortdesc>
+<content type="string" default="${OCF_RESKEY_initiators_default}"/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -151,6 +163,7 @@ iSCSITarget_start() {
     local param
     local name
     local value
+    local initiator
 
     case $OCF_RESKEY_implementation in
 	iet)
@@ -164,6 +177,14 @@ iSCSITarget_start() {
 		    --tid=${OCF_RESKEY_tid} \
 		    --params ${name}=${value} || return $OCF_ERR_GENERIC
 	    done
+	    # For iet, access to new targets is allowed by default. To
+	    # specifically enable access based on initiator address,
+	    # we must first deny access to the target globally, then
+	    # re-enable by specific initiator.
+	    if [ -n ${OCF_RESKEY_initiators} ]; then
+		echo "${OCF_RESKEY_name} ALL" >> /etc/initiators.deny
+		echo "${OCF_RESKEY_name} ${OCF_RESKEY_initiators// /,}" >> /etc/initiators.allow
+	    fi
 	    return $OCF_SUCCESS
 	    ;;
 	tgt)
@@ -177,9 +198,15 @@ iSCSITarget_start() {
 		    --tid=${OCF_RESKEY_tid} \
 		    --name=${name} --value=${value} || return $OCF_ERR_GENERIC
 	    done
-	    do_cmd tgtadm --lld iscsi --op bind --mode target \
-		--tid=${OCF_RESKEY_tid} \
-		--initiator-address=ALL && return $OCF_SUCCESS
+	    # For tgt, we always have to add access per initiator;
+	    # access to targets is denied by default. If "initiators"
+	    # is unset, we must use the special keyword ALL.
+	    for initiator in ${OCF_RESKEY_initiators=ALL}; do
+		do_cmd tgtadm --lld iscsi --op bind --mode target \
+		    --tid=${OCF_RESKEY_tid} \
+		    --initiator-address=${initiator} || return $OCF_ERR_GENERIC
+	    done
+	    return $OCF_SUCCESS
 	    ;;
     esac
     return $OCF_ERR_GENERIC
@@ -208,7 +235,16 @@ iSCSITarget_stop() {
 		    shift 2
 		done
 		do_cmd ietadm --op delete \
-		    --tid=${OCF_RESKEY_tid} && return $OCF_SUCCESS
+		    --tid=${OCF_RESKEY_tid} || return $OCF_ERR_GENERIC
+		if [ -n ${OCF_RESKEY_initiators} ]; then
+		    # Avoid stale /etc/initiators.{allow,deny} entries
+		    # for this target
+		    do_cmd sed -e "/^${OCF_RESKEY_name}[[:space:]]/d" \
+			-i /etc/initiators.deny
+		    do_cmd sed -e "/^${OCF_RESKEY_name}[[:space:]]/d" \
+			-i /etc/initiators.allow
+		fi
+		return $OCF_SUCCESS
 		;;
 	    tgt)
 		# Close existing connections. There is no other way to
@@ -230,6 +266,9 @@ iSCSITarget_stop() {
 			--tid=${OCF_RESKEY_tid} $2 $1
 		    shift 2
 		done
+		# In tgt, we don't have to worry about our ACL
+		# entries. They are automatically removed upon target
+		# deletion.
 		do_cmd tgtadm --lld iscsi --op delete --mode target \
 		    --tid=${OCF_RESKEY_tid} && return $OCF_SUCCESS
 		;;
