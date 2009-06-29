@@ -193,19 +193,19 @@ iSCSITarget_stop() {
 		# Close existing connections. There is no other way to
 		# do this in IET than to parse the contents of
 		# /proc/net/iet/session.
-		local line
-		sed -ne '/^tid:'${OCF_RESKEY_tid}' /,/^tid/ {
+		set -- $(sed -ne '/^tid:'${OCF_RESKEY_tid}' /,/^tid/ {
                           /^[[:space:]]*sid:\([0-9]\+\)/ {
                              s/^[[:space:]]*sid:\([0-9]*\).*/--sid=\1/; h;
                           };
                           /^[[:space:]]*cid:\([0-9]\+\)/ { 
-                              s/^[[:space:]]*cid:\([0-9]*\).*/--cid=\1/; G; s/\n/ /;p; 
+                              s/^[[:space:]]*cid:\([0-9]*\).*/--cid=\1/; G; p; 
                           }; 
-                      }' < /proc/net/iet/session \
-		    | while read line; do
-		         # $line looks like "--sid=X --cid=Y"
-		         do_cmd ietadm --op delete \
-			     --tid ${OCF_RESKEY_tid} $line
+                      }' < /proc/net/iet/session)
+		while [[ -n $2 ]]; do
+                    # $2 $1 looks like "--sid=X --cid=Y"
+		    do_cmd ietadm --op delete \
+			     --tid=${OCF_RESKEY_tid} $2 $1
+		    shift 2
 		done
 		do_cmd ietadm --op delete \
 		    --tid=${OCF_RESKEY_tid} && return $OCF_SUCCESS
@@ -214,24 +214,24 @@ iSCSITarget_stop() {
 		# Close existing connections. There is no other way to
 		# do this in tgt than to parse the output of "tgtadm --op
 		# show".
-		local line
-		tgtadm --lld iscsi --op show --mode target \
+		set -- $(tgtadm --lld iscsi --op show --mode target \
 		    | sed -ne '/^Target '${OCF_RESKEY_tid}':/,/^Target/ {
                           /^[[:space:]]*I_T nexus: \([0-9]\+\)/ {
                              s/^.*: \([0-9]*\).*/--sid=\1/; h;
                           };
                           /^[[:space:]]*Connection: \([0-9]\+\)/ { 
-                              s/^.*: \([0-9]*\).*/--cid=\1/; G; s/\n/ /;p; 
+                              s/^.*: \([0-9]*\).*/--cid=\1/; G; p; 
                           }; 
                           /^[[:space:]]*LUN information:/ q; 
-                      }' \
-		    | while read line; do
-		         # $line looks like "--sid=X --cid=Y"
-		         do_cmd tgtadm --lld iscsi --op delete --mode connection \
-			     --tid ${OCF_RESKEY_tid} $line
+                      }')
+		while [[ -n $2 ]]; do
+                    # $2 $1 looks like "--sid=X --cid=Y"
+		    do_cmd tgtadm --lld iscsi --op delete --mode connection \
+			--tid=${OCF_RESKEY_tid} $2 $1
+		    shift 2
 		done
 		do_cmd tgtadm --lld iscsi --op delete --mode target \
-		    --tid ${OCF_RESKEY_tid} && return $OCF_SUCCESS
+		    --tid=${OCF_RESKEY_tid} && return $OCF_SUCCESS
 		;;
 	esac
     else
