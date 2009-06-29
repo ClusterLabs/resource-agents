@@ -92,6 +92,17 @@ to be a regular file, too.
 <content type="string" />
 </parameter>
 
+<parameter name="params" required="0" unique="0">
+<longdesc lang="en">
+LU parameters. A space-separated list of "name=value" pairs which
+will be passed through to the iSCSI daemon's management interface. The
+supported parameters are implementation dependent. Neither the name
+nor the value may contain whitespace.
+</longdesc>
+<shortdesc lang="en">List of iSCSI LU parameters</shortdesc>
+<content type="string" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -146,18 +157,33 @@ iSCSILogicalUnit_start() {
 	return $OCF_SUCCESS
     fi
 
+    local params
+
     case $OCF_RESKEY_implementation in
 	iet)
+	    # in IET, we have to set LU parameters on creation
+	    params="Path=${OCF_RESKEY_path} ${OCF_RESKEY_params}"
 	    do_cmd ietadm --op new \
 		--tid=${OCF_RESKEY_tid} \
 		--lun=${OCF_RESKEY_lun} \
-		--params Path=${OCF_RESKEY_path} && return $OCF_SUCCESS
+		--params ${params// /,} && return $OCF_SUCCESS
 	    ;;
 	tgt)
+	    # tgt requires that we create the LU first, then set LU
+	    # parameters
+	    params="${OCF_RESKEY_params}"
 	    do_cmd tgtadm --lld iscsi --op new --mode logicalunit \
 		--tid=${OCF_RESKEY_tid} \
 		--lun=${OCF_RESKEY_lun} \
-	    	--backing-store ${OCF_RESKEY_path} && return $OCF_SUCCESS
+	    	--backing-store ${OCF_RESKEY_path} || return $OCF_ERR_GENERIC
+	    if [ -z "$params" ]; then
+		return $OCF_SUCCESS
+	    else
+		do_cmd tgtadm --lld iscsi --op update --mode logicalunit \
+		    --tid=${OCF_RESKEY_tid} \
+		    --lun=${OCF_RESKEY_lun} \
+		    --params ${params// /,} && return $OCF_SUCCESS
+	    fi
 	    ;;
     esac
     return $OCF_ERR_GENERIC

@@ -88,7 +88,8 @@ The logical target name. Should follow the conventional
 <longdesc lang="en">
 Target parameters. A space-separated list of "name=value" pairs which
 will be passed through to the iSCSI daemon's management interface. The
-supported parameters are implementation dependent.
+supported parameters are implementation dependent. Neither the name
+nor the value may contain whitespace.
 </longdesc>
 <shortdesc lang="en">List of iSCSI target parameters</shortdesc>
 <content type="string" />
