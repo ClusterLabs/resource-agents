@@ -194,25 +194,33 @@ pgsql_start() {
 	    return $OCF_ERR_GENERIC
 	fi
 
-	if runasowner "$OCF_RESKEY_pgctl $OCF_RESKEY_ctl_opt -D $OCF_RESKEY_pgdata -l $OCF_RESKEY_logfile -o "\'$OCF_RESKEY_start_opt\'" start > /dev/null 2>&1"
+	output=`runasowner "$OCF_RESKEY_pgctl $OCF_RESKEY_ctl_opt -D $OCF_RESKEY_pgdata -l $OCF_RESKEY_logfile -o "\'$OCF_RESKEY_start_opt\'" start" 2>&1`
+
+	if [ $? -eq 0 ]
 	then
 	   # Probably started.....
             ocf_log info "PostgreSQL start command sent."
 	else
-	    ocf_log err "Can't start PostgreSQL."; return $OCF_ERR_GENERIC
+	    ocf_log err "Can't start PostgreSQL."
+            echo "$output"
+            return $OCF_ERR_GENERIC
 	fi
     else
 	ocf_log err "$OCF_RESKEY_pgctl not found!"
 	return $OCF_ERR_GENERIC
     fi
 
-    rc=$OCF_ERR_GENERIC
-    while [ $rc -ne 0 ]; do
-        pgsql_monitor
-        rc=$? 
+    while :
+    do
+        pgsql_monitor warn
+        rc=$?
+        if [ $rc -eq 0 ]; then
+            break;
+        fi 
         sleep 1
 	ocf_log debug "PostgreSQL still hasn't started yet. Waiting..."
     done
+    ocf_log info "PostgreSQL is started."
 
     return $OCF_SUCCESS
 }
@@ -224,9 +232,9 @@ pgsql_stop() {
         #Already stopped
         return $OCF_SUCCESS
     fi
-    
+
     # Stop PostgreSQL do not wait for clients to disconnect
-    runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m fast > /dev/null 2>&1"
+    output=`runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m fast" 2>&1`
 
     # stop waiting
     count=0
@@ -245,13 +253,19 @@ pgsql_stop() {
     then
        #PostgreSQL is still up. Use another shutdown mode.
        ocf_log info "PostgreSQL failed to stop after ${OCF_RESKEY_stop_escalate}s using -m fast. Trying -m immediate..."
-       runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m immediate > /dev/null 2>&1"
+       echo "$output"
+       output=`runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m immediate" 2>&1`
+       echo "$output"
     fi
 
-    rc=$OCF_ERR_GENERIC
-    while [ $rc != $OCF_NOT_RUNNING ]; do
+    while :
+    do
         pgsql_monitor
-        rc=$? 
+        rc=$?
+        if [ $rc -eq $OCF_NOT_RUNNING ]; then
+            # An unnecessary debug log is prevented.
+            break;
+        fi 
 	sleep 1
 	ocf_log debug "PostgreSQL still hasn't stopped yet. Waiting..."
     done
@@ -283,6 +297,9 @@ pgsql_status() {
 #
 
 pgsql_monitor() {
+    # Set the log level of the error message
+    loglevel=${1:-err}
+
     if ! pgsql_status
     then
 	ocf_log info "PostgreSQL is down"
@@ -291,14 +308,26 @@ pgsql_monitor() {
 
     if [ "x" = "x$OCF_RESKEY_pghost" ]
     then
-       runasowner "$OCF_RESKEY_psql -p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb -c 'select now();' >/dev/null 2>&1"
+       output=`runasowner "$OCF_RESKEY_psql -p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb -c 'select now();'" 2>&1`
     else
-       runasowner "$OCF_RESKEY_psql -h $OCF_RESKEY_pghost -p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb -c 'select now();' >/dev/null 2>&1"
+       output=`runasowner "$OCF_RESKEY_psql -h $OCF_RESKEY_pghost -p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb -c 'select now();'" 2>&1`
     fi
     
-    if [ $? -ne  0 ]
+    rc=$?
+    if [ $rc -ne  0 ]
     then
-	ocf_log err "PostgreSQL $OCF_RESKEY_pgdb isn't running"
+	ocf_log $loglevel "PostgreSQL $OCF_RESKEY_pgdb isn't running"
+        if [ $rc -eq 1 ]
+        then
+            ocf_log err "Fatal error(out of memory or file not found, etc.) occurred while executing the psql command."
+        elif [ $rc -eq 2 ]
+        then
+            ocf_log $loglevel "Connection error(connection to the server went bad and the session was not interactive) occurred while executing the psql command."
+        elif [ $rc -eq 3 ]
+        then
+            ocf_log err "Script error(the variable ON_ERROR_STOP was set) occurred while executing the psql command."
+        fi
+        echo "$output"
 	return $OCF_ERR_GENERIC
     fi
     
