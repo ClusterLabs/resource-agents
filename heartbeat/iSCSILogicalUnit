@@ -92,6 +92,38 @@ to be a regular file, too.
 <content type="string" />
 </parameter>
 
+<parameter name="scsi_id" required="0" unique="0">
+<longdesc lang="en">
+The SCSI ID to be configured for this Logical Unit.
+</longdesc>
+<shortdesc lang="en">SCSI ID</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="scsi_sn" required="0" unique="0">
+<longdesc lang="en">
+The SCSI serial number to be configured for this Logical Unit.
+</longdesc>
+<shortdesc lang="en">SCSI serial number</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="vendor_id" required="0" unique="0">
+<longdesc lang="en">
+The SCSI vendor ID to be configured for this Logical Unit.
+</longdesc>
+<shortdesc lang="en">SCSI vendor ID</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="product_id" required="0" unique="0">
+<longdesc lang="en">
+The SCSI product ID to be configured for this Logical Unit.
+</longdesc>
+<shortdesc lang="en">SCSI product ID</shortdesc>
+<content type="string" />
+</parameter>
+
 <parameter name="params" required="0" unique="0">
 <longdesc lang="en">
 LU parameters. A space-separated list of "name=value" pairs which
@@ -162,7 +194,14 @@ iSCSILogicalUnit_start() {
     case $OCF_RESKEY_implementation in
 	iet)
 	    # in IET, we have to set LU parameters on creation
-	    params="Path=${OCF_RESKEY_path} ${OCF_RESKEY_params}"
+	    params="Path=${OCF_RESKEY_path}"
+	    if [ -n "${OCF_RESKEY_scsi_id}" ]; then
+		params="${params} ScsiId=${OCF_RESKEY_scsi_id}"
+	    fi
+	    if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
+		params="${params} ScsiSN=${OCF_RESKEY_scsi_sn}"
+	    fi
+	    params="${params} ${OCF_RESKEY_params}"
 	    do_cmd ietadm --op new \
 		--tid=${OCF_RESKEY_tid} \
 		--lun=${OCF_RESKEY_lun} \
@@ -171,7 +210,16 @@ iSCSILogicalUnit_start() {
 	tgt)
 	    # tgt requires that we create the LU first, then set LU
 	    # parameters
-	    params="${OCF_RESKEY_params}"
+	    params=""
+	    local var
+            local envar
+	    for var in scsi_id scsi_sn vendor_id product_id; do
+		envar="OCF_RESKEY_${var}"
+		if [ -n "${!envar}" ]; then
+		    params="${params} ${var}=${!envar}"
+		fi
+	    done
+	    params="${params} ${OCF_RESKEY_params}"
 	    do_cmd tgtadm --lld iscsi --op new --mode logicalunit \
 		--tid=${OCF_RESKEY_tid} \
 		--lun=${OCF_RESKEY_lun} \
@@ -326,6 +374,25 @@ iSCSILogicalUnit_validate() {
 	    ;;
 	tgt)
 	    # tgt is userland only
+	    ;;
+    esac
+
+    # Do we have any configuration parameters that the current
+    # implementation does not support?
+    case $OCF_RESKEY_implementation in
+	iet)
+	    # IET does not support setting the vendor and product ID
+	    # (it always uses "IET" and "VIRTUAL-DISK")
+	    local var
+	    local envar
+	    for var in vendor_id product_id; do
+		envar=OCF_RESKEY_${var}
+		if [ -n "${!envar}" ]; then
+		    ocf_log warn "Configuration parameter \"${var}\"" \
+			"is not supported by the iSCSI implementation" \
+			"and will be ignored."
+		fi
+	    done
 	    ;;
     esac
 
