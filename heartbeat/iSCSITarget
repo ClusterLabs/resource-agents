@@ -107,6 +107,23 @@ to this target</shortdesc>
 <content type="string" default="${OCF_RESKEY_initiators_default}"/>
 </parameter>
 
+<parameter name="username" required="0" unique="0">
+<longdesc lang="en">
+A username used for initiator authentication. If unspecified,
+allowed initiators will be able to log in without authentication.
+</longdesc>
+<shortdesc lang="en">Incoming account username</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="password" required="0" unique="0">
+<longdesc lang="en">
+A password used for initiator authentication.
+</longdesc>
+<shortdesc lang="en">Incoming account password</shortdesc>
+<content type="string"/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -186,6 +203,14 @@ iSCSITarget_start() {
 		echo "${OCF_RESKEY_name} ALL" >> /etc/initiators.deny
 		echo "${OCF_RESKEY_name} ${OCF_RESKEY_initiators// /,}" >> /etc/initiators.allow
 	    fi
+	    # In iet, adding a new user and assigning it to a target
+	    # is one operation.
+	    if [ -n "${OCF_RESKEY_username}" ]; then
+		do_cmd ietadm --op new --user \
+		    --tid=${OCF_RESKEY_tid} \
+		    --params=IncomingUser=${OCF_RESKEY_username},Password=${OCF_RESKEY_password} \
+		    || return $OCF_ERR_GENERIC
+	    fi
 	    return $OCF_SUCCESS
 	    ;;
 	tgt)
@@ -207,6 +232,16 @@ iSCSITarget_start() {
 		    --tid=${OCF_RESKEY_tid} \
 		    --initiator-address=${initiator} || return $OCF_ERR_GENERIC
 	    done
+	    # In tgt, we must first create a user account, then assign
+	    # it to a target using the "bind" operation.
+	    if [ -n "${OCF_RESKEY_username}" ]; then
+		do_cmd tgtadm --lld iscsi --mode account --op new \
+		    --user=${OCF_RESKEY_username} \
+		    --password=${OCF_RESKEY_password} || return	$OCF_ERR_GENERIC
+		do_cmd tgtadm --lld iscsi --mode account --op bind \
+		    --tid=${OCF_RESKEY_tid} \
+		    --user=${OCF_RESKEY_username} || return $OCF_ERR_GENERIC
+	    fi
 	    return $OCF_SUCCESS
 	    ;;
     esac
@@ -235,6 +270,14 @@ iSCSITarget_stop() {
 			     --tid=${OCF_RESKEY_tid} $2 $1
 		    shift 2
 		done
+   	        # In iet, unassigning a user from a target and
+		# deleting the user account is one operation.
+		if [ -n "${OCF_RESKEY_username}" ]; then
+		    do_cmd ietadm --op delete --user \
+			--tid=${OCF_RESKEY_tid} \
+			--params=IncomingUser=${OCF_RESKEY_username} \
+			|| return $OCF_ERR_GENERIC
+		fi
 		do_cmd ietadm --op delete \
 		    --tid=${OCF_RESKEY_tid} || return $OCF_ERR_GENERIC
 		if [ -n ${OCF_RESKEY_initiators} ]; then
@@ -267,11 +310,20 @@ iSCSITarget_stop() {
 			--tid=${OCF_RESKEY_tid} $2 $1
 		    shift 2
 		done
+	        # In tgt, we must first unbind the user account from
+		# the target, then remove the account itself.
+		if [ -n "${OCF_RESKEY_username}" ]; then
+		    do_cmd tgtadm --lld iscsi --mode account --op unbind \
+			--tid=${OCF_RESKEY_tid} \
+			--user=${OCF_RESKEY_username} || return $OCF_ERR_GENERIC
+		    do_cmd tgtadm --lld iscsi --mode account --op delete \
+			--user=${OCF_RESKEY_username} || return $OCF_ERR_GENERIC
+		fi
+		do_cmd tgtadm --lld iscsi --op delete --mode target \
+		    --tid=${OCF_RESKEY_tid} && return $OCF_SUCCESS
 		# In tgt, we don't have to worry about our ACL
 		# entries. They are automatically removed upon target
 		# deletion.
-		do_cmd tgtadm --lld iscsi --op delete --mode target \
-		    --tid=${OCF_RESKEY_tid} && return $OCF_SUCCESS
 		;;
 	esac
     else
