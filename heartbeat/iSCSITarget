@@ -360,10 +360,10 @@ iSCSITarget_validate() {
     # Do we have all required binaries?
     case $OCF_RESKEY_implementation in
 	iet)
-	    check_binary ietadm || return $OCF_ERR_INSTALLED
+	    check_binary ietadm
 	    ;;
 	tgt)
-	    check_binary tgtadm || return $OCF_ERR_INSTALLED
+	    check_binary tgtadm
 	    ;;
 	*)
 	    # and by the way, is the implementation supported?
