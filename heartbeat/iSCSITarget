@@ -84,18 +84,7 @@ The logical target name. Should follow the conventional
 <content type="string" />
 </parameter>
 
-<parameter name="params" required="0" unique="0">
-<longdesc lang="en">
-Target parameters. A space-separated list of "name=value" pairs which
-will be passed through to the iSCSI daemon's management interface. The
-supported parameters are implementation dependent. Neither the name
-nor the value may contain whitespace.
-</longdesc>
-<shortdesc lang="en">List of iSCSI target parameters</shortdesc>
-<content type="string" />
-</parameter>
-
-<parameter name="initiators" required="0" unique="0">
+<parameter name="allowed_initiators" required="0" unique="0">
 <longdesc lang="en">
 Allowed initiators. A space-separated list of initiators allowed to
 connect to this target. Initiators may be listed in any syntax
@@ -104,7 +93,7 @@ not set, access to this target will be allowed from any initiator.
 </longdesc>
 <shortdesc lang="en">List of iSCSI initiators allowed to connect
 to this target</shortdesc>
-<content type="string" default="${OCF_RESKEY_initiators_default}"/>
+<content type="string" default=""/>
 </parameter>
 
 <parameter name="username" required="0" unique="0">
@@ -122,6 +111,17 @@ A password used for initiator authentication.
 </longdesc>
 <shortdesc lang="en">Incoming account password</shortdesc>
 <content type="string"/>
+</parameter>
+
+<parameter name="additional_parameters" required="0" unique="0">
+<longdesc lang="en">
+Additional target parameters. A space-separated list of "name=value"
+pairs which will be passed through to the iSCSI daemon's management
+interface. The supported parameters are implementation
+dependent. Neither the name nor the value may contain whitespace.
+</longdesc>
+<shortdesc lang="en">List of iSCSI target parameters</shortdesc>
+<content type="string" />
 </parameter>
 
 </parameters>
@@ -188,7 +188,7 @@ iSCSITarget_start() {
 	    do_cmd ietadm --op new \
 		--tid=${OCF_RESKEY_tid} \
 		--params Name=${OCF_RESKEY_name} || return $OCF_ERR_GENERIC
-	    for param in ${OCF_RESKEY_params}; do
+	    for param in ${OCF_RESKEY_additional_parameters}; do
 		name=${param%=*}
 		value=${param#*=}
 		do_cmd ietadm --op update \
@@ -199,7 +199,7 @@ iSCSITarget_start() {
 	    # specifically enable access based on initiator address,
 	    # we must first deny access to the target globally, then
 	    # re-enable by specific initiator.
-	    if [ -n ${OCF_RESKEY_initiators} ]; then
+	    if [ -n ${OCF_RESKEY_allowed_initiators} ]; then
 		echo "${OCF_RESKEY_name} ALL" >> /etc/initiators.deny
 		echo "${OCF_RESKEY_name} ${OCF_RESKEY_initiators// /,}" >> /etc/initiators.allow
 	    fi
@@ -217,7 +217,7 @@ iSCSITarget_start() {
 	    do_cmd tgtadm --lld iscsi --op new --mode target \
 		--tid=${OCF_RESKEY_tid} \
 		--targetname ${OCF_RESKEY_name} || return $OCF_ERR_GENERIC
-	    for param in ${OCF_RESKEY_params}; do
+	    for param in ${OCF_RESKEY_additional_parameters}; do
 		name=${param%=*}
 		value=${param#*=}
 		do_cmd tgtadm --lld iscsi --op update --mode target \
@@ -225,9 +225,10 @@ iSCSITarget_start() {
 		    --name=${name} --value=${value} || return $OCF_ERR_GENERIC
 	    done
 	    # For tgt, we always have to add access per initiator;
-	    # access to targets is denied by default. If "initiators"
-	    # is unset, we must use the special keyword ALL.
-	    for initiator in ${OCF_RESKEY_initiators=ALL}; do
+	    # access to targets is denied by default. If
+	    # "allowed_initiators" is unset, we must use the special
+	    # keyword ALL.
+	    for initiator in ${OCF_RESKEY_allowed_initiators=ALL}; do
 		do_cmd tgtadm --lld iscsi --op bind --mode target \
 		    --tid=${OCF_RESKEY_tid} \
 		    --initiator-address=${initiator} || return $OCF_ERR_GENERIC
@@ -280,7 +281,7 @@ iSCSITarget_stop() {
 		fi
 		do_cmd ietadm --op delete \
 		    --tid=${OCF_RESKEY_tid} || return $OCF_ERR_GENERIC
-		if [ -n ${OCF_RESKEY_initiators} ]; then
+		if [ -n ${OCF_RESKEY_allowed_initiators} ]; then
 		    # Avoid stale /etc/initiators.{allow,deny} entries
 		    # for this target
 		    do_cmd sed -e "/^${OCF_RESKEY_name}[[:space:]]/d" \

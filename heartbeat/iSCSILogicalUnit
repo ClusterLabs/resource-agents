@@ -124,12 +124,12 @@ The SCSI product ID to be configured for this Logical Unit.
 <content type="string" />
 </parameter>
 
-<parameter name="params" required="0" unique="0">
+<parameter name="additional_parameters" required="0" unique="0">
 <longdesc lang="en">
-LU parameters. A space-separated list of "name=value" pairs which
-will be passed through to the iSCSI daemon's management interface. The
-supported parameters are implementation dependent. Neither the name
-nor the value may contain whitespace.
+Additional LU parameters. A space-separated list of "name=value" pairs
+which will be passed through to the iSCSI daemon's management
+interface. The supported parameters are implementation
+dependent. Neither the name nor the value may contain whitespace.
 </longdesc>
 <shortdesc lang="en">List of iSCSI LU parameters</shortdesc>
 <content type="string" />
@@ -201,7 +201,7 @@ iSCSILogicalUnit_start() {
 	    if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
 		params="${params} ScsiSN=${OCF_RESKEY_scsi_sn}"
 	    fi
-	    params="${params} ${OCF_RESKEY_params}"
+	    params="${params} ${OCF_RESKEY_additional_parameters}"
 	    do_cmd ietadm --op new \
 		--tid=${OCF_RESKEY_tid} \
 		--lun=${OCF_RESKEY_lun} \
@@ -219,7 +219,7 @@ iSCSILogicalUnit_start() {
 		    params="${params} ${var}=${!envar}"
 		fi
 	    done
-	    params="${params} ${OCF_RESKEY_params}"
+	    params="${params} ${OCF_RESKEY_additional_parameters}"
 	    do_cmd tgtadm --lld iscsi --op new --mode logicalunit \
 		--tid=${OCF_RESKEY_tid} \
 		--lun=${OCF_RESKEY_lun} \
