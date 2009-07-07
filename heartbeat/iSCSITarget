@@ -67,20 +67,12 @@ then "tgt".
 <content type="string" default="${OCF_RESKEY_implementation_default}"/>
 </parameter>
 
-<parameter name="tid" required="1" unique="0">
+<parameter name="iqn" required="1" unique="1">
 <longdesc lang="en">
-The numeric target ID. Must not be zero.
-</longdesc>
-<shortdesc lang="en">iSCSI target ID</shortdesc>
-<content type="integer" />
-</parameter>
-
-<parameter name="name" required="1" unique="1">
-<longdesc lang="en">
-The logical target name. Should follow the conventional
+The target iSCSI Qualified Name (IQN). Should follow the conventional
 "iqn.yyyy-mm.&lt;reversed domain name&gt;[:identifier]" syntax.
 </longdesc>
-<shortdesc lang="en">iSCSI target name</shortdesc>
+<shortdesc lang="en">iSCSI target IQN</shortdesc>
 <content type="string" />
 </parameter>
 
@@ -185,43 +177,62 @@ iSCSITarget_start() {
 
     case $OCF_RESKEY_implementation in
 	iet)
+	    local lasttid
+	    local tid
+	    # Figure out the last used target ID, add 1 to get the new
+	    # target ID.
+	    lasttid=`sed -ne "s/tid:\([[:digit:]]\+\) name:.*/\1/p" < /proc/net/iet/volume | sort -n | tail -n1`
+	    [ -z "${lasttid}" ] && lasttid=0
+	    tid=$((++lasttid))
+	    # Create the target.
 	    do_cmd ietadm --op new \
-		--tid=${OCF_RESKEY_tid} \
-		--params Name=${OCF_RESKEY_name} || return $OCF_ERR_GENERIC
+		--tid=${tid} \
+		--params Name=${OCF_RESKEY_iqn} || return $OCF_ERR_GENERIC
+	    # Set additional parameters.
 	    for param in ${OCF_RESKEY_additional_parameters}; do
 		name=${param%=*}
 		value=${param#*=}
 		do_cmd ietadm --op update \
-		    --tid=${OCF_RESKEY_tid} \
+		    --tid=${tid} \
 		    --params ${name}=${value} || return $OCF_ERR_GENERIC
 	    done
 	    # For iet, access to new targets is allowed by default. To
 	    # specifically enable access based on initiator address,
 	    # we must first deny access to the target globally, then
 	    # re-enable by specific initiator.
-	    if [ -n ${OCF_RESKEY_allowed_initiators} ]; then
-		echo "${OCF_RESKEY_name} ALL" >> /etc/initiators.deny
-		echo "${OCF_RESKEY_name} ${OCF_RESKEY_initiators// /,}" >> /etc/initiators.allow
+	    if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
+		echo "${OCF_RESKEY_iqn} ALL" >> /etc/initiators.deny
+		echo "${OCF_RESKEY_iqn} ${OCF_RESKEY_allowed_initiators// /,}" >> /etc/initiators.allow
 	    fi
 	    # In iet, adding a new user and assigning it to a target
 	    # is one operation.
 	    if [ -n "${OCF_RESKEY_username}" ]; then
 		do_cmd ietadm --op new --user \
-		    --tid=${OCF_RESKEY_tid} \
+		    --tid=${tid} \
 		    --params=IncomingUser=${OCF_RESKEY_username},Password=${OCF_RESKEY_password} \
 		    || return $OCF_ERR_GENERIC
 	    fi
 	    return $OCF_SUCCESS
 	    ;;
 	tgt)
+	    local lasttid
+	    local tid
+	    # Figure out the last used target ID, add 1 to get the new
+	    # target ID.
+	    lasttid=`tgtadm --lld iscsi --op show --mode target \
+                | sed -ne "s/^Target \([[:digit:]]\+\): .*/\1/p" | sort -n | tail -n1`
+	    [ -z "${lasttid}" ] && lasttid=0
+	    tid=$((++lasttid))
+	    # Create the target.
 	    do_cmd tgtadm --lld iscsi --op new --mode target \
-		--tid=${OCF_RESKEY_tid} \
-		--targetname ${OCF_RESKEY_name} || return $OCF_ERR_GENERIC
+		--tid=${tid} \
+		--targetname ${OCF_RESKEY_iqn} || return $OCF_ERR_GENERIC
+	    # Set parameters.
 	    for param in ${OCF_RESKEY_additional_parameters}; do
 		name=${param%=*}
 		value=${param#*=}
 		do_cmd tgtadm --lld iscsi --op update --mode target \
-		    --tid=${OCF_RESKEY_tid} \
+		    --tid=${tid} \
 		    --name=${name} --value=${value} || return $OCF_ERR_GENERIC
 	    done
 	    # For tgt, we always have to add access per initiator;
@@ -230,7 +241,7 @@ iSCSITarget_start() {
 	    # keyword ALL.
 	    for initiator in ${OCF_RESKEY_allowed_initiators=ALL}; do
 		do_cmd tgtadm --lld iscsi --op bind --mode target \
-		    --tid=${OCF_RESKEY_tid} \
+		    --tid=${tid} \
 		    --initiator-address=${initiator} || return $OCF_ERR_GENERIC
 	    done
 	    # In tgt, we must first create a user account, then assign
@@ -240,7 +251,7 @@ iSCSITarget_start() {
 		    --user=${OCF_RESKEY_username} \
 		    --password=${OCF_RESKEY_password} || return	$OCF_ERR_GENERIC
 		do_cmd tgtadm --lld iscsi --mode account --op bind \
-		    --tid=${OCF_RESKEY_tid} \
+		    --tid=${tid} \
 		    --user=${OCF_RESKEY_username} || return $OCF_ERR_GENERIC
 	    fi
 	    return $OCF_SUCCESS
@@ -252,12 +263,19 @@ iSCSITarget_start() {
 iSCSITarget_stop() {
     iSCSITarget_monitor
     if [ $? =  $OCF_SUCCESS ]; then
+	local tid
 	case $OCF_RESKEY_implementation in
 	    iet)
+		# Figure out the target ID
+		tid=`sed -ne "s/tid:\([[:digit:]]\+\) name:${OCF_RESKEY_iqn}/\1/p" < /proc/net/iet/volume`
+		if [ -z "${tid}" ]; then
+		    ocf_log err "Failed to retrieve target ID for IQN ${OCF_RESKEY_iqn}"
+		    return $OCF_ERR_GENERIC
+		fi
 		# Close existing connections. There is no other way to
 		# do this in IET than to parse the contents of
 		# /proc/net/iet/session.
-		set -- $(sed -ne '/^tid:'${OCF_RESKEY_tid}' /,/^tid/ {
+		set -- $(sed -ne '/^tid:'${tid}' /,/^tid/ {
                           /^[[:space:]]*sid:\([0-9]\+\)/ {
                              s/^[[:space:]]*sid:\([0-9]*\).*/--sid=\1/; h;
                           };
@@ -268,35 +286,40 @@ iSCSITarget_stop() {
 		while [[ -n $2 ]]; do
                     # $2 $1 looks like "--sid=X --cid=Y"
 		    do_cmd ietadm --op delete \
-			     --tid=${OCF_RESKEY_tid} $2 $1
+			     --tid=${tid} $2 $1
 		    shift 2
 		done
    	        # In iet, unassigning a user from a target and
 		# deleting the user account is one operation.
 		if [ -n "${OCF_RESKEY_username}" ]; then
 		    do_cmd ietadm --op delete --user \
-			--tid=${OCF_RESKEY_tid} \
+			--tid=${tid} \
 			--params=IncomingUser=${OCF_RESKEY_username} \
 			|| return $OCF_ERR_GENERIC
 		fi
 		do_cmd ietadm --op delete \
-		    --tid=${OCF_RESKEY_tid} || return $OCF_ERR_GENERIC
-		if [ -n ${OCF_RESKEY_allowed_initiators} ]; then
-		    # Avoid stale /etc/initiators.{allow,deny} entries
-		    # for this target
-		    do_cmd sed -e "/^${OCF_RESKEY_name}[[:space:]]/d" \
-			-i /etc/initiators.deny
-		    do_cmd sed -e "/^${OCF_RESKEY_name}[[:space:]]/d" \
-			-i /etc/initiators.allow
-		fi
+		    --tid=${tid} || return $OCF_ERR_GENERIC
+		# Avoid stale /etc/initiators.{allow,deny} entries
+		# for this target
+		do_cmd sed -e "/^${OCF_RESKEY_iqn}[[:space:]]/d" \
+		    -i /etc/initiators.deny
+		do_cmd sed -e "/^${OCF_RESKEY_iqn}[[:space:]]/d" \
+		    -i /etc/initiators.allow
 		return $OCF_SUCCESS
 		;;
 	    tgt)
+		# Figure out the target ID
+		tid=`tgtadm --lld iscsi --op show --mode target \
+		    | sed -ne "s/^Target \([[:digit:]]\+\): ${OCF_RESKEY_iqn}/\1/p"`
+		if [ -z "$tid" ]; then
+		    ocf_log err "Failed to retrieve target ID for IQN ${OCF_RESKEY_iqn}"
+		    return $OCF_ERR_GENERIC
+		fi
 		# Close existing connections. There is no other way to
 		# do this in tgt than to parse the output of "tgtadm --op
 		# show".
 		set -- $(tgtadm --lld iscsi --op show --mode target \
-		    | sed -ne '/^Target '${OCF_RESKEY_tid}':/,/^Target/ {
+		    | sed -ne '/^Target '${tid}':/,/^Target/ {
                           /^[[:space:]]*I_T nexus: \([0-9]\+\)/ {
                              s/^.*: \([0-9]*\).*/--sid=\1/; h;
                           };
@@ -308,20 +331,20 @@ iSCSITarget_stop() {
 		while [[ -n $2 ]]; do
                     # $2 $1 looks like "--sid=X --cid=Y"
 		    do_cmd tgtadm --lld iscsi --op delete --mode connection \
-			--tid=${OCF_RESKEY_tid} $2 $1
+			--tid=${tid} $2 $1
 		    shift 2
 		done
 	        # In tgt, we must first unbind the user account from
 		# the target, then remove the account itself.
 		if [ -n "${OCF_RESKEY_username}" ]; then
 		    do_cmd tgtadm --lld iscsi --mode account --op unbind \
-			--tid=${OCF_RESKEY_tid} \
+			--tid=${tid} \
 			--user=${OCF_RESKEY_username} || return $OCF_ERR_GENERIC
 		    do_cmd tgtadm --lld iscsi --mode account --op delete \
 			--user=${OCF_RESKEY_username} || return $OCF_ERR_GENERIC
 		fi
 		do_cmd tgtadm --lld iscsi --op delete --mode target \
-		    --tid=${OCF_RESKEY_tid} && return $OCF_SUCCESS
+		    --tid=${tid} && return $OCF_SUCCESS
 		# In tgt, we don't have to worry about our ACL
 		# entries. They are automatically removed upon target
 		# deletion.
@@ -336,11 +359,11 @@ iSCSITarget_stop() {
 iSCSITarget_monitor() {
     case $OCF_RESKEY_implementation in
 	iet)
-	    grep -q "tid:${OCF_RESKEY_tid} name:${OCF_RESKEY_name}" /proc/net/iet/volume && return $OCF_SUCCESS
+	    grep -Eq "tid:[0-9]+ name:${OCF_RESKEY_iqn}" /proc/net/iet/volume && return $OCF_SUCCESS
 	    ;;
 	tgt)
-	    do_cmd tgtadm --lld iscsi --op show --mode target \
-		| grep -q "Target ${OCF_RESKEY_tid}: ${OCF_RESKEY_name}" && return $OCF_SUCCESS
+	    tgtadm --lld iscsi --op show --mode target \
+		| grep -Eq "Target [0-9]+: ${OCF_RESKEY_iqn}" && return $OCF_SUCCESS
 	    ;;
     esac
     
@@ -349,7 +372,7 @@ iSCSITarget_monitor() {
 
 iSCSITarget_validate() {
     # Do we have all required variables?
-    for var in implementation tid name; do
+    for var in implementation iqn; do
 	param="OCF_RESKEY_${var}"
 	if [ -z "${!param}" ]; then
 	    ocf_log error "Missing resource parameter \"$var\"!"
@@ -368,21 +391,6 @@ iSCSITarget_validate() {
 	*)
 	    # and by the way, is the implementation supported?
 	    ocf_log error "Unsupported iSCSI target implementation \"$OCF_RESKEY_implementation\"!"
-	    return $OCF_ERR_CONFIGURED
-    esac
-
-    # Do we have a valid target ID?
-    [ $OCF_RESKEY_tid -ge 1 ]
-    case $? in
-	0)
-	    # OK
-	    ;;
-	1)
-	    ocf_log err "Invalid target ID $OCF_RESKEY_tid (must be greater than 0)."
-	    return $OCF_ERR_CONFIGURED
-	    ;;
-	*)
-	    ocf_log err "Invalid target ID $OCF_RESKEY_tid (must be an integer)."
 	    return $OCF_ERR_CONFIGURED
     esac
 

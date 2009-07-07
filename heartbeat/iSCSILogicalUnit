@@ -67,12 +67,12 @@ then "tgt".
 <content type="string" default="${OCF_RESKEY_implementation_default}"/>
 </parameter>
 
-<parameter name="tid" required="1" unique="0">
+<parameter name="target_iqn" required="1" unique="0">
 <longdesc lang="en">
-The numeric target ID. Must not be zero.
+The iSCSI Qualified Name (IQN) that this Logical Unit belongs to.
 </longdesc>
-<shortdesc lang="en">iSCSI target ID</shortdesc>
-<content type="integer" />
+<shortdesc lang="en">iSCSI target IQN</shortdesc>
+<content type="string" />
 </parameter>
 
 <parameter name="lun" required="1" unique="0">
@@ -193,8 +193,15 @@ iSCSILogicalUnit_start() {
 
     case $OCF_RESKEY_implementation in
 	iet)
-	    # in IET, we have to set LU parameters on creation
 	    params="Path=${OCF_RESKEY_path}"
+	    # use blockio if path points to a block device, fileio
+	    # otherwise.
+	    if [ -b "${OCF_RESKEY_path}" ]; then
+		params="${params} Type=blockio"
+	    else
+		params="${params} Type=fileio"
+	    fi
+	    # in IET, we have to set LU parameters on creation
 	    if [ -n "${OCF_RESKEY_scsi_id}" ]; then
 		params="${params} ScsiId=${OCF_RESKEY_scsi_id}"
 	    fi
@@ -203,7 +210,7 @@ iSCSILogicalUnit_start() {
 	    fi
 	    params="${params} ${OCF_RESKEY_additional_parameters}"
 	    do_cmd ietadm --op new \
-		--tid=${OCF_RESKEY_tid} \
+		--tid=${TID} \
 		--lun=${OCF_RESKEY_lun} \
 		--params ${params// /,} && return $OCF_SUCCESS
 	    ;;
@@ -221,14 +228,14 @@ iSCSILogicalUnit_start() {
 	    done
 	    params="${params} ${OCF_RESKEY_additional_parameters}"
 	    do_cmd tgtadm --lld iscsi --op new --mode logicalunit \
-		--tid=${OCF_RESKEY_tid} \
+		--tid=${TID} \
 		--lun=${OCF_RESKEY_lun} \
 	    	--backing-store ${OCF_RESKEY_path} || return $OCF_ERR_GENERIC
 	    if [ -z "$params" ]; then
 		return $OCF_SUCCESS
 	    else
 		do_cmd tgtadm --lld iscsi --op update --mode logicalunit \
-		    --tid=${OCF_RESKEY_tid} \
+		    --tid=${TID} \
 		    --lun=${OCF_RESKEY_lun} \
 		    --params ${params// /,} && return $OCF_SUCCESS
 	    fi
@@ -244,7 +251,7 @@ iSCSILogicalUnit_stop() {
 	    iet)
 		# IET allows us to remove LUs while they are in use
 		do_cmd ietadm --op delete \
-		    --tid=${OCF_RESKEY_tid} \
+		    --tid=${TID} \
 		    --lun=${OCF_RESKEY_lun} && return $OCF_SUCCESS
 		;;
 	    tgt)
@@ -255,7 +262,7 @@ iSCSILogicalUnit_stop() {
 		# decides that the LU is no longer in use, or we get
 		# timed out by the LRM.
 		while ! do_cmd tgtadm --lld iscsi --op delete --mode logicalunit \
-		    --tid ${OCF_RESKEY_tid} \
+		    --tid ${TID} \
 		    --lun=${OCF_RESKEY_lun}; do
 		    sleep 1
 		done
@@ -271,11 +278,26 @@ iSCSILogicalUnit_stop() {
 iSCSILogicalUnit_monitor() {
     case $OCF_RESKEY_implementation in
 	iet)
+ 	    # Figure out and set the target ID
+	    TID=`sed -ne "s/tid:\([[:digit:]]\+\) name:${OCF_RESKEY_target_iqn}/\1/p" < /proc/net/iet/volume`
+	    if [ -z "${TID}" ]; then
+		# Our target is not configured, thus we're not
+		# running.
+		return $OCF_NOT_RUNNING
+	    fi
 	    # FIXME: this looks for a matching LUN and path, but does
 	    # not actually test for the correct target ID.
 	    grep -E -q "[[:space:]]+lun:${OCF_RESKEY_lun}.*path:${OCF_RESKEY_path}" /proc/net/iet/volume && return $OCF_SUCCESS
 	    ;;
 	tgt)
+	    # Figure out and set the target ID
+	    TID=`tgtadm --lld iscsi --op show --mode target \
+		| sed -ne "s/^Target \([[:digit:]]\+\): ${OCF_RESKEY_target_iqn}/\1/p"`
+	    if [ -z "$TID" ]; then
+		# Our target is not configured, thus we're not
+		# running.
+		return $OCF_NOT_RUNNING
+	    fi
 	    # This only looks for the backing store, but does not test
 	    # for the correct target ID and LUN.
 	    tgtadm --lld iscsi --op show --mode target \
@@ -288,7 +310,7 @@ iSCSILogicalUnit_monitor() {
 
 iSCSILogicalUnit_validate() {
     # Do we have all required variables?
-    for var in implementation tid lun path; do
+    for var in implementation target_iqn lun path; do
 	param="OCF_RESKEY_${var}"
 	if [ -z "${!param}" ]; then
 	    ocf_log error "Missing resource parameter \"$var\"!"
@@ -307,21 +329,6 @@ iSCSILogicalUnit_validate() {
 	*)
 	    # and by the way, is the implementation supported?
 	    ocf_log error "Unsupported iSCSI target implementation \"$OCF_RESKEY_implementation\"!"
-	    return $OCF_ERR_CONFIGURED
-    esac
-
-    # Do we have a valid target ID?
-    [ $OCF_RESKEY_tid -ge 1 ]
-    case $? in
-	0)
-	    # OK
-	    ;;
-	1)
-	    ocf_log err "Invalid target ID $OCF_RESKEY_tid (must be greater than 0)."
-	    return $OCF_ERR_CONFIGURED
-	    ;;
-	*)
-	    ocf_log err "Invalid target ID $OCF_RESKEY_tid (must be an integer)."
 	    return $OCF_ERR_CONFIGURED
     esac
 
