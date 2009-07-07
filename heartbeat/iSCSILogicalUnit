@@ -40,6 +40,11 @@ elif have_binary tgtadm; then
     OCF_RESKEY_implementation_default="tgt"
 fi
 : ${OCF_RESKEY_implementation=${OCF_RESKEY_implementation_default}}
+
+# Use a default SCSI ID that is unique across the cluster, and
+# persistent in the event of resource migration
+OCF_RESKEY_scsi_id_default="${OCF_RESOURCE_INSTANCE}"
+: ${OCF_RESKEY_scsi_id=${OCF_RESKEY_scsi_id_default}}
 #######################################################################
 
 meta_data() {
@@ -97,7 +102,7 @@ to be a regular file, too.
 The SCSI ID to be configured for this Logical Unit.
 </longdesc>
 <shortdesc lang="en">SCSI ID</shortdesc>
-<content type="string" />
+<content type="string" default="${OCF_RESKEY_scsi_id_default}"/>
 </parameter>
 
 <parameter name="scsi_sn" required="0" unique="0">
