@@ -76,6 +76,14 @@ The target iSCSI Qualified Name (IQN). Should follow the conventional
 <content type="string" />
 </parameter>
 
+<parameter name="tid" required="0" unique="1">
+<longdesc lang="en">
+The iSCSI target ID. Required for tgt.
+</longdesc>
+<shortdesc lang="en">iSCSI target ID</shortdesc>
+<content type="integer" />
+</parameter>
+
 <parameter name="allowed_initiators" required="0" unique="0">
 <longdesc lang="en">
 Allowed initiators. A space-separated list of initiators allowed to
@@ -179,11 +187,15 @@ iSCSITarget_start() {
 	iet)
 	    local lasttid
 	    local tid
-	    # Figure out the last used target ID, add 1 to get the new
-	    # target ID.
-	    lasttid=`sed -ne "s/tid:\([[:digit:]]\+\) name:.*/\1/p" < /proc/net/iet/volume | sort -n | tail -n1`
-	    [ -z "${lasttid}" ] && lasttid=0
-	    tid=$((++lasttid))
+	    if [ "${OCF_RESKEY_tid}" ]; then
+		tid="${OCF_RESKEY_tid}"
+	    else
+    	        # Figure out the last used target ID, add 1 to get the new
+	        # target ID.
+		lasttid=`sed -ne "s/tid:\([[:digit:]]\+\) name:.*/\1/p" < /proc/net/iet/volume | sort -n | tail -n1`
+		[ -z "${lasttid}" ] && lasttid=0
+		tid=$((++lasttid))
+	    fi
 	    # Create the target.
 	    do_cmd ietadm --op new \
 		--tid=${tid} \
@@ -215,14 +227,8 @@ iSCSITarget_start() {
 	    return $OCF_SUCCESS
 	    ;;
 	tgt)
-	    local lasttid
 	    local tid
-	    # Figure out the last used target ID, add 1 to get the new
-	    # target ID.
-	    lasttid=`tgtadm --lld iscsi --op show --mode target \
-                | sed -ne "s/^Target \([[:digit:]]\+\): .*/\1/p" | sort -n | tail -n1`
-	    [ -z "${lasttid}" ] && lasttid=0
-	    tid=$((++lasttid))
+	    tid="${OCF_RESKEY_tid}"
 	    # Create the target.
 	    do_cmd tgtadm --lld iscsi --op new --mode target \
 		--tid=${tid} \
@@ -308,13 +314,7 @@ iSCSITarget_stop() {
 		return $OCF_SUCCESS
 		;;
 	    tgt)
-		# Figure out the target ID
-		tid=`tgtadm --lld iscsi --op show --mode target \
-		    | sed -ne "s/^Target \([[:digit:]]\+\): ${OCF_RESKEY_iqn}/\1/p"`
-		if [ -z "$tid" ]; then
-		    ocf_log err "Failed to retrieve target ID for IQN ${OCF_RESKEY_iqn}"
-		    return $OCF_ERR_GENERIC
-		fi
+		tid="${OCF_RESKEY_tid}"
 		# Close existing connections. There is no other way to
 		# do this in tgt than to parse the output of "tgtadm --op
 		# show".
@@ -372,7 +372,16 @@ iSCSITarget_monitor() {
 
 iSCSITarget_validate() {
     # Do we have all required variables?
-    for var in implementation iqn; do
+    local required_vars
+    case $OCF_RESKEY_implementation in
+	iet)
+	    required_vars="implementation iqn"
+	    ;;
+	tgt)
+	    required_vars="implementation iqn tid"
+	    ;;
+    esac
+    for var in ${required_vars}; do
 	param="OCF_RESKEY_${var}"
 	if [ -z "${!param}" ]; then
 	    ocf_log error "Missing resource parameter \"$var\"!"
