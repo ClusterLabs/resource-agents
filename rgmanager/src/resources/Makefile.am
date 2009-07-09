@@ -13,7 +13,8 @@ RESOURCES		= service.sh ip.sh nfsclient.sh nfsexport.sh \
 
 METADATA		= apache.metadata openldap.metadata samba.metadata \
 			  mysql.metadata postgres-8.metadata \
-			  tomcat-5.metadata named.metadata lvm.metadata drbd.sh
+			  tomcat-5.metadata named.metadata lvm.metadata \
+			  drbd.metadata
 
 EVENT_TARGETS		= default_event_script.sl follow-service.sl
 
