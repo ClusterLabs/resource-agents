@@ -235,11 +235,4 @@ validate-all)
 	;;
 esac
 
-#
-# Flush NFS request queue.  This might be done in the ip resource in the
-# future, but keep this around for now.
-#
-# clunfsops $nfsop_arg -d ${OCF_RESKEY_device}
-#
-
 exit $rv
