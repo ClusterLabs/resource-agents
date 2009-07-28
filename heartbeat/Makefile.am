@@ -48,7 +48,6 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			AudibleAlarm	\
 			db2		\
 			Delay		\
-			drbd		\
 			eDir88		\
 			EvmsSCC		\
 			Evmsd		\
