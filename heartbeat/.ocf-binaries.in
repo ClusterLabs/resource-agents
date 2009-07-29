@@ -12,7 +12,6 @@ export PATH
 : ${IFCONFIG_A_OPT:="@IFCONFIG_A_OPT@"}
 : ${MAILCMD:=@MAILCMD@}
 : ${PING:=@PING@}
-: ${RPM:=@RPM@}
 : ${SH:=@SHELL@}
 : ${TEST:=@TEST@}
 : ${TESTPROG:=@TEST@}

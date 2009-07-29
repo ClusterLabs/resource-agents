@@ -334,31 +334,23 @@ export PATH
 
 AM_PATH_PYTHON
 AC_CHECK_PROGS(MAKE, gmake make)
-AC_PATH_PROGS(HTML2TXT, lynx w3m)
-AC_PATH_PROGS(HELP2MAN, help2man)
-AC_PATH_PROGS(POD2MAN, pod2man, pod2man)
 AC_PATH_PROGS(SSH, ssh, /usr/bin/ssh)
 AC_PATH_PROGS(SCP, scp, /usr/bin/scp)
 AC_PATH_PROGS(HG, hg, /bin/false)
 AC_PATH_PROGS(TAR, tar)
 AC_PATH_PROGS(MD5, md5)
-AC_PATH_PROGS(RPM, rpm)
 AC_PATH_PROGS(TEST, test)
 AC_PATH_PROGS(PING, ping, /bin/ping)
 AC_PATH_PROGS(IFCONFIG, ifconfig, /sbin/ifconfig)
 AC_PATH_PROGS(MAILCMD, mailx mail)
 AC_PATH_PROGS(EGREP, egrep)
 AC_PATH_PROGS(PKGCONFIG, pkg-config)
-AC_PATH_PROGS(XML2CONFIG, xml2-config)
-AC_PATH_PROGS(VALGRIND_BIN, valgrind, /usr/bin/valgrind)
-AC_DEFINE_UNQUOTED(VALGRIND_BIN, "$VALGRIND_BIN", Valgrind command)
 
 AC_SUBST(MAILCMD)
 AC_SUBST(EGREP)
 AC_SUBST(SHELL)
 AC_SUBST(PING)
 AC_SUBST(TEST)
-AC_SUBST(RPM)
 
 AC_MSG_CHECKING(ifconfig option to list interfaces)
 for IFCONFIG_A_OPT in  "-A" "-a" ""
@@ -377,11 +369,6 @@ AC_SUBST(IFCONFIG_A_OPT)
 
 if test x"${MAKE}" = x""; then
    AC_MSG_ERROR(You need (g)make installed in order to build ${PACKAGE})
-fi
-
-AM_CONDITIONAL(BUILD_HELP, test x"${HELP2MAN}" != x"")
-if test x"${HELP2MAN}" != x""; then
-   PKG_FEATURES="$PKG_FEATURES manpages"
 fi
 
 dnl ===============================================
