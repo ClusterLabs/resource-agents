@@ -90,7 +90,7 @@ gnu="ftp://ftp.gnu.org/pub/gnu"
 # Check for Autoconf
 pkg="autoconf"
 URL=$gnu/$pkg/
-for command in autoconf autoconf213 autoconf253 autoconf259 
+for command in autoconf213 autoconf253 autoconf259 autoconf
 do
   if
       testProgram $command == 1
@@ -114,12 +114,12 @@ then
     echo "Autoconf package $autoconf found."
 else
     RC=$?
-    cat <<-!EOF >&2
+    cat <<-EOF >&2
 
 	You must have $pkg installed to compile the linux-ha package.
 	Download the appropriate package for your system,
 	or get the source tarball at: $URL
-	!EOF
+	EOF
 fi
 
 # Create local copy so that the incremental updates will work.
@@ -129,7 +129,7 @@ ln -s `which $autoconf` ./autoconf
 # Check for automake
 pkg="automake"
 URL=$gnu/$pkg/
-for command in automake automake14 automake-1.4 automake15 automake-1.5 automake17 automake-1.7 automake19 automake-1.9 
+for command in automake14 automake-1.4 automake15 automake-1.5 automake17 automake-1.7 automake19 automake-1.9 automake
 do
   if 
       testProgram $command
@@ -148,12 +148,12 @@ then
     echo "Automake package $automake found."
 else
     RC=$?
-    cat <<-!EOF >&2
+    cat <<-EOF >&2
 
 	You must have $pkg installed to compile the linux-ha package.
 	Download the appropriate package for your system,
 	or get the source tarball at: $URL
-	!EOF
+	EOF
 fi
 
 # Create local copy so that the incremental updates will work.
