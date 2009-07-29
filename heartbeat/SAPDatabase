@@ -69,7 +69,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPDatabase">
-<version>1.91</version>
+<version>1.92</version>
 
 <longdesc lang="en">
 Resource script for SAP databases. It manages a SAP database of any type as an HA resource.
@@ -274,7 +274,7 @@ x_server_status() {
   # Note: ps cuts off it's output at column $COLUMNS, so "ps -ef" can not be used here
   # as the output might be to long.
   cnt=`ps efo args --user $sdbuser | grep -c vserver`
-  if [ $cnt -eq 1 ]
+  if [ $cnt -ge 1 ]
   then
     rc=$OCF_SUCCESS
   else
@@ -899,19 +899,13 @@ $OCF_RESKEY_DIR_EXECUTABLE
 DIR_EXECUTABLE=""
 for EXEPATH in $PATHLIST
 do
-  SAPSTARTDB=`which $EXEPATH/$EXESTARTDB 2> /dev/null`
-  if [ $? -eq 0 ]
+  if [ -x $EXEPATH/$EXESTARTDB -a -x $EXEPATH/$EXESTOPDB -a -x $EXEPATH/$EXEDBCONNECT ]
   then
-    MYPATH=`echo "$SAPSTARTDB" | head -1`
-    MYPATH=`dirname "$MYPATH"`
-    if [ -x $MYPATH/$EXESTARTDB -a -x $MYPATH/$EXESTOPDB -a -x $MYPATH/$EXEDBCONNECT ]
-    then
-      DIR_EXECUTABLE=$MYPATH
-      SAPSTARTDB=$MYPATH/$EXESTARTDB
-      SAPSTOPDB=$MYPATH/$EXESTOPDB
-      SAPDBCONNECT=$MYPATH/$EXEDBCONNECT
-      break
-    fi
+    DIR_EXECUTABLE=$EXEPATH
+    SAPSTARTDB=$EXEPATH/$EXESTARTDB
+    SAPSTOPDB=$EXEPATH/$EXESTOPDB
+    SAPDBCONNECT=$EXEPATH/$EXEDBCONNECT
+    break
   fi
 done
 if [ -z "$DIR_EXECUTABLE" ]

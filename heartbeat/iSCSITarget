@@ -1,0 +1,452 @@
+#!/bin/bash
+#
+#
+# 	iSCSITarget OCF RA. Exports and manages iSCSI targets.
+#
+#       Copyright (c) 2009 LINBIT HA-Solutions GmbH, Florian Haas
+# 			 All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+LC_ALL="C"
+LANG="C"
+
+# Defaults
+# Set a default implementation based on software installed
+if have_binary ietadm; then
+    OCF_RESKEY_implementation_default="iet"
+elif have_binary tgtadm; then
+    OCF_RESKEY_implementation_default="tgt"
+fi
+: ${OCF_RESKEY_implementation=${OCF_RESKEY_implementation_default}}
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="iSCSITarget" version="0.9">
+<version>0.9</version>
+
+<longdesc lang="en">
+Manages iSCSI targets. An iSCSI target is a collection of SCSI Logical
+Units (LUs) exported via a daemon that speaks the iSCSI protocol.
+</longdesc>
+<shortdesc lang="en">iSCSI target export agent</shortdesc>
+
+<parameters>
+<parameter name="implementation" required="0" unique="0">
+<longdesc lang="en">
+The iSCSI target daemon implementation. Must be one of "iet" or "tgt".
+If unspecified, an implementation is selected based on the
+availability of management utilities, with "iet" being tried first,
+then "tgt".
+</longdesc>
+<shortdesc lang="en">iSCSI target daemon implementation</shortdesc>
+<content type="string" default="${OCF_RESKEY_implementation_default}"/>
+</parameter>
+
+<parameter name="iqn" required="1" unique="1">
+<longdesc lang="en">
+The target iSCSI Qualified Name (IQN). Should follow the conventional
+"iqn.yyyy-mm.&lt;reversed domain name&gt;[:identifier]" syntax.
+</longdesc>
+<shortdesc lang="en">iSCSI target IQN</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="tid" required="0" unique="1">
+<longdesc lang="en">
+The iSCSI target ID. Required for tgt.
+</longdesc>
+<shortdesc lang="en">iSCSI target ID</shortdesc>
+<content type="integer" />
+</parameter>
+
+<parameter name="allowed_initiators" required="0" unique="0">
+<longdesc lang="en">
+Allowed initiators. A space-separated list of initiators allowed to
+connect to this target. Initiators may be listed in any syntax
+the target implementation allows. If this parameter is empty or
+not set, access to this target will be allowed from any initiator.
+</longdesc>
+<shortdesc lang="en">List of iSCSI initiators allowed to connect
+to this target</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="incoming_username" required="0" unique="1">
+<longdesc lang="en">
+A username used for incoming initiator authentication. If unspecified,
+allowed initiators will be able to log in without authentication.
+</longdesc>
+<shortdesc lang="en">Incoming account username</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="incoming_password" required="0" unique="0">
+<longdesc lang="en">
+A password used for incoming initiator authentication.
+</longdesc>
+<shortdesc lang="en">Incoming account password</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="additional_parameters" required="0" unique="0">
+<longdesc lang="en">
+Additional target parameters. A space-separated list of "name=value"
+pairs which will be passed through to the iSCSI daemon's management
+interface. The supported parameters are implementation
+dependent. Neither the name nor the value may contain whitespace.
+</longdesc>
+<shortdesc lang="en">List of iSCSI target parameters</shortdesc>
+<content type="string" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="10" />
+<action name="stop"         timeout="10" />
+<action name="monitor"      timeout="10" interval="10" depth="0" start-delay="0" />
+<action name="meta-data"    timeout="5" />
+<action name="validate-all"   timeout="10" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+do_cmd() {
+    # Wrap local commands to capture their exit code and output. Some
+    # implementations (IET, notably) have management commands with
+    # very terse output. It helps to at least capture exit codes in
+    # the logs.
+    local cmd="$*"
+    ocf_log debug "Calling $cmd"
+    local cmd_out
+    cmd_out=$($cmd 2>&1)
+    ret=$?
+
+    if [ $ret -ne 0 ]; then
+	ocf_log err "Called \"$cmd\""
+	ocf_log err "Exit code $ret"
+	ocf_log err "Command output: \"$cmd_out\""
+    else
+	ocf_log debug "Exit code $ret"
+	ocf_log debug "Command output: \"$cmd_out\""
+    fi
+    
+    echo $cmd_out
+    return $ret
+}
+
+
+iSCSITarget_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+iSCSITarget_start() {
+    iSCSITarget_monitor
+    if [ $? =  $OCF_SUCCESS ]; then
+	return $OCF_SUCCESS
+    fi
+
+    local param
+    local name
+    local value
+    local initiator
+
+    case $OCF_RESKEY_implementation in
+	iet)
+	    local lasttid
+	    local tid
+	    if [ "${OCF_RESKEY_tid}" ]; then
+		tid="${OCF_RESKEY_tid}"
+	    else
+    	        # Figure out the last used target ID, add 1 to get the new
+	        # target ID.
+		lasttid=`sed -ne "s/tid:\([[:digit:]]\+\) name:.*/\1/p" < /proc/net/iet/volume | sort -n | tail -n1`
+		[ -z "${lasttid}" ] && lasttid=0
+		tid=$((++lasttid))
+	    fi
+	    # Create the target.
+	    do_cmd ietadm --op new \
+		--tid=${tid} \
+		--params Name=${OCF_RESKEY_iqn} || return $OCF_ERR_GENERIC
+	    # Set additional parameters.
+	    for param in ${OCF_RESKEY_additional_parameters}; do
+		name=${param%=*}
+		value=${param#*=}
+		do_cmd ietadm --op update \
+		    --tid=${tid} \
+		    --params ${name}=${value} || return $OCF_ERR_GENERIC
+	    done
+	    # For iet, access to new targets is allowed by default. To
+	    # specifically enable access based on initiator address,
+	    # we must first deny access to the target globally, then
+	    # re-enable by specific initiator.
+	    if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
+		echo "${OCF_RESKEY_iqn} ALL" >> /etc/initiators.deny
+		echo "${OCF_RESKEY_iqn} ${OCF_RESKEY_allowed_initiators// /,}" >> /etc/initiators.allow
+	    fi
+	    # In iet, adding a new user and assigning it to a target
+	    # is one operation.
+	    if [ -n "${OCF_RESKEY_incoming_username}" ]; then
+		do_cmd ietadm --op new --user \
+		    --tid=${tid} \
+		    --params=IncomingUser=${OCF_RESKEY_incoming_username},Password=${OCF_RESKEY_incoming_password} \
+		    || return $OCF_ERR_GENERIC
+	    fi
+	    return $OCF_SUCCESS
+	    ;;
+	tgt)
+	    local tid
+	    tid="${OCF_RESKEY_tid}"
+	    # Create the target.
+	    do_cmd tgtadm --lld iscsi --op new --mode target \
+		--tid=${tid} \
+		--targetname ${OCF_RESKEY_iqn} || return $OCF_ERR_GENERIC
+	    # Set parameters.
+	    for param in ${OCF_RESKEY_additional_parameters}; do
+		name=${param%=*}
+		value=${param#*=}
+		do_cmd tgtadm --lld iscsi --op update --mode target \
+		    --tid=${tid} \
+		    --name=${name} --value=${value} || return $OCF_ERR_GENERIC
+	    done
+	    # For tgt, we always have to add access per initiator;
+	    # access to targets is denied by default. If
+	    # "allowed_initiators" is unset, we must use the special
+	    # keyword ALL.
+	    for initiator in ${OCF_RESKEY_allowed_initiators=ALL}; do
+		do_cmd tgtadm --lld iscsi --op bind --mode target \
+		    --tid=${tid} \
+		    --initiator-address=${initiator} || return $OCF_ERR_GENERIC
+	    done
+	    # In tgt, we must first create a user account, then assign
+	    # it to a target using the "bind" operation.
+	    if [ -n "${OCF_RESKEY_incoming_username}" ]; then
+		do_cmd tgtadm --lld iscsi --mode account --op new \
+		    --user=${OCF_RESKEY_incoming_username} \
+		    --password=${OCF_RESKEY_incoming_password} || return $OCF_ERR_GENERIC
+		do_cmd tgtadm --lld iscsi --mode account --op bind \
+		    --tid=${tid} \
+		    --user=${OCF_RESKEY_incoming_username} || return $OCF_ERR_GENERIC
+	    fi
+	    return $OCF_SUCCESS
+	    ;;
+    esac
+    return $OCF_ERR_GENERIC
+}
+
+iSCSITarget_stop() {
+    iSCSITarget_monitor
+    if [ $? =  $OCF_SUCCESS ]; then
+	local tid
+	case $OCF_RESKEY_implementation in
+	    iet)
+		# Figure out the target ID
+		tid=`sed -ne "s/tid:\([[:digit:]]\+\) name:${OCF_RESKEY_iqn}/\1/p" < /proc/net/iet/volume`
+		if [ -z "${tid}" ]; then
+		    ocf_log err "Failed to retrieve target ID for IQN ${OCF_RESKEY_iqn}"
+		    return $OCF_ERR_GENERIC
+		fi
+		# Close existing connections. There is no other way to
+		# do this in IET than to parse the contents of
+		# /proc/net/iet/session.
+		set -- $(sed -ne '/^tid:'${tid}' /,/^tid/ {
+                          /^[[:space:]]*sid:\([0-9]\+\)/ {
+                             s/^[[:space:]]*sid:\([0-9]*\).*/--sid=\1/; h;
+                          };
+                          /^[[:space:]]*cid:\([0-9]\+\)/ { 
+                              s/^[[:space:]]*cid:\([0-9]*\).*/--cid=\1/; G; p; 
+                          }; 
+                      }' < /proc/net/iet/session)
+		while [[ -n $2 ]]; do
+                    # $2 $1 looks like "--sid=X --cid=Y"
+		    do_cmd ietadm --op delete \
+			     --tid=${tid} $2 $1
+		    shift 2
+		done
+   	        # In iet, unassigning a user from a target and
+		# deleting the user account is one operation.
+		if [ -n "${OCF_RESKEY_incoming_username}" ]; then
+		    do_cmd ietadm --op delete --user \
+			--tid=${tid} \
+			--params=IncomingUser=${OCF_RESKEY_incoming_username} \
+			|| return $OCF_ERR_GENERIC
+		fi
+		do_cmd ietadm --op delete \
+		    --tid=${tid} || return $OCF_ERR_GENERIC
+		# Avoid stale /etc/initiators.{allow,deny} entries
+		# for this target
+		do_cmd sed -e "/^${OCF_RESKEY_iqn}[[:space:]]/d" \
+		    -i /etc/initiators.deny
+		do_cmd sed -e "/^${OCF_RESKEY_iqn}[[:space:]]/d" \
+		    -i /etc/initiators.allow
+		return $OCF_SUCCESS
+		;;
+	    tgt)
+		tid="${OCF_RESKEY_tid}"
+		# Close existing connections. There is no other way to
+		# do this in tgt than to parse the output of "tgtadm --op
+		# show".
+		set -- $(tgtadm --lld iscsi --op show --mode target \
+		    | sed -ne '/^Target '${tid}':/,/^Target/ {
+                          /^[[:space:]]*I_T nexus: \([0-9]\+\)/ {
+                             s/^.*: \([0-9]*\).*/--sid=\1/; h;
+                          };
+                          /^[[:space:]]*Connection: \([0-9]\+\)/ { 
+                              s/^.*: \([0-9]*\).*/--cid=\1/; G; p; 
+                          }; 
+                          /^[[:space:]]*LUN information:/ q; 
+                      }')
+		while [[ -n $2 ]]; do
+                    # $2 $1 looks like "--sid=X --cid=Y"
+		    do_cmd tgtadm --lld iscsi --op delete --mode connection \
+			--tid=${tid} $2 $1
+		    shift 2
+		done
+	        # In tgt, we must first unbind the user account from
+		# the target, then remove the account itself.
+		if [ -n "${OCF_RESKEY_incoming_username}" ]; then
+		    do_cmd tgtadm --lld iscsi --mode account --op unbind \
+			--tid=${tid} \
+			--user=${OCF_RESKEY_incoming_username} || return $OCF_ERR_GENERIC
+		    do_cmd tgtadm --lld iscsi --mode account --op delete \
+			--user=${OCF_RESKEY_incoming_username} || return $OCF_ERR_GENERIC
+		fi
+		do_cmd tgtadm --lld iscsi --op delete --mode target \
+		    --tid=${tid} && return $OCF_SUCCESS
+		# In tgt, we don't have to worry about our ACL
+		# entries. They are automatically removed upon target
+		# deletion.
+		;;
+	esac
+    else
+	return $OCF_SUCCESS
+    fi
+    return $OCF_ERR_GENERIC
+}
+
+iSCSITarget_monitor() {
+    case $OCF_RESKEY_implementation in
+	iet)
+	    grep -Eq "tid:[0-9]+ name:${OCF_RESKEY_iqn}" /proc/net/iet/volume && return $OCF_SUCCESS
+	    ;;
+	tgt)
+	    tgtadm --lld iscsi --op show --mode target \
+		| grep -Eq "Target [0-9]+: ${OCF_RESKEY_iqn}" && return $OCF_SUCCESS
+	    ;;
+    esac
+    
+    return $OCF_NOT_RUNNING
+}
+
+iSCSITarget_validate() {
+    # Do we have all required variables?
+    local required_vars
+    case $OCF_RESKEY_implementation in
+	iet)
+	    required_vars="implementation iqn"
+	    ;;
+	tgt)
+	    required_vars="implementation iqn tid"
+	    ;;
+    esac
+    for var in ${required_vars}; do
+	param="OCF_RESKEY_${var}"
+	if [ -z "${!param}" ]; then
+	    ocf_log error "Missing resource parameter \"$var\"!"
+	    return $OCF_ERR_CONFIGURED
+	fi
+    done
+
+    # Do we have all required binaries?
+    case $OCF_RESKEY_implementation in
+	iet)
+	    check_binary ietadm
+	    ;;
+	tgt)
+	    check_binary tgtadm
+	    ;;
+	*)
+	    # and by the way, is the implementation supported?
+	    ocf_log error "Unsupported iSCSI target implementation \"$OCF_RESKEY_implementation\"!"
+	    return $OCF_ERR_CONFIGURED
+    esac
+
+    # Is the required kernel functionality available?
+    case $OCF_RESKEY_implementation in
+	iet)
+	    [ -d /proc/net/iet ]
+	    if [ $? -ne 0 ]; then
+		ocf_log err "/proc/net/iet does not exist or is not a directory -- check if required modules are loaded."
+		return $OCF_ERR_INSTALLED
+	    fi
+	    ;;
+	tgt)
+	    # tgt is userland only
+	    ;;
+    esac
+
+    return $OCF_SUCCESS
+}
+
+
+case $1 in
+  meta-data)
+	meta_data
+	exit $OCF_SUCCESS
+	;;
+  usage|help)
+	iSCSITarget_usage
+	exit $OCF_SUCCESS
+	;;
+esac
+
+# Everything except usage and meta-data must pass the validate test
+iSCSITarget_validate || exit $?
+
+case $__OCF_ACTION in
+start)		iSCSITarget_start;;
+stop)		iSCSITarget_stop;;
+monitor)	iSCSITarget_monitor;;
+reload)		ocf_log err "Reloading..."
+	        iSCSITarget_start
+		;;
+validate-all)	;;
+*)		iSCSITarget_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc

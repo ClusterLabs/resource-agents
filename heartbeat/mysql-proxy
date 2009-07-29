@@ -12,7 +12,7 @@
 # License:      GNU General Public License (GPL)
 #
 #
-#       usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+#       usage: $0 {start|stop|reload|status|monitor|validate-all|meta-data}
 #
 #       The "start" arg starts a MySQL Proxy instance
 #
@@ -237,7 +237,6 @@ mysqlproxy_start()
 
 mysqlproxy_stop()
 {
-    LA=`mysqlproxy_status`
     if mysqlproxy_status ; then
         #start-stop-daemon --stop --quiet --retry 3 --exec $binary --pidfile $pidfile
         /bin/kill `cat "${pidfile}"`

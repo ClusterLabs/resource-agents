@@ -1,0 +1,452 @@
+#!/bin/bash
+#
+#
+#   iSCSILogicalUnit OCF RA. Exports and manages iSCSI Logical Units.
+#				  
+#       Copyright (c) 2009 LINBIT HA-Solutions GmbH, Florian Haas
+# 			 All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+LC_ALL="C"
+LANG="C"
+
+# Defaults
+# Set a default implementation based on software installed
+if have_binary ietadm; then
+    OCF_RESKEY_implementation_default="iet"
+elif have_binary tgtadm; then
+    OCF_RESKEY_implementation_default="tgt"
+fi
+: ${OCF_RESKEY_implementation=${OCF_RESKEY_implementation_default}}
+
+# Use a default SCSI ID and SCSI SN that is unique across the cluster,
+# and persistent in the event of resource migration
+# SCSI IDs are limited to 24 bytes, so take the first 24 bytes of
+# $OCF_RESOURCE_INSTANCE
+OCF_RESKEY_scsi_id_default="${OCF_RESOURCE_INSTANCE:0:24}"
+: ${OCF_RESKEY_scsi_id=${OCF_RESKEY_scsi_id_default}}
+# To have a reasonably unique default SCSI SN, use the first 8 bytes
+# of an MD5 hash of of $OCF_RESOURCE_INSTANCE
+sn=`echo -n "${OCF_RESOURCE_INSTANCE}" | openssl md5`
+OCF_RESKEY_scsi_sn_default=${sn:0:8}
+: ${OCF_RESKEY_scsi_sn=${OCF_RESKEY_scsi_sn_default}}
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="iSCSILogicalUnit" version="0.9">
+<version>0.9</version>
+
+<longdesc lang="en">
+Manages iSCSI targets. An iSCSI target is a collection of SCSI Logical
+Units (LUs) exported via a daemon that speaks the iSCSI protocol.
+</longdesc>
+<shortdesc lang="en">iSCSI target export agent</shortdesc>
+
+<parameters>
+<parameter name="implementation" required="0" unique="0">
+<longdesc lang="en">
+The iSCSI target daemon implementation. Must be one of "iet" or "tgt".
+If unspecified, an implementation is selected based on the
+availability of management utilities, with "iet" being tried first,
+then "tgt".
+</longdesc>
+<shortdesc lang="en">iSCSI target daemon implementation</shortdesc>
+<content type="string" default="${OCF_RESKEY_implementation_default}"/>
+</parameter>
+
+<parameter name="target_iqn" required="1" unique="0">
+<longdesc lang="en">
+The iSCSI Qualified Name (IQN) that this Logical Unit belongs to.
+</longdesc>
+<shortdesc lang="en">iSCSI target IQN</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="lun" required="1" unique="0">
+<longdesc lang="en">
+The Logical Unit number (LUN) exposed to initiators.
+</longdesc>
+<shortdesc lang="en">Logical Unit number (LUN)</shortdesc>
+<content type="integer" />
+</parameter>
+
+<parameter name="path" required="1" unique="0">
+<longdesc lang="en">
+The path to the block device exposed. Some implementations allow this
+to be a regular file, too.
+</longdesc>
+<shortdesc lang="en">Block device (or file) path</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="scsi_id" required="0" unique="0">
+<longdesc lang="en">
+The SCSI ID to be configured for this Logical Unit. The default
+is the resource name, truncated to 24 bytes.
+</longdesc>
+<shortdesc lang="en">SCSI ID</shortdesc>
+<content type="string" default="${OCF_RESKEY_scsi_id_default}"/>
+</parameter>
+
+<parameter name="scsi_sn" required="0" unique="0">
+<longdesc lang="en">
+The SCSI serial number to be configured for this Logical Unit.
+The default is a hash of the resource name, truncated to 8 bytes.
+</longdesc>
+<shortdesc lang="en">SCSI serial number</shortdesc>
+<content type="string" default="${OCF_RESKEY_scsi_sn_default}"/>
+</parameter>
+
+<parameter name="vendor_id" required="0" unique="0">
+<longdesc lang="en">
+The SCSI vendor ID to be configured for this Logical Unit.
+</longdesc>
+<shortdesc lang="en">SCSI vendor ID</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="product_id" required="0" unique="0">
+<longdesc lang="en">
+The SCSI product ID to be configured for this Logical Unit.
+</longdesc>
+<shortdesc lang="en">SCSI product ID</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="additional_parameters" required="0" unique="0">
+<longdesc lang="en">
+Additional LU parameters. A space-separated list of "name=value" pairs
+which will be passed through to the iSCSI daemon's management
+interface. The supported parameters are implementation
+dependent. Neither the name nor the value may contain whitespace.
+</longdesc>
+<shortdesc lang="en">List of iSCSI LU parameters</shortdesc>
+<content type="string" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="10" />
+<action name="stop"         timeout="10" />
+<action name="monitor"      timeout="10" interval="10" depth="0" start-delay="0" />
+<action name="meta-data"    timeout="5" />
+<action name="validate-all"   timeout="10" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+do_cmd() {
+    # Wrap local commands to capture their exit code and output. Some
+    # implementations (IET, notably) have management commands with
+    # very terse output. It helps to at least capture exit codes in
+    # the logs.
+    local cmd="$*"
+    ocf_log debug "Calling $cmd"
+    local cmd_out
+    cmd_out=$($cmd 2>&1)
+    ret=$?
+    
+    if [ $ret -ne 0 ]; then
+	ocf_log err "Called \"$cmd\""
+	ocf_log err "Exit code $ret"
+	ocf_log err "Command output: \"$cmd_out\""
+    else
+	ocf_log debug "Exit code $ret"
+	ocf_log debug "Command output: \"$cmd_out\""
+    fi
+    
+    echo $cmd_out
+    return $ret
+}
+
+
+iSCSILogicalUnit_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+iSCSILogicalUnit_start() {
+    iSCSILogicalUnit_monitor
+    if [ $? =  $OCF_SUCCESS ]; then
+	return $OCF_SUCCESS
+    fi
+
+    local params
+
+    case $OCF_RESKEY_implementation in
+	iet)
+	    params="Path=${OCF_RESKEY_path}"
+	    # use blockio if path points to a block device, fileio
+	    # otherwise.
+	    if [ -b "${OCF_RESKEY_path}" ]; then
+		params="${params} Type=blockio"
+	    else
+		params="${params} Type=fileio"
+	    fi
+	    # in IET, we have to set LU parameters on creation
+	    if [ -n "${OCF_RESKEY_scsi_id}" ]; then
+		params="${params} ScsiId=${OCF_RESKEY_scsi_id}"
+	    fi
+	    if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
+		params="${params} ScsiSN=${OCF_RESKEY_scsi_sn}"
+	    fi
+	    params="${params} ${OCF_RESKEY_additional_parameters}"
+	    do_cmd ietadm --op new \
+		--tid=${TID} \
+		--lun=${OCF_RESKEY_lun} \
+		--params ${params// /,} && return $OCF_SUCCESS
+	    ;;
+	tgt)
+	    # tgt requires that we create the LU first, then set LU
+	    # parameters
+	    params=""
+	    local var
+            local envar
+	    for var in scsi_id scsi_sn vendor_id product_id; do
+		envar="OCF_RESKEY_${var}"
+		if [ -n "${!envar}" ]; then
+		    params="${params} ${var}=${!envar}"
+		fi
+	    done
+	    params="${params} ${OCF_RESKEY_additional_parameters}"
+	    do_cmd tgtadm --lld iscsi --op new --mode logicalunit \
+		--tid=${TID} \
+		--lun=${OCF_RESKEY_lun} \
+	    	--backing-store ${OCF_RESKEY_path} || return $OCF_ERR_GENERIC
+	    if [ -z "$params" ]; then
+		return $OCF_SUCCESS
+	    else
+		do_cmd tgtadm --lld iscsi --op update --mode logicalunit \
+		    --tid=${TID} \
+		    --lun=${OCF_RESKEY_lun} \
+		    --params ${params// /,} && return $OCF_SUCCESS
+	    fi
+	    ;;
+    esac
+    return $OCF_ERR_GENERIC
+}
+
+iSCSILogicalUnit_stop() {
+    iSCSILogicalUnit_monitor
+    if [ $? =  $OCF_SUCCESS ]; then
+	case $OCF_RESKEY_implementation in
+	    iet)
+		# IET allows us to remove LUs while they are in use
+		do_cmd ietadm --op delete \
+		    --tid=${TID} \
+		    --lun=${OCF_RESKEY_lun} && return $OCF_SUCCESS
+		;;
+	    tgt)
+		# tgt will fail to remove an LU while it is in use,
+		# but at the same time does not allow us to
+		# selectively shut down a connection that is using a
+		# specific LU. Thus, we need to loop here until tgtd
+		# decides that the LU is no longer in use, or we get
+		# timed out by the LRM.
+		while ! do_cmd tgtadm --lld iscsi --op delete --mode logicalunit \
+		    --tid ${TID} \
+		    --lun=${OCF_RESKEY_lun}; do
+		    sleep 1
+		done
+		return $OCF_SUCCESS
+		;;
+	esac
+    else
+	return $OCF_SUCCESS
+    fi
+    return $OCF_ERR_GENERIC
+}
+
+iSCSILogicalUnit_monitor() {
+    case $OCF_RESKEY_implementation in
+	iet)
+ 	    # Figure out and set the target ID
+	    TID=`sed -ne "s/tid:\([[:digit:]]\+\) name:${OCF_RESKEY_target_iqn}/\1/p" < /proc/net/iet/volume`
+	    if [ -z "${TID}" ]; then
+		# Our target is not configured, thus we're not
+		# running.
+		return $OCF_NOT_RUNNING
+	    fi
+	    # FIXME: this looks for a matching LUN and path, but does
+	    # not actually test for the correct target ID.
+	    grep -E -q "[[:space:]]+lun:${OCF_RESKEY_lun}.*path:${OCF_RESKEY_path}" /proc/net/iet/volume && return $OCF_SUCCESS
+	    ;;
+	tgt)
+	    # Figure out and set the target ID
+	    TID=`tgtadm --lld iscsi --op show --mode target \
+		| sed -ne "s/^Target \([[:digit:]]\+\): ${OCF_RESKEY_target_iqn}/\1/p"`
+	    if [ -z "$TID" ]; then
+		# Our target is not configured, thus we're not
+		# running.
+		return $OCF_NOT_RUNNING
+	    fi
+	    # This only looks for the backing store, but does not test
+	    # for the correct target ID and LUN.
+	    tgtadm --lld iscsi --op show --mode target \
+		| grep -E -q "[[:space:]]+Backing store: ${OCF_RESKEY_path}" && return $OCF_SUCCESS
+	    ;;
+    esac
+    
+    return $OCF_NOT_RUNNING
+}
+
+iSCSILogicalUnit_validate() {
+    # Do we have all required variables?
+    for var in implementation target_iqn lun path; do
+	param="OCF_RESKEY_${var}"
+	if [ -z "${!param}" ]; then
+	    ocf_log error "Missing resource parameter \"$var\"!"
+	    return $OCF_ERR_CONFIGURED
+	fi
+    done
+
+    # Do we have all required binaries?
+    case $OCF_RESKEY_implementation in
+	iet)
+	    check_binary ietadm
+	    ;;
+	tgt)
+	    check_binary tgtadm
+	    ;;
+	*)
+	    # and by the way, is the implementation supported?
+	    ocf_log error "Unsupported iSCSI target implementation \"$OCF_RESKEY_implementation\"!"
+	    return $OCF_ERR_CONFIGURED
+    esac
+
+    # Do we have a valid LUN?
+    case $OCF_RESKEY_implementation in
+	iet)
+	    # IET allows LUN 0 and up
+	    [ $OCF_RESKEY_lun -ge 0 ]
+	    case $? in
+		0)
+	            # OK
+		    ;;
+		1)
+		    ocf_log err "Invalid LUN $OCF_RESKEY_lun (must be a non-negative integer)."
+		    return $OCF_ERR_CONFIGURED
+		    ;;
+		*)
+		    ocf_log err "Invalid LUN $OCF_RESKEY_lun (must be an integer)."
+		    return $OCF_ERR_CONFIGURED
+		    ;;
+	    esac
+	    ;;
+	tgt)
+	    # tgt reserves LUN 0 for its own purposes
+	    [ $OCF_RESKEY_lun -ge 1 ]
+	    case $? in
+		0)
+	            # OK
+		    ;;
+		1)
+		    ocf_log err "Invalid LUN $OCF_RESKEY_lun (must be greater than 0)."
+		    return $OCF_ERR_CONFIGURED
+		    ;;
+		*)
+		    ocf_log err "Invalid LUN $OCF_RESKEY_lun (must be an integer)."
+		    return $OCF_ERR_CONFIGURED
+		    ;;
+	    esac
+	    ;;
+    esac
+
+    # Is the required kernel functionality available?
+    case $OCF_RESKEY_implementation in
+	iet)
+	    [ -d /proc/net/iet ]
+	    if [ $? -ne 0 ]; then
+		ocf_log err "/proc/net/iet does not exist or is not a directory -- check if required modules are loaded."
+		return $OCF_ERR_INSTALLED
+	    fi
+	    ;;
+	tgt)
+	    # tgt is userland only
+	    ;;
+    esac
+
+    # Do we have any configuration parameters that the current
+    # implementation does not support?
+    case $OCF_RESKEY_implementation in
+	iet)
+	    # IET does not support setting the vendor and product ID
+	    # (it always uses "IET" and "VIRTUAL-DISK")
+	    local var
+	    local envar
+	    for var in vendor_id product_id; do
+		envar=OCF_RESKEY_${var}
+		if [ -n "${!envar}" ]; then
+		    ocf_log warn "Configuration parameter \"${var}\"" \
+			"is not supported by the iSCSI implementation" \
+			"and will be ignored."
+		fi
+	    done
+	    ;;
+    esac
+
+    return $OCF_SUCCESS
+}
+
+
+case $1 in
+  meta-data)
+	meta_data
+	exit $OCF_SUCCESS
+	;;
+  usage|help)
+	iSCSILogicalUnit_usage
+	exit $OCF_SUCCESS
+	;;
+esac
+
+# Everything except usage and meta-data must pass the validate test
+iSCSILogicalUnit_validate || exit $?
+
+case $__OCF_ACTION in
+start)		iSCSILogicalUnit_start;;
+stop)		iSCSILogicalUnit_stop;;
+monitor)	iSCSILogicalUnit_monitor;;
+reload)		ocf_log err "Reloading..."
+	        iSCSILogicalUnit_start
+		;;
+validate-all)	;;
+*)		iSCSILogicalUnit_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc

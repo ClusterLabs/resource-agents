@@ -23,7 +23,7 @@ CMD=`basename $0`
 
 usage()
 {
-	cat <<-!USAGE >&2
+	cat <<END >&2
 	usage: $CMD {start|stop|status|monitor|meta-data|validate-all}
 
 	$CMD is used to temporarily block ports using iptables.
@@ -53,7 +53,7 @@ usage()
 
 	NOTE:  iptables is linux-specific...
 
-	!USAGE
+END
 }
 
 meta_data() {
@@ -115,18 +115,6 @@ END
 #	This is because we expect an "unblock" resource to come along
 #	and disable us -- but we're still in some sense active...
 #
-#	So, we track the state here using the pseudo_resource() function.
-#
-#	The psuedo_resource function should be moved into the functions
-#	available to resources so other resource scripts could use it...
-#
-#
-
-# pseudo_resource filename operation
-pseudo_resource()
-{
-  ha_pseudo_resource $*
-}
 
 #iptables_spec {udp|tcp} portno,portno
 iptables_spec()
@@ -152,48 +140,54 @@ chain_isactive()
 SayActive()
 {
   echo "$CMD DROP rule for INPUT chain [$*]  is running (OK)"
-  return 0
 }
 
 SayConsideredActive()
 {
   echo "$CMD DROP rule for INPUT chain [$*] considered to be running (OK)"
-  return 0
 }
 
 SayInactive()
 {
   echo "$CMD DROP rule for INPUT chain [$*] is inactive"
-  return 1
 }
 
 #IptablesStatus  {udp|tcp} portno,portno {block|unblock}
-IptablesStatus()
-{
-  activewords="$CMD $1 $2 is running (OK)"
-  if
-    chain_isactive "$1" "$2"
-  then
-    case $3 in
-	  block)	SayActive $*;;
-	  *) 		SayInactive $*;;
-    esac
-  else
-    case $3 in
-	  block)
-	        if
-		  pseudo_resource "$RSCNAME" status
-		then
-		  SayConsideredActive $*
+IptablesStatus() {
+    local rc
+    rc=$OCF_ERR_GENERIC
+    activewords="$CMD $1 $2 is running (OK)"
+    if chain_isactive "$1" "$2"; then
+	case $3 in
+	    block)	
+		SayActive $*
+		rc=$OCF_SUCCESS
+		;;
+	    *)
+ 		SayInactive $*
+		rc=$OCF_NOT_RUNNING
+		;;
+	esac
+    else
+	case $3 in
+	    block)
+		if ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" status; then
+		    SayConsideredActive $*
+		    rc=$OCF_SUCCESS
 		else
-		  SayInactive $*
-		fi;;
-
-	  *)	SayActive $*;;
-    esac
-  fi      
-
-  return $?
+		    SayInactive $*
+		    rc=$OCF_NOT_RUNNING
+		fi
+		;;
+	    
+	    *)	
+		SayActive $*
+		rc=$OCF_SUCCESS
+		;;
+	esac
+    fi      
+    
+    return $rc
 }
 
 #IptablesBLOCK  {udp|tcp} portno,portno
@@ -227,7 +221,7 @@ IptablesUNBLOCK()
 #IptablesStart  {udp|tcp} portno,portno {block|unblock}
 IptablesStart()
 {
-  pseudo_resource "$RSCNAME" start
+  ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" start
   case $3 in
     block)	IptablesBLOCK "$@";;
     unblock)	IptablesUNBLOCK "$@";;
@@ -240,7 +234,7 @@ IptablesStart()
 #IptablesStop  {udp|tcp} portno,portno {block|unblock}
 IptablesStop()
 {
-  pseudo_resource "$RSCNAME" stop
+  ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" stop
   case $3 in
     block)	IptablesUNBLOCK "$@";;
     unblock)	IptablesBLOCK "$@";;
@@ -332,8 +326,6 @@ fi
 protocol=$OCF_RESKEY_protocol
 portno=$OCF_RESKEY_portno
 action=$OCF_RESKEY_action
-
-RSCNAME=${CMD}_${protocol}_${portno}_${action}
 
 case $1 in
   start)	

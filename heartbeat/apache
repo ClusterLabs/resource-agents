@@ -266,7 +266,7 @@ GetParams() {
           Listen="localhost:$Listen"
         STATUSURL="http://${Listen}$StatusURL"
         case $WGET in
-          *wget*)	WGETOPTS="$WGETOPTS --bind-address=127.0.0.1";;
+          *wget*)	WGETOPTS="$WGETOPTS --no-proxy --bind-address=127.0.0.1";;
         esac
       else
         STATUSURL="${LOCALHOST}:${PORT}$StatusURL"
