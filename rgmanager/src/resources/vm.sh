@@ -527,7 +527,7 @@ virsh_status()
 
 	echo $state
 
-	if [ "$state" = "running" ] || [ "$state" = "paused" ] ||
+	if [ "$state" = "running" ] || [ "$state" = "paused" ] || [ "$state" = "no state" ] || 
 	   [ "$state" = "idle" ]; then
 		return 0
 	fi
