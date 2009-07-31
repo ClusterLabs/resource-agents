@@ -807,8 +807,7 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 	#
 	if [ -n "$OCF_RESKEY_RGMANAGER_meta_refcnt" ]; then
 		refs=$OCF_RESKEY_RGMANAGER_meta_refcnt
-		if [ $refs -gt 1 ]; then
-			((refs--))
+		if [ $refs -gt 0 ]; then
 			ocf_log debug "Not unmounting $OCF_RESOURCE_INSTANCE - still in use by $refs other service(s)"
 			return $OCF_SUCCESS
 		fi
