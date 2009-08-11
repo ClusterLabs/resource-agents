@@ -507,7 +507,7 @@ run_send_arp() {
 	    if [ x = "x$IF_MAC" ] ; then
 		MY_MAC=auto
 	    else
-		MY_MAC=`echo ${IF_MAC} | sed -e 's/://'`
+		MY_MAC=`echo ${IF_MAC} | sed -e 's/://g'`
 	    fi
 	    ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $NIC $BASEIP $MY_MAC not_used not_used"
 	fi
