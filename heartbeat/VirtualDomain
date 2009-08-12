@@ -162,7 +162,7 @@ VirtualDomain_Status() {
 }
 
 VirtualDomain_Start() {
-    if VirtualDomain_Status ${DOMAIN_NAME}; then
+    if VirtualDomain_Status; then
 	ocf_log info "Virtual domain $DOMAIN_NAME already running."
 	return $OCF_SUCCESS
     fi
@@ -183,7 +183,7 @@ VirtualDomain_Start() {
 VirtualDomain_Stop() {
     local i
     local shutdown_timeout
-    if VirtualDomain_Status ${DOMAIN_NAME}; then
+    if VirtualDomain_Status; then
 	case $OCF_RESKEY_force_stop in
 	    [Yy][Ee][Ss]|[Tt][Rr][Uu][Ee]|[Oo][Nn]|1)
 		;;
@@ -225,7 +225,7 @@ VirtualDomain_Migrate_To() {
 
     target_node="$OCF_RESKEY_CRM_meta_migrate_target"
 
-    if VirtualDomain_Status ${DOMAIN_NAME}; then
+    if VirtualDomain_Status; then
         # Find out the remote hypervisor to connect to. That is, turn
         # something like "qemu://foo:9999/system" into
         # "qemu+tcp://bar:9999/system"
@@ -263,7 +263,7 @@ VirtualDomain_Migrate_From() {
 VirtualDomain_Monitor() {
     # First, check the domain status. If that returns anything other
     # than $OCF_SUCCESS, something is definitely wrong.
-    VirtualDomain_Status ${DOMAIN_NAME}
+    VirtualDomain_Status
     rc=$?
     if [ ${rc} -eq ${OCF_SUCCESS} ]; then
 	# OK, the generic status check turned out fine.  Now, if we
