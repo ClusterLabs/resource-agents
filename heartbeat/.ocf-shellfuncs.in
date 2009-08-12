@@ -183,15 +183,15 @@ ha_log() {
 	  [ -n "$HA_LOGFILE" ]
 	then
 	  : appending to $HA_LOGFILE
-	  Echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_LOGFILE
+	  echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_LOGFILE
 	else
-	  Echo `hadate`"${*}" >&2
+	  echo `hadate`"${*}" >&2
 	fi
         if
           [ -n "$HA_DEBUGLOG" ]
         then
           : appending to $HA_DEBUGLOG
-          Echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_DEBUGLOG
+          echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_DEBUGLOG
         fi
 }
 
@@ -218,9 +218,9 @@ ha_debug() {
 	  [ -n "$HA_DEBUGLOG" ]
 	then
 	  : appending to $HA_DEBUGLOG
-	  Echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_DEBUGLOG
+	  echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_DEBUGLOG
 	else
-	  Echo "$HA_LOGTAG:	`hadate`${*}:	${HA_LOGFACILITY}" >&2
+	  echo "$HA_LOGTAG:	`hadate`${*}:	${HA_LOGFACILITY}" >&2
 	fi
 }
 

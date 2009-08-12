@@ -298,6 +298,7 @@ AC_DEFINE_UNQUOTED(GLUE_STATE_DIR,"$GLUE_STATE_DIR", Where to keep state files a
 AC_SUBST(GLUE_STATE_DIR)
 
 AC_DEFINE_UNQUOTED(HA_VARRUNDIR,"$GLUE_STATE_DIR", Where Heartbeat keeps state files and sockets - old name)
+HA_VARRUNDIR="$GLUE_STATE_DIR"
 AC_SUBST(HA_VARRUNDIR)
 
 dnl Eventually move out of the heartbeat dir tree and create symlinks when needed
