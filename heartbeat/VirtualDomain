@@ -150,13 +150,13 @@ VirtualDomain_Status() {
 		# whenever virsh can't reliably obtain the domain
 		# state.
 		ocf_log info "Virtual domain $DOMAIN_NAME currently has no state, retrying."
+		sleep 1
 		;;
             *)
 		# any other output is unexpected.
                 ocf_log error "Virtual domain $DOMAIN_NAME has unknown status \"$status\"!"
                 ;;
         esac
-	sleep 1
     done
     return $rc
 }
@@ -173,10 +173,11 @@ VirtualDomain_Start() {
 	ocf_log error "Failed to start virtual domain ${DOMAIN_NAME}."
 	return $OCF_ERR_GENERIC
     fi
-    
-    while sleep 1; do
-	VirtualDomain_Monitor && return $OCF_SUCCESS
+
+    while ! VirtualDomain_Monitor; do
+	sleep 1
     done
+    return $OCF_SUCCESS
 }
 
 VirtualDomain_Stop() {
@@ -190,12 +191,10 @@ VirtualDomain_Stop() {
 		;;
 	esac
 	virsh $VIRSH_OPTIONS $op ${DOMAIN_NAME}
-	while sleep 1; do
-	    VirtualDomain_Status
-	    if [ $? -eq $OCF_NOT_RUNNING ]; then
-		return $OCF_SUCCESS
-	    fi
+	while VirtualDomain_Status; do
+	    sleep 1
 	done
+	return $OCF_SUCCESS
     else
 	ocf_log info "Domain $DOMAIN_NAME already stopped."
 	return $OCF_SUCCESS
@@ -237,8 +236,8 @@ VirtualDomain_Migrate_To() {
 }
 
 VirtualDomain_Migrate_From() {
-    while sleep 1; do
-	VirtualDomain_Monitor && break
+    while ! VirtualDomain_Monitor; do
+	sleep 1
     done
     ocf_log info "$DOMAIN_NAME: live migration from ${OCF_RESKEY_CRM_meta_migrate_source} succeeded."
     return $OCF_SUCCESS
