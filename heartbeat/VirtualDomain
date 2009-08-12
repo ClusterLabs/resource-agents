@@ -181,19 +181,36 @@ VirtualDomain_Start() {
 }
 
 VirtualDomain_Stop() {
+    local i
+    local shutdown_timeout
     if VirtualDomain_Status ${DOMAIN_NAME}; then
 	case $OCF_RESKEY_force_stop in
 	    [Yy][Ee][Ss]|[Tt][Rr][Uu][Ee]|[Oo][Nn]|1)
-		op="destroy"
 		;;
 	    *)
-		op="shutdown"
+		# Issue a graceful shutdown request
+		ocf_log info "Issuing graceful shutdown request for domain ${DOMAIN_NAME}."
+		virsh $VIRSH_OPTIONS shutdown ${DOMAIN_NAME}
+		# The "shutdown_timeout" we use here is the operation
+		# timeout specified in the CIB, minus 5 seconds
+		shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
+		# Loop on status for $shutdown_timeout seconds
+		for i in `seq $shutdown_timeout`; do
+		    VirtualDomain_Status || break
+		    sleep 1
+		done
 		;;
 	esac
-	virsh $VIRSH_OPTIONS $op ${DOMAIN_NAME}
-	while VirtualDomain_Status; do
-	    sleep 1
-	done
+	# OK. Now if the above graceful shutdown hasn't worked, kill
+	# off the domain with destroy. If that too does not work, give
+	# up and have the LRM time us out.
+	if VirtualDomain_Status; then
+	    ocf_log info "Issuing forced shutdown (destroy) request for domain ${DOMAIN_NAME}."
+	    virsh $VIRSH_OPTIONS destroy ${DOMAIN_NAME}
+	    while VirtualDomain_Status; do
+		sleep 1
+	    done
+	fi
 	return $OCF_SUCCESS
     else
 	ocf_log info "Domain $DOMAIN_NAME already stopped."
