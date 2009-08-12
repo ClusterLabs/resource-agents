@@ -45,6 +45,8 @@
  *
  * It should be passed by environment variant:
  *	OCF_RESKEY_ipv6addr=3ffe:ffff:0:f101::3
+ *	OCF_RESKEY_cidr_netmask=64
+ *	OCF_RESKEY_nic=eth0
  *
  */
  
@@ -145,11 +147,11 @@ struct in6_ifreq {
 	unsigned int ifr6_ifindex;
 };
 
-static int start_addr6(struct in6_addr* addr6, int prefix_len);
-static int stop_addr6(struct in6_addr* addr6, int prefix_len);
-static int status_addr6(struct in6_addr* addr6, int prefix_len);
+static int start_addr6(struct in6_addr* addr6, int prefix_len, char* prov_ifname);
+static int stop_addr6(struct in6_addr* addr6, int prefix_len, char* prov_ifname);
+static int status_addr6(struct in6_addr* addr6, int prefix_len, char* prov_ifname);
 static int monitor_addr6(struct in6_addr* addr6, int prefix_len);
-static int advt_addr6(struct in6_addr* addr6, int prefix_len);
+static int advt_addr6(struct in6_addr* addr6, int prefix_len, char* prov_ifname);
 static int meta_data_addr6(void);
 
 
@@ -159,9 +161,9 @@ int create_pid_directory(const char *pid_file);
 static void byebye(int nsig);
 
 static char* scan_if(struct in6_addr* addr_target, int* plen_target,
-		     int use_mask);
-static char* find_if(struct in6_addr* addr_target, int* plen_target);
-static char* get_if(struct in6_addr* addr_target, int* plen_target);
+		     int use_mask, char* prov_ifname);
+static char* find_if(struct in6_addr* addr_target, int* plen_target, char* prov_ifname);
+static char* get_if(struct in6_addr* addr_target, int* plen_target, char* prov_ifname);
 static int assign_addr6(struct in6_addr* addr6, int prefix_len, char* if_name);
 static int unassign_addr6(struct in6_addr* addr6, int prefix_len, char* if_name);
 int is_addr6_available(struct in6_addr* addr6);
@@ -172,9 +174,11 @@ main(int argc, char* argv[])
 {
 	char		pid_file[256];
 	char*		ipv6addr;
+	char*		cidr_netmask;
 	int		ret;
 	char*		cp;
-	int		prefix_len;
+	char*		prov_ifname = NULL;
+	int		prefix_len = -1;
 	struct in6_addr	addr6;
 
 	/* Check the count of parameters first */
@@ -204,6 +208,8 @@ main(int argc, char* argv[])
 		usage(argv[0]);
 		return OCF_ERR_ARGS;
 	}
+
+	/* legacy option */
 	if ((cp = strchr(ipv6addr, '/'))) {
 		prefix_len = atol(cp + 1);
 		if ((prefix_len < 0) || (prefix_len > 128)) {
@@ -212,9 +218,29 @@ main(int argc, char* argv[])
 			return OCF_ERR_ARGS;
 		}
 		*cp=0;
-	} else {
+	}
+
+	/* get provided netmask (optional) */
+	cidr_netmask = getenv("OCF_RESKEY_cidr_netmask");
+	if (cidr_netmask != NULL) {
+		if ((atol(cidr_netmask) < 0) || (atol(cidr_netmask) > 128)) {
+			cl_log(LOG_ERR, "Invalid prefix_len [%s], "
+				"should be an integer in [0, 128]", cidr_netmask);
+			usage(argv[0]);
+			return OCF_ERR_ARGS;
+		}
+		if (prefix_len != -1 && prefix_len != atol(cidr_netmask)) {
+			cl_log(LOG_DEBUG, "prefix_len(%d) is overwritted by cidr_netmask(%s)",
+				prefix_len, cidr_netmask);
+		}
+		prefix_len = atol(cidr_netmask);
+
+	} else if (prefix_len == -1) {
 		prefix_len = 0;
 	}
+
+	/* get provided interface name (optional) */
+	prov_ifname = getenv("OCF_RESKEY_nic");
 
 	if (inet_pton(AF_INET6, ipv6addr, &addr6) <= 0) {
 		cl_log(LOG_ERR, "Invalid IPv6 address [%s]", ipv6addr);
@@ -244,11 +270,11 @@ main(int argc, char* argv[])
 
 	/* switch the command */
 	if (0 == strncmp(START_CMD,argv[1], strlen(START_CMD))) {
-		ret = start_addr6(&addr6, prefix_len);
+		ret = start_addr6(&addr6, prefix_len, prov_ifname);
 	}else if (0 == strncmp(STOP_CMD,argv[1], strlen(STOP_CMD))) {
-		ret = stop_addr6(&addr6, prefix_len);
+		ret = stop_addr6(&addr6, prefix_len, prov_ifname);
 	}else if (0 == strncmp(STATUS_CMD,argv[1], strlen(STATUS_CMD))) {
-		ret = status_addr6(&addr6, prefix_len);
+		ret = status_addr6(&addr6, prefix_len, prov_ifname);
 	}else if (0 ==strncmp(MONITOR_CMD,argv[1], strlen(MONITOR_CMD))) {
 		ret = monitor_addr6(&addr6, prefix_len);
 	}else if (0 ==strncmp(RELOAD_CMD,argv[1], strlen(RELOAD_CMD))) {
@@ -259,7 +285,7 @@ main(int argc, char* argv[])
 	/* ipv6addr has been validated by inet_pton, hence a valid IPv6 address */
 		ret = OCF_SUCCESS;
 	}else if (0 ==strncmp(ADVT_CMD,argv[1], strlen(MONITOR_CMD))) {
-		ret = advt_addr6(&addr6, prefix_len);
+		ret = advt_addr6(&addr6, prefix_len, prov_ifname);
 	}else{
 		usage(argv[0]);
 		ret = OCF_ERR_ARGS;
@@ -271,16 +297,16 @@ main(int argc, char* argv[])
 	return ret;
 }
 int
-start_addr6(struct in6_addr* addr6, int prefix_len)
+start_addr6(struct in6_addr* addr6, int prefix_len, char* prov_ifname)
 {
 	int	i;
 	char*	if_name;
-	if(OCF_SUCCESS == status_addr6(addr6,prefix_len)) {
+	if(OCF_SUCCESS == status_addr6(addr6,prefix_len,prov_ifname)) {
 		return OCF_SUCCESS;
 	}
 
 	/* we need to find a proper device to assign the address */
-	if_name = find_if(addr6, &prefix_len);
+	if_name = find_if(addr6, &prefix_len, prov_ifname);
 	if (NULL == if_name) {
 		cl_log(LOG_ERR, "no valid mecahnisms");
 		return OCF_ERR_GENERIC;
@@ -313,10 +339,10 @@ start_addr6(struct in6_addr* addr6, int prefix_len)
 }
 
 int
-advt_addr6(struct in6_addr* addr6, int prefix_len)
+advt_addr6(struct in6_addr* addr6, int prefix_len, char* prov_ifname)
 {
 	/* First, we need to find a proper device to assign the address */
-	char*	if_name = get_if(addr6, &prefix_len);
+	char*	if_name = get_if(addr6, &prefix_len, prov_ifname);
 	int	i;
 	if (NULL == if_name) {
 		cl_log(LOG_ERR, "no valid mecahnisms");
@@ -331,14 +357,14 @@ advt_addr6(struct in6_addr* addr6, int prefix_len)
 }
 
 int
-stop_addr6(struct in6_addr* addr6, int prefix_len)
+stop_addr6(struct in6_addr* addr6, int prefix_len, char* prov_ifname)
 {
 	char* if_name;
-	if(OCF_NOT_RUNNING == status_addr6(addr6,prefix_len)) {
+	if(OCF_NOT_RUNNING == status_addr6(addr6,prefix_len,prov_ifname)) {
 		return OCF_SUCCESS;
 	}
 
-	if_name = get_if(addr6, &prefix_len);
+	if_name = get_if(addr6, &prefix_len, prov_ifname);
 
 	if (NULL == if_name) {
 		cl_log(LOG_ERR, "no valid mechanisms.");
@@ -356,9 +382,9 @@ stop_addr6(struct in6_addr* addr6, int prefix_len)
 }
 
 int
-status_addr6(struct in6_addr* addr6, int prefix_len)
+status_addr6(struct in6_addr* addr6, int prefix_len, char* prov_ifname)
 {
-	char* if_name = get_if(addr6, &prefix_len);
+	char* if_name = get_if(addr6, &prefix_len, prov_ifname);
 	if (NULL == if_name) {
 		return OCF_NOT_RUNNING;
 	}
@@ -441,7 +467,7 @@ err:
 
 /* find the network interface associated with an address */
 char*
-scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask)
+scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask, char* prov_ifname)
 {
 	FILE *f;
 	static char devname[21]="";
@@ -489,6 +515,15 @@ scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask)
 		}
 		*plen_target = plen;
 
+		/* If interface name provided, only same devname entry
+		 * would be considered
+		 */
+		if (prov_ifname!=0 && *prov_ifname!=0)
+		{
+			if (strcmp(devname, prov_ifname))
+				continue;
+		}
+
 		for (i = 0; i< 4; i++) {
 			addr.s6_addr32[i] = htonl(addr6p[i]);
 		}
@@ -527,15 +562,15 @@ scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask)
 }
 /* find a proper network interface to assign the address */
 char*
-find_if(struct in6_addr* addr_target, int* plen_target)
+find_if(struct in6_addr* addr_target, int* plen_target, char* prov_ifname)
 {
-	return scan_if(addr_target, plen_target, 1);
+	return scan_if(addr_target, plen_target, 1, prov_ifname);
 }
 /* get the device name and the plen_target of a special address */
 char*
-get_if(struct in6_addr* addr_target, int* plen_target)
+get_if(struct in6_addr* addr_target, int* plen_target, char* prov_ifname)
 {
-	return scan_if(addr_target, plen_target, 0);
+	return scan_if(addr_target, plen_target, 0, prov_ifname);
 }
 int
 assign_addr6(struct in6_addr* addr6, int prefix_len, char* if_name)
@@ -849,6 +884,23 @@ meta_data_addr6(void)
 	"	The IPv6 address this RA will manage \n"
 	"      </longdesc>\n"
 	"      <shortdesc lang=\"en\">IPv6 address</shortdesc>\n"
+	"      <content type=\"string\" default=\"\" />\n"
+	"    </parameter>\n"
+	"    <parameter name=\"cidr_netmask\" unique=\"0\">\n"
+	"      <longdesc lang=\"en\">\n"
+	"	The netmask for the interface in CIDR format. (ie, 24).\n"
+	"	The value of this parameter overwrites the value of _prefix_\n"
+	"	of ipv6addr parameter.\n"
+	"      </longdesc>\n"
+	"      <shortdesc lang=\"en\">Netmask</shortdesc>\n"
+	"      <content type=\"string\" default=\"\" />\n"
+	"    </parameter>\n"
+	"    <parameter name=\"nic\" unique=\"0\">\n"
+	"      <longdesc lang=\"en\">\n"
+	"	The base network interface on which the IPv6 address will\n"
+	"	be brought online.\n"
+	"      </longdesc>\n"
+	"      <shortdesc lang=\"en\">Network interface</shortdesc>\n"
 	"      <content type=\"string\" default=\"\" />\n"
 	"    </parameter>\n"
 	"  </parameters>\n"
