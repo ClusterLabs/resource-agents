@@ -50,8 +50,6 @@
  *
  */
 
-#include <lha_internal.h>
-
 #include <stdio.h>
 #include <limits.h>
 #include <string.h>
@@ -68,7 +66,6 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <errno.h>
-
 #ifdef __linux__
 #undef __OPTIMIZE__
 /*
@@ -80,6 +77,7 @@
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "../include/agent_config.h"
 
 #define DEBUG 0
 #define	EOS			'\0'
