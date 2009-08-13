@@ -77,10 +77,13 @@
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include "../include/agent_config.h"
+#include <agent_config.h>
+#include <config.h>
 
 #define DEBUG 0
 #define	EOS			'\0'
+#define	PROCROUTE	"/proc/net/route"
+#define ROUTEPARM	"-n get"
 
 /*
  * "route -n get iii.jjj.kkk.lll" can, on Solaris at least,
