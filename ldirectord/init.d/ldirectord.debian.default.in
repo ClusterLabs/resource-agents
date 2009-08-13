@@ -1,0 +1,6 @@
+# @sysconfdir@/default/ldirectord
+# Defaults for the Debian ldirectord script
+
+# Set to the configuration file
+# May be absolute or relative to @sysconfdir@/ha.d/
+CONFIG_FILE=ldirectord.cf

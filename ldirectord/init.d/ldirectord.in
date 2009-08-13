@@ -1,0 +1,91 @@
+#!/bin/sh
+#
+# ldirectord  Linux Director Daemon
+#
+# chkconfig: - 92 40
+# description: Start and stop ldirectord on non-heartbeat systems
+#              Using the config file /etc/ha.d/ldirectord.cf
+#	       Normally ldirectord is started and stopped by heartbeat
+#              
+# processname: ldirectord
+# config: /etc/ha.d/ldirectord.cf
+#
+# Author: Horms <horms@vergenet.net>
+# Released: April 2000
+# Licence: GNU General Public Licence
+#
+### BEGIN INIT INFO
+# Provides:          ldirectord
+# Required-Start:    $syslog $network
+# Should-Start: $time sshd
+# Default-Start:     3 5
+# Default-Stop:      0 1 2 6
+# Short-Description: Control Linux Virtual Server via ldirectord on non-heartbeat systems
+# Description:       Starts (and stops) the ldirectord service if
+#	running outside a heartbeat managed environment.
+#	ldirectord manages the Linux Virtual Server component for
+#	TCP/UDP load-balancing.
+#	It uses the config file @sysconfdir@/ha.d/ldirectord.cf.
+### END INIT INFO
+
+DAEMON=@sbindir@/ldirectord
+
+. @sysconfdir@/ha.d/shellfuncs
+
+# Source function library.
+if
+  [ -f /etc/rc.d/init.d/functions ]
+then
+  . /etc/rc.d/init.d/functions
+fi
+
+[ -x $DAEMON ] || exit 0
+
+action() {
+  echo -n "$1... "
+  shift
+  $@
+  stat=$?
+  if [ $stat = 0 ]; then
+    echo success
+  else
+    echo failure
+  fi
+  return  $stat
+}
+
+######################################################################
+# Read arument and take action as appropriate
+######################################################################
+
+case "$1" in
+  start)
+        action "Starting ldirectord" $DAEMON start
+	touch /var/lock/subsys/ldirectord
+	;;
+  stop)
+        action "Stopping ldirectord" $DAEMON stop
+	rm -f /var/lock/subsys/ldirectord
+	;;
+  restart)
+        action "Restarting ldirectord" $DAEMON restart
+	;;
+  try-restart)
+        action "Try-Restarting ldirectord" $DAEMON try-restart
+	;;
+  status)
+	$DAEMON status
+	;;
+  reload)
+        action "Reloading ldirectord" $DAEMON reload
+	;;
+  force-reload)
+        action "Force-Reloading ldirectord" $DAEMON force-reload
+	;;
+  *)
+	echo "Usage: ldirectord
+	{start|stop|restart|try-restart|status|reload|force-reload}"
+	exit 1
+esac
+
+exit $?

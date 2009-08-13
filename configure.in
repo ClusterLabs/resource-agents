@@ -737,6 +737,15 @@ heartbeat/Makefile						\
    heartbeat/ocf-shellfuncs					\
 tools/Makefile							\
    tools/ocf-tester						\
+ldirectord/Makefile						\
+ldirectord/ldirectord   					\
+	ldirectord/init.d/Makefile				\
+	ldirectord/init.d/ldirectord   				\
+	ldirectord/init.d/ldirectord.debian			\
+	ldirectord/init.d/ldirectord.debian.default		\
+	ldirectord/logrotate.d/Makefile				\
+	ldirectord/OCF/Makefile					\
+	ldirectord/OCF/ldirectord				\
 		)
 
 dnl Now process the entire list of files added by previous 
