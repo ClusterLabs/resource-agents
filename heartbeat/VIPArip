@@ -25,8 +25,6 @@
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
-HA_HBCONF_DIR=${HA_DIR}
-
 VLDIR=$HA_RSCTMP/VIPArip
 RIPDCONF=$VLDIR/ripd.conf
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
@@ -34,8 +32,6 @@ USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 #######################################################################
 LC_ALL=C
 export LC_ALL
-
-. $HA_HBCONF_DIR/shellfuncs
 
 meta_data() {
 cat <<END

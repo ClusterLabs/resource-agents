@@ -31,7 +31,6 @@
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
-HA_HBCONF_DIR=${HA_DIR}
 SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
 VLDIR=$HA_RSCTMP/IPaddr
@@ -46,8 +45,6 @@ unset LC_ALL; export LC_ALL
 unset LANGUAGE; export LANGUAGE
 LC_ALL=C; export LC_ALL
 LC_MESSAGES=C; export LC_MESSAGES
-
-. $HA_HBCONF_DIR/shellfuncs
 
 SYSTYPE="`uname -s`"
 case "$SYSTYPE" in

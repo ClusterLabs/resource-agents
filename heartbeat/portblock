@@ -16,7 +16,6 @@
 # Initialization:
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
-. ${HA_DIR}/shellfuncs
 
 #######################################################################
 CMD=`basename $0`
