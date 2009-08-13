@@ -82,6 +82,7 @@
 #include <arpa/inet.h>
 
 #define DEBUG 0
+#define	EOS			'\0'
 
 /*
  * "route -n get iii.jjj.kkk.lll" can, on Solaris at least,
@@ -617,7 +618,7 @@ main(int argc, char ** argv) {
 		char errmsg[MAXSTR] = "No valid mecahnisms";
 		int rc = -1;
 
-		strlcpy(best_if, "UNKNOWN", sizeof(best_if)); /* just in case */
+		strcpy(best_if, "UNKNOWN");
 
 		while (*sr) {
 			errmsg[0] = '\0';
@@ -729,7 +730,7 @@ void
 usage(void)
 {
 	fprintf(stderr, "\n"
-		"%s version " VERSION " Copyright Alan Robertson\n"
+		"%s version 2.99.1 Copyright Alan Robertson\n"
 		"\n"
 		"Usage: %s [-C]\n"
 		"Options:\n"

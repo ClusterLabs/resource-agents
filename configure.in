@@ -353,6 +353,13 @@ AC_SUBST(SHELL)
 AC_SUBST(PING)
 AC_SUBST(TEST)
 
+AC_DEFINE(ROUTEPARM, "-n get", paramters for route to retrieve route information)
+AC_DEFINE(PROCROUTE, "/proc/net/route", path were to find route information in proc)
+AC_PATH_PROGS(ROUTE, route)
+AC_DEFINE_UNQUOTED(ROUTE, "$ROUTE", path to route command)
+AC_SUBST(ROUTEPARM)
+AC_SUBST(PROCROUTE)
+
 AC_MSG_CHECKING(ifconfig option to list interfaces)
 for IFCONFIG_A_OPT in  "-A" "-a" ""
 do
