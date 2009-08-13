@@ -17,6 +17,7 @@
 ### BEGIN INIT INFO
 # Provides:          ldirectord
 # Required-Start:    $syslog $network
+# Required-Stop:    $syslog $network
 # Should-Start: $time sshd
 # Default-Start:     3 5
 # Default-Stop:      0 1 2 6
