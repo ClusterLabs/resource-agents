@@ -1,0 +1,318 @@
+#!/bin/sh
+#
+# Resource script for Postfix
+#
+# Description:  Manages Postfix as an OCF resource in
+#               an high-availability setup.
+#
+#               Tested with postfix 2.5.5 on Debian 5.0.
+#               Based on the mysql-proxy and mysql OCF resource agents.
+#
+# Author:       Raoul Bhatia <r.bhatia@ipax.at> : Original Author
+# License:      GNU General Public License (GPL)
+# Note:         if you want to run multiple postfix instances, please see
+#               http://amd.co.at/adminwiki/Postfix#Adding_a_Second_Postfix_Instance_on_one_Server
+#               http://www.postfix.org/postconf.5.html
+#
+#
+#       usage: $0 {start|stop|reload|status|monitor|validate-all|meta-data}
+#
+#       The "start" arg starts a Postfix instance
+#
+#       The "stop" arg stops it.
+#
+#
+# Test via
+# * /usr/sbin/ocf-tester -n post1 /usr/lib/ocf/resource.d/heartbeat/postfix; echo $?
+# * /usr/sbin/ocf-tester -n post1 -o binary="/usr/sbin/postfix" \
+#       -o config_dir="" /usr/lib/ocf/resource.d/heartbeat/postfix; echo $?
+# * /usr/sbin/ocf-tester -n post1 -o binary="/usr/sbin/postfix" \
+#       -o config_dir="/root/postfix/" /usr/lib/ocf/resource.d/heartbeat/postfix; echo $?
+#
+#
+# OCF parameters:
+#  OCF_RESKEY_binary
+#  OCF_RESKEY_config_dir
+#  OCF_RESKEY_parameters
+#
+##########################################################################
+
+# Initialization:
+
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+
+: ${OCF_RESKEY_binary="/usr/sbin/postfix"}
+: ${OCF_RESKEY_config_dir=""}
+: ${OCF_RESKEY_parameters=""}
+USAGE="Usage: $0 {start|stop|reload|status|monitor|validate-all|meta-data}";
+
+##########################################################################
+
+usage() {
+    echo $USAGE >&2
+}
+
+meta_data() {
+        cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="postfix">
+<version>0.1</version>
+<longdesc lang="en">
+This script manages Postfix as an OCF resource in a high-availability setup.
+Tested with Postfix 2.5.5 on Debian 5.0.
+</longdesc>
+<shortdesc lang="en">OCF Resource Agent compliant Postfix script.</shortdesc>
+
+<parameters>
+
+<parameter name="binary" unique="0" required="0">
+<longdesc lang="en">
+Full path to the Postfix binary.
+For example, "/usr/sbin/postfix".
+</longdesc>
+<shortdesc lang="en">Full path to Postfix binary</shortdesc>
+<content type="string" default="/usr/sbin/postfix" />
+</parameter>
+
+<parameter name="config_dir" unique="1" required="0">
+<longdesc lang="en">
+Full path to a Postfix configuration directory.
+For example, "/etc/postfix".
+</longdesc>
+<shortdesc lang="en">Full path to configuration directory</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="parameters" unique="0" required="0">
+<longdesc lang="en">
+The Postfix daemon may be called with additional parameters.
+Specify any of them here.
+</longdesc>
+<shortdesc lang="en"></shortdesc>
+<content type="string" default="" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"   timeout="90" />
+<action name="stop"    timeout="100" />
+<action name="reload"  timeout="100" />
+<action name="monitor" depth="10"  timeout="20s" interval="60s" start-delay="0" />
+<action name="validate-all"  timeout="30s" />
+<action name="meta-data"  timeout="5s" />
+</actions>
+</resource-agent>
+END
+}
+
+running() {
+    # run postfix status
+    $binary $OPTION_CONFIG_DIR status >/dev/null 2>&1
+}
+
+
+postfix_status()
+{
+    running
+}
+
+postfix_start()
+{
+    # if Postfix is running return success
+    if postfix_status; then
+        ocf_log info "Postfix already running."
+        return $OCF_SUCCESS
+    fi
+
+    # start Postfix
+    $binary $OPTIONS start >/dev/null 2>&1
+    ret=$?
+
+    if [ $ret -ne 0 ]; then
+        ocf_log err "Postfix returned error." $ret
+        return $OCF_ERR_GENERIC
+    fi
+
+    return $OCF_SUCCESS
+}
+
+
+postfix_stop()
+{
+    $binary $OPTIONS stop >/dev/null 2>&1
+    ret=$?
+
+    if [ $ret -ne 0 ]; then
+        ocf_log err "Postfix returned an error while stopping." $ret
+        return $OCF_ERR_GENERIC
+    fi
+
+    # grant some time for shutdown and recheck 5 times
+    for i in 1 2 3 4 5; do
+        if postfix_status; then
+            sleep 1
+        fi
+    done
+
+    # escalate to abort if we did not stop by now
+    # @TODO shall we loop here too?
+    if postfix_status; then
+        ocf_log err "Postfix failed to stop. Escalating to 'abort'"
+
+        $binary $OPTIONS abort >/dev/null 2>&1; ret=$?
+        sleep 5
+        postfix_status && $OCF_ERR_GENERIC
+    fi
+
+    return $OCF_SUCCESS
+}
+
+postfix_reload()
+{
+    if postfix_status; then
+        ocf_log info "Reloading Postfix."
+        $binary $OPTIONS reload
+    fi
+}
+
+postfix_monitor()
+{
+    if postfix_status; then
+        return $OCF_SUCCESS
+    fi
+
+    return $OCF_NOT_RUNNING
+}
+
+postfix_validate_all()
+{
+    # check that the Postfix binary exists and can be executed
+    if [ ! -x "$binary" ]; then
+        ocf_log err "Postfix binary '$binary' does not exist or cannot be executed."
+        return $OCF_ERR_GENERIC
+    fi
+
+    # check config_dir and alternate_config_directories parameter
+    if [ "x$config_dir" != "x" ]; then
+        if [ ! -d "$config_dir" ]; then
+            ocf_log err "Postfix configuration directory '$config_dir' does not exist." $ret
+            return $OCF_ERR_GENERIC
+        fi
+
+        alternate_config_directories=`postconf -h alternate_config_directories 2>/dev/null | grep $config_dir`
+        if [ "x$alternate_config_directories" = "x" ]; then
+            ocf_log err "Postfix main configuration must contain correct 'alternate_config_directories' parameter."
+            return $OCF_ERR_GENERIC
+        fi
+    fi
+
+    # check spool/queue directory
+    queue=`postconf $OPTION_CONFIG_DIR -h queue_directory 2>/dev/null`
+    if [ ! -d "$queue" ]; then
+        ocf_log err "Postfix spool/queue directory '$queue' does not exist." $ret
+        return $OCF_ERR_GENERIC
+    fi
+
+    # run postfix internal check
+    $binary $OPTIONS check >/dev/null 2>&1
+    ret=$?
+    if [ $ret -ne 0 ]; then
+        ocf_log err "Postfix 'check' failed." $ret
+        return $OCF_ERR_GENERIC
+    fi
+
+    return $OCF_SUCCESS
+}
+
+#
+# Main
+#
+
+if [ $# -ne 1 ]; then
+    usage
+    exit $OCF_ERR_ARGS
+fi
+
+binary=$OCF_RESKEY_binary
+config_dir=$OCF_RESKEY_config_dir
+parameters=$OCF_RESKEY_parameters
+
+# debugging stuff
+#echo OCF_RESKEY_binary=$OCF_RESKEY_binary >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
+#echo OCF_RESKEY_config_dir=$OCF_RESKEY_config_dir >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
+#echo OCF_RESKEY_parameters=$OCF_RESKEY_parameters >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
+
+
+# build postfix options string *outside* to access from each method
+OPTIONS=''
+OPTION_CONFIG_DIR=''
+
+# check if the Postfix config_dir exist
+if [ "x$config_dir" != "x" ]; then
+    # save OPTION_CONFIG_DIR seperatly
+    OPTION_CONFIG_DIR="-c $config_dir"
+    OPTIONS=$OPTION_CONFIG_DIR
+fi
+
+if [ "x$parameters" != "x" ]; then
+    OPTIONS="$OPTIONS $parameters"
+fi
+
+case $1 in
+    meta-data)  meta_data
+                exit $OCF_SUCCESS
+                ;;
+
+    usage|help) usage
+                exit $OCF_SUCCESS
+                ;;
+esac
+
+postfix_validate_all
+ret=$?
+
+#echo "debug[$1:$ret]"
+LSB_STATUS_STOPPED=3
+if [ $ret -ne $OCF_SUCCESS ]; then
+    case $1 in
+    stop)       exit $OCF_SUCCESS ;;
+    monitor)    exit $OCF_NOT_RUNNING;;
+    status)     exit $LSB_STATUS_STOPPED;;
+    *)          exit $ret;;
+    esac
+fi
+
+case $1 in
+    monitor)    postfix_monitor
+                exit $?
+                ;;
+    start)      postfix_start
+                exit $?
+                ;;
+
+    stop)       postfix_stop
+                exit $?
+                ;;
+
+    reload)     postfix_reload
+                exit $?
+                ;;
+
+    status)     if postfix_status; then
+                    ocf_log info "Postfix is running."
+                    exit $OCF_SUCCESS
+                else
+                    ocf_log info "Postfix is stopped."
+                    exit $OCF_NOT_RUNNING
+                fi
+                ;;
+
+    validate-all)   exit $OCF_SUCCESS
+                    ;;
+
+    *)          usage
+                exit $OCF_ERR_UNIMPLEMENTED
+                ;;
+esac
