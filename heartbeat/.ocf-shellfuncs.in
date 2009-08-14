@@ -392,30 +392,14 @@ rmtempdir()
 # usage: maketempfile [-d]
 maketempfile()
 {
-	local dir="no"
-	local name
-
 	if [ $# = 1 -a "$1" = "-d" ]; then
-		dir="yes"
+		mktemp -d
+		return -0
 	elif [ $# != 0 ]; then
 		return 1
 	fi
 
-	name=$(maketempdir) || return $?
-
-	if [ "$dir" = "yes" ]; then
-		echo "$name"
-		return 0
-	fi
-
-	name="$name/tmpfile"
-
-	if ! touch "$name"; then
-		rmtempdir
-		return 1
-	fi
-
-	echo "$name"
+	mktemp
 	return 0
 }
 
@@ -426,7 +410,6 @@ rmtempfile ()
 	if [ -e "$1" ]; then
 		rm "$1" || return 1
 	fi
-	rmtempdir $(dirname "$1") || return 1
 	return 0
 }
 
