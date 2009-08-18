@@ -164,6 +164,11 @@ case $INITDIR in
           break
         fi
       done
+      if 
+      	 test -z $initdir
+      then
+          INITDIR=${sysconfdir}/init.d
+      fi
       AC_MSG_RESULT($INITDIR);;
 esac
 AC_SUBST(INITDIR)
