@@ -165,7 +165,7 @@ case $INITDIR in
         fi
       done
       if 
-      	 test -z $initdir
+      	 test -z $INITDIR
       then
           INITDIR=${sysconfdir}/init.d
       fi
