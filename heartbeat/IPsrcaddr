@@ -57,7 +57,7 @@
 
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
-  CMDSHOW="$IP2UTIL route show   to exact 0/0"
+  CMDSHOW="$IP2UTIL route show   to exact 0.0.0.0/0"
 CMDCHANGE="$IP2UTIL route change to "
 
 SYSTYPE="`uname -s`"
