@@ -18,7 +18,7 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
 MAINTAINERCLEANFILES = Makefile.in
-EXTRA_DIST		= $(ocf_SCRIPTS) ra-api-1.dtd
+EXTRA_DIST		= $(ocf_SCRIPTS) $(hb_DATA) ra-api-1.dtd
 
 INCLUDES		= -I$(top_srcdir)/include -I$(top_srcdir)/linux-ha
 
@@ -103,3 +103,5 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 commondir	     = $(libdir)/heartbeat
 common_SCRIPTS	     = ocf-shellfuncs ocf-returncodes
 
+hbdir			= $(sysconfdir)/ha.d
+hb_DATA			= shellfuncs

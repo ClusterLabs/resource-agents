@@ -740,6 +740,7 @@ heartbeat/Makefile						\
    heartbeat/.ocf-shellfuncs					\
    heartbeat/ocf-returncodes					\
    heartbeat/ocf-shellfuncs					\
+   heartbeat/shellfuncs						\
 tools/Makefile							\
    tools/ocf-tester						\
 ldirectord/Makefile						\

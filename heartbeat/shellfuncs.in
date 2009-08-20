@@ -1,0 +1,96 @@
+# Author:       Alan Robertson
+# Support:      linux-ha-dev@lists.tummy.com
+# License:      GNU Lesser General Public License (LGPL)
+#
+#	Set these variables if they're not already set...
+#
+
+: ${HA_SBIN_DIR:=@sbindir@}
+: ${HA_NOARCHBIN:=@datadir@/heartbeat}
+: ${OCF_AGENTS:=@OCF_RA_DIR@/heartbeat/}
+
+export HA_DIR HA_RCDIR HA_FIFO HA_BIN 
+export HA_DEBUGLOG HA_LOGFILE HA_LOGFACILITY
+export HA_DATEFMT HA_RESOURCEDIR HA_DOCDIR
+export OCF_AGENTS
+
+PATH=$HA_BIN:${HA_SBIN_DIR}:@HA_NOARCHDATAHBDIR@:$PATH
+PATH=`echo $PATH | sed -e 's%::%%' -e 's%:\.:%:%' -e 's%^:%%' -e 's%^\.:%%'`
+export PATH
+
+#	A suitable echo command
+Echo() {
+  echo "$@"
+}
+
+# copy stdin (text) to FIFO, with surrounding ">>>" and "<<<" marker lines.
+# no args.; no result
+# Notes:
+#	o Using "cat -" rather than "cat" simply for clarity.
+#	o The trailing "| cat -" tries to hold things together as a single
+#	  write (which is probably preferable behaviour in this context).
+ha_clustermsg() {
+	(echo ">>>"; cat -; echo "<<<")	| cat - >> $HA_FIFO
+}
+
+ha_parameter() {
+  VALUE=`sed -e 's%[ 	][ 	]*% %' -e 's%^ %%' -e 's%#.*%%'   $HA_CF |
+  grep -i "^$1 " | sed 's%[^ ]* %%'`
+  if
+    [ "X$VALUE" = X ]
+  then
+    
+    case $1 in
+      keepalive)	VALUE=2;;
+      deadtime)
+			ka=`ha_parameter keepalive`
+			VALUE=`expr $ka '*' 2 '+' 1`;;
+    esac
+  fi
+  Echo $VALUE
+}
+
+BSD_Status() {
+  local base=${1##*/}
+  local pid
+
+  ret_status=`/bin/ps -ao pid,command | grep $base | sed 's/ .*//'`
+
+  if 
+    [ "$ret_status" != "" ]
+  then
+    echo "${base} is running..."
+  return 0
+  fi
+
+  if 
+    [ -f $HA_VARRUN/${base}.pid ] 
+  then
+    echo "${base} dead but pid file exists"
+    return 1
+  fi
+
+  if 
+    [ -f /var/run/${base}.pid ] 
+  then
+    echo "${base} dead but pid file exists"
+    return 1
+  fi
+
+  if 
+    [ -f $HA_VARLOCK/var/lock/subsys/${base}.pid ] 
+  then
+    echo "${base} dead but lock file exists"
+    return 2
+  fi
+
+  if 
+    [ -f /var/spool/lock/${base} ] 
+  then
+    echo "${base} dead but lock file exists"
+    return 2
+  fi
+}
+
+# Now get the good stuff
+. @OCF_RA_DIR@/heartbeat/.ocf-shellfuncs
