@@ -50,6 +50,7 @@
  *
  */
 
+#include <config.h>
 #include <stdio.h>
 #include <limits.h>
 #include <string.h>
@@ -84,6 +85,11 @@
 #define	EOS			'\0'
 #define	PROCROUTE	"/proc/net/route"
 #define ROUTEPARM	"-n get"
+
+#ifndef HAVE_STRNLEN
+/* Any system that don't provide strnlen() only has itself to blame */
+#define strnlen(str, max) strlen(str)
+#endif
 
 /*
  * "route -n get iii.jjj.kkk.lll" can, on Solaris at least,

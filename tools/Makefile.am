@@ -23,10 +23,14 @@ INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include
 
 halibdir		= $(libdir)/heartbeat
 
+sbin_PROGRAMS		= 
 sbin_SCRIPTS		= ocf-tester
+halib_PROGRAMS		= findif
 
-halib_PROGRAMS		= sfex_daemon findif
-sbin_PROGRAMS		= sfex_init
+if BUILD_SFEX
+halib_PROGRAMS		+= sfex_daemon
+sbin_PROGRAMS		+= sfex_init
+endif
 
 if USE_LIBNET
 halib_PROGRAMS		+= send_arp

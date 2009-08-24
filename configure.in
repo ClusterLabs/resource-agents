@@ -130,6 +130,10 @@ AC_ARG_WITH(ocf-root,
     [ if test x"$withval" = xprefix; then OCF_ROOT_DIR=${prefix}; else
 	 OCF_ROOT_DIR="$withval"; fi ])
 
+AC_ARG_ENABLE([libnet],
+ [  --enable-libnet 	Use libnet for ARP based funcationality, [default=try]], 
+ [enable_libnet=$withval], [enable_libnet=try])
+
 dnl ===============================================
 dnl General Processing
 dnl ===============================================
@@ -258,9 +262,6 @@ darwin*)
 		;;
 esac
 
-dnl Eventually remove this 
-dnl CFLAGS="$CFLAGS -I${prefix}/include/heartbeat"
-
 AC_SUBST(INIT_EXT)
 AC_DEFINE_UNQUOTED(HA_LOG_FACILITY, LOG_DAEMON, Default logging facility)
 
@@ -288,13 +289,14 @@ AC_DEFINE_UNQUOTED(U64T, "$U64T", Correct printf format for logging uint64_t)
 
 dnl Variables needed for substitution
 
-AC_CHECK_HEADERS(glue_config.h)
-if test "X$OCF_ROOT_DIR" = X; then
-  if test "$ac_cv_header_glue_config_h" != "yes"; then
-    AC_MSG_FAILURE(The cluster-glue development headers were not found)
-  fi
-  OCF_ROOT_DIR=`extract_header_define glue_config.h OCF_ROOT_DIR`
+AC_CHECK_HEADERS(heartbeat/glue_config.h)
+
+if test "$ac_cv_header_heartbeat_glue_config_h" = "yes"; then
+  OCF_ROOT_DIR=`extract_header_define heartbeat/glue_config.h OCF_ROOT_DIR`
+else
+  enable_libnet=no
 fi
+
 AC_DEFINE_UNQUOTED(OCF_ROOT_DIR,"$OCF_ROOT_DIR", OCF root directory - specified by the OCF standard)
 AC_SUBST(OCF_ROOT_DIR)
 
@@ -429,10 +431,14 @@ dnl Headers
 dnl ========================================================================
 
 AC_HEADER_STDC
+AC_CHECK_HEADERS(sys/socket.h)
+AC_CHECK_HEADERS(sys/sockio.h)
 
 dnl ========================================================================
 dnl Functions
 dnl ========================================================================
+
+AC_CHECK_FUNCS(strnlen)
 
 dnl 'reboot()' system call: one argument (e.g. Linux) or two (e.g. Solaris)?
 dnl
@@ -476,12 +482,23 @@ dnl ========================================================================
 AC_CHECK_FUNCS(getopt, AC_DEFINE(HAVE_DECL_GETOPT,  1, [Have getopt function]))
 
 dnl ========================================================================
-dnl   libnet
+dnl   sfex
 dnl ========================================================================
 
-AC_ARG_ENABLE([libnet],
- [  --enable-libnet 	Use libnet for ARP based funcationality, [default=try]], 
- [enable_libnet=$withval], [enable_libnet=try])
+build_sfex=no
+case $host_os in
+    *Linux*|*linux*) 
+	if test "$ac_cv_header_heartbeat_glue_config_h" = "yes"; then
+	    build_sfex=yes
+	fi
+	;;
+esac
+
+AM_CONDITIONAL(BUILD_SFEX, test "$build_sfex" = "yes" )
+
+dnl ========================================================================
+dnl   libnet
+dnl ========================================================================
 
 libnet=""
 libnet_version="none"
@@ -575,44 +592,6 @@ dnl ************************************************************************
 dnl * Check for netinet/icmp6.h to enable the IPv6addr resource agent
 AC_CHECK_HEADERS(netinet/icmp6.h,[],[],[#include <sys/types.h>])
 AM_CONDITIONAL(USE_IPV6ADDR, test "$ac_cv_header_netinet_icmp6_h" = yes -a "$new_libnet" = yes )
-
-dnl ========================================================================
-dnl checks for library functions to replace them
-dnl
-dnl     NoSuchFunctionName:
-dnl             is a dummy function which no system supplies.  It is here to make
-dnl             the system compile semi-correctly on OpenBSD which doesn't know
-dnl             how to create an empty archive
-dnl
-dnl     scandir: Only on BSD.
-dnl             System-V systems may have it, but hidden and/or deprecated.
-dnl             A replacement function is supplied for it.
-dnl
-dnl     setenv: is some bsdish function that should also be avoided (use
-dnl             putenv instead)
-dnl             On the other hand, putenv doesn't provide the right API for the
-dnl             code and has memory leaks designed in (sigh...)  Fortunately this
-dnl             A replacement function is supplied for it.
-dnl
-dnl     strerror: returns a string that corresponds to an errno.
-dnl             A replacement function is supplied for it.
-dnl
-dnl     unsetenv: is some bsdish function that should also be avoided (No 
-dnl             replacement)
-dnl             A replacement function is supplied for it.
-dnl
-dnl	strnlen: is a gnu function similar to strlen, but safer.
-dnl		We wrote a tolearably-fast replacement function for it.
-dnl
-dnl	strndup: is a gnu function similar to strdup, but safer.
-dnl		We wrote a tolearably-fast replacement function for it.
-dnl
-dnl	daemon: is a GNU function.  The daemon() function is for programs wishing to
-dnl             detach themselves from the controlling terminal and run in the
-dnl             background as system daemon
-dnl             A replacement function is supplied for it.
-
-AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv strnlen strndup daemon strlcpy strlcat)
 
 dnl ========================================================================
 dnl Compiler flags
