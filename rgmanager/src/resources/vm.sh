@@ -688,6 +688,9 @@ virsh_migrate()
 		if [ "$err" != "${err/Connection refused/}" ]; then
 			return $OCF_ERR_CONFIGURED
 		fi
+		if [ "$err" != "${err/unable to start guest/}" ]; then
+			return $OCF_NOT_RUNNING
+		fi
 
 		return $OCF_ERR_GENERIC
 	fi
