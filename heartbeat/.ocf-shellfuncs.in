@@ -224,6 +224,22 @@ ha_debug() {
 	fi
 }
 
+ha_parameter() {
+    VALUE=`sed -e 's%[	][	]*% %' -e 's%^ %%' -e 's%#.*%%'   $HA_CF | grep -i "^$1 " | sed 's%[^ ]* %%'`
+    if
+	[ "X$VALUE" = X ]
+    then
+	
+	case $1 in
+	    keepalive)	VALUE=2;;
+	    deadtime)
+		ka=`ha_parameter keepalive`
+		VALUE=`expr $ka '*' 2 '+' 1`;;
+	esac
+    fi
+    echo $VALUE
+}
+
 ocf_log() {
 	# TODO: Revisit and implement internally.
 	if
