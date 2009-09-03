@@ -106,7 +106,7 @@ to be a regular file, too.
 <content type="string" />
 </parameter>
 
-<parameter name="scsi_id" required="0" unique="0">
+<parameter name="scsi_id" required="0" unique="1">
 <longdesc lang="en">
 The SCSI ID to be configured for this Logical Unit. The default
 is the resource name, truncated to 24 bytes.
@@ -115,7 +115,7 @@ is the resource name, truncated to 24 bytes.
 <content type="string" default="${OCF_RESKEY_scsi_id_default}"/>
 </parameter>
 
-<parameter name="scsi_sn" required="0" unique="0">
+<parameter name="scsi_sn" required="0" unique="1">
 <longdesc lang="en">
 The SCSI serial number to be configured for this Logical Unit.
 The default is a hash of the resource name, truncated to 8 bytes.
