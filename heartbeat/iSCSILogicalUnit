@@ -42,10 +42,12 @@ fi
 : ${OCF_RESKEY_implementation=${OCF_RESKEY_implementation_default}}
 
 # Use a default SCSI ID and SCSI SN that is unique across the cluster,
-# and persistent in the event of resource migration
-# SCSI IDs are limited to 24 bytes, so take the first 24 bytes of
-# $OCF_RESOURCE_INSTANCE
-OCF_RESKEY_scsi_id_default="${OCF_RESOURCE_INSTANCE:0:24}"
+# and persistent in the event of resource migration.
+# SCSI IDs are limited to 24 bytes, but only 16 bytes are known to be
+# supported by all iSCSI implementations this RA cares about. Thus,
+# for a default, use the first 16 characters of
+# $OCF_RESOURCE_INSTANCE.
+OCF_RESKEY_scsi_id_default="${OCF_RESOURCE_INSTANCE:0:16}"
 : ${OCF_RESKEY_scsi_id=${OCF_RESKEY_scsi_id_default}}
 # To have a reasonably unique default SCSI SN, use the first 8 bytes
 # of an MD5 hash of of $OCF_RESOURCE_INSTANCE
