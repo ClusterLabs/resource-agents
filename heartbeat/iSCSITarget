@@ -303,8 +303,17 @@ iSCSITarget_stop() {
 			--params=IncomingUser=${OCF_RESKEY_incoming_username} \
 			|| return $OCF_ERR_GENERIC
 		fi
-		do_cmd ietadm --op delete \
-		    --tid=${tid} || return $OCF_ERR_GENERIC
+		# Loop on delete. Keep trying until we time out, if
+		# necessary.
+		while true; do
+		    if ietadm --op delete --tid=${tid}; then
+			ocf_log debug "Removed target ${OCF_RESKEY_iqn}."
+			break
+		    else
+			ocf_log warn "Failed to remove target ${OCF_RESKEY_iqn}, retrying."
+			sleep 1
+		    fi
+		done
 		# Avoid stale /etc/initiators.{allow,deny} entries
 		# for this target
 		do_cmd sed -e "/^${OCF_RESKEY_iqn}[[:space:]]/d" \
@@ -343,11 +352,21 @@ iSCSITarget_stop() {
 		    do_cmd tgtadm --lld iscsi --mode account --op delete \
 			--user=${OCF_RESKEY_incoming_username} || return $OCF_ERR_GENERIC
 		fi
-		do_cmd tgtadm --lld iscsi --op delete --mode target \
-		    --tid=${tid} && return $OCF_SUCCESS
+		# Loop on delete. Keep trying until we time out, if
+		# necessary.
+		while true; do
+		    if tgtadm --lld iscsi --op delete --mode target --tid=${tid}; then
+			ocf_log debug "Removed target ${OCF_RESKEY_iqn}."
+			break
+		    else
+			ocf_log warn "Failed to remove target ${OCF_RESKEY_iqn}, retrying."
+			sleep 1
+		    fi
+		done
 		# In tgt, we don't have to worry about our ACL
 		# entries. They are automatically removed upon target
 		# deletion.
+		return $OCF_SUCCESS
 		;;
 	esac
     else
