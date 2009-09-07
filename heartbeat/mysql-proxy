@@ -38,6 +38,9 @@
 #  OCF_RESKEY_proxy_read_only_backend_addresses
 #  OCF_RESKEY_proxy_address
 #  OCF_RESKEY_admin_address
+#  OCF_RESKEY_admin_username
+#  OCF_RESKEY_admin_password
+#  OCF_RESKEY_admin_lua_script
 #  OCF_RESKEY_parameters
 #  OCF_RESKEY_pidfile
 #
@@ -53,6 +56,9 @@
 : ${OCF_RESKEY_proxy_read_only_backend_addresses=""}
 : ${OCF_RESKEY_proxy_address=":4040"}
 : ${OCF_RESKEY_admin_address="127.0.0.1:4041"}
+: ${OCF_RESKEY_admin_username=""}
+: ${OCF_RESKEY_admin_password=""}
+: ${OCF_RESKEY_admin_lua_script=""}
 : ${OCF_RESKEY_parameters=""}
 : ${OCF_RESKEY_pidfile="${HA_RSCTMP}/mysql-proxy-${OCF_RESOURCE_INSTANCE}.pid"}
 USAGE="Usage: $0 {start|stop|reload|status|monitor|validate-all|meta-data}";
@@ -128,6 +134,31 @@ Listening address:port of the admin-server (default: 127.0.0.1:4041).
 <content type="string" default="127.0.0.1:4041" />
 </parameter>
 
+<parameter name="admin_username" unique="0" required="0">
+<longdesc lang="en">
+Username to allow to log in (default: ).
+</longdesc>
+<shortdesc lang="en"></shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="admin_password" unique="0" required="0">
+<longdesc lang="en">
+Password to allow to log in (default: ).
+</longdesc>
+<shortdesc lang="en"></shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="admin_lua_script" unique="0" required="0">
+<longdesc lang="en">
+Script to execute by the admin plugin.
+</longdesc>
+<shortdesc lang="en"></shortdesc>
+<content type="string" default="" />
+</parameter>
+
+
 <parameter name="parameters" unique="0" required="0">
 <longdesc lang="en">
 The MySQL Proxy daemon may be called with additional parameters.
@@ -191,6 +222,17 @@ mysqlproxy_start()
         PARAM_PREFIX="--defaults-file=$defaults_file "
     fi
 
+    # honor admin_* options
+    if [ ! -z "$admin_username" ]; then
+        PARAM_PREFIX="$PARAM_PREFIX --admin-username=$admin_username "
+    fi
+    if [ ! -z "$admin_password" ]; then
+        PARAM_PREFIX="$PARAM_PREFIX --admin-password=$admin_password "
+    fi
+    if [ ! -z "$admin_lua_script" ]; then
+        PARAM_PREFIX="$PARAM_PREFIX --admin-lua-script=$admin_lua_script "
+    fi
+
     # split multiple proxy-address options.
     # currently unsupported but let us hope for the future ;)
     for pa in $proxy_address; do
@@ -211,7 +253,7 @@ mysqlproxy_start()
     done
 
     # build $OPTIONS and add addmin-address and pidfile
-    OPTIONS="$PARAM_PREFIX $OPTIONS --admin-address=$admin_address --pid-file=${pidfile} $PARAM_SUFFIX"
+    OPTIONS="$PARAM_PREFIX $OPTIONS --admin-address=$admin_address --pid-file=${pidfile}"
 
     # start MySQL Proxy
     #start-stop-daemon --start --quiet --pidfile $pidfile --make-pidfile --name mysql-proxy --startas $binary -b -- $OPTIONS
@@ -309,6 +351,9 @@ defaults_file=$OCF_RESKEY_defaults_file
 proxy_backend_addresses=$OCF_RESKEY_proxy_backend_addresses
 proxy_read_only_backend_addresses=$OCF_RESKEY_proxy_read_only_backend_addresses
 admin_address=$OCF_RESKEY_admin_address
+admin_username=$OCF_RESKEY_admin_username
+admin_password=$OCF_RESKEY_admin_password
+admin_lua_script=$OCF_RESKEY_admin_lua_script
 proxy_address=$OCF_RESKEY_proxy_address
 
 # debugging stuff
@@ -318,6 +363,9 @@ proxy_address=$OCF_RESKEY_proxy_address
 #echo OCF_RESKEY_proxy_read_only_backend_addresses=$OCF_RESKEY_proxy_read_only_backend_addresses >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
 #echo OCF_RESKEY_proxy_address=$OCF_RESKEY_proxy_address >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
 #echo OCF_RESKEY_admin_address=$OCF_RESKEY_admin_address >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
+#echo OCF_RESKEY_admin_username=$OCF_RESKEY_admin_username >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
+#echo OCF_RESKEY_admin_password=$OCF_RESKEY_admin_password >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
+#echo OCF_RESKEY_admin_lua_script=$OCF_RESKEY_admin_lua_script >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
 #echo OCF_RESKEY_parameters=$OCF_RESKEY_parameters >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
 #echo OCF_RESKEY_pidfile=$OCF_RESKEY_pidfile >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
 
