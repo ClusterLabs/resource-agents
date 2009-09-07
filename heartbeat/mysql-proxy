@@ -20,7 +20,6 @@
 #
 # TODO
 # * add error checking like in mysql ocf ra (e.g. socketdir)
-# * verify if mysql-proxy supports multiple --proxy-address(es)
 #
 # Test via
 # */usr/sbin/ocf-tester -n mp /usr/lib/ocf/resource.d/heartbeat/mysql-proxy
@@ -156,7 +155,6 @@ Specify any of them here.
 </actions>
 </resource-agent>
 END
-        exit $OCF_SUCCESS
 }
 
 isRunning()
@@ -184,13 +182,7 @@ mysqlproxy_start()
     # if MySQL Proxy is running return success
     if mysqlproxy_status ; then
         ocf_log info "MySQL Proxy already running."
-        exit $OCF_SUCCESS
-    fi
-
-    # check that the MySQL Proxy binary exists and can be executed
-    if [ ! -x "$binary" ]; then
-        ocf_log err "MySQL Proxy binary '$binary' does not exist or cannot be executed."
-        exit $OCF_ERR_GENERIC
+        return $OCF_SUCCESS
     fi
 
     # check if the MySQL Proxy defaults-file exist
@@ -228,10 +220,10 @@ mysqlproxy_start()
 
     if [ $ret -ne 0 ]; then
         ocf_log err "MySQL Proxy returned error." $ret
-        exit $OCF_ERR_GENERIC
+        return $OCF_ERR_GENERIC
     fi
 
-    exit $OCF_SUCCESS
+    return $OCF_SUCCESS
 }
 
 
@@ -244,14 +236,14 @@ mysqlproxy_stop()
 
         if [ $ret -ne 0 ]; then
             ocf_log err "MySQL Proxy returned an error while stopping." $ret
-            exit $OCF_ERR_GENERIC
+            return $OCF_ERR_GENERIC
         fi
 
         # grant some time for shutdown and recheck
         sleep 1
         if mysqlproxy_status ; then
             ocf_log err "MySQL Proxy failed to stop."
-            exit $OCF_ERR_GENERIC
+            return $OCF_ERR_GENERIC
         fi
 
         # remove dangling socketfile, if specified
@@ -269,7 +261,7 @@ mysqlproxy_stop()
         fi
     fi
 
-    exit $OCF_SUCCESS
+    return $OCF_SUCCESS
 }
 
 mysqlproxy_reload()
@@ -291,8 +283,14 @@ mysqlproxy_monitor()
 
 mysqlproxy_validate_all()
 {
-
     # @TODO
+
+    # check that the MySQL Proxy binary exists and can be executed
+    if [ ! -x "$binary" ]; then
+        ocf_log err "MySQL Proxy binary '$binary' does not exist or cannot be executed."
+        return $OCF_ERR_INSTALLED
+    fi
+
     return $OCF_SUCCESS
 }
 
@@ -325,13 +323,18 @@ proxy_address=$OCF_RESKEY_proxy_address
 
 
 case $1 in
-    start)      mysqlproxy_start
+    start)      mysqlproxy_validate_all &&
+                mysqlproxy_start
+                exit $?
                 ;;
 
-    stop)       mysqlproxy_stop
+    stop)       mysqlproxy_validate_all &&
+                mysqlproxy_stop
+                exit $?
                 ;;
 
     reload)     mysqlproxy_reload
+                exit $?
                 ;;
 
     status)     if mysqlproxy_status; then
@@ -352,6 +355,7 @@ case $1 in
                     ;;
 
     meta-data)  meta_data
+                exit $?
                 ;;
 
     usage)      usage
@@ -362,4 +366,3 @@ case $1 in
                 exit $OCF_ERR_UNIMPLEMENTED
                 ;;
 esac
-
