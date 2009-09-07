@@ -2,7 +2,8 @@
 #
 # portblock: iptables temporary portblocking control 
 #
-# Author:	Sun Jiang Dong
+# Author:	Sun Jiang Dong (initial version)
+#               Philipp Reisner (per-IP filtering)
 #
 # License:	GNU General Public License (GPL)
 #
@@ -12,11 +13,16 @@
 #		OCF_RESKEY_protocol
 #		OCF_RESKEY_portno
 #		OCF_RESKEY_action
+#		OCF_RESKEY_ip
 #######################################################################
 # Initialization:
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
+# Defaults
+OCF_RESKEY_ip_default="0.0.0.0/0"
+
+: ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
 #######################################################################
 CMD=`basename $0`
 
@@ -85,6 +91,14 @@ The port number used to be blocked/unblocked.
 <content type="integer" default="" />
 </parameter>
 
+<parameter name="ip" unique="0" required="0">
+<longdesc lang="en">
+The IP address used to be blocked/unblocked.
+</longdesc>
+<shortdesc lang="en">ip</shortdesc>
+<content type="string" default="${OCF_RESKEY_ip_default}" />
+</parameter>
+
 <parameter name="action" unique="0" required="1">
 <longdesc lang="en">
 The action (block/unblock) to be done on the protocol::portno.
@@ -126,13 +140,13 @@ active_grep_pat()
 {
   w="[ 	][ 	]*"
   any="0\\.0\\.0\\.0/0"
-  echo "^DROP${w}${1}${w}--${w}${any}${w}${any}${w}multiport${w}dports${w}${2} "
+  echo "^DROP${w}${1}${w}--${w}${any}${w}${3}${w}multiport${w}dports${w}${2} "
 }
 
-#chain_isactive  {udp|tcp} portno,portno
+#chain_isactive  {udp|tcp} portno,portno ip
 chain_isactive()
 {
-  PAT=`active_grep_pat "$1" "$2"`
+  PAT=`active_grep_pat "$1" "$2" "$3"`
   $IPTABLES -n -L INPUT | grep "$PAT" >/dev/null
 }
 
@@ -151,13 +165,13 @@ SayInactive()
   echo "$CMD DROP rule for INPUT chain [$*] is inactive"
 }
 
-#IptablesStatus  {udp|tcp} portno,portno {block|unblock}
+#IptablesStatus  {udp|tcp} portno,portno ip {block|unblock}
 IptablesStatus() {
     local rc
     rc=$OCF_ERR_GENERIC
     activewords="$CMD $1 $2 is running (OK)"
-    if chain_isactive "$1" "$2"; then
-	case $3 in
+    if chain_isactive "$1" "$2" "$3"; then
+	case $4 in
 	    block)	
 		SayActive $*
 		rc=$OCF_SUCCESS
@@ -168,7 +182,7 @@ IptablesStatus() {
 		;;
 	esac
     else
-	case $3 in
+	case $4 in
 	    block)
 		if ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" status; then
 		    SayConsideredActive $*
@@ -189,27 +203,27 @@ IptablesStatus() {
     return $rc
 }
 
-#IptablesBLOCK  {udp|tcp} portno,portno
+#IptablesBLOCK  {udp|tcp} portno,portno ip
 IptablesBLOCK()
 {
   if
-    chain_isactive "$1" "$2"
+    chain_isactive "$1" "$2" "$3"
   then
     : OK -- chain already active
   else
-    $IPTABLES -I INPUT -p "$1" -m multiport --dports "$2" -j DROP
+    $IPTABLES -I INPUT -p "$1" -d "$3" -m multiport --dports "$2" -j DROP
   fi
 
   return $?
 }
 
-#IptablesUNBLOCK  {udp|tcp} portno,portno
+#IptablesUNBLOCK  {udp|tcp} portno,portno ip
 IptablesUNBLOCK()
 {
   if
-    chain_isactive "$1" "$2"
+    chain_isactive "$1" "$2" "$3"
   then
-    $IPTABLES -D INPUT -p "$1" -m multiport --dports "$2" -j DROP
+    $IPTABLES -D INPUT -p "$1" -d "$3" -m multiport --dports "$2" -j DROP
   else
     : Chain Not active
   fi
@@ -217,11 +231,11 @@ IptablesUNBLOCK()
   return $?
 }
 
-#IptablesStart  {udp|tcp} portno,portno {block|unblock}
+#IptablesStart  {udp|tcp} portno,portno ip {block|unblock}
 IptablesStart()
 {
   ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" start
-  case $3 in
+  case $4 in
     block)	IptablesBLOCK "$@";;
     unblock)	IptablesUNBLOCK "$@";;
     *)		usage; return 1;
@@ -230,11 +244,11 @@ IptablesStart()
   return $?
 }
 
-#IptablesStop  {udp|tcp} portno,portno {block|unblock}
+#IptablesStop  {udp|tcp} portno,portno ip {block|unblock}
 IptablesStop()
 {
   ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" stop
-  case $3 in
+  case $4 in
     block)	IptablesUNBLOCK "$@";;
     unblock)	IptablesBLOCK "$@";;
     *)		usage; return 1;;
@@ -325,18 +339,19 @@ fi
 protocol=$OCF_RESKEY_protocol
 portno=$OCF_RESKEY_portno
 action=$OCF_RESKEY_action
+ip=$OCF_RESKEY_ip
 
 case $1 in
   start)	
-			IptablesStart $protocol $portno $action 
+			IptablesStart $protocol $portno $ip $action 
 			;;
 
   stop)		
-			IptablesStop $protocol $portno $action
+			IptablesStop $protocol $portno $ip $action
 			;;
 
   status|monitor)	
-			IptablesStatus $protocol $portno $action
+			IptablesStatus $protocol $portno $ip $action
 			;;
 
   validate-all)
