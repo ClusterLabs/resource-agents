@@ -109,15 +109,15 @@ For example, "/etc/mysql-proxy.conf".
 <longdesc lang="en">
 Address:port of the remote backend-servers (default: 127.0.0.1:3306).
 </longdesc>
-<shortdesc lang="en"></shortdesc>
+<shortdesc lang="en">MySQL Proxy backend-servers</shortdesc>
 <content type="string" default="127.0.0.1:3306" />
 </parameter>
 
 <parameter name="proxy_read_only_backend_addresses" unique="0" required="0">
 <longdesc lang="en">
-Address:port of the remote slave-server (default: not set).
+Address:port of the remote (read only) slave-server (default: ).
 </longdesc>
-<shortdesc lang="en"></shortdesc>
+<shortdesc lang="en">MySql Proxy read only backend-servers</shortdesc>
 <content type="string" default="127.0.0.1:3306" />
 </parameter>
 
@@ -126,7 +126,7 @@ Address:port of the remote slave-server (default: not set).
 Listening address:port of the proxy-server (default: :4040).
 You can also specify a socket like "/tmp/mysql-proxy.sock".
 </longdesc>
-<shortdesc lang="en"></shortdesc>
+<shortdesc lang="en">MySQL Proxy listening address</shortdesc>
 <content type="string" default=":4040" />
 </parameter>
 
@@ -135,7 +135,7 @@ You can also specify a socket like "/tmp/mysql-proxy.sock".
 Log all messages of level (error|warning|info|message|debug|) or higher.
 An empty value disables logging.
 </longdesc>
-<shortdesc lang="en"></shortdesc>
+<shortdesc lang="en">MySQL Proxy log level.</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -144,7 +144,7 @@ An empty value disables logging.
 Try to restart the proxy if it crashed (default: ).
 Valid values: true or false. An empty value equals "false".
 </longdesc>
-<shortdesc lang="en"></shortdesc>
+<shortdesc lang="en">Use keepalive option</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -152,7 +152,7 @@ Valid values: true or false. An empty value equals "false".
 <longdesc lang="en">
 Listening address:port of the admin-server (default: 127.0.0.1:4041).
 </longdesc>
-<shortdesc lang="en"></shortdesc>
+<shortdesc lang="en">MySQL Proxy admin-server address</shortdesc>
 <content type="string" default="127.0.0.1:4041" />
 </parameter>
 
@@ -160,7 +160,7 @@ Listening address:port of the admin-server (default: 127.0.0.1:4041).
 <longdesc lang="en">
 Username to allow to log in (default: ).
 </longdesc>
-<shortdesc lang="en"></shortdesc>
+<shortdesc lang="en">MySQL Proxy admin-server username</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -168,7 +168,7 @@ Username to allow to log in (default: ).
 <longdesc lang="en">
 Password to allow to log in (default: ).
 </longdesc>
-<shortdesc lang="en"></shortdesc>
+<shortdesc lang="en">MySQL Proxy admin-server password</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -176,7 +176,7 @@ Password to allow to log in (default: ).
 <longdesc lang="en">
 Script to execute by the admin plugin.
 </longdesc>
-<shortdesc lang="en"></shortdesc>
+<shortdesc lang="en">MySQL Proxy admin-server lua script</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -186,7 +186,7 @@ Script to execute by the admin plugin.
 The MySQL Proxy daemon may be called with additional parameters.
 Specify any of them here.
 </longdesc>
-<shortdesc lang="en"></shortdesc>
+<shortdesc lang="en">MySQL Proxy additional parameters</shortdesc>
 <content type="string" default="" />
 </parameter>
 
