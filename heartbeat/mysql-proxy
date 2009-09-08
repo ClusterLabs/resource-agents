@@ -37,6 +37,8 @@
 #  OCF_RESKEY_proxy_backend_addresses
 #  OCF_RESKEY_proxy_read_only_backend_addresses
 #  OCF_RESKEY_proxy_address
+#  OCF_RESKEY_log_level
+#  OCF_RESKEY_keepalive
 #  OCF_RESKEY_admin_address
 #  OCF_RESKEY_admin_username
 #  OCF_RESKEY_admin_password
@@ -55,6 +57,8 @@
 : ${OCF_RESKEY_proxy_backend_addresses="127.0.0.1:3306"}
 : ${OCF_RESKEY_proxy_read_only_backend_addresses=""}
 : ${OCF_RESKEY_proxy_address=":4040"}
+: ${OCF_RESKEY_log_level=""}
+: ${OCF_RESKEY_keepalive=""}
 : ${OCF_RESKEY_admin_address="127.0.0.1:4041"}
 : ${OCF_RESKEY_admin_username=""}
 : ${OCF_RESKEY_admin_password=""}
@@ -124,6 +128,24 @@ You can also specify a socket like "/tmp/mysql-proxy.sock".
 </longdesc>
 <shortdesc lang="en"></shortdesc>
 <content type="string" default=":4040" />
+</parameter>
+
+<parameter name="log_level" unique="0" required="0">
+<longdesc lang="en">
+Log all messages of level (error|warning|info|message|debug|) or higher.
+An empty value disables logging.
+</longdesc>
+<shortdesc lang="en"></shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="keepalive" unique="0" required="0">
+<longdesc lang="en">
+Try to restart the proxy if it crashed (default: ).
+Valid values: true or false. An empty value equals "false".
+</longdesc>
+<shortdesc lang="en"></shortdesc>
+<content type="string" default="" />
 </parameter>
 
 <parameter name="admin_address" unique="0" required="0">
@@ -200,6 +222,7 @@ mysqlproxy_status()
         PID=`head -n 1 "${pidfile}"`
         if [ ! -z "$PID" ] ; then
             isRunning "$PID"
+            # @TODO in-depth check: issue a query and/or check proxy-admin interface
             return $?
         fi
     fi
@@ -216,10 +239,20 @@ mysqlproxy_start()
         return $OCF_SUCCESS
     fi
 
-    # check if the MySQL Proxy defaults-file exist
     PARAM_PREFIX=''
+    # check if the MySQL Proxy defaults-file exist
     if [ -f "$defaults_file" ]; then
         PARAM_PREFIX="--defaults-file=$defaults_file "
+    fi
+
+    # set log-level
+    if [ ! -z "$log_level" ]; then
+        PARAM_PREFIX="$PARAM_PREFIX --log-level=$log_level "
+    fi
+
+    # set keepalive
+    if [ "$keepalive" = "true" ]; then
+        PARAM_PREFIX="$PARAM_PREFIX --keepalive "
     fi
 
     # honor admin_* options
@@ -325,12 +358,17 @@ mysqlproxy_monitor()
 
 mysqlproxy_validate_all()
 {
-    # @TODO
-
     # check that the MySQL Proxy binary exists and can be executed
     if [ ! -x "$binary" ]; then
         ocf_log err "MySQL Proxy binary '$binary' does not exist or cannot be executed."
         return $OCF_ERR_INSTALLED
+    fi
+
+    # check for valid log-level
+    echo $log_level | egrep "^(error|warning|info|message|debug|)$" >/dev/null
+    if [ $? -ne 0 ]; then
+        ocf_log err "MySQL Proxy log level '$log_level' not in valid range error|warning|info|message|debug"
+        return $OCF_ERR_CONFIGURED
     fi
 
     return $OCF_SUCCESS
@@ -355,6 +393,8 @@ admin_username=$OCF_RESKEY_admin_username
 admin_password=$OCF_RESKEY_admin_password
 admin_lua_script=$OCF_RESKEY_admin_lua_script
 proxy_address=$OCF_RESKEY_proxy_address
+log_level=$OCF_RESKEY_log_level
+keepalive=$OCF_RESKEY_keepalive
 
 # debugging stuff
 #echo OCF_RESKEY_binary=$OCF_RESKEY_binary >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
@@ -362,6 +402,8 @@ proxy_address=$OCF_RESKEY_proxy_address
 #echo OCF_RESKEY_proxy_backend_addresses=$OCF_RESKEY_proxy_backend_addresses >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
 #echo OCF_RESKEY_proxy_read_only_backend_addresses=$OCF_RESKEY_proxy_read_only_backend_addresses >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
 #echo OCF_RESKEY_proxy_address=$OCF_RESKEY_proxy_address >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
+#echo OCF_RESKEY_log_level=$OCF_RESKEY_log_level >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
+#echo OCF_RESKEY_keepalive=$OCF_RESKEY_keepalive >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
 #echo OCF_RESKEY_admin_address=$OCF_RESKEY_admin_address >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
 #echo OCF_RESKEY_admin_username=$OCF_RESKEY_admin_username >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
 #echo OCF_RESKEY_admin_password=$OCF_RESKEY_admin_password >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
