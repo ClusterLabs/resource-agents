@@ -1,0 +1,409 @@
+#!/bin/sh
+#
+# Description:  Manages a Jboss Server as an OCF High-Availability
+#               resource under Heartbeat/LinuxHA control
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  
+# 02110-1301, USA.
+#
+# Copyright (c) 2009 Bauer Systems KG / Stefan Schluppeck
+#
+#######################################################################
+# OCF parameters:
+#   OCF_RESKEY_resource_name - The name of the resource. Default is ${OCF_RESOURCE_INSTANCE}
+# why not let the RA log through lrmd?
+# 2009/09/09 Nakahira:
+# jboss_console is used to record output of the "run.sh".
+# The log of "Run.sh" should not be output to ha-log because it is so annoying.
+#   OCF_RESKEY_console - A destination of the log of jboss run and shutdown script. Default is /var/log/${OCF_RESKEY_resource_name}.log
+#   OCF_RESKEY_shutdown_timeout - Time-out at the time of the stop. Default is 5
+#   OCF_RESKEY_kill_timeout - The re-try number of times awaiting a stop. Default is 10
+#   OCF_RESKEY_user - A user name to start a JBoss. Default is root
+#   OCF_RESKEY_statusurl - URL for state confirmation. Default is http://127.0.0.1:8080
+#   OCF_RESKEY_java_home - Home directory of the Java. Default is ${JAVA_HOME}
+#   OCF_RESKEY_jboss_home - Home directory of Jboss. Default is None
+# is it possible to devise this string from options? I'm afraid
+# that allowing users to set this could be error prone.
+# 2009/09/09 Nakahira:
+# It is difficult to set it automatically because jboss_pstring
+# greatly depends on the environment. At any rate, system architect
+# should note that pstring doesn't influence other processes.
+#   OCF_RESKEY_pstring - String Jboss will found in procceslist. Default is "java -Dprogram.name=run.sh"
+#   OCF_RESKEY_run_opts - Options for jboss to run. Default is "-c default -l lpg4j"
+#   OCF_RESKEY_shutdown_opts - Options for jboss to shutdonw. Default is "-s 127.0.0.1:1099"
+###############################################################################
+
+
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+
+usage() 
+{
+	cat <<-!
+usage: $0 action
+
+action:
+        start   start jboss
+
+        stop    stop the jboss
+
+        status  return the status of jboss, run or down
+
+        monitor  return TRUE if the jboss appears to be working.
+                 You have to have installed $WGETNAME for this to work.
+
+        meta-data       show meta data message
+
+        validate-all    validate the instance parameters
+!
+	return $OCF_ERR_ARGS
+}
+
+isrunning_jboss()
+{
+	if wget -O /dev/null $STATUSURL 2>/dev/null; then
+		return $OCF_SUCCESS
+	fi
+	# JBoss service error 
+	return $OCF_ERR_GENERIC
+}
+
+monitor_jboss()
+{
+	if ! pgrep -f "$PSTRING" > /dev/null; then
+		return $OCF_NOT_RUNNING
+	fi
+	isrunning_jboss
+}
+
+start_jboss()
+{
+	monitor_jboss
+	if [ $? = $OCF_SUCCESS ]; then
+		return $OCF_SUCCESS
+	fi
+
+	ocf_log info "Starting JBoss[$RESOURCE_NAME]"
+	if [ "$JBOSS_USER" = root ]; then
+		"$JBOSS_HOME/bin/run.sh" $RUN_OPTS \
+			>> "$CONSOLE" 2>&1 &
+	else
+		su - -s /bin/bash "$JBOSS_USER" \
+			-c "export JAVA_HOME=${JAVA_HOME};\n
+                            export JBOSS_HOME=${JBOSS_HOME};\n
+                            $JBOSS_HOME/bin/run.sh $RUN_OPTS" \
+			>> "$CONSOLE" 2>&1 &
+	fi
+
+	while true; do
+		monitor_jboss
+		if [ $? = $OCF_SUCCESS ]; then
+			break
+		fi
+		ocf_log debug "start_jboss[$RESOURCE_NAME]: retry monitor_jboss"
+		sleep 3
+	done
+
+	return $OCF_SUCCESS
+}
+
+stop_jboss()
+{
+	ocf_log info "Stopping JBoss[$RESOURCE_NAME]"
+
+	if [ "$JBOSS_USER" = root ]; then
+		"$JBOSS_HOME/bin/shutdown.sh" $SHUTDOWN_OPTS -S \
+			>> "$CONSOLE" 2>&1 &
+	else
+		su - -s /bin/bash "$JBOSS_USER" \
+			-c "export JAVA_HOME=${JAVA_HOME};\n
+                            export JBOSS_HOME=${JBOSS_HOME};\n
+                            $JBOSS_HOME/bin/shutdown.sh $SHUTDOWN_OPTS -S" \
+			>> "$CONSOLE" 2>&1 &
+
+	fi
+
+	lapse_sec=0
+	while pgrep -f "$PSTRING" > /dev/null; do
+		sleep 1
+		lapse_sec=`expr $lapse_sec + 1`
+		ocf_log info "stop_jboss[$RESOURCE_NAME]: stop NORM $lapse_sec/$SHUTDOWN_TIMEOUT"
+		if [ $lapse_sec -ge $SHUTDOWN_TIMEOUT ]; then
+			break
+		fi
+	done
+
+	if pgrep -f "$PSTRING" > /dev/null; then 
+		ocf_log info "stop_jboss[$RESOURCE_NAME]: output a JVM thread dump to $CONSOLE"
+		pkill -QUIT -f "$PSTRING"
+		lapse_sec=0
+		while true; do
+			sleep 1
+			lapse_sec=`expr $lapse_sec + 1`
+			ocf_log info "stop_jboss[$RESOURCE_NAME]: kill jboss by SIGTERM ($lapse_sec/$KILL_TIMEOUT)"
+			pkill -TERM -f "$PSTRING"
+			if pgrep -f "$PSTRING" > /dev/null; then
+				if [ $lapse_sec -ge $KILL_TIMEOUT ]; then
+					break
+				fi
+			else
+				break
+			fi
+		done
+	fi
+	# If the JBoss process hangs, JBoss RA waits $SHUTDOWN_TIMEOUT
+	# seconds and tries kill TERM and QUIT for $KILL_TIMEOUT seconds.
+	# The stop timeout of RA should be
+	# longer than $SHUTDOWN_TIMEOUT + $KILL_TIMEOUT.
+	lapse_sec=0
+	while pgrep -f "$PSTRING" > /dev/null; do
+		sleep 1
+		lapse_sec=`expr $lapse_sec + 1`
+		ocf_log info "stop_jboss[$RESOURCE_NAME]: kill jboss by SIGKILL ($lapse_sec/@@@)"
+		pkill -KILL -f "$PSTRING"
+	done
+	return $OCF_SUCCESS
+}
+
+status_jboss()
+{
+        if ! pgrep -f "$PSTRING" > /dev/null; then
+                echo "JBoss process[$RESOURCE_NAME] is not running."
+                return $OCF_NOT_RUNNING
+        fi
+
+        if isrunning_jboss; then
+                echo "JBoss[$RESOURCE_NAME] is running."
+                return $OCF_SUCCESS
+        else
+                echo "JBoss process[$RESOURCE_NAME] is running."
+                echo "But, we can not access JBoss web service."
+                return $OCF_NOT_RUNNING
+        fi
+}
+
+
+metadata_jboss()
+{
+    cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="jboss">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for Jboss. It manages a Jboss instance as an HA resource.
+</longdesc>
+<shortdesc lang="en">jboss resource agent</shortdesc>
+
+<parameters>
+
+<parameter name="resource_name" unique="1" required="0">
+<longdesc lang="en">
+The name of the resource. Defaults to the name of the resource
+instance.
+</longdesc>
+<shortdesc>The name of the resource</shortdesc>
+<content type="string" default="${OCF_RESOURCE_INSTANCE}" />
+</parameter>
+
+<parameter name="console" unique="1" required="0">
+<longdesc lang="en">
+A destination of the log of jboss run and shutdown script.
+</longdesc>
+<shortdesc>jboss log path</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="shutdown_timeout" unique="0" required="0">
+<longdesc lang="en">
+Timeout for jboss bin/shutdown.sh. We wait for this timeout to
+expire, then send the TERM and QUIT signals. Finally, the KILL
+signal is used to terminate the jboss process. You should set the
+timeout for the stop operation to a value bigger than the sum of
+the timeout parameters. See also kill_timeout.
+</longdesc>
+<shortdesc>shutdown timeout</shortdesc>
+<content type="integer" default="5" />
+</parameter>
+
+<parameter name="kill_timeout" unique="0" required="0">
+<longdesc lang="en">
+If bin/shutdown.sh doesn't stop the jboss process, then we send
+it TERM and QUIT signals, intermittently and once a second. After
+this timeout expires, if the process is still live, we use the
+KILL signal. See also shutdown_timeout.
+</longdesc>
+<shortdesc>stop by signal timeout</shortdesc>
+<content type="integer" default="10" />
+</parameter>
+
+<parameter name="user" unique="0" required="0">
+<longdesc lang="en">
+A user name to start a JBoss.
+</longdesc>
+<shortdesc>A user name to start a resource.</shortdesc>
+<content type="string" default="root"/>
+</parameter>
+
+<parameter name="statusurl" unique="0" required="0">
+<longdesc lang="en">
+URL to test in the monitor operation.
+</longdesc>
+<shortdesc>URL to test in the monitor operation.</shortdesc>
+<content type="string" default="http://127.0.0.1:8080" />
+</parameter>
+
+<parameter name="java_home" unique="0" required="0">
+<longdesc lang="en">
+Home directory of Java. Defaults to the environment variable
+JAVA_HOME. If it is not set, then define this parameter.
+</longdesc>
+<shortdesc>Home directory of Java.</shortdesc>
+<content type="string" default="$JAVA_HOME"/>
+</parameter>
+
+<parameter name="jboss_home" unique="1" required="1">
+<longdesc lang="en">
+Home directory of Jboss.
+</longdesc>
+<shortdesc>Home directory of Jboss.</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="pstring" unique="0" required="0">
+<longdesc lang="en">
+With this string heartbeat matches for the right process to kill.
+</longdesc>
+<shortdesc>pkill/pgrep search string</shortdesc>
+<content type="string" default="java -Dprogram.name=run.sh" />
+</parameter>
+
+<parameter name="run_opts" unique="0" required="0">
+<longdesc lang="en">
+Start options to start Jboss with, defaults are from the Jboss-Doku.
+</longdesc>
+<shortdesc>options for jboss run.sh</shortdesc>
+<content type="string" default="-c default -l lpg4j" />
+</parameter>
+
+<parameter name="shutdown_opts" unique="0" required="0">
+<longdesc lang="en">
+Stop options to stop Jboss with.
+</longdesc>
+<shortdesc>options for jboss shutdown.sh</shortdesc>
+<content type="string" default="-s 127.0.0.1:1099" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="60s" />
+<action name="stop" timeout="120s" />
+<action name="status" timeout="60" />
+<action name="monitor" depth="0" timeout="30s" interval="10s" start-delay="0" />
+<action name="meta-data" timeout="5s" />
+<action name="validate-all"  timeout="5"/>
+</actions>
+</resource-agent>
+END
+	return $OCF_SUCCESS
+}
+
+validate_all_jboss()
+{
+	ocf_log info "validate_all_jboss[$RESOURCE_NAME]"
+	return $OCF_SUCCESS
+}
+
+COMMAND=$1
+RESOURCE_NAME="${OCF_RESKEY_resource_name-${OCF_RESOURCE_INSTANCE}}"
+CONSOLE="${OCF_RESKEY_console-/var/log/${RESOURCE_NAME}.log}"
+SHUTDOWN_TIMEOUT="${OCF_RESKEY_shutdown_timeout-5}"
+KILL_TIMEOUT="${OCF_RESKEY_kill_timeout-10}"
+JBOSS_USER="${OCF_RESKEY_user-root}"
+STATUSURL="${OCF_RESKEY_statusurl-http://127.0.0.1:8080}"
+PSTRING="${OCF_RESKEY_pstring-java -Dprogram.name=run.sh}"
+RUN_OPTS="${OCF_RESKEY_run_opts--c default -l lpg4j}"
+SHUTDOWN_OPTS="${OCF_RESKEY_shutdown_opts--s 127.0.0.1:1099}"
+
+# test if these two are set and if directories exist and if the
+# required scripts/binaries exist; use OCF_ERR_INSTALLED
+JAVA_HOME="${OCF_RESKEY_java_home-${JAVA_HOME}}"
+JBOSS_HOME="${OCF_RESKEY_jboss_home}"
+
+if [ ! -d "$JAVA_HOME" -o ! -d "$JBOSS_HOME" ]; then
+	case $COMMAND in
+		stop)		exit	$OCF_SUCCESS;;
+		monitor)	exit	$OCF_NOT_RUNNING;;
+		status)		exit	$LSB_STATUS_STOPPED;;
+		meta-data)	metadata_jboss;;
+	esac
+	ocf_log err "JAVA_HOME or JBOSS_HOME does not exist."
+	exit $OCF_ERR_INSTALLED
+fi
+
+export JAVA_HOME JBOSS_HOME
+
+JAVA=${JAVA_HOME}/bin/java
+
+if [ ! -x "$JAVA" ]; then
+	case $COMMAND in
+		stop)		exit	$OCF_SUCCESS;;
+		monitor)	exit	$OCF_NOT_RUNNING;;
+		status)		exit	$LSB_STATUS_STOPPED;;
+		meta-data)	metadata_jboss;;
+	esac
+	ocf_log err "java command does not exist."
+	exit $OCF_ERR_INSTALLED
+fi
+
+case "$COMMAND" in
+	start)
+		#ocf_log debug  "[$RESOURCE_NAME] Enter jboss start"
+		start_jboss
+		func_status=$?
+		#ocf_log debug  "[$RESOURCE_NAME] Leave jboss start $func_status"
+		exit $func_status
+		;;
+	stop)
+		#ocf_log debug  "[$RESOURCE_NAME] Enter jboss stop"
+		stop_jboss
+		func_status=$?
+		#ocf_log debug  "[$RESOURCE_NAME] Leave jboss stop $func_status"
+		exit $func_status
+		;;
+	status)
+		status_jboss
+		exit $?
+		;;
+	monitor)
+		monitor_jboss
+		func_status=$?
+		exit $func_status
+		;;
+	# move meta-data above, so that it never fails
+	meta-data)
+		metadata_jboss
+		exit $?
+		;;
+	validate-all)
+		validate_all_jboss
+		exit $?
+		;;
+	*)
+		usage
+		;;
+esac
+

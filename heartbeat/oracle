@@ -198,6 +198,7 @@ oracle_methods() {
 	status
 	monitor
 	dumpinstipc
+	showdbstat
 	cleanup
 	validate-all
 	methods
@@ -333,6 +334,15 @@ getdumpdest() {
 getipc() {
 	echo "oradebug setmypid"
 	echo "oradebug ipc"
+}
+#
+# print the output of dbstat (for debugging)
+#
+showdbstat() {
+	echo "Full output:"
+	dbstat | execsql
+	echo "Stripped output:"
+	echo "<`dbasql dbstat`>"
 }
 
 #
@@ -656,6 +666,10 @@ case "$1" in
 
   dumpinstipc)
 	  is_oracle_up && parseipc `dumpinstipc`
+		exit $?;;
+
+  showdbstat)
+	  showdbstat
 		exit $?;;
 
   cleanup)
