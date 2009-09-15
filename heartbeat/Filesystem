@@ -25,50 +25,24 @@
 #OCF_RESKEY_statusfile_prefix : the prefix used for a status file for monitoring
 #
 #
-# An example usage in /etc/ha.d/haresources: 
-#       node1  10.0.0.170 Filesystem::/dev/sda1::/data1::ext2
-#  or
-#       node1  10.0.0.170 Filesystem::-Ldata1::/data1::ext2
-#  or
-#       node1  10.0.0.170 Filesystem::server:/data1::/data1::nfs::ro
+# This assumes you want to manage a filesystem on a shared (SCSI) bus,
+# on a replicated device (such as DRBD), or a network filesystem (such
+# as NFS or Samba).
 #
-# This assumes you want to manage a filesystem on a shared (scsi) bus.
 # Do not put this filesystem in /etc/fstab.  This script manages all of
 # that for you.
 #
-# If you are interested in High Availability, you will probably also want
-# some sort of external hardware RAID controller in front of the actual 
-# disks.  I don't mean a RAID controller embedded in the host controller -
-# it has to be an external controller.
+# NOTE: If 2 or more nodes mount the same file system read-write, and
+#       that file system is not designed for that specific purpose
+#       (such as GFS or OCFS2), and is not a network file system like
+#       NFS or Samba, then the filesystem is going to become
+#       corrupted.
 #
-# It can also be an internal RAID controller if the controller supports
-# failover.  IBM's ServeRAID controller does this, and it automatically
-# prohibits concurrent access too, so it's pretty cool in this application.
+#	As a result, you should use this together with the stonith
+#	option and redundant, independent communications paths.
 #
-# There is a script for software RAID-1 included in this directory.  Right 
-# now, I wouldn't recommend using software RAID (see notes in the Raid1 script)
-#
-# NOTE: There is no locking (such as a SCSI reservation) being done here.
-#       I would if the SCSI driver could properly maintain the reservation,
-#       which it cannot, even with the 'scsi reservation' patch submitted
-#       earlier this year by James Bottomley.  The patch minimizes the
-#       bus resets caused by a RESERVATION_CONFLICT return, and helps the 
-#       reservation stay when 2 nodes contend for a reservation, 
-#       but it does not attempt to recover the reservation in the 
-#       case of a bus reset.  
-#
-#       What all this means is that if 2 nodes mount the same file system
-#       read-write, the filesystem is going to become corrupted.
-#
-#	As a result, you should use this together with the stonith option
-#	and redundant, independent communications paths.
-#
-#	If you don't do this, don't blame us when you scramble your disk.
-# 
-#	Note:  the ServeRAID controller does prohibit concurrent acess
-#	In this case, you don't actually need STONITH, but redundant comm is
-#	still an excellent idea.
-#
+#	If you don't do this, don't blame us when you scramble your
+#	disk.
 
 #######################################################################
 # Initialization:
