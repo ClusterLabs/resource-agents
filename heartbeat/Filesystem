@@ -15,12 +15,14 @@
 #		OCF_RESKEY_directory
 #		OCF_RESKEY_fstype
 #		OCF_RESKEY_options
+#		OCF_RESKEY_statusfile_prefix
 #
 #OCF_RESKEY_device    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
 #			Or a -U or -L option for mount, or an NFS mount specification
 #OCF_RESKEY_directory : the mount point for the filesystem
 #OCF_RESKEY_fstype    : optional name of the filesystem type. e.g. ext2
 #OCF_RESKEY_options   : options to be given to the mount command via -o
+#OCF_RESKEY_statusfile_prefix : the prefix used for a status file for monitoring
 #
 #
 # An example usage in /etc/ha.d/haresources: 
@@ -129,6 +131,39 @@ We will do the right thing for options such as "bind,ro".
 <shortdesc lang="en">options</shortdesc>
 <content type="string" default="" />
 </parameter>
+
+<parameter name="statusfile_prefix">
+<longdesc lang="en">
+The prefix to be used for a status file for resource health
+monitoring. If this parameter is set, then the monitor operation will
+read from, and optionally write to, a file whose filename is
+constructed from "directory", "statusfile_prefix", and the host
+name. Its expected content is the name of the resource. If status
+files should live in their own directory, be sure to add a trailing
+slash ("/") to "statusfile_prefix".
+
+If the "monitor" operation is configured with a "depth" of 0, then the
+status file is just created once (on resource startup, and only if it
+does not already exist), and subsequently read. If "depth" is greater
+than 0, then the status file is periodically read and re-written.
+
+Note that if the filesystem is mounted read-only (NFS mounted from a
+read-only export, for example), and you have configured this
+parameter, then you must create the status file manually or the
+resource will fail on start.
+
+Note also that for monitoring with a "depth" of greater than 0, the
+status file must be writable by root. This is not always the case
+with an NFS mount, as NFS exports usually have the "root_squash"
+option set. In such a setup, you must either use read-only monitoring
+(depth=0), export with "no_root_squash" on your NFS server, or grant
+world write permissions on the directory where the status file is to
+be placed.
+</longdesc>
+<shortdesc lang="en">status file prefix</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -445,7 +480,26 @@ Filesystem_start()
 		return $OCF_ERR_GENERIC
 	fi
 
-	return 0
+	# Create the status file, if so configured and if it does not
+	# already exist
+	if [ -n "$OCF_RESKEY_statusfile_prefix" ]; then
+		statusfile="${OCF_RESKEY_directory}/${OCF_RESKEY_statusfile_prefix}`uname -n`"
+		if [ ! -e ${statusfile} ]; then
+			echo "${OCF_RESOURCE_INSTANCE}" | dd of=${statusfile} oflag=direct 2>/dev/null
+			if [ $? -ne 0 ]; then
+				ocf_log error "Failed to create status file ${statusfile}."
+				return $OCF_ERR_GENERIC
+			else
+				ocf_log debug "Created status file ${statusfile}."
+			fi
+		else
+			ocf_log debug "Found status file ${statusfile}."
+			# No, we're not checking the file's content's
+			# here. That's up to Filesystem_monitor.
+		fi
+	fi
+
+	return $OCF_SUCCESS
 }
 # end of Filesystem_start
 
@@ -614,6 +668,16 @@ Filesystem_stop()
 		# Already unmounted, wonderful.
 		rc=$OCF_SUCCESS
 	else
+		# Wipe the status file, but continue with a warning if
+		# removal fails -- the file system might be read only
+		if [ -n "$OCF_RESKEY_statusfile_prefix" ]; then
+			statusfile="${OCF_RESKEY_directory}/${OCF_RESKEY_statusfile_prefix}`uname -n`"
+			rm -f ${statusfile}
+			if [ $? -ne 0 ]; then
+				ocf_log warn "Failed to remove status file ${statusfile}."
+			fi
+		fi
+
 		# Determine the real blockdevice this is mounted on (if
 		# possible) prior to unmounting.
 		determine_blockdevice
@@ -706,6 +770,56 @@ Filesystem_status()
 # end of Filesystem_status
 
 #
+# MONITOR: is the filesystem readable (and, optionally, writable)?
+#
+Filesystem_monitor()
+{
+	Filesystem_status
+	rc=$?
+	if [ $rc -ne $OCF_SUCCESS ]; then
+		return $rc
+	fi
+
+	# Note: the read/write tests below will stall in case the
+	# underlying block device (or in the case of a NAS mount, the
+	# NAS server) has gone away. In that case, if I/O does not
+	# return to normal in time, the operation hits its timeout and
+	# it is up to the CRM/LRM to initiate appropriate recovery
+	# actions (such as fencing the node).
+	if [ -n "$OCF_RESKEY_statusfile_prefix" ]; then
+		statusfile="${OCF_RESKEY_directory}/${OCF_RESKEY_statusfile_prefix}`uname -n`"
+		# Reading from the device in O_DIRECT mode is imperative
+		# to bypass caches.
+		line=`dd if=${statusfile} iflag=direct 2>/dev/null`
+		if [ $? -ne 0 ]; then
+			ocf_log err "Failed to read status file ${statusfile}."
+			rc=$OCF_ERR_GENERIC
+		fi
+		if [ "$line" = "$OCF_RESOURCE_INSTANCE" ]; then
+			ocf_log debug "Status file ${statusfile} has expected content \"${line}\"."
+			rc=$OCF_SUCCESS
+		else
+			ocf_log err "Status file ${statusfile} contains \"${line}\" instead of expected content \"${OCF_RESOURCE_INSTANCE}\"."
+			rc=$OCF_ERR_GENERIC
+		fi
+
+		if [ $rc -eq $OCF_SUCCESS -a $OCF_CHECK_LEVEL -gt 0 ]; then
+		        # Writing to the device in O_DIRECT mode is imperative
+		        # to bypass caches.
+			echo "${OCF_RESOURCE_INSTANCE}" | dd of=${statusfile} oflag=direct 2>/dev/null
+			if [ $? -ne 0 ]; then
+				ocf_log err "Failed to write status file ${statusfile}."
+				rc=$OCF_ERR_GENERIC
+			fi
+		fi
+	fi
+
+        return $rc
+}
+# end of Filesystem_monitor
+
+
+#
 # VALIDATE_ALL: Are the instance parameters valid?
 #	FIXME!!  The only part that's useful is the return code.
 #	This code always returns $OCF_SUCCESS (!)
@@ -730,6 +844,18 @@ Filesystem_validate_all()
 				ocf_log info "It seems we do not have $FSTYPE support"
 			fi
 		fi
+	fi
+
+	# If we are supposed to do monitoring with status files, then
+	# we need a utility to write in O_DIRECT mode.
+	if [ -n "$OCF_RESKEY_statusfile_prefix" ]; then
+		check_binary dd
+		# Note: really old coreutils version do not support
+		# the "oflag" option for dd. We don't check for that
+		# here. In case dd does not support oflag, monitor is
+		# bound to fail, with dd spewing an error message to
+		# the logs. On such systems, we must do without status
+		# file monitoring.
 	fi
 
 	#TODO: How to check the $options ?
@@ -818,7 +944,10 @@ fi
 # These operations do not require the clone checking + OCFS2
 # initialization.
 case $OP in
-status|monitor)	Filesystem_status
+status)		Filesystem_status
+		exit $?
+		;;
+monitor)	Filesystem_monitor
 		exit $?
 		;;
 validate-all)	Filesystem_validate_all
