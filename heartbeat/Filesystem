@@ -832,7 +832,7 @@ esac
 case $FSTYPE in
 ocfs2)	ocfs2_init
 	;;
-nfs|none|gfs2)	: # this is kind of safe too
+nfs|smbfs|none|gfs2)	: # this is kind of safe too
 	;;
 *)	if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
 		ocf_log err "DANGER! $FSTYPE on $DEVICE is NOT cluster-aware!"
