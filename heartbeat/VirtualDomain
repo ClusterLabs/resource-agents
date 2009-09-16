@@ -144,7 +144,9 @@ VirtualDomain_Status() {
 		ocf_log debug "Virtual domain $DOMAIN_NAME is currently $status."
 	        rc=$OCF_SUCCESS
 	        ;;
-            "no state")
+            ""|"no state")
+		# Empty string may be returned when virsh does not
+		# receive a reply from libvirtd.
 		# "no state" may occur when the domain is currently
 		# being migrated (on the migration target only), or
 		# whenever virsh can't reliably obtain the domain
