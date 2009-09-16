@@ -151,6 +151,7 @@ VirtualDomain_Status() {
 		# being migrated (on the migration target only), or
 		# whenever virsh can't reliably obtain the domain
 		# state.
+		status="no state"
 		ocf_log info "Virtual domain $DOMAIN_NAME currently has no state, retrying."
 		sleep 1
 		;;
