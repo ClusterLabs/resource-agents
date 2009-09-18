@@ -150,6 +150,17 @@ meta_data()
             <content type="string" default="live"/>
         </parameter>
 
+	<parameter name="path">
+	    <longdesc lang="en">
+		Path specification 'xm create' will search for the specified
+ 		VM configuration file
+	    </longdesc>
+	    <shortdesc lang="en">
+		Path to virtual machine configuration files
+ 	    </shortdesc>
+	    <content type="string"/>
+ 	</parameter>
+
 	<parameter name="snapshot">
 	    <longdesc lang="en">
 	    	Path to the snapshot directory where the virtual machine
@@ -527,7 +538,7 @@ virsh_status()
 
 	echo $state
 
-	if [ "$state" = "running" ] || [ "$state" = "paused" ] ||
+	if [ "$state" = "running" ] || [ "$state" = "paused" ] || [ "$state" = "no state" ] || 
 	   [ "$state" = "idle" ]; then
 		return 0
 	fi
@@ -676,6 +687,9 @@ virsh_migrate()
 		fi
 		if [ "$err" != "${err/Connection refused/}" ]; then
 			return $OCF_ERR_CONFIGURED
+		fi
+		if [ "$err" != "${err/unable to start guest/}" ]; then
+			return $OCF_NOT_RUNNING
 		fi
 
 		return $OCF_ERR_GENERIC
