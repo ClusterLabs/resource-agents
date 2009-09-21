@@ -350,7 +350,7 @@ AC_PATH_PROGS(MD5, md5)
 AC_PATH_PROGS(TEST, test)
 AC_PATH_PROGS(PING, ping, /bin/ping)
 AC_PATH_PROGS(IFCONFIG, ifconfig, /sbin/ifconfig)
-AC_PATH_PROGS(MAILCMD, mailx mail)
+AC_PATH_PROGS(MAILCMD, mailx mail, mail)
 AC_PATH_PROGS(EGREP, egrep)
 AC_PATH_PROGS(PKGCONFIG, pkg-config)
 
