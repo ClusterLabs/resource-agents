@@ -408,46 +408,6 @@ ipv6_list_interfaces()
 }
 
 
-#
-# Find slaves for a bonded interface
-#
-findSlaves()
-{
-	declare mastif=$1
-	declare line
-	declare intf
-	declare interfaces
-
-	if [ -z "$mastif" ]; then
-		ocf_log err "usage: findSlaves <master I/F>"
-		return $OCF_ERR_ARGS
-	fi
-
-	line=$(/sbin/ip link list dev $mastif | grep "<.*MASTER.*>")
-	if [ $? -ne 0 ]; then
-		ocf_log err "Error determining status of $mastif"
-		return $OCF_ERR_GENERIC
-	fi
-
-	if [ -z "`/sbin/ip link list dev $mastif | grep \"<.*MASTER.*>\"`" ]
-	then
-		ocf_log err "$mastif is not a master device"
-		return $OCF_ERR_GENERIC
-	fi
-
-	## Strip possible VLAN (802.1q) suffixes 
-	##  - Roland Gadinger <roland.gadinger@beko.at> 
-	mastif=${mastif%%.*} 
-
-	while read line; do
-		set - $line
-		interfaces="${2/:/} $interfaces"
-	done < <( /sbin/ip -o link list | grep "master $mastif" )
-
-	echo $interfaces
-}
-
-
 isSlave()
 {
 	declare intf=$1
@@ -527,39 +487,8 @@ network_link_up()
 		return 1
 	fi
 	
-	#
-	# XXX assumes bond* interfaces are the bonding driver. (Fair
-	# assumption on Linux, I think)
-	#
-	if [ "${intf_arg/bond/}" != "$intf_arg" ]; then
-		
-		#
-		# With Xen we must check for slaves of pbondX, not bondX
-		#
-		masterif=$intf_arg
-		line=$(ip link list | awk {'print $2'} | grep "p$intf_arg:")
-		if [ $? -eq 0 ] ; then
-			masterif="p$intf_arg"
-		fi
-		
-		#
-		# Bonded driver.  Check link of all slaves for this interface.
-		# If any link is up, the bonding driver is expected to route
-		# traffic through that link.  Thus, the entire bonded link
-		# is declared up.
-		#
-		slaves=$(findSlaves $masterif)
-		if [ $? -ne 0 ]; then
-			ocf_log err "Error finding slaves of $intf_arg"
-			return 1
-		fi
-		for intf_test in $slaves; do
-			ethernet_link_up $intf_test && link_up=0
-		done
-	else
-		ethernet_link_up $intf_arg
-		link_up=$?
-	fi
+	ethernet_link_up $intf_arg
+	link_up=$?
 
 	if [ $link_up -eq 0 ]; then
 		ocf_log debug "Link for $intf_arg: Detected"
