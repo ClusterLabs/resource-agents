@@ -313,7 +313,7 @@ mysql_monitor() {
 	if [ ! -z "$buf" ]; then ocf_log err $buf; fi
 	return $OCF_ERR_GENERIC;
     else
-	ocf_log info "MySQL monitor succeded";
+	ocf_log info "MySQL monitor succeeded";
 	return $OCF_SUCCESS;
     fi
 }
