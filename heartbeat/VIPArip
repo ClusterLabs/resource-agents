@@ -27,6 +27,8 @@
 
 VLDIR=$HA_RSCTMP/VIPArip
 RIPDCONF=$VLDIR/ripd.conf
+ZEBRA=/usr/sbin/zebra
+RIPD=/usr/sbin/ripd
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
 #######################################################################
@@ -64,6 +66,22 @@ The ripd uses this nic to broadcast the route informaton to others
 </longdesc>
 <shortdesc lang="en">The nic for broadcast the route information</shortdesc>
 <content type="string" default="eth0"/>
+</parameter>
+
+<parameter name="zebra_binary" unique="0">
+<longdesc lang="en">
+Absolute path to the zebra binary.
+</longdesc>
+<shortdesc lang="en">zebra binary</shortdesc>
+<content type="string" default="$ZEBRA"/>
+</parameter>
+
+<parameter name="ripd_binary" unique="0">
+<longdesc lang="en">
+Absolute path to the ripd binary.
+</longdesc>
+<shortdesc lang="en">ripd binary</shortdesc>
+<content type="string" default="$RIPD"/>
 </parameter>
 
 </parameters>
@@ -109,7 +127,7 @@ END
 check_params() {
 	if [ x"$OCF_RESKEY_ip" = x ]
 	then
-		ocf_log err "Invalid OCF_RESKEY_ip [$OCF_RESKEY_ip]"
+		ocf_log err "ip is a required parameter"
 		exit $OCF_ERR_ARGS
 	fi
 }
@@ -164,10 +182,10 @@ start_quagga() {
 	echo start_quagga
 	echo $RIPDCONF:
 	cat $RIPDCONF
-	echo /usr/sbin/zebra -d
-	/usr/sbin/zebra -d
-	echo /usr/sbin/ripd -d -f $RIPDCONF
-	/usr/sbin/ripd -d -f $RIPDCONF
+	echo $ZEBRA -d
+	$ZEBRA -d
+	echo $RIPD -d -f $RIPDCONF
+	$RIPD -d -f $RIPDCONF
 }
 
 stop_quagga() {
@@ -265,6 +283,10 @@ then
   exit $OCF_ERR_ARGS
 fi
 
+[ x != x"$OCF_RESKEY_zebra_binary" ] &&
+	ZEBRA=$OCF_RESKEY_zebra_binary
+[ x != x"$OCF_RESKEY_ripd_binary" ] &&
+	RIPD=$OCF_RESKEY_ripd_binary
 
 case $1 in
   start)	start_rip_ip;;
