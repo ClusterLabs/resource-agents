@@ -253,7 +253,7 @@ ip_init() {
 		ocf_log err "You must be root for $__OCF_ACTION operation."
 		exit $OCF_ERR_PERM
 	fi
-	
+
 	BASEIP="$OCF_RESKEY_ip"
 	BRDCAST="$OCF_RESKEY_broadcast"
 	NIC="$OCF_RESKEY_nic"
@@ -297,8 +297,8 @@ ip_init() {
 		exit $OCF_ERR_ARGS
 	fi
 
-	  
 	# Validation is performed in ip_validate()...
+	# WTF: this *is called* from ip_validate()
 	#
 	# $FINDIF now takes its parameters from the environment
 	#
@@ -310,8 +310,8 @@ ip_init() {
 	    NETMASK=`echo "$NICINFO" | cut -d" " -f2`
 	    BRDCAST=`echo "$NICINFO" | cut -d" " -f3`
 	else
-	    ocf_log err "[$FINDIF -C] failed"
-  	    exit $OCF_ERR_ARGS
+	    ocf_log warn "[$FINDIF -C] failed"
+  	    return 1
 	fi
 	
 	SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$BASEIP"
@@ -328,8 +328,6 @@ ip_init() {
 		;;
 	esac
 
-	IP_CIP=
-	
 	if [ "$IP_INC_GLOBAL" -gt 1 ]; then
 		IP_CIP="yes"
 		if [ -z "$IF_MAC" ]; then
@@ -553,6 +551,11 @@ run_send_ib_arp() {
 # no = nothing
 #
 ip_served() {
+	if [ -z "$NIC" ]; then # no nic found or specified
+		echo "no"
+		return 0
+	fi
+
 	cur_nic="`find_interface $BASEIP`"
 
 	if [ -z "$cur_nic" ]; then
@@ -596,6 +599,10 @@ END
 }
 
 ip_start() {
+	if [ -z "$NIC" ]; then # no nic found or specified
+		exit $OCF_ERR_ARGS
+	fi
+
 	if [ -n "$IP_CIP" ]; then
 	    # Cluster IPs need special processing when the first bucket
 	    #  is added to the node... take a lock to make sure only one
@@ -748,6 +755,7 @@ ip_monitor() {
 
 ip_validate() {
     check_binary $IP2UTIL
+    IP_CIP=
     if [ -n "$IP_CIP" ]; then
 	check_binary $IPTABLES
 	check_binary $MODPROBE
