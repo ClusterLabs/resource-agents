@@ -113,7 +113,7 @@ ldir_init() {
     case $COMMAND in
       stop)	ocf_log warn "$LDIRCONF not found. ldirectord considered stopped"
 		exit $OCF_SUCCESS;;
-      monitior)	exit $OCF_NOT_RUNNING;;
+      monitor)	exit $OCF_NOT_RUNNING;;
       status)	exit $LSB_STATUS_STOPPED;;
       start)	ocf_log warn "$LDIRCONF not found."
 		exit $OCF_NOT_RUNNING;;
@@ -205,7 +205,7 @@ ldirectord_validate() {
 	
 }
 
-ldir_init
+ldir_init $@
 
 case $__OCF_ACTION in
 meta-data)      meta_data
