@@ -217,17 +217,17 @@ nfsserver_stop ()
 nfsserver_validate ()
 {
 	if [ -z ${OCF_RESKEY_nfs_ip} ]; then
-		return $OCF_ERR_ARGS
+		exit $OCF_ERR_ARGS
 	fi
 
 	if [ `check_binary ${OCF_RESKEY_nfs_init_script}` -a `check_binary ${OCF_RESKEY_nfs_notify_cmd}` ]; then
 		if [ -d $OCF_RESKEY_nfs_shared_infodir ]; then
 			return $OCF_SUCCESS
 		else
-			return $OCF_ERR_ARGS
+			exit $OCF_ERR_ARGS
 		fi
 	else
-		return $OCF_ERR_INSTALLED
+		exit $OCF_ERR_INSTALLED
 	fi
 }
 
