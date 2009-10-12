@@ -270,7 +270,8 @@ dbasql() {
 	echo "set pagesize 0"
 	for func; do $func; done
 	) |
-	execsql | grep -v '^Connected'
+	execsql | grep -v '^Connected' |
+		grep -v '^ENV MSG:'
 }
 
 #
