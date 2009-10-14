@@ -49,8 +49,15 @@
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
-#######################################################################
+# Defaults
+OCF_RESKEY_statusfile_prefix_default="."
+
+: ${OCF_RESKEY_statusfile_prefix=${OCF_RESKEY_statusfile_prefix_default}}
+
+# Variables used by multiple methods
 HOSTOS=`uname`
+STATUSFILE="${OCF_RESKEY_directory}/${OCF_RESKEY_statusfile_prefix}${OCF_RESOURCE_INSTANCE}-`uname -n`"
+#######################################################################
 
 usage() {
 	cat <<-EOT
@@ -457,17 +464,16 @@ Filesystem_start()
 	# Create the status file, if so configured and if it does not
 	# already exist
 	if [ -n "$OCF_RESKEY_statusfile_prefix" ]; then
-		statusfile="${OCF_RESKEY_directory}/${OCF_RESKEY_statusfile_prefix}`uname -n`"
-		if [ ! -e ${statusfile} ]; then
-			echo "${OCF_RESOURCE_INSTANCE}" | dd of=${statusfile} oflag=direct bs=512 conv=sync 2>/dev/null
+		if [ ! -e ${STATUSFILE} ]; then
+			echo "${OCF_RESOURCE_INSTANCE}" | dd of=${STATUSFILE} oflag=direct bs=512 conv=sync 2>/dev/null
 			if [ $? -ne 0 ]; then
-				ocf_log error "Failed to create status file ${statusfile}."
+				ocf_log error "Failed to create status file ${STATUSFILE}."
 				return $OCF_ERR_GENERIC
 			else
-				ocf_log debug "Created status file ${statusfile}."
+				ocf_log debug "Created status file ${STATUSFILE}."
 			fi
 		else
-			ocf_log debug "Found status file ${statusfile}."
+			ocf_log debug "Found status file ${STATUSFILE}."
 			# No, we're not checking the file's content's
 			# here. That's up to Filesystem_monitor.
 		fi
@@ -645,10 +651,9 @@ Filesystem_stop()
 		# Wipe the status file, but continue with a warning if
 		# removal fails -- the file system might be read only
 		if [ -n "$OCF_RESKEY_statusfile_prefix" ]; then
-			statusfile="${OCF_RESKEY_directory}/${OCF_RESKEY_statusfile_prefix}`uname -n`"
-			rm -f ${statusfile}
+			rm -f ${STATUSFILE}
 			if [ $? -ne 0 ]; then
-				ocf_log warn "Failed to remove status file ${statusfile}."
+				ocf_log warn "Failed to remove status file ${STATUSFILE}."
 			fi
 		fi
 
@@ -761,28 +766,27 @@ Filesystem_monitor()
 	# it is up to the CRM/LRM to initiate appropriate recovery
 	# actions (such as fencing the node).
 	if [ -n "$OCF_RESKEY_statusfile_prefix" ]; then
-		statusfile="${OCF_RESKEY_directory}/${OCF_RESKEY_statusfile_prefix}`uname -n`"
 		# Reading from the device in O_DIRECT mode is imperative
 		# to bypass caches.
-		line=`dd if=${statusfile} iflag=direct 2>/dev/null`
+		line=`dd if=${STATUSFILE} iflag=direct 2>/dev/null`
 		if [ $? -ne 0 ]; then
-			ocf_log err "Failed to read status file ${statusfile}."
+			ocf_log err "Failed to read status file ${STATUSFILE}."
 			rc=$OCF_ERR_GENERIC
 		fi
 		if [ "$line" = "$OCF_RESOURCE_INSTANCE" ]; then
-			ocf_log debug "Status file ${statusfile} has expected content \"${line}\"."
+			ocf_log debug "Status file ${STATUSFILE} has expected content \"${line}\"."
 			rc=$OCF_SUCCESS
 		else
-			ocf_log err "Status file ${statusfile} contains \"${line}\" instead of expected content \"${OCF_RESOURCE_INSTANCE}\"."
+			ocf_log err "Status file ${STATUSFILE} contains \"${line}\" instead of expected content \"${OCF_RESOURCE_INSTANCE}\"."
 			rc=$OCF_ERR_GENERIC
 		fi
 
 		if [ $rc -eq $OCF_SUCCESS -a $OCF_CHECK_LEVEL -gt 0 ]; then
 		        # Writing to the device in O_DIRECT mode is imperative
 		        # to bypass caches.
-			echo "${OCF_RESOURCE_INSTANCE}" | dd of=${statusfile} oflag=direct bs=512 conv=sync 2>/dev/null
+			echo "${OCF_RESOURCE_INSTANCE}" | dd of=${STATUSFILE} oflag=direct bs=512 conv=sync 2>/dev/null
 			if [ $? -ne 0 ]; then
-				ocf_log err "Failed to write status file ${statusfile}."
+				ocf_log err "Failed to write status file ${STATUSFILE}."
 				rc=$OCF_ERR_GENERIC
 			fi
 		fi
