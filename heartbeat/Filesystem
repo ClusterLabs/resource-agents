@@ -459,7 +459,7 @@ Filesystem_start()
 	if [ -n "$OCF_RESKEY_statusfile_prefix" ]; then
 		statusfile="${OCF_RESKEY_directory}/${OCF_RESKEY_statusfile_prefix}`uname -n`"
 		if [ ! -e ${statusfile} ]; then
-			echo "${OCF_RESOURCE_INSTANCE}" | dd of=${statusfile} oflag=direct 2>/dev/null
+			echo "${OCF_RESOURCE_INSTANCE}" | dd of=${statusfile} oflag=direct bs=512 conv=sync 2>/dev/null
 			if [ $? -ne 0 ]; then
 				ocf_log error "Failed to create status file ${statusfile}."
 				return $OCF_ERR_GENERIC
@@ -780,7 +780,7 @@ Filesystem_monitor()
 		if [ $rc -eq $OCF_SUCCESS -a $OCF_CHECK_LEVEL -gt 0 ]; then
 		        # Writing to the device in O_DIRECT mode is imperative
 		        # to bypass caches.
-			echo "${OCF_RESOURCE_INSTANCE}" | dd of=${statusfile} oflag=direct 2>/dev/null
+			echo "${OCF_RESOURCE_INSTANCE}" | dd of=${statusfile} oflag=direct bs=512 conv=sync 2>/dev/null
 			if [ $? -ne 0 ]; then
 				ocf_log err "Failed to write status file ${statusfile}."
 				rc=$OCF_ERR_GENERIC
