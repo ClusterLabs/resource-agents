@@ -50,13 +50,20 @@
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
 # Defaults
-OCF_RESKEY_statusfile_prefix_default="."
-
-: ${OCF_RESKEY_statusfile_prefix=${OCF_RESKEY_statusfile_prefix_default}}
+DFLT_STATUSDIR=".Filesystem_status/"
 
 # Variables used by multiple methods
 HOSTOS=`uname`
-STATUSFILE="${OCF_RESKEY_directory}/${OCF_RESKEY_statusfile_prefix}${OCF_RESOURCE_INSTANCE}-`uname -n`"
+
+# The status file is going to an extra directory, by default
+#
+prefix=${OCF_RESKEY_statusfile_prefix}
+: ${prefix:=$DFLT_STATUSDIR}
+suffix="${OCF_RESOURCE_INSTANCE}"
+[ "$OCF_RESKEY_CRM_meta_clone" ] &&
+	suffix="${suffix}_$OCF_RESKEY_CRM_meta_clone"
+suffix="${suffix}_`uname -n`"
+STATUSFILE=${OCF_RESKEY_directory}/$prefix$suffix
 #######################################################################
 
 usage() {
@@ -73,7 +80,26 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-Resource script for Filesystem. It manages a Filesystem on a shared storage medium. 
+Resource script for Filesystem. It manages a Filesystem on a
+shared storage medium. 
+
+The standard monitor operation of depth 0 (also known as probe)
+checks if the filesystem is mounted. If you want deeper tests,
+set OCF_CHECK_LEVEL to one of the following values:
+
+10: read first 16 blocks of the device (raw read)
+
+This doesn't exercise the filesystem at all, but the device on
+which the filesystem lives.
+
+20: test if a status file can be written and read
+
+The status file must be writable by root. This is not always the
+case with an NFS mount, as NFS exports usually have the
+"root_squash" option set. In such a setup, you must either use
+read-only monitoring (depth=10), export with "no_root_squash" on
+your NFS server, or grant world write permissions on the
+directory where the status file is to be placed.
 </longdesc>
 <shortdesc lang="en">Filesystem resource agent</shortdesc>
 
@@ -115,34 +141,12 @@ We will do the right thing for options such as "bind,ro".
 
 <parameter name="statusfile_prefix">
 <longdesc lang="en">
-The prefix to be used for a status file for resource health
-monitoring. If this parameter is set, then the monitor operation will
-read from, and optionally write to, a file whose filename is
-constructed from "directory", "statusfile_prefix", and the host
-name. Its expected content is the name of the resource. If status
-files should live in their own directory, be sure to add a trailing
-slash ("/") to "statusfile_prefix".
-
-If the "monitor" operation is configured with a "depth" of 0, then the
-status file is just created once (on resource startup, and only if it
-does not already exist), and subsequently read. If "depth" is greater
-than 0, then the status file is periodically read and re-written.
-
-Note that if the filesystem is mounted read-only (NFS mounted from a
-read-only export, for example), and you have configured this
-parameter, then you must create the status file manually or the
-resource will fail on start.
-
-Note also that for monitoring with a "depth" of greater than 0, the
-status file must be writable by root. This is not always the case
-with an NFS mount, as NFS exports usually have the "root_squash"
-option set. In such a setup, you must either use read-only monitoring
-(depth=0), export with "no_root_squash" on your NFS server, or grant
-world write permissions on the directory where the status file is to
-be placed.
+The prefix to be used for a status file for resource monitoring
+with depth 20. If you don't specify this parameter, all status
+files will be created in a separate directory.
 </longdesc>
 <shortdesc lang="en">status file prefix</shortdesc>
-<content type="string" default="" />
+<content type="string" default="$DFLT_STATUSDIR" />
 </parameter>
 
 </parameters>
@@ -460,25 +464,6 @@ Filesystem_start()
 		fi
 		return $OCF_ERR_GENERIC
 	fi
-
-	# Create the status file, if so configured and if it does not
-	# already exist
-	if [ -n "$OCF_RESKEY_statusfile_prefix" ]; then
-		if [ ! -e ${STATUSFILE} ]; then
-			echo "${OCF_RESOURCE_INSTANCE}" | dd of=${STATUSFILE} oflag=direct bs=512 conv=sync 2>/dev/null
-			if [ $? -ne 0 ]; then
-				ocf_log error "Failed to create status file ${STATUSFILE}."
-				return $OCF_ERR_GENERIC
-			else
-				ocf_log debug "Created status file ${STATUSFILE}."
-			fi
-		else
-			ocf_log debug "Found status file ${STATUSFILE}."
-			# No, we're not checking the file's content's
-			# here. That's up to Filesystem_monitor.
-		fi
-	fi
-
 	return $OCF_SUCCESS
 }
 # end of Filesystem_start
@@ -650,7 +635,7 @@ Filesystem_stop()
 	else
 		# Wipe the status file, but continue with a warning if
 		# removal fails -- the file system might be read only
-		if [ -n "$OCF_RESKEY_statusfile_prefix" ]; then
+		if [ -f "$STATUSFILE" ]; then
 			rm -f ${STATUSFILE}
 			if [ $? -ne 0 ]; then
 				ocf_log warn "Failed to remove status file ${STATUSFILE}."
@@ -748,9 +733,57 @@ Filesystem_status()
 }
 # end of Filesystem_status
 
+
+# Note: the read/write tests below will stall in case the
+# underlying block device (or in the case of a NAS mount, the
+# NAS server) has gone away. In that case, if I/O does not
+# return to normal in time, the operation hits its timeout
+# and it is up to the CRM to initiate appropriate recovery
+# actions (such as fencing the node).
 #
-# MONITOR: is the filesystem readable (and, optionally, writable)?
+# MONITOR 10: read the device
 #
+Filesystem_monitor_10()
+{
+	# wonder if this is cached? hopefully not
+	dd_opts="iflag=direct bs=512 count=16"
+	err_output=`dd if=$DEVICE $dd_opts 2>&1 >/dev/null`
+	if [ $? -ne 0 ]; then
+		ocf_log err "Failed to read device $DEVICE"
+		return $OCF_ERR_GENERIC
+	fi
+	return $OCF_SUCCESS
+}
+#
+# MONITOR 20: write and read a status file
+#
+Filesystem_monitor_20()
+{
+	# Writing to the device in O_DIRECT mode is imperative
+	# to bypass caches.
+	dd_opts="oflag=direct,sync bs=512 conv=fsync,sync"
+	status_dir=`dirname $STATUSFILE`
+	[ -d "$status_dir" ] ||
+		mkdir -p "$status_dir"
+	err_output=`
+		echo "${OCF_RESOURCE_INSTANCE}" | dd of=${STATUSFILE} $dd_opts 2>&1`
+	if [ $? -ne 0 ]; then
+		ocf_log err "Failed to write status file ${STATUSFILE}"
+		ocf_log err "dd said: $err_output"
+		return $OCF_ERR_GENERIC
+	fi
+	test -f ${STATUSFILE}
+	if [ $? -ne 0 ]; then
+		ocf_log err "Cannot stat the status file ${STATUSFILE}"
+		return $OCF_ERR_GENERIC
+	fi
+	cat ${STATUSFILE} > /dev/null
+	if [ $? -ne 0 ]; then
+		ocf_log err "Cannot read the status file ${STATUSFILE}"
+		return $OCF_ERR_GENERIC
+	fi
+	return $OCF_SUCCESS
+}
 Filesystem_monitor()
 {
 	Filesystem_status
@@ -759,40 +792,17 @@ Filesystem_monitor()
 		return $rc
 	fi
 
-	# Note: the read/write tests below will stall in case the
-	# underlying block device (or in the case of a NAS mount, the
-	# NAS server) has gone away. In that case, if I/O does not
-	# return to normal in time, the operation hits its timeout and
-	# it is up to the CRM/LRM to initiate appropriate recovery
-	# actions (such as fencing the node).
-	if [ -n "$OCF_RESKEY_statusfile_prefix" ]; then
-		# Reading from the device in O_DIRECT mode is imperative
-		# to bypass caches.
-		line=`dd if=${STATUSFILE} iflag=direct 2>/dev/null`
-		if [ $? -ne 0 ]; then
-			ocf_log err "Failed to read status file ${STATUSFILE}."
-			rc=$OCF_ERR_GENERIC
-		fi
-		if [ "$line" = "$OCF_RESOURCE_INSTANCE" ]; then
-			ocf_log debug "Status file ${STATUSFILE} has expected content \"${line}\"."
-			rc=$OCF_SUCCESS
-		else
-			ocf_log err "Status file ${STATUSFILE} contains \"${line}\" instead of expected content \"${OCF_RESOURCE_INSTANCE}\"."
-			rc=$OCF_ERR_GENERIC
-		fi
-
-		if [ $rc -eq $OCF_SUCCESS -a $OCF_CHECK_LEVEL -gt 0 ]; then
-		        # Writing to the device in O_DIRECT mode is imperative
-		        # to bypass caches.
-			echo "${OCF_RESOURCE_INSTANCE}" | dd of=${STATUSFILE} oflag=direct bs=512 conv=sync 2>/dev/null
-			if [ $? -ne 0 ]; then
-				ocf_log err "Failed to write status file ${STATUSFILE}."
-				rc=$OCF_ERR_GENERIC
-			fi
-		fi
+	if [ $rc -eq $OCF_SUCCESS -a $OCF_CHECK_LEVEL -gt 0 ]; then
+		case "$OCF_CHECK_LEVEL" in
+		10) Filesystem_monitor_10; rc=$?;;
+		20) Filesystem_monitor_20; rc=$?;;
+		*)
+			ocf_log err "unsupported monitor level $OCF_CHECK_LEVEL"
+			rc=$OCF_ERR_CONFIGURED
+		;;
+		esac
 	fi
-
-        return $rc
+	return $rc
 }
 # end of Filesystem_monitor
 
@@ -826,7 +836,7 @@ Filesystem_validate_all()
 
 	# If we are supposed to do monitoring with status files, then
 	# we need a utility to write in O_DIRECT mode.
-	if [ -n "$OCF_RESKEY_statusfile_prefix" ]; then
+	if [ $OCF_CHECK_LEVEL -gt 0 ]; then
 		check_binary dd
 		# Note: really old coreutils version do not support
 		# the "oflag" option for dd. We don't check for that
