@@ -513,7 +513,6 @@ scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask, char* prov
 		if (*plen_target!=0 && plen != *plen_target) {
 			continue;
 		}
-		*plen_target = plen;
 
 		/* If interface name provided, only same devname entry
 		 * would be considered
@@ -554,6 +553,7 @@ scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask, char* prov
 		/* We found it!	*/
 		if (same) {
 			fclose(f);
+			*plen_target = plen;
 			return devname;
 		}
 	}
