@@ -90,7 +90,8 @@ set OCF_CHECK_LEVEL to one of the following values:
 10: read first 16 blocks of the device (raw read)
 
 This doesn't exercise the filesystem at all, but the device on
-which the filesystem lives.
+which the filesystem lives. This is noop for non-block devices
+such as NFS, SMBFS, or bind mounts.
 
 20: test if a status file can be written and read
 
@@ -745,7 +746,10 @@ Filesystem_status()
 #
 Filesystem_monitor_10()
 {
-	# wonder if this is cached? hopefully not
+	if [ "$blockdevice" = "no" ] ; then
+		ocf_log warn "$DEVICE is not a block device, monitor 10 is noop"
+		return $OCF_SUCCESS
+	fi
 	dd_opts="iflag=direct bs=512 count=16"
 	err_output=`dd if=$DEVICE $dd_opts 2>&1 >/dev/null`
 	if [ $? -ne 0 ]; then
