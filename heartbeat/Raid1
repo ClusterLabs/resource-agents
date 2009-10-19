@@ -264,10 +264,38 @@ raid1_stop() {
 #
 raid1_monitor() {
 	# check if the md device exists first
-	[ -b $MDDEV ] && 
-		grep -e "^$MD[ \t:]" /proc/mdstat >/dev/null &&
-	    return $OCF_SUCCESS
-	return $OCF_NOT_RUNNING
+	if [ ! -b $MDDEV ]; then
+		ocf_log info "$MDDEV is not a block device"
+		return $OCF_NOT_RUNNING
+	fi
+	if ! grep -e "^$MD[ \t:]" /proc/mdstat >/dev/null ; then
+		ocf_log info "$MD not found in /proc/mdstat"
+		return $OCF_NOT_RUNNING
+	fi
+	if [ $HAVE_RAIDTOOLS != "true" ]; then
+		$MDADM --detail --test $MDDEV >/dev/null 2>&1 ; rc=$?
+		case $rc in
+		0)	;;
+		1)	ocf_log warn "$MDDEV has at least one failed device."
+			;;
+		2)	ocf_log err "$MDDEV has failed."
+			return $OCF_ERR_GENERIC
+			;;
+		4)	ocf_log err "mdadm failed on $MDDEV."
+			return $OCF_ERR_GENERIC
+			;;
+		*)	ocf_log err "mdadm returned an unknown result ($rc)."
+			return $OCF_ERR_GENERIC
+			;;
+		esac
+	fi
+	if ! dd if=$MDDEV count=1 bs=512 of=/dev/null \
+	     iflag=direct >/dev/null 2>&1 ; then
+		ocf_log err "$MDDEV: I/O error on read"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
 }
 
 #
