@@ -384,7 +384,8 @@ main(int argc, char **argv)
 	     *	argv[optind+4] BROADCAST	192.168.195.186
 	     *	argv[optind+5] NETMASK		ffffffffffff
 	     */
-	    
+
+	    unsolicited = 1;
 	    device = argv[optind];
 	    target = argv[optind+1];
 
