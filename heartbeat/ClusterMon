@@ -1,8 +1,9 @@
 #!/bin/sh
 #
 #
-#	ClusterMon OCF RA. Does nothing but wait a few seconds, can be
-#	configured to fail occassionally.
+#	ClusterMon OCF RA.
+#	Starts crm_mon in background which logs cluster status as
+#	html to the specified file.
 #
 # Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Brée
 #                    All Rights Reserved.
