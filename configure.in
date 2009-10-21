@@ -617,10 +617,11 @@ else
         CFLAGS="$CFLAGS -ggdb3 -O0"
 
 	# We had to eliminate -Wnested-externs because of libtool changes
+	# Also remove -Waggregate-return because we use one libnet
+	# call which returns a struct
         EXTRA_FLAGS="-fgnu89-inline
 		-fstack-protector-all
 		-Wall
-		-Waggregate-return
 		-Wbad-function-cast 
 		-Wcast-qual 
 		-Wcast-align 
