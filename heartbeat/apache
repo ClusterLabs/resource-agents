@@ -504,11 +504,12 @@ Extra options to apply when starting apache. See man httpd(8).
 
 <parameter name="envfiles">
 <longdesc lang="en">
-Files (one or more) which contain extra environment variables,
-such as /etc/apache2/envvars.
+Files (one or more) which contain extra environment variables.
+If you want to prevent script from reading the default file, set
+this parameter to empty string.
 </longdesc>
 <shortdesc lang="en">environment settings files</shortdesc>
-<content type="string" />
+<content type="string" default="/etc/apache2/envvars"/>
 </parameter>
 
 </parameters>
@@ -571,6 +572,7 @@ then
   CONFIGFILE="$OCF_RESKEY_configfile"
   OPTIONS="$OCF_RESKEY_options"
   TESTREGEX=${OCF_RESKEY_testregex:-'</ *body *>[[:space:]]*</ *html *>'}
+  : ${OCF_RESKEY_envfiles="/etc/apache2/envvars"}
   source_envfiles $OCF_RESKEY_envfiles
 else
   usage $OCF_ERR_ARGS
