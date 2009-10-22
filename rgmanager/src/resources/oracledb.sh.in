@@ -278,7 +278,7 @@ start_db()
 	rm -f $tmpfile
 
 	# Dump logfile to /var/log/messages
-	initlog -q -c "cat $logfile"
+	logger -f $logfile
 
 	if [ $rv -ne 0 ]; then
 		echo "ORACLE_HOME Incorrectly set?"
@@ -326,7 +326,7 @@ stop_db()
 	rm -f $tmpfile
 
 	# Dump logfile to /var/log/messages
-	initlog -q -c "cat $logfile"
+	logger -f $logfile
 
 	if [ $rv -ne 0 ]; then
 		echo "ORACLE_HOME Incorrectly set?"
@@ -362,12 +362,12 @@ force_cleanup()
 	# Patch from Shane Bradley to fix 471266
 	pids=`ps ax | grep $ORACLE_HOME | grep "ora_.*_${ORACLE_SID}" | grep -v grep | awk '{print $1}'`
 
-	initlog -n $SCRIPT -s "<err> Not all Oracle processes exited cleanly, killing"
+	logger -t $SCRIPT "<err> Not all Oracle processes exited cleanly, killing"
 	
 	for pid in $pids; do
 		kill -9 $pid
 		if [ $? -eq 0 ]; then
-			initlog -n $SCRIPT -s "Killed $pid"
+			logger -t $SCRIPT "Killed $pid"
 		fi
 	done
 
@@ -428,7 +428,7 @@ get_db_status()
 		for (( i=$RESTART_RETRIES ; i; i-- )) ; do
 			# this db process is down - stop and
 			# (re)start all ora_XXXX_$ORACLE_SID processes
-			initlog -q -n $SCRIPT -s "Restarting Oracle Database..."
+			logger -t $SCRIPT "Restarting Oracle Database..."
 			stop_db
 			if [ $? != 0 ] ; then
 				# stop failed - return 1
