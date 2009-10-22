@@ -162,7 +162,7 @@ start()
 	
 	CLASSPATH="$JAVA_HOME"/lib/tools.jar:"$CATALINA_HOME"/bin/bootstrap.jar:"$CATALINA_HOME"/bin/commons-logging-api.jar:`/usr/bin/build-classpath mx4j/mx4j-impl`:`/usr/bin/build-classpath mx4j/mx4j-jmx`
 
-	sudo -u "$TOMCAT_USER" "$JAVA_HOME/bin/java" $JAVA_OPTS $OCF_RESKEY_catalina_options \
+	su "$TOMCAT_USER" -c "$JAVA_HOME/bin/java" $JAVA_OPTS $OCF_RESKEY_catalina_options \
 		-Djava.endorsed.dirs="$JAVA_ENDORSED_DIRS" -classpath "$CLASSPATH" \
 		-Dcatalina.base="$TOMCAT_gen_catalina_base" \
 		-Dcatalina.home="$CATALINA_HOME" \
