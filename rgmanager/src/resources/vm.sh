@@ -655,7 +655,7 @@ validate_all()
 
 virsh_migrate()
 {
-	declare $target=$1
+	declare target=$1
 	declare rv=1
 
 	#
