@@ -112,17 +112,26 @@ EOF
 # Set options to be passed to virsh:
 VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor} --quiet"
 
+# A state file where we record the domain name:
+STATEFILE="${HA_RSCTMP}/VirtualDomain-${OCF_RESOURCE_INSTANCE}.state"
+
 VirtualDomain_Define() {
     # Note: passing in the domain name from outside the script is
     # intended for testing and debugging purposes only. Don't do this
     # in production, instead let the script figure out the domain name
     # from the config file. You have been warned.
     if [ -z "$DOMAIN_NAME" ]; then
-	DOMAIN_NAME="$(virsh ${VIRSH_OPTIONS} define ${OCF_RESKEY_config} | sed -e 's/Domain \(.*\) defined from .*$/\1/')" \
+	virsh ${VIRSH_OPTIONS} define ${OCF_RESKEY_config} \
+	    | sed -e 's/Domain \(.*\) defined from .*$/\1/' \
+	    > $STATEFILE \
 	    || return $OCF_ERR_GENERIC
     else
 	ocf_log warn "Domain name ${DOMAIN_NAME} already defined, overriding configuration file ${OCF_RESKEY_config}. You should do this for testing only."
     fi
+}
+
+VirtualDomain_Cleanup_Statefile() {
+    rm -f $STATEFILE || ocf_log warn "Failed to remove $STATEFILE during $__OCF_ACTION."
 }
 
 VirtualDomain_Status() {
@@ -214,6 +223,7 @@ VirtualDomain_Stop() {
 		sleep 1
 	    done
 	fi
+	VirtualDomain_Cleanup_Statefile
 	return $OCF_SUCCESS
     else
 	ocf_log info "Domain $DOMAIN_NAME already stopped."
@@ -247,6 +257,7 @@ VirtualDomain_Migrate_To() {
 	    return $OCF_ERR_GENERIC
 	else 
 	    ocf_log info "$DOMAIN_NAME: live migration to ${target_node} succeeded."
+	    VirtualDomain_Cleanup_Statefile
 	    return $OCF_SUCCESS
 	fi
     else
@@ -325,10 +336,17 @@ esac
 # Everything except usage and meta-data must pass the validate test
 VirtualDomain_Validate_All || exit $?
 
-# Define the domain on startup, and re-define (harmlessly)
-# on every invocation. This also sets DOMAIN_NAME. If this fails,
-# bail out.
-VirtualDomain_Define || exit $?
+# Define the domain on startup, and re-define whenever the
+# configuration file has been updated. If this fails, bail out. Note:
+# test foo -nt bar always returns true if bar does not exist.
+if [ $OCF_RESKEY_config -nt $STATEFILE ]; then
+    VirtualDomain_Define || exit $?
+fi
+DOMAIN_NAME=`cat $STATEFILE` || exit $OCF_ERR_GENERIC
+if [ -z $DOMAIN_NAME ]; then
+    ocf_log err "$STATEFILE is empty. This is unexpected. Cannot determine domain name."
+    exit $OCF_ERR_GENERIC
+fi
 
 case $1 in
     start)
