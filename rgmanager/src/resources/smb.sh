@@ -583,6 +583,9 @@ share_start_stop()
 		mkdir -p "$SAMBA_PID_DIR/$OCF_RESKEY_name"
 		mkdir -p "$SAMBA_LOCK_DIR/$OCF_RESKEY_name"
 
+		[ -f "$SMBD_COMMAND" ] || exit $OCF_ERR_INSTALLED
+		[ -f "$NMBD_COMMAND" ] || exit $OCF_ERR_INSTALLED
+
 		# Kick off the per-service smbd
 		$SMBD_COMMAND $smbd_options "$conf"
 		ret_val=$?
