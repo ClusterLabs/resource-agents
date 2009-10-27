@@ -40,13 +40,13 @@ static int ifindex;
 static char *source;
 static struct in_addr src, dst;
 static char *target;
-static int dad, unsolicited, advert;
-static int quiet;
+static int dad = 0, unsolicited = 0, advert = 0;
+static int quiet = 0;
 static int count = -1;
-static int timeout;
-static int unicasting;
-static int s;
-static int broadcast_only;
+static int timeout = 0;
+static int unicasting = 0;
+static int s = 0;
+static int broadcast_only = 0;
 
 static struct sockaddr_ll me;
 static struct sockaddr_ll he;
@@ -158,10 +158,16 @@ void finish(void)
 		printf("\n");
 		fflush(stdout);
 	}
-	if (dad)
-		exit(!!received);
+
+	if (dad) {
+	    fflush(stdout);
+	    exit(!!received);
+	}
+	
 	if (unsolicited)
 		exit(0);
+
+	fflush(stdout);
 	exit(!received);
 }
 
@@ -302,6 +308,15 @@ int recv_pack(unsigned char *buf, int len, struct sockaddr_ll *FROM)
 	return 1;
 }
 
+#include <signal.h>
+
+static void byebye(int nsig)
+{
+    /* Avoid an "error exit" log message if we're killed */
+    nsig = 0;
+    exit(nsig);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -310,6 +325,8 @@ main(int argc, char **argv)
 	uid_t uid = getuid();
 	int hb_mode = 0;
 
+	signal(SIGTERM, byebye);
+	
 	device = strdup("eth0");
 	
 	s = socket(PF_PACKET, SOCK_DGRAM, 0);
