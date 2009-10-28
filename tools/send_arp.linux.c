@@ -326,6 +326,7 @@ main(int argc, char **argv)
 	int hb_mode = 0;
 
 	signal(SIGTERM, byebye);
+	signal(SIGPIPE, byebye);
 	
 	device = strdup("eth0");
 	
