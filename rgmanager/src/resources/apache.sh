@@ -62,7 +62,7 @@ verify_all()
 	fi
 
 	if [ ! -r "$APACHE_serverConfigFile" ]; then
-		clog_check_file_exist $CLOG_FAILED_NOT_READABLE "$APACHE_config_file"
+		clog_check_file_exist $CLOG_FAILED_NOT_READABLE "$APACHE_serverConfigFile"
 		return $OCF_ERR_ARGS
 	fi
 
@@ -80,11 +80,11 @@ verify_all()
 		$OCF_RESKEY_httpd_options &> /dev/null
 		
 	if [ $? -ne 0 ]; then
-		clog_check_syntax $CLOG_FAILED "$APACHE_config_file"
+		clog_check_syntax $CLOG_FAILED "$APACHE_serverConfigFile"
 		return $OCF_ERR_GENERIC
 	fi
 
-	clog_check_syntax $CLOG_SUCCEED "$APACHE_config_file"
+	clog_check_syntax $CLOG_SUCCEED "$APACHE_serverConfigFile"
 
 	return 0
 }
