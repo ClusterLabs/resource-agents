@@ -600,8 +600,21 @@ validate_all()
 			echo "Management tool: virsh"
 			export OCF_RESKEY_use_virsh=1
 		else
+			if [ "$OCF_RESKEY_hypervisor" != "xen" ]; then
+				ocf_log err "Cannot use $OCF_RESKEY_hypervisor hypervisor with 'path' attribute"
+				return $OCF_ERR_ARGS
+			fi
+				
 			echo "Management tool: xm"
 			export OCF_RESKEY_use_virsh=0
+		fi
+	fi
+
+	if [ "$OCF_RESKEY_use_virsh" = "0" ]; then
+		if [ "$OCF_RESKEY_hypervisor" = "qemu" ] ||
+		   [ "$OCF_RESKEY_hypervisor" = "kvm" ]; then
+			ocf_log err "Cannot use $OCF_RESKEY_hypervisor hypervisor without using virsh"
+			return $OCF_ERR_ARGS
 		fi
 	fi
 
