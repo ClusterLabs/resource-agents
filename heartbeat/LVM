@@ -113,17 +113,15 @@ LVM_methods() {
 #	Return LVM status (silently)
 #
 LVM_status() {
-
   if 
     [ "$LVM_MAJOR" -eq "1" ]
   then
-	vgdisplay $1 | grep -i 'Status.*available' >/dev/null
+	vgdisplay $1 2>&1 | grep -i 'Status.*available' 2>&1 >/dev/null
 	return $?
   else
-	vgdisplay -v $1 | grep -i 'Status[ \t]*available' >/dev/null
+	vgdisplay -v $1 2>&1 | grep -i 'Status[ \t]*available' 2>&1 >/dev/null
 	return $?
   fi
-  
 }
 
 #
@@ -168,7 +166,6 @@ LVM_report_status() {
 #
 #
 LVM_monitor() {
-
   if
     LVM_status $1
   then
@@ -178,7 +175,7 @@ LVM_monitor() {
     return $OCF_NOT_RUNNING
   fi
 
-  ocf_run vgck $1
+  vgck $1 >/dev/null 2>&1
 
   return $?
 }
