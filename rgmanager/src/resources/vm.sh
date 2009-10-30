@@ -565,7 +565,10 @@ do_status()
 
 validate_all()
 {
-	[ "$(id -u)" = "0" ] || return 1
+	if [ "$(id -u)" != "0" ]; then
+	       ocf_log err "Cannot control VMs. as non-root user."
+	       return 1
+	fi
 
 	#
 	# If someone selects a hypervisor, honor it.
@@ -600,21 +603,39 @@ validate_all()
 			echo "Management tool: virsh"
 			export OCF_RESKEY_use_virsh=1
 		else
+			if [ -n "$OCF_RESKEY_use_virsh" ]; then
+				ocf_log warning "Cannot use virsh with 'path' attribute set"
+				ocf_log warning "Setting use_virsh to 0."
+			fi
+
 			if [ "$OCF_RESKEY_hypervisor" != "xen" ]; then
 				ocf_log err "Cannot use $OCF_RESKEY_hypervisor hypervisor with 'path' attribute"
 				return $OCF_ERR_ARGS
 			fi
-				
+
 			echo "Management tool: xm"
 			export OCF_RESKEY_use_virsh=0
 		fi
 	fi
 
 	if [ "$OCF_RESKEY_use_virsh" = "0" ]; then
+
+		which xm &> /dev/null
+		if [ $? -ne 0 ]; then
+			ocf_log err "Cannot find 'xm'; is it installed?"
+			return $OCF_ERR_INSTALLED
+		fi
+
 		if [ "$OCF_RESKEY_hypervisor" = "qemu" ] ||
 		   [ "$OCF_RESKEY_hypervisor" = "kvm" ]; then
 			ocf_log err "Cannot use $OCF_RESKEY_hypervisor hypervisor without using virsh"
 			return $OCF_ERR_ARGS
+		fi
+	else
+		which virsh &> /dev/null
+		if [ $? -ne 0 ]; then
+			ocf_log err "Cannot find 'virsh'; is it installed?"
+			return $OCF_ERR_INSTALLED
 		fi
 	fi
 
