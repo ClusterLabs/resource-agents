@@ -40,7 +40,6 @@ usage() {
 
 
 : ${OCF_RESKEY_xmfile=/etc/xen/vm/MyDomU}
-: ${OCF_RESKEY_allow_migrate=0}
 : ${OCF_RESKEY_allow_mem_management=0}
 : ${OCF_RESKEY_reserved_Dom0_memory=512}
 
@@ -70,7 +69,7 @@ finally fall back to the instance id to preserve backward
 compatibility.
 
 Para-virtualized guests can also be migrated by enabling the
-meta_attribute allow_migrate.
+meta_attribute allow-migrate.
 
 </longdesc>
 <shortdesc lang="en">Manages Xen DomUs</shortdesc>
@@ -91,14 +90,6 @@ Name of the virtual machine.
 </longdesc>
 <shortdesc lang="en">Xen DomU name</shortdesc>
 <content type="string" default="" />
-</parameter>
-<parameter name="allow_migrate" unique="0" required="0">
-<longdesc lang="en">
-This bool parameters allows to use live migration
-for paravirtual machines.
-</longdesc>
-<shortdesc lang="en">Use live migration</shortdesc>
-<content type="boolean" default="0" />
 </parameter>
 <parameter name="shutdown_timeout">
 <longdesc lang="en">
