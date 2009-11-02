@@ -576,6 +576,17 @@ else
    AC_SUBST(LIBNETLIBS)
 fi
 
+if test "$new_libnet" = yes; then
+   AC_MSG_CHECKING(for libnet API 1.1.4: )
+   save_CFLAGS="$CFLAGS"
+   CFLAGS="$CFLAGS -fgnu89-inline -Wall -Werror"
+   AC_COMPILE_IFELSE([#include <libnet.h>
+   int main(){libnet_t *l=NULL; libnet_pblock_record_ip_offset(l, l->total_size); return(0); }],
+      [AC_MSG_RESULT(no)],
+      [AC_DEFINE(HAVE_LIBNET_1_1_4_API, 1, Libnet 1.1.4 API) AC_MSG_RESULT(yes)])
+   CFLAGS="$save_CFLAGS"
+fi
+
 sendarp_linux=0
 case $host_os in
      *Linux*|*linux*) sendarp_linux=1;;
