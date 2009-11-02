@@ -48,16 +48,14 @@ HA_VARRUNDIR=${HA_VARRUN}
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
-#######################################################################
-
-# LDIRECTORD=@sbindir@/ldirectord
-# LDIRCONF=@sysconfdir@/ldirectord.cf
+LDIRCONF=${OCF_RESKEY_configfile:-@sbindir@/ldirectord/ldirectord.cf}
+LDIRECTORD=${OCF_RESKEY_ldirectord:-@sysconfdir@/ldirectord}
 
 meta_data() {
         cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="Ldirectord" version="0.9">
+<resource-agent name="ldirectord" version="0.9">
 <version>1.0</version>
 
 <longdesc lang="en">
@@ -101,41 +99,17 @@ END
 #######################################################################
 
 ldir_init() {
+    # check the supplied parameters exist enough that we can do all the other
+    # operations
+    if [ ! -f $LDIRCONF ]; then
+        ocf_log warn "$LDIRCONF not found, ldirectord not installed"
+        exit $OCF_ERR_INSTALLED
+    fi
 
-  COMMAND=$1
-
-  LDIRCONF=$OCF_RESKEY_configfile
-  if [ x"${LDIRCONF}" = "x" ]; then
-    LDIRCONF=@sysconfdir@/ldirectord.cf
-  fi
-
-  if [ ! -f $LDIRCONF ]; then
-    case $COMMAND in
-      stop)	ocf_log warn "$LDIRCONF not found. ldirectord considered stopped"
-		exit $OCF_SUCCESS;;
-      monitor)	exit $OCF_NOT_RUNNING;;
-      status)	exit $LSB_STATUS_STOPPED;;
-      start)	ocf_log warn "$LDIRCONF not found."
-		exit $OCF_NOT_RUNNING;;
-    esac
-  fi
-
-  LDIRECTORD=$OCF_RESKEY_ldirectord
-  if [ x"${LDIRECTORD}" = x ]; then
-    LDIRECTORD="@sbindir@/ldirectord"
-  fi
-
-  if [ ! -x $LDIRECTORD ]; then
-    case $COMMAND in
-      stop)	ocf_log warn "$LDIRECTORD not found."
-		exit $OCF_SUCCESS;;
-      monitor)  exit $OCF_NOT_RUNNING;;
-      status)	exit $LSB_STATUS_STOPPED;;
-      start)	ocf_log warn "$LDIRECTORD not found."
-		exit $OCF_NOT_RUNNING;;
-    esac
-  fi
-
+    if [ ! -x $LDIRECTORD ]; then
+        ocf_log warn "$LDIRECTORD not found, ldirectord not installed"
+        exit $OCF_ERR_INSTALLED
+    fi
 }
 
 ldirectord_usage() {
@@ -151,58 +125,118 @@ ldirectord_exit() {
 }
 
 ldirectord_start() {
+    ldirectord_status
+    RET=$?
+
+    # if ldirectord is running or there's an error, pass on this return code
+    if [ $RET -ne $OCF_NOT_RUNNING ]; then
+        return $RET
+    fi
+
+    ocf_log info "Starting ldirectord"
+    echo $LDIRECTORD $LDIRCONF start
     $LDIRECTORD $LDIRCONF start
+    RET=$?
+    if [ $RET -ne 0 ]; then
+        return $OCF_ERR_GENERIC
+    fi
+
+    # call status again to make sure we're running properly
+    ldirectord_status
 }
 
 ldirectord_stop() {
-    $LDIRECTORD $LDIRCONF stop
+    # a status check is simple enough to see if ldirectord is running or not.
+    # It will also error out if there's configuration parsing errors so we
+    # can try kill ldirectord even if the config is broken.
+    ldirectord_status
+    RET=$?
+
+    # ldirectord may be running, hard to tell when status returns an error
+    if [ $RET -eq $OCF_ERR_GENERIC ]; then
+        # get the PID of the right ldirectord process
+        PID=`pgrep -f "$LDIRECTORD $LDIRCONF start" 2>&1`
+        RET=$?
+        
+        if [ $RET -eq 0 ]; then
+            ocf_log warn "Killing ldirectord($PID) with SIGTERM"
+            kill $PID
+        fi
+
+        pgrep -f "$LDIRECTORD $LDIRCONF start" >/dev/null 2>&1
+        RET=$?
+        # if ldirectord is not running any more, we've (kind of) successfully
+        # stopped it
+        if [ $RET -eq 1 ]; then
+            return $OCF_SUCCESS
+        else
+            # ldirectord is still running? Kill it badly
+            ocf_log warn "Killing ldirectord($PID) with SIGKILL"
+            kill -9 $PID
+
+            pgrep -f "$LDIRECTORD $LDIRCONF start" >/dev/null 2>&1
+            RET=$?
+            # if it's not dead after here, we can't really do anything more
+            if [ $RET -eq 1 ]; then
+                return $OCF_SUCCESS
+            fi
+        fi
+
+        # if none of our kills work, return an error. This should force the
+        # resource unmanaged
+        # on this node, requiring manual intervention.
+        return $OCF_ERR_GENERIC
+    else
+        ocf_log info "Stopping ldirectord"
+        # if ldirectord status is not an error, issue a stop. Multiple stops
+        # will return 0
+        $LDIRECTORD $LDIRCONF stop
+        RET=$?
+        case $RET in
+            0) return $RET;;
+            *) return 1;;
+        esac
+    fi
 }
 
+# simple check to see if ldirectord is running, returns the proper OCF codes.
 ldirectord_status() {
     OUTPUT=`$LDIRECTORD $LDIRCONF status 2>&1`
     case $? in
-        1)  echo $OUTPUT
-            return $OCF_ERR_GENERIC
-            ;;
-        0)  echo running
-            return $OCF_SUCCESS
-            ;;
-        3)  echo stopped
-            return $OCF_SUCCESS
-            ;;
-        *)  echo $OUTPUT
-            return $OCF_ERR_GENERIC
-            ;;
+        0) return $OCF_SUCCESS;;
+        1) expr match "$OUTPUT" '.*ldirectord stale pid file.*' >/dev/null
+           if [ $? -eq 0 ]; then
+               return $OCF_NOT_RUNNING
+           else
+              return $OCF_ERR_GENERIC
+           fi;;
+        2) ocf_log err "$LDIRCONF has configuration errors"
+           echo $OUTPUT
+           return $OCF_ERR_GENERIC;;
+        3) return $OCF_NOT_RUNNING;;
+        *) echo $OUTPUT
+           return $OCF_ERR_GENERIC;;
     esac
 }
 
 ldirectord_monitor() {
-    OUTPUT=`$LDIRECTORD $LDIRCONF status 2>&1`
-    case $? in
-        0)  return $OCF_SUCCESS
-            ;;
-        3)  return $OCF_NOT_RUNNING
-            ;;
-        *)  echo $OUTPUT
-            return $OCF_ERR_GENERIC
-            ;;
-    esac
+    # check if the process is running first
+    ldirectord_status
+    RET=$?
+
+    if [ $RET -ne $OCF_SUCCESS ]; then
+        return $RET
+    fi
+
+    # do more advanced checks here for high OCF_CHECK_LEVELs. Don't know what
+    # more we can do at this time,
+    # a status call already hits LVS in the kernel.
 }
 
 ldirectord_validate() {
-	if [ ! -f $LDIRCONF ]; then
-		ocf_log err $LDIRCONF
-        	ocf_log err "Configuration file $LDIRCONF not found!"
-        	exit $OCF_ERR_CONFIGURED
-	fi
-
-	if [ ! -x $LDIRECTORD ]; then
-		ocf_log err "Binary file $LDIRECTORD not found."
-		exit $OCF_ERR_CONFIGURED
-	fi
-
-#        exit $OC_ERR_UNIMPLEMENTED
-	
+    #ldir_init is already called, there's nothing more we can validate unless
+    #we add more attributes
+    return 0
 }
 
 ldir_init $@
@@ -215,9 +249,6 @@ start)  ldirectord_start
                 ldirectord_exit $?
                 ;;
 stop)   ldirectord_stop
-                ldirectord_exit $?
-                ;;
-status) ldirectord_status
                 ldirectord_exit $?
                 ;;
 monitor)    ldirectord_monitor
