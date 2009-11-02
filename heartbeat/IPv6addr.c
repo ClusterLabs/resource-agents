@@ -450,7 +450,9 @@ send_ua(struct in6_addr* src_ip, char* if_name)
 				255,*(struct libnet_in6_addr*)src_ip,
 				dst_ip,NULL,0,l,0);
 	/* Hack: adjust the correct checksum offset. see LF #2034 */
+#ifndef HAVE_LIBNET_1_1_4_API
 	libnet_pblock_record_ip_offset(l, l->total_size);
+#endif
 
 
         if (libnet_write(l) == -1)
