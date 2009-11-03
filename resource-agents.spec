@@ -26,17 +26,17 @@
 %endif
 %define SSLeay		        perl-Net-SSLeay
 %if 0%{?suse_version}
-%define SSLeay		perl-Net_SSLeay
+%define SSLeay			perl-Net_SSLeay
 %endif
 
 Name:           resource-agents
 Summary:        Reusable cluster resource scripts
-Version:        1.0
-Release:        27.3
+Version:        1.0.1
+Release:	1%{?dist}
 License:        GPL v2 or later; LGPL v2.1 or later
 Url:            http://www.linux-ha.org
 Group:		%{pkg_group}
-Source:         resource-agents.tar.gz
+Source:         resource-agents.tar.bz2
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 AutoReqProv:    on
 Obsoletes:	heartbeat-resources < 3.0
@@ -163,6 +163,7 @@ rm -rf $RPM_BUILD_DIR/resource-agents
 %{_libdir}/heartbeat/ocf-shellfuncs
 %{_libdir}/heartbeat/ocf-returncodes
 %dir /etc/ha.d
+/etc/ha.d/shellfuncs
 
 %{_libdir}/heartbeat/send_arp
 %{_libdir}/heartbeat/sfex_daemon

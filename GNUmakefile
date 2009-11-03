@@ -16,12 +16,31 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
 
-MAINTAINERCLEANFILES    = Makefile.in aclocal.m4 configure DRF/config-h.in \
-                        DRF/stamp-h.in libtool.m4 ltdl.m4 libltdl.tar
+-include Makefile
 
-SUBDIRS	= heartbeat tools ldirectord
+PACKAGE		?= resource-agents
+TARFILE		?= $(PACKAGE).tar.bz2
 
-dist-clean-local:
-	rm -f autoconf automake autoheader $(TARFILE)
+RPM_ROOT	= $(shell pwd)
+RPM_OPTS	= --define "_sourcedir $(RPM_ROOT)" 	\
+		  --define "_specdir   $(RPM_ROOT)" 	\
+		  --define "_srcrpmdir $(RPM_ROOT)" 	\
 
-.PHONY: 
+
+getdistro = $(shell test -e /etc/SuSE-release || echo fedora; test -e /etc/SuSE-release && echo suse)
+DISTRO ?= $(call getdistro)
+
+hgarchive:
+	rm -f $(TARFILE)
+	hg archive -t tbz2 $(TARFILE)
+	echo `date`: Rebuilt $(TARFILE)
+
+srpm:	hgarchive
+	rm -f *.src.rpm
+	@echo To create custom builds, edit the flags and options in $(PACKAGE).spec first
+	rpmbuild -bs --define "dist .$(DISTRO)" $(RPM_OPTS) $(PACKAGE).spec
+
+rpm:	srpm
+	rpmbuild --rebuild $(RPM_ROOT)/*.src.rpm
+
+
