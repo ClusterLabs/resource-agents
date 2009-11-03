@@ -563,6 +563,64 @@ do_status()
 }
 
 
+#
+# virsh "path" attribute support
+#
+check_config_file()
+{
+	declare path=$1
+
+	if [ -f "$path/$OCF_RESKEY_name" ]; then
+		echo $path/$OCF_RESKEY_name
+		return 2
+	elif [ -f "$path/$OCF_RESKEY_name.xml" ]; then
+		echo $path/$OCF_RESKEY_name.xml
+		return 2
+	fi
+
+	return 0
+}
+
+
+parse_input()
+{
+	declare delim=$1
+	declare input=$2
+	declare func=$3
+	declare inp
+	declare value
+
+	while [ -n "$input" ]; do
+		value=${input/$delim*/}
+		if [ -n "$value" ]; then
+			eval $func $value
+			if [ $? -eq 2 ]; then
+				return 0
+			fi
+		fi
+		inp=${input/$value$delim/}
+		if [ "$input" = "$inp" ]; then
+			inp=${input/$value/}
+		fi
+		input=$inp
+	done
+}
+
+
+search_config_path()
+{
+	declare config_file=$(parse_input ":" "$OCF_RESKEY_path" check_config_file)
+
+	if [ -n "$config_file" ]; then
+		export OCF_RESKEY_xmlfile=$config_file
+		return 0
+	fi
+
+	return 1
+}
+
+
+
 validate_all()
 {
 	if [ "$(id -u)" != "0" ]; then
@@ -592,29 +650,25 @@ validate_all()
 			ocf_log err "Cannot use $OCF_RESKEY_hypervisor hypervisor without using virsh"
 			return $OCF_ERR_ARGS
 		fi
+		echo "Management tool: xm"
 	else
-	
-		#
-		# If no path is set, use virsh.  Otherwise, use xm.
-		# xm only works with Xen.
-		#
-		if [ -z "$OCF_RESKEY_path" ] ||
-		   [ "$OCF_RESKEY_path" = "/etc/xen" ]; then
-			echo "Management tool: virsh"
-			export OCF_RESKEY_use_virsh=1
-		else
-			if [ -n "$OCF_RESKEY_use_virsh" ]; then
-				ocf_log warning "Cannot use virsh with 'path' attribute set"
-				ocf_log warning "Setting use_virsh to 0."
-			fi
+		export OCF_RESKEY_use_virsh="1"
+		echo "Management tool: virsh"
 
-			if [ "$OCF_RESKEY_hypervisor" != "xen" ]; then
-				ocf_log err "Cannot use $OCF_RESKEY_hypervisor hypervisor with 'path' attribute"
-				return $OCF_ERR_ARGS
+		if [ -n "$OCF_RESKEY_path" ]; then
+			if [ -n "$OCF_RESKEY_xmlfile" ]; then
+				ocf_log warning "Using $OCF_RESKEY_xmlfile instead of searching $OCF_RESKEY_path"
+			else
+				search_config_path
+				if [ $? -ne 0 ]; then
+					ocf_log warning "Could not find $OCF_RESKEY_name or $OCF_RESKEY_name.xml in search path $OCF_RESKEY_path"
+					unset OCF_RESKEY_xmlfile
+				else
+					ocf_log debug "Using $OCF_RESKEY_xmlfile"
+					# No longer needed :)
+					unset OCF_RESKEY_path
+				fi
 			fi
-
-			echo "Management tool: xm"
-			export OCF_RESKEY_use_virsh=0
 		fi
 	fi
 
