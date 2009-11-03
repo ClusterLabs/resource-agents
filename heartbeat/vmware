@@ -42,6 +42,13 @@ VMXPATH="$OCF_RESKEY_vmxpath"
 # Path to the vmware-vim-cmd executable
 VIMSHBIN="$OCF_RESKEY_vimshbin"
 
+# global variables
+VMXDIR=
+RELVMXPATH=
+VMID=
+VM=
+VMAUTOMSG=
+
 # vmware-vim-cmd functions
 #################################################################
 
@@ -104,23 +111,22 @@ vmware_get_broken() {
 # Variables depending on the above functions
 #################################################################
 
-# Directory containing the virtual machine
-VMXDIR="`dirname "$VMXPATH"`"
+set_environment() {
+	# Directory containing the virtual machine
+	VMXDIR="`dirname "$VMXPATH"`"
 
-# Basename of the configuration file
-RELVMXPATH="`basename "$VMXPATH"`"
+	# Basename of the configuration file
+	RELVMXPATH="`basename "$VMXPATH"`"
 
-# Vid of the virtual machine (can be empty if the vm is not registered)
-VMID=`vmware_get_vid "$RELVMXPATH"`
+	# Vid of the virtual machine (can be empty if the vm is not registered)
+	VMID=`vmware_get_vid "$RELVMXPATH"`
 
-# Power state of the virtual machine (can be empty if the vm is not registered)
-VMSTATE="`vmware_get_status $VMID`"
+	# Virtual machine name
+	VM="`awk -F '"' '/^displayName/ {print $2}' "$VMXPATH"`"
 
-# Virtual machine name
-VM="`awk -F '"' '/^displayName/ {print $2}' "$VMXPATH"`"
-
-# msg.autoAnswer value in config file
-VMAUTOMSG="`awk -F '"' '/^msg.autoAnswer/ {print $2}' "$VMXPATH"`"
+	# msg.autoAnswer value in config file
+	VMAUTOMSG="`awk -F '"' '/^msg.autoAnswer/ {print $2}' "$VMXPATH"`"
+}
 
 # Main functions
 #################################################################
@@ -134,33 +140,34 @@ Expects to have a fully populated OCF RA-compliant environment set.
 END
 }
 
+# Check for dependencies
 # Check for mandatory files presence and consistency
 vmware_validate() {
   if [ -z "`pidof vmware-hostd`" ]; then
-    ocf_log err "vmware-hostd is not running: aborting"
-    exit $OCF_ERR_GENERIC
+    ocf_log warn "vmware-hostd is not running"
+    return $OCF_ERR_GENERIC
   fi
 
   if [ ! -x "$VIMSHBIN" ]; then
-    ocf_log err "vmware-vimsh executable missing or not in path ($VIMSHBIN): aborting"
-    exit $OCF_ERR_ARGS
+    ocf_log warn "vmware-vimsh executable missing or not in path ($VIMSHBIN)"
+    return $OCF_ERR_INSTALLED
   fi
 
   if [ ! -f "$VMXPATH" ]; then
-    ocf_log err "Specified vmx file ($VMXPATH) does not exist: aborting"
-    exit $OCF_ERR_ARGS
+    ocf_log warn "Specified vmx file ($VMXPATH) does not exist"
+    return $OCF_ERR_ARGS
   fi
 
   if [ -z "$VM" ]; then
-    ocf_log err "Could not find out virtual machine name: aborting"
-    exit $OCF_ERR_ARGS
+    ocf_log warn "Could not find out virtual machine name"
+    return $OCF_ERR_ARGS
   fi
 
   if [ "$VMAUTOMSG" != "TRUE" ]; then
     ocf_log warn "Please set msg.autoAnswer = \"TRUE\" in your config file"
   fi
 
-  # $VMID and $VMSTATE are allowed to be empty in case we are validating a
+  # $VMID is allowed to be empty in case we are validating a
   # virtual machine which is not registered
 
   return $OCF_SUCCESS
@@ -169,7 +176,7 @@ vmware_validate() {
 # Start a virtual machine
 vmware_start() {
   # Don't start a VM if it's already running
-  if [ "$VMSTATE" = "Powered on" ]; then
+  if vmware_monitor; then
     ocf_log info "Virtual machine $VM is already running"
     return $OCF_SUCCESS
   else
@@ -212,10 +219,10 @@ vmware_start() {
 
     # Check if the VM is running. We don't bother
     # with timeouts: we rely on the CRM for that.
-    while [ "$VMSTATE" != "Powered on" ]; do
+    while :; do
+	  vmware_monitor && break
       ocf_log info "Virtual machine $VM is still stopped: delaying 10 seconds"
       sleep 10
-      VMSTATE="`vmware_get_status $VMID`"
     done
 
     ocf_log info "Virtual machine $VM is running"
@@ -231,20 +238,19 @@ vmware_stop() {
     return $OCF_SUCCESS
   else
     # Don't stop a VM if it's already stopped
-    if [ "$VMSTATE" != "Powered on" ]; then
-      ocf_log info "Virtual machine $VM is already stopped"
-    else
+    if vmware_monitor; then
       # If the VM is running send a suspend signal and wait
       # until it is off. We don't bother with timeouts: we
       # rely on the CRM for that.
       ocf_log info "Virtual machine $VM is running: suspending it"
       vmware_suspend_vm $VMID
       sleep 5
-      while [ "$VMSTATE" = "Powered on" ]; do
+      while vmware_monitor; do
         ocf_log info "Virtual machine $VM is still running: delaying 10 seconds"
         sleep 10
-        VMSTATE="`vmware_get_status $VMID`"
       done
+    else
+      ocf_log info "Virtual machine $VM is already stopped"
     fi
     ocf_log info "Unregistering virtual machine $VM"
     vmware_unregister_vm $VMID
@@ -260,11 +266,11 @@ vmware_stop() {
 
 # Monitor a virtual machine
 vmware_monitor() {
-  if [ "$VMSTATE" = "Powered on" ]; then
-    ocf_log info "Virtual machine $VM (ID $VMID) is running..."
+  if [ "`vmware_get_status $VMID`" = "Powered on" ]; then
+    ocf_log debug "Virtual machine $VM (ID $VMID) is running..."
     return $OCF_SUCCESS
   else
-    ocf_log info "Virtual machine $VM is stopped/suspended/not registered"
+    ocf_log debug "Virtual machine $VM is stopped/suspended/not registered"
     return $OCF_NOT_RUNNING
   fi
 }
@@ -313,14 +319,37 @@ END
 # See how we were called
 #################################################################
 
-case $1 in
+case "$1" in
 meta-data)
   meta_data
   exit $OCF_SUCCESS
   ;;
+usage|help)
+  vmware_usage
+  exit $OCF_SUCCESS
+  ;;
+esac
 
+vmware_validate
+rc=$?
+if [ $rc -ne 0 ]; then
+  case "$1" in
+    stop)	ocf_log info "validate failed, vmware considered stopped"
+    		exit $OCF_SUCCESS;;
+    monitor)	exit $OCF_NOT_RUNNING;;
+    status)	exit $LSB_STATUS_STOPPED;;
+    *) # it's safe to bail out now
+		ocf_log err "vmware_validate failed"
+		exit $rc
+	;;
+  esac
+elif [ "$1" = "validate-all" ]; then
+	exit $OCF_SUCCESS
+fi
+set_environment
+
+case "$1" in
 start)
-  vmware_validate
   vmware_start
   ;;
 
@@ -332,19 +361,9 @@ status|monitor)
   vmware_monitor
   ;;
 
-usage|help)
-  vmware_usage
-  exit $OCF_SUCCESS
-  ;;
-
-validate-all)
-  vmware_validate
-  ;;
-
 *)
   vmware_usage
   exit $OCF_ERR_UNIMPLEMENTED
   ;;
 
 esac
-exit $?
