@@ -88,7 +88,7 @@ Resource script for SAP databases. It manages a SAP database of any type as an H
 <shortdesc lang="en">SAP database resource agent</shortdesc>
 
 <parameters>
- <parameter name="SID" unique="1" required="1">
+ <parameter name="SID" unique="1" required="1" primary="1">
   <longdesc lang="en">The unique SAP system identifier. e.g. P01</longdesc>
   <shortdesc lang="en">SAP system ID</shortdesc>
   <content type="string" default="" />
