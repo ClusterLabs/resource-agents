@@ -220,14 +220,16 @@ nfsserver_validate ()
 	check_binary ${OCF_RESKEY_nfs_notify_cmd}
 
 	if [ -z ${OCF_RESKEY_nfs_ip} ]; then
+		ocf_log err "nfs_ip not set"
 		exit $OCF_ERR_ARGS
 	fi
 
-	if [ -d $OCF_RESKEY_nfs_shared_infodir ]; then
-		return $OCF_SUCCESS
-	else
+	if [ x = "x$OCF_RESKEY_nfs_shared_infodir" ]; then
+		ocf_log err "nfs_shared_infodir not set"
 		exit $OCF_ERR_ARGS
 	fi
+
+	return $OCF_SUCCESS
 }
 
 if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
