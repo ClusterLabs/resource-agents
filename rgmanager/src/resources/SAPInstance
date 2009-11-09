@@ -80,7 +80,7 @@ Resource script for SAP. It manages a SAP Instance as an HA resource.
 <shortdesc lang="en">SAP instance resource agent</shortdesc>
 
 <parameters>
- <parameter name="InstanceName" unique="1" required="1">
+ <parameter name="InstanceName" unique="1" required="1" primary="1">
   <longdesc lang="en">The full qualified SAP instance name. e.g. P01_DVEBMGS00_sapp01ci</longdesc>
   <shortdesc lang="en">instance name: SID_INSTANCE_VIR-HOSTNAME</shortdesc>
   <content type="string" default="" />
