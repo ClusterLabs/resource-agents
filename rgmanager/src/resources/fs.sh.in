@@ -1001,6 +1001,7 @@ Cannot mount $dev on $mp, the device or mount point is already in use!"
         ext3)     typeset fsck_needed="" ;;
         jfs)      typeset fsck_needed="" ;;
         xfs)      typeset fsck_needed="" ;;
+	vxfs)	  typeset fsck_needed="" ;;
         ext2)     typeset fsck_needed=yes ;;
         minix)    typeset fsck_needed=yes ;;
         vfat)     typeset fsck_needed=yes ;;
