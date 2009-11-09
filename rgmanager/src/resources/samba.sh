@@ -69,7 +69,7 @@ generate_config_file()
 	echo "pid directory = \"$SAMBA_pid_dir\"" >> "$generated_file"
 	echo "interfaces = $ip_addresses" >> "$generated_file"
 	echo "bind interfaces only = Yes" >> "$generated_file"
-	echo "netbios name = \"$OCF_RESKEY_name\"" >> "$generated_file"
+	echo "netbios name = ${OCF_RESKEY_name/ /_}" >> "$generated_file"
 	echo >> "$generated_file"	
 	sed 's/^[[:space:]]*pid directory/### pid directory/i;s/^[[:space:]]*interfaces/### interfaces/i;s/^[[:space:]]*bind interfaces only/### bind interfaces only/i;s/^[[:space:]]*netbios name/### netbios name/i' \
 	     < "$original_file" >> "$generated_file"
