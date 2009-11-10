@@ -634,7 +634,7 @@ ip_start() {
 		 "$OCF_RESKEY_cidr_netmask" "$OCF_RESKEY_broadcast"
     rc=$?
     if [ $rc != 0 ]; then
-	ocf_log err "Could not add $OCF_RESKEY_ip to $OCF_RESKEY_nic: $rc"
+	ocf_log err "Could not add $OCF_RESKEY_ip to $OCF_RESKEY_nic: rc=$rc"
 	return $rc
     fi
 
@@ -717,11 +717,13 @@ ip_monitor() {
 
     PINGARGS="`pingargs $OCF_RESKEY_ip`"
     for j in 1 2 3 4 5 6 7 8 9 10; do
-	if $PING $PINGARGS >/dev/null 2>&1 ; then
-	    return $OCF_SUCCESS
-	fi
+        MSG=`$PING $PINGARGS 2>&1`
+        if [ $? = 0 ]; then
+            return $OCF_SUCCESS
+        fi
     done
-    
+
+    ocf_log err "$MSG"
     return $OCF_ERR_GENERIC
 }
 
