@@ -141,6 +141,13 @@ postfix_start()
 
 postfix_stop()
 {
+    # if Postfix is not running return success
+    if ! postfix_status; then
+        ocf_log info "Postfix already stopped."
+        return $OCF_SUCCESS
+    fi
+
+    # stop Postfix
     $binary $OPTIONS stop >/dev/null 2>&1
     ret=$?
 
@@ -245,7 +252,7 @@ parameters=$OCF_RESKEY_parameters
 #echo OCF_RESKEY_parameters=$OCF_RESKEY_parameters >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
 
 
-# build postfix options string *outside* to access from each method
+# build Postfix options string *outside* to access from each method
 OPTIONS=''
 OPTION_CONFIG_DIR=''
 
