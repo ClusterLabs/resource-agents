@@ -349,6 +349,15 @@ mysqlproxy_reload()
 
 mysqlproxy_monitor()
 {
+    if [ "${OCF_RESKEY_CRM_meta_interval:-0}" -eq "0" ]; then
+        # in case of probe, monitor operation is surely treated as
+        # under suspension. This will call start operation.
+        # (c/p from ocf:heartbeat:sfex)
+        mysqlproxy_validate_all
+        rc=$?
+        [ $rc -ne 0 ] && return $rc
+    fi
+
     if mysqlproxy_status ; then
         return $OCF_SUCCESS
     fi
