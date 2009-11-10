@@ -574,7 +574,9 @@ ip_stop() {
       esac
   fi
 
-  delete_route "$OCF_RESKEY_ip"
+  if [ `$ROUTE | grep $OCF_RESKEY_ip` ]; then
+      delete_route "$OCF_RESKEY_ip"
+  fi
   delete_interface "$NIC" "$OCF_RESKEY_ip"
   rc=$?
 
