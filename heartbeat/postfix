@@ -141,6 +141,12 @@ postfix_start()
 
 postfix_stop()
 {
+
+    if ! postfix_status; then
+        ocf_log info "Postfix already stopped."
+        return $OCF_SUCCESS
+    fi
+
     $binary $OPTIONS stop >/dev/null 2>&1
     ret=$?
 

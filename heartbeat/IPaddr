@@ -551,8 +551,6 @@ add_interface () {
 #	Remove the IP alias for the requested IP address...
 #
 ip_stop() {
-  echo "In IP Stop"
-
   SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$OCF_RESKEY_ip"
   NIC=`find_interface $OCF_RESKEY_ip`
 
