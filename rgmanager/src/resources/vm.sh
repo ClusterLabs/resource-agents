@@ -620,6 +620,42 @@ search_config_path()
 }
 
 
+choose_management_tool()
+{
+	declare -i is_xml
+
+	#
+	# Don't override user value for use_virsh if one is given
+	#
+	if [ -n "$OCF_RESKEY_use_virsh" ]; then
+		return 0
+	fi
+
+	which xmllint &> /dev/null
+	if [ $? -ne 0 ]; then
+		ocf_log warning "Could not find xmllint; assuming virsh mode"
+		export OCF_RESKEY_use_virsh=1
+		unset OCF_RESKEY_path
+		return 0
+	fi
+
+	xmllint $OCF_RESKEY_xmlfile &> /dev/null
+	is_xml=$?
+
+	if [ $is_xml -eq 0 ]; then
+		ocf_log debug "$OCF_RESKEY_xmlfile is XML; using virsh"
+		export OCF_RESKEY_use_virsh=1
+		unset OCF_RESKEY_path
+	else
+		ocf_log debug "$OCF_RESKEY_xmlfile is not XML; using xm"
+		export OCF_RESKEY_use_virsh=0
+		unset OCF_RESKEY_xmlfile
+	fi
+
+	return 0
+}
+
+
 
 validate_all()
 {
@@ -650,12 +686,18 @@ validate_all()
 			ocf_log err "Cannot use $OCF_RESKEY_hypervisor hypervisor without using virsh"
 			return $OCF_ERR_ARGS
 		fi
-		echo "Management tool: xm"
-	else
-		export OCF_RESKEY_use_virsh="1"
-		echo "Management tool: virsh"
 
-		if [ -n "$OCF_RESKEY_path" ]; then
+		if [ -n "$OCF_RESKEY_xmlfile" ]; then
+			ocf_log err "Cannot use xmlfile if use_virsh is set to 0"
+			return $OCF_ERR_ARGS
+		fi
+	else
+
+		#
+		# Virsh path support.
+		#
+		if [ -n "$OCF_RESKEY_path" ] &&
+		   [ "$OCF_RESKEY_path" != "/etc/xen" ]; then
 			if [ -n "$OCF_RESKEY_xmlfile" ]; then
 				ocf_log warning "Using $OCF_RESKEY_xmlfile instead of searching $OCF_RESKEY_path"
 			else
@@ -665,27 +707,29 @@ validate_all()
 					unset OCF_RESKEY_xmlfile
 				else
 					ocf_log debug "Using $OCF_RESKEY_xmlfile"
-					# No longer needed :)
-					unset OCF_RESKEY_path
 				fi
+				choose_management_tool
 			fi
+		else
+			export OCF_RESKEY_use_virsh=1
 		fi
 	fi
 
 	if [ "$OCF_RESKEY_use_virsh" = "0" ]; then
 
+		echo "Management tool: xm"
 		which xm &> /dev/null
 		if [ $? -ne 0 ]; then
 			ocf_log err "Cannot find 'xm'; is it installed?"
 			return $OCF_ERR_INSTALLED
 		fi
 
-		if [ "$OCF_RESKEY_hypervisor" = "qemu" ] ||
-		   [ "$OCF_RESKEY_hypervisor" = "kvm" ]; then
+		if [ "$OCF_RESKEY_hypervisor" != "xen" ]; then
 			ocf_log err "Cannot use $OCF_RESKEY_hypervisor hypervisor without using virsh"
 			return $OCF_ERR_ARGS
 		fi
 	else
+		echo "Management tool: virsh"
 		which virsh &> /dev/null
 		if [ $? -ne 0 ]; then
 			ocf_log err "Cannot find 'virsh'; is it installed?"
