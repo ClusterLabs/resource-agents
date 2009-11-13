@@ -565,7 +565,7 @@ ipv6()
                 fi
 		
 		if [ "$1" = "add" ]; then
-			ocf_log notice "Pinging addr ${addr%%/*} from dev $dev"
+			ocf_log debug "Pinging addr ${addr%%/*} from dev $dev"
 			if ping_check inet6 ${addr%%/*} $dev; then
 				ocf_log err "IPv6 address collision ${addr%%/*}"
 				return 1
@@ -644,7 +644,7 @@ ipv4()
 		fi
 		
 		if [ "$1" = "add" ]; then
-			ocf_log notice "Pinging addr ${addr%%/*} from dev $dev"
+			ocf_log debug "Pinging addr ${addr%%/*} from dev $dev"
 			if ping_check inet ${addr%%/*} $dev; then
 				ocf_log err "IPv4 address collision ${addr%%/*}"
 				return 1
