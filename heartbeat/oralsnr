@@ -181,7 +181,10 @@ runasdba() {
 	if [ "$US" = "$ORACLE_OWNER" ]; then
 		$SH
 	else
-		su - $ORACLE_OWNER
+		(
+		echo ". $envtmpf"
+		cat
+		) | su - $ORACLE_OWNER
 	fi
 }
 
@@ -321,6 +324,10 @@ if ! testoraenv; then
 fi
 
 setoraenv # important: set the environment for the SID
+envtmpf=`mktemp`
+dumporaenv > $envtmpf
+chmod 644 $envtmpf
+trap "rm -f $envtmpf" EXIT
 
 #
 # default listener is "LISTENER"
