@@ -594,7 +594,6 @@ esac
 
 AC_SUBST(LIBNETLIBS)
 AC_SUBST(LIBNETDEFINES)
-AC_DEFINE(HAVE_LIBNET_API, test "x$libnet_version" != "xnone", Libnet API)
 
 AM_CONDITIONAL(SENDARP_LINUX, test $sendarp_linux = 1 )
 AM_CONDITIONAL(USE_LIBNET, test "x$libnet_version" != "xnone" )
