@@ -564,6 +564,13 @@ ipv6()
 			ocf_log info "Removing IPv6 address $addr from $dev"
                 fi
 		
+		if [ "$1" = "add" ]; then
+			ocf_log notice "Pinging addr ${addr%%/*} from dev $dev"
+			if ping_check inet6 ${addr%%/*} $dev; then
+				ocf_log err "IPv6 address collision ${addr%%/*}"
+				return 1
+			fi
+		fi
 		/sbin/ip -f inet6 addr $1 dev $dev $addr
 		[ $? -ne 0 ] && return 1
 		
@@ -636,6 +643,13 @@ ipv4()
 			ocf_log info "Removing IPv4 address $addr from $dev"
 		fi
 		
+		if [ "$1" = "add" ]; then
+			ocf_log notice "Pinging addr ${addr%%/*} from dev $dev"
+			if ping_check inet ${addr%%/*} $dev; then
+				ocf_log err "IPv4 address collision ${addr%%/*}"
+				return 1
+			fi
+		fi
 		/sbin/ip -f inet addr $1 dev $dev $addr
 		[ $? -ne 0 ] && return 1
 		
