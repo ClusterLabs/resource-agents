@@ -27,7 +27,7 @@
 
 <!ELEMENT content EMPTY>
 <!ATTLIST content
-        type    (string|integer|boolean)        #REQUIRED
+        type    (string|integer|boolean|time)        #REQUIRED
         default CDATA   #IMPLIED>
 
 <!ELEMENT action EMPTY>
