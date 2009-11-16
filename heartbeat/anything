@@ -32,6 +32,7 @@
 #       OCF_RESKEY_errlogfile
 #       OCF_RESKEY_user
 #       OCF_RESKEY_monitor_hook
+#       OCF_RESKEY_stop_timeout
 #
 # This RA starts $binfile with $cmdline_options as $user and writes a $pidfile from that. 
 # If you want it to, it logs:
@@ -47,18 +48,20 @@
 # Initialization:
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
-getpid() { # make sure that the file contains a number
-	# FIXME: pidfiles could contain spaces
-	grep '^[0-9][0-9]*$' $1
+getpid() {
+        grep -o '[0-9]*' $1
 }
 
 anything_status() {
-	# FIXME: This should use pidofproc
-	# FIXME: pidfile w/o process means the process died, so should
-	# be ERR_GENERIC
-	if test -f "$pidfile" && pid=`getpid $pidfile` && kill -0 $pid
+	if test -f "$pidfile"
 	then
-		return $OCF_RUNNING
+		if pid=`getpid $pidfile` && [ "$pid" ] && kill -0 $pid
+		then
+			return $OCF_RUNNING
+		else
+			# pidfile w/o process means the process died
+			return $OCF_ERR_GENERIC
+		fi
 	else
 		return $OCF_NOT_RUNNING
 	fi
@@ -66,8 +69,6 @@ anything_status() {
 
 anything_start() {
 	if ! anything_status
-	# FIXME: use start_daemon
-	# FIXME: What about daemons which can manage their own pidfiles?
 	then
 		if [ -n "$logfile" -a -n "$errlogfile" ]
 		then
@@ -101,29 +102,46 @@ anything_start() {
 }
 
 anything_stop() {
-	# FIXME: use killproc
+        if [ -n "$OCF_RESKEY_stop_timeout" ]
+        then
+                stop_timeout=$OCF_RESKEY_stop_timeout
+        elif [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+                # Allow 2/3 of the action timeout for the orderly shutdown
+                # (The origin unit is ms, hence the conversion)
+                stop_timeout=$((OCF_RESKEY_CRM_meta_timeout/1500))
+        else
+                stop_timeout=10
+        fi
 	if anything_status
 	then
-		pid=`getpid $pidfile`
-		kill $pid
-		i=0
-		# FIXME: escalate to kill -9 before timeout
-		while sleep 1 
-		do
-			if ! anything_status
-			then
-				rm -f $pidfile > /dev/null 2>&1
-				return $OCF_SUCCESS
-			fi
-			let "i++"
-		done
+                pid=`getpid $pidfile`
+                kill $pid
+                rm -f $pidfile
+                i=0
+                while [ $i -lt $stop_timeout ]
+                do
+                        if ! anything_status
+                        then
+                                return $OCF_SUCCESS
+                        fi
+                        sleep 1 
+                        let "i++"
+                done
+                ocf_log warn "Stop with SIGTERM failed/timed out, now sending SIGKILL."
+                kill -9 $pid
+                if ! anything_status
+                then
+                        ocf_log warn "SIGKILL did the job."
+                        return $OCF_SUCCESS
+                else
+                        ocf_log err "Failed to stop - even with SIGKILL."
+                        return $OCF_ERR_GENERIC
+                fi
 	else
 		# was not running, so stop can be considered successful
 		rm -f $pidfile 
 		return $OCF_SUCCESS
 	fi
-	# FIXME: Never reached.
-	return $OCF_ERR_GENERIC
 }
 
 anything_monitor() {
@@ -131,12 +149,12 @@ anything_monitor() {
 	ret=$?
 	if [ $ret -eq $OCF_SUCCESS ]
 	then
-		# implement your deeper monitor operation here
 		if [ -n "$OCF_RESKEY_monitor_hook" ]; then
 			eval "$OCF_RESKEY_monitor_hook"
-			# FIXME: Implement a check that this doesn't
-			# accidentially return NOT_RUNNING?
-			return
+                        if [ $? -ne $OCF_SUCCESS ]; then
+                                return ${OCF_ERR_GENERIC}
+                        fi
+			return $OCF_SUCCESS
 		else
 			true
 		fi
@@ -150,19 +168,16 @@ process="$OCF_RESOURCE_INSTANCE"
 binfile="$OCF_RESKEY_binfile"
 cmdline_options="$OCF_RESKEY_cmdline_options"
 pidfile="$OCF_RESKEY_pidfile"
-# FIXME: Why test for $binfile here?
-[ -z "$pidfile" -a -n "$binfile" ] && pidfile=${HA_VARRUN}/anything_${process}.pid
+[ -z "$pidfile" ] && pidfile=${HA_VARRUN}/anything_${process}.pid
 logfile="$OCF_RESKEY_logfile"
 errlogfile="$OCF_RESKEY_errlogfile"
 user="$OCF_RESKEY_user"
 [ -z "$user" ] && user=root
 
 anything_validate() {
-	# FIXME: Actually this needs to test from the point of view of
-	# the user.
-	if [ ! -x "$binfile" ]
+	if ! su - $user -c "test -x $binfile"
 	then
-		ocf_log err "binfile $binfile does not exist or is not executable."
+		ocf_log err "binfile $binfile does not exist or is not executable by $user."
 		exit $OCF_ERR_INSTALLED
 	fi
 	if ! getent passwd $user >/dev/null 2>&1
@@ -242,6 +257,14 @@ Command to run in monitor operation
 </longdesc>
 <shortdesc lang="en">Command to run in monitor operation</shortdesc>
 <content type="string"/>
+</parameter>
+<parameter name="stop_timeout">
+<longdesc lang="en">
+In the stop operation: Seconds to wait for kill -TERM to succeed
+before sending kill -SIGKILL. Defaults to 2/3 of the stop operation timeout.
+</longdesc>
+<shortdesc lang="en">Seconds to wait after having sent SIGTERM before sending SIGKILL in stop operation</shortdesc>
+<content type="string" default=""/>
 </parameter>
 </parameters>
 <actions>
