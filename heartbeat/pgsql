@@ -187,6 +187,12 @@ pgsql_start() {
 	# Remove postmastre.pid if it exists
 	rm -f $PIDFILE
 
+	# Remove backup_label if it exists
+	if [ -f $BACKUPLABEL ]; then
+	    ocf_log info "Removing $BACKUPLABEL. The previous backup might be failed."
+	    rm -f $BACKUPLABEL
+	fi
+
         # Check if we need to create a log file
         if ! check_log_file $OCF_RESKEY_logfile
 	then
@@ -398,6 +404,7 @@ fi
 : ${OCF_RESKEY_stop_escalate=30}
 
 PIDFILE=${OCF_RESKEY_pgdata}/postmaster.pid
+BACKUPLABEL=${OCF_RESKEY_pgdata}/backup_label
 
 case "$1" in
     methods)    pgsql_methods
