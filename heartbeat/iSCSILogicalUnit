@@ -38,6 +38,8 @@ if have_binary ietadm; then
     OCF_RESKEY_implementation_default="iet"
 elif have_binary tgtadm; then
     OCF_RESKEY_implementation_default="tgt"
+elif have_binary lio_node; then
+    OCF_RESKEY_implementation_default="lio"
 fi
 : ${OCF_RESKEY_implementation=${OCF_RESKEY_implementation_default}}
 
@@ -72,10 +74,10 @@ Units (LUs) exported via a daemon that speaks the iSCSI protocol.
 <parameters>
 <parameter name="implementation" required="0" unique="0">
 <longdesc lang="en">
-The iSCSI target daemon implementation. Must be one of "iet" or "tgt".
-If unspecified, an implementation is selected based on the
+The iSCSI target daemon implementation. Must be one of "iet", "tgt",
+or "lio".  If unspecified, an implementation is selected based on the
 availability of management utilities, with "iet" being tried first,
-then "tgt".
+then "tgt", then "lio".
 </longdesc>
 <shortdesc lang="en">iSCSI target daemon implementation</shortdesc>
 <content type="string" default="${OCF_RESKEY_implementation_default}"/>
@@ -256,6 +258,19 @@ iSCSILogicalUnit_start() {
 		    --params ${params// /,} && return $OCF_SUCCESS
 	    fi
 	    ;;
+	lio)
+	    # For lio, we first have to create a target device, then
+	    # add it to the Target Portal Group as an LU.
+	    do_cmd tcm_node --createdev=iblock_0/${OCF_RESOURCE_INSTANCE} \
+		${OCF_RESKEY_path} || return $OCF_ERR_GENERIC
+	    if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
+		do_cmd tcm_node --setunitserial=iblock_0/${OCF_RESOURCE_INSTANCE} \
+		    ${OCF_RESKEY_scsi_sn} || return $OCF_ERR_GENERIC
+	    fi
+	    do_cmd lio_node --addlun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} \
+		${OCF_RESOURCE_INSTANCE} iblock_0/${OCF_RESOURCE_INSTANCE} || return $OCF_ERR_GENERIC
+	    return $OCF_SUCCESS
+	    ;;
     esac
     return $OCF_ERR_GENERIC
 }
@@ -284,6 +299,9 @@ iSCSILogicalUnit_stop() {
 		done
 		return $OCF_SUCCESS
 		;;
+	    lio)
+		do_cmd lio_node --dellun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} || return $OCF_ERR_GENERIC
+		do_cmd tcm_node --freedev=iblock_0/${OCF_RESOURCE_INSTANCE} && return $OCF_SUCCESS
 	esac
     else
 	return $OCF_SUCCESS
@@ -319,6 +337,10 @@ iSCSILogicalUnit_monitor() {
 	    tgtadm --lld iscsi --op show --mode target \
 		| grep -E -q "[[:space:]]+Backing store: ${OCF_RESKEY_path}" && return $OCF_SUCCESS
 	    ;;
+	lio)
+	    configfs_path="/sys/kernel/config/target/iscsi/${OCF_RESKEY_target_iqn}/tpgt_1/lun/lun_${OCF_RESKEY_lun}/${OCF_RESOURCE_INSTANCE}/udev_path"
+	    [ -e ${configfs_path} ] && [ `cat ${configfs_path}` = "${OCF_RESKEY_path}" ] && return $OCF_SUCCESS
+	    ;;
     esac
     
     return $OCF_NOT_RUNNING
@@ -341,6 +363,10 @@ iSCSILogicalUnit_validate() {
 	    ;;
 	tgt)
 	    check_binary tgtadm
+	    ;;
+	lio)
+	    check_binary tcm_node
+	    check_binary lio_node
 	    ;;
 	*)
 	    # and by the way, is the implementation supported?
@@ -402,22 +428,29 @@ iSCSILogicalUnit_validate() {
 
     # Do we have any configuration parameters that the current
     # implementation does not support?
+    local unsupported_params
+    local var
+    local envar
     case $OCF_RESKEY_implementation in
 	iet)
 	    # IET does not support setting the vendor and product ID
 	    # (it always uses "IET" and "VIRTUAL-DISK")
-	    local var
-	    local envar
-	    for var in vendor_id product_id; do
-		envar=OCF_RESKEY_${var}
-		if [ -n "${!envar}" ]; then
-		    ocf_log warn "Configuration parameter \"${var}\"" \
-			"is not supported by the iSCSI implementation" \
-			"and will be ignored."
-		fi
-	    done
+	    unsupported_params="vendor_id product_id"
+	    ;;
+	tgt)
+	    ;;
+	lio)
+	    unsupported_params="scsi_id vendor_id product_id"
 	    ;;
     esac
+    for var in ${unsupported_params}; do
+	envar=OCF_RESKEY_${var}
+	if [ -n "${!envar}" ]; then
+	    ocf_log warn "Configuration parameter \"${var}\"" \
+		"is not supported by the iSCSI implementation" \
+		"and will be ignored."
+	fi
+    done
 
     return $OCF_SUCCESS
 }
