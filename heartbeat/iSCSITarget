@@ -38,8 +38,14 @@ if have_binary ietadm; then
     OCF_RESKEY_implementation_default="iet"
 elif have_binary tgtadm; then
     OCF_RESKEY_implementation_default="tgt"
+elif have_binary lio_node; then
+    OCF_RESKEY_implementation_default="lio"
 fi
 : ${OCF_RESKEY_implementation=${OCF_RESKEY_implementation_default}}
+
+# Listen on 0.0.0.0:3260 by default
+OCF_RESKEY_portals_default="0.0.0.0:3260"
+: ${OCF_RESKEY_portals=${OCF_RESKEY_portals_default}}
 #######################################################################
 
 meta_data() {
@@ -58,10 +64,10 @@ Units (LUs) exported via a daemon that speaks the iSCSI protocol.
 <parameters>
 <parameter name="implementation" required="0" unique="0">
 <longdesc lang="en">
-The iSCSI target daemon implementation. Must be one of "iet" or "tgt".
-If unspecified, an implementation is selected based on the
+The iSCSI target daemon implementation. Must be one of "iet", "tgt",
+or "lio".  If unspecified, an implementation is selected based on the
 availability of management utilities, with "iet" being tried first,
-then "tgt".
+then "tgt", then "lio".
 </longdesc>
 <shortdesc lang="en">iSCSI target daemon implementation</shortdesc>
 <content type="string" default="${OCF_RESKEY_implementation_default}"/>
@@ -82,6 +88,16 @@ The iSCSI target ID. Required for tgt.
 </longdesc>
 <shortdesc lang="en">iSCSI target ID</shortdesc>
 <content type="integer" />
+</parameter>
+
+<parameter name="portals" required="0" unique="0">
+<longdesc lang="en">
+iSCSI network portal addresses. Not supported by all
+implementations. If unset, the default is to create one portal that
+listens on ${OCF_RESKEY_portal_default}.
+</longdesc>
+<shortdesc lang="en">iSCSI portal addresses</shortdesc>
+<content type="string" default="${OCF_RESKEY_portals_default}"/>
 </parameter>
 
 <parameter name="allowed_initiators" required="0" unique="0">
@@ -182,6 +198,7 @@ iSCSITarget_start() {
     local name
     local value
     local initiator
+    local portal
 
     case $OCF_RESKEY_implementation in
 	iet)
@@ -260,6 +277,54 @@ iSCSITarget_start() {
 		    --tid=${tid} \
 		    --user=${OCF_RESKEY_incoming_username} || return $OCF_ERR_GENERIC
 	    fi
+	    return $OCF_SUCCESS
+	    ;;
+	lio)
+	    # lio distinguishes between targets and target portal
+	    # groups (TPGs). We will always create one TPG, with the
+	    # number 1. In lio, creating a network portal
+	    # automatically creates the corresponding target if it
+	    # doesn't already exist.
+	    for portal in ${OCF_RESKEY_portals}; do
+		do_cmd lio_node --addnp ${OCF_RESKEY_iqn} 1 \
+		    ${portal} || return $OCF_ERR_GENERIC
+	    done
+	    # in lio, we can set target parameters by manipulating
+	    # the appropriate configfs entries
+	    for param in ${OCF_RESKEY_additional_parameters}; do
+		name=${param%=*}
+		value=${param#*=}
+		configfs_path="/sys/kernel/config/target/iscsi/${OCF_RESKEY_iqn}/tpgt_1/param/${name}"
+		if [ -e ${configfs_path} ]; then
+		    echo ${value} > ${configfs_path} || return $OCF_ERR_GENERIC
+		else
+		    ocf_log warn "Unsupported iSCSI target parameter ${name}: will be ignored."
+		fi
+	    done
+	    # lio does per-initiator filtering by default. To disable
+	    # this, we need to switch the target to "permissive mode".
+	    if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
+		for initiator in ${OCF_RESKEY_allowed_initiators}; do
+		    do_cmd lio_node --addnodeacl ${OCF_RESKEY_iqn} 1 \
+			${initiator} || return $OCF_ERR_GENERIC
+		done
+	    else
+		do_cmd lio_node --permissive ${OCF_RESKEY_iqn} 1 || return $OCF_ERR_GENERIC
+		# permissive mode enables read-only access by default,
+		# so we need to change that to RW to be in line with
+		# the other implementations.
+		echo 0 > "/sys/kernel/config/target/iscsi/${OCF_RESKEY_iqn}/tpgt_1/attrib/demo_mode_write_protect"
+		if [ `cat /sys/kernel/config/target/iscsi/${OCF_RESKEY_iqn}/tpgt_1/attrib/demo_mode_write_protect` -ne 0 ]; then
+		    ocf_log err "Failed to disable write protection for target ${OCF_RESKEY_iqn}."
+		    return $OCF_ERR_GENERIC
+		fi
+	    fi
+	    # TODO: add CHAP authentication support when it gets added
+	    # back into LIO
+	    do_cmd lio_node --disableauth ${OCF_RESKEY_iqn} 1 || return $OCF_ERR_GENERIC
+	    # Finally, we need to enable the target to allow
+	    # initiators to connect
+	    do_cmd lio_node --enabletpg=${OCF_RESKEY_iqn} 1 || return $OCF_ERR_GENERIC
 	    return $OCF_SUCCESS
 	    ;;
     esac
@@ -368,6 +433,12 @@ iSCSITarget_stop() {
 		# deletion.
 		return $OCF_SUCCESS
 		;;
+	    lio)
+		# In lio, removing a target automatically removes all
+		# associated TPGs, network portals, and LUNs.
+		do_cmd lio_node --deliqn ${OCF_RESKEY_iqn} || return $OCF_ERR_GENERIC
+		return $OCF_SUCCESS
+		;;
 	esac
     else
 	return $OCF_SUCCESS
@@ -383,6 +454,15 @@ iSCSITarget_monitor() {
 	tgt)
 	    tgtadm --lld iscsi --op show --mode target \
 		| grep -Eq "Target [0-9]+: ${OCF_RESKEY_iqn}" && return $OCF_SUCCESS
+	    ;;
+	lio)
+	    # if we have no configfs entry for the target, it's
+	    # definitely stopped
+	    [ -d /sys/kernel/config/target/iscsi/${OCF_RESKEY_iqn} ] || return $OCF_NOT_RUNNING
+	    # if the target is there, but its TPG is not enabled, then
+	    # we also consider it stopped
+	    [ `cat /sys/kernel/config/target/iscsi/${OCF_RESKEY_iqn}/tpgt_1/enable` -eq 1 ] || return $OCF_NOT_RUNNING
+	    return $OCF_SUCCESS
 	    ;;
     esac
     
@@ -416,6 +496,10 @@ iSCSITarget_validate() {
 	tgt)
 	    check_binary tgtadm
 	    ;;
+	lio)
+	    check_binary tcm_node
+	    check_binary lio_node
+	    ;;
 	*)
 	    # and by the way, is the implementation supported?
 	    ocf_log error "Unsupported iSCSI target implementation \"$OCF_RESKEY_implementation\"!"
@@ -434,7 +518,44 @@ iSCSITarget_validate() {
 	tgt)
 	    # tgt is userland only
 	    ;;
+	lio)
+	    # lio needs configfs to be mounted
+	    if ! grep -Eq "^.*/sys/kernel/config[[:space:]]+configfs" /proc/mounts; then
+		ocf_log err "configfs not mounted at /sys/kernel/config -- check if required modules are loaded."
+		return $OCF_ERR_INSTALLED
+	    fi
+	    # check for configfs entries created by target_core_mod
+	    if [ ! -d /sys/kernel/config/target ]; then
+		ocf_log err "/sys/kernel/config/target does not exist or is not a directory -- check if required modules are loaded."
+	    fi
+	    ;;
     esac
+
+    # Do we have any configuration parameters that the current
+    # implementation does not support?
+    local unsupported_params
+    local var
+    local envar
+    case $OCF_RESKEY_implementation in
+	iet|tgt)
+	    # IET and tgt do not support binding a target portal to a
+	    # specific IP address.
+	    unsupported_params="portals"
+	    ;;
+	lio)
+	    # TODO: Remove incoming_username and incoming_password
+	    # from this check when LIO 3.0 gets CHAP authentication
+	    unsupported_params="tid incoming_username incoming_password"
+	    ;;
+    esac
+    for var in ${unsupported_params}; do
+	envar=OCF_RESKEY_${var}
+	if [ -n "${!envar}" ]; then
+	    ocf_log warn "Configuration parameter \"${var}\"" \
+		"is not supported by the iSCSI implementation" \
+		"and will be ignored."
+	fi
+    done
 
     return $OCF_SUCCESS
 }
