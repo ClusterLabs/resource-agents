@@ -85,6 +85,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			SysInfo		\
 			scsi2reservation \
 			sfex		\
+			syslog-ng		\
 			tomcat		\
 			VIPArip		\
 			VirtualDomain	\
