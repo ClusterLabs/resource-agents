@@ -342,7 +342,7 @@ stop_apache() {
         [ $tries -lt 10 ]
       do
         sleep 1
-        kill $ApachePID >/dev/null 2>&1
+        kill $ApachePID >/dev/null 
         ocf_log info "Killing apache PID $ApachePID"
         tries=`expr $tries + 1`
       done
@@ -362,8 +362,8 @@ stop_apache() {
   fi
 
   for sig in SIGTERM SIGHUP SIGKILL ; do
-    if pgrep -f $HTTPD.*$CONFIGFILE >/dev/null 2>&1 ; then
-      pkill -$sig  -f $HTTPD.*$CONFIGFILE >/dev/null 2>&1
+    if pgrep -f $HTTPD.*$CONFIGFILE >/dev/null ; then
+      pkill -$sig  -f $HTTPD.*$CONFIGFILE >/dev/null
       ocf_log info "apache children were signalled ($sig)"
       sleep 1
     else
