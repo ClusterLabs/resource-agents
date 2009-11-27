@@ -366,7 +366,7 @@ mysql_start() {
     #chown -R $OCF_RESKEY_user $OCF_RESKEY_datadir
     #chgrp -R $OCF_RESKEY_group $OCF_RESKEY_datadir
 
-    ${OCF_RESKEY_binary}  --defaults-file=$OCF_RESKEY_config --pid-file=$OCF_RESKEY_pid --socket=$OCF_RESKEY_socket --datadir=$OCF_RESKEY_datadir --user=$OCF_RESKEY_user $OCF_RESKEY_additional_parameters >/dev/null 2>&1 &
+    ${OCF_RESKEY_binary}  --defaults-file=$OCF_RESKEY_config --pid-file=$OCF_RESKEY_pid --socket=$OCF_RESKEY_socket --datadir=$OCF_RESKEY_datadir --user=$OCF_RESKEY_user $OCF_RESKEY_additional_parameters >/dev/null &
     rc=$?
     
     if [ $rc != 0 ]; then
@@ -396,11 +396,12 @@ mysql_start() {
 
 mysql_stop() {
     if [ ! -f $OCF_RESKEY_pid ]; then
+	ocf_log info "MySQL is not running"
         return $OCF_SUCCESS
     fi
 
     pid=`cat $OCF_RESKEY_pid 2> /dev/null `
-    /bin/kill $pid > /dev/null 2>&1
+    /bin/kill $pid > /dev/null 
     rc=$?
     if [ $rc != 0 ]; then
         ocf_log err "MySQL couldn't be stopped"
@@ -415,6 +416,7 @@ mysql_stop() {
 	    stop_wait=0
 	fi
         sleep 1
+	ocf_log debug "MySQL still hasn't stopped yet. Waiting..."
     done
 
     ocf_log info "MySQL stopped";
