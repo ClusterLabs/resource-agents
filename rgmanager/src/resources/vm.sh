@@ -931,7 +931,23 @@ case $1 in
 	migrate)
 		validate_all || exit $OCF_ERR_ARGS
 		migrate $2 # Send VM to this node
-		exit $?
+		rv=$?
+		if [ $rv -eq $OCF_ERR_GENERIC ]; then
+			# Catch-all: If migration failed with
+			# an unhandled error, do a status check
+			# to see if the VM is really dead.
+			#
+			# If the VM is still in good health, return
+			# a value to rgmanager to indicate the 
+			# non-critical error
+			#
+			# XXX Is OCF_ERR_CONFIGURED the right value?
+			do_status > /dev/null
+			if [ $? -eq 0 ]; then
+				rv=$OCF_ERR_CONFIGURED
+			fi
+		fi
+		exit $rv
 		;;
 	reload)
 		exit 0
