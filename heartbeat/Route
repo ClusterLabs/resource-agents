@@ -226,20 +226,26 @@ route_validate() {
 	    return $OCF_ERR_INSTALLED
 	fi
     fi
-    # If a source address has been configured, is it available on this system?
-    if [ -n "${OCF_RESKEY_source}" ]; then
-	if ! ip address show | grep -w ${OCF_RESKEY_source} >/dev/null 2>&1; then
-	    ocf_log error "Source address ${OCF_RESKEY_source} appears not to be available on this system."
+
+    # The following tests must return $OCF_ERR_INSTALLED, but only if
+    # the resource is actually running (i.e., not during probes)
+    if ! ocf_is_probe; then
+        # If a source address has been configured, is it available on
+        # this system?
+	if [ -n "${OCF_RESKEY_source}" ]; then
+	    if ! ip address show | grep -w ${OCF_RESKEY_source} >/dev/null 2>&1; then
+		ocf_log error "Source address ${OCF_RESKEY_source} appears not to be available on this system."
 	    # same reason as with _device:
-	    return $OCF_ERR_INSTALLED
+		return $OCF_ERR_INSTALLED
+	    fi
 	fi
-    fi
-    # If a gateway address has been configured, is it reachable?
-    if [ -n "${OCF_RESKEY_gateway}" ]; then
-	if ! ip route get ${OCF_RESKEY_gateway} >/dev/null 2>&1; then
-	    ocf_log error "Gateway address ${OCF_RESKEY_gateway} is unreachable."
+        # If a gateway address has been configured, is it reachable?
+	if [ -n "${OCF_RESKEY_gateway}" ]; then
+	    if ! ip route get ${OCF_RESKEY_gateway} >/dev/null 2>&1; then
+		ocf_log error "Gateway address ${OCF_RESKEY_gateway} is unreachable."
 	    # same reason as with _device:
-	    return $OCF_ERR_INSTALLED
+		return $OCF_ERR_INSTALLED
+	    fi
 	fi
     fi
     return $OCF_SUCCESS
