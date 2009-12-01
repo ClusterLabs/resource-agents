@@ -42,7 +42,7 @@ meta_data() {
 Resource script for WinPopup. It sends WinPopups message to a 
 sysadmin's workstation whenever a takeover occurs.
 </longdesc>
-<shortdesc lang="en">WinPopup resource agent</shortdesc>
+<shortdesc lang="en">Sends an SMB notification message to selected hosts</shortdesc>
 
 <parameters>
 <parameter name="hostfile" unique="0" required="1">

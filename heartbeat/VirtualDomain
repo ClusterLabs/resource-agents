@@ -37,7 +37,7 @@ meta_data() {
 Resource agent for a virtual domain (a.k.a. domU, virtual machine, 
 virtual environment etc., depending on context) managed by libvirtd.
 </longdesc>
-<shortdesc lang="en">Manages virtual domains</shortdesc>
+<shortdesc lang="en">Manages virtual domains through the libvirt virtualization framework</shortdesc>
 
 <parameters>
 

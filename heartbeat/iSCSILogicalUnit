@@ -66,10 +66,10 @@ meta_data() {
 <version>0.9</version>
 
 <longdesc lang="en">
-Manages iSCSI targets. An iSCSI target is a collection of SCSI Logical
-Units (LUs) exported via a daemon that speaks the iSCSI protocol.
+Manages iSCSI Logical Unit. An iSCSI Logical unit is a subdivision of 
+an SCSI Target, exported via a daemon that speaks the iSCSI protocol.
 </longdesc>
-<shortdesc lang="en">iSCSI target export agent</shortdesc>
+<shortdesc lang="en">Manages iSCSI Logical Units (LUs)</shortdesc>
 
 <parameters>
 <parameter name="implementation" required="0" unique="0">

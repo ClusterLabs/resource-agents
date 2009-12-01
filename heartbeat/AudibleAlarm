@@ -43,7 +43,7 @@ meta_data() {
 Resource script for AudibleAlarm. It sets an audible alarm running by beeping 
 at a set interval. 
 </longdesc>
-<shortdesc lang="en">AudibleAlarm resource agent</shortdesc>
+<shortdesc lang="en">Emits audible beeps at a configurable interval</shortdesc>
 
 <parameters>
 <parameter name="nodelist" unique="0">

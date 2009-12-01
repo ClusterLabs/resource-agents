@@ -65,7 +65,7 @@ meta_data() {
 Resource script for oracle. Manages an Oracle Database instance
 as an HA resource.
 </longdesc>
-<shortdesc lang="en">oracle resource agent</shortdesc>
+<shortdesc lang="en">Manages an Oracle Database instance</shortdesc>
 
 <parameters>
 

@@ -61,7 +61,7 @@ meta_data() {
 <longdesc lang="en">
 Resource script for db2. It manages a DB2 Universal Database instance as an HA resource.
 </longdesc>
-<shortdesc lang="en">db2 resource agent</shortdesc>
+<shortdesc lang="en">Manages an IBM DB2 Universal Database instance</shortdesc>
 
 <parameters>
 <parameter name="instance" unique="0" required="1">

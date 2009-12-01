@@ -45,7 +45,7 @@ meta_data() {
 This is a pingd Resource Agent.
 It records (in the CIB) the current number of ping nodes a node can connect to.
 </longdesc>
-<shortdesc lang="en">pingd resource agent</shortdesc>
+<shortdesc lang="en">Monitors connectivity to specific hosts or IP addresses ("ping nodes")</shortdesc>
 
 <parameters>
 

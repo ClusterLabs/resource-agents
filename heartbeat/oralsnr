@@ -63,7 +63,7 @@ meta_data() {
 Resource script for Oracle Listener. It manages an
 Oracle Listener instance as an HA resource.
 </longdesc>
-<shortdesc lang="en">oralsnr resource agent</shortdesc>
+<shortdesc lang="en">Manages an Oracle TNS listener</shortdesc>
 
 <parameters>
 

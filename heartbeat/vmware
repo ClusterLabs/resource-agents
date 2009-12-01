@@ -285,7 +285,7 @@ meta_data() {
 <longdesc lang="en">
 OCF compliant script to control vmware server 2.0 virtual machines.
 </longdesc>
-<shortdesc lang="en">VMWare server 2.0 resource agent</shortdesc>
+<shortdesc lang="en">Manages VMWare Server 2.0 virtual machines</shortdesc>
 
 <parameters>
 <parameter name="vmxpath" unique="0" required="1">

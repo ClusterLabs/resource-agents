@@ -72,7 +72,7 @@ Para-virtualized guests can also be migrated by enabling the
 meta_attribute allow-migrate.
 
 </longdesc>
-<shortdesc lang="en">Manages Xen DomUs</shortdesc>
+<shortdesc lang="en">Manages Xen unprivileged domains (DomUs)</shortdesc>
 
 <parameters>
 

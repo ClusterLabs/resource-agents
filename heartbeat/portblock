@@ -72,7 +72,7 @@ meta_data() {
 Resource script for portblock. It is used to temporarily block ports 
 using iptables. 
 </longdesc>
-<shortdesc lang="en">portblock resource agent</shortdesc>
+<shortdesc lang="en">Block and unblocks access to TCP and UDP ports</shortdesc>
 
 <parameters>
 <parameter name="protocol" unique="0" required="1">

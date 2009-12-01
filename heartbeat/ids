@@ -122,7 +122,7 @@ ids_meta_data() {
 <longdesc lang="en">
 OCF resource agent to manage an IBM Informix Dynamic Server (IDS) instance as an High-Availability resource.
 </longdesc>
-<shortdesc lang="en">OCF resource agent for the IBM's database server called Informix Dynamic Server (IDS)</shortdesc>
+<shortdesc lang="en">Manages an Informix Dynamic Server (IDS) instance</shortdesc>
 
 
 <parameters>

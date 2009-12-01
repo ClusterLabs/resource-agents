@@ -88,7 +88,7 @@ In addition, it can implement Cluster Alias IP functionality
 if invoked as a clone resource.
 </longdesc>
 
-<shortdesc lang="en">Manages virtual IPv4 addresses</shortdesc>
+<shortdesc lang="en">Manages virtual IPv4 addresses (Linux specific version)</shortdesc>
 
 <parameters>
 <parameter name="ip" unique="1" required="1">

@@ -77,7 +77,7 @@ meta_data() {
 Resource script for IPsrcaddr. It manages the preferred source address
 modification. 
 </longdesc>
-<shortdesc lang="en">IPsrcaddr resource agent</shortdesc>
+<shortdesc lang="en">Manages the preferred source address for outgoing IP packets</shortdesc>
 
 <parameters>
 <parameter name="ipaddress" unique="0" required="1">

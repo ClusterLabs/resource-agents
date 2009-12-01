@@ -52,7 +52,7 @@ meta_data() {
 This is a ClusterMon Resource Agent.
 It outputs current cluster status to the html.
 </longdesc>
-<shortdesc lang="en">ClusterMon resource agent</shortdesc>
+<shortdesc lang="en">Runs crm_mon in the background, recording the cluster status to an HTML file</shortdesc>
 
 <parameters>
 

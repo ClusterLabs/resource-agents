@@ -879,7 +879,7 @@ meta_data_addr6(void)
 	"   This script manages IPv6 alias IPv6 addresses,It can add an IP6\n"
 	"   alias, or remove one.\n"
 	"  </longdesc>\n"
-	"  <shortdesc lang=\"en\">manages IPv6 alias</shortdesc>\n"
+	"  <shortdesc lang=\"en\">Manages IPv6 aliases</shortdesc>\n"
 	"  <parameters>\n"
 	"    <parameter name=\"ipv6addr\" unique=\"0\" required=\"1\">\n"
 	"      <longdesc lang=\"en\">\n"

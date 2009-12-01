@@ -114,7 +114,7 @@ meta_data() {
 <longdesc lang="en">
 Resource script for ServeRAID. It enables/disables shared ServeRAID merge groups.
 </longdesc>
-<shortdesc lang="en">ServeRAID resource agent</shortdesc>
+<shortdesc lang="en">Enables and disables shared ServeRAID merge groups</shortdesc>
 
 <parameters>
 <parameter name="serveraid" unique="0" required="1">

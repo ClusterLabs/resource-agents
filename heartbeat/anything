@@ -206,7 +206,7 @@ cat <<END
 <longdesc lang="en">
 This is a generic OCF RA to manage almost anything.
 </longdesc>
-<shortdesc lang="en">anything</shortdesc>
+<shortdesc lang="en">Manages an arbitrary service</shortdesc>
 
 <parameters>
 <parameter name="binfile" required="1" unique="1">

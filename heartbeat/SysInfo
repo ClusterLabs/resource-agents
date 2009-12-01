@@ -74,7 +74,7 @@ Units:
    cpu_speed (Darwin): Ghz
 
 </longdesc>
-<shortdesc lang="en">SysInfo resource agent</shortdesc>
+<shortdesc lang="en">Records various node attributes in the CIB</shortdesc>
 
 <parameters>
 

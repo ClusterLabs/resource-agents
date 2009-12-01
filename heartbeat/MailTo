@@ -50,7 +50,7 @@ meta_data() {
 This is a resource agent for MailTo. It sends email to a sysadmin whenever 
 a takeover occurs.
 </longdesc>
-<shortdesc lang="en">MailTo resource agent</shortdesc>
+<shortdesc lang="en">Notifies recipients by email in the event of resource takeover</shortdesc>
 
 <parameters>
 <parameter name="email" unique="0" required="1">

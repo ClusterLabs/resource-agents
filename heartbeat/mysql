@@ -121,7 +121,7 @@ meta_data() {
 Resource script for MySQL. 
 It manages a MySQL Database instance as an HA resource.
 </longdesc>
-<shortdesc lang="en">MySQL resource agent</shortdesc>
+<shortdesc lang="en">Manages a MySQL database instance</shortdesc>
 
 <parameters>
 

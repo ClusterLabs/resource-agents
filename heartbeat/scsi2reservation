@@ -32,9 +32,7 @@ scsi-2 reservation
 The scsi_reserve is a command from scsires package. 
 It helps to issue SCSI-2 reservation on SCSI devices.
 </longdesc>
-<shortdesc lang="en">
-scsi_reserve command
-</shortdesc>
+<shortdesc lang="en">Manages exclusive access to shared storage media thrugh SCSI-2 reservations</shortdesc>
 <content type="string" default="/usr/sbin/scsi_reserve" />
 </parameter>
 

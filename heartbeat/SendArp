@@ -77,7 +77,7 @@ sendarp_meta_data() {
 <longdesc lang="en">
 This script send out gratuitous Arp for an IP address
 </longdesc>
-<shortdesc lang="en">SendArp resource agent</shortdesc>
+<shortdesc lang="en">Broadcasts unsolicited ARP announcements</shortdesc>
 
 <parameters>
 <parameter name="ip" unique="0" required="1">

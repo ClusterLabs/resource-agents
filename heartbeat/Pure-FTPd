@@ -49,7 +49,7 @@ meta_data() {
 <longdesc lang="en">
 This script manages Pure-FTPd in an Active-Passive setup
 </longdesc>
-<shortdesc lang="en">OCF Resource Agent compliant FTP script.</shortdesc>
+<shortdesc lang="en">Manages a Pure-FTPd FTP server instance</shortdesc>
 
 <parameters>
 

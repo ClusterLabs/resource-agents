@@ -44,7 +44,7 @@ meta_data() {
 <longdesc lang="en">
 This is a searchd Resource Agent. It manages the Sphinx Search Daemon.
 </longdesc>
-<shortdesc lang="en">searchd resource agent</shortdesc>
+<shortdesc lang="en">Manages the Sphinx search daemon.</shortdesc>
 
 <parameters>
 

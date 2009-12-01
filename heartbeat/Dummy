@@ -46,7 +46,7 @@ This is a Dummy Resource Agent. It does absolutely nothing except
 keep track of whether its running or not.
 Its purpose in life is for testing and to serve as a template for RA writers.
 </longdesc>
-<shortdesc lang="en">Dummy resource agent</shortdesc>
+<shortdesc lang="en">Example stateless resource agent</shortdesc>
 
 <parameters>
 <parameter name="state" unique="1">

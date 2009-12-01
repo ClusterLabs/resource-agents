@@ -90,7 +90,7 @@ take even longer to start on installations with IDM and LDAP if the monitoring
 of IDM and/or LDAP is enabled, as the start command will wait for IDM and LDAP
 to be available.
 </longdesc>
-<shortdesc lang="en">eDirectory resource agent</shortdesc>
+<shortdesc lang="en">Manages a Novell eDirectory directory server</shortdesc>
 <parameters>
 <parameter name="eDir_config_file" unique="1" required="1">
 <longdesc lang="en">

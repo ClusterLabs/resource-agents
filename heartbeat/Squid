@@ -73,7 +73,7 @@ metadata_squid()
 The resource agent of Squid.
 This manages a Squid instance as an HA resource.
 </longdesc>
-<shortdesc lang="en">The RA of Squid</shortdesc>
+<shortdesc lang="en">Manages a Squid proxy server instance</shortdesc>
 
 <parameters>
 

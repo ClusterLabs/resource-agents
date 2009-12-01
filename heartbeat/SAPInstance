@@ -71,7 +71,7 @@ sapinstance_meta_data() {
 <longdesc lang="en">
 Resource script for SAP. It manages a SAP Instance as an HA resource.
 </longdesc>
-<shortdesc lang="en">SAP instance resource agent</shortdesc>
+<shortdesc lang="en">Manages a SAP instance</shortdesc>
 
 <parameters>
  <parameter name="InstanceName" unique="1" required="1">

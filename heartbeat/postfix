@@ -62,7 +62,7 @@ meta_data() {
 This script manages Postfix as an OCF resource in a high-availability setup.
 Tested with Postfix 2.5.5 on Debian 5.0.
 </longdesc>
-<shortdesc lang="en">OCF Resource Agent compliant Postfix script.</shortdesc>
+<shortdesc lang="en">Manages a highly available Postfix mail server instance</shortdesc>
 
 <parameters>
 

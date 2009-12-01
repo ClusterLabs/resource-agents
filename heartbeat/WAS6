@@ -93,7 +93,7 @@ meta_data() {
 Resource script for WAS6. It manages a Websphere Application Server (WAS6) as
 an HA resource.
 </longdesc>
-<shortdesc lang="en">WAS6 resource agent</shortdesc>
+<shortdesc lang="en">Manages a WebSphere Application Server 6 instance</shortdesc>
 
 <parameters>
 <parameter name="profile" unique="0" required="1">

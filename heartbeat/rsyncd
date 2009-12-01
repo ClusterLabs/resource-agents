@@ -46,7 +46,7 @@ cat <<END
 <longdesc lang="en">
 This script manages rsync daemon
 </longdesc>
-<shortdesc lang="en">OCF Resource Agent compliant rsync daemon script.</shortdesc>
+<shortdesc lang="en">Manages an rsync daemon</shortdesc>
 
 <parameters>
 

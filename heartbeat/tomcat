@@ -255,7 +255,7 @@ metadata_tomcat()
 <longdesc lang="en">
 Resource script for tomcat. It manages a Tomcat instance as an HA resource.
 </longdesc>
-<shortdesc lang="en">tomcat resource agent</shortdesc>
+<shortdesc lang="en">Manages a Tomcat servlet environment instance</shortdesc>
 
 <parameters>
 

@@ -64,7 +64,7 @@ meta_data() {
 Resource script for ICP. It Manages an ICP Vortex clustered host drive as an 
 HA resource. 
 </longdesc>
-<shortdesc lang="en">ICP resource agent</shortdesc>
+<shortdesc lang="en">Manages an ICP Vortex clustered host drive</shortdesc>
 
 <parameters>
 <parameter name="driveid" unique="0" required="1">

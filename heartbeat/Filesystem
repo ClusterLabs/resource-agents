@@ -102,7 +102,7 @@ read-only monitoring (depth=10), export with "no_root_squash" on
 your NFS server, or grant world write permissions on the
 directory where the status file is to be placed.
 </longdesc>
-<shortdesc lang="en">Filesystem resource agent</shortdesc>
+<shortdesc lang="en">Manages filesystem mounts</shortdesc>
 
 <parameters>
 <parameter name="device" required="1">

@@ -47,7 +47,7 @@ Virtual IP Address by RIP2 protocol.
 This script manages IP alias in different subnet with quagga/ripd.
 It can add an IP alias, or remove one.
 </longdesc>
-<shortdesc lang="en">Virtual IP Address by RIP2 protocol</shortdesc>
+<shortdesc lang="en">Manages a virtual IP address through RIP2</shortdesc>
 
 <parameters>
 

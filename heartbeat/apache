@@ -437,7 +437,7 @@ See the statusurl and testregex attributes for more details.
 
 See also http://httpd.apache.org/
 </longdesc>
-<shortdesc lang="en">Apache web server</shortdesc>
+<shortdesc lang="en">Manages an Apache web server instance</shortdesc>
 
 <parameters>
 <parameter name="configfile" required="1" unique="1">

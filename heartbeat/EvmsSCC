@@ -64,7 +64,7 @@ meta_data() {
 <longdesc lang="en">
 Resource script for EVMS shared cluster container. It runs evms_activate on one node in the cluster.
 </longdesc>
-<shortdesc lang="en">EVMS SCC resource agent</shortdesc>
+<shortdesc lang="en">Manages EVMS Shared Cluster Containers (SCCs)</shortdesc>
 
 <actions>
 <action name="start" timeout="60" />

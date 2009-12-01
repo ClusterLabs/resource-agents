@@ -73,7 +73,7 @@ meta_data()
     a proper OpenVZ installation including a recent vzctl util.
   </longdesc>
 
-  <shortdesc lang="en">OpenVZ VE resource agent</shortdesc>
+  <shortdesc lang="en">Manages an OpenVZ Virtual Environment (VE)</shortdesc>
 
   <parameters>
     <parameter name="veid" unique="0" required="1">

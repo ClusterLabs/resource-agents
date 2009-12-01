@@ -83,7 +83,7 @@ meta_data() {
 This script manages MySQL Proxy as an OCF resource in a high-availability setup.
 Tested with MySQL Proxy 0.7.0 on Debian 5.0.
 </longdesc>
-<shortdesc lang="en">OCF Resource Agent compliant MySQL Proxy script.</shortdesc>
+<shortdesc lang="en">Manages a MySQL Proxy daemon</shortdesc>
 
 <parameters>
 

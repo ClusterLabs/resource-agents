@@ -42,7 +42,7 @@ only ones enabled, you should specify the -stayalive option for
 xinetd or it will exit on Heartbeat stop. Alternatively, you may
 enable some internal service such as echo.
 </longdesc>
-<shortdesc lang="en">Xinetd resource agent</shortdesc>
+<shortdesc lang="en">Manages an Xinetd superserver instance</shortdesc>
 
 <parameters>
 <parameter name="service" unique="0" required="1">

@@ -42,7 +42,7 @@ meta_data() {
 <longdesc lang="en">
 This is a Evmsd Resource Agent.
 </longdesc>
-<shortdesc lang="en">Evmsd resource agent</shortdesc>
+<shortdesc lang="en">Controls clustered EVMS volume management</shortdesc>
 
 <actions>
 <action name="start"        timeout="90" />

@@ -205,7 +205,7 @@ metadata_jboss()
 <longdesc lang="en">
 Resource script for Jboss. It manages a Jboss instance as an HA resource.
 </longdesc>
-<shortdesc lang="en">jboss resource agent</shortdesc>
+<shortdesc lang="en">Manages a JBoss application server instance</shortdesc>
 
 <parameters>
 

@@ -54,7 +54,7 @@ meta_data() {
 <longdesc lang="en">
 Resource script for PostgreSQL. It manages a PostgreSQL as an HA resource.
 </longdesc>
-<shortdesc lang="en">pgsql resource agent</shortdesc>
+<shortdesc lang="en">Manages a PostgreSQL database instance</shortdesc>
 
 <parameters>
 <parameter name="pgctl" unique="0" required="0">

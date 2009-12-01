@@ -62,8 +62,7 @@ meta_data() {
 <longdesc lang="en">
 Resource script for SF-EX. It manages a shared storage medium exclusively .
 </longdesc>
-<shortdesc lang="en">SF-EX resource agent</shortdesc>
-
+<shortdesc lang="en">Manages exclusive acess to shared storage using Shared Disk File EXclusiveness (SF-EX)</shortdesc>
 <parameters>
 <parameter name="device" unique="0" required="1">
 <longdesc lang="en">

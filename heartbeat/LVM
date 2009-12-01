@@ -62,7 +62,7 @@ meta_data() {
 Resource script for LVM. It manages an  Linux Volume Manager volume (LVM) 
 as an HA resource. 
 </longdesc>
-<shortdesc lang="en">LVM resource agent</shortdesc>
+<shortdesc lang="en">Controls the availability of an LVM Volume Group</shortdesc>
 
 <parameters>
 <parameter name="volgrpname" unique="0" required="1">

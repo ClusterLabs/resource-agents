@@ -72,7 +72,7 @@ meta_data() {
 This script manages IP alias IP addresses
 It can add an IP alias, or remove one.
 </longdesc>
-<shortdesc lang="en">Manages virtual IPv4 addresses</shortdesc>
+<shortdesc lang="en">Manages virtual IPv4 addresses (portable version)</shortdesc>
 
 <parameters>
 <parameter name="ip" unique="1" required="1">

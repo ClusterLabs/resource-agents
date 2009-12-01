@@ -74,7 +74,7 @@ meta_data() {
 <longdesc lang="en">
 Resource script for SAP databases. It manages a SAP database of any type as an HA resource.
 </longdesc>
-<shortdesc lang="en">SAP database resource agent</shortdesc>
+<shortdesc lang="en">Manages any SAP database (based on Oracle, MaxDB, or DB2)</shortdesc>
 
 <parameters>
  <parameter name="SID" unique="1" required="1">

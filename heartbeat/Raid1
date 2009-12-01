@@ -119,7 +119,7 @@ meta_data() {
 Resource script for RAID1. It manages a software Raid1 device on a shared 
 storage medium. 
 </longdesc>
-<shortdesc lang="en">RAID1 resource agent</shortdesc>
+<shortdesc lang="en">Manages a software RAID1 device on shared storage</shortdesc>
 
 <parameters>
 <parameter name="raidconf" unique="0" required="1">
