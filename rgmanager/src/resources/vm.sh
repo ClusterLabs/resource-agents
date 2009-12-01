@@ -812,16 +812,10 @@ virsh_migrate()
 		ocf_log err "$err"
 
 		if [ "$err" != "${err/does not exist/}" ]; then
-			return $OCF_NOT_RUNNING
-		fi
-		if [ "$err" != "${err/Domain not found/}" ]; then
-			return $OCF_NOT_RUNNING
-		fi
-		if [ "$err" != "${err/Connection refused/}" ]; then
 			return $OCF_ERR_CONFIGURED
 		fi
-		if [ "$err" != "${err/unable to start guest/}" ]; then
-			return $OCF_NOT_RUNNING
+		if [ "$err" != "${err/Domain not found/}" ]; then
+			return $OCF_ERR_CONFIGURED
 		fi
 
 		return $OCF_ERR_GENERIC
@@ -940,11 +934,9 @@ case $1 in
 			# If the VM is still in good health, return
 			# a value to rgmanager to indicate the 
 			# non-critical error
-			#
-			# XXX Is OCF_ERR_CONFIGURED the right value?
 			do_status > /dev/null
 			if [ $? -eq 0 ]; then
-				rv=$OCF_ERR_CONFIGURED
+				rv=$OCF_NOT_RUNNING
 			fi
 		fi
 		exit $rv
