@@ -132,7 +132,7 @@ AC_ARG_WITH(ocf-root,
 
 AC_ARG_ENABLE([libnet],
  [  --enable-libnet 	Use libnet for ARP based funcationality, [default=try]], 
- [enable_libnet=$withval], [enable_libnet=try])
+ [enable_libnet="$enableval"], [enable_libnet=try])
 
 dnl ===============================================
 dnl General Processing
