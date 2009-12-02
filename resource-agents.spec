@@ -60,6 +60,7 @@ Group:          Productivity/Clustering/HA
 Requires:       %{SSLeay} perl-libwww-perl ipvsadm
 Provides:	heartbeat-ldirectord
 Obsoletes:	heartbeat-ldirectord
+Requires:	perl-MailTools
 %if 0%{?suse_version}
 Requires:       logrotate
 %endif
