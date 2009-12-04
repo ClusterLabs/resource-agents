@@ -330,7 +330,11 @@ ocf_release_lock_on_exit() {
 # returns true if the CRM is currently running a probe. A probe is
 # defined as a monitor operation with a monitoring interval of zero.
 ocf_is_probe() {
-    return [ "$__OCF_ACTION" = "monitor" -a $OCF_RESKEY_CRM_meta_interval -eq 0 ]
+    if [ "$__OCF_ACTION" = "monitor" -a $OCF_RESKEY_CRM_meta_interval -eq 0 ]; then
+	true
+    else
+	false
+    fi
 }
 
 # usage: dirname DIR
