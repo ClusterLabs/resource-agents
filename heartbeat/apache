@@ -112,7 +112,7 @@ apachecat() {
 	awk '
 	function procline() {
 		split($0,a);
-		if( a[1]=="Include" ) {
+		if( a[1]~/^[Ii]nclude$/ ) {
 			procinclude(a[2]);
 		} else {
 			if( a[1]=="ServerRoot" ) {
