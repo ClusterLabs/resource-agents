@@ -46,7 +46,8 @@
 # does something and then exits.
 
 # Initialization:
-. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
 
 getpid() {
         grep -o '[0-9]*' $1

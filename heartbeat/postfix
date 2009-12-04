@@ -39,7 +39,8 @@
 
 # Initialization:
 
-. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
 
 : ${OCF_RESKEY_binary="/usr/sbin/postfix"}
 : ${OCF_RESKEY_config_dir=""}

@@ -47,9 +47,11 @@ if [ -z "$OCF_ROOT" ]; then
     : ${OCF_ROOT=@OCF_ROOT_DIR@}
 fi
 
-. ${OCF_ROOT}/resource.d/heartbeat/.ocf-binaries
-. ${OCF_ROOT}/resource.d/heartbeat/.ocf-returncodes
-. ${OCF_ROOT}/resource.d/heartbeat/.ocf-directories
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
+
+. ${OCF_FUNCTIONS_DIR}/.ocf-binaries
+. ${OCF_FUNCTIONS_DIR}/.ocf-returncodes
+. ${OCF_FUNCTIONS_DIR}/.ocf-directories
 
 ocf_is_root() {
 	case `id` in

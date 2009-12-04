@@ -37,7 +37,8 @@
 if [ -n "$OCF_DEBUG_LIBRARY" ]; then
 	. $OCF_DEBUG_LIBRARY
 else
-	. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+	: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
 fi
 
 #######################################################################
