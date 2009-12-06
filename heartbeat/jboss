@@ -338,6 +338,11 @@ PSTRING="${OCF_RESKEY_pstring-java -Dprogram.name=run.sh}"
 RUN_OPTS="${OCF_RESKEY_run_opts--c default -l lpg4j}"
 SHUTDOWN_OPTS="${OCF_RESKEY_shutdown_opts--s 127.0.0.1:1099}"
 
+if [ "$COMMAND" = "meta-data" ]; then
+	metadata_jboss
+	exit $OCF_SUCCESS
+fi
+
 # test if these two are set and if directories exist and if the
 # required scripts/binaries exist; use OCF_ERR_INSTALLED
 JAVA_HOME="${OCF_RESKEY_java_home-${JAVA_HOME}}"
@@ -348,7 +353,6 @@ if [ ! -d "$JAVA_HOME" -o ! -d "$JBOSS_HOME" ]; then
 		stop)		exit	$OCF_SUCCESS;;
 		monitor)	exit	$OCF_NOT_RUNNING;;
 		status)		exit	$LSB_STATUS_STOPPED;;
-		meta-data)	metadata_jboss;;
 	esac
 	ocf_log err "JAVA_HOME or JBOSS_HOME does not exist."
 	exit $OCF_ERR_INSTALLED
