@@ -475,6 +475,9 @@ AC_SUBST(POWEROFF_OPTIONS)
 AC_DEFINE_UNQUOTED(POWEROFF_CMD, "$POWEROFF_CMD", path to the poweroff command)
 AC_DEFINE_UNQUOTED(POWEROFF_OPTIONS, "$POWEROFF_OPTIONS", poweroff options)
 
+AC_PATH_PROGS(XSLTPROC, xsltproc)
+AC_SUBST(XSLTPROC)
+
 dnl ========================================================================
 dnl Functions
 dnl ========================================================================
@@ -742,6 +745,7 @@ ldirectord/ldirectord   					\
 	ldirectord/logrotate.d/Makefile				\
 	ldirectord/OCF/Makefile					\
 	ldirectord/OCF/ldirectord				\
+doc/Makefile							\
 		)
 
 dnl Now process the entire list of files added by previous 
