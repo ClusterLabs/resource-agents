@@ -135,7 +135,7 @@ ocf_heartbeat_%.xml: metadata-%.xml $(REFENTRY_STYLESHEET)
 	--output $@ \
 	$(REFENTRY_STYLESHEET) $<
 
-ocf_resource_agents.xml: $(xmlfiles)
+ocf_resource_agents.xml: $(xmlfiles) mkappendix.sh
 	./mkappendix.sh $(xmlfiles) > $@
 
 %.html: %.xml
