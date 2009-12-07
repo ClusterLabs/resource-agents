@@ -35,7 +35,6 @@
 #   OCF_RESKEY_log
 #   OCF_RESKEY_pid
 #   OCF_RESKEY_socket
-
 #######################################################################
 # Initialization:
 
@@ -409,16 +408,26 @@ mysql_stop() {
 	return $OCF_ERR_GENERIC
     fi
 
-    stop_wait=1
-    while [ $stop_wait = 1 ]; do
+	# stop waiting
+	shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
+	count=0
+	while [ $count -lt $shutdown_timeout ]
+	do
+		mysql_status
+		rc=$?
+		if [ $rc = $OCF_NOT_RUNNING ]; then
+			break
+		fi
+		count=`expr $count + 1`
+		sleep 1
+		ocf_log debug "MySQL still hasn't stopped yet. Waiting..."
+	done
+
 	mysql_status
-	rc=$?
-	if [ $rc = $OCF_NOT_RUNNING ]; then
-	    stop_wait=0
+	if [ $? != $OCF_NOT_RUNNING ]; then
+		ocf_log info "MySQL failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL..."
+		/bin/kill -KILL $pid > /dev/null
 	fi
-        sleep 1
-	ocf_log debug "MySQL still hasn't stopped yet. Waiting..."
-    done
 
     ocf_log info "MySQL stopped";
     rm -f /var/lock/subsys/mysqld
