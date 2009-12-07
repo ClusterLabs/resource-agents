@@ -1,0 +1,314 @@
+#!/bin/sh
+#
+#             OCF Resource Agent for managing CTDB
+#
+# Copyright (c) 2009 Novell Inc., Tim Serong
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+# USAGE:
+#
+# 1) Configure shared filesysem (e.g. OCFS2)
+# 2) Make directories for CTDB lock and Samba state on the shared
+#    filesystem:
+#
+#    # mkdir -p /shared-fs/samba/private
+#
+# 3) Create /etc/ctdb/nodes on all nodes, containing a list of
+#    the private IP addresses of each node in the cluster, e.g.:
+#
+#    # cat /etc/ctdb/nodes
+#    192.168.101.14
+#    192.168.101.15
+#
+# 4) Set the following options in /etc/sysconfig/ctdb on all nodes:
+#
+#    CTDB_MANAGES_SAMBA=yes
+#    CTDB_MANAGES_WINBIND=yes
+#    CTDB_MANAGES_NFS=no
+#    CTDB_MANAGES_VSFTPD=no
+#    CTDB_MANAGES_ISCSI=no
+#    CTDB_MANAGES_HTTPD=no
+#    CTDB_SOCKET=/tmp/ctdb.socket
+#
+# 5) Set the following options in /etc/samba/smb.conf on all nodes:
+#
+#     [global]
+#     passdb backend = tdbsam
+#     clustering = yes
+#     idmap backend = tdb2
+#     private dir = /shared-fs/samba/private
+#     ctdb socket = /tmp/ctdb.socket
+#
+# 6) Add CTDB to the cluster (assume shared FS is named fs-clone):
+#
+#    # crm configure
+#    # primitive ctdb ocf:heartbeat:CTDB params \
+#      lockfile="/shared-fs/samba/ctdb.lock" want
+#    # clone ctdb-clone ctdb \
+#      meta globally-unique="false" interleave="true"
+#    # colocation ctdb-with-fs inf: ctdb-clone fs-clone
+#    # order start-ctdb-after-fs inf: fs-clone ctdb-clone
+#    # commit
+#
+#
+# TODO:
+# - Verify timeouts are sane
+# - Monitor differentiate between error and not running?
+# - Do we need to verify globally unique setting?
+# - Should set CTDB_NODES to ${HA_RSCTMP}/ctdb (generated based on
+#   current nodes)
+# - ctdb --socket=/tmp/ctdb.socket status
+#	Number of nodes:2
+#	pnn:0 192.168.101.14   DISABLED (THIS NODE)
+#	pnn:1 192.168.101.15   DISABLED
+#	Generation:665993634
+#	Size:2
+#	hash:0 lmaster:0
+#	hash:1 lmaster:1
+#	Recovery mode:NORMAL (0)
+#	Recovery master:1
+#   ^ if this says pnn:0...DISABLED|UNHEALTHY, there is a problem,
+#     e.g. ctdb socket not specified in smb.conf
+# - Lots of "No public addresses file found. Nothing to do for
+#   10.interfaces" junk in ctdb log file.  Can we fix/suppress this?
+#
+#######################################################################
+# Initialization:
+
+. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+
+CTDB_BASE=/etc/ctdb
+CTDB=/usr/bin/ctdb
+CTDBD=/usr/sbin/ctdbd
+
+. ${CTDB_BASE}/functions
+loadconfig ctdb
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="ctdb" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+This resource agent manages CTDB, allowing one to use Clustered Samba
+in a Linux-HA/Pacemaker cluster.
+</longdesc>
+<shortdesc lang="en">CTDB resource agent</shortdesc>
+
+<parameters>
+<parameter name="lockfile" unique="1" required="1">
+<longdesc lang="en">
+The location of a shared lock file, common across all nodes.
+This must be on shared storage, e.g.: /shared-fs/samba/ctdb.lock
+</longdesc>
+<shortdesc lang="en">Shared lock file</shortdesc>
+<content type="string" default="" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start"        timeout="90" />
+<action name="stop"         timeout="100" />
+<action name="monitor"      timeout="20" interval="10" depth="0" start-delay="0" />
+<action name="meta-data"    timeout="5" />
+<action name="validate-all"   timeout="30" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+# Cribbed from default /etc/init.d/ctdb, with the following changes:
+# - CTDB_RECOVERY_LOCK replaced by $OCF_RESKEY_lockfile
+# - CTDB_PUBLIC_INTERFACE empty
+# - CTDB_PUBLIC_ADDRESSES empty
+build_ctdb_options() {
+	maybe_set() {
+		[ -z "$2" -o \( -n "$3" -a "$3" != "$2" \) ] && return
+		val="$2"
+		case "$1" in
+			--*) sep="=" ;;
+			-*)  sep=" " ;;
+		esac
+		[ -n "$3" ] && {
+			val=""
+			sep=""
+		}
+		CTDB_OPTIONS="${CTDB_OPTIONS}${CTDB_OPTIONS:+ }${1}${sep}${val}"
+	}
+
+	maybe_set "--reclock"			"$OCF_RESKEY_lockfile"
+	maybe_set "--logfile"			"$CTDB_LOGFILE"
+	maybe_set "--nlist"			"$CTDB_NODES"
+	maybe_set "--socket"			"$CTDB_SOCKET"
+	maybe_set "--dbdir"			"$CTDB_DBDIR"
+	maybe_set "--dbdir-persistent"		"$CTDB_DBDIR_PERSISTENT"
+	maybe_set "--event-script-dir"		"$CTDB_EVENT_SCRIPT_DIR"
+	maybe_set "--transport"			"$CTDB_TRANSPORT"
+	maybe_set "-d"				"$CTDB_DEBUGLEVEL"
+	maybe_set "--notification-script"	"$CTDB_NOTIFY_SCRIPT"
+	maybe_set "--start-as-disabled"		"$CTDB_START_AS_DISABLED"	"yes"
+	maybe_set "--start-as-stopped"		"$CTDB_START_AS_STOPPED"	"yes"
+	maybe_set "--no-recmaster"		"$CTDB_CAPABILITY_RECMASTER"	"no"
+	maybe_set "--no-lmaster"		"$CTDB_CAPABILITY_LMASTER"	"no"
+	maybe_set "--lvs --single-public-ip"	"$CTDB_LVS_PUBLIC_IP"
+	maybe_set "--script-log-level"		"$CTDB_SCRIPT_LOG_LEVEL"
+	maybe_set "--syslog"			"$CTDB_SYSLOG"			"yes"
+}
+
+check_persistent_databases() {
+	PERSISTENT_DB_DIR="${CTDB_DBDIR}/persistent"
+	mkdir -p $PERSISTENT_DB_DIR 2>/dev/null
+	for PDBASE in $(ls $PERSISTENT_DB_DIR/*.tdb.[0-9] 2>/dev/null$) ; do
+		/usr/bin/tdbdump $PDBASE >/dev/null 2>/dev/null || {
+			ocf_log err "Persistent database $PDBASE is corrupted!  CTDB will not start."
+			return $OCF_ERR_GENERIC
+		}
+	done
+}
+
+set_ctdb_variables() {
+	rv=$OC_SUCCESS
+	set | grep ^CTDB_SET_ | cut -d_ -f3- |
+	while read v; do
+		varname=`echo $v | cut -d= -f1`
+		value=`echo $v | cut -d= -f2`
+		$CTDB --socket=$CTDB_SOCKET setvar $varname $value || rv=$OCF_ERR_GENERIC
+	done || rv=$OCF_ERR_GENERIC
+	return $rv
+}
+
+ctdb_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+
+ctdb_start() {
+	# Do nothing if already running
+	ctdb_monitor && return $OCF_SUCCESS
+	
+	build_ctdb_options
+	
+	# Die if databases are corrupted
+	check_persistent_databases || return $OCF_ERR_GENERIC
+	
+	$CTDBD $CTDB_OPTIONS
+	if [ $? == 0 ]; then
+		sleep 1
+		
+		# wait a bit longer for CTDB to stabilize
+		# (can be broken if, e.g. ctdb socket wrong
+		# or not specified in smb.conf)
+		for i in {1..30}; do
+			status=$($CTDB --socket=$CTDB_SOCKET status 2>/dev/null)
+			[ $? != 0 ] && return $OCF_ERR_GENERIC
+			if echo $status | grep -qs 'UNHEALTHY (THIS'; then
+				# Node is unhealthy (either still coming up,
+				# or just plain doomed), so wait a bit...
+				sleep 1
+			else
+				# Status does not say this node is unhealthy,
+				# so we're good to go - set up any extra
+				# variables and (hopefully) return success
+				set_ctdb_variables
+				return $?
+			fi
+		done
+	fi
+	
+	return $OCF_ERR_GENERIC
+}
+
+
+ctdb_stop() {
+	# Do nothing if already stopped
+	pkill -0 -f $CTDBD || return $OCF_SUCCESS
+	
+	# Tell it to die nicely
+	$CTDB --socket=$CTDB_SOCKET shutdown >/dev/null 2>&1
+	rv=$?
+
+	# No more Mr. Nice Guy
+	count=0
+	while pkill -0 -f $CTDBD ; do
+		sleep 1
+		count=$(($count + 1))
+		[ $count -gt 10 ] && {
+			ocf_log info "killing ctdbd "
+			pkill -9 -f $CTDBD
+			pkill -9 -f ${CTDB_BASE}/events.d/
+		}
+	done
+
+	# Be paranoid about return codes
+	[ $rv == $OCF_SUCCESS ] && return $OCF_SUCCESS
+
+	return $OCF_ERR_GENERIC
+}
+
+
+ctdb_monitor() {
+	$CTDB --socket=$CTDB_SOCKET ping > /dev/null 2>&1 && return $OCF_SUCCESS
+	return $OCF_NOT_RUNNING
+}
+
+
+ctdb_validate() {
+	lock_dir=$(dirname "$OCF_RESKEY_lockfile")
+	touch "$lock_dir/$$"
+	if [ $? != 0 ]; then
+		ocf_log err "Directory for lock file '$OCF_RESKEY_lockfile' does not exist, or is not writable"
+		return $OCF_ERR_ARGS
+	fi
+	rm "$lock_dir/$$"
+	
+	return $OCF_SUCCESS
+}
+
+
+case $__OCF_ACTION in
+meta-data)	meta_data
+		exit $OCF_SUCCESS
+		;;
+start)		ctdb_start;;
+stop)		ctdb_stop;;
+monitor)		ctdb_monitor;;
+validate-all)	ctdb_validate;;
+usage|help)	ctdb_usage
+		exit $OCF_SUCCESS
+		;;
+*)		ctdb_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc

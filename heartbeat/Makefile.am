@@ -38,6 +38,7 @@ IPv6addr_SOURCES        = IPv6addr.c
 IPv6addr_LDADD          = -lplumb $(LIBNETLIBS)
 
 ocf_SCRIPTS	     =  ClusterMon 	\
+				CTDB 	\
 			Dummy		\
 		        IPaddr		\
 		        IPaddr2		\
