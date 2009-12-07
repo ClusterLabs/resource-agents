@@ -101,8 +101,6 @@ if USE_IPV6ADDR
 man_MANS           += ocf_heartbeat_IPv6addr.7
 endif
 
-endif
-
 xmlfiles		= $(man_MANS:.7=.xml)
 
 STYLESHEET_PREFIX 	?= http://docbook.sourceforge.net/release/xsl/current
@@ -145,3 +143,5 @@ ocf_resource_agents.xml: $(xmlfiles) mkappendix.sh
 	$(HTML_STYLESHEET) $<
 
 xml: $(xmlfiles)
+
+endif
