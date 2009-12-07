@@ -39,6 +39,10 @@
 
  <xsl:template match="resource-agent" mode="root">
   <xsl:param name="this" select="self::resource-agent"/>
+  <xsl:attribute name="id">
+    <xsl:text>re-ra-</xsl:text>
+    <xsl:value-of select="@name"/>
+  </xsl:attribute>
   <xsl:apply-templates select="$this" mode="refentryinfo"/>
   <xsl:apply-templates select="$this" mode="refmeta"/>
   <xsl:apply-templates select="$this" mode="refnamediv"/>   
