@@ -46,7 +46,6 @@ man_MANS		= ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_IPaddr.7 \
                           ocf_heartbeat_IPaddr2.7 \
                           ocf_heartbeat_IPsrcaddr.7 \
-                          ocf_heartbeat_IPv6addr.7 \
                           ocf_heartbeat_LVM.7 \
                           ocf_heartbeat_LinuxSCSI.7 \
                           ocf_heartbeat_MailTo.7 \
@@ -95,6 +94,10 @@ man_MANS		= ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_syslog-ng.7 \
                           ocf_heartbeat_tomcat.7 \
                           ocf_heartbeat_vmware.7
+
+if USE_IPV6ADDR
+man_MANS           += ocf_heartbeat_IPv6addr.7
+endif
 
 xmlfiles		= $(man_MANS:.7=.xml)
 
