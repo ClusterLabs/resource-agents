@@ -477,6 +477,9 @@ AC_DEFINE_UNQUOTED(POWEROFF_OPTIONS, "$POWEROFF_OPTIONS", poweroff options)
 
 AC_PATH_PROGS(XSLTPROC, xsltproc)
 AM_CONDITIONAL(BUILD_DOC, test "x$XSLTPROC" != "x" )
+if test "x$XSLTPROC" = "x"; then
+   AC_MSG_WARN([xsltproc not installed, unable to (re-)build manual pages])
+fi
 AC_SUBST(XSLTPROC)
 
 dnl ========================================================================
