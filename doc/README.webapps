@@ -1,0 +1,143 @@
+Monitoring web applications with the Apache RA
+
+One of typical uses of apache is as an interface to the one or
+the other kind of web application. It could be expressed thus in
+terms of a resource group:
+
+	IP address
+	apache
+	web_app
+
+where web_app is a JSP application (tomcat,jeronimo) or similar.
+
+Rumour has it that the web applications suffer from occasional
+instability which may make them an administration nightmare. But,
+typical remedy is simply an application restart.
+
+How do we increase availability in this situation?
+
+The web applications are most commonly represented as one or more
+processes in a UNIX environment. The afore mentioned instability
+is most commonly not reflected in the process state. Hence,
+checking the process status makes us no wiser.  What could help,
+though, is probing the application just as our unhappy user
+does---through the web interface. We can ask the application
+developers to provide a URL which should exercise the application
+and then provide predictable output.
+
+Now, given our generic resource group and the failed web
+application, which we established using a http client, we have
+the following situation:
+
+	IP address
+	apache FAILED
+	web_app
+
+Some might argue that it's not apache that is the culprit or has
+failed, but this nevertheless should serve our purpose well. The
+cluster will stop web_app and apache and then start them, either
+on the some node or elsewhere. There's an extra apache restart
+which was not needed, but then again it cannot really hurt.
+
+What to monitor?
+
+Choose carefully the URL to monitor. It should probe exactly what
+is further up in the resource group, no more and no less. In
+other words, if you have a database backend running elsewhere, it
+would be of no use to specify a URL which depends on the
+database. You should monitor only what is within reach.
+
+Configuration and usage
+
+It is possible to configure the monitoring either through CIB or
+using an extra configuration file. If your monitoring spec
+consists only of a URL and a regular expression to be matched in
+the output, then something like this should suffice:
+
+primitive apache_a1 ocf:heartbeat:apache \
+	params configfile="/apps/a1.conf" \
+	op monitor interval=120s timeout=60s start-delay=120s \
+		OCF_CHECK_LEVEL=10 testurl="/webapp1_mon" testregex="This application is alive"
+
+The testurl parameter is where we connect and the testregex is
+what we should look for. The OCF_CHECK_LEVEL must be set to "10".
+Note that testurl specifies a URL which is relative to where the
+apache listens for connections. Obviously, this should be
+preferred to specifying the full URL.
+
+It is important to set start-delay to a value larger than the
+time needed to start the web application (the next resource). If
+we don't, then the first monitor operation is likely to fail.
+
+In case you need more complex configuration, it can be set
+in an extra configuration file:
+
+primitive apache_a1 ocf:heartbeat:apache \
+	params configfile="/apps/a1.conf" testconffile="/apps/webmon.cf" \
+	op monitor ... OCF_CHECK_LEVEL=10
+
+/etc/apache2/webmon.cf:
+
+test webapp1
+url /webapp1_mon
+match This application is alive
+client curl
+end
+
+This test configuration is equivalent to the first one, it's just
+that in the latter we want to use curl(1) as an http client
+instead of wget(1).
+
+Another example:
+
+test webapp1
+url /webapp1_mon
+match This application is alive
+client curl
+client_opts --header 'Host: www.webapp1.megacorp.com'
+end
+
+Here we use the curl's --header option to specify the virtual
+host we want to talk to.
+
+It is also possible to set the credentials using the "user" and
+"password" keywords.
+
+The configuration file may contain more than one test definition
+which is handy in case one should monitor more than one web
+application. In that case you should specify the test name in the
+CIB:
+
+primitive apache_common ocf:heartbeat:apache \
+	params configfile="/apps/httpd.conf" testconffile="/apps/webmon.cf" \
+	op monitor ... OCF_CHECK_LEVEL=10 testname="a1" \
+	op monitor ... OCF_CHECK_LEVEL=10 testname="b1"
+
+The apache OCF RA supports wget(1) (the default) and curl(1) http
+clients. If neither will do, then you can specify your own using
+the client and client_opts keywords. Your client must allow URL
+as the last parameter and it must dump output from the web server
+to stdout.
+
+All configuration file keywords:
+
+test	The name of the text.
+url		The url to test. If it doesn't start with http, it's
+		considered to be relative to the apache Listen directive.
+match	The regular expression to match.
+user	Username to authenticate with.
+password	Password to authenticate with.
+client	The http client.
+client_opts	 Options for the http client.
+end		Marks the end of the test definition.
+#		Comment. May be used only at the start of line.
+
+Notes
+
+We could support more depth levels, but it is not clear if
+anybody really needs that. Different check levels could be
+defined as different monitor operations.
+
+In case you are using the external configuration file, don't
+forget to replicate it to all cluster members and to keep it
+synchronized.
