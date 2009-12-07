@@ -158,6 +158,7 @@ rm -rf $RPM_BUILD_DIR/resource-agents
 
 %dir %{_datadir}/resource-agents
 %doc %{_datadir}/resource-agents/ra-api-1.dtd
+%doc %{_datadir}/resource-agents/README.webapps
 
 # For compatability with pre-existing agents
 %dir %{_libdir}/heartbeat

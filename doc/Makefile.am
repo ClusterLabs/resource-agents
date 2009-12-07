@@ -32,7 +32,7 @@ radir			= ../heartbeat
 CLEANFILES              = $(man_MANS) $(xmlfiles) metadata-*.xml
 
 # TODO: add README and license files
-doc_DATA		=
+doc_DATA		= README.webapps
 man_MANS		= 
 
 if BUILD_DOC
