@@ -476,6 +476,7 @@ AC_DEFINE_UNQUOTED(POWEROFF_CMD, "$POWEROFF_CMD", path to the poweroff command)
 AC_DEFINE_UNQUOTED(POWEROFF_OPTIONS, "$POWEROFF_OPTIONS", poweroff options)
 
 AC_PATH_PROGS(XSLTPROC, xsltproc)
+AM_CONDITIONAL(BUILD_DOC, test "x$XSLTPROC" != "x" )
 AC_SUBST(XSLTPROC)
 
 dnl ========================================================================

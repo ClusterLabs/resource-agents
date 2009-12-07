@@ -33,8 +33,10 @@ CLEANFILES              = $(man_MANS) $(xmlfiles) metadata-*.xml
 
 # TODO: add README and license files
 doc_DATA		=
+man_MANS		= 
 
-man_MANS		= ocf_heartbeat_AoEtarget.7 \
+if BUILD_DOC
+man_MANS	       += ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_AudibleAlarm.7 \
                           ocf_heartbeat_ClusterMon.7 \
                           ocf_heartbeat_Delay.7 \
@@ -97,6 +99,8 @@ man_MANS		= ocf_heartbeat_AoEtarget.7 \
 
 if USE_IPV6ADDR
 man_MANS           += ocf_heartbeat_IPv6addr.7
+endif
+
 endif
 
 xmlfiles		= $(man_MANS:.7=.xml)
