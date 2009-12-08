@@ -101,8 +101,12 @@ CTDB_BASE=/etc/ctdb
 CTDB=/usr/bin/ctdb
 CTDBD=/usr/sbin/ctdbd
 
-. ${CTDB_BASE}/functions
-loadconfig ctdb
+# This config is required, but only try to source it if it exists,
+# so validate-all, usage, etc. ops always work.
+if [ -f ${CTDB_BASE}/functions ]; then
+	. ${CTDB_BASE}/functions
+	loadconfig ctdb
+fi
 
 #######################################################################
 
