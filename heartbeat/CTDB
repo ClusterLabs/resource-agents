@@ -222,7 +222,7 @@ ctdb_start() {
 	check_persistent_databases || return $OCF_ERR_GENERIC
 	
 	$CTDBD $CTDB_OPTIONS
-	if [ $? == 0 ]; then
+	if [ $? -eq 0 ]; then
 		sleep 1
 		
 		# wait a bit longer for CTDB to stabilize
@@ -270,7 +270,7 @@ ctdb_stop() {
 	done
 
 	# Be paranoid about return codes
-	[ $rv == $OCF_SUCCESS ] && return $OCF_SUCCESS
+	[ $rv -eq $OCF_SUCCESS ] && return $OCF_SUCCESS
 
 	return $OCF_ERR_GENERIC
 }
