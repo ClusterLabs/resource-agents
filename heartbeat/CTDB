@@ -97,14 +97,17 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
 
-CTDB_BASE=/etc/ctdb
-CTDB=/usr/bin/ctdb
-CTDBD=/usr/sbin/ctdbd
+#######################################################################
+# Default parameter values:
+
+: ${OCF_RESKEY_config_dir=/etc/ctdb}
+: ${OCF_RESKEY_ctdb_binary=/usr/bin/ctdb}
+: ${OCF_RESKEY_ctdbd_binary=/usr/sbin/ctdbd}
 
 # This config is required, but only try to source it if it exists,
 # so validate-all, usage, etc. ops always work.
-if [ -f ${CTDB_BASE}/functions ]; then
-	. ${CTDB_BASE}/functions
+if [ -f ${OCF_RESKEY_config_dir}/functions ]; then
+	. ${OCF_RESKEY_config_dir}/functions
 	loadconfig ctdb
 fi
 
@@ -124,6 +127,7 @@ in a Linux-HA/Pacemaker cluster.
 <shortdesc lang="en">CTDB resource agent</shortdesc>
 
 <parameters>
+
 <parameter name="lockfile" unique="1" required="1">
 <longdesc lang="en">
 The location of a shared lock file, common across all nodes.
@@ -132,6 +136,31 @@ This must be on shared storage, e.g.: /shared-fs/samba/ctdb.lock
 <shortdesc lang="en">Shared lock file</shortdesc>
 <content type="string" default="" />
 </parameter>
+
+<parameter name="config_dir" unique="0" required="0">
+<longdesc lang="en">
+The directory containing various CTDB configuration files.
+</longdesc>
+<shortdesc lang="en">Config file directory</shortdesc>
+<content type="string" default="/etc/ctdb" />
+</parameter>
+
+<parameter name="ctdb_binary" unique="0" required="0">
+<longdesc lang="en">
+Full path to the ctdb binary.
+</longdesc>
+<shortdesc lang="en">ctdb binary path</shortdesc>
+<content type="string" default="/usr/bin/ctdb" />
+</parameter>
+
+<parameter name="ctdbd_binary" unique="0" required="0">
+<longdesc lang="en">
+Full path to the ctdb cluster daemon binary.
+</longdesc>
+<shortdesc lang="en">ctdbd binary path</shortdesc>
+<content type="string" default="/usr/sbin/ctdbd" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -202,7 +231,7 @@ set_ctdb_variables() {
 	while read v; do
 		varname=`echo $v | cut -d= -f1`
 		value=`echo $v | cut -d= -f2`
-		$CTDB --socket=$CTDB_SOCKET setvar $varname $value || rv=$OCF_ERR_GENERIC
+		$OCF_RESKEY_ctdb_binary --socket=$CTDB_SOCKET setvar $varname $value || rv=$OCF_ERR_GENERIC
 	done || rv=$OCF_ERR_GENERIC
 	return $rv
 }
@@ -225,7 +254,7 @@ ctdb_start() {
 	# Die if databases are corrupted
 	check_persistent_databases || return $OCF_ERR_GENERIC
 	
-	$CTDBD $CTDB_OPTIONS
+	$OCF_RESKEY_ctdbd_binary $CTDB_OPTIONS
 	if [ $? -eq 0 ]; then
 		sleep 1
 		
@@ -233,7 +262,7 @@ ctdb_start() {
 		# (can be broken if, e.g. ctdb socket wrong
 		# or not specified in smb.conf)
 		for i in {1..30}; do
-			status=$($CTDB --socket=$CTDB_SOCKET status 2>/dev/null)
+			status=$($OCF_RESKEY_ctdb_binary --socket=$CTDB_SOCKET status 2>/dev/null)
 			[ $? != 0 ] && return $OCF_ERR_GENERIC
 			if echo $status | grep -qs 'UNHEALTHY (THIS'; then
 				# Node is unhealthy (either still coming up,
@@ -255,21 +284,21 @@ ctdb_start() {
 
 ctdb_stop() {
 	# Do nothing if already stopped
-	pkill -0 -f $CTDBD || return $OCF_SUCCESS
+	pkill -0 -f $OCF_RESKEY_ctdbd_binary || return $OCF_SUCCESS
 	
 	# Tell it to die nicely
-	$CTDB --socket=$CTDB_SOCKET shutdown >/dev/null 2>&1
+	$OCF_RESKEY_ctdb_binary --socket=$CTDB_SOCKET shutdown >/dev/null 2>&1
 	rv=$?
 
 	# No more Mr. Nice Guy
 	count=0
-	while pkill -0 -f $CTDBD ; do
+	while pkill -0 -f $OCF_RESKEY_ctdbd_binary ; do
 		sleep 1
 		count=$(($count + 1))
 		[ $count -gt 10 ] && {
 			ocf_log info "killing ctdbd "
-			pkill -9 -f $CTDBD
-			pkill -9 -f ${CTDB_BASE}/events.d/
+			pkill -9 -f $OCF_RESKEY_ctdbd_binary
+			pkill -9 -f ${OCF_RESKEY_config_dir}/events.d/
 		}
 	done
 
@@ -281,7 +310,7 @@ ctdb_stop() {
 
 
 ctdb_monitor() {
-	$CTDB --socket=$CTDB_SOCKET ping > /dev/null 2>&1 && return $OCF_SUCCESS
+	$OCF_RESKEY_ctdb_binary --socket=$CTDB_SOCKET ping > /dev/null 2>&1 && return $OCF_SUCCESS
 	return $OCF_NOT_RUNNING
 }
 
