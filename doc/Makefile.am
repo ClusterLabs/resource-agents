@@ -18,13 +18,17 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
 
-# Please note: we can't name the man pages
-# ocf:heartbeat:<name>. Believe me, I've tried. It looks like it
-# works, but then it doesn't. While make can deal correctly with
-# colons in target names (when properly escaped), it royally messes up
-# when it is deals with _dependencies_ that contain colons. See Bug
-# 12126 on savannah.gnu.org. But, maybe it gets fixed soon, it was
-# first reported in 1995 and added to Savannah in in 2005...
+STYLESHEET_PREFIX 	?= http://docbook.sourceforge.net/release/xsl/current
+MANPAGES_STYLESHEET 	?= $(STYLESHEET_PREFIX)/manpages/docbook.xsl
+HTML_STYLESHEET 	?= $(STYLESHEET_PREFIX)/xhtml/docbook.xsl
+FO_STYLESHEET 		?= $(STYLESHEET_PREFIX)/fo/docbook.xsl
+REFENTRY_STYLESHEET	?= ra2refentry.xsl
+
+XSLTPROC_OPTIONS 	?= --xinclude
+XSLTPROC_MANPAGES_OPTIONS ?= $(XSLTPROC_OPTIONS)
+XSLTPROC_HTML_OPTIONS 	?= $(XSLTPROC_OPTIONS)
+XSLTPROC_FO_OPTIONS 	?= $(XSLTPROC_OPTIONS)
+
 MAINTAINERCLEANFILES    = Makefile.in *.xml
 
 radir			= ../heartbeat
@@ -35,6 +39,20 @@ CLEANFILES              = $(man_MANS) $(xmlfiles) metadata-*.xml
 doc_DATA		= README.webapps
 man_MANS		= 
 
+EXTRA_DIST 		= $(man_MANS) $(doc_DATA)
+
+# OCF_ROOT=. is necessary due to a sanity check in .ocf-shellfuncs
+# (which tests whether $OCF_ROOT points to a directory
+metadata-%.xml: $(radir)/%
+	OCF_ROOT=. OCF_FUNCTIONS_DIR=$(radir) $< meta-data > $@
+
+# Please note: we can't name the man pages
+# ocf:heartbeat:<name>. Believe me, I've tried. It looks like it
+# works, but then it doesn't. While make can deal correctly with
+# colons in target names (when properly escaped), it royally messes up
+# when it is deals with _dependencies_ that contain colons. See Bug
+# 12126 on savannah.gnu.org. But, maybe it gets fixed soon, it was
+# first reported in 1995 and added to Savannah in in 2005...
 if BUILD_DOC
 man_MANS	       += ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_AudibleAlarm.7 \
@@ -98,33 +116,16 @@ man_MANS	       += ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_vmware.7
 
 if USE_IPV6ADDR
-man_MANS           += ocf_heartbeat_IPv6addr.7
+man_MANS           	+= ocf_heartbeat_IPv6addr.7
 endif
 
 xmlfiles		= $(man_MANS:.7=.xml)
-
-STYLESHEET_PREFIX 	?= http://docbook.sourceforge.net/release/xsl/current
-MANPAGES_STYLESHEET 	?= $(STYLESHEET_PREFIX)/manpages/docbook.xsl
-HTML_STYLESHEET 	?= $(STYLESHEET_PREFIX)/xhtml/docbook.xsl
-FO_STYLESHEET 		?= $(STYLESHEET_PREFIX)/fo/docbook.xsl
-REFENTRY_STYLESHEET	?= ra2refentry.xsl
-
-XSLTPROC_OPTIONS 	?= --xinclude
-XSLTPROC_MANPAGES_OPTIONS ?= $(XSLTPROC_OPTIONS)
-XSLTPROC_HTML_OPTIONS 	?= $(XSLTPROC_OPTIONS)
-XSLTPROC_FO_OPTIONS 	?= $(XSLTPROC_OPTIONS)
-
-EXTRA_DIST = $(man_MANS) $(doc_DATA)
 
 %.1 %.5 %.7 %.8: %.xml
 	$(XSLTPROC) \
 	$(XSLTPROC_MANPAGES_OPTIONS) \
 	$(MANPAGES_STYLESHEET) $<
 
-# OCF_ROOT=. is necessary due to a sanity check in .ocf-shellfuncs
-# (which tests whether $OCF_ROOT points to a directory
-metadata-%.xml: $(radir)/%
-	OCF_ROOT=. OCF_FUNCTIONS_DIR=$(radir) $< meta-data > $@
 
 ocf_heartbeat_%.xml: metadata-%.xml $(REFENTRY_STYLESHEET)
 	$(XSLTPROC) --novalid \
@@ -143,5 +144,4 @@ ocf_resource_agents.xml: $(xmlfiles) mkappendix.sh
 	$(HTML_STYLESHEET) $<
 
 xml: $(xmlfiles)
-
 endif
