@@ -3,8 +3,8 @@
  version="1.0">
 
  <xsl:output indent="yes"
-             doctype-public="-//OASIS//DTD DocBook XML V4.5//EN"
-             doctype-system="http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd"/>
+             doctype-public="-//OASIS//DTD DocBook XML V4.4//EN"
+             doctype-system="http://www.oasis-open.org/docbook/xml/4.4/docbookx.dtd"/>
 
  <!--<xsl:strip-space elements="longdesc shortdesc"/>-->
 
