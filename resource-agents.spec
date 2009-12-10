@@ -44,10 +44,12 @@ BuildRequires:  autoconf automake glib2-devel pkgconfig python-devel
 
 %if 0%{?suse_version}  
 BuildRequires:  libnet libglue-devel
+BuildRequires:  libxslt docbook_4 docbook-xsl-stylesheets
 %endif
 
 %if 0%{?fedora} || 0%{?centos_version} || 0%{?rhel}
 BuildRequires:  which cluster-glue-libs-devel
+BuildRequires:  libxslt docbook-dtds docbook-style-xsl
 %endif
 
 %description
