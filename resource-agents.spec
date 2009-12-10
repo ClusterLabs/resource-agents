@@ -90,7 +90,7 @@ CFLAGS="${CFLAGS} ${RPM_OPT_FLAGS}"
 export CFLAGS
 
 ./autogen.sh
-%configure --enable-fatal-warnings=no 
+%configure --enable-fatal-warnings=yes --docdir=%{_docdir} 
 
 export MAKE="make %{?jobs:-j%jobs}"
 make %{?jobs:-j%jobs}
