@@ -31,7 +31,7 @@
 
 Name:           resource-agents
 Summary:        Reusable cluster resource scripts
-Version:        1.0.1
+Version:        1.0.1rc1
 Release:	1%{?dist}
 License:        GPL v2 or later; LGPL v2.1 or later
 Url:            http://www.linux-ha.org
