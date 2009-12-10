@@ -24,7 +24,7 @@ INCLUDES		= -I$(top_srcdir)/include -I$(top_srcdir)/linux-ha
 
 ocfdir		        = $(OCF_RA_DIR)/heartbeat
 
-dtddir			= $(datadir)/$(PACKAGE)
+dtddir			= $(datadir)/heartbeat
 dtd_SCRIPTS		= ra-api-1.dtd
 
 if USE_IPV6ADDR

@@ -156,10 +156,11 @@ rm -rf $RPM_BUILD_DIR/resource-agents
 %{_sbindir}/ocf-tester
 %{_sbindir}/sfex_init
 
-%dir %{_datadir}/resource-agents
-%doc %{_datadir}/resource-agents/ra-api-1.dtd
-%doc %{_docdir}/resource-agents/README.webapps
+%doc AUTHORS
+%doc COPYING
+%doc %{_datadir}/heartbeat/ra-api-1.dtd
 %doc %{_mandir}/man7/*.7*
+%doc doc/README.webapps
 
 # For compatability with pre-existing agents
 %dir %{_libdir}/heartbeat

@@ -36,10 +36,10 @@ radir			= ../heartbeat
 CLEANFILES              = $(man_MANS) $(xmlfiles) metadata-*.xml
 
 # TODO: add README and license files
-doc_DATA		= README.webapps
+doc_DATA		=
 man_MANS		= 
 
-EXTRA_DIST 		= $(man_MANS) $(doc_DATA)
+EXTRA_DIST 		= $(man_MANS) $(doc_DATA) README.webapps
 
 # OCF_ROOT=. is necessary due to a sanity check in .ocf-shellfuncs
 # (which tests whether $OCF_ROOT points to a directory
