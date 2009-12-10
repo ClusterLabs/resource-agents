@@ -179,7 +179,7 @@
   
   <xsl:template match="content" mode="parameters">
     <xsl:if test="@type != '' or @default != ''">
-      <xsl:text>(</xsl:text>
+      <xsl:text> (</xsl:text>
       <xsl:if test="@type != ''">
 	<xsl:value-of select="@type"/>
 	<xsl:text>, </xsl:text>
@@ -187,7 +187,9 @@
       <xsl:choose>
 	  <xsl:when test="@default != ''">
 	    <xsl:text>default </xsl:text>
-	    <xsl:value-of select="@default"/>
+	    <code>
+	      <xsl:value-of select="@default"/>
+	    </code>
 	  </xsl:when>
 	  <xsl:otherwise>
 	    <xsl:text>no default</xsl:text>
