@@ -29,7 +29,7 @@
 #   OCF_RESKEY_group
 #   OCF_RESKEY_test_table
 #   OCF_RESKEY_test_user
-#   OCF_RESKEY_test_password
+#   OCF_RESKEY_test_passwd
 #   OCF_RESKEY_enable_creation
 #   OCF_RESKEY_additional_parameters
 #   OCF_RESKEY_log
