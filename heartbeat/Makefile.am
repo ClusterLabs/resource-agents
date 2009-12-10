@@ -72,6 +72,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			pingd		\
 			portblock	\
 			pgsql		\
+			proftpd	\
 			Pure-FTPd	\
 			Raid1		\
 			Route		\
