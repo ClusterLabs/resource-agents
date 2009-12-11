@@ -339,8 +339,17 @@ PSTRING="${OCF_RESKEY_pstring-java -Dprogram.name=run.sh}"
 RUN_OPTS="${OCF_RESKEY_run_opts--c default -l lpg4j}"
 SHUTDOWN_OPTS="${OCF_RESKEY_shutdown_opts--s 127.0.0.1:1099}"
 
+if [ $# -ne 1 ]; then
+	usage
+	exit $OCF_ERR_ARGS
+fi
+
 if [ "$COMMAND" = "meta-data" ]; then
 	metadata_jboss
+	exit $OCF_SUCCESS
+fi
+if [ "$COMMAND" = "help" -o "$COMMAND" = "usage" ]; then
+	usage
 	exit $OCF_SUCCESS
 fi
 
@@ -368,7 +377,6 @@ if [ ! -x "$JAVA" ]; then
 		stop)		exit	$OCF_SUCCESS;;
 		monitor)	exit	$OCF_NOT_RUNNING;;
 		status)		exit	$LSB_STATUS_STOPPED;;
-		meta-data)	metadata_jboss;;
 	esac
 	ocf_log err "java command does not exist."
 	exit $OCF_ERR_INSTALLED
@@ -398,17 +406,13 @@ case "$COMMAND" in
 		func_status=$?
 		exit $func_status
 		;;
-	# move meta-data above, so that it never fails
-	meta-data)
-		metadata_jboss
-		exit $?
-		;;
 	validate-all)
 		validate_all_jboss
 		exit $?
 		;;
 	*)
 		usage
+		exit $OCF_ERR_UNIMPLEMENTED;;
 		;;
 esac
 
