@@ -15,6 +15,14 @@
 
 # norootforbuild
 
+# Directory where we install documentation
+%if 0%{?fedora} || 0%{?centos_version} || 0%{?rhel}
+%global agents_docdir %{_defaultdocdir}/%{name}-%{version}
+%endif
+%if 0%{?suse_version}
+%global agents_docdir %{_defaultdocdir}/%{name}
+%endif
+
 # 
 # Since this spec file supports multiple distributions, ensure we
 # use the correct group for each.
@@ -92,7 +100,16 @@ CFLAGS="${CFLAGS} ${RPM_OPT_FLAGS}"
 export CFLAGS
 
 ./autogen.sh
-%configure --enable-fatal-warnings=yes --docdir=%{_docdir} 
+%if 0%{?suse_version} >= 1020 || 0%{?fedora} >= 11 || 0%{?centos_version} > 5 || 0%{?rhel} > 5
+%configure \
+    --enable-fatal-warnings=yes \
+    --docdir=%{agents_docdir}
+%else
+export docdir=%{agents_docdir}
+%configure \
+    --enable-fatal-warnings=yes \
+%endif
+
 
 export MAKE="make %{?jobs:-j%jobs}"
 make %{?jobs:-j%jobs}

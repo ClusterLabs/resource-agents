@@ -217,9 +217,15 @@ eval oldincludedir="`eval echo ${oldincludedir}`"
 eval infodir="`eval echo ${infodir}`"
 eval mandir="`eval echo ${mandir}`"
 
+dnl docdir is a recent addition to autotools
+eval docdir="`eval echo ${docdir}`"
+if test "x$docdir" = "x"; then
+   docdir="`eval echo ${datadir}/doc`"
+fi
+AC_SUBST(docdir)
+
 dnl Home-grown variables
 eval INITDIR="${INITDIR}"
-eval docdir="`eval echo ${docdir}`"
 
 for j in prefix exec_prefix bindir sbindir libexecdir datadir sysconfdir \
     sharedstatedir localstatedir libdir includedir oldincludedir infodir \
