@@ -155,6 +155,7 @@ ipv6_expand()
 	typeset addr=$1
 	typeset maskbits
 	typeset -i x
+	typeset tempaddr
 	
 	maskbits=${addr/*\//}
 	if [ "$maskbits" = "$addr" ]; then
@@ -163,6 +164,25 @@ ipv6_expand()
 		# chop off mask bits
 		addr=${addr/\/*/}
 	fi
+
+	# grab each hex quad and expand it to 4 digits if it isn't already
+	# leave doublecolon in place for expansion out to the proper number of zeros later
+	tempaddr=""
+	for count in `seq 1 8`; do
+		quad=`echo $addr|awk -v count=$count -F : '{print $count}'`
+		quadlen=${#quad}
+		if [ $quadlen -eq 0 ]; then
+			quad=::
+		elif [ $quadlen -eq 1 ]; then
+			quad=000$quad
+		elif [ $quadlen -eq 2 ]; then
+			quad=00$quad
+		elif [ $quadlen -eq 3 ]; then
+			quad=0$quad
+		fi
+		tempaddr=$tempaddr$quad
+	done
+	addr=$tempaddr
 
 	# use space as placeholder
 	addr=${addr/::/\ }
@@ -711,8 +731,22 @@ check_interface_up()
 {
 	declare dev
 	declare addr=${2/\/*/}
+	declare currentAddr caExpanded
 
-	dev=$(/sbin/ip -f $1 -o addr | grep " $addr/" | awk '{print $2}')
+	if [ "$1" == "inet6" ]; then
+		addrExpanded=$(ipv6_expand $addr)
+		for currentAddr in `/sbin/ip -f $1 -o addr|awk '{print $4}'`; do
+			caExpanded=$(ipv6_expand $currentAddr)
+			caExpanded=${caExpanded/\/*/}
+			if [ "$addrExpanded" == "$caExpanded" ]; then
+				dev=$(/sbin/ip -f $1 -o addr | grep " ${currentAddr/\/*/}" | awk '{print $2}')
+				break
+			fi
+		done
+	else
+		dev=$(/sbin/ip -f $1 -o addr | grep " $addr/" | awk '{print $2}')
+	fi
+
 	if [ -z "$dev" ]; then
 		return 1
 	fi
@@ -730,12 +764,26 @@ address_configured()
 {
 	declare line
 	declare addr
+	declare currentAddr caExpanded
 
 	# Chop off maxk bits 
 	addr=${2/\/*/}
-        line=$(/sbin/ip -f $1 -o addr | grep " $addr/")
 
-        if [ -z "$line" ]; then
+	if [ "$1" == "inet6" ]; then
+		addrExpanded=$(ipv6_expand $addr)
+		for currentAddr in `/sbin/ip -f $1 -o addr|awk '{print $4}'`; do
+			caExpanded=$(ipv6_expand $currentAddr)
+			caExpanded=${caExpanded/\/*/}
+			if [ "$addrExpanded" == "$caExpanded" ]; then
+				line=$(/sbin/ip -f $1 -o addr | grep " ${currentAddr/\/*/}");
+				break
+			fi
+		done
+	else
+		line=$(/sbin/ip -f $1 -o addr | grep " $addr/")
+	fi
+
+	if [ -z "$line" ]; then
 		return 1
 	fi
 	return 0
@@ -751,13 +799,26 @@ ip_op()
 	declare dev
 	declare rtr
 	declare addr=${3/\/*/}
-	
+	declare caExpanded currentAddr
 
 	if [ "$2" = "status" ]; then
 
 		ocf_log debug "Checking $3, Level $OCF_CHECK_LEVEL"
 	
-		dev=$(/sbin/ip -f $1 -o addr | grep " $addr/" | awk '{print $2}')
+		if [ "$1" == "inet6" ]; then
+			addrExpanded=$(ipv6_expand $addr)
+			for currentAddr in `/sbin/ip -f $1 -o addr|awk '{print $4}'`; do
+				caExpanded=$(ipv6_expand $currentAddr)
+				caExpanded=${caExpanded/\/*/}
+				if [ "$addrExpanded" == "$caExpanded" ]; then
+					dev=$(/sbin/ip -f $1 -o addr | grep " ${currentAddr/\/*/}" | awk '{print $2}')
+					break
+				fi
+			done
+		else
+			dev=$(/sbin/ip -f $1 -o addr | grep " $addr/" | awk '{print $2}')
+		fi
+
 		if [ -z "$dev" ]; then
 			ocf_log warn "$3 is not configured"
 			return 1
@@ -788,6 +849,19 @@ ip_op()
 		return $?
 		;;
 	inet6)
+		if [ "$2" = "del" ]; then
+			addrExpanded=$(ipv6_expand $addr)
+			for currentAddr in `/sbin/ip -f $1 -o addr|awk '{print $4}'`; do
+				caExpanded=$(ipv6_expand $currentAddr)
+				caExpanded=${caExpanded/\/*/}
+				if [ "$addrExpanded" == "$caExpanded" ]; then
+					addr6=$(/sbin/ip -f $1 -o addr | grep " ${currentAddr/\/*/}" | awk '{print $4}')
+					ipv6 $2 $addr6
+					return $?
+				fi
+			done
+		fi
+
 		ipv6 $2 $3
 		return $?
 		;;
