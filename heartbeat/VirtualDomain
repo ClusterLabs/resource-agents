@@ -35,7 +35,7 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-Resource agent for a virtual domain (a.k.a. domU, virtual machine, 
+Resource agent for a virtual domain (a.k.a. domU, virtual machine,
 virtual environment etc., depending on context) managed by libvirtd.
 </longdesc>
 <shortdesc lang="en">Manages virtual domains through the libvirt virtualization framework</shortdesc>
@@ -62,11 +62,13 @@ details on supported URI formats. The default is system dependent.
 
 <parameter name="force_stop" unique="0" required="0">
 <longdesc lang="en">
-Forcefully shut down ("destroy") the domain on stop. Enable this only if 
-your virtual domain (or your virtualization backend) does not support 
+Always forcefully shut down ("destroy") the domain on stop. The default
+behavior is to resort to a forceful shutdown only after a graceful
+shutdown attempt has failed. You should only set this to true if
+your virtual domain (or your virtualization backend) does not support
 graceful shutdown.
 </longdesc>
-<shortdesc lang="en">Force shutdown on stop</shortdesc>
+<shortdesc lang="en">Always force shutdown on stop</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_force_stop_default}" />
 </parameter>
 
@@ -83,11 +85,11 @@ use libvirt's default transport to connect to the remote hypervisor.
 
 <parameter name="monitor_scripts" unique="0" required="0">
 <longdesc lang="en">
-To additionally monitor services within the virtual domain, add this 
+To additionally monitor services within the virtual domain, add this
 parameter with a list of scripts to monitor.
 
 Note: when monitor scripts are used, the start and migrate_from operations
-will complete only when all monitor scripts have completed successfully. 
+will complete only when all monitor scripts have completed successfully.
 Be sure to set the timeout of these operations to accommodate this delay.
 </longdesc>
 <shortdesc lang="en">space-separated list of monitor scripts</shortdesc>
@@ -162,8 +164,19 @@ VirtualDomain_Status() {
 		# whenever virsh can't reliably obtain the domain
 		# state.
 		status="no state"
-		ocf_log info "Virtual domain $DOMAIN_NAME currently has no state, retrying."
-		sleep 1
+		if [ "__OCF_ACTION" = "stop" ]; then
+		    # During the stop operation, we want to bail out
+		    # quickly, so as to be able to force-stop (destroy)
+		    # the domain if necessary.
+		    ocf_log error "Virtual domain $DOMAIN_NAME has no state during stop operation, bailing out."
+		    return $OCF_ERR_GENERIC;
+		else
+		    # During all other actions, we just wait and try
+		    # again, relying on the CRM/LRM to time us out if
+		    # this takes too long.
+		    ocf_log info "Virtual domain $DOMAIN_NAME currently has no state, retrying."
+		    sleep 1
+		fi
 		;;
             *)
 		# any other output is unexpected.
@@ -179,7 +192,7 @@ VirtualDomain_Start() {
 	ocf_log info "Virtual domain $DOMAIN_NAME already running."
 	return $OCF_SUCCESS
     fi
-    
+
     virsh $VIRSH_OPTIONS start ${DOMAIN_NAME}
     rc=$?
     if [ $rc -ne 0 ]; then
@@ -195,41 +208,57 @@ VirtualDomain_Start() {
 
 VirtualDomain_Stop() {
     local i
+    local status
     local shutdown_timeout
-    if VirtualDomain_Status; then
-	case $OCF_RESKEY_force_stop in
-	    [Yy][Ee][Ss]|[Tt][Rr][Uu][Ee]|[Oo][Nn]|1)
-		;;
-	    *)
-		# Issue a graceful shutdown request
+
+    VirtualDomain_Status
+    status=$?
+
+    case $status in
+	$OCF_SUCCESS)
+	    if ! ocf_is_true $OCF_RESKEY_force_stop; then
+ 		# Issue a graceful shutdown request
 		ocf_log info "Issuing graceful shutdown request for domain ${DOMAIN_NAME}."
 		virsh $VIRSH_OPTIONS shutdown ${DOMAIN_NAME}
-		# The "shutdown_timeout" we use here is the operation
+	        # The "shutdown_timeout" we use here is the operation
 		# timeout specified in the CIB, minus 5 seconds
 		shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
 		# Loop on status for $shutdown_timeout seconds
 		for i in `seq $shutdown_timeout`; do
-		    VirtualDomain_Status || break
-		    sleep 1
+		    VirtualDomain_Status
+		    status=$?
+		    case $status in
+			$OCF_NOT_RUNNING)
+			    # This was a graceful shutdown. Clean
+			    # up and return.
+			    VirtualDomain_Cleanup_Statefile
+			    return $OCF_SUCCESS
+			    ;;
+			$OCF_SUCCESS)
+			    # Domain is still running, keep
+			    # waiting (until shutdown_timeout
+			    # expires)
+			    sleep 1
+			    ;;
+			*)
+			    # Something went wrong. Bail out and
+			    # resort to forced stop (destroy).
+			    break;
+		    esac
 		done
-		;;
-	esac
-	# OK. Now if the above graceful shutdown hasn't worked, kill
-	# off the domain with destroy. If that too does not work, give
-	# up and have the LRM time us out.
-	if VirtualDomain_Status; then
-	    ocf_log info "Issuing forced shutdown (destroy) request for domain ${DOMAIN_NAME}."
-	    virsh $VIRSH_OPTIONS destroy ${DOMAIN_NAME}
-	    while VirtualDomain_Status; do
-		sleep 1
-	    done
-	fi
-	VirtualDomain_Cleanup_Statefile
-	return $OCF_SUCCESS
-    else
-	ocf_log info "Domain $DOMAIN_NAME already stopped."
-	return $OCF_SUCCESS
-    fi
+	    fi
+	    ;;
+	$OCF_NOT_RUNNING)
+	    ocf_log info "Domain $DOMAIN_NAME already stopped."
+	    return $OCF_SUCCESS
+    esac
+    # OK. Now if the above graceful shutdown hasn't worked, kill
+    # off the domain with destroy. If that too does not work, give
+    # up and have the LRM time us out.
+    ocf_log info "Issuing forced shutdown (destroy) request for domain ${DOMAIN_NAME}."
+    virsh $VIRSH_OPTIONS destroy ${DOMAIN_NAME} || return $OCF_ERR_GENERIC
+    VirtualDomain_Cleanup_Statefile
+    return $OCF_SUCCESS
 }
 
 VirtualDomain_Migrate_To() {
@@ -256,7 +285,7 @@ VirtualDomain_Migrate_To() {
 	if [ $rc -ne 0 ]; then
 	    ocf_log err "$DOMAIN_NAME: live migration to ${remoteuri} failed: $rc"
 	    return $OCF_ERR_GENERIC
-	else 
+	else
 	    ocf_log info "$DOMAIN_NAME: live migration to ${target_node} succeeded."
 	    VirtualDomain_Cleanup_Statefile
 	    return $OCF_SUCCESS
@@ -343,7 +372,7 @@ VirtualDomain_Validate_All || exit $?
 if [ $OCF_RESKEY_config -nt $STATEFILE ]; then
     VirtualDomain_Define || exit $?
 fi
-DOMAIN_NAME=`cat $STATEFILE` || exit $OCF_ERR_GENERIC
+DOMAIN_NAME=`cat $STATEFILE 2>/dev/null` || exit $OCF_ERR_GENERIC
 if [ -z $DOMAIN_NAME ]; then
     ocf_log err "$STATEFILE is empty. This is unexpected. Cannot determine domain name."
     exit $OCF_ERR_GENERIC
