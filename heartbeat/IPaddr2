@@ -549,6 +549,7 @@ run_send_ib_arp() {
 # returns:
 # ok = served (for CIP: + hash bucket)
 # partial = served and no hash bucket (CIP only)
+# partial2 = served and no CIP iptables rule
 # no = nothing
 #
 ip_served() {
@@ -578,6 +579,10 @@ ip_served() {
 	fi
 
 	# Special handling for the CIP:
+	if [ ! -e $IP_CIP_FILE ]; then
+		echo "partial2"
+		return 0
+	fi
 	if egrep -q "(^|,)${IP_INC_NO}(,|$)" $IP_CIP_FILE ; then
 		echo "ok"
 		return 0
@@ -621,7 +626,7 @@ ip_start() {
 		exit $OCF_SUCCESS
 	fi
 	
-	if [ -n "$IP_CIP" ] && [ $ip_status = "no" ]; then
+	if [ -n "$IP_CIP" ] && [ $ip_status = "no" ] || [ $ip_status = "partial2" ]; then
 		$MODPROBE ip_conntrack
 		$IPTABLES -I INPUT -d $BASEIP -i $NIC -j CLUSTERIP \
 				--new \
@@ -692,13 +697,14 @@ ip_stop() {
 		fi
 	fi
 	local ip_status=`ip_served`
+	ocf_log info "IP status = $ip_status, IP_CIP=$IP_CIP"
 
 	if [ $ip_status = "no" ]; then
 		: Requested interface not in use
 		exit $OCF_SUCCESS
 	fi
 
-	if [ -n "$IP_CIP" ]; then
+	if [ -n "$IP_CIP" ] && [ $ip_status != "partial2" ]; then
 		if [ $ip_status = "partial" ]; then
 			exit $OCF_SUCCESS
 		fi
@@ -744,7 +750,7 @@ ip_monitor() {
 	ok)
 		return $OCF_SUCCESS
 		;;
-	partial|no)
+	partial|no|partial2)
 		exit $OCF_NOT_RUNNING
 		;;
 	*)
