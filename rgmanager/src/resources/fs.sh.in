@@ -550,6 +550,8 @@ isMounted () {
 	typeset mp tmp_mp
 	typeset dev tmp_dev
 	typeset ret=$FAIL
+	typeset found=1
+	typeset poss_mp
 
 	if [ $# -ne 2 ]; then
 		ocf_log err "Usage: isMounted device mount_point"
@@ -587,13 +589,20 @@ isMounted () {
 			# Check to see if its mounted in the right
 			# place
 			#
-			if [ -n "$tmp_mp"  -a "$tmp_mp"  != "$mp" ]; then
-				ocf_log warn \
-"Device $dev is mounted on $tmp_mp instead of $mp"
+			if [ -n "$tmp_mp" ]; then
+				if [ "$tmp_mp" != "$mp" ]; then
+					poss_mp=$tmp_mp
+				else
+					found=0
+				fi
 			fi
 			ret=$YES
 		fi
 	done < /proc/mounts
+
+	if [ $found -ne 0 ]; then
+		ocf_log warn "Device $dev is mounted on $poss_mp instead of $mp"
+	fi
 
 	return $ret
 }
