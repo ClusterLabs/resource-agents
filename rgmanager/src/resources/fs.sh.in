@@ -600,7 +600,7 @@ isMounted () {
 		fi
 	done < /proc/mounts
 
-	if [ $found -ne 0 ]; then
+	if [ $ret -eq $YES ] && [ $found -ne 0 ]; then
 		ocf_log warn "Device $dev is mounted on $poss_mp instead of $mp"
 	fi
 
