@@ -2,9 +2,9 @@
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
-# 
+#
 # EvmsSCC
-#      Description: Runs evms_activate in a heartbeat cluster to activate a 
+#      Description: Runs evms_activate in a heartbeat cluster to activate a
 #		    EVMS shared cluster container in the cluster.
 #  Original Author: Jo De Baer (jdebaer@novell.com)
 # Original Release: 06 Nov 2006
@@ -13,7 +13,7 @@
 #
 # The goal of this resource agent is to provoke the creation of device file
 # in /dev/emvs which correspond to EVMS2 volumes that reside in a EVMS2 shared
-# cluster container. As such it should be run as a clone resource in the 
+# cluster container. As such it should be run as a clone resource in the
 # cluster. Logic inside the resource agent will make sure that "evms_activate"
 # is run on only one node in the cluster, both at cluster startup time as well
 # as when a node joins the cluster.
@@ -22,7 +22,7 @@
 # resource agent has finished it's run. As such those resources should be made
 # "dependent" on this resource agent by the cluster administrator. An example
 # of resources that should depend on this resource agent are Filesystem resource
-# agent that mount OCFS2 volumes that reside on EVMS2 volumes in a shared 
+# agent that mount OCFS2 volumes that reside on EVMS2 volumes in a shared
 # EVMS2 cluster container.
 #
 # For this resource agent to do it's job correctly, evmsd must be running on
@@ -63,9 +63,20 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
+Deprecation warning: EVMS is no longer actively maintained and should not be used. This agent is deprecated and may be removed from a future release. --
 Resource script for EVMS shared cluster container. It runs evms_activate on one node in the cluster.
 </longdesc>
-<shortdesc lang="en">Manages EVMS Shared Cluster Containers (SCCs)</shortdesc>
+<shortdesc lang="en">Manages EVMS Shared Cluster Containers (SCCs) (deprecated)</shortdesc>
+
+<parameters>
+<parameter name="ignore_deprecation">
+<longdesc lang="en">
+If set to true, suppresses the deprecation warning for this agent.
+</longdesc>
+<shortdesc lang="en">Suppress deprecation warning</shortdesc>
+<content type="boolean" default="false" />
+</parameter>
+</parameters>
 
 <actions>
 <action name="start" timeout="60" />
@@ -108,7 +119,7 @@ EvmsSCC_notify()
 }
 
 EvmsSCC_start()
-{   
+{
 	local n_type="$OCF_RESKEY_CRM_meta_notify_type"
 	local n_op="$OCF_RESKEY_CRM_meta_notify_operation"
 	local n_active="$OCF_RESKEY_CRM_meta_notify_active_uname"
@@ -141,8 +152,8 @@ EvmsSCC_start_notify_common()
         esac
 
 	#pick the first node from the starting list
-	#when the cluster boots this will be one of the many booting nodes 
-	#when a node later joins the cluster, this will be the joining node 
+	#when the cluster boots this will be one of the many booting nodes
+	#when a node later joins the cluster, this will be the joining node
         local n_first=$(echo $n_start | cut -d ' ' -f 1)
         ocf_log debug "EvmsSCC: Start_Notify: First node in starting list is $n_first."
 
@@ -183,6 +194,10 @@ case $OP in
 			exit $OCF_SUCCESS
 			;;
 esac
+
+# Be obnoxious, log deprecation warning on every invocation (unless
+# suppressed by resource configuration).
+ocf_deprecated
 
 check_binary $CUT
 check_binary $EVMSACTIVATE

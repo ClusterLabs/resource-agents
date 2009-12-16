@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	Evmsd OCF RA. 
+#	Evmsd OCF RA.
 #
 # Copyright (c) 2004 SUSE LINUX AG, Jo De Baer
 #                    All Rights Reserved.
@@ -41,9 +41,21 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
+Deprecation warning: EVMS is no longer actively maintained and should not be used. This agent is deprecated and may be removed from a future release. --
 This is a Evmsd Resource Agent.
 </longdesc>
-<shortdesc lang="en">Controls clustered EVMS volume management</shortdesc>
+<shortdesc lang="en">Controls clustered EVMS volume management
+(deprecated)</shortdesc>
+
+<parameters>
+<parameter name="ignore_deprecation">
+<longdesc lang="en">
+If set to true, suppresses the deprecation warning for this agent.
+</longdesc>
+<shortdesc lang="en">Suppress deprecation warning</shortdesc>
+<content type="boolean" default="false" />
+</parameter>
+</parameters>
 
 <actions>
 <action name="start"        timeout="90" />
@@ -117,10 +129,16 @@ evmsd_monitor() {
 	fi
 }
 
+if [ "$__OCF_ACTION" = "meta-data" ]; then
+    meta_data
+    exit $OCF_SUCCESS
+fi
+
+# Be obnoxious, log deprecation warning on every invocation (unless
+# suppressed by resource configuration).
+ocf_deprecated
+
 case $__OCF_ACTION in
-meta-data)	meta_data
-		exit $OCF_SUCCESS
-		;;
 start)		evmsd_start;;
 stop)		evmsd_stop;;
 monitor)	evmsd_monitor;;

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# 
+#
 # LinuxSCSI
 #
 # Description:	Enables/Disables SCSI devices to protect them from being
@@ -19,8 +19,8 @@
 #	  OCF parameters are as below:
 #		OCF_RESKEY_scsi
 #
-# An example usage in /etc/ha.d/haresources: 
-#       node1  10.0.0.170 LinuxSCSI:0:0:11 
+# An example usage in /etc/ha.d/haresources:
+#       node1  10.0.0.170 LinuxSCSI:0:0:11
 #
 
 #######################################################################
@@ -36,7 +36,7 @@ zeropat="[ 0]0"
 PROCSCSI=/proc/scsi/scsi
 
 usage() {
-  cat <<-!
+  cat <<EOF
 	usage: $0 (start|stop|status|monitor|meta-data|validate-all|methods)
 
 	$0 manages the availability of a SCSI device from the point
@@ -98,20 +98,24 @@ usage() {
 	keep in the volumes.  If you don't use a reasonable volume manager,
 	then you'll have to mount by UUID.
 
-	!
+EOF
 }
 
 meta_data() {
-	cat <<END
+	cat <<EOF
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="LinuxSCSI">
 <version>1.0</version>
 
 <longdesc lang="en">
-This is a resource agent for LinuxSCSI. It manages the availability of a 
-SCSI device from the point of view of the linux kernel. It make Linux 
-believe the device has gone away, and it can make it come back again. 
+Deprecation warning: This agent makes use of Linux SCSI hot-plug
+functionality which has been superseded by SCSI reservations. It is
+deprecated and may be removed from a future release. See the
+scsi2reservation and sfex agents for alternatives. --
+This is a resource agent for LinuxSCSI. It manages the availability of a
+SCSI device from the point of view of the linux kernel. It make Linux
+believe the device has gone away, and it can make it come back again.
 </longdesc>
 <shortdesc lang="en">Enables and disables SCSI devices through the kernel SCSI hot-plug subsystem</shortdesc>
 
@@ -123,6 +127,15 @@ The SCSI instance to be managed.
 <shortdesc lang="en">SCSI instance</shortdesc>
 <content type="string" default="" />
 </parameter>
+
+<parameter name="ignore_deprecation">
+<longdesc lang="en">
+If set to true, suppresses the deprecation warning for this agent.
+</longdesc>
+<shortdesc lang="en">Suppress deprecation warning</shortdesc>
+<content type="boolean" default="false" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -135,18 +148,18 @@ The SCSI instance to be managed.
 <action name="validate-all" timeout="5" />
 </actions>
 </resource-agent>
-END
+EOF
 }
 
 scsi_methods() {
-  cat <<-!
+  cat <<EOF
 	start
 	stop
 	status
 	monitor
 	validate-all
 	methods
-	!
+EOF
 }
 
 
@@ -231,8 +244,8 @@ scsi_status() {
 #
 scsi_validate_all() {
   parseinst $instance
-  return $OCF_SUCCESS 
-} 
+  return $OCF_SUCCESS
+}
 
 if
   ( [ $# -ne 1 ] )
@@ -261,7 +274,11 @@ case $1 in
   *)			;;
 esac
 
-if 
+# Be obnoxious, log deprecation warning on every invocation (unless
+# suppressed by resource configuration).
+ocf_deprecated
+
+if
   [ -z "$OCF_RESKEY_scsi" ]
 then
   ocf_log err "You have to set a valid scsi id at least!"

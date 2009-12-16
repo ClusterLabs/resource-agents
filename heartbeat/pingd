@@ -2,7 +2,7 @@
 #
 #
 #	pingd OCF Resource Agent
-#	Records (in the CIB) the current number of ping nodes a 
+#	Records (in the CIB) the current number of ping nodes a
 #	   cluster node can connect to.
 #
 # Copyright (c) 2006 Andrew Beekhof
@@ -43,6 +43,9 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
+Deprecation warning: This agent is deprecated and may be removed from
+a future release. See the ocf:pacemaker:pingd resource agent for a
+supported alternative. --
 This is a pingd Resource Agent.
 It records (in the CIB) the current number of ping nodes a node can connect to.
 </longdesc>
@@ -113,6 +116,14 @@ The list of ping nodes to count.  Defaults to all configured ping nodes.  Rarely
 <content type="integer" default=""/>
 </parameter>
 
+<parameter name="ignore_deprecation">
+<longdesc lang="en">
+If set to true, suppresses the deprecation warning for this agent.
+</longdesc>
+<shortdesc lang="en">Suppress deprecation warning</shortdesc>
+<content type="boolean" default="false" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -162,7 +173,7 @@ pingd_start() {
     if [ $rc = 0 ]; then
 	exit $OCF_SUCCESS
     fi
-    
+
     ocf_log err "Could not run $pingd_cmd : rc=$rc"
     exit $OCF_ERR_GENERIC
 }
@@ -238,10 +249,16 @@ fi
 : ${OCF_RESKEY_name:="pingd"}
 : ${OCF_RESKEY_dampen:="1s"}
 
+if [ "$__OCF_ACTION" = "meta-data" ]; then
+    meta_data
+    exit $OCF_SUCCESS
+fi
+
+# Be obnoxious, log deprecation warning on every invocation (unless
+# suppressed by resource configuration).
+ocf_deprecated
+
 case $__OCF_ACTION in
-meta-data)	meta_data
-		exit $OCF_SUCCESS
-		;;
 start)		pingd_start
 		;;
 stop)		pingd_stop

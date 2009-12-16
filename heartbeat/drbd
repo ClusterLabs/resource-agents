@@ -50,14 +50,19 @@ meta_data() {
 <resource-agent name="drbd">
 <version>1.1</version>
 
-<longdesc lang="en">
+<shortdesc lang="en">
 Master/Slave OCF Resource Agent for DRBD
-</longdesc>
+</shortdesc>
 
-<shortdesc lang="en">This resource agent manages a Distributed
+<longdesc lang="en">
+Deprecation warning: This agent is deprecated and may be removed from
+a future release. See the ocf:linbit:drbd resource agent for a
+supported alternative. --
+This resource agent manages a Distributed
 Replicated Block Device (DRBD) object as a master/slave
 resource. DRBD is a mechanism for replicating storage; please see the
-documentation for setup details.</shortdesc>
+documentation for setup details.
+</longdesc>
 
 <parameters>
 <parameter name="drbd_resource" unique="1" required="1">
@@ -85,6 +90,14 @@ which can then be used in drbd.conf.
 </longdesc>
 <shortdesc lang="en">Override drbd hostname</shortdesc>
 <content type="boolean" default="no"/>
+</parameter>
+
+<parameter name="ignore_deprecation">
+<longdesc lang="en">
+If set to true, suppresses the deprecation warning for this agent.
+</longdesc>
+<shortdesc lang="en">Suppress deprecation warning</shortdesc>
+<content type="boolean" default="false" />
 </parameter>
 </parameters>
 
@@ -217,7 +230,7 @@ get_status_cmd() {
 	rc=$?
 	if [ $rc -ge 2 ]; then
 		ocf_log err "Cannot parse output of 'drbdadm | grep Version'"
-		exit $OCF_ERR_GENERIC 
+		exit $OCF_ERR_GENERIC
 	elif [ $rc -eq 1 ]; then
 		echo state
 	else
@@ -231,7 +244,7 @@ drbd_get_status() {
 	DRBD_STATE_REMOTE=$(echo $DRBD_STATE | sed -e 's#.*/##')
 	DRBD_CSTATE=$(do_drbdadm cstate $RESOURCE)
 
-	# Sanitize the various states, drbdadm is quite annoying; so if it 
+	# Sanitize the various states, drbdadm is quite annoying; so if it
 	# outputs something which doesn't make sense, translate it into
 	# a harmless state:
 
@@ -248,7 +261,7 @@ drbd_get_status() {
 	case "$DRBD_CSTATE" in
 		Unconfigured|StandAlone|Unconnected|Timeout|BrokenPipe) ;;
 		NetworkFailure|WFConnection|WFReportParams|Connected|SkippedSyncS) ;;
-		SkippedSyncT|WFBitMapS|WFBitMapT|SyncSource|SyncTarget) ;; 
+		SkippedSyncT|WFBitMapS|WFBitMapT|SyncSource|SyncTarget) ;;
 		PausedSyncS|PausedSyncT) ;;
 		*) DRBD_CSTATE="Unconfigured" ;;
 	esac
@@ -260,9 +273,9 @@ drbd_start() {
 	if is_drbd_enabled; then
 	    : OK
 	else
-	    do_cmd modprobe -s drbd `$DRBDADM sh-mod-parms` || { 
-		    ocf_log err "Cannot load the drbd module."$'\n'; 
-		    return $OCF_ERR_GENERIC 
+	    do_cmd modprobe -s drbd `$DRBDADM sh-mod-parms` || {
+		    ocf_log err "Cannot load the drbd module."$'\n';
+		    return $OCF_ERR_GENERIC
 	    }
 	    ocf_log debug "$RESOURCE start: Module loaded."
 	fi
@@ -292,9 +305,9 @@ drbd_start() {
 drbd_update_prefs() {
 	drbd_get_status
 
-	# TODO: This is probably way too complex. 
+	# TODO: This is probably way too complex.
 	case $DRBD_CSTATE in
-	Connected) 
+	Connected)
 		do_cmd $CRM_MASTER -v 75
 		;;
 	SyncSource|PausedSyncS|WFBitMapS|SkippedSyncS)
@@ -304,7 +317,7 @@ drbd_update_prefs() {
         # (Inconsistent || Diskless && WFConnection) should be -infinity
 	# This one implies we'll try to promote even on disconnected
 	# nodes, but that might not work.
-	WFConnection) 
+	WFConnection)
 		do_cmd $CRM_MASTER -v 10
 		;;
 	*)
@@ -376,7 +389,7 @@ drbd_monitor() {
 	    return $OCF_NOT_RUNNING
 	elif [ "$DRBD_STATE_LOCAL" = "Primary" ]; then
 		if [ "$OCF_RESKEY_CRM_meta_interval" -eq 0 ]; then
-			# Restore the master setting during probes 
+			# Restore the master setting during probes
 			ocf_log debug "$RESOURCE monitor: restoring master setting during probe"
 			drbd_update_prefs
 		fi
@@ -418,7 +431,7 @@ drbd_promote() {
 		if [ "$DRBD_STATE_LOCAL" = "Primary" ]; then
 			ocf_log info "$RESOURCE promote: primary succeeded"
 			return $OCF_SUCCESS
-		else 
+		else
 			ocf_log err "$RESOURCE promote: Not primary despite drbdadm call."
 		fi
 		
@@ -572,7 +585,10 @@ start|stop|monitor|promote|demote|notify)
 			ocf_log err "You must be root to perform this operation."
 			exit $OCF_ERR_PERM
 		fi
-	
+                # Be obnoxious, log deprecation warning on every
+                # invocation (unless suppressed by resource
+                # configuration).
+		ocf_deprecated
 		drbd_init
 		drbd_$ACTION
 		exit $?
@@ -584,4 +600,3 @@ usage|help)	drbd_usage
 		exit $OCF_ERR_ARGS
 		;;
 esac
-
