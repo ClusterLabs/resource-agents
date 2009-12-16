@@ -230,23 +230,28 @@
     </refsection>
   </xsl:template>
 
-  <!--xsl:template match="parameters" mode="example">
-    <xsl:apply-templates mode="example"/>
-  </xsl:template-->
+  <xsl:template match="parameters" mode="example">
+    <xsl:apply-templates select="parameter" mode="example"/>
+  </xsl:template>
   
   <xsl:template match="parameter" mode="example">
     <xsl:text>    </xsl:text>
     <xsl:value-of select="@name"/>
     <xsl:text>=</xsl:text>
     <xsl:apply-templates select="content" mode="example"/>
-    <xsl:text> \
+    <xsl:text> \</xsl:text>
+    <xsl:if test="following-sibling::*">
+      <xsl:text>
 </xsl:text>
+    </xsl:if>
   </xsl:template>
 
   <xsl:template match="content" mode="example">
     <xsl:choose>
       <xsl:when test="@default != ''">
+	<xsl:text>"</xsl:text>
 	<xsl:value-of select="@default"/>
+	<xsl:text>"</xsl:text>
       </xsl:when>
       <xsl:otherwise>
 	<replaceable><xsl:value-of select="@type"/></replaceable>
@@ -264,18 +269,18 @@
     <xsl:text> </xsl:text>
     <xsl:apply-templates select="@*" mode="example"/>
     <xsl:if test="following-sibling::*">
-      <xsl:text> \</xsl:text>
+      <xsl:text>\</xsl:text>
     </xsl:if>
   </xsl:template>
 
   <xsl:template match="action/@*" mode="example">
     <xsl:choose>
-      <xsl:when test="name() = 'name'"/>
+      <xsl:when test="name() = 'name'"><!-- suppress --></xsl:when>
       <xsl:otherwise>
 	<xsl:value-of select="name()"/>
-	<xsl:text>=</xsl:text>
+	<xsl:text>="</xsl:text>
 	<xsl:value-of select="current()"/>
-	<xsl:text> </xsl:text>
+	<xsl:text>" </xsl:text>
       </xsl:otherwise>
     </xsl:choose>
     <xsl:if test="following-sibling::*">
