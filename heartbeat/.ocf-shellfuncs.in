@@ -271,6 +271,26 @@ ocf_log() {
 }
 
 #
+# ocf_deprecated: Log a deprecation warning
+# Usage:          ocf_deprecated [param-name]
+# Arguments:      param-name optional, name of a boolean resource
+#                            parameter that can be used to suppress
+#                            the warning (default
+#                            "ignore_deprecation")
+ocf_deprecated() {
+    local param envar
+    param=${1:-ignore_deprecation}
+    # don't use ${!param} here, it's a bashism
+    if ! ocf_is_true $(eval echo \$OCF_RESKEY_$param); then
+	ocf_log warn "This resource agent is deprecated" \
+	    "and may be removed in a future release." \
+	    "See the man page for details." \
+	    "To suppress this warning, set the \"${param}\"" \
+	    "resource parameter to true."
+    fi
+}
+
+#
 # Ocf_run: Run a script, and log its output.
 # Usage:   ocf_run <command>
 #
