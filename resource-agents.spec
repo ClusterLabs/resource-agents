@@ -103,11 +103,13 @@ export CFLAGS
 %if 0%{?suse_version} >= 1020 || 0%{?fedora} >= 11 || 0%{?centos_version} > 5 || 0%{?rhel} > 5
 %configure \
     --enable-fatal-warnings=yes \
+    --with-package-name=%{name} \
     --docdir=%{agents_docdir}
 %else
 export docdir=%{agents_docdir}
 %configure \
     --enable-fatal-warnings=yes \
+    --with-package-name=%{name}
 %endif
 
 
@@ -177,7 +179,7 @@ rm -rf $RPM_BUILD_DIR/resource-agents
 
 %doc AUTHORS
 %doc COPYING
-%doc %{_datadir}/heartbeat/ra-api-1.dtd
+%doc %{_datadir}/%{name}/ra-api-1.dtd
 %doc %{_mandir}/man7/*.7*
 %doc doc/README.webapps
 
