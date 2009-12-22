@@ -364,7 +364,7 @@ verify_fstype()
 	[ -z "$OCF_RESKEY_fstype" ] && return 0
 
 	case $OCF_RESKEY_fstype in
-	ext2|ext3|jfs|xfs|reiserfs|vfat|tmpfs|vxfs)
+	ext2|ext3|ext4|btrfs|jfs|xfs|reiserfs|vfat|tmpfs|vxfs)
 		return 0
 		;;
 	*)
@@ -397,7 +397,7 @@ verify_options()
 		esac
 
 		case $OCF_RESKEY_fstype in
-		ext2|ext3)
+		ext2|ext3|ext4)
 			case $o in
 			bsddf|minixdf|check|check=*|nocheck|debug)
 				continue
@@ -413,7 +413,8 @@ verify_options()
 				;;
 			esac
 
-			if [ "$OCF_RESKEY_fstype" = "ext3" ]; then
+			if [ "$OCF_RESKEY_fstype" = "ext3" ] ||
+			   [ "$OCF_RESKEY_fstype" = "ext4" ]; then
 				case $0 in
 				noload|data=*)
 					continue
@@ -484,6 +485,10 @@ verify_options()
 				continue
 				;;
 			esac
+			;;
+		btrfs)
+			# tbd
+			continue
 			;;
 		esac
 
@@ -1008,6 +1013,8 @@ Cannot mount $dev on $mp, the device or mount point is already in use!"
         case "$fstype" in
         reiserfs) typeset fsck_needed="" ;;
         ext3)     typeset fsck_needed="" ;;
+        ext4)     typeset fsck_needed="" ;;
+        btrfs)    typeset fsck_needed="" ;;
         jfs)      typeset fsck_needed="" ;;
         xfs)      typeset fsck_needed="" ;;
 	vxfs)	  typeset fsck_needed="" ;;
