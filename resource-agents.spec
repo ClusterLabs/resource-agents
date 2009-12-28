@@ -48,6 +48,7 @@ Source:         resource-agents.tar.bz2
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 AutoReqProv:    on
 Obsoletes:	heartbeat-resources
+Conflicts:	heartbeat-resources
 BuildRequires:  autoconf automake glib2-devel pkgconfig python-devel 
 
 %if 0%{?suse_version}  
@@ -70,6 +71,7 @@ Group:          Productivity/Clustering/HA
 Requires:       %{SSLeay} perl-libwww-perl ipvsadm
 Provides:	heartbeat-ldirectord
 Obsoletes:	heartbeat-ldirectord
+Conflicts:	heartbeat-ldirectord
 Requires:	perl-MailTools
 %if 0%{?suse_version}
 Requires:       logrotate
