@@ -47,7 +47,7 @@ Group:		%{pkg_group}
 Source:         resource-agents.tar.bz2
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 AutoReqProv:    on
-Obsoletes:	heartbeat-resources < 3.0
+Obsoletes:	heartbeat-resources
 BuildRequires:  autoconf automake glib2-devel pkgconfig python-devel 
 
 %if 0%{?suse_version}  
