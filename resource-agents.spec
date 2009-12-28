@@ -175,6 +175,7 @@ rm -rf $RPM_BUILD_DIR/resource-agents
 %defattr(-,root,root)
 %dir /usr/lib/ocf
 %dir /usr/lib/ocf/resource.d
+%dir %{_datadir}/%{name}
 /usr/lib/ocf/resource.d/heartbeat
 %{_sbindir}/ocf-tester
 %{_sbindir}/sfex_init
