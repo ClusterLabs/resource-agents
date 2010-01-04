@@ -377,9 +377,9 @@ else
 	DOMAIN_NAME=${DOMAIN_NAME:-${OCF_RESOURCE_INSTANCE}}
 fi
 
-if [ "X`which xm`" = X ]; then
-	return $OCF_ERR_INSTALLED
-fi
+for binary in xm sed awk; do
+    check_binary $binary
+done
 
 case $1 in
   start)		Xen_Start
