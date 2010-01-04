@@ -194,9 +194,14 @@ IptablesStatus() {
 		fi
 		;;
 	    
-	    *)	
-		SayActive $*
-		rc=$OCF_SUCCESS
+	    *)
+		if ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" status; then	
+			SayActive $*
+			rc=$OCF_SUCCESS
+		else
+			SayInactive $*
+			rc=$OCF_NOT_RUNNING
+		fi
 		;;
 	esac
     fi      
