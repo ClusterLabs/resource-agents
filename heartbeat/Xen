@@ -299,9 +299,12 @@ Xen_Stop() {
       # If xm destroy fails, stop will eventually timeout.
       # This is the correct behaviour.
     fi
+
+    ocf_log info "Xen domain $DOMAIN_NAME stopped."
+  else
+    ocf_log info "Xen domain $DOMAIN_NAME already stopped." 
   fi
 
-  ocf_log info "Xen domain $DOMAIN_NAME stopped."
   Xen_Adjust_Memory 0
   return $OCF_SUCCESS
 }
