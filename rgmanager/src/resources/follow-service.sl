@@ -6,7 +6,7 @@
 % Author:       Marc Grimme, Mark Hlawatschek, October 2008
 % Support:      support@atix.de
 % License:      GNU General Public License (GPL), version 2 or later
-% Copyright:    (c) 2008-2009 ATIX AG
+% Copyright:    (c) 2008-2010 ATIX AG
 
 
 debug("*** follow-service.sl");
