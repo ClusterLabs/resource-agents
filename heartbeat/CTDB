@@ -2,7 +2,7 @@
 #
 #             OCF Resource Agent for managing CTDB
 #
-# Copyright (c) 2009 Novell Inc., Tim Serong
+# Copyright (c) 2009-2010 Novell Inc., Tim Serong
 #                    All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -24,68 +24,8 @@
 # along with this program; if not, write the Free Software Foundation,
 # Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
 #
-# USAGE:
-#
-# 1) Configure shared filesysem (e.g. OCFS2)
-# 2) Make directories for CTDB lock and Samba state on the shared
-#    filesystem:
-#
-#    # mkdir -p /shared-fs/samba/private
-#
-# 3) Create /etc/ctdb/nodes on all nodes, containing a list of
-#    the private IP addresses of each node in the cluster, e.g.:
-#
-#    # cat /etc/ctdb/nodes
-#    192.168.101.14
-#    192.168.101.15
-#
-# 4) Set the following options in /etc/samba/smb.conf on all nodes:
-#
-#     [global]
-#     passdb backend = tdbsam
-#     clustering = yes
-#     idmap backend = tdb2
-#     private dir = /shared-fs/samba/private
-#     ctdb socket = /var/lib/ctdb/ctdb.socket
-#
-# 5) Add CTDB to the cluster (assume shared FS is named fs-clone):
-#
-#    # crm configure
-#    # primitive ctdb ocf:heartbeat:CTDB params \
-#      ctdb_recovery_lock="/shared-fs/samba/ctdb.lock"
-#    # clone ctdb-clone ctdb \
-#      meta globally-unique="false" interleave="true"
-#    # colocation ctdb-with-fs inf: ctdb-clone fs-clone
-#    # order start-ctdb-after-fs inf: fs-clone ctdb-clone
-#    # commit
-#
-# NOTES:
-#
-# - If you need to change the ctdb socket location, you must
-#   set both OCF_RESKEY_ctdb_socket and make the same change in
-#   your smb.conf files.
-#
-# - This RA will automatically generate a new, minimal
-#   /etc/sysconfig/ctdb file when started.  When stopped, the
-#   original file will be restored.  There is thus no need to
-#   manually set any options in /etc/sysconfig/ctdb to use this RA.
-#
-# OCF INSTANCE PARAMETERS:
-#
-# - OCF_RESKEY_ctdb_recovery_lock (required)
-# - OCF_RESKEY_ctdb_config_dir    (optional, default=/etc/ctdb)
-# - OCF_RESKEY_ctdb_binary        (optional, default=/usr/bin/ctdb)
-# - OCF_RESKEY_ctdbd_binary       (optional, default=/usr/sbin/ctdbd)
-# - OCF_RESKEY_ctdb_socket        (optional, default=/var/lib/ctdb/ctdb.socket)
-# - OCF_RESKEY_ctdb_dbdir         (optional, default=/var/lib/ctdb)
-# - OCF_RESKEY_ctdb_logfile       (optional, default=/var/log/ctdb/log.ctdb)
-# - OCF_RESKEY_ctdb_debuglevel    (optional, default=2)
-#
 # TODO:
 # - Verify timeouts are sane
-# - Fail/warn if ${OCF_RESKEY_ctdb_config_dir}/public_addresses exists
-#   (CTDB will try to grab these)
-# - Improve validate_all
 # - Monitor differentiate between error and not running?
 # - Do we need to verify globally unique setting?
 # - Should set CTDB_NODES to ${HA_RSCTMP}/ctdb (generated based on
@@ -125,6 +65,7 @@
 : ${OCF_RESKEY_ctdb_dbdir:=/var/lib/ctdb}
 : ${OCF_RESKEY_ctdb_logfile:=/var/log/ctdb/log.ctdb}
 : ${OCF_RESKEY_ctdb_debuglevel:=2}
+: ${OCF_RESKEY_smb_conf:=/etc/samba/smb.conf}
 
 #######################################################################
 
@@ -137,7 +78,12 @@ meta_data() {
 
 <longdesc lang="en">
 This resource agent manages CTDB, allowing one to use Clustered Samba
-in a Linux-HA/Pacemaker cluster.
+in a Linux-HA/Pacemaker cluster.  You need a shared filesystem
+(e.g. OCFS2) on which CTDB lock and Samba state will be stored.
+Configure shares in smb.conf on all nodes, and create /etc/ctdb/nodes
+containing a list of private IP addresses of each node in the cluster.
+Configure this RA as a clone, and it will take care of the rest.
+For more information see http://linux-ha.org/wiki/CTDB_(resource_agent)
 </longdesc>
 <shortdesc lang="en">CTDB Resource Agent</shortdesc>
 
@@ -149,6 +95,16 @@ The location of a shared lock file, common across all nodes.
 This must be on shared storage, e.g.: /shared-fs/samba/ctdb.lock
 </longdesc>
 <shortdesc lang="en">CTDB shared lock file</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="smb_private_dir" unique="1" required="1">
+<longdesc lang="en">
+The directory for smbd to use for storing such files as
+smbpasswd and secrets.tdb.  This must be on shared storage,
+e.g.: /shared-fs/samba/private
+</longdesc>
+<shortdesc lang="en">Samba private dir</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -180,7 +136,7 @@ Full path to the CTDB cluster daemon binary.
 
 <parameter name="ctdb_socket" unique="0" required="0">
 <longdesc lang="en">
-The name of the domain socket that ctdbd will create, used for
+Full path to the domain socket that ctdbd will create, used for
 local clients to attach and communicate with the ctdb daemon.
 </longdesc>
 <shortdesc lang="en">CTDB socket location</shortdesc>
@@ -213,6 +169,14 @@ What debug level to run at (0-10). Higher means more verbose.
 <content type="integer" default="2" />
 </parameter>
 
+<parameter name="smb_conf" unique="0" required="0">
+<longdesc lang="en">
+Path to default samba config file.
+</longdesc>
+<shortdesc lang="en">Path to smb.conf</shortdesc>
+<content type="string" default="/etc/samba/smb.conf" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -238,6 +202,9 @@ elif [ -f $OCF_RESKEY_ctdb_config_dir/ctdb ]; then
 	CTDB_SYSCONFIG=$OCF_RESKEY_ctdb_config_dir/ctdb
 fi
 
+# Backup paths
+CTDB_SYSCONFIG_BACKUP=${HA_RSCTMP}/ctdb-${OCF_RESOURCE_INSTANCE}
+
 # This function has no effect (currently no way to set CTDB_SET_*)
 # but remains here in case we need it in future.
 set_ctdb_variables() {
@@ -252,19 +219,51 @@ set_ctdb_variables() {
 }
 
 
+# Add necessary settings to /etc/samba/smb.conf.  In a perfect world,
+# we'd be able to generate a new, temporary, smb.conf file somewhere,
+# something like:
+#     include = /etc/samba/smb.conf
+#     [global]
+#       clustering = yes
+#       # ...etc...
+# Unfortunately, we can't do this, because there's no way to tell the
+# smb init script where the temporary config is, so we just edit
+# the default config file.
+init_smb_conf() {
+	grep -Eiv \
+		'^[[:space:]]*(# CTDB-RA:|passdb backend|clustering|idmap backend|private dir|ctdbd socket)' \
+		$OCF_RESKEY_smb_conf | sed "/^[[:space:]]*\[global\]/ a\\
+\t# CTDB-RA: Begin auto-generated section (do not change below)\n\
+\tpassdb backend = tdbsam\n\
+\tclustering = yes\n\
+\tidmap backend = tdb2\n\
+\tprivate dir = $OCF_RESKEY_smb_private_dir\n\
+\tctdbd socket = $OCF_RESKEY_ctdb_socket\n\
+\t# CTDB-RA: End auto-generated section (do not change above)" > $OCF_RESKEY_smb_conf.$$
+	mv -f $OCF_RESKEY_smb_conf.$$ $OCF_RESKEY_smb_conf
+}
+
+
+# Get rid of that section we added
+cleanup_smb_conf() {
+	sed '/# CTDB-RA: Begin/,/# CTDB-RA: End/d' $OCF_RESKEY_smb_conf > $OCF_RESKEY_smb_conf.$$
+	mv -f $OCF_RESKEY_smb_conf.$$ $OCF_RESKEY_smb_conf
+}
+
+
 # Save current CTDB config file and generate a new, minimal version
-# that is just enough to get Samba running
+# that is just enough to get Samba running.
 save_ctdb_sysconfig() {
 	# If one of our auto-generated config files is already present, return immediately
 	grep -qa '# CTDB-RA: Auto-generated' $CTDB_SYSCONFIG && return
 	
 	# Otherwise, backup...
-	cp -p $CTDB_SYSCONFIG ${HA_RSCTMP}/ctdb-${OCF_RESOURCE_INSTANCE}
+	cp -p $CTDB_SYSCONFIG $CTDB_SYSCONFIG_BACKUP
 	if [ $? -eq 0 ]; then
-		ocf_log info "Saved $CTDB_SYSCONFIG to ${HA_RSCTMP}/ctdb-${OCF_RESOURCE_INSTANCE}, generating new runtime $CTDB_SYSCONFIG"
+		ocf_log info "Saved $CTDB_SYSCONFIG to $CTDB_SYSCONFIG_BACKUP, generating new runtime $CTDB_SYSCONFIG"
 		# ...and generate
 		cat >$CTDB_SYSCONFIG <<EOF
-# CTDB-RA: Auto-generated by ${0}, backup is at ${HA_RSCTMP}/ctdb-${OCF_RESOURCE_INSTANCE}
+# CTDB-RA: Auto-generated by ${0}, backup is at $CTDB_SYSCONFIG_BACKUP
 CTDB_MONITOR_FREE_MEMORY=100
 CTDB_SAMBA_SKIP_SHARE_CHECK=yes
 CTDB_MANAGES_SAMBA=yes
@@ -274,18 +273,18 @@ CTDB_SERVICE_NMB=nmb
 CTDB_SERVICE_WINBIND=winbind
 EOF
 	else
-		ocf_log warn "Unable to backup $CTDB_SYSCONFIG to ${HA_RSCTMP}/ctdb-${OCF_RESOURCE_INSTANCE} - not making any changes"
+		ocf_log warn "Unable to backup $CTDB_SYSCONFIG to $CTDB_SYSCONFIG_BACKUP - not making any changes"
 	fi
 }
 
 
 restore_ctdb_sysconfig() {
-	if [ -f ${HA_RSCTMP}/ctdb-${OCF_RESOURCE_INSTANCE} ]; then
-		ocf_log info "Restoring ${HA_RSCTMP}/ctdb-${OCF_RESOURCE_INSTANCE} to $CTDB_SYSCONFIG"
+	if [ -f $CTDB_SYSCONFIG_BACKUP ]; then
+		ocf_log info "Restoring $CTDB_SYSCONFIG_BACKUP to $CTDB_SYSCONFIG"
 		# cp handles destination being a symlink (as opposed to mv)
-		cp -p ${HA_RSCTMP}/ctdb-${OCF_RESOURCE_INSTANCE} $CTDB_SYSCONFIG		
-		[ $? -ne 0 ] && ocf_log warn "Unable to restore ${HA_RSCTMP}/ctdb-${OCF_RESOURCE_INSTANCE} to $CTDB_SYSCONFIG"
-		rm ${HA_RSCTMP}/ctdb-${OCF_RESOURCE_INSTANCE}
+		cp -p $CTDB_SYSCONFIG_BACKUP $CTDB_SYSCONFIG
+		[ $? -ne 0 ] && ocf_log warn "Unable to restore $CTDB_SYSCONFIG_BACKUP to $CTDB_SYSCONFIG"
+		rm $CTDB_SYSCONFIG_BACKUP
 	fi
 }
 
@@ -318,6 +317,13 @@ ctdb_start() {
 		}
 	done
 
+	# Add necessary configuration to smb.conf
+	init_smb_conf
+	if [ $? -ne 0 ]; then
+		ocf_log err "Failed to update $OCF_RESKEY_smb_conf."
+		return $OCF_ERR_GENERIC
+	fi
+
 	# Save sysconfig (we're going to generate a minimal one
 	# in place of what's there)
 	save_ctdb_sysconfig
@@ -340,8 +346,9 @@ ctdb_start() {
 		$log_option \
 		-d $OCF_RESKEY_ctdb_debuglevel
 	if [ $? -ne 0 ]; then
-		# restore sysconfig
+		# restore sysconfig & cleanup smb.conf
 		restore_ctdb_sysconfig
+		cleanup_smb_conf
 		
 		ocf_log err "Failed to execute $OCF_RESKEY_ctdbd_binary."
 		return $OCF_ERR_GENERIC
@@ -399,8 +406,9 @@ ctdb_stop() {
 		}
 	done
 
-	# Restore saved sysconfig
+	# Restore saved sysconfig & cleanup smb.conf
 	restore_ctdb_sysconfig
+	cleanup_smb_conf
 
 	# Be paranoid about return codes
 	[ $rv -eq $OCF_SUCCESS ] && return $OCF_SUCCESS
@@ -421,6 +429,25 @@ ctdb_validate() {
 		return $OCF_ERR_INSTALLED
 	fi
 
+	if [ ! -f "$OCF_RESKEY_smb_conf" ]; then
+		ocf_log err "Samba config file '$OCF_RESKEY_smb_conf' does not exist."
+		return $OCF_ERR_INSTALLED
+	fi
+
+	if [ -f "${OCF_RESKEY_ctdb_config_dir}/public_addresses" ]; then
+		ocf_log warn "CTDB file '${OCF_RESKEY_ctdb_config_dir}/public_addresses' exists - CTDB will try to manage IP failover!"
+	fi
+
+	if [ -z "$OCF_RESKEY_ctdb_recovery_lock" ]; then
+		ocf_log err "ctdb_recovery_lock not specified."
+		return $OCF_ERR_ARGS
+	fi
+
+	if [ -z "$OCF_RESKEY_smb_private_dir" ]; then
+		ocf_log err "smb_private_dir not specified."
+		return $OCF_ERR_ARGS
+	fi
+
 	lock_dir=$(dirname "$OCF_RESKEY_ctdb_recovery_lock")
 	touch "$lock_dir/$$" 2>/dev/null
 	if [ $? != 0 ]; then
@@ -429,6 +456,13 @@ ctdb_validate() {
 	fi
 	rm "$lock_dir/$$"
 	
+	touch "$OCF_RESKEY_smb_private_dir/$$" 2>/dev/null
+	if [ $? != 0 ]; then
+		ocf_log err "Directory for smbd private files '$OCF_RESKEY_smb_private_dir' does not exist, or is not writable."
+		return $OCF_ERR_ARGS
+	fi
+	rm "$OCF_RESKEY_smb_private_dir/$$"
+
 	return $OCF_SUCCESS
 }
 
@@ -439,7 +473,7 @@ meta-data)	meta_data
 		;;
 start)		ctdb_start;;
 stop)		ctdb_stop;;
-monitor)		ctdb_monitor;;
+monitor)	ctdb_monitor;;
 validate-all)	ctdb_validate;;
 usage|help)	ctdb_usage
 		exit $OCF_SUCCESS
