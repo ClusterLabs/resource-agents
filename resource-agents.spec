@@ -196,6 +196,7 @@ rm -rf $RPM_BUILD_DIR/resource-agents
 %{_libdir}/heartbeat/send_arp
 %{_libdir}/heartbeat/sfex_daemon
 %{_libdir}/heartbeat/findif
+%{_libdir}/heartbeat/tickle_tcp
 
 %files -n ldirectord
 ###########################################################

@@ -25,7 +25,7 @@ halibdir		= $(libdir)/heartbeat
 
 sbin_PROGRAMS		= 
 sbin_SCRIPTS		= ocf-tester
-halib_PROGRAMS		= findif
+halib_PROGRAMS		= findif tickle_tcp
 
 if BUILD_SFEX
 halib_PROGRAMS		+= sfex_daemon
@@ -55,5 +55,7 @@ sfex_init_CFLAGS	= -D_GNU_SOURCE
 sfex_init_LDADD		= $(GLIBLIB) -lplumb -lplumbgpl
 
 findif_SOURCES		= findif.c
+
+tickle_tcp_SOURCES	= tickle_tcp.c
 
 .PHONY: install-exec-hook

@@ -14,6 +14,8 @@
 #		OCF_RESKEY_portno
 #		OCF_RESKEY_action
 #		OCF_RESKEY_ip
+#		OCF_RESKEY_tickle_dir
+#		OCF_RESKEY_sync_script
 #######################################################################
 # Initialization:
 
@@ -26,6 +28,7 @@ OCF_RESKEY_ip_default="0.0.0.0/0"
 : ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
 #######################################################################
 CMD=`basename $0`
+TICKLETCP=$HA_BIN/tickle_tcp
 
 usage()
 {
@@ -59,6 +62,47 @@ usage()
 
 	NOTE:  iptables is linux-specific...
 
+	An additional feature in the portblock RA is the tickle ACK function
+	enabled by specifying the tickle_dir parameter. The tickle ACK 
+	triggers the clients to faster reconnect their TCP connections to the 
+	fail-overed server.
+
+	Please note that this feature is often used for the floating IP fail-
+	over scenario where the long-lived TCP connections need to be tickled.
+	It doesn't support the cluster alias IP scenario.
+
+	When using the tickle ACK function, in addition to the normal usage
+	of portblock RA, the parameter tickle_dir must be specified in the 
+	action=unblock instance of the portblock resources.
+	For example, you may stack resources like below:
+		portblock action=block
+		services
+		portblock action=unblock tickle_dir=/tickle/state/dir
+
+	If you want to tickle all the TCP connections which connected to _one_
+	floating IP but different ports, no matter how many portblock resources 
+	you have defined, you should enable tickles for _one_ portblock 
+	resource(action=unblock) only.
+	
+	The tickle_dir is a location which stores the established TCP 
+	connections. It can be a shared directory(which is cluster-visible to 
+	all nodes) or a local directory.
+	If you use the shared directory, you needn't do any other things.
+	If you use the local directory, you must also specify the sync_script
+	paramater. We recommend you to use csync2 as the sync_script.
+	For example, if you use the local directory /tmp/tickle as tickle_dir, 
+	you could setup the csync2 as the csync2 documentation says and 
+	configure your /etc/csync2/csync2.cfg like:
+		group ticklegroup {
+		  host node1;
+		  host node2;
+		  key  /etc/csync2/ticklegroup.key;
+		  include /etc/csync2/csync2.cfg;
+		  include /tmp/tickle;
+		  auto younger;
+		}
+	Then specify the parameter sync_script as "csync2 -xv".
+
 END
 }
 
@@ -71,7 +115,12 @@ meta_data() {
 
 <longdesc lang="en">
 Resource script for portblock. It is used to temporarily block ports 
-using iptables. 
+using iptables. In addition, it may allow for faster TCP reconnects
+for clients on failover. Use that if there are long lived TCP
+connections to an HA service. This feature is enabled by setting the
+tickle_dir parameter and only in concert with action set to unblock.
+Note that the tickle ACK function is new as of version 3.0.2 and
+hasn't yet seen widespread use.
 </longdesc>
 <shortdesc lang="en">Block and unblocks access to TCP and UDP ports</shortdesc>
 
@@ -92,6 +141,14 @@ The port number used to be blocked/unblocked.
 <content type="integer" default="" />
 </parameter>
 
+<parameter name="action" unique="0" required="1">
+<longdesc lang="en">
+The action (block/unblock) to be done on the protocol::portno.
+</longdesc>
+<shortdesc lang="en">action</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 <parameter name="ip" unique="0" required="0">
 <longdesc lang="en">
 The IP address used to be blocked/unblocked.
@@ -100,11 +157,23 @@ The IP address used to be blocked/unblocked.
 <content type="string" default="${OCF_RESKEY_ip_default}" />
 </parameter>
 
-<parameter name="action" unique="0" required="1">
+<parameter name="tickle_dir" unique="0" required="0">
 <longdesc lang="en">
-The action (block/unblock) to be done on the protocol::portno.
+The shared or local directory (_must_ be absolute path) which 
+stores the established TCP connections.
 </longdesc>
-<shortdesc lang="en">action</shortdesc>
+<shortdesc lang="en">Tickle directory</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="sync_script" unique="0" required="0">
+<longdesc lang="en">
+If the tickle_dir is a local directory, then the TCP connection state
+file has to be replicated to other nodes in the cluster. It can be
+csync2 (default), some wrapper of rsync, or whatever. It takes the
+file name as a single argument. For csync2, set it to "csync2 -xv".
+</longdesc>
+<shortdesc lang="en">Connection state file synchronization script</shortdesc>
 <content type="string" default="" />
 </parameter>
 </parameters>
@@ -130,12 +199,6 @@ END
 #	and disable us -- but we're still in some sense active...
 #
 
-#iptables_spec {udp|tcp} portno,portno
-iptables_spec()
-{
-  echo -D INPUT -p $1 -m multiport --dports $2 -j DROP
-}
-
 #active_grep_pat {udp|tcp} portno,portno
 active_grep_pat()
 {
@@ -149,6 +212,33 @@ chain_isactive()
 {
   PAT=`active_grep_pat "$1" "$2" "$3"`
   $IPTABLES -n -L INPUT | grep "$PAT" >/dev/null
+}
+
+save_tcp_connections()
+{
+	[ -z "$OCF_RESKEY_tickle_dir" ] && return
+	statefile=$OCF_RESKEY_tickle_dir/$OCF_RESKEY_ip
+	if [ -z "$OCF_RESKEY_sync_script" ]; then
+		netstat -tn |awk -F '[:[:space:]]+' '
+			$8 == "ESTABLISHED" && $4 == "'$OCF_RESKEY_ip'" \
+			{printf "%s:%s\t%s:%s\n", $4,$5, $6,$7}' |
+			dd of="$statefile".new conv=fsync && 
+			mv "$statefile".new "$statefile"
+	else
+		netstat -tn |awk -F '[:[:space:]]+' '
+			$8 == "ESTABLISHED" && $4 == "'$OCF_RESKEY_ip'" \
+			{printf "%s:%s\t%s:%s\n", $4,$5, $6,$7}' \
+			> $statefile
+		$OCF_RESKEY_sync_script $statefile > /dev/null 2>&1 &
+	fi
+}
+
+run_tickle_tcp()
+{
+	[ -z "$OCF_RESKEY_tickle_dir" ] && return
+	echo 1 > /proc/sys/net/ipv4/tcp_tw_recycle
+	f=$OCF_RESKEY_tickle_dir/$OCF_RESKEY_ip
+	[ -f $f ] && cat $f | $TICKLETCP -n 3
 }
 
 SayActive()
@@ -195,8 +285,10 @@ IptablesStatus() {
 		;;
 	    
 	    *)
-		if ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" status; then	
+		if ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" status; then
 			SayActive $*
+			#This is only run on real monitor events.
+			save_tcp_connections
 			rc=$OCF_SUCCESS
 		else
 			SayInactive $*
@@ -243,7 +335,13 @@ IptablesStart()
   ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" start
   case $4 in
     block)	IptablesBLOCK "$@";;
-    unblock)	IptablesUNBLOCK "$@";;
+    unblock)
+		IptablesUNBLOCK "$@"
+		rc=$?
+		run_tickle_tcp
+		#ignore run_tickle_tcp exit code!
+		return $rc
+		;;
     *)		usage; return 1;
   esac
 
@@ -256,7 +354,10 @@ IptablesStop()
   ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" stop
   case $4 in
     block)	IptablesUNBLOCK "$@";;
-    unblock)	IptablesBLOCK "$@";;
+    unblock)
+		save_tcp_connections
+		IptablesBLOCK "$@"
+		;;
     *)		usage; return 1;;
   esac
 
@@ -269,14 +370,7 @@ IptablesStop()
 CheckPort() {
 #	Examples of valid port: "1080", "1", "0080"
 #	Examples of invalid port: "1080bad", "0", "0000", ""
-  case "$1" in
-    *[!0-9]*) #got invalid char
-	false;;
-    *[1-9]*) #no invalid char, and has non-zero digit, so is a good port
-	true;;
-    *) #empty string, or string of 0's 
-	false;;
-  esac
+  echo $1 |egrep -qx '[0-9]+(:[0-9]+)?(,[0-9]+(:[0-9]+)?)*'
 }
 
 IptablesValidateAll()
@@ -296,6 +390,17 @@ IptablesValidateAll()
   else
 	ocf_log err "Invalid port number $portno!"
 	exit $OCF_ERR_ARGS
+  fi
+
+  if [ -n "$OCF_RESKEY_tickle_dir" ]; then
+	if [ x"$action" != x"unblock" ]; then
+		ocf_log err "Tickles are only useful with action=unblock!"
+		exit $OCF_ERR_ARGS
+	fi
+	if [ ! -d "$OCF_RESKEY_tickle_dir" ]; then
+		ocf_log err "The tickle dir doesn't exist!"
+		exit $OCF_ERR_ARGS	  	
+	fi
   fi
 
   case $action in
