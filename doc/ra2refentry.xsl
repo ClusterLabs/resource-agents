@@ -50,6 +50,7 @@
   <xsl:apply-templates select="$this" mode="description"/>
   <xsl:apply-templates select="$this" mode="parameters"/>
   <xsl:apply-templates select="$this" mode="example"/>
+  <xsl:apply-templates select="$this" mode="seealso"/>
  </xsl:template>
 
 
@@ -297,4 +298,20 @@
   <xsl:template match="longdesc" mode="example"/>
 
   <xsl:template match="shortdesc" mode="example"/>
+
+  <xsl:template match="resource-agent" mode="seealso">
+    <refsection>
+      <title>See also</title>
+      <para>
+	<ulink>
+	  <xsl:attribute name="url">
+	    <xsl:text>http://www.linux-ha.org/wiki/</xsl:text>
+	    <xsl:value-of select="@name"/>
+	    <xsl:text>_(resource_agent)</xsl:text>
+	  </xsl:attribute>
+	</ulink>
+      </para>
+    </refsection>
+  </xsl:template>
+
 </xsl:stylesheet>
