@@ -30,12 +30,20 @@
 #include <netinet/tcp.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
+#include <net/if.h>
 
 #define discard_const(ptr) ((void *)((intptr_t)(ptr)))
 
+typedef union {
+	struct sockaddr     sa;
+	struct sockaddr_in  ip;
+	struct sockaddr_in6 ip6;
+} sock_addr;
+
 uint32_t uint16_checksum(uint16_t *data, size_t n);
 void set_nonblocking(int fd);
-void set_close_on_exec(int fd) ;
+void set_close_on_exec(int fd);
 static int parse_ipv4(const char *s, unsigned port, struct sockaddr_in *sin);
 static int parse_ipv6(const char *s, const char *iface, unsigned port, sock_addr *saddr);
 int parse_ip(const char *addr, const char *iface, unsigned port, sock_addr *saddr);
@@ -44,12 +52,6 @@ int send_tickle_ack(const sock_addr *dst,
 		    const sock_addr *src, 
 		    uint32_t seq, uint32_t ack, int rst);
 static void usage(void);
-
-typedef union {
-	struct sockaddr     sa;
-	struct sockaddr_in  ip;
-	struct sockaddr_in6 ip6;
-} sock_addr;
 
 uint32_t uint16_checksum(uint16_t *data, size_t n)
 {
@@ -260,7 +262,7 @@ int send_tickle_ack(const sock_addr *dst,
 		set_close_on_exec(s);
 
 		ret = sendto(s, &ip4pkt, sizeof(ip4pkt), 0, 
-			     (struct sockaddr *)&dst->ip, sizeof(dst->ip));
+			     (const struct sockaddr *)&dst->ip, sizeof(dst->ip));
 		close(s);
 		if (ret != sizeof(ip4pkt)) {
 			fprintf(stderr, "Failed sendto (%s)\n", strerror(errno));
@@ -298,7 +300,7 @@ int send_tickle_ack(const sock_addr *dst,
 		tmpport = tmpdest->ip6.sin6_port;
 
 		tmpdest->ip6.sin6_port = 0;
-		ret = sendto(s, &ip6pkt, sizeof(ip6pkt), 0, (struct sockaddr *)&dst->ip6, sizeof(dst->ip6));
+		ret = sendto(s, &ip6pkt, sizeof(ip6pkt), 0, (const struct sockaddr *)&dst->ip6, sizeof(dst->ip6));
 		tmpdest->ip6.sin6_port = tmpport;
 		close(s);
 
@@ -328,7 +330,7 @@ static void usage(void)
 
 int main(int argc, char *argv[])
 {
-	int ret, optchar, i, num = 1, cont = 1;
+	int optchar, i, num = 1, cont = 1;
 	sock_addr src, dst;
 	char addrline[128], addr1[64], addr2[64];
 
