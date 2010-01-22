@@ -225,6 +225,12 @@
 	<xsl:text>  params \
 </xsl:text>
 	<xsl:apply-templates select="parameters" mode="example"/>
+	<!-- Insert a suggested allow-migrate meta attribute if the
+	     resource agent supports migration -->
+	<xsl:if test="actions/action/@name = 'migrate_from' or actions/action/@name = 'migrate_to'">
+	  <xsl:text>
+  meta allow-migrate="true" \</xsl:text>
+	</xsl:if>
 	<xsl:apply-templates select="actions" mode="example"/>
       </programlisting>
     </refsection>
