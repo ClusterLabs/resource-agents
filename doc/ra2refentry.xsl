@@ -181,6 +181,19 @@
   <xsl:template match="content" mode="parameters">
     <xsl:if test="@type != '' or @default != ''">
       <xsl:text> (</xsl:text>
+      <xsl:choose>
+	<xsl:when test="@required = 1">
+	  <xsl:text>required</xsl:text>
+	</xsl:when>
+	<xsl:otherwise>
+	  <xsl:text>optional</xsl:text>
+	</xsl:otherwise>
+      </xsl:choose>
+      <xsl:text>, </xsl:text>
+      <xsl:if test="@parameter != ''">
+	<xsl:value-of select="@type"/>
+	<xsl:text>, </xsl:text>
+      </xsl:if>
       <xsl:if test="@type != ''">
 	<xsl:value-of select="@type"/>
 	<xsl:text>, </xsl:text>
