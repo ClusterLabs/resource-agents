@@ -117,7 +117,8 @@ This is a resource agent for LinuxSCSI. It manages the availability of a
 SCSI device from the point of view of the linux kernel. It make Linux
 believe the device has gone away, and it can make it come back again.
 </longdesc>
-<shortdesc lang="en">Enables and disables SCSI devices through the kernel SCSI hot-plug subsystem</shortdesc>
+<shortdesc lang="en">Enables and disables SCSI devices through the
+kernel SCSI hot-plug subsystem (deprecated)</shortdesc>
 
 <parameters>
 <parameter name="scsi" unique="0" required="1">

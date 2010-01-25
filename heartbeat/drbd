@@ -50,9 +50,7 @@ meta_data() {
 <resource-agent name="drbd">
 <version>1.1</version>
 
-<shortdesc lang="en">
-Master/Slave OCF Resource Agent for DRBD
-</shortdesc>
+<shortdesc lang="en">Manages a DRBD resource (deprecated)</shortdesc>
 
 <longdesc lang="en">
 Deprecation warning: This agent is deprecated and may be removed from
