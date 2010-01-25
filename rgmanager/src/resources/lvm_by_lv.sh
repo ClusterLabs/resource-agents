@@ -199,6 +199,15 @@ lv_activate_and_tag()
 			ocf_log err "Unable to delete tag from $lv_path"
 			return $OCF_ERR_GENERIC
 		fi
+
+		if [ `lvs --noheadings -o lv_tags $lv_path` == $tag ]; then
+			ocf_log notice "Removing ownership tag ($tag) from $lv_path"
+			lvchange --deltag $tag $lv_path
+			if [ $? -ne 0 ]; then
+				ocf_log err "Unable to delete tag from $lv_path"
+				return $OCF_ERR_GENERIC
+			fi
+		fi
 	fi
 
 	return $OCF_SUCCESS
