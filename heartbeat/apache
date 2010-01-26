@@ -553,7 +553,7 @@ See also http://httpd.apache.org/
 <shortdesc lang="en">Manages an Apache web server instance</shortdesc>
 
 <parameters>
-<parameter name="configfile" required="1" unique="1">
+<parameter name="configfile" required="0" unique="1">
 <longdesc lang="en">
 The full pathname of the Apache configuration file.
 This file is parsed to provide defaults for various other

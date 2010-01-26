@@ -9,6 +9,10 @@ else
 . ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
 fi
 
+: ${OCF_RESKEY_scsi_reserve="/usr/sbin/scsi_reserve"}
+: ${OCF_RESKEY_sharedisk="/dev/sdb"}
+: ${OCF_RESKEY_start_loop=10}
+
 scsi2reserve_meta_data() {
 	cat <<END
 <?xml version="1.0"?>
@@ -28,7 +32,7 @@ scsi-2 reservation
 
 <parameters>
 
-<parameter name="scsi_reserve" unique="0" required="1">
+<parameter name="scsi_reserve" unique="0" required="0">
 <longdesc lang="en">
 The scsi_reserve is a command from scsires package. 
 It helps to issue SCSI-2 reservation on SCSI devices.
@@ -38,7 +42,7 @@ It helps to issue SCSI-2 reservation on SCSI devices.
 </parameter>
 
 
-<parameter name="sharedisk" unique="0" required="1">
+<parameter name="sharedisk" unique="0" required="0">
 <longdesc lang="en">
 The shared disk that can be reserved.
 </longdesc>
@@ -48,7 +52,7 @@ Shared disk.
 <content type="string" default="/dev/sdb" />
 </parameter>
 
-<parameter name="start_loop" unique="0" required="1">
+<parameter name="start_loop" unique="0" required="0">
 <longdesc lang="en">
 We are going to try several times before giving up. Start_loop indicates how many times we are going to re-try.
 </longdesc>
@@ -94,7 +98,6 @@ esac
 
 scsi2reserve_validate ()
 {
-	: ${OCF_RESKEY_start_loop=10}
 	if [ ! -x "${OCF_RESKEY_scsi_reserve}" ]; then
 		exit $OCF_ERR_INSTALLED
 	fi

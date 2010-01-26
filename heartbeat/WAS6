@@ -97,7 +97,7 @@ an HA resource.
 <shortdesc lang="en">Manages a WebSphere Application Server 6 instance</shortdesc>
 
 <parameters>
-<parameter name="profile" unique="0" required="1">
+<parameter name="profile" unique="0" required="0">
 <longdesc lang="en">
 The WAS profile name.
 </longdesc>

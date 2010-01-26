@@ -54,7 +54,7 @@ This script manages Pure-FTPd in an Active-Passive setup
 
 <parameters>
 
-<parameter name="script" unique="1" required="1">
+<parameter name="script" unique="1" required="0">
 <longdesc lang="en">
 The full path to the Pure-FTPd startup script. 
 For example, "/sbin/pure-config.pl"

@@ -73,7 +73,7 @@ The local Ethernet interface to use for exporting this AoE target.
       <shortdesc lang="en">Ethernet interface</shortdesc>
       <content type="string" default="${OCF_RESKEY_nic_default}"/>
     </parameter>
-    <parameter name="shelf" required="1">
+    <parameter name="shelf" required="0">
       <longdesc lang="en">
 The AoE shelf number to use when exporting this target.
 </longdesc>

@@ -93,7 +93,7 @@ to be available.
 </longdesc>
 <shortdesc lang="en">Manages a Novell eDirectory directory server</shortdesc>
 <parameters>
-<parameter name="eDir_config_file" unique="1" required="1">
+<parameter name="eDir_config_file" unique="1" required="0">
 <longdesc lang="en">
 Path to configuration file for eDirectory instance.
 </longdesc>
