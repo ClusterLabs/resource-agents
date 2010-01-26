@@ -105,7 +105,7 @@ Location of the vblade binary.
   <actions>
     <action name="start" timeout="15"/>
     <action name="stop" timeout="15"/>
-    <action name="monitor" timeout="15" interval="10" depth="0" start-delay="0"/>
+    <action name="monitor" timeout="15" interval="10" depth="0"/>
     <action name="reload" timeout="15"/>
     <action name="meta-data" timeout="5"/>
     <action name="validate-all" timeout="15"/>

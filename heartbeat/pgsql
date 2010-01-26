@@ -141,7 +141,7 @@ Number of retries (using -m fast) before resorting to -m immediate
 <action name="start" timeout="120" />
 <action name="stop" timeout="120" />
 <action name="status" timeout="60" />
-<action name="monitor" depth="0" timeout="30" interval="30" start-delay="0"/>
+<action name="monitor" depth="0" timeout="30" interval="30"/>
 <action name="meta-data" timeout="5" />
 <action name="validate-all" timeout="5" />
 <action name="methods" timeout="5" />

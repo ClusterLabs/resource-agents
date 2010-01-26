@@ -106,7 +106,7 @@ The default value is 10.
 <action name="start" timeout="60s" />
 <action name="stop" timeout="120s" />
 <action name="status" timeout="60s" />
-<action name="monitor" depth="0" timeout="60s" interval="60s" start-delay="0" />
+<action name="monitor" depth="0" timeout="60s" interval="60s" />
 <action name="meta-data" timeout="5s" />
 <action name="validate-all"  timeout="5"/>
 </actions>

@@ -146,7 +146,7 @@ dependent. Neither the name nor the value may contain whitespace.
 <actions>
 <action name="start"        timeout="10" />
 <action name="stop"         timeout="10" />
-<action name="monitor"      timeout="10" interval="10" depth="0" start-delay="0" />
+<action name="monitor"      timeout="10" interval="10" depth="0" />
 <action name="meta-data"    timeout="5" />
 <action name="validate-all"   timeout="10" />
 </actions>

@@ -94,7 +94,7 @@ The IP address.
 <action name="start" timeout="40" />
 <action name="stop" timeout="40" />
 <action name="stop" timeout="20" />
-<action name="monitor" depth="0" timeout="10" interval="10" start-delay="0" />
+<action name="monitor" depth="0" timeout="10" interval="10" />
 <action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 </actions>

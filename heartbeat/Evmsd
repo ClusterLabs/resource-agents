@@ -60,7 +60,7 @@ If set to true, suppresses the deprecation warning for this agent.
 <actions>
 <action name="start"        timeout="90" />
 <action name="stop"         timeout="100" />
-<action name="monitor"      timeout="20" interval="10" depth="0" start-delay="0" />
+<action name="monitor"      timeout="20" interval="10" depth="0" />
 <action name="meta-data"    timeout="5" />
 </actions>
 </resource-agent>

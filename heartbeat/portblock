@@ -181,8 +181,8 @@ file name as a single argument. For csync2, set it to "csync2 -xv".
 <actions>
 <action name="start" timeout="20" />
 <action name="stop" timeout="20" />
-<action name="status" depth="0" timeout="10" interval="10" start-delay="0" />
-<action name="monitor" depth="0" timeout="10" interval="10" start-delay="0" />
+<action name="status" depth="0" timeout="10" interval="10" />
+<action name="monitor" depth="0" timeout="10" interval="10" />
 <action name="meta-data" timeout="5" />
 <action name="validate-all" timeout="5" />
 </actions>

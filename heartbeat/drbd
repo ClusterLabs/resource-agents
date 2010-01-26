@@ -105,8 +105,8 @@ If set to true, suppresses the deprecation warning for this agent.
 <action name="demote"   timeout="90" />
 <action name="notify"   timeout="90" />
 <action name="stop"    timeout="100" />
-<action name="monitor" depth="0"  timeout="20" interval="20" start-delay="0" role="Slave" />
-<action name="monitor" depth="0"  timeout="20" interval="10" start-delay="0" role="Master" />
+<action name="monitor" depth="0"  timeout="20" interval="20" role="Slave" />
+<action name="monitor" depth="0"  timeout="20" interval="10" role="Master" />
 <action name="meta-data"  timeout="5" />
 <action name="validate-all"  timeout="30" />
 </actions>

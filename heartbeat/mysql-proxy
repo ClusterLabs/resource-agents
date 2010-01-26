@@ -203,7 +203,7 @@ Specify any of them here.
 <action name="start"   timeout="90" />
 <action name="stop"    timeout="100" />
 <action name="reload"  timeout="100" />
-<action name="monitor" depth="0"  timeout="20s" interval="60s" start-delay="0" />
+<action name="monitor" depth="0"  timeout="20s" interval="60s" />
 <action name="validate-all"  timeout="30s" />
 <action name="meta-data"  timeout="5s" />
 </actions>
