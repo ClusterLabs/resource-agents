@@ -251,7 +251,7 @@
   </xsl:template>
 
   <xsl:template match="parameters" mode="example">
-    <xsl:apply-templates select="parameter" mode="example"/>
+    <xsl:apply-templates select="parameter[@required = 1]" mode="example"/>
   </xsl:template>
   
   <xsl:template match="parameter" mode="example">
@@ -260,7 +260,7 @@
     <xsl:text>=</xsl:text>
     <xsl:apply-templates select="content" mode="example"/>
     <xsl:text> \</xsl:text>
-    <xsl:if test="following-sibling::*">
+    <xsl:if test="following-sibling::parameter/@required = 1">
       <xsl:text>
 </xsl:text>
     </xsl:if>
@@ -280,17 +280,15 @@
   </xsl:template>
 
   <xsl:template match="actions" mode="example">
-    <xsl:apply-templates mode="example"/>
+    <xsl:apply-templates select="action[@name = 'monitor']" mode="example"/>
   </xsl:template>
 
   <xsl:template match="action" mode="example">
-    <xsl:text>  op </xsl:text>
+    <xsl:text>
+  op </xsl:text>
     <xsl:value-of select="@name"/>
     <xsl:text> </xsl:text>
     <xsl:apply-templates select="@*" mode="example"/>
-    <xsl:if test="following-sibling::*">
-      <xsl:text>\</xsl:text>
-    </xsl:if>
   </xsl:template>
 
   <xsl:template match="action/@*" mode="example">
