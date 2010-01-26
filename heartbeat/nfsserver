@@ -12,6 +12,9 @@ else
 . ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
 fi
 
+DEFAULT_INIT_SCRIPT="/etc/init.d/nfsserver"
+DEFAULT_NOTIFY_CMD="/sbin/sm-notify"
+
 nfsserver_meta_data() {
 	cat <<END
 <?xml version="1.0"?>
@@ -28,7 +31,7 @@ It depends on Linux specific NFS implementation details, so is considered not po
 
 <parameters>
 
-<parameter name="nfs_init_script" unique="0" required="1">
+<parameter name="nfs_init_script" unique="0" required="0">
 <longdesc lang="en">
 The default init script shipped with the Linux distro.
 The nfsserver resource agent offloads the start/stop/monitor work to the init script because the procedure to start/stop/monitor nfsserver varies on different Linux distro.
@@ -36,10 +39,10 @@ The nfsserver resource agent offloads the start/stop/monitor work to the init sc
 <shortdesc lang="en">
 Init script for nfsserver
 </shortdesc>
-<content type="string" default="/etc/init.d/nfsserver" />
+<content type="string" default="$DEFAULT_INIT_SCRIPT" />
 </parameter>
 
-<parameter name="nfs_notify_cmd" unique="0" required="1">
+<parameter name="nfs_notify_cmd" unique="0" required="0">
 <longdesc lang="en">
 The tool to send out NSM reboot notification.
 Failover of nfsserver can be considered as rebooting to different machines.
@@ -48,7 +51,7 @@ The nfsserver resource agent use this command to notify all clients about the ha
 <shortdesc lang="en">
 The tool to send out notification.
 </shortdesc>
-<content type="string" default="/sbin/sm-notify" />
+<content type="string" default="$DEFAULT_NOTIFY_CMD/sbin/sm-notify" />
 </parameter>
 
 <parameter name="nfs_shared_infodir" unique="0" required="1">
@@ -64,12 +67,12 @@ Directory to store nfs server related information.
 
 <parameter name="nfs_ip" unique="0" required="1">
 <longdesc lang="en">
-The floating IP address used to access the the nfs service
+The floating IP address used to access the nfs service
 </longdesc>
 <shortdesc lang="en">
 IP address.
 </shortdesc>
-<content type="string" default="*" />
+<content type="string"/>
 </parameter>
 
 </parameters>
@@ -110,6 +113,8 @@ case $__OCF_ACTION in
 esac
 
 fp="$OCF_RESKEY_nfs_shared_infodir"
+: ${OCF_RESKEY_nfs_init_script="$DEFAULT_INIT_SCRIPT"}
+: ${OCF_RESKEY_nfs_notify_cmd="$DEFAULT_NOTIFY_CMD"}
 
 nfsserver_monitor ()
 {
