@@ -239,7 +239,10 @@ ldirectord_validate() {
     return 0
 }
 
-ldir_init $@
+case $1 in
+	meta-data|usage|help) : ;;
+	*) ldir_init $@ ;;
+esac
 
 case $__OCF_ACTION in
 meta-data)      meta_data
