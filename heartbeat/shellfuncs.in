@@ -6,6 +6,7 @@
 #
 
 : ${HA_SBIN_DIR:=@sbindir@}
+: ${HA_NOARCHBIN:=@datadir@/@PACKAGE_NAME@}
 : ${OCF_AGENTS:=@OCF_RA_DIR@/heartbeat/}
 
 export HA_DIR HA_RCDIR HA_FIFO HA_BIN 
@@ -13,7 +14,7 @@ export HA_DEBUGLOG HA_LOGFILE HA_LOGFACILITY
 export HA_DATEFMT HA_RESOURCEDIR HA_DOCDIR
 export OCF_AGENTS
 
-PATH=$HA_BIN:${HA_SBIN_DIR}:$PATH
+PATH=$HA_BIN:${HA_SBIN_DIR}:${HA_NOARCHBIN}:$PATH
 PATH=`echo $PATH | sed -e 's%::%%' -e 's%:\.:%:%' -e 's%^:%%' -e 's%^\.:%%'`
 export PATH
 
