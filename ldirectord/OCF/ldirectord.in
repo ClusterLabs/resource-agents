@@ -48,8 +48,8 @@ HA_VARRUNDIR=${HA_VARRUN}
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
 
-LDIRCONF=${OCF_RESKEY_configfile:-@sbindir@/ldirectord/ldirectord.cf}
-LDIRECTORD=${OCF_RESKEY_ldirectord:-@sysconfdir@/ldirectord}
+LDIRCONF=${OCF_RESKEY_configfile:-@sysconfdir@/ldirectord/ldirectord.cf}
+LDIRECTORD=${OCF_RESKEY_ldirectord:-@sbindir@/ldirectord}
 
 meta_data() {
         cat <<END
