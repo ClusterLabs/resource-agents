@@ -47,7 +47,7 @@ Daemon to monitor remote services and control Linux Virtual Server
 =head1 SYNOPSIS
 
 B<ldirectord> [B<-d|--debug>] [--] [I<configfile>]
-B<start>|B<stop>|B<restart>|B<try-restart>|B<reload>|B<force-reload>|B<status>
+B<start> | B<stop> | B<restart> | B<try-restart> | B<reload> | B<force-reload> | B<status>
 
 B<ldirectord> [B<-h|-?|--help|-v|--version>]
 
@@ -179,7 +179,7 @@ If defined in a virtual server section then the global value is overridden.
 
 Default: 1
 
-B<autoreload = >B<yes>|B<no>
+B<autoreload = >B<yes> | B<no>
 
 Defines if <ldirectord> should continuously check the configuration file
 for modification. If this is set to 'yes' and the configuration file
@@ -200,7 +200,7 @@ This directive might also be used to restart B<ldirectord> automatically
 after the configuration file changed on disk. However, if B<autoreload>
 is set to yes, the configuration is reloaded anyway.
 
-B<fallback = >I<ip_address|hostname[:portnumber|sercvicename]> [B<gate>|B<masq>|B<ipip>]
+B<fallback = >I<ip_address|hostname[:portnumber|sercvicename]> [B<gate> | B<masq> | B<ipip>]
 
 the server onto which a webservice is redirected if all real
 servers are down. Typically this would be 127.0.0.1 with
@@ -260,7 +260,7 @@ If defined in a virtual server section then the global value is overridden.
 Default: 0
 
 
-B<emailalertstatus = >B<all>|B<none>|B<starting>|B<running>|B<stopping>|B<reloading>,...
+B<emailalertstatus = >B<all> | B<none> | B<starting> | B<running> | B<stopping> | B<reloading>,...
 
 Comma delimited list of server states in which email alerts should be sent.
 B<all> is a short-hand for
@@ -286,7 +286,7 @@ Use this directive to start an instance of ldirectord for
 the named I<configuration>.
 
 
-B<supervised = >B<yes>|B<no>
+B<supervised = >B<yes> | B<no>
 
 If I<yes>, then ldirectord does not go into background mode.
 All log-messages are redirected to stdout instead of a logfile.
@@ -297,7 +297,7 @@ for details.
 Default: I<no>
 
 
-B<fork = >B<yes>|B<no>
+B<fork = >B<yes> | B<no>
 
 If I<yes>, then ldirectord will spawn a child process for every virtual server,
 and run checks against the real servers from them.  This will increase response
@@ -308,7 +308,7 @@ ldirectord.  Child processes will be automaticly restarted if they die.
 Default: I<no>
 
 
-B<quiescent = >B<yes>|B<no>
+B<quiescent = >B<yes> | B<no>
 
 If I<yes>, then when real or failback servers are determined
 to be down, they are not actually removed from the kernel's LVS
@@ -337,7 +337,7 @@ If defined in a virtual server section then the global value is overridden.
 Default: I<yes>
 
 
-B<cleanstop = >B<yes>|B<no>
+B<cleanstop = >B<yes> | B<no>
 
 If I<yes>, then when ldirectord exits it will remove all of the virtual
 server pools that it is managing from the kernel's LVS table.
@@ -399,7 +399,7 @@ Default: disabled
 The following commands must follow a B<virtual> entry and must be indented
 with a minimum of 4 spaces or one tab.
 
-B<real => I<ip_address|hostname[-E<gt>ip_address|hostname][:portnumber|servicename>] B<gate>|B<masq>|B<ipip> [I<weight>] [B<">I<request>B<", ">I<receive>B<">]
+B<real => I<ip_address|hostname[-E<gt>ip_address|hostname][:portnumber|servicename>] B<gate> | B<masq> | B<ipip> [I<weight>] [B<">I<request>B<", ">I<receive>B<">]
 
 Defines a real service by IP-address (or hostname) and port (or
 servicename). If the port is omitted then a 0 will be used, this is
@@ -432,7 +432,7 @@ emailalertfreq and quiescent options listed above may also appear inside a
 virtual section, in which case the global setting is overridden.
 
 B<checktype =
->B<connect>|B<external>|B<external-perl>|B<negotiate>|B<off>|B<on>|B<ping>|B<checktimeout>I<N>
+>B<connect> | B<external> | B<external-perl> | B<negotiate> | B<off> | B<on> | B<ping> | B<checktimeout>I<N>
 
 Type of check to perform. Negotiate sends a request and matches a receive
 string. Connect only attempts to make a TCP/IP connection, thus the
@@ -446,7 +446,7 @@ checking will take place and no real or fallback servers will be activated.
 On means no checking will take place and real servers will always be
 activated. Default is I<negotiate>.
 
-B<service = >B<dns>|B<ftp>|B<http>|B<https>|B<http_proxy>|B<imap>|B<imaps>|B<ldap>|B<mysql>|B<nntp>|B<none>|B<oracle>|B<pgsql>|B<pop>|B<pops>|B<radius>|B<simpletcp>|B<sip>|B<smtp>
+B<service = >B<dns> | B<ftp> | B<http> | B<https> | B<http_proxy> | B<imap> | B<imaps> | B<ldap> | B<mysql> | B<nntp> | B<none> | B<oracle> | B<pgsql> | B<pop> | B<pops> | B<radius> | B<simpletcp> | B<sip> | B<smtp>
 
 The type of service to monitor when using checktype=negotiate. None denotes
 a service that will not be monitored.
@@ -566,7 +566,7 @@ any one of the PTR record's names.
 
 For a MySQL check, the receive setting is not used.
 
-B<httpmethod = GET>|B<HEAD>
+B<httpmethod = GET> | B<HEAD>
 
 Sets the HTTP method which should be used to fetch the URI specified in
 the request-string. GET is the method used by default if the parameter is
@@ -659,7 +659,7 @@ B<netmask => I<w.x.y.z>
 
 Netmask to be used for granularity of persistent client connections.
 
-B<protocol = tcp>|B<udp>|B<fwm>
+B<protocol = tcp> | B<udp> | B<fwm>
 
 Protocol to be used. If the virtual is specified as an IP address and port
 then it must be one of tcp or udp. If a firewall
