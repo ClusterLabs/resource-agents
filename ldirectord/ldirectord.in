@@ -496,7 +496,7 @@ Default:
 
 =item * Otherwise: none
 
-=back 4
+=back
 
 
 B<checkcommand = ">I<path to script>B<">
@@ -517,7 +517,7 @@ Four parameters are passed to the script:
 
 =item * real server port
 
-=back 4
+=back
 
 If the checktype is external-perl then the command is assumed to be a
 Perl script and it is evaluated into an anonymous subroutine which is
@@ -606,7 +606,7 @@ Default:
 =item * Otherwise: empty string, which denotes that
 	case authentication will not be attempted.
 
-=back 4
+=back
 
 B<passwd = ">I<password>B<">
 
@@ -627,7 +627,7 @@ Default:
 	In the case of LDAP, MySQL, Oracle, and PostgreSQL this means
 	that authentication will not be performed.
 
-=back 4
+=back
 
 B<database = ">I<databasename>B<">
 
@@ -675,7 +675,7 @@ Default:
 
 =item * Virtual is a firewall mark: fwm
 
-=back 4
+=back
 
 B<monitorfile = ">I</path/to/monitorfile>B<">
 
