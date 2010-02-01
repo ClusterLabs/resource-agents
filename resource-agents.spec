@@ -182,6 +182,7 @@ rm -rf $RPM_BUILD_DIR/resource-agents
 
 %doc AUTHORS
 %doc COPYING
+%doc ChangeLog
 %doc %{_datadir}/%{name}/ra-api-1.dtd
 %doc %{_mandir}/man7/*.7*
 %doc doc/README.webapps
