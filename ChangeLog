@@ -1,0 +1,89 @@
+* Mon Feb 01 2010 Dejan Muhamedagic <dejan@suse.de> and others
+- stable release 1.0.2
+- EvmsSCC, Evmsd, LinuxSCSI, drbd, pingd: marked as deprecated (lf#2244)
+- CTDB: new resource agent for clustered samba
+- postfix: new resource agent
+- proftpd: new resource agent
+- AoEtarget: new resource agent to export ATA-over-Ethernet (AoE) targets
+- Squid: new resource agent
+- VirtualDomain: new resource agent (manage virtual domains using libvirt/virsh)
+- anything: new resource agent for arbitrary daemons
+- mysql-proxy: new resource agent
+- iSCSITarget/iSCSILogicalUnit: two new resource agents
+- portblock: fast reconnect/tickle ACK (new feature)
+- IPv6addr: new nic and cidr_netmask parameters
+- mysql-proxy: log_level and keepalive parameters
+- Filesystem: implement deep monitor operation
+- apache: monitor operation of depth 10 for web applications (lf#2234)
+- SAPDatabase + SAPInstance: New versions from SAP
+- CTDB: auto-generate cluster-specific part of smb.conf (lf#2308)
+- ClusterMon: don't fail in stop if the process is missing (bnc#569957)
+- Filesystem: allow configuring smbfs mounts as clones
+- IPaddr2: CLUSTERIP/iptables rule not always inserted on failed monitor (lf#2281)
+- IPaddr2: behave if the interface is down (lf#2147)
+- IPaddr2: check binaries when it makes sense
+- IPaddr2: fix invalid default value for OCF_RESKEY_clusterip_hash (bnc#553753)
+- IPaddr2: include netmask in search for the right interface
+- IPaddr2: remove all colons from the mac address before passing it to send_arp (lf#2165)
+- IPsrcaddr: replace 0/0 with proper ip prefix
+- IPv6addr: recognize network masks properly
+- IPv6addr: supply checksum for ICMPv6 packets
+- IPv6addr: ifdef out the ip offset hack for libnet v1.1.4 (lf#2034)
+- IPv6addr: supply checksum for ICMPv6 packets
+- LVM: Make monitor operation quiet in logs (bnc#546353)
+- MailTo: Provide a default for MAILCMD (bnc#534803, bnc#556366)
+- MailTo: allow multiple word subject line
+- Raid1: improve monitor function (bnc#546551)
+- Route: improve validate (lf#2232)
+- Squid: make the regexp match more precisely output of netstat
+- VIParip: Pathname needed to be configurable (lf#1331)
+- VirtualDomain: avoid needlessly invoking "virsh define"
+- VirtualDomain: destroy domain shortly before timeout expiry
+- VirtualDomain: fix forceful stop (lf#2283)
+- VirtualDomain: loop on status if libvirtd is unreachable
+- Xen: Remove instance_attribute "allow_migrate" (bnc#539968)
+- apache: make sure that proxies are not used for monitor
+- iSCSILogicalUnit: add support for SCSI ID, SCSI SN, Vendor ID, and Product ID
+- iSCSILogicalUnit: add support for per-LU parameters
+- iSCSILogicalUnit: set default for SCSI SN, truncate SCSI ID default to 24 bytes
+- iSCSILogicalUnit: use a 16-byte default SCSI ID
+- iSCSITarget, iSCSILogicalUnit: add support for tgt
+- iSCSITarget: reintroduce "tid" parameter
+- iSCSITarget, iSCSILogicalUnit: identify targets by IQN, not by tid
+- iSCSITarget, iSCSILogicalUnit: support LIO
+- iSCSITarget: add support for CHAP authentication
+- iSCSITarget: add support for restricting target access
+- iSCSITarget: be more persistent deleting targets on stop
+- include ldirectord (formerly known as heartbeat-ldirectord)
+- iscsi: replace wrong variable reference (bnc#499291)
+- jboss: Added JBoss support
+- ldirectord: fix setting defaults for configfile and ldirectord (lf#2328)
+- ldirectord: fix various bugs in OCF RA (lf#1949)
+- mysql: escalate stop to KILL if regular shutdown doesn't work
+- mysql: handle monitor and stop properly on invalid environment
+- nfsserver: use default values (lf#2321)
+- nfsserver: validate should not check if nfs_shared_infodir exists (lf#2219)
+- nfsserver: use check_binary properly in validate (lf#2211)
+- nfsserver: exit properly in nfsserver_validate (lf#2173)
+- oracle/oralsnr: export variables properly
+- oracle: drop spurious output from sqlplus
+- pgsql: remove the previous backup_label if it exists
+- portblock: add per-IP filtering capability
+- portblock: fix invalid exit codes on monitor
+- postfix: fix double stop
+- scsi2reservation: fix wrong logic in check for scsi_reserve
+- vmware: make meta-data work and several cleanups (lf#2212)
+- shellfuncs: make the mktemp wrappers work
+- ocf-shellfuncs: add mercurial repository version information
+- ocf-shellfuncs: add ocf_is_probe function
+- doc: add resource agents' man pages including examples
+
+* Thu Oct 23 2008 Lars Marowsky-Bree <lmb@suse.de> and MANY others
+- beta release 2.99.2
+- LVM: stop correctly in case vol group does not exist
+
+* Tue Sep 23 2008 Lars Marowsky-Bree <lmb@suse.de> and MANY others
+- beta release 2.99.1
+
+* Tue Aug 19 2008 Andrew Beekhof <abeekhof@suse.de> and MANY others
+- beta release 2.99.0
