@@ -488,6 +488,13 @@ if test "x$XSLTPROC" = "x"; then
 fi
 AC_SUBST(XSLTPROC)
 
+AC_PATH_PROGS(POD2MAN, pod2man)
+AM_CONDITIONAL(BUILD_POD_DOC, test "x$POD2MAN" != "x" )
+if test "x$POD2MAN" = "x"; then
+   AC_MSG_WARN([pod2man not installed, unable to (re-)build ldirector manual page])
+fi
+AC_SUBST(POD2MAN)
+
 dnl ========================================================================
 dnl Functions
 dnl ========================================================================

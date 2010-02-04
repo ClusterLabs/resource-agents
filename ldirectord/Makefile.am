@@ -28,7 +28,10 @@ ldirectord.8: ldirectord
 	$(POD2MAN) --section=8 $< > $@
 
 sbin_SCRIPTS		= ldirectord
+
+if BUILD_POD_DOC
 man_MANS	        = ldirectord.8
+endif
 
 harddir			= $(sysconfdir)/ha.d/resource.d
 
