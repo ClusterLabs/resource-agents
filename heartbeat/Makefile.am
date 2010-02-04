@@ -25,7 +25,7 @@ INCLUDES		= -I$(top_srcdir)/include -I$(top_srcdir)/linux-ha
 ocfdir		        = $(OCF_RA_DIR)/heartbeat
 
 dtddir			= $(datadir)/$(PACKAGE_NAME)
-dtd_SCRIPTS		= ra-api-1.dtd
+dist_dtd_DATA		= ra-api-1.dtd
 
 if USE_IPV6ADDR
 ocf_PROGRAMS           = IPv6addr
@@ -96,7 +96,9 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			WAS6		\
 			WinPopup	\
 			Xen		\
-			Xinetd		\
+			Xinetd
+
+dist_ocf_DATA	     =  \
 			.ocf-shellfuncs	 \
 			.ocf-binaries	 \
 			.ocf-directories \
@@ -104,7 +106,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 
 # Legacy locations
 commondir	     = $(libdir)/heartbeat
-common_SCRIPTS	     = ocf-shellfuncs ocf-returncodes
+dist_common_DATA     = ocf-shellfuncs ocf-returncodes
 
 hbdir			= $(sysconfdir)/ha.d
 hb_DATA			= shellfuncs
