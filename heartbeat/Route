@@ -100,6 +100,14 @@ The source IP address to be configured for the route.
 <content type="string" default="" />
 </parameter>
 
+<parameter name="table" unique="0">
+<longdesc lang="en">
+The routing table to be configured for the route.
+</longdesc>
+<shortdesc lang="en">Routing table</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -128,6 +136,9 @@ create_route_spec() {
     fi
     if [ -n "${OCF_RESKEY_source}" ]; then
 	route_spec="${route_spec} src ${OCF_RESKEY_source}"
+    fi
+    if [ -n "${OCF_RESKEY_table}" ]; then
+	route_spec="${route_spec} table ${OCF_RESKEY_table}"
     fi
     echo "$route_spec"
 }
