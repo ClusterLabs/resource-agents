@@ -182,7 +182,7 @@
     <xsl:if test="@type != '' or @default != ''">
       <xsl:text> (</xsl:text>
       <xsl:choose>
-	<xsl:when test="@required = 1">
+	<xsl:when test="../@required = 1">
 	  <xsl:text>required</xsl:text>
 	</xsl:when>
 	<xsl:otherwise>
