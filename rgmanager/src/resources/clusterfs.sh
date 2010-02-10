@@ -424,8 +424,9 @@ Device $dev is mounted on $tmp_mp instead of $mp"
 # 
 isAlive()
 {
+	declare errcode
 	declare mount_point
-	declare file=".writable_test"
+	declare file=".writable_test.$(hostname)"
 	declare rw
 	
 	if [ $# -ne 1 ]; then
@@ -444,8 +445,10 @@ isAlive()
 	
 	# depth 10 test (read test)
 	ls $mount_point > /dev/null 2> /dev/null
-	if [ $? -ne 0 ]; then
-	       return $NO
+	errcode=$?
+	if [ $errcode -ne 0 ]; then
+		ocf_log err "clusterfs:${OCF_RESKEY_name}: isAlive failed read test on [$mount_point]. Return code: $errcode"
+		return $NO
 	fi
 	
 	[ $OCF_CHECK_LEVEL -lt 20 ] && return $YES
@@ -468,7 +471,11 @@ isAlive()
 			fi
 		done
 		touch $file > /dev/null 2> /dev/null
-		[ $? -ne 0 ] && return $NO
+		errcode=$?
+		if [ $errcode -ne 0 ]; then
+			ocf_log err "clusterfs:${OCF_RESKEY_name}: isAlive failed write test on [$mount_point]. Return code: $errcode"
+			return $NO
+		fi
 		rm -f $file > /dev/null 2> /dev/null
 	fi
 	
