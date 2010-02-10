@@ -512,7 +512,9 @@ monitor_apache() {
     return $OCF_NOT_RUNNING
   fi
   ourhttpclient=`findhttpclient`  # we'll need one
-  monitor_apache_basic &&
+  monitor_apache_basic
+  rc=$?
+  [ $rc -ne 0 ] && return $rc
   case "$OCF_CHECK_LEVEL" in
   ""|0) true;;
   10) monitor_apache_extended;;
