@@ -691,6 +691,7 @@ killMountProcesses()
 	typeset have_lsof=""
 	typeset have_fuser=""
 	typeset try
+	typeset command pid user line
 
 	if [ $# -ne 1 ]; then
 		ocf_log err \
@@ -727,30 +728,30 @@ killMountProcesses()
 			#
 			# Use lsof to free up mount point
 			#
-	    		while read command pid user
+			while read line
 			do
-				if [ -z "$pid" ]; then
+				path=$(echo $line | awk '{for (i=9;i<NF+1;i++) {printf "%s ",$i};}')
+				#if [ -z $(echo $path | grep -E "$mp(/| |$)") ]
+				if [ -z $(echo $path | grep -E "^$mp/.*") ]; then
 					continue
 				fi
-
+				command=$(echo $line | awk '{print $1}')
+				pid=$(echo $line | awk '{print $2}')
+				user=$(echo $line | awk '{print $3}')
 				if [ $try -eq 1 ]; then
-					ocf_log warn \
-			 	  "killing process $pid ($user $command $mp)"
+					ocf_log warn "killing process $pid ($user $command $mp)"
 				elif [ $try -eq 3 ]; then
-					ocf_log crit \
-		    		  "Could not clean up mountpoint $mp"
-				ret=$FAIL
+					ocf_log crit "Could not clean up mountpoint $mp"
+					ret=$FAIL
 				fi
-
 				if [ $try -gt 1 ]; then
 					kill -9 $pid
 				else
 					kill -TERM $pid
 				fi
-			done < <(lsof -bn 2>/dev/null | \
-			    grep -E " $mp(/| |$)" | \
-			    awk '{print $1,$2,$3}' | \
-			    sort -u -k 1,3)
+			done< <(lsof -bn 2>/dev/null | \
+				grep -E " $mp(/| |$)" | \
+				sort -u -k 1,3) 
 		elif [ -n "$have_fuser" ]; then
 			#
 			# Use fuser to free up mount point
