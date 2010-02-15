@@ -184,6 +184,19 @@ trap_handler() {
 }
 
 
+do_exit() {
+  # If we've got a tempfile variable and the tempfile exists...
+  #  ... if the return code is 0 *or* the temp file is empty
+  #    remove it.
+  if [ -n "$TEMPFILE" ] && [ -e "$TEMPFILE" ]; then
+    if [ $1 -eq 0 ] || [ "$(stat -c %s $TEMPFILE)" = "0" ]; then
+      rm -f $TEMPFILE
+    fi
+  fi
+  exit $1
+}
+
+
 #
 # listener_start: Start the given listener
 #
@@ -822,10 +835,6 @@ then
   exit $OCF_ERR_ARGS
 fi
 
-# Set a tempfile and make sure to clean it up again
-TEMPFILE="$(mktemp /tmp/SAPDatabase.tmp.XXXXXX)"
-trap trap_handler INT TERM
-
 # These operations don't require OCF instance parameters to be set
 case "$1" in
   meta-data)	meta_data
@@ -840,25 +849,32 @@ case "$1" in
   *);;
 esac
 
+# Set a tempfile and make sure to clean it up again
+TEMPFILE="$(mktemp /tmp/SAPDatabase.tmp.XXXXXX)"
+trap trap_handler INT TERM
+
+# Everything after here must call do_exit to remove temp file
+
+
 US=`id -u -n`
 US=`echo $US`
 if
   [ $US != root  ]
 then
   ocf_log err "$0 must be run as root"
-  exit $OCF_ERR_PERM
+  do_exit $OCF_ERR_PERM
 fi
 
 # mandatory parameter check
 if  [ -z "$OCF_RESKEY_SID" ]; then
   ocf_log err "Please set OCF_RESKEY_SID to the SAP system id!"
-  exit $OCF_ERR_ARGS
+  do_exit $OCF_ERR_ARGS
 fi
 SID=`echo "$OCF_RESKEY_SID"`
 
 if [ -z "$OCF_RESKEY_DBTYPE" ]; then
   ocf_log err "Please set OCF_RESKEY_DBTYPE to the database vendor specific tag (ORA,ADA,DB6)!"
-  exit $OCF_ERR_ARGS
+  do_exit $OCF_ERR_ARGS
 fi
 DBTYPE=`echo "$OCF_RESKEY_DBTYPE" | tr "[a-z]" "[A-Z]"`
 
@@ -877,7 +893,7 @@ else
                         ;;
    0|false|FALSE|no|NO) DBJ2EE_ONLY=0;;
    *) ocf_log err "Parsing parameter DBJ2EE_ONLY: '$DBJ2EE_ONLY' is not a boolean value!"
-      exit $OCF_ERR_ARGS ;;
+      do_exit $OCF_ERR_ARGS ;;
   esac
 fi
 
@@ -897,7 +913,7 @@ else
    1|true|TRUE|yes|YES) OCF_RESKEY_STRICT_MONITORING=1;;
    0|false|FALSE|no|NO) OCF_RESKEY_STRICT_MONITORING=0;;
    *)  ocf_log err "Parsing parameter STRICT_MONITORING: '$OCF_RESKEY_STRICT_MONITORING' is not a boolean value!"
-       exit $OCF_ERR_ARGS ;;
+       do_exit $OCF_ERR_ARGS ;;
   esac
 fi
 
@@ -922,7 +938,7 @@ done
 if [ -z "$DIR_EXECUTABLE" ]
 then
   ocf_log warn "Cannot find $EXESTARTDB,$EXESTOPDB and $EXEDBCONNECT executable, please set DIR_EXECUTABLE parameter!"
-  exit $OCF_NOT_RUNNING
+  do_exit $OCF_NOT_RUNNING
 fi
 
 if [ $DBJ2EE_ONLY -eq 1 ]
@@ -951,7 +967,7 @@ then
       PATH=$JAVA_HOME/bin:$PATH
     else
       ocf_log err "Cannot find JAVA_HOME directory, please set JAVA_HOME parameter!"
-      exit $OCF_NOT_RUNNING
+      do_exit $OCF_NOT_RUNNING
     fi
   fi
 
@@ -985,25 +1001,25 @@ sidadm="`echo $SID | tr [:upper:] [:lower:]`adm"
 case "$1" in
 
   start)	sapdatabase_start
-		exit $?;;
+		do_exit $?;;
 
   stop)		sapdatabase_stop
-		exit $?;;
+		do_exit $?;;
 
   monitor)
           	sapdatabase_monitor $OCF_RESKEY_STRICT_MONITORING
-		exit $?;;
+		do_exit $?;;
 
   status)
                 sapdatabase_status
-                exit $?;;
+                do_exit $?;;
 
   recover)      sapdatabase_recover
-                exit $?;;
+                do_exit $?;;
 
   validate-all)	sapdatabase_validate
-		exit $?;;
+		do_exit $?;;
 
   *)		sapdatabase_methods
-		exit $OCF_ERR_UNIMPLEMENTED;;
+		do_exit $OCF_ERR_UNIMPLEMENTED;;
 esac
