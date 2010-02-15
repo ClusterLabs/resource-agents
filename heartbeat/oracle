@@ -231,11 +231,27 @@ ora_info() {
 
 testoraenv() {
 	#	Let's make sure a few important things are set...
-	[ x != "x$ORACLE_HOME" -a x != "x$ORACLE_OWNER" ] ||
+	if [ x == "x$ORACLE_HOME" ]; then
+		ocf_log info "ORACLE_HOME not set"
 		return 1
+	fi
+	if [ x == "x$ORACLE_OWNER" ]; then
+		ocf_log info "ORACLE_OWNER not set"
+		return 1
+	fi
 	#	and some important things are there
-	[ -x "$sqlplus" -a -x "$lsnrctl" -a -x "$tnsping" ] ||
+	if [ ! -x "$sqlplus" ]; then
+		ocf_log info "$sqlplus does not exist"
 		return 1
+	fi
+	if [ ! -x "$lsnrctl" ]; then
+		ocf_log err "$lsnrctl does not exist"
+		return 1
+	fi
+	if [ ! -x "$tnsping" ]; then
+		ocf_log err "$tnsping does not exist"
+		return 1
+	fi
 	return 0
 }
 
@@ -367,13 +383,20 @@ showdbstat() {
 # Part 1: Oracle
 dumpinstipc() {
 	local dumpdest=`dbasql getdumpdest`
-	[ "x$dumpdest" != x -a -d "$dumpdest" ] || return 1
+	if [ "x$dumpdest" == x -o ! -d "$dumpdest" ]; then
+		ocf_log warn "$dumpdest is not a directory"
+		return 1
+	fi
 	local -i fcount=`ls -rt $dumpdest | wc -l`
-	dbasql getipc >/dev/null 2>&1
+	output=`dbasql getipc`
 	local lastf=`ls -rt $dumpdest | grep -v '^\.*$' | tail -1`
 	local -i fcount2=`ls -rt $dumpdest | wc -l`
-	[ $((fcount+1)) -eq $fcount2 ] || return 1  # more than one file created
-	echo $dumpdest/$lastf
+	if [ $((fcount+1)) -eq $fcount2 ]; then
+		echo $dumpdest/$lastf
+	else
+		ocf_log warn "'dbasql getipc' failed: $output"
+		return 1
+	fi
 }
 parseipc() {
 	local inf=$1
@@ -440,7 +463,13 @@ is_oracle_up() {
 }
 # instance in OPEN state?
 instance_live() {
-	[ "`dbasql dbstat`" = OPEN ]
+	output=`dbasql dbstat`
+	if [ "$output" = OPEN ]; then
+		return 0
+	else
+		ocf_log info "$ORACLE_SID instance state is not OPEN (dbstat output: $output)"
+		return 1
+	fi
 }
 
 ora_cleanup() {
@@ -498,6 +527,7 @@ oracle_start() {
 		# try to cleanup in case of
 		# ORA-01081: cannot start already-running ORACLE - shut it down first
 		if echo "$output" | grep ORA-01081 >/dev/null 2>&1; then
+			ocf_log info "ORA-01081 error found, trying to cleanup oracle (dbstart_mount output: $output)"
 			ora_cleanup
 			output=`dbasql dbstart_mount`
 		fi
@@ -510,7 +540,7 @@ oracle_start() {
 		;;
 	*)
 		: error!!
-		ocf_log error "Oracle $ORACLE_SID can not mount."
+		ocf_log err "oracle $ORACLE_SID can not be mounted (status: $status)"
 		return $OCF_ERR_GENERIC
 		;;
 	esac
@@ -523,13 +553,16 @@ oracle_start() {
 	fi
 	output=`dbasql dbopen`
 
-	if is_oracle_up && instance_live; then
+	if ! is_oracle_up; then
+		ocf_log err "oracle process not running: $output"
+		return $OCF_ERR_GENERIC
+	elif ! instance_live; then
+		ocf_log err "oracle instance $ORACLE_SID not started: $output"
+		return $OCF_ERR_GENERIC
+	else
 		: cool, we are up and running
 		ocf_log info "Oracle instance $ORACLE_SID started: $output"
 		return $OCF_SUCCESS
-	else
-		ocf_log err "Oracle instance $ORACLE_SID not started: $output"
-		return $OCF_ERR_GENERIC
 	fi
 }
 
@@ -562,13 +595,21 @@ oracle_stop() {
 killprocs() {
 	local sig=$1
 	shift 1
-	kill -$sig $* >/dev/null 2>&1
+	# Record stderr
+	kill -$sig $* >/dev/null
 }
 ora_kill() {
-	killprocs TERM `eval $procs | awk '{print $1}'`
+	oraprocs=`eval $procs | awk '{print $1}'`
+	if [ -z "$oraprocs" ]; then
+		ocf_log debug "All oracle processes are already stopped."
+		return
+	fi
+	killprocs TERM $oraprocs
 	for i in 1 2 3 4 5; do
-		killprocs 0 `eval $procs | awk '{print $1}'` ||
+		if [ -z "`eval $procs | awk '{print $1}'`" ]; then
+			ocf_log debug "All oracle processes are killed."
 			return
+		fi
 		sleep 5
 	done
 	killprocs KILL `eval $procs | awk '{print $1}'`
@@ -578,14 +619,16 @@ ora_kill() {
 # oracle_monitor: Can the Oracle instance do anything useful?
 #
 oracle_monitor() {
-	if is_oracle_up && instance_live
-	then
-		#ocf_log info "Oracle instance $ORACLE_SID is alive"
-		return $OCF_SUCCESS
-	else
-		ocf_log info "Oracle instance $ORACLE_SID is down"
+	if ! is_oracle_up; then
+		ocf_log info "oracle process not running"
 		return $OCF_NOT_RUNNING
 	fi
+	if ! instance_live; then
+		ocf_log info "oracle instance $ORACLE_SID is down"
+		return $OCF_NOT_RUNNING
+	fi
+	#ocf_log info "Oracle instance $ORACLE_SID is alive"
+	return $OCF_SUCCESS
 }
 
 #
@@ -618,7 +661,7 @@ shutdown_method=${OCF_RESKEY_shutdown_method:-"checkpoint/abort"}
 case "${shutdown_method}" in
 "immediate") ;;
 "checkpoint/abort") ;;
-*) ocf_log error "unsupported shutdown_method, please read meta-data"
+*) ocf_log err "unsupported shutdown_method, please read meta-data"
 esac
 
 if [ x = "x$OCF_RESKEY_sid" ]
