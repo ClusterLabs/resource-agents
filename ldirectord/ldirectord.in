@@ -4198,7 +4198,7 @@ sub ld_emailalert_send
 	my $statusfilter;
 	my $smtp_server;
 
-	$frequency = defined $v->{emailalertfreq} ? $v->{emailalert} :
+	$frequency = defined $v->{emailalertfreq} ?  $v->{emailalertfreq} :
 				$EMAILALERTFREQ;
 
 	$virtual_str = &get_virtual($v);
