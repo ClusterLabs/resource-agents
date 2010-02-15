@@ -158,11 +158,27 @@ ora_info() {
 
 testoraenv() {
 	#	Let's make sure a few important things are set...
-	[ x != "x$ORACLE_HOME" -a x != "x$ORACLE_OWNER" ] ||
+	if [ x == "x$ORACLE_HOME" ]; then
+		ocf_log info "ORACLE_HOME not set"
 		return 1
+	fi
+	if [ x == "x$ORACLE_OWNER" ]; then
+		ocf_log info "ORACLE_OWNER not set"
+		return 1
+	fi
 	#	and some important things are there
-	[ -x "$sqlplus" -a -x "$lsnrctl" -a -x "$tnsping" ] ||
+	if [ ! -x "$sqlplus" ]; then
+		ocf_log info "$sqlplus does not exist"
 		return 1
+	fi
+	if [ ! -x "$lsnrctl" ]; then
+		ocf_log err "$lsnrctl does not exist"
+		return 1
+	fi
+	if [ ! -x "$tnsping" ]; then
+		ocf_log err "$tnsping does not exist"
+		return 1
+	fi
 	return 0
 }
 
@@ -247,10 +263,17 @@ oralsnr_stop() {
 # kill the listener procs
 # give them 10 secs to exit cleanly (5 times 2)
 oralsnr_kill() {
-	killprocs TERM `eval $procs | awk '{print $1}'`
+	oraprocs=`eval $procs | awk '{print $1}'`
+	if [ -z "$oraprocs" ]; then
+		ocf_log debug "All oralsnr processes are already stopped."
+		return
+	fi
+	killprocs TERM $oraprocs
 	for i in 1 2 3 4 5; do
-		killprocs 0 `eval $procs | awk '{print $1}'` ||
+		if [ -z "`eval $procs | awk '{print $1}'`" ]; then
+			ocf_log debug "All oralsnr processes are killed."
 			return
+		fi
 		sleep 2
 	done
 	killprocs KILL `eval $procs | awk '{print $1}'`
@@ -258,7 +281,8 @@ oralsnr_kill() {
 killprocs() {
 	sig=$1
 	shift 1
-	kill -$sig $* >/dev/null 2>&1
+	# Record stderr
+	kill -$sig $* >/dev/null
 }
 
 #
@@ -269,11 +293,23 @@ is_oralsnr_up() {
 	[ x != "x`eval $procs`" ]
 }
 oralsnr_status() {
-	$lsnrctl status $listener | tail -1 | grep -qs 'completed successfully'
+	output=`$lsnrctl status $listener`
+	echo "$output" | tail -1 | grep -qs 'completed successfully'
+	RET=$?
+	if [ $RET -ne 0 ]; then
+		ocf_log info "$listener status failed: $output"
+	fi
+	return $RET
 }
 # and does it work?
 tnsping() {
-	$tnsping $ORACLE_SID | tail -1 | grep -qs '^OK'
+	output=`$tnsping $ORACLE_SID`
+	echo "$output" | tail -1 | grep -qs '^OK'
+	RET=$?
+	if [ $RET -ne 0 ]; then
+		ocf_log info "$tnsping $ORACLE_SID failed: $output"
+	fi
+	return $RET
 }
 
 #
@@ -285,10 +321,10 @@ oralsnr_monitor() {
 		: good
 		#ocf_log info "Listener $listener running"
 		return $OCF_SUCCESS
-    else
+	else
 		ocf_log info "Listener $listener not running"
 		return $OCF_NOT_RUNNING
-    fi
+	fi
 }
 
 #
