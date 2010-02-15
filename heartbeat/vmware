@@ -331,6 +331,7 @@ usage|help)
   ;;
 esac
 
+set_environment
 vmware_validate
 rc=$?
 if [ $rc -ne 0 ]; then
@@ -347,7 +348,6 @@ if [ $rc -ne 0 ]; then
 elif [ "$1" = "validate-all" ]; then
 	exit $OCF_SUCCESS
 fi
-set_environment
 
 case "$1" in
 start)
