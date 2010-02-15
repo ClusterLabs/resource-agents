@@ -6,7 +6,7 @@
 #
 
 : ${HA_SBIN_DIR:=@sbindir@}
-: ${HA_NOARCHBIN:=@datadir@/@PACKAGE_NAME@}
+: ${HA_NOARCHBIN:=@datadir@/heartbeat}
 : ${OCF_AGENTS:=@OCF_RA_DIR@/heartbeat/}
 
 export HA_DIR HA_RCDIR HA_FIFO HA_BIN 
