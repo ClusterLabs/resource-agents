@@ -53,6 +53,10 @@ fi
 . ${OCF_FUNCTIONS_DIR}/.ocf-returncodes
 . ${OCF_FUNCTIONS_DIR}/.ocf-directories
 
+# Define OCF_RESKEY_CRM_meta_interval in case it isn't already set,
+# to make sure that ocf_is_probe() always works
+: ${OCF_RESKEY_CRM_meta_interval=0}
+
 ocf_is_root() {
 	case `id` in
 	  *'uid=0(root)'*)	true;;
