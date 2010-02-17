@@ -14,7 +14,13 @@ status_check_pid()
 		return $OCF_ERR_GENERIC
 	fi
 
-	if [ ! -d /proc/`cat "$pid_file"` ]; then
+	read pid < "$pid_file"
+	
+	if [ -z "$pid" ]; then
+		return $OCF_ERR_GENERIC
+	fi
+	
+	if [ ! -d /proc/$pid ]; then
 		return $OCF_ERR_GENERIC
 	fi	
 
