@@ -191,7 +191,11 @@ ha_log() {
 	then
 	  : appending to $HA_LOGFILE
 	  echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_LOGFILE
-	else
+	fi
+	if
+	  [ -z "$HA_LOGFACILITY" -a -z "$HA_LOGFILE" ]
+	then
+	  : appending to stderr
 	  echo `hadate`"${*}" >&2
 	fi
         if
@@ -226,7 +230,11 @@ ha_debug() {
 	then
 	  : appending to $HA_DEBUGLOG
 	  echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_DEBUGLOG
-	else
+	fi
+	if
+	  [ -z "$HA_LOGFACILITY" -a -z "$HA_DEBUGLOG" ]
+	then
+	  : appending to stderr
 	  echo "$HA_LOGTAG:	`hadate`${*}:	${HA_LOGFACILITY}" >&2
 	fi
 }
