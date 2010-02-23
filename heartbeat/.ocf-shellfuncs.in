@@ -166,6 +166,18 @@ hadate() {
 }
 
 ha_log() {
+	# if we're connected to a tty, then output to stderr
+	if tty >/dev/null; then
+		if [ "x$HA_debug" = "x0" -a "x$loglevel" = xdebug ] ; then
+			return 0
+		fi
+		if [ "$HA_LOGTAG" ]; then
+			echo "$HA_LOGTAG: $*"
+		else
+			echo "$*"
+		fi >&2
+		return 0
+	fi
 	if [ "x${HA_LOGD}" = "xyes" ] ; then 
 		ha_logger -t "${HA_LOGTAG}" "$@"
 		if [ "$?" -eq "0" ] ; then
@@ -211,6 +223,14 @@ ha_debug() {
         if [ "x${HA_debug}" = "x0" ] ; then
                 return 0
         fi
+	if tty >/dev/null; then
+		if [ "$HA_LOGTAG" ]; then
+			echo "$HA_LOGTAG: $*"
+		else
+			echo "$*"
+		fi >&2
+		return 0
+	fi
 
         if [ "x${HA_LOGD}" = "xyes" ] ; then  
 		ha_logger -t "${HA_LOGTAG}" -D "ha-debug" "$@"
