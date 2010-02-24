@@ -225,13 +225,15 @@ does not have a leading '/', it is assumed to be a syslog(3) facility name.
 Default: log directly to the file I</var/log/ldirectord.log>.
 
 
-B<emailalert = ">I<emailaddress>B<">
+B<emailalert = ">I<emailaddress>[, I<emailaddress>]...B<">
 
 A valid email address for sending alerts about the changed connection status
 to any real server defined in the virtual service.  This option requires
 perl module MailTools to be installed.  Automatically tries to send email
 using any of the built-in methods. See perldoc Mail::Mailer for more info on
 methods.
+
+Multiple addresses may be supplied, comma delimited.
 
 If defined in a virtual server section then the global value is overridden.
 
@@ -1242,6 +1244,18 @@ sub set_defaults
 	$SMTP             = undef;
 }
 
+sub read_emailalert
+{
+	my ($line, $addr) = (@_);
+
+	# Strip of enclosing quotes
+	$addr =~ s/^\"([^"]*)\"$/\1/;
+
+	$addr =~ /(.+)/ or &config_error($line, "no email address specified");
+
+	return $addr;
+}
+
 sub read_config
 {
 	undef @VIRTUAL;
@@ -1505,8 +1519,8 @@ sub read_config
 						or &config_error($line, "quiescent must be 'yes' or 'no'");
 					$vsrv{quiescent} = $1;
 				} elsif  ($rcmd =~ /^emailalert\s*=\s*(.*)/) {
-					$1 =~ /(.+)/ or &config_error($line, "no email address specified");
-					$vsrv{emailalert} = $1;
+					$vsrv{emailalert} =
+						read_emailalert($line, $1);
 				} elsif  ($rcmd =~ /^emailalertfreq\s*=\s*(\d*)/) {
 					$1 =~ /(\d+)/ or &config_error($line, "invalid email alert frequency");
 					$vsrv{emailalertfreq} = $1;
@@ -1636,9 +1650,7 @@ sub read_config
 					"quiescent must be 'yes' or 'no'");
 			$QUIESCENT = $1;
 		} elsif  ($linedata  =~ /^emailalert\s*=\s*(.*)/) {
-			$1 =~ /(.+)/ or &config_error($line,
-					"no email address specified");
-			$EMAILALERT = $1;
+			$EMAILALERT = read_emailalert($line, $1);
 		} elsif  ($linedata  =~ /^emailalertfreq\s*=\s*(\d*)/) {
 			$1 =~ /(\d+)/ or &config_error($line,
 					"invalid email alert frequency");
