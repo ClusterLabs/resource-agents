@@ -387,6 +387,13 @@ ocf_is_probe() {
     [ "$__OCF_ACTION" = "monitor" -a "$OCF_RESKEY_CRM_meta_interval" = 0 ]
 }
 
+# returns true if the resource is configured as a multistate
+# (master/slave) resource. This is defined as a resource where the
+# master-max meta attribute is present, and set to greater than zero.
+ocf_is_ms() {
+    [ ! -z "${OCF_RESKEY_CRM_meta_master_max}" ] && [ "${OCF_RESKEY_CRM_meta_master_max}" -gt 0 ]
+}
+
 # usage: dirname DIR
 dirname()
 {
