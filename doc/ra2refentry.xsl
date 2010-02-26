@@ -236,9 +236,11 @@
 	<xsl:value-of select="@name"/>
 	<xsl:text> \
 </xsl:text>
-	<xsl:text>  params \
+	<xsl:if test="parameters/parameter[@required = 1]">
+	  <xsl:text>  params \
 </xsl:text>
-	<xsl:apply-templates select="parameters" mode="example"/>
+	  <xsl:apply-templates select="parameters" mode="example"/>
+	</xsl:if>
 	<!-- Insert a suggested allow-migrate meta attribute if the
 	     resource agent supports migration -->
 	<xsl:if test="actions/action/@name = 'migrate_from' or actions/action/@name = 'migrate_to'">
