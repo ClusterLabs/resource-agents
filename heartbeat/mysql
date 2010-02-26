@@ -55,11 +55,6 @@ OCF_RESKEY_group_default="_mysql"
 OCF_RESKEY_log_default="/var/log/mysqld.log"
 OCF_RESKEY_pid_default="/var/mysql/mysqld.pid"
 OCF_RESKEY_socket_default="/var/run/mysql/mysql.sock"
-OCF_RESKEY_test_user_default="root"
-OCF_RESKEY_test_table_default="mysql.user"
-OCF_RESKEY_test_passwd_default=""
-OCF_RESKEY_enable_creation_default=0
-OCF_RESKEY_additional_parameters_default=""
 else
 OCF_RESKEY_binary_default="/usr/bin/safe_mysqld"
 OCF_RESKEY_config_default="/etc/my.cnf"
@@ -76,7 +71,6 @@ OCF_RESKEY_test_table_default="mysql.user"
 OCF_RESKEY_test_passwd_default=""
 OCF_RESKEY_enable_creation_default=0
 OCF_RESKEY_additional_parameters_default=""
-fi
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
