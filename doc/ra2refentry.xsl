@@ -49,6 +49,7 @@
   <xsl:apply-templates select="$this" mode="synopsis"/>
   <xsl:apply-templates select="$this" mode="description"/>
   <xsl:apply-templates select="$this" mode="parameters"/>
+  <xsl:apply-templates select="$this" mode="actions"/>
   <xsl:apply-templates select="$this" mode="example"/>
   <xsl:apply-templates select="$this" mode="seealso"/>
  </xsl:template>
@@ -211,6 +212,100 @@
       </xsl:choose>
       <xsl:text>)</xsl:text>
     </xsl:if>
+  </xsl:template>
+
+
+  <!-- Mode Actions -->
+  <xsl:template match="resource-agent" mode="actions">
+    <refsection>
+      <title>Supported Actions</title>
+      <xsl:choose>
+	<xsl:when test="actions">
+	  <xsl:apply-templates select="actions" mode="actions"/>
+	</xsl:when>
+	<xsl:otherwise>
+	  <!-- This should actually never happen. Every RA must
+	       advertise the actions it supports. -->
+	  <para>
+	    <xsl:text>This resource agent does not advertise any supported actions.</xsl:text>
+	  </para>
+	</xsl:otherwise>
+      </xsl:choose>
+    </refsection>
+  </xsl:template>
+
+  <xsl:template match="actions" mode="actions">
+    <para>This resource agent supports the following actions (operations):</para>
+    <variablelist>
+      <xsl:apply-templates select="action" mode="actions"/>
+    </variablelist>
+  </xsl:template>
+
+  <xsl:template match="action" mode="actions">
+   <varlistentry>
+    <term>
+      <option>
+	<xsl:value-of select="@name"/>
+	<xsl:if test="@role != ''">
+	  <xsl:text> (</xsl:text>
+	  <xsl:value-of select="@role"/>
+	  <xsl:text> role)</xsl:text>
+	</xsl:if>
+      </option>
+    </term>
+    <listitem>
+      <para>
+	<xsl:choose>
+	  <xsl:when test="@name = 'start'">
+	    <xsl:text>Starts the resource.</xsl:text>
+	  </xsl:when>
+	  <xsl:when test="@name = 'stop'">
+	    <xsl:text>Stops the resource.</xsl:text>
+	  </xsl:when>
+	  <xsl:when test="@name = 'status'">
+	    <xsl:text>Performs a status check.</xsl:text>
+	  </xsl:when>
+	  <xsl:when test="@name = 'monitor'">
+	    <xsl:text>Performs a detailed status check.</xsl:text>
+	  </xsl:when>
+	  <xsl:when test="@name = 'promote'">
+	    <xsl:text>Promotes the resource to the Master role.</xsl:text>
+	  </xsl:when>
+	  <xsl:when test="@name = 'demote'">
+	    <xsl:text>Demotes the resource to the Slave role.</xsl:text>
+	  </xsl:when>
+	  <xsl:when test="@name = 'migrate_from'">
+	    <xsl:text>Executes steps necessary for migrating the
+	    resource </xsl:text>
+	    <emphasis>away from</emphasis>
+	    <xsl:text> the node.</xsl:text>
+	  </xsl:when>
+	  <xsl:when test="@name = 'migrate_to'">
+	    <xsl:text>Executes steps necessary for migrating the
+	    resource </xsl:text>
+	    <emphasis>to</emphasis>
+	    <xsl:text> the node.</xsl:text>
+	  </xsl:when>
+	  <xsl:when test="@name = 'validate-all'">
+	    <xsl:text>Performs a validation of the resource configuration.</xsl:text>
+	  </xsl:when>
+	  <xsl:when test="@name = 'meta-data'">
+	    <xsl:text>Retrieves resource agent metadata (internal use only).</xsl:text>
+	  </xsl:when>
+	</xsl:choose>
+	<xsl:if test="@timeout != ''">
+	  <xsl:text> Suggested minimum timeout: </xsl:text>
+	  <xsl:value-of select="@timeout"/>
+	  <xsl:text>.</xsl:text>
+	</xsl:if>
+	<xsl:if test="@interval != ''">
+	  <xsl:text> Suggested interval: </xsl:text>
+	  <xsl:value-of select="@interval"/>
+	  <xsl:text>.</xsl:text>
+	</xsl:if>
+      </para>
+    </listitem>
+   </varlistentry>
   </xsl:template>
 
 
