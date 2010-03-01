@@ -128,7 +128,7 @@ meta_data()
 		virtual machines instead of xm.  This is required when
 		using non-Xen virtual machines (e.g. qemu / KVM).
 	    </shortdesc>
-            <content type="integer" default="1"/>
+            <content type="integer" default=""/>
         </parameter>
 
 	<parameter name="xmlfile">
