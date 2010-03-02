@@ -18,7 +18,7 @@
 # OCF instance parameters:
 #  * OCF_RESKEY_vmxpath (mandatory: full path to the virtual machine vmx file)
 #  * OCF_RESKEY_vimshbin (optional: full path to the vmware-vim-cmd executable,
-#                        fallback to default location if not declared)    
+#                        fallback to default location if not declared)
 #
 # Requirements/caveats:
 #  * vmware-server 2.0 installed and autostarted on all nodes
@@ -288,7 +288,7 @@ vmware_stop() {
       sleep 10
       vmware_unregister_vm $VMID
       VMID=`vmware_get_vid "$RELVMXPATH"`
-    done    
+    done
     ocf_log info "Virtual machine $VM is stopped"
     return $OCF_SUCCESS
   fi
