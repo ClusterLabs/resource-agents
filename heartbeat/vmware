@@ -40,14 +40,15 @@
 . ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
 
 # Basic variables configuration
+OCF_RESKEY_vimshbin_default="/usr/bin/vmware-vim-cmd"
+: ${OCF_RESKEY_vimshbin=${OCF_RESKEY_vimshbin_default}}
 #################################################################
 
 # Path to the virtual machine configuration file
 VMXPATH="$OCF_RESKEY_vmxpath"
 
 # Path to the vmware-vim-cmd executable
-# fallback to the default path if not declared
-VIMSHBIN="${OCF_RESKEY_vimshbin-/usr/bin/vmware-vim-cmd}"
+VIMSHBIN="$OCF_RESKEY_vimshbin"
 
 # Global variables
 VMXDIR=
@@ -331,7 +332,7 @@ VMX configuration file path
 vmware-vim-cmd executable path
 </longdesc>
 <shortdesc lang="en">vmware-vim-cmd path</shortdesc>
-<content type="string" default="/usr/bin/vmware-vim-cmd"/>
+<content type="string" default="${OCF_RESKEY_vimshbin_default}"/>
 </parameter>
 </parameters>
 
