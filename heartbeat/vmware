@@ -366,7 +366,11 @@ stop)
   ;;
 
 status|monitor)
-  vmware_validate_probe
+  if ocf_is_probe; then
+    vmware_validate_probe
+  else
+    vmware_validate
+  fi
   vmware_monitor
   ;;
 
