@@ -46,6 +46,7 @@ unset LANGUAGE; export LANGUAGE
 #######################################################################
 
 SFEX_DAEMON=${HA_BIN}/sfex_daemon
+SFEX_DAEMON_RE=${HA_BIN}/[s]fex_daemon
 
 usage() {
     cat <<END
@@ -156,6 +157,8 @@ sfex_stop() {
     # Confirming whether the PID file exists.
     # If the PID file is lost, then a specific sfex_daemon cannot be stopped.
     if [ ! -f "${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE}" ]; then
+         ps -ef | grep "$SFEX_DAEMON_RE.*$DEVICE" ||
+              return $OCF_SUCCESS
          ocf_log err "Cannot stop sfex_daemon because PID file lost."
          return $OCF_ERR_GENERIC
     fi
