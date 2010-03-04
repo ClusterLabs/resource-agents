@@ -1,0 +1,263 @@
+# Author: John Shi
+# jshi@suse.de
+
+quit()
+{
+  local ret
+  ret="$1"
+
+  while [ $atexit_num -gt 0 ]; do
+    atexit$atexit_num
+    let atexit_num--
+  done
+
+  exit $ret
+}
+
+agent_install()
+{
+  if [ $# -eq 0 ]; then
+    return 0
+  fi
+
+  if [ -e /etc/SuSE-release ]; then
+    if ! rpm -q "$@" >/dev/null 2>&1; then
+      echo "${showhost}Installing $@:"
+      if ! zypper -q install -y "$@"; then
+        echo "${showhost}ERROR: Install '$@' failed, break this case."
+        quit 1
+      fi
+      echo "done"
+      echo
+    fi
+  elif [ -e /etc/debian_version ]; then
+    if ! dpkg -s "$@" >/dev/null 2>&1; then
+      echo "${showhost}Installing $@:"
+      if ! apt-get install "$@" >/dev/null 2>&1; then
+        echo "${showhost}ERROR: Install '$@' failed, break this case."
+        quit 1
+      fi
+      echo "done"
+      echo
+    fi
+  elif [ -e /etc/redhat-release ]; then
+    if ! rpm -q "$@" >/dev/null 2>&1; then
+      echo "${showhost}Installing $@:"
+      if ! yum install "$@" >/dev/null 2>&1; then
+        echo "${showhost}ERROR: Install '$@' failed, break this case."
+        quit 1
+      fi
+      echo "done"
+      echo
+    fi
+  elif [ -e /etc/turbolinux-release ]; then
+    :
+  elif [ -e /etc/mandrake-release ]; then
+    :
+  else
+    echo "${showhost}ERROR: Cannot detect your OS type, break this case."
+    quit 1
+  fi
+}
+
+agent_setup()
+{
+  local agent
+  agent="$1"
+
+  if [ ! -e "/tmp/.${agent}_set" ]; then
+    touch "/tmp/.${agent}_set"
+    echo -n "${showhost}Initialing ${agent}..."
+    bash >/dev/null
+    echo "done"
+    echo
+  fi
+}
+
+agent_run()
+{
+  local agent cmd timeout pid i ret aroot
+  agent="$1"
+  cmd="$2"
+  timeout="${3:-15}"
+
+  aroot=${MYROOT:-$AGENT_ROOT}
+
+  setsid $aroot/$agent $cmd >/tmp/.ocft_runlog 2>&1 &
+  pid=$!
+
+  i=0
+  while [ $i -lt $timeout ]; do
+    if [ ! -e /proc/$pid ]; then
+      break
+    fi
+    sleep 1
+    let i++
+  done
+
+  if [ $i -ge $timeout ]; then
+    kill -SIGTERM -$pid >/dev/null 2>&1
+    sleep 3
+    kill -SIGKILL -$pid >/dev/null 2>&1
+    echo -n "${showhost}ERROR: The agent was hanging, killed it, "
+    echo "maybe you damaged the agent or system's environment, break this CASE."
+    quit 1
+  fi
+  wait $pid
+}
+
+check_success()
+{
+  local ret msg
+  ret="$1"
+  msg="$2"
+
+  if [ $ret -ne 0 ]; then
+    echo "${showhost}ERROR: '${msg}' failed, the return code is ${ret}, break this CASE."
+    quit 1
+  fi
+}
+
+__maxfd()
+{
+  (echo 0; ls -1 /proc/$$/fd) | sort -rn | head -1
+}
+
+__getfd()
+{
+  local host rw fd file
+  host="$1"
+  rw="$2"
+
+  for fd in /proc/$$/fd/*; do
+    file=$(basename "$(readlink $fd)")
+    if [ "$file" = "${host}_$rw" ]; then
+      basename $fd
+      break
+    fi
+  done
+}
+
+backbash_start()
+{
+  local host fd rfd wfd
+  host="$1"
+
+  if [ ! -d "$CASES_DIR" ]; then
+    echo "${showhost}ERROR: Can not create directory: ${CASES_DIR}."
+    quit 1
+  fi
+
+  if lsof ${host}_r ${host}_w >/dev/null 2>&1; then
+    echo "${showhost}ERROR: Connection exist with $host, break this CASE."
+    quit 1
+  fi
+  if [ ! -p "${host}_r" ] || [ ! -p "${host}_w" ]; then
+    if ! mkfifo ${host}_r ${host}_w >/dev/null 2>&1; then
+      echo "${showhost}ERROR: Could not create pipe file, break this CASE."
+      quit 1
+    fi
+  fi
+
+  ssh root@$host '/bin/bash 2>&1
+                  sed "s/00/001/g" /tmp/.backbash-log
+                  echo 000
+                  echo 1' >$CASES_DIR/${host}_r <$CASES_DIR/${host}_w &
+
+  fd=$(__maxfd)
+  rfd=$(expr $fd + 1)
+  wfd=$(expr $fd + 2)
+  eval "exec ${rfd}<$CASES_DIR/${host}_r ${wfd}>$CASES_DIR/${host}_w"
+}
+
+backbash()
+{
+  local host rfd wfd ret
+  host="$1"
+
+  rfd=$(__getfd $host r)
+  wfd=$(__getfd $host w)
+
+  if [ -z "$rfd" -o -z "$wfd" ]; then
+    echo "${showhost}ERROR: Could not found connection with $host, break this CASE."
+  fi
+
+  cat >&$wfd <<EOF
+{
+true
+EOF
+  cat >&$wfd
+  cat >&$wfd <<EOF
+
+} >&/tmp/.backbash-log
+sed 's/00/001/g' /tmp/.backbash-log
+echo 000
+echo 0
+EOF
+  if [ $? -ne 0 ]; then
+    echo "${showhost}ERROR: Broken connection with $host, break this CASE."
+    quit 1
+  fi
+
+  awk -vlive=2 '{
+    if (sub(/000$/, "")) {
+      if ($0 != "") {
+        gsub("001", "00");
+        printf("%s", $0);
+      }
+      getline live;
+      exit;
+    }
+    gsub("001", "00");
+    print;
+  } END {
+    exit(live);
+  }' <&$rfd
+  case $? in
+      1)
+        quit 1
+        ;;
+      2)
+        echo "${showhost}ERROR: Broken connection with $host, break this CASE."
+        quit 1
+        ;;
+  esac
+}
+
+backbash_stop()
+{
+  local host rfd wfd
+  host="$1"
+
+  wfd=$(__getfd $host w)
+  if [ -n "$wfd" ]; then
+    cat >&$wfd <<<'quit 0'
+  fi
+  rm -f ${host}_r ${host}_w
+}
+
+
+export OCF_ROOT=@OCF_ROOT_DIR@
+AGENT_ROOT=@OCF_RA_DIR@/heartbeat
+CASES_DIR=/var/lib/@PACKAGE_NAME@/ocft/cases
+
+atexit_num=0
+
+. $AGENT_ROOT/.ocf-returncodes || {
+  echo "${showhost}ERROR: .ocf-* not found, break this CASE."
+  quit 1
+}
+
+if [ $EUID -ne 0 ]; then
+  echo "${showhost}ERROR: '$0' needs to be run by root, break this CASE."
+  quit 1
+fi
+
+while read line; do
+  if [ -n "$line" ]; then
+    retn=${line%%=*}
+    reti=$(eval echo \$$retn)
+    retval[reti]=$retn
+  fi
+done <<<"$(sed 's/#.*//' $AGENT_ROOT/.ocf-returncodes)"
+

@@ -753,6 +753,9 @@ heartbeat/Makefile						\
    heartbeat/shellfuncs						\
 tools/Makefile							\
    tools/ocf-tester						\
+   tools/ocft/Makefile						\
+   tools/ocft/ocft						\
+   tools/ocft/caselib						\
 ldirectord/Makefile						\
 ldirectord/ldirectord   					\
 	ldirectord/init.d/Makefile				\

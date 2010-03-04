@@ -1,0 +1,85 @@
+# mysql
+
+CONFIG
+	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	InstallPackage mysql
+        HangTimeout 20
+
+SETUP-AGENT
+	/etc/init.d/mysql start
+	/etc/init.d/mysql stop
+
+CASE-BLOCK crm_setting
+	Var OCF_RESKEY_CRM_meta_timeout=15000
+
+CASE-BLOCK required_args
+	Var OCF_RESKEY_binary=/usr/bin/mysqld_safe
+	Var OCF_RESKEY_pid=/var/lib/mysql/mysqld.pid
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+	Include crm_setting
+	Include required_args
+	Include default_status
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: unset 'OCF_RESKEY_binary'"
+	Include prepare
+	Unvar OCF_RESKEY_binary
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "check base env: unset 'OCF_RESKEY_pid'"
+	Include prepare
+	Unvar OCF_RESKEY_pid
+	AgentRun start OCF_ERR_PERM
+
+CASE "normal start"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "running status"
+	Include prepare
+	AgentRun start
+	AgentRun status OCF_SUCCESS
+
+CASE "not running status"
+	Include prepare
+	AgentRun status OCF_NOT_RUNNING
+
+CASE "check lib file"
+	Bash chmod u-x /var/lib/mysql
+	BashAtExit chmod u+x /var/lib/mysql
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
+
+CASE "non-existent user"
+	Include prepare
+	Var OCF_RESKEY_user=no_user
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "invalid user"
+	Include prepare
+	Var OCF_RESKEY_user=nobody
+	AgentRun start OCF_ERR_PERM

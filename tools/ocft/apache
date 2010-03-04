@@ -1,0 +1,66 @@
+# apache
+
+CONFIG
+	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	InstallPackage apache2
+        HangTimeout 20
+
+SETUP-AGENT
+	/etc/init.d/apache2 start
+	/etc/init.d/apache2 stop
+
+CASE-BLOCK required_args
+	Var OCF_RESKEY_statusurl=http://localhost/info2html.css
+	Var OCF_RESKEY_testregex='This is'
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+	Include required_args
+	Include default_status
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: unset OCF_RESKEY_statusurl"
+	Include prepare
+	Unvar OCF_RESKEY_statusurl
+	AgentRun start OCF_ERR_CONFIGURED
+
+CASE "check base env: unset OCF_RESKEY_testregex"
+	Include prepare
+	Unvar OCF_RESKEY_testregex
+	AgentRun start OCF_ERR_CONFIGURED
+
+CASE "normal start"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "running status"
+	Include prepare
+	AgentRun start
+	AgentRun status OCF_SUCCESS
+
+CASE "not running status"
+	Include prepare
+	AgentRun status OCF_NOT_RUNNING
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED

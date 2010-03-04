@@ -1,0 +1,102 @@
+1 介绍和设计
+ocft是一个测试resource agents的工具。它并不关注HA的策略，而是关注resource agents
+是否正常运行在本机。他能对resource agents设计各种复杂环境，来考验resource agnets
+是否能正常应对，也就是看resouce agents是否能返回正确的或者说我们所期望的值。
+这个工具给我们带来的好处就是我们可以集中的批量的来设计环境，而且这种环境是可被我们
+记录、重现的，对Debug人员来说是很有用的。
+
+1.1 组成
+1.1.1 解释器
+将test case配置文件转换成可执行的测试脚本。
+
+1.1.2 配置文件
+每一个configuration file只针对一个resouce agent，配置文件名与resouce agent名相同，
+但是它可以容纳很多test case。
+
+1.1.3 测试脚本
+由generator读取configuration file生成测试脚本，直接运行此脚本就可以开始测试了。
+
+1.2 如何定制环境
+ocft 通过两种手段来设计resouce agents的运行环境，一是更改resouce agents的环境变量，
+当然这是ocf本身就留给我们的接口。二是更改resource agents所处的系统环境，
+比如更改某个关键文件的权限，更改本机ip地址等等...
+
+1.3 如何进行测试
+首先你需要针对某个resource agent在脑中勾画各种复杂且异常的环境，并且你能清楚预知
+这些异常环境会给resource agent带来什么结果，然后将这些设计好的环境和你预知的结果
+都写入配置文件，然后运行generator，将你刚写的test case转换成可执行的脚本。最后运行
+这些脚本，观察它们的输出，你可以清楚看到每个test case运行状况，他会比较你的预知结
+果和resource agent的实际结果，如果不一样，说明你找到resource agent的bug了。
+
+2 配置
+只有四个top level option，它们是由大写字母和'-'构成的，每个top level option都有若干sub-option，
+它们是首字母大写。
+
+2.1 'CONFIG' 选项
+语法：CONFIG
+此option中的设计是全局的，对每个test case都有所影响。
+
+2.1.1 'AgentRoot' 选项
+语法：AgentRoot /usr/lib/ocf/resource.d/xxx
+一些agent将会被移到 "pacemaker" 或 "linbit" 目录，如果你定义了这个选项，ocft将会用它来
+替代默认的目录"heartbeat"。
+
+2.1.1 'InstallPackage' 选项
+语法:InstallPackage package [package2 [...]]
+他会检测系统是否安装了此resource agent的service，如果没有安装，会自动从网络进行安装。
+package_name是某个resouce agent在操作系统中必须安装的包。
+
+2.1.2 'HangTimeout' 选项
+语法：HangTimeout secs 
+如果你更改了一些很关键的东西，有些resouce agent会不知所措，停在那里不动，那么就会影响
+到后面test case的运行，所以你需要设定超时，如果一旦resouce agent停在那超时了，脚本会
+杀死这个resouce agent。
+
+2.2 'SETUP-AGENT' 选项
+语法：
+SETUP-AGENT
+	bash scripts...
+	...
+一些Agent在测试前可能需要初始化，你可以用bash脚本在这初始化。初始化动作只会被执行一次，
+如果你想要再次执行，你可以手动删除标志文件 /tmp/.[AGENT_NAME]_set。
+
+2.3 'CASE' & 'CASE-BLOCK' 选项
+语法：CASE "description" & CASE-BLOCK macro_name
+通常你设计的环境不止一个，那么配置文件中应该会出现许多 'CASE "..."'，值得注意的是，以下子
+选项每个都有两种写法，一是普通写法，产生的shell代码对本地产生作用，二是特殊写法，就是在每
+个选项后加上 "@ipaddr"，选项"Include"除外，他可以远程执行shell代码，也就是控制远程机器执行
+你给的shell代码，这对需要两台机器以上的resouce agent很有用的，这个远程shell并非简单的用ssh
+去远程执行，而是在test case生存期内，后台运行一个远程shell，他始终在后台运行并且保存你的中
+间结果，也就是说你可以交替执行本地shell代码段和远程shell代码段。
+'CASE-BLOCK'选项是一个宏定义器，它定义的内容将会被插入到"CASE"内容中。
+
+2.3.1 'Var' 选项
+语法：Var VARIABLE=value
+这是设置resouce agent的环境变量，他们通常是OCF_RESKEY_xxx，注意=号两边不要有空格。
+
+2.3.2 'Unvar' 选项
+语法：Unvar VARIABLE
+此选项用于删除环境变量。
+
+2.3.3 'Include' 选项
+语法：Include macro_name
+此选项将会被宏"macro_name"的内容所替代，当然，你得预先用"CASE-BLOCK"来定义宏"macro_name"
+的内容。
+
+2.3.4 'Bash' 选项
+语法：Bash bash_codes
+此选项是用来设置os的环境，你可以嵌入bash代码来对系统作任意设置，不过要注意不要对系统造成
+不可恢复的后果就行了。
+
+2.3.5 'BashAtExit' 选项
+语法：BashAtExit bash_codes
+此选项是用来恢复os的环境，以便另一个test case能正常运行，当然你也可以直接用'Bash'选项来
+恢复，但是如果脚本在执行过程中产生某些错误，那么脚本会直接退出，而不会去执行你的恢复代码，
+那么你就要用到BashAtExit，他能在你退出前去恢复系统环境。
+
+2.3.6 'RunAgent' 选项
+语法：RunAgent cmd [ret_value]
+此option会去运行resouce agent，'cmd' 就是resouce agent的参数，如 start，status，stop ...
+第二个参数是可选的，它是你对系统环境作出特殊设定以后，你预计resouce agent会返回的值，
+如果给出此参数，那么脚本会在运行resouce agent后，会比较此时的返回值和你预期的返回值，
+如果不一致，那么说明找到bug了。

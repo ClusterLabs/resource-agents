@@ -1,0 +1,74 @@
+# nfsserver
+
+CONFIG
+	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	InstallPackage nfs-kernel-server
+	HangTimeout 20
+
+CASE-BLOCK required_args
+	Var OCF_RESKEY_nfs_init_script=/etc/init.d/nfsserver
+	Var OCF_RESKEY_nfs_ip=127.0.0.1
+	Var OCF_RESKEY_nfs_shared_infodir=/var/lib/nfs
+	Var OCF_RESKEY_nfs_notify_cmd=/usr/sbin/sm-notify
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+	Include required_args
+	Include default_status
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: unset 'OCF_RESKEY_nfs_init_script'"
+	Include prepare
+	Unvar OCF_RESKEY_nfs_init_script
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "check base env: unset 'OCF_RESKEY_nfs_ip'"
+	Include prepare
+	Unvar OCF_RESKEY_nfs_ip
+	AgentRun start OCF_ERR_ARGS
+
+CASE "check base env: unset 'OCF_RESKEY_nfs_shared_infodir'"
+	Include prepare
+	Unvar OCF_RESKEY_nfs_shared_infodir
+	AgentRun start OCF_ERR_ARGS
+
+CASE "check base env: unset 'OCF_RESKEY_nfs_notify_cmd'"
+	Include prepare
+	Unvar OCF_RESKEY_nfs_notify_cmd
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "normal start"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "monitor with running"
+	Include prepare
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "monitor with not running"
+	Include prepare
+	AgentRun monitor OCF_NOT_RUNNING
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED

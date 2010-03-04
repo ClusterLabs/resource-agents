@@ -143,6 +143,7 @@ find $RPM_BUILD_ROOT -name '.ocf-*' -type f -print0 | xargs -0 chmod a-x
 find $RPM_BUILD_ROOT -name 'ocf-*'  -type f -print0 | xargs -0 chmod a-x
 find $RPM_BUILD_ROOT -name '*.dtd'  -type f -print0 | xargs -0 chmod a-x
 chmod 0755 $RPM_BUILD_ROOT/usr/sbin/ocf-tester
+chmod 0755 $RPM_BUILD_ROOT/usr/sbin/ocft
 
 ###########################################################
 
@@ -176,8 +177,15 @@ rm -rf $RPM_BUILD_DIR/resource-agents
 %dir /usr/lib/ocf
 %dir /usr/lib/ocf/resource.d
 %dir %{_datadir}/%{name}
+%dir %{_datadir}/%{name}/ocft
+%dir %{_datadir}/%{name}/ocft/configs
+%{_datadir}/%{name}/ocft/configs
+%{_datadir}/%{name}/ocft/caselib
+%{_datadir}/%{name}/ocft/README
+%{_datadir}/%{name}/ocft/README.zh_CN
 /usr/lib/ocf/resource.d/heartbeat
 %{_sbindir}/ocf-tester
+%{_sbindir}/ocft
 %{_sbindir}/sfex_init
 
 %doc AUTHORS

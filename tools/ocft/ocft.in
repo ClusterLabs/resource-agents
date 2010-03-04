@@ -1,0 +1,584 @@
+#!/bin/bash
+
+# Author: John Shi
+# jshi@suse.de
+
+die()
+{
+  local str clean
+  str="$1"
+  clean="${2:-1}"
+
+  echo "ERROR: $1" >&2
+  # delete all testing scripts.
+  if [ $clean -eq 1 ]; then
+    rm -f $CASES_DIR/*
+  fi
+  exit 1
+}
+
+parse_die()
+{
+  local str
+  str="$1"
+
+  die "${agent}: line ${line_num}: ${str}"
+}
+
+# add quotes to string for Here Documents
+add_quotes()
+{
+  local typ str a b
+  typ="$1"
+  str="$2"
+
+  case "$typ" in
+    1) a=\'; b=\";;
+    2) a=\"; b=\';;
+  esac
+
+  echo "$str" | sed "s/$a/$a$b$a$b$a/g; 1 s/^/$a/; $ s/$/$a/"
+}
+
+# split strings
+explode()
+{
+  local str
+  str="$1"
+
+  echo "$str" | awk -F'"' '{
+    if (NF > 0 && NF%2 == 0)
+      exit(1);
+    for (i=1; i<=NF; i++) {
+      if (i%2 == 0)
+        print $i;
+      else {
+        split($i, str, /[[:blank:]]+/);
+        for (j=0; j<length(str); j++) {
+          sb = sub(/#.*/, "", str[j]);
+          if (str[j] != "")
+            print str[j];
+          if (sb)
+            exit(0);
+        }
+      }
+    }
+  }'
+}
+
+# phase 1: parse the string to 'command' and 'argument collection'.
+line2trunk()
+{
+  trunk[0]="${line%%[[:blank:]]*}"
+  trunk[1]="${line#*[[:blank:]]}"
+}
+
+# phase 2: split the argument collection.
+trunk2branch()
+{
+  local IFS
+
+  # Some of statements need one parameter at least.
+  if [ "$line" = "${trunk[0]}" ]; then
+    parse_die "missing parameter."
+  fi
+
+  IFS=$'\n'
+  branch=($(explode "${trunk[1]}"))
+  if [ $? -ne 0 ]; then
+    parse_die "missing '\"'."
+  fi
+}
+
+preparse_cfg()
+{
+  local agent line trunk branch macro num
+  agent="$1"
+
+  if [ ! -r "$opt_cfgsdir/$agent" ]; then
+    die "${agent}: configuration file not found."
+  fi
+
+  rm -f $CASES_DIR/${agent}_macro.*
+  rm -f $CASES_DIR/${agent}.preparse
+
+  line_num=0
+  while read -r line; do
+    let line_num++
+    num=" $line_num"
+
+    case "$line" in
+      ""|\#*) continue;;
+    esac
+
+    line2trunk
+    case "${trunk[0]}" in
+      CASE-BLOCK)
+        trunk2branch
+        macro="$CASES_DIR/${agent}_macro.${branch[0]}"
+        continue
+        ;;
+      Include)
+        trunk2branch
+        if [ ! -r "$CASES_DIR/${agent}_macro.${branch[0]}" ]; then
+          parse_die "Macro '${branch[0]}' not found."
+        fi
+        line="$(<"$CASES_DIR/${agent}_macro.${branch[0]}")"
+        num=
+        ;;
+      *[!A-Z-]*)
+        :
+        ;;
+      *)
+        macro=
+        ;;
+    esac
+
+    if [ -n "$macro" ]; then
+      if ! touch "$macro"; then
+        die "No permission to create macro file: ${macro}."
+      fi
+      echo "$line$num" >>"$macro"
+    else
+      echo "$line$num"
+    fi
+  done <"$opt_cfgsdir/$agent" >"$CASES_DIR/${agent}.preparse"
+
+  rm -f $CASES_DIR/${agent}_macro.*
+}
+
+case_finish()
+{
+  local host
+
+  if [ -n "$sh" ]; then
+    cat >>$sh <<EOF
+if [ -n "\$OCFT_VERBOSE" ]; then
+  echo
+fi
+# Clean up and exit
+EOF
+    for host in $hosts; do
+      echo "backbash_stop $host" >>$sh
+    done
+    echo "quit 0" >>$sh
+  fi
+  atexit_num=0
+  hosts=
+  sh=
+}
+
+parse_cfg()
+{
+  local agents i line stat sh trunk branch atexit_num host hosts
+
+  if [ $# -eq 0 ]; then
+    agents=($opt_cfgsdir/*)
+  else
+    agents=("$@")
+  fi
+
+  for agent in "${agents[@]}"; do
+    i=0
+    agent="$(basename "$agent")"
+    rm -f $CASES_DIR/"${agent}_case_"*.sh
+    rm -f $CASES_DIR/${agent}_setup
+
+    echo "Making '$agent': "
+    preparse_cfg "$agent"
+    while read -r line; do
+      line_num="${line##* }"
+      line="${line% *}"
+      line2trunk
+
+      # state switch
+      case "${trunk[0]}" in
+        CONFIG)
+          case_finish
+          stat=1
+          continue
+          ;;
+	SETUP-AGENT)
+          case_finish
+          stat=2
+          continue
+          ;;
+        CASE)
+          case_finish
+          trunk2branch
+          sh="$CASES_DIR/${agent}_case_${i}.sh"
+          echo "    - case ${i}: ${branch[0]}"
+          cat >$sh <<EOF
+#!/bin/bash
+
+# Agent:   $agent
+# Summary: ${branch[0]}
+
+. $OCFT_DIR/caselib
+
+MYROOT="$cfg_agent_root"
+EOF
+          if [ -n "$cfg_install_package" ]; then
+            cat >>$sh <<EOF
+agent_install ${cfg_install_package[@]}
+EOF
+          fi
+          if [ -r "$CASE_DIR/${agent}_setup" ]; then
+            cat >>$sh <<EOF
+agent_setup $agent <<'CMD'
+$(cat "$CASE_DIR/${agent}_setup")
+CMD
+EOF
+          fi
+          cat >>$sh <<EOF
+if [ -n "\$OCFT_VERBOSE" ]; then
+  echo -e $(add_quotes 1 "Starting '\\033[33m${agent}\\033[0m' case $i '\\033[33m${branch[0]}\\033[0m':")
+else
+  echo -n "'${agent}' case ${i}: "
+fi
+EOF
+          chmod a+x $sh
+          let i++
+          stat=3
+          continue
+          ;;
+      esac
+
+      case "$stat" in
+        1)
+          case "${trunk[0]}" in
+            AgentRoot)
+              trunk2branch
+              cfg_agent_root="${branch[0]}"
+              ;;
+            InstallPackage)
+              trunk2branch
+              cfg_install_package=("${branch[@]}")
+              ;;
+            HangTimeout)
+              trunk2branch
+              if ! echo "${branch[0]}" | grep -qxE '[0-9]+'; then
+                parse_die "numeric argument required."
+              fi
+              cfg_hang_timeout="${branch[0]}"
+              ;;
+            *)
+              parse_die "unimplemented statement: ${trunk[0]}"
+              ;;
+          esac
+          ;;
+        2)
+          echo "$line" >>$CASES_DIR/${agent}_setup
+          ;;
+        3)
+          host=$(echo ${trunk[0]} | awk -F@ '{print $2}')
+          if [ -n "$host" ]; then
+            if ! echo "$hosts" | grep -q "$host"; then
+              hosts=$hosts$'\n'$host
+              cat >>$sh <<EOF
+# Initialize remote shell
+backbash_start $host
+backbash $host <<CMD
+OCFT_VERBOSE=\$OCFT_VERBOSE
+showhost="${host}: "
+CMD
+backbash $host <$OCFT_DIR/caselib
+backbash $host <<'CMD'
+MYROOT="$cfg_agent_root"
+EOF
+              if [ -n "$cfg_install_package" ]; then
+                cat >>$sh <<EOF
+agent_install ${cfg_install_package[@]}
+EOF
+              fi
+              if [ -r "$CASES_DIR/${agent}_setup" ]; then
+                cat >>$sh <<EOF
+agent_setup $agent <<'END'
+$(cat "$CASES_DIR/${agent}_setup")
+END
+EOF
+              fi
+              echo "CMD" >>$sh
+            fi
+          fi
+
+          echo "# CASE statement: $line" >>$sh
+
+          if [ -n "$host" ]; then
+            echo "backbash $host <<'CMD'" >>$sh
+          fi
+
+          case "${trunk[0]}" in
+            Var|Var@*)
+                cat >>$sh <<EOF
+if [ -n "\$OCFT_VERBOSE" ]; then
+  echo $(add_quotes 2 "    \${showhost}Setting agent environment:    export ${trunk[1]}")
+fi
+export ${trunk[1]}
+check_success \$? $(add_quotes 1 "export ${trunk[1]}")
+EOF
+              ;;
+            Unvar|Unvar@*)
+                cat >>$sh <<EOF
+if [ -n "\$OCFT_VERBOSE" ]; then
+  echo $(add_quotes 2 "    \${showhost}Removing agent environment:   unset ${trunk[1]}")
+fi
+unset ${trunk[1]}
+check_success \$? $(add_quotes 1 "unset ${trunk[1]}")
+EOF
+              ;;
+            AgentRun|AgentRun@*)
+              trunk2branch
+                cat >>$sh <<EOF
+if [ -n "\$OCFT_VERBOSE" ]; then
+  echo $(add_quotes 2 "    \${showhost}Running agent:                ./$agent ${branch[0]}")
+fi
+EOF
+              if [ -z "${branch[1]}" ]; then
+                cat >>$sh <<EOF
+agent_run $(add_quotes 1 "$agent") $(add_quotes 1 "${branch[0]}") $cfg_hang_timeout
+check_success \$? $(add_quotes 1 "./$agent ${branch[0]}")
+EOF
+              else
+                cat >>$sh <<EOF
+test -n $(add_quotes 2 "\$${branch[1]}")
+check_success \$? $(add_quotes 1 "test -n \"\$${branch[1]}\"")
+agent_run $(add_quotes 1 "$agent") $(add_quotes 1 "${branch[0]}") $cfg_hang_timeout
+ret=\$?
+if [ -n "\$OCFT_VERBOSE" ]; then
+  echo -n "    \${showhost}Checking return value:"
+fi
+if [ -n "\${retval[ret]}" ]; then
+  retstr="\${retval[ret]}"
+else
+  retstr=\$ret
+fi
+if [ \$ret -eq \$${branch[1]} ]; then
+  if [ -n "\$OCFT_VERBOSE" ]; then
+    echo -e $(add_quotes 2 "        \\033[32mOK\\033[0m, The return value '\\033[34m\$retstr\\033[0m' == '\\033[34m${branch[1]}\\033[0m'")
+  else
+    echo -e "\t\\033[32mOK\\033[0m."
+  fi
+else
+  if [ -n "\$OCFT_VERBOSE" ]; then
+    echo -en $(add_quotes 2 "        \\033[31mFAILED\\033[0m, The return value '\\033[34m\$retstr\\033[0m' != '\\033[34m${branch[1]}\\033[0m'. ")
+  else
+    echo -en "\t\\033[31mFAILED\\033[0m, Agent returns unexpected value: '\$retstr'. "
+  fi
+  echo "See details below:"
+  cat /tmp/.ocft_runlog
+  quit 1
+fi
+EOF
+              fi
+              ;;
+            Bash|Bash@*)
+              cat >>$sh <<EOF
+if [ -n "\$OCFT_VERBOSE" ]; then
+  echo $(add_quotes 2 "    \${showhost}Setting system environment:   ${trunk[1]}")
+fi
+echo $(add_quotes 1 "${trunk[1]}") | /bin/bash
+check_success \$? $(add_quotes 1 "${trunk[1]}")
+EOF
+              ;;
+            BashAtExit|BashAtExit@*)
+              let atexit_num++
+              cat >>$sh <<EOF
+atexit${atexit_num}()
+{
+  if [ -n "\$OCFT_VERBOSE" ]; then
+    echo $(add_quotes 2 "    \${showhost}Setting system environment:   ${trunk[1]}")
+  fi
+  echo $(add_quotes 1 "${trunk[1]}") | /bin/bash
+}
+let atexit_num++
+EOF
+              ;;
+            *)
+              parse_die "unimplemented statement: ${trunk[0]}"
+              ;;
+          esac
+          if [ -n "$host" ]; then
+            echo 'CMD' >>$sh
+          fi
+          ;;
+        *)
+          parse_die "unimplemented statement: ${trunk[0]}"
+          ;;
+      esac
+    done <$CASES_DIR/${agent}.preparse
+    rm -f $CASES_DIR/${agent}.preparse
+    rm -f $CASES_DIR/${agent}_setup
+    case_finish
+  done
+}
+
+start_test()
+{
+  local sh shs line
+
+  if [ $opt_verbose -eq 1 ]; then
+    export OCFT_VERBOSE=1
+  fi
+  if [ $# -eq 0 ]; then
+    for sh in $CASES_DIR/*.sh; do
+      if [ ! -r "$sh" ]; then
+        die "${sh}: test file not found." 0
+      fi
+      $sh
+    done
+  else
+    for shs in "$@"; do
+      for sh in $CASES_DIR/"${shs}_case_"*.sh; do
+        if [ ! -r "$sh" ]; then
+          die "${sh}: test file not found." 0
+        fi
+        $sh
+      done
+    done
+  fi | while read -r line; do
+    echo "$line"
+    echo "$(date '+%F %T'): $line" | cat -A | sed -r 's/\^\[\[[0-9]+m|\^I|.$//g' >>$CASES_DIR/ocft.log
+  done
+}
+
+delete_cases()
+{
+  local shs
+
+  if [ $# -eq 0 ]; then
+    rm -f $CASES_DIR/*.sh
+  else
+    for shs in "$@"; do
+      rm -f $CASES_DIR/"${shs}_case_"*.sh
+    done
+  fi
+}
+
+usage()
+{
+  cat <<EOF
+$0 ACTION [OPTION] [agent1 [agent2] [...]]
+ACTIONs include:
+     make [-d dir]   Generate the testing shell scripts.
+                       -d  The directory that contains 
+		           configuration of cases.
+     test [-v]       Execute the testing shell scripts.
+                       -v  Verbose output mode.
+     clean           Delete the testing shell scripts.
+     help [-v]       Show this help and exit.
+                       -v  Show HOWTO and exit.
+Version 0.41
+See '$OCFT_DIR/README' for detail.
+EOF
+}
+
+howto()
+{
+  cat <<'EOF'
+HOW TO USE THIS TOOL
+
+  - Ocft is a testing tool for resource agents. Instead of the policy of HA,
+    it mainly concerns whether resource agents run correct locally. It can 
+    design types of complicated environments to test the reliability of 
+    resource agents. Precisely, it is to display whether resource agents can 
+    return to correct or expected value. The advantage of the tool provides 
+    us with competence to design conditions which can be recorded or reproduced. 
+    Hence it is useful to debuggers.
+
+* Components
+    ** Test case generator
+      - Turning configuration files of test case to executable scripts.
+
+    ** Configuration file
+      - Every configuration file directs only one resource agent and share the same 
+        name with resource agent but contains more test cases.
+
+    ** The testing script
+      - After the generator reads configuration files and generates many testing 
+        scripts and the script is underway, the test begins.
+
+* How to customize the environment of testing
+  - Ocft designs the running conditions through two ways, one is changing the 
+    environment variables of resource agents (it is the interface left by OCF itself), 
+    the other is modifying the OS environment of resource agents, such as altering 
+    the permission of some key file or IP address of the machine.
+
+* How to test
+  - Firstly, you need to sketch the all complex and uncommon environments against 
+    a certain resource agent and keep in mind what consequences may be caused by 
+    these uncommon environments. 
+    Secondly, write the designed conditions and foreknown consequences into 
+    configuration files, and then run the generator to translate the test case to 
+    executable scripts. 
+    Finally, you need running these scripts to observe the output and learn 
+    the running status of each test case, which will compares the predicated result 
+    with the actual one. If they differ, you will be able to find the bugs of the 
+    resource agent.
+EOF
+}
+
+
+export LANG=C
+
+# system variable
+OCFT_DIR=@datadir@/@PACKAGE_NAME@/ocft
+CONFIGS_DIR=@datadir@/@PACKAGE_NAME@/ocft/configs
+CASES_DIR=/var/lib/@PACKAGE_NAME@/ocft/cases
+
+# global variable
+agent=
+line_num=
+
+# default configuration
+cfg_agent_root=
+cfg_install_package=
+cfg_hang_timeout=15
+
+# default option
+opt_verbose=0
+opt_cfgsdir=$CONFIGS_DIR
+
+if [ ! -d "$CASES_DIR" ]; then
+  mkdir -p "$CASES_DIR" || die "Can not create directory: ${CASES_DIR}."
+fi
+
+command="$1"
+shift
+
+case "$command" in
+  make)
+    if [ "$1" = "-d" ]; then
+      if [ ! -d "$2" ]; then
+        usage
+        exit 1
+      fi
+      opt_cfgsdir="$2"
+      shift
+      shift
+    fi
+    parse_cfg "$@"
+    ;;
+  test)
+    if [ "$1" = "-v" ]; then
+      opt_verbose=1
+      shift
+    fi
+    start_test "$@"
+    ;;
+  clean)
+    delete_cases "$@"
+    ;;
+  help)
+    if [ "$1" = "-v" ]; then
+      howto
+    else
+      usage
+    fi
+    exit 0
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac

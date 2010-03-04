@@ -19,6 +19,8 @@
 #
 MAINTAINERCLEANFILES    = Makefile.in
 
+SUBDIRS			= ocft
+
 INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include
 
 halibdir		= $(libdir)/heartbeat

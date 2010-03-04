@@ -1,0 +1,127 @@
+INTRODUCTION & DESIGN
+~~~~~~~~~~~~~~~~~~~~~
+
+  - Ocft is a testing tool for resource agents. Instead of the policy of HA,
+    it mainly concerns whether resource agents run correct locally. It can 
+    design types of complicated environments to test the reliability of 
+    resource agents. Precisely, it is to display whether resource agents can 
+    return to correct or expected value. The advantage of the tool provides 
+    us with competence to design conditions which can be recorded or reproduced. 
+    Hence it is useful to debuggers.
+
+* Components
+    ** Test case generator (/usr/sbin/ocft)
+      - Turning configuration files of test case to executable scripts.
+
+    ** Configuration file (/usr/share/resource-agents/ocft/configs)
+      - Every configuration file directs only one resource agent and share the same 
+        name with resource agent but contains more test cases.
+
+    ** The testing script (/var/lib/resource-agents/ocft/cases)
+      - After the generator reads configuration files and generates many testing 
+        scripts and the script is underway, the test begins.
+
+* How to customize the environment of testing
+  - Ocft designs the running conditions through two ways, one is changing the 
+    environment variables of resource agents (it is the interface left by OCF itself), 
+    the other is modifying the OS environment of resource agents, such as altering 
+    the permission of some key file or IP address of the machine.
+
+* How to test
+  - Firstly, you need to sketch the all complex and uncommon environments against 
+    a certain resource agent and keep in mind what consequences may be caused by 
+    these uncommon environments. 
+    Secondly, write the designed conditions and foreknown consequences into 
+    configuration files, and then run the generator to translate the test case to 
+    executable scripts. 
+    Finally, you need running these scripts to observe the output and learn 
+    the running status of each test case, which will compares the predicated result 
+    with the actual one. If they differ, you will be able to find the bugs of the 
+    resource agent.
+
+
+HOW TO WRITE CONFIGURATION FILE
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  - There are only 4 top level options that are all spelled by capital letters and "-". 
+    Every top level option contains sub-options that they are initials.
+
+* 'CONFIG' (top level option)
+  - Grammar: CONFIG
+  - The design in this option is global and influences every test case.
+
+    ** 'AgentRoot' (sub-option)
+      - Grammar: AgentRoot /usr/lib/ocf/resource.d/xxx
+      - A few agents will go to "linbit" or "pacemaker" directory, if you define this option,
+        ocft will use it to replace the default directory "heartbeat".
+
+    ** 'InstallPackage' (sub-option)
+      - Grammar: InstallPackage package [package2 [...]]
+      - It will test whether the system have installed the service of the resource agent. 
+        If not, it will download from Internet and have it installed automatically.
+
+    ** 'HangTimeout' (sub-option)
+      - Grammar: HangTimeout secs
+      - If you alter some key options, some resource agents will get puzzled and stop, 
+        which will influence the running of the following test case.  Hence timeout setting is 
+        needed, if the resource agent stops timeout, the scripts will kill this resource agent.
+
+* 'SETUP-AGENT' (top level option)
+  - Grammar: 
+      SETUP-AGENT
+          bash scripts...
+	  ...
+  - Some of Agents may need to be initialized before testing, you can do it here with bash
+    script. The initialization will only be executed once, if you want to reinitialize it,
+    you can manually delete the flag file at /tmp/.[AGENT_NAME]_set.
+
+* 'CASE' & 'CASE-BLOCK' (top level option)
+  - Grammar: CASE "description" & CASE-BLOCK macro_name
+  - Usually, the conditions you designed are more than one and a few 'CASE "..."' will 
+    appear in configuration file. It is worth noting that the following sub-options 
+    have 2 spellings:
+    One is general, where shell affects the local environment; the other is special, 
+    where each options added "@ipaddr" except option "Include". It can remotely execute shell 
+    codes. In other words, it is to execute the shell codes from a remote host, which is 
+    meaningful when a resource agent needs 2 hosts. This remote shell is not a remote execution 
+    only through "ssh", but running a remote shell in the background while the test case is 
+    running. The remote shell runs in the background till the end and saves the results during 
+    the process. That is to say, you can alternatively carry out local and remote shell code 
+    segments. 
+    The "CASE-BLOCK" option is a macro definer, the statements in "CASE-BLOCK" will be inserted 
+    into "CASE" if you "Include" the "macro_name".
+
+    ** 'Var' (sub-option)
+      - Grammar: Var VARIABLE=value
+      - It is to set up an environment variable of the resource agent. They usually appear to 
+        be OCF_RESKEY_xxx. One point is to be noted is there is no blank by both sides of "=".
+
+    ** 'Unvar' (sub-option)
+      - Grammer: Unvar VARIABLE [VARIABLE2 [...]]
+      - Remove the environment variable.
+
+    ** 'Include' (sub-option)
+      - Garmmer: Include macro_name
+      - It will be replaced by statements in 'macro_name', of course, you should define the 
+        content of 'macro_name' with 'CASE-BLOCK' first.
+
+    ** 'Bash' (sub-option)
+      - Grammar: Bash bash_codes
+      - This option is to set up the environment of OS, where you can insert BASH code to 
+        customize the system randomly. Note, do not cause unrecoverable consequences to the 
+        system.
+
+    ** 'BashAtExit' (sub-option)
+      - Grammar: BashAtExit bash_codes
+      - This option is to recover the OS environment in order to run another test case 
+        correctly. Of cause you can use 'Bash' option to recover it. However, if mistakes occur 
+        in the process, the script will quit directly instead of running your recovery codes. 
+        If it happens, you ought to use BashAtExit which can restore the system environment 
+        before you quit.
+
+    ** 'RunAgent' (sub-option)
+      - Grammar: RunAgent cmd [ret_value]
+      - This option is to run resource agent. "cmd" is the parameter of the resource agent, 
+        such as "start, status, stop ...". The second parameter is optional. It will compare the 
+        actual returned value with the expected value when the script has run recourse agent. 
+        If differs, bugs will be found.

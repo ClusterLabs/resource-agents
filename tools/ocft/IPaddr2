@@ -1,0 +1,96 @@
+# IPaddr2
+
+CONFIG
+	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	InstallPackage iproute2
+	HangTimeout 20
+
+CASE-BLOCK required_args
+	Var OCF_RESKEY_ip=127.0.0.3
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+	Include required_args
+	Include default_status
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: unset 'OCF_RESKEY_ip'"
+	Include prepare
+	Unvar OCF_RESKEY_ip
+	AgentRun start OCF_ERR_ARGS
+
+CASE "check base env: set worng 'OCF_RESKEY_ip'"
+	Include prepare
+	Var OCF_RESKEY_ip=not_ip_address
+	AgentRun start OCF_ERR_ARGS
+
+CASE "check base env: set 'OCF_RESKEY_cidr_netmask'"
+	Include prepare
+	Var OCF_RESKEY_cidr_netmask=8
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: set worng 'OCF_RESKEY_cidr_netmask'"
+	Include prepare
+	Var OCF_RESKEY_cidr_netmask=not_netmask
+	AgentRun start OCF_ERR_ARGS
+
+CASE "check base env: set worng 'OCF_RESKEY_cidr_netmask'"
+	Include prepare
+	Var OCF_RESKEY_cidr_netmask=not_netmask
+	AgentRun start OCF_ERR_ARGS
+
+CASE "check base env: set 'OCF_RESKEY_broadcast'"
+	Include prepare
+	Var OCF_RESKEY_broadcast=127.255.255.255
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: set wrong 'OCF_RESKEY_broadcast'"
+	Include prepare
+	Var OCF_RESKEY_broadcast=not_broadcast
+	AgentRun start OCF_ERR_ARGS
+
+CASE "check base env: set 'OCF_RESKEY_nic'"
+	Include prepare
+	Var OCF_RESKEY_nic=lo
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: set wrong 'OCF_RESKEY_nic'"
+	Include prepare
+	Var OCF_RESKEY_nic=not_nic
+	AgentRun start OCF_ERR_ARGS
+
+CASE "normal start"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "monitor with running"
+	Include prepare
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "monitor with not running"
+	Include prepare
+	AgentRun monitor OCF_NOT_RUNNING
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
