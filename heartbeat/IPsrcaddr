@@ -124,6 +124,10 @@ OCTET="[0-9]\{1,3\}"
 IPADDR="\($OCTET\.\)\{3\}$OCTET"
 SRCCLAUSE="src$WS$WS*\($IPADDR\)"
 MATCHROUTE="\(.*${WS}\)\($SRCCLAUSE\)\($WS.*\|$\)"
+FINDIF=$HA_BIN/findif
+
+# findif needs that to be set
+export OCF_RESKEY_ip=$OCF_RESKEY_ipaddress
 
 srca_read() {
 	# Capture the default route - doublequotes prevent word splitting...
@@ -155,6 +159,9 @@ srca_read() {
 srca_start() {
 	srca_read $1
 
+	ip route replace $NETWORK dev $INTERFACE src $1 || \
+		errorexit "command 'ip route replace $NETWORK dev $INTERFACE src $1' failed"
+
 	$CMDCHANGE $ROUTE_WO_SRC src $1 || \
 		errorexit "command '$CMDCHANGE $ROUTE_WO_SRC src $1' failed"
 
@@ -181,6 +188,9 @@ srca_stop() {
 	fi
 	  
 	[ $rc = 2 ] && errorexit "The address you specified to stop does not match the preferred source address"
+
+	ip route replace $NETWORK dev $INTERFACE || \
+		errorexit "command 'ip route replace $NETWORK dev $INTERFACE' failed"
 
 	$CMDCHANGE $ROUTE_WO_SRC || \
 		errorexit "command '$CMDCHANGE $ROUTE_WO_SRC' failed"
@@ -434,6 +444,9 @@ then
 fi
 
 ipaddress="$OCF_RESKEY_ipaddress"
+
+INTERFACE=`$FINDIF -C |grep -o "^[^[:space:]]*"`
+NETWORK=`ip route list dev $INTERFACE scope link|grep -o '^[^ ]*'`
 
 case $1 in
 	start)		srca_start $ipaddress
