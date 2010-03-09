@@ -10,14 +10,14 @@ INTRODUCTION & DESIGN
     Hence it is useful to debuggers.
 
 * Components
-    ** Test case generator (/usr/sbin/ocft)
+    ** Test case generator (@sbindir@/ocft)
       - Turning configuration files of test case to executable scripts.
 
-    ** Configuration file (/usr/share/resource-agents/ocft/configs)
+    ** Configuration file  (@datadir@/@PACKAGE_NAME@/ocft/configs/)
       - Every configuration file directs only one resource agent and share the same 
         name with resource agent but contains more test cases.
 
-    ** The testing script (/var/lib/resource-agents/ocft/cases)
+    ** The testing script  (/var/lib/@PACKAGE_NAME@/ocft/cases/)
       - After the generator reads configuration files and generates many testing 
         scripts and the script is underway, the test begins.
 
@@ -81,13 +81,12 @@ HOW TO WRITE CONFIGURATION FILE
     appear in configuration file. It is worth noting that the following sub-options 
     have 2 spellings:
     One is general, where shell affects the local environment; the other is special, 
-    where each options added "@ipaddr" except option "Include". It can remotely execute shell 
-    codes. In other words, it is to execute the shell codes from a remote host, which is 
-    meaningful when a resource agent needs 2 hosts. This remote shell is not a remote execution 
-    only through "ssh", but running a remote shell in the background while the test case is 
-    running. The remote shell runs in the background till the end and saves the results during 
-    the process. That is to say, you can alternatively carry out local and remote shell code 
-    segments. 
+    where each options added "@ipaddr". It can remotely execute shell codes. In other words,
+    it is to execute the shell codes from a remote host, which is meaningful when a resource
+    agent needs 2 hosts. This remote shell is not a remote execution only through "ssh", but
+    running a remote shell in the background while the test case is running. The remote shell
+    runs in the background till the end and saves the results during the process. That is to
+    say, you can alternatively carry out local and remote shell code segments. 
     The "CASE-BLOCK" option is a macro definer, the statements in "CASE-BLOCK" will be inserted 
     into "CASE" if you "Include" the "macro_name".
 

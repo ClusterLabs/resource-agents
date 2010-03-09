@@ -756,6 +756,8 @@ tools/Makefile							\
    tools/ocft/Makefile						\
    tools/ocft/ocft						\
    tools/ocft/caselib						\
+   tools/ocft/README						\
+   tools/ocft/README.zh_CN					\
 ldirectord/Makefile						\
 ldirectord/ldirectord   					\
 	ldirectord/init.d/Makefile				\

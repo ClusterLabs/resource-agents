@@ -1,7 +1,26 @@
 #!/bin/bash
 
-# Author: John Shi
-# jshi@suse.de
+# Copyright (c) 2010 Novell Inc, John Shi
+#           All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
 
 die()
 {
@@ -92,7 +111,7 @@ trunk2branch()
 
 preparse_cfg()
 {
-  local agent line trunk branch macro num
+  local agent line trunk branch macro num host
   agent="$1"
 
   if [ ! -r "$opt_cfgsdir/$agent" ]; then
@@ -118,12 +137,17 @@ preparse_cfg()
         macro="$CASES_DIR/${agent}_macro.${branch[0]}"
         continue
         ;;
-      Include)
+      Include|Include@*)
+        host=$(echo "${trunk[0]}" | awk -F@ '{print $2}')
         trunk2branch
         if [ ! -r "$CASES_DIR/${agent}_macro.${branch[0]}" ]; then
           parse_die "Macro '${branch[0]}' not found."
         fi
-        line="$(<"$CASES_DIR/${agent}_macro.${branch[0]}")"
+        if [ -n "$host" ]; then
+          line="$(sed -r -e 's/@[^[:blank:]]+/ /' -e "s/[[:blank:]]+/@$host /" "$CASES_DIR/${agent}_macro.${branch[0]}")"
+        else
+          line="$(<"$CASES_DIR/${agent}_macro.${branch[0]}")"
+        fi
         num=
         ;;
       *[!A-Z-]*)
@@ -223,10 +247,10 @@ EOF
 agent_install ${cfg_install_package[@]}
 EOF
           fi
-          if [ -r "$CASE_DIR/${agent}_setup" ]; then
+          if [ -r "$CASES_DIR/${agent}_setup" ]; then
             cat >>$sh <<EOF
 agent_setup $agent <<'CMD'
-$(cat "$CASE_DIR/${agent}_setup")
+$(cat "$CASES_DIR/${agent}_setup")
 CMD
 EOF
           fi
@@ -475,7 +499,7 @@ EOF
 
 howto()
 {
-  cat <<'EOF'
+  cat <<EOF
 HOW TO USE THIS TOOL
 
   - Ocft is a testing tool for resource agents. Instead of the policy of HA,
@@ -487,14 +511,14 @@ HOW TO USE THIS TOOL
     Hence it is useful to debuggers.
 
 * Components
-    ** Test case generator
+    ** Test case generator (@sbindir@/ocft)
       - Turning configuration files of test case to executable scripts.
 
-    ** Configuration file
+    ** Configuration file  ($CONFIGS_DIR/)
       - Every configuration file directs only one resource agent and share the same 
         name with resource agent but contains more test cases.
 
-    ** The testing script
+    ** The testing script  ($CASES_DIR/)
       - After the generator reads configuration files and generates many testing 
         scripts and the script is underway, the test begins.
 
@@ -539,10 +563,6 @@ cfg_hang_timeout=15
 opt_verbose=0
 opt_cfgsdir=$CONFIGS_DIR
 
-if [ ! -d "$CASES_DIR" ]; then
-  mkdir -p "$CASES_DIR" || die "Can not create directory: ${CASES_DIR}."
-fi
-
 command="$1"
 shift
 
@@ -556,6 +576,9 @@ case "$command" in
       opt_cfgsdir="$2"
       shift
       shift
+    fi
+    if [ ! -d "$CASES_DIR" ]; then
+      mkdir -p "$CASES_DIR" || die "Can not create directory: ${CASES_DIR}."
     fi
     parse_cfg "$@"
     ;;

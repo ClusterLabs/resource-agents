@@ -1,0 +1,36 @@
+0.41:
+	- Fixed a remote shell bug.
+	- Improved 'Include' option, now it supports remote shell, invoked just like 'Include@ip_address'.
+	- Show line number, if syntax error occurs in config file.
+	- Add a 'AgentRoot' sub-option.
+	- Fix a bug with config parsing.
+	- Rename ACTION "run" to "test".
+	- Add a simple output mode for "test" ACTION.
+	- Add a verbose ouput mode for "help" ACTION.
+	- The output will be recorded to log file.
+	- Add double stop and double start to tests.
+	- Exit with 1 if test script failed.
+	- The output of agents will be exposed if the test fails.
+	- Run zypper with -q
+	- Use 127.0.0.x(and lo for interface) for agents IP*
+0.4:
+	- Add a 'CASE-BLOCK' top option, it can be included by 'CASE'
+	- Add a 'SETUP-AGENT' top option, you can initialize agents before testing.
+	- Add a 'Include' sub-option.
+	- Add a 'Unvar' sub-option.
+	- Rename 'GLOBAL' to 'CONFIG'.
+	- Modify a part of syntax.
+	- Imporve the 'InstallPackage' option, now it supports SUSE, Redhat and Debian.
+	- Add README & README.zh_CN.
+0.3:
+	- All statements in CASE can be executed by remote shell.
+0.2:
+	- Implement options: BashAtExit, GLOBAL, HangTimeout, InstallPackage.
+	- Delete option: Name.
+	- Modify a part of syntax.
+	- Fix some bugs.
+	- Print testing message in human readable format.
+	- Improve 'make' and 'run' option.
+	- Add 'clean' option.
+0.1:
+	- Implement options: CASE, Bash, Run, Var, Name.
