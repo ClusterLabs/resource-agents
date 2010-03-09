@@ -29,7 +29,6 @@ static const char *device;
 const char *progname;
 char *nodename;
 static const char *rsc_id = "sfex";
-static const char *rscpidfile;
 
 static void usage(FILE *dist) {
 	  fprintf(dist, "usage: %s [-i <index>] [-c <collision_timeout>] [-t <lock_timeout>] <device>\n", progname);
@@ -217,7 +216,7 @@ int main(int argc, char *argv[])
 	/* read command line option */
 	opterr = 0;
 	while (1) {
-		int c = getopt(argc, argv, "hi:c:t:m:n:r:d:");
+		int c = getopt(argc, argv, "hi:c:t:m:n:r:");
 		if (c == -1)
 			break;
 		switch (c) {
@@ -297,11 +296,6 @@ int main(int argc, char *argv[])
 					rsc_id = strdup(optarg);
 				}
 				break;
-			case 'd':
-				{
-					rscpidfile = strdup(optarg);
-				}	
-				break;
 			case '?':           /* error */
 				usage(stderr);
 				exit(4);
@@ -318,11 +312,6 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 	device = argv[optind];
-
-	if (rscpidfile == NULL) {
-		SFEX_LOG_ERR("%s: ERROR: Directory for saving pid file is not specified.\n", progname);
-		exit(EXIT_FAILURE);
-	}
 
 	prepare_lock(device);
 #if !SFEX_TESTING
@@ -357,11 +346,6 @@ int main(int argc, char *argv[])
 
 	if (daemon(0, 1) != 0) {
 		cl_perror("%s::%d: daemon() failed.", __FUNCTION__, __LINE__);
-		release_lock();
-		exit(EXIT_FAILURE);
-	}
-	if (cl_lock_pidfile(rscpidfile) < 0) {
-		SFEX_LOG_ERR("Creating pidfile failed.");
 		release_lock();
 		exit(EXIT_FAILURE);
 	}

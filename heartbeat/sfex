@@ -46,7 +46,6 @@ unset LANGUAGE; export LANGUAGE
 #######################################################################
 
 SFEX_DAEMON=${HA_BIN}/sfex_daemon
-SFEX_DAEMON_RE=${HA_BIN}/[s]fex_daemon
 
 usage() {
     cat <<END
@@ -121,7 +120,7 @@ END
 # timeout time passage set to CIB becomes the only stop opportunity. 
 #
 sfex_start() {
-    ocf_log info "sfex_daemon: starting..."
+	ocf_log info "sfex_daemon: starting..."
 
 	sfex_monitor
 	if [ $? -eq $OCF_SUCCESS ]; then
@@ -129,11 +128,11 @@ sfex_start() {
 		return $OCF_SUCCESS
 	fi
 
-	$SFEX_DAEMON -i $INDEX -c $COLLISION_TIMEOUT -t $LOCK_TIMEOUT -m $MONITOR_INTERVAL -r ${OCF_RESOURCE_INSTANCE} -d ${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE} $DEVICE 
+	$SFEX_DAEMON -i $INDEX -c $COLLISION_TIMEOUT -t $LOCK_TIMEOUT -m $MONITOR_INTERVAL -r ${OCF_RESOURCE_INSTANCE} $DEVICE
 
 	rc=$?
 	if [ $rc -ne 0 ]; then
-		ocf_log err "sfex_daemon failed to start"
+		ocf_log err "sfex_daemon failed to start."
 		return $OCF_ERR_GENERIC
 	fi
 	
@@ -143,42 +142,31 @@ sfex_start() {
 		ocf_log info "sfex_daemon: started."
 		return $OCF_SUCCESS
 	fi
-	ocf_log err "sfex_daemon failed to write pid file in ${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE}"
+	ocf_log err "Can't find a sfex_daemon process. Starting a sfex_daemon failed."
 	return $OCF_ERR_GENERIC
-	
 }
 
 #
 # STOP: stop exclusive control 
 #
 sfex_stop() {
-    ocf_log info "sfex_daemon: stopping..."
+	ocf_log info "sfex_daemon: stopping..."
 
-    # Confirming whether the PID file exists.
-    # If the PID file is lost, then a specific sfex_daemon cannot be stopped.
-    if [ ! -f "${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE}" ]; then
-         ps -ef | grep "$SFEX_DAEMON_RE.*$DEVICE" ||
-              return $OCF_SUCCESS
-         ocf_log err "Cannot stop sfex_daemon because PID file lost."
-         return $OCF_ERR_GENERIC
-    fi
+	# Check the sfex daemon has already stopped.
+	sfex_monitor
+	if [ $? -eq $OCF_NOT_RUNNING ]; then
+		ocf_log info "sfex_daemon already stopped."
+		return $OCF_SUCCESS
+	fi
 
-    # Check the sfex daemon has already stopped.
-    sfex_monitor
-    if [ $? -eq $OCF_NOT_RUNNING ]; then
-        ocf_log info "sfex_daemon already stopped."
-        # Delete PID file.
-        /bin/rm -f ${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE}
-        return $OCF_SUCCESS
-    fi
-    
-    # Stop sfex daemon by sending SIGTERM signal.
-    /bin/kill `cat ${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE}`
-    rc=$?
-    if [ $rc -ne 0 ]; then
-        ocf_log err "sfex_daemon failed to stop"
-	return $rc
-    fi
+	# Stop sfex daemon by sending SIGTERM signal.
+	pid=`/usr/bin/pgrep -f "$SFEX_DAEMON .* ${OCF_RESOURCE_INSTANCE} "`
+	/bin/kill $pid
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log err "sfex_daemon failed to stop"
+		return $rc
+	fi
 
 #sfex could be in state D if the device is gone, and then not terminate.	
 #Wait and check again if the daemon is already properly shutdown.
@@ -190,34 +178,21 @@ sfex_stop() {
 		ocf_log err "sfex_daemon failed to stop"
 		return $rc
 	fi
-    ocf_log info "sfex_daemon: stopped."
-    # Delete PID file.
-    /bin/rm -f ${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE}
-    return $OCF_SUCCESS
+	ocf_log info "sfex_daemon: stopped."
+	return $OCF_SUCCESS
 }
 
 sfex_monitor() {
-    ocf_log debug "sfex_monitor: started..."
+	ocf_log debug "sfex_monitor: started..."
 
-#	if [ "${OCF_RESKEY_CRM_meta_interval:-0}" -eq "0" ]; then
-#	# in case of probe, monitor operation is surely treated as
-#	# under suspension. This will call start operation.
-#	ocf_log info "probe..."
-#	return $OCF_NOT_RUNNING
-#	fi
+	# Find a sfex_daemon process using daemon name and resource name.
+	if /usr/bin/pgrep -f "$SFEX_DAEMON .* ${OCF_RESOURCE_INSTANCE} " > /dev/null 2>&1; then
+		ocf_log debug "sfex_monitor: complete. sfex_daemon is running."
+		return $OCF_SUCCESS
+	fi
 
-    # Confirming whether the PID file exists.
-    if [ -f "${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE}" ]; then
-        # Confirming whether the sfex_daemon process exists.
-        if /usr/bin/pgrep -f "$SFEX_DAEMON" | grep \
-           `cat ${HA_RSCTMP}/pid-of-${OCF_RESOURCE_INSTANCE}` > /dev/null 2>&1; then
-            ocf_log debug "sfex_monitor: complete. sfex_daemon is running."
-            return $OCF_SUCCESS
-        fi
-    fi
-
-    ocf_log debug "sfex_monitor: complete. sfex_daemon is not running."
-    return $OCF_NOT_RUNNING
+	ocf_log debug "sfex_monitor: complete. sfex_daemon is not running."
+	return $OCF_NOT_RUNNING
 }
 
 #
@@ -226,21 +201,21 @@ sfex_monitor() {
 
 # check arguments
 if [ $# -ne 1 ]; then
-    usage
-    exit $OCF_ERR_ARGS
+	usage
+	exit $OCF_ERR_ARGS
 fi
 OP=$1
 
 # These operations do not require instance parameters
 case $OP in
-    meta-data)
-	meta_data
-	exit $OCF_SUCCESS
-	;;
-    usage)
-	usage
-	exit $OCF_SUCCESS
-	;;
+	meta-data)
+		meta_data
+		exit $OCF_SUCCESS
+		;;
+	usage)
+		usage
+		exit $OCF_SUCCESS
+		;;
 esac
 
 # check parameters
@@ -252,35 +227,35 @@ MONITOR_INTERVAL=${OCF_RESKEY_monitor_interval:-10}
 
 sfex_validate () {
 if [ -z "$DEVICE" ]; then
-    ocf_log err "Please set OCF_RESKEY_device to device for sfex meta-data"
-    exit $OCF_ERR_ARGS
+	ocf_log err "Please set OCF_RESKEY_device to device for sfex meta-data"
+	exit $OCF_ERR_ARGS
 fi
 if [ ! -w "$DEVICE" ]; then
-    ocf_log warn "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
-    exit $OCF_ERR_ARGS
+	ocf_log warn "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
+	exit $OCF_ERR_ARGS
 fi
 }
 
 if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
-    ocf_log err "THIS RA DO NOT SUPPORT CLONE MODE!"
-    exit $OCF_ERR_CONFIGURED
+	ocf_log err "THIS RA DO NOT SUPPORT CLONE MODE!"
+	exit $OCF_ERR_CONFIGURED
 fi
 
 case $OP in
-    start)
-	sfex_start
-	;;
-    stop)
-	sfex_stop
-	;;
-    monitor)
-	sfex_monitor
-	;;
-    validate-all)
-	sfex_validate
-	;;
-    *)
-	exit $OCF_ERR_UNIMPLEMENTED
-	;;
+	start)
+		sfex_start
+		;;
+	stop)
+		sfex_stop
+		;;
+	monitor)
+		sfex_monitor
+		;;
+	validate-all)
+		sfex_validate
+		;;
+	*)
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
 esac
 exit $?
