@@ -11,7 +11,6 @@
 # Author:	Andrew Beekhof 		: Cleanup and import
 # Author:	Sebastian Reitenbach    : add OpenBSD defaults, more cleanup
 # Author:  Narayan Newton      : Add Gentoo/Debian defaults
-# Author:	Marian Marinov		: Add replication capabilities
 #
 # Support:	linux-ha@lists.linux-ha.org
 # License:	GNU General Public License (GPL)
@@ -36,21 +35,16 @@
 #   OCF_RESKEY_log
 #   OCF_RESKEY_pid
 #   OCF_RESKEY_socket
-#   OCF_RESKEY_replication_user
-#   OCF_RESKEY_replication_passwd
 #######################################################################
 # Initialization:
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
-VERSION=0.18
 
 #######################################################################
 
 # Fill in some defaults if no values are specified
 HOSTOS=`uname`
-HOSTNAME=`hostname`
-
 if [ "X${HOSTOS}" = "XOpenBSD" ];then
 OCF_RESKEY_binary_default="/usr/local/bin/mysqld_safe"
 OCF_RESKEY_config_default="/etc/my.cnf"
@@ -60,6 +54,10 @@ OCF_RESKEY_group_default="_mysql"
 OCF_RESKEY_log_default="/var/log/mysqld.log"
 OCF_RESKEY_pid_default="/var/mysql/mysqld.pid"
 OCF_RESKEY_socket_default="/var/run/mysql/mysql.sock"
+OCF_RESKEY_test_user_default="root"
+OCF_RESKEY_test_table_default="mysql.user"
+OCF_RESKEY_test_passwd_default=""
+OCF_RESKEY_enable_creation_default=0
 OCF_RESKEY_additional_parameters_default=""
 else
 OCF_RESKEY_binary_default="/usr/bin/safe_mysqld"
@@ -70,14 +68,12 @@ OCF_RESKEY_group_default="mysql"
 OCF_RESKEY_log_default="/var/log/mysqld.log"
 OCF_RESKEY_pid_default="/var/run/mysql/mysqld.pid"
 OCF_RESKEY_socket_default="/var/lib/mysql/mysql.sock"
-OCF_RESKEY_additional_parameters_default=""
-fi
-OCF_RESKEY_enable_creation_default=0
 OCF_RESKEY_test_user_default="root"
 OCF_RESKEY_test_table_default="mysql.user"
 OCF_RESKEY_test_passwd_default=""
-OCF_RESKEY_replication_user_default=""
-OCF_RESKEY_replication_passwd_default=""
+OCF_RESKEY_enable_creation_default=0
+OCF_RESKEY_additional_parameters_default=""
+fi
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
@@ -99,12 +95,9 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 : ${OCF_RESKEY_enable_creation=${OCF_RESKEY_enable_creation_default}}
 : ${OCF_RESKEY_additional_parameters=${OCF_RESKEY_additional_parameters_default}}
 
-: ${OCF_RESKEY_replication_user=${OCF_RESKEY_replication_user_default}}
-: ${OCF_RESKEY_replication_passwd=${OCF_RESKEY_replication_passwd_default}}
-
 usage() {
   cat <<UEND
-	usage: $0 (start|stop|validate-all|meta-data|monitor|notify|promote|demote)
+	usage: $0 (start|stop|validate-all|meta-data|monitor)
 
 	$0 manages a MySQL Database as an HA resource.
 
@@ -112,9 +105,6 @@ usage() {
 	The 'stop' operation stops the database.
 	The 'status' operation reports whether the database is running
 	The 'monitor' operation reports whether the database seems to be working
-	The 'promote' operation makes this mysql server run as master
-	The 'demote' operation makes this mysql server run as slave
-	The 'notify' operation is used for post execution
 	The 'validate-all' operation reports whether the parameters are valid
 
 UEND
@@ -125,7 +115,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="mysql">
-<version>1.1</version>
+<version>1.0</version>
 
 <longdesc lang="en">
 Resource script for MySQL. 
@@ -240,22 +230,6 @@ Additional parameters which are passed to the mysqld on startup.
 <content type="string" default="${OCF_RESKEY_additional_parameters_default}"/>
 </parameter>
 
-<parameter name="replication_user" unique="0" required="0">
-<longdesc lang="en">
-MySQL replication user. Used for replication client and slave.
-</longdesc>
-<shortdesc lang="en">MySQL replication user</shortdesc>
-<content type="string" default="${OCF_RESKEY_replication_user_default}" />
-</parameter>
-
-<parameter name="replication_passwd" unique="0" required="0">
-<longdesc lang="en">
-MySQL replication password. Used for replication client and slave.
-</longdesc>
-<shortdesc lang="en">MySQL replication user password</shortdesc>
-<content type="string" default="${OCF_RESKEY_replication_passwd_default}" />
-</parameter>
-
 </parameters>
 
 <actions>
@@ -263,11 +237,6 @@ MySQL replication password. Used for replication client and slave.
 <action name="stop" timeout="120" />
 <action name="status" timeout="60" />
 <action name="monitor" depth="0" timeout="30" interval="10" />
-<action name="monitor" depth="0"  timeout="20" interval="20" start-delay="0" role="Slave" />
-<action name="monitor" depth="0"  timeout="20" interval="10" start-delay="0" role="Master" />
-<action name="notify" timeout="90" />
-<action name="promote" timeout="120" />
-<action name="demote" timeout="120" />
 <action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 </actions>
@@ -303,57 +272,7 @@ mysql_validate() {
 	ocf_log err "Group $OCF_RESKEY_group doesn't exist";
 	return $OCF_ERR_INSTALLED;
     fi
-
-	if [ ! -z "${OCF_RESKEY_CRM_meta_master_max}" ] && [ "${OCF_RESKEY_CRM_meta_master_max}" > 0 ]; then
-    	if [ -z "$OCF_RESKEY_replication_user" ] || [ -z "$OCF_RESKEY_replication_passwd" ]; then
-			ocf_log err "Missing replication username or password"
-			exit $OCF_ERR_CONFIGURED
-    	fi
-    fi
     true
-}
-
-is_slave() {
-	slave_info=($(mysql \
-		--user=$OCF_RESKEY_replication_user \
-		--password=$OCF_RESKEY_replication_passwd \
-		--socket=$OCF_RESKEY_socket -O connect_timeout=1 \
-		-e 'SHOW SLAVE STATUS\G'|awk '/Running/ || /Master_[UHP]/{print $2}'))
-
-	if [ "$?" != 0 ]; then
-		ocf_log err "Unable to get local slave status"
-		return 1
-	fi
-
-	if [ -z "${slave_info[*]}" ]; then
-		# no slave configuration, can not be slave
-		return 1;
-	fi
-
-	if [ -z "${slave_info[3]}" ] || [ -z "${slave_info[4]}" ] || [ -z "${slave_info[0]}" ] || [ -z "${slave_info[0]}" ]; then
-		ocf_log err "Unable to get slave status"
-		return 1
-	fi
-
-	if [ $# == 1 ]; then
-		if [ "${slave_info[3]}" == 'Yes' ] &&
-			[ "${slave_info[4]}" == 'Yes' ] &&
-			[ "${slave_info[1]}" == "$OCF_RESKEY_replication_user" ] &&
-			( grep "${slave_info[0]}" /etc/hosts > /dev/null ); then
-			# machine is slave
-			return 0;
-		fi
-	else
-		if [ "${slave_info[3]}" == 'Yes' ] || [ "${slave_info[4]}" == 'Yes' ]; then
-			if [ "${slave_info[1]}" == "$OCF_RESKEY_replication_user" ] && ( grep "${slave_info[0]}" /etc/hosts > /dev/null ); then
-				# machine is slave
-				return 0;
-			fi
-		fi
-	fi
-
-	# machine is not slave
-	return 1;
 }
 
 mysql_status() {
@@ -382,37 +301,14 @@ mysql_monitor() {
     mysql_status
     rc=$?
 
-	if ! is_slave; then
-		# if the check came from probe
-		if [ "$OCF_RESKEY_CRM_meta_interval" = "0" ]; then
-			return $OCF_RUNNING_MASTER;
-		fi
-		# if the check requires a master/slave status and this is the Master node
-		if [ "$OCF_RESKEY_CRM_meta_role" == "Master" ]; then
-			return $OCF_RUNNING_MASTER
-		fi
-	fi
-
-	if [ $OCF_CHECK_LEVEL == 0 ]; then
+    if [ $OCF_CHECK_LEVEL = 0 -o $rc != 0 ]; then
 	return $rc
     fi
 
-	if [ ! -z "${OCF_RESKEY_CRM_meta_master_max}" ] &&
-		[ "${OCF_RESKEY_CRM_meta_master_max}" > 0 ] &&
-		[ "$OCF_RESKEY_CRM_meta_role" == "Slave" ] &&
-		is_slave 1; then
-		return $OCF_SUCCESS
-	fi
-
     # Do a detailed status check
-    buf=$(mysql --user=$OCF_RESKEY_test_user \
-		--password=$OCF_RESKEY_test_passwd \
-		--socket=$OCF_RESKEY_socket \
-		-O connect_timeout=1 \
-		-e "SELECT * FROM $OCF_RESKEY_test_table" 2>&1)
+    buf=`echo "SELECT * FROM $OCF_RESKEY_test_table" | mysql --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd --socket=$OCF_RESKEY_socket -O connect_timeout=1 2>&1`
     rc=$?
-
-    if [ $rc -ne 0 ]; then
+    if [ ! $rc -eq 0 ]; then
 	ocf_log err "MySQL $test_table monitor failed:";
 	if [ ! -z "$buf" ]; then ocf_log err $buf; fi
 	return $OCF_ERR_GENERIC;
@@ -423,8 +319,12 @@ mysql_monitor() {
 }
 
 mysql_start() {
-	mysql_validate
     mysql_status
+    if [ $? = $OCF_SUCCESS ]; then
+	ocf_log info "MySQL already running"
+	return $OCF_SUCCESS
+    fi
+
     touch $OCF_RESKEY_log
     chown $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_log
     chmod 0640 $OCF_RESKEY_log
@@ -466,11 +366,7 @@ mysql_start() {
     #chown -R $OCF_RESKEY_user $OCF_RESKEY_datadir
     #chgrp -R $OCF_RESKEY_group $OCF_RESKEY_datadir
 
-    ${OCF_RESKEY_binary} --defaults-file=$OCF_RESKEY_config \
-		--pid-file=$OCF_RESKEY_pid \
-		--socket=$OCF_RESKEY_socket \
-		--datadir=$OCF_RESKEY_datadir \
-		--user=$OCF_RESKEY_user $OCF_RESKEY_additional_parameters >/dev/null 2>&1 &
+    ${OCF_RESKEY_binary}  --defaults-file=$OCF_RESKEY_config --pid-file=$OCF_RESKEY_pid --socket=$OCF_RESKEY_socket --datadir=$OCF_RESKEY_datadir --user=$OCF_RESKEY_user $OCF_RESKEY_additional_parameters >/dev/null &
     rc=$?
     
     if [ $rc != 0 ]; then
@@ -499,7 +395,6 @@ mysql_start() {
 }
 
 mysql_stop() {
-	mysql_validate
     if [ ! -f $OCF_RESKEY_pid ]; then
 	ocf_log info "MySQL is not running"
         return $OCF_SUCCESS
@@ -513,15 +408,26 @@ mysql_stop() {
 	return $OCF_ERR_GENERIC
     fi
 
-	stop_wait=1
-	while [ $stop_wait = 1 ]; do
+	# stop waiting
+	shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
+	count=0
+	while [ $count -lt $shutdown_timeout ]
+	do
 		mysql_status
 		rc=$?
 		if [ $rc = $OCF_NOT_RUNNING ]; then
-			stop_wait=0
+			break
 		fi
+		count=`expr $count + 1`
 		sleep 1
+		ocf_log debug "MySQL still hasn't stopped yet. Waiting..."
 	done
+
+	mysql_status
+	if [ $? != $OCF_NOT_RUNNING ]; then
+		ocf_log info "MySQL failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL..."
+		/bin/kill -KILL $pid > /dev/null
+	fi
 
     ocf_log info "MySQL stopped";
     rm -f /var/lock/subsys/mysqld
@@ -529,118 +435,33 @@ mysql_stop() {
     return $OCF_SUCCESS
 }
 
-mysql_promote() {
-	if ( ! mysql_status ); then
-		return $OCF_NOT_RUNNING
-	fi
-	if [ "$OCF_RESKEY_CRM_meta_notify_promote_uname" != "$HOSTNAME " ]; then
-		return $OCF_ERR_GENERIC
-	fi
-	if is_slave; then
-		mysql --socket=$OCF_RESKEY_socket -O connect_timeout=1 -e 'STOP SLAVE'
-	fi
-	return $OCF_SUCCESS
-}
+case "$1" in
+  meta-data)	meta_data
+		exit $OCF_SUCCESS;;
+  usage|help)	usage
+		exit $OCF_SUCCESS;;
+esac
 
-mysql_demote() {
-	search_uname=''
-	if [[ "$OCF_RESKEY_CRM_meta_notify_master_uname" =~ "^\s*$" ]] &&
-		[[ "$OCF_RESKEY_CRM_meta_notify_promote_uname" =~ "^\s*$" ]]; then
-		echo "No master or promote uname found" >> /tmp/replica.log
-		return $OCF_ERR_GENERIC
-	fi
-	if [ "$OCF_RESKEY_CRM_meta_notify_promote_uname" == "$HOSTNAME " ]; then
-		echo "Should not connect to my self(promote)" >> /tmp/replica.log
-		return $OCF_ERR_GENERIC
-	else
-		search_uname=$OCF_RESKEY_CRM_meta_notify_promote_uname
-	fi
-	if [ "$OCF_RESKEY_CRM_meta_notify_master_uname" == "$HOSTNAME " ]; then
-		echo "Should not connect to my self(master)" >> /tmp/replica.log
-		return $OCF_ERR_GENERIC
-	else
-		search_uname=$OCF_RESKEY_CRM_meta_notify_master_uname
-	fi
-
-	if ( ! mysql_status ); then
-		return $OCF_NOT_RUNNING
-fi
-	if [ $# != 1 ] && [ "$OCF_RESKEY_CRM_meta_notify_demote_uname" != "$HOSTNAME " ]; then
-		return $OCF_ERR_GENERIC
-	fi
-	if is_slave 1; then
-		return $OCF_SUCCESS
-	else
-		if [ -z "$search_uname" ]; then	return $OCF_ERR_GENERIC; fi
-		master_host=$(grep $OCF_RESKEY_CRM_meta_notify_master_uname /etc/hosts|awk '{print $1;exit}')
-		if [ -z "$master_host" ]; then
-			ocf_log err "Unable to get IP address of host $OCF_RESKEY_CRM_meta_notify_master_uname"
-	       	return $OCF_ERR_GENERIC;
-		fi
-		master_info=($(mysql \
-			--password=$OCF_RESKEY_replication_passwd \
-       		--user=$OCF_RESKEY_replication_user \
-       		-h $master_host \
-       		-O connect_timeout=1 \
-	       	-e 'SHOW MASTER STATUS\G'|awk '/File/||/Position/{print $2}'))
-		if [ -z "${master_info[0]}" ] || [ -z "${master_info[1]}" ]; then
-			ocf_log err "Empty master file or master position"
-	       	return $OCF_ERR_GENERIC;
-		fi
-		mysql --socket=$OCF_RESKEY_socket -O connect_timeout=1 -e 'STOP SLAVE';
-		mysql --socket=$OCF_RESKEY_socket -O connect_timeout=1 \
-			-e "CHANGE MASTER TO MASTER_HOST='$master_host', \
-				MASTER_USER='$OCF_RESKEY_replication_user', \
-				MASTER_PASSWORD='$OCF_RESKEY_replication_passwd', \
-				MASTER_PORT=3306, \
-				MASTER_LOG_FILE='${master_info[0]}', \
-				MASTER_LOG_POS=${master_info[1]}, \
-				MASTER_CONNECT_RETRY=4"
-		mysql --socket=$OCF_RESKEY_socket -O connect_timeout=1 -e 'START SLAVE';
-		if [ $? == $OCF_ERR_GENERIC ]; then
-			return $OCF_ERR_GENERIC
-		fi
-	fi
-	if is_slave 1; then
-		return $OCF_SUCCESS
-	else
-		return $OCF_ERR_GENERIC
-	fi
-}
-
-mysql_notify() {
-	if [ "$OCF_RESKEY_CRM_meta_notify_type" != 'post' ]; then
-		return $OCF_SUCCESS
-	fi
-	case "$OCF_RESKEY_CRM_meta_notify_operation" in
-		'promote')
-			if [ "$OCF_RESKEY_CRM_meta_notify_promote_uname" != "$HOSTNAME " ] &&
- 				! is_slave 1; then
-				mysql_demote 1
-			fi
-		;;
-		'demote')
-			if [ "$OCF_RESKEY_CRM_meta_notify_promote_uname" == "$HOSTNAME " ] &&
-				! is_slave 1; then
-				mysql_demote 1
-			fi
-		;;
-		*) return $OCF_SUCCESS ;;
+mysql_validate
+rc=$?
+LSB_STATUS_STOPPED=3
+if [ $rc -ne 0 ]; then
+	case "$1" in
+		stop) exit $OCF_SUCCESS;;
+		monitor) exit $OCF_NOT_RUNNING;;
+		status) exit $LSB_STATUS_STOPPED;;
+		*) exit $rc;;
 	esac
-
-}
+fi
 
 # What kind of method was invoked?
 case "$1" in
   start)	mysql_start;;
   stop)		mysql_stop;;
   status)	mysql_status;;
-  promote)	mysql_promote;;
-  demote)	mysql_demote;;
   monitor)	mysql_monitor;;
-  notify)	mysql_notify;;
-  meta-data) meta_data;;
-  validate-all)	mysql_validate;;
-  usage|help) usage; exit $OCF_SUCCESS;;
- *)	usage; exit $OCF_ERR_UNIMPLEMENTED;;
+  validate-all)	exit $OCF_SUCCESS;;
+
+ *)		usage
+		exit $OCF_ERR_UNIMPLEMENTED;;
 esac
