@@ -72,7 +72,7 @@ Be warned: Asking ldirectord status is an expensive action.
 The full pathname of the ldirectord configuration file.
 </longdesc>
 <shortdesc lang="en">configuration file path</shortdesc>
-<content type="string" default="@sysconfdir@/ldirectord.cf" />
+<content type="string" default="@sysconfdir@/ha.d/ldirectord.cf" />
 </parameter>
 
 <parameter name="ldirectord">
