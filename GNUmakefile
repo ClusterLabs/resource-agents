@@ -29,10 +29,11 @@ RPM_OPTS	= --define "_sourcedir $(RPM_ROOT)" 	\
 
 getdistro = $(shell test -e /etc/SuSE-release || echo fedora; test -e /etc/SuSE-release && echo suse)
 DISTRO ?= $(call getdistro)
+TAG    ?= tip
 
 hgarchive:
 	rm -f $(TARFILE)
-	hg archive -t tbz2 $(TARFILE)
+	hg archive -t tbz2 -r $(TAG) $(TARFILE)
 	echo `date`: Rebuilt $(TARFILE)
 
 srpm:	hgarchive
