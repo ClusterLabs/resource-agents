@@ -129,10 +129,6 @@ for the dom0. The default minimum memory is 512MB.
 <longdesc lang="en">
 To additionally monitor services within the unprivileged domain,
 add this parameter with a list of scripts to monitor.
-
-NB: In this case make sure to set the start-delay of the monitor
-operation to at least the time it takes for the DomU to start all
-services.
 </longdesc>
 <shortdesc lang="en">list of space separated monitor scripts</shortdesc>
 <content type="string" default="" />
