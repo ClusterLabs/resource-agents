@@ -50,8 +50,6 @@ meta_data() {
 <resource-agent name="drbd">
 <version>1.1</version>
 
-<shortdesc lang="en">Manages a DRBD resource (deprecated)</shortdesc>
-
 <longdesc lang="en">
 Deprecation warning: This agent is deprecated and may be removed from
 a future release. See the ocf:linbit:drbd resource agent for a
@@ -61,6 +59,8 @@ Replicated Block Device (DRBD) object as a master/slave
 resource. DRBD is a mechanism for replicating storage; please see the
 documentation for setup details.
 </longdesc>
+
+<shortdesc lang="en">Manages a DRBD resource (deprecated)</shortdesc>
 
 <parameters>
 <parameter name="drbd_resource" unique="1" required="1">
