@@ -57,8 +57,8 @@ prepare_lock (const char *device)
     if (dev_fd == -1) {
       if (errno == EINTR || errno == EAGAIN)
 	continue;
-      SFEX_LOG_ERR ("%s: ERROR: can't open device %s: %s\n",
-		    progname, device, strerror (errno));
+      cl_log(LOG_ERR, "can't open device %s: %s\n",
+		    device, strerror (errno));
       exit (3);
     }
     break;
@@ -67,14 +67,14 @@ prepare_lock (const char *device)
 
   ioctl(dev_fd, BLKSSZGET, &sector_size);
   if (sector_size == 0) {
-	  SFEX_LOG_ERR("Get sector size failed: %s\n", strerror(errno));
+	  cl_log(LOG_ERR, "Get sector size failed: %s\n", strerror(errno));
 	  exit(EXIT_FAILURE);
   }
 
   if (posix_memalign
       ((void **) (&locked_mem), SFEX_ODIRECT_ALIGNMENT,
        sector_size) != 0) {
-    SFEX_LOG_ERR ("Failed to allocate aligned memory\n");
+    cl_log(LOG_ERR, "Failed to allocate aligned memory\n");
     exit (3);
   }
   memset (locked_mem, 0, sector_size);
@@ -115,18 +115,18 @@ get_nodename (void)
   char *n;
 
   if (uname (&u)) {
-    SFEX_LOG_ERR ("%s: ERROR: %s\n", progname, strerror (errno));
+    cl_log(LOG_ERR, "%s\n", strerror (errno));
     exit (3);
   }
   if (strlen (u.nodename) > SFEX_MAX_NODENAME) {
-    SFEX_LOG_ERR
-      ("%s: ERROR: nodename %s is too long. must be less than %lu byte.\n",
-       progname, u.nodename, (unsigned long)SFEX_MAX_NODENAME);
+    cl_log(LOG_ERR,
+      "nodename %s is too long. must be less than %lu byte.\n",
+       u.nodename, (unsigned long)SFEX_MAX_NODENAME);
     exit (3);
   }
   n = strdup (&u.nodename[0]);
   if (!n) {
-    SFEX_LOG_ERR ("%s: ERROR: %s\n", progname, strerror (errno));
+    cl_log(LOG_ERR, "%s\n", strerror (errno));
     exit (3);
   }
   return n;
@@ -197,7 +197,7 @@ write_controldata (const sfex_controldata * cdata)
 
   fd = dev_fd;
   if (lseek (fd, 0, SEEK_SET) == -1) {
-    SFEX_LOG_ERR ("%s: ERROR: can't seek file pointer: %s\n", progname,
+    cl_log(LOG_ERR, "can't seek file pointer: %s\n",
 		  strerror (errno));
     exit (3);
   }
@@ -208,8 +208,8 @@ write_controldata (const sfex_controldata * cdata)
 	  if (s == -1) {
 		  if (errno == EINTR || errno == EAGAIN)
 			  continue;
-		  SFEX_LOG_ERR ("%s: ERROR: can't write meta-data: %s\n",
-				  progname, strerror (errno));
+		  cl_log(LOG_ERR, "can't write meta-data: %s\n",
+				strerror (errno));
 		  exit (3);
 	  }
 	  else
@@ -257,7 +257,7 @@ write_lockdata (const sfex_controldata * cdata, const sfex_lockdata * ldata,
 
   /* seek a file pointer to given position */
   if (lseek (fd, cdata->blocksize * index, SEEK_SET) == -1) {
-    SFEX_LOG_ERR ("%s: ERROR: can't seek file pointer: %s\n", progname,
+    cl_log(LOG_ERR, "can't seek file pointer: %s\n",
 		  strerror (errno));
     return -1;
   }
@@ -268,14 +268,13 @@ write_lockdata (const sfex_controldata * cdata, const sfex_lockdata * ldata,
     if (s == -1) {
       if (errno == EINTR || errno == EAGAIN)
 	continue;
-      SFEX_LOG_ERR ("%s: ERROR: can't write meta-data: %s\n",
-		    progname, strerror (errno));
+      cl_log(LOG_ERR, "can't write meta-data: %s\n",
+		    strerror (errno));
       return -1;
     }
     else if (s != cdata->blocksize) {
       /* if writing atomically failed, this process is error */
-      SFEX_LOG_ERR ("%s: ERROR: can't write meta-data atomically.\n",
-		    progname);
+      cl_log(LOG_ERR, "can't write meta-data atomically.\n");
       return -1;
     }
     break;
@@ -301,7 +300,7 @@ read_controldata (sfex_controldata * cdata)
   block = (sfex_controldata_ondisk *) (locked_mem);
 
   if (lseek (dev_fd, 0, SEEK_SET) == -1) {
-    SFEX_LOG_ERR ("%s: ERROR: can't seek file pointer: %s\n", progname,
+    cl_log(LOG_ERR, "can't seek file pointer: %s\n",
 		  strerror (errno));
     return -1;
   }
@@ -312,9 +311,9 @@ read_controldata (sfex_controldata * cdata)
 	  if (s == -1) {
 		  if (errno == EINTR || errno == EAGAIN)
 			  continue;
-		  SFEX_LOG_ERR
-			  ("%s: ERROR: can't read controldata meta-data: %s\n",
-			   progname, strerror (errno));
+		  cl_log(LOG_ERR,
+			  "can't read controldata meta-data: %s\n",
+			   strerror (errno));
 		  return -1;
 	  }
 	  else
@@ -331,21 +330,21 @@ read_controldata (sfex_controldata * cdata)
    */
   memcpy (cdata->magic, block->magic, 4);
   if (memcmp (cdata->magic, SFEX_MAGIC, sizeof (cdata->magic))) {
-    SFEX_LOG_ERR ("%s: ERROR: magic number mismatched. %c%c%c%c <-> %s\n", progname, block->magic[0], block->magic[1], block->magic[2], block->magic[3], SFEX_MAGIC);
+    cl_log(LOG_ERR, "magic number mismatched. %c%c%c%c <-> %s\n", block->magic[0], block->magic[1], block->magic[2], block->magic[3], SFEX_MAGIC);
     return -1;
   }
   if (block->version[sizeof (block->version)-1]
       || block->revision[sizeof (block->revision)-1]
       || block->blocksize[sizeof (block->blocksize)-1]
       || block->numlocks[sizeof (block->numlocks)-1]) {
-    SFEX_LOG_ERR ("%s: ERROR: control data format error.\n", progname);
+    cl_log(LOG_ERR, "control data format error.\n");
     return -1;
   }
   cdata->version = atoi ((char *) (block->version));
   if (cdata->version != SFEX_VERSION) {
-    SFEX_LOG_ERR
-      ("%s: ERROR: version number mismatched. program is %d, data is %d.\n",
-       progname, SFEX_VERSION, cdata->version);
+    cl_log(LOG_ERR,
+      "version number mismatched. program is %d, data is %d.\n",
+       SFEX_VERSION, cdata->version);
     return -1;
   }
   cdata->revision = atoi ((char *) (block->revision));
@@ -383,7 +382,7 @@ read_lockdata (const sfex_controldata * cdata, sfex_lockdata * ldata,
 
   /* seek a file pointer to given position */
   if (lseek (fd, cdata->blocksize * index, SEEK_SET) == -1) {
-    SFEX_LOG_ERR ("%s: ERROR: can't seek file pointer: %s\n", progname,
+    cl_log(LOG_ERR, "can't seek file pointer: %s\n",
 		  strerror (errno));
     return -1;
   }
@@ -394,13 +393,12 @@ read_lockdata (const sfex_controldata * cdata, sfex_lockdata * ldata,
     if (s == -1) {
       if (errno == EINTR || errno == EAGAIN)
 	continue;
-      SFEX_LOG_ERR ("%s: ERROR: can't read lockdata meta-data: %s\n",
-		    progname, strerror (errno));
+      cl_log(LOG_ERR, "can't read lockdata meta-data: %s\n",
+		    strerror (errno));
       return -1;
     }
     else if (s != cdata->blocksize) {
-      SFEX_LOG_ERR ("%s: ERROR: can't read meta-data atomically.\n",
-		    progname);
+      cl_log(LOG_ERR, "can't read meta-data atomically.\n");
       return -1;
     }
     break;
@@ -415,22 +413,22 @@ read_lockdata (const sfex_controldata * cdata, sfex_lockdata * ldata,
    * values in the write_lockdata() function.
    */
   if (block->count[sizeof(block->count)-1] || block->nodename[sizeof(block->nodename)-1]) {
-    SFEX_LOG_ERR ("%s: ERROR: lock data format error.\n", progname);
+    cl_log(LOG_ERR, "lock data format error.\n");
     return -1;
   }
   ldata->status = block->status;
   if (ldata->status != SFEX_STATUS_UNLOCK
       && ldata->status != SFEX_STATUS_LOCK) {
-    SFEX_LOG_ERR ("%s: ERROR: lock data format error.\n", progname);
+    cl_log(LOG_ERR, "lock data format error.\n");
     return -1;
   }
   ldata->count = atoi ((char *) (block->count));
   strncpy ((char *) (ldata->nodename), (const char *) (block->nodename), sizeof(block->nodename));
 
 #ifdef SFEX_DEBUG
-  SFEX_LOG_INFO ("status: %c\n", ldata->status);
-  SFEX_LOG_INFO ("count: %d\n", ldata->count);
-  SFEX_LOG_INFO ("nodename: %s\n", ldata->nodename);
+  cl_log(LOG_INFO, "status: %c\n", ldata->status);
+  cl_log(LOG_INFO, "count: %d\n", ldata->count);
+  cl_log(LOG_INFO, "nodename: %s\n", ldata->nodename);
 #endif
   return 0;
 }

@@ -173,11 +173,4 @@ extern const char *progname;
 extern char *nodename;
 extern unsigned long sector_size;
 
-#define SFEX_LOG_ERR(args...) cl_log(LOG_ERR, args)
-#define SFEX_LOG_INFO(args...) cl_log(LOG_INFO, args)
-#if 0
-#define SFEX_LOG_ERR(args...) do {fprintf(stderr, args);} while (0)
-#define SFEX_LOG_INFO(args...) do {fprintf(stderr, args);} while (0)
-#endif
-
 #endif /* SFEX_H */

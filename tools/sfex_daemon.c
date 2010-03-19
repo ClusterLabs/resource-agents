@@ -1,3 +1,4 @@
+#include <config.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -13,6 +14,10 @@
 #include <syslog.h>
 #include "sfex.h"
 #include "sfex_lib.h"
+
+#if HAVE_GLUE_CONFIG_H
+#include <glue_config.h> /* for HA_LOG_FACILITY */
+#endif
 
 static int sysrq_fd;
 static int lock_index = 1;        /* default 1st lock */
@@ -37,25 +42,25 @@ static void usage(FILE *dist) {
 static int lock_index_check(void)
 {
 	if (read_controldata(&cdata) == -1) {
-		SFEX_LOG_ERR("%s\n", "read_controldata failed in lock_index_check");
+		cl_log(LOG_ERR, "%s\n", "read_controldata failed in lock_index_check");
 		return -1;
 	}
 #ifdef SFEX_DEBUG
-	SFEX_LOG_INFO("version: %d\n", cdata.version);
-	SFEX_LOG_INFO("revision: %d\n", cdata.revision);
-	SFEX_LOG_INFO("blocksize: %d\n", cdata.blocksize);
-	SFEX_LOG_INFO("numlocks: %d\n", cdata.numlocks);
+	cl_log(LOG_INFO, "version: %d\n", cdata.version);
+	cl_log(LOG_INFO, "revision: %d\n", cdata.revision);
+	cl_log(LOG_INFO, "blocksize: %d\n", cdata.blocksize);
+	cl_log(LOG_INFO, "numlocks: %d\n", cdata.numlocks);
 #endif
 
 	if (lock_index > cdata.numlocks) {
-		SFEX_LOG_ERR("%s: ERROR: index %d is too large. %d locks are stored.\n",
-				progname, lock_index, cdata.numlocks);
+		cl_log(LOG_ERR, "index %d is too large. %d locks are stored.\n",
+				lock_index, cdata.numlocks);
 		return -1;
 		/*exit(EXIT_FAILURE);*/
 	}
 
 	if (cdata.blocksize != sector_size) {
-		SFEX_LOG_ERR("%s: ERROR: sector_size is not the same as the blocksize.\n", progname);
+		cl_log(LOG_ERR, "sector_size is not the same as the blocksize.\n");
 		return -1;
 	}
 	return 0;
@@ -64,7 +69,7 @@ static int lock_index_check(void)
 static void acquire_lock(void)
 {
 	if (read_lockdata(&cdata, &ldata, lock_index) == -1) {
-		SFEX_LOG_ERR("%s\n", "read_lockdata failed in acquire_lock");
+		cl_log(LOG_ERR, "read_lockdata failed in acquire_lock\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -74,7 +79,7 @@ static void acquire_lock(void)
 			t = sleep(t);
 		read_lockdata(&cdata, &ldata_new, lock_index);
 		if (ldata.count != ldata_new.count) {
-			SFEX_LOG_ERR("%s", "can\'t acquire lock: the lock's already hold by some other node.\n");
+			cl_log(LOG_ERR, "can\'t acquire lock: the lock's already hold by some other node.\n");
 			exit(2);
 		}
 	}
@@ -84,7 +89,7 @@ static void acquire_lock(void)
 	ldata.count = SFEX_NEXT_COUNT(ldata.count);
 	strncpy((char*)(ldata.nodename), nodename, sizeof(ldata.nodename));
 	if (write_lockdata(&cdata, &ldata, lock_index) == -1) {
-		SFEX_LOG_ERR("%s", "write_lockdata failed\n");
+		cl_log(LOG_ERR, "write_lockdata failed\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -100,10 +105,10 @@ static void acquire_lock(void)
 		while (t > 0)
 			t = sleep(t);
 		if (read_lockdata(&cdata, &ldata_new, lock_index) == -1) {
-			SFEX_LOG_ERR("%s", "read_lockdata failed\n");
+			cl_log(LOG_ERR, "read_lockdata failed in collision detection\n");
 		}
 		if (strncmp((char*)(ldata.nodename), (const char*)(ldata_new.nodename), sizeof(ldata.nodename))) {
-			SFEX_LOG_ERR("%s", "can\'t acquire lock: collision detected in the air.\n");
+			cl_log(LOG_ERR, "can\'t acquire lock: collision detected in the air.\n");
 			exit(2);
 		}
 	}
@@ -113,15 +118,16 @@ static void acquire_lock(void)
 	   the collision_timeout seconds to detect the collision. */
 	ldata.count = SFEX_NEXT_COUNT(ldata.count);
 	if (write_lockdata(&cdata, &ldata, lock_index) == -1) {
-		SFEX_LOG_ERR("%s\n", "write_lockdata failed");
+		cl_log(LOG_ERR, "write_lockdata failed in extension of lock\n");
 		exit(EXIT_FAILURE);
 	}
-	SFEX_LOG_ERR("%s", "lock acquired\n");
+	cl_log(LOG_INFO, "lock acquired\n");
 }
 
 static void error_todo (void)
 {
 	if (fork() == 0) {
+		cl_log(LOG_INFO, "Execute \"crm_resource -F -r %s -H %s\" command\n", rsc_id, nodename);
 		execl("/usr/sbin/crm_resource", "crm_resource", "-F", "-r", rsc_id, "-H", nodename, NULL);
 	} else {
 		exit(EXIT_FAILURE);
@@ -135,9 +141,11 @@ static void failure_todo(void)
 #else
 	/*execl("/usr/sbin/crm_resource", "crm_resource", "-F", "-r", rsc_id, "-H", nodename, NULL); */
 	int ret;
+
+	cl_log(LOG_INFO, "Force reboot node %s\n", nodename);
 	ret = write(sysrq_fd, "b\n", 2);
 	if (ret == -1) {
-		SFEX_LOG_ERR("%s\n", strerror(errno));
+		cl_log(LOG_ERR, "%s\n", strerror(errno));
 	}
 	close(sysrq_fd);
 	exit(EXIT_FAILURE);
@@ -148,6 +156,7 @@ static void update_lock(void)
 {
 	/* read lock data */
 	if (read_lockdata(&cdata, &ldata, lock_index) == -1) {
+		cl_log(LOG_ERR, "read_lockdata failed in update_lock\n");
 		error_todo();
 		exit(EXIT_FAILURE);
 	}
@@ -155,7 +164,7 @@ static void update_lock(void)
 	/* check current lock status */
 	/* if own node is not locking, lock update is failed */
 	if (ldata.status != SFEX_STATUS_LOCK || strncmp((const char*)(ldata.nodename), nodename, sizeof(ldata.nodename))) {
-		SFEX_LOG_ERR("can't update lock.\n");
+		cl_log(LOG_ERR, "can't update lock.\n");
 		failure_todo();
 		exit(EXIT_FAILURE); 
 	}
@@ -163,6 +172,7 @@ static void update_lock(void)
 	/* lock update */
 	ldata.count = SFEX_NEXT_COUNT(ldata.count);
 	if (write_lockdata(&cdata, &ldata, lock_index) == -1) {
+		cl_log(LOG_ERR, "write_lockdata failed in update_lock\n");
 		error_todo();
 		exit(EXIT_FAILURE);
 	}
@@ -174,29 +184,32 @@ static void release_lock(void)
 	   
 	/* read lock data */
 	if (read_lockdata(&cdata, &ldata, lock_index) == -1) {
+		cl_log(LOG_ERR, "read_lockdata failed in release_lock\n");
 		exit(EXIT_FAILURE);
 	}
 
 	/* check current lock status */
 	/* if own node is not locking, we judge that lock has been released already */
 	if (ldata.status != SFEX_STATUS_LOCK || strncmp((const char*)(ldata.nodename), nodename, sizeof(ldata.nodename))) {
-		SFEX_LOG_ERR("lock was already released.\n");
-		exit(1);
+		cl_log(LOG_ERR, "lock was already released.\n");
+		exit(EXIT_FAILURE);
 	}
 
 	/* lock release */
 	ldata.status = SFEX_STATUS_UNLOCK;
 	if (write_lockdata(&cdata, &ldata, lock_index) == -1) {
 	    /*FIXME: We are going to self-stop */
+		cl_log(LOG_ERR, "write_lockdata failed in release_lock\n");
 		exit(EXIT_FAILURE);
 	}
-	SFEX_LOG_INFO("lock released\n");
+	cl_log(LOG_INFO, "lock released\n");
 }
 
 static void quit_handler(int signo, siginfo_t *info, void *context)
 {
-	SFEX_LOG_INFO("quit_handler\n");
+	cl_log(LOG_INFO, "quit_handler called. now releasing lock\n");
 	release_lock();
+	cl_log(LOG_INFO, "Shutdown sfex_daemon with EXIT_SUCCESS\n");
 	exit(EXIT_SUCCESS);
 }
 
@@ -208,10 +221,9 @@ int main(int argc, char *argv[])
 	progname = get_progname(argv[0]);
 	nodename = get_nodename();
 
-
-#if 0
-	openlog("SFex Daemon", LOG_PID|LOG_CONS|LOG_NDELAY, LOG_USER);
-#endif
+	cl_log_set_entity(progname);
+	cl_log_set_facility(HA_LOG_FACILITY);
+	cl_inherit_logging_environment(0);
 
 	/* read command line option */
 	opterr = 0;
@@ -222,14 +234,14 @@ int main(int argc, char *argv[])
 		switch (c) {
 			case 'h':           /* help*/
 				usage(stdout);
-				exit(0);
+				exit(EXIT_SUCCESS);
 			case 'i':           /* -i <index> */
 				{
 					unsigned long l = strtoul(optarg, NULL, 10);
 					if (l < SFEX_MIN_NUMLOCKS || l > SFEX_MAX_NUMLOCKS) {
-						SFEX_LOG_ERR(
-								"%s: ERROR: index %s is out of range or invalid. it must be integer value between %lu and %lu.\n",
-								progname, optarg,
+						cl_log(LOG_ERR, 
+								"index %s is out of range or invalid. it must be integer value between %lu and %lu.\n",
+								optarg,
 								(unsigned long)SFEX_MIN_NUMLOCKS,
 								(unsigned long)SFEX_MAX_NUMLOCKS);
 						exit(4);
@@ -241,9 +253,9 @@ int main(int argc, char *argv[])
 				{
 					unsigned long l = strtoul(optarg, NULL, 10);
 					if (l < 1 || l > INT_MAX) {
-						SFEX_LOG_ERR(
-								"%s: ERROR: collision_timeout %s is out of range or invalid. it must be integer value between %lu and %lu.\n",
-								progname, optarg,
+						cl_log(LOG_ERR, 
+								"collision_timeout %s is out of range or invalid. it must be integer value between %lu and %lu.\n",
+								optarg,
 								(unsigned long)1,
 								(unsigned long)INT_MAX);
 						exit(4);
@@ -255,9 +267,9 @@ int main(int argc, char *argv[])
 				{
 					unsigned long l = strtoul(optarg, NULL, 10);
 					if (l < 1 || l > INT_MAX) {
-						SFEX_LOG_ERR(
-								"%s: ERROR: monitor_interval %s is out of range or invalid. it must be integer value between %lu and %lu.\n",
-								progname, optarg,
+						cl_log(LOG_ERR, 
+								"monitor_interval %s is out of range or invalid. it must be integer value between %lu and %lu.\n",
+								optarg,
 								(unsigned long)1,
 								(unsigned long)INT_MAX);
 						exit(4);
@@ -269,9 +281,9 @@ int main(int argc, char *argv[])
 				{
 					unsigned long l = strtoul(optarg, NULL, 10);
 					if (l < 1 || l > INT_MAX) {
-						SFEX_LOG_ERR(
-								"%s: ERROR: lock_timeout %s is out of range or invalid. it must be integer value between %lu and %lu.\n",
-								progname, optarg,
+						cl_log(LOG_ERR, 
+								"lock_timeout %s is out of range or invalid. it must be integer value between %lu and %lu.\n",
+								optarg,
 								(unsigned long)1,
 								(unsigned long)INT_MAX);
 						exit(4);
@@ -283,8 +295,8 @@ int main(int argc, char *argv[])
 				{
 					free(nodename);
 					if (strlen(optarg) > SFEX_MAX_NODENAME) {
-						SFEX_LOG_ERR("%s: ERROR: nodename %s is too long. must be less than %d byte.\n",
-								progname, optarg,
+						cl_log(LOG_ERR, "nodename %s is too long. must be less than %d byte.\n",
+								optarg,
 								(unsigned int)SFEX_MAX_NODENAME);
 						exit(EXIT_FAILURE);
 					}
@@ -303,11 +315,11 @@ int main(int argc, char *argv[])
 	}
 	/* check parameter except the option */
 	if (optind >= argc) {
-		SFEX_LOG_ERR("%s: ERROR: no device specified.\n", progname);
+		cl_log(LOG_ERR, "no device specified.\n");
 		usage(stderr);
 		exit(EXIT_FAILURE);
 	} else if (optind + 1 < argc) {
-		SFEX_LOG_ERR("%s: ERROR: too many arguments.\n", progname);
+		cl_log(LOG_ERR, "too many arguments.\n");
 		usage(stderr);
 		exit(EXIT_FAILURE);
 	}
@@ -317,7 +329,7 @@ int main(int argc, char *argv[])
 #if !SFEX_TESTING
 	sysrq_fd = open("/proc/sysrq-trigger", O_WRONLY);
 	if (sysrq_fd == -1) {
-		SFEX_LOG_ERR("failed to open /proc/sysrq-trigger due to %s\n", strerror(errno));
+		cl_log(LOG_ERR, "failed to open /proc/sysrq-trigger due to %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 #endif
@@ -334,12 +346,12 @@ int main(int argc, char *argv[])
 		sig_act.sa_sigaction = quit_handler;
 		ret = sigaction(SIGTERM, &sig_act, NULL);
 		if (ret == -1) {
-			SFEX_LOG_ERR("sigaction failed\n");
+			cl_log(LOG_ERR, "sigaction failed\n");
 			exit(EXIT_FAILURE);
 		}
 	}
 
-	SFEX_LOG_INFO("Starting SFeX Daemon...\n");
+	cl_log(LOG_INFO, "Starting SFeX Daemon...\n");
 	
 	/* acquire lock first.*/
 	acquire_lock();
@@ -352,7 +364,7 @@ int main(int argc, char *argv[])
 
 	cl_make_realtime(-1, -1, 128, 128);
 	
-	SFEX_LOG_INFO("SFeX Daemon started.\n");
+	cl_log(LOG_INFO, "SFeX Daemon started.\n");
 	while (1) {
 		sleep (monitor_interval);
 		update_lock();
