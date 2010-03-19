@@ -104,7 +104,7 @@ Valid term of lock(sec). Default is 20 seconds.
 
 <actions>
 <action name="start" timeout="600" />
-<action name="stop" timeout="10" />
+<action name="stop" timeout="20s" />
 <action name="monitor" depth="0" timeout="10" interval="10" />
 <action name="meta-data" timeout="5" />
 </actions>

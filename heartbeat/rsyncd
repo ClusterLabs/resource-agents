@@ -88,10 +88,10 @@ limit. A value of zero specifies no limit.
 </parameters>
 
 <actions>
-<action name="start" timeout="90"/>
-<action name="stop" timeout="100"/>
-<action name="monitor" depth="0" timeout="30s" interval="60s" />
-<action name="validate-all" timeout="30s"/>
+<action name="start" timeout="20s"/>
+<action name="stop" timeout="20s"/>
+<action name="monitor" depth="0" timeout="20s" interval="60s" />
+<action name="validate-all" timeout="20s"/>
 <action name="meta-data"  timeout="5s"/>
 </actions>
 </resource-agent>

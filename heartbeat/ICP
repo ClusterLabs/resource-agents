@@ -86,10 +86,10 @@ The device name.
 </parameters>
 
 <actions>
-<action name="start" timeout="10" />
-<action name="stop" timeout="10" />
-<action name="status" depth="0" timeout="10" interval="10" />
-<action name="monitor" depth="0" timeout="10" interval="10" />
+<action name="start" timeout="20" />
+<action name="stop" timeout="20" />
+<action name="status" depth="0" timeout="20" interval="10" />
+<action name="monitor" depth="0" timeout="20" interval="10" />
 <action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 </actions>

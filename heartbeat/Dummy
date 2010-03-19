@@ -46,6 +46,13 @@ meta_data() {
 This is a Dummy Resource Agent. It does absolutely nothing except 
 keep track of whether its running or not.
 Its purpose in life is for testing and to serve as a template for RA writers.
+
+NB: Please pay attention to the timeouts specified in the actions
+section below. They should be meaningful for the kind of resource
+the agent manages. They should be the minimum advised timeouts,
+but they shouldn't/cannot cover _all_ possible resource
+instances. So, try to be neither overly generous nor too stingy,
+but moderate. The minimum timeouts should never be below 10 seconds.
 </longdesc>
 <shortdesc lang="en">Example stateless resource agent</shortdesc>
 
@@ -61,14 +68,14 @@ Location to store the resource state in.
 </parameters>
 
 <actions>
-<action name="start"        timeout="90" />
-<action name="stop"         timeout="100" />
+<action name="start"        timeout="20" />
+<action name="stop"         timeout="20" />
 <action name="monitor"      timeout="20" interval="10" depth="0" />
-<action name="reload"       timeout="90" />
-<action name="migrate_to"   timeout="100" />
-<action name="migrate_from" timeout="90" />
+<action name="reload"       timeout="20" />
+<action name="migrate_to"   timeout="20" />
+<action name="migrate_from" timeout="20" />
 <action name="meta-data"    timeout="5" />
-<action name="validate-all"   timeout="30" />
+<action name="validate-all"   timeout="20" />
 </actions>
 </resource-agent>
 END

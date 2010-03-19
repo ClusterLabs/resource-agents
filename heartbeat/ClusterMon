@@ -99,8 +99,8 @@ Location to write HTML output to.
 </parameters>
 
 <actions>
-<action name="start"   timeout="90" />
-<action name="stop"    timeout="100" />
+<action name="start"   timeout="20" />
+<action name="stop"    timeout="20" />
 <action name="monitor" depth="0"  timeout="20" interval="10" />
 <action name="meta-data"  timeout="5" />
 <action name="validate-all"  timeout="30" />
