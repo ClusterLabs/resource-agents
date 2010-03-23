@@ -212,7 +212,7 @@ route_status() {
 route_validate() {
     # If we're running as a clone, are the clone meta attrs OK?
     if [ "${OCF_RESKEY_CRM_meta_clone}" ]; then
-	if [ "${OCF_RESKEY_CRM_meta_clone_node_max}" -ne 1 ]; then
+	if [ "${OCF_RESKEY_CRM_meta_clone_node_max}" != 1 ]; then
 	    ocf_log error "Misconfigured clone parameters. Must set meta attribute \"clone_node_max\" to 1, got ${OCF_RESKEY_CRM_meta_clone_node_max}."
 	    return $OCF_ERR_ARGS
 	fi
