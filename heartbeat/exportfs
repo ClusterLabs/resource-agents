@@ -5,11 +5,8 @@
 # by btimby@gmail.com
 # License: GNU General Public License v2 (GPLv2) and later
 
-if [ -n "$OCF_DEBUG_LIBRARY" ]; then
-    . $OCF_DEBUG_LIBRARY
-else
-    . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
-fi
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
 
 exportfs_meta_data() {
 	cat <<END
