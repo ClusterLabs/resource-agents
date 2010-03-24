@@ -21,7 +21,7 @@ It depends on Linux specific NFS implementation details, so is considered not po
 </longdesc>
 
 <shortdesc lang="en">
-exportfs
+Manages NFS exports
 </shortdesc>
 
 <parameters>
