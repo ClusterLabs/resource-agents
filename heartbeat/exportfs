@@ -1,0 +1,241 @@
+#!/bin/sh
+# exportfs
+#
+# Description: Manages nfs exported file system.
+# by btimby@gmail.com
+# License: GNU General Public License v2 (GPLv2) and later
+
+if [ -n "$OCF_DEBUG_LIBRARY" ]; then
+    . $OCF_DEBUG_LIBRARY
+else
+    . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+fi
+
+exportfs_meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="exportfs">
+<version>1.0</version>
+
+<longdesc lang="en">
+Exportfs uses the exportfs command to add/remove nfs exports. It does NOT manage the nfs server daemon.
+It depends on Linux specific NFS implementation details, so is considered not portable to other platforms yet.
+</longdesc>
+
+<shortdesc lang="en">
+exportfs
+</shortdesc>
+
+<parameters>
+
+<parameter name="exportfs_clientspec" unique="0" required="1">
+<longdesc lang="en">
+The client specification allowing remote machines to mount the directory over NFS.
+</longdesc>
+<shortdesc lang="en">
+Client ACL.
+</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="exportfs_options" unique="0" required="0">
+<longdesc lang="en">
+The options to pass to exportfs for the exported directory.
+</longdesc>
+<shortdesc lang="en">
+Export options.
+</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="exportfs_dir" unique="0" required="1">
+<longdesc lang="en">
+The directory which you wish to export using NFS.
+</longdesc>
+<shortdesc lang="en">
+The directory to export.
+</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"   timeout="40" />
+<action name="stop"    timeout="10" />
+<action name="monitor" depth="0"  timeout="20" interval="10" />
+<action name="meta-data"  timeout="5" />
+<action name="validate-all"  timeout="30" />
+</actions>
+</resource-agent>
+END
+
+return $OCF_SUCCESS
+}
+
+exportfs_usage() {
+	cat <<END
+		usage: $0 {start|stop|monitor|status|validate-all|meta-data}
+END
+}
+
+if [ $# -ne 1 ]; then
+	exportfs_usage
+	exit $OCF_ERR_ARGS
+fi
+
+case $__OCF_ACTION in
+	meta-data)  exportfs_meta_data
+		exit $OCF_SUCCESS
+		;;
+	usage|help) exportfs_usage
+		exit $OCF_SUCCESS
+		;;
+	*)
+		;;	
+esac
+
+#fp="$OCF_RESKEY_nfs_shared_infodir"
+
+backup_rmtab ()
+{
+	grep ${OCF_RESKEY_exportfs_dir} /var/lib/nfs/rmtab > ${OCF_RESKEY_exportfs_dir}/.rmtab
+}
+
+clean_rmtab ()
+{
+	REMOVE=`echo ${OCF_RESKEY_exportfs_dir} | sed 's/\//\\\\\//g'`
+	sed -i -e /${REMOVE}/d /var/lib/nfs/rmtab
+}
+
+exportfs_monitor ()
+{
+	fn=`/bin/mktemp`
+	grep "${OCF_RESKEY_exportfs_dir}" /var/lib/nfs/etab > $fn 2>&1
+	rc=$?
+
+#Adapt grep status code to OCF return code
+	if [ $rc -eq 0 ]; then
+		ocf_log debug `cat $fn`
+		rm -f $fn
+		return $OCF_SUCCESS
+	elif [ $rc -eq 1 ]; then
+		rm -f $fn
+		return $OCF_NOT_RUNNING
+	else
+		rm -f $fn
+		return $OCF_ERR_GENERIC
+	fi
+}
+
+exportfs_start ()
+{
+	ocf_log info "Exporting file system ..."
+
+	if [ ${OCF_RESKEY_exportfs_options} ]; then
+		OPTIONS="${OCF_RESKEY_exportfs_options}"
+		OPTPREFIX=','
+	fi
+	#generate fsid if none provided...
+	if [ ! `echo ${OPTIONS} | grep fsid` ]; then
+		if [ -f ${OCF_RESKEY_exportfs_dir}/.fsid ]; then
+			FSID=`cat ${OCF_RESKEY_exportfs_dir}/.fsid`
+		else
+			FSID=$RANDOM
+		fi
+		echo $FSID > ${OCF_RESKEY_exportfs_dir}/.fsid
+		OPTIONS="${OPTIONS}${OPTPREFIX}fsid=${FSID}"
+	fi
+	OPTIONS="-o ${OPTIONS}"
+
+	fn=`/bin/mktemp`
+	exportfs ${OPTIONS} ${OCF_RESKEY_exportfs_clientspec}:${OCF_RESKEY_exportfs_dir} > $fn 2>&1
+	rc=$?
+
+	#restore saved rmtab backup from other server:
+	if [ -f ${OCF_RESKEY_exportfs_dir}/.rmtab ]; then
+		cat ${OCF_RESKEY_exportfs_dir}/.rmtab >> /var/lib/nfs/rmtab
+		rm -f ${OCF_RESKEY_exportfs_dir}/.rmtab
+	fi
+
+	/bin/sh $0 backup &
+
+	if [ $rc -ne 0 ]; then
+		ocf_log debug "Error invoking exportfs: `cat $fn`"
+		ocf_log err "Failed to export file system"
+		return $rc
+	fi	
+	rm -f $fn
+
+	ocf_log info "File system exported"
+	return $OCF_SUCCESS
+}
+
+exportfs_stop ()
+{
+	ocf_log info "Un-exporting file system ..."
+
+	fn=`/bin/mktemp`
+	exportfs -u ${OCF_RESKEY_exportfs_clientspec}:${OCF_RESKEY_exportfs_dir} > $fn 2>&1
+	rc=$?
+
+	if [ -f ${OCF_RESKEY_exportfs_dir}/.exportfs_backup.pid ]; then
+		kill `cat ${OCF_RESKEY_exportfs_dir}/.exportfs_backup.pid`
+		rm ${OCF_RESKEY_exportfs_dir}/.exportfs_backup.pid
+	fi
+
+	backup_rmtab
+	clean_rmtab
+
+	if [ $rc -eq 0 ]; then
+		ocf_log debug "Error invoking exportfs: `cat $fn`"
+		ocf_log info "Un-exported file system"
+		return $OCF_SUCCESS
+	fi
+	rm -f $fn
+
+	ocf_log err "Failed to un-export file system"
+	return $rc
+}
+
+exportfs_backup ()
+{
+	echo $$ > ${OCF_RESKEY_exportfs_dir}/.exportfs_backup.pid
+	while [ 1 ]; do
+		backup_rmtab
+		sleep 2
+	done
+}
+
+exportfs_validate ()
+{
+	if [ -d $OCF_RESKEY_exportfs_dir ]; then
+		return $OCF_SUCCESS
+	else
+		exit $OCF_ERR_ARGS
+	fi
+}
+
+if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
+	ocf_log err "THIS RA DOES NOT SUPPORT CLONE MODE!"
+	exit $OCF_ERR_CONFIGURED
+fi
+
+exportfs_validate
+
+case $__OCF_ACTION in
+	start)		exportfs_start
+		;;
+	stop)		exportfs_stop
+		;;
+	monitor)	exportfs_monitor
+		;;
+	backup)		exportfs_backup
+		;;
+	validate-all)	exportfs_validate
+		;;
+	*)		exportfs_usage
+			exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
