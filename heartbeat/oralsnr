@@ -160,24 +160,24 @@ testoraenv() {
 	#	Let's make sure a few important things are set...
 	if [ x == "x$ORACLE_HOME" ]; then
 		ocf_log info "ORACLE_HOME not set"
-		return 1
+		return $OCF_ERR_CONFIGURED
 	fi
 	if [ x == "x$ORACLE_OWNER" ]; then
 		ocf_log info "ORACLE_OWNER not set"
-		return 1
+		return $OCF_ERR_CONFIGURED
 	fi
 	#	and some important things are there
 	if [ ! -x "$sqlplus" ]; then
 		ocf_log info "$sqlplus does not exist"
-		return 1
+		return $OCF_ERR_INSTALLED
 	fi
 	if [ ! -x "$lsnrctl" ]; then
 		ocf_log err "$lsnrctl does not exist"
-		return 1
+		return $OCF_ERR_INSTALLED
 	fi
 	if [ ! -x "$tnsping" ]; then
 		ocf_log err "$tnsping does not exist"
-		return 1
+		return $OCF_ERR_INSTALLED
 	fi
 	return 0
 }
@@ -360,7 +360,9 @@ fi
 ora_info "$OCF_RESKEY_sid" "$OCF_RESKEY_home" "$OCF_RESKEY_user"
 
 LSB_STATUS_STOPPED=3
-if ! testoraenv; then
+testoraenv
+rc=$?
+if [ $rc -ne 0 ]; then
 	ocf_log info "Oracle environment for SID $ORACLE_SID does not exist"
 	case "$1" in
 		stop) exit $OCF_SUCCESS;;
@@ -368,7 +370,7 @@ if ! testoraenv; then
 		status) exit $LSB_STATUS_STOPPED;;
 		*)
 			ocf_log err "Oracle environment for SID $ORACLE_SID broken"
-			exit $OCF_ERR_ARGS
+			exit $rc
 		;;
 	esac
 fi
