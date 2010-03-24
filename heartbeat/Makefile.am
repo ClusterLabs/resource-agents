@@ -52,6 +52,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			eDir88		\
 			EvmsSCC		\
 			Evmsd		\
+			exportfs	\
 			Filesystem	\
 			ids		\
 			iscsi		\
