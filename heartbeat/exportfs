@@ -26,7 +26,7 @@ exportfs
 
 <parameters>
 
-<parameter name="exportfs_clientspec" unique="0" required="1">
+<parameter name="clientspec" unique="0" required="1">
 <longdesc lang="en">
 The client specification allowing remote machines to mount the directory over NFS.
 </longdesc>
@@ -36,7 +36,7 @@ Client ACL.
 <content type="string" default="" />
 </parameter>
 
-<parameter name="exportfs_options" unique="0" required="0">
+<parameter name="options" unique="0" required="0">
 <longdesc lang="en">
 The options to pass to exportfs for the exported directory.
 </longdesc>
@@ -46,7 +46,7 @@ Export options.
 <content type="string" default="" />
 </parameter>
 
-<parameter name="exportfs_dir" unique="0" required="1">
+<parameter name="dir" unique="0" required="1">
 <longdesc lang="en">
 The directory which you wish to export using NFS.
 </longdesc>
@@ -97,19 +97,19 @@ esac
 
 backup_rmtab ()
 {
-	grep ${OCF_RESKEY_exportfs_dir} /var/lib/nfs/rmtab > ${OCF_RESKEY_exportfs_dir}/.rmtab
+	grep ${OCF_RESKEY_dir} /var/lib/nfs/rmtab > ${OCF_RESKEY_dir}/.rmtab
 }
 
 clean_rmtab ()
 {
-	REMOVE=`echo ${OCF_RESKEY_exportfs_dir} | sed 's/\//\\\\\//g'`
+	REMOVE=`echo ${OCF_RESKEY_dir} | sed 's/\//\\\\\//g'`
 	sed -i -e /${REMOVE}/d /var/lib/nfs/rmtab
 }
 
 exportfs_monitor ()
 {
 	fn=`/bin/mktemp`
-	grep "${OCF_RESKEY_exportfs_dir}" /var/lib/nfs/etab > $fn 2>&1
+	grep "${OCF_RESKEY_dir}" /var/lib/nfs/etab > $fn 2>&1
 	rc=$?
 
 #Adapt grep status code to OCF return code
@@ -130,30 +130,30 @@ exportfs_start ()
 {
 	ocf_log info "Exporting file system ..."
 
-	if [ ${OCF_RESKEY_exportfs_options} ]; then
-		OPTIONS="${OCF_RESKEY_exportfs_options}"
+	if [ ${OCF_RESKEY_options} ]; then
+		OPTIONS="${OCF_RESKEY_options}"
 		OPTPREFIX=','
 	fi
 	#generate fsid if none provided...
 	if [ ! `echo ${OPTIONS} | grep fsid` ]; then
-		if [ -f ${OCF_RESKEY_exportfs_dir}/.fsid ]; then
-			FSID=`cat ${OCF_RESKEY_exportfs_dir}/.fsid`
+		if [ -f ${OCF_RESKEY_dir}/.fsid ]; then
+			FSID=`cat ${OCF_RESKEY_dir}/.fsid`
 		else
 			FSID=$RANDOM
 		fi
-		echo $FSID > ${OCF_RESKEY_exportfs_dir}/.fsid
+		echo $FSID > ${OCF_RESKEY_dir}/.fsid
 		OPTIONS="${OPTIONS}${OPTPREFIX}fsid=${FSID}"
 	fi
 	OPTIONS="-o ${OPTIONS}"
 
 	fn=`/bin/mktemp`
-	exportfs ${OPTIONS} ${OCF_RESKEY_exportfs_clientspec}:${OCF_RESKEY_exportfs_dir} > $fn 2>&1
+	exportfs ${OPTIONS} ${OCF_RESKEY_clientspec}:${OCF_RESKEY_dir} > $fn 2>&1
 	rc=$?
 
 	#restore saved rmtab backup from other server:
-	if [ -f ${OCF_RESKEY_exportfs_dir}/.rmtab ]; then
-		cat ${OCF_RESKEY_exportfs_dir}/.rmtab >> /var/lib/nfs/rmtab
-		rm -f ${OCF_RESKEY_exportfs_dir}/.rmtab
+	if [ -f ${OCF_RESKEY_dir}/.rmtab ]; then
+		cat ${OCF_RESKEY_dir}/.rmtab >> /var/lib/nfs/rmtab
+		rm -f ${OCF_RESKEY_dir}/.rmtab
 	fi
 
 	/bin/sh $0 backup &
@@ -174,12 +174,12 @@ exportfs_stop ()
 	ocf_log info "Un-exporting file system ..."
 
 	fn=`/bin/mktemp`
-	exportfs -u ${OCF_RESKEY_exportfs_clientspec}:${OCF_RESKEY_exportfs_dir} > $fn 2>&1
+	exportfs -u ${OCF_RESKEY_clientspec}:${OCF_RESKEY_dir} > $fn 2>&1
 	rc=$?
 
-	if [ -f ${OCF_RESKEY_exportfs_dir}/.exportfs_backup.pid ]; then
-		kill `cat ${OCF_RESKEY_exportfs_dir}/.exportfs_backup.pid`
-		rm ${OCF_RESKEY_exportfs_dir}/.exportfs_backup.pid
+	if [ -f ${OCF_RESKEY_dir}/.exportfs_backup.pid ]; then
+		kill `cat ${OCF_RESKEY_dir}/.exportfs_backup.pid`
+		rm ${OCF_RESKEY_dir}/.exportfs_backup.pid
 	fi
 
 	backup_rmtab
@@ -198,7 +198,7 @@ exportfs_stop ()
 
 exportfs_backup ()
 {
-	echo $$ > ${OCF_RESKEY_exportfs_dir}/.exportfs_backup.pid
+	echo $$ > ${OCF_RESKEY_dir}/.exportfs_backup.pid
 	while [ 1 ]; do
 		backup_rmtab
 		sleep 2
@@ -207,7 +207,7 @@ exportfs_backup ()
 
 exportfs_validate ()
 {
-	if [ -d $OCF_RESKEY_exportfs_dir ]; then
+	if [ -d $OCF_RESKEY_dir ]; then
 		return $OCF_SUCCESS
 	else
 		exit $OCF_ERR_ARGS
