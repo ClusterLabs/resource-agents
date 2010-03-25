@@ -92,22 +92,6 @@ exportfs_usage() {
 END
 }
 
-if [ $# -ne 1 ]; then
-	exportfs_usage
-	exit $OCF_ERR_ARGS
-fi
-
-case $__OCF_ACTION in
-	meta-data)  exportfs_meta_data
-		exit $OCF_SUCCESS
-		;;
-	usage|help) exportfs_usage
-		exit $OCF_SUCCESS
-		;;
-	*)
-		;;	
-esac
-
 backup_rmtab ()
 {
 	grep :${OCF_RESKEY_directory}: /var/lib/nfs/rmtab > ${OCF_RESKEY_directory}/.rmtab
@@ -240,6 +224,22 @@ exportfs_validate ()
 		exit $OCF_ERR_ARGS
 	fi
 }
+
+if [ $# -ne 1 ]; then
+	exportfs_usage
+	exit $OCF_ERR_ARGS
+fi
+
+case $__OCF_ACTION in
+	meta-data)  exportfs_meta_data
+		exit $OCF_SUCCESS
+		;;
+	usage|help) exportfs_usage
+		exit $OCF_SUCCESS
+		;;
+	*)
+		;;
+esac
 
 exportfs_validate
 
