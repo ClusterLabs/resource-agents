@@ -58,13 +58,14 @@ The directory to export.
 
 <parameter name="fsid" unique="1" required="1">
 <longdesc lang="en">
-The fsid option to pass to exportfs. This should be a unique positive integer, avoid 0 unless you understand it's special status.
+The fsid option to pass to exportfs. This should be a unique positive integer,
+avoid 0 unless you understand its special status.
 This value will override any fsid provided via the options parameter.
 </longdesc>
 <shortdesc lang="en">
 Unique fsid within cluster.
 </shortdesc>
-<content type="string" default="" />
+<content type="integer" default="" />
 </parameter>
 
 </parameters>
