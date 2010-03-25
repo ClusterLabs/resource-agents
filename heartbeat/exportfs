@@ -56,6 +56,17 @@ The directory to export.
 <content type="string" default="" />
 </parameter>
 
+<parameter name="fsid" unique="1" required="1">
+<longdesc lang="en">
+The fsid option to pass to exportfs. This should be a unique positive integer, avoid 0 unless you understand it's special status.
+This value will override any fsid provided via the options parameter.
+</longdesc>
+<shortdesc lang="en">
+Unique fsid within cluster.
+</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -134,15 +145,12 @@ exportfs_start ()
 		OPTIONS="${OCF_RESKEY_options}"
 		OPTPREFIX=','
 	fi
-	#generate fsid if none provided...
-	if [ ! `echo ${OPTIONS} | grep fsid` ]; then
-		if [ -f ${OCF_RESKEY_dir}/.fsid ]; then
-			FSID=`cat ${OCF_RESKEY_dir}/.fsid`
-		else
-			FSID=$RANDOM
-		fi
-		echo $FSID > ${OCF_RESKEY_dir}/.fsid
-		OPTIONS="${OPTIONS}${OPTPREFIX}fsid=${FSID}"
+	if [ `echo ${OPTIONS} | grep fsid` ]; then
+		#replace fsid provided in options list with one provided in fsid param.
+		OPTIONS=`echo ${OPTIONS} | sed 's/fsid=[0-9]\+/fsid=${OCF_RESKEY_fsid}/g'`
+	else
+		#tack the fsid option onto our options list.
+		OPTIONS="${OPTIONS}${OPTPREFIX}fsid=${OCF_RESKEY_fsid}"
 	fi
 	OPTIONS="-o ${OPTIONS}"
 
