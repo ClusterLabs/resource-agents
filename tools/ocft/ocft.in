@@ -24,16 +24,19 @@
 
 die()
 {
-  local str clean
+  local str
   str="$1"
-  clean="${2:-1}"
 
-  echo "ERROR: $1" >&2
-  # delete all testing scripts.
-  if [ $clean -eq 1 ]; then
-    rm -f $CASES_DIR/*
-  fi
+  echo "ERROR: $str" >&2
   exit 1
+}
+
+warn()
+{
+  local str
+  str="$1"
+
+  echo "WARNING: $str" >&2
 }
 
 parse_die()
@@ -144,7 +147,7 @@ preparse_cfg()
           parse_die "Macro '${branch[0]}' not found."
         fi
         if [ -n "$host" ]; then
-          line="$(sed -r -e 's/@[^[:blank:]]+/ /' -e "s/[[:blank:]]+/@$host /" "$CASES_DIR/${agent}_macro.${branch[0]}")"
+          line="$(sed -e 's/^\([^[:blank:]]*\)@[^[:blank:]]*/\1/' -e "s/^[^[:blank:]]*/&@$host/" "$CASES_DIR/${agent}_macro.${branch[0]}")"
         else
           line="$(<"$CASES_DIR/${agent}_macro.${branch[0]}")"
         fi
@@ -164,9 +167,9 @@ preparse_cfg()
       fi
       echo "$line$num" >>"$macro"
     else
-      echo "$line$num"
+      echo "$line$num" >>"$CASES_DIR/${agent}.preparse"
     fi
-  done <"$opt_cfgsdir/$agent" >"$CASES_DIR/${agent}.preparse"
+  done <"$opt_cfgsdir/$agent"
 
   rm -f $CASES_DIR/${agent}_macro.*
 }
@@ -205,7 +208,7 @@ parse_cfg()
   for agent in "${agents[@]}"; do
     i=0
     agent="$(basename "$agent")"
-    rm -f $CASES_DIR/"${agent}_case_"*.sh
+    rm -f $CASES_DIR/*_${agent}.sh
     rm -f $CASES_DIR/${agent}_setup
 
     echo "Making '$agent': "
@@ -230,7 +233,7 @@ parse_cfg()
         CASE)
           case_finish
           trunk2branch
-          sh="$CASES_DIR/${agent}_case_${i}.sh"
+          sh="$CASES_DIR/${i}_${agent}.sh"
           echo "    - case ${i}: ${branch[0]}"
           cat >$sh <<EOF
 #!/bin/bash
@@ -238,7 +241,10 @@ parse_cfg()
 # Agent:   $agent
 # Summary: ${branch[0]}
 
-. $OCFT_DIR/caselib
+. $OCFT_DIR/caselib || {
+  echo "ERROR: '$OCFT_DIR/caselib' not found."
+  exit 2
+}
 
 MYROOT="$cfg_agent_root"
 EOF
@@ -326,7 +332,8 @@ EOF
             fi
           fi
 
-          echo "# CASE statement: $line" >>$sh
+          echo "
+# CASE statement: $line" >>$sh
 
           if [ -n "$host" ]; then
             echo "backbash $host <<'CMD'" >>$sh
@@ -334,7 +341,7 @@ EOF
 
           case "${trunk[0]}" in
             Var|Var@*)
-                cat >>$sh <<EOF
+              cat >>$sh <<EOF
 if [ -n "\$OCFT_VERBOSE" ]; then
   echo $(add_quotes 2 "    \${showhost}Setting agent environment:    export ${trunk[1]}")
 fi
@@ -343,7 +350,7 @@ check_success \$? $(add_quotes 1 "export ${trunk[1]}")
 EOF
               ;;
             Unvar|Unvar@*)
-                cat >>$sh <<EOF
+              cat >>$sh <<EOF
 if [ -n "\$OCFT_VERBOSE" ]; then
   echo $(add_quotes 2 "    \${showhost}Removing agent environment:   unset ${trunk[1]}")
 fi
@@ -353,20 +360,66 @@ EOF
               ;;
             AgentRun|AgentRun@*)
               trunk2branch
-                cat >>$sh <<EOF
-if [ -n "\$OCFT_VERBOSE" ]; then
-  echo $(add_quotes 2 "    \${showhost}Running agent:                ./$agent ${branch[0]}")
+              if [ -z "${branch[1]}" ]; then
+                if [ "${branch[0]}" = "start" ]; then
+                  cat >>$sh <<EOF
+agent_run $(add_quotes 1 "$agent") status $cfg_hang_timeout
+rc=\$?
+if [ \$rc -eq \$OCF_ERR_UNIMPLEMENTED ]; then
+  agent_run $(add_quotes 1 "$agent") monitor $cfg_hang_timeout
+  rc=\$?
+fi
+
+if [ \$rc -eq \$OCF_SUCCESS ]; then
+  : #The status I want, so I can do nothing.
+elif [ \$rc -eq \$OCF_NOT_RUNNING ]; then
+  if [ -n "\$OCFT_VERBOSE" ]; then
+    echo $(add_quotes 2 "    \${showhost}Running agent:                ./$agent start")
+  fi
+  agent_run $(add_quotes 1 "$agent") start $cfg_hang_timeout
+  check_success \$? $(add_quotes 1 "./$agent start")
+else
+  check_success \$rc $(add_quotes 1 "./$agent status|monitor")
 fi
 EOF
-              if [ -z "${branch[1]}" ]; then
-                cat >>$sh <<EOF
+                elif [ "${branch[0]}" = "stop" ]; then
+                  cat >>$sh <<EOF
+agent_run $(add_quotes 1 "$agent") status $cfg_hang_timeout
+rc=\$?
+if [ \$rc -eq \$OCF_ERR_UNIMPLEMENTED ]; then
+  agent_run $(add_quotes 1 "$agent") monitor $cfg_hang_timeout
+  rc=\$?
+fi
+
+if [ \$rc -eq \$OCF_NOT_RUNNING ]; then
+  : #The status I want, so I can do nothing.
+elif [ \$rc -eq \$OCF_SUCCESS ]; then
+  if [ -n "\$OCFT_VERBOSE" ]; then
+    echo $(add_quotes 2 "    \${showhost}Running agent:                ./$agent stop")
+  fi
+  agent_run $(add_quotes 1 "$agent") stop $cfg_hang_timeout
+  check_success \$? $(add_quotes 1 "./$agent stop")
+else
+  check_success \$rc $(add_quotes 1 "./$agent status|monitor")
+fi
+EOF
+                elif [ "${branch[0]}" = "status" -o "${branch[0]}" = "monitor" ]; then
+                  cat >>$sh <<EOF
+agent_run $(add_quotes 1 "$agent") $(add_quotes 1 "${branch[0]}") $cfg_hang_timeout
+EOF
+                else
+                  cat >>$sh <<EOF
 agent_run $(add_quotes 1 "$agent") $(add_quotes 1 "${branch[0]}") $cfg_hang_timeout
 check_success \$? $(add_quotes 1 "./$agent ${branch[0]}")
 EOF
+                fi
               else
                 cat >>$sh <<EOF
 test -n $(add_quotes 2 "\$${branch[1]}")
 check_success \$? $(add_quotes 1 "test -n \"\$${branch[1]}\"")
+if [ -n "\$OCFT_VERBOSE" ]; then
+  echo $(add_quotes 2 "    \${showhost}Running agent:                ./$agent ${branch[0]}")
+fi
 agent_run $(add_quotes 1 "$agent") $(add_quotes 1 "${branch[0]}") $cfg_hang_timeout
 ret=\$?
 if [ -n "\$OCFT_VERBOSE" ]; then
@@ -379,18 +432,19 @@ else
 fi
 if [ \$ret -eq \$${branch[1]} ]; then
   if [ -n "\$OCFT_VERBOSE" ]; then
-    echo -e $(add_quotes 2 "        \\033[32mOK\\033[0m, The return value '\\033[34m\$retstr\\033[0m' == '\\033[34m${branch[1]}\\033[0m'")
+    echo -e $(add_quotes 2 "        \\033[32mOK\\033[0m. The return value '\\033[34m\$retstr\\033[0m' == '\\033[34m${branch[1]}\\033[0m'")
   else
     echo -e "\t\\033[32mOK\\033[0m."
   fi
 else
   if [ -n "\$OCFT_VERBOSE" ]; then
-    echo -en $(add_quotes 2 "        \\033[31mFAILED\\033[0m, The return value '\\033[34m\$retstr\\033[0m' != '\\033[34m${branch[1]}\\033[0m'. ")
+    echo -en $(add_quotes 2 "        \\033[31mFAILED\\033[0m. The return value '\\033[34m\$retstr\\033[0m' != '\\033[34m${branch[1]}\\033[0m'. ")
   else
-    echo -en "\t\\033[31mFAILED\\033[0m, Agent returns unexpected value: '\$retstr'. "
+    echo -en "\t\\033[31mFAILED\\033[0m. Agent returns unexpected value: '\$retstr'. "
   fi
   echo "See details below:"
   cat /tmp/.ocft_runlog
+  echo
   quit 1
 fi
 EOF
@@ -439,30 +493,36 @@ EOF
 
 start_test()
 {
-  local sh shs line
+  local sh shs agents line ret
 
-  if [ $opt_verbose -eq 1 ]; then
-    export OCFT_VERBOSE=1
+  if ! cd $CASES_DIR >/dev/null 2>&1; then
+    die "cases directory not found."
   fi
+
+  export OCFT_VERBOSE=$opt_verbose
+
   if [ $# -eq 0 ]; then
-    for sh in $CASES_DIR/*.sh; do
-      if [ ! -r "$sh" ]; then
-        die "${sh}: test file not found." 0
-      fi
-      $sh
-    done
+    agents=($(ls -1 *.sh 2>/dev/null | sed 's/.*_\([^_]*\)\.sh$/\1/' | sort | uniq))
   else
-    for shs in "$@"; do
-      for sh in $CASES_DIR/"${shs}_case_"*.sh; do
-        if [ ! -r "$sh" ]; then
-          die "${sh}: test file not found." 0
-        fi
-        $sh
-      done
+    agents=("$@")
+  fi
+
+  for shs in "${agents[@]}"; do
+    for sh in $(ls -1 *_${shs}.sh 2>/dev/null | sort -n); do
+      ./$sh
+      ret=$?
+      if [ $ret -eq 3 ]; then
+        die "core function failed, break all tests."
+      fi
+      if [ $ret -eq 2 ]; then
+        warn "core function failed, break all tests of '$shs'."
+        break
+      fi
     done
-  fi | while read -r line; do
+  done | while read -r line; do
     echo "$line"
-    echo "$(date '+%F %T'): $line" | cat -A | sed -r 's/\^\[\[[0-9]+m|\^I|.$//g' >>$CASES_DIR/ocft.log
+    echo "$(date '+%F %T'): $line" | cat -A |
+    sed -r 's/\^\[\[[0-9]+m|\^I|.$//g' >>ocft.log
   done
 }
 
@@ -474,7 +534,7 @@ delete_cases()
     rm -f $CASES_DIR/*.sh
   else
     for shs in "$@"; do
-      rm -f $CASES_DIR/"${shs}_case_"*.sh
+      rm -f $CASES_DIR/*_${shs}.sh
     done
   fi
 }
@@ -492,7 +552,7 @@ ACTIONs include:
      clean           Delete the testing shell scripts.
      help [-v]       Show this help and exit.
                        -v  Show HOWTO and exit.
-Version 0.41
+Version 0.42
 See '$OCFT_DIR/README' for detail.
 EOF
 }
@@ -557,10 +617,10 @@ line_num=
 # default configuration
 cfg_agent_root=
 cfg_install_package=
-cfg_hang_timeout=15
+cfg_hang_timeout=20
 
 # default option
-opt_verbose=0
+opt_verbose=
 opt_cfgsdir=$CONFIGS_DIR
 
 command="$1"
@@ -574,8 +634,7 @@ case "$command" in
         exit 1
       fi
       opt_cfgsdir="$2"
-      shift
-      shift
+      shift 2
     fi
     if [ ! -d "$CASES_DIR" ]; then
       mkdir -p "$CASES_DIR" || die "Can not create directory: ${CASES_DIR}."

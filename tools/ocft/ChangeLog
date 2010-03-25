@@ -1,3 +1,15 @@
+0.42:
+	- The tests stop early if the basic functionality it not there.
+	- Fix a bug about 'config parser'.
+	- Keep the resource stat between the runs to avoid there are multiple stop/start per run.
+	- Add a function with warning output.
+	- Adjust the sequence of cases running.
+	- Change the default timeout.
+	- Replace the crm_master command in Agent scripts, it is no use in testing, 
+	  because the agent runs in local when test.
+	- Support drbd testing if the configuration is correct.
+	- Fix a 'Include' bug.
+	- Fix a bug about configuration of 'mysql'.
 0.41:
 	- Fixed a remote shell bug.
 	- Improved 'Include' option, now it supports remote shell, invoked just like 'Include@ip_address'.

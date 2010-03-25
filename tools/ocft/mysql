@@ -66,6 +66,7 @@ CASE "not running status"
 	AgentRun status OCF_NOT_RUNNING
 
 CASE "check lib file"
+	Include prepare
 	Bash chmod u-x /var/lib/mysql
 	BashAtExit chmod u+x /var/lib/mysql
 	AgentRun start OCF_ERR_INSTALLED
