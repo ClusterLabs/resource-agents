@@ -105,8 +105,6 @@ case $__OCF_ACTION in
 		;;	
 esac
 
-#fp="$OCF_RESKEY_nfs_shared_infodir"
-
 backup_rmtab ()
 {
 	grep :${OCF_RESKEY_directory}: /var/lib/nfs/rmtab > ${OCF_RESKEY_directory}/.rmtab
@@ -222,11 +220,6 @@ exportfs_validate ()
 		exit $OCF_ERR_ARGS
 	fi
 }
-
-if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
-	ocf_log err "THIS RA DOES NOT SUPPORT CLONE MODE!"
-	exit $OCF_ERR_CONFIGURED
-fi
 
 exportfs_validate
 
