@@ -157,20 +157,37 @@ exportfs_start ()
 	exportfs ${OPTIONS} ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory} > $fn 2>&1
 	rc=$?
 
-	#restore saved rmtab backup from other server:
-	if [ -f ${OCF_RESKEY_dir}/.rmtab ]; then
-		cat ${OCF_RESKEY_dir}/.rmtab >> /var/lib/nfs/rmtab
-		rm -f ${OCF_RESKEY_dir}/.rmtab
-	fi
-
-	/bin/sh $0 backup &
-
 	if [ $rc -ne 0 ]; then
 		ocf_log debug "Error invoking exportfs: `cat $fn`"
 		ocf_log err "Failed to export file system"
 		return $rc
 	fi	
 	rm -f $fn
+
+	RETRIES=0
+	while [ 1 ]; do
+		showmount -e | grep -P ^${OCF_RESKEY_directory}\ ${OCF_RESKEY_clientspec}$
+		rc=$?
+		if [ $rc -eq 0 ]; then
+			break
+		fi
+		RETRIES=`expr ${RETRIES} + 1`
+		if  [ ${RETRIES} -eq 4 ]; then
+			ocf_log debug "Export not reported by showmount -e"
+			ocf_log err "Export not reported by showmount -e"
+			return ${OCF_NOT_RUNNING}
+		fi
+		sleep 1
+	done
+
+	#restore saved rmtab backup from other server:
+	if [ -f ${OCF_RESKEY_directory}/.rmtab ]; then
+		cat ${OCF_RESKEY_directory}/.rmtab >> /var/lib/nfs/rmtab
+		rm -f ${OCF_RESKEY_directory}/.rmtab
+	fi
+
+	#spawn our background process to backup the rmtab each 2 seconds
+	/bin/sh $0 backup &
 
 	ocf_log info "File system exported"
 	return $OCF_SUCCESS
