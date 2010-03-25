@@ -46,7 +46,7 @@ Export options.
 <content type="string" default="" />
 </parameter>
 
-<parameter name="dir" unique="0" required="1">
+<parameter name="directory" unique="0" required="1">
 <longdesc lang="en">
 The directory which you wish to export using NFS.
 </longdesc>
@@ -97,19 +97,19 @@ esac
 
 backup_rmtab ()
 {
-	grep ${OCF_RESKEY_dir} /var/lib/nfs/rmtab > ${OCF_RESKEY_dir}/.rmtab
+	grep :${OCF_RESKEY_directory}: /var/lib/nfs/rmtab > ${OCF_RESKEY_directory}/.rmtab
 }
 
 clean_rmtab ()
 {
-	REMOVE=`echo ${OCF_RESKEY_dir} | sed 's/\//\\\\\//g'`
-	sed -i -e /${REMOVE}/d /var/lib/nfs/rmtab
+	REMOVE=`echo ${OCF_RESKEY_directory} | sed 's/\//\\\\\//g'`
+	sed -i -e /:${REMOVE}:/d /var/lib/nfs/rmtab
 }
 
 exportfs_monitor ()
 {
 	fn=`/bin/mktemp`
-	grep "${OCF_RESKEY_dir}" /var/lib/nfs/etab > $fn 2>&1
+	grep "${OCF_RESKEY_directory}" /var/lib/nfs/etab > $fn 2>&1
 	rc=$?
 
 #Adapt grep status code to OCF return code
@@ -147,7 +147,7 @@ exportfs_start ()
 	OPTIONS="-o ${OPTIONS}"
 
 	fn=`/bin/mktemp`
-	exportfs ${OPTIONS} ${OCF_RESKEY_clientspec}:${OCF_RESKEY_dir} > $fn 2>&1
+	exportfs ${OPTIONS} ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory} > $fn 2>&1
 	rc=$?
 
 	#restore saved rmtab backup from other server:
@@ -174,12 +174,12 @@ exportfs_stop ()
 	ocf_log info "Un-exporting file system ..."
 
 	fn=`/bin/mktemp`
-	exportfs -u ${OCF_RESKEY_clientspec}:${OCF_RESKEY_dir} > $fn 2>&1
+	exportfs -u ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory} > $fn 2>&1
 	rc=$?
 
-	if [ -f ${OCF_RESKEY_dir}/.exportfs_backup.pid ]; then
-		kill `cat ${OCF_RESKEY_dir}/.exportfs_backup.pid`
-		rm ${OCF_RESKEY_dir}/.exportfs_backup.pid
+	if [ -f ${OCF_RESKEY_directory}/.exportfs_backup.pid ]; then
+		kill `cat ${OCF_RESKEY_directory}/.exportfs_backup.pid`
+		rm ${OCF_RESKEY_directory}/.exportfs_backup.pid
 	fi
 
 	backup_rmtab
@@ -198,7 +198,7 @@ exportfs_stop ()
 
 exportfs_backup ()
 {
-	echo $$ > ${OCF_RESKEY_dir}/.exportfs_backup.pid
+	echo $$ > ${OCF_RESKEY_directory}/.exportfs_backup.pid
 	while [ 1 ]; do
 		backup_rmtab
 		sleep 2
@@ -207,7 +207,7 @@ exportfs_backup ()
 
 exportfs_validate ()
 {
-	if [ -d $OCF_RESKEY_dir ]; then
+	if [ -d $OCF_RESKEY_directory ]; then
 		return $OCF_SUCCESS
 	else
 		exit $OCF_ERR_ARGS
