@@ -16,8 +16,10 @@ exportfs_meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-Exportfs uses the exportfs command to add/remove nfs exports. It does NOT manage the nfs server daemon.
-It depends on Linux specific NFS implementation details, so is considered not portable to other platforms yet.
+Exportfs uses the exportfs command to add/remove nfs exports.
+It does NOT manage the nfs server daemon.
+It depends on Linux specific NFS implementation details,
+so is considered not portable to other platforms yet.
 </longdesc>
 
 <shortdesc lang="en">
@@ -28,12 +30,13 @@ Manages NFS exports
 
 <parameter name="clientspec" unique="0" required="1">
 <longdesc lang="en">
-The client specification allowing remote machines to mount the directory over NFS.
+The client specification allowing remote machines to mount the directory
+over NFS.
 </longdesc>
 <shortdesc lang="en">
 Client ACL.
 </shortdesc>
-<content type="string" default="" />
+<content type="string" />
 </parameter>
 
 <parameter name="options" unique="0" required="0">
@@ -43,7 +46,7 @@ The options to pass to exportfs for the exported directory.
 <shortdesc lang="en">
 Export options.
 </shortdesc>
-<content type="string" default="" />
+<content type="string" />
 </parameter>
 
 <parameter name="directory" unique="0" required="1">
@@ -53,7 +56,7 @@ The directory which you wish to export using NFS.
 <shortdesc lang="en">
 The directory to export.
 </shortdesc>
-<content type="string" default="" />
+<content type="string" />
 </parameter>
 
 <parameter name="fsid" unique="1" required="1">
@@ -65,7 +68,7 @@ This value will override any fsid provided via the options parameter.
 <shortdesc lang="en">
 Unique fsid within cluster.
 </shortdesc>
-<content type="integer" default="" />
+<content type="integer" />
 </parameter>
 
 </parameters>
