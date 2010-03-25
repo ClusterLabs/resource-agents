@@ -252,7 +252,8 @@ case $__OCF_ACTION in
 		;;
 	backup)		exportfs_backup
 		;;
-	validate-all)	exportfs_validate
+	validate-all)
+		# nothing to do -- we're already validated
 		;;
 	*)		exportfs_usage
 			exit $OCF_ERR_UNIMPLEMENTED
