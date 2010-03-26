@@ -376,26 +376,9 @@ delete_interface () {
 	CMD="$IP2UTIL -f inet addr delete $ipaddr/$netmask dev $iface"
 
 	ocf_log info "$CMD"
-	$CMD
-
-	if [ $? -ne 0 ]; then
+	$CMD ||
 		return $OCF_ERR_GENERIC
-	fi
-
-	CMD="$IP2UTIL -o -f inet addr show $iface"
-
-	ocf_log info "$CMD"
-	ADDR=`$CMD`
-
-	if [ $? -ne 0 -o ! -z "$ADDR" ]; then
-		return $?
-	fi
-
-	CMD="$IP2UTIL link set $iface down"
-
-	ocf_log info "$CMD"
-	$CMD
-	return $?
+	return $OCF_SUCCESS
 }
 
 #
