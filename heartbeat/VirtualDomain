@@ -164,7 +164,7 @@ VirtualDomain_Status() {
 		# whenever virsh can't reliably obtain the domain
 		# state.
 		status="no state"
-		if [ "__OCF_ACTION" = "stop" ]; then
+		if [ "$__OCF_ACTION" = "stop" ]; then
 		    # During the stop operation, we want to bail out
 		    # quickly, so as to be able to force-stop (destroy)
 		    # the domain if necessary.
