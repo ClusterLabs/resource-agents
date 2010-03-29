@@ -71,6 +71,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			oralsnr		\
 			pingd		\
 			portblock	\
+			postfix	\
 			pgsql		\
 			proftpd	\
 			Pure-FTPd	\
