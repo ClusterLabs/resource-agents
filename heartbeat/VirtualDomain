@@ -368,13 +368,19 @@ esac
 # Everything except usage and meta-data must pass the validate test
 VirtualDomain_Validate_All || exit $?
 
-# Define the domain on startup, and re-define whenever the
-# configuration file has been updated. If this fails, bail out. Note:
-# test foo -nt bar always returns true if bar does not exist.
-if [ $OCF_RESKEY_config -nt $STATEFILE ]; then
-    VirtualDomain_Define || exit $?
+# Define the domain on startup, and re-define whenever someone deleted
+# the state file, or touched the config.
+if [ ! -e $STATEFILE ] || [ $OCF_RESKEY_config -nt $STATEFILE ]; then
+    VirtualDomain_Define 
 fi
-DOMAIN_NAME=`cat $STATEFILE 2>/dev/null` || exit $OCF_ERR_GENERIC
+# By now, we should definitely be able to read from the state file.
+# If not, something went wrong.
+if [ ! -r $STATEFILE ]; then
+    ocf_log err "$STATEFILE not found or unreadable. This is unexpected. Cannot determine domain name."
+    exit $OCF_ERR_GENERIC
+fi
+# Finally, retrieve the domain name from the state file.
+DOMAIN_NAME=`cat $STATEFILE 2>/dev/null`
 if [ -z $DOMAIN_NAME ]; then
     ocf_log err "$STATEFILE is empty. This is unexpected. Cannot determine domain name."
     exit $OCF_ERR_GENERIC
