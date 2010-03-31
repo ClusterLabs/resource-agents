@@ -218,7 +218,7 @@ list_submounts() {
 
 ocfs2_del_cache() {
 	if [ -e "$_OCFS2_uuid_cache" ]; then
-		rm -f $_OCFS2_uuid_cache 2>/dev/null
+		rm -f $_OCFS2_uuid_cache 
 	fi
 }
 
@@ -397,13 +397,13 @@ Filesystem_start()
 		# Insert SCSI module
 		# TODO: This probably should go away. Why should the filesystem
 		# RA magically load a kernel module?
-		$MODPROBE scsi_hostadapter >/dev/null 2>&1
+		$MODPROBE scsi_hostadapter >/dev/null 
 
 		if [ -z "$FSTYPE" -o "$FSTYPE" = none ]; then
 			: No FSTYPE specified, rely on the system has the right file-system support already 
 		else
 			# Insert Filesystem module
-			$MODPROBE $FSTYPE >/dev/null 2>&1
+			$MODPROBE $FSTYPE >/dev/null 
 			grep -e "$FSTYPE"'$' /proc/filesystems >/dev/null
 			if [ $? -ne 0 ] ; then
 				ocf_log err "Couldn't find filesystem $FSTYPE in /proc/filesystems"
@@ -755,6 +755,7 @@ Filesystem_monitor_10()
 	err_output=`dd if=$DEVICE $dd_opts 2>&1 >/dev/null`
 	if [ $? -ne 0 ]; then
 		ocf_log err "Failed to read device $DEVICE"
+		ocf_log err "dd said: $err_output"
 		return $OCF_ERR_GENERIC
 	fi
 	return $OCF_SUCCESS
