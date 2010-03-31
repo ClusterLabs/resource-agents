@@ -39,48 +39,54 @@ quit()
 
 agent_install()
 {
+  local pkg
+
   if [ $# -eq 0 ]; then
     return 0
   fi
 
-  if [ -e /etc/SuSE-release ]; then
-    if ! rpm -q "$@" >/dev/null 2>&1; then
-      echo "${showhost}Installing $@:"
-      if ! zypper -q install -y "$@"; then
-        echo "${showhost}ERROR: Install '$@' failed, break this case."
-        quit 2
+  for pkg in "$@"; do
+    if [ -e /etc/SuSE-release ]; then
+      if ! rpm -ql "$pkg" >/dev/null 2>&1; then
+        echo -n "${showhost}Installing $pkg ..."
+        zypper -q install -y "$pkg" >/dev/null 2>&1
+        if ! rpm -ql "$pkg" >/dev/null 2>&1; then
+          echo
+          echo "${showhost}ERROR: Install '$pkg' failed, break this case."
+          quit 2
+        fi
+        echo "done"
+        echo
       fi
-      echo "done"
-      echo
-    fi
-  elif [ -e /etc/debian_version ]; then
-    if ! dpkg -s "$@" >/dev/null 2>&1; then
-      echo "${showhost}Installing $@:"
-      if ! apt-get install "$@" >/dev/null 2>&1; then
-        echo "${showhost}ERROR: Install '$@' failed, break this case."
-        quit 2
+    elif [ -e /etc/debian_version ]; then
+      if ! dpkg -L "$pkg" >/dev/null 2>&1; then
+        echo -n "${showhost}Installing $pkg ..."
+        apt-get -y install "$pkg" >/dev/null 2>&1
+        if ! dpkg -L "$pkg" >/dev/null 2>&1; then
+          echo
+          echo "${showhost}ERROR: Install '$pkg' failed, break this case."
+          quit 2
+        fi
+        echo "done"
+        echo
       fi
-      echo "done"
-      echo
-    fi
-  elif [ -e /etc/redhat-release ]; then
-    if ! rpm -q "$@" >/dev/null 2>&1; then
-      echo "${showhost}Installing $@:"
-      if ! yum install "$@" >/dev/null 2>&1; then
-        echo "${showhost}ERROR: Install '$@' failed, break this case."
-        quit 2
+    elif [ -e /etc/redhat-release ]; then
+      if ! rpm -ql "$pkg" >/dev/null 2>&1; then
+        echo -n "${showhost}Installing $pkg ..."
+        yum -y install "$pkg" >/dev/null 2>&1
+        if ! rpm -ql "$pkg" >/dev/null 2>&1; then
+          echo
+          echo "${showhost}ERROR: Install '$pkg' failed, break this case."
+          quit 2
+        fi
+        echo "done"
+        echo
       fi
-      echo "done"
-      echo
+    else
+      echo "${showhost}ERROR: Cannot detect your OS type, break this case."
+      quit 2
     fi
-  elif [ -e /etc/turbolinux-release ]; then
-    :
-  elif [ -e /etc/mandrake-release ]; then
-    :
-  else
-    echo "${showhost}ERROR: Cannot detect your OS type, break this case."
-    quit 2
-  fi
+  done
 }
 
 agent_setup()

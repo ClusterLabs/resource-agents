@@ -1,4 +1,5 @@
 0.42:
+	- Fix a bug about agent installation.
 	- The tests stop early if the basic functionality it not there.
 	- Fix a bug about 'config parser'.
 	- Keep the resource stat between the runs to avoid there are multiple stop/start per run.
