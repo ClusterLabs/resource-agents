@@ -119,15 +119,17 @@ VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor} --quiet"
 STATEFILE="${HA_RSCTMP}/VirtualDomain-${OCF_RESOURCE_INSTANCE}.state"
 
 VirtualDomain_Define() {
+    local virsh_output
+    local domain_name
     # Note: passing in the domain name from outside the script is
     # intended for testing and debugging purposes only. Don't do this
     # in production, instead let the script figure out the domain name
     # from the config file. You have been warned.
     if [ -z "$DOMAIN_NAME" ]; then
-	virsh ${VIRSH_OPTIONS} define ${OCF_RESKEY_config} \
-	    | sed -e 's/Domain \(.*\) defined from .*$/\1/' \
-	    > $STATEFILE \
-	    || return $OCF_ERR_GENERIC
+	virsh_output=`virsh ${VIRSH_OPTIONS} define ${OCF_RESKEY_config}`
+	domain_name=`echo "$virsh_output" | sed -e 's/Domain \(.*\) defined from .*$/\1/'`
+	echo "$domain_name" > $STATEFILE
+	ocf_log info "Domain name \"$domain_name\" saved to $STATEFILE."
     else
 	ocf_log warn "Domain name ${DOMAIN_NAME} already defined, overriding configuration file ${OCF_RESKEY_config}. You should do this for testing only."
     fi
