@@ -126,8 +126,15 @@ VirtualDomain_Define() {
     # in production, instead let the script figure out the domain name
     # from the config file. You have been warned.
     if [ -z "$DOMAIN_NAME" ]; then
-	virsh_output=`virsh ${VIRSH_OPTIONS} define ${OCF_RESKEY_config}`
-	domain_name=`echo "$virsh_output" | sed -e 's/Domain \(.*\) defined from .*$/\1/'`
+	# Spin until we have a domain name
+	while true; do
+	    virsh_output=`virsh ${VIRSH_OPTIONS} define ${OCF_RESKEY_config}`
+	    domain_name=`echo "$virsh_output" | sed -e 's/Domain \(.*\) defined from .*$/\1/'`
+        if [ -n $domain_name ]; then
+            break;
+        fi
+        sleep 1
+	done
 	echo "$domain_name" > $STATEFILE
 	ocf_log info "Domain name \"$domain_name\" saved to $STATEFILE."
     else
