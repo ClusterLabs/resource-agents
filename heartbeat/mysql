@@ -347,6 +347,7 @@ mysql_status() {
 }
 
 mysql_monitor() {
+    local rc
     mysql_status
     rc=$?
 
@@ -355,9 +356,13 @@ mysql_monitor() {
     fi
 
     # Do a detailed status check
-    buf=`echo "SELECT * FROM $OCF_RESKEY_test_table" | mysql --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd --socket=$OCF_RESKEY_socket -O connect_timeout=1 2>&1`
+    buf=$($MYSQL $MYSQL_OPTIONS_LOCAL \
+	--user=$OCF_RESKEY_test_user \
+	--password=$OCF_RESKEY_test_passwd \
+	-e "SELECT * FROM $OCF_RESKEY_test_table" 2>&1)
     rc=$?
-    if [ ! $rc -eq 0 ]; then
+
+    if [ $rc -ne 0 ]; then
 	ocf_log err "MySQL $test_table monitor failed:";
 	if [ ! -z "$buf" ]; then ocf_log err $buf; fi
 	return $OCF_ERR_GENERIC;
@@ -415,7 +420,11 @@ mysql_start() {
     #chown -R $OCF_RESKEY_user $OCF_RESKEY_datadir
     #chgrp -R $OCF_RESKEY_group $OCF_RESKEY_datadir
 
-    ${OCF_RESKEY_binary}  --defaults-file=$OCF_RESKEY_config --pid-file=$OCF_RESKEY_pid --socket=$OCF_RESKEY_socket --datadir=$OCF_RESKEY_datadir --user=$OCF_RESKEY_user $OCF_RESKEY_additional_parameters >/dev/null &
+    ${OCF_RESKEY_binary} --defaults-file=$OCF_RESKEY_config \
+		--pid-file=$OCF_RESKEY_pid \
+		--socket=$OCF_RESKEY_socket \
+		--datadir=$OCF_RESKEY_datadir \
+		--user=$OCF_RESKEY_user $OCF_RESKEY_additional_parameters >/dev/null 2>&1 &
     rc=$?
 
     if [ $rc != 0 ]; then
