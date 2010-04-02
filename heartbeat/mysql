@@ -400,7 +400,7 @@ mysql_monitor() {
 
     # Check for test table
     ocf_run $MYSQL $mysql_options \
-	-e "SELECT COUNT(*) FROM $OCF_RESKEY_test_table" 2>&1)
+	-e "SELECT COUNT(*) FROM $OCF_RESKEY_test_table"
     rc=$?
 
     if [ $rc -ne 0 ]; then
