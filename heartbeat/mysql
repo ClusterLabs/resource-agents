@@ -354,12 +354,6 @@ mysql_validate() {
 	return $OCF_ERR_INSTALLED;
     fi
 
-    if ocf_is_clone; then
-	if [ $OCF_RESKEY_CRM_clone_node_max -gt 1 ]; then
-	    ocf_log err "clone-node-max meta attribute set to illegal value $OCF_RESKEY_CRM_meta_clone_node_max, must not be greater than 1"
-	    exit $OCF_ERR_CONFIGURED
-	fi
-    fi
     true
 }
 
