@@ -279,6 +279,48 @@ set_read_only() {
 	-e "SET GLOBAL read_only=${ro_val}"
 }
 
+check_slave() {
+    # Checks slave status
+    local rc
+    local tmpfile
+    rc=1
+    tmpfile=`mktemp --tmpdir=${HA_RSCTMP}`
+
+    $MYSQL $MYSQL_OPTIONS_LOCAL \
+        -e 'SHOW SLAVE STATUS\G' > $tmpfile
+
+    local master_host
+    local master_user
+    local master_port
+    local slave_sql
+    local slave_io
+
+    if [ -s $tmpfile ]; then
+	grep -P 'Running|Master_[UHP]' $tmpfile |while read k v; do
+            if [ "$k" = 'Master_Host:' ]; then master_host="$v"; fi
+            if [ "$k" = 'Master_User:' ]; then master_user="$v"; fi
+            if [ "$k" = 'Master_Port:' ]; then master_port="$v"; fi
+            if [ "$k" = 'Slave_IO_Running:' ]; then slave_io="$v"; fi
+            if [ "$k" = 'Slave_SQL_Running:' ]; then slave_sql="$v"; fi
+	done
+	if [ "$slave_io" = 'Yes' ] && [ "$slave_sql" = 'Yes' ]; then
+	    # Instance has Slave SQL and I/O threads running
+	    ocf_log debug "MySQL instance running as a replication slave"
+	    rm -f $tmpfile
+	else
+	    ocf_log err "MySQL instance configured for replication, but replication appears to be broken"
+	    ocf_log err "See $tmpfile for details"
+	    exit $OCF_ERR_GENERIC
+	    # leave tmpfile around; may be helpful for debugging
+	fi
+    else
+        # Instance produced an empty "SHOW SLAVE STATUS" output --
+        # instance is not a slave
+	ocf_log debug "MySQL instance is not a replication slave"
+	rm -f $tmpfile
+    fi
+}
+
 #######################################################################
 
 # Functions invoked by resource manager actions
@@ -349,21 +391,25 @@ mysql_monitor() {
 	return $rc
     fi
 
-    # Do a detailed status check
-    buf=$($MYSQL $MYSQL_OPTIONS_LOCAL \
-	--user=$OCF_RESKEY_test_user \
-	--password=$OCF_RESKEY_test_passwd \
-	-e "SELECT * FROM $OCF_RESKEY_test_table" 2>&1)
+    local mysql_options
+    mysql_options="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
+
+    # Check for test table
+    ocf_run $MYSQL $mysql_options \
+	-e "SELECT COUNT(*) FROM $OCF_RESKEY_test_table" 2>&1)
     rc=$?
 
     if [ $rc -ne 0 ]; then
-	ocf_log err "MySQL $test_table monitor failed:";
-	if [ ! -z "$buf" ]; then ocf_log err $buf; fi
+	ocf_log err "Failed to select from $test_table";
 	return $OCF_ERR_GENERIC;
-    else
-	ocf_log info "MySQL monitor succeeded";
-	return $OCF_SUCCESS;
     fi
+
+    # Check if this instance is configured as a slave, and if so check
+    # slave status
+    check_slave
+
+    ocf_log info "MySQL monitor succeeded";
+    return $OCF_SUCCESS
 }
 
 mysql_start() {
