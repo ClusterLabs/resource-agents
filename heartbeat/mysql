@@ -298,6 +298,7 @@ check_slave() {
     local master_port
     local slave_sql
     local slave_io
+    local last_errno
 
     if [ -s $tmpfile ]; then
 	master_host=`sed -ne 's/^.*Master_Host: \(.*\)$/\1/p' < $tmpfile`
@@ -305,17 +306,35 @@ check_slave() {
 	master_port=`sed -ne 's/^.*Master_Port: \(.*\)$/\1/p' < $tmpfile`
 	slave_sql=`sed -ne 's/^.*Slave_SQL_Running: \(.*\)$/\1/p' < $tmpfile`
 	slave_io=`sed -ne 's/^.*Slave_IO_Running: \(.*\)$/\1/p' < $tmpfile`
+	last_errno=`sed -ne 's/^.*Last_Errno: \(.*\)$/\1/p' < $tmpfile`
 
-	if [ "$slave_io" = 'Yes' ] && [ "$slave_sql" = 'Yes' ]; then
-	    # Instance has Slave SQL and I/O threads running
-	    ocf_log debug "MySQL instance running as a replication slave"
-	    rm -f $tmpfile
-	else
-	    ocf_log err "MySQL instance configured for replication, but replication appears to be broken"
+	if [ $last_errno -ne 0 ]; then
+	    # Whoa. Replication ran into an error. This slave has
+	    # diverged from its master. Make sure this resource
+	    # doesn't restart in place.
+	    ocf_log err "MySQL instance configured for replication, but replication has failed."
+	    ocf_log err "See $tmpfile for details"
+	    exit $OCF_ERR_INSTALLED
+	fi
+
+	if [ "$slave_io" != 'Yes' ]; then
+	    # Not necessarily a bad thing. The master may have
+	    # temporarily shut down, and the slave may just be
+	    # reconnecting. A warning can't hurt, though.
+	    ocf_log warn "MySQL Slave IO threads currently not running."
+	fi
+
+	if [ "$slave_sql" != 'Yes' ]; then
+	    # We don't have a replication SQL thread running. Not a
+	    # good thing. Try to recoved by restarting the resource in
+	    # place.
+	    ocf_log err "MySQL Slave SQL threads currently not running."
 	    ocf_log err "See $tmpfile for details"
 	    exit $OCF_ERR_GENERIC
-	    # leave tmpfile around; may be helpful for debugging
 	fi
+
+	ocf_log debug "MySQL instance running as a replication slave"
+	rm -f $tmpfile
     else
         # Instance produced an empty "SHOW SLAVE STATUS" output --
         # instance is not a slave
