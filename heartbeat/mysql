@@ -71,6 +71,7 @@ OCF_RESKEY_test_table_default="mysql.user"
 OCF_RESKEY_test_passwd_default=""
 OCF_RESKEY_enable_creation_default=0
 OCF_RESKEY_additional_parameters_default=""
+OCF_RESKEY_replication_port_default="3306"
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
@@ -93,6 +94,10 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 
 : ${OCF_RESKEY_enable_creation=${OCF_RESKEY_enable_creation_default}}
 : ${OCF_RESKEY_additional_parameters=${OCF_RESKEY_additional_parameters_default}}
+
+: ${OCF_RESKEY_replication_user=${OCF_RESKEY_replication_user_default}}
+: ${OCF_RESKEY_replication_passwd=${OCF_RESKEY_replication_passwd_default}}
+: ${OCF_RESKEY_replication_port=${OCF_RESKEY_replication_port_default}}
 
 #######################################################################
 
@@ -239,6 +244,33 @@ Additional parameters which are passed to the mysqld on startup.
 <content type="string" default="${OCF_RESKEY_additional_parameters_default}"/>
 </parameter>
 
+<parameter name="replication_user" unique="0" required="0">
+<longdesc lang="en">
+MySQL replication user. This user is used for the replication, for
+determining the master log and position, and for setting and unsetting
+read-only mode . Because of that, this user should have SUPER
+privileges on all nodes within the cluster.
+</longdesc>
+<shortdesc lang="en">MySQL replication user</shortdesc>
+<content type="string" default="${OCF_RESKEY_replication_user_default}" />
+</parameter>
+
+<parameter name="replication_passwd" unique="0" required="0">
+<longdesc lang="en">
+MySQL replication password. Used for replication client and slave.
+</longdesc>
+<shortdesc lang="en">MySQL replication user password</shortdesc>
+<content type="string" default="${OCF_RESKEY_replication_passwd_default}" />
+</parameter>
+
+<parameter name="replication_port" unique="0" required="0">
+<longdesc lang="en">
+The port on which the Master MySQL instance is listening.
+</longdesc>
+<shortdesc lang="en">MySQL replication port</shortdesc>
+<content type="string" default="${OCF_RESKEY_replication_port_default}" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -257,6 +289,7 @@ END
 
 MYSQL=$OCF_RESKEY_client_binary
 MYSQL_OPTIONS_LOCAL="-S $OCF_RESKEY_socket -O connect_timeout=1"
+MYSQL_OPTIONS_REPL="--user=$OCF_RESKEY_replication_user --password=$OCF_RESKEY_replication_passwd"
 
 #######################################################################
 
@@ -286,7 +319,7 @@ check_slave() {
     local mysql_options
 
     rc=1
-    tmpfile=`mktemp ${HA_RSCTMP}/${OCF_RESOURCE_INSTANCE}.XXXXXX`
+    tmpfile=`mktemp ${HA_RSCTMP}/check_slave.${OCF_RESOURCE_INSTANCE}.XXXXXX`
 
     mysql_options="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
 
@@ -341,6 +374,73 @@ check_slave() {
 	ocf_log debug "MySQL instance is not a replication slave"
 	rm -f $tmpfile
     fi
+}
+
+set_master() {
+    # Informs the MySQL server of the master to replicate
+    # from. Accepts three mandatory arguments which, must contain the
+    # host name of the new master host, the binlog file, and the
+    # binlog position.
+    local master_host
+    local master_file
+    local master_pos
+    master_host=$1
+    master_file=$2
+    master_pos=$3
+
+    # Clear the old master preference, bail out if this fails
+    unset_master
+    if [ $? -ne $OCF_SUCCESS ]; then
+	ocf_log err "Unable to clear replication master preference, won't set new replication master!"
+	return $OCF_ERR_GENERIC
+    fi
+
+    ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
+	-e "CHANGE MASTER TO MASTER_HOST='$master_host', \
+				MASTER_USER='$OCF_RESKEY_replication_user', \
+				MASTER_PASSWORD='$OCF_RESKEY_replication_passwd', \
+				MASTER_PORT=$OCF_RESKEY_replication_port, \
+				MASER_LOG_FILE='$master_file', \
+				MASTER_LOG_POS=$master_pos, \
+				MASTER_CONNECT_RETRY=4"
+    ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
+	-e 'START SLAVE';
+}
+
+unset_master(){
+    # Instructs the MySQL server to stop replicating from a master
+    # host.
+    ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
+	-e 'STOP SLAVE';
+}
+
+get_master_status() {
+    # Fetches the current replication log file and position from the
+    # master.
+    local master_host
+    master_host=$1
+
+    local tmpfile
+    local mysql_options
+    tmpfile=`mktemp ${HA_RSCTMP}/get_master_status.${OCF_RESOURCE_INSTANCE}.XXXXXX`
+    mysql_options="$MYSQL_OPTIONS_REPL -h $master_host -O connect_timeout=1"
+
+    $MYSQL $mysql_options \
+	-e 'SHOW MASTER STATUS\G' > $tmpfile
+
+    if [ $? -ne 0 ]; then
+	ocf_log err "unable to find master file or master position"
+	exit $OCF_ERR_GENERIC;
+    fi
+
+    master_file=`sed -ne 's/^.*File: \(.*\)$/\1/p' < $tmpfile`
+    master_pos=`sed -ne 's/^.*Position: \(.*\)$/\1/p' < $tmpfile`
+
+    if [ -z "$master_file" ] || [ -z "$master_pos" ]; then
+	ocf_log err "unable to find master file or master position"
+	exit $OCF_ERR_GENERIC;
+    fi
+    echo $master_file $master_pos
 }
 
 #######################################################################
