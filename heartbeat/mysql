@@ -712,7 +712,7 @@ mysql_notify() {
 	    fi
 
 	    # master_status is 2 values: log file name and position
-	    master_status=`get_master_status` || return $OCF_ERR_GENERIC
+	    master_status=`get_master_status $master_host` || return $OCF_ERR_GENERIC
 	    set_master $master_host $master_status
 	    ;;
 	'post-promote')
