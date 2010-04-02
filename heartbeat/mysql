@@ -706,6 +706,11 @@ mysql_notify() {
 		return $OCF_ERR_GENERIC
 	    fi
 
+	    if [ $master_host = `uname -n` ]; then
+		ocf_log info "Ignoring pre-promote notification for my own promotion."
+		return $OCF_SUCCESS
+	    fi
+
 	    # master_status is 2 values: log file name and position
 	    master_status=`get_master_status` || return $OCF_ERR_GENERIC
 	    set_master $master_host $master_status
@@ -714,9 +719,17 @@ mysql_notify() {
 	    # The master has completed its promotion. Now is a good
 	    # time to check whether our replication slave is working
 	    # correctly.
+	    if [ $OCF_RESKEY_CRM_meta_notify_promote_uname = `uname -n` ]; then
+		ocf_log info "Ignoring post-promote notification for my own promotion."
+		return $OCF_SUCCESS
+	    fi
 	    check_slave
 	    ;;
 	'post-demote')
+	    if [ $OCF_RESKEY_CRM_meta_notify_demote_uname = `uname -n` ]; then
+		ocf_log info "Ignoring post-demote notification for my own demotion."
+		return $OCF_SUCCESS
+	    fi
 	    # The former master has just been gracefully demoted.
 	    unset_master
 	    # TODO: we should now wait for the slave to process any
