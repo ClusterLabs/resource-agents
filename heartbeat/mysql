@@ -300,13 +300,12 @@ check_slave() {
     local slave_io
 
     if [ -s $tmpfile ]; then
-	grep -P 'Running|Master_[UHP]' $tmpfile |while read k v; do
-            if [ "$k" = 'Master_Host:' ]; then master_host="$v"; fi
-            if [ "$k" = 'Master_User:' ]; then master_user="$v"; fi
-            if [ "$k" = 'Master_Port:' ]; then master_port="$v"; fi
-            if [ "$k" = 'Slave_IO_Running:' ]; then slave_io="$v"; fi
-            if [ "$k" = 'Slave_SQL_Running:' ]; then slave_sql="$v"; fi
-	done
+	master_host=`sed -ne 's/^.*Master_Host: \(.*\)$/\1/p' < $tmpfile`
+	master_user=`sed -ne 's/^.*Master_User: \(.*\)$/\1/p' < $tmpfile`
+	master_port=`sed -ne 's/^.*Master_Port: \(.*\)$/\1/p' < $tmpfile`
+	slave_sql=`sed -ne 's/^.*Slave_SQL_Running: \(.*\)$/\1/p' < $tmpfile`
+	slave_io=`sed -ne 's/^.*Slave_IO_Running: \(.*\)$/\1/p' < $tmpfile`
+
 	if [ "$slave_io" = 'Yes' ] && [ "$slave_sql" = 'Yes' ]; then
 	    # Instance has Slave SQL and I/O threads running
 	    ocf_log debug "MySQL instance running as a replication slave"
