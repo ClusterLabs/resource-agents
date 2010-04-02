@@ -23,6 +23,7 @@
 #
 # OCF instance parameters:
 #   OCF_RESKEY_binary
+#   OCF_RESKEY_client_binary
 #   OCF_RESKEY_config
 #   OCF_RESKEY_datadir
 #   OCF_RESKEY_user
@@ -68,6 +69,8 @@ OCF_RESKEY_group_default="mysql"
 OCF_RESKEY_log_default="/var/log/mysqld.log"
 OCF_RESKEY_pid_default="/var/run/mysql/mysqld.pid"
 OCF_RESKEY_socket_default="/var/lib/mysql/mysql.sock"
+fi
+OCF_RESKEY_client_binary_default="mysql"
 OCF_RESKEY_test_user_default="root"
 OCF_RESKEY_test_table_default="mysql.user"
 OCF_RESKEY_test_passwd_default=""
@@ -77,6 +80,8 @@ fi
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
+
+: ${OCF_RESKEY_client_binary=${OCF_RESKEY_client_binary_default}}
 
 : ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
 : ${OCF_RESKEY_datadir=${OCF_RESKEY_datadir_default}}
@@ -127,10 +132,18 @@ It manages a MySQL Database instance as an HA resource.
 
 <parameter name="binary" unique="0" required="0">
 <longdesc lang="en">
-Location of the MySQL binary
+Location of the MySQL server binary
 </longdesc>
-<shortdesc lang="en">MySQL binary</shortdesc>
+<shortdesc lang="en">MySQL server binary</shortdesc>
 <content type="string" default="${OCF_RESKEY_binary_default}" />
+</parameter>
+
+<parameter name="client_binary" unique="0" required="0">
+<longdesc lang="en">
+Location of the MySQL client binary
+</longdesc>
+<shortdesc lang="en">MySQL client binary</shortdesc>
+<content type="string" default="${OCF_RESKEY_client_binary_default}" />
 </parameter>
 
 <parameter name="config" unique="0" required="0">
@@ -243,13 +256,40 @@ Additional parameters which are passed to the mysqld on startup.
 </resource-agent>
 END
 }
+#######################################################################
+# Convenience variables
+
+MYSQL=$OCF_RESKEY_client_binary
+MYSQL_OPTIONS_LOCAL="-S $OCF_RESKEY_socket -O connect_timeout=1"
+
+#######################################################################
+
+# Convenience functions
+
+set_read_only() {
+    # Sets or unsets read-only mode. Accepts one boolean as its
+    # optional argument. If invoked without any arguments, defaults to
+    # enabling read only mode. Should only be set in master/slave
+    # setups.
+    # Returns $OCF_SUCCESS if the operation succeeds, or
+    # $OCF_ERR_GENERIC if it fails.
+    local ro_val
+    if ocf_is_true $1; then
+	ro_val="on"
+    else
+	ro_val="off"
+    fi
+    ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL \
+	-e "SET GLOBAL read_only=${ro_val}"
+}
+
+#######################################################################
+
+# Functions invoked by resource manager actions
 
 mysql_validate() {
-# checking the parameters
-    if [ ! -x $OCF_RESKEY_binary ]; then
-	ocf_log err "mysqld binary $OCF_RESKEY_binary does not exist or is not executable";
-	return $OCF_ERR_INSTALLED;
-    fi
+    check_binary $OCF_RESKEY_binary
+    check_binary  $OCF_RESKEY_client_binary
 
     if [ ! -f $OCF_RESKEY_config ]; then
 	ocf_log err "Config $OCF_RESKEY_config doesn't exist";
