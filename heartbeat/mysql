@@ -286,7 +286,7 @@ check_slave() {
     local mysql_options
 
     rc=1
-    tmpfile=`mktemp -p ${HA_RSCTMP}`
+    tmpfile=`mktemp ${HA_RSCTMP}/${OCF_RESOURCE_INSTANCE}.XXXXXX`
 
     mysql_options="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
 
