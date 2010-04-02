@@ -111,6 +111,8 @@ usage() {
 	The 'stop' operation stops the database.
 	The 'status' operation reports whether the database is running
 	The 'monitor' operation reports whether the database seems to be working
+	The 'promote' operation makes this mysql server run as master
+	The 'demote' operation makes this mysql server run as slave
 	The 'validate-all' operation reports whether the parameters are valid
 
 UEND
@@ -278,6 +280,8 @@ The port on which the Master MySQL instance is listening.
 <action name="stop" timeout="120" />
 <action name="status" timeout="60" />
 <action name="monitor" depth="0" timeout="30" interval="10" />
+<action name="promote" timeout="120" />
+<action name="demote" timeout="120" />
 <action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 </actions>
@@ -308,7 +312,12 @@ set_read_only() {
     else
 	ro_val="off"
     fi
-    ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL \
+    local mysql_options
+    mysql_options="$MYSQL_OPTIONS_LOCAL"
+    if [ -n $OCF_RESKEY_replication_user ]; then
+	mysql_options="$mysql_options $MYSQL_OPTIONS_REPL"
+    fi
+    ocf_run $MYSQL $mysql_options \
 	-e "SET GLOBAL read_only=${ro_val}"
 }
 
@@ -603,6 +612,10 @@ mysql_start() {
 	fi
         sleep 2
     done
+
+    if ocf_is_ms; then
+	set_read_only on
+    fi
     
     ocf_log info "MySQL started"
     return $OCF_SUCCESS
@@ -649,6 +662,18 @@ mysql_stop() {
     return $OCF_SUCCESS
 }
 
+mysql_promote() {
+    if ( ! mysql_status ); then
+	return $OCF_NOT_RUNNING
+    fi
+    set_read_only off || return $OCF_ERR_GENERIC
+    return $OCF_SUCCESS
+}
+
+mysql_demote() {
+    set_read_only on
+}
+
 #######################################################################
 
 case "$1" in
@@ -676,6 +701,8 @@ case "$1" in
   stop)		mysql_stop;;
   status)	mysql_status;;
   monitor)	mysql_monitor;;
+  promote)	mysql_promote;;
+  demote)	mysql_demote;;
   validate-all)	exit $OCF_SUCCESS;;
 
  *)		usage
