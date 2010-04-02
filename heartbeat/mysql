@@ -103,7 +103,7 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 
 usage() {
   cat <<UEND
-	usage: $0 (start|stop|validate-all|meta-data|monitor)
+	usage: $0 (start|stop|validate-all|meta-data|monitor|promote|demote|notify)
 
 	$0 manages a MySQL Database as an HA resource.
 
@@ -282,6 +282,7 @@ The port on which the Master MySQL instance is listening.
 <action name="monitor" depth="0" timeout="30" interval="10" />
 <action name="promote" timeout="120" />
 <action name="demote" timeout="120" />
+<action name="notify" timeout="90" />
 <action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 </actions>
@@ -674,6 +675,59 @@ mysql_demote() {
     set_read_only on
 }
 
+mysql_notify() {
+    # If not configured as a Stateful resource, we make no sense of
+    # notifications.
+    if ! ocf_is_ms; then
+	ocf_log info "This agent makes no use of notifications unless running in master/slave mode."
+	return $OCF_SUCCESS
+    fi
+
+    local type_op
+    type_op="${OCF_RESKEY_CRM_meta_notify_type}-${OCF_RESKEY_CRM_meta_notify_operation}"
+
+    ocf_log debug "Received $type_op notification."
+
+    case "$type_op" in
+	'pre-promote')
+	    # A new master is about to being promoted. It's not in
+	    # read-write mode yet (that only occurs when it actually
+	    # executes the promote action), so we can now safely
+	    # connect to it and wait for it to start replicating.
+	    local master_host
+	    local master_status
+	    master_host=$OCF_RESKEY_CRM_meta_notify_promote_uname
+
+	    if ( ! mysql_status ); then
+		return $OCF_NOT_RUNNING
+	    fi
+	    if [ -z "$master_host" ]; then
+		ocf_log err "Unable to determine master host!"
+		return $OCF_ERR_GENERIC
+	    fi
+
+	    # master_status is 2 values: log file name and position
+	    master_status=`get_master_status` || return $OCF_ERR_GENERIC
+	    set_master $master_host $master_status
+	    ;;
+	'post-promote')
+	    # The master has completed its promotion. Now is a good
+	    # time to check whether our replication slave is working
+	    # correctly.
+	    check_slave
+	    ;;
+	'post-demote')
+	    # The former master has just been gracefully demoted.
+	    unset_master
+	    # TODO: we should now wait for the slave to process any
+	    # replication backlog.
+	    ;;
+	*)
+	    return $OCF_SUCCESS
+	    ;;
+    esac
+}
+
 #######################################################################
 
 case "$1" in
@@ -703,6 +757,7 @@ case "$1" in
   monitor)	mysql_monitor;;
   promote)	mysql_promote;;
   demote)	mysql_demote;;
+  notify)	mysql_notify;;
   validate-all)	exit $OCF_SUCCESS;;
 
  *)		usage
