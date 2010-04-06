@@ -445,8 +445,12 @@ set_master() {
 unset_master(){
     # Instructs the MySQL server to stop replicating from a master
     # host.
-    ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
-	-e 'STOP SLAVE';
+    local mysql_options
+    mysql_options="$MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL"
+    ocf_run $MYSQL $mysql_options \
+	-e "STOP SLAVE" || exit $OCF_ERR_GENERIC
+    ocf_run $MYSQL $mysql_options \
+	-e "CHANGE MASTER TO MASTER_HOST=''"
 }
 
 get_master_status() {
