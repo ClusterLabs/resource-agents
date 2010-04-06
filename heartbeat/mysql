@@ -449,8 +449,21 @@ unset_master(){
     # host.
     local mysql_options
     mysql_options="$MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL"
+
+    # First, stop the slave I/O thread and wait for relay log
+    # processing to complete
     ocf_run $MYSQL $mysql_options \
-	-e "STOP SLAVE" || exit $OCF_ERR_GENERIC
+	-e "STOP SLAVE IO_THREAD" || exit $OCF_ERR_GENERIC
+    while true; do
+	$MYSQL $mysql_options \
+	    -e "SHOW PROCESSLIST\G" | grep "Has read all relay log" && break
+	ocf_log info "Waiting for MySQL slave to finish processing relay log"
+	sleep 1
+    done
+
+    # Now, stop all slave activity and unset the master host
+    ocf_run $MYSQL $mysql_options \
+	-e "STOP SLAVE"
     ocf_run $MYSQL $mysql_options \
 	-e "CHANGE MASTER TO MASTER_HOST=''"
 }
@@ -768,8 +781,6 @@ mysql_notify() {
 	    fi
 	    # The former master has just been gracefully demoted.
 	    unset_master
-	    # TODO: we should now wait for the slave to process any
-	    # replication backlog.
 	    ;;
 	*)
 	    return $OCF_SUCCESS
