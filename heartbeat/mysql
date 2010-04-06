@@ -322,6 +322,30 @@ set_read_only() {
 	-e "SET GLOBAL read_only=${ro_val}"
 }
 
+is_slave() {
+    # Determine whether the machine is currently running as a MySQL
+    # slave, as determined per SHOW SLAVE STATUS. Returns 1 if SHOW
+    # SLAVE STATUS creates an empty result set, 0 otherwise.
+    local rc
+    local tmpfile
+    local mysql_options
+
+    tmpfile=`mktemp ${HA_RSCTMP}/is_slave.${OCF_RESOURCE_INSTANCE}.XXXXXX`
+
+    mysql_options="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
+
+    $MYSQL $mysql_options \
+        -e 'SHOW SLAVE STATUS\G' > $tmpfile
+
+    # "SHOW SLAVE STATUS" returns an empty set if instance is not a
+    # replication slave
+    if [ -s $tmpfile ]; then
+	return 1
+    fi
+
+    return 0
+}
+
 check_slave() {
     # Checks slave status
     local rc
@@ -381,8 +405,9 @@ check_slave() {
     else
         # Instance produced an empty "SHOW SLAVE STATUS" output --
         # instance is not a slave
-	ocf_log debug "MySQL instance is not a replication slave"
 	rm -f $tmpfile
+	ocf_log err "check_slave invoked on an instance that is not a replication slave."
+	exit $OCF_ERR_GENERIC
     fi
 }
 
@@ -517,6 +542,12 @@ mysql_monitor() {
 	return $rc
     fi
 
+    # Check if this instance is configured as a slave, and if so check
+    # slave status
+    if is_slave; then
+	check_slave
+    fi
+
     local mysql_options
     mysql_options="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
 
@@ -529,10 +560,6 @@ mysql_monitor() {
 	ocf_log err "Failed to select from $test_table";
 	return $OCF_ERR_GENERIC;
     fi
-
-    # Check if this instance is configured as a slave, and if so check
-    # slave status
-    check_slave
 
     ocf_log info "MySQL monitor succeeded";
     return $OCF_SUCCESS
