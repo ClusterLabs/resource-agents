@@ -429,25 +429,43 @@ set_master() {
 unset_master(){
     # Instructs the MySQL server to stop replicating from a master
     # host.
+
+    # If we're currently not configured to be replicating from any
+    # host, then there's nothing to do. But we do log a warning as
+    # no-one but the CRM should be touching the MySQL master/slave
+    # configuration.
+    if ! is_slave; then
+	ocf_log warn "Attempted to unset the replication master on an instance that is not configured as a replication slave"
+	return $OCF_SUCCESS
+    fi
+
     local mysql_options
     mysql_options="$MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL"
+
+    local tmpfile
+    tmpfile=`mktemp ${HA_RSCTMP}/unset_master.${OCF_RESOURCE_INSTANCE}.XXXXXX`
 
     # First, stop the slave I/O thread and wait for relay log
     # processing to complete
     ocf_run $MYSQL $mysql_options \
 	-e "STOP SLAVE IO_THREAD" || exit $OCF_ERR_GENERIC
     while true; do
-	$MYSQL $mysql_options \
-	    -e "SHOW PROCESSLIST\G" | grep "Has read all relay log" && break
-	ocf_log info "Waiting for MySQL slave to finish processing relay log"
-	sleep 1
-    done
+     	$MYSQL $mysql_options \
+     	    -e 'SHOW PROCESSLIST\G' > $tmpfile
+     	if grep 'Has read all relay log' $tmpfile >/dev/null; then
+	    ocf_log info "MySQL slave has finished processing relay log"
+	    break
+	fi
+     	ocf_log info "Waiting for MySQL slave to finish processing relay log"
+     	sleep 1
+     done
+    rm -f $tmpfile
 
     # Now, stop all slave activity and unset the master host
     ocf_run $MYSQL $mysql_options \
-	-e "STOP SLAVE"
+	-e "STOP SLAVE" || exit $OCF_ERR_GENERIC
     ocf_run $MYSQL $mysql_options \
-	-e "CHANGE MASTER TO MASTER_HOST=''"
+	-e "CHANGE MASTER TO MASTER_HOST=''" || exit $OCF_ERR_GENERIC
 }
 
 #######################################################################
