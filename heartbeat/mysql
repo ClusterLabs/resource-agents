@@ -279,6 +279,30 @@ set_read_only() {
 	-e "SET GLOBAL read_only=${ro_val}"
 }
 
+is_slave() {
+    # Determine whether the machine is currently running as a MySQL
+    # slave, as determined per SHOW SLAVE STATUS. Returns 1 if SHOW
+    # SLAVE STATUS creates an empty result set, 0 otherwise.
+    local rc
+    local tmpfile
+    local mysql_options
+
+    tmpfile=`mktemp ${HA_RSCTMP}/is_slave.${OCF_RESOURCE_INSTANCE}.XXXXXX`
+
+    mysql_options="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
+
+    $MYSQL $mysql_options \
+        -e 'SHOW SLAVE STATUS\G' > $tmpfile
+
+    # "SHOW SLAVE STATUS" returns an empty set if instance is not a
+    # replication slave
+    if [ -s $tmpfile ]; then
+	return 1
+    fi
+
+    return 0
+}
+
 check_slave() {
     # Checks slave status
     local rc
