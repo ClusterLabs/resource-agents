@@ -538,7 +538,8 @@ mysql_monitor() {
     mysql_status
     rc=$?
 
-    if [ $OCF_CHECK_LEVEL = 0 -o $rc != 0 ]; then
+    # If status returned an error, return that immediately
+    if [ $rc -ne $OCF_SUCCESS ]; then
 	return $rc
     fi
 
@@ -548,17 +549,19 @@ mysql_monitor() {
 	check_slave
     fi
 
-    local mysql_options
-    mysql_options="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
+    if [ $OCF_CHECK_LEVEL -gt 0 ]; then
+	local mysql_options
+	mysql_options="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
 
-    # Check for test table
-    ocf_run $MYSQL $mysql_options \
-	-e "SELECT COUNT(*) FROM $OCF_RESKEY_test_table"
-    rc=$?
+        # Check for test table
+	ocf_run $MYSQL $mysql_options \
+	    -e "SELECT COUNT(*) FROM $OCF_RESKEY_test_table"
+	rc=$?
 
-    if [ $rc -ne 0 ]; then
-	ocf_log err "Failed to select from $test_table";
-	return $OCF_ERR_GENERIC;
+	if [ $rc -ne 0 ]; then
+	    ocf_log err "Failed to select from $test_table";
+	    return $OCF_ERR_GENERIC;
+	fi
     fi
 
     ocf_log info "MySQL monitor succeeded";
