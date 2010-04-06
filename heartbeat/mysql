@@ -415,33 +415,15 @@ check_slave() {
 
 set_master() {
     # Informs the MySQL server of the master to replicate
-    # from. Accepts three mandatory arguments which, must contain the
-    # host name of the new master host, the binlog file, and the
-    # binlog position.
+    # from. Accepts one mandatory argument which must contain the host
+    # name of the new master host. The master must either be unchanged
+    # from the laste master the slave replicated from, or freshly
+    # reset with RESET MASTER.
     local master_host
-    local master_file
-    local master_pos
     master_host=$1
-    master_file=$2
-    master_pos=$3
-
-    # Clear the old master preference, bail out if this fails
-    unset_master
-    if [ $? -ne $OCF_SUCCESS ]; then
-	ocf_log err "Unable to clear replication master preference, won't set new replication master!"
-	return $OCF_ERR_GENERIC
-    fi
 
     ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
-	-e "CHANGE MASTER TO MASTER_HOST='$master_host', \
-				MASTER_USER='$OCF_RESKEY_replication_user', \
-				MASTER_PASSWORD='$OCF_RESKEY_replication_passwd', \
-				MASTER_PORT=$OCF_RESKEY_replication_port, \
-				MASTER_LOG_FILE='$master_file', \
-				MASTER_LOG_POS=$master_pos, \
-				MASTER_CONNECT_RETRY=4"
-    ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
-	-e 'START SLAVE';
+	-e "CHANGE MASTER TO MASTER_HOST='$master_host'"
 }
 
 unset_master(){
@@ -756,13 +738,13 @@ mysql_notify() {
 	    fi
 
 	    if [ $master_host = `uname -n` ]; then
-		ocf_log info "Ignoring pre-promote notification for my own promotion."
-		return $OCF_SUCCESS
+		ocf_log info "Resetting MySQL replication configuration on new master $master_host"
+		ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
+		    -e 'RESET MASTER';
+	    else
+		ocf_log info "Changing MySQL configuration to replicate from $master_host"
+		set_master $master_host
 	    fi
-
-	    # master_status is 2 values: log file name and position
-	    master_status=`get_master_status $master_host` || return $OCF_ERR_GENERIC
-	    set_master $master_host $master_status
 	    ;;
 	'post-promote')
 	    # The master has completed its promotion. Now is a good
@@ -772,7 +754,8 @@ mysql_notify() {
 		ocf_log info "Ignoring post-promote notification for my own promotion."
 		return $OCF_SUCCESS
 	    fi
-	    check_slave
+	    ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
+		-e 'START SLAVE';
 	    ;;
 	'post-demote')
 	    if [ $OCF_RESKEY_CRM_meta_notify_demote_uname = `uname -n` ]; then
