@@ -450,35 +450,6 @@ unset_master(){
 	-e "CHANGE MASTER TO MASTER_HOST=''"
 }
 
-get_master_status() {
-    # Fetches the current replication log file and position from the
-    # master.
-    local master_host
-    master_host=$1
-
-    local tmpfile
-    local mysql_options
-    tmpfile=`mktemp ${HA_RSCTMP}/get_master_status.${OCF_RESOURCE_INSTANCE}.XXXXXX`
-    mysql_options="$MYSQL_OPTIONS_REPL -h $master_host -O connect_timeout=1"
-
-    $MYSQL $mysql_options \
-	-e 'SHOW MASTER STATUS\G' > $tmpfile
-
-    if [ $? -ne 0 ]; then
-	ocf_log err "unable to find master file or master position"
-	exit $OCF_ERR_GENERIC;
-    fi
-
-    master_file=`sed -ne 's/^.*File: \(.*\)$/\1/p' < $tmpfile`
-    master_pos=`sed -ne 's/^.*Position: \(.*\)$/\1/p' < $tmpfile`
-
-    if [ -z "$master_file" ] || [ -z "$master_pos" ]; then
-	ocf_log err "unable to find master file or master position"
-	exit $OCF_ERR_GENERIC;
-    fi
-    echo $master_file $master_pos
-}
-
 #######################################################################
 
 # Functions invoked by resource manager actions
