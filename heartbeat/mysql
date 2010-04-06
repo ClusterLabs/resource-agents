@@ -340,10 +340,12 @@ is_slave() {
     # "SHOW SLAVE STATUS" returns an empty set if instance is not a
     # replication slave
     if [ -s $tmpfile ]; then
-	return 1
+	rm -f $tmpfile
+	return 0
     fi
 
-    return 0
+    rm -f $tmpfile
+    return 1
 }
 
 check_slave() {
