@@ -248,9 +248,10 @@ Additional parameters which are passed to the mysqld on startup.
 
 <parameter name="replication_user" unique="0" required="0">
 <longdesc lang="en">
-MySQL replication user. This user is used for the replication, for
-determining the master log and position, and for setting and unsetting
-read-only mode . Because of that, this user should have SUPER
+MySQL replication user. This user is used for starting and stopping
+MySQL replication, for setting and resetting the master host, and for
+setting and unsetting read-only mode. Because of that, this user must
+have SUPER, REPLICATION SLAVE, REPLICATION CLIENT, and PROCESS
 privileges on all nodes within the cluster.
 </longdesc>
 <shortdesc lang="en">MySQL replication user</shortdesc>
@@ -423,7 +424,9 @@ set_master() {
     master_host=$1
 
     ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
-	-e "CHANGE MASTER TO MASTER_HOST='$master_host'"
+	-e "CHANGE MASTER TO MASTER_HOST='$master_host', \
+                             MASTER_USER='$OCF_RESKEY_replication_user', \
+                             MASTER_PASSWORD='$OCF_RESKEY_replication_passwd'"
 }
 
 unset_master(){
@@ -729,7 +732,7 @@ mysql_notify() {
 	    if [ $master_host = `uname -n` ]; then
 		ocf_log info "Resetting MySQL replication configuration on new master $master_host"
 		ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
-		    -e 'RESET MASTER';
+		    -e 'RESET MASTER'
 	    else
 		ocf_log info "Changing MySQL configuration to replicate from $master_host"
 		set_master $master_host
