@@ -297,6 +297,8 @@ MYSQL=$OCF_RESKEY_client_binary
 MYSQL_OPTIONS_LOCAL="-S $OCF_RESKEY_socket -O connect_timeout=1"
 MYSQL_OPTIONS_REPL="--user=$OCF_RESKEY_replication_user --password=$OCF_RESKEY_replication_passwd"
 
+CRM_MASTER="${HA_SBIN_DIR}/crm_master -l reboot "
+
 #######################################################################
 
 # Convenience functions
@@ -638,7 +640,16 @@ mysql_start() {
     done
 
     if ocf_is_ms; then
+	# We're configured as a stateful resource. We must start as
+	# slave by default. Since we can't start as a MySQL slave (we
+	# don't know what master to replicate from), we simply start
+	# in read only mode.
 	set_read_only on
+	# We also need to set a master preference, otherwise Pacemaker
+	# won't ever promote us in the absence of any explicit
+	# preference set by the administrator. We choose a low
+	# greater-than-zero preference.
+	$CRM_MASTER -v 10
     fi
     
     ocf_log info "MySQL started"
@@ -646,6 +657,12 @@ mysql_start() {
 }
 
 mysql_stop() {
+
+    if ocf_is_ms; then
+	# clear preference for becoming master
+	$CRM_MASTER -D
+    fi
+
     if [ ! -f $OCF_RESKEY_pid ]; then
 	ocf_log info "MySQL is not running"
         return $OCF_SUCCESS
@@ -691,11 +708,21 @@ mysql_promote() {
 	return $OCF_NOT_RUNNING
     fi
     set_read_only off || return $OCF_ERR_GENERIC
+
+    # Existing master gets a higher-than-default master preference, so
+    # the cluster manager does not shuffle the master role around
+    # unnecessarily
+    $CRM_MASTER -v 100
+
     return $OCF_SUCCESS
 }
 
 mysql_demote() {
-    set_read_only on
+    set_read_only on || return $OCF_ERR_GENERIC
+
+    # Return master preference to default, so the cluster manager gets
+    # a chance to select a new master
+    $CRM_MASTER -v 10
 }
 
 mysql_notify() {
