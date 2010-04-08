@@ -72,6 +72,8 @@ OCF_RESKEY_test_passwd_default=""
 OCF_RESKEY_enable_creation_default=0
 OCF_RESKEY_additional_parameters_default=""
 OCF_RESKEY_replication_port_default="3306"
+OCF_RESKEY_max_slave_lag_default="3600"
+OCF_RESKEY_evict_outdated_slaves_default="false"
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
@@ -98,6 +100,9 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 : ${OCF_RESKEY_replication_user=${OCF_RESKEY_replication_user_default}}
 : ${OCF_RESKEY_replication_passwd=${OCF_RESKEY_replication_passwd_default}}
 : ${OCF_RESKEY_replication_port=${OCF_RESKEY_replication_port_default}}
+
+: ${OCF_RESKEY_max_slave_lag=${OCF_RESKEY_max_slave_lag_default}}
+: ${OCF_RESKEY_evict_outdated_slaves=${OCF_RESKEY_evict_outdated_slaves_default}}
 
 #######################################################################
 
@@ -127,10 +132,10 @@ meta_data() {
 
 <longdesc lang="en">
 Resource script for MySQL. 
-It manages a MySQL Database instance as an HA resource.
+May manage a standalone MySQL database, a clone set with externally
+managed replication, or a complete master/slave replication setup.
 </longdesc>
 <shortdesc lang="en">Manages a MySQL database instance</shortdesc>
-
 <parameters>
 
 <parameter name="binary" unique="0" required="0">
@@ -274,6 +279,32 @@ The port on which the Master MySQL instance is listening.
 <content type="string" default="${OCF_RESKEY_replication_port_default}" />
 </parameter>
 
+<parameter name="max_slave_lag" unique="0" required="0">
+<longdesc lang="en">
+The maximum number of seconds a replication slave is allowed to lag
+behind its master. Do not set this to zero. What the cluster manager
+does in case a slave exceeds this maximum lag is determined by the
+evict_outdated_slaves parameter.
+</longdesc>
+<shortdesc lang="en">Maximum time (seconds) a MySQL slave is allowed
+to lag behind a master</shortdesc>
+<content type="integer" default="${OCF_RESKEY_max_slave_lag_default}"/>
+</parameter>
+
+<parameter name="evict_outdated_slaves" unique="0" required="0">
+<longdesc lang="en">
+If set to true, any slave which is more than max_slave_lag seconds
+behind the master has its MySQL instance shut down. If this parameter
+is set to false in a primitive or clone resource, it is simply
+ignored. If set to false in a master/slave resource, then exceeding
+the maximum slave lag will merely push down the master preference so
+the lagging slave is never promoted to the new master.
+</longdesc>
+<shortdesc lang="en">Determines whether to shut down badly lagging
+slaves</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_evict_outdated_slaves_default}" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -371,6 +402,7 @@ check_slave() {
     local slave_sql
     local slave_io
     local last_errno
+    local secs_behind
 
     if [ -s $tmpfile ]; then
 	master_host=`sed -ne 's/^.*Master_Host: \(.*\)$/\1/p' < $tmpfile`
@@ -379,6 +411,7 @@ check_slave() {
 	slave_sql=`sed -ne 's/^.*Slave_SQL_Running: \(.*\)$/\1/p' < $tmpfile`
 	slave_io=`sed -ne 's/^.*Slave_IO_Running: \(.*\)$/\1/p' < $tmpfile`
 	last_errno=`sed -ne 's/^.*Last_Errno: \(.*\)$/\1/p' < $tmpfile`
+	secs_behind=`sed -ne 's/^.*Seconds_Behind_Master: \(.*\)$/\1/p' < $tmpfile`
 
 	if [ $last_errno -ne 0 ]; then
 	    # Whoa. Replication ran into an error. This slave has
@@ -403,6 +436,27 @@ check_slave() {
 	    ocf_log err "MySQL Slave SQL threads currently not running."
 	    ocf_log err "See $tmpfile for details"
 	    exit $OCF_ERR_GENERIC
+	fi
+
+	if ocf_is_true $OCF_RESKEY_evict_outdated_slaves; then
+	    # We're supposed to bail out if we lag too far
+	    # behind. Let's check our lag.
+	    if [ $secs_behind -gt $OCF_RESKEY_max_slave_lag ]; then
+		ocf_log err "MySQL Slave is $secs_behind seconds behind master (allowed maximum: $OCF_RESKEY_max_slave_lag)."
+		ocf_log err "See $tmpfile for details"
+		exit $OCF_ERR_INSTALLED
+	    fi
+	elif ocf_is_ms; then
+	    # Even if we're not set to evict lagging slaves, we can
+	    # still use the seconds behind master value to set our
+	    # master preference.
+	    local master_pref
+	    master_pref=$((${OCF_RESKEY_max_slave_lag}-${secs_behind}))
+	    if [ $master_pref -lt 0 ]; then
+		# Sanitize a below-zero preference to just zero
+		$master_pref=0
+	    fi
+	    $CRM_MASTER -v $master_pref
 	fi
 
 	ocf_log debug "MySQL instance running as a replication slave"
@@ -649,7 +703,7 @@ mysql_start() {
 	# won't ever promote us in the absence of any explicit
 	# preference set by the administrator. We choose a low
 	# greater-than-zero preference.
-	$CRM_MASTER -v 10
+	$CRM_MASTER -v 1
     fi
     
     ocf_log info "MySQL started"
@@ -712,7 +766,7 @@ mysql_promote() {
     # Existing master gets a higher-than-default master preference, so
     # the cluster manager does not shuffle the master role around
     # unnecessarily
-    $CRM_MASTER -v 100
+    $CRM_MASTER -v $OCF_RESKEY_max_slave_lag
 
     return $OCF_SUCCESS
 }
@@ -722,7 +776,7 @@ mysql_demote() {
 
     # Return master preference to default, so the cluster manager gets
     # a chance to select a new master
-    $CRM_MASTER -v 10
+    $CRM_MASTER -v 1
 }
 
 mysql_notify() {
