@@ -185,9 +185,18 @@ flushbufs() {
 
 # Take advantage of /etc/mtab if present, use portable mount command
 # otherwise. Normalize format to "dev mountpoint fstype".
+is_bind_mount() {
+	echo "$options" | grep -w bind >/dev/null 2>&1
+}
 list_mounts() {
-	if [ -f "/etc/mtab" -a -r "/etc/mtab" ]; then
-		cut -d' ' -f1,2,3 </etc/mtab
+	local inpf=""
+	if [ -e "/proc/mounts" ] && ! is_bind_mount; then
+		inpf=/proc/mounts
+	elif [ -f "/etc/mtab" -a -r "/etc/mtab" ]; then
+		inpf=/etc/mtab
+	fi
+	if [ "$inpf" ]; then
+		cut -d' ' -f1,2,3 < $inpf
 	else
 		$MOUNT | cut -d' ' -f1,3,5
 	fi
@@ -360,8 +369,7 @@ bind_kernel_check() {
 		ocf_log warn "kernel `uname -r` cannot handle read only bind mounts"
 }
 bind_mount() {
-	if echo "$options" | grep -w bind >/dev/null 2>&1 &&
-		[ "$options" != "-o bind" ]
+	if is_bind_mount && [ "$options" != "-o bind" ]
 	then
 		bind_kernel_check
 		bind_opts=`echo $options | sed 's/bind/remount/'`
