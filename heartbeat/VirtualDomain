@@ -353,8 +353,12 @@ VirtualDomain_Validate_All() {
     # check if we can read the config file (otherwise we're unable to
     # deduce $DOMAIN_NAME from it, see below)
     if [ ! -r $OCF_RESKEY_config ]; then
-	ocf_log error "Configuration file $OCF_RESKEY_config does not exist or is not readable."
-	return $OCF_ERR_INSTALLED
+	if ocf_is_probe; then
+	    ocf_log info "Configuration file $OCF_RESKEY_config not readable during probe."
+	else
+	    ocf_log error "Configuration file $OCF_RESKEY_config does not exist or is not readable."
+	    return $OCF_ERR_INSTALLED
+	fi
     fi
 }
 
@@ -374,6 +378,16 @@ esac
 
 # Everything except usage and meta-data must pass the validate test
 VirtualDomain_Validate_All || exit $?
+
+# During a probe, it is permissible for the config file to not be
+# readable (it might be on shared storage not available during the
+# probe). In that case, VirtualDomain_Define can't work and we're
+# unable to get the domain name. Thus, we also can't check whether the
+# domain is running. The only thing we can do here is to assume that
+# it is not running.
+if ocf_is_probe && [ ! -r $OCF_RESKEY_config ]; then
+    exit $OCF_NOT_RUNNING
+fi
 
 # Define the domain on startup, and re-define whenever someone deleted
 # the state file, or touched the config.
