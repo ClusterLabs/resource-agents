@@ -1,4 +1,5 @@
 * Tue Apr 13 2010 Dejan Muhamedagic <dejan@suse.de> and others
+- stable release 1.0.3
 - meta-data: improve timeouts in most resource agents (reduce the number of warnings by the shell)
 - RA: log messages to stderr if attached to a terminal
 - ocf-shellfuncs: tests to check for clone/ms resources
