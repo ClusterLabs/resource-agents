@@ -1,3 +1,33 @@
+* Tue Apr 13 2010 Dejan Muhamedagic <dejan@suse.de> and others
+- meta-data: improve timeouts in most resource agents (reduce the number of warnings by the shell)
+- RA: log messages to stderr if attached to a terminal
+- ocf-shellfuncs: tests to check for clone/ms resources
+- ocf-shellfuncs: don't output to stderr if using syslog (prevents double logging from the RA and lrmd)
+- make sure that OCF_RESKEY_CRM_meta_interval is always defined (lf#2284)
+- ocft: new RA test suite
+- VirtualDomain: bail out early if config file can't be read
+  during probe (nbc#593988)
+- VirtualDomain: spin on define until we definitely have a domain name
+- VirtualDomain: fix incorrect use of __OCF_ACTION (the stop operation may timeout otherwise)
+- Filesystem: prefer /proc/mounts to /etc/mtab for non-bind mounts (lf#2388)
+- IPaddr2: don't bring the interface down on stop (otherwise IPv6 addresses may be removed)
+- oracle/oralsnr: improve exit codes if the environment isn't valid
+- oracle/oralsnr: improve logging
+- Route: don't assume that OCF_RESKEY_CRM_meta_clone_node_max is set to a number (lf#2375)
+- Route: add route table parameter (lf#2335)
+- sfex: don't use pid file (lf#2363,bnc#585416)
+- SFEX daemon: fix logging
+- ldirectord: fix the configfile default (bnc#589457)
+- drbd: fix metadata (bnc#588684)
+- mysql: revert wrong patch erroneously included with ocft
+- mysql: update defaults to match sle11 installations (bnc#590447)
+- IPsrcaddr: modify the interface route (lf#2367)
+- ldirectord: Allow multiple email addresses (lf#2168)
+- vmware: fix set_environment() invocation (lf#2342)
+- vmware: updated to version 0.2
+- apache: return the right exit code from monitor (bnc#578628)
+- iSCSILogicalUnit: fix monitor for STGT
+
 * Mon Feb 01 2010 Dejan Muhamedagic <dejan@suse.de> and others
 - stable release 1.0.2
 - EvmsSCC, Evmsd, LinuxSCSI, drbd, pingd: marked as deprecated (lf#2244)
