@@ -20,8 +20,6 @@
 - SFEX daemon: fix logging
 - ldirectord: fix the configfile default (bnc#589457)
 - drbd: fix metadata (bnc#588684)
-- mysql: revert wrong patch erroneously included with ocft
-- mysql: update defaults to match sle11 installations (bnc#590447)
 - IPsrcaddr: modify the interface route (lf#2367)
 - ldirectord: Allow multiple email addresses (lf#2168)
 - vmware: fix set_environment() invocation (lf#2342)
