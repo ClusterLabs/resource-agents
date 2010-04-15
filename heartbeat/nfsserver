@@ -118,7 +118,7 @@ fp="$OCF_RESKEY_nfs_shared_infodir"
 
 nfsserver_monitor ()
 {
-	fn=`/bin/mktemp`
+	fn=`mktemp`
 	${OCF_RESKEY_nfs_init_script} status > $fn 2>&1 
 	rc=$?
 	ocf_log debug `cat $fn`
@@ -179,7 +179,7 @@ nfsserver_start ()
 
 	ocf_log info "Starting NFS server ..."
 
-	fn=`/bin/mktemp`
+	fn=`mktemp`
 	${OCF_RESKEY_nfs_init_script} start > $fn 2>&1
 	rc=$?
 	ocf_log debug `cat $fn`
@@ -203,7 +203,7 @@ nfsserver_stop ()
 {
 	ocf_log info "Stopping NFS server ..."
 
-	fn=`/bin/mktemp`
+	fn=`mktemp`
 	${OCF_RESKEY_nfs_init_script} stop > $fn 2>&1
 	rc=$?
 	ocf_log debug `cat $fn`
