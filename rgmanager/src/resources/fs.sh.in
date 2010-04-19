@@ -747,12 +747,12 @@ enable_fs_quotas()
 
 	if [ $need_check -eq 1 ]; then
 		ocf_log info "Checking quota info in $mp"
-		quotacheck -$quotaopts $mp
+		quotacheck -$quotaopts "$mp"
 	fi
 
 	ocf_log info "Enabling Quotas on $mp"
-	ocf_log debug "quotaon -$quotaopts $mp"
-	quotaon -$quotaopts $mp
+	ocf_log debug "quotaon -$quotaopts \"$mp\""
+	quotaon -$quotaopts "$mp"
 	rv=$?
 	if [ $rv -ne 0 ]; then
 		# Just a warning
@@ -815,7 +815,7 @@ startFilesystem: Mount point $mp exists but is not a directory"
 	else
 		ocf_log err "\
 startFilesystem: Creating mount point $mp for device $dev"
-		mkdir -p $mp
+		mkdir -p "$mp"
 	fi
 
 	#
@@ -835,7 +835,7 @@ startFilesystem: Creating mount point $mp for device $dev"
 	#
 	# See if the device is already mounted.
 	# 
-	isMounted $dev $mp
+	isMounted $dev "$mp"
 	case $? in
 	$YES)		# already mounted
 		ocf_log debug "$dev already mounted"
@@ -855,7 +855,7 @@ startFilesystem: Creating mount point $mp for device $dev"
 	# function checks to see if either the device or mount point are in
 	# use somewhere else on the system.
 	#
-	mountInUse $dev $mp
+	mountInUse $dev "$mp"
 	case $? in
 	$YES)		# uh oh, someone is using the device or mount point
 		ocf_log err "\
@@ -954,7 +954,7 @@ Unknown file system type '$fstype' for device $dev.  Assuming fsck is required."
 	#
 	ocf_log info "mounting $dev on $mp"
 	ocf_log debug "mount $fstype_option $mount_options $dev $mp"
-	mount $fstype_option $mount_options $dev $mp
+	mount $fstype_option $mount_options $dev "$mp"
 	ret_val=$?
 	if [ $ret_val -ne 0 ]; then
 		ocf_log err "\
@@ -968,12 +968,12 @@ Unknown file system type '$fstype' for device $dev.  Assuming fsck is required."
 	if [ $NFS_TRICKS -eq 0 ]; then
 		if [ "$OCF_RESKEY_nfslock" = "yes" ] || \
 	   	   [ "$OCF_RESKEY_nfslock" = "1" ]; then
-			mkdir -p $mp/.clumanager/statd
-			notify_list_merge $mp/.clumanager/statd
+			mkdir -p "$mp"/.clumanager/statd
+			notify_list_merge "$mp"/.clumanager/statd
 		fi
 	fi
 
-	enable_fs_quotas $opts $mp
+	enable_fs_quotas $opts "$mp"
 	
 	return $SUCCESS
 }
@@ -1050,7 +1050,7 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 	# Unmount the device.  
 	#
 	while [ ! "$done" ]; do
-		isMounted $dev $mp
+		isMounted $dev "$mp"
 		case $? in
 		$NO)
 			ocf_log info "$dev is not mounted"
@@ -1065,12 +1065,12 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 			quotaopts=$(quota_opts $OCF_RESKEY_options)
 			if [ -n "$quotaopts" ]; then
 				ocf_log debug "Turning off quotas for $mp"
-		       		quotaoff -$quotaopts $mp &> /dev/null
+				quotaoff -$quotaopts "$mp" &> /dev/null
 			fi
 
 
 			ocf_log info "unmounting $mp"
-			umount $mp
+			umount "$mp"
 			if  [ $? -eq 0 ]; then
 				umount_failed=
 				done=$YES
@@ -1088,10 +1088,10 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 				    ocf_log warning \
 					"Dropping node-wide NFS locks"
 				    pkill -KILL -x lockd
-	          		    mkdir -p $mp/.clumanager/statd
+				    mkdir -p "$mp"/.clumanager/statd
 				    # Copy out the notify list; our 
 				    # IPs are already torn down
-				    notify_list_store $mp/.clumanager/statd
+				    notify_list_store "$mp"/.clumanager/statd
 				    nfslock_reclaim=1
 				  fi
 				else
@@ -1115,7 +1115,7 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 
 	if [ $nfslock_reclaim -eq 1 ]; then
 		# If we have this flag set, do a full reclaim broadcast
-		notify_list_broadcast $mp/.clumanager/statd
+		notify_list_broadcast "$mp"/.clumanager/statd
 	fi
 
 	if [ -n "$umount_failed" ]; then
