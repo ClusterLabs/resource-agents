@@ -816,6 +816,12 @@ startFilesystem: Mount point $mp exists but is not a directory"
 		ocf_log err "\
 startFilesystem: Creating mount point $mp for device $dev"
 		mkdir -p "$mp"
+		ret_val=$?
+		if [ $ret_val -ne 0 ]; then
+			ocf_log err "\
+startFilesystem: Unable to create $mp.  Error code: $ret_val"
+			return $OCF_ERR_GENERIC
+		fi
 	fi
 
 	#
@@ -872,20 +878,6 @@ Cannot mount $dev on $mp, the device or mount point is already in use!"
 		return $FAIL
 		;;
 	esac
-
-	#
-	# Make sure the mount point exists.
-	#
-	if [ ! -d $mp ]; then
-		rm -f $mp			# rm in case its a plain file
-		mkdir -p $mp			# create the mount point
-		ret_val=$?
-		if [ $ret_val -ne 0 ]; then
-			ocf_log err \
-				"'mkdir -p $mp' failed, error=$ret_val"
-			return $FAIL
-		fi
-	fi
 
 	#
 	# Get the mount options, if they exist.

@@ -386,7 +386,13 @@ startFilesystem: Mount point $mp exists but is not a directory"
 	else
 		ocf_log info "\
 startFilesystem: Creating mount point $mp for $fullpath"
-		mkdir -p $mp
+		mkdir -p "$mp"
+		ret_val=$?
+		if [ $ret_val -ne 0 ]; then
+			ocf_log err "\
+startFilesystem: Unable to create $mp.  Error code: $ret_val"
+			return $OCF_ERR_GENERIC
+		fi
 	fi
 
 	#
