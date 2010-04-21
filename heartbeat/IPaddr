@@ -587,9 +587,10 @@ ip_stop() {
   rm -f "$VLDIR/$NIC"
 
   if [ $rc != 0 ]; then
-      ocf_log warn "IP Address $OCF_RESKEY_ip NOT released"
+      ocf_log warn "IP Address $OCF_RESKEY_ip NOT released: rc=$rc"
+      return $OCF_ERR_GENERIC
   fi
-  return $rc
+  return $OCF_SUCCESS
 }
 
 
