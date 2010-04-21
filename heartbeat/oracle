@@ -303,6 +303,12 @@ dbasql() {
 	execsql | grep -v '^Connected' |
 		grep -v '^ENV MSG:'
 }
+# use dbasql_one if the query should result in a single line output
+# at times people stuff commands in oracle .profile
+# which may produce extra output
+dbasql_one() {
+	dbasql $* | tail -1
+}
 
 #
 # various interesting sql
@@ -350,7 +356,7 @@ is_clear_backupmode_set(){
 }
 is_instance_in_backup_mode() {
 	local count
-	count="`dbasql db_backup_mode | sed 's/COUNT//'`"
+	count="`dbasql_one db_backup_mode | sed 's/COUNT//'`"
 	[ x"$count" != x"0" ]
 }
 clear_backup_mode() {
@@ -382,7 +388,7 @@ showdbstat() {
 
 # Part 1: Oracle
 dumpinstipc() {
-	local dumpdest=`dbasql getdumpdest`
+	local dumpdest=`dbasql_one getdumpdest`
 	if [ "x$dumpdest" == x -o ! -d "$dumpdest" ]; then
 		ocf_log warn "$dumpdest is not a directory"
 		return 1
@@ -463,11 +469,11 @@ is_oracle_up() {
 }
 # instance in OPEN state?
 instance_live() {
-	output=`dbasql dbstat`
-	if [ "$output" = OPEN ]; then
+	local status=`dbasql_one dbstat`
+	if [ "$status" = OPEN ]; then
 		return 0
 	else
-		ocf_log info "$ORACLE_SID instance state is not OPEN (dbstat output: $output)"
+		ocf_log info "$ORACLE_SID instance state is not OPEN (dbstat output: $status)"
 		return 1
 	fi
 }
@@ -505,7 +511,7 @@ ora_cleanup() {
 oracle_start() {
 	local status output
 	if is_oracle_up; then
-		status="`dbasql dbstat`"
+		status="`dbasql_one dbstat`"
 		case "$status" in
 		"OPEN")
 			: nothing to be done, we can leave right now
@@ -534,7 +540,7 @@ oracle_start() {
 	fi
 
 	# oracle instance should be mounted.
-	status="`dbasql dbstat`"
+	status="`dbasql_one dbstat`"
 	case "$status" in
 	"MOUNTED")
 		;;
