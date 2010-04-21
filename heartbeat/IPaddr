@@ -95,6 +95,16 @@ routing table.
 Do NOT specify an alias interface in the form eth0:1 or anything here;
 rather, specify the base interface only.
 
+Prerequisite:
+
+There must be at least one static IP address, which is not managed by
+the cluster, assigned to the network interface.
+
+If you can not assign any static IP address on the interface,
+modify this kernel parameter:
+sysctl -w net.ipv4.conf.all.promote_secondaries=1
+(or per device)
+
 </longdesc>
 <shortdesc lang="en">Network interface</shortdesc>
 <content type="string" default="eth0"/>
