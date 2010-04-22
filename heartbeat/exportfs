@@ -153,7 +153,7 @@ exportfs_start ()
 
 	RETRIES=0
 	while [ 1 ]; do
-		showmount -e | grep -P ^${OCF_RESKEY_directory}\ ${OCF_RESKEY_clientspec}$
+		showmount -e | grep -E "^${OCF_RESKEY_directory}[[:space:]]*${OCF_RESKEY_clientspec}$"
 		rc=$?
 		if [ $rc -eq 0 ]; then
 			break
