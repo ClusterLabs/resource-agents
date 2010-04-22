@@ -226,13 +226,14 @@ iSCSITarget_start() {
 		    --tid=${tid} \
 		    --params ${name}=${value} || return $OCF_ERR_GENERIC
 	    done
-	    # For iet, access to new targets is allowed by default. To
-	    # specifically enable access based on initiator address,
-	    # we must first deny access to the target globally, then
-	    # re-enable by specific initiator.
+	    # Legacy versions of IET allow targets by default, current
+	    # versions deny. To be safe we manage both the .allow and
+	    # .deny files.
 	    if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
 		echo "${OCF_RESKEY_iqn} ALL" >> /etc/initiators.deny
 		echo "${OCF_RESKEY_iqn} ${OCF_RESKEY_allowed_initiators// /,}" >> /etc/initiators.allow
+	    else
+		echo "${OCF_RESKEY_iqn} ALL" >> /etc/initiators.allow
 	    fi
 	    # In iet, adding a new user and assigning it to a target
 	    # is one operation.
