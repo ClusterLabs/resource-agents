@@ -264,7 +264,7 @@ case $__OCF_ACTION in
 		;;
 	stop)		exportfs_stop
 		;;
-	monitor)	exportfs_monitor
+	status|monitor)	exportfs_monitor
 		;;
 	backup)		exportfs_backup
 		;;
