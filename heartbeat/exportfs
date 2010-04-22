@@ -218,10 +218,26 @@ exportfs_backup ()
 
 exportfs_validate ()
 {
-	if [ -d $OCF_RESKEY_directory ]; then
-		return $OCF_SUCCESS
-	else
-		exit $OCF_ERR_ARGS
+	# Checks for required parameters
+	if [ -z $OCF_RESKEY_directory ]; then
+		ocf_log err "Missing required parameter \"directory\""
+		exit $OCF_ERR_CONFIGURED
+	fi
+	if [ -z $OCF_RESKEY_fsid ]; then
+		ocf_log err "Missing required parameter \"fsid\""
+		exit $OCF_ERR_CONFIGURED
+	fi
+	if [ -z $OCF_RESKEY_clientspec ]; then
+		ocf_log err "Missing required parameter \"clientspec\""
+		exit $OCF_ERR_CONFIGURED
+	fi
+	
+	# Checks applicable only to non-probes
+	if ! ocf_is_probe; then
+		if [ ! -d $OCF_RESKEY_directory ]; then
+			ocf_log err "$OCF_RESKEY_directory does not exist or is not a directory"
+			exit $OCF_ERR_INSTALLED
+		fi
 	fi
 }
 
