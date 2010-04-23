@@ -140,16 +140,7 @@ exportfs_start ()
 	fi
 	OPTIONS="-o ${OPTIONS}"
 
-	fn=`/bin/mktemp`
-	exportfs ${OPTIONS} ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory} > $fn 2>&1
-	rc=$?
-
-	if [ $rc -ne 0 ]; then
-		ocf_log debug "Error invoking exportfs: `cat $fn`"
-		ocf_log err "Failed to export file system"
-		return $rc
-	fi	
-	rm -f $fn
+	ocf_run exportfs ${OPTIONS} ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory} || exit $OCF_ERR_GENERIC
 
 	RETRIES=0
 	while [ 1 ]; do
@@ -184,8 +175,7 @@ exportfs_stop ()
 {
 	ocf_log info "Un-exporting file system ..."
 
-	fn=`/bin/mktemp`
-	exportfs -u ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory} > $fn 2>&1
+	ocf_run exportfs -u ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory}
 	rc=$?
 
 	if [ -f ${OCF_RESKEY_directory}/.exportfs_backup.pid ]; then
@@ -197,14 +187,12 @@ exportfs_stop ()
 	clean_rmtab
 
 	if [ $rc -eq 0 ]; then
-		ocf_log debug "Error invoking exportfs: `cat $fn`"
 		ocf_log info "Un-exported file system"
 		return $OCF_SUCCESS
 	fi
-	rm -f $fn
 
 	ocf_log err "Failed to un-export file system"
-	return $rc
+	exit $OCF_ERR_GENERIC
 }
 
 exportfs_backup ()
