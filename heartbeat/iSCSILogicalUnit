@@ -2,9 +2,10 @@
 #
 #
 #   iSCSILogicalUnit OCF RA. Exports and manages iSCSI Logical Units.
+#
+#   (c) 2009-2010 Florian Haas, Dejan Muhamedagic,
+#                 and Linux-HA contributors
 #				  
-#       Copyright (c) 2009 LINBIT HA-Solutions GmbH, Florian Haas
-# 			 All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of version 2 of the GNU General Public License as

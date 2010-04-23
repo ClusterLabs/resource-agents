@@ -6,6 +6,9 @@
 #   Resource Agent for domains managed by the libvirt API.
 #   Requires a running libvirt daemon (libvirtd).
 #
+#   (c) 2008-2010 Florian Haas, Dejan Muhamedagic,
+#                 and Linux-HA contributors
+#
 #	usage: $0 {start|stop|status|monitor|migrate_to|migrate_from|meta-data|validate-all}
 #
 #######################################################################

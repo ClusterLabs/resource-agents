@@ -4,17 +4,19 @@
 # MySQL
 #
 # Description:	Manages a MySQL database as Linux-HA resource
-
 #
-# Author:	Alan Robertson 		: DB2 Script
-# Author:	Jakub Janczak  		: Rewrite as MySQL
-# Author:	Andrew Beekhof 		: Cleanup and import
-# Author:	Sebastian Reitenbach    : add OpenBSD defaults, more cleanup
-# Author:  Narayan Newton      : Add Gentoo/Debian defaults
+# Authors:	Alan Robertson:               DB2 Script
+#		Jakub Janczak:                rewrite as MySQL
+#		Andrew Beekhof:               cleanup and import
+#		Sebastian Reitenbach:         add OpenBSD defaults, more cleanup
+#		Narayan Newton:               add Gentoo/Debian defaults
+#		Marian Marinov, Florian Haas: add replication capability
 #
 # Support:	linux-ha@lists.linux-ha.org
 # License:	GNU General Public License (GPL)
-# Copyright:	(C) 2002 - 2005 International Business Machines, Inc.
+#
+# (c) 2002-2005 International Business Machines, Inc.
+#     2005-2010 Linux-HA contributors
 #
 # An example usage in /etc/ha.d/haresources:
 #       node1  10.0.0.170 mysql

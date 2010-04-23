@@ -2,7 +2,10 @@
 # exportfs
 #
 # Description: Manages nfs exported file system.
-# by btimby@gmail.com
+#
+#   (c) 2010 Ben Timby, Florian Haas, Dejan Muhamedagic,
+#            and Linux-HA contributors
+#
 # License: GNU General Public License v2 (GPLv2) and later
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
