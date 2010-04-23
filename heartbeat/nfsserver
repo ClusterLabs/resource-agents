@@ -193,7 +193,11 @@ nfsserver_start ()
 	#Notify the nfs server has been moved or rebooted
 	#The init script do that already, but with the hostname, which may be ignored by client
 	#we have to do it again with the nfs_ip 
-	${OCF_RESKEY_nfs_notify_cmd} -v $OCF_RESKEY_nfs_ip -P /var/lib/nfs/sm.ha
+	if echo $OCF_RESKEY_nfs_notify_cmd | grep -qws rpc.statd; then
+		${OCF_RESKEY_nfs_notify_cmd} $OCF_RESKEY_nfs_ip -P /var/lib/nfs/sm.ha
+	else 
+		${OCF_RESKEY_nfs_notify_cmd} -v $OCF_RESKEY_nfs_ip -P /var/lib/nfs/sm.ha
+	fi
 
 	ocf_log info "NFS server started"
 	return $OCF_SUCCESS
