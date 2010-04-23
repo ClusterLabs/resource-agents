@@ -51,7 +51,7 @@ The nfsserver resource agent use this command to notify all clients about the ha
 <shortdesc lang="en">
 The tool to send out notification.
 </shortdesc>
-<content type="string" default="$DEFAULT_NOTIFY_CMD/sbin/sm-notify" />
+<content type="string" default="$DEFAULT_NOTIFY_CMD" />
 </parameter>
 
 <parameter name="nfs_shared_infodir" unique="0" required="1">
