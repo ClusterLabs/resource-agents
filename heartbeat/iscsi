@@ -41,7 +41,7 @@
 usage() {
   methods=`iscsi_methods`
   methods=`echo $methods | tr ' ' '|'`
-  cat <<-!
+  cat <<EOF
 	usage: $0 {$methods}
 
 	$0 manages an iSCSI target
@@ -53,11 +53,11 @@ usage() {
 	The 'validate-all' operation reports whether the parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
-	!
+EOF
 }
 
 meta_data() {
-	cat <<END
+	cat <<EOF
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="iscsi">
@@ -128,11 +128,11 @@ until a timeout occurs.
 <action name="meta-data" timeout="5" />
 </actions>
 </resource-agent>
-END
+EOF
 }
 
 iscsi_methods() {
-  cat <<-!
+  cat <<EOF
 	start
 	stop
 	status
@@ -141,7 +141,7 @@ iscsi_methods() {
 	methods
 	meta-data
 	usage
-	!
+EOF
 }
 
 #
