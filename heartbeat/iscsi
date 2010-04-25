@@ -38,6 +38,15 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
 
+# Defaults
+OCF_RESKEY_udev_default="yes"
+OCF_RESKEY_iscsiadm_default="iscsiadm"
+OCF_RESKEY_discovery_type_default="sendtargets"
+
+: ${OCF_RESKEY_udev=${OCF_RESKEY_udev_default}}
+: ${OCF_RESKEY_iscsiadm=${OCF_RESKEY_iscsiadm_default}}
+: ${OCF_RESKEY_discovery_type=${OCF_RESKEY_discovery_type_default}}
+
 usage() {
   methods=`iscsi_methods`
   methods=`echo $methods | tr ' ' '|'`
@@ -75,16 +84,16 @@ targets.
 <longdesc lang="en">
 The iSCSI portal address in the form: {ip_address|hostname}[":"port]
 </longdesc>
-<shortdesc lang="en">portal</shortdesc>
-<content type="string" default="" />
+<shortdesc lang="en">Portal address</shortdesc>
+<content type="string" />
 </parameter>
 
 <parameter name="target" unique="1" required="1">
 <longdesc lang="en">
-The iSCSI target.
+The iSCSI target IQN.
 </longdesc>
-<shortdesc lang="en">target</shortdesc>
-<content type="string" default="" />
+<shortdesc lang="en">Target IQN</shortdesc>
+<content type="string" />
 </parameter>
 
 <parameter name="discovery_type" unique="0" required="0">
@@ -92,16 +101,16 @@ The iSCSI target.
 Discovery type. Currently, with open-iscsi, only the sendtargets
 type is supported.
 </longdesc>
-<shortdesc lang="en">discovery_type</shortdesc>
-<content type="string" default="sendtargets" />
+<shortdesc lang="en">Target discovery type</shortdesc>
+<content type="string" default="${OCF_RESKEY_discovery_type_default}" />
 </parameter>
 
 <parameter name="iscsiadm" unique="0" required="0">
 <longdesc lang="en">
-iscsiadm program path.
+open-iscsi administration utility binary.
 </longdesc>
-<shortdesc lang="en">iscsiadm</shortdesc>
-<content type="string" default="" />
+<shortdesc lang="en">iscsiadm binary</shortdesc>
+<content type="string" default="${OCF_RESKEY_iscsiadm_default}" />
 </parameter>
 
 <parameter name="udev" unique="0" required="0">
@@ -113,7 +122,7 @@ using udev set this to "no", otherwise we will spin in a loop
 until a timeout occurs.
 </longdesc>
 <shortdesc lang="en">udev</shortdesc>
-<content type="string" default="yes" />
+<content type="string" default="${OCF_RESKEY_udev_default}" />
 </parameter>
 
 </parameters>
@@ -161,7 +170,7 @@ open_iscsi_setup() {
 	add_disk=open_iscsi_add
 	remove_disk=open_iscsi_remove
 	disk_status=open_iscsi_status
-	iscsiadm=${OCF_RESKEY_iscsiadm:-"iscsiadm"}
+	iscsiadm=${OCF_RESKEY_iscsiadm}
 
 	which $iscsiadm >/dev/null || {
 		ocf_log err "iscsiadm not available; please set OCF_RESKEY_iscsiadm"
@@ -336,8 +345,8 @@ if [ `id -u` != 0 ]; then
 	exit $OCF_ERR_PERM
 fi
 
-discovery_type=${OCF_RESKEY_discovery_type:-"sendtargets"}
-udev=${OCF_RESKEY_udev:-"yes"}
+discovery_type=${OCF_RESKEY_discovery_type}
+udev=${OCF_RESKEY_udev}
 $discovery  # discover and setup the real portal string (address)
 case $? in
 0) ;;
