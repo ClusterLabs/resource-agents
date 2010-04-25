@@ -98,8 +98,8 @@ The iSCSI target IQN.
 
 <parameter name="discovery_type" unique="0" required="0">
 <longdesc lang="en">
-Discovery type. Currently, with open-iscsi, only the sendtargets
-type is supported.
+Target discovery type. Check the open-iscsi documentation for
+supported discovery types.
 </longdesc>
 <shortdesc lang="en">Target discovery type</shortdesc>
 <content type="string" default="${OCF_RESKEY_discovery_type_default}" />
