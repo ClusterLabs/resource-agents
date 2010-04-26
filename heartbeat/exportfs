@@ -202,15 +202,15 @@ exportfs_backup ()
 exportfs_validate ()
 {
 	# Checks for required parameters
-	if [ -z $OCF_RESKEY_directory ]; then
+	if [ -z "$OCF_RESKEY_directory" ]; then
 		ocf_log err "Missing required parameter \"directory\""
 		exit $OCF_ERR_CONFIGURED
 	fi
-	if [ -z $OCF_RESKEY_fsid ]; then
+	if [ -z "$OCF_RESKEY_fsid" ]; then
 		ocf_log err "Missing required parameter \"fsid\""
 		exit $OCF_ERR_CONFIGURED
 	fi
-	if [ -z $OCF_RESKEY_clientspec ]; then
+	if [ -z "$OCF_RESKEY_clientspec" ]; then
 		ocf_log err "Missing required parameter \"clientspec\""
 		exit $OCF_ERR_CONFIGURED
 	fi
