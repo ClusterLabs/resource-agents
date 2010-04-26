@@ -60,18 +60,15 @@ check_binary () {
     else
 	if [ "$OCF_NOT_RUNNING" = 7 ]; then
 	    # Chances are we have a fully setup OCF environment
-	    ocf_log err "Setup problem: Couldn't find utility $1"
+	    ocf_log err "Setup problem: couldn't find command: $1"
 	else 
-	    echo "Setup problem: Couldn't find utility $1"
+	    echo "Setup problem: couldn't find command: $1"
 	fi
 	exit $OCF_ERR_INSTALLED
     fi
 }
 
 have_binary () {
-    bin=`echo $1 | sed -e 's/ -.*//'`
-    if [ -x "`which $bin 2>/dev/null`" ]; then
-	return 0
-    fi
-    return 1
+    local bin=`echo $1 | sed -e 's/ -.*//'`
+    test -x "`which $bin 2>/dev/null`"
 }
