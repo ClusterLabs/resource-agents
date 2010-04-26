@@ -172,10 +172,8 @@ open_iscsi_setup() {
 	disk_status=open_iscsi_status
 	iscsiadm=${OCF_RESKEY_iscsiadm}
 
-	which $iscsiadm >/dev/null || {
-		ocf_log err "iscsiadm not available; please set OCF_RESKEY_iscsiadm"
-		return $OCF_ERR_INSTALLED
-	}
+	check_binary ${iscsiadm}
+
 	open_iscsi_daemon ||
 		return $OCF_ERR_INSTALLED
 }
