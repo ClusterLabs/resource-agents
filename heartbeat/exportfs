@@ -97,18 +97,18 @@ END
 
 backup_rmtab ()
 {
-	grep :${OCF_RESKEY_directory}: /var/lib/nfs/rmtab > ${OCF_RESKEY_directory}/.rmtab
+	grep :${OCF_RESKEY_directory}: $RMTAB > $FS_RMTAB
 }
 
 clean_rmtab ()
 {
 	REMOVE=`echo ${OCF_RESKEY_directory} | sed 's/\//\\\\\//g'`
-	sed -i -e /:${REMOVE}:/d /var/lib/nfs/rmtab
+	sed -i -e /:${REMOVE}:/d $RMTAB
 }
 
 exportfs_monitor ()
 {
-	grep -qs "${OCF_RESKEY_directory}" /var/lib/nfs/etab
+	grep -qs "${OCF_RESKEY_directory}" $RMTAB
 
 #Adapt grep status code to OCF return code
 	case $? in
@@ -154,9 +154,9 @@ exportfs_start ()
 	done
 
 	#restore saved rmtab backup from other server:
-	if [ -f ${OCF_RESKEY_directory}/.rmtab ]; then
-		cat ${OCF_RESKEY_directory}/.rmtab >> /var/lib/nfs/rmtab
-		rm -f ${OCF_RESKEY_directory}/.rmtab
+	if [ -f $FS_RMTAB ]; then
+		cat $FS_RMTAB >> $RMTAB
+		rm -f $FS_RMTAB
 	fi
 
 	#spawn our background process to backup the rmtab each 2 seconds
@@ -173,9 +173,9 @@ exportfs_stop ()
 	ocf_run exportfs -u ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory}
 	rc=$?
 
-	if [ -f ${OCF_RESKEY_directory}/.exportfs_backup.pid ]; then
-		kill `cat ${OCF_RESKEY_directory}/.exportfs_backup.pid`
-		rm ${OCF_RESKEY_directory}/.exportfs_backup.pid
+	if [ -f $PIDF ]; then
+		kill `cat $PIDF`
+		rm $PIDF
 	fi
 
 	backup_rmtab
@@ -192,7 +192,7 @@ exportfs_stop ()
 
 exportfs_backup ()
 {
-	echo $$ > ${OCF_RESKEY_directory}/.exportfs_backup.pid
+	echo $$ > $PIDF
 	while [ 1 ]; do
 		backup_rmtab
 		sleep 2
@@ -228,6 +228,10 @@ if [ $# -ne 1 ]; then
 	exportfs_usage
 	exit $OCF_ERR_ARGS
 fi
+
+RMTAB=/var/lib/nfs/rmtab
+PIDF=${OCF_RESKEY_directory}/.exportfs_backup.pid
+FS_RMTAB=${OCF_RESKEY_directory}/.rmtab
 
 case $__OCF_ACTION in
 	meta-data)  exportfs_meta_data
