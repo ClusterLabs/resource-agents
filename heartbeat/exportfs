@@ -108,22 +108,14 @@ clean_rmtab ()
 
 exportfs_monitor ()
 {
-	fn=`/bin/mktemp`
-	grep "${OCF_RESKEY_directory}" /var/lib/nfs/etab > $fn 2>&1
-	rc=$?
+	grep -qs "${OCF_RESKEY_directory}" /var/lib/nfs/etab
 
 #Adapt grep status code to OCF return code
-	if [ $rc -eq 0 ]; then
-		ocf_log debug `cat $fn`
-		rm -f $fn
-		return $OCF_SUCCESS
-	elif [ $rc -eq 1 ]; then
-		rm -f $fn
-		return $OCF_NOT_RUNNING
-	else
-		rm -f $fn
-		return $OCF_ERR_GENERIC
-	fi
+	case $? in
+	0) return $OCF_SUCCESS;;
+	1) return $OCF_NOT_RUNNING;;
+	*) return $OCF_ERR_GENERIC;;
+	esac
 }
 
 exportfs_start ()
