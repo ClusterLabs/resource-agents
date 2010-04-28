@@ -2,7 +2,8 @@ MAINTAINERCLEANFILES	= Makefile.in
 
 TARGET			= config-utils.sh
 
-commonscripts		= httpd-parse-config.pl \
+commonscripts		= fs-lib.sh \
+			  httpd-parse-config.pl \
 			  member_util.sh \
 			  messages.sh \
 			  named-parse-config.pl \

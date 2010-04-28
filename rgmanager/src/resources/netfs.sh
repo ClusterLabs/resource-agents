@@ -4,25 +4,9 @@
 # NFS/CIFS file system mount/umount/etc. agent
 #
 
-LC_ALL=C
-LANG=C
-PATH=/bin:/sbin:/usr/bin:/usr/sbin
-export LC_ALL LANG PATH
+. $(dirname $0)/utils/fs-lib.sh
 
-#
-# XXX todo - search and replace on these
-#
-SUCCESS=0
-FAIL=2
-YES=0
-NO=1
-YES_STR="yes"
-
-
-. $(dirname $0)/ocf-shellfuncs
-
-
-meta_data()
+do_metadata()
 {
 	cat <<EOT
 <?xml version="1.0" ?>
@@ -154,33 +138,6 @@ EOT
 }
 
 
-verify_name()
-{
-	[ -n "$OCF_RESKEY_name" ] || exit $OCF_ERR_ARGS
-}
-
-
-verify_mountpoint()
-{
-	if [ -z "$OCF_RESKEY_mountpoint" ]; then
-		ocf_log err "No mount point specified."
-		return $OCF_ERR_ARGS
-	fi
-
-	if ! [ -e "$OCF_RESKEY_mountpoint" ]; then
-		ocf_log info "Mount point $OCF_RESKEY_mountpoint will be created "\
-		     "at mount time."
-		return 0
-	fi
-
-	[ -d "$OCF_RESKEY_mountpoint" ] && return 0
-
-	ocf_log err "$OCF_RESKEY_mountpoint is not a directory"
-	
-	return 1
-}
-
-
 verify_host()
 {
 	if [ -z "$OCF_RESKEY_host" ]; then
@@ -298,116 +255,45 @@ verify_options()
 }
 
 
-verify_all()
+do_validate()
 {
 	verify_name || return $OCF_ERR_ARGS
 	verify_fstype|| return $OCF_ERR_ARGS
 	verify_host || return $OCF_ERR_ARGS
 	verify_mountpoint || return $OCF_ERR_ARGS
 	verify_options || return $OCF_ERR_ARGS
+	# verify_target || return $OCF_ERR_ARGS
 }
 
 
-
 #
-# isMounted fullpath mount_point
+# Override real_device to use fs-lib's functions for start/stop_filesystem
 #
-# Check to see if the full path is mounted where we need it.
-#
-isMounted () {
-
-	typeset mp tmp_mp
-	typeset fullpath tmp_fullpath
-
-	if [ $# -ne 2 ]; then
-		ocf_log err "Usage: isMounted host:/export mount_point"
-		return $FAIL
-	fi
-
-	fullpath=$1
-	mp=$(readlink -f $2)
-
-	while read tmp_fullpath tmp_mp
-	do
-		if [ "$tmp_fullpath" = "$fullpath" -a \
-		     "$tmp_mp" = "$mp" ]; then
-			return $YES
-		fi
-	done < <(mount | awk '{print $1,$3}')
-
-	return $NO
+real_device() {
+	export REAL_DEVICE="$1"
 }
 
+
 #
-# startNFSFilesystem
+# do_mount - nfs / cifs are mounted differently than blockdevs
 #
-startNFSFilesystem() {
-	typeset -i ret_val=$SUCCESS
-	typeset mp=""			# mount point
-	typeset host=""
-	typeset fullpath=""
-	typeset exp=""
-	typeset opts=""
-	typeset mount_options=""
+do_mount() {
+	declare opts=""
+	declare mount_options=""
+	declare ret_val
+	declare mp="$OCF_RESKEY_mountpoint"
 
 	#
-	# Get the mount point, if it exists.  If not, no need to continue.
+	# Get the filesystem type, if specified.
 	#
-	mp=${OCF_RESKEY_mountpoint}
-	case "$mp" in 
-      	""|"[ 	]*")		# nothing to mount
-    		return $SUCCESS
-    		;;
-	/*)			# found it
-	  	;;
-	*)	 		# invalid format
-			ocf_log err \
-"startFilesystem: Invalid mount point format (must begin with a '/'): \'$mp\'"
-	    	return $FAIL
-	    	;;
-	esac
-	#
-	# Get the device
-	#
-	host=${OCF_RESKEY_host}
-	exp=${OCF_RESKEY_export}
-
-	fullpath=$host:$exp
-
-	#
-	# Ensure we've got a valid directory
-	#
-	if [ -e "$mp" ]; then
-		if ! [ -d "$mp" ]; then
-			ocf_log err "\
-startFilesystem: Mount point $mp exists but is not a directory"
-			return $FAIL
-		fi
-	else
-		ocf_log info "\
-startFilesystem: Creating mount point $mp for $fullpath"
-		mkdir -p "$mp"
-		ret_val=$?
-		if [ $ret_val -ne 0 ]; then
-			ocf_log err "\
-startFilesystem: Unable to create $mp.  Error code: $ret_val"
-			return $OCF_ERR_GENERIC
-		fi
-	fi
-
-	#
-	# See if the mount path is already mounted.
-	# 
-	isMounted $fullpath $mp
-	case $? in
-	$YES)		# already mounted
-		ocf_log debug "$fullpath already mounted on $mp"
-		return $SUCCESS
+	fstype_option=""
+	fstype=${OCF_RESKEY_fstype}
+		case "$fstype" in
+	""|"[ 	]*")
+		fstype=""
 		;;
-	$NO)		# not mounted, continue
-		;;
-	$FAIL)
-		return $FAIL
+	*)	# found it
+		fstype_option="-t $fstype"
 		;;
 	esac
 
@@ -425,154 +311,37 @@ startFilesystem: Unable to create $mp.  Error code: $ret_val"
 		;;
 	esac
 
-	#
-	# Mount the NFS export
-	#
-	ocf_log debug "mount $fstype_option $mount_options $fullpath $mp"
-
         case $OCF_RESKEY_fstype in
-		nfs|nfs4)
-			mount -t $OCF_RESKEY_fstype $mount_options $host:$exp $mp
-			;;
-		cifs)
-			mount -t $OCF_RESKEY_fstype $mount_options //$host/$exp $mp
-			;;
+	nfs|nfs4)
+		mount -t $OCF_RESKEY_fstype $mount_options $OCF_RESKEY_host:"$OCF_RESKEY_export" "$mp"
+		;;
+	cifs)
+		mount -t $OCF_RESKEY_fstype $mount_options //$OCF_RESKEY_host/"$OCF_RESKEY_export" "$mp"
+		;;
 	esac
 
 	ret_val=$?
 	if [ $ret_val -ne 0 ]; then
 		ocf_log err "\
-'mount $fstype_option $mount_options $fullpath $mp' failed, error=$ret_val"
-		return $FAIL
+'mount $fstype_option $mount_options $OCF_RESKEY_host:$OCF_RESKEY_export $mp' failed, error=$ret_val"
+		return 1
 	fi
 	
-	return $SUCCESS
+	return 0
 }
 
 
-#
-# stopFilesystem serviceID deviceID
-#
-# Run the stop actions
-#
-stopNFSFilesystem() {
-	typeset -i ret_val=0
-	typeset -i try=1
-	typeset -i max_tries=3		# how many times to try umount
-	typeset -i sleep_time=2		# time between each umount failure
-	typeset done=""
-	typeset umount_failed=""
-	typeset no_umount=""
-	typeset force_umount=""
-	typeset fstype=""
-
-
-	#
-	# Get the mount point, if it exists.  If not, no need to continue.
-	#
-	mp=${OCF_RESKEY_mountpoint}
-	case "$mp" in 
-      	""|"[ 	]*")		# nothing to mount
-    		return $SUCCESS
-    		;;
-	/*)			# found it
-	  	;;
-	*)	 		# invalid format
-			ocf_log err \
-"stopNFSFilesystem: Invalid mount point format (must begin with a '/'): \'$mp\'"
-	    	return $FAIL
-	    	;;
-	esac
-	
-	#
-	# Get the host/path
-	#
-	fullpath="${OCF_RESKEY_host}:${OCF_RESKEY_export}"
-
-	#
-	# Get the force unmount setting if there is a mount point.
-	#
-	if [ -n "$mp" ]; then
-		case ${OCF_RESKEY_force_unmount} in
-	        $YES_STR)	force_umount="$YES" ;;
-		1)		force_umount="$YES" ;;
-	        *)		force_umount="" ;;
-		esac
-	fi
-
-	#
-	# Unmount
-	#
-        while [ ! "$done" ]; do
-	isMounted $fullpath $mp
-	case $? in
-	$NO)
-		ocf_log debug "$fullpath is not mounted"
-		umount_failed=
-		done=$YES
-		;;
-	$FAIL)
-		return $FAIL
-		;;
-	$YES)
-		case ${OCF_RESKEY_no_unmount} in
-                $YES_STR)       no_umount="$YES" ;;
-                1)              no_umount="$YES" ;;
-                *)              no_umount="" ;;
-                esac
-		
-		if [ "$no_umount" ]; then
-				ocf_log info "skipping unmount operation of $mp"
-				return $SUCCESS
-		fi
-
-		sync; sync; sync
-                        ocf_log info "unmounting $mp"
-
-                        umount $mp
-		if  [ $? -eq 0 ]; then
-                                umount_failed=
-                                done=$YES
-                                continue
-		fi
-
-		umount_failed=yes
-
-		if [ "$force_umount" ]; then
-			if [ $try -eq 1 ]; then
-				fuser -TERM -kvm "$mp"
-			else
-				fuser -kvm "$mp"
-			fi
-		fi
-
-
-		if [ $try -ge $max_tries ]; then
-			done=$YES
-		else
-			sleep $sleep_time
-			let try=try+1
-                        fi
+do_force_unmount() {
+        case $OCF_RESKEY_fstype in
+	nfs|nfs4)
+		ocf_log warning "Calling 'umount -f $mp'"
+		umount -f "$OCF_RESKEY_mountpoint"
 		;;
 	*)
-		return $FAIL
 		;;
 	esac
 
-                if [ $try -ge $max_tries ]; then
-                        done=$YES
-                else
-                        sleep $sleep_time
-                        let try=try+1
-                fi
-        done # while
-	if [ -n "$umount_failed" ]; then
-		ocf_log err "'umount $fullpath' failed ($mp), error=$ret_val"
-
-		return $FAIL
-	fi
-
-	return $SUCCESS
+	return 0	# Returning 0 lets stop_filesystem do add'l checks
 }
 
 
@@ -582,57 +351,26 @@ populate_defaults()
 		export OCF_RESKEY_fstype=nfs
 	fi
 
-	if [ -z "$OCF_RESKEY_options" ]; then
-		export OCF_RESKEY_options=sync,soft,noac
-	fi
+
+        case $OCF_RESKEY_fstype in
+	nfs|nfs4)
+		export OCF_RESKEY_device="$OCF_RESKEY_host:$OCF_RESKEY_export"
+		if [ -z "$OCF_RESKEY_options" ]; then
+			export OCF_RESKEY_options=sync,soft,noac
+		fi
+		;;
+	cifs)
+		export OCF_RESKEY_device="//$OCF_RESKEY_host/$OCF_RESKEY_export"
+		if [ -z "$OCF_RESKEY_options" ]; then
+			export OCF_RESKEY_options=guest
+		fi
+		;;
+	esac
 }
 
 
 #
 # Main...
 #
-
 populate_defaults
-
-case $1 in
-start)
-	startNFSFilesystem
-	exit $?
-	;;
-stop)
-	stopNFSFilesystem
-	exit $?
-	;;
-status|monitor)
-	isMounted ${OCF_RESKEY_host}:${OCF_RESKEY_export} \
-		${OCF_RESKEY_mountpoint}
-	exit $?
-	;;
-restart)
-	stopNFSFilesystem
-	if [ $? -ne 0 ]; then
-		exit $OCF_ERR_GENERIC
-	fi
-
-	startNFSFilesystem
-	if [ $? -ne 0 ]; then
-		exit $OCF_ERR_GENERIC
-	fi
-
-	exit 0
-	;;
-meta-data)
-	meta_data
-	exit 0
-	;;
-validate-all)
-	verify_all
-	exit $?
-	;;
-*)
-	echo "usage: $0 {start|stop|status|monitor|restart|meta-data|validate-all}"
-	exit $OCF_ERR_UNIMPLEMENTED
-	;;
-esac
-
-exit 0
+main $*
