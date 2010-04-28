@@ -17,19 +17,6 @@ export LC_ALL LANG PATH
 rv=0
 
 ################################################################################
-# clvm_check
-#
-################################################################################
-function clvm_check
-{
-	if [[ $(vgs -o attr --noheadings $1) =~ .....c ]]; then
-		return 1
-	fi
-
-	return 0
-}
-
-################################################################################
 # ha_lvm_proper_setup_check
 #
 ################################################################################
@@ -87,17 +74,9 @@ function ha_lvm_proper_setup_check
 
 case $1 in
 start)
-	##
-	# We can safely ignore clustered volume groups (VGs handled by CLVM)
-	##
-	if ! clvm_check $OCF_RESKEY_vg_name; then
-		ocf_log notice "$OCF_RESKEY_vg_name is a cluster volume.  Ignoring..."
-		exit 0
+	if ! [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
+		ha_lvm_proper_setup_check || exit 1
 	fi
-
-	ha_lvm_proper_setup_check || exit 1
-
-	rv=0
 
 	if [ -z $OCF_RESKEY_lv_name ]; then
 		vg_start || exit 1
@@ -114,20 +93,13 @@ status|monitor)
 	else
 		lv_status || exit 1
 	fi
-	rv=0
 	;;
 		    
 stop)
-	##
-	# We can safely ignore clustered volume groups (VGs handled by CLVM)
-	##
-	if ! clvm_check $OCF_RESKEY_vg_name; then
-		ocf_log notice "$OCF_RESKEY_vg_name is a cluster volume.  Ignoring..."
-		exit 0
-	fi
-
-	if ! ha_lvm_proper_setup_check; then
-		ocf_log err "WARNING: An improper setup can cause data corruption!"
+	if ! [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
+		if ! ha_lvm_proper_setup_check; then
+			ocf_log err "WARNING: An improper setup can cause data corruption!"
+		fi
 	fi
 
 	if [ -z $OCF_RESKEY_lv_name ]; then
@@ -135,35 +107,23 @@ stop)
 	else
 		lv_stop || exit 1
 	fi
-	rv=0
 	;;
 
 recover|restart)
 	$0 stop || exit $OCF_ERR_GENERIC
 	$0 start || exit $OCF_ERR_GENERIC
-	rv=0
 	;;
 
 meta-data)
 	cat `echo $0 | sed 's/^\(.*\)\.sh$/\1.metadata/'`
-	rv=0
 	;;
 
 validate-all|verify-all)
-	##
-	# We can safely ignore clustered volume groups (VGs handled by CLVM)
-	##
-	if ! clvm_check $OCF_RESKEY_vg_name; then
-		ocf_log notice "$OCF_RESKEY_vg_name is a cluster volume.  Ignoring..."
-		exit 0
-	fi
-
 	if [ -z $OCF_RESKEY_lv_name ]; then
 		vg_verify || exit 1
 	else
 		lv_verify || exit 1
 	fi
-	rv=0
 	;;
 *)
 	echo "usage: $0 {start|status|monitor|stop|restart|meta-data|validate-all}"

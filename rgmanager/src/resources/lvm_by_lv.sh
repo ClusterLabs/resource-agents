@@ -82,10 +82,22 @@ lv_activate_resilient()
 	fi
 }
 
+lv_status_clustered()
+{
+	#
+	# Check if device is active
+	#
+	if [[ ! $(lvs -o attr --noheadings $lv_path) =~ ....a. ]]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
 # lv_status
 #
 # Is the LV active?
-lv_status()
+lv_status_single()
 {
 	declare lv_path="$OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name"
 	declare dev="/dev/$lv_path"
@@ -146,6 +158,16 @@ lv_status()
 	fi
 
 	return $OCF_SUCCESS
+}
+
+function lv_status
+{
+	# We pass in the VG name to see of the logical volume is clustered
+	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
+		lv_status_clustered
+	else
+		lv_status_single
+	fi
 }
 
 # lv_activate_and_tag
@@ -315,7 +337,29 @@ lv_activate()
 	return $OCF_SUCCESS
 }
 
-function lv_start
+function lv_start_clustered
+{
+	if ! lvchange -aey $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name; then
+		ocf_log err "Failed to activate logical volume, $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name"
+		ocf_log notice "Attempting cleanup of $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name"
+
+		if ! lvconvert --repair --use-policies $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name; then
+			ocf_log err "Failed to cleanup $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name"
+			return $OCF_ERR_GENERIC
+		fi
+
+		if ! lvchange -aey $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name; then
+			ocf_log err "Failed second attempt to activate $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name"
+			return $OCF_ERR_GENERIC
+		fi
+
+		ocf_log notice "Second attempt to activate $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name successful"
+		return $OCF_SUCCESS
+	fi
+	return $OCF_SUCCESS
+}
+
+function lv_start_single
 {
 	if ! lvs $OCF_RESKEY_vg_name >& /dev/null; then
 		lv_count=0
@@ -336,11 +380,36 @@ function lv_start
 	return 0
 }
 
-function lv_stop
+function lv_start
+{
+	# We pass in the VG name to see of the logical volume is clustered
+	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
+		lv_start_clustered
+	else
+		lv_start_single
+	fi
+}
+
+function lv_stop_clustered
+{
+	lvchange -aln $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name
+}
+
+function lv_stop_single
 {
 	if ! lv_activate stop; then
 		return 1
 	fi
 
 	return 0
+}
+
+function lv_stop
+{
+	# We pass in the VG name to see of the logical volume is clustered
+	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
+		lv_stop_clustered
+	else
+		lv_stop_single
+	fi
 }
