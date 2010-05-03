@@ -921,7 +921,7 @@ then
   then
     BOOTSTRAP="$OCF_RESKEY_DIR_BOOTSTRAP"
   else
-    BOOTSTRAP=`echo /usr/sap/$SID/*/j2ee/cluster/bootstrap | head -1`
+    BOOTSTRAP=`ls -1d /usr/sap/$SID/*/j2ee/cluster/bootstrap | head -1`
   fi
 
   if [ -n "$OCF_RESKEY_DIR_SECSTORE" ]
