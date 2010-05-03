@@ -1,11 +1,14 @@
 #!/bin/sh
 #
-# Description:	Manages a PostgreSQL Server as an OCF High-Availability
-#		resource
+# Description:  Manages a PostgreSQL Server as an OCF High-Availability
+#               resource
 #
-# Author:	Serge Dubrouski (sergeyfd@gmail.com)
-# Copyright 2006 Serge Dubrouski <sergeyfd@gmail.com>
-# License:	GNU General Public License (GPL)
+# Authors:      Serge Dubrouski (sergeyfd@gmail.com) -- original RA
+#               Florian Haas (florian@linbit.com) -- makeover
+#
+# Copyright:    2006-2010 Serge Dubrouski <sergeyfd@gmail.com>
+#                         and other Linux-HA contributors
+# License:      GNU General Public License (GPL)
 #
 ###############################################################################
 # Initialization:
