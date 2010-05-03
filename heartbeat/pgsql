@@ -19,7 +19,7 @@ OCF_RESKEY_psql_default=/usr/bin/psql
 OCF_RESKEY_pgdata_default=/var/lib/pgsql/data
 OCF_RESKEY_pgdba_default=postgres
 OCF_RESKEY_pgport_default=5432
-OCF_RESKEY_start_opt_default="-p $OCF_RESKEY_pgport_default"
+OCF_RESKEY_start_opt_default=""
 OCF_RESKEY_pgdb_default=template1
 OCF_RESKEY_logfile_default=/dev/null
 OCF_RESKEY_stop_escalate_default=30
@@ -190,7 +190,7 @@ pgsql_start() {
 
     if [ -x $OCF_RESKEY_pgctl ]
     then
-	# Remove postmastre.pid if it exists
+	# Remove postmaster.pid if it exists
 	rm -f $PIDFILE
 
 	# Remove backup_label if it exists
@@ -348,21 +348,8 @@ pgsql_monitor() {
 
 # Validate most critical parameters
 pgsql_validate_all() {
-    if ! have_binary $SH
-    then
-        return $OCF_ERR_INSTALLED
-    fi
-
-    if ! have_binary $OCF_RESKEY_pgctl
-    then
-        return $OCF_ERR_INSTALLED
-    fi
-
-
-    if ! have_binary $OCF_RESKEY_psql
-    then
-        return $OCF_ERR_INSTALLED
-    fi
+    check_binary $OCF_RESKEY_pgctl
+    check_binary $OCF_RESKEY_psql
 
     return $OCF_SUCCESS
 }
