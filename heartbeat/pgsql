@@ -7,23 +7,33 @@
 # Copyright 2006 Serge Dubrouski <sergeyfd@gmail.com>
 # License:	GNU General Public License (GPL)
 #
-# OCF parameters:
-#  OCF_RESKEY_pgctl  - Path to pg_ctl. Default /usr/bin/pg_ctl
-#  OCF_RESKEY_start_opt - Startup options, options passed to postgres with -o
-#  OCF_RESKEY_ctl_opt - Additional options for pg_ctl (-w, -W etc...)
-#  OCF_RESKEY_psql   - Path to psql. Default is /usr/bin/psql
-#  OCF_RESKEY_pgdata - PGDATA directory. Default is /var/lib/pgsql/data
-#  OCF_RESKEY_pgdba  - userID that manages DB. Default is postgres
-#  OCF_RESKEY_pghost - Host/IP Address where PostgreSQL is listening
-#  OCF_RESKEY_pgport - Port where PostgreSQL is listening
-#  OCF_RESKEY_pgdb   - database to monitor. Default is template1
-#  OCF_RESKEY_logfile - Path to PostgreSQL log file. Default is /dev/null
-#  OCF_RESKEY_stop_escalate - Stop waiting time. Default is 30
 ###############################################################################
 # Initialization:
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_pgctl_default=/usr/bin/pg_ctl
+OCF_RESKEY_psql_default=/usr/bin/psql
+OCF_RESKEY_pgdata_default=/var/lib/pgsql/data
+OCF_RESKEY_pgdba_default=postgres
+OCF_RESKEY_pgport_default=5432
+OCF_RESKEY_start_opt_default="-p $OCF_RESKEY_pgport_default"
+OCF_RESKEY_pgdb_default=template1
+OCF_RESKEY_logfile_default=/dev/null
+OCF_RESKEY_stop_escalate_default=30
+
+: ${OCF_RESKEY_pgctl=${OCF_RESKEY_pgctl_default}}
+: ${OCF_RESKEY_psql=${OCF_RESKEY_psql_default}}
+: ${OCF_RESKEY_pgdata=${OCF_RESKEY_pgdata_default}}
+: ${OCF_RESKEY_pgdba=${OCF_RESKEY_pgdba_default}}
+: ${OCF_RESKEY_pgport=${OCF_RESKEY_pgport_default}}
+: ${OCF_RESKEY_start_opt=${OCF_RESKEY_start_opt_default}}
+: ${OCF_RESKEY_pgdb=${OCF_RESKEY_pgdb_default}}
+: ${OCF_RESKEY_logfile=${OCF_RESKEY_logfile_default}}
+: ${OCF_RESKEY_stop_escalate=${OCF_RESKEY_stop_escalate_default}}
+
 
 unset LC_ALL; export LC_ALL
 unset LANGUAGE; export LANGUAGE
@@ -62,77 +72,77 @@ Resource script for PostgreSQL. It manages a PostgreSQL as an HA resource.
 Path to pg_ctl command.
 </longdesc>
 <shortdesc lang="en">pgctl</shortdesc>
-<content type="string" default="/usr/bin/pg_ctl" />
+<content type="string" default="${OCF_RESKEY_pgctl_default}" />
 </parameter>
 <parameter name="start_opt" unique="0" required="0">
 <longdesc lang="en">
 Start options (-o start_opt in pg_ctl). "-i -p 5432" for example.
 </longdesc>
 <shortdesc lang="en">start_opt</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_start_opt_default}" />
 </parameter>
 <parameter name="ctl_opt" unique="0" required="0">
 <longdesc lang="en">
-Additional pg_ctl options (-w, -W etc..). Default is ""
+Additional pg_ctl options (-w, -W etc..).
 </longdesc>
 <shortdesc lang="en">ctl_opt</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_ctl_opt_default}" />
 </parameter>
 <parameter name="psql" unique="0" required="0">
 <longdesc lang="en">
 Path to psql command.
 </longdesc>
 <shortdesc lang="en">psql</shortdesc>
-<content type="string" default="/usr/bin/psql" />
+<content type="string" default="${OCF_RESKEY_psql_default}" />
 </parameter>
 <parameter name="pgdata" unique="0" required="0">
 <longdesc lang="en">
 Path to PostgreSQL data directory.
 </longdesc>
 <shortdesc lang="en">pgdata</shortdesc>
-<content type="string" default="/var/lib/pgsql/data" />
+<content type="string" default="${OCF_RESKEY_pgdata_default}" />
 </parameter>
 <parameter name="pgdba" unique="0" required="0">
 <longdesc lang="en">
 User that owns PostgreSQL.
 </longdesc>
 <shortdesc lang="en">pgdba</shortdesc>
-<content type="string" default="postgres" />
+<content type="string" default="${OCF_RESKEY_pgdba_default}" />
 </parameter>
 <parameter name="pghost" unique="0" required="0">
 <longdesc lang="en">
 Hostname/IP address where PostgreSQL is listening
 </longdesc>
 <shortdesc lang="en">pghost</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_pghost_default}" />
 </parameter>
 <parameter name="pgport" unique="0" required="0">
 <longdesc lang="en">
-Port where PosrgeSQL is listening
+Port where PostgreSQL is listening
 </longdesc>
 <shortdesc lang="en">pgport</shortdesc>
-<content type="string" default="5432" />
+<content type="integer" default="${OCF_RESKEY_pgport_default}" />
 </parameter>
 <parameter name="pgdb" unique="0" required="0">
 <longdesc lang="en">
 Database that will be used for monitoring.
 </longdesc>
 <shortdesc lang="en">pgdb</shortdesc>
-<content type="string" default="template1" />
+<content type="string" default="${OCF_RESKEY_pgdb_default}" />
 </parameter>
 <parameter name="logfile" unique="0" required="0">
 <longdesc lang="en">
 Path to PostgreSQL server log output file.
 </longdesc>
 <shortdesc lang="en">logfile</shortdesc>
-<content type="string" default="/dev/null" />
+<content type="string" default="${OCF_RESKEY_logfile_default}" />
 </parameter>
 <parameter name="stop_escalate" unique="0" required="0">
 <longdesc lang="en">
-Number of retries (using -m fast) before resorting to -m immediate
+Number of shutdown retries (using -m fast) before resorting to -m immediate
 </longdesc>
 <shortdesc lang="en">stop escalation</shortdesc>
-<content type="string" default="30" />
+<content type="integer" default="${OCF_RESKEY_stop_escalation}" />
 </parameter>
 </parameters>
 
@@ -393,15 +403,6 @@ then
     exit $OCF_ERR_GENERIC
 fi
 
-: ${OCF_RESKEY_pgctl=/usr/bin/pg_ctl}
-: ${OCF_RESKEY_psql=/usr/bin/psql}
-: ${OCF_RESKEY_pgdata=/var/lib/pgsql/data}
-: ${OCF_RESKEY_pgdba=postgres}
-: ${OCF_RESKEY_pgport=5432}
-: ${OCF_RESKEY_start_opt="-p $OCF_RESKEY_pgport"}
-: ${OCF_RESKEY_pgdb=template1}
-: ${OCF_RESKEY_logfile=/dev/null}
-: ${OCF_RESKEY_stop_escalate=30}
 
 PIDFILE=${OCF_RESKEY_pgdata}/postmaster.pid
 BACKUPLABEL=${OCF_RESKEY_pgdata}/backup_label
