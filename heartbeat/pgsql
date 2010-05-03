@@ -160,7 +160,7 @@ EOF
 #	Run the given command in the Resource owner environment...
 #
 runasowner() {
-    su $OCF_RESKEY_pgdba -c "$*"
+    ocf_run su $OCF_RESKEY_pgdba -c "$*"
 }
 
 #
@@ -196,7 +196,7 @@ pgsql_start() {
 	rm -f $BACKUPLABEL
     fi
 
-        # Check if we need to create a log file
+    # Check if we need to create a log file
     if ! check_log_file $OCF_RESKEY_logfile
     then
         ocf_log err "PostgreSQL can't write to the log file: $OCF_RESKEY_logfile"
@@ -207,7 +207,7 @@ pgsql_start() {
 
     if [ $? -eq 0 ]
     then
-	   # Probably started.....
+	# Probably started.....
         ocf_log info "PostgreSQL start command sent."
     else
 	ocf_log err "Can't start PostgreSQL."
