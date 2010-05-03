@@ -20,6 +20,7 @@ OCF_RESKEY_pgdata_default=/var/lib/pgsql/data
 OCF_RESKEY_pgdba_default=postgres
 OCF_RESKEY_pghost_default=""
 OCF_RESKEY_pgport_default=5432
+OCF_RESKEY_config_default=""
 OCF_RESKEY_start_opt_default=""
 OCF_RESKEY_pgdb_default=template1
 OCF_RESKEY_logfile_default=/dev/null
@@ -31,6 +32,7 @@ OCF_RESKEY_stop_escalate_default=30
 : ${OCF_RESKEY_pgdba=${OCF_RESKEY_pgdba_default}}
 : ${OCF_RESKEY_pghost=${OCF_RESKEY_pghost_default}}
 : ${OCF_RESKEY_pgport=${OCF_RESKEY_pgport_default}}
+: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
 : ${OCF_RESKEY_start_opt=${OCF_RESKEY_start_opt_default}}
 : ${OCF_RESKEY_pgdb=${OCF_RESKEY_pgdb_default}}
 : ${OCF_RESKEY_logfile=${OCF_RESKEY_logfile_default}}
@@ -127,6 +129,14 @@ Port where PostgreSQL is listening
 </longdesc>
 <shortdesc lang="en">pgport</shortdesc>
 <content type="integer" default="${OCF_RESKEY_pgport_default}" />
+</parameter>
+
+<parameter name="config" unique="0" required="0">
+<longdesc lang="en">
+Path to the PostgreSQL configuration file for the instance
+</longdesc>
+<shortdesc lang="en">Configuration file</shortdesc>
+<content type="integer" default="${OCF_RESKEY_config_default}" />
 </parameter>
 
 <parameter name="start_opt" unique="0" required="0">
@@ -231,6 +241,9 @@ pgsql_start() {
 
     # Set options passed to the PostgreSQL server process
     postgres_options=""
+    if [ -n "$OCF_RESKEY_config" ]; then
+	postgres_options="$postgres_options -c config_file=${OCF_RESKEY_config}"
+    fi
     if [ -n "$OCF_RESKEY_pghost" ]; then
 	postgres_options="$postgres_options -h $OCF_RESKEY_pghost"
     fi
