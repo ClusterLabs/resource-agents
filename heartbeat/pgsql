@@ -203,15 +203,13 @@ pgsql_start() {
 	return $OCF_ERR_GENERIC
     fi
 
-    output=`runasowner "$OCF_RESKEY_pgctl $OCF_RESKEY_ctl_opt -D $OCF_RESKEY_pgdata -l $OCF_RESKEY_logfile -o "\'$OCF_RESKEY_start_opt\'" start" 2>&1`
+    runasowner "$OCF_RESKEY_pgctl $OCF_RESKEY_ctl_opt -D $OCF_RESKEY_pgdata -l $OCF_RESKEY_logfile -o "\'$OCF_RESKEY_start_opt\'" start"
 
-    if [ $? -eq 0 ]
-    then
+    if [ $? -eq 0 ]; then
 	# Probably started.....
         ocf_log info "PostgreSQL start command sent."
     else
 	ocf_log err "Can't start PostgreSQL."
-        ocf_log info "psql command output: $output"
         return $OCF_ERR_GENERIC
     fi
 
@@ -239,7 +237,7 @@ pgsql_stop() {
     fi
 
     # Stop PostgreSQL, do not wait for clients to disconnect
-    output=`runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m fast" 2>&1`
+    runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m fast"
 
     # stop waiting
     count=0
@@ -258,9 +256,7 @@ pgsql_stop() {
     then
        #PostgreSQL is still up. Use another shutdown mode.
        ocf_log info "PostgreSQL failed to stop after ${OCF_RESKEY_stop_escalate}s using -m fast. Trying -m immediate..."
-       ocf_log info "psql command output: $output"
-       output=`runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m immediate" 2>&1`
-       ocf_log info "psql command output: $output"
+       runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m immediate"
     fi
 
     while :
@@ -313,26 +309,21 @@ pgsql_monitor() {
 
     if [ "x" = "x$OCF_RESKEY_pghost" ]
     then
-       output=`runasowner "$OCF_RESKEY_psql -p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb -c 'select now();'" 2>&1`
+       runasowner "$OCF_RESKEY_psql -p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb -c 'select now();'"
     else
-       output=`runasowner "$OCF_RESKEY_psql -h $OCF_RESKEY_pghost -p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb -c 'select now();'" 2>&1`
+       runasowner "$OCF_RESKEY_psql -h $OCF_RESKEY_pghost -p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb -c 'select now();'"
     fi
 
     rc=$?
-    if [ $rc -ne  0 ]
-    then
+    if [ $rc -ne  0 ]; then
 	ocf_log $loglevel "PostgreSQL $OCF_RESKEY_pgdb isn't running"
-        if [ $rc -eq 1 ]
-        then
+        if [ $rc -eq 1 ]; then
             ocf_log err "Fatal error (out of memory, file not found, etc.) occurred while executing the psql command."
-        elif [ $rc -eq 2 ]
-        then
+        elif [ $rc -eq 2 ]; then
             ocf_log $loglevel "Connection error (connection to the server went bad and the session was not interactive) occurred while executing the psql command."
-        elif [ $rc -eq 3 ]
-        then
+        elif [ $rc -eq 3 ]; then
             ocf_log err "Script error (the variable ON_ERROR_STOP was set) occurred while executing the psql command."
         fi
-        ocf_log info "psql command output: $output"
 	return $OCF_ERR_GENERIC
     fi
 
