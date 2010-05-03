@@ -128,6 +128,15 @@ Port where PostgreSQL is listening
 <shortdesc lang="en">pgport</shortdesc>
 <content type="integer" default="${OCF_RESKEY_pgport_default}" />
 </parameter>
+
+<parameter name="start_opt" unique="0" required="0">
+<longdesc lang="en">
+Additional options passed to the PostgreSQL server daemon.
+</longdesc>
+<shortdesc lang="en">Additional PostgreSQL server options</shortdesc>
+<content type="string" default="${OCF_RESKEY_start_opt_default}" />
+</parameter>
+
 <parameter name="pgdb" unique="0" required="0">
 <longdesc lang="en">
 Database that will be used for monitoring.
