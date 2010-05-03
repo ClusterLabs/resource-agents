@@ -34,10 +34,6 @@ OCF_RESKEY_stop_escalate_default=30
 : ${OCF_RESKEY_logfile=${OCF_RESKEY_logfile_default}}
 : ${OCF_RESKEY_stop_escalate=${OCF_RESKEY_stop_escalate_default}}
 
-
-unset LC_ALL; export LC_ALL
-unset LANGUAGE; export LANGUAGE
-
 usage() {
     cat <<EOF
 	usage: $0 start|stop|status|monitor|meta-data|validate-all|methods
