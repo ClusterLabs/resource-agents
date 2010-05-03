@@ -182,44 +182,37 @@ EOF
 
 #pgsql_start: Starts PostgreSQL
 pgsql_start() {
-    if pgsql_status
-    then
+    if pgsql_status; then
         ocf_log info "PostgreSQL is already running. PID=`cat $PIDFILE`"
         return $OCF_SUCCESS
     fi
 
-    if [ -x $OCF_RESKEY_pgctl ]
-    then
-	# Remove postmaster.pid if it exists
-	rm -f $PIDFILE
+    # Remove postmaster.pid if it exists
+    rm -f $PIDFILE
 
-	# Remove backup_label if it exists
-	if [ -f $BACKUPLABEL ]; then
-	    ocf_log info "Removing $BACKUPLABEL. The previous backup might have failed."
-	    rm -f $BACKUPLABEL
-	fi
+    # Remove backup_label if it exists
+    if [ -f $BACKUPLABEL ]; then
+	ocf_log info "Removing $BACKUPLABEL. The previous backup might have failed."
+	rm -f $BACKUPLABEL
+    fi
 
         # Check if we need to create a log file
-        if ! check_log_file $OCF_RESKEY_logfile
-	then
-            ocf_log err "PostgreSQL can't write to the log file: $OCF_RESKEY_logfile"
-	    return $OCF_ERR_GENERIC
-	fi
-
-	output=`runasowner "$OCF_RESKEY_pgctl $OCF_RESKEY_ctl_opt -D $OCF_RESKEY_pgdata -l $OCF_RESKEY_logfile -o "\'$OCF_RESKEY_start_opt\'" start" 2>&1`
-
-	if [ $? -eq 0 ]
-	then
-	   # Probably started.....
-            ocf_log info "PostgreSQL start command sent."
-	else
-	    ocf_log err "Can't start PostgreSQL."
-            ocf_log info "psql command output: $output"
-            return $OCF_ERR_GENERIC
-	fi
-    else
-	ocf_log err "$OCF_RESKEY_pgctl not found!"
+    if ! check_log_file $OCF_RESKEY_logfile
+    then
+        ocf_log err "PostgreSQL can't write to the log file: $OCF_RESKEY_logfile"
 	return $OCF_ERR_GENERIC
+    fi
+
+    output=`runasowner "$OCF_RESKEY_pgctl $OCF_RESKEY_ctl_opt -D $OCF_RESKEY_pgdata -l $OCF_RESKEY_logfile -o "\'$OCF_RESKEY_start_opt\'" start" 2>&1`
+
+    if [ $? -eq 0 ]
+    then
+	   # Probably started.....
+        ocf_log info "PostgreSQL start command sent."
+    else
+	ocf_log err "Can't start PostgreSQL."
+        ocf_log info "psql command output: $output"
+        return $OCF_ERR_GENERIC
     fi
 
     while :
