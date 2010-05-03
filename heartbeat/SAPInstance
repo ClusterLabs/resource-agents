@@ -67,7 +67,7 @@ sapinstance_meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPInstance">
-<version>2.01</version>
+<version>2.02</version>
 
 <longdesc lang="en">
 Resource script for SAP. It manages a SAP Instance as an HA resource.
@@ -623,22 +623,19 @@ sapinstance_stop_clone() {
 # sapinstance_monitor_clone
 #
 sapinstance_monitor_clone() {
-  # resource agents running in Master mode must return other returncodes than default
-  if [ "$OCF_RESKEY_CRM_meta_op_target_rc" -eq $OCF_RUNNING_MASTER ]
-  then
-    sapinstance_init $OCF_RESKEY_InstanceName
-    sapinstance_monitor
-    case "$?" in
-       $OCF_SUCCESS)     return $OCF_RUNNING_MASTER;;
-       $OCF_NOT_RUNNING) ${HA_SBIN_DIR}/crm_master -v 10 -l reboot
-                         return $OCF_FAILED_MASTER;;
-       *)                return $?;;
-    esac
-  else
-    sapinstance_init $OCF_RESKEY_ERS_InstanceName
-    sapinstance_monitor
-    return $?
-  fi
+  # Check status of potential master first
+  sapinstance_init $OCF_RESKEY_InstanceName
+  sapinstance_monitor
+  rc=$?
+  [ $rc -eq $OCF_SUCCESS ] && return $OCF_RUNNING_MASTER
+  [ $rc -ne $OCF_NOT_RUNNING ] && return $OCF_FAILED_MASTER
+
+  # The master isn't running, and there were no errors, try ERS
+  sapinstance_init $OCF_RESKEY_ERS_InstanceName
+  sapinstance_monitor
+  rc=$?
+
+  return $rc
 }
 
 
