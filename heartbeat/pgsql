@@ -1,8 +1,7 @@
 #!/bin/sh
 #
-# Description:	Manages a PostrgreSQL Server as an OCF High-Availability
-#		resource under Heartbeat/LinuxHA control
-#
+# Description:	Manages a PostgreSQL Server as an OCF High-Availability
+#		resource
 #
 # Author:	Serge Dubrouski (sergeyfd@gmail.com)
 # Copyright 2006 Serge Dubrouski <sergeyfd@gmail.com>
@@ -10,7 +9,7 @@
 #
 # OCF parameters:
 #  OCF_RESKEY_pgctl  - Path to pg_ctl. Default /usr/bin/pg_ctl
-#  OCF_RESKEY_start_opt - Startup options, options passed to postgress with -o
+#  OCF_RESKEY_start_opt - Startup options, options passed to postgres with -o
 #  OCF_RESKEY_ctl_opt - Additional options for pg_ctl (-w, -W etc...)
 #  OCF_RESKEY_psql   - Path to psql. Default is /usr/bin/psql
 #  OCF_RESKEY_pgdata - PGDATA directory. Default is /var/lib/pgsql/data
@@ -30,7 +29,7 @@ unset LC_ALL; export LC_ALL
 unset LANGUAGE; export LANGUAGE
 
 usage() {
-    cat <<-! >&1
+    cat <<EOF
 	usage: $0 start|stop|status|monitor|meta-data|validate-all|methods
 
 	$0 manages a PostgreSQL Server as an HA resource.
@@ -41,12 +40,12 @@ usage() {
         The 'monitor' operation reports whether the PostgreSQL is running.
         The 'validate-all' operation reports whether the parameters are valid.
         The 'methods' operation reports on the methods $0 supports.
-!
+EOF
   return $OCF_ERR_ARGS
 }
 
 meta_data() {
-	cat <<END
+	cat <<EOF
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="pgsql">
@@ -67,7 +66,7 @@ Path to pg_ctl command.
 </parameter>
 <parameter name="start_opt" unique="0" required="0">
 <longdesc lang="en">
-Start options (-o start_opt in pgi_ctl). "-i -p 5432" for example.
+Start options (-o start_opt in pg_ctl). "-i -p 5432" for example.
 </longdesc>
 <shortdesc lang="en">start_opt</shortdesc>
 <content type="string" default="" />
@@ -88,7 +87,7 @@ Path to psql command.
 </parameter>
 <parameter name="pgdata" unique="0" required="0">
 <longdesc lang="en">
-Path PostgreSQL data directory.
+Path to PostgreSQL data directory.
 </longdesc>
 <shortdesc lang="en">pgdata</shortdesc>
 <content type="string" default="/var/lib/pgsql/data" />
@@ -102,7 +101,7 @@ User that owns PostgreSQL.
 </parameter>
 <parameter name="pghost" unique="0" required="0">
 <longdesc lang="en">
-Hostname/IP Addreess where PosrgeSQL is listening
+Hostname/IP address where PostgreSQL is listening
 </longdesc>
 <shortdesc lang="en">pghost</shortdesc>
 <content type="string" default="" />
@@ -147,7 +146,7 @@ Number of retries (using -m fast) before resorting to -m immediate
 <action name="methods" timeout="5" />
 </actions>
 </resource-agent>
-END
+EOF
 }
 
 
@@ -163,15 +162,15 @@ runasowner() {
 #
 
 pgsql_methods() {
-  cat <<-!
+  cat <<EOF
 	start
 	stop
 	status
 	monitor
-	methods	
+	methods
 	meta-data
 	validate-all
-	!
+EOF
 }
 
 
@@ -182,7 +181,7 @@ pgsql_start() {
         ocf_log info "PostgreSQL is already running. PID=`cat $PIDFILE`"
         return $OCF_SUCCESS
     fi
-    
+
     if [ -x $OCF_RESKEY_pgctl ]
     then
 	# Remove postmastre.pid if it exists
@@ -190,7 +189,7 @@ pgsql_start() {
 
 	# Remove backup_label if it exists
 	if [ -f $BACKUPLABEL ]; then
-	    ocf_log info "Removing $BACKUPLABEL. The previous backup might be failed."
+	    ocf_log info "Removing $BACKUPLABEL. The previous backup might have failed."
 	    rm -f $BACKUPLABEL
 	fi
 
@@ -223,7 +222,7 @@ pgsql_start() {
         rc=$?
         if [ $rc -eq 0 ]; then
             break;
-        fi 
+        fi
         sleep 1
 	ocf_log debug "PostgreSQL still hasn't started yet. Waiting..."
     done
@@ -232,7 +231,7 @@ pgsql_start() {
     return $OCF_SUCCESS
 }
 
-#pgsql_stop: Stop PostgreSQL	
+#pgsql_stop: Stop PostgreSQL
 pgsql_stop() {
     if ! pgsql_status
     then
@@ -240,7 +239,7 @@ pgsql_stop() {
         return $OCF_SUCCESS
     fi
 
-    # Stop PostgreSQL do not wait for clients to disconnect
+    # Stop PostgreSQL, do not wait for clients to disconnect
     output=`runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m fast" 2>&1`
 
     # stop waiting
@@ -272,12 +271,12 @@ pgsql_stop() {
         if [ $rc -eq $OCF_NOT_RUNNING ]; then
             # An unnecessary debug log is prevented.
             break;
-        fi 
+        fi
 	sleep 1
 	ocf_log debug "PostgreSQL still hasn't stopped yet. Waiting..."
     done
-	
-    # Remove postmastre.pid if it exists
+
+    # Remove postmaster.pid if it exists
     rm -f $PIDFILE
 
     return $OCF_SUCCESS
@@ -319,25 +318,25 @@ pgsql_monitor() {
     else
        output=`runasowner "$OCF_RESKEY_psql -h $OCF_RESKEY_pghost -p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb -c 'select now();'" 2>&1`
     fi
-    
+
     rc=$?
     if [ $rc -ne  0 ]
     then
 	ocf_log $loglevel "PostgreSQL $OCF_RESKEY_pgdb isn't running"
         if [ $rc -eq 1 ]
         then
-            ocf_log err "Fatal error(out of memory or file not found, etc.) occurred while executing the psql command."
+            ocf_log err "Fatal error (out of memory, file not found, etc.) occurred while executing the psql command."
         elif [ $rc -eq 2 ]
         then
-            ocf_log $loglevel "Connection error(connection to the server went bad and the session was not interactive) occurred while executing the psql command."
+            ocf_log $loglevel "Connection error (connection to the server went bad and the session was not interactive) occurred while executing the psql command."
         elif [ $rc -eq 3 ]
         then
-            ocf_log err "Script error(the variable ON_ERROR_STOP was set) occurred while executing the psql command."
+            ocf_log err "Script error (the variable ON_ERROR_STOP was set) occurred while executing the psql command."
         fi
         ocf_log info "psql command output: $output"
 	return $OCF_ERR_GENERIC
     fi
-    
+
     return $OCF_SUCCESS
 }
 
@@ -410,7 +409,7 @@ BACKUPLABEL=${OCF_RESKEY_pgdata}/backup_label
 case "$1" in
     methods)    pgsql_methods
                 exit $?;;
-		
+
     meta-data)  meta_data
                 exit $OCF_SUCCESS;;
 
@@ -450,7 +449,7 @@ case "$1" in
     monitor)    pgsql_monitor
                 exit $?;;
 
-    start)      pgsql_start               
+    start)      pgsql_start
                 exit $?;;
 
     stop)       pgsql_stop
