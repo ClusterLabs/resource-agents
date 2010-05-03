@@ -18,6 +18,7 @@ OCF_RESKEY_pgctl_default=/usr/bin/pg_ctl
 OCF_RESKEY_psql_default=/usr/bin/psql
 OCF_RESKEY_pgdata_default=/var/lib/pgsql/data
 OCF_RESKEY_pgdba_default=postgres
+OCF_RESKEY_pghost_default=""
 OCF_RESKEY_pgport_default=5432
 OCF_RESKEY_start_opt_default=""
 OCF_RESKEY_pgdb_default=template1
@@ -28,6 +29,7 @@ OCF_RESKEY_stop_escalate_default=30
 : ${OCF_RESKEY_psql=${OCF_RESKEY_psql_default}}
 : ${OCF_RESKEY_pgdata=${OCF_RESKEY_pgdata_default}}
 : ${OCF_RESKEY_pgdba=${OCF_RESKEY_pgdba_default}}
+: ${OCF_RESKEY_pghost=${OCF_RESKEY_pghost_default}}
 : ${OCF_RESKEY_pgport=${OCF_RESKEY_pgport_default}}
 : ${OCF_RESKEY_start_opt=${OCF_RESKEY_start_opt_default}}
 : ${OCF_RESKEY_pgdb=${OCF_RESKEY_pgdb_default}}
@@ -70,12 +72,14 @@ Path to pg_ctl command.
 <shortdesc lang="en">pgctl</shortdesc>
 <content type="string" default="${OCF_RESKEY_pgctl_default}" />
 </parameter>
+
 <parameter name="start_opt" unique="0" required="0">
 <longdesc lang="en">
 Start options (-o start_opt in pg_ctl). "-i -p 5432" for example.
 </longdesc>
 <shortdesc lang="en">start_opt</shortdesc>
 <content type="string" default="${OCF_RESKEY_start_opt_default}" />
+
 </parameter>
 <parameter name="ctl_opt" unique="0" required="0">
 <longdesc lang="en">
@@ -84,6 +88,7 @@ Additional pg_ctl options (-w, -W etc..).
 <shortdesc lang="en">ctl_opt</shortdesc>
 <content type="string" default="${OCF_RESKEY_ctl_opt_default}" />
 </parameter>
+
 <parameter name="psql" unique="0" required="0">
 <longdesc lang="en">
 Path to psql command.
@@ -91,6 +96,7 @@ Path to psql command.
 <shortdesc lang="en">psql</shortdesc>
 <content type="string" default="${OCF_RESKEY_psql_default}" />
 </parameter>
+
 <parameter name="pgdata" unique="0" required="0">
 <longdesc lang="en">
 Path to PostgreSQL data directory.
@@ -98,6 +104,7 @@ Path to PostgreSQL data directory.
 <shortdesc lang="en">pgdata</shortdesc>
 <content type="string" default="${OCF_RESKEY_pgdata_default}" />
 </parameter>
+
 <parameter name="pgdba" unique="0" required="0">
 <longdesc lang="en">
 User that owns PostgreSQL.
@@ -105,6 +112,7 @@ User that owns PostgreSQL.
 <shortdesc lang="en">pgdba</shortdesc>
 <content type="string" default="${OCF_RESKEY_pgdba_default}" />
 </parameter>
+
 <parameter name="pghost" unique="0" required="0">
 <longdesc lang="en">
 Hostname/IP address where PostgreSQL is listening
@@ -112,6 +120,7 @@ Hostname/IP address where PostgreSQL is listening
 <shortdesc lang="en">pghost</shortdesc>
 <content type="string" default="${OCF_RESKEY_pghost_default}" />
 </parameter>
+
 <parameter name="pgport" unique="0" required="0">
 <longdesc lang="en">
 Port where PostgreSQL is listening
@@ -126,6 +135,7 @@ Database that will be used for monitoring.
 <shortdesc lang="en">pgdb</shortdesc>
 <content type="string" default="${OCF_RESKEY_pgdb_default}" />
 </parameter>
+
 <parameter name="logfile" unique="0" required="0">
 <longdesc lang="en">
 Path to PostgreSQL server log output file.
@@ -133,6 +143,7 @@ Path to PostgreSQL server log output file.
 <shortdesc lang="en">logfile</shortdesc>
 <content type="string" default="${OCF_RESKEY_logfile_default}" />
 </parameter>
+
 <parameter name="stop_escalate" unique="0" required="0">
 <longdesc lang="en">
 Number of shutdown retries (using -m fast) before resorting to -m immediate
@@ -182,6 +193,9 @@ EOF
 
 #pgsql_start: Starts PostgreSQL
 pgsql_start() {
+    local pgctl_options
+    local postgres_options
+
     if pgsql_status; then
         ocf_log info "PostgreSQL is already running. PID=`cat $PIDFILE`"
         return $OCF_SUCCESS
@@ -203,7 +217,25 @@ pgsql_start() {
 	return $OCF_ERR_GENERIC
     fi
 
-    runasowner "$OCF_RESKEY_pgctl $OCF_RESKEY_ctl_opt -D $OCF_RESKEY_pgdata -l $OCF_RESKEY_logfile -o "\'$OCF_RESKEY_start_opt\'" start"
+    # Set options passed to pg_ctl
+    pgctl_options="$OCF_RESKEY_ctl_opt -D $OCF_RESKEY_pgdata -l $OCF_RESKEY_logfile"
+
+    # Set options passed to the PostgreSQL server process
+    postgres_options=""
+    if [ -n "$OCF_RESKEY_pghost" ]; then
+	postgres_options="$postgres_options -h $OCF_RESKEY_pghost"
+    fi
+    if [ -n "$OCF_RESKEY_start_opt" ]; then
+	postgres_options="$postgres_options $OCF_RESKEY_start_opt"
+    fi
+
+    # Tack pass-through options onto pg_ctl options
+    if [ -n "$postgres_options" ]; then
+	pgctl_options="$pgctl_options -o '$postgres_options'"
+    fi
+
+    # Invoke pg_ctl
+    runasowner "$OCF_RESKEY_pgctl $pgctl_options start"
 
     if [ $? -eq 0 ]; then
 	# Probably started.....
