@@ -352,6 +352,9 @@ pgsql_status() {
 #
 
 pgsql_monitor() {
+    local loglevel
+    local psql_options
+
     # Set the log level of the error message
     loglevel=${1:-err}
 
@@ -361,12 +364,11 @@ pgsql_monitor() {
 	return $OCF_NOT_RUNNING
     fi
 
-    if [ "x" = "x$OCF_RESKEY_pghost" ]
-    then
-       runasowner "$OCF_RESKEY_psql -p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb -c 'select now();'"
-    else
-       runasowner "$OCF_RESKEY_psql -h $OCF_RESKEY_pghost -p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb -c 'select now();'"
+    psql_options="-p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb"
+    if [ -n "$OCF_RESKEY_pghost" ]; then
+	psql_options="$psql_options -h $OCF_RESKEY_pghost"
     fi
+    runasowner "$OCF_RESKEY_psql $psql_options -c 'select now();'"
 
     rc=$?
     if [ $rc -ne  0 ]; then
