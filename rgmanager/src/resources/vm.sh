@@ -213,6 +213,20 @@ meta_data()
             <content type="string" default="0"/>
         </parameter>
 
+        <parameter name="status_program" reconfig="1">
+            <longdesc lang="en">
+	    	Ordinarily, only the presence/health of a virtual machine
+		is checked.  If specified, the status_program value is
+		executed during a depth 10 check.  The intent of this 
+		program is to ascertain the status of critical services
+		within a virtual machine.
+            </longdesc>
+            <shortdesc lang="en">
+	    	Additional status check program
+            </shortdesc>
+            <content type="string" default="0"/>
+        </parameter>
+
 	<parameter name="hypervisor">
             <shortdesc lang="en">
 		Hypervisor
@@ -254,6 +268,10 @@ meta_data()
 	
         <action name="status" timeout="10" interval="30"/>
         <action name="monitor" timeout="10" interval="30"/>
+
+	<!-- depth 10 calls the status_program -->
+        <action name="status" depth="10" timeout="10" interval="300"/>
+        <action name="monitor" depth="10" timeout="10" interval="300"/>
 
 	<!-- reconfigure - reconfigure with new OCF parameters.
 	     NOT OCF COMPATIBLE AT ALL -->
@@ -543,7 +561,11 @@ virsh_status()
 		return 0
 	fi
 
-	return 1
+	if [ "$state" = "shut off" ]; then
+		return $OCF_NOT_RUNNING
+	fi
+
+	return $OCF_ERR_GENERIC
 }
 
 
@@ -920,6 +942,15 @@ case $1 in
 		validate_all || exit $OCF_ERR_ARGS
 		echo -n "Virtual machine $OCF_RESKEY_name is "
 		do_status
+		rv=$?
+		if [ $rv -ne 0 ]; then
+			exit $rv
+		fi
+		[ -z "$OCF_RESKEY_status_program" ] && exit 0
+		[ -z "$OCF_CHECK_LEVEL" ] && exit 0
+		[ $OCF_CHECK_LEVEL -lt 10 ] && exit 0
+
+		bash -c "$OCF_RESKEY_status_program" &> /dev/null
 		exit $?
 		;;
 	migrate)
