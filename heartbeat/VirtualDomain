@@ -364,6 +364,11 @@ VirtualDomain_Validate_All() {
     for binary in virsh sed; do
         check_binary $binary
     done
+    # we need host(1) only if configured to resolve the target host's
+    # FQDN during migrate
+    if ocf_is_true $OCF_RESKEY_migrate_use_fqdn; then
+	check_binary host
+    fi
 
     if [ -z $OCF_RESKEY_config ]; then
 	ocf_log error "Missing configuration parameter \"config\"."
