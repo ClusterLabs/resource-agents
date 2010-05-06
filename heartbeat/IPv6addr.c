@@ -96,7 +96,7 @@
 #include <libnet.h>
 
 
-#define PIDFILE_BASE HA_VARRUNDIR  "/IPv6addr-"
+#define PIDFILE_BASE HA_RSCTMPDIR  "/IPv6addr-"
 
 /*
 0	No error, action succeeded completely

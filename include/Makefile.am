@@ -16,15 +16,9 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
 
-MAINTAINERCLEANFILES    = Makefile.in aclocal.m4 configure DRF/config-h.in \
-                        DRF/stamp-h.in libtool.m4 ltdl.m4 libltdl.tar
+MAINTAINERCLEANFILES    = Makefile.in
 
-SUBDIRS	= include heartbeat tools ldirectord doc
+idir=$(includedir)/heartbeat
+i_HEADERS = agent_config.h
 
-install-exec-local:
-	$(INSTALL) -d -m 1755 $(DESTDIR)$(HA_RSCTMPDIR)
-
-dist-clean-local:
-	rm -f autoconf automake autoheader $(TARFILE)
-
-.PHONY: 
+noinst_HEADERS = config.h

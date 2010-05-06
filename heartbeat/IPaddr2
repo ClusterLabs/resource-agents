@@ -69,8 +69,8 @@
 
 SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
-VLDIR=$HA_RSCTMP/IPaddr
-SENDARPPIDDIR=$HA_RSCTMP/send_arp
+VLDIR=$HA_RSCTMP
+SENDARPPIDDIR=$HA_RSCTMP
 CIP_lockfile=$HA_RSCTMP/IPaddr2-CIP-${OCF_RESKEY_ip}
 
 #######################################################################
@@ -454,12 +454,6 @@ remove_conflicting_loopback() {
 	ifname="$4"
 
 	ocf_log info "Removing conflicting loopback $ifname."
-	if [ -d "$VLDIR/" ] || mkdir -p "$VLDIR/"; then
-		: Directory $VLDIR now exists
-	else
-		ocf_log err "Could not create \"$VLDIR/\" conflicting" \
-		       " loopback $ifname cannot be restored."
-	fi
 	if
 		echo "$ipaddr $netmask $broadcast $ifname" > "$VLDIR/$ipaddr"
 	then

@@ -34,8 +34,8 @@
 
 SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
-VLDIR=$HA_RSCTMP/IPaddr
-SENDARPPIDDIR=$HA_RSCTMP/send_arp
+VLDIR=$HA_RSCTMP
+SENDARPPIDDIR=$HA_RSCTMP
 SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$OCF_RESKEY_ip"
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
@@ -423,7 +423,7 @@ find_free_interface() {
 	return $OCF_ERR_GENERIC;
     fi
 
-  NICBASE="$VLDIR/$NIC"
+  NICBASE="$VLDIR/IPaddr-$NIC"
   touch "$NICBASE"
 
   case "$SYSTYPE" in
@@ -594,7 +594,7 @@ ip_stop() {
   fi
 
   # remove lock file...
-  rm -f "$VLDIR/$NIC"
+  rm -f "$VLDIR/IPaddr-$NIC"
 
   if [ $rc != 0 ]; then
       ocf_log warn "IP Address $OCF_RESKEY_ip NOT released: rc=$rc"
@@ -758,15 +758,6 @@ ip_validate_all() {
     check_binary $IFCONFIG
     check_binary $ROUTE
     check_binary $PING
-
-    if
-	[ -d "$VLDIR/" ] || mkdir -p "$VLDIR/"
-    then
-	: Directory $VLDIR now exists
-    else
-	ocf_log err "Could not create \"$VLDIR/\"."
-	return $OCF_ERR_GENERIC
-    fi
 
     if is_positive_integer $OCF_RESKEY_ARP_INTERVAL_MS
     then

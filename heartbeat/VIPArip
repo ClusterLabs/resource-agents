@@ -26,8 +26,7 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
 
-VLDIR=$HA_RSCTMP/VIPArip
-RIPDCONF=$VLDIR/ripd.conf
+RIPDCONF=$HA_RSCTMP/VIPArip-ripd.conf
 ZEBRA=/usr/sbin/zebra
 RIPD=/usr/sbin/ripd
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
@@ -202,13 +201,6 @@ stop_quagga() {
 start_rip_ip() {
 	echo start_rip_ip
 	check_params	
-	if [ -d "$VLDIR/" ] || mkdir -p "$VLDIR/"
-	then
-		: Directory $VLDIR now exists
-	else
-		ocf_log err "Could not create \"$VLDIR/\"."
-		exit $OCF_ERR_GENERIC
-	fi
 
 	if [ x"$OCF_RESKEY_nic" = x ]
 	then

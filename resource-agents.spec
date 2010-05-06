@@ -187,6 +187,8 @@ rm -rf $RPM_BUILD_DIR/resource-agents
 %{_sbindir}/ocf-tester
 %{_sbindir}/ocft
 %{_sbindir}/sfex_init
+%{_includedir}/heartbeat
+%dir %attr (1755, root, root)	%{_var}/run/resource-agents
 
 %doc AUTHORS
 %doc COPYING

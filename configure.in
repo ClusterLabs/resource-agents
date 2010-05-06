@@ -129,6 +129,11 @@ AC_ARG_WITH(ocf-root,
     [  --with-ocf-root=DIR      directory for OCF scripts [${OCF_ROOT_DIR}]],
     [ if test x"$withval" = xprefix; then OCF_ROOT_DIR=${prefix}; else
 	 OCF_ROOT_DIR="$withval"; fi ])
+HA_RSCTMPDIR=${localstatedir}/run/resource-agents
+AC_ARG_WITH(rsctmpdir,
+    [  --with-rsctmpdir=DIR      directory for resource agents state files [${HA_RSCTMPDIR}]],
+    [ if test x"$withval" = xprefix; then HA_RSCTMPDIR=${prefix}; else
+	 HA_RSCTMPDIR="$withval"; fi ])
 
 AC_ARG_ENABLE([libnet],
  [  --enable-libnet 	Use libnet for ARP based funcationality, [default=try]], 
@@ -313,6 +318,11 @@ AC_SUBST(GLUE_STATE_DIR)
 AC_DEFINE_UNQUOTED(HA_VARRUNDIR,"$GLUE_STATE_DIR", Where Heartbeat keeps state files and sockets - old name)
 HA_VARRUNDIR="$GLUE_STATE_DIR"
 AC_SUBST(HA_VARRUNDIR)
+
+# Expand $prefix
+eval HA_RSCTMPDIR="`eval echo ${HA_RSCTMPDIR}`"
+AC_DEFINE_UNQUOTED(HA_RSCTMPDIR,"$HA_RSCTMPDIR", Where Resouce agents keep state files)
+AC_SUBST(HA_RSCTMPDIR)
 
 dnl Eventually move out of the heartbeat dir tree and create symlinks when needed
 HA_VARLIBHBDIR=${localstatedir}/lib/heartbeat
@@ -744,6 +754,7 @@ AC_SUBST(MAKE)
 
 dnl The Makefiles and shell scripts we output
 AC_CONFIG_FILES(Makefile				        \
+include/Makefile						\
 heartbeat/Makefile						\
    heartbeat/.ocf-binaries					\
    heartbeat/.ocf-directories					\
@@ -792,6 +803,7 @@ AC_MSG_RESULT([  Arch-independent files   = ${datadir}])
 AC_MSG_RESULT([  Documentation            = ${docdir}])
 AC_MSG_RESULT([  State information        = ${localstatedir}])
 AC_MSG_RESULT([  System configuration     = ${sysconfdir}])
+AC_MSG_RESULT([  RA state files           = ${HA_RSCTMPDIR}])
 AC_MSG_RESULT([  AIS Plugins              = ${LCRSODIR}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([  CFLAGS                   = ${CFLAGS}])
