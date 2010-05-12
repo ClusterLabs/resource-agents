@@ -1249,7 +1249,7 @@ sub read_emailalert
 	my ($line, $addr) = (@_);
 
 	# Strip of enclosing quotes
-	$addr =~ s/^\"([^"]*)\"$/\1/;
+	$addr =~ s/^\"([^"]*)\"$/$1/;
 
 	$addr =~ /(.+)/ or &config_error($line, "no email address specified");
 
