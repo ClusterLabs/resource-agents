@@ -21,11 +21,9 @@ LANG="C"
 # Defaults
 OCF_RESKEY_force_stop_default=0
 OCF_RESKEY_hypervisor_default="$(virsh --quiet uri)"
-OCF_RESKEY_migrate_use_fqdn_default=0
 
 : ${OCF_RESKEY_force_stop=${OCF_RESKEY_force_stop_default}}
 : ${OCF_RESKEY_hypervisor=${OCF_RESKEY_hypervisor_default}}
-: ${OCF_RESKEY_migrate_use_fqdn=${OCF_RESKEY_migrate_use_fqdn_default}}
 #######################################################################
 
 usage() {
@@ -86,16 +84,6 @@ use libvirt's default transport to connect to the remote hypervisor.
 </longdesc>
 <shortdesc lang="en">Remote hypervisor transport</shortdesc>
 <content type="string" default="" />
-</parameter>
-
-<parameter name="migrate_use_fqdn" unique="0" required="0">
-<longdesc lang="en">
-Use resolver to acquire a fully qualified domain name for the
-destination node.  Should be used if migration_transport is set to use
-TLS/SSL, and certificates are made out to the FQDN of the node.
-</longdesc>
-<shortdesc lang="en">Lookup remote node FQDN</shortdesc>
-<content type="boolean" default="${OCF_RESKEY_migrate_use_fqdn_default}" />
 </parameter>
 
 <parameter name="monitor_scripts" unique="0" required="0">
@@ -292,10 +280,6 @@ VirtualDomain_Migrate_To() {
     local transport_suffix
 
     target_node="$OCF_RESKEY_CRM_meta_migrate_target"
-    if ocf_is_true $OCF_RESKEY_migrate_use_fqdn; then
-        target_node=$(host $OCF_RESKEY_CRM_meta_migrate_target | \
-        awk '{ print $1; }')
-    fi
 
     if VirtualDomain_Status; then
         # Find out the remote hypervisor to connect to. That is, turn
@@ -364,11 +348,6 @@ VirtualDomain_Validate_All() {
     for binary in virsh sed; do
         check_binary $binary
     done
-    # we need host(1) only if configured to resolve the target host's
-    # FQDN during migrate
-    if ocf_is_true $OCF_RESKEY_migrate_use_fqdn; then
-	check_binary host
-    fi
 
     if [ -z $OCF_RESKEY_config ]; then
 	ocf_log error "Missing configuration parameter \"config\"."
