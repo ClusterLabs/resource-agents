@@ -47,7 +47,7 @@ function ha_lvm_proper_setup_check
 	# lvm.conf:activation/volume_list; otherwise, machines
 	# will be able to activate the VG regardless of the tags
 	##
-	if lvm dumpconfig activation/volume_list | grep $OCF_RESKEY_vg_name; then
+	if lvm dumpconfig activation/volume_list | grep "\"$OCF_RESKEY_vg_name\""; then
 		ocf_log err "HA LVM:  Improper setup detected"
 		ocf_log err "- $OCF_RESKEY_vg_name found in \"volume_list\" in lvm.conf"
 		return $OCF_ERR_GENERIC
