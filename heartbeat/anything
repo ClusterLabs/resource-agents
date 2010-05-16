@@ -126,7 +126,7 @@ anything_stop() {
                                 return $OCF_SUCCESS
                         fi
                         sleep 1 
-                        let "i++"
+                        i=$((i+1))
                 done
                 ocf_log warn "Stop with SIGTERM failed/timed out, now sending SIGKILL."
                 kill -s 9 $pid
