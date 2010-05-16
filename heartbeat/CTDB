@@ -330,7 +330,7 @@ ctdb_start() {
 
 	# Use logfile by default, or syslog if asked for
 	log_option="--logfile=$OCF_RESKEY_ctdb_logfile"
-	[ "$OCF_RESKEY_ctdb_logfile" == "syslog" ] && log_option="--syslog"
+	[ "$OCF_RESKEY_ctdb_logfile" = "syslog" ] && log_option="--syslog"
 	
 	# Start her up
 	$OCF_RESKEY_ctdbd_binary \
