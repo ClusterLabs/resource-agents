@@ -81,7 +81,7 @@ audiblealarm_start () {
 	# Use () to create a subshell to make the redirection be synchronized.
 	( while [ 1 ]; do 
 		sleep 1  #Sleep first, incase we bail out
-		echo -ne "\a" > /dev/console 
+		printf "\a" > /dev/console
 		# Uncomment this line to cause floppy drive light
 		# to flash (requires fdutils package).
 		# /usr/bin/floppycontrol --pollstate > /dev/null
@@ -136,7 +136,8 @@ audiblealarm_status () {
 }
 
 audiblealarm_validate_all () {
-# Is there anything to check?
+	check_binary printf
+
 	echo "Validate OK"
 	return $OCF_SUCCESS
 }
