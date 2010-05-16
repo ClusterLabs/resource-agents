@@ -574,7 +574,7 @@ mysql_status() {
 	if [ -d /proc -a -d /proc/1 ]; then
 		[ "u$pid" != "u" -a -d /proc/$pid ]
 	else
-		kill -0 $pid >/dev/null 2>&1
+		kill -s 0 $pid >/dev/null 2>&1
 	fi
 
 	if [ $? -eq 0 ]; then

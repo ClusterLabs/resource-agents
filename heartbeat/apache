@@ -380,7 +380,7 @@ ProcessRunning() {
        [ -d /proc/$ApachePID ]
     else
       #  This assumes we're running as root...
-      kill -0 "$ApachePID" >/dev/null 2>&1
+      kill -s 0 "$ApachePID" >/dev/null 2>&1
     fi
 }
 

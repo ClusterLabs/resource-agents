@@ -56,7 +56,7 @@ getpid() {
 anything_status() {
 	if test -f "$pidfile"
 	then
-		if pid=`getpid $pidfile` && [ "$pid" ] && kill -0 $pid
+		if pid=`getpid $pidfile` && [ "$pid" ] && kill -s 0 $pid
 		then
 			return $OCF_RUNNING
 		else
@@ -129,7 +129,7 @@ anything_stop() {
                         let "i++"
                 done
                 ocf_log warn "Stop with SIGTERM failed/timed out, now sending SIGKILL."
-                kill -9 $pid
+                kill -s 9 $pid
                 rm -f $pidfile
                 if ! anything_status
                 then

@@ -74,7 +74,7 @@ END
 hup_inetd () {
     pid=`ps -e -o pid,command | grep '/[x]inetd' | awk '{print $1}'`
     if [ "$pid" ]; then
-      if kill -HUP $pid; then
+      if kill -s HUP $pid; then
           :
       else
           ocf_log err "Could not SigHUP xinetd superdaemon!"

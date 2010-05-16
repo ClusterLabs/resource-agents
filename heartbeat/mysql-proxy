@@ -213,7 +213,7 @@ END
 
 isRunning()
 {
-    kill -0 "$1" 2>/dev/null
+    kill -s 0 "$1" 2>/dev/null
 }
 
 mysqlproxy_status()
@@ -344,7 +344,7 @@ mysqlproxy_reload()
 {
     if mysqlproxy_status; then
         ocf_log info "Reloading MySQL Proxy."
-        kill -HUP `cat ${pidfile}`
+        kill -s HUP `cat ${pidfile}`
     fi
 }
 

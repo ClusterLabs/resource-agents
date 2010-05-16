@@ -104,7 +104,7 @@ END
 
 isRunning()
 {
-	kill -0 "$1" > /dev/null
+	kill -s 0 "$1" > /dev/null
 }
 
 PureFTPd_status()

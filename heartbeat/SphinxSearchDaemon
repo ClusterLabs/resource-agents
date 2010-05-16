@@ -142,7 +142,7 @@ searchd_stop() {
 
 isRunning()
 {
-    kill -0 "$1" > /dev/null && [ `ps -p "$1" | grep searchd | wc -l` -eq 1 ]
+    kill -s 0 "$1" > /dev/null && [ `ps -p "$1" | grep searchd | wc -l` -eq 1 ]
 }
 
 searchd_status() {

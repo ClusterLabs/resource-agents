@@ -184,7 +184,7 @@ rsyncd_stop()
 		if [ -n "$PID" ] ; then
 			kill $PID
 			if [ $? -ne 0 ]; then
-				kill -SIGKILL $PID
+				kill -s KILL $PID
 				if [ $? -ne 0 ]; then
 					ocf_log err "Error. Could not stop rsync daemon."
 					return $OCF_ERR_GENERIC

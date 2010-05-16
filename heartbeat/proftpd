@@ -122,7 +122,7 @@ END
 
 isRunning()
 {
-	kill -0 "$1" > /dev/null 2>&1
+	kill -s 0 "$1" > /dev/null 2>&1
 }
 
 proftpd_status()
@@ -186,7 +186,7 @@ proftpd_stop()
 				RET=$?
 				if [ "$RET" -eq 0 ]; then
 					ocf_log info "Killing Proftpd PID $PID with SIGKILL"
-					kill -9 $PID > /dev/null 2>&1
+					kill -s 9 $PID > /dev/null 2>&1
 					while isRunning "$PID" 
 					do
 						sleep 1
