@@ -356,7 +356,7 @@ ctdb_start() {
 		# Wait a bit for CTDB to stabilize
 		# (can be broken if, e.g. ctdb socket wrong
 		# or not specified in smb.conf)
-		for i in {1..30}; do
+		for i in `seq 30`; do
 			# Initial sleep is intentional (ctdb init script
 			# has sleep after ctdbd start, but before invoking
 			# ctdb to talk to it)
