@@ -187,8 +187,8 @@ CheckUmask() {
 #	attr.h
 check_attributes () {
   # Empty these attributes before validating them 
-  unset socket_type wait server user protocol port group instances \
-	type flags disable nice umask 
+  unset socket_type wait server user protocol port group instances type \
+	flags disable nice umask
   VAR=""
   for SECTION in $*; do
     case $SECTION in
