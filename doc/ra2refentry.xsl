@@ -105,7 +105,16 @@
 
  <xsl:template match="actions" mode="synopsis">
    <group choice="opt" rep="norepeat">
-     <xsl:apply-templates select="action" mode="synopsis"/>
+     <xsl:apply-templates select="action[@name = 'start'][1]" mode="synopsis"/>
+     <xsl:apply-templates select="action[@name = 'stop'][1]" mode="synopsis"/>
+     <xsl:apply-templates select="action[@name = 'status'][1]" mode="synopsis"/>
+     <xsl:apply-templates select="action[@name = 'monitor'][1]" mode="synopsis"/>
+     <xsl:apply-templates select="action[@name = 'migrate_to'][1]" mode="synopsis"/>
+     <xsl:apply-templates select="action[@name = 'migrate_from'][1]" mode="synopsis"/>
+     <xsl:apply-templates select="action[@name = 'promote'][1]" mode="synopsis"/>
+     <xsl:apply-templates select="action[@name = 'demote'][1]" mode="synopsis"/>
+     <xsl:apply-templates select="action[@name = 'meta-data'][1]" mode="synopsis"/>
+     <xsl:apply-templates select="action[@name = 'validate-all'][1]" mode="synopsis"/>
    </group>
  </xsl:template>
 
@@ -377,6 +386,7 @@
   </xsl:template>
 
   <xsl:template match="actions" mode="example">
+    <!-- In the CRM shell example, show only the monitor action -->
     <xsl:apply-templates select="action[@name = 'monitor']" mode="example"/>
   </xsl:template>
 
