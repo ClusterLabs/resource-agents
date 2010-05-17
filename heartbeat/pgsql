@@ -393,6 +393,7 @@ pgsql_monitor() {
 pgsql_validate_all() {
     check_binary $OCF_RESKEY_pgctl
     check_binary $OCF_RESKEY_psql
+    check_binary fuser
 
     return $OCF_SUCCESS
 }
