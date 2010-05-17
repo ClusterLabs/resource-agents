@@ -158,11 +158,11 @@ ora_info() {
 
 testoraenv() {
 	#	Let's make sure a few important things are set...
-	if [ x == "x$ORACLE_HOME" ]; then
+	if [ x = "x$ORACLE_HOME" ]; then
 		ocf_log info "ORACLE_HOME not set"
 		return $OCF_ERR_CONFIGURED
 	fi
-	if [ x == "x$ORACLE_OWNER" ]; then
+	if [ x = "x$ORACLE_OWNER" ]; then
 		ocf_log info "ORACLE_OWNER not set"
 		return $OCF_ERR_CONFIGURED
 	fi
@@ -282,7 +282,7 @@ killprocs() {
 	sig=$1
 	shift 1
 	# Record stderr
-	kill -$sig $* >/dev/null
+	kill -s $sig $* >/dev/null
 }
 
 #
