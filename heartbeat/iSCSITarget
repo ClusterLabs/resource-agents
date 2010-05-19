@@ -217,14 +217,14 @@ iSCSITarget_start() {
 	    # Create the target.
 	    do_cmd ietadm --op new \
 		--tid=${tid} \
-		--params Name=${OCF_RESKEY_iqn} || return $OCF_ERR_GENERIC
+		--params Name=${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
 	    # Set additional parameters.
 	    for param in ${OCF_RESKEY_additional_parameters}; do
 		name=${param%=*}
 		value=${param#*=}
 		do_cmd ietadm --op update \
 		    --tid=${tid} \
-		    --params ${name}=${value} || return $OCF_ERR_GENERIC
+		    --params ${name}=${value} || exit $OCF_ERR_GENERIC
 	    done
 	    # Legacy versions of IET allow targets by default, current
 	    # versions deny. To be safe we manage both the .allow and
@@ -241,9 +241,8 @@ iSCSITarget_start() {
 		do_cmd ietadm --op new --user \
 		    --tid=${tid} \
 		    --params=IncomingUser=${OCF_RESKEY_incoming_username},Password=${OCF_RESKEY_incoming_password} \
-		    || return $OCF_ERR_GENERIC
+		    || exit $OCF_ERR_GENERIC
 	    fi
-	    return $OCF_SUCCESS
 	    ;;
 	tgt)
 	    local tid
@@ -251,14 +250,14 @@ iSCSITarget_start() {
 	    # Create the target.
 	    do_cmd tgtadm --lld iscsi --op new --mode target \
 		--tid=${tid} \
-		--targetname ${OCF_RESKEY_iqn} || return $OCF_ERR_GENERIC
+		--targetname ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
 	    # Set parameters.
 	    for param in ${OCF_RESKEY_additional_parameters}; do
 		name=${param%=*}
 		value=${param#*=}
 		do_cmd tgtadm --lld iscsi --op update --mode target \
 		    --tid=${tid} \
-		    --name=${name} --value=${value} || return $OCF_ERR_GENERIC
+		    --name=${name} --value=${value} || exit $OCF_ERR_GENERIC
 	    done
 	    # For tgt, we always have to add access per initiator;
 	    # access to targets is denied by default. If
@@ -267,19 +266,18 @@ iSCSITarget_start() {
 	    for initiator in ${OCF_RESKEY_allowed_initiators=ALL}; do
 		do_cmd tgtadm --lld iscsi --op bind --mode target \
 		    --tid=${tid} \
-		    --initiator-address=${initiator} || return $OCF_ERR_GENERIC
+		    --initiator-address=${initiator} || exit $OCF_ERR_GENERIC
 	    done
 	    # In tgt, we must first create a user account, then assign
 	    # it to a target using the "bind" operation.
 	    if [ -n "${OCF_RESKEY_incoming_username}" ]; then
 		do_cmd tgtadm --lld iscsi --mode account --op new \
 		    --user=${OCF_RESKEY_incoming_username} \
-		    --password=${OCF_RESKEY_incoming_password} || return $OCF_ERR_GENERIC
+		    --password=${OCF_RESKEY_incoming_password} || exit $OCF_ERR_GENERIC
 		do_cmd tgtadm --lld iscsi --mode account --op bind \
 		    --tid=${tid} \
-		    --user=${OCF_RESKEY_incoming_username} || return $OCF_ERR_GENERIC
+		    --user=${OCF_RESKEY_incoming_username} || exit $OCF_ERR_GENERIC
 	    fi
-	    return $OCF_SUCCESS
 	    ;;
 	lio)
 	    # lio distinguishes between targets and target portal
@@ -289,7 +287,7 @@ iSCSITarget_start() {
 	    # doesn't already exist.
 	    for portal in ${OCF_RESKEY_portals}; do
 		do_cmd lio_node --addnp ${OCF_RESKEY_iqn} 1 \
-		    ${portal} || return $OCF_ERR_GENERIC
+		    ${portal} || exit $OCF_ERR_GENERIC
 	    done
 	    # in lio, we can set target parameters by manipulating
 	    # the appropriate configfs entries
@@ -298,7 +296,7 @@ iSCSITarget_start() {
 		value=${param#*=}
 		configfs_path="/sys/kernel/config/target/iscsi/${OCF_RESKEY_iqn}/tpgt_1/param/${name}"
 		if [ -e ${configfs_path} ]; then
-		    echo ${value} > ${configfs_path} || return $OCF_ERR_GENERIC
+		    echo ${value} > ${configfs_path} || exit $OCF_ERR_GENERIC
 		else
 		    ocf_log warn "Unsupported iSCSI target parameter ${name}: will be ignored."
 		fi
@@ -308,29 +306,29 @@ iSCSITarget_start() {
 	    if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
 		for initiator in ${OCF_RESKEY_allowed_initiators}; do
 		    do_cmd lio_node --addnodeacl ${OCF_RESKEY_iqn} 1 \
-			${initiator} || return $OCF_ERR_GENERIC
+			${initiator} || exit $OCF_ERR_GENERIC
 		done
 	    else
-		do_cmd lio_node --permissive ${OCF_RESKEY_iqn} 1 || return $OCF_ERR_GENERIC
+		do_cmd lio_node --permissive ${OCF_RESKEY_iqn} 1 || exit $OCF_ERR_GENERIC
 		# permissive mode enables read-only access by default,
 		# so we need to change that to RW to be in line with
 		# the other implementations.
 		echo 0 > "/sys/kernel/config/target/iscsi/${OCF_RESKEY_iqn}/tpgt_1/attrib/demo_mode_write_protect"
 		if [ `cat /sys/kernel/config/target/iscsi/${OCF_RESKEY_iqn}/tpgt_1/attrib/demo_mode_write_protect` -ne 0 ]; then
 		    ocf_log err "Failed to disable write protection for target ${OCF_RESKEY_iqn}."
-		    return $OCF_ERR_GENERIC
+		    exit $OCF_ERR_GENERIC
 		fi
 	    fi
 	    # TODO: add CHAP authentication support when it gets added
 	    # back into LIO
-	    do_cmd lio_node --disableauth ${OCF_RESKEY_iqn} 1 || return $OCF_ERR_GENERIC
+	    do_cmd lio_node --disableauth ${OCF_RESKEY_iqn} 1 || exit $OCF_ERR_GENERIC
 	    # Finally, we need to enable the target to allow
 	    # initiators to connect
-	    do_cmd lio_node --enabletpg=${OCF_RESKEY_iqn} 1 || return $OCF_ERR_GENERIC
-	    return $OCF_SUCCESS
+	    do_cmd lio_node --enabletpg=${OCF_RESKEY_iqn} 1 || exit $OCF_ERR_GENERIC
 	    ;;
     esac
-    return $OCF_ERR_GENERIC
+
+    return $OCF_SUCCESS
 }
 
 iSCSITarget_stop() {
@@ -343,7 +341,7 @@ iSCSITarget_stop() {
 		tid=`sed -ne "s/tid:\([[:digit:]]\+\) name:${OCF_RESKEY_iqn}/\1/p" < /proc/net/iet/volume`
 		if [ -z "${tid}" ]; then
 		    ocf_log err "Failed to retrieve target ID for IQN ${OCF_RESKEY_iqn}"
-		    return $OCF_ERR_GENERIC
+		    exit $OCF_ERR_GENERIC
 		fi
 		# Close existing connections. There is no other way to
 		# do this in IET than to parse the contents of
@@ -368,7 +366,7 @@ iSCSITarget_stop() {
 		    do_cmd ietadm --op delete --user \
 			--tid=${tid} \
 			--params=IncomingUser=${OCF_RESKEY_incoming_username} \
-			|| return $OCF_ERR_GENERIC
+			|| exit $OCF_ERR_GENERIC
 		fi
 		# Loop on delete. Keep trying until we time out, if
 		# necessary.
@@ -387,7 +385,6 @@ iSCSITarget_stop() {
 		    -i /etc/initiators.deny
 		do_cmd sed -e "/^${OCF_RESKEY_iqn}[[:space:]]/d" \
 		    -i /etc/initiators.allow
-		return $OCF_SUCCESS
 		;;
 	    tgt)
 		tid="${OCF_RESKEY_tid}"
@@ -415,9 +412,9 @@ iSCSITarget_stop() {
 		if [ -n "${OCF_RESKEY_incoming_username}" ]; then
 		    do_cmd tgtadm --lld iscsi --mode account --op unbind \
 			--tid=${tid} \
-			--user=${OCF_RESKEY_incoming_username} || return $OCF_ERR_GENERIC
+			--user=${OCF_RESKEY_incoming_username} || exit $OCF_ERR_GENERIC
 		    do_cmd tgtadm --lld iscsi --mode account --op delete \
-			--user=${OCF_RESKEY_incoming_username} || return $OCF_ERR_GENERIC
+			--user=${OCF_RESKEY_incoming_username} || exit $OCF_ERR_GENERIC
 		fi
 		# Loop on delete. Keep trying until we time out, if
 		# necessary.
@@ -433,19 +430,16 @@ iSCSITarget_stop() {
 		# In tgt, we don't have to worry about our ACL
 		# entries. They are automatically removed upon target
 		# deletion.
-		return $OCF_SUCCESS
 		;;
 	    lio)
 		# In lio, removing a target automatically removes all
 		# associated TPGs, network portals, and LUNs.
-		do_cmd lio_node --deliqn ${OCF_RESKEY_iqn} || return $OCF_ERR_GENERIC
-		return $OCF_SUCCESS
+		do_cmd lio_node --deliqn ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
 		;;
 	esac
-    else
-	return $OCF_SUCCESS
     fi
-    return $OCF_ERR_GENERIC
+
+    return $OCF_SUCCESS
 }
 
 iSCSITarget_monitor() {
@@ -486,7 +480,7 @@ iSCSITarget_validate() {
 	param="OCF_RESKEY_${var}"
 	if [ -z "${!param}" ]; then
 	    ocf_log error "Missing resource parameter \"$var\"!"
-	    return $OCF_ERR_CONFIGURED
+	    exit $OCF_ERR_CONFIGURED
 	fi
     done
 
@@ -505,7 +499,7 @@ iSCSITarget_validate() {
 	*)
 	    # and by the way, is the implementation supported?
 	    ocf_log error "Unsupported iSCSI target implementation \"$OCF_RESKEY_implementation\"!"
-	    return $OCF_ERR_CONFIGURED
+	    exit $OCF_ERR_CONFIGURED
     esac
 
     # Is the required kernel functionality available?
@@ -514,7 +508,7 @@ iSCSITarget_validate() {
 	    [ -d /proc/net/iet ]
 	    if [ $? -ne 0 ]; then
 		ocf_log err "/proc/net/iet does not exist or is not a directory -- check if required modules are loaded."
-		return $OCF_ERR_INSTALLED
+		exit $OCF_ERR_INSTALLED
 	    fi
 	    ;;
 	tgt)
@@ -524,7 +518,7 @@ iSCSITarget_validate() {
 	    # lio needs configfs to be mounted
 	    if ! grep -Eq "^.*/sys/kernel/config[[:space:]]+configfs" /proc/mounts; then
 		ocf_log err "configfs not mounted at /sys/kernel/config -- check if required modules are loaded."
-		return $OCF_ERR_INSTALLED
+		exit $OCF_ERR_INSTALLED
 	    fi
 	    # check for configfs entries created by target_core_mod
 	    if [ ! -d /sys/kernel/config/target ]; then
@@ -575,7 +569,7 @@ case $1 in
 esac
 
 # Everything except usage and meta-data must pass the validate test
-iSCSITarget_validate || exit $?
+iSCSITarget_validate
 
 case $__OCF_ACTION in
 start)		iSCSITarget_start;;

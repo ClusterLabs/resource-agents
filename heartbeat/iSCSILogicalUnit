@@ -232,7 +232,7 @@ iSCSILogicalUnit_start() {
 	    do_cmd ietadm --op new \
 		--tid=${TID} \
 		--lun=${OCF_RESKEY_lun} \
-		--params ${params// /,} && return $OCF_SUCCESS
+		--params ${params// /,} || exit $OCF_ERR_GENERIC
 	    ;;
 	tgt)
 	    # tgt requires that we create the LU first, then set LU
@@ -250,31 +250,32 @@ iSCSILogicalUnit_start() {
 	    do_cmd tgtadm --lld iscsi --op new --mode logicalunit \
 		--tid=${TID} \
 		--lun=${OCF_RESKEY_lun} \
-	    	--backing-store ${OCF_RESKEY_path} || return $OCF_ERR_GENERIC
+	    	--backing-store ${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
 	    if [ -z "$params" ]; then
 		return $OCF_SUCCESS
 	    else
 		do_cmd tgtadm --lld iscsi --op update --mode logicalunit \
 		    --tid=${TID} \
 		    --lun=${OCF_RESKEY_lun} \
-		    --params ${params// /,} && return $OCF_SUCCESS
+		    --params ${params// /,} || exit $OCF_ERR_GENERIC
 	    fi
 	    ;;
 	lio)
 	    # For lio, we first have to create a target device, then
 	    # add it to the Target Portal Group as an LU.
 	    do_cmd tcm_node --createdev=iblock_0/${OCF_RESOURCE_INSTANCE} \
-		${OCF_RESKEY_path} || return $OCF_ERR_GENERIC
+		${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
 	    if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
 		do_cmd tcm_node --setunitserial=iblock_0/${OCF_RESOURCE_INSTANCE} \
-		    ${OCF_RESKEY_scsi_sn} || return $OCF_ERR_GENERIC
+		    ${OCF_RESKEY_scsi_sn} || exit $OCF_ERR_GENERIC
 	    fi
 	    do_cmd lio_node --addlun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} \
-		${OCF_RESOURCE_INSTANCE} iblock_0/${OCF_RESOURCE_INSTANCE} || return $OCF_ERR_GENERIC
-	    return $OCF_SUCCESS
+		${OCF_RESOURCE_INSTANCE} iblock_0/${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
+
 	    ;;
     esac
-    return $OCF_ERR_GENERIC
+
+    return $OCF_SUCCESS
 }
 
 iSCSILogicalUnit_stop() {
@@ -285,7 +286,7 @@ iSCSILogicalUnit_stop() {
 		# IET allows us to remove LUs while they are in use
 		do_cmd ietadm --op delete \
 		    --tid=${TID} \
-		    --lun=${OCF_RESKEY_lun} && return $OCF_SUCCESS
+		    --lun=${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
 		;;
 	    tgt)
 		# tgt will fail to remove an LU while it is in use,
@@ -299,16 +300,14 @@ iSCSILogicalUnit_stop() {
 		    --lun=${OCF_RESKEY_lun}; do
 		    sleep 1
 		done
-		return $OCF_SUCCESS
 		;;
 	    lio)
-		do_cmd lio_node --dellun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} || return $OCF_ERR_GENERIC
-		do_cmd tcm_node --freedev=iblock_0/${OCF_RESOURCE_INSTANCE} && return $OCF_SUCCESS
+		do_cmd lio_node --dellun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+		do_cmd tcm_node --freedev=iblock_0/${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
 	esac
-    else
-	return $OCF_SUCCESS
     fi
-    return $OCF_ERR_GENERIC
+    
+    return $OCF_SUCCESS
 }
 
 iSCSILogicalUnit_monitor() {
@@ -354,7 +353,7 @@ iSCSILogicalUnit_validate() {
 	param="OCF_RESKEY_${var}"
 	if [ -z "${!param}" ]; then
 	    ocf_log error "Missing resource parameter \"$var\"!"
-	    return $OCF_ERR_CONFIGURED
+	    exit $OCF_ERR_CONFIGURED
 	fi
     done
 
@@ -373,7 +372,7 @@ iSCSILogicalUnit_validate() {
 	*)
 	    # and by the way, is the implementation supported?
 	    ocf_log error "Unsupported iSCSI target implementation \"$OCF_RESKEY_implementation\"!"
-	    return $OCF_ERR_CONFIGURED
+	    exit $OCF_ERR_CONFIGURED
     esac
 
     # Do we have a valid LUN?
@@ -387,11 +386,11 @@ iSCSILogicalUnit_validate() {
 		    ;;
 		1)
 		    ocf_log err "Invalid LUN $OCF_RESKEY_lun (must be a non-negative integer)."
-		    return $OCF_ERR_CONFIGURED
+		    exit $OCF_ERR_CONFIGURED
 		    ;;
 		*)
 		    ocf_log err "Invalid LUN $OCF_RESKEY_lun (must be an integer)."
-		    return $OCF_ERR_CONFIGURED
+		    exit $OCF_ERR_CONFIGURED
 		    ;;
 	    esac
 	    ;;
@@ -404,11 +403,11 @@ iSCSILogicalUnit_validate() {
 		    ;;
 		1)
 		    ocf_log err "Invalid LUN $OCF_RESKEY_lun (must be greater than 0)."
-		    return $OCF_ERR_CONFIGURED
+		    exit $OCF_ERR_CONFIGURED
 		    ;;
 		*)
 		    ocf_log err "Invalid LUN $OCF_RESKEY_lun (must be an integer)."
-		    return $OCF_ERR_CONFIGURED
+		    exit $OCF_ERR_CONFIGURED
 		    ;;
 	    esac
 	    ;;
@@ -420,7 +419,7 @@ iSCSILogicalUnit_validate() {
 	    [ -d /proc/net/iet ]
 	    if [ $? -ne 0 ]; then
 		ocf_log err "/proc/net/iet does not exist or is not a directory -- check if required modules are loaded."
-		return $OCF_ERR_INSTALLED
+		exit $OCF_ERR_INSTALLED
 	    fi
 	    ;;
 	tgt)
@@ -470,7 +469,7 @@ case $1 in
 esac
 
 # Everything except usage and meta-data must pass the validate test
-iSCSILogicalUnit_validate || exit $?
+iSCSILogicalUnit_validate
 
 case $__OCF_ACTION in
 start)		iSCSILogicalUnit_start;;
