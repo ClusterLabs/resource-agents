@@ -495,7 +495,7 @@ iSCSITarget_validate() {
     done
 
     if ! ocf_is_probe; then
-    # Do we have all required binaries?
+        # Do we have all required binaries?
 	case $OCF_RESKEY_implementation in
 	    iet)
 		check_binary ietadm
@@ -509,7 +509,7 @@ iSCSITarget_validate() {
 		;;
 	esac
 
-    # Is the required kernel functionality available?
+        # Is the required kernel functionality available?
 	case $OCF_RESKEY_implementation in
 	    iet)
 		[ -d /proc/net/iet ]
