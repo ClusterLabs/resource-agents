@@ -160,6 +160,7 @@ dependent. Neither the name nor the value may contain whitespace.
 <actions>
 <action name="start"        timeout="10" />
 <action name="stop"         timeout="10" />
+<action name="status"       timeout="10" interval="10" depth="0" />
 <action name="monitor"      timeout="10" interval="10" depth="0" />
 <action name="meta-data"    timeout="5" />
 <action name="validate-all"   timeout="10" />
@@ -172,7 +173,7 @@ END
 
 iSCSILogicalUnit_usage() {
 	cat <<END
-usage: $0 {start|stop|monitor|validate-all|meta-data}
+usage: $0 {start|stop|status|monitor|validate-all|meta-data}
 
 Expects to have a fully populated OCF RA-compliant environment set.
 END
@@ -456,7 +457,7 @@ iSCSILogicalUnit_validate
 case $__OCF_ACTION in
 start)		iSCSILogicalUnit_start;;
 stop)		iSCSILogicalUnit_stop;;
-monitor)	iSCSILogicalUnit_monitor;;
+monitor|status)	iSCSILogicalUnit_monitor;;
 reload)		ocf_log err "Reloading..."
 	        iSCSILogicalUnit_start
 		;;
