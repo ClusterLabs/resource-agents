@@ -156,31 +156,6 @@ END
 
 #######################################################################
 
-do_cmd() {
-    # Wrap local commands to capture their exit code and output. Some
-    # implementations (IET, notably) have management commands with
-    # very terse output. It helps to at least capture exit codes in
-    # the logs.
-    local cmd="$*"
-    ocf_log debug "Calling $cmd"
-    local cmd_out
-    cmd_out=$($cmd 2>&1)
-    ret=$?
-
-    if [ $ret -ne 0 ]; then
-	ocf_log err "Called \"$cmd\""
-	ocf_log err "Exit code $ret"
-	ocf_log err "Command output: \"$cmd_out\""
-    else
-	ocf_log debug "Exit code $ret"
-	ocf_log debug "Command output: \"$cmd_out\""
-    fi
-    
-    echo $cmd_out
-    return $ret
-}
-
-
 iSCSITarget_usage() {
 	cat <<END
 usage: $0 {start|stop|monitor|validate-all|meta-data}
@@ -215,14 +190,14 @@ iSCSITarget_start() {
 		tid=$((++lasttid))
 	    fi
 	    # Create the target.
-	    do_cmd ietadm --op new \
+	    ocf_run ietadm --op new \
 		--tid=${tid} \
 		--params Name=${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
 	    # Set additional parameters.
 	    for param in ${OCF_RESKEY_additional_parameters}; do
 		name=${param%=*}
 		value=${param#*=}
-		do_cmd ietadm --op update \
+		ocf_run ietadm --op update \
 		    --tid=${tid} \
 		    --params ${name}=${value} || exit $OCF_ERR_GENERIC
 	    done
@@ -238,7 +213,7 @@ iSCSITarget_start() {
 	    # In iet, adding a new user and assigning it to a target
 	    # is one operation.
 	    if [ -n "${OCF_RESKEY_incoming_username}" ]; then
-		do_cmd ietadm --op new --user \
+		ocf_run ietadm --op new --user \
 		    --tid=${tid} \
 		    --params=IncomingUser=${OCF_RESKEY_incoming_username},Password=${OCF_RESKEY_incoming_password} \
 		    || exit $OCF_ERR_GENERIC
@@ -248,14 +223,14 @@ iSCSITarget_start() {
 	    local tid
 	    tid="${OCF_RESKEY_tid}"
 	    # Create the target.
-	    do_cmd tgtadm --lld iscsi --op new --mode target \
+	    ocf_run tgtadm --lld iscsi --op new --mode target \
 		--tid=${tid} \
 		--targetname ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
 	    # Set parameters.
 	    for param in ${OCF_RESKEY_additional_parameters}; do
 		name=${param%=*}
 		value=${param#*=}
-		do_cmd tgtadm --lld iscsi --op update --mode target \
+		ocf_run tgtadm --lld iscsi --op update --mode target \
 		    --tid=${tid} \
 		    --name=${name} --value=${value} || exit $OCF_ERR_GENERIC
 	    done
@@ -264,17 +239,17 @@ iSCSITarget_start() {
 	    # "allowed_initiators" is unset, we must use the special
 	    # keyword ALL.
 	    for initiator in ${OCF_RESKEY_allowed_initiators=ALL}; do
-		do_cmd tgtadm --lld iscsi --op bind --mode target \
+		ocf_run tgtadm --lld iscsi --op bind --mode target \
 		    --tid=${tid} \
 		    --initiator-address=${initiator} || exit $OCF_ERR_GENERIC
 	    done
 	    # In tgt, we must first create a user account, then assign
 	    # it to a target using the "bind" operation.
 	    if [ -n "${OCF_RESKEY_incoming_username}" ]; then
-		do_cmd tgtadm --lld iscsi --mode account --op new \
+		ocf_run tgtadm --lld iscsi --mode account --op new \
 		    --user=${OCF_RESKEY_incoming_username} \
 		    --password=${OCF_RESKEY_incoming_password} || exit $OCF_ERR_GENERIC
-		do_cmd tgtadm --lld iscsi --mode account --op bind \
+		ocf_run tgtadm --lld iscsi --mode account --op bind \
 		    --tid=${tid} \
 		    --user=${OCF_RESKEY_incoming_username} || exit $OCF_ERR_GENERIC
 	    fi
@@ -286,7 +261,7 @@ iSCSITarget_start() {
 	    # automatically creates the corresponding target if it
 	    # doesn't already exist.
 	    for portal in ${OCF_RESKEY_portals}; do
-		do_cmd lio_node --addnp ${OCF_RESKEY_iqn} 1 \
+		ocf_run lio_node --addnp ${OCF_RESKEY_iqn} 1 \
 		    ${portal} || exit $OCF_ERR_GENERIC
 	    done
 	    # in lio, we can set target parameters by manipulating
@@ -305,11 +280,11 @@ iSCSITarget_start() {
 	    # this, we need to switch the target to "permissive mode".
 	    if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
 		for initiator in ${OCF_RESKEY_allowed_initiators}; do
-		    do_cmd lio_node --addnodeacl ${OCF_RESKEY_iqn} 1 \
+		    ocf_run lio_node --addnodeacl ${OCF_RESKEY_iqn} 1 \
 			${initiator} || exit $OCF_ERR_GENERIC
 		done
 	    else
-		do_cmd lio_node --permissive ${OCF_RESKEY_iqn} 1 || exit $OCF_ERR_GENERIC
+		ocf_run lio_node --permissive ${OCF_RESKEY_iqn} 1 || exit $OCF_ERR_GENERIC
 		# permissive mode enables read-only access by default,
 		# so we need to change that to RW to be in line with
 		# the other implementations.
@@ -321,10 +296,10 @@ iSCSITarget_start() {
 	    fi
 	    # TODO: add CHAP authentication support when it gets added
 	    # back into LIO
-	    do_cmd lio_node --disableauth ${OCF_RESKEY_iqn} 1 || exit $OCF_ERR_GENERIC
+	    ocf_run lio_node --disableauth ${OCF_RESKEY_iqn} 1 || exit $OCF_ERR_GENERIC
 	    # Finally, we need to enable the target to allow
 	    # initiators to connect
-	    do_cmd lio_node --enabletpg=${OCF_RESKEY_iqn} 1 || exit $OCF_ERR_GENERIC
+	    ocf_run lio_node --enabletpg=${OCF_RESKEY_iqn} 1 || exit $OCF_ERR_GENERIC
 	    ;;
     esac
 
@@ -356,14 +331,14 @@ iSCSITarget_stop() {
                       }' < /proc/net/iet/session)
 		while [[ -n $2 ]]; do
                     # $2 $1 looks like "--sid=X --cid=Y"
-		    do_cmd ietadm --op delete \
+		    ocf_run ietadm --op delete \
 			     --tid=${tid} $2 $1
 		    shift 2
 		done
    	        # In iet, unassigning a user from a target and
 		# deleting the user account is one operation.
 		if [ -n "${OCF_RESKEY_incoming_username}" ]; then
-		    do_cmd ietadm --op delete --user \
+		    ocf_run ietadm --op delete --user \
 			--tid=${tid} \
 			--params=IncomingUser=${OCF_RESKEY_incoming_username} \
 			|| exit $OCF_ERR_GENERIC
@@ -381,9 +356,9 @@ iSCSITarget_stop() {
 		done
 		# Avoid stale /etc/initiators.{allow,deny} entries
 		# for this target
-		do_cmd sed -e "/^${OCF_RESKEY_iqn}[[:space:]]/d" \
+		ocf_run sed -e "/^${OCF_RESKEY_iqn}[[:space:]]/d" \
 		    -i /etc/initiators.deny
-		do_cmd sed -e "/^${OCF_RESKEY_iqn}[[:space:]]/d" \
+		ocf_run sed -e "/^${OCF_RESKEY_iqn}[[:space:]]/d" \
 		    -i /etc/initiators.allow
 		;;
 	    tgt)
@@ -403,17 +378,17 @@ iSCSITarget_stop() {
                       }')
 		while [[ -n $2 ]]; do
                     # $2 $1 looks like "--sid=X --cid=Y"
-		    do_cmd tgtadm --lld iscsi --op delete --mode connection \
+		    ocf_run tgtadm --lld iscsi --op delete --mode connection \
 			--tid=${tid} $2 $1
 		    shift 2
 		done
 	        # In tgt, we must first unbind the user account from
 		# the target, then remove the account itself.
 		if [ -n "${OCF_RESKEY_incoming_username}" ]; then
-		    do_cmd tgtadm --lld iscsi --mode account --op unbind \
+		    ocf_run tgtadm --lld iscsi --mode account --op unbind \
 			--tid=${tid} \
 			--user=${OCF_RESKEY_incoming_username} || exit $OCF_ERR_GENERIC
-		    do_cmd tgtadm --lld iscsi --mode account --op delete \
+		    ocf_run tgtadm --lld iscsi --mode account --op delete \
 			--user=${OCF_RESKEY_incoming_username} || exit $OCF_ERR_GENERIC
 		fi
 		# Loop on delete. Keep trying until we time out, if
@@ -434,7 +409,7 @@ iSCSITarget_stop() {
 	    lio)
 		# In lio, removing a target automatically removes all
 		# associated TPGs, network portals, and LUNs.
-		do_cmd lio_node --deliqn ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
+		ocf_run lio_node --deliqn ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
 		;;
 	esac
     fi

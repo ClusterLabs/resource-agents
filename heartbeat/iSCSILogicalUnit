@@ -170,31 +170,6 @@ END
 
 #######################################################################
 
-do_cmd() {
-    # Wrap local commands to capture their exit code and output. Some
-    # implementations (IET, notably) have management commands with
-    # very terse output. It helps to at least capture exit codes in
-    # the logs.
-    local cmd="$*"
-    ocf_log debug "Calling $cmd"
-    local cmd_out
-    cmd_out=$($cmd 2>&1)
-    ret=$?
-    
-    if [ $ret -ne 0 ]; then
-	ocf_log err "Called \"$cmd\""
-	ocf_log err "Exit code $ret"
-	ocf_log err "Command output: \"$cmd_out\""
-    else
-	ocf_log debug "Exit code $ret"
-	ocf_log debug "Command output: \"$cmd_out\""
-    fi
-    
-    echo $cmd_out
-    return $ret
-}
-
-
 iSCSILogicalUnit_usage() {
 	cat <<END
 usage: $0 {start|stop|monitor|validate-all|meta-data}
@@ -229,7 +204,7 @@ iSCSILogicalUnit_start() {
 		params="${params} ScsiSN=${OCF_RESKEY_scsi_sn}"
 	    fi
 	    params="${params} ${OCF_RESKEY_additional_parameters}"
-	    do_cmd ietadm --op new \
+	    ocf_run ietadm --op new \
 		--tid=${TID} \
 		--lun=${OCF_RESKEY_lun} \
 		--params ${params// /,} || exit $OCF_ERR_GENERIC
@@ -247,14 +222,14 @@ iSCSILogicalUnit_start() {
 		fi
 	    done
 	    params="${params} ${OCF_RESKEY_additional_parameters}"
-	    do_cmd tgtadm --lld iscsi --op new --mode logicalunit \
+	    ocf_run tgtadm --lld iscsi --op new --mode logicalunit \
 		--tid=${TID} \
 		--lun=${OCF_RESKEY_lun} \
 	    	--backing-store ${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
 	    if [ -z "$params" ]; then
 		return $OCF_SUCCESS
 	    else
-		do_cmd tgtadm --lld iscsi --op update --mode logicalunit \
+		ocf_run tgtadm --lld iscsi --op update --mode logicalunit \
 		    --tid=${TID} \
 		    --lun=${OCF_RESKEY_lun} \
 		    --params ${params// /,} || exit $OCF_ERR_GENERIC
@@ -263,13 +238,13 @@ iSCSILogicalUnit_start() {
 	lio)
 	    # For lio, we first have to create a target device, then
 	    # add it to the Target Portal Group as an LU.
-	    do_cmd tcm_node --createdev=iblock_0/${OCF_RESOURCE_INSTANCE} \
+	    ocf_run tcm_node --createdev=iblock_0/${OCF_RESOURCE_INSTANCE} \
 		${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
 	    if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
-		do_cmd tcm_node --setunitserial=iblock_0/${OCF_RESOURCE_INSTANCE} \
+		ocf_run tcm_node --setunitserial=iblock_0/${OCF_RESOURCE_INSTANCE} \
 		    ${OCF_RESKEY_scsi_sn} || exit $OCF_ERR_GENERIC
 	    fi
-	    do_cmd lio_node --addlun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} \
+	    ocf_run lio_node --addlun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} \
 		${OCF_RESOURCE_INSTANCE} iblock_0/${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
 
 	    ;;
@@ -284,7 +259,7 @@ iSCSILogicalUnit_stop() {
 	case $OCF_RESKEY_implementation in
 	    iet)
 		# IET allows us to remove LUs while they are in use
-		do_cmd ietadm --op delete \
+		ocf_run ietadm --op delete \
 		    --tid=${TID} \
 		    --lun=${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
 		;;
@@ -295,15 +270,15 @@ iSCSILogicalUnit_stop() {
 		# specific LU. Thus, we need to loop here until tgtd
 		# decides that the LU is no longer in use, or we get
 		# timed out by the LRM.
-		while ! do_cmd tgtadm --lld iscsi --op delete --mode logicalunit \
+		while ! ocf_run tgtadm --lld iscsi --op delete --mode logicalunit \
 		    --tid ${TID} \
 		    --lun=${OCF_RESKEY_lun}; do
 		    sleep 1
 		done
 		;;
 	    lio)
-		do_cmd lio_node --dellun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
-		do_cmd tcm_node --freedev=iblock_0/${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
+		ocf_run lio_node --dellun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+		ocf_run tcm_node --freedev=iblock_0/${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
 	esac
     fi
     
