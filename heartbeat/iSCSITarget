@@ -531,6 +531,7 @@ iSCSITarget_validate() {
 	        # check for configfs entries created by target_core_mod
 		if [ ! -d /sys/kernel/config/target ]; then
 		    ocf_log err "/sys/kernel/config/target does not exist or is not a directory -- check if required modules are loaded."
+		    exit $OCF_ERR_INSTALLED
 		fi
 		;;
 	esac
