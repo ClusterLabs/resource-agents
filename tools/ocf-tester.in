@@ -32,9 +32,15 @@ METADATA_LINT="xmllint --noout --valid -"
 num_errors=0
 
 usage() {
-    echo "ocf-tester [-Lh] -n resource_name [-o name=value]* /full/path/to/resource"
-	echo ""
-	echo "-L: use lrmadmin/lrmd for tests"
+    echo "Tool for testing if a cluster resource is OCF compliant"
+    echo ""
+    echo "Usage: ocf-tester [-Lh] -n resource_name [-o name=value]* /full/path/to/resource/agent"
+    echo ""
+    echo "Options:"
+    echo "  -h,--help		This text"
+    echo "  -n name		Name of the resource"	
+    echo "  -o name=value		Name and value of any parameters required by the agent"
+    echo "  -L			Use lrmadmin/lrmd for tests"
     exit $1
 }
 
@@ -70,7 +76,8 @@ while test "$done" = "0"; do
 		ra_args="$ra_args OCF_RESKEY_$name=$value"; shift; shift;;
 	-L) use_lrmd=1; shift;;
 	-v) verbose=1; shift;;
-	-?) usage 0;;
+	-?|--help) usage 0;;
+	--version) echo "@PACKAGE_VERSION@"; exit 0;;
 	-*) echo "unknown option: $1"; usage 1;;
 	*) done=1;;
     esac

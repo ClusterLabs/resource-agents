@@ -60,4 +60,12 @@ findif_SOURCES		= findif.c
 
 tickle_tcp_SOURCES	= tickle_tcp.c
 
+if BUILD_HELP
+man8_MANS =	$(sbin_SCRIPTS:%=%.8)
+%.8:	%
+	echo Creating $@
+	chmod a+x $<
+	help2man --output $@ --no-info --section 8 --name "Part of the Linux-HA project" $(top_builddir)/tools/$<
+endif
+
 .PHONY: install-exec-hook
