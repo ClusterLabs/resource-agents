@@ -58,10 +58,11 @@ fi
 : ${OCF_RESKEY_CRM_meta_interval=0}
 
 ocf_is_root() {
-	case `id` in
-	  *'uid=0(root)'*)	true;;
-	  *)			false;;
-	esac
+	if [ X`id -u` = X0 ]; then
+		true
+	else
+		false
+	fi
 }
 
 ocf_maybe_random() {
