@@ -108,7 +108,7 @@ clean_rmtab ()
 
 exportfs_monitor ()
 {
-	grep -qs "${OCF_RESKEY_directory}" $RMTAB
+	grep -qs "${OCF_RESKEY_directory}" $ETAB
 
 #Adapt grep status code to OCF return code
 	case $? in
@@ -229,6 +229,7 @@ if [ $# -ne 1 ]; then
 	exit $OCF_ERR_ARGS
 fi
 
+ETAB=/var/lib/nfs/etab
 RMTAB=/var/lib/nfs/rmtab
 PIDF=${OCF_RESKEY_directory}/.exportfs_backup.pid
 FS_RMTAB=${OCF_RESKEY_directory}/.rmtab
