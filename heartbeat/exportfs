@@ -139,11 +139,16 @@ exportfs_start ()
 
 	RETRIES=0
 	while [ 1 ]; do
-		showmount -e | grep -E "^${OCF_RESKEY_directory}[[:space:]]*${OCF_RESKEY_clientspec}$"
-		rc=$?
-		if [ $rc -eq 0 ]; then
-			break
-		fi
+		showmount -e |
+		awk -v export="$OCF_RESKEY_directory" -v client="$OCF_RESKEY_clientspec" '
+			$1 == export {
+				if( $2 == "(everyone)" ) exit 1
+				split($2,clients,",")
+				for ( i in clients ) {
+					if( clients[i] == client ) exit 1
+				}
+			}'
+		[ $? -eq 1 ] && break
 		RETRIES=`expr ${RETRIES} + 1`
 		if  [ ${RETRIES} -eq 4 ]; then
 			ocf_log debug "Export not reported by showmount -e"
