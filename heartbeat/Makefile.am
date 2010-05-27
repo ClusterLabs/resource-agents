@@ -54,6 +54,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			Evmsd		\
 			exportfs	\
 			Filesystem	\
+			fio		\
 			ids		\
 			iscsi		\
 			ICP		\
