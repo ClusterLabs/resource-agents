@@ -149,19 +149,22 @@ fio_validate() {
 	return $OCF_SUCCESS
 }
 
-check_binary fio
-
 case $__OCF_ACTION in
 	meta-data)	meta_data
 			exit $OCF_SUCCESS
 			;;
-	start)		fio_start;;
-	stop)		fio_stop;;
-	monitor)	fio_monitor;;
 	validate-all)	fio_validate;;
 	usage|help)	fio_usage
 			exit $OCF_SUCCESS
 			;;
+esac
+
+check_binary fio
+
+case $__OCF_ACTION in
+	start)		fio_start;;
+	stop)		fio_stop;;
+	monitor)	fio_monitor;;
 	*)		fio_usage
 			exit $OCF_ERR_UNIMPLEMENTED
 			;;
