@@ -236,6 +236,8 @@ fi
 test_metadata
 assert $? 0 "Your agent produces meta-data which does not conform to ra-api-1.dtd"
 
+OCF_TESTER_FAIL_HAVE_BINARY=1
+export OCF_TESTER_FAIL_HAVE_BINARY
 test_command meta-data
 rc=$?
 if [ $rc -eq 3 ]; then
@@ -243,6 +245,7 @@ if [ $rc -eq 3 ]; then
 else
     assert $rc 0 "The meta-data action cannot fail and must return 0"
 fi
+unset OCF_TESTER_FAIL_HAVE_BINARY
 
 export $ra_args;
 test_command validate-all
