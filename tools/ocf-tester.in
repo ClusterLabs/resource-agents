@@ -274,6 +274,12 @@ fi
 test_command monitor
 assert $? $stopped_rc "Monitoring a stopped resource should return $stopped_rc"
 
+OCF_TESTER_FAIL_HAVE_BINARY=1
+export OCF_TESTER_FAIL_HAVE_BINARY
+test_command monitor
+assert $? $stopped_rc "The initial probe for a stopped resource should return $stopped_rc even if all binaries are missing"
+unset OCF_TESTER_FAIL_HAVE_BINARY
+
 test_command start
 assert $? 0 "Start failed.  Did you supply enough options with -o ?" 1
 
