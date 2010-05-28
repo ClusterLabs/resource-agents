@@ -159,7 +159,7 @@ case $__OCF_ACTION in
 			;;
 esac
 
-check_binary fio
+ocf_is_probe || check_binary fio
 
 case $__OCF_ACTION in
 	start)		fio_start;;
