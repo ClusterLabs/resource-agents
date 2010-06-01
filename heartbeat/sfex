@@ -40,9 +40,6 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
 
-unset LC_ALL; export LC_ALL
-unset LANGUAGE; export LANGUAGE
-
 #######################################################################
 
 SFEX_DAEMON=${HA_BIN}/sfex_daemon

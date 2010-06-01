@@ -32,8 +32,6 @@ RIPD=/usr/sbin/ripd
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
 #######################################################################
-LC_ALL=C
-export LC_ALL
 
 meta_data() {
 cat <<END

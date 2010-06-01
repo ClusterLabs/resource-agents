@@ -32,8 +32,6 @@
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
-LC_ALL="C"
-LANG="C"
 
 # Defaults
 OCF_RESKEY_nic_default="eth0"
