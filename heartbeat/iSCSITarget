@@ -47,6 +47,9 @@ fi
 # Listen on 0.0.0.0:3260 by default
 OCF_RESKEY_portals_default="0.0.0.0:3260"
 : ${OCF_RESKEY_portals=${OCF_RESKEY_portals_default}}
+
+# Lockfile, used for selecting a target ID
+LOCKFILE=${HA_RSCTMP}/iSCSITarget-${OCF_RESKEY_implementation}.lock
 #######################################################################
 
 meta_data() {
@@ -186,6 +189,8 @@ iSCSITarget_start() {
 	    else
     	        # Figure out the last used target ID, add 1 to get the new
 	        # target ID.
+		ocf_take_lock $LOCKFILE
+		ocf_release_lock_on_exit $LOCKFILE
 		lasttid=`sed -ne "s/tid:\([[:digit:]]\+\) name:.*/\1/p" < /proc/net/iet/volume | sort -n | tail -n1`
 		[ -z "${lasttid}" ] && lasttid=0
 		tid=$((++lasttid))
