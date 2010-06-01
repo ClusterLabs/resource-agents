@@ -362,10 +362,14 @@ iSCSITarget_stop() {
 		done
 		# Avoid stale /etc/initiators.{allow,deny} entries
 		# for this target
-		ocf_run sed -e "/^${OCF_RESKEY_iqn}[[:space:]]/d" \
-		    -i /etc/initiators.deny
-		ocf_run sed -e "/^${OCF_RESKEY_iqn}[[:space:]]/d" \
-		    -i /etc/initiators.allow
+		if [ -e /etc/initiators.deny ]; then
+		    ocf_run sed -e "/^${OCF_RESKEY_iqn}[[:space:]]/d" \
+			-i /etc/initiators.deny
+		fi
+		if [ -e /etc/initiators.allow ]; then
+		    ocf_run sed -e "/^${OCF_RESKEY_iqn}[[:space:]]/d" \
+			-i /etc/initiators.allow
+		fi
 		;;
 	    tgt)
 		tid="${OCF_RESKEY_tid}"
