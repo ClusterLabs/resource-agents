@@ -224,7 +224,7 @@ meta_data()
             <shortdesc lang="en">
 	    	Additional status check program
             </shortdesc>
-            <content type="string" default="0"/>
+            <content type="string" default=""/>
         </parameter>
 
 	<parameter name="hypervisor">
