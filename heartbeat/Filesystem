@@ -16,6 +16,7 @@
 #		OCF_RESKEY_fstype
 #		OCF_RESKEY_options
 #		OCF_RESKEY_statusfile_prefix
+#		OCF_RESKEY_run_fsck
 #
 #OCF_RESKEY_device    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
 #			Or a -U or -L option for mount, or an NFS mount specification
@@ -23,6 +24,7 @@
 #OCF_RESKEY_fstype    : optional name of the filesystem type. e.g. ext2
 #OCF_RESKEY_options   : options to be given to the mount command via -o
 #OCF_RESKEY_statusfile_prefix : the prefix used for a status file for monitoring
+#OCF_RESKEY_run_fsck  : fsck execution mode: auto(default)/force/no
 #
 #
 # This assumes you want to manage a filesystem on a shared (SCSI) bus,
@@ -149,6 +151,18 @@ files will be created in a separate directory.
 </longdesc>
 <shortdesc lang="en">status file prefix</shortdesc>
 <content type="string" default="$DFLT_STATUSDIR" />
+</parameter>
+
+<parameter name="run_fsck">
+<longdesc lang="en">
+Specify how to decide whether to run fsck or not.
+
+"auto"  : decide to run fsck depending on the fstype(default)
+"force" : always run fsck regardless of the fstype
+"no"    : do not run fsck ever.
+</longdesc>
+<shortdesc lang="en">run_fsck</shortdesc>
+<content type="string" default="auto" />
 </parameter>
 
 </parameters>
@@ -379,6 +393,25 @@ bind_mount() {
 	fi
 }
 
+is_fsck_needed() {
+	case $OCF_RESKEY_run_fsck in
+	    force) true;;
+	    no)    false;;
+	    ""|auto)
+		case $FSTYPE in
+		    ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre)
+			false;;
+		    *)
+			true;;
+		esac;;
+	    *)
+		ocf_log warn "Invalid parameter value for fsck: '$OCF_RESKEY_run_fsck'; setting to 'auto'"
+		OCF_RESKEY_run_fsck="auto"
+		is_fsck_needed;;
+	esac
+}
+
+
 #
 # START: Start up the filesystem
 #
@@ -430,12 +463,7 @@ Filesystem_start()
 			exit $OCF_ERR_INSTALLED
 		fi
 
-		if
-		  case $FSTYPE in
-		    ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre)	false;;
-		    *)									true;;
-		  esac
-		then
+		if is_fsck_needed; then
 			ocf_log info  "Starting filesystem check on $DEVICE"
 			if [ -z "$FSTYPE" ]; then
 				$FSCK -p $DEVICE
