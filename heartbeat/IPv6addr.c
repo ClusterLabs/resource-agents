@@ -502,11 +502,14 @@ scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask, char* prov
 			break;
 		}
 
-		/* Only Global address entry would be considered.
-		 * maybe change?
+		/* Consider link-local addresses (scope == 0x20) only when
+		 * the inerface name is provided, and global addresses
+		 * (scope == 0). Skip everything else.
 		 */
-		if (0 != scope) {
-			continue;
+		if (scope != 0) {
+			if (scope != 0x20 || prov_ifname == 0
+				|| *prov_ifname == 0)
+				continue;
 		}
 
 		/* If specified prefix, only same prefix entry
