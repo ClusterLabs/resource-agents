@@ -3362,7 +3362,7 @@ sub check_simpletcp
 		$|=1;
 		select STDOUT;
 
-		my $request = $$r{request};
+		my $request = substr($$r{request}, 1);
 		$request =~ s/\\n/\n/g ;
 
 		&ld_debug(2, "Checking simpletcp server=$$r{server} port=$d_port request:\n$request");
