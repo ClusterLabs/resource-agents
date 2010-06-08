@@ -596,13 +596,14 @@ mysql_monitor() {
 	return $rc
     fi
 
-    # Check if this instance is configured as a slave, and if so check
-    # slave status
-    if is_slave; then
-	check_slave
-    fi
 
     if [ $OCF_CHECK_LEVEL -gt 0 ]; then
+	# Check if this instance is configured as a slave, and if so
+	# check slave status
+	if is_slave; then
+	    check_slave
+	fi
+
 	local mysql_options
 	mysql_options="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
 
