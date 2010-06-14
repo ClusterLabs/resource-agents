@@ -133,12 +133,16 @@ sfex_start() {
 		return $OCF_ERR_GENERIC
 	fi
 	
-	sleep 2
-	sfex_monitor
-	if [ $? -eq $OCF_SUCCESS ]; then
-		ocf_log info "sfex_daemon: started."
-		return $OCF_SUCCESS
-	fi
+	while :
+	do
+		sfex_monitor
+		if [ $? -eq $OCF_SUCCESS ]; then
+			ocf_log info "sfex_daemon: started."
+			return $OCF_SUCCESS
+		fi
+		ocf_log debug "Waiting for the start-up of the sfex_daemon..."
+		sleep 1
+	done
 	ocf_log err "Can't find a sfex_daemon process. Starting a sfex_daemon failed."
 	return $OCF_ERR_GENERIC
 }
@@ -168,13 +172,36 @@ sfex_stop() {
 #sfex could be in state D if the device is gone, and then not terminate.	
 #Wait and check again if the daemon is already properly shutdown.
 
-	sleep 4
+	shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
+	count=0
+	while [ $count -lt $shutdown_timeout ]
+	do
+		sfex_monitor
+		if [ $? -eq $OCF_NOT_RUNNING ]; then
+			ocf_log info "sfex_daemon: stopped."
+			return $OCF_SUCCESS
+		fi
+		count=`expr $count + 1`
+		ocf_log debug "waiting for sfex_daemon to exit ($count/$shutdown_timeout)"
+		sleep 1
+	done
+	
 	sfex_monitor
-	rc=$?
-	if [ $rc -ne $OCF_NOT_RUNNING ]; then
-		ocf_log err "sfex_daemon failed to stop"
-		return $rc
+	if [ $? -ne $OCF_NOT_RUNNING ]; then
+		ocf_log warn "regular shutdown of sfex_daemon timed out, using SIGKILL"
+		/bin/kill -s KILL $pid
 	fi
+
+	while :
+	do
+		sfex_monitor
+		if [ $? -eq $OCF_NOT_RUNNING ]; then
+			break;
+		fi
+		ocf_log debug "waiting for sfex_daemon to exit after SIGKILL"
+		sleep 1
+	done
+
 	ocf_log info "sfex_daemon: stopped."
 	return $OCF_SUCCESS
 }
