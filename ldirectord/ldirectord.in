@@ -2746,6 +2746,11 @@ sub check_http
 		alarm 0; # Cancel the alarm
 	};
 
+	if (not defined $res) {
+		&ld_debug(2, "check_http: timeout");
+		goto down;
+	}
+
 	if ($$v{service} eq "https") {
 		&ld_debug(2, "SSL-Cipher: " .
 			$res->header('Client-SSL-Cipher'));
@@ -2767,6 +2772,7 @@ sub check_http
 	service_set($v, $r, "down", {do_log => 1}, $log_message);
 
 	&ld_debug(3, "Headers " .  $res->headers->as_string);
+down:
 	&ld_debug(2, "check_http: $$r{url} is down\n");
 	return $SERVICE_DOWN;
 }
