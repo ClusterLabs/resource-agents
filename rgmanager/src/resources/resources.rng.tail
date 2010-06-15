@@ -4,14 +4,6 @@
     </zeroOrMore>
   </define>
 
-  <define name="CHILDREN">
-   <zeroOrMore>
-    <choice>
-     <ref name="CHILD"/>
-    </choice>
-   </zeroOrMore>
-  </define>
-
   <define name="RESOURCEACTION">
    <zeroOrMore>
     <element name="action" rha:description="Overrides resource action timings for a resource instance.">
