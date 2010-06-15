@@ -14,16 +14,16 @@
 
   <define name="RESOURCEACTION">
    <zeroOrMore>
-    <element name="action">
-     <attribute name="name"/>
+    <element name="action" rha:description="Overrides resource action timings for a resource instance.">
+     <attribute name="name" rha:description="Name of resource action (start, stop, status, etc.)."/>
      <optional>
-      <attribute name="depth"/>
+      <attribute name="depth" rha:description="Status check depth (resource agent dependent; * = all depths)."/>
      </optional>
      <optional>
-      <attribute name="interval"/>
+      <attribute name="interval" rha:description="Status check interval."/>
      </optional>
      <optional>
-      <attribute name="timeout"/>
+      <attribute name="timeout" rha:description="Action timeout.  Meaningless unless __enforce_timeouts is set for this resource."/>
      </optional>
     </element>
    </zeroOrMore>
