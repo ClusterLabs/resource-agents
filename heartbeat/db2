@@ -135,13 +135,6 @@ db2info() {
         else
 	  false
 	fi
-	rc=$?
-	if
-	  [ $rc -ne 0 ]
-	then
-	  ocf_log err "DB2 instance [$instance] not available"
-	fi
-	return $rc
 }
 
 #
@@ -362,7 +355,12 @@ if
 then
   : DB2 info is OK!
 else
-  exit $OCF_ERR_GENERIC
+  if ocf_is_probe; then
+    exit $OCF_NOT_RUNNING
+  else
+    ocf_log err "DB2 instance [$instance] not available"
+    exit $OCF_ERR_INSTALLED
+  fi
 fi
 
 
