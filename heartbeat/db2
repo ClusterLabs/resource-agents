@@ -123,6 +123,7 @@ db2info() {
 	db2ctrl=$db2sql/ctrl
 	db2bin=$db2sql/bin
 	db2db2=$db2bin/db2
+    db2node=0 # single node instances are supported
 
 	#	Let's make sure a few important things are there...
 	if
@@ -190,22 +191,31 @@ db2_start() {
       *)	ocf_log err "$output"; return $OCF_ERR_GENERIC;;
     esac
   fi
-  if
-    db2_status "$1"
-  then
-    if
-      runasdb2 $db2bin/db2jstrt 
-    then
-      for DB in `db2_dblist`
-      do
-        runasdb2 $db2db2 activate database $DB
-      done
-    fi
-    return $?
-  else
+  db2_status "$1" || {
     ocf_log err "DB2 UDB instance $1 not active!"
     return $OCF_ERR_GENERIC
+  }
+  # db2jstrt has been deprecated since v8.x and doesn't exist
+  # anymore in v9.x
+  if [ -x $db2bin/db2jstrt ]; then
+	runasdb2 $db2bin/db2jstrt || {
+	  ocf_log err "db2jstrt failed"
+	  return $OCF_ERR_GENERIC
+    }
   fi
+  for DB in `db2_dblist`
+  do
+	if output=`runasdb2 $db2db2 activate database $DB`; then
+      ocf_log info "DB2 UDB database $DB activated"
+    else
+      case $output in
+        SQL1490W*|*"already been activated"*)
+           ocf_log info "DB2 UDB database $DB already activated: $output";;
+
+        *) ocf_log err "DB2 UDB database $DB didn't activate: $output"; return $OCF_ERR_GENERIC;;
+      esac
+    fi
+  done
 }
 
 #
@@ -214,6 +224,10 @@ db2_start() {
 db2_stop() {
   # We ignore the instance, the info we need is already in $vars
   rc=$OCF_SUCCESS
+  db2_status || {
+    ocf_log info "DB2 UDB instance $1 already stopped"
+    return $rc
+  }
   if
     output=`runasdb2 $db2adm/db2stop force`
   then
@@ -230,7 +244,11 @@ db2_stop() {
     esac
   fi
   logasdb2 $db2db2 terminate
-  logasdb2 $db2bin/db2_kill
+  if [ -x $db2bin/db2_kill ]; then
+    logasdb2 $db2bin/db2_kill
+  elif [ -x $db2bin/db2nkill ]; then
+    logasdb2 $db2bin/db2nkill $db2node
+  fi
   pids=`our_db2_ps | grep db2jd | cut -d' ' -f1`
   for j in $pids
   do
@@ -246,7 +264,7 @@ db2_stop() {
 db2_status() {
   # We ignore the instance, the info we need is already in $vars
   pscount=`runasdb2 $db2bin/db2_local_ps | cut -c9- |  grep ' db2[^ ]' | wc -l`
-  test $pscount -ge 5
+  test $pscount -ge 4
 }
 
 our_db2_ps() {
@@ -288,7 +306,7 @@ db2_monitor() {
       return $OCF_ERR_GENERIC
     fi
   done
-  ocf_log info "All DBs in DB2 UDB instance $1 appear to be working"
+  ocf_log debug "All DBs in DB2 UDB instance $1 appear to be working"
   return $OCF_SUCCESS
 }
 
