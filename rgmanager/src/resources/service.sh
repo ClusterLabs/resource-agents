@@ -23,7 +23,7 @@ meta_data()
         group or cluster service.
     </longdesc>
     <shortdesc lang="en">
-        Defines a service (resource group).
+        Defines a services.
     </shortdesc>
 
     <parameters>
@@ -32,18 +32,18 @@ meta_data()
                 This is the name of the resource group.
             </longdesc>
             <shortdesc lang="en">
-                Name.
+                Name
             </shortdesc>
             <content type="string"/>
         </parameter>
     
         <parameter name="domain" reconfig="1">
             <longdesc lang="en">
-                Failover domains define lists of cluster members
+                Fail over domains define lists of cluster members
                 to try in the event that a resource group fails.
             </longdesc>
             <shortdesc lang="en">
-                Failover domain.
+                Fail over Domain
             </shortdesc>
             <content type="string"/>
         </parameter>
@@ -61,6 +61,21 @@ meta_data()
             <content type="boolean" default="1"/>
         </parameter>
 
+        <parameter name="hardrecovery" reconfig="1">
+            <longdesc lang="en">
+	    	If set to yes, the last owner will reboot if this resource
+		group fails to stop cleanly, thus allowing the resource
+		group to fail over to another node.  Use with caution; a
+		badly-behaved resource could cause the entire cluster to
+		reboot.  This should never be enabled if the automatic
+		start feature is used.
+            </longdesc>
+            <shortdesc lang="en">
+	    	Reboot if stop phase fails
+            </shortdesc>
+            <content type="boolean" default="0"/>
+        </parameter>
+
         <parameter name="exclusive" reconfig="1">
             <longdesc lang="en">
 	    	If set, this resource group will only relocate to
@@ -73,7 +88,7 @@ meta_data()
 		operations.
             </longdesc>
             <shortdesc lang="en">
-	        Exclusive service.
+	        Exclusive resource group
             </shortdesc>
             <content type="boolean" default="0"/>
         </parameter>
@@ -89,7 +104,7 @@ meta_data()
 		the -H parameter.
 	    </longdesc>
 	    <shortdesc lang="en">
-	        Enable NFS lock workarounds.
+	        Enable NFS lock workarounds
 	    </shortdesc>
 	    <content type="boolean" default="0"/>
 	</parameter>
@@ -109,7 +124,7 @@ meta_data()
 		is called.
             </longdesc>
             <shortdesc lang="en">
-	    	Enable exportfs list caching (performance).
+	    	Enable exportfs list caching
             </shortdesc>
 	    <content type="integer" default="0"/>
 	</parameter>
@@ -126,33 +141,33 @@ meta_data()
 		recovered without a restart will be.
             </longdesc>
             <shortdesc lang="en">
-	    	Failure recovery policy (restart, relocate, or disable).
+	    	Failure recovery policy
             </shortdesc>
             <content type="string" default="restart"/>
         </parameter>
 
         <parameter name="depend">
             <longdesc lang="en">
-		Service dependency; will not start without the specified
-		service running.
+		Top-level service this depends on, in "service:name" format.
             </longdesc>
             <shortdesc lang="en">
-		Top-level service this depends on, in service:name format.
+		Service dependency; will not start without the specified
+		service running.
             </shortdesc>
             <content type="string"/>
         </parameter>
 
         <parameter name="depend_mode">
             <longdesc lang="en">
+	    	Dependency mode
+            </longdesc>
+            <shortdesc lang="en">
 		Service dependency mode.
 		hard - This service is stopped/started if its dependency
 		       is stopped/started
 		soft - This service only depends on the other service for
 		       initial startip.  If the other service stops, this
 		       service is not stopped.
-            </longdesc>
-            <shortdesc lang="en">
-	    	Service dependency mode (soft or hard).
             </shortdesc>
             <content type="string" default="hard"/>
         </parameter>
@@ -169,16 +184,15 @@ meta_data()
 
         <parameter name="restart_expire_time">
             <longdesc lang="en">
+	    	Restart expiration time
+            </longdesc>
+            <shortdesc lang="en">
 	    	Restart expiration time.  A restart is forgotten
 		after this time.  When combined with the max_restarts
 		option, this lets administrators specify a threshold
 		for when to fail over services.  If max_restarts
 		is exceeded in this given expiration time, the service
 		is relocated instead of restarted again.
-            </longdesc>
-            <shortdesc lang="en">
-	    	Restart expiration time; amount of time before a restart
-		is forgotten.
             </shortdesc>
             <content type="string" default="0"/>
         </parameter>
@@ -193,7 +207,7 @@ meta_data()
 		on.
 	    </longdesc>
 	    <shortdesc lang="en">
-		Service priority.
+		Service priority
 	    </shortdesc>
 	    <content type="integer" default="0"/>
 	</parameter>

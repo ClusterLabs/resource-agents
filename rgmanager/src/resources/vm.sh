@@ -40,12 +40,12 @@ meta_data()
     
         <parameter name="domain" reconfig="1">
             <longdesc lang="en">
-                Failover domains define lists of cluster members
+                Fail over domains define lists of cluster members
                 to try in the event that the host of the virtual machine
 		fails.
             </longdesc>
             <shortdesc lang="en">
-                Cluster failover Domain
+                Cluster Fail Over Domain
             </shortdesc>
             <content type="string"/>
         </parameter>
@@ -61,6 +61,21 @@ meta_data()
 	    	Automatic start after quorum formation
             </shortdesc>
             <content type="boolean" default="1"/>
+        </parameter>
+
+        <parameter name="hardrecovery" reconfig="1">
+            <longdesc lang="en">
+	    	If set to yes, the last owner will reboot if this resource
+		group fails to stop cleanly, thus allowing the resource
+		group to fail over to another node.  Use with caution; a
+		badly-behaved resource could cause the entire cluster to
+		reboot.  This should never be enabled if the automatic
+		start feature is used.
+            </longdesc>
+            <shortdesc lang="en">
+	    	Reboot if stop phase fails
+            </shortdesc>
+            <content type="boolean" default="0"/>
         </parameter>
 
         <parameter name="exclusive" reconfig="1">
@@ -106,7 +121,7 @@ meta_data()
 
 	<parameter name="use_virsh">
 	    <longdesc lang="en">
-	    	Force use of virsh instead of xm on Xen machines.
+	    	Use virsh instead of XM
 	    </longdesc>
 	    <shortdesc lang="en">
 	    	If set to 1, vm.sh will use the virsh command to manage
@@ -118,31 +133,30 @@ meta_data()
 
 	<parameter name="xmlfile">
 	    <longdesc lang="en">
-	    	Full path to libvirt XML file describing the domain.
+	    	Use xmlfile to create the vm (libvirt)
 	    </longdesc>
 	    <shortdesc lang="en">
-	    	Full path to libvirt XML file describing the domain.
 	    </shortdesc>
             <content type="string"/>
 	</parameter>
 
 	<parameter name="migrate">
 	    <longdesc lang="en">
-	    	Migration type (live or pause, default = live).
+	    	Migration type live or pause, default = live.
 	    </longdesc>
 	    <shortdesc lang="en">
-	    	Migration type (live or pause, default = live).
+	    	Migration type live or pause, default = live.
 	    </shortdesc>
             <content type="string" default="live"/>
         </parameter>
 
 	<parameter name="path">
 	    <longdesc lang="en">
-		Path specification vm.sh will search for the specified
- 		VM configuration file.  /path1:/path2:...
+		Path specification 'xm create' will search for the specified
+ 		VM configuration file
 	    </longdesc>
 	    <shortdesc lang="en">
-		Path to virtual machine configuration files.
+		Path to virtual machine configuration files
  	    </shortdesc>
 	    <content type="string"/>
  	</parameter>
@@ -161,26 +175,26 @@ meta_data()
 
         <parameter name="depend">
             <longdesc lang="en">
-		Service dependency; will not start without the specified
-		service running.
+		Top-level service this depends on, in "service:name" format.
             </longdesc>
             <shortdesc lang="en">
-		Top-level service this depends on, in service:name format.
+		Service dependency; will not start without the specified
+		service running.
             </shortdesc>
             <content type="string"/>
         </parameter>
 
         <parameter name="depend_mode">
             <longdesc lang="en">
+	    	Dependency mode
+            </longdesc>
+            <shortdesc lang="en">
 		Service dependency mode.
 		hard - This service is stopped/started if its dependency
 		       is stopped/started
 		soft - This service only depends on the other service for
 		       initial startip.  If the other service stops, this
 		       service is not stopped.
-            </longdesc>
-            <shortdesc lang="en">
-	    	Service dependency mode (soft or hard).
             </shortdesc>
             <content type="string" default="hard"/>
         </parameter>
@@ -196,18 +210,6 @@ meta_data()
         </parameter>
 
         <parameter name="restart_expire_time" reconfig="1">
-            <longdesc lang="en">
-	    	Restart expiration time.  A restart is forgotten
-		after this time.  When combined with the max_restarts
-		option, this lets administrators specify a threshold
-		for when to fail over services.  If max_restarts
-		is exceeded in this given expiration time, the service
-		is relocated instead of restarted again.
-            </longdesc>
-            <shortdesc lang="en">
-	    	Restart expiration time; amount of time before a restart
-		is forgotten.
-            </shortdesc>
             <content type="string" default="0"/>
         </parameter>
 
@@ -237,24 +239,24 @@ meta_data()
 	</parameter>
 
 	<parameter name="hypervisor_uri">
+            <shortdesc lang="en">
+		Hypervisor URI
+            </shortdesc >
             <longdesc lang="en">
 		Hypervisor URI.  Generally, this is keyed off of the
 		hypervisor and does not need to be set.
             </longdesc>
-            <shortdesc lang="en">
-		Hypervisor URI (normally automatic).
-            </shortdesc >
 	    <content type="string" default="auto" />
 	</parameter>
 
 	<parameter name="migration_uri">
+            <shortdesc lang="en">
+		Migration URI
+            </shortdesc >
             <longdesc lang="en">
 		Migration URI.  Generally, this is keyed off of the
 		hypervisor and does not need to be set.
             </longdesc>
-            <shortdesc lang="en">
-		Migration URI (normally automatic).
-            </shortdesc >
 	    <content type="string" default="auto" />
 	</parameter>
 
