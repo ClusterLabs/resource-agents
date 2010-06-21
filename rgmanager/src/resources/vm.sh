@@ -261,15 +261,15 @@ meta_data()
     </parameters>
 
     <actions>
-        <action name="start" timeout="20"/>
+        <action name="start" timeout="300"/>
         <action name="stop" timeout="120"/>
 	
         <action name="status" timeout="10" interval="30"/>
         <action name="monitor" timeout="10" interval="30"/>
 
 	<!-- depth 10 calls the status_program -->
-        <action name="status" depth="10" timeout="10" interval="300"/>
-        <action name="monitor" depth="10" timeout="10" interval="300"/>
+        <action name="status" depth="10" timeout="20" interval="60"/>
+        <action name="monitor" depth="10" timeout="20" interval="60"/>
 
 	<!-- reconfigure - reconfigure with new OCF parameters.
 	     NOT OCF COMPATIBLE AT ALL -->
@@ -351,6 +351,31 @@ do_xm_start()
 }
 
 
+get_timeout()
+{
+	declare -i default_timeout=60
+	declare -i tout=60
+
+	if [ -n "$OCF_RESKEY_RGMANAGER_meta_timeout" ]; then
+		tout=$OCF_RESKEY_RGMANAGER_meta_timeout
+	elif [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+		tout=$OCF_RESKEY_CRM_meta_timeout
+	fi
+
+	if [ $tout -eq 0 ]; then
+		echo $default_timeout
+		return 0
+	fi
+	if [ $tout -lt 0 ]; then
+		echo $default_timeout
+		return 0
+	fi
+
+	echo $tout
+	return 0
+}
+
+
 #
 # Start a virtual machine given the parameters from
 # the environment.
@@ -428,7 +453,7 @@ do_xm_stop()
 #
 do_virsh_stop()
 {
-	declare -i timeout=60
+	declare -i timeout=$(get_timeout)
 	declare -i ret=1
 	declare state
 
@@ -443,7 +468,7 @@ do_virsh_stop()
 		echo virsh $op $OCF_RESKEY_name ...
 		virsh $op $OCF_RESKEY_name
 
-		timeout=60
+		timeout=$(get_timeout)
 		while [ $timeout -gt 0 ]; do
 			sleep 5
 			((timeout -= 5))
@@ -913,6 +938,42 @@ migrate()
 	return $rv
 }
 
+
+wait_start()
+{
+	declare -i timeout_remaining=$(get_timeout)
+	declare -i start_time
+	declare -i end_time
+	declare -i delta
+	declare -i sleep_time
+
+	if [ -z "$OCF_RESKEY_status_program" ]; then
+		return 0
+	fi
+
+	while [ $timeout_remaining -gt 0 ]; do
+		start_time=$(date +%s)
+		bash -c "$OCF_RESKEY_status_program"
+		if [ $? -eq 0 ]; then
+			return 0
+		fi
+		end_time=$(date +%s)
+		delta=$(((end_time - start_time)))
+		sleep_time=$(((5 - delta)))
+
+		((timeout_remaining -= $delta))
+		if [ $sleep_time -gt 0 ]; then
+			sleep $sleep_time
+			((timeout_remaining -= $sleep_time))
+		fi
+	done
+
+	ocf_log err "Start of $OCF_RESOURCE_INSTANCE has failed"
+	ocf_log err "Timeout exceeded while waiting for \"$OCF_RESKEY_status_program\""
+
+	return 1
+}
+
 #
 #
 #
@@ -921,6 +982,12 @@ case $1 in
 	start)
 		validate_all || exit $OCF_ERR_ARGS
 		do_start
+		rv=$?
+		if [ $rv -ne 0 ]; then
+			exit $rv
+		fi
+
+		wait_start
 		exit $?
 		;;
 	stop)
