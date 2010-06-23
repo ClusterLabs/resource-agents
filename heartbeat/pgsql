@@ -27,6 +27,7 @@ OCF_RESKEY_config_default=""
 OCF_RESKEY_start_opt_default=""
 OCF_RESKEY_pgdb_default=template1
 OCF_RESKEY_logfile_default=/dev/null
+OCF_RESKEY_socketdir_default=""
 OCF_RESKEY_stop_escalate_default=30
 
 : ${OCF_RESKEY_pgctl=${OCF_RESKEY_pgctl_default}}
@@ -39,6 +40,7 @@ OCF_RESKEY_stop_escalate_default=30
 : ${OCF_RESKEY_start_opt=${OCF_RESKEY_start_opt_default}}
 : ${OCF_RESKEY_pgdb=${OCF_RESKEY_pgdb_default}}
 : ${OCF_RESKEY_logfile=${OCF_RESKEY_logfile_default}}
+: ${OCF_RESKEY_socketdir=${OCF_RESKEY_socketdir_default}}
 : ${OCF_RESKEY_stop_escalate=${OCF_RESKEY_stop_escalate_default}}
 
 usage() {
@@ -166,6 +168,14 @@ Path to PostgreSQL server log output file.
 <content type="string" default="${OCF_RESKEY_logfile_default}" />
 </parameter>
 
+<parameter name="socketdir" unique="0" required="0">
+<longdesc lang="en">
+Unix socket directory for PostgeSQL
+</longdesc>
+<shortdesc lang="en">socketdir</shortdesc>
+<content type="string" default="${OCF_RESKEY_socketdir_default}" />
+</parameter>
+
 <parameter name="stop_escalate" unique="0" required="0">
 <longdesc lang="en">
 Number of shutdown retries (using -m fast) before resorting to -m immediate
@@ -237,6 +247,11 @@ pgsql_start() {
     then
         ocf_log err "PostgreSQL can't write to the log file: $OCF_RESKEY_logfile"
 	return $OCF_ERR_GENERIC
+    fi
+    # Check if we need to create a socket directory
+    if [ -n "$OCF_RESKEY_socketdir" ]
+    then
+        check_socket_dir $OCF_RESKEY_socketdir
     fi
 
     # Set options passed to pg_ctl
@@ -417,6 +432,30 @@ check_log_file() {
     fi
 
     return 0
+}
+
+# Check socket directory
+check_socket_dir() {
+    if [ ! -d "$1" ]
+    then
+        if ! mkdir "$1"
+        then
+            ocf_log err "Cannot create directory $1"
+            exit $OCF_ERR_GENERIC
+       fi
+    fi
+    
+    if ! chown $OCF_RESKEY_pgdba:$(getent passwd $OCF_RESKEY_pgdba | cut -d ":" -f 4) "$1" 
+    then
+        ocf_log err "Cannot change ownership for $1"
+        exit $OCF_ERR_GENERIC
+    fi
+
+    if ! chmod 2775 "$1"
+    then
+        ocf_log err "Cannot change permissions for $1"
+        exit $OCF_ERR_GENERIC
+    fi
 }
 
 #
