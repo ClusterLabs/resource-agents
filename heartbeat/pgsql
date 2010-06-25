@@ -441,11 +441,26 @@ pgsql_monitor() {
     return $OCF_SUCCESS
 }
 
+check_binary2() {
+    if ! have_binary "$1"; then
+        ocf_log err "Setup problem: couldn't find command: $1"
+        return 1
+    fi
+    return 0
+}
+
 # Validate most critical parameters
 pgsql_validate_all() {
-    check_binary $OCF_RESKEY_pgctl
-    check_binary $OCF_RESKEY_psql
-    check_binary fuser
+    if ! check_binary2 "$OCF_RESKEY_pgctl" ||
+            ! check_binary2 "$OCF_RESKEY_psql" ||
+            ! check_binary2 fuser; then
+        return $OCF_ERR_INSTALLED
+    fi
+
+    if [ -n "$OCF_RESKEY_config" -a ! -f "$OCF_RESKEY_config" ]; then
+        ocf_log err "the configuration file $OCF_RESKEY_config doesn't exist"
+        return $OCF_ERR_INSTALLED
+    fi
 
     return $OCF_SUCCESS
 }
@@ -527,13 +542,15 @@ case "$1" in
                 exit $?;;
 esac
 
-if ! pgsql_validate_all
+pgsql_validate_all
+rc=$?
+if [ $rc -ne 0 ]
 then
     case "$1" in
         stop)    exit $OCF_SUCCESS;;
         monitor) exit $OCF_NOT_RUNNING;;
         status)  exit $OCF_NOT_RUNNING;;
-        *)       exit $OCF_ERR_INSTALLED;;
+        *)       exit $rc;;
     esac
 fi
 
