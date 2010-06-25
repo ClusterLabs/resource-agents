@@ -16,6 +16,38 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
 
+#
+# Get PostgreSQL Configuration parameter
+#
+get_pgsql_param() {
+    local config_file
+    local param_name
+    local param_value
+
+    param_name=$1
+ 
+    #Check that config file exists 
+    if [ -n $OCF_RESKEY_config ]; then
+        config=$OCF_RESKEY_pgdata/postgresql.conf
+    else
+        config=$OCF_RESKEY_config
+    fi
+
+    if [ ! -f "$config" ]; then
+        ocf_log err "Cannot find configuration file $config"
+        exit $OCF_ERR_GENERIC
+    fi
+
+    perl_code="if (/^\s*$param_name[\s=]+\s*(.*)$/) {
+       \$dir=\$1;
+       \$dir =~ s/\s*\#.*//;
+       \$dir =~ s/^'(\S*)'/\$1/;
+       print \$dir;}"
+
+    param_value=`cat $config | perl -ne "$perl_code"`
+    echo "$param_value"
+}
+
 # Defaults
 OCF_RESKEY_pgctl_default=/usr/bin/pg_ctl
 OCF_RESKEY_psql_default=/usr/bin/psql
@@ -27,7 +59,6 @@ OCF_RESKEY_config_default=""
 OCF_RESKEY_start_opt_default=""
 OCF_RESKEY_pgdb_default=template1
 OCF_RESKEY_logfile_default=/dev/null
-OCF_RESKEY_socketdir_default=""
 OCF_RESKEY_stop_escalate_default=30
 
 : ${OCF_RESKEY_pgctl=${OCF_RESKEY_pgctl_default}}
@@ -40,8 +71,11 @@ OCF_RESKEY_stop_escalate_default=30
 : ${OCF_RESKEY_start_opt=${OCF_RESKEY_start_opt_default}}
 : ${OCF_RESKEY_pgdb=${OCF_RESKEY_pgdb_default}}
 : ${OCF_RESKEY_logfile=${OCF_RESKEY_logfile_default}}
-: ${OCF_RESKEY_socketdir=${OCF_RESKEY_socketdir_default}}
 : ${OCF_RESKEY_stop_escalate=${OCF_RESKEY_stop_escalate_default}}
+
+# $OCF_RESKEY_pgdata has to be initialized at this momemnt
+OCF_RESKEY_socketdir_default=`get_pgsql_param unix_socket_directory`
+: ${OCF_RESKEY_socketdir=${OCF_RESKEY_socketdir_default}}
 
 usage() {
     cat <<EOF
@@ -248,10 +282,11 @@ pgsql_start() {
         ocf_log err "PostgreSQL can't write to the log file: $OCF_RESKEY_logfile"
 	return $OCF_ERR_GENERIC
     fi
-    # Check if we need to create a socket directory
+
+    # Check socket directory
     if [ -n "$OCF_RESKEY_socketdir" ]
     then
-        check_socket_dir $OCF_RESKEY_socketdir
+        check_socket_dir
     fi
 
     # Set options passed to pg_ctl
@@ -385,6 +420,10 @@ pgsql_monitor() {
     psql_options="-p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb"
     if [ -n "$OCF_RESKEY_pghost" ]; then
 	psql_options="$psql_options -h $OCF_RESKEY_pghost"
+    else
+       if [ -n "$OCF_RESKEY_socketdir" ]; then
+           psql_options="$psql_options -h $OCF_RESKEY_socketdir"
+       fi
     fi
     runasowner "$OCF_RESKEY_psql $psql_options -c 'select now();'"
 
@@ -422,7 +461,7 @@ check_log_file() {
     if [ ! -f "$1" ]
     then
         touch $1 > /dev/null 2>&1
-        chown $OCF_RESKEY_pgdba:$(getent passwd $OCF_RESKEY_pgdba | cut -d ":" -f 4) $1
+        chown $OCF_RESKEY_pgdba:`getent passwd $OCF_RESKEY_pgdba | cut -d ":" -f 4` $1
     fi
 
     #Check if $OCF_RESKEY_pgdba can write to the log file
@@ -434,27 +473,33 @@ check_log_file() {
     return 0
 }
 
+#
 # Check socket directory
+#
 check_socket_dir() {
-    if [ ! -d "$1" ]
-    then
-        if ! mkdir "$1"
-        then
-            ocf_log err "Cannot create directory $1"
+    if [ ! -d "$OCF_RESKEY_socketdir" ]; then
+        if ! mkdir "$OCF_RESKEY_socketdir"; then
+            ocf_log err "Cannot create directory $OCF_RESKEY_socketdir"
             exit $OCF_ERR_GENERIC
-       fi
-    fi
-    
-    if ! chown $OCF_RESKEY_pgdba:$(getent passwd $OCF_RESKEY_pgdba | cut -d ":" -f 4) "$1" 
-    then
-        ocf_log err "Cannot change ownership for $1"
-        exit $OCF_ERR_GENERIC
-    fi
+        fi
 
-    if ! chmod 2775 "$1"
-    then
-        ocf_log err "Cannot change permissions for $1"
-        exit $OCF_ERR_GENERIC
+        if ! chown $OCF_RESKEY_pgdba:`getent passwd \
+             $OCF_RESKEY_pgdba | cut -d ":" -f 4` "$OCF_RESKEY_socketdir" 
+        then
+            ocf_log err "Cannot change ownership for $OCF_RESKEY_socketdir"
+            exit $OCF_ERR_GENERIC
+        fi
+
+        if ! chmod 2775 "$OCF_RESKEY_socketdir"; then
+            ocf_log err "Cannot change permissions for $OCF_RESKEY_socketdir"
+            exit $OCF_ERR_GENERIC
+        fi
+    else
+        if ! runasowner "touch $OCF_RESKEY_socketdir/test.$$"; then
+            ocf_log err "$OCF_RESKEY_pgdba cannot create files in $OCF_RESKEY_socketdir"
+            exit $OCF_ERR_GENERIC
+        fi
+        rm $OCF_RESKEY_socketdir/test.$$
     fi
 }
 
