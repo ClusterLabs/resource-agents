@@ -22,20 +22,19 @@
 get_pgsql_param() {
     local config_file
     local param_name
-    local param_value
 
     param_name=$1
  
     #Check that config file exists 
-    if [ -n $OCF_RESKEY_config ]; then
-        config=$OCF_RESKEY_pgdata/postgresql.conf
-    else
+    if [ -n "$OCF_RESKEY_config" ]; then
         config=$OCF_RESKEY_config
+    else
+        config=$OCF_RESKEY_pgdata/postgresql.conf
     fi
 
     if [ ! -f "$config" ]; then
         ocf_log err "Cannot find configuration file $config"
-        exit $OCF_ERR_GENERIC
+        return
     fi
 
     perl_code="if (/^\s*$param_name[\s=]+\s*(.*)$/) {
@@ -44,8 +43,7 @@ get_pgsql_param() {
        \$dir =~ s/^'(\S*)'/\$1/;
        print \$dir;}"
 
-    param_value=`cat $config | perl -ne "$perl_code"`
-    echo "$param_value"
+    perl -ne "$perl_code" < $config
 }
 
 # Defaults
