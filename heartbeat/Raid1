@@ -226,28 +226,6 @@ raid1_stop() {
 		return $OCF_SUCCESS
 	fi
 
-	# See if the MD device is mounted
-	$MOUNT | grep -e "^$MDDEV\>" >/dev/null
-	if [ $? -ne 1 ] ; then
-		# Kill all processes open on filesystem
-		$FUSER -m -k $MDDEV
-
-		# the return from fuser doesn't tell us much
-		#if [ $? -ne 0 ] ; then
-		#	ocf_log "err" "Couldn't kill processes on $MOUNTPOINT"
-		#	return 1;
-		#fi
-
-		# Unmount the filesystem
-		$UMOUNT $MDDEV
-
-		$MOUNT | grep -e "^$MDDEV\>" >/dev/null
-		if [ $? -ne 1 ] ; then
-		    ocf_log err "filesystem for $MDDEV still mounted"
-		    return $OCF_ERR_GENERIC
-		fi
-	fi
-
 	# Turn off raid
 	if [ $HAVE_RAIDTOOLS = "true" ]; then
 		$RAIDSTOP --configfile $RAIDCONF $MDDEV
