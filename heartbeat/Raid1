@@ -168,13 +168,6 @@ END
 # START: Start up the RAID device
 #
 raid1_start() {
-	# See if the md device is already mounted.
-	$MOUNT | grep -e "^$MDDEV\>" >/dev/null
-	if [ $? -ne 1 ] ; then
-	    ocf_log err "Device $MDDEV is already mounted!"
-	    return $OCF_ERR_GENERIC
-	fi
-
 	if [ "running" = `raid1_status` ]; then
 	# We are already online, do not bother
 	    return $OCF_SUCCESS
