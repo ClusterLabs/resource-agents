@@ -230,19 +230,21 @@ raid1_stop() {
 	if [ $HAVE_RAIDTOOLS = "true" ]; then
 		$RAIDSTOP --configfile $RAIDCONF $MDDEV
 	else
-		ocf_log info "Marking array $MDDEV readonly"
-		$MDADM --readonly $MDDEV --config=$RAIDCONF
-		rc=$?
-		if [ $rc -ne 0 ]; then
-			ocf_log err "Failed to set $MDDEV readonly (rc=$rc)"
-		fi
 		ocf_log info "Stopping array $MDDEV"
-		$MDADM --stop $MDDEV --config=$RAIDCONF
+		$MDADM --stop $MDDEV --config=$RAIDCONF --wait-clean -W
 	fi
 	rc=$?
 
 	if [ $rc -ne 0 ]; then
 		ocf_log err "Couldn't stop RAID for $MDDEV (rc=$rc)"
+		if [ $HAVE_RAIDTOOLS != "true" ]; then
+			ocf_log info "Attempting to mark array $MDDEV readonly"
+			$MDADM --readonly $MDDEV --config=$RAIDCONF
+			rc=$?
+			if [ $rc -ne 0 ]; then
+				ocf_log err "Failed to set $MDDEV readonly (rc=$rc)"
+			fi
+		fi
 		return $OCF_ERR_GENERIC
 	fi
 
