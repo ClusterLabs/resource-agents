@@ -174,7 +174,7 @@ raid1_start() {
 	    ocf_log err "Device $MDDEV is already mounted!"
 	    return $OCF_ERR_GENERIC
 	fi
-	
+
 	if [ "running" = `raid1_status` ]; then
 	# We are already online, do not bother
 	    return $OCF_SUCCESS
@@ -218,8 +218,9 @@ raid1_start() {
 # STOP: stop the RAID device
 #
 raid1_stop() {
-	# See if the MD device is online
-	if [ "stopped" = `raid1_status` ]; then
+	# See if the MD device is already cleanly stopped:
+	raid1_monitor
+	if [ $? = $OCF_NOT_RUNNING ]; then
 		return $OCF_SUCCESS
 	fi
 
@@ -249,15 +250,29 @@ raid1_stop() {
 	if [ $HAVE_RAIDTOOLS = "true" ]; then
 		$RAIDSTOP --configfile $RAIDCONF $MDDEV
 	else
-		$MDADM --stop $MDDEV --config=$RAIDCONF $MDADM_HOMEHOST
+		ocf_log info "Marking array $MDDEV readonly"
+		$MDADM --readonly $MDDEV --config=$RAIDCONF
+		rc=$?
+		if [ $rc -ne 0 ]; then
+			ocf_log err "Failed to set $MDDEV readonly (rc=$rc)"
+		fi
+		ocf_log info "Stopping array $MDDEV"
+		$MDADM --stop $MDDEV --config=$RAIDCONF
 	fi
+	rc=$?
 
-	if [ $? -ne 0 ] ; then
-		ocf_log err "Couldn't stop RAID for $MDDEV"
+	if [ $rc -ne 0 ]; then
+		ocf_log err "Couldn't stop RAID for $MDDEV (rc=$rc)"
 		return $OCF_ERR_GENERIC
 	fi
 
-	return $OCF_SUCCESS
+	raid1_monitor
+	if [ $? = $OCF_NOT_RUNNING ]; then
+		return $OCF_SUCCESS
+	fi
+	
+	ocf_log err "RAID $MDDEV still active after stop command!"
+	return $OCF_ERR_GENERIC
 }
 
 #
