@@ -108,11 +108,11 @@ END
 raid1_start() {
 	raid1_monitor
 	rc=$?
-	if [ $rc = $OCF_SUCCESS ]; then
+	if [ $rc -eq $OCF_SUCCESS ]; then
 		# md already online, nothing to do.
 		return $OCF_SUCCESS
 	fi
-	if [ $rc != $OCF_NOT_RUNNING ]; then
+	if [ $rc -ne $OCF_NOT_RUNNING ]; then
 		# If the array is in a broken state, this agent doesn't
 		# know how to repair that.
 		ocf_log err "$MDDEV in a broken state; cannot start (rc=$rc)"
@@ -146,7 +146,7 @@ raid1_start() {
 	fi
 
 	raid1_monitor
-	if [ $? = $OCF_SUCCESS ]; then
+	if [ $? -eq $OCF_SUCCESS ]; then
 	    return $OCF_SUCCESS
 	else
 	    ocf_log err "Couldn't start RAID for $MDDEV"
@@ -160,7 +160,7 @@ raid1_start() {
 raid1_stop() {
 	# See if the MD device is already cleanly stopped:
 	raid1_monitor
-	if [ $? = $OCF_NOT_RUNNING ]; then
+	if [ $? -eq $OCF_NOT_RUNNING ]; then
 		return $OCF_SUCCESS
 	fi
 
@@ -187,7 +187,7 @@ raid1_stop() {
 	fi
 
 	raid1_monitor
-	if [ $? = $OCF_NOT_RUNNING ]; then
+	if [ $? -ne $OCF_NOT_RUNNING ]; then
 		return $OCF_SUCCESS
 	fi
 	
@@ -274,12 +274,8 @@ case "$1" in
 	;;
 esac
 
-#
-# Check the necessary enviroment virable's setting 
-# 
-
-RAIDCONF=$OCF_RESKEY_raidconf
-MDDEV=$OCF_RESKEY_raiddev
+RAIDCONF="$OCF_RESKEY_raidconf"
+MDDEV="$OCF_RESKEY_raiddev"
 
 if [ -z "$RAIDCONF" ] ; then
 	ocf_log err "Please set OCF_RESKEY_raidconf!"
