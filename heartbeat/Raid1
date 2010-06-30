@@ -423,17 +423,15 @@ MD=`echo $MDDEV | sed -e 's/\/dev\///'`
 
 
 HAVE_RAIDTOOLS=false
-if 
-    have_binary $RAIDSTART >/dev/null 2>&1
-then
-  HAVE_RAIDTOOLS=true
-else
-  check_binary $MDADM
+if have_binary $MDADM >/dev/null 2>&1 ; then
   if [ -n "$OCF_RESKEY_homehost" ]; then
   	MDADM_HOMEHOST="--homehost=${OCF_RESKEY_homehost}"
   else
   	MDADM_HOMEHOST=""
   fi
+else
+  check_binary $RAIDSTART
+  HAVE_RAIDTOOLS=true
 fi
 
 # At this stage,
