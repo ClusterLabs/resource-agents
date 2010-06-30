@@ -116,12 +116,6 @@ real_device()
 
 	[ -z "$dev" ] && return $OCF_ERR_ARGS
 
-	# If our provided blockdev is a device, we are done
-	if [ -b "$dev" ]; then
-		REAL_DEVICE="$dev"
-		return $OCF_SUCCESS
-	fi
-
 	# Oops, we have a link.  Sorry, this is going to fork.
 	if [ -h "$dev" ]; then
 		realdev=$(readlink -f $dev)
@@ -129,6 +123,12 @@ real_device()
 			return $OCF_ERR_ARGS
 		fi
 		REAL_DEVICE="$realdev"
+		return $OCF_SUCCESS
+	fi
+
+	# If our provided blockdev is a device, we are done
+	if [ -b "$dev" ]; then
+		REAL_DEVICE="$dev"
 		return $OCF_SUCCESS
 	fi
 
