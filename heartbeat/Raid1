@@ -14,69 +14,7 @@
 #
 # usage: $0 {start|stop|status|monitor|validate-all|usage|meta-data}
 #
-#	  OCF parameters are as below:
-#		OCF_RESKEY_raidconf
-#                  (name of MD configuration file. e.g. /etc/raidtab or /etc/mdadm.conf)
-#		OCF_RESKEY_raiddev
-#                  (of the form /dev/md* the block device to use)   
 #
-# in /etc/ha.d/haresources, use a line such as:
-# nodea  10.0.0.170 Raid1::/etc/raidtab.md0::/dev/md0 Filesystem::/dev/md0::/data1::ext2
-# (for systems with raidtools)
-#	or
-# nodea  10.0.0.170 Raid1::/etc/mdadm.conf::/dev/md0 Filesystem::/dev/md0::/data1::ext2
-# (for systems with mdadm)
-#
-# The "start" arg starts up the raid device
-# The "stop" arg stops it.  NOTE: all filesystems must be unmounted
-#  and no processes should be accessing the device.
-# The "status" arg just prints out whether the device is running or not
-#
-# 
-# DISCLAIMER: Use at your own risk!
-#
-#  Besides all of the usual legalese that accompanies free software, 
-#  I will warn you that I do not yet use this kind of setup (software RAID 
-#  over shared storage) in production, and I have reservations about doing so.
-#
-#  The linux md driver/scsi drivers under Raid 0.90 and kernel version 2.2 
-#  do not behave well when a drive is in the process of going bad.  
-#  The kernel slows down, but doesn't completely crash.  This is about the 
-#  worst possible thing that could happen in an un-attended HA type 
-#  environment.  (Once the system is rebooted, the sofware raid stuff works 
-#  like a champ.)  
-#  My other reservation has to do with the interation of RAID recovery with 
-#  journaling filesystems and other parts of the kernel.  Subscribe to 
-#  linux-raid@vger.kernel.org  for other opinions and possible solutions.
-#
-#  -EZA 25 Oct 2000 
-# 
-# SETUP:
-#
-# You might need to pass the command line parameter: raid=noautodetect 
-# in an HA environment so that the kernel doesn't automatically start
-# up your raid partitions when you boot the node.  This means that it isn't
-# going to work to use RAID for the system disks and the shared disks.
-#
-# 0) partition the disks to use for RAID.  Use normal Linux partition 
-#    types, not the RAID autodetect type for your partitions.
-# 1) Create /etc/raidtab.md?  on both systems (see example file below)
-#    or for systems with mdadm tools create /etc/mdadm.conf (see example below)
-# 2) Initialize your raid partition with 
-#	/sbin/mkraid --configfile /etc/raidtab.md? /dev/md?
-#    or create mirror raid with the following command  
-#	mdadm --create /dev/md? -l 1 -n 2 /dev/sdb? /dev/sdb?
-# 3) Format your filesystem
-#	mke2fs /dev/md0  # for ext2fs... a journaling filesystem would be nice
-# 3) Create the mount point on both systems.
-#    DO NOT add your raid filesystem to /etc/fstab
-# 4) copy this script (to /etc/rc.d/init.d if you wish) and edit it to
-#    reflect your desired settings.
-# 5) Modify the heartbeat 'haresources' (for non-crm heartbeat) or 'cib.xml' (for crm heartbeat) setup file
-# 6) unmount the filesystem and stop the raid device with 'raidstop' or 'mdadm -S'
-# 7) fire up heartbeat!
-#
-# 
 # EXAMPLE config file /etc/raidtab.md0
 # This file must exist on both machines!
 #
@@ -93,8 +31,8 @@
 #
 # EXAMPLE config file /etc/mdadm.conf (for more info:man mdadm.conf)
 #
-#  DEVICE /dev/sdb1 /dev/sdb2 
-#  ARRAY /dev/md0 level=raid1 UUID=4a865b55:ba27ef8d:29cd5701:6fb42799
+#  DEVICE /dev/sdb1 /dev/sdc1 
+#  ARRAY /dev/md0 UUID=4a865b55:ba27ef8d:29cd5701:6fb42799
 #######################################################################
 # Initialization:
 
@@ -312,42 +250,7 @@ raid1_status() {
 }
 
 raid1_validate_all() {
-    # Utilities used by this script
-    check_binary $MODPROBE
-    check_binary $FSCK
-    check_binary $FUSER
-    check_binary $MOUNT
-    check_binary $UMOUNT
-
-	if [ $HAVE_RAIDTOOLS = "true" ]; then
-
-	    # $MDDEV should be an md device
-	    lsraid -a $MDDEV 2>&1 | grep -q -i "is not an md device"
-	    if [ $? -eq 0 ]; then
-		ocf_log err "$MDDEV is not an md device!"
-		exit $OCF_ERR_ARGS
-	    fi
-		
-	    COMMENT="\(#.*\)"
-	    grep -q "^[[:space:]]*raiddev[[:space:]]\+$MDDEV[[:space:]]*$COMMENT\?$" $RAIDCONF 2>/dev/null
-	    if [ $? -ne 0 ]; then
-		ocf_log err "Raid device $MDDEV does not appear in $RAIDCONF"
-		exit $OCF_ERR_GENERIC
-	    fi
-	else
-	    error=`$MDADM --query $MDDEV $MDADM_HOMEHOST 2>&1`
-	    if [ $? -ne 0 ]; then
-		ocf_log err "$error"
-		exit $OCF_ERR_GENERIC
-	    fi
-	    echo $error | grep -q -i "^$MDDEV[ \t:].*is not an md array"
-	    if [ $? -eq 0 ]; then
-		ocf_log err "$MDDEV is not an md array!"
-		exit $OCF_ERR_ARGS
-	    fi
-	fi
-
-	return $OCF_SUCCESS
+    return $OCF_SUCCESS
 }
 	
 
