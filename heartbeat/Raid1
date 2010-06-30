@@ -168,9 +168,17 @@ END
 # START: Start up the RAID device
 #
 raid1_start() {
-	if [ "running" = `raid1_status` ]; then
-	# We are already online, do not bother
-	    return $OCF_SUCCESS
+	raid1_monitor
+	rc=$?
+	if [ $rc = $OCF_SUCCESS ]; then
+		# md already online, nothing to do.
+		return $OCF_SUCCESS
+	fi
+	if [ $rc != $OCF_NOT_RUNNING ]; then
+		# If the array is in a broken state, this agent doesn't
+		# know how to repair that.
+		ocf_log err "$MDDEV in a broken state; cannot start (rc=$rc)"
+		return $OCF_ERR_GENERIC
 	fi
 
 	# Insert SCSI module
@@ -199,7 +207,8 @@ raid1_start() {
 	    $MDADM --assemble $MDDEV --config=$RAIDCONF $MDADM_HOMEHOST
 	fi
 
-	if [ "running" = `raid1_status` ]; then
+	raid1_monitor
+	if [ $? = $OCF_SUCCESS ]; then
 	    return $OCF_SUCCESS
 	else
 	    ocf_log err "Couldn't start RAID for $MDDEV"
