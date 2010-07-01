@@ -511,7 +511,12 @@ unset_master(){
     # First, stop the slave I/O thread and wait for relay log
     # processing to complete
     ocf_run $MYSQL $mysql_options \
-	-e "STOP SLAVE IO_THREAD" || exit $OCF_ERR_GENERIC
+	-e "STOP SLAVE IO_THREAD"
+    if [ $? -gt 0 ]; then
+	ocf_log err "Error stopping slave IO thread"
+	exit $OCF_ERR_GENERIC
+    fi
+
     while true; do
      	$MYSQL $mysql_options \
      	    -e 'SHOW PROCESSLIST\G' > $tmpfile
@@ -526,9 +531,18 @@ unset_master(){
 
     # Now, stop all slave activity and unset the master host
     ocf_run $MYSQL $mysql_options \
-	-e "STOP SLAVE" || exit $OCF_ERR_GENERIC
+	-e "STOP SLAVE"
+    if [ $? -gt 0 ]; then
+	ocf_log err "Error stopping rest slave threads"
+	exit $OCF_ERR_GENERIC
+    fi
+    
     ocf_run $MYSQL $mysql_options \
-	-e "CHANGE MASTER TO MASTER_HOST=''" || exit $OCF_ERR_GENERIC
+	-e "CHANGE MASTER TO MASTER_HOST=''" 
+    if [ $? -gt 0 ]; then
+	    ocf_log err "Failed to set master"
+	    exit $OCF_ERR_GENERIC
+    fi
 }
 
 #######################################################################
@@ -788,7 +802,15 @@ mysql_promote() {
 }
 
 mysql_demote() {
-    set_read_only on || return $OCF_ERR_GENERIC
+    if ! mysql_status; then
+	return $OCF_NOT_RUNNING
+    fi
+
+    set_read_only on
+    if [ $? -ne 0 ]; then
+	ocf_log err "Failed to set read-only";
+	return $OCF_ERR_GENERIC;
+    fi
 
     # Return master preference to default, so the cluster manager gets
     # a chance to select a new master
