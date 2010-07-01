@@ -458,7 +458,7 @@ check_slave() {
 	    master_pref=$((${OCF_RESKEY_max_slave_lag}-${secs_behind}))
 	    if [ $master_pref -lt 0 ]; then
 		# Sanitize a below-zero preference to just zero
-		$master_pref=0
+		master_pref=0
 	    fi
 	    $CRM_MASTER -v $master_pref
 	fi
