@@ -811,7 +811,7 @@ mysql_notify() {
 	    # connect to it and wait for it to start replicating.
 	    local master_host
 	    local master_status
-	    master_host=$OCF_RESKEY_CRM_meta_notify_promote_uname
+	    master_host=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname`
 
 	    if ( ! mysql_status ); then
 		return $OCF_NOT_RUNNING
@@ -834,7 +834,8 @@ mysql_notify() {
 	    # The master has completed its promotion. Now is a good
 	    # time to check whether our replication slave is working
 	    # correctly.
-	    if [ $OCF_RESKEY_CRM_meta_notify_promote_uname = `uname -n` ]; then
+	    master_host=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname`
+	    if [ "$master_host" = `uname -n` ]; then
 		ocf_log info "Ignoring post-promote notification for my own promotion."
 		return $OCF_SUCCESS
 	    fi
@@ -842,10 +843,12 @@ mysql_notify() {
 		-e 'START SLAVE';
 	    ;;
 	'post-demote')
-	    if [ $OCF_RESKEY_CRM_meta_notify_demote_uname = `uname -n` ]; then
+	    demote_host=`echo $OCF_RESKEY_CRM_meta_notify_demote_uname`
+	    if [ $demote_host = `uname -n` ]; then
 		ocf_log info "Ignoring post-demote notification for my own demotion."
 		return $OCF_SUCCESS
 	    fi
+	    ocf_log info "post-demote notification for $demote_host."
 	    # The former master has just been gracefully demoted.
 	    unset_master
 	    ;;
