@@ -618,8 +618,13 @@ mysql_monitor() {
 	fi
     fi
 
-    ocf_log info "MySQL monitor succeeded";
-    return $OCF_SUCCESS
+    if [ "$OCF_RESKEY_CRM_meta_role" = "Master" ]; then
+	    ocf_log info "MySQL monitor succeeded (master)";
+	    return $OCF_RUNNING_MASTER
+    else
+	    ocf_log info "MySQL monitor succeeded";
+	    return $OCF_SUCCESS
+    fi
 }
 
 mysql_start() {
