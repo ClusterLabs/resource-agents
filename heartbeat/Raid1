@@ -187,7 +187,7 @@ raid1_stop() {
 	fi
 
 	raid1_monitor
-	if [ $? -ne $OCF_NOT_RUNNING ]; then
+	if [ $? -eq $OCF_NOT_RUNNING ]; then
 		return $OCF_SUCCESS
 	fi
 	
