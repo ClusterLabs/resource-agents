@@ -24,6 +24,11 @@ OCF_RESKEY_hypervisor_default="$(virsh --quiet uri)"
 : ${OCF_RESKEY_hypervisor=${OCF_RESKEY_hypervisor_default}}
 #######################################################################
 
+## I'd very much suggest to make this RA use bash,
+## and then use magic $SECONDS.
+## But for now:
+NOW=$(date +%s)
+
 usage() {
   echo "usage: $0 {start|stop|status|monitor|migrate_to|migrate_from|meta-data|validate-all}"
 }
@@ -149,9 +154,11 @@ VirtualDomain_Cleanup_Statefile() {
 }
 
 VirtualDomain_Status() {
+    local try=0
     rc=$OCF_ERR_GENERIC
     status="no state"
     while [ "$status" = "no state" ]; do
+	try=$(($try + 1 ))
         status="`virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME`"
         case "$status" in
 	    "shut off")
@@ -175,7 +182,7 @@ VirtualDomain_Status() {
 		# whenever virsh can't reliably obtain the domain
 		# state.
 		status="no state"
-		if [ "$__OCF_ACTION" = "stop" ]; then
+		if [ "$__OCF_ACTION" = "stop" ] && [ $try -ge 3 ]; then
 		    # During the stop operation, we want to bail out
 		    # quickly, so as to be able to force-stop (destroy)
 		    # the domain if necessary.
@@ -221,6 +228,7 @@ VirtualDomain_Stop() {
     local i
     local status
     local shutdown_timeout
+    local out ex
 
     VirtualDomain_Status
     status=$?
@@ -233,9 +241,9 @@ VirtualDomain_Stop() {
 		virsh $VIRSH_OPTIONS shutdown ${DOMAIN_NAME}
 	        # The "shutdown_timeout" we use here is the operation
 		# timeout specified in the CIB, minus 5 seconds
-		shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
-		# Loop on status for $shutdown_timeout seconds
-		for i in `seq $shutdown_timeout`; do
+		shutdown_timeout=$(( $NOW + ($OCF_RESKEY_CRM_meta_timeout/1000) -5 ))
+		# Loop on status until we reach $shutdown_timeout
+		while [ $NOW -lt $shutdown_timeout ]; do
 		    VirtualDomain_Status
 		    status=$?
 		    case $status in
@@ -256,6 +264,7 @@ VirtualDomain_Stop() {
 			    # resort to forced stop (destroy).
 			    break;
 		    esac
+		    NOW=$(date +%s)
 		done
 	    fi
 	    ;;
@@ -264,11 +273,25 @@ VirtualDomain_Stop() {
 	    return $OCF_SUCCESS
     esac
     # OK. Now if the above graceful shutdown hasn't worked, kill
-    # off the domain with destroy. If that too does not work, give
-    # up and have the LRM time us out.
+    # off the domain with destroy. If that too does not work,
+    # have the LRM time us out.
     ocf_log info "Issuing forced shutdown (destroy) request for domain ${DOMAIN_NAME}."
-    virsh $VIRSH_OPTIONS destroy ${DOMAIN_NAME} || return $OCF_ERR_GENERIC
+    out=$(virsh $VIRSH_OPTIONS destroy ${DOMAIN_NAME} 2>&1)
+    ex=$?
+    echo >&2 "$out"
+    # unconditionally clean up.
     VirtualDomain_Cleanup_Statefile
+    case $ex$out in
+	*"error: Requested operation is not valid: domain is not running"*)	
+	    : ;; # unexpected path to the intended outcome, all is well
+	[!0]*)
+	    return $OCF_ERR_GENERIC ;;
+	0*)
+	    while [ $status != $OCF_NOT_RUNNING ]; do
+		VirtualDomain_Status
+		status=$?
+	    done ;;
+    esac
     return $OCF_SUCCESS
 }
 
