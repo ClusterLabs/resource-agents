@@ -199,6 +199,7 @@ raid1_stop() {
 # monitor: a less noisy status
 #
 raid1_monitor() {
+	TRY_READD=0
 	# check if the md device exists first
 	if [ ! -b $MDDEV ]; then
 		ocf_log info "$MDDEV is not a block device"
@@ -213,6 +214,7 @@ raid1_monitor() {
 		case $rc in
 		0)	;;
 		1)	ocf_log warn "$MDDEV has at least one failed device."
+			TRY_READD=1
 			;;
 		2)	ocf_log err "$MDDEV has failed."
 			return $OCF_ERR_GENERIC
@@ -225,6 +227,14 @@ raid1_monitor() {
 			;;
 		esac
 	fi
+	if [ "$__OCF_ACTION" = "monitor" -a "$OCF_RESKEY_CRM_meta_interval" != 0 \
+		-a $TRY_READD -eq 1 -a $OCF_CHECK_LEVEL -gt 0 ]; then
+		ocf_log info "Attempting to re-add failed devices on $MDDEV:"
+		$MDADM $MDDEV --re-add missing
+		# TODO: At this stage, there's nothing to actually do
+		# here.
+	fi
+
 	if ! dd if=$MDDEV count=1 bs=512 of=/dev/null \
 	     iflag=direct >/dev/null 2>&1 ; then
 		ocf_log err "$MDDEV: I/O error on read"
