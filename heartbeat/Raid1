@@ -229,10 +229,12 @@ raid1_monitor() {
 	fi
 	if [ "$__OCF_ACTION" = "monitor" -a "$OCF_RESKEY_CRM_meta_interval" != 0 \
 		-a $TRY_READD -eq 1 -a $OCF_CHECK_LEVEL -gt 0 ]; then
-		ocf_log info "Attempting to re-add failed devices on $MDDEV:"
+		ocf_log info "Attempting recovery sequence to re-add devices on $MDDEV:"
+		$MDADM $MDDEV --fail detached 
+		$MDADM $MDDEV --remove failed 
 		$MDADM $MDDEV --re-add missing
 		# TODO: At this stage, there's nothing to actually do
-		# here.
+		# here. Either this worked or it did not.
 	fi
 
 	if ! dd if=$MDDEV count=1 bs=512 of=/dev/null \
