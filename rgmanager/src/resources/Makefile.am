@@ -9,7 +9,7 @@ RESOURCES		= service.sh ip.sh nfsclient.sh nfsexport.sh \
 			  apache.sh openldap.sh samba.sh mysql.sh \
 			  postgres-8.sh tomcat-5.sh lvm.sh \
 			  vm.sh SAPInstance SAPDatabase named.sh \
-			  ASEHAagent.sh drbd.sh
+			  ASEHAagent.sh drbd.sh nfsserver.sh
 
 METADATA		= apache.metadata openldap.metadata samba.metadata \
 			  mysql.metadata postgres-8.metadata \
