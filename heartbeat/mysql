@@ -371,7 +371,7 @@ is_slave() {
 
     tmpfile=`mktemp ${HA_RSCTMP}/is_slave.${OCF_RESOURCE_INSTANCE}.XXXXXX`
 
-    mysql_options="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
+    mysql_options="$MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL"
 
     $MYSQL $mysql_options \
         -e 'SHOW SLAVE STATUS\G' > $tmpfile
@@ -396,7 +396,7 @@ check_slave() {
     rc=1
     tmpfile=`mktemp ${HA_RSCTMP}/check_slave.${OCF_RESOURCE_INSTANCE}.XXXXXX`
 
-    mysql_options="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
+    mysql_options="$MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL"
 
     $MYSQL $mysql_options \
         -e 'SHOW SLAVE STATUS\G' > $tmpfile
