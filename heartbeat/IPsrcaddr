@@ -88,6 +88,15 @@ The IP address.
 <shortdesc lang="en">IP address</shortdesc>
 <content type="string" default="" />
 </parameter>
+
+<parameter name="cidr_netmask">
+<longdesc lang="en">
+The netmask for the interface in CIDR format. (ie, 24), or in
+dotted quad notation  255.255.255.0).
+</longdesc>
+<shortdesc lang="en">Netmask</shortdesc>
+<content type="string" default=""/>
+</parameter>
 </parameters>
 
 <actions>
