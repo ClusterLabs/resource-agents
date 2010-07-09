@@ -8,6 +8,10 @@
 LC_ALL=C
 LANG=C
 PATH=/bin:/sbin:/usr/bin:/usr/sbin
+
+V4RECOVERY="/var/lib/nfs/v4recovery"
+PROC_V4RECOVERY="/proc/fs/nfsd/nfsv4recoverydir"
+
 export LC_ALL LANG PATH
 
 . $(dirname $0)/ocf-shellfuncs
@@ -32,18 +36,24 @@ meta_data()
     <version>1.0</version>
 
     <longdesc lang="en">
-        This defines an NFS server. 
+        This defines an NFS server resource.  The NFS server
+	resource is useful for exporting NFSv4 file systems
+	to clients.  Because of the way NFSv4 works, only
+	one NFSv4 resource may exist on a server at a
+	time.  Additionally, it is not possible to use
+	the nfsserver resource when also using local instances
+	of NFS on each cluster node.
     </longdesc>
 
     <shortdesc lang="en">
-        This defines an NFS server.
+        This defines an NFS server resource.
     </shortdesc>
 
     <parameters>
         <parameter name="name" primary="1">
             <longdesc lang="en">
                 Descriptive name for this server.  Generally, only
-                one serveris ever defined.
+                one server is ever defined per service.
             </longdesc>
             <shortdesc lang="en">
                 Name
@@ -55,7 +65,8 @@ meta_data()
             <longdesc lang="en">
 	        This is the path you intend to export.  Usually, this is
 		left blank, and the mountpoint of the parent file system
-		is used.
+		is used.  This path is passed to nfsclient resources as
+		the export path when exportfs is called.
             </longdesc>
             <shortdesc lang="en">
 	    	This is the path you intend to export.
@@ -65,11 +76,14 @@ meta_data()
 
         <parameter name="nfspath">
             <longdesc lang="en">
-	        This is the path containing shared NFS information.  This
-		is relative to the export path.
+	        This is the path containing shared NFS information which
+		is used for NFS recovery after a failover.  This
+		is relative to the export path, and defaults to
+		".clumanager/nfs".
             </longdesc>
             <shortdesc lang="en">
-	        This is the path containing shared NFS information.
+	        This is the path containing shared NFS recovery
+		information, relative to the path parameter.
             </shortdesc>
 	    <content type="string" default=".clumanager/nfs"/>
         </parameter>
@@ -142,6 +156,8 @@ verify_all()
 nfs_daemons()
 {
 	declare oper
+	declare val
+
 	case $1 in
 	start)
 		ocf_log info "Starting NFS daemons"
@@ -162,9 +178,15 @@ nfs_daemons()
 		fi
 
 		ocf_log debug "NFS daemons are stopped"
+
 		return 0
 		;;
 	status|monitor)
+		declare recoverydir="$OCF_RESKEY_path/$OCF_RESKEY_nfspath/v4recovery"
+		val=$(cat $PROC_V4RECOVERY)
+
+		[ "$val" = "$recoverydir" ] || ocf_log warning \
+			"NFSv4 recovery directory is $val instead of $recoverydir"
 		/etc/init.d/nfs status
 		if [ $? -eq 0 ]; then
 			ocf_log debug "NFS daemons are running"
@@ -180,62 +202,126 @@ create_tree()
 {
 	declare fp="$OCF_RESKEY_path/$OCF_RESKEY_nfspath"
 
-	[ -d "$fp" ] || mkdir -p $fp
-	#
-	# is this really needed?
-	#
-	#[ -d "$fp/rpc_pipefs" ] || mkdir -p $fp/rpc_pipefs
+	[ -d "$fp" ] || mkdir -p "$fp"
 
-	[ -d "$fp/statd" ] || mkdir -p $fp/statd
+	[ -d "$fp/statd" ] || mkdir -p "$fp/statd"
+	[ -d "$fp/v4recovery" ] || mkdir -p "$fp/v4recovery"
 
 	#
 	# Create our own private copy which we use for notifies.
 	# This way, we can be sure to advertise on possibly multiple
 	# IP addresses.
 	#
-	[ -d "$fp/statd/sm-ha" ] || mkdir -p $fp/statd/sm-ha
+	[ -d "$fp/statd/sm" ] || mkdir -p "$fp/statd/sm"
+	[ -d "$fp/statd/sm.bak" ] || mkdir -p "$fp/statd/sm.bak"
+	[ -d "$fp/statd/sm-ha" ] || mkdir -p "$fp/statd/sm-ha"
+	[ -n "`id -u rpcuser`" -a "`id -g rpcuser`" ] && chown -R rpcuser.rpcuser "$fp/statd"
 
 	# Create if they don't exist
-	[ -f "$fp/etab" ] || touch $fp/etab
-	[ -f "$fp/xtab" ] || touch $fp/xtab
-	[ -f "$fp/rmtab" ] || touch $fp/rmtab
-	[ -f "$fp/state" ] || touch $fp/state
+	[ -f "$fp/etab" ] || touch "$fp/etab"
+	[ -f "$fp/xtab" ] || touch "$fp/xtab"
+	[ -f "$fp/rmtab" ] || touch "$fp/rmtab"
+
+        #
+        # Generate a random state file.  If this ends up being what a client
+        # already has in its list, that's bad, but the chances of this
+        # are small - and relocations should be rare.
+        #
+        dd if=/dev/urandom of=$fp/state bs=1 count=4 &> /dev/null
+	[ -n "`id -u rpcuser`" -a "`id -g rpcuser`" ] && chown rpcuser.rpcuser "$fp/state"
+}
+
+setup_v4recovery()
+{
+	declare recoverydir="$OCF_RESKEY_path/$OCF_RESKEY_nfspath/v4recovery"
+
+	# mounts /proc/fs/nfsd for us
+	lsmod | grep -q nfsd
+	if [ $? -ne 0 ]; then
+		modprobe nfsd
+	fi
+
+	val=$(cat "$PROC_V4RECOVERY")
+
+	# Ensure start-after-start works
+	if [ "$val" = "$recoverydir" ]; then
+		return 0
+	fi
+
+	#
+	# If the value is not default, there may be another
+	# cluster service here already which has replaced
+	# the v4 recovery directory.  In that case,
+	# we must refuse to go any further.
+	#
+	if [ "$val" != "$V4RECOVERY" ]; then
+		ocf_log err "NFSv4 recovery directory has an unexpected value: $val"
+		return 1
+	fi
+
+	#
+	# Redirect nfs v4 recovery dir to shared storage
+	#
+	echo "$recoverydir" > "$PROC_V4RECOVERY"
+	if [ $? -ne 0 ]; then
+		echo "Uh oh... echo failed!?"
+	fi
+
+	val="$(cat $PROC_V4RECOVERY)"
+	if [ "$val" != "$recoverydir" ]; then
+		ocf_log err "Failed to change NFSv4 recovery path"
+		ocf_log err "Wanted: $recoverydir; got $val"
+		return 1
+	fi
+
+	return 0
+}
+
+
+cleanup_v4recovery()
+{
+	#
+	# Restore nfsv4 recovery directory to default
+	#
+	echo "$V4RECOVERY" > "$PROC_V4RECOVERY"
+	return $?
 }
 
 
 is_bound()
 {
-	mount | grep -q "$1 on $2 type none (.*bind)"
+	mount | grep -q "$1 on $2 type none (.*bind.*)"
 	return $?
 }
 
 
-mount_tree()
+setup_tree()
 {
 	declare fp="$OCF_RESKEY_path/$OCF_RESKEY_nfspath"
 
-	# what about /var/lib/nfs/rpc_pipefs ?  sunrpc mount?
-	# is that really needed?
-
-	if is_bound $fp /var/lib/nfs; then
-		ocf_log debug "$fp is already bound to /var/lib/nfs"
+	if is_bound $fp/statd /var/lib/nfs/statd; then
+		ocf_log debug "$fp is already bound to /var/lib/nfs/statd"
 		return 0
 	fi
 
-	log_do mount -o bind $fp /var/lib/nfs
+	mount -o bind "$fp/statd" /var/lib/nfs/statd
+	cp -a "$fp"/*tab /var/lib/nfs
+	restorecon /var/lib/nfs
 }
 
 
-umount_tree()
+cleanup_tree()
 {
 	declare fp="$OCF_RESKEY_path/$OCF_RESKEY_nfspath"
 
-	if is_bound $fp /var/lib/nfs; then
-		log_do umount /var/lib/nfs
-		return $?
+	if is_bound "$fp/statd" /var/lib/nfs/statd; then
+		log_do umount /var/lib/nfs/statd || return 1
+	else
+		ocf_log debug "$fp is not bound to /var/lib/nfs/statd"
 	fi
 
-	ocf_log debug "$fp is not bound to /var/lib/nfs"
+	cp -a /var/lib/nfs/*tab "$fp"
+
 	return 0
 }
 
@@ -247,8 +333,8 @@ start_locking()
 	#
 	# Synchronize these before starting statd
 	#
-	cp -f /var/lib/nfs/statd/sm-ha/* /var/lib/nfs/statd/sm/* 2> /dev/null
-	cp -f /var/lib/nfs/statd/sm/* /var/lib/nfs/statd/sm-ha/* 2> /dev/null
+	cp -f /var/lib/nfs/statd/sm-ha/* /var/lib/nfs/statd/sm 2> /dev/null
+	cp -f /var/lib/nfs/statd/sm/* /var/lib/nfs/statd/sm-ha 2> /dev/null
 
 	if pidof rpc.statd &> /dev/null; then
 		ocf_log debug "rpc.statd is already running"
@@ -261,7 +347,8 @@ start_locking()
 	# because we can't do the "copy" that we do on the down-state...
 	#
 	ocf_log info "Starting rpc.statd"
-	rpc.statd -H $0 -Fd &
+	rm -f /var/run/sm-notify.pid
+	rpc.statd -H $0 -d
 	ret=$?
 	if [ $ret -ne 0 ]; then
 		ocf_log err "Failed to start rpc.statd"
@@ -308,15 +395,6 @@ stop_locking()
 {
 	declare ret 
 
-	# Rip from nfslock
-	ocf_log info "Stopping NFS lockd"
-	if killkill lockd; then
-		ocf_log debug "NFS lockd is stopped"
-	else
-		ocf_log err "Failed to stop NFS lockd"
-	 	return 1
-	fi
-	
 	ocf_log info "Stopping rpc.statd"
 	if terminate rpc.statd; then
 		ocf_log debug "rpc.statd is stopped"
@@ -335,18 +413,20 @@ case $1 in
 start)
 	# Check for and source configuration file
 	ocf_log info "Starting NFS Server $OCF_RESKEY_name"
-	create_tree
-	mount_tree
+	create_tree || exit 1
+	setup_tree || exit 1
+	setup_v4recovery || exit 1
 
 	start_locking
 	nfs_daemons start
-	if [ $? -eq 0 ]; then
+	rv=$?
+	if [ $rv -eq 0 ]; then
 		ocf_log info "Started NFS Server $OCF_RESKEY_name"
 		exit 0
 	fi
 
 	ocf_log err "Failed to start NFS Server $OCF_RESKEY_name"
-	exit $?
+	exit $rv
 	;;
 
 status|monitor)
@@ -365,9 +445,9 @@ stop)
 	rm -f /var/lib/nfs/statd/sm-ha/* &> /dev/null
 	cp -f /var/lib/nfs/statd/sm/* /var/lib/nfs/statd/sm-ha &> /dev/null
 
-	stop_locking
-	umount_tree
-	# todo - error check here?
+	stop_locking || exit 1
+	cleanup_v4recovery
+	cleanup_tree || exit 1
 	exit 0
 	;;
 
