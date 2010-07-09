@@ -810,6 +810,7 @@ validate_all()
 		# Virsh makes it easier to do this.  Really.
 		if [ "$OCF_RESKEY_hypervisor" = "qemu" ]; then
 			export OCF_RESKEY_migration_uri="qemu+ssh://%s/system"
+			export migrateuriopt="tcp:%s"
 		fi
 
 		# I just need to believe in it more.
@@ -845,7 +846,7 @@ virsh_migrate()
 		err=$($cmd 2>&1 | head -1; exit ${PIPESTATUS[0]})
 		rv=$?
 	elif [ "$OCF_RESKEY_hypervisor" = "qemu" ]; then
-		cmd="virsh migrate $migrate_opt $OCF_RESKEY_name $(printf $OCF_RESKEY_migration_uri $target)"
+		cmd="virsh migrate $migrate_opt $OCF_RESKEY_name $(printf $OCF_RESKEY_migration_uri $target) $(printf $migrateuriopt $target)"
 		ocf_log debug "$cmd"
 		
 		err=$($cmd 2>&1 | head -1; exit ${PIPESTATUS[0]})
