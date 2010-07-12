@@ -159,7 +159,7 @@ ocf_log() {
 	if [ -z "`which clulog 2> /dev/null`" ]; then
 		return 0
 	fi
-	clulog -s $__OCF_PRIO_N "$__OCF_MSG"
+	clulog -m "$OCF_RESOURCE_TYPE" -s $__OCF_PRIO_N "$__OCF_MSG"
 }
 
 __ocf_set_defaults "$@"
