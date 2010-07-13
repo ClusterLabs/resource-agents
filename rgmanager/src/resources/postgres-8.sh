@@ -13,6 +13,7 @@ declare PSQL_POSTMASTER="/usr/bin/postmaster"
 declare PSQL_pid_file="`generate_name_for_pid_file`"
 declare PSQL_conf_dir="`generate_name_for_conf_dir`"
 declare PSQL_gen_config_file="$PSQL_conf_dir/postgresql.conf"
+declare PSQL_kill_timeout="5"
 
 verify_all()
 {
@@ -145,7 +146,7 @@ stop()
 {
 	clog_service_stop $CLOG_INIT
 
-	stop_generic "$PSQL_pid_file" "$OCF_RESKEY_shutdown_wait"
+	stop_generic_sigkill "$PSQL_pid_file" "$OCF_RESKEY_shutdown_wait" "$PSQL_kill_timeout"
 	if [ $? -ne 0 ]; then
 		clog_service_stop $CLOG_FAILED
 		return $OCF_ERR_GENERIC

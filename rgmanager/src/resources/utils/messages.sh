@@ -2,12 +2,14 @@
 
 declare CLOG_INIT=100
 declare CLOG_SUCCEED=200
+declare CLOG_SUCCEED_KILL=201
 
 declare CLOG_FAILED=400
 declare CLOG_FAILED_TIMEOUT=401
 declare CLOG_FAILED_NOT_FOUND=403
 declare CLOG_FAILED_INVALID=404
 declare CLOG_FAILED_NOT_READABLE=405
+declare CLOG_FAILED_KILL=406
 
 ##
 ## Usage:
@@ -45,11 +47,17 @@ clog_service_stop()
 		$CLOG_SUCCEED)
 			ocf_log info "Stopping Service $OCF_RESOURCE_INSTANCE > Succeed"
 			;;
+		$CLOG_SUCCEED_KILL)
+			ocf_log info "Killing Service $OCF_RESOURCE_INSTANCE > Succeed"
+			;;
 		$CLOG_FAILED)
 			ocf_log error "Stopping Service $OCF_RESOURCE_INSTANCE > Failed"
 			;;
 		$CLOG_FAILED_NOT_STOPPED)
 			ocf_log error "Stopping Service $OCF_RESOURCE_INSTANCE > Failed - Application Is Still Running"
+			;;
+		$CLOG_FAILED_KILL)
+			ocf_log error "Killing Service $OCF_RESOURCE_INSTANCE > Failed"
 			;;
 	esac
 	return 0
