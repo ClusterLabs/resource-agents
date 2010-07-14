@@ -37,7 +37,7 @@ sha1_verify()
 	sha1_new=`cat $oldFile | grep -v "# rgmanager-sha1" | sha1sum | sed 's/^\([a-z0-9]\+\) .*$/\1/'`
 	sha1_old=`tail -n 1 $oldFile | sed 's/^# rgmanager-sha1 \(.*\)$/\1/' | sed 's/^\([a-z0-9]\+\) .*$/\1/'`
 
-	if [ $sha1_new = $sha1_old ]; then
+	if [ "$sha1_new" = "$sha1_old" ]; then
 	        ocf_log debug "Checking: SHA1 checksum > succeed"
 		return 0;
 	else
