@@ -717,12 +717,16 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 	#
 	case ${OCF_RESKEY_force_unmount} in
         $YES_STR)	force_umount=$YES ;;
+	on)		force_umount=$YES ;;
+	true)		force_umount=$YES ;;
 	1)		force_umount=$YES ;;
         *)		force_umount="" ;;
 	esac
 
 	case ${OCF_RESKEY_self_fence} in
         $YES_STR)	self_fence=$YES ;;
+	on)		self_fence=$YES ;;
+	true)		self_fence=$YES ;;
 	1)		self_fence=$YES ;;
         *)		self_fence="" ;;
 	esac
