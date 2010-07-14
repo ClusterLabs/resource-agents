@@ -9,12 +9,13 @@ RESOURCES		= service.sh ip.sh nfsclient.sh nfsexport.sh \
 			  apache.sh openldap.sh samba.sh mysql.sh \
 			  postgres-8.sh tomcat-5.sh lvm.sh \
 			  vm.sh SAPInstance SAPDatabase named.sh \
-			  ASEHAagent.sh drbd.sh nfsserver.sh
+			  ASEHAagent.sh drbd.sh nfsserver.sh \
+			  tomcat-6.sh
 
 METADATA		= apache.metadata openldap.metadata samba.metadata \
 			  mysql.metadata postgres-8.metadata \
 			  tomcat-5.metadata named.metadata lvm.metadata \
-			  drbd.metadata
+			  drbd.metadata tomcat-6.metadata
 
 EVENT_TARGETS		= default_event_script.sl follow-service.sl
 
