@@ -71,6 +71,7 @@ generate_config_file()
 
 	declare x=1
 	for i in $ip_addressess; do
+		i=`echo $i | sed -e 's/\/.*$//'`
 		if [ $x -eq 1 ]; then
 			x=0
 			ip_comma=$i
