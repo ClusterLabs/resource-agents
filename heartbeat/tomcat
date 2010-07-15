@@ -187,7 +187,7 @@ stop_tomcat()
                             export CATALINA_HOME=${OCF_RESKEY_catalina_home};\
                             export CATALINA_PID=${OCF_RESKEY_catalina_pid};\
                             $CATALINA_HOME/bin/catalina.sh stop" \
-			>> "$TOMCAT_CONSOLE" 2>&1
+			>> "$TOMCAT_CONSOLE" 2>&1 &
 	fi
 
 	lapse_sec=0
