@@ -261,11 +261,11 @@ Resource script for Tomcat. It manages a Tomcat instance as a cluster resource.
 <parameters>
 
 <parameter name="tomcat_name" unique="1" >
-<longdesc lang="en">
+<longdesc lang="en"><![CDATA[
 The name of the resource, added as a Java parameter in JAVA_OPTS:
 -Dname=<tomcat_name> to Tomcat process on start. Used to ensure
 process is still running and must be unique.
-</longdesc>
+]]></longdesc>
 <shortdesc>The name of the resource</shortdesc>
 <content type="string" default="" />
 </parameter>
