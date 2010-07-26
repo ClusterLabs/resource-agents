@@ -3049,7 +3049,7 @@ sub check_sql_log_errstr
 
 sub check_oracle
 {
-	return check_sql(@_, "Oracle", "");
+	return check_sql(@_, "Oracle", "sid");
 }
 
 sub check_sql
@@ -3073,6 +3073,7 @@ sub check_sql
 			    "host=$$r{server};port=$port", $$v{login},
 			    $$v{passwd});
 	unless ($dbh) {
+		&ld_debug(2, "Failed to bind to $$r{server} with DBI->errstr\n");
 		check_sql_log_errstr("Failed to bind to $$r{server} with",
 				     DBI->errstr);
 		goto err_down;
@@ -3080,16 +3081,16 @@ sub check_sql
 	$result--;
 	$sth = $dbh->prepare($query);
 	unless ($sth) {
+		&ld_debug(2, "Error preparing statement: $dbh->errstr\n");
 		check_sql_log_errstr("Error preparing statement:",
 				     $dbh->errstr);
 		goto err_disconect;
 	}
 
-	# On error "execute" will return undef.
-	# Otherwise it will return either "0E0"
-	# (Some garbage to make 0 true) or > 1.
+	# Test to see if any errors are returned
 	$sth->execute;
-	unless ($sth->rows) {
+	if ($dbh->err) {
+		&ld_debug(2, "Error executing statement: $dbh->errstr : $dbh->err\n");
 		check_sql_log_errstr("Error executing statement:",
 				     $dbh->errstr, $dbh->err);
 		goto err_finish;
@@ -3110,8 +3111,10 @@ sub check_sql
 	# (enabled) that says whether or not you want to actually use this
 	# in the pool from ldirector / ipvs, and disable them without
 	# actually turning off your sql server.
-
-	unless ($rows = $sth->execute) {
+	
+	$sth->execute;
+	if ($dbd eq "Oracle") { $sth->fetchrow_hashref() }
+	unless ($rows = $sth->rows) {
 		check_sql_log_errstr("Error executing statement:",
 				     $dbh->errstr, $dbh->err);
 		goto err_finish;
