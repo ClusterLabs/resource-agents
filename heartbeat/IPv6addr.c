@@ -87,13 +87,22 @@
 
 #include <config.h>
 
+#include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 #include <netinet/icmp6.h>
+#include <arpa/inet.h> /* for inet_pton */
+#include <net/if.h> /* for if_nametoindex */
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <libgen.h>
 #include <syslog.h>
+#include <signal.h>
+#include <errno.h>
 #include <clplumbing/cl_log.h>
-#include <libnet.h>
 
 
 #define PIDFILE_BASE HA_RSCTMPDIR  "/IPv6addr-"
@@ -140,6 +149,8 @@ const char*	VALIDATE_CMD 	= "validate-all";
 char		BCAST_ADDR[]	= "ff02::1";
 const int	UA_REPEAT_COUNT	= 5;
 const int	QUERY_COUNT	= 5;
+
+#define 	HWADDR_LEN 	6 /* mac address length */
 
 struct in6_ifreq {
 	struct in6_addr ifr6_addr;
@@ -401,69 +412,100 @@ monitor_addr6(struct in6_addr* addr6, int prefix_len)
 }
 
 /* Send an unsolicited advertisement packet
- * Please refer to rfc2461
+ * Please refer to rfc4861 / rfc3542
  */
 int
 send_ua(struct in6_addr* src_ip, char* if_name)
 {
 	int status = -1;
-	libnet_t *l;
-	char errbuf[LIBNET_ERRBUF_SIZE];
+	int fd;
 
-	struct libnet_in6_addr dst_ip;
-	struct libnet_ether_addr *mac_address;
-	char payload[24];
 	int ifindex;
+	int hop;
+	struct ifreq ifr;
+	u_int8_t payload[sizeof(struct nd_neighbor_advert)
+			 + sizeof(struct nd_opt_hdr) + HWADDR_LEN];
+	struct nd_neighbor_advert *na;
+	struct nd_opt_hdr *opt;
+	struct sockaddr_in6 src_sin6;
+	struct sockaddr_in6 dst_sin6;
 
-
-	if ((l=libnet_init(LIBNET_RAW6, if_name, errbuf)) == NULL) {
-		cl_log(LOG_ERR, "libnet_init failure on %s", if_name);
+	if ((fd = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6)) == 0) {
+		cl_log(LOG_ERR, "socket(IPPROTO_ICMPV6) failed: %s",
+		       strerror(errno));
 		goto err;
 	}
 	/* set the outgoing interface */
 	ifindex = if_nametoindex(if_name);
-	if (setsockopt(libnet_getfd(l), IPPROTO_IPV6, IPV6_MULTICAST_IF,
+	if (setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_IF,
 		       &ifindex, sizeof(ifindex)) < 0) {
-		cl_log(LOG_ERR, "setsockopt(IPV6_MULTICAST_IF): %s",
+		cl_log(LOG_ERR, "setsockopt(IPV6_MULTICAST_IF) failed: %s",
 		       strerror(errno));
 		goto err;
 	}
-
-	mac_address = libnet_get_hwaddr(l);
-	if (!mac_address) {
-		cl_log(LOG_ERR, "libnet_get_hwaddr: %s", errbuf);
+	/* set the hop limit */
+	hop = 255; /* 255 is required. see rfc4861 7.1.2 */
+	if (setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
+		       &hop, sizeof(hop)) < 0) {
+		cl_log(LOG_ERR, "setsockopt(IPV6_MULTICAST_HOPS) failed: %s",
+		       strerror(errno));
+		goto err;
+	}
+	
+	/* set the source address */
+	memset(&src_sin6, 0, sizeof(src_sin6));
+	src_sin6.sin6_family = AF_INET6;
+	src_sin6.sin6_addr = *src_ip;
+	src_sin6.sin6_port = 0;
+	if (bind(fd, (struct sockaddr *)&src_sin6, sizeof(src_sin6)) < 0) {
+		cl_log(LOG_ERR, "bind() failed: %s", strerror(errno));
 		goto err;
 	}
 
-	dst_ip = libnet_name2addr6(l, BCAST_ADDR, LIBNET_DONT_RESOLVE);
 
-	memcpy(payload,src_ip->s6_addr,16);
-	payload[16] = 2; /* 2 for Target Link-layer Address */
-	payload[17] = 1; /* The length of the option */
-	memcpy(payload+18,mac_address->ether_addr_octet, 6);
+	/* get the hardware address */
+	memset(&ifr, 0, sizeof(ifr));
+	strncpy(ifr.ifr_name, if_name, sizeof(ifr.ifr_name) - 1);
+	if (ioctl(fd, SIOCGIFHWADDR, &ifr) < 0) {
+		cl_log(LOG_ERR, "ioctl(SIOCGIFHWADDR) failed: %s", strerror(errno));
+		goto err;
+	}
 
-	libnet_seed_prand(l);
-	/* 0x2000: RSO */
-	libnet_build_icmpv4_echo(136,0,0,0x2000,0,(u_int8_t *)payload
-			,sizeof(payload), l, LIBNET_PTAG_INITIALIZER);
-	libnet_build_ipv6(0,0,LIBNET_ICMPV6_H + sizeof(payload),IPPROTO_ICMP6,
-				255,*(struct libnet_in6_addr*)src_ip,
-				dst_ip,NULL,0,l,0);
-	/* Hack: adjust the correct checksum offset. see LF #2034 */
-#ifndef HAVE_LIBNET_1_1_4_API
-	libnet_pblock_record_ip_offset(l, l->total_size);
-#endif
+	/* build a neighbor advertisement message */
+	memset(&payload, 0, sizeof(payload));
 
+	na = (struct nd_neighbor_advert *)&payload;
+	na->nd_na_type = ND_NEIGHBOR_ADVERT;
+	na->nd_na_code = 0;
+	na->nd_na_cksum = 0; /* calculated by kernel */
+	na->nd_na_flags_reserved = ND_NA_FLAG_OVERRIDE;
+	na->nd_na_target = *src_ip;
 
-        if (libnet_write(l) == -1)
-        {
-		cl_log(LOG_ERR, "libnet_write: %s", libnet_geterror(l));
+	/* options field; set the target link-layer address */
+	opt = (struct nd_opt_hdr *)&payload[sizeof(struct nd_neighbor_advert)];
+	opt->nd_opt_type = ND_OPT_TARGET_LINKADDR;
+	opt->nd_opt_len = 1; /* The length of the option in units of 8 octets */
+	memcpy(&payload[sizeof(struct nd_neighbor_advert)
+			+ sizeof(struct nd_opt_hdr)],
+	       &ifr.ifr_hwaddr.sa_data, HWADDR_LEN);
+
+	/* sending an unsolicited neighbor advertisement to all */
+	memset(&dst_sin6, 0, sizeof(dst_sin6));
+	dst_sin6.sin6_family = AF_INET6;
+	inet_pton(AF_INET6, BCAST_ADDR, &dst_sin6.sin6_addr); /* should not fail */
+
+	if (sendto(fd, &payload, sizeof(payload), 0,
+		   (struct sockaddr *)&dst_sin6, sizeof(dst_sin6))
+	    != sizeof(payload)) {
+		cl_log(LOG_ERR, "sendto(%s) failed: %s",
+		       if_name, strerror(errno));
 		goto err;
 	}
 
 	status = 0;
+
 err:
-	libnet_destroy(l);
+	close(fd);
 	return status;
 }
 
@@ -643,7 +685,7 @@ int
 is_addr6_available(struct in6_addr* addr6)
 {
 	struct sockaddr_in6		addr;
-	struct libnet_icmpv6_hdr	icmph;
+	struct icmp6_hdr		icmph;
 	u_char				outpack[MINPACKSIZE];
 	int				icmp_sock;
 	int				ret;
@@ -653,11 +695,11 @@ is_addr6_available(struct in6_addr* addr6)
 
 	icmp_sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
 	memset(&icmph, 0, sizeof(icmph));
-	icmph.icmp_type = ICMP6_ECHO;
-	icmph.icmp_code = 0;
-	icmph.icmp_sum = 0;
-	icmph.seq = htons(0);
-	icmph.id = 0;
+	icmph.icmp6_type = ICMP6_ECHO_REQUEST;
+	icmph.icmp6_code = 0;
+	icmph.icmp6_cksum = 0;
+	icmph.icmp6_seq = htons(0);
+	icmph.icmp6_id = 0;
 
 	memset(&outpack, 0, sizeof(outpack));
 	memcpy(&outpack, &icmph, sizeof(icmph));
