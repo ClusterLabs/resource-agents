@@ -50,6 +50,7 @@ AutoReqProv:    on
 Obsoletes:	heartbeat-resources
 Conflicts:	heartbeat-resources
 BuildRequires:  autoconf automake glib2-devel pkgconfig python-devel 
+BuildRequires:  help2man
 
 %if 0%{?suse_version}  
 BuildRequires:  libnet libglue-devel
@@ -178,7 +179,6 @@ rm -rf $RPM_BUILD_DIR/resource-agents
 %dir /usr/lib/ocf/resource.d
 %dir %{_datadir}/%{name}
 %dir %{_datadir}/%{name}/ocft
-%dir %{_datadir}/%{name}/ocft/configs
 %{_datadir}/%{name}/ocft/configs
 %{_datadir}/%{name}/ocft/caselib
 %{_datadir}/%{name}/ocft/README
@@ -195,6 +195,7 @@ rm -rf $RPM_BUILD_DIR/resource-agents
 %doc ChangeLog
 %doc %{_datadir}/%{name}/ra-api-1.dtd
 %doc %{_mandir}/man7/*.7*
+%doc %{_mandir}/man8/ocf-tester.8*
 %doc doc/README.webapps
 
 # For compatability with pre-existing agents

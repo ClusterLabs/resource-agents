@@ -28,11 +28,11 @@
 #   OCF_RESKEY_tomcat_suspend_trialcount  - The re-try number of times awaiting a stop. Default is 10
 #   OCF_RESKEY_tomcat_user  - A user name to start a resource. Default is root
 #   OCF_RESKEY_statusurl - URL for state confirmation. Default is http://127.0.0.1:8080
-#   OCF_RESKEY_java_home - Home directory of the Java. Default is None
-#   OCF_RESKEY_catalina_home - Home directory of Tomcat. Default is None
+#   OCF_RESKEY_java_home - Home directory of Java. Default is none
+#   OCF_RESKEY_catalina_home - Home directory of Tomcat. Default is none
 #   OCF_RESKEY_catalina_pid  - A PID file name of Tomcat. Default is OCF_RESKEY_catalina_home/logs/catalina.pid
-#   OCF_RESKEY_tomcat_start_opts - Start options of the tomcat. Default is None.
-#   OCF_RESKEY_catalina_opts - CATALINA_OPTS environment variable. Default is None.
+#   OCF_RESKEY_tomcat_start_opts - Start options of Tomcat. Default is none.
+#   OCF_RESKEY_catalina_opts - CATALINA_OPTS environment variable. Default is none.
 #   OCF_RESKEY_catalina_rotate_log - Control catalina.out logrotation flag. Default is NO.
 #   OCF_RESKEY_catalina_rotatetime - catalina.out logrotation time span(seconds). Default is 86400.
 ###############################################################################
@@ -49,13 +49,13 @@ usage()
 usage: $0 action
 
 action:
-        start   start tomcat
+        start   start Tomcat
 
-        stop    stop the tomcat
+        stop    stop Tomcat
 
-        status  return the status of tomcat, run or down
+        status  return the status of Tomcat, up or down
 
-        monitor  return TRUE if the tomcat appears to be working.
+        monitor  return TRUE if Tomcat appears to be working.
                  You have to have installed $WGETNAME for this to work.
 
         meta-data       show meta data message
@@ -147,11 +147,11 @@ start_tomcat()
 			>> "$TOMCAT_CONSOLE" 2>&1 &
 	else
 		su - -s /bin/sh "$RESOURCE_TOMCAT_USER" \
-			-c "export JAVA_HOME=${OCF_RESKEY_java_home};\n
-                            export JAVA_OPTS=-Dname=${TOMCAT_NAME};\n
-                            export CATALINA_HOME=${OCF_RESKEY_catalina_home};\n
-                            export CATALINA_PID=${OCF_RESKEY_catalina_pid};\n
-                            export CATALINA_OPTS=\"${OCF_RESKEY_catalina_opts}\";\n
+			-c "export JAVA_HOME=${OCF_RESKEY_java_home};\
+                            export JAVA_OPTS=-Dname=${TOMCAT_NAME};\
+                            export CATALINA_HOME=${OCF_RESKEY_catalina_home};\
+                            export CATALINA_PID=${OCF_RESKEY_catalina_pid};\
+                            export CATALINA_OPTS=\"${OCF_RESKEY_catalina_opts}\";\
                             $CATALINA_HOME/bin/catalina.sh start ${OCF_RESKEY_tomcat_start_opts}" \
 			>> "$TOMCAT_CONSOLE" 2>&1 &
 	fi
@@ -182,12 +182,12 @@ stop_tomcat()
 		eval $tomcat_stop_cmd >> "$TOMCAT_CONSOLE" 2>&1
 	else
 		su - -s /bin/sh "$RESOURCE_TOMCAT_USER" \
-			-c "export JAVA_HOME=${OCF_RESKEY_java_home};\n
-                            export JAVA_OPTS=-Dname=${TOMCAT_NAME};\n
-                            export CATALINA_HOME=${OCF_RESKEY_catalina_home};\n
-                            export CATALINA_PID=${OCF_RESKEY_catalina_pid};\n
+			-c "export JAVA_HOME=${OCF_RESKEY_java_home};\
+                            export JAVA_OPTS=-Dname=${TOMCAT_NAME};\
+                            export CATALINA_HOME=${OCF_RESKEY_catalina_home};\
+                            export CATALINA_PID=${OCF_RESKEY_catalina_pid};\
                             $CATALINA_HOME/bin/catalina.sh stop" \
-			>> "$TOMCAT_CONSOLE" 2>&1
+			>> "$TOMCAT_CONSOLE" 2>&1 &
 	fi
 
 	lapse_sec=0
@@ -254,55 +254,58 @@ metadata_tomcat()
 <version>1.0</version>
 
 <longdesc lang="en">
-Resource script for tomcat. It manages a Tomcat instance as an HA resource.
+Resource script for Tomcat. It manages a Tomcat instance as a cluster resource.
 </longdesc>
 <shortdesc lang="en">Manages a Tomcat servlet environment instance</shortdesc>
 
 <parameters>
 
 <parameter name="tomcat_name" unique="1" >
-<longdesc lang="en">
-The name of the resource
-</longdesc>
+<longdesc lang="en"><![CDATA[
+The name of the resource, added as a Java parameter in JAVA_OPTS:
+-Dname=<tomcat_name> to Tomcat process on start. Used to ensure
+process is still running and must be unique.
+]]></longdesc>
 <shortdesc>The name of the resource</shortdesc>
 <content type="string" default="" />
 </parameter>
 
 <parameter name="script_log" unique="1">
 <longdesc lang="en">
-A destination of the log of this script
+Log file, used during start and stop operations.
 </longdesc>
-<shortdesc>A destination of the log of this script</shortdesc>
+<shortdesc>Log file</shortdesc>
 <content type="string" default="" />
 </parameter>
 
 <parameter name="tomcat_stop_timeout" unique="0">
 <longdesc lang="en">
-Time-out at the time of the stop
+Time-out for stop operation.
 </longdesc>
-<shortdesc>Time-out at the time of the stop</shortdesc>
+<shortdesc>Time-out for the stop operation</shortdesc>
 <content type="integer" default="" />
 </parameter>
 
 <parameter name="tomcat_suspend_trialcount" unique="0">
 <longdesc lang="en">
-The re-try number of times awaiting a stop
+Maximum number of times to retry stop operation before suspending
+and killing Tomcat.
 </longdesc>
-<shortdesc>The re-try number of times awaiting a stop</shortdesc>
+<shortdesc>Max retry count for stop operation</shortdesc>
 <content type="integer" default="" />
 </parameter>
 
 <parameter name="tomcat_user" unique="0">
 <longdesc lang="en">
-A user name to start a resource
+The user who starts Tomcat.
 </longdesc>
-<shortdesc>A user name to start a resource</shortdesc>
+<shortdesc>The user who starts Tomcat</shortdesc>
 <content type="string" default="" />
 </parameter>
 
 <parameter name="statusurl" unique="0">
 <longdesc lang="en">
-URL for state confirmation
+URL for state confirmation.
 </longdesc>
 <shortdesc>URL for state confirmation</shortdesc>
 <content type="string" default="" />
@@ -310,15 +313,15 @@ URL for state confirmation
 
 <parameter name="java_home" unique="0" required="1">
 <longdesc lang="en">
-Home directory of the Java
+Home directory of Java.
 </longdesc>
-<shortdesc>Home directory of the Java</shortdesc>
+<shortdesc>Home directory of Java</shortdesc>
 <content type="string" default="" />
 </parameter>
 
 <parameter name="catalina_home" unique="1" required="1">
 <longdesc lang="en">
-Home directory of Tomcat
+Home directory of Tomcat.
 </longdesc>
 <shortdesc>Home directory of Tomcat</shortdesc>
 <content type="string" default="" />
@@ -326,15 +329,15 @@ Home directory of Tomcat
 
 <parameter name="catalina_pid" unique="1">
 <longdesc lang="en">
-A PID file name of Tomcat
+A PID file name for Tomcat.
 </longdesc>
-<shortdesc>A PID file name of Tomcat</shortdesc>
+<shortdesc>A PID file name for Tomcat</shortdesc>
 <content type="string" default="" />
 </parameter>
 
 <parameter name="tomcat_start_opts" unique="0">
 <longdesc lang="en">
-Tomcat start options
+Tomcat start options.
 </longdesc>
 <shortdesc>Tomcat start options</shortdesc>
 <content type="string" default="" />
@@ -342,7 +345,7 @@ Tomcat start options
 
 <parameter name="catalina_opts" unique="0">
 <longdesc lang="en">
-Catalina options
+Catalina options, for the start operation only.
 </longdesc>
 <shortdesc>Catalina options</shortdesc>
 <content type="string" default="" />
@@ -350,7 +353,7 @@ Catalina options
 
 <parameter name="catalina_rotate_log" unique="0">
 <longdesc lang="en">
-Rotate catalina.out flag
+Rotate catalina.out flag.
 </longdesc>
 <shortdesc>Rotate catalina.out flag</shortdesc>
 <content type="string" default="" />
@@ -358,9 +361,9 @@ Rotate catalina.out flag
 
 <parameter name="catalina_rotatetime" unique="0">
 <longdesc lang="en">
-Time span of the rotate catalina.out
+catalina.out rotation interval (seconds).
 </longdesc>
-<shortdesc>Time span of the rotate catalina.out</shortdesc>
+<shortdesc>catalina.out rotation interval (seconds)</shortdesc>
 <content type="integer" default="" />
 </parameter>
 
