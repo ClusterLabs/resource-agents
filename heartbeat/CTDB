@@ -79,11 +79,11 @@ meta_data() {
 <longdesc lang="en">
 This resource agent manages CTDB, allowing one to use Clustered Samba
 in a Linux-HA/Pacemaker cluster.  You need a shared filesystem
-(e.g. OCFS2) on which CTDB lock and Samba state will be stored.
-Configure shares in smb.conf on all nodes, and create /etc/ctdb/nodes
-containing a list of private IP addresses of each node in the cluster.
-Configure this RA as a clone, and it will take care of the rest.
-For more information see http://linux-ha.org/wiki/CTDB_(resource_agent)
+(e.g. OCFS2) on which the CTDB lock will be stored.  Configure shares
+in smb.conf on all nodes, and create /etc/ctdb/nodes containing a list
+of private IP addresses of each node in the cluster.  Configure this RA
+as a clone, and it will take care of the rest.  For more information
+see http://linux-ha.org/wiki/CTDB_(resource_agent)
 </longdesc>
 <shortdesc lang="en">CTDB Resource Agent</shortdesc>
 
@@ -98,13 +98,15 @@ This must be on shared storage, e.g.: /shared-fs/samba/ctdb.lock
 <content type="string" default="" />
 </parameter>
 
-<parameter name="smb_private_dir" unique="1" required="1">
+<parameter name="smb_private_dir" unique="1" required="0">
 <longdesc lang="en">
 The directory for smbd to use for storing such files as
-smbpasswd and secrets.tdb.  This must be on shared storage,
-e.g.: /shared-fs/samba/private
+smbpasswd and secrets.tdb.  Old versions of CTBD (prior to 1.0.50)
+required this to be on shared storage.  This parameter should not
+be set for current versions of CTDB, and only remains in the RA
+for backwards compatibility.
 </longdesc>
-<shortdesc lang="en">Samba private dir</shortdesc>
+<shortdesc lang="en">Samba private dir (deprecated)</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -230,6 +232,8 @@ set_ctdb_variables() {
 # smb init script where the temporary config is, so we just edit
 # the default config file.
 init_smb_conf() {
+	local private_dir
+	[ -n "$OCF_RESKEY_smb_private_dir" ] && private_dir="\tprivate dir = $OCF_RESKEY_smb_private_dir\n"
 	grep -Eiv \
 		'^[[:space:]]*(# CTDB-RA:|passdb backend|clustering|idmap backend|private dir|ctdbd socket)' \
 		$OCF_RESKEY_smb_conf | sed "/^[[:space:]]*\[global\]/ a\\
@@ -237,8 +241,7 @@ init_smb_conf() {
 \tpassdb backend = tdbsam\n\
 \tclustering = yes\n\
 \tidmap backend = tdb2\n\
-\tprivate dir = $OCF_RESKEY_smb_private_dir\n\
-\tctdbd socket = $OCF_RESKEY_ctdb_socket\n\
+\tctdbd socket = $OCF_RESKEY_ctdb_socket\n$private_dir\
 \t# CTDB-RA: End auto-generated section (do not change above)" > $OCF_RESKEY_smb_conf.$$
 	mv -f $OCF_RESKEY_smb_conf.$$ $OCF_RESKEY_smb_conf
 }
@@ -443,11 +446,6 @@ ctdb_validate() {
 		return $OCF_ERR_ARGS
 	fi
 
-	if [ -z "$OCF_RESKEY_smb_private_dir" ]; then
-		ocf_log err "smb_private_dir not specified."
-		return $OCF_ERR_ARGS
-	fi
-
 	lock_dir=$(dirname "$OCF_RESKEY_ctdb_recovery_lock")
 	touch "$lock_dir/$$" 2>/dev/null
 	if [ $? != 0 ]; then
@@ -456,13 +454,6 @@ ctdb_validate() {
 	fi
 	rm "$lock_dir/$$"
 	
-	touch "$OCF_RESKEY_smb_private_dir/$$" 2>/dev/null
-	if [ $? != 0 ]; then
-		ocf_log err "Directory for smbd private files '$OCF_RESKEY_smb_private_dir' does not exist, or is not writable."
-		return $OCF_ERR_ARGS
-	fi
-	rm "$OCF_RESKEY_smb_private_dir/$$"
-
 	return $OCF_SUCCESS
 }
 
