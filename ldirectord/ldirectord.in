@@ -1283,9 +1283,9 @@ sub read_config
 			my $virtual_line = $line;
 			my $fallback_line;
 			my @rsrv_todo;
-			if ($vattr =~ /^(\d+\.\d+\.\d+\.\d+):([0-9A-Za-z]+)/) {
+			if ($vattr =~ /^(\d+\.\d+\.\d+\.\d+):([0-9A-Za-z-_]+)/) {
 				$virtual_id = $ip_port = "$1:$2";
-			} elsif ($vattr =~ /^([0-9A-Za-z._+-]+):([0-9A-Za-z]+)/) {
+			} elsif ($vattr =~ /^([0-9A-Za-z._+-]+):([0-9A-Za-z-_]+)/) {
 				$virtual_id = $ip_port = "$1:$2";
 			} elsif ($vattr =~ /^(\d+)/){
 				$virtual_id = $fwm = $1;
@@ -1887,7 +1887,7 @@ sub _ld_read_config_real_resolve
 
 	for $i (@$rsrv_todo) {
 		($str, $line)=@$i;
-		$str =~	 /(\d+\.\d+\.\d+\.\d+|[A-Za-z0-9.-]+|\[[0-9A-fa-f:]+\])(->(\d+\.\d+\.\d+\.\d+|[A-Za-z0-9.-]+|\[[0-9A-fa-f:]+\]))?(:(\d+|[A-Za-z0-9-]+))?\s+(.*)/
+		$str =~	 /(\d+\.\d+\.\d+\.\d+|[A-Za-z0-9.-]+|\[[0-9A-fa-f:]+\])(->(\d+\.\d+\.\d+\.\d+|[A-Za-z0-9.-]+|\[[0-9A-fa-f:]+\]))?(:(\d+|[A-Za-z0-9-_]+))?\s+(.*)/
 			or &config_error($line,
 				"invalid address for real server" .
 				" (wrong format)");
@@ -4957,12 +4957,12 @@ sub ld_gethostservbyname{
 	my $ip;
 	my $port;
 
-	if ($hostserv =~ /(\[[0-9A-Fa-f:]+\])(:(\d+|[A-Za-z0-9-]+))?/) {
+	if ($hostserv =~ /(\[[0-9A-Fa-f:]+\])(:(\d+|[A-Za-z0-9-_]+))?/) {
 		$ip=$1;
 		$port=$3;
 	} else {
 		$hostserv =~
-		/(\d+\.\d+\.\d+\.\d+|[A-Za-z0-9.-]+)(:(\d+|[A-Za-z0-9-]+))?/
+		/(\d+\.\d+\.\d+\.\d+|[A-Za-z0-9.-]+)(:(\d+|[A-Za-z0-9-_]+))?/
 		or return(undef);
 		$ip=$1;
 		$port=$3;
