@@ -19,7 +19,7 @@
 #
 nfslock_statd_notify()
 {
-	declare tmpdir=$(mktemp -d /tmp/statd-$2.XXXXXX)
+	declare tmpdir
 	declare nl_dir=$1
 	declare nl_ip=$2
 	declare command		# Work around bugs in rpc.statd
@@ -35,6 +35,8 @@ nfslock_statd_notify()
 		ocf_log debug "No hosts to notify"
 		return 0
 	fi
+	
+	tmpdir=$(mktemp -d /tmp/statd-$2.XXXXXX)
 
 	# Ok, copy the HA directory to something we can use.
        	mkdir -p $tmpdir/sm
