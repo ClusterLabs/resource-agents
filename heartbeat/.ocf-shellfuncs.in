@@ -167,6 +167,7 @@ hadate() {
 }
 
 ha_log() {
+	[ none = "$HA_LOGFACILITY" ] && HA_LOGFACILITY=""
 	# if we're connected to a tty, then output to stderr
 	if tty >/dev/null; then
 		if [ "x$HA_debug" = "x0" -a "x$loglevel" = xdebug ] ; then
@@ -239,6 +240,8 @@ ha_debug() {
                         return 0
                 fi
         fi
+
+	[ none = "$HA_LOGFACILITY" ] && HA_LOGFACILITY=""
 
 	if
 	  [ -n "$HA_LOGFACILITY" ]
