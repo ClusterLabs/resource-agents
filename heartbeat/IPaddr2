@@ -289,7 +289,6 @@ ip_init() {
 
 	IP_INC_GLOBAL=${OCF_RESKEY_CRM_meta_clone_max:-1}
 	IP_INC_NO=`expr ${OCF_RESKEY_CRM_meta_clone:-0} + 1`
-	IP_CIP_HASH="${OCF_RESKEY_clusterip_hash:-sourceip-sourceport}"
 
 	if [ $LVS_SUPPORT -gt 0 ] && [ $IP_INC_GLOBAL -gt 1 ]; then
 		ocf_log err "LVS and load sharing do not go together well"
@@ -339,8 +338,9 @@ ip_init() {
 		;;
 	esac
 
-	if [ "$IP_INC_GLOBAL" -gt 1 ]; then
+	if [ "$IP_INC_GLOBAL" -gt 1 ] && ! ocf_is_true "$OCF_RESKEY_unique_clone_address"; then
 		IP_CIP="yes"
+		IP_CIP_HASH="${OCF_RESKEY_clusterip_hash:-sourceip-sourceport}"
 		if [ -z "$IF_MAC" ]; then
 			# Choose a MAC
 			# 1. Concatenate some input together
@@ -760,7 +760,13 @@ ip_validate() {
 
 # $BASEIP, $NETMASK, $NIC , $IP_INC_GLOBAL, and $BRDCAST have been checked within ip_init,
 # do not bother here.
-	
+
+    if ocf_is_true "$OCF_RESKEY_unique_clone_address" &&
+	    ! ocf_is_true "$OCF_RESKEY_CRM_meta_globally_unique"; then
+	ocf_log err "unique_clone_address makes sense only with meta globally_unique set"
+	exit $OCF_ERR_CONFIGURED
+    fi
+
     if ocf_is_decimal "$ARP_INTERVAL_MS" && [ $ARP_INTERVAL_MS -gt 0 ]; then
 	:
     else
@@ -809,15 +815,12 @@ ip_validate() {
     fi
 }
 
-case "$OCF_RESKEY_unique_clone_address" in
-  true|TRUE|True|yes|YES|Yes|1)
+if ocf_is_true "$OCF_RESKEY_unique_clone_address"; then
     prefix=`echo $OCF_RESKEY_ip | awk -F. '{print $1"."$2"."$3}'`
     suffix=`echo $OCF_RESKEY_ip | awk -F. '{print $4}'`
     suffix=`expr ${OCF_RESKEY_CRM_meta_clone:-0} + $suffix`
     OCF_RESKEY_ip="$prefix.$suffix"
-    ;;
-  *) ;;
-esac
+fi
 
 case $__OCF_ACTION in
 meta-data)	meta_data
