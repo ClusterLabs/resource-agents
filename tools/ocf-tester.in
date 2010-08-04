@@ -59,10 +59,14 @@ assert() {
 	num_errors=`expr $num_errors + 1`
 	echo "* rc=$rc: $msg"
 	if [ $exit_code != 0 ]; then
+	    [ -n "$command_output" ] && cat<<EOF
+$command_output
+EOF
 	    echo "Aborting tests"
 	    exit $exit_code
 	fi
     fi
+    command_output=""
 }
 
 done=0
@@ -209,7 +213,7 @@ test_command() {
     fi
     #echo Running: "export $ra_args; bash $agent $action 2>&1 > /dev/null"
     if [ $verbose -eq 0 ]; then
-	bash $agent $action >/dev/null 2>&1
+	command_output=`bash $agent $action 2>&1`
     else
     	echo $msg
 	bash $agent $action
