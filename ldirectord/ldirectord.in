@@ -1281,12 +1281,15 @@ sub read_config
 			my $fwm = undef;
 			my $virtual_id;
 			my $virtual_line = $line;
+			my $virtual_port;
 			my $fallback_line;
 			my @rsrv_todo;
 			if ($vattr =~ /^(\d+\.\d+\.\d+\.\d+):([0-9A-Za-z-_]+)/) {
 				$virtual_id = $ip_port = "$1:$2";
+				$virtual_port = $2;
 			} elsif ($vattr =~ /^([0-9A-Za-z._+-]+):([0-9A-Za-z-_]+)/) {
 				$virtual_id = $ip_port = "$1:$2";
+				$virtual_port = $2;
 			} elsif ($vattr =~ /^(\d+)/){
 				$virtual_id = $fwm = $1;
 			} elsif ($vattr =~ /^\[([0-9A-Fa-f:]+)\]:(\d+)/) {
@@ -1296,6 +1299,7 @@ sub read_config
 					&config_error($line,"invalid ipv6 address for virtual server");
 				}
 				$virtual_id = $ip_port = "[$v6addr]:$v6port";
+				$virtual_port = $v6port;
 			} else {
 				&config_error($line,
 					"invalid address for virtual server");
@@ -1308,6 +1312,7 @@ sub read_config
 				if ($ip_port =~ /:53$/) {
 					$vsrv{protocol} = "udp";
 				}
+				$vsrv{port} = $virtual_port;
 			} else {
 				$vsrv{fwm} = $fwm;
 				$vsrv{checktype} = "negotiate";
