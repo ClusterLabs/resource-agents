@@ -532,7 +532,7 @@ scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask, char* prov
 		int		s;
 		gboolean	same = TRUE;
 
-		i = fscanf(f, "%08x%08x%08x%08x %02x %02x %02x %02x %20s\n",
+		i = fscanf(f, "%08x%08x%08x%08x %x %02x %02x %02x %20s\n",
 		       	   &addr6p[0], &addr6p[1], &addr6p[2], &addr6p[3],
 			   &if_idx, &plen, &scope, &dad_status, devname);
 		if (i == EOF) {
