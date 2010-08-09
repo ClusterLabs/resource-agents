@@ -1764,8 +1764,8 @@ sub ld_port_to_service
 	if ($port eq 143)	{ return "imap"; }
 	if ($port eq 389)	{ return "ldap"; }
 	if ($port eq 443)	{ return "https"; }
-	if ($port eq 993)	{ return "pops"; }
-	if ($port eq 995)	{ return "imaps"; }
+	if ($port eq 995)	{ return "pops"; }
+	if ($port eq 993)	{ return "imaps"; }
 	if ($port eq 1521)	{ return "oracle"; }
 	if ($port eq 1812)	{ return "radius"; }
 	if ($port eq 3128)	{ return "http_proxy"; }
