@@ -89,6 +89,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <malloc.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -423,8 +424,8 @@ send_ua(struct in6_addr* src_ip, char* if_name)
 	int ifindex;
 	int hop;
 	struct ifreq ifr;
-	u_int8_t payload[sizeof(struct nd_neighbor_advert)
-			 + sizeof(struct nd_opt_hdr) + HWADDR_LEN];
+	u_int8_t *payload;
+	int    payload_size;
 	struct nd_neighbor_advert *na;
 	struct nd_opt_hdr *opt;
 	struct sockaddr_in6 src_sin6;
@@ -472,9 +473,17 @@ send_ua(struct in6_addr* src_ip, char* if_name)
 	}
 
 	/* build a neighbor advertisement message */
-	memset(&payload, 0, sizeof(payload));
+	payload_size = sizeof(struct nd_neighbor_advert)
+			 + sizeof(struct nd_opt_hdr) + HWADDR_LEN;
+	payload = memalign(sysconf(_SC_PAGESIZE), payload_size);
+	if (!payload) {
+		cl_log(LOG_ERR, "malloc for payload failed");
+		goto err;
+	}
+	memset(payload, 0, payload_size);
 
-	na = (struct nd_neighbor_advert *)&payload;
+	/* Ugly typecast from ia64 hell! */
+	na = (struct nd_neighbor_advert *)((void *)payload);
 	na->nd_na_type = ND_NEIGHBOR_ADVERT;
 	na->nd_na_code = 0;
 	na->nd_na_cksum = 0; /* calculated by kernel */
@@ -482,11 +491,11 @@ send_ua(struct in6_addr* src_ip, char* if_name)
 	na->nd_na_target = *src_ip;
 
 	/* options field; set the target link-layer address */
-	opt = (struct nd_opt_hdr *)&payload[sizeof(struct nd_neighbor_advert)];
+	opt = (struct nd_opt_hdr *)(payload + sizeof(struct nd_neighbor_advert));
 	opt->nd_opt_type = ND_OPT_TARGET_LINKADDR;
 	opt->nd_opt_len = 1; /* The length of the option in units of 8 octets */
-	memcpy(&payload[sizeof(struct nd_neighbor_advert)
-			+ sizeof(struct nd_opt_hdr)],
+	memcpy(payload + sizeof(struct nd_neighbor_advert)
+			+ sizeof(struct nd_opt_hdr),
 	       &ifr.ifr_hwaddr.sa_data, HWADDR_LEN);
 
 	/* sending an unsolicited neighbor advertisement to all */
@@ -494,9 +503,9 @@ send_ua(struct in6_addr* src_ip, char* if_name)
 	dst_sin6.sin6_family = AF_INET6;
 	inet_pton(AF_INET6, BCAST_ADDR, &dst_sin6.sin6_addr); /* should not fail */
 
-	if (sendto(fd, &payload, sizeof(payload), 0,
+	if (sendto(fd, payload, payload_size, 0,
 		   (struct sockaddr *)&dst_sin6, sizeof(dst_sin6))
-	    != sizeof(payload)) {
+	    != payload_size) {
 		cl_log(LOG_ERR, "sendto(%s) failed: %s",
 		       if_name, strerror(errno));
 		goto err;
@@ -506,6 +515,7 @@ send_ua(struct in6_addr* src_ip, char* if_name)
 
 err:
 	close(fd);
+	free(payload);
 	return status;
 }
 
