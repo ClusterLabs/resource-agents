@@ -126,7 +126,7 @@ The mount point for the filesystem.
 
 <parameter name="fstype" required="1">
 <longdesc lang="en">
-The optional type of filesystem to be mounted.
+The type of filesystem to be mounted.
 </longdesc>
 <shortdesc lang="en">filesystem type</shortdesc>
 <content type="string" default="" />
@@ -994,7 +994,7 @@ ocfs2)	ocfs2_init
 nfs|smbfs|none|gfs2)	: # this is kind of safe too
 	;;
 *)	if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
-		ocf_log err "DANGER! $FSTYPE on $DEVICE is NOT cluster-aware!"
+		ocf_log err "DANGER! fstype=\"$FSTYPE\" on $DEVICE is NOT cluster-aware!"
 		ocf_log err "DO NOT RUN IT AS A CLONE!"
 		ocf_log err "Politely refusing to proceed to avoid data corruption."
 		exit $OCF_ERR_CONFIGURED
