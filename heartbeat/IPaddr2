@@ -253,6 +253,11 @@ ip_init() {
 		exit $OCF_ERR_INSTALLED
 	fi
 
+	if [ X"$OCF_RESKEY_ip" = "X" ]; then
+		ocf_log err "IP address (the ip parameter) is mandatory"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
 	if
           case $__OCF_ACTION in
             start|stop)		ocf_is_root;;
