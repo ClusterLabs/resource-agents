@@ -312,10 +312,7 @@ ip_init() {
 		exit $OCF_ERR_ARGS
 	fi
 
-	# Validation is performed in ip_validate()...
-	# WTF: this *is called* from ip_validate()
-	#
-	# $FINDIF now takes its parameters from the environment
+	# $FINDIF takes its parameters from the environment
 	#
 	if
 	  NICINFO=`$FINDIF -C`
@@ -325,8 +322,17 @@ ip_init() {
 	    NETMASK=`echo "$NICINFO" | cut -d" " -f2`
 	    BRDCAST=`echo "$NICINFO" | cut -d" " -f3`
 	else
-	    ocf_log warn "[$FINDIF -C] failed"
-  	    return 1
+		# findif couldn't find the interface
+		if ocf_is_probe; then
+			ocf_log info "[$FINDIF -C] failed"
+			exit $OCF_NOT_RUNNING
+		elif [ "$__OCF_ACTION" = stop ]; then
+			ocf_log warn "[$FINDIF -C] failed"
+			exit $OCF_SUCCESS
+		else
+			ocf_log err "[$FINDIF -C] failed"
+			exit $OCF_ERR_ARGS
+		fi
 	fi
 	
 	SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$BASEIP"
