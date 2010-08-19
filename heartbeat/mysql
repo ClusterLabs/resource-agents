@@ -726,10 +726,26 @@ mysql_start() {
 
     if ocf_is_ms; then
 	# We're configured as a stateful resource. We must start as
-	# slave by default. Since we can't start as a MySQL slave (we
-	# don't know what master to replicate from), we simply start
-	# in read only mode.
+	# slave by default. At this point we don't know if the CRM has
+	# already promoted a master. So, we simply start in read only
+	# mode.
 	set_read_only on
+
+	# Now, let's see whether there is a master. We might be a new
+	# node that is just joining the cluster, and the CRM may have
+	# promoted a master before.
+	master_host=`echo $OCF_RESKEY_CRM_meta_notify_master_uname|tr -d " "`
+	if [ "$master_host" -a "$master_host" != `uname -n` ]; then
+	    ocf_log info "Changing MySQL configuration to replicate from $master_host."
+	    set_master $master_host
+	    ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
+		-e 'START SLAVE'
+	    if [ $? -ne 0 ]; then
+		ocf_log err "Failed to start slave"
+		return $OCF_ERR_GENERIC
+	    fi
+	fi
+
 	# We also need to set a master preference, otherwise Pacemaker
 	# won't ever promote us in the absence of any explicit
 	# preference set by the administrator. We choose a low
@@ -868,7 +884,11 @@ mysql_notify() {
 		return $OCF_SUCCESS
 	    fi
 	    ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
-		-e 'START SLAVE';
+		-e 'START SLAVE'
+	    if [ $? -ne 0 ]; then
+		ocf_log err "Failed to start slave"
+		return $OCF_ERR_GENERIC
+	    fi
 	    ;;
 	'post-demote')
 	    demote_host=`echo $OCF_RESKEY_CRM_meta_notify_demote_uname`
