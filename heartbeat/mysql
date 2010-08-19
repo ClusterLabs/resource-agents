@@ -744,6 +744,9 @@ mysql_start() {
 		ocf_log err "Failed to start slave"
 		return $OCF_ERR_GENERIC
 	    fi
+	else
+	    ocf_log info "No MySQL master present, clearing replication state"
+	    unset_master
 	fi
 
 	# We also need to set a master preference, otherwise Pacemaker
