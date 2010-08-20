@@ -331,11 +331,18 @@ ocf_deprecated() {
 # Usage:   ocf_run <command>
 #
 ocf_run() {
+	local rc
+	local output
+	local verbose=1
+	[ "x$1" = "x-q" ] && {
+		verbose=""
+		shift 1
+	}
 	output=`"$@" 2>&1`
 	rc=$?
 	output=`echo $output`
 	if [ $rc -eq 0 ]; then 
-	    if [ ! -z "$output" ]; then
+	    if [ "$verbose" -a ! -z "$output" ]; then
 		ocf_log info "$output"
 	    fi
 	    return $OCF_SUCCESS
