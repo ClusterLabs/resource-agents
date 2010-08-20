@@ -70,9 +70,7 @@ License:        GPL v2 or later
 Summary:        A Monitoring Daemon for Maintaining High Availability Resources
 Group:          Productivity/Clustering/HA
 Requires:       %{SSLeay} perl-libwww-perl ipvsadm
-Provides:	heartbeat-ldirectord
 Obsoletes:	heartbeat-ldirectord
-Conflicts:	heartbeat-ldirectord
 Requires:	perl-MailTools
 %if 0%{?suse_version}
 Requires:       logrotate
