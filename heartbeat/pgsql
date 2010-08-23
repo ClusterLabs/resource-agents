@@ -71,10 +71,6 @@ OCF_RESKEY_stop_escalate_default=30
 : ${OCF_RESKEY_logfile=${OCF_RESKEY_logfile_default}}
 : ${OCF_RESKEY_stop_escalate=${OCF_RESKEY_stop_escalate_default}}
 
-# $OCF_RESKEY_pgdata has to be initialized at this momemnt
-OCF_RESKEY_socketdir_default=`get_pgsql_param unix_socket_directory`
-: ${OCF_RESKEY_socketdir=${OCF_RESKEY_socketdir_default}}
-
 usage() {
     cat <<EOF
 	usage: $0 start|stop|status|monitor|meta-data|validate-all|methods
@@ -197,7 +193,7 @@ Path to PostgreSQL server log output file.
 Unix socket directory for PostgeSQL
 </longdesc>
 <shortdesc lang="en">socketdir</shortdesc>
-<content type="string" default="${OCF_RESKEY_socketdir_default}" />
+<content type="string" default="" />
 </parameter>
 
 <parameter name="stop_escalate" unique="0" required="0">
@@ -535,13 +531,16 @@ case "$1" in
 
     meta-data)  meta_data
                 exit $OCF_SUCCESS;;
-
-    validate-all) pgsql_validate_all
-                exit $?;;
 esac
+
+# $OCF_RESKEY_pgdata has to be initialized at this momemnt
+: ${OCF_RESKEY_socketdir=`get_pgsql_param unix_socket_directory`}
 
 pgsql_validate_all
 rc=$?
+
+[ "$1" == "validate-all" ] && exit $rc
+
 if [ $rc -ne 0 ]
 then
     case "$1" in
