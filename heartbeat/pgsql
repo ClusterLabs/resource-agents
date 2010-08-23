@@ -227,7 +227,13 @@ EOF
 #	Run the given command in the Resource owner environment...
 #
 runasowner() {
-    ocf_run su $OCF_RESKEY_pgdba -c "$*"
+    local quietrun=""
+    [ "x$1" = "x-q" ] && {
+		quietrun="-q"
+		shift 1
+	}
+    
+    ocf_run $quietrun su $OCF_RESKEY_pgdba -c "$*"
 }
 
 #
@@ -415,7 +421,7 @@ pgsql_monitor() {
            psql_options="$psql_options -h $OCF_RESKEY_socketdir"
        fi
     fi
-    runasowner "$OCF_RESKEY_psql $psql_options -c 'select now();'"
+    runasowner -q "$OCF_RESKEY_psql $psql_options -c 'select now();'"
 
     rc=$?
     if [ $rc -ne  0 ]; then
