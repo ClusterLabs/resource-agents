@@ -418,6 +418,9 @@ start_apache() {
 		break
 	fi
   done
+	if [ $ec -ne 0 ] && silent_status; then
+		stop_apache
+	fi
 	return $ec
 }
 
