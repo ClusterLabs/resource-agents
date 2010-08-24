@@ -264,6 +264,7 @@ ha_debug() {
 }
 
 ha_parameter() {
+	local VALUE
     VALUE=`sed -e 's%[	][	]*% %' -e 's%^ %%' -e 's%#.*%%'   $HA_CF | grep -i "^$1 " | sed 's%[^ ]* %%'`
     if
 	[ "X$VALUE" = X ]
@@ -314,7 +315,7 @@ ocf_log() {
 #                            the warning (default
 #                            "ignore_deprecation")
 ocf_deprecated() {
-    local param envar
+    local param
     param=${1:-ignore_deprecation}
     # don't use ${!param} here, it's a bashism
     if ! ocf_is_true $(eval echo \$OCF_RESKEY_$param); then
@@ -357,7 +358,7 @@ ocf_run() {
 }
 
 ocf_pidfile_status() {
-    pidfile=$1
+    local pid pidfile=$1
     if [ ! -e $pidfile ]; then
 	# Not exists
 	return 2
@@ -388,7 +389,7 @@ ocf_take_lock() {
 
 
 ocf_release_lock_on_exit() {
-    lockfile=$1
+    local lockfile=$1
     trap "rm -f $lockfile" EXIT
 }
 
@@ -461,7 +462,7 @@ dirname()
 #
 ha_pseudo_resource()
 {
-  ha_resource_tracking_file="${3:-${HA_RSCTMP}/$1}"
+  local ha_resource_tracking_file="${3:-${HA_RSCTMP}/$1}"
   case $2 in
     start|restart|reload)  touch "$ha_resource_tracking_file";;
     stop) rm -f "$ha_resource_tracking_file";;
