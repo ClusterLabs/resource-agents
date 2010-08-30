@@ -116,6 +116,25 @@ to not adjust memory dynamically.
 <shortdesc lang="en">Use dynamic memory management</shortdesc>
 <content type="boolean" default="0" />
 </parameter>
+
+<parameter name="node_ip_attribute">
+<longdesc lang="en">
+In case of a live migration, the system will default to using the IP
+address associated with the hostname via DNS or /etc/hosts.
+
+This parameter allows you to specify a node attribute that will be
+queried instead for the target node, overriding the IP address. This
+allows you to use a dedicated network for live migration traffic to a
+specific node.
+
+Warning: make very sure the IP address does point to the right node. Or
+else the live migration will end up somewhere else, greatly confusing
+the cluster and causing havoc.
+</longdesc>
+<shortdesc lang="en">Node attribute containing target IP address</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 <parameter name="reserved_Dom0_memory" unique="0" required="0">
 <longdesc lang="en">
 In case memory management is used, this parameter
@@ -307,9 +326,22 @@ Xen_Stop() {
 
 Xen_Migrate_To() {
   target_node="$OCF_RESKEY_CRM_meta_migrate_target"
+  target_attr="$OCF_RESKEY_CRM_node_ip_attribute"
+  target_addr="$target_node"
+ 
   if Xen_Status ${DOMAIN_NAME}; then
     ocf_log info "$DOMAIN_NAME: Starting xm migrate to $target_node"
-    xm migrate --live $DOMAIN_NAME $target_node
+    
+    if [ -n "$target_attr" ]; then
+	  nodevalue=`crm_attribute --type nodes --node-uname $target_node --attr-name $target_attr --get-value -q`
+	  if [ -n "${nodevalue}" -a "${nodevalue}" != "(null)" ]; then
+	  	target_addr="$nodevalue"
+		ocf_log info "$DOMAIN_NAME: $target_node is using address $target_addr"
+	  fi
+    fi
+
+    xm migrate --live $DOMAIN_NAME $target_addr
+
     rc=$?
     if [ $rc -ne 0 ]; then
       ocf_log err "$DOMAIN_NAME: xm migrate to $target_node failed: $rc"
