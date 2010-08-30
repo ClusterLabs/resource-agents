@@ -169,8 +169,8 @@ END
 }
 
 Xen_Status() {
-  if have_binary xlist; then
-     xlist $1 2>/dev/null | grep -qs "State.*[-r][-b][-p]--" 2>/dev/null
+  if have_binary xen-list; then
+     xen-list $1 2>/dev/null | grep -qs "State.*[-r][-b][-p]--" 2>/dev/null
      if [ $? -ne 0 ]; then
      	return $OCF_NOT_RUNNING
      else
@@ -312,10 +312,13 @@ Xen_Stop() {
     fi
     
     if [ "$timeout" -eq 0 ]; then
-      ocf_log warn "Xen domain $DOMAIN_NAME will be destroyed!"
-      xm destroy ${DOMAIN_NAME}
       while Xen_Status ${DOMAIN_NAME}; do
-        ocf_log debug "${DOMAIN_NAME} still not destroyed. Waiting..."
+        ocf_log warn "Xen domain $DOMAIN_NAME will be destroyed!"
+        if have_binary xen-destroy ; then
+      	  xen-destroy ${DOMAIN_NAME}
+        else
+      	  xm destroy ${DOMAIN_NAME}
+        fi
         sleep 1
       done
       # Note: This does not give up. stop isn't allowed to to fail.
