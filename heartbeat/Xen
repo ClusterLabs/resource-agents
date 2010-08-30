@@ -331,6 +331,15 @@ Xen_Stop() {
     ocf_log info "Xen domain $DOMAIN_NAME already stopped." 
   fi
 
+  # It is supposed to be gone, but there have been situations where xm
+  # list / xen-list showed it as stopped but it was still instantiated.
+  # Nuke it once more to make sure:
+  if have_binary xen-destroy ; then
+    xen-destroy ${DOMAIN_NAME}
+  else
+    xm destroy ${DOMAIN_NAME}
+  fi
+
   Xen_Adjust_Memory 0
   return $OCF_SUCCESS
 }
