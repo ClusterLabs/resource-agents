@@ -170,7 +170,7 @@ END
 
 Xen_Status() {
   if have_binary xlist; then
-     STATUS=`xlist $1 2>/dev/null | grep -qs "State.*[-r][-b][-p]--" 2>/dev/null`
+     xlist $1 2>/dev/null | grep -qs "State.*[-r][-b][-p]--" 2>/dev/null
      if [ $? -ne 0 ]; then
      	return $OCF_NOT_RUNNING
      else
