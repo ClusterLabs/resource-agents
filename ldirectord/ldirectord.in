@@ -2771,7 +2771,7 @@ sub check_http
 	my ($v, $r) = @_;
 
 	$$r{url} =~ /(http|https):\/\/([^:\/]+)(:([^\/]+))?(\/.*)/;
-	my $host = $1;
+	my $host = $2;
 	#my $port = $3;
 	my $uri = $4;
 	my $virtualhost = (defined $$v{virtualhost} ? $$v{virtualhost} : $host);
