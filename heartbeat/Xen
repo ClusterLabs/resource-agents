@@ -290,6 +290,13 @@ Xen_Start() {
 Xen_Stop() {
   if Xen_Status ${DOMAIN_NAME}; then
     local timeout
+    local xenkill
+    if have_binary xen-destroy ; then
+      xenkill="xen-destroy ${DOMAIN_NAME}"
+    else
+      xenkill="xm destroy ${DOMAIN_NAME}"
+    fi
+
     if [ -n "$OCF_RESKEY_shutdown_timeout" ]; then
       timeout=$OCF_RESKEY_shutdown_timeout
     elif [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
@@ -314,11 +321,7 @@ Xen_Stop() {
     if [ "$timeout" -eq 0 ]; then
       while Xen_Status ${DOMAIN_NAME}; do
         ocf_log warn "Xen domain $DOMAIN_NAME will be destroyed!"
-        if have_binary xen-destroy ; then
-      	  xen-destroy ${DOMAIN_NAME}
-        else
-      	  xm destroy ${DOMAIN_NAME}
-        fi
+	$xenkill
         sleep 1
       done
       # Note: This does not give up. stop isn't allowed to to fail.
@@ -334,11 +337,7 @@ Xen_Stop() {
   # It is supposed to be gone, but there have been situations where xm
   # list / xen-list showed it as stopped but it was still instantiated.
   # Nuke it once more to make sure:
-  if have_binary xen-destroy ; then
-    xen-destroy ${DOMAIN_NAME}
-  else
-    xm destroy ${DOMAIN_NAME}
-  fi
+  $xenkill
 
   Xen_Adjust_Memory 0
   return $OCF_SUCCESS
