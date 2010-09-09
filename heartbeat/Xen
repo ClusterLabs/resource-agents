@@ -200,7 +200,7 @@ Xen_Status() {
 }
 
 Xen_Adjust_Memory() {
-    if [ "${OCF_RESKEY_allow_mem_management}" != 0 ]; then
+    if ocf_is_true "${OCF_RESKEY_allow_mem_management}"; then
       CNTNEW=$1
       RUNNING=`Xen_List_running`
       RUNCNT=`Xen_Count_running`
@@ -266,7 +266,7 @@ Xen_Start() {
     return $OCF_ERR_INSTALLED
   fi
 
-  if [ "${OCF_RESKEY_allow_mem_management}" != 0 ]; then
+  if ocf_is_true "${OCF_RESKEY_allow_mem_management}"; then
     Xen_Adjust_Memory 1
     ocf_log info "New memory for virtual domains: ${NEWMEM}"
     sed -i -e "/^memory=/ s/^memory=.*/memory=${NEWMEM}/" ${OCF_RESKEY_xmfile}
@@ -278,7 +278,7 @@ Xen_Start() {
   if [ $rc -ne 0 ]; then
     return $OCF_ERR_GENERIC
   else 
-    if [ "${OCF_RESKEY_allow_mem_management}" != 0 ]; then
+    if ocf_is_true "${OCF_RESKEY_allow_mem_management}"; then
       xm mem-set ${DOMAIN_NAME} ${NEWMEM}
     fi
   fi
