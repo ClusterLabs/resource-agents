@@ -105,7 +105,7 @@ Setting this value to 0 forces an immediate destroy.
 
 </longdesc>
 <shortdesc lang="en">Shutdown escalation timeout</shortdesc>
-<content type="boolean" default="" />
+<content type="string" default="" />
 </parameter>
 <parameter name="allow_mem_management" unique="0" required="0">
 <longdesc lang="en">
@@ -428,6 +428,13 @@ fi
 for binary in xm sed awk; do
     check_binary $binary
 done
+
+if [ -n "$OCF_RESKEY_shutdown_timeout" ]; then
+	ocf_is_decimal "$OCF_RESKEY_shutdown_timeout" || {
+		ocf_log err "shutdown_timeout must be a number" 
+		exit $OCF_ERR_CONFIGURED
+	}
+fi
 
 case $1 in
   start)		Xen_Start
