@@ -39,6 +39,12 @@
         &lt;attribute name="__failure_expire_time" rha:description="Amount of time before a failure is forgotten."/&gt;
       &lt;/optional&gt;
       &lt;optional&gt;
+        &lt;attribute name="__max_restarts" rha:description="Maximum number restarts for an independent subtree before giving up."/&gt;
+      &lt;/optional&gt;
+      &lt;optional&gt;
+        &lt;attribute name="__restart_expire_time" rha:description="Amount of time before a failure is forgotten for an independent subtree."/&gt;
+      &lt;/optional&gt;
+      &lt;optional&gt;
         &lt;ref name="CHILDREN"/&gt;
       &lt;/optional&gt;
     &lt;/element&gt;
