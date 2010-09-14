@@ -28,7 +28,7 @@ function ha_lvm_proper_setup_check
 	##
 	if ! lvm dumpconfig activation/volume_list >& /dev/null; then
 		ocf_log err "HA LVM:  Improper setup detected"
-		ocf_log err "- \"volume_list\" not specified in lvm.conf."
+		ocf_log err "* \"volume_list\" not specified in lvm.conf."
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -38,7 +38,7 @@ function ha_lvm_proper_setup_check
 	##
 	if ! lvm dumpconfig activation/volume_list | grep $(local_node_name); then
 		ocf_log err "HA LVM:  Improper setup detected"
-		ocf_log err "- @$(local_node_name) missing from \"volume_list\" in lvm.conf"
+		ocf_log err "* @$(local_node_name) missing from \"volume_list\" in lvm.conf"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -49,7 +49,7 @@ function ha_lvm_proper_setup_check
 	##
 	if lvm dumpconfig activation/volume_list | grep "\"$OCF_RESKEY_vg_name\""; then
 		ocf_log err "HA LVM:  Improper setup detected"
-		ocf_log err "- $OCF_RESKEY_vg_name found in \"volume_list\" in lvm.conf"
+		ocf_log err "* $OCF_RESKEY_vg_name found in \"volume_list\" in lvm.conf"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -61,7 +61,7 @@ function ha_lvm_proper_setup_check
 	# Fixme: we might be able to perform a better check...
 	if [ "$(find /boot -name *.img -newer /etc/lvm/lvm.conf)" == "" ]; then
 		ocf_log err "HA LVM:  Improper setup detected"
-		ocf_log err "- initrd image needs to be newer than lvm.conf"
+		ocf_log err "* initrd image needs to be newer than lvm.conf"
 		return $OCF_ERR_GENERIC
 	fi
 
