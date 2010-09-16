@@ -123,7 +123,7 @@ db2info() {
 	db2ctrl=$db2sql/ctrl
 	db2bin=$db2sql/bin
 	db2db2=$db2bin/db2
-    db2node=0 # single node instances are supported
+	db2node=0 # single node instances are supported
 
 	#	Let's make sure a few important things are there...
 	if
@@ -256,7 +256,7 @@ db2_stop() {
 #
 db2_status() {
   # We ignore the instance, the info we need is already in $vars
-  pscount=`runasdb2 $db2bin/db2_local_ps | cut -c9- |  grep ' db2[^ ]' | wc -l`
+  pscount=`runasdb2 $db2bin/db2nps $db2node | cut -c9- |  grep ' db2[^ ]' | wc -l`
   test $pscount -ge 4
 }
 
