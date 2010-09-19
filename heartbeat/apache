@@ -537,7 +537,7 @@ metadata_apache(){
 
 <longdesc lang="en">
 This is the resource agent for the Apache web server.
-Thie resource agent operates both version 1.x and version 2.x Apache
+This resource agent operates both version 1.x and version 2.x Apache
 servers.
 
 The start operation ends with a loop in which monitor is
@@ -616,7 +616,7 @@ Case insensitive.
 <longdesc lang="en">
 Client to use to query to Apache. If not specified, the RA will
 try to find one on the system. Currently, wget and curl are
-supported. For example, you can set this paramter to "curl" if
+supported. For example, you can set this parameter to "curl" if
 you prefer that to wget.
 </longdesc>
 <shortdesc lang="en">http client</shortdesc>
