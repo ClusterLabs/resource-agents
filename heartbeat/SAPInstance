@@ -297,7 +297,8 @@ sapinstance_init() {
 
   # as root user we need the library path to the SAP kernel to be able to call sapcontrol
   if [ `echo $LD_LIBRARY_PATH | grep -c "^$DIR_EXECUTABLE\>"` -eq 0 ]; then
-    LD_LIBRARY_PATH=$DIR_EXECUTABLE:$LD_LIBRARY_PATH; export LD_LIBRARY_PATH
+    LD_LIBRARY_PATH=$DIR_EXECUTABLE${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH
   fi
 
   sidadm="`echo $SID | tr [:upper:] [:lower:]`adm"
