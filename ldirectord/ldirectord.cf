@@ -12,6 +12,7 @@
 checktimeout=3
 checkinterval=1
 #fallback=127.0.0.1:80
+#fallback6=[::1]:80
 autoreload=yes
 #logfile="/var/log/ldirectord.log"
 #logfile="local0"
@@ -311,3 +312,16 @@ virtual=192.168.6.240:80
 #	service=sip
 #	checktimeout=1
 
+#Sample configuration for an nntp virtual service with IPv6.
+#Fallback setting overides global
+#virtual6=[2001:db8::5]:119
+#	real6=[2001:db8:0:1::4]:119 masq
+#	real6=[2001:db8:0:1::6]:119 masq
+#	fallback6=[::1]:119
+#	service=nntp
+#	scheduler=wlc
+#	#persistent=600
+#	#netmask=255.255.255.255
+#	protocol=tcp
+#	checktype=negotiate
+#	checkport=119
