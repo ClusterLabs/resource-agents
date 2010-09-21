@@ -136,30 +136,6 @@ MailToValidateAll () {
 	fi
 	check_binary "$MAILCMD"
 
-# $email may be a list of mail addresses separated by "," and " " and "\t"
-# normalize it for ease of parse
-	local_email=`echo $email | tr ",\t" " " | tr -s " "`
-
-#	ocf_log info "[$local_email]"
-	for item in $local_email
-	do
-	    case $item in
-		*?@?*)
-		;; #possible valid email address
-		*)
-		getent passwd $item >/dev/null
-		if [ $? -eq 0 ]; then
-		: OK, mail to $item@localhost.localdomain
-		else
-		    ocf_log err "Invalid email address [$email]"
-		    exit $OCF_ERR_ARGS
-		fi
-		;;
-	    esac
-	done
-
-# Any subject is OK
-
 	return $OCF_SUCCESS
 }
 
