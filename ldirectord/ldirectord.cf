@@ -123,6 +123,20 @@ virtual=192.168.6.240:80
 #	checktype=negotiate
 #	checkport=25
 
+#Sample configuration for an submission virtual service.
+#Fallback setting overrides global
+#virtual=192.168.6.240:587
+#	real=192.168.16.3:587 masq
+#	real=192.168.16.5:587 masq
+#	fallback=127.0.0.1:587
+#	service=submission
+#	scheduler=wlc
+#	protocol=tcp
+#	persistent=600
+#	#netmask=255.255.255.255
+#	checktype=negotiate
+#	checkport=587
+
 #Sample configuration for a pop virtual service.
 #Fallback setting overides global
 #virtual=192.168.6.240:110
