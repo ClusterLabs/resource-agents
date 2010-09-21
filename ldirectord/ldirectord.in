@@ -448,7 +448,7 @@ checking will take place and no real or fallback servers will be activated.
 On means no checking will take place and real servers will always be
 activated. Default is I<negotiate>.
 
-B<service = >B<dns> | B<ftp> | B<http> | B<https> | B<http_proxy> | B<imap> | B<imaps> | B<ldap> | B<mysql> | B<nntp> | B<none> | B<oracle> | B<pgsql> | B<pop> | B<pops> | B<radius> | B<simpletcp> | B<sip> | B<smtp>
+B<service = >B<dns> | B<ftp> | B<http> | B<https> | B<http_proxy> | B<imap> | B<imaps> | B<ldap> | B<mysql> | B<nntp> | B<none> | B<oracle> | B<pgsql> | B<pop> | B<pops> | B<radius> | B<simpletcp> | B<sip> | B<smtp> | B<submission>
 
 The type of service to monitor when using checktype=negotiate. None denotes
 a service that will not be monitored.
@@ -479,6 +479,8 @@ Default:
 =item * Virtual server port is 389: ldap
 
 =item * Virtual server port is 443: https
+
+=item * Virtual server port is 587: submission
 
 =item * Virtual server port is 993: imaps
 
@@ -1493,6 +1495,7 @@ sub read_config
 							  $1 eq "pgsql"	||
 							  $1 eq "sip"	||
 							  $1 eq "smtp"	||
+							  $1 eq "submission"	||
 							  $1 eq "simpletcp")
 					    or &config_error($line,
 							     "service must " .
@@ -1507,7 +1510,8 @@ sub read_config
 							     "radius, "      .
 							     "pgsql, "       .
 							     "simpletcp, "   .
-							     "sip or smtp");
+							     "sip, smtp "    .
+							     "or submission");
 					$vsrv{service} = $1;
 					if($vsrv{service} eq "ftp" and
 							$vsrv{login} eq "") {
@@ -1793,6 +1797,7 @@ sub ld_port_to_service
 	if ($port eq 143)	{ return "imap"; }
 	if ($port eq 389)	{ return "ldap"; }
 	if ($port eq 443)	{ return "https"; }
+	if ($port eq 587)	{ return "submission"; }
 	if ($port eq 995)	{ return "pops"; }
 	if ($port eq 993)	{ return "imaps"; }
 	if ($port eq 1521)	{ return "oracle"; }
@@ -1823,6 +1828,7 @@ sub ld_service_to_port
 	if ($service eq "imap")		{ return 143; }
 	if ($service eq "ldap")		{ return 389; }
 	if ($service eq "https")	{ return 443; }
+	if ($service eq "submission")	{ return 587; }
 	if ($service eq "imaps")	{ return 993; }
 	if ($service eq "pops")		{ return 995; }
 	if ($service eq "oracle")	{ return 1521; }
@@ -2669,7 +2675,7 @@ sub _check_real
 			$$r{num_connects} = 0 if (check_imap($v, $r) == $SERVICE_UP);
 		} elsif ($$v{service} eq "imaps") {
 			$$r{num_connects} = 0 if (check_imaps($v, $r) == $SERVICE_UP);
-		} elsif ($$v{service} eq "smtp") {
+		} elsif ($$v{service} eq "smtp" or $$v{service} eq "submission") {
 			$$r{num_connects} = 0 if (check_smtp($v, $r) == $SERVICE_UP);
 		} elsif ($$v{service} eq "ftp") {
 			$$r{num_connects} = 0 if (check_ftp($v, $r) == $SERVICE_UP);
@@ -2851,7 +2857,7 @@ sub check_smtp
 	my ($v, $r) = @_;
 	my $port = ld_checkport($v, $r);
 
-	&ld_debug(2, "Checking smtp: server=$$r{server} port=$port");
+	&ld_debug(2, "Checking $$v{service}: server=$$r{server} port=$port");
 
 	my $smtp = new Net::SMTP($$r{server}, Port => $port,
 			Timeout => $$v{negotiatetimeout});
