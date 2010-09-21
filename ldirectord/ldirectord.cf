@@ -38,7 +38,7 @@ virtual=192.168.6.240:80
 	receive="Test Page"
 	virtualhost=www.x.y.z
 
-# Sample configuration for a fwmark based service For an explination of
+# Sample configuration for a fwmark based service For an explanation of
 # fwmark see the ipvsadm(8) man page
 #virtual=1
 #	real=192.168.6.2 gate
@@ -74,7 +74,7 @@ virtual=192.168.6.240:80
 #	virtualhost=x.y.z
 
 #Sample configuration for an https virtual service.
-#Fallback setting overides global
+#Fallback setting overrides global
 #virtual=192.168.6.240:443
 #	real=192.168.16.3:443 masq
 #	real=192.168.16.5:443 masq
@@ -91,7 +91,7 @@ virtual=192.168.6.240:80
 #	virtualhost=x.y.z
 
 #Sample configuration for an ftp virtual service.
-#Fallback setting overides global
+#Fallback setting overrides global
 #virtual=192.168.6.240:21
 #	real=192.168.16.3:21 masq
 #	real=192.168.16.5:21 masq
@@ -110,7 +110,7 @@ virtual=192.168.6.240:80
 #	receive="test"
 
 #Sample configuration for an smtp virtual service.
-#Fallback setting overides global
+#Fallback setting overrides global
 #virtual=192.168.6.240:25
 #	real=192.168.16.3:25 masq
 #	real=192.168.16.5:25 masq
@@ -138,7 +138,7 @@ virtual=192.168.6.240:80
 #	checkport=587
 
 #Sample configuration for a pop virtual service.
-#Fallback setting overides global
+#Fallback setting overrides global
 #virtual=192.168.6.240:110
 #	real=192.168.16.3:110 masq
 #	real=192.168.16.5:110 masq
@@ -154,7 +154,7 @@ virtual=192.168.6.240:80
 #	#passwd="test"
 
 ##Sample configuration for an imap virtual service.
-#Fallback setting overides global
+#Fallback setting overrides global
 #virtual=192.168.6.240:143
 #	real=127.0.0.1:143 masq
 #	real=192.168.16.3:143 masq
@@ -171,7 +171,7 @@ virtual=192.168.6.240:80
 #	#passwd="test"
 
 #Sample configuration for an ldap virtual service.
-#Fallback setting overides global
+#Fallback setting overrides global
 #virtual=192.168.84.5:389
 #	real=10.0.1.4:389 masq
 #	real=10.0.1.6:389 masq
@@ -189,7 +189,7 @@ virtual=192.168.6.240:80
 #	#passwd="test"
 
 #Sample configuration for an nntp virtual service.
-#Fallback setting overides global
+#Fallback setting overrides global
 #virtual=192.168.84.5:119
 #	real=10.0.1.4:119 masq
 #	real=10.0.1.6:119 masq
@@ -203,7 +203,7 @@ virtual=192.168.6.240:80
 #	checkport=119
 
 #Sample configuration for a UDP DNS virtual service.
-#Fallback setting overides global
+#Fallback setting overrides global
 #virtual=192.168.84.5:53
 #	real=10.0.1.4:53 masq
 #	real=10.0.1.6:53 masq
@@ -327,7 +327,7 @@ virtual=192.168.6.240:80
 #	checktimeout=1
 
 #Sample configuration for an nntp virtual service with IPv6.
-#Fallback setting overides global
+#Fallback setting overrides global
 #virtual6=[2001:db8::5]:119
 #	real6=[2001:db8:0:1::4]:119 masq
 #	real6=[2001:db8:0:1::6]:119 masq
