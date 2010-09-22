@@ -276,7 +276,7 @@ start_squid()
 	ocf_run $SQUID_EXE -f "$SQUID_CONF" "$@"
 	status=$?
 	if [[ $status != $OCF_SUCCESS ]]; then
-		return $status
+		return $OCF_ERR_GENERIC
 	fi
 
 	while true; do

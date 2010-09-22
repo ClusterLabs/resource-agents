@@ -872,9 +872,19 @@ mysql_notify() {
 		ocf_log info "Resetting MySQL replication configuration on new master $master_host"
 		ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
 		    -e 'RESET MASTER'
+		if [ $? -ne 0 ]; then
+		    return $OCF_ERR_GENERIC
+		else
+		    return $OCF_SUCCESS
+		fi
 	    else
 		ocf_log info "Changing MySQL configuration to replicate from $master_host"
 		set_master $master_host
+		if [ $? -ne 0 ]; then
+		    return $OCF_ERR_GENERIC
+		else
+		    return $OCF_SUCCESS
+		fi
 	    fi
 	    ;;
 	'post-promote')

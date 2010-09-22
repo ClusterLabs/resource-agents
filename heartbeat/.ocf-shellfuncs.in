@@ -353,7 +353,7 @@ ocf_run() {
 	    else
 		ocf_log err "command failed: $*"
 	    fi
-	    return $OCF_ERR_GENERIC
+	    return $rc
 	fi
 }
 

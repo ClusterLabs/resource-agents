@@ -292,7 +292,7 @@ ServeRAID_start() {
       ( ocf_run $IPS SYNCH $sr_adapter $sr_mergegroup & ) >&2
       AddSCSI
     else
-      return $?
+      return $OCF_ERR_GENERIC
     fi
   fi
   if

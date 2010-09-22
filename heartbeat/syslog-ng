@@ -140,7 +140,7 @@ start_syslog_ng()
 	ocf_run "$SYSLOG_NG_EXE" -f "$CONFIGFILE" $START_OPTS
 	ocf_status=$?
 	if [[ "$ocf_status" != "$OCF_SUCCESS" ]]; then
-		return $ocf_status
+		return $OCF_ERR_GENERIC
 	fi
 
 	while true; do
