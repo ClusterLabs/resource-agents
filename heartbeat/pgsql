@@ -234,7 +234,7 @@ runasowner() {
 		shift 1
 	}
     
-	ocf_run $quietrun su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; $@"
+	ocf_run $quietrun su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; $*"
 }
 
 #
