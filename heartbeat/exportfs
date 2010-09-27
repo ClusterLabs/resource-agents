@@ -8,8 +8,16 @@
 #
 # License: GNU General Public License v2 (GPLv2) and later
 
+#######################################################################
+# Initialization:
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_unlock_on_stop_default=0
+
+: ${OCF_RESKEY_unlock_on_stop=${OCF_RESKEY_unlock_on_stop_default}}
+#######################################################################
 
 exportfs_meta_data() {
 	cat <<END
@@ -68,7 +76,7 @@ The fsid option to pass to exportfs. This can be a unique positive
 integer, a UUID, or the special string "root" which is functionally
 identical to numeric fsid of 0.
 0 (root) identifies the export as the root of an NFSv4
-pseudofilesystem -- avoid this setting unless you understand its 
+pseudofilesystem -- avoid this setting unless you understand its
 special status.
 This value will override any fsid provided via the options parameter.
 </longdesc>
@@ -77,6 +85,19 @@ Unique fsid within cluster.
 </shortdesc>
 <content type="string" />
 </parameter>
+
+<parameter name="unlock_on_stop">
+<longdesc lang="en">
+Relinquish NFS locks associated with this filesystem when the resource
+stops. Enabling this parameter is highly recommended unless the path exported
+by this ${__SCRIPT_NAME} resource is also exported by a different resource.
+</longdesc>
+<shortdesc lang="en">
+Unlock filesystem on stop?
+</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_unlock_on_stop_default}" />
+</parameter>
+
 
 </parameters>
 
@@ -185,6 +206,17 @@ exportfs_stop ()
 	if [ -f $PIDF ]; then
 		kill `cat $PIDF`
 		rm $PIDF
+	fi
+
+	if ocf_is_true ${OCF_RESKEY_unlock_on_stop}; then
+		local unlockfile
+		unlockfile=/proc/fs/nfsd/unlock_filesystem
+		if [ -w ${unlockfile} ]; then
+			echo "${OCF_RESKEY_directory}" > ${unlockfile}
+			ocf_log info "Unlocked NFS export ${OCF_RESKEY_directory}"
+		else
+			ocf_log warn "Unable to unlock NFS export ${OCF_RESKEY_directory}, ${unlockfile} not found or not writable"
+		fi
 	fi
 
 	backup_rmtab
