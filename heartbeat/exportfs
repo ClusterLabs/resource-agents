@@ -64,14 +64,18 @@ The directory to export.
 
 <parameter name="fsid" unique="1" required="1">
 <longdesc lang="en">
-The fsid option to pass to exportfs. This should be a unique positive integer,
-avoid 0 unless you understand its special status.
+The fsid option to pass to exportfs. This can be a unique positive
+integer, a UUID, or the special string "root" which is functionally
+identical to numeric fsid of 0.
+0 (root) identifies the export as the root of an NFSv4
+pseudofilesystem -- avoid this setting unless you understand its 
+special status.
 This value will override any fsid provided via the options parameter.
 </longdesc>
 <shortdesc lang="en">
 Unique fsid within cluster.
 </shortdesc>
-<content type="integer" />
+<content type="string" />
 </parameter>
 
 </parameters>
