@@ -393,6 +393,10 @@ bind_mount() {
 	fi
 }
 
+is_option() {
+	echo $OCF_RESKEY_options | grep -w "$1" >/dev/null 2>&1
+}
+
 is_fsck_needed() {
 	case $OCF_RESKEY_run_fsck in
 	    force) true;;
@@ -988,19 +992,39 @@ stop)		Filesystem_stop
 		;;
 esac
 
+CLUSTERSAFE=0
+is_option "ro" &&
+	CLUSTERSAFE=2
+
 case $FSTYPE in
 ocfs2)	ocfs2_init
+        CLUSTERSAFE=1
 	;;
-nfs|smbfs|none|gfs2)	: # this is kind of safe too
+nfs|smbfs|none|gfs2)	CLUSTERSAFE=1 # this is kind of safe too
 	;;
-*)	if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
-		ocf_log err "DANGER! fstype=\"$FSTYPE\" on $DEVICE is NOT cluster-aware!"
-		ocf_log err "DO NOT RUN IT AS A CLONE!"
-		ocf_log err "Politely refusing to proceed to avoid data corruption."
-		exit $OCF_ERR_CONFIGURED
-	fi
+# add here CLUSTERSAFE=0 for all filesystems which are not
+# cluster aware and which, even if when mounted read-only,
+# could still modify parts of it such as journal/metadata
+ext4|ext4dev|ext3|reiserfs|reiser4|xfs|jfs)
+	CLUSTERSAFE=0 # these are not allowed
 	;;
 esac
+
+if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
+case $CLUSTERSAFE in
+0)
+	ocf_log err "DANGER! $FSTYPE on $DEVICE is NOT cluster-aware!"
+	ocf_log err "DO NOT RUN IT AS A CLONE!"
+	ocf_log err "Politely refusing to proceed to avoid data corruption."
+	exit $OCF_ERR_CONFIGURED
+	;;
+2)
+	ocf_log warn "$FSTYPE on $DEVICE is NOT cluster-aware!"
+	ocf_log warn "But we'll let it run because it is mounted read-only."
+	ocf_log warn "Please make sure that it's meta data is read-only too!"
+	;;
+esac
+fi
 
 case $OP in
 start)	Filesystem_start
