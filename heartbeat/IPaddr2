@@ -231,8 +231,26 @@ You really shouldn't be touching this.
 <content type="string" default="ffffffffffff"/>
 </parameter>
 
-</parameters>
+<parameter name="flush_routes">
+<longdesc lang="en">
+Flush the routing table on stop. This is for
+applications which use the cluster IP address
+and which run on the same physical host that the
+IP address lives on. The Linux kernel may force that
+application to take a shortcut to the local loopback
+interface, instead of the interface the address
+is really bound to. Under those circumstances, an
+application may, somewhat unexpectedly, continue
+to use connections for some time even after the
+IP address is deconfigured. Set this parameter in
+order to immediately disable said shortcut when the
+IP address goes away.
+</longdesc>
+<shortdesc lang="en">Flush kernel routing table on stop</shortdesc>
+<content type="boolean" default="false"/>
+</parameter>
 
+</parameters>
 <actions>
 <action name="start"   timeout="20s" />
 <action name="stop"    timeout="20s" />
@@ -396,9 +414,12 @@ delete_interface () {
 
 	CMD="$IP2UTIL -f inet addr delete $ipaddr/$netmask dev $iface"
 
-	ocf_log info "$CMD"
-	$CMD ||
-		return $OCF_ERR_GENERIC
+	ocf_run $CMD || return $OCF_ERR_GENERIC
+
+	if ocf_is_true $OCF_RESKEY_flush_routes; then
+	    ocf_run $IP2UTIL route flush cache
+	fi
+
 	return $OCF_SUCCESS
 }
 
