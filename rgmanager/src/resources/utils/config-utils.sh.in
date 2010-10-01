@@ -60,6 +60,12 @@ ccs_get()
 
 	outp=$(ccs_tool query "$key" 2>&1)
 	if [ $? -ne 0 ]; then
+		if [[ "$outp" =~ "Query failed: Invalid argument" ]]; then
+			# This usually means that element does not exist
+			# e.g. when checking for IP address 
+			return 0;
+		fi
+
 		if [ "$outp" = "${outp/No data available/}" ] || [ "$outp" = "${outp/Operation not permitted/}" ]; then
 			ocf_log err "$outp ($key)"
 			return $FAIL
