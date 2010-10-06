@@ -158,11 +158,9 @@ EvmsSCC_start_notify_common()
         ocf_log debug "EvmsSCC: Start_Notify: First node in starting list is $n_first."
 
         if [ "$n_myself" = "$n_first" ] ; then
-                ocf_log debug "EvmsSCC: Start_Notify: I am running evms_activate."
-                EVMS_OUTPUT="startvalue"
-                while [ -n "$EVMS_OUTPUT" ] ; do
-                        EVMS_OUTPUT=`evms_activate 2>&1`
-                        if [ -n "$EVMS_OUTPUT" ] ; then
+                ocf_log debug "EvmsSCC: Start_Notify: I am running ${EVMSACTIVATE}."
+                while true ; do
+                        if ! ${EVMSACTIVATE} -q 2> /dev/null ; then
                                 SLEEP_TIME=$(($(ocf_maybe_random) % 40))
                                 ocf_log info "EvmsSCC: Evms call failed - sleeping for $SLEEP_TIME seconds and then trying again."
                                 sleep $SLEEP_TIME
