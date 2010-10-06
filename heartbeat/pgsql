@@ -63,6 +63,9 @@ OCF_RESKEY_start_opt_default=""
 OCF_RESKEY_pgdb_default=template1
 OCF_RESKEY_logfile_default=/dev/null
 OCF_RESKEY_stop_escalate_default=30
+OCF_RESKEY_monitor_user_default=""
+OCF_RESKEY_monitor_password_default=""
+OCF_RESKEY_monitor_sql_default="select now();"
 
 : ${OCF_RESKEY_pgctl=${OCF_RESKEY_pgctl_default}}
 : ${OCF_RESKEY_psql=${OCF_RESKEY_psql_default}}
@@ -75,6 +78,9 @@ OCF_RESKEY_stop_escalate_default=30
 : ${OCF_RESKEY_pgdb=${OCF_RESKEY_pgdb_default}}
 : ${OCF_RESKEY_logfile=${OCF_RESKEY_logfile_default}}
 : ${OCF_RESKEY_stop_escalate=${OCF_RESKEY_stop_escalate_default}}
+: ${OCF_RESKEY_monitor_user=${OCF_RESKEY_monitor_user_default}}
+: ${OCF_RESKEY_monitor_password=${OCF_RESKEY_monitor_password_default}}
+: ${OCF_RESKEY_monitor_sql=${OCF_RESKEY_monitor_sql_default}}
 
 usage() {
     cat <<EOF
@@ -169,6 +175,32 @@ Port where PostgreSQL is listening
 <content type="integer" default="${OCF_RESKEY_pgport_default}" />
 </parameter>
 
+<parameter name="monitor_user" unique="0" required="0">
+<longdesc lang="en">
+PostgreSQL user that pgsql RA will user for monitor operations. If it's not set
+pgdba user will be used.
+</longdesc>
+<shortdesc lang="en">monitor_user</shortdesc>
+<content type="string" default="${OCF_RESKEY_monitor_user_default}" />
+</parameter>
+
+<parameter name="monitor_password" unique="0" required="0">
+<longdesc lang="en">
+Password for monitor user.
+</longdesc>
+<shortdesc lang="en">monitor_password</shortdesc>
+<content type="string" default="${OCF_RESKEY_monitor_password_default}" />
+</parameter>
+
+<parameter name="monitor_sql" unique="0" required="0">
+<longdesc lang="en">
+SQL script that will be used for monitor operations.
+</longdesc>
+<shortdesc lang="en">monitor_sql</shortdesc>
+<content type="string" default="${OCF_RESKEY_monitor_sql_default}" />
+</parameter>
+
+
 <parameter name="config" unique="0" required="0">
 <longdesc lang="en">
 Path to the PostgreSQL configuration file for the instance
@@ -233,9 +265,17 @@ runasowner() {
 		quietrun="-q"
 		shift 1
 	}
-    
-	ocf_run $quietrun su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; $*"
+
+    ocf_run $quietrun su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; $*"
 }
+
+#
+#       Shell escape
+#
+escape_string() {
+    echo "$*" | sed -e "s/'/'\\\\''/g"
+}
+
 
 #
 # methods: What methods/operations do we support?
@@ -414,7 +454,14 @@ pgsql_monitor() {
 	return $OCF_NOT_RUNNING
     fi
 
-    psql_options="-p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb"
+    if [ -n "$OCF_RESKEY_monitor_user" ]; then
+        PGUSER=$OCF_RESKEY_monitor_user; export PGUSER
+        PGPASSWORD=$OCF_RESKEY_monitor_password; export PGPASSWORD
+        psql_options="-p $OCF_RESKEY_pgport $OCF_RESKEY_pgdb"
+    else
+        psql_options="-p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb"
+    fi
+
     if [ -n "$OCF_RESKEY_pghost" ]; then
 	psql_options="$psql_options -h $OCF_RESKEY_pghost"
     else
@@ -422,7 +469,9 @@ pgsql_monitor() {
            psql_options="$psql_options -h $OCF_RESKEY_socketdir"
        fi
     fi
-    runasowner -q "$OCF_RESKEY_psql $psql_options -c 'select now();'"
+
+    OCF_RESKEY_monitor_sql=`escape_string "$OCF_RESKEY_monitor_sql"`
+    runasowner -q "$OCF_RESKEY_psql $psql_options -c '$OCF_RESKEY_monitor_sql'"
 
     rc=$?
     if [ $rc -ne  0 ]; then
@@ -459,6 +508,18 @@ pgsql_validate_all() {
     if [ -n "$OCF_RESKEY_config" -a ! -f "$OCF_RESKEY_config" ]; then
         ocf_log err "the configuration file $OCF_RESKEY_config doesn't exist"
         return $OCF_ERR_INSTALLED
+    fi
+
+    if [ -n "$OCF_RESKEY_monitor_user" -a ! -n "$OCF_RESKEY_monitor_password" ]
+    then
+        ocf_log err "monitor password can't be empty"
+        return $OCF_ERR_CONFIGURED
+    fi
+
+    if [ ! -n "$OCF_RESKEY_monitor_user" -a -n "$OCF_RESKEY_monitor_password" ]
+    then
+        ocf_log err "monitor_user has to be set if monitor_password is set"
+        return $OCF_ERR_CONFIGURED
     fi
 
     return $OCF_SUCCESS
