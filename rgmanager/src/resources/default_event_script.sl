@@ -157,6 +157,14 @@ define move_or_start(service, node_list)
 
 	(,,, owner, state) = service_status(service);
 	debug("Evaluating ", service, " state=", state, " owner=", owner);
+	if ((event_type == EVENT_NODE) and (node_id == owner) and
+	    (node_state == NODE_OFFLINE)) {
+		info("Marking service ", service, " on down member ",
+		     owner, " as stopped");
+		if (service_stop(service) < 0) {
+			return ERR_ABORT;
+		}
+	}
 
 	len = length(node_list);
 	if (len == 0) {
