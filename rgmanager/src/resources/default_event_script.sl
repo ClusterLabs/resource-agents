@@ -597,6 +597,10 @@ define default_user_event_handler()
 
 		ret = service_migrate(service_name, user_target);
 
+	} else if (user_request == USER_CONVALESCE) {
+
+		ret = service_convalesce(service_name);
+
 	}
 
 	return ret;
