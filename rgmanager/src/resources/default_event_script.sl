@@ -593,11 +593,11 @@ define default_user_event_handler()
 
 		ret = service_unfreeze(service_name);
 
-	}
+	} else if (user_request == USER_MIGRATE) {
 
-	%
-	% todo - migrate
-	%
+		ret = service_migrate(service_name, user_target);
+
+	}
 
 	return ret;
 }
