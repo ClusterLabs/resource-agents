@@ -1031,9 +1031,13 @@ case $1 in
 			# If the VM is still in good health, return
 			# a value to rgmanager to indicate the 
 			# non-critical error
+			#
+			# OCF states that codes 150-199 are reserved
+			# for application use, so we'll use 150
+			#
 			do_status > /dev/null
 			if [ $? -eq 0 ]; then
-				rv=$OCF_NOT_RUNNING
+				rv=150
 			fi
 		fi
 		exit $rv
