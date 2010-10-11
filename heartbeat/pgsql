@@ -261,12 +261,24 @@ EOF
 #
 runasowner() {
     local quietrun=""
-    [ "x$1" = "x-q" ] && {
-		quietrun="-q"
-		shift 1
-	}
+    local loglevel="-err"
+    local var
 
-    ocf_run $quietrun su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; $*"
+    for var in 1 2
+    do
+        case "$1" in
+            "-q")
+                quietrun="-q"
+                shift 1;;
+            "warn"|"err")
+                loglevel="-$1"
+                shift 1;;
+            *)
+                ;;
+        esac
+    done
+
+    ocf_run $quietrun $loglevel su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; $*"
 }
 
 #
@@ -471,7 +483,7 @@ pgsql_monitor() {
     fi
 
     OCF_RESKEY_monitor_sql=`escape_string "$OCF_RESKEY_monitor_sql"`
-    runasowner -q "$OCF_RESKEY_psql $psql_options -c '$OCF_RESKEY_monitor_sql'"
+    runasowner -q $loglevel "$OCF_RESKEY_psql $psql_options -c '$OCF_RESKEY_monitor_sql'"
 
     rc=$?
     if [ $rc -ne  0 ]; then
