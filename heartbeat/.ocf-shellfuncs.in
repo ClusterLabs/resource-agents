@@ -329,16 +329,32 @@ ocf_deprecated() {
 
 #
 # Ocf_run: Run a script, and log its output.
-# Usage:   ocf_run <command>
+# Usage:   ocf_run [-q] [-info|-warn|-err] <command>
+#	-q: don't log the output of the command if it succeeds
+#	-info|-warn|-err: log the output of the command at given
+#		severity if it fails (defaults to err)
 #
 ocf_run() {
 	local rc
 	local output
 	local verbose=1
-	[ "x$1" = "x-q" ] && {
-		verbose=""
-		shift 1
-	}
+	local loglevel=err
+	local var
+
+	for var in 1 2
+	do
+	    case "$1" in
+		"-q")
+		    verbose=""
+		    shift 1;;
+		"-info"|"-warn"|"-err")
+		    loglevel=`echo $1 | sed -e s/-//g`
+		    shift 1;;
+		*)
+		    ;;		
+	    esac
+	done
+
 	output=`"$@" 2>&1`
 	rc=$?
 	output=`echo $output`
@@ -349,9 +365,9 @@ ocf_run() {
 	    return $OCF_SUCCESS
 	else
 	    if [ ! -z "$output" ]; then
-		ocf_log err "$output"
+		ocf_log $loglevel "$output"
 	    else
-		ocf_log err "command failed: $*"
+		ocf_log $loglevel "command failed: $*"
 	    fi
 	    return $rc
 	fi
