@@ -2078,6 +2078,9 @@ sub add_real_server
 
 	if(defined($flags) and $flags =~ /\s+\"(.*)\"[, ]\s*\"(.*)\"(.*)/) {
 		$new_rsrv->{"request"} = $1;
+		unless ($new_rsrv->{request}=~/^\//) {
+			$new_rsrv->{request} = "/" . $new_rsrv->{request};
+		}
 		$new_rsrv->{"receive"} = $2;
 		$flags = $3;
 	}
