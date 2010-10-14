@@ -3447,6 +3447,7 @@ sub check_simpletcp
 
 		&ld_debug(2, "Checking simpletcp server=$$r{server} port=$d_port request:\n$request");
 		print $sock $request;
+		shutdown($sock, SHUT_WR);
 
 		my $ok;
 		my $reply;
