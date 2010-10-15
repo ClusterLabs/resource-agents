@@ -15,8 +15,10 @@
 
 # Defaults
 OCF_RESKEY_unlock_on_stop_default=0
+OCF_RESKEY_wait_for_leasetime_on_stop_default=0
 
 : ${OCF_RESKEY_unlock_on_stop=${OCF_RESKEY_unlock_on_stop_default}}
+: ${OCF_RESKEY_wait_for_leasetime_on_stop=${OCF_RESKEY_wait_for_leasetime_on_stop_default}}
 #######################################################################
 
 exportfs_meta_data() {
@@ -96,6 +98,25 @@ by this ${__SCRIPT_NAME} resource is also exported by a different resource.
 Unlock filesystem on stop?
 </shortdesc>
 <content type="boolean" default="${OCF_RESKEY_unlock_on_stop_default}" />
+</parameter>
+
+<parameter name="wait_for_leasetime_on_stop">
+<longdesc lang="en">
+When stopping (unexporting), wait out the NFSv4 lease time.
+Only after all leases have expired does the NFS kernel server
+relinquish all server-side handles on the exported filesystem.
+If this ${__SCRIPT_NAME} resource manages an export that resides
+on a mount point designed to fail over along with the NFS export
+itself, then enabling this parameter will ensure such failover
+is working properly. Note that when this parameter is set, your
+stop timeout MUST accommodate for the wait period. This parameter
+is safe to disable if none of your NFS clients are using NFS
+version 4 or later.
+</longdesc>
+<shortdesc lang="en">
+Ride out the NFSv4 lease time on resource stop?
+</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_wait_for_leasetime_on_stop_default}" />
 </parameter>
 
 
@@ -216,6 +237,19 @@ exportfs_stop ()
 			ocf_log info "Unlocked NFS export ${OCF_RESKEY_directory}"
 		else
 			ocf_log warn "Unable to unlock NFS export ${OCF_RESKEY_directory}, ${unlockfile} not found or not writable"
+		fi
+	fi
+
+	if ocf_is_true ${OCF_RESKEY_wait_for_leasetime_on_stop}; then
+		local leasetimefile
+		local sleeptime
+		leasetimefile=/proc/fs/nfsd/nfsv4leasetime
+		if [ -r ${unlockfile} ]; then
+			sleeptime=$((`cat ${leasetimefile}`+2))
+			ocf_log info "Sleeping ${sleeptime} seconds to accommodate for NFSv4 lease expiry"
+			sleep ${sleeptime}s
+		else
+			ocf_log warn "Unable to read NFSv4 lease time from ${leasetimefile}, file not found or not readable"
 		fi
 	fi
 
