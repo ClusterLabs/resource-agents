@@ -141,31 +141,34 @@ exportfs_usage() {
 END
 }
 
-backup_rmtab ()
-{
-	grep :${OCF_RESKEY_directory}: $RMTAB > $FS_RMTAB
-}
-
-clean_rmtab ()
-{
-	REMOVE=`echo ${OCF_RESKEY_directory} | sed 's/\//\\\\\//g'`
-	sed -i -e /:${REMOVE}:/d $RMTAB
-}
-
 exportfs_monitor ()
 {
-	grep -qs "${OCF_RESKEY_directory}" $ETAB
+	# "grep -z" matches across newlines, which is necessary as
+	# exportfs output wraps lines for long export directory names
+	exportfs | grep -zqs "${OCF_RESKEY_directory}[[:space:]]*${OCF_RESKEY_clientspec}"
 
 #Adapt grep status code to OCF return code
 	case $? in
-	0) return $OCF_SUCCESS;;
-	1) return $OCF_NOT_RUNNING;;
-	*) return $OCF_ERR_GENERIC;;
+	0)
+		ocf_log info "Directory ${OCF_RESKEY_directory} is exported to ${OCF_RESKEY_clientspec} (started)."
+		return $OCF_SUCCESS
+		;;
+	1)
+		ocf_log info "Directory ${OCF_RESKEY_directory} is not exported to ${OCF_RESKEY_clientspec} (stopped)."
+		return $OCF_NOT_RUNNING;;
+	*)
+		ocf_log err "Unable to determine export status for ${OCF_RESKEY_directory}."
+		return $OCF_ERR_GENERIC;;
 	esac
 }
 
 exportfs_start ()
 {
+	if exportfs_monitor; then
+		ocf_log debug "${OCF_RESKEY_directory} already exported"
+		return $OCF_SUCCESS
+	fi
+		
 	ocf_log info "Exporting file system ..."
 
 	if [ ${OCF_RESKEY_options} ]; then
@@ -183,51 +186,22 @@ exportfs_start ()
 
 	ocf_run exportfs -v ${OPTIONS} ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory} || exit $OCF_ERR_GENERIC
 
-	RETRIES=0
-	while [ 1 ]; do
-		showmount -e |
-		awk -v export="$OCF_RESKEY_directory" -v client="$OCF_RESKEY_clientspec" '
-			$1 == export {
-				if( $2 == "(everyone)" ) exit 1
-				split($2,clients,",")
-				for ( i in clients ) {
-					if( clients[i] == client ) exit 1
-				}
-			}'
-		[ $? -eq 1 ] && break
-		RETRIES=`expr ${RETRIES} + 1`
-		if  [ ${RETRIES} -eq 4 ]; then
-			ocf_log debug "Export not reported by showmount -e"
-			ocf_log err "Export not reported by showmount -e"
-			return ${OCF_NOT_RUNNING}
-		fi
-		sleep 1
-	done
-
-	#restore saved rmtab backup from other server:
-	if [ -f $FS_RMTAB ]; then
-		cat $FS_RMTAB >> $RMTAB
-		rm -f $FS_RMTAB
-	fi
-
-	#spawn our background process to backup the rmtab each 2 seconds
-	/bin/sh $0 backup &
-
 	ocf_log info "File system exported"
 	return $OCF_SUCCESS
 }
 
 exportfs_stop ()
 {
+	exportfs_monitor
+	if [ $? -eq $OCF_NOT_RUNNING ]; then
+		ocf_log debug "${OCF_RESKEY_directory} not exported"
+		return $OCF_SUCCESS
+	fi
+
 	ocf_log info "Un-exporting file system ..."
 
 	ocf_run exportfs -v -u ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory}
 	rc=$?
-
-	if [ -f $PIDF ]; then
-		kill `cat $PIDF`
-		rm $PIDF
-	fi
 
 	if ocf_is_true ${OCF_RESKEY_unlock_on_stop}; then
 		local unlockfile
@@ -253,9 +227,6 @@ exportfs_stop ()
 		fi
 	fi
 
-	backup_rmtab
-	clean_rmtab
-
 	if [ $rc -eq 0 ]; then
 		ocf_log info "Un-exported file system"
 		return $OCF_SUCCESS
@@ -263,15 +234,6 @@ exportfs_stop ()
 
 	ocf_log err "Failed to un-export file system"
 	exit $OCF_ERR_GENERIC
-}
-
-exportfs_backup ()
-{
-	echo $$ > $PIDF
-	while [ 1 ]; do
-		backup_rmtab
-		sleep 2
-	done
 }
 
 exportfs_validate ()
@@ -304,11 +266,6 @@ if [ $# -ne 1 ]; then
 	exit $OCF_ERR_ARGS
 fi
 
-ETAB=/var/lib/nfs/etab
-RMTAB=/var/lib/nfs/rmtab
-PIDF=${OCF_RESKEY_directory}/.exportfs_backup.pid
-FS_RMTAB=${OCF_RESKEY_directory}/.rmtab
-
 case $__OCF_ACTION in
 	meta-data)  exportfs_meta_data
 		exit $OCF_SUCCESS
@@ -328,8 +285,6 @@ case $__OCF_ACTION in
 	stop)		exportfs_stop
 		;;
 	status|monitor)	exportfs_monitor
-		;;
-	backup)		exportfs_backup
 		;;
 	validate-all)
 		# nothing to do -- we're already validated
