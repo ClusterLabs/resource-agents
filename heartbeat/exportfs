@@ -181,7 +181,7 @@ exportfs_start ()
 	fi
 	OPTIONS="-o ${OPTIONS}"
 
-	ocf_run exportfs ${OPTIONS} ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory} || exit $OCF_ERR_GENERIC
+	ocf_run exportfs -v ${OPTIONS} ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory} || exit $OCF_ERR_GENERIC
 
 	RETRIES=0
 	while [ 1 ]; do
@@ -221,7 +221,7 @@ exportfs_stop ()
 {
 	ocf_log info "Un-exporting file system ..."
 
-	ocf_run exportfs -u ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory}
+	ocf_run exportfs -v -u ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory}
 	rc=$?
 
 	if [ -f $PIDF ]; then
