@@ -34,6 +34,12 @@
         &lt;attribute name="__enforce_timeouts"/&gt;
       &lt;/optional&gt;
       &lt;optional&gt;
+        &lt;attribute name="__max_failures"/&gt;
+      &lt;/optional&gt;
+      &lt;optional&gt;
+        &lt;attribute name="__failure_expire_time"/&gt;
+      &lt;/optional&gt;
+      &lt;optional&gt;
         &lt;ref name="CHILDREN"/&gt;
       &lt;/optional&gt;
     &lt;/element&gt;
