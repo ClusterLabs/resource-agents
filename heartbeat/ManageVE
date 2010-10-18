@@ -91,6 +91,8 @@ meta_data()
     <action name="stop" timeout="75" />
     <action name="status" depth="0" timeout="10" interval="10" />
     <action name="monitor" depth="0" timeout="10" interval="10" />
+    <action name="migrate_to" timeout="75" />
+    <action name="migrate_from" timeout="75" />
     <action name="validate-all" timeout="5" />
     <action name="meta-data" timeout="5" />
   </actions>
@@ -159,6 +161,22 @@ stop_ve()
     exit $OCF_ERR_GENERIC
   fi
 
+  return $OCF_SUCCESS
+}
+
+migrate_to_ve()
+{
+  if ! status_ve; then
+    ocf_log err "VE $VEID is not running, aborting"
+    exit $OCF_ERR_GENERIC
+  fi
+  ocf_run $VZCTL chkpnt $VEID || exit $OCF_ERR_GENERIC
+  return $OCF_SUCCESS
+}
+
+migrate_from_ve()
+{
+  ocf_run $VZCTL restore $VEID || exit $OCF_ERR_GENERIC
   return $OCF_SUCCESS
 }
 
@@ -282,6 +300,12 @@ case "$1" in
   status|monitor) 
 	status_ve
 	;;
+  migrate_to)
+    migrate_to_ve
+    ;;
+  migrate_from)
+    migrate_from_ve
+    ;;
   validate-all)
 	validate_all_ve
 	;;
