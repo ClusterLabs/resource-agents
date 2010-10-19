@@ -128,15 +128,13 @@ start_ve()
 #
 stop_ve()
 {
-  declare -i retcode
-
-  $VZCTL stop $VEID >& /dev/null
-  retcode=$?
-
-  if [[ $retcode != 0 ]]; then
-    ocf_log err "vzctl stop $VEID returned: $retcode"
-    exit $OCF_ERR_GENERIC
+  status_ve
+  if [ $? -eq $OCF_NOT_RUNNING ]; then
+	ocf_log info "VE $VEID already stopped."
+	return $OCF_SUCCESS
   fi
+
+  ocf_run $VZCTL stop $VEID || exit $OCF_ERR_GENERIC
 
   return $OCF_SUCCESS
 }
