@@ -115,7 +115,7 @@ start_ve()
   veexists=`$VZCTL status $VEID 2>/dev/null | $AWK '{print $3}'`
   if [[ $veexists != "exist" ]]; then
     ocf_log err "vzctl status $VEID returned: $VEID does not exist."
-    return $OCF_ERR_INSTALLED
+    exit $OCF_ERR_INSTALLED
   fi
 
   status_ve
@@ -132,7 +132,7 @@ start_ve()
 
   if [[ $retcode != 0 && $retcode != 32 ]]; then
     ocf_log err "vzctl start $VEID returned: $retcode"
-    return $OCF_ERR_GENERIC
+    exit $OCF_ERR_GENERIC
   fi
 
   return $OCF_SUCCESS
@@ -156,7 +156,7 @@ stop_ve()
 
   if [[ $retcode != 0 ]]; then
     ocf_log err "vzctl stop $VEID returned: $retcode"
-    return $OCF_ERR_GENERIC
+    exit $OCF_ERR_GENERIC
   fi
 
   return $OCF_SUCCESS
@@ -180,7 +180,7 @@ status_ve()
 
   if [[ $retcode != 0 ]]; then
     ocf_log err "vzctl status $VEID returned: $retcode"
-    return $OCF_ERR_GENERIC
+    exit $OCF_ERR_GENERIC
   fi
 
   if [[ $veexists != "exist" ]]; then
@@ -197,7 +197,7 @@ status_ve()
         ;;
     *)
 	ocf_log err "vzctl status $VEID, wrong output format. (5th column: $vestatus)"
-	return $OCF_ERR_GENERIC
+	exit $OCF_ERR_GENERIC
         ;;
   esac
 }    
