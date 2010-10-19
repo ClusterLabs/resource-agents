@@ -103,39 +103,16 @@ END
 #
 # start_ve()
 #
-# ATTENTION: The following code relies on vzctl's exit codes, especially:
-#
-#   0 : success
-#  32 : VE already running
-#
-# In case any of those exit codes change, this function will need fixing.
+# Starts a VE, or simply logs a message if the VE is already running.
 #
 start_ve()
 {
-  declare -i retcode
-
-  veexists=`$VZCTL status $VEID 2>/dev/null | $AWK '{print $3}'`
-  if [[ $veexists != "exist" ]]; then
-    ocf_log err "vzctl status $VEID returned: $VEID does not exist."
-    exit $OCF_ERR_INSTALLED
+  if status_ve; then
+	ocf_log info "VE $VEID already running."
+	return $OCF_SUCCESS
   fi
 
-  status_ve
-  retcode=$?
-
-  if [[ $retcode == $OCF_SUCCESS ]]; then
-    return $OCF_SUCCESS
-  elif [[ $retcode != $OCF_NOT_RUNNING ]]; then
-    return $retcode
-  fi
-
-  $VZCTL start $VEID >& /dev/null
-  retcode=$?
-
-  if [[ $retcode != 0 && $retcode != 32 ]]; then
-    ocf_log err "vzctl start $VEID returned: $retcode"
-    exit $OCF_ERR_GENERIC
-  fi
+  ocf_run $VZCTL start $VEID || exit $OCF_ERR_GENERIC
 
   return $OCF_SUCCESS
 }
