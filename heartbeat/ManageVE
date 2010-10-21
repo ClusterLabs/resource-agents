@@ -1,37 +1,38 @@
 #!/bin/bash
 #
-# Name     ManageVE
-# Author   Matthias Dahl, m.dahl@designassembly.de
-# License  GPL version 2
+#	ManageVE OCF RA. Manages OpenVZ Virtual Environments (VEs)
 #
-# (c) 2006 The Design Assembly GmbH.
+#   (c) 2006-2010 Matthias Dahl, Florian Haas,
+#                 and Linux-HA contributors
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
 #
 #
-# WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
-#
-# This resource agent is most likely function complete but not error free. Please
-# consider it BETA quality for the moment until it has proven itself stable...
-#
-# USE AT YOUR OWN RISK.
-#
-# WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
-#
-#
-# partly based on/inspired by original Heartbeat2 OCF resource agents
-#
-# Description
-#
-# This OCF complaint resource agent manages OpenVZ VEs and thus requires
+# This OCF compliant resource agent manages OpenVZ VEs and thus requires
 # a proper OpenVZ installation including a recent vzctl util.
 #
-#
-# Created  07. Sep 2006
-# Updated  18. Sep 2006
-#
-# rev. 1.00.3
+# rev. 1.00.4
 #
 # Changelog
 #
+# 21/Oct/10 1.00.4 implement migrate_from/migrate_to
 # 12/Sep/06 1.00.3 more cleanup
 # 12/Sep/06 1.00.2 fixed some logic in start_ve
 #                  general cleanup all over the place
@@ -50,12 +51,11 @@ VZCTL=/usr/sbin/vzctl
 #
 # usage()
 #
-# taken from Raid1 Heartbeat2 OCF resource agent
 usage()
 {
-	cat <<-EOT
+	cat <<-EOF
 	usage: $0 {start|stop|status|monitor|validate-all|usage|meta-data}
-	EOT
+	EOF
 }
 
 #
@@ -67,10 +67,10 @@ meta_data()
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="ManageVE">
-  <version>1.00.3</version>
+  <version>1.00.4</version>
 
   <longdesc lang="en">
-    This OCF complaint resource agent manages OpenVZ VEs and thus requires
+    This OCF compliant resource agent manages OpenVZ VEs and thus requires
     a proper OpenVZ installation including a recent vzctl util.
   </longdesc>
 
@@ -139,6 +139,14 @@ stop_ve()
   return $OCF_SUCCESS
 }
 
+#
+# migrate_to_ve()
+#
+# In the process of a resource migration, checkpoints the VE. For this
+# to work, vzctl must obviously create the dump file in a place which
+# the migration target has access to (an NFS mount, a DRBD device,
+# etc.).
+#
 migrate_to_ve()
 {
   if ! status_ve; then
@@ -149,6 +157,14 @@ migrate_to_ve()
   return $OCF_SUCCESS
 }
 
+#
+# migrate_to_ve()
+#
+# In the process of a resource migration, restores the VE. For this to
+# work, vzctl must obviously have access to the dump file which was
+# created on the migration source (on an NFS mount, a DRBD device,
+# etc.).
+#
 migrate_from_ve()
 {
   ocf_run $VZCTL restore $VEID || exit $OCF_ERR_GENERIC
