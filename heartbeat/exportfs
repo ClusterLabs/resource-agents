@@ -218,7 +218,7 @@ exportfs_stop ()
 		local leasetimefile
 		local sleeptime
 		leasetimefile=/proc/fs/nfsd/nfsv4leasetime
-		if [ -r ${unlockfile} ]; then
+		if [ -r ${leasetimefile} ]; then
 			sleeptime=$((`cat ${leasetimefile}`+2))
 			ocf_log info "Sleeping ${sleeptime} seconds to accommodate for NFSv4 lease expiry"
 			sleep ${sleeptime}s
