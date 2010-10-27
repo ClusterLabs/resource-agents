@@ -48,6 +48,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			apache		\
 			nginx		\
 			AudibleAlarm	\
+			conntrackd	\
 			db2		\
 			Delay		\
 			eDir88		\

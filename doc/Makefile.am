@@ -92,6 +92,7 @@ man_MANS	       += ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_Xinetd.7 \
                           ocf_heartbeat_anything.7 \
                           ocf_heartbeat_apache.7 \
+                          ocf_heartbeat_conntrackd.7 \
                           ocf_heartbeat_db2.7 \
                           ocf_heartbeat_drbd.7 \
                           ocf_heartbeat_eDir88.7 \
