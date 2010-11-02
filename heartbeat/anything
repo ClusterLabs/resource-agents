@@ -27,6 +27,7 @@
 # OCF instance parameters
 #       OCF_RESKEY_binfile
 #       OCF_RESKEY_cmdline_options
+#	OCF_RESKEY_workdir
 #	OCF_RESKEY_pidfile
 #       OCF_RESKEY_logfile
 #       OCF_RESKEY_errlogfile
@@ -34,7 +35,7 @@
 #       OCF_RESKEY_monitor_hook
 #       OCF_RESKEY_stop_timeout
 #
-# This RA starts $binfile with $cmdline_options as $user and writes a $pidfile from that. 
+# This RA starts $binfile with $cmdline_options as $user in $workdir and writes a $pidfile from that. 
 # If you want it to, it logs:
 # - stdout to $logfile, stderr to $errlogfile or 
 # - stdout and stderr to $logfile
@@ -74,14 +75,14 @@ anything_start() {
 		if [ -n "$logfile" -a -n "$errlogfile" ]
 		then
 			# We have logfile and errlogfile, so redirect STDOUT und STDERR to different files
-			cmd="su - $user -c \"nohup $binfile $cmdline_options >> $logfile 2>> $errlogfile & \"'echo \$!' "
+			cmd="su - $user -c \"cd $workdir; nohup $binfile $cmdline_options >> $logfile 2>> $errlogfile & \"'echo \$!' "
 		else if [ -n "$logfile" ]
 			then
 				# We only have logfile so redirect STDOUT and STDERR to the same file
-				cmd="su - $user -c \"nohup $binfile $cmdline_options >> $logfile 2>&1 & \"'echo \$!' "
+				cmd="su - $user -c \"cd $workdir; nohup $binfile $cmdline_options >> $logfile 2>&1 & \"'echo \$!' "
 			else
 				# We have neither logfile nor errlogfile, so we're not going to redirect anything
-				cmd="su - $user -c \"nohup $binfile $cmdline_options & \"'echo \$!'"
+				cmd="su - $user -c \"cd $workdir; nohup $binfile $cmdline_options & \"'echo \$!'"
 			fi
 		fi
 		ocf_log debug "Starting $process: $cmd"
@@ -169,6 +170,7 @@ anything_monitor() {
 process="$OCF_RESOURCE_INSTANCE"
 binfile="$OCF_RESKEY_binfile"
 cmdline_options="$OCF_RESKEY_cmdline_options"
+workdir="$OCF_RESKEY_workdir"
 pidfile="$OCF_RESKEY_pidfile"
 [ -z "$pidfile" ] && pidfile=${HA_VARRUN}/anything_${process}.pid
 logfile="$OCF_RESKEY_logfile"
@@ -196,6 +198,10 @@ anything_validate() {
 			}
 		fi
 	done
+	[ "x$workdir" != x -a ! -d "$workdir" ] && {
+		ocf_log err "working directory $workdir doesn't exist"
+		exit $OCF_ERR_INSTALLED
+	}
 	return $OCF_SUCCESS
 }
 
@@ -224,6 +230,13 @@ Command line options to pass to the binary
 </longdesc>
 <shortdesc lang="en">Command line options</shortdesc>
 <content type="string" />
+</parameter>
+<parameter name="workdir" required="0" unique="0">
+<longdesc lang="en">
+The path from where the binfile will be executed.
+</longdesc>
+<shortdesc lang="en">Full path name of the work directory</shortdesc>
+<content type="string" default=""/>
 </parameter>
 <parameter name="pidfile">
 <longdesc lang="en">
