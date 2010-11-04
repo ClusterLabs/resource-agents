@@ -202,7 +202,7 @@ db2_start() {
       ocf_log info "DB2 UDB database $DB activated"
     else
       case $output in
-        SQL1490W*|*"already been activated"*)
+        SQL1490W*|SQL1494W*|*"already been activated"*)
            ocf_log info "DB2 UDB database $DB already activated: $output";;
 
         *) ocf_log err "DB2 UDB database $DB didn't activate: $output"; return $OCF_ERR_GENERIC;;
