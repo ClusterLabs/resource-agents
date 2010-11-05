@@ -211,16 +211,11 @@ db2_start() {
   done
 }
 
-#
-# db2_stop: Stop the given db2 database instance
-#
-db2_stop() {
-  # We ignore the instance, the info we need is already in $vars
+# helper function in a spawned invocation of this script
+# so we can detect a hang of the db2stop command
+db2_stop_bg() {
   rc=$OCF_SUCCESS
-  db2_status || {
-    ocf_log info "DB2 UDB instance $1 already stopped"
-    return $rc
-  }
+
   if
     output=`runasdb2 $db2adm/db2stop force`
   then
@@ -236,17 +231,98 @@ db2_stop() {
 		rc=$OCF_ERR_GENERIC;;
     esac
   fi
-  logasdb2 $db2db2 terminate
-  if [ -x $db2bin/db2_kill ]; then
-    logasdb2 $db2bin/db2_kill
-  elif [ -x $db2bin/db2nkill ]; then
-    logasdb2 $db2bin/db2nkill $db2node
+
+  return $rc
+}
+
+#
+# db2_stop: Stop the given db2 database instance
+#
+db2_stop() {
+  # We ignore the instance, the info we need is already in $vars
+
+  rc=$OCF_SUCCESS
+
+  db2_status || {
+    ocf_log info "DB2 UDB instance $1 already stopped"
+    return $rc
+  }
+
+  if [ -n "$OCF_RESKEY_stop_timeout" ]
+  then
+      stop_timeout=$OCF_RESKEY_stop_timeout
+  elif [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+      stop_timeout=$OCF_RESKEY_CRM_meta_timeout
+  else
+      stop_timeout=20000
   fi
+
+  # grace_time is 4/5 (unit is ms)
+  grace_timeout=$((stop_timeout/1250))
+
+  # start db2stop in background as this may hang
+  db2_stop_bg &
+  stop_bg_pid=$!
+
+  # wait for grace_timeout
+  i=0
+  while [ $i -lt $grace_timeout ]
+  do
+      kill -0 $stop_bg_pid 2>/dev/null || break;
+      sleep 1
+      i=$((i+1))
+  done
+
+  # collect exit status but don't hang
+  if kill -0 $stop_bg_pid 2>/dev/null
+  then
+      stoprc=1
+      kill -9 $stop_bg_pid 2>/dev/null
+  else
+      wait $stop_bg_pid
+      stoprc=$?
+  fi
+
+  must_kill=0
+
+  if [ $stoprc -ne 0 ]
+  then
+      ocf_log warn "db2stop of $instance failed, using db2nkill"
+      must_kill=1
+  elif ! db2_status check_dead
+  then
+      ocf_log warn "db2stop of $instance indicated success but there a still processes, using db2nkill"
+      must_kill=1
+  fi
+
+  if [ $must_kill -eq 1 ]
+  then
+      # db2nkill kills *all* partions on the node
+      if [ -x $db2bin/db2nkill ]; then
+          logasdb2 $db2bin/db2nkill $db2node
+      elif [ -x $db2bin/db2_kill ]; then
+          logasdb2 $db2bin/db2_kill
+      fi
+
+      # loop forever (or lrmd kills us due to timeout) until the
+      # instance is dead
+      while ! db2_status check_dead
+      do
+          ocf_log info "waiting for DB2 UDB instance $1 processes to exit"
+          sleep 1
+      done
+
+      ocf_log info "DB2 UDB instance $1 is now dead"
+  fi
+
+  # db2jd has been deprecated since v8.x and doesn't exist
+  # anymore in v9.x
   pids=`our_db2_ps | grep db2jd | cut -d' ' -f1`
   for j in $pids
   do
     runasdb2 kill -9 $j
   done
+
   return $rc
 }
 
@@ -254,9 +330,20 @@ db2_stop() {
 #
 # db2_status: is the given db2 instance running?
 #
+# Arguments:
+# <none>     : report whether `enough´ processes for a healthy instance are up
+# check_dead : check whether *no* processes are running
+# 
 db2_status() {
   # We ignore the instance, the info we need is already in $vars
   pscount=`runasdb2 $db2bin/db2nps $db2node | cut -c9- |  grep ' db2[^ ]' | wc -l`
+
+  if [ "$1" = check_dead ]
+  then
+      test $pscount -eq 0
+      return
+  fi
+
   test $pscount -ge 4
 }
 
