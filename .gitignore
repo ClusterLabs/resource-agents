@@ -5,8 +5,10 @@ autoconf
 autoheader
 autom4te.cache
 automake
+autoscan.log
 compile
 configure
+configure.scan
 config.guess
 config.log
 config.sub

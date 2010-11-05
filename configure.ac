@@ -48,32 +48,14 @@ AC_ARG_ENABLE([debug],
 	[  --enable-debug          enable debug build. ],
 	[ default="no" ])
 
-AC_ARG_WITH([default-config-dir],
-	[  --default-config-dir=DIR
-                          cluster config directory. ],
-	[ DEFAULT_CONFIG_DIR="$withval" ],
-	[ DEFAULT_CONFIG_DIR="$sysconfdir/cluster" ])
-
-AC_ARG_WITH([default-config-file],
-	[  --default-config-file=FILE
-                          cluster config file. ],
-	[ DEFAULT_CONFIG_FILE="$withval" ],
-	[ DEFAULT_CONFIG_FILE="cluster.conf" ])
-
 ## random vars
 
 LOGDIR=${localstatedir}/log/cluster
-CLUSTERVARRUN=${localstatedir}/run/cluster
-CLUSTERVARLIB=${localstatedir}/lib/cluster
 CLUSTERDATA=${datadir}/cluster
 
 ## do subst
 
-AC_SUBST([DEFAULT_CONFIG_DIR])
-AC_SUBST([DEFAULT_CONFIG_FILE])
 AC_SUBST([LOGDIR])
-AC_SUBST([CLUSTERVARRUN])
-AC_SUBST([CLUSTERVARLIB])
 AC_SUBST([CLUSTERDATA])
 
 AC_CONFIG_FILES([Makefile
