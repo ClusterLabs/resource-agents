@@ -2,8 +2,12 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.63])
-AC_INIT([resource-agents], [master], [linux-cluster@redhat.com])
-AM_INIT_AUTOMAKE([-Wno-portability])
+
+AC_INIT([resource-agents], 
+	m4_esyscmd([make/git-version-gen .tarball-version]),
+	[linux-cluster@redhat.com])
+
+AM_INIT_AUTOMAKE([-Wno-portability dist-bzip2 dist-xz])
 
 AC_CONFIG_SRCDIR([rgmanager/src/resources/ip.sh])
 

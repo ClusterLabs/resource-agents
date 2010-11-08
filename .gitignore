@@ -32,3 +32,5 @@ missing
 rgmanager/src/resources/fs.sh
 rgmanager/src/resources/oracledb.sh
 rgmanager/src/resources/utils/config-utils.sh
+resource-agents*
+.version
