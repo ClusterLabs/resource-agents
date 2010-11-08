@@ -62,7 +62,7 @@ publish:
 ifeq (,$(release))
 	@echo Building test release $(version), no publishing!
 else
-	@echo git push --tags origin
+	git push --tags origin
 	scp $(project)-$(version).* \
 		fedorahosted.org:$(project)
 	@echo Hey you!.. yeah you looking somewhere else!
