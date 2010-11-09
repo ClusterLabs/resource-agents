@@ -61,6 +61,7 @@ meta_data() {
 
 <longdesc lang="en">
 Resource script for db2. It manages a DB2 Universal Database instance as an HA resource.
+Multiple partitions are supported. Configure each partition as a separate HA instance.
 </longdesc>
 <shortdesc lang="en">Manages an IBM DB2 Universal Database instance</shortdesc>
 
@@ -78,6 +79,13 @@ The admin user of the instance.
 </longdesc>
 <shortdesc lang="en">admin</shortdesc>
 <content type="string" default="" />
+</parameter>
+<parameter name="dbpartitionnum" unique="0" required="0">
+<longdesc lang="en">
+The number of the partion (DBPARTITIONNUM) to be managed.
+</longdesc>
+<shortdesc lang="en">number of partion</shortdesc>
+<content type="string" default="0" />
 </parameter>
 </parameters>
 
@@ -123,7 +131,6 @@ db2info() {
 	db2ctrl=$db2sql/ctrl
 	db2bin=$db2sql/bin
 	db2db2=$db2bin/db2
-	db2node=0 # single node instances are supported
 
 	#	Let's make sure a few important things are there...
 	if
@@ -172,20 +179,20 @@ logasdb2() {
 #
 db2_start() {
   if
-    output=`runasdb2 $db2adm/db2start`
+    output=`runasdb2 $db2db2 db2start dbpartitionnum $db2node`
   then
     : Hurray! DB2 started OK
-    ocf_log info "DB2 UDB instance $1 started: $output"
+    ocf_log info "DB2 UDB instance $1($db2node) started: $output"
   else
     case $output in
       SQL1026N*|*"is already active"*)
-    		ocf_log info "DB2 UDB instance $1 already running: $output";;
+    		ocf_log info "DB2 UDB instance $1($db2node) already running: $output";;
 
       *)	ocf_log err "$output"; return $OCF_ERR_GENERIC;;
     esac
   fi
   db2_status "$1" || {
-    ocf_log err "DB2 UDB instance $1 not active!"
+    ocf_log err "DB2 UDB instance $1($db2node) not active!"
     return $OCF_ERR_GENERIC
   }
   # db2jstrt has been deprecated since v8.x and doesn't exist
@@ -196,13 +203,17 @@ db2_start() {
 	  return $OCF_ERR_GENERIC
     }
   fi
+
+  [ $db2node = 0 ] || return 0
+  # activate DB only on node 0
+
   for DB in `db2_dblist`
   do
 	if output=`runasdb2 $db2db2 activate database $DB`; then
       ocf_log info "DB2 UDB database $DB activated"
     else
       case $output in
-        SQL1490W*|SQL1494W*|*"already been activated"*)
+        SQL1490W*|SQL1494W*|SQL1497W*|*"already been activated"*)
            ocf_log info "DB2 UDB database $DB already activated: $output";;
 
         *) ocf_log err "DB2 UDB database $DB didn't activate: $output"; return $OCF_ERR_GENERIC;;
@@ -217,17 +228,17 @@ db2_stop_bg() {
   rc=$OCF_SUCCESS
 
   if
-    output=`runasdb2 $db2adm/db2stop force`
+    output=`runasdb2 $db2db2 db2stop force dbpartitionnum $db2node`
   then
     : DB2 stopped OK
-    ocf_log info "DB2 UDB instance $1 stopped: $output"
+    ocf_log info "DB2 UDB instance $instance($db2node) stopped: $output"
   else
     case $output in
 
       SQL1032N*|*"No start database manager command"*)
 		ocf_log info "$output";;
 
-      *)	ocf_log err "DB2 UDB instance $1 stop failed: $output"
+      *)	ocf_log err "DB2 UDB instance $instance($db2node) stop failed: $output"
 		rc=$OCF_ERR_GENERIC;;
     esac
   fi
@@ -244,7 +255,7 @@ db2_stop() {
   rc=$OCF_SUCCESS
 
   db2_status || {
-    ocf_log info "DB2 UDB instance $1 already stopped"
+    ocf_log info "DB2 UDB instance $1($db2node) already stopped"
     return $rc
   }
 
@@ -287,11 +298,11 @@ db2_stop() {
 
   if [ $stoprc -ne 0 ]
   then
-      ocf_log warn "db2stop of $instance failed, using db2nkill"
+      ocf_log warn "db2stop of $instance($db2node) failed, using db2nkill"
       must_kill=1
   elif ! db2_status check_dead
   then
-      ocf_log warn "db2stop of $instance indicated success but there a still processes, using db2nkill"
+      ocf_log warn "db2stop of $instance($db2node) indicated success but there a still processes, using db2nkill"
       must_kill=1
   fi
 
@@ -308,11 +319,11 @@ db2_stop() {
       # instance is dead
       while ! db2_status check_dead
       do
-          ocf_log info "waiting for DB2 UDB instance $1 processes to exit"
+          ocf_log info "waiting for DB2 UDB instance $1($db2node) processes to exit"
           sleep 1
       done
 
-      ocf_log info "DB2 UDB instance $1 is now dead"
+      ocf_log info "DB2 UDB instance $1($db2node) is now dead"
   fi
 
   # db2jd has been deprecated since v8.x and doesn't exist
@@ -362,6 +373,9 @@ db2_dblist() {
 # db2_monitor: Can the given db2 instance do anything useful?
 #
 db2_monitor() {
+  [ $db2node = 0 ] || return 0
+  # monitoring only for partition 0
+
   # We ignore the instance, the info we need is already in $vars
   for DB in `db2_dblist`
   do
@@ -424,6 +438,7 @@ fi
 
 instance=$OCF_RESKEY_instance
 db2admin=${OCF_RESKEY_admin:-$instance}
+db2node=${OCF_RESKEY_dbpartitionnum:-0}
 
 US=`id -u -n`
 US=`echo $US`
@@ -445,7 +460,7 @@ else
   if ocf_is_probe; then
     exit $OCF_NOT_RUNNING
   else
-    ocf_log err "DB2 instance [$instance] not available"
+    ocf_log err "DB2 instance [$instance($db2node)] not available"
     exit $OCF_ERR_INSTALLED
   fi
 fi
