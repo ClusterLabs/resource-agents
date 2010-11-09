@@ -1,4 +1,5 @@
-EXTRA_DIST		= autogen.sh .version
+EXTRA_DIST		= autogen.sh .version make/release.mk \
+			  make/git-version-gen make/gitlog-to-changelog
 
 AUTOMAKE_OPTIONS	= foreign
 
