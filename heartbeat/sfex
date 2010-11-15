@@ -92,18 +92,30 @@ Monitor interval(sec). Default is 10 seconds
 </parameter>
 <parameter name="lock_timeout" unique="0" required="0">
 <longdesc lang="en">
-Valid term of lock(sec). Default is 20 seconds.
+Valid term of lock(sec). Default is 100 seconds.
+The lock_timeout is calculated by the following formula.
+
+  lock_timeout = monitor_interval + "The expiration time of the lock"
+
+We suggest 90 seconds as a default value of the "The expiration time of the lock", but you should change it in consideration of access delay to the shared disk and the switch time of the multipath driver.
+
+The lock timeout have an impact on start action timeout because start action timeout value is calculated by the following formula.
+
+  start timeout = collision_timeout + lock_timeout + "safety margin"
+
+The "safety margin" is decided within the range of about 10-20 seconds(It depends on your system requirement).
 </longdesc>
 <shortdesc lang="en">Valid term of lock</shortdesc>
-<content type="integer" default="20" />
+<content type="integer" default="100" />
 </parameter>
 </parameters>
 
 <actions>
-<action name="start" timeout="600" />
+<action name="start" timeout="120s" />
 <action name="stop" timeout="20s" />
-<action name="monitor" depth="0" timeout="10" interval="10" />
-<action name="meta-data" timeout="5" />
+<action name="monitor" depth="0" timeout="10s" interval="10s" />
+<action name="meta-data" timeout="5s" />
+<action name="validate-all" timeout="5s" />
 </actions>
 </resource-agent>
 END
@@ -246,7 +258,7 @@ esac
 DEVICE=$OCF_RESKEY_device
 INDEX=${OCF_RESKEY_index:-1}
 COLLISION_TIMEOUT=${OCF_RESKEY_collision_timeout:-1}
-LOCK_TIMEOUT=${OCF_RESKEY_lock_timeout:-20}
+LOCK_TIMEOUT=${OCF_RESKEY_lock_timeout:-100}
 MONITOR_INTERVAL=${OCF_RESKEY_monitor_interval:-10}
 
 sfex_validate () {
