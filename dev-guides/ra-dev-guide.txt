@@ -400,6 +400,86 @@ for that purpose.
 
 == Special considerations
 
+=== Logging
+
+Resource agents should use the +ocf_log+ function for logging
+purposes. This convenient logging wrapper is invoked as follows:
+
+--------------------------------------------------------------------------
+ocf_log <severity> "Log message"
+--------------------------------------------------------------------------
+
+It supports following the following severity levels:
+
+* +debug+ -- for debugging messages. Most logging configurations
+  suppress this level by default.
+* +info+ -- for informational messages about the agent's behavior or
+  status.
+* +warn+ -- for warnings. This is for any messages which reflect
+  unexpected behavior that does _not_ constitute an unrecoverable
+  error.
+* +err+ -- for errors. As a general rule, this logging level should
+  only be used immediately prior to an +exit+ with the appropriate
+  error code.
+* +crit+ -- for critical errors. As with +err+, this logging level
+  should not be used unless the resource agent also exits with an
+  error code. Very rarely used.
+
+=== Executing commands and capturing their output
+
+Whenever a resource agent needs to execute a command and capture its
+output, it should use the +ocf_run+ convenience function, invoked as
+in this example:
+--------------------------------------------------------------------------
+ocf_run "/usr/bin/frobnicate --spam=eggs" || exit $OCF_ERR_GENERIC
+--------------------------------------------------------------------------
+
+With the command specified above, the resource agent will invoke
++/usr/bin/frobnicate --spam=eggs+ and capture its output and
+exit code. If the exit code is nonzero (indicating an error),
++ocf_run+ logs the command output with the +err+ logging severity, and
+the resource agent subsequently exits.
+
+If the resource agent wishes to capture the output of _both_ a
+successful and a failed command execution, it can use the +-v+ flag
+with +ocf_run+. In the example below, +ocf_run+ will log any output
+from the command with the +info+ severity if the command exit code is
+zero (indicating success), and with +err+ if it is nonzero.
+--------------------------------------------------------------------------
+ocf_run -v "/usr/bin/frobnicate --spam=eggs" || exit $OCF_ERR_GENERIC
+--------------------------------------------------------------------------
+
+Finally, if the resource agent wants to log the output of a command
+with a nonzero exit code with a severity _other_ than error, it may do
+so by adding the +-info+ or +-warn+ option to +ocf_run+:
+--------------------------------------------------------------------------
+ocf_run -warn "/usr/bin/frobnicate --spam=eggs"
+--------------------------------------------------------------------------
+
+=== Locks
+
+Occasionally, there may be different resources of the same type in a
+cluster configuration that should not execute actions in
+parallel. When a resource agent needs to guard against parallel
+execution on the same machine, it can use the +ocf_take_lock+ and
++ocf_release_lock_on_exit+ convenience functions:
+
+--------------------------------------------------------------------------
+LOCKFILE=${HA_RSCTMP}/foobar
+ocf_release_lock_on_exit $LOCKFILE
+
+foobar_start() {
+    ...
+    ocf_take_lock $LOCKFILE
+    ...
+}
+--------------------------------------------------------------------------
+
++ocf_take_lock+ attempts to acquire the designated +$LOCKFILE+. When
+it is unavailable, it sleeps a random amount of time between 0 and 1
+seconds, and retries. +ocf_release_lock_on_exit+ releases the lock
+file when the agent exits (for any reason).
+
 === Pseudo resources
 
 "Pseudo resources" are those where the resource agent in fact does not
