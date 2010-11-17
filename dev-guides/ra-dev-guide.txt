@@ -1,0 +1,92 @@
+The OCF Resource Agent Developer's Guide
+========================================
+Florian Haas <florian.haas@linbit.com>
+
+== Introduction
+
+This document is to serve as a guide and reference for all developers,
+maintainers, and contributors working on OCF (Open Cluster Framework)
+compliant cluster resource agents. It explains the anatomy and general
+functionality of a resource agent, illustrates the resource agent API,
+and provides valuable hints and tips to resource agent authors.
+
+=== What is a resource agent?
+
+A resource agent is an executable that manages a cluster resource. No
+formal definition of a cluster resource exists, other than "anything a
+cluster manages is a resource." Cluster resources can be as diverse as
+IP addresses, file systems, database services, and entire virtual
+machines -- to name just a few examples.
+
+=== Who or what uses a resource agent?
+
+Any Open Cluster Framework (OCF) compliant cluster management
+application is capable of managing resources using the resource agents
+described in this document. At the time of writing, two OCF compliant
+cluster management applications exist for the Linux platform:
+
+* _Pacemaker_, a cluster manager supporting both the Corosync and
+  Heartbeat cluster messaging frameworks. Pacemaker evolved out of the
+  Linux-HA project.
+* _RGmanager_, the cluster manager bundled in Red Hat Cluster
+  Suite. It supports the Corosync cluster messaging framework
+  exclusively.
+
+=== Which language is a resource agent written in?
+
+An OCF compliant resource agent can be implemented in _any_
+programming language. The API is not language specific. However, most
+resource agents are implemented as shell scripts, which is why this
+guide primarily uses example code written in shell language.
+
+== API definitions
+
+=== Metadata
+TODO
+
+=== Environment variables
+
+A resource agent receives all configuration information about the
+resource it manages via environment variables. The names of these
+environment variables are always the name of the resource parameter,
+prefixed with +OCF_RESKEY_+. For example, if the resource has an +ip+
+parameter set to +192.168.1.1+, then the resource agent will have
+access to an environment variable +OCF_RESKEY_ip+ holding that value.
+
+For any resource parameter that is not required to be set by the user
+-- that is, its parameter definition in the resource agent metadata
+does not specify +required="true"+ -- then the resource agent must
+
+* Provide a reasonable default. This should be advertised in the
+  metadata. By convention, the resource agent uses a variable named
+  +OCF_RESKEY_<parametername>_default+ that holds this default.
+* Alternatively, cater correctly for the value being empty.
+
+In addition, the cluster manager may also support _meta_ resource
+parameters. These do not apply directly to the resource configuration,
+but rather specify _how_ the cluster resource manager is expected to manage
+the resource. For example, the Pacemaker cluster manager uses the
++target-role+ meta parameter to specify whether the resource should be
+started or stopped.
+
+Meta parameters are passed into the resource agent in the
++OCF_RESKEY_CRM_meta_+ namespace, with any hypens converted to
+underscores. Thus, the +target-role+ attribute maps to an environment
+variable named +OCF_RESKEY_CRM_meta_target_role+.
+
+=== Actions
+
+Any resource agent must support one command-line argument which
+specifies the action the resource agent is about to execute. The
+following actions must be supported by any resource agent:
+
+* +start+ -- starts the resource
+* +stop+ -- shuts down the resource
+* +monitor+ -- 
+
+
+TODO
+
+=== Return codes
+TODO
+
