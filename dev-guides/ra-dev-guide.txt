@@ -41,8 +41,6 @@ guide primarily uses example code written in shell language.
 
 == API definitions
 
-=== Metadata
-TODO
 
 === Environment variables
 
@@ -80,13 +78,164 @@ Any resource agent must support one command-line argument which
 specifies the action the resource agent is about to execute. The
 following actions must be supported by any resource agent:
 
-* +start+ -- starts the resource
-* +stop+ -- shuts down the resource
-* +monitor+ -- 
+* +start+ -- starts the resource.
+* +stop+ -- shuts down the resource.
+* +monitor+ -- queries the resource for its state.
+* +meta-data+ -- dumps the resource agent metadata.
 
+In addition, resource agents may optionally support the following
+actions:
 
-TODO
+* +promote+ -- turns a resource into the +Master+ role (Master/Slave
+  resources only).
+* +demote+ -- turns a resource into the +Slave+ role (Master/Slave
+  resources only).
+* +migrate-to+ and +migrate-from+ -- implement live migration of
+  resources.
+* +validate-all+ -- validates a resource's configuration.
+* +usage+ or +help+ -- displays a usage message when the resource
+  agent is invoked from the command line, rather than by the cluster
+  manager.
+* +status+ -- historical (deprecated) synonym for +monitor+.
 
 === Return codes
-TODO
 
+For any invocation, resource agents must exit with a defined return
+code that informs the caller of the outcome of the invoked
+action. The following return codes are available for any action:
+
+* +OCF_SUCCESS+ (0) -- the action completed successfully.
+
+* +OCF_ERR_GENERIC+ (1) -- the action returned a generic error. A
+  resource agent should use this exit code only when none of the more
+  specific error codes, defined below, accurately describes the
+  problem.
+
+* +OCF_ERR_ARGS+ (2) -- the resource agent was invoked with incorrect
+  arguments. 
+
+* +OCF_ERR_UNIMPLEMENTED+ (3) -- the resource agent was instructed to
+  execute an optional action that the agent does not implement.
+
+* +OCF_ERR_PERM+ (4) -- the action failed due to insufficient
+  permissions.
+
+* +OCF_ERR_INSTALLED+ (5) -- the action failed because a required
+  component is missing on the node where the action was executed. 
+
+* +OCF_ERR_CONFIGURED+ (6) -- the action failed because the user
+  misconfigured the resource.
+
+The following addition exit codes may be returned by the +monitor+
+action only:
+
+* +OCF_NOT_RUNNING+ (7) -- the resource was found not to be running.
+
+* +OCF_RUNNING_MASTER+ (8) -- the resource was found to be running in
+  the +Master+ role (Master/Slave resources only).
+ 
+* +OCF_FAILED_MASTER+ (9) -- the resource was found to have failed in
+  the +Master+ role (Master/Slave resources only).
+
+
+=== Timeouts
+
+Action timeouts are enforced outside the resource agent proper. It is
+the cluster manager's responsibility to monitor how long a resource
+agent action has been running, and terminate it if it does not meet
+its completion deadline. Thus, resource agents need not themselves
+check for any timeout expiry. They can, however, _advise_ the cluster
+manager about sensible timeout values.
+
+=== Metadata
+
+Every resource agent must describe its own purpose and supported
+parameters in a set of XML metadata. This metadata is used by cluster
+management applications for on-line help, and resource agent man pages
+are generated from it as well. The following is a metadata dump taken
+from the +ocf:heartbeat:Dummy+ resource agent:
+
+--------------------------------------------------------------------------
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="Dummy" version="0.9">
+  <version>1.0</version>
+  <longdesc lang="en">
+This is a Dummy Resource Agent. It does absolutely nothing except 
+keep track of whether its running or not.
+Its purpose in life is for testing and to serve as a template for RA writers.
+  </longdesc>
+  <shortdesc lang="en">Example stateless resource agent</shortdesc>
+  <parameters>
+    <parameter name="state" unique="1">
+      <longdesc lang="en">
+      Location to store the resource state in.
+      </longdesc>
+      <shortdesc lang="en">State file</shortdesc>
+      <content type="string"
+               default="/var/run/resource-agents/Dummy-default.state" />
+    </parameter>
+  </parameters>
+  <actions>
+    <action name="start"        timeout="20" />
+    <action name="stop"         timeout="20" />
+    <action name="monitor"      timeout="20" interval="10" depth="0" />
+    <action name="reload"       timeout="20" />
+    <action name="migrate_to"   timeout="20" />
+    <action name="migrate_from" timeout="20" />
+    <action name="meta-data"    timeout="5" />
+    <action name="validate-all"   timeout="20" />
+  </actions>
+</resource-agent>
+--------------------------------------------------------------------------
+
+The +resource-agent+ element, of which there must only be one per
+resource agent, defines the resource agent +name+ and +version+.
+
+The +longdesc+ and +shortdesc+ elements in +resource-agent+ provide a
+long and short description of the resource agent's
+functionality. While +shortdesc+ is a one-line description of what
+the resource agent does and is usually used in terse listings,
++longdesc+ should give a full-blown description of the resource agent
+in as much detail as possible.
+
+The +parameters+ element describes the resource agent parameters, and
+should hold any number of +parameter+ children -- one for each
+parameter that the resource agent supports.
+
+Every +parameter+ should, like the +resource-agent+ as a whole, come
+with a +shortdesc+ and a +longdesc+, and also a +content+ child that
+describes the parameter's expected content.
+
+On the +content+ element, there may be four different attributes:
+
+* +type+ describes the parameter type (+string+, +integer+, or
+  +boolean+). If unset, +type+ defaults to +string+.
+
+* +required+ indicates whether setting the parameter is mandatory
+  (+required="true"+) or optional (+required="false"+).
+
+* For optional parameters, it is customary to provide a sensible
+  default via the +default+ attribute.
+
+* Finally, the +unique+ attribute (allowed values: +true+ or +false+)
+  indicates that a specific value must be unique across the cluster,
+  for this parameter of this particular resource type. For example, a
+  highly available floating IP address is declared +unique+ -- as that
+  one IP address should run only once throughout the cluster, avoiding
+  duplicates.
+
+The +actions+ list defines the actions that the resource agent
+advertises as supported.
+
+Every +action+ should list its own +timeout+ value. This is a
+hint to the user what _minimal_ timeout should be configured for the
+action. This is meant to cater for the fact that some resources are
+quick to start and stop (IP addresses or filesystems, for example),
+some may take several minutes to do so (such as databases).
+
+In addition, recurring actions (such as +monitor+) should also specify
+a recommended minimum +interval+, which is the time between two
+consecutive invocations of the same action. Like +timeout+, this value
+does not constitute a default -- it is merely a hint for the user
+which action interval to configure, at minimum.
