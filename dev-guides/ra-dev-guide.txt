@@ -397,3 +397,13 @@ during a probe and a "real" monitor action. If a specific resource
 does require special treatment for probes, however, the +ocf_is_probe+
 convenience function is available in the OCF shell functions library
 for that purpose.
+
+== Special considerations
+
+=== Pseudo resources
+
+"Pseudo resources" are those where the resource agent in fact does not
+actually start or stop something akin to a runnable process, but
+merely executes a single action and then needs some form of tracing
+whether that action has been executed or not. The +portblock+ resource
+agent is an example of this.
