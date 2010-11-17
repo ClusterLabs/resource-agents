@@ -239,3 +239,161 @@ a recommended minimum +interval+, which is the time between two
 consecutive invocations of the same action. Like +timeout+, this value
 does not constitute a default -- it is merely a hint for the user
 which action interval to configure, at minimum.
+
+
+== Resource agent behavior
+
+This section describes the expected behavior of a resource agent with
+respect to the various actions it supports, using a fictitous resource
+agent named +foobar+ as an example.
+
+Each action is typically implemented in a separate function or method
+in the resource agent. By convention, these are usually named
++<agent>_<action>+, so the function implementing the +start+ action in
++foobar+ would be named +foobar_start()+.
+
+As a general rule, whenever the resource agent encounters an error
+that is not able to recover, it is permitted to immediately exit,
+throw and exception, or otherwise cease execution. Examples for this
+include configuration issues, missing binaries, permission problems,
+etc. It is not necessary to pass these errors up the call stack.
+
+It is the cluster manager's responsibility to initiate the appropriate
+recovery action based on the user's configuration. The resource agent
+should not guess at said configuration.
+
+=== +start+ action
+
+When invoked with the +start+ action, the resource agent must start
+the resource if it is not yet running. This means that the agent must
+verify the resource's configuration, query its state, and then start
+it only if it is not running. A common way of doing this would be to
+invoke the +validate_all+ and +monitor+ function first, as in the
+following example:
+
+--------------------------------------------------------------------------
+foobar_start() {
+    # exit immediately if configuration is not valid
+    foobar_validate_all || exit $?
+
+    # if resource is already running, bail out early
+    if foobar_monitor; then
+	ocf_log info "Resource is already running"
+	return $OCF_SUCCESS
+    fi
+    
+    # actually start up the resource here (make sure to immediately
+    # exit with an $OCF_ERR_ error code if anything goes seriously
+    # wrong)
+    ...
+
+    # After the resource has been started, check whether it started up
+    # correctly. If the resource starts asynchronously, the agent may
+    # spin on the monitor function here -- if the resource does not
+    # start up within the defined timeout, the cluster manager will
+    # consider the start action failed
+    while ! foobar_monitor; do
+	ocf_log debug "Resource has not started yet, waiting"
+	sleep 1
+    done
+
+    # only return $OCF_SUCCESS if _everything_ succeeded as expected
+    return $OCF_SUCCESS
+}
+--------------------------------------------------------------------------
+
+
+=== +stop+ action
+
+When invoked with the +stop+ action, the resource agent must stop the
+resource, if it is running. This means that the agent must verify the
+resource configuration, query its state, and then stop it only if it
+is currently running. A common way of doing this would be to invoke
+the +validate_all+ and +monitor+ function first. It is important to
+understand that +stop+ is a force operation -- the resource agent must
+do everything in its power to shut down, the resource, short of
+rebooting the node or shutting it off. Consider the following example:
+
+--------------------------------------------------------------------------
+foobar_stop() {
+    # exit immediately if configuration is not valid
+    foobar_validate_all || exit $?
+
+    # if resource is not currently running, bail out early
+    foobar_monitor
+    if [ $? -eq $OCF_NOT_RUNNING; then ]
+	ocf_log info "Resource is already stopped"
+	return $OCF_SUCCESS
+    fi
+    
+    # actually shut down the resource here (make sure to immediately
+    # exit with an $OCF_ERR_ error code if anything goes seriously
+    # wrong)
+    ...
+
+    # After the resource has been stopped, check whether it shut down
+    # correctly. If the resource stops asynchronously, the agent may
+    # spin on the monitor function here -- if the resource does not
+    # shut down within the defined timeout, the cluster manager will
+    # consider the stop action failed
+    while foobar_monitor; do
+	ocf_log debug "Resource has not stopped yet, waiting"
+	sleep 1
+    done
+
+    # only return $OCF_SUCCESS if _everything_ succeeded as expected
+    return $OCF_SUCCESS
+
+}
+--------------------------------------------------------------------------
+
+NOTE: The expected exit code for a successful stop operation is
++$OCF_SUCCESS+, _not_ +$OCF_NOT_RUNNING+.
+
+=== +monitor+ action
+
+The +monitor+ action queries the current status of a resource. It must
+discern between three different states:
+
+* resource is currently running (return +$OCF_SUCCESS+);
+* resource has stopped gracefully (return +$OCF_NOT_RUNNING+);
+* resource has run into a problem and must be considered failed
+  (return the appropriate +$OCF_ERR_+ code to indicate the nature of the
+  problem).
+
+
+--------------------------------------------------------------------------
+foobar_monitor() {
+    local rc
+
+    # exit immediately if configuration is not valid
+    foobar_validate_all || exit $?
+
+    # check for the resource status (this is a very simple example, in
+    # reality the check may be very elaborate)
+    ...
+
+    rc=$?
+    case "$rc" in
+	"$OCF_SUCCESS")
+	    ocf_log debug "Resource is running"
+	    ;;
+	"$OCF_NOT_RUNNING")
+	    ocf_log debug "Resource is not running"
+	    ;;
+	*)
+	    ocf_log err "Resource has failed"
+	    exit $rc
+    esac
+
+    return $rc
+}
+--------------------------------------------------------------------------
+
+NOTE: The cluster manager may invoke the +monitor+ action for a
+_probe_, which is a test whether the resource is currently
+running. Normally, the monitor operation would behave exactly the same
+during a probe and a "real" monitor action. If a specific resource
+does require special treatment for probes, however, the +ocf_is_probe+
+convenience function is available in the OCF shell functions library
+for that purpose.
