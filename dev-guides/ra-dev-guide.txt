@@ -400,6 +400,23 @@ for that purpose.
 
 == Special considerations
 
+=== Resource agent interpreter
+
+Any resource agent implemented as a script must specify its
+interpreter using standard "shebang" (+#!+) header syntax.
+
+If a resource agent is written in shell, specifying the generic shell
+interpreter (+#!/bin/sh+) is generally preferred, though not
+required. Resource agents declared as +/bin/sh+ compatible must not
+use constructs native to a specific shell (such as, for example,
++${!variable}+ syntax native to +bash+).
+
+It is considered a regression to introduce a patch that will make a
+previously +sh+ compatible resource agent suitable only for +bash+,
++ksh+, or any other non-generic shell. It is, however, perfectly
+acceptable for a new resource agent to explicitly define a specific
+shell, such as +/bin/bash+, as its interpreter.
+
 === Logging
 
 Resource agents should use the +ocf_log+ function for logging
