@@ -497,6 +497,34 @@ it is unavailable, it sleeps a random amount of time between 0 and 1
 seconds, and retries. +ocf_release_lock_on_exit+ releases the lock
 file when the agent exits (for any reason).
 
+=== Testing for numerical values
+
+Specifically for parameter validation, it can be helpful to test
+whether a given value is numeric. The +ocf_is_decimal+ function exists
+for that purpose:
+--------------------------------------------------------------------------
+foobar_validate_all() {
+    if ! ocf_is_decimal $OCF_RESKEY_eggs; then
+        ocf_log err "eggs is not numeric!"
+        exit $OCF_ERR_CONFIGURED
+    fi
+    ...
+}
+--------------------------------------------------------------------------
+
+=== Testing for boolean values
+
+When a resource agent defines a boolean parameter, the value
+for this parameter may be specified by the user as +0+/+1+,
++true+/+false+, or +on+/+off+. Since it is tedious to test for all
+these values from within the resource agent, the agent should instead
+use the +ocf_is_true+ convenience function:
+--------------------------------------------------------------------------
+if ocf_is_true $OCF_RESKEY_superfrobnicate; then
+    ocf_run "/usr/bin/frobnicate --super"
+fi
+--------------------------------------------------------------------------
+
 === Pseudo resources
 
 "Pseudo resources" are those where the resource agent in fact does not
