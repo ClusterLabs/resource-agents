@@ -504,3 +504,37 @@ actually start or stop something akin to a runnable process, but
 merely executes a single action and then needs some form of tracing
 whether that action has been executed or not. The +portblock+ resource
 agent is an example of this.
+
+Resource agents for pseudo resources can use a convenience function,
++ha_pseudo_resource+, which makes use of _tracking files_ to keep tabs
+on the status of a resource. If +foobar+ was designed to manage a
+pseudo resource, then its +start+ action could look like this:
+
+--------------------------------------------------------------------------
+foobar_start() {
+    # exit immediately if configuration is not valid
+    foobar_validate_all || exit $?
+
+    # if resource is already running, bail out early
+    if foobar_monitor; then
+	ocf_log info "Resource is already running"
+	return $OCF_SUCCESS
+    fi
+
+    # start the pseudo resource
+    ha_pseudo_resource ${OCF_RESOURCE_INSTANCE} start
+
+    # After the resource has been started, check whether it started up
+    # correctly. If the resource starts asynchronously, the agent may
+    # spin on the monitor function here -- if the resource does not
+    # start up within the defined timeout, the cluster manager will
+    # consider the start action failed
+    while ! foobar_monitor; do
+	ocf_log debug "Resource has not started yet, waiting"
+	sleep 1
+    done
+
+    # only return $OCF_SUCCESS if _everything_ succeeded as expected
+    return $OCF_SUCCESS
+}
+--------------------------------------------------------------------------
