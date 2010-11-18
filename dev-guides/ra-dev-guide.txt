@@ -164,7 +164,8 @@ metadata from an imaginary resource agent:
 This is a fictitious example resource agent written for the
 OCF Resource Agent Developer's Guide.
   </longdesc>
-  <shortdesc lang="en">Example resource agent for budding OCF RA developers</shortdesc>
+  <shortdesc lang="en">Example resource agent 
+  for budding OCF RA developers</shortdesc>
   <parameters>
     <parameter name="eggs" unique="0" required="1">
       <longdesc lang="en">
@@ -191,7 +192,8 @@ OCF Resource Agent Developer's Guide.
   <actions>
     <action name="start"        timeout="20" />
     <action name="stop"         timeout="20" />
-    <action name="monitor"      timeout="20" interval="10" depth="0" />
+    <action name="monitor"      timeout="20"
+                                interval="10" depth="0" />
     <action name="reload"       timeout="20" />
     <action name="migrate_to"   timeout="20" />
     <action name="migrate_from" timeout="20" />
