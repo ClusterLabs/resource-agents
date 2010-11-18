@@ -425,6 +425,32 @@ It supports following the following severity levels:
   should not be used unless the resource agent also exits with an
   error code. Very rarely used.
 
+=== Testing for binaries
+
+A resource agent may need to test for the availability of a specific
+executable. The +have_binary+ convenience function comes in handy
+here:
+--------------------------------------------------------------------------
+if ! have_binary frobnicate; then
+   ocf_log warn "Missing frobnicate binary, frobnication disabled!"
+fi
+--------------------------------------------------------------------------
+
+If a missing binary is a fatal problem for the resource, then the
++check_binary+ function should be used:
+--------------------------------------------------------------------------
+check_binary frobnicate
+--------------------------------------------------------------------------
+
+Using +check_binary+ is a shorthand method for testing for the
+existence (and executability) of the specified binary, and exiting
+with +$OCF_ERR_INSTALLED+ if it cannot be found or executed.
+
+NOTE: Both +have_binary+ and +check_binary+ honor +$PATH+ when the
+binary to test for is not specified as a full path. It is usually wise
+to _not_ test for a full path, as binary installations path may vary
+by distribution or user policy.
+
 === Executing commands and capturing their output
 
 Whenever a resource agent needs to execute a command and capture its
