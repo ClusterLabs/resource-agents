@@ -496,7 +496,7 @@ EOF
 
 The +promote+ action is optional. It must only be supported by
 _stateful_ resource agents, which means agents that discern between
-two distict _roles_: +Master+ and +Slave+. +Slave+ is functionally
+two distinct _roles_: +Master+ and +Slave+. +Slave+ is functionally
 identical to the +Started+ state in a stateless resource agent. Thus,
 while a regular (stateless) resource agent only needs to implement
 +start+ and +stop+, a stateful resource agent must also support the
