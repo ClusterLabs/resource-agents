@@ -531,11 +531,11 @@ Whenever a resource agent needs to execute a command and capture its
 output, it should use the +ocf_run+ convenience function, invoked as
 in this example:
 --------------------------------------------------------------------------
-ocf_run "/usr/bin/frobnicate --spam=eggs" || exit $OCF_ERR_GENERIC
+ocf_run "frobnicate --spam=eggs" || exit $OCF_ERR_GENERIC
 --------------------------------------------------------------------------
 
 With the command specified above, the resource agent will invoke
-+/usr/bin/frobnicate --spam=eggs+ and capture its output and
++frobnicate --spam=eggs+ and capture its output and
 exit code. If the exit code is nonzero (indicating an error),
 +ocf_run+ logs the command output with the +err+ logging severity, and
 the resource agent subsequently exits.
@@ -546,14 +546,14 @@ with +ocf_run+. In the example below, +ocf_run+ will log any output
 from the command with the +info+ severity if the command exit code is
 zero (indicating success), and with +err+ if it is nonzero.
 --------------------------------------------------------------------------
-ocf_run -v "/usr/bin/frobnicate --spam=eggs" || exit $OCF_ERR_GENERIC
+ocf_run -v "frobnicate --spam=eggs" || exit $OCF_ERR_GENERIC
 --------------------------------------------------------------------------
 
 Finally, if the resource agent wants to log the output of a command
 with a nonzero exit code with a severity _other_ than error, it may do
 so by adding the +-info+ or +-warn+ option to +ocf_run+:
 --------------------------------------------------------------------------
-ocf_run -warn "/usr/bin/frobnicate --spam=eggs"
+ocf_run -warn "frobnicate --spam=eggs"
 --------------------------------------------------------------------------
 
 === Locks
@@ -604,7 +604,7 @@ these values from within the resource agent, the agent should instead
 use the +ocf_is_true+ convenience function:
 --------------------------------------------------------------------------
 if ocf_is_true $OCF_RESKEY_superfrobnicate; then
-    ocf_run "/usr/bin/frobnicate --super"
+    ocf_run "frobnicate --super"
 fi
 --------------------------------------------------------------------------
 
