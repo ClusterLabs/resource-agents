@@ -725,6 +725,12 @@ foobar_start() {
 
 == Special considerations
 
+=== Initialization
+TODO
+
+=== Locale settings
+TODO
+
 === Resource agent interpreter
 
 Any resource agent implemented as a script must specify its
