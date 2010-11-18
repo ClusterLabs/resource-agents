@@ -398,6 +398,80 @@ does require special treatment for probes, however, the +ocf_is_probe+
 convenience function is available in the OCF shell functions library
 for that purpose.
 
+=== +validate-all+ action
+
+The +validate-all+ action tests for correct resource agent
+configuration and a working environment. +validate-all+ should exit
+with one of the following return codes:
+
+* +$OCF_SUCCESS+ -- all is well, the configuration is valid and
+  usable.
+* +$OCF_ERR_CONFIGURED+ -- the user has misconfigured the resource.
+* +$OCF_ERR_INSTALLED+ -- the resource has possibly been configured
+  correctly, but a vital component is missing on the node where
+  +validate-all+ is being executed.
+* +$OCF_ERR_PERM+ -- the resource is configured correctly and is not
+  missing any required components, but is suffering from a permission
+  issue (such as not being able to create a necessary file).
+
++validate-all+ is usually wrapped in a function that is not only
+called when explicitly invoking the corresponding action, but also --
+as a sanity check -- from just about any other function. Therefore,
+the resource agent author must keep in mind that the function may be
+invoked during the +start+, +stop+, and +monitor+ operations, and also
+during probes.
+
+Probes pose a separate challenge for validation. During a probe (when
+the cluster manager may expect the resource _not_ to be running on the
+node where the probe is executed), some required components may be
+_expected_ to not be available on the affected node. For example, this
+includes any shared data on storage devices not available for reading
+during the probe. The +validate-all+ function may thus need to treat
+probes specially, using the +ocf_is_probe+ convenience function:
+
+--------------------------------------------------------------------------
+foobar_validate_all() {
+    # Test for configuration errors first
+    if ! ocf_is_decimal $OCF_RESKEY_eggs; then
+       ocf_log err "eggs is not numeric!"
+       exit $OCF_ERR_CONFIGURED
+    fi
+
+    # Test for required binaries
+    check_binary frobnicate
+
+    # Check for data directory (this may be on shared storage, so
+    # disable this test during probes)
+    if ! ocf_is_probe; then
+       if ! [ -d $OCF_RESKEY_datadir ]; then
+       	  ocf_log err "$OCF_RESKEY_datadir does not exist or is not a directory!"
+          exit $OCF_ERR_INSTALLED
+       fi
+    fi
+
+    return $OCF_SUCCESS
+}
+--------------------------------------------------------------------------
+
+=== +meta-data+ action
+
+The +meta-data+ action dumps the resource agent metadata to standard
+output. The output must follow the metadata format as specified in
+<<_metadata>>.
+
+--------------------------------------------------------------------------
+foobar_meta_data {
+    cat <<EOF
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="foobar" version="0.1">
+  <version>0.1</version>
+  <longdesc lang="en">
+...
+EOF
+}
+--------------------------------------------------------------------------
+
 == Convenience functions
 
 === Logging
