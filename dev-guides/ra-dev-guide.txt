@@ -152,28 +152,40 @@ manager about sensible timeout values.
 Every resource agent must describe its own purpose and supported
 parameters in a set of XML metadata. This metadata is used by cluster
 management applications for on-line help, and resource agent man pages
-are generated from it as well. The following is a metadata dump taken
-from the +ocf:heartbeat:Dummy+ resource agent:
+are generated from it as well. The following is a fictitious set of
+metadata from an imaginary resource agent:
 
 --------------------------------------------------------------------------
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="Dummy" version="0.9">
-  <version>1.0</version>
+<resource-agent name="foobar" version="0.1">
+  <version>0.1</version>
   <longdesc lang="en">
-This is a Dummy Resource Agent. It does absolutely nothing except 
-keep track of whether its running or not.
-Its purpose in life is for testing and to serve as a template for RA writers.
+This is a fictitious example resource agent written for the
+OCF Resource Agent Developer's Guide.
   </longdesc>
-  <shortdesc lang="en">Example stateless resource agent</shortdesc>
+  <shortdesc lang="en">Example resource agent for budding OCF RA developers</shortdesc>
   <parameters>
-    <parameter name="state" unique="1">
+    <parameter name="eggs" unique="0" required="1">
       <longdesc lang="en">
-      Location to store the resource state in.
+      Number of eggs, an example numeric parameter
       </longdesc>
-      <shortdesc lang="en">State file</shortdesc>
-      <content type="string"
-               default="/var/run/resource-agents/Dummy-default.state" />
+      <shortdesc lang="en">Number of eggs</shortdesc>
+      <content type="integer"/>
+    </parameter>
+    <parameter name="superfrobnicate" unique="0" required="0">
+      <longdesc lang="en">
+      Enable superfrobnication, an example boolean parameter
+      </longdesc>
+      <shortdesc lang="en">Enable superfrobnication</shortdesc>
+      <content type="boolean" default="false"/>
+    </parameter>
+    <parameter name="datadir" unique="0" required="1">
+      <longdesc lang="en">
+      Data directory, an example string parameter
+      </longdesc>
+      <shortdesc lang="en">Data directory</shortdesc>
+      <content type="string"/>
     </parameter>
   </parameters>
   <actions>
