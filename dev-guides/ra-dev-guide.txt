@@ -634,7 +634,79 @@ TODO
 TODO
 
 === +notify+ action
-TODO
+
+With notifications, instances of clones (and of master/slave
+resources, which are an extended kind of clones) can inform each other
+about their state. When notifications are enabled, any action on any
+instance of a clone carries a +pre+ and +post+ notification. Then, the
+cluster manager invokes the +notify+ operation on _all_ clone
+instances. For +notify+ operations, additional environment variables
+are passed into the resource agent during execution:
+
+* +$OCF_RESKEY_CRM_meta_notify_type+ -- the notification type (+pre+
+  or +post+)
+
+* +$OCF_RESKEY_CRM_meta_notify_operation+ -- the operation (action)
+  that the notification is about (+start+, +stop+, +promote+, +demote+
+  etc.)
+
+* +$OCF_RESKEY_CRM_meta_start_uname+ -- node name of the node where
+  the resource is being started (+start+ notifications only)
+
+* +$OCF_RESKEY_CRM_meta_stop_uname+ -- node name of the node where
+  the resource is being stopped (+stop+ notifications only)
+
+* +$OCF_RESKEY_CRM_meta_master_uname+ -- node name of the node where
+  the resource currently _is in_ the Master role
+
+* +$OCF_RESKEY_CRM_meta_promote_uname+ -- node name of the node where
+  the resource currently _is being promoted to_ the Master role
+  (+promote+ notifications only)
+
+* +$OCF_RESKEY_CRM_meta_demote_uname+ -- node name of the node where
+  the resource currently _is being demoted to_ the Slave role
+  (+demote+ notifications only)
+
+Notifications come in particularly handy for master/slave resources
+using a "pull" scheme, where the master is a publisher and the slave a
+subscriber. Since the master is obviously only available as such when
+a promotion has occurred, the slaves can use a "pre-promote"
+notification to configure themselves to subscribe to the right
+publisher.
+
+Likewise, the subscribers may want to unsubscribe from the publisher
+after it has relinquished its master status, and a "post-demote"
+notification can be used for that purpose.
+
+Consider the example below to illustrate the concept.
+--------------------------------------------------------------------------
+foobar_notify() {
+    local type_op
+    type_op="${OCF_RESKEY_CRM_meta_notify_type}-${OCF_RESKEY_CRM_meta_notify_operation}"
+
+    ocf_log debug "Received $type_op notification."
+    case "$type_op" in
+	'pre-promote')
+	    ocf_run frobnicate --slave-mode \
+                               --master=$OCF_RESKEY_CRM_meta_notify_promote_uname \
+                               || exit $OCF_ERR_GENERIC
+	    ;;
+	'post-demote')
+	    ocf_run frobnicate --unset-slave-mode || exit $OCF_ERR_GENERIC
+	    ;;
+    esac
+
+    return $OCF_SUCCESS
+}
+--------------------------------------------------------------------------
+
+NOTE: A master/slave resource agent may support a _multi-master_
+configuration, where there is possibly more than one master at any
+given time. If that is the case, then the
++$OCF_RESKEY_CRM_meta_*_uname+ variables may each contain a
+space-separated lists of hostnames, rather than a single host name as
+shown in the example. Under those circumstances the resource agent
+would have to properly iterate over this list.
 
 == Script variables
 
