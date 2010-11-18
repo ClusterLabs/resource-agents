@@ -155,6 +155,7 @@ management applications for on-line help, and resource agent man pages
 are generated from it as well. The following is a fictitious set of
 metadata from an imaginary resource agent:
 
+[source,xml]
 --------------------------------------------------------------------------
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
@@ -162,7 +163,7 @@ metadata from an imaginary resource agent:
   <version>0.1</version>
   <longdesc lang="en">
 This is a fictitious example resource agent written for the
-OCF Resource Agent Developer's Guide.
+OCF Resource Agent Developers Guide.
   </longdesc>
   <shortdesc lang="en">Example resource agent 
   for budding OCF RA developers</shortdesc>
@@ -285,6 +286,7 @@ it only if it is not running. A common way of doing this would be to
 invoke the +validate_all+ and +monitor+ function first, as in the
 following example:
 
+[source,bash]
 --------------------------------------------------------------------------
 foobar_start() {
     # exit immediately if configuration is not valid
@@ -328,6 +330,7 @@ understand that +stop+ is a force operation -- the resource agent must
 do everything in its power to shut down, the resource, short of
 rebooting the node or shutting it off. Consider the following example:
 
+[source,bash]
 --------------------------------------------------------------------------
 foobar_stop() {
     # exit immediately if configuration is not valid
@@ -376,6 +379,7 @@ discern between three different states:
   problem).
 
 
+[source,bash]
 --------------------------------------------------------------------------
 foobar_monitor() {
     local rc
@@ -443,6 +447,7 @@ includes any shared data on storage devices not available for reading
 during the probe. The +validate-all+ function may thus need to treat
 probes specially, using the +ocf_is_probe+ convenience function:
 
+[source,bash]
 --------------------------------------------------------------------------
 foobar_validate_all() {
     # Test for configuration errors first
@@ -473,6 +478,7 @@ The +meta-data+ action dumps the resource agent metadata to standard
 output. The output must follow the metadata format as specified in
 <<_metadata>>.
 
+[source,bash]
 --------------------------------------------------------------------------
 foobar_meta_data {
     cat <<EOF
@@ -497,6 +503,7 @@ while a regular (stateless) resource agent only needs to implement
 +promote+ action to be able to make a transition between the +Started+
 (+Slave+) and +Master+ roles.
 
+[source,bash]
 --------------------------------------------------------------------------
 foobar_promote() {
     local rc
@@ -566,6 +573,7 @@ while a regular (stateless) resource agent only needs to implement
 +demote+ action to be able to make a transition between the +Master+
 and +Started+ (+Slave+) roles.
 
+[source,bash]
 --------------------------------------------------------------------------
 foobar_demote() {
     local rc
@@ -641,6 +649,8 @@ The +migrate_to+ action can serve one of two purposes:
   not need any information about its destination node at this point.
 
 The example below illustrates a push type migration:
+
+[source,bash]
 --------------------------------------------------------------------------
 foobar_migrate_to() {
     # exit immediately if configuration is not valid
@@ -667,6 +677,8 @@ foobar_migrate_to() {
 
 In contrast, a freeze/thaw type migration may implement its freeze
 operation like this:
+
+[source,bash]
 --------------------------------------------------------------------------
 foobar_migrate_to() {
     # exit immediately if configuration is not valid
@@ -705,6 +717,8 @@ The +migrate_from+ action can serve one of two purposes:
   not need any information about its source node at this point.
 
 The example below illustrates a push type migration:
+
+[source,bash]
 --------------------------------------------------------------------------
 foobar_migrate_from() {
     # exit immediately if configuration is not valid
@@ -727,6 +741,8 @@ foobar_migrate_from() {
 
 In contrast, a freeze/thaw type migration may implement its thaw
 operation like this:
+
+[source,bash]
 --------------------------------------------------------------------------
 foobar_migrate_to() {
     # exit immediately if configuration is not valid
@@ -799,6 +815,8 @@ after it has relinquished its master status, and a "post-demote"
 notification can be used for that purpose.
 
 Consider the example below to illustrate the concept.
+
+[source,bash]
 --------------------------------------------------------------------------
 foobar_notify() {
     local type_op
@@ -879,6 +897,7 @@ directory will not contain any stale data after a node reboot.
 Resource agents should use the +ocf_log+ function for logging
 purposes. This convenient logging wrapper is invoked as follows:
 
+[source,bash]
 --------------------------------------------------------------------------
 ocf_log <severity> "Log message"
 --------------------------------------------------------------------------
@@ -904,6 +923,8 @@ It supports following the following severity levels:
 A resource agent may need to test for the availability of a specific
 executable. The +have_binary+ convenience function comes in handy
 here:
+
+[source,bash]
 --------------------------------------------------------------------------
 if ! have_binary frobnicate; then
    ocf_log warn "Missing frobnicate binary, frobnication disabled!"
@@ -912,6 +933,8 @@ fi
 
 If a missing binary is a fatal problem for the resource, then the
 +check_binary+ function should be used:
+
+[source,bash]
 --------------------------------------------------------------------------
 check_binary frobnicate
 --------------------------------------------------------------------------
@@ -930,6 +953,8 @@ by distribution or user policy.
 Whenever a resource agent needs to execute a command and capture its
 output, it should use the +ocf_run+ convenience function, invoked as
 in this example:
+
+[source,bash]
 --------------------------------------------------------------------------
 ocf_run "frobnicate --spam=eggs" || exit $OCF_ERR_GENERIC
 --------------------------------------------------------------------------
@@ -945,6 +970,8 @@ successful and a failed command execution, it can use the +-v+ flag
 with +ocf_run+. In the example below, +ocf_run+ will log any output
 from the command with the +info+ severity if the command exit code is
 zero (indicating success), and with +err+ if it is nonzero.
+
+[source,bash]
 --------------------------------------------------------------------------
 ocf_run -v "frobnicate --spam=eggs" || exit $OCF_ERR_GENERIC
 --------------------------------------------------------------------------
@@ -952,6 +979,8 @@ ocf_run -v "frobnicate --spam=eggs" || exit $OCF_ERR_GENERIC
 Finally, if the resource agent wants to log the output of a command
 with a nonzero exit code with a severity _other_ than error, it may do
 so by adding the +-info+ or +-warn+ option to +ocf_run+:
+
+[source,bash]
 --------------------------------------------------------------------------
 ocf_run -warn "frobnicate --spam=eggs"
 --------------------------------------------------------------------------
@@ -964,6 +993,7 @@ parallel. When a resource agent needs to guard against parallel
 execution on the same machine, it can use the +ocf_take_lock+ and
 +ocf_release_lock_on_exit+ convenience functions:
 
+[source,bash]
 --------------------------------------------------------------------------
 LOCKFILE=${HA_RSCTMP}/foobar
 ocf_release_lock_on_exit $LOCKFILE
@@ -1002,6 +1032,8 @@ for this parameter may be specified by the user as +0+/+1+,
 +true+/+false+, or +on+/+off+. Since it is tedious to test for all
 these values from within the resource agent, the agent should instead
 use the +ocf_is_true+ convenience function:
+
+[source,bash]
 --------------------------------------------------------------------------
 if ocf_is_true $OCF_RESKEY_superfrobnicate; then
     ocf_run "frobnicate --super"
@@ -1021,6 +1053,7 @@ Resource agents for pseudo resources can use a convenience function,
 on the status of a resource. If +foobar+ was designed to manage a
 pseudo resource, then its +start+ action could look like this:
 
+[source,bash]
 --------------------------------------------------------------------------
 foobar_start() {
     # exit immediately if configuration is not valid
