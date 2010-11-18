@@ -501,6 +501,50 @@ TODO
 === +notify+ action
 TODO
 
+== Script variables
+
+This section outlines variables typically available to resource agents,
+primarily for convenience purposes. For additional variables
+available while the agent is being executed, refer to
+<<_environment_variables>> and <<_return_codes>>.
+
+=== +$OCF_ROOT+
+
+The root of the OCF resource agent hierarchy. This should never be
+changed by a resource agent. This is usually +/usr/lib/ocf+.
+
+=== +$OCF_FUNCTIONS_DIR+
+
+The directory where the resource agents shell function library,
++.ocf-shellfuncs+, resides. This is usually defined in terms of
++$OCF_ROOT+ and should never be changed by a resource agent. This
+variable may, however, be overridden from the command line while
+testing a new or modified resource agent.
+
+=== +$OCF_RESOURCE_INSTANCE+
+
+The resource instance name. For primitive (non-clone, non-stateful)
+resources, this is simply the resource name. For clones and stateful
+resources, this is the primitive name, followed by a colon an the
+clone instance number (such as +p_foobar:0+).
+
+=== +$__OCF_ACTION+
+
+The currently invoked action. This is exactly the first command-line
+argument that the cluster manager specifies when it invokes the
+resource agent.
+
+=== +$__SCRIPT_NAME+
+
+The name of the resource agent. This is exactly the base name of the
+resource agent script, with leading directory names removed.
+
+=== +$HA_RSCTMP+
+
+A temporary directory for use by resource agents. The cluster manager
+guarantees that this directory is emptied on system startup, so this
+directory will not contain any stale data after a node reboot.
+
 == Convenience functions
 
 === Logging
