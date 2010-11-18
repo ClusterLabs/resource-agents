@@ -626,11 +626,71 @@ foobar_demote() {
 }
 --------------------------------------------------------------------------
 
+=== +migrate_to+ action
+
+The +migrate_to+ action can serve one of two purposes:
+
+* Initiate a native _push_ type migration for the resource. In other
+  words, instruct the resource to move _to_ a specific node from the
+  node it is currently running on. The resource agent knows about its
+  destination node via the +$OCF_RESKEY_CRM_meta_migrate_target+ environment
+  variable.
+
+* Freeze the resource in a _freeze/thaw_ (also known as
+  _suspend/resume_) type migration. In this mode, the resource does
+  not need any information about its destination node at this point.
+
+The example below illustrates a push type migration:
+--------------------------------------------------------------------------
+foobar_migrate_to() {
+    # exit immediately if configuration is not valid
+    foobar_validate_all || exit $?
+
+    # if resource is not running, bail out early
+    if ! foobar_monitor; then
+	ocf_log err "Resource is not running"
+	exit $OCF_ERR_GENERIC
+    fi
+    
+    # actually start up the resource here (make sure to immediately
+    # exit with an $OCF_ERR_ error code if anything goes seriously
+    # wrong)
+    ocf_run frobnicate --migrate \
+                       --dest=$OCF_RESKEY_CRM_meta_migrate_target \
+                       || exit OCF_ERR_GENERIC
+    ...
+
+    # only return $OCF_SUCCESS if _everything_ succeeded as expected
+    return $OCF_SUCCESS
+}
+--------------------------------------------------------------------------
+
+In contrast, a freeze/thaw type migration may implement its freeze
+operation like this:
+--------------------------------------------------------------------------
+foobar_migrate_to() {
+    # exit immediately if configuration is not valid
+    foobar_validate_all || exit $?
+
+    # if resource is not running, bail out early
+    if ! foobar_monitor; then
+	ocf_log err "Resource is not running"
+	exit $OCF_ERR_GENERIC
+    fi
+    
+    # actually start up the resource here (make sure to immediately
+    # exit with an $OCF_ERR_ error code if anything goes seriously
+    # wrong)
+    ocf_run frobnicate --freeze || exit OCF_ERR_GENERIC
+    ...
+
+    # only return $OCF_SUCCESS if _everything_ succeeded as expected
+    return $OCF_SUCCESS
+}
+--------------------------------------------------------------------------
+
 
 === +migrate_from+ action
-TODO
-
-=== +migrate_to+ action
 TODO
 
 === +notify+ action
