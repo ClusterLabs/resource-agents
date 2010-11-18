@@ -691,7 +691,67 @@ foobar_migrate_to() {
 
 
 === +migrate_from+ action
-TODO
+
+The +migrate_from+ action can serve one of two purposes:
+
+* Complete a native _push_ type migration for the resource. In other
+  words, check whether the migration has succeeded properly, and the
+  resource is running on the local node. The resource agent knows
+  about its the migration source via the
+  +$OCF_RESKEY_CRM_meta_migrate_source+ environment variable.
+
+* Thaw the resource in a _freeze/thaw_ (also known as
+  _suspend/resume_) type migration. In this mode, the resource usually
+  not need any information about its source node at this point.
+
+The example below illustrates a push type migration:
+--------------------------------------------------------------------------
+foobar_migrate_from() {
+    # exit immediately if configuration is not valid
+    foobar_validate_all || exit $?
+
+    # After the resource has been migrated, check whether it resumed
+    # correctly. If the resource starts asynchronously, the agent may
+    # spin on the monitor function here -- if the resource does not
+    # run within the defined timeout, the cluster manager will
+    # consider the migrate_from action failed
+    while ! foobar_monitor; do
+	ocf_log debug "Resource has not yet migrated, waiting"
+	sleep 1
+    done
+
+    # only return $OCF_SUCCESS if _everything_ succeeded as expected
+    return $OCF_SUCCESS
+}
+--------------------------------------------------------------------------
+
+In contrast, a freeze/thaw type migration may implement its thaw
+operation like this:
+--------------------------------------------------------------------------
+foobar_migrate_to() {
+    # exit immediately if configuration is not valid
+    foobar_validate_all || exit $?
+
+    # actually start up the resource here (make sure to immediately
+    # exit with an $OCF_ERR_ error code if anything goes seriously
+    # wrong)
+    ocf_run frobnicate --thaw || exit OCF_ERR_GENERIC
+
+    # After the resource has been migrated, check whether it resumed
+    # correctly. If the resource starts asynchronously, the agent may
+    # spin on the monitor function here -- if the resource does not
+    # run within the defined timeout, the cluster manager will
+    # consider the migrate_from action failed
+    while ! foobar_monitor; do
+	ocf_log debug "Resource has not yet migrated, waiting"
+	sleep 1
+    done
+
+    # only return $OCF_SUCCESS if _everything_ succeeded as expected
+    return $OCF_SUCCESS
+}
+--------------------------------------------------------------------------
+
 
 === +notify+ action
 
