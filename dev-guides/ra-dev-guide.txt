@@ -486,6 +486,21 @@ EOF
 }
 --------------------------------------------------------------------------
 
+=== +promote+ action
+TODO
+
+=== +demote+ action
+TODO
+
+=== +migrate_from+ action
+TODO
+
+=== +migrate_to+ action
+TODO
+
+=== +notify+ action
+TODO
+
 == Convenience functions
 
 === Logging
