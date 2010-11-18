@@ -555,11 +555,77 @@ foobar_promote() {
 }
 --------------------------------------------------------------------------
 
-NOTE: The expected exit code for a successful promote operation is
-+$OCF_SUCCESS+, _not_ +$OCF_RUNNING_MASTER+.
-
 === +demote+ action
-TODO
+
+The +demote+ action is optional. It must only be supported by
+_stateful_ resource agents, which means agents that discern between
+two distict _roles_: +Master+ and +Slave+. +Slave+ is functionally
+identical to the +Started+ state in a stateless resource agent. Thus,
+while a regular (stateless) resource agent only needs to implement
++start+ and +stop+, a stateful resource agent must also support the
++demote+ action to be able to make a transition between the +Master+
+and +Started+ (+Slave+) roles.
+
+--------------------------------------------------------------------------
+foobar_demote() {
+    local rc
+
+    # exit immediately if configuration is not valid
+    foobar_validate_all || exit $?
+
+    # test the resource's current state
+    foobar_monitor
+    rc=$?
+    case "$rc" in)
+        "$OCF_RUNNING_MASTER")
+            # Running as master. Normal, expected behavior.
+            ocf_log debug "Resource is currently running as Slave"
+            ;;
+        "$OCF_SUCCESS")
+            # Alread running as slave. Nothing to do.
+            ocf_log debug "Resource is currently running as Slave"
+	    return $OCF_SUCCESS
+            ;;
+        "$OCF_NOT_RUNNING")
+            # Currently not running. Getting a demote action
+            # in this state is unexpected. Exit with an error
+            # and let the cluster manager recover.
+            ocf_log err "Resource is currently not running"
+            exit $OCF_ERR_GENERIC
+            ;;
+        *)
+            # Failed resource. Let the cluster manager recover.
+            ocf_log err "Unexpected error, cannot demote"
+            exit $rc
+            ;;
+    esac
+    
+    # actually promote the resource here (make sure to immediately
+    # exit with an $OCF_ERR_ error code if anything goes seriously
+    # wrong)
+    ocf_run frobnicate --unset-master-mode || exit $OCF_ERR_GENERIC
+
+    # After the resource has been promoted, check whether the
+    # promotion worked. If the resource promotion is asynchronous, the
+    # agent may spin on the monitor function here -- if the resource
+    # does not assume the Master role within the defined timeout, the
+    # cluster manager will consider the promote action failed.
+    while true; do
+        foobar_monitor
+        if [ $? -eq $OCF_RUNNING_MASTER ]; then
+            ocf_log debug "Resource still awaiting promotion"
+            sleep 1
+        else
+            ocf_log debug "Resource demoted"
+            break
+        fi
+    done
+
+    # only return $OCF_SUCCESS if _everything_ succeeded as expected
+    return $OCF_SUCCESS
+}
+--------------------------------------------------------------------------
+
 
 === +migrate_from+ action
 TODO
