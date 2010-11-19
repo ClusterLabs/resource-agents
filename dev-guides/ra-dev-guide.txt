@@ -269,7 +269,7 @@ in the resource agent. By convention, these are usually named
 
 As a general rule, whenever the resource agent encounters an error
 that is not able to recover, it is permitted to immediately exit,
-throw and exception, or otherwise cease execution. Examples for this
+throw an exception, or otherwise cease execution. Examples for this
 include configuration issues, missing binaries, permission problems,
 etc. It is not necessary to pass these errors up the call stack.
 
