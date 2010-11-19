@@ -525,7 +525,7 @@ foobar_promote() {
 	    return $OCF_SUCCESS
             ;;
         "$OCF_NOT_RUNNING")
-            # Currently not running. Need to start.
+            # Currently not running. Need to start before promoting.
             ocf_log info "Resource is currently not running"
             foobar_start
             ;;
