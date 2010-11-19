@@ -758,7 +758,7 @@ operation like this:
 
 [source,bash]
 --------------------------------------------------------------------------
-foobar_migrate_to() {
+foobar_migrate_from() {
     # exit immediately if configuration is not valid
     foobar_validate_all || exit $?
 
