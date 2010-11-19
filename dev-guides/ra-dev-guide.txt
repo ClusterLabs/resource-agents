@@ -587,7 +587,7 @@ foobar_demote() {
     case "$rc" in)
         "$OCF_RUNNING_MASTER")
             # Running as master. Normal, expected behavior.
-            ocf_log debug "Resource is currently running as Slave"
+            ocf_log debug "Resource is currently running as Master"
             ;;
         "$OCF_SUCCESS")
             # Alread running as slave. Nothing to do.
