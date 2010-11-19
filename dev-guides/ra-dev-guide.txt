@@ -333,15 +333,29 @@ rebooting the node or shutting it off. Consider the following example:
 [source,bash]
 --------------------------------------------------------------------------
 foobar_stop() {
+    local rc
+
     # exit immediately if configuration is not valid
     foobar_validate_all || exit $?
 
-    # if resource is not currently running, bail out early
     foobar_monitor
-    if [ $? -eq $OCF_NOT_RUNNING; then ]
-	ocf_log info "Resource is already stopped"
-	return $OCF_SUCCESS
-    fi
+    rc=$?
+    case "$rc" in)
+        "$OCF_SUCCESS")
+            # Currently running. Normal, expected behavior.
+            ocf_log debug "Resource is currently running"
+            ;;
+        "$OCF_RUNNING_MASTER")
+            # Running as a Master. Need to demote before stopping.
+            ocf_log info "Resource is currently running as Master"
+	    foobar_demote
+            ;;
+        "$OCF_NOT_RUNNING")
+            # Currently not running. Nothing to do.
+	    ocf_log info "Resource is already stopped"
+	    return $OCF_SUCCESS
+            ;;
+    esac
     
     # actually shut down the resource here (make sure to immediately
     # exit with an $OCF_ERR_ error code if anything goes seriously
