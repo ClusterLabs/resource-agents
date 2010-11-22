@@ -401,21 +401,25 @@ foobar_monitor() {
     # exit immediately if configuration is not valid
     foobar_validate_all || exit $?
 
-    # check for the resource status (this is a very simple example, in
-    # reality the check may be very elaborate)
-    ...
+    ocf_run frobnicate --test
 
-    rc=$?
-    case "$rc" in
-	"$OCF_SUCCESS")
+    # This example assumes the following exit code convention
+    # for frobnicate:
+    # 0: running, and fully caught up with master
+    # 1: gracefully stopped
+    # any other: error
+    case "$?" in
+	0)
+            rc=$OCF_SUCCESS
 	    ocf_log debug "Resource is running"
-	    ;;
-	"$OCF_NOT_RUNNING")
+            ;;
+	1)
+            rc=$OCF_NOT_RUNNING
 	    ocf_log debug "Resource is not running"
 	    ;;
 	*)
 	    ocf_log err "Resource has failed"
-	    exit $rc
+	    exit $OCF_ERR_GENERIC
     esac
 
     return $rc
@@ -1241,4 +1245,3 @@ foobar_monitor() {
     return $rc
 }
 --------------------------------------------------------------------------
-
