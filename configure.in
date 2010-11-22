@@ -529,6 +529,14 @@ esac
 
 AM_CONDITIONAL(BUILD_SFEX, test "$build_sfex" = "yes" )
 
+
+dnl ========================================================================
+dnl   tickle (needs port to BSD platforms)
+dnl ========================================================================
+
+AC_CHECK_MEMBERS([struct iphdr.saddr],,,[[#include <netinet/ip.h>]])
+AM_CONDITIONAL(BUILD_TICKLE, test "$ac_cv_member_struct_iphdr_saddr" = "yes" )
+
 dnl ========================================================================
 dnl   libnet
 dnl ========================================================================

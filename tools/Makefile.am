@@ -27,7 +27,7 @@ halibdir		= $(libdir)/heartbeat
 
 sbin_PROGRAMS		= 
 sbin_SCRIPTS		= ocf-tester
-halib_PROGRAMS		= findif tickle_tcp
+halib_PROGRAMS		= findif
 
 if BUILD_SFEX
 halib_PROGRAMS		+= sfex_daemon
@@ -58,7 +58,10 @@ sfex_init_LDADD		= $(GLIBLIB) -lplumb -lplumbgpl
 
 findif_SOURCES		= findif.c
 
+if BUILD_TICKLE
+halib_PROGRAMS		+= tickle_tcp
 tickle_tcp_SOURCES	= tickle_tcp.c
+endif
 
 if BUILD_HELP
 man8_MANS =	$(sbin_SCRIPTS:%=%.8)
