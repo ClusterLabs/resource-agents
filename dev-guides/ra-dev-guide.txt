@@ -422,6 +422,12 @@ foobar_monitor() {
 }
 --------------------------------------------------------------------------
 
+Stateful (master/slave) resource agents may use a more elaborate
+monitoring scheme where they can provide "hints" to the cluster
+manager identifying which instance is best suited to assume the
++Master+ role. <<_specifying_a_master_preference>> explains the
+details.
+
 NOTE: The cluster manager may invoke the +monitor+ action for a
 _probe_, which is a test whether the resource is currently
 running. Normally, the monitor operation would behave exactly the same
@@ -1159,3 +1165,80 @@ previously +sh+ compatible resource agent suitable only for +bash+,
 +ksh+, or any other non-generic shell. It is, however, perfectly
 acceptable for a new resource agent to explicitly define a specific
 shell, such as +/bin/bash+, as its interpreter.
+
+=== Specifying a master preference
+
+Stateful (master/slave) resources may influence their own _master
+preference_ -- they can provide hints to the cluster manager which is
+the the best node to promote to the +Master+ role.
+
+For this purpose, +crm_master+ comes in handy. This convenience
+wrapper around the +crm_attribute+ sets a node attribute named
++master-$OCF_RESOURCE_INSTANCE+ for the node it is being executed on,
+and fills this attribute with the specified value. Stateful resource
+agents typically execute +crm_master+ during the +monitor+ and/or
++notify+ action.
+
+The following example assumes that the +foobar+ resource agent can
+test the application's status by executing a binary that returns
+certain exit codes based on whether
+
+* the resource is either in the master role, or is a slave that is
+  fully caught up with the master (at any rate, it has current data),
+  or
+* the resource is in the slave role, but through some form of
+  asynchronous replication has "fallen behind" the master, or
+* the resource has gracefully stopped, or
+* the resource has unexpectedly failed.
+
+[source,bash]
+--------------------------------------------------------------------------
+foobar_monitor() {
+    local rc
+
+    # exit immediately if configuration is not valid
+    foobar_validate_all || exit $?
+
+    ocf_run frobnicate --test
+
+    # This example assumes the following exit code convention
+    # for frobnicate:
+    # 0: running, and fully caught up with master
+    # 1: gracefully stopped
+    # 2: running, but lagging behind master
+    # any other: error
+    case "$?" in
+	0)
+            rc=$OCF_SUCCESS
+	    ocf_log debug "Resource is running"
+            # Set a high master preference. The current master
+            # will always get this, plus 1. Any current slaves
+            # will get a high preference so that if the master
+            # fails, they are next in line to take over.
+            crm_master -l reboot -v 100
+            ;;
+	1)
+            rc=$OCF_NOT_RUNNING
+	    ocf_log debug "Resource is not running"
+            # Remove the master preference for this node
+            crm_master -l reboot -D
+	    ;;
+        2)
+            rc=$OCF_SUCCESS
+            ocf_log debug "Resource is lagging behind master"
+            # Set a low master preference: if the master fails
+            # right now, and there is another slave that does
+            # not lag behind the master, its higher master
+            # preference will win and that slave will become
+            # the new master
+            crm_master -l reboot -v 5
+            ;;
+	*)
+	    ocf_log err "Resource has failed"
+	    exit $OCF_ERR_GENERIC
+    esac
+
+    return $rc
+}
+--------------------------------------------------------------------------
+
