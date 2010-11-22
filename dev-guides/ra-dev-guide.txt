@@ -916,7 +916,7 @@ directory will not contain any stale data after a node reboot.
 
 == Convenience functions
 
-=== Logging
+=== Logging: +ocf_log+
 
 Resource agents should use the +ocf_log+ function for logging
 purposes. This convenient logging wrapper is invoked as follows:
@@ -942,7 +942,7 @@ It supports following the following severity levels:
   should not be used unless the resource agent also exits with an
   error code. Very rarely used.
 
-=== Testing for binaries
+=== Testing for binaries: +have_binary+ and +check_binary+
 
 A resource agent may need to test for the availability of a specific
 executable. The +have_binary+ convenience function comes in handy
@@ -972,7 +972,7 @@ binary to test for is not specified as a full path. It is usually wise
 to _not_ test for a full path, as binary installations path may vary
 by distribution or user policy.
 
-=== Executing commands and capturing their output
+=== Executing commands and capturing their output: +ocf_run+
 
 Whenever a resource agent needs to execute a command and capture its
 output, it should use the +ocf_run+ convenience function, invoked as
@@ -1009,7 +1009,7 @@ so by adding the +-info+ or +-warn+ option to +ocf_run+:
 ocf_run -warn "frobnicate --spam=eggs"
 --------------------------------------------------------------------------
 
-=== Locks
+=== Locks: +ocf_take_lock+ and +ocf_release_lock_on_exit+
 
 Occasionally, there may be different resources of the same type in a
 cluster configuration that should not execute actions in
@@ -1034,7 +1034,7 @@ it is unavailable, it sleeps a random amount of time between 0 and 1
 seconds, and retries. +ocf_release_lock_on_exit+ releases the lock
 file when the agent exits (for any reason).
 
-=== Testing for numerical values
+=== Testing for numerical values: +ocf_is_decimal+
 
 Specifically for parameter validation, it can be helpful to test
 whether a given value is numeric. The +ocf_is_decimal+ function exists
@@ -1049,7 +1049,7 @@ foobar_validate_all() {
 }
 --------------------------------------------------------------------------
 
-=== Testing for boolean values
+=== Testing for boolean values: +ocf_is_true+
 
 When a resource agent defines a boolean parameter, the value
 for this parameter may be specified by the user as +0+/+1+,
@@ -1064,7 +1064,7 @@ if ocf_is_true $OCF_RESKEY_superfrobnicate; then
 fi
 --------------------------------------------------------------------------
 
-=== Pseudo resources
+=== Pseudo resources: +ha_pseudo_resource+
 
 "Pseudo resources" are those where the resource agent in fact does not
 actually start or stop something akin to a runnable process, but
@@ -1174,14 +1174,19 @@ shell, such as +/bin/bash+, as its interpreter.
 
 Stateful (master/slave) resources may influence their own _master
 preference_ -- they can provide hints to the cluster manager which is
-the the best node to promote to the +Master+ role.
+the the best instance to promote to the +Master+ role.
 
 For this purpose, +crm_master+ comes in handy. This convenience
 wrapper around the +crm_attribute+ sets a node attribute named
-+master-$OCF_RESOURCE_INSTANCE+ for the node it is being executed on,
-and fills this attribute with the specified value. Stateful resource
-agents typically execute +crm_master+ during the +monitor+ and/or
-+notify+ action.
++master-<<_literal_ocf_resource_instance_literal,$OCF_RESOURCE_INSTANCE>>+
+for the node it is being executed on, and fills this attribute with
+the specified value. The cluster manager is then expected to translate
+this into a promotion score for the corresponding instance, and base
+its promotion preference on that score.
+
+Stateful resource agents typically execute +crm_master+ during the
+<<_literal_monitor_literal_action,+monitor+>> and/or
+<<_literal_notify_literal_action,+notify+>> action.
 
 The following example assumes that the +foobar+ resource agent can
 test the application's status by executing a binary that returns
