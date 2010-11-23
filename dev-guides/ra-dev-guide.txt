@@ -1064,6 +1064,10 @@ if ocf_is_true $OCF_RESKEY_superfrobnicate; then
 fi
 --------------------------------------------------------------------------
 
+NOTE: If +ocf_is_true+ is used against an empty or non-existant
+variable, it always returns an exit code of +1+, which is equivalent
+to +false+.
+
 === Pseudo resources: +ha_pseudo_resource+
 
 "Pseudo resources" are those where the resource agent in fact does not
