@@ -277,7 +277,9 @@ If a resource agent is written in shell, specifying the generic shell
 interpreter (+#!/bin/sh+) is generally preferred, though not
 required. Resource agents declared as +/bin/sh+ compatible must not
 use constructs native to a specific shell (such as, for example,
-+${!variable}+ syntax native to +bash+).
++${!variable}+ syntax native to +bash+). It is advisable to
+occasionally run such resource agents through a sanitization utility
+such as +checkbashisms+.
 
 It is considered a regression to introduce a patch that will make a
 previously +sh+ compatible resource agent suitable only for +bash+,
