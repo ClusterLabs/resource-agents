@@ -391,7 +391,7 @@ in the resource agent. By convention, these are usually named
 +foobar+ would be named +foobar_start()+.
 
 As a general rule, whenever the resource agent encounters an error
-that is not able to recover, it is permitted to immediately exit,
+that it is not able to recover, it is permitted to immediately exit,
 throw an exception, or otherwise cease execution. Examples for this
 include configuration issues, missing binaries, permission problems,
 etc. It is not necessary to pass these errors up the call stack.
