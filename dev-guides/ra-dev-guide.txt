@@ -471,7 +471,8 @@ foobar_stop() {
         "$OCF_RUNNING_MASTER")
             # Running as a Master. Need to demote before stopping.
             ocf_log info "Resource is currently running as Master"
-	    foobar_demote
+	    foobar_demote || \
+                ocf_log warn "Demote failed, trying to stop anyway"
             ;;
         "$OCF_NOT_RUNNING")
             # Currently not running. Nothing to do.
