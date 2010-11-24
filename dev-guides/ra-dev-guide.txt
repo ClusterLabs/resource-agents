@@ -350,9 +350,8 @@ structure:
 --------------------------------------------------------------------------
 # Make sure meta-data and usage always succeed
 case $__OCF_ACTION in
-meta-data)	meta_data
-		# OCF variables are not set when querying meta-data
-		exit 0
+meta-data)	foobar_meta_data
+		exit $OCF_SUCCESS
 		;;
 usage|help)	foobar_usage
 		exit $OCF_SUCCESS
