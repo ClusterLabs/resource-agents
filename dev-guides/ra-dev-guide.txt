@@ -41,7 +41,6 @@ guide primarily uses example code written in shell language.
 
 == API definitions
 
-
 === Environment variables
 
 A resource agent receives all configuration information about the
@@ -256,11 +255,135 @@ does not constitute a default -- it is merely a hint for the user
 which action interval to configure, at minimum.
 
 
-== Resource agent behavior
+== Resource agent structure
 
-This section describes the expected behavior of a resource agent with
-respect to the various actions it supports, using a fictitous resource
-agent named +foobar+ as an example.
+A typical (shell-based) resource agent contains standard structural
+items, in the order as listed in this section.  It describes the
+expected behavior of a resource agent with respect to the various
+actions it supports, using a fictitous resource agent named +foobar+
+as an example.
+
+=== Resource agent interpreter
+
+Any resource agent implemented as a script must specify its
+interpreter using standard "shebang" (+#!+) header syntax.
+
+[source,bash]
+--------------------------------------------------------------------------
+#!/bin/sh
+--------------------------------------------------------------------------
+
+If a resource agent is written in shell, specifying the generic shell
+interpreter (+#!/bin/sh+) is generally preferred, though not
+required. Resource agents declared as +/bin/sh+ compatible must not
+use constructs native to a specific shell (such as, for example,
++${!variable}+ syntax native to +bash+).
+
+It is considered a regression to introduce a patch that will make a
+previously +sh+ compatible resource agent suitable only for +bash+,
++ksh+, or any other non-generic shell. It is, however, perfectly
+acceptable for a new resource agent to explicitly define a specific
+shell, such as +/bin/bash+, as its interpreter.
+
+=== Author and license information
+
+The resource agent should contain a comment listing the resource agent
+author(s) and/or copyright holder(s), and stating the license that
+applies to the resource agent:
+
+[source,bash]
+--------------------------------------------------------------------------
+#
+#   Resource Agent for managing foobar resources.
+#
+#   License:      GNU General Public License (GPL)
+#   (c) 2008-2010 John Doe, Jane Roe,
+#                 and Linux-HA contributors
+--------------------------------------------------------------------------
+
+When a resource agent refers to a license for which multiple versions
+exist, it is assumed that the current version applies.
+
+=== Initialization
+
+Any shell resource agent should source the +.ocf-shellfuncs+ function
+library. With the syntax below, this is done in terms of
++$OCF_FUNCTIONS_DIR+, which -- for testing purposes, and also for
+generating documentation -- may be overridden from the command line.
+
+[source,bash]
+--------------------------------------------------------------------------
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+--------------------------------------------------------------------------
+
+Defaults for resource agent parameters should be set by initializing
+variables with the suffix +_default+:
+
+[source,bash]
+--------------------------------------------------------------------------
+# Defaults
+OCF_RESKEY_superfrobnicate_default=0
+
+: ${OCF_RESKEY_superfrobnicate=${OCF_RESKEY_superfrobnicate_default}}
+--------------------------------------------------------------------------
+
+NOTE: The resource agent should make sure that it sets a default for
+any parameter not marked as +required+ in the metadata.
+
+=== Functions implementing resource agent actions
+
+What follows next are the functions implementing the resource agent's
+advertised actions. The individual actions are described in detail in
+<<_resource_agent_behavior>>.
+
+=== Execution block
+
+This is the part of the resource agent that actually executes when the
+resource agent is invoked. It typically follows a fairly standard
+structure:
+
+[source,bash]
+--------------------------------------------------------------------------
+# Make sure meta-data and usage always succeed
+case $__OCF_ACTION in
+meta-data)	meta_data
+		# OCF variables are not set when querying meta-data
+		exit 0
+		;;
+usage|help)	foobar_usage
+		exit $OCF_SUCCESS
+		;;
+esac
+
+# Anything other than meta-data and usage must pass validation
+foobar_validate || exit $?
+
+# Translate each action into the appropriate function call
+case $__OCF_ACTION in
+start)		foobar_start;;
+stop)		foobar_stop;;
+status|monitor)	foobar_monitor;;
+promote)	foobar_promote;;
+demote)		foobar_demote;;
+reload)		ocf_log info "Reloading..."
+	        foobar_start
+		;;
+validate-all)	;;
+*)		foobar_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+rc=$?
+
+# The resource agent may optionally log a debug message
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION returned $rc"
+exit $rc
+--------------------------------------------------------------------------
+
+
+== Resource agent behavior
 
 Each action is typically implemented in a separate function or method
 in the resource agent. By convention, these are usually named
@@ -1125,29 +1248,6 @@ agents).
 The resource agent _must_ explicitly state its own license in the
 agent source code.
 
-=== Initialization
-
-Any shell resource agent should source the +.ocf-shellfuncs+ function
-library. With the syntax below, this is done in terms of
-+$OCF_FUNCTIONS_DIR+, which -- for testing purposes, and also for
-generating documentation -- may be overridden from the command line.
---------------------------------------------------------------------------
-# Initialization:
-: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
-. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
---------------------------------------------------------------------------
-
-Defaults for resource agent parameters should be set by initializing
-variables with the suffix +_default+:
---------------------------------------------------------------------------
-# Defaults
-OCF_RESKEY_superfrobnicate_default=0
-
-: ${OCF_RESKEY_superfrobnicate=${OCF_RESKEY_superfrobnicate_default}}
---------------------------------------------------------------------------
-
-NOTE: The resource agent should make sure that it sets a default for
-any parameter not marked as +required+ in the metadata.
 
 === Locale settings
 
@@ -1156,23 +1256,6 @@ any resource agent automatically sets +LANG+ and +LC_ALL+ to the +C+
 locale. Resource agents can thus expect to always operate in the +C+
 locale, and need not reset +LANG+ or any of the +LC_+ environment
 variables themselves.
-
-=== Resource agent interpreter
-
-Any resource agent implemented as a script must specify its
-interpreter using standard "shebang" (+#!+) header syntax.
-
-If a resource agent is written in shell, specifying the generic shell
-interpreter (+#!/bin/sh+) is generally preferred, though not
-required. Resource agents declared as +/bin/sh+ compatible must not
-use constructs native to a specific shell (such as, for example,
-+${!variable}+ syntax native to +bash+).
-
-It is considered a regression to introduce a patch that will make a
-previously +sh+ compatible resource agent suitable only for +bash+,
-+ksh+, or any other non-generic shell. It is, however, perfectly
-acceptable for a new resource agent to explicitly define a specific
-shell, such as +/bin/bash+, as its interpreter.
 
 === Specifying a master preference
 
