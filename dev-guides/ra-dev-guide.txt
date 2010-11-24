@@ -89,7 +89,7 @@ actions:
   resources only).
 * +demote+ -- turns a resource into the +Slave+ role (Master/Slave
   resources only).
-* +migrate-to+ and +migrate-from+ -- implement live migration of
+* +migrate_to+ and +migrate_from+ -- implement live migration of
   resources.
 * +validate-all+ -- validates a resource's configuration.
 * +usage+ or +help+ -- displays a usage message when the resource
