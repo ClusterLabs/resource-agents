@@ -756,16 +756,16 @@ foobar_demote() {
             ;;
     esac
     
-    # actually promote the resource here (make sure to immediately
+    # actually demote the resource here (make sure to immediately
     # exit with an $OCF_ERR_ error code if anything goes seriously
     # wrong)
     ocf_run frobnicate --unset-master-mode || exit $OCF_ERR_GENERIC
 
-    # After the resource has been promoted, check whether the
-    # promotion worked. If the resource promotion is asynchronous, the
+    # After the resource has been demoted, check whether the
+    # demotion worked. If the resource demotion is asynchronous, the
     # agent may spin on the monitor function here -- if the resource
-    # does not assume the Master role within the defined timeout, the
-    # cluster manager will consider the promote action failed.
+    # does not assume the Slave role within the defined timeout, the
+    # cluster manager will consider the demote action failed.
     while true; do
         foobar_monitor
         if [ $? -eq $OCF_RUNNING_MASTER ]; then
