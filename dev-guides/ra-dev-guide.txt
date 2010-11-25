@@ -1259,6 +1259,57 @@ locale. Resource agents can thus expect to always operate in the +C+
 locale, and need not reset +LANG+ or any of the +LC_+ environment
 variables themselves.
 
+
+=== Testing for running processes
+
+For testing whether a particular process (with a known process ID) is
+currently running, a frequently found method is to send it a +0+
+signal and catch errors, similar to this example:
+
+[source,bash]
+--------------------------------------------------------------------------
+if kill -s 0 `cat $daemon_pid_file`; then
+    ocf_log debug "Process is currently running"
+else
+    ocf_log warn "Process is dead, removing pid file"
+    rm -f $daemon_pid_file
+if
+--------------------------------------------------------------------------
+
+This method has a significant drawback: +kill -s 0+ does return
+successfully for zombie processes. Zombies, also known as defunct
+processes, are processes that no longer run but still hold an entry in
+the process table. Thus, they must be considered failed resources for
+all means and purposes, and for them the +kill -s 0+ approach yields a
+misleading, successful, result.
+
+The +kill -s 0+ approach can employ an additional safeguard (which,
+however, will work on Linux only):
+
+[source,bash]
+--------------------------------------------------------------------------
+pid=`cat $daemon_pid_file`
+if kill -s 0 $pid; then
+    # Process exists in process table, check its status
+    if grep -E "State:[[:space:]]+Z \(zombie\)" /proc/$pid/status; then
+    ocf_log err "Process is defunct"
+        # Bail out and let the cluster manager recover
+        exit $OCF_ERR_GENERIC
+    else
+        ocf_log_debug "Process is currently running"
+    fi
+else
+    ocf_log warn "Process is dead, removing pid file"
+    rm -f $daemon_pid_file
+if
+--------------------------------------------------------------------------
+
+IMPORTANT: An approach far superior to _both_ these examples is to
+instead test the _functionality_ of the daemon by connecting to it
+with a client process, as shown in the example in
+<<_literal_monitor_literal_action>>.
+
+
 === Specifying a master preference
 
 Stateful (master/slave) resources may influence their own _master
