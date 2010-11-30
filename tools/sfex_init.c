@@ -57,7 +57,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <getopt.h>
-#include <syslog.h>
 
 #include "sfex.h"
 #include "sfex_lib.h"
@@ -101,12 +100,13 @@ main(int argc, char *argv[]) {
    *  startup process
    */
 
-/*
-  openlog("SFex Init", LOG_PID|LOG_CONS, LOG_USER);
-*/
-
   /* get a program name */
   progname = get_progname(argv[0]);
+
+  /* enable the cl_log output from the sfex library */
+  cl_log_set_entity(progname);
+  /* The cl_log is output only to the standard error output */
+  cl_log_enable_stderr(TRUE);
 
   /* read command line option */
   opterr = 0;
