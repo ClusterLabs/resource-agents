@@ -1368,7 +1368,7 @@ sub read_config
 				if ($rcmd =~ /^(real(6)?)\s*=\s*(.*)/) {
 					if ($af == AF_INET  &&   defined($2) ||
 					    $af == AF_INET6 && ! defined($2)) {
-					    &config_error($line, join("", ("cannot specify \"$1\" here. please use \"real" , $af == AF_INET ?  "" : "6" , "\" instead")));
+					    &config_error($line, join("", ("cannot specify \"$1\" here.  please use \"real", ($af == AF_INET) ?  "" : "6", "\" instead")));
 					}
 					push @rsrv_todo, [$3, $line];
 				} elsif ($rcmd =~ /^request\s*=\s*\"(.*)\"/) {
@@ -1536,7 +1536,7 @@ sub read_config
 				} elsif ($rcmd =~ /^(fallback(6)?)\s*=\s*(.*)/) {    # Allow specification of a virtual-specific fallback host
 					if ($af == AF_INET  &&   defined($2) ||
 					    $af == AF_INET6 && ! defined($2)) {
-					    &config_error($line, join("", ("cannot specify \"$1\" here. please use \"fallback" , $af == AF_INET ?  "" : "6" , "\" instead")));
+					    &config_error($line, join("", ("cannot specify \"$1\" here.  please use \"fallback", ($af == AF_INET) ?  "" : "6", "\" instead")));
 					}
 					$fallback_line=$line;
 					$vsrv{fallback} =
