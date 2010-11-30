@@ -600,6 +600,15 @@ foobar_stop() {
 NOTE: The expected exit code for a successful stop operation is
 +$OCF_SUCCESS+, _not_ +$OCF_NOT_RUNNING+.
 
+IMPORTANT: A failed stop operation is a potentially dangerous
+situation which the cluster manager will almost invariably try to
+resolve by means of node fencing. In other words, the cluster manager
+will forcibly evict from the cluster a node on which a stop operation
+has failed. While this measure serves ultimately to protect data, it
+does cause disruption to applications and their users. Thus, a
+resource agent should make sure that it exits with an error only if
+all avenues for proper resource shutdown have been exhausted.
+
 === +monitor+ action
 
 The +monitor+ action queries the current status of a resource. It must
