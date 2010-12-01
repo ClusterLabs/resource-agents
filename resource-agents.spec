@@ -186,6 +186,7 @@ rm -rf $RPM_BUILD_DIR/resource-agents
 %{_sbindir}/ocf-tester
 %{_sbindir}/ocft
 %{_sbindir}/sfex_init
+%{_sbindir}/sfex_stat
 %{_includedir}/heartbeat
 %dir %attr (1755, root, root)	%{_var}/run/resource-agents
 

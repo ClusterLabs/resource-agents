@@ -39,33 +39,6 @@ static void usage(FILE *dist) {
 	  fprintf(dist, "usage: %s [-i <index>] [-c <collision_timeout>] [-t <lock_timeout>] <device>\n", progname);
 }
 
-static int lock_index_check(void)
-{
-	if (read_controldata(&cdata) == -1) {
-		cl_log(LOG_ERR, "%s\n", "read_controldata failed in lock_index_check");
-		return -1;
-	}
-#ifdef SFEX_DEBUG
-	cl_log(LOG_INFO, "version: %d\n", cdata.version);
-	cl_log(LOG_INFO, "revision: %d\n", cdata.revision);
-	cl_log(LOG_INFO, "blocksize: %d\n", cdata.blocksize);
-	cl_log(LOG_INFO, "numlocks: %d\n", cdata.numlocks);
-#endif
-
-	if (lock_index > cdata.numlocks) {
-		cl_log(LOG_ERR, "index %d is too large. %d locks are stored.\n",
-				lock_index, cdata.numlocks);
-		return -1;
-		/*exit(EXIT_FAILURE);*/
-	}
-
-	if (cdata.blocksize != sector_size) {
-		cl_log(LOG_ERR, "sector_size is not the same as the blocksize.\n");
-		return -1;
-	}
-	return 0;
-}
-
 static void acquire_lock(void)
 {
 	if (read_lockdata(&cdata, &ldata, lock_index) == -1) {
@@ -334,7 +307,7 @@ int main(int argc, char *argv[])
 	}
 #endif
 
-	ret = lock_index_check();
+	ret = lock_index_check(&cdata, lock_index);
 	if (ret == -1)
 		exit(EXIT_FAILURE);
 

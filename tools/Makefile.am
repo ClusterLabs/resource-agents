@@ -31,7 +31,7 @@ halib_PROGRAMS		= findif
 
 if BUILD_SFEX
 halib_PROGRAMS		+= sfex_daemon
-sbin_PROGRAMS		+= sfex_init
+sbin_PROGRAMS		+= sfex_init sfex_stat
 endif
 
 if USE_LIBNET
@@ -55,6 +55,10 @@ sfex_daemon_LDADD	= $(GLIBLIB) -lplumb -lplumbgpl
 sfex_init_SOURCES	= sfex_init.c sfex.h sfex_lib.c sfex_lib.h
 sfex_init_CFLAGS	= -D_GNU_SOURCE
 sfex_init_LDADD		= $(GLIBLIB) -lplumb -lplumbgpl
+
+sfex_stat_SOURCES	= sfex_stat.c sfex.h sfex_lib.c sfex_lib.h
+sfex_stat_CFLAGS	= -D_GNU_SOURCE
+sfex_stat_LDADD		= $(GLIBLIB) -lplumb -lplumbgpl
 
 findif_SOURCES		= findif.c
 

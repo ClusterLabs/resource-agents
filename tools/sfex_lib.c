@@ -2,7 +2,7 @@
  * 
  * Shared Disk File EXclusiveness Control Program(SF-EX)
  *
- * lib.c --- Libraries for other SF-EX modules.
+ * sfex_lib.c --- Libraries for other SF-EX modules.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -168,7 +168,7 @@ init_lockdata (sfex_lockdata * ldata)
  *
  * cdata --- pointer of control data
  *
- * device --- name of target file.
+ * device --- name of target file
  */
 void
 write_controldata (const sfex_controldata * cdata)
@@ -288,7 +288,7 @@ write_lockdata (const sfex_controldata * cdata, const sfex_lockdata * ldata,
  *
  * read sfex_controldata structure from file.
  *
- * cdata --- pointer for control data. 
+ * cdata --- pointer for control data
  *
  * device --- file name for reading
  */
@@ -431,4 +431,41 @@ read_lockdata (const sfex_controldata * cdata, sfex_lockdata * ldata,
   cl_log(LOG_INFO, "nodename: %s\n", ldata->nodename);
 #endif
   return 0;
+}
+
+/*
+ * lock_index_check --- check the value of index
+ *
+ * The lock_index_check function checks whether the value of index exceeds
+ * the number of lock data on the shared disk.
+ *
+ * cdata --- pointer for control data
+ *
+ * index --- index number
+ */
+int
+lock_index_check(sfex_controldata * cdata, int index)
+{
+        if (read_controldata(cdata) == -1) {
+                cl_log(LOG_ERR, "%s\n", "read_controldata failed in lock_index_check");
+                return -1;
+        }
+#ifdef SFEX_DEBUG
+        cl_log(LOG_INFO, "version: %d\n", cdata->version);
+        cl_log(LOG_INFO, "revision: %d\n", cdata->revision);
+        cl_log(LOG_INFO, "blocksize: %d\n", cdata->blocksize);
+        cl_log(LOG_INFO, "numlocks: %d\n", cdata->numlocks);
+#endif
+
+        if (index > cdata->numlocks) {
+                cl_log(LOG_ERR, "index %d is too large. %d locks are stored.\n",
+                                index, cdata->numlocks);
+                return -1;
+        }
+
+        if (cdata->blocksize != sector_size) {
+                cl_log(LOG_ERR, "sector_size is not the same as the blocksize.\n");
+                return -1;
+        }
+        return 0;
 }

@@ -2,7 +2,7 @@
  *
  * Shared Disk File EXclusiveness Control Program(SF-EX)
  *
- * lib.h --- Prototypes for lib.c.
+ * sfex_lib.h --- Prototypes for lib.c.
  * 
  * Copyright (c) 2007 NIPPON TELEGRAPH AND TELEPHONE CORPORATION
  * 
@@ -37,5 +37,6 @@ int write_lockdata(const sfex_controldata *cdata, const sfex_lockdata *ldata, in
 int read_controldata(sfex_controldata *cdata);
 int read_lockdata(const sfex_controldata *cdata, sfex_lockdata *ldata, int index);
 int prepare_lock(const char *device);
+int lock_index_check(sfex_controldata * cdata, int index);
 
 #endif /* LIB_H */
