@@ -61,6 +61,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			IPsrcaddr	\
 			iSCSITarget \
 			iSCSILogicalUnit \
+			jboss		\
 			LinuxSCSI	\
 			LVM		\
 			MailTo		\
