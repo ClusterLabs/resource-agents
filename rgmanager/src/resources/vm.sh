@@ -810,7 +810,6 @@ validate_all()
 		# Virsh makes it easier to do this.  Really.
 		if [ "$OCF_RESKEY_hypervisor" = "qemu" ]; then
 			export OCF_RESKEY_migration_uri="qemu+ssh://%s/system"
-			export migrateuriopt="tcp:%s"
 		fi
 
 		# I just need to believe in it more.
@@ -824,6 +823,10 @@ validate_all()
 	if [ -z "$OCF_RESKEY_name" ]; then
 		echo No domain name specified
 		return $OCF_ERR_ARGS
+	fi
+
+	if [ "$OCF_RESKEY_hypervisor" = "qemu" ]; then
+		export migrateuriopt="tcp:%s"
 	fi
 
 	#virsh list --all | awk '{print $2}' | grep -q "^$OCF_RESKEY_name\$"
