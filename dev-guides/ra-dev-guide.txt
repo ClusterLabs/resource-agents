@@ -103,8 +103,12 @@ Action timeouts are enforced outside the resource agent proper. It is
 the cluster manager's responsibility to monitor how long a resource
 agent action has been running, and terminate it if it does not meet
 its completion deadline. Thus, resource agents need not themselves
-check for any timeout expiry. They can, however, _advise_ the cluster
-manager about sensible timeout values.
+check for any timeout expiry.
+
+Resource agents can, however, _advise_ the user of sensible timeout
+values (which, when correctly set, will be duly enforced by the
+cluster manager). See <<_metadata,the following section>> for details
+on how a resource agent advertises its suggested timeouts.
 
 === Metadata
 
