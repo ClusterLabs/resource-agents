@@ -1142,9 +1142,10 @@ resource agent script, with leading directory names removed.
 
 === +$HA_RSCTMP+
 
-A temporary directory for use by resource agents. The cluster manager
-guarantees that this directory is emptied on system startup, so this
-directory will not contain any stale data after a node reboot.
+A temporary directory for use by resource agents. The system startup
+sequence (on any LSB compliant Linux distribution) guarantees that
+this directory is emptied on system startup, so this directory will
+not contain any stale data after a node reboot.
 
 == Convenience functions
 
