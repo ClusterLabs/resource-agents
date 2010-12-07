@@ -118,6 +118,8 @@ to this target</shortdesc>
 <longdesc lang="en">
 A username used for incoming initiator authentication. If unspecified,
 allowed initiators will be able to log in without authentication.
+This is a unique parameter, as it not allowed to re-use a single
+username across multiple target instances.
 </longdesc>
 <shortdesc lang="en">Incoming account username</shortdesc>
 <content type="string"/>
