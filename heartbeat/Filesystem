@@ -165,6 +165,18 @@ Specify how to decide whether to run fsck or not.
 <content type="string" default="auto" />
 </parameter>
 
+<parameter name="fast_stop">
+<longdesc lang="en">
+Normally, we expect no users of the filesystem and the stop
+operation to finish quickly. If you cannot control the filesystem
+users easily and want to prevent the stop action from failing,
+then set this parameter to "no" and add an appropriate timeout
+for the stop operation.
+</longdesc>
+<shortdesc lang="en">fast stop</shortdesc>
+<content type="boolean" default="yes" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -664,6 +676,51 @@ Filesystem_notify() {
 	done
 }
 
+signal_processes() {
+	local dir=$1
+	local sig=$2
+	# fuser returns a non-zero return code if none of the
+	# specified files is accessed or in case of a fatal 
+	# error.
+	if [ "X${HOSTOS}" = "XOpenBSD" ];then
+		PIDS=`fstat | grep $dir | awk '{print $3}'`
+		for PID in ${PIDS};do
+			kill -s $sig ${PID}
+			ocf_log info "Sent signal $sig to ${PID}"
+		done
+	else
+		if $FUSER -$sig -m -k $dir ; then
+			ocf_log info "Some processes on $dir were signalled"
+		else
+			ocf_log info "No processes on $dir were signalled"
+		fi
+	fi
+}
+try_umount() {
+	local SUB=$1
+	$UMOUNT $umount_force $SUB
+	list_mounts | grep -q " $SUB " >/dev/null 2>&1 || {
+		ocf_log info "unmounted $SUB successfully"
+		return $OCF_SUCCESS
+	}
+	return $OCF_ERR_GENERIC
+}
+fs_stop() {
+	local SUB=$1 timeout=$2 sig cnt
+	for sig in TERM KILL; do
+		cnt=$((timeout/2)) # try half time with TERM
+		while [ $cnt -gt 0 ]; do
+			try_umount $SUB &&
+				return $OCF_SUCCESS
+			ocf_log err "Couldn't unmount $SUB; trying cleanup with $sig"
+			signal_processes $SUB $sig
+			cnt=$((cnt-1))
+			sleep 1
+		done
+	done
+	return $OCF_ERR_GENERIC
+}
+
 #
 # STOP: Unmount the filesystem
 #
@@ -694,37 +751,17 @@ Filesystem_stop()
 		esac
 
 		# Umount all sub-filesystems mounted under $MOUNTPOINT/ too.
+		local timeout
 		for SUB in `list_submounts $MOUNTPOINT` $MOUNTPOINT; do
-			ocf_log info "Trying to unmount $MOUNTPOINT"
-			for sig in SIGTERM SIGTERM SIGTERM SIGKILL SIGKILL SIGKILL; do
-				$UMOUNT $umount_force $SUB
-				if list_mounts | grep -q " $SUB " >/dev/null 2>&1; then
-					rc=$OCF_ERR_GENERIC
-					ocf_log err "Couldn't unmount $SUB; trying cleanup with $sig"
-					# fuser returns a non-zero return code if none of the
-					# specified files is accessed or in case of a fatal 
-					# error.
-					if [ "X${HOSTOS}" = "XOpenBSD" ];then
-						PIDS=`fstat | grep ${SUB} | awk '{print $3}'`
-						for PID in ${PIDS};do
-							kill -s 9 ${PID}
-							ocf_log info "Sent kill -9 to ${PID}"
-						done
-					else
-						if $FUSER -$sig -m -k $SUB ; then
-							ocf_log info "Some processes on $SUB were signalled"
-						else
-							ocf_log info "No processes on $SUB were signalled"
-						fi
-					fi
-					sleep 1
-				else
-					rc=$OCF_SUCCESS
-					ocf_log info "unmounted $SUB successfully"
-					break
-				fi
-			done
-
+			ocf_log info "Trying to unmount $SUB"
+			if ocf_is_true "$FAST_STOP"; then
+				timeout=6
+			else
+				timeout=${OCF_RESKEY_CRM_meta_timeout:="20000"}
+				timeout=$((timeout/1000))
+			fi
+			fs_stop $SUB $timeout
+			rc=$?
 			if [ $rc -ne $OCF_SUCCESS ]; then
 				ocf_log err "Couldn't unmount $SUB, giving up!"
 			fi
@@ -908,6 +945,7 @@ FSTYPE=$OCF_RESKEY_fstype
 if [ ! -z "$OCF_RESKEY_options" ]; then
 	options="-o $OCF_RESKEY_options"
 fi
+FAST_STOP={$OCF_RESKEY_fast_stop:="yes"}
 
 OP=$1
 
