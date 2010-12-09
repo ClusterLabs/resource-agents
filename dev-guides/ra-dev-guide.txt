@@ -436,7 +436,7 @@ any parameter not marked as +required+ in the metadata.
 
 What follows next are the functions implementing the resource agent's
 advertised actions. The individual actions are described in detail in
-<<_resource_agent_behavior>>.
+<<_resource_agent_actions>>.
 
 === Execution block
 
@@ -482,7 +482,7 @@ exit $rc
 --------------------------------------------------------------------------
 
 
-== Resource agent behavior
+== Resource agent actions
 
 Each action is typically implemented in a separate function or method
 in the resource agent. By convention, these are usually named
