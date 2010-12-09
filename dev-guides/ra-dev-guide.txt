@@ -1344,6 +1344,54 @@ foobar_start() {
 }
 --------------------------------------------------------------------------
 
+== Testing resource agents
+
+The resource agents repository (and hence, any installed resource
+agents package) contains a utility named +ocf-tester+. This shell
+script allows you to conveniently and easily test the functionality of
+your resource agent.
+
++ocf-tester+ is commonly invoked, as +root+, like this:
+
+--------------------------------------------------------------------------
+ocf-tester -n <name> [-o <param>=<value> ... ] <resource agent>
+--------------------------------------------------------------------------
+
+* +<name>+ is an arbitrary resource name.
+
+* You may set any number of +<param>=<value>+ with the +-o+ option,
+  corresponding to any resource parameters you wish to set for
+  testing.
+
+* +<resource agent>+ is the full path to your resource agent.
+
+When invoked, +ocf-tester+ executes all mandatory actions and enforces
+action behavior as explained in <<_resource_agent_actions>>.
+
+It also tests for optional actions. Optional actions must behave as
+expected when advertised, but do not cause +ocf-tester+ to flag an
+error if not implemented.
+
+IMPORTANT: +ocf-tester+ does not initiate "dry runs" of actions, nor
+does it create resource dummies of any kind. Instead, it exercises the
+actual resource agent as-is, whether that may include opening and
+closing databases, mounting file systems, starting or stopping virtual
+machines, etc. Use with care.
+
+For example, you could run +ocf-tester+ on the +foobar+ resource agent
+as follows:
+
+--------------------------------------------------------------------------
+# ocf-tester -n foobartest \
+             -o superfrobnicate=true \
+             -o datadir=/tmp \
+             /home/johndoe/ra-dev/foobar
+Beginning tests for /home/johndoe/ra-dev/foobar...
+* Your agent does not support the notify action (optional)
+* Your agent does not support the reload action (optional)
+/home/johndoe/ra-dev/foobar passed all tests
+--------------------------------------------------------------------------
+
 == Special considerations
 
 === Licensing
