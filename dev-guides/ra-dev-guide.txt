@@ -1042,21 +1042,21 @@ are passed into the resource agent during execution:
   that the notification is about (+start+, +stop+, +promote+, +demote+
   etc.)
 
-* +$OCF_RESKEY_CRM_meta_start_uname+ -- node name of the node where
-  the resource is being started (+start+ notifications only)
+* +$OCF_RESKEY_CRM_meta_notify_start_uname+ -- node name of the node
+  where the resource is being started (+start+ notifications only)
 
-* +$OCF_RESKEY_CRM_meta_stop_uname+ -- node name of the node where
-  the resource is being stopped (+stop+ notifications only)
+* +$OCF_RESKEY_CRM_meta_notify_stop_uname+ -- node name of the node
+  where the resource is being stopped (+stop+ notifications only)
 
-* +$OCF_RESKEY_CRM_meta_master_uname+ -- node name of the node where
-  the resource currently _is in_ the Master role
+* +$OCF_RESKEY_CRM_meta_notify_master_uname+ -- node name of the node
+  where the resource currently _is in_ the Master role
 
-* +$OCF_RESKEY_CRM_meta_promote_uname+ -- node name of the node where
-  the resource currently _is being promoted to_ the Master role
+* +$OCF_RESKEY_CRM_meta_notify_promote_uname+ -- node name of the node
+  where the resource currently _is being promoted to_ the Master role
   (+promote+ notifications only)
 
-* +$OCF_RESKEY_CRM_meta_demote_uname+ -- node name of the node where
-  the resource currently _is being demoted to_ the Slave role
+* +$OCF_RESKEY_CRM_meta_notify_demote_uname+ -- node name of the node
+  where the resource currently _is being demoted to_ the Slave role
   (+demote+ notifications only)
 
 Notifications come in particularly handy for master/slave resources
@@ -1097,7 +1097,7 @@ foobar_notify() {
 NOTE: A master/slave resource agent may support a _multi-master_
 configuration, where there is possibly more than one master at any
 given time. If that is the case, then the
-+$OCF_RESKEY_CRM_meta_*_uname+ variables may each contain a
++$OCF_RESKEY_CRM_meta_notify_*_uname+ variables may each contain a
 space-separated lists of hostnames, rather than a single host name as
 shown in the example. Under those circumstances the resource agent
 would have to properly iterate over this list.
