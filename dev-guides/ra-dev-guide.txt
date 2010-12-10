@@ -1420,9 +1420,17 @@ with a client process, as shown in the example in
 
 === Specifying a master preference
 
-Stateful (master/slave) resources may influence their own _master
-preference_ -- they can provide hints to the cluster manager which is
-the the best instance to promote to the +Master+ role.
+Stateful (master/slave) resources must set their own _master
+preference_ -- they can thus provide hints to the cluster manager
+which is the the best instance to promote to the +Master+ role.
+
+IMPORTANT: It is acceptable for multiple instances to have identical
+positive master preferences. In that case, the cluster resource
+manager will automatically select a resource agent to
+promote. However, if _all_ instances have the (default) master score
+of zero, the cluster manager will not promote any instance at
+all. Thus, it is crucial that at least one instance has a positive
+master score.
 
 For this purpose, +crm_master+ comes in handy. This convenience
 wrapper around the +crm_attribute+ sets a node attribute named
