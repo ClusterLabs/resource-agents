@@ -1575,3 +1575,40 @@ be able to properly identify, parse, and execute your resource
 agent. The Pacemaker cluster manager, for example, would map the
 above-mentioned installation path to the +ocf:fortytwo:foobar+
 resource type identifier.
+
+=== Packaging resource agents
+
+When you package resource agents as part of your own project, your
+should apply the following considerations.
+
+==== RPM packaging
+
+It is recommended to put your OCF resource agent(s) in an RPM
+sub-package, with the name +<toppackage>-resource-agents+. Ensure that
+the package owns its provider directory, and depends on the upstream
++resource-agents+ package which lays out the directory hierarchy and
+provides convenience shell functions. An example RPM spec snippet is
+given below:
+
+--------------------------------------------------------------------------
+%package resource-agents
+Summary: OCF resource agent for Foobar
+Group: System Environment/Base
+Requires: %{name} = %{version}-%{release}, resource-agents
+
+%description resource-agents
+This package contains the OCF-compliant resource agents for Foobar.
+
+%files resource-agents
+%defattr(755,root,root,-)
+%dir %{_prefix}/lib/ocf/resource.d/fortytwo
+%{_prefix}/lib/ocf/resource.d/fortytwo/foobar
+--------------------------------------------------------------------------
+
+NOTE: If an RPM spec file contains a +%package+ declaration, then RPM
+considers this a sub-package which inherits top-level fields such as
++Name+, +Version+, +License+, etc. Sub-packages have the top-level
+package name automatically prepended to their own name. Thus the snippet
+above would create a sub-package named +foobar-resource-agents+
+(presuming the package +Name+ is +foobar+).
+
