@@ -1578,8 +1578,12 @@ resource type identifier.
 
 === Packaging resource agents
 
-When you package resource agents as part of your own project, your
-should apply the following considerations.
+When you package resource agents as part of your own project, you
+should apply the considerations outlined in this section.
+
+NOTE: If you instead prefer to submit your resource agent to the
+Linux-HA resource agents repository, see
+<<_submitting_resource_agents>> for information on doing so.
 
 ==== RPM packaging
 
@@ -1637,4 +1641,74 @@ consist of the following content:
 
 --------------------------------------------------------------------------
 usr/lib/ocf/resource.d/fortytwo/foobar
+--------------------------------------------------------------------------
+
+=== Submitting resource agents
+
+If you choose not to bundle your resource agent with your own package,
+but instead wish to submit it to the upstream resource agent
+repository hosted on http://hg.linux-ha.org/agents[the Linux-HA
+Mercurial server], please follow the steps outlined in this section.
+
+Create a working copy (a Mercurial _clone_) of the upstream repository
+with the following command:
+
+--------------------------------------------------------------------------
+hg clone http://hg.linux-ha.org/agents resource-agents
+--------------------------------------------------------------------------
+
+Create a new Mercurial queue, and a new patchset:
+-------------------------------------------------------------------------
+cd resource-agents
+hg qinit
+hg qnew --edit foobar-ra
+--------------------------------------------------------------------------
+
+In your patch message, be sure to include a meaningful description,
+for example:
+--------------------------------------------------------------------------
+High: foobar: new resource agent
+
+This new resource agent adds functionality to manage a foobar service.
+It supports being configured as a primitive or as a master/slave set,
+and also optionally supports superfrobnication.
+--------------------------------------------------------------------------
+
+Then, copy your resource agent into the +heartbeat+ subdirectory:
+--------------------------------------------------------------------------
+cd heartbeat
+cp /path/to/your/local/copy/of/foobar .
+chmod 0755 foobar
+hg add foobar
+cd ..
+--------------------------------------------------------------------------
+
+Next, modify the +Makefile.am+ file in +resource-agents/heartbeat+ and
+add your new resource agent to the +ocf_SCRIPTS+ list. This will make
+sure the agent is properly installed.
+
+Lastly, open Makefile.am in +resource-agents/doc+ and add
++ocf_heartbeat_<name>.7+ to the +man_MANS+ variable. This will
+automatically generate a resource agent manual page from its metadata,
+and then install that man page into the correct location.
+
+Once all that is done, you can update your patch set:
+--------------------------------------------------------------------------
+hg qrefresh
+--------------------------------------------------------------------------
+
+Now the patch set is good for review on the mailing list:
+--------------------------------------------------------------------------
+hg email --to=linux-ha-dev@lists.linux-ha.org foobar-ra
+--------------------------------------------------------------------------
+
+Once your new resource agent has been accepted for merging, one of the
+upstream developers will push your patch into the upstream
+repository. At that point, you can update your checkout from upstream,
+and remove your own patch set.
+
+--------------------------------------------------------------------------
+hg qpop -a
+hg pull --update
+hg qdelete foobar-ra
 --------------------------------------------------------------------------
