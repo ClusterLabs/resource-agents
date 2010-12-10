@@ -1612,3 +1612,29 @@ package name automatically prepended to their own name. Thus the snippet
 above would create a sub-package named +foobar-resource-agents+
 (presuming the package +Name+ is +foobar+).
 
+==== Debian packaging
+
+For Debian packages, like for <<_rpm_packaging,RPMs>>, it is
+recommended to create a separate package holding your resource agents,
+which then should depend on the +cluster-agents+ package.
+
+NOTE: This section assumes that you are packaging with +debhelper+.
+
+An example +debian/control+ snippet is given below:
+
+--------------------------------------------------------------------------
+Package: foobar-cluster-agents
+Priority: extra
+Architecture: all
+Depends: cluster-agents
+Description: OCF-compliant resource agents for Foobar
+--------------------------------------------------------------------------
+
+You will also create a separate +.install+ file. Sticking with the
+example of installing the +foobar+ resource agent as a sub-package of
++fortytwo+, the +debian/fortytwo-cluster-agents.install+ file could
+consist of the following content:
+
+--------------------------------------------------------------------------
+usr/lib/ocf/resource.d/fortytwo/foobar
+--------------------------------------------------------------------------
