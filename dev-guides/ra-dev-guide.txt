@@ -1555,3 +1555,23 @@ Beginning tests for /home/johndoe/ra-dev/foobar...
 * Your agent does not support the reload action (optional)
 /home/johndoe/ra-dev/foobar passed all tests
 --------------------------------------------------------------------------
+
+=== Installing resource agents
+
+If you choose to include your resource agent in your own project, make
+sure it installs into the correct location. Resource agents should
+install into the +/usr/lib/ocf/resource.d/<provider>+ directory, where
++<provider>+ is the name of your project or any other name you wish to
+identify the resource agent with.
+
+For example, if your +foobar+ resource agent is being packaged as part
+of a project named +fortytwo+, then the correct full path to your
+resource agent would be
++/usr/lib/ocf/resource.d/fortytwo/foobar+. Make sure your resource
+agent installs with +0755+ (+-rwxr-xr-x+) permission bits.
+
+When installed this way, OCF-compliant cluster resource managers will
+be able to properly identify, parse, and execute your resource
+agent. The Pacemaker cluster manager, for example, would map the
+above-mentioned installation path to the +ocf:fortytwo:foobar+
+resource type identifier.
