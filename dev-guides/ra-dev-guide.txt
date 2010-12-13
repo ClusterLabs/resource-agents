@@ -1,6 +1,4 @@
-The OCF Resource Agent Developer's Guide
-========================================
-Florian Haas <florian.haas@linbit.com>
+= The OCF Resource Agent Developer's Guide
 
 == Introduction
 
