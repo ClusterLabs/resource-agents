@@ -247,7 +247,7 @@ CheckIP() {
 	then
 	    if [ $1 -eq 127 ]; then
 		ocf_log err "IP address [$ip] is a loopback address, thus can not be preferred source address"
-		exit $OCF_ERR_ARGS
+		exit $OCF_ERR_CONFIGURED
 	    fi
 	else
 	    true
@@ -385,7 +385,7 @@ ip_status() {
 	  case $IF in
 	  	lo*)  
 		    ocf_log err "IP address [$BASEIP] is served by loopback, thus can not be preferred source address"
-		    exit $OCF_ERR_ARGS
+		    exit $OCF_ERR_CONFIGURED
 		    ;;
 		*)return $OCF_SUCCESS;;
 	  esac
@@ -412,7 +412,7 @@ srca_validate_all() {
 	  : 
 	else
 	  ocf_log err "Invalid IP address [$ipaddress]"
-	  exit $OCF_ERR_ARGS
+	  exit $OCF_ERR_CONFIGURED
 	fi
 
 #	We should serve this IP address of course
@@ -420,7 +420,7 @@ srca_validate_all() {
 	  :
 	else
 	  ocf_log err "We are not serving [$ipaddress], hence can not make it a preferred source address"
-	  exit $OCF_ERR_ARGS
+	  exit $OCF_ERR_INSTALLED
 	fi
 }
 
@@ -448,12 +448,15 @@ if
 then
 #  usage
   ocf_log err "Please set OCF_RESKEY_ipaddress to the preferred source IP address!"
-  exit $OCF_ERR_ARGS
+  exit $OCF_ERR_CONFIGURED
 fi
 
 ipaddress="$OCF_RESKEY_ipaddress"
 
-INTERFACE=`$FINDIF -C |grep -o "^[^[:space:]]*"`
+findif_out=`$FINDIF -C`
+rc=$?
+[ $rc -ne 0 ] && exit $rc
+INTERFACE=`echo $findif_out | awk '{print $1}'`
 NETWORK=`ip route list dev $INTERFACE scope link|grep -o '^[^ ]*'`
 
 case $1 in
