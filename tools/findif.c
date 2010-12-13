@@ -153,7 +153,15 @@ char * get_ifname(char * buf, char * ifname);
 int ConvertQuadToInt(char *dest);
 
 static const char *cmdname = "findif";
-void usage(void);
+#define OCF_SUCCESS             0
+#define OCF_ERR_GENERIC         1
+#define OCF_ERR_ARGS            2
+#define OCF_ERR_UNIMPLEMENTED   3
+#define OCF_ERR_PERM            4
+#define OCF_ERR_INSTALLED       5
+#define OCF_ERR_CONFIGURED      6
+#define OCF_NOT_RUNNING         7
+void usage(int ec);
 
 #define PATH_PROC_NET_DEV "/proc/net/dev"
 #define DELIM	'/'
@@ -170,7 +178,7 @@ SearchUsingProcRoute (char *address, struct in_addr *in
 	unsigned long   dest;
 	long		metric = LONG_MAX;
 	long		best_metric = LONG_MAX;
-	int		rc = 0;
+	int		rc = OCF_SUCCESS;
 	
 	char	buf[2048];
 	char	interface[MAXSTR];
@@ -180,7 +188,7 @@ SearchUsingProcRoute (char *address, struct in_addr *in
 		snprintf(errmsg, errmsglen
 		,	"Cannot open %s for reading"
 		,	PROCROUTE);
-		rc = -1; goto out;
+		rc = OCF_ERR_GENERIC; goto out;
 	}
 
 	/* Skip first (header) line */
@@ -188,7 +196,7 @@ SearchUsingProcRoute (char *address, struct in_addr *in
 		snprintf(errmsg, errmsglen
 		,	"Cannot skip first line from %s"
 		,	PROCROUTE);
-		rc = -1; goto out;
+		rc = OCF_ERR_GENERIC; goto out;
 	}
 	while (fgets(buf, sizeof(buf), routefd) != NULL) {
 		if (sscanf(buf, "%[^\t]\t%lx%lx%lx%lx%lx%lx%lx"
@@ -197,7 +205,7 @@ SearchUsingProcRoute (char *address, struct in_addr *in
 		!= 8) {
 			snprintf(errmsg, errmsglen, "Bad line in %s: %s"
 			,	PROCROUTE, buf);
-			rc = -1; goto out;
+			rc = OCF_ERR_GENERIC; goto out;
 		}
 		if ( (in->s_addr&mask) == (in_addr_t)(dest&mask)
 		&&	metric < best_metric) {
@@ -209,7 +217,7 @@ SearchUsingProcRoute (char *address, struct in_addr *in
 
 	if (best_metric == LONG_MAX) {
 		snprintf(errmsg, errmsglen, "No route to %s\n", address);
-		rc = 1; 
+		rc = OCF_ERR_GENERIC; 
 	}
 
   out:
@@ -242,7 +250,7 @@ SearchUsingRouteCmd (char *address, struct in_addr *in
 	,	ROUTE, ROUTEPARM, address);
 	routefd = popen (routecmd, "r");
 	if (routefd == NULL)
-		return (-1);
+		return (OCF_ERR_GENERIC);
 	mask[0] = EOS;
 	interface[0] = EOS;
 
@@ -309,20 +317,19 @@ SearchUsingRouteCmd (char *address, struct in_addr *in
 	if (inet_pton(AF_INET, mask, &maskbits) <= 0) {
 		snprintf(errmsg, errmsglen,
 		  "mask [%s] not valid.", mask);
-		return(1);
+		return(OCF_ERR_CONFIGURED);
 	}
 
 	if (inet_pton(AF_INET, address, addr_out) <= 0) {
 		snprintf(errmsg, errmsglen
 		,	"IP address [%s] not valid.", address);
-		usage();
-		return(1);
+		return(OCF_ERR_CONFIGURED);
 	}
 
 	if ((in->s_addr & maskbits) == (addr_out->s_addr & maskbits)) {
 		if (interface[0] == EOS) {
 			snprintf(errmsg, errmsglen, "No interface found.");
-			return(1);
+			return(OCF_ERR_GENERIC);
 		}
 		best_metric = 0;
 		*best_netmask = maskbits;
@@ -331,10 +338,10 @@ SearchUsingRouteCmd (char *address, struct in_addr *in
 
 	if (best_metric == INT_MAX) {
 		snprintf(errmsg, errmsglen, "No route to %s\n", address);
-		return(1);
+		return(OCF_ERR_GENERIC);
 	}
 
-	return (0);
+	return (OCF_SUCCESS);
 }
 
 /*
@@ -375,7 +382,8 @@ ValidateNetmaskBits (char *netmaskbits, unsigned long *netmask)
 		||	(strspn(netmaskbits, "0123456789") != nmblen)) {
 			fprintf(stderr, "Invalid netmask specification"
 			" [%s]", netmaskbits);
-			usage();
+			usage(OCF_ERR_CONFIGURED);
+			/*not reached */
 		}else{
 			unsigned long	bits = atoi(netmaskbits);
 
@@ -383,7 +391,7 @@ ValidateNetmaskBits (char *netmaskbits, unsigned long *netmask)
 				fprintf(stderr
 				,	"Invalid netmask specification [%s]"
 				,	netmaskbits);
-				usage();
+				usage(OCF_ERR_CONFIGURED);
 				/*not reached */
 				exit(1);
 			}
@@ -404,7 +412,7 @@ ValidateIFName(const char *ifname, struct ifreq *ifr)
 
  	if ( (skfd = socket(PF_INET, SOCK_DGRAM, 0)) == -1 ) {
  		fprintf(stderr, "%s\n", strerror(errno));
- 		return 0;
+ 		return -2;
  	}
  
 	strncpy(ifr->ifr_name, ifname, IFNAMSIZ);
@@ -584,7 +592,8 @@ main(int argc, char ** argv) {
 		break;
 	}
 	if (argerrs) {
-		usage();
+		usage(OCF_ERR_ARGS);
+		/* not reached */
 		return(1);
 	}
 
@@ -592,16 +601,16 @@ main(int argc, char ** argv) {
 	,	 &if_specified);
 	if (address == NULL || *address == EOS) {
 		fprintf(stderr, "ERROR: IP address parameter is mandatory.");
-		usage();
-		return(1);
+		usage(OCF_ERR_CONFIGURED);
+		/* not reached */
 	}
 
 	/* Is the IP address we're supposed to find valid? */
 	 
 	if (inet_pton(AF_INET, address, (void *)&in) <= 0) {
 		fprintf(stderr, "IP address [%s] not valid.", address);
-		usage();
-		return(1);
+		usage(OCF_ERR_CONFIGURED);
+		/* not reached */
 	}
 
 	if(netmaskbits != NULL && *netmaskbits != EOS
@@ -616,14 +625,15 @@ main(int argc, char ** argv) {
 
 	if (if_specified != NULL && *if_specified != EOS) {
 		if(ValidateIFName(if_specified, &ifr) < 0) {
-			usage();
+			usage(OCF_ERR_CONFIGURED);
+			/* not reached */
 		}
 		strncpy(best_if, if_specified, sizeof(best_if));
 		*(best_if + sizeof(best_if) - 1) = '\0';
 	}else{
 		SearchRoute **sr = search_mechs;
 		char errmsg[MAXSTR] = "No valid mecahnisms";
-		int rc = -1;
+		int rc = OCF_ERR_GENERIC;
 
 		strcpy(best_if, "UNKNOWN");
 
@@ -632,7 +642,7 @@ main(int argc, char ** argv) {
 			rc = (*sr) (address, &in, &addr_out, best_if
 			,	sizeof(best_if)
 			,	&best_netmask, errmsg, sizeof(errmsg));
-			if (rc >= 0) {		/* Mechanism worked */
+			if (!rc) {		/* Mechanism worked */
 				break;
 			}
 			sr++;
@@ -640,7 +650,7 @@ main(int argc, char ** argv) {
 		if (rc != 0) {	/* No route, or all mechanisms failed */
 			if (*errmsg) {
 				fprintf(stderr, "%s", errmsg);
-				return(1);
+				return(rc);
 			}
 		}
 	}
@@ -658,13 +668,13 @@ main(int argc, char ** argv) {
 				best_netmask = 0x000000ff;
 			} else {
 				fprintf(stderr, "No loopback interface found.\n");
-				return(1);
+				return(OCF_ERR_GENERIC);
 			}
 		} else {
 			fprintf(stderr
 			,	"ERROR: Cannot use default route w/o netmask [%s]\n"
 			,	 address);
-			return(1);
+			return(OCF_ERR_GENERIC);
 		}
 	}
 
@@ -677,7 +687,8 @@ main(int argc, char ** argv) {
  		struct in_addr bcast_addr;
  		if (inet_pton(AF_INET, bcast_arg, (void *)&bcast_addr) <= 0) {
  			fprintf(stderr, "Invalid broadcast address [%s].", bcast_arg);
- 			usage();
+ 			usage(OCF_ERR_CONFIGURED);
+			/* not reached */
  		}
 
 		best_netmask = htonl(best_netmask);
@@ -734,7 +745,7 @@ main(int argc, char ** argv) {
 }
 
 void
-usage(void)
+usage(int ec)
 {
 	fprintf(stderr, "\n"
 		"%s version 2.99.1 Copyright Alan Robertson\n"
@@ -749,7 +760,7 @@ usage(void)
 		"OCF_RESKEY_broadcast	 broadcast address for interface\n"
 		"OCF_RESKEY_nic		 interface to assign to\n"
 	,	cmdname, cmdname);
-	exit(1);
+	exit(ec);
 }
 
 /*
