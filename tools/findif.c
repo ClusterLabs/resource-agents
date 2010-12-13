@@ -650,8 +650,8 @@ main(int argc, char ** argv) {
 		if (rc != 0) {	/* No route, or all mechanisms failed */
 			if (*errmsg) {
 				fprintf(stderr, "%s", errmsg);
-				return(rc);
 			}
+			return(rc);
 		}
 	}
 
