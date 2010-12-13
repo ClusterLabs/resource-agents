@@ -266,6 +266,8 @@ END
 }
 
 ip_init() {
+	local rc
+
 	if [ X`uname -s` != "XLinux" ]; then
 		ocf_log err "IPaddr2 only supported Linux."
 		exit $OCF_ERR_INSTALLED
@@ -315,7 +317,7 @@ ip_init() {
 
 	if [ $LVS_SUPPORT -gt 0 ] && [ $IP_INC_GLOBAL -gt 1 ]; then
 		ocf_log err "LVS and load sharing do not go together well"
-		exit $OCF_ERR_ARGS
+		exit $OCF_ERR_CONFIGURED
 	fi
 
 	ARP_INTERVAL_MS=${OCF_RESKEY_arp_interval:-200}
@@ -327,13 +329,15 @@ ip_init() {
 		:
 	else
 		ocf_log err "Invalid OCF_RESKEY_incarnations_max_global [$IP_INC_GLOBAL], should be positive integer"
-		exit $OCF_ERR_ARGS
+		exit $OCF_ERR_CONFIGURED
 	fi
 
 	# $FINDIF takes its parameters from the environment
 	#
+	NICINFO=`$FINDIF -C`
+	rc=$?
 	if
-	  NICINFO=`$FINDIF -C`
+	  [ $rc -eq 0 ]
         then
 	    NICINFO=`echo $NICINFO | sed -e 's/netmask\ //;s/broadcast\ //'`
 	    NIC=`echo "$NICINFO" | cut -d" " -f1`
@@ -349,7 +353,7 @@ ip_init() {
 			exit $OCF_SUCCESS
 		else
 			ocf_log err "[$FINDIF -C] failed"
-			exit $OCF_ERR_ARGS
+			exit $rc
 		fi
 	fi
 	
@@ -625,7 +629,7 @@ END
 
 ip_start() {
 	if [ -z "$NIC" ]; then # no nic found or specified
-		exit $OCF_ERR_ARGS
+		exit $OCF_ERR_CONFIGURED
 	fi
 
 	if [ -n "$IP_CIP" ]; then
@@ -803,14 +807,14 @@ ip_validate() {
 	:
     else
 	ocf_log err "Invalid OCF_RESKEY_arp_interval [$ARP_INTERVAL_MS]"
-	exit $OCF_ERR_ARGS
+	exit $OCF_ERR_CONFIGURED
     fi
 
     if ocf_is_decimal "$ARP_REPEAT" && [ $ARP_REPEAT -gt 0 ]; then
 	:
     else
 	ocf_log err "Invalid OCF_RESKEY_arp_count [$ARP_REPEAT]"
-	exit $OCF_ERR_ARGS
+	exit $OCF_ERR_CONFIGURED
     fi
 
     if [ -n "$IP_CIP" ]; then
@@ -822,13 +826,13 @@ ip_validate() {
 		;;
 	*)
 		ocf_log err "Invalid OCF_RESKEY_clusterip_hash [$IP_CIP_HASH]"
-		exit $OCF_ERR_ARGS
+		exit $OCF_ERR_CONFIGURED
 		;;
 	esac
 
 	if [ "$LVS_SUPPORT" = 1 ]; then
 		ecf_log err "LVS and load sharing not advised to try"
-		exit $OCF_ERR_ARGS
+		exit $OCF_ERR_CONFIGURED
 	fi
 
 	case $IF_MAC in
@@ -841,7 +845,7 @@ ip_validate() {
 
 	if [ $valid -eq 0 ]; then
 	  ocf_log err "Invalid IF_MAC [$IF_MAC]"
-	  exit $OCF_ERR_ARGS
+	  exit $OCF_ERR_CONFIGURED
 	fi
 
     fi
