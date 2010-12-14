@@ -46,6 +46,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			anything	\
 			AoEtarget	\
 			apache		\
+			nginx		\
 			AudibleAlarm	\
 			db2		\
 			Delay		\

@@ -1,0 +1,946 @@
+#!/bin/sh
+#
+#	High-Availability nginx OCF resource agent
+# 
+# nginx
+#
+# Description:	starts/stops nginx servers.
+#
+# Author:	Alan Robertson
+#		Dejan Muhamedagic
+#		This code is based significantly on the apache resource agent
+#
+# Support:	linux-ha@lists.linux-ha.org
+#
+# License:	GNU General Public License (GPL)
+#
+# Copyright:	(C) 2002-2010 International Business Machines
+#
+#
+# Our parsing of the nginx config files is very rudimentary.
+# It'll work with lots of different configurations - but not every
+# possible configuration.
+#
+# Patches are being accepted ;-)
+#
+# OCF parameters:
+#  OCF_RESKEY_configfile
+#  OCF_RESKEY_nginx
+#  OCF_RESKEY_port
+#  OCF_RESKEY_options
+#  OCF_RESKEY_status10regex
+#  OCF_RESKEY_status10url
+#  OCF_RESKEY_client
+#  OCF_RESKEY_testurl
+#  OCF_RESKEY_test20regex
+#  OCF_RESKEY_test20conffile
+#  OCF_RESKEY_test20name
+#  OCF_RESKEY_external_monitor30_cmd
+#
+#
+#	TO DO:
+#		More extensive tests of extended monitor actions
+#		Look at the --with-http_stub_status_module for validating
+#			the configuration?  (or is that automatically done?)
+#			Checking could certainly result in better error
+#			messages.
+#		Allow for the fact that the config file and so on might all be
+#			on shared disks - this affects the validate-all option.
+
+
+: ${OCF_FUNCTIONS_DIR=$OCF_ROOT/resource.d/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+HA_VARRUNDIR=${HA_VARRUN}
+
+#######################################################################
+#
+#	Configuration options - usually you don't need to change these
+#
+#######################################################################
+#
+NGINXDLIST="/usr/sbin/nginx /usr/local/sbin/nginx"
+
+# default options for http clients
+# NB: We _always_ test a local resource, so it should be
+# safe to connect from the local interface.
+WGETOPTS="-O- -q -L --no-proxy --bind-address=127.0.0.1"
+CURLOPTS="-o - -Ss -L --interface lo"
+
+LOCALHOST="http://localhost"
+NGINXDOPTS=""
+#
+#
+#	End of Configuration options
+#######################################################################
+
+CMD=`basename $0`
+
+#	The config-file-pathname is the pathname to the configuration
+#	file for this web server.  Various appropriate defaults are
+#	assumed if no config file is specified.
+usage() {
+  cat <<-!
+usage: $0 action
+
+action:
+	start	start nginx
+
+	stop	stop nginx
+
+	reload	reload the nginx configuration
+
+	status	return the status of web server, running or stopped
+
+	monitor  return TRUE if the web server appears to be working.
+                For this to be supported you must configure mod_status
+		and give it a server-status URL - or configure what URL
+		you wish to be monitored.  You have to have installed
+		either curl or wget for this to work.
+
+	meta-data	show meta data message
+
+	validate-all	validate the instance parameters
+	!
+  exit $1
+}
+
+#
+# run the http client
+#
+curl_func() {
+	cl_opts="$CURLOPTS $test_httpclient_opts"
+	if
+	  [ x != "x$test_user" ]
+        then
+	  echo "-u $test_user:$test_password" |
+	  curl -K - $cl_opts "$1"
+	else
+	  curl $cl_opts "$1"
+	fi
+}
+wget_func() {
+	auth=""
+	cl_opts="$WGETOPTS $test_httpclient_opts"
+	[ x != "x$test_user" ] &&
+		auth="--http-user=$test_user --http-passwd=$test_password"
+	wget $auth $cl_opts "$1"
+}
+#
+# rely on whatever the user provided
+userdefined() {
+	$test_httpclient $test_httpclient_opts "$1"
+}
+
+#
+# find a good http client
+#
+findhttpclient() {
+	# prefer curl if present...
+	if
+          [ "x$CLIENT" != x ]
+        then
+		echo "$CLIENT"
+	elif
+          which curl >/dev/null 2>&1
+        then
+		echo "curl"
+	elif
+          which wget >/dev/null 2>&1
+        then
+		echo "wget"
+	else
+		return 1
+	fi
+}
+gethttpclient() {
+	[ -z "$test_httpclient" ] &&
+		test_httpclient=$ourhttpclient
+	case "$test_httpclient" in
+		curl|wget) echo ${test_httpclient}_func;;  #these are supported
+		*) echo userdefined;;
+	esac
+}
+
+# test configuration good?
+is_testconf_sane() {
+	if
+          [ "x$test_regex" = x -o "x$test_url" = x ]
+        then
+	  ocf_log err "test regular expression or test url empty"
+	  return 1
+	fi
+	if
+          [ "x$test_user$test_password" != x -a \( "x$test_user" = x -o "x$test_password" = x \) ]
+        then
+	  ocf_log err "bad user authentication for extended test"
+	  return 1
+	fi
+	return 0
+}
+#
+# read the test definition from the config
+#
+readtestconf() {
+  test_name="$1" # we look for this one or the first one if empty
+  lcnt=0
+  readdef=""
+  test_url="" test_regex=""
+  test_user="" test_password=""
+  test_httpclient="" test_httpclient_opts=""
+
+  while
+    read key value
+  do
+    lcnt=$((lcnt+1))
+    if
+      [ "$readdef" ]
+    then
+      case "$key" in
+		"url") test_url="$value" ;;
+		"user") test_user="$value" ;;
+		"password") test_password="$value" ;;
+		"client") test_httpclient="$value" ;;
+		"client_opts") test_httpclient_opts="$value" ;;
+		"match") test_regex="$value" ;;
+		"end") break ;;
+		"#"*|"") ;;
+		*) ocf_log err "$lcnt: $key: unknown keyword"; return 1 ;;
+      esac
+    else
+      [ "$key" = "test" ] &&
+      [ -z "$test_name" -o "$test_name" = "$value" ] &&
+      readdef=1
+    fi
+  done
+}
+
+nginxcat() {
+  awk '
+	function procline() {
+		split($0,a);
+		if( a[1]~/^[Ii]nclude$/ ) {
+			procinclude(a[2]);
+		} else {
+			if( a[1]=="root" ) {
+				rootdir=a[2];
+				gsub("\"","",rootdir);
+			}
+			print;
+		}
+	}
+	function printfile(infile, a) {
+		while( (getline<infile) > 0 ) {
+			procline();
+		}
+		close(infile);
+	}
+	function allfiles(dir, cmd,f) {
+		cmd="find -L "dir" -type f";
+		while( ( cmd | getline f ) > 0 ) {
+			printfile(f);
+		}
+		close(cmd);
+	}
+	function listfiles(pattern, cmd,f) {
+		cmd="ls "pattern" 2>/dev/null";
+		while( ( cmd | getline f ) > 0 ) {
+			printfile(f);
+		}
+		close(cmd);
+	}
+	function procinclude(spec) {
+		if( rootdir!="" && spec!~/^\// ) {
+			spec=rootdir"/"spec;
+		}
+		if( isdir(spec) ) {
+			allfiles(spec); # read all files in a directory (and subdirs)
+		} else {
+			listfiles(spec); # there could be jokers
+		}
+	}
+	function isdir(s) {
+		return !system("test -d \""s"\"");
+	}
+	{ procline(); }
+	' $1 |
+  sed 's/#.*//;s/[[:blank:]]*$//;s/^[[:blank:]]*//' |
+  grep -v '^$'
+}
+
+#
+# set parameters (as shell vars) from our nginx config file
+#
+get_nginx_params() {
+  configfile=$1
+  shift 1
+  vars=`echo $@ | sed 's/ /,/g'`
+
+  eval `
+  nginxcat $configfile | awk -v vars="$vars" '
+  BEGIN{
+    split(vars,v,",");
+    for( i in v )
+  	  vl[i]=tolower(v[i]);
+  }
+  {
+	  for( i in v )
+	  	if( tolower($1)==vl[i] ) {
+			print v[i]"="$2
+			delete vl[i]
+			break
+		}
+  }
+  '`
+}
+
+#
+#	Return the location(s) that are handled by the given handler
+#
+FindLocationForHandler() {
+  PerlScript='while (<>) {
+	/^\s*location\s+([^ \s{]+)\s*{/i && ($loc=$1);
+	/^\s*stub_status\s+on\s*;$2/i && print "$loc\n"; 
+  }'
+  nginxcat $1 | perl -e "$PerlScript"
+}
+
+#
+#	Check if the port is valid
+#
+CheckPort() {
+  lclport="$1"
+  case "$lclport" in
+    *:[0-9]*)	lclport=`echo "$lclport" | sed 's%^[^:][^:]*:%%'`
+  esac
+  ocf_is_decimal "$lclport" && [ $lclport -gt 0 -a $lclport -lt 65537 ]
+}
+
+buildlocalurl() {
+  [ "x$listen" != "x" ] &&
+	echo "http://${listen}" ||
+	echo "${LOCALHOST}:${PORT}"
+}
+#
+#	Get all the parameters we need from the Nginx config file
+#
+GetParams() {
+  ConfigFile=$1
+  DEFAULT_PID=`echo "$NGINX_CONFIGURATION" | sed -e 's%.*--pid-path=%%' -e 's% *--.*%%'`
+  if
+    [ ! -f $ConfigFile ]
+  then
+    return 1
+  fi
+
+  get_nginx_params $ConfigFile root pid listen
+  case $PidFile in
+    "")	PidFile=$DEFAULT_PID	;;
+    *)				;;
+  esac
+
+  for p in "$PORT" "$listen" 80
+  do
+    if
+      CheckPort "$p"
+    then
+      PORT="$p"
+      break
+    fi
+  done
+ 
+  echo $listen | grep ':' >/dev/null ||  # Listen could be just port spec
+	  listen="localhost:$listen"
+
+  #
+  # It's difficult to figure out whether the server supports
+  # the status operation.
+  # (we start our server with -DSTATUS - just in case :-))
+  #
+  # Typically (but not necessarily) the status URL is /nginx_status
+  #
+  # For us to think status will work, we have to have the following things:
+  #
+  # - The server-status handler has to be mapped to some URL somewhere
+  #
+  # We assume that:
+  #
+  # - the "main" web server at $PORT will also support it if we can find it
+  #	somewhere in the file
+  # - it will be supported at the same URL as the one we find in the file
+  #
+  # If this doesn't work for you, then set the status10url attribute.
+  #
+  if
+     [ "X$STATUSURL" = "X" ]
+  then
+      StatusURL=`FindLocationForHandler $1 nginx_status | tail -1`
+      STATUSURL="`buildlocalurl`$StatusURL"
+  fi
+  test ! -z "$PidFile"
+}
+
+#
+# return TRUE if a process with given PID is running
+#
+ProcessRunning() {
+    NginxPID=$1
+    # Use /proc if it looks like it's here...
+    if
+      [ -d /proc -a -d /proc/1 ]
+    then
+       [ -d /proc/$NginxPID ]
+    else
+      #  This assumes we're running as root...
+      kill -0 "$NginxPID" >/dev/null 2>&1
+    fi
+}
+
+
+silent_status() {
+  if
+    [ -f $PidFile  -a  -s $PidFile ]  && ocf_is_decimal "`cat $PidFile`"
+  then
+    ProcessRunning `cat $PidFile`
+  else
+    : No pid file
+    false
+  fi
+}
+
+start_nginx() {
+  if
+    silent_status
+  then
+    ocf_log info "$CMD already running (pid $NginxPID)"
+    return $OCF_SUCCESS
+  fi
+  if 
+    ocf_run $NGINXD -t -c $CONFIGFILE
+  then
+    : Configuration file $CONFIGFILE looks OK
+  else
+    return $OCF_ERR_CONFIGURED
+  fi
+  NGINX_VERSION=`$NGINXD -v 2>&1`
+  ocf_log info "Starting $NGINXD - $NGINX_VERSION"
+  ocf_log info "$NGINXD build configuration: $NGINX_CONFIGURATION"
+  if 
+    ocf_run $NGINXD $NGINXDOPTS $OPTIONS -c $CONFIGFILE
+  then
+    : $NGINXD started without errors!
+  else
+    return $OCF_ERR_GENERIC
+  fi
+  tries=0
+  # This looks like a potential infinite loop - but it's not in practice
+  # The LRM will time us out and kill us if nginx never starts working.
+  while
+    monitor_nginx
+    ec=$?
+    if
+      [ $ec -eq $OCF_NOT_RUNNING ]
+    then
+      tries=`expr $tries + 1`
+      ocf_log info "Waiting for $NGINXD -c $CONFIGFILE to come up (try $tries)"
+      true
+    else
+      false
+    fi
+  do
+    sleep 1
+  done
+  return $ec
+}
+
+stop_nginx() {
+  if
+    silent_status
+  then
+    if
+      kill $NginxPID
+    then
+      tries=0
+      while
+        ProcessRunning $NginxPID && [ $tries -lt 10 ]
+      do
+        sleep 1
+        kill $NginxPID >/dev/null 
+        ocf_log info "Killing nginx PID $NginxPID"
+        tries=`expr $tries + 1`
+      done
+    else
+      ocf_log warn "Killing nginx PID $NginxPID FAILED."
+    fi
+    if
+      ProcessRunning $NginxPID
+    then
+      ocf_log info "$CMD still running ($NginxPID)."
+      false
+    else
+      ocf_log info "$CMD stopped."
+    fi
+  else
+    ocf_log info "$CMD is not running."
+  fi
+
+  #
+  #	I'm not convinced this is a wonderful idea (AlanR)
+  #
+  for sig in SIGTERM SIGHUP SIGKILL
+  do
+    if
+      pgrep -f "$NGINXD.*$CONFIGFILE" >/dev/null
+    then
+      pkill -$sig -f $NGINXD.*$CONFIGFILE >/dev/null
+      ocf_log info "nginxd children were signalled ($sig)"
+      sleep 1
+    else
+      break
+    fi
+  done
+}
+
+reload_nginx() {
+  if
+    silent_status
+  then
+    if
+      kill -1 $NginxPID
+    then
+      : $NGINX reload signal to $NginxPID succeeded
+      return $OCF_SUCCESS
+    fi
+    return $OCF_ERR_GENERIC
+  fi
+  start_nginx
+}
+
+status_nginx() {
+  silent_status
+  rc=$?
+  if
+    [ $rc -eq 0 ]
+  then
+    ocf_log info "$CMD is running (pid $NginxPID)."
+    return $OCF_SUCCESS
+  else
+    ocf_log info "$CMD is stopped."
+    return $OCF_NOT_RUNNING
+  fi
+}
+
+fixtesturl() {
+	echo $test_url | grep -qs "^http" && return
+	test_url="`buildlocalurl`$test_url"
+}
+
+monitor_nginx_external() {
+  if
+    [ -z "$EXTMONITOR" ]
+  then
+    ocf_log err "$External level 30 Monitor Command not configured."
+    return $OCF_ERR_CONFIGURED
+  fi
+  extbase=`echo $EXTMONITOR | sed 's% .*%%'`
+  if
+    case "$extbase" in
+      /*)	test -f "$extbase" -a -x "$extbase";;
+      *)	which "$extbase" >/dev/null 2>&1
+    esac
+  then
+    : OK - $extbase seems to be there...
+  else
+    ocf_log err "$External monitor command [$extbase] is not installed."
+    return $OCF_ERR_CONFIGURED
+  fi
+  if
+    $extbase
+  then
+    : OK - $extbase succeeded
+  else
+    ocf_log err "$extbase reported failure [rc=$?]"
+    return $OCF_NOT_RUNNING
+  fi
+  return $OCF_SUCCESS
+}
+
+
+monitor_nginx_extended() {
+  if
+    [ -f "$TESTCONFFILE" -a -r "$TESTCONFFILE" ]
+  then
+    readtestconf < $TESTCONFFILE
+  else
+    test_url="$TESTURL"
+    test_regex="$TESTREGEX20"
+  fi
+  whattorun=`gethttpclient`
+  fixtesturl
+  is_testconf_sane || return $OCF_ERR_CONFIGURED
+  $whattorun "$test_url" | grep -Ei "$test_regex" > /dev/null
+}
+
+monitor_nginx_basic() {
+  if
+    [ -z "$STATUSURL" ]
+  then
+    ocf_log err "status10url parameter empty"
+    return $OCF_ERR_CONFIGURED
+  elif
+    [ -z "$ourhttpclient" ]
+  then
+    ocf_log err "could not find a http client; make sure that either wget or curl is available"
+	return $OCF_ERR_CONFIGURED
+  fi
+  ${ourhttpclient}_func "$STATUSURL" | grep -Ei "$TESTREGEX" > /dev/null
+}
+
+monitor_nginx() {
+  silent_status
+  if
+    [ $? -ne 0 ]
+  then
+    ocf_log info "$CMD not running"
+    return $OCF_NOT_RUNNING
+  fi
+  if
+    [ -z "$OCF_CHECK_LEVEL" ] || [ "$OCF_CHECK_LEVEL" -lt 10  ]
+  then
+    return 0
+  fi
+  ourhttpclient=`findhttpclient`  # we'll need one
+  if
+    [ "$OCF_CHECK_LEVEL" -lt 20 ]
+  then
+    monitor_nginx_basic
+  elif
+    [ "$OCF_CHECK_LEVEL" -lt 30 ]
+  then
+    monitor_nginx_extended
+  else
+    monitor_nginx_external
+  fi
+}
+
+metadata_nginx(){
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="nginx">
+<version>1.0</version>
+
+<longdesc lang="en">
+This is the resource agent for the Nginx web/proxy server.
+This resource agent does not monitor POP or IMAP servers, as
+we don't know how to determine meaningful status for them.
+
+The start operation ends with a loop in which monitor is
+repeatedly called to make sure that the server started and that
+it is operational. Hence, if the monitor operation does not
+succeed within the start operation timeout, the nginx resource
+will end with an error status.
+
+The default monitor operation will verify that nginx is running.
+
+The level 10 monitor operation by default will try and fetch the /nginx_status
+page - which is commented out in sample nginx configurations.
+Make sure that the /nginx_status page works and that the access
+is restricted to localhost (address 127.0.0.1) plus whatever
+places _outside the cluster_ you want to monitor the server from.
+See the status10url and status10regex attributes for more details.
+
+The level 20 monitor operation will perform a more complex set of tests
+from a configuration file.
+
+The level 30 monitor operation will run an external command to perform
+an arbitrary monitoring operation.
+
+</longdesc>
+<shortdesc lang="en">Manages an Nginx web/proxy server instance</shortdesc>
+
+<parameters>
+
+<parameter name="configfile" required="0" unique="1">
+<longdesc lang="en">
+The full pathname of the Nginx configuration file.
+This file is parsed to provide defaults for various other
+resource agent parameters.
+</longdesc>
+<shortdesc lang="en">configuration file path</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="httpd">
+<longdesc lang="en">
+The full pathname of the httpd binary (optional).
+</longdesc>
+<shortdesc lang="en">httpd binary path</shortdesc>
+<content type="string" default="/usr/sbin/httpd" />
+</parameter>
+
+<parameter name="port" >
+<longdesc lang="en">
+A port number that we can probe for status information
+using the statusurl.
+This will default to the port number found in the
+configuration file, or 80, if none can be found
+in the configuration file.
+
+</longdesc>
+<shortdesc lang="en">httpd port</shortdesc>
+<content type="integer" />
+</parameter>
+
+<parameter name="status10url">
+<longdesc lang="en">
+The URL to monitor (the nginx server status page by default) when given a level 10 monitor operation.
+If left unspecified, it will be inferred from
+the nginx configuration file, or defaulted to /nginx_status.
+
+If you set this, make sure that it succeeds *only* from the
+localhost (127.0.0.1) and no other cluster nodes.
+Otherwise, the cluster software may complain
+about it being active on multiple nodes.
+</longdesc>
+<shortdesc lang="en">url name</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="status10regex">
+<longdesc lang="en">
+Regular expression to match in the output of status10url.
+Case insensitive.
+</longdesc>
+<shortdesc lang="en">monitor regular expression</shortdesc>
+<content type="string" default="Reading: [0-9]+ Writing: [0-9]+ Waiting: [0-9]+"/>
+</parameter>
+
+<parameter name="testclient">
+<longdesc lang="en">
+Client to use to query to Nginx for level 10 and level 20 tests.
+If not specified, the RA will try to find one on the system.
+Currently, wget and curl are supported, with curl being preferred.
+For example, you can set this paramter to "wget" if you prefer that to curl.
+</longdesc>
+<shortdesc lang="en">http client</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="testurl">
+<longdesc lang="en">
+URL to test. If it does not start with "http", then it's
+considered to be relative to the document root address.
+</longdesc>
+<shortdesc lang="en">Level 10 monitor url</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="test20regex">
+<longdesc lang="en">
+Regular expression to match in the output of testurl.
+Case insensitive.
+</longdesc>
+<shortdesc lang="en">Level 20 monitor regular expression</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="testconffile">
+<longdesc lang="en">
+A file which contains a more complex test configuration. Could be useful if
+you have to check more than one web application or in case sensitive
+info should be passed as arguments (passwords). Furthermore,
+using a config file is the only way to specify certain parameters.
+
+Please see README.webapps for examples and file description.
+</longdesc>
+<shortdesc lang="en">Level 20 test configuration file</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="test20name">
+<longdesc lang="en">
+Name of the test within the test configuration file.
+</longdesc>
+<shortdesc lang="en">Level 20 test name</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="external_monitor30_cmd">
+<longdesc lang="en">
+Command string to run which implements level 30 monitoring.
+</longdesc>
+<shortdesc lang="en">Level 30 test string</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="options">
+<longdesc lang="en">
+Extra options to apply when starting nginx.
+</longdesc>
+<shortdesc lang="en">nginx start options</shortdesc>
+<content type="string" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"   timeout="40s" />
+<action name="stop"    timeout="60s" />
+<action name="reload"  timeout="40s" />
+<action name="status"  timeout="30s" />
+<action name="monitor" timeout="30s" depth="0" interval="10s" />
+<action name="monitor" timeout="30s" depth="10" interval="30s" />
+<action name="monitor" timeout="45s" depth="20" />
+<action name="monitor" timeout="60s" depth="30" />
+<action name="meta-data"  timeout="5" />
+<action name="validate-all"  timeout="5" />
+</actions>
+</resource-agent>
+END
+
+  exit $OCF_SUCCESS
+}
+
+validate_all_nginx() {
+  if
+    CheckPort $PORT
+    # We are sure to succeed here, since we forced $PORT to be valid in GetParams()
+  then
+    : OK
+  else
+    ocf_log err "Port number $PORT is invalid!"
+    exit $OCF_ERR_ARGS
+  fi
+
+  if
+    [ -z $STATUSURL ]
+  then
+    : OK to be empty
+  else
+    case $STATUSURL in
+      http://*/*) ;;
+      *) ocf_log err "Invalid STATUSURL $STATUSURL"
+         exit $OCF_ERR_ARGS ;;
+    esac
+  fi
+  if
+    [ ! -x $NGINXD ]
+  then
+    ocf_log err "NGINXD $NGINXD not found or is not an executable!"
+    exit $OCF_ERR_ARGS
+  fi
+  if
+    [ ! -f $CONFIGFILE ]
+  then
+    # We are sure to succeed here, since we have parsed $CONFIGFILE before getting here
+    ocf_log err "Configuration file $CONFIGFILE not found!"
+    exit $OCF_ERR_CONFIGURED
+  fi
+  if
+    ocf_run $NGINXD -t -c $CONFIGFILE
+  then
+    : Cool $NGINXD likes $CONFIGFILE
+  else
+    ocf_log err "$NGINXD -t -c $CONFIGFILE reported a configuration error."
+    return $OCF_ERR_CONFIGURED
+  fi
+  return $OCF_SUCCESS
+}
+
+if
+  [ $# -eq 1 ]
+then
+  COMMAND=$1
+  NGINXD="$OCF_RESKEY_httpd"
+  PORT="$OCF_RESKEY_port"
+  STATUSURL="$OCF_RESKEY_status10url"
+  CONFIGFILE="$OCF_RESKEY_configfile"
+  OPTIONS="$OCF_RESKEY_options"
+  CLIENT=${OCF_RESKEY_client}
+  TESTREGEX=${OCF_RESKEY_status10regex:-'Reading: [0-9]+ Writing: [0-9]+ Waiting: [0-9]+'}
+  TESTURL="$OCF_RESKEY_status10url"
+  TESTREGEX20=${OCF_RESKEY_test20regex}
+  TESTCONFFILE="$OCF_RESKEY_test20conffile"
+  TESTNAME="$OCF_RESKEY_test20name"
+  EXTMONITOR="$OCF_RESKEY_external_monitor30_cmd"
+else
+  usage $OCF_ERR_ARGS
+fi
+
+LSB_STATUS_STOPPED=3
+if
+  [ "X$NGINXD" = X -o ! -f "$NGINXD" -o ! -x "$NGINXD" ]
+then
+  NGINXD=
+  for h in $NGINXDLIST
+  do
+    if
+      [ -f "$h" -a -x "$h" ]
+    then
+      NGINXD="$h"
+      break
+    fi
+  done
+# It is possible that we still do not have a valid httpd at this stage
+  if
+    [ -z "$NGINXD" ]
+  then
+    case $COMMAND in
+	    stop)	exit $OCF_SUCCESS;;
+	    monitor)	exit $OCF_NOT_RUNNING;;
+            status)	exit $LSB_STATUS_STOPPED;;
+  	    meta-data)	metadata_nginx;;
+    esac
+    ocf_log err "nginx binary not found! Please verify you've installed it"
+    exit $OCF_ERR_INSTALLED
+  fi
+  # Let the user know that the $NGINXD used is the one (s)he specified via $OCF_RESKEY_httpd
+  if
+    [ ! -z "$OCF_RESKEY_httpd" ]
+  then
+    ocf_log info "Using $NGINXD as nginx"
+  fi
+fi
+
+httpd_basename=`basename $NGINXD`
+case $httpd_basename in
+  *-*)	httpd_basename=`echo "$httpd_basename" | sed -e 's%\-.*%%'`;;
+esac
+NGINX_CONFIGURATION=`$NGINXD -V 2>&1 |grep 'configure arguments:'`
+DEFAULT_CONFIG=`echo "$NGINX_CONFIGURATION" | sed -e 's%.*--conf-path=%%' -e 's% *--.*%%'`
+
+case "$CONFIGFILE" in
+  "") CONFIGFILE=$DEFAULT_CONFIG;;
+  *)		;;
+esac
+
+if
+  [ ! -f "$CONFIGFILE" ]
+then
+  case $COMMAND in
+    stop)	ocf_log warn "$CONFIGFILE not found - nginx considered stopped"
+    		exit $OCF_SUCCESS;;
+    monitor)	exit $OCF_NOT_RUNNING;;
+    status)	exit $LSB_STATUS_STOPPED;;
+  esac
+fi
+
+if
+  [ "X$COMMAND" = Xmeta-data ] || GetParams $CONFIGFILE
+then
+  : OK
+else
+  ocf_log err "Cannot parse config file [$CONFIGFILE]"
+  exit $OCF_ERR_CONFIGURED
+fi
+
+case $COMMAND in
+  start)	start_nginx;;
+  stop)		stop_nginx;;
+  reload)	reload_nginx;;
+  status)	status_nginx;;
+  monitor)	monitor_nginx;;
+  meta-data)	metadata_nginx;;
+  validate-all)	validate_all_nginx;;
+  *)		usage $OCF_ERR_UNIMPLEMENTED;;
+esac
