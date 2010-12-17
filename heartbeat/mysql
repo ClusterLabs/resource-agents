@@ -781,7 +781,10 @@ mysql_stop() {
     fi
 
 	# stop waiting
-    shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
+    shutdown_timeout=15
+    if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+	shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
+    fi
     count=0
     while [ $count -lt $shutdown_timeout ]
     do
