@@ -67,7 +67,7 @@ sapinstance_meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPInstance">
-<version>2.02</version>
+<version>2.03</version>
 
 <longdesc lang="en">
 Resource script for SAP. It manages a SAP Instance as an HA resource.
@@ -301,7 +301,7 @@ sapinstance_init() {
     export LD_LIBRARY_PATH
   fi
 
-  sidadm="`echo $SID | tr [:upper:] [:lower:]`adm"
+  sidadm="`echo $SID | tr '[:upper:]' '[:lower:]'`adm"
 
   return $OCF_SUCCESS
 }
