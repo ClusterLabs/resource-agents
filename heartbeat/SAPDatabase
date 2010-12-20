@@ -178,7 +178,7 @@ trap_handler() {
 # listener_start: Start the given listener
 #
 listener_start() {
-  orasid="ora`echo $SID | tr [:upper:] [:lower:]`"
+  orasid="ora`echo $SID | tr '[:upper:]' '[:lower:]'`"
   rc=$OCF_SUCCESS
   output=`echo "lsnrctl start $NETSERVICENAME" | su - $orasid 2>&1`
   if [ $? -eq 0 ]
@@ -196,7 +196,7 @@ listener_start() {
 # listener_stop: Stop the given listener
 #
 listener_stop() {
-  orasid="ora`echo $SID | tr [:upper:] [:lower:]`"
+  orasid="ora`echo $SID | tr '[:upper:]' '[:lower:]'`"
   rc=$OCF_SUCCESS
   if
       listener_status
@@ -220,7 +220,7 @@ listener_stop() {
 # listener_status: is the given listener running?
 #
 listener_status() {
-  orasid="ora`echo $SID | tr [:upper:] [:lower:]`"
+  orasid="ora`echo $SID | tr '[:upper:]' '[:lower:]'`"
   # Note: ps cuts off it's output at column $COLUMNS, so "ps -ef" can not be used here
   # as the output might be to long.
   cnt=`ps efo args --user $orasid | grep $NETSERVICENAME | grep -c tnslsnr`
@@ -479,7 +479,7 @@ exit \$rc" > $TEMPFILE
 # db6udb_recover: try to recover DB/2 after a crash
 #
 db6udb_recover() {
-  db2sid="db2`echo $SID | tr [:upper:] [:lower:]`"
+  db2sid="db2`echo $SID | tr '[:upper:]' '[:lower:]'`"
 
 echo '#!/bin/sh
 LOG=$HOME/recover.log
@@ -729,11 +729,11 @@ sapdatabase_status() {
          SNUM=2
          ;;
     ORA) SEARCH="ora_[a-z][a-z][a-z][a-z]_"
-         SUSER="ora`echo $SID | tr [:upper:] [:lower:]`"
+         SUSER="ora`echo $SID | tr '[:upper:]' '[:lower:]'`"
          SNUM=4
          ;;
     DB6) SEARCH="db2[a-z][a-z][a-z][a-z][a-z]"
-         SUSER="db2`echo $SID | tr [:upper:] [:lower:]`"
+         SUSER="db2`echo $SID | tr '[:upper:]' '[:lower:]'`"
          SNUM=5
          ;;
   esac
@@ -970,7 +970,7 @@ if [ `echo $LD_LIBRARY_PATH | grep -c "^$DIR_EXECUTABLE\>"` -eq 0 ]; then
   LD_LIBRARY_PATH=$DIR_EXECUTABLE${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH
   export LD_LIBRARY_PATH
 fi
-sidadm="`echo $SID | tr [:upper:] [:lower:]`adm"
+sidadm="`echo $SID | tr '[:upper:]' '[:lower:]'`adm"
 
 # What kind of method was invoked?
 case "$1" in
