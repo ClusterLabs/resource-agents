@@ -67,7 +67,7 @@ sapinstance_meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPInstance">
-<version>2.03</version>
+<version>2.10</version>
 
 <longdesc lang="en">
 Resource script for SAP. It manages a SAP Instance as an HA resource.
@@ -245,13 +245,7 @@ sapinstance_init() {
 
   if [ -z "$OCF_RESKEY_DIR_PROFILE" ]
   then
-    if [ -d /usr/sap/$SID/SYS/profile/ ]
-    then
-      DIR_PROFILE="/usr/sap/$SID/SYS/profile"
-    else
-      ocf_log warn "Expected /usr/sap/$SID/SYS/profile/ to be a directory, please set DIR_PROFILE parameter!"
-      exit $OCF_NOT_RUNNING
-    fi
+    DIR_PROFILE="/usr/sap/$SID/SYS/profile"
   else
     DIR_PROFILE="$OCF_RESKEY_DIR_PROFILE"
   fi
@@ -266,11 +260,6 @@ sapinstance_init() {
   if [ -z "$currentSTART_PROFILE" ]
   then
     SAPSTARTPROFILE="$DIR_PROFILE/START_${InstanceName}_${SAPVIRHOST}"
-    if [ ! -r $SAPSTARTPROFILE ]
-    then
-      ocf_log warn "Expected $SAPSTARTPROFILE to be the instance START profile, please set START_PROFILE parameter!"
-      exit $OCF_NOT_RUNNING
-    fi
   else
     SAPSTARTPROFILE="$currentSTART_PROFILE"
   fi
@@ -335,6 +324,21 @@ check_sapstartsrv() {
 
   if [ $restart -eq 1 ]
   then
+
+    if [ -d /usr/sap/$SID/SYS/profile/ ]
+    then
+      DIR_PROFILE="/usr/sap/$SID/SYS/profile"
+    else
+      ocf_log warn "Expected /usr/sap/$SID/SYS/profile/ to be a directory, please set DIR_PROFILE parameter!"
+      exit $OCF_NOT_RUNNING
+    fi
+
+    if [ ! -r $SAPSTARTPROFILE ]
+    then
+      ocf_log warn "Expected $SAPSTARTPROFILE to be the instance START profile, please set START_PROFILE parameter!"
+      exit $OCF_NOT_RUNNING
+    fi
+
     pkill -9 -f "sapstartsrv.*$runninginst"
     $SAPSTARTSRV pf=$SAPSTARTPROFILE -D -u $sidadm
 
