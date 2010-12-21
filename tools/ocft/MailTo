@@ -22,12 +22,7 @@ CASE "check base env"
 CASE "check base env: unset 'OCF_RESKEY_email'"
 	Include prepare
 	Unvar OCF_RESKEY_email
-	AgentRun start OCF_ERR_ARGS
-
-CASE "check base env: set worng 'OCF_RESKEY_email'"
-	Include prepare
-	Var OCF_RESKEY_email=not_ip_address
-	AgentRun start OCF_ERR_ARGS
+	AgentRun start OCF_ERR_CONFIGURED
 
 CASE "normal start"
 	Include prepare

@@ -170,8 +170,7 @@ if
   [ -z "$OCF_RESKEY_email" ]
 then
   ocf_log err "At least 1 Email address has to be given!"
-#  usage
-  exit $OCF_ERR_GENERIC
+  exit $OCF_ERR_CONFIGURED
 fi
 
 email=$OCF_RESKEY_email
