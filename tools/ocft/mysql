@@ -12,31 +12,21 @@ SETUP-AGENT
 CASE-BLOCK crm_setting
 	Var OCF_RESKEY_CRM_meta_timeout=15000
 
-CASE-BLOCK required_args
-	Var OCF_RESKEY_binary=/usr/bin/mysqld_safe
-	Var OCF_RESKEY_pid=/var/lib/mysql/mysqld.pid
-
 CASE-BLOCK default_status
 	AgentRun stop
 
 CASE-BLOCK prepare
 	Include crm_setting
-	Include required_args
 	Include default_status
 
 CASE "check base env"
 	Include prepare
 	AgentRun start OCF_SUCCESS
 
-CASE "check base env: unset 'OCF_RESKEY_binary'"
+CASE "check base env: invalid 'OCF_RESKEY_binary'"
 	Include prepare
-	Unvar OCF_RESKEY_binary
+	Var OCF_RESKEY_binary=no_such
 	AgentRun start OCF_ERR_INSTALLED
-
-CASE "check base env: unset 'OCF_RESKEY_pid'"
-	Include prepare
-	Unvar OCF_RESKEY_pid
-	AgentRun start OCF_ERR_PERM
 
 CASE "normal start"
 	Include prepare
@@ -67,9 +57,9 @@ CASE "not running status"
 
 CASE "check lib file"
 	Include prepare
-	Bash chmod u-x /var/lib/mysql
-	BashAtExit chmod u+x /var/lib/mysql
-	AgentRun start OCF_ERR_INSTALLED
+	Bash chmod u-w /var/lib/mysql
+	BashAtExit chmod u+w /var/lib/mysql
+	AgentRun start OCF_ERR_PERM
 
 CASE "unimplemented command"
 	Include prepare
