@@ -228,12 +228,12 @@ nfsserver_validate ()
 
 	if [ -z ${OCF_RESKEY_nfs_ip} ]; then
 		ocf_log err "nfs_ip not set"
-		exit $OCF_ERR_ARGS
+		exit $OCF_ERR_CONFIGURED
 	fi
 
 	if [ x = "x$OCF_RESKEY_nfs_shared_infodir" ]; then
 		ocf_log err "nfs_shared_infodir not set"
-		exit $OCF_ERR_ARGS
+		exit $OCF_ERR_CONFIGURED
 	fi
 
 	return $OCF_SUCCESS

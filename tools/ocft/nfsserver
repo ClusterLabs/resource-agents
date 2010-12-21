@@ -22,24 +22,24 @@ CASE "check base env"
 	Include prepare
 	AgentRun start OCF_SUCCESS
 
-CASE "check base env: unset 'OCF_RESKEY_nfs_init_script'"
+CASE "check base env: invalid 'OCF_RESKEY_nfs_init_script'"
 	Include prepare
-	Unvar OCF_RESKEY_nfs_init_script
+	Var OCF_RESKEY_nfs_init_script=no_such_script
 	AgentRun start OCF_ERR_INSTALLED
 
 CASE "check base env: unset 'OCF_RESKEY_nfs_ip'"
 	Include prepare
 	Unvar OCF_RESKEY_nfs_ip
-	AgentRun start OCF_ERR_ARGS
+	AgentRun start OCF_ERR_CONFIGURED
 
 CASE "check base env: unset 'OCF_RESKEY_nfs_shared_infodir'"
 	Include prepare
 	Unvar OCF_RESKEY_nfs_shared_infodir
-	AgentRun start OCF_ERR_ARGS
+	AgentRun start OCF_ERR_CONFIGURED
 
-CASE "check base env: unset 'OCF_RESKEY_nfs_notify_cmd'"
+CASE "check base env: invalid 'OCF_RESKEY_nfs_notify_cmd'"
 	Include prepare
-	Unvar OCF_RESKEY_nfs_notify_cmd
+	Var OCF_RESKEY_nfs_notify_cmd=no_such_program
 	AgentRun start OCF_ERR_INSTALLED
 
 CASE "normal start"
