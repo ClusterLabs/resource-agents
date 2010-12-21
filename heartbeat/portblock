@@ -381,7 +381,7 @@ IptablesValidateAll()
 	;;
     *)
 	ocf_log err "Invalid protocol $protocol!"
-	exit $OCF_ERR_ARGS
+	exit $OCF_ERR_CONFIGURED
 	;;
   esac
 
@@ -389,17 +389,17 @@ IptablesValidateAll()
 	:
   else
 	ocf_log err "Invalid port number $portno!"
-	exit $OCF_ERR_ARGS
+	exit $OCF_ERR_CONFIGURED
   fi
 
   if [ -n "$OCF_RESKEY_tickle_dir" ]; then
 	if [ x"$action" != x"unblock" ]; then
 		ocf_log err "Tickles are only useful with action=unblock!"
-		exit $OCF_ERR_ARGS
+		exit $OCF_ERR_CONFIGURED
 	fi
 	if [ ! -d "$OCF_RESKEY_tickle_dir" ]; then
 		ocf_log err "The tickle dir doesn't exist!"
-		exit $OCF_ERR_ARGS	  	
+		exit $OCF_ERR_INSTALLED	  	
 	fi
   fi
 
@@ -408,7 +408,7 @@ IptablesValidateAll()
 	;;
     *)		
 	ocf_log err "Invalid action $action!"
-	exit $OCF_ERR_ARGS
+	exit $OCF_ERR_CONFIGURED
 	;; 
   esac
   return $OCF_SUCCESS
@@ -434,17 +434,17 @@ esac
 
 if [ -z "$OCF_RESKEY_protocol" ]; then
   ocf_log err "Please set OCF_RESKEY_protocol"
-  exit $OCF_ERR_ARGS
+  exit $OCF_ERR_CONFIGURED
 fi 
 
 if [ -z "$OCF_RESKEY_portno" ]; then
   ocf_log err "Please set OCF_RESKEY_portno"
-  exit $OCF_ERR_ARGS
+  exit $OCF_ERR_CONFIGURED
 fi 
 
 if [ -z "$OCF_RESKEY_action" ]; then
   ocf_log err "Please set OCF_RESKEY_action"
-  exit $OCF_ERR_ARGS
+  exit $OCF_ERR_CONFIGURED
 fi 
 
 protocol=$OCF_RESKEY_protocol
