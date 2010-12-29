@@ -422,9 +422,7 @@ $SRVMGRDBA_EXE /NOLOG >> $LOG << !
 connect / as sysdba
 shutdown abort
 startup mount
-WHENEVER SQLERROR EXIT SQL.SQLCODE
-WHENEVER OSERROR EXIT FAILURE
-alter database recover automatic database;
+alter database end backup;
 alter database open;
 exit
 !
