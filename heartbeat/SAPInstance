@@ -208,6 +208,30 @@ is_clone() {
 
 
 #
+# abnormal_end : essential things are missing, but in the natur of a SAP installation - which can be very different
+#                from customer to customer - we cannot handle this always as an error
+#                This would be the case, if the software is installed on shared disks and not visible
+#                to all cluster nodes at all times.
+#
+abnormal_end() {
+  err_msg=$1
+
+  ocf_is_probe && {
+    sapinstance_status
+    exit $?
+  }
+
+  if [ "$ACTION" = "stop" ]
+  then
+    cleanup_instance
+    exit $OCF_SUCCESS
+  fi
+
+  ocf_log err $err_msg
+  exit $OCF_ERR_CONFIGURED
+}
+
+#
 # sapinstance_init : Define global variables with default values, if optional parameters are not set
 #
 #
@@ -233,15 +257,17 @@ sapinstance_init() {
       DIR_EXECUTABLE="/usr/sap/$SID/SYS/exe/run"
       SAPSTARTSRV="/usr/sap/$SID/SYS/exe/run/sapstartsrv"
       SAPCONTROL="/usr/sap/$SID/SYS/exe/run/sapcontrol"
-    else
-      ocf_log warn "Cannot find sapstartsrv and sapcontrol executable, please set DIR_EXECUTABLE parameter!"
-      exit $OCF_NOT_RUNNING
     fi
   else
-    DIR_EXECUTABLE="$OCF_RESKEY_DIR_EXECUTABLE"
-    SAPSTARTSRV="$OCF_RESKEY_DIR_EXECUTABLE/sapstartsrv"
-    SAPCONTROL="$OCF_RESKEY_DIR_EXECUTABLE/sapcontrol"
+    if have_binary "$OCF_RESKEY_DIR_EXECUTABLE/sapstartsrv" && have_binary "$OCF_RESKEY_DIR_EXECUTABLE/sapcontrol"
+    then
+      DIR_EXECUTABLE="$OCF_RESKEY_DIR_EXECUTABLE"
+      SAPSTARTSRV="$OCF_RESKEY_DIR_EXECUTABLE/sapstartsrv"
+      SAPCONTROL="$OCF_RESKEY_DIR_EXECUTABLE/sapcontrol"
+    fi
   fi
+
+  [ -z "$DIR_EXECUTABLE" ] && abnormal_end "Cannot find sapstartsrv and sapcontrol executable, please set DIR_EXECUTABLE parameter!"
 
   if [ -z "$OCF_RESKEY_DIR_PROFILE" ]
   then
@@ -329,15 +355,10 @@ check_sapstartsrv() {
     then
       DIR_PROFILE="/usr/sap/$SID/SYS/profile"
     else
-      ocf_log warn "Expected /usr/sap/$SID/SYS/profile/ to be a directory, please set DIR_PROFILE parameter!"
-      exit $OCF_NOT_RUNNING
+      abnormal_end "Expected /usr/sap/$SID/SYS/profile/ to be a directory, please set DIR_PROFILE parameter!"
     fi
 
-    if [ ! -r $SAPSTARTPROFILE ]
-    then
-      ocf_log warn "Expected $SAPSTARTPROFILE to be the instance START profile, please set START_PROFILE parameter!"
-      exit $OCF_NOT_RUNNING
-    fi
+    [ ! -r $SAPSTARTPROFILE ] && abnormal_end "Expected $SAPSTARTPROFILE to be the instance START profile, please set START_PROFILE parameter!"
 
     pkill -9 -f "sapstartsrv.*$runninginst"
     $SAPSTARTSRV pf=$SAPSTARTPROFILE -D -u $sidadm
@@ -357,7 +378,8 @@ check_sapstartsrv() {
       chkrc=$OCF_SUCCESS
     else
       ocf_log error "sapstartsrv for instance $SID-$InstanceName could not be started!"
-      chkrc=$OCF_NOT_RUNNING
+      chkrc=$OCF_ERR_GENERIC
+      ocf_is_probe && chkrc=$OCF_NOT_RUNNING
     fi
   fi
 
@@ -415,9 +437,12 @@ sapinstance_start() {
     loopcount=$(($loopcount + 1))
 
     check_sapstartsrv
-    output=`$SAPCONTROL -nr $InstanceNr -function Start`
     rc=$?
-    ocf_log info "Starting SAP Instance $SID-$InstanceName: $output"
+    if [ $rc -eq $OCF_SUCCESS ]; then
+      output=`$SAPCONTROL -nr $InstanceNr -function Start`
+      rc=$?
+      ocf_log info "Starting SAP Instance $SID-$InstanceName: $output"
+    fi
 
     if [ $rc -ne 0 ]
     then
@@ -491,8 +516,13 @@ sapinstance_stop() {
   sapuserexit PRE_STOP_USEREXIT "$OCF_RESKEY_PRE_STOP_USEREXIT"
 
   check_sapstartsrv
+  rc=$?
+  if [ $rc -eq $OCF_SUCCESS ]; then
+    output=`$SAPCONTROL -nr $InstanceNr -function Stop`
+    rc=$?
+    ocf_log info "Stopping SAP Instance $SID-$InstanceName: $output"
+  fi
 
-  output=`$SAPCONTROL -nr $InstanceNr -function Stop`
   if [ $? -eq 0 ]
   then
     output=`$SAPCONTROL -nr $InstanceNr -function WaitforStopped 3600 1`
@@ -558,16 +588,33 @@ sapinstance_monitor() {
 
     if [ $count -eq 0 -a $rc -eq $OCF_SUCCESS ]
     then
-      if [ "$MONLOG" != "NOLOG" ]
+      if ocf_is_probe
       then
-        ocf_log err "The SAP instance does not run any services which this RA could monitor!"
+        rc=$OCF_NOT_RUNNING
+      else
+        [ "$MONLOG" != "NOLOG" ] && ocf_log err "The SAP instance does not run any services which this RA could monitor!"
+        rc=$OCF_ERR_GENERIC
       fi
-      rc=$OCF_ERR_ARGS
     fi
   fi
  
   return $rc
 }
+
+
+#
+# sapinstance_status: Lightweight check of SAP instance only with OS tools
+#
+sapinstance_status() {
+  [ ! -f "/usr/sap/$SID/$InstanceName/work/kill.sap" ] && return $OCF_NOT_RUNNING
+  pids=`grep '^kill -[0-9]' /usr/sap/$SID/$InstanceName/work/kill.sap | awk '{print $3}'`
+  for pid in $pids
+  do
+    [ `pgrep -f -U $sidadm $InstanceName | grep -c $pid` -gt 0 ] && return $OCF_SUCCESS
+  done
+  return $OCF_NOT_RUNNING
+}
+
 
 #
 # sapinstance_validate: Check the symantic of the input parameters 
