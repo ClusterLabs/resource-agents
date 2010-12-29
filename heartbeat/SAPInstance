@@ -247,12 +247,12 @@ sapinstance_init() {
   # optional OCF parameters, we try to guess which directories are correct
   if  [ -z "$OCF_RESKEY_DIR_EXECUTABLE" ]
   then
-    if [ -x /usr/sap/$SID/$InstanceName/exe/sapstartsrv -a -x /usr/sap/$SID/$InstanceName/exe/sapcontrol ]
+    if have_binary /usr/sap/$SID/$InstanceName/exe/sapstartsrv && have_binary /usr/sap/$SID/$InstanceName/exe/sapcontrol
     then
       DIR_EXECUTABLE="/usr/sap/$SID/$InstanceName/exe"
       SAPSTARTSRV="/usr/sap/$SID/$InstanceName/exe/sapstartsrv"
       SAPCONTROL="/usr/sap/$SID/$InstanceName/exe/sapcontrol"
-    elif [ -x /usr/sap/$SID/SYS/exe/run/sapstartsrv -a -x /usr/sap/$SID/SYS/exe/run/sapcontrol ]
+    elif have_binary /usr/sap/$SID/SYS/exe/run/sapstartsrv && have_binary /usr/sap/$SID/SYS/exe/run/sapcontrol
     then
       DIR_EXECUTABLE="/usr/sap/$SID/SYS/exe/run"
       SAPSTARTSRV="/usr/sap/$SID/SYS/exe/run/sapstartsrv"
@@ -293,16 +293,6 @@ sapinstance_init() {
   if [ -z "$OCF_RESKEY_START_WAITTIME" ]
   then
     export OCF_RESKEY_START_WAITTIME=3600
-  fi
-
-  if [ -z "$OCF_RESKEY_AUTOMATIC_RECOVER" ]
-  then
-    OCF_RESKEY_AUTOMATIC_RECOVER=0
-  else
-    case "$OCF_RESKEY_AUTOMATIC_RECOVER" in
-     1|true|TRUE|yes|YES) export OCF_RESKEY_AUTOMATIC_RECOVER=1;;
-     0|false|FALSE|no|NO) export OCF_RESKEY_AUTOMATIC_RECOVER=0;;
-    esac
   fi
 
   if [ -z "$OCF_RESKEY_MONITOR_SERVICES" ]
@@ -401,7 +391,7 @@ sapuserexit() {
 
   if [ -n "$VALUE" ]
   then
-    if [ -x "$VALUE" ]
+    if have_binary "$VALUE"
     then
       ocf_log info "Calling userexit ${NAME} with customer script file ${VALUE}"
       eval "$VALUE" >/dev/null 2>&1
@@ -469,7 +459,7 @@ sapinstance_start() {
             startrc=0; loopcount=2
           fi
         else
-          if [ $loopcount -eq 1 -a $OCF_RESKEY_AUTOMATIC_RECOVER -eq 1 ]
+          if [ $loopcount -eq 1 ] && ocf_is_true $OCF_RESKEY_AUTOMATIC_RECOVER
           then
             ocf_log warn "SAP Instance $SID-$InstanceName start failed: $output"
             ocf_log warn "Try to recover $SID-$InstanceName"
@@ -576,11 +566,8 @@ sapinstance_monitor() {
       then
           if [ $STATE -eq $OCF_NOT_RUNNING ]
           then
-            if [ "$MONLOG" != "NOLOG" ]
-            then
-              ocf_log err "SAP instance service $SERVICE is not running with status $COLOR !"
-            fi
-          rc=$STATE
+            [ "$MONLOG" != "NOLOG" ] && ocf_log err "SAP instance service $SERVICE is not running with status $COLOR !"
+            rc=$STATE
           fi
           count=1
       fi
@@ -786,10 +773,7 @@ case "$ACTION" in
   *);;
 esac
 
-US=`id -u -n`
-US=`echo $US`
-if
-  [ $US != root  ]
+if ! ocf_is_root
 then
   ocf_log err "$0 must be run as root"
   exit $OCF_ERR_PERM
