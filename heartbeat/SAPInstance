@@ -67,77 +67,121 @@ sapinstance_meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPInstance">
-<version>2.10</version>
+<version>2.11</version>
 
+<shortdesc lang="en">Manages a SAP instance as an HA resource.</shortdesc>
 <longdesc lang="en">
-Resource script for SAP. It manages a SAP Instance as an HA resource.
-</longdesc>
-<shortdesc lang="en">Manages a SAP instance</shortdesc>
+Usually a SAP system consists of one database and at least one or more SAP instances (sometimes called application servers). One SAP Instance is defined by having exactly one instance profile. The instance profiles can usually be found in the directory /sapmnt/SID/profile. Each instance must be configured as it's own resource in the cluster configuration.
+The resource agent supports the following SAP versions:
+- SAP WebAS ABAP Release 6.20 - 7.30
+- SAP WebAS Java Release 6.40 - 7.30
+- SAP WebAS ABAP + Java Add-In Release 6.20 - 7.30 (Java is not monitored by the cluster in that case)
+When using a SAP Kernel 6.40 please check and implement the actions from the section "Manual postprocessing" from SAP note 995116 (http://sdn.sap.com).
 
+All operations of the SAPInstance resource agent are done by using the startup framework called SAP Management Console or sapstartsrv that was introduced with SAP kernel release 6.40. Find more information about the SAP Management Console in SAP note 1014480. Using this framework defines a clear interface for the Heartbeat cluster, how it sees the SAP system. The options for monitoring the SAP system are also much better than other methods like just watching the ps command for running processes or doing some pings to the application. sapstartsrv uses SOAP messages to request the status of running SAP processes. Therefore it can actually ask a process itself what it's status is, independent from other problems that might exist at the same time.
+
+sapstartsrv knows 4 status colours:
+- GREEN   = everything is fine
+- YELLOW  = something is wrong, but the service is still working
+- RED     = the service does not work
+- GRAY    = the service has not been started
+
+The SAPInstance resource agent will interpret GREEN and YELLOW as OK. That means that minor problems will not be reported to the Heartbeat cluster. This prevents the cluster from doing an unwanted failover.
+The statuses RED and GRAY are reported as NOT_RUNNING to the cluster. Depending on the status the cluster expects from the resource, it will do a restart, failover or just nothing.
+</longdesc>
 <parameters>
  <parameter name="InstanceName" unique="1" required="1">
-  <longdesc lang="en">The full qualified SAP instance name. e.g. P01_DVEBMGS00_sapp01ci</longdesc>
-  <shortdesc lang="en">instance name: SID_INSTANCE_VIR-HOSTNAME</shortdesc>
+  <longdesc lang="en">The full qualified SAP instance name. e.g. P01_DVEBMGS00_sapp01ci. Usually this is the name of the SAP instance profile.</longdesc>
+  <shortdesc lang="en">Instance name: SID_INSTANCE_VIR-HOSTNAME</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="DIR_EXECUTABLE" unique="1" required="0">
-  <longdesc lang="en">The full qualified path where to find sapstartsrv and sapcontrol.</longdesc>
-  <shortdesc lang="en">path of sapstartsrv and sapcontrol</shortdesc>
+  <longdesc lang="en">The full qualified path where to find sapstartsrv and sapcontrol. Specify this parameter, if you have changed the SAP kernel directory location after the default SAP installation.</longdesc>
+  <shortdesc lang="en">Path of sapstartsrv and sapcontrol</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="DIR_PROFILE" unique="1" required="0">
-  <longdesc lang="en">The full qualified path where to find the SAP START profile.</longdesc>
-  <shortdesc lang="en">path of start profile</shortdesc>
+  <longdesc lang="en">The full qualified path where to find the SAP START profile. Specify this parameter, if you have changed the SAP profile directory location after the default SAP installation.</longdesc>
+  <shortdesc lang="en">Path of start profile</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="START_PROFILE" unique="1" required="0">
-  <longdesc lang="en">The name of the SAP START profile.</longdesc>
-  <shortdesc lang="en">start profile name</shortdesc>
+  <longdesc lang="en">The name of the SAP START profile. Specify this parameter, if you have changed the name of the SAP START profile after the default SAP installation. As SAP release 7.10 does not have a START profile anymore, you need to specify the Instance Profile than.</longdesc>
+  <shortdesc lang="en">Start profile name</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="START_WAITTIME" unique="1" required="0">
-  <longdesc lang="en">After that time in seconds a monitor operation is executed by the resource agent. Does the monitor return SUCCESS, the start is handled as SUCCESS. This is useful to resolve timing problems with e.g. the J2EE-Addin instance.</longdesc>
+  <longdesc lang="en">After that time in seconds a monitor operation is executed by the resource agent. Does the monitor return SUCCESS, the start ishandled as SUCCESS. This is useful to resolve timing problems with e.g. the J2EE-Addin instance.Usually the resource agent waits until all services are started and the SAP Management Console reports a GREEN status. A double stack installation (ABAP + Java AddIn) consists of an ABAP dispatcher and aJAVA instance. Normally the start of the JAVA instance takes much longer than the start of the ABAP instance. For a JAVA Instance you may need to configure a much higher timeout for the start operation of the resource in Heartbeat. The disadvantage here is, that the discovery of a failed start by the cluster takes longer. Somebody might say: For me it is important, that the ABAP instance is up and running. A failure of the JAVA instance shall not cause a failover of the SAP instance.
+Actually the SAP MC reports a YELLOW status, if the JAVA instance of a double stack system fails. From the resource agent point of view YELLOW means:everything is OK. Setting START_WAITTIME to a lower value determines the resource agent to check the status of the instance during a start operation after that time. As it would wait normally for a GREEN status, now it reports SUCCESS to the cluster in case of a YELLOW status already after the specified time.
+
+That is only useful for double stack systems.
+  </longdesc>
   <shortdesc lang="en">Check the successful start after that time (do not wait for J2EE-Addin)</shortdesc>
   <content type="string" default="3600" />
  </parameter>
  <parameter name="AUTOMATIC_RECOVER" unique="1" required="0">
-  <longdesc lang="en">The SAPInstance resource agent tries to recover a failed start attempt automaticaly one time. This is done by killing runing instance processes and executing cleanipc.</longdesc>
+  <longdesc lang="en">The SAPInstance resource agent tries to recover a failed start attempt automaticaly one time. This is done by killing runing instance processes, removing the kill.sap file and executing cleanipc. Sometimes a crashed SAP instance leaves some processes and/or shared memory segments behind. Setting this option to true will try to remove those leftovers during a start operation. That is to reduce manual work for the administrator.</longdesc>
   <shortdesc lang="en">Enable or disable automatic startup recovery</shortdesc>
   <content type="boolean" default="false"/>
  </parameter>
  <parameter name="MONITOR_SERVICES" unique="1" required="0">
-  <longdesc lang="en"></longdesc>
-  <shortdesc lang="en"></shortdesc>
+  <longdesc lang="en">Within a SAP instance there can be several services. Usually you will find the defined services in the START profile of the related instance (Attention: with SAP Release 7.10 the START profile content was moved to the instance profile). Not all of those services are worth to monitor by the cluster. For example you properly do not like to failover your SAP instance, if the central syslog collector daemon fails.
+Those services are monitored within the SAPInstance resource agent:
+
+- disp+work
+- msg_server
+- enserver
+- enrepserver
+- jcontrol
+- jstart
+
+That names match the strings used in the output of the command 'sapcontrol -nr [Instance-Nr] -function GetProcessList'.
+The default should fit most cases where you want to manage a SAP Instance from the cluster. You may change this with this parameter, if you like to monitor more/less or other services that sapstartsrv supports.
+You may specify multiple services seperated by a | (pipe) sign in this parameter: disp+work|msg_server|enserver
+  </longdesc>
+  <shortdesc lang="en">Services to monitor</shortdesc>
   <content type="string" default="disp+work|msg_server|enserver|enrepserver|jcontrol|jstart"/>
  </parameter>
  <parameter name="ERS_InstanceName" unique="1" required="0">
-  <longdesc lang="en"></longdesc>
-  <shortdesc lang="en"></shortdesc>
+  <longdesc lang="en">Only used in a Master/Slave resource configuration:
+The full qualified SAP enqueue replication instance name. e.g. P01_ERS02_sapp01ers. Usually this is the name of the SAP instance profile.
+The enqueue replication instance must be installed, before you want to configure a master-slave cluster recource.
+
+The master-slave configuration in the cluster must use this properties:
+clone_max = 2
+clone_node_max = 1
+master_node_max = 1
+master_max = 1
+  </longdesc>
+  <shortdesc lang="en">Enqueue replication instance name: SID_INSTANCE_VIR-HOSTNAME</shortdesc>
   <content type="string" default=""/>
  </parameter>
  <parameter name="ERS_START_PROFILE" unique="1" required="0">
-  <longdesc lang="en"></longdesc>
-  <shortdesc lang="en"></shortdesc>
+  <longdesc lang="en">Only used in a Master/Slave resource configuration:
+The parameter ERS_InstanceName must also be set in this configuration.
+The name of the SAP START profile. Specify this parameter, if you have changed the name of the SAP START profile after the default SAP installation. As SAP release 7.10 does not have a START profile anymore, you need to specify the Instance Profile than.
+  </longdesc>
+  <shortdesc lang="en">Enqueue replication start profile name</shortdesc>
   <content type="string" default=""/>
  </parameter>
  <parameter name="PRE_START_USEREXIT" unique="1" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed before this resource gets started.</longdesc>
-  <shortdesc lang="en">path to a pre-start script</shortdesc>
+  <shortdesc lang="en">Path to a pre-start script</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="POST_START_USEREXIT" unique="1" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed after this resource got started.</longdesc>
-  <shortdesc lang="en">path to a post-start script</shortdesc>
+  <shortdesc lang="en">Path to a post-start script</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="PRE_STOP_USEREXIT" unique="1" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed before this resource gets stopped.</longdesc>
-  <shortdesc lang="en">path to a pre-start script</shortdesc>
+  <shortdesc lang="en">Path to a pre-start script</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="POST_STOP_USEREXIT" unique="1" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed after this resource got stopped.</longdesc>
-  <shortdesc lang="en">path to a post-start script</shortdesc>
+  <shortdesc lang="en">Path to a post-start script</shortdesc>
   <content type="string" default="" />
  </parameter>
 </parameters>
