@@ -790,6 +790,11 @@ if [ ${CLONE} -eq 1 ]
 then
   CLACT=_clone
 else
+  if [ "$ACTION" = "promote" -o "$ACTION" = "demote" ]
+  then
+    ocf_log err "$ACTION called in a non master/slave environment"
+    exit $OCF_ERR_ARGS
+  fi
   sapinstance_init $OCF_RESKEY_InstanceName
 fi
 
