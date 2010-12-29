@@ -24,6 +24,7 @@
 #	OCF_RESKEY_START_WAITTIME   (optional, to solve timing problems during J2EE-Addin start)
 #	OCF_RESKEY_AUTOMATIC_RECOVER    (optional, automatic startup recovery using cleanipc, default is false)
 #       OCF_RESKEY_MONITOR_SERVICES     (optional, default is to monitor critical services only)
+#       OCF_RESKEY_SHUTDOWN_METHOD      (optional, defaults to NORMAL, KILL: terminate the SAP instance with OS commands - faster, at your own risk)
 #       OCF_RESKEY_ERS_InstanceName     (optional, InstanceName of the ERS instance in a Master/Slave configuration)
 #       OCF_RESKEY_ERS_START_PROFILE    (optional, START_PROFILE of the ERS instance in a Master/Slave configuration)
 #	OCF_RESKEY_PRE_START_USEREXIT	(optional, lists a script which can be executed before the resource is started)
@@ -141,6 +142,11 @@ You may specify multiple services seperated by a | (pipe) sign in this parameter
   </longdesc>
   <shortdesc lang="en">Services to monitor</shortdesc>
   <content type="string" default="disp+work|msg_server|enserver|enrepserver|jcontrol|jstart"/>
+ </parameter>
+  <parameter name="SHUTDOWN_METHOD" unique="1" required="0">
+  <longdesc lang="en">Usual a SAP Instance is stopped by the command 'sapcontrol -nr InstanceNr -function Stop'. SHUTDOWN_METHOD=KILL means to kill the SAP Instance using OS commands. SAP processes of the instance are terminated with 'kill -9', shared memory is deleted with 'cleanipc' and the 'kill.sap' file will be deleted. That method is much faster than the gracefull stop, but the instance does not have the chance to say goodbye to other SAPinstances in the same system. USE AT YOUR OWN RISK !!</longdesc>
+  <shortdesc lang="en">Shutdown graceful or kill a SAP instance by terminating the processes. (normal|KILL)</shortdesc>
+  <content type="string" default="normal"/>
  </parameter>
  <parameter name="ERS_InstanceName" unique="1" required="0">
   <longdesc lang="en">Only used in a Master/Slave resource configuration:
@@ -453,7 +459,18 @@ sapuserexit() {
 #
 cleanup_instance() {
   pkill -9 -f -U $sidadm $InstanceName
-  $DIR_EXECUTABLE/cleanipc $InstanceNr remove
+  ocf_log info "Terminated instance using 'pkill -9 -f -U $sidadm $InstanceName'"
+
+  # it is necessary to call cleanipc as user sidadm if the system has 'vmcj/enable = ON' set - otherwise SHM-segments in /dev/shm/SAP_ES2* cannot beremoved
+  su - $sidadm -c "cleanipc $InstanceNr remove"
+  ocf_log info "Tried to remove shared memory resources using 'cleanipc $InstanceNr remove' as user $sidadm"
+
+  if [ -f "/usr/sap/$SID/$InstanceName/work/kill.sap" ]
+  then
+    rm -f /usr/sap/$SID/$InstanceName/work/kill.sap
+    ocf_log info "Deleted /usr/sap/$SID/$InstanceName/work/kill.sap"
+  fi
+
   return 0
 }
 
@@ -548,6 +565,13 @@ sapinstance_recover() {
 #
 sapinstance_stop() {
   sapuserexit PRE_STOP_USEREXIT "$OCF_RESKEY_PRE_STOP_USEREXIT"
+
+  if [ "$OCF_RESKEY_SHUTDOWN_METHOD" = "KILL" ]
+  then
+    ocf_log info "Stopping SAP Instance $SID-$InstanceName with shutdown method KILL!"
+    cleanup_instance
+    return $OCF_SUCCESS
+  fi
 
   check_sapstartsrv
   rc=$?
