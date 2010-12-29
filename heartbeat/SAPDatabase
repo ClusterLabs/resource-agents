@@ -178,26 +178,27 @@ trap_handler() {
 # listener_start: Start the given listener
 #
 listener_start() {
-  orasid="ora`echo $SID | tr '[:upper:]' '[:lower:]'`"
-  rc=$OCF_SUCCESS
+  local orasid="ora`echo $SID | tr '[:upper:]' '[:lower:]'`"
+  local lrc=$OCF_SUCCESS
+  local output
   output=`echo "lsnrctl start $NETSERVICENAME" | su - $orasid 2>&1`
   if [ $? -eq 0 ]
   then
     ocf_log info "Oracle Listener $NETSERVICENAME started: $output"
-    rc=$OCF_SUCCESS
+    lrc=$OCF_SUCCESS
   else
     ocf_log err "Oracle Listener $NETSERVICENAME start failed: $output"
-    rc=$OCF_ERR_GENERIC
+    lrc=$OCF_ERR_GENERIC
   fi
-  return $rc
+  return $lrc
 }
 
 #
 # listener_stop: Stop the given listener
 #
 listener_stop() {
-  orasid="ora`echo $SID | tr '[:upper:]' '[:lower:]'`"
-  rc=$OCF_SUCCESS
+  local orasid="ora`echo $SID | tr '[:upper:]' '[:lower:]'`"
+  local lrc=$OCF_SUCCESS
   if
       listener_status
   then
@@ -205,84 +206,89 @@ listener_stop() {
   else
       return $OCF_SUCCESS
   fi
+  local output
   output=`echo "lsnrctl stop $NETSERVICENAME" | su - $orasid 2>&1`
   if [ $? -eq 0 ]
   then
     ocf_log info "Oracle Listener $NETSERVICENAME stopped: $output"
   else
     ocf_log err "Oracle Listener $NETSERVICENAME stop failed: $output"
-    rc=$OCF_ERR_GENERIC
+    lrc=$OCF_ERR_GENERIC
   fi
-  return $rc
+  return $lrc
 }
 
 #
 # listener_status: is the given listener running?
 #
 listener_status() {
-  orasid="ora`echo $SID | tr '[:upper:]' '[:lower:]'`"
+  local lrc=$OCF_SUCCESS
+  local orasid="ora`echo $SID | tr '[:upper:]' '[:lower:]'`"
   # Note: ps cuts off it's output at column $COLUMNS, so "ps -ef" can not be used here
   # as the output might be to long.
-  cnt=`ps efo args --user $orasid | grep $NETSERVICENAME | grep -c tnslsnr`
+  local cnt=`ps efo args --user $orasid | grep $NETSERVICENAME | grep -c tnslsnr`
   if [ $cnt -eq 1 ]
   then
-    rc=$OCF_SUCCESS
+    lrc=$OCF_SUCCESS
   else
     ocf_log info "listener process not running for $NETSERVICENAME for $SID"
-    rc=$OCF_ERR_GENERIC
+    lrc=$OCF_ERR_GENERIC
   fi
-  return $rc
+  return $lrc
 }
 
 #
 # x_server_start: Start the given x_server
 #
 x_server_start() {
-  rc=$OCF_SUCCESS
+  local rc=$OCF_SUCCESS
+  local output
   output=`echo "x_server start" | su - $sidadm 2>&1`
   if [ $? -eq 0 ]
   then
     ocf_log info "MaxDB x_server start: $output"
-    rc=$OCF_SUCCESS
+    lrc=$OCF_SUCCESS
   else
     ocf_log err "MaxDB x_server start failed: $output"
-    rc=$OCF_ERR_GENERIC
+    lrc=$OCF_ERR_GENERIC
   fi
-  return $rc
+  return $lrc
 }
 
 #
 # x_server_stop: Stop the x_server
 #
 x_server_stop() {
-  rc=$OCF_SUCCESS
+  local lrc=$OCF_SUCCESS
+  local output
   output=`echo "x_server stop" | su - $sidadm 2>&1`
   if [ $? -eq 0 ]
   then
     ocf_log info "MaxDB x_server stop: $output"
   else
     ocf_log err "MaxDB x_server stop failed: $output"
-    rc=$OCF_ERR_GENERIC
+    lrc=$OCF_ERR_GENERIC
   fi
-  return $rc
+  return $lrc
 }
 
 #
 # x_server_status: is the x_server running?
 #
 x_server_status() {
-  sdbuser=`grep "^SdbOwner" /etc/opt/sdb | awk -F'=' '{print $2}'`
+  local lrc=$OCF_SUCCESS
+  local sdbuser=`grep "^SdbOwner" /etc/opt/sdb | awk -F'=' '{print $2}'`
   # Note: ps cuts off it's output at column $COLUMNS, so "ps -ef" can not be used here
   # as the output might be to long.
-  cnt=`ps efo args --user $sdbuser | grep -c vserver`
+  local cnt=`ps efo args --user $sdbuser | grep -c vserver`
   if [ $cnt -ge 1 ]
   then
-    rc=$OCF_SUCCESS
+    lrc=$OCF_SUCCESS
   else
     ocf_log info "x_server process not running"
-    rc=$OCF_ERR_GENERIC
+    lrc=$OCF_ERR_GENERIC
   fi
-  return $rc
+  return $lrc
 }
 
 #
