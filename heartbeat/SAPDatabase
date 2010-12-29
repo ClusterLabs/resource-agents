@@ -70,7 +70,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPDatabase">
-<version>1.92</version>
+<version>1.93</version>
 
 <longdesc lang="en">
 Resource script for SAP databases. It manages a SAP database of any type as an HA resource.
@@ -736,9 +736,9 @@ sapdatabase_status() {
          SUSER="ora`echo $SID | tr '[:upper:]' '[:lower:]'`"
          SNUM=4
          ;;
-    DB6) SEARCH="db2[a-z][a-z][a-z][a-z][a-z]"
+    DB6) SEARCH="db2[a-z][a-z][a-z]"
          SUSER="db2`echo $SID | tr '[:upper:]' '[:lower:]'`"
-         SNUM=5
+         SNUM=2
          ;;
   esac
 
