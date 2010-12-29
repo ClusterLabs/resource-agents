@@ -546,8 +546,7 @@ sapinstance_monitor() {
   if [ $rc -eq $OCF_SUCCESS ]
   then
     count=0
-    LOCALHOST=`hostname`
-    output=`$SAPCONTROL -nr $InstanceNr -host $LOCALHOST -function GetProcessList -format script`
+    output=`$SAPCONTROL -nr $InstanceNr -function GetProcessList -format script`
 
     # we have to parse the output, because the returncode doesn't tell anything about the instance status
     for SERVNO in `echo "$output" | grep '^[0-9] ' | cut -d' ' -f1 | sort -u`
