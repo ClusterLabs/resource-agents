@@ -32,6 +32,10 @@
 #	OCF_RESKEY_PRE_STOP_USEREXIT	(optional, lists a script which can be executed before the resource is stopped)
 #	OCF_RESKEY_POST_STOP_USEREXIT	(optional, lists a script which can be executed after the resource is stopped)
 #
+#  TODO: - Option to shutdown sapstartsrv for non-active instances -> that means: do probes only with OS tools (sapinstance_status)
+#        - Option for better standalone enqueue server monitoring, using ensmon (test enque-deque)
+#        - Option for cleanup abandoned enqueue replication tables
+#
 #######################################################################
 # Initialization:
 
@@ -68,7 +72,7 @@ sapinstance_meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPInstance">
-<version>2.11</version>
+<version>2.12</version>
 
 <shortdesc lang="en">Manages a SAP instance as an HA resource.</shortdesc>
 <longdesc lang="en">
@@ -708,7 +712,7 @@ sapinstance_validate() {
 #
 sapinstance_start_clone() {
   sapinstance_init $OCF_RESKEY_ERS_InstanceName
-  ${HA_SBIN_DIR}/crm_master -v 100 -l reboot
+  ${HA_SBIN_DIR}/crm_master -v 50 -l reboot
   sapinstance_start
   return $?
 }
@@ -729,18 +733,30 @@ sapinstance_stop_clone() {
 # sapinstance_monitor_clone
 #
 sapinstance_monitor_clone() {
-  # Check status of potential master first
+  # first check with the status function (OS tools) if there could be something like a SAP instance running
+  # as we do not know here, if we are in master or slave state we do not want to start our monitoring
+  # agents (sapstartsrv) on the wrong host
+
   sapinstance_init $OCF_RESKEY_InstanceName
-  sapinstance_monitor
-  rc=$?
-  [ $rc -eq $OCF_SUCCESS ] && return $OCF_RUNNING_MASTER
-  [ $rc -ne $OCF_NOT_RUNNING ] && return $OCF_FAILED_MASTER
+  if sapinstance_status; then
+    if sapinstance_monitor; then
+      ${HA_SBIN_DIR}/crm_master -Q -v 100 -l reboot
+      return $OCF_RUNNING_MASTER
+    fi
+    # by nature of the SAP enqueue server we have to make sure
+    # that we do a failover to the slave (enqueue replication server)
+    # in case the enqueue process has failed. We signal this to the
+    # cluster by setting our master preference to a lower value than the slave.
+    ${HA_SBIN_DIR}/crm_master -v 10 -l reboot
+    return $OCF_FAILED_MASTER
+  fi
 
-  # The master isn't running, and there were no errors, try ERS
   sapinstance_init $OCF_RESKEY_ERS_InstanceName
-  sapinstance_monitor
+  sapinstance_status && sapinstance_monitor
   rc=$?
-
+  if [ $rc -eq $OCF_SUCCESS ]; then
+    ${HA_SBIN_DIR}/crm_master -Q -v 100 -l reboot
+  fi
   return $rc
 }
 
@@ -785,16 +801,25 @@ sapinstance_demote_clone() {
 
 
 #
-# sapinstance_notify: After promotion of one master in the cluster, we make sure that all clones reset thier master
-#                     value back to 100. This is because a failed monitor on a master might have degree one clone
-#                     instance to score 10.
+# sapinstance_notify: Handle master scoring - to make sure a slave gets the next master
 #
 sapinstance_notify() {
   local n_type="$OCF_RESKEY_CRM_meta_notify_type"
   local n_op="$OCF_RESKEY_CRM_meta_notify_operation"
 
   if [ "${n_type}_${n_op}" = "post_promote" ]; then
+    # After promotion of one master in the cluster, we make sure that all clones reset their master
+    # value back to 100. This is because a failed monitor on a master might have degree one clone
+    # instance to score 10.
     ${HA_SBIN_DIR}/crm_master -v 100 -l reboot
+  elif [ "${n_type}_${n_op}" = "pre_demote" ]; then
+    # if we are a slave and a demote event is anounced, make sure we have the highes wish to became master
+    # that is, when a slave resource was startet after the promote event of a already running master (e.g. node of slave was down)
+    # We also have to make sure to overrule the globaly set resource_stickiness or any fail-count factors => INFINITY
+    local n_uname="$OCF_RESKEY_CRM_meta_notify_demote_uname"
+    if [ ${n_uname} != ${HOSTNAME} ]; then
+      ${HA_SBIN_DIR}/crm_master -v INFINITY -l reboot
+    fi
   fi
 }
 
