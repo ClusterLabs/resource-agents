@@ -5,7 +5,10 @@
 </author>
 <copyright>
   <year>2010</year>
-  <holder>LINBIT HA-Solutions GmbH</holder>
+  <year>2011</year>
+  <holder>
+    <ulink url="http://www.linbit.com">LINBIT HA-Solutions GmbH</ulink>
+  </holder>
 </copyright>
 <legalnotice>
   <title>License information</title>
@@ -29,6 +32,11 @@
   </itemizedlist>
 </legalnotice>
 <revhistory>
+  <revision>
+    <revnumber>1.0.1</revnumber>
+    <date>January 3, 2011</date>
+    <authorinitials>FGH</authorinitials>
+  </revision>
   <revision>
     <revnumber>1.0.0</revnumber>
     <date>December 13, 2010</date>
