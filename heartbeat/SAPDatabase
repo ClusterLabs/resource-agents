@@ -643,7 +643,12 @@ sapdatabase_stop() {
 #
 sapdatabase_monitor() {
   strict=$1
-  rc=$OCF_SUCCESS
+
+  sapdatabase_status
+  rc=$?
+  if [ $rc -ne $OCF_SUCCESS ]; then
+    return $rc
+  fi
 
   case $DBTYPE in
     ADA) x_server_status 
@@ -656,8 +661,7 @@ sapdatabase_monitor() {
 
   if [ $strict -eq 0 ]
   then
-    sapdatabase_status
-    rc=$?
+    return $rc
   else
     if [ $DBJ2EE_ONLY -eq 0 ]
     then
