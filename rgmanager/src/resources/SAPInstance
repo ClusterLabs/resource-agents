@@ -569,7 +569,7 @@ if [ `echo $LD_LIBRARY_PATH | grep -c "^$DIR_EXECUTABLE\>"` -eq 0 ]; then
   LD_LIBRARY_PATH=$DIR_EXECUTABLE${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH
   export LD_LIBRARY_PATH
 fi
-sidadm="`echo $SID | tr [:upper:] [:lower:]`adm"
+sidadm="`echo $SID | tr '[:upper:]' '[:lower:]'`adm"
 
 # What kind of method was invoked?
 case "$1" in
