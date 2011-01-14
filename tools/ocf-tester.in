@@ -29,6 +29,11 @@ LRMD=@libdir@/heartbeat/lrmd
 LRMADMIN=@sbindir@/lrmadmin
 METADATA_LINT="xmllint --noout --valid -"
 
+# set some common meta attributes, which are expected to be
+# present by resource agents
+export OCF_RESKEY_CRM_meta_timeout=20000  # 20 seconds timeout
+export OCF_RESKEY_CRM_meta_interval=10000  # reset this for probes
+
 num_errors=0
 
 usage() {
@@ -206,6 +211,7 @@ test_metadata() {
 
 test_command() {
     action=$1; shift
+    export __OCF_ACTION=$action
     msg=${1:-"Testing: $action"}
     if [ "$use_lrmd" = 1 ]; then
     	lrm_test_command $action "$msg"
@@ -283,9 +289,11 @@ assert $? $stopped_rc "Monitoring a stopped resource should return $stopped_rc"
 
 OCF_TESTER_FAIL_HAVE_BINARY=1
 export OCF_TESTER_FAIL_HAVE_BINARY
+OCF_RESKEY_CRM_meta_interval=0
 test_command monitor
 assert $? $stopped_rc "The initial probe for a stopped resource should return $stopped_rc even if all binaries are missing"
 unset OCF_TESTER_FAIL_HAVE_BINARY
+OCF_RESKEY_CRM_meta_interval=20000
 
 test_command start
 assert $? 0 "Start failed.  Did you supply enough options with -o ?" 1
@@ -394,3 +402,5 @@ else
     echo $agent passed all tests
     exit 0
 fi
+
+# vim:et:ts=8:sw=4
