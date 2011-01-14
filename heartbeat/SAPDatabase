@@ -541,7 +541,7 @@ sapuserexit() {
     if [ -x "$VALUE" ]
     then
       ocf_log info "Calling userexit ${NAME} with customer script file ${VALUE}"
-      eval "$VALUE" >/dev/null 2>&1
+      $VALUE >/dev/null 2>&1
       ocf_log info "Exiting userexit ${NAME} with customer script file ${VALUE}, returncode: $?"
     else
       ocf_log warn "Attribute ${NAME} is set to ${VALUE}, but this file is not executable"
@@ -705,7 +705,7 @@ sapdatabase_monitor() {
 
       if [ -n "$EXECMD" ]
       then
-        output=`eval ${JAVA_HOME}/bin/java -cp $MYCP $EXECMD 2> /dev/null`
+        output=`${JAVA_HOME}/bin/java -cp $MYCP $EXECMD 2> /dev/null`
         if [ $? -le 0 ]
         then
           rc=$OCF_SUCCESS
