@@ -129,7 +129,7 @@ Resource script for SAP databases. It manages a SAP database of any type as an H
   <content type="string" default="" />
  </parameter>
  <parameter name="DB_JARS" unique="1" required="0">
-  <longdesc lang="en">The full qualified filename of the jdbc driver for the database connection test. It will be automaticaly read from the bootstrap.properties file in Java engine 6.40 and 7.00. For Java engine 7.10 the parameter is mandatory.</longdesc>
+  <longdesc lang="en">The full qualified filename of the jdbc driver for the database connection test. It will be automaticaly read from the bootstrap.properties file in Java engine 6.40 and 7.00. For Java engine 7.10 and higher the parameter is mandatory.</longdesc>
   <shortdesc lang="en">file name of the jdbc driver</shortdesc>
   <content type="string" default="" />
  </parameter>
@@ -705,7 +705,7 @@ sapdatabase_monitor() {
 
       if [ -n "$EXECMD" ]
       then
-        output=`eval ${JAVA_HOME}/bin/java -cp $MYCP $EXECMD`
+        output=`eval ${JAVA_HOME}/bin/java -cp $MYCP $EXECMD 2> /dev/null`
         if [ $? -le 0 ]
         then
           rc=$OCF_SUCCESS
