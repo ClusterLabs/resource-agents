@@ -186,9 +186,18 @@ open_iscsi_setup() {
 #   3: iscsiadm returned error
 
 open_iscsi_discovery() {
-	output=`$iscsiadm -m discovery -p $OCF_RESKEY_portal -t $discovery_type`
+	local output
+	local portal
+	local severity=err
+	local cmd="$iscsiadm -m discovery -p $OCF_RESKEY_portal -t $discovery_type"
+
+	ocf_is_probe && severity=info
+	output=`$cmd`
 	if [ $? -ne 0 -o x = "x$output" ]; then
-		[ x != "x$output" ] && echo "$output"
+		[ x != "x$output" ] && {
+			ocf_log $severity "$cmd FAILED"
+			echo "$output"
+		}
 		return 3
 	fi
 	portal=`echo "$output" |
@@ -203,7 +212,7 @@ open_iscsi_discovery() {
 	case `echo "$portal" | wc -w` in
 	0) #target not found
 		echo "$output"
-		ocf_log err "target $OCF_RESKEY_target not found at portal $OCF_RESKEY_portal"
+		ocf_log $severity "target $OCF_RESKEY_target not found at portal $OCF_RESKEY_portal"
 		return 1
 	;;
 	1) #we're ok
@@ -353,7 +362,10 @@ case $? in
    [ "$1" = status ] && exit $LSB_STATUS_STOPPED
    exit $OCF_ERR_GENERIC
 ;;
-[23]) exit $OCF_ERR_GENERIC;;
+2) exit $OCF_ERR_GENERIC;;
+3) ocf_is_probe && exit $OCF_NOT_RUNNING
+   exit $OCF_ERR_GENERIC
+;;
 esac
 
 # which method was invoked?
