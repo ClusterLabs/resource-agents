@@ -413,6 +413,5 @@ case "$COMMAND" in
 	*)
 		usage
 		exit $OCF_ERR_UNIMPLEMENTED;;
-		;;
 esac
 
