@@ -187,7 +187,6 @@ open_iscsi_setup() {
 
 open_iscsi_discovery() {
 	local output
-	local portal
 	local severity=err
 	local cmd="$iscsiadm -m discovery -p $OCF_RESKEY_portal -t $discovery_type"
 
