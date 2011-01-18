@@ -180,7 +180,6 @@ stop_tomcat()
 	if [ "$RESOURCE_TOMCAT_USER" = RUNASIS ]; then
 		"$CATALINA_HOME/bin/catalina.sh" stop \
 			>> "$TOMCAT_CONSOLE" 2>&1 &
-		eval $tomcat_stop_cmd >> "$TOMCAT_CONSOLE" 2>&1
 	else
 		cat<<-END_TOMCAT_STOP | su - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1 &
 			export JAVA_HOME=${JAVA_HOME}
