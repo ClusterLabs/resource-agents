@@ -29,6 +29,7 @@
 #   OCF_RESKEY_tomcat_user  - A user name to start a resource. Default is root
 #   OCF_RESKEY_statusurl - URL for state confirmation. Default is http://127.0.0.1:8080
 #   OCF_RESKEY_java_home - Home directory of Java. Default is none
+#   OCF_RESKEY_java_opts - Options to pass to Java JVM for start and stop. Default is none
 #   OCF_RESKEY_catalina_home - Home directory of Tomcat. Default is none
 #   OCF_RESKEY_catalina_pid  - A PID file name of Tomcat. Default is OCF_RESKEY_catalina_home/logs/catalina.pid
 #   OCF_RESKEY_tomcat_start_opts - Start options of Tomcat. Default is none.
@@ -148,7 +149,7 @@ start_tomcat()
 	else
 		cat<<-END_TOMCAT_START | su - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1 &
 			export JAVA_HOME=${JAVA_HOME}
-			export JAVA_OPTS=-Dname=${TOMCAT_NAME}
+			export JAVA_OPTS="${JAVA_OPTS}"
 			export CATALINA_HOME=${CATALINA_HOME}
 			export CATALINA_PID=${CATALINA_PID}
 			export CATALINA_OPTS="${CATALINA_OPTS}"
@@ -183,7 +184,7 @@ stop_tomcat()
 	else
 		cat<<-END_TOMCAT_STOP | su - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1 &
 			export JAVA_HOME=${JAVA_HOME}
-			export JAVA_OPTS=-Dname=${TOMCAT_NAME}
+			export JAVA_OPTS="${JAVA_OPTS}"
 			export CATALINA_HOME=${CATALINA_HOME}
 			export CATALINA_PID=${CATALINA_PID}
 			$CATALINA_HOME/bin/catalina.sh stop
@@ -319,6 +320,14 @@ Home directory of Java.
 <content type="string" default="" />
 </parameter>
 
+<parameter name="java_opts" unique="0">
+<longdesc lang="en">
+Java JVM options used on start and stop.
+</longdesc>
+<shortdesc>Java options parsed to JVM, used on start and stop.</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 <parameter name="catalina_home" unique="1" required="1">
 <longdesc lang="en">
 Home directory of Tomcat.
@@ -400,15 +409,15 @@ RESOURCE_TOMCAT_USER="${OCF_RESKEY_tomcat_user-RUNASIS}"
 RESOURCE_STATUSURL="${OCF_RESKEY_statusurl-http://127.0.0.1:8080}"
 
 JAVA_HOME="${OCF_RESKEY_java_home}"
-JAVA_OPTS="-Dname=$TOMCAT_NAME"
-SEARCH_STR="\\""${JAVA_OPTS}"
+JAVA_OPTS="${OCF_RESKEY_java_opts}"
 CATALINA_HOME="${OCF_RESKEY_catalina_home}"
 CATALINA_PID="${OCF_RESKEY_catalina_pid-$CATALINA_HOME/logs/catalina.pid}"
 
 TOMCAT_START_OPTS="${OCF_RESKEY_tomcat_start_opts}"
-CATALINA_OPTS="${OCF_RESKEY_catalina_opts}"
+CATALINA_OPTS="-Dname=$TOMCAT_NAME ${OCF_RESKEY_catalina_opts}"
 CATALINA_ROTATE_LOG="${OCF_RESKEY_catalina_rotate_log-NO}"
 CATALINA_ROTATETIME="${OCF_RESKEY_catalina_rotatetime-86400}"
+SEARCH_STR="\\""${CATALINA_OPTS}"
 
 export JAVA_HOME JAVA_OPTS CATALINA_HOME CATALINA_PID CATALINA_OPTS
 
