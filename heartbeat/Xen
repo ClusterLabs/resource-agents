@@ -287,15 +287,9 @@ Xen_Start() {
   done
 }
 
-Xen_Stop() {
-  if Xen_Status ${DOMAIN_NAME}; then
+xen_domain_stop() {
+    local dom=$1
     local timeout
-    local xenkill
-    if have_binary xen-destroy ; then
-      xenkill="xen-destroy ${DOMAIN_NAME}"
-    else
-      xenkill="xm destroy ${DOMAIN_NAME}"
-    fi
 
     if [ -n "$OCF_RESKEY_shutdown_timeout" ]; then
       timeout=$OCF_RESKEY_shutdown_timeout
@@ -308,20 +302,20 @@ Xen_Stop() {
     fi
 
     if [ "$timeout" -gt 0 ]; then
-      ocf_log info "Xen domain $DOMAIN_NAME will be stopped (timeout: ${timeout}s)"
-      xm shutdown ${DOMAIN_NAME}
+      ocf_log info "Xen domain $dom will be stopped (timeout: ${timeout}s)"
+      xm shutdown $dom
           
-      while Xen_Status ${DOMAIN_NAME} && [ "$timeout" -gt 0 ]; do
-        ocf_log debug "${DOMAIN_NAME} still not stopped. Waiting..."
+      while Xen_Status $dom && [ "$timeout" -gt 0 ]; do
+        ocf_log debug "$dom still not stopped. Waiting..."
         timeout=$((timeout-1))
         sleep 1
       done
     fi
     
     if [ "$timeout" -eq 0 ]; then
-      while Xen_Status ${DOMAIN_NAME}; do
-        ocf_log warn "Xen domain $DOMAIN_NAME will be destroyed!"
-	$xenkill
+      while Xen_Status $dom; do
+        ocf_log warn "Xen domain $dom will be destroyed!"
+	$xenkill $dom
         sleep 1
       done
       # Note: This does not give up. stop isn't allowed to to fail.
@@ -329,15 +323,28 @@ Xen_Stop() {
       # This is the correct behaviour.
     fi
 
-    ocf_log info "Xen domain $DOMAIN_NAME stopped."
+    ocf_log info "Xen domain $dom stopped."
+}
+
+Xen_Stop() {
+  local vm
+  if Xen_Status ${DOMAIN_NAME}; then
+    vm=${DOMAIN_NAME}
+  elif Xen_Status migrating-${DOMAIN_NAME}; then
+    ocf_log info "Xen domain $DOMAIN_NAME is migrating" 
+    vm="migrating-${DOMAIN_NAME}"
   else
     ocf_log info "Xen domain $DOMAIN_NAME already stopped." 
   fi
 
+  if [ "$vm" ]; then
+    xen_domain_stop $vm
+  else
   # It is supposed to be gone, but there have been situations where xm
   # list / xen-list showed it as stopped but it was still instantiated.
   # Nuke it once more to make sure:
-  $xenkill
+    $xenkill ${DOMAIN_NAME}
+  fi
 
   Xen_Adjust_Memory 0
   return $OCF_SUCCESS
@@ -427,6 +434,12 @@ fi
 for binary in xm sed awk; do
     check_binary $binary
 done
+
+if have_binary xen-destroy ; then
+  xenkill="xen-destroy"
+else
+  xenkill="xm destroy"
+fi
 
 if [ -n "$OCF_RESKEY_shutdown_timeout" ]; then
 	ocf_is_decimal "$OCF_RESKEY_shutdown_timeout" || {
