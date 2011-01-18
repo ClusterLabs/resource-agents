@@ -146,14 +146,14 @@ start_tomcat()
 		"$CATALINA_HOME/bin/catalina.sh" start $TOMCAT_START_OPTS \
 			>> "$TOMCAT_CONSOLE" 2>&1 &
 	else
-		su - -s /bin/sh "$RESOURCE_TOMCAT_USER" \
-			-c "export JAVA_HOME=${OCF_RESKEY_java_home};\
-                            export JAVA_OPTS=-Dname=${TOMCAT_NAME};\
-                            export CATALINA_HOME=${OCF_RESKEY_catalina_home};\
-                            export CATALINA_PID=${OCF_RESKEY_catalina_pid};\
-                            export CATALINA_OPTS=\"${OCF_RESKEY_catalina_opts}\";\
-                            $CATALINA_HOME/bin/catalina.sh start ${OCF_RESKEY_tomcat_start_opts}" \
-			>> "$TOMCAT_CONSOLE" 2>&1 &
+		cat<<-END_TOMCAT_START | su - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1 &
+			export JAVA_HOME=${OCF_RESKEY_java_home}
+			export JAVA_OPTS=-Dname=${TOMCAT_NAME}
+			export CATALINA_HOME=${OCF_RESKEY_catalina_home}
+			export CATALINA_PID=${OCF_RESKEY_catalina_pid}
+			export CATALINA_OPTS=\"${OCF_RESKEY_catalina_opts}\"
+			$CATALINA_HOME/bin/catalina.sh start ${OCF_RESKEY_tomcat_start_opts}
+END_TOMCAT_START
 	fi
 
 	while true; do
@@ -181,13 +181,13 @@ stop_tomcat()
 			>> "$TOMCAT_CONSOLE" 2>&1 &
 		eval $tomcat_stop_cmd >> "$TOMCAT_CONSOLE" 2>&1
 	else
-		su - -s /bin/sh "$RESOURCE_TOMCAT_USER" \
-			-c "export JAVA_HOME=${OCF_RESKEY_java_home};\
-                            export JAVA_OPTS=-Dname=${TOMCAT_NAME};\
-                            export CATALINA_HOME=${OCF_RESKEY_catalina_home};\
-                            export CATALINA_PID=${OCF_RESKEY_catalina_pid};\
-                            $CATALINA_HOME/bin/catalina.sh stop" \
-			>> "$TOMCAT_CONSOLE" 2>&1 &
+		cat<<-END_TOMCAT_STOP | su - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1 &
+			export JAVA_HOME=${OCF_RESKEY_java_home}
+			export JAVA_OPTS=-Dname=${TOMCAT_NAME}
+			export CATALINA_HOME=${OCF_RESKEY_catalina_home}
+			export CATALINA_PID=${OCF_RESKEY_catalina_pid}
+			$CATALINA_HOME/bin/catalina.sh stop
+END_TOMCAT_STOP
 	fi
 
 	lapse_sec=0
