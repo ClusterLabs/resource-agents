@@ -560,7 +560,7 @@ foobar_stop() {
 
     foobar_monitor
     rc=$?
-    case "$rc" in)
+    case "$rc" in
         "$OCF_SUCCESS")
             # Currently running. Normal, expected behavior.
             ocf_log debug "Resource is currently running"
@@ -768,7 +768,7 @@ foobar_promote() {
     # test the resource's current state
     foobar_monitor
     rc=$?
-    case "$rc" in)
+    case "$rc" in
         "$OCF_SUCCESS")
             # Running as slave. Normal, expected behavior.
             ocf_log debug "Resource is currently running as Slave"
@@ -838,7 +838,7 @@ foobar_demote() {
     # test the resource's current state
     foobar_monitor
     rc=$?
-    case "$rc" in)
+    case "$rc" in
         "$OCF_RUNNING_MASTER")
             # Running as master. Normal, expected behavior.
             ocf_log debug "Resource is currently running as Master"
