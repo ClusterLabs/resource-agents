@@ -65,6 +65,14 @@ Location to store the resource state in.
 <content type="string" default="${HA_RSCTMP}/Dummy-${OCF_RESOURCE_INSTANCE}.state" />
 </parameter>
 
+<parameter name="fake" unique="0">
+<longdesc lang="en">
+Fake attribute that can be changed to cause a reload
+</longdesc>
+<shortdesc lang="en">Fake attribute that can be changed to cause a reload</shortdesc>
+<content type="string" default="dummy" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -135,6 +143,7 @@ dummy_validate() {
 }
 
 : ${OCF_RESKEY_state=${HA_RSCTMP}/Dummy-${OCF_RESOURCE_INSTANCE}.state}
+: ${OCF_RESKEY_fake="dummy"}
 
 case $__OCF_ACTION in
 meta-data)	meta_data
@@ -149,8 +158,7 @@ migrate_to)	ocf_log info "Migrating ${OCF_RESOURCE_INSTANCE} to ${OCF_RESKEY_CRM
 migrate_from)	ocf_log info "Migrating ${OCF_RESOURCE_INSTANCE} from ${OCF_RESKEY_CRM_meta_migrate_source}."
 	        dummy_start
 		;;
-reload)		ocf_log err "Reloading..."
-	        dummy_start
+reload)		ocf_log info "Reloading ${OCF_RESOURCE_INSTANCE} ..."
 		;;
 validate-all)	dummy_validate;;
 usage|help)	dummy_usage
