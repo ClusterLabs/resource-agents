@@ -448,7 +448,7 @@ sapuserexit() {
     if have_binary "$VALUE"
     then
       ocf_log info "Calling userexit ${NAME} with customer script file ${VALUE}"
-      $VALUE >/dev/null 2>&1
+      "$VALUE" >/dev/null 2>&1
       ocf_log info "Exiting userexit ${NAME} with customer script file ${VALUE}, returncode: $?"
     else
       ocf_log warn "Attribute ${NAME} is set to ${VALUE}, but this file is not executable"
