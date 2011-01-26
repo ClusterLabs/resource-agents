@@ -82,8 +82,8 @@ For example, "/etc/proftpd.conf"
 </parameter>
 
 <parameter name="curl_binary" unique="0" required="0">
-<longdesc lang="en">The absolut path to the curl binary for monitoring with OCF_CHECK_LEVEL greater zero.</longdesc>
-<shortdesc lang="en">The absolut path to the curl binary</shortdesc>
+<longdesc lang="en">The absolute path to the curl binary for monitoring with OCF_CHECK_LEVEL greater zero.</longdesc>
+<shortdesc lang="en">The absolute path to the curl binary</shortdesc>
 <content type="string" default="/usr/bin/curl" />
 </parameter>
 
