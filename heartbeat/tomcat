@@ -24,8 +24,8 @@
 # OCF parameters:
 #   OCF_RESKEY_tomcat_name - The name of the resource. Default is tomcat
 #   OCF_RESKEY_script_log  - A destination of the log of this script. Default /var/log/OCF_RESKEY_tomcat_name.log
-#   OCF_RESKEY_tomcat_stop_timeout  - Time-out at the time of the stop. Default is 5
-#   OCF_RESKEY_tomcat_suspend_trialcount  - The re-try number of times awaiting a stop. Default is 10
+#   OCF_RESKEY_tomcat_stop_timeout  - Time-out at the time of the stop. Default is 5. DEPRECATED
+#   OCF_RESKEY_tomcat_suspend_trialcount  - The re-try number of times awaiting a stop. Default is 10. DEPRECATED
 #   OCF_RESKEY_tomcat_user  - A user name to start a resource. Default is root
 #   OCF_RESKEY_statusurl - URL for state confirmation. Default is http://127.0.0.1:8080
 #   OCF_RESKEY_java_home - Home directory of Java. Default is none
@@ -175,21 +175,23 @@ END_TOMCAT_START
 # Stop Tomcat
 stop_tomcat()
 {
+	STOP_TIMEOUT=$((OCF_RESKEY_CRM_meta_timeout/1000-1))
+
 	cd "$CATALINA_HOME/bin"
 
 	echo "`date "+%Y/%m/%d %T"`: stop  ###########################" >> "$TOMCAT_CONSOLE"
 
 	if [ "$RESOURCE_TOMCAT_USER" = RUNASIS ]; then
-		"$CATALINA_HOME/bin/catalina.sh" stop \
-			>> "$TOMCAT_CONSOLE" 2>&1 &
+		"$CATALINA_HOME/bin/catalina.sh" stop $STOP_TIMEOUT -force \
+			>> "$TOMCAT_CONSOLE" 2>&1
 	else
-		cat<<-END_TOMCAT_STOP | su - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1 &
+		cat<<-END_TOMCAT_STOP | su - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1
 			export JAVA_HOME=${JAVA_HOME}
 			export JAVA_OPTS="${JAVA_OPTS}"
 			export CATALINA_HOME=${CATALINA_HOME}
 			export CATALINA_BASE=${CATALINA_BASE}
 			export CATALINA_PID=${CATALINA_PID}
-			$CATALINA_HOME/bin/catalina.sh stop
+			$CATALINA_HOME/bin/catalina.sh stop $STOP_TIMEOUT -force
 END_TOMCAT_STOP
 	fi
 
@@ -197,40 +199,7 @@ END_TOMCAT_STOP
 	while isalive_tomcat; do
 		sleep 1
 		lapse_sec=`expr $lapse_sec + 1`
-		ocf_log debug "stop_tomcat[$TOMCAT_NAME]: stop NORM $lapse_sec/$TOMCAT_STOP_TIMEOUT"
-		if [ $lapse_sec -ge $TOMCAT_STOP_TIMEOUT ]; then
-			break
-		fi
-	done
-
-	if isalive_tomcat; then
-		lapse_sec=0
-		while true; do
-			sleep 1
-			lapse_sec=`expr $lapse_sec + 1`
-			ocf_log debug "stop_tomcat[$TOMCAT_NAME]: suspend tomcat by SIGTERM ($lapse_sec/$TOMCAT_SUSPEND_TRIALCOUNT)"
-			pkill -TERM -f "${SEARCH_STR}"
-			if isalive_tomcat; then
-				ocf_log debug "stop_tomcat[$TOMCAT_NAME]: suspend tomcat by SIGQUIT ($lapse_sec/$TOMCAT_SUSPEND_TRIALCOUNT)"
-				pkill -QUIT -f "${SEARCH_STR}"
-				if isalive_tomcat; then
-					if [ $lapse_sec -ge $TOMCAT_SUSPEND_TRIALCOUNT ]; then
-						break
-					fi
-				else
-					break
-				fi
-			else
-				break
-			fi
-		done
-	fi
-
-	lapse_sec=0
-	while isalive_tomcat; do
-		sleep 1
-		lapse_sec=`expr $lapse_sec + 1`
-		ocf_log debug "stop_tomcat[$TOMCAT_NAME]: suspend tomcat by SIGKILL ($lapse_sec)"
+		ocf_log debug "stop_tomcat[$TOMCAT_NAME]: stop failed, killing with SIGKILL ($lapse_sec)"
 		pkill -KILL -f "${SEARCH_STR}"
 	done
 
@@ -283,18 +252,18 @@ Log file, used during start and stop operations.
 
 <parameter name="tomcat_stop_timeout" unique="0">
 <longdesc lang="en">
-Time-out for stop operation.
+Time-out for stop operation. DEPRECATED
 </longdesc>
-<shortdesc>Time-out for the stop operation</shortdesc>
+<shortdesc>Time-out for the stop operation. DEPRECATED</shortdesc>
 <content type="integer" default="" />
 </parameter>
 
 <parameter name="tomcat_suspend_trialcount" unique="0">
 <longdesc lang="en">
 Maximum number of times to retry stop operation before suspending
-and killing Tomcat.
+and killing Tomcat. DEPRECATED. Does not retry.
 </longdesc>
-<shortdesc>Max retry count for stop operation</shortdesc>
+<shortdesc>Max retry count for stop operation. DEPRECATED</shortdesc>
 <content type="integer" default="" />
 </parameter>
 
@@ -413,8 +382,6 @@ validate_all_tomcat()
 
 TOMCAT_NAME="${OCF_RESKEY_tomcat_name-tomcat}"
 TOMCAT_CONSOLE="${OCF_RESKEY_script_log-/var/log/$TOMCAT_NAME.log}"
-TOMCAT_STOP_TIMEOUT="${OCF_RESKEY_tomcat_stop_timeout-5}"
-TOMCAT_SUSPEND_TRIALCOUNT="${OCF_RESKEY_tomcat_suspend_trialcount-10}"
 RESOURCE_TOMCAT_USER="${OCF_RESKEY_tomcat_user-RUNASIS}"
 RESOURCE_STATUSURL="${OCF_RESKEY_statusurl-http://127.0.0.1:8080}"
 
