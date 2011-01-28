@@ -101,6 +101,17 @@ meta_data()
 	    <content type="string"/>
 	</parameter>
 
+	<parameter name="disable_rdisc">
+	    <longdesc lang="en">
+	        Disable updating of routing using RDISC protocol and
+	        preserve static routes.
+	    </longdesc>
+	    <shortdesc lang="en">
+	        Disable updating of routing using RDISC protocol
+	    </shortdesc>
+	    <content type="boolean"/>
+	</parameter>
+
     </parameters>
 
     <actions>
@@ -611,7 +622,10 @@ ipv6()
 		# Not sure if this is necessary for ipv6 either.
 		file=$(which rdisc 2>/dev/null)
 		if [ -f "$file" ]; then
-		        killall -HUP rdisc || rdisc -fs
+			if [ "$OCF_RESKEY_disable_rdisc" != "yes" ] && \
+			   [ "$OCF_RESKEY_disable_rdisc" != "1" ]; then
+		        	killall -HUP rdisc || rdisc -fs
+			fi
 		fi
 		
 		return 0
@@ -690,7 +704,10 @@ ipv4()
 		
 		file=$(which rdisc 2>/dev/null)
 		if [ -f "$file" ]; then
-		        killall -HUP rdisc || rdisc -fs
+			if [ "$OCF_RESKEY_disable_rdisc" != "yes" ] && \
+			   [ "$OCF_RESKEY_disable_rdisc" != "1" ]; then
+			        killall -HUP rdisc || rdisc -fs
+			fi
 		fi
 		
 		return 0
