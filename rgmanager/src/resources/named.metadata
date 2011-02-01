@@ -1,0 +1,104 @@
+<?xml version="1.0"?>
+<resource-agent version="rgmanager 2.0" name="named">
+    <version>1.0</version>
+
+    <longdesc lang="en">
+        This defines an instance of DNS named server
+    </longdesc>
+    <shortdesc lang="en">
+        Defines an instance of named server
+    </shortdesc>
+
+    <parameters>
+        <parameter name="name" primary="1">
+	    <longdesc lang="en">
+	        Specifies a service name for logging and other purposes
+	    </longdesc>
+            <shortdesc lang="en">
+                Name
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="config_file">
+            <longdesc lang="en">
+                Define absolute path to configuration file
+            </longdesc>
+            <shortdesc lang="en">
+                Config File
+            </shortdesc>
+	    <content type="string" default="/etc/named.conf"/>
+        </parameter>
+
+        <parameter name="named_sdb">
+            <longdesc lang="en">
+		Simplified Database Backend
+            </longdesc>
+            <shortdesc lang="en">
+		Simplified Database Backend
+            </shortdesc>
+	    <content type="boolean" default="0"/>
+        </parameter>
+
+	<parameter name="named_working_dir">
+		<longdesc lang="en">
+			Other command-line options for named
+		</longdesc>
+		<shortdesc lang="en">
+			Other command-line options for named
+		</shortdesc>
+		<content type="string" default="/var/named" />
+	</parameter>
+
+	<parameter name="named_options">
+		<longdesc lang="en">
+			Other command-line options for named
+		</longdesc>
+		<shortdesc lang="en">
+			Other command-line options for named
+		</shortdesc>
+		<content type="string" />
+	</parameter>
+
+	<parameter name="shutdown_wait">
+		<longdesc lang="en">
+			Wait X seconds for correct end of service shutdown
+		</longdesc>
+		<shortdesc lang="en">
+			Wait X seconds for correct end of service shutdown
+		</shortdesc>
+		<content type="integer" default="5" />
+	</parameter>
+
+        <parameter name="service_name" inherit="service%name">
+            <longdesc lang="en">
+	    	Inherit the service name.  We need to know
+		the service name in order to determine file
+		systems and IPs for this service.
+            </longdesc>
+            <shortdesc lang="en">
+	    	Inherit the service name.
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+    </parameters>
+
+    <actions>
+        <action name="start" timeout="0"/>
+	<action name="stop" timeout="0"/>
+
+	<!-- Checks to see if it''s mounted in the right place -->
+	<action name="status" interval="1m" timeout="10"/>
+	<action name="monitor" interval="1m" timeout="10"/>
+
+	<!-- Checks to see if we can read from the mountpoint -->
+	<action name="status" depth="10" timeout="30" interval="5m"/>
+	<action name="monitor" depth="10" timeout="30" interval="5m"/>
+
+	<action name="meta-data" timeout="0"/>
+	<action name="validate-all" timeout="0"/>
+    </actions>
+
+    <special tag="rgmanager">
+    </special>
+</resource-agent>

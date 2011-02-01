@@ -1,0 +1,443 @@
+#!/bin/bash
+
+#
+# File system (normal) mount/umount/fsck/etc. agent
+#
+
+. $(dirname $0)/utils/fs-lib.sh
+
+do_metadata()
+{
+	cat <<EOT
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<resource-agent name="fs" version="rgmanager 2.0">
+    <version>1.0</version>
+
+    <longdesc lang="en">
+        This defines a standard file system mount (= not a clustered
+	or otherwise shared file system).
+    </longdesc>
+    <shortdesc lang="en">
+        Defines a file system mount.
+    </shortdesc>
+
+    <parameters>
+        <parameter name="name" primary="1">
+	    <longdesc lang="en">
+	        Symbolic name for this file system.
+	    </longdesc>
+            <shortdesc lang="en">
+                File System Name
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="mountpoint" unique="1" required="1">
+	    <longdesc lang="en">
+	        Path in file system heirarchy to mount this file system.
+	    </longdesc>
+            <shortdesc lang="en">
+                Mount Point
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="device" unique="1" required="1">
+	    <longdesc lang="en">
+	        Block device, file system label, or UUID of file system.
+	    </longdesc>
+            <shortdesc lang="en">
+                Device or Label
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="fstype">
+	    <longdesc lang="en">
+	        File system type.  If not specified, mount(8) will attempt to
+		determine the file system type.
+	    </longdesc>
+            <shortdesc lang="en">
+                File system type
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="force_unmount">
+            <longdesc lang="en">
+                If set, the cluster will kill all processes using 
+                this file system when the resource group is 
+                stopped.  Otherwise, the unmount will fail, and
+                the resource group will be restarted.
+            </longdesc>
+            <shortdesc lang="en">
+                Force Unmount
+            </shortdesc>
+	    <content type="boolean"/>
+        </parameter>
+
+        <parameter name="quick_status">
+            <longdesc lang="en">
+		Use quick status checks.  When set to 0 (the default), this
+		agent behaves normally.  When set to 1, this agent will not
+		log errors incurred or perform the file system accessibility
+		check (e.g. it will not try to read from/write to the file
+		system).  You should only set this to 1 if you have lots of
+		file systems on your cluster or you are seeing very high load
+		spikes as a direct result of this agent.
+            </longdesc>
+            <shortdesc lang="en">
+	    	Quick/brief status checks.
+            </shortdesc>
+	    <content type="boolean"/>
+        </parameter>
+
+	<parameter name="self_fence">
+	    <longdesc lang="en">
+	        If set and unmounting the file system fails, the node will
+		immediately reboot.  Generally, this is used in conjunction
+		with force-unmount support, but it is not required.
+	    </longdesc>
+	    <shortdesc lang="en">
+	        Seppuku Unmount
+	    </shortdesc>
+	    <content type="boolean"/>
+	</parameter>
+
+	<parameter name="nfslock" inherit="nfslock">
+	    <longdesc lang="en">
+	        If set and unmounting the file system fails, the node will
+		try to kill lockd and issue reclaims across all remaining
+		network interface cards.
+	    </longdesc>
+	    <shortdesc lang="en">
+	        Enable NFS lock workarounds
+	    </shortdesc>
+	    <content type="boolean"/>
+	</parameter>
+
+	<parameter name="fsid">
+	    <longdesc lang="en">
+	    	File system ID for NFS exports.  This can be overridden
+		in individual nfsclient entries.
+	    </longdesc>
+	    <shortdesc lang="en">
+	    	NFS File system ID
+	    </shortdesc>
+	    <content type="string"/>
+	</parameter>
+
+        <parameter name="force_fsck">
+            <longdesc lang="en">
+                If set, the file system will be checked (even if
+                it is a journalled file system).  This option is
+                ignored for non-journalled file systems such as
+                ext2.
+            </longdesc>
+            <shortdesc lang="en">
+                Force fsck support
+            </shortdesc>
+	    <content type="boolean"/>
+        </parameter>
+
+        <parameter name="options">
+            <longdesc lang="en">
+	    	Options used when the file system is mounted.  These
+		are often file-system specific.  See mount(8) for supported
+		mount options.
+            </longdesc>
+            <shortdesc lang="en">
+                Mount Options
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+    </parameters>
+
+    <actions>
+        <action name="start" timeout="900"/>
+	<action name="stop" timeout="30"/>
+	<!-- Recovery isn't possible; we don't know if resources are using
+	     the file system. -->
+
+	<!-- Checks to see if it's mounted in the right place -->
+	<action name="status" interval="1m" timeout="10"/>
+	<action name="monitor" interval="1m" timeout="10"/>
+
+	<!-- Note: active monitoring is constant and supplants all
+	     check depths -->
+	<!-- Checks to see if we can read from the mountpoint -->
+	<action name="status" depth="10" timeout="30" interval="30"/>
+	<action name="monitor" depth="10" timeout="30" interval="30"/>
+
+	<!-- Checks to see if we can write to the mountpoint (if !ROFS) -->
+	<action name="status" depth="20" timeout="30" interval="1m"/>
+	<action name="monitor" depth="20" timeout="30" interval="1m"/>
+
+	<action name="meta-data" timeout="5"/>
+	<action name="validate-all" timeout="5"/>
+    </actions>
+
+    <special tag="rgmanager">
+	<attributes maxinstances="1"/>
+        <child type="fs" start="1" stop="3"/>
+        <child type="clusterfs" start="1" stop="3"/>
+        <child type="nfsexport" start="3" stop="1"/>
+    </special>
+</resource-agent>
+EOT
+}
+
+
+verify_fstype()
+{
+	# Auto detect?
+	[ -z "$OCF_RESKEY_fstype" ] && return 0
+
+	case $OCF_RESKEY_fstype in
+	ext2|ext3|ext4|btrfs|jfs|xfs|reiserfs|vfat|tmpfs|vxfs)
+		return 0
+		;;
+	*)
+		echo "File system type $OCF_RESKEY_fstype not supported"
+		return $OCF_ERR_ARGS
+		;;
+	esac
+}
+
+
+verify_options()
+{
+	declare -i ret=$OCF_SUCCESS
+	declare o
+
+	#
+	# From mount(8)
+	#
+	for o in `echo $OCF_RESKEY_options | sed -e s/,/\ /g`; do
+		case $o in
+		async|atime|auto|defaults|dev|exec|_netdev|noatime)
+			continue
+			;;
+		noauto|nodev|noexec|nosuid|nouser|ro|rw|suid|sync)
+			continue
+			;;
+		dirsync|user|users)
+			continue
+			;;
+		esac
+
+		do_verify_option $OCF_RESKEY_fstype "$o"
+
+		case $OCF_RESKEY_fstype in
+		ext2|ext3|ext4)
+			case $o in
+			bsddf|minixdf|check|check=*|nocheck|debug)
+				continue
+				;;
+			errors=*|grpid|bsdgroups|nogrpid|sysvgroups)
+				continue
+				;;
+			resgid=*|resuid=*|sb=*|grpquota|noquota)
+				continue
+				;;
+			quota|usrquota|nouid32)
+				continue
+				;;
+			esac
+
+			if [ "$OCF_RESKEY_fstype" = "ext3" ] ||
+			   [ "$OCF_RESKEY_fstype" = "ext4" ]; then
+				case $0 in
+				noload|data=*)
+					continue
+					;;
+				esac
+			fi
+			;;
+		vfat)
+			case $o in
+			blocksize=512|blocksize=1024|blocksize=2048)
+				continue
+				;;
+			uid=*|gid=*|umask=*|dmask=*|fmask=*)
+				continue
+				;;
+			check=r*|check=n*|check=s*|codepage=*)
+				continue
+				;;
+			conv=b*|conv=t*|conv=a*|cvf_format=*)
+				continue
+				;;
+			cvf_option=*|debug|fat=12|fat=16|fat=32)
+				continue
+				;;
+			iocharset=*|quiet)
+				continue
+				;;
+			esac
+			;;
+
+		jfs)
+			case $o in
+			conv|hash=rupasov|hash=tea|hash=r5|hash=detect)
+				continue
+				;;
+			hashed_relocation|no_unhashed_relocation)
+				continue
+				;;
+			noborder|nolog|notail|resize=*)
+				continue
+				;;
+			esac
+			;;
+
+		xfs)
+			case $o in
+			biosize=*|dmapi|xdsm|logbufs=*|logbsize=*)
+				continue
+				;;
+			logdev=*|rtdev=*|noalign|noatime)
+				continue
+				;;
+			norecovery|osyncisdsync|quota|userquota)
+				continue
+				;;
+			uqnoenforce|grpquota|gqnoenforce)
+				continue
+				;;
+			sunit=*|swidth=*)
+				continue
+				;;
+			esac
+			;;
+
+		tmpfs)
+			case $o in
+			size=*|nr_blocks=*|mode=*)
+				continue
+				;;
+			esac
+			;;
+		btrfs)
+			# tbd
+			continue
+			;;
+		esac
+
+		echo Option $o not supported for $OCF_RESKEY_fstype
+		ret=$OCF_ERR_ARGS
+	done
+
+	return $ret
+}
+
+
+do_validate()
+{
+	verify_name || return $OCF_ERR_ARGS
+	verify_fstype || return $OCF_ERR_ARGS
+	verify_device || return $OCF_ERR_ARGS
+	verify_mountpoint || return $OCF_ERR_ARGS
+	verify_options || return $OCF_ERR_ARGS
+}
+
+
+do_pre_mount()
+{
+	declare fstype="$OCF_RESKEY_fstype"
+
+	#
+	# Check to determine if we need to fsck the filesystem.
+	#
+	# Note: this code should not indicate in any manner suggested
+	# file systems to use in the cluster.  Known filesystems are
+	# listed here for correct operation.
+	#
+        case "$fstype" in
+        reiserfs) typeset fsck_needed="" ;;
+        ext3)     typeset fsck_needed="" ;;
+        ext4)     typeset fsck_needed="" ;;
+        btrfs)    typeset fsck_needed="" ;;
+        jfs)      typeset fsck_needed="" ;;
+        xfs)      typeset fsck_needed="" ;;
+	vxfs)	  typeset fsck_needed="" ;;
+        ext2)     typeset fsck_needed=yes ;;
+        minix)    typeset fsck_needed=yes ;;
+        vfat)     typeset fsck_needed=yes ;;
+        msdos)    typeset fsck_needed=yes ;;
+	"")       typeset fsck_needed=yes ;;		# assume fsck
+	*)
+		typeset fsck_needed=yes 		# assume fsck
+	     	ocf_log warn "\
+Unknown file system type '$fstype' for device $dev.  Assuming fsck is required."
+		;;
+	esac
+
+
+	#
+	# Fsck the device, if needed.
+	#
+	if [ -n "$fsck_needed" ] || [ "${OCF_RESKEY_force_fsck}" = "yes" ] ||\
+	   [ "${OCF_RESKEY_force_fsck}" = "1" ]; then
+		typeset fsck_log=@LOGDIR@/$(basename $dev).fsck.log
+		ocf_log debug "Running fsck on $dev"
+		fsck -p $dev >> $fsck_log 2>&1
+		ret_val=$?
+		if [ $ret_val -gt 1 ]; then
+			ocf_log err "\
+'fsck -p $dev' failed, error=$ret_val; check $fsck_log for errors"
+			ocf_log debug "Invalidating buffers for $dev"
+			$INVALIDATEBUFFERS -f $dev
+			return $OCF_ERR_GENERIC
+		fi
+		rm -f $fsck_log
+	fi
+
+	return 0
+}
+
+do_post_mount() {
+	#
+	# Create this for the NFS NLM broadcast bit
+	#
+	if [ $NFS_TRICKS -eq 0 ]; then
+		if [ "$OCF_RESKEY_nfslock" = "yes" ] || \
+	   	   [ "$OCF_RESKEY_nfslock" = "1" ]; then
+			mkdir -p "$mp"/.clumanager/statd
+			notify_list_merge "$mp"/.clumanager/statd
+		fi
+	fi
+
+	return 0
+}
+
+
+do_force_unmount() {
+	if [ "$OCF_RESKEY_nfslock" = "yes" ] || \
+	   [ "$OCF_RESKEY_nfslock" = "1" ]; then
+		ocf_log warning "Dropping node-wide NFS locks"
+		pkill -KILL -x lockd
+		mkdir -p "$mp"/.clumanager/statd
+		# Copy out the notify list; our
+		# IPs are already torn down
+		notify_list_store "$mp"/.clumanager/statd
+
+		# Save for post-umount phase
+		export nfslock_reclaim=1
+	fi
+
+	return 0
+}
+
+
+do_post_unmount() {
+	if [ "$nfslock_reclaim" = "1" ]; then
+		# If we have this flag set, do a full reclaim broadcast
+		notify_list_broadcast "$mp"/.clumanager/statd
+	fi
+
+	return 0
+}
+
+main $*

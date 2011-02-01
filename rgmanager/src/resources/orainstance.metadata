@@ -1,0 +1,86 @@
+<?xml version="1.0" ?>
+<!-- $Id: orainstance.metadata 58 2009-06-29 05:15:12Z hevirtan $ -->
+
+<!-- Resource metadata for Oracle DB agent -->
+<resource-agent name="orainstance" version="rgmanager 2.0">
+    <version>1.0</version>
+
+    <longdesc lang="en">
+	Oracle 10g Failover Instance
+    </longdesc>
+    <shortdesc lang="en">
+	Oracle 10g Failover Instance
+    </shortdesc>
+
+    <parameters>
+        <parameter name="name" primary="1">
+	    	<longdesc lang="en">
+				Instance name (SID) of oracle instance
+	    	</longdesc>
+        	<shortdesc lang="en">
+				Oracle SID
+        	</shortdesc>
+	    	<content type="string"/>
+        </parameter>
+
+        <parameter name="user" required="1">
+	    	<longdesc lang="en">
+				Oracle user name.  This is the user name of the Oracle
+				user which the Oracle instance runs as.
+	    	</longdesc>
+        	<shortdesc lang="en">
+				Oracle User Name
+        	</shortdesc>
+	    	<content type="string"/>
+        </parameter>
+
+        <parameter name="home" required="1">
+	    	<longdesc lang="en">
+				This is the Oracle database home directory.
+				This is configured when you install Oracle.
+	    	</longdesc>
+        	<shortdesc lang="en">
+				Oracle Home Directory
+        	</shortdesc>
+	    	<content type="string"/>
+        </parameter>
+
+        <parameter name="listeners">
+	    	<longdesc lang="en">
+				List of Oracle listeners which will be started with
+				the database instance. Listener names are separated by
+				whitespace. Defaults to empty which disables listeners.
+	    	</longdesc>
+        	<shortdesc lang="en">
+				Oracle listeners
+        	</shortdesc>
+	    	<content type="string" default=""/>
+        </parameter>
+
+        <parameter name="lockfile">
+	    	<longdesc lang="en">
+				Location for lockfile which will be used for checking if
+				the Oracle should be running or not. Defaults to location
+				under /tmp.
+	    	</longdesc>
+        	<shortdesc lang="en">
+				Pathname for lockfile
+        	</shortdesc>
+	    	<content type="string"/>
+        </parameter>
+    </parameters>
+
+    <actions>
+        <action name="start" timeout="900"/>
+		<action name="stop" timeout="90"/>
+
+		<!-- Note: status check will also perform recover 
+			 (Oracle DB restart) if the check fails -->
+		<action name="status" timeout="900" interval="1m"/>
+		<action name="monitor" timeout="900" interval="1m"/>
+
+		<action name="meta-data" timeout="0"/>
+		<action name="verify-all" timeout="0"/>
+    </actions>
+
+</resource-agent>

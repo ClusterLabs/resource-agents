@@ -1,0 +1,86 @@
+<?xml version="1.0" ?>
+<resource-agent name="lvm" version="rgmanager 2.0">
+    <version>1.0</version>
+
+    <longdesc lang="en">
+	This defines a LVM volume group that is ...
+    </longdesc>
+
+    <shortdesc lang="en">
+	LVM Failover script
+    </shortdesc>
+
+    <parameters>
+        <parameter name="name" primary="1">
+            <longdesc lang="en">
+                Unique name for this LVM resource
+            </longdesc>
+            <shortdesc lang="en">
+                Name
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="vg_name" required="1">
+            <longdesc lang="en">
+                Name of the volume group being managed
+            </longdesc>
+            <shortdesc lang="en">
+                Volume group name
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="lv_name">
+            <longdesc lang="en">
+                Name of the logical volume being managed.  This
+		parameter is optional if there are more than one
+		logical volumes in the volume group to be managed.
+            </longdesc>
+            <shortdesc lang="en">
+                Logical Volume name (optional).
+            </shortdesc>
+	    <content type="string"/>
+	</parameter>
+
+	<parameter name="self_fence">
+	    <longdesc lang="en">
+		If set and the clean up of the tags fails, the node will
+		immediately reboot.
+	    </longdesc>
+	    <shortdesc lang="en">
+		Fence the node if it is not able to clean up LVM tags
+	    </shortdesc>
+	    <content type="boolean"/>
+	</parameter>
+
+	<parameter name="nfslock" inherit="service%nfslock">
+	    <longdesc lang="en">
+	        If set and unmounting the file system fails, the node will
+		try to kill lockd and issue reclaims across all remaining
+		network interface cards.
+	    </longdesc>
+	    <shortdesc lang="en">
+	        Enable NFS lock workarounds
+	    </shortdesc>
+	    <content type="boolean"/>
+	</parameter>
+
+    </parameters>
+
+    <actions>
+        <action name="start" timeout="5"/>
+	<action name="stop" timeout="5"/>
+
+	<action name="status" timeout="5" interval="1h"/>
+	<action name="monitor" timeout="5" interval="1h"/>
+
+	<action name="meta-data" timeout="5"/>
+	<action name="validate-all" timeout="30"/>
+    </actions>
+
+    <special tag="rgmanager">
+    	<attributes maxinstances="1"/>
+    </special>
+
+</resource-agent>

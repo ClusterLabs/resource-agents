@@ -17,14 +17,41 @@
 #
 
 MAINTAINERCLEANFILES    = Makefile.in aclocal.m4 configure DRF/config-h.in \
-                        DRF/stamp-h.in libtool.m4 ltdl.m4 libltdl.tar
+			  missing install-sh autoscan.log configure.scan \
+                          DRF/stamp-h.in libtool.m4 ltdl.m4 libltdl.tar
 
-SUBDIRS	= include heartbeat tools ldirectord doc
+SUBDIRS	= include heartbeat rgmanager tools ldirectord doc
+
+EXTRA_DIST		= autogen.sh .version make/release.mk \
+			  make/git-version-gen make/gitlog-to-changelog
+
+AUTOMAKE_OPTIONS	= foreign
+
+noinst_HEADERS		= make/copyright.cf
 
 install-exec-local:
 	$(INSTALL) -d -m 1755 $(DESTDIR)$(HA_RSCTMPDIR)
+	$(INSTALL) -d $(DESTDIR)/$(LOGDIR)
 
 dist-clean-local:
 	rm -f autoconf automake autoheader $(TARFILE)
 
-.PHONY: 
+uninstall-local:
+			rmdir $(DESTDIR)/$(LOGDIR) || :;
+
+BUILT_SOURCES = .version
+.version:
+	echo $(VERSION) > $@-t && mv $@-t $@
+
+dist-hook: gen-ChangeLog
+	echo $(VERSION) > $(distdir)/.tarball-version
+
+gen_start_date = 2000-01-01
+.PHONY: gen-ChangeLog
+gen-ChangeLog:
+	if test -d .git; then 						\
+		$(top_srcdir)/make/gitlog-to-changelog			\
+			--since=$(gen_start_date) > $(distdir)/cl-t;	\
+		rm -f $(distdir)/ChangeLog; 				\
+		mv $(distdir)/cl-t $(distdir)/ChangeLog;		\
+	fi

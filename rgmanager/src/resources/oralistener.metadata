@@ -1,0 +1,61 @@
+<?xml version="1.0" ?>
+<!-- $Id: oralistener.metadata 61 2009-06-29 10:01:49Z hevirtan $ -->
+
+<!-- Resource metadata for Oracle listener agent -->
+<resource-agent name="oralistener" version="rgmanager 2.0">
+    <version>1.0</version>
+
+    <longdesc lang="en">
+	Oracle 10g Listener Instance
+    </longdesc>
+    <shortdesc lang="en">
+	Oracle 10g Listener Instance
+    </shortdesc>
+
+    <parameters>
+        <parameter name="name" primary="1">
+	    	<longdesc lang="en">
+				Listener name
+	    	</longdesc>
+        	<shortdesc lang="en">
+				Listener name
+        	</shortdesc>
+	    	<content type="string"/>
+        </parameter>
+
+        <parameter name="user" required="1">
+	    	<longdesc lang="en">
+				Oracle user name.  This is the user name of the Oracle
+				user which the Oracle instance runs as.
+	    	</longdesc>
+        	<shortdesc lang="en">
+				Oracle User Name
+        	</shortdesc>
+	    	<content type="string"/>
+        </parameter>
+
+        <parameter name="home" required="1">
+	    	<longdesc lang="en">
+				This is the Oracle database home directory.
+				This is configured when you install Oracle.
+	    	</longdesc>
+        	<shortdesc lang="en">
+				Oracle Home Directory
+        	</shortdesc>
+	    	<content type="string"/>
+        </parameter>
+    </parameters>
+
+    <actions>
+        <action name="start" timeout="90"/>
+		<action name="stop" timeout="30"/>
+		<!-- <action name="recover" timeout="90"/> -->
+
+		<action name="status" timeout="90" interval="5m"/>
+		<action name="monitor" timeout="90" interval="5m"/>
+
+		<action name="meta-data" timeout="0"/>
+		<action name="verify-all" timeout="0"/>
+    </actions>
+
+</resource-agent>

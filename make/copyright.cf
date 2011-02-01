@@ -1,0 +1,6 @@
+#ifndef __COPYRIGHT_DOT_CF__
+#define __COPYRIGHT_DOT_CF__
+
+#define REDHAT_COPYRIGHT "Copyright (C) Red Hat, Inc.  2004-2010  All rights reserved."
+
+#endif  /*  __COPYRIGHT_DOT_CF__  */
