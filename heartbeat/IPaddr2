@@ -548,21 +548,14 @@ run_send_arp() {
 # Run ipoibarping to note peers about new Infiniband address
 #
 run_send_ib_arp() {
-	SENDIBARP="/sbin/ipoibarping"
-
-	if [ ! -x $SENDIBARP ] ; then
-		ocf_log err "Could not send gratuitous Infiniband arps: file not found: $SENDIBPARP"
-		return
-	fi
-
-	ARGS="-q -c  $ARP_REPEAT -U -I $NIC $BASEIP"
-	ocf_log info "$SENDIBARP $ARGS"
+	ARGS="-q -c $ARP_REPEAT -U -I $NIC $BASEIP"
+	ocf_log info "ipoibarping $ARGS"
 	case $ARP_BACKGROUND in
 	yes)
-		($SENDIBARP $ARGS || ocf_log err "Could not send gratuitous arps" &) >&2
+		(ipoibarping $ARGS || ocf_log err "Could not send gratuitous arps" &) >&2
 		;;
 	*)
-		$SENDIBARP $ARGS || ocf_log err "Could not send gratuitous arps"
+		ipoibarping $ARGS || ocf_log err "Could not send gratuitous arps"
 		;;
 	esac
 }
@@ -788,6 +781,11 @@ ip_validate() {
     IP_CIP=
 
     ip_init
+
+    case "$NIC" in
+    ib*) 	check_binary ipoibarping
+    		;;
+    esac
 
     if [ -n "$IP_CIP" ]; then
 	check_binary $IPTABLES
