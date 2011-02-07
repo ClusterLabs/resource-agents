@@ -8,7 +8,7 @@ declare -a ip_keys
 
 generate_configTemplate()
 {
-	cat > $1 << EOT
+	cat > "$1" << EOT
 #
 # "$1" was created from the "$2"
 #
@@ -34,8 +34,8 @@ sha1_verify()
 
 	ocf_log debug "Checking: SHA1 checksum of config file $oldFile"
 
-	sha1_new=`cat $oldFile | grep -v "# rgmanager-sha1" | sha1sum | sed 's/^\([a-z0-9]\+\) .*$/\1/'`
-	sha1_old=`tail -n 1 $oldFile | sed 's/^# rgmanager-sha1 \(.*\)$/\1/' | sed 's/^\([a-z0-9]\+\) .*$/\1/'`
+	sha1_new=`cat "$oldFile" | grep -v "# rgmanager-sha1" | sha1sum | sed 's/^\([a-z0-9]\+\) .*$/\1/'`
+	sha1_old=`tail -n 1 "$oldFile" | sed 's/^# rgmanager-sha1 \(.*\)$/\1/' | sed 's/^\([a-z0-9]\+\) .*$/\1/'`
 
 	if [ "$sha1_new" = "$sha1_old" ]; then
 	        ocf_log debug "Checking: SHA1 checksum > succeed"
