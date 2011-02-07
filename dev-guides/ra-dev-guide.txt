@@ -416,20 +416,6 @@ generating documentation -- may be overridden from the command line.
 . ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
 --------------------------------------------------------------------------
 
-Defaults for resource agent parameters should be set by initializing
-variables with the suffix +_default+:
-
-[source,bash]
---------------------------------------------------------------------------
-# Defaults
-OCF_RESKEY_superfrobnicate_default=0
-
-: ${OCF_RESKEY_superfrobnicate=${OCF_RESKEY_superfrobnicate_default}}
---------------------------------------------------------------------------
-
-NOTE: The resource agent should make sure that it sets a default for
-any parameter not marked as +required+ in the metadata.
-
 === Functions implementing resource agent actions
 
 What follows next are the functions implementing the resource agent's
@@ -1341,6 +1327,79 @@ foobar_start() {
     return $OCF_SUCCESS
 }
 --------------------------------------------------------------------------
+
+
+== Conventions
+
+This section contains a collection of conventions that have emerged in
+the resource agent repositories over the years. Following these
+conventions is by no means mandatory for resource agent authors, but
+it is a good idea based on the
+http://en.wikipedia.org/wiki/Principle_of_least_surprise[Principle of
+Least Surprise] -- resource agents following these conventions will be
+easier to understand, review, and use than those that do not.
+
+=== Well-known parameter names
+
+Several parameter names are supported by a number of resource
+agents. For new resource agents, following these examples is generally
+a good idea:
+
+* +binary+ -- the name of a binary that principally manages the
+  resource, such as a server daemon
+* +config+ -- the full path to a configuration file
+* +pid+ -- the full path to a file holding a process ID (PID)
+* +log+ -- the full path to a log file
+* +socket+ -- the full path to a UNIX socket that the resource manages
+* +ip+ -- an IP address that a daemon binds to
+* +port+ -- a TCP or UDP port that a daemon binds to
+
+Needless to say, resource agents should only implement any of these
+parameters if they are sensible to use in the agent's context.
+
+=== Parameter defaults
+
+Defaults for resource agent parameters should be set by initializing
+variables with the suffix +_default+:
+
+[source,bash]
+--------------------------------------------------------------------------
+# Defaults
+OCF_RESKEY_superfrobnicate_default=0
+
+: ${OCF_RESKEY_superfrobnicate=${OCF_RESKEY_superfrobnicate_default}}
+--------------------------------------------------------------------------
+
+NOTE: The resource agent should make sure that it sets a default for
+any parameter not marked as +required+ in the metadata.
+
+
+=== Honoring +PATH+ for binaries
+
+When a resource agent supports a parameter designed to hold the name
+of a binary (such as a daemon, or a client utility for querying
+status), then that parameter should honor the +PATH+ environment
+variable. Do not supply full paths. Thus, the following approach:
+
+[source,bash]
+--------------------------------------------------------------------------
+# Good example -- do it this way
+OCF_RESKEY_frobnicate_default="frobnicate"
+: ${OCF_RESKEY_frobnicate="${OCF_RESKEY_frobnicate_default}"}
+--------------------------------------------------------------------------
+
+is much preferred over specifying a full path, as shown here:
+
+[source,bash]
+--------------------------------------------------------------------------
+# Bad example -- avoid if you can
+OCF_RESKEY_frobnicate_default="/usr/local/sbin/frobnicate"
+: ${OCF_RESKEY_frobnicate="${OCF_RESKEY_frobnicate_default}"}
+--------------------------------------------------------------------------
+
+This rule holds for defaults, as well.
+
+
 
 == Special considerations
 
