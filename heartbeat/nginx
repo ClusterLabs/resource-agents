@@ -48,8 +48,8 @@
 #			on shared disks - this affects the validate-all option.
 
 
-: ${OCF_FUNCTIONS_DIR=$OCF_ROOT/resource.d/heartbeat}
-. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+: ${OCF_FUNCTIONS_DIR=$OCF_ROOT/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 HA_VARRUNDIR=${HA_VARRUN}
 
 #######################################################################

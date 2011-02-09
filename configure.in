@@ -333,6 +333,10 @@ OCF_RA_DIR="${OCF_ROOT_DIR}/resource.d/"
 AC_DEFINE_UNQUOTED(OCF_RA_DIR,"$OCF_RA_DIR", Location for OCF RAs)
 AC_SUBST(OCF_RA_DIR)
 
+OCF_LIB_DIR="${OCF_ROOT_DIR}/lib/"
+AC_DEFINE_UNQUOTED(OCF_LIB_DIR,"$OCF_LIB_DIR", Location for shared code for OCF RAs)
+AC_SUBST(OCF_LIB_DIR)
+
 AC_PATH_PROGS(HG, hg false)
 AC_MSG_CHECKING(build version)
 BUILD_VERSION=unknown
@@ -771,10 +775,8 @@ dnl The Makefiles and shell scripts we output
 AC_CONFIG_FILES(Makefile				        \
 include/Makefile						\
 heartbeat/Makefile						\
-   heartbeat/.ocf-binaries					\
-   heartbeat/.ocf-directories					\
-   heartbeat/.ocf-shellfuncs					\
-   heartbeat/ocf-returncodes					\
+   heartbeat/ocf-binaries					\
+   heartbeat/ocf-directories					\
    heartbeat/ocf-shellfuncs					\
    heartbeat/shellfuncs						\
 tools/Makefile							\

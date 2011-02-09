@@ -139,12 +139,18 @@ find $RPM_BUILD_ROOT -name '*.pyc' -type f -print0 | xargs -0 rm -f
 find $RPM_BUILD_ROOT -name '*.pyo' -type f -print0 | xargs -0 rm -f
 
 # Unset execute permissions from things that shouln't have it
-find $RPM_BUILD_ROOT -name '.ocf-*' -type f -print0 | xargs -0 chmod a-x
 find $RPM_BUILD_ROOT -name 'ocf-*'  -type f -print0 | xargs -0 chmod a-x
 find $RPM_BUILD_ROOT -name '*.dtd'  -type f -print0 | xargs -0 chmod a-x
 chmod 0755 $RPM_BUILD_ROOT/usr/sbin/ocf-tester
 chmod 0755 $RPM_BUILD_ROOT/usr/sbin/ocft
 
+(
+cd $RPM_BUILD_ROOT/usr/lib/ocf/resource.d/heartbeat
+for f in ocf-binaries ocf-directories ocf-returncodes ocf-shellfuncs
+do
+	ln -s ../../lib/heartbeat/$f .$f
+done
+)
 ###########################################################
 
 %clean
@@ -176,6 +182,7 @@ rm -rf $RPM_BUILD_DIR/resource-agents
 %defattr(-,root,root)
 %dir /usr/lib/ocf
 %dir /usr/lib/ocf/resource.d
+%dir /usr/lib/ocf/lib
 %dir %{_datadir}/%{name}
 %dir %{_datadir}/%{name}/ocft
 %{_datadir}/%{name}/ocft/configs
@@ -183,6 +190,7 @@ rm -rf $RPM_BUILD_DIR/resource-agents
 %{_datadir}/%{name}/ocft/README
 %{_datadir}/%{name}/ocft/README.zh_CN
 /usr/lib/ocf/resource.d/heartbeat
+/usr/lib/ocf/lib/heartbeat
 %{_sbindir}/ocf-tester
 %{_sbindir}/ocft
 %{_sbindir}/sfex_init
@@ -200,9 +208,6 @@ rm -rf $RPM_BUILD_DIR/resource-agents
 %doc doc/README.webapps
 
 # For compatability with pre-existing agents
-%dir %{_libdir}/heartbeat
-%{_libdir}/heartbeat/ocf-shellfuncs
-%{_libdir}/heartbeat/ocf-returncodes
 %dir /etc/ha.d
 /etc/ha.d/shellfuncs
 

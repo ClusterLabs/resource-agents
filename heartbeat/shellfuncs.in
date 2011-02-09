@@ -93,4 +93,4 @@ BSD_Status() {
 }
 
 # Now get the good stuff
-. @OCF_RA_DIR@/heartbeat/.ocf-shellfuncs
+. @OCF_LIB_DIR@/heartbeat/ocf-shellfuncs

@@ -103,15 +103,13 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			Xen		\
 			Xinetd
 
-dist_ocf_DATA	     =  \
-			.ocf-shellfuncs	 \
-			.ocf-binaries	 \
-			.ocf-directories \
-			.ocf-returncodes
+ocfcommondir		= $(OCF_LIB_DIR)/heartbeat
+dist_ocfcommon_DATA	     =  \
+			ocf-shellfuncs	 \
+			ocf-binaries	 \
+			ocf-directories \
+			ocf-returncodes
 
 # Legacy locations
-commondir	     = $(libdir)/heartbeat
-dist_common_DATA     = ocf-shellfuncs ocf-returncodes
-
 hbdir			= $(sysconfdir)/ha.d
 hb_DATA			= shellfuncs

@@ -41,7 +41,7 @@ man_MANS		=
 
 EXTRA_DIST 		= $(man_MANS) $(doc_DATA) README.webapps
 
-# OCF_ROOT=. is necessary due to a sanity check in .ocf-shellfuncs
+# OCF_ROOT=. is necessary due to a sanity check in ocf-shellfuncs
 # (which tests whether $OCF_ROOT points to a directory
 metadata-%.xml: $(radir)/%
 	OCF_ROOT=. OCF_FUNCTIONS_DIR=$(radir) $< meta-data > $@
