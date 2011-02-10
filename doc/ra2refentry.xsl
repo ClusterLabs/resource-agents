@@ -126,18 +126,50 @@
 
 
  <!-- Mode Description --> 
- <xsl:template match="resource-agent" mode="description">
+
+ <!-- break string into <para> elements on linefeeds -->
+
+<xsl:template name="break_into_para">
+    <xsl:param name="string" />
+
+    <xsl:variable name="lf" select="'&#xA;'" />
+    <xsl:choose>
+        <xsl:when test="contains($string, $lf)">
+            <xsl:variable name="first" select="substring-before($string, $lf)" />
+
+           <!-- skip empty lines as <para> spacing generates one --> 
+
+            <xsl:if test="string-length($first) > 0">
+                <para>
+                    <xsl:value-of select="$first"/>
+                </para>
+            </xsl:if>
+
+           <!-- recursively call an remaining string --> 
+            <xsl:call-template name="break_into_para">
+                <xsl:with-param name="string"
+                    select="substring-after($string, $lf)" />
+            </xsl:call-template>
+        </xsl:when>
+        <xsl:otherwise>
+            <xsl:value-of select="$string"/>
+        </xsl:otherwise>
+    </xsl:choose>
+</xsl:template> 
+
+  <xsl:template match="resource-agent" mode="description">
     <refsection>
       <title>Description</title>
       <xsl:apply-templates mode="description"/>
     </refsection>
     </xsl:template>
 
-  <xsl:template match="longdesc" mode="description">
-    <para>
-     <xsl:apply-templates mode="description"/>
-    </para>
-  </xsl:template>
+    <xsl:template match="longdesc" mode="description">
+            <xsl:call-template name="break_into_para">
+                <xsl:with-param name="string" select="." />
+            </xsl:call-template>
+            <!-- xsl:apply-templates mode="description"/ -->
+    </xsl:template>
 
 
   <!-- Mode Parameters -->
