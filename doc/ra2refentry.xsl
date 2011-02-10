@@ -132,7 +132,7 @@
 <xsl:template name="break_into_para">
     <xsl:param name="string" />
 
-    <xsl:variable name="lf" select="'&#xA;'" />
+    <xsl:variable name="lf" select="'&#xA;&#xA;'" />
     <xsl:choose>
         <xsl:when test="contains($string, $lf)">
             <xsl:variable name="first" select="substring-before($string, $lf)" />
