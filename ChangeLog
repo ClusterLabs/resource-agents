@@ -1,4 +1,120 @@
 * Tue Apr 13 2010 Dejan Muhamedagic <dejan@suse.de> and others
+- release candidate 1.0.4
+- add GPLv3 license file (bnc#655700)
+- ocf-shellfuncs: allow ocf_run to return the actual exit code
+- ocf-shellfuncs: handle properly syslog facility set to none (bnc#621818)
+- ocf-shellfuncs: correctly identify root by id only (bnc#602312)
+- RA: add OCF_ROOT/lib/heartbeat directory (development)
+- RA: set the HA_RSCTMP directory to /var/run/resource-agents (lf#2378)
+- build: install jboss
+- conntrackd: new RA
+- exportfs: new RA
+- nginx: new RA
+- fio: new RA for IO load simulation
+- Filesystem: allow cloning of some filesystems as read-only (lf#2440)
+- Filesystem: add fast_stop parameter (lf#2402)
+- Filesystem: Clarify metadata and improve non-clone warning
+- Filesystem: new run_fsck parameter
+- LVM: add partial_activation parameter (lf#2490)
+- IPaddr2: fix reference to Infiniband arping binary (bnc#668447)
+- IPaddr2: optionally flush kernel routing table on interface stop
+- IPaddr2: exit with the right code when not properly configured
+- IPaddr2: exit early and with the right code if the ip parameter is not set
+- IPaddr2: unique_clone_address should work without CIP (lf#2442)
+- IPaddr: return the correct code if interface delete failed
+- IPv6addr: allow link-local addresses in case the interface name is provided
+- IPv6addr: interface index in /proc/net/if_inet6 may be longer than 2
+  chars (lf#2462)
+- IPsrcaddr: exit with the right code when not properly configured
+- IPsrcaddr: add the cidr_netmask parameter
+- Tools: findif: differentiate between error conditions
+- nfsserver: fix the default string for the notification parameter
+- nfsserver: don't use -v in the notify cmd with rpc.statd
+- iSCSITarget: fix race for target IDs when using IET (lf#2432)
+- iSCSITarget: follow changed IET access policy
+- Raid1: Support attempting to re-add mirrors on deep monitor action
+  (bnc#619121)
+- Raid1: Fix graceful stop code path
+- Raid1: Handle stop for failed arrays properly (bnc#618775)
+- sfex: output log messages also to stderr in sfex_init
+- sfex: add the sfex_stat command
+- sfex: wait in the start and stop actions until sfex_daemon starts/exits
+- Xen: implement stop of a migrating domain (bnc#656227)
+- Xen: check the allow_mem_management boolean properly (bnc#637525)
+- Xen: Always run destroy in stop sequence.
+- Xen: use xen-list command for status check if available (bnc#628735)
+- Xen: use xen-destroy for stop, if available.
+- Xen: Allow node configurable attribute to specify which IP to 
+  use for live migration (bnc#628735)
+- VirtualDomain: fix spurious stop failures
+- VirtualDomain: don't timeout in stop before escalating to "forced stop"
+- ManageVE: add migration capability
+- MailTo: don't check if user exists for email address (might be an
+  alias or remote)
+- CTDB: Remove hard-coded timeout on start op
+- CTDB: Don't manage Samba and Winbind by default
+- CTDB: Deprecate (and make optional) smb_private_dir param (bnc#623788)
+- tomcat: Ensure name of tomcat resource is only used on start operation
+  and expose JAVA_OPTS variable for use
+- tomcat: Fix to ensure default OCF_RESKEY_xx values are observed
+- tomcat: Add CATALINA_BASE parameter, defaults to CATALINA_HOME,
+  permits multiple tomcat instances
+- tomcat: Use Tomcat stop TIMEOUT -force to improve stop
+- Dummy: migrate_from/to: correct OCF_RESKEY_CRM_meta_migrate_xxx
+  variable names
+- Dummy: make method reload work
+- anything: add the workdir parameter
+- mysql: clone and master-slave functionality
+- mysql: add replication monitoring
+- mysql: check for write permissions after creating pid and socket directory
+- mysql: make client binary path configurable
+- pgsql: cd to pgdata before running commands (fixes permission error)
+- pgsql: add optional username, password, and sqlcode parameters for monitor
+- pgsql: add new "config" parameter
+- pgsql: properly implement pghost parameter
+- pgsql: socketdir parameter to manage non-default UNIX socket directories
+- oracle: reduce output from sqlplus to the last line for queries (bnc#567815)
+- db2: Replace call to db2_local_ps with db2nps
+- db2: guard against a hanging db2stop by spawning this into the
+  background. Use db2_kill after grace period.
+- db2: add multi partition support
+- db2: improve behaviour on probes
+- db2: support for v9.x instances (bnc#608952)
+- SAPDatabase,SAPInstance: improve LD_LIBRARY_PATH processing (bnc#640026)
+- SAPInstance: prevent premature expansion of [:upper:] [:lower:] when
+  producing sidadm uid
+- SAPInstance: Moved testing of SAP profile directory and START profile
+  to a later stage (only when needed), for more robustness
+- SAPInstance: fix return codes in probes
+- SAPInstance: New parameter: SHUTDOWN_METHOD
+- SAPInstance: ensure enqueue failover in monitor_clone on process
+  failure
+- SAPInstance: don't rely on op target rc when monitoring clones (lf#2371)
+- SAPDatabase: prevent premature expansion of [:upper:] and [:lower:]
+  when producing sidadm/orasid/db2sid uids
+- SAPdatabase: Changed Oracle recovery method from "recover automatic
+  database" to "end backup"
+- SAPDatabase: Adapt process search pattern for DB/2 9.5
+- SAPDatabase: start listener only if database processes are found
+- SAPDatabase: avoid continuous output to syslog in monitor with SAP
+  7.20 and J2EE_ONLY=1
+- ldirectord: http: connect to server instead of protocol (Debian#594958)
+- ldirectord: add implicit support for submission RFC4409
+- ldirectord: example configuration for a submission virtual service
+- ldirectord: Shutdown write-side of client connection after writing has
+  finished
+- ldirectord: port number mismatch of imaps and pops
+- ldirectord: Oracle compatibility
+- ldirectord: don't exit on timeout in HTTP/HTTPS check
+- ldirectord: allow underscore in service name
+- ldirectord: use $1 instead of \1 in pattern replace (bnc#605086)
+- Tools: ocf-tester: Extend to cover initial probe (monitor_0) test.
+- Tools: ocf-tester: set and export some common meta variables (lf#2524)
+- Tools: ocf-tester: meta-data also should never be affected by missing
+  binaries.
+- Tools: ocf-tester: show output from the agent in case of error
+
+* Tue Apr 13 2010 Dejan Muhamedagic <dejan@suse.de> and others
 - stable release 1.0.3
 - meta-data: improve timeouts in most resource agents (reduce the number of warnings by the shell)
 - RA: log messages to stderr if attached to a terminal
