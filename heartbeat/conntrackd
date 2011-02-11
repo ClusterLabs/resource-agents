@@ -4,7 +4,7 @@
 #       An OCF RA for conntrackd
 #	http://conntrack-tools.netfilter.org/
 #
-# Copyright (c) 2010 Dominik Klein
+# Copyright (c) 2011 Dominik Klein
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of version 2 of the GNU General Public License as
@@ -25,11 +25,19 @@
 # along with this program; if not, write the Free Software Foundation,
 # Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
 #
+
 #######################################################################
 # Initialization:
 
-. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
-export LANG=C LANGUAGE=C LC_ALL=C
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+
+#######################################################################
+
+OCF_RESKEY_binary_default=/usr/sbin/conntrackd
+OCF_RESKEY_config_default=/etc/conntrackd/conntrackd.conf
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
 
 meta_data() {
 	cat <<END
@@ -45,31 +53,31 @@ Master/Slave OCF Resource Agent for conntrackd
 <shortdesc lang="en">This resource agent manages conntrackd</shortdesc>
 
 <parameters>
-<parameter name="conntrackd" unique="1">
-<longdesc lang="en">Full path to conntrackd executable</longdesc>
-<shortdesc lang="en">Full path to conntrackd executable</shortdesc>
-<content type="string" default="/usr/sbin/conntrackd"/>
+<parameter name="conntrackd">
+<longdesc lang="en">Name of the conntrackd executable.
+If conntrackd is installed and available in the default PATH, it is sufficient to configure the name of the binary
+For example "my-conntrackd-binary-version-0.9.14"
+If conntrackd is installed somehwere else, you may also give a full path
+For example "/packages/conntrackd-0.9.14/sbin/conntrackd"
+</longdesc>
+<shortdesc lang="en">Name of the conntrackd executable</shortdesc>
+<content type="string" default="$OCF_RESKEY_binary_default"/>
 </parameter>
 
-<parameter name="conntrackdconf" unique="1">
-<longdesc lang="en">Full path to the conntrackd.conf file.</longdesc>
+<parameter name="config">
+<longdesc lang="en">Full path to the conntrackd.conf file.
+For example "/packages/conntrackd-0.9.4/etc/conntrackd/conntrackd.conf"</longdesc>
 <shortdesc lang="en">Path to conntrackd.conf</shortdesc>
-<content type="string" default="/etc/conntrackd/conntrackd.conf"/>
-</parameter>
-
-<parameter name="statefile" unique="1">
-<longdesc lang="en">Full path to the state file you wish to use.</longdesc>
-<shortdesc lang="en">Full path to the state file you wish to use.</shortdesc>
-<content type="string" default="/var/run/conntrackd.master"/>
+<content type="string" default="$OCF_RESKEY_config_default"/>
 </parameter>
 </parameters>
 
 <actions>
-<action name="start"   timeout="240" />
-<action name="promote"	 timeout="90" />
-<action name="demote"	timeout="90" />
-<action name="notify"	timeout="90" />
-<action name="stop"    timeout="100" />
+<action name="start"   timeout="30" />
+<action name="promote"	 timeout="30" />
+<action name="demote"	timeout="30" />
+<action name="notify"	timeout="30" />
+<action name="stop"    timeout="30" />
 <action name="monitor" depth="0"  timeout="20" interval="20" role="Slave" />
 <action name="monitor" depth="0"  timeout="20" interval="10" role="Master" />
 <action name="meta-data"  timeout="5" />
@@ -94,11 +102,7 @@ meta_expect()
 conntrackd_is_master() {
 	# You can't query conntrackd whether it is master or slave. It can be both at the same time. 
 	# This RA creates a statefile during promote and enforces master-max=1 and clone-node-max=1
-	if [ -e $STATEFILE ]; then
-		return $OCF_SUCCESS
-	else
-		return $OCF_ERR_GENERIC
-	fi
+	ha_pseudo_resource $statefile monitor
 }
 
 conntrackd_set_master_score() {
@@ -108,23 +112,23 @@ conntrackd_set_master_score() {
 conntrackd_monitor() {
 	rc=$OCF_NOT_RUNNING
 	# It does not write a PID file, so check with pgrep
-	pgrep -f $CONNTRACKD && rc=$OCF_SUCCESS
-	if [ "$rc" = "$OCF_SUCCESS" ]; then
+	pgrep -f $OCF_RESKEY_binary && rc=$OCF_SUCCESS
+	if [ "$rc" -eq "$OCF_SUCCESS" ]; then
 		# conntrackd is running 
 		# now see if it acceppts queries
-		if ! ($CONNTRACKD -C $CONNTRACKD_CONF -s &> /dev/null); then
+		if ! $OCF_RESKEY_binary -C $OCF_RESKEY_config -s > /dev/null 2>&1; then
 			rc=$OCF_ERR_GENERIC
 			ocf_log err "conntrackd is running but not responding to queries"
 		fi
 		if conntrackd_is_master; then
 			rc=$OCF_RUNNING_MASTER
 			# Restore master setting on probes
-	                if [ $OCF_RESKEY_CRM_meta_interval = 0 ]; then
+	                if [ $OCF_RESKEY_CRM_meta_interval -eq 0 ]; then
 				conntrackd_set_master_score $master_score
 			fi
 		else
 			# Restore master setting on probes
-	                if [ $OCF_RESKEY_CRM_meta_interval = 0 ]; then
+	                if [ $OCF_RESKEY_CRM_meta_interval -eq 0 ]; then
 				conntrackd_set_master_score $slave_score
 			fi
 		fi
@@ -143,16 +147,16 @@ conntrackd_start() {
 		case "$status" in 
 		$OCF_SUCCESS)
 			rc=$OCF_SUCCESS
-			conntrackd_set_master_score 100
+			conntrackd_set_master_score $slave_score
 			break
 			;;
 		$OCF_NOT_RUNNING)
 			ocf_log info "Starting conntrackd"
-			$CONNTRACKD -C $CONNTRACKD_CONF -d
+			$OCF_RESKEY_binary -C $OCF_RESKEY_config -d
 			;;
 		$OCF_RUNNING_MASTER)
 			ocf_log warn "conntrackd already in master mode, demoting."
-			rm -f $statefile
+			ha_pseudo_resource $statefile stop
 			;;
 		$OCF_ERR_GENERIC)
 			ocf_log err "conntrackd start failed"
@@ -175,7 +179,7 @@ conntrackd_stop() {
                 case "$status" in
                 $OCF_SUCCESS)
 			ocf_log info "Stopping conntrackd"
-                        $CONNTRACKD -C $CONNTRACKD_CONF -k
+                        $OCF_RESKEY_binary -C $OCF_RESKEY_config -k
                         ;;
                 $OCF_NOT_RUNNING)
                         rc=$OCF_SUCCESS
@@ -191,26 +195,9 @@ conntrackd_stop() {
 }
 
 conntrackd_validate_all() {
-	if ! [ -e $CONNTRACKD ]; then
-		ocf_log err "File $CONNTRACKD does not exist"
-		return $OCF_ERR_INSTALLED 
-	fi
-	if ! [ -x $CONNTRACKD ]; then
-		ocf_log err "File $CONNTRACKD is not executable"
-		return $OCF_ERR_PERM 
-	fi
-	if ! [ -e $CONNTRACKD_CONF ]; then
-		ocf_log err "Config FILE $CONNTRACKD_CONF does not exist"
-		return $OCF_ERR_INSTALLED
-	fi
-	statedir=$(dirname $STATEFILE)
-	if [ -d $statedir ]; then
-		if ! [ -w $statedir ]; then
-			ocf_log err "Directory $statedir for statefile $STATEFILE is not writable."
-			return $OCF_ERR_PERM
-		fi
-	else
-		ocf_log err "Directory $statedir for statefile $STATEFILE does not exist."
+	check_binary "$OCF_RESKEY_binary"
+	if ! [ -e "$OCF_RESKEY_config" ]; then
+		ocf_log err "Config FILE $OCF_RESKEY_config does not exist"
 		return $OCF_ERR_INSTALLED
 	fi
         meta_expect master-node-max = 1
@@ -229,13 +216,13 @@ conntrackd_promote() {
 		# -R = resync with the kernel table
 		# -B = send a bulk update on the line
 		for parm in c f R B; do
-			if ! $CONNTRACKD -C $CONNTRACKD_CONF -$parm; then
-				ocf_log err "$CONNTRACKD -C $CONNTRACKD_CONF -$parm failed during promote."
+			if ! $OCF_RESKEY_binary -C $OCF_RESKEY_config -$parm; then
+				ocf_log err "$OCF_RESKEY_binary -C $OCF_RESKEY_config -$parm failed during promote."
 				rc=$OCF_ERR_GENERIC
 				break
 			fi
 		done
-		touch $STATEFILE
+		ha_pseudo_resource $statefile start
 		conntrackd_set_master_score $master_score
 	fi
 	return $rc
@@ -247,13 +234,13 @@ conntrackd_demote() {
 		# -t = shorten kernel timers to remove zombies
 		# -n = request a resync from the others
 		for parm in t n; do
-			if ! $CONNTRACKD -C $CONNTRACKD_CONF -$parm; then
-                        	ocf_log err "$CONNTRACKD -C $CONNTRACKD_CONF -$parm failed during demote."
+			if ! $OCF_RESKEY_binary -C $OCF_RESKEY_config -$parm; then
+                        	ocf_log err "$OCF_RESKEY_binary -C $OCF_RESKEY_config -$parm failed during demote."
                         	rc=$OCF_ERR_GENERIC
                         	break
                 	fi
         	done
-		rm -f $STATEFILE
+		ha_pseudo_resource $statefile stop
 		conntrackd_set_master_score $slave_score
 	fi
 	return $rc
@@ -267,7 +254,7 @@ conntrackd_notify() {
 		# send a bulk update to allow failback
 		if [ "$hostname" = "$master" -a "$OCF_RESKEY_CRM_meta_notify_type" = "post" -a "$OCF_RESKEY_CRM_meta_notify_operation" = "start" -a "$OCF_RESKEY_CRM_meta_notify_start_uname" != "$hostname" ]; then
 			ocf_log info "Sending bulk update in post start to peers to allow failback"
-			$CONNTRACKD -C $CONNTRACKD_CONF -B
+			$OCF_RESKEY_binary -C $OCF_RESKEY_config -B
 		fi
 	done
 	for tobepromoted in $OCF_RESKEY_CRM_meta_notify_promote_uname; do
@@ -275,30 +262,25 @@ conntrackd_notify() {
 		# send a bulk update to allow failback
 		if [ "$hostname" != "$tobepromoted" -a "$OCF_RESKEY_CRM_meta_notify_type" = "pre" -a "$OCF_RESKEY_CRM_meta_notify_operation" = "promote" ]; then
 			ocf_log info "Sending bulk update in pre promote to peers to allow failback"
-			$CONNTRACKD -C $CONNTRACKD_CONF -B
+			$OCF_RESKEY_binary -C $OCF_RESKEY_config -B
 		fi
 	done
 }
 
-CONNTRACKD=$OCF_RESKEY_conntrackd
-if [ -z "$CONNTRACKD" ]; then
-	CONNTRACKD=/usr/sbin/conntrackd
-fi
-CONNTRACKD_CONF=$OCF_RESKEY_configfile
-if [ -z "$CONNTRACKD_CONF" ]; then
-	CONNTRACKD_CONF=/etc/conntrackd/conntrackd.conf
-fi
-STATEFILE=$OCF_RESKEY_statefile
-if [ -z "$STATEFILE" ]; then
-	STATEFILE=/var/run/conntrackd.master
-fi
+conntrackd_usage() {
+        cat <<EOF
+usage: $0 {start|stop|promote|demote|monitor|validate-all|meta-data}
+Expects to have a fully populated OCF RA-compliant environment set.
+EOF
+}
+
+statefile=conntrackd.${OCF_RESOURCE_INSTANCE}.master
+
 master_score=1000
 slave_score=100
 
-#######################################################################
-
-if [ $# != 1 ]; then
-	usage
+if [ $# -ne 1 ]; then
+	conntrackd_usage
 	exit $OCF_ERR_ARGS
 fi
 
