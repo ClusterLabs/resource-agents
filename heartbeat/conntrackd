@@ -57,7 +57,7 @@ Master/Slave OCF Resource Agent for conntrackd
 <longdesc lang="en">Name of the conntrackd executable.
 If conntrackd is installed and available in the default PATH, it is sufficient to configure the name of the binary
 For example "my-conntrackd-binary-version-0.9.14"
-If conntrackd is installed somehwere else, you may also give a full path
+If conntrackd is installed somewhere else, you may also give a full path
 For example "/packages/conntrackd-0.9.14/sbin/conntrackd"
 </longdesc>
 <shortdesc lang="en">Name of the conntrackd executable</shortdesc>
@@ -66,7 +66,7 @@ For example "/packages/conntrackd-0.9.14/sbin/conntrackd"
 
 <parameter name="config">
 <longdesc lang="en">Full path to the conntrackd.conf file.
-For example "/packages/conntrackd-0.9.4/etc/conntrackd/conntrackd.conf"</longdesc>
+For example "/packages/conntrackd-0.9.14/etc/conntrackd/conntrackd.conf"</longdesc>
 <shortdesc lang="en">Path to conntrackd.conf</shortdesc>
 <content type="string" default="$OCF_RESKEY_config_default"/>
 </parameter>
