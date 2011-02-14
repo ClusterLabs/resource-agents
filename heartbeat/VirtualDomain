@@ -38,7 +38,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="VirtualDomain">
-<version>1.0</version>
+<version>1.1</version>
 
 <longdesc lang="en">
 Resource agent for a virtual domain (a.k.a. domU, virtual machine,
@@ -86,6 +86,19 @@ transports available. If this parameter is omitted, the resource will
 use libvirt's default transport to connect to the remote hypervisor.
 </longdesc>
 <shortdesc lang="en">Remote hypervisor transport</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="migration_network_suffix" unique="0" required="0">
+<longdesc lang="en">
+Use a dedicated migration network. The migration URI is composed by
+adding this parameters value to the end of the nodename. At the moment
+Qemu/KVM and Xen migration via a dedicated network is supported.
+
+Note: Be sure this composed hostname is locally resolveable and the
+associated IP is reachable through the favored network.
+</longdesc>
+<shortdesc lang="en">Migration network hostname suffix</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -299,6 +312,9 @@ VirtualDomain_Migrate_To() {
     local target_node
     local remoteuri
     local transport_suffix
+    local migrateuri
+    local migrateport
+    local hypervisor
 
     target_node="$OCF_RESKEY_CRM_meta_migrate_target"
 
@@ -309,15 +325,37 @@ VirtualDomain_Migrate_To() {
 	if [ -n "${OCF_RESKEY_migration_transport}" ]; then
 	    transport_suffix="+${OCF_RESKEY_migration_transport}"
 	fi
+	# A typical migration URI via a special  migration network looks
+	# like "tcp://bar-mig:49152". The port would be randomly chosen
+	# by libvirt from the range 49152-49215 if omitted, at least since
+ 	# version 0.7.4 ...
+	if [ -n "${OCF_RESKEY_migration_network_suffix}" ]; then
+	    hypervisor="${OCF_RESKEY_hypervisor%%[+:]*}"
+	    case $hypervisor in
+		qemu)
+		    # For quiet ancient libvirt versions a migration port is needed
+		    # and the URI must not contain the "//". Newer versions can handle
+		    # the "bad" URI.
+		    migrateport=$(( 49152 + $(ocf_maybe_random) % 64 ))
+		    migrateuri="tcp:${target_node}${OCF_RESKEY_migration_network_suffix}:${migrateport}"
+		    ;;
+		xen)
+		    migrateuri="xenmigr://${target_node}${OCF_RESKEY_migration_network_suffix}"
+		    ;;
+		*)
+		    ocf_log warn "$DOMAIN_NAME: Migration via dedicated network currently not supported for ${hypervisor}."
+		    ;;
+	    esac
+	fi
         # Scared of that sed expression? So am I. :-)
 	remoteuri=$(echo ${OCF_RESKEY_hypervisor} | sed -e "s,\(.*\)://[^/:]*\(:\?[0-9]*\)/\(.*\),\1${transport_suffix}://${target_node}\2/\3,")
 
 	# OK, we know where to connect to. Now do the actual migration.
-	ocf_log info "$DOMAIN_NAME: Starting live migration to ${target_node} (using remote hypervisor URI ${remoteuri})."
-	virsh ${VIRSH_OPTIONS} migrate --live $DOMAIN_NAME ${remoteuri}
+	ocf_log info "$DOMAIN_NAME: Starting live migration to ${target_node} (using remote hypervisor URI ${remoteuri} ${migrateuri})."
+	virsh ${VIRSH_OPTIONS} migrate --live $DOMAIN_NAME ${remoteuri} ${migrateuri}
 	rc=$?
 	if [ $rc -ne 0 ]; then
-	    ocf_log err "$DOMAIN_NAME: live migration to ${remoteuri} failed: $rc"
+	    ocf_log err "$DOMAIN_NAME: live migration to ${remoteuri} ${migrateuri} failed: $rc"
 	    return $OCF_ERR_GENERIC
 	else
 	    ocf_log info "$DOMAIN_NAME: live migration to ${target_node} succeeded."
