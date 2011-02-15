@@ -1,8 +1,20 @@
 <author>
   <firstname>Florian</firstname>
   <surname>Haas</surname>
+  <affiliation>
+    <orgname>LINBIT HA-Solutions GmbH</orgname>
+  </affiliation>
   <email>florian.haas@linbit.com</email>
 </author>
+<collab>
+  <firstname>John</firstname>
+  <surname>Shi</surname>
+  <affiliation>
+    <orgname>Novell, Inc.</orgname>
+  </affiliation>
+  <contrib>Original ocft README</contrib>
+  <email>jshi@novell.com</email>
+</collab>
 <copyright>
   <year>2010</year>
   <year>2011</year>
