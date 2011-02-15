@@ -24,6 +24,7 @@ sbin_SCRIPTS		= ocft
 ocftcfgsdir		= $(datadir)/$(PACKAGE_NAME)/ocft/configs
 ocftcfgs_DATA      =  apache  	\
 			 IPaddr2	\
+			 Filesystem	\
 			 IPsrcaddr  	\
 			 MailTo		\
 		       	 mysql		\
