@@ -1537,15 +1537,14 @@ foobar_monitor() {
 --------------------------------------------------------------------------
 
 
-== Testing, installing, and packaging resource agents
+== Testing resource agents
 
-This section discusses what to do with your resource agent once it is
-done -- how to test it, where to install it, and how to include it in
-either your own application package or in the Linux-HA resource agents
-repository.
+This section discusses automated testing for resource agents. Testing
+is a vital aspect of development; it is crucial both for creating new
+resource agents, and for modifying existing ones.
 
 
-=== Testing resource agents
+=== Testing with +ocf-tester+
 
 The resource agents repository (and hence, any installed resource
 agents package) contains a utility named +ocf-tester+. This shell
@@ -1592,6 +1591,13 @@ Beginning tests for /home/johndoe/ra-dev/foobar...
 * Your agent does not support the reload action (optional)
 /home/johndoe/ra-dev/foobar passed all tests
 --------------------------------------------------------------------------
+
+== Installing and packaging resource agents
+
+This section discusses what to do with your resource agent once it is
+done and tested -- where to install it, and how to include it in either
+your own application package or in the Linux-HA resource agents
+repository.
 
 === Installing resource agents
 
