@@ -27,6 +27,7 @@ ocftcfgs_DATA      =  apache  	\
 			 IPsrcaddr  	\
 			 MailTo		\
 		       	 mysql		\
+		       	 db2		\
 		       	 nfsserver	\
 		       	 portblock	\
 			 SendArp

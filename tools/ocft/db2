@@ -1,0 +1,162 @@
+# db2
+#
+# This test assumes a db2 ESE instance with two partions and a database.
+# Default is instance=db2inst1, database=ocft
+# adapt this in set_testenv below
+#
+# Simple steps to generate a test environment (if you don't have one):
+#
+# A virtual machine with 1200MB RAM is sufficient
+#
+# - download an eval version of DB2 server from IBM
+# - create an user "db2inst1" in group "db2inst1"
+#
+# As root
+# - install DB2 software in some location
+# - create instance
+#   cd <this_location>/instance
+#   ./db2icrt -s ese -u db2inst1 db2inst1
+# - adapt profile of db2inst1 as instructed by db2icrt
+#
+# As db2inst1
+#      # allow to run with small memory footprint
+#      db2set DB2_FCM_SETTINGS=FCM_MAXIMIZE_SET_SIZE:FALSE
+#      db2start
+#      db2start dbpartitionnum 1 add dbpartitionnum hostname $(uname -n) port 1 without tablespaces
+#      db2stop
+#      db2start
+#      db2 create database ocft
+# Done
+# In order to install a real cluster refer to http://www.linux-ha.org/wiki/db2_(resource_agent)
+
+CONFIG
+        HangTimeout 40
+
+SETUP-AGENT
+        # nothing
+
+CASE-BLOCK set_testenv
+        Var OCFT_instance=db2inst
+        Var OCFT_db=ocft
+
+CASE-BLOCK crm_setting
+        Var OCF_RESKEY_instance=$OCFT_instance
+	Var OCF_RESKEY_CRM_meta_timeout=30000
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+        Include set_testenv
+	Include crm_setting
+	Include default_status
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: invalid 'OCF_RESKEY_instance'"
+	Include prepare
+	Var OCF_RESKEY_instance=no_such
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "invalid instance config"
+	Include prepare
+	Bash eval mv ~$OCFT_instance/sqllib ~$OCFT_instance/sqllib-
+	BashAtExit eval mv ~$OCFT_instance/sqllib- ~$OCFT_instance/sqllib
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
+
+CASE "normal start"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "started: monitor"
+	Include prepare
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "not started: monitor"
+	Include prepare
+	AgentRun monitor OCF_NOT_RUNNING
+
+CASE "killed instance: monitor"
+        Include prepare
+        AgentRun start OCF_SUCCESS
+        AgentRun monitor OCF_SUCCESS
+        BashAtExit rm /tmp/ocft-helper1
+        Bash echo "su $OCFT_instance -c '. ~$OCFT_instance/sqllib/db2profile; db2nkill 0 >/dev/null 2>&1'" > /tmp/ocft-helper1
+        Bash sh -x /tmp/ocft-helper1
+        AgentRun monitor OCF_NOT_RUNNING
+
+CASE "overload param instance by admin"
+        Include prepare
+        Var OCF_RESKEY_instance=no_such
+        Var OCF_RESKEY_admin=$OCFT_instance
+        AgentRun start OCF_SUCCESS
+
+CASE "check start really activates db"
+        Include prepare
+        AgentRun start OCF_SUCCESS
+
+        BashAtExit rm /tmp/ocft-helper2
+        Bash echo "su $OCFT_instance -c '. ~$OCFT_instance/sqllib/db2profile; db2 get snapshot for database on $OCFT_db>/dev/null'" > /tmp/ocft-helper2
+        Bash sh -x /tmp/ocft-helper2
+
+CASE "multipartion test"
+        Include prepare
+        AgentRun start OCF_SUCCESS
+        AgentRun monitor OCF_SUCCESS
+
+        # start does not start partion 1
+        Var OCF_RESKEY_dbpartitionnum=1
+        AgentRun monitor OCF_NOT_RUNNING
+
+        # now start 1
+        AgentRun start OCF_SUCCESS
+        AgentRun monitor OCF_SUCCESS
+
+        # now stop 1
+        AgentRun stop OCF_SUCCESS
+        AgentRun monitor OCF_NOT_RUNNING
+
+        # does not affect 0
+        Var OCF_RESKEY_dbpartitionnum=0
+        AgentRun monitor OCF_SUCCESS
+
+# fault injection does not work on the 1.0.4 client due to a hardcoded path
+CASE "simulate hanging db2stop (not meaningful for 1.0.4 agent)"
+        Include prepare
+        AgentRun start OCF_SUCCESS
+        Bash [ ! -f /usr/local/bin/db2stop ]
+        BashAtExit rm /usr/local/bin/db2stop
+        Bash echo -e "#!/bin/sh\necho fake db2stop\nsleep 10000" > /usr/local/bin/db2stop
+        Bash chmod +x /usr/local/bin/db2stop
+        AgentRun stop OCF_SUCCESS
+
+# fault injection does not work on the 1.0.4 client due to a hardcoded path
+CASE "simulate not stopping db2stop (not meaningful for 1.0.4 agent)"
+        Include prepare
+        AgentRun start OCF_SUCCESS
+        Bash [ ! -f /usr/local/bin/db2stop ]
+        BashAtExit rm /usr/local/bin/db2stop
+        Bash echo -e "#!/bin/sh\necho fake db2stop\nexit 0" > /usr/local/bin/db2stop
+        Bash chmod +x /usr/local/bin/db2stop
+        AgentRun stop OCF_SUCCESS
