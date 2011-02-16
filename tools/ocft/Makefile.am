@@ -25,6 +25,7 @@ ocftcfgsdir		= $(datadir)/$(PACKAGE_NAME)/ocft/configs
 ocftcfgs_DATA      =  apache  	\
 			 IPaddr2	\
 			 Filesystem	\
+			 LVM	\
 			 IPsrcaddr  	\
 			 MailTo		\
 		       	 mysql		\
