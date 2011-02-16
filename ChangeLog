@@ -1,4 +1,7 @@
-* Tue Apr 13 2010 Dejan Muhamedagic <dejan@suse.de> and others
+* Wed Feb 16 2011 Dejan Muhamedagic <dejan@suse.de> and others
+- stable release 1.0.4
+- ocft: testcases for db2, LVM, and Filesystem
+* Fri Feb 11 2011 Dejan Muhamedagic <dejan@suse.de> and others
 - release candidate 1.0.4
 - add GPLv3 license file (bnc#655700)
 - ocf-shellfuncs: allow ocf_run to return the actual exit code
