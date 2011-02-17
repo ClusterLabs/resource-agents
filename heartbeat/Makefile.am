@@ -18,14 +18,16 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
 MAINTAINERCLEANFILES = Makefile.in
-EXTRA_DIST		= $(ocf_SCRIPTS) $(hb_DATA) ra-api-1.dtd
+
+EXTRA_DIST		= $(ocf_SCRIPTS) $(ocf_DATA) \
+			  $(common_DATA) $(hb_DATA) $(dtd_DATA)
 
 INCLUDES		= -I$(top_srcdir)/include -I$(top_srcdir)/linux-ha
 
-ocfdir		        = $(OCF_RA_DIR)/heartbeat
+ocfdir		        = $(OCF_RA_DIR_PREFIX)/heartbeat
 
 dtddir			= $(datadir)/$(PACKAGE_NAME)
-dist_dtd_DATA		= ra-api-1.dtd
+dtd_DATA		= ra-api-1.dtd
 
 if USE_IPV6ADDR
 ocf_PROGRAMS           = IPv6addr
@@ -103,7 +105,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			Xen		\
 			Xinetd
 
-dist_ocf_DATA	     =  \
+ocf_DATA	     =  \
 			.ocf-shellfuncs	 \
 			.ocf-binaries	 \
 			.ocf-directories \
@@ -111,7 +113,7 @@ dist_ocf_DATA	     =  \
 
 # Legacy locations
 commondir	     = $(libdir)/heartbeat
-dist_common_DATA     = ocf-shellfuncs ocf-returncodes
+common_DATA	     = ocf-shellfuncs ocf-returncodes
 
 hbdir			= $(sysconfdir)/ha.d
 hb_DATA			= shellfuncs

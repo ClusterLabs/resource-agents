@@ -21,6 +21,6 @@ MAINTAINERCLEANFILES    = Makefile.in
 
 EXTRA_DIST              = $(ocf_SCRIPTS)
 
-ocfdir			= @OCF_RA_DIR@/heartbeat
+ocfdir			= $(OCF_RA_DIR_PREFIX)/heartbeat
 
 ocf_SCRIPTS		= ldirectord

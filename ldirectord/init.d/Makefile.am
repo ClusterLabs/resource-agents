@@ -19,7 +19,7 @@
 #
 MAINTAINERCLEANFILES    = Makefile.in
 
-initddir		= @INITDIR@
+initddir		= $(INITDIRPREFIX)
 
 initd_SCRIPTS	        = ldirectord
 

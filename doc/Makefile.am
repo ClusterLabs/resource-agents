@@ -29,26 +29,29 @@ XSLTPROC_MANPAGES_OPTIONS ?= $(XSLTPROC_OPTIONS)
 XSLTPROC_HTML_OPTIONS 	?= $(XSLTPROC_OPTIONS)
 XSLTPROC_FO_OPTIONS 	?= $(XSLTPROC_OPTIONS)
 
-MAINTAINERCLEANFILES    = Makefile.in *.xml
+MAINTAINERCLEANFILES    = Makefile.in
 
-radir			= ../heartbeat
+radir			= $(top_srcdir)/heartbeat
 
 CLEANFILES              = $(man_MANS) $(xmlfiles) metadata-*.xml
 
 # TODO: add README and license files
-doc_DATA		=
-man_MANS		= 
 
-EXTRA_DIST 		= $(man_MANS) $(doc_DATA) README.webapps
+EXTRA_DIST 		= $(doc_DATA) $(REFENTRY_STYLESHEET) \
+			  mkappendix.sh ralist.sh
 
-dist_doc_DATA		= COPYING.applications \
+doc_DATA		= COPYING.applications \
 			  COPYING.libraries \
 			  COPYRIGHT \
-			  README.licence
+			  README.licence \
+			  README.webapps
 
 # OCF_ROOT=. is necessary due to a sanity check in .ocf-shellfuncs
 # (which tests whether $OCF_ROOT points to a directory
 metadata-%.xml: $(radir)/%
+	OCF_ROOT=. OCF_FUNCTIONS_DIR=$(radir) $< meta-data > $@
+
+metadata-IPv6addr.xml: ../heartbeat/IPv6addr
 	OCF_ROOT=. OCF_FUNCTIONS_DIR=$(radir) $< meta-data > $@
 
 # Please note: we can't name the man pages
@@ -59,7 +62,7 @@ metadata-%.xml: $(radir)/%
 # 12126 on savannah.gnu.org. But, maybe it gets fixed soon, it was
 # first reported in 1995 and added to Savannah in in 2005...
 if BUILD_DOC
-man_MANS	       += ocf_heartbeat_AoEtarget.7 \
+man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_AudibleAlarm.7 \
                           ocf_heartbeat_ClusterMon.7 \
                           ocf_heartbeat_CTDB.7 \
@@ -135,13 +138,12 @@ xmlfiles		= $(man_MANS:.7=.xml)
 	$(XSLTPROC_MANPAGES_OPTIONS) \
 	$(MANPAGES_STYLESHEET) $<
 
-
-ocf_heartbeat_%.xml: metadata-%.xml $(REFENTRY_STYLESHEET)
+ocf_heartbeat_%.xml: metadata-%.xml $(srcdir)/$(REFENTRY_STYLESHEET)
 	$(XSLTPROC) --novalid \
 	--stringparam package $(PACKAGE_NAME) \
 	--stringparam version $(VERSION) \
 	--output $@ \
-	$(REFENTRY_STYLESHEET) $<
+	$(srcdir)/$(REFENTRY_STYLESHEET) $<
 
 ocf_resource_agents.xml: $(xmlfiles) mkappendix.sh
 	./mkappendix.sh $(xmlfiles) > $@
