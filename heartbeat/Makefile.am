@@ -20,7 +20,8 @@
 MAINTAINERCLEANFILES = Makefile.in
 
 EXTRA_DIST		= $(ocf_SCRIPTS) $(ocfcommon_DATA) \
-			  $(common_DATA) $(hb_DATA) $(dtd_DATA)
+			  $(common_DATA) $(hb_DATA) $(dtd_DATA) \
+			  README
 
 INCLUDES		= -I$(top_srcdir)/include -I$(top_srcdir)/linux-ha
 
