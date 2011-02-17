@@ -866,7 +866,18 @@ do_stop() {
 
 
 do_monitor() {
-	is_mounted "${OCF_RESKEY_device}" "${OCF_RESKEY_mountpoint}"
+	#
+	# Get the device
+	#
+	real_device "$OCF_RESKEY_device"
+	dev="$REAL_DEVICE"
+	if [ -z "$dev" ]; then
+			ocf_log err "\
+start_filesystem: Could not match $OCF_RESKEY_device with a real device"
+			return $OCF_ERR_ARGS
+	fi
+
+	is_mounted "$dev" "${OCF_RESKEY_mountpoint}"
 
 	if [ $? -ne $YES ]; then
 		ocf_log err "${OCF_RESOURCE_INSTANCE}: ${OCF_RESKEY_device} is not mounted on ${OCF_RESKEY_mountpoint}"
