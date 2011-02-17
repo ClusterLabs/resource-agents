@@ -20,7 +20,7 @@
 MAINTAINERCLEANFILES    = Makefile.in
 CLEANFILES	       	= ldirectord.8
 
-EXTRA_DIST              = ldirectord ldirectord.cf README
+EXTRA_DIST              = ldirectord ldirectord.cf
 
 SUBDIRS			= logrotate.d init.d OCF
 
