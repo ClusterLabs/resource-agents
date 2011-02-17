@@ -73,6 +73,9 @@ man8_MANS =	$(sbin_SCRIPTS:%=%.8)
 	echo Creating $@
 	chmod a+x $<
 	help2man --output $@ --no-info --section 8 --name "Part of the Linux-HA project" $(top_builddir)/tools/$<
+
+clean-local:
+	rm -f $(sbin_SCRIPTS:%=%.8)
 endif
 
 .PHONY: install-exec-hook
