@@ -19,7 +19,7 @@
 #
 MAINTAINERCLEANFILES = Makefile.in
 
-EXTRA_DIST		= $(ocf_SCRIPTS) $(ocf_DATA) \
+EXTRA_DIST		= $(ocf_SCRIPTS) $(ocfcommon_DATA) \
 			  $(common_DATA) $(hb_DATA) $(dtd_DATA)
 
 INCLUDES		= -I$(top_srcdir)/include -I$(top_srcdir)/linux-ha
@@ -106,7 +106,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			Xen		\
 			Xinetd
 
-ocfcommondir		= $(OCF_LIB_DIR)/heartbeat
+ocfcommondir		= $(OCF_LIB_DIR_PREFIX)/heartbeat
 ocfcommon_DATA		= \
 			ocf-shellfuncs	 \
 			ocf-binaries	 \

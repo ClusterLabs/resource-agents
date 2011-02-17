@@ -374,6 +374,13 @@ OCF_LIB_DIR="${OCF_ROOT_DIR}/lib/"
 AC_DEFINE_UNQUOTED(OCF_LIB_DIR,"$OCF_LIB_DIR", Location for shared code for OCF RAs)
 AC_SUBST(OCF_LIB_DIR)
 
+if test "${prefix}" = "/usr"; then
+ OCF_LIB_DIR_PREFIX="$OCF_LIB_DIR"
+else
+ OCF_LIB_DIR_PREFIX="${prefix}/$OCF_LIB_DIR"
+fi
+AC_SUBST(OCF_LIB_DIR_PREFIX)
+
 dnl ===============================================
 dnl rgmanager ras bits
 dnl ===============================================
