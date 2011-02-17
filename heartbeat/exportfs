@@ -10,8 +10,8 @@
 
 #######################################################################
 # Initialization:
-: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
-. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
 OCF_RESKEY_unlock_on_stop_default=0

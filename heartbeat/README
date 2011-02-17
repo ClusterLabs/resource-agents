@@ -1,0 +1,22 @@
+The OCF RA shared code directory
+
+If an RA is too big to be comfortably maintained, split it into
+several source files. Obviosuly, if two or more RAs share some
+code, move that code out to a file which can be shared.
+
+These files will be installed in $OCF_ROOT/lib/heartbeat with
+permissions 644.
+
+Naming practice
+
+Use names such as <RA>.sh or <RA>-check.sh or anything-else.sh
+where "anything-else" should be related to both the RA and the
+code it contains. By adding extension (.sh) it is going to be
+easier to notice that these files are not complete resource
+agents.
+
+For instance, oracle and oralsnr RA can both use code in
+ora-common.sh.
+
+Of course, if the RA is implemented in another programming
+language, use the appropriate extension.

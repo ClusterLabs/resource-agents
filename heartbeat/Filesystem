@@ -49,8 +49,8 @@
 #######################################################################
 # Initialization:
 
-: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
-. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
 DFLT_STATUSDIR=".Filesystem_status/"
@@ -319,7 +319,9 @@ ocfs2_init()
 	# not need this:
 
 	OCFS2_SLES10=""
-	if [ "X$HA_cluster_type" != "Xopenais" ]; then
+	if [ "X$HA_cluster_type" = "Xcman" ]; then
+	    return
+	elif [ "X$HA_cluster_type" != "Xopenais" ]; then
 		if grep -q "SUSE Linux Enterprise Server 10" /etc/SuSE-release >/dev/null 2>&1 ; then
 			OCFS2_SLES10="yes"
 			ocf_log info "$DEVICE: Enabling SLES10 compatibility mode for OCFS2."
@@ -464,7 +466,7 @@ Filesystem_start()
 			grep -e "$FSTYPE"'$' /proc/filesystems >/dev/null
 			if [ $? -ne 0 ] ; then
 				ocf_log err "Couldn't find filesystem $FSTYPE in /proc/filesystems"
-				return $OCF_ERR_ARGS
+				return $OCF_ERR_INSTALLED
 			fi
 		fi
 	fi
@@ -962,7 +964,7 @@ esac
 blockdevice=no
 case $DEVICE in
 "")	ocf_log err "Please set OCF_RESKEY_device to the device to be managed"
-	exit $OCF_ERR_ARGS
+	exit $OCF_ERR_CONFIGURED
 	;;
 -*) # Oh... An option to mount instead...  Typically -U or -L
 	;;
@@ -990,7 +992,7 @@ esac
 if [ -z "$OCF_RESKEY_directory" ]; then
 	if [ X$OP = "Xstart" -o $blockdevice = "no" ]; then
 		ocf_log err "Please specify the directory"
-		exit $OCF_ERR_ARGS 
+		exit $OCF_ERR_CONFIGURED 
 	fi
 else
 	MOUNTPOINT=$(echo $OCF_RESKEY_directory | sed 's/\/*$//')

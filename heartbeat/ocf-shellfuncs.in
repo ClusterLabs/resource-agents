@@ -1,16 +1,539 @@
 #
-# Warn about, but continue with, deprecated locations.
 #
-# Copyright (c) 2007 David Lee <t.d.lee@durham.ac.uk>
+# 	Common helper functions for the OCF Resource Agents supplied by
+# 	heartbeat.
 #
-# GPL version 2 or later.
+# Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Brée
+#                    All Rights Reserved.
+#
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+# 
+
+# Build version: @VERSION@
+
+# TODO: Some of this should probably split out into a generic OCF
+# library for shell scripts, but for the time being, we'll just use it
+# ourselves...
 #
 
-. @OCF_RA_DIR@/heartbeat/.ocf-shellfuncs
+# TODO wish-list:
+# - Generic function for evaluating version numbers
+# - Generic function(s) to extract stuff from our own meta-data
+# - Logging function which automatically adds resource identifier etc
+#   prefixes
+# TODO: Move more common functionality for OCF RAs here.
+#
+
+# This was common throughout all legacy Heartbeat agents
+unset LC_ALL; export LC_ALL
+unset LANGUAGE; export LANGUAGE
+
+__SCRIPT_NAME=`basename $0`
+
+if [ -z "$OCF_ROOT" ]; then
+    : ${OCF_ROOT=@OCF_ROOT_DIR@}
+fi
+
+if [ "$OCF_FUNCTIONS_DIR" = ${OCF_ROOT}/resource.d/heartbeat ]; then  # old
+	unset OCF_FUNCTIONS_DIR
+fi
+
+: ${OCF_FUNCTIONS_DIR:=${OCF_ROOT}/lib/heartbeat}
+
+. ${OCF_FUNCTIONS_DIR}/ocf-binaries
+. ${OCF_FUNCTIONS_DIR}/ocf-returncodes
+. ${OCF_FUNCTIONS_DIR}/ocf-directories
+
+# Define OCF_RESKEY_CRM_meta_interval in case it isn't already set,
+# to make sure that ocf_is_probe() always works
+: ${OCF_RESKEY_CRM_meta_interval=0}
+
+ocf_is_root() {
+	if [ X`id -u` = X0 ]; then
+		true
+	else
+		false
+	fi
+}
+
+ocf_maybe_random() {
+	local rnd="$RANDOM"
+	# Something sane-ish in case a shell doesn't support $RANDOM
+	[ -n "$rnd" ] || rnd=$$
+	echo $rnd
+}
+
+# Portability comments:
+# o The following rely on Bourne "sh" pattern-matching, which is usually
+#   that for filename generation (note: not regexp).
+# o The "*) true ;;" clause is probably unnecessary, but is included
+#   here for completeness.
+# o The negation in the pattern uses "!".  This seems to be common
+#   across many OSes (whereas the alternative "^" fails on some).
+# o If an OS is encountered where this negation fails, then a possible
+#   alternative would be to replace the function contents by (e.g.):
+#	[ -z "`echo $1 | tr -d '[0-9]'`" ]
+#
+ocf_is_decimal() {
+	case "$1" in
+	""|*[!0-9]*)	# empty, or at least one non-decimal
+		false ;;
+	*)
+		true ;;
+	esac
+}
+
+ocf_is_true() {
+	case "$1" in
+	yes|true|1|YES|TRUE|ja|on|ON) true ;;
+	*)	false ;;
+	esac
+}
+
+ocf_is_hex() {
+	case "$1" in
+        ""|*[!0-9a-fA-F]*)	# empty, or at least one non-hex
+		false ;;
+	*)
+		true ;;
+	esac
+}
+
+ocf_is_octal() {
+	case "$1" in
+        ""|*[!0-7]*)	# empty, or at least one non-octal
+		false ;;
+	*)
+		true ;;
+	esac
+}
+
+__ocf_set_defaults() {
+	__OCF_ACTION="$1"
+
+	# Return to sanity for the agents...
+	unset LANG
+	LC_ALL=C
+	export LC_ALL
+
+	# TODO: Review whether we really should source this. Or rewrite
+	# to match some emerging helper function syntax...? This imports
+	# things which no OCF RA should be using...
+
+	# Strip the OCF_RESKEY_ prefix from this particular parameter
+	if [ -z "$OCF_RESKEY_OCF_CHECK_LEVEL" ]; then
+		: ${OCF_CHECK_LEVEL:=0}
+	else
+		: ${OCF_CHECK_LEVEL:=$OCF_RESKEY_OCF_CHECK_LEVEL}
+	fi
+
+	if [ ! -d "$OCF_ROOT" ]; then
+		ha_log "ERROR: OCF_ROOT points to non-directory $OCF_ROOT."
+		exit $OCF_ERR_GENERIC
+	fi
+
+	if [ -z "$OCF_RESOURCE_TYPE" ]; then
+		: ${OCF_RESOURCE_TYPE:=$__SCRIPT_NAME}
+	fi
+
+	if [ -z "$OCF_RA_VERSION_MAJOR" ]; then
+		: We are being invoked as an init script.
+		: Fill in some things with reasonable values.
+		: ${OCF_RESOURCE_INSTANCE:="default"}
+		return 0
+        fi
+
+	if [ "x$__OCF_ACTION" = "xmeta-data" ]; then
+		OCF_RESOURCE_INSTANCE="undef"
+	fi	
+
+	if [ -z "$OCF_RESOURCE_INSTANCE" ]; then
+		ha_log "ERROR: Need to tell us our resource instance name."
+		exit $OCF_ERR_ARGS
+	fi
+}
+
+hadate() {
+  date "+${HA_DATEFMT}"
+}
+
+ha_log() {
+	[ none = "$HA_LOGFACILITY" ] && HA_LOGFACILITY=""
+	# if we're connected to a tty, then output to stderr
+	if tty >/dev/null; then
+		if [ "x$HA_debug" = "x0" -a "x$loglevel" = xdebug ] ; then
+			return 0
+		fi
+		if [ "$HA_LOGTAG" ]; then
+			echo "$HA_LOGTAG: $*"
+		else
+			echo "$*"
+		fi >&2
+		return 0
+	fi
+	if [ "x${HA_LOGD}" = "xyes" ] ; then 
+		ha_logger -t "${HA_LOGTAG}" "$@"
+		if [ "$?" -eq "0" ] ; then
+			return 0
+		fi
+	fi
+
+	if
+	  [ -n "$HA_LOGFACILITY" ]
+        then
+	  : logging through syslog
+	  # loglevel is unknown, use 'notice' for now
+          loglevel=notice
+          case "${*}" in
+            *ERROR*)		loglevel=err;;
+            *WARN*)		loglevel=warning;;
+            *INFO*|info)	loglevel=info;;
+	  esac
+	  logger -t "$HA_LOGTAG" -p ${HA_LOGFACILITY}.${loglevel} "${*}"
+        fi	
+        if
+	  [ -n "$HA_LOGFILE" ]
+	then
+	  : appending to $HA_LOGFILE
+	  echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_LOGFILE
+	fi
+	if
+	  [ -z "$HA_LOGFACILITY" -a -z "$HA_LOGFILE" ]
+	then
+	  : appending to stderr
+	  echo `hadate`"${*}" >&2
+	fi
+        if
+          [ -n "$HA_DEBUGLOG" ]
+        then
+          : appending to $HA_DEBUGLOG
+          echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_DEBUGLOG
+        fi
+}
+
+ha_debug() {
+
+        if [ "x${HA_debug}" = "x0" ] ; then
+                return 0
+        fi
+	if tty >/dev/null; then
+		if [ "$HA_LOGTAG" ]; then
+			echo "$HA_LOGTAG: $*"
+		else
+			echo "$*"
+		fi >&2
+		return 0
+	fi
+
+        if [ "x${HA_LOGD}" = "xyes" ] ; then  
+		ha_logger -t "${HA_LOGTAG}" -D "ha-debug" "$@"
+                if [ "$?" -eq "0" ] ; then
+                        return 0
+                fi
+        fi
+
+	[ none = "$HA_LOGFACILITY" ] && HA_LOGFACILITY=""
+
+	if
+	  [ -n "$HA_LOGFACILITY" ]
+	then
+	  : logging through syslog
+	  logger -t "$HA_LOGTAG" -p "${HA_LOGFACILITY}.debug" "${*}"
+	fi
+        if
+	  [ -n "$HA_DEBUGLOG" ]
+	then
+	  : appending to $HA_DEBUGLOG
+	  echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_DEBUGLOG
+	fi
+	if
+	  [ -z "$HA_LOGFACILITY" -a -z "$HA_DEBUGLOG" ]
+	then
+	  : appending to stderr
+	  echo "$HA_LOGTAG:	`hadate`${*}:	${HA_LOGFACILITY}" >&2
+	fi
+}
+
+ha_parameter() {
+	local VALUE
+    VALUE=`sed -e 's%[	][	]*% %' -e 's%^ %%' -e 's%#.*%%'   $HA_CF | grep -i "^$1 " | sed 's%[^ ]* %%'`
+    if
+	[ "X$VALUE" = X ]
+    then
+	
+	case $1 in
+	    keepalive)	VALUE=2;;
+	    deadtime)
+		ka=`ha_parameter keepalive`
+		VALUE=`expr $ka '*' 2 '+' 1`;;
+	esac
+    fi
+    echo $VALUE
+}
+
+ocf_log() {
+	# TODO: Revisit and implement internally.
+	if
+          [ $# -lt 2 ]
+        then
+          ocf_log err "Not enough arguments [$#] to ocf_log."
+        fi
+        __OCF_PRIO="$1"
+        shift
+        __OCF_MSG="$*"
+
+        case "${__OCF_PRIO}" in
+          crit)	__OCF_PRIO="CRIT";;
+          err)	__OCF_PRIO="ERROR";;
+          warn)	__OCF_PRIO="WARNING";;
+          info)	__OCF_PRIO="INFO";;
+          debug)__OCF_PRIO="DEBUG";;
+          *)	__OCF_PRIO=`echo ${__OCF_PRIO}| tr '[a-z]' '[A-Z]'`;;
+	esac
+
+	if [ "${__OCF_PRIO}" = "DEBUG" ]; then
+		ha_debug "${__OCF_PRIO}: $__OCF_MSG"
+	else
+		ha_log "${__OCF_PRIO}: $__OCF_MSG"
+	fi
+}
+
+#
+# ocf_deprecated: Log a deprecation warning
+# Usage:          ocf_deprecated [param-name]
+# Arguments:      param-name optional, name of a boolean resource
+#                            parameter that can be used to suppress
+#                            the warning (default
+#                            "ignore_deprecation")
+ocf_deprecated() {
+    local param
+    param=${1:-ignore_deprecation}
+    # don't use ${!param} here, it's a bashism
+    if ! ocf_is_true $(eval echo \$OCF_RESKEY_$param); then
+	ocf_log warn "This resource agent is deprecated" \
+	    "and may be removed in a future release." \
+	    "See the man page for details." \
+	    "To suppress this warning, set the \"${param}\"" \
+	    "resource parameter to true."
+    fi
+}
+
+#
+# Ocf_run: Run a script, and log its output.
+# Usage:   ocf_run [-q] [-info|-warn|-err] <command>
+#	-q: don't log the output of the command if it succeeds
+#	-info|-warn|-err: log the output of the command at given
+#		severity if it fails (defaults to err)
+#
+ocf_run() {
+	local rc
+	local output
+	local verbose=1
+	local loglevel=err
+	local var
+
+	for var in 1 2
+	do
+	    case "$1" in
+		"-q")
+		    verbose=""
+		    shift 1;;
+		"-info"|"-warn"|"-err")
+		    loglevel=`echo $1 | sed -e s/-//g`
+		    shift 1;;
+		*)
+		    ;;		
+	    esac
+	done
+
+	output=`"$@" 2>&1`
+	rc=$?
+	output=`echo $output`
+	if [ $rc -eq 0 ]; then 
+	    if [ "$verbose" -a ! -z "$output" ]; then
+		ocf_log info "$output"
+	    fi
+	    return $OCF_SUCCESS
+	else
+	    if [ ! -z "$output" ]; then
+		ocf_log $loglevel "$output"
+	    else
+		ocf_log $loglevel "command failed: $*"
+	    fi
+	    return $rc
+	fi
+}
+
+ocf_pidfile_status() {
+    local pid pidfile=$1
+    if [ ! -e $pidfile ]; then
+	# Not exists
+	return 2
+    fi
+    pid=`cat $pidfile`
+    kill -0 $pid 2>&1 > /dev/null
+    if [ $? = 0 ]; then
+	return 0
+    fi
+
+    # Stale
+    return 1
+}
+
+ocf_take_lock() {
+    local lockfile=$1
+    local rnd=$(ocf_maybe_random)
+
+    sleep 0.$rnd
+    while 
+	ocf_pidfile_status $lockfile
+    do
+	ocf_log info "Sleeping until $lockfile is released..."
+	sleep 0.$rnd
+    done
+    echo $$ > $lockfile
+}
 
 
-ha_log "WARN: Use of @HA_LIBHBDIR@/ocf-shellfuncs is deprecated."
-ha_log "WARN: Please use @OCF_RA_DIR@/heartbeat/.ocf-shellfuncs instead."
-ha_log 'WARN: Note that the $OCF_ROOT environment variable points to '"$OCF_ROOT"
-ha_log 'WARN: We recommend using the $OCF_ROOT environment variable'
-ha_log "WARN: Please fix $0 at your earliest convenience"
+ocf_release_lock_on_exit() {
+    local lockfile=$1
+    trap "rm -f $lockfile" EXIT
+}
+
+# returns true if the CRM is currently running a probe. A probe is
+# defined as a monitor operation with a monitoring interval of zero.
+ocf_is_probe() {
+    [ "$__OCF_ACTION" = "monitor" -a "$OCF_RESKEY_CRM_meta_interval" = 0 ]
+}
+
+# returns true if the resource is configured as a clone. This is
+# defined as a resource where the clone-max meta attribute is present,
+# and set to greater than zero.
+ocf_is_clone() {
+    [ ! -z "${OCF_RESKEY_CRM_meta_clone_max}" ] && [ "${OCF_RESKEY_CRM_meta_clone_max}" -gt 0 ]
+}
+
+# returns true if the resource is configured as a multistate
+# (master/slave) resource. This is defined as a resource where the
+# master-max meta attribute is present, and set to greater than zero.
+ocf_is_ms() {
+    [ ! -z "${OCF_RESKEY_CRM_meta_master_max}" ] && [ "${OCF_RESKEY_CRM_meta_master_max}" -gt 0 ]
+}
+
+# usage: dirname DIR
+dirname()
+{
+	local a
+	local b
+
+	[ $# = 1 ] || return 1
+	a="$1"
+	while [ 1 ]; do
+		b="${a%/}"
+		[ "$a" = "$b" ] && break
+		a="$b"
+	done
+	b=${a%/*}
+	[ -z "$b" -o "$a" = "$b"  ] && b="."
+
+	echo "$b"
+	return 0
+}
+
+#
+# pseudo_resource status tracking function...
+#
+# This allows pseudo resources to give correct status information.  As we add
+# resource monitoring, and better resource tracking in general, this will
+# become essential.
+#
+# These scripts work because ${HA_RSCTMP} is cleaned out every time
+# heartbeat is started.
+#
+# We create "resource-string" tracking files under ${HA_RSCTMP} in a
+# very simple way:
+#
+#	Existence of "${HA_RSCTMP}/resource-string" means that we consider
+#	the resource named by "resource-string" to be running.
+#
+# Note that "resource-string" needs to be unique.  Using the resource type
+# plus the resource instance arguments to make up the resource string
+# is probably sufficient...
+#
+# usage: ha_pseudo_resource resource-string op [tracking_file]
+# 	where op is {start|stop|monitor|status|restart|reload|print}
+#	print is a special op which just prints the tracking file location
+#	user can override our choice of the tracking file location by
+#		specifying it as the third arg
+#	Note that all operations are silent...
+#
+ha_pseudo_resource()
+{
+  local ha_resource_tracking_file="${3:-${HA_RSCTMP}/$1}"
+  case $2 in
+    start|restart|reload)  touch "$ha_resource_tracking_file";;
+    stop) rm -f "$ha_resource_tracking_file";;
+    status|monitor)
+           if
+             [ -f "$ha_resource_tracking_file" ]
+           then
+             return 0
+           else
+             case $2 in
+               status)	return 3;;
+               *)	return 7;;
+             esac
+           fi;;
+    print)  echo "$ha_resource_tracking_file";;
+    *)	return 3;;
+  esac
+}
+
+# usage: rmtempdir TMPDIR
+rmtempdir()
+{
+	[ $# = 1 ] || return 1
+	if [ -e "$1" ]; then
+		rmdir "$1" || return 1
+	fi
+	return 0
+}
+
+# usage: maketempfile [-d]
+maketempfile()
+{
+	if [ $# = 1 -a "$1" = "-d" ]; then
+		mktemp -d
+		return -0
+	elif [ $# != 0 ]; then
+		return 1
+	fi
+
+	mktemp
+	return 0
+}
+
+# usage: rmtempfile TMPFILE
+rmtempfile ()
+{
+	[ $# = 1 ] || return 1
+	if [ -e "$1" ]; then
+		rm "$1" || return 1
+	fi
+	return 0
+}
+
+__ocf_set_defaults "$@"

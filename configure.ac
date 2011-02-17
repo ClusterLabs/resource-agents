@@ -370,6 +370,10 @@ else
 fi
 AC_SUBST(OCF_RA_DIR_PREFIX)
 
+OCF_LIB_DIR="${OCF_ROOT_DIR}/lib/"
+AC_DEFINE_UNQUOTED(OCF_LIB_DIR,"$OCF_LIB_DIR", Location for shared code for OCF RAs)
+AC_SUBST(OCF_LIB_DIR)
+
 dnl ===============================================
 dnl rgmanager ras bits
 dnl ===============================================
@@ -815,10 +819,8 @@ dnl The Makefiles and shell scripts we output
 AC_CONFIG_FILES(Makefile				        \
 include/Makefile						\
 heartbeat/Makefile						\
-   heartbeat/.ocf-binaries					\
-   heartbeat/.ocf-directories					\
-   heartbeat/.ocf-shellfuncs					\
-   heartbeat/ocf-returncodes					\
+   heartbeat/ocf-binaries					\
+   heartbeat/ocf-directories					\
    heartbeat/ocf-shellfuncs					\
    heartbeat/shellfuncs						\
 tools/Makefile							\

@@ -46,14 +46,14 @@ CASE "double stop"
 	Include prepare
 	AgentRun stop OCF_SUCCESS
 
-CASE "running status"
+CASE "running monitor"
 	Include prepare
 	AgentRun start
-	AgentRun status OCF_SUCCESS
+	AgentRun monitor OCF_SUCCESS
 
-CASE "not running status"
+CASE "not running monitor"
 	Include prepare
-	AgentRun status OCF_NOT_RUNNING
+	AgentRun monitor OCF_NOT_RUNNING
 
 CASE "check lib file"
 	Include prepare

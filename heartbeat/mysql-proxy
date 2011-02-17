@@ -50,8 +50,8 @@
 
 # Initialization:
 
-: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
-. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 : ${OCF_RESKEY_binary="/usr/sbin/mysql-proxy"}
 : ${OCF_RESKEY_defaults_file=""}

@@ -270,6 +270,7 @@ backbash_stop()
 
 
 export OCF_ROOT=@OCF_ROOT_DIR@
+export OCF_LIB=@OCF_LIB_DIR@/heartbeat
 AGENT_ROOT=@OCF_RA_DIR@/heartbeat
 CASES_DIR=/var/lib/@PACKAGE_NAME@/ocft/cases
 
@@ -291,8 +292,8 @@ if [ $? -ne 0 ]; then
 fi
 export HA_SBIN_DIR=$fakebin
 
-. $AGENT_ROOT/.ocf-returncodes || {
-  echo "${showhost}ERROR: $AGENT_ROOT/.ocf-returncodes not found, break this CASE."
+. $OCF_LIB/ocf-returncodes || {
+  echo "${showhost}ERROR: $OCF_LIB/ocf-returncodes not found, break this CASE."
   quit 3
 }
 
@@ -302,5 +303,5 @@ while read line; do
     reti=$(eval echo \$$retn)
     retval[reti]=$retn
   fi
-done <<<"$(sed 's/#.*//' $AGENT_ROOT/.ocf-returncodes)"
+done <<<"$(sed 's/#.*//' $OCF_LIB/ocf-returncodes)"
 

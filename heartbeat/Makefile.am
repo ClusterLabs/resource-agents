@@ -50,6 +50,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			apache		\
 			nginx		\
 			AudibleAlarm	\
+			conntrackd	\
 			db2		\
 			Delay		\
 			eDir88		\
@@ -105,15 +106,13 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			Xen		\
 			Xinetd
 
-ocf_DATA	     =  \
-			.ocf-shellfuncs	 \
-			.ocf-binaries	 \
-			.ocf-directories \
-			.ocf-returncodes
+ocfcommondir		= $(OCF_LIB_DIR)/heartbeat
+ocfcommon_DATA		= \
+			ocf-shellfuncs	 \
+			ocf-binaries	 \
+			ocf-directories \
+			ocf-returncodes
 
 # Legacy locations
-commondir	     = $(libdir)/heartbeat
-common_DATA	     = ocf-shellfuncs ocf-returncodes
-
 hbdir			= $(sysconfdir)/ha.d
 hb_DATA			= shellfuncs

@@ -26,8 +26,8 @@
 #######################################################################
 # Initialization:
 
-: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
-. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 #######################################################################
 
@@ -48,8 +48,6 @@ usage() {
 	The 'methods' operation reports on the methods $0 supports
 
 	!
-  exit $OCF_ERR_GENERIC 
-
 }
 
 meta_data() {
@@ -286,7 +284,7 @@ LVM_validate_all() {
 #
 
 if
-  ( [ $# -ne 1 ] )
+  [ $# -ne 1 ]
 then
   usage
   exit $OCF_ERR_ARGS 
@@ -310,7 +308,7 @@ then
 #  echo "You must identify the volume group name!"
   ocf_log err "You must identify the volume group name!"
 #  usage
-  exit $OCF_ERR_ARGS 
+  exit $OCF_ERR_CONFIGURED 
 fi
 
 # Get the LVM version number, for this to work we assume(thanks to panjiam):
@@ -362,5 +360,5 @@ case "$1" in
 		;;
 
   *)		usage
-		exit $OCF_ERR_AEGS;;
+		exit $OCF_ERR_UNIMPLEMENTED;;
 esac

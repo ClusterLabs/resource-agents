@@ -46,7 +46,7 @@ doc_DATA		= COPYING.applications \
 			  README.licence \
 			  README.webapps
 
-# OCF_ROOT=. is necessary due to a sanity check in .ocf-shellfuncs
+# OCF_ROOT=. is necessary due to a sanity check in ocf-shellfuncs
 # (which tests whether $OCF_ROOT points to a directory
 metadata-%.xml: $(radir)/%
 	OCF_ROOT=. OCF_FUNCTIONS_DIR=$(radir) $< meta-data > $@
@@ -100,6 +100,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_Xinetd.7 \
                           ocf_heartbeat_anything.7 \
                           ocf_heartbeat_apache.7 \
+                          ocf_heartbeat_conntrackd.7 \
                           ocf_heartbeat_db2.7 \
                           ocf_heartbeat_drbd.7 \
                           ocf_heartbeat_eDir88.7 \
@@ -113,6 +114,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_mysql.7 \
                           ocf_heartbeat_mysql-proxy.7 \
                           ocf_heartbeat_nfsserver.7 \
+                          ocf_heartbeat_nginx.7 \
                           ocf_heartbeat_oracle.7 \
                           ocf_heartbeat_oralsnr.7 \
                           ocf_heartbeat_pgsql.7 \
