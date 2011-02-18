@@ -137,13 +137,12 @@
         <xsl:when test="contains($string, $lf)">
             <xsl:variable name="first" select="substring-before($string, $lf)" />
 
-           <!-- skip empty lines as <para> spacing generates one --> 
-
-            <xsl:if test="string-length($first) > 0">
-                <para>
-                    <xsl:value-of select="$first"/>
-                </para>
-            </xsl:if>
+            <para>
+                <xsl:value-of select="'&#xA;'" />
+                <xsl:value-of select="$first"/>
+                <xsl:value-of select="'&#xA;'" />
+            </para>
+            <xsl:value-of select="'&#xA;'" />
 
            <!-- recursively call an remaining string --> 
             <xsl:call-template name="break_into_para">
@@ -152,7 +151,9 @@
             </xsl:call-template>
         </xsl:when>
         <xsl:otherwise>
-            <xsl:value-of select="$string"/>
+            <para>
+                <xsl:value-of select="$string"/>
+            </para>
         </xsl:otherwise>
     </xsl:choose>
 </xsl:template> 
@@ -168,7 +169,6 @@
             <xsl:call-template name="break_into_para">
                 <xsl:with-param name="string" select="." />
             </xsl:call-template>
-            <!-- xsl:apply-templates mode="description"/ -->
     </xsl:template>
 
 
