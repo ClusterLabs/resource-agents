@@ -165,12 +165,15 @@
     </refsection>
     </xsl:template>
 
-    <xsl:template match="longdesc" mode="description">
-            <xsl:call-template name="break_into_para">
-                <xsl:with-param name="string" select="." />
-            </xsl:call-template>
-    </xsl:template>
+  <xsl:template match="text()" mode="longdesc">
+      <xsl:call-template name="break_into_para">
+          <xsl:with-param name="string" select="." />
+      </xsl:call-template>
+  </xsl:template>
 
+  <xsl:template match="longdesc" mode="description">
+     <xsl:apply-templates mode="longdesc"/>
+  </xsl:template>
 
   <!-- Mode Parameters -->
   <xsl:template match="resource-agent" mode="parameters">
@@ -213,7 +216,7 @@
   </xsl:template>
   
   <xsl:template match="longdesc" mode="parameters">
-    <xsl:apply-templates select="text()" mode="parameters"/>
+    <xsl:apply-templates select="node()" mode="longdesc"/>
   </xsl:template>
   
   <xsl:template match="shortdesc" mode="parameters">
