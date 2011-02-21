@@ -1,0 +1,2 @@
+configure.ac export-subst
+heartbeat/ocf-shellfuncs.in export-subst

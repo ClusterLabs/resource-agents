@@ -864,6 +864,7 @@ dnl *****************
 AC_MSG_RESULT([])
 AC_MSG_RESULT([$PACKAGE configuration:])
 AC_MSG_RESULT([  Version                  = ${VERSION}])
+AC_MSG_RESULT([  Build Version            = $Format:%H$)
 AC_MSG_RESULT([  Features                 =${PKG_FEATURES}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([  Prefix                   = ${prefix}])
