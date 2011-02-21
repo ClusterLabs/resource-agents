@@ -149,5 +149,5 @@ ocf_resource_agents.xml: $(xmlfiles) mkappendix.sh
 	--output $@ \
 	$(HTML_STYLESHEET) $<
 
-xml: $(xmlfiles)
+xml: ocf_resource_agents.xml
 endif
