@@ -35,8 +35,6 @@ SUBDIRS += doc
 EXTRA_DIST		= autogen.sh .version make/release.mk \
 			  make/git-version-gen make/gitlog-to-changelog
 
-AUTOMAKE_OPTIONS	= foreign
-
 noinst_HEADERS		= make/copyright.cf
 
 install-exec-local:

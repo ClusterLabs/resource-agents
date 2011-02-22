@@ -56,7 +56,8 @@ AC_ARG_WITH(pkg-name,
     [  --with-pkg-name=name     Override package name (if you're a packager needing to pretend) ],
     [ PACKAGE_NAME="$withval" ])
 
-AM_INIT_AUTOMAKE([dist-bzip2 dist-xz])
+AM_INIT_AUTOMAKE([1.11.1 foreign dist-bzip2 dist-xz])
+
 AC_DEFINE_UNQUOTED(AGENTS_VERSION, "$PACKAGE_VERSION", Current agents version)
 
 CC_IN_CONFIGURE=yes
