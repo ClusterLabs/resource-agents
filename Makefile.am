@@ -20,7 +20,17 @@ MAINTAINERCLEANFILES    = Makefile.in aclocal.m4 configure DRF/config-h.in \
 			  missing install-sh autoscan.log configure.scan \
                           DRF/stamp-h.in libtool.m4 ltdl.m4 libltdl.tar
 
-SUBDIRS	= include heartbeat rgmanager tools ldirectord doc
+SUBDIRS =
+
+if BUILD_RGMANAGER
+SUBDIRS += rgmanager
+endif
+
+if BUILD_LINUX_HA
+SUBDIRS	+= include heartbeat tools ldirectord
+endif
+
+SUBDIRS += doc
 
 EXTRA_DIST		= autogen.sh .version make/release.mk \
 			  make/git-version-gen make/gitlog-to-changelog
@@ -30,8 +40,12 @@ AUTOMAKE_OPTIONS	= foreign
 noinst_HEADERS		= make/copyright.cf
 
 install-exec-local:
+if BUILD_LINUX_HA
 	$(INSTALL) -d -m 1755 $(DESTDIR)$(HA_RSCTMPDIR)
+endif
+if BUILD_RGMANAGER
 	$(INSTALL) -d $(DESTDIR)/$(LOGDIR)
+endif
 
 dist-clean-local:
 	rm -f autoconf automake autoheader $(TARFILE)

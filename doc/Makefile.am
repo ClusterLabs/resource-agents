@@ -18,6 +18,24 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
 
+
+MAINTAINERCLEANFILES    = Makefile.in
+
+EXTRA_DIST 		= $(doc_DATA) $(REFENTRY_STYLESHEET) \
+			  mkappendix.sh ralist.sh
+
+CLEANFILES              = $(man_MANS) $(xmlfiles) metadata-*.xml
+
+if BUILD_RGMANAGER
+doc_DATA		= COPYING.applications \
+			  COPYING.libraries \
+			  COPYRIGHT \
+			  README.licence \
+			  README.webapps
+endif
+
+if BUILD_LINUX_HA
+
 STYLESHEET_PREFIX 	?= http://docbook.sourceforge.net/release/xsl/current
 MANPAGES_STYLESHEET 	?= $(STYLESHEET_PREFIX)/manpages/docbook.xsl
 HTML_STYLESHEET 	?= $(STYLESHEET_PREFIX)/xhtml/docbook.xsl
@@ -29,22 +47,7 @@ XSLTPROC_MANPAGES_OPTIONS ?= $(XSLTPROC_OPTIONS)
 XSLTPROC_HTML_OPTIONS 	?= $(XSLTPROC_OPTIONS)
 XSLTPROC_FO_OPTIONS 	?= $(XSLTPROC_OPTIONS)
 
-MAINTAINERCLEANFILES    = Makefile.in
-
 radir			= $(top_srcdir)/heartbeat
-
-CLEANFILES              = $(man_MANS) $(xmlfiles) metadata-*.xml
-
-# TODO: add README and license files
-
-EXTRA_DIST 		= $(doc_DATA) $(REFENTRY_STYLESHEET) \
-			  mkappendix.sh ralist.sh
-
-doc_DATA		= COPYING.applications \
-			  COPYING.libraries \
-			  COPYRIGHT \
-			  README.licence \
-			  README.webapps
 
 # OCF_ROOT=. is necessary due to a sanity check in ocf-shellfuncs
 # (which tests whether $OCF_ROOT points to a directory
@@ -157,4 +160,5 @@ ocf_resource_agents.xml: $(xmlfiles) mkappendix.sh
 	$(HTML_STYLESHEET) $<
 
 xml: $(xmlfiles)
+endif
 endif

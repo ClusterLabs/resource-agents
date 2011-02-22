@@ -161,6 +161,35 @@ AC_ARG_ENABLE([libnet],
  [  --enable-libnet 	Use libnet for ARP based funcationality, [default=try]], 
  [enable_libnet="$enableval"], [enable_libnet=try])
 
+BUILD_RGMANAGER=0
+BUILD_LINUX_HA=0
+
+RASSET=all
+AC_ARG_WITH(ras-set,
+    [  --with-ras-set=SET     build/install only linux-ha or rgmanager resource-agents [default: all]],
+    [ RASSET="$withval" ])
+
+if test x$RASSET = xyes || test x$RASSET = xall ; then
+	BUILD_RGMANAGER=1
+	BUILD_LINUX_HA=1
+fi
+
+if test x$RASSET = xlinux-ha; then
+	BUILD_LINUX_HA=1
+fi
+
+if test x$RASSET = xrgmanager; then
+	BUILD_RGMANAGER=1
+fi
+
+if test $BUILD_LINUX_HA -eq 0 && test $BUILD_RGMANAGER -eq 0; then
+	AC_MSG_ERROR([Are you really sure you want this package?])
+	exit 1
+fi
+
+AM_CONDITIONAL(BUILD_LINUX_HA, test $BUILD_LINUX_HA -eq 1)
+AM_CONDITIONAL(BUILD_RGMANAGER, test $BUILD_RGMANAGER -eq 1)
+
 dnl ===============================================
 dnl General Processing
 dnl ===============================================
@@ -864,7 +893,7 @@ dnl *****************
 AC_MSG_RESULT([])
 AC_MSG_RESULT([$PACKAGE configuration:])
 AC_MSG_RESULT([  Version                  = ${VERSION}])
-AC_MSG_RESULT([  Build Version            = $Format:%H$)
+AC_MSG_RESULT([  Build Version            = $Format:%H$])
 AC_MSG_RESULT([  Features                 =${PKG_FEATURES}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([  Prefix                   = ${prefix}])
