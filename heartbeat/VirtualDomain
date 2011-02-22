@@ -92,13 +92,15 @@ use libvirt's default transport to connect to the remote hypervisor.
 <parameter name="migration_network_suffix" unique="0" required="0">
 <longdesc lang="en">
 Use a dedicated migration network. The migration URI is composed by
-adding this parameters value to the end of the nodename. At the moment
-Qemu/KVM and Xen migration via a dedicated network is supported.
+adding this parameters value to the end of the node name. If the node
+name happens to be an FQDN (as opposed to an unqualified host name),
+insert the suffix immediately prior to the first period (.) in the FQDN.
+At the moment Qemu/KVM and Xen migration via a dedicated network is supported.
 
-Note: Be sure this composed hostname is locally resolveable and the
+Note: Be sure this composed host name is locally resolveable and the
 associated IP is reachable through the favored network.
 </longdesc>
-<shortdesc lang="en">Migration network hostname suffix</shortdesc>
+<shortdesc lang="en">Migration network host name suffix</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -314,6 +316,7 @@ VirtualDomain_Migrate_To() {
     local transport_suffix
     local migrateuri
     local migrateport
+    local migrate_target
     local hypervisor
 
     target_node="$OCF_RESKEY_CRM_meta_migrate_target"
@@ -331,16 +334,18 @@ VirtualDomain_Migrate_To() {
  	# version 0.7.4 ...
 	if [ -n "${OCF_RESKEY_migration_network_suffix}" ]; then
 	    hypervisor="${OCF_RESKEY_hypervisor%%[+:]*}"
+	    # Hostname might be a FQDN
+	    migrate_target=$(echo ${target_node} | sed -e "s,^\([^.]\+\),\1${OCF_RESKEY_migration_network_suffix},")
 	    case $hypervisor in
 		qemu)
 		    # For quiet ancient libvirt versions a migration port is needed
 		    # and the URI must not contain the "//". Newer versions can handle
 		    # the "bad" URI.
 		    migrateport=$(( 49152 + $(ocf_maybe_random) % 64 ))
-		    migrateuri="tcp:${target_node}${OCF_RESKEY_migration_network_suffix}:${migrateport}"
+		    migrateuri="tcp:${migrate_target}:${migrateport}"
 		    ;;
 		xen)
-		    migrateuri="xenmigr://${target_node}${OCF_RESKEY_migration_network_suffix}"
+		    migrateuri="xenmigr://${migrate_target}"
 		    ;;
 		*)
 		    ocf_log warn "$DOMAIN_NAME: Migration via dedicated network currently not supported for ${hypervisor}."
