@@ -758,7 +758,7 @@ if test "$GCC" != yes; then
         CFLAGS="$CFLAGS -g"
 	enable_fatal_warnings=no
 else
-        CFLAGS="$CFLAGS -ggdb3 -O0"
+        CFLAGS="$CFLAGS -ggdb3"
 
 	# We had to eliminate -Wnested-externs because of libtool changes
 	# Also remove -Waggregate-return because we use one libnet
