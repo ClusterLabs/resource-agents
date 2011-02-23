@@ -1595,7 +1595,7 @@ Beginning tests for /home/johndoe/ra-dev/foobar...
 
 === Testing with +ocft+
 
-+octf+ is a testing tool for resource agents. The main difference
++ocft+ is a testing tool for resource agents. The main difference
 to +ocf-tester+ is that +ocft+ can automate creating complex
 testing environments. That includes package installation and
 arbitrary shell scripting.
