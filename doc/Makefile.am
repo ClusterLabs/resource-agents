@@ -26,8 +26,6 @@ EXTRA_DIST 		= $(doc_DATA) $(REFENTRY_STYLESHEET) \
 
 CLEANFILES              = $(man_MANS) $(xmlfiles) metadata-*.xml
 
-if BUILD_LINUX_HA
-
 doc_DATA		= README.webapps
 
 STYLESHEET_PREFIX 	?= http://docbook.sourceforge.net/release/xsl/current
@@ -154,5 +152,4 @@ ocf_resource_agents.xml: $(xmlfiles) mkappendix.sh
 	$(HTML_STYLESHEET) $<
 
 xml: $(xmlfiles)
-endif
 endif

@@ -28,15 +28,12 @@ SUBDIRS += rgmanager
 endif
 
 if BUILD_LINUX_HA
-SUBDIRS	+= include heartbeat tools ldirectord
+SUBDIRS	+= include heartbeat tools ldirectord doc
 endif
 
-SUBDIRS += doc
-
 EXTRA_DIST		= autogen.sh .version make/release.mk \
-			  make/git-version-gen make/gitlog-to-changelog
-
-noinst_HEADERS		= make/copyright.cf
+			  make/git-version-gen make/gitlog-to-changelog \
+			  AUTHORS COPYING COPYING.GPLv3
 
 install-exec-local:
 if BUILD_LINUX_HA
