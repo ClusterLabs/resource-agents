@@ -27,8 +27,7 @@ EXTRA_DIST 		= $(doc_DATA) $(REFENTRY_STYLESHEET) \
 CLEANFILES              = $(man_MANS) $(xmlfiles) metadata-*.xml
 
 if BUILD_RGMANAGER
-doc_DATA		= COPYING.applications \
-			  COPYING.libraries \
+doc_DATA		= \
 			  COPYRIGHT \
 			  README.licence \
 			  README.webapps
