@@ -424,7 +424,7 @@ send_ua(struct in6_addr* src_ip, char* if_name)
 	int ifindex;
 	int hop;
 	struct ifreq ifr;
-	u_int8_t *payload;
+	u_int8_t *payload = NULL;
 	int    payload_size;
 	struct nd_neighbor_advert *na;
 	struct nd_opt_hdr *opt;
