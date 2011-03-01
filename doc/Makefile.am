@@ -29,14 +29,12 @@ CLEANFILES              = $(man_MANS) $(xmlfiles) metadata-*.xml
 doc_DATA		=
 
 if BUILD_RGMANAGER
-doc_DATA		+= \
-			  COPYRIGHT \
-			  README.licence
+doc_DATA		+= COPYRIGHT
 endif
 
 if BUILD_LINUX_HA
 
-doc_DATA		= README.webapps
+doc_DATA		+= README.webapps
 
 STYLESHEET_PREFIX 	?= http://docbook.sourceforge.net/release/xsl/current
 MANPAGES_STYLESHEET 	?= $(STYLESHEET_PREFIX)/manpages/docbook.xsl
