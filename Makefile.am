@@ -38,6 +38,10 @@ EXTRA_DIST		= autogen.sh .version make/release.mk \
 install-exec-local:
 if BUILD_LINUX_HA
 	$(INSTALL) -d -m 1755 $(DESTDIR)$(HA_RSCTMPDIR)
+	$(LN_S) ../../lib/heartbeat/ocf-binaries $(DESTDIR)${OCF_RA_DIR}/heartbeat/.ocf-binaries
+	$(LN_S) ../../lib/heartbeat/ocf-directories $(DESTDIR)${OCF_RA_DIR}/heartbeat/.ocf-directories
+	$(LN_S) ../../lib/heartbeat/ocf-returncodes $(DESTDIR)${OCF_RA_DIR}/heartbeat/.ocf-returncodes
+	$(LN_S) ../../lib/heartbeat/ocf-shellfuncs $(DESTDIR)${OCF_RA_DIR}/heartbeat/.ocf-shellfuncs
 endif
 if BUILD_RGMANAGER
 	$(INSTALL) -d $(DESTDIR)/$(LOGDIR)
