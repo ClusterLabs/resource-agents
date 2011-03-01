@@ -63,36 +63,3 @@ rgmanager/src/resources/smb.sh:
  Author(s):
   Lon Hohberger (lhh at redhat.com)
   Tim Burke (tburke at redhat.com)
-
-Authors as known by current RCS as of the time of writing:
-
-Abhijith Das <adas at redhat.com>
-Adam Manthei <amanthei at redhat.com>
-A. J. Lewis <alewis at redhat.com>
-Alasdair G. Kergon <agk at redhat.com>
-Andrew Price <andy at andrewprice.me.uk>
-Benjamin Marzinski <bmarzins at redhat.com>
-Bob Peterson <rpeterso at redhat.com>
-Chris Feist <cfeist at redhat.com>
-Christine Caulfield <ccaulfie at redhat.com>
-Daniel Phillips <phillips at redhat.com>
-David Teigland <teigland at redhat.com>
-Fabio M. Di Nitto <fdinitto at redhat.com>
-James Parsons <jparsons at redhat.com>
-Joel Becker <joel.becker at oracle.com>
-Jonathan Brassow <jbrassow at redhat.com>
-jparsons <jparsons at redhat.com>
-Ken Preslan <kpreslan at redhat.com>
-Lon Hohberger <lhh at redhat.com>
-Marc - A. Dahlhaus <mad at wol.de>
-Marek 'marx' Grac <mgrac at redhat.com>
-Mark Hlawatschek <hlawatschek at atix.de>
-Michael Conrad Tadpol Tilstra <mtilstra at redhat.com>
-Patrick Caulfield <pcaulfie at redhat.com>
-Robert Peterson <rpeterso at redhat.com>
-Ross Vandegrift <ross at kallisti.us>
-Ryan McCabe <rmccabe at redhat.com>
-Ryan O'Hara <rohara at redhat.com>
-Stanko Kupcevic <kupcevic at redhat.com>
-Steven Whitehouse <swhiteho at redhat.com>
-Wendy Cheng <wcheng at redhat.com>
