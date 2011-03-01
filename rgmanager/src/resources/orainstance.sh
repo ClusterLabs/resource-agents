@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright 2003-2004, 2006-2007 Red Hat, Inc.
+# Copyright 2003-2004, 2006-2011 Red Hat, Inc.
 #
 # Author(s):
 #     Hardy Merrill <hmerrill at redhat.com>

@@ -4,7 +4,9 @@
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
-
+#
+# Copyright (C) 2004 SUSE LINUX AG, Lars Marowsky-Bree. All Rights Reserved.
+#
 
 # TODO: Some of this should probably split out into a generic OCF
 # library for shell scripts, but for the time being, we'll just use it
