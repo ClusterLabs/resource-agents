@@ -106,6 +106,7 @@ AC_STRUCT_TIMEZONE
 dnl ===============================================
 dnl Helpers 
 dnl ===============================================
+AC_PROG_LN_S
 cc_supports_flag() {
          local CFLAGS="$@"
          AC_MSG_CHECKING(whether $CC supports "$@")
