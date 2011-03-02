@@ -37,12 +37,15 @@ export OCF_RESKEY_CRM_meta_interval=10000  # reset this for probes
 num_errors=0
 
 usage() {
+    # make sure to output errors on stderr
+    [ "x$1" = "x0" ] || exec >&2
+
     echo "Tool for testing if a cluster resource is OCF compliant"
     echo ""
     echo "Usage: ocf-tester [-Lh] -n resource_name [-o name=value]* /full/path/to/resource/agent"
     echo ""
     echo "Options:"
-    echo "  -h,--help		This text"
+    echo "  -h       		This text"
     echo "  -n name		Name of the resource"	
     echo "  -o name=value		Name and value of any parameters required by the agent"
     echo "  -L			Use lrmadmin/lrmd for tests"
@@ -87,7 +90,7 @@ while test "$done" = "0"; do
 	-v) verbose=1; shift;;
 	-?|--help) usage 0;;
 	--version) echo "@PACKAGE_VERSION@"; exit 0;;
-	-*) echo "unknown option: $1"; usage 1;;
+	-*) echo "unknown option: $1" >&2; usage 1;;
 	*) done=1;;
     esac
 done
@@ -96,19 +99,19 @@ if [ "x" = "x$OCF_ROOT" ]; then
     if [ -d /usr/lib/ocf ]; then
 	export OCF_ROOT=/usr/lib/ocf
     else
-	echo "You must supply the location of OCF_ROOT (common location is /usr/lib/ocf)"
+	echo "You must supply the location of OCF_ROOT (common location is /usr/lib/ocf)" >&2
 	usage 1
     fi
 fi
 
 if [ "x" = "x$OCF_RESOURCE_INSTANCE" ]; then
-    echo "You must give your resource a name, set OCF_RESOURCE_INSTANCE"
+    echo "You must give your resource a name, set OCF_RESOURCE_INSTANCE" >&2
     usage 1
 fi
 
 agent=$1
 if [ ! -e $agent ]; then
-    echo "You must provide the full path to your resource agent"
+    echo "You must provide the full path to your resource agent" >&2
     usage 1
 fi
 stopped_rc=7
@@ -169,14 +172,14 @@ exec_resource() {
 if [ "$use_lrmd" = 1 ]; then
 	echo "Using lrmd/lrmadmin for all tests"
 	start_lrmd || {
-		echo "could not start lrmd"
+		echo "could not start lrmd" >&2
 		exit 1
 	}
 	trap '
 		[ "$lrmd_started" = 1 ] && $LRMD -k
 	' EXIT
 	add_resource || {
-		echo "failed to add resource to lrmd"
+		echo "failed to add resource to lrmd" >&2
 		exit 1
 	}
 fi
@@ -396,7 +399,7 @@ if [ $? -eq 3 ]; then
 fi
 
 if [ $num_errors -gt 0 ]; then
-    echo Tests failed: $agent failed $num_errors tests
+    echo "Tests failed: $agent failed $num_errors tests" >&2
     exit 1
 else 
     echo $agent passed all tests

@@ -36,7 +36,7 @@ SETUP-AGENT
         # nothing
 
 CASE-BLOCK set_testenv
-        Var OCFT_instance=db2inst
+        Var OCFT_instance=db2inst1
         Var OCFT_db=ocft
 
 CASE-BLOCK crm_setting
