@@ -53,7 +53,12 @@ BuildRequires:  autoconf automake glib2-devel pkgconfig python-devel
 BuildRequires:  help2man
 
 %if 0%{?suse_version}  
-BuildRequires:  libnet libglue-devel
+%if 0%{?suse_version} >= 1140
+BuildRequires:  libnet1
+%else
+BuildRequires:  libnet
+%endif
+BuildRequires:  libglue-devel
 BuildRequires:  libxslt docbook_4 docbook-xsl-stylesheets
 %endif
 
@@ -104,12 +109,14 @@ export CFLAGS
 ./autogen.sh
 %if 0%{?suse_version} >= 1020 || 0%{?fedora} >= 11 || 0%{?centos_version} > 5 || 0%{?rhel} > 5
 %configure \
+    --with-ras-set=linux-ha \
     --enable-fatal-warnings=yes \
     --with-package-name=%{name} \
     --docdir=%{agents_docdir}
 %else
 export docdir=%{agents_docdir}
 %configure \
+    --with-ras-set=linux-ha \
     --enable-fatal-warnings=yes \
     --with-package-name=%{name}
 %endif
