@@ -330,12 +330,17 @@ stop_db()
 	declare tmpfile
 	declare logfile
 	declare -i rv
+	declare how_shutdown="$1"
+
+	if [ -z "$1" ]; then
+		how_shutdown="immediate"
+	fi
 
 	tmpfile="$(mktemp /tmp/$SCRIPT-stop.XXXXXX)"
 	logfile=@LOGDIR@/$SCRIPT-stop.log
 
 	# Setup for Stop ...
-	echo "shutdown abort" > $tmpfile
+	echo "shutdown $how_shutdown" > $tmpfile
 	echo "quit" >> $tmpfile
 
 	sqlplus "/ as sysdba" < $tmpfile &> $logfile
@@ -447,7 +452,7 @@ get_db_status()
 			# this db process is down - stop and
 			# (re)start all ora_XXXX_$ORACLE_SID processes
 			logger -t $SCRIPT "Restarting Oracle Database..."
-			stop_db
+			stop_db immediate
 			if [ $? != 0 ] ; then
 				# stop failed - return 1
 				return 1
@@ -789,7 +794,11 @@ stop_oracle()
 		action "Stopping Oracle EM:" emctl stop em || return 1
 	fi
 
-	faction "Stopping Oracle Database:" stop_db || return 1
+	faction "Stopping Oracle Database:" stop_db immediate
+	if [ $? -ne 0 ]; then
+		faction "Stopping Oracle Database (hard):" stop_db abort || return 1
+	fi
+
 	action "Stopping Oracle Listener:" lsnrctl stop $ORACLE_LISTENER
 	faction "Waiting for all Oracle processes to exit:" exit_idle 
 
