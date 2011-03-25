@@ -151,7 +151,7 @@ VirtualDomain_Define() {
 	while true; do
 	    virsh_output=`virsh ${VIRSH_OPTIONS} define ${OCF_RESKEY_config}`
 	    domain_name=`echo "$virsh_output" | sed -e 's/Domain \(.*\) defined from .*$/\1/'`
-            if [ -n $domain_name ]; then
+            if [ -n "$domain_name" ]; then
 		break;
             fi
 	    ocf_log debug "Domain not defined yet, probably unable to connect to hypervisor. Retrying."
