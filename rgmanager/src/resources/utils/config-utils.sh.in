@@ -39,9 +39,30 @@ generate_configTemplate()
 EOT
 }
 
+generate_configTemplateXML()
+{
+	cat > "$1" << EOT
+<!--
+  "$1" was created from the "$2"
+
+  This template configuration was automatically generated, and will be
+  automatically regenerated if removed. Once this file has been altered,
+  automatic re-generation will stop. Remember to copy this file to all 
+  other cluster members after making changes, or your service will not 
+  operate correctly.
+-->
+EOT
+}
+
 sha1_addToFile()
 {
         declare sha1line="# rgmanager-sha1 $(sha1sum "$1")"
+        echo $sha1line >> "$1"
+}
+
+sha1_addToFileXML()
+{
+        declare sha1line="<!--# rgmanager-sha1 $(sha1sum "$1")-->"
         echo $sha1line >> "$1"
 }
 
@@ -53,7 +74,7 @@ sha1_verify()
 	ocf_log debug "Checking: SHA1 checksum of config file $oldFile"
 
 	sha1_new=`cat "$oldFile" | grep -v "# rgmanager-sha1" | sha1sum | sed 's/^\([a-z0-9]\+\) .*$/\1/'`
-	sha1_old=`tail -n 1 "$oldFile" | sed 's/^# rgmanager-sha1 \(.*\)$/\1/' | sed 's/^\([a-z0-9]\+\) .*$/\1/'`
+ 	sha1_old=`tail -n 1 "$oldFile" | sed 's/^\(<!--\)\?# rgmanager-sha1 \(.*\)$/\2/' | sed 's/^\([a-z0-9]\+\) .*$/\1/'`
 
 	if [ "$sha1_new" = "$sha1_old" ]; then
 	        ocf_log debug "Checking: SHA1 checksum > succeed"

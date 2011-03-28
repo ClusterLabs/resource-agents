@@ -141,10 +141,10 @@ generate_config_file()
 
 	clog_generate_config $CLOG_INIT "$original_file" "$generated_file"
 
-#	generate_configTemplate "$generated_file" "$original_file"
+	generate_configTemplateXML "$generated_file" "$original_file"
 	$(dirname $0)/utils/tomcat-parse-config.pl $ip_addresses < "$original_file" >> "$generated_file"
 
-        sha1_addToFile "$generated_file"
+        sha1_addToFileXML "$generated_file"
 	clog_generate_config $CLOG_SUCCEED "$original_file" "$generated_file"
                
 	return 0;
