@@ -271,6 +271,8 @@ verify_path()
 		return $OCF_ERR_ARGS
 	fi
 
+	OCF_RESKEY_path="${OCF_RESKEY_path%/}"
+
 	[ -d "$OCF_RESKEY_path" ] && return 0
 
 	ocf_log err "$OCF_RESKEY_path is not a directory"
