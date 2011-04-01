@@ -29,14 +29,14 @@ RPM_OPTS	= --define "_sourcedir $(RPM_ROOT)" 	\
 
 getdistro = $(shell test -e /etc/SuSE-release || echo fedora; test -e /etc/SuSE-release && echo suse)
 DISTRO ?= $(call getdistro)
-TAG    ?= tip
+TAG    ?= HEAD
 
-hgarchive:
+gitarchive:
 	rm -f $(TARFILE)
-	hg archive -t tbz2 -r $(TAG) $(TARFILE)
+	git archive --format=tar --prefix $(PACKAGE)/ $(TAG) | bzip2 > $(TARFILE)
 	echo `date`: Rebuilt $(TARFILE)
 
-srpm:	hgarchive
+srpm:	gitarchive
 	rm -f *.src.rpm
 	@echo To create custom builds, edit the flags and options in $(PACKAGE).spec first
 	rpmbuild -bs --define "dist .$(DISTRO)" $(RPM_OPTS) $(PACKAGE).spec
