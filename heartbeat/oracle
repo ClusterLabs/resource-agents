@@ -699,7 +699,7 @@ envtmpf=`mktemp`
 dumporaenv > $envtmpf
 chmod 644 $envtmpf
 trap "rm -f $envtmpf" EXIT
-procs="ps -e -o pid,args | grep -i \"[o]ra.*$ORACLE_SID\""
+procs="ps -e -o pid,args | grep -i \"[o]ra[a-zA-Z0-9_]*$ORACLE_SID\""
 
 US=`id -u -n`
 if [ $US != root -a $US != $ORACLE_OWNER ]
