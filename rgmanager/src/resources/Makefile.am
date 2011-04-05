@@ -36,8 +36,6 @@ METADATA		= apache.metadata openldap.metadata samba.metadata \
 			  drbd.metadata tomcat-6.metadata \
 			  orainstance.metadata oralistener.metadata
 
-EVENT_TARGETS		= default_event_script.sl follow-service.sl
-
 HELPERS			= ocf-shellfuncs svclib_nfslock \
 			  lvm_by_lv.sh lvm_by_vg.sh
 
@@ -46,7 +44,6 @@ DTD			= ra-api-1-modified.dtd
 EXTRA_DIST		= $(TARGET:=.in) \
 			  $(RESOURCES) \
 			  $(METADATA) \
-			  $(EVENT_TARGETS) \
 			  $(HELPERS) \
 			  $(DTD)
 
@@ -56,8 +53,7 @@ ras_SCRIPTS		= $(TARGET) \
 			  $(RESOURCES) \
 			  $(HELPERS)
 
-ras_DATA		= $(METADATA) \
-			  $(EVENT_TARGETS)
+ras_DATA		= $(METADATA)
 
 $(TARGET): 
 	cat $@.in | sed \
