@@ -21,6 +21,11 @@ MAINTAINERCLEANFILES    = Makefile.in aclocal.m4 configure DRF/config-h.in \
 			  missing install-sh autoscan.log configure.scan \
                           DRF/stamp-h.in libtool.m4 ltdl.m4 libltdl.tar
 
+SPEC			= $(PACKAGE_NAME).spec
+
+TARFILES		= $(PACKAGE_NAME)-$(VERSION).tar.bz2 \
+			  $(PACKAGE_NAME)-$(VERSION).tar.gz
+
 SUBDIRS =
 
 if BUILD_RGMANAGER
@@ -33,22 +38,23 @@ endif
 
 EXTRA_DIST		= autogen.sh .version make/release.mk \
 			  make/git-version-gen make/gitlog-to-changelog \
-			  AUTHORS COPYING COPYING.GPLv3
+			  AUTHORS COPYING COPYING.GPLv3 ChangeLog \
+			  $(SPEC).in
 
 install-exec-local:
 if BUILD_LINUX_HA
 	$(INSTALL) -d -m 1755 $(DESTDIR)$(HA_RSCTMPDIR)
-	$(LN_S) ../../lib/heartbeat/ocf-binaries $(DESTDIR)${OCF_RA_DIR}/heartbeat/.ocf-binaries
-	$(LN_S) ../../lib/heartbeat/ocf-directories $(DESTDIR)${OCF_RA_DIR}/heartbeat/.ocf-directories
-	$(LN_S) ../../lib/heartbeat/ocf-returncodes $(DESTDIR)${OCF_RA_DIR}/heartbeat/.ocf-returncodes
-	$(LN_S) ../../lib/heartbeat/ocf-shellfuncs $(DESTDIR)${OCF_RA_DIR}/heartbeat/.ocf-shellfuncs
+	$(LN_S) ../../lib/heartbeat/ocf-binaries $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-binaries
+	$(LN_S) ../../lib/heartbeat/ocf-directories $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-directories
+	$(LN_S) ../../lib/heartbeat/ocf-returncodes $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-returncodes
+	$(LN_S) ../../lib/heartbeat/ocf-shellfuncs $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-shellfuncs
 endif
 if BUILD_RGMANAGER
 	$(INSTALL) -d $(DESTDIR)/$(LOGDIR)
 endif
 
 dist-clean-local:
-	rm -f autoconf automake autoheader $(TARFILE)
+	rm -f autoconf automake autoheader $(TARFILES)
 
 uninstall-local:
 			rmdir $(DESTDIR)/$(LOGDIR) || :;
@@ -57,8 +63,10 @@ BUILT_SOURCES = .version
 .version:
 	echo $(VERSION) > $@-t && mv $@-t $@
 
-dist-hook: gen-ChangeLog
+dist-hook: gen-ChangeLog $(SPEC)
 	echo $(VERSION) > $(distdir)/.tarball-version
+	rm -f $(distdir)/$(SPEC) && \
+		cp $(top_srcdir)/$(SPEC) $(distdir)/$(SPEC)
 
 gen_start_date = 2000-01-01
 .PHONY: gen-ChangeLog
@@ -66,6 +74,69 @@ gen-ChangeLog:
 	if test -d .git; then 						\
 		$(top_srcdir)/make/gitlog-to-changelog			\
 			--since=$(gen_start_date) > $(distdir)/cl-t;	\
-		rm -f $(distdir)/ChangeLog; 				\
-		mv $(distdir)/cl-t $(distdir)/ChangeLog;		\
+		rm -f $(distdir)/ChangeLog.devel;			\
+		mv $(distdir)/cl-t $(distdir)/ChangeLog.devel;		\
 	fi
+
+## make rpm/srpm section.
+$(SPEC): $(SPEC).in
+	rm -f $@-t $@
+	LC_ALL=C date="$(shell date "+%a %b %d %Y")" && \
+	if [ -f .tarball-version ]; then \
+		gitver="$(shell cat .tarball-version)" && \
+		rpmver=$$gitver && \
+		alphatag="" && \
+		dirty="" && \
+		numcomm="0"; \
+	else \
+		gitver="$(shell git describe --abbrev=4 --match='v*' HEAD 2>/dev/null)" && \
+		rpmver=`echo $$gitver | sed -e "s/^v//" -e "s/-.*//g"` && \
+		alphatag=`echo $$gitver | sed -e "s/.*-//" -e "s/^g//"` && \
+		vtag=`echo $$gitver | sed -e "s/-.*//g"` && \
+		numcomm=`git rev-list $$vtag..HEAD | wc -l` && \
+		git update-index --refresh > /dev/null 2>&1 || true && \
+		dirty=`git diff-index --name-only HEAD 2>/dev/null`; \
+	fi && \
+	if [ -n "$$dirty" ]; then dirty="dirty"; else dirty=""; fi && \
+	if [ "$$numcomm" = "0" ]; then \
+		sed \
+			-e "s#@version@#$$rpmver#g" \
+			-e "s#%glo.*alpha.*##g" \
+			-e "s#%glo.*numcomm.*##g" \
+			-e "s#@dirty@#$$dirty#g" \
+			-e "s#@date@#$$date#g" \
+		$< > $@-t; \
+	else \
+		sed \
+			-e "s#@version@#$$rpmver#g" \
+			-e "s#@alphatag@#$$alphatag#g" \
+			-e "s#@numcomm@#$$numcomm#g" \
+			-e "s#@dirty@#$$dirty#g" \
+			-e "s#@date@#$$date#g" \
+		$< > $@-t; \
+	fi; \
+	if [ -z "$$dirty" ]; then sed -i -e "s#%glo.*dirty.*##g" $@-t; fi
+	chmod a-w $@-t
+	mv $@-t $@
+
+$(TARFILES):
+	$(MAKE) dist
+
+RPMBUILDOPTS    = --define "_sourcedir $(abs_builddir)" \
+		  --define "_specdir $(abs_builddir)" \
+		  --define "_builddir $(abs_builddir)" \
+		  --define "_srcrpmdir $(abs_builddir)" \
+		  --define "_rpmdir $(abs_builddir)"
+
+srpm: clean
+	$(MAKE) $(SPEC) $(TARFILES)
+	rpmbuild $(RPMBUILDOPTS) --nodeps -bs $(SPEC)
+
+rpm: clean
+	$(MAKE) $(SPEC) $(TARFILES)
+	rpmbuild $(RPMBUILDOPTS) -ba $(SPEC)
+
+all-local: $(SPEC)
+
+clean-generic:
+	rm -rf $(SPEC) $(TARFILES)
