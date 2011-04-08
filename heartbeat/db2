@@ -1,28 +1,35 @@
 #!/bin/sh
 #
-# 
 # db2
 #
-# Description:	Manages a DB2 Universal Database as a High-Availability
-#		resource
+# Resource agent that manages a DB2 LUW database in Standard role 
+# or HADR configuration in master/slave configuration.
+# Multi partition is supported as well.
 #
+# Copyright (c) 2011 Holger Teutsch <holger.teutsch@web.de>
 #
-# Author:	Alan Robertson
-# Support:	linux-ha@lists.linux-ha.org
-# License:	GNU General Public License (GPL)
-# Copyright:	(C) 2002 - 2005 International Business Machines, Inc.
+# This agent incoporates code of a previous release created by
+# Alan Robertson and the community.
 #
-#		This code inspired by the FailSafe db2 resource script
-#		written by Joachim Gleissner <jg@suse.de>
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
 #
-# An example usage in /etc/ha.d/haresources: 
-#       node1  10.0.0.170 db2::db2inst1
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 #
-# See usage() function below for more details...
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
 #
-# OCF instance parameters:
-#	OCF_RESKEY_instance
-#	OCF_RESKEY_admin
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+#
 
 #######################################################################
 # Initialization:
@@ -32,474 +39,826 @@
 
 #######################################################################
 
-SH=/bin/sh
 
-usage() {
-  methods=`db2_methods`
-  methods=`echo $methods | tr ' ' '|'`
-  cat <<-!
-	usage: $0 ($methods)
-
-	$0 manages a DB2 Universal Database instance as an HA resource.
-
-	The 'start' operation starts the database.
-	The 'stop' operation stops the database.
-	The 'status' operation reports whether the database is running
-	The 'monitor' operation reports whether the database seems to be working
-	The 'validate-all' operation reports whether the parameters are valid
-	The 'methods' operation reports on the methods $0 supports
-
-	!
+db2_usage() {
+    echo "db2 start|stop|monitor|promote|demote|notify|validate-all|meta-data"
 }
 
-meta_data() {
-	cat <<END
+db2_meta_data() {
+cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="db2">
 <version>1.0</version>
-
 <longdesc lang="en">
-Resource script for db2. It manages a DB2 Universal Database instance as an HA resource.
-Multiple partitions are supported. Configure each partition as a separate HA instance.
+Resource Agent that manages an IBM DB2 LUW databases in Standard role as primitive or in HADR roles in master/slave configuration. Multiple partitions are supported.
+
+Standard mode:
+
+An instance including all or selected databases is made highly available.
+Configure each partition as a separate primitive resource.
+
+HADR mode:
+
+A single database in HADR configuration is made highly available by automating takeover operations.
+Configure a master / slave resource with notifications enabled and an
+additional monitoring operation with role "Master".
+
+In case of HADR be very deliberate in specifying intervals/timeouts. The detection of a failure including promote must complete within HADR_PEER_WINDOW.
+
+In addition to honoring requirements for crash recovery etc. for your specific database use the following relations as guidance:
+
+"monitor interval" &lt; HADR_PEER_WINDOW - (appr 30 sec)
+
+"promote timeout" &lt; HADR_PEER_WINDOW + (appr 20 sec)
+
+For further information and examples consult http://www.linux-ha.org/wiki/db2_(resource_agent)
 </longdesc>
-<shortdesc lang="en">Manages an IBM DB2 Universal Database instance</shortdesc>
+<shortdesc lang="en">Resource Agent that manages an IBM DB2 LUW databases in Standard role as primitive or in HADR roles as master/slave configuration. Multiple partitions are supported.</shortdesc>
 
 <parameters>
-<parameter name="instance" unique="0" required="1">
+<parameter name="instance" unique="1" required="1">
 <longdesc lang="en">
-The instance of database.
+The instance of the database(s).
 </longdesc>
 <shortdesc lang="en">instance</shortdesc>
 <content type="string" default="" />
 </parameter>
+<parameter name="dblist" unique="0" required="0">
+<longdesc lang="en">
+List of databases to be managed, e.g "db1 db2".
+Defaults to all databases in the instance. Specify one db for HADR mode.
+</longdesc>
+<shortdesc lang="en">List of databases to be managed</shortdesc>
+<content type="string"/>
+</parameter>
 <parameter name="admin" unique="0" required="0">
 <longdesc lang="en">
-The admin user of the instance.
+DEPRECATED: The admin user of the instance.
 </longdesc>
-<shortdesc lang="en">admin</shortdesc>
+<shortdesc lang="en">DEPRECATED: admin</shortdesc>
 <content type="string" default="" />
 </parameter>
 <parameter name="dbpartitionnum" unique="0" required="0">
 <longdesc lang="en">
 The number of the partion (DBPARTITIONNUM) to be managed.
 </longdesc>
-<shortdesc lang="en">number of partion</shortdesc>
+<shortdesc lang="en">database partition number (DBPARTITIONNUM)</shortdesc>
 <content type="string" default="0" />
 </parameter>
 </parameters>
 
 <actions>
-<action name="start" timeout="120" />
-<action name="stop" timeout="120" />
-<action name="status" timeout="60" />
-<action name="monitor" depth="0" timeout="60" interval="10" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
-<action name="methods" timeout="5" />
+<action name="start" timeout="120"/>
+<action name="stop" timeout="120"/>
+<action name="promote" timeout="120"/>
+<action name="demote" timeout="120"/>
+<action name="notify" timeout="10"/>
+<action name="monitor" depth="0" timeout="60" interval="20"/>
+<action name="monitor" depth="0" timeout="60" role="Master" interval="22"/>
+<action name="validate-all" timeout="5"/>
+<action name="meta-data" timeout="5"/>
 </actions>
 </resource-agent>
 END
 }
 
+#
+# validate
+# .. and set global variables
+#
+# exit on error
+#
+db2_validate() {
+    local db2home db2sql db2instance
 
-#
-# methods: What methods/operations do we support?
-#
-db2_methods() {
-  cat <<-!
-	start
-	stop
-	status
-	monitor
-	validate-all
-	methods
-	meta-data
-	usage
-	!
+    # check required instance vars
+    if [ -z "$OCF_RESKEY_instance" ]
+    then
+        ocf_log err "DB2 required parameter instance is not set!"
+        return $OCF_ERR_CONFIGURED
+    fi
+
+    instance=$OCF_RESKEY_instance
+    if [ -n "$OCF_RESKEY_admin" ]
+    then
+        ocf_log warn "DB2 deprecated parameter admin is set, using $OCF_RESKEY_admin as instance."
+        instance=$OCF_RESKEY_admin
+    fi
+
+    db2node=${OCF_RESKEY_dbpartitionnum:-0}
+
+    db2home=$(sh -c "echo ~$instance")
+    db2sql=$db2home/sqllib
+    db2profile=$db2sql/db2profile
+    db2bin=$db2sql/bin
+
+    STATE_FILE=${HA_RSCTMP}/db2-${OCF_RESOURCE_INSTANCE}.state
+
+    #	Let's make sure a few important things are there...
+    if ! [ -d "$db2sql" -a  -d "$db2bin" -a -f "$db2profile" -a \
+           -x "$db2profile" -a -x "$db2bin/db2" ]
+    then
+        ocf_is_probe && exit $OCF_NOT_RUNNING
+        ocf_log err "DB2 required directories and/or files not found"
+        exit $OCF_ERR_INSTALLED
+    fi
+
+    db2instance=$(runasdb2 'echo $DB2INSTANCE')
+    if [ "$db2instance" != "$instance" ]
+    then
+        ocf_is_probe && exit $OCF_NOT_RUNNING
+        ocf_log err "DB2 parameter instance \"$instance\" != DB2INSTANCE \"$db2instance\""
+        exit $OCF_ERR_CONFIGURED
+    fi
+
+    # enough checking for stop to succeed
+    [ $__OCF_ACTION = stop ] && return $OCF_SUCCESS
+
+    dblist=$OCF_RESKEY_dblist
+    if [ -n "$dblist" ]
+    then
+        # support , as separator as well
+        dblist=$(echo "$dblist" | sed -e 's/[,]/ /g')
+    else
+        if ! dblist=$(db2_dblist)
+        then
+            ocf_log err "DB2 $instance($db2node): cannot retrieve db directory"
+            exit $OCF_ERR_INSTALLED
+        fi
+    fi
+
+    # check requirements for the HADR case
+    if ocf_is_ms
+    then
+        set -- $dblist
+        if [ $# != 1 ]
+        then
+            ocf_log err "DB2 resource $OCF_RESOURCE_INSTANCE must have exactly one name in dblist"
+            exit $OCF_ERR_CONFIGURED
+        fi
+
+        if [ $db2node != 0 ]
+        then
+            ocf_log err "DB2 resource $OCF_RESOURCE_INSTANCE must have dbpartitionnum=0"
+            exit $OCF_ERR_CONFIGURED
+        fi
+    fi
+
+    return $OCF_SUCCESS
 }
 
 
-#	Gather up information about our db2 instance
-
-db2info() {
-	instance=$1
-	db2home=`sh -c "echo ~$db2admin"`
-	db2sql=$db2home/sqllib
-	db2profile=$db2sql/db2profile
-	db2adm=$db2sql/adm
-	db2ctrl=$db2sql/ctrl
-	db2bin=$db2sql/bin
-	db2db2=$db2bin/db2
-
-	#	Let's make sure a few important things are there...
-	if
-	  [ -d "$db2sql" -a  -d "$db2bin" -a -f "$db2profile" -a \
-		-x "$db2profile" -a -x "$db2db2" ]
-	then
-	  db2instance=`runasdb2 'echo $DB2INSTANCE'`
-	  test ! -z "$db2instance"
-        else
-	  false
-	fi
-}
-
 #
-#	Run the given command in the db2 admin environment...
+# Run the given command as db2 instance user
 #
 runasdb2() {
-	if
-	  [ $US = $db2admin ]
-	then
-	  $SH -c ". $db2profile; $*"
-	else
-	  su $db2admin -c ". $db2profile; $*"
-	fi
+    su $instance -c ". $db2profile; $*"
 }
 
 #
-#	Run a command as the DB2 admin, and log the output
+# Run a command as the DB2 admin, and log the output
 #
 logasdb2() {
-	output=`runasdb2 $*`
-	rc=$?
-	if
-	  [ $rc -eq 0 ]
-	then
-	  ocf_log info "$output"
-	else
-	  ocf_log err "$output"
-	fi
-	return $rc
+    local output rc
+
+    output=$(runasdb2 $*)
+    rc=$?
+    if [ $rc -eq 0 ]
+    then
+        ocf_log info "$output"
+    else
+        ocf_log err "$output"
+    fi
+    return $rc
 }
 
 
 #
-# db2_start: Start the given db2 instance
+# maintain the fal (first active log) attribute
+# db2_fal_attrib DB {set val|get}
+#
+db2_fal_attrib() {
+    local db=$1
+    local attr val rc id node member me
+
+    attr=db2hadr_${instance}_${db}_fal
+
+    case "$2" in
+        set)
+        me=$(uname -n)
+
+        # loop over all member nodes and set attribute
+        crm_node -l |
+        while read id node member
+        do
+            [ "$member" = member -a "$node" != "$me" ] || continue
+            crm_attribute -t nodes -l reboot --node=$node -n $attr -v "$3"
+            rc=$?
+            ocf_log info "DB2 instance $instance($db2node/$db: setting attrib for FAL to $FIRST_ACTIVE_LOG @ $node"
+            [ $rc != 0 ] && break
+        done
+        ;;
+
+        get)
+        crm_attribute -t nodes -l reboot -n $attr -G -Q 2>&1
+        rc=$?
+        if [ $rc != 0 ]
+        then
+            ocf_log warn "DB2 instance $instance($db2node/$db: can't retrieve attribute $attr, are you sure notifications are enabled ?"
+        fi
+        ;;
+
+        *)
+        exit $OCF_ERR_CONFIGURED
+    esac
+
+    return $rc
+}
+
+#
+# unfortunately a first connect after a crash may need several minutes
+# for some internal cleanup stuff in DB2.
+# We run a connect in background so other connects (i.e. monitoring!) may proceed.
+#
+db2_run_connect() {
+    local db=$1
+
+    logasdb2 "db2 connect to $db; db2 terminate"
+}
+
+#
+# get some data from the database config
+# sets HADR_ROLE HADR_TIMEOUT HADR_PEER_WINDOW
+#
+db2_get_cfg() {
+    local db=$1
+
+    local output hadr_vars
+
+    output=$(runasdb2 db2 get db cfg for $db)
+    [ $? != 0 ] && return $OCF_ERR_GENERIC
+
+    hadr_vars=$(echo "$output" |
+        awk '/HADR database role/ {printf "HADR_ROLE='%s'; ", $NF;}
+            /HADR_TIMEOUT/ {printf "HADR_TIMEOUT='%s'; ", $NF;}
+            /First active log file/ {printf "FIRST_ACTIVE_LOG='%s'\n", $NF;}
+            /HADR_PEER_WINDOW/ {printf "HADR_PEER_WINDOW='%s'\n", $NF;}')
+
+
+    # sets HADR_ROLE HADR_TIMEOUT HADR_PEER_WINDOW 
+    eval $hadr_vars
+
+    # HADR_PEER_WINDOW comes with V9 and is checked later
+    if [ -z "$HADR_ROLE" -o -z "$HADR_TIMEOUT" ]
+    then
+        ocf_log error "DB2 cfg values invalid for $instance($db2node)/$db: $hadr_vars"
+        return $OCF_ERR_GENERIC
+    fi
+
+    return $OCF_SUCCESS
+}
+
+#
+# return the list of databases in the instance
+#
+db2_dblist() {
+    local output
+
+    output=$(runasdb2 db2 list database directory) || return $OCF_ERR_GENERIC
+    
+    echo "$output" | grep -i 'Database name.*=' | sed 's%.*= *%%'
+}
+
+#
+# Delayed check of the compatibility of DB2 instance and pacemaker
+# config.
+# Logically this belongs to validate but certain parameters can only
+# be retrieved once the instance is started.
+#
+db2_check_config_compatibility() {
+    local db=$1
+    local is_ms
+
+    ocf_is_ms
+    is_ms=$?
+
+    case "$HADR_ROLE/$is_ms" in
+        STANDARD/0)
+        ocf_log err "DB2 database $instance/$db is not in a HADR configuration but I am a M/S resource"
+        exit $OCF_ERR_INSTALLED
+        ;;
+
+        STANDARD/1)
+        # OK
+        ;;
+
+        */0)
+        if [ -z "$HADR_PEER_WINDOW" ]
+        then
+            ocf_log err "DB2 database $instance: release to old, need HADR_PEER_WINDOW (>=V9)"
+            exit $OCF_ERR_INSTALLED
+        fi
+        ;;
+
+        */1)
+        ocf_log err "DB2 database $instance/$db is in a HADR configuration but I must be a M/S resource"
+    esac
+
+}
+
+#
+# Start instance and DB.
+# Standard mode is through "db2 activate" in order to start in previous
+# mode (Standy/Primary).
+# If the database is a primary AND we can determine that the running master
+# has a higher "first active log" we conclude that we come up after a crash
+# an the previous Standby is now Primary.
+# The db is then started as Standby.
+#
+# Other cases: danger of split brain, log error and do nothing.
 #
 db2_start() {
-  if
-    output=`runasdb2 $db2db2 db2start dbpartitionnum $db2node`
-  then
-    : Hurray! DB2 started OK
-    ocf_log info "DB2 UDB instance $1($db2node) started: $output"
-  else
-    case $output in
-      SQL1026N*|*"is already active"*)
-    		ocf_log info "DB2 UDB instance $1($db2node) already running: $output";;
+    local output start_cmd db
 
-      *)	ocf_log err "$output"; return $OCF_ERR_GENERIC;;
-    esac
-  fi
-  db2_status "$1" || {
-    ocf_log err "DB2 UDB instance $1($db2node) not active!"
-    return $OCF_ERR_GENERIC
-  }
-  # db2jstrt has been deprecated since v8.x and doesn't exist
-  # anymore in v9.x
-  if [ -x $db2bin/db2jstrt ]; then
-	runasdb2 $db2bin/db2jstrt || {
-	  ocf_log err "db2jstrt failed"
-	  return $OCF_ERR_GENERIC
-    }
-  fi
-
-  [ $db2node = 0 ] || return 0
-  # activate DB only on node 0
-
-  for DB in `db2_dblist`
-  do
-	if output=`runasdb2 $db2db2 activate database $DB`; then
-      ocf_log info "DB2 UDB database $DB activated"
+    if output=$(runasdb2 db2start dbpartitionnum $db2node)
+    then
+        ocf_log info "DB2 instance $instance($db2node) started: $output"
     else
-      case $output in
-        SQL1490W*|SQL1494W*|SQL1497W*|*"already been activated"*)
-           ocf_log info "DB2 UDB database $DB already activated: $output";;
+        case $output in
+            *SQL1026N*)
+            ocf_log info "DB2 instance $instance($db2node) already running: $output"
+            ;;
 
-        *) ocf_log err "DB2 UDB database $DB didn't activate: $output"; return $OCF_ERR_GENERIC;;
-      esac
+            *)
+            ocf_log err "$output"
+            return $OCF_ERR_GENERIC
+        esac
     fi
-  done
-}
 
-# helper function in a spawned invocation of this script
-# so we can detect a hang of the db2stop command
-db2_stop_bg() {
-  rc=$OCF_SUCCESS
+    if ! db2_instance_status
+    then
+        ocf_log err "DB2 instance $instance($db2node) is not active!"
+        return $OCF_ERR_GENERIC
+    fi
 
-  if
-    output=`runasdb2 $db2db2 db2stop force dbpartitionnum $db2node`
-  then
-    : DB2 stopped OK
-    ocf_log info "DB2 UDB instance $instance($db2node) stopped: $output"
-  else
-    case $output in
+    [ $db2node = 0 ] || return $OCF_SUCCESS
+    # activate DB only on node 0
 
-      SQL1032N*|*"No start database manager command"*)
-		ocf_log info "$output";;
+    for db in $dblist
+    do
+        # sets HADR_ROLE HADR_TIMEOUT HADR_PEER_WINDOW FIRST_ACTIVE_LOG
+        db2_get_cfg $db || return $?
 
-      *)	ocf_log err "DB2 UDB instance $instance($db2node) stop failed: $output"
-		rc=$OCF_ERR_GENERIC;;
-    esac
-  fi
+        # Better late than never: can only check this when the instance is already up
+        db2_check_config_compatibility $db
 
-  return $rc
+        start_cmd="db2 activate db $db"
+
+        if [ $HADR_ROLE = PRIMARY ]
+        then
+            local master_fal
+
+            # communicate our FAL to other nodes the might start concurrently
+            db2_fal_attrib $db set $FIRST_ACTIVE_LOG
+
+            if master_fal=$(db2_fal_attrib $db get) && [ "$master_fal" '>' $FIRST_ACTIVE_LOG ]
+            then
+                ocf_log info "DB2 database $instance($db2node)/$db is Primary and outdated, starting as secondary"
+                start_cmd="db2 start hadr on db $db as standby"
+                HADR_ROLE=STANDBY
+            fi
+        fi
+
+        if output=$(runasdb2 $start_cmd)
+        then
+            ocf_log info "DB2 database $instance($db2node)/$db started/activated"
+            [ $HADR_ROLE != STANDBY ] && db2_run_connect $db &
+        else
+            case $output in
+                SQL1490W*|SQL1494W*|SQL1497W*|SQL1777N*)
+                ocf_log info "DB2 database $instance($db2node)/$db already activated: $output"
+                ;;
+
+                SQL1768N*"Reason code = \"7\""*)
+                ocf_log err "DB2 database $instance($db2node)/$db is a Primary and the Standby is down"
+                ocf_log err "Possible split brain ! Manual intervention required."
+                ocf_log err "If this DB is outdated use \"db2 start hadr on db $db as standby\""
+                ocf_log err "If this DB is the surviving primary use \"db2 start hadr on db $db as primary by force\""
+
+                # might be the Standby is not yet there
+                # might be a timing problem because "First active log" is delayed
+                #    on the next start attempt we might succeed when FAL was advanced
+                # might be manual intervention is required
+                # ... so let pacemaker give it another try and we will succeed then
+                return $OCF_ERR_GENERIC
+                ;;
+
+                *)
+                ocf_log err "DB2 database $instance($db2node)/$db didn't start: $output"
+                return $OCF_ERR_GENERIC
+            esac
+        fi
+    done
+
+    # come here with success
+    # Even if we are a db2 Primary pacemaker requires start to end up in slave mode
+    echo SLAVE > $STATE_FILE
+    return $OCF_SUCCESS
 }
 
 #
-# db2_stop: Stop the given db2 database instance
+# helper function to be spawned
+# so we can detect a hang of the db2stop command
+#
+db2_stop_bg() {
+    local rc output
+
+    rc=$OCF_SUCCESS
+
+    if output=$(runasdb2 db2stop force dbpartitionnum $db2node)
+    then
+        ocf_log info "DB2 instance $instance($db2node) stopped: $output"
+    else
+        case $output in
+            *SQL1032N*)
+            #SQL1032N  No start database manager command was issued
+            ocf_log info "$output"
+            ;;
+
+            *)
+            ocf_log err "DB2 instance $instance($db2node) stop failed: $output"
+            rc=$OCF_ERR_GENERIC
+        esac
+    fi
+
+    return $rc
+}
+
+#
+# Stop the given db2 database instance
 #
 db2_stop() {
-  # We ignore the instance, the info we need is already in $vars
+    local stop_timeout grace_timeout stop_bg_pid i must_kill
 
-  rc=$OCF_SUCCESS
+    # remove master score
+    crm_master -D -l reboot
 
-  db2_status || {
-    ocf_log info "DB2 UDB instance $1($db2node) already stopped"
-    return $rc
-  }
+    # be very early here in order to avoid stale data
+    rm -f $STATE_FILE
 
-  if [ -n "$OCF_RESKEY_stop_timeout" ]
-  then
-      stop_timeout=$OCF_RESKEY_stop_timeout
-  elif [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
-      stop_timeout=$OCF_RESKEY_CRM_meta_timeout
-  else
-      stop_timeout=20000
-  fi
+    if ! db2_instance_status
+    then
+        ocf_log info "DB2 instance $instance already stopped"
+        return $OCF_SUCCESS
+    fi
 
-  # grace_time is 4/5 (unit is ms)
-  grace_timeout=$((stop_timeout/1250))
+    stop_timeout=${OCF_RESKEY_CRM_meta_timeout:-20000}
 
-  # start db2stop in background as this may hang
-  db2_stop_bg &
-  stop_bg_pid=$!
+    # grace_time is 4/5 (unit is ms)
+    grace_timeout=$((stop_timeout/1250))
 
-  # wait for grace_timeout
-  i=0
-  while [ $i -lt $grace_timeout ]
-  do
-      kill -0 $stop_bg_pid 2>/dev/null || break;
-      sleep 1
-      i=$((i+1))
-  done
+    # start db2stop in background as this may hang
+    db2_stop_bg &
+    stop_bg_pid=$!
 
-  # collect exit status but don't hang
-  if kill -0 $stop_bg_pid 2>/dev/null
-  then
-      stoprc=1
-      kill -9 $stop_bg_pid 2>/dev/null
-  else
-      wait $stop_bg_pid
-      stoprc=$?
-  fi
+    # wait for grace_timeout
+    i=0
+    while [ $i -lt $grace_timeout ]
+    do
+        kill -0 $stop_bg_pid 2>/dev/null || break;
+        sleep 1
+        i=$((i+1))
+    done
 
-  must_kill=0
+    # collect exit status but don't hang
+    if kill -0 $stop_bg_pid 2>/dev/null
+    then
+        stoprc=1
+        kill -9 $stop_bg_pid 2>/dev/null
+    else
+        wait $stop_bg_pid
+        stoprc=$?
+    fi
 
-  if [ $stoprc -ne 0 ]
-  then
-      ocf_log warn "db2stop of $instance($db2node) failed, using db2nkill"
-      must_kill=1
-  elif ! db2_status check_dead
-  then
-      ocf_log warn "db2stop of $instance($db2node) indicated success but there a still processes, using db2nkill"
-      must_kill=1
-  fi
+    must_kill=0
 
-  if [ $must_kill -eq 1 ]
-  then
-      # db2nkill kills *all* partions on the node
-      if [ -x $db2bin/db2nkill ]; then
-          logasdb2 $db2bin/db2nkill $db2node
-      elif [ -x $db2bin/db2_kill ]; then
-          logasdb2 $db2bin/db2_kill
-      fi
+    if [ $stoprc -ne 0 ]
+    then
+        ocf_log warn "DB2 instance $instance($db2node): db2stop failed, using db2nkill"
+        must_kill=1
+    elif ! db2_instance_dead
+    then
+        ocf_log warn "DB2 instance $instance($db2node): db2stop indicated success but there a still processes, using db2nkill"
+        must_kill=1
+    fi
 
-      # loop forever (or lrmd kills us due to timeout) until the
-      # instance is dead
-      while ! db2_status check_dead
-      do
-          ocf_log info "waiting for DB2 UDB instance $1($db2node) processes to exit"
-          sleep 1
-      done
+    if [ $must_kill -eq 1 ]
+    then
+        # db2nkill kills *all* partions on the node
+        if [ -x $db2bin/db2nkill ]
+        then
+            logasdb2 $db2bin/db2nkill $db2node
+        elif [ -x $db2bin/db2_kill ]
+        then
+            logasdb2 $db2bin/db2_kill
+        fi
 
-      ocf_log info "DB2 UDB instance $1($db2node) is now dead"
-  fi
+        # loop forever (or lrmd kills us due to timeout) until the
+        # instance is dead
+        while ! db2_instance_dead
+        do
+            ocf_log info "DB2 instance $instance($db2node): waiting for processes to exit"
+            sleep 1
+        done
 
-  # db2jd has been deprecated since v8.x and doesn't exist
-  # anymore in v9.x
-  pids=`our_db2_ps | grep db2jd | cut -d' ' -f1`
-  for j in $pids
-  do
-    runasdb2 kill -9 $j
-  done
+        ocf_log info "DB2 instance $instance($db2node) is now dead"
+    fi
 
-  return $rc
+    return $OCF_SUCCESS
 }
 
-
 #
-# db2_status: is the given db2 instance running?
-#
-# Arguments:
-# <none>     : report whether `enough´ processes for a healthy instance are up
-# check_dead : check whether *no* processes are running
+# check whether `enough´ processes for a healthy instance are up
 # 
-db2_status() {
-  # We ignore the instance, the info we need is already in $vars
-  pscount=`runasdb2 $db2bin/db2nps $db2node | cut -c9- |  grep ' db2[^ ]' | wc -l`
+db2_instance_status() {
+    local pscount
 
-  if [ "$1" = check_dead ]
-  then
-      test $pscount -eq 0
-      return
-  fi
-
-  test $pscount -ge 4
+    pscount=$(runasdb2 $db2bin/db2nps $db2node | cut -c9- |  grep ' db2[^ ]' | wc -l)
+    test $pscount -ge 4
 }
-
-our_db2_ps() {
-  ps -u $db2admin | grep db2
-}
-
-
-db2_dblist() {
-  runasdb2 $db2db2 list database directory	\
-  |	grep -i 'Database name.*=' | sed 's%.*= *%%'
-}
-
 
 #
-# db2_monitor: Can the given db2 instance do anything useful?
+# is the given db2 instance dead?
+# 
+db2_instance_dead() {
+    local pscount
+
+    pscount=$(runasdb2 $db2bin/db2nps $db2node | cut -c9- |  grep ' db2[^ ]' | wc -l)
+    test $pscount -eq 0
+}
+
+#
+# return the status of the db as "Role/Status"
+# e.g. Primary/Peer, Standby/RemoteCatchupPending
+#
+# If not in HADR configuration return "Standard/Standalone"
+#
+db2_hadr_status() {
+    local db=$1
+    local output
+
+    output=$(runasdb2 db2pd -hadr -db $db)
+    if [ $? != 0 ]
+    then
+        echo "Down/Off"
+        return 1 
+    fi
+
+    echo "$output" |
+    awk '/^HADR is not active/ {print "Standard/Standalone"; exit; }
+         /^Role *State */ {getline; printf "%s/%s\n", $1, $2; exit; }'
+}
+
+#
+# Monitor the db
+# And as side effect set crm_master / FAL attribute
 #
 db2_monitor() {
-  [ $db2node = 0 ] || return 0
-  # monitoring only for partition 0
+    local CMD output hadr db
 
-  # We ignore the instance, the info we need is already in $vars
-  for DB in `db2_dblist`
-  do
-
-  CMD="	if $db2db2 connect to $DB;
-	then 
-	  $db2db2 select \* from sysibm.sysversions ; rc=\$?;
-	  $db2db2 disconnect $DB;
-	else
-          rc=\$?;
-	fi;
-	exit \$rc"
-
-    : Running this command: $CMD
-    if
-      output=`runasdb2 $CMD`
+    if ! db2_instance_status
     then
-      : Command succeeded!
-    else
-      ocf_log err "DB2 UDB instance $1 DB $DB is not working"
-      ocf_log err "DB2 UDB message: $output"
-      return $OCF_ERR_GENERIC
+        # instance is dead remove master score
+        crm_master -D -l reboot
+        exit $OCF_NOT_RUNNING
     fi
-  done
-  ocf_log debug "All DBs in DB2 UDB instance $1 appear to be working"
-  return $OCF_SUCCESS
+
+    [ $db2node = 0 ] || return 0
+    # monitoring only for partition 0
+
+    for db in $dblist
+    do
+        hadr=$(db2_hadr_status $db) || return $OCF_ERR_GENERIC
+        ocf_log debug "Monitor: DB2 database $instance($db2node)/$db has HADR status $hadr"
+
+        # set master preference accordingly
+        case "$hadr" in
+            Primary/*|Standard/*)
+            # perform  a basic health check
+            CMD="if db2 connect to $db;
+            then 
+                db2 select \* from sysibm.sysversions ; rc=\$?;
+                db2 terminate;
+            else
+                rc=\$?;
+            fi;
+            exit \$rc"
+
+            if ! output=$(runasdb2 $CMD)
+            then
+                case "$output" in
+                    SQL1776N*)
+                    # can't connect/select on standby, may be spurious turing takeover
+                    ;;
+
+                    *)
+                    ocf_log err "DB2 database $instance($db2node)/$db is not working"
+                    ocf_log err "DB2 message: $output"
+
+                    # dead primary, remove master score
+                    crm_master -D -l reboot
+                    return $OCF_ERR_GENERIC
+                esac
+            fi
+
+            ocf_log debug "DB2 database $instance($db2node)/$db appears to be working"
+            ocf_is_ms && crm_master -v 10000 -l reboot
+            ;;
+
+            Standby/*Peer)
+            crm_master -v 8000 -l reboot
+            ;;
+
+            Standby/*)
+            ocf_log warn "DB2 database $instance($db2node)/$db in status $hadr can never be promoted"
+            crm_master -D -l reboot
+            ;;
+
+            *)
+            return $OCF_ERR_GENERIC
+        esac
+    done
+
+    # everything OK, return if running as slave
+    grep MASTER $STATE_FILE >/dev/null 2>&1 || return $OCF_SUCCESS
+
+    return $OCF_RUNNING_MASTER
 }
 
 #
-#	'main' starts here...
+# Promote db to Primary
 #
+db2_promote() {
+    # validate ensured that dblist contains only one entry
+    local db=$dblist
+    local i hadr output force
 
-if
-  ( [ $# -ne 1 ] )
-then
-  usage
-  exit $OCF_ERR_ARGS
-fi
+    # we run this twice as after a crash of the other node
+    # within HADR_TIMEOUT the status may be still reported as Peer
+    # although a connection no longer exists
 
-# These operations don't require OCF instance parameters to be set
-case "$1" in
-  meta-data)	meta_data
-		exit $OCF_SUCCESS;;
+    for i in 1 2
+    do
+        hadr=$(db2_hadr_status $db) || return $OCF_ERR_GENERIC
+        ocf_log info "DB2 database $instance($db2node)/$db has HADR status $hadr and will be promoted"
 
-  usage) 	usage
-		exit $OCF_SUCCESS;;
+        case "$hadr" in
+            Standard/Standalone)
+            # this case only to keep ocf-tester happy
+            return $OCF_SUCCESS
+            ;;
 
-  methods)	db2_methods
-		exit $?;;
+            Primary/Peer)
+            # nothing to do, only update pacemaker's view
+            echo MASTER > $STATE_FILE
+            return $OCF_SUCCESS
+            ;;
 
-  *);;
-esac
+            Standby/Peer)
+            # must take over 
+            ;;
 
-if 
-  [ -z "$OCF_RESKEY_instance" ]
-then
-  ocf_log err "Please set OCF_RESKEY_instance to the database instance !"
-  exit $OCF_ERR_ARGS
-fi
+            Standby/DisconnectedPeer)
+            # must take over forced 
+            force="by force peer window only"
+            ;;
 
-instance=$OCF_RESKEY_instance
-db2admin=${OCF_RESKEY_admin:-$instance}
-db2node=${OCF_RESKEY_dbpartitionnum:-0}
+            *)
+            return $OCF_ERR_GENERIC
+        esac
 
-US=`id -u -n`
-US=`echo $US`
-if
-  [ $US != root -a $US != $db2admin ]
-then
-  ocf_log err "$0 must be run as root or $db2admin"
-  exit $OCF_ERR_PERM
-fi
+        if output=$(runasdb2 db2 takeover hadr on db $db $force)
+        then
+            # update pacemaker's view
+            echo MASTER > $STATE_FILE
+
+            # turn the log so we rapidly get a new FAL
+            logasdb2 "db2 archive log for db $db"
+            return $OCF_SUCCESS
+        fi
+
+        case "$output" in
+            SQL1770N*"Reason code = \"7\""*)
+            # expected, HADR_TIMEOUT is now expired
+            # go for the second try
+            continue
+            ;;
+
+            *)
+            ocf_log err "DB2 database $instance($db2node)/$db promote failed: $output"
+            return $OCF_ERR_GENERIC
+        esac
+    done
+
+    return $OCF_ERR_GENERIC
+}
 
 #
-#	Grab common db2 information...
+# Demote db to standby
 #
-if
-  db2info $instance 
-then
-  : DB2 info is OK!
-else
-  if ocf_is_probe; then
-    exit $OCF_NOT_RUNNING
-  else
-    ocf_log err "DB2 instance [$instance($db2node)] not available"
-    exit $OCF_ERR_INSTALLED
-  fi
-fi
+db2_demote() {
+    # validate ensured that dblist contains only one entry
+    local db=$dblist
+    local hadr
+    
+    # house keeping, set pacemaker's view to slave
+    echo SLAVE > $STATE_FILE
 
+    hadr=$(db2_hadr_status $dblist) || return $OCF_ERR_GENERIC
+    ocf_log info "DB2 database $instance($db2node)/$db has HADR status $hadr and will be demoted"
 
-# What kind of method was invoked?
-case "$1" in
+    db2_monitor
+    return $?
+}
 
-  start)	db2_start $instance
-		exit $?;;
+#
+# handle pre start notification
+# We record our first active log on the other nodes.
+# If two primaries come up after a crash they can safely determine who is
+# the outdated one.
+#
+db2_notify() {
+    local node
 
-  stop)		db2_stop $instance
-		exit $?;;
+    # only interested in pre-start
+    [  $OCF_RESKEY_CRM_meta_notify_type = pre \
+    -a $OCF_RESKEY_CRM_meta_notify_operation = start ] || return $OCF_SUCESS
 
-  status)	if
-		  db2_status $instance
-		then
-		  echo DB2 UDB instance $instance is running
-		  exit $OCF_SUCCESS
-		else
-		  echo DB2 UDB instance $instance is stopped
-		  exit 3  # status: stopped exit code is 3
-		fi
-		;;
+    # gets FIRST_ACTIVE_LOG
+    db2_get_cfg $dblist || return $?
 
-  monitor)	
-		if
-		  db2_status $instance
-		then
-		  db2_monitor $instance
-		else
-		  exit $OCF_NOT_RUNNING
-		fi
-		exit $?;;
+    db2_fal_attrib $dblist set $FIRST_ACTIVE_LOG || return $OCF_ERR_GENERIC
+    exit $OCF_SUCCESS
+}
 
-  validate-all)	# OCF_RESKEY_instance has already checked within db2info(),
-		# just exit successfully here.
-		exit $OCF_SUCCESS;;
+########
+# Main #
+########
+case "$__OCF_ACTION" in
+    meta-data)
+    db2_meta_data
+    exit $OCF_SUCCESS
+    ;;
 
-  *)		db2_methods
-		exit $OCF_ERR_UNIMPLEMENTED;;
+    usage)
+    db2_usage
+    exit $OCF_SUCCESS
+    ;;
+
+    start)
+    db2_validate
+    db2_start || exit $?
+    db2_monitor
+    exit $?
+    ;;
+
+    stop)
+    db2_validate
+    db2_stop
+    exit $?
+    ;;
+
+    promote)
+    db2_validate
+    db2_promote
+    exit $?
+    ;;
+
+    demote)
+    db2_validate
+    db2_demote
+    exit $?
+    ;;
+
+    notify)
+    db2_validate
+    db2_notify
+    exit $?
+    ;;
+
+    monitor)	
+    db2_validate
+    db2_monitor
+    exit $?
+    ;;
+
+    validate-all)
+    db2_validate
+    exit $?
+    ;;
+
+    *)
+    db2_usage
+    exit $OCF_ERR_UNIMPLEMENTED
 esac
