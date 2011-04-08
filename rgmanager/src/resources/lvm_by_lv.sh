@@ -308,45 +308,40 @@ lv_activate()
 	if ! lv_activate_and_tag $1 $my_name $lv_path; then
 		ocf_log err "Failed to $1 $lv_path"
 
-		if [ "$1" == "start" ]; then
-			ocf_log notice "Attempting cleanup of $OCF_RESKEY_vg_name"
+		ocf_log notice "Attempting cleanup of $OCF_RESKEY_vg_name"
 
-			if vgreduce --removemissing --config \
-			    "activation { volume_list = \"$OCF_RESKEY_vg_name\" }" \
-			    $OCF_RESKEY_vg_name; then
-				ocf_log notice "$OCF_RESKEY_vg_name now consistent"
-				owner=`lvs -o tags --noheadings $lv_path`
-				if [ ! -z $owner ] && [ $owner != $my_name ]; then
-					if is_node_member_clustat $owner ; then
-						ocf_log err "$owner owns $lv_path unable to $1"
-						return $OCF_ERR_GENERIC
-					fi
-					ocf_log notice "Owner of $lv_path is not in the cluster"
-					ocf_log notice "Stealing $lv_path"
-
-					lvchange --deltag $owner $lv_path
-					if [ $? -ne 0 ]; then
-						ocf_log err "Failed to steal $lv_path from $owner"
-						return $OCF_ERR_GENERIC
-					fi
-
-					# Warning --deltag doesn't always result in failure
-					if [ ! -z `lvs -o tags --noheadings $lv_path` ]; then
-						ocf_log err "Failed to steal $lv_path from $owner."
-						return $OCF_ERR_GENERIC
-					fi
-				fi
-
-				if ! lv_activate_and_tag $1 $my_name $lv_path; then
-					ocf_log err "Failed second attempt to $1 $lv_path"
+		if vgreduce --removemissing --force --config \
+		    "activation { volume_list = \"$OCF_RESKEY_vg_name\" }" \
+		    $OCF_RESKEY_vg_name; then
+			ocf_log notice "$OCF_RESKEY_vg_name now consistent"
+			owner=`lvs -o tags --noheadings $lv_path`
+			if [ ! -z $owner ] && [ $owner != $my_name ]; then
+				if is_node_member_clustat $owner ; then
+					ocf_log err "$owner owns $lv_path unable to $1"
 					return $OCF_ERR_GENERIC
-				else
-					ocf_log notice "Second attempt to $1 $lv_path successful"
-					return $OCF_SUCCESS
 				fi
-			else
-				ocf_log err "Failed to make $OCF_RESKEY_vg_name consistent"
+				ocf_log notice "Owner of $lv_path is not in the cluster"
+				ocf_log notice "Stealing $lv_path"
+
+				lvchange --deltag $owner $lv_path
+				if [ $? -ne 0 ]; then
+					ocf_log err "Failed to steal $lv_path from $owner"
+					return $OCF_ERR_GENERIC
+				fi
+
+				# Warning --deltag doesn't always result in failure
+				if [ ! -z `lvs -o tags --noheadings $lv_path` ]; then
+					ocf_log err "Failed to steal $lv_path from $owner."
+					return $OCF_ERR_GENERIC
+				fi
+			fi
+
+			if ! lv_activate_and_tag $1 $my_name $lv_path; then
+				ocf_log err "Failed second attempt to $1 $lv_path"
 				return $OCF_ERR_GENERIC
+			else
+				ocf_log notice "Second attempt to $1 $lv_path successful"
+				return $OCF_SUCCESS
 			fi
 		else
 			ocf_log err "Failed to $1 $lv_path"
