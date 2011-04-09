@@ -1301,13 +1301,13 @@ sub read_config
 			my $fallback_line;
 			my @rsrv_todo;
 			if ($vattr =~ /^(\d+\.\d+\.\d+\.\d+):([0-9A-Za-z-_]+)/ && $af == AF_INET) {
-				$virtual_id = $ip_port = "$1:$2";
+				$ip_port = "$1:$2";
 				$virtual_port = $2;
 			} elsif ($vattr =~ /^([0-9A-Za-z._+-]+):([0-9A-Za-z-_]+)/) {
-				$virtual_id = $ip_port = "$1:$2";
+				$ip_port = "$1:$2";
 				$virtual_port = $2;
 			} elsif ($vattr =~ /^(\d+)/){
-				$virtual_id = $fwm = $1;
+				$fwm = $1;
 			} elsif ($vattr =~ /^\[([0-9A-Fa-f:]+)\]:([0-9A-Za-z-_]+)/ && $af == AF_INET) {
 				&config_error($line, "cannot specify an IPv6 address here. please use \"virtual6\" instead.");
 			} elsif ($vattr =~ /^\[([0-9A-Fa-f:]+)\]:([0-9A-Za-z-_]+)/ && $af == AF_INET6) {
@@ -1316,7 +1316,7 @@ sub read_config
 				if (!inet_pton(AF_INET6,$v6addr)) {
 					&config_error($line,"invalid ipv6 address for virtual server");
 				}
-				$virtual_id = $ip_port = "[$v6addr]:$v6port";
+				$ip_port = "[$v6addr]:$v6port";
 				$virtual_port = $v6port;
 			} else {
 				&config_error($line,
@@ -4804,7 +4804,7 @@ sub get_virtual_id_str
 {
 	my ($v) = (@_);
 
-	return $v->{"protocol"} . ":" .  &get_virtual($v);
+	return $v->{"protocol"} . ($v->{addressfamily} == AF_INET6?"6":"") . ":" .  &get_virtual($v);
 }
 
 # get_forward_flag
