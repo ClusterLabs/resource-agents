@@ -659,9 +659,11 @@ B<persistent => I<n>
 
 Number of seconds for persistent client connections.
 
-B<netmask => I<w.x.y.z>
+B<netmask => I<w.x.y.z> | I<prefixlen>
 
 Netmask to be used for granularity of persistent client connections.
+IPv4 netmask should be specified in dotted quad notation.
+IPv6 netmask should be specified as a prefix length between 1 and 128.
 
 B<protocol = tcp> | B<udp> | B<fwm>
 
@@ -1456,8 +1458,17 @@ sub read_config
 					$1 =~ /(\d+)/ or &config_error($line, "invalid persistent timeout");
 					$vsrv{persistent} = $1;
 				} elsif ($rcmd =~ /^netmask\s*=\s*(.*)/) {
-					$1 =~ /(\d+\.\d+\.\d+\.\d+)/ or &config_error($line, "invalid netmask");
-					$vsrv{netmask} = $1;
+					my $val = $1;
+					if ($vsrv{addressfamily} == AF_INET6) {
+						if ($val !~ /^\d+$/ or ($val < 1 || $val > 128)) {
+							&config_error($line, "invalid netmask: a prefix length between 1 and 128 is required");
+						}
+					} else {
+						if ($val !~ /^\d+\.\d+\.\d+\.\d+$/) {
+							&config_error($line, "invalid netmask: dotted quad notation is required");
+						}
+					}
+					$vsrv{netmask} = $val;
 				} elsif ($rcmd =~ /^protocol\s*=\s*(.*)/) {
 					if ( $1 =~ /(\w+)/ ) {
 						if ( $vsrv{protocol} eq "fwm" ) {
