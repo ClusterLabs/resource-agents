@@ -2411,15 +2411,15 @@ sub ld_read_ipvsadm
 		if (not defined $line) {
 			last;
 		}
-		if ($line =~ /^(\w+)\s+(\d+\.\d+\.\d+\.\d+\:\d+|\[[0-9A-Fa-f:]+\]:\d+|\d+)\s+(\w+)\s+persistent\s+(\d+)\s+mask\s+(.*)/) {
-			$real_service = "$2 ".lc($1);
-			$oldsrv{"$real_service"} = {"real"=>{}, "scheduler"=>$3, "persistent"=>$4, "netmask"=>$5};
-		} elsif ($line =~ /^(\w+)\s+(\d+\.\d+\.\d+\.\d+\:\d+|\[[0-9A-Fa-f:]+\]:\d+|\d+)\s+(\w+)\s+persistent\s+(\d+)/) {
-			$real_service = "$2 ".lc($1);
-			$oldsrv{"$real_service"} = {"real"=>{}, "scheduler"=>$3, "persistent"=>$4};
-		} elsif ($line =~ /^(\w+)\s+(\d+\.\d+\.\d+\.\d+\:\d+|\[[0-9A-Fa-f:]+\]:\d+|\d+)\s+(\w+)/) {
-			$real_service = "$2 ".lc($1);
-			$oldsrv{"$real_service"} = {"real"=>{}, "scheduler"=>$3};
+		if ($line =~ /^(\w+)\s+(\d+\.\d+\.\d+\.\d+\:\d+|\[[0-9A-Fa-f:]+\]:\d+|\d+)( IPv6)?\s+(\w+)\s+persistent\s+(\d+)\s+mask\s+(.*)/) {
+			$real_service = &gen_real_service_str($2, $1, $3);
+			$oldsrv{"$real_service"} = {"real"=>{}, "scheduler"=>$4, "persistent"=>$5, "netmask"=>$6};
+		} elsif ($line =~ /^(\w+)\s+(\d+\.\d+\.\d+\.\d+\:\d+|\[[0-9A-Fa-f:]+\]:\d+|\d+)( IPv6)?\s+(\w+)\s+persistent\s+(\d+)/) {
+			$real_service = &gen_real_service_str($2, $1, $3);
+			$oldsrv{"$real_service"} = {"real"=>{}, "scheduler"=>$4, "persistent"=>$5};
+		} elsif ($line =~ /^(\w+)\s+(\d+\.\d+\.\d+\.\d+\:\d+|\[[0-9A-Fa-f:]+\]:\d+|\d+)( IPv6)?\s+(\w+)/) {
+			$real_service = &gen_real_service_str($2, $1, $3);
+			$oldsrv{"$real_service"} = {"real"=>{}, "scheduler"=>$4};
 		} elsif ($line =~ /^  ->\s+(\d+\.\d+\.\d+\.\d+\:\d+|\[[0-9A-Fa-f:]+\]:\d+)\s+(\w+)\s+(\d+)/) {
 			if (not defined( $real_service)) {
 				&ld_debug(2, "Real server read from ipvsadm " .
@@ -2446,6 +2446,20 @@ sub ld_read_ipvsadm
 	return(\%oldsrv);
 }
 
+sub gen_real_service_str
+{
+	my ($service_address, $protocol, $v6flag) = @_;
+
+	return "$service_address ".lc($protocol).(defined($v6flag) ? "6" : "");
+}
+
+sub get_real_service_str
+{
+	my ($v) = (@_);
+
+	return &get_virtual($v) . " "  . $v->{protocol} . ($v->{addressfamily} == AF_INET6 ? "6" : "");
+}
+
 sub ld_start
 {
 	my $oldsrv;
@@ -2459,7 +2473,7 @@ sub ld_start
 
 	# make sure virtual servers are up to date
 	foreach $nv (@VIRTUAL) {
-		my $real_service = &get_virtual($nv) . " "  . $nv->{protocol};
+		my $real_service = &get_real_service_str($nv);
 
 		if (exists($oldsrv->{"$real_service"})) {
 			# service exists, modify it
@@ -2476,7 +2490,7 @@ sub ld_start
 	# make sure real servers are up to date
 	foreach $nv (@VIRTUAL) {
 		my $nreal = $nv->{real};
-		my $ov = $oldsrv->{&get_virtual($nv) . " " . $nv->{protocol}};
+		my $ov = $oldsrv->{&get_real_service_str($nv)};
 		my $or = $ov->{real};
 		my $fallback = fallback_find($nv);
 
@@ -2506,7 +2520,7 @@ sub ld_start
 			delete($$or{$k});
 		}
 
-		delete($oldsrv->{&get_virtual($nv) . " " . $nv->{protocol}});
+		delete($oldsrv->{&get_real_service_str($nv)});
 		&fallback_on($nv);
 	}
 
@@ -2519,8 +2533,7 @@ sub ld_start
 
 	# remove remaining entries for virtual servers
 	foreach $nv (@OLDVIRTUAL) {
-		if (! defined($oldsrv->{&get_virtual($nv) . " " .
-					$nv->{protocol}})) {
+		if (! defined($oldsrv->{&get_real_service_str($nv)})) {
 			next;
 		}
 		purge_virtual($nv, "start");
@@ -3755,7 +3768,7 @@ sub _remove_service
 	$virtual_str = &get_virtual($v);
 
 	$oldsrv=&ld_read_ipvsadm();
-	$ov=$oldsrv->{$virtual_str . " " . $v->{"protocol"}};
+	$ov=$oldsrv->{&get_real_service_str($v)};
 	if(!defined($ov)){
 		return;
 	}
@@ -3875,7 +3888,7 @@ sub _restore_service
 	#if the server exists then restore its weight
 	# otherwise add the server
 	$oldsrv=&ld_read_ipvsadm();
-	$ov=$oldsrv->{&get_virtual($v) . " " . $v->{"protocol"}};
+	$ov=$oldsrv->{&get_real_service_str($v)};
 	if(defined($ov)){
 		$or=$ov->{"real"}->{$rservice};
 	}
