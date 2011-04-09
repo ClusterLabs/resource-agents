@@ -3563,6 +3563,8 @@ sub check_dns
 		# which throw a fatal exception if they fail
 		# Needless to say, this is completely stupid.
 		local $SIG{'__DIE__'} = "DEFAULT";
+		# When fork=yes we need to ignore the child death
+		local $SIG{'CHLD'} = "IGNORE";
 		require Net::DNS;
 	}
 	$res = new Net::DNS::Resolver;
