@@ -16,6 +16,14 @@ export LC_ALL LANG PATH
 
 . $(dirname $0)/ocf-shellfuncs
 
+# SELinux information
+which restorecon &> /dev/null && selinuxenabled
+export SELINUX_ENABLED=$?
+if [ $SELINUX_ENABLED ]; then
+	export SELINUX_LABEL="$(ls -ldZ /var/lib/nfs/statd | cut -f4 -d' ')"
+fi
+
+
 log_do()
 {
 	ocf_log debug $*
@@ -222,6 +230,8 @@ create_tree()
 	[ -f "$fp/xtab" ] || touch "$fp/xtab"
 	[ -f "$fp/rmtab" ] || touch "$fp/rmtab"
 
+	[ $SELINUX_ENABLED ] && chcon -R "$SELINUX_LABEL" "$fp"
+
         #
         # Generate a random state file.  If this ends up being what a client
         # already has in its list, that's bad, but the chances of this
@@ -306,7 +316,7 @@ setup_tree()
 
 	mount -o bind "$fp/statd" /var/lib/nfs/statd
 	cp -a "$fp"/*tab /var/lib/nfs
-	restorecon /var/lib/nfs
+	[ $SELINUX_ENABLED ] && restorecon /var/lib/nfs
 }
 
 
