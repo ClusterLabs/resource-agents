@@ -553,10 +553,6 @@ set_master() {
                              MASTER_USER='$OCF_RESKEY_replication_user', \
                              MASTER_PASSWORD='$OCF_RESKEY_replication_passwd' $master_params"
 
-    # Remove state attributes - it will be invalid after START SLAVE
-    $CRM_ATTR -n master-host-${INSTANCE_ATTR_NAME} -D
-    $CRM_ATTR -n master-log-file-${INSTANCE_ATTR_NAME} -D
-    $CRM_ATTR -n master-log-pos-${INSTANCE_ATTR_NAME} -D
     rm -f $tmpfile
 }
 
@@ -621,6 +617,16 @@ unset_master(){
 	    ocf_log err "Failed to set master"
 	    exit $OCF_ERR_GENERIC
     fi
+}
+
+start_slave() {
+    # Remove state attributes - it will be invalid after START SLAVE
+    $CRM_ATTR -n master-host-${INSTANCE_ATTR_NAME} -D
+    $CRM_ATTR -n master-log-file-${INSTANCE_ATTR_NAME} -D
+    $CRM_ATTR -n master-log-pos-${INSTANCE_ATTR_NAME} -D
+
+    ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
+	    -e "START SLAVE"
 }
 
 #######################################################################
@@ -835,8 +841,7 @@ mysql_start() {
 	if [ "$master_host" -a "$master_host" != `uname -n` ]; then
 	    ocf_log info "Changing MySQL configuration to replicate from $master_host."
 	    set_master $master_host
-	    ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
-		-e "START SLAVE"
+	    start_slave
 	    if [ $? -ne 0 ]; then
 		ocf_log err "Failed to start slave"
 		return $OCF_ERR_GENERIC
@@ -1000,8 +1005,7 @@ mysql_notify() {
 		ocf_log info "Ignoring post-promote notification for my own promotion."
 		return $OCF_SUCCESS
 	    fi
-	    ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
-		-e 'START SLAVE'
+            start_slave
 	    if [ $? -ne 0 ]; then
 		ocf_log err "Failed to start slave"
 		return $OCF_ERR_GENERIC
