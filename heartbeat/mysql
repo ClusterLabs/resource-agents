@@ -689,7 +689,7 @@ mysql_monitor() {
     fi
 
 
-    if [ $OCF_CHECK_LEVEL -gt 0 ]; then
+    if [ $OCF_CHECK_LEVEL -gt 0 -a -n "$OCF_RESKEY_test_table" ]; then
 	# Check if this instance is configured as a slave, and if so
 	# check slave status
 	if is_slave; then
@@ -851,6 +851,15 @@ mysql_start() {
 	# preference set by the administrator. We choose a low
 	# greater-than-zero preference.
 	$CRM_MASTER -v 1
+    fi
+
+    # Initial monitor action
+    OCF_CHECK_LEVEL=10
+    mysql_monitor
+    rc=$?
+    if [ $rc != $OCF_SUCCESS -a $rc != $OCF_RUNNING_MASTER ]; then
+	ocf_log "Failed initial monitor action"
+	return $rc
     fi
     
     ocf_log info "MySQL started"
