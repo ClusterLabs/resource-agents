@@ -695,12 +695,17 @@ mysql_start() {
     #chmod 0755 $OCF_RESKEY_datadir
     #chown -R $OCF_RESKEY_user $OCF_RESKEY_datadir
     #chgrp -R $OCF_RESKEY_group $OCF_RESKEY_datadir
+    mysql_extra_params=
+    if ocf_is_ms; then
+        mysql_extra_params="--skip-slave-start"
+    fi
 
     ${OCF_RESKEY_binary} --defaults-file=$OCF_RESKEY_config \
 		--pid-file=$OCF_RESKEY_pid \
 		--socket=$OCF_RESKEY_socket \
 		--datadir=$OCF_RESKEY_datadir \
-		--user=$OCF_RESKEY_user $OCF_RESKEY_additional_parameters >/dev/null 2>&1 &
+		--user=$OCF_RESKEY_user $OCF_RESKEY_additional_parameters \
+        $mysql_extra_params >/dev/null 2>&1 &
     rc=$?
 
     if [ $rc != 0 ]; then
