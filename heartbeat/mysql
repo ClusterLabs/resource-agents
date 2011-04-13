@@ -532,13 +532,12 @@ set_master() {
 	    MASTER_LOG_POS=$master_log_pos"
 	ocf_log info "Kept master pos for $master_host : $master_log_file:$master_log_pos"
     else
-	master_host=`$CRM_ATTR -n master-host-${INSTANCE_ATTR_NAME} -G`
-	master_log_file=`$CRM_ATTR -n master-log-file-${INSTANCE_ATTR_NAME} -G`
-	master_log_pos=`$CRM_ATTR -n master-log-pos-${INSTANCE_ATTR_NAME} -G`
-	if [ "$new_master_host" = "$master_host" -a -n "$master_log_file" -a -n "$master_log_pos" ]; then
+	master_log_file=`$CRM_ATTR -n $new_master_host-log-file-${INSTANCE_ATTR_NAME} -G`
+	master_log_pos=`$CRM_ATTR -n $new_master_host-log-pos-${INSTANCE_ATTR_NAME} -G`
+	if [ -n "$master_log_file" -a -n "$master_log_pos" ]; then
 	    master_params=", MASTER_LOG_FILE='$master_log_file', \
 		MASTER_LOG_POS=$master_log_pos"
-	    ocf_log info "Restored master pos for $master_host : $master_log_file:$master_log_pos"
+	    ocf_log info "Restored master pos for $new_master_host : $master_log_file:$master_log_pos"
 	fi
     fi
 
@@ -606,9 +605,8 @@ unset_master(){
 
     #Save current state
     get_slave_info
-    $CRM_ATTR -n master-host-${INSTANCE_ATTR_NAME} -v $master_host
-    $CRM_ATTR -n master-log-file-${INSTANCE_ATTR_NAME} -v $master_log_file
-    $CRM_ATTR -n master-log-pos-${INSTANCE_ATTR_NAME} -v $master_log_pos
+    $CRM_ATTR -n $master_host-log-file-${INSTANCE_ATTR_NAME} -v $master_log_file
+    $CRM_ATTR -n $master_host-log-pos-${INSTANCE_ATTR_NAME} -v $master_log_pos
     rm -f $tmpfile
 
     ocf_run $MYSQL $mysql_options \
@@ -619,11 +617,15 @@ unset_master(){
     fi
 }
 
+# Start replication as slave. Master hostname as parameter
 start_slave() {
+    local master_host
+    
+    master_host="$1"
+
     # Remove state attributes - it will be invalid after START SLAVE
-    $CRM_ATTR -n master-host-${INSTANCE_ATTR_NAME} -D
-    $CRM_ATTR -n master-log-file-${INSTANCE_ATTR_NAME} -D
-    $CRM_ATTR -n master-log-pos-${INSTANCE_ATTR_NAME} -D
+    $CRM_ATTR -n $master_host-log-file-${INSTANCE_ATTR_NAME} -D
+    $CRM_ATTR -n $master_host-log-pos-${INSTANCE_ATTR_NAME} -D
 
     ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
 	    -e "START SLAVE"
@@ -841,7 +843,7 @@ mysql_start() {
 	if [ "$master_host" -a "$master_host" != `uname -n` ]; then
 	    ocf_log info "Changing MySQL configuration to replicate from $master_host."
 	    set_master $master_host
-	    start_slave
+	    start_slave $master_host
 	    if [ $? -ne 0 ]; then
 		ocf_log err "Failed to start slave"
 		return $OCF_ERR_GENERIC
@@ -1005,7 +1007,7 @@ mysql_notify() {
 		ocf_log info "Ignoring post-promote notification for my own promotion."
 		return $OCF_SUCCESS
 	    fi
-            start_slave
+            start_slave $master_host
 	    if [ $? -ne 0 ]; then
 		ocf_log err "Failed to start slave"
 		return $OCF_ERR_GENERIC
