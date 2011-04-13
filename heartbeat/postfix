@@ -5,12 +5,12 @@
 # Description:  Manages Postfix as an OCF resource in
 #               an high-availability setup.
 #
-#               Tested with postfix 2.5.5 on Debian 5.0.
+#               Tested with Postfix 2.5.5 on Debian 5.0.
 #               Based on the mysql-proxy and mysql OCF resource agents.
 #
 # Author:       Raoul Bhatia <r.bhatia@ipax.at> : Original Author
 # License:      GNU General Public License (GPL)
-# Note:         if you want to run multiple postfix instances, please see
+# Note:         if you want to run multiple Postfix instances, please see
 #               http://amd.co.at/adminwiki/Postfix#Adding_a_Second_Postfix_Instance_on_one_Server
 #               http://www.postfix.org/postconf.5.html
 #
@@ -109,7 +109,7 @@ END
 }
 
 running() {
-    # run postfix status
+    # run Postfix status
     $binary $OPTION_CONFIG_DIR status >/dev/null 2>&1
 }
 
@@ -223,7 +223,7 @@ postfix_validate_all()
         return $OCF_ERR_GENERIC
     fi
 
-    # run postfix internal check
+    # run Postfix internal check
     $binary $OPTIONS check >/dev/null 2>&1
     ret=$?
     if [ $ret -ne 0 ]; then
