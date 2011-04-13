@@ -754,6 +754,18 @@ mysql_start() {
 	    unset_master
 	fi
 
+	master_host=`echo $OCF_RESKEY_CRM_meta_notify_master_uname`
+	if [ "$master_host" -a "$master_host" != `uname -n` ]; then
+	    ocf_log info "Changing MySQL configuration to replicate from $master_host."
+	    set_master $master_host
+	    ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
+		-e "START SLAVE"
+	    if [ $? -ne 0 ]; then
+		ocf_log err "Failed to start slave"
+		return $OCF_ERR_GENERIC
+	    fi
+	fi
+
 	# We also need to set a master preference, otherwise Pacemaker
 	# won't ever promote us in the absence of any explicit
 	# preference set by the administrator. We choose a low
