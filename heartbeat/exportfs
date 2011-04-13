@@ -189,6 +189,8 @@ exportfs_monitor ()
 	case $? in
 	0)
 		ocf_log info "Directory ${OCF_RESKEY_directory} is exported to ${OCF_RESKEY_clientspec} (started)."
+	        # Backup the rmtab to ensure smooth NFS-over-TCP failover
+		backup_rmtab
 		return $OCF_SUCCESS
 		;;
 	1)
@@ -224,6 +226,9 @@ exportfs_start ()
 
 	ocf_run exportfs -v ${OPTIONS} ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory} || exit $OCF_ERR_GENERIC
 
+	# Restore the rmtab to ensure smooth NFS-over-TCP failover
+	restore_rmtab
+
 	ocf_log info "File system exported"
 	return $OCF_SUCCESS
 }
@@ -237,6 +242,9 @@ exportfs_stop ()
 	fi
 
 	ocf_log info "Un-exporting file system ..."
+
+	# Backup the rmtab to ensure smooth NFS-over-TCP failover
+	backup_rmtab
 
 	ocf_run exportfs -v -u ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory}
 	rc=$?
