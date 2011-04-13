@@ -364,6 +364,26 @@ set_read_only() {
 	-e "SET GLOBAL read_only=${ro_val}"
 }
 
+get_read_only() {
+    # Check if read-only is set
+    local mysql_options
+    local read_only_state
+
+    mysql_options="$MYSQL_OPTIONS_LOCAL"
+    if [ -n $OCF_RESKEY_replication_user ]; then
+	mysql_options="$mysql_options $MYSQL_OPTIONS_REPL"
+    fi
+
+    read_only_state=`$MYSQL $mysql_options \
+	-e "SHOW VARIABLES" | grep read_only | awk '{print $2}'`
+    
+    if [ "$read_only_state" = "ON" ]; then
+	return 0
+    else
+	return 1
+    fi
+}
+
 is_slave() {
     # Determine whether the machine is currently running as a MySQL
     # slave, as determined per SHOW SLAVE STATUS. Returns 1 if SHOW
@@ -371,6 +391,11 @@ is_slave() {
     local rc
     local tmpfile
     local mysql_options
+
+    # Check whether this machine should be slave
+    if ! ocf_is_ms || ! get_read_only; then
+        return 1;
+    fi
 
     tmpfile=`mktemp ${HA_RSCTMP}/is_slave.${OCF_RESOURCE_INSTANCE}.XXXXXX`
 
@@ -685,7 +710,7 @@ mysql_monitor() {
 	fi
     fi
 
-    if [ "$OCF_RESKEY_CRM_meta_role" = "Master" ]; then
+    if ocf_is_ms && ! get_read_only; then
 	    ocf_log info "MySQL monitor succeeded (master)";
 	    return $OCF_RUNNING_MASTER
     else
