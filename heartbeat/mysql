@@ -871,7 +871,7 @@ mysql_start() {
     mysql_monitor
     rc=$?
     if [ $rc != $OCF_SUCCESS -a $rc != $OCF_RUNNING_MASTER ]; then
-	ocf_log "Failed initial monitor action"
+	ocf_log err "Failed initial monitor action"
 	return $rc
     fi
     
