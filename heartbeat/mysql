@@ -592,6 +592,10 @@ unset_master(){
 	    ocf_log info "MySQL slave has finished processing relay log"
 	    break
 	fi
+	if ! grep -q 'system user' $tmpfile; then
+	    ocf_log info "Slave not runnig - not waiting to finish"
+	    break
+	fi
      	ocf_log info "Waiting for MySQL slave to finish processing relay log"
      	sleep 1
      done
