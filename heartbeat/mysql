@@ -330,7 +330,7 @@ END
 # Convenience variables
 
 MYSQL=$OCF_RESKEY_client_binary
-MYSQL_OPTIONS_LOCAL="-S $OCF_RESKEY_socket --connect_timeout=1"
+MYSQL_OPTIONS_LOCAL="-S $OCF_RESKEY_socket --connect_timeout=10"
 MYSQL_OPTIONS_REPL="--user=$OCF_RESKEY_replication_user --password=$OCF_RESKEY_replication_passwd"
 
 CRM_MASTER="${HA_SBIN_DIR}/crm_master -l reboot "
