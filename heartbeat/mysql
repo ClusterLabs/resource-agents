@@ -530,7 +530,7 @@ set_master() {
     if [ "$master_log_file" -a "$new_master_host" = "$master_host" ]; then
 	master_params=", MASTER_LOG_FILE='$master_log_file', \
 	    MASTER_LOG_POS=$master_log_pos"
-	ocf_log debug "Kept master pos for $master_host : $master_log_file:$master_log_pos"
+	ocf_log info "Kept master pos for $master_host : $master_log_file:$master_log_pos"
     else
 	master_host=`$CRM_ATTR -n master-host-${INSTANCE_ATTR_NAME} -G`
 	master_log_file=`$CRM_ATTR -n master-log-file-${INSTANCE_ATTR_NAME} -G`
@@ -538,7 +538,7 @@ set_master() {
 	if [ "$new_master_host" = "$master_host" -a -n "$master_log_file" -a -n "$master_log_pos" ]; then
 	    master_params=", MASTER_LOG_FILE='$master_log_file', \
 		MASTER_LOG_POS=$master_log_pos"
-	    ocf_log debug "Restored master pos for $master_host : $master_log_file:$master_log_pos"
+	    ocf_log info "Restored master pos for $master_host : $master_log_file:$master_log_pos"
 	fi
     fi
 
