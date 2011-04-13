@@ -248,7 +248,6 @@ If the MySQL database does not exist, it will be created
 <longdesc lang="en">
 Additional parameters which are passed to the mysqld on startup.
 (e.g. --skip-external-locking or --skip-grant-tables)
-On M/S setup --skip-slave-start is needed (or in config file).
 </longdesc>
 <shortdesc lang="en">Additional parameters to pass to mysqld</shortdesc>
 <content type="string" default="${OCF_RESKEY_additional_parameters_default}"/>
