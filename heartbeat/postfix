@@ -137,8 +137,10 @@ postfix_start()
         return $OCF_ERR_GENERIC
     fi
 
+    # grant some time for startup/forking the sub processes
+    sleep 2
+
     # initial monitoring action
-    sleep 1
     OCF_CHECK_LEVEL=10
     running
     rc=$?
