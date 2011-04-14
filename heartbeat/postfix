@@ -277,9 +277,18 @@ if [ "x$config_dir" != "x" ]; then
     # remove all trailing slashes to ease "postconf alternate_config_directories" match
     config_dir=`echo $config_dir | sed 's/\/*$//'`
 
+    # reset config_dir if it equals Postfix's default config_directory
+    postconf -h config_directory 2>/dev/null | grep "^$config_dir/\?$"
+    if [ $? -eq 0 ]; then
+        config_dir=""
+    fi
+
+    # set OPTIONS if config_dir is still set
     # save OPTION_CONFIG_DIR seperatly
-    OPTION_CONFIG_DIR="-c $config_dir"
-    OPTIONS=$OPTION_CONFIG_DIR
+    if [ "x$config_dir" != "x" ]; then
+        OPTION_CONFIG_DIR="-c $config_dir"
+        OPTIONS=$OPTION_CONFIG_DIR
+   fi
 fi
 
 if [ "x$parameters" != "x" ]; then
