@@ -6,11 +6,12 @@
 #               an high-availability setup.
 #
 #               Tested with Postfix 2.5.5 on Debian 5.0.
+#               Tested with Postfix 2.7.1 on Debian 6.0.
 #               Based on the mysql-proxy and mysql OCF resource agents.
 #
 # Author:       Raoul Bhatia <r.bhatia@ipax.at> : Original Author
 # License:      GNU General Public License (GPL)
-# Note:         if you want to run multiple Postfix instances, please see
+# Note:         If you want to run multiple Postfix instances, please see
 #               http://amd.co.at/adminwiki/Postfix#Adding_a_Second_Postfix_Instance_on_one_Server
 #               http://www.postfix.org/postconf.5.html
 #
