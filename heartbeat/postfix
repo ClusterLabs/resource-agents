@@ -272,6 +272,9 @@ OPTION_CONFIG_DIR=''
 
 # check if the Postfix config_dir exist
 if [ "x$config_dir" != "x" ]; then
+    # remove all trailing slashes to ease "postconf alternate_config_directories" match
+    config_dir=`echo $config_dir | sed 's/\/*$//'`
+
     # save OPTION_CONFIG_DIR seperatly
     OPTION_CONFIG_DIR="-c $config_dir"
     OPTIONS=$OPTION_CONFIG_DIR
