@@ -185,6 +185,7 @@ postfix_stop()
         postfix_status && $OCF_ERR_GENERIC
     fi
 
+    ocf_log info "Postfix stopped."
     return $OCF_SUCCESS
 }
 
