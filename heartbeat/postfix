@@ -136,6 +136,17 @@ postfix_start()
         return $OCF_ERR_GENERIC
     fi
 
+    # initial monitoring action
+    sleep 1
+    OCF_CHECK_LEVEL=10
+    running
+    rc=$?
+    if [ $ret != $OCF_SUCCESS ]; then
+        ocf_log err "Postfix failed initial monitor action." $ret
+        return $OCF_ERR_GENERIC
+    fi
+
+    ocf_log info "Postfix started."
     return $OCF_SUCCESS
 }
 
