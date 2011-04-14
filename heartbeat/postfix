@@ -183,7 +183,7 @@ postfix_stop()
     # escalate to abort if we did not stop by now
     # @TODO shall we loop here too?
     if postfix_status; then
-        ocf_log err "Postfix failed to stop. Escalating to 'abort'"
+        ocf_log err "Postfix failed to stop. Escalating to 'abort'."
 
         $binary $OPTIONS abort >/dev/null 2>&1; ret=$?
         sleep 5
@@ -233,12 +233,24 @@ postfix_validate_all()
         fi
     fi
 
-    # check spool/queue directory
-    queue=`postconf $OPTION_CONFIG_DIR -h queue_directory 2>/dev/null`
-    if [ ! -d "$queue" ]; then
-        ocf_log err "Postfix spool/queue directory '$queue' does not exist." $ret
-        return $OCF_ERR_GENERIC
-    fi
+    # check spool/queue and data directories
+    queue_dir=`postconf $OPTION_CONFIG_DIR -h queue_directory 2>/dev/null`
+    data_dir=`postconf $OPTION_CONFIG_DIR -h data_directory 2>/dev/null`
+    for dir in $queue_dir $data_dir; do
+        if [ ! -d "$queue_dir" ]; then
+            ocf_log err "Postfix directory '$queue_dir' does not exist." $ret
+            return $OCF_ERR_GENERIC
+        fi
+    done
+
+    # check permissions
+    user=`postconf $OPTION_CONFIG_DIR -h mail_owner 2>/dev/null`
+    for dir in $data_dir; do
+        if ! su -s /bin/sh - $user -c "test -w $dir"; then
+            ocf_log err "Directory $dir is not writable by user '$user'."
+            exit $OCF_ERR_PERM;
+        fi
+    done
 
     # run Postfix internal check
     $binary $OPTIONS check >/dev/null 2>&1
