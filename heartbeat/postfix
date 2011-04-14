@@ -224,7 +224,7 @@ postfix_validate_all()
             return $OCF_ERR_GENERIC
         fi
 
-        alternate_config_directories=`postconf -h alternate_config_directories 2>/dev/null | grep $config_dir`
+        alternate_config_directories=`postconf -h alternate_config_directories 2>/dev/null | grep "^$config_dir/\?$"`
         if [ "x$alternate_config_directories" = "x" ]; then
             ocf_log err "Postfix main configuration must contain correct 'alternate_config_directories' parameter."
             return $OCF_ERR_GENERIC
