@@ -64,7 +64,7 @@ meta_data() {
 <version>0.1</version>
 <longdesc lang="en">
 This script manages Postfix as an OCF resource in a high-availability setup.
-Tested with Postfix 2.5.5 on Debian 5.0.
+Tested with Postfix 2.5.5 on Debian 5.0 and Postfix 2.7.1 on Debian 2.7.1.
 </longdesc>
 <shortdesc lang="en">Manages a highly available Postfix mail server instance</shortdesc>
 
@@ -234,6 +234,7 @@ postfix_validate_all()
     fi
 
     # check spool/queue and data directories
+    # this is required because "postfix check" does not catch all errors
     queue_dir=`postconf $OPTION_CONFIG_DIR -h queue_directory 2>/dev/null`
     data_dir=`postconf $OPTION_CONFIG_DIR -h data_directory 2>/dev/null`
     for dir in $queue_dir $data_dir; do
