@@ -222,9 +222,6 @@ create_tree()
 	[ -f "$fp/xtab" ] || touch "$fp/xtab"
 	[ -f "$fp/rmtab" ] || touch "$fp/rmtab"
 
-	chcon -R system_u:object_r:var_lib_nfs_t:s0 "$fp"
-	chcon -R system_u:object_r:var_lib_nfs_t:s0 "$fp/*"
-
         #
         # Generate a random state file.  If this ends up being what a client
         # already has in its list, that's bad, but the chances of this
