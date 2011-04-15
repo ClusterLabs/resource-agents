@@ -866,7 +866,9 @@ mysql_start() {
     fi
 
     # Initial monitor action
-    OCF_CHECK_LEVEL=10
+    if [ -n "$OCF_RESKEY_test_table" -a -n "$OCF_RESKEY_test_user" -a -n "$OCF_RESKEY_test_passwd" ]; then
+        OCF_CHECK_LEVEL=10
+    fi
     mysql_monitor
     rc=$?
     if [ $rc != $OCF_SUCCESS -a $rc != $OCF_RUNNING_MASTER ]; then
