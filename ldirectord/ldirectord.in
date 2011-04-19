@@ -2457,7 +2457,12 @@ sub get_real_service_str
 {
 	my ($v) = (@_);
 
-	return &get_virtual($v) . " "  . $v->{protocol} . ($v->{addressfamily} == AF_INET6 ? "6" : "");
+	if ($v->{"protocol"} eq "fwm") {
+		return &get_virtual($v) . " "  . $v->{protocol} . ($v->{addressfamily} == AF_INET6 ? "6" : "");
+	}
+	else {
+		return &get_virtual($v) . " "  . $v->{protocol};
+	}
 }
 
 sub ld_start
@@ -4119,7 +4124,7 @@ sub fallback_find
 	my ($virtual) = (@_);
 
 	my($global_fallback_ptr);	# fallback pointer
-	my $ipv6p = $virtual->{server} =~ /[\[\]]/ ? 1 : 0;
+	my $ipv6p = ($virtual->{addressfamily} == AF_INET6) ? 1 : 0;
 
 	if( defined $virtual->{"fallback"} ) {
 		return($virtual->{"fallback"});
@@ -4819,7 +4824,12 @@ sub get_virtual_id_str
 {
 	my ($v) = (@_);
 
-	return $v->{"protocol"} . ($v->{addressfamily} == AF_INET6?"6":"") . ":" .  &get_virtual($v);
+	if ($v->{"protocol"} eq "fwm") {
+		return $v->{"protocol"} . ($v->{addressfamily} == AF_INET6?"6":"") . ":" .  &get_virtual($v);
+	}
+	else {
+		return $v->{"protocol"} . ":" .  &get_virtual($v);
+	}
 }
 
 # get_forward_flag
