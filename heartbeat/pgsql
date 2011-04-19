@@ -329,7 +329,7 @@ pgsql_start() {
     if ! check_log_file $OCF_RESKEY_logfile
     then
         ocf_log err "PostgreSQL can't write to the log file: $OCF_RESKEY_logfile"
-	return $OCF_ERR_GENERIC
+	return $OCF_ERR_PERM
     fi
 
     # Check socket directory
@@ -521,6 +521,17 @@ pgsql_validate_all() {
         return $OCF_ERR_INSTALLED
     fi
 
+    getent passwd $OCF_RESKEY_pgdba >/dev/null 2>&1
+    if [ ! $? -eq 0 ]; then
+        ocf_log err "User $OCF_RESKEY_pgdba doesn't exit";
+        return $OCF_ERR_INSTALLED;
+    fi
+
+    if ! runasowner "test -w $OCF_RESKEY_pgdata"; then
+        ocf_log err "Directory $OCF_RESKEY_pgdata is not writable by $OCF_RESKEY_pgdba"
+        exit $OCF_ERR_PERM;
+    fi
+
     if [ -n "$OCF_RESKEY_monitor_user" -a ! -n "$OCF_RESKEY_monitor_password" ]
     then
         ocf_log err "monitor password can't be empty"
@@ -564,24 +575,24 @@ check_socket_dir() {
     if [ ! -d "$OCF_RESKEY_socketdir" ]; then
         if ! mkdir "$OCF_RESKEY_socketdir"; then
             ocf_log err "Cannot create directory $OCF_RESKEY_socketdir"
-            exit $OCF_ERR_GENERIC
+            exit $OCF_ERR_PERM
         fi
 
         if ! chown $OCF_RESKEY_pgdba:`getent passwd \
              $OCF_RESKEY_pgdba | cut -d ":" -f 4` "$OCF_RESKEY_socketdir" 
         then
             ocf_log err "Cannot change ownership for $OCF_RESKEY_socketdir"
-            exit $OCF_ERR_GENERIC
+            exit $OCF_ERR_PERM
         fi
 
         if ! chmod 2775 "$OCF_RESKEY_socketdir"; then
             ocf_log err "Cannot change permissions for $OCF_RESKEY_socketdir"
-            exit $OCF_ERR_GENERIC
+            exit $OCF_ERR_PERM
         fi
     else
         if ! runasowner "touch $OCF_RESKEY_socketdir/test.$$"; then
             ocf_log err "$OCF_RESKEY_pgdba cannot create files in $OCF_RESKEY_socketdir"
-            exit $OCF_ERR_GENERIC
+            exit $OCF_ERR_PERM
         fi
         rm $OCF_RESKEY_socketdir/test.$$
     fi
