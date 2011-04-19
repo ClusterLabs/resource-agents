@@ -531,10 +531,7 @@ pgsql_validate_all() {
         ocf_log err "Directory $OCF_RESKEY_pgdata is not writable by $OCF_RESKEY_pgdba"
         exit $OCF_ERR_PERM;
     fi
-<<<<<<< HEAD
-=======
 
->>>>>>> upstream/master
     if [ -n "$OCF_RESKEY_monitor_user" -a ! -n "$OCF_RESKEY_monitor_password" ]
     then
         ocf_log err "monitor password can't be empty"
