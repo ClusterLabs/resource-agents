@@ -1,0 +1,70 @@
+# pgsql
+
+CONFIG
+	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	InstallPackage postgresql-server
+        HangTimeout 20
+
+SETUP-AGENT
+	/etc/init.d/postgresql start
+	/etc/init.d/postgresql stop
+
+CASE-BLOCK crm_setting
+        Var OCF_RESKEY_CRM_meta_timeout=15000
+
+CASE-BLOCK default_status
+        AgentRun stop
+
+CASE-BLOCK prepare
+        Include crm_setting
+        Include default_status
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: invalid 'OCF_RESKEY_pgctl'"
+	Include prepare
+	Var OCF_RESKEY_pgctl=no_such
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "normal start"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "running monitor"
+	Include prepare
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "not running monitor"
+	Include prepare
+	AgentRun monitor OCF_NOT_RUNNING
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
+
+CASE "non-existent user"
+	Include prepare
+	Var OCF_RESKEY_pgdba=no_user
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "invalid user"
+	Include prepare
+	Var OCF_RESKEY_pgdba=nobody
+	AgentRun start OCF_ERR_PERM
