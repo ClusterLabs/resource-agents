@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 #
 #   An OCF RA that manages a symlink
