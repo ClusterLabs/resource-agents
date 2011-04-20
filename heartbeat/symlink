@@ -41,21 +41,28 @@ meta_data() {
 <version>1.1</version>
 
 <longdesc lang="en">
-OCF Resource Agent that manages a symlink
-You configure parameters link and target and the ra will basically do
-ln -s target link
+This resource agent that manages a symbolic link (symlink).
+
+It is primarily intended to manage configuration files which should be
+enabled or disabled based on where the resource is running, such as
+cron job definitions and the like.
 </longdesc>
-<shortdesc lang="en">This resource agent manages a symlink</shortdesc>
+<shortdesc lang="en">Manages a symbolic link</shortdesc>
 <parameters>
 <parameter name="link" required="1">
-<longdesc lang="en">Full path of the symlink to be manged.</longdesc>
+<longdesc lang="en">
+Full path of the symbolic link to be managed. This must obviously be
+in a filesystem that supports symbolic links.
+</longdesc>
 <shortdesc lang="en">Full path of the symlink</shortdesc>
-<content type="string" default=""/>
+<content type="string"/>
 </parameter>
 <parameter name="target" required="1">
-<longdesc lang="en">Full path to where the symlink should point.</longdesc>
+<longdesc lang="en">
+Full path to the link target (the file or directory which the symlink points to).
+</longdesc>
 <shortdesc lang="en">Full path to the link target</shortdesc>
-<content type="string" default=""/>
+<content type="string" />
 </parameter>
 </parameters>
 <actions>
