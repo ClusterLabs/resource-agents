@@ -96,6 +96,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			SysInfo		\
 			scsi2reservation \
 			sfex		\
+			symlink		\
 			syslog-ng		\
 			tomcat		\
 			VIPArip		\
