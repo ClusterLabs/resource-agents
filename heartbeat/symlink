@@ -64,6 +64,17 @@ Full path to the link target (the file or directory which the symlink points to)
 <shortdesc lang="en">Full path to the link target</shortdesc>
 <content type="string" />
 </parameter>
+<parameter name="backup_suffix">
+<longdesc lang="en">
+A suffix to append to any files that the resource agent moves out of
+the way because they clash with "link".
+
+If this is unset (the default), then the resource agent will simply
+refuse to create a symlink if it clashes with an existing file.
+</longdesc>
+<shortdesc lang="en">Suffix to append to backup files</shortdesc>
+<content type="string" />
+</parameter>
 </parameters>
 <actions>
 <action name="start"   timeout="15" />
@@ -77,11 +88,48 @@ END
 }
 
 symlink_monitor() {
-    rc=$OCF_NOT_RUNNING
-    if readlink -f $OCF_RESKEY_link | egrep -q "^${OCF_RESKEY_target}$"; then
+    # This applies the following logic:
+    #
+    # * If $OCF_RESKEY_link does not exist, then the resource is
+    #   definitely stopped.
+    #
+    # * If $OCF_RESKEY_link exists and is a symlink that points to
+    #   ${OCF_RESKEY_target}, then the resource is definitely started.
+    #
+    # * If $OCF_RESKEY_link exists, but is anything other than a
+    #   symlink to ${OCF_RESKEY_target}, then the status depends on whether
+    #   ${OCF_RESKEY_backup_suffix} is set:
+    #
+    #   - if ${OCF_RESKEY_backup_suffix} is set, then the resource is
+    #     simply not running. The existing file will be moved out of
+    #     the way, to ${OCF_RESKEY_link}.${OCF_RESKEY_backup_suffix},
+    #     when the resource starts.
+    #
+    #   - if ${OCF_RESKEY_backup_suffix} is not set, then an existing
+    #     file ${OCF_RESKEY_link} is an error condition, and the
+    #     resource can't start here.
+    rc=$OCF_ERR_GENERIC
+    if [ ! -e  $OCF_RESKEY_link ]; then
+	ocf_log debug "$OCF_RESKEY_link does not exist"
+	rc=$OCF_NOT_RUNNING
+    elif [ ! -L  $OCF_RESKEY_link ]; then
+	if [ -z "$OCF_RESKEY_backup_suffix" ]; then
+	    ocf_log err "$OCF_RESKEY_link exists but is not a symbolic link!"
+	    exit $OCF_ERR_INSTALLED
+	else
+	    ocf_log debug "$OCF_RESKEY_link exists but is not a symbolic link, will be moved to ${OCF_RESKEY_link}.${OCF_RESKEY_backup_suffix} on start"
+	    rc=$OCF_NOT_RUNNING
+	fi
+    elif readlink -f $OCF_RESKEY_link | egrep -q "^${OCF_RESKEY_target}$"; then
         rc=$OCF_SUCCESS
     else
-        ocf_log debug "$OCF_RESKEY_link is not a link or does not point to ${OCF_RESKEY_target}"
+	if [ -z "$OCF_RESKEY_backup_suffix" ]; then
+	    ocf_log err "$OCF_RESKEY_link does not point to ${OCF_RESKEY_target}!"
+	    exit $OCF_ERR_INSTALLED
+	else
+	    ocf_log debug "$OCF_RESKEY_link does not point to ${OCF_RESKEY_target}, will be moved to ${OCF_RESKEY_link}.${OCF_RESKEY_backup_suffix} on start"
+	    rc=$OCF_NOT_RUNNING
+	fi
     fi
     return $rc
 }
