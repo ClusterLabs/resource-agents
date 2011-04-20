@@ -109,7 +109,10 @@ symlink_monitor() {
     #     file ${OCF_RESKEY_link} is an error condition, and the
     #     resource can't start here.
     rc=$OCF_ERR_GENERIC
-    if [ ! -e  $OCF_RESKEY_link ]; then
+
+    # Using ls here instead of "test -e", as "test -e" returns false
+    # if the file does exist, but it a symlink to a file that doesn't
+    if ! ls $OCF_RESKEY_link >/dev/null 2>&1; then
 	ocf_log debug "$OCF_RESKEY_link does not exist"
 	rc=$OCF_NOT_RUNNING
     elif [ ! -L  $OCF_RESKEY_link ]; then
