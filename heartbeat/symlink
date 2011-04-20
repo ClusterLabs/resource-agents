@@ -136,11 +136,21 @@ symlink_monitor() {
 
 symlink_start() {
     if ! symlink_monitor; then
-        if ls $OCF_RESKEY_link &>/dev/null; then
-            ocf_log debug "Found $OCF_RESKEY_link, moving to ${OCF_RESKEY_link}.clusterbackup"
-            mv $OCF_RESKEY_link ${OCF_RESKEY_link}.clusterbackup 
+        if [ -e $OCF_RESKEY_link ]; then
+	    if [ -z "$OCF_RESKEY_backup_suffix" ]; then
+		# Shouldn't happen, because symlink_monitor should
+		# have errored out. But there is a chance that
+		# something else put that file there after
+		# symlink_monitor ran.
+		ocf_log err "$OCF_RESKEY_link exists and no backup_suffix is set, won't overwrite."
+		exit $OCF_ERR_GENERIC
+	    else
+		ocf_log debug "Found $OCF_RESKEY_link, moving to ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix}"
+		ocf_run mv -v $OCF_RESKEY_link ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix} \
+		    || exit $OCF_ERR_GENERIC
+	    fi
         fi
-        ln -s $OCF_RESKEY_target $OCF_RESKEY_link
+        ocf_run ln -sv $OCF_RESKEY_target $OCF_RESKEY_link
         symlink_monitor
         return $?
     else
@@ -150,11 +160,13 @@ symlink_start() {
 
 symlink_stop() {
     if symlink_monitor; then   
-        rm -f $OCF_RESKEY_link
+        ocf_run rm -vf $OCF_RESKEY_link || exit $OCF_ERR_GENERIC
         if ! symlink_monitor; then
-            if [ -r ${OCF_RESKEY_link}.clusterbackup ]; then
-                ocf_log debug "Found backup ${OCF_RESKEY_link}.clusterbackup, moving to $OCF_RESKEY_link"
-                mv ${OCF_RESKEY_link}.clusterbackup $OCF_RESKEY_link
+            if [ -e ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix} ]; then
+                ocf_log debug "Found backup ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix}, moving to $OCF_RESKEY_link"
+		# if restoring the backup fails then still return with
+		# $OCF_SUCCESS, but log a warning
+                ocf_run -warn mv ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix} $OCF_RESKEY_link
             fi
             return $OCF_SUCCESS
         else
