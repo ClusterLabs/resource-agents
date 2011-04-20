@@ -187,6 +187,14 @@ symlink_validate_all() {
         ocf_log err "Mandatory parameter target is unset"
         exit $OCF_ERR_CONFIGURED
     fi
+
+    # Having a non-existant target is technically not an error, as
+    # symlinks are allowed to point to non-existant paths. But it
+    # still doesn't hurt to warn people if the target does not exist
+    # (but only during non-probes).
+    if [ ! -e ${OCF_RESKEY_target} ]; then
+	ocf_log warn "${OCF_RESKEY_target} does not exist!"
+    fi
 }
 
 symlink_usage() {
