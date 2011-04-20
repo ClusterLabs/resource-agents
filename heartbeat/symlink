@@ -1,0 +1,166 @@
+#!/bin/bash
+#
+#
+#   An OCF RA that manages a symlink
+#
+# Copyright (c) 2011 Dominik Klein
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="symlink">
+<version>1.1</version>
+
+<longdesc lang="en">
+OCF Resource Agent that manages a symlink
+You configure parameters link and target and the ra will basically do
+ln -s target link
+</longdesc>
+<shortdesc lang="en">This resource agent manages a symlink</shortdesc>
+<parameters>
+<parameter name="link" required="1">
+<longdesc lang="en">Full path of the symlink to be manged.</longdesc>
+<shortdesc lang="en">Full path of the symlink</shortdesc>
+<content type="string" default=""/>
+</parameter>
+<parameter name="target" required="1">
+<longdesc lang="en">Full path to where the symlink should point.</longdesc>
+<shortdesc lang="en">Full path to the link target</shortdesc>
+<content type="string" default=""/>
+</parameter>
+</parameters>
+<actions>
+<action name="start"   timeout="15" />
+<action name="stop"    timeout="15" />
+<action name="monitor" depth="0"  timeout="15" interval="60"/>
+<action name="meta-data"  timeout="5" />
+<action name="validate-all"  timeout="10" />
+</actions>
+</resource-agent>
+END
+}
+
+symlink_monitor() {
+    rc=$OCF_NOT_RUNNING
+    if readlink -f $OCF_RESKEY_link | egrep -q "^${OCF_RESKEY_target}$"; then
+        rc=$OCF_SUCCESS
+    else
+        ocf_log debug "$OCF_RESKEY_link is not a link or does not point to ${OCF_RESKEY_target}"
+    fi
+    return $rc
+}
+
+symlink_start() {
+    if ! symlink_monitor; then
+        if ls $OCF_RESKEY_link &>/dev/null; then
+            ocf_log debug "Found $OCF_RESKEY_link, moving to ${OCF_RESKEY_link}.clusterbackup"
+            mv $OCF_RESKEY_link ${OCF_RESKEY_link}.clusterbackup 
+        fi
+        ln -s $OCF_RESKEY_target $OCF_RESKEY_link
+        symlink_monitor
+        return $?
+    else
+        return $OCF_SUCCESS
+    fi
+}
+
+symlink_stop() {
+    if symlink_monitor; then   
+        rm -f $OCF_RESKEY_link
+        if ! symlink_monitor; then
+            if [ -r ${OCF_RESKEY_link}.clusterbackup ]; then
+                ocf_log debug "Found backup ${OCF_RESKEY_link}.clusterbackup, moving to $OCF_RESKEY_link"
+                mv ${OCF_RESKEY_link}.clusterbackup $OCF_RESKEY_link
+            fi
+            return $OCF_SUCCESS
+        else
+            ocf_log err "Removing $OCF_RESKEY_link failed."
+            return $OCF_ERR_GENERIC
+        fi
+    else
+        return $OCF_SUCCESS
+    fi
+}
+
+symlink_validate_all() {
+    if [ "x${OCF_RESKEY_link}" = "x" ]; then
+        ocf_log err "Mandatory parameter link is unset"
+        exit $OCF_ERR_CONFIGURED
+    fi
+    if [ "x${OCF_RESKEY_target}" = "x" ]; then
+        ocf_log err "Mandatory parameter target is unset"
+        exit $OCF_ERR_CONFIGURED
+    fi
+}
+
+symlink_usage() {
+        cat <<EOF
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+Expects to have a fully populated OCF RA-compliant environment set.
+EOF
+}
+
+if [ $# -ne 1 ]; then
+	symlink_usage
+	exit $OCF_ERR_ARGS
+fi
+
+case $__OCF_ACTION in
+meta-data)
+	meta_data
+	exit $OCF_SUCCESS
+	;;
+usage)
+	symlink_usage
+	exit $OCF_SUCCESS
+esac
+
+# Everything except usage and meta-data must pass the validate test
+symlink_validate_all || exit
+
+case $__OCF_ACTION in
+start)
+	symlink_start
+	;;
+stop)
+	symlink_stop
+	;;
+status|monitor)
+	symlink_monitor
+	;;
+validate-all)
+	;;
+*)
+	symlink_usage
+	exit $OCF_ERR_UNIMPLEMENTED
+esac
+# exit code is the exit code (return code) of the last command (shell function)
