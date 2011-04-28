@@ -1,0 +1,285 @@
+#!/bin/sh
+#
+#	LXC (Linux Containers) OCF RA. 
+#	Used to cluster enable the start, stop and monitoring of a LXC container.
+#
+# Copyright (c) 2011 AkurIT.com.au, Darren Thompson
+#                    All Rights Reserved.
+#
+# Without limiting the rights of the original copyright holders
+# This resource is licensed under GPL version 2
+#
+#
+# Derivative work; based on heartbeat "Dummy" and pacemaker "anything" OCF RA templates
+# and draws heavily from the LXC "INITD" script.
+# 
+# original headers and licensing information below
+#
+#	LXC "INITD" script
+#
+# 20101108 - Brian K. White - brian@aljex.com
+#
+#
+#	"Dummy OCF RA." Does nothing but wait a few seconds, can be
+#	configured to fail occasionally.
+#
+# Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Brée
+#                    All Rights Reserved.
+#
+#	"Anything OCF RA." 
+#
+#       OCF Resource Agent compliant resource script.
+#
+# Copyright (c) 2009 IN-telegence GmbH & Co. KG, Dominik Klein
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+
+# OCF instance parameters
+#       OCF_RESKEY_LXC_CNAME
+#       OCF_RESKEY_LXC_BCP
+#	OCF_RESKEY_LXC_BRP
+#       OCF_RESKEY_LXC_CF_FILENAME
+#
+# Whilst testing, fix these values so that the OCF can run from command line
+#	OCF_RESKEY_LXC_CNAME="test1"
+#	OCF_RESKEY_LXC_BCP="/etc/lxc"
+#	OCF_RESKEY_LXC_BRP="/srv/lxc"
+#	OCF_RESKEY_LXC_CF_FILENAME="config"
+#	OCF_ROOT="/usr/lib/ocf"
+#	OCF_RESKEY_CRM_meta_globally_unique="true"
+#	OCF_RESKEY_stop_timeout=60000
+#
+
+
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+
+#set default trans_res_state
+trans_res_state="${HA_VARRUN}/LXC_$OCF_RESKEY_LXC_CNAME-${OCF_RESOURCE_INSTANCE}.state"
+
+# confirm cgroup_mounted
+	# Various possible overrides to cgroup mount point.
+	# If kernel supplies cgroup mount point, prefer it.
+	CGROUP_MOUNT_POINT=/var/run/lxc/cgroup
+	CGROUP_MOUNT_NAME=lxc
+	CGROUP_MOUNTED=false
+	[[ -d /sys/fs/cgroup ]] && CGROUP_MOUNT_POINT=/sys/fs/cgroup CGROUP_MOUNT_NAME=cgroup
+	# If cgroup already mounted, use it no matter where it is.
+	# If multiple cgroup mounts, prefer the one named lxc if any.
+	eval `awk 'BEGIN{P="";N=""}END{print("cgmp="P" cgmn="N)}($3=="cgroup"){N=$1;P=$2;if($1="lxc")exit}' /proc/mounts`
+	[[ "$cgmn" && "$cgmp" && -d "$cgmp" ]] && CGROUP_MOUNT_POINT=$cgmp CGROUP_MOUNT_NAME=$cgmn CGROUP_MOUNTED=true
+	CGROUP_RELEASE_AGENT="/usr/sbin/lxc_cgroup_release_agent"
+	$CGROUP_MOUNTED || {
+		[[ -d $CGROUP_MOUNT_POINT ]] || mkdir -p $CGROUP_MOUNT_POINT
+		mount -t cgroup $CGROUP_MOUNT_NAME $CGROUP_MOUNT_POINT
+	}
+	echo 1 >${CGROUP_MOUNT_POINT}/notify_on_release
+
+# don't exit on TERM, the lrmd should handle that
+trap sigterm_handler TERM
+sigterm_handler() {
+	ocf_log info "Cluster resource detected TERM signal, Please use cluster resource manager to control resources"
+	return
+}
+
+meta_data() {
+cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="LXC" version="0.1">
+<version>0.1</version>
+<longdesc lang="en">This is derived from the generic OCF RA, to manage LXC containers. It allow LXC continers to be managed by the cluster</longdesc>
+<shortdesc lang="en">Manages LXC containers</shortdesc>
+
+<parameters>
+<parameter name="LXC_CNAME" required="1" unique="1">
+<longdesc lang="en">The unique name for this 'Container Instance'.</longdesc>
+<shortdesc lang="en">Container Name</shortdesc>
+<content type="string" default="lxc1"/>
+</parameter>
+
+<parameter name="LXC_BCP" required="1" unique="1">
+<longdesc lang="en">The path to the directories holding each containers configuration files.</longdesc>
+<shortdesc lang="en">Full path to the config root</shortdesc>
+<content type="string" default="/etc/lxc"/>
+</parameter>
+
+<parameter name="LXC_BRP" required="1" unique="1">
+<longdesc lang="en">The path to the directories holding each containers "root" filesystem.</longdesc>
+<shortdesc lang="en">Full path to the parent containers "root" filesystems</shortdesc>
+<content type="string" default="/srv/lxc"/>
+</parameter>
+
+<parameter name="LXC_CF_FILENAME" required="1" unique="1">
+<longdesc lang="en">The path to the directories holding each containers "root" filesystem.</longdesc>
+<shortdesc lang="en">Full path to the parent containers "root" filesystems</shortdesc>
+<content type="string" default="config"/>
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="stop"         timeout="30" />
+<action name="monitor"      timeout="20" interval="10" start-delay="10" depth="0"/>
+<action name="reload"       timeout="20" />
+<action name="migrate_to"   timeout="30" />
+<action name="migrate_from" timeout="20" />
+<action name="validate-all" timeout="20" />
+<action name="meta-data"    timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+
+LXC_usage() {
+	cat <<END
+	usage: $0 {start|stop|monitor|migrate_to|migrate_from|validate-all|meta-data}
+
+	Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+LXC_start() {
+	if ! LXC_status ; then
+		echo "Starting" ${OCF_RESKEY_LXC_CNAME} 
+		cd ${OCF_RESKEY_LXC_BCP}/${OCF_RESKEY_LXC_CNAME}/
+	        screen -dmS ${OCF_RESKEY_LXC_CNAME} lxc-start -f ${OCF_RESKEY_LXC_CF_FILENAME} -n ${OCF_RESKEY_LXC_CNAME}
+	else
+		# If already running, consider start successful
+		ocf_log debug ${OCF_RESOURCE_INSTANCE}: ${OCF_RESKEY_LXC_CNAME} "is already running"
+		return $OCF_SUCCESS
+	fi
+   	touch $trans_res_state
+	return $OCF_SUCCESS
+}
+
+
+
+LXC_stop() {
+	# If the container is running "init" and is able to perform and orderly shutdown, then it should be done. 
+	typeset -i PID=0
+	lxc-ps -C init -opid |while read CN PID ;do
+		[[ $PID -gt 1 ]] || continue
+		[[ "$CN" = "${OCF_RESKEY_LXC_CNAME}" ]] || continue
+	grep -q 'p0::powerfail:/sbin/init 0' ${OCF_RESKEY_LXC_BRP}/${OCF_RESKEY_LXC_CNAME}/etc/inittab || continue
+	kill -PWR $PID
+        if [ -n "$OCF_RESKEY_stop_timeout" ]
+        then
+                # Allow 2/3 of the stop timeout for the orderly shutdown
+                # (The origin unit is ms, hence the conversion)
+                stop_timeout=$((OCF_RESKEY_stop_timeout/1500))
+        elif [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+                # Allow 2/3 of the action timeout for the orderly shutdown
+                # (The origin unit is ms, hence the conversion)
+                stop_timeout=$((OCF_RESKEY_CRM_meta_timeout/1500))
+        else
+                stop_timeout=10
+        fi
+	echo "Sleep Timout:" $stop_timeout
+	sleep $stop_timeout 
+	done
+	# If the container is still running, it will be stopped now. regardless of state!
+	lxc-stop -n ${OCF_RESKEY_LXC_CNAME}
+	rm $trans_res_state
+	return $OCF_SUCCESS
+}
+
+LXC_status() {
+        S=`lxc-info -n ${OCF_RESKEY_LXC_CNAME}`
+	echo "$S"
+	if [[ "${S##* }" = "RUNNING" ]] ; then 
+		if [ -f $trans_res_state ]; then
+			return $OCF_RUNNING
+		else
+			return $OCF_ERR_GENERIC
+		fi
+	else
+		if [ -f $trans_res_state ]; then
+			echo "Dolt!" ${OCF_RESKEY_LXC_CNAME} "should be running!"
+			return $OCF_ERR_GENERIC
+		fi
+			return $OCF_NOT_RUNNING
+	fi
+}
+
+LXC_monitor() {
+	LXC_status
+	ret=$?
+	if [ $ret -eq $OCF_$OCF_SUCCESS ]
+	then
+		if [ -n "$OCF_RESKEY_monitor_hook" ]; then
+			eval "$OCF_RESKEY_monitor_hook"
+                        if [ $? -ne $OCF_SUCCESS ]; then
+                                return ${OCF_ERR_GENERIC}
+                        fi
+			return $OCF_SUCCESS
+		else
+			true
+		fi
+	else
+		return $ret
+	fi
+}
+
+LXC_validate() {
+	# The only critical things I can think of is that "cgroups" are mounted and "lxc" is installed
+	# Pleae feel free to expand this with anything else required.
+ 	if ! [ -f ${CGROUP_MOUNT_POINT}/notify_on_release ]; then
+		exit $OCF_ERR_INSTALLED
+	fi
+ 	if ! [ -f `which lxc-start` ]; then
+		exit $OCF_ERR_INSTALLED
+	fi
+	return $OCF_SUCCESS
+}
+
+case $__OCF_ACTION in
+meta-data)	meta_data
+		exit $OCF_SUCCESS
+		;;
+start)		LXC_start;;
+stop)		LXC_stop;;
+monitor)	LXC_monitor;;
+migrate_to)	ocf_log info "Moving ${OCF_RESOURCE_INSTANCE} to ${OCF_RESKEY_CRM_meta_migrate_to}."
+	        LXC_stop
+		;;
+migrate_from)	ocf_log info "Moving ${OCF_RESOURCE_INSTANCE} to ${OCF_RESKEY_CRM_meta_migrated_from}."
+	        LXC_start
+		;;
+reload)		ocf_log err "Reloading..."
+		LXC_stop	        
+		LXC_start
+		;;
+validate-all)	LXC_validate;;
+usage|help)	LXC_usage
+		exit $OCF_SUCCESS
+		;;
+*)		LXC_usage
+		ocf_log err "$0 was called with unsupported arguments: $*"
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+rc=$?
+#ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
+
