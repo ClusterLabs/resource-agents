@@ -1,4 +1,5 @@
 #!/bin/sh
+# Should now conform to guidlines: http://www.linux-ha.org/doc/dev-guides/ra-dev-guide.html
 #
 #	LXC (Linux Containers) OCF RA. 
 #	Used to cluster enable the start, stop and monitoring of a LXC container.
@@ -59,13 +60,19 @@
 #       OCF_RESKEY_LXC_CF_FILENAME
 #
 # Whilst testing, fix these values so that the OCF can run from command line
-#	OCF_RESKEY_LXC_CNAME="test1"
-#	OCF_RESKEY_LXC_BCP="/etc/lxc"
-#	OCF_RESKEY_LXC_BRP="/srv/lxc"
+# This does not conform to the guidlines, so each line should be prefixed with "#" in production
+#
+#	OCF_RESKEY_LXC_CNAME_default="test1"
+#	OCF_RESKEY_LXC_BCP_default="/etc/lxc"
+#	OCF_RESKEY_LXC_BRP_default="/srv/lxc"
 #	OCF_RESKEY_LXC_CF_FILENAME="config"
+#	: ${OCF_RESKEY_LXC_CNAME=${OCF_RESKEY_LXC_CNAME_default}}
+#	: ${OCF_RESKEY_LXC_BCP=${OCF_RESKEY_LXC_BCP_default}}
+#	: ${OCF_RESKEY_LXC_BRP=${OCF_RESKEY_LXC_BRP_default}}
+#	: ${OCF_RESKEY_LXC_CF_FILENAME=${OCF_RESKEY_LXC_CF_FILENAME}}
 #	OCF_ROOT="/usr/lib/ocf"
 #	OCF_RESKEY_CRM_meta_globally_unique="true"
-#	OCF_RESKEY_stop_timeout=60000
+#	OCF_RESKEY_stop_timeout=30000
 #
 
 
@@ -73,8 +80,15 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
 
-#set default trans_res_state
-trans_res_state="${HA_VARRUN}/LXC_$OCF_RESKEY_LXC_CNAME-${OCF_RESOURCE_INSTANCE}.state"
+# Set default trans_res_state (temporary file to "flag" if resource was stated but not stopped)
+trans_res_state="${HA_RSCTMP}/LXC_${OCF_RESKEY_LXC_CNAME}-${OCF_RESOURCE_INSTANCE}.state"
+
+# It would be "Bad" if the container were to be run on more than one node, using lock file in shared configration directory to prevent it.
+LOCKFILE="${OCF_RESKEY_LXC_BCP}/${OCF_RESKEY_LXC_CNAME}/${OCF_RESKEY_LXC_CNAME}.lock"
+## ocf_release_lock_on_exit $LOCKFILE # does not work as I would expect ti too :-( #
+
+# put this here as it's so long it gets messy later!!!
+STARTCMD="screen -dmS ${OCF_RESKEY_LXC_CNAME} lxc-start -f ${OCF_RESKEY_LXC_CF_FILENAME} -n ${OCF_RESKEY_LXC_CNAME}"
 
 # confirm cgroup_mounted
 	# Various possible overrides to cgroup mount point.
@@ -95,11 +109,11 @@ trans_res_state="${HA_VARRUN}/LXC_$OCF_RESKEY_LXC_CNAME-${OCF_RESOURCE_INSTANCE}
 	echo 1 >${CGROUP_MOUNT_POINT}/notify_on_release
 
 # don't exit on TERM, the lrmd should handle that
-trap sigterm_handler TERM
-sigterm_handler() {
-	ocf_log info "Cluster resource detected TERM signal, Please use cluster resource manager to control resources"
-	return
-}
+#trap sigterm_handler TERM
+#sigterm_handler() {
+#	ocf_log info "Cluster resource detected TERM signal, Please use cluster resource manager to control resources"
+#	return
+#}
 
 meta_data() {
 cat <<END
@@ -111,38 +125,39 @@ cat <<END
 <shortdesc lang="en">Manages LXC containers</shortdesc>
 
 <parameters>
-<parameter name="LXC_CNAME" required="1" unique="1">
-<longdesc lang="en">The unique name for this 'Container Instance'.</longdesc>
+<parameter name="LXC_CNAME" required="true" unique="true">
+<longdesc lang="en">The unique name for this 'Container Instance' e.g. 'test1'.</longdesc>
 <shortdesc lang="en">Container Name</shortdesc>
-<content type="string" default="lxc1"/>
+<content type="string" default=""/>
 </parameter>
 
-<parameter name="LXC_BCP" required="1" unique="1">
-<longdesc lang="en">The path to the directories holding each containers configuration files.</longdesc>
+<parameter name="LXC_BCP" required="true" unique="true">
+<longdesc lang="en">The path to the directories holding each containers configuration files e.g. '/etc/lxc'.</longdesc>
 <shortdesc lang="en">Full path to the config root</shortdesc>
-<content type="string" default="/etc/lxc"/>
+<content type="string" default=""/>
 </parameter>
 
-<parameter name="LXC_BRP" required="1" unique="1">
-<longdesc lang="en">The path to the directories holding each containers "root" filesystem.</longdesc>
+<parameter name="LXC_BRP" required="true" unique="true">
+<longdesc lang="en">The path to the directories holding each containers "root" filesystem e.g. '/srv/lxc'.</longdesc>
 <shortdesc lang="en">Full path to the parent containers "root" filesystems</shortdesc>
-<content type="string" default="/srv/lxc"/>
+<content type="string" default=""/>
 </parameter>
 
-<parameter name="LXC_CF_FILENAME" required="1" unique="1">
-<longdesc lang="en">The path to the directories holding each containers "root" filesystem.</longdesc>
-<shortdesc lang="en">Full path to the parent containers "root" filesystems</shortdesc>
-<content type="string" default="config"/>
+<parameter name="LXC_CF_FILENAME" required="true" unique="true">
+<longdesc lang="en">The file holding the specific configuration for this container e.g. 'config'.</longdesc>
+<shortdesc lang="en">The LXC config file.</shortdesc>
+<content type="string" default=""/>
 </parameter>
 
 </parameters>
 
 <actions>
+<action name="start"        timeout="10" />
 <action name="stop"         timeout="30" />
-<action name="monitor"      timeout="20" interval="10" start-delay="10" depth="0"/>
+<action name="monitor"      timeout="20" interval="60" start-delay="10" depth="0"/>
 <action name="reload"       timeout="20" />
 <action name="migrate_to"   timeout="30" />
-<action name="migrate_from" timeout="20" />
+<action name="migrate_from" timeout="20" start-delay="20"/>
 <action name="validate-all" timeout="20" />
 <action name="meta-data"    timeout="5" />
 </actions>
@@ -160,17 +175,30 @@ END
 }
 
 LXC_start() {
-	if ! LXC_status ; then
-		echo "Starting" ${OCF_RESKEY_LXC_CNAME} 
-		cd ${OCF_RESKEY_LXC_BCP}/${OCF_RESKEY_LXC_CNAME}/
-	        screen -dmS ${OCF_RESKEY_LXC_CNAME} lxc-start -f ${OCF_RESKEY_LXC_CF_FILENAME} -n ${OCF_RESKEY_LXC_CNAME}
-	else
-		# If already running, consider start successful
-		ocf_log debug ${OCF_RESOURCE_INSTANCE}: ${OCF_RESKEY_LXC_CNAME} "is already running"
+	if LXC_validate ; then
+		if ! LXC_status ; then
+#			ocf_take_lock $LOCKFILE # does not work as I would expect ti too :-( #
+			if [ -f $LOCKFILE ] ; then
+				ocf_log err "Starting of" ${OCF_RESKEY_LXC_CNAME} "aborted as there is already a lock file!"
+				ocf_log info "If you are SURE that this resource is not running elswhere, just delete the file" $LOCKFILE
+				exit ${OCF_ERR_GENERIC}
+			else
+				touch $LOCKFILE
+	   			touch $trans_res_state
+				ocf_log info "Starting" ${OCF_RESKEY_LXC_CNAME} 
+				cd ${OCF_RESKEY_LXC_BCP}/${OCF_RESKEY_LXC_CNAME}/
+	        		ocf_run ${STARTCMD} || exit $OCF_ERR_GENERIC 
+			fi
+		else
+			# If already running, consider start successful
+			ocf_log debug ${OCF_RESOURCE_INSTANCE}: ${OCF_RESKEY_LXC_CNAME} "is already running"
+			return $OCF_SUCCESS
+		fi
 		return $OCF_SUCCESS
+	else
+		ret=$?
+		return $ret
 	fi
-   	touch $trans_res_state
-	return $OCF_SUCCESS
 }
 
 
@@ -195,27 +223,34 @@ LXC_stop() {
         else
                 stop_timeout=10
         fi
-	echo "Sleep Timout:" $stop_timeout
 	sleep $stop_timeout 
 	done
 	# If the container is still running, it will be stopped now. regardless of state!
 	lxc-stop -n ${OCF_RESKEY_LXC_CNAME}
-	rm $trans_res_state
+	if [ -f $LOCKFILE ]; then	
+		rm $LOCKFILE 
+	fi
+	if [ -f $trans_res_state ]; then	
+		rm $trans_res_state
+	else
+		ocf_log err "Dolt!" ${OCF_RESKEY_LXC_CNAME} "does not seem to be started!"
+		return ${OCF_ERR_GENERIC}
+	fi
 	return $OCF_SUCCESS
 }
 
 LXC_status() {
         S=`lxc-info -n ${OCF_RESKEY_LXC_CNAME}`
-	echo "$S"
+	ocf_log info "$S"
 	if [[ "${S##* }" = "RUNNING" ]] ; then 
 		if [ -f $trans_res_state ]; then
-			return $OCF_RUNNING
+			return $OCF_SUCCESS
 		else
 			return $OCF_ERR_GENERIC
 		fi
 	else
 		if [ -f $trans_res_state ]; then
-			echo "Dolt!" ${OCF_RESKEY_LXC_CNAME} "should be running!"
+			ocf_log err "Dolt!" ${OCF_RESKEY_LXC_CNAME} "should be running!"
 			return $OCF_ERR_GENERIC
 		fi
 			return $OCF_NOT_RUNNING
@@ -225,12 +260,12 @@ LXC_status() {
 LXC_monitor() {
 	LXC_status
 	ret=$?
-	if [ $ret -eq $OCF_$OCF_SUCCESS ]
+	if [ $ret -eq $OCF_SUCCESS ]
 	then
-		if [ -n "$OCF_RESKEY_monitor_hook" ]; then
-			eval "$OCF_RESKEY_monitor_hook"
+		if [ -n "${OCF_RESKEY_monitor_hook}" ]; then
+			eval "${OCF_RESKEY_monitor_hook}"
                         if [ $? -ne $OCF_SUCCESS ]; then
-                                return ${OCF_ERR_GENERIC}
+                                return $OCF_ERR_GENERIC
                         fi
 			return $OCF_SUCCESS
 		else
@@ -242,14 +277,33 @@ LXC_monitor() {
 }
 
 LXC_validate() {
-	# The only critical things I can think of is that "cgroups" are mounted and "lxc" is installed
-	# Pleae feel free to expand this with anything else required.
+	# Quick check that all required attributes are set
+	if [ -z "${OCF_RESKEY_LXC_CNAME}" ]; then
+		ocf_log err "LXC container name not set!"
+		exit $OCF_ERR_CONFIGURED
+	fi
+	if [ -z "${OCF_RESKEY_LXC_BCP}" ]; then
+		ocf_log err "LXC configuration directory not set!"
+		exit $OCF_ERR_CONFIGURED
+	fi
+	if [ -z "${OCF_RESKEY_LXC_BRP}" ]; then
+		ocf_log err "LXC container root filesystem directory not set!"
+		exit $OCF_ERR_CONFIGURED
+	fi
+	if [ -z "${OCF_RESKEY_LXC_CF_FILENAME}" ]; then
+		ocf_log err "LXC configuration filename name not set!"
+		exit $OCF_ERR_CONFIGURED
+	fi
+	# Quick that CGROUPS are corrrectly mounted
  	if ! [ -f ${CGROUP_MOUNT_POINT}/notify_on_release ]; then
 		exit $OCF_ERR_INSTALLED
 	fi
- 	if ! [ -f `which lxc-start` ]; then
-		exit $OCF_ERR_INSTALLED
-	fi
+	# Quick check that required executables are present
+ 	check_binary lxc-start
+ 	check_binary lxc-stop
+	check_binary lxc-ps
+	check_binary lxc-info
+	check_binary screen
 	return $OCF_SUCCESS
 }
 
@@ -280,6 +334,6 @@ usage|help)	LXC_usage
 		;;
 esac
 rc=$?
-#ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
 exit $rc
 
