@@ -447,6 +447,9 @@
     <xsl:value-of select="@name"/>
     <xsl:text> </xsl:text>
     <xsl:apply-templates select="@*" mode="example"/>
+    <xsl:if test="following-sibling::action/@name = 'monitor'">
+      <xsl:text>\</xsl:text>
+    </xsl:if>
   </xsl:template>
 
   <xsl:template match="action/@*" mode="example">
