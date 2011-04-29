@@ -365,7 +365,7 @@
 	<xsl:text> shell:</xsl:text>
       </para>
       <programlisting>
-	<xsl:text>primitive example_</xsl:text>
+	<xsl:text>primitive p_</xsl:text>
 	<xsl:value-of select="@name"/>
 	<xsl:text> </xsl:text>
 	<xsl:value-of select="$class"/>
