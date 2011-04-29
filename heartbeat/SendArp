@@ -75,14 +75,19 @@ sendarp_meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-This script send out gratuitous Arp for an IP address
+This RA can be used _instead_ of the IPaddr2 or IPaddr RA to
+send gratuitous ARP for an IP address on a given interface, 
+without adding the address to that interface.  For example,
+if for some resaon you wanted to send gratuitous ARP for
+addresses managed by IPaddr2 or IPaddr on an additional
+interface.
 </longdesc>
 <shortdesc lang="en">Broadcasts unsolicited ARP announcements</shortdesc>
 
 <parameters>
 <parameter name="ip" unique="0" required="1">
 <longdesc lang="en">
-The IP address for sending arp package.
+The IP address for sending ARP packet.
 </longdesc>
 <shortdesc lang="en">IP address</shortdesc>
 <content type="string" default="" />
@@ -90,7 +95,7 @@ The IP address for sending arp package.
 
 <parameter name="nic" unique="0" required="1">
 <longdesc lang="en">
-The nic for sending arp package.
+The NIC for sending ARP packet.
 </longdesc>
 <shortdesc lang="en">NIC</shortdesc>
 <content type="string" default="" />
