@@ -388,6 +388,18 @@
 	</xsl:if>
 	<xsl:apply-templates select="actions" mode="example"/>
       </programlisting>
+      <!-- Insert a master/slave set definition if the resource
+      agent supports promotion and demotion -->
+      <xsl:if test="actions/action/@name = 'promote' and actions/action/@name = 'demote'">
+	<programlisting>
+	  <xsl:text>ms ms_</xsl:text>
+	  <xsl:value-of select="@name"/>
+	  <xsl:text> p_</xsl:text>
+	  <xsl:value-of select="@name"/>
+	<xsl:text> \
+  meta notify="true" interleave="true"</xsl:text>
+	</programlisting>
+      </xsl:if>
     </refsection>
   </xsl:template>
 
