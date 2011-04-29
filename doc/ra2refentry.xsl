@@ -372,14 +372,18 @@
 	<xsl:text>:</xsl:text>
 	<xsl:value-of select="$provider"/>
 	<xsl:text>:</xsl:text>
-	<xsl:value-of select="@name"/>
-	<xsl:text> \
+	<xsl:choose>
+	  <xsl:when test="parameters/parameter[@required = 1]">
+	    <xsl:value-of select="@name"/>
+	    <xsl:text> \
+  params \
 </xsl:text>
-	<xsl:if test="parameters/parameter[@required = 1]">
-	  <xsl:text>  params \
-</xsl:text>
-	  <xsl:apply-templates select="parameters" mode="example"/>
-	</xsl:if>
+	    <xsl:apply-templates select="parameters" mode="example"/>
+	  </xsl:when>
+	  <xsl:otherwise>
+	  <xsl:value-of select="@name"/><xsl:text> \</xsl:text>
+	  </xsl:otherwise>
+	</xsl:choose>
 	<!-- Insert a suggested allow-migrate meta attribute if the
 	     resource agent supports migration -->
 	<xsl:if test="actions/action/@name = 'migrate_from' or actions/action/@name = 'migrate_to'">
