@@ -101,25 +101,25 @@ cat <<END
 <shortdesc lang="en">Manages LXC containers</shortdesc>
 
 <parameters>
-<parameter name="LXC_CNAME" required="true" unique="true">
+<parameter name="LXC_CNAME" required="true" unique="false">
 <longdesc lang="en">The unique name for this 'Container Instance' e.g. 'test1'.</longdesc>
 <shortdesc lang="en">Container Name</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
-<parameter name="LXC_BCP" required="true" unique="true">
+<parameter name="LXC_BCP" required="true" unique="false">
 <longdesc lang="en">The path to the directories holding each containers configuration files e.g. '/etc/lxc'.</longdesc>
 <shortdesc lang="en">Full path to the config root</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
-<parameter name="LXC_BRP" required="true" unique="true">
+<parameter name="LXC_BRP" required="true" unique="false">
 <longdesc lang="en">The path to the directories holding each containers "root" filesystem e.g. '/srv/lxc'.</longdesc>
 <shortdesc lang="en">Full path to the parent containers "root" filesystems</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
-<parameter name="LXC_CF_FILENAME" required="true" unique="true">
+<parameter name="LXC_CF_FILENAME" required="true" unique="false">
 <longdesc lang="en">The file holding the specific configuration for this container e.g. 'config'.</longdesc>
 <shortdesc lang="en">The LXC config file.</shortdesc>
 <content type="string" default=""/>
