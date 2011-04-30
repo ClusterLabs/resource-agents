@@ -10,30 +10,6 @@
 # Without limiting the rights of the original copyright holders
 # This resource is licensed under GPL version 2
 #
-#
-# Derivative work; based on heartbeat "Dummy" and pacemaker "anything" OCF RA templates
-# and draws heavily from the LXC "INITD" script.
-# 
-# original headers and licensing information below
-#
-#	LXC "INITD" script
-#
-# 20101108 - Brian K. White - brian@aljex.com
-#
-#
-#	"Dummy OCF RA." Does nothing but wait a few seconds, can be
-#	configured to fail occasionally.
-#
-# Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Brée
-#                    All Rights Reserved.
-#
-#	"Anything OCF RA." 
-#
-#       OCF Resource Agent compliant resource script.
-#
-# Copyright (c) 2009 IN-telegence GmbH & Co. KG, Dominik Klein
-#                    All Rights Reserved.
-#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of version 2 of the GNU General Public License as
 # published by the Free Software Foundation.
