@@ -226,6 +226,9 @@
   <xsl:template match="content" mode="parameters">
     <xsl:if test="@type != '' or @default != ''">
       <xsl:text> (</xsl:text>
+      <xsl:if test="../@unique = 1">
+	<xsl:text>unique, </xsl:text>
+      </xsl:if>
       <xsl:choose>
 	<xsl:when test="../@required = 1">
 	  <xsl:text>required</xsl:text>
