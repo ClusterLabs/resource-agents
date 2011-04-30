@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Should now conform to guidlines: http://www.linux-ha.org/doc/dev-guides/ra-dev-guide.html
 #
 #	LXC (Linux Containers) OCF RA. 
