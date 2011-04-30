@@ -215,7 +215,7 @@ LXC_stop() {
 	return $OCF_SUCCESS
 }
 
-LXC_status() {
+LXC_monitor() {
         S=`lxc-info -n ${OCF_RESKEY_LXC_CNAME}`
 	ocf_log info "$S"
 	if [[ "${S##* }" = "RUNNING" ]] ; then 
@@ -233,24 +233,6 @@ LXC_status() {
 	fi
 }
 
-LXC_monitor() {
-	LXC_status
-	ret=$?
-	if [ $ret -eq $OCF_SUCCESS ]
-	then
-		if [ -n "${OCF_RESKEY_monitor_hook}" ]; then
-			eval "${OCF_RESKEY_monitor_hook}"
-                        if [ $? -ne $OCF_SUCCESS ]; then
-                                return $OCF_ERR_GENERIC
-                        fi
-			return $OCF_SUCCESS
-		else
-			true
-		fi
-	else
-		return $ret
-	fi
-}
 
 LXC_validate() {
 	# Quick check that all required attributes are set
