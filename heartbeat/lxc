@@ -101,7 +101,7 @@ cat <<END
 <shortdesc lang="en">Manages LXC containers</shortdesc>
 
 <parameters>
-<parameter name="LXC_CNAME" required="true" unique="false">
+<parameter name="LXC_CNAME" required="true" unique="true">
 <longdesc lang="en">The unique name for this 'Container Instance' e.g. 'test1'.</longdesc>
 <shortdesc lang="en">Container Name</shortdesc>
 <content type="string" default=""/>
