@@ -33,19 +33,6 @@
 #       OCF_RESKEY_container
 #	OCF_RESKEY_root
 #       OCF_RESKEY_config
-#
-# Whilst testing, fix these values so that the OCF can run from command line
-# This does not conform to the guidlines, so each line should be prefixed with "#" in production
-#
-#	OCF_RESKEY_container_default="test1"
-#	OCF_RESKEY_root_default="/srv/lxc"
-#	OCF_RESKEY_LXC_CF_FILENAME_default="config"
-#	: ${OCF_RESKEY_container=${OCF_RESKEY_container_default}}
-#	: ${OCF_RESKEY_root=${OCF_RESKEY_root_default}}
-#	: ${OCF_RESKEY_LXC_CF_FILENAME=${OCF_RESKEY_LXC_CF_FILENAME_default}}
-#	OCF_ROOT="/usr/lib/ocf"
-#	: OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat
-#
 
 # Initialization:
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
