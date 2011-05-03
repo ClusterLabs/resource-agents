@@ -39,7 +39,7 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Set default TRANS_RES_STATE (temporary file to "flag" if resource was stated but not stopped)
-TRANS_RES_STATE="${HA_RSCTMP}/LXC_${OCF_RESKEY_container}-${OCF_RESOURCE_INSTANCE}.state"
+TRANS_RES_STATE="${HA_RSCTMP}/${OCF_RESOURCE_INSTANCE}.state"
 
 meta_data() {
 cat <<END
