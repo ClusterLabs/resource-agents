@@ -57,11 +57,6 @@
 # Set default TRANS_RES_STATE (temporary file to "flag" if resource was stated but not stopped)
 TRANS_RES_STATE="${HA_RSCTMP}/LXC_${OCF_RESKEY_container}-${OCF_RESOURCE_INSTANCE}.state"
 
-# It would be "Bad" if the container were to be run on more than one node, using lock file in shared configration directory to prevent it.
-LOCKFILE="${OCF_RESKEY_LXC_BCP}/${OCF_RESKEY_container}/${OCF_RESKEY_container}.lock"
-## ocf_release_lock_on_exit $LOCKFILE # does not work as I would expect ti too :-( #
-
-
 meta_data() {
 cat <<END
 <?xml version="1.0"?>
@@ -150,18 +145,10 @@ LXC_start() {
 	if [ $ret ]; then
 		if LXC_validate ; then
 			if ! LXC_monitor ; then
-#				ocf_take_lock $LOCKFILE # does not work as I would expect ti too :-( #
-				if [ -f $LOCKFILE ] ; then
-					ocf_log err "Starting of" ${OCF_RESKEY_container} "aborted as there is already a lock file!"
-					ocf_log info "If you are SURE that this resource is not running elswhere, just delete the file" $LOCKFILE
-					exit ${OCF_ERR_GENERIC}
-				else
-					touch $LOCKFILE
-		   			touch $TRANS_RES_STATE
-					ocf_log info "Starting" ${OCF_RESKEY_container} 
-					cd ${OCF_RESKEY_LXC_BCP}/${OCF_RESKEY_container}/
-		        		ocf_run ${STARTCMD} || exit $OCF_ERR_GENERIC 
-				fi
+		   	    touch $TRANS_RES_STATE
+			    ocf_log info "Starting" ${OCF_RESKEY_container} 
+			    cd ${OCF_RESKEY_LXC_BCP}/${OCF_RESKEY_container}/
+		            ocf_run ${STARTCMD} || exit $OCF_ERR_GENERIC 
 			else
 				# If already running, consider start successful
 				ocf_log debug ${OCF_RESOURCE_INSTANCE}: ${OCF_RESKEY_container} "is already running"
@@ -206,9 +193,6 @@ LXC_stop() {
 		done
 		# If the container is still running, it will be stopped now. regardless of state!
 		lxc-stop -n ${OCF_RESKEY_container}
-		if [ -f $LOCKFILE ]; then	
-			rm $LOCKFILE 
-		fi
 		if [ -f $TRANS_RES_STATE ]; then	
 			rm $TRANS_RES_STATE
 		else
