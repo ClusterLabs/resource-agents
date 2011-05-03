@@ -32,7 +32,7 @@
 # OCF instance parameters
 #       OCF_RESKEY_container
 #       OCF_RESKEY_LXC_BCP
-#	OCF_RESKEY_LXC_BRP
+#	OCF_RESKEY_root
 #       OCF_RESKEY_LXC_CF_FILENAME
 #
 # Whilst testing, fix these values so that the OCF can run from command line
@@ -40,11 +40,11 @@
 #
 #	OCF_RESKEY_container_default="test1"
 #	OCF_RESKEY_LXC_BCP_default="/etc/lxc"
-#	OCF_RESKEY_LXC_BRP_default="/srv/lxc"
+#	OCF_RESKEY_root_default="/srv/lxc"
 #	OCF_RESKEY_LXC_CF_FILENAME_default="config"
 #	: ${OCF_RESKEY_container=${OCF_RESKEY_container_default}}
 #	: ${OCF_RESKEY_LXC_BCP=${OCF_RESKEY_LXC_BCP_default}}
-#	: ${OCF_RESKEY_LXC_BRP=${OCF_RESKEY_LXC_BRP_default}}
+#	: ${OCF_RESKEY_root=${OCF_RESKEY_root_default}}
 #	: ${OCF_RESKEY_LXC_CF_FILENAME=${OCF_RESKEY_LXC_CF_FILENAME_default}}
 #	OCF_ROOT="/usr/lib/ocf"
 #	: OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat
@@ -84,7 +84,7 @@ cat <<END
 <content type="string" default=""/>
 </parameter>
 
-<parameter name="LXC_BRP" required="1" unique="0">
+<parameter name="root" required="1" unique="0">
 <longdesc lang="en">The path to the directories holding each containers "root" filesystem e.g. '/srv/lxc'.</longdesc>
 <shortdesc lang="en">Full path to the parent containers "root" filesystems</shortdesc>
 <content type="string" default=""/>
@@ -188,7 +188,7 @@ LXC_stop() {
 		lxc-ps -C init -opid |while read CN PID ;do
 			[[ $PID -gt 1 ]] || continue
 			[[ "$CN" = "${OCF_RESKEY_container}" ]] || continue
-		grep -q 'p0::powerfail:/sbin/init 0' ${OCF_RESKEY_LXC_BRP}/${OCF_RESKEY_container}/etc/inittab || continue
+		grep -q 'p0::powerfail:/sbin/init 0' ${OCF_RESKEY_root}/${OCF_RESKEY_container}/etc/inittab || continue
 		kill -PWR $PID
 	        if [ -n "$OCF_RESKEY_stop_timeout" ]
 	        then
@@ -255,12 +255,12 @@ LXC_validate() {
 			exit $OCF_ERR_INSTALLED
 		fi
 	fi
-	if [ -z "${OCF_RESKEY_LXC_BRP}" ]; then
+	if [ -z "${OCF_RESKEY_root}" ]; then
 		ocf_log err "LXC container root filesystem directory not set!"
 		exit $OCF_ERR_CONFIGURED
 	else
-		if ! [ -d "${OCF_RESKEY_LXC_BRP}"/"${OCF_RESKEY_container}" ]; then
-			ocf_log err "LXC container root filesystem directory "${OCF_RESKEY_LXC_BRP}${OCF_RESKEY_container}" is not present on this node!"
+		if ! [ -d "${OCF_RESKEY_root}"/"${OCF_RESKEY_container}" ]; then
+			ocf_log err "LXC container root filesystem directory "${OCF_RESKEY_root}${OCF_RESKEY_container}" is not present on this node!"
 			exit $OCF_ERR_INSTALLED
 		fi
 	fi
