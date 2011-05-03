@@ -76,8 +76,6 @@ cat <<END
 <action name="stop"         timeout="30" />
 <action name="monitor"      timeout="20" interval="60" start-delay="10" depth="0"/>
 <action name="reload"       timeout="20" />
-<action name="migrate_to"   timeout="30" />
-<action name="migrate_from" timeout="20" start-delay="20"/>
 <action name="validate-all" timeout="20" />
 <action name="meta-data"    timeout="5" />
 </actions>
@@ -246,12 +244,6 @@ meta-data)	meta_data
 start)		LXC_start;;
 stop)		LXC_stop;;
 monitor)	LXC_monitor;;
-migrate_to)	ocf_log info "Moving ${OCF_RESOURCE_INSTANCE} to ${OCF_RESKEY_CRM_meta_migrate_to}."
-	        LXC_stop
-		;;
-migrate_from)	ocf_log info "Moving ${OCF_RESOURCE_INSTANCE} to ${OCF_RESKEY_CRM_meta_migrated_from}."
-	        LXC_start
-		;;
 reload)		ocf_log err "Reloading..."
 		LXC_stop	        
 		LXC_start
