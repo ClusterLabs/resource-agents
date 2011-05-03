@@ -30,7 +30,7 @@
 # Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
 
 # OCF instance parameters
-#       OCF_RESKEY_LXC_CNAME
+#       OCF_RESKEY_container
 #       OCF_RESKEY_LXC_BCP
 #	OCF_RESKEY_LXC_BRP
 #       OCF_RESKEY_LXC_CF_FILENAME
@@ -38,11 +38,11 @@
 # Whilst testing, fix these values so that the OCF can run from command line
 # This does not conform to the guidlines, so each line should be prefixed with "#" in production
 #
-#	OCF_RESKEY_LXC_CNAME_default="test1"
+#	OCF_RESKEY_container_default="test1"
 #	OCF_RESKEY_LXC_BCP_default="/etc/lxc"
 #	OCF_RESKEY_LXC_BRP_default="/srv/lxc"
 #	OCF_RESKEY_LXC_CF_FILENAME_default="config"
-#	: ${OCF_RESKEY_LXC_CNAME=${OCF_RESKEY_LXC_CNAME_default}}
+#	: ${OCF_RESKEY_container=${OCF_RESKEY_container_default}}
 #	: ${OCF_RESKEY_LXC_BCP=${OCF_RESKEY_LXC_BCP_default}}
 #	: ${OCF_RESKEY_LXC_BRP=${OCF_RESKEY_LXC_BRP_default}}
 #	: ${OCF_RESKEY_LXC_CF_FILENAME=${OCF_RESKEY_LXC_CF_FILENAME_default}}
@@ -55,10 +55,10 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Set default TRANS_RES_STATE (temporary file to "flag" if resource was stated but not stopped)
-TRANS_RES_STATE="${HA_RSCTMP}/LXC_${OCF_RESKEY_LXC_CNAME}-${OCF_RESOURCE_INSTANCE}.state"
+TRANS_RES_STATE="${HA_RSCTMP}/LXC_${OCF_RESKEY_container}-${OCF_RESOURCE_INSTANCE}.state"
 
 # It would be "Bad" if the container were to be run on more than one node, using lock file in shared configration directory to prevent it.
-LOCKFILE="${OCF_RESKEY_LXC_BCP}/${OCF_RESKEY_LXC_CNAME}/${OCF_RESKEY_LXC_CNAME}.lock"
+LOCKFILE="${OCF_RESKEY_LXC_BCP}/${OCF_RESKEY_container}/${OCF_RESKEY_container}.lock"
 ## ocf_release_lock_on_exit $LOCKFILE # does not work as I would expect ti too :-( #
 
 
@@ -72,7 +72,7 @@ cat <<END
 <shortdesc lang="en">Manages LXC containers</shortdesc>
 
 <parameters>
-<parameter name="LXC_CNAME" required="1" unique="1">
+<parameter name="container" required="1" unique="1">
 <longdesc lang="en">The unique name for this 'Container Instance' e.g. 'test1'.</longdesc>
 <shortdesc lang="en">Container Name</shortdesc>
 <content type="string" default=""/>
@@ -144,7 +144,7 @@ cgroup_mounted() {
 
 LXC_start() {
 	# put this here as it's so long it gets messy later!!!
-	STARTCMD="screen -dmS ${OCF_RESKEY_LXC_CNAME} lxc-start -f ${OCF_RESKEY_LXC_CF_FILENAME} -n ${OCF_RESKEY_LXC_CNAME}"
+	STARTCMD="screen -dmS ${OCF_RESKEY_container} lxc-start -f ${OCF_RESKEY_LXC_CF_FILENAME} -n ${OCF_RESKEY_container}"
 	cgroup_mounted
 	ret=$?
 	if [ $ret ]; then
@@ -152,19 +152,19 @@ LXC_start() {
 			if ! LXC_monitor ; then
 #				ocf_take_lock $LOCKFILE # does not work as I would expect ti too :-( #
 				if [ -f $LOCKFILE ] ; then
-					ocf_log err "Starting of" ${OCF_RESKEY_LXC_CNAME} "aborted as there is already a lock file!"
+					ocf_log err "Starting of" ${OCF_RESKEY_container} "aborted as there is already a lock file!"
 					ocf_log info "If you are SURE that this resource is not running elswhere, just delete the file" $LOCKFILE
 					exit ${OCF_ERR_GENERIC}
 				else
 					touch $LOCKFILE
 		   			touch $TRANS_RES_STATE
-					ocf_log info "Starting" ${OCF_RESKEY_LXC_CNAME} 
-					cd ${OCF_RESKEY_LXC_BCP}/${OCF_RESKEY_LXC_CNAME}/
+					ocf_log info "Starting" ${OCF_RESKEY_container} 
+					cd ${OCF_RESKEY_LXC_BCP}/${OCF_RESKEY_container}/
 		        		ocf_run ${STARTCMD} || exit $OCF_ERR_GENERIC 
 				fi
 			else
 				# If already running, consider start successful
-				ocf_log debug ${OCF_RESOURCE_INSTANCE}: ${OCF_RESKEY_LXC_CNAME} "is already running"
+				ocf_log debug ${OCF_RESOURCE_INSTANCE}: ${OCF_RESKEY_container} "is already running"
 				return $OCF_SUCCESS
 			fi
 			return $OCF_SUCCESS
@@ -187,8 +187,8 @@ LXC_stop() {
 		typeset -i PID=0
 		lxc-ps -C init -opid |while read CN PID ;do
 			[[ $PID -gt 1 ]] || continue
-			[[ "$CN" = "${OCF_RESKEY_LXC_CNAME}" ]] || continue
-		grep -q 'p0::powerfail:/sbin/init 0' ${OCF_RESKEY_LXC_BRP}/${OCF_RESKEY_LXC_CNAME}/etc/inittab || continue
+			[[ "$CN" = "${OCF_RESKEY_container}" ]] || continue
+		grep -q 'p0::powerfail:/sbin/init 0' ${OCF_RESKEY_LXC_BRP}/${OCF_RESKEY_container}/etc/inittab || continue
 		kill -PWR $PID
 	        if [ -n "$OCF_RESKEY_stop_timeout" ]
 	        then
@@ -205,14 +205,14 @@ LXC_stop() {
 		sleep $stop_timeout 
 		done
 		# If the container is still running, it will be stopped now. regardless of state!
-		lxc-stop -n ${OCF_RESKEY_LXC_CNAME}
+		lxc-stop -n ${OCF_RESKEY_container}
 		if [ -f $LOCKFILE ]; then	
 			rm $LOCKFILE 
 		fi
 		if [ -f $TRANS_RES_STATE ]; then	
 			rm $TRANS_RES_STATE
 		else
-			ocf_log err "Dolt!" ${OCF_RESKEY_LXC_CNAME} "does not seem to be started!"
+			ocf_log err "Dolt!" ${OCF_RESKEY_container} "does not seem to be started!"
 			return ${OCF_ERR_GENERIC}
 		fi
 		return $OCF_SUCCESS
@@ -222,7 +222,7 @@ LXC_stop() {
 }
 
 LXC_monitor() {
-        S=`lxc-info -n ${OCF_RESKEY_LXC_CNAME}`
+        S=`lxc-info -n ${OCF_RESKEY_container}`
 	ocf_log info "$S"
 	if [[ "${S##* }" = "RUNNING" ]] ; then 
 		if [ -f $TRANS_RES_STATE ]; then
@@ -232,7 +232,7 @@ LXC_monitor() {
 		fi
 	else
 		if [ -f $TRANS_RES_STATE ]; then
-			ocf_log err "Dolt!" ${OCF_RESKEY_LXC_CNAME} "should be running!"
+			ocf_log err "Dolt!" ${OCF_RESKEY_container} "should be running!"
 			return $OCF_ERR_GENERIC
 		fi
 			return $OCF_NOT_RUNNING
@@ -242,7 +242,7 @@ LXC_monitor() {
 
 LXC_validate() {
 	# Quick check that all required attributes are set
-	if [ -z "${OCF_RESKEY_LXC_CNAME}" ]; then
+	if [ -z "${OCF_RESKEY_container}" ]; then
 		ocf_log err "LXC container name not set!"
 		exit $OCF_ERR_CONFIGURED
 	fi
@@ -250,8 +250,8 @@ LXC_validate() {
 		ocf_log err "LXC configuration directory not set!"
 		exit $OCF_ERR_CONFIGURED
 	else
-		if ! [ -d "${OCF_RESKEY_LXC_BCP}"/"${OCF_RESKEY_LXC_CNAME}" ]; then
-			ocf_log err "LXC configuration directory "${OCF_RESKEY_LXC_BCP}"/"${OCF_RESKEY_LXC_CNAME}" is not present on this node!"
+		if ! [ -d "${OCF_RESKEY_LXC_BCP}"/"${OCF_RESKEY_container}" ]; then
+			ocf_log err "LXC configuration directory "${OCF_RESKEY_LXC_BCP}"/"${OCF_RESKEY_container}" is not present on this node!"
 			exit $OCF_ERR_INSTALLED
 		fi
 	fi
@@ -259,8 +259,8 @@ LXC_validate() {
 		ocf_log err "LXC container root filesystem directory not set!"
 		exit $OCF_ERR_CONFIGURED
 	else
-		if ! [ -d "${OCF_RESKEY_LXC_BRP}"/"${OCF_RESKEY_LXC_CNAME}" ]; then
-			ocf_log err "LXC container root filesystem directory "${OCF_RESKEY_LXC_BRP}${OCF_RESKEY_LXC_CNAME}" is not present on this node!"
+		if ! [ -d "${OCF_RESKEY_LXC_BRP}"/"${OCF_RESKEY_container}" ]; then
+			ocf_log err "LXC container root filesystem directory "${OCF_RESKEY_LXC_BRP}${OCF_RESKEY_container}" is not present on this node!"
 			exit $OCF_ERR_INSTALLED
 		fi
 	fi
@@ -268,8 +268,8 @@ LXC_validate() {
 		ocf_log err "LXC configuration filename name not set!"
 		exit $OCF_ERR_CONFIGURED
 	else
-		if ! [ -f "${OCF_RESKEY_LXC_BCP}"/"${OCF_RESKEY_LXC_CNAME}"/"${OCF_RESKEY_LXC_CF_FILENAME}" ]; then
-			ocf_log err "LXC configuration file "${OCF_RESKEY_LXC_BCP}"/"${OCF_RESKEY_LXC_CNAME}"/"${OCF_RESKEY_LXC_CF_FILENAME}" missing or not found!"
+		if ! [ -f "${OCF_RESKEY_LXC_BCP}"/"${OCF_RESKEY_container}"/"${OCF_RESKEY_LXC_CF_FILENAME}" ]; then
+			ocf_log err "LXC configuration file "${OCF_RESKEY_LXC_BCP}"/"${OCF_RESKEY_container}"/"${OCF_RESKEY_LXC_CF_FILENAME}" missing or not found!"
 			exit $OCF_ERR_INSTALLED
 		fi
 	fi
