@@ -31,19 +31,16 @@
 
 # OCF instance parameters
 #       OCF_RESKEY_container
-#       OCF_RESKEY_LXC_BCP
 #	OCF_RESKEY_root
-#       OCF_RESKEY_LXC_CF_FILENAME
+#       OCF_RESKEY_config
 #
 # Whilst testing, fix these values so that the OCF can run from command line
 # This does not conform to the guidlines, so each line should be prefixed with "#" in production
 #
 #	OCF_RESKEY_container_default="test1"
-#	OCF_RESKEY_LXC_BCP_default="/etc/lxc"
 #	OCF_RESKEY_root_default="/srv/lxc"
 #	OCF_RESKEY_LXC_CF_FILENAME_default="config"
 #	: ${OCF_RESKEY_container=${OCF_RESKEY_container_default}}
-#	: ${OCF_RESKEY_LXC_BCP=${OCF_RESKEY_LXC_BCP_default}}
 #	: ${OCF_RESKEY_root=${OCF_RESKEY_root_default}}
 #	: ${OCF_RESKEY_LXC_CF_FILENAME=${OCF_RESKEY_LXC_CF_FILENAME_default}}
 #	OCF_ROOT="/usr/lib/ocf"
@@ -73,20 +70,14 @@ cat <<END
 <content type="string" default=""/>
 </parameter>
 
-<parameter name="LXC_BCP" required="1" unique="0">
-<longdesc lang="en">The path to the directories holding each containers configuration files e.g. '/etc/lxc'.</longdesc>
-<shortdesc lang="en">Full path to the config root</shortdesc>
-<content type="string" default=""/>
-</parameter>
-
 <parameter name="root" required="1" unique="0">
 <longdesc lang="en">The path to the directories holding each containers "root" filesystem e.g. '/srv/lxc'.</longdesc>
 <shortdesc lang="en">Full path to the parent containers "root" filesystems</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
-<parameter name="LXC_CF_FILENAME" required="1" unique="0">
-<longdesc lang="en">The file holding the specific configuration for this container e.g. 'config'.</longdesc>
+<parameter name="config" required="1" unique="0">
+<longdesc lang="en">Absolute path to the file holding the specific configuration for this container'.</longdesc>
 <shortdesc lang="en">The LXC config file.</shortdesc>
 <content type="string" default=""/>
 </parameter>
@@ -139,7 +130,7 @@ cgroup_mounted() {
 
 LXC_start() {
 	# put this here as it's so long it gets messy later!!!
-	STARTCMD="screen -dmS ${OCF_RESKEY_container} lxc-start -f ${OCF_RESKEY_LXC_CF_FILENAME} -n ${OCF_RESKEY_container}"
+	STARTCMD="screen -dmS ${OCF_RESKEY_container} lxc-start -f ${OCF_RESKEY_config} -n ${OCF_RESKEY_container}"
 	cgroup_mounted
 	ret=$?
 	if [ $ret ]; then
@@ -147,7 +138,7 @@ LXC_start() {
 			if ! LXC_monitor ; then
 		   	    touch $TRANS_RES_STATE
 			    ocf_log info "Starting" ${OCF_RESKEY_container} 
-			    cd ${OCF_RESKEY_LXC_BCP}/${OCF_RESKEY_container}/
+			    cd "`dirname ${OCF_RESKEY_config`"
 		            ocf_run ${STARTCMD} || exit $OCF_ERR_GENERIC 
 			else
 				# If already running, consider start successful
@@ -230,15 +221,6 @@ LXC_validate() {
 		ocf_log err "LXC container name not set!"
 		exit $OCF_ERR_CONFIGURED
 	fi
-	if [ -z "${OCF_RESKEY_LXC_BCP}" ]; then
-		ocf_log err "LXC configuration directory not set!"
-		exit $OCF_ERR_CONFIGURED
-	else
-		if ! [ -d "${OCF_RESKEY_LXC_BCP}"/"${OCF_RESKEY_container}" ]; then
-			ocf_log err "LXC configuration directory "${OCF_RESKEY_LXC_BCP}"/"${OCF_RESKEY_container}" is not present on this node!"
-			exit $OCF_ERR_INSTALLED
-		fi
-	fi
 	if [ -z "${OCF_RESKEY_root}" ]; then
 		ocf_log err "LXC container root filesystem directory not set!"
 		exit $OCF_ERR_CONFIGURED
@@ -248,12 +230,12 @@ LXC_validate() {
 			exit $OCF_ERR_INSTALLED
 		fi
 	fi
-	if [ -z "${OCF_RESKEY_LXC_CF_FILENAME}" ]; then
+	if [ -z "${OCF_RESKEY_config}" ]; then
 		ocf_log err "LXC configuration filename name not set!"
 		exit $OCF_ERR_CONFIGURED
 	else
-		if ! [ -f "${OCF_RESKEY_LXC_BCP}"/"${OCF_RESKEY_container}"/"${OCF_RESKEY_LXC_CF_FILENAME}" ]; then
-			ocf_log err "LXC configuration file "${OCF_RESKEY_LXC_BCP}"/"${OCF_RESKEY_container}"/"${OCF_RESKEY_LXC_CF_FILENAME}" missing or not found!"
+		if ! [ -f "${OCF_RESKEY_config}" ]; then
+			ocf_log err "LXC configuration file \"${OCF_RESKEY_config}\" missing or not found!"
 			exit $OCF_ERR_INSTALLED
 		fi
 	fi
