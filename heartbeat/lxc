@@ -120,7 +120,6 @@ LXC_start() {
 			if ! LXC_monitor ; then
 		   	    touch $TRANS_RES_STATE
 			    ocf_log info "Starting" ${OCF_RESKEY_container} 
-			    cd "`dirname ${OCF_RESKEY_config`"
 		            ocf_run ${STARTCMD} || exit $OCF_ERR_GENERIC 
 			else
 				# If already running, consider start successful
