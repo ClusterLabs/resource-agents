@@ -31,7 +31,6 @@
 
 # OCF instance parameters
 #       OCF_RESKEY_container
-#	OCF_RESKEY_root
 #       OCF_RESKEY_config
 
 # Initialization:
@@ -54,12 +53,6 @@ cat <<END
 <parameter name="container" required="1" unique="1">
 <longdesc lang="en">The unique name for this 'Container Instance' e.g. 'test1'.</longdesc>
 <shortdesc lang="en">Container Name</shortdesc>
-<content type="string" default=""/>
-</parameter>
-
-<parameter name="root" required="1" unique="0">
-<longdesc lang="en">The path to the directories holding each containers 'root' filesystem e.g. '/srv/lxc'.</longdesc>
-<shortdesc lang="en">Full path to the parent containers "root" filesystems</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
@@ -151,7 +144,6 @@ LXC_stop() {
 		lxc-ps -C init -opid |while read CN PID ;do
 			[[ $PID -gt 1 ]] || continue
 			[[ "$CN" = "${OCF_RESKEY_container}" ]] || continue
-		grep -q 'p0::powerfail:/sbin/init 0' ${OCF_RESKEY_root}/${OCF_RESKEY_container}/etc/inittab || continue
 		kill -PWR $PID
 	        if [ -n "$OCF_RESKEY_stop_timeout" ]
 	        then
@@ -205,15 +197,6 @@ LXC_validate() {
 	if [ -z "${OCF_RESKEY_container}" ]; then
 		ocf_log err "LXC container name not set!"
 		exit $OCF_ERR_CONFIGURED
-	fi
-	if [ -z "${OCF_RESKEY_root}" ]; then
-		ocf_log err "LXC container root filesystem directory not set!"
-		exit $OCF_ERR_CONFIGURED
-	else
-		if ! [ -d "${OCF_RESKEY_root}"/"${OCF_RESKEY_container}" ]; then
-			ocf_log err "LXC container root filesystem directory "${OCF_RESKEY_root}${OCF_RESKEY_container}" is not present on this node!"
-			exit $OCF_ERR_INSTALLED
-		fi
 	fi
 	if [ -z "${OCF_RESKEY_config}" ]; then
 		ocf_log err "LXC configuration filename name not set!"
