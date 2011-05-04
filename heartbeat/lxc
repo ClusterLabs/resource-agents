@@ -142,12 +142,23 @@ LXC_stop() {
 	cgroup_mounted
 	ret=$?
 	if [ $ret ]; then
-		# If the container is running "init" and is able to perform and orderly shutdown, then it should be done. 
+		# If the container is running "init" and is able to perform and orderly shutdown, then it should be done.
+		# It is 'assumed' that the 'init' system will do an orderly shudown if presented with a 'kill -PWR' signal.
+		# On a 'sysvinit' this would require the container to have an inittab file containing "p0::powerfail:/sbin/init 0"
+		# I have absolutly no idea how this is done with 'upstart' or 'systemd', YMMV if your container is using one of them.
 		typeset -i PID=0
+		# This should work for traditional 'sysvinit' and 'upstart'
 		lxc-ps -C init -opid |while read CN PID ;do
 			[[ $PID -gt 1 ]] || continue
 			[[ "$CN" = "${OCF_RESKEY_container}" ]] || continue
-		kill -PWR $PID
+			kill -PWR $PID
+		done
+		# This should work for containers using 'systemd' instead of 'init'
+		lxc-ps -C systemd -opid |while read CN PID ;do
+			[[ $PID -gt 1 ]] || continue
+			[[ "$CN" = "${OCF_RESKEY_LXC_CNAME}" ]] || continue
+			kill -PWR $PID
+		done
 	        if [ -n "$OCF_RESKEY_stop_timeout" ]
 	        then
 	                # Allow 2/3 of the stop timeout for the orderly shutdown
@@ -161,7 +172,6 @@ LXC_stop() {
 	                stop_timeout=10
 	        fi
 		sleep $stop_timeout 
-		done
 		# If the container is still running, it will be stopped now. regardless of state!
 		lxc-stop -n ${OCF_RESKEY_container}
 		if [ -f $TRANS_RES_STATE ]; then	
