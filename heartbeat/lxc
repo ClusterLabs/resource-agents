@@ -156,7 +156,7 @@ LXC_stop() {
 		# This should work for containers using 'systemd' instead of 'init'
 		lxc-ps -C systemd -opid |while read CN PID ;do
 			[[ $PID -gt 1 ]] || continue
-			[[ "$CN" = "${OCF_RESKEY_LXC_CNAME}" ]] || continue
+			[[ "$CN" = "${OCF_RESKEY_container}" ]] || continue
 			kill -PWR $PID
 		done
 	        if [ -n "$OCF_RESKEY_stop_timeout" ]
