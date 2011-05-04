@@ -86,7 +86,7 @@ END
 
 LXC_usage() {
 	cat <<END
-	usage: $0 {start|stop|monitor|migrate_to|migrate_from|validate-all|meta-data}
+	usage: $0 {start|stop|monitor|reload|validate-all|meta-data}
 
 	Expects to have a fully populated OCF RA-compliant environment set.
 END
