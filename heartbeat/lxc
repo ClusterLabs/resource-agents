@@ -47,7 +47,7 @@ cat <<END
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="lxc" version="0.1">
 <version>0.1</version>
-<longdesc lang="en">This is derived from the generic OCF RA, to manage LXC containers. It allow LXC continers to be managed by the cluster</longdesc>
+<longdesc lang="en">Allows LXC continers to be managed by the cluster</longdesc>
 <shortdesc lang="en">Manages LXC containers</shortdesc>
 
 <parameters>
@@ -58,13 +58,13 @@ cat <<END
 </parameter>
 
 <parameter name="root" required="1" unique="0">
-<longdesc lang="en">The path to the directories holding each containers "root" filesystem e.g. '/srv/lxc'.</longdesc>
+<longdesc lang="en">The path to the directories holding each containers 'root' filesystem e.g. '/srv/lxc'.</longdesc>
 <shortdesc lang="en">Full path to the parent containers "root" filesystems</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
 <parameter name="config" required="1" unique="0">
-<longdesc lang="en">Absolute path to the file holding the specific configuration for this container'.</longdesc>
+<longdesc lang="en">Absolute path to the file holding the specific configuration for this container e.g. '/etc/lxc/test1/config'.</longdesc>
 <shortdesc lang="en">The LXC config file.</shortdesc>
 <content type="string" default=""/>
 </parameter>
