@@ -151,12 +151,14 @@ LXC_stop() {
 		lxc-ps -C init -opid |while read CN PID ;do
 			[[ $PID -gt 1 ]] || continue
 			[[ "$CN" = "${OCF_RESKEY_container}" ]] || continue
+			ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_container} "as it was found to be using \"sysV init\" or \"upstart\""
 			kill -PWR $PID
 		done
 		# This should work for containers using 'systemd' instead of 'init'
 		lxc-ps -C systemd -opid |while read CN PID ;do
 			[[ $PID -gt 1 ]] || continue
 			[[ "$CN" = "${OCF_RESKEY_container}" ]] || continue
+			ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_container} "as it was found to be using \"systemd\""
 			kill -PWR $PID
 		done
 	        if [ -n "$OCF_RESKEY_stop_timeout" ]
@@ -174,6 +176,7 @@ LXC_stop() {
 		sleep $stop_timeout 
 		# If the container is still running, it will be stopped now. regardless of state!
 		lxc-stop -n ${OCF_RESKEY_container}
+		ocf_log info "Container" ${OCF_RESKEY_container} "stopped"
 		if [ -f $TRANS_RES_STATE ]; then	
 			rm $TRANS_RES_STATE
 		else
