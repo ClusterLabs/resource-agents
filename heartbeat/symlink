@@ -34,7 +34,7 @@
 #######################################################################
 
 meta_data() {
-	cat <<END
+        cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="symlink">
@@ -113,27 +113,27 @@ symlink_monitor() {
     # Using ls here instead of "test -e", as "test -e" returns false
     # if the file does exist, but it a symlink to a file that doesn't
     if ! ls "$OCF_RESKEY_link" >/dev/null 2>&1; then
-	ocf_log debug "$OCF_RESKEY_link does not exist"
-	rc=$OCF_NOT_RUNNING
+        ocf_log debug "$OCF_RESKEY_link does not exist"
+        rc=$OCF_NOT_RUNNING
     elif [ ! -L  "$OCF_RESKEY_link" ]; then
-	if [ -z "$OCF_RESKEY_backup_suffix" ]; then
-	    ocf_log err "$OCF_RESKEY_link exists but is not a symbolic link!"
-	    exit $OCF_ERR_INSTALLED
-	else
-	    ocf_log debug "$OCF_RESKEY_link exists but is not a symbolic link, will be moved to ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix} on start"
-	    rc=$OCF_NOT_RUNNING
-	fi
+        if [ -z "$OCF_RESKEY_backup_suffix" ]; then
+            ocf_log err "$OCF_RESKEY_link exists but is not a symbolic link!"
+            exit $OCF_ERR_INSTALLED
+        else
+            ocf_log debug "$OCF_RESKEY_link exists but is not a symbolic link, will be moved to ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix} on start"
+            rc=$OCF_NOT_RUNNING
+        fi
     elif readlink -f "$OCF_RESKEY_link" | egrep -q "^${OCF_RESKEY_target}$"; then
-	ocf_log debug "$OCF_RESKEY_link exists and is a symbolic link to ${OCF_RESKEY_target}."
+        ocf_log debug "$OCF_RESKEY_link exists and is a symbolic link to ${OCF_RESKEY_target}."
         rc=$OCF_SUCCESS
     else
-	if [ -z "$OCF_RESKEY_backup_suffix" ]; then
-	    ocf_log err "$OCF_RESKEY_link does not point to ${OCF_RESKEY_target}!"
-	    exit $OCF_ERR_INSTALLED
-	else
-	    ocf_log debug "$OCF_RESKEY_link does not point to ${OCF_RESKEY_target}, will be moved to ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix} on start"
-	    rc=$OCF_NOT_RUNNING
-	fi
+        if [ -z "$OCF_RESKEY_backup_suffix" ]; then
+            ocf_log err "$OCF_RESKEY_link does not point to ${OCF_RESKEY_target}!"
+            exit $OCF_ERR_INSTALLED
+        else
+            ocf_log debug "$OCF_RESKEY_link does not point to ${OCF_RESKEY_target}, will be moved to ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix} on start"
+            rc=$OCF_NOT_RUNNING
+        fi
     fi
     return $rc
 }
@@ -141,18 +141,18 @@ symlink_monitor() {
 symlink_start() {
     if ! symlink_monitor; then
         if [ -e "$OCF_RESKEY_link" ]; then
-	    if [ -z "$OCF_RESKEY_backup_suffix" ]; then
-		# Shouldn't happen, because symlink_monitor should
-		# have errored out. But there is a chance that
-		# something else put that file there after
-		# symlink_monitor ran.
-		ocf_log err "$OCF_RESKEY_link exists and no backup_suffix is set, won't overwrite."
-		exit $OCF_ERR_GENERIC
-	    else
-		ocf_log debug "Found $OCF_RESKEY_link, moving to ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix}"
-		ocf_run mv -v "$OCF_RESKEY_link" "${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix}" \
-		    || exit $OCF_ERR_GENERIC
-	    fi
+            if [ -z "$OCF_RESKEY_backup_suffix" ]; then
+                # Shouldn't happen, because symlink_monitor should
+                # have errored out. But there is a chance that
+                # something else put that file there after
+                # symlink_monitor ran.
+                ocf_log err "$OCF_RESKEY_link exists and no backup_suffix is set, won't overwrite."
+                exit $OCF_ERR_GENERIC
+            else
+                ocf_log debug "Found $OCF_RESKEY_link, moving to ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix}"
+                ocf_run mv -v "$OCF_RESKEY_link" "${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix}" \
+                    || exit $OCF_ERR_GENERIC
+            fi
         fi
         ocf_run ln -sv "$OCF_RESKEY_target" "$OCF_RESKEY_link"
         symlink_monitor
@@ -168,8 +168,8 @@ symlink_stop() {
         if ! symlink_monitor; then
             if [ -e "${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix}" ]; then
                 ocf_log debug "Found backup ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix}, moving to $OCF_RESKEY_link"
-		# if restoring the backup fails then still return with
-		# $OCF_SUCCESS, but log a warning
+                # if restoring the backup fails then still return with
+                # $OCF_SUCCESS, but log a warning
                 ocf_run -warn mv "${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix}" "$OCF_RESKEY_link"
             fi
             return $OCF_SUCCESS
@@ -197,7 +197,7 @@ symlink_validate_all() {
     # still doesn't hurt to warn people if the target does not exist
     # (but only during non-probes).
     if [ ! -e "${OCF_RESKEY_target}" ]; then
-	ocf_log warn "${OCF_RESKEY_target} does not exist!"
+        ocf_log warn "${OCF_RESKEY_target} does not exist!"
     fi
 }
 
@@ -209,18 +209,18 @@ EOF
 }
 
 if [ $# -ne 1 ]; then
-	symlink_usage
-	exit $OCF_ERR_ARGS
+        symlink_usage
+        exit $OCF_ERR_ARGS
 fi
 
 case $__OCF_ACTION in
 meta-data)
-	meta_data
-	exit $OCF_SUCCESS
-	;;
+        meta_data
+        exit $OCF_SUCCESS
+        ;;
 usage)
-	symlink_usage
-	exit $OCF_SUCCESS
+        symlink_usage
+        exit $OCF_SUCCESS
 esac
 
 # Everything except usage and meta-data must pass the validate test
@@ -228,18 +228,18 @@ symlink_validate_all || exit
 
 case $__OCF_ACTION in
 start)
-	symlink_start
-	;;
+        symlink_start
+        ;;
 stop)
-	symlink_stop
-	;;
+        symlink_stop
+        ;;
 status|monitor)
-	symlink_monitor
-	;;
+        symlink_monitor
+        ;;
 validate-all)
-	;;
+        ;;
 *)
-	symlink_usage
-	exit $OCF_ERR_UNIMPLEMENTED
+        symlink_usage
+        exit $OCF_ERR_UNIMPLEMENTED
 esac
 # exit code is the exit code (return code) of the last command (shell function)
