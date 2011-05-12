@@ -17,9 +17,10 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
 
-MAINTAINERCLEANFILES    = Makefile.in aclocal.m4 configure DRF/config-h.in \
+MAINTAINERCLEANFILES	= Makefile.in aclocal.m4 configure DRF/config-h.in \
 			  missing install-sh autoscan.log configure.scan \
-                          DRF/stamp-h.in libtool.m4 ltdl.m4 libltdl.tar
+			  DRF/stamp-h.in libtool.m4 ltdl.m4 libltdl.tar \
+			  compile config.guess config.sub depcomp
 
 SPEC			= $(PACKAGE_NAME).spec
 
