@@ -31,10 +31,16 @@ SUBDIRS =
 
 if BUILD_RGMANAGER
 SUBDIRS += rgmanager
+RGMANAGER = without
+else
+RGMANAGER = with
 endif
 
 if BUILD_LINUX_HA
 SUBDIRS	+= include heartbeat tools ldirectord doc
+LINUX_HA = without
+else
+LINUX_HA = with
 endif
 
 EXTRA_DIST		= autogen.sh .version make/release.mk \
@@ -109,6 +115,8 @@ $(SPEC): $(SPEC).in
 			-e "s#%glo.*numcomm.*##g" \
 			-e "s#@dirty@#$$dirty#g" \
 			-e "s#@date@#$$date#g" \
+			-e "s#@rgmanager@#$(RGMANAGER)#g" \
+			-e "s#@linux-ha@#$(LINUX_HA)#g" \
 		$< > $@-t; \
 	else \
 		sed \
@@ -117,6 +125,8 @@ $(SPEC): $(SPEC).in
 			-e "s#@numcomm@#$$numcomm#g" \
 			-e "s#@dirty@#$$dirty#g" \
 			-e "s#@date@#$$date#g" \
+			-e "s#@rgmanager@#$(RGMANAGER)#g" \
+			-e "s#@linux-ha@#$(LINUX_HA)#g" \
 		$< > $@-t; \
 	fi; \
 	if [ -z "$$dirty" ]; then sed -i -e "s#%glo.*dirty.*##g" $@-t; fi
