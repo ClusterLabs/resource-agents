@@ -50,6 +50,9 @@ if BUILD_LINUX_HA
 	$(LN_S) ../../lib/heartbeat/ocf-shellfuncs $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-shellfuncs
 endif
 if BUILD_RGMANAGER
+if BUILD_LINUX_HA
+	$(LN_S) ${CLUSTERDATA} $(DESTDIR)${OCF_RA_DIR_PREFIX}/redhat
+endif
 	$(INSTALL) -d $(DESTDIR)/$(LOGDIR)
 endif
 

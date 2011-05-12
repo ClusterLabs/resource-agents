@@ -192,10 +192,6 @@ test -d %{buildroot}/sbin || mkdir %{buildroot}/sbin
 ) || true
 %endif
 
-# symlink to allow pacemaker to use rgmanager RAs (this should really come from automake!)
-cd %{buildroot}/usr/lib/ocf/resource.d/ && \
- ln -sf %{_datadir}/cluster/ redhat
-
 %clean
 rm -rf %{buildroot}
 
