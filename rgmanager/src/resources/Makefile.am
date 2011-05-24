@@ -41,11 +41,17 @@ HELPERS			= ocf-shellfuncs svclib_nfslock \
 
 DTD			= ra-api-1-modified.dtd
 
+XSL			= ra2man.xsl ra2ref.xsl ra2rng.xsl
+
+RESRNG			= resources.rng.head resources.rng.mid resources.rng.tail
+
 EXTRA_DIST		= $(TARGET:=.in) \
 			  $(RESOURCES) \
 			  $(METADATA) \
 			  $(HELPERS) \
-			  $(DTD)
+			  $(DTD) \
+			  $(XSL) \
+			  $(RESRNG)
 
 rasdir			= ${CLUSTERDATA}
 
