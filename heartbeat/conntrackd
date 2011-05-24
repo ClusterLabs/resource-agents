@@ -78,8 +78,8 @@ For example "/packages/conntrackd-0.9.14/etc/conntrackd/conntrackd.conf"</longde
 <action name="demote"	timeout="30" />
 <action name="notify"	timeout="30" />
 <action name="stop"    timeout="30" />
-<action name="monitor" depth="0"  timeout="20" interval="20" role="Slave" />
-<action name="monitor" depth="0"  timeout="20" interval="10" role="Master" />
+<action name="monitor" timeout="20" interval="20" role="Slave" />
+<action name="monitor" timeout="20" interval="10" role="Master" />
 <action name="meta-data"  timeout="5" />
 <action name="validate-all"  timeout="30" />
 </actions>

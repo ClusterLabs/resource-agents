@@ -26,10 +26,13 @@ commonscripts		= fs-lib.sh \
 			  messages.sh \
 			  named-parse-config.pl \
 			  ra-skelet.sh \
-			  tomcat-parse-config.pl
+			  tomcat-parse-config.pl \
+			  rhev-check.sh
 
 EXTRA_DIST		= $(commonscripts) \
 			  $(TARGET).in
+
+sbin_SCRIPTS		= rhev-check.sh
 
 rasutilsdir		= ${CLUSTERDATA}/utils
 

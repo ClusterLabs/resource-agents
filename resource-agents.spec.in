@@ -9,10 +9,6 @@
 # published by the Open Source Initiative.
 #
 
-# TODO
-# add conditionals to enable/disable ras_set based on configure invokation
-# set the defaults and allow overrides via --with...
-
 %global alphatag @alphatag@
 %global numcomm @numcomm@
 %global dirty @dirty@
@@ -28,6 +24,10 @@
 %else
 %global SSLeay perl-Net-SSLeay
 %endif
+
+# determine the ras-set to process based on configure invokation
+%bcond_@rgmanager@ rgmanager
+%bcond_@linux-ha@ linuxha
 
 Name:		resource-agents
 Summary:	Open Source HA Reusable Cluster Resource Scripts
@@ -73,6 +73,7 @@ A set of scripts to interface with several services to operate in a
 High Availability environment for both Pacemaker and rgmanager
 service managers.
 
+%if %{with linuxha}
 %if 0%{?rhel} == 0
 %package -n ldirectord
 License:	GPLv2+
@@ -102,6 +103,7 @@ lditrecord is simple to install and works with the heartbeat code
 (http://www.linux-ha.org/).
 
 See 'ldirectord -h' and linux-ha/doc/ldirectord for more information.
+%endif
 %endif
 
 ## Setup/build bits
@@ -151,12 +153,23 @@ CFLAGS="${CFLAGS} ${RPM_OPT_FLAGS}"
 %global jflags "%{?jobs:-j%jobs}"
 %endif
 
+%if %{with rgmanager}
+%global rasset rgmanager
+%endif
+%if %{with linuxha}
+%global rasset linux-ha
+%endif
+%if %{with rgmanager} && %{with linuxha}
+%global rasset all
+%endif
+
 export CFLAGS
 
 %configure \
 	%{conf_opt_rsctmpdir} \
 	%{conf_opt_fatal} \
-	--with-pkg-name=%{name}
+	--with-pkg-name=%{name} \
+	--with-ras-set=%{rasset}
 
 make %{jflags}
 
@@ -165,19 +178,10 @@ rm -rf %{buildroot}
 make install DESTDIR=%{buildroot}
 
 ## tree fixup
-
-# fix script permissions (this should really come from automake!)
-find %{buildroot} -type f -name 'ocf-*' -exec chmod 644 {} \;
-find %{buildroot} -type f -name '*.dtd' -exec chmod 644 {} \;
-chmod 755 %{buildroot}/%{_datadir}/cluster/ocf-shellfuncs
-
-# fix binary permission (this should really come from automake!)
-chmod 755 %{buildroot}/%{_sbindir}/ocf-tester
-chmod 755 %{buildroot}/%{_sbindir}/ocft
-
 # remove docs (there is only one and they should come from doc sections in files)
 rm -rf %{buildroot}/usr/share/doc/resource-agents
 
+%if %{with linuxha}
 %if 0%{?rhel} != 0
 # ldirectord isn't included on RHEL
 find %{buildroot} -name 'ldirectord.*' -exec rm -f {} \;
@@ -191,10 +195,7 @@ test -d %{buildroot}/sbin || mkdir %{buildroot}/sbin
   ln -sf /%{_sysconfdir}/init.d/ldirectord rcldirectord 
 ) || true
 %endif
-
-# symlink to allow pacemaker to use rgmanager RAs (this should really come from automake!)
-cd %{buildroot}/usr/lib/ocf/resource.d/ && \
- ln -sf %{_datadir}/cluster/ redhat
+%endif
 
 %clean
 rm -rf %{buildroot}
@@ -202,11 +203,17 @@ rm -rf %{buildroot}
 %files
 %defattr(-,root,root)
 %doc AUTHORS COPYING COPYING.GPLv3 ChangeLog ChangeLog.devel
+%if %{with linuxha}
 %doc doc/README.webapps
 %doc %{_datadir}/%{name}/ra-api-1.dtd
+%endif
 
+%if %{with rgmanager}
 %{_datadir}/cluster
+%{_sbindir}/rhev-check.sh
+%endif
 
+%if %{with linuxha}
 %dir /usr/lib/ocf
 %dir /usr/lib/ocf/resource.d
 %dir /usr/lib/ocf/lib
@@ -214,7 +221,9 @@ rm -rf %{buildroot}
 /usr/lib/ocf/lib/heartbeat
 
 /usr/lib/ocf/resource.d/heartbeat
+%if %{with rgmanager}
 /usr/lib/ocf/resource.d/redhat
+%endif
 
 %dir %{_datadir}/%{name}
 %dir %{_datadir}/%{name}/ocft
@@ -280,6 +289,7 @@ rm -rf %{buildroot}
 %endif
 %if 0%{?fedora}
 /usr/lib/ocf/resource.d/heartbeat/ldirectord
+%endif
 %endif
 %endif
 

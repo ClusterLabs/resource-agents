@@ -1,0 +1,245 @@
+#!/bin/sh
+#
+#
+#   An OCF RA that manages a symlink
+#
+# Copyright (c) 2011 Dominik Klein
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+
+meta_data() {
+        cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="symlink">
+<version>1.1</version>
+
+<longdesc lang="en">
+This resource agent that manages a symbolic link (symlink).
+
+It is primarily intended to manage configuration files which should be
+enabled or disabled based on where the resource is running, such as
+cron job definitions and the like.
+</longdesc>
+<shortdesc lang="en">Manages a symbolic link</shortdesc>
+<parameters>
+<parameter name="link" required="1">
+<longdesc lang="en">
+Full path of the symbolic link to be managed. This must obviously be
+in a filesystem that supports symbolic links.
+</longdesc>
+<shortdesc lang="en">Full path of the symlink</shortdesc>
+<content type="string"/>
+</parameter>
+<parameter name="target" required="1">
+<longdesc lang="en">
+Full path to the link target (the file or directory which the symlink points to).
+</longdesc>
+<shortdesc lang="en">Full path to the link target</shortdesc>
+<content type="string" />
+</parameter>
+<parameter name="backup_suffix">
+<longdesc lang="en">
+A suffix to append to any files that the resource agent moves out of
+the way because they clash with "link".
+
+If this is unset (the default), then the resource agent will simply
+refuse to create a symlink if it clashes with an existing file.
+</longdesc>
+<shortdesc lang="en">Suffix to append to backup files</shortdesc>
+<content type="string" />
+</parameter>
+</parameters>
+<actions>
+<action name="start"   timeout="15" />
+<action name="stop"    timeout="15" />
+<action name="monitor" depth="0"  timeout="15" interval="60"/>
+<action name="meta-data"  timeout="5" />
+<action name="validate-all"  timeout="10" />
+</actions>
+</resource-agent>
+END
+}
+
+symlink_monitor() {
+    # This applies the following logic:
+    #
+    # * If $OCF_RESKEY_link does not exist, then the resource is
+    #   definitely stopped.
+    #
+    # * If $OCF_RESKEY_link exists and is a symlink that points to
+    #   ${OCF_RESKEY_target}, then the resource is definitely started.
+    #
+    # * If $OCF_RESKEY_link exists, but is anything other than a
+    #   symlink to ${OCF_RESKEY_target}, then the status depends on whether
+    #   ${OCF_RESKEY_backup_suffix} is set:
+    #
+    #   - if ${OCF_RESKEY_backup_suffix} is set, then the resource is
+    #     simply not running. The existing file will be moved out of
+    #     the way, to ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix},
+    #     when the resource starts.
+    #
+    #   - if ${OCF_RESKEY_backup_suffix} is not set, then an existing
+    #     file ${OCF_RESKEY_link} is an error condition, and the
+    #     resource can't start here.
+    rc=$OCF_ERR_GENERIC
+
+    # Using ls here instead of "test -e", as "test -e" returns false
+    # if the file does exist, but it a symlink to a file that doesn't
+    if ! ls "$OCF_RESKEY_link" >/dev/null 2>&1; then
+        ocf_log debug "$OCF_RESKEY_link does not exist"
+        rc=$OCF_NOT_RUNNING
+    elif [ ! -L  "$OCF_RESKEY_link" ]; then
+        if [ -z "$OCF_RESKEY_backup_suffix" ]; then
+            ocf_log err "$OCF_RESKEY_link exists but is not a symbolic link!"
+            exit $OCF_ERR_INSTALLED
+        else
+            ocf_log debug "$OCF_RESKEY_link exists but is not a symbolic link, will be moved to ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix} on start"
+            rc=$OCF_NOT_RUNNING
+        fi
+    elif readlink -f "$OCF_RESKEY_link" | egrep -q "^${OCF_RESKEY_target}$"; then
+        ocf_log debug "$OCF_RESKEY_link exists and is a symbolic link to ${OCF_RESKEY_target}."
+        rc=$OCF_SUCCESS
+    else
+        if [ -z "$OCF_RESKEY_backup_suffix" ]; then
+            ocf_log err "$OCF_RESKEY_link does not point to ${OCF_RESKEY_target}!"
+            exit $OCF_ERR_INSTALLED
+        else
+            ocf_log debug "$OCF_RESKEY_link does not point to ${OCF_RESKEY_target}, will be moved to ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix} on start"
+            rc=$OCF_NOT_RUNNING
+        fi
+    fi
+    return $rc
+}
+
+symlink_start() {
+    if ! symlink_monitor; then
+        if [ -e "$OCF_RESKEY_link" ]; then
+            if [ -z "$OCF_RESKEY_backup_suffix" ]; then
+                # Shouldn't happen, because symlink_monitor should
+                # have errored out. But there is a chance that
+                # something else put that file there after
+                # symlink_monitor ran.
+                ocf_log err "$OCF_RESKEY_link exists and no backup_suffix is set, won't overwrite."
+                exit $OCF_ERR_GENERIC
+            else
+                ocf_log debug "Found $OCF_RESKEY_link, moving to ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix}"
+                ocf_run mv -v "$OCF_RESKEY_link" "${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix}" \
+                    || exit $OCF_ERR_GENERIC
+            fi
+        fi
+        ocf_run ln -sv "$OCF_RESKEY_target" "$OCF_RESKEY_link"
+        symlink_monitor
+        return $?
+    else
+        return $OCF_SUCCESS
+    fi
+}
+
+symlink_stop() {
+    if symlink_monitor; then   
+        ocf_run rm -vf "$OCF_RESKEY_link" || exit $OCF_ERR_GENERIC
+        if ! symlink_monitor; then
+            if [ -e "${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix}" ]; then
+                ocf_log debug "Found backup ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix}, moving to $OCF_RESKEY_link"
+                # if restoring the backup fails then still return with
+                # $OCF_SUCCESS, but log a warning
+                ocf_run -warn mv "${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix}" "$OCF_RESKEY_link"
+            fi
+            return $OCF_SUCCESS
+        else
+            ocf_log err "Removing $OCF_RESKEY_link failed."
+            return $OCF_ERR_GENERIC
+        fi
+    else
+        return $OCF_SUCCESS
+    fi
+}
+
+symlink_validate_all() {
+    if [ "x${OCF_RESKEY_link}" = "x" ]; then
+        ocf_log err "Mandatory parameter link is unset"
+        exit $OCF_ERR_CONFIGURED
+    fi
+    if [ "x${OCF_RESKEY_target}" = "x" ]; then
+        ocf_log err "Mandatory parameter target is unset"
+        exit $OCF_ERR_CONFIGURED
+    fi
+
+    # Having a non-existant target is technically not an error, as
+    # symlinks are allowed to point to non-existant paths. But it
+    # still doesn't hurt to warn people if the target does not exist
+    # (but only during non-probes).
+    if [ ! -e "${OCF_RESKEY_target}" ]; then
+        ocf_log warn "${OCF_RESKEY_target} does not exist!"
+    fi
+}
+
+symlink_usage() {
+        cat <<EOF
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+Expects to have a fully populated OCF RA-compliant environment set.
+EOF
+}
+
+if [ $# -ne 1 ]; then
+        symlink_usage
+        exit $OCF_ERR_ARGS
+fi
+
+case $__OCF_ACTION in
+meta-data)
+        meta_data
+        exit $OCF_SUCCESS
+        ;;
+usage)
+        symlink_usage
+        exit $OCF_SUCCESS
+esac
+
+# Everything except usage and meta-data must pass the validate test
+symlink_validate_all || exit
+
+case $__OCF_ACTION in
+start)
+        symlink_start
+        ;;
+stop)
+        symlink_stop
+        ;;
+status|monitor)
+        symlink_monitor
+        ;;
+validate-all)
+        ;;
+*)
+        symlink_usage
+        exit $OCF_ERR_UNIMPLEMENTED
+esac
+# exit code is the exit code (return code) of the last command (shell function)
