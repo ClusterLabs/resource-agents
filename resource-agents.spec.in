@@ -210,6 +210,7 @@ rm -rf %{buildroot}
 
 %if %{with rgmanager}
 %{_datadir}/cluster
+%{_sbindir}/rhev-check.sh
 %endif
 
 %if %{with linuxha}
