@@ -237,8 +237,8 @@ postfix_validate_all()
     # this is required because "postfix check" does not catch all errors
     queue_dir=`postconf $OPTION_CONFIG_DIR -h queue_directory 2>/dev/null`
     data_dir=`postconf $OPTION_CONFIG_DIR -h data_directory 2>/dev/null`
-    for dir in $queue_dir $data_dir; do
-        if [ ! -d "$queue_dir" ]; then
+    for dir in "$queue_dir" "$data_dir"; do
+        if [ ! -d "$dir" ]; then
             ocf_log err "Postfix directory '$queue_dir' does not exist." $ret
             return $OCF_ERR_GENERIC
         fi
@@ -246,9 +246,9 @@ postfix_validate_all()
 
     # check permissions
     user=`postconf $OPTION_CONFIG_DIR -h mail_owner 2>/dev/null`
-    for dir in $data_dir; do
+    for dir in "$data_dir"; do
         if ! su -s /bin/sh - $user -c "test -w $dir"; then
-            ocf_log err "Directory $dir is not writable by user '$user'."
+            ocf_log err "Directory '$dir' is not writable by user '$user'."
             exit $OCF_ERR_PERM;
         fi
     done
