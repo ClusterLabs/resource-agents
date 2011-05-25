@@ -214,10 +214,7 @@ postfix_monitor()
 postfix_validate_all()
 {
     # check that the Postfix binary exists and can be executed
-    if [ ! -x "$binary" ]; then
-        ocf_log err "Postfix binary '$binary' does not exist or cannot be executed."
-        return $OCF_ERR_GENERIC
-    fi
+    check_binary "$binary"
 
     # check config_dir and alternate_config_directories parameter
     if [ "x$config_dir" != "x" ]; then
