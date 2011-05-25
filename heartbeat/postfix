@@ -187,7 +187,12 @@ postfix_stop()
 
         $binary $OPTIONS abort >/dev/null 2>&1; ret=$?
         sleep 5
-        postfix_status && return $OCF_ERR_GENERIC
+
+        # postfix abort did not succeed
+        if postfix_status; then
+            ocf_log err "Postfix failed to abort."
+            return $OCF_ERR_GENERIC
+        fi
     fi
 
     ocf_log info "Postfix stopped."
