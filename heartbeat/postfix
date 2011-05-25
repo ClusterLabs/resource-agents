@@ -187,7 +187,7 @@ postfix_stop()
 
         $binary $OPTIONS abort >/dev/null 2>&1; ret=$?
         sleep 5
-        postfix_status && $OCF_ERR_GENERIC
+        postfix_status && return $OCF_ERR_GENERIC
     fi
 
     ocf_log info "Postfix stopped."
@@ -220,13 +220,13 @@ postfix_validate_all()
     if [ "x$config_dir" != "x" ]; then
         if [ ! -d "$config_dir" ]; then
             ocf_log err "Postfix configuration directory '$config_dir' does not exist." $ret
-            return $OCF_ERR_GENERIC
+            return $OCF_ERR_INSTALLED
         fi
 
         alternate_config_directories=`postconf -h alternate_config_directories 2>/dev/null | grep "$config_dir/\?"`
         if [ "x$alternate_config_directories" = "x" ]; then
             ocf_log err "Postfix main configuration must contain correct 'alternate_config_directories' parameter."
-            return $OCF_ERR_GENERIC
+            return $OCF_ERR_INSTALLED
         fi
     fi
 
@@ -237,7 +237,7 @@ postfix_validate_all()
     for dir in "$queue_dir" "$data_dir"; do
         if [ ! -d "$dir" ]; then
             ocf_log err "Postfix directory '$queue_dir' does not exist." $ret
-            return $OCF_ERR_GENERIC
+            return $OCF_ERR_INSTALLED
         fi
     done
 
