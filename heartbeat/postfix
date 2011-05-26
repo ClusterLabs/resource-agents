@@ -18,17 +18,6 @@
 #
 #       The "stop" arg stops it.
 #
-#
-# Test via
-# * /usr/sbin/ocf-tester -n post1 /usr/lib/ocf/resource.d/heartbeat/postfix; echo $?
-# * /usr/sbin/ocf-tester -n post2 -o binary="/usr/sbin/postfix" \
-#       -o config_dir="" /usr/lib/ocf/resource.d/heartbeat/postfix; echo $?
-# * /usr/sbin/ocf-tester -n post3 -o binary="/usr/sbin/postfix" \
-#       -o config_dir="/etc/postfix" /usr/lib/ocf/resource.d/heartbeat/postfix; echo $?
-# * /usr/sbin/ocf-tester -n post4 -o binary="/usr/sbin/postfix" \
-#       -o config_dir="/root/postfix/" /usr/lib/ocf/resource.d/heartbeat/postfix; echo $?
-#
-#
 # OCF parameters:
 #  OCF_RESKEY_binary
 #  OCF_RESKEY_config_dir
