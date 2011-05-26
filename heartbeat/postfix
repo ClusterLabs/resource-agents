@@ -138,7 +138,6 @@ postfix_start()
     sleep 2
 
     # initial monitoring action
-    OCF_CHECK_LEVEL=10
     running
     ret=$?
     if [ $ret -ne $OCF_SUCCESS ]; then
