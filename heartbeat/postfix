@@ -5,10 +5,6 @@
 # Description:  Manages Postfix as an OCF resource in
 #               an high-availability setup.
 #
-#               Originally tested with Postfix 2.5.5 on Debian 5.0.
-#               Enhancements tested with Postfix 2.7.1 on Debian 6.0.
-#               Based on the mysql-proxy and mysql OCF resource agents.
-#
 # Author:       Raoul Bhatia <r.bhatia@ipax.at> : Original Author
 # License:      GNU General Public License (GPL)
 # Note:         If you want to run multiple Postfix instances, please see
