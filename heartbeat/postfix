@@ -140,8 +140,8 @@ postfix_start()
     # initial monitoring action
     OCF_CHECK_LEVEL=10
     running
-    rc=$?
-    if [ $ret != $OCF_SUCCESS ]; then
+    ret=$?
+    if [ $ret -ne $OCF_SUCCESS ]; then
         ocf_log err "Postfix failed initial monitor action." $ret
         return $OCF_ERR_GENERIC
     fi
@@ -265,8 +265,8 @@ postfix_validate_all()
     # initial monitoring action
     OCF_CHECK_LEVEL=10
     running
-    rc=$?
-    if [ $ret != $OCF_SUCCESS ]; then
+    ret=$?
+    if [ $ret -ne $OCF_SUCCESS ]; then
         ocf_log err "Postfix failed initial monitor action." $ret
         return $OCF_ERR_GENERIC
     fi
