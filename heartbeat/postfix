@@ -259,19 +259,6 @@ postfix_validate_all()
         return $OCF_ERR_GENERIC
     fi
 
-    # grant some time for startup/forking the sub processes
-    sleep 2
-
-    # initial monitoring action
-    OCF_CHECK_LEVEL=10
-    running
-    ret=$?
-    if [ $ret -ne $OCF_SUCCESS ]; then
-        ocf_log err "Postfix failed initial monitor action." $ret
-        return $OCF_ERR_GENERIC
-    fi
-
-    ocf_log info "Postfix started."
     return $OCF_SUCCESS
 }
 
