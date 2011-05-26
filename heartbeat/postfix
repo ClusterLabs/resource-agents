@@ -64,7 +64,6 @@ meta_data() {
 <version>0.1</version>
 <longdesc lang="en">
 This script manages Postfix as an OCF resource in a high-availability setup.
-Tested with Postfix 2.5.5 on Debian 5.0 and Postfix 2.7.1 on Debian 2.7.1.
 </longdesc>
 <shortdesc lang="en">Manages a highly available Postfix mail server instance</shortdesc>
 
