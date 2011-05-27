@@ -236,10 +236,24 @@ LXC_validate() {
 	return $OCF_SUCCESS
 }
 
+if [ $# -ne 1 ]; then
+  usage
+  exit $OCF_ERR_ARGS
+fi
+
 case $__OCF_ACTION in
-meta-data)	meta_data
-		exit $OCF_SUCCESS
-		;;
+    meta-data)	meta_data
+	exit $OCF_SUCCESS
+	;;
+    usage|help)	LXC_usage
+	exit $OCF_SUCCESS
+	;;
+esac
+
+# Everything except usage and meta-data must pass the validate test
+LXC_validate
+
+case $__OCF_ACTION in
 start)		LXC_start;;
 stop)		LXC_stop;;
 monitor)	LXC_monitor;;
@@ -247,10 +261,7 @@ reload)		ocf_log err "Reloading..."
 		LXC_stop	        
 		LXC_start
 		;;
-validate-all)	LXC_validate;;
-usage|help)	LXC_usage
-		exit $OCF_SUCCESS
-		;;
+validate-all)	;;
 *)		LXC_usage
 		ocf_log err "$0 was called with unsupported arguments: $*"
 		exit $OCF_ERR_UNIMPLEMENTED
