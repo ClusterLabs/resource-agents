@@ -58,7 +58,7 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 : ${OCF_RESKEY_binary="/usr/sbin/mysql-proxy"}
-: ${OCF_RESKEY_client_binary_default="mysql"}
+: ${OCF_RESKEY_client_binary="mysql"}
 : ${OCF_RESKEY_defaults_file=""}
 : ${OCF_RESKEY_proxy_backend_addresses="127.0.0.1:3306"}
 : ${OCF_RESKEY_proxy_read_only_backend_addresses=""}
