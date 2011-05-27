@@ -359,11 +359,17 @@ mysqlproxy_monitor()
         [ $rc -ne 0 ] && return $rc
     fi
 
-    if mysqlproxy_status ; then
-        return $OCF_SUCCESS
+    if ! mysqlproxy_status ; then
+        return $OCF_NOT_RUNNING
     fi
 
-    return $OCF_NOT_RUNNING
+    if [ $OCF_CHECK_LEVEL -gt 0 ]; then
+        mysql_options="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
+
+        # Check for test table
+    fi
+
+    return $OCF_SUCCESS
 }
 
 mysqlproxy_validate_all()
