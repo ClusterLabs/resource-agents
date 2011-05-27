@@ -44,6 +44,9 @@
 #  OCF_RESKEY_admin_username
 #  OCF_RESKEY_admin_password
 #  OCF_RESKEY_admin_lua_script
+#  OCF_RESKEY_test_table
+#  OCF_RESKEY_test_user
+#  OCF_RESKEY_test_passwd
 #  OCF_RESKEY_parameters
 #  OCF_RESKEY_pidfile
 #
@@ -66,6 +69,9 @@
 : ${OCF_RESKEY_admin_username=""}
 : ${OCF_RESKEY_admin_password=""}
 : ${OCF_RESKEY_admin_lua_script=""}
+: ${OCF_RESKEY_test_table="mysql.user"}
+: ${OCF_RESKEY_test_user=""}
+: ${OCF_RESKEY_test_passwd=""}
 : ${OCF_RESKEY_parameters=""}
 : ${OCF_RESKEY_pidfile="${HA_RSCTMP}/mysql-proxy-${OCF_RESOURCE_INSTANCE}.pid"}
 USAGE="Usage: $0 {start|stop|reload|status|monitor|validate-all|meta-data}";
@@ -191,6 +197,29 @@ Script to execute by the admin plugin.
 <content type="string" default="" />
 </parameter>
 
+<parameter name="test_table" unique="0" required="0">
+<longdesc lang="en">
+Table to be tested in monitor statement (in database.table notation)
+</longdesc>
+<shortdesc lang="en">MySQL test table</shortdesc>
+<content type="string" default="mysql.user" />
+</parameter>
+
+<parameter name="test_user" unique="0" required="0">
+<longdesc lang="en">
+MySQL test user
+</longdesc>
+<shortdesc lang="en">MySQL test user</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="test_passwd" unique="0" required="0">
+<longdesc lang="en">
+MySQL test user password
+</longdesc>
+<shortdesc lang="en">MySQL test user password</shortdesc>
+<content type="string" default="" />
+</parameter>
 
 <parameter name="parameters" unique="0" required="0">
 <longdesc lang="en">
