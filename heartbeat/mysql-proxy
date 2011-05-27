@@ -377,6 +377,14 @@ mysqlproxy_monitor()
         mysql_options="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
 
         # Check for test table
+        ocf_run $MYSQL $mysql_options \
+            -e "SELECT COUNT(*) FROM $OCF_RESKEY_test_table"
+        rc=$?
+
+        if [ $rc -ne 0 ]; then
+            ocf_log err "Failed to select from $test_table";
+            return $OCF_ERR_GENERIC;
+        fi
     fi
 
     return $OCF_SUCCESS
