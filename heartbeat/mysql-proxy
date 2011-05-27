@@ -338,6 +338,8 @@ mysqlproxy_start()
         return $OCF_ERR_GENERIC
     fi
 
+    # @TODO add an initial monitoring action?
+
     return $OCF_SUCCESS
 }
 
