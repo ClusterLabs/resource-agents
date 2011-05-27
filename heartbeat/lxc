@@ -103,8 +103,8 @@ cgroup_mounted() {
 	[[ "$cgmn" && "$cgmp" && -d "$cgmp" ]] && CGROUP_MOUNT_POINT=$cgmp CGROUP_MOUNT_NAME=$cgmn CGROUP_MOUNTED=true
 	CGROUP_RELEASE_AGENT="/usr/sbin/lxc_cgroup_release_agent"
 	$CGROUP_MOUNTED || {
-		[[ -d $CGROUP_MOUNT_POINT ]] || mkdir -p $CGROUP_MOUNT_POINT
-		mount -t cgroup $CGROUP_MOUNT_NAME $CGROUP_MOUNT_POINT
+		[[ -d $CGROUP_MOUNT_POINT ]] || ocf_run mkdir -p $CGROUP_MOUNT_POINT
+		ocf_run mount -t cgroup $CGROUP_MOUNT_NAME $CGROUP_MOUNT_POINT
 	}
 	echo 1 >${CGROUP_MOUNT_POINT}/notify_on_release
 	return 0
