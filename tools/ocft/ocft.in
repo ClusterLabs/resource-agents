@@ -75,8 +75,8 @@ explode()
       if (i%2 == 0)
         print $i;
       else {
-        split($i, str, /[[:blank:]]+/);
-        for (j=0; j<length(str); j++) {
+        len = split($i, str, /[ \t]+/);
+        for (j=1; j<=len; j++) {
           sb = sub(/#.*/, "", str[j]);
           if (str[j] != "")
             print str[j];
