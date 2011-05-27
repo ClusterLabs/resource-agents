@@ -425,7 +425,7 @@ mysqlproxy_validate_all()
 {
     # check that the MySQL Proxy binary exists and can be executed
     check_binary $binary
-    check_binary $client_binary
+    check_binary $mysql
 
     # check for valid log-level
     echo $log_level | egrep -q "^(error|warning|info|message|debug|)$"
