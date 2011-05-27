@@ -385,10 +385,8 @@ mysqlproxy_monitor()
 mysqlproxy_validate_all()
 {
     # check that the MySQL Proxy binary exists and can be executed
-    if [ ! -x "$binary" ]; then
-        ocf_log err "MySQL Proxy binary '$binary' does not exist or cannot be executed."
-        return $OCF_ERR_INSTALLED
-    fi
+    check_binary $binary
+    check_binary $client_binary
 
     # check for valid log-level
     echo $log_level | egrep "^(error|warning|info|message|debug|)$" >/dev/null
