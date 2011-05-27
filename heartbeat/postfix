@@ -282,7 +282,7 @@ if [ "x$config_dir" != "x" ]; then
     config_dir=`echo $config_dir | sed 's/\/*$//'`
 
     # reset config_dir if it equals Postfix's default config_directory
-    postconf -h config_directory 2>/dev/null | grep "^$config_dir/\?$"
+    postconf -h config_directory 2>/dev/null | grep -q "^$config_dir/\?$"
     if [ $? -eq 0 ]; then
         config_dir=""
     fi
