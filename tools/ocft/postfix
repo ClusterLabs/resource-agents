@@ -17,8 +17,7 @@ CONFIG
 	HangTimeout 20
 
 SETUP-AGENT
-	/etc/init.d/postfix start
-	/etc/init.d/postfix stop
+	# nothing
 
 CASE-BLOCK crm_setting
 	Var OCF_RESKEY_CRM_meta_timeout=15000
