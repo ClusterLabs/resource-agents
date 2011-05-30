@@ -84,7 +84,7 @@ I have absolutly no idea how this is done with 'upstart' or 'systemd', YMMV if y
 <actions>
 <action name="start"        timeout="10" />
 <action name="stop"         timeout="30" />
-<action name="monitor"      timeout="20" interval="60" start-delay="10" depth="0"/>
+<action name="monitor"      timeout="20" interval="60" depth="0"/>
 <action name="reload"       timeout="20" />
 <action name="validate-all" timeout="20" />
 <action name="meta-data"    timeout="5" />
