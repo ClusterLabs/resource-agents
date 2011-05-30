@@ -183,7 +183,8 @@ LXC_stop() {
 	done
 	# The "shutdown_timeout" we use here is the operation
 	# timeout specified in the CIB, minus 5 seconds
-	shutdown_timeout=$(( $NOW + ($OCF_RESKEY_CRM_meta_timeout/1000) -5 ))
+	now=$(date +%s)
+	shutdown_timeout=$(( $now + ($OCF_RESKEY_CRM_meta_timeout/1000) -5 ))
 	# Loop on status until we reach $shutdown_timeout
 	while [ $now -lt $shutdown_timeout ]; do
 	    LXC_status
