@@ -135,6 +135,8 @@ LXC_start() {
 
 
 LXC_stop() {
+	local shutdown_timeout
+	local now
 	LXC_monitor
 	if [ $? -eq $OCF_NOT_RUNNING ]; then
 		ocf_log debug "Resource $OCF_RESOURCE_INSTANCE is already stopped"
@@ -142,53 +144,60 @@ LXC_stop() {
 	fi
 
 	cgroup_mounted
-	ret=$?
-	if [ $ret ]; then
-		# If the container is running "init" and is able to perform and orderly shutdown, then it should be done.
-		# It is 'assumed' that the 'init' system will do an orderly shudown if presented with a 'kill -PWR' signal.
-		# On a 'sysvinit' this would require the container to have an inittab file containing "p0::powerfail:/sbin/init 0"
-		# I have absolutly no idea how this is done with 'upstart' or 'systemd', YMMV if your container is using one of them.
-		typeset -i PID=0
-		# This should work for traditional 'sysvinit' and 'upstart'
-		lxc-ps -C init -opid |while read CN PID ;do
-			[[ $PID -gt 1 ]] || continue
-			[[ "$CN" = "${OCF_RESKEY_container}" ]] || continue
-			ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_container} "as it was found to be using \"sysV init\" or \"upstart\""
-			kill -PWR $PID
-		done
-		# This should work for containers using 'systemd' instead of 'init'
-		lxc-ps -C systemd -opid |while read CN PID ;do
-			[[ $PID -gt 1 ]] || continue
-			[[ "$CN" = "${OCF_RESKEY_container}" ]] || continue
-			ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_container} "as it was found to be using \"systemd\""
-			kill -PWR $PID
-		done
-	        if [ -n "$OCF_RESKEY_stop_timeout" ]
-	        then
-	                # Allow 2/3 of the stop timeout for the orderly shutdown
-	                # (The origin unit is ms, hence the conversion)
-	                stop_timeout=$((OCF_RESKEY_stop_timeout/1500))
-	        elif [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
-	                # Allow 2/3 of the action timeout for the orderly shutdown
-	                # (The origin unit is ms, hence the conversion)
-	                stop_timeout=$((OCF_RESKEY_CRM_meta_timeout/1500))
-	        else
-	                stop_timeout=10
-	        fi
-		sleep $stop_timeout 
-		# If the container is still running, it will be stopped now. regardless of state!
-		lxc-stop -n ${OCF_RESKEY_container}
-		ocf_log info "Container" ${OCF_RESKEY_container} "stopped"
-		if [ -f $TRANS_RES_STATE ]; then	
-			rm $TRANS_RES_STATE
-		else
-			ocf_log err "Dolt!" ${OCF_RESKEY_container} "does not seem to be started!"
-			return ${OCF_ERR_GENERIC}
-		fi
-		return $OCF_SUCCESS
-	else
-		return $OCF_ERR_GENERIC
+	if [ $? -ne 0 ]; then
+		ocf_log err "Unable to find cgroup mount"
+		exit $OCF_ERR_GENERIC
 	fi
+
+	# If the container is running "init" and is able to perform and orderly shutdown, then it should be done.
+	# It is 'assumed' that the 'init' system will do an orderly shudown if presented with a 'kill -PWR' signal.
+	# On a 'sysvinit' this would require the container to have an inittab file containing "p0::powerfail:/sbin/init 0"
+	typeset -i PID=0
+	# This should work for traditional 'sysvinit' and 'upstart'
+	lxc-ps -C init -opid |while read CN PID ;do
+		[ $PID -gt 1 ] || continue
+		[ "$CN" = "${OCF_RESKEY_container}" ] || continue
+		ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_container} "as it was found to be using \"sysV init\" or \"upstart\""
+		kill -PWR $PID
+	done
+	# This should work for containers using 'systemd' instead of 'init'
+	lxc-ps -C systemd -opid |while read CN PID ;do
+		[[ $PID -gt 1 ]] || continue
+		[[ "$CN" = "${OCF_RESKEY_container}" ]] || continue
+		ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_container} "as it was found to be using \"systemd\""
+		kill -PWR $PID
+	done
+	# The "shutdown_timeout" we use here is the operation
+	# timeout specified in the CIB, minus 5 seconds
+	shutdown_timeout=$(( $NOW + ($OCF_RESKEY_CRM_meta_timeout/1000) -5 ))
+	# Loop on monitor until we reach $shutdown_timeout
+	while [ $now -lt $shutdown_timeout ]; do
+	    LXC_monitor
+	    status=$?
+	    case $status in
+		"$OCF_NOT_RUNNING")
+		    ocf_run rm -f $TRANS_RES_STATE
+		    return $OCF_SUCCESS
+		    ;;
+		"$OCF_SUCCESS")
+		    # Container is still running, keep waiting (until
+		    # shutdown_timeout expires)
+		    sleep 1
+		    ;;
+		*)
+		    # Something went wrong. Bail out and
+		    # resort to forced stop (destroy).
+		    break;
+	    esac
+	    now=$(date +%s)
+	done
+
+	# If the container is still running, it will be stopped now. regardless of state!
+	ocf_run lxc-stop -n ${OCF_RESKEY_container} || exit $OCF_ERR_GENERIC
+	ocf_log info "Container" ${OCF_RESKEY_container} "stopped"
+	ocf_run rm -f $TRANS_RES_STATE
+
+	return $OCF_SUCCESS
 }
 
 LXC_monitor() {
