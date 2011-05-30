@@ -85,7 +85,6 @@ I have absolutly no idea how this is done with 'upstart' or 'systemd', YMMV if y
 <action name="start"        timeout="10" />
 <action name="stop"         timeout="30" />
 <action name="monitor"      timeout="20" interval="60" depth="0"/>
-<action name="reload"       timeout="20" />
 <action name="validate-all" timeout="20" />
 <action name="meta-data"    timeout="5" />
 </actions>
@@ -96,7 +95,7 @@ END
 
 LXC_usage() {
 	cat <<END
-	usage: $0 {start|stop|monitor|reload|validate-all|meta-data}
+	usage: $0 {start|stop|monitor|validate-all|meta-data}
 
 	Expects to have a fully populated OCF RA-compliant environment set.
 END
@@ -291,10 +290,6 @@ start)		LXC_start;;
 stop)		LXC_stop;;
 status)	LXC_status;;
 monitor)	LXC_monitor;;
-reload)		ocf_log err "Reloading..."
-		LXC_stop	        
-		LXC_start
-		;;
 validate-all)	;;
 *)		LXC_usage
 		ocf_log err "$0 was called with unsupported arguments: $*"
