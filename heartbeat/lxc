@@ -117,6 +117,7 @@ LXC_start() {
 	LXC_monitor
 	if [ $? -eq $OCF_SUCCESS ]; then
 		ocf_log debug "Resource $OCF_RESOURCE_INSTANCE is already running"
+		ocf_run touch "${TRANS_RES_STATE}" || exit $OCF_ERR_GENERIC
 		return $OCF_SUCCESS
 	fi
 
