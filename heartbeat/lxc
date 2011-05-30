@@ -170,9 +170,9 @@ LXC_stop() {
 	# The "shutdown_timeout" we use here is the operation
 	# timeout specified in the CIB, minus 5 seconds
 	shutdown_timeout=$(( $NOW + ($OCF_RESKEY_CRM_meta_timeout/1000) -5 ))
-	# Loop on monitor until we reach $shutdown_timeout
+	# Loop on status until we reach $shutdown_timeout
 	while [ $now -lt $shutdown_timeout ]; do
-	    LXC_monitor
+	    LXC_status
 	    status=$?
 	    case $status in
 		"$OCF_NOT_RUNNING")
@@ -200,22 +200,22 @@ LXC_stop() {
 	return $OCF_SUCCESS
 }
 
-LXC_monitor() {
-    S=`lxc-info -n ${OCF_RESKEY_container}`
+LXC_status() {
+	S=`lxc-info -n ${OCF_RESKEY_container}`
 	ocf_log debug "State of ${OCF_RESKEY_container}: $S"
 	if [[ "${S##* }" = "RUNNING" ]] ; then 
-		if [ -f $TRANS_RES_STATE ]; then
-			return $OCF_SUCCESS
-		else
-			return $OCF_ERR_GENERIC
-		fi
-	else
-		if [ -f $TRANS_RES_STATE ]; then
-			ocf_log err "Dolt!" ${OCF_RESKEY_container} "should be running!"
-			return $OCF_ERR_GENERIC
-		fi
-			return $OCF_NOT_RUNNING
+		return $OCF_SUCCESS
 	fi
+	return $OCF_NOT_RUNNING
+}
+
+LXC_monitor() {
+	LXC_status && return $OCF_SUCCESS
+	if [ -f $TRANS_RES_STATE ]; then
+		ocf_log err "${OCF_RESKEY_container} is not running, but state file ${TRANS_RES_STATE} exists."
+		return $OCF_ERR_GENERIC
+	fi
+	return $OCF_NOT_RUNNING
 }
 
 
