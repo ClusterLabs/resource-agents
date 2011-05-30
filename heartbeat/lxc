@@ -32,10 +32,17 @@
 # OCF instance parameters
 #       OCF_RESKEY_container
 #       OCF_RESKEY_config
+#       OCF_RESKEY_log
 
 # Initialization:
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_log_default="${HA_RSCTMP}/${OCF_RESOURCE_INSTANCE}.log"
+
+: ${OCF_RESKEY_log=${OCF_RESKEY_log_default}}
+
 
 # Set default TRANS_RES_STATE (temporary file to "flag" if resource was stated but not stopped)
 TRANS_RES_STATE="${HA_RSCTMP}/${OCF_RESOURCE_INSTANCE}.state"
@@ -64,6 +71,12 @@ I have absolutly no idea how this is done with 'upstart' or 'systemd', YMMV if y
 <longdesc lang="en">Absolute path to the file holding the specific configuration for this container e.g. '/etc/lxc/test1/config'.</longdesc>
 <shortdesc lang="en">The LXC config file.</shortdesc>
 <content type="string" default=""/>
+</parameter>
+
+<parameter name="log" required="0" unique="0">
+<longdesc lang="en">Absolute path to the container log file</longdesc>
+<shortdesc lang="en">Container log file</shortdesc>
+<content type="string" default="${OCF_RESKEY_log_default}"/>
 </parameter>
 
 </parameters>
@@ -112,7 +125,7 @@ cgroup_mounted() {
 
 LXC_start() {
 	# put this here as it's so long it gets messy later!!!
-	STARTCMD="screen -dmS ${OCF_RESKEY_container} lxc-start -f \"${OCF_RESKEY_config}\" -n ${OCF_RESKEY_container}"
+	STARTCMD="lxc-start -f ${OCF_RESKEY_config} -n ${OCF_RESKEY_container} -o ${OCF_RESKEY_log} -d"
 
 	LXC_monitor
 	if [ $? -eq $OCF_SUCCESS ]; then
@@ -236,7 +249,6 @@ LXC_validate() {
  	check_binary lxc-stop
 	check_binary lxc-ps
 	check_binary lxc-info
-	check_binary screen
 
 	# Tests that apply only to non-probes
 	if ! ocf_is_probe; then
