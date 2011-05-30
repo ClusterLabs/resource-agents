@@ -196,8 +196,8 @@ LXC_stop() {
 }
 
 LXC_monitor() {
-        S=`lxc-info -n ${OCF_RESKEY_container}`
-	ocf_log info "$S"
+    S=`lxc-info -n ${OCF_RESKEY_container}`
+	ocf_log debug "State of ${OCF_RESKEY_container}: $S"
 	if [[ "${S##* }" = "RUNNING" ]] ; then 
 		if [ -f $TRANS_RES_STATE ]; then
 			return $OCF_SUCCESS
@@ -235,8 +235,8 @@ LXC_validate() {
 	# Tests that apply only to non-probes
 	if ! ocf_is_probe; then
 	    if ! [ -f "${OCF_RESKEY_config}" ]; then
-		ocf_log err "LXC configuration file \"${OCF_RESKEY_config}\" missing or not found!"
-		exit $OCF_ERR_INSTALLED
+			ocf_log err "LXC configuration file \"${OCF_RESKEY_config}\" missing or not found!"
+			exit $OCF_ERR_INSTALLED
 	    fi
 	fi
 	return $OCF_SUCCESS
