@@ -280,6 +280,7 @@ LXC_validate
 case $__OCF_ACTION in
 start)		LXC_start;;
 stop)		LXC_stop;;
+status)	LXC_status;;
 monitor)	LXC_monitor;;
 reload)		ocf_log err "Reloading..."
 		LXC_stop	        
