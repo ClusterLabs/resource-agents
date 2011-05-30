@@ -139,9 +139,17 @@ LXC_start() {
 		exit $OCF_ERR_GENERIC
 	fi
 
-    ocf_log info "Starting" ${OCF_RESKEY_container}
-    ocf_run ${STARTCMD} || exit $OCF_ERR_GENERIC
-    ocf_run touch "${TRANS_RES_STATE}" || exit $OCF_ERR_GENERIC
+	ocf_log info "Starting" ${OCF_RESKEY_container}
+	ocf_run ${STARTCMD} || exit $OCF_ERR_GENERIC
+
+	# Spin on status, wait for the cluster manager to time us out if
+	# we fail
+	while ! LXC_status; do
+		ocf_log info "Container ${OCF_RESKEY_container} has not started, waiting"
+		sleep 1
+	done
+
+	ocf_run touch "${TRANS_RES_STATE}" || exit $OCF_ERR_GENERIC
 	return $OCF_SUCCESS
 }
 
