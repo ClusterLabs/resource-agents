@@ -227,7 +227,7 @@ LXC_monitor() {
 	LXC_status && return $OCF_SUCCESS
 	if [ -f $TRANS_RES_STATE ]; then
 		ocf_log err "${OCF_RESKEY_container} is not running, but state file ${TRANS_RES_STATE} exists."
-		return $OCF_ERR_GENERIC
+		exit $OCF_ERR_GENERIC
 	fi
 	return $OCF_NOT_RUNNING
 }
