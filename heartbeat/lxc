@@ -139,6 +139,12 @@ LXC_start() {
 
 
 LXC_stop() {
+	LXC_monitor
+	if [ $? -eq $OCF_NOT_RUNNING ]; then
+		ocf_log debug "Resource $OCF_RESOURCE_INSTANCE is already stopped"
+		return $OCF_SUCCESS
+	fi
+
 	cgroup_mounted
 	ret=$?
 	if [ $ret ]; then
