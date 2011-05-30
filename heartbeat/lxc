@@ -112,28 +112,24 @@ cgroup_mounted() {
 
 LXC_start() {
 	# put this here as it's so long it gets messy later!!!
-	STARTCMD="screen -dmS ${OCF_RESKEY_container} lxc-start -f ${OCF_RESKEY_config} -n ${OCF_RESKEY_container}"
-	cgroup_mounted
-	ret=$?
-	if [ $ret ]; then
-		if LXC_validate ; then
-			if ! LXC_monitor ; then
-		   	    touch $TRANS_RES_STATE
-			    ocf_log info "Starting" ${OCF_RESKEY_container} 
-		            ocf_run ${STARTCMD} || exit $OCF_ERR_GENERIC 
-			else
-				# If already running, consider start successful
-				ocf_log debug ${OCF_RESOURCE_INSTANCE}: ${OCF_RESKEY_container} "is already running"
-				return $OCF_SUCCESS
-			fi
-			return $OCF_SUCCESS
-		else
-			ret=$?
-			return $ret
-		fi
-	else
-		return $OCF_ERR_GENERIC
+	STARTCMD="screen -dmS ${OCF_RESKEY_container} lxc-start -f \"${OCF_RESKEY_config}\" -n ${OCF_RESKEY_container}"
+
+	LXC_monitor
+	if [ $? -eq $OCF_SUCCESS ]; then
+		ocf_log debug "Resource $OCF_RESOURCE_INSTANCE is already running"
+		return $OCF_SUCCESS
 	fi
+
+	cgroup_mounted
+	if [ $? -ne 0 ]; then
+		ocf_log err "Unable to find cgroup mount"
+		exit $OCF_ERR_GENERIC
+	fi
+
+    ocf_log info "Starting" ${OCF_RESKEY_container}
+    ocf_run ${STARTCMD} || exit $OCF_ERR_GENERIC
+    ocf_run touch "${TRANS_RES_STATE}" || exit $OCF_ERR_GENERIC
+	return $OCF_SUCCESS
 }
 
 
