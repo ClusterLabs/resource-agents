@@ -126,7 +126,7 @@ LXC_start() {
 	# put this here as it's so long it gets messy later!!!
 	STARTCMD="lxc-start -f ${OCF_RESKEY_config} -n ${OCF_RESKEY_container} -o ${OCF_RESKEY_log} -d"
 
-	LXC_monitor
+	LXC_status
 	if [ $? -eq $OCF_SUCCESS ]; then
 		ocf_log debug "Resource $OCF_RESOURCE_INSTANCE is already running"
 		ocf_run touch "${TRANS_RES_STATE}" || exit $OCF_ERR_GENERIC
@@ -158,9 +158,10 @@ LXC_start() {
 LXC_stop() {
 	local shutdown_timeout
 	local now
-	LXC_monitor
+	LXC_status
 	if [ $? -eq $OCF_NOT_RUNNING ]; then
 		ocf_log debug "Resource $OCF_RESOURCE_INSTANCE is already stopped"
+		ocf_run rm -f $TRANS_RES_STATE
 		return $OCF_SUCCESS
 	fi
 
