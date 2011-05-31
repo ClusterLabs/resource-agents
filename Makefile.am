@@ -150,7 +150,5 @@ rpm: clean
 	$(MAKE) $(SPEC) $(TARFILES)
 	rpmbuild $(RPMBUILDOPTS) -ba $(SPEC)
 
-all-local: $(SPEC)
-
 clean-generic:
 	rm -rf $(SPEC) $(TARFILES)
