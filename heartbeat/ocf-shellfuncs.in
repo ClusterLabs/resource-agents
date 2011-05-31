@@ -433,6 +433,28 @@ ocf_is_ms() {
     [ ! -z "${OCF_RESKEY_CRM_meta_master_max}" ] && [ "${OCF_RESKEY_CRM_meta_master_max}" -gt 0 ]
 }
 
+# version check functions
+# allow . and - to delimit version numbers
+# max version number is 999
+# letters and such are effectively ignored
+#
+ocf_ver2num() {
+	echo $1 | awk -F'[.-]' '
+	{for(i=1; i<=NF; i++) s=s*1000+$i; print s}
+	'
+}
+ocf_version_cmp() {
+	local v1=`ocf_ver2num $1`
+	local v2=`ocf_ver2num $2`
+	if [ $v1 -eq $v2 ]; then
+		return 0
+	elif [ $v1 -gt $v2 ]; then
+		return 1
+	else
+		return 2 # -1 would look funny in shell
+	fi
+}
+
 # usage: dirname DIR
 dirname()
 {
