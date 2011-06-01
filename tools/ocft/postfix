@@ -1,0 +1,93 @@
+# postfix
+# by r.bhatia@ipax.at
+# 
+# test cases (to implement):
+# 
+# * /usr/sbin/ocf-tester -n post1 /usr/lib/ocf/resource.d/heartbeat/postfix; echo $? -> DONE
+# * /usr/sbin/ocf-tester -n post2 -o binary="/usr/sbin/postfix" \
+#       -o config_dir="" /usr/lib/ocf/resource.d/heartbeat/postfix; echo $? -> DONE
+# * /usr/sbin/ocf-tester -n post3 -o binary="/usr/sbin/postfix" \
+#       -o config_dir="/etc/postfix" /usr/lib/ocf/resource.d/heartbeat/postfix; echo $? -> DONE
+# * /usr/sbin/ocf-tester -n post4 -o binary="/usr/sbin/postfix" \
+#       -o config_dir="/root/postfix/" /usr/lib/ocf/resource.d/heartbeat/postfix; echo $?
+
+CONFIG
+	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	InstallPackage postfix
+	HangTimeout 20
+
+SETUP-AGENT
+	# nothing
+
+CASE-BLOCK crm_setting
+	Var OCF_RESKEY_CRM_meta_timeout=15000
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+	Include crm_setting
+	Include default_status
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: invalid 'OCF_RESKEY_binary'"
+	Include prepare
+	Var OCF_RESKEY_binary=no_such
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "check base env: invalid 'OCF_RESKEY_config_dir'"
+	Include prepare
+	Var OCF_RESKEY_config_dir=no_such
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "check base env: 'OCF_RESKEY_binary'"
+	Include prepare
+	Var OCF_RESKEY_binary=/usr/sbin/postfix
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "check base env: 'OCF_RESKEY_config_dir' without trailing slash"
+	Include prepare
+	Var OCF_RESKEY_config_dir="/etc/postfix"
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "check base env: 'OCF_RESKEY_config_dir' with trailing slash"
+	Include prepare
+	Var OCF_RESKEY_config_dir="/etc/postfix/"
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "normal start"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "running monitor"
+	Include prepare
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "not running monitor"
+	Include prepare
+	AgentRun monitor OCF_NOT_RUNNING
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED

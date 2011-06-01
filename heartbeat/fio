@@ -81,7 +81,7 @@ END
 fio_start() {
 	fio_monitor ; rc=$?
 	if [ $rc = $OCF_SUCCESS ]; then
-		ocf_log "fio already running."
+		ocf_log info "fio already running."
 		exit $OCF_SUCCESS
 	fi
 	if [ $rc != $OCF_NOT_RUNNING ]; then
@@ -105,12 +105,12 @@ fio_stop() {
 			;;
 		$OCF_ERR_GENERIC)
 			rm $fio_state_file
-			ocf_log "fio stopped and cleaned up."
+			ocf_log info "fio stopped and cleaned up."
 			exit $OCF_SUCCESS
 			;;
 		$OCF_SUCCESS)
 			if [ -n "$fio_pid" ]; then
-				ocf_log "Sending $sig to fio (pid=$fio_pid)"
+				ocf_log info "Sending $sig to fio (pid=$fio_pid)"
 				kill -$sig $fio_pid
 				sleep 3
 				continue

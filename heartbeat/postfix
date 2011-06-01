@@ -5,12 +5,9 @@
 # Description:  Manages Postfix as an OCF resource in
 #               an high-availability setup.
 #
-#               Tested with postfix 2.5.5 on Debian 5.0.
-#               Based on the mysql-proxy and mysql OCF resource agents.
-#
 # Author:       Raoul Bhatia <r.bhatia@ipax.at> : Original Author
 # License:      GNU General Public License (GPL)
-# Note:         if you want to run multiple postfix instances, please see
+# Note:         If you want to run multiple Postfix instances, please see
 #               http://amd.co.at/adminwiki/Postfix#Adding_a_Second_Postfix_Instance_on_one_Server
 #               http://www.postfix.org/postconf.5.html
 #
@@ -20,15 +17,6 @@
 #       The "start" arg starts a Postfix instance
 #
 #       The "stop" arg stops it.
-#
-#
-# Test via
-# * /usr/sbin/ocf-tester -n post1 /usr/lib/ocf/resource.d/heartbeat/postfix; echo $?
-# * /usr/sbin/ocf-tester -n post1 -o binary="/usr/sbin/postfix" \
-#       -o config_dir="" /usr/lib/ocf/resource.d/heartbeat/postfix; echo $?
-# * /usr/sbin/ocf-tester -n post1 -o binary="/usr/sbin/postfix" \
-#       -o config_dir="/root/postfix/" /usr/lib/ocf/resource.d/heartbeat/postfix; echo $?
-#
 #
 # OCF parameters:
 #  OCF_RESKEY_binary
@@ -61,7 +49,6 @@ meta_data() {
 <version>0.1</version>
 <longdesc lang="en">
 This script manages Postfix as an OCF resource in a high-availability setup.
-Tested with Postfix 2.5.5 on Debian 5.0.
 </longdesc>
 <shortdesc lang="en">Manages a highly available Postfix mail server instance</shortdesc>
 
@@ -109,7 +96,7 @@ END
 }
 
 running() {
-    # run postfix status
+    # run Postfix status
     $binary $OPTION_CONFIG_DIR status >/dev/null 2>&1
 }
 
@@ -136,6 +123,18 @@ postfix_start()
         return $OCF_ERR_GENERIC
     fi
 
+    # grant some time for startup/forking the sub processes
+    sleep 2
+
+    # initial monitoring action
+    running
+    ret=$?
+    if [ $ret -ne $OCF_SUCCESS ]; then
+        ocf_log err "Postfix failed initial monitor action." $ret
+        return $OCF_ERR_GENERIC
+    fi
+
+    ocf_log info "Postfix started."
     return $OCF_SUCCESS
 }
 
@@ -167,13 +166,19 @@ postfix_stop()
     # escalate to abort if we did not stop by now
     # @TODO shall we loop here too?
     if postfix_status; then
-        ocf_log err "Postfix failed to stop. Escalating to 'abort'"
+        ocf_log err "Postfix failed to stop. Escalating to 'abort'."
 
         $binary $OPTIONS abort >/dev/null 2>&1; ret=$?
         sleep 5
-        postfix_status && $OCF_ERR_GENERIC
+
+        # postfix abort did not succeed
+        if postfix_status; then
+            ocf_log err "Postfix failed to abort."
+            return $OCF_ERR_GENERIC
+        fi
     fi
 
+    ocf_log info "Postfix stopped."
     return $OCF_SUCCESS
 }
 
@@ -196,34 +201,45 @@ postfix_monitor()
 
 postfix_validate_all()
 {
-    # check that the Postfix binary exists and can be executed
-    if [ ! -x "$binary" ]; then
-        ocf_log err "Postfix binary '$binary' does not exist or cannot be executed."
-        return $OCF_ERR_GENERIC
-    fi
+    # check that the Postfix binaries exist and can be executed
+    check_binary "$binary"
+    check_binary "postconf"
 
     # check config_dir and alternate_config_directories parameter
     if [ "x$config_dir" != "x" ]; then
         if [ ! -d "$config_dir" ]; then
             ocf_log err "Postfix configuration directory '$config_dir' does not exist." $ret
-            return $OCF_ERR_GENERIC
+            return $OCF_ERR_INSTALLED
         fi
 
-        alternate_config_directories=`postconf -h alternate_config_directories 2>/dev/null | grep $config_dir`
+        alternate_config_directories=`postconf -h alternate_config_directories 2>/dev/null | grep "$config_dir/\?"`
         if [ "x$alternate_config_directories" = "x" ]; then
             ocf_log err "Postfix main configuration must contain correct 'alternate_config_directories' parameter."
-            return $OCF_ERR_GENERIC
+            return $OCF_ERR_INSTALLED
         fi
     fi
 
-    # check spool/queue directory
-    queue=`postconf $OPTION_CONFIG_DIR -h queue_directory 2>/dev/null`
-    if [ ! -d "$queue" ]; then
-        ocf_log err "Postfix spool/queue directory '$queue' does not exist." $ret
-        return $OCF_ERR_GENERIC
-    fi
+    # check spool/queue and data directories
+    # this is required because "postfix check" does not catch all errors
+    queue_dir=`postconf $OPTION_CONFIG_DIR -h queue_directory 2>/dev/null`
+    data_dir=`postconf $OPTION_CONFIG_DIR -h data_directory 2>/dev/null`
+    for dir in "$queue_dir" "$data_dir"; do
+        if [ ! -d "$dir" ]; then
+            ocf_log err "Postfix directory '$queue_dir' does not exist." $ret
+            return $OCF_ERR_INSTALLED
+        fi
+    done
 
-    # run postfix internal check
+    # check permissions
+    user=`postconf $OPTION_CONFIG_DIR -h mail_owner 2>/dev/null`
+    for dir in "$data_dir"; do
+        if ! su -s /bin/sh - $user -c "test -w $dir"; then
+            ocf_log err "Directory '$dir' is not writable by user '$user'."
+            exit $OCF_ERR_PERM;
+        fi
+    done
+
+    # run Postfix internal check
     $binary $OPTIONS check >/dev/null 2>&1
     ret=$?
     if [ $ret -ne 0 ]; then
@@ -259,9 +275,24 @@ OPTION_CONFIG_DIR=''
 
 # check if the Postfix config_dir exist
 if [ "x$config_dir" != "x" ]; then
+    # check for postconf binary
+    check_binary "postconf"
+
+    # remove all trailing slashes to ease "postconf alternate_config_directories" match
+    config_dir=`echo $config_dir | sed 's/\/*$//'`
+
+    # reset config_dir if it equals Postfix's default config_directory
+    postconf -h config_directory 2>/dev/null | grep -q "^$config_dir/\?$"
+    if [ $? -eq 0 ]; then
+        config_dir=""
+    fi
+
+    # set OPTIONS if config_dir is still set
     # save OPTION_CONFIG_DIR seperatly
-    OPTION_CONFIG_DIR="-c $config_dir"
-    OPTIONS=$OPTION_CONFIG_DIR
+    if [ "x$config_dir" != "x" ]; then
+        OPTION_CONFIG_DIR="-c $config_dir"
+        OPTIONS=$OPTION_CONFIG_DIR
+   fi
 fi
 
 if [ "x$parameters" != "x" ]; then
