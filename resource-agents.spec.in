@@ -254,9 +254,7 @@ rm -rf %{buildroot}
 %endif
 
 %{_mandir}/man7/*.7*
-%if 0%{?rhel} > 5
-%{_mandir}/man8/ocf-tester.8*
-%endif
+%{_mandir}/man8/*.8*
 
 # For compatability with pre-existing agents
 %dir %{_sysconfdir}/ha.d
