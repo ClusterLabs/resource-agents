@@ -18,6 +18,7 @@ SETUP-AGENT
 
 CASE-BLOCK crm_setting
 	Var OCF_RESKEY_CRM_meta_timeout=15000
+	Var OCF_RESKEY_binary=/tmp/mysql-proxy
 	Var OCF_RESKEY_admin_username=root
 	Var OCF_RESKEY_admin_password=test123
 	Var OCF_RESKEY_admin_lua_script=/usr/lib/mysql-proxy/lua/admin.lua
@@ -31,32 +32,34 @@ CASE-BLOCK prepare
 
 CASE "check base env"
 	Include prepare
+	Bash [ ! -x /tmp/mysql-proxy ] && ln -s `which mysql-proxy` /tmp/mysql-proxy || true
 	AgentRun start OCF_SUCCESS
+	BashAtExit rm -f /tmp/mysql-proxy
 
 CASE "check base env: invalid 'OCF_RESKEY_binary'"
 	Include prepare
 	Var OCF_RESKEY_binary=no_such
 	AgentRun start OCF_ERR_INSTALLED
 
-CASE "check base env: 'OCF_RESKEY_binary'"
-	Include prepare
-	Var OCF_RESKEY_binary=/usr/sbin/mysql-proxy
-	AgentRun start
-	AgentRun monitor OCF_SUCCESS
-
 CASE "normal start"
 	Include prepare
+	Bash [ ! -x /tmp/mysql-proxy ] && ln -s `which mysql-proxy` /tmp/mysql-proxy || true
 	AgentRun start OCF_SUCCESS
+	BashAtExit rm -f /tmp/mysql-proxy
 
 CASE "normal stop"
 	Include prepare
+	Bash [ ! -x /tmp/mysql-proxy ] && ln -s `which mysql-proxy` /tmp/mysql-proxy || true
 	AgentRun start
 	AgentRun stop OCF_SUCCESS
+	BashAtExit rm -f /tmp/mysql-proxy
 
 CASE "double start"
 	Include prepare
+	Bash [ ! -x /tmp/mysql-proxy ] && ln -s `which mysql-proxy` /tmp/mysql-proxy || true
 	AgentRun start
 	AgentRun start OCF_SUCCESS
+	BashAtExit rm -f /tmp/mysql-proxy
 
 CASE "double stop"
 	Include prepare
@@ -64,8 +67,10 @@ CASE "double stop"
 
 CASE "running monitor"
 	Include prepare
+	Bash [ ! -x /tmp/mysql-proxy ] && ln -s `which mysql-proxy` /tmp/mysql-proxy || true
 	AgentRun start
 	AgentRun monitor OCF_SUCCESS
+	BashAtExit rm -f /tmp/mysql-proxy
 
 CASE "not running monitor"
 	Include prepare
