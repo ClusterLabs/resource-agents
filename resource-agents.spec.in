@@ -135,8 +135,7 @@ See 'ldirectord -h' and linux-ha/doc/ldirectord for more information.
 
 %prep
 %if 0%{?suse_version} == 0 && 0%{?fedora} == 0 && 0%{?centos_version} == 0 && 0%{?rhel} == 0
-echo "Unable to determine the distribution/version. This is generally caused by missing /etc/rpm/macros.dist."
-echo "Please make sure to install the correct build packages or define the required macros manually."
+%{error:Unable to determine the distribution/version. This is generally caused by missing /etc/rpm/macros.dist. Please install the correct build packages or define the required macros manually.}
 exit 1
 %endif
 %setup -q -n %{name}-%{version}%{?numcomm:.%{numcomm}}%{?alphatag:-%{alphatag}}%{?dirty:-%{dirty}}
