@@ -72,9 +72,8 @@ BuildRequires:  libxslt docbook_4 docbook-xsl-stylesheets
 %endif
 
 ## Runtime deps
-## These apply to rgmanager agents only; linux-ha agents
-## are required to check for binary availability at runtime,
-## and behave accordingly.
+## These apply to rgmanager agents only to guarantee agents
+## are functional
 %if %{with rgmanager}
 # system tools shared by several agents
 Requires: /bin/bash /bin/grep /bin/sed /bin/gawk
