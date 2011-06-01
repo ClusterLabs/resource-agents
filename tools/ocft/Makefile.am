@@ -33,6 +33,8 @@ ocftcfgs_DATA      =  apache  	\
 		       	 db2		\
 		       	 nfsserver	\
 		       	 portblock	\
+		       	 iscsi	\
+		       	 posfix	\
 			 SendArp
 
 ocftdir			= $(datadir)/$(PACKAGE_NAME)/ocft
