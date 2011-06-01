@@ -334,8 +334,13 @@ case "$1" in
 esac
 
 if [ x = "x$OCF_RESKEY_target" ]; then
-	ocf_log err "no target attribute"
-	exit $OCF_ERR_ARGS
+	ocf_log err "target parameter not set"
+	exit $OCF_ERR_CONFIGURED
+fi
+
+if [ x = "x$OCF_RESKEY_portal" ]; then
+	ocf_log err "portal parameter not set"
+	exit $OCF_ERR_CONFIGURED
 fi
 
 case `uname` in
