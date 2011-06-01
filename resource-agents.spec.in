@@ -72,6 +72,10 @@ BuildRequires:  libxslt docbook_4 docbook-xsl-stylesheets
 %endif
 
 ## Runtime deps
+## These apply to rgmanager agents only; linux-ha agents
+## are required to check for binary availability at runtime,
+## and behave accordingly.
+%if %{with rgmanager}
 # system tools shared by several agents
 Requires: /bin/bash /bin/grep /bin/sed /bin/gawk
 Requires: /bin/ps /usr/bin/pkill /bin/hostname
@@ -94,6 +98,7 @@ Requires: /sbin/lvm
 # netfs.sh
 Requires: /sbin/mount.nfs /sbin/mount.nfs4 /sbin/mount.cifs
 Requires: /usr/sbin/rpc.nfsd /sbin/rpc.statd /usr/sbin/rpc.mountd
+%endif
 
 %description
 A set of scripts to interface with several services to operate in a
