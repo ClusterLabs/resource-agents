@@ -44,6 +44,33 @@ Source0:	%{name}-%{version}%{?numcomm:.%{numcomm}}%{?alphatag:-%{alphatag}}%{?di
 Obsoletes:	heartbeat-resources <= %{version}
 Provides:	heartbeat-resources = %{version}
 
+## Setup/build bits
+BuildRoot: %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
+
+# Build dependencies
+BuildRequires: automake autoconf pkgconfig
+BuildRequires: perl python-devel
+BuildRequires: libxslt glib2-devel
+BuildRequires: which
+
+%if 0%{?fedora} || 0%{?centos_version} || 0%{?rhel}
+BuildRequires: cluster-glue-libs-devel
+BuildRequires: docbook-style-xsl docbook-dtds
+%if 0%{?rhel} == 0
+BuildRequires: help2man libnet-devel
+%endif
+%endif
+
+%if 0%{?suse_version}  
+%if 0%{?suse_version} >= 1140
+BuildRequires:  libnet1
+%else
+BuildRequires:  libnet
+%endif
+BuildRequires:  libglue-devel
+BuildRequires:  libxslt docbook_4 docbook-xsl-stylesheets
+%endif
+
 ## Runtime deps
 # system tools shared by several agents
 Requires: /bin/bash /bin/grep /bin/sed /bin/gawk
@@ -106,34 +133,12 @@ See 'ldirectord -h' and linux-ha/doc/ldirectord for more information.
 %endif
 %endif
 
-## Setup/build bits
-BuildRoot: %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
-
-# Build dependencies
-BuildRequires: automake autoconf pkgconfig
-BuildRequires: perl python-devel
-BuildRequires: libxslt glib2-devel
-BuildRequires: help2man which
-
-%if 0%{?fedora} || 0%{?centos_version} || 0%{?rhel}
-BuildRequires: cluster-glue-libs-devel
-BuildRequires: docbook-style-xsl docbook-dtds
-%if 0%{?rhel} == 0
-BuildRequires: libnet-devel
-%endif
-%endif
-
-%if 0%{?suse_version}  
-%if 0%{?suse_version} >= 1140
-BuildRequires:  libnet1
-%else
-BuildRequires:  libnet
-%endif
-BuildRequires:  libglue-devel
-BuildRequires:  libxslt docbook_4 docbook-xsl-stylesheets
-%endif
-
 %prep
+%if 0%{?suse_version} == 0 && 0%{?fedora} == 0 && 0%{?centos_version} == 0 && 0%{?rhel} == 0
+echo "Unable to determine the distribution/version. This is generally caused by missing /etc/rpm/macros.dist."
+echo "Please make sure to install the correct build packages or define the required macros manually."
+exit 1
+%endif
 %setup -q -n %{name}-%{version}%{?numcomm:.%{numcomm}}%{?alphatag:-%{alphatag}}%{?dirty:-%{dirty}}
 
 %build
@@ -144,13 +149,10 @@ fi
 %if 0%{?fedora} >= 11 || 0%{?centos_version} > 5 || 0%{?rhel} > 5
 CFLAGS="$(echo '%{optflags}')"
 %global conf_opt_rsctmpdir "--with-rsctmpdir=%{_var}/run/heartbeat/rsctmp"
-%global jflags "%{_smp_mflags}"
 %global conf_opt_fatal "--enable-fatal-warnings=no"
 %else
 CFLAGS="${CFLAGS} ${RPM_OPT_FLAGS}"
-%global conf_opt_rsctmpdir ""
 %global conf_opt_fatal "--enable-fatal-warnings=yes"
-%global jflags "%{?jobs:-j%jobs}"
 %endif
 
 %if %{with rgmanager}
@@ -166,12 +168,18 @@ CFLAGS="${CFLAGS} ${RPM_OPT_FLAGS}"
 export CFLAGS
 
 %configure \
-	%{conf_opt_rsctmpdir} \
+	%{?conf_opt_rsctmpdir:%conf_opt_rsctmpdir} \
 	%{conf_opt_fatal} \
 	--with-pkg-name=%{name} \
 	--with-ras-set=%{rasset}
 
-make %{jflags}
+%if %{defined jobs}
+JFLAGS="$(echo '-j%{jobs}')"
+%else
+JFLAGS="$(echo '%{_smp_mflags}')"
+%endif
+
+make $JFLAGS
 
 %install
 rm -rf %{buildroot}
@@ -246,7 +254,9 @@ rm -rf %{buildroot}
 %endif
 
 %{_mandir}/man7/*.7*
+%if 0%{?rhel} > 5
 %{_mandir}/man8/ocf-tester.8*
+%endif
 
 # For compatability with pre-existing agents
 %dir %{_sysconfdir}/ha.d
