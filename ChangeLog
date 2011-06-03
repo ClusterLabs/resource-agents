@@ -1,5 +1,5 @@
 * Wed Jun 01 2011 Dejan Muhamedagic <dejan@suse.de> and others
-- stable release 3.9.0
+- stable release 3.9.1
 - first release since establishing joined repository with RHCS agents
 - build: new spec file and autoconf to support both agents' sets
 - build: use ./configure --with-ras-set=linux-ha to configure for
