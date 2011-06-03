@@ -70,4 +70,4 @@ else
 endif
 
 clean:
-	rm -rf $(project)*.tar.* tag-*
+	rm -rf $(project)*.tar.* $(project)*.sha* tag-*
