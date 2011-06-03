@@ -406,12 +406,18 @@ is_slave() {
     # "SHOW SLAVE STATUS" returns an empty set if instance is not a
     # replication slave
     if [ -s $tmpfile ]; then
+	master_host=`parse_slave_info Master_Host $tmpfile`
 	rm -f $tmpfile
-	return 0
+    else
+	    rm -f $tmpfile
+	    return 1	
     fi
 
-    rm -f $tmpfile
-    return 1
+    if [ "$master_host" = 'dummy-host-val' ]; then
+	return 1	
+    else
+	return 0	
+    fi
 }
 
 parse_slave_info() {
@@ -615,9 +621,9 @@ unset_master(){
     rm -f $tmpfile
 
     ocf_run $MYSQL $mysql_options \
-	-e "CHANGE MASTER TO MASTER_HOST=''" 
+	-e "CHANGE MASTER TO MASTER_HOST='dummy-host-val';RESET SLAVE"
     if [ $? -gt 0 ]; then
-	    ocf_log err "Failed to set master"
+	    ocf_log err "Failed to unset master"
 	    exit $OCF_ERR_GENERIC
     fi
 }
