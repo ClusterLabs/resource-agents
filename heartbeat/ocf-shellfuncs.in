@@ -433,6 +433,42 @@ ocf_is_ms() {
     [ ! -z "${OCF_RESKEY_CRM_meta_master_max}" ] && [ "${OCF_RESKEY_CRM_meta_master_max}" -gt 0 ]
 }
 
+# version check functions
+# allow . and - to delimit version numbers
+# max version number is 999
+# letters and such are effectively ignored
+#
+ocf_is_ver() {
+	echo $1 | grep '^[0-9][0-9.-]*[0-9]$' >/dev/null 2>&1
+}
+ocf_ver2num() {
+	echo $1 | awk -F'[.-]' '
+	{for(i=1; i<=NF; i++) s=s*1000+$i; print s}
+	'
+}
+
+# usage: ocf_version_cmp VER1 VER2
+#     version strings can contain digits, dots, and dashes
+#     must start and end with a digit
+# returns:
+#     0: VER1 smaller (older) than VER2
+#     1: versions equal
+#     2: VER1 greater (newer) than VER2
+#     3: bad format
+ocf_version_cmp() {
+	ocf_is_ver "$1" || return 3
+	ocf_is_ver "$2" || return 3
+	local v1=`ocf_ver2num $1`
+	local v2=`ocf_ver2num $2`
+	if [ $v1 -eq $v2 ]; then
+		return 1
+	elif [ $v1 -lt $v2 ]; then
+		return 0
+	else
+		return 2 # -1 would look funny in shell ;-)
+	fi
+}
+
 # usage: dirname DIR
 dirname()
 {

@@ -1,0 +1,86 @@
+# nfsserver
+
+CONFIG
+	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	InstallPackage open-iscsi
+	InstallPackage iscsitarget
+	HangTimeout 20
+
+CASE-BLOCK tempvars
+	Var OCFT_disk=/var/run/resource-agents/ocft-iscsi
+	Var OCFT_target="iqn.2011-03.ocft.localhost:disk0"
+	Var OCFT_portal="127.0.0.1:3260"
+
+CASE-BLOCK required_args
+	Include tempvars
+	Var OCF_RESKEY_portal=$OCFT_portal
+	Var OCF_RESKEY_target=$OCFT_target
+
+SETUP-AGENT
+	OCFT_disk=/var/run/resource-agents/ocft-iscsi
+	OCFT_target="iqn.2011-03.ocft.localhost:disk0"
+	OCFT_portal="127.0.0.1:3260"
+	dd if=/dev/zero of=$OCFT_disk bs=1024k count=1 2>/dev/null
+	echo Target $OCFT_target >> /etc/ietd.conf
+	echo "        Lun 0 Path=$OCFT_disk,Type=fileio" >> /etc/ietd.conf
+	/etc/init.d/iscsitarget start
+	/etc/init.d/open-iscsi start
+	/etc/init.d/iscsitarget restart
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+	Include required_args
+	Include default_status
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: invalid 'OCF_RESKEY_portal'"
+	Include prepare
+	Unvar OCF_RESKEY_portal
+	AgentRun start OCF_ERR_CONFIGURED
+
+CASE "check base env: unset 'OCF_RESKEY_target'"
+	Include prepare
+	Unvar OCF_RESKEY_target
+	AgentRun start OCF_ERR_CONFIGURED
+
+CASE "normal start"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "monitor when running"
+	Include prepare
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "monitor when not running"
+	Include prepare
+	AgentRun monitor OCF_NOT_RUNNING
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
+
+CASE "meta-data and cleanup"
+	Include prepare
+	Bash rm -f $OCFT_disk
+	Bash sed -i "/^Target $OCFT_target/,+1d" /etc/ietd.conf
+	AgentRun meta-data OCF_SUCCESS

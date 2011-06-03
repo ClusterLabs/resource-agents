@@ -1,3 +1,43 @@
+* Wed Jun 01 2011 Dejan Muhamedagic <dejan@suse.de> and others
+- stable release 3.9.0
+- first release since establishing joined repository with RHCS agents
+- build: new spec file and autoconf to support both agents' sets
+- build: use ./configure --with-ras-set=linux-ha to configure for
+  heartbeat RA set
+- build: create compatibility symlinks in autofoo not in spec
+- build: GNUmakefile removed
+- lxc: new RA to manage lxc linux containers
+- symlink: new RA to manage symbolic links
+- db2: new implementation with master/slave mode
+- oracle: improve oracle process list test (bnc#673027)
+- exportfs: backup and restore rmtab to ensure smooth client
+  failover on node failures
+- CTDB: Allow stop to succeed when using pkill on ctdbd (bnc#695829)
+- mysql: --skip-slave-start option is default now
+- mysql: set connect timeout to 10 seconds rather than 1 second
+- mysql: keep replication state (prevents data loss on master reset)
+- mysql: don't rely on state information from pacemaker, but
+  check if the instance is in the read-only mode
+- mysql: if test parameters are all set, assume OCF_CHECK_LEVEL=10
+- mysql: support for master/slave for more than two nodes
+- mysql: don't wait for replication to finish, when not replicating
+- mysql: store replication state in separate attributes for each master
+- VirtualDomain: correctly create migration URI when target is an FQDN
+- VirtualDomain: properly wait until domain_name is non-empty
+- ldirectord: add a support of "netmask" directive for IPv6
+- ldirectord: fix fwmark behavior for IPv6
+- ldirectord: ignore children in Net::DNS
+- iscsi: add support for open-iscsi version 2.0-872 (lf#2562)
+- postfix: issue error if 'postfix abort' failed
+- postfix: improve exit codes on installation problems
+- postfix: use monitor to test if postfix works after the start action
+- ocft: fix make command for compatibility with mawk/Debian (lf#2600)
+- ocft: test case for pgsql
+- ocft: test case for postfix
+- ocft: test case for iscsi
+- doc: improve man pages output
+- doc: add examples for master/slave resource agents
+
 * Wed Feb 16 2011 Dejan Muhamedagic <dejan@suse.de> and others
 - stable release 1.0.4
 - ocft: testcases for db2, LVM, and Filesystem

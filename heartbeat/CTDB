@@ -43,6 +43,15 @@
 #
 #
 # TODO:
+# - ctdb_stop doesn't really support multiple independent CTDB instances,
+#   unless they're running from distinct ctdbd binaries (it uses pkill
+#   $OCF_RESKEY_ctdbd_binary if "ctdb stop" doesn't work, which it might
+#   not under heavy load - this will kill all ctdbd instances on the
+#   system).  OTOH, running multiple CTDB instances per node is, well,
+#   AFAIK, completely crazy.  Can't run more than one in a vanilla CTDB
+#   cluster, with the CTDB init script.  So it might be nice to address
+#   this for complete semantic correctness of the RA, but shouldn't
+#   actually cause any trouble in real life.
 # - As much as possible, get rid of auto config generation
 #   - Especially smb.conf
 # - Verify timeouts are sane
@@ -568,9 +577,15 @@ ctdb_stop() {
 	# Cleanup smb.conf
 	cleanup_smb_conf
 
-	# Be paranoid about return codes
+	# It was a clean shutdown, return success
 	[ $rv -eq $OCF_SUCCESS ] && return $OCF_SUCCESS
 
+	# Unclean shutdown, return success if there's no ctdbds left (we
+	# killed them forcibly, but at least they're good and dead).
+	pkill -0 -f $OCF_RESKEY_ctdbd_binary || return $OCF_SUCCESS
+
+	# Problem: ctdb shutdown didn't work and neither did some vigorous
+	# kill -9ing.  Only thing to do is report failure.
 	return $OCF_ERR_GENERIC
 }
 

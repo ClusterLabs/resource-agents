@@ -184,12 +184,25 @@ open_iscsi_setup() {
 #   1: target not found
 #   2: target found but can't connect it unambigously
 #   3: iscsiadm returned error
-
+#
+# open-iscsi >= "2.0-872" changed discovery semantics
+# see http://www.mail-archive.com/open-iscsi@googlegroups.com/msg04883.html
+# there's a new discovery2 command which should be used instead discovery
+ 
 open_iscsi_discovery() {
 	local output
 	local severity=err
-	local cmd="$iscsiadm -m discovery -p $OCF_RESKEY_portal -t $discovery_type"
+	local discovery_variant="discovery"
+	local options=""
+	local cmd
+	local version=`$iscsiadm --version | awk '{print $3}'`
 
+	ocf_version_cmp "$version" "2.0-871"
+	if [ $? -eq 2 ]; then # newer than 2.0-871?
+		discovery_variant="discovery2"
+		options="-D"
+	fi
+	cmd="$iscsiadm -m $discovery_variant -p $OCF_RESKEY_portal -t $discovery_type $options"
 	ocf_is_probe && severity=info
 	output=`$cmd`
 	if [ $? -ne 0 -o x = "x$output" ]; then
@@ -321,8 +334,13 @@ case "$1" in
 esac
 
 if [ x = "x$OCF_RESKEY_target" ]; then
-	ocf_log err "no target attribute"
-	exit $OCF_ERR_ARGS
+	ocf_log err "target parameter not set"
+	exit $OCF_ERR_CONFIGURED
+fi
+
+if [ x = "x$OCF_RESKEY_portal" ]; then
+	ocf_log err "portal parameter not set"
+	exit $OCF_ERR_CONFIGURED
 fi
 
 case `uname` in

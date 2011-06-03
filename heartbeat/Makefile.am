@@ -69,6 +69,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			jboss			\
 			LinuxSCSI		\
 			LVM			\
+			lxc			\
 			MailTo			\
 			ManageRAID		\
 			ManageVE		\

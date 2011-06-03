@@ -16,9 +16,11 @@
 # Defaults
 OCF_RESKEY_unlock_on_stop_default=0
 OCF_RESKEY_wait_for_leasetime_on_stop_default=0
+OCF_RESKEY_rmtab_backup_default=".rmtab"
 
 : ${OCF_RESKEY_unlock_on_stop=${OCF_RESKEY_unlock_on_stop_default}}
 : ${OCF_RESKEY_wait_for_leasetime_on_stop=${OCF_RESKEY_wait_for_leasetime_on_stop_default}}
+: ${OCF_RESKEY_rmtab_backup=${OCF_RESKEY_rmtab_backup_default}}
 #######################################################################
 
 exportfs_meta_data() {
@@ -119,7 +121,22 @@ Ride out the NFSv4 lease time on resource stop?
 <content type="boolean" default="${OCF_RESKEY_wait_for_leasetime_on_stop_default}" />
 </parameter>
 
+<parameter name="rmtab_backup">
+<longdesc lang="en">
+Back up those entries from the NFS rmtab that apply to the exported
+directory, to the specified backup file. The filename is interpreted
+as relative to the exported directory. This backup is required if
+clients are connecting to the export via NFSv3 over TCP. Note that a
+configured monitor operation is required for this functionality.
 
+To disable rmtab backups, set this parameter to the special
+string "none".
+</longdesc>
+<shortdesc lang="en">
+Location of the rmtab backup, relative to directory.
+</shortdesc>
+<content type="string" default="${OCF_RESKEY_rmtab_backup_default}" />
+</parameter>
 </parameters>
 
 <actions>
@@ -133,6 +150,27 @@ Ride out the NFSv4 lease time on resource stop?
 END
 
 return $OCF_SUCCESS
+}
+
+backup_rmtab() {
+    local rmtab_backup
+    if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
+	rmtab_backup="${OCF_RESKEY_directory}/${OCF_RESKEY_rmtab_backup}"
+	grep ":${OCF_RESKEY_directory}:" /var/lib/nfs/rmtab > ${rmtab_backup}
+    fi
+}
+
+restore_rmtab() {
+    local rmtab_backup
+    if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
+	rmtab_backup="${OCF_RESKEY_directory}/${OCF_RESKEY_rmtab_backup}"
+	if [ -r ${rmtab_backup} ]; then
+	    cat  ${rmtab_backup} >> /var/lib/nfs/rmtab
+	    ocf_log debug "Restored `wc -l ${rmtab_backup}` rmtab entries from ${rmtab_backup}."
+	else
+	    ocf_log warn "rmtab backup ${rmtab_backup} not found or not readable."
+	fi
+    fi
 }
 
 exportfs_usage() {
@@ -151,6 +189,8 @@ exportfs_monitor ()
 	case $? in
 	0)
 		ocf_log info "Directory ${OCF_RESKEY_directory} is exported to ${OCF_RESKEY_clientspec} (started)."
+	        # Backup the rmtab to ensure smooth NFS-over-TCP failover
+		backup_rmtab
 		return $OCF_SUCCESS
 		;;
 	1)
@@ -186,6 +226,9 @@ exportfs_start ()
 
 	ocf_run exportfs -v ${OPTIONS} ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory} || exit $OCF_ERR_GENERIC
 
+	# Restore the rmtab to ensure smooth NFS-over-TCP failover
+	restore_rmtab
+
 	ocf_log info "File system exported"
 	return $OCF_SUCCESS
 }
@@ -199,6 +242,9 @@ exportfs_stop ()
 	fi
 
 	ocf_log info "Un-exporting file system ..."
+
+	# Backup the rmtab to ensure smooth NFS-over-TCP failover
+	backup_rmtab
 
 	ocf_run exportfs -v -u ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory}
 	rc=$?
