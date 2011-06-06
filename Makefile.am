@@ -94,13 +94,25 @@ $(SPEC): $(SPEC).in
 	date="$(shell LC_ALL=C date "+%a %b %d %Y")" && \
 	if [ -f .tarball-version ]; then \
 		gitver="$(shell cat .tarball-version)" && \
-		rpmver=$$gitver && \
+		if echo $$gitver | grep -q "\.[[:digit:]]rc[[:digit:]]"; then \
+			rpmver=`echo $$gitver | sed -e "s/rc[[:digit:]]//g"` && \
+			specver=`echo $$gitver | sed -e "s/.*rc/0.rc/g"`; \
+		else \
+			rpmver=$$gitver; \
+			specver="1"; \
+		fi && \
 		alphatag="" && \
 		dirty="" && \
 		numcomm="0"; \
 	else \
 		gitver="$(shell git describe --abbrev=4 --match='v*' HEAD 2>/dev/null)" && \
-		rpmver=`echo $$gitver | sed -e "s/^v//" -e "s/-.*//g"` && \
+		if echo $$gitver | grep -q "\.[[:digit:]]rc[[:digit:]]"; then \
+			rpmver=`echo $$gitver | sed -e "s/^v//" -e "s/rc[[:digit:]]//g" -e "s/-.*//g"` && \
+			specver=`echo $$gitver | sed -e "s/.*rc/0.rc/g"`; \
+		else \
+			rpmver=`echo $$gitver | sed -e "s/^v//" -e "s/-.*//g"` && \
+			specver="1"; \
+		fi && \
 		alphatag=`echo $$gitver | sed -e "s/.*-//" -e "s/^g//"` && \
 		vtag=`echo $$gitver | sed -e "s/-.*//g"` && \
 		numcomm=`git rev-list $$vtag..HEAD | wc -l` && \
@@ -115,6 +127,7 @@ $(SPEC): $(SPEC).in
 			-e "s#%glo.*numcomm.*##g" \
 			-e "s#@dirty@#$$dirty#g" \
 			-e "s#@date@#$$date#g" \
+			-e "s#@specver@#$$specver#g" \
 			-e "s#@rgmanager@#$(RGMANAGER)#g" \
 			-e "s#@linux-ha@#$(LINUX_HA)#g" \
 		$< > $@-t; \
@@ -125,6 +138,7 @@ $(SPEC): $(SPEC).in
 			-e "s#@numcomm@#$$numcomm#g" \
 			-e "s#@dirty@#$$dirty#g" \
 			-e "s#@date@#$$date#g" \
+			-e "s#@specver@#$$specver#g" \
 			-e "s#@rgmanager@#$(RGMANAGER)#g" \
 			-e "s#@linux-ha@#$(LINUX_HA)#g" \
 		$< > $@-t; \

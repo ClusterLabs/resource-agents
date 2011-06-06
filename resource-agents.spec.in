@@ -32,7 +32,7 @@
 Name:		resource-agents
 Summary:	Open Source HA Reusable Cluster Resource Scripts
 Version:	@version@
-Release:	1%{?numcomm:.%{numcomm}}%{?alphatag:.%{alphatag}}%{?dirty:.%{dirty}}%{?dist}
+Release:	@specver@%{?numcomm:.%{numcomm}}%{?alphatag:.%{alphatag}}%{?dirty:.%{dirty}}%{?dist}
 License:	GPLv2+ and LGPLv2+
 URL:		http://to.be.defined.com/
 %if 0%{?fedora} || 0%{?centos_version} || 0%{?rhel}
@@ -305,5 +305,5 @@ rm -rf %{buildroot}
 %endif
 
 %changelog
-* @date@ Autotools generated version <nobody@nowhere.org> - @version@-1-@numcomm@.@alphatag@.@dirty@
+* @date@ Autotools generated version <nobody@nowhere.org> - @version@-@specver@-@numcomm@.@alphatag@.@dirty@
 - Autotools generated version
