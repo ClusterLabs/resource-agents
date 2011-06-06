@@ -92,14 +92,16 @@ gen-ChangeLog:
 $(SPEC): $(SPEC).in
 	rm -f $@-t $@
 	date="$(shell LC_ALL=C date "+%a %b %d %Y")" && \
+	specver="1" && \
+	rcver="" && \
 	if [ -f .tarball-version ]; then \
 		gitver="$(shell cat .tarball-version)" && \
 		if echo $$gitver | grep -q "\.[[:digit:]]rc[[:digit:]]"; then \
 			rpmver=`echo $$gitver | sed -e "s/rc[[:digit:]]//g"` && \
-			specver=`echo $$gitver | sed -e "s/.*rc/0.rc/g"`; \
+			rcver=`echo $$gitver | sed -e "s/.*rc/rc/g"` && \
+			specver="0"; \
 		else \
 			rpmver=$$gitver; \
-			specver="1"; \
 		fi && \
 		alphatag="" && \
 		dirty="" && \
@@ -108,10 +110,10 @@ $(SPEC): $(SPEC).in
 		gitver="$(shell git describe --abbrev=4 --match='v*' HEAD 2>/dev/null)" && \
 		if echo $$gitver | grep -q "\.[[:digit:]]rc[[:digit:]]"; then \
 			rpmver=`echo $$gitver | sed -e "s/^v//" -e "s/rc[[:digit:]]//g" -e "s/-.*//g"` && \
-			specver=`echo $$gitver | sed -e "s/.*rc/0.rc/g"`; \
+			rcver=`echo $$gitver | sed -e "s/.*rc/rc/g"` && \
+			specver="0"; \
 		else \
-			rpmver=`echo $$gitver | sed -e "s/^v//" -e "s/-.*//g"` && \
-			specver="1"; \
+			rpmver=`echo $$gitver | sed -e "s/^v//" -e "s/-.*//g"`; \
 		fi && \
 		alphatag=`echo $$gitver | sed -e "s/.*-//" -e "s/^g//"` && \
 		vtag=`echo $$gitver | sed -e "s/-.*//g"` && \
@@ -128,6 +130,7 @@ $(SPEC): $(SPEC).in
 			-e "s#@dirty@#$$dirty#g" \
 			-e "s#@date@#$$date#g" \
 			-e "s#@specver@#$$specver#g" \
+			-e "s#@rcver@#$$rcver#g" \
 			-e "s#@rgmanager@#$(RGMANAGER)#g" \
 			-e "s#@linux-ha@#$(LINUX_HA)#g" \
 		$< > $@-t; \
@@ -139,6 +142,7 @@ $(SPEC): $(SPEC).in
 			-e "s#@dirty@#$$dirty#g" \
 			-e "s#@date@#$$date#g" \
 			-e "s#@specver@#$$specver#g" \
+			-e "s#@rcver@#$$rcver#g" \
 			-e "s#@rgmanager@#$(RGMANAGER)#g" \
 			-e "s#@linux-ha@#$(LINUX_HA)#g" \
 		$< > $@-t; \

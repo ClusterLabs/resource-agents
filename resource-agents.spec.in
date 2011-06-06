@@ -9,6 +9,7 @@
 # published by the Open Source Initiative.
 #
 
+%global rcver @rcver@
 %global alphatag @alphatag@
 %global numcomm @numcomm@
 %global dirty @dirty@
@@ -32,7 +33,7 @@
 Name:		resource-agents
 Summary:	Open Source HA Reusable Cluster Resource Scripts
 Version:	@version@
-Release:	@specver@%{?numcomm:.%{numcomm}}%{?alphatag:.%{alphatag}}%{?dirty:.%{dirty}}%{?dist}
+Release:	@specver@%{?rcver:%{rcver}}%{?numcomm:.%{numcomm}}%{?alphatag:.%{alphatag}}%{?dirty:.%{dirty}}%{?dist}
 License:	GPLv2+ and LGPLv2+
 URL:		http://to.be.defined.com/
 %if 0%{?fedora} || 0%{?centos_version} || 0%{?rhel}
@@ -40,7 +41,7 @@ Group:		System Environment/Base
 %else
 Group:		Productivity/Clustering/HA
 %endif
-Source0:	%{name}-%{version}%{?numcomm:.%{numcomm}}%{?alphatag:-%{alphatag}}%{?dirty:-%{dirty}}.tar.bz2
+Source0:	%{name}-%{version}%{?rcver:%{rcver}}%{?numcomm:.%{numcomm}}%{?alphatag:-%{alphatag}}%{?dirty:-%{dirty}}.tar.bz2
 Obsoletes:	heartbeat-resources <= %{version}
 Provides:	heartbeat-resources = %{version}
 
@@ -142,7 +143,7 @@ See 'ldirectord -h' and linux-ha/doc/ldirectord for more information.
 %{error:Unable to determine the distribution/version. This is generally caused by missing /etc/rpm/macros.dist. Please install the correct build packages or define the required macros manually.}
 exit 1
 %endif
-%setup -q -n %{name}-%{version}%{?numcomm:.%{numcomm}}%{?alphatag:-%{alphatag}}%{?dirty:-%{dirty}}
+%setup -q -n %{name}-%{version}%{?rcver:%{rcver}}%{?numcomm:.%{numcomm}}%{?alphatag:-%{alphatag}}%{?dirty:-%{dirty}}
 
 %build
 if [ ! -f configure ]; then
