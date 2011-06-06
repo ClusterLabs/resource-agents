@@ -148,6 +148,7 @@ $(SPEC): $(SPEC).in
 		$< > $@-t; \
 	fi; \
 	if [ -z "$$dirty" ]; then sed -i -e "s#%glo.*dirty.*##g" $@-t; fi
+	if [ -z "$$rcver" ]; then sed -i -e "s#%glo.*rcver.*##g" $@-t; fi
 	chmod a-w $@-t
 	mv $@-t $@
 
