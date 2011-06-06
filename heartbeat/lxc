@@ -79,6 +79,15 @@ I have absolutly no idea how this is done with 'upstart' or 'systemd', YMMV if y
 <content type="string" default="${OCF_RESKEY_log_default}"/>
 </parameter>
 
+<parameter name="use_screen" required="0" unique="0">
+<longdesc lang="en">Provides the option of capturing the 'root console' from the container and showing it on a separate screen. 
+To see the screen output run 'screen -r {container name}'
+The default value is set to 'false', change to 'true' to activate this option</longdesc>
+<shortdesc lang="en">Use 'screen' for container 'root console' output</shortdesc>
+<content type="boolean" default="false"/>
+</parameter>
+
+
 </parameters>
 
 <actions>
@@ -123,7 +132,11 @@ cgroup_mounted() {
 
 LXC_start() {
 	# put this here as it's so long it gets messy later!!!
-	STARTCMD="lxc-start -f ${OCF_RESKEY_config} -n ${OCF_RESKEY_container} -o ${OCF_RESKEY_log} -d"
+	if ocf_is_true $OCF_RESKEY_use_screen; then
+		STARTCMD="screen -dmS ${OCF_RESKEY_container} lxc-start -f ${OCF_RESKEY_config} -n ${OCF_RESKEY_container} -o ${OCF_RESKEY_log}"
+	else
+		STARTCMD="lxc-start -f ${OCF_RESKEY_config} -n ${OCF_RESKEY_container} -o ${OCF_RESKEY_log} -d"
+	fi
 
 	LXC_status
 	if [ $? -eq $OCF_SUCCESS ]; then
@@ -253,11 +266,16 @@ LXC_validate() {
 	fi
 
 	# Tests that apply only to non-probes
-	if ! ocf_is_probe; then
+        if ! ocf_is_probe; then
 	    if ! [ -f "${OCF_RESKEY_config}" ]; then
 			ocf_log err "LXC configuration file \"${OCF_RESKEY_config}\" missing or not found!"
 			exit $OCF_ERR_INSTALLED
 	    fi
+
+            if ocf_is_true $OCF_RESKEY_use_screen; then
+                check_binary screen
+            fi
+
 	    check_binary lxc-start
 	    check_binary lxc-stop
 	    check_binary lxc-ps
