@@ -338,31 +338,29 @@ invoke_ctdb() {
 	$OCF_RESKEY_ctdb_binary --socket=$OCF_RESKEY_ctdb_socket "$@"
 }
 
-# Disable all event scripts that are not explicitly required
-disable_event_scripts() {
+# Enable any event scripts that are explicitly required.
+# Any others will ultimately be invoked or not based on how they ship
+# with CTDB, but will generally have no effect, beacuase the relevant
+# CTDB_MANAGES_* options won't be set in /etc/sysconfig/ctdb.
+enable_event_scripts() {
+	local event_dir=$OCF_RESKEY_ctdb_config_dir/events.d
+
 	if [ -f "${OCF_RESKEY_ctdb_config_dir}/public_addresses" ]; then
-		invoke_ctdb enablescript 10.interface
+		chmod u+x $event_dir/10.interface
 	else
-		invoke_ctdb disablescript 10.interface
+		chmod a-x $event_dir/10.interface
 	fi
-	invoke_ctdb disablescript 11.natgw
 	if [ -f "${OCF_RESKEY_ctdb_config_dir}/static-routes" ]; then
-		invoke_ctdb enablescript 11.routing
+		chmod u+x $event_dir/11.routing
 	else
-		invoke_ctdb disablescript 11.routing
+		chmod a-x $event_dir/11.routing
 	fi
-	invoke_ctdb disablescript 40.vsftpd
-	invoke_ctdb disablescript 41.httpd
 	if ocf_is_true "$OCF_RESKEY_ctdb_manages_samba" || \
 	   ocf_is_true "$OCF_RESKEY_ctdb_manages_winbind"; then
-		invoke_ctdb enablescript 50.samba
+		chmod u+x $event_dir/50.samba
 	else
-		invoke_ctdb disablescript 50.samba
+		chmod a-x $event_dir/50.samba
 	fi
-	invoke_ctdb disablescript 60.nfs
-	invoke_ctdb disablescript 61.nfstickle
-	invoke_ctdb disablescript 70.iscsi
-	invoke_ctdb disablescript 91.lvs
 }
 
 # This function has no effect (currently no way to set CTDB_SET_*)
@@ -490,6 +488,7 @@ ctdb_start() {
 
 	# Generate new CTDB sysconfig
 	generate_ctdb_sysconfig
+	enable_event_scripts
 
 	# Use logfile by default, or syslog if asked for
 	local log_option="--logfile=$OCF_RESKEY_ctdb_logfile"
@@ -539,7 +538,6 @@ ctdb_start() {
 				# Status does not say this node is unhealthy,
 				# so we're good to go.  Do a bit of final
 				# setup and (hopefully) return success.
-				disable_event_scripts
 				set_ctdb_variables
 				return $?
 			fi
