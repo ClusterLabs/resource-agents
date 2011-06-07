@@ -605,6 +605,12 @@ ctdb_monitor() {
 
 
 ctdb_validate() {
+	# Required binaries (full path to tdbdump is intentional, as that's
+	# what's used in ctdb_start, which was lifted from the init script)
+	for binary in pkill /usr/bin/tdbdump; do
+		check_binary $binary
+	done
+
 	if [ -z "$CTDB_SYSCONFIG" ]; then
 		ocf_log err "Can't find CTDB config file (expecting /etc/sysconfig/ctdb, /etc/default/ctdb or similar)"
 		return $OCF_ERR_INSTALLED
