@@ -335,7 +335,17 @@ fi
 CTDB_SYSCONFIG_BACKUP=${CTDB_SYSCONFIG}.ctdb-ra-orig
 
 invoke_ctdb() {
-	$OCF_RESKEY_ctdb_binary --socket=$OCF_RESKEY_ctdb_socket "$@"
+	# CTDB's defaults are:
+	local timeout=3
+	local timelimit=120
+	# ...but we override with the timeout for the current op:
+	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+		timeout=$((OCF_RESKEY_CRM_meta_timeout/1000))
+		timelimit=$((OCF_RESKEY_CRM_meta_timeout/1000))
+	fi
+	$OCF_RESKEY_ctdb_binary --socket=$OCF_RESKEY_ctdb_socket \
+		-t $timeout -T $timelimit \
+		"$@"
 }
 
 # Enable any event scripts that are explicitly required.
