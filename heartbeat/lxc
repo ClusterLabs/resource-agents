@@ -1,5 +1,5 @@
 #!/bin/bash
-# Should now conform to guidlines: http://www.linux-ha.org/doc/dev-guides/ra-dev-guide.html
+# Should now conform to guidelines: http://www.linux-ha.org/doc/dev-guides/ra-dev-guide.html
 #
 #	LXC (Linux Containers) OCF RA. 
 #	Used to cluster enable the start, stop and monitoring of a LXC container.
@@ -33,6 +33,7 @@
 #       OCF_RESKEY_container
 #       OCF_RESKEY_config
 #       OCF_RESKEY_log
+#	OCF_RESKEY_use_screen
 
 # Initialization:
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
@@ -40,8 +41,10 @@
 
 # Defaults
 OCF_RESKEY_log_default="${HA_RSCTMP}/${OCF_RESOURCE_INSTANCE}.log"
+OCF_RESKEY_use_screen_default="false"
 
 : ${OCF_RESKEY_log=${OCF_RESKEY_log_default}}
+: ${OCF_RESKEY_use_screen=${OCF_RESKEY_use_screen_default}}
 
 
 # Set default TRANS_RES_STATE (temporary file to "flag" if resource was stated but not stopped)
@@ -78,6 +81,15 @@ I have absolutly no idea how this is done with 'upstart' or 'systemd', YMMV if y
 <shortdesc lang="en">Container log file</shortdesc>
 <content type="string" default="${OCF_RESKEY_log_default}"/>
 </parameter>
+
+<parameter name="use_screen" required="0" unique="0">
+<longdesc lang="en">Provides the option of capturing the 'root console' from the container and showing it on a separate screen. 
+To see the screen output run 'screen -r {container name}'
+The default value is set to 'false', change to 'true' to activate this option</longdesc>
+<shortdesc lang="en">Use 'screen' for container 'root console' output</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_use_screen_default}"/>
+</parameter>
+
 
 </parameters>
 
@@ -123,7 +135,11 @@ cgroup_mounted() {
 
 LXC_start() {
 	# put this here as it's so long it gets messy later!!!
-	STARTCMD="lxc-start -f ${OCF_RESKEY_config} -n ${OCF_RESKEY_container} -o ${OCF_RESKEY_log} -d"
+	if ocf_is_true $OCF_RESKEY_use_screen; then
+		STARTCMD="screen -dmS ${OCF_RESKEY_container} lxc-start -f ${OCF_RESKEY_config} -n ${OCF_RESKEY_container} -o ${OCF_RESKEY_log}"
+	else
+		STARTCMD="lxc-start -f ${OCF_RESKEY_config} -n ${OCF_RESKEY_container} -o ${OCF_RESKEY_log} -d"
+	fi
 
 	LXC_status
 	if [ $? -eq $OCF_SUCCESS ]; then
@@ -254,10 +270,15 @@ LXC_validate() {
 
 	# Tests that apply only to non-probes
 	if ! ocf_is_probe; then
-	    if ! [ -f "${OCF_RESKEY_config}" ]; then
+		if ! [ -f "${OCF_RESKEY_config}" ]; then
 			ocf_log err "LXC configuration file \"${OCF_RESKEY_config}\" missing or not found!"
 			exit $OCF_ERR_INSTALLED
-	    fi
+		fi
+
+		if ocf_is_true $OCF_RESKEY_use_screen; then
+			check_binary screen
+		fi
+
 	    check_binary lxc-start
 	    check_binary lxc-stop
 	    check_binary lxc-ps
@@ -297,4 +318,3 @@ esac
 rc=$?
 ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
 exit $rc
-
