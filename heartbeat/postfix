@@ -96,8 +96,26 @@ END
 }
 
 running() {
-    # run Postfix status
-    $binary $OPTION_CONFIG_DIR status >/dev/null 2>&1
+    # run Postfix status if available
+    if ocf_is_true $status_support; then
+        output=`$binary $OPTION_CONFIG_DIR status 2>&1`
+        ret=$?
+        if [ $ret -ne 0 ]; then
+            ocf_log err "Postfix status: '$output'." $ret
+        fi
+        return $ret
+    fi
+
+    # manually check Postfix's pid
+    PIDFILE=${queue_dir}/pid/master.pid
+    if [ -f $PIDFILE ]; then
+         PID=`head -n 1 $PIDFILE`
+         kill -s 0 $PID >/dev/null 2>&1 && [ `ps -p $PID | grep master | wc -l` -eq 1 ]
+         return $?
+    fi
+
+    # Postfix is not running
+    false
 }
 
 postfix_status()
