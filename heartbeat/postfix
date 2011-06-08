@@ -144,12 +144,8 @@ postfix_start()
     # and loop initial monitoring until success or timeout
     while true; do
         sleep 1
-        running
-        ret=$?
-        if [ $ret -eq $OCF_SUCCESS ]; then
-            # monitoring success - exit
-            break;
-        fi
+        # break if postfix is up and running; log failure otherwise
+        running && break
         ocf_log err "Postfix failed initial monitor action." $ret
     done
 
