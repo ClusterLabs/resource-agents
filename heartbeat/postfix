@@ -223,7 +223,6 @@ postfix_validate_all()
 
     # check spool/queue and data directories
     # this is required because "postfix check" does not catch all errors
-    queue_dir=`postconf $OPTION_CONFIG_DIR -h queue_directory 2>/dev/null`
     data_dir=`postconf $OPTION_CONFIG_DIR -h data_directory 2>/dev/null`
     for dir in "$queue_dir" "$data_dir"; do
         if [ ! -d "$dir" ]; then
@@ -297,10 +296,27 @@ if [ "x$config_dir" != "x" ]; then
    fi
 fi
 
+# add all additional parameters to options string
 if [ "x$parameters" != "x" ]; then
     OPTIONS="$OPTIONS $parameters"
 fi
+ 
+# important directories, used in different methods
+queue_dir=`postconf $OPTION_CONFIG_DIR -h queue_directory 2>/dev/null`
 
+# check Postfix version and status support
+status_support=false
+postfix_version=`postconf $OPTION_CONFIG_DIR -h mail_version 2>/dev/null`
+ocf_version_cmp "$postfix_version" "2.5.0"
+ret=$?
+
+# we need Postfix 2.5.0 or greater for status/data_directory support
+if [ $ret -eq 1 -o $ret -eq 2 ]; then
+    status_support=true
+fi
+
+
+# handle parameters
 case $1 in
     meta-data)  meta_data
                 exit $OCF_SUCCESS
