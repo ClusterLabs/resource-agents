@@ -124,15 +124,17 @@ postfix_start()
     fi
 
     # grant some time for startup/forking the sub processes
-    sleep 2
-
-    # initial monitoring action
-    running
-    ret=$?
-    if [ $ret -ne $OCF_SUCCESS ]; then
+    # and loop initial monitoring until success or timeout
+    while true; do
+        sleep 1
+        running
+        ret=$?
+        if [ $ret -eq $OCF_SUCCESS ]; then
+            # monitoring success - exit
+            break;
+        fi
         ocf_log err "Postfix failed initial monitor action." $ret
-        return $OCF_ERR_GENERIC
-    fi
+    done
 
     ocf_log info "Postfix started."
     return $OCF_SUCCESS
