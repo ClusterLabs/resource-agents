@@ -146,7 +146,7 @@ postfix_start()
         sleep 1
         # break if postfix is up and running; log failure otherwise
         running && break
-        ocf_log err "Postfix failed initial monitor action." $ret
+        ocf_log info "Postfix failed initial monitor action." $ret
     done
 
     ocf_log info "Postfix started."
