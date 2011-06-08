@@ -255,7 +255,7 @@ postfix_validate_all()
         for dir in "$data_dir"; do
             if ! su -s /bin/sh - $user -c "test -w $dir"; then
                 ocf_log err "Directory '$dir' is not writable by user '$user'."
-                exit $OCF_ERR_PERM;
+                return $OCF_ERR_PERM;
             fi
         done
     fi
