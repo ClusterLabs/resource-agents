@@ -312,12 +312,11 @@ parameters=$OCF_RESKEY_parameters
 OPTIONS=''
 OPTION_CONFIG_DIR=''
 
+# check for Postfix's postconf binary
+check_binary "postconf"
 
 # check if the Postfix config_dir exist
 if [ "x$config_dir" != "x" ]; then
-    # check for postconf binary
-    check_binary "postconf"
-
     # remove all trailing slashes to ease "postconf alternate_config_directories" match
     config_dir=`echo $config_dir | sed 's/\/*$//'`
 
