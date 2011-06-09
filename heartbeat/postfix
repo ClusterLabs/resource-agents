@@ -309,11 +309,6 @@ binary=$OCF_RESKEY_binary
 config_dir=$OCF_RESKEY_config_dir
 parameters=$OCF_RESKEY_parameters
 
-# debugging stuff
-#echo OCF_RESKEY_binary=$OCF_RESKEY_binary >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
-#echo OCF_RESKEY_config_dir=$OCF_RESKEY_config_dir >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
-#echo OCF_RESKEY_parameters=$OCF_RESKEY_parameters >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
-
 
 # build Postfix options string *outside* to access from each method
 OPTIONS=''
@@ -375,7 +370,6 @@ esac
 postfix_validate_all
 ret=$?
 
-#echo "debug[$1:$ret]"
 LSB_STATUS_STOPPED=3
 if [ $ret -ne $OCF_SUCCESS ] || ocf_is_probe; then
     case $1 in
