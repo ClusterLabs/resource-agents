@@ -312,6 +312,7 @@ parameters=$OCF_RESKEY_parameters
 OPTIONS=''
 OPTION_CONFIG_DIR=''
 
+
 # check if the Postfix config_dir exist
 if [ "x$config_dir" != "x" ]; then
     # check for postconf binary
@@ -344,7 +345,7 @@ queue_dir=`postconf $OPTION_CONFIG_DIR -h queue_directory 2>/dev/null`
 
 # check Postfix version and status support
 status_support=false
-postfix_version=`postconf $OPTION_CONFIG_DIR -h mail_version 2>/dev/null`
+postfix_version=`postconf -h mail_version 2>/dev/null`
 ocf_version_cmp "$postfix_version" "2.5.0"
 ret=$?
 
