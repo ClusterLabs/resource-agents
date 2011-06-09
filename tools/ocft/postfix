@@ -21,6 +21,7 @@ SETUP-AGENT
 
 CASE-BLOCK crm_setting
 	Var OCF_RESKEY_CRM_meta_timeout=15000
+	Var OCF_RESKEY_CRM_meta_interval=10000
 
 CASE-BLOCK default_status
 	AgentRun stop
@@ -84,8 +85,9 @@ CASE "running monitor"
 	AgentRun start
 	AgentRun monitor OCF_SUCCESS
 
-CASE "not running monitor"
+CASE "not running monitor (eq. initial probe)"
 	Include prepare
+	Var OCF_RESKEY_CRM_meta_interval=0
 	AgentRun monitor OCF_NOT_RUNNING
 
 CASE "unimplemented command"
