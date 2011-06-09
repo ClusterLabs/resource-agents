@@ -223,8 +223,12 @@ postfix_validate_all()
     # check config_dir and alternate_config_directories parameter
     if [ "x$config_dir" != "x" ]; then
         if [ ! -d "$config_dir" ]; then
-            ocf_log err "Postfix configuration directory '$config_dir' does not exist." $ret
-            return $OCF_ERR_INSTALLED
+            if ocf_is_probe; then
+                ocf_log info "Postfix configuration directory '$config_dir' not readable during probe."
+            else
+                ocf_log err "Postfix configuration directory '$config_dir' does not exist or is not readable."
+                return $OCF_ERR_INSTALLED
+            fi
         fi
 
         alternate_config_directories=`postconf -h alternate_config_directories 2>/dev/null | grep "$config_dir/\?"`
@@ -237,15 +241,23 @@ postfix_validate_all()
     # check spool/queue and data directories (if applicable)
     # this is required because "postfix check" does not catch all errors
     if [ ! -d "$queue_dir" ]; then
-        ocf_log err "Postfix queue directory '$queue_dir' does not exist."
-        return $OCF_ERR_INSTALLED
+        if ocf_is_probe; then
+            ocf_log info "Postfix queue directory '$queue_dir' not readable during probe."
+        else
+            ocf_log err "Postfix queue directory '$queue_dir' does not exist or is not readable."
+            return $OCF_ERR_INSTALLED
+        fi
     fi
 
     if ocf_is_true $status_support; then
         data_dir=`postconf $OPTION_CONFIG_DIR -h data_directory 2>/dev/null`
         if [ ! -d "$data_dir" ]; then
-            ocf_log err "Postfix data directory '$data_dir' does not exist."
-            return $OCF_ERR_INSTALLED
+            if ocf_is_probe; then
+                ocf_log info "Postfix data directory '$data_dir' not readable during probe."
+            else
+                ocf_log err "Postfix data directory '$data_dir' does not exist or is not readable."
+                return $OCF_ERR_INSTALLED
+            fi
         fi
     fi
 
@@ -254,18 +266,24 @@ postfix_validate_all()
         user=`postconf $OPTION_CONFIG_DIR -h mail_owner 2>/dev/null`
         for dir in "$data_dir"; do
             if ! su -s /bin/sh - $user -c "test -w $dir"; then
-                ocf_log err "Directory '$dir' is not writable by user '$user'."
-                return $OCF_ERR_PERM;
+                if ocf_is_probe; then
+                    ocf_log info "Directory '$dir' is not writable by user '$user' during probe."
+                else
+                    ocf_log err "Directory '$dir' is not writable by user '$user'."
+                    return $OCF_ERR_PERM;
+                fi
             fi
         done
     fi
 
-    # run Postfix internal check
-    $binary $OPTIONS check >/dev/null 2>&1
-    ret=$?
-    if [ $ret -ne 0 ]; then
-        ocf_log err "Postfix 'check' failed." $ret
-        return $OCF_ERR_GENERIC
+    # run Postfix internal check, if not probing
+    if ! ocf_is_probe; then
+        $binary $OPTIONS check >/dev/null 2>&1
+        ret=$?
+        if [ $ret -ne 0 ]; then
+            ocf_log err "Postfix 'check' failed." $ret
+            return $OCF_ERR_GENERIC
+        fi
     fi
 
     return $OCF_SUCCESS
