@@ -220,11 +220,16 @@ postfix_validate_all()
     check_binary "$binary"
     check_binary "postconf"
 
+    # if true, run in-depth directory checks
+    dir_check=true
+
     # check config_dir and alternate_config_directories parameter
     if [ "x$config_dir" != "x" ]; then
         if [ ! -d "$config_dir" ]; then
             if ocf_is_probe; then
                 ocf_log info "Postfix configuration directory '$config_dir' not readable during probe."
+                # skip in-depth directory checks if config file isn't readable during probe
+                dir_check=false
             else
                 ocf_log err "Postfix configuration directory '$config_dir' does not exist or is not readable."
                 return $OCF_ERR_INSTALLED
@@ -240,40 +245,42 @@ postfix_validate_all()
 
     # check spool/queue and data directories (if applicable)
     # this is required because "postfix check" does not catch all errors
-    if [ ! -d "$queue_dir" ]; then
-        if ocf_is_probe; then
-            ocf_log info "Postfix queue directory '$queue_dir' not readable during probe."
-        else
-            ocf_log err "Postfix queue directory '$queue_dir' does not exist or is not readable."
-            return $OCF_ERR_INSTALLED
-        fi
-    fi
-
-    if ocf_is_true $status_support; then
-        data_dir=`postconf $OPTION_CONFIG_DIR -h data_directory 2>/dev/null`
-        if [ ! -d "$data_dir" ]; then
+    if ocf_is_true $dir_check; then
+        if [ ! -d "$queue_dir" ]; then
             if ocf_is_probe; then
-                ocf_log info "Postfix data directory '$data_dir' not readable during probe."
+                ocf_log info "Postfix queue directory '$queue_dir' not readable during probe."
             else
-                ocf_log err "Postfix data directory '$data_dir' does not exist or is not readable."
+                ocf_log err "Postfix queue directory '$queue_dir' does not exist or is not readable."
                 return $OCF_ERR_INSTALLED
             fi
         fi
-    fi
 
-    # check directory permissions
-    if ocf_is_true $status_support; then
-        user=`postconf $OPTION_CONFIG_DIR -h mail_owner 2>/dev/null`
-        for dir in "$data_dir"; do
-            if ! su -s /bin/sh - $user -c "test -w $dir"; then
+        if ocf_is_true $status_support; then
+            data_dir=`postconf $OPTION_CONFIG_DIR -h data_directory 2>/dev/null`
+            if [ ! -d "$data_dir" ]; then
                 if ocf_is_probe; then
-                    ocf_log info "Directory '$dir' is not writable by user '$user' during probe."
+                    ocf_log info "Postfix data directory '$data_dir' not readable during probe."
                 else
-                    ocf_log err "Directory '$dir' is not writable by user '$user'."
-                    return $OCF_ERR_PERM;
+                    ocf_log err "Postfix data directory '$data_dir' does not exist or is not readable."
+                    return $OCF_ERR_INSTALLED
                 fi
             fi
-        done
+        fi
+
+        # check directory permissions
+        if ocf_is_true $status_support; then
+            user=`postconf $OPTION_CONFIG_DIR -h mail_owner 2>/dev/null`
+            for dir in "$data_dir"; do
+                if ! su -s /bin/sh - $user -c "test -w $dir"; then
+                    if ocf_is_probe; then
+                        ocf_log info "Directory '$dir' is not writable by user '$user' during probe."
+                    else
+                        ocf_log err "Directory '$dir' is not writable by user '$user'."
+                        return $OCF_ERR_PERM;
+                    fi
+                fi
+            done
+        fi
     fi
 
     # run Postfix internal check, if not probing
@@ -370,7 +377,7 @@ ret=$?
 
 #echo "debug[$1:$ret]"
 LSB_STATUS_STOPPED=3
-if [ $ret -ne $OCF_SUCCESS ]; then
+if [ $ret -ne $OCF_SUCCESS ] || ocf_is_probe; then
     case $1 in
     stop)       exit $OCF_SUCCESS ;;
     monitor)    exit $OCF_NOT_RUNNING;;
