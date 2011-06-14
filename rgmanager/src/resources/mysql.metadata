@@ -58,7 +58,7 @@
 		<shortdesc lang="en">
 			Wait X seconds for correct end of service startup
 		</shortdesc>
-		<content type="number" default="30" />
+		<content type="integer" default="30" />
 	</parameter>
 
 	<parameter name="shutdown_wait">

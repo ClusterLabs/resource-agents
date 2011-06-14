@@ -244,14 +244,14 @@ meta_data()
         </parameter>
 
 	<parameter name="hypervisor">
-            <shortdesc lang="en">
-		Hypervisor
-            </shortdesc >
             <longdesc lang="en">
 		Specify hypervisor tricks to use.  Default = auto.
 		Other supported options are xen and qemu.
             </longdesc>
-	    <content type="string" default="auto" />
+            <shortdesc lang="en">
+		Hypervisor
+            </shortdesc >
+	    <content type="string" default="auto"/>
 	</parameter>
 
 	<parameter name="hypervisor_uri">

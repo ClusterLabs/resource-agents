@@ -78,7 +78,7 @@ usage() {
 meta_data() {
 	cat <<END
 <?xml version="1.0"?>
-<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<!DOCTYPE resource-agent SYSTEM "ra-api-1-modified.dtd">
 <resource-agent name="SAPDatabase">
 <version>1.92.1</version>
 
