@@ -1,4 +1,4 @@
-# nfsserver
+# iscsi
 
 CONFIG
 	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
