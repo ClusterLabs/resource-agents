@@ -172,7 +172,8 @@ open_iscsi_setup() {
 	disk_status=open_iscsi_status
 	iscsiadm=${OCF_RESKEY_iscsiadm}
 
-	check_binary ${iscsiadm}
+	have_binary ${iscsiadm} ||
+		return $OCF_ERR_INSTALLED
 
 	open_iscsi_daemon ||
 		return $OCF_ERR_INSTALLED
