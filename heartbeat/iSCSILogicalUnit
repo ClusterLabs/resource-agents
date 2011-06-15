@@ -269,7 +269,7 @@ iSCSILogicalUnit_stop() {
 		# specific LU. Thus, we need to loop here until tgtd
 		# decides that the LU is no longer in use, or we get
 		# timed out by the LRM.
-		while ! ocf_run tgtadm --lld iscsi --op delete --mode logicalunit \
+		while ! ocf_run -warn tgtadm --lld iscsi --op delete --mode logicalunit \
 		    --tid ${TID} \
 		    --lun=${OCF_RESKEY_lun}; do
 		    sleep 1
