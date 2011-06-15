@@ -12,7 +12,7 @@
 #               http://www.postfix.org/postconf.5.html
 #
 #
-#       usage: $0 {start|stop|reload|status|monitor|validate-all|meta-data}
+#       usage: $0 {start|stop|reload|monitor|validate-all|meta-data}
 #
 #       The "start" arg starts a Postfix instance
 #
@@ -33,7 +33,7 @@
 : ${OCF_RESKEY_binary="/usr/sbin/postfix"}
 : ${OCF_RESKEY_config_dir=""}
 : ${OCF_RESKEY_parameters=""}
-USAGE="Usage: $0 {start|stop|reload|status|monitor|validate-all|meta-data}";
+USAGE="Usage: $0 {start|stop|reload|monitor|validate-all|meta-data}";
 
 ##########################################################################
 
@@ -392,15 +392,6 @@ case $1 in
 
     reload)     postfix_reload
                 exit $?
-                ;;
-
-    status)     if postfix_status; then
-                    ocf_log info "Postfix is running."
-                    exit $OCF_SUCCESS
-                else
-                    ocf_log info "Postfix is stopped."
-                    exit $OCF_NOT_RUNNING
-                fi
                 ;;
 
     validate-all)   exit $OCF_SUCCESS
