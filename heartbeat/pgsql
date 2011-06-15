@@ -22,11 +22,6 @@
 get_pgsql_param() {
     local config_file
     local param_name
-    local loglevel=err
-
-    if ocf_is_probe; then
-        loglevel=warn
-    fi
 
     param_name=$1
  
@@ -37,10 +32,8 @@ get_pgsql_param() {
         config=$OCF_RESKEY_pgdata/postgresql.conf
     fi
 
-    if [ ! -f "$config" ]; then
-        ocf_log $loglevel "Cannot find configuration file $config"
-        return
-    fi
+    check_config "$config" 
+    [ $? -eq 0 ] || return
 
     perl_code="if (/^\s*$param_name[\s=]+\s*(.*)$/) {
        \$dir=\$1;
@@ -310,6 +303,7 @@ EOF
 pgsql_start() {
     local pgctl_options
     local postgres_options
+    local rc
 
     if pgsql_status; then
         ocf_log info "PostgreSQL is already running. PID=`cat $PIDFILE`"
@@ -386,6 +380,8 @@ pgsql_start() {
 
 #pgsql_stop: Stop PostgreSQL
 pgsql_stop() {
+    local rc
+
     if ! pgsql_status
     then
         #Already stopped
@@ -456,6 +452,7 @@ pgsql_status() {
 pgsql_monitor() {
     local loglevel
     local psql_options
+    local rc
 
     # Set the log level of the error message
     loglevel=${1:-err}
@@ -509,6 +506,22 @@ check_binary2() {
     return 0
 }
 
+check_config() {
+    local rc=0
+
+    if [ ! -f "$1" ]; then
+        if ocf_is_probe; then
+           ocf_log info "Configuration file $1 not readable during probe."
+           rc=1
+        else
+           ocf_log err "Configuration file $1 doesn't exist"
+           rc=2
+        fi
+    fi
+
+    return $rc
+}
+
 # Validate most critical parameters
 pgsql_validate_all() {
     if ! check_binary2 "$OCF_RESKEY_pgctl" || 
@@ -517,8 +530,8 @@ pgsql_validate_all() {
     fi
 
     if [ -n "$OCF_RESKEY_config" -a ! -f "$OCF_RESKEY_config" ]; then
-        ocf_log err "the configuration file $OCF_RESKEY_config doesn't exist"
-        return $OCF_ERR_INSTALLED
+       check_config "$OCF_RESKEY_config" 
+       [ $? -eq 2 ] && return $OCF_ERR_INSTALLED
     fi
 
     getent passwd $OCF_RESKEY_pgdba >/dev/null 2>&1
@@ -528,7 +541,7 @@ pgsql_validate_all() {
     fi
 
     if ! runasowner "test -w $OCF_RESKEY_pgdata"; then
-        ocf_log err "Directory $OCF_RESKEY_pgdata is not writable by $OCF_RESKEY_pgdba"
+        ocf_log err "Directory $OCF_RESKEY_pgdata is not writeable by $OCF_RESKEY_pgdba"
         exit $OCF_ERR_PERM;
     fi
 
