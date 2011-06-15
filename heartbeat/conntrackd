@@ -44,7 +44,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="conntrackd">
-<version>1.1</version>
+<version>1.2</version>
 
 <longdesc lang="en">
 Master/Slave OCF Resource Agent for conntrackd
@@ -70,6 +70,7 @@ For example "/packages/conntrackd-0.9.14/etc/conntrackd/conntrackd.conf"</longde
 <shortdesc lang="en">Path to conntrackd.conf</shortdesc>
 <content type="string" default="$OCF_RESKEY_config_default"/>
 </parameter>
+
 </parameters>
 
 <actions>
@@ -78,8 +79,8 @@ For example "/packages/conntrackd-0.9.14/etc/conntrackd/conntrackd.conf"</longde
 <action name="demote"	timeout="30" />
 <action name="notify"	timeout="30" />
 <action name="stop"    timeout="30" />
-<action name="monitor" timeout="20" interval="20" role="Slave" />
-<action name="monitor" timeout="20" interval="10" role="Master" />
+<action name="monitor" depth="0"  timeout="20" interval="20" role="Slave" />
+<action name="monitor" depth="0"  timeout="20" interval="10" role="Master" />
 <action name="meta-data"  timeout="5" />
 <action name="validate-all"  timeout="30" />
 </actions>
@@ -111,12 +112,15 @@ conntrackd_set_master_score() {
 
 conntrackd_monitor() {
 	rc=$OCF_NOT_RUNNING
+
 	# It does not write a PID file, so check with pgrep
-	pgrep -f $OCF_RESKEY_binary && rc=$OCF_SUCCESS
+	pgrep -fx "$(basename $OCF_RESKEY_binary) -d -C $OCF_RESKEY_config" || 
+		pgrep -fx "$OCF_RESKEY_binary -d -C $OCF_RESKEY_config" && rc=$OCF_SUCCESS
+
 	if [ "$rc" -eq "$OCF_SUCCESS" ]; then
 		# conntrackd is running 
-		# now see if it acceppts queries
-		if ! $OCF_RESKEY_binary -C $OCF_RESKEY_config -s > /dev/null 2>&1; then
+		# now see if it accepts queries
+		if ! $OCF_RESKEY_binary -s > /dev/null 2>&1; then
 			rc=$OCF_ERR_GENERIC
 			ocf_log err "conntrackd is running but not responding to queries"
 		fi
@@ -152,7 +156,7 @@ conntrackd_start() {
 			;;
 		$OCF_NOT_RUNNING)
 			ocf_log info "Starting conntrackd"
-			$OCF_RESKEY_binary -C $OCF_RESKEY_config -d
+			$OCF_RESKEY_binary -d -C $OCF_RESKEY_config
 			;;
 		$OCF_RUNNING_MASTER)
 			ocf_log warn "conntrackd already in master mode, demoting."
@@ -179,7 +183,7 @@ conntrackd_stop() {
                 case "$status" in
                 $OCF_SUCCESS)
 			ocf_log info "Stopping conntrackd"
-                        $OCF_RESKEY_binary -C $OCF_RESKEY_config -k
+                        $OCF_RESKEY_binary -k
                         ;;
                 $OCF_NOT_RUNNING)
                         rc=$OCF_SUCCESS
@@ -216,8 +220,8 @@ conntrackd_promote() {
 		# -R = resync with the kernel table
 		# -B = send a bulk update on the line
 		for parm in c f R B; do
-			if ! $OCF_RESKEY_binary -C $OCF_RESKEY_config -$parm; then
-				ocf_log err "$OCF_RESKEY_binary -C $OCF_RESKEY_config -$parm failed during promote."
+			if ! $OCF_RESKEY_binary -$parm; then
+				ocf_log err "$OCF_RESKEY_binary -$parm failed during promote."
 				rc=$OCF_ERR_GENERIC
 				break
 			fi
@@ -234,8 +238,8 @@ conntrackd_demote() {
 		# -t = shorten kernel timers to remove zombies
 		# -n = request a resync from the others
 		for parm in t n; do
-			if ! $OCF_RESKEY_binary -C $OCF_RESKEY_config -$parm; then
-                        	ocf_log err "$OCF_RESKEY_binary -C $OCF_RESKEY_config -$parm failed during demote."
+			if ! $OCF_RESKEY_binary -$parm; then
+                        	ocf_log err "$OCF_RESKEY_binary -$parm failed during demote."
                         	rc=$OCF_ERR_GENERIC
                         	break
                 	fi
@@ -254,7 +258,7 @@ conntrackd_notify() {
 		# send a bulk update to allow failback
 		if [ "$hostname" = "$master" -a "$OCF_RESKEY_CRM_meta_notify_type" = "post" -a "$OCF_RESKEY_CRM_meta_notify_operation" = "start" -a "$OCF_RESKEY_CRM_meta_notify_start_uname" != "$hostname" ]; then
 			ocf_log info "Sending bulk update in post start to peers to allow failback"
-			$OCF_RESKEY_binary -C $OCF_RESKEY_config -B
+			$OCF_RESKEY_binary -B
 		fi
 	done
 	for tobepromoted in $OCF_RESKEY_CRM_meta_notify_promote_uname; do
@@ -262,7 +266,7 @@ conntrackd_notify() {
 		# send a bulk update to allow failback
 		if [ "$hostname" != "$tobepromoted" -a "$OCF_RESKEY_CRM_meta_notify_type" = "pre" -a "$OCF_RESKEY_CRM_meta_notify_operation" = "promote" ]; then
 			ocf_log info "Sending bulk update in pre promote to peers to allow failback"
-			$OCF_RESKEY_binary -C $OCF_RESKEY_config -B
+			$OCF_RESKEY_binary -B
 		fi
 	done
 }
