@@ -303,6 +303,7 @@ EOF
 pgsql_start() {
     local pgctl_options
     local postgres_options
+    local rc
 
     if pgsql_status; then
         ocf_log info "PostgreSQL is already running. PID=`cat $PIDFILE`"
@@ -379,6 +380,8 @@ pgsql_start() {
 
 #pgsql_stop: Stop PostgreSQL
 pgsql_stop() {
+    local rc
+
     if ! pgsql_status
     then
         #Already stopped
@@ -449,6 +452,7 @@ pgsql_status() {
 pgsql_monitor() {
     local loglevel
     local psql_options
+    local rc
 
     # Set the log level of the error message
     loglevel=${1:-err}
