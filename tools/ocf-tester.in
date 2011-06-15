@@ -56,6 +56,7 @@ assert() {
     rc=$1; shift
     target=$1; shift
     msg=$1; shift
+    local targetrc matched
 
     if [ $# = 0 ]; then
 	exit_code=0
@@ -63,7 +64,10 @@ assert() {
 	exit_code=$1; shift
     fi
 
-    if [ $rc -ne $target ]; then
+    for targetrc in `echo $target | tr ':' ' '`; do
+        [ $rc -eq $targetrc ] && matched=1
+    done
+    if [ "$matched" != 1 ]; then
 	num_errors=`expr $num_errors + 1`
 	echo "* rc=$rc: $msg"
 	if [ $exit_code != 0 ]; then
@@ -114,6 +118,7 @@ if [ ! -e $agent ]; then
     echo "You must provide the full path to your resource agent" >&2
     usage 1
 fi
+installed_rc=5
 stopped_rc=7
 has_demote=1
 has_promote=1
@@ -294,7 +299,7 @@ OCF_TESTER_FAIL_HAVE_BINARY=1
 export OCF_TESTER_FAIL_HAVE_BINARY
 OCF_RESKEY_CRM_meta_interval=0
 test_command monitor
-assert $? $stopped_rc "The initial probe for a stopped resource should return $stopped_rc even if all binaries are missing"
+assert $? $stopped_rc:$installed_rc "The initial probe for a stopped resource should return $stopped_rc or $installed_rc even if all binaries are missing"
 unset OCF_TESTER_FAIL_HAVE_BINARY
 OCF_RESKEY_CRM_meta_interval=20000
 
