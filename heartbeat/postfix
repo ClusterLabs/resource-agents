@@ -95,7 +95,7 @@ Specify any of them here.
 END
 }
 
-running() {
+postfix_running() {
     # run Postfix status if available
     if ocf_is_true $status_support; then
         output=`$binary $OPTION_CONFIG_DIR status 2>&1`
@@ -118,15 +118,10 @@ running() {
     false
 }
 
-postfix_status()
-{
-    running
-}
-
 postfix_start()
 {
     # if Postfix is running return success
-    if postfix_status; then
+    if postfix_running; then
         ocf_log info "Postfix already running."
         return $OCF_SUCCESS
     fi
@@ -145,7 +140,7 @@ postfix_start()
     while true; do
         sleep 1
         # break if postfix is up and running; log failure otherwise
-        running && break
+        postfix_running && break
         ocf_log info "Postfix failed initial monitor action." $ret
     done
 
@@ -157,7 +152,7 @@ postfix_start()
 postfix_stop()
 {
     # if Postfix is not running return success
-    if ! postfix_status; then
+    if ! postfix_running; then
         ocf_log info "Postfix already stopped."
         return $OCF_SUCCESS
     fi
@@ -173,21 +168,21 @@ postfix_stop()
 
     # grant some time for shutdown and recheck 5 times
     for i in 1 2 3 4 5; do
-        if postfix_status; then
+        if postfix_running; then
             sleep 1
         fi
     done
 
     # escalate to abort if we did not stop by now
     # @TODO shall we loop here too?
-    if postfix_status; then
+    if postfix_running; then
         ocf_log err "Postfix failed to stop. Escalating to 'abort'."
 
         $binary $OPTIONS abort >/dev/null 2>&1; ret=$?
         sleep 5
 
         # postfix abort did not succeed
-        if postfix_status; then
+        if postfix_running; then
             ocf_log err "Postfix failed to abort."
             return $OCF_ERR_GENERIC
         fi
@@ -199,7 +194,7 @@ postfix_stop()
 
 postfix_reload()
 {
-    if postfix_status; then
+    if postfix_running; then
         ocf_log info "Reloading Postfix."
         $binary $OPTIONS reload
     fi
@@ -207,7 +202,7 @@ postfix_reload()
 
 postfix_monitor()
 {
-    if postfix_status; then
+    if postfix_running; then
         return $OCF_SUCCESS
     fi
 
