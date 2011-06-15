@@ -80,17 +80,17 @@ CASE "double stop"
 	Include prepare
 	AgentRun stop OCF_SUCCESS
 
-CASE "running monitor"
+CASE "monitor a running resource"
 	Include prepare
 	AgentRun start
 	AgentRun monitor OCF_SUCCESS
 
-CASE "not running/initial probe (monitor)"
+CASE "(initial) probe a stopped resource"
 	Include prepare
 	Var OCF_RESKEY_CRM_meta_interval=0
 	AgentRun monitor OCF_NOT_RUNNING
 
-CASE "running (re-)probe (monitor)"
+CASE "(re-)probe a running resource"
 	Include prepare
 	Var OCF_RESKEY_CRM_meta_interval=0
 	AgentRun start
