@@ -371,11 +371,9 @@ postfix_validate_all
 ret=$?
 
 LSB_STATUS_STOPPED=3
-if [ $ret -ne $OCF_SUCCESS ] || ocf_is_probe; then
+if [ $ret -ne $OCF_SUCCESS ]; then
     case $1 in
     stop)       exit $OCF_SUCCESS ;;
-    monitor)    exit $OCF_NOT_RUNNING;;
-    status)     exit $LSB_STATUS_STOPPED;;
     *)          exit $ret;;
     esac
 fi
