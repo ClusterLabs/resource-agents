@@ -1,5 +1,9 @@
-* Wed Jun 01 2011 Dejan Muhamedagic <dejan@suse.de> and others
+* Wed Jun 15 2011 Dejan Muhamedagic <dejan@suse.de> and others
 - stable release 3.9.1
+- ocf-tester: tolerate OCF_ERR_INSTALLED on probes and missing binaries
+- pgsql: improve configuration check and probe handling
+* Wed Jun 01 2011 Dejan Muhamedagic <dejan@suse.de> and others
+- release candidate 3.9.1 rc1
 - first release since establishing joined repository with RHCS agents
 - build: new spec file and autoconf to support both agents' sets
 - build: use ./configure --with-ras-set=linux-ha to configure for
