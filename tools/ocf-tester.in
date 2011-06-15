@@ -309,6 +309,11 @@ assert $? 0 "Start failed.  Did you supply enough options with -o ?" 1
 test_command monitor
 assert $? 0 "Monitoring an active resource should return 0"
 
+OCF_RESKEY_CRM_meta_interval=0
+test_command monitor
+assert $? 0 "Probing an active resource should return 0"
+OCF_RESKEY_CRM_meta_interval=20000
+
 test_command notify
 rc=$?
 if [ $rc -eq 3 ]; then
