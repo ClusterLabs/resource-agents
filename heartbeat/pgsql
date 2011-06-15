@@ -22,11 +22,6 @@
 get_pgsql_param() {
     local config_file
     local param_name
-    local loglevel=err
-
-    if ocf_is_probe; then
-        loglevel=warn
-    fi
 
     param_name=$1
  
@@ -37,10 +32,8 @@ get_pgsql_param() {
         config=$OCF_RESKEY_pgdata/postgresql.conf
     fi
 
-    if [ ! -f "$config" ]; then
-        ocf_log $loglevel "Cannot find configuration file $config"
-        return
-    fi
+    check_config "$config"
+    [ $? -eq 0 ] || return
 
     perl_code="if (/^\s*$param_name[\s=]+\s*(.*)$/) {
        \$dir=\$1;
@@ -509,6 +502,22 @@ check_binary2() {
     return 0
 }
 
+check_config() {
+    local rc=0
+
+    if [ ! -f "$1" ]; then
+        if ocf_is_probe; then
+           ocf_log info "Configuration file $1 not readable during probe."
+           rc=1
+        else
+           ocf_log err "Configuration file $1 doesn't exist"
+           rc=2
+        fi
+    fi
+
+    return $rc
+}
+
 # Validate most critical parameters
 pgsql_validate_all() {
     if ! check_binary2 "$OCF_RESKEY_pgctl" || 
@@ -517,8 +526,8 @@ pgsql_validate_all() {
     fi
 
     if [ -n "$OCF_RESKEY_config" -a ! -f "$OCF_RESKEY_config" ]; then
-        ocf_log err "the configuration file $OCF_RESKEY_config doesn't exist"
-        return $OCF_ERR_INSTALLED
+       check_config "$OCF_RESKEY_config"
+       [ $? -eq 2 ] && return $OCF_ERR_INSTALLED
     fi
 
     getent passwd $OCF_RESKEY_pgdba >/dev/null 2>&1
