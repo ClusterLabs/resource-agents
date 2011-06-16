@@ -444,7 +444,6 @@ AC_PATH_PROGS(IFCONFIG, ifconfig, /sbin/ifconfig)
 AC_PATH_PROGS(MAILCMD, mailx mail, mail)
 AC_PATH_PROGS(EGREP, egrep)
 AC_PATH_PROGS(PKGCONFIG, pkg-config)
-AC_PATH_PROGS(HELP2MAN, help2man)
 
 AC_SUBST(MAILCMD)
 AC_SUBST(EGREP)
@@ -473,8 +472,6 @@ AC_SUBST(IFCONFIG_A_OPT)
 if test x"${MAKE}" = x""; then
    AC_MSG_ERROR(You need (g)make installed in order to build ${PACKAGE})
 fi
-
-AM_CONDITIONAL(BUILD_HELP, test x"${HELP2MAN}" != x"")
 
 dnl ===============================================
 dnl Libraries

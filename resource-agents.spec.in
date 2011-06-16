@@ -58,7 +58,7 @@ BuildRequires: which
 BuildRequires: cluster-glue-libs-devel
 BuildRequires: docbook-style-xsl docbook-dtds
 %if 0%{?rhel} == 0
-BuildRequires: help2man libnet-devel
+BuildRequires: libnet-devel
 %endif
 %endif
 
@@ -250,9 +250,7 @@ rm -rf %{buildroot}
 %endif
 
 %{_mandir}/man7/*.7*
-%if 0%{?rhel} == 0
 %{_mandir}/man8/ocf-tester.8*
-%endif
 
 # For compatability with pre-existing agents
 %dir %{_sysconfdir}/ha.d

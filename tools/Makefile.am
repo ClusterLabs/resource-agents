@@ -29,6 +29,8 @@ sbin_PROGRAMS		=
 sbin_SCRIPTS		= ocf-tester
 halib_PROGRAMS		= findif
 
+man8_MANS		= ocf-tester.8
+
 if BUILD_SFEX
 halib_PROGRAMS		+= sfex_daemon
 sbin_PROGRAMS		+= sfex_init sfex_stat
@@ -65,17 +67,6 @@ findif_SOURCES		= findif.c
 if BUILD_TICKLE
 halib_PROGRAMS		+= tickle_tcp
 tickle_tcp_SOURCES	= tickle_tcp.c
-endif
-
-if BUILD_HELP
-man8_MANS =	$(sbin_SCRIPTS:%=%.8)
-%.8:	%
-	echo Creating $@
-	chmod a+x $<
-	help2man --output $@ --no-info --section 8 --name "Part of the Linux-HA project" $(top_builddir)/tools/$<
-
-clean-local:
-	rm -f $(sbin_SCRIPTS:%=%.8)
 endif
 
 .PHONY: install-exec-hook
