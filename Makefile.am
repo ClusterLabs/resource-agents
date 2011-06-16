@@ -104,8 +104,8 @@ $(SPEC): $(SPEC).in
 		ver=`echo $$ver | sed -e "s/-dirty$$//"`; \
 	fi && \
 	echo $$ver && \
-	alphatag=`echo $$ver | sed -e "s/.*-//"` && \
-	if [ -n "$$alphatag" ]; then \
+	if echo $$ver | grep -q -- "-"; then \
+		alphatag=`echo $$ver | sed -e "s/.*-//"` && \
 		echo VERSION HAS ALPHATAG && \
 		ver=`echo $$ver | sed -e "s/-.*//"`; \
 	fi && \
