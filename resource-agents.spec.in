@@ -106,7 +106,6 @@ High Availability environment for both Pacemaker and rgmanager
 service managers.
 
 %if %{with linuxha}
-%if 0%{?rhel} == 0
 %package -n ldirectord
 License:	GPLv2+
 Summary:	A Monitoring Daemon for Maintaining High Availability Resources
@@ -135,7 +134,6 @@ lditrecord is simple to install and works with the heartbeat code
 (http://www.linux-ha.org/).
 
 See 'ldirectord -h' and linux-ha/doc/ldirectord for more information.
-%endif
 %endif
 
 %prep
@@ -194,12 +192,6 @@ make install DESTDIR=%{buildroot}
 rm -rf %{buildroot}/usr/share/doc/resource-agents
 
 %if %{with linuxha}
-%if 0%{?rhel} != 0
-# ldirectord isn't included on RHEL
-find %{buildroot} -name 'ldirectord.*' -exec rm -f {} \;
-find %{buildroot} -name 'ldirectord' -exec rm -f {} \;
-%endif
-
 %if 0%{?suse_version}
 test -d %{buildroot}/sbin || mkdir %{buildroot}/sbin
 (
@@ -258,19 +250,16 @@ rm -rf %{buildroot}
 %endif
 
 %{_mandir}/man7/*.7*
-%{_mandir}/man8/*.8*
+%if 0%{?rhel} == 0
+%{_mandir}/man8/ocf-tester.8*
+%endif
 
 # For compatability with pre-existing agents
 %dir %{_sysconfdir}/ha.d
 %{_sysconfdir}/ha.d/shellfuncs
 
 %{_libdir}/heartbeat
-%{_libdir}/heartbeat/send_arp
-%{_libdir}/heartbeat/sfex_daemon
-%{_libdir}/heartbeat/findif
-%{_libdir}/heartbeat/tickle_tcp
 
-%if 0%{?rhel} == 0
 %if 0%{?suse_version}
 %preun -n ldirectord
 %stop_on_removal ldirectord
@@ -301,7 +290,6 @@ rm -rf %{buildroot}
 %endif
 %if 0%{?fedora}
 /usr/lib/ocf/resource.d/heartbeat/ldirectord
-%endif
 %endif
 %endif
 
