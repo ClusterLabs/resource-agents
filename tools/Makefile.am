@@ -25,6 +25,8 @@ INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include
 
 halibdir		= $(libdir)/heartbeat
 
+EXTRA_DIST		= ocf-tester.8
+
 sbin_PROGRAMS		= 
 sbin_SCRIPTS		= ocf-tester
 halib_PROGRAMS		= findif
