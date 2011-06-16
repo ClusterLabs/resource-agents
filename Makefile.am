@@ -94,60 +94,49 @@ $(SPEC): $(SPEC).in
 	date="$(shell LC_ALL=C date "+%a %b %d %Y")" && \
 	specver="1" && \
 	rcver="" && \
-	if [ -f .tarball-version ]; then \
-		gitver="$(shell cat .tarball-version)" && \
-		if echo $$gitver | grep -q "\.[[:digit:]]rc[[:digit:]]"; then \
-			rpmver=`echo $$gitver | sed -e "s/rc[[:digit:]]//g"` && \
-			rcver=`echo $$gitver | sed -e "s/.*rc/rc/g" -e "s/-.*//g"` && \
-			specver="0"; \
-		else \
-			rpmver=$$gitver; \
-		fi && \
-		alphatag="" && \
-		dirty="" && \
-		numcomm="0"; \
-	else \
-		gitver="$(shell git describe --abbrev=4 --match='v*' HEAD 2>/dev/null)" && \
-		if echo $$gitver | grep -q "\.[[:digit:]]rc[[:digit:]]"; then \
-			rpmver=`echo $$gitver | sed -e "s/^v//" -e "s/rc[[:digit:]]//g" -e "s/-.*//g"` && \
-			rcver=`echo $$gitver | sed -e "s/.*rc/rc/g" -e "s/-.*//g"` && \
-			specver="0"; \
-		else \
-			rpmver=`echo $$gitver | sed -e "s/^v//" -e "s/-.*//g"`; \
-		fi && \
-		alphatag=`echo $$gitver | sed -e "s/.*-//" -e "s/^g//"` && \
-		vtag=`echo $$gitver | sed -e "s/-.*//g"` && \
-		numcomm=`git rev-list $$vtag..HEAD | wc -l` && \
-		git update-index --refresh > /dev/null 2>&1 || true && \
-		dirty=`git diff-index --name-only HEAD 2>/dev/null`; \
+	dirty="" && \
+	alphatag="" && \
+	numcomm="" && \
+	ver="$(VERSION)" && \
+	if echo $$ver | grep -q -- "-dirty$$"; then \
+		dirty="dirty" && \
+		echo VERSION IS DIRTY && \
+		ver=`echo $$ver | sed -e "s/-dirty$$//"`; \
 	fi && \
-	if [ -n "$$dirty" ]; then dirty="dirty"; else dirty=""; fi && \
-	if [ "$$numcomm" = "0" ]; then \
-		sed \
-			-e "s#@version@#$$rpmver#g" \
-			-e "s#%glo.*alpha.*##g" \
-			-e "s#%glo.*numcomm.*##g" \
-			-e "s#@dirty@#$$dirty#g" \
-			-e "s#@date@#$$date#g" \
-			-e "s#@specver@#$$specver#g" \
-			-e "s#@rcver@#$$rcver#g" \
-			-e "s#@rgmanager@#$(RGMANAGER)#g" \
-			-e "s#@linux-ha@#$(LINUX_HA)#g" \
-		$< > $@-t; \
+	echo $$ver && \
+	alphatag=`echo $$ver | sed -e "s/.*-//"` && \
+	if [ -n "$$alphatag" ]; then \
+		echo VERSION HAS ALPHATAG && \
+		ver=`echo $$ver | sed -e "s/-.*//"`; \
+	fi && \
+	echo $$ver && \
+	if [ -n "$$alphatag" ]; then \
+		echo VERSION HAS NUMCOMMITS && \
+		numcomm=`echo $$ver | sed -e 's/.*\.//'` && \
+		ver=`echo $$ver | sed -e 's/.'$$numcomm$$'//'`; \
+	fi && \
+	if echo $$ver | grep -q "\.[[:digit:]]rc[[:digit:]]"; then \
+		rpmver=`echo $$ver | sed -e "s/rc[[:digit:]].*//g"` && \
+		rcver=`echo $$ver | sed -e "s/.*\(rc[[:digit:]]\).*/\1/g"` && \
+		specver="0"; \
 	else \
-		sed \
-			-e "s#@version@#$$rpmver#g" \
-			-e "s#@alphatag@#$$alphatag#g" \
-			-e "s#@numcomm@#$$numcomm#g" \
-			-e "s#@dirty@#$$dirty#g" \
-			-e "s#@date@#$$date#g" \
-			-e "s#@specver@#$$specver#g" \
-			-e "s#@rcver@#$$rcver#g" \
-			-e "s#@rgmanager@#$(RGMANAGER)#g" \
-			-e "s#@linux-ha@#$(LINUX_HA)#g" \
-		$< > $@-t; \
-	fi; \
+		rpmver=$$ver; \
+	fi && \
+	echo $$rpmver $$rcver && \
+	sed \
+		-e "s#@version@#$$rpmver#g" \
+		-e "s#@alphatag@#$$alphatag#g" \
+		-e "s#@numcomm@#$$numcomm#g" \
+		-e "s#@dirty@#$$dirty#g" \
+		-e "s#@date@#$$date#g" \
+		-e "s#@specver@#$$specver#g" \
+		-e "s#@rcver@#$$rcver#g" \
+		-e "s#@rgmanager@#$(RGMANAGER)#g" \
+		-e "s#@linux-ha@#$(LINUX_HA)#g" \
+	$< > $@-t; \
 	if [ -z "$$dirty" ]; then sed -i -e "s#%glo.*dirty.*##g" $@-t; fi; \
+	if [ -z "$$alphatag" ]; then sed -i -e "s#%glo.*alphatag.*##g" $@-t; fi; \
+	if [ -z "$$numcomm" ]; then sed -i -e "s#%glo.*numcomm.*##g" $@-t; fi; \
 	if [ -z "$$rcver" ]; then sed -i -e "s#%glo.*rcver.*##g" $@-t; fi
 	chmod a-w $@-t
 	mv $@-t $@
