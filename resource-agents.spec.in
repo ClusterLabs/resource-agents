@@ -206,7 +206,7 @@ rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root)
-%doc AUTHORS COPYING COPYING.GPLv3 ChangeLog ChangeLog.devel
+%doc AUTHORS COPYING COPYING.GPLv3 ChangeLog
 %if %{with linuxha}
 %doc doc/README.webapps
 %doc %{_datadir}/%{name}/ra-api-1.dtd
