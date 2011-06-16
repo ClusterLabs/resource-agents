@@ -98,7 +98,7 @@ $(SPEC): $(SPEC).in
 		gitver="$(shell cat .tarball-version)" && \
 		if echo $$gitver | grep -q "\.[[:digit:]]rc[[:digit:]]"; then \
 			rpmver=`echo $$gitver | sed -e "s/rc[[:digit:]]//g"` && \
-			rcver=`echo $$gitver | sed -e "s/.*rc/rc/g"` && \
+			rcver=`echo $$gitver | sed -e "s/.*rc/rc/g" -e "s/-.*//g"` && \
 			specver="0"; \
 		else \
 			rpmver=$$gitver; \
@@ -110,7 +110,7 @@ $(SPEC): $(SPEC).in
 		gitver="$(shell git describe --abbrev=4 --match='v*' HEAD 2>/dev/null)" && \
 		if echo $$gitver | grep -q "\.[[:digit:]]rc[[:digit:]]"; then \
 			rpmver=`echo $$gitver | sed -e "s/^v//" -e "s/rc[[:digit:]]//g" -e "s/-.*//g"` && \
-			rcver=`echo $$gitver | sed -e "s/.*rc/rc/g"` && \
+			rcver=`echo $$gitver | sed -e "s/.*rc/rc/g" -e "s/-.*//g"` && \
 			specver="0"; \
 		else \
 			rpmver=`echo $$gitver | sed -e "s/^v//" -e "s/-.*//g"`; \
