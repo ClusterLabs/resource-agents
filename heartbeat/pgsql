@@ -545,7 +545,7 @@ pgsql_validate_all() {
     else
         if ! runasowner "test -w $OCF_RESKEY_pgdata"; then
             ocf_log err "Directory $OCF_RESKEY_pgdata is not writable by $OCF_RESKEY_pgdba"
-            exit $OCF_ERR_PERM;
+            return $OCF_ERR_PERM;
         fi
     fi
 
