@@ -536,7 +536,7 @@ pgsql_validate_all() {
 
     getent passwd $OCF_RESKEY_pgdba >/dev/null 2>&1
     if [ ! $? -eq 0 ]; then
-        ocf_log err "User $OCF_RESKEY_pgdba doesn't exit";
+        ocf_log err "User $OCF_RESKEY_pgdba doesn't exist";
         return $OCF_ERR_INSTALLED;
     fi
 
