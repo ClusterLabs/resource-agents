@@ -93,7 +93,7 @@ The name of the network interface which should be monitored (e.g. eth0).
 
 <parameter name="name" unique="1">
 <longdesc lang="en">
-The name of the CIB attribute to set.  This is the name to be used in the constraints. Defaults to "ethmonitor-<interface_name>".
+The name of the CIB attribute to set.  This is the name to be used in the constraints. Defaults to "ethmonitor-'interface_name'".
 </longdesc>
 <shortdesc lang="en">Attribute name</shortdesc>
 <content type="string" default=""/>
