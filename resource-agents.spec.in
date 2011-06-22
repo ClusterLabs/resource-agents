@@ -251,6 +251,7 @@ rm -rf %{buildroot}
 
 %{_mandir}/man7/*.7*
 %{_mandir}/man8/ocf-tester.8*
+%{_mandir}/man8/sfex_init.8*
 
 # For compatability with pre-existing agents
 %dir %{_sysconfdir}/ha.d
