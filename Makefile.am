@@ -113,7 +113,7 @@ $(SPEC): $(SPEC).in
 	if [ -n "$$alphatag" ]; then \
 		echo VERSION HAS NUMCOMMITS && \
 		numcomm=`echo $$ver | sed -e 's/.*\.//'` && \
-		ver=`echo $$ver | sed -e 's/.'$$numcomm$$'//'`; \
+		ver=`echo $$ver | sed -e 's/.'$$numcomm'$$//'`; \
 	fi && \
 	if echo $$ver | grep -q "\.[[:digit:]]rc[[:digit:]]"; then \
 		rpmver=`echo $$ver | sed -e "s/rc[[:digit:]].*//g"` && \
