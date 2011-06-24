@@ -21,6 +21,8 @@
 #	Info:
 #		/usr/bin/couchdb -a /etc/couchdb/default.ini -a /etc/couchdb/local.ini -b -p /var/run/couchdb/couchdb.pid -o /dev/null -e /dev/null -R
 #		curl -s -H "Content-Type: application/json" -X POST http://user:pass@host:port/_replicate -d '{"source":"http://user:pass@srchost:port/dbname", "target":"http://user:pass@127.0.0.1:port/dbname", "continuous":true}'
+#	Example:
+#		at end of this file
 #
 #######################################################################
 # Initialization:
@@ -389,10 +391,9 @@ cdb_monitor() {
 
 	if [ -f ${OCF_RESKEY_pid} ]; then
 		cdb_validate || exit $?
+		cdb_monitor_couchdb; rc=$?; ocf_log debug "cdb_monitor: cdb_monitor_couchdb = $rc"
 		if ocf_is_true "${OCF_RESKEY_repl_enable}"; then
-			cdb_monitor_replica; rc=$?; ocf_log debug "cdb_monitor: cdb_monitor_replica = $rc"
-		else
-			cdb_monitor_couchdb; rc=$?; ocf_log debug "cdb_monitor: cdb_monitor_couchdb = $rc"
+			cdb_monitor_replica || cdb_start_replica
 		fi
 	fi
 
@@ -444,3 +445,46 @@ esac
 rc=$?
 ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
 exit $rc
+
+
+#######################################################################
+# 
+#  Example:
+#
+#		crm configure show
+#		node vub001
+#		node vub002
+#		primitive couchdb-1 ocf:heartbeat:couchdb \
+#			params dbuser="user" dbpass="pass" repl_src_host="192.168.1.2" repl_enable="true" repl_src_port="5984" repl_src_user="admin" repl_src_pass="1qaz2wsx" repl_src_db="testdb" repl_trt_host="127.0.0.1" repl_trt_port="5984" repl_trt_user="admin" repl_trt_pass="1qaz2wsx" repl_trt_db="testdb" \
+#			op start interval="0" timeout="20s" \
+#			op stop interval="0" timeout="20s" \
+#			op monitor interval="10s" \
+#			meta target-role="Started"
+#		primitive couchdb-2 ocf:heartbeat:couchdb \
+#			params dbuser="user" dbpass="pass" repl_src_host="192.168.1.1" repl_enable="true" repl_src_port="5984" repl_src_user="admin" repl_src_pass="1qaz2wsx" repl_src_db="testdb" repl_trt_host="127.0.0.1" repl_trt_port="5984" repl_trt_user="admin" repl_trt_pass="1qaz2wsx" repl_trt_db="testdb" \
+#			op start interval="0" timeout="20s" \
+#			op stop interval="0" timeout="20s" \
+#			op monitor interval="10s" \
+#			meta target-role="Started"
+#		primitive vIP ocf:heartbeat:IPaddr2 \
+#			params ip="192.168.1.10" nic="eth1" \
+#			op start interval="0" timeout="20s" \
+#			op stop interval="0" timeout="20s" \
+#			op monitor interval="5s" timeout="20s" depth="0" \
+#			meta target-role="Started"
+#		location cdb-1-c couchdb-1 inf: vub001
+#		location cdb-1-p couchdb-1 -inf: vub002
+#		location cdb-2-c couchdb-2 inf: vub002
+#		location cdb-2-p couchdb-2 -inf: vub001
+#		location vIP_c vIP 100: vub001
+#		location vIP_p vIP 10: vub002
+#		property $id="cib-bootstrap-options" \
+#			cluster-infrastructure="openais" \
+#			expected-quorum-votes="2" \
+#			no-quorum-policy="ignore" \
+#			stonith-enabled="false" \
+#			symmetric-cluster="false" \
+#		rsc_defaults $id="rsc-options" \
+#			resource-stickiness="110"
+#
+#######################################################################
