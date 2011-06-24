@@ -26,11 +26,11 @@ commonscripts		= fs-lib.sh \
 			  messages.sh \
 			  named-parse-config.pl \
 			  ra-skelet.sh \
-			  tomcat-parse-config.pl \
-			  rhev-check.sh
+			  tomcat-parse-config.pl
 
 EXTRA_DIST		= $(commonscripts) \
-			  $(TARGET).in
+			  $(TARGET).in \
+			  rhev-check.sh
 
 sbin_SCRIPTS		= rhev-check.sh
 
