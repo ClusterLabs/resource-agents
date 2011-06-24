@@ -1,3 +1,9 @@
+* Fri Jun 24 2011 Dejan Muhamedagic <dejan@suse.de> and others
+- stable release 3.9.2
+- ethermon: new resource agent
+- iscsi: fix regression in 3.9.1 for open-iscsi version 2.0-872 (lf#2562)
+- pgsql: fix regression in 3.9.1 in directories on probes
+- doc: add sfex_init(8) man page
 * Wed Jun 15 2011 Dejan Muhamedagic <dejan@suse.de> and others
 - stable release 3.9.1
 - ocf-tester: tolerate OCF_ERR_INSTALLED on probes and missing binaries
