@@ -89,7 +89,7 @@ meta_data()
 			<content type="string" />
 		</parameter>
 
-		<parameter name="sybase_home" unique="1" required="1">
+		<parameter name="sybase_home" required="1">
 			<longdesc lang="en">
 				The home directory of sybase products
 			</longdesc>
@@ -99,7 +99,7 @@ meta_data()
 			<content type="string" />
 		</parameter>
 
-		<parameter name="sybase_ase" unique="1" required="1">
+		<parameter name="sybase_ase" required="1">
 			<longdesc lang="en">
 				The directory name under sybase_home where ASE products are installed
 			</longdesc>
@@ -109,7 +109,7 @@ meta_data()
 			<content type="string" default="ASE-15_0" />
 		</parameter>
 
-		<parameter name="sybase_ocs" unique="1" required="1">
+		<parameter name="sybase_ocs" required="1">
 			<longdesc lang="en">
 				The directory name under sybase_home where OCS products are installed, i.e. ASE-15_0
 			</longdesc>
@@ -119,7 +119,7 @@ meta_data()
 			<content type="string" default="OCS-15_0" />
 		</parameter>
 
-		<parameter name="server_name" unique="1" required="1">
+		<parameter name="server_name" required="1">
 			<longdesc lang="en">
 				The ASE server name which is configured for the HA service
 			</longdesc>
@@ -129,7 +129,7 @@ meta_data()
 			<content type="string" />
 		</parameter>
 
-		<parameter name="login_file" unique="1" required="1">
+		<parameter name="login_file" required="1">
 			<longdesc lang="en">
 				The full path of login file which contains the login/password pair
 			</longdesc>
@@ -139,7 +139,7 @@ meta_data()
 			<content type="string" />
 		</parameter>
 
-		<parameter name="interfaces_file" unique="1" required="1">
+		<parameter name="interfaces_file" required="1">
 			<longdesc lang="en">
 				The full path of interfaces file which is used to start/access the ASE server
 			</longdesc>
@@ -149,7 +149,7 @@ meta_data()
 			<content type="string" />
 		</parameter>
 
-		<parameter name="sybase_user" unique="1" required="1">
+		<parameter name="sybase_user" required="1">
 			<longdesc lang="en">
 				The user who can run ASE server
 			</longdesc>
@@ -159,7 +159,7 @@ meta_data()
 			<content type="string" default="sybase" />
 		</parameter>
 
-		<parameter name="shutdown_timeout" unique="1" required="1">
+		<parameter name="shutdown_timeout" required="1">
 			<longdesc lang="en">
 				The maximum seconds to wait for the ASE server to shutdown before killing the process directly
 			</longdesc>
@@ -169,7 +169,7 @@ meta_data()
 			<content type="integer" default="0" />
 		</parameter>
 
-		<parameter name="start_timeout" unique="1" required="1">
+		<parameter name="start_timeout" required="1">
 			<longdesc lang="en">
 				The maximum seconds to wait for an ASE server to complete before determining that the server had failed to start
 			</longdesc>
@@ -179,7 +179,7 @@ meta_data()
 			<content type="integer" default="0" />
 		</parameter>
 
-		<parameter name="deep_probe_timeout" unique="1" required="1">
+		<parameter name="deep_probe_timeout" required="1">
 			<longdesc lang="en">
 				The maximum seconds to wait for the response of ASE server before determining that the server had no response while running deep probe
 			</longdesc>
