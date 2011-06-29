@@ -1,4 +1,4 @@
-* Fri Jun 24 2011 Dejan Muhamedagic <dejan@suse.de> and others
+* Wed Jun 29 2011 Dejan Muhamedagic <dejan@suse.de> and others
 - stable release 3.9.2
 - ethermon: new resource agent
 - iscsi: fix regression in 3.9.1 for open-iscsi version 2.0-872 (lf#2562)
