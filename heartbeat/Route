@@ -48,16 +48,24 @@ and routes using specific source addresses.
 
 This resource agent is useful if a node's routing table
 needs to be manipulated based on node role assignment.
+
 Consider the following example use case:
+
   -  One cluster node serves as an IPsec tunnel endpoint.
+
   -  All other nodes use the IPsec tunnel to reach hosts
      in a specific remote network.
+
 Then, here is how you would implement this scheme making use
 of the Route resource agent:
+
   -  Configure an ipsec LSB resource.
+
   -  Configure a cloned Route OCF resource.
+
   -  Create an order constraint to ensure 
      that ipsec is started before Route.
+
   -  Create a colocation constraint between the
      ipsec and Route resources, to make sure no instance
      of your cloned Route resource is started on the
