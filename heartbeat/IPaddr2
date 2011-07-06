@@ -325,17 +325,10 @@ ip_init() {
 	IFLABEL="$OCF_RESKEY_iflabel"
 	IF_MAC="$OCF_RESKEY_mac"
 
-	LVS_SUPPORT=0
-	if [ x"${OCF_RESKEY_lvs_support}" = x"true" \
-	    -o x"${OCF_RESKEY_lvs_support}" = x"on" \
-	    -o x"${OCF_RESKEY_lvs_support}" = x"1" ]; then
-	    LVS_SUPPORT=1
-	fi
-
 	IP_INC_GLOBAL=${OCF_RESKEY_CRM_meta_clone_max:-1}
 	IP_INC_NO=`expr ${OCF_RESKEY_CRM_meta_clone:-0} + 1`
 
-	if [ $LVS_SUPPORT -gt 0 ] && [ $IP_INC_GLOBAL -gt 1 ]; then
+	if ocf_is_true ${OCF_RESKEY_lvs_support} && [ $IP_INC_GLOBAL -gt 1 ]; then
 		ocf_log err "LVS and load sharing do not go together well"
 		exit $OCF_ERR_CONFIGURED
 	fi
@@ -598,7 +591,7 @@ ip_served() {
 
 	if [ -z "$IP_CIP" ]; then
 		case $cur_nic in
-		lo*)	if [ "$LVS_SUPPORT" = "1" ]; then
+		lo*)	if ocf_is_true ${OCF_RESKEY_lvs_support}; then
 				echo "no"
 				return 0
 			fi
@@ -676,7 +669,7 @@ ip_start() {
 	fi
 	
 	if [ "$ip_status" = "no" ]; then
-		if [ "$LVS_SUPPORT" = "1" ]; then
+		if ocf_is_true ${OCF_RESKEY_lvs_support}; then
 			case `find_interface $OCF_RESKEY_ip` in
 			lo*)
 				remove_conflicting_loopback $OCF_RESKEY_ip 32 255.255.255.255 lo
@@ -764,7 +757,7 @@ ip_stop() {
 			exit $OCF_ERR_GENERIC
 		fi
 	
-		if [ "$LVS_SUPPORT" = 1 ]; then
+		if ocf_is_true ${OCF_RESKEY_lvs_support}; then
 			restore_loopback "$OCF_RESKEY_ip"
 		fi
 	fi
@@ -843,7 +836,7 @@ ip_validate() {
 		;;
 	esac
 
-	if [ "$LVS_SUPPORT" = 1 ]; then
+	if ocf_is_true ${OCF_RESKEY_lvs_support}; then
 		ecf_log err "LVS and load sharing not advised to try"
 		exit $OCF_ERR_CONFIGURED
 	fi
