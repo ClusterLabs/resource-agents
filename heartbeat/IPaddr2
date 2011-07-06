@@ -67,6 +67,26 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Defaults
+OCF_RESKEY_nic_default=eth0
+OCF_RESKEY_lvs_support_default=false
+OCF_RESKEY_clusterip_hash_default="sourceip-sourceport"
+OCF_RESKEY_unique_clone_address_default=false
+OCF_RESKEY_arp_interval_default=200
+OCF_RESKEY_arp_count_default=5
+OCF_RESKEY_arp_bg_default=true
+OCF_RESKEY_arp_mac_default="ffffffffffff"
+
+: ${OCF_RESKEY_nic=${OCF_RESKEY_nic_default}}
+: ${OCF_RESKEY_lvs_support=${OCF_RESKEY_lvs_support_default}}
+: ${OCF_RESKEY_clusterip_hash=${OCF_RESKEY_clusterip_hash_default}}
+: ${OCF_RESKEY_unique_clone_address=${OCF_RESKEY_unique_clone_address_default}}
+: ${OCF_RESKEY_arp_interval=${OCF_RESKEY_arp_interval_default}}
+: ${OCF_RESKEY_arp_count=${OCF_RESKEY_arp_count_default}}
+: ${OCF_RESKEY_arp_bg=${OCF_RESKEY_arp_bg_default}}
+: ${OCF_RESKEY_arp_mac=${OCF_RESKEY_arp_mac_default}}
+#######################################################################
+
 SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
 VLDIR=$HA_RSCTMP
@@ -123,7 +143,7 @@ sysctl -w net.ipv4.conf.all.promote_secondaries=1
 
 </longdesc>
 <shortdesc lang="en">Network interface</shortdesc>
-<content type="string" default="eth0"/>
+<content type="string" default="${OCF_RESKEY_nic_default}"/>
 </parameter>
 
 <parameter name="cidr_netmask">
@@ -165,7 +185,7 @@ local node to continue to service requests, but no longer advertise it
 on the network.
 </longdesc>
 <shortdesc lang="en">Enable support for LVS DR</shortdesc>
-<content type="boolean" default="false"/>
+<content type="boolean" default="${OCF_RESKEY_lvs_support_default}"/>
 </parameter>
 
 <parameter name="mac">
@@ -184,7 +204,7 @@ Specify the hashing algorithm used for the Cluster IP functionality.
 
 </longdesc>
 <shortdesc lang="en">Cluster IP hashing function</shortdesc>
-<content type="string" default="sourceip-sourceport"/>
+<content type="string" default="${OCF_RESKEY_clusterip_hash_default}"/>
 </parameter>
 
 <parameter name="unique_clone_address">
@@ -193,7 +213,7 @@ If true, add the clone ID to the supplied value of ip to create
 a unique address to manage 
 </longdesc>
 <shortdesc lang="en">Create a unique address for cloned instances</shortdesc>
-<content type="boolean" default="false"/>
+<content type="boolean" default="${OCF_RESKEY_unique_clone_address_default}"/>
 </parameter>
 
 <parameter name="arp_interval">
@@ -201,7 +221,7 @@ a unique address to manage
 Specify the interval between unsolicited ARP packets in milliseconds.
 </longdesc>
 <shortdesc lang="en">ARP packet interval in ms</shortdesc>
-<content type="integer" default="200"/>
+<content type="integer" default="${OCF_RESKEY_arp_interval_default}"/>
 </parameter>
 
 <parameter name="arp_count">
@@ -209,7 +229,7 @@ Specify the interval between unsolicited ARP packets in milliseconds.
 Number of unsolicited ARP packets to send.
 </longdesc>
 <shortdesc lang="en">ARP packet count</shortdesc>
-<content type="integer" default="5"/>
+<content type="integer" default="${OCF_RESKEY_arp_count_default}"/>
 </parameter>
 
 <parameter name="arp_bg">
@@ -217,7 +237,7 @@ Number of unsolicited ARP packets to send.
 Whether or not to send the arp packets in the background.
 </longdesc>
 <shortdesc lang="en">ARP from background</shortdesc>
-<content type="string" default="yes"/>
+<content type="string" default="${OCF_RESKEY_arp_bg_default}"/>
 </parameter>
 
 <parameter name="arp_mac">
@@ -228,7 +248,7 @@ You really shouldn't be touching this.
 
 </longdesc>
 <shortdesc lang="en">ARP MAC</shortdesc>
-<content type="string" default="ffffffffffff"/>
+<content type="string" default="${OCF_RESKEY_arp_mac_default}"/>
 </parameter>
 
 <parameter name="flush_routes">
@@ -320,10 +340,10 @@ ip_init() {
 		exit $OCF_ERR_CONFIGURED
 	fi
 
-	ARP_INTERVAL_MS=${OCF_RESKEY_arp_interval:-200}
-	ARP_REPEAT=${OCF_RESKEY_arp_count:-5}
-	ARP_BACKGROUND=${OCF_RESKEY_arp_bg:-yes}
-	ARP_NETMASK=${OCF_RESKEY_arp_mac:-ffffffffffff}
+	ARP_INTERVAL_MS=${OCF_RESKEY_arp_interval}
+	ARP_REPEAT=${OCF_RESKEY_arp_count}
+	ARP_BACKGROUND=${OCF_RESKEY_arp_bg}
+	ARP_NETMASK=${OCF_RESKEY_arp_mac}
 
 	if ocf_is_decimal "$IP_INC_GLOBAL" && [ $IP_INC_GLOBAL -gt 0 ]; then
 		:
@@ -373,7 +393,7 @@ ip_init() {
 
 	if [ "$IP_INC_GLOBAL" -gt 1 ] && ! ocf_is_true "$OCF_RESKEY_unique_clone_address"; then
 		IP_CIP="yes"
-		IP_CIP_HASH="${OCF_RESKEY_clusterip_hash:-sourceip-sourceport}"
+		IP_CIP_HASH="${OCF_RESKEY_clusterip_hash}"
 		if [ -z "$IF_MAC" ]; then
 			# Choose a MAC
 			# 1. Concatenate some input together
