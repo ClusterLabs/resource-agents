@@ -542,14 +542,11 @@ run_send_arp() {
 	    ARGS="-i $OCF_RESKEY_arp_interval -r $OCF_RESKEY_arp_count -p $SENDARPPIDFILE $NIC $OCF_RESKEY_ip $MY_MAC not_used not_used"
 	fi
 	ocf_log info "$SENDARP $ARGS"
-	case $OCF_RESKEY_arp_bg in
-	yes) 
+	if ocf_is_true $OCF_RESKEY_arp_bg; then
 		($SENDARP $ARGS || ocf_log err "Could not send gratuitous arps" &) >&2
-		;;
-	*)
+	else
 		$SENDARP $ARGS || ocf_log err "Could not send gratuitous arps"
-		;;
-	esac
+	fi
 }
 
 #
@@ -558,14 +555,11 @@ run_send_arp() {
 run_send_ib_arp() {
 	ARGS="-q -c $OCF_RESKEY_arp_count -U -I $NIC $OCF_RESKEY_ip"
 	ocf_log info "ipoibarping $ARGS"
-	case $OCF_RESKEY_arp_bg in
-	yes)
+	if ocf_is_true $OCF_RESKEY_arp_bg; then
 		(ipoibarping $ARGS || ocf_log err "Could not send gratuitous arps" &) >&2
-		;;
-	*)
+	else
 		ipoibarping $ARGS || ocf_log err "Could not send gratuitous arps"
-		;;
-	esac
+	fi
 }
 
 # Do we already serve this IP address?
