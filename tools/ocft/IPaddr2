@@ -2,7 +2,6 @@
 
 CONFIG
 	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
-	InstallPackage iproute2
 	HangTimeout 20
 
 CASE-BLOCK required_args
