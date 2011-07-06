@@ -68,7 +68,6 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
-OCF_RESKEY_nic_default=eth0
 OCF_RESKEY_lvs_support_default=false
 OCF_RESKEY_clusterip_hash_default="sourceip-sourceport"
 OCF_RESKEY_unique_clone_address_default=false
@@ -77,7 +76,6 @@ OCF_RESKEY_arp_count_default=5
 OCF_RESKEY_arp_bg_default=true
 OCF_RESKEY_arp_mac_default="ffffffffffff"
 
-: ${OCF_RESKEY_nic=${OCF_RESKEY_nic_default}}
 : ${OCF_RESKEY_lvs_support=${OCF_RESKEY_lvs_support_default}}
 : ${OCF_RESKEY_clusterip_hash=${OCF_RESKEY_clusterip_hash_default}}
 : ${OCF_RESKEY_unique_clone_address=${OCF_RESKEY_unique_clone_address_default}}
@@ -143,7 +141,7 @@ sysctl -w net.ipv4.conf.all.promote_secondaries=1
 
 </longdesc>
 <shortdesc lang="en">Network interface</shortdesc>
-<content type="string" default="${OCF_RESKEY_nic_default}"/>
+<content type="string"/>
 </parameter>
 
 <parameter name="cidr_netmask">
