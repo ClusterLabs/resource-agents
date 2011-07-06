@@ -431,31 +431,31 @@ delete_interface () {
 #        Add an interface
 #
 add_interface () {
+	local cmd msg ipaddr netmask broadcast iface label
+
 	ipaddr="$1"
 	netmask="$2"
 	broadcast="$3"
 	iface="$4"
 	label="$5"
 
-	CMD="$IP2UTIL -f inet addr add $ipaddr/$netmask brd $broadcast dev $iface"
+	cmd="$IP2UTIL -f inet addr add $ipaddr/$netmask brd $broadcast dev $iface"
+	msg="Adding IPv4 address $ipaddr/$netmask with broadcast address $broadcast to device $iface"
 
 	if [ ! -z "$label" ]; then
-		CMD="$CMD label $label"
+		cmd="$cmd label $label"
+		msg="${msg} (with label $label)"
 	fi
 
-	ocf_log info "$CMD"
-	$CMD
+	ocf_log info "$msg"
+	ocf_run $cmd || return $OCF_ERR_GENERIC
 
-	if [ $? -ne 0 ]; then
-		return $OCF_ERR_GENERIC
-	fi
+	msg="Bringing device $iface up"
+	cmd="$IP2UTIL link set $iface up"
+	ocf_log info "$msg"
+	ocf_run $cmd || return $OCF_ERR_GENERIC
 
-	CMD="$IP2UTIL link set $iface up"
-
-	ocf_log info "$CMD"
-	$CMD
-
-	return $?
+	return $OCF_SUCCESS
 }
 
 #
