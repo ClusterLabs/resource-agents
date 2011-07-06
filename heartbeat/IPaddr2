@@ -340,11 +340,6 @@ ip_init() {
 		exit $OCF_ERR_CONFIGURED
 	fi
 
-	ARP_INTERVAL_MS=${OCF_RESKEY_arp_interval}
-	ARP_REPEAT=${OCF_RESKEY_arp_count}
-	ARP_BACKGROUND=${OCF_RESKEY_arp_bg}
-	ARP_NETMASK=${OCF_RESKEY_arp_mac}
-
 	if ocf_is_decimal "$IP_INC_GLOBAL" && [ $IP_INC_GLOBAL -gt 0 ]; then
 		:
 	else
@@ -377,7 +372,7 @@ ip_init() {
 		fi
 	fi
 	
-	SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$BASEIP"
+	SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$OCF_RESKEY_ip"
 
 	case $NIC in
 	    *:*)
@@ -403,13 +398,13 @@ ip_init() {
 			# 4. Delimit the octets with ':'
 			# 5. Make sure the first octet is odd,
 			#    so the result is a multicast MAC
-			IF_MAC=`echo $BASEIP $NETMASK $BRDCAST |	\
+			IF_MAC=`echo $OCF_RESKEY_ip $NETMASK $BRDCAST |	\
 				md5sum |				\
 				sed -e 's#\(............\).*#\1#'	\
 				    -e 's#..#&:#g; s#:$##'		\
 				    -e 's#^\(.\)[02468aAcCeE]#\11#'`
 		fi
-		IP_CIP_FILE="/proc/net/ipt_CLUSTERIP/$BASEIP"
+		IP_CIP_FILE="/proc/net/ipt_CLUSTERIP/$OCF_RESKEY_ip"
 	fi
 }
 
@@ -422,7 +417,7 @@ find_interface() {
 	#
 	# List interfaces but exclude FreeS/WAN ipsecN virtual interfaces
 	#
-	local iface=`$IP2UTIL -o -f inet addr show | grep "\ $BASEIP/$NETMASK" \
+	local iface=`$IP2UTIL -o -f inet addr show | grep "\ $OCF_RESKEY_ip/$NETMASK" \
 		| cut -d ' ' -f2 | grep -v '^ipsec[0-9][0-9]*$'`
 	echo $iface
 	return 0
@@ -544,17 +539,17 @@ restore_loopback() {
 # Run send_arp to note peers about new mac address
 #
 run_send_arp() {
-	ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $NIC $BASEIP auto not_used not_used"
+	ARGS="-i $OCF_RESKEY_arp_interval -r $OCF_RESKEY_arp_count -p $SENDARPPIDFILE $NIC $OCF_RESKEY_ip auto not_used not_used"
 	if [ "x$IP_CIP" = "xyes" ] ; then
 	    if [ x = "x$IF_MAC" ] ; then
 		MY_MAC=auto
 	    else
 		MY_MAC=`echo ${IF_MAC} | sed -e 's/://g'`
 	    fi
-	    ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $NIC $BASEIP $MY_MAC not_used not_used"
+	    ARGS="-i $OCF_RESKEY_arp_interval -r $OCF_RESKEY_arp_count -p $SENDARPPIDFILE $NIC $OCF_RESKEY_ip $MY_MAC not_used not_used"
 	fi
 	ocf_log info "$SENDARP $ARGS"
-	case $ARP_BACKGROUND in
+	case $OCF_RESKEY_arp_bg in
 	yes) 
 		($SENDARP $ARGS || ocf_log err "Could not send gratuitous arps" &) >&2
 		;;
@@ -568,9 +563,9 @@ run_send_arp() {
 # Run ipoibarping to note peers about new Infiniband address
 #
 run_send_ib_arp() {
-	ARGS="-q -c $ARP_REPEAT -U -I $NIC $BASEIP"
+	ARGS="-q -c $OCF_RESKEY_arp_count -U -I $NIC $OCF_RESKEY_ip"
 	ocf_log info "ipoibarping $ARGS"
-	case $ARP_BACKGROUND in
+	case $OCF_RESKEY_arp_bg in
 	yes)
 		(ipoibarping $ARGS || ocf_log err "Could not send gratuitous arps" &) >&2
 		;;
@@ -594,7 +589,7 @@ ip_served() {
 		return 0
 	fi
 
-	cur_nic="`find_interface $BASEIP`"
+	cur_nic="`find_interface $OCF_RESKEY_ip`"
 
 	if [ -z "$cur_nic" ]; then
 		echo "no"
@@ -664,7 +659,7 @@ ip_start() {
 	
 	if [ -n "$IP_CIP" ] && [ $ip_status = "no" ] || [ $ip_status = "partial2" ]; then
 		$MODPROBE ip_conntrack
-		$IPTABLES -I INPUT -d $BASEIP -i $NIC -j CLUSTERIP \
+		$IPTABLES -I INPUT -d $OCF_RESKEY_ip -i $NIC -j CLUSTERIP \
 				--new \
 				--clustermac $IF_MAC \
 				--total-nodes $IP_INC_GLOBAL \
@@ -682,14 +677,14 @@ ip_start() {
 	
 	if [ "$ip_status" = "no" ]; then
 		if [ "$LVS_SUPPORT" = "1" ]; then
-			case `find_interface $BASEIP` in
+			case `find_interface $OCF_RESKEY_ip` in
 			lo*)
-				remove_conflicting_loopback $BASEIP 32 255.255.255.255 lo
+				remove_conflicting_loopback $OCF_RESKEY_ip 32 255.255.255.255 lo
 				;;
 			esac
 		fi
 		
-		add_interface $BASEIP $NETMASK $BRDCAST $NIC $IFLABEL
+		add_interface $OCF_RESKEY_ip $NETMASK $BRDCAST $NIC $IFLABEL
 		
 		if [ $? -ne 0 ]; then
 			ocf_log err "$CMD failed."
@@ -726,9 +721,9 @@ ip_stop() {
 	if [ -f "$SENDARPPIDFILE" ] ; then
 		kill `cat "$SENDARPPIDFILE"`
 		if [ $? -ne 0 ]; then
-			ocf_log warn "Could not kill previously running send_arp for $BASEIP"
+			ocf_log warn "Could not kill previously running send_arp for $OCF_RESKEY_ip"
 		else
-			ocf_log info "killed previously running send_arp for $BASEIP"
+			ocf_log info "killed previously running send_arp for $OCF_RESKEY_ip"
 			rm -f "$SENDARPPIDFILE"
 		fi
 	fi
@@ -746,11 +741,11 @@ ip_stop() {
 		fi
 		echo "-$IP_INC_NO" >$IP_CIP_FILE
 		if [ "x$(cat $IP_CIP_FILE)" = "x" ]; then
-			ocf_log info $BASEIP, $IP_CIP_HASH
+			ocf_log info $OCF_RESKEY_ip, $IP_CIP_HASH
 			i=1
 			while [ $i -le $IP_INC_GLOBAL ]; do
 				ocf_log info $i
-				$IPTABLES -D INPUT -d $BASEIP -i $NIC -j CLUSTERIP \
+				$IPTABLES -D INPUT -d $OCF_RESKEY_ip -i $NIC -j CLUSTERIP \
 					--new \
 					--clustermac $IF_MAC \
 					--total-nodes $IP_INC_GLOBAL \
@@ -764,13 +759,13 @@ ip_stop() {
 	fi
 	
 	if [ "$ip_del_if" = "yes" ]; then
-		delete_interface $BASEIP $NIC $NETMASK
+		delete_interface $OCF_RESKEY_ip $NIC $NETMASK
 		if [ $? -ne 0 ]; then
 			exit $OCF_ERR_GENERIC
 		fi
 	
 		if [ "$LVS_SUPPORT" = 1 ]; then
-			restore_loopback "$BASEIP"
+			restore_loopback "$OCF_RESKEY_ip"
 		fi
 	fi
 
@@ -821,17 +816,17 @@ ip_validate() {
 	exit $OCF_ERR_CONFIGURED
     fi
 
-    if ocf_is_decimal "$ARP_INTERVAL_MS" && [ $ARP_INTERVAL_MS -gt 0 ]; then
+    if ocf_is_decimal "$OCF_RESKEY_arp_interval" && [ $OCF_RESKEY_arp_interval -gt 0 ]; then
 	:
     else
-	ocf_log err "Invalid OCF_RESKEY_arp_interval [$ARP_INTERVAL_MS]"
+	ocf_log err "Invalid OCF_RESKEY_arp_interval [$OCF_RESKEY_arp_interval]"
 	exit $OCF_ERR_CONFIGURED
     fi
 
-    if ocf_is_decimal "$ARP_REPEAT" && [ $ARP_REPEAT -gt 0 ]; then
+    if ocf_is_decimal "$OCF_RESKEY_arp_count" && [ $OCF_RESKEY_arp_count -gt 0 ]; then
 	:
     else
-	ocf_log err "Invalid OCF_RESKEY_arp_count [$ARP_REPEAT]"
+	ocf_log err "Invalid OCF_RESKEY_arp_count [$OCF_RESKEY_arp_count]"
 	exit $OCF_ERR_CONFIGURED
     fi
 
