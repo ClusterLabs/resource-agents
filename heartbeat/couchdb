@@ -44,6 +44,8 @@ OCF_RESKEY_rundir_default="/var/run/couchdb"
 OCF_RESKEY_user_default="couchdb"
 OCF_RESKEY_binary_default="/usr/bin/couchdb"
 OCF_RESKEY_pid_default="${OCF_RESKEY_rundir_default}/couchdb.pid"
+OCF_RESKEY_inidefault_default="/etc/couchdb/default.ini"
+OCF_RESKEY_inilocal_default="/etc/couchdb/local.ini"
 OCF_RESKEY_stdoutfile_default="/dev/null"
 OCF_RESKEY_stderrfile_default="/dev/null"
 OCF_RESKEY_options_default=""
@@ -68,6 +70,8 @@ OCF_RESKEY_repl_continuous_default="true"
 : ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 : ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
+: ${OCF_RESKEY_inidefault=${OCF_RESKEY_inidefault_default}}
+: ${OCF_RESKEY_inilocal=${OCF_RESKEY_inidefault_default}}
 : ${OCF_RESKEY_stdoutfile=${OCF_RESKEY_stdoutfile_default}}
 : ${OCF_RESKEY_stderrfile=${OCF_RESKEY_stderrfile_default}}
 : ${OCF_RESKEY_options=${OCF_RESKEY_options_default}}
@@ -163,6 +167,14 @@ meta_data() {
 
 <parameter name="pid" unique="0" required="0"><longdesc lang="en">pid-file</longdesc><shortdesc lang="en">pid-file</shortdesc>
 <content type="string" default="${OCF_RESKEY_pid_default}" />
+</parameter>
+
+<parameter name="inidefault" unique="0" required="0"><longdesc lang="en">stdout</longdesc><shortdesc lang="en">stdout</shortdesc>
+<content type="string" default="${OCF_RESKEY_inidefault_default}" />
+</parameter>
+
+<parameter name="inilocal" unique="0" required="0"><longdesc lang="en">stderr</longdesc><shortdesc lang="en">stderr</shortdesc>
+<content type="string" default="${OCF_RESKEY_inilocal_default}" />
 </parameter>
 
 <parameter name="stdoutfile" unique="0" required="0"><longdesc lang="en">stdout</longdesc><shortdesc lang="en">stdout</shortdesc>
@@ -269,7 +281,7 @@ cdb_start() {
 	fi
 	local rc=$?
 
-	local cmd="${OCF_RESKEY_binary} -p ${OCF_RESKEY_pid} -b"
+	local cmd="${OCF_RESKEY_binary} -a ${OCF_RESKEY_inidefault} -a ${OCF_RESKEY_inilocal} -p ${OCF_RESKEY_pid} -b"
 	test -n "${OCF_RESKEY_stdoutfile}" && cmd="${cmd} -o ${OCF_RESKEY_stdoutfile}"
 	test -n "${OCF_RESKEY_stderrfile}" && cmd="${cmd} -e ${OCF_RESKEY_stderrfile}"
 	test -n "${OCF_RESKEY_options}"    && cmd="${cmd} ${OCF_RESKEY_options}"
