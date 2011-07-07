@@ -8,7 +8,7 @@
 # Author:		RNZ <renoizer@gmail.com>
 # Reviewer:		Florian Haas <florian.haas@linbit.com>	
 # License:		GNU General Public License (GPL) 
-# #
+# 
 #       usage: $0 {start|stop|monitor|validate-all|meta-data}
 #
 #######################################################################
@@ -19,6 +19,7 @@
 #######################################################################
 #
 #	Info:
+#		don't use couchdb 1.0.1 - replication is broken, use couchdb 1.1.0
 #		/usr/bin/couchdb -a /etc/couchdb/default.ini -a /etc/couchdb/local.ini -b -p /var/run/couchdb/couchdb.pid -o /dev/null -e /dev/null -R
 #		curl -s -H "Content-Type: application/json" -X POST http://user:pass@host:port/_replicate -d '{"source":"http://user:pass@srchost:port/dbname", "target":"http://user:pass@127.0.0.1:port/dbname", "continuous":true}'
 #	Example:
