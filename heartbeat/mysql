@@ -646,12 +646,12 @@ mysql_validate() {
 
     if [ ! -f $OCF_RESKEY_config ]; then
 	ocf_log err "Config $OCF_RESKEY_config doesn't exist";
-	return $OCF_ERR_CONFIGURED;
+	return $OCF_ERR_INSTALLED;
     fi
 
     if [ ! -d $OCF_RESKEY_datadir ]; then
 	ocf_log err "Datadir $OCF_RESKEY_datadir doesn't exist";
-	return $OCF_ERR_CONFIGURED;
+	return $OCF_ERR_INSTALLED;
     fi
 
     getent passwd $OCF_RESKEY_user >/dev/null 2>&1
