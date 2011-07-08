@@ -259,6 +259,11 @@ rm -rf %{buildroot}
 
 %{_libdir}/heartbeat
 
+%if %{with rgmanager}
+%post -n resource-agents
+ccs_update_schema > /dev/null 2>&1 ||:
+%endif
+
 %if 0%{?suse_version}
 %preun -n ldirectord
 %stop_on_removal ldirectord
