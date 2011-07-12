@@ -40,7 +40,6 @@ OCF_RESKEY_host_default="127.0.0.1"
 OCF_RESKEY_port_default=5984
 OCF_RESKEY_dbuser_default=""
 OCF_RESKEY_dbpass_default=""
-OCF_RESKEY_repl_enable_default="false"
 OCF_RESKEY_rundir_default="/var/run/couchdb"
 OCF_RESKEY_user_default="couchdb"
 OCF_RESKEY_binary_default="/usr/bin/couchdb"
@@ -50,23 +49,12 @@ OCF_RESKEY_inilocal_default="/etc/couchdb/local.ini"
 OCF_RESKEY_stdoutfile_default="/dev/null"
 OCF_RESKEY_stderrfile_default="/dev/null"
 OCF_RESKEY_options_default=""
-OCF_RESKEY_repl_src_host_default=""
-OCF_RESKEY_repl_src_port_default=5984
-OCF_RESKEY_repl_src_user_default=""
-OCF_RESKEY_repl_src_pass_default=""
-OCF_RESKEY_repl_src_db_default=""
-OCF_RESKEY_repl_trt_host_default="${OCF_RESKEY_host_default}"
-OCF_RESKEY_repl_trt_port_default="${OCF_RESKEY_port_default}"
-OCF_RESKEY_repl_trt_user_default="${OCF_RESKEY_dbuser_default}"
-OCF_RESKEY_repl_trt_pass_default="${OCF_RESKEY_dbpass_default}"
-OCF_RESKEY_repl_trt_db_default=""
-OCF_RESKEY_repl_continuous_default="true"
+OCF_RESKEY_replcmds_default=""
 
 : ${OCF_RESKEY_host=${OCF_RESKEY_host_default}}
 : ${OCF_RESKEY_port=${OCF_RESKEY_port_default}}
 : ${OCF_RESKEY_dbuser=${OCF_RESKEY_dbuser_default}}
 : ${OCF_RESKEY_dbpass=${OCF_RESKEY_dbpass_default}}
-: ${OCF_RESKEY_repl_enable=${OCF_RESKEY_repl_enable_default}}
 : ${OCF_RESKEY_rundir=${OCF_RESKEY_rundir_default}}
 : ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
@@ -76,25 +64,13 @@ OCF_RESKEY_repl_continuous_default="true"
 : ${OCF_RESKEY_stdoutfile=${OCF_RESKEY_stdoutfile_default}}
 : ${OCF_RESKEY_stderrfile=${OCF_RESKEY_stderrfile_default}}
 : ${OCF_RESKEY_options=${OCF_RESKEY_options_default}}
-: ${OCF_RESKEY_repl_src_host=${OCF_RESKEY_repl_src_host_default}}
-: ${OCF_RESKEY_repl_src_port=${OCF_RESKEY_repl_src_port_default}}
-: ${OCF_RESKEY_repl_src_user=${OCF_RESKEY_repl_src_user_default}}
-: ${OCF_RESKEY_repl_src_pass=${OCF_RESKEY_repl_src_pass_default}}
-: ${OCF_RESKEY_repl_src_db=${OCF_RESKEY_repl_src_db_default}}
-: ${OCF_RESKEY_repl_trt_host=${OCF_RESKEY_repl_trt_host_default}}
-: ${OCF_RESKEY_repl_trt_port=${OCF_RESKEY_repl_trt_port_default}}
-: ${OCF_RESKEY_repl_trt_user=${OCF_RESKEY_repl_trt_user_default}}
-: ${OCF_RESKEY_repl_trt_pass=${OCF_RESKEY_repl_trt_pass_default}}
-: ${OCF_RESKEY_repl_trt_db=${OCF_RESKEY_repl_trt_db_default}}
-: ${OCF_RESKEY_repl_continuous=${OCF_RESKEY_repl_continuous_default}}
-
+: ${OCF_RESKEY_replcmds=${OCF_RESKEY_replcmds_default}}
 
 var_print() {
   ocf_log info "host = $OCF_RESKEY_host"
   ocf_log info "port = $OCF_RESKEY_port"
   ocf_log info "dbuser = $OCF_RESKEY_dbuser"
   ocf_log info "dbpass = $OCF_RESKEY_dbpass"
-  ocf_log info "repl_enable = $OCF_RESKEY_repl_enable"
   ocf_log info "rundir = $OCF_RESKEY_rundir"
   ocf_log info "user = $OCF_RESKEY_user"
   ocf_log info "binary = $OCF_RESKEY_binary"
@@ -104,17 +80,7 @@ var_print() {
   ocf_log info "stdoutfile = $OCF_RESKEY_stdoutfile"
   ocf_log info "stderrfile = $OCF_RESKEY_stderrfile"
   ocf_log info "options = $OCF_RESKEY_options"
-  ocf_log info "repl_src_host = $OCF_RESKEY_repl_src_host"
-  ocf_log info "repl_src_port = $OCF_RESKEY_repl_src_port"
-  ocf_log info "repl_src_user = $OCF_RESKEY_repl_src_user"
-  ocf_log info "repl_src_pass = $OCF_RESKEY_repl_src_pass"
-  ocf_log info "repl_src_db = $OCF_RESKEY_repl_src_db"
-  ocf_log info "repl_trt_host = $OCF_RESKEY_repl_trt_host"
-  ocf_log info "repl_trt_port = $OCF_RESKEY_repl_trt_port"
-  ocf_log info "repl_trt_user = $OCF_RESKEY_repl_trt_user"
-  ocf_log info "repl_trt_pass = $OCF_RESKEY_repl_trt_pass"
-  ocf_log info "repl_trt_db = $OCF_RESKEY_repl_trt_db"
-  ocf_log info "repl_continuous = $OCF_RESKEY_repl_continuous"
+  ocf_log info "replcmds = $OCF_RESKEY_replcmds"
 }
 
 #######################################################################
@@ -148,10 +114,6 @@ meta_data() {
 
 <parameter name="dbpass" unique="0" required="0"><longdesc lang="en">dbpass</longdesc><shortdesc lang="en">dbpass</shortdesc>
 <content type="string" default="${OCF_RESKEY_dbpass_default}" />
-</parameter>
-
-<parameter name="repl_enable" unique="0" required="0"><longdesc lang="en">replication enable/disable</longdesc><shortdesc lang="en">replication enable/disable</shortdesc>
-<content type="boolean" default="${OCF_RESKEY_repl_enable_default}" />
 </parameter>
 
 <parameter name="rundir" unique="0" required="0"><longdesc lang="en">rundir</longdesc><shortdesc lang="en">rundir</shortdesc>
@@ -190,56 +152,16 @@ meta_data() {
 <content type="string" default="${OCF_RESKEY_options_default}" />
 </parameter>
 
-<parameter name="repl_src_host" unique="0" required="0"><longdesc lang="en">replication source host</longdesc><shortdesc lang="en">replication source host</shortdesc>
-<content type="string" default="${OCF_RESKEY_repl_src_host_default}" />
-</parameter>
-
-<parameter name="repl_src_port" unique="0" required="0"><longdesc lang="en">replication source port</longdesc><shortdesc lang="en">replication source port</shortdesc>
-<content type="integer" default="${OCF_RESKEY_repl_src_port_default}" />
-</parameter>
-
-<parameter name="repl_src_user" unique="0" required="0"><longdesc lang="en">replication source db username</longdesc><shortdesc lang="en">replication source db username</shortdesc>
-<content type="string" default="${OCF_RESKEY_repl_src_user_default}" />
-</parameter>
-
-<parameter name="repl_src_pass" unique="0" required="0"><longdesc lang="en">replication source db password</longdesc><shortdesc lang="en">replication source db password</shortdesc>
-<content type="string" default="${OCF_RESKEY_repl_src_pass_default}" />
-</parameter>
-
-<parameter name="repl_src_db" unique="0" required="0"><longdesc lang="en">replication source db</longdesc><shortdesc lang="en">replication source db</shortdesc>
-<content type="string" default="${OCF_RESKEY_repl_src_db_default}" />
-</parameter>
-
-<parameter name="repl_trt_host" unique="0" required="0"><longdesc lang="en">replication target host</longdesc><shortdesc lang="en">replication target host</shortdesc>
-<content type="string" default="${OCF_RESKEY_repl_trt_host_default}" />
-</parameter>
-
-<parameter name="repl_trt_port" unique="0" required="0"><longdesc lang="en">replication target port</longdesc><shortdesc lang="en">replication target port</shortdesc>
-<content type="integer" default="${OCF_RESKEY_repl_trt_port_default}" />
-</parameter>
-
-<parameter name="repl_trt_user" unique="0" required="0"><longdesc lang="en">replication target db username</longdesc><shortdesc lang="en">replication target db username</shortdesc>
-<content type="string" default="${OCF_RESKEY_repl_trt_user_default}" />
-</parameter>
-
-<parameter name="repl_trt_pass" unique="0" required="0"><longdesc lang="en">replication target db password</longdesc><shortdesc lang="en">replication target db password</shortdesc>
-<content type="string" default="${OCF_RESKEY_repl_trt_pass_default}" />
-</parameter>
-
-<parameter name="repl_trt_db" unique="0" required="0"><longdesc lang="en">replication target db</longdesc><shortdesc lang="en">replication target db</shortdesc>
-<content type="string" default="${OCF_RESKEY_repl_trt_db_default}" />
-</parameter>
-
-<parameter name="repl_continuous" unique="0" required="0"><longdesc lang="en">replication continuous</longdesc><shortdesc lang="en">replication continuous</shortdesc>
-<content type="string" default="${OCF_RESKEY_repl_continuous}" />
+<parameter name="replcmds" unique="0" required="0"><longdesc lang="en">replication cmds</longdesc><shortdesc lang="en">replication cmds</shortdesc>
+<content type="string" default="${OCF_RESKEY_replcmds_default}" />
 </parameter>
 
 </parameters>
 
 <actions>
-<action name="start"        timeout="10" />
-<action name="stop"         timeout="10" />
-<action name="monitor"      timeout="10" interval="10" start-delay="0" />
+<action name="start"        timeout="20" />
+<action name="stop"         timeout="20" />
+<action name="monitor"      timeout="10" interval="10" start-delay="20" />
 <action name="meta-data"    timeout="5" />
 <action name="validate-all" timeout="5" />
 </actions>
@@ -258,21 +180,48 @@ Expects to have a fully populated OCF RA-compliant environment set.
 END
 }
 
-cdb_start_replica() {
+
+add_repl(){
 	local uri="http://${OCF_RESKEY_dbuser}:${OCF_RESKEY_dbpass}@${OCF_RESKEY_host}:${OCF_RESKEY_port}/_replicate"
-	local repl_src="\"source\":\"http://${OCF_RESKEY_repl_src_user}:${OCF_RESKEY_repl_src_pass}@${OCF_RESKEY_repl_src_host}:${OCF_RESKEY_repl_src_port}/${OCF_RESKEY_repl_src_db}\""
-	local repl_trt="\"target\":\"http://${OCF_RESKEY_repl_trt_user}:${OCF_RESKEY_repl_trt_pass}@${OCF_RESKEY_repl_trt_host}:${OCF_RESKEY_repl_trt_port}/${OCF_RESKEY_repl_trt_db}\""
-	local cont="\"continuous\":${OCF_RESKEY_repl_continuous}"
 	local content="\"Content-Type: application/json\""
+	local repl_src="\"source\":\"${1}\""
+	local repl_trt="\"target\":\"${2}\""
+	local cont="\"continuous\":${3}"
 	eval $CURL -s -H "${content}" -X POST ${uri} -d "'{"${repl_src}","${repl_trt}","${cont}"}'" | grep -q "{\"ok\":true"
-	case $? in
-		0)	ocf_log info "cdb_start_replica: Replication started."
-			return $OCF_SUCCESS
-			;;
-		*)	ocf_log err "cdb_start_replica: Error, unable start replication!"
-			return $OCF_GENERIC_ERROR
-			;;
-	esac
+        return $?
+}
+
+get_s(){
+	local n=0
+	local s=""
+	for i in `echo ${1} | tr ',' '\n'` ; do
+	   n=$(($n+1))
+	   echo "${i}"
+	done
+}
+
+cdb_start_replica() {
+	local er=0
+	local n=0
+	for i in `echo ${OCF_RESKEY_replcmds} | tr ';' '\n'` ; do
+		n=$(($n+1))
+		add_repl $(get_s ${i})
+		case $? in
+ 			0) ocf_log info "cdb_start_replica: Replication started ${i}"
+			   ;;
+			*) ocf_log info "cdb_start_replica: Error, unable start replication ${i}"
+			   er=$(($er+1))
+			   ;;
+		esac
+	done
+	
+ 	if [ $er -eq 0 ]; then 
+		ocf_log info "cdb_start_replica: Replications started."
+                return $OCF_SUCCESS
+	else
+                ocf_log err "cdb_start_replica: Error, unable start all replications!"
+                return $OCF_GENERIC_ERROR 
+	fi
 }
 
 cdb_start() {
@@ -302,7 +251,7 @@ cdb_start() {
 		fi
 	fi
 
-	if [ -n "${OCF_RESKEY_user}" ] ; then
+	if [ -n "${OCF_RESKEY_user}" ]; then
 		chown ${OCF_RESKEY_user} "${OCF_RESKEY_rundir}"
 		ocf_log info "cdb_start: su ${OCF_RESKEY_user} -c \"${cmd}\""
 		su ${OCF_RESKEY_user} -c "${cmd}" &
@@ -320,8 +269,11 @@ cdb_start() {
 
 	sleep 2
 
-   if ocf_is_true "${OCF_RESKEY_repl_enable}"; then
+	if [ -n "${OCF_RESKEY_replcmds}" ]; then
+		ocf_log info "cdb_start: run cdb_start_replica"
 		cdb_start_replica || exit $OCF_ERR_GENERIC
+	else
+		ocf_log info "cdb_start: ocf_is_true = false"
 	fi 
 
 	while [ ! cdb_monitor ]; do
@@ -384,19 +336,21 @@ cdb_monitor_couchdb() {
 
 cdb_monitor_replica() {
 	if [ -n "$OCF_RESKEY_dbuser" ]; then
-	  local cdb="http://$OCF_RESKEY_dbuser:$OCF_RESKEY_dbpass@$OCF_RESKEY_host:$OCF_RESKEY_port"
+	  local cn="http://$OCF_RESKEY_dbuser:$OCF_RESKEY_dbpass@$OCF_RESKEY_host:$OCF_RESKEY_port"
 	else
-	  local cdb="http://$OCF_RESKEY_host:$OCF_RESKEY_port"
+	  local cn="http://$OCF_RESKEY_host:$OCF_RESKEY_port"
 	fi
-	$CURL -s "$cdb/_active_tasks" | grep -q '"type":"Replication"'
-	case $? in
-		0)	ocf_log info "cdb_monitor_replica: Replication running."
-			return $OCF_SUCCESS
-			;;
-		*)	ocf_log err "cdb_monitor_replica: Replication not running!"
-			return $OCF_NOT_RUNNING
-			;;
-	esac
+
+	local nr=$($CURL -s "$cn/_active_tasks" | tr '},' '\n' | grep -c '"type":"Replication"')
+        local n=0
+        for i in `echo ${OCF_RESKEY_replcmds} | tr ';' '\n'` ; do n=$(($n+1)); done
+	if [ $n -eq $nr  ]; then
+		ocf_log info "cdb_monitor_replica: All replications running."
+		return $OCF_SUCCESS
+	else 
+		ocf_log err "cdb_monitor_replica: Only ${nr}/${n} replications running!"
+		return $OCF_NOT_RUNNING
+	fi
 }
 
 cdb_monitor() {
@@ -404,9 +358,9 @@ cdb_monitor() {
 
 	if [ -f ${OCF_RESKEY_pid} ]; then
 		cdb_validate || exit $?
-		cdb_monitor_couchdb; rc=$?; ocf_log debug "cdb_monitor: cdb_monitor_couchdb = $rc"
-		if ocf_is_true "${OCF_RESKEY_repl_enable}"; then
-			cdb_monitor_replica || cdb_start_replica
+		cdb_monitor_couchdb; rc=$?; ocf_log info "cdb_monitor: cdb_monitor_couchdb = $rc"
+		if [ -n "${OCF_RESKEY_replcmds}" ]; then
+                       cdb_monitor_replica || cdb_start_replica
 		fi
 	fi
 
@@ -428,12 +382,6 @@ cdb_validate() {
 	if ! ocf_is_decimal $OCF_RESKEY_port; then
 		ocf_log err "port is not numeric!"; exit $OCF_ERR_CONFIGURED 
 	fi    
-	if ! ocf_is_decimal $OCF_RESKEY_repl_src_port; then
-		ocf_log err "repl_src_port is not numeric!"; exit $OCF_ERR_CONFIGURED 
-	fi
-	if ! ocf_is_decimal $OCF_RESKEY_repl_trt_port; then 
-		ocf_log err "repl_trt_port is not numeric!"; exit $OCF_ERR_CONFIGURED
-	fi
 	check_binary $CURL
 	return $OCF_SUCCESS
 }
@@ -468,13 +416,13 @@ exit $rc
 #		node vub001
 #		node vub002
 #		primitive couchdb-1 ocf:heartbeat:couchdb \
-#			params dbuser="user" dbpass="pass" repl_src_host="192.168.1.2" repl_enable="true" repl_src_port="5984" repl_src_user="admin" repl_src_pass="1qaz2wsx" repl_src_db="testdb" repl_trt_host="127.0.0.1" repl_trt_port="5984" repl_trt_user="admin" repl_trt_pass="1qaz2wsx" repl_trt_db="testdb" \
+#			params dbuser="user" dbpass="pass" replcmds="http://admin:pass@192.168.1.2:5984/testdb,http://admin:pass@127.0.0.1:5984/testdb,true;http://admin:pass@192.168.1.2:5984/testdb1,http://admin:pass@127.0.0.1:5984/testdb1,true;" \
 #			op start interval="0" timeout="20s" \
 #			op stop interval="0" timeout="20s" \
 #			op monitor interval="10s" \
 #			meta target-role="Started"
 #		primitive couchdb-2 ocf:heartbeat:couchdb \
-#			params dbuser="user" dbpass="pass" repl_src_host="192.168.1.1" repl_enable="true" repl_src_port="5984" repl_src_user="admin" repl_src_pass="1qaz2wsx" repl_src_db="testdb" repl_trt_host="127.0.0.1" repl_trt_port="5984" repl_trt_user="admin" repl_trt_pass="1qaz2wsx" repl_trt_db="testdb" \
+#			params dbuser="user" dbpass="pass" replcmds="http://admin:pass@192.168.1.1:5984/testdb,http://admin:pass@127.0.0.1:5984/testdb,true;http://admin:pass@192.168.1.1:5984/testdb1,http://admin:pass@127.0.0.1:5984/testdb1,true;" \
 #			op start interval="0" timeout="20s" \
 #			op stop interval="0" timeout="20s" \
 #			op monitor interval="10s" \
