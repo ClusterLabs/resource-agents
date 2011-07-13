@@ -291,22 +291,22 @@ MDDEV="$OCF_RESKEY_raiddev"
 
 if [ -z "$RAIDCONF" ] ; then
 	ocf_log err "Please set OCF_RESKEY_raidconf!"
-	exit $OCF_ERR_ARGS
+	exit $OCF_ERR_CONFIGURED
 fi
 
 if [ ! -r "$RAIDCONF" ] ; then
 	ocf_log err "Configuration file [$RAIDCONF] does not exist, or can not be opend!"
-	exit $OCF_ERR_ARGS
+	exit $OCF_ERR_INSTALLED
 fi
 
 if [ -z "$MDDEV" ] ; then
 	ocf_log err "Please set OCF_RESKEY_raiddev to the Raid device you want to control!"
-	exit $OCF_ERR_ARGS
+	exit $OCF_ERR_CONFIGURED
 fi
 
 if [ -e "$MDDEV" -a ! -b "$MDDEV" ] ; then
 	ocf_log err "$MDDEV is not a block device!"
-	exit $OCF_ERR_ARGS
+	exit $OCF_ERR_INSTALLED
 fi
 
 # strip off the /dev/ prefix to get the name of the MD device
