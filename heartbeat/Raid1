@@ -71,7 +71,8 @@ The RAID configuration file. e.g. /etc/raidtab or /etc/mdadm.conf.
 
 <parameter name="raiddev" unique="0" required="1">
 <longdesc lang="en">
-The block device to use.
+The block device to use. Alternatively, set to "auto" to manage
+all devices specified in raidconf.
 </longdesc>
 <shortdesc lang="en">block device</shortdesc>
 <content type="string" default="" />
@@ -100,6 +101,26 @@ supposed to own them.
 </actions>
 </resource-agent>
 END
+}
+
+list_conf_arrays() {
+	test -f $RAIDCONF || {
+		ocf_log err "$RAIDCONF gone missing!"
+		exit $OCF_ERR_GENERIC
+	}
+	grep ^ARRAY $RAIDCONF | awk '{print $2}'
+}
+forall() {
+	local func=$1
+	local checkall=$2
+	local mddev rc=0
+	for mddev in `list_conf_arrays`; do
+		$func $mddev
+		rc=$(($rc | $?))
+		[ "$checkall" = all ] && continue
+		[ $rc -ne 0 ] && return $rc
+	done
+	return $rc
 }
 
 #
@@ -142,7 +163,11 @@ raid1_start() {
 	    $RAIDSTART --configfile $RAIDCONF $MDDEV
 	else
 	    # Run mdadm
-	    $MDADM --assemble $MDDEV --config=$RAIDCONF $MDADM_HOMEHOST
+		if [ "$MDDEV" = auto ]; then
+			$MDADM --assemble --scan --config=$RAIDCONF $MDADM_HOMEHOST
+		else
+			$MDADM --assemble $MDDEV --config=$RAIDCONF $MDADM_HOMEHOST
+		fi
 	fi
 
 	raid1_monitor
@@ -157,37 +182,67 @@ raid1_start() {
 #
 # STOP: stop the RAID device
 #
+mark_readonly() {
+	local mddev=$1
+	local rc
+	ocf_log info "Attempting to mark array $mddev readonly"
+	$MDADM --readonly $mddev --config=$RAIDCONF
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log err "Failed to set $mddev readonly (rc=$rc)"
+	fi
+	return $rc
+}
+raid1_stop_one() {
+	ocf_log info "Stopping array $1"
+	$MDADM --stop $1 --config=$RAIDCONF --wait-clean -W
+}
 raid1_stop() {
+	local rc
 	# See if the MD device is already cleanly stopped:
-	raid1_monitor
-	if [ $? -eq $OCF_NOT_RUNNING ]; then
-		return $OCF_SUCCESS
+	if [ "$MDDEV" != auto ]; then
+		raid1_monitor
+		if [ $? -eq $OCF_NOT_RUNNING ]; then
+			return $OCF_SUCCESS
+		fi
 	fi
 
 	# Turn off raid
 	if [ $HAVE_RAIDTOOLS = "true" ]; then
 		$RAIDSTOP --configfile $RAIDCONF $MDDEV
 	else
-		ocf_log info "Stopping array $MDDEV"
-		$MDADM --stop $MDDEV --config=$RAIDCONF --wait-clean -W
+		if [ "$MDDEV" = auto ]; then
+			forall raid1_stop_one all
+		else
+			raid1_stop_one $MDDEV
+		fi
 	fi
 	rc=$?
 
 	if [ $rc -ne 0 ]; then
 		ocf_log err "Couldn't stop RAID for $MDDEV (rc=$rc)"
 		if [ $HAVE_RAIDTOOLS != "true" ]; then
-			ocf_log info "Attempting to mark array $MDDEV readonly"
-			$MDADM --readonly $MDDEV --config=$RAIDCONF
-			rc=$?
-			if [ $rc -ne 0 ]; then
-				ocf_log err "Failed to set $MDDEV readonly (rc=$rc)"
+			if [ "$MDDEV" = auto ]; then
+				forall mark_readonly all
+			else
+				mark_readonly $MDDEV
 			fi
 		fi
 		return $OCF_ERR_GENERIC
 	fi
 
-	raid1_monitor
-	if [ $? -eq $OCF_NOT_RUNNING ]; then
+	if [ "$MDDEV" = auto ]; then
+		local mddev
+		for mddev in `list_conf_arrays`; do
+			raid1_monitor_one $mddev
+			rc=$?
+			[ $rc -ne $OCF_NOT_RUNNING ] && break
+		done
+	else
+		raid1_monitor_one $MDDEV
+		rc=$?
+	fi
+	if [ $rc -eq $OCF_NOT_RUNNING ]; then
 		return $OCF_SUCCESS
 	fi
 	
@@ -198,28 +253,31 @@ raid1_stop() {
 #
 # monitor: a less noisy status
 #
-raid1_monitor() {
+raid1_monitor_one() {
+	local mddev=$1
+	local md=`echo $mddev | sed 's,/dev/,,'`
+	local rc
 	TRY_READD=0
 	# check if the md device exists first
-	if [ ! -b $MDDEV ]; then
-		ocf_log info "$MDDEV is not a block device"
+	if [ ! -b $mddev ]; then
+		ocf_log info "$mddev is not a block device"
 		return $OCF_NOT_RUNNING
 	fi
-	if ! grep -e "^$MD[ \t:]" /proc/mdstat >/dev/null ; then
-		ocf_log info "$MD not found in /proc/mdstat"
+	if ! grep -e "^$md[ \t:]" /proc/mdstat >/dev/null ; then
+		ocf_log info "$md not found in /proc/mdstat"
 		return $OCF_NOT_RUNNING
 	fi
 	if [ $HAVE_RAIDTOOLS != "true" ]; then
-		$MDADM --detail --test $MDDEV >/dev/null 2>&1 ; rc=$?
+		$MDADM --detail --test $mddev >/dev/null 2>&1 ; rc=$?
 		case $rc in
 		0)	;;
-		1)	ocf_log warn "$MDDEV has at least one failed device."
+		1)	ocf_log warn "$mddev has at least one failed device."
 			TRY_READD=1
 			;;
-		2)	ocf_log err "$MDDEV has failed."
+		2)	ocf_log err "$mddev has failed."
 			return $OCF_ERR_GENERIC
 			;;
-		4)	ocf_log err "mdadm failed on $MDDEV."
+		4)	ocf_log err "mdadm failed on $mddev."
 			return $OCF_ERR_GENERIC
 			;;
 		*)	ocf_log err "mdadm returned an unknown result ($rc)."
@@ -229,21 +287,29 @@ raid1_monitor() {
 	fi
 	if [ "$__OCF_ACTION" = "monitor" -a "$OCF_RESKEY_CRM_meta_interval" != 0 \
 		-a $TRY_READD -eq 1 -a $OCF_CHECK_LEVEL -gt 0 ]; then
-		ocf_log info "Attempting recovery sequence to re-add devices on $MDDEV:"
-		$MDADM $MDDEV --fail detached 
-		$MDADM $MDDEV --remove failed 
-		$MDADM $MDDEV --re-add missing
+		ocf_log info "Attempting recovery sequence to re-add devices on $mddev:"
+		$MDADM $mddev --fail detached 
+		$MDADM $mddev --remove failed 
+		$MDADM $mddev --re-add missing
 		# TODO: At this stage, there's nothing to actually do
 		# here. Either this worked or it did not.
 	fi
 
-	if ! dd if=$MDDEV count=1 bs=512 of=/dev/null \
+	if ! dd if=$mddev count=1 bs=512 of=/dev/null \
 	     iflag=direct >/dev/null 2>&1 ; then
-		ocf_log err "$MDDEV: I/O error on read"
+		ocf_log err "$mddev: I/O error on read"
 		return $OCF_ERR_GENERIC
 	fi
 
 	return $OCF_SUCCESS
+}
+
+raid1_monitor() {
+	if [ "$MDDEV" = auto ]; then
+		forall raid1_monitor_one
+	else
+		raid1_monitor_one $MDDEV
+	fi
 }
 
 #
@@ -251,6 +317,7 @@ raid1_monitor() {
 #
 raid1_status() {
 	# See if the MD device is online
+	local rc
 	raid1_monitor
 	rc=$?
 	if [ $rc -ne $OCF_SUCCESS ]; then
@@ -304,15 +371,6 @@ if [ -z "$MDDEV" ] ; then
 	exit $OCF_ERR_CONFIGURED
 fi
 
-if [ -e "$MDDEV" -a ! -b "$MDDEV" ] ; then
-	ocf_log err "$MDDEV is not a block device!"
-	exit $OCF_ERR_INSTALLED
-fi
-
-# strip off the /dev/ prefix to get the name of the MD device
-MD=`echo $MDDEV | sed -e 's/\/dev\///'`
-
-
 HAVE_RAIDTOOLS=false
 if have_binary $MDADM >/dev/null 2>&1 ; then
   if [ -n "$OCF_RESKEY_homehost" ]; then
@@ -323,6 +381,11 @@ if have_binary $MDADM >/dev/null 2>&1 ; then
 else
   check_binary $RAIDSTART
   HAVE_RAIDTOOLS=true
+fi
+
+if [ "$MDDEV" = "auto" -a $HAVE_RAIDTOOLS = true ]; then
+	ocf_log err "autoconf supported only with mdadm!"
+	exit $OCF_ERR_INSTALLED
 fi
 
 # At this stage,
