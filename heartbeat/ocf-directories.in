@@ -18,6 +18,5 @@ exec_prefix=@exec_prefix@
 : ${HA_RESOURCEDIR:=$HA_DIR/resource.d}
 : ${HA_DOCDIR:=@datadir@/doc/heartbeat}
 : ${__SCRIPT_NAME:=`basename $0`}
-: ${HA_LOGTAG:=$__SCRIPT_NAME[$$]}
 : ${HA_VARRUN:=@localstatedir@/run/}
 : ${HA_VARLOCK:=@localstatedir@/lock/subsys/}
