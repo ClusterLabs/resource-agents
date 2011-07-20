@@ -28,10 +28,12 @@ export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 . $(dirname $0)/utils/ra-skelet.sh
 
 declare PSQL_POSTMASTER="/usr/bin/postmaster"
+declare PSQL_CTL="/usr/bin/pg_ctl"
 declare PSQL_pid_file="`generate_name_for_pid_file`"
 declare PSQL_conf_dir="`generate_name_for_conf_dir`"
 declare PSQL_gen_config_file="$PSQL_conf_dir/postgresql.conf"
 declare PSQL_kill_timeout="5"
+declare PSQL_wait_after_start="2"
 
 verify_all()
 {
@@ -152,6 +154,11 @@ start()
 	su - "$OCF_RESKEY_postmaster_user" -c "$PSQL_POSTMASTER -c config_file=\"$PSQL_gen_config_file\" \
 		$OCF_RESKEY_postmaster_options" &> /dev/null &
 
+	# We need to sleep for a second to allow pg_ctl to detect that we've started.
+	sleep $PSQL_wait_after_start
+	# We need to fetch "-D /path/to/pgsql/data" from $OCF_RESKEY_postmaster_options
+	su - "$OCF_RESKEY_postmaster_user" -c "$PSQL_CTL status $OCF_RESKEY_postmaster_options" &> /dev/null
+
 	if [ $? -ne 0 ]; then
 		clog_service_start $CLOG_FAILED
 		return $OCF_ERR_GENERIC
@@ -165,7 +172,8 @@ stop()
 {
 	clog_service_stop $CLOG_INIT
 
-	stop_generic_sigkill "$PSQL_pid_file" "$OCF_RESKEY_shutdown_wait" "$PSQL_kill_timeout"
+	## Send -KILL signal immediately
+	stop_generic_sigkill "$PSQL_pid_file" 0 "$PSQL_kill_timeout"
 	if [ $? -ne 0 ]; then
 		clog_service_stop $CLOG_FAILED
 		return $OCF_ERR_GENERIC

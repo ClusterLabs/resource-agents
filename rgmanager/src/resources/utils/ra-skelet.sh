@@ -104,19 +104,39 @@ stop_generic_sigkill() {
 	declare kill_timeout="$3"
 	declare pid
 	
-	stop_generic "$pid_file" "$stop_timeout"
-	if [ $? -eq 0 ]; then
-		return 0;
+	## If stop_timeout is equal to zero then we do not want
+	## to give -TERM signal at all.
+	if [ $stop_timeout -ne 0 ]; then
+		stop_generic "$pid_file" "$stop_timeout"
+		if [ $? -eq 0 ]; then
+			return 0;
+		fi
 	fi
 	
+	if [ ! -e "$pid_file" ]; then
+		clog_check_file_exist $CLOG_FAILED_NOT_FOUND "$pid_file"
+		# In stop-after-stop situation there is no PID file but
+		# it will be nice to check for it in stop-after-start
+		# look at bug #449394
+		return 0
+	fi
 	read pid < "$pid_file"
+
+	if [ -z "$pid" ]; then
+		return 0;
+	fi
+
+	if [ ! -d "/proc/$pid" ]; then
+		return 0;
+	fi
+
 	kill -QUIT "$pid"
 	if [ $? -ne 0 ]; then
 		return $OCF_GENERIC_ERROR
 	fi
 	
 	sleep "$kill_timeout"
-	ps --pid "$psql_pid" &> /dev/null
+	ps --pid "$pid" &> /dev/null
 	if [ $? -eq 0 ]; then
 		clog_service_stop $CLOG_FAILED_KILL
 		return $OCF_ERR_GENERIC
