@@ -892,7 +892,7 @@ do_monitor() {
 	if [ -z "$dev" ]; then
 			ocf_log err "\
 start_filesystem: Could not match $OCF_RESKEY_device with a real device"
-			return $OCF_ERR_ARGS
+			return $OCF_NOT_RUNNING
 	fi
 
 	is_mounted "$dev" "${OCF_RESKEY_mountpoint}"
