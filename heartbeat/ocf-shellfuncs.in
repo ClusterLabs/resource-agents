@@ -170,6 +170,16 @@ hadate() {
   date "+${HA_DATEFMT}"
 }
 
+set_logtag() {
+	if [ -n "$HA_LOGTAG" ]; then
+		if [ -n "$OCF_RESOURCE_INSTANCE" ]; then
+			HA_LOGTAG="$__SCRIPT_NAME($OCF_RESOURCE_INSTANCE)[$$]"
+		else
+			HA_LOGTAG="$__SCRIPT_NAME[$$]"
+		fi
+	fi
+}
+
 ha_log() {
 	[ none = "$HA_LOGFACILITY" ] && HA_LOGFACILITY=""
 	# if we're connected to a tty, then output to stderr
@@ -184,6 +194,9 @@ ha_log() {
 		fi >&2
 		return 0
 	fi
+
+	set_logtag
+
 	if [ "x${HA_LOGD}" = "xyes" ] ; then 
 		ha_logger -t "${HA_LOGTAG}" "$@"
 		if [ "$?" -eq "0" ] ; then
@@ -237,6 +250,8 @@ ha_debug() {
 		fi >&2
 		return 0
 	fi
+
+	set_logtag
 
         if [ "x${HA_LOGD}" = "xyes" ] ; then  
 		ha_logger -t "${HA_LOGTAG}" -D "ha-debug" "$@"

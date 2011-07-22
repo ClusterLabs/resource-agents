@@ -53,10 +53,12 @@
 
 	<parameter name="shutdown_wait">
 		<longdesc lang="en">
-			Wait X seconds for correct end of service shutdown
+			Wait X seconds for correct end of service shutdown. 
+			This option is ignored in current release.
 		</longdesc>
 		<shortdesc lang="en">
 			Wait X seconds for correct end of service shutdown
+			This option is ignored in current release.
 		</shortdesc>
 		<content type="integer" />
 	</parameter>
