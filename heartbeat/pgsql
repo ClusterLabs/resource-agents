@@ -199,7 +199,7 @@ SQL script that will be used for monitor operations.
 Path to the PostgreSQL configuration file for the instance
 </longdesc>
 <shortdesc lang="en">Configuration file</shortdesc>
-<content type="integer" default="${OCF_RESKEY_config_default}" />
+<content type="string" default="${OCF_RESKEY_config_default}" />
 </parameter>
 
 <parameter name="pgdb" unique="0" required="0">
