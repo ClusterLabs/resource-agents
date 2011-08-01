@@ -236,7 +236,7 @@ determine_blockdevice() {
 	# Get the current real device name, if possible.
 	# (specified devname could be -L or -U...)
 	case "$FSTYPE" in
-	nfs|smbfs|cifs|none) ;;
+	nfs|smbfs|cifs|glusterfs|none) ;;
 	*)	DEVICE=`list_mounts | grep " $MOUNTPOINT " | cut -d' ' -f1`
 		if [ -b "$DEVICE" ]; then
 		  blockdevice=yes
@@ -417,7 +417,7 @@ is_fsck_needed() {
 	    no)    false;;
 	    ""|auto)
 		case $FSTYPE in
-		    ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre)
+		    ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs)
 			false;;
 		    *)
 			true;;
@@ -462,8 +462,17 @@ Filesystem_start()
 			: No FSTYPE specified, rely on the system has the right file-system support already 
 		else
 			# Insert Filesystem module
-			$MODPROBE $FSTYPE >/dev/null 
-			grep -e "$FSTYPE"'$' /proc/filesystems >/dev/null
+			$MODPROBE $FSTYPE >/dev/null
+
+			# support fuse-filesystems (e.g. GlusterFS)
+			case $FSTYPE in
+				glusterfs)	
+					grep -e 'fuse$' /proc/filesystems >/dev/null
+					;;
+				*)	grep -e "$FSTYPE"'$' /proc/filesystems >/dev/null
+					;;
+			esac
+			
 			if [ $? -ne 0 ] ; then
 				ocf_log err "Couldn't find filesystem $FSTYPE in /proc/filesystems"
 				return $OCF_ERR_INSTALLED
@@ -972,6 +981,8 @@ case $DEVICE in
 	;;
 //[!/]*/*)	# An SMB filesystem specification...
 	;;
+*:*)	# An GlusterFS filesystem specification...
+	;;
 /dev/null)	# Special case for BSC
 	blockdevice=yes
 	;;
@@ -1040,7 +1051,7 @@ case $FSTYPE in
 ocfs2)	ocfs2_init
         CLUSTERSAFE=1
 	;;
-nfs|smbfs|none|gfs2)	CLUSTERSAFE=1 # this is kind of safe too
+nfs|smbfs|none|gfs2|glusterfs)	CLUSTERSAFE=1 # this is kind of safe too
 	;;
 # add here CLUSTERSAFE=0 for all filesystems which are not
 # cluster aware and which, even if when mounted read-only,
