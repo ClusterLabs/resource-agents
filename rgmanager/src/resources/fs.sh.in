@@ -445,7 +445,8 @@ do_force_unmount() {
 		export nfslock_reclaim=1
 	fi
 
-	return 0
+	# Proceed with fuser -kvm...
+	return 1
 }
 
 

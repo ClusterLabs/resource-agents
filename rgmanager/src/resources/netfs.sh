@@ -354,12 +354,13 @@ do_force_unmount() {
 	nfs|nfs4)
 		ocf_log warning "Calling 'umount -f $mp'"
 		umount -f "$OCF_RESKEY_mountpoint"
+		return $?
 		;;
 	*)
 		;;
 	esac
 
-	return 0	# Returning 0 lets stop_filesystem do add'l checks
+	return 1	# Returning 1 lets stop_filesystem do add'l checks
 }
 
 
