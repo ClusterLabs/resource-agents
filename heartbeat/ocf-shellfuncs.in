@@ -171,7 +171,7 @@ hadate() {
 }
 
 set_logtag() {
-	if [ -n "$HA_LOGTAG" ]; then
+	if [ -z "$HA_LOGTAG" ]; then
 		if [ -n "$OCF_RESOURCE_INSTANCE" ]; then
 			HA_LOGTAG="$__SCRIPT_NAME($OCF_RESOURCE_INSTANCE)[$$]"
 		else
