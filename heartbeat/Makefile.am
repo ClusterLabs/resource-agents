@@ -114,7 +114,9 @@ ocfcommondir		= $(OCF_LIB_DIR_PREFIX)/heartbeat
 ocfcommon_DATA		= ocf-shellfuncs 	\
 			  ocf-binaries	 	\
 			  ocf-directories 	\
-			  ocf-returncodes
+			  ocf-returncodes 	\
+			  apache-conf.sh 	\
+			  http-mon.sh
 
 # Legacy locations
 hbdir			= $(sysconfdir)/ha.d

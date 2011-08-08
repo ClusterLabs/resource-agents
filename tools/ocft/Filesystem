@@ -21,12 +21,12 @@ SETUP-AGENT
 	OCFT_fs=/var/run/resource-agents/ocft-Filesystem-fs
 	OCFT_loop=/dev/loop0
 	OCFT_dir=/var/run/resource-agents/ocft-Filesystem-mnt
+	losetup $OCFT_loop 2>/dev/null && exit 1
 	rmdir $OCFT_dir 2>/dev/null || true
-	losetup -d $OCFT_loop 2>/dev/null || true
 	mkdir $OCFT_dir
 	dd if=/dev/zero of=$OCFT_fs bs=1024k count=1 2>/dev/null
+	mke2fs -Fq $OCFT_fs
 	losetup $OCFT_loop $OCFT_fs
-	mke2fs -Fq $OCFT_loop
 
 CASE-BLOCK default_status
 	AgentRun stop
