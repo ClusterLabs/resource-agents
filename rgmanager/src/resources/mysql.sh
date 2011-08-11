@@ -155,7 +155,7 @@ status()
 	status_check_pid "$MYSQL_pid_file"
 	case $? in
 		$OCF_NOT_RUNNING)
-		clog_service_status $CLOG_FAILED "$MYSL_pid_file"
+		clog_service_status $CLOG_FAILED "$MYSQL_pid_file"
 		return $OCF_NOT_RUNNING
 		;;
 	0)
@@ -163,7 +163,7 @@ status()
 		exit 0
 		;;
 	*)
-		clog_service_status $CLOG_FAILED "$MYSL_pid_file"
+		clog_service_status $CLOG_FAILED "$MYSQL_pid_file"
 		return $OCF_ERR_GENERIC
 		;;
 	esac
