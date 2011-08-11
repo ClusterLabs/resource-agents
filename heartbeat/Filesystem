@@ -853,9 +853,14 @@ Filesystem_monitor_10()
 #
 Filesystem_monitor_20()
 {
-	# Writing to the device in O_DIRECT mode is imperative
-	# to bypass caches.
-	dd_opts="oflag=direct,sync bs=512 conv=fsync,sync"
+	if [ "$blockdevice" = "no" ] ; then
+		# O_DIRECT not supported on cifs/smbfs
+		dd_opts="oflag=sync bs=512 conv=fsync,sync"
+	else
+		# Writing to the device in O_DIRECT mode is imperative
+		# to bypass caches.
+		dd_opts="oflag=direct,sync bs=512 conv=fsync,sync"
+	fi
 	status_dir=`dirname $STATUSFILE`
 	[ -d "$status_dir" ] ||
 		mkdir -p "$status_dir"
