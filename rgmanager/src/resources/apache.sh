@@ -233,7 +233,7 @@ status()
 	status_check_pid "$APACHE_pid_file"
 	case $? in
 		$OCF_NOT_RUNNING)
-			clog_service_status $CLOG_FAILED "$APAHCE_pid_file"
+			clog_service_status $CLOG_FAILED "$APACHE_pid_file"
 			return $OCF_NOT_RUNNING
 			;;
 		0)
