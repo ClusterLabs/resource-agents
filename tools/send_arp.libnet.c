@@ -54,7 +54,7 @@
 #	define	LTYPE	libnet_t
 #endif
 
-#define PIDDIR       HA_VARRUNDIR "/" PACKAGE "/rsctmp/send_arp"
+#define PIDDIR       HA_VARRUNDIR "/" PACKAGE
 #define PIDFILE_BASE PIDDIR "/send_arp-"
 
 static int send_arp(LTYPE* l, u_long ip, u_char *device, u_char mac[6]

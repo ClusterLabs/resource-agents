@@ -1,0 +1,454 @@
+#!/bin/sh
+#
+#       OCF Resource Agent compliant script.
+#       Monitor the vitality of a local network interface.
+#
+# 	Based on the work by Robert Euhus and Lars Marowsky-Brée.
+#
+#	Transfered from Ipaddr2 into ethmonitor by Alexander Krauth
+#
+# Copyright (c) 2011 Robert Euhus, Alexander Krauth, Lars Marowsky-Brée
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+#     OCF parameters are as below
+#
+#	OCF_RESKEY_interface
+#	OCF_RESKEY_multiplicator
+#	OCF_RESKEY_name
+#       OCF_RESKEY_repeat_count
+#	OCF_RESKEY_repeat_interval
+#	OCF_RESKEY_pktcnt_timeout
+#	OCF_RESKEY_arping_count
+#	OCF_RESKEY_arping_timeout
+#	OCF_RESKEY_arping_cache_entries
+#
+#   TODO: Check against IPv6
+#
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="ethmonitor">
+<version>1.2</version>
+
+<longdesc lang="en">
+Monitor the vitality of a local network interface.
+
+You may setup this RA as a clone resource to monitor the network interfaces on different nodes, with the same interface name.
+This is not related to the IP adress or the network on which a interface is configured.
+You may use this RA to move resources away from a node, which has a faulty interface or prevent moving resources to such a node.
+This gives you independend control of the resources, without involving cluster intercommunication. But it requires your nodes to have more than one network interface.
+
+The resource configuration requires a monitor operation, because the monitor does the main part of the work.
+In addition to the resource configuration, you need to configure some location contraints, based on a CIB attribute value.
+The name of the attribute value is configured in the 'name' option of this RA.
+
+Example constraint configuration:
+location loc_connected_node my_resource_grp \
+        rule $id="rule_loc_connected_node" -INF: ethmonitor eq 0
+
+The ethmonitor works in 3 different modes to test the interface vitality.
+1. call ip to see if the link status is up (if link is down -> error)
+2. call ip an watch the RX counter (if packages come around in a certain time -> success)
+3. call arping to check wether any of the IPs found in the lokal ARP cache answers an ARP REQUEST (one answer -> success)
+4. return error
+</longdesc>
+<shortdesc lang="en">Monitors network interfaces</shortdesc>
+
+<parameters>
+<parameter name="interface" unique="1" required="1">
+<longdesc lang="en">
+The name of the network interface which should be monitored (e.g. eth0).
+</longdesc>
+<shortdesc lang="en">Network interface name</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="name" unique="1">
+<longdesc lang="en">
+The name of the CIB attribute to set.  This is the name to be used in the constraints. Defaults to "ethmonitor-'interface_name'".
+</longdesc>
+<shortdesc lang="en">Attribute name</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="multiplier" unique="0" >
+<longdesc lang="en">
+Multiplier for the value of the CIB attriobute specified in parameter name. 
+</longdesc>
+<shortdesc lang="en">Multiplier for result variable</shortdesc>
+<content type="integer" default="1"/>
+</parameter>
+
+<parameter name="repeat_count">
+<longdesc lang="en">
+Specify how often the interface will be monitored, before the status is set to failed. You need to set the timeout of the monitoring operation to at least repeat_count * repeat_interval
+</longdesc>
+<shortdesc lang="en">Monitor repeat count</shortdesc>
+<content type="integer" default="5"/>
+</parameter>
+
+<parameter name="repeat_interval">
+<longdesc lang="en">
+Specify how long to wait in seconds between the repeat_counts.
+</longdesc>
+<shortdesc lang="en">Monitor repeat interval in seconds</shortdesc>
+<content type="integer" default="10"/>
+</parameter>
+
+<parameter name="pktcnt_timeout">
+<longdesc lang="en">
+Timeout for the RX packet counter. Stop listening for packet counter changes after the given number of seconds.
+</longdesc>
+<shortdesc lang="en">packet counter timeout</shortdesc>
+<content type="integer" default="5"/>
+</parameter>
+
+<parameter name="arping_count">
+<longdesc lang="en">
+Number of ARP REQUEST packets to send for every IP.
+Usually one ARP REQUEST (arping) is send
+</longdesc>
+<shortdesc lang="en">Number of arpings per IP</shortdesc>
+<content type="integer" default="1"/>
+</parameter>
+
+<parameter name="arping_timeout">
+<longdesc lang="en">
+Time in seconds to wait for ARP REQUESTs (all packets of arping_count).
+This is to limit the time for arp requests, to be able to send requests to more than one node, without running in the monitor operation timeout.
+</longdesc>
+<shortdesc lang="en">Timeout for arpings per IP</shortdesc>
+<content type="integer" default="1"/>
+</parameter>
+
+<parameter name="arping_cache_entries">
+<longdesc lang="en">
+Maximum number of IPs from ARP cache list to check for ARP REQUEST (arping) answers. Newest entries are tried first.
+</longdesc>
+<shortdesc lang="en">Number of ARP cache entries to try</shortdesc>
+<content type="integer" default="5"/>
+</parameter>
+
+</parameters>
+<actions>
+<action name="start"   timeout="20s" />
+<action name="stop"    timeout="20s" />
+<action name="status" depth="0"  timeout="20s" interval="10s" />
+<action name="monitor" depth="0"  timeout="20s" interval="10s" />
+<action name="meta-data"  timeout="5s" />
+<action name="validate-all"  timeout="20s" />
+</actions>
+</resource-agent>
+END
+
+	exit $OCF_SUCCESS
+}
+
+#
+#	Return true, if the interface exists
+#
+is_interface() {
+	#
+	# List interfaces but exclude FreeS/WAN ipsecN virtual interfaces
+	#
+	local iface=`$IP2UTIL -o -f inet addr show | grep " $1 " \
+		| cut -d ' ' -f2 | sort -u | grep -v '^ipsec[0-9][0-9]*$'`
+        [ "$iface" != "" ]
+}
+
+if_init() {
+	local rc
+
+	if [ X"$OCF_RESKEY_interface" = "X" ]; then
+		ocf_log err "Interface name (the interface parameter) is mandatory"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	NIC="$OCF_RESKEY_interface"
+
+	if is_interface $NIC
+	then
+	  case "$NIC" in
+	    *:*) ocf_log err "Do not specify a virtual interface : $OCF_RESKEY_interface"
+	         exit $OCF_ERR_CONFIGURED;;
+	    *)  ;;
+	  esac
+	else
+	  case $__OCF_ACTION in
+	    validate-all) ocf_log err "Interface $NIC does not exist"
+                            exit $OCF_ERR_CONFIGURED;;
+	    *)   	    ocf_log warn "Interface $NIC does not exist"
+                            ## It might be a bond interface which is temporarily not available, therefore we want to continue here
+	                    ;;
+	  esac
+	fi
+
+	: ${OCF_RESKEY_multiplier:="1"}
+	if ! ocf_is_decimal "$OCF_RESKEY_multiplier"; then
+		ocf_log err "Invalid OCF_RESKEY_multiplier [$OCF_RESKEY_multiplier]"
+		exit $OCF_ERR_CONFIGURED
+	fi
+	
+	ATTRNAME=${OCF_RESKEY_name:-"ethmonitor-$NIC"}
+	
+        REP_COUNT=${OCF_RESKEY_repeat_count:-5}
+	if ! ocf_is_decimal "$REP_COUNT" -o [ $REP_COUNT -lt 1 ]; then
+		ocf_log err "Invalid OCF_RESKEY_repeat_count [$REP_COUNT]"
+		exit $OCF_ERR_CONFIGURED
+        fi
+	REP_INTERVAL_S=${OCF_RESKEY_repeat_interval:-10}
+	if ! ocf_is_decimal "$REP_INTERVAL_S"; then
+		ocf_log err "Invalid OCF_RESKEY_repeat_interval [$REP_INTERVAL_S]"
+		exit $OCF_ERR_CONFIGURED
+	fi
+	: ${OCF_RESKEY_pktcnt_timeout:="5"}
+	if ! ocf_is_decimal "$OCF_RESKEY_pktcnt_timeout"; then
+		ocf_log err "Invalid OCF_RESKEY_pktcnt_timeout [$OCF_RESKEY_pktcnt_timeout]"
+		exit $OCF_ERR_CONFIGURED
+	fi
+	: ${OCF_RESKEY_arping_count:="1"}
+	if ! ocf_is_decimal "$OCF_RESKEY_arping_count"; then
+		ocf_log err "Invalid OCF_RESKEY_arping_count [$OCF_RESKEY_arping_count]"
+		exit $OCF_ERR_CONFIGURED
+	fi
+	: ${OCF_RESKEY_arping_timeout:="1"}
+	if ! ocf_is_decimal "$OCF_RESKEY_arping_timeout"; then
+		ocf_log err "Invalid OCF_RESKEY_arping_timeout [$OCF_RESKEY_arping_count]"
+		exit $OCF_ERR_CONFIGURED
+	fi
+	: ${OCF_RESKEY_arping_cache_entries:="5"}
+	if ! ocf_is_decimal "$OCF_RESKEY_arping_cache_entries"; then
+		ocf_log err "Invalid OCF_RESKEY_arping_cache_entries [$OCF_RESKEY_arping_cache_entries]"
+		exit $OCF_ERR_CONFIGURED
+	fi
+  return $OCF_SUCCESS
+}
+
+# get the link status on $NIC
+# asks ip about running (up) interfaces, returns the number of matching interface names that are up
+get_link_status () {
+	$IP2UTIL -o link show up dev "$NIC" | grep -c "$NIC"
+}
+
+# returns the number of received rx packets on $NIC
+get_rx_packets () {
+	ocf_log debug "$IP2UTIL -o -s link show dev $NIC"
+	$IP2UTIL -o -s link show dev "$NIC" \
+		| sed 's/.* RX: [^0-9]*[0-9]* *\([0-9]*\) .*/\1/'
+		# the first number after RX: ist the # of bytes ,
+		# the second is the # of packets received
+}
+
+# watch for packet counter changes for max. OCF_RESKEY_pktcnt_timeout seconds
+# returns immedeately with return code 0 if any packets were received
+# otherwise 1 is returned
+watch_pkt_counter () {
+	local RX_PACKETS_NEW
+	local RX_PACKETS_OLD
+	RX_PACKETS_OLD="`get_rx_packets`"
+	for n in `seq $(( $OCF_RESKEY_pktcnt_timeout * 10 ))`; do
+		sleep 0.1
+		RX_PACKETS_NEW="`get_rx_packets`"
+		ocf_log debug "RX_PACKETS_OLD: $RX_PACKETS_OLD    RX_PACKETS_NEW: $RX_PACKETS_NEW"
+		if [ "$RX_PACKETS_OLD" -ne "$RX_PACKETS_NEW" ]; then
+			ocf_log debug "we received some packets."
+			return 0
+		fi
+	done
+	return 1
+}
+
+# returns list of cached ARP entries for $NIC
+# sorted by age ("last confirmed")
+# max. OCF_RESKEY_arping_cache_entries entries
+get_arp_list () {
+	$IP2UTIL -s neighbour show dev $NIC \
+		| sort -t/ -k2,2n | cut -d' ' -f1 \
+		| head -n $OCF_RESKEY_arping_cache_entries
+		# the "used" entries in `ip -s neighbour show` are:
+		# "last used"/"last confirmed"/"last updated"
+}
+
+# arping the IP given as argument $1 on $NIC
+# until OCF_RESKEY_arping_count answers are received
+do_arping () {
+	# TODO: add the source IP
+	# TODO: check for diffenrent arping versions out there
+	arping -q -c $OCF_RESKEY_arping_count -w $OCF_RESKEY_arping_timeout -I $NIC $1
+	# return with the exit code of the arping command 
+	return $?
+}
+
+#
+# 	Check the interface depending on the level given as parameter: $OCF_RESKEY_check_level
+#
+# 09: check for nonempty ARP cache
+# 10: watch for packet counter changes
+#
+# 19: check arping_ip_list
+# 20: check arping ARP cache entries
+# 
+# 30:  watch for packet counter changes in promiscios mode
+# 
+# If unsuccessfull in levels 18 and above,
+# the tests for higher check levels are run.
+#
+if_check () {
+	# always check link status first
+	link_status="`get_link_status`"
+	ocf_log debug "link_status: $link_status (1=up, 0=down)"
+        [ $link_status -eq 0 ] && return $OCF_NOT_RUNNING
+
+	# watch for packet counter changes
+	ocf_log debug "watch for packet counter changes" 
+	watch_pkt_counter && return $OCF_SUCCESS
+
+	# check arping ARP cache entries
+	ocf_log debug "check arping ARP cache entries" 
+	for ip in `get_arp_list`; do
+		do_arping $ip && return $OCF_SUCCESS
+	done
+
+	# watch for packet counter changes in promiscios mode
+#	ocf_log debug "watch for packet counter changes in promiscios mode" 
+	# be sure switch off promiscios mode in any case
+	# TODO: check first, wether promisc is already on and leave it untouched.
+#	trap "$IP2UTIL link set dev $NIC promisc off; exit" INT TERM EXIT
+#		$IP2UTIL link set dev $NIC promisc on
+#		watch_pkt_counter && return $OCF_SUCCESS
+#		$IP2UTIL link set dev $NIC promisc off
+#	trap - INT TERM EXIT
+
+	# looks like it's not working (for whatever reason)
+	return $OCF_NOT_RUNNING
+}
+
+#######################################################################
+
+if_usage() {
+	cat <<END
+usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+set_cib_value() {
+    local score=`expr $1 \* $OCF_RESKEY_multiplier`
+    attrd_updater -n $ATTRNAME -v $score -q
+    local rc=$?
+    case $rc in
+        0) ocf_log debug "attrd_updater: Updated $ATTRNAME = $score" ;;
+        *) ocf_log warn "attrd_updater: Could not update $ATTRNAME = $score: rc=$rc";;
+    esac
+    return $rc
+}
+
+if_monitor() {
+    ha_pseudo_resource $OCF_RESOURCE_INSTANCE monitor
+    local pseudo_status=$?
+    if [ $pseudo_status -ne $OCF_SUCCESS ]; then
+      exit $pseudo_status
+    fi
+    
+    local mon_rc=$OCF_NOT_RUNNING
+    local attr_rc=$OCF_NOT_RUNNING
+    local runs=0
+    local start_time
+    local end_time
+    local sleep_time
+    while [ $mon_rc -ne $OCF_SUCCESS -a $REP_COUNT -gt 0 ]
+    do
+      start_time=`date +%s%N`
+      if_check
+      mon_rc=$?
+      REP_COUNT=$(( $REP_COUNT - 1 ))
+      if [ $mon_rc -ne $OCF_SUCCESS -a $REP_COUNT -gt 0 ]; then
+        ocf_log warn "Monitoring of $OCF_RESOURCE_INSTANCE failed, $REP_COUNT retries left."
+	end_time=`date +%s%N`
+	sleep_time=`echo "scale=9; ( $start_time + ( $REP_INTERVAL_S * 1000000000 ) - $end_time ) / 1000000000" | bc -q 2> /dev/null`
+        sleep $sleep_time 2> /dev/null
+        runs=$(($runs + 1))
+      fi
+
+      if [ $mon_rc -eq $OCF_SUCCESS -a $runs -ne 0 ]; then
+        ocf_log info "Monitoring of $OCF_RESOURCE_INSTANCE recovered from error"
+      fi
+    done
+    
+    ocf_log debug "Monitoring return code: $mon_rc"
+    if [ $mon_rc -eq $OCF_SUCCESS ]; then
+      set_cib_value 1
+      attr_rc=$?
+    else
+      ocf_log err "Monitoring of $OCF_RESOURCE_INSTANCE failed."
+      set_cib_value 0
+      attr_rc=$?
+    fi
+
+    ## The resource should not fail, if the interface is down. It should fail, if the update of the CIB variable has errors.
+    ## To react on the interface failure you must use constraints based on the CIB variable value, not on the resource itself.
+    exit $attr_rc
+}
+
+if_validate() {
+    check_binary $IP2UTIL
+    check_binary arping
+    if_init
+}
+
+case $__OCF_ACTION in
+meta-data)	meta_data
+		;;
+usage|help)	if_usage
+		exit $OCF_SUCCESS
+		;;
+esac
+
+if_validate
+
+case $__OCF_ACTION in
+start)		ha_pseudo_resource $OCF_RESOURCE_INSTANCE start
+		exit $?
+		;;
+stop)		attrd_updater -D -n $ATTRNAME
+                ha_pseudo_resource $OCF_RESOURCE_INSTANCE stop
+		exit $?
+		;;
+monitor|status)	if_monitor
+		exit $?
+		;;
+validate-all)	exit $?
+                ;;
+*)		if_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac

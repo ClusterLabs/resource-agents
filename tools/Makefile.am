@@ -25,7 +25,7 @@ INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include
 
 halibdir		= $(libdir)/heartbeat
 
-EXTRA_DIST		= ocf-tester.8
+EXTRA_DIST		= ocf-tester.8 sfex_init.8
 
 sbin_PROGRAMS		= 
 sbin_SCRIPTS		= ocf-tester
@@ -36,6 +36,7 @@ man8_MANS		= ocf-tester.8
 if BUILD_SFEX
 halib_PROGRAMS		+= sfex_daemon
 sbin_PROGRAMS		+= sfex_init sfex_stat
+man8_MANS		+= sfex_init.8
 endif
 
 if USE_LIBNET

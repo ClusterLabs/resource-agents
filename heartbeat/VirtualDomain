@@ -453,8 +453,9 @@ VirtualDomain_Validate_All || exit $?
 # unable to get the domain name. Thus, we also can't check whether the
 # domain is running. The only thing we can do here is to assume that
 # it is not running.
-if ocf_is_probe && [ ! -r $OCF_RESKEY_config ]; then
-    exit $OCF_NOT_RUNNING
+if [ ! -r $OCF_RESKEY_config ]; then
+    ocf_is_probe && exit $OCF_NOT_RUNNING
+    [ "$__OCF_ACTION" = "stop" ] && exit $OCF_SUCCESS
 fi
 
 # Define the domain on startup, and re-define whenever someone deleted

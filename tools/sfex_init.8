@@ -1,0 +1,19 @@
+.TH SFEX_INIT "8" "May 2010" "sfex_init 1.0.3" "System Administration Utilities"
+.SH NAME
+sfex_init \- Part of the Linux-HA project
+.SH SYNOPSIS
+.B sfex_init
+[\fI-Lh\fR] \fR[\fI-n numlocks\fR]\fI device
+.SH DESCRIPTION
+Initialize Shared Disk File EXclusiveness Control Program (SF-EX) meta-data.
+.SH OPTIONS
+.TP
+\fB\-n\fR numlocks
+The number of storing lock data is specified by integer 
+of one or more. When you want to control two or more resources by one 
+meta-data, you set the value of two or more to numlocks.
+Default is 1.
+.TP
+\fBdevice\fR
+This is file path which stored meta-data.
+It is usually expressed in "/dev/...", because it is partition on the shared disk.

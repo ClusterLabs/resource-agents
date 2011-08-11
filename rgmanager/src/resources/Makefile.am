@@ -61,13 +61,17 @@ ras_SCRIPTS		= $(TARGET) \
 
 ras_DATA		= $(METADATA)
 
+rngdir			= ${CLUSTERDATA}/relaxng
+
+rng_DATA		= $(DTD) $(XSL) $(RESRNG)
+
 $(TARGET): 
 	cat $@.in | sed \
 		-e 's#@''LOGDIR@#${LOGDIR}#g' \
 	> $@
 
 clean-local:
-	rm -f $(TARGET)
+	rm -f $(TARGET) resources.rng
 
 ras-validation: $(RESOURCES) $(TARGET) $(DTD)
 	@echo Validating resource agent meta-data
@@ -90,19 +94,22 @@ ras-validation: $(RESOURCES) $(TARGET) $(DTD)
 #
 # resources.rng.* should never be distributed by themselves.
 #
-resources.rng: $(RESOURCES) $(TARGET2) $(TARGET3) ra2rng.xsl ra2ref.xsl
+resources.rng: $(RESOURCES) $(TARGET) utils/config-utils.sh
+resources.rng: $(XSL) $(RESRNG)
 	rm -f resources.rng
 	cat resources.rng.head >> resources.rng
 	@echo Generating per-resource RelaxNG information...
-	@for f in $(RESOURCES) $(TARGET2) $(TARGET3); do \
+	@for f in $(RESOURCES) $(TARGET); do \
 		echo "    ./$$f"; \
 		bash ./$$f meta-data | xsltproc ra2rng.xsl - >> resources.rng; \
 	done
 	cat resources.rng.mid >> resources.rng
 	@echo Generating per-resource RelaxNG reference information...
-	@for f in $(RESOURCES) $(TARGET2) $(TARGET3); do \
+	@for f in $(RESOURCES) $(TARGET); do \
 		echo "    ./$$f"; \
 		bash ./$$f meta-data | xsltproc ra2ref.xsl - >> resources.rng; \
 	done
 	cat resources.rng.tail >> resources.rng
 
+utils/config-utils.sh:
+	make -C utils config-utils.sh

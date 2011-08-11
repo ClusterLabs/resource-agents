@@ -536,13 +536,17 @@ pgsql_validate_all() {
 
     getent passwd $OCF_RESKEY_pgdba >/dev/null 2>&1
     if [ ! $? -eq 0 ]; then
-        ocf_log err "User $OCF_RESKEY_pgdba doesn't exit";
+        ocf_log err "User $OCF_RESKEY_pgdba doesn't exist";
         return $OCF_ERR_INSTALLED;
     fi
 
-    if ! runasowner "test -w $OCF_RESKEY_pgdata"; then
-        ocf_log err "Directory $OCF_RESKEY_pgdata is not writable by $OCF_RESKEY_pgdba"
-        exit $OCF_ERR_PERM;
+    if ocf_is_probe; then
+        ocf_log info "Don't check $OCF_RESKEY_pgdata during probe"
+    else
+        if ! runasowner "test -w $OCF_RESKEY_pgdata"; then
+            ocf_log err "Directory $OCF_RESKEY_pgdata is not writable by $OCF_RESKEY_pgdba"
+            return $OCF_ERR_PERM;
+        fi
     fi
 
     if [ -n "$OCF_RESKEY_monitor_user" -a ! -n "$OCF_RESKEY_monitor_password" ]
