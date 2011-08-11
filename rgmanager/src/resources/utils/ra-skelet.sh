@@ -29,7 +29,7 @@ status_check_pid()
 
 	if [ ! -e "$pid_file" ]; then
 		clog_check_file_exist $CLOG_FAILED "$pid_file"
-		return $OCF_ERR_GENERIC
+		return $OCF_NOT_RUNNING
 	fi
 
 	read pid < "$pid_file"

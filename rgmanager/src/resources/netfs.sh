@@ -28,6 +28,7 @@ do_metadata()
 {
 	cat <<EOT
 <?xml version="1.0" ?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1-modified.dtd">
 <resource-agent name="netfs" version="rgmanager 2.0">
     <version>1.0</version>
 
@@ -354,12 +355,13 @@ do_force_unmount() {
 	nfs|nfs4)
 		ocf_log warning "Calling 'umount -f $mp'"
 		umount -f "$OCF_RESKEY_mountpoint"
+		return $?
 		;;
 	*)
 		;;
 	esac
 
-	return 0	# Returning 0 lets stop_filesystem do add'l checks
+	return 1	# Returning 1 lets stop_filesystem do add'l checks
 }
 
 
