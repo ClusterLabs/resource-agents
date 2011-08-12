@@ -202,7 +202,7 @@ test_permissions() {
     if [ $verbose -ne 0 ]; then
     	echo $msg
     fi
-    su nobody -s /bin/sh $agent $action > /dev/null
+    su nobody -s /bin/bash $agent $action > /dev/null
 }
 
 test_metadata() {
