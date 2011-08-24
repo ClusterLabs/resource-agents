@@ -217,7 +217,7 @@ exportfs_start ()
 	fi
 	if [ `echo ${OPTIONS} | grep fsid` ]; then
 		#replace fsid provided in options list with one provided in fsid param.
-		OPTIONS=`echo ${OPTIONS} | sed 's/fsid=[0-9]\+/fsid=${OCF_RESKEY_fsid}/g'`
+		OPTIONS=`echo ${OPTIONS} | sed "s/fsid=[0-9]\+/fsid=${OCF_RESKEY_fsid}/g"`
 	else
 		#tack the fsid option onto our options list.
 		OPTIONS="${OPTIONS}${OPTPREFIX}fsid=${OCF_RESKEY_fsid}"
