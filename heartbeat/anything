@@ -59,7 +59,7 @@ anything_status() {
 	then
 		if pid=`getpid $pidfile` && [ "$pid" ] && kill -s 0 $pid
 		then
-			return $OCF_RUNNING
+			return $OCF_SUCCESS
 		else
 			# pidfile w/o process means the process died
 			return $OCF_ERR_GENERIC

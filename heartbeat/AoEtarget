@@ -166,7 +166,7 @@ AoEtarget_monitor() {
 	# stale pid file, assume something went wrong
 	return $OCF_ERR_GENERIC
     fi
-    return $OCF_RUNNING
+    return $OCF_SUCCESS
 }
 
 AoEtarget_validate() {

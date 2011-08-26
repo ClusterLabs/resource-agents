@@ -169,7 +169,7 @@ searchd_monitor() {
     fi 
     if searchd_status ; then 
 	if searchd_check ; then
-	    return $OCF_RUNNING
+	    return $OCF_SUCCESS
 	else	    
 	    return $OCF_ERR_GENERIC
 	fi
