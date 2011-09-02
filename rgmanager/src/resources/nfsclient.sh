@@ -33,6 +33,7 @@ meta_data()
 {
 	cat <<EOT
 <?xml version="1.0" ?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1-modified.dtd">
 <resource-agent version="rgmanager 2.0" name="nfsclient">
     <version>1.0</version>
 
@@ -424,7 +425,7 @@ status|monitor)
 	fi
 
 	ocf_log err "nfsclient:$OCF_RESKEY_name is missing!"
-	exit 1
+	exit $OCF_NOT_RUNNING
 	;;
 
 recover)

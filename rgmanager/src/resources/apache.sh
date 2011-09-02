@@ -161,6 +161,11 @@ EOT
 
 start()
 {
+	if status; then
+		ocf_log info "Starting Service $OCF_RESOURCE_INSTANCE > Already running"
+		return $OCF_SUCCESS
+	fi
+
 	declare ip_addresses
 
 	clog_service_start $CLOG_INIT	
@@ -226,13 +231,20 @@ status()
 	clog_service_status $CLOG_INIT
 
 	status_check_pid "$APACHE_pid_file"
-	if [ $? -ne 0 ]; then
-		clog_service_status $CLOG_FAILED "$APACHE_pid_file"
-		return $OCF_ERR_GENERIC
-	fi
-
-	clog_service_status $CLOG_SUCCEED
-	return 0
+	case $? in
+		$OCF_NOT_RUNNING)
+			clog_service_status $CLOG_FAILED "$APACHE_pid_file"
+			return $OCF_NOT_RUNNING
+			;;
+		0)
+			clog_service_status $CLOG_SUCCEED
+			exit 0
+			;;
+		*)
+			clog_service_status $CLOG_FAILED "$APACHE_pid_file"
+			return $OCF_ERR_GENERIC
+			;;
+	esac
 }
 
 if [ "$1" != "meta-data" ]; then

@@ -42,6 +42,7 @@ meta_data()
 {
     cat <<EOT
 <?xml version="1.0" ?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1-modified.dtd">
 <resource-agent version="rgmanager 2.0" name="ip">
     <version>1.0</version>
 

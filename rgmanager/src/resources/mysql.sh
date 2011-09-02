@@ -68,6 +68,11 @@ verify_all()
 
 start()
 {
+        if status; then
+                ocf_log info "Starting Service $OCF_RESOURCE_INSTANCE > Already running"
+                return $OCF_SUCCESS
+        fi
+
 	clog_service_start $CLOG_INIT
 
 	create_pid_directory
@@ -148,6 +153,22 @@ status()
 	clog_service_status $CLOG_INIT
 
 	status_check_pid "$MYSQL_pid_file"
+	case $? in
+		$OCF_NOT_RUNNING)
+		clog_service_status $CLOG_FAILED "$MYSQL_pid_file"
+		return $OCF_NOT_RUNNING
+		;;
+	0)
+		clog_service_status $CLOG_SUCCEED
+		exit 0
+		;;
+	*)
+		clog_service_status $CLOG_FAILED "$MYSQL_pid_file"
+		return $OCF_ERR_GENERIC
+		;;
+	esac
+
+		
 	if [ $? -ne 0 ]; then
 		clog_service_status $CLOG_FAILED "$MYSQL_pid_file"
 		return $OCF_ERR_GENERIC

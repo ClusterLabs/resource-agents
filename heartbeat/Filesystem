@@ -236,7 +236,7 @@ determine_blockdevice() {
 	# Get the current real device name, if possible.
 	# (specified devname could be -L or -U...)
 	case "$FSTYPE" in
-	nfs|smbfs|cifs|glusterfs|none) ;;
+	nfs|smbfs|cifs|glusterfs|tmpfs|none) ;;
 	*)	DEVICE=`list_mounts | grep " $MOUNTPOINT " | cut -d' ' -f1`
 		if [ -b "$DEVICE" ]; then
 		  blockdevice=yes
@@ -417,7 +417,7 @@ is_fsck_needed() {
 	    no)    false;;
 	    ""|auto)
 		case $FSTYPE in
-		    ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs)
+		    ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|tmpfs)
 			false;;
 		    *)
 			true;;
@@ -853,9 +853,14 @@ Filesystem_monitor_10()
 #
 Filesystem_monitor_20()
 {
-	# Writing to the device in O_DIRECT mode is imperative
-	# to bypass caches.
-	dd_opts="oflag=direct,sync bs=512 conv=fsync,sync"
+	if [ "$blockdevice" = "no" ] ; then
+		# O_DIRECT not supported on cifs/smbfs
+		dd_opts="oflag=sync bs=512 conv=fsync,sync"
+	else
+		# Writing to the device in O_DIRECT mode is imperative
+		# to bypass caches.
+		dd_opts="oflag=direct,sync bs=512 conv=fsync,sync"
+	fi
 	status_dir=`dirname $STATUSFILE`
 	[ -d "$status_dir" ] ||
 		mkdir -p "$status_dir"
@@ -982,6 +987,8 @@ case $DEVICE in
 //[!/]*/*)	# An SMB filesystem specification...
 	;;
 *:*)	# An GlusterFS filesystem specification...
+	;;
+none)
 	;;
 /dev/null)	# Special case for BSC
 	blockdevice=yes

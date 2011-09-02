@@ -289,7 +289,7 @@ virtual=192.168.6.240:80
 #	#netmask=255.255.255.255
 #	protocol=udp
 #	checktype=ping
-#	checkcount=3
+#	failurecount=3
 
 # A sample virtual services that uses a Radius check on UDP.
 # Note that using checktype=connect and protocol=udp

@@ -543,8 +543,10 @@ do_post_unmount() {
 
 
 # Agent-specific force-unmount logic, if required
+# return = nonzero if successful, or 0 if unsuccessful
+# (unsuccessful = try harder)
 do_force_unmount() {
-	return 0
+	return 1
 }
 
 
@@ -811,6 +813,13 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 
 		# Force unmount: try #1: send SIGTERM
 		if [ $try -eq 1 ]; then
+			# Try fs-specific force-unmount, if provided
+			do_force_unmount
+			if [ $? -eq 0 ]; then
+				# if this succeeds, we should be done
+				continue
+			fi
+
 			ocf_log warning "Sending SIGTERM to processes on $mp"
 			fuser -TERM -kvm "$mp"
 			continue
@@ -818,7 +827,6 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 			ocf_log warning "Sending SIGKILL to processes on $mp"
 			fuser -kvm "$mp"
 
-			do_force_unmount
 			case $? in
 			0)
 				;;

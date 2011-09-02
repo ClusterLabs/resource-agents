@@ -35,6 +35,7 @@ meta_data()
 {
     cat <<EOT
 <?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1-modified.dtd">
 <resource-agent version="rgmanager 2.0" name="vm">
     <version>1.0</version>
 
@@ -566,7 +567,7 @@ xm_status()
 		return 0
 	fi
 	echo "not running"
-	return 1
+	return $OCF_NOT_RUNNING
 }
 
 

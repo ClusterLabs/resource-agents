@@ -40,6 +40,7 @@ meta_data()
 {
 	cat <<EOT
 <?xml version="1.0" ?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1-modified.dtd">
 <resource-agent name="nfsserver" version="rgmanager 2.0">
     <version>1.0</version>
 
@@ -200,7 +201,7 @@ nfs_daemons()
 			ocf_log debug "NFS daemons are running"
 			return 0
 		fi
-		return 1
+		return $OCF_NOT_RUNNING
 		;;
 	esac
 }

@@ -27,6 +27,7 @@ do_metadata()
 {
 	cat <<EOT
 <?xml version="1.0" ?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1-modified.dtd">
 <resource-agent name="clusterfs" version="rgmanager 2.0">
     <version>1.0</version>
 
