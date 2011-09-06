@@ -718,7 +718,7 @@ mysql_monitor() {
 	rc=$?
 
 	if [ $rc -ne 0 ]; then
-	    ocf_log err "Failed to select from $test_table";
+	    ocf_log err "Failed to select from $OCF_RESKEY_test_table";
 	    return $OCF_ERR_GENERIC;
 	fi
     fi
