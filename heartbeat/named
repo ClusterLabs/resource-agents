@@ -16,19 +16,17 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Used binaries
-RNDC="/usr/sbin/rndc"
-HOST="/usr/bin/host"
-PIDOF="/sbin/pidof"
+RNDC="rndc"
+HOST="host"
 
 #Defaults
 OCF_RESKEY_named_default="/usr/sbin/named"
 OCF_RESKEY_named_user_default=named
-OCF_RESKEY_named_config_default="/etc/named.conf"
+OCF_RESKEY_named_config_default=""
 OCF_RESKEY_named_pidfile_default="/var/run/named/named.pid"
 OCF_RESKEY_named_rootdir_default=""
 OCF_RESKEY_named_options_default=""
 OCF_RESKEY_named_keytab_file_default=""
-OCF_RESKEY_named_stop_timeout_default=25
 OCF_RESKEY_monitor_request_default="localhost"
 OCF_RESKEY_monitor_response_default="127.0.0.1"
 OCF_RESKEY_monitor_ip_default="127.0.0.1"
@@ -40,7 +38,6 @@ OCF_RESKEY_monitor_ip_default="127.0.0.1"
 : ${OCF_RESKEY_named_rootdir=${OCF_RESKEY_named_rootdir_default}}
 : ${OCF_RESKEY_named_options=${OCF_RESKEY_named_options_default}}
 : ${OCF_RESKEY_named_keytab_file=${OCF_RESKEY_named_keytab_file_default}}
-: ${OCF_RESKEY_named_stop_timeout=${OCF_RESKEY_named_stop_timeout_default}}
 : ${OCF_RESKEY_monitor_request=${OCF_RESKEY_monitor_request_default}}
 : ${OCF_RESKEY_monitor_response=${OCF_RESKEY_monitor_response_default}}
 : ${OCF_RESKEY_monitor_ip=${OCF_RESKEY_monitor_ip_default}}
@@ -91,7 +88,7 @@ User that should own named process.
 <content type="string" default="${OCF_RESKEY_named_user_default}" />
 </parameter>
 
-<parameter name="named_config" unique="0" required="0">
+<parameter name="named_config" unique="1" required="0">
 <longdesc lang="en">
 Configuration file for named.
 </longdesc>
@@ -99,7 +96,7 @@ Configuration file for named.
 <content type="string" default="${OCF_RESKEY_named_config_default}" />
 </parameter>
 
-<parameter name="named_pidfile" unique="0" required="0">
+<parameter name="named_pidfile" unique="1" required="0">
 <longdesc lang="en">
 PIDFILE file for named.
 </longdesc>
@@ -107,7 +104,7 @@ PIDFILE file for named.
 <content type="string" default="${OCF_RESKEY_named_pidfile_default}" />
 </parameter>
 
-<parameter name="named_rootdir" unique="0" required="0">
+<parameter name="named_rootdir" unique="1" required="0">
 <longdesc lang="en">
 Directory that named should use for chroot if any.
 </longdesc>
@@ -129,14 +126,6 @@ named service keytab file (for GSS-TSIG).
 </longdesc>
 <shortdesc lang="en">named_keytab_file</shortdesc>
 <content type="string" default="${OCF_RESKEY_named_keytab_file_default}" />
-</parameter>
-
-<parameter name="named_stop_timeout" unique="0" required="0">
-<longdesc lang="en">
-Stop timeout. Named process will be killed if it doesn't stop in a given time.
-</longdesc>
-<shortdesc lang="en">named_stop_timeout</shortdesc>
-<content type="string" default="${OCF_RESKEY_named_stop_timeout_default}" />
 </parameter>
 
 <parameter name="monitor_request" unique="0" required="0">
@@ -201,11 +190,12 @@ named_validate_all() {
     check_binary $RNDC
     check_binary $HOST
 
-    if [ ! -r "$OCF_RESKEY_named_config" ]; then
+    if [ -n "$OCF_RESKEY_named_config" -a \
+        ! -r "${OCF_RESKEY_named_rootdir}/${OCF_RESKEY_named_config}" ]; then
         if ocf_is_probe; then
-           ocf_log info "Configuration file $OCF_RESKEY_named_config not readable during probe."
+           ocf_log info "Configuration file ${OCF_RESKEY_named_rootdir}/${OCF_RESKEY_named_config} not readable during probe."
         else
-           ocf_log err "Configuration file $OCF_RESKEY_named_config doesn't exist"
+           ocf_log err "Configuration file ${OCF_RESKEY_named_rootdir}/${OCF_RESKEY_named_config} doesn't exist"
            return $OCF_ERR_INSTALLED
         fi
     fi
@@ -219,11 +209,30 @@ named_validate_all() {
     if [ -z "$OCF_RESKEY_monitor_request" -o \
          -z "$OCF_RESKEY_monitor_response" -o \
          -z "$OCF_RESKEY_monitor_ip" ]; then
-        ocf_log err "Neither monitor_request, monitor_response or monitor_ip can be empty"
+        ocf_log err "Neither monitor_request, monitor_response nor monitor_ip can be empty"
         return $OCF_ERR_CONFIGURED
     fi                            
          
     return $OCF_SUCCESS
+}
+
+#
+# named_getpid. Get pid of named process with a given parameters.
+#
+
+named_getpid () {
+    local pattern="$OCF_RESKEY_named"
+
+    if [ -n "$OCF_RESKEY_named_rootdir" ]; then
+       pattern="$pattern.*-t $OCF_RESKEY_named_rootdir"
+    fi
+
+    if [ -n "$OCF_RESKEY_named_config" ]; then
+       pattern="$pattern.*-c $OCF_RESKEY_named_config"
+    fi
+
+    pid=`ps -e -o pid,command,args | grep "$pattern" | grep -v grep | awk '{print $1}'`
+    echo $pid
 }
 
 #
@@ -232,7 +241,6 @@ named_validate_all() {
 
 named_status () {
     ocf_pidfile_status ${OCF_RESKEY_named_pidfile} >/dev/null 2>&1
-    return $?
 }
 
 #
@@ -240,17 +248,21 @@ named_status () {
 #
 
 named_monitor() {
+    local output
+
     if ! named_status
     then
         ocf_log info "named is down"
         return $OCF_NOT_RUNNING
     fi
    
-    if ! $HOST $OCF_RESKEY_monitor_request $OCF_RESKEY_monitor_ip | \
-       grep -q '.* has address '"$OCF_RESKEY_monitor_response" ; then
+    output=`$HOST $OCF_RESKEY_monitor_request $OCF_RESKEY_monitor_ip`
+
+    if [ $? -ne 0 ] || ! echo $output | grep -q '.* has address '"$OCF_RESKEY_monitor_response" 
+    then
        ocf_log err "named didn't answer properly for $OCF_RESKEY_monitor_request."
        ocf_log err "Expected: $OCF_RESKEY_monitor_response."
-       ocf_log err "Got: `$HOST $OCF_RESKEY_monitor_request $OCF_RESKEY_monitor_ip`"
+       ocf_log err "Got: $output"
        return $OCF_ERR_GENERIC
     fi
     
@@ -262,7 +274,7 @@ named_monitor() {
 #
 
 named_reload() {
-    $RNDC reload >/dev/null 2>&1 || return $OCF_ERR_GENERIC
+    $RNDC reload >/dev/null || return $OCF_ERR_GENERIC
     
     return $OCF_SUCCESS
 }
@@ -272,10 +284,10 @@ named_reload() {
 #
 
 named_start() {    
-    local ROOT_DIR_OPT
-    local PID
+    local root_dir_opt
+    local pid
     
-    ROOT_DIR_OPT=""
+    root_dir_opt=""
     named_status && return $OCF_SUCCESS
     
     # Remove pidfile if exists    
@@ -283,28 +295,31 @@ named_start() {
     
     if [ -n "${OCF_RESKEY_named_rootdir}" -a "x${OCF_RESKEY_named_rootdir}" != "x/" ]
     then
-        ROOT_DIR_OPT="-t ${OCF_RESKEY_named_rootdir}"
+        root_dir_opt="-t ${OCF_RESKEY_named_rootdir}"
         [ -s /etc/localtime ] && cp -fp /etc/localtime ${OCF_RESKEY_named_rootdir}/etc/localtime
     fi
-    
-    if ! ${OCF_RESKEY_named} -u ${OCF_RESKEY_named_user} $ROOT_DIR_OPT ${OCF_RESKEY_named_options}
+
+    if [ -n "$OCF_RESKEY_named_config" ]; then
+        OCF_RESKEY_named_options="-c $OCF_RESKEY_named_config $OCF_RESKEY_named_options"
+    fi
+
+    if ! ${OCF_RESKEY_named} -u ${OCF_RESKEY_named_user} $root_dir_opt ${OCF_RESKEY_named_options}
     then
         ocf_log err "named failed to start."
         return $OCF_ERR_GENERIC
     fi
     
     
-    PID=`$PIDOF -o %PPID ${OCF_RESKEY_named}`
+    pid=`named_getpid`
     
-    if [ -n "$PID" ]; then
+    if [ -n "$pid" ]; then
         if [ ! -e ${OCF_RESKEY_named_pidfile} ]; then
-            echo $PID > ${OCF_RESKEY_named_pidfile}
+            echo $pid > ${OCF_RESKEY_named_pidfile}
         fi
     else
         ocf_log err "named failed to start. Probably error in configuration."
         return $OCF_ERR_GENERIC
     fi
-        
         
     while :
     do
@@ -312,7 +327,7 @@ named_start() {
         sleep 1
         ocf_log debug "named hasn't started yet."
     done
-    ocf_log debug "named has started."
+    ocf_log info "named has started."
     
     return $OCF_SUCCESS
 }
@@ -326,11 +341,18 @@ named_stop () {
     
     named_status || return $OCF_SUCCESS
     
-    if ! $RNDC stop >/dev/null 2>&1; then
+    if ! $RNDC stop >/dev/null; then
         kill `cat ${OCF_RESKEY_named_pidfile}`
     fi
-    
-    timeout=0
+ 
+    if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+      # Allow 2/3 of the action timeout for the orderly shutdown
+      # (The origin unit is ms, hence the conversion)
+      timeout=$((OCF_RESKEY_CRM_meta_timeout/1500))
+    else
+      timeout=20
+    fi
+ 
     while named_status ; do
         if [ $timeout -ge ${OCF_RESKEY_named_stop_timeout} ]; then    
             break
@@ -341,8 +363,10 @@ named_stop () {
     done
     
     #If still up    
-    named_status 2>&1 && (ocf_log err "named is still up! Killing"; \
-                    kill -9 `cat ${OCF_RESKEY_named_pidfile}`)
+    if named_status 2>&1; then
+        ocf_log err "named is still up! Killing";
+        kill -9 `cat ${OCF_RESKEY_named_pidfile}`
+    fi
     
     rm -f ${OCF_RESKEY_named_pidfile}
     return $OCF_SUCCESS
@@ -351,7 +375,10 @@ named_stop () {
 
 # Main part
 
-[ $# -ne 1 ] && (usage; exit $OCF_ERR_GENERIC)
+if [ $# -ne 1 ]; then 
+    usage 
+    exit $OCF_ERR_GENERIC
+fi
 
 case "$1" in
     methods)    named_methods
@@ -376,8 +403,10 @@ then
     esac
 fi
 
-[ "$EUID" != "0" ] && (ocf_log err "$0 must be run as root"; \
-                       exit $OCF_ERR_GENERIC)
+if [ "$EUID" != "0" ]; then 
+    ocf_log err "$0 must be run as root"
+    exit $OCF_ERR_GENERIC
+fi
 
 case "$1" in
     status)     if named_status
