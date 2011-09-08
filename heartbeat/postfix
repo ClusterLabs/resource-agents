@@ -12,7 +12,7 @@
 #               http://www.postfix.org/postconf.5.html
 #
 #
-#       usage: $0 {start|stop|reload|status|monitor|validate-all|meta-data}
+#       usage: $0 {start|stop|reload|monitor|validate-all|meta-data}
 #
 #       The "start" arg starts a Postfix instance
 #
@@ -33,7 +33,7 @@
 : ${OCF_RESKEY_binary="/usr/sbin/postfix"}
 : ${OCF_RESKEY_config_dir=""}
 : ${OCF_RESKEY_parameters=""}
-USAGE="Usage: $0 {start|stop|reload|status|monitor|validate-all|meta-data}";
+USAGE="Usage: $0 {start|stop|reload|monitor|validate-all|meta-data}";
 
 ##########################################################################
 
@@ -95,21 +95,33 @@ Specify any of them here.
 END
 }
 
-running() {
-    # run Postfix status
-    $binary $OPTION_CONFIG_DIR status >/dev/null 2>&1
-}
+postfix_running() {
+    # run Postfix status if available
+    if ocf_is_true $status_support; then
+        output=`$binary $OPTION_CONFIG_DIR status 2>&1`
+        ret=$?
+        if [ $ret -ne 0 ]; then
+            ocf_log err "Postfix status: '$output'." $ret
+        fi
+        return $ret
+    fi
 
+    # manually check Postfix's pid
+    PIDFILE=${queue_dir}/pid/master.pid
+    if [ -f $PIDFILE ]; then
+         PID=`head -n 1 $PIDFILE`
+         kill -s 0 $PID >/dev/null 2>&1 && [ `ps -p $PID | grep master | wc -l` -eq 1 ]
+         return $?
+    fi
 
-postfix_status()
-{
-    running
+    # Postfix is not running
+    false
 }
 
 postfix_start()
 {
     # if Postfix is running return success
-    if postfix_status; then
+    if postfix_running; then
         ocf_log info "Postfix already running."
         return $OCF_SUCCESS
     fi
@@ -124,15 +136,13 @@ postfix_start()
     fi
 
     # grant some time for startup/forking the sub processes
-    sleep 2
-
-    # initial monitoring action
-    running
-    ret=$?
-    if [ $ret -ne $OCF_SUCCESS ]; then
-        ocf_log err "Postfix failed initial monitor action." $ret
-        return $OCF_ERR_GENERIC
-    fi
+    # and loop initial monitoring until success or timeout
+    while true; do
+        sleep 1
+        # break if postfix is up and running; log failure otherwise
+        postfix_running && break
+        ocf_log info "Postfix failed initial monitor action." $ret
+    done
 
     ocf_log info "Postfix started."
     return $OCF_SUCCESS
@@ -142,7 +152,7 @@ postfix_start()
 postfix_stop()
 {
     # if Postfix is not running return success
-    if ! postfix_status; then
+    if ! postfix_running; then
         ocf_log info "Postfix already stopped."
         return $OCF_SUCCESS
     fi
@@ -158,21 +168,21 @@ postfix_stop()
 
     # grant some time for shutdown and recheck 5 times
     for i in 1 2 3 4 5; do
-        if postfix_status; then
+        if postfix_running; then
             sleep 1
         fi
     done
 
     # escalate to abort if we did not stop by now
     # @TODO shall we loop here too?
-    if postfix_status; then
+    if postfix_running; then
         ocf_log err "Postfix failed to stop. Escalating to 'abort'."
 
         $binary $OPTIONS abort >/dev/null 2>&1; ret=$?
         sleep 5
 
         # postfix abort did not succeed
-        if postfix_status; then
+        if postfix_running; then
             ocf_log err "Postfix failed to abort."
             return $OCF_ERR_GENERIC
         fi
@@ -184,7 +194,7 @@ postfix_stop()
 
 postfix_reload()
 {
-    if postfix_status; then
+    if postfix_running; then
         ocf_log info "Reloading Postfix."
         $binary $OPTIONS reload
     fi
@@ -192,7 +202,7 @@ postfix_reload()
 
 postfix_monitor()
 {
-    if postfix_status; then
+    if postfix_running; then
         return $OCF_SUCCESS
     fi
 
@@ -205,11 +215,20 @@ postfix_validate_all()
     check_binary "$binary"
     check_binary "postconf"
 
+    # if true, run in-depth directory checks
+    dir_check=true
+
     # check config_dir and alternate_config_directories parameter
     if [ "x$config_dir" != "x" ]; then
         if [ ! -d "$config_dir" ]; then
-            ocf_log err "Postfix configuration directory '$config_dir' does not exist." $ret
-            return $OCF_ERR_INSTALLED
+            if ocf_is_probe; then
+                ocf_log info "Postfix configuration directory '$config_dir' not readable during probe."
+                # skip in-depth directory checks if config file isn't readable during probe
+                dir_check=false
+            else
+                ocf_log err "Postfix configuration directory '$config_dir' does not exist or is not readable."
+                return $OCF_ERR_INSTALLED
+            fi
         fi
 
         alternate_config_directories=`postconf -h alternate_config_directories 2>/dev/null | grep "$config_dir/\?"`
@@ -219,32 +238,54 @@ postfix_validate_all()
         fi
     fi
 
-    # check spool/queue and data directories
+    # check spool/queue and data directories (if applicable)
     # this is required because "postfix check" does not catch all errors
-    queue_dir=`postconf $OPTION_CONFIG_DIR -h queue_directory 2>/dev/null`
-    data_dir=`postconf $OPTION_CONFIG_DIR -h data_directory 2>/dev/null`
-    for dir in "$queue_dir" "$data_dir"; do
-        if [ ! -d "$dir" ]; then
-            ocf_log err "Postfix directory '$queue_dir' does not exist." $ret
-            return $OCF_ERR_INSTALLED
+    if ocf_is_true $dir_check; then
+        if [ ! -d "$queue_dir" ]; then
+            if ocf_is_probe; then
+                ocf_log info "Postfix queue directory '$queue_dir' not readable during probe."
+            else
+                ocf_log err "Postfix queue directory '$queue_dir' does not exist or is not readable."
+                return $OCF_ERR_INSTALLED
+            fi
         fi
-    done
 
-    # check permissions
-    user=`postconf $OPTION_CONFIG_DIR -h mail_owner 2>/dev/null`
-    for dir in "$data_dir"; do
-        if ! su -s /bin/sh - $user -c "test -w $dir"; then
-            ocf_log err "Directory '$dir' is not writable by user '$user'."
-            exit $OCF_ERR_PERM;
+        if ocf_is_true $status_support; then
+            data_dir=`postconf $OPTION_CONFIG_DIR -h data_directory 2>/dev/null`
+            if [ ! -d "$data_dir" ]; then
+                if ocf_is_probe; then
+                    ocf_log info "Postfix data directory '$data_dir' not readable during probe."
+                else
+                    ocf_log err "Postfix data directory '$data_dir' does not exist or is not readable."
+                    return $OCF_ERR_INSTALLED
+                fi
+            fi
         fi
-    done
 
-    # run Postfix internal check
-    $binary $OPTIONS check >/dev/null 2>&1
-    ret=$?
-    if [ $ret -ne 0 ]; then
-        ocf_log err "Postfix 'check' failed." $ret
-        return $OCF_ERR_GENERIC
+        # check directory permissions
+        if ocf_is_true $status_support; then
+            user=`postconf $OPTION_CONFIG_DIR -h mail_owner 2>/dev/null`
+            for dir in "$data_dir"; do
+                if ! su -s /bin/sh - $user -c "test -w $dir"; then
+                    if ocf_is_probe; then
+                        ocf_log info "Directory '$dir' is not writable by user '$user' during probe."
+                    else
+                        ocf_log err "Directory '$dir' is not writable by user '$user'."
+                        return $OCF_ERR_PERM;
+                    fi
+                fi
+            done
+        fi
+    fi
+
+    # run Postfix internal check, if not probing
+    if ! ocf_is_probe; then
+        $binary $OPTIONS check >/dev/null 2>&1
+        ret=$?
+        if [ $ret -ne 0 ]; then
+            ocf_log err "Postfix 'check' failed." $ret
+            return $OCF_ERR_GENERIC
+        fi
     fi
 
     return $OCF_SUCCESS
@@ -263,21 +304,16 @@ binary=$OCF_RESKEY_binary
 config_dir=$OCF_RESKEY_config_dir
 parameters=$OCF_RESKEY_parameters
 
-# debugging stuff
-#echo OCF_RESKEY_binary=$OCF_RESKEY_binary >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
-#echo OCF_RESKEY_config_dir=$OCF_RESKEY_config_dir >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
-#echo OCF_RESKEY_parameters=$OCF_RESKEY_parameters >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
-
 
 # build Postfix options string *outside* to access from each method
 OPTIONS=''
 OPTION_CONFIG_DIR=''
 
+# check for Postfix's postconf binary
+check_binary "postconf"
+
 # check if the Postfix config_dir exist
 if [ "x$config_dir" != "x" ]; then
-    # check for postconf binary
-    check_binary "postconf"
-
     # remove all trailing slashes to ease "postconf alternate_config_directories" match
     config_dir=`echo $config_dir | sed 's/\/*$//'`
 
@@ -295,10 +331,27 @@ if [ "x$config_dir" != "x" ]; then
    fi
 fi
 
+# add all additional parameters to options string
 if [ "x$parameters" != "x" ]; then
     OPTIONS="$OPTIONS $parameters"
 fi
 
+# important directories, used in different methods
+queue_dir=`postconf $OPTION_CONFIG_DIR -h queue_directory 2>/dev/null`
+
+# check Postfix version and status support
+status_support=false
+postfix_version=`postconf -h mail_version 2>/dev/null`
+ocf_version_cmp "$postfix_version" "2.5.0"
+ret=$?
+
+# we need Postfix 2.5.0 or greater for status/data_directory support
+if [ $ret -eq 1 -o $ret -eq 2 ]; then
+    status_support=true
+fi
+
+
+# handle parameters
 case $1 in
     meta-data)  meta_data
                 exit $OCF_SUCCESS
@@ -312,13 +365,10 @@ esac
 postfix_validate_all
 ret=$?
 
-#echo "debug[$1:$ret]"
 LSB_STATUS_STOPPED=3
 if [ $ret -ne $OCF_SUCCESS ]; then
     case $1 in
     stop)       exit $OCF_SUCCESS ;;
-    monitor)    exit $OCF_NOT_RUNNING;;
-    status)     exit $LSB_STATUS_STOPPED;;
     *)          exit $ret;;
     esac
 fi
@@ -337,15 +387,6 @@ case $1 in
 
     reload)     postfix_reload
                 exit $?
-                ;;
-
-    status)     if postfix_status; then
-                    ocf_log info "Postfix is running."
-                    exit $OCF_SUCCESS
-                else
-                    ocf_log info "Postfix is stopped."
-                    exit $OCF_NOT_RUNNING
-                fi
                 ;;
 
     validate-all)   exit $OCF_SUCCESS
