@@ -813,7 +813,7 @@ mysql_start() {
 	    start_wait=0
 
 	elif [ $rc != $OCF_NOT_RUNNING ]; then
-	    ocf_log info "MySQL start failed: $rc"
+	    ocf_log warn "MySQL start failed: $rc"
 	    return $rc
 	fi
         sleep 2
@@ -920,7 +920,7 @@ mysql_stop() {
 
     mysql_status
     if [ $? != $OCF_NOT_RUNNING ]; then
-	ocf_log info "MySQL failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL..."
+	ocf_log warn "MySQL failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL..."
 	/bin/kill -KILL $pid > /dev/null
     fi
 
