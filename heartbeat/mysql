@@ -670,8 +670,12 @@ mysql_validate() {
 }
 
 mysql_status() {
+	# Set the log level of the error message (default:err)
+	local loglevel
+	loglevel=${1:-err}
+
 	if [ ! -e $OCF_RESKEY_pid ]; then
-		ocf_log err "MySQL is not running"
+		ocf_log $loglevel "MySQL is not running"
 		return $OCF_NOT_RUNNING;
 	fi
 
@@ -685,7 +689,7 @@ mysql_status() {
 	if [ $? -eq 0 ]; then
 	    return $OCF_SUCCESS;
 	else
-	    ocf_log err "MySQL not running: removing old PID file"
+	    ocf_log $loglevel "MySQL not running: removing old PID file"
 	    rm -f $OCF_RESKEY_pid
 	    return $OCF_NOT_RUNNING;
 	fi
@@ -693,7 +697,14 @@ mysql_status() {
 
 mysql_monitor() {
     local rc
-    mysql_status
+    local status_loglevel="err"
+
+    # Set loglevel to info during probe
+    if ocf_is_probe; then
+        status_loglevel="info"
+    fi
+
+    mysql_status $status_loglevel
     rc=$?
 
     # If status returned an error, return that immediately
@@ -733,7 +744,7 @@ mysql_monitor() {
 }
 
 mysql_start() {
-    mysql_status
+    mysql_status info
     if [ $? = $OCF_SUCCESS ]; then
 	ocf_log info "MySQL already running"
 	return $OCF_SUCCESS
@@ -804,16 +815,16 @@ mysql_start() {
     fi
 
     # Spin waiting for the server to come up.
-    # Let the CRM/LRM time us out if required
+    # Let the CRM/LRM time us out if required.
     start_wait=1
     while [ $start_wait = 1 ]; do
-	mysql_status
+	mysql_status info
 	rc=$?
 	if [ $rc = $OCF_SUCCESS ]; then
 	    start_wait=0
 
 	elif [ $rc != $OCF_NOT_RUNNING ]; then
-	    ocf_log warn "MySQL start failed: $rc"
+	    ocf_log err "MySQL start failed: $rc"
 	    return $rc
 	fi
         sleep 2
@@ -908,17 +919,17 @@ mysql_stop() {
     count=0
     while [ $count -lt $shutdown_timeout ]
     do
-	mysql_status
+	mysql_status info
 	rc=$?
 	if [ $rc = $OCF_NOT_RUNNING ]; then
 	    break
 	fi
 	count=`expr $count + 1`
 	sleep 1
-	ocf_log debug "MySQL still hasn't stopped yet. Waiting..."
+	ocf_log info "MySQL still hasn't stopped yet. Waiting..."
     done
 
-    mysql_status
+    mysql_status info
     if [ $? != $OCF_NOT_RUNNING ]; then
 	ocf_log warn "MySQL failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL..."
 	/bin/kill -KILL $pid > /dev/null
