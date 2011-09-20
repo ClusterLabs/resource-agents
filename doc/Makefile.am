@@ -110,6 +110,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_lxc.7 \
                           ocf_heartbeat_mysql.7 \
                           ocf_heartbeat_mysql-proxy.7 \
+                          ocf_heartbeat_named.7 \
                           ocf_heartbeat_nfsserver.7 \
                           ocf_heartbeat_nginx.7 \
                           ocf_heartbeat_oracle.7 \

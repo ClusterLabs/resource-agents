@@ -1,0 +1,433 @@
+#!/bin/sh
+#
+# Description:  Manages a named (Bind) server as an OCF High-Availability
+#               resource
+#
+# Authors:      Serge Dubrouski (sergeyfd@gmail.com) 
+#
+# Copyright:    2011 Serge Dubrouski <sergeyfd@gmail.com>
+#                         
+# License:      GNU General Public License (GPL)
+#
+###############################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Used binaries
+RNDC="rndc"
+HOST="host"
+
+#Defaults
+OCF_RESKEY_named_default="/usr/sbin/named"
+OCF_RESKEY_named_user_default=named
+OCF_RESKEY_named_config_default=""
+OCF_RESKEY_named_pidfile_default="/var/run/named/named.pid"
+OCF_RESKEY_named_rootdir_default=""
+OCF_RESKEY_named_options_default=""
+OCF_RESKEY_named_keytab_file_default=""
+OCF_RESKEY_monitor_request_default="localhost"
+OCF_RESKEY_monitor_response_default="127.0.0.1"
+OCF_RESKEY_monitor_ip_default="127.0.0.1"
+
+: ${OCF_RESKEY_named=${OCF_RESKEY_named_default}}
+: ${OCF_RESKEY_named_user=${OCF_RESKEY_named_user_default}}
+: ${OCF_RESKEY_named_config=${OCF_RESKEY_named_config_default}}
+: ${OCF_RESKEY_named_pidfile=${OCF_RESKEY_named_pidfile_default}}
+: ${OCF_RESKEY_named_rootdir=${OCF_RESKEY_named_rootdir_default}}
+: ${OCF_RESKEY_named_options=${OCF_RESKEY_named_options_default}}
+: ${OCF_RESKEY_named_keytab_file=${OCF_RESKEY_named_keytab_file_default}}
+: ${OCF_RESKEY_monitor_request=${OCF_RESKEY_monitor_request_default}}
+: ${OCF_RESKEY_monitor_response=${OCF_RESKEY_monitor_response_default}}
+: ${OCF_RESKEY_monitor_ip=${OCF_RESKEY_monitor_ip_default}}
+
+usage() {
+    cat <<EOF
+        usage: $0 start|stop|reload|status|monitor|meta-data|validate-all|methods
+
+        $0 manages named (Bind) server as an HA resource.
+
+        The 'start' operation starts named server.
+        The 'stop' operation stops  named server.
+        The 'reload' operation reload named configuration.
+        The 'status' operation reports whether named is up.
+        The 'monitor' operation reports whether named is running.
+        The 'validate-all' operation reports whether parameters are valid.
+        The 'methods' operation reports on the methods $0 supports.
+EOF
+  return $OCF_ERR_ARGS
+}
+
+named_meta_data() {
+        cat <<EOF
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="named">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for named (Bind) server. It manages named as an HA resource.
+</longdesc>
+<shortdesc lang="en">Manages a named server</shortdesc>
+
+<parameters>
+<parameter name="named" unique="0" required="0">
+<longdesc lang="en">
+Path to the named command.
+</longdesc>
+<shortdesc lang="en">named</shortdesc>
+<content type="string" default="${OCF_RESKEY_named_default}" />
+</parameter>
+
+<parameter name="named_user" unique="0" required="0">
+<longdesc lang="en">
+User that should own named process.
+</longdesc>
+<shortdesc lang="en">named_user</shortdesc>
+<content type="string" default="${OCF_RESKEY_named_user_default}" />
+</parameter>
+
+<parameter name="named_config" unique="1" required="0">
+<longdesc lang="en">
+Configuration file for named.
+</longdesc>
+<shortdesc lang="en">named_config</shortdesc>
+<content type="string" default="${OCF_RESKEY_named_config_default}" />
+</parameter>
+
+<parameter name="named_pidfile" unique="1" required="0">
+<longdesc lang="en">
+PIDFILE file for named.
+</longdesc>
+<shortdesc lang="en">named_pidfile</shortdesc>
+<content type="string" default="${OCF_RESKEY_named_pidfile_default}" />
+</parameter>
+
+<parameter name="named_rootdir" unique="1" required="0">
+<longdesc lang="en">
+Directory that named should use for chroot if any.
+</longdesc>
+<shortdesc lang="en">named_rootdir</shortdesc>
+<content type="string" default="${OCF_RESKEY_named_rootdir_default}" />
+</parameter>
+
+<parameter name="named_options" unique="0" required="0">
+<longdesc lang="en">
+Options for named process if any.
+</longdesc>
+<shortdesc lang="en">named_options</shortdesc>
+<content type="string" default="${OCF_RESKEY_named_options_default}" />
+</parameter>
+
+<parameter name="named_keytab_file" unique="0" required="0">
+<longdesc lang="en">
+named service keytab file (for GSS-TSIG).
+</longdesc>
+<shortdesc lang="en">named_keytab_file</shortdesc>
+<content type="string" default="${OCF_RESKEY_named_keytab_file_default}" />
+</parameter>
+
+<parameter name="monitor_request" unique="0" required="0">
+<longdesc lang="en">
+Request that shall be sent to named for monitoring. Usually an A record in DNS.
+</longdesc>
+<shortdesc lang="en">monitor_request</shortdesc>
+<content type="string" default="${OCF_RESKEY_monitor_request_default}" />
+</parameter>
+
+<parameter name="monitor_response" unique="0" required="0">
+<longdesc lang="en">
+Expected response from named server.
+</longdesc>
+<shortdesc lang="en">monitor_response</shortdesc>
+<content type="string" default="${OCF_RESKEY_monitor_response_default}" />
+</parameter>
+
+<parameter name="monitor_ip" unique="0" required="0">
+<longdesc lang="en">
+IP Address where named listens.
+</longdesc>
+<shortdesc lang="en">monitor_ip</shortdesc>
+<content type="string" default="${OCF_RESKEY_monitor_ip_default}" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="60" />
+<action name="stop" timeout="60" />
+<action name="reload" timeout="60" />
+<action name="status" timeout="10" />
+<action name="monitor" depth="0" timeout="30" interval="30"/>
+<action name="meta-data" timeout="5" />
+<action name="validate-all" timeout="5" />
+<action name="methods" timeout="5" />
+</actions>
+</resource-agent>
+
+EOF
+}
+
+#
+# methods: What methods/operations do we support?
+#
+
+named_methods() {
+  cat <<EOF
+        start
+        stop
+        status
+        monitor
+        methods 
+        meta-data
+        validate-all
+EOF
+}
+
+# Validate most critical parameters
+named_validate_all() {
+    check_binary $OCF_RESKEY_named
+    check_binary $RNDC
+    check_binary $HOST
+
+    if [ -n "$OCF_RESKEY_named_config" -a \
+        ! -r "${OCF_RESKEY_named_rootdir}/${OCF_RESKEY_named_config}" ]; then
+        if ocf_is_probe; then
+           ocf_log info "Configuration file ${OCF_RESKEY_named_rootdir}/${OCF_RESKEY_named_config} not readable during probe."
+        else
+           ocf_log err "Configuration file ${OCF_RESKEY_named_rootdir}/${OCF_RESKEY_named_config} doesn't exist"
+           return $OCF_ERR_INSTALLED
+        fi
+    fi
+
+    getent passwd $OCF_RESKEY_named_user >/dev/null 2>&1
+    if [ ! $? -eq 0 ]; then
+        ocf_log err "User $OCF_RESKEY_named_user doesn't exist";
+        return $OCF_ERR_INSTALLED;
+    fi
+
+    if [ -z "$OCF_RESKEY_monitor_request" -o \
+         -z "$OCF_RESKEY_monitor_response" -o \
+         -z "$OCF_RESKEY_monitor_ip" ]; then
+        ocf_log err "None of monitor_request, monitor_response, and monitor_ip can be empty"
+        return $OCF_ERR_CONFIGURED
+    fi                            
+         
+    return $OCF_SUCCESS
+}
+
+#
+# named_getpid. Get pid of named process with a given parameters.
+#
+
+named_getpid () {
+    local pattern="$OCF_RESKEY_named"
+
+    if [ -n "$OCF_RESKEY_named_rootdir" ]; then
+       pattern="$pattern.*-t $OCF_RESKEY_named_rootdir"
+    fi
+
+    if [ -n "$OCF_RESKEY_named_config" ]; then
+       pattern="$pattern.*-c $OCF_RESKEY_named_config"
+    fi
+
+    pid=`ps -e -o pid,command,args | grep "$pattern" | grep -v grep | awk '{print $1}'`
+    echo $pid
+}
+
+#
+# named_status. Simple check of the status of named process by pidfile.
+#
+
+named_status () {
+    ocf_pidfile_status ${OCF_RESKEY_named_pidfile} >/dev/null 2>&1
+}
+
+#
+# named_monitor. Send a request to named and check response.
+#
+
+named_monitor() {
+    local output
+
+    if ! named_status
+    then
+        ocf_log info "named is down"
+        return $OCF_NOT_RUNNING
+    fi
+   
+    output=`$HOST $OCF_RESKEY_monitor_request $OCF_RESKEY_monitor_ip`
+
+    if [ $? -ne 0 ] || ! echo $output | grep -q '.* has address '"$OCF_RESKEY_monitor_response" 
+    then
+       ocf_log err "named didn't answer properly for $OCF_RESKEY_monitor_request."
+       ocf_log err "Expected: $OCF_RESKEY_monitor_response."
+       ocf_log err "Got: $output"
+       return $OCF_ERR_GENERIC
+    fi
+    
+    return $OCF_SUCCESS
+}
+
+#
+# Reload
+#
+
+named_reload() {
+    $RNDC reload >/dev/null || return $OCF_ERR_GENERIC
+    
+    return $OCF_SUCCESS
+}
+    
+#
+# Start
+#
+
+named_start() {    
+    local root_dir_opt
+    local pid
+    
+    root_dir_opt=""
+    named_status && return $OCF_SUCCESS
+    
+    # Remove pidfile if exists    
+    rm -f ${OCF_RESKEY_named_pidfile}
+    
+    if [ -n "${OCF_RESKEY_named_rootdir}" -a "x${OCF_RESKEY_named_rootdir}" != "x/" ]
+    then
+        root_dir_opt="-t ${OCF_RESKEY_named_rootdir}"
+        [ -s /etc/localtime ] && cp -fp /etc/localtime ${OCF_RESKEY_named_rootdir}/etc/localtime
+    fi
+
+    if [ -n "$OCF_RESKEY_named_config" ]; then
+        OCF_RESKEY_named_options="-c $OCF_RESKEY_named_config $OCF_RESKEY_named_options"
+    fi
+
+    if ! ${OCF_RESKEY_named} -u ${OCF_RESKEY_named_user} $root_dir_opt ${OCF_RESKEY_named_options}
+    then
+        ocf_log err "named failed to start."
+        return $OCF_ERR_GENERIC
+    fi
+    
+    
+    pid=`named_getpid`
+    
+    if [ -n "$pid" ]; then
+        if [ ! -e ${OCF_RESKEY_named_pidfile} ]; then
+            echo $pid > ${OCF_RESKEY_named_pidfile}
+        fi
+    else
+        ocf_log err "named failed to start. Probably error in configuration."
+        return $OCF_ERR_GENERIC
+    fi
+        
+    while :
+    do
+        named_monitor && break
+        sleep 1
+        ocf_log debug "named hasn't started yet."
+    done
+    ocf_log info "named has started."
+    
+    return $OCF_SUCCESS
+}
+    
+#
+# Stop
+# 
+
+named_stop () {
+    local timeout
+    
+    named_status || return $OCF_SUCCESS
+    
+    if ! $RNDC stop >/dev/null; then
+        kill `cat ${OCF_RESKEY_named_pidfile}`
+    fi
+ 
+    if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+      # Allow 2/3 of the action timeout for the orderly shutdown
+      # (The origin unit is ms, hence the conversion)
+      timeout=$((OCF_RESKEY_CRM_meta_timeout/1500))
+    else
+      timeout=20
+    fi
+ 
+    while named_status ; do
+        if [ $timeout -ge ${OCF_RESKEY_named_stop_timeout} ]; then    
+            break
+        else
+            sleep 1
+            timeout=$((timeout++))
+        fi
+    done
+    
+    #If still up    
+    if named_status 2>&1; then
+        ocf_log err "named is still up! Killing";
+        kill -9 `cat ${OCF_RESKEY_named_pidfile}`
+    fi
+    
+    rm -f ${OCF_RESKEY_named_pidfile}
+    return $OCF_SUCCESS
+}
+
+
+# Main part
+
+if [ $# -ne 1 ]; then 
+    usage 
+    exit $OCF_ERR_GENERIC
+fi
+
+case "$1" in
+    methods)    named_methods
+                exit $?;;
+
+    meta-data)  named_meta_data
+                exit $OCF_SUCCESS;;
+esac
+
+named_validate_all
+rc=$?
+
+[ "$1" == "validate-all" ] && exit $rc
+
+if [ $rc -ne 0 ]
+then
+    case "$1" in
+        stop)    exit $OCF_SUCCESS;;
+        monitor) exit $OCF_NOT_RUNNING;;
+        status)  exit $OCF_NOT_RUNNING;;
+        *)       exit $rc;;
+    esac
+fi
+
+if [ "$EUID" != "0" ]; then 
+    ocf_log err "$0 must be run as root"
+    exit $OCF_ERR_GENERIC
+fi
+
+case "$1" in
+    status)     if named_status
+                then
+                    ocf_log info "named is up"
+                    exit $OCF_SUCCESS
+                else
+                    ocf_log info "named is down"
+                    exit $OCF_NOT_RUNNING
+                fi;;
+
+    monitor)    named_monitor
+                exit $?;;
+
+    start)      named_start
+                exit $?;;
+
+    stop)       named_stop
+                exit $?;;
+    reload)     named_reload
+                exit $?;;
+    *)
+                exit $OCF_ERR_UNIMPLEMENTED;;
+esac
