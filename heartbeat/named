@@ -209,7 +209,7 @@ named_validate_all() {
     if [ -z "$OCF_RESKEY_monitor_request" -o \
          -z "$OCF_RESKEY_monitor_response" -o \
          -z "$OCF_RESKEY_monitor_ip" ]; then
-        ocf_log err "Neither monitor_request, monitor_response nor monitor_ip can be empty"
+        ocf_log err ocf_log err "None of monitor_request, monitor_response, and monitor_ip can be empty"
         return $OCF_ERR_CONFIGURED
     fi                            
          
