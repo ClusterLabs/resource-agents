@@ -305,6 +305,17 @@ config_dir=$OCF_RESKEY_config_dir
 parameters=$OCF_RESKEY_parameters
 
 
+# handle parameters
+case $1 in
+    meta-data)  meta_data
+                exit $OCF_SUCCESS
+                ;;
+
+    usage|help) usage
+                exit $OCF_SUCCESS
+                ;;
+esac
+
 # build Postfix options string *outside* to access from each method
 OPTIONS=''
 OPTION_CONFIG_DIR=''
@@ -350,17 +361,6 @@ if [ $ret -eq 1 -o $ret -eq 2 ]; then
     status_support=true
 fi
 
-
-# handle parameters
-case $1 in
-    meta-data)  meta_data
-                exit $OCF_SUCCESS
-                ;;
-
-    usage|help) usage
-                exit $OCF_SUCCESS
-                ;;
-esac
 
 postfix_validate_all
 ret=$?
