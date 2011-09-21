@@ -898,9 +898,10 @@ mysql_stop() {
 	$CRM_MASTER -D
     fi
 
-    if [ ! -f $OCF_RESKEY_pid ]; then
-	ocf_log info "MySQL is not running"
-        return $OCF_SUCCESS
+    mysql_status info
+    rc=$?
+    if [ $rc = $OCF_NOT_RUNNING ]; then
+       return $OCF_SUCCESS
     fi
 
     pid=`cat $OCF_RESKEY_pid 2> /dev/null `
