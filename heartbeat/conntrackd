@@ -111,8 +111,10 @@ conntrackd_set_master_score() {
 
 conntrackd_monitor() {
 	rc=$OCF_NOT_RUNNING
-	# It does not write a PID file, so check with pgrep
-	pgrep -f $OCF_RESKEY_binary && rc=$OCF_SUCCESS
+	# It does not write a PID file, so check the socket exists after
+	# extracting its path from the configuration file
+	local conntrack_socket=$(awk '/^[ \t]*UNIX[ \t]*{/,/^[ \t]*}/ { if ($1 == "Path") { print $2 } }' $OCF_RESKEY_config)
+	[ -S "$conntrack_socket" ] && rc=$OCF_SUCCESS
 	if [ "$rc" -eq "$OCF_SUCCESS" ]; then
 		# conntrackd is running 
 		# now see if it acceppts queries
