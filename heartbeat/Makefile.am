@@ -76,6 +76,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			ManageVE		\
 			mysql			\
 			mysql-proxy		\
+			named			\
 			nfsserver		\
 			oracle			\
 			oralsnr			\
