@@ -93,6 +93,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			SAPInstance		\
 			SendArp			\
 			ServeRAID		\
+			slapd			\
 			SphinxSearchDaemon	\
 			Squid			\
 			Stateful		\
