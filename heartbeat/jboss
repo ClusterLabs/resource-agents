@@ -73,7 +73,15 @@ action:
 
 isrunning_jboss()
 {
-	if wget -O /dev/null $STATUSURL 2>/dev/null; then
+	local rc
+	if [ -z "$1" ];then
+		ocf_run -q -err wget -t 1 -O /dev/null $STATUSURL
+	else
+		# Retry message for restraint
+		wget -t 1 -O /dev/null $STATUSURL 2>/dev/null
+	fi
+	rc=$?
+	if [ $rc -eq 0 ]; then
 		return $OCF_SUCCESS
 	fi
 	# JBoss service error 
@@ -85,13 +93,14 @@ monitor_jboss()
 	if ! pgrep -f "$PSTRING" > /dev/null; then
 		return $OCF_NOT_RUNNING
 	fi
-	isrunning_jboss
+	isrunning_jboss $1
 }
 
 start_jboss()
 {
-	monitor_jboss
+	monitor_jboss start
 	if [ $? = $OCF_SUCCESS ]; then
+		ocf_log info "JBoss already running."
 		return $OCF_SUCCESS
 	fi
 
@@ -108,11 +117,11 @@ start_jboss()
 	fi
 
 	while true; do
-		monitor_jboss
+		monitor_jboss start
 		if [ $? = $OCF_SUCCESS ]; then
 			break
 		fi
-		ocf_log debug "start_jboss[$RESOURCE_NAME]: retry monitor_jboss"
+		ocf_log info "start_jboss[$RESOURCE_NAME]: retry monitor_jboss"
 		sleep 3
 	done
 
@@ -384,17 +393,13 @@ fi
 
 case "$COMMAND" in
 	start)
-		#ocf_log debug  "[$RESOURCE_NAME] Enter jboss start"
 		start_jboss
 		func_status=$?
-		#ocf_log debug  "[$RESOURCE_NAME] Leave jboss start $func_status"
 		exit $func_status
 		;;
 	stop)
-		#ocf_log debug  "[$RESOURCE_NAME] Enter jboss stop"
 		stop_jboss
 		func_status=$?
-		#ocf_log debug  "[$RESOURCE_NAME] Leave jboss stop $func_status"
 		exit $func_status
 		;;
 	status)
