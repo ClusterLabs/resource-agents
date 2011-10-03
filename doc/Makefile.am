@@ -121,8 +121,10 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_postfix.7 \
                           ocf_heartbeat_proftpd.7 \
                           ocf_heartbeat_rsyncd.7 \
+                          ocf_heartbeat_rsyslog.7 \
                           ocf_heartbeat_scsi2reservation.7 \
                           ocf_heartbeat_sfex.7 \
+                          ocf_heartbeat_slapd.7 \
                           ocf_heartbeat_symlink.7 \
                           ocf_heartbeat_syslog-ng.7 \
                           ocf_heartbeat_tomcat.7 \

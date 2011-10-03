@@ -89,10 +89,12 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			Raid1			\
 			Route			\
 			rsyncd			\
+			rsyslog			\
 			SAPDatabase		\
 			SAPInstance		\
 			SendArp			\
 			ServeRAID		\
+			slapd			\
 			SphinxSearchDaemon	\
 			Squid			\
 			Stateful		\
