@@ -123,22 +123,21 @@ LVM_methods() {
 #	Return LVM status (silently)
 #
 LVM_status() {
-  if 
-    [ "$LVM_MAJOR" -eq "1" ]
-  then
-	vgdisplay $1 2>&1 | grep -i 'Status.*available' 2>&1 >/dev/null
-	return $?
-  else
-	vgdisplay -v $1 2>&1 | grep -i 'Status[ \t]*available' 2>&1 >/dev/null
-	return $?
+  local rc
+  loglevel="debug"
+
+  # Set the log level of the error message
+  if [ "X${2}" == "X" ]; then
+	loglevel="err"
+	if ocf_is_probe; then
+	  loglevel="warn"
+	else 
+	  if [ ${OP_METHOD} == "stop" ]; then
+	    loglevel="info"
+	  fi
+	fi
   fi
-}
-
-#
-#	Report on LVM volume status to stdout...
-#
-LVM_report_status() {
-
+  
   if 
     [ "$LVM_MAJOR" -eq "1" ]
   then
@@ -151,15 +150,16 @@ LVM_report_status() {
 	rc=$?
   fi
 
-  if
-    [ $rc -eq 0 ]
-  then
-    : Volume $1 is available
-  else
-    ocf_log debug "LVM Volume $1 is not available (stopped)"
-    return $OCF_NOT_RUNNING
+  if [ $rc -ne 0 ]; then
+    	ocf_log $loglevel "LVM Volume $1 is not available (stopped). ${VGOUT}"
+  fi
+  
+  if [ "X${2}" == "X" ]; then
+	# status call return
+  	return $rc
   fi
 
+  # Report on LVM volume status to stdout...
   if
     echo "$VGOUT" | grep -i 'Access.*read/write' >/dev/null
   then
@@ -167,8 +167,9 @@ LVM_report_status() {
   else
     ocf_log debug "Volume $1 is available read-only (running)"
   fi
-  
+ 
   return $OCF_SUCCESS
+
 }
 
 #
@@ -176,6 +177,7 @@ LVM_report_status() {
 #
 #
 LVM_monitor() {
+  local rc
   if
     LVM_status $1
   then
@@ -185,9 +187,14 @@ LVM_monitor() {
     return $OCF_NOT_RUNNING
   fi
 
-  vgck $1 >/dev/null 2>&1
+  VGOUT=`vgck $1 2>&1`
+  rc=$?
+  if [ $rc -ne 0 ]; then
+    ocf_log err "LVM Volume $1 is not found. ${VGOUT}:${rc}"
+    return $OCF_ERR_GENERIC
+  fi
 
-  return $?
+  return $OCF_SUCCESS
 }
 
 #
@@ -232,10 +239,10 @@ LVM_stop() {
 
   vgdisplay "$1" 2>&1 | grep 'Volume group .* not found' >/dev/null && {
     ocf_log info "Volume group $1 not found"
-    return 0
+    return $OCF_SUCCESS
   }
   ocf_log info "Deactivating volume group $1"
-  ocf_run vgchange -a ln $1 || return 1
+  ocf_run vgchange -a ln $1 || return $OCF_ERR_GENERIC
 
   if
     LVM_status $1
@@ -256,10 +263,10 @@ LVM_validate_all() {
   check_binary $AWK
 
 #	Off-the-shelf tests...  
-  vgck "$VOLUME" >/dev/null 2>&1
+  VGOUT=`vgck ${VOLUME} 2>&1`
   
   if [ $? -ne 0 ]; then
-	ocf_log err "Volume group [$VOLUME] does not exist or contains error!"
+	ocf_log err "Volume group [$VOLUME] does not exist or contains error! ${VGOUT}"
 	exit $OCF_ERR_GENERIC
   fi
 
@@ -267,13 +274,13 @@ LVM_validate_all() {
   if 
     [ "$LVM_MAJOR" -eq "1" ]
   then
-	vgdisplay "$VOLUME" >/dev/null 2>&1
+	VGOUT=`vgdisplay ${VOLUME} 2>&1`
   else
-	vgdisplay -v "$VOLUME" >/dev/null 2>&1
+	VGOUT=`vgdisplay -v ${VOLUME} 2>&1`
   fi
 
   if [ $? -ne 0 ]; then
-	ocf_log err "Volume group [$VOLUME] does not exist or contains error!"
+	ocf_log err "Volume group [$VOLUME] does not exist or contains error! ${VGOUT}"
 	exit $OCF_ERR_GENERIC
   fi
 
@@ -340,7 +347,7 @@ fi
 LVM_MAJOR="${LVM_VERSION%%.*}"
 
 VOLUME=$OCF_RESKEY_volgrpname
-
+OP_METHOD=$1
 # What kind of method was invoked?
 case "$1" in
 
@@ -350,7 +357,7 @@ case "$1" in
   stop)		LVM_stop $VOLUME
 		exit $?;;
 
-  status)	LVM_report_status $VOLUME
+  status)	LVM_status $VOLUME $1
 		exit $?;;
 
   monitor)	LVM_monitor $VOLUME

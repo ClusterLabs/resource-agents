@@ -461,18 +461,14 @@ Filesystem_start()
 		if [ -z "$FSTYPE" -o "$FSTYPE" = none ]; then
 			: No FSTYPE specified, rely on the system has the right file-system support already 
 		else
-			# Insert Filesystem module
-			$MODPROBE $FSTYPE >/dev/null
-
+			local support="$FSTYPE"
 			# support fuse-filesystems (e.g. GlusterFS)
 			case $FSTYPE in
-				glusterfs)	
-					grep -e 'fuse$' /proc/filesystems >/dev/null
-					;;
-				*)	grep -e "$FSTYPE"'$' /proc/filesystems >/dev/null
-					;;
+				glusterfs) support="fuse";;
 			esac
-			
+			grep -w "$support"'$' /proc/filesystems >/dev/null ||
+				$MODPROBE $support >/dev/null
+			grep -w "$support"'$' /proc/filesystems >/dev/null
 			if [ $? -ne 0 ] ; then
 				ocf_log err "Couldn't find filesystem $FSTYPE in /proc/filesystems"
 				return $OCF_ERR_INSTALLED
