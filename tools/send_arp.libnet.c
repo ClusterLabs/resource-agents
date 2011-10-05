@@ -57,7 +57,7 @@
 #define PIDDIR       HA_VARRUNDIR "/" PACKAGE
 #define PIDFILE_BASE PIDDIR "/send_arp-"
 
-static int send_arp(LTYPE* l, u_long ip, u_char *device, u_char mac[6]
+static int send_arp(LTYPE* l, u_int32_t ip, u_char *device, u_char mac[6]
 ,	u_char *broadcast, u_char *netmask, u_short arptype);
 
 static char print_usage[]={
@@ -133,7 +133,7 @@ main(int argc, char *argv[])
 	char*	macaddr;
 	char*	broadcast;
 	char*	netmask;
-	u_long	ip;
+	u_int32_t	ip;
 	u_char  src_mac[6];
 	LTYPE*	l;
 	int	repeatcount = 1;
@@ -388,7 +388,7 @@ get_hw_addr(char *device, u_char mac[6])
 
 #ifdef HAVE_LIBNET_1_0_API
 int
-send_arp(struct libnet_link_int *l, u_long ip, u_char *device, u_char *macaddr, u_char *broadcast, u_char *netmask, u_short arptype)
+send_arp(struct libnet_link_int *l, u_int32_t ip, u_char *device, u_char *macaddr, u_char *broadcast, u_char *netmask, u_short arptype)
 {
 	int n;
 	u_char *buf;
@@ -465,7 +465,7 @@ send_arp(struct libnet_link_int *l, u_long ip, u_char *device, u_char *macaddr, 
 
 #ifdef HAVE_LIBNET_1_1_API
 int
-send_arp(libnet_t* lntag, u_long ip, u_char *device, u_char macaddr[6], u_char *broadcast, u_char *netmask, u_short arptype)
+send_arp(libnet_t* lntag, u_int32_t ip, u_char *device, u_char macaddr[6], u_char *broadcast, u_char *netmask, u_short arptype)
 {
 	int n;
 	u_char *target_mac;
@@ -493,9 +493,9 @@ send_arp(libnet_t* lntag, u_long ip, u_char *device, u_char macaddr[6], u_char *
 		4,		/* protocol address length */
 		arptype,	/* ARP operation type */
 		macaddr,	/* sender Hardware address */
-		(u_char *)&ip,	/* sender protocol address */
+		(u_int8_t *)&ip,	/* sender protocol address */
 		target_mac,	/* target hardware address */
-		(u_char *)&ip,	/* target protocol address */
+		(u_int8_t *)&ip,	/* target protocol address */
 		NULL,		/* Payload */
 		0,		/* Length of payload */
 		lntag,		/* libnet context pointer */
