@@ -333,6 +333,7 @@ GetParams() {
   fi
 
   get_nginx_params $ConfigFile root pid listen
+  PidFile="$pid"
   case $PidFile in
     "")	PidFile=$DEFAULT_PID	;;
     *)				;;
