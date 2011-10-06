@@ -15,12 +15,10 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
-# Used binaries
-RNDC="rndc"
-HOST="host"
-
 #Defaults
 OCF_RESKEY_named_default="/usr/sbin/named"
+OCF_RESKEY_rndc_default="/usr/sbin/rndc"
+OCF_RESKEY_host_default="/usr/bin/host"
 OCF_RESKEY_named_user_default=named
 OCF_RESKEY_named_config_default=""
 OCF_RESKEY_named_pidfile_default="/var/run/named/named.pid"
@@ -32,6 +30,8 @@ OCF_RESKEY_monitor_response_default="127.0.0.1"
 OCF_RESKEY_monitor_ip_default="127.0.0.1"
 
 : ${OCF_RESKEY_named=${OCF_RESKEY_named_default}}
+: ${OCF_RESKEY_rndc=${OCF_RESKEY_rndc_default}}
+: ${OCF_RESKEY_host=${OCF_RESKEY_host_default}}
 : ${OCF_RESKEY_named_user=${OCF_RESKEY_named_user_default}}
 : ${OCF_RESKEY_named_config=${OCF_RESKEY_named_config_default}}
 : ${OCF_RESKEY_named_pidfile=${OCF_RESKEY_named_pidfile_default}}
@@ -78,6 +78,22 @@ Path to the named command.
 </longdesc>
 <shortdesc lang="en">named</shortdesc>
 <content type="string" default="${OCF_RESKEY_named_default}" />
+</parameter>
+
+<parameter name="rndc" unique="0" required="0">
+<longdesc lang="en">
+Path to the rndc command.
+</longdesc>
+<shortdesc lang="en">rndc</shortdesc>
+<content type="string" default="${OCF_RESKEY_rndc_default}" />
+</parameter>
+
+<parameter name="host" unique="0" required="0">
+<longdesc lang="en">
+Path to the host command.
+</longdesc>
+<shortdesc lang="en">host</shortdesc>
+<content type="string" default="${OCF_RESKEY_host_default}" />
 </parameter>
 
 <parameter name="named_user" unique="0" required="0">
@@ -187,8 +203,8 @@ EOF
 # Validate most critical parameters
 named_validate_all() {
     check_binary $OCF_RESKEY_named
-    check_binary $RNDC
-    check_binary $HOST
+    check_binary $OCF_RESKEY_rndc
+    check_binary $OCF_RESKEY_host
 
     if [ -n "$OCF_RESKEY_named_config" -a \
         ! -r "${OCF_RESKEY_named_rootdir}/${OCF_RESKEY_named_config}" ]; then
@@ -256,7 +272,7 @@ named_monitor() {
         return $OCF_NOT_RUNNING
     fi
    
-    output=`$HOST $OCF_RESKEY_monitor_request $OCF_RESKEY_monitor_ip`
+    output=`$OCF_RESKEY_host $OCF_RESKEY_monitor_request $OCF_RESKEY_monitor_ip`
 
     if [ $? -ne 0 ] || ! echo $output | grep -q '.* has address '"$OCF_RESKEY_monitor_response" 
     then
@@ -274,7 +290,7 @@ named_monitor() {
 #
 
 named_reload() {
-    $RNDC reload >/dev/null || return $OCF_ERR_GENERIC
+    $OCF_RESKEY_rndc reload >/dev/null || return $OCF_ERR_GENERIC
     
     return $OCF_SUCCESS
 }
@@ -338,33 +354,38 @@ named_start() {
 
 named_stop () {
     local timeout
+    local timewait
     
     named_status || return $OCF_SUCCESS
     
-    if ! $RNDC stop >/dev/null; then
+    $OCF_RESKEY_rndc stop >/dev/null & 
+    if [ $? -ne 0 ]; then
+	ocf_log info "rndc stop failed. Killing named."
         kill `cat ${OCF_RESKEY_named_pidfile}`
     fi
  
     if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
       # Allow 2/3 of the action timeout for the orderly shutdown
       # (The origin unit is ms, hence the conversion)
-      timeout=$((OCF_RESKEY_CRM_meta_timeout/1500))
+      timewait=$((OCF_RESKEY_CRM_meta_timeout/1500))
     else
-      timeout=20
+      timewait=20
     fi
- 
+
+    sleep 1; timeout=0 # Sleep here for 1 sec to let rndc finish.
     while named_status ; do
-        if [ $timeout -ge ${OCF_RESKEY_named_stop_timeout} ]; then    
+        if [ $timeout -ge $timewait ]; then    
             break
         else
             sleep 1
-            timeout=$((timeout++))
+            timeout=`expr $timeout + 1`
+            ocf_log debug "named appears to hung, waiting ..."
         fi
     done
     
     #If still up    
     if named_status 2>&1; then
-        ocf_log err "named is still up! Killing";
+        ocf_log err "named is still up! Killing"
         kill -9 `cat ${OCF_RESKEY_named_pidfile}`
     fi
     
