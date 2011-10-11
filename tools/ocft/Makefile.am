@@ -34,6 +34,7 @@ ocftcfgs_DATA      =  apache  	\
 		       	 nfsserver	\
 		       	 portblock	\
 		       	 iscsi	\
+		       	 named	\
 		       	 postfix	\
 			 SendArp
 

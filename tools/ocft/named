@@ -1,0 +1,66 @@
+#named
+
+# To work properly this test requires that standard bind and bin-utils
+# packages installed.
+
+CONFIG
+	InstallPackage bind
+	InstallPackage bind-utils
+SETUP-AGENT
+	/etc/init.d/named start
+	/etc/init.d/named stop
+
+CASE-BLOCK crm_setting
+        Var OCF_RESKEY_CRM_meta_timeout=15000
+
+CASE-BLOCK default_status
+        AgentRun stop
+
+CASE-BLOCK prepare
+        Include crm_setting
+        Include default_status
+
+CASE "check base env"
+        Include prepare
+        AgentRun start OCF_SUCCESS
+
+CASE "check base env: invalid 'OCF_RESKEY_named'"
+        Include prepare
+        Var OCF_RESKEY_named=no_such
+        AgentRun start OCF_ERR_INSTALLED
+
+CASE "normal start"
+        Include prepare
+        AgentRun start OCF_SUCCESS
+
+CASE "normal stop"
+        Include prepare
+        AgentRun start
+        AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+        Include prepare
+        AgentRun start
+        AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+        Include prepare
+        AgentRun stop OCF_SUCCESS
+
+CASE "running monitor"
+        Include prepare
+        AgentRun start
+        AgentRun monitor OCF_SUCCESS
+
+CASE "not running monitor"
+        Include prepare
+        AgentRun monitor OCF_NOT_RUNNING
+
+CASE "unimplemented command"
+        Include prepare
+        AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
+
+CASE "non-existent user"
+        Include prepare
+        Var OCF_RESKEY_named_user=no_user
+        AgentRun start OCF_ERR_INSTALLED
