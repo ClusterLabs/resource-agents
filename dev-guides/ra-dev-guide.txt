@@ -1204,17 +1204,18 @@ With the command specified above, the resource agent will invoke
 +frobnicate --spam=eggs+ and capture its output and
 exit code. If the exit code is nonzero (indicating an error),
 +ocf_run+ logs the command output with the +err+ logging severity, and
-the resource agent subsequently exits.
+the resource agent subsequently exits.  If the exit code is zero
+(indicating success), any command output will be logged with the +info+
+logging severity.
 
-If the resource agent wishes to capture the output of _both_ a
-successful and a failed command execution, it can use the +-v+ flag
-with +ocf_run+. In the example below, +ocf_run+ will log any output
-from the command with the +info+ severity if the command exit code is
-zero (indicating success), and with +err+ if it is nonzero.
+If the resource agent wishes to ignore the output of a successful
+command execution, it can use the +-q+ flag with +ocf_run+. In the
+example below, +ocf_run+ will only log output if the command exit code
+is nonzero.
 
 [source,bash]
 --------------------------------------------------------------------------
-ocf_run -v "frobnicate --spam=eggs" || exit $OCF_ERR_GENERIC
+ocf_run -q "frobnicate --spam=eggs" || exit $OCF_ERR_GENERIC
 --------------------------------------------------------------------------
 
 Finally, if the resource agent wants to log the output of a command
