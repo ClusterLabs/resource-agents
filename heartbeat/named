@@ -412,7 +412,7 @@ esac
 named_validate_all
 rc=$?
 
-[ "$1" == "validate-all" ] && exit $rc
+[ "$1" = "validate-all" ] && exit $rc
 
 if [ $rc -ne 0 ]
 then
