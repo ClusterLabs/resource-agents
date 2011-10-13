@@ -127,12 +127,12 @@ LVM_status() {
   loglevel="debug"
 
   # Set the log level of the error message
-  if [ "X${2}" == "X" ]; then
+  if [ "X${2}" = "X" ]; then
 	loglevel="err"
 	if ocf_is_probe; then
 	  loglevel="warn"
 	else 
-	  if [ ${OP_METHOD} == "stop" ]; then
+	  if [ ${OP_METHOD} = "stop" ]; then
 	    loglevel="info"
 	  fi
 	fi
@@ -154,7 +154,7 @@ LVM_status() {
     	ocf_log $loglevel "LVM Volume $1 is not available (stopped). ${VGOUT}"
   fi
   
-  if [ "X${2}" == "X" ]; then
+  if [ "X${2}" = "X" ]; then
 	# status call return
   	return $rc
   fi
