@@ -59,9 +59,6 @@
 # - Do we need to verify globally unique setting?
 # - Should set CTDB_NODES to ${HA_RSCTMP}/ctdb (generated based on
 #   current nodes)
-# - Be more clever about monitor op, something like:
-#   "ctdb pnn" to get PNN, then "ctdb -Y status" for machine-readable
-#   status.
 # - Look at enabling set_ctdb_variables() if necessary.
 # - Probably possible for sysconfig file to not be restored if
 #   CTDB dies unexpectedly.
@@ -638,8 +635,27 @@ ctdb_stop() {
 
 
 ctdb_monitor() {
-	invoke_ctdb ping > /dev/null 2>&1 && return $OCF_SUCCESS
-	return $OCF_NOT_RUNNING
+	local status
+	# "ctdb status" exits non-zero if CTDB isn't running.
+	# It can also exit non-zero if there's a timeout (ctdbd blocked,
+	# stalled, massive load, or otherwise wedged).  If it's actually
+	# not running, STDERR will say "Errno:Connection refused(111)",
+	# whereas if it's wedged, it'll say various other unpleasant things.
+	status=$(invoke_ctdb status 2>&1)
+	if [ $? -ne 0 ]; then
+		if echo $status | grep -qs 'Connection refused'; then
+			return $OCF_NOT_RUNNING
+		else
+			ocf_log err "CTDB status call failed: $status"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+	if echo $status | grep -Eqs '(OK|DISABLED) \(THIS'; then
+		return $OCF_SUCCESS
+	fi
+
+	ocf_log err "CTDB status is bad: $status"
+	return $OCF_ERR_GENERIC
 }
 
 
