@@ -79,7 +79,7 @@
 : ${OCF_RESKEY_ctdb_service_winbind:=""}
 : ${OCF_RESKEY_ctdb_samba_skip_share_check:=yes}
 : ${OCF_RESKEY_ctdb_monitor_free_memory:=100}
-: ${OCF_RESKEY_ctdb_start_as_disabled:=yes}
+: ${OCF_RESKEY_ctdb_start_as_disabled:=no}
 
 : ${OCF_RESKEY_ctdb_config_dir:=/etc/ctdb}
 : ${OCF_RESKEY_ctdb_binary:=/usr/bin/ctdb}
@@ -200,7 +200,7 @@ When set to yes, the CTDB node will start in DISABLED mode and not
 host any public ip addresses.
 </longdesc>
 <shortdesc lang="en">Start CTDB disabled?</shortdesc>
-<content type="boolean" default="yes" />
+<content type="boolean" default="no" />
 </parameter>
 
 <parameter name="ctdb_config_dir" unique="0" required="0">
