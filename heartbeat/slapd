@@ -336,6 +336,14 @@ slapd_start()
     return $OCF_ERR_GENERIC
   fi
 
+  while true; do
+    slapd_monitor
+    if [ $? = "$OCF_SUCCESS" ]; then
+      break
+    fi
+    sleep 1
+  done
+
   ocf_log info "slapd started."
 
   return $OCF_SUCCESS
