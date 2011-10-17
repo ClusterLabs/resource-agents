@@ -430,7 +430,7 @@ slapd_monitor()
   fi
 
   for suffix in $suffixes; do
-    ocf_run "$ldapsearch" -H "$services" -b "$suffix" $options >/dev/null 2>&1; result=$?
+    ocf_run -q "$ldapsearch" -H "$services" -b "$suffix" $options >/dev/null 2>&1; result=$?
 
     case "$result" in
       "0")
