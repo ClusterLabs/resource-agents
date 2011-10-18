@@ -89,7 +89,7 @@ while test "$done" = "0"; do
 	-n) OCF_RESOURCE_INSTANCE=$2; ra_args="$ra_args OCF_RESOURCE_INSTANCE=$2"; shift; shift;;
 	-o) name=${2%%=*}; value=${2#*=}; 
 		lrm_ra_args="$lrm_ra_args $2";
-		ra_args="$ra_args OCF_RESKEY_$name=$value"; shift; shift;;
+		ra_args="$ra_args OCF_RESKEY_$name='$value'"; shift; shift;;
 	-L) use_lrmd=1; shift;;
 	-v) verbose=1; shift;;
 	-?|--help) usage 0;;
@@ -265,7 +265,8 @@ else
 fi
 unset OCF_TESTER_FAIL_HAVE_BINARY
 
-export $ra_args;
+ra_args="export $ra_args"
+eval $ra_args
 test_command validate-all
 rc=$?
 if [ $rc -eq 3 ]; then
