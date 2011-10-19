@@ -136,6 +136,35 @@ silent_status() {
   fi
 }
 
+# May be useful to add other distros in future
+validate_default_config() {
+  if [ -e /etc/SuSE-release ]; then
+    validate_default_suse_config
+  else
+    return 0
+  fi
+}
+
+# When using the default /etc/apache2/httpd.conf on SUSE, the file
+# /etc/apache2/sysconfig.d/include.conf is required to be present,
+# but this is only generated if you run the apache init script
+# (with contents derived from /etc/sysconfig/apache2).  So, here,
+# if we're using the default system config file and it requires
+# that include, we run "/etc/init.d/apache2 configtest" to ensure
+# the relevant config is generated and valid.  We're also taking
+# this opportunity to enable mod_status if it's not present.
+validate_default_suse_config() {
+  if [ "$CONFIGFILE" = "$DEFAULT_NORMCONFIG" ] && \
+     grep -Eq '^Include\s+/etc/apache2/sysconfig.d/include.conf' "$CONFIGFILE"
+  then
+    [ -x "/usr/sbin/a2enmod" ] && ocf_run -q /usr/sbin/a2enmod status
+    ocf_run -q /etc/init.d/apache2 configtest
+    return
+  else
+    return 0
+  fi
+}
+
 start_apache() {
   if
     silent_status
@@ -143,6 +172,7 @@ start_apache() {
     ocf_log info "$CMD already running (pid $ApachePID)"
     return $OCF_SUCCESS
   fi
+  validate_default_config || return $OCF_ERR_CONFIGURED
   ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE
   tries=0
   while :  # wait until the user set timeout
