@@ -336,6 +336,14 @@ slapd_start()
     return $OCF_ERR_GENERIC
   fi
 
+  while true; do
+    slapd_monitor
+    if [ $? = "$OCF_SUCCESS" ]; then
+      break
+    fi
+    sleep 1
+  done
+
   ocf_log info "slapd started."
 
   return $OCF_SUCCESS
@@ -422,7 +430,7 @@ slapd_monitor()
   fi
 
   for suffix in $suffixes; do
-    ocf_run "$ldapsearch" -H "$services" -b "$suffix" $options >/dev/null 2>&1; result=$?
+    ocf_run -q "$ldapsearch" -H "$services" -b "$suffix" $options >/dev/null 2>&1; result=$?
 
     case "$result" in
       "0")

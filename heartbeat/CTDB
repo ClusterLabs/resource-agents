@@ -59,9 +59,6 @@
 # - Do we need to verify globally unique setting?
 # - Should set CTDB_NODES to ${HA_RSCTMP}/ctdb (generated based on
 #   current nodes)
-# - Be more clever about monitor op, something like:
-#   "ctdb pnn" to get PNN, then "ctdb -Y status" for machine-readable
-#   status.
 # - Look at enabling set_ctdb_variables() if necessary.
 # - Probably possible for sysconfig file to not be restored if
 #   CTDB dies unexpectedly.
@@ -82,7 +79,7 @@
 : ${OCF_RESKEY_ctdb_service_winbind:=""}
 : ${OCF_RESKEY_ctdb_samba_skip_share_check:=yes}
 : ${OCF_RESKEY_ctdb_monitor_free_memory:=100}
-: ${OCF_RESKEY_ctdb_start_as_disabled:=yes}
+: ${OCF_RESKEY_ctdb_start_as_disabled:=no}
 
 : ${OCF_RESKEY_ctdb_config_dir:=/etc/ctdb}
 : ${OCF_RESKEY_ctdb_binary:=/usr/bin/ctdb}
@@ -203,7 +200,7 @@ When set to yes, the CTDB node will start in DISABLED mode and not
 host any public ip addresses.
 </longdesc>
 <shortdesc lang="en">Start CTDB disabled?</shortdesc>
-<content type="boolean" default="yes" />
+<content type="boolean" default="no" />
 </parameter>
 
 <parameter name="ctdb_config_dir" unique="0" required="0">
@@ -306,6 +303,17 @@ if CTDB is managing Samba.
 <content type="string" default="tdb2" />
 </parameter>
 
+<parameter name="smb_fileid_algorithm" unique="0" required="0">
+<longdesc lang="en">
+Which fileid:algorithm to use with vfs_fileid.  The correct
+value depends on which clustered filesystem is in use, e.g.:
+for OCFS2, this should be set to "fsid".  Only necessary if
+CTDB is managing Samba.
+</longdesc>
+<shortdesc lang="en">Samba VFS fileid algorithm</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -401,16 +409,44 @@ init_smb_conf() {
 	# Don't screw around with the config if CTDB isn't managing Samba!
 	ocf_is_true "$OCF_RESKEY_ctdb_manages_samba" || return 0
 
+	# replace these things in smb.conf
+	local repl='# CTDB-RA:|passdb backend|clustering|idmap backend|private dir|ctdbd socket'
+
 	local private_dir
 	[ -n "$OCF_RESKEY_smb_private_dir" ] && private_dir="\tprivate dir = $OCF_RESKEY_smb_private_dir\n"
-	grep -Eiv \
-		'^[[:space:]]*(# CTDB-RA:|passdb backend|clustering|idmap backend|private dir|ctdbd socket)' \
-		$OCF_RESKEY_smb_conf | sed "/^[[:space:]]*\[global\]/ a\\
+
+	local vfs_fileid
+	local do_vfs=0
+	if  [ -n "$OCF_RESKEY_smb_fileid_algorithm" ]; then
+		repl="${repl}|fileid:algorithm|fileid:mapping"
+		vfs_fileid="\tfileid:algorithm = $OCF_RESKEY_smb_fileid_algorithm\n"
+		if sed -n '/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/p' $OCF_RESKEY_smb_conf | \
+		   grep -Eq '^[[:space:]]*vfs objects'; then
+			# vfs objects already specified, will append fileid to existing line
+			do_vfs=1
+		else
+			vfs_fileid="$vfs_fileid\tvfs objects = fileid\n"
+		fi
+	fi
+	awk '
+		/^[[:space:]]*\[/ { global = 0 }
+		/^[[:space:]]*\[global\]/ { global = 1 }
+		{
+			if(global) {
+				if ('$do_vfs' && $0 ~ /^[[:space:]]vfs objects/ && $0 !~ /fileid/) {
+					print $0" fileid"
+				} else if ($0 !~ /^[[:space:]]*('"$repl"')/) {
+					print
+				}
+			} else {
+				print
+			}
+		}' $OCF_RESKEY_smb_conf | sed "/^[[:space:]]*\[global\]/ a\\
 \t# CTDB-RA: Begin auto-generated section (do not change below)\n\
 \tpassdb backend = $OCF_RESKEY_smb_passdb_backend\n\
 \tclustering = yes\n\
 \tidmap backend = $OCF_RESKEY_smb_idmap_backend\n\
-\tctdbd socket = $OCF_RESKEY_ctdb_socket\n$private_dir\
+\tctdbd socket = $OCF_RESKEY_ctdb_socket\n$private_dir$vfs_fileid\
 \t# CTDB-RA: End auto-generated section (do not change above)" > $OCF_RESKEY_smb_conf.$$
 	mv -f $OCF_RESKEY_smb_conf.$$ $OCF_RESKEY_smb_conf
 }
@@ -599,8 +635,27 @@ ctdb_stop() {
 
 
 ctdb_monitor() {
-	invoke_ctdb ping > /dev/null 2>&1 && return $OCF_SUCCESS
-	return $OCF_NOT_RUNNING
+	local status
+	# "ctdb status" exits non-zero if CTDB isn't running.
+	# It can also exit non-zero if there's a timeout (ctdbd blocked,
+	# stalled, massive load, or otherwise wedged).  If it's actually
+	# not running, STDERR will say "Errno:Connection refused(111)",
+	# whereas if it's wedged, it'll say various other unpleasant things.
+	status=$(invoke_ctdb status 2>&1)
+	if [ $? -ne 0 ]; then
+		if echo $status | grep -qs 'Connection refused'; then
+			return $OCF_NOT_RUNNING
+		else
+			ocf_log err "CTDB status call failed: $status"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+	if echo $status | grep -Eqs '(OK|DISABLED) \(THIS'; then
+		return $OCF_SUCCESS
+	fi
+
+	ocf_log err "CTDB status is bad: $status"
+	return $OCF_ERR_GENERIC
 }
 
 
