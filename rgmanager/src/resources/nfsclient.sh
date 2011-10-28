@@ -399,8 +399,8 @@ status|monitor)
 		exportfs -v > $tmpfn
 	fi
 
-        cat $tmpfn | tr -d "\n" | sed -e 's/([^)]*)/\n/g' | grep -iq \
-		"^${OCF_RESKEY_path}[\t ]*.*${OCF_RESKEY_target_regexp}" 
+        cat $tmpfn | tr -d "\n" | sed -e 's/([^)]*)/\n/g' | grep -Piq \
+		"^${OCF_RESKEY_path}[\t ]+${OCF_RESKEY_target_regexp}"
 	rv=$? 
 
 	if [ $rv -eq 0 ]; then
@@ -408,15 +408,19 @@ status|monitor)
 		exit 0
 	fi
 
-	declare OCF_RESKEY_target_tmp=$(clufindhostname -i "$OCF_RESKEY_target")
+	declare OCF_RESKEY_target_tmp
+	OCF_RESKEY_target_tmp=$(clufindhostname -i "$OCF_RESKEY_target")
 	if [ $? -ne 0 ]; then
-		[ "$OCF_RESKEY_use_cache" = "1" ] || rm -f $tmpfn
-		ocf_log err "nfsclient:$OCF_RESKEY_name is missing!"
-		exit 1
+		OCF_RESKEY_target_tmp=$(clufindhostname -n "$OCF_RESKEY_target")
+		if [ $? -ne 0 ]; then
+			[ "$OCF_RESKEY_use_cache" = "1" ] || rm -f $tmpfn
+			ocf_log err "nfsclient:$OCF_RESKEY_name is missing!"
+			exit 1
+		fi
 	fi
 
-        cat $tmpfn | tr -d "\n" | sed -e 's/([^)]*)/\n/g' | grep -q \
-		"^${OCF_RESKEY_path}[\t ]*.*${OCF_RESKEY_target_tmp}" 
+        cat $tmpfn | tr -d "\n" | sed -e 's/([^)]*)/\n/g' | grep -Pq \
+		"^${OCF_RESKEY_path}[\t ]+${OCF_RESKEY_target_tmp}"
 	rv=$? 
 
 	[ "$OCF_RESKEY_use_cache" = "1" ] || rm -f $tmpfn
