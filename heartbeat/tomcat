@@ -131,6 +131,9 @@ start_tomcat()
 		return $OCF_SUCCESS
 	fi
 
+	# Remove $CATALINA_PID if it exists
+	rm -f $CATALINA_PID
+
 	#ocf_log debug "catalina.out rotation FLG = ${CATALINA_ROTATE_LOG}"
 	if [ ${CATALINA_ROTATE_LOG} = "YES" ]; then
 		rotate_catalina_out
