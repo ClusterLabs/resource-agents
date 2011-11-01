@@ -20,7 +20,7 @@
 # Get PostgreSQL Configuration parameter
 #
 get_pgsql_param() {
-    local config_file
+    local config
     local param_name
 
     param_name=$1

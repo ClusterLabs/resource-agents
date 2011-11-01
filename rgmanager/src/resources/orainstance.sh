@@ -81,7 +81,7 @@ start_db() {
 	declare -i rv
 
 	tmpfile=/tmp/$SCRIPT-start.$$
-	logfile=/tmp/$SCRIPT-start.log
+	logfile=/tmp/$SCRIPT-start.log.$$
 
 	# Set up our sqlplus script.  Basically, we're trying to 
 	# capture output in the hopes that it's useful in the case
@@ -127,7 +127,7 @@ stop_db() {
 	declare -i rv
 
 	tmpfile=/tmp/$SCRIPT-stop.$$
-	logfile=/tmp/$SCRIPT-stop.log
+	logfile=/tmp/$SCRIPT-stop.log.$$
 
     ora_procname="ora_${DB_PROCNAMES}_${ORACLE_SID}"
     status $ora_procname
