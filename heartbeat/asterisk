@@ -239,7 +239,7 @@ asterisk_status() {
 	if [ -d /proc -a -d /proc/1 ]; then
 		[ "u$pid" != "u" -a -d /proc/$pid ]
 	else
-		ocf_run kill -s 0 $pid >/dev/null
+		ocf_run kill -s 0 $pid
 	fi
 
 	if [ $? -eq 0 ]; then
@@ -374,7 +374,7 @@ asterisk_stop() {
 
     # If the beast is still alive, kill it now 
     pid=`cat $ASTRUNDIR/asterisk.pid 2> /dev/null `
-	ocf_run kill -s TERM $pid > /dev/null
+	ocf_run kill -s TERM $pid
     if [ $? -ne 0 ]; then
         ocf_log err "Asterisk PBX couldn't be stopped"
 	return $OCF_ERR_GENERIC
@@ -402,14 +402,14 @@ asterisk_stop() {
     if [ $? -ne $OCF_NOT_RUNNING ]; then
 	# still there, eh? Okay, let's burn it to a crisp
 	ocf_log info "Asterisk PBX failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL ..."
-	ocf_run kill -s KILL $pid > /dev/null
+	ocf_run kill -s KILL $pid
     fi
 
     # After killing asterisk, stop astcanary
     if [ $OCF_RESKEY_realtime = "yes" ];
     then
       astcanary_pid=`pidof $OCF_RESKEY_canary_binary`
-      ocf_run kill -s KILL $astcanary_pid > /dev/null
+      ocf_run kill -s KILL $astcanary_pid
     fi
 
     ocf_log info "Asterisk PBX stopped";
