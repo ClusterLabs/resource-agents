@@ -47,8 +47,8 @@ else
   OCF_RESKEY_user_default="asterisk"
   OCF_RESKEY_group_default="asterisk"
 fi
-OCF_RESKEY_binary_default="/usr/sbin/asterisk"
-OCF_RESKEY_canary_binary_default="/usr/sbin/astcanary"
+OCF_RESKEY_binary_default="asterisk"
+OCF_RESKEY_canary_binary_default="astcanary"
 OCF_RESKEY_config_default="/etc/asterisk/asterisk.conf"
 OCF_RESKEY_additional_parameters_default="-g -vvv"
 OCF_RESKEY_realtime_default="false"
