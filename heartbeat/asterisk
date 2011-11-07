@@ -425,17 +425,8 @@ case "$1" in
 		exit $OCF_SUCCESS;;
 esac
 
-asterisk_validate
-rc=$?
-LSB_STATUS_STOPPED=3
-if [ $rc -ne 0 ]; then
-	case "$1" in
-		stop) exit $OCF_SUCCESS;;
-		monitor) exit $OCF_NOT_RUNNING;;
-		status) exit $LSB_STATUS_STOPPED;;
-		*) exit $rc;;
-	esac
-fi
+# Anything except meta-data and help must pass validation
+asterisk_validate || exit $?
 
 # What kind of method was invoked?
 case "$1" in
@@ -443,8 +434,7 @@ case "$1" in
   stop)		asterisk_stop;;
   status)	asterisk_status;;
   monitor)	asterisk_monitor;;
-  validate-all)	exit $OCF_SUCCESS;;
-
- *)		usage
+  validate-all)	;;
+  *)		usage
 		exit $OCF_ERR_UNIMPLEMENTED;;
 esac
