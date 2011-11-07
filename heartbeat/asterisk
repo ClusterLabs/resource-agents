@@ -6,7 +6,8 @@
 # Description:	Manages an Asterisk PBX as an HA resource
 #
 # Authors:	Martin Gerhard Loschwitz
-
+#		Florian Haas
+#
 # Support:	linux-ha@lists.linux-ha.org
 # License:	GNU General Public License (GPL)
 #
@@ -228,8 +229,9 @@ asterisk_validate() {
 }
 
 asterisk_status() {
-	if [ ! -e $ASTRUNDIR/asterisk.pid ]; then
-		ocf_log err "Asterisk PBX is not running"
+
+	if [ ! -f $ASTRUNDIR/asterisk.pid ]; then
+		ocf_log info "Asterisk PBX is not running"
 		return $OCF_NOT_RUNNING;
 	fi
 
@@ -237,19 +239,20 @@ asterisk_status() {
 	if [ -d /proc -a -d /proc/1 ]; then
 		[ "u$pid" != "u" -a -d /proc/$pid ]
 	else
-		kill -s 0 $pid >/dev/null 2>&1
+		ocf_run kill -s 0 $pid >/dev/null
 	fi
 
 	if [ $? -eq 0 ]; then
 	    return $OCF_SUCCESS;
 	else
-	    ocf_log err "Asterisk PBX not running: removing old PID file"
+	    ocf_log info "Asterisk PBX not running: removing old PID file"
 	    rm -f $ASTRUNDIR/asterisk.pid
 	    return $OCF_NOT_RUNNING;
 	fi
 }
 
 asterisk_monitor() {
+
     local rc
     asterisk_status
     rc=$?
@@ -272,6 +275,7 @@ asterisk_monitor() {
 }
 
 asterisk_start() {
+
     asterisk_status
     if [ $? -eq $OCF_SUCCESS ]; then
 	ocf_log info "Asterisk PBX already running"
@@ -285,11 +289,10 @@ asterisk_start() {
     # set MAXFILES
     ulimit -n $OCF_RESKEY_maxfiles
 
-    pid_dir=`dirname $ASTRUNDIR`
-    if [ ! -d $pid_dir ] ; then
-	ocf_log info "Creating PID dir: $pid_dir"
-	mkdir -p $pid_dir
-	chown $OCF_RESKEY_user:$OCF_RESKEY_group $pid_dir
+    if [ ! -d $ASTRUNDIR ] ; then
+	ocf_log info "Creating PID dir: $ASTRUNDIR"
+	mkdir -p $ASTRUNDIR
+	chown $OCF_RESKEY_user:$OCF_RESKEY_group $ASTRUNDIR
     fi
 
     # Determine whether Asterisk PBX is supposed to run in Realtime mode
@@ -313,24 +316,23 @@ asterisk_start() {
 
     ocf_run ${OCF_RESKEY_binary} -G $OCF_RESKEY_group -U $OCF_RESKEY_user \
 		-C $OCF_RESKEY_config \
-		$OCF_RESKEY_additional_parameters \
+                $OCF_RESKEY_additional_parameters \
                 $asterisk_extra_params
-    rc=$?
 
-    if [ $rc -ne 0 ]; then
-	ocf_log err "Asterisk PBX start command failed: $rc"
-  	return $rc
+    if [ $? -ne 0 ]; then
+	ocf_log err "Asterisk PBX start command failed: $?"
+  	return $?
     fi
 
     # Spin waiting for the server to come up.
     # Let the CRM/LRM time us out if required
     start_wait=1
     while [ $start_wait = 1 ]; do
+	local rc
 	asterisk_status
 	rc=$?
 	if [ $rc -eq $OCF_SUCCESS ]; then
 	    start_wait=0
-
 	elif [ $rc -ne $OCF_NOT_RUNNING ]; then
 	    ocf_log info "Asterisk PBX start failed: $rc"
 	    return $rc
@@ -338,8 +340,10 @@ asterisk_start() {
         sleep 2
     done
 
+    local rc
     asterisk_monitor
     rc=$?
+
     if [ $rc -ne $OCF_SUCCESS ]; then
 	ocf_log err "Failed initial monitor action"
 	return $rc
