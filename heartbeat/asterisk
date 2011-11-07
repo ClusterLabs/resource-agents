@@ -304,10 +304,10 @@ asterisk_start() {
 	fi
     done
 
-    ${OCF_RESKEY_binary} -G $OCF_RESKEY_group -U $OCF_RESKEY_user \
+    ocf_run ${OCF_RESKEY_binary} -G $OCF_RESKEY_group -U $OCF_RESKEY_user \
 		-C $OCF_RESKEY_config \
 		$OCF_RESKEY_additional_parameters \
-                $asterisk_extra_params >/dev/null 2>&1
+                $asterisk_extra_params
     rc=$?
 
     if [ $rc -ne 0 ]; then
@@ -353,12 +353,12 @@ asterisk_stop() {
     if [ $OCF_RESKEY_realtime = "yes" ];
     then
       astcanary_pid=`pidof $OCF_RESKEY_canary_binary`
-      /bin/kill -9 $astcanary_pid > /dev/null
+      ocf_run kill -s KILL $astcanary_pid
     fi
 
     # kill asterisk itself
     pid=`cat $ASTRUNDIR/asterisk.pid 2> /dev/null `
-	/bin/kill $pid > /dev/null
+    ocf_run kill -s TERM $pid
     rc=$?
     if [ $rc -ne 0 ]; then
         ocf_log err "Asterisk PBX couldn't be stopped"
@@ -386,7 +386,7 @@ asterisk_stop() {
     asterisk_status
     if [ $? != $OCF_NOT_RUNNING ]; then
 	ocf_log info "Asterisk PBX failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL ..."
-	/bin/kill -KILL $pid > /dev/null
+	ocf_run kill -s KILL $pid
     fi
 
     ocf_log info "Asterisk PBX stopped";
