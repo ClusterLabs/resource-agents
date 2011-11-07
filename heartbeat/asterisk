@@ -190,7 +190,18 @@ if [ -f "$OCF_RESKEY_config" ]; then
 fi
 
 #######################################################################
+# Convenience functions
 
+asterisk_rx() {
+        # if $HOME is set, asterisk -rx writes a .asterisk_history there
+        (
+                unset HOME
+                ocf_run $OCF_RESKEY_binary -r -s $ASTRUNDIR/asterisk.ctl -x "$1"
+        )
+	return $?
+}
+
+#######################################################################
 # Functions invoked by resource manager actions
 
 asterisk_validate() {
@@ -248,14 +259,10 @@ asterisk_monitor() {
 	return $rc
     fi
 
-    local asterisk_options
-    asterisk_options="-r -vvv -x 'core show uptime'"
-
     # Check whether connecting to asterisk is possible
-    ocf_run $ASTERISK $asterisk_options 
-    rc=$?
+    asterisk_rx 'core show uptime'
 
-    if [ $rc -ne 0 ]; then
+    if [ $? -ne 0 ]; then
       ocf_log err "Failed to connect to the Asterisk PBX";
       return $OCF_ERR_GENERIC;
     fi
