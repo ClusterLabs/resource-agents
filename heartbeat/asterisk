@@ -166,9 +166,9 @@ a time. Helps to fix the 'Too many open files' error message.
 </parameters>
 
 <actions>
-<action name="start" timeout="15" />
-<action name="stop" timeout="15" />
-<action name="status" timeout="15" />
+<action name="start" timeout="20" />
+<action name="stop" timeout="20" />
+<action name="status" timeout="20" />
 <action name="monitor" timeout="30" interval="20" />
 <action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
