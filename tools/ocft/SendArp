@@ -1,7 +1,8 @@
 # SendArp
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent SendArp
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage resource-agents
 	HangTimeout 15
 

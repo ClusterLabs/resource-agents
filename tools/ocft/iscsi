@@ -1,7 +1,8 @@
 # iscsi
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent iscsi
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage open-iscsi
 	InstallPackage iscsitarget
 	HangTimeout 20

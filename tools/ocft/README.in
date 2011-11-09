@@ -50,6 +50,10 @@ HOW TO WRITE CONFIGURATION FILE
   - Grammar: CONFIG
   - The design in this option is global and influences every test case.
 
+    ** 'Agent' (sub-option)
+      - Grammar: Agent AGENT_NAME
+      - The agent name you want to test.
+
     ** 'AgentRoot' (sub-option)
       - Grammar: AgentRoot /usr/lib/ocf/resource.d/xxx
       - A few agents will go to "linbit" or "pacemaker" directory, if you define this option,

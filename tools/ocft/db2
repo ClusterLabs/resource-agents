@@ -30,6 +30,8 @@
 # In order to install a real cluster refer to http://www.linux-ha.org/wiki/db2_(resource_agent)
 
 CONFIG
+	Agent db2
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
         HangTimeout 40
 
 SETUP-AGENT

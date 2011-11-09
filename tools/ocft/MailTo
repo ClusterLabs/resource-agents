@@ -1,7 +1,8 @@
 # MailTo
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent MailTo
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage mailx
 	HangTimeout 20
 

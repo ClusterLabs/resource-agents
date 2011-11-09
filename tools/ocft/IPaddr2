@@ -1,7 +1,8 @@
 # IPaddr2
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent IPaddr2
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage iproute2
 	HangTimeout 20
 

@@ -1,4 +1,6 @@
 0.43:
+	- Add an option 'Agent' in 'CONFIG'
+	- Fix a bug about remote shell.
 	- Add top level option 'VARIABLE'.
 	- Add top level option 'CLEANUP-AGENT'.
 	- Rename Var & Unvar to Env & Unenv.
@@ -34,7 +36,8 @@
 	- Use 127.0.0.x(and lo for interface) for agents IP*
 0.4:
 	- Add a 'CASE-BLOCK' top option, it can be included by 'CASE'
-	- Add a 'SETUP-AGENT' top option, you can initialize agents before testing.  - Add a 'Include' sub-option.
+	- Add a 'SETUP-AGENT' top option, you can initialize agents before testing.  
+	- Add a 'Include' sub-option.
 	- Add a 'Unvar' sub-option.
 	- Rename 'GLOBAL' to 'CONFIG'.
 	- Modify a part of syntax.
