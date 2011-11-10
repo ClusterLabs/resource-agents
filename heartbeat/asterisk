@@ -279,17 +279,14 @@ asterisk_start() {
     fi
 
     for i in $ASTRUNDIR $ASTLOGDIR $ASTLOGDIR/cdr-csv $ASTLOGDIR/cdr-custom; do
-	[ -d $dir ] || install -d -o $OCF_RESKEY_user -g $OCF_RESKEY_group $i
+	if [ ! -d "$i" ]; then
+	    ocf_run install -d -o $OCF_RESKEY_user -g $OCF_RESKEY_group $i \
+		|| exit $OCF_ERR_GENERIC
+	fi
     done
 
     # set MAXFILES
     ulimit -n $OCF_RESKEY_maxfiles
-
-    if [ ! -d $ASTRUNDIR ] ; then
-	ocf_log info "Creating PID dir: $ASTRUNDIR"
-	mkdir -p $ASTRUNDIR
-	chown $OCF_RESKEY_user:$OCF_RESKEY_group $ASTRUNDIR
-    fi
 
     # Determine whether Asterisk PBX is supposed to run in Realtime mode
     # or not and make asterisk daemonize automatically
