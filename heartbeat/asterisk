@@ -344,7 +344,7 @@ asterisk_start() {
     rc=$?
     if [ $rc -ne 0 ]; then
 	ocf_log err "Asterisk PBX start command failed: $rc"
-  	return $rc
+  	exit $OCF_ERR_GENERIC
     fi
 
     # Spin waiting for the server to come up.
@@ -354,8 +354,8 @@ asterisk_start() {
 	rc=$?
 	[ $rc -eq $OCF_SUCCESS ] && break
 	if [ $rc -ne $OCF_NOT_RUNNING ]; then
-	    ocf_log info "Asterisk PBX start failed: $rc"
-	    return $OCF_ERR_GENERIC
+	    ocf_log err "Asterisk PBX start failed"
+	    exit $OCF_ERR_GENERIC
 	fi
         sleep 2
     done
@@ -392,7 +392,7 @@ asterisk_stop() {
     rc=$?
     if [ $rc -ne 0 ]; then
         ocf_log err "Asterisk PBX couldn't be stopped"
-	return $OCF_ERR_GENERIC
+	exit $OCF_ERR_GENERIC
     fi
 
     # stop waiting
