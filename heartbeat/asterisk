@@ -229,6 +229,7 @@ asterisk_validate() {
 }
 
 asterisk_status() {
+	local pid
 
 	if [ ! -f $ASTRUNDIR/asterisk.pid ]; then
 		ocf_log info "Asterisk PBX is not running"
@@ -335,6 +336,7 @@ asterisk_start() {
 
 asterisk_stop() {
     local pid
+    local astcanary_pid
 
     asterisk_status
     if [ $? -eq $OCF_NOT_RUNNING ]; then
