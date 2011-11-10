@@ -266,7 +266,7 @@ asterisk_monitor() {
       return $OCF_ERR_GENERIC
     fi
 
-    ocf_log info "Asterisk PBX monitor succeeded"
+    ocf_log debug "Asterisk PBX monitor succeeded"
     return $OCF_SUCCESS
 }
 
