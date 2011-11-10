@@ -205,6 +205,8 @@ asterisk_rx() {
 # Functions invoked by resource manager actions
 
 asterisk_validate() {
+    local rc
+
     check_binary $OCF_RESKEY_binary
     check_binary pgrep
 
@@ -214,13 +216,15 @@ asterisk_validate() {
     fi
 
     getent passwd $OCF_RESKEY_user >/dev/null 2>&1
-    if [ $? -ne 0 ]; then
+    rc=$?
+    if [ $rc -ne 0 ]; then
 	ocf_log err "User $OCF_RESKEY_user doesn't exist"
 	return $OCF_ERR_INSTALLED
     fi
 
     getent group $OCF_RESKEY_group >/dev/null 2>&1
-    if [ $? -ne 0 ]; then
+    rc=$?
+    if [ $rc -ne 0 ]; then
 	ocf_log err "Group $OCF_RESKEY_group doesn't exist"
 	return $OCF_ERR_INSTALLED
     fi
@@ -230,6 +234,7 @@ asterisk_validate() {
 
 asterisk_status() {
 	local pid
+	local rc
 
 	if [ ! -f $ASTRUNDIR/asterisk.pid ]; then
 		ocf_log info "Asterisk PBX is not running"
@@ -238,8 +243,9 @@ asterisk_status() {
 
 	pid=`cat $ASTRUNDIR/asterisk.pid`
 	ocf_run kill -s 0 $pid
+	rc=$?
 
-	if [ $? -eq 0 ]; then
+	if [ $rc -eq 0 ]; then
 	  if ocf_is_true "$OCF_RESKEY_realtime"; then
 	    astcanary_pid=`pgrep -d " " -x -f "astcanary $ASTRUNDIR/alt.asterisk.canary.tweet.tweet.tweet"`
 	    if [ ! "$astcanary_pid" ]; then
@@ -257,8 +263,8 @@ asterisk_status() {
 }
 
 asterisk_monitor() {
-
     local rc
+
     asterisk_status
     rc=$?
 
@@ -269,8 +275,9 @@ asterisk_monitor() {
 
     # Check whether connecting to asterisk is possible
     asterisk_rx 'core show uptime'
+    rc=$?
 
-    if [ $? -ne 0 ]; then
+    if [ $rc -ne 0 ]; then
       ocf_log err "Failed to connect to the Asterisk PBX"
       return $OCF_ERR_GENERIC
     fi
@@ -285,7 +292,8 @@ asterisk_start() {
     local rc
 
     asterisk_status
-    if [ $? -eq $OCF_SUCCESS ]; then
+    rc=$?
+    if [ $rc -eq $OCF_SUCCESS ]; then
 	ocf_log info "Asterisk PBX already running"
 	return $OCF_SUCCESS
     fi
@@ -333,10 +341,10 @@ asterisk_start() {
 		-C $OCF_RESKEY_config \
                 $OCF_RESKEY_additional_parameters \
                 $asterisk_extra_params
-
-    if [ $? -ne 0 ]; then
-	ocf_log err "Asterisk PBX start command failed: $?"
-  	return $?
+    rc=$?
+    if [ $rc -ne 0 ]; then
+	ocf_log err "Asterisk PBX start command failed: $rc"
+  	return $rc
     fi
 
     # Spin waiting for the server to come up.
@@ -359,9 +367,11 @@ asterisk_start() {
 asterisk_stop() {
     local pid
     local astcanary_pid
+    local rc
 
     asterisk_status
-    if [ $? -eq $OCF_NOT_RUNNING ]; then
+    rc=$?
+    if [ $rc -eq $OCF_NOT_RUNNING ]; then
 	ocf_log info "Asterisk PBX already stopped"
 	return $OCF_SUCCESS
     fi
@@ -370,7 +380,8 @@ asterisk_stop() {
     asterisk_rx 'core stop now'
 
     asterisk_status
-    if [ $? -eq $OCF_NOT_RUNNING ]; then
+    rc=$?
+    if [ $rc -eq $OCF_NOT_RUNNING ]; then
         ocf_log info "Asterisk PBX stopped"
         return $OCF_SUCCESS
     fi
@@ -378,7 +389,8 @@ asterisk_stop() {
     # If "core stop now" didn't succeed, try SIGTERM
     pid=`cat $ASTRUNDIR/asterisk.pid`
     ocf_run kill -s TERM $pid
-    if [ $? -ne 0 ]; then
+    rc=$?
+    if [ $rc -ne 0 ]; then
         ocf_log err "Asterisk PBX couldn't be stopped"
 	return $OCF_ERR_GENERIC
     fi
@@ -392,7 +404,8 @@ asterisk_stop() {
     while [ $count -lt $shutdown_timeout ]
     do
 	asterisk_status
-	if [ $? -eq $OCF_NOT_RUNNING ]; then
+	rc=$?
+	if [ $rc -eq $OCF_NOT_RUNNING ]; then
 	    break
 	fi
 	count=`expr $count + 1`
@@ -401,7 +414,8 @@ asterisk_stop() {
     done
 
     asterisk_status
-    if [ $? -ne $OCF_NOT_RUNNING ]; then
+    rc=$?
+    if [ $rc -ne $OCF_NOT_RUNNING ]; then
 	# SIGTERM didn't help either, try SIGKILL
 	ocf_log info "Asterisk PBX failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL ..."
 	ocf_run kill -s KILL $pid
