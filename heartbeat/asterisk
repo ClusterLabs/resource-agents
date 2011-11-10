@@ -214,13 +214,13 @@ asterisk_validate() {
     fi
 
     getent passwd $OCF_RESKEY_user >/dev/null 2>&1
-    if [ ! $? -eq 0 ]; then
+    if [ $? -ne 0 ]; then
 	ocf_log err "User $OCF_RESKEY_user doesn't exit"
 	return $OCF_ERR_INSTALLED
     fi
 
     getent group $OCF_RESKEY_group >/dev/null 2>&1
-    if [ ! $? -eq 0 ]; then
+    if [ $? -ne 0 ]; then
 	ocf_log err "Group $OCF_RESKEY_group doesn't exist"
 	return $OCF_ERR_INSTALLED
     fi
