@@ -236,11 +236,7 @@ asterisk_status() {
 	fi
 
 	pid=`cat $ASTRUNDIR/asterisk.pid`
-	if [ -d /proc -a -d /proc/1 ]; then
-		[ "u$pid" != "u" -a -d /proc/$pid ]
-	else
-		ocf_run kill -s 0 $pid
-	fi
+	ocf_run kill -s 0 $pid
 
 	if [ $? -eq 0 ]; then
 	    return $OCF_SUCCESS
