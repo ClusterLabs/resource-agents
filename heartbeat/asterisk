@@ -216,7 +216,7 @@ asterisk_validate() {
 
     getent passwd $OCF_RESKEY_user >/dev/null 2>&1
     if [ $? -ne 0 ]; then
-	ocf_log err "User $OCF_RESKEY_user doesn't exit"
+	ocf_log err "User $OCF_RESKEY_user doesn't exist"
 	return $OCF_ERR_INSTALLED
     fi
 
