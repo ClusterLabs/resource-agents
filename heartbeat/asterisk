@@ -271,6 +271,9 @@ asterisk_monitor() {
 }
 
 asterisk_start() {
+    local asterisk_extra_params
+    local dir
+    local rc
 
     asterisk_status
     if [ $? -eq $OCF_SUCCESS ]; then
@@ -278,10 +281,17 @@ asterisk_start() {
 	return $OCF_SUCCESS
     fi
 
-    for i in $ASTRUNDIR $ASTLOGDIR $ASTLOGDIR/cdr-csv $ASTLOGDIR/cdr-custom; do
-	if [ ! -d "$i" ]; then
-	    ocf_run install -d -o $OCF_RESKEY_user -g $OCF_RESKEY_group $i \
+    for dir in $ASTRUNDIR $ASTLOGDIR $ASTLOGDIR/cdr-csv $ASTLOGDIR/cdr-custom; do
+	if [ ! -d "$dir" ]; then
+	    ocf_run install -d -o $OCF_RESKEY_user -g $OCF_RESKEY_group $dir \
 		|| exit $OCF_ERR_GENERIC
+	fi
+        # Regardless of whether we just created the directory or it
+        # already existed, check whether it is writable by the configured
+        # user
+	if ! su -s /bin/sh - $OCF_RESKEY_user -c "test -w $dir"; then
+	    ocf_log err "Directory $dir is not writable by $OCF_RESKEY_user"
+	    exit $OCF_ERR_PERM
 	fi
     done
 
@@ -290,22 +300,11 @@ asterisk_start() {
 
     # Determine whether Asterisk PBX is supposed to run in Realtime mode
     # or not and make asterisk daemonize automatically
-    local asterisk_extra_params
     if ocf_is_true "$OCF_RESKEY_realtime"; then
       asterisk_extra_params="-F -p"
     else
       asterisk_extra_params="-F"
     fi
-
-    # Regardless of whether we just created the directory or it
-    # already existed, check whether it is writable by the configured
-    # user
-    for dir in $pid_dir; do
-	if ! su -s /bin/sh - $OCF_RESKEY_user -c "test -w $dir"; then
-	    ocf_log err "Directory $dir is not writable by $OCF_RESKEY_user"
-	    exit $OCF_ERR_PERM
-	fi
-    done
 
     ocf_run ${OCF_RESKEY_binary} -G $OCF_RESKEY_group -U $OCF_RESKEY_user \
 		-C $OCF_RESKEY_config \
@@ -319,29 +318,17 @@ asterisk_start() {
 
     # Spin waiting for the server to come up.
     # Let the CRM/LRM time us out if required
-    start_wait=1
-    while [ $start_wait = 1 ]; do
-	local rc
-	asterisk_status
+    while true; do
+	asterisk_monitor
 	rc=$?
-	if [ $rc -eq $OCF_SUCCESS ]; then
-	    start_wait=0
-	elif [ $rc -ne $OCF_NOT_RUNNING ]; then
+	[ $rc -eq $OCF_SUCCESS ] && break
+	if [ $rc -ne $OCF_NOT_RUNNING ]; then
 	    ocf_log info "Asterisk PBX start failed: $rc"
-	    return $rc
+	    return $OCF_ERR_GENERIC
 	fi
         sleep 2
     done
 
-    local rc
-    asterisk_monitor
-    rc=$?
-
-    if [ $rc -ne $OCF_SUCCESS ]; then
-	ocf_log err "Failed initial monitor action"
-	return $rc
-    fi
-    
     ocf_log info "Asterisk PBX started"
     return $OCF_SUCCESS
 }
