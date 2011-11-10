@@ -199,7 +199,6 @@ asterisk_rx() {
                 unset HOME
                 ocf_run $OCF_RESKEY_binary -r -s $ASTRUNDIR/asterisk.ctl -x "$1"
         )
-	return $?
 }
 
 #######################################################################
