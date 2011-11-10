@@ -207,6 +207,7 @@ asterisk_rx() {
 
 asterisk_validate() {
     check_binary $OCF_RESKEY_binary
+    check_binary pgrep
 
     if [ ! -f $OCF_RESKEY_config ]; then
 	ocf_log err "Config $OCF_RESKEY_config doesn't exist"
@@ -240,7 +241,15 @@ asterisk_status() {
 	ocf_run kill -s 0 $pid
 
 	if [ $? -eq 0 ]; then
+	  if ocf_is_true "$OCF_RESKEY_realtime"; then
+	    astcanary_pid=`pgrep -d " " -x -f "astcanary $ASTRUNDIR/alt.asterisk.canary.tweet.tweet.tweet"`
+	    if [ ! "$astcanary_pid" ]; then
+	      ocf_log err "Asterisk PBX is running but astcanary is not although it should"
+	      return $OCF_ERR_GENERIC
+	    fi
+	  else
 	    return $OCF_SUCCESS
+	  fi
 	else
 	    ocf_log info "Asterisk PBX not running: removing old PID file"
 	    rm -f $ASTRUNDIR/asterisk.pid
@@ -280,6 +289,20 @@ asterisk_start() {
     if [ $? -eq $OCF_SUCCESS ]; then
 	ocf_log info "Asterisk PBX already running"
 	return $OCF_SUCCESS
+    fi
+
+    # If Asterisk is not already running, make sure there is no
+    # old astcanary instance when the new asterisk starts. To
+    # achieve this, kill old astcanary instances belonging to
+    # this $ASTRUNDIR. 
+
+    # Find out PIDs of running astcanaries
+    astcanary_pid=`pgrep -d " " -x -f "astcanary $ASTRUNDIR/alt.asterisk.canary.tweet.tweet.tweet"`
+
+    # If there are astcanaries running that belong to $ASTRUNDIR,
+    # kill them.
+    if [ "$astcanary_pid" ]; then
+      for i in $astcanary_pid; do ocf_run kill -s KILL $astcanary_pid; done
     fi
 
     for dir in $ASTRUNDIR $ASTLOGDIR $ASTLOGDIR/cdr-csv $ASTLOGDIR/cdr-custom; do
@@ -386,10 +409,11 @@ asterisk_stop() {
     fi
 
     # After killing asterisk, stop astcanary
-    if [ $OCF_RESKEY_realtime = "yes" ]
-    then
-      astcanary_pid=`pidof $OCF_RESKEY_canary_binary`
-      ocf_run kill -s KILL $astcanary_pid
+    if ocf_is_true "$OCF_RESKEY_realtime"; then
+      astcanary_pid=`pgrep -d " " -x -f "astcanary $ASTRUNDIR/alt.asterisk.canary.tweet.tweet.tweet"`
+      if [ "$astcanary_pid" ]; then
+        for i in $astcanary_pid; do ocf_run kill -s KILL $astcanary_pid; done
+      fi
     fi
 
     ocf_log info "Asterisk PBX stopped"
