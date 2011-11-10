@@ -160,6 +160,13 @@ EOF
 open_iscsi_daemon() {
 	if ps -e -o cmd | grep -qs '[i]scsid'; then
 		return 0
+	elif grep -qs '^iscsid.startup' /etc/iscsi/iscsid.conf; then
+		# apparently on RedHat (perhaps elsewhere?), there is a
+		# kind of iscsid autostart once root invokes some
+		# open_iscsi command; the iscsid.startup hook should take
+		# care of it; reported by m.richardson@ed.ac.uk (see also
+		# the discussion at the linux-ha-dev ML)
+		return 0
 	else
 		ocf_log err "iscsid not running; please start open-iscsi utilities"
 		return 1
