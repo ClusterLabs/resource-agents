@@ -334,9 +334,9 @@ asterisk_start() {
 }
 
 asterisk_stop() {
+    local pid
 
     asterisk_status
-
     if [ $? -eq $OCF_NOT_RUNNING ]; then
 	ocf_log info "Asterisk PBX already stopped"
 	return $OCF_SUCCESS
@@ -346,15 +346,14 @@ asterisk_stop() {
     asterisk_rx 'core stop now'
 
     asterisk_status
-
     if [ $? -eq $OCF_NOT_RUNNING ]; then
         ocf_log info "Asterisk PBX stopped"
         return $OCF_SUCCESS
     fi
 
-    # If the beast is still alive, kill it now 
-    pid=`cat $ASTRUNDIR/asterisk.pid 2> /dev/null `
-	ocf_run kill -s TERM $pid
+    # If "core stop now" didn't succeed, try SIGTERM
+    pid=`cat $ASTRUNDIR/asterisk.pid`
+    ocf_run kill -s TERM $pid
     if [ $? -ne 0 ]; then
         ocf_log err "Asterisk PBX couldn't be stopped"
 	return $OCF_ERR_GENERIC
@@ -378,9 +377,8 @@ asterisk_stop() {
     done
 
     asterisk_status
-
     if [ $? -ne $OCF_NOT_RUNNING ]; then
-	# still there, eh? Okay, let's burn it to a crisp
+	# SIGTERM didn't help either, try SIGKILL
 	ocf_log info "Asterisk PBX failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL ..."
 	ocf_run kill -s KILL $pid
     fi
