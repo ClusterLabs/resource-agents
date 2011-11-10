@@ -209,20 +209,20 @@ asterisk_validate() {
     check_binary $OCF_RESKEY_binary
 
     if [ ! -f $OCF_RESKEY_config ]; then
-	ocf_log err "Config $OCF_RESKEY_config doesn't exist";
-	return $OCF_ERR_INSTALLED;
+	ocf_log err "Config $OCF_RESKEY_config doesn't exist"
+	return $OCF_ERR_INSTALLED
     fi
 
     getent passwd $OCF_RESKEY_user >/dev/null 2>&1
     if [ ! $? -eq 0 ]; then
-	ocf_log err "User $OCF_RESKEY_user doesn't exit";
-	return $OCF_ERR_INSTALLED;
+	ocf_log err "User $OCF_RESKEY_user doesn't exit"
+	return $OCF_ERR_INSTALLED
     fi
 
     getent group $OCF_RESKEY_group >/dev/null 2>&1
     if [ ! $? -eq 0 ]; then
-	ocf_log err "Group $OCF_RESKEY_group doesn't exist";
-	return $OCF_ERR_INSTALLED;
+	ocf_log err "Group $OCF_RESKEY_group doesn't exist"
+	return $OCF_ERR_INSTALLED
     fi
 
     true
@@ -232,10 +232,10 @@ asterisk_status() {
 
 	if [ ! -f $ASTRUNDIR/asterisk.pid ]; then
 		ocf_log info "Asterisk PBX is not running"
-		return $OCF_NOT_RUNNING;
+		return $OCF_NOT_RUNNING
 	fi
 
-	pid=`cat $ASTRUNDIR/asterisk.pid`;
+	pid=`cat $ASTRUNDIR/asterisk.pid`
 	if [ -d /proc -a -d /proc/1 ]; then
 		[ "u$pid" != "u" -a -d /proc/$pid ]
 	else
@@ -243,11 +243,11 @@ asterisk_status() {
 	fi
 
 	if [ $? -eq 0 ]; then
-	    return $OCF_SUCCESS;
+	    return $OCF_SUCCESS
 	else
 	    ocf_log info "Asterisk PBX not running: removing old PID file"
 	    rm -f $ASTRUNDIR/asterisk.pid
-	    return $OCF_NOT_RUNNING;
+	    return $OCF_NOT_RUNNING
 	fi
 }
 
@@ -266,11 +266,11 @@ asterisk_monitor() {
     asterisk_rx 'core show uptime'
 
     if [ $? -ne 0 ]; then
-      ocf_log err "Failed to connect to the Asterisk PBX";
-      return $OCF_ERR_GENERIC;
+      ocf_log err "Failed to connect to the Asterisk PBX"
+      return $OCF_ERR_GENERIC
     fi
 
-    ocf_log info "Asterisk PBX monitor succeeded";
+    ocf_log info "Asterisk PBX monitor succeeded"
     return $OCF_SUCCESS
 }
 
@@ -310,7 +310,7 @@ asterisk_start() {
     for dir in $pid_dir; do
 	if ! su -s /bin/sh - $OCF_RESKEY_user -c "test -w $dir"; then
 	    ocf_log err "Directory $dir is not writable by $OCF_RESKEY_user"
-	    exit $OCF_ERR_PERM;
+	    exit $OCF_ERR_PERM
 	fi
     done
 
@@ -406,13 +406,13 @@ asterisk_stop() {
     fi
 
     # After killing asterisk, stop astcanary
-    if [ $OCF_RESKEY_realtime = "yes" ];
+    if [ $OCF_RESKEY_realtime = "yes" ]
     then
       astcanary_pid=`pidof $OCF_RESKEY_canary_binary`
       ocf_run kill -s KILL $astcanary_pid
     fi
 
-    ocf_log info "Asterisk PBX stopped";
+    ocf_log info "Asterisk PBX stopped"
     return $OCF_SUCCESS
 }
 
