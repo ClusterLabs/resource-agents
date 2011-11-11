@@ -277,7 +277,7 @@ asterisk_monitor() {
     fi
 
     # Check whether connecting to asterisk is possible
-    asterisk_rx 'core show uptime'
+    asterisk_rx 'core show channels count'
     rc=$?
 
     if [ $rc -ne 0 ]; then
