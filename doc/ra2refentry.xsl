@@ -175,6 +175,17 @@
      <xsl:apply-templates mode="longdesc"/>
   </xsl:template>
 
+  <xsl:template match="actions" mode="description">
+    <xsl:if test="action[@name = 'migrate_from' or @name = 'migrate_to']">
+      <para>This resource agent may be configured for <emphasis>native
+      migration</emphasis> if available in the cluster manager. For
+      Pacemaker, the
+      <parameter>allow-migrate=&quot;true&quot;</parameter> meta
+      attribute enables native migration.</para>
+    </xsl:if>
+    <xsl:apply-templates mode="longdesc"/>
+  </xsl:template>
+
   <!-- Mode Parameters -->
   <xsl:template match="resource-agent" mode="parameters">
     <refsection>
