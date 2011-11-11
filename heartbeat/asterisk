@@ -181,7 +181,6 @@ END
 #######################################################################
 # Convenience variables
 
-ASTERISK=$OCF_RESKEY_binary
 if [ -f "$OCF_RESKEY_config" ]; then
   ASTRUNDIR=`grep astrundir $OCF_RESKEY_config | awk '/^astrundir/ {print $3}'`
 fi
