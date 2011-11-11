@@ -400,7 +400,7 @@
 	</xsl:choose>
 	<!-- Insert a suggested allow-migrate meta attribute if the
 	     resource agent supports migration -->
-	<xsl:if test="actions/action/@name = 'migrate_from' or actions/action/@name = 'migrate_to'">
+	<xsl:if test="actions/action[@name = 'migrate_from' or @name = 'migrate_to']">
 	  <xsl:text>
   meta allow-migrate="true" \</xsl:text>
 	</xsl:if>
