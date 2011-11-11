@@ -264,6 +264,10 @@
 	      <xsl:value-of select="@default"/>
 	    </code>
 	  </xsl:when>
+	  <xsl:when test="@type='boolean' and @default = ''">
+	    <xsl:text>default </xsl:text>
+	    <code>false</code>
+	  </xsl:when>
 	  <xsl:otherwise>
 	    <xsl:text>no default</xsl:text>
 	  </xsl:otherwise>
