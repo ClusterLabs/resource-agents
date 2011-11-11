@@ -54,7 +54,7 @@ VZCTL=/usr/sbin/vzctl
 usage()
 {
 	cat <<-EOF
-	usage: $0 {start|stop|status|monitor|validate-all|usage|meta-data}
+	usage: $0 {start|stop|status|monitor|migrate_from|migrate_to|validate-all|usage|meta-data}
 	EOF
 }
 
