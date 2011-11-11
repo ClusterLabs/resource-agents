@@ -179,17 +179,6 @@ END
 }
 
 #######################################################################
-# Convenience variables
-
-if [ -f "$OCF_RESKEY_config" ]; then
-  ASTRUNDIR=`grep astrundir $OCF_RESKEY_config | awk '/^astrundir/ {print $3}'`
-fi
-
-if [ -f "$OCF_RESKEY_config" ]; then
-  ASTLOGDIR=`grep astlogdir $OCF_RESKEY_config | awk '/^astlogdir/ {print $3}'`
-fi
-
-#######################################################################
 # Convenience functions
 
 asterisk_rx() {
@@ -441,8 +430,14 @@ case "$1" in
 		exit $OCF_SUCCESS;;
 esac
 
+
 # Anything except meta-data and help must pass validation
 asterisk_validate || exit $?
+
+# Now that validate has passed and we can be sure to be able to read
+# the config file, set convenience variables
+ASTRUNDIR=`grep astrundir $OCF_RESKEY_config | awk '/^astrundir/ {print $3}'`
+ASTLOGDIR=`grep astlogdir $OCF_RESKEY_config | awk '/^astlogdir/ {print $3}'`
 
 # What kind of method was invoked?
 case "$1" in
