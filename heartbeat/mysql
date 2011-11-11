@@ -241,7 +241,7 @@ MySQL test user password
 If the MySQL database does not exist, it will be created
 </longdesc>
 <shortdesc lang="en">Create the database if it does not exist</shortdesc>
-<content type="integer" default="${OCF_RESKEY_enable_creation_default}"/>
+<content type="boolean" default="${OCF_RESKEY_enable_creation_default}"/>
 </parameter>
 
 <parameter name="additional_parameters" unique="0" required="0">
