@@ -164,6 +164,17 @@ a time. Helps to fix the 'Too many open files' error message.
 <content type="integer" default="${OCF_RESKEY_maxfiles_default}" />
 </parameter>
 
+<parameter name="monitor_sipuri" unique="0" required="0">
+<longdesc lang="en">
+A SIP URI to check when monitoring. During monitor, the agent will
+attempt to do a SIP OPTIONS request against this URI.
+Requires the sipsak utility to be present and executable.
+If unset, the agent does no SIP URI monitoring.
+</longdesc>
+<shortdesc lang="en">SIP URI to check when monitoring</shortdesc>
+<content type="string" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -197,6 +208,10 @@ asterisk_validate() {
 
     check_binary $OCF_RESKEY_binary
     check_binary pgrep
+
+    if [ -n "OCF_RESKEY_monitor_sipuri" ]; then
+	check_binary sipsak
+    fi
 
     if [ ! -f $OCF_RESKEY_config ]; then
 	ocf_log err "Config $OCF_RESKEY_config doesn't exist"
@@ -268,6 +283,12 @@ asterisk_monitor() {
     if [ $rc -ne 0 ]; then
       ocf_log err "Failed to connect to the Asterisk PBX"
       return $OCF_ERR_GENERIC
+    fi
+
+    # Optionally check the monitor URI with sipsak
+    if [ -n "OCF_RESKEY_monitor_sipuri" ]; then
+	ocf_run sipsak -v -s "$OCF_RESKEY_monitor_sipuri" \
+	    || return $OCF_ERR_GENERIC
     fi
 
     ocf_log debug "Asterisk PBX monitor succeeded"
