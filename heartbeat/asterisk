@@ -209,7 +209,7 @@ asterisk_validate() {
     check_binary $OCF_RESKEY_binary
     check_binary pgrep
 
-    if [ -n "OCF_RESKEY_monitor_sipuri" ]; then
+    if [ -n "$OCF_RESKEY_monitor_sipuri" ]; then
         check_binary sipsak
     fi
 
@@ -286,7 +286,7 @@ asterisk_monitor() {
     fi
 
     # Optionally check the monitor URI with sipsak
-    if [ -n "OCF_RESKEY_monitor_sipuri" ]; then
+    if [ -n "$OCF_RESKEY_monitor_sipuri" ]; then
         ocf_run sipsak -v -s "$OCF_RESKEY_monitor_sipuri" \
             || return $OCF_ERR_GENERIC
     fi
