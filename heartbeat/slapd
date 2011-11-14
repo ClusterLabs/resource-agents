@@ -429,23 +429,25 @@ slapd_monitor()
     options="$options -D '$bind_dn' -w '$password'"
   fi
 
-  for suffix in $suffixes; do
-    ocf_run -q "$ldapsearch" -H "$services" -b "$suffix" $options >/dev/null 2>&1; result=$?
-
-    case "$result" in
-      "0")
-        ocf_log debug "slapd database with suffix '$suffix' reachable"
-        ;;
-      "49")
-        ocf_log err "slapd database with suffix '$suffix' unreachable. Invalid credentials."
-        return $OCF_ERR_CONFIGURED
-        ;;
-      *)
-        ocf_log err "slapd database with suffix '$suffix' unreachable."
-        state=$OCF_ERR_GENERIC
-        ;;
-    esac
-  done
+  if [ -n "$OCF_RESKEY_watch_suffix" ]; then
+    for suffix in $suffixes; do
+      ocf_run -q "$ldapsearch" -H "$services" -b "$suffix" $options >/dev/null 2>&1; result=$?
+  
+      case "$result" in
+        "0")
+          ocf_log debug "slapd database with suffix '$suffix' reachable"
+          ;;
+        "49")
+          ocf_log err "slapd database with suffix '$suffix' unreachable. Invalid credentials."
+          return $OCF_ERR_CONFIGURED
+          ;;
+        *)
+          ocf_log err "slapd database with suffix '$suffix' unreachable."
+          state=$OCF_ERR_GENERIC
+          ;;
+      esac
+    done
+  fi
 
   return $state
 }
