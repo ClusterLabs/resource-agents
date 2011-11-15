@@ -110,8 +110,8 @@ start_jboss()
 			>> "$CONSOLE" 2>&1 &
 	else
 		su - -s /bin/bash "$JBOSS_USER" \
-			-c "export JAVA_HOME=${JAVA_HOME};\n
-                            export JBOSS_HOME=${JBOSS_HOME};\n
+			-c "export JAVA_HOME=${JAVA_HOME}; \
+                            export JBOSS_HOME=${JBOSS_HOME}; \
                             $JBOSS_HOME/bin/run.sh $RUN_OPTS" \
 			>> "$CONSOLE" 2>&1 &
 	fi
@@ -137,8 +137,8 @@ stop_jboss()
 			>> "$CONSOLE" 2>&1 &
 	else
 		su - -s /bin/bash "$JBOSS_USER" \
-			-c "export JAVA_HOME=${JAVA_HOME};\n
-                            export JBOSS_HOME=${JBOSS_HOME};\n
+			-c "export JAVA_HOME=${JAVA_HOME}; \
+                            export JBOSS_HOME=${JBOSS_HOME}; \
                             $JBOSS_HOME/bin/shutdown.sh $SHUTDOWN_OPTS -S" \
 			>> "$CONSOLE" 2>&1 &
 
