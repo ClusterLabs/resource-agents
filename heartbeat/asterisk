@@ -297,7 +297,7 @@ asterisk_monitor() {
     #   This can also happen if sipsak is run too early after asterisk
     #   start.
     if [ -n "$OCF_RESKEY_monitor_sipuri" ]; then
-        ocf_run sipsak -v -s "$OCF_RESKEY_monitor_sipuri"
+        ocf_run sipsak -s "$OCF_RESKEY_monitor_sipuri"
         rc=$?
         case "$rc" in
           1|2) return $OCF_ERR_GENERIC;;
