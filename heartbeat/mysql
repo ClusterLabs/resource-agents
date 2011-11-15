@@ -3,7 +3,7 @@
 #
 # MySQL
 #
-# Description:  Manages a MySQL database as Linux-HA resource
+# Description:	Manages a MySQL instance as Linux-HA resource
 #
 # Authors:  Alan Robertson:               DB2 Script
 #           Jakub Janczak:                rewrite as MySQL
@@ -11,6 +11,7 @@
 #           Sebastian Reitenbach:         add OpenBSD defaults, more cleanup
 #           Narayan Newton:               add Gentoo/Debian defaults
 #           Marian Marinov, Florian Haas: add replication capability
+#           Lars Fronius                  add Galera-wsrep support
 #
 # Support:  linux-ha@lists.linux-ha.org
 # License:  GNU General Public License (GPL)
@@ -38,6 +39,7 @@
 #   OCF_RESKEY_log
 #   OCF_RESKEY_pid
 #   OCF_RESKEY_socket
+#   OCF_RESKEY_replication_mechanism
 #######################################################################
 # Initialization:
 
@@ -74,6 +76,7 @@ OCF_RESKEY_test_passwd_default=""
 OCF_RESKEY_enable_creation_default=0
 OCF_RESKEY_additional_parameters_default=""
 OCF_RESKEY_replication_port_default="3306"
+OCF_RESKEY_replication_mechanism_default="mysqlrepl"
 OCF_RESKEY_max_slave_lag_default="3600"
 OCF_RESKEY_evict_outdated_slaves_default="false"
 
@@ -102,6 +105,7 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 : ${OCF_RESKEY_replication_user=${OCF_RESKEY_replication_user_default}}
 : ${OCF_RESKEY_replication_passwd=${OCF_RESKEY_replication_passwd_default}}
 : ${OCF_RESKEY_replication_port=${OCF_RESKEY_replication_port_default}}
+: ${OCF_RESKEY_replication_mechanism=${OCF_RESKEY_replication_mechanism_default}}
 
 : ${OCF_RESKEY_max_slave_lag=${OCF_RESKEY_max_slave_lag_default}}
 : ${OCF_RESKEY_evict_outdated_slaves=${OCF_RESKEY_evict_outdated_slaves_default}}
@@ -281,6 +285,16 @@ The port on which the Master MySQL instance is listening.
 <content type="string" default="${OCF_RESKEY_replication_port_default}" />
 </parameter>
 
+<parameter name="replication_mechanism" unique="0" required="0">
+<longdesc lang="en">
+The replication mechanism mysql uses. Might be 'mysqlrepl' if default 
+mysql replication is used or 'wsrep' if galera-synchronous-replication
+is used.
+</longdesc>
+<shortdesc lang="en">MySQL replication mechanism (mysqlrepl|wsrep)</shortdesc>
+<content type="string" default="${OCF_RESKEY_replication_port_default}" />
+</parameter>
+
 <parameter name="max_slave_lag" unique="0" required="0">
 <longdesc lang="en">
 The maximum number of seconds a replication slave is allowed to lag
@@ -395,23 +409,38 @@ is_slave() {
     if ! ocf_is_ms || ! get_read_only; then
         return 1;
     fi
-
-    tmpfile=`mktemp ${HA_RSCTMP}/is_slave.${OCF_RESOURCE_INSTANCE}.XXXXXX`
-
-    mysql_options="$MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL"
-
-    $MYSQL $mysql_options \
-        -e 'SHOW SLAVE STATUS\G' > $tmpfile
-
-    # "SHOW SLAVE STATUS" returns an empty set if instance is not a
-    # replication slave
-    if [ -s $tmpfile ]; then
-        rm -f $tmpfile
-        return 0
-    fi
-
-    rm -f $tmpfile
-    return 1
+    
+    case $OCF_RESKEY_replication_mechanism in 
+        'mysqlrepl'|* )
+            tmpfile=`mktemp ${HA_RSCTMP}/is_slave.${OCF_RESOURCE_INSTANCE}.XXXXXX`
+        
+            mysql_options="$MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL"
+        
+            $MYSQL $mysql_options \
+                -e 'SHOW SLAVE STATUS\G' > $tmpfile
+        
+            # "SHOW SLAVE STATUS" returns an empty set if instance is not a
+            # replication slave
+            if [ -s $tmpfile ]; then
+                rm -f $tmpfile
+                return 0
+            fi
+        
+            rm -f $tmpfile
+            return 1
+        ;;
+        'wsrep' )
+            mysql_options="$MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL"
+ 
+            wsrep_local_state = "$MYSQL $mysql_options \
+                -sse \"SHOW STATUS LIKE 'wsrep_local_state';\" | awk '{print $2}'"
+            if [ $wsrep_local_state -eq 4 ]; then
+                return 0
+            else 
+                return 1
+            fi
+        ;;
+    esac    
 }
 
 parse_slave_info() {
