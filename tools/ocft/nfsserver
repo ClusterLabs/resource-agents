@@ -1,7 +1,8 @@
 # nfsserver
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent nfsserver
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage nfs-kernel-server
 	HangTimeout 20
 

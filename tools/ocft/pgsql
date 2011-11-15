@@ -1,7 +1,8 @@
 # pgsql
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent pgsql
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage postgresql-server
         HangTimeout 20
 

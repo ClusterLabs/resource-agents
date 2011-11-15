@@ -4,8 +4,11 @@
 # packages installed.
 
 CONFIG
+	Agent named
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage bind
 	InstallPackage bind-utils
+
 SETUP-AGENT
 	/etc/init.d/named start
 	/etc/init.d/named stop

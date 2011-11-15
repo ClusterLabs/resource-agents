@@ -3,7 +3,8 @@
 # Tue Feb 15 18:50:04 CET 2011
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent Filesystem
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	HangTimeout 20
 
 VARIABLE

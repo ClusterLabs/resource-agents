@@ -1,7 +1,8 @@
 # apache
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent apache
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage apache2
         HangTimeout 20
 

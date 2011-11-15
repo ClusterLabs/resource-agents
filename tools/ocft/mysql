@@ -1,7 +1,8 @@
 # mysql
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent mysql
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage mysql
         HangTimeout 20
 

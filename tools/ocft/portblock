@@ -1,7 +1,8 @@
 # portblock
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent portblock
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage iptables
 	HangTimeout 15
 

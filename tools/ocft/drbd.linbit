@@ -1,0 +1,183 @@
+# linbit: drbd
+
+CONFIG
+	Agent drbd
+	AgentRoot /usr/lib/ocf/resource.d/linbit
+	InstallPackage drbd
+        HangTimeout 20
+
+VARIABLE
+	DRBDCONF=/tmp/ocft_drbd_tmp.conf
+
+        # should be this machine's hostname/ip, please modify it by yourself.
+	NAME_1=HOSTNAME1
+	IP_1=IP_ADDRESS1
+
+        # the block device just for test, please modify it by yourself.
+	DISK_1=/dev/DEVICE1
+
+	PORT_1=5735
+	DEVICE_1=/dev/drbd0
+ 
+        ####################################################################
+
+        # please modify it by yourself.
+	NAME_2=HOSTNAME2
+	IP_2=IP_ADDRESS2
+
+        # the block device just for test, please modify it by yourself.
+	DISK_2=/dev/DEVICE2
+
+	PORT_2=5735
+	DEVICE_2=/dev/drbd0
+
+
+
+SETUP-AGENT
+	cat >$DRBDCONF <<EOF
+	global {
+	   usage-count no;
+	}
+	
+	resource ocft0 {
+	   protocol C;
+	   disk {
+	      on-io-error detach;
+	   }
+	   on $NAME_1 {
+	      device    $DEVICE_1;
+	      address   $IP_1:$PORT_1;
+	      meta-disk internal;
+	      disk      $DISK_1;
+	   }
+	   on $NAME_2 {
+	      device    $DEVICE_2;
+	      address   $IP_2:$PORT_2;
+	      meta-disk internal;
+	      disk      $DISK_2;
+	   }
+	}
+EOF
+	HOST=$(uname -n)
+	DRBDADM="drbdadm -c $DRBDCONF"
+
+	# prepare
+	modprobe drbd $(drbdadm sh-mod-parms)
+	$DRBDADM down ocft0
+
+	# create meta data block if necessary
+	$DRBDADM dump-md ocft0 >/dev/null 2>&1
+	if [ $? -eq 255 ]; then
+		$DRBDADM create-md ocft0
+	fi
+
+	# start drbd
+	$DRBDADM up ocft0
+
+	# UpToDate
+	if [ "$HOST" = "$NAME_1" ]; then
+		$DRBDADM wait-connect ocft0
+		echo "drbd Syncing .."
+		$DRBDADM primary --force ocft0
+		while true; do
+			CSTATE=$($DRBDADM cstate ocft0)
+			DSTATE=$($DRBDADM dstate ocft0)
+			if [ "$CSTATE" = "Connected" -a "$DSTATE" = "UpToDate/UpToDate" ]; then
+				break
+			else
+				sleep 3
+			fi
+		done
+		echo "done"
+	fi
+
+CLEANUP-AGENT
+	drbdadm -c $DRBDCONF down ocft0
+	rm -f $DRBDCONF
+
+CASE-BLOCK required_args
+	Env OCF_RESKEY_drbdconf=$DRBDCONF
+	Env OCF_RESKEY_drbd_resource=ocft0
+	Env OCF_RESKEY_CRM_meta_notify=true
+	Env OCF_RESKEY_CRM_meta_clone_max=2
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+	Include required_args
+	Include default_status
+
+CASE "check base env"
+	Include required_args
+	AgentRun validate-all OCF_SUCCESS
+
+CASE "normal start"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "wrong path of config file"
+	Include prepare
+	Env OCF_RESKEY_drbdconf=no_such_file
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "wrong resource name"
+	Include prepare
+	Env OCF_RESKEY_drbd_resource=no_such_src
+	# OCF_RESKEY_drbd_resource is a required parameter in agent meta-data, 
+	# if wrong, I think the agent should return OCF_ERR_CONFIGURED.
+	AgentRun start OCF_ERR_CONFIGURED
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "running monitor"
+	Include prepare
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "not running monitor"
+	Include prepare
+	AgentRun monitor OCF_NOT_RUNNING
+
+CASE "Primary/Secondary monitor"
+	Include prepare
+	AgentRun start
+	AgentRun promote
+	AgentRun monitor OCF_RUNNING_MASTER
+	AgentRun demote
+	AgentRun monitor OCF_SUCCESS
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
+
+CASE "try to 'promote' in single-primary mode"
+	Include prepare
+	Include@$IP_2 prepare
+
+        # start drbd 
+	AgentRun start
+	AgentRun@$IP_2 start
+
+	# promote local drbd first
+	AgentRun promote OCF_SUCCESS
+
+        # demote local drbd prepare for remote drbd promote
+	AgentRun demote
+	# remote drbd promote
+	AgentRun@$IP_2 promote OCF_SUCCESS
+
+	# promote fails, because remote drbd promote first.
+	AgentRun promote OCF_ERR_GENERIC
