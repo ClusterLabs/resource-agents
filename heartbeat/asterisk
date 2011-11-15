@@ -286,9 +286,23 @@ asterisk_monitor() {
     fi
 
     # Optionally check the monitor URI with sipsak
+    # The return values:
+    # 0 means that a 200 was received.
+    # 1 means something else then 1xx or 2xx was received.
+    # 2 will be returned on local errors like non resolvable names
+    #   or wrong options combination.
+    # 3 will be returned on remote errors like socket errors
+    #   (e.g. icmp error), redirects without a contact header or
+    #   simply no answer (timeout).
+    #   This can also happen if sipsak is run too early after asterisk
+    #   start.
     if [ -n "$OCF_RESKEY_monitor_sipuri" ]; then
-        ocf_run sipsak -v -s "$OCF_RESKEY_monitor_sipuri" \
-            || return $OCF_ERR_GENERIC
+        ocf_run sipsak -v -s "$OCF_RESKEY_monitor_sipuri"
+        rc=$?
+        case "$rc" in
+          1|2) return $OCF_ERR_GENERIC;;
+          3)   return $OCF_NOT_RUNNING;;
+        esac
     fi
 
     ocf_log debug "Asterisk PBX monitor succeeded"
