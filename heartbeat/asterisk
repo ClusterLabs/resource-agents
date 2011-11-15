@@ -250,7 +250,7 @@ asterisk_status() {
 
     if [ $rc -eq 0 ]; then
         if ocf_is_true "$OCF_RESKEY_realtime"; then
-            astcanary_pid=`pgrep -d " " -x -f "astcanary $ASTRUNDIR/alt.asterisk.canary.tweet.tweet.tweet"`
+            astcanary_pid=`pgrep -d " " -f "astcanary $ASTRUNDIR/alt.asterisk.canary.tweet.tweet.tweet"`
             if [ ! "$astcanary_pid" ]; then
 		ocf_log err "Asterisk PBX is running but astcanary is not although it should"
 		return $OCF_ERR_GENERIC
@@ -313,7 +313,7 @@ asterisk_start() {
     # this $ASTRUNDIR.
 
     # Find out PIDs of running astcanaries
-    astcanary_pid=`pgrep -d " " -x -f "astcanary $ASTRUNDIR/alt.asterisk.canary.tweet.tweet.tweet"`
+    astcanary_pid=`pgrep -d " " -f "astcanary $ASTRUNDIR/alt.asterisk.canary.tweet.tweet.tweet"`
 
     # If there are astcanaries running that belong to $ASTRUNDIR,
     # kill them.
@@ -431,7 +431,7 @@ asterisk_stop() {
 
     # After killing asterisk, stop astcanary
     if ocf_is_true "$OCF_RESKEY_realtime"; then
-      astcanary_pid=`pgrep -d " " -x -f "astcanary $ASTRUNDIR/alt.asterisk.canary.tweet.tweet.tweet"`
+      astcanary_pid=`pgrep -d " " -f "astcanary $ASTRUNDIR/alt.asterisk.canary.tweet.tweet.tweet"`
       if [ "$astcanary_pid" ]; then
         for i in $astcanary_pid; do ocf_run kill -s KILL $astcanary_pid; done
       fi
