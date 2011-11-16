@@ -2,33 +2,51 @@
   <firstname>Florian</firstname>
   <surname>Haas</surname>
   <affiliation>
-    <orgname>LINBIT HA-Solutions GmbH</orgname>
+    <orgname>hastexo</orgname>
   </affiliation>
-  <email>florian.haas@linbit.com</email>
+  <email>florian.haas@hastexo.com</email>
 </author>
 <collab>
   <firstname>John</firstname>
   <surname>Shi</surname>
   <affiliation>
-    <orgname>Novell, Inc.</orgname>
+    <orgname>SUSE</orgname>
   </affiliation>
   <contrib>Original ocft README</contrib>
-  <email>jshi@novell.com</email>
+  <email>jshi@suse.com</email>
 </collab>
 <collab>
   <firstname>Dejan</firstname>
   <surname>Muhamedagic</surname>
   <affiliation>
-    <orgname>Novell, Inc.</orgname>
+    <orgname>SUSE</orgname>
   </affiliation>
   <contrib>ocft documentation rewrite</contrib>
-  <email>dmuhamedagic@novell.com</email>
+  <email>dmuhamedagic@suse.com</email>
 </collab>
 <copyright>
   <year>2010</year>
   <year>2011</year>
   <holder>
     <ulink url="http://www.linbit.com">LINBIT HA-Solutions GmbH</ulink>
+  </holder>
+</copyright>
+<copyright>
+  <year>2011</year>
+  <holder>
+    <ulink url="http://www.novell.com">Novell, Inc.</ulink>
+  </holder>
+</copyright>
+<copyright>
+  <year>2011</year>
+  <holder>
+    <ulink url="http://www.suse.com">SUSE Linux GmbH</ulink>
+  </holder>
+</copyright>
+<copyright>
+  <year>2011</year>
+  <holder>
+    <ulink url="http://www.hastexo.com">hastexo Professional Services GmbH</ulink>
   </holder>
 </copyright>
 <legalnotice>
@@ -53,6 +71,11 @@
   </itemizedlist>
 </legalnotice>
 <revhistory>
+  <revision>
+    <revnumber>1.0.2</revnumber>
+    <date>November 16, 2011</date>
+    <authorinitials>FGH</authorinitials>
+  </revision>
   <revision>
     <revnumber>1.0.1</revnumber>
     <date>January 3, 2011</date>
