@@ -49,6 +49,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			anything		\
 			AoEtarget		\
 			apache			\
+			asterisk		\
 			nginx			\
 			AudibleAlarm		\
 			conntrackd		\
