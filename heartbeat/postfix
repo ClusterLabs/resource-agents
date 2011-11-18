@@ -173,6 +173,8 @@ postfix_stop()
     for i in 1 2 3 4 5; do
         if postfix_running info; then
             sleep 1
+        else
+            break
         fi
     done
 
