@@ -44,7 +44,7 @@ radir			= $(top_srcdir)/heartbeat
 metadata-%.xml: $(radir)/%
 	OCF_ROOT=. OCF_FUNCTIONS_DIR=$(radir) $< meta-data > $@
 
-metadata-IPv6addr.xml: ../heartbeat/IPv6addr
+metadata-IPv6addr.xml: ../../heartbeat/IPv6addr
 	OCF_ROOT=. OCF_FUNCTIONS_DIR=$(radir) $< meta-data > $@
 
 # Please note: we can't name the man pages
