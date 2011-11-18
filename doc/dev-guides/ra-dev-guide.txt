@@ -412,8 +412,8 @@ generating documentation -- may be overridden from the command line.
 [source,bash]
 --------------------------------------------------------------------------
 # Initialization:
-: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
-. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 --------------------------------------------------------------------------
 
 === Functions implementing resource agent actions
