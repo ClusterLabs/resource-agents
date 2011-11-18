@@ -1945,3 +1945,41 @@ and remove your own patch set.
 git reset --hard origin/master
 git pull
 --------------------------------------------------------------------------
+
+=== Maintaining resource agents
+
+If you maintain a specific resource agent, or you are making repeated
+contributions to the codebase, it's usually a good idea to maintain
+your own _fork_ of the +ClusterLabs/resource-agents+ repository on
+GitHub.
+
+To do so,
+
+* https://github.com/signup[Create a GitHub account] if you do not
+  have one already.
+* http://help.github.com/fork-a-repo/[Fork] the
+  https://github.com/ClusterLabs/resource-agents[+resource-agents+
+  repository].
+* Clone your personal fork into a local working copy.
+
+As you work on resource agents, *please* commit early, and commit
+often. You can always fold commits later with +git rebase -i+.
+
+Once you have made a number of changes that you would like others to
+review, push them to your GitHub fork and send a post to the
++linux-ha-dev+ mailing list pointing people to it.
+
+After the review is done, fix up your tree with any requested changes,
+and then issue a pull request. There are two ways of doing so:
+
+* You can use the +git request-pull+ utility to get a pre-populated
+  email skeleton summarizing your changesets. Add any information you
+  see fit, and send it to the list. It is a good idea to prefix your
+  email subject with +[GIT PULL]+ so upstream maintainers can pick the
+  message out easily.
+
+* You can also issue a pull request directly on GitHub. GitHub
+  automatically notifies upstream maintainers about new pull requests
+  by email. Please refer to
+  http://help.github.com/send-pull-requests/[github:help] for details
+  on initiating pull requests.
