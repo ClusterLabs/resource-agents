@@ -441,7 +441,7 @@ usage|help)	foobar_usage
 esac
 
 # Anything other than meta-data and usage must pass validation
-foobar_validate || exit $?
+foobar_validate_all || exit $?
 
 # Translate each action into the appropriate function call
 case $__OCF_ACTION in
