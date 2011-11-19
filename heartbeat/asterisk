@@ -1,0 +1,485 @@
+#!/bin/sh
+#
+#
+# Asterisk
+#
+# Description:  Manages an Asterisk PBX as an HA resource
+#
+# Authors:      Martin Gerhard Loschwitz
+#               Florian Haas
+#
+# Support:      linux-ha@lists.linux-ha.org
+# License:      GNU General Public License (GPL)
+#
+# (c) 2011      hastexo Professional Services GmbH
+#
+# This resource agent is losely derived from the MySQL resource
+# agent, which itself is made available to the public under the
+# following copyright:
+# 
+# (c) 2002-2005 International Business Machines, Inc.
+#     2005-2010 Linux-HA contributors
+#
+# See usage() function below for more details ...
+#
+# OCF instance parameters:
+#   OCF_RESKEY_binary
+#   OCF_RESKEY_canary_binary
+#   OCF_RESKEY_config
+#   OCF_RESKEY_user
+#   OCF_RESKEY_group
+#   OCF_RESKEY_additional_parameters
+#   OCF_RESKEY_realtime
+#   OCF_RESKEY_maxfiles
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+
+# Fill in some defaults if no values are specified
+HOSTOS=`uname`
+if [ "X${HOSTOS}" = "XOpenBSD" ]; then
+    OCF_RESKEY_user_default="_asterisk"
+    OCF_RESKEY_group_default="_asterisk"
+else
+    OCF_RESKEY_user_default="asterisk"
+    OCF_RESKEY_group_default="asterisk"
+fi
+OCF_RESKEY_binary_default="asterisk"
+OCF_RESKEY_canary_binary_default="astcanary"
+OCF_RESKEY_config_default="/etc/asterisk/asterisk.conf"
+OCF_RESKEY_additional_parameters_default="-g -vvv"
+OCF_RESKEY_realtime_default="false"
+OCF_RESKEY_maxfiles_default="8192"
+
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_canary_binary=${OCF_RESKEY_canary_binary_default}}
+: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
+: ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
+: ${OCF_RESKEY_group=${OCF_RESKEY_group_default}}
+: ${OCF_RESKEY_additional_parameters=${OCF_RESKEY_additional_parameters_default}}
+: ${OCF_RESKEY_realtime=${OCF_RESKEY_realtime_default}}
+: ${OCF_RESKEY_maxfiles=${OCF_RESKEY_maxfiles_default}}
+
+#######################################################################
+
+usage() {
+    cat <<UEND
+        usage: $0 (start|stop|validate-all|meta-data|status|monitor)
+
+        $0 manages an Asterisk PBX as an HA resource.
+
+        The 'start' operation starts the database.
+        The 'stop' operation stops the database.
+        The 'validate-all' operation reports whether the parameters are valid
+        The 'meta-data' operation reports this RA's meta-data information
+        The 'status' operation reports whether the database is running
+        The 'monitor' operation reports whether the database seems to be working
+
+UEND
+}
+
+meta_data() {
+    cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="asterisk">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource agent for the Asterisk PBX. 
+May manage an Asterisk PBX telephony system or a clone set that 
+forms an Asterisk distributed device setup.
+</longdesc>
+<shortdesc lang="en">Manages an Asterisk PBX</shortdesc>
+<parameters>
+
+<parameter name="binary" unique="0" required="0">
+<longdesc lang="en">
+Location of the Asterisk PBX server binary
+</longdesc>
+<shortdesc lang="en">Asterisk PBX server binary</shortdesc>
+<content type="string" default="${OCF_RESKEY_binary_default}" />
+</parameter>
+
+<parameter name="canary_binary" unique="0" required="0">
+<longdesc lang="en">
+Location of the Asterisk PBX Canary server binary
+</longdesc>
+<shortdesc lang="en">Asterisk PBX Canary server binary</shortdesc>
+<content type="string" default="${OCF_RESKEY_canary_binary_default}" />
+</parameter>
+
+<parameter name="config" unique="0" required="0">
+<longdesc lang="en">
+The Asterisk PBX configuration file
+</longdesc>
+<shortdesc lang="en">Asterisk PBX config</shortdesc>
+<content type="string" default="${OCF_RESKEY_config_default}" />
+</parameter>
+
+<parameter name="user" unique="0" required="0">
+<longdesc lang="en">
+User running Asterisk PBX daemon
+</longdesc>
+<shortdesc lang="en">Asterisk PBX user</shortdesc>
+<content type="string" default="${OCF_RESKEY_user_default}" />
+</parameter>
+
+<parameter name="group" unique="0" required="0">
+<longdesc lang="en">
+Group running Asterisk PBX daemon (for logfile and directory permissions)
+</longdesc>
+<shortdesc lang="en">Asterisk PBX group</shortdesc>
+<content type="string" default="${OCF_RESKEY_group_default}" />
+</parameter>
+
+<parameter name="additional_parameters" unique="0" required="0">
+<longdesc lang="en">
+Additional parameters which are passed to the Asterisk PBX on 
+startup (e.g. -L &lt;load&gt; or -M &lt;value&gt;). 
+</longdesc>
+<shortdesc lang="en">Additional parameters to pass to the Asterisk PBX</shortdesc>
+<content type="string" default="${OCF_RESKEY_additional_parameters_default}" />
+</parameter>
+
+<parameter name="realtime" unique="0" required="0">
+<longdesc lang="en">
+Determines whether the Asterisk PBX daemon will be run with
+realtime priority or not.
+</longdesc>
+<shortdesc lang="en">Asterisk PBX realtime priority</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_realtime_default}" />
+</parameter>
+
+<parameter name="maxfiles" unique="0" required="0">
+<longdesc lang="en">
+Determines how many files the Asterisk PBX is allowed to open at
+a time. Helps to fix the 'Too many open files' error message.
+</longdesc>
+<shortdesc lang="en">Asterisk PBX allowed MAXFILES</shortdesc>
+<content type="integer" default="${OCF_RESKEY_maxfiles_default}" />
+</parameter>
+
+<parameter name="monitor_sipuri" unique="0" required="0">
+<longdesc lang="en">
+A SIP URI to check when monitoring. During monitor, the agent will
+attempt to do a SIP OPTIONS request against this URI.
+Requires the sipsak utility to be present and executable.
+If unset, the agent does no SIP URI monitoring.
+</longdesc>
+<shortdesc lang="en">SIP URI to check when monitoring</shortdesc>
+<content type="string" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="20" />
+<action name="stop" timeout="20" />
+<action name="status" timeout="20" />
+<action name="monitor" timeout="30" interval="20" />
+<action name="validate-all" timeout="5" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+# Convenience functions
+
+asterisk_rx() {
+    # if $HOME is set, asterisk -rx writes a .asterisk_history there
+    (
+        unset HOME
+        ocf_run $OCF_RESKEY_binary -r -s $ASTRUNDIR/asterisk.ctl -x "$1"
+    )
+}
+
+#######################################################################
+# Functions invoked by resource manager actions
+
+asterisk_validate() {
+    local rc
+
+    check_binary $OCF_RESKEY_binary
+    check_binary pgrep
+
+    if [ -n "$OCF_RESKEY_monitor_sipuri" ]; then
+        check_binary sipsak
+    fi
+
+    if [ ! -f $OCF_RESKEY_config ]; then
+        ocf_log err "Config $OCF_RESKEY_config doesn't exist"
+        return $OCF_ERR_INSTALLED
+    fi
+
+    getent passwd $OCF_RESKEY_user >/dev/null 2>&1
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        ocf_log err "User $OCF_RESKEY_user doesn't exist"
+        return $OCF_ERR_INSTALLED
+    fi
+
+    getent group $OCF_RESKEY_group >/dev/null 2>&1
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        ocf_log err "Group $OCF_RESKEY_group doesn't exist"
+        return $OCF_ERR_INSTALLED
+    fi
+
+    true
+}
+
+asterisk_status() {
+    local pid
+    local rc
+
+    if [ ! -f $ASTRUNDIR/asterisk.pid ]; then
+        ocf_log info "Asterisk PBX is not running"
+        return $OCF_NOT_RUNNING
+    fi
+
+    pid=`cat $ASTRUNDIR/asterisk.pid`
+    ocf_run kill -s 0 $pid
+    rc=$?
+
+    if [ $rc -eq 0 ]; then
+        if ocf_is_true "$OCF_RESKEY_realtime"; then
+            astcanary_pid=`pgrep -d " " -f "astcanary $ASTRUNDIR/alt.asterisk.canary.tweet.tweet.tweet"`
+            if [ ! "$astcanary_pid" ]; then
+		ocf_log err "Asterisk PBX is running but astcanary is not although it should"
+		return $OCF_ERR_GENERIC
+            fi
+        else
+            return $OCF_SUCCESS
+        fi
+    else
+        ocf_log info "Asterisk PBX not running: removing old PID file"
+        rm -f $ASTRUNDIR/asterisk.pid
+        return $OCF_NOT_RUNNING
+    fi
+}
+
+asterisk_monitor() {
+    local rc
+
+    asterisk_status
+    rc=$?
+
+    # If status returned an error, return that immediately
+    if [ $rc -ne $OCF_SUCCESS ]; then
+        return $rc
+    fi
+
+    # Check whether connecting to asterisk is possible
+    asterisk_rx 'core show channels count'
+    rc=$?
+
+    if [ $rc -ne 0 ]; then
+      ocf_log err "Failed to connect to the Asterisk PBX"
+      return $OCF_ERR_GENERIC
+    fi
+
+    # Optionally check the monitor URI with sipsak
+    # The return values:
+    # 0 means that a 200 was received.
+    # 1 means something else then 1xx or 2xx was received.
+    # 2 will be returned on local errors like non resolvable names
+    #   or wrong options combination.
+    # 3 will be returned on remote errors like socket errors
+    #   (e.g. icmp error), redirects without a contact header or
+    #   simply no answer (timeout).
+    #   This can also happen if sipsak is run too early after asterisk
+    #   start.
+    if [ -n "$OCF_RESKEY_monitor_sipuri" ]; then
+        ocf_run sipsak -s "$OCF_RESKEY_monitor_sipuri"
+        rc=$?
+        case "$rc" in
+          1|2) return $OCF_ERR_GENERIC;;
+          3)   return $OCF_NOT_RUNNING;;
+        esac
+    fi
+
+    ocf_log debug "Asterisk PBX monitor succeeded"
+    return $OCF_SUCCESS
+}
+
+asterisk_start() {
+    local asterisk_extra_params
+    local dir
+    local rc
+
+    asterisk_status
+    rc=$?
+    if [ $rc -eq $OCF_SUCCESS ]; then
+        ocf_log info "Asterisk PBX already running"
+        return $OCF_SUCCESS
+    fi
+
+    # If Asterisk is not already running, make sure there is no
+    # old astcanary instance when the new asterisk starts. To
+    # achieve this, kill old astcanary instances belonging to
+    # this $ASTRUNDIR.
+
+    # Find out PIDs of running astcanaries
+    astcanary_pid=`pgrep -d " " -f "astcanary $ASTRUNDIR/alt.asterisk.canary.tweet.tweet.tweet"`
+
+    # If there are astcanaries running that belong to $ASTRUNDIR,
+    # kill them.
+    if [ "$astcanary_pid" ]; then
+      for i in $astcanary_pid; do ocf_run kill -s KILL $astcanary_pid; done
+    fi
+
+    for dir in $ASTRUNDIR $ASTLOGDIR $ASTLOGDIR/cdr-csv $ASTLOGDIR/cdr-custom; do
+        if [ ! -d "$dir" ]; then
+            ocf_run install -d -o $OCF_RESKEY_user -g $OCF_RESKEY_group $dir \
+                || exit $OCF_ERR_GENERIC
+        fi
+        # Regardless of whether we just created the directory or it
+        # already existed, check whether it is writable by the configured
+        # user
+        if ! su -s /bin/sh - $OCF_RESKEY_user -c "test -w $dir"; then
+            ocf_log err "Directory $dir is not writable by $OCF_RESKEY_user"
+            exit $OCF_ERR_PERM
+        fi
+    done
+
+    # set MAXFILES
+    ulimit -n $OCF_RESKEY_maxfiles
+
+    # Determine whether Asterisk PBX is supposed to run in Realtime mode
+    # or not and make asterisk daemonize automatically
+    if ocf_is_true "$OCF_RESKEY_realtime"; then
+      asterisk_extra_params="-F -p"
+    else
+      asterisk_extra_params="-F"
+    fi
+
+    ocf_run ${OCF_RESKEY_binary} -G $OCF_RESKEY_group -U $OCF_RESKEY_user \
+                -C $OCF_RESKEY_config \
+                $OCF_RESKEY_additional_parameters \
+                $asterisk_extra_params
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        ocf_log err "Asterisk PBX start command failed: $rc"
+        exit $OCF_ERR_GENERIC
+    fi
+
+    # Spin waiting for the server to come up.
+    # Let the CRM/LRM time us out if required
+    while true; do
+        asterisk_monitor
+        rc=$?
+        [ $rc -eq $OCF_SUCCESS ] && break
+        if [ $rc -ne $OCF_NOT_RUNNING ]; then
+            ocf_log err "Asterisk PBX start failed"
+            exit $OCF_ERR_GENERIC
+        fi
+        sleep 2
+    done
+
+    ocf_log info "Asterisk PBX started"
+    return $OCF_SUCCESS
+}
+
+asterisk_stop() {
+    local pid
+    local astcanary_pid
+    local rc
+
+    asterisk_status
+    rc=$?
+    if [ $rc -eq $OCF_NOT_RUNNING ]; then
+        ocf_log info "Asterisk PBX already stopped"
+        return $OCF_SUCCESS
+    fi
+
+    # do a "soft shutdown" via the asterisk command line first
+    asterisk_rx 'core stop now'
+
+    asterisk_status
+    rc=$?
+    if [ $rc -eq $OCF_NOT_RUNNING ]; then
+        ocf_log info "Asterisk PBX stopped"
+        return $OCF_SUCCESS
+    fi
+
+    # If "core stop now" didn't succeed, try SIGTERM
+    pid=`cat $ASTRUNDIR/asterisk.pid`
+    ocf_run kill -s TERM $pid
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        ocf_log err "Asterisk PBX couldn't be stopped"
+        exit $OCF_ERR_GENERIC
+    fi
+
+    # stop waiting
+    shutdown_timeout=15
+    if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+        shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
+    fi
+    count=0
+    while [ $count -lt $shutdown_timeout ]; do
+        asterisk_status
+        rc=$?
+        if [ $rc -eq $OCF_NOT_RUNNING ]; then
+            break
+        fi
+        count=`expr $count + 1`
+        sleep 1
+        ocf_log debug "Asterisk PBX still hasn't stopped yet. Waiting ..."
+    done
+
+    asterisk_status
+    rc=$?
+    if [ $rc -ne $OCF_NOT_RUNNING ]; then
+        # SIGTERM didn't help either, try SIGKILL
+        ocf_log info "Asterisk PBX failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL ..."
+        ocf_run kill -s KILL $pid
+    fi
+
+    # After killing asterisk, stop astcanary
+    if ocf_is_true "$OCF_RESKEY_realtime"; then
+      astcanary_pid=`pgrep -d " " -f "astcanary $ASTRUNDIR/alt.asterisk.canary.tweet.tweet.tweet"`
+      if [ "$astcanary_pid" ]; then
+        for i in $astcanary_pid; do ocf_run kill -s KILL $astcanary_pid; done
+      fi
+    fi
+
+    ocf_log info "Asterisk PBX stopped"
+    return $OCF_SUCCESS
+}
+
+#######################################################################
+
+case "$1" in
+  meta-data)    meta_data
+                exit $OCF_SUCCESS;;
+  usage|help)   usage
+                exit $OCF_SUCCESS;;
+esac
+
+
+# Anything except meta-data and help must pass validation
+asterisk_validate || exit $?
+
+# Now that validate has passed and we can be sure to be able to read
+# the config file, set convenience variables
+ASTRUNDIR=`grep astrundir $OCF_RESKEY_config | awk '/^astrundir/ {print $3}'`
+ASTLOGDIR=`grep astlogdir $OCF_RESKEY_config | awk '/^astlogdir/ {print $3}'`
+
+# What kind of method was invoked?
+case "$1" in
+  start)        asterisk_start;;
+  stop)         asterisk_stop;;
+  status)       asterisk_status;;
+  monitor)      asterisk_monitor;;
+  validate-all) ;;
+  *)            usage
+                exit $OCF_ERR_UNIMPLEMENTED;;
+esac

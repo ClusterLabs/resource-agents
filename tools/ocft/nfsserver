@@ -1,15 +1,16 @@
 # nfsserver
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent nfsserver
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage nfs-kernel-server
 	HangTimeout 20
 
 CASE-BLOCK required_args
-	Var OCF_RESKEY_nfs_init_script=/etc/init.d/nfsserver
-	Var OCF_RESKEY_nfs_ip=127.0.0.1
-	Var OCF_RESKEY_nfs_shared_infodir=/var/lib/nfs
-	Var OCF_RESKEY_nfs_notify_cmd=/usr/sbin/sm-notify
+	Env OCF_RESKEY_nfs_init_script=/etc/init.d/nfsserver
+	Env OCF_RESKEY_nfs_ip=127.0.0.1
+	Env OCF_RESKEY_nfs_shared_infodir=/var/lib/nfs
+	Env OCF_RESKEY_nfs_notify_cmd=/usr/sbin/sm-notify
 
 CASE-BLOCK default_status
 	AgentRun stop
@@ -24,22 +25,22 @@ CASE "check base env"
 
 CASE "check base env: invalid 'OCF_RESKEY_nfs_init_script'"
 	Include prepare
-	Var OCF_RESKEY_nfs_init_script=no_such_script
+	Env OCF_RESKEY_nfs_init_script=no_such_script
 	AgentRun start OCF_ERR_INSTALLED
 
 CASE "check base env: unset 'OCF_RESKEY_nfs_ip'"
 	Include prepare
-	Unvar OCF_RESKEY_nfs_ip
+	Unenv OCF_RESKEY_nfs_ip
 	AgentRun start OCF_ERR_CONFIGURED
 
 CASE "check base env: unset 'OCF_RESKEY_nfs_shared_infodir'"
 	Include prepare
-	Unvar OCF_RESKEY_nfs_shared_infodir
+	Unenv OCF_RESKEY_nfs_shared_infodir
 	AgentRun start OCF_ERR_CONFIGURED
 
 CASE "check base env: invalid 'OCF_RESKEY_nfs_notify_cmd'"
 	Include prepare
-	Var OCF_RESKEY_nfs_notify_cmd=no_such_program
+	Env OCF_RESKEY_nfs_notify_cmd=no_such_program
 	AgentRun start OCF_ERR_INSTALLED
 
 CASE "normal start"

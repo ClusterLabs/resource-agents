@@ -33,6 +33,7 @@
 #   OCF_RESKEY_user - A user name to start a JBoss. Default is root
 #   OCF_RESKEY_statusurl - URL for state confirmation. Default is http://127.0.0.1:8080
 #   OCF_RESKEY_java_home - Home directory of the Java. Default is ${JAVA_HOME}
+#   OCF_RESKEY_java_opts - Options for Java.
 #   OCF_RESKEY_jboss_home - Home directory of Jboss. Default is None
 # is it possible to devise this string from options? I'm afraid
 # that allowing users to set this could be error prone.
@@ -110,8 +111,9 @@ start_jboss()
 			>> "$CONSOLE" 2>&1 &
 	else
 		su - -s /bin/bash "$JBOSS_USER" \
-			-c "export JAVA_HOME=${JAVA_HOME};\n
-                            export JBOSS_HOME=${JBOSS_HOME};\n
+			-c "export JAVA_HOME=${JAVA_HOME}; \
+                            export JAVA_OPTS=${JAVA_OPTS}; \
+                            export JBOSS_HOME=${JBOSS_HOME}; \
                             $JBOSS_HOME/bin/run.sh $RUN_OPTS" \
 			>> "$CONSOLE" 2>&1 &
 	fi
@@ -137,8 +139,8 @@ stop_jboss()
 			>> "$CONSOLE" 2>&1 &
 	else
 		su - -s /bin/bash "$JBOSS_USER" \
-			-c "export JAVA_HOME=${JAVA_HOME};\n
-                            export JBOSS_HOME=${JBOSS_HOME};\n
+			-c "export JAVA_HOME=${JAVA_HOME}; \
+                            export JBOSS_HOME=${JBOSS_HOME}; \
                             $JBOSS_HOME/bin/shutdown.sh $SHUTDOWN_OPTS -S" \
 			>> "$CONSOLE" 2>&1 &
 
@@ -284,6 +286,14 @@ JAVA_HOME. If it is not set, then define this parameter.
 <content type="string" default="$JAVA_HOME"/>
 </parameter>
 
+<parameter name="java_opts" unique="0" required="0">
+<longdesc lang="en">
+Java options.
+</longdesc>
+<shortdesc>Java options.</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
 <parameter name="jboss_home" unique="1" required="1">
 <longdesc lang="en">
 Home directory of Jboss.
@@ -365,6 +375,7 @@ fi
 # test if these two are set and if directories exist and if the
 # required scripts/binaries exist; use OCF_ERR_INSTALLED
 JAVA_HOME="${OCF_RESKEY_java_home-${JAVA_HOME}}"
+JAVA_OPTS="${OCF_RESKEY_java_opts}"
 JBOSS_HOME="${OCF_RESKEY_jboss_home}"
 
 if [ ! -d "$JAVA_HOME" -o ! -d "$JBOSS_HOME" ]; then
@@ -377,7 +388,7 @@ if [ ! -d "$JAVA_HOME" -o ! -d "$JBOSS_HOME" ]; then
 	exit $OCF_ERR_INSTALLED
 fi
 
-export JAVA_HOME JBOSS_HOME
+export JAVA_HOME JAVA_OPTS JBOSS_HOME
 
 JAVA=${JAVA_HOME}/bin/java
 

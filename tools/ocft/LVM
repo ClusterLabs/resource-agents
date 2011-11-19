@@ -3,30 +3,33 @@
 # Wed Feb 16 13:15:01 CET 2011
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent LVM
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	HangTimeout 20
 
-CASE-BLOCK tempvars
-	Var OCFT_pv=/var/run/resource-agents/ocft-LVM-pv
-	Var OCFT_vg=ocft-vg
-	Var OCFT_lv=ocft-lv
-	Var OCFT_loop=/dev/loop0
-
-CASE-BLOCK required_args
-	Include tempvars
-	Var OCF_RESKEY_volgrpname=$OCFT_vg
-
-SETUP-AGENT
+VARIABLE
 	OCFT_pv=/var/run/resource-agents/ocft-LVM-pv
 	OCFT_vg=ocft-vg
 	OCFT_lv=ocft-lv
 	OCFT_loop=/dev/loop0
+
+SETUP-AGENT
 	losetup -d $OCFT_loop 2>/dev/null || true
 	dd if=/dev/zero of=$OCFT_pv bs=1024k count=1 2>/dev/null
 	losetup $OCFT_loop $OCFT_pv
 	pvcreate $OCFT_loop
 	vgcreate -s 4K $OCFT_vg $OCFT_loop
 	lvcreate -n $OCFT_lv -L 600K $OCFT_vg
+
+CLEANUP-AGENT
+	vgchange -an $OCFT_vg
+	lvremove -f /dev/$OCFT_vg/$OCFT_lv
+	vgremove -f $OCFT_vg
+	losetup -d $OCFT_loop
+	rm $OCFT_pv
+
+CASE-BLOCK required_args
+	Env OCF_RESKEY_volgrpname=$OCFT_vg
 
 CASE-BLOCK default_status
 	AgentRun stop
@@ -41,12 +44,12 @@ CASE "check base env"
 
 CASE "check base env: invalid 'OCF_RESKEY_volgrpname'"
 	Include prepare
-	Var OCF_RESKEY_volgrpname=/dev/no_such_device
+	Env OCF_RESKEY_volgrpname=/dev/no_such_device
 	AgentRun start OCF_ERR_GENERIC
 
 CASE "check base env: unset 'OCF_RESKEY_volgrpname'"
 	Include prepare
-	Unvar OCF_RESKEY_volgrpname
+	Unenv OCF_RESKEY_volgrpname
 	AgentRun start OCF_ERR_CONFIGURED
 
 CASE "normal start"
@@ -80,12 +83,3 @@ CASE "unimplemented command"
 	Include prepare
 	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
 
-CASE "meta-data and cleanup"
-	Include prepare
-	Bash vgchange -an $OCFT_vg
-	Bash lvremove -f /dev/$OCFT_vg/$OCFT_lv
-	Bash vgremove -f $OCFT_vg
-	Bash losetup -d $OCFT_loop
-	Bash rm $OCFT_pv
-	Bash rm /tmp/.LVM_set
-	AgentRun meta-data OCF_SUCCESS

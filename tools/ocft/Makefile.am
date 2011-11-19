@@ -31,6 +31,7 @@ ocftcfgs_DATA      =  apache  	\
 		       	 mysql		\
 		       	 pgsql		\
 		       	 db2		\
+		       	 drbd.linbit		\
 		       	 nfsserver	\
 		       	 portblock	\
 		       	 iscsi	\

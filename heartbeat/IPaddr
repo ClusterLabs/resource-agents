@@ -262,6 +262,13 @@ lvs_remove_conflicting_loopback() {
 	  ocf_log err "Could not save conflicting loopback $ifname." \
 	  "it will not be restored."
 	fi
+
+	if [ ! -z "${OCF_RESKEY_local_stop_script}" ]; then
+		if [ -x "${OCF_RESKEY_local_stop_script}" ]; then
+			${OCF_RESKEY_local_stop_script} $*
+		fi
+	fi
+
 	delete_interface "$ifname" "$ipaddr"
 
 	# Forcibly remove the route (if it exists) to the loopback.
@@ -633,6 +640,12 @@ ip_start() {
 	    *)   lvs_remove_conflicting_loopback "$OCF_RESKEY_ip" "$NIC_current";;
 	esac
     fi
+
+	if [ ! -z "${OCF_RESKEY_local_start_script}" ]; then
+		if [ -x "${OCF_RESKEY_local_start_script}" ]; then
+			${OCF_RESKEY_local_start_script} $*
+		fi
+	fi
 
     add_interface "$OCF_RESKEY_ip" "$OCF_RESKEY_nic" "$NIC_unique" \
 		 "$OCF_RESKEY_cidr_netmask" "$OCF_RESKEY_broadcast"

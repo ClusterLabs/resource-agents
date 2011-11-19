@@ -1,31 +1,32 @@
 # iscsi
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent iscsi
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage open-iscsi
 	InstallPackage iscsitarget
 	HangTimeout 20
 
-CASE-BLOCK tempvars
-	Var OCFT_disk=/var/run/resource-agents/ocft-iscsi
-	Var OCFT_target="iqn.2011-03.ocft.localhost:disk0"
-	Var OCFT_portal="127.0.0.1:3260"
-
-CASE-BLOCK required_args
-	Include tempvars
-	Var OCF_RESKEY_portal=$OCFT_portal
-	Var OCF_RESKEY_target=$OCFT_target
-
-SETUP-AGENT
+VARIABLE
 	OCFT_disk=/var/run/resource-agents/ocft-iscsi
 	OCFT_target="iqn.2011-03.ocft.localhost:disk0"
 	OCFT_portal="127.0.0.1:3260"
+
+SETUP-AGENT
 	dd if=/dev/zero of=$OCFT_disk bs=1024k count=1 2>/dev/null
 	echo Target $OCFT_target >> /etc/ietd.conf
 	echo "        Lun 0 Path=$OCFT_disk,Type=fileio" >> /etc/ietd.conf
 	/etc/init.d/iscsitarget start
 	/etc/init.d/open-iscsi start
 	/etc/init.d/iscsitarget restart
+
+CLEANUP-AGENT
+	rm -f $OCFT_disk
+	sed -i "/^Target $OCFT_target/,+1d" /etc/ietd.conf
+
+CASE-BLOCK required_args
+	Env OCF_RESKEY_portal=$OCFT_portal
+	Env OCF_RESKEY_target=$OCFT_target
 
 CASE-BLOCK default_status
 	AgentRun stop
@@ -40,12 +41,12 @@ CASE "check base env"
 
 CASE "check base env: invalid 'OCF_RESKEY_portal'"
 	Include prepare
-	Unvar OCF_RESKEY_portal
+	Unenv OCF_RESKEY_portal
 	AgentRun start OCF_ERR_CONFIGURED
 
 CASE "check base env: unset 'OCF_RESKEY_target'"
 	Include prepare
-	Unvar OCF_RESKEY_target
+	Unenv OCF_RESKEY_target
 	AgentRun start OCF_ERR_CONFIGURED
 
 CASE "normal start"
@@ -79,8 +80,3 @@ CASE "unimplemented command"
 	Include prepare
 	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
 
-CASE "meta-data and cleanup"
-	Include prepare
-	Bash rm -f $OCFT_disk
-	Bash sed -i "/^Target $OCFT_target/,+1d" /etc/ietd.conf
-	AgentRun meta-data OCF_SUCCESS

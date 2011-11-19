@@ -1,14 +1,15 @@
 # portblock
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent portblock
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage iptables
 	HangTimeout 15
 
 CASE-BLOCK required_args
-	Var OCF_RESKEY_protocol=tcp
-	Var OCF_RESKEY_portno=80
-	Var OCF_RESKEY_action=block
+	Env OCF_RESKEY_protocol=tcp
+	Env OCF_RESKEY_portno=80
+	Env OCF_RESKEY_action=block
 
 CASE-BLOCK default_status
 	AgentRun stop
@@ -23,17 +24,17 @@ CASE "check base env"
 
 CASE "check base env: unset 'OCF_RESKEY_protocol'"
 	Include prepare
-	Unvar OCF_RESKEY_protocol
+	Unenv OCF_RESKEY_protocol
 	AgentRun start OCF_ERR_CONFIGURED
 
 CASE "check base env: unset 'OCF_RESKEY_portno'"
 	Include prepare
-	Unvar OCF_RESKEY_portno
+	Unenv OCF_RESKEY_portno
 	AgentRun start OCF_ERR_CONFIGURED
 
 CASE "check base env: unset 'OCF_RESKEY_action'"
 	Include prepare
-	Unvar OCF_RESKEY_action
+	Unenv OCF_RESKEY_action
 	AgentRun start OCF_ERR_CONFIGURED
 
 CASE "normal start"

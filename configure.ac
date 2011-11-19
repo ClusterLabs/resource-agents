@@ -878,6 +878,7 @@ ldirectord/ldirectord   					\
 	ldirectord/OCF/Makefile					\
 	ldirectord/OCF/ldirectord				\
 doc/Makefile							\
+	doc/man/Makefile					\
 rgmanager/Makefile						\
 	rgmanager/src/Makefile					\
 	rgmanager/src/resources/Makefile			\

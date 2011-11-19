@@ -30,18 +30,20 @@
 # In order to install a real cluster refer to http://www.linux-ha.org/wiki/db2_(resource_agent)
 
 CONFIG
+	Agent db2
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
         HangTimeout 40
 
 SETUP-AGENT
         # nothing
 
 CASE-BLOCK set_testenv
-        Var OCFT_instance=db2inst1
-        Var OCFT_db=ocft
+        Env OCFT_instance=db2inst1
+        Env OCFT_db=ocft
 
 CASE-BLOCK crm_setting
-        Var OCF_RESKEY_instance=$OCFT_instance
-	Var OCF_RESKEY_CRM_meta_timeout=30000
+        Env OCF_RESKEY_instance=$OCFT_instance
+	Env OCF_RESKEY_CRM_meta_timeout=30000
 
 CASE-BLOCK default_status
 	AgentRun stop
@@ -57,7 +59,7 @@ CASE "check base env"
 
 CASE "check base env: invalid 'OCF_RESKEY_instance'"
 	Include prepare
-	Var OCF_RESKEY_instance=no_such
+	Env OCF_RESKEY_instance=no_such
 	AgentRun start OCF_ERR_INSTALLED
 
 CASE "invalid instance config"
@@ -108,8 +110,8 @@ CASE "killed instance: monitor"
 
 CASE "overload param instance by admin"
         Include prepare
-        Var OCF_RESKEY_instance=no_such
-        Var OCF_RESKEY_admin=$OCFT_instance
+        Env OCF_RESKEY_instance=no_such
+        Env OCF_RESKEY_admin=$OCFT_instance
         AgentRun start OCF_SUCCESS
 
 CASE "check start really activates db"
@@ -126,7 +128,7 @@ CASE "multipartion test"
         AgentRun monitor OCF_SUCCESS
 
         # start does not start partion 1
-        Var OCF_RESKEY_dbpartitionnum=1
+        Env OCF_RESKEY_dbpartitionnum=1
         AgentRun monitor OCF_NOT_RUNNING
 
         # now start 1
@@ -138,7 +140,7 @@ CASE "multipartion test"
         AgentRun monitor OCF_NOT_RUNNING
 
         # does not affect 0
-        Var OCF_RESKEY_dbpartitionnum=0
+        Env OCF_RESKEY_dbpartitionnum=0
         AgentRun monitor OCF_SUCCESS
 
 # fault injection does not work on the 1.0.4 client due to a hardcoded path

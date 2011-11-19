@@ -1,13 +1,14 @@
 # SendArp
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent SendArp
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage resource-agents
 	HangTimeout 15
 
 CASE-BLOCK required_args
-	Var OCF_RESKEY_ip=127.0.0.1
-	Var OCF_RESKEY_nic=lo
+	Env OCF_RESKEY_ip=127.0.0.1
+	Env OCF_RESKEY_nic=lo
 
 CASE-BLOCK default_status
 	AgentRun stop
@@ -22,22 +23,22 @@ CASE "check base env"
 
 CASE "check base env: unset 'OCF_RESKEY_ip'"
 	Include prepare
-	Unvar OCF_RESKEY_ip
+	Unenv OCF_RESKEY_ip
 	AgentRun start OCF_ERR_ARGS
 
 CASE "check base env: set worng 'OCF_RESKEY_ip'"
 	Include prepare
-	Var OCF_RESKEY_ip=not_ip_address
+	Env OCF_RESKEY_ip=not_ip_address
 	AgentRun start OCF_ERR_ARGS
 
 CASE "check base env: unset 'OCF_RESKEY_nic'"
 	Include prepare
-	Unvar OCF_RESKEY_nic
+	Unenv OCF_RESKEY_nic
 	AgentRun start OCF_ERR_ARGS
 
 CASE "check base env: set worng 'OCF_RESKEY_nic'"
 	Include prepare
-	Var OCF_RESKEY_nic=not_nic
+	Env OCF_RESKEY_nic=not_nic
 	AgentRun start OCF_ERR_ARGS
 
 CASE "normal start"

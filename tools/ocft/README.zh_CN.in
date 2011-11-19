@@ -29,38 +29,58 @@ ocft 通过两种手段来设计resouce agents的运行环境，一是更改reso
 果和resource agent的实际结果，如果不一样，说明你找到resource agent的bug了。
 
 2 配置
-只有四个top level option，它们是由大写字母和'-'构成的，每个top level option都有若干sub-option，
+只有6个top level option，它们是由大写字母和'-'构成的，每个top level option都有若干sub-option，
 它们是首字母大写。
 
 2.1 'CONFIG' 选项
 语法：CONFIG
 此option中的设计是全局的，对每个test case都有所影响。
 
-2.1.1 'AgentRoot' 选项
+2.1.1 'Agent' 选项
+语法：Agent AGENT_NAME
+你要测试的Agent的名字。
+
+2.1.2 'AgentRoot' 选项
 语法：AgentRoot /usr/lib/ocf/resource.d/xxx
 一些agent将会被移到 "pacemaker" 或 "linbit" 目录，如果你定义了这个选项，ocft将会用它来
 替代默认的目录"heartbeat"。
 
-2.1.1 'InstallPackage' 选项
+2.1.3 'InstallPackage' 选项
 语法:InstallPackage package [package2 [...]]
 他会检测系统是否安装了此resource agent的service，如果没有安装，会自动从网络进行安装。
 package_name是某个resouce agent在操作系统中必须安装的包。
 
-2.1.2 'HangTimeout' 选项
+2.1.4 'HangTimeout' 选项
 语法：HangTimeout secs 
 如果你更改了一些很关键的东西，有些resouce agent会不知所措，停在那里不动，那么就会影响
 到后面test case的运行，所以你需要设定超时，如果一旦resouce agent停在那超时了，脚本会
 杀死这个resouce agent。
 
-2.2 'SETUP-AGENT' 选项
+2.2 'VARIABLE' 选项
+语法：
+VARIABLE
+	VAR1=value1
+	VAR2=value2
+        ...
+在此定义全局变量，这些变量可以用于配置文件中的任何地方，引用时在变量名前加上$。请注意，这些
+变量不同于Env定义的变量，Env是定义环境变量，可以改变agent的行为，而这些变量只是用于配置文件中
+共享。
+
+2.3 'SETUP-AGENT' 选项
 语法：
 SETUP-AGENT
 	bash scripts...
 	...
-一些Agent在测试前可能需要初始化，你可以用bash脚本在这初始化。初始化动作只会被执行一次，
-如果你想要再次执行，你可以手动删除标志文件 /tmp/.[AGENT_NAME]_set。
+一些Agent在测试前可能需要初始化，你可以用bash脚本在这初始化。
 
-2.3 'CASE' & 'CASE-BLOCK' 选项
+2.4 'CLEANUP-AGENT' 选项
+语法：
+CLEANUP-AGENT
+	bash scripts...
+	...
+如果之前定义了SETUP-AGENT, 你可能还需要此选项在测试完后来作一些清除。
+
+2.5 'CASE' & 'CASE-BLOCK' 选项
 语法：CASE "description" & CASE-BLOCK macro_name
 通常你设计的环境不止一个，那么配置文件中应该会出现许多 'CASE "..."'，值得注意的是，以下子
 选项每个都有两种写法，一是普通写法，产生的shell代码对本地产生作用，二是特殊写法，就是在每
@@ -70,31 +90,31 @@ test case生存期内，后台运行一个远程shell，他始终在后台运行
 可以交替执行本地shell代码段和远程shell代码段。
 'CASE-BLOCK'选项是一个宏定义器，它定义的内容将会被插入到"CASE"内容中。
 
-2.3.1 'Var' 选项
-语法：Var VARIABLE=value
+2.5.1 'Env' 选项
+语法：Env VARIABLE=value
 这是设置resouce agent的环境变量，他们通常是OCF_RESKEY_xxx，注意=号两边不要有空格。
 
-2.3.2 'Unvar' 选项
-语法：Unvar VARIABLE
+2.5.2 'Unenv' 选项
+语法：Unenv VARIABLE
 此选项用于删除环境变量。
 
-2.3.3 'Include' 选项
+2.5.3 'Include' 选项
 语法：Include macro_name
 此选项将会被宏"macro_name"的内容所替代，当然，你得预先用"CASE-BLOCK"来定义宏"macro_name"
 的内容。
 
-2.3.4 'Bash' 选项
+2.5.4 'Bash' 选项
 语法：Bash bash_codes
 此选项是用来设置os的环境，你可以嵌入bash代码来对系统作任意设置，不过要注意不要对系统造成
 不可恢复的后果就行了。
 
-2.3.5 'BashAtExit' 选项
+2.5.5 'BashAtExit' 选项
 语法：BashAtExit bash_codes
 此选项是用来恢复os的环境，以便另一个test case能正常运行，当然你也可以直接用'Bash'选项来
 恢复，但是如果脚本在执行过程中产生某些错误，那么脚本会直接退出，而不会去执行你的恢复代码，
 那么你就要用到BashAtExit，他能在你退出前去恢复系统环境。
 
-2.3.6 'RunAgent' 选项
+2.5.6 'RunAgent' 选项
 语法：RunAgent cmd [ret_value]
 此option会去运行resouce agent，'cmd' 就是resouce agent的参数，如 start，status，stop ...
 第二个参数是可选的，它是你对系统环境作出特殊设定以后，你预计resouce agent会返回的值，

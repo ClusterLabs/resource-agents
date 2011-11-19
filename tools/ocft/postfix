@@ -12,7 +12,8 @@
 #       -o config_dir="/root/postfix/" /usr/lib/ocf/resource.d/heartbeat/postfix; echo $?
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent postfix
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage postfix
 	HangTimeout 20
 
@@ -20,8 +21,8 @@ SETUP-AGENT
 	# nothing
 
 CASE-BLOCK crm_setting
-	Var OCF_RESKEY_CRM_meta_timeout=15000
-	Var OCF_RESKEY_CRM_meta_interval=10000
+	Env OCF_RESKEY_CRM_meta_timeout=15000
+	Env OCF_RESKEY_CRM_meta_interval=10000
 
 CASE-BLOCK default_status
 	AgentRun stop
@@ -36,29 +37,29 @@ CASE "check base env"
 
 CASE "check base env: invalid 'OCF_RESKEY_binary'"
 	Include prepare
-	Var OCF_RESKEY_binary=no_such
+	Env OCF_RESKEY_binary=no_such
 	AgentRun start OCF_ERR_INSTALLED
 
 CASE "check base env: invalid 'OCF_RESKEY_config_dir'"
 	Include prepare
-	Var OCF_RESKEY_config_dir=no_such
+	Env OCF_RESKEY_config_dir=no_such
 	AgentRun start OCF_ERR_INSTALLED
 
 CASE "check base env: 'OCF_RESKEY_binary'"
 	Include prepare
-	Var OCF_RESKEY_binary=/usr/sbin/postfix
+	Env OCF_RESKEY_binary=/usr/sbin/postfix
 	AgentRun start
 	AgentRun monitor OCF_SUCCESS
 
 CASE "check base env: 'OCF_RESKEY_config_dir' without trailing slash"
 	Include prepare
-	Var OCF_RESKEY_config_dir="/etc/postfix"
+	Env OCF_RESKEY_config_dir="/etc/postfix"
 	AgentRun start
 	AgentRun monitor OCF_SUCCESS
 
 CASE "check base env: 'OCF_RESKEY_config_dir' with trailing slash"
 	Include prepare
-	Var OCF_RESKEY_config_dir="/etc/postfix/"
+	Env OCF_RESKEY_config_dir="/etc/postfix/"
 	AgentRun start
 	AgentRun monitor OCF_SUCCESS
 
@@ -87,12 +88,12 @@ CASE "monitor a running resource"
 
 CASE "(initial) probe a stopped resource"
 	Include prepare
-	Var OCF_RESKEY_CRM_meta_interval=0
+	Env OCF_RESKEY_CRM_meta_interval=0
 	AgentRun monitor OCF_NOT_RUNNING
 
 CASE "(re-)probe a running resource"
 	Include prepare
-	Var OCF_RESKEY_CRM_meta_interval=0
+	Env OCF_RESKEY_CRM_meta_interval=0
 	AgentRun start
 	AgentRun monitor OCF_SUCCESS
 

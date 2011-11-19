@@ -4,14 +4,17 @@
 # packages installed.
 
 CONFIG
+	Agent named
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage bind
 	InstallPackage bind-utils
+
 SETUP-AGENT
 	/etc/init.d/named start
 	/etc/init.d/named stop
 
 CASE-BLOCK crm_setting
-        Var OCF_RESKEY_CRM_meta_timeout=15000
+        Env OCF_RESKEY_CRM_meta_timeout=15000
 
 CASE-BLOCK default_status
         AgentRun stop
@@ -26,7 +29,7 @@ CASE "check base env"
 
 CASE "check base env: invalid 'OCF_RESKEY_named'"
         Include prepare
-        Var OCF_RESKEY_named=no_such
+        Env OCF_RESKEY_named=no_such
         AgentRun start OCF_ERR_INSTALLED
 
 CASE "normal start"
@@ -62,5 +65,5 @@ CASE "unimplemented command"
 
 CASE "non-existent user"
         Include prepare
-        Var OCF_RESKEY_named_user=no_user
+        Env OCF_RESKEY_named_user=no_user
         AgentRun start OCF_ERR_INSTALLED

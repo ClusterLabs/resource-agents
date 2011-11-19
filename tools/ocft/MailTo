@@ -1,12 +1,13 @@
 # MailTo
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent MailTo
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage mailx
 	HangTimeout 20
 
 CASE-BLOCK required_args
-	Var OCF_RESKEY_email=root@localhost
+	Env OCF_RESKEY_email=root@localhost
 
 CASE-BLOCK default_status
 	AgentRun stop
@@ -21,7 +22,7 @@ CASE "check base env"
 
 CASE "check base env: unset 'OCF_RESKEY_email'"
 	Include prepare
-	Unvar OCF_RESKEY_email
+	Unenv OCF_RESKEY_email
 	AgentRun start OCF_ERR_CONFIGURED
 
 CASE "normal start"

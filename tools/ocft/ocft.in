@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010 Novell Inc, John Shi
+# Copyright (c) 2010-2011 Novell Inc, John Shi
 #           All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -121,9 +121,6 @@ preparse_cfg()
     die "${agent}: configuration file not found."
   fi
 
-  rm -f $CASES_DIR/${agent}_macro.*
-  rm -f $CASES_DIR/${agent}.preparse
-
   line_num=0
   while read -r line; do
     let line_num++
@@ -162,16 +159,11 @@ preparse_cfg()
     esac
 
     if [ -n "$macro" ]; then
-      if ! touch "$macro"; then
-        die "No permission to create macro file: ${macro}."
-      fi
       echo "$line$num" >>"$macro"
     else
-      echo "$line$num" >>"$CASES_DIR/${agent}.preparse"
+      echo "$line$num" >>"$CASES_DIR/${agent}_preparse"
     fi
   done <"$opt_cfgsdir/$agent"
-
-  rm -f $CASES_DIR/${agent}_macro.*
 }
 
 case_finish()
@@ -180,19 +172,34 @@ case_finish()
 
   if [ -n "$sh" ]; then
     cat >>$sh <<EOF
-if [ -n "\$OCFT_VERBOSE" ]; then
+if [ -n "\$__OCFT__VERBOSE" ]; then
   echo
 fi
-# Clean up and exit
+# Cleanup and exit
 EOF
     for host in $hosts; do
       echo "backbash_stop $host" >>$sh
     done
     echo "quit 0" >>$sh
   fi
+
   atexit_num=0
   hosts=
   sh=
+}
+
+agent_finish()
+{
+  rm -f $CASES_DIR/${agent}_preparse
+  rm -f $CASES_DIR/${agent}_macro.*
+  rm -f $CASES_DIR/${agent}_setup
+  rm -f $CASES_DIR/${agent}_cleanup
+  rm -f $CASES_DIR/${agent}_var
+  rm -f $CASES_DIR/${agent}_hosts
+  cfg_agent=
+  cfg_agent_root=
+  cfg_install_package=()
+  cfg_hang_timeout=20
 }
 
 parse_cfg()
@@ -206,10 +213,11 @@ parse_cfg()
   fi
 
   for agent in "${agents[@]}"; do
+    rm -f $CASES_DIR/*_${agent}.sh
+    agent_finish
+
     i=0
     agent="$(basename "$agent")"
-    rm -f $CASES_DIR/*_${agent}.sh
-    rm -f $CASES_DIR/${agent}_setup
 
     echo "Making '$agent': "
     preparse_cfg "$agent"
@@ -225,20 +233,30 @@ parse_cfg()
           stat=1
           continue
           ;;
-	SETUP-AGENT)
+        VARIABLE)
           case_finish
           stat=2
+          continue
+          ;;
+	SETUP-AGENT)
+          case_finish
+          stat=3
+          continue
+          ;;
+	CLEANUP-AGENT)
+          case_finish
+          stat=4
           continue
           ;;
         CASE)
           case_finish
           trunk2branch
-          sh="$CASES_DIR/${i}_${agent}.sh"
           echo "    - case ${i}: ${branch[0]}"
+          sh="$CASES_DIR/${i}_${agent}.sh"
           cat >$sh <<EOF
 #!/bin/bash
 
-# Agent:   $agent
+# Agent:   $cfg_agent
 # Summary: ${branch[0]}
 
 . $OCFT_DIR/caselib || {
@@ -246,30 +264,22 @@ parse_cfg()
   exit 2
 }
 
-MYROOT="$cfg_agent_root"
-EOF
-          if [ -n "$cfg_install_package" ]; then
-            cat >>$sh <<EOF
-agent_install ${cfg_install_package[@]}
-EOF
-          fi
-          if [ -r "$CASES_DIR/${agent}_setup" ]; then
-            cat >>$sh <<EOF
-agent_setup $agent <<'CMD'
-$(cat "$CASES_DIR/${agent}_setup")
-CMD
-EOF
-          fi
-          cat >>$sh <<EOF
-if [ -n "\$OCFT_VERBOSE" ]; then
+$(test -r $CASES_DIR/${agent}_var && cat $CASES_DIR/${agent}_var)
+
+__OCFT__MYROOT="$cfg_agent_root"
+
+$(test -n "$cfg_install_package" && echo "agent_install ${cfg_install_package[@]}")
+
+if [ -n "\$__OCFT__VERBOSE" ]; then
   echo -e $(add_quotes 1 "Starting '\\033[33m${agent}\\033[0m' case $i '\\033[33m${branch[0]}\\033[0m':")
 else
   echo -n "'${agent}' case ${i}: "
 fi
 EOF
           chmod a+x $sh
+
           let i++
-          stat=3
+          stat=5
           continue
           ;;
       esac
@@ -277,13 +287,17 @@ EOF
       case "$stat" in
         1)
           case "${trunk[0]}" in
+            Agent)
+              trunk2branch
+              cfg_agent="${branch[0]}"
+              ;;
             AgentRoot)
               trunk2branch
               cfg_agent_root="${branch[0]}"
               ;;
             InstallPackage)
               trunk2branch
-              cfg_install_package=("${branch[@]}")
+              cfg_install_package=(${cfg_install_package[@]} ${branch[@]})
               ;;
             HangTimeout)
               trunk2branch
@@ -298,37 +312,39 @@ EOF
           esac
           ;;
         2)
-          echo "$line" >>$CASES_DIR/${agent}_setup
+          if echo "$line" | grep -q '^__OCFT__'; then
+            parse_die "reserved key word '__OCFT__'."
+          fi
+          echo "declare $line" >>$CASES_DIR/${agent}_var
           ;;
         3)
+          echo "$line" >>$CASES_DIR/${agent}_setup
+          ;;
+        4)
+          echo "$line" >>$CASES_DIR/${agent}_cleanup
+          ;;
+        5)
           host=$(echo ${trunk[0]} | awk -F@ '{print $2}')
           if [ -n "$host" ]; then
             if ! echo "$hosts" | grep -q "$host"; then
+              echo "$host" >>$CASES_DIR/${agent}_hosts
               hosts=$hosts$'\n'$host
               cat >>$sh <<EOF
 # Initialize remote shell
 backbash_start $host
 backbash $host <<CMD
-OCFT_VERBOSE=\$OCFT_VERBOSE
-showhost="${host}: "
+__OCFT__VERBOSE=\$__OCFT__VERBOSE
 CMD
 backbash $host <$OCFT_DIR/caselib
 backbash $host <<'CMD'
-MYROOT="$cfg_agent_root"
+$(test -r $CASES_DIR/${agent}_var && cat $CASES_DIR/${agent}_var)
+
+__OCFT__MYROOT="$cfg_agent_root"
+__OCFT__showhost="${host}: "
+
+$(test -n "$cfg_install_package" && echo "agent_install ${cfg_install_package[@]}")
+CMD
 EOF
-              if [ -n "$cfg_install_package" ]; then
-                cat >>$sh <<EOF
-agent_install ${cfg_install_package[@]}
-EOF
-              fi
-              if [ -r "$CASES_DIR/${agent}_setup" ]; then
-                cat >>$sh <<EOF
-agent_setup $agent <<'END'
-$(cat "$CASES_DIR/${agent}_setup")
-END
-EOF
-              fi
-              echo "CMD" >>$sh
             fi
           fi
 
@@ -340,19 +356,19 @@ EOF
           fi
 
           case "${trunk[0]}" in
-            Var|Var@*)
+            Env|Env@*)
               cat >>$sh <<EOF
-if [ -n "\$OCFT_VERBOSE" ]; then
-  echo $(add_quotes 2 "    \${showhost}Setting agent environment:    export ${trunk[1]}")
+if [ -n "\$__OCFT__VERBOSE" ]; then
+  echo $(add_quotes 2 "    \${__OCFT__showhost}Setting agent environment:    export ${trunk[1]}")
 fi
 export ${trunk[1]}
 check_success \$? $(add_quotes 1 "export ${trunk[1]}")
 EOF
               ;;
-            Unvar|Unvar@*)
+            Unenv|Unenv@*)
               cat >>$sh <<EOF
-if [ -n "\$OCFT_VERBOSE" ]; then
-  echo $(add_quotes 2 "    \${showhost}Removing agent environment:   unset ${trunk[1]}")
+if [ -n "\$__OCFT__VERBOSE" ]; then
+  echo $(add_quotes 2 "    \${__OCFT__showhost}Removing agent environment:   unset ${trunk[1]}")
 fi
 unset ${trunk[1]}
 check_success \$? $(add_quotes 1 "unset ${trunk[1]}")
@@ -363,84 +379,90 @@ EOF
               if [ -z "${branch[1]}" ]; then
                 if [ "${branch[0]}" = "start" ]; then
                   cat >>$sh <<EOF
-agent_run $(add_quotes 1 "$agent") status $cfg_hang_timeout
-rc=\$?
-if [ \$rc -eq \$OCF_ERR_UNIMPLEMENTED ]; then
-  agent_run $(add_quotes 1 "$agent") monitor $cfg_hang_timeout
-  rc=\$?
+agent_run $(add_quotes 1 "$cfg_agent") status $cfg_hang_timeout
+__OCFT__rc=\$?
+if [ \$__OCFT__rc -eq \$OCF_ERR_UNIMPLEMENTED ]; then
+  agent_run $(add_quotes 1 "$cfg_agent") monitor $cfg_hang_timeout
+  __OCFT__rc=\$?
 fi
 
-if [ \$rc -eq \$OCF_SUCCESS ]; then
+if [ \$__OCFT__rc -eq \$OCF_SUCCESS -o \$__OCFT__rc -eq \$OCF_RUNNING_MASTER ]; then
   : #The status I want, so I can do nothing.
-elif [ \$rc -eq \$OCF_NOT_RUNNING ]; then
-  if [ -n "\$OCFT_VERBOSE" ]; then
-    echo $(add_quotes 2 "    \${showhost}Running agent:                ./$agent start")
+elif [ \$__OCFT__rc -eq \$OCF_NOT_RUNNING ]; then
+  if [ -n "\$__OCFT__VERBOSE" ]; then
+    echo $(add_quotes 2 "    \${__OCFT__showhost}Running agent:                ./$cfg_agent ${branch[0]}")
   fi
-  agent_run $(add_quotes 1 "$agent") start $cfg_hang_timeout
-  check_success \$? $(add_quotes 1 "./$agent start")
+  agent_run $(add_quotes 1 "$cfg_agent") start $cfg_hang_timeout
+  check_success \$? $(add_quotes 1 "./$cfg_agent ${branch[0]}")
 else
-  check_success \$rc $(add_quotes 1 "./$agent status|monitor")
+  check_success \$__OCFT__rc $(add_quotes 1 "./$cfg_agent status|monitor")
 fi
 EOF
                 elif [ "${branch[0]}" = "stop" ]; then
                   cat >>$sh <<EOF
-agent_run $(add_quotes 1 "$agent") status $cfg_hang_timeout
-rc=\$?
-if [ \$rc -eq \$OCF_ERR_UNIMPLEMENTED ]; then
-  agent_run $(add_quotes 1 "$agent") monitor $cfg_hang_timeout
-  rc=\$?
+agent_run $(add_quotes 1 "$cfg_agent") status $cfg_hang_timeout
+__OCFT__rc=\$?
+if [ \$__OCFT__rc -eq \$OCF_ERR_UNIMPLEMENTED ]; then
+  agent_run $(add_quotes 1 "$cfg_agent") monitor $cfg_hang_timeout
+  __OCFT__rc=\$?
 fi
 
-if [ \$rc -eq \$OCF_NOT_RUNNING ]; then
+if [ \$__OCFT__rc -eq \$OCF_NOT_RUNNING ]; then
   : #The status I want, so I can do nothing.
-elif [ \$rc -eq \$OCF_SUCCESS ]; then
-  if [ -n "\$OCFT_VERBOSE" ]; then
-    echo $(add_quotes 2 "    \${showhost}Running agent:                ./$agent stop")
+elif [ \$__OCFT__rc -eq \$OCF_SUCCESS -o \$__OCFT__rc -eq \$OCF_RUNNING_MASTER ]; then
+  if [ -n "\$__OCFT__VERBOSE" ]; then
+    echo $(add_quotes 2 "    \${__OCFT__showhost}Running agent:                ./$cfg_agent ${branch[0]}")
   fi
-  agent_run $(add_quotes 1 "$agent") stop $cfg_hang_timeout
-  check_success \$? $(add_quotes 1 "./$agent stop")
+  agent_run $(add_quotes 1 "$cfg_agent") stop $cfg_hang_timeout
+  check_success \$? $(add_quotes 1 "./$cfg_agent ${branch[0]}")
 else
-  check_success \$rc $(add_quotes 1 "./$agent status|monitor")
+  check_success \$__OCFT__rc $(add_quotes 1 "./$cfg_agent status|monitor")
 fi
 EOF
                 elif [ "${branch[0]}" = "status" -o "${branch[0]}" = "monitor" ]; then
                   cat >>$sh <<EOF
-agent_run $(add_quotes 1 "$agent") $(add_quotes 1 "${branch[0]}") $cfg_hang_timeout
+if [ -n "\$__OCFT__VERBOSE" ]; then
+  echo $(add_quotes 2 "    \${__OCFT__showhost}Running agent:                ./$cfg_agent ${branch[0]}")
+fi
+agent_run $(add_quotes 1 "$cfg_agent") $(add_quotes 1 "${branch[0]}") $cfg_hang_timeout
 EOF
                 else
                   cat >>$sh <<EOF
-agent_run $(add_quotes 1 "$agent") $(add_quotes 1 "${branch[0]}") $cfg_hang_timeout
-check_success \$? $(add_quotes 1 "./$agent ${branch[0]}")
+if [ -n "\$__OCFT__VERBOSE" ]; then
+  echo $(add_quotes 2 "    \${__OCFT__showhost}Running agent:                ./$cfg_agent ${branch[0]}")
+fi
+agent_run $(add_quotes 1 "$cfg_agent") $(add_quotes 1 "${branch[0]}") $cfg_hang_timeout
+check_success \$? $(add_quotes 1 "./$cfg_agent ${branch[0]}")
 EOF
                 fi
               else
                 cat >>$sh <<EOF
 test -n $(add_quotes 2 "\$${branch[1]}")
 check_success \$? $(add_quotes 1 "test -n \"\$${branch[1]}\"")
-if [ -n "\$OCFT_VERBOSE" ]; then
-  echo $(add_quotes 2 "    \${showhost}Running agent:                ./$agent ${branch[0]}")
+if [ -n "\$__OCFT__VERBOSE" ]; then
+  echo $(add_quotes 2 "    \${__OCFT__showhost}Running agent:                ./$cfg_agent ${branch[0]}")
 fi
-agent_run $(add_quotes 1 "$agent") $(add_quotes 1 "${branch[0]}") $cfg_hang_timeout
-ret=\$?
-if [ -n "\$OCFT_VERBOSE" ]; then
-  echo -n "    \${showhost}Checking return value:"
+agent_run $(add_quotes 1 "$cfg_agent") $(add_quotes 1 "${branch[0]}") $cfg_hang_timeout
+__OCFT__ret=\$?
+if [ -n "\$__OCFT__VERBOSE" ]; then
+  echo -n "    \${__OCFT__showhost}Checking return value:"
 fi
-if [ -n "\${retval[ret]}" ]; then
-  retstr="\${retval[ret]}"
+if [ -n "\${__OCFT__retval[__OCFT__ret]}" ]; then
+  __OCFT__retstr="\${__OCFT__retval[__OCFT__ret]}"
 else
-  retstr=\$ret
+  __OCFT__retstr=\$__OCFT__ret
 fi
-if [ \$ret -eq \$${branch[1]} ]; then
-  if [ -n "\$OCFT_VERBOSE" ]; then
-    echo -e $(add_quotes 2 "        \\033[32mOK\\033[0m. The return value '\\033[34m\$retstr\\033[0m' == '\\033[34m${branch[1]}\\033[0m'")
+if [ \$__OCFT__ret -eq \$${branch[1]} ]; then
+  if [ -n "\$__OCFT__VERBOSE" ]; then
+    echo -e $(add_quotes 2 "        \\033[32mOK\\033[0m. The return value '\\033[34m\$__OCFT__retstr\\033[0m' == '\\033[34m${branch[1]}\\033[0m'")
   else
     echo -e "\t\\033[32mOK\\033[0m."
   fi
 else
-  if [ -n "\$OCFT_VERBOSE" ]; then
-    echo -en $(add_quotes 2 "        \\033[31mFAILED\\033[0m. The return value '\\033[34m\$retstr\\033[0m' != '\\033[34m${branch[1]}\\033[0m'. ")
+  if [ -n "\$__OCFT__VERBOSE" ]; then
+    echo -en $(add_quotes 2 "        \\033[31mFAILED\\033[0m. The return value '\\033[34m\$__OCFT__retstr\\033[0m' != '\\033[34m${branch[1]}\\033[0m'. ")
   else
-    echo -en "\t\\033[31mFAILED\\033[0m. Agent returns unexpected value: '\$retstr'. "
+    echo -en "\t\\033[31mFAILED\\033[0m. Agent returns unexpected value: '\$__OCFT__retstr'. "
   fi
   echo "See details below:"
   cat /tmp/.ocft_runlog
@@ -452,10 +474,10 @@ EOF
               ;;
             Bash|Bash@*)
               cat >>$sh <<EOF
-if [ -n "\$OCFT_VERBOSE" ]; then
-  echo $(add_quotes 2 "    \${showhost}Setting system environment:   ${trunk[1]}")
+if [ -n "\$__OCFT__VERBOSE" ]; then
+  echo $(add_quotes 2 "    \${__OCFT__showhost}Setting system environment:   ${trunk[1]}")
 fi
-echo $(add_quotes 1 "${trunk[1]}") | /bin/bash
+${trunk[1]}
 check_success \$? $(add_quotes 1 "${trunk[1]}")
 EOF
               ;;
@@ -464,12 +486,12 @@ EOF
               cat >>$sh <<EOF
 atexit${atexit_num}()
 {
-  if [ -n "\$OCFT_VERBOSE" ]; then
-    echo $(add_quotes 2 "    \${showhost}Setting system environment:   ${trunk[1]}")
+  if [ -n "\$__OCFT__VERBOSE" ]; then
+    echo $(add_quotes 2 "    \${__OCFT__showhost}Setting system environment:   ${trunk[1]}")
   fi
-  echo $(add_quotes 1 "${trunk[1]}") | /bin/bash
+  ${trunk[1]}
 }
-let atexit_num++
+let __OCFT__atexit_num++
 EOF
               ;;
             *)
@@ -484,22 +506,124 @@ EOF
           parse_die "unimplemented statement: ${trunk[0]}"
           ;;
       esac
-    done <$CASES_DIR/${agent}.preparse
-    rm -f $CASES_DIR/${agent}.preparse
-    rm -f $CASES_DIR/${agent}_setup
+    done <$CASES_DIR/${agent}_preparse
+
+    if [ -r "$CASES_DIR/${agent}_setup" ]; then
+      cat >$CASES_DIR/setup_${agent}.sh <<EOF
+#!/bin/bash
+
+# Agent:   $cfg_agent
+# Summary: SETUP before test
+
+echo "Initializing '$cfg_agent' ..."
+
+. $OCFT_DIR/caselib || {
+  echo "ERROR: '$OCFT_DIR/caselib' not found."
+  exit 2
+}
+
+$(test -r "$CASES_DIR/${agent}_var" && cat $CASES_DIR/${agent}_var)
+$(test -n "$cfg_install_package" && echo "agent_install ${cfg_install_package[@]}")
+
+EOF
+      for host in $(test -r $CASES_DIR/${agent}_hosts && cat $CASES_DIR/${agent}_hosts); do
+        cat >>$CASES_DIR/setup_${agent}.sh <<EOF
+# Initialize remote shell
+backbash_start $host
+backbash $host <<CMD
+__OCFT__VERBOSE=\$__OCFT__VERBOSE
+CMD
+backbash $host <$OCFT_DIR/caselib
+backbash $host <<'CMD'
+$(test -r "$CASES_DIR/${agent}_var" && cat $CASES_DIR/${agent}_var)
+
+__OCFT__MYROOT="$cfg_agent_root"
+__OCFT__showhost="${host}: "
+
+$(test -n "$cfg_install_package" && echo "agent_install ${cfg_install_package[@]}")
+
+$(cat $CASES_DIR/${agent}_setup)
+check_success \$? "SETUP-AGENT"
+CMD
+backbash_stop $host 
+EOF
+      done
+      cat >>$CASES_DIR/setup_${agent}.sh <<EOF
+$(cat $CASES_DIR/${agent}_setup)
+check_success \$? "SETUP-AGENT"
+
+echo "Done."
+echo
+quit 0
+EOF
+      chmod a+x $CASES_DIR/setup_${agent}.sh
+    fi
+
+    if [ -r "$CASES_DIR/${agent}_cleanup" ]; then
+      cat >$CASES_DIR/cleanup_${agent}.sh <<EOF
+#!/bin/bash
+
+# Agent:   $cfg_agent
+# Summary: CLEANUP after test
+
+echo "Cleaning '$cfg_agent' ..."
+
+. $OCFT_DIR/caselib || {
+  echo "ERROR: '$OCFT_DIR/caselib' not found."
+  exit 2
+}
+
+$(test -r "$CASES_DIR/${agent}_var" && cat $CASES_DIR/${agent}_var)
+$(test -n "$cfg_install_package" && echo "agent_install ${cfg_install_package[@]}")
+
+$(cat $CASES_DIR/${agent}_cleanup)
+check_success \$? "CLEANUP-AGENT"
+
+EOF
+      for host in $(test -r $CASES_DIR/${agent}_hosts && cat $CASES_DIR/${agent}_hosts); do
+        cat >>$CASES_DIR/cleanup_${agent}.sh <<EOF
+# Initialize remote shell
+backbash_start $host
+backbash $host <<CMD
+__OCFT__VERBOSE=\$__OCFT__VERBOSE
+CMD
+backbash $host <$OCFT_DIR/caselib
+backbash $host <<'CMD'
+$(test -r "$CASES_DIR/${agent}_var" && cat $CASES_DIR/${agent}_var)
+
+__OCFT__MYROOT="$cfg_agent_root"
+__OCFT__showhost="${host}: "
+
+$(test -n "$cfg_install_package" && echo "agent_install ${cfg_install_package[@]}")
+
+$(cat $CASES_DIR/${agent}_cleanup)
+check_success \$? "CLEANUP-AGENT"
+CMD
+backbash_stop $host 
+EOF
+      done
+      cat >>$CASES_DIR/cleanup_${agent}.sh <<EOF
+echo "Done."
+echo
+quit 0
+EOF
+      chmod a+x $CASES_DIR/cleanup_${agent}.sh
+    fi
     case_finish
+    agent_finish
+
   done
 }
 
 start_test()
 {
-  local sh shs agents line ret
+  local sh shs testsh agents line ret
 
   if ! cd $CASES_DIR >/dev/null 2>&1; then
     die "cases directory not found."
   fi
 
-  export OCFT_VERBOSE=$opt_verbose
+  export __OCFT__VERBOSE=$opt_verbose
 
   if [ $# -eq 0 ]; then
     agents=($(ls -1 *.sh 2>/dev/null | sed 's/.*_\([^_]*\)\.sh$/\1/' | sort | uniq))
@@ -508,18 +632,23 @@ start_test()
   fi
 
   for shs in "${agents[@]}"; do
-    for sh in $(ls -1 *_${shs}.sh 2>/dev/null | sort -n); do
-      ./$sh
-      ret=$?
-      if [ $ret -eq 3 ]; then
-        die "core function failed, break all tests."
-      fi
-      if [ $ret -eq 2 ]; then
-        warn "core function failed, break all tests of '$shs'."
-        break
+    testsh="setup_${shs}.sh
+$(ls -1 [0-9]*_${shs}.sh 2>/dev/null | sort -n)
+cleanup_${shs}.sh"
+    for sh in $testsh; do
+      if [ -r "$sh" ]; then
+        ./$sh
+        ret=$?
+        if [ $ret -eq 3 ]; then
+          die "core function failed, break all tests."
+        fi
+        if [ $ret -eq 2 ]; then
+          warn "core function failed, break all tests of '$shs'."
+          break
+        fi
       fi
     done
-  done | while read -r line; do
+  done 2>&1 | while read -r line; do
     echo "$line"
     echo "$(date '+%F %T'): $line" | cat -A |
     sed -r 's/\^\[\[[0-9]+m|\^I|.$//g' >>ocft.log
@@ -552,7 +681,7 @@ ACTIONs include:
      clean           Delete the testing shell scripts.
      help [-v]       Show this help and exit.
                        -v  Show HOWTO and exit.
-Version 0.42
+Version 0.43
 See '$OCFT_DIR/README' for detail.
 EOF
 }
@@ -571,7 +700,7 @@ HOW TO USE THIS TOOL
     Hence it is useful to debuggers.
 
 * Components
-    ** Test case generator (@sbindir@/ocft)
+    ** Test case generator (/usr/sbin/ocft)
       - Turning configuration files of test case to executable scripts.
 
     ** Configuration file  ($CONFIGS_DIR/)
@@ -615,8 +744,9 @@ agent=
 line_num=
 
 # default configuration
+cfg_agent=
 cfg_agent_root=
-cfg_install_package=
+cfg_install_package=()
 cfg_hang_timeout=20
 
 # default option

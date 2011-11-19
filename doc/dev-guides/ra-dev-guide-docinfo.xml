@@ -1,0 +1,89 @@
+<author>
+  <firstname>Florian</firstname>
+  <surname>Haas</surname>
+  <affiliation>
+    <orgname>hastexo</orgname>
+  </affiliation>
+  <email>florian.haas@hastexo.com</email>
+</author>
+<collab>
+  <firstname>John</firstname>
+  <surname>Shi</surname>
+  <affiliation>
+    <orgname>SUSE</orgname>
+  </affiliation>
+  <contrib>Original ocft README</contrib>
+  <email>jshi@suse.com</email>
+</collab>
+<collab>
+  <firstname>Dejan</firstname>
+  <surname>Muhamedagic</surname>
+  <affiliation>
+    <orgname>SUSE</orgname>
+  </affiliation>
+  <contrib>ocft documentation rewrite</contrib>
+  <email>dmuhamedagic@suse.com</email>
+</collab>
+<copyright>
+  <year>2010</year>
+  <year>2011</year>
+  <holder>
+    <ulink url="http://www.linbit.com">LINBIT HA-Solutions GmbH</ulink>
+  </holder>
+</copyright>
+<copyright>
+  <year>2011</year>
+  <holder>
+    <ulink url="http://www.novell.com">Novell, Inc.</ulink>
+  </holder>
+</copyright>
+<copyright>
+  <year>2011</year>
+  <holder>
+    <ulink url="http://www.suse.com">SUSE Linux GmbH</ulink>
+  </holder>
+</copyright>
+<copyright>
+  <year>2011</year>
+  <holder>
+    <ulink url="http://www.hastexo.com">hastexo Professional Services GmbH</ulink>
+  </holder>
+</copyright>
+<legalnotice>
+  <title>License information</title>
+  <para>The text of and illustrations in this document are licensed
+  under a Creative Commons Attribution–Share Alike 3.0 Unported
+  license ("CC-BY-SA").</para>
+  <itemizedlist>
+    <listitem>
+      <para>A summary of CC-BY-SA is available at <ulink
+      url="http://creativecommons.org/licenses/by-sa/3.0/"/>.</para>
+    </listitem>
+    <listitem>
+      <para>The full license text is available at <ulink
+      url="http://creativecommons.org/licenses/by-sa/3.0/legalcode"/>.</para>
+    </listitem>
+    <listitem>
+      <para>In accordance with CC-BY-SA, if you distribute this document
+      or an adaptation of it, you must provide the URL for the original
+      version.</para>
+    </listitem>
+  </itemizedlist>
+</legalnotice>
+<revhistory>
+  <revision>
+    <revnumber>1.0.2</revnumber>
+    <date>November 18, 2011</date>
+    <authorinitials>FGH</authorinitials>
+  </revision>
+  <revision>
+    <revnumber>1.0.1</revnumber>
+    <date>January 3, 2011</date>
+    <authorinitials>FGH</authorinitials>
+  </revision>
+  <revision>
+    <revnumber>1.0.0</revnumber>
+    <date>December 13, 2010</date>
+    <authorinitials>FGH</authorinitials>
+  </revision>
+</revhistory>

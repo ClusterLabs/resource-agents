@@ -43,12 +43,16 @@ INTRODUCTION & DESIGN
 HOW TO WRITE CONFIGURATION FILE
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  - There are only 4 top level options that are all spelled by capital letters and "-". 
+  - There are only 6 top level options that are all spelled by capital letters and "-". 
     Every top level option contains sub-options that they are initials.
 
 * 'CONFIG' (top level option)
   - Grammar: CONFIG
   - The design in this option is global and influences every test case.
+
+    ** 'Agent' (sub-option)
+      - Grammar: Agent AGENT_NAME
+      - The agent name you want to test.
 
     ** 'AgentRoot' (sub-option)
       - Grammar: AgentRoot /usr/lib/ocf/resource.d/xxx
@@ -66,14 +70,29 @@ HOW TO WRITE CONFIGURATION FILE
         which will influence the running of the following test case.  Hence timeout setting is 
         needed, if the resource agent stops timeout, the scripts will kill this resource agent.
 
+* 'VARIABLE' (top level option)
+  - Garmmar: 
+      VARIABLE
+          VAR1=value1
+          VAR2=value2
+          ...
+  - Define the global variable here, the variables can be visited everywhere, they can be referenced
+    using $VAR_NAME. Note, the variables in VARIABLE are different from 'Env VAR1=value1', 'Env' can
+    affect the activity of agent, but the variables in VARIABLE just be shared with top level option.
+
 * 'SETUP-AGENT' (top level option)
   - Grammar: 
       SETUP-AGENT
           bash scripts...
 	  ...
-  - Some of Agents may need to be initialized before testing, you can do it here with bash
-    script. The initialization will only be executed once, if you want to reinitialize it,
-    you can manually delete the flag file at /tmp/.[AGENT_NAME]_set.
+  - Some of Agents may need to be initialized before testing, you can do it here with bash script. 
+
+* 'CLEANUP-AGENT' (top level option)
+  - Garmmar:
+      CLEANUP-AGENT
+          bash scripts...
+          ...
+  - If SETUP-AGENT set, usually you might be use this option do some cleaning work after test.
 
 * 'CASE' & 'CASE-BLOCK' (top level option)
   - Grammar: CASE "description" & CASE-BLOCK macro_name
@@ -90,13 +109,13 @@ HOW TO WRITE CONFIGURATION FILE
     The "CASE-BLOCK" option is a macro definer, the statements in "CASE-BLOCK" will be inserted 
     into "CASE" if you "Include" the "macro_name".
 
-    ** 'Var' (sub-option)
-      - Grammar: Var VARIABLE=value
+    ** 'Env' (sub-option)
+      - Grammar: Env VARIABLE=value
       - It is to set up an environment variable of the resource agent. They usually appear to 
         be OCF_RESKEY_xxx. One point is to be noted is there is no blank by both sides of "=".
 
-    ** 'Unvar' (sub-option)
-      - Grammer: Unvar VARIABLE [VARIABLE2 [...]]
+    ** 'Unenv' (sub-option)
+      - Grammer: Unenv VARIABLE [VARIABLE2 [...]]
       - Remove the environment variable.
 
     ** 'Include' (sub-option)

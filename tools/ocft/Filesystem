@@ -3,30 +3,32 @@
 # Tue Feb 15 18:50:04 CET 2011
 
 CONFIG
-	#AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	Agent Filesystem
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	HangTimeout 20
 
-CASE-BLOCK tempvars
-	Var OCFT_fs=/var/run/resource-agents/ocft-Filesystem-fs
-	Var OCFT_loop=/dev/loop0
-	Var OCFT_dir=/var/run/resource-agents/ocft-Filesystem-mnt
-
-CASE-BLOCK required_args
-	Include tempvars
-	Var OCF_RESKEY_device=$OCFT_loop
-	Var OCF_RESKEY_fstype=ext2
-	Var OCF_RESKEY_directory=$OCFT_dir
-
-SETUP-AGENT
+VARIABLE
 	OCFT_fs=/var/run/resource-agents/ocft-Filesystem-fs
 	OCFT_loop=/dev/loop0
 	OCFT_dir=/var/run/resource-agents/ocft-Filesystem-mnt
+
+SETUP-AGENT
 	losetup $OCFT_loop 2>/dev/null && exit 1
 	rmdir $OCFT_dir 2>/dev/null || true
 	mkdir $OCFT_dir
 	dd if=/dev/zero of=$OCFT_fs bs=1024k count=1 2>/dev/null
 	mke2fs -Fq $OCFT_fs
 	losetup $OCFT_loop $OCFT_fs
+
+CLEANUP-AGENT
+	rmdir $OCFT_dir
+	rm $OCFT_fs
+	losetup -d $OCFT_loop
+
+CASE-BLOCK required_args
+	Env OCF_RESKEY_device=$OCFT_loop
+	Env OCF_RESKEY_fstype=ext2
+	Env OCF_RESKEY_directory=$OCFT_dir
 
 CASE-BLOCK default_status
 	AgentRun stop
@@ -41,12 +43,12 @@ CASE "check base env"
 
 CASE "check base env: invalid 'OCF_RESKEY_device'"
 	Include prepare
-	Var OCF_RESKEY_device=/dev/no_such_device
+	Env OCF_RESKEY_device=/dev/no_such_device
 	AgentRun start OCF_ERR_INSTALLED
 
 CASE "check base env: unset 'OCF_RESKEY_device'"
 	Include prepare
-	Unvar OCF_RESKEY_device
+	Unenv OCF_RESKEY_device
 	AgentRun start OCF_ERR_CONFIGURED
 
 CASE "normal start"
@@ -79,13 +81,13 @@ CASE "monitor when not running"
 CASE "monitor depth 10 when running"
 	Include prepare
 	AgentRun start
-	Var OCF_CHECK_LEVEL=10
+	Env OCF_CHECK_LEVEL=10
 	AgentRun monitor OCF_SUCCESS
 
 CASE "monitor depth 20 with running"
 	Include prepare
 	AgentRun start
-	Var OCF_CHECK_LEVEL=20
+	Env OCF_CHECK_LEVEL=20
 	AgentRun monitor OCF_SUCCESS
 
 CASE "start insert failure (remove device)"
@@ -99,16 +101,10 @@ CASE "monitor depth 20 insert failure (r/o fs)"
 	AgentRun start
 	Bash mount -o remount,ro $OCFT_dir
 	BashAtExit mount -o remount,rw $OCFT_dir
-	Var OCF_CHECK_LEVEL=20
+	Env OCF_CHECK_LEVEL=20
 	AgentRun monitor OCF_ERR_GENERIC
 
 CASE "unimplemented command"
 	Include prepare
 	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
 
-CASE "meta-data and cleanup"
-	Include prepare
-	Bash rmdir $OCFT_dir
-	Bash rm $OCFT_fs
-	Bash losetup -d $OCFT_loop
-	AgentRun meta-data OCF_SUCCESS
