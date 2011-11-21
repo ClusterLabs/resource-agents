@@ -138,7 +138,7 @@ start_rsyslog()
 		return $OCF_SUCCESS
 	fi
 
-	ocf_run "$RSYSLOG_EXE" -f "$CONFIGFILE" $START_OPTS
+	$RSYSLOG_EXE -f $CONFIGFILE $START_OPTS 2>&1
 	ocf_status=$?
 	if [ "$ocf_status" != "$OCF_SUCCESS" ]; then
 		return $OCF_ERR_GENERIC
