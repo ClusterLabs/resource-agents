@@ -101,10 +101,10 @@ postfix_running() {
 
     # run Postfix status if available
     if ocf_is_true $status_support; then
-        output=`$binary $OPTION_CONFIG_DIR status 2>&1`
+        $binary $OPTION_CONFIG_DIR status 2>&1
         ret=$?
         if [ $ret -ne 0 ]; then
-            ocf_log $loglevel "Postfix status: '$output'." $ret
+            ocf_log $loglevel "Postfix status: " $ret
         fi
         return $ret
     fi
@@ -134,7 +134,7 @@ postfix_start()
     ret=$?
 
     if [ $ret -ne 0 ]; then
-        ocf_log err "Postfix returned error." $ret
+        ocf_log err "Postfix returned error: " $ret
         return $OCF_ERR_GENERIC
     fi
 
@@ -144,7 +144,7 @@ postfix_start()
         sleep 1
         # break if postfix is up and running; log failure otherwise
         postfix_running info && break
-        ocf_log info "Postfix failed initial monitor action." $ret
+        ocf_log info "Postfix failed initial monitor action: " $ret
     done
 
     ocf_log info "Postfix started."
@@ -165,7 +165,7 @@ postfix_stop()
     ret=$?
 
     if [ $ret -ne 0 ]; then
-        ocf_log err "Postfix returned an error while stopping." $ret
+        ocf_log err "Postfix returned an error while stopping: " $ret
         return $OCF_ERR_GENERIC
     fi
 
@@ -295,7 +295,7 @@ postfix_validate_all()
         $binary $OPTIONS check >/dev/null 2>&1
         ret=$?
         if [ $ret -ne 0 ]; then
-            ocf_log err "Postfix 'check' failed." $ret
+            ocf_log err "Postfix 'check' failed: " $ret
             return $OCF_ERR_GENERIC
         fi
     fi
