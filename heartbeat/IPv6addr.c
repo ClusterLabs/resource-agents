@@ -458,6 +458,11 @@ send_ua(struct in6_addr* src_ip, char* if_name)
 	src_sin6.sin6_family = AF_INET6;
 	src_sin6.sin6_addr = *src_ip;
 	src_sin6.sin6_port = 0;
+	if (IN6_IS_ADDR_LINKLOCAL(&src_sin6.sin6_addr) ||
+	    IN6_IS_ADDR_MC_LINKLOCAL(&src_sin6.sin6_addr)) {
+		src_sin6.sin6_scope_id = ifindex;
+	}
+
 	if (bind(fd, (struct sockaddr *)&src_sin6, sizeof(src_sin6)) < 0) {
 		cl_log(LOG_ERR, "bind() failed: %s", strerror(errno));
 		goto err;
