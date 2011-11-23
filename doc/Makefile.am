@@ -22,4 +22,6 @@ SUBDIRS			= man
 
 MAINTAINERCLEANFILES    = Makefile.in
 
+EXTRA_DIST 		= $(doc_DATA)
+
 doc_DATA		= README.webapps
