@@ -28,8 +28,10 @@
 #
 #######################################################################
 # Initialization:
-: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
-. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+#: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+#. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
 
 #######################################################################
 # Set default paramenter values
@@ -77,7 +79,7 @@ instances throughout the cluster. It does so by creating
 a unique PID file and requires a unique listen address 
 and name for each instance.
 </longdesc>
-<shortdesc lang="en">Manage several Varnish instances</shortdesc>
+<shortdesc lang="en">Manage a Varnish instance</shortdesc>
 
 <parameters>
 
@@ -244,7 +246,7 @@ varnish_status() {
 
 varnish_start() {
     local rc
-    local varnishd_options
+    local backend_options
 
     varnish_status
     rc=$?
@@ -256,10 +258,10 @@ varnish_start() {
     # check which backend is to be used
     case "$OCF_RESKEY_backend_type" in
        malloc)  
-                varnishd_options="$OCF_RESKEY_backend_size"
+                backend_options="$OCF_RESKEY_backend_size"
                 ;;
         file)
-                varnishd_options="$OCF_RESKEY_backend_file,$OCF_RESKEY_backend_size"
+                backend_options="$OCF_RESKEY_backend_file,$OCF_RESKEY_backend_size"
                 ;;
         *)
                 # not implemented yet
@@ -275,7 +277,7 @@ varnish_start() {
         -u $OCF_RESKEY_varnish_user \
         -g $OCF_RESKEY_varnish_group \
         -w $OCF_RESKEY_worker_threads \
-        -s $OCF_RESKEY_backend_type,$varnishd_options \
+        -s $OCF_RESKEY_backend_type,$backend_options \
         -n $OCF_RESKEY_instance_name
     rc=$?
     if [ $rc -ne 0 ]; then
@@ -286,7 +288,7 @@ varnish_start() {
     # Spin waiting for varnishd to come up.
     # Let the CRM/LRM time us out if required
     while true; do
-        varnish_monitor
+        varnish_status
         rc=$?
         [ $rc -eq $OCF_SUCCESS ] && break
         if [ $rc -ne $OCF_NOT_RUNNING ]; then
@@ -321,41 +323,34 @@ varnish_stop() {
         return $OCF_ERR_GENERIC
     fi
 
-    # Check if varnish really stopped. Let the
-    # CRM/LRM time us out if necessary.
-    while true; do
+    # stop waiting
+    shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
+    count=0
+    while [ $count -lt $shutdown_timeout ]; do
+        #varnish_isstopped
         ocf_run kill -s 0 $pid
         rc=$?
-        [ $rc -ne 0 ] && break
-        sleep 2
-    done
+        if [ $rc -ne 0 ]; then
+            # Varnish stopped succesfully, so let's delete the pidfile
+            rm -f $OCF_RESKEY_pid
+            break
+        fi
+        count=$(expr $count + 1)
+        sleep 1
+        ocf_log info "Varnish still hasn't stopped yet. Waiting..."
+    done 
 
     varnish_status
     rc=$?
     if [ $rc -ne $OCF_NOT_RUNNING ]; then
         # varnish didn't quit on a SIGTERM, try SIGKILL
+        ocf_log info "Varnish failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL..."
         ocf_run kill -s KILL $pid
+        # delete the pidfile
         rm -f $OCF_RESKEY_pid
     fi
 
     ocf_log info "Varnish stopped"
-    return $OCF_SUCCESS
-}
-
-
-varnish_monitor() {
-    local rc
-
-    varnish_status
-    rc=$?
-
-    # If status returned an error, return that immediately
-    if [ $rc -ne $OCF_SUCCESS ]; then
-        return $rc
-    fi
-
-    # All seems to be well
-    ocf_log info "Varnish monitor succeeded"
     return $OCF_SUCCESS
 }
 
@@ -377,14 +372,11 @@ case $__OCF_ACTION in
     start)
         varnish_start
         ;;
-    status)
-        varnish_status
-        ;;
     stop)
         varnish_stop
         ;;
-    monitor)
-        varnish_monitor
+    monitor|status)
+        varnish_status
         ;;
     validate-all)
         varnish_validate
