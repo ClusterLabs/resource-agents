@@ -28,10 +28,8 @@
 #
 #######################################################################
 # Initialization:
-#: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
-#. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
-: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
-. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 #######################################################################
 # Set default paramenter values
@@ -234,7 +232,16 @@ varnish_status() {
         rc=$?
         if [ $rc -eq 0 ]; then
             ocf_log info "Varnish is running"
-            return $OCF_SUCCESS
+            # check if the child process is started and varnish is
+            # reporting child status as ok
+            v_rc=$(varnishadm -T $OCF_RESKEY_mgmt_address status)
+            ocf_log info $v_rc
+            if [ "$v_rc" == "Child in state running" ]; then
+                ocf_log info "Varnish child reported running"
+                return $OCF_SUCCESS
+            else
+                ocf_log info "Varnish child not running"
+            fi
         else
             ocf_log info "Varnish PID file exists, but varnishd is not running"
             return $OCF_ERR_GENERIC
@@ -327,7 +334,7 @@ varnish_stop() {
     shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
     count=0
     while [ $count -lt $shutdown_timeout ]; do
-        #varnish_isstopped
+        # check if process still exists
         ocf_run kill -s 0 $pid
         rc=$?
         if [ $rc -ne 0 ]; then
