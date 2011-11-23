@@ -1,21 +1,22 @@
-#!/bin/sh
+#!/bin/bash
 #
 #
 # redis
 #
-# Description:	Manages redis as Linux-HA resource
+# Description:  Manages redis as Linux-HA resource
 #
-# Authors:	Alan Robertson,
-#		Jakub Janczak,
-#		Andrew Beekhof,
-#		Sebastian Reitenbach,
-#		Narayan Newton,
-#		Marian Marinov,
-#		Florian Haas:                 MySQL script
-#		Martin Walter:                rewrite as redis
+# Authors:  Alan Robertson,
+#       Jakub Janczak,
+#       Andrew Beekhof,
+#       Sebastian Reitenbach,
+#       Narayan Newton,
+#       Marian Marinov,
+#       Florian Haas:                 MySQL script
+#       Martin Walter:                rewrite as redis
+#       Jose Junior:                      tweaks to the redis version
 #
-# Support:	linux-ha@lists.linux-ha.org
-# License:	GNU General Public License (GPL)
+# Support:  linux-ha@lists.linux-ha.org
+# License:  GNU General Public License (GPL)
 #
 # (c) 2002-2005 International Business Machines, Inc.
 #     2005-2010 Linux-HA contributors
@@ -40,22 +41,24 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 #######################################################################
+PATH=$PATH:/usr/local/bin:/usr/local/sbin
 
 # Fill in some defaults if no values are specified
-OCF_RESKEY_binary_default=/usr/bin/redis-server
-OCF_RESKEY_client_binary_default=/usr/bin/redis-cli
+OCF_RESKEY_binary_default=redis-server
+OCF_RESKEY_client_binary_default=redis-cli
 OCF_RESKEY_config_default=/etc/redis/redis.conf
+OCF_RESKEY_port_default=6379
 OCF_RESKEY_user_default=redis
 OCF_RESKEY_group_default=redis
 OCF_RESKEY_log_default=/var/log/redis/redis-server.log
 OCF_RESKEY_pid_default=/var/run/redis.pid
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
-REDIS_BINDIR=`dirname ${OCF_RESKEY_binary}`
-REDIS_SERVER_NAME=`basename ${OCF_RESKEY_binary}`
+REDIS_SERVER_NAME=${OCF_RESKEY_binary}
 
 : ${OCF_RESKEY_client_binary=${OCF_RESKEY_client_binary_default}}
 : ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
+: ${OCF_RESKEY_port=${OCF_RESKEY_port_default}}
 : ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
 : ${OCF_RESKEY_group=${OCF_RESKEY_group_default}}
 : ${OCF_RESKEY_log=${OCF_RESKEY_log_default}}
@@ -65,23 +68,23 @@ REDIS_SERVER_NAME=`basename ${OCF_RESKEY_binary}`
 
 usage() {
   cat <<UEND
-	usage: $0 (start|stop|validate-all|meta-data|monitor|promote|demote|notify)
+    usage: $0 (start|stop|validate-all|meta-data|monitor|promote|demote|notify)
 
-	$0 manages redis as an HA resource.
+    $0 manages redis as an HA resource.
 
-	The 'start' operation starts redis.
-	The 'stop' operation stops redis.
-	The 'status' operation reports whether redis is running
-	The 'monitor' operation reports whether redis seems to be working
-	The 'promote' operation makes this redis instance run as master
-	The 'demote' operation makes this redis instance run as slave
-	The 'validate-all' operation reports whether the parameters are valid
+    The 'start' operation starts redis.
+    The 'stop' operation stops redis.
+    The 'status' operation reports whether redis is running
+    The 'monitor' operation reports whether redis seems to be working
+    The 'promote' operation makes this redis instance run as master
+    The 'demote' operation makes this redis instance run as slave
+    The 'validate-all' operation reports whether the parameters are valid
 
 UEND
 }
 
 meta_data() {
-	cat <<END
+    cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="redis">
@@ -97,7 +100,7 @@ It manages a redis instance as an HA resource.
 
 <parameter name="binary" unique="0" required="0">
 <longdesc lang="en">
-Location of the redis binary
+Name for the redis binary (it should be on the $PATH)
 </longdesc>
 <shortdesc lang="en">redis binary</shortdesc>
 <content type="string" default="${OCF_RESKEY_binary_default}" />
@@ -105,15 +108,23 @@ Location of the redis binary
 
 <parameter name="client_binary" unique="0" required="0">
 <longdesc lang="en">
-Location of the redis client binary
+Name for the redis client binary (it should be on the $PATH)
 </longdesc>
 <shortdesc lang="en">redis client binary</shortdesc>
 <content type="string" default="${OCF_RESKEY_client_binary_default}" />
 </parameter>
 
+<parameter name="port" unique="0" required="0">
+<longdesc lang="en">
+Port where the redis server is listening
+</longdesc>
+<shortdesc lang="en">redis port</shortdesc>
+<content type="string" default="${OCF_RESKEY_port_default}" />
+</parameter>
+
 <parameter name="config" unique="0" required="0">
 <longdesc lang="en">
-Configuration file
+Location of the Redis configuration file
 </longdesc>
 <shortdesc lang="en">redis config</shortdesc>
 <content type="string" default="${OCF_RESKEY_config_default}" />
@@ -185,7 +196,7 @@ read_ms_status() {
     local master_host
     local master_host_value
 
-    tmp=`mktemp`
+    tmp=$(mktemp -p $HA_RSCTMP)
     redis-cli info >$tmp
     if [ $? -ne 0 ]; then
         ocf_log info "Could not determine master/slave status";
@@ -197,9 +208,9 @@ read_ms_status() {
     has_slave_role=$?
 
     master_host_value=""
-    master_host=`grep -e "master_host:" $tmp`
+    master_host=$(grep -e "master_host:" $tmp)
     if [ $? -eq 0 ]; then
-        master_host_value=`echo $master_host | cut -d':' -f2 | tr -d " "`
+        master_host_value=$(echo $master_host | cut -d':' -f2 | tr -d " ")
     fi
 
     rm -f $tmp
@@ -217,11 +228,11 @@ read_pid() {
     pid=""
 
     if [ -e $OCF_RESKEY_pid ]; then
-        pid=`cat $OCF_RESKEY_pid`;
+        pid=$(cat $OCF_RESKEY_pid);
     fi
 
     if [ $? -ne 0 -o "x$pid" = "x" ]; then
-        pid=`pidof -s $OCF_RESKEY_binary`
+        pid=$(pidof -s $OCF_RESKEY_binary)
     fi
 
     if [ $? -ne 0 -o "x$pid" = "x" ]; then
@@ -239,10 +250,10 @@ remove_pid() {
 }
 
 set_master() {
-    _master_host=$1
+    local master_host=$1
 
-    ocf_log info "Set $REDIS_SERVER_NAME to be a slave of $_master_host";
-    ocf_run $OCF_RESKEY_client_binary slaveof $_master_host 6379
+    ocf_log info "Set $REDIS_SERVER_NAME to be a slave of $master_host";
+    ocf_run $OCF_RESKEY_client_binary slaveof $master_host $OCF_RESKEY_port
     return $?
 }
 
@@ -261,10 +272,11 @@ unset_master() {
 redis_validate() {
     check_binary $OCF_RESKEY_binary
     check_binary  $OCF_RESKEY_client_binary
+    check_binary start-stop-daemon
 
     if [ ! -f $OCF_RESKEY_config ]; then
         ocf_log err "Config $OCF_RESKEY_config doesn't exist";
-        return $OCF_ERR_CONFIGURED;
+        return $OCF_ERR_INSTALLED;
     fi
 
     getent passwd $OCF_RESKEY_user >/dev/null 2>&1
@@ -289,15 +301,28 @@ redis_status() {
     rc=$?
     
     if [ $rc -ne $OCF_SUCCESS ]; then
+        ocf_log err "Removing PID"
         remove_pid
         return $rc
     fi
 
     read_ms_status
-    return $?
+    rc=$?
+    if ocf_is_ms; then
+        return $rc
+    else
+        if [ $rc -eq $OCF_SUCCESS -o $rc -eq $OCF_RUNNING_MASTER ]; then
+            ocf_log info "Redis is running"
+            return $OCF_SUCCESS
+        else
+            ocf_log err "Something wrong happened"
+            return $OCF_ERR_GENERIC
+        fi
+    fi
 }
 
 redis_start() {
+
     local master_host
     local rc
 
@@ -306,7 +331,7 @@ redis_start() {
 
     if [ $rc -eq $OCF_RUNNING_MASTER -o $rc -eq $OCF_SUCCESS ]; then
         ocf_log info "$REDIS_SERVER_NAME is already running"
-        return $rc
+        return $OCF_SUCCESS
     fi
 
     touch $OCF_RESKEY_log
@@ -316,7 +341,7 @@ redis_start() {
     touch $OCF_RESKEY_pid
     chown $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_pid
 
-    start-stop-daemon --start --quiet --umask 007 --pidfile $OCF_RESKEY_pid --make-pidfile --chuid $OCF_RESKEY_user:$OCF_RESKEY_group --exec $OCF_RESKEY_binary -- $OCF_RESKEY_config
+    start-stop-daemon --start --quiet --umask 007 --pidfile $OCF_RESKEY_pid --make-pidfile --chuid $OCF_RESKEY_user:$OCF_RESKEY_group --exec  /usr/local/bin/redis-server -- $OCF_RESKEY_config
     rc=$?
 
     if [ $rc -ne 0 ]; then
@@ -328,9 +353,18 @@ redis_start() {
         # Now, let's see whether there is a master. We might be a new
         # node that is just joining the cluster, and the CRM may have
         # promoted a master before.
-        master_host=`echo $OCF_RESKEY_CRM_meta_notify_master_uname | tr -d " "`
-        if [ ! -z "$master_host" -a "$master_host" != `uname -n` ]; then
+        master_host=$(echo $OCF_RESKEY_CRM_meta_notify_master_uname | tr -d " ")
+        if [ ! -z "$master_host" -a "$master_host" != $(uname -n) ]; then
             ocf_log info "Changing redis configuration to replicate from host: $master_host"
+            while true; do
+                $OCF_RESKEY_client_binary info |grep 'loading:0'
+                if [ $? -eq 0 ]; then
+                    break
+                else
+                    ocf_log err "Redis still loading data, giving it a second to finish"
+                    sleep 1
+                fi
+            done
             set_master $master_host
         fi
 
@@ -361,7 +395,7 @@ redis_stop() {
         return $OCF_SUCCESS
     fi
 
-    start-stop-daemon --stop --retry 10 --quiet --oknodo --pidfile $OCF_RESKEY_pid --exec $OCF_RESKEY_binary
+    start-stop-daemon --stop --retry 10 --quiet --oknodo --pidfile $OCF_RESKEY_pid --exec $( which $OCF_RESKEY_binary)
     rc=$?
 
     if [ $rc -ne 0 ]; then
@@ -435,13 +469,13 @@ redis_notify() {
     case "$type_op" in
     'pre-promote')
         # A node is about to being promoted to master.
-        master_host=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname | tr -d " "`
+        master_host=$(echo $OCF_RESKEY_CRM_meta_notify_promote_uname | tr -d " ")
         if [ -z "$master_host" ]; then
             ocf_log err "Unable to determine host to be promoted!"
             return $OCF_ERR_GENERIC
         fi
 
-        if [ $master_host = `uname -n` ]; then
+        if [ $master_host = $(uname -n) ]; then
             ocf_log info "We are about to being promoted."
             return $OCF_SUCCESS
         fi
@@ -453,16 +487,16 @@ redis_notify() {
         else
             return $OCF_SUCCESS
         fi
-	;;
+    ;;
     'pre-demote')
         # A master is about to being demoted.
-        demote_host=`echo $OCF_RESKEY_CRM_meta_notify_demote_uname | tr -d " "`
+        demote_host=$(echo $OCF_RESKEY_CRM_meta_notify_demote_uname | tr -d " ")
         if [ -z "$demote_host" ]; then
             ocf_log err "Unable to determine host to be demoted!"
             return $OCF_ERR_GENERIC
         fi
 
-        if [ $demote_host = `uname -n` ]; then
+        if [ $demote_host = $(uname -n) ]; then
             ocf_log info "We are about to being demoted."
             return $OCF_SUCCESS
         fi
@@ -479,36 +513,34 @@ redis_notify() {
 
 #######################################################################
 
-case "$1" in
-  meta-data)	meta_data
-		exit $OCF_SUCCESS;;
-  usage|help)	usage
-		exit $OCF_SUCCESS;;
+# Make sure meta-data and usage always succeed
+case $__OCF_ACTION in
+meta-data) meta_data
+                exit $OCF_SUCCESS
+                ;;
+usage|help) usage
+                exit $OCF_SUCCESS
+                ;;
 esac
 
-redis_validate
+# Anything other than meta-data and usage must pass validation
+redis_validate || exit $?
+
+# Translate each action into the appropriate function call
+case $__OCF_ACTION in
+start)          redis_start;;
+stop)           redis_stop;;
+status|monitor) redis_status;;
+promote)        redis_promote;;
+demote)         redis_demote;;
+notify)             redis_notify;;
+validate-all)   ;;
+*)             usage
+                exit $OCF_ERR_UNIMPLEMENTED
+                ;;
+esac
 rc=$?
-LSB_STATUS_STOPPED=3
-if [ $rc -ne 0 ]; then
-	case "$1" in
-		stop) exit $OCF_SUCCESS;;
-		monitor) exit $OCF_NOT_RUNNING;;
-		status) exit $LSB_STATUS_STOPPED;;
-		*) exit $rc;;
-	esac
-fi
 
-# What kind of method was invoked?
-case "$1" in
-  start)	redis_start;;
-  stop)		redis_stop;;
-  status)	redis_status;;
-  monitor)	redis_status;;
-  promote)	redis_promote;;
-  demote)	redis_demote;;
-  notify)	redis_notify;;
-  validate-all)	exit $OCF_SUCCESS;;
-
- *)		usage
-		exit $OCF_ERR_UNIMPLEMENTED;;
-esac
+# The resource agent may optionally log a debug message
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION returned $rc"
+exit $rc
