@@ -241,6 +241,7 @@ varnish_status() {
                 return $OCF_SUCCESS
             else
                 ocf_log info "Varnish child not running"
+                return $OCF_ERR_GENERIC
             fi
         else
             ocf_log info "Varnish PID file exists, but varnishd is not running"
