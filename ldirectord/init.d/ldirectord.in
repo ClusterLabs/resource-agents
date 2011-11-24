@@ -31,8 +31,6 @@
 
 DAEMON=@sbindir@/ldirectord
 
-. @sysconfdir@/ha.d/shellfuncs
-
 # Source function library.
 if
   [ -f /etc/rc.d/init.d/functions ]

@@ -25,8 +25,6 @@
 #                                 Default is "/sbin/rsyslogd"
 #   OCF_RESKEY_configfile       : Configuration file
 #   OCF_RESKEY_start_opts       : Startup options
-#   OCF_RESKEY_kill_term_timeout: Number of seconds to await to confirm a 
-#                                 normal stop method
 #
 #   Only OCF_RESKEY_configfile must be specified. Each of the rests 
 #   has its default value or refers OCF_RESKEY_configfile to make
@@ -138,7 +136,7 @@ start_rsyslog()
 		return $OCF_SUCCESS
 	fi
 
-	ocf_run "$RSYSLOG_EXE" -f "$CONFIGFILE" $START_OPTS
+	$RSYSLOG_EXE -f $CONFIGFILE $START_OPTS 2>&1
 	ocf_status=$?
 	if [ "$ocf_status" != "$OCF_SUCCESS" ]; then
 		return $OCF_ERR_GENERIC

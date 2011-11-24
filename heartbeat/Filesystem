@@ -17,6 +17,7 @@
 #		OCF_RESKEY_options
 #		OCF_RESKEY_statusfile_prefix
 #		OCF_RESKEY_run_fsck
+#		OCF_RESKEY_fast_stop
 #
 #OCF_RESKEY_device    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
 #			Or a -U or -L option for mount, or an NFS mount specification
@@ -25,6 +26,7 @@
 #OCF_RESKEY_options   : options to be given to the mount command via -o
 #OCF_RESKEY_statusfile_prefix : the prefix used for a status file for monitoring
 #OCF_RESKEY_run_fsck  : fsck execution mode: auto(default)/force/no
+#OCF_RESKEY_fast_stop : fast stop: yes(default)/no
 #
 #
 # This assumes you want to manage a filesystem on a shared (SCSI) bus,

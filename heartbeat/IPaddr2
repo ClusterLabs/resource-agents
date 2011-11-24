@@ -67,6 +67,24 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Defaults
+OCF_RESKEY_lvs_support_default=false
+OCF_RESKEY_clusterip_hash_default="sourceip-sourceport"
+OCF_RESKEY_unique_clone_address_default=false
+OCF_RESKEY_arp_interval_default=200
+OCF_RESKEY_arp_count_default=5
+OCF_RESKEY_arp_bg_default=true
+OCF_RESKEY_arp_mac_default="ffffffffffff"
+
+: ${OCF_RESKEY_lvs_support=${OCF_RESKEY_lvs_support_default}}
+: ${OCF_RESKEY_clusterip_hash=${OCF_RESKEY_clusterip_hash_default}}
+: ${OCF_RESKEY_unique_clone_address=${OCF_RESKEY_unique_clone_address_default}}
+: ${OCF_RESKEY_arp_interval=${OCF_RESKEY_arp_interval_default}}
+: ${OCF_RESKEY_arp_count=${OCF_RESKEY_arp_count_default}}
+: ${OCF_RESKEY_arp_bg=${OCF_RESKEY_arp_bg_default}}
+: ${OCF_RESKEY_arp_mac=${OCF_RESKEY_arp_mac_default}}
+#######################################################################
+
 SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
 VLDIR=$HA_RSCTMP
@@ -123,7 +141,7 @@ sysctl -w net.ipv4.conf.all.promote_secondaries=1
 
 </longdesc>
 <shortdesc lang="en">Network interface</shortdesc>
-<content type="string" default="eth0"/>
+<content type="string"/>
 </parameter>
 
 <parameter name="cidr_netmask">
@@ -165,7 +183,7 @@ local node to continue to service requests, but no longer advertise it
 on the network.
 </longdesc>
 <shortdesc lang="en">Enable support for LVS DR</shortdesc>
-<content type="boolean" default="false"/>
+<content type="boolean" default="${OCF_RESKEY_lvs_support_default}"/>
 </parameter>
 
 <parameter name="mac">
@@ -184,7 +202,7 @@ Specify the hashing algorithm used for the Cluster IP functionality.
 
 </longdesc>
 <shortdesc lang="en">Cluster IP hashing function</shortdesc>
-<content type="string" default="sourceip-sourceport"/>
+<content type="string" default="${OCF_RESKEY_clusterip_hash_default}"/>
 </parameter>
 
 <parameter name="unique_clone_address">
@@ -193,7 +211,7 @@ If true, add the clone ID to the supplied value of ip to create
 a unique address to manage 
 </longdesc>
 <shortdesc lang="en">Create a unique address for cloned instances</shortdesc>
-<content type="boolean" default="false"/>
+<content type="boolean" default="${OCF_RESKEY_unique_clone_address_default}"/>
 </parameter>
 
 <parameter name="arp_interval">
@@ -201,7 +219,7 @@ a unique address to manage
 Specify the interval between unsolicited ARP packets in milliseconds.
 </longdesc>
 <shortdesc lang="en">ARP packet interval in ms</shortdesc>
-<content type="integer" default="200"/>
+<content type="integer" default="${OCF_RESKEY_arp_interval_default}"/>
 </parameter>
 
 <parameter name="arp_count">
@@ -209,7 +227,7 @@ Specify the interval between unsolicited ARP packets in milliseconds.
 Number of unsolicited ARP packets to send.
 </longdesc>
 <shortdesc lang="en">ARP packet count</shortdesc>
-<content type="integer" default="5"/>
+<content type="integer" default="${OCF_RESKEY_arp_count_default}"/>
 </parameter>
 
 <parameter name="arp_bg">
@@ -217,7 +235,7 @@ Number of unsolicited ARP packets to send.
 Whether or not to send the arp packets in the background.
 </longdesc>
 <shortdesc lang="en">ARP from background</shortdesc>
-<content type="string" default="yes"/>
+<content type="string" default="${OCF_RESKEY_arp_bg_default}"/>
 </parameter>
 
 <parameter name="arp_mac">
@@ -228,7 +246,7 @@ You really shouldn't be touching this.
 
 </longdesc>
 <shortdesc lang="en">ARP MAC</shortdesc>
-<content type="string" default="ffffffffffff"/>
+<content type="string" default="${OCF_RESKEY_arp_mac_default}"/>
 </parameter>
 
 <parameter name="flush_routes">
@@ -305,25 +323,13 @@ ip_init() {
 	IFLABEL="$OCF_RESKEY_iflabel"
 	IF_MAC="$OCF_RESKEY_mac"
 
-	LVS_SUPPORT=0
-	if [ x"${OCF_RESKEY_lvs_support}" = x"true" \
-	    -o x"${OCF_RESKEY_lvs_support}" = x"on" \
-	    -o x"${OCF_RESKEY_lvs_support}" = x"1" ]; then
-	    LVS_SUPPORT=1
-	fi
-
 	IP_INC_GLOBAL=${OCF_RESKEY_CRM_meta_clone_max:-1}
 	IP_INC_NO=`expr ${OCF_RESKEY_CRM_meta_clone:-0} + 1`
 
-	if [ $LVS_SUPPORT -gt 0 ] && [ $IP_INC_GLOBAL -gt 1 ]; then
+	if ocf_is_true ${OCF_RESKEY_lvs_support} && [ $IP_INC_GLOBAL -gt 1 ]; then
 		ocf_log err "LVS and load sharing do not go together well"
 		exit $OCF_ERR_CONFIGURED
 	fi
-
-	ARP_INTERVAL_MS=${OCF_RESKEY_arp_interval:-200}
-	ARP_REPEAT=${OCF_RESKEY_arp_count:-5}
-	ARP_BACKGROUND=${OCF_RESKEY_arp_bg:-yes}
-	ARP_NETMASK=${OCF_RESKEY_arp_mac:-ffffffffffff}
 
 	if ocf_is_decimal "$IP_INC_GLOBAL" && [ $IP_INC_GLOBAL -gt 0 ]; then
 		:
@@ -357,7 +363,7 @@ ip_init() {
 		fi
 	fi
 	
-	SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$BASEIP"
+	SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$OCF_RESKEY_ip"
 
 	case $NIC in
 	    *:*)
@@ -373,7 +379,7 @@ ip_init() {
 
 	if [ "$IP_INC_GLOBAL" -gt 1 ] && ! ocf_is_true "$OCF_RESKEY_unique_clone_address"; then
 		IP_CIP="yes"
-		IP_CIP_HASH="${OCF_RESKEY_clusterip_hash:-sourceip-sourceport}"
+		IP_CIP_HASH="${OCF_RESKEY_clusterip_hash}"
 		if [ -z "$IF_MAC" ]; then
 			# Choose a MAC
 			# 1. Concatenate some input together
@@ -383,13 +389,13 @@ ip_init() {
 			# 4. Delimit the octets with ':'
 			# 5. Make sure the first octet is odd,
 			#    so the result is a multicast MAC
-			IF_MAC=`echo $BASEIP $NETMASK $BRDCAST |	\
+			IF_MAC=`echo $OCF_RESKEY_ip $NETMASK $BRDCAST |	\
 				md5sum |				\
 				sed -e 's#\(............\).*#\1#'	\
 				    -e 's#..#&:#g; s#:$##'		\
 				    -e 's#^\(.\)[02468aAcCeE]#\11#'`
 		fi
-		IP_CIP_FILE="/proc/net/ipt_CLUSTERIP/$BASEIP"
+		IP_CIP_FILE="/proc/net/ipt_CLUSTERIP/$OCF_RESKEY_ip"
 	fi
 }
 
@@ -402,7 +408,7 @@ find_interface() {
 	#
 	# List interfaces but exclude FreeS/WAN ipsecN virtual interfaces
 	#
-	local iface=`$IP2UTIL -o -f inet addr show | grep "\ $BASEIP/$NETMASK" \
+	local iface=`$IP2UTIL -o -f inet addr show | grep "\ $OCF_RESKEY_ip/$NETMASK" \
 		| cut -d ' ' -f2 | grep -v '^ipsec[0-9][0-9]*$'`
 	echo $iface
 	return 0
@@ -431,31 +437,31 @@ delete_interface () {
 #        Add an interface
 #
 add_interface () {
+	local cmd msg ipaddr netmask broadcast iface label
+
 	ipaddr="$1"
 	netmask="$2"
 	broadcast="$3"
 	iface="$4"
 	label="$5"
 
-	CMD="$IP2UTIL -f inet addr add $ipaddr/$netmask brd $broadcast dev $iface"
+	cmd="$IP2UTIL -f inet addr add $ipaddr/$netmask brd $broadcast dev $iface"
+	msg="Adding IPv4 address $ipaddr/$netmask with broadcast address $broadcast to device $iface"
 
 	if [ ! -z "$label" ]; then
-		CMD="$CMD label $label"
+		cmd="$cmd label $label"
+		msg="${msg} (with label $label)"
 	fi
 
-	ocf_log info "$CMD"
-	$CMD
+	ocf_log info "$msg"
+	ocf_run $cmd || return $OCF_ERR_GENERIC
 
-	if [ $? -ne 0 ]; then
-		return $OCF_ERR_GENERIC
-	fi
+	msg="Bringing device $iface up"
+	cmd="$IP2UTIL link set $iface up"
+	ocf_log info "$msg"
+	ocf_run $cmd || return $OCF_ERR_GENERIC
 
-	CMD="$IP2UTIL link set $iface up"
-
-	ocf_log info "$CMD"
-	$CMD
-
-	return $?
+	return $OCF_SUCCESS
 }
 
 #
@@ -524,40 +530,34 @@ restore_loopback() {
 # Run send_arp to note peers about new mac address
 #
 run_send_arp() {
-	ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $NIC $BASEIP auto not_used not_used"
+	ARGS="-i $OCF_RESKEY_arp_interval -r $OCF_RESKEY_arp_count -p $SENDARPPIDFILE $NIC $OCF_RESKEY_ip auto not_used not_used"
 	if [ "x$IP_CIP" = "xyes" ] ; then
 	    if [ x = "x$IF_MAC" ] ; then
 		MY_MAC=auto
 	    else
 		MY_MAC=`echo ${IF_MAC} | sed -e 's/://g'`
 	    fi
-	    ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $NIC $BASEIP $MY_MAC not_used not_used"
+	    ARGS="-i $OCF_RESKEY_arp_interval -r $OCF_RESKEY_arp_count -p $SENDARPPIDFILE $NIC $OCF_RESKEY_ip $MY_MAC not_used not_used"
 	fi
 	ocf_log info "$SENDARP $ARGS"
-	case $ARP_BACKGROUND in
-	yes) 
+	if ocf_is_true $OCF_RESKEY_arp_bg; then
 		($SENDARP $ARGS || ocf_log err "Could not send gratuitous arps" &) >&2
-		;;
-	*)
+	else
 		$SENDARP $ARGS || ocf_log err "Could not send gratuitous arps"
-		;;
-	esac
+	fi
 }
 
 #
 # Run ipoibarping to note peers about new Infiniband address
 #
 run_send_ib_arp() {
-	ARGS="-q -c $ARP_REPEAT -U -I $NIC $BASEIP"
+	ARGS="-q -c $OCF_RESKEY_arp_count -U -I $NIC $OCF_RESKEY_ip"
 	ocf_log info "ipoibarping $ARGS"
-	case $ARP_BACKGROUND in
-	yes)
+	if ocf_is_true $OCF_RESKEY_arp_bg; then
 		(ipoibarping $ARGS || ocf_log err "Could not send gratuitous arps" &) >&2
-		;;
-	*)
+	else
 		ipoibarping $ARGS || ocf_log err "Could not send gratuitous arps"
-		;;
-	esac
+	fi
 }
 
 # Do we already serve this IP address?
@@ -574,7 +574,7 @@ ip_served() {
 		return 0
 	fi
 
-	cur_nic="`find_interface $BASEIP`"
+	cur_nic="`find_interface $OCF_RESKEY_ip`"
 
 	if [ -z "$cur_nic" ]; then
 		echo "no"
@@ -583,7 +583,7 @@ ip_served() {
 
 	if [ -z "$IP_CIP" ]; then
 		case $cur_nic in
-		lo*)	if [ "$LVS_SUPPORT" = "1" ]; then
+		lo*)	if ocf_is_true ${OCF_RESKEY_lvs_support}; then
 				echo "no"
 				return 0
 			fi
@@ -644,7 +644,7 @@ ip_start() {
 	
 	if [ -n "$IP_CIP" ] && [ $ip_status = "no" ] || [ $ip_status = "partial2" ]; then
 		$MODPROBE ip_conntrack
-		$IPTABLES -I INPUT -d $BASEIP -i $NIC -j CLUSTERIP \
+		$IPTABLES -I INPUT -d $OCF_RESKEY_ip -i $NIC -j CLUSTERIP \
 				--new \
 				--clustermac $IF_MAC \
 				--total-nodes $IP_INC_GLOBAL \
@@ -661,15 +661,15 @@ ip_start() {
 	fi
 	
 	if [ "$ip_status" = "no" ]; then
-		if [ "$LVS_SUPPORT" = "1" ]; then
-			case `find_interface $BASEIP` in
+		if ocf_is_true ${OCF_RESKEY_lvs_support}; then
+			case `find_interface $OCF_RESKEY_ip` in
 			lo*)
-				remove_conflicting_loopback $BASEIP 32 255.255.255.255 lo
+				remove_conflicting_loopback $OCF_RESKEY_ip 32 255.255.255.255 lo
 				;;
 			esac
 		fi
 		
-		add_interface $BASEIP $NETMASK $BRDCAST $NIC $IFLABEL
+		add_interface $OCF_RESKEY_ip $NETMASK $BRDCAST $NIC $IFLABEL
 		
 		if [ $? -ne 0 ]; then
 			ocf_log err "$CMD failed."
@@ -706,9 +706,9 @@ ip_stop() {
 	if [ -f "$SENDARPPIDFILE" ] ; then
 		kill `cat "$SENDARPPIDFILE"`
 		if [ $? -ne 0 ]; then
-			ocf_log warn "Could not kill previously running send_arp for $BASEIP"
+			ocf_log warn "Could not kill previously running send_arp for $OCF_RESKEY_ip"
 		else
-			ocf_log info "killed previously running send_arp for $BASEIP"
+			ocf_log info "killed previously running send_arp for $OCF_RESKEY_ip"
 			rm -f "$SENDARPPIDFILE"
 		fi
 	fi
@@ -726,11 +726,11 @@ ip_stop() {
 		fi
 		echo "-$IP_INC_NO" >$IP_CIP_FILE
 		if [ "x$(cat $IP_CIP_FILE)" = "x" ]; then
-			ocf_log info $BASEIP, $IP_CIP_HASH
+			ocf_log info $OCF_RESKEY_ip, $IP_CIP_HASH
 			i=1
 			while [ $i -le $IP_INC_GLOBAL ]; do
 				ocf_log info $i
-				$IPTABLES -D INPUT -d $BASEIP -i $NIC -j CLUSTERIP \
+				$IPTABLES -D INPUT -d $OCF_RESKEY_ip -i $NIC -j CLUSTERIP \
 					--new \
 					--clustermac $IF_MAC \
 					--total-nodes $IP_INC_GLOBAL \
@@ -744,13 +744,13 @@ ip_stop() {
 	fi
 	
 	if [ "$ip_del_if" = "yes" ]; then
-		delete_interface $BASEIP $NIC $NETMASK
+		delete_interface $OCF_RESKEY_ip $NIC $NETMASK
 		if [ $? -ne 0 ]; then
 			exit $OCF_ERR_GENERIC
 		fi
 	
-		if [ "$LVS_SUPPORT" = 1 ]; then
-			restore_loopback "$BASEIP"
+		if ocf_is_true ${OCF_RESKEY_lvs_support}; then
+			restore_loopback "$OCF_RESKEY_ip"
 		fi
 	fi
 
@@ -801,17 +801,17 @@ ip_validate() {
 	exit $OCF_ERR_CONFIGURED
     fi
 
-    if ocf_is_decimal "$ARP_INTERVAL_MS" && [ $ARP_INTERVAL_MS -gt 0 ]; then
+    if ocf_is_decimal "$OCF_RESKEY_arp_interval" && [ $OCF_RESKEY_arp_interval -gt 0 ]; then
 	:
     else
-	ocf_log err "Invalid OCF_RESKEY_arp_interval [$ARP_INTERVAL_MS]"
+	ocf_log err "Invalid OCF_RESKEY_arp_interval [$OCF_RESKEY_arp_interval]"
 	exit $OCF_ERR_CONFIGURED
     fi
 
-    if ocf_is_decimal "$ARP_REPEAT" && [ $ARP_REPEAT -gt 0 ]; then
+    if ocf_is_decimal "$OCF_RESKEY_arp_count" && [ $OCF_RESKEY_arp_count -gt 0 ]; then
 	:
     else
-	ocf_log err "Invalid OCF_RESKEY_arp_count [$ARP_REPEAT]"
+	ocf_log err "Invalid OCF_RESKEY_arp_count [$OCF_RESKEY_arp_count]"
 	exit $OCF_ERR_CONFIGURED
     fi
 
@@ -828,7 +828,7 @@ ip_validate() {
 		;;
 	esac
 
-	if [ "$LVS_SUPPORT" = 1 ]; then
+	if ocf_is_true ${OCF_RESKEY_lvs_support}; then
 		ecf_log err "LVS and load sharing not advised to try"
 		exit $OCF_ERR_CONFIGURED
 	fi
