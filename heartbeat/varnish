@@ -234,9 +234,9 @@ varnish_status() {
             ocf_log info "Varnish is running"
             # check if the child process is started and varnish is
             # reporting child status as ok
-            v_rc=$(varnishadm -T $OCF_RESKEY_mgmt_address status)
-            ocf_log info $v_rc
-            if [ "$v_rc" == "Child in state running" ]; then
+            ocf_run varnishadm -T $OCF_RESKEY_mgmt_address status
+            v_rc=$?
+            if [ "$v_rc" -eq 0 ]; then
                 ocf_log info "Varnish child reported running"
                 return $OCF_SUCCESS
             else
