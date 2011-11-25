@@ -14,6 +14,7 @@
 # OCF instance parameters:
 #   OCF_RESKEY_pid
 #   OCF_RESKEY_binary
+#   OCF_RESKEY_client_binary
 #   OCF_RESKEY_config
 #   OCF_RESKEY_instance_name
 #   OCF_RESKEY_listen_address
@@ -35,6 +36,7 @@
 # Set default paramenter values
 
 OCF_RESKEY_binary_default=varnishd
+OCF_RESKEY_client_binary_default=varnishadm
 OCF_RESKEY_config_default=/etc/varnish/default.vcl
 OCF_RESKEY_instance_name_default=myinstance
 OCF_RESKEY_pid_default=/var/run/varnishd_${OCF_RESKEY_instance_name}.pid
@@ -50,6 +52,7 @@ OCF_RESKEY_worker_threads_default=100,3000,120
 
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_client_binary=${OCF_RESKEY_client_binary_default}}
 : ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
 : ${OCF_RESKEY_instance_name=${OCF_RESKEY_instance_name_default}}
 : ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
@@ -191,6 +194,15 @@ For example: 100,3000,120
 <content type="string" default="${OCF_RESKEY_worker_threads_default}" />
 </parameter>
 
+<parameter name="client_binary" unique="0" required="0">
+<longdesc lang="en">
+This is used to control varnish via a CLI. It's currently
+only used to check the status of the running child process.
+</longdesc>
+<shortdesc lang="en">Varnish admin utility</shortdesc>
+<content type="string" default="${OCF_RESKEY_client_binary_default}" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -234,7 +246,7 @@ varnish_status() {
             ocf_log info "Varnish is running"
             # check if the child process is started and varnish is
             # reporting child status as ok
-            ocf_run varnishadm -T $OCF_RESKEY_mgmt_address status
+            ocf_run $OCF_RESKEY_client_binary -T $OCF_RESKEY_mgmt_address status
             v_rc=$?
             if [ "$v_rc" -eq 0 ]; then
                 ocf_log info "Varnish child reported running"
