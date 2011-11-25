@@ -224,6 +224,12 @@ LVM_start() {
 	vgchange_options="$vgchange_options --partial"
   fi
 
+  # for clones (clustered volume groups), we'll also have to force
+  # monitoring, even if disabled in lvm.conf.
+  if ocf_is_clone; then
+	vgchange_options="$vgchange_options --monitor y"
+  fi
+
   ocf_run vgchange $vgchange_options $1 || return $OCF_ERR_GENERIC
 
   if LVM_status $1; then
