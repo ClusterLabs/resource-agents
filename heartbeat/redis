@@ -100,7 +100,7 @@ It manages a redis instance as an HA resource.
 
 <parameter name="binary" unique="0" required="0">
 <longdesc lang="en">
-Name for the redis binary (it should be on the $PATH)
+Name of the redis server binary. Use an absolute path if the binary is not resolvable via \$PATH
 </longdesc>
 <shortdesc lang="en">redis binary</shortdesc>
 <content type="string" default="${OCF_RESKEY_binary_default}" />
@@ -108,7 +108,7 @@ Name for the redis binary (it should be on the $PATH)
 
 <parameter name="client_binary" unique="0" required="0">
 <longdesc lang="en">
-Name for the redis client binary (it should be on the $PATH)
+Name of the redis client binary. Use an absolute path if the binary is not resolvable via \$PATH
 </longdesc>
 <shortdesc lang="en">redis client binary</shortdesc>
 <content type="string" default="${OCF_RESKEY_client_binary_default}" />
@@ -315,7 +315,6 @@ redis_status() {
             ocf_log info "Redis is running"
             return $OCF_SUCCESS
         else
-            ocf_log err "Something wrong happened"
             return $OCF_ERR_GENERIC
         fi
     fi
