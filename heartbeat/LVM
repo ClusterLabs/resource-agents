@@ -76,7 +76,7 @@ The name of volume group.
 If set, the volume group will be activated exclusively.
 </longdesc>
 <shortdesc lang="en">Exclusive activation</shortdesc>
-<content type="string" default="false" />
+<content type="boolean" default="false" />
 </parameter>
 
 <parameter name="partial_activation" unique="0" required="0">
