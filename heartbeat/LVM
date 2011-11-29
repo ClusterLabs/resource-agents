@@ -35,7 +35,7 @@
 usage() {
   methods=`LVM_methods`
   methods=`echo $methods | tr ' ' '|'`
-  cat <<-!
+  cat <<EOF
 	usage: $0 $methods
 
 	$0 manages an  Linux Volume Manager volume (LVM) as an HA resource
@@ -47,11 +47,11 @@ usage() {
 	The 'validate-all' operation checks whether the OCF parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
-	!
+EOF
 }
 
 meta_data() {
-	cat <<END
+	cat <<EOF
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="LVM">
@@ -101,14 +101,14 @@ logical volumes.
 <action name="validate-all" timeout="5" />
 </actions>
 </resource-agent>
-END
+EOF
 }
 
 #
 # methods: What methods/operations do we support?
 #
 LVM_methods() {
-  cat <<-!
+  cat <<EOF
 	start
 	stop
 	status
@@ -116,7 +116,7 @@ LVM_methods() {
 	methods
 	validate-all
 	usage
-	!
+EOF
 }
 
 #
