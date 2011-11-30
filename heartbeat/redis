@@ -13,7 +13,7 @@
 #       Marian Marinov,
 #       Florian Haas:                 MySQL script
 #       Martin Walter:                rewrite as redis
-#       Jose Junior:                      tweaks to the redis version
+#       Jose Junior:                  tweaks to the redis version
 #
 # Support:  linux-ha@lists.linux-ha.org
 # License:  GNU General Public License (GPL)
@@ -197,7 +197,7 @@ read_ms_status() {
     local master_host_value
 
     tmp=$(mktemp -p $HA_RSCTMP)
-    redis-cli info >$tmp
+    $OCF_RESKEY_client_binary info >$tmp
     if [ $? -ne 0 ]; then
         ocf_log info "Could not determine master/slave status";
         rm -f $tmp
@@ -340,7 +340,7 @@ redis_start() {
     touch $OCF_RESKEY_pid
     chown $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_pid
 
-    start-stop-daemon --start --quiet --umask 007 --pidfile $OCF_RESKEY_pid --make-pidfile --chuid $OCF_RESKEY_user:$OCF_RESKEY_group --exec  /usr/local/bin/redis-server -- $OCF_RESKEY_config
+    start-stop-daemon --start --quiet --umask 007 --pidfile $OCF_RESKEY_pid --make-pidfile --chuid $OCF_RESKEY_user:$OCF_RESKEY_group --exec $OCF_RESKEY_binary -- $OCF_RESKEY_config
     rc=$?
 
     if [ $rc -ne 0 ]; then
