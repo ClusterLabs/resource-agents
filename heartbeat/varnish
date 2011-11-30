@@ -252,11 +252,11 @@ varnish_status() {
                 ocf_log info "Varnish child reported running"
                 return $OCF_SUCCESS
             else
-                ocf_log info "Varnish child not running"
+                ocf_log err "Varnish child not running"
                 return $OCF_ERR_GENERIC
             fi
         else
-            ocf_log info "Varnish PID file exists, but varnishd is not running"
+            ocf_log err "Varnish PID file exists, but varnishd is not running"
             return $OCF_ERR_GENERIC
         fi
     fi
@@ -364,7 +364,7 @@ varnish_stop() {
     rc=$?
     if [ $rc -ne $OCF_NOT_RUNNING ]; then
         # varnish didn't quit on a SIGTERM, try SIGKILL
-        ocf_log info "Varnish failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL..."
+        ocf_log warn "Varnish failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL..."
         ocf_run kill -s KILL $pid
         # delete the pidfile
         rm -f $OCF_RESKEY_pid
