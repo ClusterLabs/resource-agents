@@ -37,7 +37,6 @@
 
 OCF_RESKEY_binary_default=varnishd
 OCF_RESKEY_client_binary_default=varnishadm
-OCF_RESKEY_config_default=/etc/varnish/default.vcl
 OCF_RESKEY_pid_default=/var/run/varnishd_${OCF_RESKEY_instance_name}.pid
 OCF_RESKEY_listen_address_default=0.0.0.0:80
 OCF_RESKEY_ttl_default=600
@@ -51,7 +50,6 @@ OCF_RESKEY_worker_threads_default=100,3000,120
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 : ${OCF_RESKEY_client_binary=${OCF_RESKEY_client_binary_default}}
-: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
 : ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
 : ${OCF_RESKEY_listen_address=${OCF_RESKEY_listen_address_default}}
 : ${OCF_RESKEY_ttl=${OCF_RESKEY_ttl_default}}
@@ -86,7 +84,7 @@ The VCL configuration file that varnish should manage, for example
 "/etc/varnish/default.vcl".
 </longdesc>
 <shortdesc lang="en">VCL file</shortdesc>
-<content type="string" default="${OCF_RESKEY_config_default}" />
+<content type="string" default="" />
 </parameter>
 
 <<<<<<< HEAD
