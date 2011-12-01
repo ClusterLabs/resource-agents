@@ -37,15 +37,10 @@
 
 OCF_RESKEY_binary_default=varnishd
 OCF_RESKEY_client_binary_default=varnishadm
-OCF_RESKEY_config_default=/etc/varnish/default.vcl
-OCF_RESKEY_instance_name_default=myinstance
 OCF_RESKEY_pid_default=/var/run/varnishd_${OCF_RESKEY_instance_name}.pid
-OCF_RESKEY_listen_address_default=127.0.0.1:8080
-OCF_RESKEY_mgmt_address_default=127.0.0.1:2222
 OCF_RESKEY_ttl_default=600
 OCF_RESKEY_varnish_user_default=varnish
 OCF_RESKEY_varnish_group_default=varnish
-OCF_RESKEY_backend_type_default=malloc
 OCF_RESKEY_backend_size_default=1G
 OCF_RESKEY_backend_file_default=/var/lib/varnish/${OCF_RESKEY_instance_name_default}.bin
 OCF_RESKEY_worker_threads_default=100,3000,120
@@ -53,15 +48,10 @@ OCF_RESKEY_worker_threads_default=100,3000,120
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 : ${OCF_RESKEY_client_binary=${OCF_RESKEY_client_binary_default}}
-: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
-: ${OCF_RESKEY_instance_name=${OCF_RESKEY_instance_name_default}}
 : ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
-: ${OCF_RESKEY_listen_address=${OCF_RESKEY_listen_address_default}}
-: ${OCF_RESKEY_mgmt_address=${OCF_RESKEY_mgmt_address_default}}
 : ${OCF_RESKEY_ttl=${OCF_RESKEY_ttl_default}}
 : ${OCF_RESKEY_varnish_user=${OCF_RESKEY_varnish_user_default}}
 : ${OCF_RESKEY_varnish_group=${OCF_RESKEY_varnish_group_default}}
-: ${OCF_RESKEY_backend_type=${OCF_RESKEY_backend_type_default}}
 : ${OCF_RESKEY_backend_size=${OCF_RESKEY_backend_size_default}}
 : ${OCF_RESKEY_backend_file=${OCF_RESKEY_backend_file_default}}
 : ${OCF_RESKEY_worker_threads=${OCF_RESKEY_worker_threads_default}}
@@ -90,7 +80,7 @@ The VCL configuration file that varnish should manage, for example
 "/etc/varnish/default.vcl".
 </longdesc>
 <shortdesc lang="en">VCL file</shortdesc>
-<content type="string" default="${OCF_RESKEY_config_default}" />
+<content type="string" default="" />
 </parameter>
 
 <parameter name="instance_name" unique="1" required="1">
@@ -98,7 +88,7 @@ The VCL configuration file that varnish should manage, for example
 The name of the instance that should be given to varnish
 </longdesc>
 <shortdesc lang="en">Instance name</shortdesc>
-<content type="string" default="${OCF_RESKEY_instance_name_default}" />
+<content type="string" default="" />
 </parameter>
 
 <parameter name="pid" unique="1" required="0">
@@ -117,7 +107,7 @@ It is most likely not necessary to change this parameter.
 Listen on this address:port, for example "192.168.1.1:80"
 </longdesc>
 <shortdesc lang="en">Listen address</shortdesc>
-<content type="string" default="${OCF_RESKEY_listen_address_default}" />
+<content type="string" default="" />
 </parameter>
 
 <parameter name="mgmt_address" unique="1" required="1">
@@ -125,7 +115,7 @@ Listen on this address:port, for example "192.168.1.1:80"
 Provide a management interface, for example "127.0.0.1:2222"
 </longdesc>
 <shortdesc lang="en">Management interface</shortdesc>
-<content type="string" default="${OCF_RESKEY_mgmt_address_default}" />
+<content type="string" default="" />
 </parameter>
 
 <parameter name="ttl" unique="0" required="0">
@@ -162,7 +152,7 @@ Use the specified storage backend. Valid options are
 'malloc' for memory and 'file' for a file backend.
 </longdesc>
 <shortdesc lang="en">Backend type</shortdesc>
-<content type="string" default="${OCF_RESKEY_backend_type_default}" />
+<content type="string" default="" />
 </parameter>
 
 <parameter name="backend_size" unique="0" required="0">
