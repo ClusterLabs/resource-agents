@@ -19,9 +19,13 @@
 # Defaults
 OCF_RESKEY_force_stop_default=0
 OCF_RESKEY_hypervisor_default="$(virsh --quiet uri)"
+OCF_RESKEY_autoset_utilization_cpu_default="true"
+OCF_RESKEY_autoset_utilization_hv_memory_default="true"
 
 : ${OCF_RESKEY_force_stop=${OCF_RESKEY_force_stop_default}}
 : ${OCF_RESKEY_hypervisor=${OCF_RESKEY_hypervisor_default}}
+: ${OCF_RESKEY_autoset_utilization_cpu=${OCF_RESKEY_autoset_utilization_cpu_default}}
+: ${OCF_RESKEY_autoset_utilization_hv_memory=${OCF_RESKEY_autoset_utilization_hv_memory_default}}
 #######################################################################
 
 ## I'd very much suggest to make this RA use bash,
@@ -117,6 +121,24 @@ Be sure to set the timeout of these operations to accommodate this delay.
 <content type="string" default="" />
 </parameter>
 
+<parameter name="autoset_utilization_cpu" unique="0" required="0">
+<longdesc lang="en">
+If set true, the agent will detect the number of domainU's vCPUs from virsh, and put it 
+into the cpu utilization of the resource when the monitor is executed.
+</longdesc>
+<shortdesc lang="en">Enable auto setting the cpu utilization of the resource</shortdesc>
+<content type="boolean" default="true" />
+</parameter>
+
+<parameter name="autoset_utilization_hv_memory" unique="0" required="0">
+<longdesc lang="en">
+If set true, the agent will detect the number of *Max memory* from virsh, and put it 
+into the hv_memory utilization of the resource when the monitor is executed.
+</longdesc>
+<shortdesc lang="en">Enable auto setting the hv_memory utilization of the resource</shortdesc>
+<content type="boolean" default="true" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -131,6 +153,30 @@ Be sure to set the timeout of these operations to accommodate this delay.
 </actions>
 </resource-agent>
 EOF
+}
+
+set_util_attr() {
+    local attr=$1 val=$2
+    local cval outp
+
+    cval=$(crm_resource -Q -r $OCF_RESOURCE_INSTANCE -z -g $attr 2>/dev/null)
+    if [ "$cval" != "$val" ]; then
+       outp=`crm_resource -r $OCF_RESOURCE_INSTANCE -z -p $attr -v $val 2>&1` ||
+           ocf_log warn "crm_resource failed to set utilization attribute $attr: $outp"
+    fi
+}
+
+update_utilization() {
+    local dom_cpu dom_mem
+
+    if ocf_is_true "$OCF_RESKEY_autoset_utilization_cpu"; then
+       dom_cpu=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} | awk '/CPU\(s\)/{print $2}')
+       test -n "$dom_cpu" && set_util_attr cpu $dom_cpu
+    fi
+    if ocf_is_true "$OCF_RESKEY_autoset_utilization_hv_memory"; then
+       dom_mem=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} | awk '/Max memory/{printf("%d", $3/1024)}')
+       test -n "$dom_mem" && set_util_attr hv_memory "$dom_mem"
+    fi
 }
 
 # Set options to be passed to virsh:
@@ -404,6 +450,9 @@ VirtualDomain_Monitor() {
 	    fi
 	done
     fi
+
+    update_utilization
+
     return ${rc}
 }
 
