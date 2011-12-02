@@ -1,29 +1,11 @@
 #!/bin/sh
 #
-#   Decription:   Resource Agent for managing dhcpd resources.
+#   Resource Agent for managing dhcpd resources.
 #
 #   License:      GNU General Public License (GPL)
-#   (c) 2011-2011 Chris Bowlby <cbowlby@tenthpowertech.com>,
+#   (c) 2011-2011 Chris Bowlby,
 #                 and Linux-HA contributors
-#
-#   To ensure behaviour is consistent with existing DHCPD init scripts, some 
-#   code was borrowed from the /etc/init.d/dhcpd rc scripts written by:
-#
-#   Rolf Haberrecker <rolf@suse.de>, 1997, 1998, 1999
-#   Peter Poeml <poeml@suse.de>, 2000, 2001, 2002, 2003
-#
-#   It has, however been modified to work with sh vs bash and within the 
-#   pacemaker/corosync/resource-agents frame work.
-#
-#   In addition, the existing named RA script was used as the base
-#   and was written initially by:
-#
-#   Serge Dubrouski <sergeyfd@gmail.com>, 2011
-#
-#   This has also been customized for the DHCPD process
-###############################################################################
 
-# TODO: Clean out extraneous debug lines.
 # Initialization:
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
@@ -38,13 +20,11 @@ OCF_RESKEY_dhcpd_chrooted_default=true
 OCF_RESKEY_dhcpd_chrooted_path_default="/var/lib/dhcp"
 OCF_RESKEY_dhcpd_leases_default="/db/dhcpd.leases"
 OCF_RESKEY_dhcpd_interface_default=""
+OCF_RESKEY_monitor_client_default="dhcpcd"
+OCF_RESKEY_monitor_client_params_default="-T -p"
 OCF_RESKEY_monitor_client_interface_default="eth0"
-
-# TODO: Look into a more robust way of monitoring DHCPD itself.
-#OCF_RESKEY_monitor_client_default="dhcpcd"
-#OCF_RESKEY_monitor_client_params_default="-T -p"
-#OCF_RESKEY_monitor_receive_ip_default=""
-#OCF_RESKEY_monitor_source_ip_default="127.0.0.1"
+OCF_RESKEY_monitor_receive_ip_default=""
+OCF_RESKEY_monitor_source_ip_default="127.0.0.1"
 
 : ${OCF_RESKEY_dhcpd=${OCF_RESKEY_dhcpd_default}}
 : ${OCF_RESKEY_dhcpd_pidfile=${OCF_RESKEY_dhcpd_pidfile_default}}
@@ -55,12 +35,12 @@ OCF_RESKEY_monitor_client_interface_default="eth0"
 : ${OCF_RESKEY_dhcpd_config=${OCF_RESKEY_dhcpd_config_default}}
 : ${OCF_RESKEY_dhcpd_leases=${OCF_RESKEY_dhcpd_leases_default}}
 : ${OCF_RESKEY_dhcpd_interface=${OCF_RESKEY_dhcpd_interface_default}}
+: ${OCF_RESKEY_monitor_client=${OCF_RESKEY_monitor_client_default}}
+: ${OCF_RESKEY_monitor_client_params=${OCF_RESKEY_monitor_client_params_default}}
 : ${OCF_RESKEY_monitor_client_interface=${OCF_RESKEY_monitor_client_interface_default}}
+: ${OCF_RESKEY_monitor_receive_ip=${OCF_RESKEY_monitor_receive_ip_default}}
+: ${OCF_RESKEY_monitor_source_ip=${OCF_RESKEY_monitor_source_ip_default}}
 
-#: ${OCF_RESKEY_monitor_client=${OCF_RESKEY_monitor_client_default}}
-#: ${OCF_RESKEY_monitor_client_params=${OCF_RESKEY_monitor_client_params_default}}
-#: ${OCF_RESKEY_monitor_receive_ip=${OCF_RESKEY_monitor_receive_ip_default}}
-#: ${OCF_RESKEY_monitor_source_ip=${OCF_RESKEY_monitor_source_ip_default}}
 
 usage() {
     cat <<EOF
@@ -78,7 +58,6 @@ EOF
   return $OCF_ERR_ARGS
 }
 
-#TODO: Comment and add more detail to each of the variables.
 dhcpd_meta_data() {
         cat <<EOF
 <?xml version="1.0"?>
@@ -212,8 +191,6 @@ service.
 EOF
 }
 
-# TODO: As new code changes are added to add DHCPD features, ensure their elements
-#       are validated if needed.
 # Validate most critical parameters
 dhcpd_validate_all() {
     ocf_log debug "Validating the ${OCF_RESKEY_dhcpd} binary exists."
@@ -251,7 +228,6 @@ dhcpd_validate_all() {
     return $OCF_SUCCESS
 }
 
-# TODO: Is this even needed?!?!
 # dhcpd_getpid. Get pid of named process with a given parameters.
 dhcpd_getpid () {
     local pattern="$OCF_RESKEY_dhcpd"
@@ -277,8 +253,6 @@ dhcpd_status () {
     fi
 }
 
-# TODO: Find a means of monitoring DHCPD itself to ensure IP's
-#       are being requested and sent.
 # dhcpd_monitor. Send a request to dhcpd and check response.
 dhcpd_monitor() {
     local output
@@ -301,8 +275,6 @@ dhcpd_reload() {
     return $OCF_SUCCESS
 }
 
-# TODO: Code review to ensure "first start" success, and clean up some of the 
-#       odd code segments, possibily convert to functions.
 # Start
 dhcpd_start() {
     # Lets make sure we are not already running.
@@ -331,14 +303,14 @@ dhcpd_start() {
             elif test -e "${i}" ; then
                 test -d "${OCF_RESKEY_dhcpd_chrooted_path}/${i%/*}" || mkdir -p "${OCF_RESKEY_dhcpd_chrooted_path}/${i%/*}"
             fi
-	    cp -aL "$i" "${OCF_RESKEY_dhcpd_chrooted_path}/${i%/*}/" &>/dev/null || { ocf_log err "could not copy $i to chroot jail"; return $OCF_ERR_GENERIC; }
+	    cp -aL "$i" "${OCF_RESKEY_dhcpd_chrooted_path}/${i%/*}/" > /dev/null 2>&1 || { ocf_log err "could not copy $i to chroot jail"; return $OCF_ERR_GENERIC; }
         done
 	# Remove the random device.
 	test -e "${OCF_RESKEY_dhcpd_chrooted_path}/dev/urandom" && rm -f ${OCF_RESKEY_dhcpd_chrooted_path}/dev/urandom
 
-	for i in /etc/{gai.conf,nsswitch.conf,resolv.conf,host.conf,hosts,localtime} /dev/urandom; do
+	for i in "/etc/gai.conf /etc/nsswitch.conf /etc/resolv.conf /etc/host.conf /etc/hosts /etc/localtime /dev/urandom"; do
 		if ! test -e "$i"; then continue; fi # neither of them is absolutely necessary
-		cp -aL "$i" "${OCF_RESKEY_dhcpd_chrooted_path}/${i%/*}/" &>/dev/null || { ocf_log err "could not copy $i to chroot jail"; return $OCF_ERR_GENERIC; }
+		cp -aL "$i" "${OCF_RESKEY_dhcpd_chrooted_path}/${i%/*}/" /dev/null 2>&1 || { ocf_log err "could not copy $i to chroot jail"; return $OCF_ERR_GENERIC; }
 	done
         libdir=$(basename $(echo /var/lib/dhcp/lib*))
         if test -x /usr/bin/ldd ; then
@@ -346,17 +318,18 @@ dhcpd_start() {
                 {
                         ldd_wl="\/${libdir}\/lib"
                         ldd_bl="\/${libdir}\/libc\."
-                        /usr/bin/ldd "$1" | while read -sr a b c d ; do
+                        /usr/bin/ldd "$1" | while read a b c d ; do
+				echo "($a) ($b) ($c) ($d)"
                                 [ -n "$c" ] || continue
-                                [[ $c =~ $ldd_wl ]] || continue
-                                [[ $c =~ $ldd_bl ]] && continue
+                                [ $c =~ $ldd_wl ] || continue
+                                [ $c =~ $ldd_bl ] && continue
                                 echo $c
                         done
                 }
         else
                 get_ldd_deps() { :; }
         fi
-        cplibs=`for i in /$libdir/{libresolv.so.*,libnss_*.so.*} /$libdir/{libpthread.so.0,libdl.so.2} ;
+        cplibs=`for i in "/$libdir/libresolv.so.* /$libdir/libnss_*.so.* /$libdir/libpthread.so.0 /$libdir/libdl.so.2" ;
                 do
                         if [ -s "$i" ] ; then
                                 echo "$i"
@@ -376,8 +349,8 @@ dhcpd_start() {
         ## incidentally contains the pid of a running process. If this process is not a 'dhcpd',
         ## we remove the pid. (dhcpd itself only checks whether the pid is alive or not.)
         if test -e ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile} -a -s ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile} ; then
-                i=$(<${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile})
-                if pidof dhcpd &>/dev/null; then
+                i=$(cat ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile})
+                if pidof dhcpd > /dev/null 2>&1; then
                         ocf_log info "dhcp already running"
                 else
                         rm ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile}
@@ -403,7 +376,6 @@ dhcpd_start() {
     return $OCF_SUCCESS
 }
 
-# TODO: Code review to ensure clean killing of DHCP daemon.
 # Stop
 dhcpd_stop () {
     local timeout
@@ -434,7 +406,7 @@ dhcpd_stop () {
     #If still up
     if dhcpd_monitor 2>&1; then
         ocf_log err "dhcpd is still up! Killing"
-        kill -9 `cat ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile}`
+        kill -s SIGKILL `cat ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile}`
     fi
 
     rm -f ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile}
