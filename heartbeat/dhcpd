@@ -34,13 +34,12 @@ OCF_RESKEY_interface_default=""
 
 usage() {
     cat <<EOF
-        usage: $0 start|stop|reload|status|monitor|meta-data|validate-all
+        usage: $0 start|stop|status|monitor|meta-data|validate-all
 
         $0 manages the dhcp (dhcpd) server as an HA resource.
 
         The 'start' operation starts the dhcpd server.
         The 'stop' operation stops the dhcpd server.
-        The 'reload' operation reload the dhcpd configuration.
         The 'status' operation reports whether the dhcpd service is up.
         The 'monitor' operation reports whether the dhcpd service is running.
         The 'validate-all' operation reports whether the parameters are valid.
@@ -128,7 +127,6 @@ service.
     <action name="start"        timeout="20" />
     <action name="stop"         timeout="20" />
     <action name="monitor"      timeout="20" interval="10" depth="0" />
-    <action name="reload"       timeout="20" />
     <action name="meta-data"    timeout="5" />
     <action name="validate-all"   timeout="20" />
   </actions>
@@ -192,13 +190,6 @@ dhcpd_monitor() {
         ocf_log info "The dhcpd process is not running"
         return $OCF_NOT_RUNNING
     fi
-
-    return $OCF_SUCCESS
-}
-
-# Reload
-dhcpd_reload() {
-    (dhcpd_stop && dhcpd_start) || return $OCF_ERR_GENERIC
 
     return $OCF_SUCCESS
 }
@@ -360,9 +351,6 @@ meta-data)      dhcpd_meta_data;;
 start)          dhcpd_start;;
 stop)           dhcpd_stop;;
 status|monitor) dhcpd_monitor;;
-reload)         ocf_log info "Reloading..."
-		dhcpd_reload
-                ;;
 validate-all)   dhcpd_validate_all;;
 *)              dhcpd_usage
                 exit $OCF_ERR_UNIMPLEMENTED
