@@ -12,7 +12,7 @@
 
 # Defaults
 OCF_RESKEY_dhcpd_default="dhcpd"
-OCF_RESKEY_dhcpd_pidfile_default="/var/run/dhcpd.pid"
+OCF_RESKEY_dhcpd_pid_default="/var/run/dhcpd.pid"
 OCF_RESKEY_dhcpd_user_default=dhcpd
 OCF_RESKEY_dhcpd_group_default=nogroup
 OCF_RESKEY_dhcpd_config_default="/etc/dhcpd.conf"
@@ -27,7 +27,7 @@ OCF_RESKEY_monitor_receive_ip_default=""
 OCF_RESKEY_monitor_source_ip_default="127.0.0.1"
 
 : ${OCF_RESKEY_dhcpd=${OCF_RESKEY_dhcpd_default}}
-: ${OCF_RESKEY_dhcpd_pidfile=${OCF_RESKEY_dhcpd_pidfile_default}}
+: ${OCF_RESKEY_dhcpd_pid=${OCF_RESKEY_dhcpd_pid_default}}
 : ${OCF_RESKEY_dhcpd_user=${OCF_RESKEY_dhcpd_user_default}}
 : ${OCF_RESKEY_dhcpd_group=${OCF_RESKEY_dhcpd_group_default}}
 : ${OCF_RESKEY_dhcpd_chrooted=${OCF_RESKEY_dhcpd_chrooted_default}}
@@ -126,12 +126,12 @@ service.
       <shortdesc lang="en">Leases file</shortdesc>
       <content type="string" default="${OCF_RESKEY_dhcpd_leases_default}"/>
     </parameter>
-    <parameter name="pidfile" unique="0" required="0">
+    <parameter name="pid" unique="0" required="0">
       <longdesc lang="en">
         The DHCPD daemon PID file
       </longdesc>
       <shortdesc lang="en">PID file</shortdesc>
-      <content type="string" default="${OCF_RESKEY_dhcpd_pidfile_default}"/>
+      <content type="string" default="${OCF_RESKEY_dhcpd_pid_default}"/>
     </parameter>
     <parameter name="monitor_client" unique="0" required="0">
       <longdesc lang="en">
@@ -244,12 +244,12 @@ dhcpd_getpid () {
     echo $pid
 }
 
-# dhcpd_status. Simple check of the status of dhcpd process by pidfile.
+# dhcpd_status. Simple check of the status of dhcpd process by pid.
 dhcpd_status () {
     if ocf_is_true ${OCF_RESKEY_dhcpd_chrooted}; then
-	ocf_pidfile_status ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile} >/dev/null 2>&1
+	ocf_pidfile_status ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pid} >/dev/null 2>&1
     else
-	ocf_pidfile_status ${OCF_RESKEY_dhcpd_pidfile} >/dev/null 2>&1
+	ocf_pidfile_status ${OCF_RESKEY_dhcpd_pid} >/dev/null 2>&1
     fi
 }
 
@@ -281,7 +281,7 @@ dhcpd_start() {
     dhcpd_monitor && return $OCF_SUCCESS
 
     # Not running? We need to remove old PID files.
-    test -e "${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile}" && rm -f ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile}
+    test -e "${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pid}" && rm -f ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pid}
 
     ## If there is no conf file, skip starting of dhcpd
     ## and return with "program not configured"
@@ -348,12 +348,12 @@ dhcpd_start() {
         ## the chroot jail. Therefore, an old pid file may exist. This is only a problem if it
         ## incidentally contains the pid of a running process. If this process is not a 'dhcpd',
         ## we remove the pid. (dhcpd itself only checks whether the pid is alive or not.)
-        if test -e ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile} -a -s ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile} ; then
-                i=$(cat ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile})
+        if test -e ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pid} -a -s ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pid} ; then
+                i=$(cat ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pid})
                 if pidof dhcpd > /dev/null 2>&1; then
                         ocf_log info "dhcp already running"
                 else
-                        rm ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile}
+                        rm ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pid}
                 fi
         fi
         if [ -n "${OCF_RESKEY_dhcpd_user}" ]; then
@@ -367,8 +367,8 @@ dhcpd_start() {
 	return $OCF_ERR_GENERIC
     fi
 
-#    ocf_run -q "${OCF_RESKEY_dhcpd} -cf ${OCF_RESKEY_dhcpd_config} $DHCPD_ARGS -pf ${OCF_RESKEY_dhcpd_pidfile} ${OCF_RESKEY_dhcpd_interface}" || exit $OCF_ERR_GENERIC
-    OUTPUT=`${OCF_RESKEY_dhcpd} -cf ${OCF_RESKEY_dhcpd_config} $DHCPD_ARGS -pf ${OCF_RESKEY_dhcpd_pidfile} ${OCF_RESKEY_dhcpd_interface}` || exit $OCF_ERR_GENERIC
+#    ocf_run -q "${OCF_RESKEY_dhcpd} -cf ${OCF_RESKEY_dhcpd_config} $DHCPD_ARGS -pf ${OCF_RESKEY_dhcpd_pid} ${OCF_RESKEY_dhcpd_interface}" || exit $OCF_ERR_GENERIC
+    OUTPUT=`${OCF_RESKEY_dhcpd} -cf ${OCF_RESKEY_dhcpd_config} $DHCPD_ARGS -pf ${OCF_RESKEY_dhcpd_pid} ${OCF_RESKEY_dhcpd_interface}` || exit $OCF_ERR_GENERIC
     echo $?;
 
     ocf_log info "dhcpd [chrooted] has started."
@@ -383,7 +383,7 @@ dhcpd_stop () {
 
     dhcpd_monitor || return $OCF_SUCCESS
 
-    kill `cat ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile}`
+    kill `cat ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pid}`
     if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
       # Allow 2/3 of the action timeout for the orderly shutdown
       # (The origin unit is ms, hence the conversion)
@@ -406,10 +406,10 @@ dhcpd_stop () {
     #If still up
     if dhcpd_monitor 2>&1; then
         ocf_log err "dhcpd is still up! Killing"
-        kill -s SIGKILL `cat ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile}`
+        kill -s SIGKILL `cat ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pid}`
     fi
 
-    rm -f ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pidfile}
+    rm -f ${OCF_RESKEY_dhcpd_chrooted_path}/${OCF_RESKEY_dhcpd_pid}
     return $OCF_SUCCESS
 }
 
