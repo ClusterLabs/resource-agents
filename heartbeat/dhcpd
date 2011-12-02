@@ -20,11 +20,6 @@ OCF_RESKEY_chrooted_default=true
 OCF_RESKEY_chrooted_path_default=""
 OCF_RESKEY_leases_default="/db/dhcpd.leases"
 OCF_RESKEY_interface_default=""
-OCF_RESKEY_monitor_client_default="dhcpcd"
-OCF_RESKEY_monitor_client_params_default="-T -p"
-OCF_RESKEY_monitor_client_interface_default="eth0"
-OCF_RESKEY_monitor_receive_ip_default=""
-OCF_RESKEY_monitor_source_ip_default="127.0.0.1"
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 : ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
@@ -35,11 +30,6 @@ OCF_RESKEY_monitor_source_ip_default="127.0.0.1"
 : ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
 : ${OCF_RESKEY_leases=${OCF_RESKEY_leases_default}}
 : ${OCF_RESKEY_interface=${OCF_RESKEY_interface_default}}
-: ${OCF_RESKEY_monitor_client=${OCF_RESKEY_monitor_client_default}}
-: ${OCF_RESKEY_monitor_client_params=${OCF_RESKEY_monitor_client_params_default}}
-: ${OCF_RESKEY_monitor_client_interface=${OCF_RESKEY_monitor_client_interface_default}}
-: ${OCF_RESKEY_monitor_receive_ip=${OCF_RESKEY_monitor_receive_ip_default}}
-: ${OCF_RESKEY_monitor_source_ip=${OCF_RESKEY_monitor_source_ip_default}}
 
 
 usage() {
@@ -77,14 +67,14 @@ service.
       <shortdesc lang="en">Configuration file</shortdesc>
       <content type="string" default="${OCF_RESKEY_config_default}"/>
     </parameter>
-    <parameter name="chrooted_path" unique="0" required="0">
+    <parameter name="chrooted_path" unique="1" required="1">
       <longdesc lang="en">
 	The path for the chrooted daemon to run in
       </longdesc>
       <shortdesc lang="en">The chrooted path</shortdesc>
       <content type="string" default="${OCF_RESKEY_chrooted_path_default}"/>
     </parameter>
-    <parameter name="binary" unique="1" required="0">
+    <parameter name="binary" unique="0" required="0">
       <longdesc lang="en">
         The full path to the dhcpd binary.
       </longdesc>
@@ -132,51 +122,6 @@ service.
       </longdesc>
       <shortdesc lang="en">PID file</shortdesc>
       <content type="string" default="${OCF_RESKEY_pid_default}"/>
-    </parameter>
-    <parameter name="monitor_client" unique="0" required="0">
-      <longdesc lang="en">
-        The program to use to test the DHCP configuration.
-      </longdesc>
-      <shortdesc lang="en">monitor_client</shortdesc>
-      <content type="string" default="${OCF_RESKEY_monitor_client_default}" />
-    </parameter>
-    <parameter name="monitor_client_params" unique="0" required="0">
-      <longdesc lang="en">
-        The parameters to use to ensure the DHCPCD client is in test mode.
-      </longdesc>
-      <shortdesc lang="en">monitor_client_params</shortdesc>
-      <content type="string" default="${OCF_RESKEY_monitor_client_params_default}" />
-    </parameter>
-    <parameter name="monitor_client_interface" unique="0" required="0">
-      <longdesc lang="en">
-        The ethernet interface the DHCPCD client will use to complete the test.
-      </longdesc>
-      <shortdesc lang="en">monitor_client_interface</shortdesc>
-      <content type="string" default="${OCF_RESKEY_monitor_client_interface_default}" />
-    </parameter>
-    <parameter name="monitor_receive_ip" unique="0" required="0">
-      <longdesc lang="en">
-	A pipe delimited list of all possible IP addresses that cluster nodes can receive
-	when making a DHCP request from within the cluster. For example, if your DHCP
-	cluster, has two nodes with the following IP addresses:
-		Node 1: 192.168.1.10
-		Node 2: 192.168.1.11
-
-	Then the list will look like "192.168.1.10|192.168.1.11"
-      </longdesc>
-      <shortdesc lang="en">monitor_receive_ip</shortdesc>
-      <content type="string" default="${OCF_RESKEY_monitor_receive_ip_default}" />
-    </parameter>
-    <parameter name="monitor_source_ip" unique="0" required="0">
-      <longdesc lang="en">
-	A pipe delimited list of all possible IP addresses that could be returned
-        by the DHCPD server when it receives a DHCP request. For example, if you
-        are running a DHCPD cluster, and the IP's are 192.168.1.2 (cluster IP), 
-        192.168.1.10 (node 1), and 192.168.1.11 (node 2), then your list will look like:
-	"192.168.1.2|192.168.1.10|192.168.1.11"
-      </longdesc>
-      <shortdesc lang="en">List of IP's possible from the DHCP Servers</shortdesc>
-      <content type="string" default="${OCF_RESKEY_monitor_source_ip_default}" />
     </parameter>
   </parameters>
   <actions>
