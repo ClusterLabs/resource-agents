@@ -90,15 +90,7 @@ The VCL configuration file that varnish should manage, for example
 <content type="string" default="" />
 </parameter>
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-<parameter name="instance_name" unique="1" required="1">
-=======
 <parameter name="name" unique="1">
->>>>>>> 9bfa98f... Low: varnish: remove superfluous metadata
-=======
-<parameter name="name" unique="1">
->>>>>>> 9bfa98f074317fffcaaac1c841c247cb576fbe7b
 <longdesc lang="en">
 Override the name of the instance that should be given to varnish
 (defaults to the resource identifier).
