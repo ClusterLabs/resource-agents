@@ -90,7 +90,7 @@ The VCL configuration file that varnish should manage, for example
 <content type="string" default="" />
 </parameter>
 
-<parameter name="name" unique="1" required="0">
+<parameter name="name" unique="1">
 <longdesc lang="en">
 Override the name of the instance that should be given to varnish
 (defaults to the resource identifier).
@@ -99,7 +99,7 @@ Override the name of the instance that should be given to varnish
 <content type="string" default="${OCF_RESKEY_name_default}" />
 </parameter>
 
-<parameter name="pid" unique="1" required="0">
+<parameter name="pid" unique="1">
 <longdesc lang="en">
 Write the process's PID to the specified file.
 The default will include the specified name, ie.:
@@ -110,7 +110,7 @@ It is most likely not necessary to change this parameter.
 <content type="string" default="${OCF_RESKEY_pid_default}" />
 </parameter>
 
-<parameter name="listen_address" unique="1" required="0">
+<parameter name="listen_address" unique="1">
 <longdesc lang="en">
 Listen on this address:port, for example "192.168.1.1:80"
 </longdesc>
@@ -123,10 +123,10 @@ Listen on this address:port, for example "192.168.1.1:80"
 Provide a management interface, for example "127.0.0.1:2222"
 </longdesc>
 <shortdesc lang="en">Management interface</shortdesc>
-<content type="string" default="" />
+<content type="string" />
 </parameter>
 
-<parameter name="ttl" unique="0" required="0">
+<parameter name="ttl">
 <longdesc lang="en">
 Specifies a hard minimum time to live for cached documents.
 </longdesc>
@@ -134,7 +134,7 @@ Specifies a hard minimum time to live for cached documents.
 <content type="integer" default="${OCF_RESKEY_ttl_default}" />
 </parameter>
 
-<parameter name="varnish_user" unique="0" required="0">
+<parameter name="varnish_user">
 <longdesc lang="en">
 Specifies the name of an unprivileged user to which the 
 child process should switch before it starts accepting 
@@ -144,7 +144,7 @@ connections.
 <content type="string" default="${OCF_RESKEY_varnish_user_default}" />
 </parameter>
 
-<parameter name="varnish_group" unique="0" required="0">
+<parameter name="varnish_group">
 <longdesc lang="en">
 Specifies  the  name  of an unprivileged group to which 
 the child process should switch before it starts accepting 
@@ -154,7 +154,7 @@ connections.
 <content type="string" default="${OCF_RESKEY_varnish_group_default}" />
 </parameter>
 
-<parameter name="backend_type" unique="0" required="0">
+<parameter name="backend_type">
 <longdesc lang="en">
 Use the specified storage backend. Valid options are
 'malloc' for memory and 'file' for a file backend.
@@ -163,7 +163,7 @@ Use the specified storage backend. Valid options are
 <content type="string" default="${OCF_RESKEY_backend_type_default}" />
 </parameter>
 
-<parameter name="backend_size" unique="0" required="0">
+<parameter name="backend_size">
 <longdesc lang="en">
 Specify the size of the backend. For example "1G".
 </longdesc>
@@ -171,7 +171,7 @@ Specify the size of the backend. For example "1G".
 <content type="string" default="${OCF_RESKEY_backend_size_default}" />
 </parameter>
 
-<parameter name="backend_file" unique="1" required="0">
+<parameter name="backend_file" unique="1">
 <longdesc lang="en">
 Specify the backend filename if you use backend_type file. 
 For example /var/lib/varnish/mybackend.bin
@@ -180,7 +180,7 @@ For example /var/lib/varnish/mybackend.bin
 <content type="string" default="${OCF_RESKEY_backend_file_default}" />
 </parameter>
 
-<parameter name="worker_threads" unique="0" required="0">
+<parameter name="worker_threads">
 <longdesc lang="en">
 Start  at  least  min but no more than max worker 
 threads with the specified idle timeout.
@@ -192,7 +192,7 @@ For example: 100,3000,120
 <content type="string" default="${OCF_RESKEY_worker_threads_default}" />
 </parameter>
 
-<parameter name="client_binary" unique="0" required="0">
+<parameter name="client_binary">
 <longdesc lang="en">
 This is used to control varnish via a CLI. It's currently
 only used to check the status of the running child process.
