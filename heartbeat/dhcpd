@@ -17,7 +17,7 @@ OCF_RESKEY_user_default=dhcpd
 OCF_RESKEY_group_default=nogroup
 OCF_RESKEY_config_default=""
 OCF_RESKEY_chrooted_default=true
-OCF_RESKEY_chrooted_path_default="/var/lib/dhcp"
+OCF_RESKEY_chrooted_path_default=""
 OCF_RESKEY_leases_default="/db/dhcpd.leases"
 OCF_RESKEY_interface_default=""
 OCF_RESKEY_monitor_client_default="dhcpcd"
@@ -70,56 +70,56 @@ service.
   </longdesc>
   <shortdesc lang="en">DHCP Server resource agent.</shortdesc>
   <parameters>
-    <parameter name="dhcpd_config" unique="0" required="1">
+    <parameter name="config" unique="1" required="1">
       <longdesc lang="en">
 	The full path to the configuration file.
       </longdesc>
       <shortdesc lang="en">Configuration file</shortdesc>
       <content type="string" default="${OCF_RESKEY_config_default}"/>
     </parameter>
-    <parameter name="dhcpd_chrooted_path" unique="0" required="0">
+    <parameter name="chrooted_path" unique="0" required="0">
       <longdesc lang="en">
 	The path for the chrooted daemon to run in
       </longdesc>
       <shortdesc lang="en">The chrooted path</shortdesc>
       <content type="string" default="${OCF_RESKEY_chrooted_path_default}"/>
     </parameter>
-    <parameter name="binary" unique="0" required="0">
+    <parameter name="binary" unique="1" required="0">
       <longdesc lang="en">
         The full path to the dhcpd binary.
       </longdesc>
       <shortdesc lang="en">DHCPD binary</shortdesc>
       <content type="string" default="${OCF_RESKEY_binary_default}"/>
     </parameter>
-    <parameter name="dhcpd_user" unique="0" required="0">
+    <parameter name="user" unique="0" required="0">
       <longdesc lang="en">
 	Run the DHCP Server daemon as this user.
       </longdesc>
       <shortdesc lang="en">DHCPD owner</shortdesc>
       <content type="string" default="${OCF_RESKEY_user_default}"/>
     </parameter>
-    <parameter name="dhcpd_group" unique="0" required="0">
+    <parameter name="group" unique="0" required="0">
       <longdesc lang="en">
         Run the DHCP Server daemon as this group.
       </longdesc>
       <shortdesc lang="en">DHCPD group owner</shortdesc>
       <content type="string" default="${OCF_RESKEY_group_default}"/>
     </parameter>
-    <parameter name="dhcpd_chrooted" unique="0" required="0">
+    <parameter name="chrooted" unique="0" required="0">
       <longdesc lang="en">
-        Run the DHCP Server daemon as dhcpd_chrooted.
+        Run the DHCP Server daemon as chrooted.
       </longdesc>
       <shortdesc lang="en">chroot the dhcpd server</shortdesc>
       <content type="boolean" default="${OCF_RESKEY_chrooted_default}"/>
     </parameter>
-    <parameter name="dhcpd_interface" unique="0" required="0">
+    <parameter name="interface" unique="0" required="0">
       <longdesc lang="en">
         The network interface to assign to DHCP
       </longdesc>
       <shortdesc lang="en">Network Interface</shortdesc>
       <content type="string" default="${OCF_RESKEY_interface_default}"/>
     </parameter>
-    <parameter name="dhcpd_leases" unique="0" required="0">
+    <parameter name="leases" unique="0" required="0">
       <longdesc lang="en">
         The DHCP Leases file
       </longdesc>
@@ -340,7 +340,7 @@ dhcpd_start() {
                         cp -pL "$i" "/var/lib/dhcp/$libdir/" || { ocf_log err "could not copy $i to chroot jail"; return $OCF_ERR_GENERIC; }
         fi
         done
-        DHCPD_ARGS="-chroot ${OCF_RESKEY_chrooted_path} -lf /db/dhcpd.leases"
+        DHCPD_ARGS="-chroot ${OCF_RESKEY_chrooted_path} -lf ${OCF_RESKEY_leases}"
 
         ## If there is a pid file containing a pid, the machine might have crashed. pid files in
         ## /var/run are always cleaned up at boot time, but this is not the case for the pid file in
