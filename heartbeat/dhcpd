@@ -55,7 +55,7 @@ usage() {
         The 'monitor' operation reports whether the dhcpd service is running.
         The 'validate-all' operation reports whether the parameters are valid.
 EOF
-  return $OCF_ERR_ARGS
+  return $OCF_SUCCESS
 }
 
 dhcpd_meta_data() {
