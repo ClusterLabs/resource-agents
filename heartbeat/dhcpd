@@ -299,8 +299,27 @@ dhcpd_start() {
 dhcpd_stop () {
     local timeout
     local timewait
+    local rc
 
-    dhcpd_monitor || return $OCF_SUCCESS
+    dhcpd_monitor
+    rc=$?
+
+    case "${rc}" in
+	"$OCF_SUCCESS")
+	    # Currently running, and is expected behaviour.
+	    ocf_log debug "The resource is currently running."
+	    ;;
+	"$OCF_RUNNING_MASTER")
+	    # Running as a master (currently not yet supported in this script).
+	    ocf_log debug "Resource is currently running as a master."
+	    # TODO: Add code to demote self
+	    ;;
+	"$OCF_NOT_RUNNING")
+	    # Currently not running, therefore nothing to do.
+	    ocf_log info "Resource has already been stopped."
+	    return $OCF_SUCCESS
+	    ;;
+    esac
 
     kill `cat ${OCF_RESKEY_chrooted_path}/${OCF_RESKEY_pid}`
     if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
