@@ -35,6 +35,10 @@
 #######################################################################
 # Set default paramenter values
 
+# Set these two first, as other defaults depend on it
+OCF_RESKEY_instance_name_default=${OCF_RESOURCE_INSTANCE}
+: ${OCF_RESKEY_instance_name=${OCF_RESKEY_instance_name_default}}
+
 OCF_RESKEY_binary_default=varnishd
 OCF_RESKEY_client_binary_default=varnishadm
 OCF_RESKEY_pid_default=/var/run/varnishd_${OCF_RESKEY_instance_name}.pid
@@ -44,9 +48,8 @@ OCF_RESKEY_varnish_user_default=varnish
 OCF_RESKEY_varnish_group_default=varnish
 OCF_RESKEY_backend_type_default=malloc
 OCF_RESKEY_backend_size_default=1G
-OCF_RESKEY_backend_file_default=/var/lib/varnish/${OCF_RESKEY_instance_name_default}.bin
+OCF_RESKEY_backend_file_default=/var/lib/varnish/${OCF_RESKEY_instance_name}.bin
 OCF_RESKEY_worker_threads_default=100,3000,120
-
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 : ${OCF_RESKEY_client_binary=${OCF_RESKEY_client_binary_default}}
@@ -87,12 +90,13 @@ The VCL configuration file that varnish should manage, for example
 <content type="string" default="" />
 </parameter>
 
-<parameter name="instance_name" unique="1" required="1">
+<parameter name="instance_name" unique="1" required="0">
 <longdesc lang="en">
-The name of the instance that should be given to varnish
+Override the name of the instance that should be given to varnish
+(defaults to the resource identifier).
 </longdesc>
 <shortdesc lang="en">Instance name</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_instance_name_default}" />
 </parameter>
 
 <parameter name="pid" unique="1" required="0">
