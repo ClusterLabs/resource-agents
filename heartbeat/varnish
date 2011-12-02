@@ -1,0 +1,414 @@
+#!/bin/sh
+#
+#
+# Varnish
+#
+# Description:  Manage varnish instances as a HA resource
+#
+# Author:       Léon Keijser <keijser@stone-it.com>
+#
+# License:      GNU General Public License (GPL)
+#
+# See usage() for more details
+#
+# OCF instance parameters:
+#   OCF_RESKEY_pid
+#   OCF_RESKEY_binary
+#   OCF_RESKEY_client_binary
+#   OCF_RESKEY_config
+#   OCF_RESKEY_name
+#   OCF_RESKEY_listen_address
+#   OCF_RESKEY_mgmt_address
+#   OCF_RESKEY_ttl
+#   OCF_RESKEY_varnish_user
+#   OCF_RESKEY_varnish_group
+#   OCF_RESKEY_backend_type
+#   OCF_RESKEY_backend_size
+#   OCF_RESKEY_backend_file
+#   OCF_RESKEY_worker_threads
+#
+#######################################################################
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+# Set default paramenter values
+
+# Set these two first, as other defaults depend on it
+OCF_RESKEY_name_default=${OCF_RESOURCE_INSTANCE}
+: ${OCF_RESKEY_name=${OCF_RESKEY_name_default}}
+
+OCF_RESKEY_binary_default=varnishd
+OCF_RESKEY_client_binary_default=varnishadm
+OCF_RESKEY_pid_default=/var/run/varnishd_${OCF_RESKEY_name}.pid
+OCF_RESKEY_listen_address_default=0.0.0.0:80
+OCF_RESKEY_ttl_default=600
+OCF_RESKEY_varnish_user_default=varnish
+OCF_RESKEY_varnish_group_default=varnish
+OCF_RESKEY_backend_type_default=malloc
+OCF_RESKEY_backend_size_default=1G
+OCF_RESKEY_backend_file_default=/var/lib/varnish/${OCF_RESKEY_name}.bin
+OCF_RESKEY_worker_threads_default=100,3000,120
+
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_client_binary=${OCF_RESKEY_client_binary_default}}
+: ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
+: ${OCF_RESKEY_listen_address=${OCF_RESKEY_listen_address_default}}
+: ${OCF_RESKEY_ttl=${OCF_RESKEY_ttl_default}}
+: ${OCF_RESKEY_varnish_user=${OCF_RESKEY_varnish_user_default}}
+: ${OCF_RESKEY_varnish_group=${OCF_RESKEY_varnish_group_default}}
+: ${OCF_RESKEY_backend_type=${OCF_RESKEY_backend_type_default}}
+: ${OCF_RESKEY_backend_size=${OCF_RESKEY_backend_size_default}}
+: ${OCF_RESKEY_backend_file=${OCF_RESKEY_backend_file_default}}
+: ${OCF_RESKEY_worker_threads=${OCF_RESKEY_worker_threads_default}}
+
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="varnish" version="0.1">
+<version>1.0</version>
+
+<longdesc lang="en">
+The Varnish Resource Agent can manage several varnishd
+instances throughout the cluster. It does so by creating
+a unique PID file and requires a unique listen address 
+and name for each instance.
+</longdesc>
+<shortdesc lang="en">Manage a Varnish instance</shortdesc>
+
+<parameters>
+
+<parameter name="config" unique="1" required="1">
+<longdesc lang="en">
+The VCL configuration file that varnish should manage, for example
+"/etc/varnish/default.vcl".
+</longdesc>
+<shortdesc lang="en">VCL file</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="name" unique="1">
+<longdesc lang="en">
+Override the name of the instance that should be given to varnish
+(defaults to the resource identifier).
+</longdesc>
+<shortdesc lang="en">Instance name</shortdesc>
+<content type="string" default="${OCF_RESKEY_name_default}" />
+</parameter>
+
+<parameter name="pid" unique="1">
+<longdesc lang="en">
+Write the process's PID to the specified file.
+The default will include the specified name, ie.:
+"/var/run/varnish_production.pid". Unlike what this help message shows.
+It is most likely not necessary to change this parameter.
+</longdesc>
+<shortdesc lang="en">Listen address</shortdesc>
+<content type="string" default="${OCF_RESKEY_pid_default}" />
+</parameter>
+
+<parameter name="listen_address" unique="1">
+<longdesc lang="en">
+Listen on this address:port, for example "192.168.1.1:80"
+</longdesc>
+<shortdesc lang="en">Listen address</shortdesc>
+<content type="string" default="${OCF_RESKEY_listen_address_default}" />
+</parameter>
+
+<parameter name="mgmt_address" unique="1" required="1">
+<longdesc lang="en">
+Provide a management interface, for example "127.0.0.1:2222"
+</longdesc>
+<shortdesc lang="en">Management interface</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="ttl">
+<longdesc lang="en">
+Specifies a hard minimum time to live for cached documents.
+</longdesc>
+<shortdesc lang="en">TTL</shortdesc>
+<content type="integer" default="${OCF_RESKEY_ttl_default}" />
+</parameter>
+
+<parameter name="varnish_user">
+<longdesc lang="en">
+Specifies the name of an unprivileged user to which the 
+child process should switch before it starts accepting 
+connections.
+</longdesc>
+<shortdesc lang="en">Unprivileged user</shortdesc>
+<content type="string" default="${OCF_RESKEY_varnish_user_default}" />
+</parameter>
+
+<parameter name="varnish_group">
+<longdesc lang="en">
+Specifies  the  name  of an unprivileged group to which 
+the child process should switch before it starts accepting 
+connections.
+</longdesc>
+<shortdesc lang="en">Unprivileged group</shortdesc>
+<content type="string" default="${OCF_RESKEY_varnish_group_default}" />
+</parameter>
+
+<parameter name="backend_type">
+<longdesc lang="en">
+Use the specified storage backend. Valid options are
+'malloc' for memory and 'file' for a file backend.
+</longdesc>
+<shortdesc lang="en">Backend type</shortdesc>
+<content type="string" default="${OCF_RESKEY_backend_type_default}" />
+</parameter>
+
+<parameter name="backend_size">
+<longdesc lang="en">
+Specify the size of the backend. For example "1G".
+</longdesc>
+<shortdesc lang="en">Backend size</shortdesc>
+<content type="string" default="${OCF_RESKEY_backend_size_default}" />
+</parameter>
+
+<parameter name="backend_file" unique="1">
+<longdesc lang="en">
+Specify the backend filename if you use backend_type file. 
+For example /var/lib/varnish/mybackend.bin
+</longdesc>
+<shortdesc lang="en">Backend file</shortdesc>
+<content type="string" default="${OCF_RESKEY_backend_file_default}" />
+</parameter>
+
+<parameter name="worker_threads">
+<longdesc lang="en">
+Start  at  least  min but no more than max worker 
+threads with the specified idle timeout.
+
+Syntax: min[,max[,timeout]]
+For example: 100,3000,120
+</longdesc>
+<shortdesc lang="en">Worker threads</shortdesc>
+<content type="string" default="${OCF_RESKEY_worker_threads_default}" />
+</parameter>
+
+<parameter name="client_binary">
+<longdesc lang="en">
+This is used to control varnish via a CLI. It's currently
+only used to check the status of the running child process.
+</longdesc>
+<shortdesc lang="en">Varnish admin utility</shortdesc>
+<content type="string" default="${OCF_RESKEY_client_binary_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="20" />
+<action name="stop"         timeout="20" />
+<action name="monitor"      timeout="20" interval="10" depth="0" />
+<action name="status"       timeout="20" />
+<action name="meta-data"    timeout="5" />
+<action name="validate-all"   timeout="20" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+
+varnish_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+varnish_status() {
+    local pid
+    local rc
+
+    # FAILED = pidfile exist, but no running proc (or mismatch pid)
+    # SUCCES = contents of pidfile == running process id
+    # NOTRUN = no pidfile, no running process
+
+    # check if pidfile exists
+    if [ -f $OCF_RESKEY_pid ]; then
+        # it does, now check if the pid exists
+        pid=$(cat $OCF_RESKEY_pid)
+        ocf_run kill -s 0 $pid
+        rc=$?
+        if [ $rc -eq 0 ]; then
+            ocf_log info "Varnish is running"
+            # check if the child process is started and varnish is
+            # reporting child status as ok
+            ocf_run $OCF_RESKEY_client_binary -T $OCF_RESKEY_mgmt_address status
+            v_rc=$?
+            if [ "$v_rc" -eq 0 ]; then
+                ocf_log info "Varnish child reported running"
+                return $OCF_SUCCESS
+            else
+                ocf_log err "Varnish child not running"
+                return $OCF_ERR_GENERIC
+            fi
+        else
+            ocf_log err "Varnish PID file exists, but varnishd is not running"
+            return $OCF_ERR_GENERIC
+        fi
+    fi
+    
+    return $OCF_NOT_RUNNING
+}
+
+varnish_start() {
+    local rc
+    local backend_options
+
+    varnish_status
+    rc=$?
+    if [ $rc -eq $OCF_SUCCESS ]; then
+        ocf_log info "Varnish already running"
+        return $OCF_SUCCESS
+    fi
+
+    # check which backend is to be used
+    case "$OCF_RESKEY_backend_type" in
+       malloc)  
+                backend_options="$OCF_RESKEY_backend_size"
+                ;;
+        file)
+                backend_options="$OCF_RESKEY_backend_file,$OCF_RESKEY_backend_size"
+                ;;
+        *)
+                # not implemented yet
+                return $OCF_ERR_CONFIGURED 
+                ;;
+    esac
+    ocf_run $OCF_RESKEY_binary \
+        -P $OCF_RESKEY_pid \
+        -a $OCF_RESKEY_listen_address \
+        -f $OCF_RESKEY_config \
+        -T $OCF_RESKEY_mgmt_address \
+        -t $OCF_RESKEY_ttl \
+        -u $OCF_RESKEY_varnish_user \
+        -g $OCF_RESKEY_varnish_group \
+        -w $OCF_RESKEY_worker_threads \
+        -s $OCF_RESKEY_backend_type,$backend_options \
+        -n $OCF_RESKEY_name
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        ocf_log err "Varnish failed to start"
+        return $OCF_ERR_GENERIC
+    fi
+
+    # Spin waiting for varnishd to come up.
+    # Let the CRM/LRM time us out if required
+    while true; do
+        varnish_status
+        rc=$?
+        [ $rc -eq $OCF_SUCCESS ] && break
+        if [ $rc -ne $OCF_NOT_RUNNING ]; then
+            ocf_log err "Varnish start failed"
+            exit $OCF_ERR_GENERIC
+        fi
+        sleep 2
+    done
+
+    ocf_log info "Varnish started succesfully"
+    return $OCF_SUCCESS
+}
+
+varnish_stop() {
+    local rc
+    local pid
+
+    varnish_status
+    rc=$?
+    if [ $rc -eq $OCF_NOT_RUNNING ]; then
+        ocf_log info "Varnish already stopped"
+        return $OCF_SUCCESS
+    fi
+
+    # kill the varnish process
+    pid=$(cat $OCF_RESKEY_pid)
+    ocf_run kill -s TERM $pid
+    rc=$?
+
+    if [ $rc -ne 0 ]; then
+        ocf_log err "Varnish failed to stop"
+        return $OCF_ERR_GENERIC
+    fi
+
+    # stop waiting
+    shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
+    count=0
+    while [ $count -lt $shutdown_timeout ]; do
+        # check if process still exists
+        ocf_run kill -s 0 $pid
+        rc=$?
+        if [ $rc -ne 0 ]; then
+            # Varnish stopped succesfully, so let's delete the pidfile
+            rm -f $OCF_RESKEY_pid
+            break
+        fi
+        count=$(expr $count + 1)
+        sleep 1
+        ocf_log info "Varnish still hasn't stopped yet. Waiting..."
+    done 
+
+    varnish_status
+    rc=$?
+    if [ $rc -ne $OCF_NOT_RUNNING ]; then
+        # varnish didn't quit on a SIGTERM, try SIGKILL
+        ocf_log warn "Varnish failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL..."
+        ocf_run kill -s KILL $pid
+        # delete the pidfile
+        rm -f $OCF_RESKEY_pid
+    fi
+
+    ocf_log info "Varnish stopped"
+    return $OCF_SUCCESS
+}
+
+
+varnish_validate() {
+    if [ -f $OCF_RESKEY_config ]; then
+        return $OCF_SUCCESS
+    else
+        return $OCF_ERR_INSTALLED
+    fi
+}
+
+
+case $__OCF_ACTION in
+    meta-data)
+        meta_data
+        exit $OCF_SUCCESS
+        ;;
+    start)
+        varnish_start
+        ;;
+    stop)
+        varnish_stop
+        ;;
+    monitor|status)
+        varnish_status
+        ;;
+    validate-all)
+        varnish_validate
+        ;;
+    usage|help)
+        varnish_usage
+        exit $OCF_SUCCESS
+        ;;
+    *)
+        varnish_usage
+        exit $OCF_ERR_UNIMPLEMENTED
+        ;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
+
