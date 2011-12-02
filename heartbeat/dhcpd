@@ -173,22 +173,6 @@ dhcpd_validate_all() {
     return $OCF_SUCCESS
 }
 
-# dhcpd_getpid. Get pid of named process with a given parameters.
-dhcpd_getpid () {
-    local pattern="$OCF_RESKEY_binary"
-
-    if [ ocf_is_true ${OCF_RESKEY_chrooted} -a -e "${OCF_RESKEY_chrooted_path}" ]; then
-       pattern="$pattern.*-t ${OCF_RESKEY_chrooted_path}"
-    fi
-
-    if [ -n "$OCF_RESKEY_config" ]; then
-       pattern="$pattern.*-c $OCF_RESKEY_config"
-    fi
-
-    pid=`ps -e -o pid,command,args | grep "$pattern" | grep -v grep | awk '{print $1}'`
-    echo $pid
-}
-
 # dhcpd_status. Simple check of the status of dhcpd process by pid.
 dhcpd_status () {
     if ocf_is_true ${OCF_RESKEY_chrooted}; then
