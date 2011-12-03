@@ -322,13 +322,10 @@ dhcpd_stop () {
     esac
 
     kill `cat ${OCF_RESKEY_chrooted_path}/${OCF_RESKEY_pid}`
-    if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
-      # Allow 2/3 of the action timeout for the orderly shutdown
-      # (The origin unit is ms, hence the conversion)
-      timewait=$((OCF_RESKEY_CRM_meta_timeout/1500))
-    else
-      timewait=20
-    fi
+
+    # Allow 2/3 of the action timeout for the orderly shutdown
+    # (The origin unit is ms, hence the conversion)
+    timewait=$((OCF_RESKEY_CRM_meta_timeout/1500))
 
     sleep 1; timeout=0 # Sleep here for 1 sec to let dhcpd finish.
     while dhcpd_monitor ; do
