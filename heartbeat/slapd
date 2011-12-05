@@ -337,7 +337,7 @@ slapd_start()
   fi
 
   while true; do
-    slapd_monitor
+    slapd_monitor start
     if [ $? = "$OCF_SUCCESS" ]; then
       break
     fi
@@ -388,7 +388,11 @@ slapd_monitor()
 
   slapd_status `slapd_pid`; state=$?
   if [ $state -eq $OCF_NOT_RUNNING ]; then
-    ocf_log debug "slapd is stopped."
+    if [ -z "$1" ];then
+      if ! ocf_is_probe; then
+        ocf_log err "slapd process not found."
+      fi
+    fi
     return $state
   elif [ $state -ne $OCF_SUCCESS ]; then
     ocf_log err "slapd returned error."
