@@ -73,7 +73,7 @@ service.
     </parameter>
     <parameter name="binary" unique="0" required="0">
       <longdesc lang="en">
-        The full path to the dhcpd binary.
+        The binary used to start DHCPD.
       </longdesc>
       <shortdesc lang="en">DHCPD binary</shortdesc>
       <content type="string" default="${OCF_RESKEY_binary_default}"/>
