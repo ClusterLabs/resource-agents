@@ -485,7 +485,7 @@ slapd_validate_all()
     group=`id -ng 2>/dev/null`
   elif ! grep "^$group:" /etc/group >/dev/null 2>&1; then
     ocf_log err "slapd group '$group' does not exist"
-    return $OCF_ERR_INSTALED
+    return $OCF_ERR_INSTALLED
   fi
 
   return $OCF_SUCCESS
