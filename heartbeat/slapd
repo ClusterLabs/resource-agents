@@ -219,7 +219,7 @@ terminate()
 
   kill -$signal $pid >/dev/null 2>&1; result=$?
 
-  while [ $result -eq 0 ] && [ $recheck -eq 0 ] || [ $waited -lt $recheck ]; do
+  while [ \( $result -eq 0 \) -a \( $recheck -eq 0 -o $waited -lt $recheck \) ]; do
     kill -0 $pid >/dev/null 2>&1; result=$?
     let "waited += 1"
 
