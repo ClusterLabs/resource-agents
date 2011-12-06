@@ -27,6 +27,7 @@
 
 LRMD=@libdir@/heartbeat/lrmd
 LRMADMIN=@sbindir@/lrmadmin
+DATADIR=@datadir@
 METADATA_LINT="xmllint --noout --valid -"
 
 # set some common meta attributes, which are expected to be
@@ -211,7 +212,7 @@ test_metadata() {
     if [ $verbose -ne 0 ]; then
     	echo $msg
     fi
-    bash $agent $action | (cd /usr/share/resource-agents && $METADATA_LINT)
+    bash $agent $action | (cd $DATADIR/resource-agents && $METADATA_LINT)
     rc=$?
     #echo rc: $rc
     return $rc
