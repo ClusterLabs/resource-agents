@@ -45,6 +45,7 @@ usage() {
 	The 'status' operation reports whether the volume is available
 	The 'monitor' operation reports whether the volume seems present
 	The 'validate-all' operation checks whether the OCF parameters are valid
+	The 'meta-data' operation show meta data 
 	The 'methods' operation reports on the methods $0 supports
 
 EOF
@@ -115,6 +116,7 @@ LVM_methods() {
 	monitor
 	methods
 	validate-all
+	meta-data
 	usage
 EOF
 }
