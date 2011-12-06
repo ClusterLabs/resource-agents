@@ -131,7 +131,7 @@ dhcpd_validate_all() {
     check_binary ${OCF_RESKEY_binary}
 
 
-    if [ ocf_is_probe ] ; then
+    if [ ! ocf_is_probe ] ; then
 	ocf_log debug "Validating the chrooted path exists"
 	if ! test -e "${OCF_RESKEY_chrooted_path}"; then
 	    ocf_log err "Path ${OCF_RESKEY_chrooted_path} does not exist."
@@ -145,7 +145,6 @@ dhcpd_validate_all() {
 	fi
     else
 	ocf_log info "${OCF_RESKEY_chrooted_path} not readable during probe."
-	return $OCF_ERR_INSTALLED
     fi 
 
     ocf_log debug "Validating the ${OCF_RESKEY_user} user exists"
