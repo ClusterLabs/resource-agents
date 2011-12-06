@@ -262,12 +262,7 @@ dhcpd_start() {
 	DHCPD_ARGS="$DHCPD_ARGS -group ${OCF_RESKEY_group}"
     fi
 
-    OUTPUT=`${OCF_RESKEY_binary} -cf ${OCF_RESKEY_config} $DHCPD_ARGS -pf ${OCF_RESKEY_pid} ${OCF_RESKEY_interface}`
-    if ! test $? -eq 0; then
-	ocf_log err "dhcpd failed to start."
-	ocf_log err "Output: ${OUTPUT}"
-	return $OCF_NOT_RUNNING
-    fi
+    ocf_run ${OCF_RESKEY_binary} -cf ${OCF_RESKEY_config} $DHCPD_ARGS -pf ${OCF_RESKEY_pid} ${OCF_RESKEY_interface} || return $OCF_NOT_RUNNING
 
     ocf_log info "dhcpd [chrooted] has started."
 
