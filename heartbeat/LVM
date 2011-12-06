@@ -162,12 +162,14 @@ LVM_status() {
   fi
 
   # Report on LVM volume status to stdout...
-  if
-    echo "$VGOUT" | grep -i 'Access.*read/write' >/dev/null
-  then
-    ocf_log debug "Volume $1 is available read/write (running)"
-  else
-    ocf_log debug "Volume $1 is available read-only (running)"
+  if [ $rc -eq 0 ]; then
+    if
+    	echo "$VGOUT" | grep -i 'Access.*read/write' >/dev/null
+    then
+    	ocf_log debug "Volume $1 is available read/write (running)"
+    else
+    	ocf_log debug "Volume $1 is available read-only (running)"
+    fi
   fi
  
   return $OCF_SUCCESS
