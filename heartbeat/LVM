@@ -325,9 +325,7 @@ esac
 if 
   [ -z "$OCF_RESKEY_volgrpname" ]
 then
-#  echo "You must identify the volume group name!"
   ocf_log err "You must identify the volume group name!"
-#  usage
   exit $OCF_ERR_CONFIGURED 
 fi
 
