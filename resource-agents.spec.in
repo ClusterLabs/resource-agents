@@ -150,7 +150,6 @@ fi
 
 %if 0%{?fedora} >= 11 || 0%{?centos_version} > 5 || 0%{?rhel} > 5
 CFLAGS="$(echo '%{optflags}')"
-%global conf_opt_rsctmpdir "--with-rsctmpdir=%{_var}/run/heartbeat/rsctmp"
 %global conf_opt_fatal "--enable-fatal-warnings=no"
 %else
 CFLAGS="${CFLAGS} ${RPM_OPT_FLAGS}"
