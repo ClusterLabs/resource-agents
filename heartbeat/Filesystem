@@ -959,7 +959,7 @@ FSTYPE=$OCF_RESKEY_fstype
 if [ ! -z "$OCF_RESKEY_options" ]; then
 	options="-o $OCF_RESKEY_options"
 fi
-FAST_STOP={$OCF_RESKEY_fast_stop:="yes"}
+FAST_STOP=${OCF_RESKEY_fast_stop:="yes"}
 
 OP=$1
 
