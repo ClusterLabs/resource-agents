@@ -260,9 +260,15 @@
       <xsl:choose>
 	  <xsl:when test="@default != ''">
 	    <xsl:text>default </xsl:text>
+	    <xsl:if test="@type = 'string'">
+	      <xsl:text>&quot;</xsl:text>
+	    </xsl:if>
 	    <code>
 	      <xsl:value-of select="@default"/>
 	    </code>
+	    <xsl:if test="@type = 'string'">
+	      <xsl:text>&quot;</xsl:text>
+	    </xsl:if>
 	  </xsl:when>
 	  <xsl:when test="@type='boolean' and @default = ''">
 	    <xsl:text>default </xsl:text>

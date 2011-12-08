@@ -219,7 +219,7 @@ terminate()
 
   kill -$signal $pid >/dev/null 2>&1; result=$?
 
-  while [ $result -eq 0 ] && [ $recheck -eq 0 ] || [ $waited -lt $recheck ]; do
+  while [ \( $result -eq 0 \) -a \( $recheck -eq 0 -o $waited -lt $recheck \) ]; do
     kill -0 $pid >/dev/null 2>&1; result=$?
     let "waited += 1"
 
@@ -337,7 +337,7 @@ slapd_start()
   fi
 
   while true; do
-    slapd_monitor
+    slapd_monitor start
     if [ $? = "$OCF_SUCCESS" ]; then
       break
     fi
@@ -388,7 +388,11 @@ slapd_monitor()
 
   slapd_status `slapd_pid`; state=$?
   if [ $state -eq $OCF_NOT_RUNNING ]; then
-    ocf_log debug "slapd is stopped."
+    if [ -z "$1" ];then
+      if ! ocf_is_probe; then
+        ocf_log err "slapd process not found."
+      fi
+    fi
     return $state
   elif [ $state -ne $OCF_SUCCESS ]; then
     ocf_log err "slapd returned error."
@@ -481,7 +485,7 @@ slapd_validate_all()
     group=`id -ng 2>/dev/null`
   elif ! grep "^$group:" /etc/group >/dev/null 2>&1; then
     ocf_log err "slapd group '$group' does not exist"
-    return $OCF_ERR_INSTALED
+    return $OCF_ERR_INSTALLED
   fi
 
   return $OCF_SUCCESS
