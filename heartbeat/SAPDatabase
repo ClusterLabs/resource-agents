@@ -83,72 +83,72 @@ Resource script for SAP databases. It manages a SAP database of any type as an H
   <shortdesc lang="en">SAP system ID</shortdesc>
   <content type="string" default="" />
  </parameter>
- <parameter name="DIR_EXECUTABLE" unique="1" required="0">
+ <parameter name="DIR_EXECUTABLE" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find sapstartsrv and sapcontrol.</longdesc>
   <shortdesc lang="en">path of sapstartsrv and sapcontrol</shortdesc>
   <content type="string" default="" />
  </parameter>
- <parameter name="DBTYPE" unique="1" required="1">
+ <parameter name="DBTYPE" unique="0" required="1">
   <longdesc lang="en">The name of the database vendor you use. Set either: ORA,DB6,ADA</longdesc>
   <shortdesc lang="en">database vendor</shortdesc>
   <content type="string" default="" />
  </parameter>
- <parameter name="NETSERVICENAME" unique="1" required="0">
+ <parameter name="NETSERVICENAME" unique="0" required="0">
   <longdesc lang="en">The Oracle TNS listener name.</longdesc>
   <shortdesc lang="en">listener name</shortdesc>
   <content type="string" default="" />
  </parameter>
- <parameter name="DBJ2EE_ONLY" unique="1" required="0">
+ <parameter name="DBJ2EE_ONLY" unique="0" required="0">
   <longdesc lang="en">If you do not have a ABAP stack installed in the SAP database, set this to TRUE</longdesc>
   <shortdesc lang="en">only JAVA stack installed</shortdesc>
   <content type="boolean" default="false"/>
  </parameter>
- <parameter name="JAVA_HOME" unique="1" required="0">
+ <parameter name="JAVA_HOME" unique="0" required="0">
   <longdesc lang="en">This is only needed if the DBJ2EE_ONLY parameter is set to true. Enter the path to the Java SDK which is used by the SAP WebAS Java</longdesc>
   <shortdesc lang="en">Path to Java SDK</shortdesc>
   <content type="string" default=""/>
  </parameter>
- <parameter name="STRICT_MONITORING" unique="1" required="0">
+ <parameter name="STRICT_MONITORING" unique="0" required="0">
   <longdesc lang="en">This controls how the resource agent monitors the database. If set to true, it will use SAP tools to test the connect to the database. Do not use with Oracle, because it will result in unwanted failovers in case of an archiver stuck</longdesc>
   <shortdesc lang="en">Activates application level monitoring</shortdesc>
   <content type="boolean" default="false"/>
  </parameter>
- <parameter name="AUTOMATIC_RECOVER" unique="1" required="0">
+ <parameter name="AUTOMATIC_RECOVER" unique="0" required="0">
   <longdesc lang="en">The SAPDatabase resource agent tries to recover a failed start attempt automaticaly one time. This is done by running a forced abort of the RDBMS and/or executing recovery commands.</longdesc>
   <shortdesc lang="en">Enable or disable automatic startup recovery</shortdesc>
   <content type="boolean" default="false"/>
  </parameter>
- <parameter name="DIR_BOOTSTRAP" unique="1" required="0">
+ <parameter name="DIR_BOOTSTRAP" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find the J2EE instance bootstrap directory. e.g. /usr/sap/P01/J00/j2ee/cluster/bootstrap</longdesc>
   <shortdesc lang="en">path to j2ee bootstrap directory</shortdesc>
   <content type="string" default="" />
  </parameter>
- <parameter name="DIR_SECSTORE" unique="1" required="0">
+ <parameter name="DIR_SECSTORE" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find the J2EE security store directory. e.g. /usr/sap/P01/SYS/global/security/lib/tools</longdesc>
   <shortdesc lang="en">path to j2ee secure store directory</shortdesc>
   <content type="string" default="" />
  </parameter>
- <parameter name="DB_JARS" unique="1" required="0">
+ <parameter name="DB_JARS" unique="0" required="0">
   <longdesc lang="en">The full qualified filename of the jdbc driver for the database connection test. It will be automaticaly read from the bootstrap.properties file in Java engine 6.40 and 7.00. For Java engine 7.10 and higher the parameter is mandatory.</longdesc>
   <shortdesc lang="en">file name of the jdbc driver</shortdesc>
   <content type="string" default="" />
  </parameter>
- <parameter name="PRE_START_USEREXIT" unique="1" required="0">
+ <parameter name="PRE_START_USEREXIT" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed before this resource gets started.</longdesc>
   <shortdesc lang="en">path to a pre-start script</shortdesc>
   <content type="string" default="" />
  </parameter>
- <parameter name="POST_START_USEREXIT" unique="1" required="0">
+ <parameter name="POST_START_USEREXIT" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed after this resource got started.</longdesc>
   <shortdesc lang="en">path to a post-start script</shortdesc>
   <content type="string" default="" />
  </parameter>
- <parameter name="PRE_STOP_USEREXIT" unique="1" required="0">
+ <parameter name="PRE_STOP_USEREXIT" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed before this resource gets stopped.</longdesc>
   <shortdesc lang="en">path to a pre-start script</shortdesc>
   <content type="string" default="" />
  </parameter>
- <parameter name="POST_STOP_USEREXIT" unique="1" required="0">
+ <parameter name="POST_STOP_USEREXIT" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed after this resource got stopped.</longdesc>
   <shortdesc lang="en">path to a post-start script</shortdesc>
   <content type="string" default="" />
