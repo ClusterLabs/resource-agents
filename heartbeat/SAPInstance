@@ -72,7 +72,7 @@ sapinstance_meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPInstance">
-<version>2.12</version>
+<version>2.13</version>
 
 <shortdesc lang="en">Manages a SAP instance as an HA resource.</shortdesc>
 <longdesc lang="en">
@@ -100,12 +100,12 @@ The statuses RED and GRAY are reported as NOT_RUNNING to the cluster. Depending 
   <shortdesc lang="en">Instance name: SID_INSTANCE_VIR-HOSTNAME</shortdesc>
   <content type="string" default="" />
  </parameter>
- <parameter name="DIR_EXECUTABLE" unique="1" required="0">
+ <parameter name="DIR_EXECUTABLE" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find sapstartsrv and sapcontrol. Specify this parameter, if you have changed the SAP kernel directory location after the default SAP installation.</longdesc>
   <shortdesc lang="en">Path of sapstartsrv and sapcontrol</shortdesc>
   <content type="string" default="" />
  </parameter>
- <parameter name="DIR_PROFILE" unique="1" required="0">
+ <parameter name="DIR_PROFILE" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find the SAP START profile. Specify this parameter, if you have changed the SAP profile directory location after the default SAP installation.</longdesc>
   <shortdesc lang="en">Path of start profile</shortdesc>
   <content type="string" default="" />
@@ -115,7 +115,7 @@ The statuses RED and GRAY are reported as NOT_RUNNING to the cluster. Depending 
   <shortdesc lang="en">Start profile name</shortdesc>
   <content type="string" default="" />
  </parameter>
- <parameter name="START_WAITTIME" unique="1" required="0">
+ <parameter name="START_WAITTIME" unique="0" required="0">
   <longdesc lang="en">After that time in seconds a monitor operation is executed by the resource agent. Does the monitor return SUCCESS, the start ishandled as SUCCESS. This is useful to resolve timing problems with e.g. the J2EE-Addin instance.Usually the resource agent waits until all services are started and the SAP Management Console reports a GREEN status. A double stack installation (ABAP + Java AddIn) consists of an ABAP dispatcher and aJAVA instance. Normally the start of the JAVA instance takes much longer than the start of the ABAP instance. For a JAVA Instance you may need to configure a much higher timeout for the start operation of the resource in Heartbeat. The disadvantage here is, that the discovery of a failed start by the cluster takes longer. Somebody might say: For me it is important, that the ABAP instance is up and running. A failure of the JAVA instance shall not cause a failover of the SAP instance.
 Actually the SAP MC reports a YELLOW status, if the JAVA instance of a double stack system fails. From the resource agent point of view YELLOW means:everything is OK. Setting START_WAITTIME to a lower value determines the resource agent to check the status of the instance during a start operation after that time. As it would wait normally for a GREEN status, now it reports SUCCESS to the cluster in case of a YELLOW status already after the specified time.
 
@@ -124,12 +124,12 @@ That is only useful for double stack systems.
   <shortdesc lang="en">Check the successful start after that time (do not wait for J2EE-Addin)</shortdesc>
   <content type="string" default="3600" />
  </parameter>
- <parameter name="AUTOMATIC_RECOVER" unique="1" required="0">
+ <parameter name="AUTOMATIC_RECOVER" unique="0" required="0">
   <longdesc lang="en">The SAPInstance resource agent tries to recover a failed start attempt automaticaly one time. This is done by killing runing instance processes, removing the kill.sap file and executing cleanipc. Sometimes a crashed SAP instance leaves some processes and/or shared memory segments behind. Setting this option to true will try to remove those leftovers during a start operation. That is to reduce manual work for the administrator.</longdesc>
   <shortdesc lang="en">Enable or disable automatic startup recovery</shortdesc>
   <content type="boolean" default="false"/>
  </parameter>
- <parameter name="MONITOR_SERVICES" unique="1" required="0">
+ <parameter name="MONITOR_SERVICES" unique="0" required="0">
   <longdesc lang="en">Within a SAP instance there can be several services. Usually you will find the defined services in the START profile of the related instance (Attention: with SAP Release 7.10 the START profile content was moved to the instance profile). Not all of those services are worth to monitor by the cluster. For example you properly do not like to failover your SAP instance, if the central syslog collector daemon fails.
 Those services are monitored within the SAPInstance resource agent:
 
@@ -147,7 +147,7 @@ You may specify multiple services seperated by a | (pipe) sign in this parameter
   <shortdesc lang="en">Services to monitor</shortdesc>
   <content type="string" default="disp+work|msg_server|enserver|enrepserver|jcontrol|jstart"/>
  </parameter>
-  <parameter name="SHUTDOWN_METHOD" unique="1" required="0">
+  <parameter name="SHUTDOWN_METHOD" unique="0" required="0">
   <longdesc lang="en">Usual a SAP Instance is stopped by the command 'sapcontrol -nr InstanceNr -function Stop'. SHUTDOWN_METHOD=KILL means to kill the SAP Instance using OS commands. SAP processes of the instance are terminated with 'kill -9', shared memory is deleted with 'cleanipc' and the 'kill.sap' file will be deleted. That method is much faster than the gracefull stop, but the instance does not have the chance to say goodbye to other SAPinstances in the same system. USE AT YOUR OWN RISK !!</longdesc>
   <shortdesc lang="en">Shutdown graceful or kill a SAP instance by terminating the processes. (normal|KILL)</shortdesc>
   <content type="string" default="normal"/>
@@ -174,22 +174,22 @@ The name of the SAP START profile. Specify this parameter, if you have changed t
   <shortdesc lang="en">Enqueue replication start profile name</shortdesc>
   <content type="string" default=""/>
  </parameter>
- <parameter name="PRE_START_USEREXIT" unique="1" required="0">
+ <parameter name="PRE_START_USEREXIT" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed before this resource gets started.</longdesc>
   <shortdesc lang="en">Path to a pre-start script</shortdesc>
   <content type="string" default="" />
  </parameter>
- <parameter name="POST_START_USEREXIT" unique="1" required="0">
+ <parameter name="POST_START_USEREXIT" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed after this resource got started.</longdesc>
   <shortdesc lang="en">Path to a post-start script</shortdesc>
   <content type="string" default="" />
  </parameter>
- <parameter name="PRE_STOP_USEREXIT" unique="1" required="0">
+ <parameter name="PRE_STOP_USEREXIT" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed before this resource gets stopped.</longdesc>
   <shortdesc lang="en">Path to a pre-start script</shortdesc>
   <content type="string" default="" />
  </parameter>
- <parameter name="POST_STOP_USEREXIT" unique="1" required="0">
+ <parameter name="POST_STOP_USEREXIT" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed after this resource got stopped.</longdesc>
   <shortdesc lang="en">Path to a post-start script</shortdesc>
   <content type="string" default="" />
@@ -321,6 +321,8 @@ sapinstance_init() {
     fi
   fi
 
+  sidadm="`echo $SID | tr '[:upper:]' '[:lower:]'`adm"
+
   [ -z "$DIR_EXECUTABLE" ] && abnormal_end "Cannot find sapstartsrv and sapcontrol executable, please set DIR_EXECUTABLE parameter!"
 
   if [ -z "$OCF_RESKEY_DIR_PROFILE" ]
@@ -359,8 +361,6 @@ sapinstance_init() {
     LD_LIBRARY_PATH=$DIR_EXECUTABLE${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH
     export LD_LIBRARY_PATH
   fi
-
-  sidadm="`echo $SID | tr '[:upper:]' '[:lower:]'`adm"
 
   return $OCF_SUCCESS
 }
