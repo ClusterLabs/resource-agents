@@ -234,8 +234,8 @@ varnish_status() {
     # SUCCES = contents of pidfile == running process id
     # NOTRUN = no pidfile, no running process
 
-    # check if pidfile exists
-    if [ -f $OCF_RESKEY_pid ]; then
+    # check if pidfile exists and larger than 0 bytes
+    if [ -s $OCF_RESKEY_pid ]; then
         # it does, now check if the pid exists
         pid=$(cat $OCF_RESKEY_pid)
         ocf_run kill -s 0 $pid
