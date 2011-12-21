@@ -150,7 +150,6 @@ fi
 
 %if 0%{?fedora} >= 11 || 0%{?centos_version} > 5 || 0%{?rhel} > 5
 CFLAGS="$(echo '%{optflags}')"
-%global conf_opt_rsctmpdir "--with-rsctmpdir=%{_var}/run/heartbeat/rsctmp"
 %global conf_opt_fatal "--enable-fatal-warnings=no"
 %else
 CFLAGS="${CFLAGS} ${RPM_OPT_FLAGS}"
@@ -243,11 +242,7 @@ rm -rf %{buildroot}
 
 %{_includedir}/heartbeat
 
-%if 0%{?fedora} >= 11 || 0%{?centos_version} > 5 || 0%{?rhel} > 5
-%dir %{_var}/run/heartbeat/rsctmp
-%else
 %dir %attr (1755, root, root)	%{_var}/run/resource-agents
-%endif
 
 %{_mandir}/man7/*.7*
 %{_mandir}/man8/ocf-tester.8*
@@ -296,6 +291,14 @@ ccs_update_schema > /dev/null 2>&1 ||:
 /usr/lib/ocf/resource.d/heartbeat/ldirectord
 %endif
 %endif
+
+%post
+if [ $1 = 2 ]; then
+if [ -d %{_var}/run/heartbeat/rsctmp ]; then
+cp -fpr %{_var}/run/heartbeat/rsctmp/* %{_var}/run/resource-agents/
+rm -fr %{_var}/run/heartbeat/rsctmp
+fi
+fi
 
 %changelog
 * @date@ Autotools generated version <nobody@nowhere.org> - @version@-@specver@-@numcomm@.@alphatag@.@dirty@
