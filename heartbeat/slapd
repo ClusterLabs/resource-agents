@@ -531,8 +531,8 @@ case $1 in
 esac
 
 slapd_validate_all
-
-[ $? -eq $OCF_SUCCESS ] || exit $?
+rc=$?
+[ $rc -eq $OCF_SUCCESS ] || exit $rc
 
 case $1 in
   status)
