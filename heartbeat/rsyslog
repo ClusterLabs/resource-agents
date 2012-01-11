@@ -204,6 +204,10 @@ if [[ -z "$CONFIGFILE" ]]; then
 	ocf_log err "undefined parameter:configfile"
 	exit $OCF_ERR_CONFIGURED
 fi
+if [[ ! -f "$CONFIGFILE" ]]; then
+	ocf_log err "Config file $CONFIGFILE does not exist."
+	exit $OCF_ERR_CONFIGURED
+fi
 
 RSYSLOG_EXE="${OCF_RESKEY_rsyslog_binary-/sbin/rsyslogd}"
 if [[ ! -x "$RSYSLOG_EXE" ]]; then

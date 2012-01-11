@@ -1056,7 +1056,7 @@ case $FSTYPE in
 ocfs2)	ocfs2_init
         CLUSTERSAFE=1
 	;;
-nfs|smbfs|none|gfs2|glusterfs)	CLUSTERSAFE=1 # this is kind of safe too
+nfs|smbfs|cifs|none|gfs2|glusterfs)	CLUSTERSAFE=1 # this is kind of safe too
 	;;
 # add here CLUSTERSAFE=0 for all filesystems which are not
 # cluster aware and which, even if when mounted read-only,
