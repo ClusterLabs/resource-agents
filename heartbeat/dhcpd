@@ -16,7 +16,7 @@ OCF_RESKEY_pid_default="/var/run/dhcpd.pid"
 OCF_RESKEY_user_default=dhcpd
 OCF_RESKEY_group_default=nogroup
 OCF_RESKEY_config_default=""
-OCF_RESKEY_chrooted_path_default=""
+OCF_RESKEY_chrooted_path_default="/var/lib/dhcp"
 OCF_RESKEY_leases_default="/db/dhcpd.leases"
 OCF_RESKEY_interface_default=""
 
@@ -64,7 +64,7 @@ service.
       <shortdesc lang="en">Configuration file</shortdesc>
       <content type="string" default="${OCF_RESKEY_config_default}"/>
     </parameter>
-    <parameter name="chrooted_path" unique="1" required="1">
+    <parameter name="chrooted_path" unique="1" required="0">
       <longdesc lang="en">
 	The path for the chrooted daemon to run in
       </longdesc>
