@@ -445,7 +445,7 @@ slapd_monitor()
         return $OCF_ERR_CONFIGURED
         ;;
       *)
-        ocf_log err "slapd database with suffix '$suffix' unreachable."
+        ocf_log err "slapd database with suffix '$suffix' unreachable. exit code ($result)"
         state=$OCF_ERR_GENERIC
         ;;
     esac
