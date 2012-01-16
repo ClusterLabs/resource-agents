@@ -385,6 +385,7 @@ slapd_monitor()
   local state
   local suffix
   local suffixes
+  local err_option="-err"
 
   slapd_status `slapd_pid`; state=$?
   if [ $state -eq $OCF_NOT_RUNNING ]; then
@@ -433,8 +434,9 @@ slapd_monitor()
     options="$options -D '$bind_dn' -w '$password'"
   fi
 
+  [ -z "$1" ] && err_option=""
   for suffix in $suffixes; do
-    ocf_run -q "$ldapsearch" -H "$services" -b "$suffix" $options >/dev/null 2>&1; result=$?
+    ocf_run -q $err_option "$ldapsearch" -H "$services" -b "$suffix" $options >/dev/null 2>&1; result=$?
 
     case "$result" in
       "0")
@@ -445,8 +447,10 @@ slapd_monitor()
         return $OCF_ERR_CONFIGURED
         ;;
       *)
-        ocf_log err "slapd database with suffix '$suffix' unreachable."
-        state=$OCF_ERR_GENERIC
+        if [ -z "$1" ] || [ -n "$1" -a $result -ne 1 ]; then
+          ocf_log err "slapd database with suffix '$suffix' unreachable. exit code ($result)"
+          state=$OCF_ERR_GENERIC
+        fi
         ;;
     esac
   done
