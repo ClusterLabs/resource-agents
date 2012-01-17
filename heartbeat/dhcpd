@@ -3,7 +3,7 @@
 #   Resource Agent for managing dhcpd resources.
 #
 #   License:      GNU General Public License (GPL)
-#   (c) 2011-2012 Chris Bowlby,
+#   (c) 2011-2011 Chris Bowlby,
 #                 and Linux-HA contributors
 
 # Initialization:
@@ -52,63 +52,81 @@ dhcpd_meta_data() {
 <resource-agent name="dhcpd" version="0.1">
   <version>0.1</version>
   <longdesc lang="en">
-This is a resource agent configuration for the DHCP server
+This is a resource agent designed for a chrooted DHCP server
 service.
   </longdesc>
-  <shortdesc lang="en">DHCP Server resource agent.</shortdesc>
+  <shortdesc lang="en">Chrooted DHCP Server resource agent.</shortdesc>
   <parameters>
     <parameter name="config" unique="1" required="1">
       <longdesc lang="en">
-	The full path to the configuration file.
+	This parameter represents the full path to the DHCP server
+	configuration file. For example, /etc/dhcpd.conf.
       </longdesc>
       <shortdesc lang="en">Configuration file</shortdesc>
       <content type="string" default="${OCF_RESKEY_config_default}"/>
     </parameter>
     <parameter name="chrooted_path" unique="1" required="0">
       <longdesc lang="en">
-	The path for the chrooted daemon to run in
+	This parameter defines the full path where the chrooted DHCP
+	server process will operate.
       </longdesc>
       <shortdesc lang="en">The chrooted path</shortdesc>
       <content type="string" default="${OCF_RESKEY_chrooted_path_default}"/>
     </parameter>
     <parameter name="binary" unique="0" required="0">
       <longdesc lang="en">
-        The binary used to start DHCPD.
+        This parameter defines the executable binary for the DHCP 
+	server process. A full path definition is not required, but
+	can be used to override environmental path values.
       </longdesc>
       <shortdesc lang="en">DHCPD binary</shortdesc>
       <content type="string" default="${OCF_RESKEY_binary_default}"/>
     </parameter>
     <parameter name="user" unique="0" required="0">
       <longdesc lang="en">
-	Run the DHCP Server daemon as this user.
+	This parameter defines the system user the DHCP server
+	process will use when it is chrooted. This helps to limit
+	possible issues in the event a DHCP server process is compromised.
       </longdesc>
       <shortdesc lang="en">DHCPD owner</shortdesc>
       <content type="string" default="${OCF_RESKEY_user_default}"/>
     </parameter>
     <parameter name="group" unique="0" required="0">
       <longdesc lang="en">
-        Run the DHCP Server daemon as this group.
+	This parameter defines the system group the DHCP server
+	process will use when it is chrooted. This helps to limit
+	possible issues in the event a DHCP server process is compromised.
       </longdesc>
       <shortdesc lang="en">DHCPD group owner</shortdesc>
       <content type="string" default="${OCF_RESKEY_group_default}"/>
     </parameter>
     <parameter name="interface" unique="0" required="0">
       <longdesc lang="en">
-        The network interface to assign to DHCP
+	This parameter defines the network interface(s) the DHCP
+	server process will bind to. A blank value will bind the 
+	process to all interfaces.
       </longdesc>
       <shortdesc lang="en">Network Interface</shortdesc>
       <content type="string" default="${OCF_RESKEY_interface_default}"/>
     </parameter>
     <parameter name="leases" unique="0" required="0">
       <longdesc lang="en">
-        The DHCP Leases file
+	This parameter defines the leases database file, from
+	the view point of the chrooted location. For example, 
+	if your chrooted_path = "/var/lib/dhcp", and your lease
+	file is to be stored in "/var/lib/dhcp/db/dhcpd.leases", you
+	would simply set the parameter to "/db/dhcpd.leases".
       </longdesc>
       <shortdesc lang="en">Leases file</shortdesc>
       <content type="string" default="${OCF_RESKEY_leases_default}"/>
     </parameter>
     <parameter name="pid" unique="0" required="0">
       <longdesc lang="en">
-        The DHCPD daemon PID file
+	This parameter defines the path and filename of the PID file.
+	It is used from the viewpoint of the chrooted_path parameter,
+	such that a parameter value of "/var/run/dhcpd.pid" will store
+	the file in "/var/lib/dhcp/var/run/dhcpd.pid" if the 
+	chrooted_path parameter is configured as "/var/lib/dhcp".
       </longdesc>
       <shortdesc lang="en">PID file</shortdesc>
       <content type="string" default="${OCF_RESKEY_pid_default}"/>
