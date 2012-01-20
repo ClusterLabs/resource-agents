@@ -460,7 +460,11 @@ ipaddress="$OCF_RESKEY_ipaddress"
 
 findif_out=`$FINDIF -C`
 rc=$?
-[ $rc -ne 0 ] && exit $rc
+[ $rc -ne 0 ] && {
+    ocf_log err "[$FINDIF -C] failed"
+    exit $rc
+}
+
 INTERFACE=`echo $findif_out | awk '{print $1}'`
 NETWORK=`ip route list dev $INTERFACE scope link|grep -o '^[^ ]*'`
 
