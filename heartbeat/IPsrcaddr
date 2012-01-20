@@ -167,13 +167,20 @@ srca_read() {
 srca_start() {
 	srca_read $1
 
-	ip route replace $NETWORK dev $INTERFACE src $1 || \
-		errorexit "command 'ip route replace $NETWORK dev $INTERFACE src $1' failed"
+	rc=$?
+	if [ $rc = 0 ]; then 
+		rc=$OCF_SUCCESS
+		ocf_log info "The ip route has been already set.($NETWORK, $INTERFACE, $ROUTE_WO_SRC)"
+	else
+		ip route replace $NETWORK dev $INTERFACE src $1 || \
+			errorexit "command 'ip route replace $NETWORK dev $INTERFACE src $1' failed"
 
-	$CMDCHANGE $ROUTE_WO_SRC src $1 || \
-		errorexit "command '$CMDCHANGE $ROUTE_WO_SRC src $1' failed"
+		$CMDCHANGE $ROUTE_WO_SRC src $1 || \
+			errorexit "command '$CMDCHANGE $ROUTE_WO_SRC src $1' failed"
+		rc=$?
+	fi
 
-	return $?
+	return $rc
 }
 
 #
@@ -252,7 +259,6 @@ CheckIP() {
 	else
 	    true
 	fi	   
-#	return $OCF_SUCCESS
 	;;
     *) #less than three decimal dots
 	false;;
@@ -377,7 +383,6 @@ ip_status() {
       
       Linux|SunOS)		
 	  IF=`find_interface "$BASEIP"`
-#	  echo $IF
 	  if [ -z "$IF" ]; then
 	      return $OCF_NOT_RUNNING
 	  fi
