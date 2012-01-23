@@ -307,35 +307,14 @@ find_interface_solaris() {
 #
 find_interface_generic() {
 
-  $IFCONFIG $IFCONFIG_A_OPT  |
-  while read ifname linkstuff
-  do
-    : Read gave us ifname = $ifname
-
-    read inet addr junk
-    : Read gave us inet = $inet addr = $addr
-
-    while
-      read line && [ "X$line" != "X" ]
-    do
-      : Nothing
-    done
-
-    case "$SYSTYPE" in
-      *BSD)
-		$IFCONFIG | grep "$BASEIP" -B`$IFCONFIG | grep -c inet` | grep "UP," | cut -d ":" -f 1
-		return 0;;
-      *)
-    		: "comparing $BASEIP to $addr (from ifconfig)"
-		case $addr in
-		  addr:$BASEIP)	echo $ifname; return $OCF_SUCCESS;;
-		  $BASEIP)	echo $ifname; return $OCF_SUCCESS;;
-    		esac
-		continue;;
-    esac
-
-  done
-  return $OCF_ERR_GENERIC 
+	local iface=`$IP2UTIL -o -f inet addr show | grep "\ $BASEIP" \
+            | cut -d ' ' -f2 | grep -v '^ipsec[0-9][0-9]*$'`
+        if [ -z "$iface" ]; then
+            return $OCF_ERR_GENERIC
+        else 
+            echo $iface
+            return $OCF_SUCCESS
+        fi
 }
 
 
