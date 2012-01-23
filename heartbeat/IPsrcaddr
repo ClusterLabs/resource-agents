@@ -398,6 +398,10 @@ srca_validate_all() {
 	  exit $OCF_ERR_CONFIGURED
 	fi
 
+	if ocf_is_probe; then
+	  return $OCF_SUCCESS
+	fi
+
 #	We should serve this IP address of course
 	if ip_status "$ipaddress"; then
 	  :
