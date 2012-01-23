@@ -388,7 +388,6 @@ ip_status() {
 srca_validate_all() {
 
     check_binary $AWK
-    check_binary $IPROUTE
     check_binary $IFCONFIG
 
 #	The IP address should be in good shape
