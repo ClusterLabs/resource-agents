@@ -440,6 +440,10 @@ fi
 
 ipaddress="$OCF_RESKEY_ipaddress"
 
+if [ "x$SYSTYPE" = "xLinux" ]; then
+	srca_validate_all
+fi
+
 findif_out=`$FINDIF -C`
 rc=$?
 [ $rc -ne 0 ] && {
