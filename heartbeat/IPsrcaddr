@@ -452,7 +452,7 @@ rc=$?
 }
 
 INTERFACE=`echo $findif_out | awk '{print $1}'`
-NETWORK=`ip route list dev $INTERFACE scope link|grep -o '^[^ ]*'`
+NETWORK=`ip route list dev $INTERFACE scope link match $ipaddress|grep -o '^[^ ]*'`
 
 case $1 in
 	start)		srca_start $ipaddress
