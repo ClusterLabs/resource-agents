@@ -102,6 +102,7 @@ while test "$done" = "0"; do
 		ra_args="$ra_args OCF_RESKEY_$name='$value'"; shift; shift;;
 	-L) use_lrmd=1; shift;;
 	-v) verbose=1; shift;;
+	-d) export HA_debug=1; shift;;
 	-q) quiet=1; shift;;
 	-?|--help) usage 0;;
 	--version) echo "@PACKAGE_VERSION@"; exit 0;;
