@@ -38,7 +38,11 @@ export OCF_RESKEY_CRM_meta_interval=10000  # reset this for probes
 num_errors=0
 
 info() {
-    [ "$quiet" ] && return
+    [ "$quiet" -eq 1 ] && return
+    echo "$*"
+}
+debug() {
+    [ "$verbose" -eq 0 ] && return
     echo "$*"
 }
 usage() {
@@ -89,6 +93,7 @@ EOF
 done=0
 ra_args=""
 verbose=0
+quiet=0
 while test "$done" = "0"; do
     case "$1" in
 	-n) OCF_RESOURCE_INSTANCE=$2; ra_args="$ra_args OCF_RESOURCE_INSTANCE=$2"; shift; shift;;
@@ -198,25 +203,20 @@ fi
 lrm_test_command() {
 	action="$1"
 	msg="$2"
-	[ "$verbose" -eq 0 ] || echo "$msg"
+	debug "$msg"
 	exec_resource $action "$lrm_ra_args"
 }
 
 test_permissions() {
     action=meta-data
-    msg=${1:-"Testing permissions with uid nobody"}
-    if [ $verbose -ne 0 ]; then
-    	echo $msg
-    fi
+    debug ${1:-"Testing permissions with uid nobody"}
     su nobody -s /bin/sh $agent $action > /dev/null
 }
 
 test_metadata() {
     action=meta-data
     msg=${1:-"Testing: $action"}
-    if [ $verbose -ne 0 ]; then
-    	echo $msg
-    fi
+    debug $msg
     bash $agent $action | (cd $DATADIR/resource-agents && $METADATA_LINT)
     rc=$?
     #echo rc: $rc
@@ -235,7 +235,7 @@ test_command() {
     if [ $verbose -eq 0 ]; then
 	command_output=`bash $agent $action 2>&1`
     else
-    	echo $msg
+    	debug $msg
 	bash $agent $action
     fi
     rc=$?
