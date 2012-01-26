@@ -1,4 +1,4 @@
-.TH OCF-TESTER "8" "June 2011" "ocf-tester" "System Administration Utilities"
+.TH OCF-TESTER "8" "January 2012" "Tool for testing if a cluster resource is OCF compliant" "System Administration Utilities"
 .SH NAME
 ocf-tester \- Part of the Linux-HA project
 .SH SYNOPSIS
@@ -10,6 +10,38 @@ Tool for testing if a cluster resource is OCF compliant
 .TP
 \fB\-h\fR
 This text
+.TP
+\fB\-v\fR
+Be verbose while testing
+.TP
+\fB\-q\fR
+Be quiet while testing
+.TP
+\fB\-d\fR
+Turn on RA debugging
+.TP
+\fB\-n\fR name
+Name of the resource
+.TP
+\fB\-o\fR name=value
+Name and value of any parameters required by the agent
+.TP
+\fB\-L\fR
+Use lrmadmin/lrmd for tests
+.PP
+Usage: ocf\-tester [\-Lh] \fB\-n\fR resource_name [\-o name=value]* /full/path/to/resource/agent
+.TP
+\fB\-h\fR
+This text
+.TP
+\fB\-v\fR
+Be verbose while testing
+.TP
+\fB\-q\fR
+Be quiet while testing
+.TP
+\fB\-d\fR
+Turn on RA debugging
 .TP
 \fB\-n\fR name
 Name of the resource
