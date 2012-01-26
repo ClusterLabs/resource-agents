@@ -239,7 +239,8 @@ LXC_stop() {
 }
 
 LXC_status() {
-	S=`lxc-info -n ${OCF_RESKEY_container}`
+	# run lxc-info with -s option for LXC-0.7.5 or later, otherwise not
+	S=`lxc-info -s -n ${OCF_RESKEY_container} 2>/dev/null || lxc-info -n ${OCF_RESKEY_container} 2>/dev/null`
 	ocf_log debug "State of ${OCF_RESKEY_container}: $S"
 	if [[ "${S##* }" = "RUNNING" ]] ; then 
 		return $OCF_SUCCESS
