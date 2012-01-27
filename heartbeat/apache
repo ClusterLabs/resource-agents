@@ -594,7 +594,7 @@ then
   : OK
 else
   ocf_log err "Cannot parse config file [$CONFIGFILE]"
-  exit $OCF_ERR_CONFIGURED
+  exit $OCF_ERR_INSTALLED
 fi
 
 case $COMMAND in
