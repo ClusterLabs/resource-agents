@@ -7,7 +7,8 @@ CONFIG
 	HangTimeout 20
 
 CASE-BLOCK required_args
-	Env OCF_RESKEY_ipaddress=127.0.0.3
+	Env OCF_RESKEY_ipaddress= # put here your IP
+	Env OCF_RESKEY_cidr_netmask= # and the netmask
 
 CASE-BLOCK default_status
 	AgentRun stop
