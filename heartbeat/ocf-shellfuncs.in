@@ -181,6 +181,7 @@ set_logtag() {
 }
 
 ha_log() {
+	local loglevel
 	[ none = "$HA_LOGFACILITY" ] && HA_LOGFACILITY=""
 	# if we're connected to a tty, then output to stderr
 	if tty >/dev/null; then
