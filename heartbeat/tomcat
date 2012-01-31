@@ -82,8 +82,16 @@ isrunning_tomcat()
 # 
 isalive_tomcat()
 {
-	pgrep -f "${SEARCH_STR}" > /dev/null 
+	if [ -f $CATALINA_PID ]; then
+		PID=`head -n 1 $CATALINA_PID`
+		# Retry message for restraint
+		kill -s 0 $PID >/dev/null 2>&1
+		return $?
+	fi
+	# No PID file
+	false
 }
+
 ############################################################################
 # Check tomcat process and service availability
 monitor_tomcat()
@@ -203,7 +211,10 @@ END_TOMCAT_STOP
 		sleep 1
 		lapse_sec=`expr $lapse_sec + 1`
 		ocf_log debug "stop_tomcat[$TOMCAT_NAME]: stop failed, killing with SIGKILL ($lapse_sec)"
-		pkill -KILL -f "${SEARCH_STR}"
+		if [ -f $CATALINA_PID ]; then
+			PID=`head -n 1 $CATALINA_PID`
+			kill -KILL $PID
+		fi
 	done
 
 	if [ ${CATALINA_ROTATE_LOG} = "YES" ]; then
@@ -398,7 +409,6 @@ TOMCAT_START_OPTS="${OCF_RESKEY_tomcat_start_opts}"
 CATALINA_OPTS="-Dname=$TOMCAT_NAME ${OCF_RESKEY_catalina_opts}"
 CATALINA_ROTATE_LOG="${OCF_RESKEY_catalina_rotate_log-NO}"
 CATALINA_ROTATETIME="${OCF_RESKEY_catalina_rotatetime-86400}"
-SEARCH_STR="\\""${CATALINA_OPTS}"
 
 export JAVA_HOME JAVA_OPTS CATALINA_HOME CATALINA_BASE CATALINA_PID CATALINA_OPTS
 
