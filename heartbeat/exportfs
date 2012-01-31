@@ -181,9 +181,12 @@ END
 
 exportfs_monitor ()
 {
-	# "grep -z" matches across newlines, which is necessary as
-	# exportfs output wraps lines for long export directory names
-	exportfs | grep -zqs "${OCF_RESKEY_directory}[[:space:]]*${OCF_RESKEY_clientspec}"
+	# exportfs output wraps lines for long export directory names.
+	# We unwrap here with sed.
+	# We then do a literal match on the full line (grep -x -F)
+	exportfs |
+	        sed -e '$! N; s/\n[[:space:]]\+/ /; t; s/[[:space:]]\+\([^[:space:]]\+\)\(\n\|$\)/ \1\2/g; P;D;' |
+	        grep -q -x -F "${OCF_RESKEY_directory} ${OCF_RESKEY_clientspec}"
 
 #Adapt grep status code to OCF return code
 	case $? in
