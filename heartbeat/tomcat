@@ -225,12 +225,6 @@ END_TOMCAT_STOP
 	return $OCF_SUCCESS
 }
 
-status_tomcat()
-{
-	return $OCF_SUCCESS
-}
-
-
 metadata_tomcat()
 {
     cat <<END
@@ -438,7 +432,13 @@ case "$COMMAND" in
 		exit $func_status
 		;;
 	status)
-		status_tomcat
+		if monitor_tomcat; then
+		  echo tomcat instance $TOMCAT_NAME is running
+		  exit $OCF_SUCCESS
+		else
+		  echo tomcat instance $TOMCAT_NAME is stopped
+		  exit $OCF_NOT_RUNNING
+		fi
 		exit $?
 		;;
 	monitor)
