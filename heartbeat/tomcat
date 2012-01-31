@@ -388,6 +388,7 @@ validate_all_tomcat()
 ### tomcat RA environment variables
 #
 
+COMMAND=$1
 TOMCAT_NAME="${OCF_RESKEY_tomcat_name-tomcat}"
 TOMCAT_CONSOLE="${OCF_RESKEY_script_log-/var/log/$TOMCAT_NAME.log}"
 RESOURCE_TOMCAT_USER="${OCF_RESKEY_tomcat_user-RUNASIS}"
@@ -404,18 +405,45 @@ CATALINA_OPTS="-Dname=$TOMCAT_NAME ${OCF_RESKEY_catalina_opts}"
 CATALINA_ROTATE_LOG="${OCF_RESKEY_catalina_rotate_log-NO}"
 CATALINA_ROTATETIME="${OCF_RESKEY_catalina_rotatetime-86400}"
 
+LSB_STATUS_STOPPED=3
+if [ $# -ne 1 ]; then
+	usage
+	exit $OCF_ERR_ARGS
+fi
+case "$COMMAND" in
+	meta-data) metadata_tomcat; exit $OCF_SUCCESS;;
+	help|usage) usage; exit $OCF_SUCCESS;;
+esac
+
+if [ ! -d "$JAVA_HOME" -o ! -d "$CATALINA_HOME" -o ! -d "$CATALINA_BASE" ]; then
+	case $COMMAND in
+		stop)		exit	$OCF_SUCCESS;;
+		monitor)	exit	$OCF_NOT_RUNNING;;
+		status)		exit	$LSB_STATUS_STOPPED;;
+	esac
+	ocf_log err "JAVA_HOME or CATALINA_HOME or CATALINA_BASE does not exist."
+	exit $OCF_ERR_INSTALLED
+fi
+
 export JAVA_HOME JAVA_OPTS CATALINA_HOME CATALINA_BASE CATALINA_PID CATALINA_OPTS
 
 JAVA=${JAVA_HOME}/bin/java
+
+if [ ! -x "$JAVA" ]; then
+	case $COMMAND in
+		stop)		exit	$OCF_SUCCESS;;
+		monitor)	exit	$OCF_NOT_RUNNING;;
+		status)		exit	$LSB_STATUS_STOPPED;;
+	esac
+	ocf_log err "java command does not exist."
+	exit $OCF_ERR_INSTALLED
+fi
 
 #
 # ------------------
 # the main script
 # ------------------
 # 
-
-COMMAND=$1
-
 case "$COMMAND" in
 	start)
 		ocf_log debug  "[$TOMCAT_NAME] Enter tomcat start"
