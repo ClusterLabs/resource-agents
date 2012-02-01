@@ -516,7 +516,7 @@ then
   CONFIGFILE="$OCF_RESKEY_configfile"
   OPTIONS="$OCF_RESKEY_options"
   CLIENT=${OCF_RESKEY_client}
-  TESTREGEX=${OCF_RESKEY_testregex:-'</ *body *>[[:space:]]*</ *html *>'}
+  TESTREGEX=${OCF_RESKEY_testregex:-'</ *html *>'}
   TESTURL="$OCF_RESKEY_testurl"
   TESTREGEX10=${OCF_RESKEY_testregex10}
   TESTCONFFILE="$OCF_RESKEY_testconffile"
