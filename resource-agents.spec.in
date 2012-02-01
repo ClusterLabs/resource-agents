@@ -257,7 +257,7 @@ rm -rf %{buildroot}
 %post -n resource-agents
 if [ $1 = 2 ]; then
  if [ -d %{_var}/run/heartbeat/rsctmp ]; then
-  cp -fpr %{_var}/run/heartbeat/rsctmp/* %{_var}/run/resource-agents/
+  cp -fpr %{_var}/run/heartbeat/rsctmp/* %{_var}/run/resource-agents/ 1>/dev/null 2>&1
   rm -fr %{_var}/run/heartbeat/rsctmp
  fi
 fi
