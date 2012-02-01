@@ -486,7 +486,7 @@ validate_all_apache() {
 	: OK to be empty
   else
 	case $STATUSURL in
-	    http://*/*) ;;
+	    http://*) ;;
 	    *) 
 	    ocf_log err "Invalid STATUSURL $STATUSURL"
 	    exit $OCF_ERR_ARGS ;;
