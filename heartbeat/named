@@ -424,7 +424,7 @@ then
     esac
 fi
 
-if [ "$EUID" != "0" ]; then 
+if [ `id -u` -ne 0 ]; then
     ocf_log err "$0 must be run as root"
     exit $OCF_ERR_GENERIC
 fi
