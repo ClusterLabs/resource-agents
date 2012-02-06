@@ -462,6 +462,19 @@ ocf_ver2num() {
 	{for(i=1; i<=NF; i++) s=s*1000+$i; print s}
 	'
 }
+ocf_ver_level(){
+	echo $1 | awk -F'[.-]' '{print NF}'
+}
+ocf_ver_complete_level(){
+	local ver="$1"
+	local level="$2"
+	local i=0
+	while [ $i -lt $level ]; do
+		ver=${ver}.0
+		i=`expr $i + 1`
+	done
+	echo $ver
+}
 
 # usage: ocf_version_cmp VER1 VER2
 #     version strings can contain digits, dots, and dashes
@@ -474,8 +487,20 @@ ocf_ver2num() {
 ocf_version_cmp() {
 	ocf_is_ver "$1" || return 3
 	ocf_is_ver "$2" || return 3
-	local v1=`ocf_ver2num $1`
-	local v2=`ocf_ver2num $2`
+	local v1=$1
+	local v2=$2
+	local v1_level=`ocf_ver_level $v1`
+	local v2_level=`ocf_ver_level $v2`
+	local level_diff
+	if [ $v1_level -lt $v2_level ]; then
+		level_diff=`expr $v2_level - $v1_level`
+		v1=`ocf_ver_complete_level $v1 $level_diff`
+	elif [ $v1_level -gt $v2_level ]; then
+		level_diff=`expr $v1_level - $v2_level`
+		v2=`ocf_ver_complete_level $v2 $level_diff`
+	fi
+	v1=`ocf_ver2num $v1`
+	v2=`ocf_ver2num $v2`
 	if [ $v1 -eq $v2 ]; then
 		return 1
 	elif [ $v1 -lt $v2 ]; then
