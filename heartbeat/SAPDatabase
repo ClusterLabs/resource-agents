@@ -977,6 +977,13 @@ if [ `echo $LD_LIBRARY_PATH | grep -c "^$DIR_EXECUTABLE\>"` -eq 0 ]; then
 fi
 sidadm="`echo $SID | tr '[:upper:]' '[:lower:]'`adm"
 
+# we always want to fall to the faster status method in case of a probe by the cluster  
+ACTION=$1
+if ocf_is_probe 
+then
+  ACTION=status
+fi
+
 # What kind of method was invoked?
 case "$1" in
 
