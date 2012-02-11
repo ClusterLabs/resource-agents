@@ -838,10 +838,7 @@ case "$1" in
   *);;
 esac
 
-US=`id -u -n`
-US=`echo $US`
-if
-  [ $US != root  ]
+if  ! ocf_is_root 
 then
   ocf_log err "$0 must be run as root"
   exit $OCF_ERR_PERM
