@@ -8,27 +8,29 @@
 # Author:       Alexander Krauth, October 2006
 # Support:      linux@sap.com
 # License:      GNU General Public License (GPL)
-# Copyright:    (c) 2006, 2007 Alexander Krauth
+# Copyright:    (c) 2006, 2007, 2012 Alexander Krauth
 #
 # An example usage: 
 #      See usage() function below for more details...
 #
 # OCF instance parameters:
-#	OCF_RESKEY_SID
-#       OCF_RESKEY_DIR_EXECUTABLE   (optional, well known directories will be searched by default)
-#       OCF_RESKEY_DBTYPE
-#       OCF_RESKEY_NETSERVICENAME   (optional, non standard name of Oracle Listener)
-#       OCF_RESKEY_DBJ2EE_ONLY      (optional, default is false)
-#       OCF_RESKEY_JAVA_HOME        (optional, only needed if DBJ2EE_ONLY is true and JAVA_HOME enviroment variable is not set)
+#       OCF_RESKEY_SID
+#       OCF_RESKEY_DIR_EXECUTABLE    (optional, well known directories will be searched by default)
+#       OCF_RESKEY_DBTYPE            (mandatory, one of the following values: ORA,ADA,DB6)
+#       OCF_RESKEY_DBINSTANCE        (optional, Database instance name, if not equal to SID)
+#       OCF_RESKEY_NETSERVICENAME    (optional, non standard name of Oracle Listener)
+#       OCF_RESKEY_DBJ2EE_ONLY       (optional, default is false)
+#       OCF_RESKEY_JAVA_HOME         (optional, only needed if DBJ2EE_ONLY is true and JAVA_HOME enviroment variable is not set)
 #       OCF_RESKEY_STRICT_MONITORING (optional, activate application level monitoring - with Oracle a failover will occur in case of an archiver stuck)
 #       OCF_RESKEY_AUTOMATIC_RECOVER (optional, automatic startup recovery, default is false)
-#       OCF_RESKEY_DIR_BOOTSTRAP    (optional, if non standard J2EE server directory)
-#       OCF_RESKEY_DIR_SECSTORE     (optional, if non standard J2EE secure store directory)
-#       OCF_RESKEY_DB_JARS          (optional, if maintained in bootstrap.properties, mandatory for WebAS Java 7.10)
-#	OCF_RESKEY_PRE_START_USEREXIT	(optional, lists a script which can be executed before the resource is started)
-#	OCF_RESKEY_POST_START_USEREXIT	(optional, lists a script which can be executed after the resource is started)
-#	OCF_RESKEY_PRE_STOP_USEREXIT	(optional, lists a script which can be executed before the resource is stopped)
-#	OCF_RESKEY_POST_STOP_USEREXIT	(optional, lists a script which can be executed after the resource is stopped)
+#       OCF_RESKEY_MONITOR_SERVICES  (optional, default is to monitor all database services)
+#       OCF_RESKEY_DIR_BOOTSTRAP     (optional, if non standard J2EE server directory)
+#       OCF_RESKEY_DIR_SECSTORE      (optional, if non standard J2EE secure store directory)
+#       OCF_RESKEY_DB_JARS           (optional, if maintained in bootstrap.properties, mandatory for WebAS Java 7.10)
+#       OCF_RESKEY_PRE_START_USEREXIT  (optional, lists a script which can be executed before the resource is started)
+#       OCF_RESKEY_POST_START_USEREXIT (optional, lists a script which can be executed after the resource is started)
+#       OCF_RESKEY_PRE_STOP_USEREXIT   (optional, lists a script which can be executed before the resource is stopped)
+#       OCF_RESKEY_POST_STOP_USEREXIT  (optional, lists a script which can be executed after the resource is stopped)
 #
 # ToDo:
 # Remove all the database dependend stuff from the agent and use
@@ -70,13 +72,27 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPDatabase">
-<version>1.93</version>
+<version>2.00</version>
 
+<shortdesc lang="en">Manages a SAP database instance as an HA resource.</shortdesc>
 <longdesc lang="en">
 Resource script for SAP databases. It manages a SAP database of any type as an HA resource.
-</longdesc>
-<shortdesc lang="en">Manages any SAP database (based on Oracle, MaxDB, or DB2)</shortdesc>
 
+The purpose of the resource agent is to start, stop and monitor the database instance of a SAP system. Together with the RDBMS system it will also control the related network service for the database. Like the Oracle Listener and the xserver of MaxDB.
+The resource agent expects a standard SAP installation of the database and therefore needs less parameters to configure.
+The resource agent supports the following databases:
+- Oracle 10.2 and 11.2
+- DB/2 UDB for Windows and Unix 9.x
+- SAP-DB / MaxDB 7.x
+
+In fact this resource agent does not run any database commands directly. It uses the SAP standard process SAPHostAgent to control the database.
+The SAPHostAgent must be installed on each cluster node locally. It will not work, if you try to run the SAPHostAgent also as a HA resource.
+Please follow SAP note 1031096 for the installation of SAPHostAgent.
+The required minimum version of SAPHostAgent is:
+Release: 7.20
+Patch Number: 90
+or compile time after: Dec 17 2011
+</longdesc>
 <parameters>
  <parameter name="SID" unique="1" required="1">
   <longdesc lang="en">The unique SAP system identifier. e.g. P01</longdesc>
@@ -91,6 +107,11 @@ Resource script for SAP databases. It manages a SAP database of any type as an H
  <parameter name="DBTYPE" unique="0" required="1">
   <longdesc lang="en">The name of the database vendor you use. Set either: ORA,DB6,ADA</longdesc>
   <shortdesc lang="en">database vendor</shortdesc>
+  <content type="string" default="" />
+ </parameter>
+ <parameter name="DBINSTANCE" unique="1" required="0">
+  <longdesc lang="en">Must be used for special database implementations, when database instance name is not equal to the SID (e.g. Oracle DataGuard)</longdesc>
+  <shortdesc lang="en">Database instance name, if not equal to SID</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="NETSERVICENAME" unique="0" required="0">
@@ -117,6 +138,12 @@ Resource script for SAP databases. It manages a SAP database of any type as an H
   <longdesc lang="en">The SAPDatabase resource agent tries to recover a failed start attempt automaticaly one time. This is done by running a forced abort of the RDBMS and/or executing recovery commands.</longdesc>
   <shortdesc lang="en">Enable or disable automatic startup recovery</shortdesc>
   <content type="boolean" default="false"/>
+ </parameter>
+ <parameter name="MONITOR_SERVICES" unique="0" required="0">
+  <longdesc lang="en">Defines which services are monitored by the SAPDatabase resource agent, if STRICT_MONITORING is set to true. Service names must correspond with the output of the 'saphostctrl -function GetDatabaseStatus' command.</longdesc>
+  <shortdesc lang="en">Database services to monitor</shortdesc>
+  <content type="string" default="Instance|Database|Listener"/>
+  <content type="string" default="Instance|Database|Listener"/>
  </parameter>
  <parameter name="DIR_BOOTSTRAP" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find the J2EE instance bootstrap directory. e.g. /usr/sap/P01/J00/j2ee/cluster/bootstrap</longdesc>
@@ -525,6 +552,43 @@ sapdatabase_methods() {
 
 
 #
+# check_saphostexec : Before using saphostctrl we make sure that the saphostexec is running on the current node.
+#
+check_saphostexec() {
+  restart=0
+  runninginst=""
+  chkrc=$OCF_SUCCESS
+
+  output=`$SAPHOSTEXEC -status 2>&1`
+  if [ $? -ne 0 ]
+  then
+    ocf_log warn "saphostexec is not running on node `hostname`, it will be started now"
+    output=`$SAPHOSTEXEC -restart 2>&1`
+    
+    # now make sure the daemon has been started and is able to respond
+    srvrc=1
+    while [ $srvrc -ne 0 -a `pgrep -f "$SAPHOSTEXEC" | wc -l` -gt 0 ]
+    do
+      sleep 1
+      output=`$SAPHOSTEXEC -status 2>&1`
+      srvrc=$?
+    done
+
+    if [ $srvrc -eq 0 ]
+    then
+      ocf_log info "saphostexec on node `hostname` was restarted !"
+      chkrc=$OCF_SUCCESS
+    else
+      ocf_log error "saphostexec on node `hostname` could not be started! - $output"
+      chkrc=$OCF_ERR_GENERIC
+    fi
+  fi
+  
+  return $chkrc
+}
+
+
+#
 # sapuserexit : Many SAP customers need some additional processes/tools to run their SAP systems.
 #               This specialties do not allow a totally generic SAP cluster resource agent.
 #               Someone should write a resource agent for each additional process you need, if it
@@ -538,7 +602,7 @@ sapuserexit() {
 
   if [ -n "$VALUE" ]
   then
-    if [ -x "$VALUE" ]
+    if have_binary "$VALUE"
     then
       ocf_log info "Calling userexit ${NAME} with customer script file ${VALUE}"
       "$VALUE" >/dev/null 2>&1
@@ -547,7 +611,7 @@ sapuserexit() {
       ocf_log warn "Attribute ${NAME} is set to ${VALUE}, but this file is not executable"
     fi
   fi
-  return 0
+  return $OCF_SUCCESS
 }
 
 
@@ -555,44 +619,41 @@ sapuserexit() {
 # sapdatabase_start : Start the SAP database
 #
 sapdatabase_start() {
-  sapuserexit PRE_START_USEREXIT "$OCF_RESKEY_PRE_START_USEREXIT"
 
-  case $DBTYPE in
-    ADA) x_server_start
-         ;;
-    ORA) listener_start
-         ;;
-  esac
-
-  output=`su - $sidadm -c $SAPSTARTDB`
+  check_saphostexec
   rc=$?
-
-  if [ $DBJ2EE_ONLY -eq 1 ]
+  
+  if [ $rc -eq $OCF_SUCCESS ]
   then
+    sapuserexit PRE_START_USEREXIT "$OCF_RESKEY_PRE_START_USEREXIT"
+
+    DBINST=""
+    if [ -n "$OCF_RESKEY_DBINSTANCE" ]
+    then
+      DBINST="-dbinstance $OCF_RESKEY_DBINSTANCE "
+    fi
+    FORCE=""
+    if ocf_is_true $OCF_RESKEY_AUTOMATIC_RECOVER
+    then
+      FORCE="-force"
+    fi
+    output=`$SAPHOSTCTRL -function StartDatabase -dbname $SID -dbtype $DBTYPE $DBINST $FORCE -service`
+
     sapdatabase_monitor 1
     rc=$?
+
+    if [ $rc -eq 0 ]
+    then
+      ocf_log info "SAP database $SID started: $output"
+      rc=$OCF_SUCCESS
+    
+      sapuserexit POST_START_USEREXIT "$OCF_RESKEY_POST_START_USEREXIT"
+    else
+      ocf_log err "SAP database $SID start failed: $output"
+      rc=$OCF_ERR_GENERIC
+    fi
   fi
-
-  if [ $rc -ne 0 -a $OCF_RESKEY_AUTOMATIC_RECOVER -eq 1 ]
-  then
-    ocf_log warn "SAP database $SID start failed: $output"
-    ocf_log warn "Try to recover database $SID"
-
-    output=''
-    sapdatabase_recover
-    rc=$?
-  fi
-
-  if [ $rc -eq 0 ]
-  then
-    ocf_log info "SAP database $SID started: $output"
-    rc=$OCF_SUCCESS
-    sapuserexit POST_START_USEREXIT "$OCF_RESKEY_POST_START_USEREXIT"
-  else
-    ocf_log err "SAP database $SID start failed: $output"
-    rc=$OCF_ERR_GENERIC
-  fi
-
+  
   return $rc
 }
 
@@ -601,39 +662,32 @@ sapdatabase_start() {
 #
 sapdatabase_stop() {
 
-  sapuserexit PRE_STOP_USEREXIT "$OCF_RESKEY_PRE_STOP_USEREXIT"
-
-  # use of the stopdb kernel script is not possible, because there are to may checks in that
-  # script. We want to stop the database regardless of anything.
-  #output=`su - $sidadm -c $SAPSTOPDB`
-
-  case $DBTYPE in
-    ORA) output=`oracle_stop`
-         ;;
-    ADA) output=`maxdb_stop`
-         ;;
-    DB6) output=`db6udb_stop`
-         ;;
-  esac
-
-  if [ $? -eq 0 ]
+  check_saphostexec
+  rc=$?
+  
+  if [ $rc -eq $OCF_SUCCESS ]
   then
-    ocf_log info "SAP database $SID stopped: $output"
-    rc=$OCF_SUCCESS
-  else
-    ocf_log err "SAP database $SID stop failed: $output"
-    rc=$OCF_ERR_GENERIC
+    sapuserexit PRE_STOP_USEREXIT "$OCF_RESKEY_PRE_STOP_USEREXIT"
+
+    DBINST=""
+    if [ -n "$OCF_RESKEY_DBINSTANCE" ]
+    then
+      DBINST="-dbinstance $OCF_RESKEY_DBINSTANCE "
+    fi
+    output=`$SAPHOSTCTRL -function StopDatabase -dbname $SID -dbtype $DBTYPE $DBINST -force -service`
+
+    if [ $? -eq 0 ]
+    then
+      ocf_log info "SAP database $SID stopped: $output"
+      rc=$OCF_SUCCESS
+    else
+      ocf_log err "SAP database $SID stop failed: $output"
+      rc=$OCF_ERR_GENERIC
+    fi
   fi
 
-  case $DBTYPE in
-    ORA) listener_stop
-         ;;
-    ADA) x_server_stop
-         ;;
-  esac
-
   sapuserexit POST_STOP_USEREXIT "$OCF_RESKEY_POST_STOP_USEREXIT"
-
+  
   return $rc
 }
 
@@ -643,85 +697,61 @@ sapdatabase_stop() {
 #
 sapdatabase_monitor() {
   strict=$1
+  rc=$OCF_SUCCESS
 
-  sapdatabase_status
-  rc=$?
-  if [ $rc -ne $OCF_SUCCESS ]; then
-    return $rc
-  fi
-
-  case $DBTYPE in
-    ADA) x_server_status 
-         if [ $? -ne $OCF_SUCCESS ]; then x_server_start; fi
-         ;;
-    ORA) listener_status
-         if [ $? -ne $OCF_SUCCESS ]; then listener_start; fi
-         ;;
-  esac
-
-  if [ $strict -eq 0 ]
+  if ! ocf_is_true $strict
   then
-    return $rc
+    sapdatabase_status
+    rc=$?
   else
-    if [ $DBJ2EE_ONLY -eq 0 ]
-    then
-      output=`echo "$SAPDBCONNECT -d -w /dev/null" | su $sidadm 2>&1`
-      if [ $? -le 4 ]
-      then
-        rc=$OCF_SUCCESS
-      else
-        rc=$OCF_NOT_RUNNING
-      fi
-    else
-      MYCP=""
-      EXECMD=""
-
-      # WebAS Java 6.40+7.00
-      IAIK_JCE="$SECSTORE"/iaik_jce.jar
-      IAIK_JCE_EXPORT="$SECSTORE"/iaik_jce_export.jar
-      EXCEPTION="$BOOTSTRAP"/exception.jar
-      LOGGING="$BOOTSTRAP"/logging.jar
-      OPENSQLSTA="$BOOTSTRAP"/opensqlsta.jar
-      TC_SEC_SECSTOREFS="$BOOTSTRAP"/tc_sec_secstorefs.jar
-      JDDI="$BOOTSTRAP"/../server0/bin/ext/jdbdictionary/jddi.jar
-      ANTLR="$BOOTSTRAP"/../server0/bin/ext/antlr/antlr.jar
-      FRAME="$BOOTSTRAP"/../server0/bin/system/frame.jar
+    check_saphostexec
+    rc=$?
   
-      # only start jdbcconnect when all jars available
-      if [ -f "$EXCEPTION" -a -f "$LOGGING" -a -f "$OPENSQLSTA" -a -f "$TC_SEC_SECSTOREFS" -a -f "$JDDI" -a -f "$ANTLR" -a -f "$FRAME" -a -f "$SAPDBCONNECT" ]
+    if [ $rc -eq $OCF_SUCCESS ]
+    then
+      count=0
+      
+      DBINST=""
+      if [ -n "$OCF_RESKEY_DBINSTANCE" ]
       then
-        MYCP=".:$FRAME:$ANTLR:$JDDI:$IAIK_JCE_EXPORT:$IAIK_JCE:$EXCEPTION:$LOGGING:$OPENSQLSTA:$TC_SEC_SECSTOREFS:$DB_JARS:$SAPDBCONNECT" 
-        EXECMD="com.sap.inst.jdbc.connect.JdbcCon -sec $SID:$SID"
-      else
-      # WebAS Java 7.10
-        LAUNCHER=${BOOTSTRAP}/sap.com~tc~bl~offline_launcher~impl.jar
-
-        if [ -f "$DB_JARS" -a -f "$SAPDBCONNECT" -a -f "$LAUNCHER" ]
-        then
-          MYCP="$LAUNCHER"
-          EXECMD="com.sap.engine.offline.OfflineToolStart com.sap.inst.jdbc.connect.JdbcCon ${SAPDBCONNECT}:${SECSTORE}:${DB_JARS}:${BOOTSTRAP} -sec $SID:$SID"
-        fi
+        DBINST="-dbinstance $OCF_RESKEY_DBINSTANCE "
       fi
+      output=`$SAPHOSTCTRL -function GetDatabaseStatus -dbname $SID -dbtype $DBTYPE $DBINST`
 
-      if [ -n "$EXECMD" ]
-      then
-        output=`${JAVA_HOME}/bin/java -cp $MYCP $EXECMD 2> /dev/null`
-        if [ $? -le 0 ]
+      # we have to parse the output, because the returncode doesn't tell anything about the instance status
+      for SERVICE in `echo "$output" | grep -i 'Component[ ]*Name *[:=] [A-Za-z][A-Za-z0-9_]* (' | sed 's/^.*Component[ ]*Name *[:=] *\([A-Za-z][A-Za-z0-9_]*\).*$/\1/i'`
+      do 
+        COLOR=`echo "$output" | grep -i "Component[ ]*Name *[:=] *$SERVICE (" | sed 's/^.*Status *[:=] *\([A-Za-z][A-Za-z0-9_]*\).*$/\1/i'`
+        STATE=0
+
+        case $COLOR in
+          Running)       STATE=$OCF_SUCCESS;;
+          *)             STATE=$OCF_NOT_RUNNING;;
+        esac 
+
+        SEARCH=`echo "$OCF_RESKEY_MONITOR_SERVICES" | sed 's/\+/\\\+/g' | sed 's/\./\\\./g'`
+        if [ `echo "$SERVICE" | egrep -c "$SEARCH"` -eq 1 ]
         then
-          rc=$OCF_SUCCESS
-        else
-          rc=$OCF_NOT_RUNNING
+            if [ $STATE -eq $OCF_NOT_RUNNING ]
+            then
+              ocf_log err "SAP database service $SERVICE is not running with status $COLOR !"
+              rc=$STATE
+            fi
+            count=1
         fi
-      else
-        output="Cannot find all jar files needed for database monitoring."
-        rc=$OCF_ERR_GENERIC
+      done
+
+      if [ $count -eq 0 -a $rc -eq $OCF_SUCCESS ]
+      then
+        ocf_log err "The resource does not run any services which this RA could monitor!"
+        rc=$OCF_ERR_ARGS
+      fi
+      
+      if [ $rc -ne $OCF_SUCCESS ]
+      then
+        ocf_log err "The SAP database $SID ist not running: $output"
       fi
     fi
-  fi
-
-  if [ $rc -ne $OCF_SUCCESS ]
-  then
-    ocf_log err "The SAP database $SID ist not running: $output"
   fi
   return $rc
 }
@@ -749,14 +779,8 @@ sapdatabase_status() {
   # Note: ps cuts off it's output at column $COLUMNS, so "ps -ef" can not be used here
   # as the output might be to long.
   cnt=`ps efo args --user $SUSER 2> /dev/null | grep -c "$SEARCH"`
-  if [ $cnt -ge $SNUM ]
-  then
-    rc=$OCF_SUCCESS
-  else
-    # ocf_log info "Database Instance $SID is not running on `hostname`"
-    rc=$OCF_NOT_RUNNING
-  fi
-  return $rc
+  [ $cnt -ge $SNUM ] && return $OCF_SUCCESS
+  return $OCF_NOT_RUNNING
 }
 
 
@@ -764,27 +788,9 @@ sapdatabase_status() {
 # sapdatabase_recover:
 #
 sapdatabase_recover() {
-
-  case $DBTYPE in
-    ORA) recoutput=`oracle_recover`
-         ;;
-    ADA) recoutput=`maxdb_recover`
-         ;;
-    DB6) recoutput=`db6udb_recover`
-         ;;
-  esac
-
-  sapdatabase_monitor 1
-  retcode=$?
-
-  if [ $retcode -eq $OCF_SUCCESS ]
-  then
-    ocf_log info "Recover of SAP database $SID was successful: $recoutput"
-  else
-    ocf_log err "Recover of SAP database $SID failed: $recoutput"
-  fi
-
-  return $retcode
+  OCF_RESKEY_AUTOMATIC_RECOVER=1
+  sapdatabase_stop
+  sapdatabase_start
 }
 
 
@@ -852,130 +858,38 @@ fi
 SID=`echo "$OCF_RESKEY_SID"`
 
 if [ -z "$OCF_RESKEY_DBTYPE" ]; then
-  ocf_log err "Please set OCF_RESKEY_DBTYPE to the database vendor specific tag (ORA,ADA,DB6)!"
+  ocf_log err "Please set OCF_RESKEY_DBTYPE to the database vendor specific tag (ADA,DB6,ORA)!"
   exit $OCF_ERR_ARGS
 fi
-DBTYPE=`echo "$OCF_RESKEY_DBTYPE" | tr "[a-z]" "[A-Z]"`
+DBTYPE=`echo "$OCF_RESKEY_DBTYPE" | tr '[:lower:]' '[:upper:]'`
 
-# optional OCF parameters, we try to guess which directories are correct
-EXESTARTDB="startdb"
-EXESTOPDB="stopdb"
-EXEDBCONNECT="R3trans"
-if [ -z "$OCF_RESKEY_DBJ2EE_ONLY" ]; then
-  DBJ2EE_ONLY=0
-else
-  case "$OCF_RESKEY_DBJ2EE_ONLY" in
-   1|true|TRUE|yes|YES) DBJ2EE_ONLY=1
-                        EXESTARTDB="startj2eedb"
-                        EXESTOPDB="stopj2eedb"
-                        EXEDBCONNECT="jdbcconnect.jar"
-                        ;;
-   0|false|FALSE|no|NO) DBJ2EE_ONLY=0;;
-   *) ocf_log err "Parsing parameter DBJ2EE_ONLY: '$DBJ2EE_ONLY' is not a boolean value!"
-      exit $OCF_ERR_ARGS ;;
-  esac
-fi
+# optional OCF parameters
+OCF_RESKEY_DIR_EXECUTABLE_default="/usr/sap/hostctrl/exe"
+: ${OCF_RESKEY_DIR_EXECUTABLE=${OCF_RESKEY_DIR_EXECUTABLE_default}}
+SAPHOSTCTRL="${OCF_RESKEY_DIR_EXECUTABLE}/saphostctrl"
+SAPHOSTEXEC="${OCF_RESKEY_DIR_EXECUTABLE}/saphostexec"
+check_binary $SAPHOSTCTRL
+check_binary $SAPHOSTEXEC
 
-if [ -z "$OCF_RESKEY_NETSERVICENAME" ]; then
-  case "$DBTYPE" in
-    ORA|ora) NETSERVICENAME="LISTENER";;
-    *)       NETSERVICENAME="";;
-  esac
-else
-  NETSERVICENAME="$OCF_RESKEY_NETSERVICENAME"
-fi
+OCF_RESKEY_AUTOMATIC_RECOVER_default=0
+: ${OCF_RESKEY_AUTOMATIC_RECOVER=${OCF_RESKEY_AUTOMATIC_RECOVER_default}}
 
-if [ -z "$OCF_RESKEY_STRICT_MONITORING" ]; then
-  OCF_RESKEY_STRICT_MONITORING=0
-else
-  case "$OCF_RESKEY_STRICT_MONITORING" in
-   1|true|TRUE|yes|YES) OCF_RESKEY_STRICT_MONITORING=1;;
-   0|false|FALSE|no|NO) OCF_RESKEY_STRICT_MONITORING=0;;
-   *)  ocf_log err "Parsing parameter STRICT_MONITORING: '$OCF_RESKEY_STRICT_MONITORING' is not a boolean value!"
-       exit $OCF_ERR_ARGS ;;
-  esac
-fi
-
-PATHLIST="
-$OCF_RESKEY_DIR_EXECUTABLE
-/usr/sap/$SID/*/exe
-/usr/sap/$SID/SYS/exe/run
-/sapmnt/$SID/exe
-"
-DIR_EXECUTABLE=""
-for EXEPATH in $PATHLIST
-do
-  if [ -x $EXEPATH/$EXESTARTDB -a -x $EXEPATH/$EXESTOPDB -a -x $EXEPATH/$EXEDBCONNECT ]
-  then
-    DIR_EXECUTABLE=$EXEPATH
-    SAPSTARTDB=$EXEPATH/$EXESTARTDB
-    SAPSTOPDB=$EXEPATH/$EXESTOPDB
-    SAPDBCONNECT=$EXEPATH/$EXEDBCONNECT
-    break
-  fi
-done
-if [ -z "$DIR_EXECUTABLE" ]
+if [ -z "$OCF_RESKEY_MONITOR_SERVICES" ]
 then
-  ocf_log warn "Cannot find $EXESTARTDB,$EXESTOPDB and $EXEDBCONNECT executable, please set DIR_EXECUTABLE parameter!"
-  exit $OCF_NOT_RUNNING
-fi
-
-if [ $DBJ2EE_ONLY -eq 1 ]
-then
-  if [ -n "$OCF_RESKEY_DIR_BOOTSTRAP" ]
-  then
-    BOOTSTRAP="$OCF_RESKEY_DIR_BOOTSTRAP"
-  else
-    BOOTSTRAP=`ls -1d /usr/sap/$SID/*/j2ee/cluster/bootstrap | head -1`
-  fi
-
-  if [ -n "$OCF_RESKEY_DIR_SECSTORE" ]
-  then
-    SECSTORE="$OCF_RESKEY_DIR_SECSTORE"
-  else
-    SECSTORE=/usr/sap/$SID/SYS/global/security/lib/tools
-  fi
-
-  if [ -n "$OCF_RESKEY_JAVA_HOME" ]
-  then
-    JAVA_HOME="$OCF_RESKEY_JAVA_HOME"
-    PATH=$JAVA_HOME/bin:$PATH
-  else
-    if [ -n "$JAVA_HOME" ]
-    then
-      PATH=$JAVA_HOME/bin:$PATH
-    else
-      ocf_log err "Cannot find JAVA_HOME directory, please set JAVA_HOME parameter!"
-      exit $OCF_NOT_RUNNING
-    fi
-  fi
-
-  if [ -n "$OCF_RESKEY_DB_JARS" ]
-  then
-    DB_JARS=$OCF_RESKEY_DB_JARS
-  else
-    if [ -f "$BOOTSTRAP"/bootstrap.properties ]; then
-      DB_JARS=`cat $BOOTSTRAP/bootstrap.properties | grep -i rdbms.driverLocation | sed -e 's/\\\:/:/g' | awk -F= '{print $2}'`
-    fi
-  fi
-fi
-
-if [ -z "$OCF_RESKEY_AUTOMATIC_RECOVER" ]
-then
-  OCF_RESKEY_AUTOMATIC_RECOVER=0
-else
-  case "$OCF_RESKEY_AUTOMATIC_RECOVER" in
-   1|true|TRUE|yes|YES) OCF_RESKEY_AUTOMATIC_RECOVER=1;;
-   0|false|FALSE|no|NO) OCF_RESKEY_AUTOMATIC_RECOVER=0;;
+  case $DBTYPE in
+    ORA) export OCF_RESKEY_MONITOR_SERVICES="Instance|Database|Listener"
+         ;;
+    ADA) export OCF_RESKEY_MONITOR_SERVICES="Database"
+         ;;
+    DB6) db2sid="db2`echo $SID | tr '[:upper:]' '[:lower:]'`"
+         export OCF_RESKEY_MONITOR_SERVICES="${SID}|${db2sid}"
+         ;;
+    SYB) export OCF_RESKEY_MONITOR_SERVICES="Server|Database"
+         ;;
+    HDB) export OCF_RESKEY_MONITOR_SERVICES="hdbindexserver"
+         ;;
   esac
 fi
-
-# as root user we need the library path to the SAP kernel to be able to call executables
-if [ `echo $LD_LIBRARY_PATH | grep -c "^$DIR_EXECUTABLE\>"` -eq 0 ]; then
-  LD_LIBRARY_PATH=$DIR_EXECUTABLE${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH
-  export LD_LIBRARY_PATH
-fi
-sidadm="`echo $SID | tr '[:upper:]' '[:lower:]'`adm"
 
 # we always want to fall to the faster status method in case of a probe by the cluster  
 ACTION=$1
@@ -985,28 +899,14 @@ then
 fi
 
 # What kind of method was invoked?
-case "$1" in
+case "$ACTION" in
 
-  start)	sapdatabase_start
-		exit $?;;
-
-  stop)		sapdatabase_stop
-		exit $?;;
-
-  monitor)
-          	sapdatabase_monitor $OCF_RESKEY_STRICT_MONITORING
-		exit $?;;
-
-  status)
-                sapdatabase_status
-                exit $?;;
-
-  recover)      sapdatabase_recover
-                exit $?;;
-
-  validate-all)	sapdatabase_validate
-		exit $?;;
-
-  *)		sapdatabase_methods
-		exit $OCF_ERR_UNIMPLEMENTED;;
+  start|stop|status|recover)   sapdatabase_$ACTION
+		               exit $?;;
+  monitor)                     sapdatabase_monitor $OCF_RESKEY_STRICT_MONITORING
+		               exit $?;;
+  validate-all)                sapdatabase_validate
+		               exit $?;;
+  *)		               sapdatabase_methods
+		               exit $OCF_ERR_UNIMPLEMENTED;;
 esac
