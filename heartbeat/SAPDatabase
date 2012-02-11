@@ -18,23 +18,20 @@
 #       OCF_RESKEY_DIR_EXECUTABLE    (optional, well known directories will be searched by default)
 #       OCF_RESKEY_DBTYPE            (mandatory, one of the following values: ORA,ADA,DB6)
 #       OCF_RESKEY_DBINSTANCE        (optional, Database instance name, if not equal to SID)
-#       OCF_RESKEY_NETSERVICENAME    (optional, non standard name of Oracle Listener)
-#       OCF_RESKEY_DBJ2EE_ONLY       (optional, default is false)
-#       OCF_RESKEY_JAVA_HOME         (optional, only needed if DBJ2EE_ONLY is true and JAVA_HOME enviroment variable is not set)
 #       OCF_RESKEY_STRICT_MONITORING (optional, activate application level monitoring - with Oracle a failover will occur in case of an archiver stuck)
 #       OCF_RESKEY_AUTOMATIC_RECOVER (optional, automatic startup recovery, default is false)
 #       OCF_RESKEY_MONITOR_SERVICES  (optional, default is to monitor all database services)
-#       OCF_RESKEY_DIR_BOOTSTRAP     (optional, if non standard J2EE server directory)
-#       OCF_RESKEY_DIR_SECSTORE      (optional, if non standard J2EE secure store directory)
-#       OCF_RESKEY_DB_JARS           (optional, if maintained in bootstrap.properties, mandatory for WebAS Java 7.10)
 #       OCF_RESKEY_PRE_START_USEREXIT  (optional, lists a script which can be executed before the resource is started)
 #       OCF_RESKEY_POST_START_USEREXIT (optional, lists a script which can be executed after the resource is started)
 #       OCF_RESKEY_PRE_STOP_USEREXIT   (optional, lists a script which can be executed before the resource is stopped)
 #       OCF_RESKEY_POST_STOP_USEREXIT  (optional, lists a script which can be executed after the resource is stopped)
-#
-# ToDo:
-# Remove all the database dependend stuff from the agent and use
-# saphostcontrol daemon as soon as SAP will release it.
+#     Deprecated parameters:
+#       OCF_RESKEY_NETSERVICENAME
+#       OCF_RESKEY_DBJ2EE_ONLY
+#       OCF_RESKEY_JAVA_HOME
+#       OCF_RESKEY_DIR_BOOTSTRAP
+#       OCF_RESKEY_DIR_SECSTORE
+#       OCF_RESKEY_DB_JARS
 #
 #######################################################################
 # Initialization:
@@ -95,17 +92,19 @@ or compile time after: Dec 17 2011
 </longdesc>
 <parameters>
  <parameter name="SID" unique="1" required="1">
-  <longdesc lang="en">The unique SAP system identifier. e.g. P01</longdesc>
-  <shortdesc lang="en">SAP system ID</shortdesc>
+  <longdesc lang="en">The unique database system identifier. e.g. P01</longdesc>
+  <shortdesc lang="en">Database system ID</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="DIR_EXECUTABLE" unique="0" required="0">
-  <longdesc lang="en">The full qualified path where to find sapstartsrv and sapcontrol.</longdesc>
-  <shortdesc lang="en">path of sapstartsrv and sapcontrol</shortdesc>
-  <content type="string" default="" />
+  <longdesc lang="en">The full qualified path where to find saphostexec and saphostctrl.
+Usually you can leave this empty. Then the default: /usr/sap/hostctrl/exe is used.
+  </longdesc>
+  <shortdesc lang="en">path of saphostexec and saphostctrl</shortdesc>
+  <content type="string" default="/usr/sap/hostctrl/exe" />
  </parameter>
  <parameter name="DBTYPE" unique="0" required="1">
-  <longdesc lang="en">The name of the database vendor you use. Set either: ORA,DB6,ADA</longdesc>
+  <longdesc lang="en">The name of the database vendor you use. Set either: ADA, DB6, ORA</longdesc>
   <shortdesc lang="en">database vendor</shortdesc>
   <content type="string" default="" />
  </parameter>
@@ -115,27 +114,27 @@ or compile time after: Dec 17 2011
   <content type="string" default="" />
  </parameter>
  <parameter name="NETSERVICENAME" unique="0" required="0">
-  <longdesc lang="en">The Oracle TNS listener name.</longdesc>
-  <shortdesc lang="en">listener name</shortdesc>
+  <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
+  <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="DBJ2EE_ONLY" unique="0" required="0">
-  <longdesc lang="en">If you do not have a ABAP stack installed in the SAP database, set this to TRUE</longdesc>
-  <shortdesc lang="en">only JAVA stack installed</shortdesc>
-  <content type="boolean" default="false"/>
+  <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
+  <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
+  <content type="boolean" default=""/>
  </parameter>
  <parameter name="JAVA_HOME" unique="0" required="0">
-  <longdesc lang="en">This is only needed if the DBJ2EE_ONLY parameter is set to true. Enter the path to the Java SDK which is used by the SAP WebAS Java</longdesc>
-  <shortdesc lang="en">Path to Java SDK</shortdesc>
+  <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
+  <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
   <content type="string" default=""/>
  </parameter>
  <parameter name="STRICT_MONITORING" unique="0" required="0">
-  <longdesc lang="en">This controls how the resource agent monitors the database. If set to true, it will use SAP tools to test the connect to the database. Do not use with Oracle, because it will result in unwanted failovers in case of an archiver stuck</longdesc>
+  <longdesc lang="en">This controls how the resource agent monitors the database. If set to true, it will use 'saphostctrl -function GetDatabaseStatus' to test the database state. If set to false, only operating system processes are monitored.</longdesc>
   <shortdesc lang="en">Activates application level monitoring</shortdesc>
   <content type="boolean" default="false"/>
  </parameter>
  <parameter name="AUTOMATIC_RECOVER" unique="0" required="0">
-  <longdesc lang="en">The SAPDatabase resource agent tries to recover a failed start attempt automaticaly one time. This is done by running a forced abort of the RDBMS and/or executing recovery commands.</longdesc>
+  <longdesc lang="en">If you set this to true, 'saphostctrl -function StartDatabase' will always be called with the '-force' option.</longdesc>
   <shortdesc lang="en">Enable or disable automatic startup recovery</shortdesc>
   <content type="boolean" default="false"/>
  </parameter>
@@ -143,21 +142,20 @@ or compile time after: Dec 17 2011
   <longdesc lang="en">Defines which services are monitored by the SAPDatabase resource agent, if STRICT_MONITORING is set to true. Service names must correspond with the output of the 'saphostctrl -function GetDatabaseStatus' command.</longdesc>
   <shortdesc lang="en">Database services to monitor</shortdesc>
   <content type="string" default="Instance|Database|Listener"/>
-  <content type="string" default="Instance|Database|Listener"/>
  </parameter>
  <parameter name="DIR_BOOTSTRAP" unique="0" required="0">
-  <longdesc lang="en">The full qualified path where to find the J2EE instance bootstrap directory. e.g. /usr/sap/P01/J00/j2ee/cluster/bootstrap</longdesc>
-  <shortdesc lang="en">path to j2ee bootstrap directory</shortdesc>
+  <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
+  <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="DIR_SECSTORE" unique="0" required="0">
-  <longdesc lang="en">The full qualified path where to find the J2EE security store directory. e.g. /usr/sap/P01/SYS/global/security/lib/tools</longdesc>
-  <shortdesc lang="en">path to j2ee secure store directory</shortdesc>
+  <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
+  <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="DB_JARS" unique="0" required="0">
-  <longdesc lang="en">The full qualified filename of the jdbc driver for the database connection test. It will be automaticaly read from the bootstrap.properties file in Java engine 6.40 and 7.00. For Java engine 7.10 and higher the parameter is mandatory.</longdesc>
-  <shortdesc lang="en">file name of the jdbc driver</shortdesc>
+  <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
+  <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="PRE_START_USEREXIT" unique="0" required="0">
@@ -195,343 +193,6 @@ or compile time after: Dec 17 2011
 END
 }
 
-trap_handler() {
-  rm -f $TEMPFILE
-  exit $OCF_ERR_GENERIC
-}
-
-
-#
-# listener_start: Start the given listener
-#
-listener_start() {
-  local orasid="ora`echo $SID | tr '[:upper:]' '[:lower:]'`"
-  local lrc=$OCF_SUCCESS
-  local output
-  output=`echo "lsnrctl start $NETSERVICENAME" | su - $orasid 2>&1`
-  if [ $? -eq 0 ]
-  then
-    ocf_log info "Oracle Listener $NETSERVICENAME started: $output"
-    lrc=$OCF_SUCCESS
-  else
-    ocf_log err "Oracle Listener $NETSERVICENAME start failed: $output"
-    lrc=$OCF_ERR_GENERIC
-  fi
-  return $lrc
-}
-
-#
-# listener_stop: Stop the given listener
-#
-listener_stop() {
-  local orasid="ora`echo $SID | tr '[:upper:]' '[:lower:]'`"
-  local lrc=$OCF_SUCCESS
-  if
-      listener_status
-  then
-      : listener is running, trying to stop it later...
-  else
-      return $OCF_SUCCESS
-  fi
-  local output
-  output=`echo "lsnrctl stop $NETSERVICENAME" | su - $orasid 2>&1`
-  if [ $? -eq 0 ]
-  then
-    ocf_log info "Oracle Listener $NETSERVICENAME stopped: $output"
-  else
-    ocf_log err "Oracle Listener $NETSERVICENAME stop failed: $output"
-    lrc=$OCF_ERR_GENERIC
-  fi
-  return $lrc
-}
-
-#
-# listener_status: is the given listener running?
-#
-listener_status() {
-  local lrc=$OCF_SUCCESS
-  local orasid="ora`echo $SID | tr '[:upper:]' '[:lower:]'`"
-  # Note: ps cuts off it's output at column $COLUMNS, so "ps -ef" can not be used here
-  # as the output might be to long.
-  local cnt=`ps efo args --user $orasid | grep $NETSERVICENAME | grep -c tnslsnr`
-  if [ $cnt -eq 1 ]
-  then
-    lrc=$OCF_SUCCESS
-  else
-    ocf_log info "listener process not running for $NETSERVICENAME for $SID"
-    lrc=$OCF_ERR_GENERIC
-  fi
-  return $lrc
-}
-
-#
-# x_server_start: Start the given x_server
-#
-x_server_start() {
-  local rc=$OCF_SUCCESS
-  local output
-  output=`echo "x_server start" | su - $sidadm 2>&1`
-  if [ $? -eq 0 ]
-  then
-    ocf_log info "MaxDB x_server start: $output"
-    lrc=$OCF_SUCCESS
-  else
-    ocf_log err "MaxDB x_server start failed: $output"
-    lrc=$OCF_ERR_GENERIC
-  fi
-  return $lrc
-}
-
-#
-# x_server_stop: Stop the x_server
-#
-x_server_stop() {
-  local lrc=$OCF_SUCCESS
-  local output
-  output=`echo "x_server stop" | su - $sidadm 2>&1`
-  if [ $? -eq 0 ]
-  then
-    ocf_log info "MaxDB x_server stop: $output"
-  else
-    ocf_log err "MaxDB x_server stop failed: $output"
-    lrc=$OCF_ERR_GENERIC
-  fi
-  return $lrc
-}
-
-#
-# x_server_status: is the x_server running?
-#
-x_server_status() {
-  local lrc=$OCF_SUCCESS
-  local sdbuser=`grep "^SdbOwner" /etc/opt/sdb | awk -F'=' '{print $2}'`
-  # Note: ps cuts off it's output at column $COLUMNS, so "ps -ef" can not be used here
-  # as the output might be to long.
-  local cnt=`ps efo args --user $sdbuser | grep -c vserver`
-  if [ $cnt -ge 1 ]
-  then
-    lrc=$OCF_SUCCESS
-  else
-    ocf_log info "x_server process not running"
-    lrc=$OCF_ERR_GENERIC
-  fi
-  return $lrc
-}
-
-#
-# oracle_stop: Stop the Oracle database without any condition
-#
-oracle_stop() {
-echo '#!/bin/sh
-LOG=$HOME/stopdb.log
-date > $LOG
-
-if [ -x "${ORACLE_HOME}/bin/sqlplus" ]
-then
-    SRVMGRDBA_EXE="${ORACLE_HOME}/bin/sqlplus"
-else
-   echo "Can not find executable sqlplus" >> $LOG
-   exit 1
-fi
-
-$SRVMGRDBA_EXE /NOLOG >> $LOG << !
-connect / as sysdba
-shutdown immediate
-exit
-!
-rc=$?
-cat $LOG
-exit $rc' > $TEMPFILE
-
-chmod 700 $TEMPFILE
-chown $sidadm $TEMPFILE
-
-su - $sidadm -c $TEMPFILE
-retcode=$?
-rm -f $TEMPFILE
-
-if [ $retcode -eq 0 ]; then
-  sapdatabase_status
-  if [ $? -ne $OCF_NOT_RUNNING ]; then
-    retcode=1
-  fi
-fi
-
-return $retcode
-}
-
-#
-# maxdb_stop: Stop the MaxDB database without any condition
-#
-maxdb_stop() {
-
-# x_Server must be running to stop database
-x_server_status
-if [ $? -ne $OCF_SUCCESS ]; then x_server_start; fi
-
-if [ $DBJ2EE_ONLY -eq 1 ]; then
-   userkey=c_J2EE
-else
-   userkey=c
-fi
-
-echo "#!/bin/sh
-LOG=\$HOME/stopdb.log
-date > \$LOG
-echo \"Stop database with xuserkey >$userkey<\" >> \$LOG
-dbmcli -U ${userkey} db_offline >> \$LOG 2>&1
-exit \$?" > $TEMPFILE
-
-chmod 700 $TEMPFILE
-chown $sidadm $TEMPFILE
-
-su - $sidadm -c $TEMPFILE
-retcode=$?
-rm -f $TEMPFILE
-
-if [ $retcode -eq 0 ]; then
-  sapdatabase_status
-  if [ $? -ne $OCF_NOT_RUNNING ]; then
-    retcode=1
-  fi
-fi
-
-return $retcode
-}
-
-#
-# db6udb_stop: Stop the DB2/UDB database without any condition
-#
-db6udb_stop() {
-echo '#!/bin/sh
-LOG=$HOME/stopdb.log
-date > $LOG
-echo "Shut down the database" >> $LOG
-$INSTHOME/sqllib/bin/db2 deactivate database $DB2DBDFT |tee -a $LOG  2>&1
-$INSTHOME/sqllib/adm/db2stop force |tee -a $LOG  2>&1
-exit $?' > $TEMPFILE
-
-chmod 700 $TEMPFILE
-chown $sidadm $TEMPFILE
-
-su - $sidadm -c $TEMPFILE
-retcode=$?
-rm -f $TEMPFILE
-
-if [ $retcode -eq 0 ]; then
-  sapdatabase_status
-  if [ $? -ne $OCF_NOT_RUNNING ]; then
-    retcode=1
-  fi
-fi
-
-return $retcode
-}
-
-#
-# oracle_recover: try to clean up oracle after a crash
-#
-oracle_recover() {
-echo '#!/bin/sh
-LOG=$HOME/recover.log
-date > $LOG
-echo "Logfile written by heartbeat SAPDatabase resource agent" >> $LOG
-
-if [ -x "${ORACLE_HOME}/bin/sqlplus" ]
-then
-    SRVMGRDBA_EXE="${ORACLE_HOME}/bin/sqlplus"
-else
-   echo "Can not find executable sqlplus" >> $LOG
-   exit 1
-fi
-
-$SRVMGRDBA_EXE /NOLOG >> $LOG << !
-connect / as sysdba
-shutdown abort
-startup mount
-alter database end backup;
-alter database open;
-exit
-!
-rc=$?
-cat $LOG
-exit $rc' > $TEMPFILE
-
-  chmod 700 $TEMPFILE
-  chown $sidadm $TEMPFILE
-
-  su - $sidadm -c $TEMPFILE
-  retcode=$?
-  rm -f $TEMPFILE
-
-  return $retcode
-}
-
-#
-# maxdb_recover: try to clean up MaxDB after a crash
-#
-maxdb_recover() {
-  # x_Server must be running to stop database
-  x_server_status
-  if [ $? -ne $OCF_SUCCESS ]; then x_server_start; fi
-
-  if [ $DBJ2EE_ONLY -eq 1 ]; then
-     userkey=c_J2EE
-  else
-     userkey=c
-  fi
-
-echo "#!/bin/sh
-LOG=\$HOME/recover.log
-date > \$LOG
-echo \"Logfile written by heartbeat SAPDatabase resource agent\" >> \$LOG
-echo \"Cleanup database with xuserkey >$userkey<\" >> \$LOG
-echo \"db_stop\" >> \$LOG 2>&1
-dbmcli -U ${userkey} db_stop >> \$LOG 2>&1
-echo \"db_clear\" >> \$LOG 2>&1
-dbmcli -U ${userkey} db_clear >> \$LOG 2>&1
-echo \"db_online\" >> \$LOG 2>&1
-dbmcli -U ${userkey} db_online >> \$LOG 2>&1
-rc=\$?
-cat \$LOG
-exit \$rc" > $TEMPFILE
-
-  chmod 700 $TEMPFILE
-  chown $sidadm $TEMPFILE
-
-  su - $sidadm -c $TEMPFILE
-  retcode=$?
-  rm -f $TEMPFILE
-
-  return $retcode
-}
-
-#
-# db6udb_recover: try to recover DB/2 after a crash
-#
-db6udb_recover() {
-  db2sid="db2`echo $SID | tr '[:upper:]' '[:lower:]'`"
-
-echo '#!/bin/sh
-LOG=$HOME/recover.log
-date > $LOG
-echo "Logfile written by heartbeat SAPDatabase resource agent" >> $LOG
-$INSTHOME/sqllib/bin/db2_kill >> $LOG  2>&1
-$INSTHOME/sqllib/adm/db2start >> $LOG  2>&1
-$INSTHOME/sqllib/bin/db2 activate database $DB2DBDFT >> $LOG  2>&1
-rc=$?
-cat $LOG
-exit $rc' > $TEMPFILE
-
-  chmod 700 $TEMPFILE
-  chown $db2sid $TEMPFILE
-
-  su - $db2sid -c $TEMPFILE
-  retcode=$?
-  rm -f $TEMPFILE
-
-  return $retcode
-}
 
 #
 # methods: What methods/operations do we support?
@@ -542,7 +203,7 @@ sapdatabase_methods() {
 	stop
 	status
 	monitor
-        recover
+	recover
 	validate-all
 	methods
 	meta-data
@@ -825,10 +486,6 @@ then
   usage
   exit $OCF_ERR_ARGS
 fi
-
-# Set a tempfile and make sure to clean it up again
-TEMPFILE="/tmp/SAPDatabase.$$.tmp"
-trap trap_handler INT TERM
 
 # These operations don't require OCF instance parameters to be set
 case "$1" in
