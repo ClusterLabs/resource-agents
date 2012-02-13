@@ -447,6 +447,15 @@ this parameter to empty string.
 <content type="string" default="/etc/apache2/envvars"/>
 </parameter>
 
+<parameter name="use_ipv6">
+<longdesc lang="en">
+We will try to detect if the URL (for monitor) is IPv6, but if
+that doesn't work set this to true to enforce IPv6.
+</longdesc>
+<shortdesc lang="en">use ipv6 with http clients</shortdesc>
+<content type="boolean" default="false"/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -585,7 +594,7 @@ then
   : OK
 else
   ocf_log err "Cannot parse config file [$CONFIGFILE]"
-  exit $OCF_ERR_CONFIGURED
+  exit $OCF_ERR_INSTALLED
 fi
 
 case $COMMAND in

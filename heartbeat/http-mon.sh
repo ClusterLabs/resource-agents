@@ -15,8 +15,14 @@
 # default options for http clients
 # NB: We _always_ test a local resource, so it should be
 # safe to connect from the local interface.
-WGETOPTS="-O- -q -L --no-proxy --bind-address=127.0.0.1"
-CURLOPTS="-o - -Ss -L --interface lo"
+bind_address="127.0.0.1"
+curl_ipv6_opts=""
+if ocf_is_true "$OCF_RESKEY_use_ipv6" || echo "$STATUSURL" | grep -qs "::"; then
+	bind_address="::1"
+	curl_ipv6_opts="-g"
+fi
+WGETOPTS="-O- -q -L --no-proxy --bind-address=$bind_address"
+CURLOPTS="-o - -Ss -L --interface lo $curl_ipv6_opts"
 
 #
 # run the http client

@@ -37,6 +37,14 @@ export OCF_RESKEY_CRM_meta_interval=10000  # reset this for probes
 
 num_errors=0
 
+info() {
+    [ "$quiet" -eq 1 ] && return
+    echo "$*"
+}
+debug() {
+    [ "$verbose" -eq 0 ] && return
+    echo "$*"
+}
 usage() {
     # make sure to output errors on stderr
     [ "x$1" = "x0" ] || exec >&2
@@ -47,6 +55,9 @@ usage() {
     echo ""
     echo "Options:"
     echo "  -h       		This text"
+    echo "  -v       		Be verbose while testing"
+    echo "  -q       		Be quiet while testing"
+    echo "  -d       		Turn on RA debugging"
     echo "  -n name		Name of the resource"	
     echo "  -o name=value		Name and value of any parameters required by the agent"
     echo "  -L			Use lrmadmin/lrmd for tests"
@@ -85,6 +96,7 @@ EOF
 done=0
 ra_args=""
 verbose=0
+quiet=0
 while test "$done" = "0"; do
     case "$1" in
 	-n) OCF_RESOURCE_INSTANCE=$2; ra_args="$ra_args OCF_RESOURCE_INSTANCE=$2"; shift; shift;;
@@ -93,6 +105,8 @@ while test "$done" = "0"; do
 		ra_args="$ra_args OCF_RESKEY_$name='$value'"; shift; shift;;
 	-L) use_lrmd=1; shift;;
 	-v) verbose=1; shift;;
+	-d) export HA_debug=1; shift;;
+	-q) quiet=1; shift;;
 	-?|--help) usage 0;;
 	--version) echo "@PACKAGE_VERSION@"; exit 0;;
 	-*) echo "unknown option: $1" >&2; usage 1;;
@@ -193,25 +207,20 @@ fi
 lrm_test_command() {
 	action="$1"
 	msg="$2"
-	[ "$verbose" -eq 0 ] || echo "$msg"
+	debug "$msg"
 	exec_resource $action "$lrm_ra_args"
 }
 
 test_permissions() {
     action=meta-data
-    msg=${1:-"Testing permissions with uid nobody"}
-    if [ $verbose -ne 0 ]; then
-    	echo $msg
-    fi
+    debug ${1:-"Testing permissions with uid nobody"}
     su nobody -s /bin/sh $agent $action > /dev/null
 }
 
 test_metadata() {
     action=meta-data
     msg=${1:-"Testing: $action"}
-    if [ $verbose -ne 0 ]; then
-    	echo $msg
-    fi
+    debug $msg
     bash $agent $action | (cd $DATADIR/resource-agents && $METADATA_LINT)
     rc=$?
     #echo rc: $rc
@@ -230,7 +239,7 @@ test_command() {
     if [ $verbose -eq 0 ]; then
 	command_output=`bash $agent $action 2>&1`
     else
-    	echo $msg
+    	debug $msg
 	bash $agent $action
     fi
     rc=$?
@@ -239,7 +248,7 @@ test_command() {
 }
 
 # Begin tests
-echo Beginning tests for $agent...
+info "Beginning tests for $agent..."
 
 if [ ! -f $agent ]; then
     assert 7 0 "Could not find file: $agent"
@@ -319,7 +328,7 @@ OCF_RESKEY_CRM_meta_interval=20000
 test_command notify
 rc=$?
 if [ $rc -eq 3 ]; then
-    echo "* Your agent does not support the notify action (optional)"
+    info "* Your agent does not support the notify action (optional)"
 else
     assert $rc 0 "The notify action cannot fail and must return 0"
 fi
@@ -327,13 +336,13 @@ fi
 test_command demote "Checking for demote action"
 if [ $? -eq 3 ]; then
     has_demote=0
-    echo "* Your agent does not support the demote action (optional)"
+    info "* Your agent does not support the demote action (optional)"
 fi
 
 test_command promote "Checking for promote action"
 if [ $? -eq 3 ]; then
     has_promote=0
-    echo "* Your agent does not support the promote action (optional)"
+    info "* Your agent does not support the promote action (optional)"
 fi
 
 if [ $has_promote -eq 1 -a $has_demote -eq 1 ]; then
@@ -359,7 +368,7 @@ if [ $has_promote -eq 1 -a $has_demote -eq 1 ]; then
     assert $? 0 "Demote failed" 1
 
 elif [ $has_promote -eq 0 -a $has_demote -eq 0 ]; then
-    echo "* Your agent does not support master/slave (optional)"
+    info "* Your agent does not support master/slave (optional)"
 
 else
     echo "* Your agent partially supports master/slave"
@@ -402,12 +411,12 @@ if [ $rc -ne 3 ]; then
     test_command migrate_from "Checking for migrate_from action"
 fi
 if [ $? -eq 3 ]; then
-    echo "* Your agent does not support the migrate action (optional)"
+    info "* Your agent does not support the migrate action (optional)"
 fi
 
 test_command reload "Checking for reload action"
 if [ $? -eq 3 ]; then
-    echo "* Your agent does not support the reload action (optional)"
+    info "* Your agent does not support the reload action (optional)"
 fi
 
 if [ $num_errors -gt 0 ]; then

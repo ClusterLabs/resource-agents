@@ -274,7 +274,7 @@ wait_for_udev() {
 	done
 }
 iscsi_status() {
-	if $disk_status $portal $OCF_RESKEY_target; then
+	if $disk_status "$portal" $OCF_RESKEY_target; then
 		return $OCF_SUCCESS
 	else
 		return $OCF_NOT_RUNNING
@@ -316,11 +316,11 @@ iscsi_stop() {
 }
 
 iscsi_monitor() {
-	if $disk_status $portal $OCF_RESKEY_target; then
+	if $disk_status "$portal" $OCF_RESKEY_target; then
 		return $OCF_SUCCESS
-    else
+	else
 		return $OCF_NOT_RUNNING
-    fi
+	fi
 }
 
 #
@@ -388,7 +388,14 @@ case $? in
    [ "$1" = status ] && exit $LSB_STATUS_STOPPED
    exit $OCF_ERR_GENERIC
 ;;
-2) exit $OCF_ERR_GENERIC;;
+2) [ "$1" = stop ] && {
+	iscsi_monitor || exit $OCF_SUCCESS
+   }
+   ocf_is_probe && {
+	iscsi_monitor; exit
+   }
+   exit $OCF_ERR_GENERIC
+;;
 3) ocf_is_probe && exit $OCF_NOT_RUNNING
    exit $OCF_ERR_GENERIC
 ;;
