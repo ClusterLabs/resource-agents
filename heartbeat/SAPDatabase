@@ -8,31 +8,30 @@
 # Author:       Alexander Krauth, October 2006
 # Support:      linux@sap.com
 # License:      GNU General Public License (GPL)
-# Copyright:    (c) 2006, 2007 Alexander Krauth
+# Copyright:    (c) 2006, 2007, 2010, 2012 Alexander Krauth
 #
 # An example usage: 
 #      See usage() function below for more details...
 #
 # OCF instance parameters:
-#	OCF_RESKEY_SID
-#       OCF_RESKEY_DIR_EXECUTABLE   (optional, well known directories will be searched by default)
-#       OCF_RESKEY_DBTYPE
-#       OCF_RESKEY_NETSERVICENAME   (optional, non standard name of Oracle Listener)
-#       OCF_RESKEY_DBJ2EE_ONLY      (optional, default is false)
-#       OCF_RESKEY_JAVA_HOME        (optional, only needed if DBJ2EE_ONLY is true and JAVA_HOME enviroment variable is not set)
-#       OCF_RESKEY_STRICT_MONITORING (optional, activate application level monitoring - with Oracle a failover will occur in case of an archiver stuck)
-#       OCF_RESKEY_AUTOMATIC_RECOVER (optional, automatic startup recovery, default is false)
-#       OCF_RESKEY_DIR_BOOTSTRAP    (optional, if non standard J2EE server directory)
-#       OCF_RESKEY_DIR_SECSTORE     (optional, if non standard J2EE secure store directory)
-#       OCF_RESKEY_DB_JARS          (optional, if maintained in bootstrap.properties, mandatory for WebAS Java 7.10)
-#	OCF_RESKEY_PRE_START_USEREXIT	(optional, lists a script which can be executed before the resource is started)
-#	OCF_RESKEY_POST_START_USEREXIT	(optional, lists a script which can be executed after the resource is started)
-#	OCF_RESKEY_PRE_STOP_USEREXIT	(optional, lists a script which can be executed before the resource is stopped)
-#	OCF_RESKEY_POST_STOP_USEREXIT	(optional, lists a script which can be executed after the resource is stopped)
-#
-# ToDo:
-# Remove all the database dependend stuff from the agent and use
-# saphostcontrol daemon as soon as SAP will release it.
+#       OCF_RESKEY_SID
+#       OCF_RESKEY_DIR_EXECUTABLE      (optional, well known directories will be searched by default)
+#       OCF_RESKEY_DBTYPE              (mandatory, one of the following values: ORA,ADA,DB6)
+#       OCF_RESKEY_DBINSTANCE          (optional, Database instance name, if not equal to SID)
+#       OCF_RESKEY_STRICT_MONITORING   (optional, activate application level monitoring - with Oracle a failover will occur in case of an archiver stuck)
+#       OCF_RESKEY_AUTOMATIC_RECOVER   (optional, automatic startup recovery, default is false)
+#       OCF_RESKEY_MONITOR_SERVICES    (optional, default is to monitor all database services)
+#       OCF_RESKEY_PRE_START_USEREXIT  (optional, lists a script which can be executed before the resource is started)
+#       OCF_RESKEY_POST_START_USEREXIT (optional, lists a script which can be executed after the resource is started)
+#       OCF_RESKEY_PRE_STOP_USEREXIT   (optional, lists a script which can be executed before the resource is stopped)
+#       OCF_RESKEY_POST_STOP_USEREXIT  (optional, lists a script which can be executed after the resource is stopped)
+#     Deprecated parameters:
+#       OCF_RESKEY_NETSERVICENAME
+#       OCF_RESKEY_DBJ2EE_ONLY
+#       OCF_RESKEY_JAVA_HOME
+#       OCF_RESKEY_DIR_BOOTSTRAP
+#       OCF_RESKEY_DIR_SECSTORE
+#       OCF_RESKEY_DB_JARS
 #
 #######################################################################
 # Initialization:
@@ -70,67 +69,93 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPDatabase">
-<version>1.99</version>
+<version>2.00</version>
 
+<shortdesc lang="en">Manages a SAP database instance as an HA resource.</shortdesc>
 <longdesc lang="en">
 Resource script for SAP databases. It manages a SAP database of any type as an HA resource.
-</longdesc>
-<shortdesc lang="en">Manages any SAP database (based on Oracle, MaxDB, or DB2)</shortdesc>
 
+The purpose of the resource agent is to start, stop and monitor the database instance of a SAP system. Together with the RDBMS system it will also control the related network service for the database. Like the Oracle Listener and the xserver of MaxDB.
+The resource agent expects a standard SAP installation of the database and therefore needs less parameters to configure.
+The resource agent supports the following databases:
+- Oracle 10.2 and 11.2
+- DB/2 UDB for Windows and Unix 9.x
+- SAP-DB / MaxDB 7.x
+
+In fact this resource agent does not run any database commands directly. It uses the SAP standard process SAPHostAgent to control the database.
+The SAPHostAgent must be installed on each cluster node locally. It will not work, if you try to run the SAPHostAgent also as a HA resource.
+Please follow SAP note 1031096 for the installation of SAPHostAgent.
+The required minimum version of SAPHostAgent is:
+Release: 7.20
+Patch Number: 90
+or compile time after: Dec 17 2011
+</longdesc>
 <parameters>
  <parameter name="SID" unique="1" required="1">
-  <longdesc lang="en">The unique SAP system identifier. e.g. P01</longdesc>
-  <shortdesc lang="en">SAP system ID</shortdesc>
+  <longdesc lang="en">The unique database system identifier. e.g. P01</longdesc>
+  <shortdesc lang="en">Database system ID</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="DIR_EXECUTABLE" unique="0" required="0">
-  <longdesc lang="en">The full qualified path where to find sapstartsrv and sapcontrol.</longdesc>
-  <shortdesc lang="en">path of sapstartsrv and sapcontrol</shortdesc>
-  <content type="string" default="" />
+  <longdesc lang="en">The full qualified path where to find saphostexec and saphostctrl.
+Usually you can leave this empty. Then the default: /usr/sap/hostctrl/exe is used.
+  </longdesc>
+  <shortdesc lang="en">path of saphostexec and saphostctrl</shortdesc>
+  <content type="string" default="/usr/sap/hostctrl/exe" />
  </parameter>
  <parameter name="DBTYPE" unique="0" required="1">
-  <longdesc lang="en">The name of the database vendor you use. Set either: ORA,DB6,ADA</longdesc>
+  <longdesc lang="en">The name of the database vendor you use. Set either: ADA, DB6, ORA</longdesc>
   <shortdesc lang="en">database vendor</shortdesc>
   <content type="string" default="" />
  </parameter>
+ <parameter name="DBINSTANCE" unique="1" required="0">
+  <longdesc lang="en">Must be used for special database implementations, when database instance name is not equal to the SID (e.g. Oracle DataGuard)</longdesc>
+  <shortdesc lang="en">Database instance name, if not equal to SID</shortdesc>
+  <content type="string" default="" />
+ </parameter>
  <parameter name="NETSERVICENAME" unique="0" required="0">
-  <longdesc lang="en">The Oracle TNS listener name.</longdesc>
-  <shortdesc lang="en">listener name</shortdesc>
+  <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
+  <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="DBJ2EE_ONLY" unique="0" required="0">
-  <longdesc lang="en">If you do not have a ABAP stack installed in the SAP database, set this to TRUE</longdesc>
-  <shortdesc lang="en">only JAVA stack installed</shortdesc>
-  <content type="boolean" default="false"/>
+  <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
+  <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
+  <content type="boolean" default=""/>
  </parameter>
  <parameter name="JAVA_HOME" unique="0" required="0">
-  <longdesc lang="en">This is only needed if the DBJ2EE_ONLY parameter is set to true. Enter the path to the Java SDK which is used by the SAP WebAS Java</longdesc>
-  <shortdesc lang="en">Path to Java SDK</shortdesc>
+  <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
+  <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
   <content type="string" default=""/>
  </parameter>
  <parameter name="STRICT_MONITORING" unique="0" required="0">
-  <longdesc lang="en">This controls how the resource agent monitors the database. If set to true, it will use SAP tools to test the connect to the database. Do not use with Oracle, because it will result in unwanted failovers in case of an archiver stuck</longdesc>
+  <longdesc lang="en">This controls how the resource agent monitors the database. If set to true, it will use 'saphostctrl -function GetDatabaseStatus' to test the database state. If set to false, only operating system processes are monitored.</longdesc>
   <shortdesc lang="en">Activates application level monitoring</shortdesc>
   <content type="boolean" default="false"/>
  </parameter>
  <parameter name="AUTOMATIC_RECOVER" unique="0" required="0">
-  <longdesc lang="en">The SAPDatabase resource agent tries to recover a failed start attempt automaticaly one time. This is done by running a forced abort of the RDBMS and/or executing recovery commands.</longdesc>
+  <longdesc lang="en">If you set this to true, 'saphostctrl -function StartDatabase' will always be called with the '-force' option.</longdesc>
   <shortdesc lang="en">Enable or disable automatic startup recovery</shortdesc>
   <content type="boolean" default="false"/>
  </parameter>
+ <parameter name="MONITOR_SERVICES" unique="0" required="0">
+  <longdesc lang="en">Defines which services are monitored by the SAPDatabase resource agent, if STRICT_MONITORING is set to true. Service names must correspond with the output of the 'saphostctrl -function GetDatabaseStatus' command.</longdesc>
+  <shortdesc lang="en">Database services to monitor</shortdesc>
+  <content type="string" default="Instance|Database|Listener"/>
+ </parameter>
  <parameter name="DIR_BOOTSTRAP" unique="0" required="0">
-  <longdesc lang="en">The full qualified path where to find the J2EE instance bootstrap directory. e.g. /usr/sap/P01/J00/j2ee/cluster/bootstrap</longdesc>
-  <shortdesc lang="en">path to j2ee bootstrap directory</shortdesc>
+  <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
+  <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="DIR_SECSTORE" unique="0" required="0">
-  <longdesc lang="en">The full qualified path where to find the J2EE security store directory. e.g. /usr/sap/P01/SYS/global/security/lib/tools</longdesc>
-  <shortdesc lang="en">path to j2ee secure store directory</shortdesc>
+  <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
+  <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="DB_JARS" unique="0" required="0">
-  <longdesc lang="en">The full qualified filename of the jdbc driver for the database connection test. It will be automaticaly read from the bootstrap.properties file in Java engine 6.40 and 7.00. For Java engine 7.10 and higher the parameter is mandatory.</longdesc>
-  <shortdesc lang="en">file name of the jdbc driver</shortdesc>
+  <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
+  <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="PRE_START_USEREXIT" unique="0" required="0">
@@ -201,7 +226,7 @@ sapuserexit() {
 
   if [ -n "$VALUE" ]
   then
-    if [ -x "$VALUE" ]
+    if have_binary "$VALUE"
     then
       ocf_log info "Calling userexit ${NAME} with customer script file ${VALUE}"
       "$VALUE" >/dev/null 2>&1
@@ -210,7 +235,20 @@ sapuserexit() {
       ocf_log warn "Attribute ${NAME} is set to ${VALUE}, but this file is not executable"
     fi
   fi
-  return 0
+  return $OCF_SUCCESS
+}
+
+
+#
+# saphostctrl_installed
+#
+saphostctrl_installed() {
+  OCF_RESKEY_DIR_EXECUTABLE_default="/usr/sap/hostctrl/exe"
+  : ${OCF_RESKEY_DIR_EXECUTABLE=${OCF_RESKEY_DIR_EXECUTABLE_default}}
+  SAPHOSTCTRL="${OCF_RESKEY_DIR_EXECUTABLE}/saphostctrl"
+  SAPHOSTEXEC="${OCF_RESKEY_DIR_EXECUTABLE}/saphostexec"
+
+  have_binary $SAPHOSTCTRL && have_binary $SAPHOSTEXEC
 }
 
 
@@ -253,14 +291,20 @@ fi
 SID=`echo "$OCF_RESKEY_SID"`
 
 if [ -z "$OCF_RESKEY_DBTYPE" ]; then
-  ocf_log err "Please set OCF_RESKEY_DBTYPE to the database vendor specific tag (ORA,ADA,DB6)!"
+  ocf_log err "Please set OCF_RESKEY_DBTYPE to the database vendor specific tag (ADA,DB6,ORA)!"
   exit $OCF_ERR_ARGS
 fi
-DBTYPE=`echo "$OCF_RESKEY_DBTYPE" | tr "[a-z]" "[A-Z]"`
+DBTYPE=`echo "$OCF_RESKEY_DBTYPE" | tr '[:lower:]' '[:upper:]'`
+
 
 # source functions and initialize global variables
-. ${OCF_FUNCTIONS_DIR}/sapdb-nosha.sh
+if saphostctrl_installed; then
+                    . ${OCF_FUNCTIONS_DIR}/sapdb.sh
+else
+                    . ${OCF_FUNCTIONS_DIR}/sapdb-nosha.sh
+fi
 sapdatabase_init
+
 
 # we always want to fall to the faster status method in case of a probe by the cluster  
 ACTION=$1

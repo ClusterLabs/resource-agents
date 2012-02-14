@@ -615,6 +615,9 @@ sapdatabase_validate() {
 # sapdatabase_init: initialize global variables at the beginning
 #
 sapdatabase_init() {
+
+ocf_log warn "Usage of SAPDatabase resource agent without SAPHostAgent is deprecated. Please read documentation of SAPDatabase resource agent and follow SAP note 1031096 for the installation of SAPHostAgent."
+
 # optional OCF parameters, we try to guess which directories are correct
 EXESTARTDB="startdb"
 EXESTOPDB="stopdb"
