@@ -210,6 +210,14 @@ sapdatabase_status() {
          SUSER="db2`echo $SID | tr '[:upper:]' '[:lower:]'`"
          SNUM=2
          ;;
+    SYB) SEARCH="dataserver"
+         SUSER="syb`echo $SID | tr '[:upper:]' '[:lower:]'`"
+         SNUM=1
+		 ;;
+    HDB) SEARCH="hdb[a-z]*server"
+         SUSER="`echo $SID | tr '[:upper:]' '[:lower:]'`adm"
+         SNUM=1
+		 ;;
   esac
 
   cnt=`ps -u $SUSER -o command 2> /dev/null | grep -c $SEARCH`
@@ -240,7 +248,7 @@ sapdatabase_validate() {
   fi
 
   case "$DBTYPE" in
-   ORA|ADA|DB6) ;;
+   ORA|ADA|DB6|SYB|HDB) ;;
    *) ocf_log err "Parsing parameter DBTYPE: '$DBTYPE' is not a supported database type!"
       rc=$OCF_ERR_ARGS ;;
   esac
@@ -264,6 +272,10 @@ then
          ;;
     DB6) db2sid="db2`echo $SID | tr '[:upper:]' '[:lower:]'`"
          export OCF_RESKEY_MONITOR_SERVICES="${SID}|${db2sid}"
+         ;;
+    SYB) export OCF_RESKEY_MONITOR_SERVICES="Server|Database"
+         ;;
+    HDB) export OCF_RESKEY_MONITOR_SERVICES="hdbindexserver"
          ;;
   esac
 fi

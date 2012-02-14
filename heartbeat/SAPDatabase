@@ -16,7 +16,7 @@
 # OCF instance parameters:
 #       OCF_RESKEY_SID
 #       OCF_RESKEY_DIR_EXECUTABLE      (optional, well known directories will be searched by default)
-#       OCF_RESKEY_DBTYPE              (mandatory, one of the following values: ORA,ADA,DB6)
+#       OCF_RESKEY_DBTYPE              (mandatory, one of the following values: ORA,ADA,DB6,SYB,HDB)
 #       OCF_RESKEY_DBINSTANCE          (optional, Database instance name, if not equal to SID)
 #       OCF_RESKEY_STRICT_MONITORING   (optional, activate application level monitoring - with Oracle a failover will occur in case of an archiver stuck)
 #       OCF_RESKEY_AUTOMATIC_RECOVER   (optional, automatic startup recovery, default is false)
@@ -50,7 +50,7 @@ usage() {
 	usage: $0 ($methods)
 
 	$0 manages a SAP database of any type as an HA resource.
-        Currently Oracle, MaxDB and DB/2 UDB are supported.
+        Currently Oracle, MaxDB, DB/2 UDB, Sybase ASE and SAP HANA Database are supported.
         ABAP databases as well as JAVA only databases are supported.
 
 	The 'start' operation starts the instance.
@@ -69,7 +69,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPDatabase">
-<version>2.00</version>
+<version>2.06</version>
 
 <shortdesc lang="en">Manages a SAP database instance as an HA resource.</shortdesc>
 <longdesc lang="en">
@@ -81,6 +81,8 @@ The resource agent supports the following databases:
 - Oracle 10.2 and 11.2
 - DB/2 UDB for Windows and Unix 9.x
 - SAP-DB / MaxDB 7.x
+- Sybase ASE 15.7
+- SAP HANA Database since 1.00 - with SAP node 1625203 (http://sdn.sap.com)
 
 In fact this resource agent does not run any database commands directly. It uses the SAP standard process SAPHostAgent to control the database.
 The SAPHostAgent must be installed on each cluster node locally. It will not work, if you try to run the SAPHostAgent also as a HA resource.
@@ -104,7 +106,7 @@ Usually you can leave this empty. Then the default: /usr/sap/hostctrl/exe is use
   <content type="string" default="/usr/sap/hostctrl/exe" />
  </parameter>
  <parameter name="DBTYPE" unique="0" required="1">
-  <longdesc lang="en">The name of the database vendor you use. Set either: ADA, DB6, ORA</longdesc>
+  <longdesc lang="en">The name of the database vendor you use. Set either: ADA, DB6, ORA, SYB, HDB</longdesc>
   <shortdesc lang="en">database vendor</shortdesc>
   <content type="string" default="" />
  </parameter>
@@ -291,7 +293,7 @@ fi
 SID=`echo "$OCF_RESKEY_SID"`
 
 if [ -z "$OCF_RESKEY_DBTYPE" ]; then
-  ocf_log err "Please set OCF_RESKEY_DBTYPE to the database vendor specific tag (ADA,DB6,ORA)!"
+  ocf_log err "Please set OCF_RESKEY_DBTYPE to the database vendor specific tag (ADA,DB6,ORA,SYB,HDB)!"
   exit $OCF_ERR_ARGS
 fi
 DBTYPE=`echo "$OCF_RESKEY_DBTYPE" | tr '[:lower:]' '[:upper:]'`
