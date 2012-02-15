@@ -118,6 +118,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_pingd.7 \
                           ocf_heartbeat_portblock.7 \
                           ocf_heartbeat_postfix.7 \
+                          ocf_heartbeat_pound.7 \
                           ocf_heartbeat_proftpd.7 \
                           ocf_heartbeat_rsyncd.7 \
                           ocf_heartbeat_rsyslog.7 \
