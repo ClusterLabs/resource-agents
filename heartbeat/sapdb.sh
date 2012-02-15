@@ -220,7 +220,7 @@ sapdatabase_status() {
 		 ;;
   esac
 
-  cnt=`ps -u $SUSER -o command 2> /dev/null | grep -c $SEARCH`
+  cnt=`ps -u $SUSER -o args 2> /dev/null | grep -c $SEARCH`
   [ $cnt -ge $SNUM ] && return $OCF_SUCCESS
   return $OCF_NOT_RUNNING
 }
