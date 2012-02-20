@@ -110,8 +110,9 @@ Setting this value to 0 forces an immediate destroy.
 </parameter>
 <parameter name="shutdown_acpi" unique="0" required="0">
 <longdesc lang="en">
-In HVM without PV driver installed it is possible to handle a graceful
-shutdow by simulate a power button event.
+Handle shutdown by simulating an ACPI power button event.
+Enable this to allow graceful shutdown for HVM domains
+without installed PV drivers.
 </longdesc>
 <shortdesc lang="en">Simulate power button event on shutdown</shortdesc>
 <content type="boolean" default="0" />
