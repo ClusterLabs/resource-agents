@@ -455,11 +455,6 @@ Filesystem_start()
 	fi
 
 	if [ "X${HOSTOS}" != "XOpenBSD" ];then
-		# Insert SCSI module
-		# TODO: This probably should go away. Why should the filesystem
-		# RA magically load a kernel module?
-		$MODPROBE scsi_hostadapter >/dev/null 
-
 		if [ -z "$FSTYPE" -o "$FSTYPE" = none ]; then
 			: No FSTYPE specified, rely on the system has the right file-system support already 
 		else
