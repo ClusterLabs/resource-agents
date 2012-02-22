@@ -18,6 +18,7 @@
 #		OCF_RESKEY_statusfile_prefix
 #		OCF_RESKEY_run_fsck
 #		OCF_RESKEY_fast_stop
+#		OCF_RESKEY_force_clones
 #
 #OCF_RESKEY_device    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
 #			Or a -U or -L option for mount, or an NFS mount specification
@@ -27,6 +28,8 @@
 #OCF_RESKEY_statusfile_prefix : the prefix used for a status file for monitoring
 #OCF_RESKEY_run_fsck  : fsck execution mode: auto(default)/force/no
 #OCF_RESKEY_fast_stop : fast stop: yes(default)/no
+#OCF_RESKEY_force_clones : allow running the resource as clone. e.g. local xfs mounts
+#                         for each brick in a glusterfs setup
 #
 #
 # This assumes you want to manage a filesystem on a shared (SCSI) bus,
@@ -69,6 +72,7 @@ suffix="${OCF_RESOURCE_INSTANCE}"
 	suffix="${suffix}_$OCF_RESKEY_CRM_meta_clone"
 suffix="${suffix}_`uname -n`"
 STATUSFILE=${OCF_RESKEY_directory}/$prefix$suffix
+
 #######################################################################
 
 usage() {
@@ -82,7 +86,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="Filesystem">
-<version>1.0</version>
+<version>1.1</version>
 
 <longdesc lang="en">
 Resource script for Filesystem. It manages a Filesystem on a
@@ -177,6 +181,19 @@ for the stop operation.
 </longdesc>
 <shortdesc lang="en">fast stop</shortdesc>
 <content type="boolean" default="yes" />
+</parameter>
+
+<parameter name="force_clones">
+<longdesc lang="en">
+The usage of a clone setup for local filesystems is forbidden
+by default. For special setups like glusterfs, cloning a mount
+of a local device with a filesystem like ext4 or xfs, independently
+on several nodes is a valid use-case.
+
+Only set this to "true" if you know what you are doing!
+</longdesc>
+<shortdesc lang="en">allow running as a clone, regardless of filesystem type</shortdesc>
+<content type="boolean" default="$OCF_RESKEY_force_clones_default" />
 </parameter>
 
 </parameters>
@@ -1057,7 +1074,11 @@ nfs|smbfs|cifs|none|gfs2|glusterfs)	CLUSTERSAFE=1 # this is kind of safe too
 # cluster aware and which, even if when mounted read-only,
 # could still modify parts of it such as journal/metadata
 ext4|ext4dev|ext3|reiserfs|reiser4|xfs|jfs)
-	CLUSTERSAFE=0 # these are not allowed
+	if ocf_is_true "$OCF_RESKEY_force_clones"; then
+	  CLUSTERSAFE=2
+	else
+	  CLUSTERSAFE=0 # these are not allowed
+	fi
 	;;
 esac
 
@@ -1071,8 +1092,12 @@ case $CLUSTERSAFE in
 	;;
 2)
 	ocf_log warn "$FSTYPE on $DEVICE is NOT cluster-aware!"
-	ocf_log warn "But we'll let it run because it is mounted read-only."
-	ocf_log warn "Please make sure that it's meta data is read-only too!"
+	if ocf_is_true "$OCF_RESKEY_force_clones"; then
+	  ocf_log_warn "But we'll let it run because we trust _YOU_ verified it's safe to do so."
+	else
+	  ocf_log warn "But we'll let it run because it is mounted read-only."
+	  ocf_log warn "Please make sure that it's meta data is read-only too!"
+	fi
 	;;
 esac
 fi
