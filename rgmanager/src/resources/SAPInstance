@@ -394,7 +394,7 @@ sapinstance_monitor() {
       esac 
 
       case $SERVICE in
-        disp+work|msg_server|enserver|enrepserver|jcontrol|jstart)
+        disp+work|msg_server|enserver|enrepserver|jcontrol|jstart|TREXDaemon.x|sapwebdisp)
                       if [ $STATE -eq $OCF_NOT_RUNNING ]
                       then
                         if [ "$MONLOG" != "NOLOG" ]
