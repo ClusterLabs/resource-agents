@@ -5,13 +5,13 @@
 #       OCF Resource Agent compliant IPaddr2 script.
 #
 # 	Based on work by Tuomo Soini, ported to the OCF RA API by Lars
-# 	Marowsky-Brée. Implements Cluster Alias IP functionality too.
+# 	Marowsky-BrÃ©e. Implements Cluster Alias IP functionality too.
 #
 #	Cluster Alias IP cleanup, fixes and testing by Michael Schwartzkopff
 #
 #
 # Copyright (c) 2003 Tuomo Soini
-# Copyright (c) 2004-2006 SUSE LINUX AG, Lars Marowsky-Brée
+# Copyright (c) 2004-2006 SUSE LINUX AG, Lars Marowsky-BrÃ©e
 #                    All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
