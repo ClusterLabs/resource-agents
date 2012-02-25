@@ -582,15 +582,22 @@ ip_served() {
 	fi
 
 	if [ -z "$IP_CIP" ]; then
-		case $cur_nic in
-		lo*)	if ocf_is_true ${OCF_RESKEY_lvs_support}; then
-				echo "no"
+		for i in $cur_nic; do
+			case $i in
+			lo*)	if ocf_is_true ${OCF_RESKEY_lvs_support}; then
+					echo "no"
+					return 0
+				fi
+				;;
+			$NIC)
+				# only mark as served when on the same interfaces as $NIC
+				echo "ok"
 				return 0
-			fi
-			;;
-		esac
+				;;
+			esac
+		done
 
-		echo "ok"
+		echo "no"
 		return 0
 	fi
 
@@ -662,11 +669,13 @@ ip_start() {
 	
 	if [ "$ip_status" = "no" ]; then
 		if ocf_is_true ${OCF_RESKEY_lvs_support}; then
-			case `find_interface $OCF_RESKEY_ip` in
-			lo*)
-				remove_conflicting_loopback $OCF_RESKEY_ip 32 255.255.255.255 lo
-				;;
-			esac
+			for i in `find_interface $OCF_RESKEY_ip`; do
+				case $i in
+				lo*)
+					remove_conflicting_loopback $OCF_RESKEY_ip 32 255.255.255.255 lo
+					;;
+				esac
+			done
 		fi
 		
 		add_interface $OCF_RESKEY_ip $NETMASK $BRDCAST $NIC $IFLABEL
