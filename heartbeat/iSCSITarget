@@ -71,7 +71,8 @@ or "lio".  If unspecified, an implementation is selected based on the
 availability of management utilities, with "iet" being tried first,
 then "tgt", then "lio".
 </longdesc>
-<shortdesc lang="en">Manages an iSCSI target export</shortdesc>
+<shortdesc lang="en">Specifies the iSCSI target implementation
+("iet", "tgt" or "lio").</shortdesc>
 <content type="string" default="${OCF_RESKEY_implementation_default}"/>
 </parameter>
 
