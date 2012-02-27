@@ -174,8 +174,8 @@ nfsserver_start ()
 	prepare_directory
 	bind_tree
 
-	rm -f /var/lib/nfs/sm.ha/* > /dev/null 2>&1
-	cp -f /var/lib/nfs/sm/* /var/lib/nfs/sm.ha > /dev/null 2>&1
+	rm -rf /var/lib/nfs/sm.ha/* > /dev/null 2>&1
+	cp -rf /var/lib/nfs/sm /var/lib/nfs/sm.bak /var/lib/nfs/state /var/lib/nfs/sm.ha > /dev/null 2>&1
 
 	ocf_log info "Starting NFS server ..."
 
