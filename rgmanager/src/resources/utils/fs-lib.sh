@@ -518,6 +518,14 @@ do_mount() {
 	ocf_log info "mounting $dev on $mp"
 	ocf_log err "mount $fstype_option $mount_options $dev $mp"
 	mount $fstype_option $mount_options "$dev" "$mp"
+	ret_val=$?
+	if [ $ret_val -ne 0 ]; then
+		ocf_log err "\
+'mount $fstype_option $mount_options $dev $mp' failed, error=$ret_val"
+		return 1
+	fi
+
+	return 0
 }
 
 
