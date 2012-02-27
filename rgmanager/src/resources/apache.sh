@@ -142,8 +142,12 @@ EOT
 			port=`echo $port|awk -F : '{print $2}'`
 		fi
 		IFS=$' ';
-		for z in $ip_addresses; do 
-			echo "Listen $z:$port" >> "$generatedConfigFile";
+		for z in $ip_addresses; do
+			if [ "${z//:/}" != "$z" ]; then
+				echo "Listen [$z]:$port" >> "$generatedConfigFile";
+			else
+				echo "Listen $z:$port" >> "$generatedConfigFile";
+			fi
 		done
 		IFS=$'\n';
 	done;
