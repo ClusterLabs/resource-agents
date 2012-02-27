@@ -386,7 +386,7 @@ trap "rm -f $envtmpf" EXIT
 #
 listener=${OCF_RESKEY_listener:-"LISTENER"}
 # how to get listener processes
-procs="ps -e -o pid,args | grep '[t]nslsnr' | grep -w $listener"
+procs="ps -e -o pid,user,args | grep '[t]nslsnr' | grep -w $listener | grep -w $ORACLE_OWNER"
 
 US=`id -u -n`
 if [ $US != root -a $US != $ORACLE_OWNER ]

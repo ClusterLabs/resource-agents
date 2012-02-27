@@ -274,7 +274,7 @@ named_monitor() {
    
     output=`$OCF_RESKEY_host $OCF_RESKEY_monitor_request $OCF_RESKEY_monitor_ip`
 
-    if [ $? -ne 0 ] || ! echo $output | grep -q '.* has address '"$OCF_RESKEY_monitor_response" 
+    if [ $? -ne 0 ] || ! echo $output | grep -q '.* has .*address '"$OCF_RESKEY_monitor_response" 
     then
        ocf_log err "named didn't answer properly for $OCF_RESKEY_monitor_request."
        ocf_log err "Expected: $OCF_RESKEY_monitor_response."

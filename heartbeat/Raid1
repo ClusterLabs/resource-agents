@@ -140,12 +140,6 @@ raid1_start() {
 		return $OCF_ERR_GENERIC
 	fi
 
-	# Insert SCSI module
-	$MODPROBE scsi_hostadapter
-	if [ $? -ne 0 ] ; then
-	    ocf_log warn "Couldn't insert SCSI module."
-	fi
-
 	# Insert raid personality module
 	$MODPROBE raid1
 	if [ $? -ne 0 ] ; then

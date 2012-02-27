@@ -118,6 +118,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_pingd.7 \
                           ocf_heartbeat_portblock.7 \
                           ocf_heartbeat_postfix.7 \
+                          ocf_heartbeat_pound.7 \
                           ocf_heartbeat_proftpd.7 \
                           ocf_heartbeat_rsyncd.7 \
                           ocf_heartbeat_rsyslog.7 \
@@ -127,6 +128,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_symlink.7 \
                           ocf_heartbeat_syslog-ng.7 \
                           ocf_heartbeat_tomcat.7 \
+                          ocf_heartbeat_varnish.7 \
                           ocf_heartbeat_vmware.7
 
 if USE_IPV6ADDR

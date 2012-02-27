@@ -455,11 +455,6 @@ Filesystem_start()
 	fi
 
 	if [ "X${HOSTOS}" != "XOpenBSD" ];then
-		# Insert SCSI module
-		# TODO: This probably should go away. Why should the filesystem
-		# RA magically load a kernel module?
-		$MODPROBE scsi_hostadapter >/dev/null 
-
 		if [ -z "$FSTYPE" -o "$FSTYPE" = none ]; then
 			: No FSTYPE specified, rely on the system has the right file-system support already 
 		else
@@ -837,7 +832,7 @@ Filesystem_monitor_10()
 		ocf_log warn "$DEVICE is not a block device, monitor 10 is noop"
 		return $OCF_SUCCESS
 	fi
-	dd_opts="iflag=direct bs=512 count=16"
+	dd_opts="iflag=direct bs=4k count=1"
 	err_output=`dd if=$DEVICE $dd_opts 2>&1 >/dev/null`
 	if [ $? -ne 0 ]; then
 		ocf_log err "Failed to read device $DEVICE"
@@ -853,11 +848,11 @@ Filesystem_monitor_20()
 {
 	if [ "$blockdevice" = "no" ] ; then
 		# O_DIRECT not supported on cifs/smbfs
-		dd_opts="oflag=sync bs=512 conv=fsync,sync"
+		dd_opts="oflag=sync bs=4k conv=fsync,sync"
 	else
 		# Writing to the device in O_DIRECT mode is imperative
 		# to bypass caches.
-		dd_opts="oflag=direct,sync bs=512 conv=fsync,sync"
+		dd_opts="oflag=direct,sync bs=4k conv=fsync,sync"
 	fi
 	status_dir=`dirname $STATUSFILE`
 	[ -d "$status_dir" ] ||
@@ -959,7 +954,7 @@ FSTYPE=$OCF_RESKEY_fstype
 if [ ! -z "$OCF_RESKEY_options" ]; then
 	options="-o $OCF_RESKEY_options"
 fi
-FAST_STOP={$OCF_RESKEY_fast_stop:="yes"}
+FAST_STOP=${OCF_RESKEY_fast_stop:="yes"}
 
 OP=$1
 
@@ -1056,7 +1051,7 @@ case $FSTYPE in
 ocfs2)	ocfs2_init
         CLUSTERSAFE=1
 	;;
-nfs|smbfs|none|gfs2|glusterfs)	CLUSTERSAFE=1 # this is kind of safe too
+nfs|smbfs|cifs|none|gfs2|glusterfs)	CLUSTERSAFE=1 # this is kind of safe too
 	;;
 # add here CLUSTERSAFE=0 for all filesystems which are not
 # cluster aware and which, even if when mounted read-only,

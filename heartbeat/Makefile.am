@@ -84,6 +84,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			pingd			\
 			portblock		\
 			postfix			\
+			pound			\
 			pgsql			\
 			proftpd			\
 			Pure-FTPd		\
@@ -107,6 +108,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			tomcat			\
 			VIPArip			\
 			VirtualDomain		\
+			varnish			\
 			vmware			\
 			WAS			\
 			WAS6			\
@@ -120,7 +122,9 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  ocf-directories 	\
 			  ocf-returncodes 	\
 			  apache-conf.sh 	\
-			  http-mon.sh
+			  http-mon.sh    	\
+			  sapdb-nosha.sh	\
+			  sapdb.sh
 
 # Legacy locations
 hbdir			= $(sysconfdir)/ha.d

@@ -399,17 +399,6 @@ asterisk_stop() {
         return $OCF_SUCCESS
     fi
 
-    # do a "soft shutdown" via the asterisk command line first
-    asterisk_rx 'core stop now'
-
-    asterisk_status
-    rc=$?
-    if [ $rc -eq $OCF_NOT_RUNNING ]; then
-        ocf_log info "Asterisk PBX stopped"
-        return $OCF_SUCCESS
-    fi
-
-    # If "core stop now" didn't succeed, try SIGTERM
     pid=`cat $ASTRUNDIR/asterisk.pid`
     ocf_run kill -s TERM $pid
     rc=$?
