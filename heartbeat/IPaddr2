@@ -240,7 +240,7 @@ Whether or not to send the arp packets in the background.
 
 <parameter name="arp_mac">
 <longdesc lang="en">
-MAC address to send the ARP packets too.
+MAC address to send the ARP packets to.
 
 You really shouldn't be touching this.
 
