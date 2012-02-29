@@ -198,7 +198,7 @@ nfsserver_start ()
 		opts=""
 	rm -rf /var/lib/nfs/sm.ha.save > /dev/null 2>&1
 	cp -rf /var/lib/nfs/sm.ha /var/lib/nfs/sm.ha.save > /dev/null 2>&1
-	for ip in ${OCF_RESKEY_nfs_ip//,/ }; do
+	for ip in `echo ${OCF_RESKEY_nfs_ip} | sed 's/,/ /g'`; do
 	  ${OCF_RESKEY_nfs_notify_cmd} $opts $ip -P /var/lib/nfs/sm.ha
 	  rm -rf /var/lib/nfs/sm.ha > /dev/null 2>&1
 	  cp -rf /var/lib/nfs/sm.ha.save /var/lib/nfs/sm.ha > /dev/null 2>&1
