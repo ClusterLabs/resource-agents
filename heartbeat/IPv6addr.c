@@ -626,7 +626,15 @@ scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask, char* prov
 char*
 find_if(struct in6_addr* addr_target, int* plen_target, char* prov_ifname)
 {
-	return scan_if(addr_target, plen_target, 1, prov_ifname);
+	char *best_ifname = scan_if(addr_target, plen_target, 1, prov_ifname);
+
+	/* use the provided ifname and prefix if the address did not match */
+	if (best_ifname == NULL &&
+	    prov_ifname != 0 &&  *prov_ifname != 0 && *plen_target != 0) {
+		cl_log(LOG_INFO, "Could not find a proper interface by the ipv6addr. Using the specified nic:'%s' and cidr_netmask:'%d'", prov_ifname, *plen_target);
+		return prov_ifname;
+	}
+	return best_ifname;
 }
 /* get the device name and the plen_target of a special address */
 char*
