@@ -463,14 +463,14 @@ stop)
 	;;
 
 add-client)
-	ocf_log debug "$0 $1 $2 $3"
+	#ocf_log debug "$0 $1 $2 $3"
 	touch /var/lib/nfs/statd/sm/$2
 	touch /var/lib/nfs/statd/sm-ha/$2
 	exit 0
 	;;
 
 del-client)
-	ocf_log debug "$0 $1 $2 $3"
+	#ocf_log debug "$0 $1 $2 $3"
 	touch /var/lib/nfs/statd/sm/$2
 	rm -f /var/lib/nfs/statd/sm-ha/$2
 	exit 0
