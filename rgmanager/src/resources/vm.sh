@@ -959,9 +959,11 @@ migrate()
 		migrate_opt="--live"
 	fi
 
-	if [ "$OCF_RESKEY_tunnelled" = "on" ]; then
-		tunnelled_opt="--tunnelled --p2p"
-	fi
+	case "$OCF_RESKEY_tunnelled" in
+		yes|true|1|YES|TRUE|on|ON)
+			tunnelled_opt="--tunnelled --p2p"
+		;;
+	esac
 
 	# Patch from Marcelo Azevedo to migrate over private
 	# LANs instead of public LANs
