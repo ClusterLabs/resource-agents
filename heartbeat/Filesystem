@@ -255,7 +255,7 @@ determine_blockdevice() {
 	# Get the current real device name, if possible.
 	# (specified devname could be -L or -U...)
 	case "$FSTYPE" in
-	nfs|smbfs|cifs|glusterfs|tmpfs|none) ;;
+	nfs|smbfs|cifs|glusterfs|ceph|tmpfs|none) ;;
 	*)	DEVICE=`list_mounts | grep " $MOUNTPOINT " | cut -d' ' -f1`
 		if [ -b "$DEVICE" ]; then
 		  blockdevice=yes
@@ -436,7 +436,7 @@ is_fsck_needed() {
 	    no)    false;;
 	    ""|auto)
 		case $FSTYPE in
-		    ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|tmpfs)
+		    ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|ceph|tmpfs)
 			false;;
 		    *)
 			true;;
@@ -1068,7 +1068,7 @@ case $FSTYPE in
 ocfs2)	ocfs2_init
         CLUSTERSAFE=1
 	;;
-nfs|smbfs|cifs|none|gfs2|glusterfs)	CLUSTERSAFE=1 # this is kind of safe too
+nfs|smbfs|cifs|none|gfs2|glusterfs|ceph)	CLUSTERSAFE=1 # this is kind of safe too
 	;;
 # add here CLUSTERSAFE=0 for all filesystems which are not
 # cluster aware and which, even if when mounted read-only,
