@@ -41,6 +41,33 @@ rv=0
 function ha_lvm_proper_setup_check
 {
 	##
+	# Does the Volume Group exist?
+	#  1) User may have forgotten to create it
+	#  2) User may have misspelled it in the config file
+	##
+	if ! vgs $OCF_RESKEY_vg_name --config 'global{locking_type=0}'>& /dev/null; then
+		ocf_log err "HA LVM: Unable to get volume group attributes for $OCF_RESKEY_vg_name"
+		return $OCF_ERR_GENERIC
+	fi
+
+	##
+	# Are we using the "tagging" or "CLVM" variant?
+	#  The CLVM variant will have the cluster attribute set
+	##
+	if [[ $(vgs -o attr --noheadings --config 'global{locking_type=0}' $OCF_RESKEY_vg_name 2>/dev/null) =~ .....c ]]; then
+		# Is clvmd running?
+		if ! ps -C clvmd >& /dev/null; then
+			ocf_log err "HA LVM: $OCF_RESKEY_vg_name has the cluster attribute set, but 'clvmd' is not running"
+			return $OCF_ERR_GENERIC
+		fi
+		return $OCF_SUCCESS
+	fi
+
+	##
+	# The "tagging" variant is being used if we have gotten this far.
+	##
+
+	##
 	# The default for lvm.conf:activation/volume_list is empty,
 	# this must be changed for HA LVM.
 	##
@@ -92,9 +119,7 @@ function ha_lvm_proper_setup_check
 
 case $1 in
 start)
-	if ! [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
-		ha_lvm_proper_setup_check || exit 1
-	fi
+	ha_lvm_proper_setup_check || exit 1
 
 	if [ -z $OCF_RESKEY_lv_name ]; then
 		vg_start || exit 1
@@ -114,10 +139,8 @@ status|monitor)
 	;;
 		    
 stop)
-	if ! [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
-		if ! ha_lvm_proper_setup_check; then
-			ocf_log err "WARNING: An improper setup can cause data corruption!"
-		fi
+	if ! ha_lvm_proper_setup_check; then
+		ocf_log err "WARNING: An improper setup can cause data corruption!"
 	fi
 
 	if [ -z $OCF_RESKEY_lv_name ]; then
