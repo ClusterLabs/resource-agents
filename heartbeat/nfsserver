@@ -67,10 +67,10 @@ Directory to store nfs server related information.
 
 <parameter name="nfs_ip" unique="0" required="1">
 <longdesc lang="en">
-The floating IP address used to access the nfs service
+Comma separated list of floating IP addresses used to access the nfs service
 </longdesc>
 <shortdesc lang="en">
-IP address.
+IP addresses.
 </shortdesc>
 <content type="string"/>
 </parameter>
@@ -174,8 +174,8 @@ nfsserver_start ()
 	prepare_directory
 	bind_tree
 
-	rm -f /var/lib/nfs/sm.ha/* > /dev/null 2>&1
-	cp -f /var/lib/nfs/sm/* /var/lib/nfs/sm.ha > /dev/null 2>&1
+	rm -rf /var/lib/nfs/sm.ha/* > /dev/null 2>&1
+	cp -rf /var/lib/nfs/sm /var/lib/nfs/sm.bak /var/lib/nfs/state /var/lib/nfs/sm.ha > /dev/null 2>&1
 
 	ocf_log info "Starting NFS server ..."
 
@@ -193,10 +193,17 @@ nfsserver_start ()
 	#Notify the nfs server has been moved or rebooted
 	#The init script do that already, but with the hostname, which may be ignored by client
 	#we have to do it again with the nfs_ip 
-	local opts="-v"
+	local opts="-df -v"
 	echo $OCF_RESKEY_nfs_notify_cmd | grep -qws rpc.statd &&
 		opts=""
-	${OCF_RESKEY_nfs_notify_cmd} $opts $OCF_RESKEY_nfs_ip -P /var/lib/nfs/sm.ha
+	rm -rf /var/lib/nfs/sm.ha.save > /dev/null 2>&1
+	cp -rf /var/lib/nfs/sm.ha /var/lib/nfs/sm.ha.save > /dev/null 2>&1
+	for ip in `echo ${OCF_RESKEY_nfs_ip} | sed 's/,/ /g'`; do
+	  ${OCF_RESKEY_nfs_notify_cmd} $opts $ip -P /var/lib/nfs/sm.ha
+	  rm -rf /var/lib/nfs/sm.ha > /dev/null 2>&1
+	  cp -rf /var/lib/nfs/sm.ha.save /var/lib/nfs/sm.ha > /dev/null 2>&1
+	done
+
 
 	ocf_log info "NFS server started"
 	return $OCF_SUCCESS
@@ -226,7 +233,7 @@ nfsserver_validate ()
 	check_binary ${OCF_RESKEY_nfs_init_script}
 	check_binary ${OCF_RESKEY_nfs_notify_cmd}
 
-	if [ -z ${OCF_RESKEY_nfs_ip} ]; then
+	if [ x = x"${OCF_RESKEY_nfs_ip}" ]; then
 		ocf_log err "nfs_ip not set"
 		exit $OCF_ERR_CONFIGURED
 	fi
