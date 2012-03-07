@@ -492,6 +492,13 @@ slapd_validate_all()
     return $OCF_ERR_INSTALLED
   fi
 
+  pid_dir=`dirname "$pid_file"`
+  if [ ! -d "$pid_dir" ]; then
+    mkdir -p "$pid_dir"
+    chown -R "$user" "$pid_dir"
+    chgrp -R "$group" "$pid_dir"
+  fi
+
   return $OCF_SUCCESS
 }
 
