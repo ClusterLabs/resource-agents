@@ -167,13 +167,20 @@ srca_read() {
 srca_start() {
 	srca_read $1
 
-	ip route replace $NETWORK dev $INTERFACE src $1 || \
-		errorexit "command 'ip route replace $NETWORK dev $INTERFACE src $1' failed"
+	rc=$?
+	if [ $rc = 0 ]; then 
+		rc=$OCF_SUCCESS
+		ocf_log info "The ip route has been already set.($NETWORK, $INTERFACE, $ROUTE_WO_SRC)"
+	else
+		ip route replace $NETWORK dev $INTERFACE src $1 || \
+			errorexit "command 'ip route replace $NETWORK dev $INTERFACE src $1' failed"
 
-	$CMDCHANGE $ROUTE_WO_SRC src $1 || \
-		errorexit "command '$CMDCHANGE $ROUTE_WO_SRC src $1' failed"
+		$CMDCHANGE $ROUTE_WO_SRC src $1 || \
+			errorexit "command '$CMDCHANGE $ROUTE_WO_SRC src $1' failed"
+		rc=$?
+	fi
 
-	return $?
+	return $rc
 }
 
 #
@@ -252,7 +259,6 @@ CheckIP() {
 	else
 	    true
 	fi	   
-#	return $OCF_SUCCESS
 	;;
     *) #less than three decimal dots
 	false;;
@@ -301,35 +307,14 @@ find_interface_solaris() {
 #
 find_interface_generic() {
 
-  $IFCONFIG $IFCONFIG_A_OPT  |
-  while read ifname linkstuff
-  do
-    : Read gave us ifname = $ifname
-
-    read inet addr junk
-    : Read gave us inet = $inet addr = $addr
-
-    while
-      read line && [ "X$line" != "X" ]
-    do
-      : Nothing
-    done
-
-    case "$SYSTYPE" in
-      *BSD)
-		$IFCONFIG | grep "$BASEIP" -B`$IFCONFIG | grep -c inet` | grep "UP," | cut -d ":" -f 1
-		return 0;;
-      *)
-    		: "comparing $BASEIP to $addr (from ifconfig)"
-		case $addr in
-		  addr:$BASEIP)	echo $ifname; return $OCF_SUCCESS;;
-		  $BASEIP)	echo $ifname; return $OCF_SUCCESS;;
-    		esac
-		continue;;
-    esac
-
-  done
-  return $OCF_ERR_GENERIC 
+	local iface=`$IP2UTIL -o -f inet addr show | grep "\ $BASEIP" \
+            | cut -d ' ' -f2 | grep -v '^ipsec[0-9][0-9]*$'`
+        if [ -z "$iface" ]; then
+            return $OCF_ERR_GENERIC
+        else 
+            echo $iface
+            return $OCF_SUCCESS
+        fi
 }
 
 
@@ -377,7 +362,6 @@ ip_status() {
       
       Linux|SunOS)		
 	  IF=`find_interface "$BASEIP"`
-#	  echo $IF
 	  if [ -z "$IF" ]; then
 	      return $OCF_NOT_RUNNING
 	  fi
@@ -404,7 +388,6 @@ ip_status() {
 srca_validate_all() {
 
     check_binary $AWK
-    check_binary $IPROUTE
     check_binary $IFCONFIG
 
 #	The IP address should be in good shape
@@ -413,6 +396,10 @@ srca_validate_all() {
 	else
 	  ocf_log err "Invalid IP address [$ipaddress]"
 	  exit $OCF_ERR_CONFIGURED
+	fi
+
+	if ocf_is_probe; then
+	  return $OCF_SUCCESS
 	fi
 
 #	We should serve this IP address of course
@@ -453,11 +440,19 @@ fi
 
 ipaddress="$OCF_RESKEY_ipaddress"
 
+if [ "x$SYSTYPE" = "xLinux" ]; then
+	srca_validate_all
+fi
+
 findif_out=`$FINDIF -C`
 rc=$?
-[ $rc -ne 0 ] && exit $rc
+[ $rc -ne 0 ] && {
+    ocf_log err "[$FINDIF -C] failed"
+    exit $rc
+}
+
 INTERFACE=`echo $findif_out | awk '{print $1}'`
-NETWORK=`ip route list dev $INTERFACE scope link|grep -o '^[^ ]*'`
+NETWORK=`ip route list dev $INTERFACE scope link match $ipaddress|grep -o '^[^ ]*'`
 
 case $1 in
 	start)		srca_start $ipaddress

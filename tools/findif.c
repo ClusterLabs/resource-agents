@@ -198,6 +198,7 @@ SearchUsingProcRoute (char *address, struct in_addr *in
 		,	PROCROUTE);
 		rc = OCF_ERR_GENERIC; goto out;
 	}
+	*best_netmask = 0;
 	while (fgets(buf, sizeof(buf), routefd) != NULL) {
 		if (sscanf(buf, "%[^\t]\t%lx%lx%lx%lx%lx%lx%lx"
 		,	interface, &dest, &gw, &flags, &refcnt, &use
@@ -208,7 +209,7 @@ SearchUsingProcRoute (char *address, struct in_addr *in
 			rc = OCF_ERR_GENERIC; goto out;
 		}
 		if ( (in->s_addr&mask) == (in_addr_t)(dest&mask)
-		&&	metric < best_metric) {
+		&&	metric <= best_metric && mask >= *best_netmask) {
 			best_metric = metric;
 			*best_netmask = mask;
 			strncpy(best_if, interface, best_iflen);

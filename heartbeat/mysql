@@ -841,7 +841,7 @@ mysql_start() {
         # node that is just joining the cluster, and the CRM may have
         # promoted a master before.
         master_host=`echo $OCF_RESKEY_CRM_meta_notify_master_uname|tr -d " "`
-        if [ "$master_host" -a "$master_host" != `uname -n` ]; then
+        if [ "$master_host" -a "$master_host" != ${HOSTNAME} ]; then
             ocf_log info "Changing MySQL configuration to replicate from $master_host."
             set_master $master_host
             ocf_run $MYSQL $MYSQL_OPTIONS_LOCAL $MYSQL_OPTIONS_REPL \
@@ -856,7 +856,7 @@ mysql_start() {
         fi
 
         master_host=`echo $OCF_RESKEY_CRM_meta_notify_master_uname`
-        if [ "$master_host" -a "$master_host" != `uname -n` ]; then
+        if [ "$master_host" -a "$master_host" != ${HOSTNAME} ]; then
             ocf_log info "Changing MySQL configuration to replicate from $master_host."
             set_master $master_host
             start_slave $master_host
@@ -1004,7 +1004,7 @@ mysql_notify() {
             return $OCF_ERR_GENERIC
         fi
 
-        if [ $master_host = `uname -n` ]; then
+        if [ $master_host = ${HOSTNAME} ]; then
             ocf_log info "This will be new master"
         else
             ocf_log info "Changing MySQL configuration to replicate from $master_host"
@@ -1021,7 +1021,7 @@ mysql_notify() {
         # time to check whether our replication slave is working
         # correctly.
         master_host=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname`
-        if [ "$master_host" = `uname -n` ]; then
+        if [ "$master_host" = ${HOSTNAME} ]; then
             ocf_log info "Ignoring post-promote notification for my own promotion."
             return $OCF_SUCCESS
         fi
@@ -1033,7 +1033,7 @@ mysql_notify() {
         ;;
     'post-demote')
         demote_host=`echo $OCF_RESKEY_CRM_meta_notify_demote_uname`
-        if [ $demote_host = `uname -n` ]; then
+        if [ $demote_host = ${HOSTNAME} ]; then
             ocf_log info "Ignoring post-demote notification for my own demotion."
             return $OCF_SUCCESS
         fi

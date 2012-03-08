@@ -1,3 +1,12 @@
-Repository moved! Please use
-	https://github.com/ClusterLabs/resource-agents
-	git://github.com/ClusterLabs/resource-agents.git
+This repository contains resource agents (RAs) compliant
+with the Open Cluster Framework (OCF) specification.
+
+These resource agents are used by two cluster resource
+management implementations:
+
+- Pacemaker
+- rgmanager
+
+More information about OCF resource agents is available
+in the OCF Resource Agent Developer's guide, in the
+doc/dev-guides subdirectory.

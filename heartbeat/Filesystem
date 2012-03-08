@@ -18,6 +18,7 @@
 #		OCF_RESKEY_statusfile_prefix
 #		OCF_RESKEY_run_fsck
 #		OCF_RESKEY_fast_stop
+#		OCF_RESKEY_force_clones
 #
 #OCF_RESKEY_device    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
 #			Or a -U or -L option for mount, or an NFS mount specification
@@ -27,6 +28,8 @@
 #OCF_RESKEY_statusfile_prefix : the prefix used for a status file for monitoring
 #OCF_RESKEY_run_fsck  : fsck execution mode: auto(default)/force/no
 #OCF_RESKEY_fast_stop : fast stop: yes(default)/no
+#OCF_RESKEY_force_clones : allow running the resource as clone. e.g. local xfs mounts
+#                         for each brick in a glusterfs setup
 #
 #
 # This assumes you want to manage a filesystem on a shared (SCSI) bus,
@@ -69,6 +72,7 @@ suffix="${OCF_RESOURCE_INSTANCE}"
 	suffix="${suffix}_$OCF_RESKEY_CRM_meta_clone"
 suffix="${suffix}_`uname -n`"
 STATUSFILE=${OCF_RESKEY_directory}/$prefix$suffix
+
 #######################################################################
 
 usage() {
@@ -82,7 +86,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="Filesystem">
-<version>1.0</version>
+<version>1.1</version>
 
 <longdesc lang="en">
 Resource script for Filesystem. It manages a Filesystem on a
@@ -179,6 +183,19 @@ for the stop operation.
 <content type="boolean" default="yes" />
 </parameter>
 
+<parameter name="force_clones">
+<longdesc lang="en">
+The usage of a clone setup for local filesystems is forbidden
+by default. For special setups like glusterfs, cloning a mount
+of a local device with a filesystem like ext4 or xfs, independently
+on several nodes is a valid use-case.
+
+Only set this to "true" if you know what you are doing!
+</longdesc>
+<shortdesc lang="en">allow running as a clone, regardless of filesystem type</shortdesc>
+<content type="boolean" default="$OCF_RESKEY_force_clones_default" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -238,7 +255,7 @@ determine_blockdevice() {
 	# Get the current real device name, if possible.
 	# (specified devname could be -L or -U...)
 	case "$FSTYPE" in
-	nfs|smbfs|cifs|glusterfs|tmpfs|none) ;;
+	nfs|smbfs|cifs|glusterfs|ceph|tmpfs|none) ;;
 	*)	DEVICE=`list_mounts | grep " $MOUNTPOINT " | cut -d' ' -f1`
 		if [ -b "$DEVICE" ]; then
 		  blockdevice=yes
@@ -419,7 +436,7 @@ is_fsck_needed() {
 	    no)    false;;
 	    ""|auto)
 		case $FSTYPE in
-		    ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|tmpfs)
+		    ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|ceph|tmpfs)
 			false;;
 		    *)
 			true;;
@@ -455,11 +472,6 @@ Filesystem_start()
 	fi
 
 	if [ "X${HOSTOS}" != "XOpenBSD" ];then
-		# Insert SCSI module
-		# TODO: This probably should go away. Why should the filesystem
-		# RA magically load a kernel module?
-		$MODPROBE scsi_hostadapter >/dev/null 
-
 		if [ -z "$FSTYPE" -o "$FSTYPE" = none ]; then
 			: No FSTYPE specified, rely on the system has the right file-system support already 
 		else
@@ -837,7 +849,7 @@ Filesystem_monitor_10()
 		ocf_log warn "$DEVICE is not a block device, monitor 10 is noop"
 		return $OCF_SUCCESS
 	fi
-	dd_opts="iflag=direct bs=512 count=16"
+	dd_opts="iflag=direct bs=4k count=1"
 	err_output=`dd if=$DEVICE $dd_opts 2>&1 >/dev/null`
 	if [ $? -ne 0 ]; then
 		ocf_log err "Failed to read device $DEVICE"
@@ -853,11 +865,11 @@ Filesystem_monitor_20()
 {
 	if [ "$blockdevice" = "no" ] ; then
 		# O_DIRECT not supported on cifs/smbfs
-		dd_opts="oflag=sync bs=512 conv=fsync,sync"
+		dd_opts="oflag=sync bs=4k conv=fsync,sync"
 	else
 		# Writing to the device in O_DIRECT mode is imperative
 		# to bypass caches.
-		dd_opts="oflag=direct,sync bs=512 conv=fsync,sync"
+		dd_opts="oflag=direct,sync bs=4k conv=fsync,sync"
 	fi
 	status_dir=`dirname $STATUSFILE`
 	[ -d "$status_dir" ] ||
@@ -1056,13 +1068,17 @@ case $FSTYPE in
 ocfs2)	ocfs2_init
         CLUSTERSAFE=1
 	;;
-nfs|smbfs|cifs|none|gfs2|glusterfs)	CLUSTERSAFE=1 # this is kind of safe too
+nfs|smbfs|cifs|none|gfs2|glusterfs|ceph)	CLUSTERSAFE=1 # this is kind of safe too
 	;;
 # add here CLUSTERSAFE=0 for all filesystems which are not
 # cluster aware and which, even if when mounted read-only,
 # could still modify parts of it such as journal/metadata
 ext4|ext4dev|ext3|reiserfs|reiser4|xfs|jfs)
-	CLUSTERSAFE=0 # these are not allowed
+	if ocf_is_true "$OCF_RESKEY_force_clones"; then
+	  CLUSTERSAFE=2
+	else
+	  CLUSTERSAFE=0 # these are not allowed
+	fi
 	;;
 esac
 
@@ -1076,8 +1092,12 @@ case $CLUSTERSAFE in
 	;;
 2)
 	ocf_log warn "$FSTYPE on $DEVICE is NOT cluster-aware!"
-	ocf_log warn "But we'll let it run because it is mounted read-only."
-	ocf_log warn "Please make sure that it's meta data is read-only too!"
+	if ocf_is_true "$OCF_RESKEY_force_clones"; then
+	  ocf_log_warn "But we'll let it run because we trust _YOU_ verified it's safe to do so."
+	else
+	  ocf_log warn "But we'll let it run because it is mounted read-only."
+	  ocf_log warn "Please make sure that it's meta data is read-only too!"
+	fi
 	;;
 esac
 fi

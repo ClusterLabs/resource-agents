@@ -155,6 +155,16 @@ meta_data()
             <content type="string" default="live"/>
         </parameter>
 
+	<parameter name="tunnelled">
+	    <longdesc lang="en">
+	    	Tunnel data over ssh to securely migrate virtual machines.
+	    </longdesc>
+	    <shortdesc lang="en">
+	    	Tunnel data over ssh to securely migrate virtual machines.
+	    </shortdesc>
+            <content type="string" default=""/>
+        </parameter>
+
 	<parameter name="path">
 	    <longdesc lang="en">
 		Path specification vm.sh will search for the specified
@@ -868,7 +878,11 @@ virsh_migrate()
 		err=$($cmd 2>&1 | head -1; exit ${PIPESTATUS[0]})
 		rv=$?
 	elif [ "$OCF_RESKEY_hypervisor" = "qemu" ]; then
-		cmd="virsh migrate $migrate_opt $OCF_RESKEY_name $(printf $OCF_RESKEY_migration_uri $target) $(printf $migrateuriopt $target)"
+		if [ -z "$tunnelled_opt" ]; then
+			cmd="virsh migrate $tunnelled_opt $migrate_opt $OCF_RESKEY_name $(printf $OCF_RESKEY_migration_uri $target) $(printf $migrateuriopt $target)"
+		else
+			cmd="virsh migrate $tunnelled_opt $migrate_opt $OCF_RESKEY_name $(printf $OCF_RESKEY_migration_uri $target)"
+		fi
 		ocf_log debug "$cmd"
 		
 		err=$($cmd 2>&1 | head -1; exit ${PIPESTATUS[0]})
@@ -939,10 +953,17 @@ migrate()
 {
 	declare target=$1
 	declare rv migrate_opt
+	declare tunnelled_opt
 
 	if [ "$OCF_RESKEY_migrate" = "live" ]; then
 		migrate_opt="--live"
 	fi
+
+	case "$OCF_RESKEY_tunnelled" in
+		yes|true|1|YES|TRUE|on|ON)
+			tunnelled_opt="--tunnelled --p2p"
+		;;
+	esac
 
 	# Patch from Marcelo Azevedo to migrate over private
 	# LANs instead of public LANs

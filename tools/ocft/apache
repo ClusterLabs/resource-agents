@@ -1,4 +1,5 @@
 # apache
+# make sure that your apache configuration loads mod_status
 
 CONFIG
 	Agent apache
@@ -10,30 +11,25 @@ SETUP-AGENT
 	/etc/init.d/apache2 start
 	/etc/init.d/apache2 stop
 
-CASE-BLOCK required_args
-	Env OCF_RESKEY_statusurl=http://localhost/info2html.css
-	Env OCF_RESKEY_testregex='This is'
-
 CASE-BLOCK default_status
 	AgentRun stop
 
 CASE-BLOCK prepare
-	Include required_args
 	Include default_status
 
 CASE "check base env"
 	Include prepare
 	AgentRun start OCF_SUCCESS
 
-CASE "check base env: unset OCF_RESKEY_statusurl"
+CASE "check base env: set non-existing OCF_RESKEY_statusurl"
 	Include prepare
-	Unenv OCF_RESKEY_statusurl
-	AgentRun start OCF_ERR_CONFIGURED
+	Env OCF_RESKEY_statusurl="yoyoyoyo"
+	AgentRun start OCF_ERR_GENERIC
 
-CASE "check base env: unset OCF_RESKEY_testregex"
+CASE "check base env: set non-existing OCF_RESKEY_configfile"
 	Include prepare
-	Unenv OCF_RESKEY_testregex
-	AgentRun start OCF_ERR_CONFIGURED
+	Env OCF_RESKEY_configfile="/yoyoyoyo/nosuchfile"
+	AgentRun start OCF_ERR_INSTALLED
 
 CASE "normal start"
 	Include prepare

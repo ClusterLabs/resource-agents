@@ -37,8 +37,8 @@
 
 # Initialization:
 
-: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
-. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 : ${OCF_RESKEY_slapd="/usr/sbin/slapd"}
 : ${OCF_RESKEY_ldapsearch="ldapsearch"}
@@ -490,6 +490,13 @@ slapd_validate_all()
   elif ! grep "^$group:" /etc/group >/dev/null 2>&1; then
     ocf_log err "slapd group '$group' does not exist"
     return $OCF_ERR_INSTALLED
+  fi
+
+  pid_dir=`dirname "$pid_file"`
+  if [ ! -d "$pid_dir" ]; then
+    mkdir -p "$pid_dir"
+    chown -R "$user" "$pid_dir"
+    chgrp -R "$group" "$pid_dir"
   fi
 
   return $OCF_SUCCESS

@@ -472,6 +472,8 @@ VirtualDomain_Validate_All() {
     if [ ! -r $OCF_RESKEY_config ]; then
 	if ocf_is_probe; then
 	    ocf_log info "Configuration file $OCF_RESKEY_config not readable during probe."
+	elif [ "$__OCF_ACTION" = "stop" ]; then
+	    ocf_log info "Configuration file $OCF_RESKEY_config not readable, resource considered stopped."
 	else
 	    ocf_log error "Configuration file $OCF_RESKEY_config does not exist or is not readable."
 	    return $OCF_ERR_INSTALLED

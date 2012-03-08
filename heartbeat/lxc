@@ -239,7 +239,10 @@ LXC_stop() {
 }
 
 LXC_status() {
-	S=`lxc-info -n ${OCF_RESKEY_container}`
+	# run lxc-info with -s option for LXC-0.7.5 or later
+	local lxc_info_opt="-s"
+	ocf_version_cmp "`lxc-version | cut -d' ' -f 3`" 0.7.5 && lxc_info_opt=""
+	S=`lxc-info $lxc_info_opt -n ${OCF_RESKEY_container}`
 	ocf_log debug "State of ${OCF_RESKEY_container}: $S"
 	if [[ "${S##* }" = "RUNNING" ]] ; then 
 		return $OCF_SUCCESS

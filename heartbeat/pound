@@ -1,0 +1,312 @@
+#!/bin/sh
+#
+#
+# Pound
+#
+# Description:  Manage pound instances as a HA resource
+#
+# Author:       Taro Matsuzawa <btm@tech.email.ne.jp>
+#
+# License:      GNU General Public License (GPL)
+#
+# See usage() for more details
+#
+# OCF instance parameters:
+#   OCF_RESKEY_pid
+#   OCF_RESKEY_binary
+#   OCF_RESKEY_ctl_binary
+#   OCF_RESKEY_socket_path
+#   OCF_RESKEY_config
+#   OCF_RESKEY_name
+#
+#######################################################################
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+# Set default paramenter values
+
+# Set these two first, as other defaults depend on it
+OCF_RESKEY_name_default=${OCF_RESOURCE_INSTANCE}
+: ${OCF_RESKEY_name=${OCF_RESKEY_name_default}}
+
+OCF_RESKEY_binary_default=pound
+OCF_RESKEY_ctl_binary_default=poundctl
+OCF_RESKEY_pid_default=/var/run/pound_${OCF_RESKEY_name}.pid
+OCF_RESKEY_socket_path_default=/var/lib/pound/pound.cfg
+
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_ctl_binary=${OCF_RESKEY_client_ctl_default}}
+: ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
+: ${OCF_RESKEY_socket_path=${OCF_RESKEY_socket_path_default}}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="pound" version="0.1">
+<version>1.0</version>
+
+<longdesc lang="en">
+The Pound Resource Agent can manage pound instances.
+</longdesc>
+<shortdesc lang="en">Manage a Pound instance</shortdesc>
+
+<parameters>
+
+<parameter name="config" unique="1" required="1">
+<longdesc lang="en">
+The Pound configuration file that pound should manage, for example
+"/etc/pound.cfg".
+</longdesc>
+<shortdesc lang="en">Pound configuration file</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="name" unique="1">
+<longdesc lang="en">
+Override the name of the instance that should be given to pound
+(defaults to the resource identifier).
+</longdesc>
+<shortdesc lang="en">Instance name</shortdesc>
+<content type="string" default="${OCF_RESKEY_name_default}" />
+</parameter>
+
+<parameter name="pid" unique="1">
+<longdesc lang="en">
+Write the process's PID to the specified file.
+The default will include the specified name, ie.:
+"/var/run/pound_production.pid". Unlike what this help message shows.
+It is most likely not necessary to change this parameter.
+</longdesc>
+<shortdesc lang="en">Pidfile</shortdesc>
+<content type="string" default="${OCF_RESKEY_pid_default}" />
+</parameter>
+
+<parameter name="binary">
+<longdesc lang="en">
+This is used to start pound server.
+Normally use pound.
+</longdesc>
+<shortdesc lang="en"></shortdesc>
+<content type="string" default="${OCF_RESKEY_binary_default}" />
+</parameter>
+
+<parameter name="ctl_binary">
+<longdesc lang="en">
+This is used to watch pound status via unix socket.
+Normally use poundctl.
+</longdesc>
+<shortdesc lang="en"></shortdesc>
+<content type="string" default="${OCF_RESKEY_ctl_binary_default}" />
+</parameter>
+
+<parameter name="socket_path">
+<longdesc lang="en">
+Write the process's unix socket.
+This parameter is same 'Control' parameter in configuration file, ie.:
+Control "/var/lib/pound/pound.cfg"
+</longdesc>
+<shortdesc lang="en"></shortdesc>
+<content type="string" default="${OCF_RESKEY_socket_path_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="20" />
+<action name="stop"         timeout="20" />
+<action name="monitor"      timeout="20" interval="10" depth="0" />
+<action name="status"       timeout="20" />
+<action name="meta-data"    timeout="5" />
+<action name="validate-all"   timeout="20" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+
+pound_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+pound_status() {
+    local pid
+    local rc
+
+    # FAILED = pidfile exist, but no running proc (or mismatch pid)
+    # SUCCES = contents of pidfile == running process id
+    # NOTRUN = no pidfile, no running process
+
+    # check if pidfile exists and larger than 0 bytes
+    if [ -s $OCF_RESKEY_pid ]; then
+        # it does, now check if the pid exists
+        pid=$(cat $OCF_RESKEY_pid)
+        ocf_run kill -s 0 $pid
+        rc=$?
+        if [ $rc -eq 0 ]; then
+            ocf_log info "Pound is running"
+            # check if the poundctl
+            ocf_run $OCF_RESKEY_ctl_binary -c $OCF_RESKEY_socket_path
+            p_rc=$?
+            if [ "$p_rc" -eq 0 ]; then
+                ocf_log info "poundctl reports success"
+                return $OCF_SUCCESS
+            else
+                ocf_log err "poundctl reports error"
+                return $OCF_ERR_GENERIC
+            fi
+        else
+            ocf_log err "Pound PID file exists, but pound is not running"
+            return $OCF_ERR_GENERIC
+        fi
+    fi
+    
+    return $OCF_NOT_RUNNING
+}
+
+pound_start() {
+    local rc
+    local backend_options
+
+    pound_status
+    rc=$?
+    if [ $rc -eq $OCF_SUCCESS ]; then
+        ocf_log info "Pound already running"
+        return $OCF_SUCCESS
+    fi
+
+    # check configuration before start
+    ocf_run $OCF_RESKEY_binary \
+        -c -f $OCF_RESKEY_config
+    c_rc=$?
+    if [ "$c_rc" -ne 0 ]; then
+        ocf_log err "Pound configuration file is not valid"
+        return $OCF_ERR_CONFIGURED
+    fi 
+
+    ocf_run $OCF_RESKEY_binary \
+        -f $OCF_RESKEY_config \
+        -p $OCF_RESKEY_pid
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        ocf_log err "Pound failed to start"
+        return $OCF_ERR_GENERIC
+    fi
+
+    # Spin waiting for pound to come up.
+    # Let the CRM/LRM time us out if required
+    while true; do
+        pound_status
+        rc=$?
+        [ $rc -eq $OCF_SUCCESS ] && break
+        if [ $rc -ne $OCF_NOT_RUNNING ]; then
+            ocf_log err "Pound start failed"
+            exit $OCF_ERR_GENERIC
+        fi
+        sleep 2
+    done
+
+    ocf_log info "Pound started succesfully"
+    return $OCF_SUCCESS
+}
+
+pound_stop() {
+    local rc
+    local pid
+
+    pound_status
+    rc=$?
+    if [ $rc -eq $OCF_NOT_RUNNING ]; then
+        ocf_log info "Pound already stopped"
+        return $OCF_SUCCESS
+    fi
+
+    # kill the pound process
+    pid=$(cat $OCF_RESKEY_pid)
+    ocf_run kill -s TERM $pid
+    rc=$?
+
+    if [ $rc -ne 0 ]; then
+        ocf_log err "Pound failed to stop"
+        return $OCF_ERR_GENERIC
+    fi
+
+    # stop waiting
+    shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
+    count=0
+    while [ $count -lt $shutdown_timeout ]; do
+        # check if process still exists
+        ocf_run kill -s 0 $pid
+        rc=$?
+        if [ $rc -ne 0 ]; then
+            # Pound stopped succesfully, so let's delete the pidfile
+            rm -f $OCF_RESKEY_pid
+            break
+        fi
+        count=$(expr $count + 1)
+        sleep 1
+        ocf_log info "Pound still hasn't stopped yet. Waiting..."
+    done 
+
+    pound_status
+    rc=$?
+    if [ $rc -ne $OCF_NOT_RUNNING ]; then
+        # Poound didn't quit on a SIGTERM, try SIGKILL
+        ocf_log warn "Pound failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL..."
+        ocf_run kill -s KILL $pid
+        # delete the pidfile
+        rm -f $OCF_RESKEY_pid
+    fi
+
+    ocf_log info "Pound stopped"
+    return $OCF_SUCCESS
+}
+
+
+pound_validate() {
+    if [ -f $OCF_RESKEY_config ]; then
+        return $OCF_SUCCESS
+    else
+        return $OCF_ERR_INSTALLED
+    fi
+}
+
+
+case $__OCF_ACTION in
+    meta-data)
+        meta_data
+        exit $OCF_SUCCESS
+        ;;
+    start)
+        pound_start
+        ;;
+    stop)
+        pound_stop
+        ;;
+    monitor|status)
+        pound_status
+        ;;
+    validate-all)
+        pound_validate
+        ;;
+    usage|help)
+        pound_usage
+        exit $OCF_SUCCESS
+        ;;
+    *)
+        pound_usage
+        exit $OCF_ERR_UNIMPLEMENTED
+        ;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
+

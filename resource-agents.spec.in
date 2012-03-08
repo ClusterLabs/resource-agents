@@ -254,8 +254,14 @@ rm -rf %{buildroot}
 
 %{_libdir}/heartbeat
 
-%if %{with rgmanager}
 %post -n resource-agents
+if [ $1 = 2 ]; then
+ if [ -d %{_var}/run/heartbeat/rsctmp ]; then
+  cp -fpr %{_var}/run/heartbeat/rsctmp/* %{_var}/run/resource-agents/ 1>/dev/null 2>&1
+  rm -fr %{_var}/run/heartbeat/rsctmp
+ fi
+fi
+%if %{with rgmanager}
 ccs_update_schema > /dev/null 2>&1 ||:
 %endif
 
@@ -291,14 +297,6 @@ ccs_update_schema > /dev/null 2>&1 ||:
 /usr/lib/ocf/resource.d/heartbeat/ldirectord
 %endif
 %endif
-
-%post
-if [ $1 = 2 ]; then
-if [ -d %{_var}/run/heartbeat/rsctmp ]; then
-cp -fpr %{_var}/run/heartbeat/rsctmp/* %{_var}/run/resource-agents/
-rm -fr %{_var}/run/heartbeat/rsctmp
-fi
-fi
 
 %changelog
 * @date@ Autotools generated version <nobody@nowhere.org> - @version@-@specver@-@numcomm@.@alphatag@.@dirty@

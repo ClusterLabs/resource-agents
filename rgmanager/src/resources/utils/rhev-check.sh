@@ -35,7 +35,7 @@ while [ $tries -gt 0 ]; do
 	# of time.
 	end_time=$(date +%s)
 	delta=$(((end_time - start_time)))
-	sleep_time=$(((5 - delta)))
+	sleep_time=$(((90 - delta)))
 
 	((tries-=1))
 

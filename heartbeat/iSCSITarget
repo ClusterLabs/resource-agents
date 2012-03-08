@@ -71,7 +71,8 @@ or "lio".  If unspecified, an implementation is selected based on the
 availability of management utilities, with "iet" being tried first,
 then "tgt", then "lio".
 </longdesc>
-<shortdesc lang="en">Manages an iSCSI target export</shortdesc>
+<shortdesc lang="en">Specifies the iSCSI target implementation
+("iet", "tgt" or "lio").</shortdesc>
 <content type="string" default="${OCF_RESKEY_implementation_default}"/>
 </parameter>
 
@@ -149,7 +150,7 @@ dependent. Neither the name nor the value may contain whitespace.
 <actions>
 <action name="start"        timeout="10" />
 <action name="stop"         timeout="10" />
-<action name="status "      timeout="10" interval="10" depth="0" />
+<action name="status"       timeout="10" interval="10" depth="0" />
 <action name="monitor"      timeout="10" interval="10" depth="0" />
 <action name="meta-data"    timeout="5" />
 <action name="validate-all"   timeout="10" />
