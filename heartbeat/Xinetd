@@ -39,8 +39,6 @@ meta_data() {
 Resource script for Xinetd. It starts/stops services managed
 by xinetd by enabling or disabling them in the configuration file.
 
-Important notes:
-
 The xinetd daemon itself must be running: we are not going to start or
 stop it ourselves.
 
@@ -84,13 +82,13 @@ hup_inetd () {
     pid=`ps -e -o pid,command | $AWK '$2 ~ /\/[x]inetd/ { print $1 }'`
     if [ "$pid" ]; then
 	if kill -s HUP $pid; then
-            ocf_log info "Asked xinetd to reload by sending SIGHUP to PID $pid!"
+            ocf_log info "asked xinetd to reload by sending SIGHUP to process $pid!"
 	else
-            ocf_log err "Failed to send SIGHUP to xinetd PID $pid!"
+            ocf_log err "could not send SIGHUP to process $pid!"
             exit $OCF_ERR_GENERIC
 	fi
     else
-	ocf_log err "PID of xinetd not found!"
+	ocf_log err "xinetd process not found!"
 	exit $OCF_ERR_GENERIC
     fi
 }
@@ -98,7 +96,7 @@ hup_inetd () {
 # check "disable = X", printing X
 check_service()
 {
-    ocf_log "info" "$0: checking \"disable\" in $1"
+    ocf_log "info" "checking \"disable\" in $1"
     typeset result=$(sed -nre 's/^[ 	]*disable[ 	]*=[ 	]*([^ 	]+)[# 	]*/\1/p' $1)
     echo "$result"
 }
@@ -106,10 +104,10 @@ check_service()
 # change "disable = X" to desired value
 change_service()
 {
-    ocf_log "info" "$0: setting \"disable = $1\" in $2"
+    ocf_log "info" "setting \"disable = $1\" in $2"
     if ! sed -i -re 's/^([ 	]*disable[ 	]*=[ 	]*)([^ 	]+)([# 	]*)/\1'"$1"'\3/' $2
     then
-	ocf_log "err" "Failed to change $2"
+	ocf_log "err" "could not edit $2"
 	return 1
     fi
     return 0
@@ -131,10 +129,10 @@ xup_status () {
 
 xup_start () {
     if [ "running" = "`xup_status`" ]; then
-	ocf_log info "Service $service already started"
+	ocf_log info "service $service already started"
 	exit $OCF_SUCCESS
     fi
-    ocf_log "info" "$0: enabling in $SVCDEF"
+    ocf_log "info" "enabling in $SVCDEF"
     if change_service "no" $SVCDEF; then
         hup_inetd 
     fi
@@ -142,10 +140,10 @@ xup_start () {
 
 xup_stop () {
     if [ "stopped" = "`xup_status`" ]; then
-	ocf_log info "Service $service already stopped"
+	ocf_log info "service $service already stopped"
 	exit $OCF_SUCCESS
     fi
-    ocf_log "info" "$0: disabling in $SVCDEF"
+    ocf_log "info" "disabling in $SVCDEF"
     if change_service "yes" $SVCDEF; then
         hup_inetd 
     fi
@@ -158,7 +156,7 @@ xup_usage () {
 
 xup_validate_all () {
     if [ ! -f "$SVCDEF" ]; then
-        ocf_log err "$0: service $service missing $SVCDEF"
+        ocf_log err "service $service missing $SVCDEF"
 	return $OCF_ERR_INSTALLED
     fi
     return $OCF_SUCCESS
@@ -182,7 +180,7 @@ case "$1" in
 esac
 
 if [ -z "$OCF_RESKEY_service" ]; then
-    ocf_log err "Please define \"service\" parameter"
+    ocf_log err "please define \"service\" parameter"
     if [ "$1" = "start" ]; then 
 	exit $OCF_ERR_CONFIGURED
     else
@@ -192,7 +190,7 @@ fi
 
 # Make sure the OCF_RESKEY_service is a valid xinetd service name
 if [ ! -f $SVCDEF ]; then
-    ocf_log err "Service definition $SVCDEF not found!"
+    ocf_log err "service definition $SVCDEF not found!"
     if [ "$1" = "start" ]; then 
 	exit $OCF_ERR_INSTALLED
     else
