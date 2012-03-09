@@ -184,7 +184,7 @@ esac
 if [ -z "$OCF_RESKEY_service" ]; then
     ocf_log err "Please define \"service\" parameter"
     if [ "$1" = "start" ]; then 
-	exit $OCF_ERR_ARGS
+	exit $OCF_ERR_CONFIGURED
     else
 	exit $OCF_NOT_RUNNING
     fi
@@ -194,7 +194,7 @@ fi
 if [ ! -f $SVCDEF ]; then
     ocf_log err "Service definition $SVCDEF not found!"
     if [ "$1" = "start" ]; then 
-	exit $OCF_ERR_ARGS
+	exit $OCF_ERR_INSTALLED
     else
 	exit $OCF_NOT_RUNNING
     fi
