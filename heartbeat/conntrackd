@@ -179,7 +179,7 @@ conntrackd_stop() {
                 conntrackd_monitor
                 status=$?
                 case "$status" in
-                $OCF_SUCCESS)
+                $OCF_SUCCESS|$OCF_ERR_GENERIC)
 			ocf_log info "Stopping conntrackd"
                         $OCF_RESKEY_binary -C $OCF_RESKEY_config -k
                         ;;

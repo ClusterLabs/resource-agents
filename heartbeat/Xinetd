@@ -3,8 +3,9 @@
 # Startup/shutdown script for services managed by xinetd.
 #
 #	Copyright (C) 2003 Charlie Brooks
+#	Copyright (C) 2011 Ulrich Windl
 #
-# WARNING:	Tested ONLY on Red Hat 7.3 and Fedora Core 2/4 at this time.
+# WARNING:	Tested ONLY on SLES11 SP1 at this time.
 #
 # Author:	Charlie Brooks <ha@HBCS.Org>
 # Description:	given parameters of a service name and start|stop|status,
@@ -22,6 +23,9 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+service=$OCF_RESKEY_service
+SVCDEF=/etc/xinetd.d/$service
+
 #######################################################################
 
 meta_data() {
@@ -33,22 +37,25 @@ meta_data() {
 
 <longdesc lang="en">
 Resource script for Xinetd. It starts/stops services managed
-by xinetd.
+by xinetd by enabling or disabling them in the configuration file.
 
-Note that the xinetd daemon itself must be running: we are not
-going to start it or stop it ourselves.
+The xinetd daemon itself must be running: we are not going to start or
+stop it ourselves.
+
+All services should have a line saying either "disable=yes" or "disable=no".
+The script just changes those settings before reloading xinetd.
 
 Important: in case the services managed by the cluster are the
 only ones enabled, you should specify the -stayalive option for
 xinetd or it will exit on Heartbeat stop. Alternatively, you may
 enable some internal service such as echo.
 </longdesc>
-<shortdesc lang="en">Manages an Xinetd service</shortdesc>
+<shortdesc lang="en">Manages a service of Xinetd</shortdesc>
 
 <parameters>
 <parameter name="service" unique="0" required="1">
 <longdesc lang="en">
-The service name managed by xinetd. 
+The name of the service managed by xinetd. 
 </longdesc>
 <shortdesc lang="en">service name</shortdesc>
 <content type="string" default="" />
@@ -68,402 +75,124 @@ The service name managed by xinetd.
 END
 }
 
-# don't rely on the pid file, but lookup xinetd in the list of
-# processes
-
+# force xinetd to reload the service descriptions
 hup_inetd () {
-    pid=`ps -e -o pid,command | grep '/[x]inetd' | awk '{print $1}'`
+    # don't rely on the pid file, but lookup xinetd in the list of
+    # processes
+    pid=`ps -e -o pid,command | $AWK '$2 ~ /\/[x]inetd/ { print $1 }'`
     if [ "$pid" ]; then
-      if kill -s HUP $pid; then
-          :
-      else
-          ocf_log err "Could not SigHUP xinetd superdaemon!"
-          ocf_log err "perhaps we are booting after a system crash"
-          exit $OCF_ERR_GENERIC
-      fi
+	if kill -s HUP $pid; then
+            ocf_log info "asked xinetd to reload by sending SIGHUP to process $pid!"
+	else
+            ocf_log err "could not send SIGHUP to process $pid!"
+            exit $OCF_ERR_GENERIC
+	fi
     else
-       ocf_log err "xinetd superdaemon process not found!"
-       ocf_log err "perhaps we are currently booting the system."
-       exit $OCF_ERR_GENERIC
+	ocf_log err "xinetd process not found!"
+	exit $OCF_ERR_GENERIC
+    fi
+}
+
+# check "disable = X", printing X
+check_service()
+{
+    ocf_log "info" "checking \"disable\" in $1"
+    typeset result=$(sed -nre 's/^[ 	]*disable[ 	]*=[ 	]*([^ 	]+)[# 	]*/\1/p' $1)
+    echo "$result"
+}
+
+# change "disable = X" to desired value
+change_service()
+{
+    ocf_log "info" "setting \"disable = $1\" in $2"
+    if ! sed -i -re 's/^([ 	]*disable[ 	]*=[ 	]*)([^ 	]+)([# 	]*)/\1'"$1"'\3/' $2
+    then
+	ocf_log "err" "could not edit $2"
+	return 1
+    fi
+    return 0
+}
+
+xup_status () {
+    typeset disabled="$(check_service $SVCDEF)"
+    if [ "${disabled:=no}" = no ]; then
+	echo running
+	return $OCF_SUCCESS
+    elif [ "$disabled" = yes ]; then
+	echo stopped
+	return $OCF_NOT_RUNNING
+    else
+	echo unknown
+	return $OCF_ERR_CONFIGURED
     fi
 }
 
 xup_start () {
-  if [ "running" = "`xup_status`" ]; then
-    ocf_log info "Service $service already started"
-    exit $OCF_SUCCESS
-  fi
-
-  ocf_log "info" "$0: enabling in $RCFILE"
-  if $AWK '!/disable/' $RCFILE > $RCFILE.xup
-    then
-      if mv $RCFILE.xup $RCFILE
-        then
-          ocf_log "info" "$0: Starting"
-          hup_inetd
-          touch $PIDFILE
-        else
-          ocf_log "err" "Could not replace $RCFILE"
-      fi
-    else
-      ocf_log "err" "Could not rewrite $RCFILE!"
-  fi
+    if [ "running" = "`xup_status`" ]; then
+	ocf_log info "service $service already started"
+	exit $OCF_SUCCESS
+    fi
+    ocf_log "info" "enabling in $SVCDEF"
+    if change_service "no" $SVCDEF; then
+        hup_inetd 
+    fi
 }
 
 xup_stop () {
-  if [ "stopped" = "`xup_status`" ]; then
-    ocf_log info "Service $service already stopped"
-    exit $OCF_SUCCESS
-  fi
-
-  ocf_log "info" "$0: disabling in $RCFILE"
-  if $AWK '!/disable/;/{/{printf "\tdisable\t\t\t= yes\n"}' $RCFILE >$RCFILE.xup
-    then
-      if mv $RCFILE.xup $RCFILE
-        then
-          ocf_log "info" "$0: Shutting down"
-          hup_inetd 
-          rm -f $PIDFILE
-        else
-          ocf_log "err" "Could not replace $RCFILE"
-      fi
-    else
-      ocf_log "err" "Could not rewrite $RCFILE!"
-  fi
+    if [ "stopped" = "`xup_status`" ]; then
+	ocf_log info "service $service already stopped"
+	exit $OCF_SUCCESS
+    fi
+    ocf_log "info" "disabling in $SVCDEF"
+    if change_service "yes" $SVCDEF; then
+        hup_inetd 
+    fi
 }
 
 xup_usage () {
-        echo "Usage: $0 {start|stop|restart|status|monitor|validate-all|meta-data}"
-	return 0
-}
-
-xup_status () {
-  	if [ -f $PIDFILE ]; then
-		echo running
-		return $OCF_SUCCESS
-	else
-		echo stopped
-		return $OCF_NOT_RUNNING
-	fi
-}
-
-#
-#	Check if the arg is a valid integer
-#
-CheckInteger() {
-#	Examples of valid integer: "1080", "1", "0080", "0", "0000"
-#	Examples of invalid integer: "1080bad", ""
-  case "$1" in
-    "") #empty string 
-	false;;
-    *[!0-9]*) #got invalid char
-	false;;
-    *) #no invalid char, and has at least one digit, so is a good integer
-	true;;
-  esac
-}
-
-#
-#	Check if the arg is a valid umask
-#
-CheckUmask() {
-#	Examples of valid umask: "100", "1", "000", "0"
-#	Examples of invalid umask: "108", "bad", "1111" ""
-  case "$1" in
-    [0-7])
-	true;;
-    [0-7][0-7])
-	true;;
-    [0-7][0-7][0-7])
-	true;;
-    *)
-	false;;
-  esac
-}
-
-# Check (part of) the attributes based on xinetd.conf(5) and xinetd source code
-#	confparse.c
-#	parsers.c
-#	attr.h
-check_attributes () {
-  # Empty these attributes before validating them 
-  unset socket_type wait server user protocol port group instances type \
-	flags disable nice umask
-  VAR=""
-  for SECTION in $*; do
-    case $SECTION in
-      *=*) # Check to see if we need to export the previous name=value
-           # pair.
-           if [ -n "$VAR" ]; then
-             export "$VAR"
-           fi
-           # Save the "new" name=value pair in VAR
-           VAR=$SECTION
-           ;;
-      *)   # This section does not have an equal sign, therefore it is part of
-           # the *previous* name=value pair, thus we will append it to the
-           # previous name=value assignment.
-           VAR="$VAR $SECTION"
-           ;;
-    esac
-    # A final cleanup step.
-    # Do we need to export VAR ?
-    if [ -n "$VAR" ]; then
-      export "$VAR"
-    fi  
-  done
-  if [ $? -ne 0 ]; then
-	return $OCF_ERR_GENERIC
-  fi
-
-  case $disable in
-	"")	disable=no # Default to no.
-		;;
-	yes|no)	;;
-	*)	ocf_log err "Invalid value for disable [$disable] in $RCFILE, yes|no please"
-		exit $OCF_ERR_CONFIGURED
-		;;
-  esac
-
-  case $socket_type in
-	"") 	socket_type=dgram
-		# Default value for socket_type is dgram.
-		;;
-	stream|dgram|raw|seqpacket)
-		;;
-	*)	ocf_log err "Invalid socket type $socket_type in $RCFILE"
-		exit $OCF_ERR_CONFIGURED
-		;;
-  esac
-
-  case $wait in # Wait has no default value.
-	yes|no)	;;
-	*)	ocf_log err "Invalid waid [$wait] in $RCFILE, yes|no please"
-		exit $OCF_ERR_CONFIGURED
-	    	;;
-  esac
-
-  case $type in
-  # Default value for type is RPC or INTERNAL, determined at compile time.
-  # It may be a list in $RCFILE, however we only capture the first one.
-	""|RPC|INTERNAL|UNLISTED|SPECIAL|TCPMUX|TCPMUXPLUS)
-		;;
-	*)	ocf_log err "Invalid service type [$type] in $RCFILE"
-		exit $OCF_ERR_CONFIGURED
-		;;
-  esac
-
-  if [ ! -z "$type" -a "INTERNAL" != "$type" ]; then
-  # Type is explicitly set to EXTERNAL, hence server and user are necessary.
-	case $server in
-	    "")	ocf_log err "Please specify server in $RCFILE"
-		exit $OCF_ERR_CONFIGURED
-		;;
-	    /*)	if [ -x $server ]; then
-			: OK
-	 	else
-			ocf_log err "Server $server is not executable"
-			exit $OCF_ERR_CONFIGURED
-		fi
-		;;
-	    *)	ocf_log err "Server $server is not of obsolute path"
-		exit $OCF_ERR_CONFIGURED
-		;;
-	esac 
-
-	case $user in
-	    "")	ocf_log err "Please specify user in $RCFILE"
-		exit $OCF_ERR_CONFIGURED
-		;;
-	    *)	getent passwd $user >/dev/null 2>&1
-		if [ $? -ne 0 ]; then
-			ocf_log err "User $user does not exist!"
-			exit $OCF_ERR_CONFIGURED
-		fi
-		;;
-	esac
-
-	# Protocol is necessary when type is MUX
-	if [ $type = "TCPMUX" -o $type ="TCPMUXPLUS" ]; then
-	    case $protocol in
-		"")	ocf_log err "Please specify protocol in $RCFILE"
-			exit $OCF_ERR_CONFIGURED
-			;;
-		*)	get protocols $protocol >/dev/null 2>&1
-			if [ $? -ne 0 ]; then
-			    ocf_log err "Invalid protocol [$protocol] in $RCFILE"
-			    exit $OCF_ERR_CONFIGURED
-			fi
-			;;
-  	    esac
-	fi
-  fi
-
-  case $group in
-	"")	;; # OK to be empty, the group for $user is used
-	 *)	getent group $group >/dev/null 2>&1
-	if [ $? -ne 0 ]; then
-		ocf_log err "Group $group does not exist!"
-		exit $OCF_ERR_CONFIGURED
-	fi
-	;;
-  esac
-
-  case $flags in
-  # Default value for flags is REUSE.
-  # It may be a list in $RCFILE, however we only capture the first one.
-	"")	flags=RESUME
-		;;
-	REUSE|INTERCEPT|NORETRY|IDONLY|NAMEINARGS|NODELAY|KEEPALIVE|NOLIBWRAP|SENSOR|IPv4|IPv6)	;;
-	*)	ocf_log err "Invalid flags [$flags] in $RCFILE"
-		exit $OCF_ERR_CONFIGURED
-		;;
-  esac
-
-  case $instances in
-	""|[Uu][Nn][Ll][Ii][Mm][Ii][Ti][Ee][Dd])	;;
-	*)	if CheckInteger $instances; then
-		    : OK
-		else
-		    ocf_log err "Invalid instances [$instances] in $RCFILE, non-negative integer expected"
-		    exit $OCF_ERR_CONFIGURED
-		fi
-		;;
-  esac
-
-  case $nice in
-	"")	;;
-	*)	local foo=`echo $nice | sed s/^-//`
-		if CheckInteger $foo; then
-		    : OK
-		else
-		    ocf_log err "Invalid nice [$nice] in $RCFILE, integer expected"
-		    exit $OCF_ERR_CONFIGURED
-		fi
-		;;
-  esac
-
-  if [ ! -z $umask ]; then
-	if CheckUmask $umask; then
-	    : OK
-	else
-	    ocf_log err "Invalid umask [$umask] in $RCFILE"
-	    exit $OCF_ERR_CONFIGURED
-	fi
-  fi
+    echo "Usage: $0 {start|stop|restart|status|monitor|validate-all|meta-data}"
+    return 0
 }
 
 xup_validate_all () {
-  check_binary $AWK
-
-# Parse the $RCFILE for necessary attributes, assume $RCFILE does not
-# contain "include" or "includedir" directives.
-  space="[ \t]*"
-  leading_space="^$space"
-  trailing_space="$space$"
-  comment="$space\#"
-
-  # Strip comments, delete blank lines.
-  stripped=`sed -e "/^$comment/d" -e "/=$trailing_space/d" -e "/$leading_space$/d" $RCFILE`
- 
-  stripped=`echo $stripped`
-  # At this stage, stripped="service <service-name> { attribute-list }".
-  case $stripped in
-	*#*)
-	ocf_log err "Descriptor file $RCFILE contains extra \"#\", which is forbidden"
-	exit $OCF_ERR_CONFIGURED
-	;;
-
-	service*)
-	case $stripped in
-	    *[!\	\ +-]=*)
-		ocf_log err "Attribute needs a space before operator ="
-		exit $OCF_ERR_CONFIGURED
-		;;
-	    *[!\	\ ][+-]=*)
-		ocf_log err "Attribute needs a space before operator [+-]="
-		exit $OCF_ERR_CONFIGURED
-		;;
-	    *)	;;
-	esac
-
-	# Strip leading "service" keyword, remove spaces surrounding "=".
-	stripped=`echo $stripped | sed -e "s/^service//" -e "s/-=/ /g" \
-			-e "s/+=/=/g" -e "s/$space=$space/=/g"`
-	# At this stage, stripped=" <service-name> { attribute-list }",
-	# note that the leading space before <service-name> is significant.
-	case $stripped in
-	    " "*)
-	    stripped=`echo $stripped | sed -e "s/$leading_space[^ \t]\+$space//"`
-	    # At this stage, stripped="{ attribute-list }"
-	    case $stripped in
-		{*})
-		stripped=`echo $stripped | sed -e "s/^{//" -e "s/}$//"`
-		# At this stage, stripped=<attribute-list>
-#  		    echo $stripped
-		check_attributes "$stripped"
-		;;
-
-		*)
-		ocf_log err "Attrbute list should be contained in {}"
-		exit $OCF_ERR_CONFIGURED
-		;;
-	    esac
-	    ;;
-
-	    *)
-	    ocf_log err "Service name should follow the service key word"
-	    exit $OCF_ERR_CONFIGURED
-	    ;;
-	esac
-	;;
-
-	*)
-	ocf_log err "Service key word is necessary in $RCFILE"
-	exit $OCF_ERR_CONFIGURED
-	;;
-  esac
+    if [ ! -f "$SVCDEF" ]; then
+        ocf_log err "service $service missing $SVCDEF"
+	return $OCF_ERR_INSTALLED
+    fi
+    return $OCF_SUCCESS
 }
-if
-  ( [ $# -ne 1 ] )
-then
-  xup_usage
-  exit $OCF_ERR_ARGS
+
+if [ $# -ne 1 ]; then
+    xup_usage
+    exit $OCF_ERR_ARGS
 fi
 
 # These operations do not require OCF instance parameters to be set
 case "$1" in
-  meta-data)
+    meta-data)
 	meta_data
 	exit $OCF_SUCCESS
 	;;
-  usage)
+    usage)
 	xup_usage
 	exit $OCF_SUCCESS
 	;;
-  *)	;;
 esac
 
-if 
-  [ -z "$OCF_RESKEY_service" ]
-then
-  ocf_log err "Please set OCF_RESKEY_service to the service managed by Xinetd"
-  if [ "$1" = "start" ]; then 
-      exit $OCF_ERR_ARGS
-  else
-      exit $OCF_NOT_RUNNING
-  fi
+if [ -z "$OCF_RESKEY_service" ]; then
+    ocf_log err "please define \"service\" parameter"
+    if [ "$1" = "start" ]; then 
+	exit $OCF_ERR_CONFIGURED
+    else
+	exit $OCF_NOT_RUNNING
+    fi
 fi
 
-service=$OCF_RESKEY_service
-RCFILE=/etc/xinetd.d/$service
-PIDFILE=$HA_VARRUN/xup$service
-
 # Make sure the OCF_RESKEY_service is a valid xinetd service name
-if [ ! -f $RCFILE ]; then
-    ocf_log err "Service descriptor $RCFILE not found!"
+if [ ! -f $SVCDEF ]; then
+    ocf_log err "service definition $SVCDEF not found!"
     if [ "$1" = "start" ]; then 
-	exit $OCF_ERR_ARGS
+	exit $OCF_ERR_INSTALLED
     else
 	exit $OCF_NOT_RUNNING
     fi
@@ -471,28 +200,27 @@ fi
 
 # See how we were called.
 case "$1" in
-  start)
+    start)
 	xup_start
 	;;
-  stop)
+    stop)
 	xup_stop
 	;;
-  restart)
+    restart)
 	$0 stop
 	$0 start
 	;;
-  status)
+    status)
 	xup_status
 	;;
-  monitor)
+    monitor)
 	xup_status > /dev/null
 	;;
-  validate-all)
+    validate-all)
 	xup_validate_all
 	;;
-  *)
+    *)
 	xup_usage
 	exit $OCF_ERR_UNIMPLEMENTED
 esac
-
 exit $?

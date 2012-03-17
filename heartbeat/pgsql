@@ -231,7 +231,7 @@ Unix socket directory for PostgeSQL
 Number of shutdown retries (using -m fast) before resorting to -m immediate
 </longdesc>
 <shortdesc lang="en">stop escalation</shortdesc>
-<content type="integer" default="${OCF_RESKEY_stop_escalation}" />
+<content type="integer" default="${OCF_RESKEY_stop_escalate_default}" />
 </parameter>
 </parameters>
 

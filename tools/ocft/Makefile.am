@@ -38,6 +38,7 @@ ocftcfgs_DATA      =  apache  	\
 		       	 iscsi	\
 		       	 named	\
 		       	 postfix	\
+		       	 Xinetd	\
 			 SendArp
 
 ocftdir			= $(datadir)/$(PACKAGE_NAME)/ocft

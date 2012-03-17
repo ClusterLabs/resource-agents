@@ -165,7 +165,10 @@ restore_rmtab() {
     if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
 	rmtab_backup="${OCF_RESKEY_directory}/${OCF_RESKEY_rmtab_backup}"
 	if [ -r ${rmtab_backup} ]; then
-	    cat  ${rmtab_backup} >> /var/lib/nfs/rmtab
+	    local tmpf=`mktemp`
+	    sort -u ${rmtab_backup} /var/lib/nfs/rmtab > $tmpf &&
+		install -o root -m 644 $tmpf /var/lib/nfs/rmtab
+	    rm -f $tmpf
 	    ocf_log debug "Restored `wc -l ${rmtab_backup}` rmtab entries from ${rmtab_backup}."
 	else
 	    ocf_log warn "rmtab backup ${rmtab_backup} not found or not readable."
