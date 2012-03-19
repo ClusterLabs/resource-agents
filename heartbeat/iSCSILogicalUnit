@@ -323,7 +323,7 @@ iSCSILogicalUnit_monitor() {
 
 iSCSILogicalUnit_validate() {
     # Do we have all required variables?
-    for var in implementation target_iqn lun path; do
+    for var in target_iqn lun path; do
 	param="OCF_RESKEY_${var}"
 	if [ -z "${!param}" ]; then
 	    ocf_log error "Missing resource parameter \"$var\"!"

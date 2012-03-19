@@ -456,10 +456,10 @@ iSCSITarget_validate() {
     local required_vars
     case $OCF_RESKEY_implementation in
 	iet)
-	    required_vars="implementation iqn"
+	    required_vars="iqn"
 	    ;;
 	tgt)
-	    required_vars="implementation iqn tid"
+	    required_vars="iqn tid"
 	    ;;
     esac
     for var in ${required_vars}; do
