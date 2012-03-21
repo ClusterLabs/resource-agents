@@ -959,6 +959,33 @@ Filesystem_validate_all()
 	return $OCF_SUCCESS
 }
 
+#
+# set the blockdevice variable to "no" or "yes"
+#
+set_blockdevice_var() {
+	blockdevice=no
+
+	# these are definitely not block devices
+	case $FSTYPE in
+	nfs|smbfs|cifs|none|glusterfs) return;;
+	esac
+
+	case $DEVICE in
+	-*) # Oh... An option to mount instead...  Typically -U or -L
+		;;
+	/dev/null)	# Special case for BSC
+		blockdevice=yes
+		;;
+	*)	if [ ! -b "$DEVICE"  -a ! -d "$DEVICE" -a "X$OP" != Xstart ] ; then
+			ocf_log warn "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
+		fi
+		if [ ! -d "$DEVICE" ]; then
+			blockdevice=yes
+		fi
+		;;
+	esac
+}
+
 # Check the arguments passed to this script
 if [ $# -ne 1 ]; then
 	usage
@@ -985,33 +1012,12 @@ usage)		usage
 		;;
 esac
 
-blockdevice=no
-case $DEVICE in
-"")	ocf_log err "Please set OCF_RESKEY_device to the device to be managed"
+if [ x = x"$DEVICE" ]; then
+	ocf_log err "Please set OCF_RESKEY_device to the device to be managed"
 	exit $OCF_ERR_CONFIGURED
-	;;
--*) # Oh... An option to mount instead...  Typically -U or -L
-	;;
-[!/]*:/*)	# An NFS filesystem specification...
-	;;
-//[!/]*/*)	# An SMB filesystem specification...
-	;;
-*:*)	# An GlusterFS filesystem specification...
-	;;
-none)
-	;;
-/dev/null)	# Special case for BSC
-	blockdevice=yes
-	;;
-*)	if [ ! -b "$DEVICE"  -a ! -d "$DEVICE" -a "X$OP" != Xstart ] ; then
-		ocf_log warn "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
-	fi
-	if [ ! -d "$DEVICE" ];then
-		blockdevice=yes
-	fi
-	;;
-esac
+fi
 
+set_blockdevice_var
 
 # Normalize instance parameters:
 
