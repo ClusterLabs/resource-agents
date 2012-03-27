@@ -15,17 +15,71 @@
 
 
 #
-# check_saphostexec : Before using saphostctrl we make sure that the saphostexec is running on the current node.
+# background_check_saphostexec : Run a request to saphostexec in a separat task, to be able to react on a hanging process
+#
+background_check_saphostexec() {
+  timeout=600
+  count=0
+
+  $SAPHOSTCTRL -function ListDatabases >/dev/null 2>&1 &
+  pid=$!
+
+  while kill -0 $pid > /dev/null 2>&1
+  do
+    sleep 0.1
+    count=$(( $count + 1 ))
+    if [ $count -ge $timeout ]; then
+      kill -9 $pid >/dev/null 2>&1
+      ocf_log warn "saphostexec did not respond to the method 'ListDatabases' within 60 seconds"
+      return $OCF_ERR_GENERIC                # Timeout
+    fi
+  done
+
+  # child already has finished, now evaluate it's returncode 
+  wait $pid
+}
+
+#
+# cleanup_saphostexec : make sure to cleanup the SAPHostAgent in case of any
+#                       misbehavior
+#
+cleanup_saphostexec() {
+  pkill -9 -f "$SAPHOSTEXEC"
+  pkill -9 -f "$SAPHOSTSRV"
+  oscolpid=`pgrep -f "$SAPHOSTOSCOL"`       # we check saposcol pid, because it
+                                            # might not run under control of
+					    # saphostexec
+
+  # cleanup saposcol shared memory, otherwise it will not start again
+  if [ -n "$oscolpid" ];then
+    kill -9 $oscolpid
+    oscolipc=`ipcs -m | grep "4dbe " | awk '{print $2}'`
+    if [ -n "$oscolipc" ]; then
+      ipcrm -m $oscolipc
+    fi
+  fi
+}
+
+#
+# check_saphostexec : Before using saphostctrl we make sure that the
+#                     saphostexec is running on the current node.
 #
 check_saphostexec() {
-  restart=0
-  runninginst=""
   chkrc=$OCF_SUCCESS
+  running=`pgrep -f "$SAPHOSTEXEC" | wc -l`
 
-  output=`$SAPHOSTEXEC -status 2>&1`
-  if [ $? -ne 0 ]
-  then
+  if [ $running -gt 0 ]; then
+    if background_check_saphostexec; then
+      return $OCF_SUCCESS
+    else
+      ocf_log warn "saphostexec did not respond to the method 'ListDatabases' correctly (rc=$?), it will be killed now"
+      running=0
+    fi
+  fi
+
+  if [ $running -eq 0 ]; then
     ocf_log warn "saphostexec is not running on node `hostname`, it will be started now"
+    cleanup_saphostexec
     output=`$SAPHOSTEXEC -restart 2>&1`
     
     # now make sure the daemon has been started and is able to respond
@@ -33,7 +87,7 @@ check_saphostexec() {
     while [ $srvrc -ne 0 -a `pgrep -f "$SAPHOSTEXEC" | wc -l` -gt 0 ]
     do
       sleep 1
-      output=`$SAPHOSTEXEC -status 2>&1`
+      background_check_saphostexec
       srvrc=$?
     done
 
