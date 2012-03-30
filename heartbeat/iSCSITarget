@@ -456,10 +456,10 @@ iSCSITarget_validate() {
     local required_vars
     case $OCF_RESKEY_implementation in
 	iet)
-	    required_vars="implementation iqn"
+	    required_vars="iqn"
 	    ;;
 	tgt)
-	    required_vars="implementation iqn tid"
+	    required_vars="iqn tid"
 	    ;;
     esac
     for var in ${required_vars}; do
@@ -471,12 +471,21 @@ iSCSITarget_validate() {
     done
 
     # Is the configured implementation supported?
-    case $OCF_RESKEY_implementation in
-	iet|tgt|lio)
+    case "$OCF_RESKEY_implementation" in
+	"iet"|"tgt"|"lio")
+	    ;;
+	"")
+	    # The user didn't specify an implementation, and we were
+	    # unable to determine one from installed binaries (in
+	    # other words: no binaries for any supported
+	    # implementation could be found)
+	    ocf_log error "Undefined iSCSI target implementation"
+	    exit $OCF_ERR_INSTALLED
 	    ;;
 	*)
 	    ocf_log error "Unsupported iSCSI target implementation \"$OCF_RESKEY_implementation\"!"
 	    exit $OCF_ERR_CONFIGURED
+	    ;;
     esac
 
     # Do we have any configuration parameters that the current

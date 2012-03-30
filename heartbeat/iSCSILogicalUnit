@@ -323,7 +323,7 @@ iSCSILogicalUnit_monitor() {
 
 iSCSILogicalUnit_validate() {
     # Do we have all required variables?
-    for var in implementation target_iqn lun path; do
+    for var in target_iqn lun path; do
 	param="OCF_RESKEY_${var}"
 	if [ -z "${!param}" ]; then
 	    ocf_log error "Missing resource parameter \"$var\"!"
@@ -332,12 +332,21 @@ iSCSILogicalUnit_validate() {
     done
 
     # Is the configured implementation supported?
-    case $OCF_RESKEY_implementation in
-	iet|tgt|lio)
+    case "$OCF_RESKEY_implementation" in
+	"iet"|"tgt"|"lio")
+	    ;;
+	"")
+	    # The user didn't specify an implementation, and we were
+	    # unable to determine one from installed binaries (in
+	    # other words: no binaries for any supported
+	    # implementation could be found)
+	    ocf_log error "Undefined iSCSI target implementation"
+	    exit $OCF_ERR_INSTALLED
 	    ;;
 	*)
 	    ocf_log error "Unsupported iSCSI target implementation \"$OCF_RESKEY_implementation\"!"
 	    exit $OCF_ERR_CONFIGURED
+	    ;;
     esac
 
     # Do we have a valid LUN?
