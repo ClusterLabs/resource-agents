@@ -125,7 +125,7 @@ EOF
 #	Return LVM status (silently)
 #
 LVM_status() {
-  local rc
+  local rc=1
   loglevel="debug"
 
   # Set the log level of the error message
@@ -140,22 +140,18 @@ LVM_status() {
 	fi
   fi
   
-  if 
-    [ "$LVM_MAJOR" -eq "1" ]
-  then
-	VGOUT=`vgdisplay $1 2>&1`
-	echo "$VGOUT" | grep -i 'Status.*available' >/dev/null
+  if [ -d /dev/$1 ]; then
+	test "`cd /dev/$1 && ls`" != ""
 	rc=$?
-  else
-	VGOUT=`vgdisplay -v $1 2>&1`
-	echo "$VGOUT" | grep -i 'Status[ \t]*available' >/dev/null
-	rc=$?
+	if [ $rc -ne 0 ]; then
+    	ocf_log err "VG $1 with no logical volumes is not supported by this RA!"
+	fi
   fi
 
   if [ $rc -ne 0 ]; then
-    	ocf_log $loglevel "LVM Volume $1 is not available (stopped). ${VGOUT}"
+    	ocf_log $loglevel "LVM Volume $1 is not available (stopped)"
   fi
-  
+
   if [ "X${2}" = "X" ]; then
 	# status call return
   	return $rc
@@ -163,17 +159,11 @@ LVM_status() {
 
   # Report on LVM volume status to stdout...
   if [ $rc -eq 0 ]; then
-    if
-    	echo "$VGOUT" | grep -i 'Access.*read/write' >/dev/null
-    then
-    	ocf_log debug "Volume $1 is available read/write (running)"
-    else
-    	ocf_log debug "Volume $1 is available read-only (running)"
-    fi
+	echo "Volume $1 is available (running)"
+  else
+	echo "Volume $1 is not available (stopped)"
   fi
- 
-  return $OCF_SUCCESS
-
+  return $rc
 }
 
 #
