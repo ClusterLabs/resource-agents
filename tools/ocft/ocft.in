@@ -391,17 +391,13 @@ elif [ \$__OCFT__rc -eq \$OCF_NOT_RUNNING ]; then
   agent_run $(add_quotes 1 "$cfg_agent") start $cfg_hang_timeout
   check_success \$? $(add_quotes 1 "./$cfg_agent ${branch[0]}")
 else
-  check_success \$__OCFT__rc $(add_quotes 1 "./$cfg_agent status|monitor")
+  check_success \$__OCFT__rc $(add_quotes 1 "./$cfg_agent monitor")
 fi
 EOF
                 elif [ "${branch[0]}" = "stop" ]; then
                   cat >>$sh <<EOF
-agent_run $(add_quotes 1 "$cfg_agent") status $cfg_hang_timeout
+agent_run $(add_quotes 1 "$cfg_agent") monitor $cfg_hang_timeout
 __OCFT__rc=\$?
-if [ \$__OCFT__rc -eq \$OCF_ERR_UNIMPLEMENTED ]; then
-  agent_run $(add_quotes 1 "$cfg_agent") monitor $cfg_hang_timeout
-  __OCFT__rc=\$?
-fi
 
 if [ \$__OCFT__rc -eq \$OCF_NOT_RUNNING ]; then
   : #The status I want, so I can do nothing.
@@ -412,10 +408,10 @@ elif [ \$__OCFT__rc -eq \$OCF_SUCCESS -o \$__OCFT__rc -eq \$OCF_RUNNING_MASTER ]
   agent_run $(add_quotes 1 "$cfg_agent") stop $cfg_hang_timeout
   check_success \$? $(add_quotes 1 "./$cfg_agent ${branch[0]}")
 else
-  check_success \$__OCFT__rc $(add_quotes 1 "./$cfg_agent status|monitor")
+  check_success \$__OCFT__rc $(add_quotes 1 "./$cfg_agent monitor")
 fi
 EOF
-                elif [ "${branch[0]}" = "status" -o "${branch[0]}" = "monitor" ]; then
+                elif [ "${branch[0]}" = "monitor" ]; then
                   cat >>$sh <<EOF
 if [ -n "\$__OCFT__VERBOSE" ]; then
   echo $(add_quotes 2 "    \${__OCFT__showhost}Running agent:                ./$cfg_agent ${branch[0]}")
