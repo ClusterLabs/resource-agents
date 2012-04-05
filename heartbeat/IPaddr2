@@ -105,6 +105,12 @@ This Linux-specific resource manages IP alias IP addresses.
 It can add an IP alias, or remove one.
 In addition, it can implement Cluster Alias IP functionality
 if invoked as a clone resource.
+
+If used as a clone, you should explicitly set clone-node-max &gt;= 2,
+and/or clone-max &lt; number of nodes. In case of node failure,
+clone instances need to be re-allocated on surviving nodes.
+Which would not be possible, if there is already an instance on those nodes,
+and clone-node-max=1 (which is the default).
 </longdesc>
 
 <shortdesc lang="en">Manages virtual IPv4 addresses (Linux specific version)</shortdesc>
@@ -122,23 +128,21 @@ The IPv4 address to be configured in dotted quad notation, for example
 <longdesc lang="en">
 The base network interface on which the IP address will be brought
 online. 
-
 If left empty, the script will try and determine this from the
 routing table.
 
 Do NOT specify an alias interface in the form eth0:1 or anything here;
 rather, specify the base interface only.
+If you want a label, see the iflabel parameter.
 
 Prerequisite:
 
 There must be at least one static IP address, which is not managed by
 the cluster, assigned to the network interface.
-
 If you can not assign any static IP address on the interface,
 modify this kernel parameter:
-sysctl -w net.ipv4.conf.all.promote_secondaries=1
-(or per device)
 
+sysctl -w net.ipv4.conf.all.promote_secondaries=1 # (or per device)
 </longdesc>
 <shortdesc lang="en">Network interface</shortdesc>
 <content type="string"/>
