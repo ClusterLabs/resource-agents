@@ -379,12 +379,8 @@ EOF
               if [ -z "${branch[1]}" ]; then
                 if [ "${branch[0]}" = "start" ]; then
                   cat >>$sh <<EOF
-agent_run $(add_quotes 1 "$cfg_agent") status $cfg_hang_timeout
+agent_run $(add_quotes 1 "$cfg_agent") monitor $cfg_hang_timeout
 __OCFT__rc=\$?
-if [ \$__OCFT__rc -eq \$OCF_ERR_UNIMPLEMENTED ]; then
-  agent_run $(add_quotes 1 "$cfg_agent") monitor $cfg_hang_timeout
-  __OCFT__rc=\$?
-fi
 
 if [ \$__OCFT__rc -eq \$OCF_SUCCESS -o \$__OCFT__rc -eq \$OCF_RUNNING_MASTER ]; then
   : #The status I want, so I can do nothing.
