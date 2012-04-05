@@ -171,7 +171,6 @@ LVM_status() {
 #
 #
 LVM_monitor() {
-  local rc
   if
     LVM_status $1
   then
@@ -179,13 +178,6 @@ LVM_monitor() {
   else
     ocf_log info "LVM Volume $1 is offline"
     return $OCF_NOT_RUNNING
-  fi
-
-  VGOUT=`vgck $1 2>&1`
-  rc=$?
-  if [ $rc -ne 0 ]; then
-    ocf_log err "LVM Volume $1 is not found. ${VGOUT}:${rc}"
-    return $OCF_ERR_GENERIC
   fi
 
   return $OCF_SUCCESS
