@@ -6,7 +6,7 @@
 # Authors:      Serge Dubrouski (sergeyfd@gmail.com) -- original RA
 #               Florian Haas (florian@linbit.com) -- makeover
 #
-# Copyright:    2006-2010 Serge Dubrouski <sergeyfd@gmail.com>
+# Copyright:    2006-2012 Serge Dubrouski <sergeyfd@gmail.com>
 #                         and other Linux-HA contributors
 # License:      GNU General Public License (GPL)
 #
@@ -77,9 +77,9 @@ OCF_RESKEY_monitor_sql_default="select now();"
 
 usage() {
     cat <<EOF
-	usage: $0 start|stop|status|monitor|meta-data|validate-all|methods
+        usage: $0 start|stop|status|monitor|meta-data|validate-all|methods
 
-	$0 manages a PostgreSQL Server as an HA resource.
+        $0 manages a PostgreSQL Server as an HA resource.
 
         The 'start' operation starts the PostgreSQL server.
         The 'stop' operation stops the PostgreSQL server.
@@ -92,7 +92,7 @@ EOF
 }
 
 meta_data() {
-	cat <<EOF
+    cat <<EOF
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="pgsql">
@@ -250,7 +250,7 @@ EOF
 
 
 #
-#	Run the given command in the Resource owner environment...
+#   Run the given command in the Resource owner environment...
 #
 runasowner() {
     local quietrun=""
@@ -287,14 +287,14 @@ escape_string() {
 #
 
 pgsql_methods() {
-  cat <<EOF
-	start
-	stop
-	status
-	monitor
-	methods
-	meta-data
-	validate-all
+    cat <<EOF
+    start
+    stop
+    status
+    monitor
+    methods
+    meta-data
+    validate-all
 EOF
 }
 
@@ -315,15 +315,15 @@ pgsql_start() {
 
     # Remove backup_label if it exists
     if [ -f $BACKUPLABEL ]; then
-	ocf_log info "Removing $BACKUPLABEL. The previous backup might have failed."
-	rm -f $BACKUPLABEL
+        ocf_log info "Removing $BACKUPLABEL. The previous backup might have failed."
+        rm -f $BACKUPLABEL
     fi
 
     # Check if we need to create a log file
     if ! check_log_file $OCF_RESKEY_logfile
     then
         ocf_log err "PostgreSQL can't write to the log file: $OCF_RESKEY_logfile"
-	return $OCF_ERR_PERM
+        return $OCF_ERR_PERM
     fi
 
     # Check socket directory
@@ -338,28 +338,28 @@ pgsql_start() {
     # Set options passed to the PostgreSQL server process
     postgres_options=""
     if [ -n "$OCF_RESKEY_config" ]; then
-	postgres_options="$postgres_options -c config_file=${OCF_RESKEY_config}"
+        postgres_options="$postgres_options -c config_file=${OCF_RESKEY_config}"
     fi
     if [ -n "$OCF_RESKEY_pghost" ]; then
-	postgres_options="$postgres_options -h $OCF_RESKEY_pghost"
+        postgres_options="$postgres_options -h $OCF_RESKEY_pghost"
     fi
     if [ -n "$OCF_RESKEY_start_opt" ]; then
-	postgres_options="$postgres_options $OCF_RESKEY_start_opt"
+        postgres_options="$postgres_options $OCF_RESKEY_start_opt"
     fi
 
     # Tack pass-through options onto pg_ctl options
     if [ -n "$postgres_options" ]; then
-	pgctl_options="$pgctl_options -o '$postgres_options'"
+        pgctl_options="$pgctl_options -o '$postgres_options'"
     fi
 
     # Invoke pg_ctl
     runasowner "$OCF_RESKEY_pgctl $pgctl_options start"
 
     if [ $? -eq 0 ]; then
-	# Probably started.....
+        # Probably started.....
         ocf_log info "PostgreSQL start command sent."
     else
-	ocf_log err "Can't start PostgreSQL."
+        ocf_log err "Can't start PostgreSQL."
         return $OCF_ERR_GENERIC
     fi
 
@@ -371,7 +371,7 @@ pgsql_start() {
             break;
         fi
         sleep 1
-	ocf_log debug "PostgreSQL still hasn't started yet. Waiting..."
+        ocf_log debug "PostgreSQL still hasn't started yet. Waiting..."
     done
     ocf_log info "PostgreSQL is started."
 
@@ -406,9 +406,9 @@ pgsql_stop() {
 
     if pgsql_status
     then
-       #PostgreSQL is still up. Use another shutdown mode.
-       ocf_log info "PostgreSQL failed to stop after ${OCF_RESKEY_stop_escalate}s using -m fast. Trying -m immediate..."
-       runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m immediate"
+        #PostgreSQL is still up. Use another shutdown mode.
+        ocf_log info "PostgreSQL failed to stop after ${OCF_RESKEY_stop_escalate}s using -m fast. Trying -m immediate..."
+        runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m immediate"
     fi
 
     while :
@@ -419,8 +419,8 @@ pgsql_stop() {
             # An unnecessary debug log is prevented.
             break;
         fi
-	sleep 1
-	ocf_log debug "PostgreSQL still hasn't stopped yet. Waiting..."
+        sleep 1
+        ocf_log debug "PostgreSQL still hasn't stopped yet. Waiting..."
     done
 
     # Remove postmaster.pid if it exists
@@ -459,8 +459,8 @@ pgsql_monitor() {
 
     if ! pgsql_status
     then
-	ocf_log info "PostgreSQL is down"
-	return $OCF_NOT_RUNNING
+        ocf_log info "PostgreSQL is down"
+        return $OCF_NOT_RUNNING
     fi
 
     if [ -n "$OCF_RESKEY_monitor_user" ]; then
@@ -472,7 +472,7 @@ pgsql_monitor() {
     fi
 
     if [ -n "$OCF_RESKEY_pghost" ]; then
-	psql_options="$psql_options -h $OCF_RESKEY_pghost"
+        psql_options="$psql_options -h $OCF_RESKEY_pghost"
     else
        if [ -n "$OCF_RESKEY_socketdir" ]; then
            psql_options="$psql_options -h $OCF_RESKEY_socketdir"
@@ -480,11 +480,12 @@ pgsql_monitor() {
     fi
 
     OCF_RESKEY_monitor_sql=`escape_string "$OCF_RESKEY_monitor_sql"`
-    runasowner -q $loglevel "$OCF_RESKEY_psql $psql_options -c '$OCF_RESKEY_monitor_sql'"
+    runasowner -q $loglevel "$OCF_RESKEY_psql $psql_options \
+                  -c '$OCF_RESKEY_monitor_sql'"
 
     rc=$?
     if [ $rc -ne  0 ]; then
-	ocf_log $loglevel "PostgreSQL $OCF_RESKEY_pgdb isn't running"
+        ocf_log $loglevel "PostgreSQL $OCF_RESKEY_pgdb isn't running"
         if [ $rc -eq 1 ]; then
             ocf_log err "Fatal error (out of memory, file not found, etc.) occurred while executing the psql command."
         elif [ $rc -eq 2 ]; then
@@ -492,7 +493,7 @@ pgsql_monitor() {
         elif [ $rc -eq 3 ]; then
             ocf_log err "Script error (the variable ON_ERROR_STOP was set) occurred while executing the psql command."
         fi
-	return $OCF_ERR_GENERIC
+        return $OCF_ERR_GENERIC
     fi
 
     return $OCF_SUCCESS
@@ -511,7 +512,7 @@ check_config() {
 
     if [ ! -f "$1" ]; then
         if ocf_is_probe; then
-           ocf_log info "Configuration file $1 not readable during probe."
+           ocf_log info "Configuration file is $1 not readable during probe."
            rc=1
         else
            ocf_log err "Configuration file $1 doesn't exist"
@@ -591,24 +592,24 @@ check_log_file() {
 check_socket_dir() {
     if [ ! -d "$OCF_RESKEY_socketdir" ]; then
         if ! mkdir "$OCF_RESKEY_socketdir"; then
-            ocf_log err "Cannot create directory $OCF_RESKEY_socketdir"
+            ocf_log err "Can't create directory $OCF_RESKEY_socketdir"
             exit $OCF_ERR_PERM
         fi
 
         if ! chown $OCF_RESKEY_pgdba:`getent passwd \
              $OCF_RESKEY_pgdba | cut -d ":" -f 4` "$OCF_RESKEY_socketdir" 
         then
-            ocf_log err "Cannot change ownership for $OCF_RESKEY_socketdir"
+            ocf_log err "Can't change ownership for $OCF_RESKEY_socketdir"
             exit $OCF_ERR_PERM
         fi
 
         if ! chmod 2775 "$OCF_RESKEY_socketdir"; then
-            ocf_log err "Cannot change permissions for $OCF_RESKEY_socketdir"
+            ocf_log err "Can't change permissions for $OCF_RESKEY_socketdir"
             exit $OCF_ERR_PERM
         fi
     else
         if ! runasowner "touch $OCF_RESKEY_socketdir/test.$$"; then
-            ocf_log err "$OCF_RESKEY_pgdba cannot create files in $OCF_RESKEY_socketdir"
+            ocf_log err "$OCF_RESKEY_pgdba can't create files in $OCF_RESKEY_socketdir"
             exit $OCF_ERR_PERM
         fi
         rm $OCF_RESKEY_socketdir/test.$$
