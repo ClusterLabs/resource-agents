@@ -381,6 +381,8 @@ pgsql_start() {
 #pgsql_stop: Stop PostgreSQL
 pgsql_stop() {
     local rc
+    local count
+    local stop_escalate
 
     if ! pgsql_status
     then
@@ -388,12 +390,16 @@ pgsql_stop() {
         return $OCF_SUCCESS
     fi
 
+    stop_escalate=$OCF_RESKEY_stop_escalate
+
     # Stop PostgreSQL, do not wait for clients to disconnect
-    runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m fast"
+    if [ $stop_escalate -gt 0 ]; then
+            runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m fast"
+    fi
 
     # stop waiting
     count=0
-    while [ $count -lt $OCF_RESKEY_stop_escalate ]
+    while [ $count -lt $stop_escalate ]
     do
         if ! pgsql_status
         then
