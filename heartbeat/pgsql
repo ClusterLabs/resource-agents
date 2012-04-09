@@ -465,21 +465,31 @@ pgsql_monitor() {
     OCF_RESKEY_monitor_sql=`escape_string "$OCF_RESKEY_monitor_sql"`
     runasowner -q $loglevel "$OCF_RESKEY_psql $psql_options \
                   -c '$OCF_RESKEY_monitor_sql'"
-
     rc=$?
     if [ $rc -ne  0 ]; then
-        ocf_log $loglevel "PostgreSQL $OCF_RESKEY_pgdb isn't running"
-        if [ $rc -eq 1 ]; then
-            ocf_log err "Fatal error (out of memory, file not found, etc.) occurred while executing the psql command."
-        elif [ $rc -eq 2 ]; then
-            ocf_log $loglevel "Connection error (connection to the server went bad and the session was not interactive) occurred while executing the psql command."
-        elif [ $rc -eq 3 ]; then
-            ocf_log err "Script error (the variable ON_ERROR_STOP was set) occurred while executing the psql command."
-        fi
+        report_psql_error $rc $loglevel
         return $OCF_ERR_GENERIC
     fi
 
     return $OCF_SUCCESS
+}
+
+report_psql_error()
+{
+    local rc
+    local loglevel
+
+    rc=$1
+    loglevel=${2:-err}
+
+    ocf_log $loglevel "PostgreSQL $OCF_RESKEY_pgdb isn't running"
+    if [ $rc -eq 1 ]; then
+        ocf_log err "Fatal error (out of memory, file not found, etc.) occurred while executing the psql command."
+    elif [ $rc -eq 2 ]; then
+        ocf_log $loglevel "Connection error (connection to the server went bad and the session was not interactive) occurred while executing the psql command."
+    elif [ $rc -eq 3 ]; then
+        ocf_log err "Script error (the variable ON_ERROR_STOP was set) occurred while executing the psql command."
+    fi
 }
 
 check_binary2() {
