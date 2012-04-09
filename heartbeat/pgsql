@@ -451,7 +451,6 @@ pgsql_status() {
 
 pgsql_monitor() {
     local loglevel
-    local psql_options
     local rc
 
     # Set the log level of the error message
@@ -461,22 +460,6 @@ pgsql_monitor() {
     then
         ocf_log info "PostgreSQL is down"
         return $OCF_NOT_RUNNING
-    fi
-
-    if [ -n "$OCF_RESKEY_monitor_user" ]; then
-        PGUSER=$OCF_RESKEY_monitor_user; export PGUSER
-        PGPASSWORD=$OCF_RESKEY_monitor_password; export PGPASSWORD
-        psql_options="-p $OCF_RESKEY_pgport $OCF_RESKEY_pgdb"
-    else
-        psql_options="-p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb"
-    fi
-
-    if [ -n "$OCF_RESKEY_pghost" ]; then
-        psql_options="$psql_options -h $OCF_RESKEY_pghost"
-    else
-       if [ -n "$OCF_RESKEY_socketdir" ]; then
-           psql_options="$psql_options -h $OCF_RESKEY_socketdir"
-       fi
     fi
 
     OCF_RESKEY_monitor_sql=`escape_string "$OCF_RESKEY_monitor_sql"`
@@ -663,6 +646,23 @@ if [ $US != root -a $US != $OCF_RESKEY_pgdba ]
 then
     ocf_log err "$0 must be run as root or $OCF_RESKEY_pgdba"
     exit $OCF_ERR_GENERIC
+fi
+
+# make psql command options
+if [ -n "$OCF_RESKEY_monitor_user" ]; then
+    PGUSER=$OCF_RESKEY_monitor_user; export PGUSER
+    PGPASSWORD=$OCF_RESKEY_monitor_password; export PGPASSWORD
+    psql_options="-p $OCF_RESKEY_pgport $OCF_RESKEY_pgdb"
+else
+    psql_options="-p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb"
+fi
+
+if [ -n "$OCF_RESKEY_pghost" ]; then
+   psql_options="$psql_options -h $OCF_RESKEY_pghost"
+else
+   if [ -n "$OCF_RESKEY_socketdir" ]; then
+       psql_options="$psql_options -h $OCF_RESKEY_socketdir"
+   fi
 fi
 
 # What kind of method was invoked?
