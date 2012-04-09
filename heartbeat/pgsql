@@ -885,6 +885,39 @@ pgsql_post_demote() {
     return $OCF_SUCCESS
 }
 
+pgsql_pre_promote() {
+    local master_baseline
+    local my_master_baseline
+    local cmp_location
+    local number_of_nodes
+
+    # If my data is newer than new master's one, I fail my resource.
+    PROMOTE_NODE=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname | \
+                  sed "s/ /\n/g" | head -1`
+    number_of_nodes=`echo $OCF_RESKEY_node_list | \
+                  sed -e "s/  */ /g" | sed -e "s/^ \| $//g" | \
+                  sed -e "s/ /\n/g" | wc -l`
+    if [ $number_of_nodes -ge 3 -a \
+         "$OCF_RESKEY_rep_mode" = "sync" -a \
+         "$PROMOTE_NODE" != "$NODENAME" ]; then
+        master_baseline=`$CRM_ATTR_REBOOT -N "$PROMOTE_NODE" -n \
+                         "$PGSQL_MASTER_BASELINE" -G -q 2>/dev/null`
+        if [ $? -eq 0 ]; then
+            my_master_baseline=`$CRM_ATTR_REBOOT -N "$NODENAME" -n \
+                                "$PGSQL_MASTER_BASELINE" -G -q 2>/dev/null`
+            # get older location
+            cmp_location=`printf "$master_baseline\n$my_master_baseline\n" |\
+                          sort | head -1`
+            if [ "$cmp_location" != "$my_master_baseline" ]; then
+                ocf_log err "My data is newer than new master's one. New master's location : $master_baseline"
+                $CRM_FAILCOUNT -r $OCF_RESOURCE_INSTANCE -U $NODENAME -v INFINITY
+                return $OCF_ERR_GENERIC
+            fi
+        fi
+    fi
+    return $OCF_SUCCESS
+}
+
 pgsql_notify() {
     local type="${OCF_RESKEY_CRM_meta_notify_type}"
     local op="${OCF_RESKEY_CRM_meta_notify_operation}"
@@ -896,6 +929,14 @@ pgsql_notify() {
 
     ocf_log debug "notify: ${type} for ${op}"
     case $type in
+        pre)
+            case $op in
+                promote)
+                    pgsql_pre_promote
+                    return $?
+                    ;;
+            esac
+            ;;
         post)
             case $op in
                 promote)
@@ -930,6 +971,7 @@ control_slave_status() {
     local all_data_status
     local tmp_data_status
     local node_name
+    local number_of_nodes
 
     all_data_status=`su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
                      $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
@@ -944,6 +986,9 @@ control_slave_status() {
         return 1
     fi
 
+    number_of_nodes=`echo $OCF_RESKEY_node_list | \
+                     sed -e "s/  */ /g" | sed -e "s/^ \| $//g" | \
+                     sed -e "s/ /\n/g" | wc -l`
     for target in $OCF_RESKEY_node_list; do
         if [ "$target" = "$NODENAME" ]; then
             continue
@@ -977,9 +1022,19 @@ control_slave_status() {
                         set_sync_mode "$target"
                     fi
                 else
-                    change_master_score "$target" "$CAN_PROMOTE"
+                    if [ $number_of_nodes -le 2 ]; then
+                        change_master_score "$target" "$CAN_PROMOTE"
+                    else
+                        # I can't determine which slave's data is newest in async mode.
+                        change_master_score "$target" "$CAN_NOT_PROMOTE"
+                    fi
                 fi
                 change_pgsql_status "$target" "HS:async"
+                ;;
+            "STREAMING|POTENTIAL")
+                change_data_status "$target" "$data_status"
+                change_master_score "$target" "$CAN_NOT_PROMOTE"
+                change_pgsql_status "$target" "HS:potential"
                 ;;
             "DISCONNECT")
                 change_data_status "$target" "$data_status"
