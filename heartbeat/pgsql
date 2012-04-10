@@ -299,8 +299,8 @@ EOF
 }
 
 
-#pgsql_start: Starts PostgreSQL
-pgsql_start() {
+#pgsql_real_start: Starts PostgreSQL
+pgsql_real_start() {
     local pgctl_options
     local postgres_options
     local rc
@@ -365,7 +365,7 @@ pgsql_start() {
 
     while :
     do
-        pgsql_monitor warn
+        pgsql_real_monitor warn
         rc=$?
         if [ $rc -eq 0 ]; then
             break;
@@ -378,8 +378,23 @@ pgsql_start() {
     return $OCF_SUCCESS
 }
 
-#pgsql_stop: Stop PostgreSQL
-pgsql_stop() {
+pgsql_replication_start() {
+    return $OCF_SUCCESS
+}
+
+#pgsql_start: pgsql_real_start() wrapper for replication
+pgsql_start() {
+    if ! is_replication; then
+        pgsql_real_start
+        return $?
+    else
+        pgsql_replication_start
+        return $?
+    fi
+}
+
+#pgsql_real_stop: Stop PostgreSQL
+pgsql_real_stop() {
     local rc
     local count
     local stop_escalate
@@ -419,7 +434,7 @@ pgsql_stop() {
 
     while :
     do
-        pgsql_monitor
+        pgsql_real_monitor
         rc=$?
         if [ $rc -eq $OCF_NOT_RUNNING ]; then
             # An unnecessary debug log is prevented.
@@ -433,6 +448,21 @@ pgsql_stop() {
     rm -f $PIDFILE
 
     return $OCF_SUCCESS
+}
+
+pgsql_replication_stop() {
+    return $OCF_SUCCESS
+}
+
+#pgsql_stop: pgsql_real_stop() wrapper for replication
+pgsql_stop() {
+    if ! is_replication; then
+        pgsql_real_stop
+        return $?
+    else
+        pgsql_replication_stop
+        return $?
+    fi
 }
 
 #
@@ -452,10 +482,10 @@ pgsql_status() {
 }
 
 #
-# pgsql_monitor
+# pgsql_real_monitor
 #
 
-pgsql_monitor() {
+pgsql_real_monitor() {
     local loglevel
     local rc
 
@@ -478,6 +508,31 @@ pgsql_monitor() {
     fi
 
     return $OCF_SUCCESS
+}
+
+pgsql_replication_monitor() {
+    local rc
+
+    rc=$1
+    return $rc
+}
+
+#pgsql_monitor: pgsql_real_monitor() wrapper for replication
+pgsql_monitor() {
+    local rc
+
+    pgsql_real_monitor
+    rc=$?
+    if ! is_replication; then
+        return $rc
+    else
+        pgsql_replication_monitor $rc
+        return $?
+    fi
+}
+
+is_replication() {
+    return 1
 }
 
 report_psql_error()
