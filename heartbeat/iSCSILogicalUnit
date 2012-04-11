@@ -153,6 +153,21 @@ dependent. Neither the name nor the value may contain whitespace.
 <content type="string" />
 </parameter>
 
+<parameter name="allowed_initiators" required="0" unique="0">
+<longdesc lang="en">
+Allowed initiators. A space-separated list of initiators allowed to
+connect to this lun. Initiators may be listed in any syntax
+the target implementation allows. If this parameter is empty or
+not set, access to this lun will not be allowed from any initiator,
+if target is not in demo mode.
+
+This parameter is only necessary, when using LIO.
+</longdesc>
+<shortdesc lang="en">List of iSCSI initiators allowed to connect
+to this lun.</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -246,6 +261,12 @@ iSCSILogicalUnit_start() {
 	    ocf_run lio_node --addlun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} \
 		${OCF_RESOURCE_INSTANCE} iblock_0/${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
 
+           if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
+               for initiator in ${OCF_RESKEY_allowed_initiators}; do
+                       ocf_run lio_node --addlunacl=${OCF_RESKEY_target_iqn} 1 \
+                       ${initiator} ${OCF_RESKEY_lun} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+               done
+           fi
 	    ;;
     esac
 
@@ -276,6 +297,12 @@ iSCSILogicalUnit_stop() {
 		done
 		;;
 	    lio)
+               if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
+                       for initiator in ${OCF_RESKEY_allowed_initiators}; do
+                               ocf_run lio_node --dellunacl=${OCF_RESKEY_target_iqn} 1 \
+                               ${initiator} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+                       done
+               fi
 		ocf_run lio_node --dellun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
 		ocf_run tcm_node --freedev=iblock_0/${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
 	esac
