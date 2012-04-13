@@ -1099,7 +1099,7 @@ case $CLUSTERSAFE in
 2)
 	ocf_log warn "$FSTYPE on $DEVICE is NOT cluster-aware!"
 	if ocf_is_true "$OCF_RESKEY_force_clones"; then
-	  ocf_log_warn "But we'll let it run because we trust _YOU_ verified it's safe to do so."
+	  ocf_log warn "But we'll let it run because we trust _YOU_ verified it's safe to do so."
 	else
 	  ocf_log warn "But we'll let it run because it is mounted read-only."
 	  ocf_log warn "Please make sure that it's meta data is read-only too!"
