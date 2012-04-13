@@ -5,13 +5,13 @@
 #       OCF Resource Agent compliant IPaddr2 script.
 #
 # 	Based on work by Tuomo Soini, ported to the OCF RA API by Lars
-# 	Marowsky-Brée. Implements Cluster Alias IP functionality too.
+# 	Marowsky-BrÃ©e. Implements Cluster Alias IP functionality too.
 #
 #	Cluster Alias IP cleanup, fixes and testing by Michael Schwartzkopff
 #
 #
 # Copyright (c) 2003 Tuomo Soini
-# Copyright (c) 2004-2006 SUSE LINUX AG, Lars Marowsky-Brée
+# Copyright (c) 2004-2006 SUSE LINUX AG, Lars Marowsky-BrÃ©e
 #                    All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -404,17 +404,23 @@ ip_init() {
 }
 
 #
-#	Find out which interface serves the given IP address
-#	The argument is an IP address, and its output
-#	is an interface name (e.g., "eth0").
+#	Find out which interfaces serve the given IP address and netmask.
+#	The arguments are an IP address and a netmask.
+#	Its output are interface names devided by spaces (e.g., "eth0 eth1").
 #
 find_interface() {
+	local ipaddr="$1"
+	local netmask="$2"
+
 	#
 	# List interfaces but exclude FreeS/WAN ipsecN virtual interfaces
 	#
-	local iface=`$IP2UTIL -o -f inet addr show | grep "\ $OCF_RESKEY_ip/$NETMASK" \
-		| cut -d ' ' -f2 | grep -v '^ipsec[0-9][0-9]*$'`
-	echo $iface
+	local iface="`$IP2UTIL -o -f inet addr show \
+		| grep "\ $ipaddr/$netmask" \
+		| cut -d ' ' -f2 \
+		| grep -v '^ipsec[0-9][0-9]*$'`"
+
+	echo "$iface"
 	return 0
 }
 
@@ -564,7 +570,7 @@ run_send_ib_arp() {
 	fi
 }
 
-# Do we already serve this IP address?
+# Do we already serve this IP address on the given $NIC?
 #
 # returns:
 # ok = served (for CIP: + hash bucket)
@@ -578,7 +584,7 @@ ip_served() {
 		return 0
 	fi
 
-	cur_nic="`find_interface $OCF_RESKEY_ip`"
+	cur_nic="`find_interface $OCF_RESKEY_ip $NETMASK`"
 
 	if [ -z "$cur_nic" ]; then
 		echo "no"
@@ -586,15 +592,23 @@ ip_served() {
 	fi
 
 	if [ -z "$IP_CIP" ]; then
-		case $cur_nic in
-		lo*)	if ocf_is_true ${OCF_RESKEY_lvs_support}; then
-				echo "no"
+		for i in $cur_nic; do
+			case $i in
+			lo*)
+				if ocf_is_true ${OCF_RESKEY_lvs_support}; then
+					echo "no"
+					return 0
+				fi
+				;;
+			$NIC)
+				# only mark as served when on the same interfaces as $NIC
+				echo "ok"
 				return 0
-			fi
-			;;
-		esac
+				;;
+			esac
+		done
 
-		echo "ok"
+		echo "no"
 		return 0
 	fi
 
@@ -638,7 +652,7 @@ ip_start() {
 	fi
 
 	#
-	#	Do we already service this IP address?
+	#	Do we already service this IP address on $NIC?
 	#
 	local ip_status=`ip_served`
 
@@ -666,11 +680,13 @@ ip_start() {
 	
 	if [ "$ip_status" = "no" ]; then
 		if ocf_is_true ${OCF_RESKEY_lvs_support}; then
-			case `find_interface $OCF_RESKEY_ip` in
-			lo*)
-				remove_conflicting_loopback $OCF_RESKEY_ip 32 255.255.255.255 lo
-				;;
-			esac
+			for i in `find_interface $OCF_RESKEY_ip $NETMASK`; do
+				case $i in
+				lo*)
+					remove_conflicting_loopback $OCF_RESKEY_ip 32 255.255.255.255 lo
+					;;
+				esac
+			done
 		fi
 		
 		add_interface $OCF_RESKEY_ip $NETMASK $BRDCAST $NIC $IFLABEL
