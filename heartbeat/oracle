@@ -393,10 +393,10 @@ dumpinstipc() {
 		ocf_log warn "$dumpdest is not a directory"
 		return 1
 	fi
-	local fcount=`ls -rt $dumpdest | wc -l`
+	local fcount=`ls -rt $dumpdest/*.trc | wc -l`
 	output=`dbasql getipc`
-	local lastf=`ls -rt $dumpdest | grep -v '^\.*$' | tail -1`
-	local fcount2=`ls -rt $dumpdest | wc -l`
+	local lastf=`ls -rt $dumpdest/*.trc | tail -1`
+	local fcount2=`ls -rt $dumpdest/*.trc | wc -l`
 	if [ $((fcount+1)) -eq $fcount2 ]; then
 		echo $dumpdest/$lastf
 	else
