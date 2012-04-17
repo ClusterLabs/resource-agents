@@ -483,7 +483,7 @@ instance_live() {
 
 ora_cleanup() {
 	#rm -fr /tmp/.oracle #???
-	rm -f `ls $ORACLE_HOME/dbs/lk* | grep -i $ORACLE_SID`
+	rm -f `ls $ORACLE_HOME/dbs/lk* | grep -iw $ORACLE_SID`
 	#return
 
 	case $IPCRM in
@@ -702,7 +702,7 @@ envtmpf=`mktemp`
 dumporaenv > $envtmpf
 chmod 644 $envtmpf
 trap "rm -f $envtmpf" EXIT
-procs="ps -e -o pid,args | grep -i \"[o]ra[a-zA-Z0-9_]*$ORACLE_SID\""
+procs="ps -e -o pid,args | grep -iw \"[o]ra[a-zA-Z0-9_]*$ORACLE_SID\""
 
 US=`id -u -n`
 if [ $US != root -a $US != $ORACLE_OWNER ]
