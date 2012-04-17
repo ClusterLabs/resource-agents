@@ -386,6 +386,7 @@ showdbstat() {
 # IPC stuff: not overly complex, but quite involved :-/
 #
 
+IPC_LOCKFILE=${HA_RSCTMP}/oracle_ipc.lock
 # Part 1: Oracle
 dumpinstipc() {
 	local dumpdest=`dbasql_one getdumpdest`
@@ -393,10 +394,12 @@ dumpinstipc() {
 		ocf_log warn "$dumpdest is not a directory"
 		return 1
 	fi
+	ocf_take_lock $IPC_LOCKFILE
 	local fcount=`ls -rt $dumpdest | grep '\.trc$' | wc -l`
 	output=`dbasql getipc`
 	local lastf=`ls -rt $dumpdest | grep '\.trc$' | tail -1`
 	local fcount2=`ls -rt $dumpdest | grep '\.trc$' | wc -l`
+	rm -f $IPC_LOCKFILE
 	if [ $((fcount+1)) -eq $fcount2 ]; then
 		echo $dumpdest/$lastf
 	else
@@ -701,7 +704,15 @@ setoraenv # important: set the environment for the SID
 envtmpf=`mktemp`
 dumporaenv > $envtmpf
 chmod 644 $envtmpf
-trap "rm -f $envtmpf" EXIT
+TMPFILES="$envtmpf"
+rmtmpfiles() {
+	rm -f $TMPFILES
+	# our lock file?
+	if [ "$$" = "`cat $IPC_LOCKFILE 2>/dev/null`" ]; then
+		rm -f $IPC_LOCKFILE
+	fi
+}
+trap "rmtmpfiles" EXIT
 procs="ps -e -o pid,args | grep -iw \"[o]ra[a-zA-Z0-9_]*$ORACLE_SID\""
 
 US=`id -u -n`
