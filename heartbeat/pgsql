@@ -1201,12 +1201,10 @@ show_xlog_location() {
 
     location=`get_my_location` || return 1
     $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_XLOG_LOC_NAME" -v "$location"
-    return $?
 }
 
 delete_xlog_location() {
     $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_XLOG_LOC_NAME" -D
-    return $?
 }
 
 show_master_baseline() {
@@ -1222,12 +1220,10 @@ show_master_baseline() {
     location=`get_my_location`
     ocf_log info "My master baseline : $location."
     $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_MASTER_BASELINE" -v "$location"
-    return $?
 }
 
 delete_master_baseline() {
     $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_MASTER_BASELINE" -D
-    return $?
 }
 
 set_async_mode_all() {
@@ -1266,7 +1262,6 @@ set_async_mode() {
 
     ocf_log info "All synced nodes : \"$sync_node_in_conf\""
     reload_conf
-    return $?
 }
 
 set_sync_mode() {
@@ -1289,7 +1284,6 @@ set_sync_mode() {
     sync_node_in_conf=`cat $REP_MODE_CONF | cut -d "'" -f 2`
     ocf_log info "All synced nodes : \"$sync_node_in_conf\""
     reload_conf
-    return $?
 }
 
 is_sync_mode() {
@@ -1474,18 +1468,14 @@ exec_func_with_timeout() {
         fi
     done
     wait $func_pid
-    rc=$?
-    return $rc
 }
 
 is_node_online() {
     crm_mon -1 -n | grep -e "^Node $1 " -e "^Node $1:" | grep -q -v "OFFLINE"
-    return $?
 }
 
 node_exist() {
     crm_mon -1 -n | grep -q "^Node $1"
-    return $?
 }
 
 check_binary2() {
