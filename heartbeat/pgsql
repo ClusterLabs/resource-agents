@@ -894,9 +894,7 @@ pgsql_pre_promote() {
     # If my data is newer than new master's one, I fail my resource.
     PROMOTE_NODE=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname | \
                   sed "s/ /\n/g" | head -1`
-    number_of_nodes=`echo $OCF_RESKEY_node_list | \
-                  sed -e "s/  */ /g" | sed -e "s/^ \| $//g" | \
-                  sed -e "s/ /\n/g" | wc -l`
+    number_of_nodes=`echo $OCF_RESKEY_node_list | wc -w`
     if [ $number_of_nodes -ge 3 -a \
          "$OCF_RESKEY_rep_mode" = "sync" -a \
          "$PROMOTE_NODE" != "$NODENAME" ]; then
@@ -986,9 +984,7 @@ control_slave_status() {
         return 1
     fi
 
-    number_of_nodes=`echo $OCF_RESKEY_node_list | \
-                     sed -e "s/  */ /g" | sed -e "s/^ \| $//g" | \
-                     sed -e "s/ /\n/g" | wc -l`
+    number_of_nodes=`echo $OCF_RESKEY_node_list | wc -w`
     for target in $OCF_RESKEY_node_list; do
         if [ "$target" = "$NODENAME" ]; then
             continue
