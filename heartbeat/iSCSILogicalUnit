@@ -426,7 +426,7 @@ iSCSILogicalUnit_validate() {
 	    unsupported_params="vendor_id product_id allowed_initiators"
 	    ;;
 	tgt)
-		unsupported_params="allowed_initiators"
+	    unsupported_params="allowed_initiators"
 	    ;;
 	lio)
 	    unsupported_params="scsi_id vendor_id product_id"
