@@ -423,9 +423,10 @@ iSCSILogicalUnit_validate() {
 	iet)
 	    # IET does not support setting the vendor and product ID
 	    # (it always uses "IET" and "VIRTUAL-DISK")
-	    unsupported_params="vendor_id product_id"
+	    unsupported_params="vendor_id product_id allowed_initiators"
 	    ;;
 	tgt)
+		unsupported_params="allowed_initiators"
 	    ;;
 	lio)
 	    unsupported_params="scsi_id vendor_id product_id"
