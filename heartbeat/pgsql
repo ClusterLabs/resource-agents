@@ -1474,8 +1474,7 @@ exec_func_with_timeout() {
         fi
     done
     wait $func_pid
-    rc=$?
-    return $rc
+    return $?
 }
 
 is_node_online() {
