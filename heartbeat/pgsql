@@ -1242,18 +1242,13 @@ set_async_mode() {
 
     sync_node_in_conf=`cat $REP_MODE_CONF | cut -d "'" -f 2`
     if [ -n "$sync_node_in_conf" ]; then
-        if ! echo $sync_node_in_conf | grep "$1"; then
-            ocf_log info "$1 is already in async mode."
-            return 0
+        ocf_log info "Setup $1 into async mode."
+        sync_node_in_conf=`echo $sync_node_in_conf | sed "s/$1//g" |\
+                           sed "s/^,//g" | sed "s/,,/,/g" | sed "s/,$//g"`
+        if [ -n $sync_node_in_conf ]; then
+            echo "synchronous_standby_names = '$sync_node_in_conf'" > "$REP_MODE_CONF"
         else
-            ocf_log info "Setup $1 into async mode."
-            sync_node_in_conf=`echo $sync_node_in_conf | sed "s/$1//g" |\
-                               sed "s/^,//g" | sed "s/,,/,/g" | sed "s/,$//g"`
-            if [ -n $sync_node_in_conf ]; then
-                echo "synchronous_standby_names = '$sync_node_in_conf'" > "$REP_MODE_CONF"
-            else
-                echo "" > "$REP_MODE_CONF"
-            fi
+            echo "" > "$REP_MODE_CONF"
         fi
     else
         ocf_log info "$1 is already in async mode."
@@ -1270,13 +1265,8 @@ set_sync_mode() {
 
     sync_node_in_conf=`cat $REP_MODE_CONF | cut -d "'" -f 2`
     if [ -n "$sync_node_in_conf" ]; then
-        if echo "$sync_node_in_conf" | grep "$1"; then
-            ocf_log info "$1 is already in sync mode."
-            return 0
-        else
-            ocf_log info "Setup $1 into sync mode."
-            echo "synchronous_standby_names = '$sync_node_in_conf,$1'" > "$REP_MODE_CONF"
-        fi
+        ocf_log info "Setup $1 into sync mode."
+        echo "synchronous_standby_names = '$sync_node_in_conf,$1'" > "$REP_MODE_CONF"
     else
         ocf_log info "Setup $1 into sync mode."
         echo "synchronous_standby_names = '$1'" > "$REP_MODE_CONF"
@@ -1289,17 +1279,8 @@ set_sync_mode() {
 }
 
 is_sync_mode() {
-    local target
-
-    sync_node_in_conf=`cat $REP_MODE_CONF | cut -d "'" -f 2 | sed "s/,/ /g"`
-    if [ -n "$sync_node_in_conf" ]; then
-        for target in $sync_node_in_conf; do
-            if [ "$target" = "$1" ];then
-                return 0
-            fi
-        done
-    fi
-    return 1
+    cat $REP_MODE_CONF |  grep -q -e "[,' ]$1[,' ]"
+    return $?
 }
 
 reload_conf() {
