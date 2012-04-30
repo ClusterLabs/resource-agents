@@ -49,7 +49,7 @@ function vg_owner
 	return 1
 }
 
-function strip_tags
+function _strip_tags
 {
 	local i
 
@@ -60,6 +60,29 @@ function strip_tags
 
 	if [ ! -z `vgs -o tags --noheadings $OCF_RESKEY_vg_name` ]; then
 		ocf_log err "Failed to remove ownership tags from $OCF_RESKEY_vg_name"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+function strip_tags
+{
+	if ! _strip_tags; then
+		ocf_log notice "Attempting cleanup of $OCF_RESKEY_vg_name"
+
+		if ! vgreduce --removemissing --force --config \
+			"activation { volume_list = \"$OCF_RESKEY_vg_name\" }" \
+			$OCF_RESKEY_vg_name; then
+
+			ocf_log err "Failed to make $OCF_RESKEY_vg_name consistent"
+			return $OCF_ERR_GENERIC
+		fi
+
+		ocf_log notice "Cleanup of $OCF_RESKEY_vg_name successful"
+	fi
+	if ! _strip_tags; then
+		ocf_log err "Failed 2nd attempt to remove tags from, $OCF_RESKEY_vg_name"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -264,11 +287,7 @@ function vg_start_single
 			return $OCF_ERR_GENERIC
 		fi
 
-		vg_owner
-		if [ $? -eq 0 ]; then
-			ocf_log err "Unable to claim ownership of $OCF_RESKEY_vg_name"
-			return $OCF_ERR_GENERIC
-		fi
+		ocf_log notice "Cleanup of $OCF_RESKEY_vg_name successful"
 
 		if ! strip_and_add_tag ||
 		   ! vgchange -ay $OCF_RESKEY_vg_name; then
