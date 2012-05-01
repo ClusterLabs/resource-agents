@@ -512,14 +512,8 @@ pgsql_real_start() {
     return $rc
 }
 
-#pgsql_start: pgsql_real_start() wrapper for replication
-pgsql_start() {
+pgsql_replication_start() {
     local rc
-
-    if ! is_replication; then
-        pgsql_real_start
-        return $?
-    fi
 
     # initializing for replication
     change_pgsql_status "$NODENAME" "STOP"
@@ -542,6 +536,17 @@ pgsql_start() {
     fi
     change_pgsql_status "$NODENAME" "HS:alone"
     return $OCF_SUCCESS
+}
+
+#pgsql_start: pgsql_real_start() wrapper for replication
+pgsql_start() {
+    if ! is_replication; then
+        pgsql_real_start
+        return $?
+    else
+        pgsql_replication_start
+        return $?
+    fi
 }
 
 #pgsql_promote: Promote PostgreSQL
@@ -685,14 +690,8 @@ pgsql_real_stop() {
     return $OCF_SUCCESS
 }
 
-#pgsql_stop: pgsql_real_stop() wrapper for replication
-pgsql_stop() {
+pgsql_replication_stop() {
     local rc
-
-    if ! is_replication; then
-        pgsql_real_stop
-        return $?
-    fi
 
     $CRM_MASTER -v $CAN_NOT_PROMOTE
     delete_xlog_location
@@ -715,6 +714,17 @@ pgsql_stop() {
     set_async_mode_all
     delete_master_baseline
     return $OCF_SUCCESS
+}
+
+#pgsql_stop: pgsql_real_stop() wrapper for replication
+pgsql_stop() {
+    if ! is_replication; then
+        pgsql_real_stop
+        return $?
+    else
+        pgsql_replication_stop
+        return $?
+    fi
 }
 
 #
@@ -792,8 +802,7 @@ pgsql_real_monitor() {
     return $OCF_SUCCESS
 }
 
-#pgsql_monitor: pgsql_real_monitor() wrapper for replication
-pgsql_monitor() {
+pgsql_replication_monitor() {
     local rc
     local rsc
     local instance
@@ -801,15 +810,10 @@ pgsql_monitor() {
     local data_status
     local is_master=""
 
-    pgsql_real_monitor
-    rc=$?
-    if ! is_replication; then
-        return $rc
-    fi
+    rc=$1
     if [ $rc -ne $OCF_SUCCESS -a $rc -ne "$OCF_RUNNING_MASTER" ]; then
         return $rc
     fi
-
     # If I am Master
     if [ $rc -eq $OCF_RUNNING_MASTER ]; then
         change_data_status "$NODENAME" "LATEST"
@@ -852,6 +856,20 @@ pgsql_monitor() {
         fi
     fi
     return $rc
+}
+
+#pgsql_monitor: pgsql_real_monitor() wrapper for replication
+pgsql_monitor() {
+    local rc
+
+    pgsql_real_monitor
+    rc=$?
+    if ! is_replication; then
+        return $rc
+    else
+        pgsql_replication_monitor $rc
+        return $?
+    fi
 }
 
 # pgsql_post_demote
@@ -904,6 +922,10 @@ pgsql_notify() {
     local type="${OCF_RESKEY_CRM_meta_notify_type}"
     local op="${OCF_RESKEY_CRM_meta_notify_operation}"
     local rc
+
+    if ! is_replication; then
+        return $OCF_SUCCESS
+    fi
 
     ocf_log debug "notify: ${type} for ${op}"
     case $type in
@@ -1048,7 +1070,7 @@ have_master_right() {
     local oldfile
     local newfile
 
-    ocf_log debug "Checking if master is right."
+    ocf_log debug "Checking if I have a master right."
 
     data_status=`$CRM_ATTR_FOREVER -N "$NODENAME" -n \
                  "$PGSQL_DATA_STATUS_ATTR" -G -q`
@@ -1324,7 +1346,7 @@ change_pgsql_status() {
         return 0
     fi
 
-    output=`$CRM_ATTR_REBOOT -N "$1" -n "$PGSQL_STATUS_ATTR" -G -q`
+    output=`$CRM_ATTR_REBOOT -N "$1" -n "$PGSQL_STATUS_ATTR" -G -q 2>/dev/null`
     if [ "$output" != "$2" ]; then
         # If slave's disk is broken, RA cannot read PID file
         # and misjudges the PostgreSQL as down while it is running.
@@ -1356,7 +1378,7 @@ change_data_status() {
 
     while :
     do
-        output=`$CRM_ATTR_FOREVER -N "$1" -n "$PGSQL_DATA_STATUS_ATTR" -G -q`
+        output=`$CRM_ATTR_FOREVER -N "$1" -n "$PGSQL_DATA_STATUS_ATTR" -G -q 2>/dev/null`
         if [ "$output" != "$2" ]; then
             ocf_log info "Changing $PGSQL_DATA_STATUS_ATTR on $1 : $output->$2."
             exec_func_with_timeout "$CRM_ATTR_FOREVER" "-N $1 -n \
@@ -1442,12 +1464,12 @@ exec_func_with_timeout() {
     $1 `eval echo $2` &
     func_pid=$!
     count=0
-    while kill -0 $func_pid >/dev/null 2>&1; do
+    while kill -s 0 $func_pid >/dev/null 2>&1; do
         sleep 1
         count=`expr $count + 1`
         if [ $count -ge $3 ]; then
             ocf_log debug "Execute $1 time out."
-            kill -9 $func_pid >/dev/null 2>&1
+            kill -s 9 $func_pid >/dev/null 2>&1
             return 0
         fi
     done
