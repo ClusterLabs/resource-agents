@@ -2458,7 +2458,7 @@ sub get_real_service_str
 	my ($v) = (@_);
 
 	if ($v->{"protocol"} eq "fwm") {
-		return &get_virtual($v) . " "  . $v->{protocol} . ($v->{addressfamily} == AF_INET6 ? "6" : "");
+		return &get_virtual($v) . " "  . $v->{protocol} . (($v->{addressfamily} == AF_INET6) ? "6" : "");
 	}
 	else {
 		return &get_virtual($v) . " "  . $v->{protocol};
@@ -4825,7 +4825,7 @@ sub get_virtual_id_str
 	my ($v) = (@_);
 
 	if ($v->{"protocol"} eq "fwm") {
-		return $v->{"protocol"} . ($v->{addressfamily} == AF_INET6?"6":"") . ":" .  &get_virtual($v);
+		return $v->{"protocol"} . (($v->{addressfamily} == AF_INET6)?"6":"") . ":" .  &get_virtual($v);
 	}
 	else {
 		return $v->{"protocol"} . ":" .  &get_virtual($v);
