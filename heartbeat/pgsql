@@ -894,9 +894,7 @@ pgsql_pre_promote() {
     # If my data is newer than new master's one, I fail my resource.
     PROMOTE_NODE=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname | \
                   sed "s/ /\n/g" | head -1`
-    number_of_nodes=`echo $OCF_RESKEY_node_list | \
-                  sed -e "s/  */ /g" | sed -e "s/^ \| $//g" | \
-                  sed -e "s/ /\n/g" | wc -l`
+    number_of_nodes=`echo $OCF_RESKEY_node_list | wc -w`
     if [ $number_of_nodes -ge 3 -a \
          "$OCF_RESKEY_rep_mode" = "sync" -a \
          "$PROMOTE_NODE" != "$NODENAME" ]; then
@@ -986,9 +984,7 @@ control_slave_status() {
         return 1
     fi
 
-    number_of_nodes=`echo $OCF_RESKEY_node_list | \
-                     sed -e "s/  */ /g" | sed -e "s/^ \| $//g" | \
-                     sed -e "s/ /\n/g" | wc -l`
+    number_of_nodes=`echo $OCF_RESKEY_node_list | wc -w`
     for target in $OCF_RESKEY_node_list; do
         if [ "$target" = "$NODENAME" ]; then
             continue
@@ -1201,12 +1197,10 @@ show_xlog_location() {
 
     location=`get_my_location` || return 1
     $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_XLOG_LOC_NAME" -v "$location"
-    return $?
 }
 
 delete_xlog_location() {
     $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_XLOG_LOC_NAME" -D
-    return $?
 }
 
 show_master_baseline() {
@@ -1222,12 +1216,10 @@ show_master_baseline() {
     location=`get_my_location`
     ocf_log info "My master baseline : $location."
     $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_MASTER_BASELINE" -v "$location"
-    return $?
 }
 
 delete_master_baseline() {
     $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_MASTER_BASELINE" -D
-    return $?
 }
 
 set_async_mode_all() {
@@ -1246,18 +1238,13 @@ set_async_mode() {
 
     sync_node_in_conf=`cat $REP_MODE_CONF | cut -d "'" -f 2`
     if [ -n "$sync_node_in_conf" ]; then
-        if ! echo $sync_node_in_conf | grep "$1"; then
-            ocf_log info "$1 is already in async mode."
-            return 0
+        ocf_log info "Setup $1 into async mode."
+        sync_node_in_conf=`echo $sync_node_in_conf | sed "s/$1//g" |\
+                           sed "s/^,//g" | sed "s/,,/,/g" | sed "s/,$//g"`
+        if [ -n $sync_node_in_conf ]; then
+            echo "synchronous_standby_names = '$sync_node_in_conf'" > "$REP_MODE_CONF"
         else
-            ocf_log info "Setup $1 into async mode."
-            sync_node_in_conf=`echo $sync_node_in_conf | sed "s/$1//g" |\
-                               sed "s/^,//g" | sed "s/,,/,/g" | sed "s/,$//g"`
-            if [ -n $sync_node_in_conf ]; then
-                echo "synchronous_standby_names = '$sync_node_in_conf'" > "$REP_MODE_CONF"
-            else
-                echo "" > "$REP_MODE_CONF"
-            fi
+            echo "" > "$REP_MODE_CONF"
         fi
     else
         ocf_log info "$1 is already in async mode."
@@ -1266,7 +1253,6 @@ set_async_mode() {
 
     ocf_log info "All synced nodes : \"$sync_node_in_conf\""
     reload_conf
-    return $?
 }
 
 set_sync_mode() {
@@ -1274,13 +1260,8 @@ set_sync_mode() {
 
     sync_node_in_conf=`cat $REP_MODE_CONF | cut -d "'" -f 2`
     if [ -n "$sync_node_in_conf" ]; then
-        if echo "$sync_node_in_conf" | grep "$1"; then
-            ocf_log info "$1 is already in sync mode."
-            return 0
-        else
-            ocf_log info "Setup $1 into sync mode."
-            echo "synchronous_standby_names = '$sync_node_in_conf,$1'" > "$REP_MODE_CONF"
-        fi
+        ocf_log info "Setup $1 into sync mode."
+        echo "synchronous_standby_names = '$sync_node_in_conf,$1'" > "$REP_MODE_CONF"
     else
         ocf_log info "Setup $1 into sync mode."
         echo "synchronous_standby_names = '$1'" > "$REP_MODE_CONF"
@@ -1289,21 +1270,10 @@ set_sync_mode() {
     sync_node_in_conf=`cat $REP_MODE_CONF | cut -d "'" -f 2`
     ocf_log info "All synced nodes : \"$sync_node_in_conf\""
     reload_conf
-    return $?
 }
 
 is_sync_mode() {
-    local target
-
-    sync_node_in_conf=`cat $REP_MODE_CONF | cut -d "'" -f 2 | sed "s/,/ /g"`
-    if [ -n "$sync_node_in_conf" ]; then
-        for target in $sync_node_in_conf; do
-            if [ "$target" = "$1" ];then
-                return 0
-            fi
-        done
-    fi
-    return 1
+    cat $REP_MODE_CONF |  grep -q -e "[,' ]$1[,' ]"
 }
 
 reload_conf() {
@@ -1474,18 +1444,14 @@ exec_func_with_timeout() {
         fi
     done
     wait $func_pid
-    rc=$?
-    return $rc
 }
 
 is_node_online() {
     crm_mon -1 -n | grep -e "^Node $1 " -e "^Node $1:" | grep -q -v "OFFLINE"
-    return $?
 }
 
 node_exist() {
     crm_mon -1 -n | grep -q "^Node $1"
-    return $?
 }
 
 check_binary2() {
