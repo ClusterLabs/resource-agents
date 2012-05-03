@@ -1,0 +1,346 @@
+#!/bin/bash
+#
+#       OCF Resource Agent compliant resource script.
+#	Arturo Borrero <aborrero@cica.es> <cer.inet@gmail.com> || October 2011
+#
+#	Based on the anything RA.
+#
+# 	GPLv3 Licensed. You can read the license in
+# 	http://www.gnu.org/licenses/gpl-3.0.html
+#
+#	Use this RA if you want an IPv6 address in
+#	the main loopback interface (for example usign LVS for loadbalancing)
+#
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+
+# Custom vars:
+IFCONFIG_BIN="/sbin/ifconfig"
+GREP_BIN="grep"
+IFACE="lo"
+process=$OCF_RESOURCE_INSTANCE
+ipv6addr=$OCF_RESKEY_ipv6addr
+cidr_netmask=$OCF_RESKEY_cidr_netmask
+pidfile=$OCF_RESKEY_pidfile ; [ -z "$pidfile" ] && pidfile=${HA_VARRUN}IPv6addrLO_${process}.pid
+logfile=$OCF_RESKEY_logfile ; [ -z "$logfile" ] && logfile="/var/log/syslog"
+errlogfile=$OCF_RESKEY_errlogfile ; [ -z "$errlogfile" ] && errlogfile="/var/log/syslog"
+
+
+validate_ipv6(){
+	ocf_log debug "Validating IPv6 addr: [\"$1\"]."
+	#ocf_log info "Validating IPv6 addr: [\"$1\"]."
+
+	echo "$1" | $GREP_BIN -E "^\s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}))|:)))(%.+)?\s*$" > /dev/null
+	if [ $? -eq 0 ]
+	then
+		# the ipv6 is valid
+		ocf_log debug "IPv6 addr: [\"$1\"] is valid."
+		#ocf_log info "IPv6 addr: [\"$1\"] is valid."
+		return 1
+	fi
+	# the ipv6 is invalid
+	ocf_log err "IPv6 addr: [\"$1\"] is not valid."
+	return 0
+}
+validate_cidr(){
+	ocf_log debug "Validating cidr: \"$1\"."
+	#ocf_log info "Validating cidr: \"$1\"."
+
+	if [ $1 -lt 129 ]
+	then
+		if [ $1 -gt 0 ]
+		then
+			# the cidr is valid
+			ocf_log debug "Cidr: \"$1\" is valid."
+			#ocf_log info "Cidr: \"$1\" is valid."
+			return 1
+		fi
+	fi
+	ocf_log err "Cidr: \"$1\" is not valid."
+	return 0
+}
+
+iface_has_ipv6()
+{
+	ocf_log debug "Checking if iface \"$IFACE\" has the ipv6 [\"$ipv6addr\"]."
+	#ocf_log info "Checking if iface \"$IFACE\" has the ipv6 [\"$ipv6addr\"]."
+	if [ ! -z $1 ]
+	then
+		$IFCONFIG_BIN $IFACE | $GREP_BIN $1 2> /dev/null > /dev/null
+		if [ $? -eq 0 ]
+		then
+			# the iface has the IPv6
+			ocf_log debug "The iface \"$IFACE\" has the ipv6 [\"$ipv6addr\"]."
+			#ocf_log info "The iface \"$IFACE\" has the ipv6 [\"$ipv6addr\"]."
+			return 1
+		fi
+		#ocf_log debug "The iface \"$IFACE\" does not have the ipv6 [\"$ipv6addr\"]."
+		ocf_log info "The iface \"$IFACE\" does not have the ipv6 [\"$ipv6addr\"]."
+	fi
+	return 0
+}
+
+IPv6addrLO_status() {
+	# Will check that the system has the ipv6 saved in the pidfile
+	if [ -r $pidfile ]
+	then
+		ocf_log debug "STATUS: The pidfile \"$pidfile\" exists."
+		#ocf_log info "STATUS: The pidfile \"$pidfile\" exists."
+
+		validate_ipv6 `cat $pidfile | awk -F'/' '{print $1}'`
+		if [ $? -eq 1 ]
+		then
+			# the ipv6 stored in pidfile is valid, then check if the system has that ip
+			iface_has_ipv6 `cat $pidfile`
+			if [ $? -eq 1 ]
+			then
+				ocf_log debug "The iface \"$IFACE\" has the IPv6 \"[`cat $pidfile`]\" stored in \"$pidfile\"."
+				#ocf_log info "The iface \"$IFACE\" has the IPv6 \"[`cat $pidfile`]\" stored in \"$pidfile\"."
+				return $OCF_RUNNING
+			else
+				ocf_log err "When checking status, the iface \"$IFACE\" has nor the IPv6 of the \"$pidfile\" nor \"$ipv6addr\"."
+				return $OCF_ERR_GENERIC
+			fi
+		else
+			ocf_log err "The ipv6addr in \"$pidfile\" is not valid: [\"`cat $pidfile`\"]."
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+	#ocf_log debug  "The pidfile \"$pidfile\" don't exists."
+	ocf_log info  "The pidfile \"$pidfile\" don't exists."
+	return $OCF_NOT_RUNNING
+}
+
+IPv6addrLO_start() {
+	if ! IPv6addrLO_status
+	then
+		# First, validate the input parameteres, ipv6addr and cidr_netmaks
+		validate_ipv6 $ipv6addr
+		if [ $? -ne 1 ]
+		then
+			ocf_log err "$process: The ipv6 addr: \"$ipv6addr\" is not a valid one."
+			return $OCF_ERR_GENERIC
+		fi
+		validate_cidr $cidr_netmask
+		if [ $? -ne 1 ]
+		then
+			ocf_log err "$process: The cidr netmask \"$cidr_netmask\" is not valid."
+			return $OCF_ERR_GENERIC
+		fi
+
+
+		# Before assign the ip, check if we already have that ip
+		iface_has_ipv6 $ipv6addr
+		if [ $? -eq 1 ]
+		then
+			# we have the IPv6addr on loopback
+			#ocf_log debug "The iface \"$IFACE\" had the IPv6 addr [\"$ipv6addr/$cidr_netmask\"], don't assigning again."
+			ocf_log info "The iface \"$IFACE\" had the IPv6 addr [\"$ipv6addr/$cidr_netmask\"], don't assigning again."
+			touch $pidfile
+			if [ $? -ne 0 ]
+			then
+				ocf_log war "Could not create the pidfile \"$pidfile\"."
+			fi
+			echo "$ipv6addr/$cidr_netmask" > $pidfile
+		else
+			# we don't have the IPv6addr on loopback
+			ocf_log debug "Starting $process"
+			ocf_log info "Starting $process"
+
+			# Doing different depending on what logfile we have.
+			if [ -n "$logfile" -a -n "$errlogfile" ]
+			then
+				# We have logfile and errlogfile, so redirect STDOUT und STDERR to different files
+				$IFCONFIG_BIN $IFACE add $ipv6addr/$cidr_netmask >> $logfile 2>> $errlogfile
+			else
+				if [ -n "$logfile" ]
+				then
+					# We only have logfile so redirect STDOUT and STDERR to the same file
+					$IFCONFIG_BIN $IFACE add $ipv6addr/$cidr_netmask >> $logfile 2>&1
+				else
+					# We have neither logfile nor errlogfile, so we're not going to redirect anything
+					$IFCONFIG_BIN $IFACE add $ipv6addr/$cidr_netmask
+				fi
+			fi
+			echo "$ipv6addr/$cidr_netmask" > $pidfile
+		fi
+
+		# Check what happened here.
+		if IPv6addrLO_status
+		then
+			ocf_log debug "$process: Started successfully."
+			ocf_log info "$process: Started successfully."
+			return $OCF_SUCCESS
+		else
+			ocf_log err "$process: Could not be started: ipv6addr[\"$ipv6addr\"] cidr_netmask[\"$cidr_netmask\"] all_args[\"$*\"]."
+			return $OCF_ERR_GENERIC
+		fi
+	else
+		# If already running, consider start successful
+		ocf_log debug "$process: is already running"
+		ocf_log info "$process: is already running"
+		return $OCF_SUCCESS
+	fi
+}
+
+IPv6addrLO_stop() {
+
+	ocf_log info "$process: Running STOP function."
+
+        if [ -n "$OCF_RESKEY_stop_timeout" ]
+        then
+                stop_timeout=$OCF_RESKEY_stop_timeout
+        elif [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+                # Allow 2/3 of the action timeout for the orderly shutdown
+                # (The origin unit is ms, hence the conversion)
+                stop_timeout=$((OCF_RESKEY_CRM_meta_timeout/1500))
+        else
+                stop_timeout=10
+        fi
+	if IPv6addrLO_status
+	then
+		$IFCONFIG_BIN $IFACE del `cat $pidfile`
+                i=0
+                while [ $i -lt $stop_timeout ]
+                do
+                        if ! IPv6addrLO_status
+                        then
+                        	rm -f $pidfile
+                                return $OCF_SUCCESS
+                        fi
+                        sleep 1
+                        i=`expr $i + 1`
+                done
+                ocf_log warn "Stop failed. Trying again."
+                $IFCONFIG_BIN $IFACE del `cat $pidfile`
+                rm -f $pidfile
+                if ! IPv6addrLO_status
+                then
+                        ocf_log warn "Stop success."
+                        return $OCF_SUCCESS
+                else
+                        ocf_log err "Failed to stop."
+                        return $OCF_ERR_GENERIC
+                fi
+	else
+		# was not running, so stop can be considered successful
+		$ICONFIG_BIN $IFACE del `cat $pidfile`
+		rm -f $pidfile
+		return $OCF_SUCCESS
+	fi
+}
+
+IPv6addrLO_monitor() {
+	IPv6addrLO_status
+	ret=$?
+	if [ $ret -eq $OCF_SUCCESS ]
+	then
+		if [ -n "$OCF_RESKEY_monitor_hook" ]; then
+			eval "$OCF_RESKEY_monitor_hook"
+                        if [ $? -ne $OCF_SUCCESS ]; then
+                                return ${OCF_ERR_GENERIC}
+                        fi
+			return $OCF_SUCCESS
+		else
+			true
+		fi
+	else
+		return $ret
+	fi
+}
+
+
+IPv6addrLO_validate() {
+
+	ocf_log debug "IPv6addrLO validating: args:[\"$*\"]"
+	ocf_log info "IPv6addrLO validating: args:[\"$*\"]"
+
+	if [ -x $IFCONFIG_BIN ]
+	then
+		ocf_log debug "Binary \"$IFCONFIG_BIN\" exist and is executable."
+		ocf_log info "Binary \"$IFCONFIG_BIN\" exist and is executable."
+		return $OCF_SUCCESS
+	else
+		ocf_log err "Binary \"$IFCONFIG_BIN\" does not exist or isn't executable."
+		return $OCF_ERR_INSTALLED
+	fi
+	ocf_log err "Error while validating."
+	return $OCF_ERR_GENERIC
+}
+
+IPv6addrLO_meta(){
+cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="IPv6addrLO">
+<version>0.1</version>
+<longdesc lang="en">
+OCF RA to manage IPv6addr on loopback interface Linux
+</longdesc>
+<shortdesc lang="en">IPv6 addr on loopback linux</shortdesc>
+
+<parameters>
+<parameter name="ipv6addr" required="1">
+<longdesc lang="en">
+The ipv6 addr to asign to the loopback interface.
+</longdesc>
+<shortdesc lang="en">Ipv6 addr to the loopback interface.</shortdesc>
+<content type="string" default=""/>
+</parameter>
+<parameter name="cidr_netmask" required="1">
+<longdesc lang="en">
+The cidr netmask of the ipv6 addr.
+</longdesc>
+<shortdesc lang="en">netmask of the ipv6 addr.</shortdesc>
+<content type="string" default="128"/>
+</parameter>
+<parameter name="logfile" required="0">
+<longdesc lang="en">
+File to write STDOUT to
+</longdesc>
+<shortdesc lang="en">File to write STDOUT to</shortdesc>
+<content type="string" />
+</parameter>
+<parameter name="errlogfile" required="0">
+<longdesc lang="en">
+File to write STDERR to
+</longdesc>
+<shortdesc lang="en">File to write STDERR to</shortdesc>
+<content type="string" />
+</parameter>
+</parameters>
+<actions>
+<action name="start"   timeout="20s" />
+<action name="stop"    timeout="20s" />
+<action name="monitor" depth="0"  timeout="20s" interval="10" />
+<action name="meta-data"  timeout="5" />
+<action name="validate-all"  timeout="5" />
+</actions>
+</resource-agent>
+END
+exit 0
+}
+
+case "$1" in
+	meta-data|metadata|meta_data|meta)
+		IPv6addrLO_meta
+	;;
+	start)
+		IPv6addrLO_start
+	;;
+	stop)
+		IPv6addrLO_stop
+	;;
+	monitor)
+		IPv6addrLO_monitor
+	;;
+	validate-all)
+		IPv6addrLO_validate
+	;;
+	*)
+		ocf_log err "$0 was called with unsupported arguments:"
+		exit $OCF_ERR_UNIMPLEMENTED
+	;;
+esac
