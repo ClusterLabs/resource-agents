@@ -1,0 +1,491 @@
+#!/bin/bash
+#
+# Description:  Manages a Tomcat Server as an OCF High-Availability
+#               resource under Heartbeat/LinuxHA control
+#
+# This script does proper validation of all parameters, installation,
+# and permissions. It is also very robust in the startup/shutdown
+# logic to avoid node fencing and incorrect states.
+#
+# It requires you have the following commands installed and on a common
+# path (and will not validate if you don't):
+#
+#   bash
+#   wget
+#   pkill
+#   pgrep
+#
+# The max_stop_time parameter is to help with "hung" tomcat instances. The
+# tomcat catalina.sh script can fail for various reasons (e.g. you accidentally
+# removed the PID file, an app is deadlocked in shutdown code, etc). You don't
+# want a hung tomcat fencing a node, so this script waits max_stop_time for
+# proper shutdown, and then resorts to a pkill -9 (whose pattern uses both the
+# java and tomcat path to avoid false matches).
+#
+#######################################################################
+# OCF parameters:
+#   OCF_RESKEY_tomcat_name - The name of the resource. Default is tomcat
+#   OCF_RESKEY_tomcat_user  - A user name to start a resource. Default is root
+#   OCF_RESKEY_statusurl - URL for state confirmation. Default is http://127.0.0.1:8080
+#   OCF_RESKEY_java_home - Home directory of Java. Default is none
+#   OCF_RESKEY_catalina_home - Home directory of Tomcat. Default is none
+#   OCF_RESKEY_catalina_pid  - A PID file name of Tomcat. Default is OCF_RESKEY_catalina_home/logs/catalina.pid
+#   OCF_RESKEY_max_stop_time - The max time it should take for proper shutdown. Force kill is used by this resource agent afterwards to ensure no fencing occurs. Set this LOWER than your stop timeout for the resource!
+###############################################################################
+
+OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat
+export OCF_FUNCTIONS_DIR
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+BASH=$(which bash)
+WGET=$(which wget)
+PGREP=$(which pgrep)
+PKILL=$(which pkill)
+
+usage() 
+{
+	cat <<-!
+usage: $0 action
+
+action:
+        start   start Tomcat
+
+        stop    stop Tomcat
+
+        status  return the status of Tomcat, up or down
+
+        monitor  return TRUE if Tomcat appears to be working.
+                 You have to have installed $WGETNAME for this to work.
+
+        meta-data       show meta data message
+
+        validate-all    validate the instance parameters
+!
+}
+
+############################################################################
+# Check tomcat service availability
+isTomcatServing()
+{
+	if ! have_binary $WGET; then
+		ocf_log err "Monitoring not supported by $OCF_RESOURCE_INSTANCE"
+		ocf_log info "Please make sure that wget is available"
+		return $OCF_ERR_CONFIGURED
+	fi
+	$WGET -O /dev/null $RESOURCE_STATUSURL >/dev/null 2>&1
+}
+
+############################################################################
+# 
+isTomcatRunning()
+{
+   pid=$rememberedPID
+   # If there is a PID file, use that
+   if [ -f $CATALINA_PID ]
+   then
+      ocf_log debug "Reading pid from $CATALINA_PID"
+      # race conditions on PID file being removed by stopping tomcat...
+      t=$(cat $CATALINA_PID)
+      if [ "$t" -gt 0 ]; then
+         pid=$t
+      fi
+   else
+      ocf_log debug "There is no catalina PID file"
+   fi
+   ocf_log debug "pid to check is $pid"
+   if ((pid > 0)) 
+   then
+      ocf_log debug "Sending noop signal to $pid"
+      if kill -0 $pid > /dev/null 2>&1
+      then
+         return 0
+      else
+         return 1
+      fi
+   else
+      ocf_log warn "PID file was missing at start of action (possibly tomcat is starting or was down). Using pgrep for status instead, which may yeild incorrect results."
+      if $PGREP -f "$PGREP_PATTERN" > /dev/null 2>&1
+      then
+         return 0
+      else
+         return 1
+      fi
+   fi
+}
+
+monitor_tomcat()
+{
+   if isTomcatServing; then
+      return $OCF_SUCCESS
+   fi
+
+   # It isn't serving, but it IS running...this is a problem
+   if isTomcatRunning; then
+      return $OCF_ERR_GENERIC
+   fi
+
+   return $OCF_NOT_RUNNING
+}
+
+attemptTomcatCommand()
+{
+   cmd="export JAVA_HOME=${JAVA_HOME}; export CATALINA_HOME=${CATALINA_HOME}; export CATALINA_PID=${CATALINA_PID}; $CATALINA_HOME/bin/catalina.sh $1"
+	ocf_log info "Starting tomcat as $RESOURCE_TOMCAT_USER using '$cmd'."
+   if ! su - -s $BASH $RESOURCE_TOMCAT_USER -c "$cmd"
+   then
+      ocf_log err "Catalina.sh failed. Configuration must be hosed."
+      return $OCF_ERR_CONFIGURED
+   fi
+   return 0
+}
+
+start_tomcat()
+{
+	cd "$CATALINA_HOME/bin"
+
+   validate_all_tomcat || exit $?
+
+   # Is it already running?
+   monitor_tomcat
+	if [ $? = $OCF_SUCCESS ]; then
+      ocf_log info "Tomcat was already running."
+		return $OCF_SUCCESS
+	fi
+
+   attemptTomcatCommand start
+   if [ $? != "0" ]; then
+      return $?
+   fi
+
+   sleep 2 # give it a bit to get going, so the PID file will be there
+
+	while ! isTomcatServing; do
+      if ! isTomcatRunning; then
+         ocf_log err "Tomcat process died while running start. Assuming configuration is hosed."
+         return $OCF_ERR_CONFIGURED
+      fi
+		ocf_log debug "start_tomcat: retry monitor_tomcat"
+		sleep 3
+	done
+
+	return $OCF_SUCCESS
+}
+
+############################################################################
+# Stop Tomcat
+stop_tomcat()
+{
+	cd "$CATALINA_HOME/bin"
+
+   if ! isTomcatRunning; then
+      ocf_log info "Tomcat stopped (was not running)"
+      return $OCF_SUCCESS
+   fi
+
+   memorize_pid # This lets monitoring continue to work reliably
+   ocf_log info "Asking Tomcat to stop"
+   attemptTomcatCommand stop
+
+   tm=0
+	while isTomcatRunning; do
+		sleep 1
+      ((tm=tm+1))
+      if ((tm > MAX_STOP_TIME))
+      then
+         ocf_log error "TIMEOUT: Tomcat did not stop normally"
+         if ((rememberedPID > 0))
+         then
+            ocf_log info "Force killing using remembered PID"
+            kill -9 $rememberedPID > /dev/null 2>&1
+         else
+            ocf_log info "Force killing using remembered regex"
+            $PKILL -9 -f "$PGREP_PATTERN" > /dev/null 2>&1
+         fi
+         break
+      fi
+	done
+
+   sleep 2
+   if isTomcatRunning
+   then
+      return $OCF_ERR_GENERIC
+   fi
+
+   rm -f "$CATALINA_PID" > /dev/null 2>&1
+
+	return $OCF_SUCCESS
+}
+
+status_tomcat()
+{
+	return $OCF_SUCCESS
+}
+
+
+metadata_tomcat()
+{
+    cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="tomcat">
+   <version>1.0</version>
+
+   <longdesc lang="en">
+      Resource script for Tomcat. It manages a Tomcat instance as a cluster resource.
+   </longdesc>
+   <shortdesc lang="en">Manages a Tomcat servlet environment instance</shortdesc>
+
+   <parameters>
+      <parameter name="max_stop_time" unique="0" required="1">
+         <longdesc lang="en">
+            Number of seconds to wait during a stop before drastic measures
+            (force kill) are used on the tomcat process. This number MUST be
+            less than your cluster stop timeout for the resource. If you fail
+            to set this parameter and tomcat fails to stop normally, the
+            node it is on will be fenced!
+
+            This parameter must be set, and must be greater than 5.
+         </longdesc>
+         <shortdesc>Time to wait for normal stop before using force kill (minimum is 5).</shortdesc>
+         <content type="integer" default="" />
+      </parameter>
+
+      <parameter name="tomcat_user" unique="0">
+         <longdesc lang="en">
+            The user who starts Tomcat.
+         </longdesc>
+         <shortdesc>The user who starts Tomcat</shortdesc>
+         <content type="string" default="tomcat" />
+      </parameter>
+
+      <parameter name="statusurl" unique="0">
+         <longdesc lang="en">
+            URL for state confirmation. Must not cause redirects. Must serve a
+            proper page if tomcat is to be considered active.
+         </longdesc>
+         <shortdesc>URL for state confirmation</shortdesc>
+         <content type="string" default="http://127.0.0.1:8080" />
+      </parameter>
+
+      <parameter name="java_home" unique="0">
+         <longdesc lang="en">
+            Home directory of Java.
+         </longdesc>
+         <shortdesc>Home directory of Java</shortdesc>
+         <content type="string" default="/usr/java/latest" />
+      </parameter>
+
+      <parameter name="catalina_home" unique="1" required="1">
+         <longdesc lang="en">
+            Home directory of Tomcat.
+         </longdesc>
+         <shortdesc>Home directory of Tomcat</shortdesc>
+         <content type="string" default="" />
+      </parameter>
+
+      <parameter name="catalina_pid" unique="1">
+         <longdesc lang="en">
+            A PID file name for Tomcat. This is required to ensure proper stop
+            operations and avoid node fencing.
+         </longdesc>
+         <shortdesc>A PID file name for Tomcat</shortdesc>
+         <content type="string" default="catalina_home/logs/catalina.pid" />
+      </parameter>
+
+   </parameters>
+
+   <actions>
+      <action name="start" timeout="120" />
+      <action name="stop" timeout="120" />
+      <action name="status" timeout="60" />
+      <action name="monitor" depth="0" timeout="30" interval="10" />
+      <action name="meta-data" timeout="5s" />
+      <action name="validate-all"  timeout="5"/>
+   </actions>
+</resource-agent>
+END
+   return $OCF_SUCCESS
+}
+
+validate_all_tomcat()
+{
+   ocf_log info "validate_all_tomcat"
+   misconfigured=0
+   notinstalled=0
+   wrongpermissions=0
+
+   if [ $MAX_STOP_TIME -le 5 ]; then
+      ocf_log err "max_stop_time must be set to a value greater than 5."
+      misconfigured=1
+   fi
+
+   if [ $MAX_STOP_TIME -le 20 ]; then
+      ocf_log warn "max_stop_time is less than 20, which might lead to premature force-kills of your app."
+   fi
+
+   if [ ! -x $BASE ]; then
+      ocf_log err "Missing bash (or the which command, used to find it)."
+      notinstalled=1
+   fi
+
+   if [ ! -x $WGET ]; then
+      ocf_log err "Missing wget (used for checking status)."
+      notinstalled=1
+   fi
+
+   if [ ! -x $PGREP ]; then
+      ocf_log err "Missing pgrep (used for checking status)."
+      notinstalled=1
+   fi
+
+   if [ ! -x $PKILL ]; then
+      ocf_log err "Missing pkill (used for forcing stops)."
+      notinstalled=1
+   fi
+
+   if [ ! -d $CATALINA_HOME ]; then
+      ocf_log err "Missing catalina_home."
+      notinstalled=1
+   fi
+
+   # Test that the user who will run tomcat has permission to write the PID
+   # file. We do this by actually trying a timestamp update (or create) of the
+   # actual file as the actual user. If we end up creating it and it did not
+   # exist, we have to remove it for safety.
+   existed=0
+   if [ -f $CATALINA_PID ]; then
+      existed=1
+   fi
+
+   if ! su - -s $BASH $RESOURCE_TOMCAT_USER -c "touch $CATALINA_PID"
+   then
+      ocf_log err "$RESOURCE_TOMCAT_USER cannot write to $CATALINA_PID. Check directory permissions."
+      wrongpermissions=1
+   fi
+
+   if [ "$existed" = "0" ]; then
+      rm $CATALINA_PID > /dev/null 2>&1
+   fi
+
+   if ! grep $RESOURCE_TOMCAT_USER /etc/passwd > /dev/null 2>&1
+   then
+      ocf_log err "$RESOURCE_TOMCAT_USER does not exist in /etc/password. Set the tomcat_user parameter or create a user using useradd."
+      misconfigured=1
+   fi
+
+   if [ ! -x $JAVA_HOME/bin/java ]
+   then
+      ocf_log err "JAVA_HOME is set to $JAVA_HOME, but no java executable is in $JAVA_HOME/bin. Set the java_home parameter."
+      notinstalled=1
+   fi
+
+   port=${RESOURCE_STATUSURL##*:}
+   ocf_log debug "Tomcat port is $port"
+   ocf_log debug "grep port=\"$port\" $CATALINA_HOME/conf/server.xml"
+   if [ "$port" -gt 0 ]; then
+      if ! grep "port=\"$port\"" $CATALINA_HOME/conf/server.xml > /dev/null 2>&1 
+      then
+         ocf_log err "Your configured status URL specifies a port ($port), but the server does not have a connector listining to that port in $CATALINA_HOME/conf/server.xml"
+         misconfigured=1
+      fi
+   fi
+
+   if [ $misconfigured -gt 0 ]; then
+      return $OCF_ERR_CONFIGURED
+   fi
+
+   if [ $notinstalled -gt 0 ]; then
+      return $OCF_ERR_INSTALLED
+   fi
+
+   if [ $wrongpermissions -gt 0 ]; then
+      return $OCF_ERR_PERM
+   fi
+
+   return $OCF_SUCCESS
+}
+
+#
+### tomcat RA environment variables
+#
+
+RESOURCE_TOMCAT_USER="${OCF_RESKEY_tomcat_user-tomcat}"
+RESOURCE_STATUSURL="${OCF_RESKEY_statusurl-http://127.0.0.1:8080}"
+JAVA_HOME="${OCF_RESKEY_java_home-/usr/java/latest}"
+CATALINA_HOME="${OCF_RESKEY_catalina_home}"
+CATALINA_PID="${OCF_RESKEY_catalina_pid-$CATALINA_HOME/logs/catalina.pid}"
+MAX_STOP_TIME=${OCF_RESKEY_max_stop_time-5}
+PGREP_PATTERN="${JAVA_HOME}/bin/java.*catalina.home=[^ ]*${CATALINA_HOME}" > /dev/null 2>&1
+
+# As we stop tomcat, it removes it's own pid file...we still want to know what it was
+memorize_pid() 
+{
+   if [ -f $CATALINA_PID ]; then
+     rememberedPID=$(cat $CATALINA_PID)
+   fi
+}
+
+forget_pid() 
+{
+  rememberedPID=
+}
+
+export JAVA_HOME CATALINA_HOME CATALINA_PID
+
+JAVA=${JAVA_HOME}/bin/java
+
+#
+# ------------------
+# the main script
+# ------------------
+# 
+
+if [ "$1" != "noop" ]; then
+
+COMMAND=$1
+
+case "$COMMAND" in
+   start)
+      ocf_log debug  "Enter tomcat start"
+      start_tomcat
+      func_status=$?
+      ocf_log debug  "Leave tomcat start $func_status"
+      exit $func_status
+      ;;
+   stop)
+      ocf_log debug  "Enter tomcat stop"
+      stop_tomcat
+      func_status=$?
+      ocf_log debug  "Leave tomcat stop $func_status"
+      exit $func_status
+      ;;
+   status)
+      status_tomcat
+      exit $?
+      ;;
+   monitor)
+      #ocf_log debug  "Enter tomcat monitor"
+      monitor_tomcat
+      func_status=$?
+      #ocf_log debug  "Leave tomcat monitor $func_status"
+      exit $func_status
+      ;;
+   meta-data)
+      metadata_tomcat
+      exit $?
+      ;;
+   validate-all)
+      validate_all_tomcat
+      exit $?
+      ;;
+        usage|help)
+                usage
+                exit $OCF_SUCCESS
+                ;;
+   *)
+      usage
+      exit $OCF_ERR_UNIMPLEMENTED
+      ;;
+esac
+
+fi
