@@ -415,7 +415,7 @@ JAVA_HOME="${OCF_RESKEY_java_home-/usr/java/latest}"
 CATALINA_HOME="${OCF_RESKEY_catalina_home}"
 CATALINA_PID="${OCF_RESKEY_catalina_pid-$CATALINA_HOME/logs/catalina.pid}"
 MAX_STOP_TIME=${OCF_RESKEY_max_stop_time-5}
-PGREP_PATTERN="${JAVA_HOME}/bin/java.*catalina.home=[^ ]*${CATALINA_HOME}" > /dev/null 2>&1
+PGREP_PATTERN="${JAVA_HOME}/bin/java.*catalina.home=${CATALINA_HOME} " > /dev/null 2>&1
 
 # As we stop tomcat, it removes it's own pid file...we still want to know what it was
 memorize_pid() 
