@@ -213,9 +213,14 @@ asterisk_validate() {
         check_binary sipsak
     fi
 
+    # A config file on shared storage that is not available
+    # during probes is OK.
     if [ ! -f $OCF_RESKEY_config ]; then
-        ocf_log err "Config $OCF_RESKEY_config doesn't exist"
-        return $OCF_ERR_INSTALLED
+        if ! ocf_is_probe; then
+            ocf_log err "Config $OCF_RESKEY_config doesn't exist"
+            return $OCF_ERR_INSTALLED
+        fi
+        ocf_log_warn "Config $OCF_RESKEY_config not available during a probe"
     fi
 
     getent passwd $OCF_RESKEY_user >/dev/null 2>&1
@@ -399,17 +404,6 @@ asterisk_stop() {
         return $OCF_SUCCESS
     fi
 
-    # do a "soft shutdown" via the asterisk command line first
-    asterisk_rx 'core stop now'
-
-    asterisk_status
-    rc=$?
-    if [ $rc -eq $OCF_NOT_RUNNING ]; then
-        ocf_log info "Asterisk PBX stopped"
-        return $OCF_SUCCESS
-    fi
-
-    # If "core stop now" didn't succeed, try SIGTERM
     pid=`cat $ASTRUNDIR/asterisk.pid`
     ocf_run kill -s TERM $pid
     rc=$?

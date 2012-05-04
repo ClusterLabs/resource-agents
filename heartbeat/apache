@@ -173,6 +173,8 @@ start_apache() {
     return $OCF_SUCCESS
   fi
   validate_default_config || return $OCF_ERR_CONFIGURED
+  # https://bugs.launchpad.net/ubuntu/+source/apache2/+bug/603211
+  [ -d /var/run/apache2 ] || mkdir /var/run/apache2
   ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE
   tries=0
   while :  # wait until the user set timeout
@@ -486,7 +488,7 @@ validate_all_apache() {
 	: OK to be empty
   else
 	case $STATUSURL in
-	    http://*/*) ;;
+	    http://*) ;;
 	    *) 
 	    ocf_log err "Invalid STATUSURL $STATUSURL"
 	    exit $OCF_ERR_ARGS ;;
@@ -516,7 +518,7 @@ then
   CONFIGFILE="$OCF_RESKEY_configfile"
   OPTIONS="$OCF_RESKEY_options"
   CLIENT=${OCF_RESKEY_client}
-  TESTREGEX=${OCF_RESKEY_testregex:-'</ *body *>[[:space:]]*</ *html *>'}
+  TESTREGEX=${OCF_RESKEY_testregex:-'</ *html *>'}
   TESTURL="$OCF_RESKEY_testurl"
   TESTREGEX10=${OCF_RESKEY_testregex10}
   TESTCONFFILE="$OCF_RESKEY_testconffile"

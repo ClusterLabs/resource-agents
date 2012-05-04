@@ -45,7 +45,7 @@
   </xsl:attribute>
   <xsl:apply-templates select="$this" mode="refentryinfo"/>
   <xsl:apply-templates select="$this" mode="refmeta"/>
-  <xsl:apply-templates select="$this" mode="refnamediv"/>   
+  <xsl:apply-templates select="$this" mode="refnamediv"/>
   <xsl:apply-templates select="$this" mode="synopsis"/>
   <xsl:apply-templates select="$this" mode="description"/>
   <xsl:apply-templates select="$this" mode="parameters"/>
@@ -125,38 +125,64 @@
  </xsl:template>
 
 
- <!-- Mode Description --> 
+ <!-- Mode Description -->
 
  <!-- break string into <para> elements on linefeeds -->
+ <!-- would be so much easier with replace(...) -->
 
 <xsl:template name="break_into_para">
     <xsl:param name="string" />
 
+    <xsl:choose>
+    <xsl:when test="starts-with($string, '&#xA;') or starts-with($string, ' ')" >
+	<!-- trim leading newlines and other witespace -->
+	<xsl:variable name="normalized" select="normalize-space($string)" />
+	<xsl:variable name="nlen" select="string-length($normalized)" />
+	<xsl:if test="$nlen &gt; 0" >
+	    <xsl:variable name="leading" select="string-length(substring-before($string, substring($normalized, 1, 1)))" />
+            <xsl:call-template name="break_into_para">
+	    <xsl:with-param name="string" select="substring($string, $leading + 1)" />
+            </xsl:call-template>
+	</xsl:if>
+    </xsl:when>
+    <xsl:otherwise>
+
     <xsl:variable name="lf" select="'&#xA;&#xA;'" />
+    <xsl:variable name="lf_dash" select="'&#xA;-'" />
     <xsl:choose>
         <xsl:when test="contains($string, $lf)">
             <xsl:variable name="first" select="substring-before($string, $lf)" />
-
-            <para>
-                <xsl:value-of select="'&#xA;'" />
-                <xsl:value-of select="$first"/>
-                <xsl:value-of select="'&#xA;'" />
-            </para>
-            <xsl:value-of select="'&#xA;'" />
-
-           <!-- recursively call an remaining string --> 
+           <!-- recursively call on remaining string -->
             <xsl:call-template name="break_into_para">
-                <xsl:with-param name="string"
-                    select="substring-after($string, $lf)" />
+	    <xsl:with-param name="string" select="$first"/>
+            </xsl:call-template>
+            <xsl:call-template name="break_into_para">
+	    <xsl:with-param name="string" select="substring-after($string, $lf)" />
+            </xsl:call-template>
+        </xsl:when>
+        <xsl:when test="contains($string, $lf_dash)">
+            <xsl:variable name="first" select="substring-before($string, $lf_dash)" />
+           <!-- recursively call on remaining string -->
+            <xsl:call-template name="break_into_para">
+	    <xsl:with-param name="string" select="$first"/>
+            </xsl:call-template>
+            <xsl:call-template name="break_into_para">
+	    <xsl:with-param name="string" select="concat('-',substring-after($string, $lf_dash))" />
             </xsl:call-template>
         </xsl:when>
         <xsl:otherwise>
             <para>
-                <xsl:value-of select="$string"/>
+	    <xsl:value-of select="'&#xA;'"/>
+	    <xsl:value-of select="$string"/>
+	    <xsl:value-of select="'&#xA;'"/>
             </para>
+	    <xsl:value-of select="'&#xA;'"/>
         </xsl:otherwise>
     </xsl:choose>
-</xsl:template> 
+    </xsl:otherwise>
+    </xsl:choose>
+</xsl:template>
+
 
   <xsl:template match="resource-agent" mode="description">
     <refsection>
@@ -210,30 +236,30 @@
       <xsl:apply-templates mode="parameters"/>
     </variablelist>
   </xsl:template>
-  
-  
+
+
   <xsl:template match="parameter" mode="parameters">
    <varlistentry>
     <term>
       <option><xsl:value-of select="concat($variable.prefix, @name)"/></option>
     </term>
     <listitem>
-      <para>
 	<xsl:apply-templates select="longdesc" mode="parameters"/>
+	<para>
 	<xsl:apply-templates select="content" mode="parameters"/>
-      </para>
+	</para>
     </listitem>
    </varlistentry>
   </xsl:template>
-  
+
   <xsl:template match="longdesc" mode="parameters">
     <xsl:apply-templates select="node()" mode="longdesc"/>
   </xsl:template>
-  
+
   <xsl:template match="shortdesc" mode="parameters">
     <xsl:apply-templates select="text()" mode="parameters"/>
   </xsl:template>
-  
+
   <xsl:template match="content" mode="parameters">
     <xsl:if test="@type != '' or @default != ''">
       <xsl:text> (</xsl:text>
@@ -434,7 +460,7 @@
   <xsl:template match="parameters" mode="example">
     <xsl:apply-templates select="parameter[@required = 1]" mode="example"/>
   </xsl:template>
-  
+
   <xsl:template match="parameter" mode="example">
     <xsl:text>    </xsl:text>
     <xsl:value-of select="@name"/>

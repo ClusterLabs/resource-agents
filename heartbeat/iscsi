@@ -157,20 +157,8 @@ EOF
 # open-iscsi interface
 #
 
-open_iscsi_daemon() {
-	if ps -e -o cmd | grep -qs '[i]scsid'; then
-		return 0
-	elif grep -qs '^iscsid.startup' /etc/iscsi/iscsid.conf; then
-		# apparently on RedHat (perhaps elsewhere?), there is a
-		# kind of iscsid autostart once root invokes some
-		# open_iscsi command; the iscsid.startup hook should take
-		# care of it; reported by m.richardson@ed.ac.uk (see also
-		# the discussion at the linux-ha-dev ML)
-		return 0
-	else
-		ocf_log err "iscsid not running; please start open-iscsi utilities"
-		return 1
-	fi
+is_iscsid_running() {
+	ps -e -o cmd | grep -qs '[i]scsid'
 }
 open_iscsi_setup() {
 	discovery=open_iscsi_discovery
@@ -180,10 +168,20 @@ open_iscsi_setup() {
 	iscsiadm=${OCF_RESKEY_iscsiadm}
 
 	have_binary ${iscsiadm} ||
-		return $OCF_ERR_INSTALLED
-
-	open_iscsi_daemon ||
-		return $OCF_ERR_INSTALLED
+		return 3
+	if is_iscsid_running; then
+		return 0
+	elif grep -qs '^iscsid.startup' /etc/iscsi/iscsid.conf; then
+		# apparently on RedHat (perhaps elsewhere?), there is a
+		# kind of iscsid autostart once root invokes some
+		# open_iscsi command; the iscsid.startup hook should take
+		# care of it; reported by m.richardson@ed.ac.uk (see also
+		# the discussion at the linux-ha-dev ML)
+		return 1
+	else
+		ocf_log err "iscsid not running; please start open-iscsi utilities"
+		return 2
+	fi
 }
 
 #
@@ -362,14 +360,14 @@ esac
 
 LSB_STATUS_STOPPED=3
 $setup
-rc=$?
-if [ $rc -ne 0 ]; then
+setup_rc=$?
+if [ $setup_rc -gt 1 ]; then
 	ocf_log info "iscsi initiator utilities not installed or not setup"
 	case "$1" in
 		stop) exit $OCF_SUCCESS;;
 		monitor) exit $OCF_NOT_RUNNING;;
 		status) exit $LSB_STATUS_STOPPED;;
-		*) exit $rc;;
+		*) exit $OCF_ERR_INSTALLED;;
 	esac
 fi
 
@@ -397,6 +395,12 @@ case $? in
    exit $OCF_ERR_GENERIC
 ;;
 3) ocf_is_probe && exit $OCF_NOT_RUNNING
+   if ! is_iscsid_running; then
+		[ $setup_rc -eq 1 ] &&
+			ocf_log warning "iscsid.startup probably not correctly set in /etc/iscsi/iscsid.conf"
+		[ "$1" = stop ] && exit $OCF_SUCCESS
+		exit $OCF_ERR_INSTALLED
+   fi
    exit $OCF_ERR_GENERIC
 ;;
 esac

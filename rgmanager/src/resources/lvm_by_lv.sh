@@ -238,7 +238,19 @@ lv_activate_and_tag()
 		lvchange --deltag $tag $lv_path
 		if [ $? -ne 0 ]; then
 			ocf_log err "Unable to delete tag from $lv_path"
-			return $OCF_ERR_GENERIC
+
+			# Newer versions of LVM require the missing PVs to
+			# be removed from the VG via a separate call before
+			# the tag can be removed.
+			ocf_log err "Attempting volume group clean-up and retry"
+			vgreduce --removemissing --force $OCF_RESKEY_vg_name
+
+			# Retry tag deletion
+			lvchange --deltag $tag $lv_path
+			if [ $? -ne 0 ]; then
+				ocf_log err "Failed to delete tag from $lv_path"
+				return $OCF_ERR_GENERIC
+			fi
 		fi
 
 		if [ `lvs --noheadings -o lv_tags $lv_path` == $tag ]; then

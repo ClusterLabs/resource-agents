@@ -24,6 +24,7 @@ sbin_SCRIPTS		= ocft
 ocftcfgsdir		= $(datadir)/$(PACKAGE_NAME)/ocft/configs
 ocftcfgs_DATA      =  apache  	\
 			 IPaddr2	\
+			 IPv6addr	\
 			 Filesystem	\
 			 LVM	\
 			 IPsrcaddr  	\
@@ -37,6 +38,7 @@ ocftcfgs_DATA      =  apache  	\
 		       	 iscsi	\
 		       	 named	\
 		       	 postfix	\
+		       	 Xinetd	\
 			 SendArp
 
 ocftdir			= $(datadir)/$(PACKAGE_NAME)/ocft

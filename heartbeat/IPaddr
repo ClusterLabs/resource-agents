@@ -378,7 +378,7 @@ find_interface_generic() {
 	done
 	
 	case $ifname in
-	    *:*)	;;
+	    *:*)	ifname=`echo $ifname | sed 's/:$//'`;;
 	    *)	continue;;
 	esac
 	

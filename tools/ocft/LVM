@@ -11,11 +11,11 @@ VARIABLE
 	OCFT_pv=/var/run/resource-agents/ocft-LVM-pv
 	OCFT_vg=ocft-vg
 	OCFT_lv=ocft-lv
-	OCFT_loop=/dev/loop0
+	OCFT_loop=/dev/loop7
 
 SETUP-AGENT
-	losetup -d $OCFT_loop 2>/dev/null || true
-	dd if=/dev/zero of=$OCFT_pv bs=1024k count=1 2>/dev/null
+	losetup $OCFT_loop 2>/dev/null && exit 1
+	dd if=/dev/zero of=$OCFT_pv bs=1 count=0 seek=16M 2>/dev/null
 	losetup $OCFT_loop $OCFT_pv
 	pvcreate $OCFT_loop
 	vgcreate -s 4K $OCFT_vg $OCFT_loop
@@ -25,6 +25,7 @@ CLEANUP-AGENT
 	vgchange -an $OCFT_vg
 	lvremove -f /dev/$OCFT_vg/$OCFT_lv
 	vgremove -f $OCFT_vg
+	pvremove $OCFT_loop
 	losetup -d $OCFT_loop
 	rm $OCFT_pv
 

@@ -37,8 +37,8 @@
 
 # Initialization:
 
-: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
-. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 : ${OCF_RESKEY_slapd="/usr/sbin/slapd"}
 : ${OCF_RESKEY_ldapsearch="ldapsearch"}
@@ -214,21 +214,21 @@ terminate()
   local pid=$1
   local signal=$2
   local recheck=${3-0}
-  local result
+  local rc
   local waited=0
 
-  kill -$signal $pid >/dev/null 2>&1; result=$?
+  kill -$signal $pid >/dev/null 2>&1; rc=$?
 
-  while [ \( $result -eq 0 \) -a \( $recheck -eq 0 -o $waited -lt $recheck \) ]; do
-    kill -0 $pid >/dev/null 2>&1; result=$?
+  while [ \( $rc -eq 0 \) -a \( $recheck -eq 0 -o $waited -lt $recheck \) ]; do
+    kill -0 $pid >/dev/null 2>&1; rc=$?
     let "waited += 1"
 
-    if [ $result -eq 0 ]; then
+    if [ $rc -eq 0 ]; then
       sleep 1
     fi
   done
 
-  if [ $result -ne 0 ]; then
+  if [ $rc -ne 0 ]; then
     return 0
   fi
 
@@ -237,23 +237,23 @@ terminate()
 
 watch_suffix()
 {
-  local result
+  local rc
 
   if [ -n "$OCF_RESKEY_watch_suffix" ]; then
     if echo "'$OCF_RESKEY_watch_suffix'" | grep "'$1'" >/dev/null 2>&1; then
-      result=0
+      rc=0
     else
-      result=1
+      rc=1
     fi
   else
     if echo "'$OCF_RESKEY_ignore_suffix'" | grep "'$1'" >/dev/null 2>&1; then
-      result=1
+      rc=1
     else
-      result=0
+      rc=0
     fi
   fi
 
-  return $result
+  return $rc
 }
 
 slapd_pid()
@@ -297,7 +297,7 @@ slapd_start()
 {
   local options
   local reason
-  local result
+  local rc
   local state
 
   slapd_status `slapd_pid`; state=$?
@@ -325,12 +325,12 @@ slapd_start()
   fi
 
   if [ -n "$services" ]; then
-    $slapd -h "$services" $options 2>&1; result=$?
+    $slapd -h "$services" $options 2>&1; rc=$?
   else
-    $slapd $options 2>&1; result=$?
+    $slapd $options 2>&1; rc=$?
   fi
 
-  if [ $result -ne 0 ]; then
+  if [ $rc -ne 0 ]; then
     ocf_log err "slapd returned error."
 
     return $OCF_ERR_GENERIC
@@ -352,7 +352,7 @@ slapd_start()
 slapd_stop()
 {
   local pid
-  local result
+  local rc
   local state
 
   pid=`slapd_pid`; slapd_status $pid; state=$?
@@ -364,10 +364,10 @@ slapd_stop()
     return $state
   fi
 
-  terminate $pid TERM $OCF_RESKEY_stop_escalate; result=$?
-  if [ $result -ne 0  ]; then
+  terminate $pid TERM $OCF_RESKEY_stop_escalate; rc=$?
+  if [ $rc -ne 0  ]; then
     ocf_log err "slapd failed to stop. Escalating to KILL."
-    terminate $pid KILL; result=$?
+    terminate $pid KILL; rc=$?
   fi
 
   if [ -f "$pid_file" ]; then
@@ -381,7 +381,7 @@ slapd_stop()
 slapd_monitor()
 {
   local options
-  local result
+  local rc
   local state
   local suffix
   local suffixes
@@ -436,9 +436,9 @@ slapd_monitor()
 
   [ -z "$1" ] && err_option=""
   for suffix in $suffixes; do
-    ocf_run -q $err_option "$ldapsearch" -H "$services" -b "$suffix" $options >/dev/null 2>&1; result=$?
+    ocf_run -q $err_option "$ldapsearch" -H "$services" -b "$suffix" $options >/dev/null 2>&1; rc=$?
 
-    case "$result" in
+    case "$rc" in
       "0")
         ocf_log debug "slapd database with suffix '$suffix' reachable"
         ;;
@@ -447,8 +447,8 @@ slapd_monitor()
         return $OCF_ERR_CONFIGURED
         ;;
       *)
-        if [ -z "$1" ] || [ -n "$1" -a $result -ne 1 ]; then
-          ocf_log err "slapd database with suffix '$suffix' unreachable. exit code ($result)"
+        if [ -z "$1" ] || [ -n "$1" -a $rc -ne 1 ]; then
+          ocf_log err "slapd database with suffix '$suffix' unreachable. exit code ($rc)"
           state=$OCF_ERR_GENERIC
         fi
         ;;
@@ -490,6 +490,13 @@ slapd_validate_all()
   elif ! grep "^$group:" /etc/group >/dev/null 2>&1; then
     ocf_log err "slapd group '$group' does not exist"
     return $OCF_ERR_INSTALLED
+  fi
+
+  pid_dir=`dirname "$pid_file"`
+  if [ ! -d "$pid_dir" ]; then
+    mkdir -p "$pid_dir"
+    chown -R "$user" "$pid_dir"
+    chgrp -R "$group" "$pid_dir"
   fi
 
   return $OCF_SUCCESS

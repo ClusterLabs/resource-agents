@@ -41,6 +41,7 @@ usage() {
 
 
 : ${OCF_RESKEY_xmfile=/etc/xen/vm/MyDomU}
+: ${OCF_RESKEY_shutdown_acpi=0}
 : ${OCF_RESKEY_allow_mem_management=0}
 : ${OCF_RESKEY_reserved_Dom0_memory=512}
 
@@ -106,6 +107,15 @@ Setting this value to 0 forces an immediate destroy.
 </longdesc>
 <shortdesc lang="en">Shutdown escalation timeout</shortdesc>
 <content type="string" default="" />
+</parameter>
+<parameter name="shutdown_acpi" unique="0" required="0">
+<longdesc lang="en">
+Handle shutdown by simulating an ACPI power button event.
+Enable this to allow graceful shutdown for HVM domains
+without installed PV drivers.
+</longdesc>
+<shortdesc lang="en">Simulate power button event on shutdown</shortdesc>
+<content type="boolean" default="0" />
 </parameter>
 <parameter name="allow_mem_management" unique="0" required="0">
 <longdesc lang="en">
@@ -303,7 +313,11 @@ xen_domain_stop() {
 
     if [ "$timeout" -gt 0 ]; then
       ocf_log info "Xen domain $dom will be stopped (timeout: ${timeout}s)"
-      xm shutdown $dom
+      if ocf_is_true "${OCF_RESKEY_shutdown_acpi}"; then
+        xm trigger $dom power
+      else
+        xm shutdown $dom
+      fi
           
       while Xen_Status $dom && [ "$timeout" -gt 0 ]; do
         ocf_log debug "$dom still not stopped. Waiting..."

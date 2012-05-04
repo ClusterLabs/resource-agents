@@ -220,7 +220,13 @@ mount_in_use () {
 		fi
 
 		if [ -n "$tmp_dev" -a "$tmp_dev" = "$dev" ]; then
-			return $YES
+		  case $OCF_RESKEY_fstype in
+		    cifs|nfs|nfs4)
+		      ;;
+		    *)
+		      return $YES
+		      ;;
+		  esac
 		fi
 
 		# Mountpoint from /proc/mounts containing spaces will
@@ -308,8 +314,16 @@ is_mounted () {
 	done < /proc/mounts
 
 	if [ $ret -eq $YES ] && [ $found -ne 0 ]; then
-		ocf_log warn "Device $dev is mounted on $poss_mp instead of $mp"
+		case $OCF_RESKEY_fstype in
+		  cifs|nfs|nfs4)
+		    ret=$NO
+		    ;;
+		  *)
+		    ocf_log warn "Device $dev is mounted on $poss_mp instead of $mp"
+		    ;;
+		esac
 	fi
+
 
 	return $ret
 }
@@ -518,6 +532,14 @@ do_mount() {
 	ocf_log info "mounting $dev on $mp"
 	ocf_log err "mount $fstype_option $mount_options $dev $mp"
 	mount $fstype_option $mount_options "$dev" "$mp"
+	ret_val=$?
+	if [ $ret_val -ne 0 ]; then
+		ocf_log err "\
+'mount $fstype_option $mount_options $dev $mp' failed, error=$ret_val"
+		return 1
+	fi
+
+	return 0
 }
 
 

@@ -26,7 +26,7 @@
 #   OCF_RESKEY_script_log  - A destination of the log of this script. Default /var/log/OCF_RESKEY_tomcat_name.log
 #   OCF_RESKEY_tomcat_stop_timeout  - Time-out at the time of the stop. Default is 5. DEPRECATED
 #   OCF_RESKEY_tomcat_suspend_trialcount  - The re-try number of times awaiting a stop. Default is 10. DEPRECATED
-#   OCF_RESKEY_tomcat_user  - A user name to start a resource. Default is root
+#   OCF_RESKEY_tomcat_user  - A user name to start a resource.
 #   OCF_RESKEY_statusurl - URL for state confirmation. Default is http://127.0.0.1:8080
 #   OCF_RESKEY_java_home - Home directory of Java. Default is none
 #   OCF_RESKEY_java_opts - Options to pass to Java JVM for start and stop. Default is none
@@ -82,8 +82,16 @@ isrunning_tomcat()
 # 
 isalive_tomcat()
 {
-	pgrep -f "${SEARCH_STR}" > /dev/null 
+	if [ -f $CATALINA_PID ]; then
+		PID=`head -n 1 $CATALINA_PID`
+		# Retry message for restraint
+		kill -s 0 $PID >/dev/null 2>&1
+		return $?
+	fi
+	# No PID file
+	false
 }
+
 ############################################################################
 # Check tomcat process and service availability
 monitor_tomcat()
@@ -203,7 +211,10 @@ END_TOMCAT_STOP
 		sleep 1
 		lapse_sec=`expr $lapse_sec + 1`
 		ocf_log debug "stop_tomcat[$TOMCAT_NAME]: stop failed, killing with SIGKILL ($lapse_sec)"
-		pkill -KILL -f "${SEARCH_STR}"
+		if [ -f $CATALINA_PID ]; then
+			PID=`head -n 1 $CATALINA_PID`
+			kill -KILL $PID
+		fi
 	done
 
 	if [ ${CATALINA_ROTATE_LOG} = "YES" ]; then
@@ -213,12 +224,6 @@ END_TOMCAT_STOP
 	fi
 	return $OCF_SUCCESS
 }
-
-status_tomcat()
-{
-	return $OCF_SUCCESS
-}
-
 
 metadata_tomcat()
 {
@@ -383,6 +388,7 @@ validate_all_tomcat()
 ### tomcat RA environment variables
 #
 
+COMMAND=$1
 TOMCAT_NAME="${OCF_RESKEY_tomcat_name-tomcat}"
 TOMCAT_CONSOLE="${OCF_RESKEY_script_log-/var/log/$TOMCAT_NAME.log}"
 RESOURCE_TOMCAT_USER="${OCF_RESKEY_tomcat_user-RUNASIS}"
@@ -398,20 +404,46 @@ TOMCAT_START_OPTS="${OCF_RESKEY_tomcat_start_opts}"
 CATALINA_OPTS="-Dname=$TOMCAT_NAME ${OCF_RESKEY_catalina_opts}"
 CATALINA_ROTATE_LOG="${OCF_RESKEY_catalina_rotate_log-NO}"
 CATALINA_ROTATETIME="${OCF_RESKEY_catalina_rotatetime-86400}"
-SEARCH_STR="\\""${CATALINA_OPTS}"
+
+LSB_STATUS_STOPPED=3
+if [ $# -ne 1 ]; then
+	usage
+	exit $OCF_ERR_ARGS
+fi
+case "$COMMAND" in
+	meta-data) metadata_tomcat; exit $OCF_SUCCESS;;
+	help|usage) usage; exit $OCF_SUCCESS;;
+esac
+
+if [ ! -d "$JAVA_HOME" -o ! -d "$CATALINA_HOME" -o ! -d "$CATALINA_BASE" ]; then
+	case $COMMAND in
+		stop)		exit	$OCF_SUCCESS;;
+		monitor)	exit	$OCF_NOT_RUNNING;;
+		status)		exit	$LSB_STATUS_STOPPED;;
+	esac
+	ocf_log err "JAVA_HOME or CATALINA_HOME or CATALINA_BASE does not exist."
+	exit $OCF_ERR_INSTALLED
+fi
 
 export JAVA_HOME JAVA_OPTS CATALINA_HOME CATALINA_BASE CATALINA_PID CATALINA_OPTS
 
 JAVA=${JAVA_HOME}/bin/java
+
+if [ ! -x "$JAVA" ]; then
+	case $COMMAND in
+		stop)		exit	$OCF_SUCCESS;;
+		monitor)	exit	$OCF_NOT_RUNNING;;
+		status)		exit	$LSB_STATUS_STOPPED;;
+	esac
+	ocf_log err "java command does not exist."
+	exit $OCF_ERR_INSTALLED
+fi
 
 #
 # ------------------
 # the main script
 # ------------------
 # 
-
-COMMAND=$1
-
 case "$COMMAND" in
 	start)
 		ocf_log debug  "[$TOMCAT_NAME] Enter tomcat start"
@@ -428,7 +460,13 @@ case "$COMMAND" in
 		exit $func_status
 		;;
 	status)
-		status_tomcat
+		if monitor_tomcat; then
+		  echo tomcat instance $TOMCAT_NAME is running
+		  exit $OCF_SUCCESS
+		else
+		  echo tomcat instance $TOMCAT_NAME is stopped
+		  exit $OCF_NOT_RUNNING
+		fi
 		exit $?
 		;;
 	monitor)

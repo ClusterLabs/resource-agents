@@ -153,6 +153,21 @@ dependent. Neither the name nor the value may contain whitespace.
 <content type="string" />
 </parameter>
 
+<parameter name="allowed_initiators" required="0" unique="0">
+<longdesc lang="en">
+Allowed initiators. A space-separated list of initiators allowed to
+connect to this lun. Initiators may be listed in any syntax
+the target implementation allows. If this parameter is empty or
+not set, access to this lun will not be allowed from any initiator,
+if target is not in demo mode.
+
+This parameter is only necessary, when using LIO.
+</longdesc>
+<shortdesc lang="en">List of iSCSI initiators allowed to connect
+to this lun.</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -246,6 +261,12 @@ iSCSILogicalUnit_start() {
 	    ocf_run lio_node --addlun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} \
 		${OCF_RESOURCE_INSTANCE} iblock_0/${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
 
+           if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
+               for initiator in ${OCF_RESKEY_allowed_initiators}; do
+                       ocf_run lio_node --addlunacl=${OCF_RESKEY_target_iqn} 1 \
+                       ${initiator} ${OCF_RESKEY_lun} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+               done
+           fi
 	    ;;
     esac
 
@@ -276,6 +297,12 @@ iSCSILogicalUnit_stop() {
 		done
 		;;
 	    lio)
+               if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
+                       for initiator in ${OCF_RESKEY_allowed_initiators}; do
+                               ocf_run lio_node --dellunacl=${OCF_RESKEY_target_iqn} 1 \
+                               ${initiator} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+                       done
+               fi
 		ocf_run lio_node --dellun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
 		ocf_run tcm_node --freedev=iblock_0/${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
 	esac
@@ -323,7 +350,7 @@ iSCSILogicalUnit_monitor() {
 
 iSCSILogicalUnit_validate() {
     # Do we have all required variables?
-    for var in implementation target_iqn lun path; do
+    for var in target_iqn lun path; do
 	param="OCF_RESKEY_${var}"
 	if [ -z "${!param}" ]; then
 	    ocf_log error "Missing resource parameter \"$var\"!"
@@ -332,12 +359,21 @@ iSCSILogicalUnit_validate() {
     done
 
     # Is the configured implementation supported?
-    case $OCF_RESKEY_implementation in
-	iet|tgt|lio)
+    case "$OCF_RESKEY_implementation" in
+	"iet"|"tgt"|"lio")
+	    ;;
+	"")
+	    # The user didn't specify an implementation, and we were
+	    # unable to determine one from installed binaries (in
+	    # other words: no binaries for any supported
+	    # implementation could be found)
+	    ocf_log error "Undefined iSCSI target implementation"
+	    exit $OCF_ERR_INSTALLED
 	    ;;
 	*)
 	    ocf_log error "Unsupported iSCSI target implementation \"$OCF_RESKEY_implementation\"!"
 	    exit $OCF_ERR_CONFIGURED
+	    ;;
     esac
 
     # Do we have a valid LUN?
@@ -387,9 +423,10 @@ iSCSILogicalUnit_validate() {
 	iet)
 	    # IET does not support setting the vendor and product ID
 	    # (it always uses "IET" and "VIRTUAL-DISK")
-	    unsupported_params="vendor_id product_id"
+	    unsupported_params="vendor_id product_id allowed_initiators"
 	    ;;
 	tgt)
+	    unsupported_params="allowed_initiators"
 	    ;;
 	lio)
 	    unsupported_params="scsi_id vendor_id product_id"

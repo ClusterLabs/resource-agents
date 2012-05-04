@@ -71,7 +71,8 @@ or "lio".  If unspecified, an implementation is selected based on the
 availability of management utilities, with "iet" being tried first,
 then "tgt", then "lio".
 </longdesc>
-<shortdesc lang="en">Manages an iSCSI target export</shortdesc>
+<shortdesc lang="en">Specifies the iSCSI target implementation
+("iet", "tgt" or "lio").</shortdesc>
 <content type="string" default="${OCF_RESKEY_implementation_default}"/>
 </parameter>
 
@@ -149,7 +150,7 @@ dependent. Neither the name nor the value may contain whitespace.
 <actions>
 <action name="start"        timeout="10" />
 <action name="stop"         timeout="10" />
-<action name="status "      timeout="10" interval="10" depth="0" />
+<action name="status"       timeout="10" interval="10" depth="0" />
 <action name="monitor"      timeout="10" interval="10" depth="0" />
 <action name="meta-data"    timeout="5" />
 <action name="validate-all"   timeout="10" />
@@ -455,10 +456,10 @@ iSCSITarget_validate() {
     local required_vars
     case $OCF_RESKEY_implementation in
 	iet)
-	    required_vars="implementation iqn"
+	    required_vars="iqn"
 	    ;;
 	tgt)
-	    required_vars="implementation iqn tid"
+	    required_vars="iqn tid"
 	    ;;
     esac
     for var in ${required_vars}; do
@@ -470,12 +471,21 @@ iSCSITarget_validate() {
     done
 
     # Is the configured implementation supported?
-    case $OCF_RESKEY_implementation in
-	iet|tgt|lio)
+    case "$OCF_RESKEY_implementation" in
+	"iet"|"tgt"|"lio")
+	    ;;
+	"")
+	    # The user didn't specify an implementation, and we were
+	    # unable to determine one from installed binaries (in
+	    # other words: no binaries for any supported
+	    # implementation could be found)
+	    ocf_log error "Undefined iSCSI target implementation"
+	    exit $OCF_ERR_INSTALLED
 	    ;;
 	*)
 	    ocf_log error "Unsupported iSCSI target implementation \"$OCF_RESKEY_implementation\"!"
 	    exit $OCF_ERR_CONFIGURED
+	    ;;
     esac
 
     # Do we have any configuration parameters that the current
