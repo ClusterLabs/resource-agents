@@ -1,5 +1,11 @@
 #!/bin/bash
 #
+# Resource Agent for managing tomcat 6 resources.
+#
+#   Author:      Tony Kay
+#   License:     GNU General Public License (GPL)
+#   (c) 2012 TeamUnify, LLC
+#
 # Description:  Manages a Tomcat Server as an OCF High-Availability
 #               resource under Heartbeat/LinuxHA control
 #
@@ -33,14 +39,12 @@
 #   OCF_RESKEY_max_stop_time - The max time it should take for proper shutdown. Force kill is used by this resource agent afterwards to ensure no fencing occurs. Set this LOWER than your stop timeout for the resource!
 ###############################################################################
 
-OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat
-export OCF_FUNCTIONS_DIR
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# This is used in the calls to su, which require the full path to bash. It is
+# typically /bin/bash, but better to rely on the path
 BASH=$(which bash)
-WGET=$(which wget)
-PGREP=$(which pgrep)
-PKILL=$(which pkill)
 
 usage() 
 {
@@ -52,10 +56,8 @@ action:
 
         stop    stop Tomcat
 
-        status  return the status of Tomcat, up or down
-
-        monitor  return TRUE if Tomcat appears to be working.
-                 You have to have installed $WGETNAME for this to work.
+        status 
+        monitor  Check the status
 
         meta-data       show meta data message
 
@@ -67,19 +69,14 @@ action:
 # Check tomcat service availability
 isTomcatServing()
 {
-	if ! have_binary $WGET; then
-		ocf_log err "Monitoring not supported by $OCF_RESOURCE_INSTANCE"
-		ocf_log info "Please make sure that wget is available"
-		return $OCF_ERR_CONFIGURED
-	fi
-	$WGET -O /dev/null $RESOURCE_STATUSURL >/dev/null 2>&1
+	wget -O /dev/null $RESOURCE_STATUSURL >/dev/null 2>&1
 }
 
 ############################################################################
 # 
 isTomcatRunning()
 {
-   pid=$rememberedPID
+   local pid=$rememberedPID
    # If there is a PID file, use that
    if [ -f $CATALINA_PID ]
    then
@@ -104,7 +101,7 @@ isTomcatRunning()
       fi
    else
       ocf_log warn "PID file was missing at start of action (possibly tomcat is starting or was down). Using pgrep for status instead, which may yeild incorrect results."
-      if $PGREP -f "$PGREP_PATTERN" > /dev/null 2>&1
+      if pgrep -f "$PGREP_PATTERN" > /dev/null 2>&1
       then
          return 0
       else
@@ -134,7 +131,7 @@ attemptTomcatCommand()
    if ! su - -s $BASH $RESOURCE_TOMCAT_USER -c "$cmd"
    then
       ocf_log err "Catalina.sh failed. Configuration must be hosed."
-      return $OCF_ERR_CONFIGURED
+      return $OCF_ERR_INSTALLED
    fi
    return 0
 }
@@ -157,15 +154,13 @@ start_tomcat()
       return $?
    fi
 
-   sleep 2 # give it a bit to get going, so the PID file will be there
-
 	while ! isTomcatServing; do
+		sleep 1 # don't busy-wait and hog CPU that the resource needs to start
       if ! isTomcatRunning; then
          ocf_log err "Tomcat process died while running start. Assuming configuration is hosed."
-         return $OCF_ERR_CONFIGURED
+         return $OCF_ERR_INSTALLED
       fi
 		ocf_log debug "start_tomcat: retry monitor_tomcat"
-		sleep 3
 	done
 
 	return $OCF_SUCCESS
@@ -199,7 +194,7 @@ stop_tomcat()
             kill -9 $rememberedPID > /dev/null 2>&1
          else
             ocf_log info "Force killing using remembered regex"
-            $PKILL -9 -f "$PGREP_PATTERN" > /dev/null 2>&1
+            pkill -9 -f "$PGREP_PATTERN" > /dev/null 2>&1
          fi
          break
       fi
@@ -215,12 +210,6 @@ stop_tomcat()
 
 	return $OCF_SUCCESS
 }
-
-status_tomcat()
-{
-	return $OCF_SUCCESS
-}
-
 
 metadata_tomcat()
 {
@@ -297,7 +286,6 @@ metadata_tomcat()
    <actions>
       <action name="start" timeout="120" />
       <action name="stop" timeout="120" />
-      <action name="status" timeout="60" />
       <action name="monitor" depth="0" timeout="30" interval="10" />
       <action name="meta-data" timeout="5s" />
       <action name="validate-all"  timeout="5"/>
@@ -314,6 +302,11 @@ validate_all_tomcat()
    notinstalled=0
    wrongpermissions=0
 
+   check_binary bash
+   check_binary wget
+   check_binary pgrep
+   check_binary pkill
+
    if [ $MAX_STOP_TIME -le 5 ]; then
       ocf_log err "max_stop_time must be set to a value greater than 5."
       misconfigured=1
@@ -321,26 +314,6 @@ validate_all_tomcat()
 
    if [ $MAX_STOP_TIME -le 20 ]; then
       ocf_log warn "max_stop_time is less than 20, which might lead to premature force-kills of your app."
-   fi
-
-   if [ ! -x $BASE ]; then
-      ocf_log err "Missing bash (or the which command, used to find it)."
-      notinstalled=1
-   fi
-
-   if [ ! -x $WGET ]; then
-      ocf_log err "Missing wget (used for checking status)."
-      notinstalled=1
-   fi
-
-   if [ ! -x $PGREP ]; then
-      ocf_log err "Missing pgrep (used for checking status)."
-      notinstalled=1
-   fi
-
-   if [ ! -x $PKILL ]; then
-      ocf_log err "Missing pkill (used for forcing stops)."
-      notinstalled=1
    fi
 
    if [ ! -d $CATALINA_HOME ]; then
@@ -370,7 +343,7 @@ validate_all_tomcat()
    if ! grep $RESOURCE_TOMCAT_USER /etc/passwd > /dev/null 2>&1
    then
       ocf_log err "$RESOURCE_TOMCAT_USER does not exist in /etc/password. Set the tomcat_user parameter or create a user using useradd."
-      misconfigured=1
+      notinstalled=1
    fi
 
    if [ ! -x $JAVA_HOME/bin/java ]
@@ -388,7 +361,7 @@ validate_all_tomcat()
          if ! grep "port=\"$port\"" $CATALINA_HOME/conf/server.xml > /dev/null 2>&1 
          then
             ocf_log err "Your configured status URL specifies a port ($port), but the server does not have a connector listening to that port in $CATALINA_HOME/conf/server.xml"
-            misconfigured=1
+            notinstalled=1
          fi
       fi
    fi
@@ -462,11 +435,7 @@ case "$COMMAND" in
       ocf_log debug  "Leave tomcat stop $func_status"
       exit $func_status
       ;;
-   status)
-      status_tomcat
-      exit $?
-      ;;
-   monitor)
+   status|monitor)
       #ocf_log debug  "Enter tomcat monitor"
       monitor_tomcat
       func_status=$?
