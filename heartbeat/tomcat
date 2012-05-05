@@ -256,12 +256,15 @@ metadata_tomcat()
          <content type="string" default="http://127.0.0.1:8080" />
       </parameter>
 
-      <parameter name="java_home" unique="0">
+      <parameter name="java_home" unique="0" required="1">
          <longdesc lang="en">
-            Home directory of Java.
+            Home directory of Java. Systems can have multiple version of java
+            installed, and different tomcat instances may need to run under
+            different versions. This specifies the JAVA_HOME environment
+            variable for tomcat, so it will use the correct version of Java.
          </longdesc>
          <shortdesc>Home directory of Java</shortdesc>
-         <content type="string" default="/usr/java/latest" />
+         <content type="string" default="" />
       </parameter>
 
       <parameter name="catalina_home" unique="1" required="1">
