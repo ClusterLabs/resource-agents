@@ -379,14 +379,17 @@ validate_all_tomcat()
       notinstalled=1
    fi
 
-   port=${RESOURCE_STATUSURL##*:}
-   ocf_log debug "Tomcat port is $port"
-   ocf_log debug "grep port=\"$port\" $CATALINA_HOME/conf/server.xml"
-   if [ "$port" -gt 0 ]; then
-      if ! grep "port=\"$port\"" $CATALINA_HOME/conf/server.xml > /dev/null 2>&1 
-      then
-         ocf_log err "Your configured status URL specifies a port ($port), but the server does not have a connector listining to that port in $CATALINA_HOME/conf/server.xml"
-         misconfigured=1
+   if [[ "$RESOURCE_STATUSURL" =~ :[0-9][0-9]* ]]; then
+      port=${RESOURCE_STATUSURL##*:}
+      port=${port%%/*}
+      ocf_log debug "Tomcat port is $port"
+      ocf_log debug "grep port=\"$port\" $CATALINA_HOME/conf/server.xml"
+      if [ "$port" -gt 0 ]; then
+         if ! grep "port=\"$port\"" $CATALINA_HOME/conf/server.xml > /dev/null 2>&1 
+         then
+            ocf_log err "Your configured status URL specifies a port ($port), but the server does not have a connector listening to that port in $CATALINA_HOME/conf/server.xml"
+            misconfigured=1
+         fi
       fi
    fi
 
