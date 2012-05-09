@@ -233,11 +233,11 @@ testoraenv() {
 	#	Let's make sure a few important things are set...
 	if [ x = "x$ORACLE_HOME" ]; then
 		ocf_log info "ORACLE_HOME not set"
-		return $OCF_ERR_CONFIGURED
+		return $OCF_ERR_INSTALLED
 	fi
 	if [ x = "x$ORACLE_OWNER" ]; then
 		ocf_log info "ORACLE_OWNER not set"
-		return $OCF_ERR_CONFIGURED
+		return $OCF_ERR_INSTALLED
 	fi
 	#	and some important things are there
 	if [ ! -x "$sqlplus" ]; then
@@ -675,7 +675,7 @@ esac
 if [ x = "x$OCF_RESKEY_sid" ]
 then
   ocf_log err "Please set OCF_RESKEY_sid to the Oracle SID !"
-  exit $OCF_ERR_ARGS
+  exit $OCF_ERR_CONFIGURED
 fi
 
 ora_info "$OCF_RESKEY_sid" "$OCF_RESKEY_home" "$OCF_RESKEY_user"
