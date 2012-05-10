@@ -385,7 +385,7 @@ slapd_monitor()
   local state
   local suffix
   local suffixes
-  local err_option="-err"
+  local err_option="-info"
 
   slapd_status `slapd_pid`; state=$?
   if [ $state -eq $OCF_NOT_RUNNING ]; then
@@ -449,8 +449,8 @@ slapd_monitor()
       *)
         if [ -z "$1" ] || [ -n "$1" -a $rc -ne 1 ]; then
           ocf_log err "slapd database with suffix '$suffix' unreachable. exit code ($rc)"
-          state=$OCF_ERR_GENERIC
         fi
+        state=$OCF_ERR_GENERIC
         ;;
     esac
   done
