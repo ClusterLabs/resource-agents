@@ -208,7 +208,6 @@ conntrackd_validate_all() {
         meta_expect master-node-max = 1
         meta_expect master-max = 1
         meta_expect clone-node-max = 1
-        meta_expect clone-max = 2
 	
 	return $OCF_SUCCESS
 }
