@@ -227,11 +227,12 @@ VirtualDomain_Status() {
 		ocf_log debug "Virtual domain $DOMAIN_NAME is currently $status."
 	        rc=$OCF_NOT_RUNNING
 	        ;;
-	    running|paused|idle|blocked)
+	    running|paused|idle|blocked|"in shutdown")
 		# running: domain is currently actively consuming cycles
 		# paused: domain is paused (suspended)
 		# idle: domain is running but idle
 		# blocked: synonym for idle used by legacy Xen versions
+		# in shutdown: the domain is in process of shutting down, but has not completely shutdown or crashed.
 		ocf_log debug "Virtual domain $DOMAIN_NAME is currently $status."
 	        rc=$OCF_SUCCESS
 	        ;;
