@@ -1,0 +1,451 @@
+#!/bin/sh
+#######################################################################
+#
+# Resource script for CouchDB
+#
+# Description:	Manages CouchDB as an OCF resource
+#
+# Author:		RNZ <renoizer@gmail.com>
+# Reviewer:		Florian Haas <florian.haas@linbit.com>	
+# License:		GNU General Public License (GPL) 
+# 
+#       usage: $0 {start|stop|monitor|validate-all|meta-data}
+#
+#######################################################################
+#
+#	Todo:
+#		- migrate
+#	
+#######################################################################
+#
+#	Info:
+#		don't use couchdb 1.0.1 - replication is broken, use couchdb 1.1.0
+#		/usr/bin/couchdb -a /etc/couchdb/default.ini -a /etc/couchdb/local.ini -b -p /var/run/couchdb/couchdb.pid -o /dev/null -e /dev/null -R
+#		curl -s -H "Content-Type: application/json" -X POST http://user:pass@host:port/_replicate -d '{"source":"http://user:pass@srchost:port/dbname", "target":"http://user:pass@127.0.0.1:port/dbname", "continuous":true}'
+#	Example:
+#		at end of this file
+#
+#######################################################################
+# Initialization:
+
+#. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+CURL=/usr/bin/curl
+
+#######################################################################
+
+OCF_RESKEY_host_default="127.0.0.1"
+OCF_RESKEY_port_default=5984
+OCF_RESKEY_dbuser_default=""
+OCF_RESKEY_dbpass_default=""
+OCF_RESKEY_rundir_default="/var/run/couchdb"
+OCF_RESKEY_user_default="couchdb"
+OCF_RESKEY_binary_default="/usr/bin/couchdb"
+OCF_RESKEY_pid_default="${OCF_RESKEY_rundir_default}/couchdb.pid"
+OCF_RESKEY_inidefault_default="/etc/couchdb/default.ini"
+OCF_RESKEY_inilocal_default="/etc/couchdb/local.ini"
+OCF_RESKEY_stdoutfile_default="/dev/null"
+OCF_RESKEY_stderrfile_default="/dev/null"
+OCF_RESKEY_options_default=""
+OCF_RESKEY_replcmds_default=""
+
+: ${OCF_RESKEY_host=${OCF_RESKEY_host_default}}
+: ${OCF_RESKEY_port=${OCF_RESKEY_port_default}}
+: ${OCF_RESKEY_dbuser=${OCF_RESKEY_dbuser_default}}
+: ${OCF_RESKEY_dbpass=${OCF_RESKEY_dbpass_default}}
+: ${OCF_RESKEY_rundir=${OCF_RESKEY_rundir_default}}
+: ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
+: ${OCF_RESKEY_inidefault=${OCF_RESKEY_inidefault_default}}
+: ${OCF_RESKEY_inilocal=${OCF_RESKEY_inidefault_default}}
+: ${OCF_RESKEY_stdoutfile=${OCF_RESKEY_stdoutfile_default}}
+: ${OCF_RESKEY_stderrfile=${OCF_RESKEY_stderrfile_default}}
+: ${OCF_RESKEY_options=${OCF_RESKEY_options_default}}
+: ${OCF_RESKEY_replcmds=${OCF_RESKEY_replcmds_default}}
+
+var_print() {
+  ocf_log info "host = $OCF_RESKEY_host"
+  ocf_log info "port = $OCF_RESKEY_port"
+  ocf_log info "dbuser = $OCF_RESKEY_dbuser"
+  ocf_log info "dbpass = $OCF_RESKEY_dbpass"
+  ocf_log info "rundir = $OCF_RESKEY_rundir"
+  ocf_log info "user = $OCF_RESKEY_user"
+  ocf_log info "binary = $OCF_RESKEY_binary"
+  ocf_log info "pid = $OCF_RESKEY_pid"
+  ocf_log info "inidefault = $OCF_RESKEY_inidefault"
+  ocf_log info "inilocal = $OCF_RESKEY_inilocal"
+  ocf_log info "stdoutfile = $OCF_RESKEY_stdoutfile"
+  ocf_log info "stderrfile = $OCF_RESKEY_stderrfile"
+  ocf_log info "options = $OCF_RESKEY_options"
+  ocf_log info "replcmds = $OCF_RESKEY_replcmds"
+}
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="couchdb" version="0.1">
+<version>0.1</version>
+<longdesc lang="en">CouchDB resource agent</longdesc>
+<shortdesc lang="en">CouchDB RA</shortdesc>
+
+<parameters>
+
+<parameter name="state" unique="1"><longdesc lang="en">state</longdesc><shortdesc lang="en">state</shortdesc>
+<content type="string" default="${HA_RSCTMP}/couchdb-${OCF_RESOURCE_INSTANCE}.state" />
+</parameter>
+
+<parameter name="host" unique="0" required="0"><longdesc lang="en">host</longdesc><shortdesc lang="en">host</shortdesc>
+<content type="string" default="${OCF_RESKEY_host_default}" />
+</parameter>
+
+<parameter name="port" unique="0" required="0"><longdesc lang="en">port</longdesc><shortdesc lang="en">port</shortdesc>
+<content type="integer" default="${OCF_RESKEY_port_default}" />
+</parameter>
+
+<parameter name="dbuser" unique="0" required="0"><longdesc lang="en">dbuser</longdesc><shortdesc lang="en">dbuser</shortdesc>
+<content type="string" default="${OCF_RESKEY_dbuser_default}" />
+</parameter>
+
+<parameter name="dbpass" unique="0" required="0"><longdesc lang="en">dbpass</longdesc><shortdesc lang="en">dbpass</shortdesc>
+<content type="string" default="${OCF_RESKEY_dbpass_default}" />
+</parameter>
+
+<parameter name="rundir" unique="0" required="0"><longdesc lang="en">rundir</longdesc><shortdesc lang="en">rundir</shortdesc>
+<content type="string" default="${OCF_RESKEY_rundir_default}" />
+</parameter>
+
+<parameter name="user" unique="0" required="0"><longdesc lang="en">process owner user</longdesc><shortdesc lang="en">user</shortdesc>
+<content type="string" default="${OCF_RESKEY_user_default}" />
+</parameter>
+
+<parameter name="binary" unique="0" required="0"><longdesc lang="en">executable binary</longdesc><shortdesc lang="en">binary</shortdesc>
+<content type="string" default="${OCF_RESKEY_binary_default}" />
+</parameter>
+
+<parameter name="pid" unique="0" required="0"><longdesc lang="en">pid-file</longdesc><shortdesc lang="en">pid-file</shortdesc>
+<content type="string" default="${OCF_RESKEY_pid_default}" />
+</parameter>
+
+<parameter name="inidefault" unique="0" required="0"><longdesc lang="en">stdout</longdesc><shortdesc lang="en">stdout</shortdesc>
+<content type="string" default="${OCF_RESKEY_inidefault_default}" />
+</parameter>
+
+<parameter name="inilocal" unique="0" required="0"><longdesc lang="en">stderr</longdesc><shortdesc lang="en">stderr</shortdesc>
+<content type="string" default="${OCF_RESKEY_inilocal_default}" />
+</parameter>
+
+<parameter name="stdoutfile" unique="0" required="0"><longdesc lang="en">stdout</longdesc><shortdesc lang="en">stdout</shortdesc>
+<content type="string" default="${OCF_RESKEY_stdoutfile_default}" />
+</parameter>
+
+<parameter name="stderrfile" unique="0" required="0"><longdesc lang="en">stderr</longdesc><shortdesc lang="en">stderr</shortdesc>
+<content type="string" default="${OCF_RESKEY_stderrfile_default}" />
+</parameter>
+
+<parameter name="options" unique="0" required="0"><longdesc lang="en">option</longdesc><shortdesc lang="en">option</shortdesc>
+<content type="string" default="${OCF_RESKEY_options_default}" />
+</parameter>
+
+<parameter name="replcmds" unique="0" required="0"><longdesc lang="en">replication cmds</longdesc><shortdesc lang="en">replication cmds</shortdesc>
+<content type="string" default="${OCF_RESKEY_replcmds_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="20" />
+<action name="stop"         timeout="20" />
+<action name="monitor"      timeout="10" interval="10" start-delay="20" />
+<action name="meta-data"    timeout="5" />
+<action name="validate-all" timeout="5" />
+</actions>
+
+</resource-agent>
+END
+}
+
+#######################################################################
+
+cdb_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|meta-data|validate-all}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+
+add_repl(){
+	local uri="http://${OCF_RESKEY_dbuser}:${OCF_RESKEY_dbpass}@${OCF_RESKEY_host}:${OCF_RESKEY_port}/_replicate"
+	local content="\"Content-Type: application/json\""
+	local repl_src="\"source\":\"${1}\""
+	local repl_trt="\"target\":\"${2}\""
+	local cont="\"continuous\":${3}"
+	eval $CURL -s -H "${content}" -X POST ${uri} -d "'{"${repl_src}","${repl_trt}","${cont}"}'" | grep -q "{\"ok\":true"
+        return $?
+}
+
+get_s(){
+	local n=0
+	local s=""
+	for i in `echo ${1} | tr ',' '\n'` ; do
+	   n=$(($n+1))
+	   echo "${i}"
+	done
+}
+
+cdb_start_replica() {
+	local er=0
+	local n=0
+	for i in `echo ${OCF_RESKEY_replcmds} | tr ';' '\n'` ; do
+		n=$(($n+1))
+		add_repl $(get_s ${i})
+		case $? in
+ 			0) ocf_log info "cdb_start_replica: Replication started ${i}"
+			   ;;
+			*) ocf_log info "cdb_start_replica: Error, unable start replication ${i}"
+			   er=$(($er+1))
+			   ;;
+		esac
+	done
+	
+ 	if [ $er -eq 0 ]; then 
+		ocf_log info "cdb_start_replica: Replications started."
+                return $OCF_SUCCESS
+	else
+                ocf_log err "cdb_start_replica: Error, unable start all replications!"
+                return $OCF_GENERIC_ERROR 
+	fi
+}
+
+cdb_start() {
+	if cdb_monitor; then
+     	ocf_log info "Resource is already running"
+		exit $OCF_SUCCESS
+	fi
+	local rc=$?
+
+	local cmd="${OCF_RESKEY_binary} -a ${OCF_RESKEY_inidefault} -a ${OCF_RESKEY_inilocal} -p ${OCF_RESKEY_pid} -b"
+	test -n "${OCF_RESKEY_stdoutfile}" && cmd="${cmd} -o ${OCF_RESKEY_stdoutfile}"
+	test -n "${OCF_RESKEY_stderrfile}" && cmd="${cmd} -e ${OCF_RESKEY_stderrfile}"
+	test -n "${OCF_RESKEY_options}"    && cmd="${cmd} ${OCF_RESKEY_options}"
+
+	mkdir -p "${OCF_RESKEY_rundir}"
+	cd "${OCF_RESKEY_rundir}"
+
+	if [ -f "${OCF_RESKEY_pid}" ]; then
+                local pid=`cat "${OCF_RESKEY_pid}"`
+		kill -0 $pid;
+		if [ $? -ne 0 ]; then
+		   ocf_log info "Resource is already running"
+         exit $OCF_SUCCESS
+		else
+         ocf_log err "Resource state is already running, but PID $pid is not exist"
+         exit $OCF_ERR_GENERIC
+		fi
+	fi
+
+	if [ -n "${OCF_RESKEY_user}" ]; then
+		chown ${OCF_RESKEY_user} "${OCF_RESKEY_rundir}"
+		ocf_log info "cdb_start: su ${OCF_RESKEY_user} -c \"${cmd}\""
+		su ${OCF_RESKEY_user} -c "${cmd}" &
+		if [ $? -ne 0 ]; then 
+			ocf_log err "cdb_start: fail run - su ${OCF_RESKEY_user} -c \"${cmd}\"!"
+			exit $OCF_ERR_GENERIC
+		fi
+	else
+		ocf_run ${cmd} &
+		if [ $? -ne  0 ]; then 
+			ocf_log err "cdb_start: fail run - ${cmd}!"
+			exit $OCF_ERR_GENERIC
+		fi
+	fi
+
+	sleep 2
+
+	if [ -n "${OCF_RESKEY_replcmds}" ]; then
+		ocf_log info "cdb_start: run cdb_start_replica"
+		cdb_start_replica || exit $OCF_ERR_GENERIC
+	else
+		ocf_log info "cdb_start: ocf_is_true = false"
+	fi 
+
+	while [ ! cdb_monitor ]; do
+	   ocf_log debug "Resource has not started yet, waiting"
+      sleep 1
+	done
+	
+	ocf_run touch ${OCF_RESKEY_state} || exit $OCF_ERR_GENERIC;
+
+	return $OCF_SUCCESS
+}
+
+cdb_stop() {
+	cdb_monitor
+	case $? in
+		"$OCF_SUCCESS")
+			ocf_log debug "Resource is currently running"
+			;;
+		"$OCF_RUNNING_MASTER")
+			ocf_log info "Resource is currently running as Master"
+			;;
+		"$OCF_NOT_RUNNING")
+			ocf_log info "Resource is already stopped"
+			return $OCF_SUCCESS
+			;;
+	esac
+
+	if [ -f ${OCF_RESKEY_pid} ]; then
+		local pid=`cat ${OCF_RESKEY_pid}`
+		ocf_run ${OCF_RESKEY_binary} -d;
+		ocf_run `kill -15 $pid`
+		ocf_run rm -vf ${OCF_RESKEY_pid}
+	fi
+
+	if [ -f ${OCF_RESKEY_state} ]; then 
+		ocf_run rm -vf ${OCF_RESKEY_state}
+	fi
+
+	while cdb_monitor; do
+     	ocf_log debug "Resource has not stopped yet, waiting"
+     	sleep 1
+	done
+
+	return $OCF_SUCCESS
+}
+
+
+cdb_monitor_couchdb() {
+	$CURL -s "http://$OCF_RESKEY_host:$OCF_RESKEY_port" | grep -q 'couchdb'
+	case $? in 
+		0)	ocf_log info "cdb_monitor_couchdb: CoucheDB running and reply ok."
+			return $OCF_SUCCESS
+			;;
+		*) 	ocf_log err "cdb_monitor_couchdb: CoucheDB don't reply!"
+			return $OCF_NOT_RUNNING
+			;;
+	esac
+}
+
+
+cdb_monitor_replica() {
+	if [ -n "$OCF_RESKEY_dbuser" ]; then
+	  local cn="http://$OCF_RESKEY_dbuser:$OCF_RESKEY_dbpass@$OCF_RESKEY_host:$OCF_RESKEY_port"
+	else
+	  local cn="http://$OCF_RESKEY_host:$OCF_RESKEY_port"
+	fi
+
+	local nr=$($CURL -s "$cn/_active_tasks" | tr '},' '\n' | grep -c '"type":"Replication"')
+        local n=0
+        for i in `echo ${OCF_RESKEY_replcmds} | tr ';' '\n'` ; do n=$(($n+1)); done
+	if [ $n -eq $nr  ]; then
+		ocf_log info "cdb_monitor_replica: All replications running."
+		return $OCF_SUCCESS
+	else 
+		ocf_log err "cdb_monitor_replica: Only ${nr}/${n} replications running!"
+		return $OCF_NOT_RUNNING
+	fi
+}
+
+cdb_monitor() {
+	local rc=1
+
+	if [ -f ${OCF_RESKEY_pid} ]; then
+		cdb_validate || exit $?
+		cdb_monitor_couchdb; rc=$?; ocf_log info "cdb_monitor: cdb_monitor_couchdb = $rc"
+		if [ -n "${OCF_RESKEY_replcmds}" ]; then
+                       cdb_monitor_replica || cdb_start_replica
+		fi
+	fi
+
+	case "$rc" in
+		0)		rc=$OCF_SUCCESS
+				ocf_log debug "Resource is running"
+				;;
+		1)		rc=$OCF_NOT_RUNNING
+				ocf_log debug "Resource is not running"
+				;;
+		*)		rc=$OCF_ERR_GENERIC
+				ocf_log err "Resource has failed"
+				;;
+	esac
+	return $rc
+}
+
+cdb_validate() {
+	if ! ocf_is_decimal $OCF_RESKEY_port; then
+		ocf_log err "port is not numeric!"; exit $OCF_ERR_CONFIGURED 
+	fi    
+	check_binary $CURL
+	return $OCF_SUCCESS
+}
+
+OCF_RESKEY_state="${HA_RSCTMP}/couchdb-${OCF_RESOURCE_INSTANCE}.state"
+
+case $__OCF_ACTION in
+meta-data)		meta_data
+					exit $OCF_SUCCESS
+					;;
+start)			cdb_start;;
+stop)				cdb_stop;;
+monitor)			cdb_monitor;;
+validate-all)	cdb_validate;;
+usage|help)		cdb_usage
+					exit $OCF_SUCCESS
+					;;
+*)					cdb_usage
+					exit $OCF_ERR_UNIMPLEMENTED
+					;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
+
+
+#######################################################################
+# 
+#  Example:
+#
+#		crm configure show
+#		node vub001
+#		node vub002
+#		primitive couchdb-1 ocf:heartbeat:couchdb \
+#			params dbuser="user" dbpass="pass" replcmds="http://admin:pass@192.168.1.2:5984/testdb,http://admin:pass@127.0.0.1:5984/testdb,true;http://admin:pass@192.168.1.2:5984/testdb1,http://admin:pass@127.0.0.1:5984/testdb1,true;" \
+#			op start interval="0" timeout="20s" \
+#			op stop interval="0" timeout="20s" \
+#			op monitor interval="10s" \
+#			meta target-role="Started"
+#		primitive couchdb-2 ocf:heartbeat:couchdb \
+#			params dbuser="user" dbpass="pass" replcmds="http://admin:pass@192.168.1.1:5984/testdb,http://admin:pass@127.0.0.1:5984/testdb,true;http://admin:pass@192.168.1.1:5984/testdb1,http://admin:pass@127.0.0.1:5984/testdb1,true;" \
+#			op start interval="0" timeout="20s" \
+#			op stop interval="0" timeout="20s" \
+#			op monitor interval="10s" \
+#			meta target-role="Started"
+#		primitive vIP ocf:heartbeat:IPaddr2 \
+#			params ip="192.168.1.10" nic="eth1" \
+#			op start interval="0" timeout="20s" \
+#			op stop interval="0" timeout="20s" \
+#			op monitor interval="5s" timeout="20s" depth="0" \
+#			meta target-role="Started"
+#		location cdb-1-c couchdb-1 inf: vub001
+#		location cdb-1-p couchdb-1 -inf: vub002
+#		location cdb-2-c couchdb-2 inf: vub002
+#		location cdb-2-p couchdb-2 -inf: vub001
+#		location vIP_c vIP 100: vub001
+#		location vIP_p vIP 10: vub002
+#		property $id="cib-bootstrap-options" \
+#			cluster-infrastructure="openais" \
+#			expected-quorum-votes="2" \
+#			no-quorum-policy="ignore" \
+#			stonith-enabled="false" \
+#			symmetric-cluster="false" \
+#		rsc_defaults $id="rsc-options" \
+#			resource-stickiness="110"
+#
+#######################################################################
