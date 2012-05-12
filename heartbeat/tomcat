@@ -31,12 +31,20 @@
 #######################################################################
 # OCF parameters:
 #   OCF_RESKEY_tomcat_name - The name of the resource. Default is tomcat
-#   OCF_RESKEY_tomcat_user  - A user name to start a resource. Default is root
+#   OCF_RESKEY_tomcat_user  - A user name to start a resource. Default is tomcat
 #   OCF_RESKEY_statusurl - URL for state confirmation. Default is http://127.0.0.1:8080
-#   OCF_RESKEY_java_home - Home directory of Java. Default is none
-#   OCF_RESKEY_catalina_home - Home directory of Tomcat. Default is none
-#   OCF_RESKEY_catalina_pid  - A PID file name of Tomcat. Default is OCF_RESKEY_catalina_home/logs/catalina.pid
 #   OCF_RESKEY_max_stop_time - The max time it should take for proper shutdown. Force kill is used by this resource agent afterwards to ensure no fencing occurs. Set this LOWER than your stop timeout for the resource!
+#   OCF_RESKEY_catalina_pid  - A PID file name of Tomcat. Default is OCF_RESKEY_catalina_home/logs/catalina.pid. (CATALINA_PID env variable)
+#   OCF_RESKEY_java_home - Home directory of Java. Default is none. (JAVA_HOME env variable)
+#   OCF_RESKEY_catalina_home - Home directory of Tomcat. Default is none (CATALINA_HOME env variable)
+#   OCF_RESKEY_catalina_base - CATALINA_BASE env variable
+#   OCF_RESKEY_catalina_out - CATALINA_OUT env variable
+#   OCF_RESKEY_catalina_opts - CATALINA_OPTS env variable
+#   OCF_RESKEY_catalina_tmpdir - CATALINA_TMPDIR env variable
+#   OCF_RESKEY_java_endorsed_dirs - JAVA_ENDORSED_DIRS env variable
+#   OCF_RESKEY_logging_config - LOGGING_CONFIG env variable
+#   OCF_RESKEY_logging_manager - LOGGING_MANAGER env variable
+#   OCF_RESKEY_java_opts - Arguments to pass to the VM running tomcat (JAVA_OPTS env variable)
 ###############################################################################
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
@@ -69,13 +77,16 @@ action:
 # Check tomcat service availability
 isTomcatServing()
 {
-	wget -O /dev/null $RESOURCE_STATUSURL >/dev/null 2>&1
+   # 20 tries is the wget default...specifying it here as documentation
+	wget --tries=20 -O /dev/null $RESOURCE_STATUSURL >/dev/null 2>&1
 }
 
 ############################################################################
 # 
 isTomcatRunning()
 {
+   # As the server stops, the PID file disappears. To avoid race conditions, 
+   # we will have remembered the PID of a running instance on script entry.
    local pid=$rememberedPID
    # If there is a PID file, use that
    if [ -f $CATALINA_PID ]
@@ -126,7 +137,21 @@ monitor_tomcat()
 
 attemptTomcatCommand()
 {
-   cmd="export JAVA_HOME=${JAVA_HOME}; export CATALINA_HOME=${CATALINA_HOME}; export CATALINA_PID=${CATALINA_PID}; $CATALINA_HOME/bin/catalina.sh $1"
+   cmd=$(cat <<EOC | tr '\n' ' ' 
+JAVA_HOME="$JAVA_HOME"
+CATALINA_HOME="$CATALINA_HOME" 
+CATALINA_PID="$CATALINA_PID"
+CATALINA_BASE="$CATALINA_BASE"
+CATALINA_OUT="$CATALINA_OUT"
+CATALINA_OPTS="$CATALINA_OPTS"
+CATALINA_TMPDIR="$CATALINA_TMPDIR"
+JAVA_ENDORSED_DIRS="$JAVA_ENDORSED_DIRS"
+LOGGING_CONFIG="$LOGGING_CONFIG"
+LOGGING_MANAGER="$LOGGING_MANAGER"
+JAVA_OPTS="$JAVA_OPTS"
+$CATALINA_HOME/bin/catalina.sh $1
+EOC
+   )
 	ocf_log info "Starting tomcat as $RESOURCE_TOMCAT_USER using '$cmd'."
    if ! su - -s $BASH $RESOURCE_TOMCAT_USER -c "$cmd"
    then
@@ -256,15 +281,13 @@ metadata_tomcat()
          <content type="string" default="http://127.0.0.1:8080" />
       </parameter>
 
-      <parameter name="java_home" unique="0" required="1">
+      <parameter name="java_home" unique="0">
          <longdesc lang="en">
-            Home directory of Java. Systems can have multiple version of java
-            installed, and different tomcat instances may need to run under
-            different versions. This specifies the JAVA_HOME environment
-            variable for tomcat, so it will use the correct version of Java.
+         Sets the JAVA_HOME environment variable.
+            Home directory of Java.
          </longdesc>
-         <shortdesc>Home directory of Java</shortdesc>
-         <content type="string" default="" />
+         <shortdesc>Sets the JAVA_HOME environment variable.</shortdesc>
+         <content type="string" default="/usr/java/latest" />
       </parameter>
 
       <parameter name="catalina_home" unique="1" required="1">
@@ -277,13 +300,77 @@ metadata_tomcat()
 
       <parameter name="catalina_pid" unique="1">
          <longdesc lang="en">
+         Sets the CATALINA_PID environment variable.
             A PID file name for Tomcat. This is required to ensure proper stop
             operations and avoid node fencing.
          </longdesc>
-         <shortdesc>A PID file name for Tomcat</shortdesc>
+         <shortdesc>Sets the CATALINA_PID environment variable.</shortdesc>
          <content type="string" default="catalina_home/logs/catalina.pid" />
       </parameter>
 
+      <parameter name="catalina_base" unique="1">
+         <longdesc lang="en">
+         Sets the CATALINA_BASE environment variable.
+         </longdesc>
+         <shortdesc>Sets the CATALINA_BASE environment variable.</shortdesc>
+         <content type="string" default="catalina_home/logs/catalina.pid" />
+      </parameter>
+
+      <parameter name="catalina_out" unique="1">
+         <longdesc lang="en">
+         Sets the CATALINA_OUT environment variable.
+         </longdesc>
+         <shortdesc>Sets the CATALINA_OUT environment variable.</shortdesc>
+         <content type="string" default="catalina_home/logs/catalina.pid" />
+      </parameter>
+
+      <parameter name="catalina_opts" unique="1">
+         <longdesc lang="en">
+         Sets the CATALINA_OPTS environment variable.
+         </longdesc>
+         <shortdesc>Sets the CATALINA_OPTS environment variable.</shortdesc>
+         <content type="string" default="catalina_home/logs/catalina.pid" />
+      </parameter>
+
+      <parameter name="catalina_tmpdir" unique="1">
+         <longdesc lang="en">
+         Sets the CATALINA_TMPDIR environment variable.
+         </longdesc>
+         <shortdesc>Sets the CATALINA_TMPDIR environment variable.</shortdesc>
+         <content type="string" default="catalina_home/logs/catalina.pid" />
+      </parameter>
+
+      <parameter name="java_endorsed_dirs" unique="1">
+         <longdesc lang="en">
+         Sets the JAVA_ENDORSED_DIRS environment variable.
+         </longdesc>
+         <shortdesc>Sets the JAVA_ENDORSED_DIRS environment variable.</shortdesc>
+         <content type="string" default="catalina_home/logs/catalina.pid" />
+      </parameter>
+
+      <parameter name="logging_config" unique="1">
+         <longdesc lang="en">
+         Sets the LOGGING_CONFIG environment variable.
+         </longdesc>
+         <shortdesc>Sets the LOGGING_CONFIG environment variable.</shortdesc>
+         <content type="string" default="catalina_home/logs/catalina.pid" />
+      </parameter>
+
+      <parameter name="logging_manager" unique="1">
+         <longdesc lang="en">
+         Sets the LOGGING_MANAGER environment variable.
+         </longdesc>
+         <shortdesc>Sets the LOGGING_MANAGER environment variable.</shortdesc>
+         <content type="string" default="catalina_home/logs/catalina.pid" />
+      </parameter>
+
+      <parameter name="java_opts" unique="1">
+         <longdesc lang="en">
+         Sets the JAVA_OPTS environment variable.
+         </longdesc>
+         <shortdesc>Sets the JAVA_OPTS environment variable.</shortdesc>
+         <content type="string" default="catalina_home/logs/catalina.pid" />
+      </parameter>
    </parameters>
 
    <actions>
@@ -395,6 +482,14 @@ CATALINA_HOME="${OCF_RESKEY_catalina_home}"
 CATALINA_PID="${OCF_RESKEY_catalina_pid-$CATALINA_HOME/logs/catalina.pid}"
 MAX_STOP_TIME=${OCF_RESKEY_max_stop_time-5}
 PGREP_PATTERN="${JAVA_HOME}/bin/java.*catalina.home=${CATALINA_HOME} " > /dev/null 2>&1
+CATALINA_BASE="$OCF_RESKEY_catalina_base"
+CATALINA_OUT="$OCF_RESKEY_catalina_out"
+CATALINA_OPTS="$OCF_RESKEY_catalina_opts"
+CATALINA_TMPDIR="$OCF_RESKEY_catalina_tmpdir"
+JAVA_ENDORSED_DIRS="$OCF_RESKEY_java_endorsed_dirs"
+LOGGING_CONFIG="$OCF_RESKEY_logging_config"
+LOGGING_MANAGER="$OCF_RESKEY_logging_manager"
+JAVA_OPTS="$OCF_RESKEY_java_opts"
 
 # As we stop tomcat, it removes it's own pid file...we still want to know what it was
 memorize_pid() 
@@ -409,8 +504,7 @@ forget_pid()
   rememberedPID=
 }
 
-export JAVA_HOME CATALINA_HOME CATALINA_PID
-
+export JAVA_HOME CATALINA_HOME CATALINA_PID CATALINA_BASE CATALINA_OUT CATALINA_OPTS CATALINA_TMPDIR JAVA_ENDORSED_DIRS LOGGING_CONFIG LOGGING_MANAGER JAVA_OPTS
 JAVA=${JAVA_HOME}/bin/java
 
 #
