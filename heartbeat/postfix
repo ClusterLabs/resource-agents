@@ -264,6 +264,11 @@ postfix_validate_all()
 
         if ocf_is_true $status_support; then
             data_dir=`postconf $OPTION_CONFIG_DIR -h data_directory 2>/dev/null`
+            data_dir_count=`echo "$data_dir" | tr ',' ' ' | wc -w`
+            if [ $data_dir_count -gt 1 ]; then
+            	ocf_log err "Postfix data directory '$orig_data_dir' cannot be set to multiple directories."
+                return $OCF_ERR_INSTALLED
+            fi
             if [ ! -d "$data_dir" ]; then
                 if ocf_is_probe; then
                     ocf_log info "Postfix data directory '$data_dir' not readable during probe."
