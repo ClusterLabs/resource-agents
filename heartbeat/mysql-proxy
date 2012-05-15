@@ -487,6 +487,18 @@ plugin_list=''
 #echo OCF_RESKEY_pidfile=$OCF_RESKEY_pidfile >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
 
 
+# handle some parameters before performing any additional checks
+case $1 in
+    meta-data)  meta_data
+                exit $?
+                ;;
+
+    usage)      usage
+                exit $OCF_SUCCESS
+                ;;
+esac
+
+
 # determine MySQL Proxy version
 check_binary $binary
 version=`$binary --version | grep ^mysql-proxy | awk '{print $NF}'`
@@ -532,13 +544,6 @@ case $1 in
                     exit $?
                     ;;
 
-    meta-data)  meta_data
-                exit $?
-                ;;
-
-    usage)      usage
-                exit $OCF_SUCCESS
-                ;;
 
     *)          usage
                 exit $OCF_ERR_UNIMPLEMENTED
