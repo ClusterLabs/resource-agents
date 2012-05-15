@@ -508,9 +508,9 @@ mysqlproxy_validate_all()
         fi
     fi
 
-    # issue warning if we want to load a plugin but this version 
-    # of MySQL Proxy does not support the plugin architecture.
-    if [ -n "$plugins" ] && ocf_is_false "$plugin_support"; then
+    # issue a warning during start if the user wants to load a plugin
+    # but this version of MySQL Proxy does not support the plugin architecture.
+    if [ -n "$plugins" ] && ocf_is_false "$plugin_support" && [ $__OCF_ACTION = 'start' ]; then
         ocf_log warn "You are running MySQL Proxy version '$version'. This version does not support the plugin architecture. Please use version 0.7.0 or later to load the plugins '$plugins'."
     fi
 
