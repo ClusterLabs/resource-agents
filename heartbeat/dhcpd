@@ -196,40 +196,24 @@ dhcpd_monitor() {
     return $OCF_SUCCESS
 }
 
-# Start
-dhcpd_start() {
-    # Lets make sure we are not already running.
-    dhcpd_monitor && return $OCF_SUCCESS
-
-    ## If there is a pid file containing a pid, the machine might have crashed. pid files in
-    ## /var/run are always cleaned up at boot time, but this is not the case for the pid file in
-    ## the chroot jail. Therefore, an old pid file may exist. This is only a problem if it
-    ## incidentally contains the pid of a running process. If this process is not a 'dhcpd',
-    ## we remove the pid. (dhcpd itself only checks whether the pid is alive or not.)
-    ocf_log info "Starting dhcpd [chroot] service."
-#    ocf_log debug "Removing ${OCF_RESKEY_chrooted_path}/${OCF_RESKEY_pid} if it exists because the DHCPD process is not running."
-    test -e "${OCF_RESKEY_chrooted_path}/${OCF_RESKEY_pid}" && rm -f ${OCF_RESKEY_chrooted_path}/${OCF_RESKEY_pid}
-
-    ## If there is no conf file, skip starting up dhcpd
-    ## and return with "program not configured"
-#    ocf_log debug "Re-validating the ${OCF_RESKEY_config} exists."
+# Initialize Chroot
+dhcpd_initialize_chroot() {
+    ## If there is no conf file, we can't initialize the chrooted 
+    ## environment, return with "program not configured"
     if ! [ -f ${OCF_RESKEY_config} ]; then
 	ocf_log err "dhcpd has not been configured."
 	return $OCF_ERR_CONFIGURED
     fi
 
-#    ocf_log debug "Creating the ${OCF_RESKEY_chrooted_path}/${OCF_RESKEY_leases} file if it does not already exist."
+    # If the leases file does not exist, create it, as this is a fresh install.
     if [ ! -e ${OCF_RESKEY_chrooted_path}/${OCF_RESKEY_leases} ]; then
-	# If the leases file does not exist, create it, as this is a fresh install.
 	touch ${OCF_RESKEY_chrooted_path}/${OCF_RESKEY_leases}
     fi
 
     # Remove the random device.
-#    ocf_log debug "Removing the old ${OCF_RESKEY_chrooted_path}/dev/urandom device."
     test -e "${OCF_RESKEY_chrooted_path}/dev/urandom" && rm -f ${OCF_RESKEY_chrooted_path}/dev/urandom
 
     # Ensure all "modified" non-chrooted configuration files are copied into the chrooted environment.
-#    ocf_log debug "Ensuring all chrooted paths are created, and the required configuration files are copied into place."
     for i in ${OCF_RESKEY_config} /etc/gai.conf /etc/nsswitch.conf /etc/resolv.conf /etc/host.conf /etc/hosts /etc/localtime /dev/urandom; do
 	# First, lets make sure the directory exists within the chrooted environment.
 	if test -d "${i}" ; then
@@ -242,7 +226,6 @@ dhcpd_start() {
 	cp -aL "$i" "${OCF_RESKEY_chrooted_path}/${i%/*}/" > /dev/null 2>&1 || { ocf_log err "could not copy $i to chroot jail"; return $OCF_ERR_GENERIC; }
     done
 
-#    ocf_log debug "Validating all libraries and sub-dependencies are in place."
     libdir=$(basename $(echo /var/lib/dhcp/lib*))
     if test -x /usr/bin/ldd ; then
 	get_ldd_deps()
@@ -271,6 +254,23 @@ dhcpd_start() {
 	    cp -pL "$i" "/var/lib/dhcp/$libdir/" || { ocf_log err "could not copy $i to chroot jail"; return $OCF_ERR_GENERIC; }
 	fi
     done
+}
+
+# Start
+dhcpd_start() {
+    # Lets make sure we are not already running.
+    dhcpd_monitor && return $OCF_SUCCESS
+
+    ## If there is a pid file containing a pid, the machine might have crashed. pid files in
+    ## /var/run are always cleaned up at boot time, but this is not the case for the pid file in
+    ## the chroot jail. Therefore, an old pid file may exist. This is only a problem if it
+    ## incidentally contains the pid of a running process. If this process is not a 'dhcpd',
+    ## we remove the pid. (dhcpd itself only checks whether the pid is alive or not.)
+    ocf_log info "Starting dhcpd [chroot] service."
+    test -e "${OCF_RESKEY_chrooted_path}/${OCF_RESKEY_pid}" && rm -f ${OCF_RESKEY_chrooted_path}/${OCF_RESKEY_pid}
+
+    # Re-run the initialization function to pull in any changes made to the non-chrooted files.
+    dhcpd_initialize_chroot
 
     DHCPD_ARGS="-chroot ${OCF_RESKEY_chrooted_path} -lf ${OCF_RESKEY_leases}"
 
@@ -354,6 +354,9 @@ usage|help)     dhcpd_usage
                 ;;
 esac
 
+# We need to initialize the dhcp environment if this is the first time
+# this script has been run.
+dhcpd_validate_all || ocf_log info "First execution of the service, initializing." && dhcpd_initialize_chroot
 # Anything other than meta-data and usage must pass validation
 dhcpd_validate_all || exit $?
 
