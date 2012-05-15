@@ -90,7 +90,31 @@ The VCL configuration file that varnish should manage, for example
 <content type="string" default="" />
 </parameter>
 
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+<parameter name="instance_name" unique="1" required="1">
+=======
 <parameter name="name" unique="1">
+>>>>>>> 9bfa98f... Low: varnish: remove superfluous metadata
+=======
+<parameter name="instance_name" unique="1" required="0">
+>>>>>>> afdd47d... Low: varnish: set OCF_RESOURCE_INSTANCE as default for "instance_name" param
+=======
+<parameter name="name" unique="1" required="0">
+>>>>>>> 93935f0... Low: varnish: shorten "instance_name" to just "name"
+=======
+<parameter name="name" unique="1">
+>>>>>>> 9bfa98f... Low: varnish: remove superfluous metadata
+=======
+<parameter name="name" unique="1">
+>>>>>>> 3171cc0... Low: varnish: fixed leftover merge message
+=======
+<parameter name="name" unique="1">
+>>>>>>> e4632966738890a85ac47a3391cde654febb45a5
 <longdesc lang="en">
 Override the name of the instance that should be given to varnish
 (defaults to the resource identifier).
