@@ -21,28 +21,16 @@
 # Get PostgreSQL Configuration parameter
 #
 get_pgsql_param() {
-    local config
     local param_name
 
     param_name=$1
- 
-    #Check that config file exists 
-    if [ -n "$OCF_RESKEY_config" ]; then
-        config=$OCF_RESKEY_config
-    else
-        config=$OCF_RESKEY_pgdata/postgresql.conf
-    fi
-
-    check_config "$config"
-    [ $? -eq 0 ] || return
-
     perl_code="if (/^\s*$param_name[\s=]+\s*(.*)$/) {
        \$dir=\$1;
        \$dir =~ s/\s*\#.*//;
        \$dir =~ s/^'(\S*)'/\$1/;
        print \$dir;}"
 
-    perl -ne "$perl_code" < $config
+    perl -ne "$perl_code" < $OCF_RESKEY_config
 }
 
 # Defaults
@@ -52,7 +40,6 @@ OCF_RESKEY_pgdata_default=/var/lib/pgsql/data
 OCF_RESKEY_pgdba_default=postgres
 OCF_RESKEY_pghost_default=""
 OCF_RESKEY_pgport_default=5432
-OCF_RESKEY_config_default=""
 OCF_RESKEY_start_opt_default=""
 OCF_RESKEY_pgdb_default=template1
 OCF_RESKEY_logfile_default=/dev/null
@@ -78,7 +65,7 @@ OCF_RESKEY_stop_escalate_in_slave_default=30
 : ${OCF_RESKEY_pgdba=${OCF_RESKEY_pgdba_default}}
 : ${OCF_RESKEY_pghost=${OCF_RESKEY_pghost_default}}
 : ${OCF_RESKEY_pgport=${OCF_RESKEY_pgport_default}}
-: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
+: ${OCF_RESKEY_config=${OCF_RESKEY_pgdata}/postgresql.conf}
 : ${OCF_RESKEY_start_opt=${OCF_RESKEY_start_opt_default}}
 : ${OCF_RESKEY_pgdb=${OCF_RESKEY_pgdb_default}}
 : ${OCF_RESKEY_logfile=${OCF_RESKEY_logfile_default}}
@@ -86,6 +73,7 @@ OCF_RESKEY_stop_escalate_in_slave_default=30
 : ${OCF_RESKEY_monitor_user=${OCF_RESKEY_monitor_user_default}}
 : ${OCF_RESKEY_monitor_password=${OCF_RESKEY_monitor_password_default}}
 : ${OCF_RESKEY_monitor_sql=${OCF_RESKEY_monitor_sql_default}}
+
 # for replication
 : ${OCF_RESKEY_rep_mode=${OCF_RESKEY_rep_mode_default}}
 : ${OCF_RESKEY_node_list=${OCF_RESKEY_node_list_default}}
@@ -220,10 +208,10 @@ SQL script that will be used for monitor operations.
 
 <parameter name="config" unique="0" required="0">
 <longdesc lang="en">
-Path to the PostgreSQL configuration file for the instance
+Path to the PostgreSQL configuration file for the instance.
 </longdesc>
 <shortdesc lang="en">Configuration file</shortdesc>
-<content type="string" default="${OCF_RESKEY_config_default}" />
+<content type="string" default="${OCF_RESKEY_pgdata}/postgresql.conf" />
 </parameter>
 
 <parameter name="pgdb" unique="0" required="0">
@@ -470,10 +458,8 @@ pgsql_real_start() {
     pgctl_options="$OCF_RESKEY_ctl_opt -D $OCF_RESKEY_pgdata -l $OCF_RESKEY_logfile"
 
     # Set options passed to the PostgreSQL server process
-    postgres_options=""
-    if [ -n "$OCF_RESKEY_config" ]; then
-        postgres_options="$postgres_options -c config_file=${OCF_RESKEY_config}"
-    fi
+    postgres_options="-c config_file=${OCF_RESKEY_config}"
+
     if [ -n "$OCF_RESKEY_pghost" ]; then
         postgres_options="$postgres_options -h $OCF_RESKEY_pghost"
     fi
@@ -482,9 +468,7 @@ pgsql_real_start() {
     fi
 
     # Tack pass-through options onto pg_ctl options
-    if [ -n "$postgres_options" ]; then
-        pgctl_options="$pgctl_options -o '$postgres_options'"
-    fi
+    pgctl_options="$pgctl_options -o '$postgres_options'"
 
     # Invoke pg_ctl
     runasowner "$OCF_RESKEY_pgctl $pgctl_options start"
@@ -1481,16 +1465,17 @@ check_config() {
 # Validate most critical parameters
 pgsql_validate_all() {
     local version
+    local check_config_rc
 
     if ! check_binary2 "$OCF_RESKEY_pgctl" || 
        ! check_binary2 "$OCF_RESKEY_psql"; then
         return $OCF_ERR_INSTALLED
     fi
 
-    if [ -n "$OCF_RESKEY_config" -a ! -f "$OCF_RESKEY_config" ]; then
-       check_config "$OCF_RESKEY_config"
-       [ $? -eq 2 ] && return $OCF_ERR_INSTALLED
-    fi
+    check_config "$OCF_RESKEY_config"
+    check_config_rc=$?
+    [ $check_config_rc -eq 2 ] && return $OCF_ERR_INSTALLED
+    [ $check_config_rc -eq 0 ] && : ${OCF_RESKEY_socketdir=`get_pgsql_param unix_socket_directory`}
 
     getent passwd $OCF_RESKEY_pgdba >/dev/null 2>&1
     if [ ! $? -eq 0 ]; then
@@ -1541,9 +1526,9 @@ pgsql_validate_all() {
             ocf_log err "node_list can't be empty."
             return $OCF_ERR_CONFIGURED
         fi
-        if [ "$OCF_RESKEY_rep_mode" = "sync" ]; then
-            if ! grep -q "include '$REP_MODE_CONF' # added by pgsql RA" $OCF_RESKEY_pgdata/postgresql.conf; then
-                echo "include '$REP_MODE_CONF' # added by pgsql RA" >> $OCF_RESKEY_pgdata/postgresql.conf
+        if [ "$OCF_RESKEY_rep_mode" = "sync" -a $check_config_rc -eq 0 ]; then
+            if ! grep -q "include '$REP_MODE_CONF' # added by pgsql RA" $OCF_RESKEY_config; then
+                echo "include '$REP_MODE_CONF' # added by pgsql RA" >> $OCF_RESKEY_config
             fi
         fi
         if ! mkdir -p $OCF_RESKEY_tmpdir || ! chown $OCF_RESKEY_pgdba $OCF_RESKEY_tmpdir || ! chmod 700 $OCF_RESKEY_tmpdir; then
@@ -1656,9 +1641,6 @@ case "$1" in
     meta-data)  meta_data
                 exit $OCF_SUCCESS;;
 esac
-
-# $OCF_RESKEY_pgdata has to be initialized at this momemnt
-: ${OCF_RESKEY_socketdir=`get_pgsql_param unix_socket_directory`}
 
 pgsql_validate_all
 rc=$?
