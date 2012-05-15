@@ -44,9 +44,9 @@
 #   OCF_RESKEY_pstring - String Jboss will found in procceslist. Default is "java -Dprogram.name=run.sh"
 #   OCF_RESKEY_run_opts - Options for jboss to run. Default is "-c default -l lpg4j"
 #   OCF_RESKEY_shutdown_opts - Options for jboss to shutdonw. Default is "-s 127.0.0.1:1099"
-#   OCF_RESKEY_rotate_consolelog - Control console log logrotation flag. Default is NO.
+#   OCF_RESKEY_rotate_consolelog - Control console log logrotation flag. Default is false.
 #   OCF_RESKEY_rotate_value - console log logrotation value. Default is 86400 span(seconds).
-#   OCF_RESKEY_rotate_logprefix - Control console log logrotation prefix. Default is %F.
+#   OCF_RESKEY_rotate_logsuffix - Control console log logrotation suffix. Default is .%F.
 ###############################################################################
 
 
@@ -115,12 +115,11 @@ rotate_console()
 	# Clean up and set permissions on required files
 	rm -rf "$CONSOLE"
 	mkfifo -m700 "$CONSOLE"
-	chown --dereference "$RESOURCE_TOMCAT_USER" "$CONSOLE" || true
+	chown --dereference "$JBOSS_USER" "$CONSOLE" || true
 
-	# -s is required because tomcat5.5's login shell is /bin/false
-	su - -s /bin/sh $RESOURCE_TOMCAT_USER \
-        	-c "$ROTATELOGS -l \"$CONSOLE$ROTATELOG_PRE\" $ROTATEVALUE" \
-        	< "$CONSOLE" > /dev/null 2>&1 &
+	su - -s /bin/sh $JBOSS_USER \
+		-c "$ROTATELOGS -l \"$CONSOLE$ROTATELOG_SUFFIX\" $ROTATEVALUE" \
+		< "$CONSOLE" > /dev/null 2>&1 &
 }
 
 start_jboss()
@@ -131,8 +130,7 @@ start_jboss()
 		return $OCF_SUCCESS
 	fi
 	
-	ROTATELOG_FLG=`echo ${ROTATELOG_FLG} | tr '[a-z]' '[A-Z]'`
-	if [ ${ROTATELOG_FLG} = "YES" ]; then
+	if ocf_is_true $ROTATELOG_FLG; then
 		rotate_console
 		if [ $? = 0 ]; then
 			ocf_log debug "Rotate console log succeeded."
@@ -222,8 +220,7 @@ stop_jboss()
 		pkill -KILL -f "$PSTRING"
 	done
 
-	ROTATELOG_FLG=`echo ${ROTATELOG_FLG} | tr '[a-z]' '[A-Z]'`
-	if [ ${ROTATELOG_FLG} = "YES" ]; then
+	if ocf_is_true $ROTATELOG_FLG; then
 		rm -f "${CONSOLE}"
 	fi
 
@@ -373,7 +370,7 @@ Stop options to stop Jboss with.
 Rotate console log flag.
 </longdesc>
 <shortdesc>Rotate console log flag</shortdesc>
-<content type="string" default="" />
+<content type="string" default="false" />
 </parameter>
 
 <parameter name="rotate_value" unique="0">
@@ -381,15 +378,15 @@ Rotate console log flag.
 console log rotation value (default is 86400 seconds).
 </longdesc>
 <shortdesc>console log rotation value (default is 86400 seconds)</shortdesc>
-<content type="integer" default="" />
+<content type="integer" default="86400" />
 </parameter>
 
-<parameter name="rotate_logprefix" unique="0">
+<parameter name="rotate_logsuffix" unique="0">
 <longdesc lang="en">
-Rotate console log prefix.
+Rotate console log suffix.
 </longdesc>
-<shortdesc>Rotate console log prefix</shortdesc>
-<content type="integer" default="" />
+<shortdesc>Rotate console log suffix</shortdesc>
+<content type="integer" default=".%F" />
 </parameter>
 
 </parameters>
@@ -423,9 +420,9 @@ STATUSURL="${OCF_RESKEY_statusurl-http://127.0.0.1:8080}"
 PSTRING="${OCF_RESKEY_pstring-java -Dprogram.name=run.sh}"
 RUN_OPTS="${OCF_RESKEY_run_opts--c default -l lpg4j}"
 SHUTDOWN_OPTS="${OCF_RESKEY_shutdown_opts--s 127.0.0.1:1099}"
-ROTATELOG_FLG="${OCF_RESKEY_rotate_consolelog-NO}"
+ROTATELOG_FLG="${OCF_RESKEY_rotate_consolelog-false}"
 ROTATEVALUE="${OCF_RESKEY_rotate_value-86400}"
-ROTATELOG_PRE="${OCF_RESKEY_rotate_logprefix-.%F}"
+ROTATELOG_SUFFIX="${OCF_RESKEY_rotate_logsuffix-.%F}"
 
 if [ $# -ne 1 ]; then
 	usage
