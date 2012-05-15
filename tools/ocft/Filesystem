@@ -17,7 +17,7 @@ SETUP-AGENT
 	rmdir $OCFT_dir 2>/dev/null || true
 	mkdir $OCFT_dir
 	dd if=/dev/zero of=$OCFT_fs bs=1 count=0 seek=16M 2>/dev/null
-	mke2fs -Fq $OCFT_fs
+	mke2fs -j -Fq -m 0 $OCFT_fs
 	losetup $OCFT_loop $OCFT_fs
 
 CLEANUP-AGENT
@@ -27,7 +27,7 @@ CLEANUP-AGENT
 
 CASE-BLOCK required_args
 	Env OCF_RESKEY_device=$OCFT_loop
-	Env OCF_RESKEY_fstype=ext2
+	Env OCF_RESKEY_fstype=ext3
 	Env OCF_RESKEY_directory=$OCFT_dir
 
 CASE-BLOCK default_status
