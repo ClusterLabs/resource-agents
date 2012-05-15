@@ -40,6 +40,7 @@
 #  OCF_RESKEY_proxy_address
 #  OCF_RESKEY_log_level
 #  OCF_RESKEY_keepalive
+#  OCF_RESKEY_plugins
 #  OCF_RESKEY_admin_address
 #  OCF_RESKEY_admin_username
 #  OCF_RESKEY_admin_password
@@ -65,6 +66,7 @@
 : ${OCF_RESKEY_proxy_address=":4040"}
 : ${OCF_RESKEY_log_level=""}
 : ${OCF_RESKEY_keepalive=""}
+: ${OCF_RESKEY_plugins=""}
 : ${OCF_RESKEY_admin_address="127.0.0.1:4041"}
 : ${OCF_RESKEY_admin_username=""}
 : ${OCF_RESKEY_admin_password=""}
@@ -162,6 +164,14 @@ Try to restart the proxy if it crashed (default: ).
 Valid values: true or false. An empty value equals "false".
 </longdesc>
 <shortdesc lang="en">Use keepalive option</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="plugins" unique="0" required="0">
+<longdesc lang="en">
+Whitespace separated list of plugins to load (default: ).
+</longdesc>
+<shortdesc lang="en">MySQL Proxy plugins</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -283,30 +293,39 @@ mysqlproxy_start()
     fi
 
     PARAM_PREFIX=''
+
+    # MySQL Proxy plugins to load
+    # @TODO check if the plugins are actually available?
+    if ocf_is_true $plugin_support; then
+        for p in $plugins; do
+            PARAM_PREFIX="$PARAM_PREFIX --plugins=$p"
+        done
+    fi
+
     # check if the MySQL Proxy defaults-file exist
     if [ -f "$defaults_file" ]; then
-        PARAM_PREFIX="--defaults-file=$defaults_file "
+        PARAM_PREFIX="$PARAM_PREFIX --defaults-file=$defaults_file"
     fi
 
     # set log-level
     if [ ! -z "$log_level" ]; then
-        PARAM_PREFIX="$PARAM_PREFIX --log-level=$log_level "
+        PARAM_PREFIX="$PARAM_PREFIX --log-level=$log_level"
     fi
 
     # set keepalive
     if [ "$keepalive" = "true" ]; then
-        PARAM_PREFIX="$PARAM_PREFIX --keepalive "
+        PARAM_PREFIX="$PARAM_PREFIX --keepalive"
     fi
 
     # honor admin_* options
     if [ ! -z "$admin_username" ]; then
-        PARAM_PREFIX="$PARAM_PREFIX --admin-username=$admin_username "
+        PARAM_PREFIX="$PARAM_PREFIX --admin-username=$admin_username"
     fi
     if [ ! -z "$admin_password" ]; then
-        PARAM_PREFIX="$PARAM_PREFIX --admin-password=$admin_password "
+        PARAM_PREFIX="$PARAM_PREFIX --admin-password=$admin_password"
     fi
     if [ ! -z "$admin_lua_script" ]; then
-        PARAM_PREFIX="$PARAM_PREFIX --admin-lua-script=$admin_lua_script "
+        PARAM_PREFIX="$PARAM_PREFIX --admin-lua-script=$admin_lua_script"
     fi
 
     # split multiple proxy-address options.
@@ -442,6 +461,12 @@ mysqlproxy_validate_all()
         return $OCF_ERR_CONFIGURED
     fi
 
+    # issue warning if we want to load a plugin but this version 
+    # of MySQL Proxy does not support the plugin architecture.
+    if [ -n "$plugins" ] && ocf_is_false "$plugin_support"; then
+        ocf_log warn "You are running MySQL Proxy version '$version'. This version does not support the plugin architecture. Please use version 0.7.0 or later to load the plugins '$plugins'."
+    fi
+
     return $OCF_SUCCESS
 }
 
@@ -466,10 +491,10 @@ admin_lua_script=$OCF_RESKEY_admin_lua_script
 proxy_address=$OCF_RESKEY_proxy_address
 log_level=$OCF_RESKEY_log_level
 keepalive=$OCF_RESKEY_keepalive
+plugins=`echo $OCF_RESKEY_plugins | tr "[:space:]" "\n" | sort -u`
 mysql=$OCF_RESKEY_client_binary
 parameters=$OCF_RESKEY_parameters
 plugin_support=false
-plugin_list=''
 
 # debugging stuff
 #echo OCF_RESKEY_binary=$OCF_RESKEY_binary >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
