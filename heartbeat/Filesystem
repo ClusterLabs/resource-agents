@@ -970,6 +970,10 @@ set_blockdevice_var() {
 	nfs|smbfs|cifs|none|glusterfs) return;;
 	esac
 
+    if `is_option "loop"`; then
+        return
+    fi
+
 	case $DEVICE in
 	-*) # Oh... An option to mount instead...  Typically -U or -L
 		;;
