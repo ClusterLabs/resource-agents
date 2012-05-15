@@ -468,6 +468,8 @@ log_level=$OCF_RESKEY_log_level
 keepalive=$OCF_RESKEY_keepalive
 mysql=$OCF_RESKEY_client_binary
 parameters=$OCF_RESKEY_parameters
+plugin_support=false
+plugin_list=''
 
 # debugging stuff
 #echo OCF_RESKEY_binary=$OCF_RESKEY_binary >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
@@ -485,6 +487,19 @@ parameters=$OCF_RESKEY_parameters
 #echo OCF_RESKEY_pidfile=$OCF_RESKEY_pidfile >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
 
 
+# determine MySQL Proxy version
+check_binary $binary
+version=`$binary --version | grep ^mysql-proxy | awk '{print $NF}'`
+
+# version 0.7.0 (and later) support the plugin architecture
+ocf_version_cmp "$version" "0.7.0"
+ret=$?
+if [ $ret -eq 1 -o $ret -eq 2 ]; then
+    plugin_support=true
+fi
+
+
+# perform action
 case $1 in
     start)      mysqlproxy_validate_all &&
                 mysqlproxy_start
