@@ -170,6 +170,7 @@ Valid values: true or false. An empty value equals "false".
 <parameter name="plugins" unique="0" required="0">
 <longdesc lang="en">
 Whitespace separated list of plugins to load (default: ).
+Note: The admin plugin will be auto-loaded in case you specify an admin_* parameter.
 </longdesc>
 <shortdesc lang="en">MySQL Proxy plugins</shortdesc>
 <content type="string" default="" />
@@ -178,6 +179,7 @@ Whitespace separated list of plugins to load (default: ).
 <parameter name="admin_address" unique="0" required="0">
 <longdesc lang="en">
 Listening address:port of the admin plugin (default: 127.0.0.1:4041).
+Note: The admin plugin will be auto-loaded in case you specify an admin_* parameter.
 </longdesc>
 <shortdesc lang="en">MySQL Proxy admin plugin listening address</shortdesc>
 <content type="string" default="127.0.0.1:4041" />
@@ -186,7 +188,8 @@ Listening address:port of the admin plugin (default: 127.0.0.1:4041).
 <parameter name="admin_username" unique="0" required="0">
 <longdesc lang="en">
 Username for the admin plugin (default: ).
-Required since MySQL Proxy 0.8.1 if the admin plugin is loaded.
+Required since MySQL Proxy 0.8.1, if the admin plugin is loaded.
+Note: The admin plugin will be auto-loaded in case you specify an admin_* parameter.
 </longdesc>
 <shortdesc lang="en">MySQL Proxy admin plugin username</shortdesc>
 <content type="string" default="" />
@@ -195,7 +198,8 @@ Required since MySQL Proxy 0.8.1 if the admin plugin is loaded.
 <parameter name="admin_password" unique="0" required="0">
 <longdesc lang="en">
 Password for the admin plugin (default: ).
-Required since MySQL Proxy 0.8.1 if the admin plugin is loaded.
+Required since MySQL Proxy 0.8.1, if the admin plugin is loaded.
+Note: The admin plugin will be auto-loaded in case you specify an admin_* parameter.
 </longdesc>
 <shortdesc lang="en">MySQL Proxy admin plugin password</shortdesc>
 <content type="string" default="" />
@@ -204,7 +208,8 @@ Required since MySQL Proxy 0.8.1 if the admin plugin is loaded.
 <parameter name="admin_lua_script" unique="0" required="0">
 <longdesc lang="en">
 Script to execute by the admin plugin.
-Required since MySQL Proxy 0.8.1 if the admin plugin is loaded.
+Required since MySQL Proxy 0.8.1, if the admin plugin is loaded.
+Note: The admin plugin will be auto-loaded in case you specify an admin_* parameter.
 </longdesc>
 <shortdesc lang="en">MySQL Proxy admin plugin lua script</shortdesc>
 <content type="string" default="" />
@@ -450,6 +455,9 @@ mysqlproxy_monitor()
 
 mysqlproxy_validate_all()
 {
+    # local variables
+    local config_error=0
+
     # check that the MySQL Proxy binary exists and can be executed
     check_binary $binary
     check_binary $mysql
@@ -461,10 +469,54 @@ mysqlproxy_validate_all()
         return $OCF_ERR_CONFIGURED
     fi
 
+
+    # if we're running MySQL Proxy > 0.8.1 and there is any admin parameter set,
+    # explicitly load the admin (and the proxy) plugin.
+    # (version 0.8.2 does not load the admin plugin by default anymore)
+    ocf_version_cmp "$version" "0.8.1"
+    ret=$?
+    if [ $ret -eq 2 ]; then
+        # simple check: concat all parameters and check if the string has non-zero length
+        if [ -n "$admin_username$admin_password$admin_lua_script$admin_address" ]; then
+            plugins="proxy admin"
+            has_plugin_admin=1
+        else
+            has_plugin_admin=0
+        fi
+    fi
+
+
+    # check for required admin_* parameters for 0.8.1 and 0.8.2 (with admin module)
+    # translated: if (version == 0.8.1 or (version > 0.8.1 and has_plugin_admin))
+    if [ $ret -eq 1 -o \( $ret -eq 2 -a $has_plugin_admin -eq 1 \) ]; then
+        if [ -z "$admin_username" ]; then
+            ocf_log err "Missing required parameter \"admin_username\""
+            config_error=1
+        fi
+        if [ -z "$admin_password" ]; then
+            ocf_log err "Missing required parameter \"admin_password\""
+            config_error=1
+        fi
+        if [ -z "$admin_lua_script" ]; then
+            ocf_log err "Missing required parameter \"admin_lua_script\""
+            config_error=1
+        fi
+
+        # check if the admin_lua_script, if specified, exists
+        if [ -n "$admin_lua_script" -a ! -e "$admin_lua_script" ]; then
+            ocf_log err "MySQL Proxy admin lua script '$admin_lua_script' does not exist or is not readable."
+        fi
+    fi
+
     # issue warning if we want to load a plugin but this version 
     # of MySQL Proxy does not support the plugin architecture.
     if [ -n "$plugins" ] && ocf_is_false "$plugin_support"; then
         ocf_log warn "You are running MySQL Proxy version '$version'. This version does not support the plugin architecture. Please use version 0.7.0 or later to load the plugins '$plugins'."
+    fi
+
+    # exit in case we have found relevant config errors
+    if [ $config_error -eq 1 ]; then
+        exit $OCF_ERR_CONFIGURED
     fi
 
     return $OCF_SUCCESS
@@ -495,6 +547,7 @@ plugins=`echo $OCF_RESKEY_plugins | tr "[:space:]" "\n" | sort -u`
 mysql=$OCF_RESKEY_client_binary
 parameters=$OCF_RESKEY_parameters
 plugin_support=false
+has_plugin_admin=0 # 0 because this simplifies the if statements
 
 # debugging stuff
 #echo OCF_RESKEY_binary=$OCF_RESKEY_binary >> /tmp/prox_conf_$OCF_RESOURCE_INSTANCE
@@ -528,11 +581,14 @@ esac
 check_binary $binary
 version=`$binary --version | grep ^mysql-proxy | awk '{print $NF}'`
 
-# version 0.7.0 (and later) support the plugin architecture
+# version 0.7.0 (and later) support the plugin architecture and load the admin plugin by default
+# version 0.8.1 loads admin plugin by default and requires the admin parameters to be set
+# version 0.8.2 does not load the admin plugin by default anymore
 ocf_version_cmp "$version" "0.7.0"
 ret=$?
 if [ $ret -eq 1 -o $ret -eq 2 ]; then
     plugin_support=true
+    has_plugin_admin=1
 fi
 
 
