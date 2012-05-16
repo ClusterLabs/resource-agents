@@ -254,8 +254,8 @@ dhcpd_initialize_chroot() {
     fi
 
     # Ensure all permissions are in place if the folder was re-created.
-    chown -R ${OCF_RESKEY_user}:${OCF_RESKEY_group} ${OCF_RESKEY_chrooted_path}/db
-    chown -R ${OCF_RESKEY_user}:${OCF_RESKEY_group} ${OCF_RESKEY_chrooted_path}/var
+    chown -R ${OCF_RESKEY_user}:${OCF_RESKEY_group} ${OCF_RESKEY_chrooted_path}/`dirname ${OCF_RESKEY_leases}`
+    chown -R ${OCF_RESKEY_user}:${OCF_RESKEY_group} ${OCF_RESKEY_chrooted_path}/`dirname ${OCF_RESKEY_pid}`
 
     ## If there is no conf file, we can't initialize the chrooted 
     ## environment, return with "program not configured"
