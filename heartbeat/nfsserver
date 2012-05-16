@@ -171,6 +171,11 @@ unbind_tree ()
 
 nfsserver_start ()
 {
+	if nfsserver_monitor; then
+		ocf_log debug "NFS server is already started"
+		return $OCF_SUCCESS
+	fi
+
 	prepare_directory
 	bind_tree
 
