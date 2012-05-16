@@ -29,6 +29,9 @@ OCF_RESKEY_interface_default=""
 : ${OCF_RESKEY_leases=${OCF_RESKEY_leases_default}}
 : ${OCF_RESKEY_interface=${OCF_RESKEY_interface_default}}
 
+# To enable support for different versions of dhcp, we need
+# to know what version we are being run against.
+DHCP_VERSION_MAJOR=`${OCF_RESKEY_binary} --version 2>&1 | awk -F- '{print $3}' | awk -F.  '{print $1}'`
 
 usage() {
     cat <<EOF
@@ -214,6 +217,19 @@ dhcpd_initialize_chroot() {
 	fi
     fi
 
+    ocf_log debug "making sure we are not running version 4 or higher"
+    # If we are running version 4 of the dhcp server, we need to mount a proc partition.
+    if [ ${DHCP_VERSION_MAJOR} -ge 4 ] ; then
+	ocf_log debug "we are."
+	if ! [ -d ${OCF_RESKEY_chrooted_path}/proc ] ; then
+	    mkdir -p ${OCF_RESKEY_chrooted_path}/proc
+	fi
+
+	if ! [ -e ${OCF_RESKEY_chrooted_path}/proc/net/dev ] ; then
+	    mount -t proc -o ro proc ${OCF_RESKEY_chrooted_path}/proc > /dev/null 2>&1
+	fi
+    fi
+
     ## If there is no conf file, we can't initialize the chrooted 
     ## environment, return with "program not configured"
     if ! [ -f ${OCF_RESKEY_config} ] ; then
@@ -359,6 +375,11 @@ dhcpd_stop () {
     if dhcpd_monitor 2>&1; then
         ocf_log err "dhcpd is still up! Killing"
         kill -s SIGKILL `cat ${OCF_RESKEY_chrooted_path}/${OCF_RESKEY_pid}`
+    fi
+
+    # If we are running a dhcp server v4 or higher, unmount the proc partition.
+    if [ ${DHCP_VERSION_MAJOR} -ge 4 ] ; then
+	umount ${OCF_RESKEY_chrooted_path}/proc > /dev/null 2>&1
     fi
 
     rm -f ${OCF_RESKEY_chrooted_path}/${OCF_RESKEY_pid}
