@@ -226,15 +226,18 @@ dhcpd_initialize_chroot() {
     if ! [ -d ${OCF_RESKEY_chrooted_path} ] ; then
 	ocf_log info "Initializing ${OCF_RESKEY_chrooted_path} for use."
 	mkdir -p ${OCF_RESKEY_chrooted_path}
-	for i in "db dev etc lib64 var" ; do
-	    if ! [ -d ${OCF_RESKEY_chrooted_path}/${i} ] ; then
-		mkdir -p ${OCF_RESKEY_chrooted_path}/${i}
-	    fi
-	done
+    fi
 
-	if ! [ -d ${OCF_RESKEY_chrooted_path}/var/run ] ; then
-	    mkdir -p ${OCF_RESKEY_chrooted_path}/var/run
+    # Make sure all sub-paths are created if something went wrong during
+    # a partial run.
+    for i in "db dev etc lib64 var" ; do
+	if ! [ -d ${OCF_RESKEY_chrooted_path}/${i} ] ; then
+	    mkdir -p ${OCF_RESKEY_chrooted_path}/${i}
 	fi
+    done
+
+    if ! [ -d ${OCF_RESKEY_chrooted_path}/var/run ] ; then
+	mkdir -p ${OCF_RESKEY_chrooted_path}/var/run
     fi
 
     ocf_log debug "making sure we are not running version 4 or higher"
