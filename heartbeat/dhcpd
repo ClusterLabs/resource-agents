@@ -198,9 +198,25 @@ dhcpd_monitor() {
 
 # Initialize Chroot
 dhcpd_initialize_chroot() {
+    # If we are running the initialization for the first time, we need to make
+    # the new chrooted folder, in case we are not using the same default.
+    if ! [ -d ${OCF_RESKEY_chrooted_path} ] ; then
+	ocf_log info "Initializing ${OCF_RESKEY_chrooted_path} for use."
+	mkdir -p ${OCF_RESKEY_chrooted_path}
+	for i in db dev etc lib64 var ; do
+	    if ! [ -d ${OCF_RESKEY_chrooted_path}/{$i} ] ; then
+		mkdir -p ${OCF_RESKEY_chrooted_path}/{$i}
+	    fi
+	done
+
+	if ! [ -d ${OCF_RESKEY_chrooted_path}/var/run ] ; then
+	    mkdir -p ${OCF_RESKEY_chrooted_path}/var/run
+	fi
+    fi
+
     ## If there is no conf file, we can't initialize the chrooted 
     ## environment, return with "program not configured"
-    if ! [ -f ${OCF_RESKEY_config} ]; then
+    if ! [ -f ${OCF_RESKEY_config} ] ; then
 	ocf_log err "dhcpd has not been configured."
 	return $OCF_ERR_CONFIGURED
     fi
@@ -214,7 +230,7 @@ dhcpd_initialize_chroot() {
     test -e "${OCF_RESKEY_chrooted_path}/dev/urandom" && rm -f ${OCF_RESKEY_chrooted_path}/dev/urandom
 
     # Ensure all "modified" non-chrooted configuration files are copied into the chrooted environment.
-    for i in ${OCF_RESKEY_config} /etc/gai.conf /etc/nsswitch.conf /etc/resolv.conf /etc/host.conf /etc/hosts /etc/localtime /dev/urandom; do
+    for i in ${OCF_RESKEY_config} /etc/named.keys /etc/gai.conf /etc/nsswitch.conf /etc/resolv.conf /etc/host.conf /etc/hosts /etc/localtime /dev/urandom; do
 	# First, lets make sure the directory exists within the chrooted environment.
 	if test -d "${i}" ; then
 	    test -d "${OCF_RESKEY_chrooted_path}/${i}" || mkdir -p "${OCF_RESKEY_chrooted_path}/${i}"
@@ -254,6 +270,8 @@ dhcpd_initialize_chroot() {
 	    cp -pL "$i" "/var/lib/dhcp/$libdir/" || { ocf_log err "could not copy $i to chroot jail"; return $OCF_ERR_GENERIC; }
 	fi
     done
+
+   return $OCF_SUCCESS
 }
 
 # Start
@@ -270,7 +288,7 @@ dhcpd_start() {
     test -e "${OCF_RESKEY_chrooted_path}/${OCF_RESKEY_pid}" && rm -f ${OCF_RESKEY_chrooted_path}/${OCF_RESKEY_pid}
 
     # Re-run the initialization function to pull in any changes made to the non-chrooted files.
-    dhcpd_initialize_chroot
+    dhcpd_initialize_chroot || { ocf_log err "Could not fully initialize the chroot environment." ; return $OCF_ERR_CONFIGURED; }
 
     DHCPD_ARGS="-chroot ${OCF_RESKEY_chrooted_path} -lf ${OCF_RESKEY_leases}"
 
@@ -281,7 +299,7 @@ dhcpd_start() {
 	DHCPD_ARGS="$DHCPD_ARGS -group ${OCF_RESKEY_group}"
     fi
 
-    ocf_run ${OCF_RESKEY_binary} -cf ${OCF_RESKEY_config} $DHCPD_ARGS -pf ${OCF_RESKEY_pid} ${OCF_RESKEY_interface} || return $OCF_NOT_RUNNING
+    ocf_run ${OCF_RESKEY_binary} -cf ${OCF_RESKEY_config} $DHCPD_ARGS -pf ${OCF_RESKEY_pid} ${OCF_RESKEY_interface} || return $OCF_ERR_CONFIGURED
 
     ocf_log info "dhcpd [chrooted] has started."
 
