@@ -203,9 +203,9 @@ dhcpd_initialize_chroot() {
     if ! [ -d ${OCF_RESKEY_chrooted_path} ] ; then
 	ocf_log info "Initializing ${OCF_RESKEY_chrooted_path} for use."
 	mkdir -p ${OCF_RESKEY_chrooted_path}
-	for i in db dev etc lib64 var ; do
-	    if ! [ -d ${OCF_RESKEY_chrooted_path}/{$i} ] ; then
-		mkdir -p ${OCF_RESKEY_chrooted_path}/{$i}
+	for i in "db dev etc lib64 var" ; do
+	    if ! [ -d ${OCF_RESKEY_chrooted_path}/${i} ] ; then
+		mkdir -p ${OCF_RESKEY_chrooted_path}/${i}
 	    fi
 	done
 
@@ -229,8 +229,14 @@ dhcpd_initialize_chroot() {
     # Remove the random device.
     test -e "${OCF_RESKEY_chrooted_path}/dev/urandom" && rm -f ${OCF_RESKEY_chrooted_path}/dev/urandom
 
+    FILE_LIST="/etc/gai.conf /etc/nsswitch.conf /etc/resolv.conf /etc/host.conf /etc/hosts /etc/localtime /dev/urandom"
+
+    if [ -e /etc/named.keys ] ; then
+	FILE_LIST="${FILE_LIST} /etc/named.keys"
+    fi
+
     # Ensure all "modified" non-chrooted configuration files are copied into the chrooted environment.
-    for i in ${OCF_RESKEY_config} /etc/named.keys /etc/gai.conf /etc/nsswitch.conf /etc/resolv.conf /etc/host.conf /etc/hosts /etc/localtime /dev/urandom; do
+    for i in ${OCF_RESKEY_config} ${FILE_LIST}; do
 	# First, lets make sure the directory exists within the chrooted environment.
 	if test -d "${i}" ; then
 	    test -d "${OCF_RESKEY_chrooted_path}/${i}" || mkdir -p "${OCF_RESKEY_chrooted_path}/${i}"
