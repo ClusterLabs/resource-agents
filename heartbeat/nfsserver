@@ -260,7 +260,7 @@ case $__OCF_ACTION in
 		;;
 	monitor)    nfsserver_monitor
 		;;
-	validate-all)   nfsserver_validate
+	validate-all)   exit $OCF_SUCCESS
 		;;
 	*)      nfsserver_usage
 	exit $OCF_ERR_UNIMPLEMENTED
