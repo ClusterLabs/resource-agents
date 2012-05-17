@@ -755,7 +755,7 @@ Filesystem_stop()
 	else
 		# Wipe the status file, but continue with a warning if
 		# removal fails -- the file system might be read only
-		if [ -f "$STATUSFILE" ]; then
+		if [ $OCF_CHECK_LEVEL -eq 20 ]; then
 			rm -f ${STATUSFILE}
 			if [ $? -ne 0 ]; then
 				ocf_log warn "Failed to remove status file ${STATUSFILE}."
@@ -969,6 +969,10 @@ set_blockdevice_var() {
 	case $FSTYPE in
 	nfs|smbfs|cifs|none|glusterfs) return;;
 	esac
+
+    if `is_option "loop"`; then
+        return
+    fi
 
 	case $DEVICE in
 	-*) # Oh... An option to mount instead...  Typically -U or -L

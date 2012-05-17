@@ -233,11 +233,11 @@ testoraenv() {
 	#	Let's make sure a few important things are set...
 	if [ x = "x$ORACLE_HOME" ]; then
 		ocf_log info "ORACLE_HOME not set"
-		return $OCF_ERR_CONFIGURED
+		return $OCF_ERR_INSTALLED
 	fi
 	if [ x = "x$ORACLE_OWNER" ]; then
 		ocf_log info "ORACLE_OWNER not set"
-		return $OCF_ERR_CONFIGURED
+		return $OCF_ERR_INSTALLED
 	fi
 	#	and some important things are there
 	if [ ! -x "$sqlplus" ]; then
@@ -370,6 +370,7 @@ getdumpdest() {
 }
 getipc() {
 	echo "oradebug setmypid"
+	echo "oradebug tracefile_name"
 	echo "oradebug ipc"
 }
 #
@@ -386,22 +387,16 @@ showdbstat() {
 # IPC stuff: not overly complex, but quite involved :-/
 #
 
-IPC_LOCKFILE=${HA_RSCTMP}/oracle_ipc.lock
 # Part 1: Oracle
+other_trace_junk() {
+	echo $1 | sed 's/trc$/trm/'
+}
 dumpinstipc() {
-	local dumpdest=`dbasql_one getdumpdest`
-	if [ "x$dumpdest" = x -o ! -d "$dumpdest" ]; then
-		ocf_log warn "$dumpdest is not a directory"
-		return 1
-	fi
-	ocf_take_lock $IPC_LOCKFILE
-	local fcount=`ls -rt $dumpdest | grep '\.trc$' | wc -l`
-	output=`dbasql getipc`
-	local lastf=`ls -rt $dumpdest | grep '\.trc$' | tail -1`
-	local fcount2=`ls -rt $dumpdest | grep '\.trc$' | wc -l`
-	rm -f $IPC_LOCKFILE
-	if [ $((fcount+1)) -eq $fcount2 ]; then
-		echo $dumpdest/$lastf
+	local output tracef
+	output=`dbasql getipc` # filename in the 2nd line
+	tracef=`echo "$output" | awk 'NR==2' | grep ^/.*trc$`
+	if [ "$tracef" ]; then
+		echo $tracef
 	else
 		ocf_log warn "'dbasql getipc' failed: $output"
 		return 1
@@ -430,6 +425,7 @@ parseipc() {
 		/system semaphore information/ {exit}
 	' $inf |
 	sort -u | sed 's/^/s:/'
+	TMPFILES="$TMPFILES $inf `other_trace_junk $inf`"
 }
 
 # Part 2: OS (ipcs,ipcrm)
@@ -679,7 +675,7 @@ esac
 if [ x = "x$OCF_RESKEY_sid" ]
 then
   ocf_log err "Please set OCF_RESKEY_sid to the Oracle SID !"
-  exit $OCF_ERR_ARGS
+  exit $OCF_ERR_CONFIGURED
 fi
 
 ora_info "$OCF_RESKEY_sid" "$OCF_RESKEY_home" "$OCF_RESKEY_user"
@@ -707,10 +703,6 @@ chmod 644 $envtmpf
 TMPFILES="$envtmpf"
 rmtmpfiles() {
 	rm -f $TMPFILES
-	# our lock file?
-	if [ "$$" = "`cat $IPC_LOCKFILE 2>/dev/null`" ]; then
-		rm -f $IPC_LOCKFILE
-	fi
 }
 trap "rmtmpfiles" EXIT
 procs="ps -e -o pid,args | grep -i \"[o]ra[a-zA-Z0-9_]*$ORACLE_SID\$\""

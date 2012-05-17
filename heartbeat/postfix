@@ -96,12 +96,15 @@ END
 }
 
 postfix_running() {
+    local loglevel
+    loglevel=${1:-err}
+
     # run Postfix status if available
     if ocf_is_true $status_support; then
-        output=`$binary $OPTION_CONFIG_DIR status 2>&1`
+        $binary $OPTION_CONFIG_DIR status 2>&1
         ret=$?
         if [ $ret -ne 0 ]; then
-            ocf_log err "Postfix status: '$output'." $ret
+            ocf_log $loglevel "Postfix status: " $ret
         fi
         return $ret
     fi
@@ -121,7 +124,7 @@ postfix_running() {
 postfix_start()
 {
     # if Postfix is running return success
-    if postfix_running; then
+    if postfix_running info; then
         ocf_log info "Postfix already running."
         return $OCF_SUCCESS
     fi
@@ -131,7 +134,7 @@ postfix_start()
     ret=$?
 
     if [ $ret -ne 0 ]; then
-        ocf_log err "Postfix returned error." $ret
+        ocf_log err "Postfix returned error: " $ret
         return $OCF_ERR_GENERIC
     fi
 
@@ -140,8 +143,8 @@ postfix_start()
     while true; do
         sleep 1
         # break if postfix is up and running; log failure otherwise
-        postfix_running && break
-        ocf_log info "Postfix failed initial monitor action." $ret
+        postfix_running info && break
+        ocf_log info "Postfix failed initial monitor action: " $ret
     done
 
     ocf_log info "Postfix started."
@@ -152,7 +155,7 @@ postfix_start()
 postfix_stop()
 {
     # if Postfix is not running return success
-    if ! postfix_running; then
+    if ! postfix_running info; then
         ocf_log info "Postfix already stopped."
         return $OCF_SUCCESS
     fi
@@ -162,20 +165,22 @@ postfix_stop()
     ret=$?
 
     if [ $ret -ne 0 ]; then
-        ocf_log err "Postfix returned an error while stopping." $ret
+        ocf_log err "Postfix returned an error while stopping: " $ret
         return $OCF_ERR_GENERIC
     fi
 
     # grant some time for shutdown and recheck 5 times
     for i in 1 2 3 4 5; do
-        if postfix_running; then
+        if postfix_running info; then
             sleep 1
+        else
+            break
         fi
     done
 
     # escalate to abort if we did not stop by now
     # @TODO shall we loop here too?
-    if postfix_running; then
+    if postfix_running info; then
         ocf_log err "Postfix failed to stop. Escalating to 'abort'."
 
         $binary $OPTIONS abort >/dev/null 2>&1; ret=$?
@@ -202,7 +207,14 @@ postfix_reload()
 
 postfix_monitor()
 {
-    if postfix_running; then
+    local status_loglevel="err"
+
+    # Set loglevel to info during probe
+    if ocf_is_probe; then
+        status_loglevel="info"
+    fi
+
+    if postfix_running $status_loglevel; then
         return $OCF_SUCCESS
     fi
 
@@ -252,6 +264,11 @@ postfix_validate_all()
 
         if ocf_is_true $status_support; then
             data_dir=`postconf $OPTION_CONFIG_DIR -h data_directory 2>/dev/null`
+            data_dir_count=`echo "$data_dir" | tr ',' ' ' | wc -w`
+            if [ $data_dir_count -gt 1 ]; then
+            	ocf_log err "Postfix data directory '$orig_data_dir' cannot be set to multiple directories."
+                return $OCF_ERR_INSTALLED
+            fi
             if [ ! -d "$data_dir" ]; then
                 if ocf_is_probe; then
                     ocf_log info "Postfix data directory '$data_dir' not readable during probe."
@@ -283,7 +300,7 @@ postfix_validate_all()
         $binary $OPTIONS check >/dev/null 2>&1
         ret=$?
         if [ $ret -ne 0 ]; then
-            ocf_log err "Postfix 'check' failed." $ret
+            ocf_log err "Postfix 'check' failed: " $ret
             return $OCF_ERR_GENERIC
         fi
     fi
