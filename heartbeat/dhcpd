@@ -33,7 +33,7 @@ OCF_RESKEY_includes_default=""
 
 # To enable support for different versions of dhcp, we need
 # to know what version we are being run against.
-DHCP_VERSION_MAJOR=`${OCF_RESKEY_binary} --version 2>&1 | awk -F- '{print $3}' | awk -F.  '{print $1}'`
+DHCP_VERSION_MAJOR=`${OCF_RESKEY_binary} --version 2>&1 | awk -F- '{print $3}' | awk -F.  '{print $1}' | sed s/^[a-zA-Z]//g`
 
 # These files are always copied by default to ensure the chroot environment works.
 DEFAULT_FILE_LIST="/etc/gai.conf /etc/nsswitch.conf /etc/resolv.conf /etc/host.conf /etc/hosts /etc/localtime /dev/urandom"
@@ -230,7 +230,7 @@ dhcpd_initialize_chroot() {
 
     # Make sure all sub-paths are created if something went wrong during
     # a partial run.
-    for i in "db dev etc lib64 var" ; do
+    for i in db dev etc lib64 var ; do
 	if ! [ -d ${OCF_RESKEY_chrooted_path}/${i} ] ; then
 	    mkdir -p ${OCF_RESKEY_chrooted_path}/${i}
 	fi
