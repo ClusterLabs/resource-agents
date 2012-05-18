@@ -39,6 +39,12 @@
 #   OCF_RESKEY_log
 #   OCF_RESKEY_pid
 #   OCF_RESKEY_socket
+#   OCF_RESKEY_replication_user
+#   OCF_RESKEY_replication_passwd
+#   OCF_RESKEY_replication_port
+#   OCF_RESKEY_max_slave_lag
+#   OCF_RESKEY_evict_outdated_slaves
+#   OCF_RESKEY_reader_attribute
 
 #######################################################################
 # Initialization:
