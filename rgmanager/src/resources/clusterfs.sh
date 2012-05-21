@@ -141,6 +141,18 @@ do_metadata()
 	    <content type="boolean"/>
 	</parameter>
 
+	<parameter name="nfsrestart" inherit="nfsrestart">
+	    <longdesc lang="en">
+		If set and unmounting the file system fails, the node will
+		try to restart nfs daemon and nfs lockd to drop all filesystem
+		references. Use this option as last resource.
+	    </longdesc>
+	    <shortdesc lang="en">
+		Enable NFS daemon and lockd workaround
+	    </shortdesc>
+	    <content type="boolean"/>
+	</parameter>
+
     </parameters>
 
     <actions>
@@ -288,6 +300,23 @@ do_pre_unmount() {
 	clubufflush -f $dev
 
 	return 0
+}
+
+do_force_unmount() {
+	if [ "$OCF_RESKEY_nfsrestart" = "yes" ] || \
+	   [ "$OCF_RESKEY_nfsrestart" = "1" ]; then
+		if [ -f /proc/fs/nfsd/threads ]; then
+			ocf_log warning "Restarting nfsd/nfslock"
+			nfsdthreads="$(cat /proc/fs/nfsd/threads)"
+			service nfslock stop
+			rpc.nfsd 0
+			rpc.nfsd $nfsdthreads
+			service nfslock start
+		else
+			ocf_log err "Unable to determin nfsd information. nfsd restart aborted"
+		fi
+	fi
+	return 1
 }
 
 main $*
