@@ -3,11 +3,22 @@
 #   Resource Agent for managing dhcpd resources.
 #
 #   License:      GNU General Public License (GPL)
-#   (c) 2011-2011 Chris Bowlby,
+#   (c) 2011-2012 Chris Bowlby,
 #
-# significant parts of this script seems to have been copied from
-# some dhcpd init scripts, it would be good to mention the source
-# and give the authors credit
+# A fair amount of this script has been pulled from the official 0dhcpd 
+# init script. Those portions have been integrated into this script to
+# ensure consistent behavior between the resource agent and the
+# original script. The copyrights and original authors are credited
+# as follows:
+#
+# Copyright (c) 1996, 1997, 1998 S.u.S.E. GmbH
+# Copyright (c) 1998, 1999, 2000, 2001 SuSE GmbH
+# Copyright (c) 2002, 2003 SuSE Linux AG
+# Copyright (c) 2004-2008 SUSE LINUX Products GmbH, Nuernberg, Germany.
+#
+# Author(s) : Rolf Haberrecker <rolf@suse.de>, 1997-1999
+#             Peter Poeml <poeml@suse.de>, 2000-2006
+#             Marius Tomaschewski <mt@suse.de>, 2006-2010
 #
 #                 and Linux-HA contributors
 
