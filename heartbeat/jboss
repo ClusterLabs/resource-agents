@@ -44,6 +44,9 @@
 #   OCF_RESKEY_pstring - String Jboss will found in procceslist. Default is "java -Dprogram.name=run.sh"
 #   OCF_RESKEY_run_opts - Options for jboss to run. Default is "-c default -l lpg4j"
 #   OCF_RESKEY_shutdown_opts - Options for jboss to shutdonw. Default is "-s 127.0.0.1:1099"
+#   OCF_RESKEY_rotate_consolelog - Control console log logrotation flag. Default is false.
+#   OCF_RESKEY_rotate_value - console log logrotation value. Default is 86400 span(seconds).
+#   OCF_RESKEY_rotate_logsuffix - Control console log logrotation suffix. Default is .%F.
 ###############################################################################
 
 
@@ -97,12 +100,43 @@ monitor_jboss()
 	isrunning_jboss $1
 }
 
+rotate_console()
+{
+	# Look for rotatelogs/rotatelogs2
+	if [ -x /usr/sbin/rotatelogs ]; then
+		ROTATELOGS=/usr/sbin/rotatelogs
+	elif [ -x /usr/sbin/rotatelogs2 ]; then
+		ROTATELOGS=/usr/sbin/rotatelogs2
+	else
+		ocf_log warn "rotatelogs command not found."
+		return 1
+	fi
+
+	# Clean up and set permissions on required files
+	rm -rf "$CONSOLE"
+	mkfifo -m700 "$CONSOLE"
+	chown --dereference "$JBOSS_USER" "$CONSOLE" || true
+
+	su - -s /bin/sh $JBOSS_USER \
+		-c "$ROTATELOGS -l \"$CONSOLE$ROTATELOG_SUFFIX\" $ROTATEVALUE" \
+		< "$CONSOLE" > /dev/null 2>&1 &
+}
+
 start_jboss()
 {
 	monitor_jboss start
 	if [ $? = $OCF_SUCCESS ]; then
 		ocf_log info "JBoss already running."
 		return $OCF_SUCCESS
+	fi
+	
+	if ocf_is_true $ROTATELOG_FLG; then
+		rotate_console
+		if [ $? = 0 ]; then
+			ocf_log debug "Rotate console log succeeded."
+		else
+			ocf_log warn "Rotate console log failed. Starting jboss without console log rotation."
+		fi
 	fi
 
 	ocf_log info "Starting JBoss[$RESOURCE_NAME]"
@@ -185,6 +219,11 @@ stop_jboss()
 		ocf_log info "stop_jboss[$RESOURCE_NAME]: kill jboss by SIGKILL ($lapse_sec/@@@)"
 		pkill -KILL -f "$PSTRING"
 	done
+
+	if ocf_is_true $ROTATELOG_FLG; then
+		rm -f "${CONSOLE}"
+	fi
+
 	return $OCF_SUCCESS
 }
 
@@ -326,6 +365,30 @@ Stop options to stop Jboss with.
 <content type="string" default="-s 127.0.0.1:1099" />
 </parameter>
 
+<parameter name="rotate_consolelog" unique="0">
+<longdesc lang="en">
+Rotate console log flag.
+</longdesc>
+<shortdesc>Rotate console log flag</shortdesc>
+<content type="string" default="false" />
+</parameter>
+
+<parameter name="rotate_value" unique="0">
+<longdesc lang="en">
+console log rotation value (default is 86400 seconds).
+</longdesc>
+<shortdesc>console log rotation value (default is 86400 seconds)</shortdesc>
+<content type="integer" default="86400" />
+</parameter>
+
+<parameter name="rotate_logsuffix" unique="0">
+<longdesc lang="en">
+Rotate console log suffix.
+</longdesc>
+<shortdesc>Rotate console log suffix</shortdesc>
+<content type="integer" default=".%F" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -357,6 +420,9 @@ STATUSURL="${OCF_RESKEY_statusurl-http://127.0.0.1:8080}"
 PSTRING="${OCF_RESKEY_pstring-java -Dprogram.name=run.sh}"
 RUN_OPTS="${OCF_RESKEY_run_opts--c default -l lpg4j}"
 SHUTDOWN_OPTS="${OCF_RESKEY_shutdown_opts--s 127.0.0.1:1099}"
+ROTATELOG_FLG="${OCF_RESKEY_rotate_consolelog-false}"
+ROTATEVALUE="${OCF_RESKEY_rotate_value-86400}"
+ROTATELOG_SUFFIX="${OCF_RESKEY_rotate_logsuffix-.%F}"
 
 if [ $# -ne 1 ]; then
 	usage
