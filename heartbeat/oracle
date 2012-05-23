@@ -394,7 +394,7 @@ other_trace_junk() {
 dumpinstipc() {
 	local output tracef
 	output=`dbasql getipc` # filename in the 2nd line
-	tracef=`echo "$output" | awk 'NR==2' | grep ^/.*trc$`
+	tracef=`echo "$output" | awk 'NR==2' | grep '^/.*trc$'`
 	if [ "$tracef" ]; then
 		echo $tracef
 	else
