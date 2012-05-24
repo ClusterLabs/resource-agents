@@ -141,11 +141,13 @@ do_metadata()
 	    <content type="boolean"/>
 	</parameter>
 
-	<parameter name="nfsrestart" inherit="nfsrestart">
+	<parameter name="nfsrestart">
 	    <longdesc lang="en">
 		If set and unmounting the file system fails, the node will
 		try to restart nfs daemon and nfs lockd to drop all filesystem
 		references. Use this option as last resource.
+		This option requires force_unmount to be set and it is not
+		compatible with nfsserver resource.
 	    </longdesc>
 	    <shortdesc lang="en">
 		Enable NFS daemon and lockd workaround
