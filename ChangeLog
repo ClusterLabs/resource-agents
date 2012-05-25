@@ -1,10 +1,14 @@
-* Wed May 23 2012 Linux-HA contributors
+* Fri May 25 2012 Linux-HA contributors
 - stable release 3.9.3
 - dhcpd: new RA to manage ISC DHCP servers
-- mysql: improve handling of reset slave
+- Filesystem: add nfs4 to the list of well known types
+- IPaddr2: fix regression introduce in d93b5fd, nic=lo always
+  "stopped"
 - iSCSILogicalUnit: correctly match for target IQN and backing
   device name (iet and tgt)
 - jboss: implememnt rotating of console log
+- mysql: improve handling of reset slave
+- oracle, oralsnr: get rid of eval
 - slapd: pass bind_dn correctly to ldapsearch
 * Wed May 16 2012 Linux-HA contributors
 - release candidate 3.9.3 rc1
