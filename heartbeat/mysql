@@ -45,7 +45,6 @@
 #   OCF_RESKEY_max_slave_lag
 #   OCF_RESKEY_evict_outdated_slaves
 #   OCF_RESKEY_reader_attribute
-#   OCF_RESKEY_writer_attribute
 
 #######################################################################
 # Initialization:
@@ -86,7 +85,6 @@ OCF_RESKEY_replication_port_default="3306"
 OCF_RESKEY_max_slave_lag_default="3600"
 OCF_RESKEY_evict_outdated_slaves_default="false"
 OCF_RESKEY_reader_attribute_default="readable"
-OCF_RESKEY_writer_attribute_default="writable"
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
@@ -118,7 +116,6 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 : ${OCF_RESKEY_evict_outdated_slaves=${OCF_RESKEY_evict_outdated_slaves_default}}
 
 : ${OCF_RESKEY_reader_attribute=${OCF_RESKEY_reader_attribute_default}}
-: ${OCF_RESKEY_writer_attribute=${OCF_RESKEY_writer_attribute_default}}
 
 #######################################################################
 # Convenience variables
@@ -361,23 +358,6 @@ This parameter is only meaningful in master/slave set configurations.
 whether a node is usable for clients to read from.</shortdesc>
 <content type="string" default="${OCF_RESKEY_reader_attribute_default}" />
 </parameter>
-
-<parameter name="writer_attribute" unique="1" required="0">
-<longdesc lang="en">
-An attribute that the RA can manage to specify whether a node
-can be written to. This node attribute will be 1 if it's fine to
-read write to the node, and 0 otherwise (for example, when the node is
-read-only).
-
-A typical example for the use of this attribute would be to tie
-a set of IP addresses to MySQL servers that can be written to.
-
-This parameter is only meaningful in master/slave set configurations.
-</longdesc>
-<shortdesc lang="en">Sets the node attribute that determines
-whether a node is usable for clients to write to.</shortdesc>
-<content type="string" default="${OCF_RESKEY_writer_attribute_default}" />
-</parameter>
 </parameters>
 
 <actions>
@@ -600,8 +580,6 @@ check_slave() {
             set_reader_attr 1
         fi
 
-        set_writer_attr 0
-
         ocf_log debug "MySQL instance running as a replication slave"
         rm -f $tmpfile
     else
@@ -768,33 +746,6 @@ get_reader_attr() {
 
 }
 
-# Set the attribute controlling the writers VIP
-set_writer_attr() {
-    local curr_attr_value
-
-    curr_attr_value=$(get_writer_attr)
-
-    if [ "$curr_attr_value" -ne "$1" ]; then
-        $CRM_ATTR -l reboot --name ${OCF_RESKEY_writer_attribute} -v $1
-    fi
-
-}
-
-# get the attribute controlling the writers VIP
-get_writer_attr() {
-    local attr_value
-    local rc
-
-    attr_value=`$CRM_ATTR -l reboot --name ${OCF_RESKEY_writer_attribute} --query -q`
-    rc=$?
-    if [ "$rc" -eq "0" ]; then
-        echo $attr_value
-    else
-        echo -1
-    fi
-
-}
-
 # Stores data for MASTER STATUS from MySQL
 update_data_master_status() {
 
@@ -936,7 +887,6 @@ mysql_start() {
     if ocf_is_ms; then
         # Initialize the ReaderVIP attribute, monitor will enable it
         set_reader_attr 0
-        set_writer_attr 0
     fi
 
     mysql_status info
@@ -1080,7 +1030,6 @@ mysql_stop() {
 
         # Remove VIP capability
         set_reader_attr 0
-        set_writer_attr 0
     fi
 
     if [ ! -f $OCF_RESKEY_pid ]; then
@@ -1149,8 +1098,6 @@ mysql_promote() {
 
     # A master can accept reads
     set_reader_attr 1
-    # A master can accept writes
-    set_writer_attr 1
 
     return $OCF_SUCCESS
 }
