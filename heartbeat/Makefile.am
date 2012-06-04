@@ -56,6 +56,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			db2			\
 			dhcpd		\
 			Delay			\
+			dhcpd			\
 			eDir88			\
 			EvmsSCC			\
 			Evmsd			\
