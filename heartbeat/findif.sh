@@ -97,6 +97,11 @@ findif()
     if [ -n "$NIC" ] ; then
       `ifcheck_ipv6 $NIC`
       [ $? = 1 ] && return 6
+    else
+      echo $match | grep -qis '^fe80::'
+      if [ $? = 0 ] ; then
+        return 1
+      fi
     fi
     if [ -n "$NETMASK" ] ; then
       `prefixcheck $NETMASK 128`
