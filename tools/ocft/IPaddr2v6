@@ -100,20 +100,13 @@ CASE "error params with wrong ip"
 	AgentRun start OCF_ERR_GENERIC
 
 # CASE No.7
-# Note: this result is different from IPv6addr
-#  Specifications were different from IPv6addr, it does not become the error.
-#  It may not be assigned to the NIC which I aimed at.
-#  Therefore I recommend that I always match nic parameters and appoint it.
 #
 CASE "start for a link-local IPv6 address when no nic"
 	Include prepare
 	Env OCF_RESKEY_ip=$OCFT_target_linklocal
 	Env OCFT_check_ip=$OCFT_target_linklocal
 	# nic is mandatory for a link-local address
-	AgentRun start OCF_SUCCESS
-	Include check_ip_assigned
-	AgentRun stop OCF_SUCCESS
-	Include check_ip_removed
+	AgentRun start OCF_ERR_GENERIC
 
 # CASE No.8
 #
