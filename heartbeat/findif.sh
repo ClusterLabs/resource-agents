@@ -1,35 +1,15 @@
 #!/bin/sh
 ipcheck_ipv4() {
-  local ipaddr=$1
+  local ip=$1
   local IFS='.'
-  local ret=0
-  local cnt=0
-  for INPUT in $ipaddr
-  do
-    if [ $cnt -ge 4 ] ; then
-      ret=1
-      break
+  echo "$ip" | grep -qs '^[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}$'
+  if [ $? = 0 ] ; then
+    set -- $ip
+    if [ $1 -le 255 -a $2 -le 255 -a $3 -le 255 -a $4 -le 255 ] ; then
+      return 0
     fi
-    if [ ! -n "$INPUT" ] ; then
-      ret=1
-      break
-    fi
-    echo $INPUT | grep '^[1-9]*[0-9]$' > /dev/null
-    rc=$?
-    if [ $rc -ne 0 ] ; then
-      ret=1
-      break
-    fi
-    if [ $INPUT -gt 255 ] ; then
-      ret=1
-      break
-    fi
-    cnt=`expr $cnt + 1`
-  done
-  if [ $ret -ne 0 -o $cnt -ne 4 ] ; then
-    ret=1
   fi
-  return $ret
+  return 1
 }
 ipcheck_ipv6() {
   local ipaddr=$1
