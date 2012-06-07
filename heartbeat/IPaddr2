@@ -407,7 +407,11 @@ ip_init() {
 			# 4. Delimit the octets with ':'
 			# 5. Make sure the first octet is odd,
 			#    so the result is a multicast MAC
-			IF_MAC=`echo $OCF_RESKEY_ip $NETMASK $BRDCAST |	\
+			BRD="$BRDCAST"
+			if [ $BRDCAST = "broadcast" ]; then
+				BRD=""
+			fi
+			IF_MAC=`echo $OCF_RESKEY_ip $NETMASK $BRD |	\
 				md5sum |				\
 				sed -e 's#\(............\).*#\1#'	\
 				    -e 's#..#&:#g; s#:$##'		\
@@ -469,8 +473,13 @@ add_interface () {
 	iface="$4"
 	label="$5"
 	if [ $FAMILY = "inet" ]; then
-		cmd="$IP2UTIL -f inet addr add $ipaddr/$netmask brd $broadcast dev $iface"
-		msg="Adding IPv4 address $ipaddr/$netmask with broadcast address $broadcast to device $iface"
+		if [ "$broadcast" = "broadcast" ]; then
+			cmd="$IP2UTIL -f inet addr add $ipaddr/$netmask dev $iface"
+			msg="Adding IPv4 address $ipaddr/$netmask to device $iface"
+		else
+			cmd="$IP2UTIL -f inet addr add $ipaddr/$netmask brd $broadcast dev $iface"
+			msg="Adding IPv4 address $ipaddr/$netmask with broadcast address $broadcast to device $iface"
+		fi
 	else
 		cmd="$IP2UTIL -f inet6 addr add $ipaddr/$netmask dev $iface"
 		msg="Adding IPv6 address $ipaddr/$netmask address to device $iface"

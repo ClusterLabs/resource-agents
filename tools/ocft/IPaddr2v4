@@ -167,7 +167,8 @@ CASE "force to use the specified nic and cidr_netmask"
 	Env OCF_RESKEY_cidr_netmask=$OCFT_force_prefix
 	Env OCFT_check_nic=$OCFT_force_nic
 	Env OCFT_check_prefix=$OCFT_force_prefix
-	AgentRun start OCF_ERR_GENERIC
+	AgentRun start OCF_SUCCESS
+	AgentRun stop OCF_SUCCESS
 	Include check_ip_removed
 	Unenv OCF_RESKEY_cidr_netmask
 
@@ -239,7 +240,8 @@ CASE "force to use the specified nic and cidr_netmask"
 	Env OCF_RESKEY_cidr_netmask=$OCFT_force_prefix2
 	Env OCFT_check_prefix=$OCFT_force_prefix2
 	Env OCFT_check_nic=$OCFT_force_nic
-	AgentRun start OCF_ERR_GENERIC
+	AgentRun start OCF_SUCCESS
+	AgentRun stop OCF_SUCCESS
 	Include check_ip_removed
 
 # CASE No.17
@@ -255,7 +257,8 @@ CASE "force to use the specified nic and cidr_netmask (not exist base_ip)"
 	Env OCF_RESKEY_cidr_netmask=$OCFT_force_prefix2
 	Env OCFT_check_prefix=$OCFT_force_prefix2
 	Env OCFT_check_nic=$OCFT_force_nic
-	AgentRun start OCF_ERR_GENERIC
+	AgentRun start OCF_SUCCESS
+	AgentRun stop OCF_SUCCESS
 	Unenv OCF_RESKEY_nic
 	Unenv OCF_RESKEY_cidr_netmask
 	Include base_ip_assigned
