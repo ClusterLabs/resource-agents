@@ -96,12 +96,8 @@ CASE "unimplemented command"
 	Include prepare
 	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
 
-# Note: This test case uses loopback interface.
-# This result is different from IPaddr2 in 3.9.3.
-# In the case of loopback interface, broadcast or cidr_netmask is now required.
 CASE "Attachment to loopback interface"
 	Env OCF_RESKEY_ip=127.0.0.3
-	Env OCF_RESKEY_broadcast=127.255.255.255
 	AgentRun start OCF_SUCCESS
 	AgentRun monitor OCF_SUCCESS
 	AgentRun stop OCF_SUCCESS

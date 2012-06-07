@@ -150,8 +150,6 @@ findif()
       if [ -n "$7" ] ; then
         set -- `ip -o -f $family addr show | grep $7`
         [ "$5" = brd ] && BRDCAST=$6
-      else
-        return 1
       fi
     fi
   else

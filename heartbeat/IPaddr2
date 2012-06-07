@@ -363,7 +363,7 @@ ip_init() {
 	if
 	  [ $rc -eq 0 ]
         then
-	    NICINFO=`echo $NICINFO | sed -e 's/netmask\ //;s/broadcast\ //'`
+	    NICINFO=`echo "$NICINFO" | sed -e 's/netmask\ //;s/broadcast\ //'`
 	    NIC=`echo "$NICINFO" | cut -d" " -f1`
 	    NETMASK=`echo "$NICINFO" | cut -d" " -f2`
 	    BRDCAST=`echo "$NICINFO" | cut -d" " -f3`
@@ -468,12 +468,12 @@ add_interface () {
 	broadcast="$3"
 	iface="$4"
 	label="$5"
-	if [ $FAMILY = "inet" ]; then
+
+	cmd="$IP2UTIL -f $FAMILY addr add $ipaddr/$netmask dev $iface"
+	msg="Adding $FAMILY address $ipaddr/$netmask to device $iface"
+	if [ "$broadcast" != "none" ]; then
 		cmd="$IP2UTIL -f inet addr add $ipaddr/$netmask brd $broadcast dev $iface"
-		msg="Adding IPv4 address $ipaddr/$netmask with broadcast address $broadcast to device $iface"
-	else
-		cmd="$IP2UTIL -f inet6 addr add $ipaddr/$netmask dev $iface"
-		msg="Adding IPv6 address $ipaddr/$netmask address to device $iface"
+		msg="Adding $FAMILY address $ipaddr/$netmask with broadcast address $broadcast to device $iface"
 	fi
 
 	if [ ! -z "$label" ]; then
@@ -712,7 +712,7 @@ ip_start() {
 			done
 		fi
 		
-		add_interface $OCF_RESKEY_ip $NETMASK $BRDCAST $NIC $IFLABEL
+		add_interface $OCF_RESKEY_ip $NETMASK ${BRDCAST:-none} $NIC $IFLABEL
 		
 		if [ $? -ne 0 ]; then
 			ocf_log err "$CMD failed."
