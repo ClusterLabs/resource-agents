@@ -24,6 +24,8 @@ sbin_SCRIPTS		= ocft
 ocftcfgsdir		= $(datadir)/$(PACKAGE_NAME)/ocft/configs
 ocftcfgs_DATA      =  apache  	\
 			 IPaddr2	\
+			 IPaddr2v4	\
+			 IPaddr2v6	\
 			 IPv6addr	\
 			 Filesystem	\
 			 LVM	\
