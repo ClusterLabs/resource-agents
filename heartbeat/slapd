@@ -431,7 +431,7 @@ slapd_monitor()
   options="-LLL -s base -x"
 
   if [ -n "$bind_dn" ]; then
-    options="$options -D '$bind_dn' -w '$password'"
+    options="$options -D $bind_dn -w $password"
   fi
 
   [ -z "$1" ] && err_option=""
