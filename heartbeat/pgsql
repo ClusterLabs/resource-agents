@@ -1630,7 +1630,8 @@ if is_replication; then
     PGSQL_XLOG_LOC_NAME="pgsql-xlog-loc"
     PGSQL_MASTER_BASELINE="pgsql-master-baseline"
 
-    NODENAME=`uname -n`
+    NODENAME=`uname -n | tr '[A-Z]' '[a-z]'`
+    OCF_RESKEY_node_list=`echo $OCF_RESKEY_node_list | tr '[A-Z]' '[a-z]'`
     OPERATION=$1
 fi
 
