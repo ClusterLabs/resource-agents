@@ -544,7 +544,7 @@ pgsql_promote() {
     fi
     rm -f ${XLOG_NOTE_FILE}.*
 
-    for target in $OCF_RESKEY_node_list; do
+    for target in $NODE_LIST; do
         [ "$target" = "$NODENAME" ] && continue
         change_data_status "$target" "DISCONNECT"
         change_master_score "$target" "$CAN_NOT_PROMOTE"
@@ -878,7 +878,7 @@ pgsql_pre_promote() {
     # If my data is newer than new master's one, I fail my resource.
     PROMOTE_NODE=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname | \
                   sed "s/ /\n/g" | head -1`
-    number_of_nodes=`echo $OCF_RESKEY_node_list | wc -w`
+    number_of_nodes=`echo $NODE_LIST | wc -w`
     if [ $number_of_nodes -ge 3 -a \
          "$OCF_RESKEY_rep_mode" = "sync" -a \
          "$PROMOTE_NODE" != "$NODENAME" ]; then
@@ -968,8 +968,8 @@ control_slave_status() {
         return 1
     fi
 
-    number_of_nodes=`echo $OCF_RESKEY_node_list | wc -w`
-    for target in $OCF_RESKEY_node_list; do
+    number_of_nodes=`echo $NODE_LIST | wc -w`
+    for target in $NODE_LIST; do
         if [ "$target" = "$NODENAME" ]; then
             continue
         fi
@@ -1087,7 +1087,7 @@ have_master_right() {
     new=`expr $old + 1`
 
     # get xlog locations of all nodes
-    for node in ${OCF_RESKEY_node_list}; do
+    for node in ${NODE_LIST}; do
         output=`$CRM_ATTR_REBOOT -N "$node" -n \
                 "$PGSQL_XLOG_LOC_NAME" -G -q 2>/dev/null`
         if [ $? -ne 0 ]; then
@@ -1522,7 +1522,7 @@ pgsql_validate_all() {
             ocf_log err "master_ip can't be empty."
             return $OCF_ERR_CONFIGURED
         fi
-        if [ ! -n "$OCF_RESKEY_node_list" ]; then
+        if [ ! -n "$NODE_LIST" ]; then
             ocf_log err "node_list can't be empty."
             return $OCF_ERR_CONFIGURED
         fi
@@ -1630,7 +1630,8 @@ if is_replication; then
     PGSQL_XLOG_LOC_NAME="pgsql-xlog-loc"
     PGSQL_MASTER_BASELINE="pgsql-master-baseline"
 
-    NODENAME=`uname -n`
+    NODENAME=`uname -n | tr '[A-Z]' '[a-z]'`
+    NODE_LIST=`echo $OCF_RESKEY_node_list | tr '[A-Z]' '[a-z]'`
     OPERATION=$1
 fi
 
