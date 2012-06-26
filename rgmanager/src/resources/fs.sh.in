@@ -462,16 +462,22 @@ do_force_unmount() {
 
 	if [ "$OCF_RESKEY_nfsrestart" = "yes" ] || \
 	   [ "$OCF_RESKEY_nfsrestart" = "1" ]; then
-		if [ -f /proc/fs/nfsd/threads ]; then
-			ocf_log warning "Restarting nfsd/nfslock"
-			nfsdthreads="$(cat /proc/fs/nfsd/threads)"
-			service nfslock stop
-			rpc.nfsd 0
-			rpc.nfsd $nfsdthreads
-			service nfslock start
-		else
-			ocf_log err "Unable to determin nfsd information. nfsd restart aborted"
-		fi
+		ocf_log warning "Restarting nfsd/nfslock"
+		nfsexports=$(cat /var/lib/nfs/etab)
+		service nfslock stop
+		service nfs stop
+		service nfs start
+		service nfslock start
+		echo "$nfsexports" | { while read line; do
+			nfsexp=$(echo $line | awk '{print $1}')
+			nfsopts=$(echo $line | sed -e 's#.*(##g' -e 's#).*##g')
+			nfsacl=$(echo $line | awk '{print $2}' | sed -e 's#(.*##g')
+			if [ -n "$nfsopts" ]; then
+				exportfs -i -o "$nfsopts" "$nfsacl":$nfsexp
+			else
+				exportfs -i "$nfsacl":$nfsexp
+			fi
+		done; }
 	fi
 
 	# Proceed with fuser -kvm...
