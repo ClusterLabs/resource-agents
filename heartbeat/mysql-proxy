@@ -6,7 +6,7 @@
 #               an high-availability setup.
 #
 #               Originally tested with MySQL Proxy 0.7.0 on Debian 5.0,
-#               but subsequent updates have been tested with MySQL Proxy 0.8.1 on Debian 6.0 only.
+#               but subsequent updates have been tested with MySQL Proxy 0.8.1 and 0.8.3 on Debian 6.0 only.
 #
 #               Based on the mysql and Pure-Ftpd OCF resource agents.
 #
@@ -100,7 +100,7 @@ The level 10 monitor operation is left out intentionally for possible future enh
 
 The level 20 monitor operation will perform a SELECT on a given table to verify that the connection to a backend-server is actually working.
 
-Originally tested with MySQL Proxy 0.7.0 on Debian 5.0, but subsequent updates have been tested with MySQL Proxy 0.8.1 on Debian 6.0 only.
+Originally tested with MySQL Proxy 0.7.0 on Debian 5.0, but subsequent updates have been tested with MySQL Proxy 0.8.1 and 0.8.3 on Debian 6.0 only.
 </longdesc>
 <shortdesc lang="en">Manages a MySQL Proxy instance</shortdesc>
 
