@@ -115,7 +115,7 @@ Location of the MySQL client binary
 <content type="string" default="mysql" />
 </parameter>
 
-<parameter name="defaults_file" unique="1" required="0">
+<parameter name="defaults_file" unique="0" required="0">
 <longdesc lang="en">
 Full path to a MySQL Proxy configuration file.
 For example, "/etc/mysql-proxy.conf".
