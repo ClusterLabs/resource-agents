@@ -460,6 +460,7 @@ mysqlproxy_validate_all()
 
     # check that the MySQL Proxy binary exists and can be executed
     check_binary $binary
+    # @TODO skip the next test if OCF_CHECK_LEVEL == 0?
     check_binary $mysql
 
     # check for valid log-level
