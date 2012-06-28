@@ -433,8 +433,16 @@ delete_interface () {
 	netmask="$3"
 
 	CMD="$IP2UTIL -f inet addr delete $ipaddr/$netmask dev $iface"
+	ocf_run $CMD
 
-	ocf_run $CMD || return $OCF_ERR_GENERIC
+	if [ $? -ne 0 ]; then
+		CMD="$IP2UTIL -f inet addr show dev $iface | grep '$ipaddr\/$netmask'"
+		ocf_run $CMD
+
+		if [ $? -eq 0 ]; then
+			return $OCF_ERR_GENERIC
+		fi
+	fi
 
 	if ocf_is_true $OCF_RESKEY_flush_routes; then
 	    ocf_run $IP2UTIL route flush cache
