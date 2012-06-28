@@ -26,7 +26,7 @@
 #
 # Test via
 # (note: this did not work with MySQL Proxy 0.8.1 and ocf-tester from resource-agents 3.9.2 on Debian 6.0)
-
+#
 # * /usr/sbin/ocf-tester -n mp -o binary="/usr/sbin/mysql-proxy" -o defaults_file="" -o parameters="--proxy-skip-profiling" \
 #       -o admin_address="127.0.0.1:4041" -o admin_username="root" -o admin_password="la" -o admin_lua_script="/usr/lib/mysql-proxy/lua/admin.lua" \
 #       -o proxy_backend_addresses="192.168.100.200:42006" -o proxy_address="/var/run/mysqld/mysqld.sock" /usr/lib/ocf/resource.d/heartbeat/mysql-proxy
@@ -94,9 +94,15 @@ meta_data() {
 <longdesc lang="en">
 This script manages MySQL Proxy as an OCF resource in a high-availability setup.
 
+The default monitor operation will verify that mysql-proxy is running.
+
+The level 10 monitor operation is left out intentionally for possible future enhancements in conjunction with the admin plugin.
+
+The level 20 monitor operation will perform a SELECT on a given table to verify that the connection to a backend-server is actually working.
+
 Originally tested with MySQL Proxy 0.7.0 on Debian 5.0, but subsequent updates have been tested with MySQL Proxy 0.8.1 on Debian 6.0 only.
 </longdesc>
-<shortdesc lang="en">Manages a MySQL Proxy daemon</shortdesc>
+<shortdesc lang="en">Manages a MySQL Proxy instance</shortdesc>
 
 <parameters>
 
