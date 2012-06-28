@@ -788,11 +788,7 @@ pgsql_real_monitor() {
 
 pgsql_replication_monitor() {
     local rc
-    local rsc
-    local instance
-    local my_status
-    local data_status
-    local is_master=""
+    local rsc=`echo $OCF_RESOURCE_INSTANCE | cut -d ":" -f 1`
 
     rc=$1
     if [ $rc -ne $OCF_SUCCESS -a $rc -ne "$OCF_RUNNING_MASTER" ]; then
@@ -808,23 +804,8 @@ pgsql_replication_monitor() {
 
     # I can't get master node name from $OCF_RESKEY_CRM_meta_notify_master_uname on monitor,
     # so I will get master node name using crm_mon -n
-    if output=`crm_mon -n1 | grep " Master"`; then
-        rsc=`echo $OCF_RESOURCE_INSTANCE | cut -d ":" -f 1`
-        instance=0
-        while :
-        do
-            if [ "$instance" -ge "$OCF_RESKEY_CRM_meta_clone_max" ]; then
-                break
-            fi
-            if echo "$output" | grep "${rsc}:${instance}"; then
-                is_master="yes"
-                break
-            fi
-            instance=`expr $instance + 1`
-        done
-    fi
-
-    if [ ! -n "$is_master" ]; then
+    crm_mon -n1 | tr -d "\t" | grep -q "^${rsc}:.* Master"
+    if [ $? -ne 0 ] ; then
         # If I am Slave and Master is not exist
         ocf_log info "Master does not exist."
         change_pgsql_status "$NODENAME" "HS:alone"
