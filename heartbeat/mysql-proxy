@@ -423,6 +423,10 @@ mysqlproxy_reload()
 
 mysqlproxy_monitor()
 {
+    local rc
+    local mysql_options pa
+    local mysql_server_parameter mysql_server_host mysql_server_port
+
     if [ "${OCF_RESKEY_CRM_meta_interval:-0}" -eq "0" ]; then
         # in case of probe, monitor operation is surely treated as
         # under suspension. This will call start operation.
@@ -436,18 +440,44 @@ mysqlproxy_monitor()
         return $OCF_NOT_RUNNING
     fi
 
-    if [ $OCF_CHECK_LEVEL -gt 0 ]; then
-        mysql_options="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
+    if [ $OCF_CHECK_LEVEL -gt 0 -a -n "$OCF_RESKEY_test_table" ]; then
+        mysql_options="--connect_timeout=10 --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
 
-        # Check for test table
-        ocf_run $MYSQL $mysql_options \
-            -e "SELECT COUNT(*) FROM $OCF_RESKEY_test_table"
-        rc=$?
+        # cycle each address
+        for pa in $proxy_address; do
+            # build correct connect parameter
+            if [ -S "$pa" ]; then
+                # we need to monitor a mysql socket
+                mysql_server_parameter="--socket=$pa"
+            else
+                # we need to monitor a host address
+                mysql_server_parameter=""
 
-        if [ $rc -ne 0 ]; then
-            ocf_log err "Failed to select from $test_table";
-            return $OCF_ERR_GENERIC;
-        fi
+                # split host:port
+                # @TODO correctly handle IPv6 address
+                # @TODO correctly handle 0.0.0.0 address
+                mysql_server_host=`echo $pa | cut -d : -f 1`
+                mysql_server_port=`echo $pa | cut -d : -f 2`
+
+                if [ -n $mysql_server_host ]; then
+                    mysql_server_parameter="$mysql_server_parameter --host=$mysql_server_host"
+                fi
+                if [ -n $mysql_server_port ]; then
+                    mysql_server_parameter="$mysql_server_parameter --port=$mysql_server_port"
+                fi
+            fi
+
+            # Check for test table
+            ocf_run $mysql $mysql_server_parameter $mysql_options \
+                -e "SELECT COUNT(*) FROM $OCF_RESKEY_test_table"
+            rc=$?
+
+            if [ $rc -ne 0 ]; then
+                ocf_log err "Failed to select from $OCF_RESKEY_test_table";
+                return $OCF_ERR_GENERIC;
+            fi
+        done
+
     fi
 
     return $OCF_SUCCESS
