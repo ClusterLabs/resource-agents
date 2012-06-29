@@ -21,7 +21,6 @@
 #       The "stop" arg stops it.
 #
 # TODO
-# * add error checking like in mysql ocf ra (e.g. socketdir)
 # * add in-depth monitoring by querying the mysql-proxy admin port
 #
 # Test via
@@ -340,11 +339,30 @@ mysqlproxy_start()
         PARAM_PREFIX="$PARAM_PREFIX --admin-lua-script=$admin_lua_script"
     fi
 
+    # make sure that the pid directory exists
+    pid_dir=`dirname $pidfile`
+    if [ ! -d $pid_dir ] ; then
+        ocf_log info "Creating PID directory '$pid_dir'."
+        mkdir -p $pid_dir
+        #chown $OCF_RESKEY_user:$OCF_RESKEY_group $pid_dir # c/p from mysql ra; currently not needed
+    fi
+
     # split multiple proxy-address options.
     # currently unsupported but let us hope for the future ;)
     for pa in $proxy_address; do
         [ -z "$pa" ] && continue
         OPTIONS=" $OPTIONS --proxy-address=$pa"
+
+        # if $pa contains a slash, we are dealing with a socket
+        # make sure that the socket directory exists
+        if echo "$pa" | grep -q '/' ; then
+            socket_dir=`dirname $pa`
+            if [ ! -d $socket_dir ] ; then
+                ocf_log info "Creating socket directory '$socket_dir'."
+                mkdir -p $socket_dir
+                #chown $OCF_RESKEY_user:$OCF_RESKEY_group $socket_dir # c/p from mysql ra; currently not needed
+            fi
+        fi
     done
 
     # split multiple proxy-backend-addresses options.
@@ -359,7 +377,7 @@ mysqlproxy_start()
         OPTIONS=" $OPTIONS --proxy-read-only-backend-addresses=$proba"
     done
 
-    # build $OPTIONS and add addmin-address and pidfile
+    # build $OPTIONS and add admin-address and pidfile
     OPTIONS="$PARAM_PREFIX $OPTIONS --admin-address=$admin_address --pid-file=${pidfile}"
 
     # add additional parameters
