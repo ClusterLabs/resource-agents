@@ -320,7 +320,7 @@ start_addr6(struct in6_addr* addr6, int prefix_len, char* prov_ifname)
 	/* we need to find a proper device to assign the address */
 	if_name = find_if(addr6, &prefix_len, prov_ifname);
 	if (NULL == if_name) {
-		cl_log(LOG_ERR, "no valid mecahnisms");
+		cl_log(LOG_ERR, "no valid mechanisms");
 		return OCF_ERR_GENERIC;
 	}
 
@@ -357,7 +357,7 @@ advt_addr6(struct in6_addr* addr6, int prefix_len, char* prov_ifname)
 	char*	if_name = get_if(addr6, &prefix_len, prov_ifname);
 	int	i;
 	if (NULL == if_name) {
-		cl_log(LOG_ERR, "no valid mecahnisms");
+		cl_log(LOG_ERR, "no valid mechanisms");
 		return OCF_ERR_GENERIC;
 	}
 	/* Send unsolicited advertisement packet to neighbor */
