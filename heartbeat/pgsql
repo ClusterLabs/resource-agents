@@ -554,9 +554,13 @@ pgsql_promote() {
     touch $PGSQL_LOCK
     show_master_baseline
 
-    runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata promote"
+    ocf_log info "Renaming $RECOVERY_CONF"
+    runasowner "mv $RECOVERY_CONF ${RECOVERY_CONF%conf}done"
+
+    ocf_log info "Restarting PostgreSQL"
+    runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata -l /dev/null -w -m fast restart 2>&1"
     if [ $? -eq 0 ]; then
-        ocf_log info "PostgreSQL promote command sent."
+        ocf_log info "PostgreSQL restarted."
     else
         ocf_log err "Can't promote PostgreSQL."
         return $OCF_ERR_GENERIC
