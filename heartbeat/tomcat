@@ -28,6 +28,7 @@
 #   OCF_RESKEY_tomcat_suspend_trialcount  - The re-try number of times awaiting a stop. Default is 10. DEPRECATED
 #   OCF_RESKEY_tomcat_user  - A user name to start a resource.
 #   OCF_RESKEY_statusurl - URL for state confirmation. Default is http://127.0.0.1:8080
+#   OCF_RESKEY_max_stop_time - The max time it should take for proper shutdown. Restrictions, only Tomcat6.
 #   OCF_RESKEY_java_home - Home directory of Java. Default is none
 #   OCF_RESKEY_java_opts - Options to pass to Java JVM for start and stop. Default is none
 #   OCF_RESKEY_catalina_home - Home directory of Tomcat. Default is none
@@ -186,7 +187,18 @@ END_TOMCAT_START
 # Stop Tomcat
 stop_tomcat()
 {
-	STOP_TIMEOUT=$((OCF_RESKEY_CRM_meta_timeout/1000-1))
+	RA_TIMEOUT=$((OCF_RESKEY_CRM_meta_timeout/1000))
+	STOP_TIMEOUT=$((RA_TIMEOUT-5))
+	if [ -n "$MAX_STOP_TIME" ]; then
+		if [ $MAX_STOP_TIME -gt $RA_TIMEOUT ]; then
+			ocf_log warn "max_stop_timeout must be shorter than the timeout of stop operation."
+		fi
+		if [ $MAX_STOP_TIME -eq 0 ]; then
+			STOP_TIMEOUT=$RA_TIMEOUT
+		else
+			STOP_TIMEOUT=$MAX_STOP_TIME
+		fi
+	fi
 
 	cd "$CATALINA_HOME/bin"
 
@@ -289,6 +301,19 @@ URL for state confirmation.
 </longdesc>
 <shortdesc>URL for state confirmation</shortdesc>
 <content type="string" default="" />
+</parameter>
+
+<parameter name="max_stop_time" unique="0">
+<longdesc lang="en">
+Number of seconds to wait during a stop before drastic measures
+(force kill) are used on the tomcat process. 
+This number MUST be less than your cluster stop timeout for the resource.
+The default value is five seconds before the timeout value of stop operation.
+When it is over this value, it stop a process in kill commands.
+This parameter is only effective on Tomcat 6 or later.
+</longdesc>
+<shortdesc>The max time it should take for proper shutdown.</shortdesc>
+<content type="integer" default="" />
 </parameter>
 
 <parameter name="java_home" unique="0" required="1">
@@ -399,6 +424,7 @@ JAVA_OPTS="${OCF_RESKEY_java_opts}"
 CATALINA_HOME="${OCF_RESKEY_catalina_home}"
 CATALINA_BASE="${OCF_RESKEY_catalina_base-${OCF_RESKEY_catalina_home}}"
 CATALINA_PID="${OCF_RESKEY_catalina_pid-$CATALINA_HOME/logs/catalina.pid}"
+MAX_STOP_TIME="${OCF_RESKEY_max_stop_time}"
 
 TOMCAT_START_OPTS="${OCF_RESKEY_tomcat_start_opts}"
 CATALINA_OPTS="-Dname=$TOMCAT_NAME ${OCF_RESKEY_catalina_opts}"
