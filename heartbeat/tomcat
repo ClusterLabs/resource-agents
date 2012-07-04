@@ -33,6 +33,7 @@
 #   OCF_RESKEY_java_opts - Options to pass to Java JVM for start and stop. Default is none
 #   OCF_RESKEY_catalina_home - Home directory of Tomcat. Default is none
 #   OCF_RESKEY_catalina_base - Base directory of Tomcat. Default is OCF_RESKEY_catalina_home
+#   OCF_RESKEY_catalina_out - Log file name of Tomcat. Default is OCF_RESKEY_catalina_home/logs/catalina.out
 #   OCF_RESKEY_catalina_pid  - A PID file name of Tomcat. Default is OCF_RESKEY_catalina_home/logs/catalina.pid
 #   OCF_RESKEY_tomcat_start_opts - Start options of Tomcat. Default is none.
 #   OCF_RESKEY_catalina_opts - CATALINA_OPTS environment variable. Default is none.
@@ -123,14 +124,14 @@ rotate_catalina_out()
 	fi
 
 	# Clean up and set permissions on required files
-	rm -rf "$CATALINA_HOME"/temp/* "$CATALINA_HOME/logs/catalina.out"
-	mkfifo -m700 "$CATALINA_HOME/logs/catalina.out"
-	chown --dereference "$RESOURCE_TOMCAT_USER" "$CATALINA_HOME/logs/catalina.out" || true
+	rm -rf "$CATALINA_HOME"/temp/* "$CATALINA_OUT"
+	mkfifo -m700 "$CATALINA_OUT"
+	chown --dereference "$RESOURCE_TOMCAT_USER" "$CATALINA_OUT" || true
 
 	# -s is required because tomcat5.5's login shell is /bin/false
 	su - -s /bin/sh $RESOURCE_TOMCAT_USER \
         	-c "$ROTATELOGS -l \"$CATALINA_HOME/logs/catalina_%F.log\" $CATALINA_ROTATETIME" \
-        	< "$CATALINA_HOME/logs/catalina.out" > /dev/null 2>&1 &
+        	< "$CATALINA_OUT" > /dev/null 2>&1 &
 }
 
 ############################################################################
@@ -171,6 +172,7 @@ start_tomcat()
 			export JAVA_OPTS="${JAVA_OPTS}"
 			export CATALINA_HOME=${CATALINA_HOME}
 			export CATALINA_BASE=${CATALINA_BASE}
+			export CATALINA_OUT=${CATALINA_OUT}
 			export CATALINA_PID=${CATALINA_PID}
 			export CATALINA_OPTS="${CATALINA_OPTS}"
 			$CATALINA_HOME/bin/catalina.sh start ${TOMCAT_START_OPTS}
@@ -221,6 +223,7 @@ stop_tomcat()
 			export JAVA_OPTS="${JAVA_OPTS}"
 			export CATALINA_HOME=${CATALINA_HOME}
 			export CATALINA_BASE=${CATALINA_BASE}
+			export CATALINA_OUT=${CATALINA_OUT}
 			export CATALINA_PID=${CATALINA_PID}
 			$CATALINA_HOME/bin/catalina.sh stop $STOP_TIMEOUT -force
 END_TOMCAT_STOP
@@ -235,7 +238,7 @@ END_TOMCAT_STOP
 	done
 
 	if [ ${CATALINA_ROTATE_LOG} = "YES" ]; then
-		rm -f "$CATALINA_PID" "${CATALINA_HOME}/logs/catalina.out"
+		rm -f "$CATALINA_PID" "${CATALINA_OUT}"
 	else
 		rm -f "$CATALINA_PID"
 	fi
@@ -350,6 +353,14 @@ Home directory of Tomcat.
 Instance directory of Tomcat
 </longdesc>
 <shortdesc>Instance directory of Tomcat, defaults to catalina_home</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="catalina_out" unique="1">
+<longdesc lang="en">
+Log file name of Tomcat
+</longdesc>
+<shortdesc>Log file name of Tomcat, defaults to catalina_home/logs/catalina.out</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -488,6 +499,7 @@ JAVA_HOME="${OCF_RESKEY_java_home}"
 JAVA_OPTS="${OCF_RESKEY_java_opts}"
 CATALINA_HOME="${OCF_RESKEY_catalina_home}"
 CATALINA_BASE="${OCF_RESKEY_catalina_base-${OCF_RESKEY_catalina_home}}"
+CATALINA_OUT="${OCF_RESKEY_catalina_out-$CATALINA_HOME/logs/catalina.out}"
 CATALINA_PID="${OCF_RESKEY_catalina_pid-$CATALINA_HOME/logs/catalina.pid}"
 MAX_STOP_TIME="${OCF_RESKEY_max_stop_time}"
 
@@ -516,7 +528,7 @@ if [ ! -d "$JAVA_HOME" -o ! -d "$CATALINA_HOME" -o ! -d "$CATALINA_BASE" ]; then
 	exit $OCF_ERR_INSTALLED
 fi
 
-export JAVA_HOME JAVA_OPTS CATALINA_HOME CATALINA_BASE CATALINA_PID CATALINA_OPTS
+export JAVA_HOME JAVA_OPTS CATALINA_HOME CATALINA_BASE CATALINA_OUT CATALINA_PID CATALINA_OPTS
 
 JAVA=${JAVA_HOME}/bin/java
 
