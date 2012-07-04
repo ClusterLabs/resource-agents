@@ -76,7 +76,7 @@ action:
 # Check tomcat service availability
 isrunning_tomcat()
 {
-	$WGET -O /dev/null $RESOURCE_STATUSURL >/dev/null 2>&1
+	$WGET --tries=20 -O /dev/null $RESOURCE_STATUSURL >/dev/null 2>&1
 }
 
 ############################################################################
