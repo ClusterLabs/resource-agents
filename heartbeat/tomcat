@@ -109,7 +109,7 @@ monitor_tomcat()
 	isalive_tomcat ||
 		return $OCF_NOT_RUNNING
 	isrunning_tomcat ||
-		return $OCF_NOT_RUNNING
+		return $OCF_ERR_GENERIC
 	return $OCF_SUCCESS
 }
 
