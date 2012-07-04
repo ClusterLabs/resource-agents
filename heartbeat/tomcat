@@ -139,6 +139,34 @@ rotate_catalina_out()
 }
 
 ############################################################################
+# Tomcat Command
+tomcatCommand()
+{
+cat<<-END_TOMCAT_COMMAND
+	export JAVA_HOME=${JAVA_HOME}
+	export JAVA_OPTS="${JAVA_OPTS}"
+	export CATALINA_HOME=${CATALINA_HOME}
+	export CATALINA_BASE=${CATALINA_BASE}
+	export CATALINA_OUT=${CATALINA_OUT}
+	export CATALINA_PID=${CATALINA_PID}
+	export CATALINA_OPTS="${CATALINA_OPTS}"
+	export CATALINA_TMPDIR="${CATALINA_TMPDIR}"
+	export JAVA_ENDORSED_DIRS="${JAVA_ENDORSED_DIRS}"
+	export LOGGING_CONFIG="${LOGGING_CONFIG}"
+	export LOGGING_MANAGER="${LOGGING_MANAGER}"
+	$CATALINA_HOME/bin/catalina.sh $@
+END_TOMCAT_COMMAND
+}
+attemptTomcatCommand()
+{
+	if [ "$RESOURCE_TOMCAT_USER" = RUNASIS ]; then
+		"$CATALINA_HOME/bin/catalina.sh" $@ >> "$TOMCAT_CONSOLE" 2>&1
+	else
+		tomcatCommand $@ | su - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1
+	fi
+}
+
+############################################################################
 # Start Tomcat
 start_tomcat()
 {
@@ -167,25 +195,7 @@ start_tomcat()
 	echo "`date "+%Y/%m/%d %T"`: start ===========================" >> "$TOMCAT_CONSOLE"
 
 	ocf_log debug "CATALINA_OPTS value = ${CATALINA_OPTS}"
-	if [ "$RESOURCE_TOMCAT_USER" = RUNASIS ]; then
-		"$CATALINA_HOME/bin/catalina.sh" start $TOMCAT_START_OPTS \
-			>> "$TOMCAT_CONSOLE" 2>&1 &
-	else
-		cat<<-END_TOMCAT_START | su - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1 &
-			export JAVA_HOME=${JAVA_HOME}
-			export JAVA_OPTS="${JAVA_OPTS}"
-			export CATALINA_HOME=${CATALINA_HOME}
-			export CATALINA_BASE=${CATALINA_BASE}
-			export CATALINA_OUT=${CATALINA_OUT}
-			export CATALINA_PID=${CATALINA_PID}
-			export CATALINA_OPTS="${CATALINA_OPTS}"
-			export CATALINA_TMPDIR="${CATALINA_TMPDIR}"
-			export JAVA_ENDORSED_DIRS="${JAVA_ENDORSED_DIRS}"
-			export LOGGING_CONFIG="${LOGGING_CONFIG}"
-			export LOGGING_MANAGER="${LOGGING_MANAGER}"
-			$CATALINA_HOME/bin/catalina.sh start ${TOMCAT_START_OPTS}
-END_TOMCAT_START
-	fi
+	attemptTomcatCommand start ${TOMCAT_START_OPTS} &
 
 	while true; do
 		monitor_tomcat
@@ -222,24 +232,7 @@ stop_tomcat()
 
 	echo "`date "+%Y/%m/%d %T"`: stop  ###########################" >> "$TOMCAT_CONSOLE"
 
-	if [ "$RESOURCE_TOMCAT_USER" = RUNASIS ]; then
-		"$CATALINA_HOME/bin/catalina.sh" stop $STOP_TIMEOUT -force \
-			>> "$TOMCAT_CONSOLE" 2>&1
-	else
-		cat<<-END_TOMCAT_STOP | su - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1
-			export JAVA_HOME=${JAVA_HOME}
-			export JAVA_OPTS="${JAVA_OPTS}"
-			export CATALINA_HOME=${CATALINA_HOME}
-			export CATALINA_BASE=${CATALINA_BASE}
-			export CATALINA_OUT=${CATALINA_OUT}
-			export CATALINA_PID=${CATALINA_PID}
-			export CATALINA_TMPDIR="${CATALINA_TMPDIR}"
-			export JAVA_ENDORSED_DIRS="${JAVA_ENDORSED_DIRS}"
-			export LOGGING_CONFIG="${LOGGING_CONFIG}"
-			export LOGGING_MANAGER="${LOGGING_MANAGER}"
-			$CATALINA_HOME/bin/catalina.sh stop $STOP_TIMEOUT -force
-END_TOMCAT_STOP
-	fi
+	attemptTomcatCommand stop $STOP_TIMEOUT -force
 
 	lapse_sec=0
 	while isalive_tomcat; do
