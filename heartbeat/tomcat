@@ -71,11 +71,6 @@ action:
 # Check tomcat service availability
 isrunning_tomcat()
 {
-	if ! have_binary $WGET; then
-		ocf_log err "Monitoring not supported by $OCF_RESOURCE_INSTANCE"
-		ocf_log info "Please make sure that wget is available"
-		return $OCF_ERR_CONFIGURED
-	fi
 	$WGET -O /dev/null $RESOURCE_STATUSURL >/dev/null 2>&1
 }
 
@@ -143,6 +138,8 @@ rotate_catalina_out()
 start_tomcat()
 {
 	cd "$CATALINA_HOME/bin"
+
+	validate_all_tomcat || exit $?
 
 	monitor_tomcat
 	if [ $? = $OCF_SUCCESS ]; then
@@ -414,6 +411,58 @@ END
 validate_all_tomcat()
 {
 	ocf_log info "validate_all_tomcat[$TOMCAT_NAME]"
+
+	misconfigured=0
+	notinstalled=0
+	wrongpermissions=0
+
+	check_binary $WGET
+
+	if [ -n "$MAX_STOP_TIME" ] && [ "$MAX_STOP_TIME" -lt 0 ]; then
+		ocf_log err "max_stop_time must be set to a value greater than 0."
+		misconfigured=1
+	fi
+
+	if [ "$RESOURCE_TOMCAT_USER" != RUNASIS ]; then
+		su - -s /bin/sh $RESOURCE_TOMCAT_USER -c "touch $CATALINA_PID"
+		if [ $? -ne 0 ]; then
+			ocf_log err "$RESOURCE_TOMCAT_USER cannot write to $CATALINA_PID. Check directory permissions."
+			wrongpermissions=1
+		fi
+	else
+		touch $CATALINA_PID
+		if [ $? -ne 0 ]; then
+			ocf_log err "$USER cannot write to $CATALINA_PID. Check directory permissions."
+			wrongpermissions=1
+		fi
+	fi
+
+	if [[ "$RESOURCE_STATUSURL" =~ :[0-9][0-9]* ]]; then
+		port=${RESOURCE_STATUSURL##*:}
+		port=${port%%/*}
+		ocf_log debug "Tomcat port is $port"
+		ocf_log debug "grep port=\"$port\" $CATALINA_HOME/conf/server.xml"
+		if [ "$port" -gt 0 ]; then
+			grep "port=\"$port\"" $CATALINA_HOME/conf/server.xml > /dev/null 2>&1
+			if [ $? -ne 0 ]; then
+				ocf_log err "Your configured status URL specifies a port ($port), but the server does not have a connector listening to that port in $CATALINA_HOME/conf/server.xml"
+				notinstalled=1
+			fi
+		fi
+	fi
+
+	if [ $misconfigured -gt 0 ]; then
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	if [ $notinstalled -gt 0 ]; then
+		return $OCF_ERR_INSTALLED
+	fi
+
+	if [ $wrongpermissions -gt 0 ]; then
+		return $OCF_ERR_PERM
+	fi
+
 	return $OCF_SUCCESS
 }
 
