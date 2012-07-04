@@ -37,8 +37,12 @@
 #   OCF_RESKEY_catalina_pid  - A PID file name of Tomcat. Default is OCF_RESKEY_catalina_home/logs/catalina.pid
 #   OCF_RESKEY_tomcat_start_opts - Start options of Tomcat. Default is none.
 #   OCF_RESKEY_catalina_opts - CATALINA_OPTS environment variable. Default is none.
+#   OCF_RESKEY_catalina_tmpdir - CATALINA_TMPDIR environment variable. Default is none.
 #   OCF_RESKEY_catalina_rotate_log - Control catalina.out logrotation flag. Default is NO.
 #   OCF_RESKEY_catalina_rotatetime - catalina.out logrotation time span(seconds). Default is 86400.
+#   OCF_RESKEY_java_endorsed_dirs - JAVA_ENDORSED_DIRS environment variable. Default is none.
+#   OCF_RESKEY_logging_config - LOGGING_CONFIG environment variable. Default is none.
+#   OCF_RESKEY_logging_manager - LOGGING_MANAGER environment variable. Default is none.
 ###############################################################################
 
 
@@ -175,6 +179,10 @@ start_tomcat()
 			export CATALINA_OUT=${CATALINA_OUT}
 			export CATALINA_PID=${CATALINA_PID}
 			export CATALINA_OPTS="${CATALINA_OPTS}"
+			export CATALINA_TMPDIR="${CATALINA_TMPDIR}"
+			export JAVA_ENDORSED_DIRS="${JAVA_ENDORSED_DIRS}"
+			export LOGGING_CONFIG="${LOGGING_CONFIG}"
+			export LOGGING_MANAGER="${LOGGING_MANAGER}"
 			$CATALINA_HOME/bin/catalina.sh start ${TOMCAT_START_OPTS}
 END_TOMCAT_START
 	fi
@@ -225,6 +233,10 @@ stop_tomcat()
 			export CATALINA_BASE=${CATALINA_BASE}
 			export CATALINA_OUT=${CATALINA_OUT}
 			export CATALINA_PID=${CATALINA_PID}
+			export CATALINA_TMPDIR="${CATALINA_TMPDIR}"
+			export JAVA_ENDORSED_DIRS="${JAVA_ENDORSED_DIRS}"
+			export LOGGING_CONFIG="${LOGGING_CONFIG}"
+			export LOGGING_MANAGER="${LOGGING_MANAGER}"
 			$CATALINA_HOME/bin/catalina.sh stop $STOP_TIMEOUT -force
 END_TOMCAT_STOP
 	fi
@@ -388,6 +400,14 @@ Catalina options, for the start operation only.
 <content type="string" default="" />
 </parameter>
 
+<parameter name="catalina_tmpdir" unique="1">
+<longdesc lang="en">
+Temporary directory of Tomcat
+</longdesc>
+<shortdesc>Temporary directory of Tomcat, defaults to none</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 <parameter name="catalina_rotate_log" unique="0">
 <longdesc lang="en">
 Rotate catalina.out flag.
@@ -402,6 +422,30 @@ catalina.out rotation interval (seconds).
 </longdesc>
 <shortdesc>catalina.out rotation interval (seconds)</shortdesc>
 <content type="integer" default="" />
+</parameter>
+
+<parameter name="java_endorsed_dirs" unique="1">
+<longdesc lang="en">
+Java_endorsed_dirs of tomcat
+</longdesc>
+<shortdesc>Java_endorsed_dirs of tomcat, defaults to none</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="logging_config" unique="1">
+<longdesc lang="en">
+Logging_config of tomcat
+</longdesc>
+<shortdesc>Logging_config of tomcat, defaults to none</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="logging_manager" unique="1">
+<longdesc lang="en">
+Logging_manager of tomcat
+</longdesc>
+<shortdesc>Logging_manager of tomcat, defaults to none.</shortdesc>
+<content type="string" default="" />
 </parameter>
 
 </parameters>
@@ -505,8 +549,12 @@ MAX_STOP_TIME="${OCF_RESKEY_max_stop_time}"
 
 TOMCAT_START_OPTS="${OCF_RESKEY_tomcat_start_opts}"
 CATALINA_OPTS="-Dname=$TOMCAT_NAME ${OCF_RESKEY_catalina_opts}"
+CATALINA_TMPDIR="${OCF_RESKEY_catalina_tmpdir}"
 CATALINA_ROTATE_LOG="${OCF_RESKEY_catalina_rotate_log-NO}"
 CATALINA_ROTATETIME="${OCF_RESKEY_catalina_rotatetime-86400}"
+JAVA_ENDORSED_DIRS="${OCF_RESKEY_java_endorsed_dirs}"
+LOGGING_CONFIG="${OCF_RESKEY_logging_config}"
+LOGGING_MANAGER="${OCF_RESKEY_logging_manager}"
 
 LSB_STATUS_STOPPED=3
 if [ $# -ne 1 ]; then
@@ -528,7 +576,7 @@ if [ ! -d "$JAVA_HOME" -o ! -d "$CATALINA_HOME" -o ! -d "$CATALINA_BASE" ]; then
 	exit $OCF_ERR_INSTALLED
 fi
 
-export JAVA_HOME JAVA_OPTS CATALINA_HOME CATALINA_BASE CATALINA_OUT CATALINA_PID CATALINA_OPTS
+export JAVA_HOME JAVA_OPTS CATALINA_HOME CATALINA_BASE CATALINA_OUT CATALINA_PID CATALINA_OPTS CATALINA_TMPDIR JAVA_ENDORSED_DIRS LOGGING_CONFIG LOGGING_MANAGER
 
 JAVA=${JAVA_HOME}/bin/java
 
