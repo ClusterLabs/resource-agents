@@ -568,7 +568,8 @@ check_slave() {
         fi
 
         # is the slave ok to have a VIP on it
-        if [ -z $secs_behind ]; then
+        test $secs_behind -eq 0 2>/dev/null
+        if [ $? -eq 2 ]; then
             set_reader_attr 0
         else
             if [ $secs_behind -gt $OCF_RESKEY_max_slave_lag ]; then
@@ -1132,6 +1133,14 @@ mysql_notify() {
             # The master has completed its promotion. Now is a good
             # time to check whether our replication slave is working
             # correctly.
+            # Is the notification for our set
+            notify_resource=`echo $OCF_RESKEY_CRM_meta_notify_promote_resource|cut -d: -f1`
+            my_resource=`echo $OCF_RESOURCE_INSTANCE|cut -d: -f1`
+            if [ $notify_resource != ${my_resource} ]; then
+                ocf_log debug "Notification is not for us"
+                return $OCF_SUCCESS
+            fi
+
             master_host=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname|tr -d " "`
             if [ "$master_host" = ${HOSTNAME} ]; then
                 ocf_log info "This will be the new master, ignoring post-promote notification."
@@ -1157,6 +1166,14 @@ mysql_notify() {
             return $OCF_SUCCESS
         ;;
         'pre-demote')
+            # Is the notification for our set
+            notify_resource=`echo $OCF_RESKEY_CRM_meta_notify_demote_resource|cut -d: -f1`
+            my_resource=`echo $OCF_RESOURCE_INSTANCE|cut -d: -f1`
+            if [ $notify_resource != ${my_resource} ]; then
+                ocf_log debug "Notification is not for us"
+                return $OCF_SUCCESS
+            fi
+
             demote_host=`echo $OCF_RESKEY_CRM_meta_notify_demote_uname|tr -d " "`
             if [ $demote_host = ${HOSTNAME} ]; then
                 ocf_log info "post-demote notification for $demote_host"
@@ -1184,10 +1201,18 @@ mysql_notify() {
             return $OCF_SUCCESS
         ;;
         'post-demote')
+            # Is the notification for our set
+            notify_resource=`echo $OCF_RESKEY_CRM_meta_notify_demote_resource|cut -d: -f1`
+            my_resource=`echo $OCF_RESOURCE_INSTANCE|cut -d: -f1`
+            if [ $notify_resource != ${my_resource} ]; then
+                ocf_log debug "Notification is not for us"
+                return $OCF_SUCCESS
+            fi
+
             demote_host=`echo $OCF_RESKEY_CRM_meta_notify_demote_uname|tr -d " "`
             if [ $demote_host = ${HOSTNAME} ]; then
-                ocf_log info "Ignoring post-demote notification for my own demotion."
-                return $OCF_SUCCESS
+               ocf_log info "Ignoring post-demote notification for my own demotion."
+               return $OCF_SUCCESS
             fi
             ocf_log info "post-demote notification for $demote_host."
             # The former master has just been gracefully demoted.
