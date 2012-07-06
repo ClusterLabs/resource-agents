@@ -1,0 +1,459 @@
+#!/bin/bash
+
+#
+#   Resource Agent for managing ssh tunnels
+#
+#   License:      GNU General Public License (GPL)
+#   (c) 2012 Arturo Borrero <aborrero@cica.es>
+#
+
+#########################################
+#########################################
+## Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs || exit 1
+# Debug
+#. /usr/lib/ocf/lib/heartbeat/ocf-shellfuncs
+
+#########################################
+#########################################
+## Default parameters
+OCF_RESKEY_crm_node_binary_default="/usr/sbin/crm_node"
+OCF_RESKEY_ssh_binary_default="/usr/bin/ssh"
+OCF_RESKEY_ssh_port_default="22"
+OCF_RESKEY_tunnel_cluster_nodes_default="yes"
+OCF_RESKEY_tunnel_server_list_default=""
+OCF_RESKEY_pid_dir_default="/var/run/resource-agents"
+OCF_RESKEY_default_user_default="root"
+OCF_RESKEY_tunnel_stop_timeout="5"
+[ -z "$OCF_RESKEY_crm_mode_binary" ] && OCF_RESKEY_crm_node_binary=$OCF_RESKEY_crm_node_binary_default
+[ -z "$OCF_RESKEY_ssh_binary" ] && OCF_RESKEY_ssh_binary=$OCF_RESKEY_ssh_binary_default
+[ -z "$OCF_RESKEY_ssh_port" ] && OCF_RESKEY_ssh_port=$OCF_RESKEY_ssh_port_default
+[ -z "$OCF_RESKEY_tunnel_cluster_nodes" ] && OCF_RESKEY_tunnel_cluster_nodes=$OCF_RESKEY_tunnel_cluster_nodes_default
+[ -z "$OCF_RESKEY_tunnel_server_list" ] && OCF_RESKEY_tunnel_server_list=$OCF_RESKEY_tunnel_server_list_default
+[ -z "$OCF_RESKEY_tunnel_pid_dir" ] && OCF_RESKEY_pid_dir=$OCF_RESKEY_pid_dir_default
+[ -z "$OCF_RESKEY_default_user" ] && OCF_RESKEY_default_user=$OCF_RESKEY_default_user_default
+[ -z "$OCF_RESKEY_tunnel_stop_timeout" ] && OCF_RESKEY_stop_timeout=$OCF_RESKEY_stop_timeout
+
+#########################################
+#########################################
+## Actions
+
+sshtunnel_start()
+{
+	# exit immediately if configuration is not valid
+	sshtunnel_validate_all || exit $?
+
+	# is our tunnel between all nodes in the cluster?
+	if ocf_is_true $OCF_RESKEY_tunnel_cluster_nodes
+	then
+		oldIFS=$IFS
+		IFS=$' \t\n'
+		for node in $( obtain_nodes )
+		do
+			# do nothing if local node
+			[ "$node" == "`uname -n`" ] && continue
+			local pid_file=$OCF_RESKEY_pid_dir/sshtunnel_${node}.pid
+			# do nothing if already started
+			[ -e "$pid_file" ] && is_running `cat $pid_file` && ocf_log info "Tunnel to [${node}] already started." && continue
+			# start the tunnel otherwise
+			$OCF_RESKEY_ssh_binary -n -N -M -p $OCF_RESKEY_ssh_port ${OCF_RESKEY_default_user}@${node} >/dev/null 2>/dev/null &
+			local pid=$!
+			echo $pid > $pid_file \
+				|| { ocf_log err "Unable to store the tunnel PID to host [${node}] in \"$pid_file\"." ; exit $OCF_ERR_GENERIC ; }
+			if is_running $pid
+			then
+				ocf_log info "Tunnel to [${node}] created."
+			else
+				ocf_log err "Unable to create the tunnel to [${node}]." ; exit $OCF_ERR_GENERIC
+			fi
+		done
+		IFS=$oldIFS
+	fi
+	# is our tunnel between a server in server_list ?
+	if [ ! -z "$OCF_RESKEY_tunnel_server_list" ]
+	then
+		oldIFS=$IFS
+		IFS=$' \t\n'
+		for node in $OCF_RESKEY_tunnel_server_list
+		do
+			is_ipv4_valid $node || is_ipv6_valid $node || is_fqdn_valid $node || { ocf_log warn "Detected invalid address in \"tunnel_server_list\" : [${node}]." ; continue ; }
+			# do nothing if already started
+			local pid_file=$OCF_RESKEY_pid_dir/sshtunnel_${node}.pid
+			[ -e "$pid_file" ] && is_running `cat $pid_file` && ocf_log info "Tunnel to [$node] already started." && continue
+			# start the tunnel otherwise
+			$OCF_RESKEY_ssh_binary -n -N -M -p $OCF_RESKEY_ssh_port ${OCF_RESKEY_default_user}@${node} >/dev/null 2>/dev/null &
+			local pid=$!
+			echo $pid > $pid_file \
+				|| { ocf_log err "Unable to store the tunnel PID to host [${node}] in \"$pid_file\"." ; exit $OCF_ERR_GENERIC ; }
+			if is_running $pid
+			then
+				ocf_log info "Tunnel to [${node}] created."
+			else
+				ocf_log err "Unable to create the tunnel to [${node}]." ; exit $OCF_ERR_GENERIC
+			fi
+		done
+		IFS=$oldIFS
+	fi
+	return $OCF_SUCCESS
+}
+
+sshtunnel_monitor()
+{
+	# exit immediately if configuration is not valid
+	sshtunnel_validate_all || exit $?
+
+	local flag_not_running=0
+
+	# is our tunnel build between all nodes in the cluster?
+	if ocf_is_true $OCF_RESKEY_tunnel_cluster_nodes
+	then
+		oldIFS=$IFS
+		IFS=$' \t\n'
+		for node in $( obtain_nodes )
+		do
+			local pid_file=$OCF_RESKEY_pid_dir/sshtunnel_${node}.pid
+			# check nothing if local node
+			[ $node == "`uname -n`" ] && continue
+			: checking if $pid_file is running
+			[ -r $pid_file ] && is_running `cat $pid_file` && continue
+			# if this point is reached, the node desn't have a tunnel
+			ocf_log warn "Tunnel to [${node}] found not running. Possible ssh or network problem."
+			flag_not_running=1 ; break
+		done
+		IFS=$oldIFS
+	fi
+	# is our tunnel build also between a server in server_list?
+	if [ ! -z "$OCF_RESKEY_tunnel_server_list" ]
+	then
+		oldIFS=$IFS
+		IFS=$' \t\n'
+		for node in $OCF_RESKEY_tunnel_server_list
+		do
+			local pid_file=$OCF_RESKEY_pid_dir/sshtunnel_${node}.pid
+			is_ipv4_valid $node || is_ipv6_valid $node || is_fqdn_valid $node || { ocf_log warn "Detected invalid address in \"tunnel_server_list\" : [${node}]." ; continue ; }
+			: checking if $pid_file is running
+			[ -r $pid_file ] && is_running `cat $pid_file` && continue
+			# if this point is reached, the remote server desn't have a tunnel
+			ocf_log warn "Tunnel to [${node}] found not running. Possible ssh or network problem."
+			flag_not_running=1 ; break
+		done
+		IFS=$oldIFS
+	fi
+	ocf_is_true $flag_not_running && return $OCF_NOT_RUNNING
+	return $OCF_SUCCESS
+}
+
+sshtunnel_stop()
+{
+	# exit immediately if configuration is not valid
+	sshtunnel_validate_all || exit $?
+	#sshtunnel_monitor || exit $?
+	kill_all || exit $OCF_ERR_GENERIC
+	ocf_log info "All tunnels where stopped successfully."
+	return $OCF_SUCCESS
+}
+
+sshtunnel_validate_all()
+{
+	have_binary $OCF_RESKEY_crm_node_binary || { ocf_log err "\"crm_node_binary\" binary not found at [${OCF_RESKEY_crm_node_binary}]." ; return $OCF_ERR_INSTALLED ; }
+	have_binary $OCF_RESKEY_ssh_binary || { ocf_log err "\"ssh_binary\" binary not found at [${OCF_RESKEY_ssh_binary}]." ; return $OCF_ERR_INSTALLED ; }
+	have_binary uname || { ocf_log err "The binary \"uname\" was not found." ; return $OCF_ERR_INSTALLED ; }
+	have_binary dig || { ocf_log err "The binary \"dig\" was not found." ; return $OCF_ERR_INSTALLED ; }
+	[ -z "$OCF_RESKEY_ssh_port" ] && { ocf_log err "The parameter \"ssh_port\" is not set." ; return $OCF_ERR_CONFIGURED ; }
+	[[ $OCF_RESKEY_ssh_port =~ ^[0-9]*$ ]] || { ocf_log err "The parameter \"ssh_port\" is not an integer. Expected a possitive integer between 1-35536" ; return $OCF_ERR_CONFIGURED ; }
+	[ "$OCF_RESKEY_ssh_port" -ge 1 ] || { ocf_log err "The parameter \"ssh_port\" is out of range. Needed >= 1." ; return $OCF_ERR_CONFIGURED ; }
+	[ "$OCF_RESKEY_ssh_port" -le 65536 ] || { ocf_log err "The parameter \"ssh_port\" is out of range. Needed <= 65536" ; return $OCF_ERR_CONFIGURED ; }
+	[ -d "$OCF_RESKEY_pid_dir" ] || { ocf_log err "The parameter \"pid_dir\" is invalid. Unable to use directory." ; return $OCF_ERR_CONFIGURED ; }
+	[ -z "$OCF_RESKEY_default_user" ] && { ocf_log err "No parameter \"default_user\" was set." ; return $OCF_ERR_CONFIGURED ; }
+	[[ $OCF_RESKEY_tunnel_stop_timeout =~ ^[0-9]*$ ]] || { ocf_log err "The parameter \"tunnel_stop_timeout\" is not a valid integer. Expected a possitive integer." ; return $OCF_ERR_CONFIGURED ; }
+	return $OCF_SUCCESS
+}
+
+sshtunnel_meta_data()
+{
+cat <<EOF
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="sshtunnel" version="0.1">
+	<version>0.1</version>
+	<longdesc lang="en">
+		Sshtunnel is a Resource Agent capable of creating ssh tunnels (constant connections) between all nodes of the cluster.
+By using this RA, and configuring correctly implied ssh servers and clients you will benefit from some ssh capabilities, such as transparent ssh, connection multiplexing, and so on.
+There are two working modes, that can be used both at same time: creating ssh tunnels between al configured nodes in the Pacemaker cluster, or creating ssh tunnels to other external ssh servers.
+Full IPv6 support is expected.
+	</longdesc>
+	<shortdesc lang="en">sshtunel resource agent</shortdesc>
+	<parameters>
+		<parameter name="crm_node_binary" unique="0" required="0">
+			<longdesc lang="en">
+				Absolute path to crm_node binary on the system. This Resource Agent uses "crm_node" to get all names of nodes within the Pacemaker cluster.
+			</longdesc>
+			<shortdesc lang="en">Path to crm_node binary.</shortdesc>
+			<content type="string" default="/usr/sbin/crm_node" />
+		</parameter>
+		<parameter name="ssh_binary" unique="0" required="0">
+			<longdesc lang="en">
+				Absolute path to the main ssh (client) binary on the system. Used for building the tunnels.
+			</longdesc>
+			<shortdesc lang="en">Path to ssh binary.</shortdesc>
+			<content type="string" default="/usr/bin/ssh" />
+		</parameter>
+		<parameter name="ssh_port" unique="0" required="0">
+			<longdesc lang="en">
+				TCP port for using in connections with all other nodes.
+			</longdesc>
+			<shortdesc lang="en">TCP port for using in connections.</shortdesc>
+			<content type="integer" default="22" />
+		</parameter>
+		<parameter name="tunnel_cluster_nodes" unique="0" required="0">
+			<longdesc lang="en">
+				If sshtunel RA should create tunnel between all nodes of the cluster except each local node.
+At this point, this RA use the "uname -n" name of each node (i.e node1, node2), so be sure to make it reachable just by that name (maybe declaring in /etc/hosts file)
+			</longdesc>
+			<shortdesc lang="en">Enable tunnel creating between nodes.</shortdesc>
+			<content type="boolean" default="yes" />
+		</parameter>
+		<parameter name="tunnel_server_list" unique="1" required="0">
+			<longdesc lang="en">
+				A space separated list of IPv4, IPv6 or FQDNs of end points of tunnels (ssh servers).
+Use this if "tunnel_cluster_nodes"=no. Otherwise, this RA will do nothing.
+			</longdesc>
+			<shortdesc lang="en">List of ssh servers.</shortdesc>
+			<content type="string" default="" />
+		</parameter>
+		<parameter name="pid_dir" unique="0" required="0">
+			<longdesc lang="en">
+				A directory where to put all PIDs regarding tunnels. Absolute path, with no trailing slash.
+			</longdesc>
+			<shortdesc lang="en">Directory where to put all PIDs.</shortdesc>
+			<content type="string" default="/var/run/resource-agents" />
+		</parameter>
+		<parameter name="default_user" unique="0" required="0">
+			<longdesc lang="en">
+				The default user used in ssh connections to all other ssh servers.
+Note that this RA will not test the user other than launch the connection. Maybe you want to set transparent-ssh between client and server.
+			</longdesc>
+			<shortdesc lang="en">User to connect other ssh servers.</shortdesc>
+			<content type="string" default="root" />
+		</parameter>
+		<parameter name="tunnel_stop_timeout" unique="0" required="0">
+			<longdesc lang="en">
+				The time this RA should wait when stopping each node tunnel.
+If a connection get freezed due to a network problem, this time is crucial.
+			</longdesc>
+			<shortdesc lang="en">Tunel stop timeout.</shortdesc>
+			<content type="integer" default="5" />
+		</parameter>
+	</parameters>
+	<actions>
+		<action name="start"        timeout="20" />
+		<action name="stop"         timeout="20" />
+		<action name="monitor"      timeout="20" interval="10" depth="0" />
+		<action name="reload"       timeout="20" />
+		<action name="meta-data"    timeout="5" />
+		<action name="validate-all"   timeout="20" />
+		</actions>
+</resource-agent>
+EOF
+return 0
+}
+
+sshtunnel_usage()
+{
+	echo "Usage: {start|stop|status|monitor|reload|meta-data|validate-all}"
+	return 0
+}
+
+#########################################
+#########################################
+# Other functions
+
+# int kill_all()
+# used to kill all tunnels and remove pid files
+kill_all()
+{
+
+	ocf_log info "Killing all tunnels..."
+
+	local flag_all_tunnel_killed=0
+
+	# First, kill all nodes used by the cluster
+	oldIFS=$IFS ; IFS=$' \t\n'
+	for node in $( obtain_nodes )
+	do
+		[ -z "$node" ] && { ocf_log warn "No cluster tunnel nodes to kill." ; break ; }
+		[ "$node" == "`uname -n`" ] && continue # local node, doing nothing
+		local pid_file=$OCF_RESKEY_pid_dir/sshtunnel_${node}.pid
+		[ -r $pid_file ] && local pid=`cat $pid_file`
+		[ -z "$pid" ] && rm -r $pid_file && continue # we found an empty pid file
+		kill_tunnel $pid || { ocf_log warn "Unable to kill tunnel to [$node]..." ; flag_all_tunnel_killed=1 ; }
+		rm -f $pid_file 2>/dev/null || ocf_log warn "Unable to delete pid file \"$pid_file\"..."
+	done
+	IFS=$oldIFS
+
+	# Then, kill all nodes in server_list
+	oldIFS=$IFS ; IFS=$' \t\n'
+	for node in $OCF_RESKEY_tunnel_server_list
+	do
+		[ -z "$node" ] && { ocf_log warn "No server tunnel to kill." ; break ; }
+		local pid_file=$OCF_RESKEY_pid_dir/sshtunnel_${node}.pid
+		[ -r $pid_file ] && local pid=`cat $pid_file`
+		[ -z "$pid" ] && rm -r $pid_file && continue # we found an empty pid file
+		kill_tunnel $pid || { ocf_log warn "Unable to kill tunnel to [$node]..." ; flag_all_tunnel_killed=1 ; }
+		rm -f $pid_file 2> /dev/null || ocf_log warn "Unable to delete pid file \"$pid_file\"..."
+	done
+	IFS=$oldIFS
+
+	# Finally, remove all remaining data belonging to us
+	oldIFS=$IFS ; IFS=$' \t\n'
+	for pid_file in $( ls $OCF_RESKEY_pid_dir/ | grep sshtunnel )
+	do
+		[ -r $pid_file ] && local pid=`cat $pid_file`
+		[ -z "$pid" ] && rm -r $pid_file && continue # we found an empty pid file
+		if is_running $pid
+		then
+			kill_tunnel $pid || ocf_log warn "Detected dirty pid file in \"$pid_file\", with pid \"$pid\", that appears to be running but this RA is unable to kill..."
+		else
+			rm -f $pid_file 2> /dev/null || ocf_log war "Unable to delete remaining pid file [$pid_file]."
+		fi
+	done
+	IFS=$oldIFS
+
+	return $flag_all_tunnel_killed
+}
+
+# int kill_tunnel(pid)
+# used to kill one node
+kill_tunnel()
+{
+	[ -z "$1" ] && return 1 #error
+
+	kill -9 $1 2> /dev/null &
+	local cont=0
+	while is_running $1
+	do
+		[ $cont -ge $OCF_RESKEY_tunnel_stop_timeout ] && return 1 # kill timeout
+		sleep 1
+		((cont++))
+	done
+	return 0
+}
+
+
+
+# string obtain_nodes()
+# used to get all nodes configured in the cluster
+obtain_nodes()
+{
+	nodes=$( eval $OCF_RESKEY_crm_node_binary -p )
+	[ -z "$nodes" ] && return 1
+	echo $nodes
+	return 0
+}
+# int is_running(int pid)
+# used to know if a given PID is running
+is_running() #int pid
+{
+	if [ -z "$1" ]
+	then
+		ocf_log warn "The function  \"is_running()\" was called without arguments. Possible RA bug."
+		return 1
+	else
+		ps aux | grep $1 | grep -v grep | grep "$OCF_RESKEY_ssh_binary -n -N -M -p $OCF_RESKEY_ssh_port ${OCF_RESKEY_default_user}" >/dev/null
+		[ $? -eq 0 ] && return 0
+	fi
+	return 1
+}
+
+# int is_ipv4_valid(string ip)
+# used to know if a given IP is a valid IPv4
+is_ipv4_valid()
+{
+        local retval=1
+        if [ ! -z $1 ]
+        then
+                egrep '^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[0-9]{1,2})(\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[0-9]{1,2})){3}$' <<< $1 > /dev/null
+                if [ $? -eq 0 ]
+                then
+                        retval=0
+                fi
+        fi
+        return $retval
+}
+
+# int is_ipv6_valid(string ip)
+# used to know if a given IP is a valid IPv6
+is_ipv6_valid()
+{
+        local retval=1
+        if [ ! -z $1 ]
+        then
+		egrep -E '^\s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}))|:)))(%.+)?\s*$' <<< $1 > /dev/null
+                if [ $? -eq 0 ]
+                then
+                        retval=0
+                fi
+        fi
+        return $retval
+}
+
+# int is_fqdn_valid(string fqdn)
+# used to know if a given FQDN is valid (we can get the corresponding ip)
+is_fqdn_valid()
+{
+        local retval=1
+        if [ ! -z $1 ]
+        then
+                if [ `dig +short $1 | wc -l` -ne 0 ] > /dev/null
+                then
+                        retval=0
+                fi
+        fi
+        return $retval
+}
+
+
+#########################################
+#########################################
+# Execution block
+
+
+case $__OCF_ACTION in
+meta-data)      sshtunnel_meta_data
+                exit $OCF_SUCCESS
+                ;;
+usage|help)     sshtunnel_usage
+                exit $OCF_SUCCESS
+                ;;
+esac
+
+# Anything other than meta-data and usage must pass validation
+sshtunnel_validate_all || exit $?
+
+# Translate each action into the appropriate function call
+case $__OCF_ACTION in
+	start)          sshtunnel_start
+			;;
+	stop)           sshtunnel_stop
+			;;
+	status|monitor) sshtunnel_monitor
+			;;
+	promote)        exit $OCF_ERR_UNIMPLEMENTED
+			;;
+	demote)         exit $OCF_ERR_UNIMPLEMENTED
+			;;
+	reload)         ocf_log info "Reloading..."
+        	        sshtunnel_start
+                	;;
+	validate-all)   ;;
+
+	*)              sshtunnel_usage
+        	        exit $OCF_ERR_UNIMPLEMENTED
+	                ;;
+esac
+rc=$?
+
+# The resource agent may optionally log a debug message
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION returned $rc"
+exit $rc
