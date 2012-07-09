@@ -395,6 +395,9 @@ case $? in
    exit $OCF_ERR_GENERIC
 ;;
 3) ocf_is_probe && exit $OCF_NOT_RUNNING
+   [ "$1" = stop ] && {
+	iscsi_monitor || exit $OCF_SUCCESS
+   }
    if ! is_iscsid_running; then
 		[ $setup_rc -eq 1 ] &&
 			ocf_log warning "iscsid.startup probably not correctly set in /etc/iscsi/iscsid.conf"
