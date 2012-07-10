@@ -239,6 +239,28 @@ exportfs_start ()
 	return $OCF_SUCCESS
 }
 
+unlock_fs() {
+	local unlockfile
+	unlockfile=/proc/fs/nfsd/unlock_filesystem
+	if [ -w ${unlockfile} ]; then
+		echo "${OCF_RESKEY_directory}" > ${unlockfile}
+		ocf_log info "Unlocked NFS export ${OCF_RESKEY_directory}"
+	else
+		ocf_log warn "Unable to unlock NFS export ${OCF_RESKEY_directory}, ${unlockfile} not found or not writable"
+	fi
+}
+wait_for_leasetime() {
+	local leasetimefile
+	local sleeptime
+	leasetimefile=/proc/fs/nfsd/nfsv4leasetime
+	if [ -r ${leasetimefile} ]; then
+		sleeptime=$((`cat ${leasetimefile}`+2))
+		ocf_log info "Sleeping ${sleeptime} seconds to accommodate for NFSv4 lease expiry"
+		sleep ${sleeptime}s
+	else
+		ocf_log warn "Unable to read NFSv4 lease time from ${leasetimefile}, file not found or not readable"
+	fi
+}
 cleanup_export_cache() {
 	# see if the cache is blocking unexport
 	local contentfile=/proc/net/rpc/nfsd.export/content
@@ -270,27 +292,11 @@ exportfs_stop ()
 	rc=$?
 
 	if ocf_is_true ${OCF_RESKEY_unlock_on_stop}; then
-		local unlockfile
-		unlockfile=/proc/fs/nfsd/unlock_filesystem
-		if [ -w ${unlockfile} ]; then
-			echo "${OCF_RESKEY_directory}" > ${unlockfile}
-			ocf_log info "Unlocked NFS export ${OCF_RESKEY_directory}"
-		else
-			ocf_log warn "Unable to unlock NFS export ${OCF_RESKEY_directory}, ${unlockfile} not found or not writable"
-		fi
+		unlock_fs
 	fi
 
 	if ocf_is_true ${OCF_RESKEY_wait_for_leasetime_on_stop}; then
-		local leasetimefile
-		local sleeptime
-		leasetimefile=/proc/fs/nfsd/nfsv4leasetime
-		if [ -r ${leasetimefile} ]; then
-			sleeptime=$((`cat ${leasetimefile}`+2))
-			ocf_log info "Sleeping ${sleeptime} seconds to accommodate for NFSv4 lease expiry"
-			sleep ${sleeptime}s
-		else
-			ocf_log warn "Unable to read NFSv4 lease time from ${leasetimefile}, file not found or not readable"
-		fi
+		wait_for_leasetime
 	fi
 
 	if [ $rc -eq 0 ]; then
