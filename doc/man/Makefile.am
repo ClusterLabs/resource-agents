@@ -82,6 +82,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_ServeRAID.7 \
                           ocf_heartbeat_SphinxSearchDaemon.7 \
                           ocf_heartbeat_Squid.7 \
+			  ocf_heartbeat_sstunnel.7 \
                           ocf_heartbeat_Stateful.7 \
                           ocf_heartbeat_SysInfo.7 \
                           ocf_heartbeat_VIPArip.7 \
