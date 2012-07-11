@@ -70,6 +70,7 @@
 
 # Defaults
 OCF_RESKEY_lvs_support_default=false
+OCF_RESKEY_lvs_ipv6_deprecated_source_default=false
 OCF_RESKEY_clusterip_hash_default="sourceip-sourceport"
 OCF_RESKEY_unique_clone_address_default=false
 OCF_RESKEY_arp_interval_default=200
@@ -191,6 +192,20 @@ The IPv6 does not support lvs_support, And the IPv6 does not need lvs_support.
 </longdesc>
 <shortdesc lang="en">Enable support for LVS DR</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_lvs_support_default}"/>
+</parameter>
+
+<parameter name="lvs_ipv6_deprecated_source">
+<longdesc lang="en">
+Enable adding IPv6 address as deprecated so IPv6 traffic originating from
+the address' interface does not use this address as the source.
+This is necessary for LVS-DR health checks to realservers to work. Without it,
+the most recently added IPv6 address will be used as the source address for
+IPv6 traffic from that interface and since that address exists on loopback
+on the realservers, the realserver response to pings/connections will never
+leave its loopback.
+</longdesc>
+<shortdesc lang="en">Enables adding IPv6 address as deprecated.</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_lvs_ipv6_deprecated_source_default}"/>
 </parameter>
 
 <parameter name="mac">
@@ -348,6 +363,10 @@ ip_init() {
 	echo $OCF_RESKEY_ip | grep -qs ":"
 	if [ $? -ne 0 ];then
 		FAMILY=inet
+		if ocf_is_true $OCF_RESKEY_lvs_ipv6_deprecated_source ;then
+			ocf_log err "IPv4 does not support lvs_ipv6_deprecated_source"
+			exit $OCF_ERR_CONFIGURED
+		fi
 	else
 		FAMILY=inet6
 		if ocf_is_true $OCF_RESKEY_lvs_support ;then
@@ -474,6 +493,11 @@ add_interface () {
 	if [ "$broadcast" != "none" ]; then
 		cmd="$IP2UTIL -f inet addr add $ipaddr/$netmask brd $broadcast dev $iface"
 		msg="Adding $FAMILY address $ipaddr/$netmask with broadcast address $broadcast to device $iface"
+	fi
+
+	if [ "$FAMILY" == "inet6" ] && ocf_is_true $OCF_RESKEY_lvs_ipv6_deprecated_source ;then
+		cmd="$cmd preferred_lft 0"
+		msg="${msg} (deprecated source address)"
 	fi
 
 	if [ ! -z "$label" ]; then
