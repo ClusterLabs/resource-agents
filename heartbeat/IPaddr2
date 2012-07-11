@@ -199,10 +199,10 @@ The IPv6 does not support lvs_support, And the IPv6 does not need lvs_support.
 Enable adding IPv6 address as deprecated so IPv6 traffic originating from
 the address' interface does not use this address as the source.
 This is necessary for LVS-DR health checks to realservers to work. Without it,
-the most recently added IPv6 address will be used as the source address for
-IPv6 traffic from that interface and since that address exists on loopback
-on the realservers, the realserver response to pings/connections will never
-leave its loopback.
+the most recently added IPv6 address (probably the address added by IPaddr2)
+will be used as the source address for IPv6 traffic from that interface and
+since that address exists on loopback on the realservers, the realserver
+response to pings/connections will not never leave its loopback.
 </longdesc>
 <shortdesc lang="en">Enables adding IPv6 address as deprecated.</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_lvs_ipv6_deprecated_source_default}"/>
