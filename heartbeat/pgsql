@@ -1190,7 +1190,7 @@ delete_master_baseline() {
 set_async_mode_all() {
     [ "$OCF_RESKEY_rep_mode" = "sync" ] || return 0
     ocf_log info "Set all nodes into async mode."
-    runasowner -q err "echo "" > \"$REP_MODE_CONF\""
+    runasowner -q err "echo \"synchronous_standby_names = ''\" > \"$REP_MODE_CONF\""
     if [ $? -ne 0 ]; then
         ocf_log err "Can't set all nodes into async mode."
         return 1
@@ -1206,11 +1206,7 @@ set_async_mode() {
         ocf_log info "Setup $1 into async mode."
         sync_node_in_conf=`echo $sync_node_in_conf | sed "s/$1//g" |\
                            sed "s/^,//g" | sed "s/,,/,/g" | sed "s/,$//g"`
-        if [ -n $sync_node_in_conf ]; then
-            echo "synchronous_standby_names = '$sync_node_in_conf'" > "$REP_MODE_CONF"
-        else
-            echo "" > "$REP_MODE_CONF"
-        fi
+        echo "synchronous_standby_names = '$sync_node_in_conf'" > "$REP_MODE_CONF"
     else
         ocf_log info "$1 is already in async mode."
         return 0
