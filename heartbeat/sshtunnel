@@ -88,7 +88,7 @@ sshtunnel_monitor()
 
 	# If no server configured (empty list), nothing is running
 	server_list=$( get_server_list )
-	if [[ $server_list =~ ^[[:space:]]$ ]]
+	if [[ $server_list =~ ^[[:space:]]*$ ]]
 	then
 		flag_not_running=1
 	else
@@ -289,7 +289,7 @@ kill_all()
 			# And remove the pid file of the connection we just stoped
 			rm -f $pid_file 2>/dev/null || ocf_log warn "Unable to delete pid file \"$pid_file\"..."
 		else
-			ocf_log info "Not killing connection to [${node}] because it seems that doesn't exist (no readable/writable PID file)..."
+			ocf_log warn "Not killing connection to [${node}] because it seems that doesn't exist (no readable/writable PID file)..."
 		fi
 	done
 
