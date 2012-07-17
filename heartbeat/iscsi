@@ -270,7 +270,7 @@ open_iscsi_remove() {
 	fi
 }
 open_iscsi_status() {
-	$iscsiadm -m session 2>/dev/null | grep -qs "$2$"
+	$iscsiadm -m session 2>/dev/null | grep -qs "$1$"
 }
 
 disk_discovery() {
@@ -317,7 +317,7 @@ wait_for_udev() {
 	done
 }
 iscsi_status() {
-	if $disk_status "$PORTAL" $OCF_RESKEY_target; then
+	if $disk_status $OCF_RESKEY_target; then
 		return $OCF_SUCCESS
 	else
 		return $OCF_NOT_RUNNING
@@ -359,7 +359,7 @@ iscsi_stop() {
 }
 
 iscsi_monitor() {
-	if $disk_status "$PORTAL" $OCF_RESKEY_target; then
+	if $disk_status $OCF_RESKEY_target; then
 		return $OCF_SUCCESS
 	else
 		return $OCF_NOT_RUNNING
