@@ -33,7 +33,7 @@ OCF_RESKEY_tunnel_stop_timeout_default="5"
 [ -z "$OCF_RESKEY_ssh_parameters" ] && OCF_RESKEY_ssh_parameters=$OCF_RESKEY_ssh_parameters_default
 [ -z "$OCF_RESKEY_tunnel_cluster_nodes" ] && OCF_RESKEY_tunnel_cluster_nodes=$OCF_RESKEY_tunnel_cluster_nodes_default
 [ -z "$OCF_RESKEY_tunnel_server_list" ] && OCF_RESKEY_tunnel_server_list=$OCF_RESKEY_tunnel_server_list_default
-[ -z "$OCF_RESKEY_tunnel_pid_dir" ] && OCF_RESKEY_pid_dir=$OCF_RESKEY_pid_dir_default
+[ -z "$OCF_RESKEY_pid_dir" ] && OCF_RESKEY_pid_dir=$OCF_RESKEY_pid_dir_default
 [ -z "$OCF_RESKEY_default_user" ] && OCF_RESKEY_default_user=$OCF_RESKEY_default_user_default
 [ -z "$OCF_RESKEY_tunnel_stop_timeout" ] && OCF_RESKEY_tunnel_stop_timeout=$OCF_RESKEY_tunnel_stop_timeout_default
 
