@@ -421,12 +421,12 @@ if [ `id -u` != 0 ]; then
 	exit $OCF_ERR_PERM
 fi
 
-discovery_type=${OCF_RESKEY_discovery_type}
-disk_discovery
-
 # which method was invoked?
 case "$1" in
-	start)	iscsi_start
+	start)
+		discovery_type=${OCF_RESKEY_discovery_type}
+		disk_discovery
+		iscsi_start
 	;;
 	stop)	iscsi_stop
 	;;
