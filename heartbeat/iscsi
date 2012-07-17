@@ -219,7 +219,7 @@ open_iscsi_discovery() {
 		}
 		return 3
 	fi
-	portal=`echo "$output" |
+	PORTAL=`echo "$output" |
 		awk -v target="$OCF_RESKEY_target" '
 		$NF==target{
 			if( NF==3 ) portal=$2; # sles compat mode
@@ -228,7 +228,7 @@ open_iscsi_discovery() {
 			print portal;
 		}'`
 
-	case `echo "$portal" | wc -w` in
+	case `echo "$PORTAL" | wc -w` in
 	0) #target not found
 		echo "$output"
 		ocf_log $severity "target $OCF_RESKEY_target not found at portal $OCF_RESKEY_portal"
@@ -238,9 +238,9 @@ open_iscsi_discovery() {
 		return 0
 	;;
 	*) # handle multihome hosts reporting multiple portals
-		for p in $portal; do
+		for p in $PORTAL; do
 			if [ "$OCF_RESKEY_portal" = "$p" ]; then
-				portal="$OCF_RESKEY_portal"
+				PORTAL="$OCF_RESKEY_portal"
 				return 0
 			fi
 		done
@@ -260,11 +260,43 @@ open_iscsi_status() {
 	$iscsiadm -m session 2>/dev/null | grep -qs "$2$"
 }
 
+disk_discovery() {
+	$discovery  # discover and setup the real portal string (address)
+	case $? in
+	0) ;;
+	1) [ "$__OCF_ACTION" = stop ] && exit $OCF_SUCCESS
+	   [ "$__OCF_ACTION" = monitor ] && exit $OCF_NOT_RUNNING
+	   [ "$__OCF_ACTION" = status ] && exit $LSB_STATUS_STOPPED
+	   exit $OCF_ERR_GENERIC
+	;;
+	2) [ "$__OCF_ACTION" = stop ] && {
+		iscsi_monitor || exit $OCF_SUCCESS
+	   }
+	   ocf_is_probe && {
+		iscsi_monitor; exit
+	   }
+	   exit $OCF_ERR_GENERIC
+	;;
+	3) ocf_is_probe && exit $OCF_NOT_RUNNING
+	   [ "$__OCF_ACTION" = stop ] && {
+		iscsi_monitor || exit $OCF_SUCCESS
+	   }
+	   if ! is_iscsid_running; then
+			[ $setup_rc -eq 1 ] &&
+				ocf_log warning "iscsid.startup probably not correctly set in /etc/iscsi/iscsid.conf"
+			[ "$__OCF_ACTION" = stop ] && exit $OCF_SUCCESS
+			exit $OCF_ERR_INSTALLED
+	   fi
+	   exit $OCF_ERR_GENERIC
+	;;
+	esac
+}
+
 #
 # NB: this is udev specific!
 #
 wait_for_udev() {
-	dev=/dev/disk/by-path/ip-$portal-iscsi-$OCF_RESKEY_target
+	dev=/dev/disk/by-path/ip-$PORTAL-iscsi-$OCF_RESKEY_target
 	while :; do
 		ls $dev* >/dev/null 2>&1 && break
 		ocf_log warning "waiting for udev to create $dev" 
@@ -272,7 +304,7 @@ wait_for_udev() {
 	done
 }
 iscsi_status() {
-	if $disk_status "$portal" $OCF_RESKEY_target; then
+	if $disk_status "$PORTAL" $OCF_RESKEY_target; then
 		return $OCF_SUCCESS
 	else
 		return $OCF_NOT_RUNNING
@@ -280,12 +312,12 @@ iscsi_status() {
 }
 iscsi_start() {
 	if iscsi_status; then
-		ocf_log info "iscsi $portal $OCF_RESKEY_target already running"
+		ocf_log info "iscsi $PORTAL $OCF_RESKEY_target already running"
 		return $OCF_SUCCESS
 	else
-		$add_disk $portal $OCF_RESKEY_target ||
+		$add_disk $PORTAL $OCF_RESKEY_target ||
 			return $OCF_ERR_GENERIC
-		case "$udev" in
+		case "$OCF_RESKEY_udev" in
 		[Yy]es) wait_for_udev ||
 			return $OCF_ERR_GENERIC
 		;;
@@ -300,7 +332,7 @@ iscsi_start() {
 }
 iscsi_stop() {
 	if iscsi_status; then
-		$remove_disk $portal $OCF_RESKEY_target ||
+		$remove_disk $PORTAL $OCF_RESKEY_target ||
 			return $OCF_ERR_GENERIC
 		if iscsi_status; then
 			return $OCF_ERR_GENERIC
@@ -308,13 +340,13 @@ iscsi_stop() {
 			return $OCF_SUCCESS
 		fi
 	else
-		ocf_log info "iscsi $portal $OCF_RESKEY_target already stopped"
+		ocf_log info "iscsi $PORTAL $OCF_RESKEY_target already stopped"
 		return $OCF_SUCCESS
 	fi
 }
 
 iscsi_monitor() {
-	if $disk_status "$portal" $OCF_RESKEY_target; then
+	if $disk_status "$PORTAL" $OCF_RESKEY_target; then
 		return $OCF_SUCCESS
 	else
 		return $OCF_NOT_RUNNING
@@ -377,36 +409,7 @@ if [ `id -u` != 0 ]; then
 fi
 
 discovery_type=${OCF_RESKEY_discovery_type}
-udev=${OCF_RESKEY_udev}
-$discovery  # discover and setup the real portal string (address)
-case $? in
-0) ;;
-1) [ "$1" = stop ] && exit $OCF_SUCCESS
-   [ "$1" = monitor ] && exit $OCF_NOT_RUNNING
-   [ "$1" = status ] && exit $LSB_STATUS_STOPPED
-   exit $OCF_ERR_GENERIC
-;;
-2) [ "$1" = stop ] && {
-	iscsi_monitor || exit $OCF_SUCCESS
-   }
-   ocf_is_probe && {
-	iscsi_monitor; exit
-   }
-   exit $OCF_ERR_GENERIC
-;;
-3) ocf_is_probe && exit $OCF_NOT_RUNNING
-   [ "$1" = stop ] && {
-	iscsi_monitor || exit $OCF_SUCCESS
-   }
-   if ! is_iscsid_running; then
-		[ $setup_rc -eq 1 ] &&
-			ocf_log warning "iscsid.startup probably not correctly set in /etc/iscsi/iscsid.conf"
-		[ "$1" = stop ] && exit $OCF_SUCCESS
-		exit $OCF_ERR_INSTALLED
-   fi
-   exit $OCF_ERR_GENERIC
-;;
-esac
+disk_discovery
 
 # which method was invoked?
 case "$1" in
