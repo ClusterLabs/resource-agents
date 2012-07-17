@@ -253,8 +253,21 @@ open_iscsi_discovery() {
 open_iscsi_add() {
 	$iscsiadm -m node -p $1 -T $2 -l
 }
+open_iscsi_get_session_id() {
+	local target="$1"
+	$iscsiadm -m session | grep "$target$" |
+		awk '{print $2}' | tr -d '[]'
+}
 open_iscsi_remove() {
-	$iscsiadm -m node -p $1 -T $2 -u
+	local target="$1"
+	local session_id
+	session_id=`open_iscsi_get_session_id "$target"`
+	if [ "$session_id" ]; then
+		$iscsiadm -m session -r $session_id -u
+	else
+		ocf_log err "cannot find session id for target $target"
+		return 1
+	fi
 }
 open_iscsi_status() {
 	$iscsiadm -m session 2>/dev/null | grep -qs "$2$"
@@ -332,7 +345,7 @@ iscsi_start() {
 }
 iscsi_stop() {
 	if iscsi_status; then
-		$remove_disk $PORTAL $OCF_RESKEY_target ||
+		$remove_disk $OCF_RESKEY_target ||
 			return $OCF_ERR_GENERIC
 		if iscsi_status; then
 			return $OCF_ERR_GENERIC
