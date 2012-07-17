@@ -353,7 +353,7 @@ iscsi_stop() {
 			return $OCF_SUCCESS
 		fi
 	else
-		ocf_log info "iscsi $PORTAL $OCF_RESKEY_target already stopped"
+		ocf_log info "iscsi $OCF_RESKEY_target already stopped"
 		return $OCF_SUCCESS
 	fi
 }
