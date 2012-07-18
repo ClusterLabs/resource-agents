@@ -255,7 +255,7 @@ open_iscsi_add() {
 }
 open_iscsi_get_session_id() {
 	local target="$1"
-	$iscsiadm -m session | grep "$target$" |
+	$iscsiadm -m session 2>/dev/null | grep "$target$" |
 		awk '{print $2}' | tr -d '[]'
 }
 open_iscsi_remove() {
@@ -270,7 +270,24 @@ open_iscsi_remove() {
 	fi
 }
 open_iscsi_status() {
-	$iscsiadm -m session 2>/dev/null | grep -qs "$1$"
+	local target="$1"
+	local session_id conn_state outp
+	session_id=`open_iscsi_get_session_id "$target"`
+	[ -z "$session_id" ] &&
+		return 1
+	outp=`$iscsiadm -m session -r $session_id -P 1` ||
+		return 2
+	conn_state=`echo "$outp" | sed -n '/Connection State/s/.*: //p'`
+	# some drivers don't return connection state, in that case
+	# we'll assume that we're still connected
+	case "$conn_state" in
+		"LOGGED IN") return 0;;
+		"Unknown"|"") return 0;; # this is also probably OK
+		*) # failed
+			ocf_log err "iscsiadm output: $outp"
+			return 2
+		;;
+	esac
 }
 
 disk_discovery() {
@@ -317,11 +334,12 @@ wait_for_udev() {
 	done
 }
 iscsi_status() {
-	if $disk_status $OCF_RESKEY_target; then
-		return $OCF_SUCCESS
-	else
-		return $OCF_NOT_RUNNING
-	fi
+	$disk_status $OCF_RESKEY_target
+	case $? in
+		0) return $OCF_SUCCESS;;
+		1) return $OCF_NOT_RUNNING;;
+		2) return $OCF_ERR_GENERIC;;
+	esac
 }
 iscsi_start() {
 	if iscsi_status; then
