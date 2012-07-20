@@ -299,8 +299,14 @@ open_iscsi_status() {
 		# some drivers don't return connection state, in that case
 		# we'll assume that we're still connected
 		case "$conn_state" in
-			"LOGGED IN") return 0;;
-			"Unknown"|"") return 0;; # this is also probably OK
+			"LOGGED IN")
+				[ -n "$msg_logged" ] &&
+					ocf_log info "connection state $conn_state. Session restored."
+				return 0;;
+			"Unknown"|"") # this is also probably OK
+				[ -n "$msg_logged" ] &&
+					ocf_log info "connection state $conn_state. Session restored."
+				return 0;;
 			*) # failed
 				if [ "$__OCF_ACTION" != stop ] && ! ocf_is_probe && ocf_is_true $recov; then
 					if [ -z "$msg_logged" ]; then
