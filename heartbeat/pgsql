@@ -51,6 +51,7 @@ OCF_RESKEY_monitor_sql_default="select now();"
 OCF_RESKEY_rep_mode_default=none
 OCF_RESKEY_node_list_default=""
 OCF_RESKEY_restore_command_default=""
+OCF_RESKEY_archive_cleanup_command_default=""
 OCF_RESKEY_master_ip_default=""
 OCF_RESKEY_repuser_default="postgres"
 OCF_RESKEY_primary_conninfo_opt_default=""
@@ -78,6 +79,7 @@ OCF_RESKEY_stop_escalate_in_slave_default=30
 : ${OCF_RESKEY_rep_mode=${OCF_RESKEY_rep_mode_default}}
 : ${OCF_RESKEY_node_list=${OCF_RESKEY_node_list_default}}
 : ${OCF_RESKEY_restore_command=${OCF_RESKEY_restore_command_default}}
+: ${OCF_RESKEY_archive_cleanup_command=${OCF_RESKEY_archive_cleanup_command_default}}
 : ${OCF_RESKEY_master_ip=${OCF_RESKEY_master_ip_default}}
 : ${OCF_RESKEY_repuser=${OCF_RESKEY_repuser_default}}
 : ${OCF_RESKEY_primary_conninfo_opt=${OCF_RESKEY_primary_conninfo_opt_default}}
@@ -276,6 +278,15 @@ This is required for replication.
 </longdesc>
 <shortdesc lang="en">restore_command</shortdesc>
 <content type="string" default="${OCF_RESKEY_restore_command_default}" />
+</parameter>
+
+<parameter name="archive_cleanup_command" unique="0" required="0">
+<longdesc lang="en">
+archive_cleanup_command for recovery.conf.
+This is used for replication and is optional.
+</longdesc>
+<shortdesc lang="en">archive_cleanup_command</shortdesc>
+<content type="string" default="${OCF_RESKEY_archive_cleanup_command_default}" />
 </parameter>
 
 <parameter name="master_ip" unique="0" required="0">
@@ -1262,6 +1273,12 @@ primary_conninfo = 'host=${OCF_RESKEY_master_ip} port=${OCF_RESKEY_pgport} user=
 restore_command = '${OCF_RESKEY_restore_command}'
 recovery_target_timeline = 'latest'
 END
+
+    # put archive_cleanup_command only when defined by user
+    if [ "$OCF_RESKEY_archive_cleanup_command" ]; then
+	echo "archive_cleanup_command = '${OCF_RESKEY_archive_cleanup_command}'" \
+	    >> $RECOVERY_CONF
+    fi
 
     ocf_log debug "Created recovery.conf. host=${OCF_RESKEY_master_ip}, user=${OCF_RESKEY_repuser}"
     return 0
