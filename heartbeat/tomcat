@@ -471,20 +471,6 @@ validate_all_tomcat()
 		misconfigured=1
 	fi
 
-	if [ "$RESOURCE_TOMCAT_USER" != RUNASIS ]; then
-		su - -s /bin/sh $RESOURCE_TOMCAT_USER -c "touch $CATALINA_PID"
-		if [ $? -ne 0 ]; then
-			ocf_log err "$RESOURCE_TOMCAT_USER cannot write to $CATALINA_PID. Check directory permissions."
-			wrongpermissions=1
-		fi
-	else
-		touch $CATALINA_PID
-		if [ $? -ne 0 ]; then
-			ocf_log err "$USER cannot write to $CATALINA_PID. Check directory permissions."
-			wrongpermissions=1
-		fi
-	fi
-
 	if [[ "$RESOURCE_STATUSURL" =~ :[0-9][0-9]* ]]; then
 		port=${RESOURCE_STATUSURL##*:}
 		port=${port%%/*}
