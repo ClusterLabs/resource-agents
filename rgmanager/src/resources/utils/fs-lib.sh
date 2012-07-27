@@ -821,7 +821,9 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 		ocf_log info "unmounting $mp"
 		umount "$mp"
 		ret_val=$?
-		if  [ $ret_val -eq 0 ]; then
+		# some versions of umount will exit with status 16 iff
+		# the umount(2) succeeded but /etc/mtab could not be written.
+		if  [ $ret_val -eq 0 -o $ret_val -eq 16 ]; then
 			umount_failed=
 			break
 		fi
