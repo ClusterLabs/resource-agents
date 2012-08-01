@@ -352,7 +352,21 @@ dhcpd_initialize() {
 	touch $OCF_RESKEY_chrooted_path/$OCF_RESKEY_leases
     fi
 
-   return $OCF_SUCCESS
+    # We need to "touch" a PID file in advance so
+    # it has the correct permissions.
+    if ! [ -f $OCF_RESKEY_pid ] ; then
+	touch $OCF_RESKEY_pid
+    fi
+
+    if [ -n "$OCF_RESKEY_user" -a "x$OCF_RESKEY_user" != "xroot" ] ; then
+	chown $OCF_RESKEY_user $OCF_RESKEY_pid
+    fi
+
+    if [ -n "$OCF_RESKEY_group" -a "x$OCF_RESKEY_group" != "xwheel" ] ; then
+	chgrp $OCF_RESKEY_group $OCF_RESKEY_pid
+    fi
+
+    return $OCF_SUCCESS
 }
 
 # Start
