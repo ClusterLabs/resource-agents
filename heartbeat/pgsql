@@ -544,7 +544,7 @@ pgsql_promote() {
     fi
     rm -f ${XLOG_NOTE_FILE}.*
 
-    for target in $OCF_RESKEY_node_list; do
+    for target in $NODE_LIST; do
         [ "$target" = "$NODENAME" ] && continue
         change_data_status "$target" "DISCONNECT"
         change_master_score "$target" "$CAN_NOT_PROMOTE"
@@ -788,11 +788,7 @@ pgsql_real_monitor() {
 
 pgsql_replication_monitor() {
     local rc
-    local rsc
-    local instance
-    local my_status
-    local data_status
-    local is_master=""
+    local rsc=`echo $OCF_RESOURCE_INSTANCE | cut -d ":" -f 1`
 
     rc=$1
     if [ $rc -ne $OCF_SUCCESS -a $rc -ne "$OCF_RUNNING_MASTER" ]; then
@@ -808,23 +804,8 @@ pgsql_replication_monitor() {
 
     # I can't get master node name from $OCF_RESKEY_CRM_meta_notify_master_uname on monitor,
     # so I will get master node name using crm_mon -n
-    if output=`crm_mon -n1 | grep " Master"`; then
-        rsc=`echo $OCF_RESOURCE_INSTANCE | cut -d ":" -f 1`
-        instance=0
-        while :
-        do
-            if [ "$instance" -ge "$OCF_RESKEY_CRM_meta_clone_max" ]; then
-                break
-            fi
-            if echo "$output" | grep "${rsc}:${instance}"; then
-                is_master="yes"
-                break
-            fi
-            instance=`expr $instance + 1`
-        done
-    fi
-
-    if [ ! -n "$is_master" ]; then
+    crm_mon -n1 | tr -d "\t" | grep -q "^${rsc}:.* Master"
+    if [ $? -ne 0 ] ; then
         # If I am Slave and Master is not exist
         ocf_log info "Master does not exist."
         change_pgsql_status "$NODENAME" "HS:alone"
@@ -878,7 +859,7 @@ pgsql_pre_promote() {
     # If my data is newer than new master's one, I fail my resource.
     PROMOTE_NODE=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname | \
                   sed "s/ /\n/g" | head -1`
-    number_of_nodes=`echo $OCF_RESKEY_node_list | wc -w`
+    number_of_nodes=`echo $NODE_LIST | wc -w`
     if [ $number_of_nodes -ge 3 -a \
          "$OCF_RESKEY_rep_mode" = "sync" -a \
          "$PROMOTE_NODE" != "$NODENAME" ]; then
@@ -968,8 +949,8 @@ control_slave_status() {
         return 1
     fi
 
-    number_of_nodes=`echo $OCF_RESKEY_node_list | wc -w`
-    for target in $OCF_RESKEY_node_list; do
+    number_of_nodes=`echo $NODE_LIST | wc -w`
+    for target in $NODE_LIST; do
         if [ "$target" = "$NODENAME" ]; then
             continue
         fi
@@ -1087,7 +1068,7 @@ have_master_right() {
     new=`expr $old + 1`
 
     # get xlog locations of all nodes
-    for node in ${OCF_RESKEY_node_list}; do
+    for node in ${NODE_LIST}; do
         output=`$CRM_ATTR_REBOOT -N "$node" -n \
                 "$PGSQL_XLOG_LOC_NAME" -G -q 2>/dev/null`
         if [ $? -ne 0 ]; then
@@ -1209,7 +1190,7 @@ delete_master_baseline() {
 set_async_mode_all() {
     [ "$OCF_RESKEY_rep_mode" = "sync" ] || return 0
     ocf_log info "Set all nodes into async mode."
-    runasowner -q err "echo "" > \"$REP_MODE_CONF\""
+    runasowner -q err "echo \"synchronous_standby_names = ''\" > \"$REP_MODE_CONF\""
     if [ $? -ne 0 ]; then
         ocf_log err "Can't set all nodes into async mode."
         return 1
@@ -1225,11 +1206,7 @@ set_async_mode() {
         ocf_log info "Setup $1 into async mode."
         sync_node_in_conf=`echo $sync_node_in_conf | sed "s/$1//g" |\
                            sed "s/^,//g" | sed "s/,,/,/g" | sed "s/,$//g"`
-        if [ -n $sync_node_in_conf ]; then
-            echo "synchronous_standby_names = '$sync_node_in_conf'" > "$REP_MODE_CONF"
-        else
-            echo "" > "$REP_MODE_CONF"
-        fi
+        echo "synchronous_standby_names = '$sync_node_in_conf'" > "$REP_MODE_CONF"
     else
         ocf_log info "$1 is already in async mode."
         return 0
@@ -1522,7 +1499,7 @@ pgsql_validate_all() {
             ocf_log err "master_ip can't be empty."
             return $OCF_ERR_CONFIGURED
         fi
-        if [ ! -n "$OCF_RESKEY_node_list" ]; then
+        if [ ! -n "$NODE_LIST" ]; then
             ocf_log err "node_list can't be empty."
             return $OCF_ERR_CONFIGURED
         fi
@@ -1630,7 +1607,8 @@ if is_replication; then
     PGSQL_XLOG_LOC_NAME="pgsql-xlog-loc"
     PGSQL_MASTER_BASELINE="pgsql-master-baseline"
 
-    NODENAME=`uname -n`
+    NODENAME=`uname -n | tr '[A-Z]' '[a-z]'`
+    NODE_LIST=`echo $OCF_RESKEY_node_list | tr '[A-Z]' '[a-z]'`
     OPERATION=$1
 fi
 

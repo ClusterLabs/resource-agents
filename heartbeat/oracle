@@ -394,7 +394,7 @@ other_trace_junk() {
 dumpinstipc() {
 	local output tracef
 	output=`dbasql getipc` # filename in the 2nd line
-	tracef=`echo "$output" | awk 'NR==2' | grep ^/.*trc$`
+	tracef=`echo "$output" | awk 'NR==2' | grep '^/.*trc$'`
 	if [ "$tracef" ]; then
 		echo $tracef
 	else
@@ -607,20 +607,20 @@ killprocs() {
 	kill -s $sig $* >/dev/null
 }
 ora_kill() {
-	oraprocs=`eval $procs | awk '{print $1}'`
+	oraprocs=`proc_pids`
 	if [ -z "$oraprocs" ]; then
 		ocf_log debug "All oracle processes are already stopped."
 		return
 	fi
 	killprocs TERM $oraprocs
 	for i in 1 2 3 4 5; do
-		if [ -z "`eval $procs | awk '{print $1}'`" ]; then
+		if [ -z "`proc_pids`" ]; then
 			ocf_log debug "All oracle processes are killed."
 			return
 		fi
 		sleep 5
 	done
-	killprocs KILL `eval $procs | awk '{print $1}'`
+	killprocs KILL `proc_pids`
 }
 
 #
@@ -705,7 +705,11 @@ rmtmpfiles() {
 	rm -f $TMPFILES
 }
 trap "rmtmpfiles" EXIT
-procs="ps -e -o pid,args | grep -i \"[o]ra[a-zA-Z0-9_]*$ORACLE_SID\$\""
+procs()
+{
+	ps -e -o pid,args | grep -i "[o]ra[a-zA-Z0-9_]*$ORACLE_SID$"
+}
+proc_pids() { procs | awk '{print $1}'; }
 
 US=`id -u -n`
 if [ $US != root -a $US != $ORACLE_OWNER ]

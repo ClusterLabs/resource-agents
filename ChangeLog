@@ -1,3 +1,107 @@
+* Fri May 25 2012 Linux-HA contributors
+- stable release 3.9.3
+- dhcpd: new RA to manage ISC DHCP servers
+- Filesystem: add nfs4 to the list of well known types
+- IPaddr2: fix regression introduce in d93b5fd, nic=lo always
+  "stopped"
+- iSCSILogicalUnit: correctly match for target IQN and backing
+  device name (iet and tgt)
+- jboss: implememnt rotating of console log
+- mysql: improve handling of reset slave
+- oracle, oralsnr: get rid of eval
+- slapd: pass bind_dn correctly to ldapsearch
+* Wed May 16 2012 Linux-HA contributors
+- release candidate 3.9.3 rc1
+- asterisk: new resource agent
+- named: new RA to manage bind servers
+- pound: new RA for Pound HTTP/HTTPS reverse-proxy and
+  load-balancer
+- rsyslog: new RA to manage rsyslog servers
+- slapd: new RA to manage OpenLDAP servers
+- varnish: new resource agent
+- apache: add support for IPv6 in monitor
+- apache: create /var/run/apache2 if it doesn't exist
+- apache: fix sysconfig includes & enable status for default SUSE
+  conf
+- conntrackd: test for socket existence in monitor instead of
+  process grep
+- conntrackd: rename parameter "conntrackd" to "binary"
+- CTDB: Add smb_fileid_algorithm parameter (bnc#696978)
+- CTDB: Improve monitor op (check output of ctdb status,
+  bnc#712192)
+- CTDB: Set ctdb_start_as_disabled=no by default (bnc#712410,
+  required by samba 3.6)
+- exportfs: allow expanding the fsid parameter to produce correct
+  exportfs options
+- exportfs: don't grow /var/lib/nfs/rmtab indefinitely
+- exportfs: fix monitor action for special characters and common
+  suffixes
+- Filesystem: add support for glusterfs (lf#2620)
+- Filesystem: add tmpfs to the list of supported filesystems
+- Filesystem: allow to force cloning for local mounts
+- Filesystem: don't use direct dd option in monitor depth 20 for
+  non-blockdevice fs
+- Filesystem: fix determining if the device is a block device
+- Filesystem: improve read/write checks for CHECK_LEVEL 10, 20
+- Filesystem: repair the fast_stop parameter use (its value was
+  always false)
+- Filesystem: support ceph
+- Filesystem: remove a status file only when OCF_CHECK_LEVEL is
+  set to 20
+- IPaddr: add back the local_start/stop_script code
+- IPaddr: remove colon at the end of the interface name
+- IPv6addr: always use the provided nic and cidr_netmask when
+  specified
+- IPv6addr: handle a link-local address properly in send_ua
+- iscsi: do not rely on iscsid.startup being set correctly
+  (bnc#751783)
+- iscsi: proceed if iscsid is not running if iscsid.startup is
+  present in iscsid.conf
+- iSCSILogicalUnit: fix default for scsi_sn
+- iSCSITarget: treat an empty "implementation" parameter
+  specially
+- jboss: add the java_opts parameter for java options
+- ldirectord: precedence error with perl v5.8.8 in IPv6 code
+- LVM: drop vgck(8) from monitor
+- LVM: force dmevent monitoring for clones
+- LVM: use ls instead of vgdisplay in status
+- lxc: fix LXC_status to work with lxc-0.7.5 or later
+- mysql: improve replication support
+- mysql: check mysql status more thoroughly before stopping
+- mysql: fix validation return codes
+- mysql: support 5.5 slave status message format
+- nfsserver: Support of multiple IP addresses (bnc#684143)
+- nfsserver: don't run sm-notify in foreground (bnc#759616)
+- ocf-shellfuncs: fix loglevel variable scope in ha_log
+- ocft: new tests for named, IPv6addr, oracle, Xinetd
+- ocft: several improvements
+- oracle: improve managing IPC objects
+- oracle: improve matching instance specific files and processes
+- pgsql: support for replication
+- postfix: multiple fixes
+- Raid1: support for multiple MD arrays, as specified in raidconf
+- SAPDatabase: add support for Sybase ASE and SAP HANA database
+- SAPDatabase: correcting the unique values of RAs parameters
+- SAPDatabase: replace method for checking responsiveness of
+  saphostexec
+- SAPDatabase: version 2.00 make use of saphostagent
+- SAPInstance : correcting the unique values of RAs parameters
+- slapd: always set the exit code correctly in monitor
+- tomcat: remove pidfile before start, it may prevent some tomcat
+  releases from starting
+- VirtualDomain: add a functionality that modifies utilization of
+  resource automatically
+- VirtualDomain: if the configuration file is missing on stop
+  exit with success
+- VirtualDomain: honor virsh "in shutdown" state
+- Xen: add support for HVM ACPI graceful shutdown
+- Xen: wait in migrate_from for the migration to finish instead
+  of bailing out immediately
+- Tools: findif: Use most specific matching route (bnc#740738)
+- Tools: send_arp.libnet: fix for big endian platforms
+  (bnc#721334)
+- doc: add the RA developer's guide
+
 * Wed Jun 29 2011 Dejan Muhamedagic <dejan@suse.de> and others
 - stable release 3.9.2
 - ethermon: new resource agent

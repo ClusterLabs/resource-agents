@@ -263,20 +263,20 @@ oralsnr_stop() {
 # kill the listener procs
 # give them 10 secs to exit cleanly (5 times 2)
 oralsnr_kill() {
-	oraprocs=`eval $procs | awk '{print $1}'`
+	oraprocs=`proc_pids`
 	if [ -z "$oraprocs" ]; then
 		ocf_log debug "All oralsnr processes are already stopped."
 		return
 	fi
 	killprocs TERM $oraprocs
 	for i in 1 2 3 4 5; do
-		if [ -z "`eval $procs | awk '{print $1}'`" ]; then
+		if [ -z "`proc_pids`" ]; then
 			ocf_log debug "All oralsnr processes are killed."
 			return
 		fi
 		sleep 2
 	done
-	killprocs KILL `eval $procs | awk '{print $1}'`
+	killprocs KILL `proc_pids`
 }
 killprocs() {
 	sig=$1
@@ -290,7 +290,7 @@ killprocs() {
 # oralsnr_status: is the listener running?
 #
 is_oralsnr_up() {
-	[ x != "x`eval $procs`" ]
+	procs > /dev/null
 }
 oralsnr_status() {
 	output=`$lsnrctl status $listener`
@@ -386,7 +386,11 @@ trap "rm -f $envtmpf" EXIT
 #
 listener=${OCF_RESKEY_listener:-"LISTENER"}
 # how to get listener processes
-procs="ps -e -o pid,user,args | grep '[t]nslsnr' | grep -w $listener | grep -w $ORACLE_OWNER"
+procs()
+{
+	ps -e -o pid,user,args | grep '[t]nslsnr' | grep -w "$listener" | grep -w "$ORACLE_OWNER"
+}
+proc_pids() { procs | awk '{print $1}'; }
 
 US=`id -u -n`
 if [ $US != root -a $US != $ORACLE_OWNER ]

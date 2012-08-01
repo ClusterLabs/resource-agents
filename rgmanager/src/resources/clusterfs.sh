@@ -141,6 +141,20 @@ do_metadata()
 	    <content type="boolean"/>
 	</parameter>
 
+	<parameter name="nfsrestart">
+	    <longdesc lang="en">
+		If set and unmounting the file system fails, the node will
+		try to restart nfs daemon and nfs lockd to drop all filesystem
+		references. Use this option as last resource.
+		This option requires force_unmount to be set and it is not
+		compatible with nfsserver resource.
+	    </longdesc>
+	    <shortdesc lang="en">
+		Enable NFS daemon and lockd workaround
+	    </shortdesc>
+	    <content type="boolean"/>
+	</parameter>
+
     </parameters>
 
     <actions>
@@ -288,6 +302,29 @@ do_pre_unmount() {
 	clubufflush -f $dev
 
 	return 0
+}
+
+do_force_unmount() {
+	if [ "$OCF_RESKEY_nfsrestart" = "yes" ] || \
+	   [ "$OCF_RESKEY_nfsrestart" = "1" ]; then
+		ocf_log warning "Restarting nfsd/nfslock"
+		nfsexports=$(cat /var/lib/nfs/etab)
+		service nfslock stop
+		service nfs stop
+		service nfs start
+		service nfslock start
+		echo "$nfsexports" | { while read line; do
+			nfsexp=$(echo $line | awk '{print $1}')
+			nfsopts=$(echo $line | sed -e 's#.*(##g' -e 's#).*##g')
+			nfsacl=$(echo $line | awk '{print $2}' | sed -e 's#(.*##g')
+			if [ -n "$nfsopts" ]; then
+				exportfs -i -o "$nfsopts" "$nfsacl":$nfsexp
+			else
+				exportfs -i "$nfsacl":$nfsexp
+			fi
+		done; }
+	fi
+	return 1
 }
 
 main $*
