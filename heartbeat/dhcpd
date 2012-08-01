@@ -32,6 +32,7 @@ OCF_RESKEY_pid_default="/var/run/dhcpd.pid"
 OCF_RESKEY_user_default=dhcpd
 OCF_RESKEY_group_default=nogroup
 OCF_RESKEY_config_default=""
+OCF_RESKEY_chrooted_default="yes"
 OCF_RESKEY_chrooted_path_default="/var/lib/dhcp"
 OCF_RESKEY_leases_default="/db/dhcpd.leases"
 OCF_RESKEY_interface_default=""
@@ -41,6 +42,7 @@ OCF_RESKEY_includes_default=""
 : ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
 : ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
 : ${OCF_RESKEY_group=${OCF_RESKEY_group_default}}
+: ${OCF_RESKEY_chrooted=${OCF_RESKEY_chrooted_default}}
 : ${OCF_RESKEY_chrooted_path=${OCF_RESKEY_chrooted_path_default}}
 : ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
 : ${OCF_RESKEY_leases=${OCF_RESKEY_leases_default}}
@@ -85,6 +87,14 @@ Manage an ISC DHCP server service in a chroot environment.
       </longdesc>
       <shortdesc lang="en">Configuration file</shortdesc>
       <content type="string" default="$OCF_RESKEY_config_default"/>
+    </parameter>
+    <parameter name="chrooted" unique="1" required="0">
+      <longdesc lang="en">
+	Configure the dhcpd service to run in a chrooted or non-chrooted
+	mode.
+      </longdesc>
+      <shortdesc lang="en">Enable chroot mode</shortdesc>
+      <content type="string" default="$OCF_RESKEY_chrooted_default"/>
     </parameter>
     <parameter name="chrooted_path" unique="1" required="0">
       <longdesc lang="en">
@@ -175,15 +185,25 @@ dhcpd_validate_all() {
 
 
     if ! ocf_is_probe; then
-	if ! test -e "$OCF_RESKEY_chrooted_path"; then
-	    ocf_log err "Path $OCF_RESKEY_chrooted_path does not exist."
-	    return $OCF_ERR_INSTALLED
+	# Test for the appropriate configuration files depending on if
+	# chroot mode is enabled.
+	if test "$OCF_RESKEY_chrooted" = "yes" ; then
+	    if ! test -e "$OCF_RESKEY_chrooted_path"; then
+		ocf_log err "Path $OCF_RESKEY_chrooted_path does not exist."
+		return $OCF_ERR_INSTALLED
+	    fi
+
+	    if test -n "$OCF_RESKEY_chrooted_path/$OCF_RESKEY_config" -a ! -r "$OCF_RESKEY_chrooted_path/$OCF_RESKEY_config"; then
+		ocf_log err "Configuration file $OCF_RESKEY_chrooted_path/$OCF_RESKEY_config doesn't exist"
+		return $OCF_ERR_INSTALLED
+	    fi
+	else
+	    if test -n "$OCF_RESKEY_config" -a ! -r "$OCF_RESKEY_config"; then
+		ocf_log err "Configuration file $OCF_RESKEY_config doesn't exist"
+		return $OCF_ERR_INSTALLED
+	    fi
 	fi
 
-	if test -n "$OCF_RESKEY_chrooted_path/$OCF_RESKEY_config" -a ! -r "$OCF_RESKEY_chrooted_path/$OCF_RESKEY_config"; then
-	    ocf_log err "Configuration file $OCF_RESKEY_chrooted_path/$OCF_RESKEY_config doesn't exist"
-	    return $OCF_ERR_INSTALLED
-	fi
     fi 
 
     if ! getent passwd $OCF_RESKEY_user >/dev/null 2>&1; then
@@ -196,7 +216,11 @@ dhcpd_validate_all() {
 
 # dhcpd_status. Simple check of the status of dhcpd process by pid.
 dhcpd_status ()  {
-    ocf_pidfile_status $OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid >/dev/null 2>&1
+    if test "$OCF_RESKEY_chrooted" = "yes" ; then
+	ocf_pidfile_status $OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid >/dev/null 2>&1
+    else
+	ocf_pidfile_status $OCF_RESKEY_pid >/dev/null 2>&1
+    fi
 }
 
 # dhcpd_monitor. Send a request to dhcpd and check response.
@@ -308,6 +332,22 @@ dhcpd_initialize_chroot() {
    return $OCF_SUCCESS
 }
 
+# Initialize a non-chroot environment
+dhcpd_initialize() {
+    ## If there is no conf file, we can't start a dhcp service.
+    if ! [ -f $OCF_RESKEY_config ] ; then
+	ocf_log err "dhcpd has not been configured."
+	return $OCF_ERR_CONFIGURED
+    fi
+
+    # If the leases file does not exist, create it, as this is a fresh install.
+    if [ ! -e $OCF_RESKEY_leases ]; then
+	touch $OCF_RESKEY_leases
+    fi
+
+   return $OCF_SUCCESS
+}
+
 # Start
 dhcpd_start() {
     # Lets make sure we are not already running.
@@ -316,8 +356,15 @@ dhcpd_start() {
 		return $OCF_SUCCESS
 	fi
 
-    dhcpd_initialize_chroot ||
-	{ ocf_log err "Could not fully initialize the chroot environment." ; return $OCF_ERR_INSTALLED; }
+    # Only initialize the chrooted path(s) if chroot mode is enabled.
+    if test "$OCF_RESKEY_chrooted" = "yes" ; then
+	dhcpd_initialize_chroot ||
+	    { ocf_log err "Could not fully initialize the chroot environment." ; return $OCF_ERR_INSTALLED; }
+    else
+	dhcpd_initialize ||
+	    { ocf_log err "Could not fully initialize the runtime environment." ; return $OCF_ERR_INSTALLED; }
+    fi
+
     dhcpd_validate_all || exit
 
     ## If there is a pid file containing a pid, the machine might have crashed. pid files in
@@ -326,15 +373,26 @@ dhcpd_start() {
     ## incidentally contains the pid of a running process. If this process is not a 'dhcpd',
     ## we remove the pid. (dhcpd itself only checks whether the pid is alive or not.)
 
-    ocf_log info "Starting dhcpd [chroot] service."
-    test -e "$OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid" &&
-	rm -f $OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid
+    if test "$OCF_RESKEY_chrooted" = "yes" ; then
+	ocf_log info "Starting dhcpd [chroot] service."
+	test -e "$OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid" &&
+	    rm -f $OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid
+    else
+	ocf_log info "Starting dhcpd [non-chroot] service."
+	test -e "$OCF_RESKEY_pid" &&
+	    rm -f $OCF_RESKEY_pid
+    fi
 
-    DHCPD_ARGS="-chroot $OCF_RESKEY_chrooted_path -lf $OCF_RESKEY_leases"
+    DHCPD_ARGS="-lf $OCF_RESKEY_leases"
+
+    if test "$OCF_RESKEY_chrooted" = "yes" ; then
+	DHCPD_ARGS="$DHCPD_ARGS -chroot $OCF_RESKEY_chrooted_path"
+    fi
 
     if [ -n "$OCF_RESKEY_user" ]; then
 	DHCPD_ARGS="$DHCPD_ARGS -user $OCF_RESKEY_user"
     fi
+
     if [ -n "$OCF_RESKEY_group" ]; then
 	DHCPD_ARGS="$DHCPD_ARGS -group $OCF_RESKEY_group"
     fi
@@ -348,7 +406,11 @@ dhcpd_start() {
 		return $OCF_SUCCESS
 	done
 
-    ocf_log info "dhcpd [chrooted] has started."
+    if test "$OCF_RESKEY_chrooted" = "yes" ; then
+	ocf_log info "dhcpd [chrooted] has started."
+    else
+	ocf_log info "dhcpd [non-chrooted] has started."
+    fi
 
     return $OCF_SUCCESS
 }
@@ -373,7 +435,11 @@ dhcpd_stop () {
 	    ;;
     esac
 
-    kill `cat $OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid`
+    if test "$OCF_RESKEY_chrooted" = "yes" ; then
+	kill `cat $OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid`
+    else
+	kill `cat $OCF_RESKEY_pid`
+    fi
 
     # Allow 2/3 of the action timeout for the orderly shutdown
     # (The origin unit is ms, hence the conversion)
@@ -392,15 +458,28 @@ dhcpd_stop () {
     #If still up
     if dhcpd_monitor 2>&1; then
         ocf_log err "dhcpd is still up! Trying kill -s KILL"
-        kill -s SIGKILL `cat $OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid`
+	if test "$OCF_RESKEY_chrooted" = "yes" ; then
+	    kill -s SIGKILL `cat $OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid`
+	else
+	    kill -s SIGKILL `cat $OCF_RESKEY_pid`
+	fi
     fi
 
     # If we are running a dhcp server v4 or higher, unmount the proc partition.
     if [ $DHCP_VERSION_MAJOR -ge 4 ] ; then
-	umount $OCF_RESKEY_chrooted_path/proc > /dev/null 2>&1
+	# We only want to unmount proc in a chrooted environment, else we could
+	# cause other issues.
+	if test "$OCF_RESKEY_chrooted" = "yes" ; then
+	    umount $OCF_RESKEY_chrooted_path/proc > /dev/null 2>&1
+	fi
     fi
 
-    rm -f $OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid
+    if [ $DHCP_VERSION_MAJOR -ge 4 ] ; then
+	rm -f $OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid
+    else
+	rm -f $OCF_RESKEY_pid
+    fi
+
     ocf_log info "dhcpd stopped"
     return $OCF_SUCCESS
 }
