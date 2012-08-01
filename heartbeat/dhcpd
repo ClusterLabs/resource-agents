@@ -352,15 +352,21 @@ dhcpd_initialize() {
     fi
 
     # if the PID storage path does not exist, make it, and setup the permissions.
+
+    # NOTE: This aprt of the script has a potential security flaw, in that if someone
+    # puts in /var/run as the path, it will change ownership to the dhcpd user
+    # and group. However, all that would do is allow that user to view the contents
+    # of the files, which they can do now anyway. If this becomes an issue, I can work
+    # in some changes.
     if ! [ -d `dirname $OCF_RESKEY_pid` ] ; then
 	mkdir -p `dirname $OCF_RESKEY_pid`
 
         if [ -n "$OCF_RESKEY_user" -a "x$OCF_RESKEY_user" != "xroot" ] ; then
-	    chown -R $OCF_RESKEY_user `dirname $OCF_RESKEY_pid`
+	    chown $OCF_RESKEY_user `dirname $OCF_RESKEY_pid`
         fi
     
         if [ -n "$OCF_RESKEY_group" -a "x$OCF_RESKEY_group" != "xwheel" ] ; then
-	    chgrp -R $OCF_RESKEY_group `dirname $OCF_RESKEY_pid`
+	    chgrp $OCF_RESKEY_group `dirname $OCF_RESKEY_pid`
         fi
     fi
 
