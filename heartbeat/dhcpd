@@ -340,9 +340,16 @@ dhcpd_initialize() {
 	return $OCF_ERR_CONFIGURED
     fi
 
+    # As with the standard DHCP init script, we  can still use the
+    # chrooted default path for storing hte leases file. This behavior
+    # is consistent with the existing /etc/init.d/dhcpd script.
+    if ! [ -d $OCF_RESKEY_chrooted_path ] ; then
+	ocf_log info "Initializing $OCF_RESKEY_chrooted_path for use."
+    fi
+    
     # If the leases file does not exist, create it, as this is a fresh install.
-    if [ ! -e $OCF_RESKEY_leases ]; then
-	touch $OCF_RESKEY_leases
+    if [ ! -e $OCF_RESKEY_chrooted_path/$OCF_RESKEY_leases ]; then
+	touch $OCF_RESKEY_chrooted_path/$OCF_RESKEY_leases
     fi
 
    return $OCF_SUCCESS
@@ -383,10 +390,16 @@ dhcpd_start() {
 	    rm -f $OCF_RESKEY_pid
     fi
 
-    DHCPD_ARGS="-lf $OCF_RESKEY_leases"
+    # Define an empty string variable, to ensure it exists when needed.
+    DHCPD_ARGS=""
 
+    # To ensure consistent behavior with the standard DHCPD init script, 
+    # use the chrooted default path for storing a leases file, when not in
+    # a chrooted enviroment.
     if test "$OCF_RESKEY_chrooted" = "yes" ; then
-	DHCPD_ARGS="$DHCPD_ARGS -chroot $OCF_RESKEY_chrooted_path"
+	DHCPD_ARGS="$DHCPD_ARGS -chroot $OCF_RESKEY_chrooted_path -lf $OCF_RESKEY_leases"
+    else
+	DHCPD_ARGS="$DHCPD_ARGS -lf $OCF_RESKEY_chrooted_path/$OCF_RESKEY_leases"
     fi
 
     if [ -n "$OCF_RESKEY_user" ]; then
