@@ -105,7 +105,7 @@ start_db() {
 
 	# If we see:
 	# ORA-.....: failure, we failed
-	grep -q "failure" $logfile
+	grep -q "^ORA-" $logfile
 	rv=$?
 
     rm -f $logfile
@@ -155,7 +155,7 @@ stop_db() {
 		return 1
 	fi
 
-	grep -q failure $logfile
+	grep -q "^ORA-" $logfile
     rv=$?
     rm -f $logfile
 
