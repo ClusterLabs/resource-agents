@@ -564,7 +564,7 @@ do_post_unmount() {
 }
 
 
-# Agent-specific force-unmount logic, if required
+# Agent-specific force unmount logic, if required
 # return = nonzero if successful, or 0 if unsuccessful
 # (unsuccessful = try harder)
 do_force_unmount() {
@@ -837,7 +837,7 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 
 		# Force unmount: try #1: send SIGTERM
 		if [ $try -eq 1 ]; then
-			# Try fs-specific force-unmount, if provided
+			# Try fs-specific force unmount, if provided
 			do_force_unmount
 			if [ $? -eq 0 ]; then
 				# if this succeeds, we should be done
