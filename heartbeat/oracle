@@ -301,7 +301,8 @@ dbasql() {
 	for func; do $func; done
 	) |
 	execsql | grep -v '^Connected' |
-		grep -v '^ENV MSG:'
+		grep -v '^ENV MSG:' |
+		grep -v 'Your password will expire in'
 }
 # use dbasql_one if the query should result in a single line output
 # at times people stuff commands in oracle .profile
