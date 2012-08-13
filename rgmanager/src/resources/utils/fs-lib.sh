@@ -564,7 +564,7 @@ do_post_unmount() {
 }
 
 
-# Agent-specific force-unmount logic, if required
+# Agent-specific force unmount logic, if required
 # return = nonzero if successful, or 0 if unsuccessful
 # (unsuccessful = try harder)
 do_force_unmount() {
@@ -821,7 +821,9 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 		ocf_log info "unmounting $mp"
 		umount "$mp"
 		ret_val=$?
-		if  [ $ret_val -eq 0 ]; then
+		# some versions of umount will exit with status 16 iff
+		# the umount(2) succeeded but /etc/mtab could not be written.
+		if  [ $ret_val -eq 0 -o $ret_val -eq 16 ]; then
 			umount_failed=
 			break
 		fi
@@ -835,7 +837,7 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 
 		# Force unmount: try #1: send SIGTERM
 		if [ $try -eq 1 ]; then
-			# Try fs-specific force-unmount, if provided
+			# Try fs-specific force unmount, if provided
 			do_force_unmount
 			if [ $? -eq 0 ]; then
 				# if this succeeds, we should be done

@@ -110,7 +110,7 @@ do_metadata()
 	    <longdesc lang="en">
 	        If set and unmounting the file system fails, the node will
 		immediately reboot.  Generally, this is used in conjunction
-		with force-unmount support, but it is not required.
+		with force_unmount support, but it is not required.
 	    </longdesc>
 	    <shortdesc lang="en">
 	        Seppuku Unmount

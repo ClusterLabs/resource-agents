@@ -788,7 +788,6 @@ pgsql_real_monitor() {
 
 pgsql_replication_monitor() {
     local rc
-    local rsc=`echo $OCF_RESOURCE_INSTANCE | cut -d ":" -f 1`
 
     rc=$1
     if [ $rc -ne $OCF_SUCCESS -a $rc -ne "$OCF_RUNNING_MASTER" ]; then
@@ -804,7 +803,7 @@ pgsql_replication_monitor() {
 
     # I can't get master node name from $OCF_RESKEY_CRM_meta_notify_master_uname on monitor,
     # so I will get master node name using crm_mon -n
-    crm_mon -n1 | tr -d "\t" | grep -q "^${rsc}:.* Master"
+    crm_mon -n1 | tr -d "\t" | grep -q "^${RESOURCE_NAME}:.* Master"
     if [ $? -ne 0 ] ; then
         # If I am Slave and Master is not exist
         ocf_log info "Master does not exist."
@@ -1329,7 +1328,6 @@ change_data_status() {
 # change master-score
 # arg1:node, arg2: score
 change_master_score() {
-    local rsc
     local instance
     local current_score
 
@@ -1337,22 +1335,21 @@ change_master_score() {
         return 0
     fi
 
-    rsc=`echo $OCF_RESOURCE_INSTANCE | cut -d ":" -f 1`
     instance=0
     while :
     do
         if [ "$instance" -ge "$OCF_RESKEY_CRM_meta_clone_max" ]; then
             break
         fi
-        if [ "${rsc}:${instance}" = "$OCF_RESOURCE_INSTANCE" ]; then
+        if [ "${RESOURCE_NAME}:${instance}" = "$OCF_RESOURCE_INSTANCE" ]; then
             instance=`expr $instance + 1`
             continue
         fi
 
-        current_score=`$CRM_ATTR_REBOOT -N "$1" -n "master-${rsc}:${instance}" -G -q 2>/dev/null`
+        current_score=`$CRM_ATTR_REBOOT -N "$1" -n "master-${RESOURCE_NAME}:${instance}" -G -q 2>/dev/null`
         if [ -n "$current_score" -a "$current_score" != "$2" ]; then
-            ocf_log info "Changing ${rsc}:${instance} master score on $1 : $current_score->$2."
-            $CRM_ATTR_REBOOT -N "$target" -n "master-${rsc}:${instance}" -v "$2"
+            ocf_log info "Changing ${RESOURCE_NAME}:${instance} master score on $1 : $current_score->$2."
+            $CRM_ATTR_REBOOT -N "$target" -n "master-${RESOURCE_NAME}:${instance}" -v "$2"
             if [ $? -ne 0 ]; then
                 ocf_log err "Can't change master score."
                 return 1
@@ -1602,10 +1599,11 @@ if is_replication; then
     CHECK_XLOG_LOC_SQL="select pg_last_xlog_replay_location(),pg_last_xlog_receive_location()"
     CHECK_REPLICATION_STATE_SQL="select application_name,upper(state),upper(sync_state) from pg_stat_replication"
 
-    PGSQL_STATUS_ATTR="pgsql-status"
-    PGSQL_DATA_STATUS_ATTR="pgsql-data-status"
-    PGSQL_XLOG_LOC_NAME="pgsql-xlog-loc"
-    PGSQL_MASTER_BASELINE="pgsql-master-baseline"
+    RESOURCE_NAME=`echo $OCF_RESOURCE_INSTANCE | cut -d ":" -f 1`
+    PGSQL_STATUS_ATTR="${RESOURCE_NAME}-status"
+    PGSQL_DATA_STATUS_ATTR="${RESOURCE_NAME}-data-status"
+    PGSQL_XLOG_LOC_NAME="${RESOURCE_NAME}-xlog-loc"
+    PGSQL_MASTER_BASELINE="${RESOURCE_NAME}-master-baseline"
 
     NODENAME=`uname -n | tr '[A-Z]' '[a-z]'`
     NODE_LIST=`echo $OCF_RESKEY_node_list | tr '[A-Z]' '[a-z]'`
