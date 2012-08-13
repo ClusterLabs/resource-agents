@@ -28,15 +28,21 @@
 #   OCF_RESKEY_tomcat_suspend_trialcount  - The re-try number of times awaiting a stop. Default is 10. DEPRECATED
 #   OCF_RESKEY_tomcat_user  - A user name to start a resource.
 #   OCF_RESKEY_statusurl - URL for state confirmation. Default is http://127.0.0.1:8080
+#   OCF_RESKEY_max_stop_time - The max time it should take for proper shutdown. Restrictions, only Tomcat6.
 #   OCF_RESKEY_java_home - Home directory of Java. Default is none
 #   OCF_RESKEY_java_opts - Options to pass to Java JVM for start and stop. Default is none
 #   OCF_RESKEY_catalina_home - Home directory of Tomcat. Default is none
 #   OCF_RESKEY_catalina_base - Base directory of Tomcat. Default is OCF_RESKEY_catalina_home
+#   OCF_RESKEY_catalina_out - Log file name of Tomcat. Default is OCF_RESKEY_catalina_home/logs/catalina.out
 #   OCF_RESKEY_catalina_pid  - A PID file name of Tomcat. Default is OCF_RESKEY_catalina_home/logs/catalina.pid
 #   OCF_RESKEY_tomcat_start_opts - Start options of Tomcat. Default is none.
 #   OCF_RESKEY_catalina_opts - CATALINA_OPTS environment variable. Default is none.
+#   OCF_RESKEY_catalina_tmpdir - CATALINA_TMPDIR environment variable. Default is none.
 #   OCF_RESKEY_catalina_rotate_log - Control catalina.out logrotation flag. Default is NO.
 #   OCF_RESKEY_catalina_rotatetime - catalina.out logrotation time span(seconds). Default is 86400.
+#   OCF_RESKEY_java_endorsed_dirs - JAVA_ENDORSED_DIRS environment variable. Default is none.
+#   OCF_RESKEY_logging_config - LOGGING_CONFIG environment variable. Default is none.
+#   OCF_RESKEY_logging_manager - LOGGING_MANAGER environment variable. Default is none.
 ###############################################################################
 
 
@@ -70,22 +76,26 @@ action:
 # Check tomcat service availability
 isrunning_tomcat()
 {
-	if ! have_binary $WGET; then
-		ocf_log err "Monitoring not supported by $OCF_RESOURCE_INSTANCE"
-		ocf_log info "Please make sure that wget is available"
-		return $OCF_ERR_CONFIGURED
-	fi
-	$WGET -O /dev/null $RESOURCE_STATUSURL >/dev/null 2>&1
+	$WGET --tries=20 -O /dev/null $RESOURCE_STATUSURL >/dev/null 2>&1
 }
 
 ############################################################################
 # 
 isalive_tomcat()
 {
+	# As the server stops, the PID file disappears. To avoid race conditions, 
+	# we will have remembered the PID of a running instance on script entry.
+	local pid=$rememberedPID
+	# If there is a PID file, use that
 	if [ -f $CATALINA_PID ]; then
-		PID=`head -n 1 $CATALINA_PID`
+		ocf_log debug "Reading pid from $CATALINA_PID"
+		# race conditions on PID file being removed by stopping tomcat...
+		pid=`head -n 1 $CATALINA_PID`
+	fi
+	if [ -n "$pid" ] && [ "$pid" -gt 0 ]; then
 		# Retry message for restraint
-		kill -s 0 $PID >/dev/null 2>&1
+		ocf_log debug "Sending noop signal to $pid"
+		kill -s 0 $pid >/dev/null 2>&1
 		return $?
 	fi
 	# No PID file
@@ -99,7 +109,7 @@ monitor_tomcat()
 	isalive_tomcat ||
 		return $OCF_NOT_RUNNING
 	isrunning_tomcat ||
-		return $OCF_NOT_RUNNING
+		return $OCF_ERR_GENERIC
 	return $OCF_SUCCESS
 }
 
@@ -118,14 +128,42 @@ rotate_catalina_out()
 	fi
 
 	# Clean up and set permissions on required files
-	rm -rf "$CATALINA_HOME"/temp/* "$CATALINA_HOME/logs/catalina.out"
-	mkfifo -m700 "$CATALINA_HOME/logs/catalina.out"
-	chown --dereference "$RESOURCE_TOMCAT_USER" "$CATALINA_HOME/logs/catalina.out" || true
+	rm -rf "$CATALINA_HOME"/temp/* "$CATALINA_OUT"
+	mkfifo -m700 "$CATALINA_OUT"
+	chown --dereference "$RESOURCE_TOMCAT_USER" "$CATALINA_OUT" || true
 
 	# -s is required because tomcat5.5's login shell is /bin/false
 	su - -s /bin/sh $RESOURCE_TOMCAT_USER \
         	-c "$ROTATELOGS -l \"$CATALINA_HOME/logs/catalina_%F.log\" $CATALINA_ROTATETIME" \
-        	< "$CATALINA_HOME/logs/catalina.out" > /dev/null 2>&1 &
+        	< "$CATALINA_OUT" > /dev/null 2>&1 &
+}
+
+############################################################################
+# Tomcat Command
+tomcatCommand()
+{
+cat<<-END_TOMCAT_COMMAND
+	export JAVA_HOME=${JAVA_HOME}
+	export JAVA_OPTS="${JAVA_OPTS}"
+	export CATALINA_HOME=${CATALINA_HOME}
+	export CATALINA_BASE=${CATALINA_BASE}
+	export CATALINA_OUT=${CATALINA_OUT}
+	export CATALINA_PID=${CATALINA_PID}
+	export CATALINA_OPTS="${CATALINA_OPTS}"
+	export CATALINA_TMPDIR="${CATALINA_TMPDIR}"
+	export JAVA_ENDORSED_DIRS="${JAVA_ENDORSED_DIRS}"
+	export LOGGING_CONFIG="${LOGGING_CONFIG}"
+	export LOGGING_MANAGER="${LOGGING_MANAGER}"
+	$CATALINA_HOME/bin/catalina.sh $@
+END_TOMCAT_COMMAND
+}
+attemptTomcatCommand()
+{
+	if [ "$RESOURCE_TOMCAT_USER" = RUNASIS ]; then
+		"$CATALINA_HOME/bin/catalina.sh" $@ >> "$TOMCAT_CONSOLE" 2>&1
+	else
+		tomcatCommand $@ | su - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1
+	fi
 }
 
 ############################################################################
@@ -133,6 +171,8 @@ rotate_catalina_out()
 start_tomcat()
 {
 	cd "$CATALINA_HOME/bin"
+
+	validate_all_tomcat || exit $?
 
 	monitor_tomcat
 	if [ $? = $OCF_SUCCESS ]; then
@@ -155,20 +195,7 @@ start_tomcat()
 	echo "`date "+%Y/%m/%d %T"`: start ===========================" >> "$TOMCAT_CONSOLE"
 
 	ocf_log debug "CATALINA_OPTS value = ${CATALINA_OPTS}"
-	if [ "$RESOURCE_TOMCAT_USER" = RUNASIS ]; then
-		"$CATALINA_HOME/bin/catalina.sh" start $TOMCAT_START_OPTS \
-			>> "$TOMCAT_CONSOLE" 2>&1 &
-	else
-		cat<<-END_TOMCAT_START | su - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1 &
-			export JAVA_HOME=${JAVA_HOME}
-			export JAVA_OPTS="${JAVA_OPTS}"
-			export CATALINA_HOME=${CATALINA_HOME}
-			export CATALINA_BASE=${CATALINA_BASE}
-			export CATALINA_PID=${CATALINA_PID}
-			export CATALINA_OPTS="${CATALINA_OPTS}"
-			$CATALINA_HOME/bin/catalina.sh start ${TOMCAT_START_OPTS}
-END_TOMCAT_START
-	fi
+	attemptTomcatCommand start ${TOMCAT_START_OPTS} &
 
 	while true; do
 		monitor_tomcat
@@ -186,39 +213,37 @@ END_TOMCAT_START
 # Stop Tomcat
 stop_tomcat()
 {
-	STOP_TIMEOUT=$((OCF_RESKEY_CRM_meta_timeout/1000-1))
+	RA_TIMEOUT=$((OCF_RESKEY_CRM_meta_timeout/1000))
+	STOP_TIMEOUT=$((RA_TIMEOUT-5))
+	if [ -n "$MAX_STOP_TIME" ]; then
+		if [ $MAX_STOP_TIME -gt $RA_TIMEOUT ]; then
+			ocf_log warn "max_stop_timeout must be shorter than the timeout of stop operation."
+		fi
+		if [ $MAX_STOP_TIME -eq 0 ]; then
+			STOP_TIMEOUT=$RA_TIMEOUT
+		else
+			STOP_TIMEOUT=$MAX_STOP_TIME
+		fi
+	fi
 
 	cd "$CATALINA_HOME/bin"
 
+	memorize_pid # This lets monitoring continue to work reliably
+
 	echo "`date "+%Y/%m/%d %T"`: stop  ###########################" >> "$TOMCAT_CONSOLE"
 
-	if [ "$RESOURCE_TOMCAT_USER" = RUNASIS ]; then
-		"$CATALINA_HOME/bin/catalina.sh" stop $STOP_TIMEOUT -force \
-			>> "$TOMCAT_CONSOLE" 2>&1
-	else
-		cat<<-END_TOMCAT_STOP | su - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1
-			export JAVA_HOME=${JAVA_HOME}
-			export JAVA_OPTS="${JAVA_OPTS}"
-			export CATALINA_HOME=${CATALINA_HOME}
-			export CATALINA_BASE=${CATALINA_BASE}
-			export CATALINA_PID=${CATALINA_PID}
-			$CATALINA_HOME/bin/catalina.sh stop $STOP_TIMEOUT -force
-END_TOMCAT_STOP
-	fi
+	attemptTomcatCommand stop $STOP_TIMEOUT -force
 
 	lapse_sec=0
 	while isalive_tomcat; do
 		sleep 1
 		lapse_sec=`expr $lapse_sec + 1`
 		ocf_log debug "stop_tomcat[$TOMCAT_NAME]: stop failed, killing with SIGKILL ($lapse_sec)"
-		if [ -f $CATALINA_PID ]; then
-			PID=`head -n 1 $CATALINA_PID`
-			kill -KILL $PID
-		fi
+		kill -KILL $rememberedPID
 	done
 
 	if [ ${CATALINA_ROTATE_LOG} = "YES" ]; then
-		rm -f "$CATALINA_PID" "${CATALINA_HOME}/logs/catalina.out"
+		rm -f "$CATALINA_PID" "${CATALINA_OUT}"
 	else
 		rm -f "$CATALINA_PID"
 	fi
@@ -291,6 +316,19 @@ URL for state confirmation.
 <content type="string" default="" />
 </parameter>
 
+<parameter name="max_stop_time" unique="0">
+<longdesc lang="en">
+Number of seconds to wait during a stop before drastic measures
+(force kill) are used on the tomcat process. 
+This number MUST be less than your cluster stop timeout for the resource.
+The default value is five seconds before the timeout value of stop operation.
+When it is over this value, it stop a process in kill commands.
+This parameter is only effective on Tomcat 6 or later.
+</longdesc>
+<shortdesc>The max time it should take for proper shutdown.</shortdesc>
+<content type="integer" default="" />
+</parameter>
+
 <parameter name="java_home" unique="0" required="1">
 <longdesc lang="en">
 Home directory of Java.
@@ -323,6 +361,14 @@ Instance directory of Tomcat
 <content type="string" default="" />
 </parameter>
 
+<parameter name="catalina_out" unique="1">
+<longdesc lang="en">
+Log file name of Tomcat
+</longdesc>
+<shortdesc>Log file name of Tomcat, defaults to catalina_home/logs/catalina.out</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 <parameter name="catalina_pid" unique="1">
 <longdesc lang="en">
 A PID file name for Tomcat.
@@ -347,6 +393,14 @@ Catalina options, for the start operation only.
 <content type="string" default="" />
 </parameter>
 
+<parameter name="catalina_tmpdir" unique="1">
+<longdesc lang="en">
+Temporary directory of Tomcat
+</longdesc>
+<shortdesc>Temporary directory of Tomcat, defaults to none</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 <parameter name="catalina_rotate_log" unique="0">
 <longdesc lang="en">
 Rotate catalina.out flag.
@@ -361,6 +415,30 @@ catalina.out rotation interval (seconds).
 </longdesc>
 <shortdesc>catalina.out rotation interval (seconds)</shortdesc>
 <content type="integer" default="" />
+</parameter>
+
+<parameter name="java_endorsed_dirs" unique="1">
+<longdesc lang="en">
+Java_endorsed_dirs of tomcat
+</longdesc>
+<shortdesc>Java_endorsed_dirs of tomcat, defaults to none</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="logging_config" unique="1">
+<longdesc lang="en">
+Logging_config of tomcat
+</longdesc>
+<shortdesc>Logging_config of tomcat, defaults to none</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="logging_manager" unique="1">
+<longdesc lang="en">
+Logging_manager of tomcat
+</longdesc>
+<shortdesc>Logging_manager of tomcat, defaults to none.</shortdesc>
+<content type="string" default="" />
 </parameter>
 
 </parameters>
@@ -381,7 +459,53 @@ END
 validate_all_tomcat()
 {
 	ocf_log info "validate_all_tomcat[$TOMCAT_NAME]"
+
+	misconfigured=0
+	notinstalled=0
+	wrongpermissions=0
+
+	check_binary $WGET
+
+	if [ -n "$MAX_STOP_TIME" ] && [ "$MAX_STOP_TIME" -lt 0 ]; then
+		ocf_log err "max_stop_time must be set to a value greater than 0."
+		misconfigured=1
+	fi
+
+	if [[ "$RESOURCE_STATUSURL" =~ :[0-9][0-9]* ]]; then
+		port=${RESOURCE_STATUSURL##*:}
+		port=${port%%/*}
+		ocf_log debug "Tomcat port is $port"
+		ocf_log debug "grep port=\"$port\" $CATALINA_HOME/conf/server.xml"
+		if [ "$port" -gt 0 ]; then
+			grep "port=\"$port\"" $CATALINA_HOME/conf/server.xml > /dev/null 2>&1
+			if [ $? -ne 0 ]; then
+				ocf_log err "Your configured status URL specifies a port ($port), but the server does not have a connector listening to that port in $CATALINA_HOME/conf/server.xml"
+				notinstalled=1
+			fi
+		fi
+	fi
+
+	if [ $misconfigured -gt 0 ]; then
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	if [ $notinstalled -gt 0 ]; then
+		return $OCF_ERR_INSTALLED
+	fi
+
+	if [ $wrongpermissions -gt 0 ]; then
+		return $OCF_ERR_PERM
+	fi
+
 	return $OCF_SUCCESS
+}
+
+# As we stop tomcat, it removes it's own pid file...we still want to know what it was
+memorize_pid()
+{
+	if [ -f $CATALINA_PID ]; then
+		rememberedPID=$(cat $CATALINA_PID)
+	fi
 }
 
 #
@@ -398,12 +522,18 @@ JAVA_HOME="${OCF_RESKEY_java_home}"
 JAVA_OPTS="${OCF_RESKEY_java_opts}"
 CATALINA_HOME="${OCF_RESKEY_catalina_home}"
 CATALINA_BASE="${OCF_RESKEY_catalina_base-${OCF_RESKEY_catalina_home}}"
+CATALINA_OUT="${OCF_RESKEY_catalina_out-$CATALINA_HOME/logs/catalina.out}"
 CATALINA_PID="${OCF_RESKEY_catalina_pid-$CATALINA_HOME/logs/catalina.pid}"
+MAX_STOP_TIME="${OCF_RESKEY_max_stop_time}"
 
 TOMCAT_START_OPTS="${OCF_RESKEY_tomcat_start_opts}"
 CATALINA_OPTS="-Dname=$TOMCAT_NAME ${OCF_RESKEY_catalina_opts}"
+CATALINA_TMPDIR="${OCF_RESKEY_catalina_tmpdir}"
 CATALINA_ROTATE_LOG="${OCF_RESKEY_catalina_rotate_log-NO}"
 CATALINA_ROTATETIME="${OCF_RESKEY_catalina_rotatetime-86400}"
+JAVA_ENDORSED_DIRS="${OCF_RESKEY_java_endorsed_dirs}"
+LOGGING_CONFIG="${OCF_RESKEY_logging_config}"
+LOGGING_MANAGER="${OCF_RESKEY_logging_manager}"
 
 LSB_STATUS_STOPPED=3
 if [ $# -ne 1 ]; then
@@ -425,7 +555,7 @@ if [ ! -d "$JAVA_HOME" -o ! -d "$CATALINA_HOME" -o ! -d "$CATALINA_BASE" ]; then
 	exit $OCF_ERR_INSTALLED
 fi
 
-export JAVA_HOME JAVA_OPTS CATALINA_HOME CATALINA_BASE CATALINA_PID CATALINA_OPTS
+export JAVA_HOME JAVA_OPTS CATALINA_HOME CATALINA_BASE CATALINA_OUT CATALINA_PID CATALINA_OPTS CATALINA_TMPDIR JAVA_ENDORSED_DIRS LOGGING_CONFIG LOGGING_MANAGER
 
 JAVA=${JAVA_HOME}/bin/java
 
