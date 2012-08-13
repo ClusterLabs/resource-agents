@@ -402,15 +402,16 @@ dhcpd_start() {
     ## incidentally contains the pid of a running process. If this process is not a 'dhcpd',
     ## we remove the pid. (dhcpd itself only checks whether the pid is alive or not.)
 
+    PIDF=$OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid
+
     if ocf_is_true $OCF_RESKEY_chrooted ; then
 	ocf_log info "Starting dhcpd [chroot] service."
-	test -e "$OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid" &&
-	    rm -f $OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid
     else
 	ocf_log info "Starting dhcpd [non-chroot] service."
-	test -e "$OCF_RESKEY_pid" &&
-	    rm -f $OCF_RESKEY_pid
+	PIDF=$OCF_RESKEY_pid
     fi
+
+    test -e "$PIDF" && rm -f $PIDF
 
     # Define an empty string variable, to ensure it exists when needed.
     DHCPD_ARGS=""
