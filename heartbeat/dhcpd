@@ -216,6 +216,8 @@ dhcpd_validate_all() {
 
 # dhcpd_monitor. Send a request to dhcpd and check response.
 dhcpd_monitor() {
+    local PIDF
+
     # Assume chrooted mode is being used, but if not update the PIDF
     # variable to point to the non-chrooted PID file.
     PIDF=$OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid
@@ -379,6 +381,8 @@ dhcpd_initialize() {
 
 # Start
 dhcpd_start() {
+    local PIDF
+
     # Lets make sure we are not already running.
     if dhcpd_monitor; then
 		ocf_log info "dhcpd already running"
@@ -456,6 +460,7 @@ dhcpd_stop () {
     local timeout
     local timewait
     local rc
+    local PIDF
 
     dhcpd_monitor
     rc=$?
@@ -471,11 +476,13 @@ dhcpd_stop () {
 	    ;;
     esac
 
-    if ocf_is_true $OCF_RESKEY_chrooted ; then
-	kill `cat $OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid`
-    else
-	kill `cat $OCF_RESKEY_pid`
+    PIDF=$OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid
+
+    if ! ocf_is_true $OCF_RESKEY_chrooted ; then
+	PIDF=$OCF_RESKEY_pid
     fi
+
+    kill `cat $PIDF`
 
     # Allow 2/3 of the action timeout for the orderly shutdown
     # (The origin unit is ms, hence the conversion)
@@ -494,11 +501,8 @@ dhcpd_stop () {
     #If still up
     if dhcpd_monitor 2>&1; then
         ocf_log err "dhcpd is still up! Trying kill -s KILL"
-	if ocf_is_true $OCF_RESKEY_chrooted ; then
-	    kill -s SIGKILL `cat $OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid`
-	else
-	    kill -s SIGKILL `cat $OCF_RESKEY_pid`
-	fi
+
+	kill -s SIGKILL `cat $PIDF`
     fi
 
     # If we are running a dhcp server v4 or higher, unmount the proc partition.
@@ -510,11 +514,7 @@ dhcpd_stop () {
 	fi
     fi
 
-    if [ $DHCP_VERSION_MAJOR -ge 4 ] ; then
-	rm -f $OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid
-    else
-	rm -f $OCF_RESKEY_pid
-    fi
+    rm -f $PIDF
 
     ocf_log info "dhcpd stopped"
     return $OCF_SUCCESS
