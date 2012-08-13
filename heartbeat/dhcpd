@@ -216,11 +216,15 @@ dhcpd_validate_all() {
 
 # dhcpd_monitor. Send a request to dhcpd and check response.
 dhcpd_monitor() {
-    if ocf_is_true $OCF_RESKEY_chrooted ; then
-	ocf_pidfile_status $OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid >/dev/null 2>&1 || return $OCF_NOT_RUNNING
-    else
-	ocf_pidfile_status $OCF_RESKEY_pid >/dev/null 2>&1 || return $OCF_NOT_RUNNING
+    # Assume chrooted mode is being used, but if not update the PIDF
+    # variable to point to the non-chrooted PID file.
+    PIDF=$OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid
+
+    if ! ocf_is_true $OCF_RESKEY_chrooted ; then
+	PIDF=$OCF_RESKEY_pid
     fi
+
+    ocf_pidfile_status $PIDF >/dev/null 2>&1 || return $OCF_NOT_RUNNING
 
     return $OCF_SUCCESS
 }
