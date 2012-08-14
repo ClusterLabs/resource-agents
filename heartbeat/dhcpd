@@ -216,11 +216,9 @@ dhcpd_validate_all() {
 
 # dhcpd_monitor. Send a request to dhcpd and check response.
 dhcpd_monitor() {
-    local PIDF
-
     # Assume chrooted mode is being used, but if not update the PIDF
     # variable to point to the non-chrooted PID file.
-    PIDF=$OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid
+    PIDF="$OCF_RESKEY_chrooted_path$OCF_RESKEY_pid"
 
     if ! ocf_is_true $OCF_RESKEY_chrooted ; then
 	PIDF=`dirname $OCF_RESKEY_pid`/dhcpd/`basename $OCF_RESKEY_pid`
@@ -255,13 +253,13 @@ dhcpd_initialize_chroot() {
     fi
 
     # If the folder to store the PID file does not exist, make it.
-    if ! [ -d $OCF_RESKEY_chrooted_path/`dirname $OCF_RESKEY_pid` ] ; then
-	mkdir -p $OCF_RESKEY_chrooted_path/`dirname $OCF_RESKEY_pid`
+    if ! [ -d "$OCF_RESKEY_chrooted_path`dirname $OCF_RESKEY_pid`" ] ; then
+	mkdir -p "$OCF_RESKEY_chrooted_path`dirname $OCF_RESKEY_pid`"
     fi
 
     # Ensure all permissions are in place if the folder was re-created.
     chown -R $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_chrooted_path/`dirname $OCF_RESKEY_leases`
-    chown -R $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_chrooted_path/`dirname $OCF_RESKEY_pid`
+    chown -R $OCF_RESKEY_user:$OCF_RESKEY_group "$OCF_RESKEY_chrooted_path/`dirname $OCF_RESKEY_pid`"
 
     ## If there is no conf file, we can't initialize the chrooted 
     ## environment, return with "program not configured"
@@ -385,8 +383,6 @@ dhcpd_initialize() {
 
 # Start
 dhcpd_start() {
-    local PIDF
-
     # Lets make sure we are not already running.
     if dhcpd_monitor; then
 		ocf_log info "dhcpd already running"
@@ -403,23 +399,6 @@ dhcpd_start() {
     fi
 
     dhcpd_validate_all || exit
-
-    ## If there is a pid file containing a pid, the machine might have crashed. pid files in
-    ## /var/run are always cleaned up at boot time, but this is not the case for the pid file in
-    ## the chroot jail. Therefore, an old pid file may exist. This is only a problem if it
-    ## incidentally contains the pid of a running process. If this process is not a 'dhcpd',
-    ## we remove the pid. (dhcpd itself only checks whether the pid is alive or not.)
-
-    PIDF=$OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid
-
-    if ocf_is_true $OCF_RESKEY_chrooted ; then
-	ocf_log info "Starting dhcpd [chroot] service."
-    else
-	ocf_log info "Starting dhcpd [non-chroot] service."
-	PIDF=`dirname $OCF_RESKEY_pid`/dhcpd/`basename $OCF_RESKEY_pid`
-    fi
-
-    test -e "$PIDF" && rm -f $PIDF
 
     # Define an empty string variable, to ensure it exists when needed.
     DHCPD_ARGS=""
@@ -441,7 +420,26 @@ dhcpd_start() {
 	DHCPD_ARGS="$DHCPD_ARGS -group $OCF_RESKEY_group"
     fi
 
-    ocf_run $OCF_RESKEY_binary -cf $OCF_RESKEY_config $DHCPD_ARGS -pf $PIDF $OCF_RESKEY_interface ||
+    # If there is a pid file containing a pid, the machine might have crashed. pid files in
+    # /var/run are always cleaned up at boot time, but this is not the case for the pid file in
+    # the chroot jail. Therefore, an old pid file may exist. This is only a problem if it
+    # incidentally contains the pid of a running process. If this process is not a 'dhcpd',
+    # we remove the pid. (dhcpd itself only checks whether the pid is alive or not.)
+
+    PIDF="$OCF_RESKEY_chrooted_path$OCF_RESKEY_pid"
+
+    if ocf_is_true $OCF_RESKEY_chrooted ; then
+	ocf_log info "Starting dhcpd [chroot] service."
+	DHCPD_ARGS="$DHCPD_ARGS -pf $OCF_RESKEY_pid"
+    else
+	ocf_log info "Starting dhcpd [non-chroot] service."
+	PIDF=`dirname $OCF_RESKEY_pid`/dhcpd/`basename $OCF_RESKEY_pid`
+	DHCPD_ARGS="$DHCPD_ARGS -pf $PIDF"
+    fi
+
+    test -e "$PIDF" && rm -f $PIDF
+
+    ocf_run $OCF_RESKEY_binary -cf $OCF_RESKEY_config $DHCPD_ARGS $OCF_RESKEY_interface ||
 	return $OCF_ERR_INSTALLED
 
     while ! dhcpd_monitor; do
@@ -464,7 +462,6 @@ dhcpd_stop () {
     local timeout
     local timewait
     local rc
-    local PIDF
 
     dhcpd_monitor
     rc=$?
@@ -480,7 +477,7 @@ dhcpd_stop () {
 	    ;;
     esac
 
-    PIDF=$OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid
+    PIDF="$OCF_RESKEY_chrooted_path$OCF_RESKEY_pid"
 
     if ! ocf_is_true $OCF_RESKEY_chrooted ; then
 	PIDF=`dirname $OCF_RESKEY_pid`/dhcpd/`basename $OCF_RESKEY_pid`
