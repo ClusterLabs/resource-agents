@@ -1,0 +1,82 @@
+# mysql-proxy
+# by r.bhatia@ipax.at
+#
+# test cases (to implement):
+#
+# * /usr/sbin/ocf-tester -n mp -o binary="/usr/sbin/mysql-proxy" -o defaults_file="" -o parameters="--proxy-skip-profiling" \
+#       -o admin_address="127.0.0.1:4041" -o admin_username="root" -o admin_password="la" -o admin_lua_script="/usr/lib/mysql-proxy/lua/admin.lua" \
+#       -o proxy_backend_addresses="192.168.100.200:42006" -o proxy_address="/var/run/mysqld/mysqld.sock" /usr/lib/ocf/resource.d/heartbeat/mysql-proxy
+#
+# * OCF_CHECK_LEVEL 20 check
+
+CONFIG
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat/
+	InstallPackage mysql-proxy
+	HangTimeout 20
+
+SETUP-AGENT
+	# nothing
+
+CASE-BLOCK crm_setting
+	Var OCF_RESKEY_CRM_meta_timeout=15000
+	Var OCF_RESKEY_binary=/tmp/mysql-proxy
+	Var OCF_RESKEY_admin_username=root
+	Var OCF_RESKEY_admin_password=test123
+	Var OCF_RESKEY_admin_lua_script=/usr/lib/mysql-proxy/lua/admin.lua
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+	Bash [ ! -x /tmp/mysql-proxy ] && ln -s `which mysql-proxy` /tmp/mysql-proxy || true
+	Include crm_setting
+
+CASE-BLOCK teardown
+	AgentRun stop
+	BashAtExit rm -f /tmp/mysql-proxy
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+	Include teardown
+
+CASE "check base env: invalid 'OCF_RESKEY_binary'"
+	Include prepare
+	Var OCF_RESKEY_binary=no_such
+	AgentRun start OCF_ERR_INSTALLED
+	BashAtExit rm -f /tmp/mysql-proxy
+
+CASE "normal start"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+	Include teardown
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+	Include teardown
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+	Include teardown
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "running monitor"
+	Include prepare
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+	Include teardown
+
+CASE "not running monitor"
+	Include prepare
+	AgentRun monitor OCF_NOT_RUNNING
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
