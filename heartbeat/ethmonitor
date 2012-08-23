@@ -33,17 +33,17 @@
 #
 #     OCF parameters are as below
 #
-#	OCF_RESKEY_interface
-#	OCF_RESKEY_multiplicator
-#	OCF_RESKEY_name
+#  OCF_RESKEY_interface
+#  OCF_RESKEY_multiplicator
+#  OCF_RESKEY_name
 #  OCF_RESKEY_repeat_count
-#	OCF_RESKEY_repeat_interval
-#	OCF_RESKEY_pktcnt_timeout
-#	OCF_RESKEY_arping_count
-#	OCF_RESKEY_arping_timeout
-#	OCF_RESKEY_arping_cache_entries
+#  OCF_RESKEY_repeat_interval
+#  OCF_RESKEY_pktcnt_timeout
+#  OCF_RESKEY_arping_count
+#  OCF_RESKEY_arping_timeout
+#  OCF_RESKEY_arping_cache_entries
 #
-#   TODO: Check against IPv6
+#  TODO: Check against IPv6
 #
 #######################################################################
 # Initialization:
