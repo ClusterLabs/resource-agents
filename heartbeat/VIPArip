@@ -206,11 +206,19 @@ start_rip_ip() {
 		OCF_RESKEY_nic="eth0"
 	fi
 	
-	if $IP2UTIL addr | $GREP $OCF_RESKEY_ip >/dev/null 
-	then
-		ocf_log err "Invalid OCF_RESKEY_ip [$OCF_RESKEY_ip]"
-		exit $OCF_ERR_INSTALLED
-	fi
+	status_rip_ip
+	case $? in
+	$OCF_SUCCESS)
+		ocf_log info "already running"
+		exit $OCF_SUCCESS
+		;;
+	$OCF_NOT_RUNNING)
+		;;
+	*)
+		ocf_log info "state undefined, stopping first"
+		stop_rip_ip
+		;;
+	esac
 
 	$IP2UTIL addr add $OCF_RESKEY_ip/32 dev lo          
 	if [ -f "$RIPDCONF" ]
