@@ -381,7 +381,6 @@ if_check () {
 if_usage() {
 	cat <<END
 usage: $0 {start|stop|status|monitor|validate-all|meta-data}
-crm_simulate -S -L -VVV
 Expects to have a fully populated OCF RA-compliant environment set.
 END
 }
