@@ -155,7 +155,7 @@ validate_default_config() {
 # this opportunity to enable mod_status if it's not present.
 validate_default_suse_config() {
   if [ "$CONFIGFILE" = "$DEFAULT_NORMCONFIG" ] && \
-     grep -Eq '^Include\s+/etc/apache2/sysconfig.d/include.conf' "$CONFIGFILE"
+     grep -Eq '^Include[[:space:]]+/etc/apache2/sysconfig.d/include.conf' "$CONFIGFILE"
   then
     [ -x "/usr/sbin/a2enmod" ] && ocf_run -q /usr/sbin/a2enmod status
     ocf_run -q /etc/init.d/apache2 configtest
