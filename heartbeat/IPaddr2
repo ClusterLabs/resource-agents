@@ -558,15 +558,15 @@ run_send_arp() {
 }
 
 #
-# Run ipoibarping to note peers about new Infiniband address
+# Run arping to note peers about new Infiniband address
 #
 run_send_ib_arp() {
 	ARGS="-q -c $OCF_RESKEY_arp_count -U -I $NIC $OCF_RESKEY_ip"
-	ocf_log info "ipoibarping $ARGS"
+	ocf_log info "arping $ARGS"
 	if ocf_is_true $OCF_RESKEY_arp_bg; then
-		(ipoibarping $ARGS || ocf_log err "Could not send gratuitous arps" &) >&2
+		(arping $ARGS || ocf_log err "Could not send gratuitous arps" &) >&2
 	else
-		ipoibarping $ARGS || ocf_log err "Could not send gratuitous arps"
+		arping $ARGS || ocf_log err "Could not send gratuitous arps"
 	fi
 }
 
@@ -799,7 +799,7 @@ ip_validate() {
     ip_init
 
     case "$NIC" in
-    ib*) 	check_binary ipoibarping
+    ib*) 	check_binary arping
     		;;
     esac
 
