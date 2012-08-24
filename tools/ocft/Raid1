@@ -1,0 +1,92 @@
+# Raid1
+# by dejan@suse.de on 
+# Fri Aug 24 17:01:40 CEST 2012
+
+CONFIG
+	Agent Raid1
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	HangTimeout 20
+
+VARIABLE
+	OCFT_disk0=/var/run/resource-agents/ocft-Raid1-disk0
+	OCFT_disk1=/var/run/resource-agents/ocft-Raid1-disk1
+	OCFT_raidconf=/var/run/resource-agents/ocft-mdadm.conf
+	OCFT_raiddev=/dev/md8
+	OCFT_loop0=/dev/loop6
+	OCFT_loop1=/dev/loop7
+
+SETUP-AGENT
+	losetup $OCFT_loop0 2>/dev/null && exit 1
+	losetup $OCFT_loop1 2>/dev/null && exit 1
+	dd if=/dev/zero of=$OCFT_disk0 bs=1 count=0 seek=16M 2>/dev/null
+	dd if=/dev/zero of=$OCFT_disk1 bs=1 count=0 seek=16M 2>/dev/null
+	losetup $OCFT_loop0 $OCFT_disk0
+	losetup $OCFT_loop1 $OCFT_disk1
+	mdadm --create $OCFT_raiddev -l 0 --raid-devices=2 $OCFT_loop0 $OCFT_loop1
+	echo DEVICE $OCFT_loop0 $OCFT_loop1 > $OCFT_raidconf
+	echo ARRAY $OCFT_raiddev devices=$OCFT_loop0,$OCFT_loop1 >> $OCFT_raidconf
+
+CLEANUP-AGENT
+	mdadm --zero-superblock $OCFT_loop0
+	mdadm --zero-superblock $OCFT_loop1
+	mdadm --remove $OCFT_raiddev 2>/dev/null
+	losetup -d $OCFT_loop0
+	losetup -d $OCFT_loop1
+	rm $OCFT_disk0 $OCFT_disk1 $OCFT_raidconf
+
+CASE-BLOCK required_args
+	Env OCF_RESKEY_raidconf=$OCFT_raidconf
+	Env OCF_RESKEY_raiddev=$OCFT_raiddev
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+	Include required_args
+	Include default_status
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: invalid 'OCF_RESKEY_raiddev'"
+	Include prepare
+	Env OCF_RESKEY_raiddev=/dev/no_such_device
+	AgentRun start OCF_ERR_GENERIC
+
+CASE "check base env: unset 'OCF_RESKEY_raiddev'"
+	Include prepare
+	Unenv OCF_RESKEY_raiddev
+	AgentRun start OCF_ERR_CONFIGURED
+
+CASE "normal start"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "monitor when running"
+	Include prepare
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "monitor when not running"
+	Include prepare
+	AgentRun monitor OCF_NOT_RUNNING
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
+
