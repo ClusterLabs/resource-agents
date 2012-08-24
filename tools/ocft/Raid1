@@ -5,6 +5,7 @@
 CONFIG
 	Agent Raid1
 	AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	InstallPackage mdadm
 	HangTimeout 20
 
 VARIABLE
