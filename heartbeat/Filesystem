@@ -967,7 +967,7 @@ set_blockdevice_var() {
 
 	# these are definitely not block devices
 	case $FSTYPE in
-	nfs4|nfs|smbfs|cifs|none|glusterfs) return;;
+	nfs4|nfs|smbfs|cifs|none|glusterfs|ceph) return;;
 	esac
 
     if `is_option "loop"`; then
