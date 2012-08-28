@@ -115,7 +115,8 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			WAS6			\
 			WinPopup		\
 			Xen			\
-			Xinetd
+			Xinetd			\
+			zabbix-server
 
 ocfcommondir		= $(OCF_LIB_DIR_PREFIX)/heartbeat
 ocfcommon_DATA		= ocf-shellfuncs 	\
