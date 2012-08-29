@@ -296,13 +296,9 @@ monitor_apache() {
   monitor_apache_basic
   rc=$?
   [ $rc -ne 0 ] && return $rc
-  case "$OCF_CHECK_LEVEL" in
-  ""|0) true;;
+  case `ocf_check_level 10` in
+  0) true;;
   10) monitor_apache_extended;;
-  *)
-    ocf_log err "bad OCF_CHECK_LEVEL: $OCF_CHECK_LEVEL"
-	return $OCF_ERR_CONFIGURED
-	;;
   esac
 }
 
