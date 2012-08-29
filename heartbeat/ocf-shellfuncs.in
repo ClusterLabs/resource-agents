@@ -613,4 +613,27 @@ rmtempfile ()
 	return 0
 }
 
+# echo the first lower supported check level
+# pass set of levels supported by the agent
+# (in increasing order, 0 is optional)
+ocf_check_level()
+{
+	local lvl prev
+	lvl=0
+	prev=0
+	if ocf_is_decimal "$OCF_CHECK_LEVEL"; then
+		# the level list should be very short
+		for lvl; do
+			if [ "$lvl" -eq "$OCF_CHECK_LEVEL" ]; then
+				break
+			elif [ "$lvl" -gt "$OCF_CHECK_LEVEL" ]; then
+				lvl=$prev # the previous one
+				break
+			fi
+			prev=$lvl
+		done
+	fi
+	echo $lvl
+}
+
 __ocf_set_defaults "$@"
