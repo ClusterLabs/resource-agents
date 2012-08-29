@@ -264,7 +264,12 @@ monitor_apache_extended() {
   fixtesturl
   is_testconf_sane ||
     return $OCF_ERR_CONFIGURED
-  $whattorun "$test_url" | grep -Ei "$test_regex" > /dev/null
+  if $whattorun "$test_url" | grep -Ei "$test_regex" > /dev/null
+  then
+  	return $OCF_SUCCESS
+  else
+  	return $OCF_ERR_GENERIC
+  fi
 }
 monitor_apache_basic() {
   if [ -z "$STATUSURL" ]; then
@@ -274,7 +279,12 @@ monitor_apache_basic() {
     ocf_log err "could not find a http client; make sure that either wget or curl is available"
 	return $OCF_ERR_CONFIGURED
   fi
-  ${ourhttpclient}_func "$STATUSURL" | grep -Ei "$TESTREGEX" > /dev/null
+  if ${ourhttpclient}_func "$STATUSURL" | grep -Ei "$TESTREGEX" > /dev/null
+  then
+  	return $OCF_SUCCESS
+  else
+  	return $OCF_ERR_GENERIC
+  fi
 }
 monitor_apache() {
   silent_status
