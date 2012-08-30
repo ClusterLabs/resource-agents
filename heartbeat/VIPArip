@@ -126,7 +126,7 @@ check_params() {
 	if [ x"$OCF_RESKEY_ip" = x ]
 	then
 		ocf_log err "ip is a required parameter"
-		exit $OCF_ERR_ARGS
+		exit $OCF_ERR_CONFIGURED
 	fi
 }
 set_metric() {
@@ -206,11 +206,19 @@ start_rip_ip() {
 		OCF_RESKEY_nic="eth0"
 	fi
 	
-	if $IP2UTIL addr | $GREP $OCF_RESKEY_ip >/dev/null 
-	then
-		ocf_log err "Invalid OCF_RESKEY_ip [$OCF_RESKEY_ip]"
-		exit $OCF_ERR_ARGS
-	fi
+	status_rip_ip
+	case $? in
+	$OCF_SUCCESS)
+		ocf_log info "already running"
+		exit $OCF_SUCCESS
+		;;
+	$OCF_NOT_RUNNING)
+		;;
+	*)
+		ocf_log info "state undefined, stopping first"
+		stop_rip_ip
+		;;
+	esac
 
 	$IP2UTIL addr add $OCF_RESKEY_ip/32 dev lo          
 	if [ -f "$RIPDCONF" ]
@@ -240,10 +248,9 @@ stop_rip_ip() {
 	echo stop_rip_ip
 	check_params
 	status_rip_ip
-	if [ $? = $OCF_NOT_RUNNING ] 
-	then 
-		ocf_log err "Invalid OCF_RESKEY_ip [$OCF_RESKEY_ip]"
-		exit $OCF_ERR_ARGS
+	if [ $? = $OCF_NOT_RUNNING ]
+	then
+		exit $OCF_SUCCESS
 	fi
 	$IP2UTIL addr del $OCF_RESKEY_ip dev lo
 	echo sleep 2
@@ -263,6 +270,7 @@ status_rip_ip() {
 				return $OCF_SUCCESS
 			fi
 		fi
+		return $OCF_ERR_GENERIC
 	fi
 	return $OCF_NOT_RUNNING
 }
@@ -289,6 +297,6 @@ case $1 in
   meta-data)	meta_data;;
   usage)	usage; exit $OCF_SUCCESS;;
   *)		usage
- 		exit $OCF_ERR_ARGS
+ 		exit $OCF_ERR_UNIMPLEMENTED
 		;;
 esac

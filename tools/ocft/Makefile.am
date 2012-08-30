@@ -27,9 +27,11 @@ ocftcfgs_DATA      =  apache  	\
 			 IPv6addr	\
 			 Filesystem	\
 			 LVM	\
+		       	 Raid1	\
 			 IPsrcaddr  	\
 			 MailTo		\
 		       	 mysql		\
+		       	 mysql-proxy		\
 		       	 pgsql		\
 		       	 db2		\
 		       	 oracle		\

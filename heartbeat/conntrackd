@@ -151,8 +151,14 @@ conntrackd_start() {
 		status=$?
 		case "$status" in 
 		$OCF_SUCCESS)
-			rc=$OCF_SUCCESS
 			conntrackd_set_master_score $slave_score
+			# -n = request resync from the others
+			if ! $OCF_RESKEY_binary -C $OCF_RESKEY_config -n; then
+				ocf_log err "$OCF_RESKEY_binary -C $OCF_RESKEY_config -n failed during start."
+				rc=$OCF_ERR_GENERIC
+			else
+				rc=$OCF_SUCCESS
+			fi
 			break
 			;;
 		$OCF_NOT_RUNNING)

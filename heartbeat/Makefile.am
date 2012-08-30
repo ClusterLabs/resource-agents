@@ -125,7 +125,8 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  apache-conf.sh 	\
 			  http-mon.sh    	\
 			  sapdb-nosha.sh	\
-			  sapdb.sh
+			  sapdb.sh		\
+			  ora-common.sh
 
 # Legacy locations
 hbdir			= $(sysconfdir)/ha.d

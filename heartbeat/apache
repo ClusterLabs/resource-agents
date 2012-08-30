@@ -155,7 +155,7 @@ validate_default_config() {
 # this opportunity to enable mod_status if it's not present.
 validate_default_suse_config() {
   if [ "$CONFIGFILE" = "$DEFAULT_NORMCONFIG" ] && \
-     grep -Eq '^Include\s+/etc/apache2/sysconfig.d/include.conf' "$CONFIGFILE"
+     grep -Eq '^Include[[:space:]]+/etc/apache2/sysconfig.d/include.conf' "$CONFIGFILE"
   then
     [ -x "/usr/sbin/a2enmod" ] && ocf_run -q /usr/sbin/a2enmod status
     ocf_run -q /etc/init.d/apache2 configtest
@@ -264,7 +264,12 @@ monitor_apache_extended() {
   fixtesturl
   is_testconf_sane ||
     return $OCF_ERR_CONFIGURED
-  $whattorun "$test_url" | grep -Ei "$test_regex" > /dev/null
+  if $whattorun "$test_url" | grep -Ei "$test_regex" > /dev/null
+  then
+  	return $OCF_SUCCESS
+  else
+  	return $OCF_ERR_GENERIC
+  fi
 }
 monitor_apache_basic() {
   if [ -z "$STATUSURL" ]; then
@@ -274,7 +279,12 @@ monitor_apache_basic() {
     ocf_log err "could not find a http client; make sure that either wget or curl is available"
 	return $OCF_ERR_CONFIGURED
   fi
-  ${ourhttpclient}_func "$STATUSURL" | grep -Ei "$TESTREGEX" > /dev/null
+  if ${ourhttpclient}_func "$STATUSURL" | grep -Ei "$TESTREGEX" > /dev/null
+  then
+  	return $OCF_SUCCESS
+  else
+  	return $OCF_ERR_GENERIC
+  fi
 }
 monitor_apache() {
   silent_status
@@ -286,13 +296,9 @@ monitor_apache() {
   monitor_apache_basic
   rc=$?
   [ $rc -ne 0 ] && return $rc
-  case "$OCF_CHECK_LEVEL" in
-  ""|0) true;;
+  case `ocf_check_level 10` in
+  0) true;;
   10) monitor_apache_extended;;
-  *)
-    ocf_log err "bad OCF_CHECK_LEVEL: $OCF_CHECK_LEVEL"
-	return $OCF_ERR_CONFIGURED
-	;;
   esac
 }
 
