@@ -493,7 +493,7 @@ pgsql_real_start() {
     pgctl_options="$pgctl_options -o '$postgres_options'"
 
     # Invoke pg_ctl
-    runasowner "$OCF_RESKEY_pgctl $pgctl_options start"
+    runasowner "unset PGUSER; unset PGPASSWORD; $OCF_RESKEY_pgctl $pgctl_options start"
 
     if [ $? -eq 0 ]; then
         # Probably started.....
