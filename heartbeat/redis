@@ -269,12 +269,12 @@ remove_pid() {
 }
 
 mark_slave() {
-    ocf_log info "Mark $OCS_RESOURCE_INSTANCE to be a slave";
+    ocf_log info "Mark $OCF_RESOURCE_INSTANCE to be a slave";
     touch $OCF_RESKEY_tmp/$OCF_RESOURCE_INSTANCE.slave
 }
 
 unmark_slave() {
-    ocf_log info "Mark $OCS_RESOURCE_INSTANCE to be a master";
+    ocf_log info "Mark $OCF_RESOURCE_INSTANCE to be a master";
     rm -f $OCF_RESKEY_tmp/$OCF_RESOURCE_INSTANCE.slave
 }
 
