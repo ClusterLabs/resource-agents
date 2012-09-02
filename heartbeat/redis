@@ -297,9 +297,11 @@ test_slave() {
 
 set_master() {
     local master_host=$1
+    local port
+    port=$(config_get port)
 
     ocf_log info "Set $REDIS_SERVER_NAME to be a slave of $master_host";
-    redis_cmd 1 slaveof $master_host $OCF_RESKEY_port
+    redis_cmd 1 slaveof $master_host $port
     return $?
 }
 
