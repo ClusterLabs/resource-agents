@@ -122,6 +122,7 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  ocf-binaries	 	\
 			  ocf-directories 	\
 			  ocf-returncodes 	\
+ 			  ocf-rarun		\
 			  apache-conf.sh 	\
 			  http-mon.sh    	\
 			  sapdb-nosha.sh	\
