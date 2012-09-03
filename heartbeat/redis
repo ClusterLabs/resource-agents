@@ -30,6 +30,7 @@
 # OCF instance parameters:
 #   OCF_RESKEY_binary
 #   OCF_RESKEY_client_binary
+#   OCF_RESKEY_aof_check_binary
 #   OCF_RESKEY_config
 #   OCF_RESKEY_user
 #   OCF_RESKEY_group
@@ -48,6 +49,7 @@ PATH=$PATH:/usr/local/bin:/usr/local/sbin
 # Fill in some defaults if no values are specified
 OCF_RESKEY_binary_default=redis-server
 OCF_RESKEY_client_binary_default=redis-cli
+OCF_RESKEY_aof_check_binary_default=redis-check-aof
 OCF_RESKEY_config_default=/etc/redis/redis.conf
 OCF_RESKEY_user_default=redis
 OCF_RESKEY_group_default=redis
@@ -57,6 +59,7 @@ OCF_RESKEY_tmp_default=/var/run/
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 : ${OCF_RESKEY_client_binary=${OCF_RESKEY_client_binary_default}}
+: ${OCF_RESKEY_aof_check_binary=${OCF_RESKEY_aof_check_binary_default}}
 : ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
 : ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
 : ${OCF_RESKEY_group=${OCF_RESKEY_group_default}}
@@ -115,6 +118,14 @@ Name of the redis client binary. Use an absolute path if the binary is not resol
 </longdesc>
 <shortdesc lang="en">redis client binary</shortdesc>
 <content type="string" default="${OCF_RESKEY_client_binary_default}" />
+</parameter>
+
+<parameter name="aof_check_binary" unique="0" required="0">
+<longdesc lang="en">
+Name of the redis aof-check binary. Use an absolute path if the binary is not resolvable via \$PATH
+</longdesc>
+<shortdesc lang="en">redis aof-check binary</shortdesc>
+<content type="string" default="${OCF_RESKEY_aof_check_binary_default}" />
 </parameter>
 
 <parameter name="config" unique="0" required="0">
@@ -222,7 +233,7 @@ read_ms_status() {
     local should_be_slave
 
     tmp=$(mktemp -p $HA_RSCTMP)
-    redis_cmd 0 info >$tmp
+    redis_cmd 1 info >$tmp
     if [ $? -ne 0 ]; then
         ocf_log info "Could not determine master/slave status";
         rm -f $tmp
@@ -370,6 +381,8 @@ redis_start() {
 
     local master_host
     local rc
+    local append
+    local appendfilename
 
     redis_status
     rc=$?
@@ -383,7 +396,29 @@ redis_start() {
    
        touch $OCF_RESKEY_pid
        chown $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_pid
-   
+  
+       # repair AOF
+       append=$(config_get appendonly)
+       if [ -n "$append" -a "$append" = "yes" ]; then
+         appendfilename=$(config_get appendfilename)
+         if [ -z "$appendfilename" ]; then
+           appendfilename="appendonly.aof"
+         fi
+         if [ "{$appendfilename:0:1}" != "/" ]; then
+           appendfilename="$(config_get dir)/${appendfilename}"
+         fi
+         rc=0
+         if [ -e "$appendfilename" ]; then
+           ocf_log info "Redis is using $appendfilename as appendfilename"
+           ocf_run $OCF_RESKEY_aof_check_binary "$appendfilename"
+           rc=$?
+         fi
+         if [ $rc -ne 0 ]; then
+           ocf_log warn "Redis needs to fix $appendfilename"
+           echo y | $OCF_RESKEY_aof_check_binary --fix "$appendfilename"
+         fi
+       fi
+ 
        start-stop-daemon --start --quiet --umask 007 --pidfile $OCF_RESKEY_pid --make-pidfile --chuid $OCF_RESKEY_user:$OCF_RESKEY_group --exec $(which $OCF_RESKEY_binary) -- $OCF_RESKEY_config
        rc=$?
    
@@ -391,6 +426,8 @@ redis_start() {
            ocf_log err "$OCF_RESKEY_binary start command failed: $rc"
            return $OCF_NOT_RUNNING
        fi
+       sleep 3
+
        ocf_log info "$REDIS_SERVER_NAME started"
     fi
 
