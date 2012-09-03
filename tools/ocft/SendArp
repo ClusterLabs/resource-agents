@@ -24,22 +24,22 @@ CASE "check base env"
 CASE "check base env: unset 'OCF_RESKEY_ip'"
 	Include prepare
 	Unenv OCF_RESKEY_ip
-	AgentRun start OCF_ERR_ARGS
+	AgentRun start OCF_ERR_CONFIGURE
 
-CASE "check base env: set worng 'OCF_RESKEY_ip'"
+CASE "check base env: set invalid 'OCF_RESKEY_ip'"
 	Include prepare
 	Env OCF_RESKEY_ip=not_ip_address
-	AgentRun start OCF_ERR_ARGS
+	AgentRun start OCF_ERR_CONFIGURE
 
 CASE "check base env: unset 'OCF_RESKEY_nic'"
 	Include prepare
 	Unenv OCF_RESKEY_nic
-	AgentRun start OCF_ERR_ARGS
+	AgentRun start OCF_ERR_CONFIGURE
 
-CASE "check base env: set worng 'OCF_RESKEY_nic'"
+CASE "check base env: set invalid 'OCF_RESKEY_nic'"
 	Include prepare
 	Env OCF_RESKEY_nic=not_nic
-	AgentRun start OCF_ERR_ARGS
+	AgentRun start OCF_ERR_CONFIGURE
 
 CASE "normal start"
 	Include prepare
