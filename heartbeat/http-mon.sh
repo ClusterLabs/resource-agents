@@ -54,7 +54,7 @@ userdefined() {
 #
 findhttpclient() {
 	# prefer wget (for historical reasons)
-	if [ "x$CLIENT" != x ]; then
+	if [ "x$CLIENT" != x ] && which "$CLIENT" >/dev/null 2>&1; then
 		echo "$CLIENT"
 	elif which wget >/dev/null 2>&1; then
 		echo "wget"

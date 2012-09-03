@@ -133,7 +133,7 @@ fixtesturl() {
 GetParams() {
   ConfigFile=$1
   if [ ! -f $ConfigFile ]; then
-  	return 1
+  	return $OCF_ERR_INSTALLED
   fi
   get_apache_params $ConfigFile ServerRoot PidFile Port Listen
   case $PidFile in
@@ -177,5 +177,9 @@ GetParams() {
       StatusURL=`FindLocationForHandler $1 server-status | tail -1`
       STATUSURL="`buildlocalurl`$StatusURL"
   fi
-  test "$PidFile"
+  if ! test "$PidFile"; then
+  	return $OCF_ERR_INSTALLED
+  else
+  	return $OCF_SUCCESS
+  fi
 }
