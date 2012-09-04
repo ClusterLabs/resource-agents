@@ -523,8 +523,12 @@ mysqlproxy_validate_all()
 
     # check that the MySQL Proxy binary exists and can be executed
     check_binary $binary
-    # @TODO skip the next test if OCF_CHECK_LEVEL == 0?
-    check_binary $mysql
+
+    # check MySQL client binary only if in-depth monitoring is requested
+    # do not break backwards compatibility otherwise
+    if [ $OCF_CHECK_LEVEL -gt 0 ]; then
+        check_binary $mysql
+    fi
 
     # check for valid log-level
     echo $log_level | egrep -q "^(error|warning|info|message|debug|)$"
