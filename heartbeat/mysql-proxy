@@ -75,7 +75,7 @@
 : ${OCF_RESKEY_test_passwd=""}
 : ${OCF_RESKEY_parameters=""}
 : ${OCF_RESKEY_pidfile="${HA_RSCTMP}/mysql-proxy-${OCF_RESOURCE_INSTANCE}.pid"}
-USAGE="Usage: $0 {start|stop|reload|status|monitor|validate-all|meta-data}";
+USAGE="Usage: $0 {start|stop|reload|status|monitor|validate-all|meta-data}"
 
 ##########################################################################
 
@@ -510,8 +510,8 @@ mysqlproxy_monitor_20()
         rc=$?
 
         if [ $rc -ne 0 ]; then
-            ocf_log err "Failed to select from $OCF_RESKEY_test_table";
-            return $OCF_ERR_GENERIC;
+            ocf_log err "Failed to select from $OCF_RESKEY_test_table"
+            return $OCF_ERR_GENERIC
         fi
     done
 }
