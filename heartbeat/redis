@@ -426,9 +426,22 @@ redis_start() {
            ocf_log err "$OCF_RESKEY_binary start command failed: $rc"
            return $OCF_NOT_RUNNING
        fi
-       sleep 3
 
        ocf_log info "$REDIS_SERVER_NAME started"
+    fi
+
+    # wait for redis to actually open the tcp port
+    # as redis starts but does not open this port if db files are corrupt
+    for i in $(seq 1 5); do
+        redis_cmd 0 info >/dev/null
+        if [ $? -eq 0 ]; then
+            break
+        fi
+        sleep 1
+    done
+    redis_cmd 1 info >/dev/null
+    if [ $? -ne 0 ]; then
+        return $OCF_ERR_GENERIC
     fi
 
     if ocf_is_ms; then
