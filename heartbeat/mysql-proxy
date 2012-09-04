@@ -464,47 +464,56 @@ mysqlproxy_monitor()
         return $OCF_NOT_RUNNING
     fi
 
-    if [ $OCF_CHECK_LEVEL -eq 20 -a -n "$OCF_RESKEY_test_table" ]; then
-        mysql_options="--connect_timeout=10 --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
-
-        # cycle each address
-        for pa in $proxy_address; do
-            # build correct connect parameter
-            if [ -S "$pa" ]; then
-                # we need to monitor a mysql socket
-                mysql_server_parameter="--socket=$pa"
-            else
-                # we need to monitor a host address
-                mysql_server_parameter=""
-
-                # split host:port
-                # @TODO correctly handle IPv6 address
-                # @TODO correctly handle 0.0.0.0 address
-                mysql_server_host=`echo $pa | cut -d : -f 1`
-                mysql_server_port=`echo $pa | cut -d : -f 2`
-
-                if [ -n $mysql_server_host ]; then
-                    mysql_server_parameter="$mysql_server_parameter --host=$mysql_server_host"
-                fi
-                if [ -n $mysql_server_port ]; then
-                    mysql_server_parameter="$mysql_server_parameter --port=$mysql_server_port"
-                fi
-            fi
-
-            # Check for test table
-            ocf_run $mysql $mysql_server_parameter $mysql_options \
-                -e "SELECT COUNT(*) FROM $OCF_RESKEY_test_table"
-            rc=$?
-
-            if [ $rc -ne 0 ]; then
-                ocf_log err "Failed to select from $OCF_RESKEY_test_table";
-                return $OCF_ERR_GENERIC;
-            fi
-        done
-
+    if [ $OCF_CHECK_LEVEL -eq 20 ]; then
+        mysqlproxy_monitor_20
     fi
 
     return $OCF_SUCCESS
+}
+
+mysqlproxy_monitor_20()
+{
+    if [ -z "$OCF_RESKEY_test_table" -o -z "$OCF_RESKEY_test_user" -a -z "$OCF_RESKEY_test_passwd" ]; then
+        ocf_log warn "Missing proper configuration for OCF_CHECK_LEVEL=20 (test_table=[$OCF_RESKEY_test_table] test_user=[$OCF_RESKEY_test_user] test_password=[$OCF_RESKEY_test_passwd]). Not running in-depth monitoring."
+        return
+    fi
+
+    mysql_options="--connect_timeout=10 --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
+
+    # cycle each address
+    for pa in $proxy_address; do
+        # build correct connect parameter
+        if [ -S "$pa" ]; then
+            # we need to monitor a mysql socket
+            mysql_server_parameter="--socket=$pa"
+        else
+            # we need to monitor a host address
+            mysql_server_parameter=""
+
+            # split host:port
+            # @TODO correctly handle IPv6 address
+            # @TODO correctly handle 0.0.0.0 address
+            mysql_server_host=`echo $pa | cut -d : -f 1`
+            mysql_server_port=`echo $pa | cut -d : -f 2`
+
+            if [ -n $mysql_server_host ]; then
+                mysql_server_parameter="$mysql_server_parameter --host=$mysql_server_host"
+            fi
+            if [ -n $mysql_server_port ]; then
+                mysql_server_parameter="$mysql_server_parameter --port=$mysql_server_port"
+            fi
+        fi
+
+        # Check for test table
+        ocf_run $mysql $mysql_server_parameter $mysql_options \
+            -e "SELECT COUNT(*) FROM $OCF_RESKEY_test_table"
+        rc=$?
+
+        if [ $rc -ne 0 ]; then
+            ocf_log err "Failed to select from $OCF_RESKEY_test_table";
+            return $OCF_ERR_GENERIC;
+        fi
+    done
 }
 
 mysqlproxy_validate_all()
