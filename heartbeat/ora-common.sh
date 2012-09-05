@@ -11,7 +11,11 @@
 
 #      Gather up information about our oracle instance
 
-ora_info() {
+rmtmpfiles() {
+	rm -f $TMPFILES
+}
+
+ora_common_getconfig() {
 	ORACLE_SID=$1
 	ORACLE_HOME=$2
 	ORACLE_OWNER=$3
@@ -24,12 +28,21 @@ ora_info() {
 	[ x = "x$ORACLE_OWNER" ] &&
 		ORACLE_OWNER=`ls -ld $ORACLE_HOME/. 2>/dev/null | awk 'NR==1{print $3}'`
 
-	sqlplus=$ORACLE_HOME/bin/sqlplus
-	lsnrctl=$ORACLE_HOME/bin/lsnrctl
-	tnsping=$ORACLE_HOME/bin/tnsping
+	LD_LIBRARY_PATH=$ORACLE_HOME/lib
+	LIBPATH=$ORACLE_HOME/lib
+	TNS_ADMIN=$ORACLE_HOME/network/admin
+	PATH=$ORACLE_HOME/bin:$ORACLE_HOME/dbs:$PATH
+	export ORACLE_SID ORACLE_HOME ORACLE_OWNER TNS_ADMIN
+	export LD_LIBRARY_PATH LIBPATH
+
+	ORA_ENVF=`mktemp`
+	dumporaenv > $ORA_ENVF
+	chmod 644 $ORA_ENVF
+	TMPFILES="$ORA_ENVF"
+	trap "rmtmpfiles" EXIT
 }
 
-testoraenv() {
+ora_common_validate_all() {
 	#	Let's make sure a few important things are set...
 	if [ x = "x$ORACLE_HOME" ]; then
 		ocf_log info "ORACLE_HOME not set"
@@ -39,30 +52,16 @@ testoraenv() {
 		ocf_log info "ORACLE_OWNER not set"
 		return $OCF_ERR_INSTALLED
 	fi
-	#	and some important things are there
-	if [ ! -x "$sqlplus" ]; then
-		ocf_log info "$sqlplus does not exist"
-		return $OCF_ERR_INSTALLED
-	fi
-	if [ ! -x "$lsnrctl" ]; then
-		ocf_log err "$lsnrctl does not exist"
-		return $OCF_ERR_INSTALLED
-	fi
-	if [ ! -x "$tnsping" ]; then
-		ocf_log err "$tnsping does not exist"
-		return $OCF_ERR_INSTALLED
+
+	US=`id -u -n`
+	if [ $US != root -a $US != $ORACLE_OWNER ]
+	then
+	  ocf_log err "$0 must be run as root or $ORACLE_OWNER"
+	  return $OCF_ERR_PERM
 	fi
 	return 0
 }
 
-setoraenv() {
-	LD_LIBRARY_PATH=$ORACLE_HOME/lib
-	LIBPATH=$ORACLE_HOME/lib
-	TNS_ADMIN=$ORACLE_HOME/network/admin
-	PATH=$ORACLE_HOME/bin:$ORACLE_HOME/dbs:$PATH
-	export ORACLE_SID ORACLE_HOME ORACLE_OWNER TNS_ADMIN
-	export LD_LIBRARY_PATH LIBPATH
-}
 dumporaenv() {
 cat<<EOF
 PATH=$ORACLE_HOME/bin:$ORACLE_HOME/dbs:$PATH
@@ -77,11 +76,34 @@ export LD_LIBRARY_PATH LIBPATH
 EOF
 }
 
-check_user() {
-	US=`id -u -n`
-	if [ $US != root -a $US != $ORACLE_OWNER ]
-	then
-	  ocf_log err "$0 must be run as root or $ORACLE_OWNER"
-	  exit $OCF_ERR_PERM
+# process management
+#
+proc_pids() { show_procs | awk '{print $1}'; }
+
+# remove processes
+# give them PROCS_CLEANUP_TIME secs to exit cleanly
+stop_processes() {
+	local procs
+	procs=`proc_pids`
+	if [ -z "$procs" ]; then
+		ocf_log debug "all processes already stopped"
+		return
 	fi
+	killprocs TERM $procs
+	for i in `seq $PROCS_CLEANUP_TIME`; do
+		if [ -z "`proc_pids`" ]; then
+			ocf_log debug "all processes gone"
+			return
+		fi
+		sleep 1
+	done
+	ocf_log warning "after ${PROCS_CLEANUP_TIME}s resorting to KILL for processes: `proc_pids`"
+	killprocs KILL `proc_pids`
 }
+killprocs() {
+	sig=$1
+	shift 1
+	kill -s $sig $* >/dev/null
+}
+
+# vim:tabstop=4:shiftwidth=4:textwidth=0:wrapmargin=0
