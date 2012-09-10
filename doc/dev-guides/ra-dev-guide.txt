@@ -404,7 +404,7 @@ exist, it is assumed that the current version applies.
 
 === Initialization
 
-Any shell resource agent should source the +.ocf-shellfuncs+ function
+Any shell resource agent should source the +ocf-shellfuncs+ function
 library. With the syntax below, this is done in terms of
 +$OCF_FUNCTIONS_DIR+, which -- for testing purposes, and also for
 generating documentation -- may be overridden from the command line.
@@ -1101,7 +1101,7 @@ changed by a resource agent. This is usually +/usr/lib/ocf+.
 === +$OCF_FUNCTIONS_DIR+
 
 The directory where the resource agents shell function library,
-+.ocf-shellfuncs+, resides. This is usually defined in terms of
++ocf-shellfuncs+, resides. This is usually defined in terms of
 +$OCF_ROOT+ and should never be changed by a resource agent. This
 variable may, however, be overridden from the command line while
 testing a new or modified resource agent.
@@ -1419,7 +1419,7 @@ agent source code.
 
 === Locale settings
 
-When sourcing +.ocf-shellfuncs+ as explained in <<_initialization>>,
+When sourcing +ocf-shellfuncs+ as explained in <<_initialization>>,
 any resource agent automatically sets +LANG+ and +LC_ALL+ to the +C+
 locale. Resource agents can thus expect to always operate in the +C+
 locale, and need not reset +LANG+ or any of the +LC_+ environment
