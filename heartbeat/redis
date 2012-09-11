@@ -490,7 +490,7 @@ redis_stop() {
         return $OCF_SUCCESS
     fi
 
-    start-stop-daemon --stop --retry 10 --quiet --oknodo --pidfile $OCF_RESKEY_pid --exec $( which $OCF_RESKEY_binary)
+    start-stop-daemon --stop --retry 10 --quiet --oknodo --pidfile $OCF_RESKEY_pid
     rc=$?
 
     if [ $rc -ne 0 ]; then
