@@ -89,6 +89,21 @@ supposed to own them.
 <shortdesc lang="en">Homehost for mdadm</shortdesc>
 <content type="string" default="" />
 </parameter>
+
+<parameter name="force_stop" unique="0" required="0">
+<longdesc lang="en">
+If processes or kernel threads are using the array, it cannot be
+stopped. We will try to stop processes, first by sending TERM and
+then, if that doesn't help in $PROC_CLEANUP_TIME seconds, using KILL.
+The lsof(8) program is required to get the list of array users.
+Of course, the kernel threads cannot be stopped this way.
+If the processes are critical for data integrity, then set this
+parameter to false. Note that in that case the stop operation
+will fail and the node will be fenced.
+</longdesc>
+<shortdesc lang="en">force stop processes using the array</shortdesc>
+<content type="boolean" default="true" />
+</parameter>
 </parameters>
 
 <actions>
@@ -121,6 +136,14 @@ forall() {
 		[ $rc -ne 0 ] && return $rc
 	done
 	return $rc
+}
+do_func() {
+	local func=$1
+	if [ "$MDDEV" = auto ]; then
+		forall $func all
+	else
+		$func $MDDEV
+	fi
 }
 
 #
@@ -191,6 +214,37 @@ raid1_stop_one() {
 	ocf_log info "Stopping array $1"
 	$MDADM --stop $1 --config=$RAIDCONF --wait-clean -W
 }
+get_users_pids() {
+	local mddev=$1
+	local outp l
+	ocf_log debug "running lsof to list $mddev users..."
+	outp=`lsof $mddev | tail -n +2`
+	echo "$outp" | awk '{print $2}' | sort -u
+	echo "$outp" | while read l; do
+		ocf_log warn "$l"
+	done
+}
+stop_raid_users() {
+	local pids
+	pids=`do_func get_users_pids | sort -u`
+	if [ -z "$pids" ]; then
+		ocf_log warn "lsof reported no users holding arrays"
+		return 2
+	else
+		ocf_stop_processes TERM $PROC_CLEANUP_TIME $pids
+	fi
+}
+stop_arrays() {
+	if [ $HAVE_RAIDTOOLS = "true" ]; then
+		$RAIDSTOP --configfile $RAIDCONF $MDDEV
+	else
+		if [ "$MDDEV" = auto ]; then
+			forall raid1_stop_one all
+		else
+			raid1_stop_one $MDDEV
+		fi
+	fi
+}
 raid1_stop() {
 	local rc
 	# See if the MD device is already cleanly stopped:
@@ -202,19 +256,26 @@ raid1_stop() {
 	fi
 
 	# Turn off raid
-	if [ $HAVE_RAIDTOOLS = "true" ]; then
-		$RAIDSTOP --configfile $RAIDCONF $MDDEV
-	else
-		if [ "$MDDEV" = auto ]; then
-			forall raid1_stop_one all
+	if ! stop_arrays; then
+		if ocf_is_true $FORCESTOP; then
+			if have_binary lsof; then
+				stop_raid_users
+				case $? in
+				2) false;;
+				*) stop_arrays;;
+				esac
+			else
+				ocf_log warn "install lsof(8) to list users holding the disk"
+				false
+			fi
 		else
-			raid1_stop_one $MDDEV
+			false
 		fi
 	fi
 	rc=$?
 
 	if [ $rc -ne 0 ]; then
-		ocf_log err "Couldn't stop RAID for $MDDEV (rc=$rc)"
+		ocf_log warn "Couldn't stop RAID for $MDDEV (rc=$rc)"
 		if [ $HAVE_RAIDTOOLS != "true" ]; then
 			if [ "$MDDEV" = auto ]; then
 				forall mark_readonly all
@@ -325,7 +386,8 @@ raid1_status() {
 raid1_validate_all() {
     return $OCF_SUCCESS
 }
-	
+
+PROC_CLEANUP_TIME=3
 
 if
   ( [ $# -ne 1 ] )
@@ -349,6 +411,7 @@ esac
 
 RAIDCONF="$OCF_RESKEY_raidconf"
 MDDEV="$OCF_RESKEY_raiddev"
+FORCESTOP="${OCF_RESKEY_force_stop:-1}"
 
 if [ -z "$RAIDCONF" ] ; then
 	ocf_log err "Please set OCF_RESKEY_raidconf!"
@@ -363,6 +426,10 @@ fi
 if [ -z "$MDDEV" ] ; then
 	ocf_log err "Please set OCF_RESKEY_raiddev to the Raid device you want to control!"
 	exit $OCF_ERR_CONFIGURED
+fi
+
+if ocf_is_true $FORCESTOP && ! have_binary lsof; then
+	ocf_log warn "Please install lsof(8), we may need it when stopping Raid device! Now continuing anyway ..."
 fi
 
 HAVE_RAIDTOOLS=false
