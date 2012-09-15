@@ -140,7 +140,7 @@ forall() {
 do_func() {
 	local func=$1
 	if [ "$MDDEV" = auto ]; then
-		forall $func all
+		forall $func $2
 	else
 		$func $MDDEV
 	fi
@@ -227,7 +227,7 @@ get_users_pids() {
 }
 stop_raid_users() {
 	local pids
-	pids=`do_func get_users_pids | sort -u`
+	pids=`do_func get_users_pids all | sort -u`
 	if [ -z "$pids" ]; then
 		ocf_log warn "lsof reported no users holding arrays"
 		return 2
@@ -239,11 +239,7 @@ stop_arrays() {
 	if [ $HAVE_RAIDTOOLS = "true" ]; then
 		$RAIDSTOP --configfile $RAIDCONF $MDDEV
 	else
-		if [ "$MDDEV" = auto ]; then
-			forall raid1_stop_one all
-		else
-			raid1_stop_one $MDDEV
-		fi
+		do_func raid1_stop_one all
 	fi
 }
 raid1_stop() {
@@ -278,11 +274,7 @@ raid1_stop() {
 	if [ $rc -ne 0 ]; then
 		ocf_log warn "Couldn't stop RAID for $MDDEV (rc=$rc)"
 		if [ $HAVE_RAIDTOOLS != "true" ]; then
-			if [ "$MDDEV" = auto ]; then
-				forall mark_readonly all
-			else
-				mark_readonly $MDDEV
-			fi
+			do_func mark_readonly all
 		fi
 		return $OCF_ERR_GENERIC
 	fi
@@ -361,11 +353,7 @@ raid1_monitor_one() {
 }
 
 raid1_monitor() {
-	if [ "$MDDEV" = auto ]; then
-		forall raid1_monitor_one
-	else
-		raid1_monitor_one $MDDEV
-	fi
+	do_func raid1_monitor_one
 }
 
 #
