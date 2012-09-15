@@ -150,6 +150,7 @@ do_func() {
 # START: Start up the RAID device
 #
 raid1_start() {
+	local rc
 	raid1_monitor
 	rc=$?
 	if [ $rc -eq $OCF_SUCCESS ]; then
@@ -312,7 +313,7 @@ raid1_monitor_one() {
 	local mddev=$1
 	local md=`echo $mddev | sed 's,/dev/,,'`
 	local rc
-	TRY_READD=0
+	local TRY_READD=0
 	# check if the md device exists first
 	if [ ! -b $mddev ]; then
 		ocf_log info "$mddev is not a block device"
