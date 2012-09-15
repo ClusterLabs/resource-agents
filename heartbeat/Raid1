@@ -71,8 +71,8 @@ The RAID configuration file. e.g. /etc/raidtab or /etc/mdadm.conf.
 
 <parameter name="raiddev" unique="0" required="1">
 <longdesc lang="en">
-The block device to use. Alternatively, set to "auto" to manage
-all devices specified in raidconf.
+One or more block devices to use, space separated. Alternatively,
+set to "auto" to manage all devices specified in raidconf.
 </longdesc>
 <shortdesc lang="en">block device</shortdesc>
 <content type="string" default="" />
@@ -129,7 +129,7 @@ forall() {
 	local func=$1
 	local checkall=$2
 	local mddev rc=0
-	for mddev in `list_conf_arrays`; do
+	for mddev in $RAIDDEVS; do
 		$func $mddev
 		rc=$(($rc | $?))
 		[ "$checkall" = all ] && continue
@@ -137,29 +137,20 @@ forall() {
 	done
 	return $rc
 }
-do_func() {
-	local func=$1
-	if [ "$MDDEV" = auto ]; then
-		forall $func $2
-	else
-		$func $MDDEV
-	fi
-}
 are_arrays_stopped() {
 	local rc mddev
-	if [ "$MDDEV" = auto ]; then
-		for mddev in `list_conf_arrays`; do
-			raid1_monitor_one $mddev
-			rc=$?
-			[ $rc -ne $OCF_NOT_RUNNING ] && break
-		done
-	else
-		raid1_monitor_one $MDDEV
+	for mddev in $RAIDDEVS; do
+		raid1_monitor_one $mddev
 		rc=$?
-	fi
+		[ $rc -ne $OCF_NOT_RUNNING ] && break
+	done
 	test $rc -eq $OCF_NOT_RUNNING
 }
 
+md_assemble() {
+	local mddev=$1
+	$MDADM --assemble $mddev --config=$RAIDCONF $MDADM_HOMEHOST
+}
 #
 # START: Start up the RAID device
 #
@@ -174,7 +165,7 @@ raid1_start() {
 	if [ $rc -ne $OCF_NOT_RUNNING ]; then
 		# If the array is in a broken state, this agent doesn't
 		# know how to repair that.
-		ocf_log err "$MDDEV in a broken state; cannot start (rc=$rc)"
+		ocf_log err "$RAIDDEVS in a broken state; cannot start (rc=$rc)"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -194,19 +185,14 @@ raid1_start() {
 	    # Run raidstart to start up the RAID array
 	    $RAIDSTART --configfile $RAIDCONF $MDDEV
 	else
-	    # Run mdadm
-		if [ "$MDDEV" = auto ]; then
-			$MDADM --assemble --scan --config=$RAIDCONF $MDADM_HOMEHOST
-		else
-			$MDADM --assemble $MDDEV --config=$RAIDCONF $MDADM_HOMEHOST
-		fi
+		forall md_assemble all
 	fi
 
 	raid1_monitor
 	if [ $? -eq $OCF_SUCCESS ]; then
 	    return $OCF_SUCCESS
 	else
-	    ocf_log err "Couldn't start RAID for $MDDEV"
+	    ocf_log err "Couldn't start RAID for $RAIDDEVS"
 	    return $OCF_ERR_GENERIC
 	fi
 }
@@ -241,7 +227,7 @@ get_users_pids() {
 }
 stop_raid_users() {
 	local pids
-	pids=`do_func get_users_pids all | sort -u`
+	pids=`forall get_users_pids all | sort -u`
 	if [ -z "$pids" ]; then
 		ocf_log warn "lsof reported no users holding arrays"
 		return 2
@@ -253,7 +239,7 @@ stop_arrays() {
 	if [ $HAVE_RAIDTOOLS = "true" ]; then
 		$RAIDSTOP --configfile $RAIDCONF $MDDEV
 	else
-		do_func raid1_stop_one all
+		forall raid1_stop_one all
 	fi
 }
 raid1_stop() {
@@ -283,9 +269,9 @@ raid1_stop() {
 	rc=$?
 
 	if [ $rc -ne 0 ]; then
-		ocf_log warn "Couldn't stop RAID for $MDDEV (rc=$rc)"
+		ocf_log warn "Couldn't stop RAID for $RAIDDEVS (rc=$rc)"
 		if [ $HAVE_RAIDTOOLS != "true" ]; then
-			do_func mark_readonly all
+			forall mark_readonly all
 		fi
 		return $OCF_ERR_GENERIC
 	fi
@@ -294,7 +280,7 @@ raid1_stop() {
 		return $OCF_SUCCESS
 	fi
 
-	ocf_log err "RAID $MDDEV still active after stop command!"
+	ocf_log err "RAID $RAIDDEVS still active after stop command!"
 	return $OCF_ERR_GENERIC
 }
 
@@ -353,7 +339,7 @@ raid1_monitor_one() {
 }
 
 raid1_monitor() {
-	do_func raid1_monitor_one
+	forall raid1_monitor_one
 }
 
 #
@@ -433,9 +419,20 @@ else
   HAVE_RAIDTOOLS=true
 fi
 
-if [ "$MDDEV" = "auto" -a $HAVE_RAIDTOOLS = true ]; then
-	ocf_log err "autoconf supported only with mdadm!"
-	exit $OCF_ERR_INSTALLED
+if [ $HAVE_RAIDTOOLS = true ]; then
+	if [ "$MDDEV" = "auto" ]; then
+		ocf_log err "autoconf supported only with mdadm!"
+		exit $OCF_ERR_INSTALLED
+	elif [ `echo $MDDEV|wc -w` -gt 1 ]; then
+		ocf_log err "multiple devices supported only with mdadm!"
+		exit $OCF_ERR_INSTALLED
+	fi
+fi
+
+if [ "$MDDEV" = "auto" ]; then
+	RAIDDEVS=`list_conf_arrays`
+else
+	RAIDDEVS="$MDDEV"
 fi
 
 # At this stage,

@@ -59,10 +59,6 @@ CASE-BLOCK required_args
 	Env OCF_RESKEY_raidconf=$OCFT_raidconf
 	Env OCF_RESKEY_raiddev=$OCFT_raiddev
 
-CASE-BLOCK auto_args
-	Env OCF_RESKEY_raidconf=$OCFT_raidconf
-	Env OCF_RESKEY_raiddev=auto
-
 CASE-BLOCK default_status
 	AgentRun stop
 
@@ -71,7 +67,13 @@ CASE-BLOCK prepare
 	Include default_status
 
 CASE-BLOCK prepare_auto
-	Include auto_args
+	Include required_args
+	Env OCF_RESKEY_raiddev="auto"
+	Include default_status
+
+CASE-BLOCK prepare_multiple
+	Include required_args
+	Env OCF_RESKEY_raiddev="$OCFT_raiddev $OCFT_raiddev2"
 	Include default_status
 
 CASE "check base env"
@@ -122,6 +124,18 @@ CASE "normal start (auto)"
 
 CASE "normal stop (auto)"
 	Include prepare_auto
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+	AgentRun monitor OCF_NOT_RUNNING
+
+CASE "normal start (multiple)"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+	AgentRun monitor OCF_SUCCESS
+
+CASE "normal stop (multiple)"
+	Include prepare
+	Env OCF_RESKEY_raiddev="$OCFT_raiddev $OCFT_raiddev2"
 	AgentRun start
 	AgentRun stop OCF_SUCCESS
 	AgentRun monitor OCF_NOT_RUNNING
