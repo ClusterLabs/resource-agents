@@ -143,8 +143,8 @@ sendarp_status() {
 sendarp_start() {
     
     sendarp_validate
-    if [ $? = $OCF_ERR_ARGS ]; then
-	return $OCF_ERR_ARGS;
+    if [ $? = $OCF_ERR_CONFIGURED ]; then
+	return $OCF_ERR_CONFIGURED;
     fi
     
     sendarp_status
@@ -177,8 +177,8 @@ sendarp_start() {
 #
 sendarp_stop() {
     sendarp_validate
-    if [ $? = $OCF_ERR_ARGS ]; then
-	return $OCF_ERR_ARGS;
+    if [ $? = $OCF_ERR_CONFIGURED ]; then
+	return $OCF_ERR_CONFIGURED;
     fi
     
     rc=$OCF_SUCCESS
@@ -221,7 +221,7 @@ sendarp_monitor() {
 sendarp_validate() {
     if [ -z "$INTERFACE" -o -z "$BASEIP" -o -n "$RESIDUAL" ]
     then
-        return $OCF_ERR_ARGS
+        return $OCF_ERR_CONFIGURED
     fi
     return $OCF_SUCCESS
 }

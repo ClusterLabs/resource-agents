@@ -404,7 +404,7 @@ exist, it is assumed that the current version applies.
 
 === Initialization
 
-Any shell resource agent should source the +.ocf-shellfuncs+ function
+Any shell resource agent should source the +ocf-shellfuncs+ function
 library. With the syntax below, this is done in terms of
 +$OCF_FUNCTIONS_DIR+, which -- for testing purposes, and also for
 generating documentation -- may be overridden from the command line.
@@ -1101,7 +1101,7 @@ changed by a resource agent. This is usually +/usr/lib/ocf+.
 === +$OCF_FUNCTIONS_DIR+
 
 The directory where the resource agents shell function library,
-+.ocf-shellfuncs+, resides. This is usually defined in terms of
++ocf-shellfuncs+, resides. This is usually defined in terms of
 +$OCF_ROOT+ and should never be changed by a resource agent. This
 variable may, however, be overridden from the command line while
 testing a new or modified resource agent.
@@ -1286,6 +1286,36 @@ NOTE: If +ocf_is_true+ is used against an empty or non-existant
 variable, it always returns an exit code of +1+, which is equivalent
 to +false+.
 
+=== Version comparison: +ocf_version_cmp+
+
+A resource agent may want to check the version of software
+installed. +ocf_version_cmp+ takes care of all the necessary
+details.
+
+The return codes are
+
+* +0+ -- the first version is smaller (earlier) than the second
+* +1+ -- the two versions are equal
+* +2+ -- the first version is greater (later) than the second
+* +3+ -- one of arguments is not recognized as a version string
+
+The versions are allowed to contain digits, dots, and dashes.
+
+[source,bash]
+--------------------------------------------------------------------------
+local v=`gooey --version`
+ocf_version_cmp "$v" 12.0.8-1
+case $? in
+	0) ocf_log err "we do not support version $v, it is too old"
+	   exit $OCF_ERR_INSTALLED
+	;;
+	[12]) ;; # we can work with versions >= 12.0.8-1
+	3) ocf_log err "gooey produced version <$v>, too funky for me"
+	   exit $OCF_ERR_INSTALLED
+	;;
+esac
+--------------------------------------------------------------------------
+
 === Pseudo resources: +ha_pseudo_resource+
 
 "Pseudo resources" are those where the resource agent in fact does not
@@ -1419,7 +1449,7 @@ agent source code.
 
 === Locale settings
 
-When sourcing +.ocf-shellfuncs+ as explained in <<_initialization>>,
+When sourcing +ocf-shellfuncs+ as explained in <<_initialization>>,
 any resource agent automatically sets +LANG+ and +LC_ALL+ to the +C+
 locale. Resource agents can thus expect to always operate in the +C+
 locale, and need not reset +LANG+ or any of the +LC_+ environment

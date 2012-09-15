@@ -545,29 +545,6 @@ AC_FUNC_STRNLEN
 AC_CHECK_FUNCS([alarm gettimeofday inet_ntoa memset mkdir socket uname])
 AC_CHECK_FUNCS([strcasecmp strchr strdup strerror strrchr strspn strstr strtol strtoul])
 
-dnl 'reboot()' system call: one argument (e.g. Linux) or two (e.g. Solaris)?
-dnl
-AC_CACHE_CHECK([number of arguments in reboot system call],
-  ac_cv_REBOOT_ARGS,[
-    AC_TRY_COMPILE(
-      [#include <sys/reboot.h>],
-      [(void)reboot(0);],
-      ac_cv_REBOOT_ARGS=1,
-      [AC_TRY_COMPILE(
-        [#include <sys/reboot.h>],
-        [(void)reboot(0,(void *)0);],
-        ac_cv_REBOOT_ARGS=2,
-        ac_cv_REBOOT_ARGS=0
-      )],
-      ac_cv_REBOOT_ARGS=0
-    )
-  ]
-)
-dnl Argument count of 0 suggests no known 'reboot()' call.
-if test "$ac_cv_REBOOT_ARGS" -ge "1"; then
-  AC_DEFINE_UNQUOTED(REBOOT_ARGS,$ac_cv_REBOOT_ARGS,[number of arguments for reboot system call])
-fi
-
 AC_PATH_PROGS(REBOOT, reboot, /sbin/reboot)
 AC_SUBST(REBOOT)
 AC_SUBST(REBOOT_OPTIONS)

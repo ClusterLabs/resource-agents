@@ -18,7 +18,7 @@
 # An example usage in /etc/ha.d/haresources: 
 #       node1  10.0.0.170 oracle::RK1::/oracle/10.2::orark1
 #
-# See usage() function below for more details...
+# See oracle_usage() function below for more details...
 #
 # OCF instance parameters:
 #	OCF_RESKEY_sid
@@ -36,7 +36,7 @@
 
 #######################################################################
 
-usage() {
+oracle_usage() {
   methods=`oracle_methods`
   methods=`echo $methods | tr ' ' '|'`
   cat <<-!
@@ -56,7 +56,7 @@ usage() {
 	!
 }
 
-meta_data() {
+oracle_meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
@@ -214,9 +214,9 @@ oracle_methods() {
 #
 execsql() {
 	if [ "$US" = "$ORACLE_OWNER" ]; then
-		$sqlplus -S /nolog
+		sqlplus -S /nolog
 	else
-		su - $ORACLE_OWNER -c ". $envtmpf; $sqlplus -S /nolog"
+		su - $ORACLE_OWNER -c ". $ORA_ENVF; sqlplus -S /nolog"
 	fi
 }
 
@@ -399,7 +399,7 @@ ipcrm_instance() {
 # oracle_status: is the Oracle instance running?
 #
 # quick check to see if the instance is up
-is_oracle_up() {
+is_proc_running() {
 	ps -ef | grep -wiqs "[^ ]*[_]pmon_${ORACLE_SID}"
 }
 # instance in OPEN state?
@@ -427,10 +427,15 @@ ora_cleanup() {
 	orauser)
 		ipcrm_orauser $*
 		;;
-	*)
-    	ocf_log warn "bad usage: ipcrm set to $IPCRM"
-		;;
 	esac
+}
+
+oracle_getconfig() {
+	ora_common_getconfig "$OCF_RESKEY_sid" "$OCF_RESKEY_home" "$OCF_RESKEY_user"
+
+	clear_backupmode=${OCF_RESKEY_clear_backupmode:-"false"}
+	shutdown_method=${OCF_RESKEY_shutdown_method:-"checkpoint/abort"}
+	IPCRM=${OCF_RESKEY_ipcrm:-"instance"}
 }
 
 #
@@ -445,7 +450,7 @@ ora_cleanup() {
 
 oracle_start() {
 	local status output
-	if is_oracle_up; then
+	if is_proc_running; then
 		status="`dbasql_one dbstat`"
 		case "$status" in
 		"OPEN")
@@ -494,7 +499,7 @@ oracle_start() {
 	fi
 	output=`dbasql dbopen`
 
-	if ! is_oracle_up; then
+	if ! is_proc_running; then
 		ocf_log err "oracle process not running: $output"
 		return $OCF_ERR_GENERIC
 	elif ! instance_live; then
@@ -512,15 +517,15 @@ oracle_start() {
 #
 oracle_stop() {
 	local status output ipc=""
-	if is_oracle_up; then
+	if is_proc_running; then
 		[ "$IPCRM" = "instance" ] && ipc=$(parseipc `dumpinstipc`)
 		output=`dbasql dbstop`
 	else
 		ocf_log info "Oracle instance $ORACLE_SID already stopped"
 		return $OCF_SUCCESS
 	fi
-	ora_kill  # kill any processes left
-	if is_oracle_up; then
+	stop_processes  # kill any processes left
+	if is_proc_running; then
 		ocf_log err "Oracle instance $ORACLE_SID not stopped: $output"
 		return $OCF_ERR_GENERIC
 	else
@@ -531,173 +536,75 @@ oracle_stop() {
 		return $OCF_SUCCESS
 	fi
 }
-# kill the database processes (if any left)
-# give them 30 secs to exit cleanly (6 times 5)
-killprocs() {
-	local sig=$1
-	shift 1
-	# Record stderr
-	kill -s $sig $* >/dev/null
-}
-ora_kill() {
-	oraprocs=`proc_pids`
-	if [ -z "$oraprocs" ]; then
-		ocf_log debug "All oracle processes are already stopped."
-		return
-	fi
-	killprocs TERM $oraprocs
-	for i in 1 2 3 4 5; do
-		if [ -z "`proc_pids`" ]; then
-			ocf_log debug "All oracle processes are killed."
-			return
-		fi
-		sleep 5
-	done
-	killprocs KILL `proc_pids`
-}
 
 #
 # oracle_monitor: Can the Oracle instance do anything useful?
 #
 oracle_monitor() {
-	if ! is_oracle_up; then
+	if ! is_proc_running; then
 		ocf_log info "oracle process not running"
 		return $OCF_NOT_RUNNING
 	fi
 	if ! instance_live; then
-		ocf_log info "oracle instance $ORACLE_SID is down"
-		return $OCF_NOT_RUNNING
+		ocf_log err "oracle instance $ORACLE_SID is down"
+		return $OCF_ERR_GENERIC
 	fi
 	#ocf_log info "Oracle instance $ORACLE_SID is alive"
 	return $OCF_SUCCESS
 }
 
-#
-#	'main' starts here...
-#
-
-if [ $# -ne 1 ]
-then
-  usage
-  exit $OCF_ERR_ARGS
-fi
-
-# These operations don't require OCF instance parameters to be set
-case "$1" in
-  meta-data)	meta_data
-		exit $OCF_SUCCESS;;
-
-  usage) 	usage
-		exit $OCF_SUCCESS;;
-
-  methods)	oracle_methods
-		exit $?;;
-
-  *);;
-esac
-
-clear_backupmode=${OCF_RESKEY_clear_backupmode:-"false"}
-shutdown_method=${OCF_RESKEY_shutdown_method:-"checkpoint/abort"}
-
-case "${shutdown_method}" in
-"immediate") ;;
-"checkpoint/abort") ;;
-*) ocf_log err "unsupported shutdown_method, please read meta-data"
-esac
-
-if [ x = "x$OCF_RESKEY_sid" ]
-then
-  ocf_log err "Please set OCF_RESKEY_sid to the Oracle SID !"
-  exit $OCF_ERR_CONFIGURED
-fi
-
-ora_info "$OCF_RESKEY_sid" "$OCF_RESKEY_home" "$OCF_RESKEY_user"
-
-LSB_STATUS_STOPPED=3
-testoraenv
-rc=$?
-if [ $rc -ne 0 ]; then
-	ocf_log info "Oracle environment for SID $ORACLE_SID does not exist"
-	case "$1" in
-		stop) exit $OCF_SUCCESS;;
-		monitor) exit $OCF_NOT_RUNNING;;
-		status) exit $LSB_STATUS_STOPPED;;
-		*)
-			ocf_log err "Oracle environment for SID $ORACLE_SID broken"
-			exit $rc
+# other supported actions
+oracle_status() {
+	if is_proc_running
+	then
+	  echo Oracle instance $ORACLE_SID is running
+	  exit $OCF_SUCCESS
+	else
+	  echo Oracle instance $ORACLE_SID is stopped
+	  exit $OCF_NOT_RUNNING
+	fi
+}
+oracle_dumpinstipc() {
+	is_proc_running && parseipc `dumpinstipc`
+}
+oracle_showdbstat() {
+	showdbstat
+}
+oracle_cleanup() {
+	if [ "$IPCRM" = "instance" ]; then
+		ora_cleanup $(parseipc `dumpinstipc`)
+	else
+		ora_cleanup
+	fi
+}
+oracle_validate_all() {
+	case "${shutdown_method}" in
+	"immediate") ;;
+	"checkpoint/abort") ;;
+	*) ocf_log err "unsupported shutdown_method, please read meta-data"
+		return $OCF_ERR_CONFIGURED
 		;;
 	esac
-fi
 
-setoraenv # important: set the environment for the SID
-envtmpf=`mktemp`
-dumporaenv > $envtmpf
-chmod 644 $envtmpf
-TMPFILES="$envtmpf"
-rmtmpfiles() {
-	rm -f $TMPFILES
+	case "${IPCRM}" in
+	"none"|"instance"|"orauser") ;;
+	*) ocf_log err "unsupported ipcrm setting, please read meta-data"
+		return $OCF_ERR_CONFIGURED
+		;;
+	esac
+
+	ora_common_validate_all
 }
-trap "rmtmpfiles" EXIT
-procs()
-{
+
+# used in ora-common.sh
+show_procs() {
 	ps -e -o pid,args | grep -i "[o]ra[a-zA-Z0-9_]*$ORACLE_SID$"
 }
-proc_pids() { procs | awk '{print $1}'; }
+PROCS_CLEANUP_TIME="30"
 
-check_user
-
-if [ x = "x$OCF_RESKEY_ipcrm" ]
-then
-	IPCRM="instance"
-else
-	IPCRM="$OCF_RESKEY_ipcrm"
-fi
-
-# What kind of method was invoked?
-case "$1" in
-
-  start)	oracle_start
-		exit $?;;
-
-  stop)		oracle_stop
-		exit $?;;
-
-  status)	if is_oracle_up
-		then
-		  echo Oracle instance $ORACLE_SID is running
-		  exit $OCF_SUCCESS
-		else
-		  echo Oracle instance $ORACLE_SID is stopped
-		  exit $OCF_NOT_RUNNING
-		fi
-		;;
-
-  dumpinstipc)
-	  is_oracle_up && parseipc `dumpinstipc`
-		exit $?;;
-
-  showdbstat)
-	  showdbstat
-		exit $?;;
-
-  cleanup)
-	  	if [ "$IPCRM" = "instance" ]; then
-			ora_cleanup $(parseipc `dumpinstipc`)
-		else
-			ora_cleanup
-		fi
-		exit $?;;
-
-  monitor)	oracle_monitor
-		exit $?;;
-
-  validate-all)	# OCF_RESKEY_sid was already checked by testoraenv(),
-		# just exit successfully here.
-		exit $OCF_SUCCESS;;
-
-  *)		oracle_methods
-		exit $OCF_ERR_UNIMPLEMENTED;;
-esac
+OCF_REQUIRED_PARAMS="sid"
+OCF_REQUIRED_BINARIES="sqlplus"
+ocf_rarun $*
 
 #
 # vim:tabstop=4:shiftwidth=4:textwidth=0:wrapmargin=0

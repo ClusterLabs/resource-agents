@@ -56,6 +56,7 @@ fi
 . ${OCF_FUNCTIONS_DIR}/ocf-binaries
 . ${OCF_FUNCTIONS_DIR}/ocf-returncodes
 . ${OCF_FUNCTIONS_DIR}/ocf-directories
+. ${OCF_FUNCTIONS_DIR}/ocf-rarun
 
 # Define OCF_RESKEY_CRM_meta_interval in case it isn't already set,
 # to make sure that ocf_is_probe() always works

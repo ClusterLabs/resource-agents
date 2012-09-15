@@ -1,0 +1,130 @@
+#
+# This is the OCF RA driver. It should take care of all the
+# boring details and leave only the parts which are really about
+# the actual resource to the resource agent.
+# 
+# The interface
+#
+# The RA needs to define functions for all supported actions and
+# name them <RA>_<action>. For instance, apache_start or
+# apache_meta_data.
+#
+# The required parameters should all be listed in the
+# OCF_REQUIRED_PARAMS variable. For example, "config user group".
+#
+# The OCF_REQUIRED_BINARIES variable should contain a list of all
+# programs which are needed for the correct operation of the
+# resource agent.
+#
+# <RA>_getconfig and <RA>_validate_all are optional. getconfig is
+# where RA can read more configuration from the file system or do
+# some other configuration processing.
+# validate_all checks if the environment is OK.
+#
+# If it exists, the <RA>_probe function is invoked on probes
+# (monitor with interval 0) instead of <RA>_monitor.
+
+is_function() {
+	test z"`command -v $1`" = z"$1"
+}
+run_function() {
+	is_function $1 && $1
+}
+is_var_defined() {
+	test z != "z$(eval echo $`echo $1`)"
+}
+mk_action_func() {
+	ACTION_FUNC=${OCF_RESOURCE_TYPE}_`echo $__OCF_ACTION | tr '-' '_'`
+}
+validate_args() {
+	is_function $ACTION_FUNC || {
+		ocf_log err "$__OCF_ACTION: action not supported"
+		run_function ${OCF_RESOURCE_TYPE}_methods
+		exit $OCF_ERR_UNIMPLEMENTED
+	}
+}
+simple_actions() {
+	case $__OCF_ACTION in
+	meta-data|usage|methods)
+		$ACTION_FUNC
+		exit $OCF_SUCCESS
+		;;
+	esac
+}
+run_probe() {
+	if is_function ${OCF_RESOURCE_TYPE}_probe; then
+		${OCF_RESOURCE_TYPE}_probe
+		exit
+	fi
+}
+check_required_params() {
+	local v
+	for v in $OCF_REQUIRED_PARAMS; do
+		is_var_defined OCF_RESKEY_$v || {
+			ocf_log err "$v: required parameter not set"
+			exit $OCF_ERR_CONFIGURED
+		}
+	done
+}
+handle_invalid_env() {
+	local rc msg
+	rc=$1
+	msg=${2:-"environment is invalid, resource considered stopped"}
+	case "$__OCF_ACTION" in
+		stop)
+			ocf_log info $msg
+			exit $OCF_SUCCESS
+		;;
+		monitor)
+			if ocf_is_probe; then
+				ocf_log info $msg
+				exit $OCF_NOT_RUNNING
+			else
+				# in recurring monitor, this amounts to error
+				ocf_log err $msg
+				exit $OCF_ERR_GENERIC
+			fi
+		;;
+		status)
+			ocf_log info $msg
+			exit $LSB_STATUS_STOPPED
+		;;
+		*)
+			ocf_log err $msg
+			exit $rc
+		;;
+	esac
+}
+check_required_binaries() {
+	local v
+	for v in $OCF_REQUIRED_BINARIES; do
+		have_binary $v || {
+			handle_invalid_env $OCF_ERR_INSTALLED "$v: required binary not installed"
+		}
+	done
+}
+validate_env() {
+	check_required_binaries  # all binaries present?
+	is_function ${OCF_RESOURCE_TYPE}_validate_all ||
+		return
+	local rc
+	LSB_STATUS_STOPPED=3
+	${OCF_RESOURCE_TYPE}_validate_all # is environment ok?
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		handle_invalid_env $rc
+	fi
+}
+
+# ocf_rarun: the main function
+ocf_rarun() {
+	mk_action_func  # create action function name
+	validate_args  # validate command line arguments
+	simple_actions  # run meta-data (or similar)
+	check_required_params  # all required parameters defined?
+	run_function ${OCF_RESOURCE_TYPE}_getconfig # get extra configuration
+	validate_env # is environment ok?
+	ocf_is_probe && run_probe  # do probe
+	shift 1  # skip action
+	$ACTION_FUNC $*  # run action
+}
