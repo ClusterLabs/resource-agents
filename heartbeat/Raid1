@@ -145,6 +145,20 @@ do_func() {
 		$func $MDDEV
 	fi
 }
+are_arrays_stopped() {
+	local rc mddev
+	if [ "$MDDEV" = auto ]; then
+		for mddev in `list_conf_arrays`; do
+			raid1_monitor_one $mddev
+			rc=$?
+			[ $rc -ne $OCF_NOT_RUNNING ] && break
+		done
+	else
+		raid1_monitor_one $MDDEV
+		rc=$?
+	fi
+	test $rc -eq $OCF_NOT_RUNNING
+}
 
 #
 # START: Start up the RAID device
@@ -245,11 +259,8 @@ stop_arrays() {
 raid1_stop() {
 	local rc
 	# See if the MD device is already cleanly stopped:
-	if [ "$MDDEV" != auto ]; then
-		raid1_monitor
-		if [ $? -eq $OCF_NOT_RUNNING ]; then
-			return $OCF_SUCCESS
-		fi
+	if are_arrays_stopped; then
+		return $OCF_SUCCESS
 	fi
 
 	# Turn off raid
@@ -279,21 +290,10 @@ raid1_stop() {
 		return $OCF_ERR_GENERIC
 	fi
 
-	if [ "$MDDEV" = auto ]; then
-		local mddev
-		for mddev in `list_conf_arrays`; do
-			raid1_monitor_one $mddev
-			rc=$?
-			[ $rc -ne $OCF_NOT_RUNNING ] && break
-		done
-	else
-		raid1_monitor_one $MDDEV
-		rc=$?
-	fi
-	if [ $rc -eq $OCF_NOT_RUNNING ]; then
+	if are_arrays_stopped; then
 		return $OCF_SUCCESS
 	fi
-	
+
 	ocf_log err "RAID $MDDEV still active after stop command!"
 	return $OCF_ERR_GENERIC
 }
