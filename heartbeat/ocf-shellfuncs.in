@@ -658,6 +658,8 @@ ocf_stop_processes() {
 	shift 2
 	local pids="$*"
 	local sig i
+	test -z "$pids" &&
+		return 0
 	for sig in $signals KILL; do
 		kill -s $sig $pids 2>/dev/null
 		# try to leave early, and yet leave processes time to exit
