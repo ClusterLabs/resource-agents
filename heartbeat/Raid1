@@ -172,18 +172,6 @@ raid1_start() {
 		return $OCF_ERR_GENERIC
 	fi
 
-	# Insert raid personality module
-	$MODPROBE raid1
-	if [ $? -ne 0 ] ; then
-	# It is not fatal, chance is that we have raid1 builtin...
-	    ocf_log warn "Couldn't insert RAID1 module"
-	fi
-	grep -q "^Personalities.*\[raid1\]" /proc/mdstat 2>/dev/null
-	if [ $? -ne 0 ] ; then
-	    ocf_log err "We don't have RAID1 support! Exiting"
-	    return $OCF_ERR_GENERIC
-	fi
-
 	if [ $HAVE_RAIDTOOLS = "true" ]; then
 	    # Run raidstart to start up the RAID array
 	    $RAIDSTART --configfile $RAIDCONF $MDDEV
