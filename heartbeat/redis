@@ -543,7 +543,7 @@ redis_demote() {
     if [ ! -z "$master_host" -a "$master_host" != $(uname -n) ]; then
         ocf_log info "Changing redis configuration to replicate from host: $master_host"
         while true; do
-            redis_cmd info |grep 'loading:0'
+            redis_cmd 0 info |grep 'loading:0'
             if [ $? -eq 0 ]; then
                 break
             else
