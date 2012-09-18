@@ -5,7 +5,7 @@
 # Support:      linux-ha@lists.linux-ha.org
 # 
 # Raid1
-#      Description: Manages a software Raid1 device on a shared storage medium.
+#      Description: Manages a Linux software RAID device on a shared storage medium.
 #  Original Author: Eric Z. Ayers (eric.ayers@compgen.com)
 # Original Release: 25 Oct 2000
 #     RAID patches: http://people.redhat.com/mingo/raid-patches/
@@ -55,15 +55,18 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-Resource script for RAID1. It manages a software Raid1 device on a shared 
-storage medium. 
+This resource agent manages Linux software RAID (MD) devices on
+a shared storage medium. It uses mdadm(8) to start, stop, and
+monitor the MD devices. Raidtools are supported, but deprecated.
+See https://raid.wiki.kernel.org/index.php/Linux_Raid for more
+information.
 </longdesc>
-<shortdesc lang="en">Manages a software RAID1 device on shared storage</shortdesc>
+<shortdesc lang="en">Manages Linux software RAID (MD) devices on shared storage</shortdesc>
 
 <parameters>
 <parameter name="raidconf" unique="0" required="1">
 <longdesc lang="en">
-The RAID configuration file. e.g. /etc/raidtab or /etc/mdadm.conf.
+The RAID configuration file, e.g. /etc/mdadm.conf.
 </longdesc>
 <shortdesc lang="en">RAID config file</shortdesc>
 <content type="string" default="" />
