@@ -1,15 +1,11 @@
 #!/bin/sh
 ipcheck_ipv4() {
   local ip=$1
-  local IFS='.'
   echo "$ip" | grep -qs '^[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}$'
-  if [ $? = 0 ] ; then
-    set -- $ip
-    if [ $1 -le 255 -a $2 -le 255 -a $3 -le 255 -a $4 -le 255 ] ; then
-      return 0
-    fi
+  if [ $? -ne 0 ] ; then
+    return 1
   fi
-  return 1
+  echo "$ip" | awk -F. '{if(NF!=4)exit(1);for(i=1;i<=4;i++)if(!($i>=0&&$i<=255))exit(1)}'
 }
 ipcheck_ipv6() {
   local ipaddr=$1
