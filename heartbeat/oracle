@@ -524,7 +524,7 @@ oracle_stop() {
 		ocf_log info "Oracle instance $ORACLE_SID already stopped"
 		return $OCF_SUCCESS
 	fi
-	stop_processes  # kill any processes left
+	ocf_stop_processes TERM $PROCS_CLEANUP_TIME `proc_pids`  # kill the procs if they hanged
 	if is_proc_running; then
 		ocf_log err "Oracle instance $ORACLE_SID not stopped: $output"
 		return $OCF_ERR_GENERIC
@@ -600,6 +600,7 @@ oracle_validate_all() {
 show_procs() {
 	ps -e -o pid,args | grep -i "[o]ra[a-zA-Z0-9_]*$ORACLE_SID$"
 }
+proc_pids() { show_procs | awk '{print $1}'; }
 PROCS_CLEANUP_TIME="30"
 
 OCF_REQUIRED_PARAMS="sid"

@@ -5,7 +5,7 @@
 # Support:      linux-ha@lists.linux-ha.org
 # 
 # Raid1
-#      Description: Manages a software Raid1 device on a shared storage medium.
+#      Description: Manages a Linux software RAID device on a shared storage medium.
 #  Original Author: Eric Z. Ayers (eric.ayers@compgen.com)
 # Original Release: 25 Oct 2000
 #     RAID patches: http://people.redhat.com/mingo/raid-patches/
@@ -55,15 +55,18 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-Resource script for RAID1. It manages a software Raid1 device on a shared 
-storage medium. 
+This resource agent manages Linux software RAID (MD) devices on
+a shared storage medium. It uses mdadm(8) to start, stop, and
+monitor the MD devices. Raidtools are supported, but deprecated.
+See https://raid.wiki.kernel.org/index.php/Linux_Raid for more
+information.
 </longdesc>
-<shortdesc lang="en">Manages a software RAID1 device on shared storage</shortdesc>
+<shortdesc lang="en">Manages Linux software RAID (MD) devices on shared storage</shortdesc>
 
 <parameters>
 <parameter name="raidconf" unique="0" required="1">
 <longdesc lang="en">
-The RAID configuration file. e.g. /etc/raidtab or /etc/mdadm.conf.
+The RAID configuration file, e.g. /etc/mdadm.conf.
 </longdesc>
 <shortdesc lang="en">RAID config file</shortdesc>
 <content type="string" default="" />
@@ -71,8 +74,8 @@ The RAID configuration file. e.g. /etc/raidtab or /etc/mdadm.conf.
 
 <parameter name="raiddev" unique="0" required="1">
 <longdesc lang="en">
-The block device to use. Alternatively, set to "auto" to manage
-all devices specified in raidconf.
+One or more block devices to use, space separated. Alternatively,
+set to "auto" to manage all devices specified in raidconf.
 </longdesc>
 <shortdesc lang="en">block device</shortdesc>
 <content type="string" default="" />
@@ -88,6 +91,21 @@ supposed to own them.
 </longdesc>
 <shortdesc lang="en">Homehost for mdadm</shortdesc>
 <content type="string" default="" />
+</parameter>
+
+<parameter name="force_stop" unique="0" required="0">
+<longdesc lang="en">
+If processes or kernel threads are using the array, it cannot be
+stopped. We will try to stop processes, first by sending TERM and
+then, if that doesn't help in $PROC_CLEANUP_TIME seconds, using KILL.
+The lsof(8) program is required to get the list of array users.
+Of course, the kernel threads cannot be stopped this way.
+If the processes are critical for data integrity, then set this
+parameter to false. Note that in that case the stop operation
+will fail and the node will be fenced.
+</longdesc>
+<shortdesc lang="en">force stop processes using the array</shortdesc>
+<content type="boolean" default="true" />
 </parameter>
 </parameters>
 
@@ -114,7 +132,7 @@ forall() {
 	local func=$1
 	local checkall=$2
 	local mddev rc=0
-	for mddev in `list_conf_arrays`; do
+	for mddev in $RAIDDEVS; do
 		$func $mddev
 		rc=$(($rc | $?))
 		[ "$checkall" = all ] && continue
@@ -122,11 +140,25 @@ forall() {
 	done
 	return $rc
 }
+are_arrays_stopped() {
+	local rc mddev
+	for mddev in $RAIDDEVS; do
+		raid1_monitor_one $mddev
+		rc=$?
+		[ $rc -ne $OCF_NOT_RUNNING ] && break
+	done
+	test $rc -eq $OCF_NOT_RUNNING
+}
 
+md_assemble() {
+	local mddev=$1
+	$MDADM --assemble $mddev --config=$RAIDCONF $MDADM_HOMEHOST
+}
 #
 # START: Start up the RAID device
 #
 raid1_start() {
+	local rc
 	raid1_monitor
 	rc=$?
 	if [ $rc -eq $OCF_SUCCESS ]; then
@@ -136,39 +168,22 @@ raid1_start() {
 	if [ $rc -ne $OCF_NOT_RUNNING ]; then
 		# If the array is in a broken state, this agent doesn't
 		# know how to repair that.
-		ocf_log err "$MDDEV in a broken state; cannot start (rc=$rc)"
+		ocf_log err "$RAIDDEVS in a broken state; cannot start (rc=$rc)"
 		return $OCF_ERR_GENERIC
-	fi
-
-	# Insert raid personality module
-	$MODPROBE raid1
-	if [ $? -ne 0 ] ; then
-	# It is not fatal, chance is that we have raid1 builtin...
-	    ocf_log warn "Couldn't insert RAID1 module"
-	fi
-	grep -q "^Personalities.*\[raid1\]" /proc/mdstat 2>/dev/null
-	if [ $? -ne 0 ] ; then
-	    ocf_log err "We don't have RAID1 support! Exiting"
-	    return $OCF_ERR_GENERIC
 	fi
 
 	if [ $HAVE_RAIDTOOLS = "true" ]; then
 	    # Run raidstart to start up the RAID array
 	    $RAIDSTART --configfile $RAIDCONF $MDDEV
 	else
-	    # Run mdadm
-		if [ "$MDDEV" = auto ]; then
-			$MDADM --assemble --scan --config=$RAIDCONF $MDADM_HOMEHOST
-		else
-			$MDADM --assemble $MDDEV --config=$RAIDCONF $MDADM_HOMEHOST
-		fi
+		forall md_assemble all
 	fi
 
 	raid1_monitor
 	if [ $? -eq $OCF_SUCCESS ]; then
 	    return $OCF_SUCCESS
 	else
-	    ocf_log err "Couldn't start RAID for $MDDEV"
+	    ocf_log err "Couldn't start RAID for $RAIDDEVS"
 	    return $OCF_ERR_GENERIC
 	fi
 }
@@ -191,56 +206,72 @@ raid1_stop_one() {
 	ocf_log info "Stopping array $1"
 	$MDADM --stop $1 --config=$RAIDCONF --wait-clean -W
 }
-raid1_stop() {
-	local rc
-	# See if the MD device is already cleanly stopped:
-	if [ "$MDDEV" != auto ]; then
-		raid1_monitor
-		if [ $? -eq $OCF_NOT_RUNNING ]; then
-			return $OCF_SUCCESS
-		fi
+get_users_pids() {
+	local mddev=$1
+	local outp l
+	ocf_log debug "running lsof to list $mddev users..."
+	outp=`lsof $mddev | tail -n +2`
+	echo "$outp" | awk '{print $2}' | sort -u
+	echo "$outp" | while read l; do
+		ocf_log warn "$l"
+	done
+}
+stop_raid_users() {
+	local pids
+	pids=`forall get_users_pids all | sort -u`
+	if [ -z "$pids" ]; then
+		ocf_log warn "lsof reported no users holding arrays"
+		return 2
+	else
+		ocf_stop_processes TERM $PROC_CLEANUP_TIME $pids
 	fi
-
-	# Turn off raid
+}
+stop_arrays() {
 	if [ $HAVE_RAIDTOOLS = "true" ]; then
 		$RAIDSTOP --configfile $RAIDCONF $MDDEV
 	else
-		if [ "$MDDEV" = auto ]; then
-			forall raid1_stop_one all
+		forall raid1_stop_one all
+	fi
+}
+raid1_stop() {
+	local rc
+	# See if the MD device is already cleanly stopped:
+	if are_arrays_stopped; then
+		return $OCF_SUCCESS
+	fi
+
+	# Turn off raid
+	if ! stop_arrays; then
+		if ocf_is_true $FORCESTOP; then
+			if have_binary lsof; then
+				stop_raid_users
+				case $? in
+				2) false;;
+				*) stop_arrays;;
+				esac
+			else
+				ocf_log warn "install lsof(8) to list users holding the disk"
+				false
+			fi
 		else
-			raid1_stop_one $MDDEV
+			false
 		fi
 	fi
 	rc=$?
 
 	if [ $rc -ne 0 ]; then
-		ocf_log err "Couldn't stop RAID for $MDDEV (rc=$rc)"
+		ocf_log warn "Couldn't stop RAID for $RAIDDEVS (rc=$rc)"
 		if [ $HAVE_RAIDTOOLS != "true" ]; then
-			if [ "$MDDEV" = auto ]; then
-				forall mark_readonly all
-			else
-				mark_readonly $MDDEV
-			fi
+			forall mark_readonly all
 		fi
 		return $OCF_ERR_GENERIC
 	fi
 
-	if [ "$MDDEV" = auto ]; then
-		local mddev
-		for mddev in `list_conf_arrays`; do
-			raid1_monitor_one $mddev
-			rc=$?
-			[ $rc -ne $OCF_NOT_RUNNING ] && break
-		done
-	else
-		raid1_monitor_one $MDDEV
-		rc=$?
-	fi
-	if [ $rc -eq $OCF_NOT_RUNNING ]; then
+	if are_arrays_stopped; then
 		return $OCF_SUCCESS
 	fi
-	
-	ocf_log err "RAID $MDDEV still active after stop command!"
+
+	ocf_log err "RAID $RAIDDEVS still active after stop command!"
 	return $OCF_ERR_GENERIC
 }
 
@@ -251,7 +282,7 @@ raid1_monitor_one() {
 	local mddev=$1
 	local md=`echo $mddev | sed 's,/dev/,,'`
 	local rc
-	TRY_READD=0
+	local TRY_READD=0
 	# check if the md device exists first
 	if [ ! -b $mddev ]; then
 		ocf_log info "$mddev is not a block device"
@@ -299,11 +330,7 @@ raid1_monitor_one() {
 }
 
 raid1_monitor() {
-	if [ "$MDDEV" = auto ]; then
-		forall raid1_monitor_one
-	else
-		raid1_monitor_one $MDDEV
-	fi
+	forall raid1_monitor_one
 }
 
 #
@@ -325,7 +352,8 @@ raid1_status() {
 raid1_validate_all() {
     return $OCF_SUCCESS
 }
-	
+
+PROC_CLEANUP_TIME=3
 
 if
   ( [ $# -ne 1 ] )
@@ -349,6 +377,7 @@ esac
 
 RAIDCONF="$OCF_RESKEY_raidconf"
 MDDEV="$OCF_RESKEY_raiddev"
+FORCESTOP="${OCF_RESKEY_force_stop:-1}"
 
 if [ -z "$RAIDCONF" ] ; then
 	ocf_log err "Please set OCF_RESKEY_raidconf!"
@@ -365,6 +394,10 @@ if [ -z "$MDDEV" ] ; then
 	exit $OCF_ERR_CONFIGURED
 fi
 
+if ocf_is_true $FORCESTOP && ! have_binary lsof; then
+	ocf_log warn "Please install lsof(8), we may need it when stopping Raid device! Now continuing anyway ..."
+fi
+
 HAVE_RAIDTOOLS=false
 if have_binary $MDADM >/dev/null 2>&1 ; then
   if [ -n "$OCF_RESKEY_homehost" ]; then
@@ -377,9 +410,20 @@ else
   HAVE_RAIDTOOLS=true
 fi
 
-if [ "$MDDEV" = "auto" -a $HAVE_RAIDTOOLS = true ]; then
-	ocf_log err "autoconf supported only with mdadm!"
-	exit $OCF_ERR_INSTALLED
+if [ $HAVE_RAIDTOOLS = true ]; then
+	if [ "$MDDEV" = "auto" ]; then
+		ocf_log err "autoconf supported only with mdadm!"
+		exit $OCF_ERR_INSTALLED
+	elif [ `echo $MDDEV|wc -w` -gt 1 ]; then
+		ocf_log err "multiple devices supported only with mdadm!"
+		exit $OCF_ERR_INSTALLED
+	fi
+fi
+
+if [ "$MDDEV" = "auto" ]; then
+	RAIDDEVS=`list_conf_arrays`
+else
+	RAIDDEVS="$MDDEV"
 fi
 
 # At this stage,

@@ -76,34 +76,4 @@ export LD_LIBRARY_PATH LIBPATH
 EOF
 }
 
-# process management
-#
-proc_pids() { show_procs | awk '{print $1}'; }
-
-# remove processes
-# give them PROCS_CLEANUP_TIME secs to exit cleanly
-stop_processes() {
-	local procs
-	procs=`proc_pids`
-	if [ -z "$procs" ]; then
-		ocf_log debug "all processes already stopped"
-		return
-	fi
-	killprocs TERM $procs
-	for i in `seq $PROCS_CLEANUP_TIME`; do
-		if [ -z "`proc_pids`" ]; then
-			ocf_log debug "all processes gone"
-			return
-		fi
-		sleep 1
-	done
-	ocf_log warning "after ${PROCS_CLEANUP_TIME}s resorting to KILL for processes: `proc_pids`"
-	killprocs KILL `proc_pids`
-}
-killprocs() {
-	sig=$1
-	shift 1
-	kill -s $sig $* >/dev/null
-}
-
 # vim:tabstop=4:shiftwidth=4:textwidth=0:wrapmargin=0

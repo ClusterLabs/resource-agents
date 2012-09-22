@@ -182,7 +182,7 @@ oralsnr_stop() {
 		ocf_log info "Listener $listener already stopped"
 		return $OCF_SUCCESS
 	fi
-	stop_processes  # kill the procs if they hanged
+	ocf_stop_processes TERM $PROCS_CLEANUP_TIME `proc_pids`  # kill the procs if they hanged
 	if is_proc_running; then
 		ocf_log err "Listener $listener not stopped: $output"
 		return $OCF_ERR_GENERIC
@@ -258,6 +258,7 @@ show_procs() {
 	ps -e -o pid,user,args |
 		grep '[t]nslsnr' | grep -w "$listener" | grep -w "$ORACLE_OWNER"
 }
+proc_pids() { show_procs | awk '{print $1}'; }
 PROCS_CLEANUP_TIME="10"
 
 OCF_REQUIRED_PARAMS="sid"
