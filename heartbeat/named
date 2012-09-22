@@ -239,7 +239,7 @@ named_validate_all() {
 named_getpid () {
     local pattern="$OCF_RESKEY_named"
 
-    if [ -n "$OCF_RESKEY_named_rootdir" ]; then
+    if [ -n "$OCF_RESKEY_named_rootdir" -a "x${OCF_RESKEY_named_rootdir}" != "x/" ]; then
        pattern="$pattern.*-t $OCF_RESKEY_named_rootdir"
     fi
 
@@ -247,7 +247,7 @@ named_getpid () {
        pattern="$pattern.*-c $OCF_RESKEY_named_config"
     fi
 
-    pid=`ps -e -o pid,command,args | grep "$pattern" | grep -v grep | awk '{print $1}'`
+    pid=`pgrep -f "$pattern"`
     echo $pid
 }
 
