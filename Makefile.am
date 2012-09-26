@@ -67,7 +67,20 @@ dist-clean-local:
 	rm -f autoconf automake autoheader $(TARFILES)
 
 uninstall-local:
-			rmdir $(DESTDIR)/$(LOGDIR) || :;
+if BUILD_LINUX_HA
+	rm -rf $(DESTDIR)$(HA_RSCTMPDIR)
+	rm -f ${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-binaries
+	rm -f ${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-directories
+	rm -f ${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-returncodes
+	rm -f ${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-shellfuncs
+endif
+if BUILD_RGMANAGER
+if BUILD_LINUX_HA
+	rm -rf $(DESTDIR)${OCF_RA_DIR_PREFIX}/redhat
+endif
+	rm -rf $(DESTDIR)$(LOGDIR) || :; 
+endif
+
 
 BUILT_SOURCES = .version
 .version:
