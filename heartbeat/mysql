@@ -680,6 +680,7 @@ unset_master(){
         -e "STOP SLAVE IO_THREAD"
     if [ $? -gt 0 ]; then
         ocf_log err "Error stopping slave IO thread"
+        rm -f $tmpfile
         exit $OCF_ERR_GENERIC
     fi
 
@@ -1199,6 +1200,7 @@ mysql_notify() {
                     ocf_run $MYSQL $MYSQL_OPTIONS_REPL \
                         -e "KILL ${thread}"
                 done
+                rm -f $tmpfile
             else
                ocf_log info "Ignoring post-demote notification execpt for my own demotion."
             fi
