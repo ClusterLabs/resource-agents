@@ -223,24 +223,43 @@ execsql() {
 #
 #	Run commands in the oracle admin sqlplus...
 #
-dbasql() {
-	local func
-	(
-	echo "connect / as sysdba"
-	echo "set feedback off"
-	echo "set heading off"
-	echo "set pagesize 0"
-	for func; do $func; done
-	) |
-	execsql | grep -v '^Connected' |
+common_sql_opts() {
+	cat<<EOF
+set feedback off
+set heading off
+set pagesize 0
+EOF
+}
+common_sql_filter() {
+	grep -v '^Connected' |
 		grep -v '^ENV MSG:' |
 		grep -v 'Your password will expire in'
+}
+runsql() {
+	local conn_s="$1"
+	shift 1
+	local func
+	(
+	echo "$conn_s"
+	common_sql_opts
+	for func; do $func; done
+	) |
+	execsql | common_sql_filter
+}
+dbasql() {
+	runsql "connect / as sysdba" $*
+}
+monsql() {
+	runsql "connect $MONUSR/$MONUSR" $*
 }
 # use dbasql_one if the query should result in a single line output
 # at times people stuff commands in oracle .profile
 # which may produce extra output
 dbasql_one() {
 	dbasql $* | tail -1
+}
+monsql_one() {
+	monsql $* | tail -1
 }
 
 #
@@ -305,6 +324,29 @@ getipc() {
 	echo "oradebug setmypid"
 	echo "oradebug tracefile_name"
 	echo "oradebug ipc"
+}
+show_mon_user() {
+	echo "select USERNAME, ACCOUNT_STATUS from dba_users where USERNAME='$MONUSR';"
+}
+mk_mon_user() {
+	cat<<EOF
+create user $MONUSR identified by $MONUSR;
+grant create session to $MONUSR;
+grant select on v_\$instance to $MONUSR;
+EOF
+}
+check_mon_user() {
+	local output
+	dbasql show_mon_user | grep -w "^$MONUSR" >/dev/null &&
+		return 0
+	output=`dbasql mk_mon_user show_mon_user`
+	if echo "$output" | grep -w "^$MONUSR" >/dev/null; then
+		return 0
+	else
+		ocf_log err "could not create $MONUSR oracle user"
+		ocf_log err "sqlplus output: $output"
+		return 1
+	fi
 }
 #
 # print the output of dbstat (for debugging)
@@ -404,7 +446,7 @@ is_proc_running() {
 }
 # instance in OPEN state?
 instance_live() {
-	local status=`dbasql_one dbstat`
+	local status=`monsql_one dbstat`
 	if [ "$status" = OPEN ]; then
 		return 0
 	else
@@ -451,7 +493,7 @@ oracle_getconfig() {
 oracle_start() {
 	local status output
 	if is_proc_running; then
-		status="`dbasql_one dbstat`"
+		status="`monsql_one dbstat`"
 		case "$status" in
 		"OPEN")
 			: nothing to be done, we can leave right now
@@ -498,6 +540,11 @@ oracle_start() {
 		clear_backup_mode
 	fi
 	output=`dbasql dbopen`
+
+	# check/create the monitor user
+	if ! check_mon_user; then
+		return $OCF_ERR_GENERIC
+	fi
 
 	if ! is_proc_running; then
 		ocf_log err "oracle process not running: $output"
@@ -603,6 +650,7 @@ show_procs() {
 proc_pids() { show_procs | awk '{print $1}'; }
 PROCS_CLEANUP_TIME="30"
 
+MONUSR="OCFMON"
 OCF_REQUIRED_PARAMS="sid"
 OCF_REQUIRED_BINARIES="sqlplus"
 ocf_rarun $*
