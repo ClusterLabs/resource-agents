@@ -52,6 +52,8 @@ unsigned long sector_size = 0;
 int
 prepare_lock (const char *device)
 {
+  int sec_tmp = 0;
+
   do {
     dev_fd = open (device, O_RDWR | O_DIRECT | O_SYNC);
     if (dev_fd == -1) {
@@ -65,7 +67,8 @@ prepare_lock (const char *device)
   }
   while (1);
 
-  ioctl(dev_fd, BLKSSZGET, &sector_size);
+  ioctl(dev_fd, BLKSSZGET, &sec_tmp);
+  sector_size = (unsigned long)sec_tmp;
   if (sector_size == 0) {
 	  cl_log(LOG_ERR, "Get sector size failed: %s\n", strerror(errno));
 	  exit(EXIT_FAILURE);
