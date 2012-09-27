@@ -469,9 +469,10 @@ get_slave_info() {
             # Instance produced an empty "SHOW SLAVE STATUS" output --
             # instance is not a slave
             ocf_log err "check_slave invoked on an instance that is not a replication slave."
+	    rm -f $tmpfile
             return $OCF_ERR_GENERIC
         fi
-
+        rm -f $tmpfile
         return $OCF_SUCCESS
     fi
 }
@@ -494,13 +495,16 @@ check_slave() {
 
             # Just pull the reader VIP away, killing MySQL here would be pretty evil
             # on a loaded server
-
             set_reader_attr 0
+
+            #Since replication is broken, not suitable to be a master
+            $CRM_MASTER -v 0
+
             exit $OCF_SUCCESS
 
         fi
 
-        # If we got max_connections, let's remove the vip
+        # If we got max_connections, let's only remove the vip
         if [ $last_errno -eq "$MYSQL_TOO_MANY_CONN_ERR" ]; then
             set_reader_attr 0
             exit $OCF_SUCCESS
@@ -518,7 +522,6 @@ check_slave() {
             if [ "$master_host" != "$new_master" ]; then
                # Not pointing to the right master, not good, removing the VIPs
                set_reader_attr 0
-
                exit $OCF_SUCCESS
             fi
 
@@ -533,6 +536,7 @@ check_slave() {
 
             # Remove reader vip
             set_reader_attr 0
+            $CRM_MASTER -v 0
 
             # try to restart slave
             ocf_run $MYSQL $MYSQL_OPTIONS_REPL \
