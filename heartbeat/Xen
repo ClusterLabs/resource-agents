@@ -366,7 +366,7 @@ Xen_Stop() {
 
 Xen_Migrate_To() {
   target_node="$OCF_RESKEY_CRM_meta_migrate_target"
-  target_attr="$OCF_RESKEY_CRM_node_ip_attribute"
+  target_attr="$OCF_RESKEY_node_ip_attribute"
   target_addr="$target_node"
  
   if Xen_Status ${DOMAIN_NAME}; then
