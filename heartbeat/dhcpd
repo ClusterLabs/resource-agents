@@ -1,0 +1,545 @@
+#!/bin/sh
+#
+#   Resource Agent for managing dhcpd resources.
+#
+#   License:      GNU General Public License (GPL)
+#   (c) 2011-2012 Chris Bowlby,
+#
+# A fair amount of this script has been pulled from the official 0dhcpd 
+# init script. Those portions have been integrated into this script to
+# ensure consistent behavior between the resource agent and the
+# original script. The copyrights and original authors are credited
+# as follows:
+#
+# Copyright (c) 1996, 1997, 1998 S.u.S.E. GmbH
+# Copyright (c) 1998, 1999, 2000, 2001 SuSE GmbH
+# Copyright (c) 2002, 2003 SuSE Linux AG
+# Copyright (c) 2004-2008 SUSE LINUX Products GmbH, Nuernberg, Germany.
+#
+# Author(s) : Rolf Haberrecker <rolf@suse.de>, 1997-1999
+#             Peter Poeml <poeml@suse.de>, 2000-2006
+#             Marius Tomaschewski <mt@suse.de>, 2006-2010
+#
+#                 and Linux-HA contributors
+
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_binary_default="dhcpd"
+OCF_RESKEY_pid_default="/var/run/dhcpd.pid"
+OCF_RESKEY_user_default=dhcpd
+OCF_RESKEY_group_default=nogroup
+OCF_RESKEY_config_default=""
+OCF_RESKEY_chrooted_default="true"
+OCF_RESKEY_chrooted_path_default="/var/lib/dhcp"
+OCF_RESKEY_leases_default="/db/dhcpd.leases"
+OCF_RESKEY_interface_default=""
+OCF_RESKEY_includes_default=""
+
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
+: ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
+: ${OCF_RESKEY_group=${OCF_RESKEY_group_default}}
+: ${OCF_RESKEY_chrooted=${OCF_RESKEY_chrooted_default}}
+: ${OCF_RESKEY_chrooted_path=${OCF_RESKEY_chrooted_path_default}}
+: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
+: ${OCF_RESKEY_leases=${OCF_RESKEY_leases_default}}
+: ${OCF_RESKEY_interface=${OCF_RESKEY_interface_default}}
+: ${OCF_RESKEY_includes=${OCF_RESKEY_includes_default}}
+
+# To enable support for different versions of dhcp, we need
+# to know what version we are being run against.
+DHCP_VERSION_MAJOR=`$OCF_RESKEY_binary --version 2>&1 | awk -F- '{print $3}' | awk -F.  '{print $1}' | sed s/^[a-zA-Z]//g`
+
+# These files are always copied by default to ensure the chroot environment works.
+DEFAULT_FILE_LIST="/etc/gai.conf /etc/nsswitch.conf /etc/resolv.conf /etc/host.conf /etc/hosts /etc/localtime /dev/urandom"
+
+usage() {
+    cat <<EOF
+        usage: $0 start|stop|monitor|meta-data|validate-all
+
+        $0 manages the dhcp (dhcpd) server as an HA resource.
+
+        The 'start' operation starts the dhcpd server.
+        The 'stop' operation stops the dhcpd server.
+        The 'monitor' operation reports whether the dhcpd service is running.
+        The 'validate-all' operation reports whether the parameters are valid.
+EOF
+  return $OCF_SUCCESS
+}
+
+dhcpd_meta_data()  {
+        cat <<EOF
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="dhcpd" version="0.1">
+  <version>0.1</version>
+  <longdesc lang="en">
+Manage an ISC DHCP server service in a chroot environment.
+  </longdesc>
+  <shortdesc lang="en">Chrooted ISC DHCP Server resource agent.</shortdesc>
+  <parameters>
+    <parameter name="config" unique="1" required="1">
+      <longdesc lang="en">
+	The absolute path to the DHCP server configuration file.
+      </longdesc>
+      <shortdesc lang="en">Configuration file</shortdesc>
+      <content type="string" default="$OCF_RESKEY_config_default"/>
+    </parameter>
+    <parameter name="chrooted" unique="1" required="0">
+      <longdesc lang="en">
+	Configure the dhcpd service to run in a chrooted or non-chrooted
+	mode.
+      </longdesc>
+      <shortdesc lang="en">Enable chroot mode</shortdesc>
+      <content type="boolean" default="$OCF_RESKEY_chrooted_default"/>
+    </parameter>
+    <parameter name="chrooted_path" unique="1" required="0">
+      <longdesc lang="en">
+	The absolute path of the chrooted DHCP environment.
+      </longdesc>
+      <shortdesc lang="en">The chrooted path</shortdesc>
+      <content type="string" default="$OCF_RESKEY_chrooted_path_default"/>
+    </parameter>
+    <parameter name="binary" unique="0" required="0">
+      <longdesc lang="en">
+	The binary for the DHCP server process. An absolute path
+	definition is not required, but can be used to override
+	environment path.
+      </longdesc>
+      <shortdesc lang="en">dhcpd binary</shortdesc>
+      <content type="string" default="$OCF_RESKEY_binary_default"/>
+    </parameter>
+    <parameter name="user" unique="0" required="0">
+      <longdesc lang="en">
+	The system user the DHCP server process will run as when
+	it is chrooted.
+      </longdesc>
+      <shortdesc lang="en">dhcpd owner</shortdesc>
+      <content type="string" default="$OCF_RESKEY_user_default"/>
+    </parameter>
+    <parameter name="group" unique="0" required="0">
+      <longdesc lang="en">
+	The system group the DHCP server process will run as when
+	it is chrooted.
+      </longdesc>
+      <shortdesc lang="en">dhcpd group owner</shortdesc>
+      <content type="string" default="$OCF_RESKEY_group_default"/>
+    </parameter>
+    <parameter name="interface" unique="0" required="0">
+      <longdesc lang="en">
+	The network interface(s) the DHCP server process will
+	bind to. A blank value will bind the process to all
+	interfaces.
+      </longdesc>
+      <shortdesc lang="en">Network Interface</shortdesc>
+      <content type="string" default="$OCF_RESKEY_interface_default"/>
+    </parameter>
+    <parameter name="includes" unique="0" required="0">
+      <longdesc lang="en">
+	This parameter provides a means to copy include files
+	into the chrooted environment. If a dhcpd.conf file
+	contains a line similar to this:
+
+		include "/etc/named.keys";
+
+	Then an admin also has to tell the dhcpd RA that this
+	file should be pulled into the chrooted environment. This
+	is a space delimited list.
+      </longdesc>
+      <shortdesc lang="en">Include Files</shortdesc>
+      <content type="string" default="$OCF_RESKEY_includes_default"/>
+    </parameter>
+    <parameter name="leases" unique="0" required="0">
+      <longdesc lang="en">
+	The leases database file, relative to chrooted_path.
+      </longdesc>
+      <shortdesc lang="en">Leases file</shortdesc>
+      <content type="string" default="$OCF_RESKEY_leases_default"/>
+    </parameter>
+    <parameter name="pid" unique="0" required="0">
+      <longdesc lang="en">
+	The path and filename of the PID file. It is relative
+	to chrooted_path.
+      </longdesc>
+      <shortdesc lang="en">PID file</shortdesc>
+      <content type="string" default="$OCF_RESKEY_pid_default"/>
+    </parameter>
+  </parameters>
+  <actions>
+    <action name="start"        timeout="20" />
+    <action name="stop"         timeout="20" />
+    <action name="monitor"      timeout="20" interval="10" depth="0" />
+    <action name="meta-data"    timeout="5" />
+    <action name="validate-all"   timeout="20" />
+  </actions>
+</resource-agent>
+EOF
+}
+
+# Validate most critical parameters
+dhcpd_validate_all() {
+    check_binary $OCF_RESKEY_binary
+
+
+    if ! ocf_is_probe; then
+	# Test for the appropriate configuration files depending on if
+	# chroot mode is enabled.
+	if ocf_is_true $OCF_RESKEY_chrooted ; then
+	    if ! test -e "$OCF_RESKEY_chrooted_path"; then
+		ocf_log err "Path $OCF_RESKEY_chrooted_path does not exist."
+		return $OCF_ERR_INSTALLED
+	    fi
+
+	    if test -n "$OCF_RESKEY_chrooted_path/$OCF_RESKEY_config" -a ! -r "$OCF_RESKEY_chrooted_path/$OCF_RESKEY_config"; then
+		ocf_log err "Configuration file $OCF_RESKEY_chrooted_path/$OCF_RESKEY_config doesn't exist"
+		return $OCF_ERR_INSTALLED
+	    fi
+	else
+	    if test -n "$OCF_RESKEY_config" -a ! -r "$OCF_RESKEY_config"; then
+		ocf_log err "Configuration file $OCF_RESKEY_config doesn't exist"
+		return $OCF_ERR_INSTALLED
+	    fi
+	fi
+
+    fi 
+
+    if ! getent passwd $OCF_RESKEY_user >/dev/null 2>&1; then
+        ocf_log err "User $OCF_RESKEY_user doesn't exist"
+        return $OCF_ERR_INSTALLED
+    fi
+
+    return $OCF_SUCCESS
+}
+
+# dhcpd_monitor. Send a request to dhcpd and check response.
+dhcpd_monitor() {
+    # Assume chrooted mode is being used, but if not update the PIDF
+    # variable to point to the non-chrooted PID file.
+    PIDF="$OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid"
+
+    if ! ocf_is_true $OCF_RESKEY_chrooted ; then
+	PIDF=`dirname $OCF_RESKEY_pid`/dhcpd/`basename $OCF_RESKEY_pid`
+    fi
+
+    ocf_pidfile_status $PIDF >/dev/null 2>&1 || return $OCF_NOT_RUNNING
+
+    return $OCF_SUCCESS
+}
+
+# Initialize Chroot
+dhcpd_initialize_chroot() {
+    # If we are running the initialization for the first time, we need to make
+    # the new chrooted folder, in case we are not using the same default.
+    if ! [ -d $OCF_RESKEY_chrooted_path ] ; then
+	ocf_log info "Initializing $OCF_RESKEY_chrooted_path for use."
+    fi
+
+    # Make sure all sub-paths are created if something went wrong during
+    # a partial run.
+    for i in db dev etc lib64 var/run; do
+	mkdir -p $OCF_RESKEY_chrooted_path/$i
+    done
+
+    # If we are running version 4 of the dhcp server, we need to mount a proc partition.
+    if [ $DHCP_VERSION_MAJOR -ge 4 ] ; then
+	mkdir -p $OCF_RESKEY_chrooted_path/proc
+
+	if ! [ -e $OCF_RESKEY_chrooted_path/proc/net/dev ] ; then
+	    mount -t proc -o ro proc $OCF_RESKEY_chrooted_path/proc > /dev/null 2>&1
+	fi
+    fi
+
+    # If the folder to store the PID file does not exist, make it.
+    if ! [ -d "$OCF_RESKEY_chrooted_path`dirname $OCF_RESKEY_pid`" ] ; then
+	mkdir -p "$OCF_RESKEY_chrooted_path`dirname $OCF_RESKEY_pid`"
+    fi
+
+    # Ensure all permissions are in place if the folder was re-created.
+    chown -R $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_chrooted_path/`dirname $OCF_RESKEY_leases`
+    chown -R $OCF_RESKEY_user:$OCF_RESKEY_group "$OCF_RESKEY_chrooted_path/`dirname $OCF_RESKEY_pid`"
+
+    ## If there is no conf file, we can't initialize the chrooted 
+    ## environment, return with "program not configured"
+    if ! [ -f $OCF_RESKEY_config ] ; then
+	ocf_log err "dhcpd has not been configured."
+	return $OCF_ERR_CONFIGURED
+    fi
+
+    # If the leases file does not exist, create it, as this is a fresh install.
+    if [ ! -e $OCF_RESKEY_chrooted_path/$OCF_RESKEY_leases ]; then
+	touch $OCF_RESKEY_chrooted_path/$OCF_RESKEY_leases
+    fi
+
+    # Remove the random device.
+    test -e "$OCF_RESKEY_chrooted_path/dev/urandom" &&
+	rm -f $OCF_RESKEY_chrooted_path/dev/urandom
+
+    # Test for the existance of the defined include files, and append
+    # them to the list of files to be copied.
+    for i in $OCF_RESKEY_includes ; do
+	if [ -e $i ] ; then
+	    DEFAULT_FILE_LIST="$DEFAULT_FILE_LIST $i"
+	else
+	    ocf_log err "include file $i does not exist"
+	    return $OCF_ERR_INSTALLED
+	fi
+    done
+
+    # Ensure all "modified" non-chrooted configuration files are copied into the chrooted environment.
+    for i in $OCF_RESKEY_config $DEFAULT_FILE_LIST; do
+	# First, lets make sure the directory exists within the chrooted environment.
+	if test -d "$i" ; then
+	    mkdir -p $OCF_RESKEY_chrooted_path/$i
+	elif test -e "$i" ; then
+	    mkdir -p "`dirname $OCF_RESKEY_chrooted_path/$i`"
+	fi
+
+	# Next, we copy the configuration file into place.
+	cp -aL "$i" "$OCF_RESKEY_chrooted_path/${i%/*}/" > /dev/null 2>&1 ||
+	    { ocf_log err "could not copy $i to chroot jail"; return $OCF_ERR_GENERIC; }
+    done
+
+    libdir=$(basename $(echo /var/lib/dhcp/lib*))
+    if test -x /usr/bin/ldd ; then
+	get_ldd_deps()
+	{
+	    ldd_wl="\/$libdir\/lib"
+	    ldd_bl="\/$libdir\/libc\."
+	    /usr/bin/ldd "$1" | while read a b c d ; do
+		[ -n "$c" ] || continue
+		[[ $c =~ $ldd_wl ]] || continue
+		[[ $c =~ $ldd_bl ]] && continue
+		echo $c
+	    done
+	}
+    else
+	get_ldd_deps() { :; }
+    fi
+    cplibs=`for i in /$libdir/libresolv.so.* /$libdir/libnss_*.so.* /$libdir/libpthread.so.0 /$libdir/libdl.so.2
+    do
+	if [ -s "$i" ] ; then
+	    echo "$i"
+	    get_ldd_deps "$i"
+	fi
+    done | sort -u`
+    for i in $cplibs ; do
+	if [ -s "$i" ]; then
+	    cp -pL "$i" "/var/lib/dhcp/$libdir/" ||
+		{ ocf_log err "could not copy $i to chroot jail"; return $OCF_ERR_GENERIC; }
+	fi
+    done
+
+   return $OCF_SUCCESS
+}
+
+# Initialize a non-chroot environment
+dhcpd_initialize() {
+    ## If there is no conf file, we can't start a dhcp service.
+    if ! [ -f $OCF_RESKEY_config ] ; then
+	ocf_log err "dhcpd has not been configured."
+	return $OCF_ERR_CONFIGURED
+    fi
+
+    # As with the standard DHCP init script, we can still use the
+    # chrooted default path for storing the leases file. This behavior
+    # is consistent with the existing /etc/init.d/dhcpd script.
+    if ! [ -d $OCF_RESKEY_chrooted_path ] ; then
+	ocf_log info "Initializing $OCF_RESKEY_chrooted_path for use."
+    fi
+    
+    # If the leases file does not exist, create it, as this is a fresh install.
+    if [ ! -e $OCF_RESKEY_chrooted_path/$OCF_RESKEY_leases ]; then
+	touch $OCF_RESKEY_chrooted_path/$OCF_RESKEY_leases
+    fi
+
+    # if the PID storage path does not exist, make it, and setup the permissions.
+
+    # NOTE: This part of the script has a potential security flaw, in that if someone
+    # puts in /var/run as the path, it will change ownership to the dhcpd user
+    # and group. However, all that would do is allow that user to view the contents
+    # of the files, which they can do now anyway. If this becomes an issue, I can work
+    # in some changes.
+
+    # We need to append "dhcpd" to the path for the PID file storage folder, because
+    # if /var/run is used, that folders permissions can not be changed, otherwise it affects
+    # more then just one application.
+    if ! [ -d `dirname $OCF_RESKEY_pid`/dhcpd ] ; then
+	mkdir -p `dirname $OCF_RESKEY_pid`/dhcpd
+
+        if [ -n "$OCF_RESKEY_user" -a "x$OCF_RESKEY_user" != "xroot" ] ; then
+	    chown $OCF_RESKEY_user `dirname $OCF_RESKEY_pid`/dhcpd
+        fi
+    
+        if [ -n "$OCF_RESKEY_group" -a "x$OCF_RESKEY_group" != "xwheel" ] ; then
+	    chgrp $OCF_RESKEY_group `dirname $OCF_RESKEY_pid`/dhcpd
+        fi
+    fi
+
+    return $OCF_SUCCESS
+}
+
+# Start
+dhcpd_start() {
+    # Lets make sure we are not already running.
+    if dhcpd_monitor; then
+		ocf_log info "dhcpd already running"
+		return $OCF_SUCCESS
+	fi
+
+    # Only initialize the chrooted path(s) if chroot mode is enabled.
+    if ocf_is_true $OCF_RESKEY_chrooted ; then
+	dhcpd_initialize_chroot ||
+	    { ocf_log err "Could not fully initialize the chroot environment." ; return $OCF_ERR_INSTALLED; }
+    else
+	dhcpd_initialize ||
+	    { ocf_log err "Could not fully initialize the runtime environment." ; return $OCF_ERR_INSTALLED; }
+    fi
+
+    dhcpd_validate_all || exit
+
+    # Define an empty string variable, to ensure it exists when needed.
+    DHCPD_ARGS=""
+
+    # To ensure consistent behavior with the standard DHCPD init script, 
+    # use the chrooted default path for storing a leases file, when not in
+    # a chrooted enviroment.
+    if ocf_is_true $OCF_RESKEY_chrooted ; then
+	DHCPD_ARGS="$DHCPD_ARGS -chroot $OCF_RESKEY_chrooted_path -lf $OCF_RESKEY_leases"
+    else
+	DHCPD_ARGS="$DHCPD_ARGS -lf $OCF_RESKEY_chrooted_path/$OCF_RESKEY_leases"
+    fi
+
+    if [ -n "$OCF_RESKEY_user" ]; then
+	DHCPD_ARGS="$DHCPD_ARGS -user $OCF_RESKEY_user"
+    fi
+
+    if [ -n "$OCF_RESKEY_group" ]; then
+	DHCPD_ARGS="$DHCPD_ARGS -group $OCF_RESKEY_group"
+    fi
+
+    # If there is a pid file containing a pid, the machine might have crashed. pid files in
+    # /var/run are always cleaned up at boot time, but this is not the case for the pid file in
+    # the chroot jail. Therefore, an old pid file may exist. This is only a problem if it
+    # incidentally contains the pid of a running process. If this process is not a 'dhcpd',
+    # we remove the pid. (dhcpd itself only checks whether the pid is alive or not.)
+
+    PIDF="$OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid"
+
+    if ocf_is_true $OCF_RESKEY_chrooted ; then
+	ocf_log info "Starting dhcpd [chroot] service."
+	DHCPD_ARGS="$DHCPD_ARGS -pf $OCF_RESKEY_pid"
+    else
+	ocf_log info "Starting dhcpd [non-chroot] service."
+	PIDF=`dirname $OCF_RESKEY_pid`/dhcpd/`basename $OCF_RESKEY_pid`
+	DHCPD_ARGS="$DHCPD_ARGS -pf $PIDF"
+    fi
+
+    test -e "$PIDF" && rm -f $PIDF
+
+    ocf_run $OCF_RESKEY_binary -cf $OCF_RESKEY_config $DHCPD_ARGS $OCF_RESKEY_interface ||
+	return $OCF_ERR_INSTALLED
+
+    while ! dhcpd_monitor; do
+		sleep .1
+		ocf_log info "waiting for dhcpd to start"
+		return $OCF_SUCCESS
+	done
+
+    if ocf_is_true $OCF_RESKEY_chrooted ; then
+	ocf_log info "dhcpd [chrooted] has started."
+    else
+	ocf_log info "dhcpd [non-chrooted] has started."
+    fi
+
+    return $OCF_SUCCESS
+}
+
+# Stop
+dhcpd_stop () {
+    local timeout
+    local timewait
+    local rc
+
+    dhcpd_monitor
+    rc=$?
+
+    case "$rc" in
+	"$OCF_SUCCESS")
+	    # Currently running, and is expected behaviour.
+	    ;;
+	"$OCF_NOT_RUNNING")
+	    # Currently not running, therefore nothing to do.
+		ocf_log info "dhcpd already stopped"
+	    return $OCF_SUCCESS
+	    ;;
+    esac
+
+    PIDF="$OCF_RESKEY_chrooted_path/$OCF_RESKEY_pid"
+
+    if ! ocf_is_true $OCF_RESKEY_chrooted ; then
+	PIDF=`dirname $OCF_RESKEY_pid`/dhcpd/`basename $OCF_RESKEY_pid`
+    fi
+
+    kill `cat $PIDF`
+
+    # Allow 2/3 of the action timeout for the orderly shutdown
+    # (The origin unit is ms, hence the conversion)
+    timewait=$((OCF_RESKEY_CRM_meta_timeout/1500))
+
+    sleep 0.1; timeout=0 # Sleep here for .1 sec to let dhcpd finish.
+    while dhcpd_monitor ; do
+        if [ $timeout -ge $timewait ]; then
+            break
+        else
+            sleep 1
+            timeout=`expr $timeout + 1`
+        fi
+    done
+
+    #If still up
+    if dhcpd_monitor 2>&1; then
+        ocf_log err "dhcpd is still up! Trying kill -s KILL"
+
+	kill -s SIGKILL `cat $PIDF`
+    fi
+
+    # If we are running a dhcp server v4 or higher, unmount the proc partition.
+    if [ $DHCP_VERSION_MAJOR -ge 4 ] ; then
+	# We only want to unmount proc in a chrooted environment, else we could
+	# cause other issues.
+	if ocf_is_true $OCF_RESKEY_chrooted ; then
+	    umount $OCF_RESKEY_chrooted_path/proc > /dev/null 2>&1
+	fi
+    fi
+
+    rm -f $PIDF
+
+    ocf_log info "dhcpd stopped"
+    return $OCF_SUCCESS
+}
+
+# Make sure meta-data and usage always succeed
+case $__OCF_ACTION in
+meta-data)      dhcpd_meta_data
+                exit $OCF_SUCCESS
+                ;;
+validate-all)   dhcpd_validate_all
+		exit $OCF_SUCCESS
+		;;
+usage|help)     dhcpd_usage
+                exit $OCF_SUCCESS
+                ;;
+esac
+
+# Translate each action into the appropriate function call
+case $__OCF_ACTION in
+start)          dhcpd_start;;
+stop)           dhcpd_stop;;
+monitor)        dhcpd_monitor;;
+*)              dhcpd_usage
+                exit $OCF_ERR_UNIMPLEMENTED
+                ;;
+esac

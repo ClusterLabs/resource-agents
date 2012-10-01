@@ -255,7 +255,7 @@ determine_blockdevice() {
 	# Get the current real device name, if possible.
 	# (specified devname could be -L or -U...)
 	case "$FSTYPE" in
-	nfs|smbfs|cifs|glusterfs|ceph|tmpfs|none) ;;
+	nfs4|nfs|smbfs|cifs|glusterfs|ceph|tmpfs|none) ;;
 	*)	DEVICE=`list_mounts | grep " $MOUNTPOINT " | cut -d' ' -f1`
 		if [ -b "$DEVICE" ]; then
 		  blockdevice=yes
@@ -436,7 +436,7 @@ is_fsck_needed() {
 	    no)    false;;
 	    ""|auto)
 		case $FSTYPE in
-		    ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|ceph|tmpfs)
+		    ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs4|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|ceph|tmpfs)
 			false;;
 		    *)
 			true;;
@@ -755,7 +755,7 @@ Filesystem_stop()
 	else
 		# Wipe the status file, but continue with a warning if
 		# removal fails -- the file system might be read only
-		if [ -f "$STATUSFILE" ]; then
+		if [ $OCF_CHECK_LEVEL -eq 20 ]; then
 			rm -f ${STATUSFILE}
 			if [ $? -ne 0 ]; then
 				ocf_log warn "Failed to remove status file ${STATUSFILE}."
@@ -768,7 +768,7 @@ Filesystem_stop()
 
 		# For networked filesystems, there's merit in trying -f:
 		case "$FSTYPE" in
-		nfs|cifs|smbfs) umount_force="-f" ;;
+		nfs4|nfs|cifs|smbfs) umount_force="-f" ;;
 		esac
 
 		# Umount all sub-filesystems mounted under $MOUNTPOINT/ too.
@@ -967,8 +967,12 @@ set_blockdevice_var() {
 
 	# these are definitely not block devices
 	case $FSTYPE in
-	nfs|smbfs|cifs|none|glusterfs) return;;
+	nfs4|nfs|smbfs|cifs|none|glusterfs|ceph) return;;
 	esac
+
+    if `is_option "loop"`; then
+        return
+    fi
 
 	case $DEVICE in
 	-*) # Oh... An option to mount instead...  Typically -U or -L
@@ -1074,7 +1078,7 @@ case $FSTYPE in
 ocfs2)	ocfs2_init
         CLUSTERSAFE=1
 	;;
-nfs|smbfs|cifs|none|gfs2|glusterfs|ceph)	CLUSTERSAFE=1 # this is kind of safe too
+nfs4|nfs|smbfs|cifs|none|gfs2|glusterfs|ceph)	CLUSTERSAFE=1 # this is kind of safe too
 	;;
 # add here CLUSTERSAFE=0 for all filesystems which are not
 # cluster aware and which, even if when mounted read-only,

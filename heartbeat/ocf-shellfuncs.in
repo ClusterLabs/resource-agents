@@ -56,6 +56,7 @@ fi
 . ${OCF_FUNCTIONS_DIR}/ocf-binaries
 . ${OCF_FUNCTIONS_DIR}/ocf-returncodes
 . ${OCF_FUNCTIONS_DIR}/ocf-directories
+. ${OCF_FUNCTIONS_DIR}/ocf-rarun
 
 # Define OCF_RESKEY_CRM_meta_interval in case it isn't already set,
 # to make sure that ocf_is_probe() always works
@@ -611,6 +612,65 @@ rmtempfile ()
 		rm "$1" || return 1
 	fi
 	return 0
+}
+
+# echo the first lower supported check level
+# pass set of levels supported by the agent
+# (in increasing order, 0 is optional)
+ocf_check_level()
+{
+	local lvl prev
+	lvl=0
+	prev=0
+	if ocf_is_decimal "$OCF_CHECK_LEVEL"; then
+		# the level list should be very short
+		for lvl; do
+			if [ "$lvl" -eq "$OCF_CHECK_LEVEL" ]; then
+				break
+			elif [ "$lvl" -gt "$OCF_CHECK_LEVEL" ]; then
+				lvl=$prev # the previous one
+				break
+			fi
+			prev=$lvl
+		done
+	fi
+	echo $lvl
+}
+
+# usage: ocf_stop_processes SIGNALS WAIT_TIME PIDS
+#
+# we send signals (use quotes for more than one!) in the order
+# given; if one or more processes are still running we try KILL;
+# the wait_time is the _total_ time we'll spend in this function
+# this time may be slightly exceeded if the processes won't leave
+# 
+# returns:
+#     0: all processes left
+#     1: some processes still running
+#
+# example:
+#
+# ocf_stop_processes TERM 5 $pids
+# 
+ocf_stop_processes() {
+	local signals="$1"
+	local wait_time="$(($2/`echo $signals|wc -w`))"
+	shift 2
+	local pids="$*"
+	local sig i
+	test -z "$pids" &&
+		return 0
+	for sig in $signals KILL; do
+		kill -s $sig $pids 2>/dev/null
+		# try to leave early, and yet leave processes time to exit
+		sleep 0.2
+		for i in `seq $wait_time`; do
+			kill -s 0 $pids 2>/dev/null ||
+				return 0
+			sleep 1
+		done
+	done
+	return 1
 }
 
 __ocf_set_defaults "$@"

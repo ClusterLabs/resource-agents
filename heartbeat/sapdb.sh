@@ -327,7 +327,7 @@ then
     DB6) db2sid="db2`echo $SID | tr '[:upper:]' '[:lower:]'`"
          export OCF_RESKEY_MONITOR_SERVICES="${SID}|${db2sid}"
          ;;
-    SYB) export OCF_RESKEY_MONITOR_SERVICES="Server|Database"
+    SYB) export OCF_RESKEY_MONITOR_SERVICES="Server"
          ;;
     HDB) export OCF_RESKEY_MONITOR_SERVICES="hdbindexserver"
          ;;

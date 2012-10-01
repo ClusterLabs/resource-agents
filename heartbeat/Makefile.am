@@ -54,6 +54,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			AudibleAlarm		\
 			conntrackd		\
 			db2			\
+			dhcpd		\
 			Delay			\
 			eDir88			\
 			EvmsSCC			\
@@ -121,10 +122,12 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  ocf-binaries	 	\
 			  ocf-directories 	\
 			  ocf-returncodes 	\
+ 			  ocf-rarun		\
 			  apache-conf.sh 	\
 			  http-mon.sh    	\
 			  sapdb-nosha.sh	\
-			  sapdb.sh
+			  sapdb.sh		\
+			  ora-common.sh
 
 # Legacy locations
 hbdir			= $(sysconfdir)/ha.d

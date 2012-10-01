@@ -36,7 +36,10 @@
 
 OCF_RESKEY_binary_default=conntrackd
 OCF_RESKEY_config_default=/etc/conntrackd/conntrackd.conf
-: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+
+# For users of versions prior to 1.2:
+# Map renamed parameter "conntrackd" to "binary" if in use
+: ${OCF_RESKEY_binary=${OCF_RESKEY_conntrackd-${OCF_RESKEY_binary_default}}}
 : ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
 
 meta_data() {
@@ -44,7 +47,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="conntrackd">
-<version>1.1</version>
+<version>1.2</version>
 
 <longdesc lang="en">
 Master/Slave OCF Resource Agent for conntrackd
@@ -53,7 +56,7 @@ Master/Slave OCF Resource Agent for conntrackd
 <shortdesc lang="en">This resource agent manages conntrackd</shortdesc>
 
 <parameters>
-<parameter name="conntrackd">
+<parameter name="binary">
 <longdesc lang="en">Name of the conntrackd executable.
 If conntrackd is installed and available in the default PATH, it is sufficient to configure the name of the binary
 For example "my-conntrackd-binary-version-0.9.14"
@@ -148,8 +151,14 @@ conntrackd_start() {
 		status=$?
 		case "$status" in 
 		$OCF_SUCCESS)
-			rc=$OCF_SUCCESS
 			conntrackd_set_master_score $slave_score
+			# -n = request resync from the others
+			if ! $OCF_RESKEY_binary -C $OCF_RESKEY_config -n; then
+				ocf_log err "$OCF_RESKEY_binary -C $OCF_RESKEY_config -n failed during start."
+				rc=$OCF_ERR_GENERIC
+			else
+				rc=$OCF_SUCCESS
+			fi
 			break
 			;;
 		$OCF_NOT_RUNNING)
@@ -205,7 +214,6 @@ conntrackd_validate_all() {
         meta_expect master-node-max = 1
         meta_expect master-max = 1
         meta_expect clone-node-max = 1
-        meta_expect clone-max = 2
 	
 	return $OCF_SUCCESS
 }

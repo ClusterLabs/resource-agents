@@ -338,6 +338,12 @@ If defined in a virtual server section then the global value is overridden.
 
 Default: I<yes>
 
+B<readdquiescent = >B<yes> | B<no>
+
+If I<yes>, then when real or failback servers are determined
+to be down, they are readded to the kernel's LVS table with weight 0 if
+they do not exist in the table. Setting the value to no, allows manually 
+removing the realserver to manually disable all persistent connections.
 
 B<cleanstop = >B<yes> | B<no>
 
@@ -749,6 +755,7 @@ use vars qw(
 	    $CHECKCOUNT
 	    $FAILURECOUNT
 	    $QUIESCENT
+	    $READDQUIESCENT
 	    $FORKING
 	    $EMAILALERT
 	    $EMAILALERTFREQ
@@ -1255,6 +1262,7 @@ sub set_defaults
 	$MAINTDIR         = undef;
 	$NEGOTIATETIMEOUT = -1;
 	$QUIESCENT        = "no";
+	$READDQUIESCENT   = "no";
 	$SUPERVISED       = "no";
 	$SMTP             = undef;
 }
@@ -1697,6 +1705,11 @@ sub read_config
 			    or &config_error($line,
 					"quiescent must be 'yes' or 'no'");
 			$QUIESCENT = $1;
+		} elsif ($linedata  =~ /^readdquiescent\s*=\s*(.*)/) {
+			($1 eq "yes" || $1 eq "no")
+			    or &config_error($line,
+					"readdquiescent must be 'yes' or 'no'");
+			$READDQUIESCENT = $1;
 		} elsif  ($linedata  =~ /^emailalert\s*=\s*(.*)/) {
 			$EMAILALERT = read_emailalert($line, $1);
 		} elsif  ($linedata  =~ /^emailalertfreq\s*=\s*(\d*)/) {
@@ -2530,7 +2543,12 @@ sub ld_start
 	}
 
 	for my $k (keys (%$server_down)) {
-		my $v = $server_down->{$k};
+		my $v = $server_down->{$k};	
+		if ($READDQUIESCENT eq "no") {
+			# Ensure that the server is initially added
+			service_set(@$v[0], @$v[1], "up", {force => 1});
+		}
+		# Remove Server
 		service_set(@$v[0], @$v[1], "down", {force => 1});
 		delete($server_down->{$k});
 		#sleep 5;
@@ -3839,14 +3857,17 @@ sub _remove_service
 		if (defined($or)) {
 			&system_wrapper("$IPVSADM -e "
 					. "$ipvsadm_args $rforw -w 0");
+			&ld_log("Quiescent $log_args (Weight set to 0)");
+			&ld_emailalert_send("Quiescent $log_args (Weight set to 0)",
+				    $v, $rservice, $currenttime);
 		}
-		else {
+		elsif ($READDQUIESCENT eq "yes") {
 			&system_wrapper("$IPVSADM -a "
 					. "$ipvsadm_args $rforw -w 0");
-		}
-		&ld_log("Quiescent $log_args (Weight set to 0)");
-		&ld_emailalert_send("Quiescent $log_args (Weight set to 0)",
+			&ld_log("Readd Quiescent $log_args (Weight set to 0)");
+			&ld_emailalert_send("Quiescent $log_args (Weight set to 0)",
 				    $v, $rservice, $currenttime);
+		}
 	}
 	else {
 		&system_wrapper("$IPVSADM -d $ipvsadm_args");

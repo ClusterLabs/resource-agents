@@ -105,7 +105,6 @@ action:
 
 	validate-all	validate the instance parameters
 	!
-  exit $1
 }
 
 #
@@ -123,7 +122,6 @@ ProcessRunning() {
       kill -s 0 "$ApachePID" >/dev/null 2>&1
     fi
 }
-
 
 silent_status() {
   if
@@ -155,7 +153,7 @@ validate_default_config() {
 # this opportunity to enable mod_status if it's not present.
 validate_default_suse_config() {
   if [ "$CONFIGFILE" = "$DEFAULT_NORMCONFIG" ] && \
-     grep -Eq '^Include\s+/etc/apache2/sysconfig.d/include.conf' "$CONFIGFILE"
+     grep -Eq '^Include[[:space:]]+/etc/apache2/sysconfig.d/include.conf' "$CONFIGFILE"
   then
     [ -x "/usr/sbin/a2enmod" ] && ocf_run -q /usr/sbin/a2enmod status
     ocf_run -q /etc/init.d/apache2 configtest
@@ -165,7 +163,7 @@ validate_default_suse_config() {
   fi
 }
 
-start_apache() {
+apache_start() {
   if
     silent_status
   then
@@ -179,7 +177,7 @@ start_apache() {
   tries=0
   while :  # wait until the user set timeout
   do
-    monitor_apache
+    apache_monitor
 	ec=$?
 	if [ $ec -eq $OCF_NOT_RUNNING ]
 	then
@@ -191,12 +189,12 @@ start_apache() {
 	fi
   done
 	if [ $ec -ne 0 ] && silent_status; then
-		stop_apache
+		apache_stop
 	fi
 	return $ec
 }
 
-stop_apache() {
+apache_stop() {
   if
     silent_status
   then
@@ -239,21 +237,7 @@ stop_apache() {
   done
 }
 
-status_apache() {
-  silent_status
-  rc=$?
-  if
-    [ $rc -eq 0 ]
-  then
-    ocf_log info "$CMD is running (pid $ApachePID)."
-    return $OCF_SUCCESS
-  else
-    ocf_log info "$CMD is stopped."
-    return $OCF_NOT_RUNNING
-  fi
-}
-
-monitor_apache_extended() {
+apache_monitor_10() {
   if [ "$TESTCONFFILE" ]; then
     readtestconf < $TESTCONFFILE
   else
@@ -264,39 +248,39 @@ monitor_apache_extended() {
   fixtesturl
   is_testconf_sane ||
     return $OCF_ERR_CONFIGURED
-  $whattorun "$test_url" | grep -Ei "$test_regex" > /dev/null
-}
-monitor_apache_basic() {
-  if [ -z "$STATUSURL" ]; then
-    ocf_log err "statusurl parameter empty"
-	return $OCF_ERR_CONFIGURED
-  elif [ -z "$ourhttpclient" ]; then
-    ocf_log err "could not find a http client; make sure that either wget or curl is available"
-	return $OCF_ERR_CONFIGURED
+  if $whattorun "$test_url" | grep -Ei "$test_regex" > /dev/null
+  then
+  	return $OCF_SUCCESS
+  else
+  	return $OCF_ERR_GENERIC
   fi
-  ${ourhttpclient}_func "$STATUSURL" | grep -Ei "$TESTREGEX" > /dev/null
 }
-monitor_apache() {
+apache_monitor_basic() {
+  if ${ourhttpclient}_func "$STATUSURL" | grep -Ei "$TESTREGEX" > /dev/null
+  then
+  	return $OCF_SUCCESS
+  else
+  	return $OCF_ERR_GENERIC
+  fi
+}
+apache_monitor() {
   silent_status
   if [ $? -ne 0 ]; then
     ocf_log info "$CMD not running"
     return $OCF_NOT_RUNNING
   fi
   ourhttpclient=`findhttpclient`  # we'll need one
-  monitor_apache_basic
-  rc=$?
-  [ $rc -ne 0 ] && return $rc
-  case "$OCF_CHECK_LEVEL" in
-  ""|0) true;;
-  10) monitor_apache_extended;;
-  *)
-    ocf_log err "bad OCF_CHECK_LEVEL: $OCF_CHECK_LEVEL"
-	return $OCF_ERR_CONFIGURED
-	;;
+  if [ -z "$ourhttpclient" ]; then
+    ocf_log err "could not find a http client; make sure that either wget or curl is available"
+    return $OCF_ERR_INSTALLED
+  fi
+  case `ocf_check_level 10` in
+  0) apache_monitor_basic;;
+  10) apache_monitor_10;;
   esac
 }
 
-metadata_apache(){
+apache_meta_data(){
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
@@ -470,48 +454,65 @@ that doesn't work set this to true to enforce IPv6.
 </actions>
 </resource-agent>
 END
-
-	exit $OCF_SUCCESS
+	return $OCF_SUCCESS
 }
 
-validate_all_apache() {
-
+apache_validate_all() {
   if CheckPort $PORT; then
 # We are sure to succeed here, since we forced $PORT to be valid in GetParams()
 	: OK
   else
 	ocf_log err "Port number $PORT is invalid!"
-	exit $OCF_ERR_ARGS
+	return $OCF_ERR_INSTALLED
   fi
 
-  if [ -z $STATUSURL ]; then
-	: OK to be empty
-  else
-	case $STATUSURL in
-	    http://*) ;;
-	    *) 
-	    ocf_log err "Invalid STATUSURL $STATUSURL"
-	    exit $OCF_ERR_ARGS ;;
-	esac
-  fi
+  case $STATUSURL in
+      http://*) ;;
+      *) 
+      ocf_log err "Invalid STATUSURL $STATUSURL"
+      return $OCF_ERR_CONFIGURED ;;
+  esac
+
   if [ ! -x $HTTPD ]; then
 	ocf_log err "HTTPD $HTTPD not found or is not an executable!"
-	exit $OCF_ERR_ARGS
+	return $OCF_ERR_INSTALLED
   fi
   if [ ! -f $CONFIGFILE ]; then
 # We are sure to succeed here, since we have parsed $CONFIGFILE before getting here
 	ocf_log err "Configuration file $CONFIGFILE not found!"
-	exit $OCF_ERR_CONFIGURED
+	return $OCF_ERR_INSTALLED
   fi
-
 
   return $OCF_SUCCESS
 }
 
-if
-  [ $# -eq 1 ]
-then
-  COMMAND=$1
+find_httpd_prog() {
+    case $0 in
+      *IBM*)	HTTPD=$IBMHTTPD
+		  DefaultConfig=$DEFAULT_IBMCONFIG;;
+      *)	
+	  HTTPD=
+	  for h in $HTTPDLIST
+	  do
+	    if
+	      [ -f $h -a -x $h ]
+	    then
+	      HTTPD=$h
+	      break
+	    fi
+	  done
+  # Let the user know that the $HTTPD used is not the one (s)he specified via $OCF_RESKEY_httpd
+	  if
+	    [ "X$OCF_RESKEY_httpd" != X -a "X$HTTPD" != X ]
+	  then
+	    ocf_log info "Using $HTTPD as HTTPD"
+	  fi
+	  DefaultConfig=$DEFAULT_NORMCONFIG;;
+    esac
+}
+
+apache_getconfig() {
+  # these variables are global
   HTTPD="$OCF_RESKEY_httpd"
   PORT="$OCF_RESKEY_port"
   STATUSURL="$OCF_RESKEY_statusurl"
@@ -525,86 +526,22 @@ then
   TESTNAME="$OCF_RESKEY_testname"
   : ${OCF_RESKEY_envfiles="/etc/apache2/envvars"}
   source_envfiles $OCF_RESKEY_envfiles
-else
-  usage $OCF_ERR_ARGS
-fi
 
-LSB_STATUS_STOPPED=3
-if
-  [ "X$HTTPD" = X -o ! -f "$HTTPD" -o ! -x "$HTTPD" ]
-then
-  case $0 in
-    *IBM*)	HTTPD=$IBMHTTPD
-		DefaultConfig=$DEFAULT_IBMCONFIG;;
-    *)	
-	HTTPD=
-	for h in $HTTPDLIST
-	do
-	  if
-	    [ -f $h -a -x $h ]
-	  then
-	    HTTPD=$h
-	    break
-	  fi
-	done
-# It is possible that we still do not have a valid httpd at this stage
-	if
-          [ -z "$HTTPD" ]
-	then
-	  case $COMMAND in
-	    stop)	exit	$OCF_SUCCESS;;
-	    monitor)	exit	$OCF_NOT_RUNNING;;
-            status)	exit  $LSB_STATUS_STOPPED;;
-  	    meta-data)	metadata_apache;;
-	  esac
-	  ocf_log err "No valid httpd found! Please revise your <HTTPDLIST> item"
-          exit $OCF_ERR_INSTALLED
-	fi
-# Let the user know that the $HTTPD used is not the one (s)he specified via $OCF_RESKEY_httpd
-        if
-          [ "X$OCF_RESKEY_httpd" != X ]
-        then
-	  ocf_log info "Using $HTTPD as HTTPD"
-        fi
-	DefaultConfig=$DEFAULT_NORMCONFIG;;
+  if
+    [ "X$HTTPD" = X -o ! -f "$HTTPD" -o ! -x "$HTTPD" ]
+  then
+    find_httpd_prog
+  fi
+  CONFIGFILE=${CONFIGFILE:-$DefaultConfig}
+  httpd_basename=`basename $HTTPD`
+  case $httpd_basename in
+    *-*)	httpd_basename=`echo "$httpd_basename" | sed -e 's%\-.*%%'`;;
   esac
-fi
-httpd_basename=`basename $HTTPD`
-case $httpd_basename in
-  *-*)	httpd_basename=`echo "$httpd_basename" | sed -e 's%\-.*%%'`;;
-esac
+  GetParams $CONFIGFILE
+}
 
-case "$CONFIGFILE" in
-  "") CONFIGFILE=$DefaultConfig;;
-  *)		;;
-esac
+OCF_REQUIRED_PARAMS=""
+OCF_REQUIRED_BINARIES=""
+ocf_rarun $*
 
-if
-  [ ! -f "$CONFIGFILE" ]
-then
-  case $COMMAND in
-    stop)	ocf_log warn "$CONFIGFILE not found - apache considered stopped"
-    		exit $OCF_SUCCESS;;
-    monitor)	exit $OCF_NOT_RUNNING;;
-    status)	exit $LSB_STATUS_STOPPED;;
-  esac
-fi
-
-if
-  [ "X$COMMAND" = Xmeta-data ] || GetParams $CONFIGFILE
-then
-  : OK
-else
-  ocf_log err "Cannot parse config file [$CONFIGFILE]"
-  exit $OCF_ERR_INSTALLED
-fi
-
-case $COMMAND in
-  start)	start_apache;;
-  stop)		stop_apache;;
-  status)	status_apache;;
-  monitor)	monitor_apache;;
-  meta-data)	metadata_apache;;
-  validate-all)	validate_all_apache;;
-  *)		usage $OCF_ERR_UNIMPLEMENTED;;
-esac
+# vim:sw=2:ts=8:

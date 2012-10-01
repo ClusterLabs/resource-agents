@@ -593,20 +593,16 @@ ip_served() {
 
 	if [ -z "$IP_CIP" ]; then
 		for i in $cur_nic; do
-			case $i in
-			lo*)
-				if ocf_is_true ${OCF_RESKEY_lvs_support}; then
-					echo "no"
-					return 0
-				fi
-				;;
-			$NIC)
-				# only mark as served when on the same interfaces as $NIC
-				echo "ok"
-				return 0
-				;;
-			esac
+			# only mark as served when on the same interfaces as $NIC
+			[ "$i" = "$NIC" ] || continue
+			echo "ok"
+			return 0
 		done
+		# There used to be logic here to pretend "not served",
+		# if ${OCF_RESKEY_lvs_support} was enabled, and the IP was
+		# found active on "lo*" only.  With lvs_support on, you should
+		# have NIC != lo, so thats already filtered
+		# by the continue above.
 
 		echo "no"
 		return 0

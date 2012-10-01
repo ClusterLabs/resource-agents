@@ -1,0 +1,81 @@
+# oracle
+# (based on db2)
+#
+# Created on an SLE11SP2 running oracle 11g
+# database sid is orcl
+# adapt this in set_testenv below
+# TODO: need oracle expert to break it, then test it
+#
+
+CONFIG
+	Agent oracle
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
+        HangTimeout 40
+
+SETUP-AGENT
+        # nothing
+
+CASE-BLOCK set_testenv
+        Env OCFT_sid=orcl
+
+CASE-BLOCK crm_setting
+        Env OCF_RESKEY_sid=$OCFT_sid
+	Env OCF_RESKEY_CRM_meta_timeout=30000
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+        Include set_testenv
+	Include crm_setting
+	Include default_status
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: no 'OCF_RESKEY_sid'"
+	Include prepare
+	Env OCF_RESKEY_sid=
+	AgentRun start OCF_ERR_CONFIGURED
+
+CASE "check base env: invalid 'OCF_RESKEY_home'"
+	Include prepare
+	Env OCF_RESKEY_home=/no_such
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
+
+CASE "normal start"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "started: monitor"
+	Include prepare
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "not started: monitor"
+	Include prepare
+	AgentRun monitor OCF_NOT_RUNNING
+
+CASE "try different ipcrm method"
+        Include prepare
+        Env OCF_RESKEY_ipcrm=none
+        AgentRun start OCF_SUCCESS

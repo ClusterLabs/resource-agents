@@ -315,7 +315,7 @@ iSCSILogicalUnit_monitor() {
     case $OCF_RESKEY_implementation in
 	iet)
  	    # Figure out and set the target ID
-	    TID=`sed -ne "s/tid:\([[:digit:]]\+\) name:${OCF_RESKEY_target_iqn}/\1/p" < /proc/net/iet/volume`
+	    TID=`sed -ne "s/tid:\([[:digit:]]\+\) name:${OCF_RESKEY_target_iqn}$/\1/p" < /proc/net/iet/volume`
 	    if [ -z "${TID}" ]; then
 		# Our target is not configured, thus we're not
 		# running.
@@ -323,12 +323,12 @@ iSCSILogicalUnit_monitor() {
 	    fi
 	    # FIXME: this looks for a matching LUN and path, but does
 	    # not actually test for the correct target ID.
-	    grep -E -q "[[:space:]]+lun:${OCF_RESKEY_lun}.*path:${OCF_RESKEY_path}" /proc/net/iet/volume && return $OCF_SUCCESS
+	    grep -E -q "[[:space:]]+lun:${OCF_RESKEY_lun}.*path:${OCF_RESKEY_path}$" /proc/net/iet/volume && return $OCF_SUCCESS
 	    ;;
 	tgt)
 	    # Figure out and set the target ID
 	    TID=`tgtadm --lld iscsi --op show --mode target \
-		| sed -ne "s/^Target \([[:digit:]]\+\): ${OCF_RESKEY_target_iqn}/\1/p"`
+		| sed -ne "s/^Target \([[:digit:]]\+\): ${OCF_RESKEY_target_iqn}$/\1/p"`
 	    if [ -z "$TID" ]; then
 		# Our target is not configured, thus we're not
 		# running.
@@ -337,7 +337,7 @@ iSCSILogicalUnit_monitor() {
 	    # This only looks for the backing store, but does not test
 	    # for the correct target ID and LUN.
 	    tgtadm --lld iscsi --op show --mode target \
-		| grep -E -q "[[:space:]]+Backing store.*: ${OCF_RESKEY_path}" && return $OCF_SUCCESS
+		| grep -E -q "[[:space:]]+Backing store.*: ${OCF_RESKEY_path}$" && return $OCF_SUCCESS
 	    ;;
 	lio)
 	    configfs_path="/sys/kernel/config/target/iscsi/${OCF_RESKEY_target_iqn}/tpgt_1/lun/lun_${OCF_RESKEY_lun}/${OCF_RESOURCE_INSTANCE}/udev_path"

@@ -14,6 +14,7 @@ fi
 
 DEFAULT_INIT_SCRIPT="/etc/init.d/nfsserver"
 DEFAULT_NOTIFY_CMD="/sbin/sm-notify"
+DEFAULT_RPCPIPEFS_DIR="/var/lib/nfs/rpc_pipefs"
 
 nfsserver_meta_data() {
 	cat <<END
@@ -75,6 +76,19 @@ IP addresses.
 <content type="string"/>
 </parameter>
 
+<parameter name="rpcpipefs_dir" unique="0" required="0">
+<longdesc lang="en">
+The mount point for the sunrpc file system. Default is $DEFAULT_RPCPIPEFS_DIR . 
+This script will mount(bind) nfs_shared_infodir on /var/lib/nfs/ (can not be changed),
+and this script will mount the sunrpc file system on $DEFAULT_RPCPIPEFS_DIR (default, can be changed by this parameter).
+If you want to move only rpc_pipefs/ (e.g. to keep rpc_pipefs/ local) from default , please set this value.
+</longdesc>
+<shortdesc lang="en">
+The mount point for the sunrpc file system.
+</shortdesc>
+<content type="string" default="$DEFAULT_RPCPIPEFS_DIR" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -116,6 +130,14 @@ fp="$OCF_RESKEY_nfs_shared_infodir"
 : ${OCF_RESKEY_nfs_init_script="$DEFAULT_INIT_SCRIPT"}
 : ${OCF_RESKEY_nfs_notify_cmd="$DEFAULT_NOTIFY_CMD"}
 
+if [ -z ${OCF_RESKEY_rpcpipefs_dir} ]; then
+	rpcpipefs_make_dir=$fp/rpc_pipefs
+	rpcpipefs_umount_dir=${DEFAULT_RPCPIPEFS_DIR}
+else
+	rpcpipefs_make_dir=${OCF_RESKEY_rpcpipefs_dir}
+	rpcpipefs_umount_dir=${OCF_RESKEY_rpcpipefs_dir}
+fi
+
 nfsserver_monitor ()
 {
 	fn=`mktemp`
@@ -137,7 +159,7 @@ nfsserver_monitor ()
 prepare_directory ()
 {
 	[ -d "$fp" ] || mkdir -p $fp
-	[ -d "$fp/rpc_pipefs" ] || mkdir -p $fp/rpc_pipefs
+	[ -d "$rpcpipefs_make_dir" ] || mkdir -p $rpcpipefs_make_dir
 	[ -d "$fp/sm" ] || mkdir -p $fp/sm
 	[ -d "$fp/sm.ha" ] || mkdir -p $fp/sm.ha
 	[ -d "$fp/sm.bak" ] || mkdir -p $fp/sm.bak
@@ -161,8 +183,8 @@ bind_tree ()
 
 unbind_tree ()
 {
-	if `mount | grep -q "rpc_pipefs on /var/lib/nfs/rpc_pipefs"`; then
-		umount /var/lib/nfs/rpc_pipefs
+	if `mount | grep -q " on $rpcpipefs_umount_dir"`; then
+		umount -t rpc_pipefs $rpcpipefs_umount_dir
 	fi
 	if is_bound $fp /var/lib/nfs; then
 		umount /var/lib/nfs
@@ -171,6 +193,11 @@ unbind_tree ()
 
 nfsserver_start ()
 {
+	if nfsserver_monitor; then
+		ocf_log debug "NFS server is already started"
+		return $OCF_SUCCESS
+	fi
+
 	prepare_directory
 	bind_tree
 
@@ -260,7 +287,7 @@ case $__OCF_ACTION in
 		;;
 	monitor)    nfsserver_monitor
 		;;
-	validate-all)   nfsserver_validate
+	validate-all)   exit $OCF_SUCCESS
 		;;
 	*)      nfsserver_usage
 	exit $OCF_ERR_UNIMPLEMENTED

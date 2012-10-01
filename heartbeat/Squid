@@ -117,13 +117,12 @@ you must specifiy the only one of them.
 
 <parameter name="squid_stop_timeout" unique="0">
 <longdesc lang="en">
-This is an omittable parameter.
-On a stop action, a normal stop method is firstly used.
-and then the confirmation of its completion is awaited for
-the specified seconds by this parameter.
-The default value is 10.
+On stop, a squid shutdown is invoked first. If the resource
+doesn't stop within this timeout, we resort to stopping
+processes by sending signals and finally KILLing them.
 </longdesc>
-<shortdesc>Number of seconds to await to confirm a normal stop method</shortdesc>
+<shortdesc>how long to wait for squid shutdown to stop the
+instance before resorting to kill</shortdesc>
 <content type="integer" default="10"/>
 </parameter>
 
@@ -195,7 +194,7 @@ get_pids()
 	# Seek by port
 	SQUID_PIDS[2]=$(
 		netstat -apn |
-		awk '/tcp.*[0-9]+\.[0-9]+\.+[0-9]+\.[0-9]+:'$SQUID_PORT' /{
+		awk '/tcp.*[0-9]+\.[0-9]+\.+[0-9]+\.[0-9]+:'$SQUID_PORT' / && $7~/^[1-9]/ {
 			sub("\\/.*", "", $7); print $7; exit}')
 }
 
@@ -401,7 +400,7 @@ SQUID_PIDS=( )
 
 SQUID_CONFIRM_TRIALCOUNT="${OCF_RESKEY_squid_confirm_trialcount-3}"
 
-SQUID_STOP_TIMEOUT="${OCF_RESKEY_squid_stop_timeout-5}"
+SQUID_STOP_TIMEOUT="${OCF_RESKEY_squid_stop_timeout-10}"
 SQUID_SUSPEND_TRIALCOUNT="${OCF_RESKEY_squid_suspend_trialcount-10}"
 
 PROCESS_PATTERN="$SQUID_EXE -f $SQUID_CONF"

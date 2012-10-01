@@ -385,7 +385,7 @@ slapd_monitor()
   local state
   local suffix
   local suffixes
-  local err_option="-err"
+  local err_option="-info"
 
   slapd_status `slapd_pid`; state=$?
   if [ $state -eq $OCF_NOT_RUNNING ]; then
@@ -424,14 +424,18 @@ slapd_monitor()
     done
 
   else
-    ocf_log err "slapd configuration '$config' does not exist."
-    return $OCF_ERR_INSTALLED
+    if ocf_is_probe; then
+      ocf_log info "slapd configuration '$config' does not exist during probe."
+    else
+      ocf_log err "slapd configuration '$config' does not exist."
+      return $OCF_ERR_INSTALLED
+    fi
   fi
 
   options="-LLL -s base -x"
 
   if [ -n "$bind_dn" ]; then
-    options="$options -D '$bind_dn' -w '$password'"
+    options="$options -D $bind_dn -w $password"
   fi
 
   [ -z "$1" ] && err_option=""
@@ -449,8 +453,8 @@ slapd_monitor()
       *)
         if [ -z "$1" ] || [ -n "$1" -a $rc -ne 1 ]; then
           ocf_log err "slapd database with suffix '$suffix' unreachable. exit code ($rc)"
-          state=$OCF_ERR_GENERIC
         fi
+        state=$OCF_ERR_GENERIC
         ;;
     esac
   done
@@ -473,8 +477,12 @@ slapd_validate_all()
 		's/^pidfile[[:space:]]\+\(.\+\)/\1/p' \
 		"$config" 2>/dev/null`
     else
-      ocf_log err "slapd configuration '$config' does not exist."
-      return $OCF_ERR_INSTALLED
+      if ocf_is_probe; then
+        ocf_log info "slapd configuration '$config' does not exist during probe."
+      else
+        ocf_log err "slapd configuration '$config' does not exist."
+        return $OCF_ERR_INSTALLED
+      fi
     fi
   fi
 

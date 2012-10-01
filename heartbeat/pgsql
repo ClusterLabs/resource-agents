@@ -21,28 +21,16 @@
 # Get PostgreSQL Configuration parameter
 #
 get_pgsql_param() {
-    local config
     local param_name
 
     param_name=$1
- 
-    #Check that config file exists 
-    if [ -n "$OCF_RESKEY_config" ]; then
-        config=$OCF_RESKEY_config
-    else
-        config=$OCF_RESKEY_pgdata/postgresql.conf
-    fi
-
-    check_config "$config"
-    [ $? -eq 0 ] || return
-
     perl_code="if (/^\s*$param_name[\s=]+\s*(.*)$/) {
        \$dir=\$1;
        \$dir =~ s/\s*\#.*//;
        \$dir =~ s/^'(\S*)'/\$1/;
        print \$dir;}"
 
-    perl -ne "$perl_code" < $config
+    perl -ne "$perl_code" < $OCF_RESKEY_config
 }
 
 # Defaults
@@ -52,7 +40,6 @@ OCF_RESKEY_pgdata_default=/var/lib/pgsql/data
 OCF_RESKEY_pgdba_default=postgres
 OCF_RESKEY_pghost_default=""
 OCF_RESKEY_pgport_default=5432
-OCF_RESKEY_config_default=""
 OCF_RESKEY_start_opt_default=""
 OCF_RESKEY_pgdb_default=template1
 OCF_RESKEY_logfile_default=/dev/null
@@ -64,6 +51,8 @@ OCF_RESKEY_monitor_sql_default="select now();"
 OCF_RESKEY_rep_mode_default=none
 OCF_RESKEY_node_list_default=""
 OCF_RESKEY_restore_command_default=""
+OCF_RESKEY_archive_cleanup_command_default=""
+OCF_RESKEY_recovery_end_command_default=""
 OCF_RESKEY_master_ip_default=""
 OCF_RESKEY_repuser_default="postgres"
 OCF_RESKEY_primary_conninfo_opt_default=""
@@ -78,7 +67,7 @@ OCF_RESKEY_stop_escalate_in_slave_default=30
 : ${OCF_RESKEY_pgdba=${OCF_RESKEY_pgdba_default}}
 : ${OCF_RESKEY_pghost=${OCF_RESKEY_pghost_default}}
 : ${OCF_RESKEY_pgport=${OCF_RESKEY_pgport_default}}
-: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
+: ${OCF_RESKEY_config=${OCF_RESKEY_pgdata}/postgresql.conf}
 : ${OCF_RESKEY_start_opt=${OCF_RESKEY_start_opt_default}}
 : ${OCF_RESKEY_pgdb=${OCF_RESKEY_pgdb_default}}
 : ${OCF_RESKEY_logfile=${OCF_RESKEY_logfile_default}}
@@ -86,10 +75,13 @@ OCF_RESKEY_stop_escalate_in_slave_default=30
 : ${OCF_RESKEY_monitor_user=${OCF_RESKEY_monitor_user_default}}
 : ${OCF_RESKEY_monitor_password=${OCF_RESKEY_monitor_password_default}}
 : ${OCF_RESKEY_monitor_sql=${OCF_RESKEY_monitor_sql_default}}
+
 # for replication
 : ${OCF_RESKEY_rep_mode=${OCF_RESKEY_rep_mode_default}}
 : ${OCF_RESKEY_node_list=${OCF_RESKEY_node_list_default}}
 : ${OCF_RESKEY_restore_command=${OCF_RESKEY_restore_command_default}}
+: ${OCF_RESKEY_archive_cleanup_command=${OCF_RESKEY_archive_cleanup_command_default}}
+: ${OCF_RESKEY_recovery_end_command=${OCF_RESKEY_recovery_end_command_default}}
 : ${OCF_RESKEY_master_ip=${OCF_RESKEY_master_ip_default}}
 : ${OCF_RESKEY_repuser=${OCF_RESKEY_repuser_default}}
 : ${OCF_RESKEY_primary_conninfo_opt=${OCF_RESKEY_primary_conninfo_opt_default}}
@@ -220,10 +212,10 @@ SQL script that will be used for monitor operations.
 
 <parameter name="config" unique="0" required="0">
 <longdesc lang="en">
-Path to the PostgreSQL configuration file for the instance
+Path to the PostgreSQL configuration file for the instance.
 </longdesc>
 <shortdesc lang="en">Configuration file</shortdesc>
-<content type="string" default="${OCF_RESKEY_config_default}" />
+<content type="string" default="${OCF_RESKEY_pgdata}/postgresql.conf" />
 </parameter>
 
 <parameter name="pgdb" unique="0" required="0">
@@ -288,6 +280,24 @@ This is required for replication.
 </longdesc>
 <shortdesc lang="en">restore_command</shortdesc>
 <content type="string" default="${OCF_RESKEY_restore_command_default}" />
+</parameter>
+
+<parameter name="archive_cleanup_command" unique="0" required="0">
+<longdesc lang="en">
+archive_cleanup_command for recovery.conf.
+This is used for replication and is optional.
+</longdesc>
+<shortdesc lang="en">archive_cleanup_command</shortdesc>
+<content type="string" default="${OCF_RESKEY_archive_cleanup_command_default}" />
+</parameter>
+
+<parameter name="recovery_end_command" unique="0" required="0">
+<longdesc lang="en">
+recovery_end_command for recovery.conf.
+This is used for replication and is optional.
+</longdesc>
+<shortdesc lang="en">recovery_end_command</shortdesc>
+<content type="string" default="${OCF_RESKEY_recovery_end_command_default}" />
 </parameter>
 
 <parameter name="master_ip" unique="0" required="0">
@@ -470,10 +480,8 @@ pgsql_real_start() {
     pgctl_options="$OCF_RESKEY_ctl_opt -D $OCF_RESKEY_pgdata -l $OCF_RESKEY_logfile"
 
     # Set options passed to the PostgreSQL server process
-    postgres_options=""
-    if [ -n "$OCF_RESKEY_config" ]; then
-        postgres_options="$postgres_options -c config_file=${OCF_RESKEY_config}"
-    fi
+    postgres_options="-c config_file=${OCF_RESKEY_config}"
+
     if [ -n "$OCF_RESKEY_pghost" ]; then
         postgres_options="$postgres_options -h $OCF_RESKEY_pghost"
     fi
@@ -482,12 +490,10 @@ pgsql_real_start() {
     fi
 
     # Tack pass-through options onto pg_ctl options
-    if [ -n "$postgres_options" ]; then
-        pgctl_options="$pgctl_options -o '$postgres_options'"
-    fi
+    pgctl_options="$pgctl_options -o '$postgres_options'"
 
     # Invoke pg_ctl
-    runasowner "$OCF_RESKEY_pgctl $pgctl_options start"
+    runasowner "unset PGUSER; unset PGPASSWORD; $OCF_RESKEY_pgctl $pgctl_options start"
 
     if [ $? -eq 0 ]; then
         # Probably started.....
@@ -560,7 +566,7 @@ pgsql_promote() {
     fi
     rm -f ${XLOG_NOTE_FILE}.*
 
-    for target in $OCF_RESKEY_node_list; do
+    for target in $NODE_LIST; do
         [ "$target" = "$NODENAME" ] && continue
         change_data_status "$target" "DISCONNECT"
         change_master_score "$target" "$CAN_NOT_PROMOTE"
@@ -804,11 +810,6 @@ pgsql_real_monitor() {
 
 pgsql_replication_monitor() {
     local rc
-    local rsc
-    local instance
-    local my_status
-    local data_status
-    local is_master=""
 
     rc=$1
     if [ $rc -ne $OCF_SUCCESS -a $rc -ne "$OCF_RUNNING_MASTER" ]; then
@@ -824,23 +825,8 @@ pgsql_replication_monitor() {
 
     # I can't get master node name from $OCF_RESKEY_CRM_meta_notify_master_uname on monitor,
     # so I will get master node name using crm_mon -n
-    if output=`crm_mon -n1 | grep " Master"`; then
-        rsc=`echo $OCF_RESOURCE_INSTANCE | cut -d ":" -f 1`
-        instance=0
-        while :
-        do
-            if [ "$instance" -ge "$OCF_RESKEY_CRM_meta_clone_max" ]; then
-                break
-            fi
-            if echo "$output" | grep "${rsc}:${instance}"; then
-                is_master="yes"
-                break
-            fi
-            instance=`expr $instance + 1`
-        done
-    fi
-
-    if [ ! -n "$is_master" ]; then
+    crm_mon -n1 | tr -d "\t" | grep -q "^${RESOURCE_NAME}:.* Master"
+    if [ $? -ne 0 ] ; then
         # If I am Slave and Master is not exist
         ocf_log info "Master does not exist."
         change_pgsql_status "$NODENAME" "HS:alone"
@@ -894,7 +880,7 @@ pgsql_pre_promote() {
     # If my data is newer than new master's one, I fail my resource.
     PROMOTE_NODE=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname | \
                   sed "s/ /\n/g" | head -1`
-    number_of_nodes=`echo $OCF_RESKEY_node_list | wc -w`
+    number_of_nodes=`echo $NODE_LIST | wc -w`
     if [ $number_of_nodes -ge 3 -a \
          "$OCF_RESKEY_rep_mode" = "sync" -a \
          "$PROMOTE_NODE" != "$NODENAME" ]; then
@@ -984,8 +970,8 @@ control_slave_status() {
         return 1
     fi
 
-    number_of_nodes=`echo $OCF_RESKEY_node_list | wc -w`
-    for target in $OCF_RESKEY_node_list; do
+    number_of_nodes=`echo $NODE_LIST | wc -w`
+    for target in $NODE_LIST; do
         if [ "$target" = "$NODENAME" ]; then
             continue
         fi
@@ -1103,7 +1089,7 @@ have_master_right() {
     new=`expr $old + 1`
 
     # get xlog locations of all nodes
-    for node in ${OCF_RESKEY_node_list}; do
+    for node in ${NODE_LIST}; do
         output=`$CRM_ATTR_REBOOT -N "$node" -n \
                 "$PGSQL_XLOG_LOC_NAME" -G -q 2>/dev/null`
         if [ $? -ne 0 ]; then
@@ -1225,7 +1211,7 @@ delete_master_baseline() {
 set_async_mode_all() {
     [ "$OCF_RESKEY_rep_mode" = "sync" ] || return 0
     ocf_log info "Set all nodes into async mode."
-    runasowner -q err "echo "" > \"$REP_MODE_CONF\""
+    runasowner -q err "echo \"synchronous_standby_names = ''\" > \"$REP_MODE_CONF\""
     if [ $? -ne 0 ]; then
         ocf_log err "Can't set all nodes into async mode."
         return 1
@@ -1241,11 +1227,7 @@ set_async_mode() {
         ocf_log info "Setup $1 into async mode."
         sync_node_in_conf=`echo $sync_node_in_conf | sed "s/$1//g" |\
                            sed "s/^,//g" | sed "s/,,/,/g" | sed "s/,$//g"`
-        if [ -n $sync_node_in_conf ]; then
-            echo "synchronous_standby_names = '$sync_node_in_conf'" > "$REP_MODE_CONF"
-        else
-            echo "" > "$REP_MODE_CONF"
-        fi
+        echo "synchronous_standby_names = '$sync_node_in_conf'" > "$REP_MODE_CONF"
     else
         ocf_log info "$1 is already in async mode."
         return 0
@@ -1289,6 +1271,16 @@ reload_conf() {
     return 0
 }
 
+user_recovery_conf() {
+    # put archive_cleanup_command and recovery_end_command only when defined by user
+    if [ -n "$OCF_RESKEY_archive_cleanup_command" ]; then
+        echo "archive_cleanup_command = '${OCF_RESKEY_archive_cleanup_command}'"
+    fi
+    if [ -n "$OCF_RESKEY_recovery_end_command" ]; then
+        echo "recovery_end_command = '${OCF_RESKEY_recovery_end_command}'"
+    fi
+}
+
 make_recovery_conf() {
     runasowner "touch $RECOVERY_CONF"
     if [ $? -ne 0 ]; then
@@ -1303,6 +1295,7 @@ restore_command = '${OCF_RESKEY_restore_command}'
 recovery_target_timeline = 'latest'
 END
 
+    user_recovery_conf >> $RECOVERY_CONF
     ocf_log debug "Created recovery.conf. host=${OCF_RESKEY_master_ip}, user=${OCF_RESKEY_repuser}"
     return 0
 }
@@ -1368,7 +1361,6 @@ change_data_status() {
 # change master-score
 # arg1:node, arg2: score
 change_master_score() {
-    local rsc
     local instance
     local current_score
 
@@ -1376,22 +1368,21 @@ change_master_score() {
         return 0
     fi
 
-    rsc=`echo $OCF_RESOURCE_INSTANCE | cut -d ":" -f 1`
     instance=0
     while :
     do
         if [ "$instance" -ge "$OCF_RESKEY_CRM_meta_clone_max" ]; then
             break
         fi
-        if [ "${rsc}:${instance}" = "$OCF_RESOURCE_INSTANCE" ]; then
+        if [ "${RESOURCE_NAME}:${instance}" = "$OCF_RESOURCE_INSTANCE" ]; then
             instance=`expr $instance + 1`
             continue
         fi
 
-        current_score=`$CRM_ATTR_REBOOT -N "$1" -n "master-${rsc}:${instance}" -G -q 2>/dev/null`
+        current_score=`$CRM_ATTR_REBOOT -N "$1" -n "master-${RESOURCE_NAME}:${instance}" -G -q 2>/dev/null`
         if [ -n "$current_score" -a "$current_score" != "$2" ]; then
-            ocf_log info "Changing ${rsc}:${instance} master score on $1 : $current_score->$2."
-            $CRM_ATTR_REBOOT -N "$target" -n "master-${rsc}:${instance}" -v "$2"
+            ocf_log info "Changing ${RESOURCE_NAME}:${instance} master score on $1 : $current_score->$2."
+            $CRM_ATTR_REBOOT -N "$target" -n "master-${RESOURCE_NAME}:${instance}" -v "$2"
             if [ $? -ne 0 ]; then
                 ocf_log err "Can't change master score."
                 return 1
@@ -1481,16 +1472,17 @@ check_config() {
 # Validate most critical parameters
 pgsql_validate_all() {
     local version
+    local check_config_rc
 
     if ! check_binary2 "$OCF_RESKEY_pgctl" || 
        ! check_binary2 "$OCF_RESKEY_psql"; then
         return $OCF_ERR_INSTALLED
     fi
 
-    if [ -n "$OCF_RESKEY_config" -a ! -f "$OCF_RESKEY_config" ]; then
-       check_config "$OCF_RESKEY_config"
-       [ $? -eq 2 ] && return $OCF_ERR_INSTALLED
-    fi
+    check_config "$OCF_RESKEY_config"
+    check_config_rc=$?
+    [ $check_config_rc -eq 2 ] && return $OCF_ERR_INSTALLED
+    [ $check_config_rc -eq 0 ] && : ${OCF_RESKEY_socketdir=`get_pgsql_param unix_socket_directory`}
 
     getent passwd $OCF_RESKEY_pgdba >/dev/null 2>&1
     if [ ! $? -eq 0 ]; then
@@ -1537,13 +1529,13 @@ pgsql_validate_all() {
             ocf_log err "master_ip can't be empty."
             return $OCF_ERR_CONFIGURED
         fi
-        if [ ! -n "$OCF_RESKEY_node_list" ]; then
+        if [ ! -n "$NODE_LIST" ]; then
             ocf_log err "node_list can't be empty."
             return $OCF_ERR_CONFIGURED
         fi
-        if [ "$OCF_RESKEY_rep_mode" = "sync" ]; then
-            if ! grep -q "include '$REP_MODE_CONF' # added by pgsql RA" $OCF_RESKEY_pgdata/postgresql.conf; then
-                echo "include '$REP_MODE_CONF' # added by pgsql RA" >> $OCF_RESKEY_pgdata/postgresql.conf
+        if [ "$OCF_RESKEY_rep_mode" = "sync" -a $check_config_rc -eq 0 ]; then
+            if ! grep -q "include '$REP_MODE_CONF' # added by pgsql RA" $OCF_RESKEY_config; then
+                echo "include '$REP_MODE_CONF' # added by pgsql RA" >> $OCF_RESKEY_config
             fi
         fi
         if ! mkdir -p $OCF_RESKEY_tmpdir || ! chown $OCF_RESKEY_pgdba $OCF_RESKEY_tmpdir || ! chmod 700 $OCF_RESKEY_tmpdir; then
@@ -1640,12 +1632,14 @@ if is_replication; then
     CHECK_XLOG_LOC_SQL="select pg_last_xlog_replay_location(),pg_last_xlog_receive_location()"
     CHECK_REPLICATION_STATE_SQL="select application_name,upper(state),upper(sync_state) from pg_stat_replication"
 
-    PGSQL_STATUS_ATTR="pgsql-status"
-    PGSQL_DATA_STATUS_ATTR="pgsql-data-status"
-    PGSQL_XLOG_LOC_NAME="pgsql-xlog-loc"
-    PGSQL_MASTER_BASELINE="pgsql-master-baseline"
+    RESOURCE_NAME=`echo $OCF_RESOURCE_INSTANCE | cut -d ":" -f 1`
+    PGSQL_STATUS_ATTR="${RESOURCE_NAME}-status"
+    PGSQL_DATA_STATUS_ATTR="${RESOURCE_NAME}-data-status"
+    PGSQL_XLOG_LOC_NAME="${RESOURCE_NAME}-xlog-loc"
+    PGSQL_MASTER_BASELINE="${RESOURCE_NAME}-master-baseline"
 
-    NODENAME=`uname -n`
+    NODENAME=`uname -n | tr '[A-Z]' '[a-z]'`
+    NODE_LIST=`echo $OCF_RESKEY_node_list | tr '[A-Z]' '[a-z]'`
     OPERATION=$1
 fi
 
@@ -1656,9 +1650,6 @@ case "$1" in
     meta-data)  meta_data
                 exit $OCF_SUCCESS;;
 esac
-
-# $OCF_RESKEY_pgdata has to be initialized at this momemnt
-: ${OCF_RESKEY_socketdir=`get_pgsql_param unix_socket_directory`}
 
 pgsql_validate_all
 rc=$?

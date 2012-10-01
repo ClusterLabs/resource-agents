@@ -18,7 +18,7 @@
 # An example usage in /etc/ha.d/haresources: 
 #       node1  10.0.0.170 oracle::RK1::/oracle/10.2::orark1
 #
-# See usage() function below for more details...
+# See oracle_usage() function below for more details...
 #
 # OCF instance parameters:
 #	OCF_RESKEY_sid
@@ -32,10 +32,11 @@
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+. ${OCF_FUNCTIONS_DIR}/ora-common.sh
 
 #######################################################################
 
-usage() {
+oracle_usage() {
   methods=`oracle_methods`
   methods=`echo $methods | tr ' ' '|'`
   cat <<-!
@@ -55,7 +56,7 @@ usage() {
 	!
 }
 
-meta_data() {
+oracle_meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
@@ -208,106 +209,57 @@ oracle_methods() {
 	!
 }
 
-
-#	Gather up information about our oracle instance
-
-ora_info() {
-	ORACLE_SID=$1
-	ORACLE_HOME=$2
-	ORACLE_OWNER=$3
-
-	# get ORACLE_HOME from /etc/oratab if not set
-	[ x = "x$ORACLE_HOME" ] &&
-		ORACLE_HOME=`awk -F: "/^$ORACLE_SID:/"'{print $2}' /etc/oratab`
-
-	# there a better way to find out ORACLE_OWNER?
-	[ x = "x$ORACLE_OWNER" ] &&
-		ORACLE_OWNER=`ls -ld $ORACLE_HOME/. 2>/dev/null | awk 'NR==1{print $3}'`
-
-	sqlplus=$ORACLE_HOME/bin/sqlplus
-	lsnrctl=$ORACLE_HOME/bin/lsnrctl
-	tnsping=$ORACLE_HOME/bin/tnsping
-}
-
-testoraenv() {
-	#	Let's make sure a few important things are set...
-	if [ x = "x$ORACLE_HOME" ]; then
-		ocf_log info "ORACLE_HOME not set"
-		return $OCF_ERR_CONFIGURED
-	fi
-	if [ x = "x$ORACLE_OWNER" ]; then
-		ocf_log info "ORACLE_OWNER not set"
-		return $OCF_ERR_CONFIGURED
-	fi
-	#	and some important things are there
-	if [ ! -x "$sqlplus" ]; then
-		ocf_log info "$sqlplus does not exist"
-		return $OCF_ERR_INSTALLED
-	fi
-	if [ ! -x "$lsnrctl" ]; then
-		ocf_log err "$lsnrctl does not exist"
-		return $OCF_ERR_INSTALLED
-	fi
-	if [ ! -x "$tnsping" ]; then
-		ocf_log err "$tnsping does not exist"
-		return $OCF_ERR_INSTALLED
-	fi
-	return 0
-}
-
-setoraenv() {
-	LD_LIBRARY_PATH=$ORACLE_HOME/lib
-	LIBPATH=$ORACLE_HOME/lib
-	TNS_ADMIN=$ORACLE_HOME/network/admin
-	PATH=$ORACLE_HOME/bin:$ORACLE_HOME/dbs:$PATH
-	export ORACLE_SID ORACLE_HOME ORACLE_OWNER TNS_ADMIN
-	export LD_LIBRARY_PATH LIBPATH
-}
-dumporaenv() {
-cat<<EOF
-PATH=$ORACLE_HOME/bin:$ORACLE_HOME/dbs:$PATH
-ORACLE_SID=$ORACLE_SID
-ORACLE_HOME=$ORACLE_HOME
-ORACLE_OWNER=$ORACLE_OWNER
-LD_LIBRARY_PATH=$ORACLE_HOME/lib
-LIBPATH=$ORACLE_HOME/lib
-TNS_ADMIN=$ORACLE_HOME/network/admin
-export ORACLE_SID ORACLE_HOME ORACLE_OWNER TNS_ADMIN
-export LD_LIBRARY_PATH LIBPATH
-EOF
-}
-
 #
 #	Run commands as the Oracle owner...
 #
 execsql() {
 	if [ "$US" = "$ORACLE_OWNER" ]; then
-		$sqlplus -S /nolog
+		sqlplus -S /nolog
 	else
-		su - $ORACLE_OWNER -c ". $envtmpf; $sqlplus -S /nolog"
+		su - $ORACLE_OWNER -c ". $ORA_ENVF; sqlplus -S /nolog"
 	fi
 }
 
 #
 #	Run commands in the oracle admin sqlplus...
 #
-dbasql() {
+common_sql_opts() {
+	cat<<EOF
+set feedback off
+set heading off
+set pagesize 0
+EOF
+}
+common_sql_filter() {
+	grep -v '^Connected' |
+		grep -v '^ENV MSG:' |
+		grep -v 'Your password will expire in'
+}
+runsql() {
+	local conn_s="$1"
+	shift 1
 	local func
 	(
-	echo "connect / as sysdba"
-	echo "set feedback off"
-	echo "set heading off"
-	echo "set pagesize 0"
+	echo "$conn_s"
+	common_sql_opts
 	for func; do $func; done
 	) |
-	execsql | grep -v '^Connected' |
-		grep -v '^ENV MSG:'
+	execsql | common_sql_filter
+}
+dbasql() {
+	runsql "connect / as sysdba" $*
+}
+monsql() {
+	runsql "connect $MONUSR/$MONUSR" $*
 }
 # use dbasql_one if the query should result in a single line output
 # at times people stuff commands in oracle .profile
 # which may produce extra output
 dbasql_one() {
 	dbasql $* | tail -1
+}
+monsql_one() {
+	monsql $* | tail -1
 }
 
 #
@@ -370,7 +322,31 @@ getdumpdest() {
 }
 getipc() {
 	echo "oradebug setmypid"
+	echo "oradebug tracefile_name"
 	echo "oradebug ipc"
+}
+show_mon_user() {
+	echo "select USERNAME, ACCOUNT_STATUS from dba_users where USERNAME='$MONUSR';"
+}
+mk_mon_user() {
+	cat<<EOF
+create user $MONUSR identified by $MONUSR;
+grant create session to $MONUSR;
+grant select on v_\$instance to $MONUSR;
+EOF
+}
+check_mon_user() {
+	local output
+	dbasql show_mon_user | grep -w "^$MONUSR" >/dev/null &&
+		return 0
+	output=`dbasql mk_mon_user show_mon_user`
+	if echo "$output" | grep -w "^$MONUSR" >/dev/null; then
+		return 0
+	else
+		ocf_log err "could not create $MONUSR oracle user"
+		ocf_log err "sqlplus output: $output"
+		return 1
+	fi
 }
 #
 # print the output of dbstat (for debugging)
@@ -386,22 +362,16 @@ showdbstat() {
 # IPC stuff: not overly complex, but quite involved :-/
 #
 
-IPC_LOCKFILE=${HA_RSCTMP}/oracle_ipc.lock
 # Part 1: Oracle
+other_trace_junk() {
+	echo $1 | sed 's/trc$/trm/'
+}
 dumpinstipc() {
-	local dumpdest=`dbasql_one getdumpdest`
-	if [ "x$dumpdest" = x -o ! -d "$dumpdest" ]; then
-		ocf_log warn "$dumpdest is not a directory"
-		return 1
-	fi
-	ocf_take_lock $IPC_LOCKFILE
-	local fcount=`ls -rt $dumpdest | grep '\.trc$' | wc -l`
-	output=`dbasql getipc`
-	local lastf=`ls -rt $dumpdest | grep '\.trc$' | tail -1`
-	local fcount2=`ls -rt $dumpdest | grep '\.trc$' | wc -l`
-	rm -f $IPC_LOCKFILE
-	if [ $((fcount+1)) -eq $fcount2 ]; then
-		echo $dumpdest/$lastf
+	local output tracef
+	output=`dbasql getipc` # filename in the 2nd line
+	tracef=`echo "$output" | awk 'NR==2' | grep '^/.*trc$'`
+	if [ "$tracef" ]; then
+		echo $tracef
 	else
 		ocf_log warn "'dbasql getipc' failed: $output"
 		return 1
@@ -430,6 +400,7 @@ parseipc() {
 		/system semaphore information/ {exit}
 	' $inf |
 	sort -u | sed 's/^/s:/'
+	TMPFILES="$TMPFILES $inf `other_trace_junk $inf`"
 }
 
 # Part 2: OS (ipcs,ipcrm)
@@ -470,12 +441,12 @@ ipcrm_instance() {
 # oracle_status: is the Oracle instance running?
 #
 # quick check to see if the instance is up
-is_oracle_up() {
+is_proc_running() {
 	ps -ef | grep -wiqs "[^ ]*[_]pmon_${ORACLE_SID}"
 }
 # instance in OPEN state?
 instance_live() {
-	local status=`dbasql_one dbstat`
+	local status=`monsql_one dbstat`
 	if [ "$status" = OPEN ]; then
 		return 0
 	else
@@ -498,10 +469,15 @@ ora_cleanup() {
 	orauser)
 		ipcrm_orauser $*
 		;;
-	*)
-    	ocf_log warn "bad usage: ipcrm set to $IPCRM"
-		;;
 	esac
+}
+
+oracle_getconfig() {
+	ora_common_getconfig "$OCF_RESKEY_sid" "$OCF_RESKEY_home" "$OCF_RESKEY_user"
+
+	clear_backupmode=${OCF_RESKEY_clear_backupmode:-"false"}
+	shutdown_method=${OCF_RESKEY_shutdown_method:-"checkpoint/abort"}
+	IPCRM=${OCF_RESKEY_ipcrm:-"instance"}
 }
 
 #
@@ -516,8 +492,8 @@ ora_cleanup() {
 
 oracle_start() {
 	local status output
-	if is_oracle_up; then
-		status="`dbasql_one dbstat`"
+	if is_proc_running; then
+		status="`monsql_one dbstat`"
 		case "$status" in
 		"OPEN")
 			: nothing to be done, we can leave right now
@@ -565,7 +541,12 @@ oracle_start() {
 	fi
 	output=`dbasql dbopen`
 
-	if ! is_oracle_up; then
+	# check/create the monitor user
+	if ! check_mon_user; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	if ! is_proc_running; then
 		ocf_log err "oracle process not running: $output"
 		return $OCF_ERR_GENERIC
 	elif ! instance_live; then
@@ -583,15 +564,15 @@ oracle_start() {
 #
 oracle_stop() {
 	local status output ipc=""
-	if is_oracle_up; then
+	if is_proc_running; then
 		[ "$IPCRM" = "instance" ] && ipc=$(parseipc `dumpinstipc`)
 		output=`dbasql dbstop`
 	else
 		ocf_log info "Oracle instance $ORACLE_SID already stopped"
 		return $OCF_SUCCESS
 	fi
-	ora_kill  # kill any processes left
-	if is_oracle_up; then
+	ocf_stop_processes TERM $PROCS_CLEANUP_TIME `proc_pids`  # kill the procs if they hanged
+	if is_proc_running; then
 		ocf_log err "Oracle instance $ORACLE_SID not stopped: $output"
 		return $OCF_ERR_GENERIC
 	else
@@ -602,178 +583,77 @@ oracle_stop() {
 		return $OCF_SUCCESS
 	fi
 }
-# kill the database processes (if any left)
-# give them 30 secs to exit cleanly (6 times 5)
-killprocs() {
-	local sig=$1
-	shift 1
-	# Record stderr
-	kill -s $sig $* >/dev/null
-}
-ora_kill() {
-	oraprocs=`eval $procs | awk '{print $1}'`
-	if [ -z "$oraprocs" ]; then
-		ocf_log debug "All oracle processes are already stopped."
-		return
-	fi
-	killprocs TERM $oraprocs
-	for i in 1 2 3 4 5; do
-		if [ -z "`eval $procs | awk '{print $1}'`" ]; then
-			ocf_log debug "All oracle processes are killed."
-			return
-		fi
-		sleep 5
-	done
-	killprocs KILL `eval $procs | awk '{print $1}'`
-}
 
 #
 # oracle_monitor: Can the Oracle instance do anything useful?
 #
 oracle_monitor() {
-	if ! is_oracle_up; then
+	if ! is_proc_running; then
 		ocf_log info "oracle process not running"
 		return $OCF_NOT_RUNNING
 	fi
 	if ! instance_live; then
-		ocf_log info "oracle instance $ORACLE_SID is down"
-		return $OCF_NOT_RUNNING
+		ocf_log err "oracle instance $ORACLE_SID is down"
+		return $OCF_ERR_GENERIC
 	fi
 	#ocf_log info "Oracle instance $ORACLE_SID is alive"
 	return $OCF_SUCCESS
 }
 
-#
-#	'main' starts here...
-#
-
-if [ $# -ne 1 ]
-then
-  usage
-  exit $OCF_ERR_ARGS
-fi
-
-# These operations don't require OCF instance parameters to be set
-case "$1" in
-  meta-data)	meta_data
-		exit $OCF_SUCCESS;;
-
-  usage) 	usage
-		exit $OCF_SUCCESS;;
-
-  methods)	oracle_methods
-		exit $?;;
-
-  *);;
-esac
-
-clear_backupmode=${OCF_RESKEY_clear_backupmode:-"false"}
-shutdown_method=${OCF_RESKEY_shutdown_method:-"checkpoint/abort"}
-
-case "${shutdown_method}" in
-"immediate") ;;
-"checkpoint/abort") ;;
-*) ocf_log err "unsupported shutdown_method, please read meta-data"
-esac
-
-if [ x = "x$OCF_RESKEY_sid" ]
-then
-  ocf_log err "Please set OCF_RESKEY_sid to the Oracle SID !"
-  exit $OCF_ERR_ARGS
-fi
-
-ora_info "$OCF_RESKEY_sid" "$OCF_RESKEY_home" "$OCF_RESKEY_user"
-
-LSB_STATUS_STOPPED=3
-testoraenv
-rc=$?
-if [ $rc -ne 0 ]; then
-	ocf_log info "Oracle environment for SID $ORACLE_SID does not exist"
-	case "$1" in
-		stop) exit $OCF_SUCCESS;;
-		monitor) exit $OCF_NOT_RUNNING;;
-		status) exit $LSB_STATUS_STOPPED;;
-		*)
-			ocf_log err "Oracle environment for SID $ORACLE_SID broken"
-			exit $rc
-		;;
-	esac
-fi
-
-setoraenv # important: set the environment for the SID
-envtmpf=`mktemp`
-dumporaenv > $envtmpf
-chmod 644 $envtmpf
-TMPFILES="$envtmpf"
-rmtmpfiles() {
-	rm -f $TMPFILES
-	# our lock file?
-	if [ "$$" = "`cat $IPC_LOCKFILE 2>/dev/null`" ]; then
-		rm -f $IPC_LOCKFILE
+# other supported actions
+oracle_status() {
+	if is_proc_running
+	then
+	  echo Oracle instance $ORACLE_SID is running
+	  exit $OCF_SUCCESS
+	else
+	  echo Oracle instance $ORACLE_SID is stopped
+	  exit $OCF_NOT_RUNNING
 	fi
 }
-trap "rmtmpfiles" EXIT
-procs="ps -e -o pid,args | grep -i \"[o]ra[a-zA-Z0-9_]*$ORACLE_SID\$\""
-
-US=`id -u -n`
-if [ $US != root -a $US != $ORACLE_OWNER ]
-then
-  ocf_log err "$0 must be run as root or $ORACLE_OWNER"
-  exit $OCF_ERR_PERM
-fi
-
-if [ x = "x$OCF_RESKEY_ipcrm" ]
-then
-	IPCRM="instance"
-else
-	IPCRM="$OCF_RESKEY_ipcrm"
-fi
-
-# What kind of method was invoked?
-case "$1" in
-
-  start)	oracle_start
-		exit $?;;
-
-  stop)		oracle_stop
-		exit $?;;
-
-  status)	if is_oracle_up
-		then
-		  echo Oracle instance $ORACLE_SID is running
-		  exit $OCF_SUCCESS
-		else
-		  echo Oracle instance $ORACLE_SID is stopped
-		  exit $OCF_NOT_RUNNING
-		fi
+oracle_dumpinstipc() {
+	is_proc_running && parseipc `dumpinstipc`
+}
+oracle_showdbstat() {
+	showdbstat
+}
+oracle_cleanup() {
+	if [ "$IPCRM" = "instance" ]; then
+		ora_cleanup $(parseipc `dumpinstipc`)
+	else
+		ora_cleanup
+	fi
+}
+oracle_validate_all() {
+	case "${shutdown_method}" in
+	"immediate") ;;
+	"checkpoint/abort") ;;
+	*) ocf_log err "unsupported shutdown_method, please read meta-data"
+		return $OCF_ERR_CONFIGURED
 		;;
+	esac
 
-  dumpinstipc)
-	  is_oracle_up && parseipc `dumpinstipc`
-		exit $?;;
+	case "${IPCRM}" in
+	"none"|"instance"|"orauser") ;;
+	*) ocf_log err "unsupported ipcrm setting, please read meta-data"
+		return $OCF_ERR_CONFIGURED
+		;;
+	esac
 
-  showdbstat)
-	  showdbstat
-		exit $?;;
+	ora_common_validate_all
+}
 
-  cleanup)
-	  	if [ "$IPCRM" = "instance" ]; then
-			ora_cleanup $(parseipc `dumpinstipc`)
-		else
-			ora_cleanup
-		fi
-		exit $?;;
+# used in ora-common.sh
+show_procs() {
+	ps -e -o pid,args | grep -i "[o]ra[a-zA-Z0-9_]*$ORACLE_SID$"
+}
+proc_pids() { show_procs | awk '{print $1}'; }
+PROCS_CLEANUP_TIME="30"
 
-  monitor)	oracle_monitor
-		exit $?;;
-
-  validate-all)	# OCF_RESKEY_sid was already checked by testoraenv(),
-		# just exit successfully here.
-		exit $OCF_SUCCESS;;
-
-  *)		oracle_methods
-		exit $OCF_ERR_UNIMPLEMENTED;;
-esac
+MONUSR="OCFMON"
+OCF_REQUIRED_PARAMS="sid"
+OCF_REQUIRED_BINARIES="sqlplus"
+ocf_rarun $*
 
 #
 # vim:tabstop=4:shiftwidth=4:textwidth=0:wrapmargin=0

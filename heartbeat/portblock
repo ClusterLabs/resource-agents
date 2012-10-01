@@ -204,7 +204,7 @@ active_grep_pat()
 {
   w="[ 	][ 	]*"
   any="0\\.0\\.0\\.0/0"
-  echo "^DROP${w}${1}${w}--${w}${any}${w}${3}${w}multiport${w}dports${w}${2} "
+  echo "^DROP${w}${1}${w}--${w}${any}${w}${3}${w}multiport${w}dports${w}${2}\>"
 }
 
 #chain_isactive  {udp|tcp} portno,portno ip

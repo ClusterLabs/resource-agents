@@ -131,6 +131,15 @@ meta_data()
 	    <content type="boolean"/>
 	</parameter>
 
+	<parameter name="prefer_interface">
+	    <longdesc lang="en">
+	        The network interface to which the IP address should be added. The interface must already be configured and active. This parameter should be used only when at least two active interfaces have IP addresses on the same subnet and it is desired to have the IP address added to a particular interface.
+	    </longdesc>
+	    <shortdesc lang="en">
+	        Network interface
+	    </shortdesc>
+	    <content type="string"/>
+	</parameter>
     </parameters>
 
     <actions>
@@ -586,6 +595,10 @@ ipv6()
 		fi
 		
 		if [ "$1" = "add" ]; then
+			if [ -n "$OCF_RESKEY_prefer_interface" ] && \
+			   [ "$OCF_RESKEY_prefer_interface" != $dev ]; then
+				continue
+			fi
 			ipv6_same_subnet $ifaddr_exp/$maskbits $addr_exp
 			if [ $? -ne 0 ]; then
                                 continue
@@ -668,6 +681,10 @@ ipv4()
 		fi
 
 		if [ "$1" = "add" ]; then
+			if [ -n "$OCF_RESKEY_prefer_interface" ] && \
+			   [ "$OCF_RESKEY_prefer_interface" != $dev ]; then
+				continue
+			fi
 		        ipv4_same_subnet $ifaddr/$maskbits $addr
 			if [ $? -ne 0 ]; then
 			        continue
