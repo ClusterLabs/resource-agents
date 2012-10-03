@@ -239,7 +239,7 @@ named_validate_all() {
 named_getpid () {
     local pattern="$OCF_RESKEY_named"
 
-    if [ -n "$OCF_RESKEY_named_rootdir" ]; then
+    if [ -n "$OCF_RESKEY_named_rootdir" -a "x${OCF_RESKEY_named_rootdir}" != "x/" ]; then
        pattern="$pattern.*-t $OCF_RESKEY_named_rootdir"
     fi
 
