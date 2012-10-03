@@ -633,7 +633,7 @@ main(int argc, char ** argv) {
 		*(best_if + sizeof(best_if) - 1) = '\0';
 	}else{
 		SearchRoute **sr = search_mechs;
-		char errmsg[MAXSTR] = "No valid mecahnisms";
+		char errmsg[MAXSTR] = "No valid mechanisms";
 		int rc = OCF_ERR_GENERIC;
 
 		strcpy(best_if, "UNKNOWN");
@@ -660,7 +660,7 @@ main(int argc, char ** argv) {
 		best_netmask = netmask;
 	}else if (best_netmask == 0L) {
 		/*
-		   On some distirbutions, there is no loopback related route
+		   On some distributions, there is no loopback related route
 		   item, this leads to the error here.
 		   My fix may be not good enough, please FIXME
 		 */
