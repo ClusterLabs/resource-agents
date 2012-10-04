@@ -260,7 +260,7 @@ SearchUsingRouteCmd (char *address, struct in_addr *in
 
 	while ((done < 3) && fgets(buf, sizeof(buf), routefd)) {
 		int buflen = strnlen(buf, sizeof(buf));
-		cp = buf;
+		/*cp = buf;*/
 
 		sp = buf + buflen;
 		while (sp!=buf && isspace((int)*(sp-1))) {
@@ -270,18 +270,24 @@ SearchUsingRouteCmd (char *address, struct in_addr *in
 
 		if (strstr (buf, "mask:")) {
 			/*strsep(&cp, ":");cp++;*/
-			cp = strtok(buf, ":");
-			cp = strtok(NULL, ":");cp++;
-			strncpy(mask, cp, sizeof(mask));
-                  	done++;
+			strtok(buf, ":");
+			cp = strtok(NULL, ":");
+			if (cp) {
+				cp++;
+				strncpy(mask, cp, sizeof(mask));
+				done++;
+			}
 		}
 
 		if (strstr (buf, "interface:")) {
 			/*strsep(&cp, ":");cp++;*/
-			cp = strtok(buf, ":");
-			cp = strtok(NULL, ":");cp++;
-			strncpy(interface, cp, sizeof(interface));
-                  	done++;
+			strtok(buf, ":");
+			cp = strtok(NULL, ":");
+			if (cp) {
+				cp++;
+				strncpy(interface, cp, sizeof(interface));
+				done++;
+			}
 		}
 	}
 	fclose(routefd);
