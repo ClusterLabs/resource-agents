@@ -716,7 +716,10 @@ is_addr6_available(struct in6_addr* addr6)
 	u_char				packet[MINPACKSIZE];
 	struct msghdr			msg;
 
-	icmp_sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
+	if ((icmp_sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6)) == -1) {
+		return -1;
+	}
+
 	memset(&icmph, 0, sizeof(icmph));
 	icmph.icmp6_type = ICMP6_ECHO_REQUEST;
 	icmph.icmp6_code = 0;
