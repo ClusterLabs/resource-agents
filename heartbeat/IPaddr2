@@ -536,6 +536,10 @@ restore_loopback() {
 	fi
 }
 
+is_infiniband() {
+	$IP2UTIL link show $NIC | grep link/infiniband >/dev/null
+}
+
 #
 # Run send_arp to note peers about new mac address
 #
@@ -697,11 +701,10 @@ ip_start() {
 	lo*)
 		: no need to run send_arp on loopback
 		;;
-	ib*)
-		run_send_ib_arp
-		;;
 	*)
-	    if [ -x $SENDARP ]; then
+	    if is_infiniband; then
+		run_send_ib_arp
+	    elif [ -x $SENDARP ]; then
 		run_send_arp
 	    fi
 		;;
@@ -798,10 +801,7 @@ ip_validate() {
 
     ip_init
 
-    case "$NIC" in
-    ib*) 	check_binary ipoibarping
-    		;;
-    esac
+    is_infiniband && check_binary ipoibarping
 
     if [ -n "$IP_CIP" ]; then
 	check_binary $IPTABLES
