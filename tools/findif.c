@@ -542,19 +542,12 @@ get_ifname(char * buf, char * ifname)
 
 int ConvertQuadToInt(char *dest)
 {
-        struct in_addr ad;
-        int bits, j;
+	struct in_addr ad;
 
-        inet_pton(AF_INET, dest, &ad);
+	if (inet_pton(AF_INET, dest, &ad) <= 0)
+		return -1;
 
-        bits = 0;
-        j = ntohl(ad.s_addr);
-        while(j != 0){
-                bits++;
-                j <<= 1;
-        }
-
-        return (bits);
+	return netmask_bits(ntohl(ad.s_addr));
 }
 
 int
