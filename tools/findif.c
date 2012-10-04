@@ -140,7 +140,9 @@ static SearchRoute *search_mechs[] = {
 void GetAddress (char **address, char **netmaskbits
 ,	 char **bcast_arg, char **if_specified);
 
-void ValidateNetmaskBits (char *netmaskbits, unsigned long *netmask);
+int ConvertNetmaskBitsToInt(char *netmaskbits);
+
+void ValidateNetmaskBits(int bits, unsigned long *netmask);
 
 int ValidateIFName (const char *ifname, struct ifreq *ifr);
 
@@ -371,38 +373,37 @@ GetAddress (char **address, char **netmaskbits
 	*if_specified = getenv("OCF_RESKEY_nic");
 }
 
-void
-ValidateNetmaskBits (char *netmaskbits, unsigned long *netmask)
+int
+ConvertNetmaskBitsToInt(char *netmaskbits)
 {
-	if (netmaskbits != NULL && *netmaskbits != EOS) {
-		size_t	nmblen = strnlen(netmaskbits, 3);
+	size_t	nmblen = strnlen(netmaskbits, 3);
 
-		/* Maximum netmask is 32 */
+	/* Maximum netmask is 32 */
 
-		if (nmblen > 2 || nmblen == 0
-		||	(strspn(netmaskbits, "0123456789") != nmblen)) {
-			fprintf(stderr, "Invalid netmask specification"
-			" [%s]", netmaskbits);
-			usage(OCF_ERR_CONFIGURED);
-			/*not reached */
-		}else{
-			unsigned long	bits = atoi(netmaskbits);
+	if (nmblen > 2 || nmblen == 0
+	||	(strspn(netmaskbits, "0123456789") != nmblen))
+		return -1;
+	else
+		return atoi(netmaskbits);
+}
 
-			if (bits < 1 || bits > 32) {
-				fprintf(stderr
-				,	"Invalid netmask specification [%s]"
-				,	netmaskbits);
-				usage(OCF_ERR_CONFIGURED);
-				/*not reached */
-				exit(1);
-			}
+void
+ValidateNetmaskBits(int bits, unsigned long *netmask)
+{
+	/* Maximum netmask is 32 */
 
-			bits = 32 - bits;
-			*netmask = (1L<<(bits))-1L;
-			*netmask = ((~(*netmask))&0xffffffffUL);
-			*netmask = htonl(*netmask);
-		}
+	if (bits < 1 || bits > 32) {
+		fprintf(stderr
+		,	"Invalid netmask specification [%d]"
+		,	bits);
+		usage(OCF_ERR_CONFIGURED);
+		/*not reached */
 	}
+
+	bits = 32 - bits;
+	*netmask = (1L<<(bits))-1L;
+	*netmask = ((~(*netmask))&0xffffffffUL);
+	*netmask = htonl(*netmask);
 }
 
 int
@@ -564,6 +565,7 @@ main(int argc, char ** argv) {
 	struct ifreq	ifr;
 	unsigned long	best_netmask = INT_MAX;
 	int		argerrs	= 0;
+	int		nmbits;
 
 	cmdname=argv[0];
 
@@ -607,15 +609,25 @@ main(int argc, char ** argv) {
 		/* not reached */
 	}
 
-	if(netmaskbits != NULL && *netmaskbits != EOS
-	&&		strchr(netmaskbits, '.') != NULL) {
-		int len = strlen(netmaskbits);
-		snprintf(netmaskbits, len, "%d", ConvertQuadToInt(netmaskbits));
-		fprintf(stderr, "Converted dotted-quad netmask to CIDR as: %s\n", netmaskbits);
+	if (netmaskbits != NULL && *netmaskbits != EOS) {
+		if (strchr(netmaskbits, '.') != NULL) {
+			nmbits = ConvertQuadToInt(netmaskbits);
+			fprintf(stderr, "Converted dotted-quad netmask to CIDR as: %d\n", nmbits);
+		}else{
+			nmbits = ConvertNetmaskBitsToInt(netmaskbits);
+		}
+
+		if (nmbits < 0) {
+			fprintf(stderr, "Invalid netmask specification"
+			" [%s]", netmaskbits);
+			usage(OCF_ERR_CONFIGURED);
+			/*not reached */
+		}
+
+		/* Validate the netmaskbits field */
+		ValidateNetmaskBits (nmbits, &netmask);
 	}
-	
-	/* Validate the netmaskbits field */
-	ValidateNetmaskBits (netmaskbits, &netmask);
+
 
 	if (if_specified != NULL && *if_specified != EOS) {
 		if(ValidateIFName(if_specified, &ifr) < 0) {
