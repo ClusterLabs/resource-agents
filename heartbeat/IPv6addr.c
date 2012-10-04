@@ -431,10 +431,10 @@ send_ua(struct in6_addr* src_ip, char* if_name)
 	struct sockaddr_in6 src_sin6;
 	struct sockaddr_in6 dst_sin6;
 
-	if ((fd = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6)) == 0) {
+	if ((fd = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6)) == -1) {
 		cl_log(LOG_ERR, "socket(IPPROTO_ICMPV6) failed: %s",
 		       strerror(errno));
-		goto err;
+		return status;
 	}
 	/* set the outgoing interface */
 	ifindex = if_nametoindex(if_name);
