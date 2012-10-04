@@ -268,7 +268,6 @@ SearchUsingRouteCmd (char *address, struct in_addr *in
 		}
 		*sp = EOS;
 
-		buf[buflen] = EOS;
 		if (strstr (buf, "mask:")) {
 			/*strsep(&cp, ":");cp++;*/
 			cp = strtok(buf, ":");
