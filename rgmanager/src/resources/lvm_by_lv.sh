@@ -43,7 +43,7 @@ lv_exec_resilient()
 
 	ocf_log notice "Making resilient : $command"
 
-	if [ -z $command ]; then
+	if [ -z "$command" ]; then
 		ocf_log err "lv_exec_resilient: Arguments not supplied"
 		return $OCF_ERR_ARGS
 	fi
@@ -84,7 +84,7 @@ lv_activate_resilient()
 	declare lv_path=$2
 	declare op="-ay"
 
-	if [ -z $action ] || [ -z $lv_path ]; then
+	if [ -z "$action" ] || [ -z "$lv_path" ]; then
 		ocf_log err "lv_activate_resilient: Arguments not supplied"
 		return $OCF_ERR_ARGS
 	fi
@@ -106,7 +106,7 @@ lv_status_clustered()
 	#
 	# Check if device is active
 	#
-	if [[ ! $(lvs -o attr --noheadings $lv_path) =~ ....a. ]]; then
+	if [[ ! "$(lvs -o attr --noheadings $lv_path)" =~ ....a. ]]; then
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -127,11 +127,11 @@ lv_status_single()
 	#
 	# Check if device is active
 	#
-	if [[ ! $(lvs -o attr --noheadings $lv_path) =~ ....a. ]]; then
+	if [[ ! "$(lvs -o attr --noheadings $lv_path)" =~ ....a. ]]; then
 		return $OCF_ERR_GENERIC
 	fi
 
-	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
+	if [[ "$(vgs -o attr --noheadings $OCF_RESKEY_vg_name)" =~ .....c ]]; then
 		ocf_log notice "$OCF_RESKEY_vg_name is a cluster volume.  Ignoring..."
 		return $OCF_SUCCESS
 	fi
@@ -160,14 +160,14 @@ lv_status_single()
 	#
 	owner=`lvs -o tags --noheadings $lv_path`
 	my_name=$(local_node_name)
-	if [ -z $my_name ]; then
+	if [ -z "$my_name" ]; then
 		ocf_log err "Unable to determine local machine name"
 
 		# FIXME: I don't really want to fail on 1st offense
 		return $OCF_SUCCESS
 	fi
 
-	if [ -z $owner ] || [ $my_name != $owner ]; then
+	if [ -z "$owner" ] || [ "$my_name" != "$owner" ]; then
 		ocf_log err "WARNING: $lv_path should not be active"
 		ocf_log err "WARNING: $my_name does not own $lv_path"
 		ocf_log err "WARNING: Attempting shutdown of $lv_path"
@@ -203,12 +203,12 @@ lv_activate_and_tag()
 		*)              self_fence="" ;;
 	esac
 
-	if [ -z $action ] || [ -z $tag ] || [ -z $lv_path ]; then
+	if [ -z "$action" ] || [ -z "$tag" ] || [ -z "$lv_path" ]; then
 		ocf_log err "Supplied args: 1) $action, 2) $tag, 3) $lv_path"
 		return $OCF_ERR_ARGS
 	fi
 
-	if [ $action == "start" ]; then
+	if [ "$action" == "start" ]; then
 		ocf_log notice "Activating $lv_path"
 		lvchange --addtag $tag $lv_path
 		if [ $? -ne 0 ]; then
@@ -253,7 +253,7 @@ lv_activate_and_tag()
 			fi
 		fi
 
-		if [ `lvs --noheadings -o lv_tags $lv_path` == $tag ]; then
+		if [ "`lvs --noheadings -o lv_tags $lv_path`" == $tag ]; then
 			ocf_log notice "Removing ownership tag ($tag) from $lv_path"
 			lvchange --deltag $tag $lv_path
 			if [ $? -ne 0 ]; then
@@ -287,7 +287,7 @@ lv_activate()
 	declare owner=`lvs -o tags --noheadings $lv_path`
 	declare my_name=$(local_node_name)
 
-	if [ -z $my_name ]; then
+	if [ -z "$my_name" ]; then
 		ocf_log err "Unable to determine cluster node name"
 		return $OCF_ERR_GENERIC
 	fi
@@ -409,7 +409,7 @@ function lv_start_single
 function lv_start
 {
 	# We pass in the VG name to see of the logical volume is clustered
-	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
+	if [[ "$(vgs -o attr --noheadings $OCF_RESKEY_vg_name)" =~ .....c ]]; then
 		lv_start_clustered
 	else
 		lv_start_single
@@ -433,7 +433,7 @@ function lv_stop_single
 function lv_stop
 {
 	# We pass in the VG name to see of the logical volume is clustered
-	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
+	if [[ "$(vgs -o attr --noheadings $OCF_RESKEY_vg_name)" =~ .....c ]]; then
 		lv_stop_clustered
 	else
 		lv_stop_single
