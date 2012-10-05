@@ -54,7 +54,7 @@ function ha_lvm_proper_setup_check
 	# Are we using the "tagging" or "CLVM" variant?
 	#  The CLVM variant will have the cluster attribute set
 	##
-	if [[ $(vgs -o attr --noheadings --config 'global{locking_type=0}' $OCF_RESKEY_vg_name 2>/dev/null) =~ .....c ]]; then
+	if [[ "$(vgs -o attr --noheadings --config 'global{locking_type=0}' $OCF_RESKEY_vg_name 2>/dev/null)" =~ .....c ]]; then
 		# Is clvmd running?
 		if ! ps -C clvmd >& /dev/null; then
 			ocf_log err "HA LVM: $OCF_RESKEY_vg_name has the cluster attribute set, but 'clvmd' is not running"
@@ -126,7 +126,7 @@ case $1 in
 start)
 	ha_lvm_proper_setup_check || exit 1
 
-	if [ -z $OCF_RESKEY_lv_name ]; then
+	if [ -z "$OCF_RESKEY_lv_name" ]; then
 		vg_start || exit 1
 	else
 		lv_start || exit 1
@@ -136,7 +136,7 @@ start)
 status|monitor)
 	ocf_log notice "Getting status"
 
-	if [ -z $OCF_RESKEY_lv_name ]; then
+	if [ -z "$OCF_RESKEY_lv_name" ]; then
 		vg_status || exit 1
 	else
 		lv_status || exit 1
@@ -146,7 +146,7 @@ status|monitor)
 stop)
 	ha_lvm_proper_setup_check
 
-	if [ -z $OCF_RESKEY_lv_name ]; then
+	if [ -z "$OCF_RESKEY_lv_name" ]; then
 		vg_stop || exit 1
 	else
 		lv_stop || exit 1
@@ -163,7 +163,7 @@ meta-data)
 	;;
 
 validate-all|verify-all)
-	if [ -z $OCF_RESKEY_lv_name ]; then
+	if [ -z "$OCF_RESKEY_lv_name" ]; then
 		vg_verify || exit 1
 	else
 		lv_verify || exit 1
