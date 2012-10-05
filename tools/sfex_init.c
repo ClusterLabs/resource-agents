@@ -166,7 +166,11 @@ main(int argc, char *argv[]) {
   {
     int index;
     for (index = 1; index <= numlocks; index++)
-      write_lockdata(&cdata, &ldata, index);
+      if (write_lockdata(&cdata, &ldata, index) == -1) {
+        fprintf(stderr, "%s: ERROR: cannot write lock data (index=%d).\n",
+                progname, index);
+        exit(3);
+      }
   }
 
   exit(0);
