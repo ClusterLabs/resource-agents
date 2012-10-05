@@ -29,12 +29,12 @@ function vg_owner
 	local owner=`vgs -o tags --noheadings $OCF_RESKEY_vg_name`
 	local my_name=$(local_node_name)
 
-	if [ -z $my_name ]; then
+	if [ -z "$my_name" ]; then
 		ocf_log err "Unable to determine cluster node name"
 		return 0
 	fi
 
-	if [ -z $owner ]; then
+	if [ -z "$owner" ]; then
 		# No-one owns this VG yet, so we can claim it
 		return 2
 	fi
@@ -175,7 +175,7 @@ function vg_status_single
 ##
 function vg_status
 {
-	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
+	if [[ "$(vgs -o attr --noheadings $OCF_RESKEY_vg_name)" =~ .....c ]]; then
 		vg_status_clustered
 	else
 		vg_status_single
@@ -234,7 +234,7 @@ function vg_start_clustered
 		done
 
 		#  We need to check the LVs again if we made the command resilient
-		if [ ! -z $resilience ]; then
+		if [ ! -z "$resilience" ]; then
 			results=(`lvs -o name,attr --noheadings $OCF_RESKEY_vg_name $resilience 2> /dev/null`)
 			a=0
 			while [ ! -z ${results[$a]} ]; do
@@ -318,7 +318,7 @@ function vg_start_single
 		done
 
 		#  We need to check the LVs again if we made the command resilient
-		if [ ! -z $resilience ]; then
+		if [ ! -z "$resilience" ]; then
 			results=(`lvs -o name,attr --noheadings $OCF_RESKEY_vg_name $resilience 2> /dev/null`)
 			a=0
 			while [ ! -z ${results[$a]} ]; do
@@ -340,7 +340,7 @@ function vg_start_single
 ##
 function vg_start
 {
-	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
+	if [[ "$(vgs -o attr --noheadings $OCF_RESKEY_vg_name)" =~ .....c ]]; then
 		vg_start_clustered
 	else
 		vg_start_single
@@ -430,7 +430,7 @@ function vg_stop_single
 ##
 function vg_stop
 {
-	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ .....c ]]; then
+	if [[ "$(vgs -o attr --noheadings $OCF_RESKEY_vg_name)" =~ .....c ]]; then
 		vg_stop_clustered
 	else
 		vg_stop_single
