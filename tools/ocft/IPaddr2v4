@@ -94,12 +94,15 @@ CASE "monitor with not running"
 	AgentRun monitor OCF_NOT_RUNNING
 
 # CASE No.6
+# Note: this result is different from IPaddr2 in 3.9.3.
+#  IPaddr2 succeeds if the ip matched based on the netmask of the subnet
+#  or fails if it did not match to any.
+# Recommended to always specify both nic, cidr_netmask, and broadcast when you needed.
 # IPaddr2 in 3.9.3 was using a wrong subnet mask (constant of 32) in this case.
 #
 CASE "params with nic, no cidr_netmask"
 	Include prepare
 	Env OCF_RESKEY_nic=$OCFT_target_nic
-	Env OCFT_check_prefix=32 # This is wrong.
 	AgentRun start OCF_SUCCESS
 	Include check_ip_assigned
 	AgentRun monitor OCF_SUCCESS
@@ -126,29 +129,38 @@ CASE "error params with wrong ip"
 	AgentRun start OCF_ERR_GENERIC
 
 # CASE No.9
+# Note: this result is different from IPaddr2 in 3.9.3.
+# IPaddr2 fails when it could not determine the correct subnet mask.
+# When it could not get base ip, it becomes the error.
+# Recommended to always specify both nic, cidr_netmask, and broadcast when you needed.
 # IPaddr2 in 3.9.3 was using a wrong subnet mask (constant of 32) in this case.
 #
 CASE "params with force nic"
 	Include prepare
 	Env OCF_RESKEY_nic=$OCFT_force_nic
 	Env OCFT_check_nic=$OCFT_force_nic
-	AgentRun start OCF_SUCCESS
-	AgentRun stop OCF_SUCCESS
+	AgentRun start OCF_ERR_GENERIC
 	Include check_ip_removed
 	Unenv OCF_RESKEY_nic
 
 # CASE No.10
+# Note: this result is different from IPaddr2 in 3.9.3.
+# IPaddr2 fails when it could not determine the broadcast.
+# Recommended to always specify both nic, cidr_netmask, and broadcast when you needed.
 # IPaddr2 in 3.9.3 succeeded but it's considered ambiguous.
 #
 CASE "params with force cidr_netmask (base netmask > assigned netmask)"
 	Include prepare
 	Env OCF_RESKEY_cidr_netmask=$OCFT_force_prefix
 	Env OCFT_check_prefix=$OCFT_force_prefix
-	AgentRun start OCF_SUCCESS
-	AgentRun stop OCF_SUCCESS
+	AgentRun start OCF_ERR_GENERIC
 	Include check_ip_removed
 
 # CASE No.11
+# Note: this result is different from IPaddr2 in 3.9.3.
+# IPaddr2 succeeds but the broadcast is not set.
+# This is because findif.sh can not calculate a broadcast from a netmask.
+# Recommended to always specify both nic, cidr_netmask, and broadcast when you needed.
 # IPaddr2 in 3.9.3 succeeded with using a calculated broadcast.
 #
 CASE "force to use the specified nic and cidr_netmask"
@@ -164,6 +176,10 @@ CASE "force to use the specified nic and cidr_netmask"
 
 
 # CASE No.12
+# Note: this result is different from IPaddr2 in 3.9.3.
+# IPaddr2 fails when it could not determine the correct subnet mask.
+# When it could not get base ip, it becomes the error.
+# Recommended to always specify both nic, cidr_netmask, and broadcast when you needed.
 # IPaddr2 in 3.9.3 was using a wrong subnet mask (constant of 32) in this case.
 #
 CASE "error params with wrong ip and nic (not exist base_ip)"
@@ -171,8 +187,7 @@ CASE "error params with wrong ip and nic (not exist base_ip)"
 	Include base_ip_removed
 	Env OCF_RESKEY_nic=$OCFT_target_nic
 	Env OCFT_check_nic=$OCFT_target_nic
-	AgentRun start OCF_SUCCESS
-	AgentRun stop OCF_SUCCESS
+	AgentRun start OCF_ERR_GENERIC
 	Include check_ip_removed
 	Include base_ip_assigned
 
@@ -188,6 +203,9 @@ CASE "params with cidr_netmask"
 	Include check_ip_removed
 
 # CASE No.14
+# Note: this result is different from IPaddr2 in 3.9.3.
+# IPaddr2 does not override the broadcast by cidr_netmask.
+# Recommended to always specify both nic, cidr_netmask, and broadcast when you needed.
 # IPaddr2 in 3.9.3 overrode the broadcast calculated by cidr_netmask.
 #
 CASE "params with force cidr_netmask (base netmask < assigned netmask)"
@@ -201,17 +219,23 @@ CASE "params with force cidr_netmask (base netmask < assigned netmask)"
 	Include check_ip_removed
 
 # CASE No.15
+# Note: this result is different from IPaddr2 in 3.9.3.
+# IPaddr2 fails when it could not determine the broadcast.
+# Recommended to always specify both nic, cidr_netmask, and broadcast when you needed.
 # IPaddr2 in 3.9.3 succeeded but it's considered ambiguous.
 #
 CASE "error params with wrong ip and cidr_netmask (not exist base_ip)"
 	Include prepare
 	Include base_ip_removed
 	Env OCF_RESKEY_cidr_netmask=$OCFT_target_prefix
-	AgentRun start OCF_SUCCESS
-	AgentRun stop OCF_SUCCESS
+	AgentRun start OCF_ERR_GENERIC
 	Include base_ip_assigned
 
 # CASE No.16
+# Note: this result is different from IPaddr2 in 3.9.3.
+# IPaddr2 succeeds but the broadcast is not set.
+# This is because findif.sh can not calculate a broadcast from a netmask.
+# Recommended to always specify both nic, cidr_netmask, and broadcast when you needed.
 # IPaddr2 in 3.9.3 succeeded with using a calculated broadcast.
 #
 CASE "force to use the specified nic and cidr_netmask"
@@ -225,6 +249,10 @@ CASE "force to use the specified nic and cidr_netmask"
 	Include check_ip_removed
 
 # CASE No.17
+# Note: this result is different from IPaddr2 in 3.9.3.
+# IPaddr2 succeeds but the broadcast is not set.
+# This is because findif.sh can not calculate a broadcast from a netmask.
+# Recommended to always specify both nic, cidr_netmask, and broadcast when you needed.
 # IPaddr2 in 3.9.3 succeeded with using a calculated broadcast.
 #
 CASE "force to use the specified nic and cidr_netmask (not exist base_ip)"
