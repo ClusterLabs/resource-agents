@@ -140,7 +140,9 @@ static SearchRoute *search_mechs[] = {
 void GetAddress (char **address, char **netmaskbits
 ,	 char **bcast_arg, char **if_specified);
 
-void ValidateNetmaskBits (char *netmaskbits, unsigned long *netmask);
+int ConvertNetmaskBitsToInt(char *netmaskbits);
+
+void ValidateNetmaskBits(int bits, unsigned long *netmask);
 
 int ValidateIFName (const char *ifname, struct ifreq *ifr);
 
@@ -258,7 +260,7 @@ SearchUsingRouteCmd (char *address, struct in_addr *in
 
 	while ((done < 3) && fgets(buf, sizeof(buf), routefd)) {
 		int buflen = strnlen(buf, sizeof(buf));
-		cp = buf;
+		/*cp = buf;*/
 
 		sp = buf + buflen;
 		while (sp!=buf && isspace((int)*(sp-1))) {
@@ -266,21 +268,26 @@ SearchUsingRouteCmd (char *address, struct in_addr *in
 		}
 		*sp = EOS;
 
-		buf[buflen] = EOS;
 		if (strstr (buf, "mask:")) {
 			/*strsep(&cp, ":");cp++;*/
-			cp = strtok(buf, ":");
-			cp = strtok(NULL, ":");cp++;
-			strncpy(mask, cp, sizeof(mask));
-                  	done++;
+			strtok(buf, ":");
+			cp = strtok(NULL, ":");
+			if (cp) {
+				cp++;
+				strncpy(mask, cp, sizeof(mask));
+				done++;
+			}
 		}
 
 		if (strstr (buf, "interface:")) {
 			/*strsep(&cp, ":");cp++;*/
-			cp = strtok(buf, ":");
-			cp = strtok(NULL, ":");cp++;
-			strncpy(interface, cp, sizeof(interface));
-                  	done++;
+			strtok(buf, ":");
+			cp = strtok(NULL, ":");
+			if (cp) {
+				cp++;
+				strncpy(interface, cp, sizeof(interface));
+				done++;
+			}
 		}
 	}
 	fclose(routefd);
@@ -371,38 +378,37 @@ GetAddress (char **address, char **netmaskbits
 	*if_specified = getenv("OCF_RESKEY_nic");
 }
 
-void
-ValidateNetmaskBits (char *netmaskbits, unsigned long *netmask)
+int
+ConvertNetmaskBitsToInt(char *netmaskbits)
 {
-	if (netmaskbits != NULL && *netmaskbits != EOS) {
-		size_t	nmblen = strnlen(netmaskbits, 3);
+	size_t	nmblen = strnlen(netmaskbits, 3);
 
-		/* Maximum netmask is 32 */
+	/* Maximum netmask is 32 */
 
-		if (nmblen > 2 || nmblen == 0
-		||	(strspn(netmaskbits, "0123456789") != nmblen)) {
-			fprintf(stderr, "Invalid netmask specification"
-			" [%s]", netmaskbits);
-			usage(OCF_ERR_CONFIGURED);
-			/*not reached */
-		}else{
-			unsigned long	bits = atoi(netmaskbits);
+	if (nmblen > 2 || nmblen == 0
+	||	(strspn(netmaskbits, "0123456789") != nmblen))
+		return -1;
+	else
+		return atoi(netmaskbits);
+}
 
-			if (bits < 1 || bits > 32) {
-				fprintf(stderr
-				,	"Invalid netmask specification [%s]"
-				,	netmaskbits);
-				usage(OCF_ERR_CONFIGURED);
-				/*not reached */
-				exit(1);
-			}
+void
+ValidateNetmaskBits(int bits, unsigned long *netmask)
+{
+	/* Maximum netmask is 32 */
 
-			bits = 32 - bits;
-			*netmask = (1L<<(bits))-1L;
-			*netmask = ((~(*netmask))&0xffffffffUL);
-			*netmask = htonl(*netmask);
-		}
+	if (bits < 1 || bits > 32) {
+		fprintf(stderr
+		,	"Invalid netmask specification [%d]"
+		,	bits);
+		usage(OCF_ERR_CONFIGURED);
+		/*not reached */
 	}
+
+	bits = 32 - bits;
+	*netmask = (1L<<(bits))-1L;
+	*netmask = ((~(*netmask))&0xffffffffUL);
+	*netmask = htonl(*netmask);
 }
 
 int
@@ -542,19 +548,12 @@ get_ifname(char * buf, char * ifname)
 
 int ConvertQuadToInt(char *dest)
 {
-        struct in_addr ad;
-        int bits, j;
+	struct in_addr ad;
 
-        inet_pton(AF_INET, dest, &ad);
+	if (inet_pton(AF_INET, dest, &ad) <= 0)
+		return -1;
 
-        bits = 0;
-        j = ntohl(ad.s_addr);
-        while(j != 0){
-                bits++;
-                j <<= 1;
-        }
-
-        return (bits);
+	return netmask_bits(ntohl(ad.s_addr));
 }
 
 int
@@ -571,6 +570,7 @@ main(int argc, char ** argv) {
 	struct ifreq	ifr;
 	unsigned long	best_netmask = INT_MAX;
 	int		argerrs	= 0;
+	int		nmbits;
 
 	cmdname=argv[0];
 
@@ -614,15 +614,25 @@ main(int argc, char ** argv) {
 		/* not reached */
 	}
 
-	if(netmaskbits != NULL && *netmaskbits != EOS
-	&&		strchr(netmaskbits, '.') != NULL) {
-		int len = strlen(netmaskbits);
-		snprintf(netmaskbits, len, "%d", ConvertQuadToInt(netmaskbits));
-		fprintf(stderr, "Converted dotted-quad netmask to CIDR as: %s\n", netmaskbits);
+	if (netmaskbits != NULL && *netmaskbits != EOS) {
+		if (strchr(netmaskbits, '.') != NULL) {
+			nmbits = ConvertQuadToInt(netmaskbits);
+			fprintf(stderr, "Converted dotted-quad netmask to CIDR as: %d\n", nmbits);
+		}else{
+			nmbits = ConvertNetmaskBitsToInt(netmaskbits);
+		}
+
+		if (nmbits < 0) {
+			fprintf(stderr, "Invalid netmask specification"
+			" [%s]", netmaskbits);
+			usage(OCF_ERR_CONFIGURED);
+			/*not reached */
+		}
+
+		/* Validate the netmaskbits field */
+		ValidateNetmaskBits (nmbits, &netmask);
 	}
-	
-	/* Validate the netmaskbits field */
-	ValidateNetmaskBits (netmaskbits, &netmask);
+
 
 	if (if_specified != NULL && *if_specified != EOS) {
 		if(ValidateIFName(if_specified, &ifr) < 0) {
@@ -633,7 +643,7 @@ main(int argc, char ** argv) {
 		*(best_if + sizeof(best_if) - 1) = '\0';
 	}else{
 		SearchRoute **sr = search_mechs;
-		char errmsg[MAXSTR] = "No valid mecahnisms";
+		char errmsg[MAXSTR] = "No valid mechanisms";
 		int rc = OCF_ERR_GENERIC;
 
 		strcpy(best_if, "UNKNOWN");
@@ -660,7 +670,7 @@ main(int argc, char ** argv) {
 		best_netmask = netmask;
 	}else if (best_netmask == 0L) {
 		/*
-		   On some distirbutions, there is no loopback related route
+		   On some distributions, there is no loopback related route
 		   item, this leads to the error here.
 		   My fix may be not good enough, please FIXME
 		 */
