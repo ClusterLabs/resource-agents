@@ -283,6 +283,7 @@ raid1_monitor_one() {
 	local md=`echo $mddev | sed 's,/dev/,,'`
 	local rc
 	local TRY_READD=0
+	local pbsize
 	# check if the md device exists first
 	if [ ! -b $mddev ]; then
 		ocf_log info "$mddev is not a block device"
@@ -320,7 +321,12 @@ raid1_monitor_one() {
 		# here. Either this worked or it did not.
 	fi
 
-	if ! dd if=$mddev count=1 bs=512 of=/dev/null \
+	pbsize=`(blockdev --getpbsz $mddev || stat -c "%o" $mddev) 2>/dev/null`
+	if [ -z "$pbsize" ]; then
+		ocf_log warn "both blockdev and stat could not get the block size (will use 4k)"
+		pbsize=4096 # try with 4k
+	fi
+	if ! dd if=$mddev count=1 bs=$pbsize of=/dev/null \
 	     iflag=direct >/dev/null 2>&1 ; then
 		ocf_log err "$mddev: I/O error on read"
 		return $OCF_ERR_GENERIC
