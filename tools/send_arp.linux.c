@@ -357,8 +357,9 @@ main(int argc, char **argv)
 		case 'q':
 			quiet++;
 			break;
-		case 'r': /* send_arp compatability option */
+		case 'r': /* send_arp.libnet compatibility option */
 			hb_mode = 1;
+			/* fall-through */
 		case 'c':
 			count = atoi(optarg);
 			break;
@@ -380,7 +381,7 @@ main(int argc, char **argv)
 		case 'p':
 		case 'i':
 		    hb_mode = 1;
-		    /* send_arp compatability options, ignore */
+		    /* send_arp.libnet compatibility options, ignore */
 		    break;
 		case 'h':
 		case '?':
@@ -390,7 +391,7 @@ main(int argc, char **argv)
 	}
 
 	if(hb_mode) {
-	    /* send_arp compatability mode */
+	    /* send_arp.libnet compatibility mode */
 	    if (argc - optind != 5) {
 		usage();
 		return 1;
