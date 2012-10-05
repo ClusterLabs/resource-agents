@@ -107,7 +107,12 @@ function ha_lvm_proper_setup_check
 	if [ "$(find /boot -name *.img -newer /etc/lvm/lvm.conf)" == "" ]; then
 		ocf_log err "HA LVM:  Improper setup detected"
 		ocf_log err "* initrd image needs to be newer than lvm.conf"
-		return $OCF_ERR_GENERIC
+
+		# While dangerous if not done the first time, there are many
+		# cases where we don't simply want to fail here.  Instead,
+		# keep warning until the user remakes the initrd - or has
+		# it done for them by upgrading the kernel.
+		#return $OCF_ERR_GENERIC
 	fi
 
 	return $OCF_SUCCESS
@@ -139,9 +144,7 @@ status|monitor)
 	;;
 		    
 stop)
-	if ! ha_lvm_proper_setup_check; then
-		ocf_log err "WARNING: An improper setup can cause data corruption!"
-	fi
+	ha_lvm_proper_setup_check
 
 	if [ -z $OCF_RESKEY_lv_name ]; then
 		vg_stop || exit 1
