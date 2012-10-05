@@ -87,6 +87,7 @@ OCF_RESKEY_arp_mac_default="ffffffffffff"
 #######################################################################
 
 SENDARP=$HA_BIN/send_arp
+SENDUA=$HA_BIN/send_ua
 FINDIF=findif
 VLDIR=$HA_RSCTMP
 SENDARPPIDDIR=$HA_RSCTMP
@@ -186,6 +187,7 @@ Enable support for LVS Direct Routing configurations. In case a IP
 address is stopped, only move it to the loopback device to allow the
 local node to continue to service requests, but no longer advertise it
 on the network.
+The IPv6 does not support lvs_support, And the IPv6 does not need lvs_support.
 </longdesc>
 <shortdesc lang="en">Enable support for LVS DR</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_lvs_support_default}"/>
@@ -343,6 +345,17 @@ ip_init() {
 		exit $OCF_ERR_CONFIGURED
 	fi
 
+	echo $OCF_RESKEY_ip | grep -qs ":"
+	if [ $? -ne 0 ];then
+		FAMILY=inet
+	else
+		FAMILY=inet6
+		if ocf_is_true $OCF_RESKEY_lvs_support ;then
+			ocf_log err "The IPv6 does not support lvs_support"
+			exit $OCF_ERR_CONFIGURED
+		fi
+	fi
+
 	# $FINDIF takes its parameters from the environment
 	#
 	NICINFO=`$FINDIF`
@@ -416,7 +429,7 @@ find_interface() {
 	#
 	# List interfaces but exclude FreeS/WAN ipsecN virtual interfaces
 	#
-	local iface="`$IP2UTIL -o -f inet addr show \
+	local iface="`$IP2UTIL -o -f $FAMILY addr show \
 		| grep "\ $ipaddr/$netmask" \
 		| cut -d ' ' -f2 \
 		| grep -v '^ipsec[0-9][0-9]*$'`"
@@ -433,7 +446,7 @@ delete_interface () {
 	iface="$2"
 	netmask="$3"
 
-	CMD="$IP2UTIL -f inet addr delete $ipaddr/$netmask dev $iface"
+	CMD="$IP2UTIL -f $FAMILY addr delete $ipaddr/$netmask dev $iface"
 
 	ocf_run $CMD || return $OCF_ERR_GENERIC
 
@@ -456,8 +469,12 @@ add_interface () {
 	iface="$4"
 	label="$5"
 
-	cmd="$IP2UTIL -f inet addr add $ipaddr/$netmask brd $broadcast dev $iface"
-	msg="Adding IPv4 address $ipaddr/$netmask with broadcast address $broadcast to device $iface"
+	cmd="$IP2UTIL -f $FAMILY addr add $ipaddr/$netmask dev $iface"
+	msg="Adding $FAMILY address $ipaddr/$netmask to device $iface"
+	if [ "$broadcast" != "none" ]; then
+		cmd="$IP2UTIL -f inet addr add $ipaddr/$netmask brd $broadcast dev $iface"
+		msg="Adding $FAMILY address $ipaddr/$netmask with broadcast address $broadcast to device $iface"
+	fi
 
 	if [ ! -z "$label" ]; then
 		cmd="$cmd label $label"
@@ -560,6 +577,15 @@ run_send_arp() {
 	else
 		$SENDARP $ARGS || ocf_log err "Could not send gratuitous arps"
 	fi
+}
+
+#
+# Run send_ua to note send ICMPv6 Unsolicited Neighbor Advertisements.
+#
+run_send_ua() {
+	ARGS="-i $OCF_RESKEY_arp_interval -c $OCF_RESKEY_arp_count $OCF_RESKEY_ip $NETMASK $NIC"
+	ocf_log info "$SENDUA $ARGS"
+	$SENDUA $ARGS || ocf_log err "Could not send ICMPv6 Unsolicited Neighbor Advertisements."
 }
 
 #
@@ -690,7 +716,7 @@ ip_start() {
 			done
 		fi
 		
-		add_interface $OCF_RESKEY_ip $NETMASK $BRDCAST $NIC $IFLABEL
+		add_interface $OCF_RESKEY_ip $NETMASK ${BRDCAST:-none} $NIC $IFLABEL
 		
 		if [ $? -ne 0 ]; then
 			ocf_log err "$CMD failed."
@@ -703,11 +729,17 @@ ip_start() {
 		: no need to run send_arp on loopback
 		;;
 	*)
-	    if is_infiniband; then
-		run_send_ib_arp
-	    elif [ -x $SENDARP ]; then
-		run_send_arp
-	    fi
+		if is_infiniband; then
+			run_send_ib_arp
+		elif [ $FAMILY = "inet" ];then
+			if [ -x $SENDARP ]; then
+				run_send_arp
+			fi
+		else
+			if [ -x $SENDUA ]; then
+				run_send_ua
+			fi
+		fi
 		;;
 	esac
 	exit $OCF_SUCCESS
