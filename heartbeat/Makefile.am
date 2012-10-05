@@ -127,7 +127,8 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  http-mon.sh    	\
 			  sapdb-nosha.sh	\
 			  sapdb.sh		\
-			  ora-common.sh
+			  ora-common.sh		\
+			  findif.sh
 
 # Legacy locations
 hbdir			= $(sysconfdir)/ha.d

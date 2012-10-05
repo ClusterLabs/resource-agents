@@ -66,6 +66,7 @@
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+. ${OCF_FUNCTIONS_DIR}/findif.sh
 
 # Defaults
 OCF_RESKEY_lvs_support_default=false
@@ -86,7 +87,7 @@ OCF_RESKEY_arp_mac_default="ffffffffffff"
 #######################################################################
 
 SENDARP=$HA_BIN/send_arp
-FINDIF=$HA_BIN/findif
+FINDIF=findif
 VLDIR=$HA_RSCTMP
 SENDARPPIDDIR=$HA_RSCTMP
 CIP_lockfile=$HA_RSCTMP/IPaddr2-CIP-${OCF_RESKEY_ip}
@@ -344,25 +345,25 @@ ip_init() {
 
 	# $FINDIF takes its parameters from the environment
 	#
-	NICINFO=`$FINDIF -C`
+	NICINFO=`$FINDIF`
 	rc=$?
 	if
 	  [ $rc -eq 0 ]
         then
-	    NICINFO=`echo $NICINFO | sed -e 's/netmask\ //;s/broadcast\ //'`
+	    NICINFO=`echo "$NICINFO" | sed -e 's/netmask\ //;s/broadcast\ //'`
 	    NIC=`echo "$NICINFO" | cut -d" " -f1`
 	    NETMASK=`echo "$NICINFO" | cut -d" " -f2`
 	    BRDCAST=`echo "$NICINFO" | cut -d" " -f3`
 	else
 		# findif couldn't find the interface
 		if ocf_is_probe; then
-			ocf_log info "[$FINDIF -C] failed"
+			ocf_log info "[$FINDIF] failed"
 			exit $OCF_NOT_RUNNING
 		elif [ "$__OCF_ACTION" = stop ]; then
-			ocf_log warn "[$FINDIF -C] failed"
+			ocf_log warn "[$FINDIF] failed"
 			exit $OCF_SUCCESS
 		else
-			ocf_log err "[$FINDIF -C] failed"
+			ocf_log err "[$FINDIF] failed"
 			exit $rc
 		fi
 	fi
