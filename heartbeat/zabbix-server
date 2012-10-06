@@ -130,6 +130,38 @@ getpid() {
 }
 
 #
+# Check if PID directory exists
+#
+check_piddir() {
+    local piddir
+
+    piddir=`dirname ${OCF_RESKEY_pidfile}`
+    if [ ! -d $piddir ]; then
+        ocf_log err "PID directory ${piddir} doesn't exist"
+        return 1
+    fi
+
+    return 0
+}
+
+#
+# Check for the server configuration file
+#
+check_config() {
+    # check only when it is specified by user
+    if [ ! -z "$1" ] && [ ! -f "$1" ]; then
+        if ocf_is_probe; then
+            ocf_log info "Can't read configuration file $1 during probe"
+        else
+            ocf_log err "Can't read configuration file $1"
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
+#
 # Run server binary
 #
 startserver() {
@@ -177,6 +209,7 @@ process_status() {
 zabbixserver_status() {
     local pid
 
+    check_piddir || return ${OCF_ERR_INSTALLED}
     pid=`getpid $OCF_RESKEY_pidfile`
     if [ $? -ne 0 ]; then
         return 1
@@ -192,8 +225,6 @@ zabbixserver_status() {
 #
 zabbixserver_start() {
     local rc
-
-    zabbixserver_validate || exit $?
 
     # check the resource status
     zabbixserver_monitor
@@ -237,8 +268,6 @@ zabbixserver_stop() {
     local pid
     local rc
 
-    zabbixserver_validate || exit $?
-
     # check the resource status
     zabbixserver_monitor
     rc=$?
@@ -254,6 +283,7 @@ zabbixserver_stop() {
         ;;
     esac
 
+    check_piddir || return ${OCF_ERR_INSTALLED}
     pid=`getpid $OCF_RESKEY_pidfile`
     if [ $? -ne 0 ]; then
         ocf_log err "Can't find process PID"
@@ -294,8 +324,6 @@ zabbixserver_stop() {
 # resource monitor
 #
 zabbixserver_monitor() {
-    zabbixserver_validate || exit $?
-
     zabbixserver_status
     case "$?" in
     0)
@@ -318,22 +346,11 @@ zabbixserver_monitor() {
 # validate configuration
 #
 zabbixserver_validate() {
-    local piddir
-
     # stop here if zabbix-server binary doesn't exist
     check_binary ${OCF_RESKEY_zabbix}
 
-    piddir=`dirname ${OCF_RESKEY_pidfile}`
-    if [ ! -d $piddir ]; then
-        ocf_log err "PID directory ${piddir} doesn't exist"
-        return $OCF_ERR_INSTALLED
-    fi
-
-    # check for configuration file only when it is specified by user
-    if [ ! -z ${OCF_RESKEY_config} ] && [ ! -f ${OCF_RESKEY_config} ]; then
-        ocf_log err "Can't read configuration file ${OCF_RESKEY_config}"
-        return $OCF_ERR_INSTALLED
-    fi
+    check_piddir || return ${OCF_ERR_INSTALLED}
+    check_config ${OCF_RESKEY_config} || return ${OCF_ERR_INSTALLED}
 
     return $OCF_SUCCESS
 }
@@ -345,13 +362,25 @@ case $__OCF_ACTION in
 meta-data)      meta_data
                 exit $OCF_SUCCESS
                 ;;
-start)          zabbixserver_start;;
-stop)           zabbixserver_stop;;
-monitor)        zabbixserver_monitor;;
-validate-all)   zabbixserver_validate;;
 usage|help)     zabbixserver_usage
                 exit $OCF_SUCCESS
                 ;;
+esac
+
+zabbixserver_validate
+rc=$?
+if [ $rc -ne $OCF_SUCCESS ]; then
+    case $__OCF_ACTION in
+        stop)   exit $OCF_SUCCESS;;
+        *)      exit $rc;;
+    esac
+fi
+
+case $__OCF_ACTION in
+start)          zabbixserver_start;;
+stop)           zabbixserver_stop;;
+monitor)        zabbixserver_monitor;;
+validate-all)   exit $OCF_SUCCESS;;
 *)              zabbixserver_usage
                 exit $OCF_ERR_UNIMPLEMENTED
                 ;;
