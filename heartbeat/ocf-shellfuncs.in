@@ -235,7 +235,9 @@ ha_log() {
           [ -n "$HA_DEBUGLOG" ]
         then
           : appending to $HA_DEBUGLOG
-          echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_DEBUGLOG
+		  if [ "$HA_LOGFILE"x != "$HA_DEBUGLOG"x ]; then
+            echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_DEBUGLOG
+          fi
         fi
 }
 
