@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 #
-#	zabbix-server OCF RA for zabbix_server daemon
+#   zabbix-server OCF RA for zabbix_server daemon
 #
 # Copyright (c) 2012 Krzysztof Gajdemski <songo@debian.org.pl>
 #                    All Rights Reserved.
@@ -53,7 +53,7 @@ sleepint=1
 # Functions
 #
 meta_data() {
-	cat <<END
+    cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="zabbix-server">
@@ -90,7 +90,7 @@ with parameter 'PidFile='.
 Path to zabbix_server configuration file. Assumed server default
 if not specified.
 </longdesc>
-<shortdesc lang="en">Path to configration file</shortdesc>
+<shortdesc lang="en">Path to configuration file</shortdesc>
 <content type="string" default="${OCF_RESKEY_config_default}" />
 </parameter>
 
@@ -111,7 +111,7 @@ END
 
 
 zabbixserver_usage() {
-	cat <<END
+    cat <<END
 usage: $0 {start|stop|monitor|validate-all|meta-data}
 
 Expects to have a fully populated OCF RA-compliant environment set.
@@ -123,7 +123,7 @@ END
 # be found then return 0
 #
 getpid() {
-    # pidfile dosen't exists
+    # pidfile doesn't exists
     [ -f $1 ] || return 1
     echo `sed -n '1 { /[0-9]/p }' $1`
 
@@ -141,7 +141,7 @@ startserver() {
     command=$OCF_RESKEY_zabbix
 
     if [ $OCF_RESKEY_config ]; then
-	params="--config $OCF_RESKEY_config"
+        params="--config $OCF_RESKEY_config"
     fi
 
     # start with additional parameters if specified
@@ -166,7 +166,7 @@ process_status() {
     # check if parent process is running
     ocf_run -q kill -s 0 $pid 2> /dev/null 1>&2
     if [ $? -eq 0 ]; then
-	return 0
+        return 0
     fi
 
     return 1
@@ -180,7 +180,7 @@ zabbixserver_status() {
 
     pid=`getpid $OCF_RESKEY_pidfile`
     if [ $? -ne 0 ]; then
-	return 1
+        return 1
     fi
 
     process_status $pid
@@ -200,29 +200,32 @@ zabbixserver_start() {
     zabbixserver_monitor
     rc=$?
     case "$rc" in
-	$OCF_SUCCESS)
-	    ocf_log info "Resource is already running"
-	    return $OCF_SUCCESS
-	    ;;
-	$OCF_NOT_RUNNING)
-	    ;;
-	*)
-	    exit $OCF_ERR_GENERIC
-	    ;;
+    $OCF_SUCCESS)
+        ocf_log info "Resource is already running"
+        return $OCF_SUCCESS
+        ;;
+    $OCF_NOT_RUNNING)
+        ;;
+    *)
+        exit $OCF_ERR_GENERIC
+        ;;
     esac
 
     # remove stale pidfile if it exists
-    [ -f $OCF_RESKEY_pidfile ] && rm $OCF_RESKEY_pidfile
+    if [ -f $OCF_RESKEY_pidfile ]; then
+        ocf_log debug "Removing stale pidfile"
+        rm $OCF_RESKEY_pidfile
+    fi
 
     startserver
     if [ $? -ne 0 ]; then
-	ocf_log err "Can't start zabbix-server"
-	return $OCF_ERR_GENERIC
+        ocf_log err "Can't start zabbix-server"
+        return $OCF_ERR_GENERIC
     fi
 
     # wait if it starts really
     while ! zabbixserver_monitor; do
-	ocf_log debug "Resource has not started yet, waiting"
+        ocf_log debug "Resource has not started yet, waiting"
     done
 
     return $OCF_SUCCESS
@@ -241,28 +244,28 @@ zabbixserver_stop() {
     zabbixserver_monitor
     rc=$?
     case "$rc" in
-	$OCF_SUCCESS)
-	    ;;
-	$OCF_NOT_RUNNING)
-	    ocf_log debug "Resorce is already stopped"
-	    return $OCF_SUCCESS
-	    ;;
-	*)
-	    exit $OCF_ERR_GENERIC
-	    ;;
+    $OCF_SUCCESS)
+        ;;
+    $OCF_NOT_RUNNING)
+        ocf_log debug "Resorce is already stopped"
+        return $OCF_SUCCESS
+        ;;
+    *)
+        exit $OCF_ERR_GENERIC
+        ;;
     esac
 
     pid=`getpid $OCF_RESKEY_pidfile`
     if [ $? -ne 0 ]; then
-	ocf_log err "Can't find process PID"
-	return $OCF_ERR_GENERIC
+        ocf_log err "Can't find process PID"
+        return $OCF_ERR_GENERIC
     fi
 
     # kill the process
     ocf_run -q kill -15 $pid
     if [ $? -ne 0 ]; then
-	ocf_log err "Can't stop process (PID $pid)"
-	return $OCF_ERR_GENERIC
+        ocf_log err "Can't stop process (PID $pid)"
+        return $OCF_ERR_GENERIC
     fi
 
     # Wait until the parent process terminates.
@@ -270,17 +273,20 @@ zabbixserver_stop() {
     # function will not detect this condition because the pidfile may be
     # removed just now.
     while process_status $pid; do
-	ocf_log debug "Waiting for process to terminate..."
-	sleep $sleepint
+        ocf_log debug "Waiting for process to terminate..."
+        sleep $sleepint
     done
 
     # wait if it stops really
     while zabbixserver_monitor; do
-	ocf_log debug "Resource has not stopped yet, waiting"
+        ocf_log debug "Resource has not stopped yet, waiting"
     done
 
     # remove stale pidfile if it exists
-    [ -f $OCF_RESKEY_pidfile ] && rm $OCF_RESKEY_pidfile
+    if [ -f $OCF_RESKEY_pidfile ]; then
+        ocf_log debug "Pidfile still exists, removing"
+        rm $OCF_RESKEY_pidfile
+    fi
 
     return $OCF_SUCCESS
 }
@@ -293,17 +299,17 @@ zabbixserver_monitor() {
 
     zabbixserver_status
     case "$?" in
-	0)
-	    ocf_log debug "Resource is running"
-	    ;;
-	1)
-	    ocf_log debug "Resource is not running"
-	    return $OCF_NOT_RUNNING
-	    ;;
-	*)
-	    ocf_log err "Resource has failed"
-	    exit $OCF_ERR_GENERIC
-	    ;;
+    0)
+        ocf_log debug "Resource is running"
+        ;;
+    1)
+        ocf_log debug "Resource is not running"
+        return $OCF_NOT_RUNNING
+        ;;
+    *)
+        ocf_log err "Resource has failed"
+        exit $OCF_ERR_GENERIC
+        ;;
     esac
 
     return $OCF_SUCCESS
@@ -320,14 +326,14 @@ zabbixserver_validate() {
 
     piddir=`dirname ${OCF_RESKEY_pidfile}`
     if [ ! -d $piddir ]; then
-	ocf_log err "PID directory ${piddir} doesn't exist"
-	return $OCF_ERR_INSTALLED
+        ocf_log err "PID directory ${piddir} doesn't exist"
+        return $OCF_ERR_INSTALLED
     fi
 
-    # check for cofniguration file only when it is specified by user
+    # check for configuration file only when it is specified by user
     if [ ! -z ${OCF_RESKEY_config} ] && [ ! -f ${OCF_RESKEY_config} ]; then
-	ocf_log err "Can't read configuration file ${OCF_RESKEY_config}"
-	return $OCF_ERR_INSTALLED
+        ocf_log err "Can't read configuration file ${OCF_RESKEY_config}"
+        return $OCF_ERR_INSTALLED
     fi
 
     return $OCF_SUCCESS
@@ -337,19 +343,19 @@ zabbixserver_validate() {
 # main
 #
 case $__OCF_ACTION in
-meta-data)	meta_data
-		exit $OCF_SUCCESS
-		;;
-start)		zabbixserver_start;;
-stop)		zabbixserver_stop;;
-monitor)	zabbixserver_monitor;;
-validate-all)	zabbixserver_validate;;
-usage|help)	zabbixserver_usage
-		exit $OCF_SUCCESS
-		;;
-*)		zabbixserver_usage
-		exit $OCF_ERR_UNIMPLEMENTED
-		;;
+meta-data)      meta_data
+                exit $OCF_SUCCESS
+                ;;
+start)          zabbixserver_start;;
+stop)           zabbixserver_stop;;
+monitor)        zabbixserver_monitor;;
+validate-all)   zabbixserver_validate;;
+usage|help)     zabbixserver_usage
+                exit $OCF_SUCCESS
+                ;;
+*)              zabbixserver_usage
+                exit $OCF_ERR_UNIMPLEMENTED
+                ;;
 esac
 rc=$?
 ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
