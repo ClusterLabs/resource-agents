@@ -365,23 +365,53 @@ lv_activate()
 
 function lv_start_clustered
 {
-	if ! lvchange -aey $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name; then
-		ocf_log err "Failed to activate logical volume, $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name"
-		ocf_log notice "Attempting cleanup of $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name"
-
-		if ! lvconvert --repair --use-policies $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name; then
-			ocf_log err "Failed to cleanup $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name"
-			return $OCF_ERR_GENERIC
-		fi
-
-		if ! lvchange -aey $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name; then
-			ocf_log err "Failed second attempt to activate $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name"
-			return $OCF_ERR_GENERIC
-		fi
-
-		ocf_log notice "Second attempt to activate $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name successful"
+	if lvchange -aey $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name; then
 		return $OCF_SUCCESS
 	fi
+
+	# FAILED exclusive activation:
+	# This can be caused by an LV being active remotely.
+	# Before attempting a repair effort, we should attempt
+	# to deactivate the LV cluster-wide; but only if the LV
+	# is not open.  Otherwise, it is senseless to attempt.
+	if ! [[ "$(lvs -o attr --noheadings $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name)" =~ ....ao ]]; then
+		# We'll wait a small amount of time for some settling before
+		# attempting to deactivate.  Then the deactivate will be
+		# immediately followed by another exclusive activation attempt.
+		sleep 5
+		if ! lvchange -an $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name; then
+			# Someone could have the device open.
+			# We can't do anything about that.
+			ocf_log err "Unable to perform required deactivation of $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name before starting"
+			return $OCF_ERR_GENERIC
+		fi
+
+		if lvchange -aey $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name; then
+			# Second attempt after deactivation was successful, we now
+			# have the lock exclusively
+			return $OCF_SUCCESS
+		fi
+	fi
+
+	# Failed to activate:
+	# This could be due to a device failure (or another machine could
+	# have snuck in between the deactivation/activation).  We don't yet
+	# have a mechanism to check for remote activation, so we will proceed
+	# with repair action.
+	ocf_log err "Failed to activate logical volume, $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name"
+	ocf_log notice "Attempting cleanup of $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name"
+
+	if ! lvconvert --repair --use-policies $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name; then
+		ocf_log err "Failed to cleanup $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name"
+		return $OCF_ERR_GENERIC
+	fi
+
+	if ! lvchange -aey $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name; then
+		ocf_log err "Failed second attempt to activate $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name"
+		return $OCF_ERR_GENERIC
+	fi
+
+	ocf_log notice "Second attempt to activate $OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name successful"
 	return $OCF_SUCCESS
 }
 
