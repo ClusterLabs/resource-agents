@@ -751,7 +751,7 @@ stop_filesystem() {
 	if [ -z "$dev" ]; then
 			ocf_log err "\
 stop: Could not match $OCF_RESKEY_device with a real device"
-			return $FAIL
+			return $OCF_ERR_INSTALLED
 	fi
 
 	#
