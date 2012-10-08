@@ -213,6 +213,9 @@ mount_in_use () {
 	dev="$1"
 	mp="$2"
 
+	typeset proc_mounts=$(mktemp /tmp/fs.proc.mounts.XXXXXX)
+	cat /proc/mounts > $proc_mounts
+
 	while read -r tmp_dev tmp_mp junka junkb junkc junkd; do
 		# XXX fork/clone warning XXX
 		if [ "${tmp_dev:0:1}" != "-" ]; then
@@ -237,7 +240,8 @@ mount_in_use () {
 		if [ -n "$tmp_mp" -a "$tmp_mp" = "$mp" ]; then
 			return $YES
 		fi
-	done < /proc/mounts
+	done < $proc_mounts
+	rm -f $proc_mounts
 
 	return $NO
 }
@@ -281,6 +285,9 @@ is_mounted () {
 	# if one exists.  /a/b/ -> /a/b; /a/b -> /a/b.
 	mp="${mp%/}"
 
+	typeset proc_mounts=$(mktemp /tmp/fs.proc.mounts.XXXXXX)
+	cat /proc/mounts > $proc_mounts
+
 	while read -r tmp_dev tmp_mp junk_a junk_b junk_c junk_d
 	do
 		# XXX fork/clone warning XXX
@@ -311,7 +318,8 @@ is_mounted () {
 			fi
 			ret=$YES
 		fi
-	done < /proc/mounts
+	done < $proc_mounts
+	rm -f $proc_mounts
 
 	if [ $ret -eq $YES ] && [ $found -ne 0 ]; then
 		case $OCF_RESKEY_fstype in
