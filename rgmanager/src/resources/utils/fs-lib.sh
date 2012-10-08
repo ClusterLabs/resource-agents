@@ -924,6 +924,8 @@ do_stop() {
 
 
 do_monitor() {
+	ocf_log debug "Checking fs \"$OCF_RESKEY_name\", Level $OCF_CHECK_LEVEL"
+
 	#
 	# Get the device
 	#
