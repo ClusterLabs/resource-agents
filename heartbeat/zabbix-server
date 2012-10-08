@@ -350,8 +350,10 @@ esac
 zabbixserver_validate
 rc=$?
 if [ $rc -ne $OCF_SUCCESS ]; then
+    # skip validation for the stop action as it has all necessary
+    # checks inside
     case $__OCF_ACTION in
-        stop)   exit $OCF_SUCCESS;;
+        stop)   ;;
         *)      exit $rc;;
     esac
 fi
