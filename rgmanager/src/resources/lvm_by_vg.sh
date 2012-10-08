@@ -194,10 +194,37 @@ function vg_start_clustered
 	local results
 	local all_pvs
 	local resilience
+	local try_again=false
 
 	ocf_log info "Starting volume group, $OCF_RESKEY_vg_name"
 
 	if ! vgchange -aey $OCF_RESKEY_vg_name; then
+		try_again=true
+
+		# Failure to activate:
+		# This could be caused by a remotely active LV.  Before
+		# attempting any repair of the VG, we will first attempt
+		# to deactivate the VG cluster-wide.
+		# We must check for open LVs though, since these cannot
+		# be deactivated.  We have no choice but to go one-by-one.
+
+		# Allow for some settling
+		sleep 5
+
+		results=(`lvs -o name,attr --noheadings $OCF_RESKEY_vg_name 2> /dev/null`)
+		a=0
+		while [ ! -z "${results[$a]}" ]; do
+			if [[ ! ${results[$(($a + 1))]} =~ ....ao ]]; then
+				if ! lvchange -an $OCF_RESKEY_vg_name/${results[$a]}; then
+					ocf_log err "Unable to perform required deactivation of $OCF_RESKEY_vg_name before starting"
+					return $OCF_ERR_GENERIC
+				fi
+			fi
+			a=$(($a + 2))
+		done
+	fi
+
+	if try_again && ! vgchange -aey $OCF_RESKEY_vg_name; then
 		ocf_log err "Failed to activate volume group, $OCF_RESKEY_vg_name"
 		ocf_log notice "Attempting cleanup of $OCF_RESKEY_vg_name"
 
@@ -218,7 +245,7 @@ function vg_start_clustered
 		# Make sure all the logical volumes are active
 		results=(`lvs -o name,attr --noheadings 2> /dev/null $OCF_RESKEY_vg_name`)
 		a=0
-		while [ ! -z ${results[$a]} ]; do
+		while [ ! -z "${results[$a]}" ]; do
 			if [[ ! ${results[$(($a + 1))]} =~ ....a. ]]; then
 				all_pvs=(`pvs --noheadings -o name 2> /dev/null`)
 				resilience=" --config devices{filter=["
