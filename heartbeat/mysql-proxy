@@ -5,8 +5,7 @@
 # Description:  Manages MySQL Proxy as an OCF resource in
 #               an high-availability setup.
 #
-#               Originally tested with MySQL Proxy 0.7.0 on Debian 5.0,
-#               but subsequent updates have been tested with MySQL Proxy 0.8.1 and 0.8.3 on Debian 6.0 only.
+#               Tested with MySQL Proxy 0.8.1 and 0.8.3 on Debian 6.0.
 #
 #               Based on the mysql and Pure-Ftpd OCF resource agents.
 #
@@ -76,7 +75,7 @@
 : ${OCF_RESKEY_test_passwd=""}
 : ${OCF_RESKEY_parameters=""}
 : ${OCF_RESKEY_pidfile="${HA_RSCTMP}/mysql-proxy-${OCF_RESOURCE_INSTANCE}.pid"}
-USAGE="Usage: $0 {start|stop|reload|status|monitor|validate-all|meta-data}";
+USAGE="Usage: $0 {start|stop|reload|status|monitor|validate-all|meta-data}"
 
 ##########################################################################
 
@@ -99,7 +98,7 @@ The level 10 monitor operation is left out intentionally for possible future enh
 
 The level 20 monitor operation will perform a SELECT on a given table to verify that the connection to a backend-server is actually working.
 
-Originally tested with MySQL Proxy 0.7.0 on Debian 5.0, but subsequent updates have been tested with MySQL Proxy 0.8.1 and 0.8.3 on Debian 6.0 only.
+Tested with MySQL Proxy 0.8.1 and 0.8.3 on Debian 6.0.
 </longdesc>
 <shortdesc lang="en">Manages a MySQL Proxy instance</shortdesc>
 
@@ -282,6 +281,8 @@ isRunning()
 
 mysqlproxy_status()
 {
+    local PID
+
     if [ -f "${pidfile}" ]; then
     # MySQL Proxy is probably running
         PID=`head -n 1 "${pidfile}"`
@@ -297,6 +298,10 @@ mysqlproxy_status()
 
 mysqlproxy_start()
 {
+    local PARAM_PREFIX OPTIONS
+    local p pa pba proba
+    local pid_dir socket_dir
+
     # if MySQL Proxy is running return success
     if mysqlproxy_status ; then
         ocf_log info "MySQL Proxy already running."
@@ -391,7 +396,7 @@ mysqlproxy_start()
     ret=$?
 
     if [ $ret -ne 0 ]; then
-        ocf_log err "MySQL Proxy returned error." $ret
+        ocf_log err "MySQL Proxy returned error: " $ret
         return $OCF_ERR_GENERIC
     fi
 
@@ -403,13 +408,16 @@ mysqlproxy_start()
 
 mysqlproxy_stop()
 {
+    local ret
+    local pa
+
     if mysqlproxy_status ; then
         #start-stop-daemon --stop --quiet --retry 3 --exec $binary --pidfile $pidfile
         /bin/kill `cat "${pidfile}"`
         ret=$?
 
         if [ $ret -ne 0 ]; then
-            ocf_log err "MySQL Proxy returned an error while stopping." $ret
+            ocf_log err "MySQL Proxy returned an error while stopping: " $ret
             return $OCF_ERR_GENERIC
         fi
 
@@ -440,6 +448,10 @@ mysqlproxy_stop()
 
 mysqlproxy_reload()
 {
+    # @TODO check if pidfile is empty
+    # PID=`head -n 1 "${pidfile}"`
+    #    if [ ! -z "$PID" ] ; then
+
     if mysqlproxy_status; then
         ocf_log info "Reloading MySQL Proxy."
         kill -s HUP `cat ${pidfile}`
@@ -449,8 +461,6 @@ mysqlproxy_reload()
 mysqlproxy_monitor()
 {
     local rc
-    local mysql_options pa
-    local mysql_server_parameter mysql_server_host mysql_server_port
 
     if [ "${OCF_RESKEY_CRM_meta_interval:-0}" -eq "0" ]; then
         # in case of probe, monitor operation is surely treated as
@@ -465,45 +475,62 @@ mysqlproxy_monitor()
         return $OCF_NOT_RUNNING
     fi
 
-    if [ $OCF_CHECK_LEVEL -eq 20 -a -n "$OCF_RESKEY_test_table" ]; then
-        mysql_options="--connect_timeout=10 --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
-
-        # cycle each address
-        for pa in $proxy_address; do
-            # build correct connect parameter
-            if [ -S "$pa" ]; then
-                # we need to monitor a mysql socket
-                mysql_server_parameter="--socket=$pa"
-            else
-                # we need to monitor a host address
-                mysql_server_parameter=""
-
-                # split host:port
-                # @TODO correctly handle IPv6 address
-                # @TODO correctly handle 0.0.0.0 address
-                mysql_server_host=`echo $pa | cut -d : -f 1`
-                mysql_server_port=`echo $pa | cut -d : -f 2`
-
-                if [ -n $mysql_server_host ]; then
-                    mysql_server_parameter="$mysql_server_parameter --host=$mysql_server_host"
-                fi
-                if [ -n $mysql_server_port ]; then
-                    mysql_server_parameter="$mysql_server_parameter --port=$mysql_server_port"
-                fi
-            fi
-
-            # Check for test table
-            ocf_run $mysql $mysql_server_parameter $mysql_options \
-                -e "SELECT COUNT(*) FROM $OCF_RESKEY_test_table"
-            rc=$?
-
-            if [ $rc -ne 0 ]; then
-                ocf_log err "Failed to select from $OCF_RESKEY_test_table";
-                return $OCF_ERR_GENERIC;
-            fi
-        done
-
+    if [ $OCF_CHECK_LEVEL -eq 20 ]; then
+        mysqlproxy_monitor_20
+        rc=$?
+        [ $rc -ne 0 ] && return $rc
     fi
+
+    return $OCF_SUCCESS
+}
+
+mysqlproxy_monitor_20()
+{
+    local rc
+    local mysql_options pa
+    local mysql_server_parameter mysql_server_host mysql_server_port
+
+    if [ -z "$OCF_RESKEY_test_table" -o -z "$OCF_RESKEY_test_user" -a -z "$OCF_RESKEY_test_passwd" ]; then
+        ocf_log warn "Missing proper configuration for OCF_CHECK_LEVEL=20 (test_table=[$OCF_RESKEY_test_table] test_user=[$OCF_RESKEY_test_user] test_password=[$OCF_RESKEY_test_passwd]). Not running in-depth monitoring."
+        return $OCF_SUCCESS
+    fi
+
+    mysql_options="--connect_timeout=10 --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
+
+    # cycle each address
+    for pa in $proxy_address; do
+        # build correct connect parameter
+        if [ -S "$pa" ]; then
+            # we need to monitor a mysql socket
+            mysql_server_parameter="--socket=$pa"
+        else
+            # we need to monitor a host address
+            mysql_server_parameter=""
+
+            # split host:port
+            # @TODO correctly handle IPv6 address
+            # @TODO correctly handle 0.0.0.0 address
+            mysql_server_host=`echo $pa | cut -d : -f 1`
+            mysql_server_port=`echo $pa | cut -d : -f 2`
+
+            if [ -n $mysql_server_host ]; then
+                mysql_server_parameter="$mysql_server_parameter --host=$mysql_server_host"
+            fi
+            if [ -n $mysql_server_port ]; then
+                mysql_server_parameter="$mysql_server_parameter --port=$mysql_server_port"
+            fi
+        fi
+
+        # Check for test table
+        ocf_run $mysql $mysql_server_parameter $mysql_options \
+            -e "SELECT COUNT(*) FROM $OCF_RESKEY_test_table"
+        rc=$?
+
+        if [ $rc -ne 0 ]; then
+            ocf_log err "Failed to select from $OCF_RESKEY_test_table: " $rc
+            return $OCF_ERR_GENERIC
+        fi
+    done
 
     return $OCF_SUCCESS
 }
@@ -515,8 +542,12 @@ mysqlproxy_validate_all()
 
     # check that the MySQL Proxy binary exists and can be executed
     check_binary $binary
-    # @TODO skip the next test if OCF_CHECK_LEVEL == 0?
-    check_binary $mysql
+
+    # check MySQL client binary only if in-depth monitoring is requested
+    # do not break backwards compatibility otherwise
+    if [ $OCF_CHECK_LEVEL -gt 0 ]; then
+        check_binary $mysql
+    fi
 
     # check for valid log-level
     echo $log_level | egrep -q "^(error|warning|info|message|debug|)$"
