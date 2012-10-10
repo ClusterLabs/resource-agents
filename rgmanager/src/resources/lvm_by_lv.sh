@@ -107,7 +107,7 @@ lv_status_clustered()
 	# Check if device is active
 	#
 	if [[ ! "$(lvs -o attr --noheadings $lv_path)" =~ ....a. ]]; then
-		return $OCF_ERR_GENERIC
+		return $OCF_NOT_RUNNING
 	fi
 
 	return $OCF_SUCCESS
@@ -128,7 +128,7 @@ lv_status_single()
 	# Check if device is active
 	#
 	if [[ ! "$(lvs -o attr --noheadings $lv_path)" =~ ....a. ]]; then
-		return $OCF_ERR_GENERIC
+		return $OCF_NOT_RUNNING
 	fi
 
 	if [[ "$(vgs -o attr --noheadings $OCF_RESKEY_vg_name)" =~ .....c ]]; then

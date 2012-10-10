@@ -137,9 +137,11 @@ status|monitor)
 	ocf_log notice "Getting status"
 
 	if [ -z "$OCF_RESKEY_lv_name" ]; then
-		vg_status || exit 1
+		vg_status
+		exit $?
 	else
-		lv_status || exit 1
+		lv_status
+		exit $?
 	fi
 	;;
 		    

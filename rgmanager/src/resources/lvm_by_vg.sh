@@ -126,7 +126,7 @@ function vg_status_single
 	#
 	for i in `lvs $OCF_RESKEY_vg_name --noheadings -o attr`; do
 		if [[ ! $i =~ ....a. ]]; then
-			return $OCF_ERR_GENERIC
+			return $OCF_NOT_RUNNING
 		fi
 	done
 
