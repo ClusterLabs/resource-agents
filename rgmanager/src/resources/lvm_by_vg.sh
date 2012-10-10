@@ -26,7 +26,7 @@
 #    0 == Owned by someone else
 function vg_owner
 {
-	local owner=`vgs -o tags --noheadings $OCF_RESKEY_vg_name`
+	local owner=`vgs -o tags --noheadings $OCF_RESKEY_vg_name | tr -d ' '`
 	local my_name=$(local_node_name)
 
 	if [ -z "$my_name" ]; then
