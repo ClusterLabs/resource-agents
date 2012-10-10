@@ -29,6 +29,27 @@ lv_verify()
 	return $OCF_SUCCESS
 }
 
+restore_transient_failed_pvs()
+{
+	local a=0
+	local -a results
+
+	results=(`pvs -o name,vg_name,attr --noheadings | grep $OCF_RESKEY_vg_name | grep -v 'unknown device'`)
+	while [ ! -z "${results[$a]}" ] ; do
+		if [[ ${results[$(($a + 2))]} =~ ..m ]] &&
+		   [ $OCF_RESKEY_vg_name == ${results[$(($a + 1))]} ]; then
+			ocf_log notice "Attempting to restore missing PV, ${results[$a]} in $OCF_RESKEY_vg_name"
+			vgextend --restoremissing $OCF_RESKEY_vg_name ${results[$a]}
+			if [ $? -ne 0 ]; then
+				ocf_log notice "Failed to restore ${results[$a]}"
+			else
+				ocf_log notice "  ${results[$a]} restored"
+			fi
+		fi
+		a=$(($a + 3))
+	done
+}
+
 # lv_exec_resilient
 #
 # Sometimes, devices can come back.  Their metadata will conflict
@@ -91,6 +112,11 @@ lv_activate_resilient()
 
 	if [ $action != "start" ]; then
 	        op="-an"
+	elif [[ "$(lvs -o attr --noheadings $lv_path)" =~ r.......p ]] ||
+	     [[ "$(lvs -o attr --noheadings $lv_path)" =~ R.......p ]]; then
+		# We can activate partial RAID LVs and run just fine.
+		ocf_log notice "Attempting activation of partial RAID LV, $lv_path"
+		op="-ay --partial"
 	fi
 
 	if ! lv_exec_resilient "lvchange $op $lv_path" ; then
@@ -315,6 +341,13 @@ lv_activate()
 			ocf_log err "Failed to steal $lv_path from $owner."
 			return $OCF_ERR_GENERIC
 		fi
+	fi
+
+	# If this is a partial VG, attempt to
+	# restore any transiently failed PVs
+	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ ...p ]]; then
+		ocf_log err "Volume group \"$OCF_RESKEY_vg_name\" has PVs marked as missing"
+		restore_transient_failed_pvs
 	fi
 
 	if ! lv_activate_and_tag $1 $my_name $lv_path; then

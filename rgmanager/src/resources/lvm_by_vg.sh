@@ -367,6 +367,19 @@ function vg_start_single
 ##
 function vg_start
 {
+	local a=0
+	local results
+
+	results=(`lvs -o name,attr --noheadings $OCF_RESKEY_vg_name 2> /dev/null`)
+	while [ ! -z ${results[$a]} ]; do
+		if [[ ! ${results[$(($a + 1))]} =~ ^r ]] ||
+		   [[ ! ${results[$(($a + 1))]} =~ ^R ]]; then
+			ocf_log err "RAID LVs are not supported without an 'lv_name' specification"
+                	return $OCF_ERR_GENERIC
+		fi
+		a=$(($a + 2))
+	done
+
 	if [[ "$(vgs -o attr --noheadings $OCF_RESKEY_vg_name)" =~ .....c ]]; then
 		vg_start_clustered
 	else
