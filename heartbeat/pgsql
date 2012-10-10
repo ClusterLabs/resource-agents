@@ -1659,7 +1659,10 @@ rc=$?
 if [ $rc -ne 0 ]
 then
     case "$1" in
-        stop)    exit $OCF_SUCCESS;;
+        stop)    if is_replication; then
+                    change_pgsql_status "$NODENAME" "UNKNOWN"
+                 fi
+                 exit $OCF_SUCCESS;;
         monitor) exit $OCF_NOT_RUNNING;;
         status)  exit $OCF_NOT_RUNNING;;
         *)       exit $rc;;
