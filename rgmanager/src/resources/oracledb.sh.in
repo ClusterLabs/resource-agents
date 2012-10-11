@@ -123,7 +123,7 @@ export ORACLE_HOSTNAME
 export LD_LIBRARY_PATH=$ORACLE_HOME/lib:$ORACLE_HOME/opmn/lib
 export PATH=$ORACLE_HOME/bin:$ORACLE_HOME/opmn/bin:$ORACLE_HOME/dcm/bin:$PATH
 
-declare -i	RESTART_RETRIES=3
+declare -i	RESTART_RETRIES=0
 declare -r	DB_PROCNAMES="pmon"
 #declare -r	DB_PROCNAMES="pmonXX" # testing
 #declare -r	DB_PROCNAMES="pmon smon dbw0 lgwr"
