@@ -58,7 +58,7 @@ function _strip_tags
 		vgchange --deltag $i $OCF_RESKEY_vg_name
 	done
 
-	if [ ! -z `vgs -o tags --noheadings $OCF_RESKEY_vg_name` ]; then
+	if [ ! -z `vgs -o tags --noheadings $OCF_RESKEY_vg_name | tr -d ' '` ]; then
 		ocf_log err "Failed to remove ownership tags from $OCF_RESKEY_vg_name"
 		return $OCF_ERR_GENERIC
 	fi
