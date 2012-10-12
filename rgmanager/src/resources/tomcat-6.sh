@@ -160,6 +160,14 @@ start()
 	ln -s "$CATALINA_BASE"/conf/* "$TOMCAT_gen_catalina_base"/conf &> /dev/null
 	
 	export TOMCAT_CFG="$TOMCAT_gen_catalina_base/conf/tomcat6.conf"
+
+	tomcat6_options="$tomcat6_options $(
+				 awk '!/^#/ && !/^$/ { ORS=" "; print "export ", $0, ";" }' \
+				 $TOMCAT_CFG
+			 )"
+
+	eval "$tomcat6_options"
+
 	/usr/sbin/tomcat6 start
 
 	if [ $? -ne 0 ]; then

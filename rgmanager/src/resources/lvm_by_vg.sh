@@ -26,7 +26,7 @@
 #    0 == Owned by someone else
 function vg_owner
 {
-	local owner=`vgs -o tags --noheadings $OCF_RESKEY_vg_name`
+	local owner=`vgs -o tags --noheadings $OCF_RESKEY_vg_name | tr -d ' '`
 	local my_name=$(local_node_name)
 
 	if [ -z "$my_name" ]; then
@@ -58,7 +58,7 @@ function _strip_tags
 		vgchange --deltag $i $OCF_RESKEY_vg_name
 	done
 
-	if [ ! -z `vgs -o tags --noheadings $OCF_RESKEY_vg_name` ]; then
+	if [ ! -z `vgs -o tags --noheadings $OCF_RESKEY_vg_name | tr -d ' '` ]; then
 		ocf_log err "Failed to remove ownership tags from $OCF_RESKEY_vg_name"
 		return $OCF_ERR_GENERIC
 	fi
@@ -126,7 +126,7 @@ function vg_status_single
 	#
 	for i in `lvs $OCF_RESKEY_vg_name --noheadings -o attr`; do
 		if [[ ! $i =~ ....a. ]]; then
-			return $OCF_ERR_GENERIC
+			return $OCF_NOT_RUNNING
 		fi
 	done
 

@@ -133,7 +133,7 @@ lv_status_clustered()
 	# Check if device is active
 	#
 	if [[ ! "$(lvs -o attr --noheadings $lv_path)" =~ ....a. ]]; then
-		return $OCF_ERR_GENERIC
+		return $OCF_NOT_RUNNING
 	fi
 
 	return $OCF_SUCCESS
@@ -154,7 +154,7 @@ lv_status_single()
 	# Check if device is active
 	#
 	if [[ ! "$(lvs -o attr --noheadings $lv_path)" =~ ....a. ]]; then
-		return $OCF_ERR_GENERIC
+		return $OCF_NOT_RUNNING
 	fi
 
 	if [[ "$(vgs -o attr --noheadings $OCF_RESKEY_vg_name)" =~ .....c ]]; then
@@ -184,7 +184,7 @@ lv_status_single()
 	#
 	# Verify that we are the correct owner
 	#
-	owner=`lvs -o tags --noheadings $lv_path`
+	owner=`lvs -o tags --noheadings $lv_path | tr -d ' '`
 	my_name=$(local_node_name)
 	if [ -z "$my_name" ]; then
 		ocf_log err "Unable to determine local machine name"
@@ -310,7 +310,7 @@ lv_activate_and_tag()
 lv_activate()
 {
 	declare lv_path="$OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name"
-	declare owner=`lvs -o tags --noheadings $lv_path`
+	declare owner=`lvs -o tags --noheadings $lv_path | tr -d ' '`
 	declare my_name=$(local_node_name)
 
 	if [ -z "$my_name" ]; then
@@ -337,7 +337,7 @@ lv_activate()
 		fi
 
 		# Warning --deltag doesn't always result in failure
-		if [ ! -z `lvs -o tags --noheadings $lv_path` ]; then
+		if [ ! -z `lvs -o tags --noheadings $lv_path | tr -d ' '` ]; then
 			ocf_log err "Failed to steal $lv_path from $owner."
 			return $OCF_ERR_GENERIC
 		fi
@@ -359,7 +359,7 @@ lv_activate()
 		    "activation { volume_list = \"$OCF_RESKEY_vg_name\" }" \
 		    $OCF_RESKEY_vg_name; then
 			ocf_log notice "$OCF_RESKEY_vg_name now consistent"
-			owner=`lvs -o tags --noheadings $lv_path`
+			owner=`lvs -o tags --noheadings $lv_path | tr -d ' '`
 			if [ ! -z $owner ] && [ $owner != $my_name ]; then
 				if is_node_member_clustat $owner ; then
 					ocf_log err "$owner owns $lv_path unable to $1"
@@ -375,7 +375,7 @@ lv_activate()
 				fi
 
 				# Warning --deltag doesn't always result in failure
-				if [ ! -z `lvs -o tags --noheadings $lv_path` ]; then
+				if [ ! -z `lvs -o tags --noheadings $lv_path | tr -d ' '` ]; then
 					ocf_log err "Failed to steal $lv_path from $owner."
 					return $OCF_ERR_GENERIC
 				fi

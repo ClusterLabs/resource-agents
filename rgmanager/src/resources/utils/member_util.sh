@@ -19,45 +19,51 @@
 #
 
 #
-# Use clustat to figure out if the specified node is a member
-# of the cluster.  Returns 2 if not found, 1 if not a member, and
+# Use corosync-quorumtool to figure out if the specified node is a member
+# of the cluster.  Returns 1 if not a member, and
 # 0 if the node is happily running.
-# Tested on RHEL4 and RHEL5; requires RHCS 5.1 or 4.5 to operate
-# properly in all cases.
+#
+# Tested on RHEL6 and F17  Note that the old version of this function utilized
+# clustat, which had introspection in to the configuration.
+# If a node was not found, the old version would return '2', but the only
+# consumer of this function never cared about that value.
 #
 is_node_member_clustat()
 {
-	declare line=$(clustat -xm $1 | grep "name=\"$1\"")
-	declare tmp
-
-	# Done if there's no node in the list with that name: not a 
-	# cluster member, and not in the configuration.
-	[ -n "$line" ] || return 2
-
-	# Clear out xml tag seps.
-	line=${line/*</}
-	line=${line/\/>/}
-
-	# Make vars out of XML attributes.
-	for tmp in $line; do
-		eval declare __$tmp
-	done
-
-	# Flip the value.  clustat reports 1 for member, 0 for not;
-	# Exactly the opposite of what a shell script expects.
-	((__state = !__state))
-	return $__state
+	# Still having a tag while (a) online but (b) not running pacemaker 
+	# (e.g. crm_node) or rgmanager not considered adequate for things like
+	# the LVM agent - so we use corosync-quorumtool instead.  The function
+	# name really should be changed.
+	#
+	# corosync 1.4.1 output looks like:
+	#
+	#  # corosync-quorumtool  -l
+	#  Nodeid     Name
+	#     1   rhel6-1
+	#     2   rhel6-2
+	#
+	# corosync 2.0.1 output looks like:
+	#  # corosync-quorumtool -l
+	#
+	#  Membership information
+	#  ----------------------
+	#      Nodeid      Votes Name
+	#           1          1 rhel7-1.priv.redhat.com
+	#           2          1 rhel7-2.priv.redhat.com
+	#
+	corosync-quorumtool -l | grep -v "^Nodeid" | grep -i " $1\$" &> /dev/null
+	return $?
 }
 
 
 #
 # Print the local node name to stdout
 # Returns 0 if could be found, 1 if not
-# Tested on RHEL4 (magma) and RHEL5 (cman)
+# Tested on RHEL6 (cman) and Fedora 17 (corosync/pacemaker)
 #
 local_node_name()
 {
-	declare node state line
+	local node nid localid
 
 	if which magma_tool &> /dev/null; then
 		# Use magma_tool, if available.
@@ -69,16 +75,28 @@ local_node_name()
 		fi
 	fi
 
-	if ! which cman_tool &> /dev/null; then
-		# No cman tool? :(
+	if which cman_tool &> /dev/null; then
+		# Use cman_tool
+
+		line=$(cman_tool status | grep -i "Node name: $1")
+		[ -n "$line" ] || return 1
+		echo ${line/*name: /}
+		return 0
+	fi
+
+	if ! which crm_node &> /dev/null; then
+		# no crm_node? :(
 		return 2
 	fi
 
-	# Use cman_tool
+	localid=$(crm_node -i)
+	while read nid node; do
+		if [ "$nid" = "$localid" ]; then
+			echo $node
+			return 0
+		fi
+	done < <(crm_node -l)
 
-	line=$(cman_tool status | grep -i "Node name: $1")
-	[ -n "$line" ] || return 1
-	echo ${line/*name: /}
-	return 0
+	return 1
 }
 
