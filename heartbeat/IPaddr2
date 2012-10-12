@@ -70,6 +70,8 @@
 
 # Defaults
 OCF_RESKEY_lvs_support_default=false
+OCF_RESKEY_lvs_ipv6_addrlabel_default=false
+OCF_RESKEY_lvs_ipv6_addrlabel_value_default=99
 OCF_RESKEY_clusterip_hash_default="sourceip-sourceport"
 OCF_RESKEY_unique_clone_address_default=false
 OCF_RESKEY_arp_interval_default=200
@@ -78,6 +80,8 @@ OCF_RESKEY_arp_bg_default=true
 OCF_RESKEY_arp_mac_default="ffffffffffff"
 
 : ${OCF_RESKEY_lvs_support=${OCF_RESKEY_lvs_support_default}}
+: ${OCF_RESKEY_lvs_ipv6_addrlabel=${OCF_RESKEY_lvs_ipv6_addrlabel_default}}
+: ${OCF_RESKEY_lvs_ipv6_addrlabel_value=${OCF_RESKEY_lvs_ipv6_addrlabel_value_default}}
 : ${OCF_RESKEY_clusterip_hash=${OCF_RESKEY_clusterip_hash_default}}
 : ${OCF_RESKEY_unique_clone_address=${OCF_RESKEY_unique_clone_address_default}}
 : ${OCF_RESKEY_arp_interval=${OCF_RESKEY_arp_interval_default}}
@@ -187,10 +191,41 @@ Enable support for LVS Direct Routing configurations. In case a IP
 address is stopped, only move it to the loopback device to allow the
 local node to continue to service requests, but no longer advertise it
 on the network.
-The IPv6 does not support lvs_support, And the IPv6 does not need lvs_support.
+
+Notes for IPv6:
+It is not necessary to enable this option on IPv6.
+Instead, enable 'lvs_ipv6_addrlabel' option for LVS-DR usage on IPv6.
 </longdesc>
 <shortdesc lang="en">Enable support for LVS DR</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_lvs_support_default}"/>
+</parameter>
+
+<parameter name="lvs_ipv6_addrlabel">
+<longdesc lang="en">
+Enable adding IPv6 address label so IPv6 traffic originating from
+the address' interface does not use this address as the source.
+This is necessary for LVS-DR health checks to realservers to work. Without it,
+the most recently added IPv6 address (probably the address added by IPaddr2)
+will be used as the source address for IPv6 traffic from that interface and
+since that address exists on loopback on the realservers, the realserver
+response to pings/connections will not never leave its loopback.
+See RFC3484 for the detail of the source address selection.
+
+See also 'lvs_ipv6_addrlabel_value' parameter.
+</longdesc>
+<shortdesc lang="en">Enables adding IPv6 address label.</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_lvs_ipv6_addrlabel_default}"/>
+</parameter>
+
+<parameter name="lvs_ipv6_addrlabel_value">
+<longdesc lang="en">
+Specify IPv6 address label value used when 'lvs_ipv6_addrlabel' is enabled.
+The value should be an unused label in the policy table
+which is shown by 'ip addrlabel list' command.
+You would rarely need to change this parameter.
+</longdesc>
+<shortdesc lang="en">IPv6 address label value.</shortdesc>
+<content type="integer" default="${OCF_RESKEY_lvs_ipv6_addrlabel_value_default}"/>
 </parameter>
 
 <parameter name="mac">
@@ -348,11 +383,23 @@ ip_init() {
 	echo $OCF_RESKEY_ip | grep -qs ":"
 	if [ $? -ne 0 ];then
 		FAMILY=inet
+		if ocf_is_true $OCF_RESKEY_lvs_ipv6_addrlabel ;then
+			ocf_log err "IPv4 does not support lvs_ipv6_addrlabel"
+			exit $OCF_ERR_CONFIGURED
+		fi
 	else
 		FAMILY=inet6
 		if ocf_is_true $OCF_RESKEY_lvs_support ;then
 			ocf_log err "The IPv6 does not support lvs_support"
 			exit $OCF_ERR_CONFIGURED
+		fi
+		if ocf_is_true $OCF_RESKEY_lvs_ipv6_addrlabel ;then
+			if ocf_is_decimal "$OCF_RESKEY_lvs_ipv6_addrlabel_value" && [ $OCF_RESKEY_lvs_ipv6_addrlabel_value -ge 0 ]; then
+			    :
+			else
+			    ocf_log err "Invalid lvs_ipv6_addrlabel_value [$OCF_RESKEY_lvs_ipv6_addrlabel_value], should be positive integer"
+			    exit $OCF_ERR_CONFIGURED
+			fi
 		fi
 	fi
 
@@ -454,6 +501,10 @@ delete_interface () {
 	    ocf_run $IP2UTIL route flush cache
 	fi
 
+	if [ "$FAMILY" = "inet6" ] && ocf_is_true $OCF_RESKEY_lvs_ipv6_addrlabel ;then
+	    delete_ipv6_addrlabel $ipaddr
+	fi
+
 	return $OCF_SUCCESS
 }
 
@@ -468,6 +519,10 @@ add_interface () {
 	broadcast="$3"
 	iface="$4"
 	label="$5"
+
+	if [ "$FAMILY" = "inet6" ] && ocf_is_true $OCF_RESKEY_lvs_ipv6_addrlabel ;then
+	    add_ipv6_addrlabel $ipaddr
+	fi
 
 	cmd="$IP2UTIL -f $FAMILY addr add $ipaddr/$netmask dev $iface"
 	msg="Adding $FAMILY address $ipaddr/$netmask to device $iface"
@@ -552,6 +607,25 @@ restore_loopback() {
 		add_interface $ifinfo
 		rm -f "$VLDIR/$ipaddr"
 	fi
+}
+
+add_ipv6_addrlabel() {
+	local cmd ipaddr value
+	ipaddr="$1"
+	value="$OCF_RESKEY_lvs_ipv6_addrlabel_value"
+
+	cmd="$IP2UTIL addrlabel add prefix $ipaddr label $value"
+	ocf_log info "Adding IPv6 address label prefix $ipaddr label $value"
+	ocf_run $cmd || ocf_log warn "$cmd failed."
+}
+
+delete_ipv6_addrlabel() {
+	local cmd ipaddr value
+	ipaddr="$1"
+	value="$OCF_RESKEY_lvs_ipv6_addrlabel_value"
+
+	cmd="$IP2UTIL addrlabel del prefix $ipaddr label $value"
+	ocf_run $cmd # an error can be ignored
 }
 
 is_infiniband() {
