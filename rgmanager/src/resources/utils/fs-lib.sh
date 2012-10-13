@@ -295,6 +295,9 @@ is_mounted () {
 			tmp_dev="$(printf "$tmp_dev")"
 		fi
 
+		# CIFS mounts can sometimes have trailing slashes
+		# in their first field in /proc/mounts, so strip them.
+		tmp_dev="$(echo $tmp_dev | sed 's/\/*$//g')"
 		real_device "$tmp_dev"
 		tmp_dev="$REAL_DEVICE"
 
