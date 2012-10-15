@@ -214,7 +214,7 @@ if [ $# -ge 1 ]; then
 			[ $ret -ne 0 ] && exit $ret
 			;;
 		*)
-			echo "usage: ./$0 [setup|proceed|teardown]"
+			echo "usage: ./$0 [--script] [setup|proceed|teardown]"
 			exit 0
 			;;
 		esac
