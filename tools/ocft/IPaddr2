@@ -5,8 +5,14 @@ CONFIG
 	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	HangTimeout 20
 
+SETUP-AGENT
+	ip addr add 192.168.144.1/24 dev eth0 brd 192.168.144.255
+
+CLEANUP-AGENT
+	ip addr del 192.168.144.1/24 dev eth0
+
 CASE-BLOCK required_args
-	Env OCF_RESKEY_ip=127.0.0.3
+	Env OCF_RESKEY_ip=192.168.144.2
 
 CASE-BLOCK default_status
 	AgentRun stop
@@ -31,7 +37,7 @@ CASE "check base env: set invalid 'OCF_RESKEY_ip'"
 
 CASE "check base env: set 'OCF_RESKEY_cidr_netmask'"
 	Include prepare
-	Env OCF_RESKEY_cidr_netmask=8
+	Env OCF_RESKEY_cidr_netmask=24
 	AgentRun start OCF_SUCCESS
 
 CASE "check base env: set invalid 'OCF_RESKEY_cidr_netmask'"
@@ -41,7 +47,7 @@ CASE "check base env: set invalid 'OCF_RESKEY_cidr_netmask'"
 
 CASE "check base env: set 'OCF_RESKEY_broadcast'"
 	Include prepare
-	Env OCF_RESKEY_broadcast=127.255.255.255
+	Env OCF_RESKEY_broadcast=192.168.144.255
 	AgentRun start OCF_SUCCESS
 
 CASE "check base env: set invalid 'OCF_RESKEY_broadcast'"
@@ -51,7 +57,7 @@ CASE "check base env: set invalid 'OCF_RESKEY_broadcast'"
 
 CASE "check base env: set 'OCF_RESKEY_nic'"
 	Include prepare
-	Env OCF_RESKEY_nic=lo
+	Env OCF_RESKEY_nic=eth0
 	AgentRun start OCF_SUCCESS
 
 CASE "check base env: set invalid 'OCF_RESKEY_nic'"
@@ -89,3 +95,9 @@ CASE "monitor with not running"
 CASE "unimplemented command"
 	Include prepare
 	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
+
+CASE "Attachment to loopback interface"
+	Env OCF_RESKEY_ip=127.0.0.3
+	AgentRun start OCF_SUCCESS
+	AgentRun monitor OCF_SUCCESS
+	AgentRun stop OCF_SUCCESS

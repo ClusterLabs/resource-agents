@@ -68,6 +68,15 @@ dist-clean-local:
 
 uninstall-local:
 			rmdir $(DESTDIR)/$(LOGDIR) || :;
+if BUILD_LINUX_HA
+	rm -f $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-binaries
+	rm -f $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-directories
+	rm -f $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-returncodes
+	rm -f $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-shellfuncs
+if BUILD_RGMANAGER
+	rm -f $(DESTDIR)${OCF_RA_DIR_PREFIX}/redhat
+endif
+endif
 
 BUILT_SOURCES = .version
 .version:

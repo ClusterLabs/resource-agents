@@ -136,6 +136,7 @@
 
 const char* IF_INET6	 	= "/proc/net/if_inet6";
 const char* APP_NAME		= "IPv6addr";
+const char* APP_NAME_SUA	= "send_ua";
 
 const char*	START_CMD 	= "start";
 const char*	STOP_CMD  	= "stop";
@@ -168,6 +169,7 @@ static int meta_data_addr6(void);
 
 
 static void usage(const char* self);
+static void usage_send_ua(const char* self);
 int write_pid_file(const char *pid_file);
 int create_pid_directory(const char *pid_file);
 static void byebye(int nsig);
@@ -188,10 +190,39 @@ main(int argc, char* argv[])
 	char*		ipv6addr;
 	char*		cidr_netmask;
 	int		ret;
+	int		count = UA_REPEAT_COUNT;
+	int		interval = 1000;	/* default 1000 msec */
+	int		senduaflg = 0;
+	int		ch;
+	int		i;
 	char*		cp;
 	char*		prov_ifname = NULL;
 	int		prefix_len = -1;
 	struct in6_addr	addr6;
+
+	/* Check binary name */
+	if (strcmp(basename(argv[0]), APP_NAME_SUA) == 0) {
+		senduaflg = 1;
+		if (argc < 4) {
+			usage_send_ua(argv[0]);
+			return OCF_ERR_ARGS;
+		}
+		while ((ch = getopt(argc, argv, "h?c:i:")) != EOF) {
+			switch(ch) {
+			case 'c': /* count option */
+				count = atoi(optarg);
+			    break;
+			case 'i': /* interval option */
+				interval = atoi(optarg);
+			    break;
+			case 'h':
+			case '?':
+			default:
+				usage_send_ua(argv[0]);
+				return OCF_ERR_ARGS;
+			}
+		}
+	}
 
 	/* Check the count of parameters first */
 	if (argc < 2) {
@@ -204,7 +235,11 @@ main(int argc, char* argv[])
 	signal(SIGTERM, byebye);
 
 	/* open system log */
-	cl_log_set_entity(APP_NAME);
+	if (senduaflg) {
+		cl_log_set_entity(APP_NAME_SUA);
+	} else {
+		cl_log_set_entity(APP_NAME);
+	}
 	cl_log_set_facility(LOG_DAEMON);
 
 	/* the meta-data dont need any parameter */
@@ -213,8 +248,12 @@ main(int argc, char* argv[])
 		return OCF_SUCCESS;
 	}
 
-	/* check the OCF_RESKEY_ipv6addr parameter, should be an IPv6 address */
-	ipv6addr = getenv("OCF_RESKEY_ipv6addr");
+	if (senduaflg) {
+		ipv6addr = argv[optind];
+	} else {
+		/* check the OCF_RESKEY_ipv6addr parameter, should be an IPv6 address */
+		ipv6addr = getenv("OCF_RESKEY_ipv6addr");
+	}
 	if (ipv6addr == NULL) {
 		cl_log(LOG_ERR, "Please set OCF_RESKEY_ipv6addr to the IPv6 address you want to manage.");
 		usage(argv[0]);
@@ -232,8 +271,12 @@ main(int argc, char* argv[])
 		*cp=0;
 	}
 
-	/* get provided netmask (optional) */
-	cidr_netmask = getenv("OCF_RESKEY_cidr_netmask");
+	if (senduaflg) {
+		cidr_netmask = argv[optind+1];
+	} else {
+		/* get provided netmask (optional) */
+		cidr_netmask = getenv("OCF_RESKEY_cidr_netmask");
+	}
 	if (cidr_netmask != NULL) {
 		if ((atol(cidr_netmask) < 0) || (atol(cidr_netmask) > 128)) {
 			cl_log(LOG_ERR, "Invalid prefix_len [%s], "
@@ -251,9 +294,12 @@ main(int argc, char* argv[])
 		prefix_len = 0;
 	}
 
-	/* get provided interface name (optional) */
-	prov_ifname = getenv("OCF_RESKEY_nic");
-
+	if (senduaflg) {
+		prov_ifname = argv[optind+2];
+	} else {
+		/* get provided interface name (optional) */
+		prov_ifname = getenv("OCF_RESKEY_nic");
+	}
 	if (inet_pton(AF_INET6, ipv6addr, &addr6) <= 0) {
 		cl_log(LOG_ERR, "Invalid IPv6 address [%s]", ipv6addr);
 		usage(argv[0]);
@@ -264,6 +310,27 @@ main(int argc, char* argv[])
 	if (access(IF_INET6, R_OK)) {
 		cl_log(LOG_ERR, "No support for INET6 on this system.");
 		return OCF_ERR_GENERIC;
+	}
+
+	if (senduaflg) {
+		/* An error of bind() occurs when I don't call is_addr6_available.	*/
+		for (i = 0; i < QUERY_COUNT; i++) {
+			if (0 == is_addr6_available(&addr6)) {
+				break;
+			}
+			sleep(1);
+		}
+		if (i == QUERY_COUNT) {
+			cl_log(LOG_ERR, "failed to ping the address");
+			return OCF_ERR_GENERIC;
+		}
+
+		/* Send unsolicited advertisement packet to neighbor */
+		for (i = 0; i < count; i++) {
+			send_ua(&addr6, prov_ifname);
+			usleep(interval * 1000);
+		}
+		return OCF_SUCCESS;
 	}
 
 	/* create the pid file so we can make sure that only one IPv6addr
@@ -764,6 +831,12 @@ is_addr6_available(struct in6_addr* addr6)
 static void usage(const char* self)
 {
 	printf("usage: %s {start|stop|status|monitor|validate-all|meta-data}\n",self);
+	return;
+}
+
+static void usage_send_ua(const char* self)
+{
+	printf("usage: %s [-i[=Interval]] [-c[=Count]] [-h] IPv6-Address Prefix Interface\n",self);
 	return;
 }
 
