@@ -32,6 +32,11 @@ verbosely () { echo $1; $1; }
 
 
 PRG=./findif
+SCRIPT=../heartbeat/findif.sh
+SCRIPT_CMD="$(head -n1 ${SCRIPT} | sed 's|#!||') \
+	-c \"source ${SCRIPT}; findif\""
+
+CMD="${PRG}"
 
 DUMMY_USER=test-findif
 
@@ -90,7 +95,9 @@ setup() {
 		die "Only tested with Linux, feel free to edit the condition."
 	fi
 
-	[ -x ${PRG} ] || die "Forgot to compile ${PRG} for me to test?"
+	if [ "${CMD}" = "${PRG}" ]; then
+		[ -x ${PRG} ] || die "Forgot to compile ${PRG} for me to test?"
+	fi
 
 	if [ $(id -u) -ne 0 ]; then
 		die "Due to (unobtrusive) juggling with routing, run as root."
@@ -105,7 +112,6 @@ setup() {
 	else
 		modprobe dummy || die "No dummy kernel module (per name) at hand."
 	fi
-
 
 	if ! ifconfig dummy0 ${DUMMY_IP} netmask ${DUMMY_NM}; then
 		die "Cannot ifconfig dummy0"
@@ -135,7 +141,7 @@ proceed() {
 
 			env="OCF_RESKEY_ip=${ip} OCF_RESKEY_cidr_netmask=${mask}"
 			echo "${env}"
-			res="$(su ${DUMMY_USER} -c "${env} ${PRG} 2>&1")"
+			res="$(su ${DUMMY_USER} -c "${env} ${CMD} 2>&1")"
 			got_ec=$?
 
 			res="$(echo "${res}" | tr '\t' ' ' | tr -s ' ')"
@@ -196,16 +202,25 @@ proceed() {
 }
 
 if [ $# -ge 1 ]; then
-	case $1 in
-	setup|proceed|teardown)
-		verbosely $1
-		exit 0
-		;;
-	*)
-		echo "usage: ./$0 [setup|proceed|teardown]"
-		exit 0
-		;;
-	esac
+	while true; do
+		case $1 in
+		--script)
+			CMD="${SCRIPT_CMD}"
+			[ $# -eq 1 ] && break
+			;;
+		setup|proceed|teardown)
+			verbosely $1
+			ret=$?
+			[ $ret -ne 0 ] && exit $ret
+			;;
+		*)
+			echo "usage: ./$0 [setup|proceed|teardown]"
+			exit 0
+			;;
+		esac
+		[ $# -eq 1 ] && exit 0
+		shift
+	done
 fi
 
 verbosely setup
