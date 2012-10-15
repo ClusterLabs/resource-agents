@@ -1,28 +1,34 @@
-#!/bin/bash
+#!/bin/sh
 
 # Easy peasy test for findif, configuration via direct edit...
 # Jan Pokorny <jpokorny@redhat.com>
 
 set -u
-ISATTY=$(tput colors &>/dev/null && echo 0 || echo 1)
+COLOR=0
+if [ -t 1 ] && echo -e foo | grep -qvE "^-e"; then
+	COLOR=1
+else
+	COLOR=0
+fi
 ok () {
-	[ $ISATTY -eq 0 ] \
-	    && echo -ne "[\033[32m OK \033[0m]" \
+	[ $COLOR -eq 1 ] \
+	    && echo -en "[\033[32m OK \033[0m]" \
 	    || echo -n "[ OK ]"
 	echo " $@"
 }
 fail () {
-	[ $ISATTY -eq 0 ] \
-	    && echo -ne "[\033[31mFAIL\033[0m]" \
+	[ $COLOR -eq 1 ] \
+	    && echo -en "[\033[31mFAIL\033[0m]" \
 	    || echo -n "[FAIL]"
 	echo " $@"
 }
 info () {
-	[ $ISATTY -eq 0 ] \
+	[ $COLOR -eq 1 ] \
 	    && echo -e "\033[34m$@\033[0m" \
 	    || echo "$@"
 }
 mimic_return () { return $1; }
+verbosely () { echo $1; $1; }
 
 
 PRG=./findif
@@ -80,8 +86,6 @@ warn() {
 }
 
 setup() {
-	echo $FUNCNAME...
-
 	if [ "$(uname -o)" != "GNU/Linux" ]; then
 		die "Only tested with Linux, feel free to edit the condition."
 	fi
@@ -109,15 +113,11 @@ setup() {
 }
 
 teardown() {
-	echo $FUNCNAME...
-
 	userdel ${DUMMY_USER} || warn "Cannot kick user ${DUMMY_USER} out."
 	rmmod dummy || warn "Cannot kick dummy kernel module out."
 }
 
 proceed() {
-	echo $FUNCNAME...
-
 	err_cnt=0
 	echo "${TEST_DATA}" | while read curline; do
 		if echo "${curline}" | grep -qv -e '^[ \t]*#' -e '^$'; then
@@ -198,7 +198,7 @@ proceed() {
 if [ $# -ge 1 ]; then
 	case $1 in
 	setup|proceed|teardown)
-		$1
+		verbosely $1
 		exit 0
 		;;
 	*)
@@ -208,9 +208,9 @@ if [ $# -ge 1 ]; then
 	esac
 fi
 
-setup
-proceed
+verbosely setup
+verbosely proceed
 ret=$?
-teardown
+verbosely teardown
 
 exit $ret
