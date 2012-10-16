@@ -1090,7 +1090,7 @@ mysql_promote() {
     # Existing master gets a higher-than-default master preference, so
     # the cluster manager does not shuffle the master role around
     # unnecessarily
-    $CRM_MASTER -v $((${OCF_RESKEY_max_slave_lag}+1))
+    $CRM_MASTER -v $((${OCF_RESKEY_max_slave_lag}+1000))
 
     # A master can accept reads
     set_reader_attr 1
