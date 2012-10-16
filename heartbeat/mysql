@@ -864,9 +864,13 @@ mysql_monitor() {
             -e "SELECT COUNT(*) FROM $OCF_RESKEY_test_table"
         rc=$?
 
-        if [ $rc -ne 0 ]; then
-            ocf_log err "Failed to select from $test_table";
-            return $OCF_ERR_GENERIC;
+        if [ $rc -ne "$MYSQL_TOO_MANY_CONN_ERR" ]; then
+            if [ $rc -ne 0 ]; then
+                ocf_log err "Failed to select from $test_table";
+                return $OCF_ERR_GENERIC;
+            fi
+        else
+            ocf_log info "Master hit max_connections"
         fi
     fi
 
