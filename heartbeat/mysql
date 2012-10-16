@@ -442,8 +442,7 @@ parse_slave_info() {
 }
 
 get_slave_info() {
-    # Warning: this sets $tmpfile and LEAVE this file! You must delete it after use!
-    local mysql_options
+    local mysql_options tmpfile
             
     if [ "$master_log_file" -a "$master_host" ]; then
         # variables are already defined, get_slave_info has been run before
@@ -491,7 +490,6 @@ check_slave() {
             # diverged from its master. Make sure this resource
             # doesn't restart in place.
             ocf_log err "MySQL instance configured for replication, but replication has failed."
-            ocf_log err "See $tmpfile for details"
 
             # Just pull the reader VIP away, killing MySQL here would be pretty evil
             # on a loaded server
@@ -532,7 +530,6 @@ check_slave() {
             # good thing. Try to recoved by restarting the SQL thread
             # and remove reader vip.  Prevent MySQL restart.
             ocf_log err "MySQL Slave SQL threads currently not running."
-            ocf_log err "See $tmpfile for details"
 
             # Remove reader vip
             set_reader_attr 0
@@ -551,7 +548,6 @@ check_slave() {
             # behind. Let's check our lag.
             if [ $secs_behind -gt $OCF_RESKEY_max_slave_lag ]; then
                 ocf_log err "MySQL Slave is $secs_behind seconds behind master (allowed maximum: $OCF_RESKEY_max_slave_lag)."
-                ocf_log err "See $tmpfile for details"
 
                 # Remove reader vip
                 set_reader_attr 0
@@ -584,12 +580,10 @@ check_slave() {
         fi
 
         ocf_log debug "MySQL instance running as a replication slave"
-        rm -f $tmpfile
     else
         # Instance produced an empty "SHOW SLAVE STATUS" output --
         # instance is not a slave
         # TODO: Needs to handle when get_slave_info will return too many connections error
-        rm -f $tmpfile
         ocf_log err "check_slave invoked on an instance that is not a replication slave."
         exit $OCF_ERR_GENERIC
     fi
@@ -608,7 +602,6 @@ set_master() {
         #	master_params=", MASTER_LOG_FILE='$master_log_file', \
         #	    MASTER_LOG_POS=$master_log_pos"
         ocf_log info "Kept master pos for $master_host : $master_log_file:$master_log_pos"
-        rm -f $tmpfile
         return
     else
         master_log_file=`$CRM_ATTR_REPL_INFO --query  -q | cut -d'|' -f2`
@@ -630,7 +623,6 @@ set_master() {
         -e "CHANGE MASTER TO MASTER_HOST='$new_master', \
         MASTER_USER='$OCF_RESKEY_replication_user', \
         MASTER_PASSWORD='$OCF_RESKEY_replication_passwd' $master_params"
-    rm -f $tmpfile
 }
 
 unset_master(){
