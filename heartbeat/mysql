@@ -1076,8 +1076,8 @@ mysql_promote() {
     if ( ! mysql_status err ); then
         return $OCF_NOT_RUNNING
     fi
-    ocf_run $MYSQL $MYSQL_OPTIONS_REPL \
-        -e "STOP SLAVE"
+
+    unset_master
 
     # Set Master Info in CIB, cluster level attribute
     update_data_master_status
