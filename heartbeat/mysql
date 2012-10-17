@@ -946,7 +946,7 @@ mysql_start() {
     #chgrp -R $OCF_RESKEY_group $OCF_RESKEY_datadir
     mysql_extra_params=
     if ocf_is_ms; then
-        mysql_extra_params="--skip-slave-start"
+        mysql_extra_params="$mysql_extra_params --skip-slave-start --read-only"
     fi
 
     ${OCF_RESKEY_binary} --defaults-file=$OCF_RESKEY_config \
@@ -982,7 +982,7 @@ mysql_start() {
         # We're configured as a stateful resource. We must start as
         # slave by default. At this point we don't know if the CRM has
         # already promoted a master. So, we simply start in read only
-        # mode.
+        # mode.  Should already be from command line.
         set_read_only on
 
         # Now, let's see whether there is a master. We might be a new
