@@ -76,7 +76,7 @@ TEST_DATA=\
     ${DUMMY_IP_13}.$((DUMMY_IP_4 + 1)),		foobar	,	6,	NA,	NA,		NA
     # 30) DUMMY_IP+1, explicit *invalid* netmask (missing last item in quad)
     ${DUMMY_IP_13}.$((DUMMY_IP_4 + 1)),	${DUMMY_NM_13}.	,	6,	NA,	NA,		NA
-    # 30) DUMMY_IP+1, explicit *invalid* netmask (random string containing dot)
+    # 31) DUMMY_IP+1, explicit *invalid* netmask (random string containing dot)
     ${DUMMY_IP_13}.$((DUMMY_IP_4 + 1)),		foo.bar	,	6,	NA,	NA,		NA
 "
 
