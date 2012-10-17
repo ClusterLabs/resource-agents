@@ -887,6 +887,9 @@ mysql_start() {
     if ocf_is_ms; then
         # Initialize the ReaderVIP attribute, monitor will enable it
         set_reader_attr 0
+
+        # set master_score to 0 in case mysql crashes on startup
+        $CRM_MASTER -v 0
     fi
 
     mysql_status info
@@ -1104,12 +1107,12 @@ mysql_promote() {
 
 mysql_demote() {
     if ! mysql_status err; then
-        return $OCF_NOT_RUNNING
+        $CRM_MASTER -v 0
+    else
+        # Return master preference to default, so the cluster manager gets
+        # a chance to select a new master
+        $CRM_MASTER -v 1
     fi
-
-    # Return master preference to default, so the cluster manager gets
-    # a chance to select a new master
-    $CRM_MASTER -v 1
 }
 
 mysql_notify() {
