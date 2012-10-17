@@ -54,7 +54,7 @@ prefixcheck() {
   if [ $prefix_length -gt 3 -o $prefix_length -eq 0 ] ; then
     return 1
   fi
-  echo "$prefix" | grep "[^0-9]"
+  echo "$prefix" | grep -qs "[^0-9]"
   if [ $? = 0 ] ; then
     return 1
   fi
@@ -88,10 +88,10 @@ findif()
   local BRDCAST="$OCF_RESKEY_broadcast"
   echo $match | grep -qs ":"
   if [ $? = 0 ] ; then
-    `ipcheck_ipv6 $match`
+    ipcheck_ipv6 $match
     [ $? = 1 ] && return 6
     if [ -n "$NIC" ] ; then
-      `ifcheck_ipv6 $NIC`
+      ifcheck_ipv6 $NIC
       [ $? = 1 ] && return 6
     else
       echo $match | grep -qis '^fe80::'
@@ -100,25 +100,25 @@ findif()
       fi
     fi
     if [ -n "$NETMASK" ] ; then
-      `prefixcheck $NETMASK 128`
+      prefixcheck $NETMASK 128
       [ $? = 1 ] && return 6
       match=$match/$NETMASK
     fi
     family="inet6"
   else
-    `ipcheck_ipv4 $match`
+    ipcheck_ipv4 $match
     [ $? = 1 ] && return 6
     if [ -n "$NIC" ] ; then
-      `ifcheck_ipv4 $NIC`
+      ifcheck_ipv4 $NIC
       [ $? = 1 ] && return 6
     fi
     if [ -n "$NETMASK" ] ; then
-      `prefixcheck $NETMASK 32`
+      prefixcheck $NETMASK 32
       [ $? = 1 ] && return 6
       match=$match/$NETMASK
     fi
     if [ -n "$BRDCAST" ] ; then
-      `ipcheck_ipv4 $BRDCAST`
+      ipcheck_ipv4 $BRDCAST
       [ $? = 1 ] && return 6
     fi
     scope="scope link"
@@ -154,7 +154,7 @@ findif()
       fi
     fi
   else
-    if [ -z "$OCF_RESKEY_nic" -a "$NETMASK" -ne "${1#*/}" ] ; then
+    if [ -z "$OCF_RESKEY_nic" -a "$NETMASK" != "${1#*/}" ] ; then
       return 1
     fi
   fi
