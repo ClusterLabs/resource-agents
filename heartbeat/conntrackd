@@ -34,7 +34,7 @@
 
 #######################################################################
 
-OCF_RESKEY_binary_default=conntrackd
+OCF_RESKEY_binary_default=/usr/sbin/conntrackd
 OCF_RESKEY_config_default=/etc/conntrackd/conntrackd.conf
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 : ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
