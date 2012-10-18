@@ -472,7 +472,7 @@ add_interface () {
 	cmd="$IP2UTIL -f $FAMILY addr add $ipaddr/$netmask dev $iface"
 	msg="Adding $FAMILY address $ipaddr/$netmask to device $iface"
 	if [ "$broadcast" != "none" ]; then
-		cmd="$IP2UTIL -f inet addr add $ipaddr/$netmask brd $broadcast dev $iface"
+		cmd="$IP2UTIL -f $FAMILY addr add $ipaddr/$netmask brd $broadcast dev $iface"
 		msg="Adding $FAMILY address $ipaddr/$netmask with broadcast address $broadcast to device $iface"
 	fi
 
