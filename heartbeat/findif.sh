@@ -1,48 +1,33 @@
 #!/bin/sh
 ipcheck_ipv4() {
-  local ip=$1
-  echo "$ip" | grep -qs '^[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}$'
-  if [ $? -ne 0 ] ; then
-    return 1
-  fi
-  echo "$ip" | awk -F. '{if(NF!=4)exit(1);for(i=1;i<=4;i++)if(!($i>=0&&$i<=255))exit(1)}'
+  local r1_to_255="([1-9][0-9]?|1[0-9][0-9]|2[0-4][0-9]|25[0-5])"
+  local r0_to_255="([0-9][0-9]?|1[0-9][0-9]|2[0-4][0-9]|25[0-5])"
+  local r_ipv4="^$r1_to_255\.$r0_to_255\.$r0_to_255\.$r0_to_255$"
+  echo "$1" | grep -q -Ee "$r_ipv4"
 }
 ipcheck_ipv6() {
-  local ipaddr=$1
-  echo "$ipaddr" | grep -qs "[^0-9:a-fA-F]"
-  if [ $? = 1 ] ; then
-    return 0
-  else
-    return 1
-  fi
+  ! echo "$1" | grep -qs "[^0-9:a-fA-F]"
 }
 ifcheck_ipv4() {
   local ifcheck=$1
-  local ifstr
-  local counter=0
   local procfile="/proc/net/dev"
-  while read LINE
-  do
-    if [ $counter -ge 2 ] ; then
-      ifstr=`echo $LINE | cut -d ':' -f 1`
-      if [ "$ifstr" = "$ifcheck" ] ; then
-        return 0
-      fi
-    fi
-    counter=`expr $counter + 1`
+  local ifstr rest
+
+  while read ifstr rest ; do
+    # Interface name may be concatenated to Receive field with ':'
+    case "$ifstr" in
+      "$ifcheck:"*) return 0;;
+    esac
   done < $procfile
   return 1
 }
 ifcheck_ipv6() {
   local ifcheck="$1"
-  local ifstr
   local procfile="/proc/net/if_inet6"
-  while read LINE
-  do
-    ifstr=`echo $LINE | awk -F ' ' '{print $6}'`
-    if [ "$ifstr" = "$ifcheck" ] ; then
-      return 0
-    fi
+  local tmp ifstr
+
+  while read tmp tmp tmp tmp tmp ifstr ; do
+    [ "$ifstr" = "$ifcheck" ] && return 0
   done < $procfile
   return 1
 }
