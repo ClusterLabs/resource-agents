@@ -78,16 +78,15 @@ getnetworkinfo()
   echo $LINE)
 }
 
-findif()
+findif_check_params()
 {
+  local family="$1"
   local match="$OCF_RESKEY_ip"
-  local family="inet"
-  local scope
   local NIC="$OCF_RESKEY_nic"
   local NETMASK="$OCF_RESKEY_cidr_netmask"
   local BRDCAST="$OCF_RESKEY_broadcast"
-  echo $match | grep -qs ":"
-  if [ $? = 0 ] ; then
+
+  if [ "$family" = "inet6" ] ; then
     ipcheck_ipv6 $match
     if [ $? = 1 ] ; then
       ocf_log err "IP address [$match] not valid."
@@ -112,10 +111,9 @@ findif()
         ocf_log err "Invalid netmask specification [$NETMASK]."
         return $OCF_ERR_CONFIGURED
       fi
-      match=$match/$NETMASK
     fi
-    family="inet6"
   else
+    # family = inet
     ipcheck_ipv4 $match
     if [ $? = 1 ] ; then
       ocf_log err "IP address [$match] not valid."
@@ -134,7 +132,6 @@ findif()
         ocf_log err "Invalid netmask specification [$NETMASK]."
         return $OCF_ERR_CONFIGURED
       fi
-      match=$match/$NETMASK
     fi
     if [ -n "$BRDCAST" ] ; then
       ipcheck_ipv4 $BRDCAST
@@ -143,7 +140,30 @@ findif()
         return $OCF_ERR_CONFIGURED
       fi
     fi
+  fi
+  return $OCF_SUCCESS
+}
+
+findif()
+{
+  local match="$OCF_RESKEY_ip"
+  local family
+  local scope
+  local NIC="$OCF_RESKEY_nic"
+  local NETMASK="$OCF_RESKEY_cidr_netmask"
+  local BRDCAST="$OCF_RESKEY_broadcast"
+
+  echo $match | grep -qs ":"
+  if [ $? = 0 ] ; then
+    family="inet6"
+  else
+    family="inet"
     scope="scope link"
+  fi
+  findif_check_params $family || return $?
+
+  if [ -n "$NETMASK" ] ; then
+      match=$match/$NETMASK
   fi
   if [ -n "$NIC" ] ; then
     # NIC supports more than two.
