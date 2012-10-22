@@ -781,7 +781,7 @@ ip_start() {
 	
 	if [ "$ip_status" = "no" ]; then
 		if ocf_is_true ${OCF_RESKEY_lvs_support}; then
-			for i in `find_interface $OCF_RESKEY_ip $NETMASK`; do
+			for i in `find_interface $OCF_RESKEY_ip 32`; do
 				case $i in
 				lo*)
 					remove_conflicting_loopback $OCF_RESKEY_ip 32 255.255.255.255 lo
