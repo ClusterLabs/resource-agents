@@ -1,48 +1,33 @@
 #!/bin/sh
 ipcheck_ipv4() {
-  local ip=$1
-  echo "$ip" | grep -qs '^[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}$'
-  if [ $? -ne 0 ] ; then
-    return 1
-  fi
-  echo "$ip" | awk -F. '{if(NF!=4)exit(1);for(i=1;i<=4;i++)if(!($i>=0&&$i<=255))exit(1)}'
+  local r1_to_255="([1-9][0-9]?|1[0-9][0-9]|2[0-4][0-9]|25[0-5])"
+  local r0_to_255="([0-9][0-9]?|1[0-9][0-9]|2[0-4][0-9]|25[0-5])"
+  local r_ipv4="^$r1_to_255\.$r0_to_255\.$r0_to_255\.$r0_to_255$"
+  echo "$1" | grep -q -Ee "$r_ipv4"
 }
 ipcheck_ipv6() {
-  local ipaddr=$1
-  echo "$ipaddr" | grep -qs "[^0-9:a-fA-F]"
-  if [ $? = 1 ] ; then
-    return 0
-  else
-    return 1
-  fi
+  ! echo "$1" | grep -qs "[^0-9:a-fA-F]"
 }
 ifcheck_ipv4() {
   local ifcheck=$1
-  local ifstr
-  local counter=0
   local procfile="/proc/net/dev"
-  while read LINE
-  do
-    if [ $counter -ge 2 ] ; then
-      ifstr=`echo $LINE | cut -d ':' -f 1`
-      if [ "$ifstr" = "$ifcheck" ] ; then
-        return 0
-      fi
-    fi
-    counter=`expr $counter + 1`
+  local ifstr rest
+
+  while read ifstr rest ; do
+    # Interface name may be concatenated to Receive field with ':'
+    case "$ifstr" in
+      "$ifcheck:"*) return 0;;
+    esac
   done < $procfile
   return 1
 }
 ifcheck_ipv6() {
   local ifcheck="$1"
-  local ifstr
   local procfile="/proc/net/if_inet6"
-  while read LINE
-  do
-    ifstr=`echo $LINE | awk -F ' ' '{print $6}'`
-    if [ "$ifstr" = "$ifcheck" ] ; then
-      return 0
-    fi
+  local tmp ifstr
+
+  while read tmp tmp tmp tmp tmp ifstr ; do
+    [ "$ifstr" = "$ifcheck" ] && return 0
   done < $procfile
   return 1
 }
@@ -54,7 +39,7 @@ prefixcheck() {
   if [ $prefix_length -gt 3 -o $prefix_length -eq 0 ] ; then
     return 1
   fi
-  echo "$prefix" | grep "[^0-9]"
+  echo "$prefix" | grep -qs "[^0-9]"
   if [ $? = 0 ] ; then
     return 1
   fi
@@ -65,67 +50,110 @@ prefixcheck() {
 }
 getnetworkinfo()
 {
-  ip -o -f inet route list match $OCF_RESKEY_ip table local scope host | (while read LINE;
+  local line netinfo
+  ip -o -f inet route list match $OCF_RESKEY_ip table local scope host | (while read line;
   do
-    IP=`echo $LINE | awk '{print $2}'`
-    case $IP in
+    netinfo=`echo $line | awk '{print $2}'`
+    case $netinfo in
     */*)
-      set -- $LINE
+      set -- $line
       break
       ;;
     esac
   done
-  echo $LINE)
+  echo $line)
+}
+
+findif_check_params()
+{
+  local family="$1"
+  local match="$OCF_RESKEY_ip"
+  local nic="$OCF_RESKEY_nic"
+  local netmask="$OCF_RESKEY_cidr_netmask"
+  local brdcast="$OCF_RESKEY_broadcast"
+
+  if [ "$family" = "inet6" ] ; then
+    ipcheck_ipv6 $match
+    if [ $? = 1 ] ; then
+      ocf_log err "IP address [$match] not valid."
+      return $OCF_ERR_CONFIGURED
+    fi
+    if [ -n "$nic" ] ; then
+      ifcheck_ipv6 $nic
+      if [ $? = 1 ] ; then
+        ocf_log err "Unknown interface [$nic] No such device."
+        return $OCF_ERR_CONFIGURED
+      fi
+    else
+      echo $match | grep -qis '^fe80::'
+      if [ $? = 0 ] ; then
+        ocf_log err "'nic' parameter is mandatory for a link local address [$match]."
+        return $OCF_ERR_CONFIGURED
+      fi
+    fi
+    if [ -n "$netmask" ] ; then
+      prefixcheck $netmask 128
+      if [ $? = 1 ] ; then
+        ocf_log err "Invalid netmask specification [$netmask]."
+        return $OCF_ERR_CONFIGURED
+      fi
+    fi
+  else
+    # family = inet
+    ipcheck_ipv4 $match
+    if [ $? = 1 ] ; then
+      ocf_log err "IP address [$match] not valid."
+      return $OCF_ERR_CONFIGURED
+    fi
+    if [ -n "$nic" ] ; then
+      ifcheck_ipv4 $nic
+      if [ $? = 1 ] ; then
+        ocf_log err "Unknown interface [$nic] No such device."
+        return $OCF_ERR_CONFIGURED
+      fi
+    fi
+    if [ -n "$netmask" ] ; then
+      prefixcheck $netmask 32
+      if [ $? = 1 ] ; then
+        ocf_log err "Invalid netmask specification [$netmask]."
+        return $OCF_ERR_CONFIGURED
+      fi
+    fi
+    if [ -n "$brdcast" ] ; then
+      ipcheck_ipv4 $brdcast
+      if [ $? = 1 ] ; then
+        ocf_log err "Invalid broadcast address [$brdcast]."
+        return $OCF_ERR_CONFIGURED
+      fi
+    fi
+  fi
+  return $OCF_SUCCESS
 }
 
 findif()
 {
   local match="$OCF_RESKEY_ip"
-  local family="inet"
+  local family
   local scope
-  local NIC="$OCF_RESKEY_nic"
-  local NETMASK="$OCF_RESKEY_cidr_netmask"
-  local BRDCAST="$OCF_RESKEY_broadcast"
+  local nic="$OCF_RESKEY_nic"
+  local netmask="$OCF_RESKEY_cidr_netmask"
+  local brdcast="$OCF_RESKEY_broadcast"
+
   echo $match | grep -qs ":"
   if [ $? = 0 ] ; then
-    `ipcheck_ipv6 $match`
-    [ $? = 1 ] && return 6
-    if [ -n "$NIC" ] ; then
-      `ifcheck_ipv6 $NIC`
-      [ $? = 1 ] && return 6
-    else
-      echo $match | grep -qis '^fe80::'
-      if [ $? = 0 ] ; then
-        return 1
-      fi
-    fi
-    if [ -n "$NETMASK" ] ; then
-      `prefixcheck $NETMASK 128`
-      [ $? = 1 ] && return 6
-      match=$match/$NETMASK
-    fi
     family="inet6"
   else
-    `ipcheck_ipv4 $match`
-    [ $? = 1 ] && return 6
-    if [ -n "$NIC" ] ; then
-      `ifcheck_ipv4 $NIC`
-      [ $? = 1 ] && return 6
-    fi
-    if [ -n "$NETMASK" ] ; then
-      `prefixcheck $NETMASK 32`
-      [ $? = 1 ] && return 6
-      match=$match/$NETMASK
-    fi
-    if [ -n "$BRDCAST" ] ; then
-      `ipcheck_ipv4 $BRDCAST`
-      [ $? = 1 ] && return 6
-    fi
+    family="inet"
     scope="scope link"
   fi
-  if [ -n "$NIC" ] ; then
+  findif_check_params $family || return $?
+
+  if [ -n "$netmask" ] ; then
+      match=$match/$netmask
+  fi
+  if [ -n "$nic" ] ; then
     # NIC supports more than two.
-    set -- `ip -o -f $family route list match $match $scope | grep "dev $NIC"`
+    set -- `ip -o -f $family route list match $match $scope | grep "dev $nic"`
   else
     set -- `ip -o -f $family route list match $match $scope`
   fi
@@ -136,28 +164,33 @@ findif()
       shift;;
     esac
   fi
-  if [ -z "$NIC" -o -z "$NETMASK" ] ; then
-    [ $# = 0 ] && return 1
+  if [ -z "$nic" -o -z "$netmask" ] ; then
+    if [ $# = 0 ] ; then
+      ocf_log err "Unable to find nic or netmask."
+      return $OCF_ERR_GENERIC
+    fi
     case $1 in
     */*) : OK ;;
     *)
-      return 1 ;;
+      ocf_log err "Unable to find cidr_netmask."
+      return $OCF_ERR_GENERIC ;;
     esac
   fi
-  [ -z "$NIC" ] && NIC=$3
-  [ -z "$NETMASK" ] && NETMASK=${1#*/}
+  [ -z "$nic" ] && nic=$3
+  [ -z "$netmask" ] && netmask=${1#*/}
   if [ $family = "inet" ] ; then
-    if [ -z "$BRDCAST" ] ; then
+    if [ -z "$brdcast" ] ; then
       if [ -n "$7" ] ; then
         set -- `ip -o -f $family addr show | grep $7`
-        [ "$5" = brd ] && BRDCAST=$6
+        [ "$5" = brd ] && brdcast=$6
       fi
     fi
   else
-    if [ -z "$OCF_RESKEY_nic" -a "$NETMASK" -ne "${1#*/}" ] ; then
-      return 1
+    if [ -z "$OCF_RESKEY_nic" -a "$netmask" != "${1#*/}" ] ; then
+      ocf_log err "Unable to find nic, or netmask mismatch."
+      return $OCF_ERR_GENERIC
     fi
   fi
-  echo "$NIC netmask $NETMASK broadcast $BRDCAST"
-  return 0
+  echo "$nic netmask $netmask broadcast $brdcast"
+  return $OCF_SUCCESS
 }

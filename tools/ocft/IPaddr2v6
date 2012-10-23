@@ -101,12 +101,12 @@ CASE "error params with wrong ip"
 
 # CASE No.7
 #
-CASE "start for a link-local IPv6 address when no nic"
+CASE "error params with no nic for a link-local IPv6 address"
 	Include prepare
 	Env OCF_RESKEY_ip=$OCFT_target_linklocal
 	Env OCFT_check_ip=$OCFT_target_linklocal
 	# nic is mandatory for a link-local address
-	AgentRun start OCF_ERR_GENERIC
+	AgentRun start OCF_ERR_CONFIGURED
 
 # CASE No.8
 #
