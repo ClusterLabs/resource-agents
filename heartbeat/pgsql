@@ -1358,38 +1358,52 @@ change_data_status() {
     return 0
 }
 
+# set master-score
+# arg1:node, arg2: score, arg3: resoure
+set_master_score() {
+    local current_score
+
+    current_score=`$CRM_ATTR_REBOOT -N "$1" -n "master-$3" -G -q 2>/dev/null`
+    if [ -n "$current_score" -a "$current_score" != "$2" ]; then
+        ocf_log info "Changing $3 master score on $1 : $current_score->$2."
+        $CRM_ATTR_REBOOT -N "$target" -n "master-$3" -v "$2"
+        if [ $? -ne 0 ]; then
+            ocf_log err "Can't change master score."
+            return 1
+        fi
+    fi
+    return 0
+}
+
 # change master-score
 # arg1:node, arg2: score
 change_master_score() {
     local instance
-    local current_score
 
     if ! is_node_online $1; then
         return 0
     fi
 
-    instance=0
-    while :
-    do
-        if [ "$instance" -ge "$OCF_RESKEY_CRM_meta_clone_max" ]; then
-            break
-        fi
-        if [ "${RESOURCE_NAME}:${instance}" = "$OCF_RESOURCE_INSTANCE" ]; then
-            instance=`expr $instance + 1`
-            continue
-        fi
-
-        current_score=`$CRM_ATTR_REBOOT -N "$1" -n "master-${RESOURCE_NAME}:${instance}" -G -q 2>/dev/null`
-        if [ -n "$current_score" -a "$current_score" != "$2" ]; then
-            ocf_log info "Changing ${RESOURCE_NAME}:${instance} master score on $1 : $current_score->$2."
-            $CRM_ATTR_REBOOT -N "$target" -n "master-${RESOURCE_NAME}:${instance}" -v "$2"
-            if [ $? -ne 0 ]; then
-                ocf_log err "Can't change master score."
-                return 1
+    if echo $OCF_RESOURCE_INSTANCE | grep -q ":"; then
+        # If Pacemaker version is 1.0.x
+        instance=0
+        while :
+        do
+            if [ "$instance" -ge "$OCF_RESKEY_CRM_meta_clone_max" ]; then
+                break
             fi
-        fi
-        instance=`expr $instance + 1`
-    done
+            if [ "${RESOURCE_NAME}:${instance}" = "$OCF_RESOURCE_INSTANCE" ]; then
+                instance=`expr $instance + 1`
+                continue
+            fi
+            set_master_score $1 $2 "${RESOURCE_NAME}:${instance}" || return 1
+            instance=`expr $instance + 1`
+        done
+    else
+        # If globally-unique=false and Pacemaker version is 1.1.8 or higher 
+        # Master/Slave resource has no instance number
+        set_master_score $1 $2 ${RESOURCE_NAME} || return 1
+    fi
     return 0
 }
 
