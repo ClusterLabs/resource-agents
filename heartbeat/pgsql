@@ -1368,28 +1368,42 @@ change_master_score() {
         return 0
     fi
 
-    instance=0
-    while :
-    do
-        if [ "$instance" -ge "$OCF_RESKEY_CRM_meta_clone_max" ]; then
-            break
-        fi
-        if [ "${RESOURCE_NAME}:${instance}" = "$OCF_RESOURCE_INSTANCE" ]; then
+    if echo $OCF_RESOURCE_INSTANCE | grep -q ":"; then
+        # If Pacemaker version is 1.0.x
+        instance=0
+        while :
+        do
+            if [ "$instance" -ge "$OCF_RESKEY_CRM_meta_clone_max" ]; then
+                break
+            fi
+            if [ "${RESOURCE_NAME}:${instance}" = "$OCF_RESOURCE_INSTANCE" ]; then
+                instance=`expr $instance + 1`
+                continue
+            fi
+            current_score=`$CRM_ATTR_REBOOT -N "$1" -n "master-${RESOURCE_NAME}:${instance}" -G -q 2>/dev/null`
+            if [ -n "$current_score" -a "$current_score" != "$2" ]; then
+                ocf_log info "Changing ${RESOURCE_NAME}:${instance} master score on $1 : $current_score->$2."
+                $CRM_ATTR_REBOOT -N "$target" -n "master-${RESOURCE_NAME}:${instance}" -v "$2"
+                if [ $? -ne 0 ]; then
+                    ocf_log err "Can't change master score."
+                    return 1
+                fi
+            fi
             instance=`expr $instance + 1`
-            continue
-        fi
-
-        current_score=`$CRM_ATTR_REBOOT -N "$1" -n "master-${RESOURCE_NAME}:${instance}" -G -q 2>/dev/null`
+        done
+    else
+        # If Pacemaker version is 1.1.8 or higher,
+        # Master/Slave resource has no instance number
+        current_score=`$CRM_ATTR_REBOOT -N "$1" -n "master-${RESOURCE_NAME}" -G -q 2>/dev/null`
         if [ -n "$current_score" -a "$current_score" != "$2" ]; then
-            ocf_log info "Changing ${RESOURCE_NAME}:${instance} master score on $1 : $current_score->$2."
-            $CRM_ATTR_REBOOT -N "$target" -n "master-${RESOURCE_NAME}:${instance}" -v "$2"
+            ocf_log info "Changing ${RESOURCE_NAME} master score on $1 : $current_score->$2."
+            $CRM_ATTR_REBOOT -N "$target" -n "master-${RESOURCE_NAME}" -v "$2"
             if [ $? -ne 0 ]; then
                 ocf_log err "Can't change master score."
                 return 1
             fi
         fi
-        instance=`expr $instance + 1`
-    done
+    fi
     return 0
 }
 
