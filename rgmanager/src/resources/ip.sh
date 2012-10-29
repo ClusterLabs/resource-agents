@@ -5,7 +5,7 @@
 #
 #
 # Copyright (C) 1997-2003 Sistina Software, Inc.  All rights reserved.
-# Copyright (C) 2004-2011 Red Hat, Inc.  All rights reserved.
+# Copyright (C) 2004-2012 Red Hat, Inc.  All rights reserved.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -57,7 +57,8 @@ meta_data()
         <parameter name="address" unique="1" primary="1">
             <longdesc lang="en">
                 IPv4 or IPv6 address to use as a virtual IP
-                resource.
+                resource.  It may be followed by a slash and a decimal
+                number that encodes the network prefix length.
             </longdesc>
 
             <shortdesc lang="en">
