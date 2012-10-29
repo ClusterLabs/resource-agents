@@ -819,7 +819,7 @@ address_configured()
 	declare addr
 	declare currentAddr caExpanded
 
-	# Chop off maxk bits 
+	# Chop off mask bits
 	addr=${2/\/*/}
 
 	if [ "$1" == "inet6" ]; then
