@@ -1,8 +1,7 @@
 #!/bin/bash
 
 #
-# IPv4/IPv6 address management using new /sbin/ifcfg instead of 
-# ifconfig utility.
+# IPv4/IPv6 address management using iproute2 (formerly: ifcfg, ifconfig).
 #
 #
 # Copyright (C) 1997-2003 Sistina Software, Inc.  All rights reserved.
@@ -724,7 +723,7 @@ ipv4()
 		[ $? -ne 0 ] && return 1
 		
         	#
-	        # The following is needed only with ifconfig; ifcfg does it for us
+		# XXX: Following needed? ifconfig:YES, ifcfg:NO, iproute2:???
         	#
 		if [ "$1" = "add" ]; then
         		# do that freak arp thing
