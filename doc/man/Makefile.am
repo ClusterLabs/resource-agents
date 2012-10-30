@@ -57,6 +57,7 @@ metadata-IPv6addr.xml: ../../heartbeat/IPv6addr
 if BUILD_DOC
 man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_AudibleAlarm.7 \
+                          ocf_heartbeat_Bird.7 \
                           ocf_heartbeat_ClusterMon.7 \
                           ocf_heartbeat_CTDB.7 \
                           ocf_heartbeat_Delay.7 \

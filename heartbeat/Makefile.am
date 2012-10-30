@@ -58,6 +58,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			asterisk		\
 			nginx			\
 			AudibleAlarm		\
+			Bird		\
 			conntrackd		\
 			db2			\
 			dhcpd		\
