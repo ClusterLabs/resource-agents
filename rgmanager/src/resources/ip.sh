@@ -581,7 +581,7 @@ ipv4_list_interfaces()
 
 
 #
-# Add an IP address to our interface.
+# Add an IP address to our interface or remove it.
 #
 ipv6()
 {
@@ -668,7 +668,7 @@ ipv6()
 
 
 #
-# Add an IP address to our interface.
+# Add an IP address to our interface or remove it.
 #
 ipv4()
 {
