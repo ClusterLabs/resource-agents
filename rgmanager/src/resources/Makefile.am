@@ -65,10 +65,12 @@ rngdir			= ${CLUSTERDATA}/relaxng
 
 rng_DATA		= $(DTD) $(XSL) $(RESRNG)
 
-$(TARGET): 
+$(TARGET):
 	cat $@.in | sed \
 		-e 's#@''LOGDIR@#${LOGDIR}#g' \
-	> $@
+	> $@.out
+	chmod +x $@.out
+	mv $@.out $@
 
 clean-local:
 	rm -f $(TARGET) resources.rng
