@@ -357,8 +357,8 @@ whether a node is usable for clients to read from.</shortdesc>
 <parameter name="reader_failcount" unique="1" required="0">
 <longdesc lang="en">
 The number of times a monitor operation can find the slave
-to be unsuitable for replication before failing.  Useful if
-there are short intermittent issue like clock adjustments in VM.
+to be unsuitable for reader VIP before failing.  Useful if
+there are short intermittent issues like clock adjustments in VMs.
 </longdesc>
 <shortdesc lang="en">Allowed failcount for reader</shortdesc>
 <content type="integer" default="${OCF_RESKEY_reader_failcount_default}" />
