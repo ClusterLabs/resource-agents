@@ -474,7 +474,7 @@ get_slave_info() {
             slave_io=`parse_slave_info Slave_IO_Running $tmpfile`
             last_errno=`parse_slave_info Last_Errno $tmpfile`
             secs_behind=`parse_slave_info Seconds_Behind_Master $tmpfile`
-            ocf_log debug "MySQL instance running as a replication slave"
+            ocf_log debug "MySQL instance has a non empty slave status"
         else
             # Instance produced an empty "SHOW SLAVE STATUS" output --
             # instance is not a slave
@@ -875,7 +875,7 @@ mysql_monitor() {
     if [ $OCF_CHECK_LEVEL -gt 0 -a -n "$OCF_RESKEY_test_table" ]; then
         # Check if this instance is configured as a slave, and if so
         # check slave status
-        if is_slave; then
+        if [ is_slave -o "$OCF_RESKEY_CRM_meta_role" = "Slave" ]; then
             check_slave
         fi
 
