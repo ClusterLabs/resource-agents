@@ -79,6 +79,7 @@ OCF_RESKEY_replication_port_default="3306"
 OCF_RESKEY_max_slave_lag_default="3600"
 OCF_RESKEY_evict_outdated_slaves_default="false"
 OCF_RESKEY_reader_attribute_default="readable"
+OCF_RESKEY_reader_failcount_default="1"
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
@@ -110,6 +111,7 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 : ${OCF_RESKEY_evict_outdated_slaves=${OCF_RESKEY_evict_outdated_slaves_default}}
 
 : ${OCF_RESKEY_reader_attribute=${OCF_RESKEY_reader_attribute_default}}
+: ${OCF_RESKEY_reader_failcount=${OCF_RESKEY_reader_failcount_default}}
 
 #######################################################################
 # Convenience variables
@@ -351,6 +353,15 @@ This parameter is only meaningful in master/slave set configurations.
 <shortdesc lang="en">Sets the node attribute that determines
 whether a node is usable for clients to read from.</shortdesc>
 <content type="string" default="${OCF_RESKEY_reader_attribute_default}" />
+</parameter>
+<parameter name="reader_failcount" unique="1" required="0">
+<longdesc lang="en">
+The number of times a monitor operation can find the slave
+to be unsuitable for replication before failing.  Useful if
+there are short intermittent issue like clock adjustments in VM.
+</longdesc>
+<shortdesc lang="en">Allowed failcount for reader</shortdesc>
+<content type="integer" default="${OCF_RESKEY_reader_failcount_default}" />
 </parameter>
 </parameters>
 
@@ -720,9 +731,18 @@ set_reader_attr() {
     local curr_attr_value
 
     curr_attr_value=$(get_reader_attr)
-
-    if [ "$curr_attr_value" -ne "$1" ]; then
-        $CRM_ATTR -l reboot --name ${OCF_RESKEY_reader_attribute} -v $1
+    
+    if [ "$1" -eq "0" ]; then
+        if [ "$curr_attr_value" -gt "0" ]; then
+            curr_attr_value=$((${curr_attr_value}-1))    
+            $CRM_ATTR -l reboot --name ${OCF_RESKEY_reader_attribute} -v $curr_attr_value
+        else
+            $CRM_ATTR -l reboot --name ${OCF_RESKEY_reader_attribute} -v 0
+        fi
+    else
+        if [ "$curr_attr_value" -ne "$OCF_RESKEY_reader_failcount" ]; then
+            $CRM_ATTR -l reboot --name ${OCF_RESKEY_reader_attribute} -v $OCF_RESKEY_reader_failcount
+        fi
     fi
 
 }
