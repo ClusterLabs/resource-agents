@@ -892,7 +892,7 @@ mysql_monitor() {
         # Check if this instance is configured as a slave, and if so
         # check slave status
         
-	master_resource=`$CRM resource list | grep p_mysql | awk '{print $3}'`
+	master_resource=`$CRM resource list | grep p_mysql | awk '{print $3}' | head -n 1`
 	master_exists=`$CRM resource list $master_resource | egrep -c 'Master$'`
         # Are we currently having a master?
         if [ "$master_exists" -eq "0" ]; then
