@@ -39,6 +39,13 @@
 #   OCF_RESKEY_log
 #   OCF_RESKEY_pid
 #   OCF_RESKEY_socket
+#   OCF_RESKEY_replication_user
+#   OCF_RESKEY_replication_passwd
+#   OCF_RESKEY_replication_port
+#   OCF_RESKEY_max_slave_lag
+#   OCF_RESKEY_evict_outdated_slaves
+#   OCF_RESKEY_reader_attribute
+#   OCF_RESKEY_reader_failcount
 
 #######################################################################
 # Initialization:
@@ -81,6 +88,7 @@ OCF_RESKEY_evict_outdated_slaves_default="false"
 OCF_RESKEY_reader_attribute_default="readable"
 OCF_RESKEY_reader_failcount_default="1"
 
+
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 
@@ -111,12 +119,16 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 : ${OCF_RESKEY_evict_outdated_slaves=${OCF_RESKEY_evict_outdated_slaves_default}}
 
 : ${OCF_RESKEY_reader_attribute=${OCF_RESKEY_reader_attribute_default}}
+<<<<<<< HEAD
 : ${OCF_RESKEY_reader_failcount=${OCF_RESKEY_reader_failcount_default}}
+=======
+>>>>>>> upstream/master
 
 #######################################################################
 # Convenience variables
 
 MYSQL=$OCF_RESKEY_client_binary
+
 MYSQL_OPTIONS_LOCAL="-A -S $OCF_RESKEY_socket --connect_timeout=10"
 MYSQL_OPTIONS_REPL="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_replication_user --password=$OCF_RESKEY_replication_passwd"
 MYSQL_OPTIONS_TEST="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
@@ -453,6 +465,7 @@ parse_slave_info() {
 }
 
 get_slave_info() {
+
     local mysql_options tmpfile
             
     if [ "$master_log_file" -a "$master_host" ]; then
@@ -620,7 +633,7 @@ set_master() {
         if [ -n "$master_log_file" -a -n "$master_log_pos" ]; then
             master_params=", MASTER_LOG_FILE='$master_log_file', \
             MASTER_LOG_POS=$master_log_pos"
-            ocf_log info "Restored master pos for $new_master_host : $master_log_file:$master_log_pos"
+            ocf_log info "Restored master pos for $new_master : $master_log_file:$master_log_pos"
         fi
     fi
 
@@ -721,7 +734,6 @@ unset_master(){
 
 # Start replication as slave
 start_slave() {
-
     ocf_run $MYSQL $MYSQL_OPTIONS_REPL \
         -e "START SLAVE"
 }
@@ -912,6 +924,7 @@ mysql_start() {
 
         # set master_score to 0 in case mysql crashes on startup
         $CRM_MASTER -v 0
+
     fi
 
     mysql_status info
@@ -1108,6 +1121,7 @@ mysql_promote() {
 
     unset_master
 
+
     # Set Master Info in CIB, cluster level attribute
     update_data_master_status
     master_info="$(get_local_ip)|$(get_master_status File)|$(get_master_status Position)"
@@ -1120,6 +1134,9 @@ mysql_promote() {
     # the cluster manager does not shuffle the master role around
     # unnecessarily
     $CRM_MASTER -v $((${OCF_RESKEY_max_slave_lag}+1000))
+
+    # A master can accept reads
+    set_reader_attr 1
 
     # A master can accept reads
     set_reader_attr 1
@@ -1159,6 +1176,7 @@ mysql_notify() {
             # The master has completed its promotion. Now is a good
             # time to check whether our replication slave is working
             # correctly.
+
             # Is the notification for our set
             notify_resource=`echo $OCF_RESKEY_CRM_meta_notify_promote_resource|cut -d: -f1`
             my_resource=`echo $OCF_RESOURCE_INSTANCE|cut -d: -f1`
