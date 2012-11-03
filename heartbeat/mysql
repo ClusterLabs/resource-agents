@@ -137,6 +137,7 @@ HOSTNAME=`uname -n`
 CRM_ATTR="${HA_SBIN_DIR}/crm_attribute -N $HOSTNAME "
 INSTANCE_ATTR_NAME=`echo ${OCF_RESOURCE_INSTANCE}| awk -F : '{print $1}'`
 CRM_ATTR_REPL_INFO="${HA_SBIN_DIR}/crm_attribute --type crm_config --name ${INSTANCE_ATTR_NAME}_REPL_INFO -s mysql_replication"
+CRM="${HA_SBIN_DIR}/crm"
 
 #######################################################################
 
@@ -867,6 +868,8 @@ mysql_status() {
 mysql_monitor() {
     local rc
     local status_loglevel="err"
+    local master_resource
+    local master_exists
 
     # Set loglevel to info during probe
     if ocf_is_probe; then
@@ -889,8 +892,10 @@ mysql_monitor() {
         # Check if this instance is configured as a slave, and if so
         # check slave status
         
+	master_resource=`$CRM resource list | grep p_mysql | awk '{print $3}'`
+	master_exists=`$CRM resource list $master_resource | egrep -c 'Master$'`
         # Are we currently having a master?
-        if [ "a$OCF_RESKEY_CRM_meta_notify_start_uname" != "a" ]; then
+        if [ "$master_exists" -eq "0" ]; then
             is_slave
             rc=$?
             if [ $rc -eq 0 -o "$OCF_RESKEY_CRM_meta_role" = "Slave" ]; then
