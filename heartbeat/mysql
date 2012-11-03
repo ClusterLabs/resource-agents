@@ -119,10 +119,8 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 : ${OCF_RESKEY_evict_outdated_slaves=${OCF_RESKEY_evict_outdated_slaves_default}}
 
 : ${OCF_RESKEY_reader_attribute=${OCF_RESKEY_reader_attribute_default}}
-<<<<<<< HEAD
 : ${OCF_RESKEY_reader_failcount=${OCF_RESKEY_reader_failcount_default}}
-=======
->>>>>>> upstream/master
+
 
 #######################################################################
 # Convenience variables
