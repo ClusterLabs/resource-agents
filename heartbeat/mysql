@@ -890,7 +890,7 @@ mysql_monitor() {
         # check slave status
         is_slave
         rc=$?
-        if [ $rc -eq 0 -o "$OCF_RESKEY_CRM_meta_role" == "Slave" ]; then
+        if [ $rc -eq 0 -o "$OCF_RESKEY_CRM_meta_role" = "Slave" ]; then
             check_slave
         fi
 
