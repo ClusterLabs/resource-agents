@@ -888,10 +888,14 @@ mysql_monitor() {
     if [ $OCF_CHECK_LEVEL -gt 0 -a -n "$OCF_RESKEY_test_table" ]; then
         # Check if this instance is configured as a slave, and if so
         # check slave status
-        is_slave
-        rc=$?
-        if [ $rc -eq 0 -o "$OCF_RESKEY_CRM_meta_role" = "Slave" ]; then
-            check_slave
+        
+        # Are we currently having a master?
+        if [ "a$OCF_RESKEY_CRM_meta_notify_start_uname" != "a" ]; then
+            is_slave
+            rc=$?
+            if [ $rc -eq 0 -o "$OCF_RESKEY_CRM_meta_role" = "Slave" ]; then
+                check_slave
+            fi
         fi
 
         # Check for test table
