@@ -895,7 +895,7 @@ mysql_monitor() {
 	master_resource=`$CRM resource list | grep p_mysql | awk '{print $3}' | head -n 1`
 	master_exists=`$CRM resource list $master_resource | egrep -c 'Master$'`
         # Are we currently having a master?
-        if [ "$master_exists" -eq "0" ]; then
+        if [ "$master_exists" -ne "0" ]; then
             is_slave
             rc=$?
             if [ $rc -eq 0 -o "$OCF_RESKEY_CRM_meta_role" = "Slave" ]; then
