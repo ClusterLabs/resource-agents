@@ -655,7 +655,10 @@ unset_master(){
     # host, then there's nothing to do. But we do log a warning as
     # no-one but the CRM should be touching the MySQL master/slave
     # configuration.
-    if ! is_slave; then
+
+    is_slave
+    rc=$?
+    if [ $rc -ne 0 ]; then
         ocf_log warn "Attempted to unset the replication master on an instance that is not configured as a replication slave"
         return $OCF_SUCCESS
     fi
