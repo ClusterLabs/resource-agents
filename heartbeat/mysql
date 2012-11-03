@@ -631,7 +631,7 @@ set_master() {
     # reset with RESET MASTER.
 
     ocf_run $MYSQL $MYSQL_OPTIONS_REPL \
-        -e "CHANGE MASTER TO MASTER_HOST='$new_master', \
+        -e "STOP SLAVE;CHANGE MASTER TO MASTER_HOST='$new_master', \
         MASTER_USER='$OCF_RESKEY_replication_user', \
         MASTER_PASSWORD='$OCF_RESKEY_replication_passwd' $master_params"
 }
