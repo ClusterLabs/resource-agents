@@ -252,13 +252,11 @@ Number of shutdown retries (using -m fast) before resorting to -m immediate
 
 <parameter name="rep_mode" unique="0" required="0">
 <longdesc lang="en">
-Replication mode(none(default)/async/sync).
-"async" and "sync" require PostgreSQL 9.1 or later.
-If you use async or sync, it requires node_list, master_ip, restore_command
-parameters, and needs setting postgresql.conf, pg_hba.conf up for
-replication.
-Please delete "include /../../rep_mode.conf" line in postgresql.conf
-when you switch from sync to async.
+Replication mode may be set to "async" or "sync".
+Both require PostgreSQL 9.1 or later.
+Once set, this parameter requires node_list, master_ip, and
+restore_command parameters,as well as configuring postgresql
+for replication (in postgresql.conf and pg_hba.conf).
 </longdesc>
 <shortdesc lang="en">rep_mode</shortdesc>
 <content type="string" default="${OCF_RESKEY_rep_mode_default}" />
@@ -1487,6 +1485,7 @@ check_config() {
 pgsql_validate_all() {
     local version
     local check_config_rc
+    local rep_mode_string
 
     if ! check_binary2 "$OCF_RESKEY_pgctl" || 
        ! check_binary2 "$OCF_RESKEY_psql"; then
@@ -1547,9 +1546,18 @@ pgsql_validate_all() {
             ocf_log err "node_list can't be empty."
             return $OCF_ERR_CONFIGURED
         fi
-        if [ "$OCF_RESKEY_rep_mode" = "sync" -a $check_config_rc -eq 0 ]; then
-            if ! grep -q "include '$REP_MODE_CONF' # added by pgsql RA" $OCF_RESKEY_config; then
-                echo "include '$REP_MODE_CONF' # added by pgsql RA" >> $OCF_RESKEY_config
+        if [ $check_config_rc -eq 0 ]; then
+            rep_mode_string="include '$REP_MODE_CONF' # added by pgsql RA"
+            if [ "$OCF_RESKEY_rep_mode" = "sync" ]; then
+                if ! grep -q "$rep_mode_string" $OCF_RESKEY_config; then
+                    ocf_log info "adding include directive into $OCF_RESKEY_config"
+                    echo "$rep_mode_string" >> $OCF_RESKEY_config
+                fi
+            else
+                if grep -q "$rep_mode_string" $OCF_RESKEY_config; then
+                    ocf_log info "deleting include directive from $OCF_RESKEY_config"
+                    sed -i "/${rep_mode_string//\//\\/}/d" $OCF_RESKEY_config
+                fi
             fi
         fi
         if ! mkdir -p $OCF_RESKEY_tmpdir || ! chown $OCF_RESKEY_pgdba $OCF_RESKEY_tmpdir || ! chmod 700 $OCF_RESKEY_tmpdir; then
