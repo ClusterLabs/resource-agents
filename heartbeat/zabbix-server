@@ -162,7 +162,7 @@ check_config() {
 }
 
 #
-# Run server binary
+# Start Zabbix daemon
 #
 startserver() {
     local rc
@@ -171,7 +171,11 @@ startserver() {
 
     command=$OCF_RESKEY_zabbix
 
+    # stop here if zabbix-server binary doesn't exist
+    check_binary ${OCF_RESKEY_zabbix}
+
     if [ $OCF_RESKEY_config ]; then
+        check_config ${OCF_RESKEY_config} || return ${OCF_ERR_INSTALLED}
         params="--config $OCF_RESKEY_config"
     fi
 
@@ -258,7 +262,7 @@ zabbixserver_stop() {
     $OCF_SUCCESS)
         ;;
     $OCF_NOT_RUNNING)
-        ocf_log debug "Resorce is already stopped"
+        ocf_log debug "Resource is already stopped"
         return $OCF_SUCCESS
         ;;
     *)
@@ -266,7 +270,6 @@ zabbixserver_stop() {
         ;;
     esac
 
-    check_piddir || return ${OCF_ERR_INSTALLED}
     pid=`getpid $OCF_RESKEY_pidfile`
     if [ $? -ne 0 ]; then
         ocf_log err "Can't find process PID"
@@ -326,11 +329,8 @@ zabbixserver_monitor() {
 # validate configuration
 #
 zabbixserver_validate() {
-    # stop here if zabbix-server binary doesn't exist
-    check_binary ${OCF_RESKEY_zabbix}
-
+    # PID directory existence is cruicial for all relevant actions
     check_piddir || return ${OCF_ERR_INSTALLED}
-    check_config ${OCF_RESKEY_config} || return ${OCF_ERR_INSTALLED}
 
     return $OCF_SUCCESS
 }
@@ -347,16 +347,8 @@ usage|help)     zabbixserver_usage
                 ;;
 esac
 
-zabbixserver_validate
-rc=$?
-if [ $rc -ne $OCF_SUCCESS ]; then
-    # skip validation for the stop action as it has all necessary
-    # checks inside
-    case $__OCF_ACTION in
-        stop)   ;;
-        *)      exit $rc;;
-    esac
-fi
+# we should do validation before all other actions
+zabbixserver_validate || exit $?
 
 case $__OCF_ACTION in
 start)          zabbixserver_start;;
