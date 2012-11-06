@@ -56,6 +56,9 @@ OCF_RESKEY_scsi_id_default="${OCF_RESOURCE_INSTANCE:0:16}"
 sn=`echo -n "${OCF_RESOURCE_INSTANCE}" | openssl md5 | sed -e 's/(stdin)= //'`
 OCF_RESKEY_scsi_sn_default=${sn:0:8}
 : ${OCF_RESKEY_scsi_sn=${OCF_RESKEY_scsi_sn_default}}
+# set 0 as a default value for lio iblock device number
+OCF_RESKEY_lio_iblock_default=0
+OCF_RESKEY_lio_iblock=${OCF_RESKEY_lio_iblock:-$OCF_RESKEY_lio_iblock_default}
 #######################################################################
 
 meta_data() {
@@ -168,6 +171,19 @@ to this lun.</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
+<parameter name="lio_iblock" required="0" unique="0">
+<longdesc lang="en">
+LIO iblock device name, a number starting from 0.
+
+Using distinct values here avoids a warning in LIO "LEGACY: SHARED HBA";
+and it is necessary when using multiple LUNs started at the same time
+(eg. on node failover) to prevent a race condition in tcm_core on mkdir()
+in /sys/kernel/config/target/core/.
+</longdesc>
+<shortdesc lang="en">LIO iblock device number</shortdesc>
+<content type="integer" default="0"/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -252,14 +268,14 @@ iSCSILogicalUnit_start() {
 	lio)
 	    # For lio, we first have to create a target device, then
 	    # add it to the Target Portal Group as an LU.
-	    ocf_run tcm_node --createdev=iblock_0/${OCF_RESOURCE_INSTANCE} \
+	    ocf_run tcm_node --createdev=iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE} \
 		${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
 	    if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
-		ocf_run tcm_node --setunitserial=iblock_0/${OCF_RESOURCE_INSTANCE} \
+		ocf_run tcm_node --setunitserial=iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE} \
 		    ${OCF_RESKEY_scsi_sn} || exit $OCF_ERR_GENERIC
 	    fi
 	    ocf_run lio_node --addlun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} \
-		${OCF_RESOURCE_INSTANCE} iblock_0/${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
+		${OCF_RESOURCE_INSTANCE} iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
 
            if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
                for initiator in ${OCF_RESKEY_allowed_initiators}; do
@@ -304,7 +320,7 @@ iSCSILogicalUnit_stop() {
                        done
                fi
 		ocf_run lio_node --dellun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
-		ocf_run tcm_node --freedev=iblock_0/${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
+		ocf_run tcm_node --freedev=iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
 	esac
     fi
     
@@ -423,10 +439,10 @@ iSCSILogicalUnit_validate() {
 	iet)
 	    # IET does not support setting the vendor and product ID
 	    # (it always uses "IET" and "VIRTUAL-DISK")
-	    unsupported_params="vendor_id product_id allowed_initiators"
+	    unsupported_params="vendor_id product_id allowed_initiators lio_iblock"
 	    ;;
 	tgt)
-	    unsupported_params="allowed_initiators"
+	    unsupported_params="allowed_initiators lio_iblock"
 	    ;;
 	lio)
 	    unsupported_params="scsi_id vendor_id product_id"
