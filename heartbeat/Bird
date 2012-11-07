@@ -2,8 +2,7 @@
 #
 #  OCF Resource Agent compliant resource script.
 #
-# Copyright (c) 2009 IN-telegence GmbH & Co. KG, Dominik Klein
-#     All Rights Reserved.
+# Copyright (c) 2012 Rafał Trojniak resource-agents@trojniak.net
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of version 2 of the GNU General Public License as
@@ -50,11 +49,6 @@ bird_static_status() {
 		awk "\$1==\"$OCF_RESKEY_name\" && \$2==\"Static\" && \$4==\"up\" {exit 1}"
 }
 
-bird_is_ms() {
-	[ ! -z "${OCF_RESKEY_CRM_meta_master_max}" ] && [ "${OCF_RESKEY_CRM_meta_master_max}" -gt 0 ]
-}
-
-
 # Returns:
 # OCF_RUNNING_MASTER - when bird_is_ms is true, and static route is up
 # OCF_SUCCESS - when bird_is_ms is false and bird pings, when bird_is_ms is true and static route is down
@@ -63,7 +57,7 @@ bird_is_ms() {
 bird_status() {
 	if bird_ping
 	then
-		if bird_is_ms ; then
+		if ocf_is_ms ; then
 			if bird_static_configured
 			then
 				if bird_static_status
@@ -116,8 +110,7 @@ bird_stop() {
 	bird_status
 	ret=$?
 	[ $ret = $OCF_ERR_CONFIGURED ] && return $OCF_ERR_CONFIGURED
-	[ $ret = $OCF_RUNNING_MASTER ] && return $OCF_RUNNING_MASTER
-	if [ $ret = $OCF_SUCCESS ]
+	if [ $ret = $OCF_SUCCESS -o $ret = $OCF_RUNNING_MASTER ]
 	then
 		ocf_log info "Stopping Bird"
 		# Execute the command as created above
@@ -129,8 +122,7 @@ bird_stop() {
 			ret=$?
 			[ $ret = $OCF_NOT_RUNNING ] && return $OCF_SUCCESS
 			[ $ret = $OCF_ERR_CONFIGURED ] && return $OCF_ERR_CONFIGURED
-			[ $ret = $OCF_RUNNING_MASTER ] && return $OCF_RUNNING_MASTER
-			[ $ret != $OCF_SUCCESS ] && return $OCF_ERR_GENERIC
+			[ $ret != $OCF_SUCCESS -a $ret != $OCF_RUNNING_MASTER ] && return $OCF_ERR_GENERIC
 			sleep 1
 		done
 		return $OCF_ERR_GENERIC
@@ -205,8 +197,8 @@ bird_validate() {
 	fi
 
 	if ! bird -p ; then
-		ocf_log err "Bird configuration file seams to be broken"
-		return $OCF_ERR_CONFIGURED
+		ocf_log err "Bird configuration file seems to be broken"
+		return $OCF_ERR_INSTALLED
 	fi
 
 	if [ -z "$OCF_RESKEY_name" ] ; then
@@ -239,15 +231,22 @@ cat <<END
 	<version>1.0</version>
 	<longdesc lang="en">
 		This agent manages Bird routing daemon.
-		When it runs in master-slave configuration allows to set up/down static route
+
+		When used in standard mode (primitive resource) just manages
+		(starts and stops) BIRD routing daemon
+
+		When used in master-slave configuration, besides from starting/stopping daemon
+		allows to fail-over (enable on promote, disable on demote)
+		static defined route. Make sure, that this satic route is disabled by default.
 	</longdesc>
 	<shortdesc lang="en">Manages Bird routing daemon</shortdesc>
 
 	<parameters>
 		<parameter name="name">
 			<longdesc lang="en">
-				Static route name as defined in bird. This route should be disabled by default.
-				It will be enabled when this resource will be started
+				Static route name as defined in bird.
+				This route should be disabled by default.
+				It will be enabled when this resource will be started.
 			</longdesc>
 			<shortdesc lang="en">Static route name</shortdesc>
 			<content type="string" default=""/>
