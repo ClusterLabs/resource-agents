@@ -56,6 +56,7 @@ OCF_RESKEY_recovery_end_command_default=""
 OCF_RESKEY_master_ip_default=""
 OCF_RESKEY_repuser_default="postgres"
 OCF_RESKEY_primary_conninfo_opt_default=""
+OCF_RESKEY_restart_on_promote_default="false"
 OCF_RESKEY_tmpdir_default="/var/lib/pgsql/tmp"
 OCF_RESKEY_xlog_check_count_default="3"
 OCF_RESKEY_crm_attr_timeout_default="5"
@@ -85,6 +86,7 @@ OCF_RESKEY_stop_escalate_in_slave_default=30
 : ${OCF_RESKEY_master_ip=${OCF_RESKEY_master_ip_default}}
 : ${OCF_RESKEY_repuser=${OCF_RESKEY_repuser_default}}
 : ${OCF_RESKEY_primary_conninfo_opt=${OCF_RESKEY_primary_conninfo_opt_default}}
+: ${OCF_RESKEY_restart_on_promote=${OCF_RESKEY_restart_on_promote_default}}
 : ${OCF_RESKEY_tmpdir=${OCF_RESKEY_tmpdir_default}}
 : ${OCF_RESKEY_xlog_check_count=${OCF_RESKEY_xlog_check_count_default}}
 : ${OCF_RESKEY_crm_attr_timeout=${OCF_RESKEY_crm_attr_timeout_default}}
@@ -325,6 +327,17 @@ This is optional for replication.
 </longdesc>
 <shortdesc lang="en">primary_conninfo_opt</shortdesc>
 <content type="string" default="${OCF_RESKEY_primary_conninfo_opt_default}" />
+</parameter>
+
+<parameter name="restart_on_promote" unique="0" required="0">
+<longdesc lang="en">
+If this is true, RA deletes recovery.conf and restarts PostgreSQL
+on promote to keep Timeline ID. It probably makes fail-over slower.
+It's recommended to set on-fail of promote up as fence.
+This is optional for replication.
+</longdesc>
+<shortdesc lang="en">restart_on_promote</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_restart_on_promote_default}" />
 </parameter>
 
 <parameter name="tmpdir" unique="0" required="0">
@@ -574,28 +587,44 @@ pgsql_promote() {
     touch $PGSQL_LOCK
     show_master_baseline
 
-    runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata promote"
-    if [ $? -eq 0 ]; then
-        ocf_log info "PostgreSQL promote command sent."
-    else
-        ocf_log err "Can't promote PostgreSQL."
-        return $OCF_ERR_GENERIC
-    fi
-
-    while :
-    do
-        pgsql_real_monitor warn
+    if ocf_is_true ${OCF_RESKEY_restart_on_promote}; then
+        ocf_log info "Restarting PostgreSQL instead of promote."
+        #stop : this function returns $OCF_SUCCESS only.
+        pgsql_real_stop slave
+        rm -f $RECOVERY_CONF
+        pgsql_real_start
         rc=$?
-        if [ $rc -eq $OCF_RUNNING_MASTER ]; then
-            break;
-        elif [ $rc -eq $OCF_ERR_GENERIC ]; then
-            ocf_log err "Can't promote PostgreSQL."
-            return $rc
+        if [ $rc -ne $OCF_RUNNING_MASTER ]; then
+            ocf_log err "Can't start PostgreSQL as primary on promote."
+            if [ $rc -ne $OCF_SUCCESS ]; then
+                change_pgsql_status "$NODENAME" "STOP"
+            fi
+            return $OCF_ERR_GENERIC
         fi
-        sleep 1
-        ocf_log debug "PostgreSQL still hasn't promoted yet. Waiting..."
-    done
-    ocf_log info "PostgreSQL is promoted."
+    else
+        runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata promote"
+        if [ $? -eq 0 ]; then
+            ocf_log info "PostgreSQL promote command sent."
+        else
+            ocf_log err "Can't promote PostgreSQL."
+            return $OCF_ERR_GENERIC
+        fi
+
+        while :
+        do
+            pgsql_real_monitor warn
+            rc=$?
+            if [ $rc -eq $OCF_RUNNING_MASTER ]; then
+                break;
+            elif [ $rc -eq $OCF_ERR_GENERIC ]; then
+                ocf_log err "Can't promote PostgreSQL."
+                return $rc
+            fi
+            sleep 1
+            ocf_log debug "PostgreSQL still hasn't promoted yet. Waiting..."
+        done
+        ocf_log info "PostgreSQL is promoted."
+    fi
 
     change_data_status "$NODENAME" "LATEST"
     $CRM_MASTER -v $PROMOTE_ME
