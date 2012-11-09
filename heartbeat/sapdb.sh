@@ -58,6 +58,10 @@ cleanup_saphostexec() {
       ipcrm -m $oscolipc
     fi
   fi
+
+  # removing the unix domain socket file as it might have wrong permissions or 
+  # ownership - it will be recreated by saphostexec during next start
+  [ -r /tmp/.sapstream1128 ] && rm -f /tmp/.sapstream1128
 }
 
 #
