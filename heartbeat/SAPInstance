@@ -477,6 +477,24 @@ cleanup_instance() {
     ocf_log info "Deleted /usr/sap/$SID/$InstanceName/work/kill.sap"
   fi
 
+  if [ -f "/usr/sap/$SID/$InstanceName/work/shutdown.sap" ]
+  then
+    rm -f /usr/sap/$SID/$InstanceName/work/shutdown.sap
+    ocf_log info "Deleted /usr/sap/$SID/$InstanceName/work/shutdown.sap"
+  fi
+
+  if [ -f "/usr/sap/$SID/$InstanceName/data/rslgcpid" ]
+  then
+    rm -f /usr/sap/$SID/$InstanceName/data/rslgcpid
+    ocf_log info "Deleted /usr/sap/$SID/$InstanceName/data/rslgcpid"
+  fi
+
+  if [ -f "/usr/sap/$SID/$InstanceName/data/rslgspid" ]
+  then
+    rm -f /usr/sap/$SID/$InstanceName/data/rslgspid
+    ocf_log info "Deleted /usr/sap/$SID/$InstanceName/data/rslgspid"
+  fi
+  
   return 0
 }
 
