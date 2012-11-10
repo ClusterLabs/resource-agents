@@ -803,10 +803,10 @@ ip_start() {
 		: no need to run send_arp on loopback
 		;;
 	*)
-		if is_infiniband; then
-			run_send_ib_arp
-		elif [ $FAMILY = "inet" ];then
-			if [ -x $SENDARP ]; then
+		if [ $FAMILY = "inet" ];then
+			if is_infiniband; then
+				run_send_ib_arp
+			elif [ -x $SENDARP ]; then
 				run_send_arp
 			fi
 		else
