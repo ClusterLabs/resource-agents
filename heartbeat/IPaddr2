@@ -291,6 +291,16 @@ You really shouldn't be touching this.
 <content type="string" default="${OCF_RESKEY_arp_mac_default}"/>
 </parameter>
 
+<parameter name="arp_sender">
+<longdesc lang="en">
+The program to send ARP packets with on start. For infiniband
+interfaces, default is ipoibarping. If ipoibarping is not
+available, set this to send_arp.
+</longdesc>
+<shortdesc lang="en">ARP sender</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
 <parameter name="flush_routes">
 <longdesc lang="en">
 Flush the routing table on stop. This is for
@@ -804,15 +814,11 @@ ip_start() {
 		;;
 	*)
 		if [ $FAMILY = "inet" ];then
-			if is_infiniband; then
-				run_send_ib_arp
-			elif [ -x $SENDARP ]; then
-				run_send_arp
-			fi
+		    $ARP_SEND_FUN
 		else
-			if [ -x $SENDUA ]; then
-				run_send_ua
-			fi
+		    if [ -x $SENDUA ]; then
+			run_send_ua
+		    fi
 		fi
 		;;
 	esac
@@ -902,13 +908,43 @@ ip_monitor() {
 	esac
 }
 
+# make sure that we have something to send ARPs with
+set_send_arp_program() {
+    if [ -n "$OCF_RESKEY_arp_sender" ]; then
+	case "$OCF_RESKEY_arp_sender" in
+	send_arp)
+	    check_binary $SENDARP
+	    ARP_SEND_FUN=run_send_arp
+	;;
+	ipoibarping)
+	    check_binary ipoibarping
+	    ARP_SEND_FUN=run_send_ib_arp
+	;;
+	*)
+	    ocf_log err "unrecognized arp_sender value: $OCF_RESKEY_arp_sender"
+	    exit $OCF_ERR_CONFIGURED
+	;;
+	esac
+    else
+	if is_infiniband; then
+	    ARP_SEND_FUN=run_send_ib_arp
+	    if ! have_binary ipoibarping; then
+	    	[ "$__OCF_ACTION" = start ] &&
+		    ocf_log warn "using send_arp for infiniband because ipoibarping is not available (set arp_sender to \"send_arp\" to suppress this message)"
+		check_binary $SENDARP
+		ARP_SEND_FUN=run_send_arp
+	    fi
+	fi
+    fi
+}
+
 ip_validate() {
     check_binary $IP2UTIL
     IP_CIP=
 
     ip_init
 
-    is_infiniband && check_binary ipoibarping
+    set_send_arp_program
 
     if [ -n "$IP_CIP" ]; then
 	check_binary $IPTABLES
@@ -1010,3 +1046,4 @@ validate-all)	;;
 		exit $OCF_ERR_UNIMPLEMENTED
 		;;
 esac
+# vi:sw=4:ts=8:
