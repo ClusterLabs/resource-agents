@@ -700,22 +700,25 @@ Filesystem_notify() {
 signal_processes() {
 	local dir=$1
 	local sig=$2
+	local pids pid
 	# fuser returns a non-zero return code if none of the
 	# specified files is accessed or in case of a fatal 
 	# error.
-	if [ "X${HOSTOS}" = "XOpenBSD" ];then
-		PIDS=`fstat | grep $dir | awk '{print $3}'`
-		for PID in ${PIDS};do
-			kill -s $sig ${PID}
-			ocf_log info "Sent signal $sig to ${PID}"
-		done
-	else
-		if $FUSER -$sig -m -k $dir ; then
-			ocf_log info "Some processes on $dir were signalled"
+	pids=$(
+		if [ "X${HOSTOS}" = "XOpenBSD" ];then
+			fstat | grep $dir | awk '{print $3}'
 		else
-			ocf_log info "No processes on $dir were signalled"
+			$FUSER -m $dir 2>/dev/null
 		fi
+	)
+	if [ -z "$pids" ]; then
+		ocf_log info "No processes on $dir were signalled"
+		return
 	fi
+	for pid in $pids; do
+		ocf_log info "sending signal $sig to: `ps -f $pid | tail -1`"
+		kill -s $sig $pid
+	done
 }
 try_umount() {
 	local SUB=$1
