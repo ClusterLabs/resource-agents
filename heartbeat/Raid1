@@ -233,6 +233,19 @@ stop_arrays() {
 		forall raid1_stop_one all
 	fi
 }
+showusers() {
+	local disk
+	for disk; do
+		if have_binary lsof; then
+			ocf_log info "running lsof to list $disk users..."
+			ocf_run -warn lsof $disk
+		fi
+		if [ -d /sys/block/$disk/holders ]; then
+			ocf_log info "ls -l /sys/block/$disk/holders"
+			ocf_run -warn ls -l /sys/block/$disk/holders
+		fi
+	done
+}
 raid1_stop() {
 	local rc
 	# See if the MD device is already cleanly stopped:
@@ -261,6 +274,7 @@ raid1_stop() {
 
 	if [ $rc -ne 0 ]; then
 		ocf_log warn "Couldn't stop RAID for $RAIDDEVS (rc=$rc)"
+ 		showusers $RAIDDEVS
 		if [ $HAVE_RAIDTOOLS != "true" ]; then
 			forall mark_readonly all
 		fi
