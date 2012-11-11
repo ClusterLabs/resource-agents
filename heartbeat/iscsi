@@ -285,11 +285,12 @@ open_iscsi_remove() {
 open_iscsi_status() {
 	local target="$1"
 	local session_id conn_state outp
-	local msg_logged
+	local prev_state
 	local recov
 
 	recov=${2:-$OCF_RESKEY_try_recovery}
 	session_id=`open_iscsi_get_session_id "$target"`
+	prev_state=""
 	[ -z "$session_id" ] &&
 		return 1
 	while :; do
@@ -309,9 +310,9 @@ open_iscsi_status() {
 				return 0;;
 			*) # failed
 				if [ "$__OCF_ACTION" != stop ] && ! ocf_is_probe && ocf_is_true $recov; then
-					if [ -z "$msg_logged" ]; then
+					if [ "$conn_state" != "$prev_state" ]; then
 						ocf_log warning "connection state $conn_state, waiting for recovery..."
-						msg_logged=1
+						prev_state="$conn_state"
 					fi
 					sleep 1
 				else
