@@ -37,12 +37,12 @@
 #
 # Defaults
 #
-OCF_RESKEY_zabbix_default=/usr/sbin/zabbix_server
-OCF_RESKEY_pidfile_default=/var/run/zabbix-server/zabbix_server.pid
+OCF_RESKEY_binary_default="/usr/sbin/zabbix_server"
+OCF_RESKEY_pid_default="/var/run/zabbix-server/zabbix_server.pid"
 OCF_RESKEY_config_default=""
 
-: ${OCF_RESKEY_zabbix=${OCF_RESKEY_zabbix_default}}
-: ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
 : ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
 
 # sleep interval when waiting for threads cleanup
@@ -66,22 +66,22 @@ daemon. See: http://www.zabbix.com/
 
 <parameters>
 
-<parameter name="zabbix" unique="0" required="0">
+<parameter name="binary" unique="0" required="0">
 <longdesc lang="en">
 Location of the zabbix_server binary.
 </longdesc>
-<shortdesc lang="en">Path to zabbix_server</shortdesc>
-<content type="string" default="${OCF_RESKEY_zabbix_default}" />
+<shortdesc lang="en">Zabbix server binary</shortdesc>
+<content type="string" default="${OCF_RESKEY_binary_default}" />
 </parameter>
 
-<parameter name="pidfile" unique="1" required="0">
+<parameter name="pid" unique="1" required="0">
 <longdesc lang="en">
 Path to zabbix_server pidfile. As it's created by daemon itself
 it must be the same as specified in the zabbix configuration file
 with parameter 'PidFile='.
 </longdesc>
 <shortdesc lang="en">Path to pidfile</shortdesc>
-<content type="string" default="${OCF_RESKEY_pidfile_default}" />
+<content type="string" default="${OCF_RESKEY_pid_default}" />
 </parameter>
 
 <parameter name="config" unique="0" required="0">
@@ -124,7 +124,7 @@ END
 getpid() {
     # pidfile doesn't exists
     [ -f $1 ] || return 1
-    echo `sed -n '1 { /[0-9]/p }' $1`
+    sed -n '1 { /[0-9]/p }' $1
 
     return 0
 }
@@ -135,7 +135,7 @@ getpid() {
 check_piddir() {
     local piddir
 
-    piddir=`dirname ${OCF_RESKEY_pidfile}`
+    piddir=`dirname ${OCF_RESKEY_pid}`
     if [ ! -d $piddir ]; then
         ocf_log err "PID directory ${piddir} doesn't exist"
         return 1
@@ -169,13 +169,13 @@ startserver() {
     local command
     local params
 
-    command=$OCF_RESKEY_zabbix
+    command=$OCF_RESKEY_binary
 
     # stop here if zabbix-server binary doesn't exist
-    check_binary ${OCF_RESKEY_zabbix}
+    check_binary $OCF_RESKEY_binary
 
     if [ $OCF_RESKEY_config ]; then
-        check_config ${OCF_RESKEY_config} || return ${OCF_ERR_INSTALLED}
+        check_config $OCF_RESKEY_config || return $OCF_ERR_INSTALLED
         params="--config $OCF_RESKEY_config"
     fi
 
@@ -229,9 +229,9 @@ zabbixserver_start() {
     esac
 
     # remove stale pidfile if it exists
-    if [ -f $OCF_RESKEY_pidfile ]; then
+    if [ -f $OCF_RESKEY_pid ]; then
         ocf_log debug "Removing stale pidfile"
-        rm $OCF_RESKEY_pidfile
+        rm $OCF_RESKEY_pid
     fi
 
     startserver
@@ -271,7 +271,7 @@ zabbixserver_stop() {
         ;;
     esac
 
-    pid=`getpid $OCF_RESKEY_pidfile`
+    pid=`getpid $OCF_RESKEY_pid`
     if [ $? -ne 0 ]; then
         ocf_log err "Can't find process PID"
         return $OCF_ERR_GENERIC
@@ -300,9 +300,9 @@ zabbixserver_stop() {
     done
 
     # remove stale pidfile if it exists
-    if [ -f $OCF_RESKEY_pidfile ]; then
+    if [ -f $OCF_RESKEY_pid ]; then
         ocf_log debug "Pidfile still exists, removing"
-        rm $OCF_RESKEY_pidfile
+        rm $OCF_RESKEY_pid
     fi
 
     return $OCF_SUCCESS
@@ -314,7 +314,7 @@ zabbixserver_stop() {
 zabbixserver_monitor() {
     local pid
 
-    pid=`getpid $OCF_RESKEY_pidfile`
+    pid=`getpid $OCF_RESKEY_pid`
     if [ $? -eq 0 ]; then
         process_status $pid
         if [ $? -eq 0 ]; then
@@ -332,7 +332,7 @@ zabbixserver_monitor() {
 #
 zabbixserver_validate() {
     # PID directory existence is cruicial for all relevant actions
-    check_piddir || return ${OCF_ERR_INSTALLED}
+    check_piddir || return $OCF_ERR_INSTALLED
 
     return $OCF_SUCCESS
 }
