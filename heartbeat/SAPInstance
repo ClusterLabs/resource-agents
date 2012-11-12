@@ -72,7 +72,7 @@ sapinstance_meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPInstance">
-<version>2.13</version>
+<version>2.14</version>
 
 <shortdesc lang="en">Manages a SAP instance as an HA resource.</shortdesc>
 <longdesc lang="en">
@@ -201,6 +201,8 @@ The name of the SAP START profile. Specify this parameter, if you have changed t
 <action name="stop" timeout="240" />
 <action name="status" timeout="60" />
 <action name="monitor" depth="0" timeout="60" interval="120" />
+<action name="monitor" depth="0" timeout="60" interval="121" role="Slave" />
+<action name="monitor" depth="0" timeout="60" interval="119" role="Master" />
 <action name="promote" timeout="320" />
 <action name="demote" timeout="320" />
 <action name="validate-all" timeout="5" />
@@ -268,7 +270,7 @@ is_clone() {
 #                to all cluster nodes at all times.
 #
 abnormal_end() {
-  err_msg=$1
+  local err_msg=$1
 
   ocf_is_probe && {
     sapinstance_status
@@ -291,7 +293,7 @@ abnormal_end() {
 #
 sapinstance_init() {
 
-  myInstanceName="$1"
+  local myInstanceName="$1"
 
   SID=`echo "$myInstanceName" | cut -d_ -f1`
   InstanceName=`echo "$myInstanceName" | cut -d_ -f2`
@@ -372,22 +374,35 @@ sapinstance_init() {
 #                     because then we have two instances with the same instance number.
 #
 check_sapstartsrv() {
-  restart=0
-  runninginst=""
-  chkrc=$OCF_SUCCESS
+  local restart=0
+  local runninginst=""
+  local chkrc=$OCF_SUCCESS
+  local output=""
 
-  output=`$SAPCONTROL -nr $InstanceNr -function ParameterValue INSTANCE_NAME -format script`
-  if [ $? -eq 0 ]
-  then
-    runninginst=`echo "$output" | grep '^0 : ' | cut -d' ' -f3`
-    if [ "$runninginst" != "$InstanceName" ]
-    then 
-      ocf_log warn "sapstartsrv is running for instance $runninginst, that service will be killed"
+  if [ ! -S /tmp/.sapstream5${InstanceNr}13 ]; then
+    ocf_log warn "sapstartsrv is not running for instance $SID-$InstanceName (no UDS), it will be started now"
+    restart=1
+  else
+    output=`$SAPCONTROL -nr $InstanceNr -function ParameterValue INSTANCE_NAME -format script`
+    if [ $? -eq 0 ]
+    then
+      runninginst=`echo "$output" | grep '^0 : ' | cut -d' ' -f3`
+      if [ "$runninginst" != "$InstanceName" ]
+      then 
+        ocf_log warn "sapstartsrv is running for instance $runninginst, that service will be killed"
+        restart=1
+      else
+        output=`$SAPCONTROL -nr $InstanceNr -function AccessCheck Start`
+        if [ $? -ne 0 ]; then
+          ocf_log warn "FAILED : sapcontrol -nr $InstanceNr -function AccessCheck Start (`ls -ld1 /tmp/.sapstream5${InstanceNr}13`)"
+          ocf_log warn "sapstartsrv will be restarted to try to solve this situation, otherwise please check sapstsartsrv setup (SAP Note 927637)"
+          restart=1
+        fi
+      fi
+    else
+      ocf_log warn "sapstartsrv is not running for instance $SID-$InstanceName, it will be started now"
       restart=1
     fi
-  else
-    ocf_log warn "sapstartsrv is not running for instance $SID-$InstanceName, it will be started now"
-    restart=1
   fi
 
   if [ -z "$runninginst" ]; then runninginst=$InstanceName; fi
@@ -405,10 +420,16 @@ check_sapstartsrv() {
     [ ! -r $SAPSTARTPROFILE ] && abnormal_end "Expected $SAPSTARTPROFILE to be the instance START profile, please set START_PROFILE parameter!"
 
     pkill -9 -f "sapstartsrv.*$runninginst"
+
+    # removing the unix domain socket files as they might have wrong permissions
+    # or ownership - they will be recreated by sapstartsrv during next start
+    rm -f /tmp/.sapstream5${InstanceNr}13
+    rm -f /tmp/.sapstream5${InstanceNr}14
+
     $SAPSTARTSRV pf=$SAPSTARTPROFILE -D -u $sidadm
 
     # now make sure the daemon has been started and is able to respond
-    srvrc=1
+    local srvrc=1
     while [ $srvrc -eq 1 -a `pgrep -f "sapstartsrv.*$runninginst" | wc -l` -gt 0 ]
     do
       sleep 1
@@ -440,8 +461,8 @@ check_sapstartsrv() {
 #               was introduced.
 #
 sapuserexit() {
-  NAME="$1"
-  VALUE="$2"
+  local NAME="$1"
+  local VALUE="$2"
 
   if [ -n "$VALUE" ]
   then
@@ -469,11 +490,10 @@ cleanup_instance() {
   su - $sidadm -c "cleanipc $InstanceNr remove"
   ocf_log info "Tried to remove shared memory resources using 'cleanipc $InstanceNr remove' as user $sidadm"
 
-  if [ -f "/usr/sap/$SID/$InstanceName/work/kill.sap" ]
-  then
-    rm -f /usr/sap/$SID/$InstanceName/work/kill.sap
-    ocf_log info "Deleted /usr/sap/$SID/$InstanceName/work/kill.sap"
-  fi
+  ocf_run rm -fv /usr/sap/$SID/$InstanceName/work/kill.sap
+  ocf_run rm -fv /usr/sap/$SID/$InstanceName/work/shutdown.sap
+  ocf_run rm -fv /usr/sap/$SID/$InstanceName/data/rslgcpid
+  ocf_run rm -fv /usr/sap/$SID/$InstanceName/data/rslgspid
 
   return 0
 }
@@ -485,8 +505,10 @@ sapinstance_start() {
 
   sapuserexit PRE_START_USEREXIT "$OCF_RESKEY_PRE_START_USEREXIT"
 
-  rc=$OCF_NOT_RUNNING
-  loopcount=0
+  local rc=$OCF_NOT_RUNNING
+  local output=""
+  local loopcount=0
+
   while [ $loopcount -lt 2 ]
   do
     loopcount=$(($loopcount + 1))
@@ -505,13 +527,13 @@ sapinstance_start() {
       return $OCF_ERR_GENERIC
     fi
 
-    startrc=1
+    local startrc=1
     while [ $startrc -gt 0 ]
     do
-      waittime_start=`date +%s`
+      local waittime_start=`date +%s`
       output=`$SAPCONTROL -nr $InstanceNr -function WaitforStarted $OCF_RESKEY_START_WAITTIME 10`
       startrc=$?
-      waittime_stop=`date +%s`
+      local waittime_stop=`date +%s`
 
       if [ $startrc -ne 0 ]
       then
@@ -568,6 +590,9 @@ sapinstance_recover() {
 # sapinstance_stop: Stop the SAP instance
 #
 sapinstance_stop() {
+  local output=""
+  local rc
+
   sapuserexit PRE_STOP_USEREXIT "$OCF_RESKEY_PRE_STOP_USEREXIT"
 
   if [ "$OCF_RESKEY_SHUTDOWN_METHOD" = "KILL" ]
@@ -585,7 +610,7 @@ sapinstance_stop() {
     ocf_log info "Stopping SAP Instance $SID-$InstanceName: $output"
   fi
 
-  if [ $? -eq 0 ]
+  if [ $rc -eq 0 ]
   then
     output=`$SAPCONTROL -nr $InstanceNr -function WaitforStopped 3600 1`
     if [ $? -eq 0 ]
@@ -611,21 +636,27 @@ sapinstance_stop() {
 # sapinstance_monitor: Can the given SAP instance do anything useful?
 #
 sapinstance_monitor() {
-  MONLOG=$1
+  local MONLOG=$1
+  local rc
+
   check_sapstartsrv
   rc=$?
 
   if [ $rc -eq $OCF_SUCCESS ]
   then
-    count=0
+    local count=0
+    local SERVNO
+    local output
+
     output=`$SAPCONTROL -nr $InstanceNr -function GetProcessList -format script`
 
     # we have to parse the output, because the returncode doesn't tell anything about the instance status
     for SERVNO in `echo "$output" | grep '^[0-9] ' | cut -d' ' -f1 | sort -u`
     do
-      COLOR=`echo "$output" | grep "^$SERVNO dispstatus: " | cut -d' ' -f3`
-      SERVICE=`echo "$output" | grep "^$SERVNO name: " | cut -d' ' -f3`
-      STATE=0
+      local COLOR=`echo "$output" | grep "^$SERVNO dispstatus: " | cut -d' ' -f3`
+      local SERVICE=`echo "$output" | grep "^$SERVNO name: " | cut -d' ' -f3`
+      local STATE=0
+      local SEARCH
 
       case $COLOR in
         GREEN|YELLOW)       STATE=$OCF_SUCCESS;;
@@ -664,6 +695,9 @@ sapinstance_monitor() {
 # sapinstance_status: Lightweight check of SAP instance only with OS tools
 #
 sapinstance_status() {
+  local pid
+  local pids
+
   [ ! -f "/usr/sap/$SID/$InstanceName/work/kill.sap" ] && return $OCF_NOT_RUNNING
   pids=`grep '^kill -[0-9]' /usr/sap/$SID/$InstanceName/work/kill.sap | awk '{print $3}'`
   for pid in $pids
@@ -678,7 +712,7 @@ sapinstance_status() {
 # sapinstance_validate: Check the symantic of the input parameters 
 #
 sapinstance_validate() {
-  rc=$OCF_SUCCESS
+  local rc=$OCF_SUCCESS
   if [ `echo "$SID" | grep -c '^[A-Z][A-Z0-9][A-Z0-9]$'` -ne 1 ]
   then
     ocf_log err "Parsing instance profile name: '$SID' is not a valid system ID!"
@@ -736,6 +770,7 @@ sapinstance_monitor_clone() {
   # first check with the status function (OS tools) if there could be something like a SAP instance running
   # as we do not know here, if we are in master or slave state we do not want to start our monitoring
   # agents (sapstartsrv) on the wrong host
+  local rc
 
   sapinstance_init $OCF_RESKEY_InstanceName
   if sapinstance_status; then
@@ -766,6 +801,8 @@ sapinstance_monitor_clone() {
 #                            The order is important here to behave correct from the application levels view
 #
 sapinstance_promote_clone() {
+  local rc
+
   sapinstance_init $OCF_RESKEY_InstanceName
   ocf_log info "Promoting $SID-$InstanceName to running Master."
   sapinstance_start
@@ -785,6 +822,8 @@ sapinstance_promote_clone() {
 # sapinstance_demote_clone: In a Master/Slave configuration get Slave by stopping the SCS instance and starting the ERS instance
 #
 sapinstance_demote_clone() {
+  local rc
+
   sapinstance_init $OCF_RESKEY_InstanceName
   ocf_log info "Demoting $SID-$InstanceName to a slave."
   sapinstance_stop
