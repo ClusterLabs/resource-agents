@@ -471,11 +471,10 @@ cleanup_instance() {
   su - $sidadm -c "cleanipc $InstanceNr remove"
   ocf_log info "Tried to remove shared memory resources using 'cleanipc $InstanceNr remove' as user $sidadm"
 
-  if [ -f "/usr/sap/$SID/$InstanceName/work/kill.sap" ]
-  then
-    rm -f /usr/sap/$SID/$InstanceName/work/kill.sap
-    ocf_log info "Deleted /usr/sap/$SID/$InstanceName/work/kill.sap"
-  fi
+  ocf_run rm -fv /usr/sap/$SID/$InstanceName/work/kill.sap
+  ocf_run rm -fv /usr/sap/$SID/$InstanceName/work/shutdown.sap
+  ocf_run rm -fv /usr/sap/$SID/$InstanceName/data/rslgcpid
+  ocf_run rm -fv /usr/sap/$SID/$InstanceName/data/rslgspid
 
   return 0
 }
