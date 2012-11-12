@@ -74,7 +74,7 @@ Location of the zabbix_server binary.
 <content type="string" default="${OCF_RESKEY_zabbix_default}" />
 </parameter>
 
-<parameter name="pidfile" unique="0" required="0">
+<parameter name="pidfile" unique="1" required="0">
 <longdesc lang="en">
 Path to zabbix_server pidfile. As it's created by daemon itself
 it must be the same as specified in the zabbix configuration file
