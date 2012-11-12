@@ -72,7 +72,7 @@ sapinstance_meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPInstance">
-<version>2.13</version>
+<version>2.14</version>
 
 <shortdesc lang="en">Manages a SAP instance as an HA resource.</shortdesc>
 <longdesc lang="en">
@@ -378,18 +378,30 @@ check_sapstartsrv() {
   runninginst=""
   chkrc=$OCF_SUCCESS
 
-  output=`$SAPCONTROL -nr $InstanceNr -function ParameterValue INSTANCE_NAME -format script`
-  if [ $? -eq 0 ]
-  then
-    runninginst=`echo "$output" | grep '^0 : ' | cut -d' ' -f3`
-    if [ "$runninginst" != "$InstanceName" ]
-    then 
-      ocf_log warn "sapstartsrv is running for instance $runninginst, that service will be killed"
+  if [ ! -S /tmp/.sapstream5${InstanceNr}13 ]; then
+    ocf_log warn "sapstartsrv is not running for instance $SID-$InstanceName (no UDS), it will be started now"
+    restart=1
+  else
+    output=`$SAPCONTROL -nr $InstanceNr -function ParameterValue INSTANCE_NAME -format script`
+    if [ $? -eq 0 ]
+    then
+      runninginst=`echo "$output" | grep '^0 : ' | cut -d' ' -f3`
+      if [ "$runninginst" != "$InstanceName" ]
+      then 
+        ocf_log warn "sapstartsrv is running for instance $runninginst, that service will be killed"
+        restart=1
+      else
+        output=`$SAPCONTROL -nr $InstanceNr -function AccessCheck Start`
+        if [ $? -ne 0 ]; then
+          ocf_log warn "FAILED : sapcontrol -nr $InstanceNr -function AccessCheck Start (`ls -ld1 /tmp/.sapstream5${InstanceNr}13`)"
+          ocf_log warn "sapstartsrv will be restarted to try to solve this situation, otherwise please check sapstsartsrv setup (SAP Note 927637)"
+          restart=1
+        fi
+      fi
+    else
+      ocf_log warn "sapstartsrv is not running for instance $SID-$InstanceName, it will be started now"
       restart=1
     fi
-  else
-    ocf_log warn "sapstartsrv is not running for instance $SID-$InstanceName, it will be started now"
-    restart=1
   fi
 
   if [ -z "$runninginst" ]; then runninginst=$InstanceName; fi
@@ -407,6 +419,12 @@ check_sapstartsrv() {
     [ ! -r $SAPSTARTPROFILE ] && abnormal_end "Expected $SAPSTARTPROFILE to be the instance START profile, please set START_PROFILE parameter!"
 
     pkill -9 -f "sapstartsrv.*$runninginst"
+
+    # removing the unix domain socket files as they might have wrong permissions
+    # or ownership - they will be recreated by sapstartsrv during next start
+    rm -f /tmp/.sapstream5${InstanceNr}13
+    rm -f /tmp/.sapstream5${InstanceNr}14
+
     $SAPSTARTSRV pf=$SAPSTARTPROFILE -D -u $sidadm
 
     # now make sure the daemon has been started and is able to respond
