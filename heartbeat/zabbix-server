@@ -37,7 +37,7 @@
 #
 # Defaults
 #
-OCF_RESKEY_binary_default="/usr/sbin/zabbix_server"
+OCF_RESKEY_binary_default="zabbix_server"
 OCF_RESKEY_pid_default="/var/run/zabbix-server/zabbix_server.pid"
 OCF_RESKEY_config_default=""
 
