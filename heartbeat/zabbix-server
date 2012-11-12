@@ -243,6 +243,7 @@ zabbixserver_start() {
     # wait if it starts really
     while ! zabbixserver_monitor; do
         ocf_log debug "Resource has not started yet, waiting"
+        sleep $sleepint
     done
 
     return $OCF_SUCCESS
@@ -295,6 +296,7 @@ zabbixserver_stop() {
     # wait if it stops really
     while zabbixserver_monitor; do
         ocf_log debug "Resource has not stopped yet, waiting"
+        sleep $sleepint
     done
 
     # remove stale pidfile if it exists
