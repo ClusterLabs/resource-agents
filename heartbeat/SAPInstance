@@ -587,7 +587,7 @@ sapinstance_stop() {
     ocf_log info "Stopping SAP Instance $SID-$InstanceName: $output"
   fi
 
-  if [ $? -eq 0 ]
+  if [ $rc -eq 0 ]
   then
     output=`$SAPCONTROL -nr $InstanceNr -function WaitforStopped 3600 1`
     if [ $? -eq 0 ]
