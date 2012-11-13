@@ -1,3 +1,54 @@
+* Tue Nov 13 2012 Linux-HA contributors
+- release candidate 3.9.4 rc1
+- ocf-rarun: add the RA driver
+- IPaddr2: use better test for infiniband (bnc#783353)
+- IPaddr2: replace the findif binary by findif.sh
+- IPaddr2: add IPv6 support
+- IPaddr2: really send arps in background if requested
+- IPaddr2: use send_arp instead of ipoibarping if not available
+- Filesystem: include ceph in the list of non-blockdev filesystems
+- Raid1: stop processes using raiddev
+- Raid1: manage multiple arrays
+- Raid1: discover block size for dd (bnc#781137)
+- exportfs: cleanup exportfs cache on stop (bnc#770210)
+- iscsi: don't fail on stop of the iscsi server fails
+- iscsi: use iscsiadm -m session -r in stop
+- iscsi: do discovery in start only
+- iscsi: check session status in monitor
+- iscsi: add try_recovery parameter
+- oracle: ignore password expiry warning in monitor (bnc#770250)
+- oracle: connect as a regular user in monitor
+- pgsql: add option recovery_end_command
+- Xen: repair node_ip_attribute use
+- SAPDatabase: improvement of cleanup of saphostctrl process
+- SAPInstance: monitor-master not advertised (bnc#782482)
+- SAPInstance: don't wait for timeout if the stop attempt failed
+- SAPInstance: failes on sapcontrol message Unauthorized (bnc#782486)
+- mysql-proxy: copy in-depth monitoring action from the mysql resource agent
+- mysql-proxy: add test_table, test_user and test_passwd parameters
+- mysql-proxy: implement "parameters" parameter
+- mysql-proxy: add the 'plugins' parameter
+- mysql-proxy: version specific checks 
+- mysql-proxy: admin plugin auto loading
+- mysql-proxy: perform SELECT for OCF_CHECK_LEVEL 20 only
+- mysql-proxy: create pid/socket directories if needed
+- conntrackd: resync from other hosts in start
+- slapd: Gracefully handle config check during probe
+- tomcat: Correction of the time-out level of the stop processing.
+- tomcat: Correction of the process alive monitoring.
+- ldirectord: Added READDQUIESCENT parameter 
+- sfex: fix sfex_init for 64-bit big endian platforms
+- SendArp: exit with the right code when not properly configured
+- Squid: fix getting PIDs of squid processes (lf#2653)
+- portblock: use end-of-word instead of space at the end of the line
+- named: use pgrep instead of searching in ps(1) output
+- named: fix monitor if named_rootdir is set to /
+- VIPArip: fix exit codes
+- VIPArip: make start idempotent
+- tools: add test-findif.sh
+- tools: add send_ua binary for IPv6 support in IPaddr2
+- ocft: new test for Raid1
+
 * Fri May 25 2012 Linux-HA contributors
 - stable release 3.9.3
 - dhcpd: new RA to manage ISC DHCP servers
