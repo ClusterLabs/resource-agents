@@ -51,7 +51,7 @@ sleepint=1
 #
 # Functions
 #
-meta_data() {
+zabbixserver_meta_data() {
     cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
@@ -134,10 +134,15 @@ getpid() {
 #
 check_piddir() {
     local piddir
+    local severity
+
+    # lower severity to info during probe
+    severity=err
+    ocf_is_probe && severity=info
 
     piddir=`dirname ${OCF_RESKEY_pid}`
     if [ ! -d $piddir ]; then
-        ocf_log err "PID directory ${piddir} doesn't exist"
+        ocf_log $severity "PID directory ${piddir} doesn't exist"
         return 1
     fi
 
@@ -171,16 +176,11 @@ startserver() {
 
     command=$OCF_RESKEY_binary
 
-    # stop here if zabbix-server binary doesn't exist
-    check_binary $OCF_RESKEY_binary
-
-    if [ $OCF_RESKEY_config ]; then
-        check_config $OCF_RESKEY_config || return $OCF_ERR_INSTALLED
+    # use additional parameters if specified
+    if [ "$OCF_RESKEY_config" ]; then
         params="--config $OCF_RESKEY_config"
+        command="$command $params"
     fi
-
-    # start with additional parameters if specified
-    [ "$params" ] && command="$command $params"
 
     ocf_log debug "Starting server using command: $command"
 
@@ -330,9 +330,9 @@ zabbixserver_monitor() {
 #
 # validate configuration
 #
-zabbixserver_validate() {
-    # PID directory existence is cruicial for all relevant actions
+zabbixserver_validate_all() {
     check_piddir || return $OCF_ERR_INSTALLED
+    check_config $OCF_RESKEY_config || return $OCF_ERR_INSTALLED
 
     return $OCF_SUCCESS
 }
@@ -340,27 +340,6 @@ zabbixserver_validate() {
 #
 # main
 #
-case $__OCF_ACTION in
-meta-data)      meta_data
-                exit $OCF_SUCCESS
-                ;;
-usage|help)     zabbixserver_usage
-                exit $OCF_SUCCESS
-                ;;
-esac
-
-# we should do validation before all other actions
-zabbixserver_validate || exit $?
-
-case $__OCF_ACTION in
-start)          zabbixserver_start;;
-stop)           zabbixserver_stop;;
-monitor)        zabbixserver_monitor;;
-validate-all)   exit $OCF_SUCCESS;;
-*)              zabbixserver_usage
-                exit $OCF_ERR_UNIMPLEMENTED
-                ;;
-esac
-rc=$?
-ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
-exit $rc
+OCF_REQUIRED_PARAMS=""
+OCF_REQUIRED_BINARIES="$OCF_RESKEY_binary"
+ocf_rarun $*
