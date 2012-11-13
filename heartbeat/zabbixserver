@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 #
-#   zabbix-server OCF RA for zabbix_server daemon
+#   zabbixserver OCF RA for zabbix_server daemon
 #
 # Copyright (c) 2012 Krzysztof Gajdemski <songo@debian.org.pl>
 #                    All Rights Reserved.
@@ -55,11 +55,11 @@ meta_data() {
     cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="zabbix-server">
+<resource-agent name="zabbixserver">
 <version>0.0.1</version>
 
 <longdesc lang="en">
-This is a zabbix-server Resource Agent for zabbix_server monitoring
+This is a zabbixserver Resource Agent for zabbix_server monitoring
 daemon. See: http://www.zabbix.com/
 </longdesc>
 <shortdesc lang="en">Zabbix server resource agent</shortdesc>
@@ -236,7 +236,7 @@ zabbixserver_start() {
 
     startserver
     if [ $? -ne 0 ]; then
-        ocf_log err "Can't start zabbix-server"
+        ocf_log err "Can't start Zabbix server"
         return $OCF_ERR_GENERIC
     fi
 
