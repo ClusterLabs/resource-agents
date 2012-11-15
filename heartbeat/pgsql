@@ -1691,7 +1691,6 @@ if is_replication; then
 
     NODENAME=`uname -n | tr '[A-Z]' '[a-z]'`
     NODE_LIST=`echo $OCF_RESKEY_node_list | tr '[A-Z]' '[a-z]'`
-    OPERATION=$1
 fi
 
 case "$1" in
