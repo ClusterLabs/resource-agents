@@ -93,19 +93,6 @@ do_metadata()
 	    <content type="boolean"/>
         </parameter>
 
-        <parameter name="options">
-            <longdesc lang="en">
-                If set, the file system will be checked (even if
-                it is a journalled file system).  This option is
-                ignored for non-journalled file systems such as
-                ext2.
-            </longdesc>
-            <shortdesc lang="en">
-                Mount Options
-            </shortdesc>
-	    <content type="string"/>
-        </parameter>
-
 	<parameter name="self_fence">
 	    <longdesc lang="en">
 	        If set and unmounting the file system fails, the node will
@@ -155,6 +142,17 @@ do_metadata()
 	    <content type="boolean"/>
 	</parameter>
 
+        <parameter name="options">
+            <longdesc lang="en">
+                Options used when the file system is mounted.  These
+                are often file-system specific.  See mount(8) and/or
+                mount.gfs2(8) for supported mount options.
+            </longdesc>
+            <shortdesc lang="en">
+                Mount Options
+            </shortdesc>
+            <content type="string"/>
+        </parameter>
     </parameters>
 
     <actions>
