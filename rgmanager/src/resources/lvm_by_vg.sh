@@ -422,21 +422,33 @@ function vg_stop_clustered
 	vgchange -aln $OCF_RESKEY_vg_name
 
 	#  Make sure all the logical volumes are inactive
+	active=0
 	results=(`lvs -o name,attr --noheadings $OCF_RESKEY_vg_name 2> /dev/null`)
 	a=0
 	while [ ! -z ${results[$a]} ]; do
 		if [[ ${results[$(($a + 1))]} =~ ....a. ]]; then
-			if [ "$self_fence" ]; then
-				ocf_log err "Unable to deactivate $lv_path REBOOT"
-				sync
-				reboot -fn
-			else
-				ocf_log err "Logical volume $OCF_RESKEY_vg_name/${results[$a]} failed to shutdown"
-			fi
-			return $OCF_ERR_GENERIC
+			active=1
+			break
 		fi
-		a=$(($a + 2))
+                a=$(($a + 2))
 	done
+
+	# lvs may not show active volumes if all PVs in VG are gone
+	dmsetup table | grep -q "^${OCF_RESKEY_vg_name//-/--}-[^-]"
+	if [ $? -eq 0 ]; then
+		active=1
+	fi
+
+	if [ $active -ne 0 ]; then
+		if [ "$self_fence" ]; then
+			ocf_log err "Unable to deactivate $lv_path REBOOT"
+			sync
+			reboot -fn
+		else
+			ocf_log err "Logical volume $OCF_RESKEY_vg_name/${results[$a]} failed to shutdown"
+		fi
+		return $OCF_ERR_GENERIC
+	fi
 
 	return $OCF_SUCCESS
 }
@@ -458,21 +470,33 @@ function vg_stop_single
 	vgchange -an $OCF_RESKEY_vg_name
 
 	#  Make sure all the logical volumes are inactive
+        active=0
 	results=(`lvs -o name,attr --noheadings $OCF_RESKEY_vg_name 2> /dev/null`)
 	a=0
 	while [ ! -z ${results[$a]} ]; do
 		if [[ ${results[$(($a + 1))]} =~ ....a. ]]; then
-			if [ "$self_fence" ]; then
-				ocf_log err "Unable to deactivate $lv_path REBOOT"
-				sync
-				reboot -fn
-			else
-				ocf_log err "Logical volume $OCF_RESKEY_vg_name/${results[$a]} failed to shutdown"
-			fi
-			return $OCF_ERR_GENERIC
+			active=1
+			break
 		fi
-		a=$(($a + 2))
+	        a=$(($a + 2))
 	done
+
+        # lvs may not show active volumes if all PVs in VG are gone
+        dmsetup table | grep -q "^${OCF_RESKEY_vg_name//-/--}-[^-]"
+        if [ $? -eq 0 ]; then
+                active=1
+        fi
+
+        if [ $active -ne 0 ]; then
+		if [ "$self_fence" ]; then
+			ocf_log err "Unable to deactivate $lv_path REBOOT"
+			sync
+			reboot -fn
+		else
+			ocf_log err "Logical volume $OCF_RESKEY_vg_name/${results[$a]} failed to shutdown"
+		fi
+		return $OCF_ERR_GENERIC
+	fi
 
 	#  Make sure we are the owner before we strip the tags
 	vg_owner
