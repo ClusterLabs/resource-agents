@@ -1,0 +1,336 @@
+#!/bin/sh
+#
+#
+#   zabbixserver OCF RA for zabbix_server daemon
+#
+# Copyright (c) 2012 Krzysztof Gajdemski <songo@debian.org.pl>
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+
+#
+# Defaults
+#
+OCF_RESKEY_binary_default="zabbix_server"
+OCF_RESKEY_pid_default="/var/run/zabbix-server/zabbix_server.pid"
+OCF_RESKEY_config_default=""
+
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
+: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
+
+# sleep interval when waiting for threads cleanup
+sleepint=1
+
+#
+# Functions
+#
+zabbixserver_meta_data() {
+    cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="zabbixserver">
+<version>0.0.1</version>
+
+<longdesc lang="en">
+This is a zabbixserver Resource Agent for zabbix_server monitoring
+daemon. See: http://www.zabbix.com/
+</longdesc>
+<shortdesc lang="en">Zabbix server resource agent</shortdesc>
+
+<parameters>
+
+<parameter name="binary" unique="0" required="0">
+<longdesc lang="en">
+Location of the zabbix_server binary.
+</longdesc>
+<shortdesc lang="en">Zabbix server binary</shortdesc>
+<content type="string" default="${OCF_RESKEY_binary_default}" />
+</parameter>
+
+<parameter name="pid" unique="1" required="0">
+<longdesc lang="en">
+Path to zabbix_server pidfile. As it's created by daemon itself
+it must be the same as specified in the zabbix configuration file
+with parameter 'PidFile='.
+</longdesc>
+<shortdesc lang="en">Path to pidfile</shortdesc>
+<content type="string" default="${OCF_RESKEY_pid_default}" />
+</parameter>
+
+<parameter name="config" unique="1" required="0">
+<longdesc lang="en">
+Path to zabbix_server configuration file. Assumed server default
+if not specified.
+</longdesc>
+<shortdesc lang="en">Path to configuration file</shortdesc>
+<content type="string" default="${OCF_RESKEY_config_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="20" />
+<action name="stop"         timeout="20" />
+<action name="monitor"      timeout="20" interval="10" depth="0"/>
+<action name="validate-all" timeout="20" />
+<action name="meta-data"    timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+
+zabbixserver_usage() {
+    cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+#
+# Get an actual PID from a given pidfile. If it can't
+# be found then return 1
+#
+getpid() {
+    # pidfile doesn't exists
+    [ -f $1 ] || return 1
+    sed -n '1 { /[0-9]/p }' $1
+
+    return 0
+}
+
+#
+# Check if PID directory exists
+#
+check_piddir() {
+    local piddir
+    local severity
+
+    # lower severity to info during probe
+    severity=err
+    ocf_is_probe && severity=info
+
+    piddir=`dirname ${OCF_RESKEY_pid}`
+    if [ ! -d $piddir ]; then
+        ocf_log $severity "PID directory ${piddir} doesn't exist"
+        return 1
+    fi
+
+    return 0
+}
+
+#
+# Check for the server configuration file
+#
+check_config() {
+    # check only when it is specified by user
+    if [ ! -z "$1" ] && [ ! -f "$1" ]; then
+        if ocf_is_probe; then
+            ocf_log info "Can't read configuration file $1 during probe"
+        else
+            ocf_log err "Can't read configuration file $1"
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
+#
+# Start Zabbix daemon
+#
+startserver() {
+    local command
+    local params
+
+    command=$OCF_RESKEY_binary
+
+    # use additional parameters if specified
+    if [ "$OCF_RESKEY_config" ]; then
+        params="--config $OCF_RESKEY_config"
+        command="$command $params"
+    fi
+
+    ocf_log debug "Starting server using command: $command"
+
+    ocf_run $command
+}
+
+#
+# Check the process status (PID is given as an argument)
+#
+process_status() {
+    local pid
+
+    pid=$1
+
+    # check if parent process is running
+    ocf_run -q kill -s 0 $pid 2> /dev/null 1>&2
+}
+
+#
+# start the agent
+#
+zabbixserver_start() {
+    local rc
+
+    # check the resource status
+    zabbixserver_monitor
+    rc=$?
+    case "$rc" in
+    $OCF_SUCCESS)
+        ocf_log info "Resource is already running"
+        return $OCF_SUCCESS
+        ;;
+    $OCF_NOT_RUNNING)
+        ;;
+    *)
+        exit $OCF_ERR_GENERIC
+        ;;
+    esac
+
+    # remove stale pidfile if it exists
+    if [ -f $OCF_RESKEY_pid ]; then
+        ocf_log info "Removing stale pidfile"
+        rm $OCF_RESKEY_pid
+    fi
+
+    startserver
+    if [ $? -ne 0 ]; then
+        ocf_log err "Can't start Zabbix server"
+        return $OCF_ERR_GENERIC
+    fi
+
+    # wait if it starts really
+    while ! zabbixserver_monitor; do
+        ocf_log debug "Resource has not started yet, waiting"
+        sleep $sleepint
+    done
+
+    return $OCF_SUCCESS
+}
+
+#
+# stop the agent
+#
+zabbixserver_stop() {
+    local pid
+    local rc
+
+    # check the resource status
+    zabbixserver_monitor
+    rc=$?
+    case "$rc" in
+    $OCF_SUCCESS)
+        ;;
+    $OCF_NOT_RUNNING)
+        ocf_log info "Resource is already stopped"
+        return $OCF_SUCCESS
+        ;;
+    *)
+        exit $OCF_ERR_GENERIC
+        ;;
+    esac
+
+    pid=`getpid $OCF_RESKEY_pid`
+    if [ $? -ne 0 ]; then
+        ocf_log err "Can't find process PID"
+        return $OCF_ERR_GENERIC
+    fi
+
+    # kill the process
+    ocf_run -q kill $pid
+    if [ $? -ne 0 ]; then
+        ocf_log err "Can't stop process (PID $pid)"
+        return $OCF_ERR_GENERIC
+    fi
+
+    # Wait until the parent process terminates.
+    # NOTE: The parent may be still waiting for its children. A regular monitor
+    # function will not detect this condition because the pidfile may be
+    # removed just now.
+    while process_status $pid; do
+        ocf_log debug "Waiting for process to terminate..."
+        sleep $sleepint
+    done
+
+    # wait if it stops really
+    while zabbixserver_monitor; do
+        ocf_log debug "Resource has not stopped yet, waiting"
+        sleep $sleepint
+    done
+
+    # remove stale pidfile if it exists
+    if [ -f $OCF_RESKEY_pid ]; then
+        ocf_log debug "Pidfile still exists, removing"
+        rm $OCF_RESKEY_pid
+    fi
+
+    return $OCF_SUCCESS
+}
+
+#
+# resource monitor
+#
+zabbixserver_monitor() {
+    local pid
+
+    pid=`getpid $OCF_RESKEY_pid`
+    if [ $? -eq 0 ]; then
+        process_status $pid
+        if [ $? -eq 0 ]; then
+            ocf_log debug "Resource is running"
+            return $OCF_SUCCESS
+        fi
+    fi
+
+    ocf_log info "Resource is not running"
+    return $OCF_NOT_RUNNING
+}
+
+#
+# validate configuration
+#
+zabbixserver_validate_all() {
+    check_piddir || return $OCF_ERR_INSTALLED
+    check_config $OCF_RESKEY_config || return $OCF_ERR_INSTALLED
+
+    return $OCF_SUCCESS
+}
+
+#
+# main
+#
+OCF_REQUIRED_PARAMS=""
+OCF_REQUIRED_BINARIES="$OCF_RESKEY_binary"
+ocf_rarun $*
