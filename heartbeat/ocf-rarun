@@ -47,7 +47,7 @@ is_var_defined() {
 	test z != "z$(eval echo $`echo $1`)"
 }
 mk_action_func() {
-	ACTION_FUNC=${OCF_RESOURCE_TYPE}_`echo $__OCF_ACTION | tr '-' '_'`
+	ACTION_FUNC=`echo ${OCF_RESOURCE_TYPE}_$__OCF_ACTION | tr '-' '_'`
 }
 validate_args() {
 	is_function $ACTION_FUNC || {
