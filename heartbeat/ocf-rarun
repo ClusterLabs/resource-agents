@@ -9,6 +9,15 @@
 # name them <RA>_<action>. For instance, apache_start or
 # apache_meta_data.
 #
+# The following functions are required:
+#
+# - <RA>_methods
+# - <RA>_usage
+# - <RA>_meta_data
+# - <RA>_start
+# - <RA>_stop
+# - <RA>_monitor
+#
 # The required parameters should all be listed in the
 # OCF_REQUIRED_PARAMS variable. For example, "config user group".
 #
@@ -23,6 +32,10 @@
 #
 # If it exists, the <RA>_probe function is invoked on probes
 # (monitor with interval 0) instead of <RA>_monitor.
+#
+# NB: If the RA name contains a '-', it is going to be converted
+# to '_' when generating function names. For syslog-ng for
+# instance, the monitor function name would be syslog_ng_monitor
 
 is_function() {
 	test z"`command -v $1`" = z"$1"
@@ -66,6 +79,7 @@ check_required_params() {
 		}
 	done
 }
+# this function does an exit (end of the road)
 handle_invalid_env() {
 	local rc msg
 	rc=$1
@@ -100,6 +114,7 @@ check_required_binaries() {
 	for v in $OCF_REQUIRED_BINARIES; do
 		have_binary $v || {
 			handle_invalid_env $OCF_ERR_INSTALLED "$v: required binary not installed"
+			# unreachable
 		}
 	done
 }
@@ -113,6 +128,7 @@ validate_env() {
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		handle_invalid_env $rc
+		# unreachable
 	fi
 }
 
