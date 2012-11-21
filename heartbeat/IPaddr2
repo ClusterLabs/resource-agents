@@ -667,6 +667,19 @@ run_send_arp() {
 # Run send_ua to note send ICMPv6 Unsolicited Neighbor Advertisements.
 #
 run_send_ua() {
+	# Wait until the allocated IPv6 address gets ready by checking
+	# "tentative" flag is disappeared, otherwise send_ua can not
+	# send the unsolicited advertisement requests.
+	for i in 1 2 3 4 5; do
+		$IP2UTIL -o -f $FAMILY addr show dev $NIC \
+			| grep -q -e "$OCF_RESKEY_ip/$NETMASK .* tentative"
+		[ $? -ne 0 ] && break;
+		if [ $i -eq 5 ]; then
+			ocf_log warn "$OCF_RESKEY_ip is still 'tentative' status. (ignored)"
+			break;
+		fi
+		sleep 1
+	done
 	ARGS="-i $OCF_RESKEY_arp_interval -c $OCF_RESKEY_arp_count $OCF_RESKEY_ip $NETMASK $NIC"
 	ocf_log info "$SENDUA $ARGS"
 	$SENDUA $ARGS || ocf_log err "Could not send ICMPv6 Unsolicited Neighbor Advertisements."

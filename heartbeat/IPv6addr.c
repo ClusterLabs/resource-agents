@@ -313,18 +313,6 @@ main(int argc, char* argv[])
 	}
 
 	if (senduaflg) {
-		/* An error of bind() occurs when I don't call is_addr6_available.	*/
-		for (i = 0; i < QUERY_COUNT; i++) {
-			if (0 == is_addr6_available(&addr6)) {
-				break;
-			}
-			sleep(1);
-		}
-		if (i == QUERY_COUNT) {
-			cl_log(LOG_ERR, "failed to ping the address");
-			return OCF_ERR_GENERIC;
-		}
-
 		/* Send unsolicited advertisement packet to neighbor */
 		for (i = 0; i < count; i++) {
 			send_ua(&addr6, prov_ifname);
