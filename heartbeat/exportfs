@@ -182,17 +182,32 @@ exportfs_usage() {
 END
 }
 
+is_exported() {
+	local dir=$1
+	local spec=$2
+	exportfs |
+	        sed -e '$! N; s/\n[[:space:]]\+/ /; t; s/[[:space:]]\+\([^[:space:]]\+\)\(\n\|$\)/ \1\2/g; P;D;' |
+			grep -q -x -F "$dir $spec"
+}
+
 exportfs_monitor ()
 {
+	local rc
 	# exportfs output wraps lines for long export directory names.
 	# We unwrap here with sed.
 	# We then do a literal match on the full line (grep -x -F)
-	exportfs |
-	        sed -e '$! N; s/\n[[:space:]]\+/ /; t; s/[[:space:]]\+\([^[:space:]]\+\)\(\n\|$\)/ \1\2/g; P;D;' |
-	        grep -q -x -F "${OCF_RESKEY_directory} ${OCF_RESKEY_clientspec}"
+	is_exported "${OCF_RESKEY_directory}" "${OCF_RESKEY_clientspec}"
+	rc=$?
+
+	# on some platforms, exportfs may print "<world>" instead of
+	# "*"
+	if [ $rc -eq 1 -a "${OCF_RESKEY_clientspec}" = "*" ]; then
+		is_exported "${OCF_RESKEY_directory}" "<world>"
+		rc=$?
+	fi
 
 #Adapt grep status code to OCF return code
-	case $? in
+	case $rc in
 	0)
 		ocf_log info "Directory ${OCF_RESKEY_directory} is exported to ${OCF_RESKEY_clientspec} (started)."
 	        # Backup the rmtab to ensure smooth NFS-over-TCP failover
