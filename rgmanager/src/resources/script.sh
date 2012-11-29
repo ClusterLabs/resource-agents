@@ -94,70 +94,21 @@ meta_data()
 EOT
 }
 
-validate_or_exit()
-{
-	if [ -z "${OCF_RESKEY_file}" ]; then
-		ocf_log err "No file provided"
-		exit $OCF_ERR_ARGS      # Invalid Argument
-	fi
-
-	if ! [ -e "${OCF_RESKEY_file}" ]; then
-		ocf_log err "${OCF_RESKEY_file} does not exist"
-		exit $OCF_ERR_INSTALLED # Program not installed
-	fi
-
-	if [ -b "${OCF_RESKEY_file}" ]; then
-		ocf_log err "${OCF_RESKEY_file} is a block device"
-		exit $OCF_ERR_ARGS      # Invalid Argument
-	fi
-
-	if [ -d "${OCF_RESKEY_file}" ]; then
-		ocf_log err "${OCF_RESKEY_file} is a directory"
-		exit $OCF_ERR_ARGS      # Invalid Argument
-	fi
-
-	if [ -c "${OCF_RESKEY_file}" ]; then
-		ocf_log err "${OCF_RESKEY_file} is a character device"
-		exit $OCF_ERR_ARGS      # Invalid Argument
-	fi
-
-	if [ -p "${OCF_RESKEY_file}" ]; then
-		ocf_log err "${OCF_RESKEY_file} is a named pipe"
-		exit $OCF_ERR_ARGS      # Invalid Argument
-	fi
-
-	if [ -S "${OCF_RESKEY_file}" ]; then
-		ocf_log err "${OCF_RESKEY_file} is a socket"
-		exit $OCF_ERR_ARGS      # Invalid Argument
-	fi
-
-	if ! [ -s "${OCF_RESKEY_file}" ]; then
-		ocf_log err "${OCF_RESKEY_file} is empty"
-		exit $OCF_ERR_GENERIC   # ???
-	fi
-
-	if ! [ -x "${OCF_RESKEY_file}" ]; then
-		ocf_log err "${OCF_RESKEY_file} is not executable"
-		exit $OCF_ERR_PERM
-	fi
-
-	return 0
-}
-
 case $1 in
 	meta-data)
 		meta_data
 		exit 0
 		;;
 	validate-all)
-		validate_or_exit
-		exit 0
+		exit 0 # XXX XXX XXX
 		;;
 	*)
 		;;
 esac
 
-validate_or_exit
+[ -n "${OCF_RESKEY_file}" ] || exit $OCF_ERR_ARGS      # Invalid Argument
+[ -f "${OCF_RESKEY_file}" ] || exit $OCF_ERR_INSTALLED # Program not installed
+[ -x "${OCF_RESKEY_file}" ] || exit $OCF_ERR_GENERIC   # Generic error
 
 # Don't need to catch return codes; this one will work.
 ocf_log info "Executing ${OCF_RESKEY_file} $1"
