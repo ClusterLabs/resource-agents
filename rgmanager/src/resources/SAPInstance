@@ -162,6 +162,40 @@ sapinstance_methods() {
 	!
 }
 
+#
+# setup_limits: If sapstartsrv needs to be started by this resource agent we need to ensure that any resource
+#               limits configured in /usr/sap/sapservices are applied.
+#               Since sapstartsrv is started as root and then it downgrades its privileges by calling setuid() and
+#               setgid() any PAM limits at /etc/security/limits.conf are not applied.
+#               Should sapstartsrv need to be started, we look for values configured at /usr/sap/sapservices (as
+#               per SAP note 1437105) and, if found, we apply them before starting sapstartsrv.
+#               Instance processes are started by sapstartsrv and will inherit resource limits from it.
+#
+setup_limits() {
+  if [ -r $SAPSERVICES ]
+  then
+    descriptors=`grep "^limit.descriptors" $SAPSERVICES | sed -e "s/limit.descriptors=//" `
+    if [ -n $descriptors ]
+    then
+      ocf_log info "found valid open file descriptors limit at ${SAPSERVICES}: ${descriptors}, applying..."
+      eval ulimit -n $descriptors
+    fi
+
+    stacksize=`grep "^limit.stacksize" $SAPSERVICES | sed -e "s/limit.stacksize=//" `
+    if [ -n $stacksize ]
+    then
+      ocf_log info "found valid stack size limit at ${SAPSERVICES}: ${stacksize}, applying..."
+      eval ulimit -s $stacksize
+    fi
+
+    datasize=`grep "^limit.datasize" $SAPSERVICES | sed -e "s/limit.datasize=//" `
+    if [ -n $datasize ]
+    then
+      ocf_log info "found valid process data segment size limit at ${SAPSERVICES}: ${datasize}, applying..."
+      eval ulimit -d $datasize
+    fi
+  fi
+}
 
 #
 # check_sapstartsrv : Before using sapcontrol we make sure that the sapstartsrv is running for the correct instance.
@@ -192,6 +226,8 @@ check_sapstartsrv() {
   if [ $restart -eq 1 ]
   then
     pkill -9 -f "sapstartsrv.*$runninginst"
+  
+    setup_limits
     $SAPSTARTSRV pf=$SAPSTARTPROFILE -D -u $sidadm
 
     # now make sure the daemon has been started and is able to respond
@@ -570,6 +606,8 @@ if [ `echo $LD_LIBRARY_PATH | grep -c "^$DIR_EXECUTABLE\>"` -eq 0 ]; then
   export LD_LIBRARY_PATH
 fi
 sidadm="`echo $SID | tr '[:upper:]' '[:lower:]'`adm"
+
+SAPSERVICES=/usr/sap/sapservices
 
 # What kind of method was invoked?
 case "$1" in
