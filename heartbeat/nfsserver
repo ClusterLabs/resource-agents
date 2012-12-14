@@ -14,6 +14,7 @@ fi
 
 DEFAULT_INIT_SCRIPT="/etc/init.d/nfsserver"
 DEFAULT_NOTIFY_CMD="/sbin/sm-notify"
+DEFAULT_NOTIFY_FOREGROUND="false"
 DEFAULT_RPCPIPEFS_DIR="/var/lib/nfs/rpc_pipefs"
 
 nfsserver_meta_data() {
@@ -53,6 +54,16 @@ The nfsserver resource agent use this command to notify all clients about the ha
 The tool to send out notification.
 </shortdesc>
 <content type="string" default="$DEFAULT_NOTIFY_CMD" />
+</parameter>
+
+<parameter name="nfs_notify_foreground" unique="0" required="0">
+<longdesc lang="en">
+Keeps sm-notify attached to its controlling terminal and running in the foreground.
+</longdesc>
+<shortdesc lang="en">
+Keeps sm-notify running in the foreground.
+</shortdesc>
+<content type="boolean" default="$DEFAULT_NOTIFY_FOREGROUND" />
 </parameter>
 
 <parameter name="nfs_shared_infodir" unique="0" required="1">
@@ -129,6 +140,7 @@ esac
 fp="$OCF_RESKEY_nfs_shared_infodir"
 : ${OCF_RESKEY_nfs_init_script="$DEFAULT_INIT_SCRIPT"}
 : ${OCF_RESKEY_nfs_notify_cmd="$DEFAULT_NOTIFY_CMD"}
+: ${OCF_RESKEY_nfs_notify_foreground="$DEFAULT_NOTIFY_FOREGROUND"}
 
 if [ -z ${OCF_RESKEY_rpcpipefs_dir} ]; then
 	rpcpipefs_make_dir=$fp/rpc_pipefs
@@ -221,6 +233,12 @@ nfsserver_start ()
 	#The init script do that already, but with the hostname, which may be ignored by client
 	#we have to do it again with the nfs_ip 
 	local opts="-f -v"
+
+	# run in foreground, if requested
+	if ocf_is_true "$OCF_RESKEY_nfs_notify_foreground"; then
+		opts="-d $opts"
+	fi
+
 	echo $OCF_RESKEY_nfs_notify_cmd | grep -qws rpc.statd &&
 		opts=""
 	rm -rf /var/lib/nfs/sm.ha.save > /dev/null 2>&1
