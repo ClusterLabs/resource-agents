@@ -46,7 +46,7 @@ Init script for nfsserver
 
 <parameter name="nfs_notify_cmd" unique="0" required="0">
 <longdesc lang="en">
-The tool to send out NSM reboot notification.
+The tool to send out NSM reboot notification, it should be either sm-notify or rpc.statd.
 Failover of nfsserver can be considered as rebooting to different machines.
 The nfsserver resource agent use this command to notify all clients about the happening of failover.
 </longdesc>
@@ -58,15 +58,15 @@ The tool to send out notification.
 
 <parameter name="nfs_notify_foreground" unique="0" required="0">
 <longdesc lang="en">
-Keeps sm-notify attached to its controlling terminal and running in the foreground.
+Keeps the notify tool attached to its controlling terminal and running in the foreground.
 </longdesc>
 <shortdesc lang="en">
-Keeps sm-notify running in the foreground.
+Keeps the notify tool running in the foreground.
 </shortdesc>
 <content type="boolean" default="$DEFAULT_NOTIFY_FOREGROUND" />
 </parameter>
 
-<parameter name="nfs_notify_retry_time" unique="0" required="0">
+<parameter name="nfs_smnotify_retry_time" unique="0" required="0">
 <longdesc lang="en">
 Specifies the length of sm-notify retry time, in minutes, to continue retrying notifications to unresponsive hosts.  
 If this option is not specified, sm-notify attempts to send notifications for 15 minutes. Specifying a value of 0 
@@ -244,23 +244,39 @@ nfsserver_start ()
 	#Notify the nfs server has been moved or rebooted
 	#The init script do that already, but with the hostname, which may be ignored by client
 	#we have to do it again with the nfs_ip 
-	local opts="-f -v"
+	local opts
 
-	# run in foreground, if requested
-	if ocf_is_true "$OCF_RESKEY_nfs_notify_foreground"; then
-		opts="-d $opts"
-	fi
-	# add option for notify_retry_time, if set
-	if [ -n "$OCF_RESKEY_nfs_notify_retry_time" ]; then
-		if ! ocf_is_decimal "$OCF_RESKEY_nfs_notify_retry_time"; then
-			ocf_log err "Invalid OCF_RESKEY_nfs_notify_retry_time [$OCF_RESKEY_nfs_notify_retry_time]"
-			return $OCF_ERR_CONFIGURED
+	case ${OCF_RESKEY_nfs_notify_cmd##*/} in 
+	sm-notify)
+		# run in foreground, if requested
+		if ocf_is_true "$OCF_RESKEY_nfs_notify_foreground"; then
+			opts="-d"
 		fi
-		opts="-m $OCF_RESKEY_nfs_notify_retry_time $opts"
-	fi
 
-	echo $OCF_RESKEY_nfs_notify_cmd | grep -qws rpc.statd &&
-		opts="-n"
+		if [ -n "$OCF_RESKEY_nfs_smnotify_retry_time" ]; then
+			if ! ocf_is_decimal "$OCF_RESKEY_nfs_smnotify_retry_time"; then
+				ocf_log err "Invalid OCF_RESKEY_nfs_smnotify_retry_time [$OCF_RESKEY_nfs_smnotify_retry_time]"
+				return $OCF_ERR_CONFIGURED
+			fi
+			opts="$opts -m $OCF_RESKEY_nfs_smnotify_retry_time"
+		fi
+
+		opts="$opts -f -v"
+		;;
+
+	rpc.statd)
+		if ocf_is_true "$OCF_RESKEY_nfs_notify_foreground"; then
+			opts="-F"
+		fi
+		opts="$opts -n"
+		;;
+
+	*)
+		ocf_log err "Invalid OCF_RESKEY_nfs_notify_cmd [$OCF_RESKEY_nfs_notify_cmd]"
+		return $OCF_ERR_CONFIGURED
+		;;
+	esac
+
 	rm -rf /var/lib/nfs/sm.ha.save > /dev/null 2>&1
 	cp -rf /var/lib/nfs/sm.ha /var/lib/nfs/sm.ha.save > /dev/null 2>&1
 	for ip in `echo ${OCF_RESKEY_nfs_ip} | sed 's/,/ /g'`; do
