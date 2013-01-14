@@ -924,11 +924,11 @@ ip_monitor() {
 
 # make sure that we have something to send ARPs with
 set_send_arp_program() {
+    ARP_SEND_FUN=run_send_arp
     if [ -n "$OCF_RESKEY_arp_sender" ]; then
 	case "$OCF_RESKEY_arp_sender" in
 	send_arp)
 	    check_binary $SENDARP
-	    ARP_SEND_FUN=run_send_arp
 	;;
 	ipoibarping)
 	    check_binary ipoibarping
