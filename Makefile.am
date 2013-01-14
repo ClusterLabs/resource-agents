@@ -45,7 +45,7 @@ endif
 
 EXTRA_DIST		= autogen.sh .version make/release.mk \
 			  make/git-version-gen make/gitlog-to-changelog \
-			  AUTHORS COPYING COPYING.GPLv3 ChangeLog \
+			  AUTHORS COPYING COPYING.GPLv3 COPYING.LGPL ChangeLog \
 			  $(SPEC).in
 
 install-exec-local:
