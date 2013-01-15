@@ -47,6 +47,7 @@ OCF_RESKEY_stop_escalate_default=30
 OCF_RESKEY_monitor_user_default=""
 OCF_RESKEY_monitor_password_default=""
 OCF_RESKEY_monitor_sql_default="select now();"
+OCF_RESKEY_check_wal_receiver_default="false"
 # Defaults for replication
 OCF_RESKEY_rep_mode_default=none
 OCF_RESKEY_node_list_default=""
@@ -76,6 +77,7 @@ OCF_RESKEY_stop_escalate_in_slave_default=30
 : ${OCF_RESKEY_monitor_user=${OCF_RESKEY_monitor_user_default}}
 : ${OCF_RESKEY_monitor_password=${OCF_RESKEY_monitor_password_default}}
 : ${OCF_RESKEY_monitor_sql=${OCF_RESKEY_monitor_sql_default}}
+: ${OCF_RESKEY_check_wal_receiver=${OCF_RESKEY_check_wal_receiver_default}}
 
 # for replication
 : ${OCF_RESKEY_rep_mode=${OCF_RESKEY_rep_mode_default}}
@@ -382,6 +384,17 @@ This is optional for replication.
 <shortdesc lang="en">stop escalation_in_slave</shortdesc>
 <content type="integer" default="${OCF_RESKEY_stop_escalate_in_slave_default}" />
 </parameter>
+
+<parameter name="check_wal_receiver" unique="0" required="0">
+<longdesc lang="en">
+If this is true, RA checks wal_receiver process on monitor
+and notify its status using "(resource name)-receiver-status" attribute.
+It's useful for checking whether PostgreSQL(Hot Standby) connects to primary.
+The attribute shows status as "normal" or "ERROR".
+</longdesc>
+<shortdesc lang="en">check_wal_receiver</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_check_wal_receiver_default}" />
+</parameter>
 </parameters>
 
 <actions>
@@ -675,6 +688,10 @@ pgsql_real_stop() {
     local count
     local stop_escalate
 
+    if ocf_is_true ${OCF_RESKEY_check_wal_receiver}; then
+        attrd_updater -n "$PGSQL_WAL_RECEIVER_STATUS_ATTR" -D -q
+    fi
+
     if ! pgsql_status
     then
         #Already stopped
@@ -786,6 +803,21 @@ pgsql_status() {
      false
 }
 
+pgsql_wal_receiver_status() {
+    local PID
+    local receiver_parent_pids
+
+    PID=`head -n 1 $PIDFILE`
+    receiver_parent_pids=`ps -ef | tr -s " " | grep "[w]al receiver process" | cut -d " " -f 3`
+    if echo "$receiver_parent_pids" | grep -q -w "$PID" ; then
+        attrd_updater -n "$PGSQL_WAL_RECEIVER_STATUS_ATTR" -v "normal" -q
+        return 0
+    fi
+    attrd_updater -n "$PGSQL_WAL_RECEIVER_STATUS_ATTR" -v "ERROR" -q
+    ocf_log warn "wal receiver process is not running"
+    return 1
+}
+
 #
 # pgsql_real_monitor
 #
@@ -802,6 +834,10 @@ pgsql_real_monitor() {
     then
         ocf_log info "PostgreSQL is down"
         return $OCF_NOT_RUNNING
+    fi
+
+    if ocf_is_true ${OCF_RESKEY_check_wal_receiver}; then
+        pgsql_wal_receiver_status
     fi
 
     if is_replication; then
@@ -1684,6 +1720,7 @@ fi
 PIDFILE=${OCF_RESKEY_pgdata}/postmaster.pid
 BACKUPLABEL=${OCF_RESKEY_pgdata}/backup_label
 RESOURCE_NAME=`echo $OCF_RESOURCE_INSTANCE | cut -d ":" -f 1`
+PGSQL_WAL_RECEIVER_STATUS_ATTR="${RESOURCE_NAME}-receiver-status"
 RECOVERY_CONF=${OCF_RESKEY_pgdata}/recovery.conf
 NODENAME=`uname -n | tr '[A-Z]' '[a-z]'`
 
