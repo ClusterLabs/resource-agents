@@ -254,11 +254,16 @@ Number of shutdown retries (using -m fast) before resorting to -m immediate
 
 <parameter name="rep_mode" unique="0" required="0">
 <longdesc lang="en">
-Replication mode may be set to "async" or "sync".
-Both require PostgreSQL 9.1 or later.
-Once set, this parameter requires node_list, master_ip, and
+Replication mode may be set to "async" or "sync" or "slave".
+They require PostgreSQL 9.1 or later.
+Once set, "async" and "sync" require node_list, master_ip, and
 restore_command parameters,as well as configuring postgresql
 for replication (in postgresql.conf and pg_hba.conf).
+
+"slave" means that RA only makes recovery.conf before starting
+to connect to Primary which is running somewhere.
+It dosen't need Master/Slave setting.
+It requires master_ip restore_command parameters.
 </longdesc>
 <shortdesc lang="en">rep_mode</shortdesc>
 <content type="string" default="${OCF_RESKEY_rep_mode_default}" />
@@ -485,6 +490,11 @@ pgsql_real_start() {
     if [ -n "$OCF_RESKEY_socketdir" ]
     then
         check_socket_dir
+    fi
+
+    if [ "$OCF_RESKEY_rep_mode" = "slave" ]; then
+        rm -f $RECOVERY_CONF
+        make_recovery_conf || return $OCF_ERR_GENERIC
     fi
 
     # Set options passed to pg_ctl
@@ -1159,7 +1169,7 @@ have_master_right() {
 }
 
 is_replication() {
-    if [ "$OCF_RESKEY_rep_mode" != "none" ]; then
+    if [ "$OCF_RESKEY_rep_mode" != "none" -a "$OCF_RESKEY_rep_mode" != "slave" ]; then
         return 0
     fi
     return 1
@@ -1553,22 +1563,25 @@ pgsql_validate_all() {
         return $OCF_ERR_CONFIGURED
     fi
 
-    if is_replication; then
+    if is_replication || [ "$OCF_RESKEY_rep_mode" = "slave" ]; then
         version=`cat $OCF_RESKEY_pgdata/PG_VERSION`
         if [ `printf "$version\n9.1" | sort -n | head -1` != "9.1" ]; then
             ocf_log err "Replication mode needs PostgreSQL 9.1 or higher."
             return $OCF_ERR_INSTALLED
         fi
+        if [ ! -n "$OCF_RESKEY_master_ip" ]; then
+            ocf_log err "master_ip can't be empty."
+            return $OCF_ERR_CONFIGURED
+        fi
+    fi
+
+    if is_replication; then
         if ! ocf_is_ms; then
-            ocf_log err "Replication requires Master/Slave configuration."
+            ocf_log err "Replication(rep_mode=async or sync) requires Master/Slave configuration."
             return $OCF_ERR_CONFIGURED
         fi
         if [ ! "$OCF_RESKEY_rep_mode" = "sync" -a ! "$OCF_RESKEY_rep_mode" = "async" ]; then
             ocf_log err "Invalid rep_mode : $OCF_RESKEY_rep_mode"
-            return $OCF_ERR_CONFIGURED
-        fi
-        if [ ! -n "$OCF_RESKEY_master_ip" ]; then
-            ocf_log err "master_ip can't be empty."
             return $OCF_ERR_CONFIGURED
         fi
         if [ ! -n "$NODE_LIST" ]; then
@@ -1592,6 +1605,13 @@ pgsql_validate_all() {
         if ! mkdir -p $OCF_RESKEY_tmpdir || ! chown $OCF_RESKEY_pgdba $OCF_RESKEY_tmpdir || ! chmod 700 $OCF_RESKEY_tmpdir; then
             ocf_log err "Can't create directory $OCF_RESKEY_tmpdir or it is not readable by $OCF_RESKEY_pgdba"
             return $OCF_ERR_PERM
+        fi
+    fi
+
+    if [ "$OCF_RESKEY_rep_mode" = "slave" ]; then
+        if ocf_is_ms; then
+            ocf_log err "Replication(rep_mode=slave) does not support Master/Slave configuration."
+            return $OCF_ERR_CONFIGURED
         fi
     fi
 
@@ -1663,9 +1683,11 @@ fi
 
 PIDFILE=${OCF_RESKEY_pgdata}/postmaster.pid
 BACKUPLABEL=${OCF_RESKEY_pgdata}/backup_label
+RESOURCE_NAME=`echo $OCF_RESOURCE_INSTANCE | cut -d ":" -f 1`
+RECOVERY_CONF=${OCF_RESKEY_pgdata}/recovery.conf
+NODENAME=`uname -n | tr '[A-Z]' '[a-z]'`
 
 if is_replication; then
-    RECOVERY_CONF=${OCF_RESKEY_pgdata}/recovery.conf
     REP_MODE_CONF=${OCF_RESKEY_tmpdir}/rep_mode.conf
     PGSQL_LOCK=${OCF_RESKEY_tmpdir}/PGSQL.lock
     XLOG_NOTE_FILE=${OCF_RESKEY_tmpdir}/xlog_note
@@ -1683,13 +1705,11 @@ if is_replication; then
     CHECK_XLOG_LOC_SQL="select pg_last_xlog_replay_location(),pg_last_xlog_receive_location()"
     CHECK_REPLICATION_STATE_SQL="select application_name,upper(state),upper(sync_state) from pg_stat_replication"
 
-    RESOURCE_NAME=`echo $OCF_RESOURCE_INSTANCE | cut -d ":" -f 1`
     PGSQL_STATUS_ATTR="${RESOURCE_NAME}-status"
     PGSQL_DATA_STATUS_ATTR="${RESOURCE_NAME}-data-status"
     PGSQL_XLOG_LOC_NAME="${RESOURCE_NAME}-xlog-loc"
     PGSQL_MASTER_BASELINE="${RESOURCE_NAME}-master-baseline"
 
-    NODENAME=`uname -n | tr '[A-Z]' '[a-z]'`
     NODE_LIST=`echo $OCF_RESKEY_node_list | tr '[A-Z]' '[a-z]'`
 fi
 
