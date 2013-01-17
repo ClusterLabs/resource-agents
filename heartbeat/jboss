@@ -146,7 +146,7 @@ start_jboss()
 	else
 		su - -s /bin/bash "$JBOSS_USER" \
 			-c "export JAVA_HOME=${JAVA_HOME}; \
-                            export JAVA_OPTS=${JAVA_OPTS}; \
+                            export JAVA_OPTS=\"${JAVA_OPTS}\"; \
                             export JBOSS_HOME=${JBOSS_HOME}; \
                             $JBOSS_HOME/bin/run.sh $RUN_OPTS" \
 			>> "$CONSOLE" 2>&1 &
