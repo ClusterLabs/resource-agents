@@ -37,7 +37,7 @@ OCF_RESKEY_pid_default=/var/run/pound_${OCF_RESKEY_name}.pid
 OCF_RESKEY_socket_path_default=/var/lib/pound/pound.cfg
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
-: ${OCF_RESKEY_ctl_binary=${OCF_RESKEY_client_ctl_default}}
+: ${OCF_RESKEY_ctl_binary=${OCF_RESKEY_ctl_binary_default}}
 : ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
 : ${OCF_RESKEY_socket_path=${OCF_RESKEY_socket_path_default}}
 
