@@ -79,7 +79,7 @@ END
 hup_inetd () {
     # don't rely on the pid file, but lookup xinetd in the list of
     # processes
-    pid=`ps -e -o pid,command | $AWK '$2 ~ /\/[x]inetd/ { print $1 }'`
+    pid=`ps -e -o pid,comm | $AWK '$2 ~ /[x]inetd/ { print $1 }'`
     if [ "$pid" ]; then
 	if kill -s HUP $pid; then
             ocf_log info "asked xinetd to reload by sending SIGHUP to process $pid!"
