@@ -37,7 +37,7 @@ OCF_RESKEY_pid_default=/var/run/pound_${OCF_RESKEY_name}.pid
 OCF_RESKEY_socket_path_default=/var/lib/pound/pound.cfg
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
-: ${OCF_RESKEY_ctl_binary=${OCF_RESKEY_client_ctl_default}}
+: ${OCF_RESKEY_ctl_binary=${OCF_RESKEY_ctl_binary_default}}
 : ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
 : ${OCF_RESKEY_socket_path=${OCF_RESKEY_socket_path_default}}
 
@@ -231,6 +231,15 @@ pound_stop() {
 
     # kill the pound process
     pid=$(cat $OCF_RESKEY_pid)
+    ocf_run kill -s 0 $pid
+    rc=$?
+
+    if [ $rc -ne 0 ]; then
+        ocf_log warn "Pound pid is not a valid process. Assume it is already stopped"
+        rm -f $OCF_RESKEY_pid
+        return $OCF_SUCCESS
+    fi
+
     ocf_run kill -s TERM $pid
     rc=$?
 
