@@ -225,7 +225,7 @@ function vg_start_clustered
 		done
 	fi
 
-	if try_again && ! vgchange -aey $OCF_RESKEY_vg_name; then
+	if $try_again && ! vgchange -aey $OCF_RESKEY_vg_name; then
 		ocf_log err "Failed to activate volume group, $OCF_RESKEY_vg_name"
 		ocf_log notice "Attempting cleanup of $OCF_RESKEY_vg_name"
 
