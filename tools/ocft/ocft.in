@@ -298,7 +298,7 @@ $(test -n "$cfg_install_package" && echo "agent_install ${cfg_install_package[@]
 if [ -n "\$__OCFT__VERBOSE" ]; then
   echo -e $(add_quotes 1 "Starting '\\033[33m${agent}\\033[0m' case $i '\\033[33m${branch[0]}\\033[0m':")
 else
-  echo -n "'${agent}' case ${i}: "
+  echo -n "${agent}: ${branch[0]} - "
 fi
 EOF
           chmod a+x $sh
@@ -473,13 +473,13 @@ if [ \$__OCFT__ret -eq \$${branch[1]} ]; then
   if [ -n "\$__OCFT__VERBOSE" ]; then
     echo -e $(add_quotes 2 "        \\033[32mOK\\033[0m. The return value '\\033[34m\$__OCFT__retstr\\033[0m' == '\\033[34m${branch[1]}\\033[0m'")
   else
-    echo -e "\t\\033[32mOK\\033[0m."
+    echo -e "\\033[32mOK\\033[0m."
   fi
 else
   if [ -n "\$__OCFT__VERBOSE" ]; then
     echo -en $(add_quotes 2 "        \\033[31mFAILED\\033[0m. The return value '\\033[34m\$__OCFT__retstr\\033[0m' != '\\033[34m${branch[1]}\\033[0m'. ")
   else
-    echo -en "\t\\033[31mFAILED\\033[0m. Agent returns unexpected value: '\$__OCFT__retstr'. "
+    echo -en "\\033[31mFAILED\\033[0m. Agent returns unexpected value: '\$__OCFT__retstr'. "
   fi
   echo "See details below:"
   cat /tmp/.ocft_runlog
