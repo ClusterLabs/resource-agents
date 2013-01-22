@@ -277,6 +277,10 @@ read_pid() {
         pid=$(pidof -s $OCF_RESKEY_binary)
     fi
 
+    if [ $? -eq 0 -a "x$pid" != "x" ]; then
+        kill -0 $pid
+    fi
+
     if [ $? -ne 0 -o "x$pid" = "x" ]; then
         ocf_log info "Could not read PID, $REDIS_SERVER_NAME is not running";
         return $OCF_NOT_RUNNING
