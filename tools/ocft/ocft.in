@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010-2011 Novell Inc, John Shi
+# Copyright (c) 2010-2013 Novell Inc, John Shi
 #           All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -44,6 +44,7 @@ parse_die()
   local str
   str="$1"
 
+  agent_parse_finish
   die "${agent}: line ${line_num}: ${str}"
 }
 
@@ -166,7 +167,7 @@ preparse_cfg()
   done <"$opt_cfgsdir/$agent"
 }
 
-case_finish()
+case_parse_finish()
 {
   local host
 
@@ -188,18 +189,23 @@ EOF
   sh=
 }
 
-agent_finish()
+init_cfg_vars()
 {
-  rm -f $CASES_DIR/${agent}_preparse
-  rm -f $CASES_DIR/${agent}_macro.*
-  rm -f $CASES_DIR/${agent}_setup
-  rm -f $CASES_DIR/${agent}_cleanup
-  rm -f $CASES_DIR/${agent}_var
-  rm -f $CASES_DIR/${agent}_hosts
   cfg_agent=
   cfg_agent_root=
   cfg_install_package=()
   cfg_hang_timeout=20
+}
+
+agent_parse_finish()
+{
+  local suf
+
+  for suf in preparse setup cleanup var hosts; do
+    rm -f $CASES_DIR/${agent}_$suf
+  done
+  rm -f $CASES_DIR/${agent}_macro.*
+  init_cfg_vars
 }
 
 parse_cfg()
@@ -213,11 +219,12 @@ parse_cfg()
   fi
 
   for agent in "${agents[@]}"; do
-    rm -f $CASES_DIR/*_${agent}.sh
-    agent_finish
+    agent="$(basename "$agent")"
+
+    agent_obj_clean $agent
+    agent_parse_finish
 
     i=0
-    agent="$(basename "$agent")"
 
     echo "Making '$agent': "
     preparse_cfg "$agent"
@@ -229,27 +236,27 @@ parse_cfg()
       # state switch
       case "${trunk[0]}" in
         CONFIG)
-          case_finish
+          case_parse_finish
           stat=1
           continue
           ;;
         VARIABLE)
-          case_finish
+          case_parse_finish
           stat=2
           continue
           ;;
 	SETUP-AGENT)
-          case_finish
+          case_parse_finish
           stat=3
           continue
           ;;
 	CLEANUP-AGENT)
-          case_finish
+          case_parse_finish
           stat=4
           continue
           ;;
         CASE)
-          case_finish
+          case_parse_finish
           trunk2branch
           echo "    - case ${i}: ${branch[0]}"
           sh="$CASES_DIR/${i}_${agent}.sh"
@@ -601,8 +608,8 @@ quit 0
 EOF
       chmod a+x $CASES_DIR/cleanup_${agent}.sh
     fi
-    case_finish
-    agent_finish
+    case_parse_finish
+    agent_parse_finish
 
   done
 }
@@ -624,20 +631,42 @@ start_test()
   fi
 
   for shs in "${agents[@]}"; do
-    testsh="setup_${shs}.sh
-$(ls -1 [0-9]*_${shs}.sh 2>/dev/null | sort -n)
-cleanup_${shs}.sh"
+    if [ -z "$opt_incremental" ]; then
+      testsh="setup_${shs}.sh
+              $(ls -1 [0-9]*_${shs}.sh 2>/dev/null | sort -n)
+              cleanup_${shs}.sh"
+    else
+      testsh="setup_${shs}.sh
+              $(ls -1 [0-9]*_${shs}.retest 2>/dev/null | sed 's/retest$/sh/' | sort -n)
+              cleanup_${shs}.sh"
+    fi
+
     for sh in $testsh; do
       if [ -r "$sh" ]; then
         ./$sh
         ret=$?
-        if [ $ret -eq 3 ]; then
-          die "core function failed, break all tests."
-        fi
-        if [ $ret -eq 2 ]; then
-          warn "core function failed, break all tests of '$shs'."
-          break
-        fi
+
+        case "$sh" in
+          setup*)
+              if [ $ret -ne 0 ]; then
+                warn "SETUP failed, break all tests of '$shs'."
+                break
+              fi
+              ;;
+          cleanup*)
+              if [ $ret -ne 0 ]; then
+                warn "CLEANUP failed."
+              fi
+              ;;
+          [0-9]*)
+              case $ret in
+                3) die "core function failed, break all tests." ;;
+                2) warn "core function failed, break all tests of '$shs'."; break ;;
+                1) touch ${sh%.*}.retest ;;
+                0) rm -f ${sh%.*}.retest ;;
+              esac
+              ;;
+        esac
       fi
     done
   done 2>&1 | while read -r line; do
@@ -647,17 +676,30 @@ cleanup_${shs}.sh"
   done
 }
 
-delete_cases()
+agent_clean()
 {
-  local shs
+  local typ ra
+  typ=$1
+  
+  shift
 
   if [ $# -eq 0 ]; then
-    rm -f $CASES_DIR/*.sh
+    rm -f $CASES_DIR/*.$typ
   else
-    for shs in "$@"; do
-      rm -f $CASES_DIR/*_${shs}.sh
+    for ra in "$@"; do
+      rm -f $CASES_DIR/*_${ra}.$typ
     done
   fi
+}
+
+agent_retest_clean()
+{
+  agent_clean retest "$@"
+}
+
+agent_obj_clean()
+{
+  agent_clean sh "$@"
 }
 
 usage()
@@ -668,12 +710,16 @@ ACTIONs include:
      make [-d dir]   Generate the testing shell scripts.
                        -d  The directory that contains 
 		           configuration of cases.
-     test [-v]       Execute the testing shell scripts.
+     test [-v|-i]    Execute the testing shell scripts.
                        -v  Verbose output mode.
+                       -i  Incremental mode, skip case 
+                           which succeeded. If cleaning 
+                           the status of incremental mode
+                           is needed, try to '$0 clean RA_NAME'.
      clean           Delete the testing shell scripts.
      help [-v]       Show this help and exit.
                        -v  Show HOWTO and exit.
-Version 0.43
+Version 0.44
 See '$OCFT_DIR/README' for detail.
 EOF
 }
@@ -736,13 +782,11 @@ agent=
 line_num=
 
 # default configuration
-cfg_agent=
-cfg_agent_root=
-cfg_install_package=()
-cfg_hang_timeout=20
+init_cfg_vars
 
 # default option
 opt_verbose=
+opt_incremental=
 opt_cfgsdir=$CONFIGS_DIR
 
 command="$1"
@@ -764,14 +808,23 @@ case "$command" in
     parse_cfg "$@"
     ;;
   test)
-    if [ "$1" = "-v" ]; then
-      opt_verbose=1
-      shift
-    fi
+    for v in 1 2; do
+      case "$1" in
+        -v)
+          opt_verbose=1
+          shift
+          ;;
+        -i)
+          opt_incremental=1
+          shift
+          ;;
+      esac
+    done
     start_test "$@"
     ;;
   clean)
-    delete_cases "$@"
+    agent_obj_clean "$@"
+    agent_retest_clean "$@"
     ;;
   help)
     if [ "$1" = "-v" ]; then
