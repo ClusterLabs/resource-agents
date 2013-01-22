@@ -208,6 +208,20 @@ agent_parse_finish()
   init_cfg_vars
 }
 
+need_make()
+{
+  local src_time obj_time
+
+  if [ ! -f "$CASES_DIR/0_${agent}.sh" ]; then
+    return 0
+  fi
+
+  src_time=$(stat -c '%Y' "$opt_cfgsdir/$agent")
+  obj_time=$(stat -c '%Y' "$CASES_DIR/0_${agent}.sh")
+
+  test $src_time -ge $obj_time
+}
+
 parse_cfg()
 {
   local agents i line stat sh trunk branch atexit_num host hosts
@@ -220,6 +234,10 @@ parse_cfg()
 
   for agent in "${agents[@]}"; do
     agent="$(basename "$agent")"
+
+    if ! need_make; then
+      continue
+    fi
 
     agent_obj_clean $agent
     agent_parse_finish
