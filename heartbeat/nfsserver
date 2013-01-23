@@ -254,10 +254,6 @@ nfsserver_start ()
 		fi
 
 		if [ -n "$OCF_RESKEY_nfs_smnotify_retry_time" ]; then
-			if ! ocf_is_decimal "$OCF_RESKEY_nfs_smnotify_retry_time"; then
-				ocf_log err "Invalid OCF_RESKEY_nfs_smnotify_retry_time [$OCF_RESKEY_nfs_smnotify_retry_time]"
-				return $OCF_ERR_CONFIGURED
-			fi
 			opts="$opts -m $OCF_RESKEY_nfs_smnotify_retry_time"
 		fi
 
@@ -271,10 +267,6 @@ nfsserver_start ()
 		opts="$opts -n"
 		;;
 
-	*)
-		ocf_log err "Invalid OCF_RESKEY_nfs_notify_cmd [$OCF_RESKEY_nfs_notify_cmd]"
-		return $OCF_ERR_CONFIGURED
-		;;
 	esac
 
 	rm -rf /var/lib/nfs/sm.ha.save > /dev/null 2>&1
@@ -323,6 +315,21 @@ nfsserver_validate ()
 		ocf_log err "nfs_shared_infodir not set"
 		exit $OCF_ERR_CONFIGURED
 	fi
+
+	if [ -n "$OCF_RESKEY_nfs_smnotify_retry_time" ]; then
+		if ! ocf_is_decimal "$OCF_RESKEY_nfs_smnotify_retry_time"; then
+			ocf_log err "Invalid nfs_smnotify_retry_time [$OCF_RESKEY_nfs_smnotify_retry_time]"
+			exit $OCF_ERR_CONFIGURED
+		fi
+	fi
+
+	case ${OCF_RESKEY_nfs_notify_cmd##*/} in
+	sm-notify|rpc.statd) ;;
+	*)
+		ocf_log err "Invalid nfs_notify_cmd [$OCF_RESKEY_nfs_notify_cmd]"
+		exit $OCF_ERR_CONFIGURED
+		;;
+	esac
 
 	return $OCF_SUCCESS
 }
