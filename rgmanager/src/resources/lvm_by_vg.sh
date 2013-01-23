@@ -419,7 +419,16 @@ function vg_stop_clustered
 
 	#  Shut down the volume group
 	#  Do we need to make this resilient?
-	vgchange -aln $OCF_RESKEY_vg_name
+	a=0
+	while ! vgchange -aln $OCF_RESKEY_vg_name; do
+		a=$(($a + 1))
+		if [ $a -gt 10 ]; then
+			break;
+		fi
+		ocf_log err "Unable to deactivate $OCF_RESKEY_vg_name, retrying($a)"
+		sleep 1
+		which udevadm >& /dev/null && udevadm settle
+	done
 
 	#  Make sure all the logical volumes are inactive
 	active=0
