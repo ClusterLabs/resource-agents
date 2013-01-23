@@ -675,4 +675,86 @@ ocf_stop_processes() {
 	return 1
 }
 
+#
+# RA tracing may be turned on by setting OCF_TRACE_RA
+# the trace output will be saved to OCF_TRACE_FILE, if set, or
+# by default to
+#   $HA_VARRUN/ra_trace/<type>/<id>.<action>.<timestamp>
+#   e.g. $HA_VARRUN/ra_trace/oracle/db.start.2012-11-27.08:37:08
+#
+# OCF_TRACE_FILE:
+# - FD (small integer [3-9]) in that case it is up to the callers
+#   to capture output; the FD _must_ be open for writing
+# - absolute path
+#
+# NB: FD 9 may be used for tracing with bash >= v4
+#
+ocf_is_bash4() {
+	echo "$SHELL" | grep bash > /dev/null &&
+			[ ${BASH_VERSINFO[0]} = "4" ]
+}
+ocf_trace_redirect_to_file() {
+	local dest=$1
+	if ocf_is_bash4; then
+		exec 9>$dest
+		BASH_XTRACEFD=9
+	else
+		exec 2>$dest
+	fi
+}
+ocf_trace_redirect_to_fd() {
+	local fd=$1
+	if ocf_is_bash4; then
+		BASH_XTRACEFD=$fd
+	else
+		exec 2>&$fd
+	fi
+}
+__ocf_test_trc_dest() {
+	local dest=$1
+	if ! touch $dest; then
+		ocf_log warn "$dest not writable, trace not going to happen"
+		__OCF_TRC_DEST=""
+		__OCF_TRC_MANAGE=""
+		return 1
+	fi
+	return 0
+}
+ocf_default_trace_dest() {
+	tty >/dev/null && return
+	if [ -n "$OCF_RESOURCE_TYPE" -a \
+			-n "$OCF_RESOURCE_INSTANCE" -a -n "$__OCF_ACTION" ]; then
+		local ts=`date +%F.%T`
+		__OCF_TRC_DEST=$HA_VARRUN/trace_ra/${OCF_RESOURCE_TYPE}/${OCF_RESOURCE_INSTANCE}.${__OCF_ACTION}.$ts
+		__OCF_TRC_MANAGE="1"
+	fi
+}
+
+ocf_start_trace() {
+	export __OCF_TRC_DEST="" __OCF_TRC_MANAGE=""
+	case "$OCF_TRACE_FILE" in
+	[3-9]) ocf_trace_redirect_to_fd "$OCF_TRACE_FILE" ;;
+	/*/*) __OCF_TRC_DEST=$OCF_TRACE_FILE ;;
+	"") ocf_default_trace_dest ;;
+	*)
+		ocf_log warn "OCF_TRACE_FILE must be set to either FD (open for writing) or absolute file path"
+		ocf_default_trace_dest
+		;;
+	esac
+	if [ "$__OCF_TRC_DEST" ]; then
+		mkdir -p `dirname $__OCF_TRC_DEST`
+		__ocf_test_trc_dest $__OCF_TRC_DEST ||
+			return
+		ocf_trace_redirect_to_file "$__OCF_TRC_DEST"
+	fi
+	PS4='+ `date +"%T"`: ${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}: '
+	set -x
+}
+ocf_stop_trace() {
+	set +x
+}
+
 __ocf_set_defaults "$@"
+
+: ${OCF_TRACE_RA:=$OCF_RESKEY_trace_ra}
+ocf_is_true "$OCF_TRACE_RA" && ocf_start_trace

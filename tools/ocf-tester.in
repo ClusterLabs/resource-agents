@@ -51,13 +51,14 @@ usage() {
 
     echo "Tool for testing if a cluster resource is OCF compliant"
     echo ""
-    echo "Usage: ocf-tester [-Lh] -n resource_name [-o name=value]* /full/path/to/resource/agent"
+    echo "Usage: ocf-tester [-LhvqdX] -n resource_name [-o name=value]* /full/path/to/resource/agent"
     echo ""
     echo "Options:"
     echo "  -h       		This text"
     echo "  -v       		Be verbose while testing"
     echo "  -q       		Be quiet while testing"
     echo "  -d       		Turn on RA debugging"
+    echo "  -X       		Turn on RA tracing (expect large output)"
     echo "  -n name		Name of the resource"	
     echo "  -o name=value		Name and value of any parameters required by the agent"
     echo "  -L			Use lrmadmin/lrmd for tests"
@@ -106,6 +107,7 @@ while test "$done" = "0"; do
 	-L) use_lrmd=1; shift;;
 	-v) verbose=1; shift;;
 	-d) export HA_debug=1; shift;;
+	-X) export OCF_TRACE_RA=1; verbose=1; shift;;
 	-q) quiet=1; shift;;
 	-?|--help) usage 0;;
 	--version) echo "@PACKAGE_VERSION@"; exit 0;;

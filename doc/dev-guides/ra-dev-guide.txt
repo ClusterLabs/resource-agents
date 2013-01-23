@@ -1623,6 +1623,12 @@ Beginning tests for /home/johndoe/ra-dev/foobar...
 /home/johndoe/ra-dev/foobar passed all tests
 --------------------------------------------------------------------------
 
+If the resource agent exhibits some difficult to grasp behaviour,
+which is typically the case with just developed software, there
+are +-v+ and +-d+ options to dump more output. If that does not
+help, instruct +ocf-tester+ to trace the resource agent with
++-X+ (make sure to redirect output to a file, unless you are a
+really fast reader).
 
 === Testing with +ocft+
 

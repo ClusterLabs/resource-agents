@@ -3,7 +3,7 @@
 ocf-tester \- Part of the Linux-HA project
 .SH SYNOPSIS
 .B ocf-tester
-[\fI-Lh\fR] \fI-n resource_name \fR[\fI-o name=value\fR]\fI* /full/path/to/resource/agent\fR
+[\fI-LhvqdX\fR] \fI-n resource_name \fR[\fI-o name=value\fR]\fI* /full/path/to/resource/agent\fR
 .SH DESCRIPTION
 Tool for testing if a cluster resource is OCF compliant
 .SH OPTIONS
@@ -42,6 +42,9 @@ Be quiet while testing
 .TP
 \fB\-d\fR
 Turn on RA debugging
+.TP
+\fB\-X\fR
+Turn on RA tracing (expect large output)
 .TP
 \fB\-n\fR name
 Name of the resource
