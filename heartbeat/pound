@@ -232,13 +232,13 @@ pound_stop() {
     # kill the pound process
     pid=$(cat $OCF_RESKEY_pid)
     ocf_run kill -s 0 $pid
-    rc=$?
+    rc=$?
 
-    if [ $rc -ne 0 ]; then
-        ocf_log warn "Pound pid is not a valid process. Assume it is already stopped"
-        rm -f $OCF_RESKEY_pid
-        return $OCF_SUCCESS
-    fi
+    if [ $rc -ne 0 ]; then
+        ocf_log warn "Pound pid is not a valid process. Assume it is already stopped"
+        rm -f $OCF_RESKEY_pid
+        return $OCF_SUCCESS
+    fi
 
     ocf_run kill -s TERM $pid
     rc=$?
