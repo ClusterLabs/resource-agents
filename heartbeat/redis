@@ -1,0 +1,836 @@
+#!/bin/sh
+#
+#
+# redis
+#
+# Description:	Manages redis as Linux-HA resource
+#
+# Authors:	Alan Robertson,
+#		Jakub Janczak,
+#		Andrew Beekhof,
+#		Sebastian Reitenbach,
+#		Narayan Newton,
+#		Marian Marinov,
+#		Florian Haas:                 MySQL script
+#		Martin Walter:                rewrite as redis
+#               Patrick Emer:                 rewrite for redis m/s
+#
+# Support:	linux-ha@lists.linux-ha.org
+# License:	GNU General Public License (GPL)
+#
+# (c) 2002-2005 International Business Machines, Inc.
+#     2005-2010 Linux-HA contributors
+#
+# An example usage in /etc/ha.d/haresources:
+#       node1  10.0.0.170 redis
+#
+# See usage() function below for more details...
+#
+# OCF instance parameters:
+#   OCF_RESKEY_binary
+#   OCF_RESKEY_client_binary
+#   OCF_RESKEY_config
+#   OCF_RESKEY_user
+#   OCF_RESKEY_group
+#   OCF_RESKEY_log
+#   OCF_RESKEY_pid
+#   OCF_RESKEY_port
+#   OCF_RESKEY_socket
+#
+#######################################################################
+# Initialization:
+
+if [ -n "$OCF_DEBUG_LIBRARY" ]; then
+        . $OCF_DEBUG_LIBRARY
+else
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+fi
+
+#######################################################################
+
+# Fill in some defaults if no values are specified
+OCF_RESKEY_binary_default=/usr/bin/redis-server
+OCF_RESKEY_client_binary_default=/usr/bin/redis-cli
+OCF_RESKEY_config_default=/etc/redis/redis.conf
+OCF_RESKEY_user_default=redis
+OCF_RESKEY_group_default=redis
+OCF_RESKEY_log_default=/var/log/redis/redis-server.log
+OCF_RESKEY_pid_default=/var/run/redis/redis-server.pid
+OCF_RESKEY_port_default=6379
+OCF_RESKEY_socket_default=/var/run/redis/redis.sock
+
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+REDIS_BINDIR=`dirname ${OCF_RESKEY_binary}`
+REDIS_SERVER_NAME=`basename ${OCF_RESKEY_binary}`
+
+: ${OCF_RESKEY_client_binary=${OCF_RESKEY_client_binary_default}}
+: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
+: ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
+: ${OCF_RESKEY_group=${OCF_RESKEY_group_default}}
+: ${OCF_RESKEY_log=${OCF_RESKEY_log_default}}
+: ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
+: ${OCF_RESKEY_port=${OCF_RESKEY_port_default}}
+: ${OCF_RESKEY_socket=${OCF_RESKEY_socket_default}}
+#######################################################################
+
+usage() {
+        cat <<END
+usage: $0 {start|stop|validate-all|meta-data|monitor|promote|demote|notify}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+meta_data() {
+        cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="redis">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for redis. 
+It manages a redis instance as an HA resource.
+</longdesc>
+
+<shortdesc lang="en">Manages a redis instance</shortdesc>
+
+<parameters>
+<parameter name="binary" unique="0" required="0">
+<longdesc lang="en">
+Location of the redis binary
+</longdesc>
+<shortdesc lang="en">redis binary</shortdesc>
+<content type="string" default="${OCF_RESKEY_socket_RESKEY_binary_default}" />
+</parameter>
+
+<parameter name="client_binary" unique="0" required="0">
+<longdesc lang="en">
+Location of the redis client binary
+</longdesc>
+<shortdesc lang="en">redis client binary</shortdesc>
+<content type="string" default="${OCF_RESKEY_client_binary_default}" />
+</parameter>
+
+<parameter name="config" unique="0" required="0">
+<longdesc lang="en">
+Configuration file
+</longdesc>
+<shortdesc lang="en">redis config</shortdesc>
+<content type="string" default="${OCF_RESKEY_config_default}" />
+</parameter>
+
+<parameter name="user" unique="0" required="0">
+<longdesc lang="en">
+User running redis
+</longdesc>
+<shortdesc lang="en">redis user</shortdesc>
+<content type="string" default="${OCF_RESKEY_user_default}" />
+</parameter>
+
+<parameter name="group" unique="0" required="0">
+<longdesc lang="en">
+Group running redis (for logfile and directory permissions)
+</longdesc>
+<shortdesc lang="en">redis group</shortdesc>
+<content type="string" default="${OCF_RESKEY_group_default}"/>
+</parameter>
+
+<parameter name="log" unique="0" required="0">
+<longdesc lang="en">
+The logfile to be used for redis-server.
+</longdesc>
+<shortdesc lang="en">$REDIS_SERVER_NAME log file</shortdesc>
+<content type="string" default="${OCF_RESKEY_log_default}"/>
+</parameter>
+
+<parameter name="pid" unique="0" required="0">
+<longdesc lang="en">
+The pidfile to be used for redis-server.
+</longdesc>
+<shortdesc lang="en">$REDIS_SERVER_NAME pid file</shortdesc>
+<content type="string" default="${OCF_RESKEY_pid_default}"/>
+</parameter>
+
+<parameter name="port" unique="0" required="0">
+<longdesc lang="en">
+The port to be used for redis-server.
+</longdesc>
+<shortdesc lang="en">redis port</shortdesc>
+<content type="string" default="${OCF_RESKEY_port_default}"/>
+</parameter>
+
+<parameter name="socket" unique="0" required="0">
+<longdesc lang="en">
+This socket to be used for redis-server and for this ocf agent skript.
+Depending on this socket they will promote or demote master and slave on lokal host.
+</longdesc>
+<shortdesc lang="en">redis socket</shortdesc>
+<content type="string" default="${OCF_RESKEY_socket_default}"/>
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="120" />
+<action name="stop" timeout="120" />
+<action name="status" timeout="60" />
+<action name="monitor" depth="0" timeout="30" interval="20" />
+<action name="monitor" role="Master" depth="0" timeout="30" interval="10" />
+<action name="monitor" role="Slave" depth="0" timeout="30" interval="30" />
+<action name="promote" timeout="120" />
+<action name="demote" timeout="120" />
+<action name="notify" timeout="90" />
+<action name="validate-all" timeout="5" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+
+}
+
+#######################################################################
+# Convenience variables
+
+CRM_MASTER="${HA_SBIN_DIR}/crm_master -l reboot "
+
+#######################################################################
+
+# Convenience functions
+
+read_ms_status() {
+    # This function determine to use in M/S constelation
+    # Check Only the master State 
+    local tmp
+    local has_slave_role
+    local master_host
+    local master_host_value
+    local my_role
+    local var
+
+    tmp=`mktemp`
+
+    $OCF_RESKEY_client_binary -s $OCF_RESKEY_socket info >$tmp
+    var=`grep -e "role:" $tmp  |  tr -dc A-Z-a-z: | tr -d " "`
+
+    if [ -z "$var" ]; then
+        ocf_log info "Could not determine master/slave status";
+        rm -f $tmp
+        return $OCF_ERR_GENERIC;
+    fi
+
+    grep "role:slave" $tmp >/dev/null 2>&1
+    has_slave_role=$?
+    my_role=`grep -e "role:" $tmp | tr -dc A-Z-a-z: | tr -d " "`
+
+    master_host_value=""
+    master_host=`grep "master_host:" $tmp`
+    rm -f $tmp
+    if [ $? -eq 0 ]; then
+        master_host_value=`echo $master_host | cut -d':' -f2 | tr -d " "`
+    fi
+
+    if [ $has_slave_role -eq 0 ] &&  [ "x$master_host_value" != "x" ]; then
+        ocf_log debug "--- redis --- is running (as slave) - $my_role";
+        return $OCF_SUCCESS;
+    else
+        ocf_log debug "--- redis --- is running (as master) - $my_role - $has_slave_role - $OCF_RESKEY_client_binary -s $OCF_RESKEY_socket info";
+        return $OCF_RUNNING_MASTER;
+    fi
+}
+
+exec_cli(){
+	
+	local myhost
+	local var
+	myhost=$1
+	var=$2
+	if [ -z "$1" ] ; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	if [ -z "$var" ] ; then
+		host=" -s $OCF_RESKEY_socket"
+		var=$1
+	else
+		host=" -h $host -p $OCF_RESKEY_port "
+		var=$2
+	fi
+
+	ocf_run $OCF_RESKEY_client_binary $host $var
+	ocf_log debug "--- redis --- $OCF_RESKEY_client_binary $host $var"
+	if [ 0 -ne "$?" ]; then
+		return $OCF_ERR_GENERIC
+	else
+		return $OCF_SUCCESS
+	fi
+
+}
+
+my_name() {
+
+	local name
+	name=$@
+	for i in $name ; do 
+		if [ "$i" = "`uname -n`" ] ; then
+			echo $i
+			break
+		fi
+        done
+
+}
+
+read_slave_status() {
+
+	local tmp
+	local master_link_status
+	local master
+	local var
+	local slave
+	tmp=`mktemp`
+
+	$OCF_RESKEY_client_binary -s $OCF_RESKEY_socket info >$tmp
+	var=`grep -e "role:" $tmp  |  tr -dc A-Z-a-z: | tr -d " "`
+	master_link_status=`grep -e "master_link_status:" $tmp | cut -d ":" -f2 |  tr -dc A-Z-a-z | tr -d " "`
+	slave=`grep -e "^slave[0-9]" $tmp`
+	master=`echo $OCF_RESKEY_CRM_meta_notify_master_uname`
+	master=`my_name $master`
+	rm -f $tmp
+	
+	if [ -z "$var" ] ; then
+		#  this should be the master, but it is not running
+		if [ ! -z "$master" ] ; then
+			return $OCF_NOT_RUNNING
+			# return $OCF_FAILED_MASTER
+		else
+			
+		fi
+	elif [ "$var" = "role:slave" ] ; then
+		if [ "$master_link_status" = "down" ] ; then
+			$CRM_MASTER -v 1000
+			# return $OCF_FAILED_MASTER
+			return $OCF_NOT_RUNNING
+		else
+			return $OCF_SUCCESS
+		fi
+	else
+		# that must be a master
+		
+		if [ -z "$slave" ] ; then
+			return $OCF_NOT_RUNNING
+		else
+			return $OCF_RUNNING_MASTER
+		fi
+	fi
+
+}
+
+read_pid() {
+    local pid
+    local pid_2
+
+    if [ -f $OCF_RESKEY_pid ]; then
+        pid=`cat $OCF_RESKEY_pid`;
+    fi
+
+    if ps --pid $pid 2> /dev/null 1>&2 ; then
+        ocf_log debug "$REDIS_SERVER_NAME is running (PID $pid)";
+        return $OCF_SUCCESS
+    fi
+
+    pid_2=`pidof -s $OCF_RESKEY_binary`
+    if [ "$pid" != "$pid_2" ] ; then
+       return $OCF_ERR_GENERIC
+    fi
+
+    return $OCF_ERR_GENERIC
+}
+
+remove_pid() {
+    ocf_log debug "Removing PID file $OCF_RESKEY_pid"
+    rm -f $OCF_RESKEY_pid
+}
+
+set_master() {
+    # $1 = master_host $2 = Execute Host
+    local master_host
+    local rc
+    local host
+    master_host=$1
+    host=$2
+    if [ "$master_host" = "$host" ] ; then
+	return $OCF_ERR_GENERIC
+    fi
+
+    if [ -z "$master_host" ] ; then
+	return $OCF_ERR_GENERIC
+    elif [ ! -z "$host" ] ; then
+	ocf_log debug "--- redis --- set_master $master_host"
+	exec_cli "slaveof $master_host $OCF_RESKEY_port"
+	sleep 2
+    else
+	ocf_log debug "--- redis --- set_master $master_host"
+	exec_cli $host "slaveof $master_host $OCF_RESKEY_port"
+	sleep 2
+    fi
+
+    read_slave_status
+    rc=$?
+    
+    if [ $rc -eq "$OCF_FAILED_MASTER" ] ; then
+	return $OCF_ERR_GENERIC
+    elif [ $rc -eq "$OCF_RUNNING_MASTER" ] ; then
+	return $OCF_SUCCESS
+    fi 
+
+    return $?
+}
+
+unset_master() {
+    # $1 = host
+    local host
+    local rc
+    local tmp
+    local role
+    host=$1
+
+    ocf_log debug "--- redis --- become a slave of no one";
+    if [ ! -z "$host" ] ; then
+	exec_cli 'slaveof no one' 2>/dev/null 1>&2
+	rc=$?
+    else
+	exec_cli $host 'slaveof no one' 2>/dev/null 1>&2
+	rc=$?
+    fi
+    tmp=`mktemp`
+    $OCF_RESKEY_client_binary -s $OCF_RESKEY_socket info >$tmp
+    role=`grep -e "role:master" $tmp | tr -dc A-Z-a-z:`
+
+    if [ "$role" != "role:master" ] ; then
+	 ocf_log debug "--- redis --- unset_master $host --- master down"
+	return $OCF_ERR_GENERIC
+    fi
+
+    return $rc
+}
+
+#######################################################################
+
+# Functions invoked by resource manager actions
+
+redis_validate() {
+    check_binary $OCF_RESKEY_binary
+    check_binary $OCF_RESKEY_client_binary
+
+    if [ ! -f $OCF_RESKEY_config ]; then
+        ocf_log err "Config $OCF_RESKEY_config doesn't exist";
+        return $OCF_ERR_CONFIGURED;
+    fi
+
+    getent passwd $OCF_RESKEY_user >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        ocf_log err "User $OCF_RESKEY_user doesn't exit";
+        return $OCF_ERR_INSTALLED;
+    fi
+
+    getent group $OCF_RESKEY_group >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        ocf_log err "Group $OCF_RESKEY_group doesn't exist";
+        return $OCF_ERR_INSTALLED;
+    fi
+
+    true
+}
+
+redis_monitor() {
+	local mymaster
+	local master_host
+	local rc
+	redis_status
+	rc=$?
+	if [ $rc -eq "$OCF_ERR_GENERIC" ] ; then
+		if [ ! -e $OCF_RESKEY_pid ] ; then
+			return $OCF_NOT_RUNNING
+		else 
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
+	if ocf_is_ms; then
+		read_slave_status
+		rc=$?
+	fi
+	return $rc
+}
+
+redis_status() {
+    local rc
+
+    read_pid
+    rc=$?
+    
+    if [ $rc -eq "$OCF_ERR_GENERIC" ] ; then
+        remove_pid
+        return $rc
+    fi
+
+    # This case only if there is a valid M/S constelation
+    if ocf_is_ms; then
+    	read_ms_status
+        return $?
+    fi
+
+    return $?
+}
+
+redis_start() {
+    local master_host
+    local rc
+    local myoptions
+
+    redis_status
+    rc=$?
+
+    if [ $rc -eq "$OCF_RUNNING_MASTER" ] || [ $rc -eq "$OCF_SUCCESS" ]; then
+        ocf_log info "$REDIS_SERVER_NAME is already running"
+        return $OCF_SUCCESS
+    fi
+
+    touch $OCF_RESKEY_log
+    chown $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_log
+    chmod 0640 $OCF_RESKEY_log
+
+    touch $OCF_RESKEY_pid
+    chown $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_pid
+
+    if [ ! -z "$OCF_RESKEY_config" ] ; then
+	myoptions="$OCF_RESKEY_config"
+    fi
+
+    if [ ! -z "$OCF_RESKEY_socket" ] ; then
+	myoptions="$myoptions --unixsocket $OCF_RESKEY_socket --unixsocketperm 755"
+    fi
+
+    if [ ! -z "$OCF_RESKEY_port" ] ; then
+	myoptions="$myoptions --port $OCF_RESKEY_port"
+    fi
+
+    start-stop-daemon --start --quiet --umask 007 --pidfile $OCF_RESKEY_pid --make-pidfile --chuid $OCF_RESKEY_user:$OCF_RESKEY_group --exec $OCF_RESKEY_binary -- $myoptions
+    rc=$?
+
+    if ocf_is_ms; then
+        # clear preference for becoming master
+        $CRM_MASTER -v 10
+    fi
+
+
+    if [ $rc -ne 0 ]; then
+        ocf_log err "$OCF_RESKEY_binary start command failed: $rc"
+        remove_pid
+        return $OCF_ERR_GENERIC
+    fi
+
+    return $OCF_SUCCESS
+}
+
+redis_stop() {
+    local rc
+    local pid
+
+    if ocf_is_ms; then
+        # clear preference for becoming master
+        $CRM_MASTER -D
+    fi
+
+    redis_status
+    rc=$?
+    # Nur der Slave soll abgeschalten werden !
+    if [ $rc -ne "$OCF_RUNNING_MASTER" ] && [ $rc -ne "$OCF_SUCCESS" ]; then
+        ocf_log info "$REDIS_SERVER_NAME is not running";
+        return $OCF_SUCCESS
+    fi
+
+    start-stop-daemon --stop --retry 10 --quiet --oknodo --pidfile $OCF_RESKEY_pid --exec $OCF_RESKEY_binary
+    rc=$?
+
+    if [ $rc -ne 0 ]; then
+        ocf_log err "$REDIS_SERVER_NAME stop command failed: $rc"
+        return $OCF_ERR_GENERIC
+    fi
+
+    ocf_log info "$REDIS_SERVER_NAME stopped";
+    remove_pid
+    return $OCF_SUCCESS
+}
+
+redis_promote() {
+    local rc
+    local mymaster
+    local myslave
+    local mypromote
+    local MY_RANDOM
+    MY_RANDOM=$(($(ocf_maybe_random) % 40))
+
+    redis_monitor
+    rc=$?
+
+    mymaster=`echo $OCF_RESKEY_CRM_meta_notify_master_uname`
+    myslave=`echo $OCF_RESKEY_CRM_meta_notify_slave_uname`
+    mypromote=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname`
+
+    if [ -z "$mymaster" ] && [ -z "$myslave" ] ; then
+	$CRM_MASTER -v $MY_RANDOM
+    fi
+
+    mypromote=`my_name $mypromote`
+
+    case "$rc" in
+        "$OCF_SUCCESS")
+            # Running as slave. Normal, expected behavior.
+            ocf_log debug "--- redis --- is currently running as Slave"
+            ;;
+        "$OCF_FAILED_MASTER")
+            # running as slave, but master is down
+            ;;
+        "$OCF_RUNNING_MASTER")
+            # Already a master. Unexpected, but not a problem.
+            ocf_log debug "--- redis --- is already running as Master"
+            return $OCF_SUCCESS
+            ;;
+        "$OCF_NOT_RUNNING")
+            # Currently not running. Need to start before promoting.
+            ocf_log err "--- redis --- is currently not running"
+            redis_start
+            ;;
+        *)
+            # Failed resource. Let the cluster manager recover.
+            ocf_log err "--- redis --- error, cannot promote"
+            exit $rc
+            ;;
+    esac
+
+    rc=0
+
+    # Existing master gets a higher-than-default master preference, so
+    # the cluster manager does not shuffle the master role around
+    # unnecessarily
+    if [ ! -z "$mypromote" ] ; then
+	ocf_log debug "--- redis --- promote - Set me to master "
+	$CRM_MASTER -v 100
+	unset_master
+	rc=$?
+    fi
+
+    # nur chekc ob master = local host ist 
+    if [ 0 -gt $rc ] ; then
+        return $OCF_ERR_GENERIC
+    fi
+    return $OCF_SUCCESS
+}
+
+redis_demote() {
+    local rc
+    local demote_host
+    local mydemote
+    local mymaster
+
+    redis_monitor
+    rc=$?
+
+    case "$rc" in
+        "$OCF_RUNNING_MASTER")
+            # Running as master. Normal, expected behavior.
+            ocf_log debug "--- redis --- is currently running as Master"
+            ;;
+        "$OCF_SUCCESS")
+            # Alread running as slave. Nothing to do.
+            ocf_log debug "--- redis --- is currently running as Slave"
+            return $OCF_SUCCESS
+            ;;
+        "$OCF_NOT_RUNNING")
+            # Currently not running. Getting a demote action
+            # in this state is unexpected. Exit with an error
+            # and let the cluster manager recover.
+            ocf_log err "--- redis --- is currently not running"
+            exit $OCF_ERR_GENERIC
+            ;;
+        "$OCF_FAILED_MASTER")
+            # Running as slave
+            ocf_log debug "--- redis --- is currently running as Slave withj not running master"
+            ;;
+        *)
+            # Failed resource. Let the cluster manager recover.
+            ocf_log err "--- redis --- error, cannot demote"
+            exit $rc
+            ;;
+    esac
+
+    # Return master preference to default, so the cluster manager gets
+    # a chance to select a new master
+
+    demote_host=`echo $OCF_RESKEY_CRM_meta_notify_demote_uname`
+    mydemote=`my_name $demote_host`
+    mymaster=`echo $OCF_RESKEY_CRM_meta_notify_master_uname | awk '{print $1;}'`
+    if [ "x$mymaster" != "x" ] ; then
+	$CRM_MASTER -v 1
+	set_master $mymaster
+	return $OCF_SUCCESS
+    else
+	return $OCF_ERR_GENERIC
+    fi
+}
+
+redis_notify() {
+    local rc
+    local mymaster
+    local myslave
+    local type_op
+    local master_host
+    local demote_host
+    local promote_host
+    local mypromote
+    master_host=`echo $OCF_RESKEY_CRM_meta_notify_master_uname` # Maybe more than one value !
+    promote_host=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname`
+    demote_host=`echo $OCF_RESKEY_CRM_meta_notify_demote_uname`
+
+    # not working on a pre-start ! , because nothing is running
+    # redis_status
+    # rc=$?
+    # if [ $rc -ne $OCF_RUNNING_MASTER -a $rc -ne $OCF_SUCCESS ]; then
+    #     return $OCF_NOT_RUNNING
+    # fi
+	
+    type_op="${OCF_RESKEY_CRM_meta_notify_type}-${OCF_RESKEY_CRM_meta_notify_operation}"
+    ocf_log debug "Received $type_op notification."
+
+    # If not configured as a Stateful resource, we make no sense of
+    # notifications.
+    if ! ocf_is_ms; then
+        ocf_log debug "This agent makes no use of notifications unless running in master/slave mode."
+        return $OCF_SUCCESS
+    fi
+
+    case "$type_op" in
+    'pre-start' )
+        # pre-start master:srv14 promote:srv15 demote:
+	mymaster=`my_name $master_host`
+	if [ ! -z "$mymaster" ] ; then
+
+		unset_master $mymaster
+		rc=$?
+		
+		if [ 0 -ne "$rc" ] ; then
+			ocf_log debug "--- redis --- prestart unset_return $rc 0 < = ERROR"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+        return $OCF_SUCCESS
+        ;;
+    'post-start' )
+	# post-start für slave, da corosync einen slave als Start erwartet !
+
+	mymaster=`echo $OCF_RESKEY_CRM_meta_notify_master_uname | awk '{print $1;}'`
+        for i in $demote_host ; do
+		if [ "$i" = "`uname -n`" ] && [ "$mymaster" != "$i" ] && [ -z "$mymaster" ] ; then
+			# @todo here could be the setup for serverals of master host
+			# at this time, i use only the first
+			$CRM_MASTER -v 1
+			set_master $mymaster $i
+			if [ $? -ne 0 ]; then
+				return $OCF_ERR_GENERIC
+			fi
+
+		fi
+	done
+
+	if [ -z "$promote_host" ] && [ -z "$demote_host" ] && [ ! -z "$mymaster" ] && [ "$mymaster" != "`uname -n `" ] ; then
+		$CRM_MASTER -v 1
+		set_master $mymaster
+		if [ $? -ne 0 ]; then
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+	mypromote=`my_name $promote_host`
+	if [ ! -z "$promote_host" ] && [ -z "$demote_host" ] && [ -z "$mymaster" ] ; then
+		promote_host=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname | awk '{print $1;}'` 
+		if [ "$mypromote" != "`uname -n`" ] ; then
+			$CRM_MASTER -v 1
+			set_master $promote_host
+			if [ $? -ne 0 ]; then
+				return $OCF_ERR_GENERIC
+			fi
+		elif [ "$mypromote" = "`uname -n`" ] ; then
+			ocf_log info "--- redis --- post-start as Master "
+			$CRM_MASTER -v 100
+		fi
+	fi
+        
+	return $OCF_SUCCESS
+        ;;
+    'pre-promote' )
+        return $OCF_SUCCESS
+        ;;
+    'post-promote' )
+        return $OCF_SUCCESS
+        ;;
+    'pre-demote' )
+        return $OCF_SUCCESS 
+        ;; 
+    'post-demote' )
+        return $OCF_SUCCESS 
+        ;;
+    'pre-stop' )
+        return $OCF_SUCCESS
+        ;;
+    'post-stop' )
+        return $OCF_SUCCESS
+        ;;
+    *)
+        return $OCF_SUCCESS
+        ;;
+    esac
+}
+
+#######################################################################
+
+case $__OCF_ACTION in
+  meta-data)	meta_data
+		exit $OCF_SUCCESS;;
+  usage|help)	usage
+		exit $OCF_SUCCESS;;
+esac
+
+redis_validate
+rc=$?
+
+if [ $rc -ne 0 ]; then
+	case "$1" in
+		stop) exit $OCF_SUCCESS;;
+		monitor) exit $OCF_NOT_RUNNING;;
+		status) exit $OCF_NOT_RUNNING;;
+		validate-all) exit $rc;;
+		*) exit $rc;;
+	esac
+fi
+
+master_host=`echo $OCF_RESKEY_CRM_meta_notify_master_uname` # Maybe more than one value !
+promote_host=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname`
+demote_host=`echo $OCF_RESKEY_CRM_meta_notify_demote_uname`
+slave_host=`echo $OCF_RESKEY_CRM_meta_notify_slave_uname`
+
+ocf_log debug "--- redis --- ${OCF_RESKEY_CRM_meta_notify_type}${OCF_RESKEY_CRM_meta_notify_operation} $__OCF_ACTION master:$master_host slave:$slave_host promote:$promote_host demote:$demote_host"
+
+# What kind of method was invoked?
+case $__OCF_ACTION in
+  start)	redis_start;;
+  promote)	redis_promote;;
+  demote)	redis_demote;;
+  stop)		redis_stop;;
+  status)	redis_status;;
+  monitor)	redis_monitor;;
+  notify)	redis_notify;;
+  validate-all)	exit $rc;;
+  *)		usage
+		exit $OCF_ERR_UNIMPLEMENTED;;
+esac
+
