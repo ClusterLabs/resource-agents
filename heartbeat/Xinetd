@@ -75,11 +75,16 @@ The name of the service managed by xinetd.
 END
 }
 
+get_xinetd_pid() {
+    ps -e -o pid,comm | $AWK '$2 == "xinetd" { print $1 }'
+}
+
 # force xinetd to reload the service descriptions
 hup_inetd () {
     # don't rely on the pid file, but lookup xinetd in the list of
     # processes
-    pid=`ps -e -o pid,comm | $AWK '$2 == "xinetd" { print $1 }'`
+    local pid
+    pid=`get_xinetd_pid`
     if [ "$pid" ]; then
 	if kill -s HUP $pid; then
             ocf_log info "asked xinetd to reload by sending SIGHUP to process $pid!"
@@ -186,6 +191,15 @@ if [ -z "$OCF_RESKEY_service" ]; then
     else
 	exit $OCF_NOT_RUNNING
     fi
+fi
+
+# Is xinetd running at all
+if [ -z "`get_xinetd_pid`" ]; then
+    ocf_log err "xinetd not running, we manage just xinetd services, not the daemon itself"
+    case "$1" in
+    stop) exit $OCF_SUCCESS;;
+    start|monitor|status) exit $OCF_ERR_INSTALLED;;
+    esac
 fi
 
 # Make sure the OCF_RESKEY_service is a valid xinetd service name
