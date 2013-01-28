@@ -97,7 +97,7 @@ hup_inetd () {
 check_service()
 {
     ocf_log "info" "checking \"disable\" in $1"
-    typeset result=$(sed -nre 's/^[ 	]*disable[ 	]*=[ 	]*([^ 	]+)[# 	]*/\1/p' $1)
+    local result=$(sed -nre 's/^[ 	]*disable[ 	]*=[ 	]*([^ 	]+)[# 	]*/\1/p' $1)
     echo "$result"
 }
 
@@ -114,7 +114,7 @@ change_service()
 }
 
 xup_status () {
-    typeset disabled="$(check_service $SVCDEF)"
+    local disabled="$(check_service $SVCDEF)"
     if [ "${disabled:=no}" = no ]; then
 	echo running
 	return $OCF_SUCCESS
