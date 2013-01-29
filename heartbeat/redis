@@ -220,7 +220,7 @@ redis_cmd() {
       $OCF_RESKEY_client_binary -p "$port" -a "$password" "$@"
       return $?
     else
-      ocf_run $OCF_RESKEY_client_binary -p "$port" -a "$password" "$@"
+      ocf_run -q $OCF_RESKEY_client_binary -p "$port" -a "$password" "$@"
       return $?
     fi
 }
@@ -233,7 +233,7 @@ read_ms_status() {
     local should_be_slave
 
     tmp=$(mktemp -p $HA_RSCTMP)
-    redis_cmd 1 info >$tmp
+    redis_cmd 0 info >$tmp
     if [ $? -ne 0 ]; then
         ocf_log info "Could not determine master/slave status";
         rm -f $tmp
@@ -414,7 +414,7 @@ redis_start() {
          rc=0
          if [ -e "$appendfilename" ]; then
            ocf_log info "Redis is using $appendfilename as appendfilename"
-           ocf_run $OCF_RESKEY_aof_check_binary "$appendfilename"
+           ocf_run -q $OCF_RESKEY_aof_check_binary "$appendfilename"
            rc=$?
          fi
          if [ $rc -ne 0 ]; then
