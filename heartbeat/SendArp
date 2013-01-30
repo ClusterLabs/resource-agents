@@ -57,12 +57,13 @@ BASEIP="$OCF_RESKEY_ip"
 INTERFACE="$OCF_RESKEY_nic"
 RESIDUAL=""
 SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$BASEIP"
+BACKGROUND=${OCF_RESKEY_background:-"yes"}
 
 # Set default values
 
 	: ${ARP_INTERVAL_MS=200}	# milliseconds between ARPs
 	: ${ARP_REPEAT=5}		# repeat count
-	: ${ARP_BACKGROUND=yes}		# no to run in foreground
+	: ${ARP_BACKGROUND=$BACKGROUND}	# no to run in foreground
 	: ${ARP_NETMASK=ffffffffffff}	# netmask for ARP
 
 #######################################################################
@@ -101,6 +102,15 @@ The NIC for sending ARP packet.
 <content type="string" default="" />
 </parameter>
 
+<parameter name="background" unique="0" required="0">
+<longdesc lang="en">
+Send ARPs in background. Set to false if you want to test if
+sending ARPs succeeded.
+</longdesc>
+<shortdesc lang="en">Send ARPs in background</shortdesc>
+<content type="boolean" default="true" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -128,7 +138,8 @@ END
 #	Send gratuitous arp
 #
 sendarp_start() {
-    
+    local rc
+
     sendarp_validate
     if [ $? = $OCF_ERR_CONFIGURED ]; then
 	return $OCF_ERR_CONFIGURED
@@ -147,17 +158,26 @@ sendarp_start() {
 
     ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $INTERFACE $BASEIP auto $BASEIP $ARP_NETMASK"
     ocf_log debug "$SENDARP $ARGS"
-    case $ARP_BACKGROUND in
-	yes) 
-	    ($SENDARP $ARGS || 
-	        (ocf_log err "Could not send gratuitous arps";return $OCF_ERR_GENERIC)) &
-	    ;;
-	*)
-	    $SENDARP $ARGS || (ocf_log err "Could not send gratuitous arps"; return $OCF_ERR_GENERIC)
-	    ;;
-    esac
-    ha_pseudo_resource SendArp_${OCF_RESOURCE_INSTANCE} start
-    return $OCF_SUCCESS
+
+    rc=$OCF_SUCCESS
+    if ocf_is_true $ARP_BACKGROUND; then
+	# not possible to check the status without wait! we can
+	# just log the outcome
+	# and wait-ing would be equal to not running in
+	# background
+	($SENDARP $ARGS ||
+	    ocf_log err "Could not send gratuitous arps") &
+    else
+	$SENDARP $ARGS || {
+	    ocf_log err "Could not send gratuitous arps"
+	    rc=$OCF_ERR_GENERIC
+	}
+    fi
+
+    if [ $rc -eq $OCF_SUCCESS ]; then
+	ha_pseudo_resource SendArp_${OCF_RESOURCE_INSTANCE} start
+    fi
+    return $rc
 }
 
 #
@@ -201,10 +221,11 @@ sendarp_stop() {
     return $rc
 }
 #
-#	This is always active, because it doesn't do much
-#
 sendarp_monitor() {
-	ha_pseudo_resource SendArp_${OCF_RESOURCE_INSTANCE} monitor
+    if [ -f "$SENDARPPIDFILE" ]; then
+    	return $OCF_SUCCESS
+    fi
+    ha_pseudo_resource SendArp_${OCF_RESOURCE_INSTANCE} monitor
 }
 
 sendarp_validate() {
