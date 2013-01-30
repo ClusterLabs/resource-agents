@@ -9,4 +9,9 @@ management implementations:
 
 More information about OCF resource agents is available
 in the OCF Resource Agent Developer's guide, in the
-doc/dev-guides subdirectory.
+doc/dev-guides subdirectory and at the afdata's fork 
+https://github.com/afdata/resource-agents.
+
+Specialy here are a master/slave resouce agent for the
+redis db.
+Please try it out, and give me feedback.
