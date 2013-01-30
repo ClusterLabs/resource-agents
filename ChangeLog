@@ -1,3 +1,27 @@
+* Wed Jan 30 2012 Linux-HA contributors
+- release candidate 3.9.5 rc1
+- ocf-shellfuncs: RA tracing
+- IPaddr2: make sure that some ARP send program runs
+- pgsql: add check_wal_receiver parameter
+- pgsql: support starting as Hot Standby
+- nfsserver: improve rpc.statd support
+- nfsserver: add option -n for rpc.statd (bnc#794479)
+- nfsserver: make the retry time for sm-notify configurable
+- nfsserver: make sm-notify running in the foreground configurable
+- exportfs: handle '<world>' exportfs embelishment for '*' (bnc#791690)
+- jboss: set JAVA_OPTS correctly
+- pound: use correct default for control-binary
+- pound: No error when stopping pound and no pound is running
+- Squid: support systems using IPv6
+- Xinetd: do not fail in stop if the daemon is not running
+- Xinetd: improve finding Xinetd process (thanks to Vadym Chepkov)
+- SendArp: add background parameter
+- SendArp: fix monitor
+- ocft: print the actual case names when testing
+- ocft: make only the updated test-case file
+- ocft: add "incremental" mode (ocft test -i)
+- include a copy of LGPL license file
+
 * Tue Nov 22 2012 Linux-HA contributors
 - stable release 3.9.4
 - IPaddr2: fix waiting the completion of IPv6 address allocation
