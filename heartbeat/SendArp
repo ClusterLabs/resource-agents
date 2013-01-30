@@ -123,19 +123,6 @@ usage: $0 {start|stop|monitor|validate-all|meta-data}
 Expects to have a fully populated OCF RA-compliant environment set.
 END
 }
-#
-#	Check if ip-address is running.
-#	We return stopped or running.
-#
-sendarp_status() {
-    if
-	[ -f "$SENDARPPIDFILE" ]
-    then
-	return $OCF_SUCCESS
-    else
-	return $OCF_NOT_RUNNING
-    fi
-}
 
 #
 #	Send gratuitous arp
@@ -144,12 +131,12 @@ sendarp_start() {
     
     sendarp_validate
     if [ $? = $OCF_ERR_CONFIGURED ]; then
-	return $OCF_ERR_CONFIGURED;
+	return $OCF_ERR_CONFIGURED
     fi
     
-    sendarp_status
+    sendarp_monitor
     if [ $? = $OCF_SUCCESS ]; then
-	return $OCF_SUCCESS;
+	return $OCF_SUCCESS
     fi
     
     [ -r ${HA_CONFDIR}/arp_config ] && . ${HA_CONFDIR}/arp_config
@@ -169,18 +156,19 @@ sendarp_start() {
 	    $SENDARP $ARGS || (ocf_log err "Could not send gratuitous arps"; return $OCF_ERR_GENERIC)
 	    ;;
     esac
-    return $OCF_SUCCESS;
+    ha_pseudo_resource SendArp_${OCF_RESOURCE_INSTANCE} start
+    return $OCF_SUCCESS
 }
 
 #
 #	Stop sending gratuitous arp
 #
 sendarp_stop() {
-    sendarp_validate
-    if [ $? = $OCF_ERR_CONFIGURED ]; then
-	return $OCF_ERR_CONFIGURED;
+    sendarp_monitor
+    if [ $? -eq $OCF_NOT_RUNNING ]; then
+	return $OCF_SUCCESS
     fi
-    
+ 
     rc=$OCF_SUCCESS
     
     if
@@ -204,6 +192,7 @@ sendarp_stop() {
     case $rc in
 	$OCF_SUCCESS)
 	    ocf_log info "SendArp for $BASEIP/$INTERFACE released"
+	    ha_pseudo_resource SendArp_${OCF_RESOURCE_INSTANCE} stop
 	    ;;
 	*)
 	    ocf_log warn "SendArp for $BASEIP/$INTERFACE NOT released"
@@ -215,7 +204,7 @@ sendarp_stop() {
 #	This is always active, because it doesn't do much
 #
 sendarp_monitor() {
-    return $OCF_SUCCESS
+	ha_pseudo_resource SendArp_${OCF_RESOURCE_INSTANCE} monitor
 }
 
 sendarp_validate() {
@@ -236,7 +225,7 @@ stop)		sendarp_stop
 		;;
 monitor)	sendarp_monitor
 		;;
-status)		sendarp_status
+status)		sendarp_monitor
 		if [ $? = $OCF_SUCCESS ]; then
 			echo "running"
 			exit $OCF_SUCCESS;
