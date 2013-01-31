@@ -179,6 +179,8 @@ determine this from the netmask.
 <longdesc lang="en">
 You can specify an additional label for your IP address here.
 This label is appended to your interface name.
+
+A label can be specified in nic parameter but it is deprecated.
 If a label is specified in nic name, this parameter has no effect.
 </longdesc>
 <shortdesc lang="en">Interface label</shortdesc>
@@ -413,6 +415,16 @@ ip_init() {
 		fi
 	fi
 
+	# support nic:iflabel format in nic parameter
+	case $NIC in
+	    *:*)
+		IFLABEL=`echo $NIC | sed 's/[^:]*://'`
+		NIC=`echo $NIC | sed 's/:.*//'`
+		# only the base name should be passed to findif
+		OCF_RESKEY_nic=$NIC
+		;;
+	esac
+
 	# $FINDIF takes its parameters from the environment
 	#
 	NICINFO=`$FINDIF`
@@ -440,17 +452,9 @@ ip_init() {
 	
 	SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$OCF_RESKEY_ip"
 
-	case $NIC in
-	    *:*)
-		IFLABEL=$NIC
-		NIC=`echo $NIC | sed 's/:.*//'`
-		;;
-	    *)
-		if [ -n "$IFLABEL" ]; then
-			IFLABEL=${NIC}:${IFLABEL}
-		fi
-		;;
-	esac
+	if [ -n "$IFLABEL" ]; then
+		IFLABEL=${NIC}:${IFLABEL}
+	fi
 
 	if [ "$IP_INC_GLOBAL" -gt 1 ] && ! ocf_is_true "$OCF_RESKEY_unique_clone_address"; then
 		IP_CIP="yes"
