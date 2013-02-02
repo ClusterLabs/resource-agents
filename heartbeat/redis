@@ -208,7 +208,7 @@ read_ms_status() {
     local my_role
     local var
 
-    tmp=`mktemp`
+    tmp=`mktemp --suffix=.1`
 
     $OCF_RESKEY_client_binary -s $OCF_RESKEY_socket info >$tmp
     var=`grep -e "role:" $tmp  |  tr -dc A-Z-a-z: | tr -d " "`
@@ -287,7 +287,7 @@ read_slave_status() {
 	local master
 	local var
 	local slave
-	tmp=`mktemp`
+	tmp=`mktemp --suffix=.2`
 
 	$OCF_RESKEY_client_binary -s $OCF_RESKEY_socket info >$tmp
 	var=`grep -e "role:" $tmp  |  tr -dc A-Z-a-z: | tr -d " "`
@@ -300,10 +300,10 @@ read_slave_status() {
 	if [ -z "$var" ] ; then
 		#  this should be the master, but it is not running
 		if [ ! -z "$master" ] ; then
-			return $OCF_NOT_RUNNING
-			# return $OCF_FAILED_MASTER
+			# return $OCF_NOT_RUNNING
+			return $OCF_FAILED_MASTER
 		else
-			
+			return $OCF_NOT_RUNNING
 		fi
 	elif [ "$var" = "role:slave" ] ; then
 		if [ "$master_link_status" = "down" ] ; then
@@ -402,7 +402,7 @@ unset_master() {
 	exec_cli $host 'slaveof no one' 2>/dev/null 1>&2
 	rc=$?
     fi
-    tmp=`mktemp`
+    tmp=`mktemp --suffix=.3`
     $OCF_RESKEY_client_binary -s $OCF_RESKEY_socket info >$tmp
     role=`grep -e "role:master" $tmp | tr -dc A-Z-a-z:`
 
