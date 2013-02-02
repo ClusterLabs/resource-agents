@@ -405,6 +405,7 @@ unset_master() {
     tmp=`mktemp --suffix=.3`
     $OCF_RESKEY_client_binary -s $OCF_RESKEY_socket info >$tmp
     role=`grep -e "role:master" $tmp | tr -dc A-Z-a-z:`
+    rm -f $tmp
 
     if [ "$role" != "role:master" ] ; then
 	 ocf_log debug "--- redis --- unset_master $host --- master down"
