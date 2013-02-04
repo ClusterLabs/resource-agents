@@ -10,6 +10,7 @@
 # * OCF_CHECK_LEVEL 20 check
 
 CONFIG
+	Agent mysql-proxy
 	AgentRoot /usr/lib/ocf/resource.d/heartbeat/
 	InstallPackage mysql-proxy
 	HangTimeout 20
@@ -18,11 +19,11 @@ SETUP-AGENT
 	# nothing
 
 CASE-BLOCK crm_setting
-	Var OCF_RESKEY_CRM_meta_timeout=15000
-	Var OCF_RESKEY_binary=/tmp/mysql-proxy
-	Var OCF_RESKEY_admin_username=root
-	Var OCF_RESKEY_admin_password=test123
-	Var OCF_RESKEY_admin_lua_script=/usr/lib/mysql-proxy/lua/admin.lua
+	Env OCF_RESKEY_CRM_meta_timeout=15000
+	Env OCF_RESKEY_binary=/tmp/mysql-proxy
+	Env OCF_RESKEY_admin_username=root
+	Env OCF_RESKEY_admin_password=test123
+	Env OCF_RESKEY_admin_lua_script=/usr/lib/mysql-proxy/lua/admin.lua
 
 CASE-BLOCK default_status
 	AgentRun stop
@@ -42,7 +43,7 @@ CASE "check base env"
 
 CASE "check base env: invalid 'OCF_RESKEY_binary'"
 	Include prepare
-	Var OCF_RESKEY_binary=no_such
+	Env OCF_RESKEY_binary=no_such
 	AgentRun start OCF_ERR_INSTALLED
 	BashAtExit rm -f /tmp/mysql-proxy
 
