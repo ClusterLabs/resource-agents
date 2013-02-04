@@ -14,6 +14,12 @@ CLEANUP-AGENT
 CASE-BLOCK required_args
 	Env OCF_RESKEY_ip=192.168.144.2
 
+CASE-BLOCK check_iflabel_assigned
+	Bash ip -4 -o addr show eth0 | grep -w 192.168.144.2/24 | grep -w eth0:iflabel >/dev/null # checking iflabel was assigned correctly
+
+CASE-BLOCK check_iflabel_removed
+	Bash ! ip -4 -o addr show eth0 | grep -w 192.168.144.2/24 | grep -w eth0:iflabel >/dev/null # checking iflabel was removed correctly
+
 CASE-BLOCK default_status
 	AgentRun stop
 
@@ -101,3 +107,21 @@ CASE "Attachment to loopback interface"
 	AgentRun start OCF_SUCCESS
 	AgentRun monitor OCF_SUCCESS
 	AgentRun stop OCF_SUCCESS
+
+CASE "check additional env: set 'OCF_RESKEY_iflabel'"
+	Include prepare
+	Env OCF_RESKEY_nic=eth0
+	Env OCF_RESKEY_iflabel=iflabel
+	AgentRun start OCF_SUCCESS
+	Include check_iflabel_assigned
+	AgentRun stop OCF_SUCCESS
+	Include check_iflabel_removed
+
+# This is deprecated but still supported for the compatibility.
+CASE "check additional env: specify iflabel in 'OCF_RESKEY_nic'"
+	Include prepare
+	Env OCF_RESKEY_nic=eth0:iflabel
+	AgentRun start OCF_SUCCESS
+	Include check_iflabel_assigned
+	AgentRun stop OCF_SUCCESS
+	Include check_iflabel_removed
