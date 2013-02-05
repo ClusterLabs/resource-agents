@@ -212,7 +212,7 @@ EOT
 }
 
 ##################################################################################################
-# Function Name: validate_all                                                                    #
+# Function Name: verify_all                                                                      #
 # Parameter: None                                                                                #
 # Return value:                                                                                  #
 #             0               SUCCESS                                                            #
@@ -661,7 +661,7 @@ ase_is_running()
 }
 
 ####################################################################################
-# Function name: ase_is_running                                                    #
+# Function name: kill_ase                                                          #
 # Parameter:                                                                       #
 #             DELAY  The seconds to wait before killing the ASE processes. 0 means #
 #                    kill the ASE processes immediately.                           #
