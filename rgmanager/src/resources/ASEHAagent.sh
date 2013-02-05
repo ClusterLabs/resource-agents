@@ -532,7 +532,7 @@ EOF
 	t=0
 	while [[ $t -lt $OCF_RESKEY_shutdown_timeout ]]
 	do
-		# Search "usshutdown: exiting" in the server log. If found, it means the server has been shutted down. 
+		# Search "ueshutdown: exiting" in the server log. If found, it means the server has been shutted down. 
 		# Otherwise, we need to wait.
 		tail $CONSOLE_LOG | grep "ueshutdown: exiting" > /dev/null 2>&1
 		if [[ $? != 0 ]]
