@@ -282,7 +282,7 @@ verify_all()
 	# Check if the Run_server file exists.
 	if [[ ! -f $RUNSERVER_SCRIPT ]]
 	then
-		ocf_log err "ASEHAagent: There file $RUNSERVER_SCRIPT doesn't exist. The sybase directory may be incorrect."
+		ocf_log err "ASEHAagent: The file $RUNSERVER_SCRIPT doesn't exist. The sybase directory may be incorrect."
 		return $OCF_ERR_ARGS
 	fi
 
