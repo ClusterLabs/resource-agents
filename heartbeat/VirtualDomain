@@ -21,11 +21,13 @@ OCF_RESKEY_force_stop_default=0
 OCF_RESKEY_hypervisor_default="$(virsh --quiet uri)"
 OCF_RESKEY_autoset_utilization_cpu_default="true"
 OCF_RESKEY_autoset_utilization_hv_memory_default="true"
+OCF_RESKEY_migrateport_default=$(( 49152 + $(ocf_maybe_random) % 64 ))
 
 : ${OCF_RESKEY_force_stop=${OCF_RESKEY_force_stop_default}}
 : ${OCF_RESKEY_hypervisor=${OCF_RESKEY_hypervisor_default}}
 : ${OCF_RESKEY_autoset_utilization_cpu=${OCF_RESKEY_autoset_utilization_cpu_default}}
 : ${OCF_RESKEY_autoset_utilization_hv_memory=${OCF_RESKEY_autoset_utilization_hv_memory_default}}
+: ${OCF_RESKEY_migrateport=${OCF_RESKEY_migrateport_default}}
 #######################################################################
 
 ## I'd very much suggest to make this RA use bash,
@@ -137,6 +139,14 @@ into the hv_memory utilization of the resource when the monitor is executed.
 </longdesc>
 <shortdesc lang="en">Enable auto setting the hv_memory utilization of the resource</shortdesc>
 <content type="boolean" default="true" />
+</parameter>
+
+<parameter name="migrateport" unique="0" required="0">
+<longdesc lang="en">
+This port will be used in the qemu migrateuri. If unset, the port will be a random highport.
+</longdesc>
+<shortdesc lang="en">Port for migrateuri</shortdesc>
+<content type="integer" />
 </parameter>
 
 </parameters>
@@ -388,8 +398,7 @@ VirtualDomain_Migrate_To() {
 		    # For quiet ancient libvirt versions a migration port is needed
 		    # and the URI must not contain the "//". Newer versions can handle
 		    # the "bad" URI.
-		    migrateport=$(( 49152 + $(ocf_maybe_random) % 64 ))
-		    migrateuri="tcp:${migrate_target}:${migrateport}"
+		    migrateuri="tcp:${migrate_target}:${OCF_RESKEY_migrateport}"
 		    ;;
 		xen)
 		    migrateuri="xenmigr://${migrate_target}"
