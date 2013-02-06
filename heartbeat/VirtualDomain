@@ -146,7 +146,7 @@ into the hv_memory utilization of the resource when the monitor is executed.
 This port will be used in the qemu migrateuri. If unset, the port will be a random highport.
 </longdesc>
 <shortdesc lang="en">Port for migrateuri</shortdesc>
-<content type="integer" default="random" />
+<content type="integer" />
 </parameter>
 
 </parameters>
