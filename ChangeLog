@@ -1,4 +1,8 @@
-* Wed Jan 30 2012 Linux-HA contributors
+* Thu Feb  7 2013 Linux-HA contributors
+- stable release 3.9.5
+- IPaddr2: support nic:iflabel format in nic parameter
+- VirtualDomain: allow for custom migrateport
+* Wed Jan 30 2013 Linux-HA contributors
 - release candidate 3.9.5 rc1
 - ocf-shellfuncs: RA tracing
 - IPaddr2: make sure that some ARP send program runs
