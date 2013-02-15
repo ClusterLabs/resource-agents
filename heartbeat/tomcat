@@ -183,7 +183,7 @@ start_tomcat()
 	rm -f $CATALINA_PID
 
 	#ocf_log debug "catalina.out rotation FLG = ${CATALINA_ROTATE_LOG}"
-	if [ ${CATALINA_ROTATE_LOG} = "YES" ]; then
+	if ocf_is_true ${CATALINA_ROTATE_LOG}; then
 		rotate_catalina_out
 		if [ $? = 0 ]; then
 			ocf_log debug "Rotate catalina.out succeeded."
@@ -242,7 +242,7 @@ stop_tomcat()
 		kill -KILL $rememberedPID
 	done
 
-	if [ ${CATALINA_ROTATE_LOG} = "YES" ]; then
+	if ocf_is_true ${CATALINA_ROTATE_LOG}; then
 		rm -f "$CATALINA_PID" "${CATALINA_OUT}"
 	else
 		rm -f "$CATALINA_PID"
@@ -406,7 +406,7 @@ Temporary directory of Tomcat
 Rotate catalina.out flag.
 </longdesc>
 <shortdesc>Rotate catalina.out flag</shortdesc>
-<content type="string" default="" />
+<content type="boolean" default="NO" />
 </parameter>
 
 <parameter name="catalina_rotatetime" unique="0">
