@@ -205,8 +205,12 @@ VirtualDomain_Define() {
     if [ -z "$DOMAIN_NAME" ]; then
 	# Spin until we have a domain name
 	while true; do
-	    virsh_output=`virsh ${VIRSH_OPTIONS} define ${OCF_RESKEY_config}`
-	    domain_name=`echo "$virsh_output" | sed -e 's/Domain \(.*\) defined from .*$/\1/'`
+	    virsh_output=$((virsh ${VIRSH_OPTIONS} define ${OCF_RESKEY_config}) 2>&1)
+	    domain_name=`echo "$virsh_output" | sed -n -e 's/Domain \(.*\) defined from .*$/\1/p'`
+            if [ -n "$domain_name" ]; then
+		break;
+            fi
+	    domain_name=`echo $virsh_output | sed -n -e "s/.* '\(.*\)' already exists .*/\1/p"`
             if [ -n "$domain_name" ]; then
 		break;
             fi
