@@ -933,10 +933,10 @@ pgsql_monitor() {
 
 # pgsql_post_demote
 pgsql_post_demote() {
-    DEMOTE_NODE=`echo $OCF_RESKEY_CRM_meta_notify_demote_uname | sed "s/ /\n/g" | head -1`
+    DEMOTE_NODE=`echo $OCF_RESKEY_CRM_meta_notify_demote_uname | sed "s/ /\n/g" | head -1 | tr '[A-Z]' '[a-z]'`
     ocf_log debug "post-demote called. Demote uname is $DEMOTE_NODE"
     if [ "$DEMOTE_NODE" != "$NODENAME" ]; then
-        if ! echo $OCF_RESKEY_CRM_meta_notify_master_uname | grep $NODENAME; then
+        if ! echo $OCF_RESKEY_CRM_meta_notify_master_uname | tr '[A-Z]' '[a-z]' | grep $NODENAME; then
             show_master_baseline
             change_pgsql_status "$NODENAME" "HS:alone"
         fi
@@ -952,7 +952,7 @@ pgsql_pre_promote() {
 
     # If my data is newer than new master's one, I fail my resource.
     PROMOTE_NODE=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname | \
-                  sed "s/ /\n/g" | head -1`
+                  sed "s/ /\n/g" | head -1 | tr '[A-Z]' '[a-z]'`
     number_of_nodes=`echo $NODE_LIST | wc -w`
     if [ $number_of_nodes -ge 3 -a \
          "$OCF_RESKEY_rep_mode" = "sync" -a \
@@ -999,7 +999,7 @@ pgsql_notify() {
                 promote)
                     delete_xlog_location
                     PROMOTE_NODE=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname | \
-                                  sed "s/ /\n/g" | head -1`
+                                  sed "s/ /\n/g" | head -1 | tr '[A-Z]' '[a-z]'`
                     if [ "$PROMOTE_NODE" != "$NODENAME" ]; then
                         delete_master_baseline
                     fi
@@ -1010,7 +1010,9 @@ pgsql_notify() {
                     return $?
                     ;;
                 start|stop)
-                    if [ "$NODENAME " = "$OCF_RESKEY_CRM_meta_notify_master_uname" ]; then
+                    MASTER_NODE=`echo $OCF_RESKEY_CRM_meta_notify_master_uname | \
+                                  sed "s/ /\n/g" | head -1 | tr '[A-Z]' '[a-z]'`
+                    if [ "$NODENAME " = "$MASTER_NODE" ]; then
                         control_slave_status
                     fi
                     return $OCF_SUCCESS
@@ -1525,11 +1527,11 @@ exec_func_with_timeout() {
 }
 
 is_node_online() {
-    crm_mon -1 -n | grep -e "^Node $1 " -e "^Node $1:" | grep -q -v "OFFLINE"
+    crm_mon -1 -n | tr '[A-Z]' '[a-z]' | grep -e "^node $1 " -e "^node $1:" | grep -q -v "offline"
 }
 
 node_exist() {
-    crm_mon -1 -n | grep -q "^Node $1"
+    crm_mon -1 -n | tr '[A-Z]' '[a-z]' | grep -q "^node $1"
 }
 
 check_binary2() {
