@@ -239,7 +239,7 @@ stop_tomcat()
 		sleep 1
 		lapse_sec=`expr $lapse_sec + 1`
 		ocf_log debug "stop_tomcat[$TOMCAT_NAME]: stop failed, killing with SIGKILL ($lapse_sec)"
-		kill -KILL $rememberedPID
+		kill -s KILL $rememberedPID
 	done
 
 	if ocf_is_true ${CATALINA_ROTATE_LOG}; then
@@ -471,7 +471,7 @@ validate_all_tomcat()
 		misconfigured=1
 	fi
 
-	if [[ "$RESOURCE_STATUSURL" =~ :[0-9][0-9]* ]]; then
+	if echo "$RESOURCE_STATUSURL" | grep -q ":[0-9][0-9]*" ; then
 		port=${RESOURCE_STATUSURL##*:}
 		port=${port%%/*}
 		ocf_log debug "Tomcat port is $port"
