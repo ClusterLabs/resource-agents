@@ -458,17 +458,15 @@ END
 
 validate_all_tomcat()
 {
+	local port
+	local rc=$OCF_SUCCESS
 	ocf_log info "validate_all_tomcat[$TOMCAT_NAME]"
-
-	misconfigured=0
-	notinstalled=0
-	wrongpermissions=0
 
 	check_binary $WGET
 
 	if [ -n "$MAX_STOP_TIME" ] && [ "$MAX_STOP_TIME" -lt 0 ]; then
 		ocf_log err "max_stop_time must be set to a value greater than 0."
-		misconfigured=1
+		rc=$OCF_ERR_CONFIGURED
 	fi
 
 	if echo "$RESOURCE_STATUSURL" | grep -q ":[0-9][0-9]*" ; then
@@ -476,28 +474,14 @@ validate_all_tomcat()
 		port=${port%%/*}
 		ocf_log debug "Tomcat port is $port"
 		ocf_log debug "grep port=\"$port\" $CATALINA_HOME/conf/server.xml"
-		if [ "$port" -gt 0 ]; then
-			grep "port=\"$port\"" $CATALINA_HOME/conf/server.xml > /dev/null 2>&1
-			if [ $? -ne 0 ]; then
-				ocf_log err "Your configured status URL specifies a port ($port), but the server does not have a connector listening to that port in $CATALINA_HOME/conf/server.xml"
-				notinstalled=1
-			fi
+		grep "port=\"$port\"" $CATALINA_HOME/conf/server.xml > /dev/null 2>&1
+		if [ $? -ne 0 ]; then
+			ocf_log err "Your configured status URL specifies a port ($port), but the server does not have a connector listening to that port in $CATALINA_HOME/conf/server.xml"
+			rc=$OCF_ERR_INSTALLED
 		fi
 	fi
 
-	if [ $misconfigured -gt 0 ]; then
-		return $OCF_ERR_CONFIGURED
-	fi
-
-	if [ $notinstalled -gt 0 ]; then
-		return $OCF_ERR_INSTALLED
-	fi
-
-	if [ $wrongpermissions -gt 0 ]; then
-		return $OCF_ERR_PERM
-	fi
-
-	return $OCF_SUCCESS
+	return $rc
 }
 
 # As we stop tomcat, it removes it's own pid file...we still want to know what it was
