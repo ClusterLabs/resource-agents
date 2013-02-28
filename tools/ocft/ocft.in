@@ -788,6 +788,8 @@ HOW TO USE THIS TOOL
     the running status of each test case, which will compares the predicated result 
     with the actual one. If they differ, you will be able to find the bugs of the 
     resource agent.
+  - All of the output with test will be recorded into the log files, you can find them
+    in $CASES_DIR/logs.
 EOF
 }
 
