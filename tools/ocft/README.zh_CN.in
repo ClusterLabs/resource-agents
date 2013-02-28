@@ -27,6 +27,8 @@ ocft 通过两种手段来设计resouce agents的运行环境，一是更改reso
 都写入配置文件，然后运行generator，将你刚写的test case转换成可执行的脚本。最后运行
 这些脚本，观察它们的输出，你可以清楚看到每个test case运行状况，他会比较你的预知结
 果和resource agent的实际结果，如果不一样，说明你找到resource agent的bug了。
+所有的测试输出都会被记录到日志文件中,你可以在 /var/lib/@PACKAGE_NAME@/ocft/cases/logs
+中找到他们.
 
 2 配置
 只有6个top level option，它们是由大写字母和'-'构成的，每个top level option都有若干sub-option，

@@ -640,6 +640,10 @@ start_test()
     die "cases directory not found."
   fi
 
+  if [ ! -d logs ]; then
+    mkdir logs
+  fi
+
   export __OCFT__VERBOSE=$opt_verbose
 
   if [ $# -eq 0 ]; then
@@ -686,11 +690,11 @@ start_test()
               ;;
         esac
       fi
+    done 2>&1 | while read -r line; do
+      echo "$line"
+      echo "$(date '+%F %T'): $line" | cat -A |
+      sed -r 's/\^\[\[[0-9]+m|\^I|.$//g' >>logs/$shs.log
     done
-  done 2>&1 | while read -r line; do
-    echo "$line"
-    echo "$(date '+%F %T'): $line" | cat -A |
-    sed -r 's/\^\[\[[0-9]+m|\^I|.$//g' >>ocft.log
   done
 }
 
