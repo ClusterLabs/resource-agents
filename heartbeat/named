@@ -281,7 +281,14 @@ named_monitor() {
        ocf_log err "Got: $output"
        return $OCF_ERR_GENERIC
     fi
-    
+
+    if [ "$(uname)" = "Linux" ]; then
+      LISTENING_IPS=$(ip addr show | grep -o -E '[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*/[0-9]*' | cut -d/ -f1 | sort | uniq )
+      NAMED_LISTENING_IPS=$(netstat -nl4 | grep -o -E '[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*:53' |cut -d: -f1 | sort | uniq )
+
+      [ "$LISTENING_IPS" = "$NAMED_LISTENING_IPS" ] && ocf_log info "named listens on all ips" || named_reload
+
+    fi
     return $OCF_SUCCESS
 }
 
