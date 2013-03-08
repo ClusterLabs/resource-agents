@@ -51,7 +51,7 @@ Path to \`redis-cli\`
 <content type="string" default="${OCF_RESKEY_client_bin}" />
 </parameter>
 
-<parameter name="config" unique="0" required="0">
+<parameter name="config" unique="1" required="0">
 <longdesc lang="en">
 Path to 'redis.conf'
 </longdesc>
@@ -67,7 +67,7 @@ User to run redis as
 <content type="string" default="${OCF_RESKEY_user}" />
 </parameter>
 
-<parameter name="rundir" unique="0" required="0">
+<parameter name="rundir" unique="1" required="0">
 <longdesc lang="en">
 Directory to store socket and pid file in
 </longdesc>
@@ -105,8 +105,9 @@ function crm_master() {
 	"${HA_SBIN_DIR}/crm_master" -l reboot "$@"
 }
 
-function stripcr() {
-    sed 's/\r//'
+function redis_client() {
+	ocf_log debug "redis_client: '$REDIS_CLIENT' -s '$REDIS_SOCKET' $@"
+	"$REDIS_CLIENT" -s "$REDIS_SOCKET" "$@" | sed 's/\r//'
 }
 
 function monitor() {
@@ -121,13 +122,17 @@ function monitor() {
 		[[ "$line" != *":"* ]] && continue
 		IFS=':' read -r key value <<< "$line"
 		info[$key]="$value"
-	done < <("$REDIS_CLIENT" -s "$REDIS_SOCKET" info | stripcr)
+	done < <(redis_client info)
 	if [[ -z "${info[role]}" ]]; then
 		ocf_log err "monitor: Could not get role from \`$REDIS_CLIENT -s $REDIS_SOCKET info\`"
+		return $OCF_ERR_GENERIC
 	fi
 
 	if ocf_is_ms; then
 		# Here we see if a score has already been set.
+		# If score isn't set we the redis setting 'slave_priority'.
+		# If that isn't set, we default to 1000 for a master, and 1 for slave.
+		# We then add 1 for each connected client
 		score="$(crm_master --get-value --quiet)"
 		if [[ -z "$score" ]]; then
 			score="${info[slave_priority]}"
@@ -139,7 +144,6 @@ function monitor() {
 				fi
 			fi
 			score=$(( score + info[connected_clients] ))
-			#score=$(( score + ${info[connected_clients]} ))
 			ocf_log debug "monitor: Setting master score to '$score'"
 			crm_master -v "$score"
 		fi
@@ -175,7 +179,7 @@ function start() {
 	chown -R redis "$REDIS_RUNDIR"
 
 	ocf_log info "start: $REDIS_SERVER --daemonize yes --unixsocket '$REDIS_SOCKET' --pidfile '$REDIS_PIDFILE'"
-	output="$(su "$REDIS_USER" -s /bin/sh -c "cd '$REDIS_RUNDIR'; exec '$REDIS_SERVER' --daemonize yes --unixsocket '$REDIS_SOCKET' --pidfile '$REDIS_PIDFILE'" 2>&1)"
+	output="$(su "$REDIS_USER" -s /bin/sh -c "cd '$REDIS_RUNDIR'; exec '$REDIS_SERVER' '$REDIS_CONFIG' --daemonize yes --unixsocket '$REDIS_SOCKET' --pidfile '$REDIS_PIDFILE'" 2>&1)"
 
 	while true; do
 		# wait for redis to start
@@ -185,7 +189,7 @@ function start() {
 			[[ "$line" != *":"* ]] && continue
 			IFS=':' read -r key value <<< "$line"
 			info[$key]="$value"
-		done < <("$REDIS_CLIENT" -s "$REDIS_SOCKET" info | stripcr)
+		done < <(redis_client info)
 
 		if (( info[loading] == 0 )); then
 			break
@@ -257,8 +261,7 @@ function promote() {
 		return $OCF_ERR_GENERIC
 	fi
 
-	ocf_log info "$REDIS_CLIENT -s '$REDIS_SOCKET' slaveof no one"
-	ocf_run "$REDIS_CLIENT" -s "$REDIS_SOCKET" slaveof no one
+	redis_client slaveof no one
 
 	monitor
 	status=$?
@@ -282,8 +285,7 @@ function demote() {
 	master_host="${OCF_RESKEY_CRM_meta_notify_promote_uname// /}"
 	: "${master_host:=${OCF_RESKEY_CRM_meta_notify_master_uname// /}}"
 	master_port="${REDIS_REPLICATION_PORT}"
-	ocf_log info "$REDIS_CLIENT -s '$REDIS_SOCKET' slaveof '$master_host' '$master_port'"
-	ocf_run "$REDIS_CLIENT" -s "$REDIS_SOCKET" slaveof "$master_host" "$master_port"
+	redis_client slaveof "$master_host" "$master_port"
 
 	monitor
 	status=$?
