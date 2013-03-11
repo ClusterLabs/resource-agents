@@ -116,6 +116,9 @@ Group:		Productivity/Clustering/HA
 %endif
 Obsoletes:	heartbeat-ldirectord <= %{version}
 Provides:	heartbeat-ldirectord = %{version}
+%if 0%{?fedora} > 18
+BuildRequires: perl-podlators
+%endif
 Requires:       %{SSLeay} perl-libwww-perl perl-MailTools
 Requires:       ipvsadm logrotate
 %if 0%{?fedora_version}
