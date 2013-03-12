@@ -173,7 +173,12 @@ apache_start() {
   validate_default_config || return $OCF_ERR_CONFIGURED
   # https://bugs.launchpad.net/ubuntu/+source/apache2/+bug/603211
   [ -d /var/run/apache2 ] || mkdir /var/run/apache2
-  ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE
+  if [ -z $PIDFILE_DIRECTIVE ];
+  then
+     ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE
+  else
+     ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE -c "PidFile $PidFile"
+  fi
   tries=0
   while :  # wait until the user set timeout
   do
