@@ -101,7 +101,7 @@ Port for replication client to connect to on remote server
 EOI
 }
 
-function crm_master() {
+function crm_master_reboot() {
 	"${HA_SBIN_DIR}/crm_master" -l reboot "$@"
 }
 
@@ -133,7 +133,7 @@ function monitor() {
 		# If score isn't set we the redis setting 'slave_priority'.
 		# If that isn't set, we default to 1000 for a master, and 1 for slave.
 		# We then add 1 for each connected client
-		score="$(crm_master --get-value --quiet)"
+		score="$(crm_master_reboot --get-value --quiet)"
 		if [[ -z "$score" ]]; then
 			score="${info[slave_priority]}"
 			if [[ -z "$score" ]]; then
@@ -145,7 +145,7 @@ function monitor() {
 			fi
 			score=$(( score + info[connected_clients] ))
 			ocf_log debug "monitor: Setting master score to '$score'"
-			crm_master -v "$score"
+			crm_master_reboot -v "$score"
 		fi
 
 		if [[ "${info[role]}" == "master" ]]; then
@@ -229,7 +229,7 @@ function stop() {
 		monitor
 		status=$?
 		if (( status == OCF_NOT_RUNNING )); then
-			crm_master -D
+			crm_master_reboot -D
 			return $OCF_SUCCESS
 		fi
 		if (( status != OCF_RUNNING_MASTER )) && (( status != OCF_SUCCESS )); then
@@ -241,7 +241,7 @@ function stop() {
 	monitor
 	status=$?
 	if (( status == OCF_NOT_RUNNING )); then
-		crm_master -D
+		crm_master_reboot -D
 		return $OCF_SUCCESS
 	fi
 
