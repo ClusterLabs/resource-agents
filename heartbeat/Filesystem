@@ -19,6 +19,7 @@
 #		OCF_RESKEY_run_fsck
 #		OCF_RESKEY_fast_stop
 #		OCF_RESKEY_force_clones
+#		OCF_RESKEY_quota
 #
 #OCF_RESKEY_device    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
 #			Or a -U or -L option for mount, or an NFS mount specification
@@ -30,6 +31,7 @@
 #OCF_RESKEY_fast_stop : fast stop: yes(default)/no
 #OCF_RESKEY_force_clones : allow running the resource as clone. e.g. local xfs mounts
 #                         for each brick in a glusterfs setup
+#OCF_RESKEY_quota     : enable quotas: auto(default)/none/user/group/both
 #
 #
 # This assumes you want to manage a filesystem on a shared (SCSI) bus,
@@ -62,6 +64,8 @@ DFLT_STATUSDIR=".Filesystem_status/"
 
 # Variables used by multiple methods
 HOSTOS=`uname`
+QUOTAON=/sbin/quotaon
+QUOTAOFF=/sbin/quotaoff
 
 # The status file is going to an extra directory, by default
 #
@@ -194,6 +198,20 @@ Only set this to "true" if you know what you are doing!
 </longdesc>
 <shortdesc lang="en">allow running as a clone, regardless of filesystem type</shortdesc>
 <content type="boolean" default="$OCF_RESKEY_force_clones_default" />
+</parameter>
+
+<parameter name="quota">
+<longdesc lang="en">
+Enable quotas on the filesystem after mounting:
+
+"auto"  : automatically detect if we should enable quotas(default)
+"none"  : do not enable quotas on this filesystem
+"user"  : enable user quotas only
+"group" : enable group quotas only
+"both"  : enable both user and group quotas
+</longdesc>
+<shortdesc lang="en">enable quotas</shortdesc>
+<content type="boolean" default="auto" />
 </parameter>
 
 </parameters>
@@ -541,6 +559,12 @@ Filesystem_start()
 		fi
 		return $OCF_ERR_GENERIC
 	fi
+
+	if [ -n "$quotaopts" ]; then
+		ocf_run $QUOTAON -v -${quotaopts} $MOUNTPOINT \
+			|| exit $OCF_ERR_GENERIC
+	fi
+
 	return $OCF_SUCCESS
 }
 # end of Filesystem_start
@@ -776,6 +800,10 @@ Filesystem_stop()
 		nfs4|nfs|cifs|smbfs) umount_force="-f" ;;
 		esac
 
+		if [ -n "$quotaopts" ]; then
+			ocf_run $QUOTAOFF -v -${quotaopts} $MOUNTPOINT
+		fi
+
 		# Umount all sub-filesystems mounted under $MOUNTPOINT/ too.
 		local timeout
 		for SUB in `list_submounts $MOUNTPOINT` $MOUNTPOINT; do
@@ -995,6 +1023,50 @@ set_blockdevice_var() {
 	esac
 }
 
+autodetect_quota_options() {
+	OCF_RESKEY_quota=none
+	user=0
+	group=0
+
+	case $FSTYPE in
+		ext4|ext3|ext2) ;;
+		*) return;;
+	esac
+
+	is_option "usrquota" && user=1
+	is_option "quota" && user=1
+	is_option "grpquota" && group=1
+
+	if [ $user -eq 1 -a $group -eq 1 ]; then
+		OCF_RESKEY_quota=both
+	elif [ $user -eq 1 ]; then
+		OCF_RESKEY_quota=user
+	elif [ $group -eq 1 ]; then
+		OCF_RESKEY_quota=group
+	else
+		OCF_RESKEY_quota=none
+	fi
+}
+
+check_quota_options() {
+	quotaopts=""
+
+	if [ -z "$OCF_RESKEY_quota" -o "$OCF_RESKEY_quota" = "auto" ]; then
+		autodetect_quota_options
+	fi
+	
+	case "$OCF_RESKEY_quota" in
+	none)	;;
+	user)	quotaopts="u";;
+	group)	quotaopts="g";;
+	both)	quotaopts="ug";;
+	*)
+		ocf_log err "quota: $OCF_RESKEY_quota: invalid option"
+		exit $OCF_ERR_GENERIC
+		;;
+	esac
+}
+
 # Check the arguments passed to this script
 if [ $# -ne 1 ]; then
 	usage
@@ -1027,6 +1099,7 @@ if [ x = x"$DEVICE" ]; then
 fi
 
 set_blockdevice_var
+check_quota_options
 
 # Normalize instance parameters:
 
@@ -1053,6 +1126,11 @@ fi
 check_binary $FSCK
 check_binary $MOUNT
 check_binary $UMOUNT
+
+if [ -n "$quotaopts" ]; then
+	check_binary $QUOTAON
+	check_binary $QUOTAOFF
+fi
 
 if [ "$OP" != "monitor" ]; then
 	ocf_log info "Running $OP for $DEVICE on $MOUNTPOINT"
