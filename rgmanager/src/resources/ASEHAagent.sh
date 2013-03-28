@@ -212,7 +212,7 @@ EOT
 }
 
 ##################################################################################################
-# Function Name: validate_all                                                                    #
+# Function Name: verify_all                                                                      #
 # Parameter: None                                                                                #
 # Return value:                                                                                  #
 #             0               SUCCESS                                                            #
@@ -282,7 +282,7 @@ verify_all()
 	# Check if the Run_server file exists.
 	if [[ ! -f $RUNSERVER_SCRIPT ]]
 	then
-		ocf_log err "ASEHAagent: There file $RUNSERVER_SCRIPT doesn't exist. The sybase directory may be incorrect."
+		ocf_log err "ASEHAagent: The file $RUNSERVER_SCRIPT doesn't exist. The sybase directory may be incorrect."
 		return $OCF_ERR_ARGS
 	fi
 
@@ -528,11 +528,11 @@ EOF
 
 	sleep 5
 
-	# Check if the server has been shutted down successfully
+	# Check if the server has been shut down successfully
 	t=0
 	while [[ $t -lt $OCF_RESKEY_shutdown_timeout ]]
 	do
-		# Search "usshutdown: exiting" in the server log. If found, it means the server has been shutted down. 
+		# Search "ueshutdown: exiting" in the server log. If found, it means the server has been shut down. 
 		# Otherwise, we need to wait.
 		tail $CONSOLE_LOG | grep "ueshutdown: exiting" > /dev/null 2>&1
 		if [[ $? != 0 ]]
@@ -547,14 +547,14 @@ EOF
 		fi
 	done
 
-	# If $t is larger than shutdown_timeout, it means the ASE server cannot be shutted down in given time. We need
+	# If $t is larger than shutdown_timeout, it means the ASE server cannot be shut down in given time. We need
 	# to wait for the background kill process to kill the OS processes directly.
 	if  [[ $t -ge $OCF_RESKEY_shutdown_timeout ]]
 	then
 		ocf_log err "ASEHAagent: Shutdown of '$OCF_RESKEY_server_name' from isql failed.  Server is either down or unreachable."
 	fi
 
-	# Here, the ASE server has been shutted down by isql command or killed by background process. We need to do
+	# Here, the ASE server has been shut down by isql command or killed by background process. We need to do
 	# further check to make sure all processes have gone away before saying shutdown is complete. This stops the
 	# other node from starting up the package before it has been stopped and the file system has been unmounted.
 	
@@ -661,7 +661,7 @@ ase_is_running()
 }
 
 ####################################################################################
-# Function name: ase_is_running                                                    #
+# Function name: kill_ase                                                          #
 # Parameter:                                                                       #
 #             DELAY  The seconds to wait before killing the ASE processes. 0 means #
 #                    kill the ASE processes immediately.                           #
