@@ -119,15 +119,16 @@ Which would not be possible, if there is already an instance on those nodes,
 and clone-node-max=1 (which is the default).
 </longdesc>
 
-<shortdesc lang="en">Manages virtual IPv4 addresses (Linux specific version)</shortdesc>
+<shortdesc lang="en">Manages virtual IPv4 and IPv6 addresses (Linux specific version)</shortdesc>
 
 <parameters>
 <parameter name="ip" unique="1" required="1">
 <longdesc lang="en">
-The IPv4 address to be configured in dotted quad notation, for example
-"192.168.1.1".
+The IPv4 (dotted quad notation) or IPv6 address (colon hexadecimal notation)
+example IPv4 "192.168.1.1".
+example IPv6 "2001:db8:DC28:0:0:FC57:D4C8:1FFF".
 </longdesc>
-<shortdesc lang="en">IPv4 address</shortdesc>
+<shortdesc lang="en">IPv4 or IPv6 address</shortdesc>
 <content type="string" default="" />
 </parameter>
 <parameter name="nic" unique="0">
