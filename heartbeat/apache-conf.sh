@@ -139,7 +139,15 @@ GetParams() {
   case $PidFile in
     /*)	;;
     [[:alnum:]]*)	PidFile=$ServerRoot/$PidFile;;
-    *)	PidFile=$HA_VARRUNDIR/${httpd_basename}.pid;;
+    *)
+        # If the PidFile is not set in the config, set
+        # a default location.
+        PidFile=$HA_VARRUNDIR/${httpd_basename}.pid
+        # Force the daemon to use this location by using
+        # the -c option, which adds the PidFile directive
+        # as if it was in the configuration file to begin with.
+        PIDFILE_DIRECTIVE="true"
+        ;;
   esac
 
   for p in "$PORT" "$Port" 80; do

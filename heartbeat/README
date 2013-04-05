@@ -20,3 +20,25 @@ ora-common.sh.
 
 Of course, if the RA is implemented in another programming
 language, use the appropriate extension.
+
+RA tracing
+
+RA tracing may be turned on by setting OCF_TRACE_RA. The trace
+output will be saved to OCF_TRACE_FILE, if set, or by default to
+
+  $HA_VARLIB/trace_ra/<type>/<id>.<action>.<timestamp>
+
+e.g. $HA_VARLIB/trace_ra/oracle/db.start.2012-11-27.08:37:08
+
+HA_VARLIB is typically set to /var/lib/heartbeat.
+
+OCF_TRACE_FILE can be set to a path or file descriptor:
+
+- FD (small integer [3-9]) in that case it is up to the callers
+  to capture output; the FD _must_ be open for writing
+
+- absolute path
+
+NB: FD 9 may be used for tracing with bash >= v4 in case
+OCF_TRACE_FILE is set to a path.
+

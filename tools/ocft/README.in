@@ -38,6 +38,8 @@ INTRODUCTION & DESIGN
     the running status of each test case, which will compares the predicated result 
     with the actual one. If they differ, you will be able to find the bugs of the 
     resource agent.
+  - All of the output with test will be recorded into the log files, you can find them
+    in /var/lib/@PACKAGE_NAME@/ocft/cases/logs.
 
 
 HOW TO WRITE CONFIGURATION FILE
@@ -137,8 +139,8 @@ HOW TO WRITE CONFIGURATION FILE
         If it happens, you ought to use BashAtExit which can restore the system environment 
         before you quit.
 
-    ** 'RunAgent' (sub-option)
-      - Grammar: RunAgent cmd [ret_value]
+    ** 'AgentRun' (sub-option)
+      - Grammar: AgentRun cmd [ret_value]
       - This option is to run resource agent. "cmd" is the parameter of the resource agent, 
         such as "start, status, stop ...". The second parameter is optional. It will compare the 
         actual returned value with the expected value when the script has run recourse agent. 

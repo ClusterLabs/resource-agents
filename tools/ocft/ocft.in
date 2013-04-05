@@ -640,6 +640,10 @@ start_test()
     die "cases directory not found."
   fi
 
+  if [ ! -d logs ]; then
+    mkdir logs
+  fi
+
   export __OCFT__VERBOSE=$opt_verbose
 
   if [ $# -eq 0 ]; then
@@ -686,11 +690,11 @@ start_test()
               ;;
         esac
       fi
+    done 2>&1 | while read -r line; do
+      echo "$line"
+      echo "$(date '+%F %T'): $line" | cat -A |
+      sed -r 's/\^\[\[[0-9]+m|\^I|.$//g' >>logs/$shs.log
     done
-  done 2>&1 | while read -r line; do
-    echo "$line"
-    echo "$(date '+%F %T'): $line" | cat -A |
-    sed -r 's/\^\[\[[0-9]+m|\^I|.$//g' >>ocft.log
   done
 }
 
@@ -784,6 +788,8 @@ HOW TO USE THIS TOOL
     the running status of each test case, which will compares the predicated result 
     with the actual one. If they differ, you will be able to find the bugs of the 
     resource agent.
+  - All of the output with test will be recorded into the log files, you can find them
+    in $CASES_DIR/logs.
 EOF
 }
 

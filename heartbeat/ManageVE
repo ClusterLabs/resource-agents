@@ -188,7 +188,10 @@ status_ve()
   retcode=$?
 
   if [[ $retcode != 0 ]]; then
-    ocf_log err "vzctl status $VEID returned: $retcode"
+    # log error only if expected to find running
+    if [ "$__OCF_ACTION" = "monitor" ] && ! ocf_is_probe; then
+      ocf_log err "vzctl status $VEID returned: $retcode"
+    fi
     exit $OCF_ERR_GENERIC
   fi
 

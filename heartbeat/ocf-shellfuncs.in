@@ -679,15 +679,16 @@ ocf_stop_processes() {
 # RA tracing may be turned on by setting OCF_TRACE_RA
 # the trace output will be saved to OCF_TRACE_FILE, if set, or
 # by default to
-#   $HA_VARRUN/ra_trace/<type>/<id>.<action>.<timestamp>
-#   e.g. $HA_VARRUN/ra_trace/oracle/db.start.2012-11-27.08:37:08
+#   $HA_VARLIB/trace_ra/<type>/<id>.<action>.<timestamp>
+#   e.g. $HA_VARLIB/trace_ra/oracle/db.start.2012-11-27.08:37:08
 #
 # OCF_TRACE_FILE:
 # - FD (small integer [3-9]) in that case it is up to the callers
 #   to capture output; the FD _must_ be open for writing
 # - absolute path
 #
-# NB: FD 9 may be used for tracing with bash >= v4
+# NB: FD 9 may be used for tracing with bash >= v4 in case
+# OCF_TRACE_FILE is set to a path.
 #
 ocf_is_bash4() {
 	echo "$SHELL" | grep bash > /dev/null &&
@@ -725,7 +726,7 @@ ocf_default_trace_dest() {
 	if [ -n "$OCF_RESOURCE_TYPE" -a \
 			-n "$OCF_RESOURCE_INSTANCE" -a -n "$__OCF_ACTION" ]; then
 		local ts=`date +%F.%T`
-		__OCF_TRC_DEST=$HA_VARRUN/trace_ra/${OCF_RESOURCE_TYPE}/${OCF_RESOURCE_INSTANCE}.${__OCF_ACTION}.$ts
+		__OCF_TRC_DEST=$HA_VARLIB/trace_ra/${OCF_RESOURCE_TYPE}/${OCF_RESOURCE_INSTANCE}.${__OCF_ACTION}.$ts
 		__OCF_TRC_MANAGE="1"
 	fi
 }
