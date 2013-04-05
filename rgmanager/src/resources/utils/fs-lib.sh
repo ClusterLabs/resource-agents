@@ -541,7 +541,7 @@ do_mount() {
 	# Mount the device
 	#
 	ocf_log info "mounting $dev on $mp"
-	ocf_log err "mount $fstype_option $mount_options $dev $mp"
+	ocf_log debug "mount $fstype_option $mount_options $dev $mp"
 	mount $fstype_option $mount_options "$dev" "$mp"
 	ret_val=$?
 	if [ $ret_val -ne 0 ]; then
