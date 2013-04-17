@@ -22,14 +22,16 @@
 #
 #	  OCF parameters are as below:
 #		OCF_RESKEY_volgrpname
-#		
+#    
 #######################################################################
 # Initialization:
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 . ${OCF_FUNCTIONS_DIR}/lvm_functions.sh
+. ${OCF_FUNCTIONS_DIR}/lvm_lv.sh
 . ${OCF_FUNCTIONS_DIR}/lvm_vg.sh
+. ${OCF_FUNCTIONS_DIR}/member_util.sh
 
 #######################################################################
 
@@ -74,9 +76,30 @@ The name of volume group.
 <shortdesc lang="en">Volume group name</shortdesc>
 <content type="string" default="" />
 </parameter>
+
+<parameter name="lvname">
+<longdesc lang="en">
+Name of the logical volume being managed.  This option 
+is invalid when used in combination with 'exclusive=true' 
+unless a clustered volume group is being used with cLVM.
+</longdesc>
+<shortdesc lang="en">
+Logical Volume name (optional).
+</shortdesc>
+<content type="string"/>
+</parameter>
+
 <parameter name="exclusive" unique="0" required="0">
 <longdesc lang="en">
-If set, the volume group will be activated exclusively.
+When set, the volume group will be activated exclusively. 
+Exclusive activation works one of two ways. 
+1. For clustered volume groups, exclusive activation will use 
+clvm, make sure /etc/lvm/lvm.conf has locking_type=3. 
+2. For non-clustered volume groups (no cLVM), exclusive 
+activation will occur using LVM tags. This requires /etc/lvm/lvm.conf 
+locking_type=1 and each node to have its local hostname 
+present in lvm.conf's volume_list preceeded by @. Example. 
+volume_list = [ "@my-hostname" ]
 </longdesc>
 <shortdesc lang="en">Exclusive activation</shortdesc>
 <content type="boolean" default="false" />
@@ -84,8 +107,8 @@ If set, the volume group will be activated exclusively.
 
 <parameter name="partial_activation" unique="0" required="0">
 <longdesc lang="en">
-If set, the volume group will be activated even only partial of the physical
-volumes available. It helps to set to true, when you are using mirroring
+If set, the volume group will be activated even only partial of
+the physical volumes available. It helps to set to true, when you are using mirroring 
 logical volumes.
 </longdesc>
 <shortdesc lang="en">Activate VG even with partial PV only</shortdesc>
@@ -95,13 +118,13 @@ logical volumes.
 </parameters>
 
 <actions>
-<action name="start" timeout="30" />
-<action name="stop" timeout="30" />
-<action name="status" timeout="30" />
-<action name="monitor" depth="0" timeout="30" interval="10" />
-<action name="methods" timeout="5" />
-<action name="meta-data" timeout="5" />
-<action name="validate-all" timeout="5" />
+<action name="start" timeout="30"/>
+<action name="stop" timeout="30"/>
+<action name="status" timeout="30" interval="60"/>
+<action name="monitor" depth="0" timeout="30" interval="60"/>
+<action name="methods" timeout="5"/>
+<action name="meta-data" timeout="5"/>
+<action name="validate-all" timeout="5"/>
 </actions>
 </resource-agent>
 EOF
@@ -124,7 +147,12 @@ EOF
 }
 
 LVM_status() {
-	lv_status
+
+	if [ -z "$OCF_RESKEY_lvname" ]; then
+		vg_status
+	else
+		lv_status
+	fi
 
 	if [ $rc -eq 0 ]; then
 		echo "Volume $OCF_RESKEY_volgrpname is available (running)"
@@ -134,16 +162,29 @@ LVM_status() {
 }
 
 LVM_monitor() {
-	vg_status
+	if [ -z "$OCF_RESKEY_lvname" ]; then
+		vg_status
+	else
+		lv_status
+	fi
 }
 
 LVM_start() {
 	verify_setup || exit 1
-	vg_start
+
+	if [ -z "$OCF_RESKEY_lvname" ]; then
+		vg_start
+	else
+		lv_start
+	fi
 }
 
 LVM_stop() {
-	vg_stop
+	if [ -z "$OCF_RESKEY_lvname" ]; then
+		vg_stop
+	else
+		lv_stop
+	fi
 }
 
 #
