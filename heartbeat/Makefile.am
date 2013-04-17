@@ -131,6 +131,10 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  ocf-returncodes 	\
  			  ocf-rarun		\
 			  apache-conf.sh 	\
+			  lvm_functions.sh	\
+			  lvm_lv.sh	\
+			  lvm_vg.sh	\
+			  member_util.sh	\
 			  http-mon.sh    	\
 			  sapdb-nosha.sh	\
 			  sapdb.sh		\
