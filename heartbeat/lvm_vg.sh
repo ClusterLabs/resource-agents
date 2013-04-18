@@ -321,21 +321,40 @@ function vg_start
 
 function vg_stop_normal
 {
+	local a
+	rc=$OCF_ERR_GENERIC
 	vgdisplay "$OCF_RESKEY_volgrpname" 2>&1 | grep 'Volume group .* not found' >/dev/null && {
 		ocf_log info "Volume group $OCF_RESKEY_volgrpname not found"
 		return $OCF_SUCCESS
 	}
 	ocf_log info "Deactivating volume group $OCF_RESKEY_volgrpname"
-	ocf_run vgchange -aln $OCF_RESKEY_volgrpname || return $OCF_ERR_GENERIC
+	ocf_run vgchange -aln $OCF_RESKEY_volgrpname
 
-	vg_status_normal
-	# make sure vg isn't still running
-	if [ $? -eq $OCF_SUCCESS ]; then
-		ocf_log err "LVM: $OCF_RESKEY_volgrpname did not stop correctly"
-		return $OCF_ERR_GENERIC 
-	fi
+	a=0
+	while :; do
+		a=$(($a + 1))
+		if [ $a -gt 10 ]; then
+		        a=$(($a - 1))
+		        ocf_log err "Unable to deactivate $OCF_RESKEY_volgrpname, retried($a), failed"
+			break;
+		fi
 
-	return $OCF_SUCCESS
+	        # make sure vg isn't still running
+		vg_status_normal
+		res=$?
+		if [ $res -eq $OCF_SUCCESS ]; then
+		    ocf_log err "Unable to deactivate $OCF_RESKEY_volgrpname, retrying($a)"
+		    sleep 1
+		    which udevadm >& /dev/null && udevadm settle
+		    ocf_run vgchange -aln $OCF_RESKEY_volgrpname
+                else
+		    rc=$OCF_SUCCESS
+		    break;
+		fi
+		
+	done
+
+	return $rc
 }
 
 function vg_stop_exclusive
@@ -344,17 +363,9 @@ function vg_stop_exclusive
 	local results
 
 	#  Shut down the volume group
-	#  Do we need to make this resilient?
+	#  Do we need to make this resilient? 
 	a=0
-	while ! vg_stop_normal; do
-		a=$(($a + 1))
-		if [ $a -gt 10 ]; then
-			break;
-		fi
-		ocf_log err "Unable to deactivate $OCF_RESKEY_volgrpname, retrying($a)"
-		sleep 1
-		which udevadm >& /dev/null && udevadm settle
-	done
+	vg_stop_normal;
 
 	#  Make sure all the logical volumes are inactive
 	active=0
