@@ -231,24 +231,37 @@ LVM_start() {
 #	Disable the LVM volume
 #
 LVM_stop() {
+  local first_try=true
+  rc=$OCF_ERR_GENERIC
 
   vgdisplay "$1" 2>&1 | grep 'Volume group .* not found' >/dev/null && {
     ocf_log info "Volume group $1 not found"
     return $OCF_SUCCESS
   }
-  ocf_log info "Deactivating volume group $1"
-  ocf_run vgchange -a ln $1 || return $OCF_ERR_GENERIC
 
-  if
-    LVM_status $1
-  then
-    ocf_log err "LVM: $1 did not stop correctly"
-    return $OCF_ERR_GENERIC 
-  fi
+  # try to deactivate first time
+  ocf_log info "Deactivating volume group $1"
+  ocf_run vgchange -a ln $1
+
+  # Keep trying to bring down the resource;
+  # wait for the CRM to time us out if this fails
+  while :; do
+    if LVM_status $1; then
+      which udevadm >& /dev/null && udevadm settle
+      ocf_log warn "$1 still Active"
+      ocf_log info "Retry deactivating volume group $1"
+      ocf_run vgchange -a ln $1
+    else
+      rc=$OCF_SUCCESS 
+      break;
+    fi
+    $first_try || sleep 1
+    first_try=false
+  done
 
   # TODO: This MUST run vgexport as well
 
-  return $OCF_SUCCESS
+  return $rc
 }
 
 #
