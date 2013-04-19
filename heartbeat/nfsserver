@@ -16,6 +16,7 @@ DEFAULT_INIT_SCRIPT="/etc/init.d/nfsserver"
 DEFAULT_NOTIFY_CMD="/sbin/sm-notify"
 DEFAULT_NOTIFY_FOREGROUND="false"
 DEFAULT_RPCPIPEFS_DIR="/var/lib/nfs/rpc_pipefs"
+EXEC_MODE=0
 
 nfsserver_meta_data() {
 	cat <<END
@@ -36,12 +37,17 @@ It depends on Linux specific NFS implementation details, so is considered not po
 <parameter name="nfs_init_script" unique="0" required="0">
 <longdesc lang="en">
 The default init script shipped with the Linux distro.
-The nfsserver resource agent offloads the start/stop/monitor work to the init script because the procedure to start/stop/monitor nfsserver varies on different Linux distro.
+The nfsserver resource agent offloads the start/stop/monitor 
+work to the init script because the procedure to start/stop/monitor 
+nfsserver varies on different Linux distro. In the event that this
+option is not set, this agent will attempt to use an init script at 
+this location, ${DEFAULT_INIT_SCRIPT}, or detect a systemd unit-file 
+to use in the event that no init script is detected.
 </longdesc>
 <shortdesc lang="en">
 Init script for nfsserver
 </shortdesc>
-<content type="string" default="$DEFAULT_INIT_SCRIPT" />
+<content type="string" default="auto detected" />
 </parameter>
 
 <parameter name="nfs_notify_cmd" unique="0" required="0">
@@ -150,7 +156,6 @@ case $__OCF_ACTION in
 esac
 
 fp="$OCF_RESKEY_nfs_shared_infodir"
-: ${OCF_RESKEY_nfs_init_script="$DEFAULT_INIT_SCRIPT"}
 : ${OCF_RESKEY_nfs_notify_cmd="$DEFAULT_NOTIFY_CMD"}
 : ${OCF_RESKEY_nfs_notify_foreground="$DEFAULT_NOTIFY_FOREGROUND"}
 
@@ -162,10 +167,75 @@ else
 	rpcpipefs_umount_dir=${OCF_RESKEY_rpcpipefs_dir}
 fi
 
+##
+# EXEC_MODE values
+# 1  user init script or default init script
+# 2  systemd
+#
+# On error, this function will terminate the process
+# with error code $OCF_ERR_INSTALLED
+##
+set_exec_mode()
+{
+
+	##
+	# If EXEC_MODE is already set, we don't need to run this function again.
+	## 
+	if [ $EXEC_MODE -ne 0 ]; then
+		return 0;
+	fi
+
+	##
+	# If the user defined an init script, It must exist for us to continue
+	##
+	if [ -n "$OCF_RESKEY_nfs_init_script" ]; then
+		# check_binary will exit the process if init script does not exist
+		check_binary ${OCF_RESKEY_nfs_init_script}
+		EXEC_MODE=1
+		return 0
+	fi
+
+	##
+	# Check to see if the default init script exists, if so we'll use that.
+	##
+	if which $DEFAULT_INIT_SCRIPT > /dev/null 2>&1; then
+		OCF_RESKEY_nfs_init_script=$DEFAULT_INIT_SCRIPT
+		EXEC_MODE=1
+		return 0
+	fi
+
+	##
+	# Last of all, attempt systemd.
+	##
+	if which systemctl > /dev/null 2>&1; then
+		if systemctl list-unit-files | grep nfs-server > /dev/null; then
+			EXEC_MODE=2
+			return 0
+		fi
+	fi
+
+	ocf_log err "No init script or systemd unit file detected for nfs server"
+	exit $OCF_ERR_INSTALLED
+}
+
+##
+# wrapper for init script and systemd calls.
+##
+nfs_exec()
+{
+	local cmd=$1
+	set_exec_mode
+
+	case $EXEC_MODE in 
+		1) ${OCF_RESKEY_nfs_init_script} $cmd;;
+		2) systemctl $cmd nfs-server.service;;
+	esac
+}
+
 nfsserver_monitor ()
 {
 	fn=`mktemp`
-	${OCF_RESKEY_nfs_init_script} status > $fn 2>&1 
+	nfs_exec status > $fn 2>&1 
 	rc=$?
 	ocf_log debug `cat $fn`
 	rm -f $fn
@@ -231,7 +301,7 @@ nfsserver_start ()
 	ocf_log info "Starting NFS server ..."
 
 	fn=`mktemp`
-	${OCF_RESKEY_nfs_init_script} start > $fn 2>&1
+	nfs_exec start > $fn 2>&1
 	rc=$?
 	ocf_log debug `cat $fn`
 	rm -f $fn
@@ -287,7 +357,7 @@ nfsserver_stop ()
 	ocf_log info "Stopping NFS server ..."
 
 	fn=`mktemp`
-	${OCF_RESKEY_nfs_init_script} stop > $fn 2>&1
+	nfs_exec stop > $fn 2>&1
 	rc=$?
 	ocf_log debug `cat $fn`
 	rm -f $fn
@@ -303,7 +373,10 @@ nfsserver_stop ()
 
 nfsserver_validate ()
 {
-	check_binary ${OCF_RESKEY_nfs_init_script}
+	##
+	# set_exec_mode will exit if nfs server is not installed
+	##
+	set_exec_mode
 	check_binary ${OCF_RESKEY_nfs_notify_cmd}
 
 	if [ x = x"${OCF_RESKEY_nfs_ip}" ]; then
