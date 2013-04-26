@@ -262,13 +262,16 @@ prepare_directory ()
 
 is_bound ()
 {
-	mount | grep -q "$1 on $2 type none (.*bind)"
-	return $?
+	if mount | grep -q "on $1 type"; then
+		return 0
+	fi
+
+	return 1
 }
 
 bind_tree ()
 {
-	if is_bound $fp /var/lib/nfs; then
+	if is_bound /var/lib/nfs; then
 		ocf_log debug "$fp is already bound to /var/lib/nfs"
 		return 0
 	fi
@@ -280,7 +283,7 @@ unbind_tree ()
 	if `mount | grep -q " on $rpcpipefs_umount_dir"`; then
 		umount -t rpc_pipefs $rpcpipefs_umount_dir
 	fi
-	if is_bound $fp /var/lib/nfs; then
+	if is_bound /var/lib/nfs; then
 		umount /var/lib/nfs
 	fi
 }
