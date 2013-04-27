@@ -33,8 +33,8 @@
 #   OCF_RESKEY_java_opts - Options to pass to Java JVM for start and stop. Default is none
 #   OCF_RESKEY_catalina_home - Home directory of Tomcat. Default is none
 #   OCF_RESKEY_catalina_base - Base directory of Tomcat. Default is OCF_RESKEY_catalina_home
-#   OCF_RESKEY_catalina_out - Log file name of Tomcat. Default is OCF_RESKEY_catalina_home/logs/catalina.out
-#   OCF_RESKEY_catalina_pid  - A PID file name of Tomcat. Default is OCF_RESKEY_catalina_home/logs/catalina.pid
+#   OCF_RESKEY_catalina_out - Log file name of Tomcat. Default is OCF_RESKEY_catalina_base/logs/catalina.out
+#   OCF_RESKEY_catalina_pid  - A PID file name of Tomcat. Default is OCF_RESKEY_catalina_base/logs/catalina.pid
 #   OCF_RESKEY_tomcat_start_opts - Start options of Tomcat. Default is none.
 #   OCF_RESKEY_catalina_opts - CATALINA_OPTS environment variable. Default is none.
 #   OCF_RESKEY_catalina_tmpdir - CATALINA_TMPDIR environment variable. Default is none.
@@ -522,8 +522,8 @@ JAVA_HOME="${OCF_RESKEY_java_home}"
 JAVA_OPTS="${OCF_RESKEY_java_opts}"
 CATALINA_HOME="${OCF_RESKEY_catalina_home}"
 CATALINA_BASE="${OCF_RESKEY_catalina_base-${OCF_RESKEY_catalina_home}}"
-CATALINA_OUT="${OCF_RESKEY_catalina_out-$CATALINA_HOME/logs/catalina.out}"
-CATALINA_PID="${OCF_RESKEY_catalina_pid-$CATALINA_HOME/logs/catalina.pid}"
+CATALINA_OUT="${OCF_RESKEY_catalina_out-$CATALINA_BASE/logs/catalina.out}"
+CATALINA_PID="${OCF_RESKEY_catalina_pid-$CATALINA_BASE/logs/catalina.pid}"
 MAX_STOP_TIME="${OCF_RESKEY_max_stop_time}"
 
 TOMCAT_START_OPTS="${OCF_RESKEY_tomcat_start_opts}"
