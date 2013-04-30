@@ -159,7 +159,7 @@ END_TOMCAT_COMMAND
 }
 attemptTomcatCommand()
 {
-	if [ "$RESOURCE_TOMCAT_USER" = RUNASIS ]; then
+	if [ "$RESOURCE_TOMCAT_USER" = root ]; then
 		"$CATALINA_HOME/bin/catalina.sh" $@ >> "$TOMCAT_CONSOLE" 2>&1
 	else
 		tomcatCommand $@ | su - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1
@@ -305,7 +305,7 @@ and killing Tomcat. DEPRECATED. Does not retry.
 The user who starts Tomcat.
 </longdesc>
 <shortdesc>The user who starts Tomcat</shortdesc>
-<content type="string" default="" />
+<content type="string" default="root" />
 </parameter>
 
 <parameter name="statusurl" unique="0">
@@ -500,7 +500,7 @@ memorize_pid()
 COMMAND=$1
 TOMCAT_NAME="${OCF_RESKEY_tomcat_name-tomcat}"
 TOMCAT_CONSOLE="${OCF_RESKEY_script_log-/var/log/$TOMCAT_NAME.log}"
-RESOURCE_TOMCAT_USER="${OCF_RESKEY_tomcat_user-RUNASIS}"
+RESOURCE_TOMCAT_USER="${OCF_RESKEY_tomcat_user-root}"
 RESOURCE_STATUSURL="${OCF_RESKEY_statusurl-http://127.0.0.1:8080}"
 
 JAVA_HOME="${OCF_RESKEY_java_home}"
