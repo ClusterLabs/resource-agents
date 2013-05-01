@@ -17,6 +17,7 @@ DEFAULT_NOTIFY_CMD="/sbin/sm-notify"
 DEFAULT_NOTIFY_FOREGROUND="false"
 DEFAULT_RPCPIPEFS_DIR="/var/lib/nfs/rpc_pipefs"
 EXEC_MODE=0
+SELINUX_ENABLED=-1
 STATD_PATH="/var/lib/nfs"
 STATD_DIR=""
 
@@ -175,6 +176,15 @@ if [ -d "/var/lib/nfs/statd" ]; then
 	STATD_PATH="/var/lib/nfs/statd"
 fi
 
+# SELinux information. We are taking the permissions from
+# the current statd dir and applying it to the HA one that is
+# being mounted in its place.
+which restorecon > /dev/null 2>&1 && selinuxenabled
+SELINUX_ENABLED=$?
+if [ $SELINUX_ENABLED ]; then
+	export SELINUX_LABEL="$(ls -ldZ $STATD_PATH | cut -f4 -d' ')"
+fi
+
 ##
 # EXEC_MODE values
 # 1  user init script or default init script
@@ -269,6 +279,8 @@ prepare_directory ()
 	[ -d "$fp/$STATD_DIR/sm.ha" ] || mkdir -p "$fp/$STATD_DIR/sm.ha"
 	[ -d "$fp/$STATD_DIR/sm.bak" ] || mkdir -p "$fp/$STATD_DIR/sm.bak"
 	[ -n "`id -u rpcuser`" -a "`id -g rpcuser`" ] && chown -R rpcuser.rpcuser "$fp/$STATD_DIR"
+
+	[ $SELINUX_ENABLED ] && chcon -R "$SELINUX_LABEL" "$fp"
 }
 
 is_bound ()
@@ -284,6 +296,7 @@ bind_tree ()
 		return 0
 	fi
 	mount --bind $fp /var/lib/nfs
+	[ $SELINUX_ENABLED ] && restorecon /var/lib/nfs
 }
 
 unbind_tree ()
