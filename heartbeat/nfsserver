@@ -17,6 +17,8 @@ DEFAULT_NOTIFY_CMD="/sbin/sm-notify"
 DEFAULT_NOTIFY_FOREGROUND="false"
 DEFAULT_RPCPIPEFS_DIR="/var/lib/nfs/rpc_pipefs"
 EXEC_MODE=0
+STATD_PATH="/var/lib/nfs"
+STATD_DIR=""
 
 nfsserver_meta_data() {
 	cat <<END
@@ -167,6 +169,12 @@ else
 	rpcpipefs_umount_dir=${OCF_RESKEY_rpcpipefs_dir}
 fi
 
+# Use statd folder if it exists
+if [ -d "/var/lib/nfs/statd" ]; then
+	STATD_DIR="statd"
+	STATD_PATH="/var/lib/nfs/statd"
+fi
+
 ##
 # EXEC_MODE values
 # 1  user init script or default init script
@@ -254,10 +262,13 @@ prepare_directory ()
 {
 	[ -d "$fp" ] || mkdir -p $fp
 	[ -d "$rpcpipefs_make_dir" ] || mkdir -p $rpcpipefs_make_dir
-	[ -d "$fp/sm" ] || mkdir -p $fp/sm
-	[ -d "$fp/sm.ha" ] || mkdir -p $fp/sm.ha
-	[ -d "$fp/sm.bak" ] || mkdir -p $fp/sm.bak
 	[ -d "$fp/v4recovery" ] || mkdir -p $fp/v4recovery
+
+	[ -d "$fp/$STATD_DIR" ] || mkdir -p "$fp/$STATD_DIR"
+	[ -d "$fp/$STATD_DIR/sm" ] || mkdir -p "$fp/$STATD_DIR/sm"
+	[ -d "$fp/$STATD_DIR/sm.ha" ] || mkdir -p "$fp/$STATD_DIR/sm.ha"
+	[ -d "$fp/$STATD_DIR/sm.bak" ] || mkdir -p "$fp/$STATD_DIR/sm.bak"
+	[ -n "`id -u rpcuser`" -a "`id -g rpcuser`" ] && chown -R rpcuser.rpcuser "$fp/$STATD_DIR"
 }
 
 is_bound ()
@@ -295,8 +306,8 @@ nfsserver_start ()
 	prepare_directory
 	bind_tree
 
-	rm -rf /var/lib/nfs/sm.ha/* > /dev/null 2>&1
-	cp -rf /var/lib/nfs/sm /var/lib/nfs/sm.bak /var/lib/nfs/state /var/lib/nfs/sm.ha > /dev/null 2>&1
+	rm -rf $STATD_PATH/sm.ha/* > /dev/null 2>&1
+	cp -rf $STATD_PATH/sm $STATD_PATH/sm.bak /var/lib/nfs/state $STATD_PATH/sm.ha > /dev/null 2>&1
 
 	ocf_log info "Starting NFS server ..."
 
@@ -339,12 +350,12 @@ nfsserver_start ()
 
 	esac
 
-	rm -rf /var/lib/nfs/sm.ha.save > /dev/null 2>&1
-	cp -rf /var/lib/nfs/sm.ha /var/lib/nfs/sm.ha.save > /dev/null 2>&1
+	rm -rf $STATD_PATH/sm.ha.save > /dev/null 2>&1
+	cp -rf $STATD_PATH/sm.ha $STATD_PATH/sm.ha.save > /dev/null 2>&1
 	for ip in `echo ${OCF_RESKEY_nfs_ip} | sed 's/,/ /g'`; do
-	  ${OCF_RESKEY_nfs_notify_cmd} $opts $ip -P /var/lib/nfs/sm.ha
-	  rm -rf /var/lib/nfs/sm.ha > /dev/null 2>&1
-	  cp -rf /var/lib/nfs/sm.ha.save /var/lib/nfs/sm.ha > /dev/null 2>&1
+	  ${OCF_RESKEY_nfs_notify_cmd} $opts $ip -P $STATD_PATH/sm.ha
+	  rm -rf $STATD_PATH/sm.ha > /dev/null 2>&1
+	  cp -rf $STATD_PATH/sm.ha.save $STATD_PATH/sm.ha > /dev/null 2>&1
 	done
 
 
