@@ -459,13 +459,14 @@ END
 validate_all_tomcat()
 {
 	local port
+	local rc=$OCF_SUCCESS
 	ocf_log info "validate_all_tomcat[$TOMCAT_NAME]"
 
 	check_binary $WGET
 
 	if [ -n "$MAX_STOP_TIME" ] && [ "$MAX_STOP_TIME" -lt 0 ]; then
 		ocf_log err "max_stop_time must be set to a value greater than 0."
-		return $OCF_ERR_CONFIGURED
+		rc=$OCF_ERR_CONFIGURED
 	fi
 
 	case "$RESOURCE_STATUSURL" in
@@ -477,12 +478,12 @@ validate_all_tomcat()
 		grep "port=\"$port\"" $CATALINA_BASE/conf/server.xml > /dev/null 2>&1
 		if [ $? -ne 0 ]; then
 			ocf_log err "Your configured status URL specifies a port ($port), but the server does not have a connector listening to that port in $CATALINA_BASE/conf/server.xml"
-			return $OCF_ERR_INSTALLED
+			rc=$OCF_ERR_INSTALLED
 		fi
 		;;
 	esac
 
-	return $OCF_SUCCESS
+	return $rc
 }
 
 # As we stop tomcat, it removes it's own pid file...we still want to know what it was
