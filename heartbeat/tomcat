@@ -134,7 +134,7 @@ rotate_catalina_out()
 
 	# -s is required because tomcat5.5's login shell is /bin/false
 	su - -s /bin/sh $RESOURCE_TOMCAT_USER \
-		-c "$ROTATELOGS -l \"$CATALINA_BASE/logs/catalina_%F.log\" $CATALINA_ROTATETIME" \
+        	-c "$ROTATELOGS -l \"$CATALINA_BASE/logs/catalina_%F.log\" $CATALINA_ROTATETIME" \
         	< "$CATALINA_OUT" > /dev/null 2>&1 &
 }
 
