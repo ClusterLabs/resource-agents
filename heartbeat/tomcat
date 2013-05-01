@@ -469,8 +469,7 @@ validate_all_tomcat()
 		rc=$OCF_ERR_CONFIGURED
 	fi
 
-	case "$RESOURCE_STATUSURL" in
-	    *:[0-9]*)
+	if echo "$RESOURCE_STATUSURL" | grep -q ":[0-9][0-9]*" ; then
 		port=${RESOURCE_STATUSURL##*:}
 		port=${port%%/*}
 		ocf_log debug "Tomcat port is $port"
@@ -480,8 +479,7 @@ validate_all_tomcat()
 			ocf_log err "Your configured status URL specifies a port ($port), but the server does not have a connector listening to that port in $CATALINA_BASE/conf/server.xml"
 			rc=$OCF_ERR_INSTALLED
 		fi
-		;;
-	esac
+	fi
 
 	return $rc
 }
