@@ -226,7 +226,7 @@ set_exec_mode()
 	# Last of all, attempt systemd.
 	##
 	if which systemctl > /dev/null 2>&1; then
-		if systemctl list-unit-files | grep nfs-server > /dev/null; then
+		if systemctl list-unit-files | grep nfs-server > /dev/null && systemctl list-unit-files | grep nfs-lock > /dev/null; then
 			EXEC_MODE=2
 			return 0
 		fi
@@ -242,11 +242,33 @@ set_exec_mode()
 nfs_exec()
 {
 	local cmd=$1
+	local server_res
+	local lock_res
 	set_exec_mode
 
 	case $EXEC_MODE in 
 		1) ${OCF_RESKEY_nfs_init_script} $cmd;;
-		2) systemctl $cmd nfs-server.service;;
+		2)
+			if [ cmd == "stop" ]; then
+				systemctl $cmd nfs-server.service
+				server_res=$?
+				systemctl $cmd nfs-lock.service
+				lock_res=$?
+			else
+				systemctl $cmd nfs-lock.service
+				lock_res=$?
+				systemctl $cmd nfs-server.service
+				server_res=$?
+			fi
+
+			if [ $lock_res -ne $server_res ]; then
+				# If one is running and the other isn't, or for whatever other reason
+				# the return code's aren't the same, this is bad.
+				ocf_log err "Systemd services nfs-lock and nfs-server are not in the same state after attempting $cmd command"
+				return $OCF_ERR_GENERIC
+			fi
+			return $server_res
+			;;
 	esac
 }
 
