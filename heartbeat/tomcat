@@ -345,7 +345,7 @@ Java JVM options used on start and stop.
 <content type="string" default="" />
 </parameter>
 
-<parameter name="catalina_home" unique="1" required="1">
+<parameter name="catalina_home" unique="0" required="1">
 <longdesc lang="en">
 Home directory of Tomcat.
 </longdesc>
