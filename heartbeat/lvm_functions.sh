@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # Copyright (C) 1997-2003 Sistina Software, Inc.  All rights reserved.
 # Copyright (C) 2004-2011 Red Hat, Inc.  All rights reserved.
@@ -28,14 +28,29 @@
 get_vg_mode()
 {
 	if ocf_is_true "$OCF_RESKEY_exclusive"; then
-		if [[ "$(vgs -o attr --noheadings $OCF_RESKEY_volgrpname)" =~ .....c ]]; then
-			return 2
-		else
-			return 1
-		fi
-	else
-		return 0
+		case $(vgs -o attr --noheadings $OCF_RESKEY_volgrpname | tr -d ' ') in
+		?????c*)
+			return 2 ;;
+		*)
+			return 1 ;;
+		esac
 	fi
+
+	return 0
+}
+
+get_stop_options()
+{
+	local options="-a"
+
+	get_vg_mode
+	case $? in
+	0) options="${options}ln";;
+	1) options="${options}n";;
+	2) options="${options}ln";;
+	esac
+
+	echo $options
 }
 
 get_activate_options()
@@ -88,7 +103,7 @@ is_dev_present()
 #    1 == We are the owner
 #    2 == We can claim it
 #    0 == Owned by someone else
-function vg_tag_owner
+vg_tag_owner()
 {
 	local owner=`vgs -o tags --noheadings $OCF_RESKEY_volgrpname | tr -d ' '`
 	local my_name=$(local_node_name)
@@ -114,7 +129,7 @@ function vg_tag_owner
 	return 1
 }
 
-function lvm_major_version
+lvm_major_version()
 {
 	# Get the LVM version number, for this to work we assume(thanks to panjiam):
 	# 
@@ -151,29 +166,27 @@ function lvm_major_version
 	return 2
 }
 
-function restore_transient_failed_pvs()
+restore_transient_failed_pvs()
 {
-	local a=0
-	local -a results
-
-	results=(`pvs -o name,vg_name,attr --noheadings | grep $OCF_RESKEY_volgrpname | grep -v 'unknown device'`)
-	while [ ! -z "${results[$a]}" ] ; do
-		if [[ ${results[$(($a + 2))]} =~ ..m ]] &&
-			[ $OCF_RESKEY_volgrpname == ${results[$(($a + 1))]} ]; then
-
-			ocf_log notice "Attempting to restore missing PV, ${results[$a]} in $OCF_RESKEY_volgrpname"
-			vgextend --restoremissing $OCF_RESKEY_volgrpname ${results[$a]}
+	set -- $(pvs -o name,vg_name,attr --noheadings | grep $OCF_RESKEY_volgrpname | grep -v 'unknown device')
+	while [ $# -ge 3 ]; do
+		case $2/$3 in
+		"$OCF_RESKEY_volgrpname"/??m*)
+			ocf_log notice "Attempting to restore missing PV, ${1} in $OCF_RESKEY_volgrpname"
+			vgextend --restoremissing $OCF_RESKEY_volgrpname ${1}
 			if [ $? -ne 0 ]; then
-				ocf_log notice "Failed to restore ${results[$a]}"
+				ocf_log notice "Failed to restore ${1}"
 			else
-				ocf_log notice "  ${results[$a]} restored"
+				ocf_log notice "  ${1} restored"
 			fi
-		fi
-		a=$(($a + 3))
+			;;
+		esac
+
+		shift 3
 	done
 }
 
-function prep_for_activation()
+prep_for_activation()
 {
 	lvm_major_version
 	if [ $? -eq 1 ]; then
@@ -182,13 +195,15 @@ function prep_for_activation()
 		ocf_run vgscan
 	fi
 
-	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_volgrpname) =~ ...p ]]; then
+	case $(vgs -o attr --noheadings $OCF_RESKEY_volgrpname) in
+	???p*)
 		ocf_log err "Volume group \"$OCF_RESKEY_volgrpname\" has PVs marked as missing"
 		restore_transient_failed_pvs
-	fi
+		;;
+	esac
 }
 
-function strip_tags
+strip_tags()
 {
 	local i
 
@@ -207,7 +222,7 @@ function strip_tags
 	return $OCF_SUCCESS
 }
 
-function strip_and_add_tag
+strip_and_add_tag()
 {
 	if ! strip_tags; then
 		ocf_log err "Failed to remove tags from volume group, $OCF_RESKEY_volgrpname"
@@ -225,7 +240,7 @@ function strip_and_add_tag
 	return $OCF_SUCCESS
 }
 
-function verify_exclusive_setup()
+verify_exclusive_setup()
 {
 	##
 	# Having cloned lvm resources with exclusive vg activation makes no sense at all.
@@ -239,14 +254,16 @@ function verify_exclusive_setup()
 	#  Are we using the "tagging" or "CLVM" variant for exclusive activation?
 	#  The CLVM variant will have the cluster attribute set.
 	##
-	if [[ "$(vgs -o attr --noheadings $OCF_RESKEY_volgrpname 2>/dev/null)" =~ .....c ]]; then
+	case $(vgs -o attr --noheadings $OCF_RESKEY_volgrpname 2>/dev/null | tr -d ' ') in
+	?????c*)
 		# Is clvmd running?
-		if ! ps -C clvmd >& /dev/null; then
+		if ! ps -C clvmd > /dev/null 2>&1; then
 			ocf_log err "HA LVM: $OCF_RESKEY_volgrpname has the cluster attribute set, but 'clvmd' is not running"
 			return $OCF_ERR_GENERIC
 		fi
 		return $OCF_SUCCESS
-	fi
+		;;
+	esac
 
 	##
 	# The "tagging" variant is being used if we have gotten this far.
@@ -272,7 +289,7 @@ function verify_exclusive_setup()
 	# The default for lvm.conf:activation/volume_list is empty,
 	# this must be changed for HA LVM.
 	##
-	if ! lvm dumpconfig activation/volume_list >& /dev/null; then
+	if ! lvm dumpconfig activation/volume_list > /dev/null 2>&1; then
 		ocf_log err "HA LVM:  Improper setup detected"
 		ocf_log err "* \"volume_list\" not specified in lvm.conf."
 		return $OCF_ERR_GENERIC
@@ -305,7 +322,7 @@ function verify_exclusive_setup()
 	# the control of pacemaker
 	##
 	# Fixme: we might be able to perform a better check...
-	if [ "$(find /boot -name *.img -newer /etc/lvm/lvm.conf)" == "" ]; then
+	if [ "$(find /boot -name *.img -newer /etc/lvm/lvm.conf)" = "" ]; then
 		ocf_log err "HA LVM:  Improper setup detected"
 		ocf_log err "* initrd image needs to be newer than lvm.conf"
 
@@ -320,7 +337,7 @@ function verify_exclusive_setup()
 
 }
 
-function verify_setup
+verify_setup()
 {
 	check_binary $AWK
 
@@ -363,4 +380,3 @@ function verify_setup
 	verify_exclusive_setup
 	return $?
 }
-

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # Copyright (C) 1997-2003 Sistina Software, Inc.  All rights reserved.
 # Copyright (C) 2004-2011 Red Hat, Inc.  All rights reserved.
@@ -20,11 +20,11 @@
 
 
 ##
-# All volume group variants call into this function for status.
-# Some variants (tags) call this function and proceed with some
+# All volume group variants call into this for status.
+# Some variants (tags) call this and proceed with some
 # other tests as well.
 ##
-function vg_status_normal
+vg_status_normal()
 {
 	local dev="/dev/$OCF_RESKEY_volgrpname"
 
@@ -45,7 +45,7 @@ function vg_status_normal
 	return $OCF_NOT_RUNNING
 }
 
-function vg_status_tagged
+vg_status_tagged()
 {
 	local my_name=$(local_node_name)
 	local res
@@ -74,9 +74,9 @@ function vg_status_tagged
 }
 
 ##
-# Main status function for volume groups
+# Main status for volume groups
 ##
-function vg_status
+vg_status()
 {
 	get_vg_mode
 	case $? in
@@ -88,7 +88,7 @@ function vg_status
 	return $?
 }
 
-function vg_start_normal
+vg_start_normal()
 {
 	local vgchange_options=$(get_activate_options)
 	local res
@@ -117,12 +117,9 @@ function vg_start_normal
 	return $OCF_SUCCESS 
 }
 
-function vg_start_exclusive
+vg_start_exclusive()
 {
 	local vgchange_options=$(get_activate_options)
-	local a
-	local results
-	local all_pvs
 	local resilience
 	local try_again=false
 
@@ -141,16 +138,21 @@ function vg_start_exclusive
 		# Allow for some settling
 		sleep 5
 
-		results=(`lvs -o name,attr --noheadings $OCF_RESKEY_volgrpname 2> /dev/null`)
-		a=0
-		while [ ! -z "${results[$a]}" ]; do
-			if [[ ! ${results[$(($a + 1))]} =~ ....ao ]]; then
-				if ! lvchange -an $OCF_RESKEY_volgrpname/${results[$a]}; then
-					ocf_log err "Unable to perform required deactivation of $OCF_RESKEY_volgrpname before starting"
+		set -- $(lvs -o name,attr --noheadings $OCF_RESKEY_volgrpname 2> /dev/null)
+		while [ $# -ge 2 ]; do
+			case $2 in
+			????ao*)
+				# open LVs cannot be deactivated.
+				: ;;
+			*)
+				if ! lvchange -an $OCF_RESKEY_volgrpname/$1; then
+					ocf_log err "Unable to perform required deactivation of $OCF_RESKEY_volgrpname/$1 before starting"
 					return $OCF_ERR_GENERIC
 				fi
-			fi
-			a=$(($a + 2))
+				;;
+			esac
+
+			shift 2
 		done
 	fi
 
@@ -161,32 +163,33 @@ function vg_start_exclusive
 
 	# The activation commands succeeded, but did they do anything?
 	# Make sure all the logical volumes are active
-	results=(`lvs -o name,attr --noheadings 2> /dev/null $OCF_RESKEY_volgrpname`)
-	a=0
-	while [ ! -z "${results[$a]}" ]; do
-		if [[ ! ${results[$(($a + 1))]} =~ ....a. ]]; then
-			all_pvs=(`pvs --noheadings -o name 2> /dev/null`)
+	set -- $(lvs -o name,attr --noheadings $OCF_RESKEY_volgrpname 2> /dev/null)
+	while [ $# -ge 2 ]; do
+		case $2 in
+		????[!a]*)
 			resilience=" --config devices{filter=["
-			for i in ${all_pvs[*]}; do
-				resilience=$resilience'"a|'$i'|",'
+			for pv in $(pvs --noheadings -o name 2> /dev/null); do
+				resilience=$resilience'"a|'$pv'|",'
 			done
 			resilience=$resilience"\"r|.*|\"]}"
 			vgchange $vgchange_options $OCF_RESKEY_volgrpname $resilience
 			break
-		fi
-		a=$(($a + 2))
+			;;
+		esac
+		shift 2
 	done
 
 	#  We need to check the LVs again if we made the command resilient
-	if [ ! -z "$resilience" ]; then
-		results=(`lvs -o name,attr --noheadings $OCF_RESKEY_volgrpname $resilience 2> /dev/null`)
-		a=0
-		while [ ! -z ${results[$a]} ]; do
-			if [[ ! ${results[$(($a + 1))]} =~ ....a. ]]; then
-				ocf_log err "Failed to activate $OCF_RESKEY_volgrpname"
+	if [ -n "$resilience" ]; then
+		set -- $(lvs -o name,attr --noheadings $OCF_RESKEY_volgrpname $resilience 2> /dev/null)
+		while [ $# -ge 2 ]; do
+			case $2 in
+			????[!a]*)
+				ocf_log err "Failed to activate $OCF_RESKEY_volgrpname/$1"
 				return $OCF_ERR_GENERIC
-			fi
-			a=$(($a + 2))
+				;;
+			esac
+			shift 2
 		done
 		ocf_log err "Orphan storage device in $OCF_RESKEY_volgrpname slowing operations"
 	fi
@@ -194,11 +197,10 @@ function vg_start_exclusive
 	return $OCF_SUCCESS
 }
 
-function vg_start_tagged
+vg_start_tagged()
 {
-	local a
-	local results
-	local all_pvs
+	local lv
+	local attr
 	local resilience
 	local vgchange_options=$(get_activate_options)
 
@@ -227,72 +229,85 @@ function vg_start_tagged
 		ocf_log err "Failed to activate volume group, $OCF_RESKEY_volgrpname"
 		ocf_log err "Attempting activation of logical volumes one-by-one."
 
-		results=(`lvs -o name,attr --noheadings $OCF_RESKEY_volgrpname 2> /dev/null`)
-		a=0
-		while [ ! -z ${results[$a]} ]; do
-			if [[ ${results[$(($a + 1))]} =~ r.......p ]] ||
-				[[ ${results[$(($a + 1))]} =~ R.......p ]]; then
-				# Attempt "partial" activation of any RAID LVs
-				ocf_log err "Attempting partial activation of ${OCF_RESKEY_volgrpname}/${results[$a]}"
-				if ! lvchange -ay --partial ${OCF_RESKEY_volgrpname}/${results[$a]}; then
-					ocf_log err "Failed attempt to activate ${OCF_RESKEY_volgrpname}/${results[$a]} in partial mode"
-					return $OCF_ERR_GENERIC
-				fi
-				ocf_log notice "Activation of ${OCF_RESKEY_volgrpname}/${results[$a]} in partial mode succeeded"
-			elif [[ ${results[$(($a + 1))]} =~ m.......p ]] ||
-				[[ ${results[$(($a + 1))]} =~ M.......p ]]; then
-				ocf_log err "Attempting repair and activation of ${OCF_RESKEY_volgrpname}/${results[$a]}"
-				if ! lvconvert --repair --use-policies ${OCF_RESKEY_volgrpname}/${results[$a]}; then
-					ocf_log err "Failed to repair ${OCF_RESKEY_volgrpname}/${results[$a]}"
-					return $OCF_ERR_GENERIC
-				fi
-				if ! lvchange -ay ${OCF_RESKEY_volgrpname}/${results[$a]}; then
-					ocf_log err "Failed to activate ${OCF_RESKEY_volgrpname}/${results[$a]}"
-					return $OCF_ERR_GENERIC
-				fi
-				ocf_log notice "Repair and activation of ${OCF_RESKEY_volgrpname}/${results[$a]} succeeded"
-			else
-				ocf_log err "Attempting activation of non-redundant LV ${OCF_RESKEY_volgrpname}/${results[$a]}"
-				if ! lvchange -ay ${OCF_RESKEY_volgrpname}/${results[$a]}; then
-					ocf_log err "Failed to activate ${OCF_RESKEY_volgrpname}/${results[$a]}"
-					return $OCF_ERR_GENERIC
-				fi
-				ocf_log notice "Successfully activated non-redundant LV ${OCF_RESKEY_volgrpname}/${results[$a]}"
-			fi
-			a=$(($a + 2))
-		done
+		set -- $(lvs -o name,attr --noheadings $OCF_RESKEY_volgrpname 2> /dev/null)
+		while [ $# -ge 2 ]; do
+			lv=$1
+			attr=$2
+			shift 2
 
+			case $attr in
+			[rR]???????p*)
+				# Attempt "partial" activation of any RAID LVs
+				ocf_log err "Attempting partial activation of ${OCF_RESKEY_volgrpname}/${lv}"
+				if ! lvchange -ay --partial ${OCF_RESKEY_volgrpname}/${lv}; then
+					ocf_log err "Failed attempt to activate ${OCF_RESKEY_volgrpname}/${lv} in partial mode"
+					return $OCF_ERR_GENERIC
+				fi
+				ocf_log notice "Activation of ${OCF_RESKEY_volgrpname}/${lv} in partial mode succeeded"
+				continue
+				;;
+			[mM]???????p*)
+				ocf_log err "Attempting repair and activation of ${OCF_RESKEY_volgrpname}/${lv}"
+				if ! lvconvert --repair --use-policies ${OCF_RESKEY_volgrpname}/${lv}; then
+					ocf_log err "Failed to repair ${OCF_RESKEY_volgrpname}/${lv}"
+					return $OCF_ERR_GENERIC
+				fi
+				if ! lvchange -ay ${OCF_RESKEY_volgrpname}/${lv}; then
+					ocf_log err "Failed to activate ${OCF_RESKEY_volgrpname}/${lv}"
+					return $OCF_ERR_GENERIC
+				fi
+				ocf_log notice "Repair and activation of ${OCF_RESKEY_volgrpname}/${lv} succeeded"
+				continue
+				;;
+			*)
+				ocf_log err "Attempting activation of non-redundant LV ${OCF_RESKEY_volgrpname}/${lv}"
+				if ! lvchange -ay ${OCF_RESKEY_volgrpname}/${lv}; then
+					ocf_log err "Failed to activate ${OCF_RESKEY_volgrpname}/${lv}"
+					return $OCF_ERR_GENERIC
+				fi
+				ocf_log notice "Successfully activated non-redundant LV ${OCF_RESKEY_volgrpname}/${lv}"
+				;;
+			esac
+		done
 		return $OCF_SUCCESS
+
 	else
 		# The activation commands succeeded, but did they do anything?
 		# Make sure all the logical volumes are active
-		results=(`lvs -o name,attr --noheadings $OCF_RESKEY_volgrpname 2> /dev/null`)
-		a=0
-		while [ ! -z ${results[$a]} ]; do
-			if [[ ! ${results[$(($a + 1))]} =~ ....a. ]]; then
-				all_pvs=(`pvs --noheadings -o name 2> /dev/null`)
+		set -- $(lvs -o name,attr --noheadings $OCF_RESKEY_volgrpname 2> /dev/null)
+		while [ $# -ge 2 ]; do
+			lv=$1
+			attr=$2
+			shift 2
+
+			case $attr in
+			????[!a]*)
 				resilience=" --config devices{filter=["
-				for i in ${all_pvs[*]}; do
-					resilience=$resilience'"a|'$i'|",'
+				for pv in $(pvs --noheadings -o name 2> /dev/null); do
+					resilience=$resilience'"a|'$pv'|",'
 				done
 				resilience=$resilience"\"r|.*|\"]}"
 
 				vgchange $vgchange_options $OCF_RESKEY_volgrpname $resilience
 				break
-			fi
-			a=$(($a + 2))
+				;;
+			esac
 		done
 
 		#  We need to check the LVs again if we made the command resilient
 		if [ ! -z "$resilience" ]; then
-			results=(`lvs -o name,attr --noheadings $OCF_RESKEY_volgrpname $resilience 2> /dev/null`)
-			a=0
-			while [ ! -z ${results[$a]} ]; do
-				if [[ ! ${results[$(($a + 1))]} =~ ....a. ]]; then
+			set -- $(lvs -o name,attr --noheadings $OCF_RESKEY_volgrpname $resilience 2> /dev/null)
+			while [ $# -ge 2 ]; do
+				lv=$1
+				attr=$2
+				shift 2
+
+				case $attr in
+				????[!a]*)
 					ocf_log err "Failed to activate $OCF_RESKEY_volgrpname"
 					return $OCF_ERR_GENERIC
-				fi
-				a=$(($a + 2))
+					;;
+				esac
 			done
 			ocf_log err "Orphan storage device in $OCF_RESKEY_volgrpname slowing operations"
 		fi
@@ -302,9 +317,9 @@ function vg_start_tagged
 }
 
 ##
-# Main start function for volume groups
+# Main start for volume groups
 ##
-function vg_start
+vg_start()
 {
 	# scan for vg, restore transient failed pvs
 	prep_for_activation
@@ -319,109 +334,93 @@ function vg_start
 	return $?
 }
 
-function vg_stop_normal
+vg_stop_normal()
 {
+	local stop_options=$(get_stop_options)
 	local a
-	rc=$OCF_ERR_GENERIC
+	local lv
+	local attr
+	local rc=$OCF_ERR_GENERIC
+
 	vgdisplay "$OCF_RESKEY_volgrpname" 2>&1 | grep 'Volume group .* not found' >/dev/null && {
 		ocf_log info "Volume group $OCF_RESKEY_volgrpname not found"
 		return $OCF_SUCCESS
 	}
 	ocf_log info "Deactivating volume group $OCF_RESKEY_volgrpname"
-	ocf_run vgchange -aln $OCF_RESKEY_volgrpname
+	ocf_run vgchange $stop_options $OCF_RESKEY_volgrpname
 
 	a=0
 	while :; do
 		a=$(($a + 1))
 		if [ $a -gt 10 ]; then
-		        a=$(($a - 1))
-		        ocf_log err "Unable to deactivate $OCF_RESKEY_volgrpname, retried($a), failed"
+			a=$(($a - 1))
+			ocf_log err "Unable to deactivate $OCF_RESKEY_volgrpname, retried($a), failed"
 			break;
 		fi
 
-	        # make sure vg isn't still running
+		# make sure vg isn't still running
 		vg_status_normal
 		res=$?
 		if [ $res -eq $OCF_SUCCESS ]; then
-		    ocf_log err "Unable to deactivate $OCF_RESKEY_volgrpname, retrying($a)"
-		    sleep 1
-		    which udevadm >& /dev/null && udevadm settle
-		    ocf_run vgchange -aln $OCF_RESKEY_volgrpname
-                else
-		    rc=$OCF_SUCCESS
-		    break;
+			ocf_log err "Unable to deactivate $OCF_RESKEY_volgrpname, retrying($a)"
+			sleep 1
+			which udevadm > /dev/null 2>&1 && udevadm settle
+			ocf_run vgchange $stop_options $OCF_RESKEY_volgrpname
+		else
+			rc=$OCF_SUCCESS
+			break;
 		fi
 		
 	done
 
+	if [ $rc -eq $OCF_SUCCESS ]; then
+		#  Verify all logical volumes are gone.
+		set -- $(lvs -o name,attr --noheadings $OCF_RESKEY_volgrpname 2> /dev/null)
+		while [ $# -ge 2 ]; do
+			lv=$1
+			attr=$2
+			shift 2
+
+			case $attr in
+			????a*)
+				ocf_log err "Logical volume $OCF_RESKEY_volgrpname/${lv} failed to shutdown"
+				return $OCF_ERR_GENERIC
+				;;
+			esac
+		done
+	fi
+
 	return $rc
 }
 
-function vg_stop_exclusive
+vg_stop_exclusive()
 {
-	local a
-	local results
+	local lv
 
 	#  Shut down the volume group
 	#  Do we need to make this resilient? 
-	a=0
 	vg_stop_normal;
 
-	#  Make sure all the logical volumes are inactive
-	active=0
-	results=(`lvs -o name,attr --noheadings $OCF_RESKEY_volgrpname 2> /dev/null`)
-	a=0
-	while [ ! -z ${results[$a]} ]; do
-		if [[ ${results[$(($a + 1))]} =~ ....a. ]]; then
-			active=1
-			break
-		fi
-                a=$(($a + 2))
-	done
-
 	# lvs may not show active volumes if all PVs in VG are gone
-	dmsetup table | grep -q "^${OCF_RESKEY_volgrpname//-/--}-[^-]"
+	dmsetup table | grep -q "^$(echo $OCF_RESKEY_volgrpname | sed -e 's/-/--/g')-[^-]"
 	if [ $? -eq 0 ]; then
-		active=1
-	fi
-
-	if [ $active -ne 0 ]; then
-		ocf_log err "Logical volume $OCF_RESKEY_volgrpname/${results[$a]} failed to shutdown"
+		ocf_log err "Volume group $OCF_RESKEY_volgrpname failed to shutdown"
 		return $OCF_ERR_GENERIC
 	fi
 
 	return $OCF_SUCCESS
 }
 
-function vg_stop_tagged
+vg_stop_tagged()
 {
-	local a
-	local results
-
 	#  Shut down the volume group
 	#  Do we need to make this resilient?
-	vgchange -an $OCF_RESKEY_volgrpname
-
-	#  Make sure all the logical volumes are inactive
-	active=0
-	results=(`lvs -o name,attr --noheadings $OCF_RESKEY_volgrpname 2> /dev/null`)
-	a=0
-	while [ ! -z ${results[$a]} ]; do
-		if [[ ${results[$(($a + 1))]} =~ ....a. ]]; then
-			active=1
-			break
-		fi
-	        a=$(($a + 2))
-	done
+	vg_stop_normal;
 
 	# lvs may not show active volumes if all PVs in VG are gone
-	dmsetup table | grep -q "^${OCF_RESKEY_volgrpname//-/--}-[^-]"
+	dmsetup table | grep -q "^$(echo $OCF_RESKEY_volgrpname | sed -e 's/-/--/g')-[^-]"
 	if [ $? -eq 0 ]; then
-		active=1
-	fi
-
-	if [ $active -ne 0 ]; then
-		ocf_log err "Logical volume $OCF_RESKEY_volgrpname/${results[$a]} failed to shutdown"
+		ocf_log err "Volume group $OCF_RESKEY_volgrpname failed to shutdown"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -435,9 +434,9 @@ function vg_stop_tagged
 }
 
 ##
-# Main stop function for volume groups
+# Main stop for volume groups
 ##
-function vg_stop
+vg_stop()
 {
 	get_vg_mode
 	case $? in

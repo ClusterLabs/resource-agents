@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 #
 # Copyright (C) 1997-2003 Sistina Software, Inc.  All rights reserved.
@@ -19,7 +19,7 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
 
-function lv_status
+lv_status()
 {
 	local dev="/dev/$OCF_RESKEY_volgrpname/$OCF_RESKEY_lvname"
 
@@ -30,7 +30,7 @@ function lv_status
 	return $?
 }
 
-function lv_start_normal
+lv_start_normal()
 {
 	local lv_path=$OCF_RESKEY_volgrpname/$OCF_RESKEY_lvname 
 	local lvchange_options=$(get_activate_options)
@@ -53,7 +53,7 @@ function lv_start_normal
 	return $OCF_SUCCESS 
 }
 
-function lv_start_exclusive
+lv_start_exclusive()
 {
 	if lv_start_normal; then
 		return $OCF_SUCCESS
@@ -64,7 +64,12 @@ function lv_start_exclusive
 	# Before attempting a repair effort, we should attempt
 	# to deactivate the LV cluster-wide; but only if the LV
 	# is not open.  Otherwise, it is senseless to attempt.
-	if ! [[ "$(lvs -o attr --noheadings $OCF_RESKEY_volgrpname/$OCF_RESKEY_lvname)" =~ ....ao ]]; then
+	set -- $(lvs -o attr --noheadings $OCF_RESKEY_volgrpname/$OCF_RESKEY_lvname)
+	case $2 in
+	????ao*)
+		# If it is open, we cannot deactivate anyways.
+		: ;;
+	*)
 		# We'll wait a small amount of time for some settling before
 		# attempting to deactivate.  Then the deactivate will be
 		# immediately followed by another exclusive activation attempt.
@@ -81,7 +86,8 @@ function lv_start_exclusive
 			# have the lock exclusively
 			return $OCF_SUCCESS
 		fi
-	fi
+		;;
+	esac
 
 	# Failed to activate:
 	# This could be due to a device failure (or another machine could
@@ -106,7 +112,7 @@ function lv_start_exclusive
 	return $OCF_SUCCESS
 }
 
-function lv_start
+lv_start()
 {
 	# scan for vg, restore transient failed pvs
 	prep_for_activation
@@ -119,7 +125,7 @@ function lv_start
 	esac
 }
 
-function lv_stop
+lv_stop()
 {
 	local lv_path="$OCF_RESKEY_volgrpname/$OCF_RESKEY_lvname"
 
@@ -131,7 +137,7 @@ function lv_stop
 		fi
 		ocf_log err "Unable to deactivate $OCF_RESKEY_volgrpname, retrying($a)"
 		sleep 1
-		which udevadm >& /dev/null && udevadm settle
+		which udevadm > /dev/null 2>&1 && udevadm settle
 	done
 
 	lv_status

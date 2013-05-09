@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # Copyright (C) 1997-2003 Sistina Software, Inc.  All rights reserved.
 # Copyright (C) 2004-2011 Red Hat, Inc.  All rights reserved.
@@ -51,7 +51,7 @@ is_node_member_clustat()
 	#           1          1 rhel7-1.priv.redhat.com
 	#           2          1 rhel7-2.priv.redhat.com
 	#
-	corosync-quorumtool -l | grep -v "^Nodeid" | grep -i " $1\$" &> /dev/null
+	corosync-quorumtool -l | grep -v "^Nodeid" | grep -i " $1\$" > /dev/null 2>&1
 	return $?
 }
 
@@ -65,26 +65,26 @@ local_node_name()
 {
 	local localid
 
-	if which magma_tool &> /dev/null; then
+	if which magma_tool > /dev/null 2>&1; then
 		# Use magma_tool, if available.
 		line=$(magma_tool localname | grep "^Local")
 
 		if [ -n "$line" ]; then
-			echo ${line/* = /}
+			echo ${line} | sed -e 's/* = //g'
 			return 0
 		fi
 	fi
 
-	if which cman_tool &> /dev/null; then
+	if which cman_tool > /dev/null 2>&1; then
 		# Use cman_tool
 
 		line=$(cman_tool status | grep -i "Node name: $1")
 		[ -n "$line" ] || return 1
-		echo ${line/*name: /}
+		echo ${line} | sed -e 's/*name: //g'
 		return 0
 	fi
 
-	if ! which crm_node &> /dev/null; then
+	if ! which crm_node > /dev/null 2>&1; then
 		# no crm_node? :(
 		return 2
 	fi
