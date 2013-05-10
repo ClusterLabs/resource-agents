@@ -18,6 +18,7 @@
 #   OCF_RESKEY_socket_path
 #   OCF_RESKEY_config
 #   OCF_RESKEY_name
+#   OCF_RESKEY_maxfiles
 #
 #######################################################################
 # Initialization:
@@ -112,6 +113,15 @@ Control "/var/lib/pound/pound.cfg"
 <content type="string" default="${OCF_RESKEY_socket_path_default}" />
 </parameter>
 
+<parameter name="maxfiles">
+<longdesc lang="en">
+Determines how many files pound is allowed to open at
+a time. Helps to fix the 'Too many open files' error message.
+</longdesc>
+<shortdesc lang="en">Allowed number of open files.</shortdesc>
+<content type="integer" default="" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -191,6 +201,14 @@ pound_start() {
         ocf_log err "Pound configuration file is not valid"
         return $OCF_ERR_CONFIGURED
     fi 
+
+    if [ -n "$OCF_RESKEY_maxfiles" ]; then
+        ulimit -n $OCF_RESKEY_maxfiles
+        u_rc=$?
+        if [ "$u_rc" -ne 0 ]; then
+           ocf_log warn "Could not set ulimit for open files for Pound to '$OCF_RESKEY_maxfiles'"
+        fi
+    fi
 
     ocf_run $OCF_RESKEY_binary \
         -f $OCF_RESKEY_config \
