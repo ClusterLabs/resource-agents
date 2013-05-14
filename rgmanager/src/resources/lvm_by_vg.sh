@@ -229,7 +229,7 @@ function vg_start_clustered
 		ocf_log err "Failed to activate volume group, $OCF_RESKEY_vg_name"
 		ocf_log notice "Attempting cleanup of $OCF_RESKEY_vg_name"
 
-		if ! vgreduce --removemissing --force $OCF_RESKEY_vg_name; then
+		if ! vgreduce --removemissing --mirrorsonly --force $OCF_RESKEY_vg_name; then
 			ocf_log err "Failed to make $OCF_RESKEY_vg_name consistent"
 			return $OCF_ERR_GENERIC
 		fi
@@ -419,16 +419,7 @@ function vg_stop_clustered
 
 	#  Shut down the volume group
 	#  Do we need to make this resilient?
-	a=0
-	while ! vgchange -aln $OCF_RESKEY_vg_name; do
-		a=$(($a + 1))
-		if [ $a -gt 10 ]; then
-			break;
-		fi
-		ocf_log err "Unable to deactivate $OCF_RESKEY_vg_name, retrying($a)"
-		sleep 1
-		which udevadm >& /dev/null && udevadm settle
-	done
+	vgchange -aln $OCF_RESKEY_vg_name
 
 	#  Make sure all the logical volumes are inactive
 	active=0
