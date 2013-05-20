@@ -229,7 +229,7 @@ notify_list_store()
 		fi
 
 		owner=$(ls -dl /var/lib/nfs/statd/sm | awk '{print $3"."$4}')
-		cp -af /var/lib/nfs/statd/sm/* $nl_dir/sm
+		cp -Rdpf /var/lib/nfs/statd/sm/* $nl_dir/sm
 		chown -R $owner $nl_dir
 		return 0
 	elif [ -d "/var/lib/nfs/sm" ]; then
@@ -239,7 +239,7 @@ notify_list_store()
 		fi
 
 		owner=$(ls -dl /var/lib/nfs/sm | awk '{print $3"."$4}')
-		cp -af /var/lib/nfs/sm/* $nl_dir/sm
+		cp -Rdpf /var/lib/nfs/sm/* $nl_dir/sm
 		chown -R $owner $nl_dir
 		return 0
 	fi
@@ -266,12 +266,12 @@ notify_list_merge()
 
 	if [ -d "/var/lib/nfs/statd/sm" ]; then
 		owner=$(ls -dl /var/lib/nfs/statd/sm | awk '{print $3"."$4}')
- 		cp -af $nl_dir/sm/* /var/lib/nfs/statd/sm
+ 		cp -Rdpf $nl_dir/sm/* /var/lib/nfs/statd/sm
 		chown -R $owner $nl_dir
 		return 0
 	elif [ -d "/var/lib/nfs/sm" ]; then
 		owner=$(ls -dl /var/lib/nfs/sm | awk '{print $3"."$4}')
- 		cp -af $nl_dir/sm/* /var/lib/nfs/sm
+ 		cp -Rdpf $nl_dir/sm/* /var/lib/nfs/sm
 		chown -R $owner $nl_dir
 		return 0
 	fi
