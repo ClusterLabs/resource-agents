@@ -132,16 +132,10 @@ rotate_catalina_out()
 	mkfifo -m700 "$CATALINA_OUT"
 	chown --dereference "$RESOURCE_TOMCAT_USER" "$CATALINA_OUT" || true
 
-	if [ "$RESOURCE_TOMCAT_USER" = root ]; then
-		$ROTATELOGS -l $CATALINA_BASE/logs/catalina_%F.log $CATALINA_ROTATETIME \
-		    < "$CATALINA_OUT" > /dev/null 2>&1 &
-	else
-		# -s is required because tomcat user's login shell is often
-		# /sbin/nologin or /bin/false
-		su - -s /bin/sh $RESOURCE_TOMCAT_USER \
-		    -c "$ROTATELOGS -l \"$CATALINA_BASE/logs/catalina_%F.log\" $CATALINA_ROTATETIME" \
-		    < "$CATALINA_OUT" > /dev/null 2>&1 &
-	fi
+	# -s is required because tomcat5.5's login shell is /bin/false
+	su - -s /bin/sh $RESOURCE_TOMCAT_USER \
+        	-c "$ROTATELOGS -l \"$CATALINA_BASE/logs/catalina_%F.log\" $CATALINA_ROTATETIME" \
+        	< "$CATALINA_OUT" > /dev/null 2>&1 &
 }
 
 ############################################################################
