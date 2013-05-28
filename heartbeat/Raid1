@@ -299,7 +299,9 @@ raid1_monitor_one() {
 	local TRY_READD=0
 	local pbsize
 	# check if the md device exists first
-	if [ ! -b $mddev ]; then
+	# but not if we are in the stop operation
+	# device existence is important only for the running arrays
+	if [ "$__OCF_ACTION" != "stop" -a ! -b $mddev ]; then
 		ocf_log info "$mddev is not a block device"
 		return $OCF_NOT_RUNNING
 	fi
