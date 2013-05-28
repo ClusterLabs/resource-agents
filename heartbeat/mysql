@@ -82,7 +82,11 @@ else
 	OCF_RESKEY_user_default="mysql"
 	OCF_RESKEY_group_default="mysql"
 	OCF_RESKEY_log_default="/var/log/mysqld.log"
-	OCF_RESKEY_pid_default="/var/run/mysql/mysqld.pid"
+	if [ -d "/var/run/mysqld/" ]; then
+		OCF_RESKEY_pid_default="/var/run/mysqld/mysqld.pid"
+	else
+		OCF_RESKEY_pid_default="/var/run/mysql/mysqld.pid"
+	fi
 	OCF_RESKEY_socket_default="/var/lib/mysql/mysql.sock"
 fi
 OCF_RESKEY_client_binary_default="mysql"
