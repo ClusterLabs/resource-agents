@@ -375,9 +375,9 @@ Rotate console log flag.
 
 <parameter name="rotate_value" unique="0">
 <longdesc lang="en">
-console log rotation value (default is 86400 seconds).
+Console log rotation value (default is 86400 seconds).
 </longdesc>
-<shortdesc>console log rotation value (default is 86400 seconds)</shortdesc>
+<shortdesc>Console log rotation value (default is 86400 seconds)</shortdesc>
 <content type="integer" default="86400" />
 </parameter>
 

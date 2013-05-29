@@ -115,7 +115,7 @@ if invoked as a clone resource.
 If used as a clone, you should explicitly set clone-node-max &gt;= 2,
 and/or clone-max &lt; number of nodes. In case of node failure,
 clone instances need to be re-allocated on surviving nodes.
-Which would not be possible, if there is already an instance on those nodes,
+This would not be possible if there is already an instance on those nodes,
 and clone-node-max=1 (which is the default).
 </longdesc>
 
@@ -206,17 +206,17 @@ Instead, enable 'lvs_ipv6_addrlabel' option for LVS-DR usage on IPv6.
 <parameter name="lvs_ipv6_addrlabel">
 <longdesc lang="en">
 Enable adding IPv6 address label so IPv6 traffic originating from
-the address' interface does not use this address as the source.
+the address's interface does not use this address as the source.
 This is necessary for LVS-DR health checks to realservers to work. Without it,
 the most recently added IPv6 address (probably the address added by IPaddr2)
 will be used as the source address for IPv6 traffic from that interface and
 since that address exists on loopback on the realservers, the realserver
-response to pings/connections will not never leave its loopback.
+response to pings/connections will never leave its loopback.
 See RFC3484 for the detail of the source address selection.
 
 See also 'lvs_ipv6_addrlabel_value' parameter.
 </longdesc>
-<shortdesc lang="en">Enables adding IPv6 address label.</shortdesc>
+<shortdesc lang="en">Enable adding IPv6 address label.</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_lvs_ipv6_addrlabel_default}"/>
 </parameter>
 
@@ -252,7 +252,7 @@ Specify the hashing algorithm used for the Cluster IP functionality.
 
 <parameter name="unique_clone_address">
 <longdesc lang="en">
-If true, add the clone ID to the supplied value of ip to create
+If true, add the clone ID to the supplied value of IP to create
 a unique address to manage 
 </longdesc>
 <shortdesc lang="en">Create a unique address for cloned instances</shortdesc>
@@ -277,7 +277,7 @@ Number of unsolicited ARP packets to send.
 
 <parameter name="arp_bg">
 <longdesc lang="en">
-Whether or not to send the arp packets in the background.
+Whether or not to send the ARP packets in the background.
 </longdesc>
 <shortdesc lang="en">ARP from background</shortdesc>
 <content type="string" default="${OCF_RESKEY_arp_bg_default}"/>

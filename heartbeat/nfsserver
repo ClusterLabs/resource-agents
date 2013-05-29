@@ -55,9 +55,9 @@ Init script for nfsserver
 
 <parameter name="nfs_notify_cmd" unique="0" required="0">
 <longdesc lang="en">
-The tool to send out NSM reboot notification, it should be either sm-notify or rpc.statd.
+The tool to send out NSM reboot notification; it should be either sm-notify or rpc.statd.
 Failover of nfsserver can be considered as rebooting to different machines.
-The nfsserver resource agent use this command to notify all clients about the happening of failover.
+The nfsserver resource agent use this command to notify all clients about the occurrence of failover.
 </longdesc>
 <shortdesc lang="en">
 The tool to send out notification.
@@ -82,7 +82,7 @@ If this option is not specified, sm-notify attempts to send notifications for 15
 causes sm-notify to continue sending notifications to unresponsive peers until it is manually killed.
 </longdesc>
 <shortdesc lang="en">
-Specifies the length of sm-notify retry time(minutes).
+Specifies the length of sm-notify retry time (minutes).
 </shortdesc>
 <content type="integer" default="" />
 </parameter>
@@ -110,10 +110,10 @@ IP addresses.
 
 <parameter name="rpcpipefs_dir" unique="0" required="0">
 <longdesc lang="en">
-The mount point for the sunrpc file system. Default is $DEFAULT_RPCPIPEFS_DIR . 
-This script will mount(bind) nfs_shared_infodir on /var/lib/nfs/ (can not be changed),
+The mount point for the sunrpc file system. Default is $DEFAULT_RPCPIPEFS_DIR. 
+This script will mount (bind) nfs_shared_infodir on /var/lib/nfs/ (cannot be changed),
 and this script will mount the sunrpc file system on $DEFAULT_RPCPIPEFS_DIR (default, can be changed by this parameter).
-If you want to move only rpc_pipefs/ (e.g. to keep rpc_pipefs/ local) from default , please set this value.
+If you want to move only rpc_pipefs/ (e.g. to keep rpc_pipefs/ local) from default, please set this value.
 </longdesc>
 <shortdesc lang="en">
 The mount point for the sunrpc file system.

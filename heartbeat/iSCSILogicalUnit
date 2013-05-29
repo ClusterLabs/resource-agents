@@ -164,7 +164,7 @@ the target implementation allows. If this parameter is empty or
 not set, access to this lun will not be allowed from any initiator,
 if target is not in demo mode.
 
-This parameter is only necessary, when using LIO.
+This parameter is only necessary when using LIO.
 </longdesc>
 <shortdesc lang="en">List of iSCSI initiators allowed to connect
 to this lun.</shortdesc>

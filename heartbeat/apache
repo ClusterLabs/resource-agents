@@ -293,7 +293,7 @@ apache_meta_data(){
 <version>1.0</version>
 
 <longdesc lang="en">
-This is the resource agent for the Apache web server.
+This is the resource agent for the Apache Web server.
 This resource agent operates both version 1.x and version 2.x Apache
 servers.
 
@@ -312,7 +312,7 @@ See the statusurl and testregex attributes for more details.
 
 See also http://httpd.apache.org/
 </longdesc>
-<shortdesc lang="en">Manages an Apache web server instance</shortdesc>
+<shortdesc lang="en">Manages an Apache Web server instance</shortdesc>
 
 <parameters>
 <parameter name="configfile" required="0" unique="1">

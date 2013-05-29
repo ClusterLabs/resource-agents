@@ -96,7 +96,7 @@ The default monitor operation will verify that mysql-proxy is running.
 
 The level 10 monitor operation is left out intentionally for possible future enhancements in conjunction with the admin plugin.
 
-The level 20 monitor operation will perform a SELECT on a given table to verify that the connection to a backend-server is actually working.
+The level 20 monitor operation will perform a SELECT on a given table to verify that the connection to a back-end server is actually working.
 
 Tested with MySQL Proxy 0.8.1 and 0.8.3 on Debian 6.0.
 </longdesc>
@@ -115,7 +115,7 @@ For example, "/usr/sbin/mysql-proxy".
 
 <parameter name="client_binary" unique="0" required="0">
 <longdesc lang="en">
-Location of the MySQL client binary
+Location of the MySQL client binary.
 </longdesc>
 <shortdesc lang="en">MySQL client binary</shortdesc>
 <content type="string" default="mysql" />
@@ -132,9 +132,9 @@ For example, "/etc/mysql-proxy.conf".
 
 <parameter name="proxy_backend_addresses" unique="0" required="0">
 <longdesc lang="en">
-Address:port of the remote backend-servers (default: 127.0.0.1:3306).
+Address:port of the remote back-end servers (default: 127.0.0.1:3306).
 </longdesc>
-<shortdesc lang="en">MySQL Proxy backend-servers</shortdesc>
+<shortdesc lang="en">MySQL Proxy back-end servers</shortdesc>
 <content type="string" default="127.0.0.1:3306" />
 </parameter>
 
@@ -142,13 +142,13 @@ Address:port of the remote backend-servers (default: 127.0.0.1:3306).
 <longdesc lang="en">
 Address:port of the remote (read only) slave-server (default: ).
 </longdesc>
-<shortdesc lang="en">MySql Proxy read only backend-servers</shortdesc>
+<shortdesc lang="en">MySql Proxy read only back-end servers</shortdesc>
 <content type="string" default="127.0.0.1:3306" />
 </parameter>
 
 <parameter name="proxy_address" unique="0" required="0">
 <longdesc lang="en">
-Listening address:port of the proxy-server (default: :4040).
+Listening address:port of the proxy server (default: :4040).
 You can also specify a socket like "/tmp/mysql-proxy.sock".
 </longdesc>
 <shortdesc lang="en">MySQL Proxy listening address</shortdesc>
