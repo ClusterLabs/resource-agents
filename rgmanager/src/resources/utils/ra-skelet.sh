@@ -49,8 +49,13 @@ stop_generic()
 {
 	declare pid_file="$1"
 	declare stop_timeout="$2"
+	declare stop_sig="$3"
 	declare pid;
 	declare count=0;
+
+	if [ -z "$stop_sig" ]; then
+		stop_sig="-TERM"
+	fi
 
 	if [ ! -e "$pid_file" ]; then
 		clog_check_file_exist $CLOG_FAILED_NOT_FOUND "$pid_file"
@@ -76,7 +81,7 @@ stop_generic()
 		return 0;
 	fi
 
-	kill -TERM "$pid"
+	kill $stop_sig "$pid"
 
 	if [ $? -ne 0 ]; then
 		return $OCF_ERR_GENERIC
@@ -102,12 +107,16 @@ stop_generic_sigkill() {
 	declare pid_file="$1"
 	declare stop_timeout="$2"
 	declare kill_timeout="$3"
+	declare stop_sig="$4"
 	declare pid
-	
+
+	if [ -z "$stop_sig" ]; then
+		stop_sig="-TERM"
+	fi
 	## If stop_timeout is equal to zero then we do not want
 	## to give -TERM signal at all.
 	if [ $stop_timeout -ne 0 ]; then
-		stop_generic "$pid_file" "$stop_timeout"
+		stop_generic "$pid_file" "$stop_timeout" "$stop_sig"
 		if [ $? -eq 0 ]; then
 			return 0;
 		fi

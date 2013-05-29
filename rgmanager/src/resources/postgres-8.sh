@@ -33,6 +33,7 @@ declare PSQL_pid_file="`generate_name_for_pid_file`"
 declare PSQL_conf_dir="`generate_name_for_conf_dir`"
 declare PSQL_gen_config_file="$PSQL_conf_dir/postgresql.conf"
 declare PSQL_kill_timeout="5"
+declare PSQL_stop_timeout="15"
 declare PSQL_wait_after_start="2"
 
 verify_all()
@@ -172,8 +173,8 @@ stop()
 {
 	clog_service_stop $CLOG_INIT
 
-	## Send -KILL signal immediately
-	stop_generic_sigkill "$PSQL_pid_file" 0 "$PSQL_kill_timeout"
+	## Send -INT to close connections and stop.  -QUIT is used if -INT signal does not stop process.
+	stop_generic_sigkill "$PSQL_pid_file" "$PSQL_stop_timeout" "$PSQL_kill_timeout" "-INT"
 	if [ $? -ne 0 ]; then
 		clog_service_stop $CLOG_FAILED
 		return $OCF_ERR_GENERIC
