@@ -862,16 +862,14 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 			ocf_log warning "Sending SIGKILL to processes on $mp"
 			fuser -kvm "$mp"
 
-			case $? in
-			0)
-				;;
-			1)
-				return $OCF_ERR_GENERIC
-				;;
-			2)
-				break
-				;;
-			esac
+			if [ $? -eq 0 ]; then
+				# someone is still accessing the mount, We've already sent
+				# SIGTERM, now we've sent SIGKILL and are trying umount again.
+				continue
+			fi
+			# mount has failed, and no one is accessing it.  There's
+			# nothing left for us to try.
+			break
 		fi
 	done # for
 
