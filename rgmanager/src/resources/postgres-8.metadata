@@ -77,8 +77,8 @@
     </parameters>
 
     <actions>
-        <action name="start" timeout="0"/>
-	<action name="stop" timeout="0"/>
+        <action name="start" timeout="30"/>
+	<action name="stop" timeout="30"/>
 
 	<!-- Checks to see if it''s mounted in the right place -->
 	<action name="status" interval="1m" timeout="10"/>
