@@ -201,7 +201,7 @@ route_stop() {
 }
 
 route_status() {
-    show_output="$(ip route show $(create_route_spec) 2>/dev/null)"
+    show_output="$(ip $addr_family route show $(create_route_spec) 2>/dev/null)"
     if [ $? -eq 0 ]; then
 	if [ -n "$show_output" ]; then
 	    # "ip route show" returned zero, and produced output on
@@ -290,6 +290,12 @@ for binary in ip grep; do
 done
 
 route_validate || exit $?
+
+case $OCF_RESKEY_destination in
+*:*) addr_family="-6" ;;
+  *) addr_family="-4" ;;
+esac
+
 case $__OCF_ACTION in
 start)		route_start;;
 stop)		route_stop;;
