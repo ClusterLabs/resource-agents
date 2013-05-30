@@ -255,7 +255,7 @@ if_init() {
 # get the link status on $NIC
 # asks ip about running (up) interfaces, returns the number of matching interface names that are up
 get_link_status () {
-	$IP2UTIL -o link show up dev "$NIC" | grep -c "$NIC"
+	$IP2UTIL -o link show up dev "$NIC" | grep -v 'NO-CARRIER' | grep -c "$NIC"
 }
 
 # returns the number of received rx packets on $NIC
