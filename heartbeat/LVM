@@ -183,37 +183,40 @@ LVM_monitor() {
 	return $OCF_SUCCESS
 }
 
-#
-#	Enable LVM volume
-#
-LVM_start() {
-	local vgchange_options
-	local active_mode
-
-	# TODO: This MUST run vgimport as well
-
-	ocf_log info "Activating volume group $1"
-
-	if [ "$LVM_MAJOR" -eq "1" ]; then
-		ocf_run vgscan $1
-	else
-		ocf_run vgscan
-	fi
-
-	active_mode="ly"
+get_activate_options()
+{
+	local options="-a"
 	if ocf_is_true "$OCF_RESKEY_exclusive" ; then
-		active_mode="ey"
+		options="${options}ey"
+	else
+		options="${options}ly"
 	fi
-	vgchange_options="-a $active_mode"
 
 	if ocf_is_true "$OCF_RESKEY_partial_activation" ; then
-		vgchange_options="$vgchange_options --partial"
+		options="${options} --partial"
 	fi
 
 	# for clones (clustered volume groups), we'll also have to force
 	# monitoring, even if disabled in lvm.conf.
 	if ocf_is_clone; then
-		vgchange_options="$vgchange_options --monitor y"
+		options="$options --monitor y"
+	fi
+
+	echo $options
+}
+
+#
+#	Enable LVM volume
+#
+LVM_start() {
+	local vgchange_options=$(get_activate_options)
+
+	# TODO: This MUST run vgimport as well
+	ocf_log info "Activating volume group $1"
+	if [ "$LVM_MAJOR" -eq "1" ]; then
+		ocf_run vgscan $1
+	else
+		ocf_run vgscan
 	fi
 
 	ocf_run vgchange $vgchange_options $1 || return $OCF_ERR_GENERIC
