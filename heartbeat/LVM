@@ -234,24 +234,34 @@ LVM_start() {
 #	Disable the LVM volume
 #
 LVM_stop() {
-
+	local res
 	vgdisplay "$1" 2>&1 | grep 'Volume group .* not found' >/dev/null && {
 		ocf_log info "Volume group $1 not found"
 		return $OCF_SUCCESS
 	}
 	ocf_log info "Deactivating volume group $1"
-	ocf_run vgchange -a ln $1 || return $OCF_ERR_GENERIC
 
-	if
-		LVM_status $1
-	then
-		ocf_log err "LVM: $1 did not stop correctly"
-		return $OCF_ERR_GENERIC 
-	fi
+	for i in $(seq 10)
+	do
+		ocf_run vgchange -a ln $1
+		res=$?
+		if LVM_status $1; then
+			ocf_log err "LVM: $1 did not stop correctly"
+			res=1
+		fi
+
+		if [ $res -eq 0 ]; then
+			return $OCF_SUCCESS
+		fi
+
+		ocf_log warn "$1 still Active"
+		ocf_log info "Retry deactivating volume group $1"
+		sleep 1
+		which udevadm > /dev/null 2>&1 && udevadm settle --timeout=5
+	done
 
 	# TODO: This MUST run vgexport as well
-
-	return $OCF_SUCCESS
+	return $OCF_ERR_GENERIC 
 }
 
 #
