@@ -257,30 +257,66 @@ LVM_stop() {
 LVM_validate_all() {
 	check_binary $AWK
 
-#	Off-the-shelf tests...
+	##
+	# Off-the-shelf tests...
+	##
 	VGOUT=`vgck ${VOLUME} 2>&1`
-	
 	if [ $? -ne 0 ]; then
 		ocf_log err "Volume group [$VOLUME] does not exist or contains error! ${VGOUT}"
 		exit $OCF_ERR_GENERIC
 	fi
 
-#	Double-check
-	if 
-		[ "$LVM_MAJOR" -eq "1" ]
-	then
+	##
+	# Does the Volume Group exist?
+	##
+	if [ "$LVM_MAJOR" = "1" ]; then
 		VGOUT=`vgdisplay ${VOLUME} 2>&1`
 	else
 		VGOUT=`vgdisplay -v ${VOLUME} 2>&1`
 	fi
-
 	if [ $? -ne 0 ]; then
 		ocf_log err "Volume group [$VOLUME] does not exist or contains error! ${VGOUT}"
 		exit $OCF_ERR_GENERIC
 	fi
 
+	##
+	# If exclusive activation is not enabled, then
+	# further checking of proper setup is not necessary
+	##
+	if ! ocf_is_true "$OCF_RESKEY_exclusive"; then
+		return $OCF_SUCCESS;
+	fi
+
+	##
+	# Having cloned lvm resources with exclusive vg activation makes no sense at all.
+	##
+	if ocf_is_clone; then
+		ocf_log_err "cloned lvm resources can not be activated exclusively"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	##
+	# Make sure the cluster attribute is set and clvmd is up when exclusive
+	# activation is enabled. Otherwise we can't exclusively activate the volume group.
+	##
+	case $(vgs -o attr --noheadings $OCF_RESKEY_volgrpname 2>/dev/null | tr -d ' ') in
+	?????c*)
+		# Is clvmd running?
+		if ! ps -C clvmd > /dev/null 2>&1; then
+			ocf_log err "$OCF_RESKEY_volgrpname has the cluster attribute set, but 'clvmd' is not running"
+			exit $OCF_ERR_GENERIC
+		fi
+		return $OCF_SUCCESS
+		;;
+	*)
+		ocf_log err "Unable to exclusively activate $OCF_RESKEY_volgrpname becaues it is not a clusted volume group"
+		exit $OCF_ERR_GENERIC
+		;;
+	esac
+
 	return $OCF_SUCCESS
 }
+
 #
 #	'main' starts here...
 #
@@ -344,7 +380,9 @@ OP_METHOD=$1
 # What kind of method was invoked?
 case "$1" in
 
-	start)	LVM_start $VOLUME
+	start)
+		LVM_validate_all
+		LVM_start $VOLUME
 		exit $?;;
 
 	stop)	LVM_stop $VOLUME
