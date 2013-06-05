@@ -898,6 +898,8 @@ mysql_monitor() {
 }
 
 mysql_start() {
+    local rc pid
+
     if ocf_is_ms; then
         # Initialize the ReaderVIP attribute, monitor will enable it
         set_reader_attr 0
@@ -966,17 +968,17 @@ mysql_start() {
     --datadir=$OCF_RESKEY_datadir \
     --user=$OCF_RESKEY_user $OCF_RESKEY_additional_parameters \
     $mysql_extra_params >/dev/null 2>&1 &
-    rc=$?
-
-    if [ $rc != 0 ]; then
-        ocf_log err "MySQL start command failed: $rc"
-        return $rc
-    fi
+    pid=$!
 
     # Spin waiting for the server to come up.
     # Let the CRM/LRM time us out if required.
     start_wait=1
     while [ $start_wait = 1 ]; do
+	if ! ps $pid > /dev/null 2>&1; then
+	    wait $pid
+	    ocf_log err "MySQL server failed to start (rc=$?), please check your installation"
+	    return $OCF_ERR_GENERIC
+	fi
         mysql_status info
         rc=$?
         if [ $rc = $OCF_SUCCESS ]; then
