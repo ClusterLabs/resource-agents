@@ -240,7 +240,7 @@ Path to PostgreSQL server log output file.
 
 <parameter name="socketdir" unique="0" required="0">
 <longdesc lang="en">
-Unix socket directory for PostgeSQL
+Unix socket directory for PostgreSQL
 </longdesc>
 <shortdesc lang="en">socketdir</shortdesc>
 <content type="string" default="" />
@@ -259,12 +259,12 @@ Number of shutdown retries (using -m fast) before resorting to -m immediate
 Replication mode may be set to "async" or "sync" or "slave".
 They require PostgreSQL 9.1 or later.
 Once set, "async" and "sync" require node_list, master_ip, and
-restore_command parameters,as well as configuring postgresql
+restore_command parameters,as well as configuring PostgreSQL
 for replication (in postgresql.conf and pg_hba.conf).
 
 "slave" means that RA only makes recovery.conf before starting
-to connect to Primary which is running somewhere.
-It dosen't need Master/Slave setting.
+to connect to primary which is running somewhere.
+It dosen't need master/slave setting.
 It requires master_ip restore_command parameters.
 </longdesc>
 <shortdesc lang="en">rep_mode</shortdesc>
@@ -358,7 +358,7 @@ This is optional for replication.
 
 <parameter name="xlog_check_count" unique="0" required="0">
 <longdesc lang="en">
-Number of checking xlog on monitor before promote.
+Number of checks of xlog on monitor before promote.
 This is optional for replication.
 </longdesc>
 <shortdesc lang="en">xlog check count</shortdesc>
@@ -378,7 +378,7 @@ This is optional for replication.
 <parameter name="stop_escalate_in_slave" unique="0" required="0">
 <longdesc lang="en">
 Number of shutdown retries (using -m fast) before resorting to -m immediate
-in Slave state.
+in slave state.
 This is optional for replication.
 </longdesc>
 <shortdesc lang="en">stop escalation_in_slave</shortdesc>
@@ -388,8 +388,8 @@ This is optional for replication.
 <parameter name="check_wal_receiver" unique="0" required="0">
 <longdesc lang="en">
 If this is true, RA checks wal_receiver process on monitor
-and notify its status using "(resource name)-receiver-status" attribute.
-It's useful for checking whether PostgreSQL(Hot Standby) connects to primary.
+and notifies its status using "(resource name)-receiver-status" attribute.
+It's useful for checking whether PostgreSQL (hot standby) connects to primary.
 The attribute shows status as "normal" or "ERROR".
 </longdesc>
 <shortdesc lang="en">check_wal_receiver</shortdesc>

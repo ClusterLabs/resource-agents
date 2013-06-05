@@ -61,13 +61,13 @@ meta_data() {
 <longdesc lang="en">
 Monitor the vitality of a local network interface.
 
-You may setup this RA as a clone resource to monitor the network interfaces on different nodes, with the same interface name.
-This is not related to the IP adress or the network on which a interface is configured.
+You may set up this RA as a clone resource to monitor the network interfaces on different nodes, with the same interface name.
+This is not related to the IP address or the network on which a interface is configured.
 You may use this RA to move resources away from a node, which has a faulty interface or prevent moving resources to such a node.
 This gives you independend control of the resources, without involving cluster intercommunication. But it requires your nodes to have more than one network interface.
 
 The resource configuration requires a monitor operation, because the monitor does the main part of the work.
-In addition to the resource configuration, you need to configure some location contraints, based on a CIB attribute value.
+In addition to the resource configuration, you need to configure some location constraints, based on a CIB attribute value.
 The name of the attribute value is configured in the 'name' option of this RA.
 
 Example constraint configuration:
@@ -76,8 +76,8 @@ location loc_connected_node my_resource_grp \
 
 The ethmonitor works in 3 different modes to test the interface vitality.
 1. call ip to see if the link status is up (if link is down -> error)
-2. call ip an watch the RX counter (if packages come around in a certain time -> success)
-3. call arping to check wether any of the IPs found in the lokal ARP cache answers an ARP REQUEST (one answer -> success)
+2. call ip and watch the RX counter (if packages come around in a certain time -> success)
+3. call arping to check whether any of the IPs found in the local ARP cache answers an ARP REQUEST (one answer -> success)
 4. return error
 </longdesc>
 <shortdesc lang="en">Monitors network interfaces</shortdesc>

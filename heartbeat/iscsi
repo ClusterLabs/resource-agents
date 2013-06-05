@@ -136,7 +136,7 @@ for the recovery to succeed. In that case the monitor operation
 can only time out so you should set the monitor op timeout
 attribute appropriately.
 </longdesc>
-<shortdesc lang="en">on error wait for iSCSI recovery in monitor</shortdesc>
+<shortdesc lang="en">On error wait for iSCSI recovery in monitor</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_try_recovery_default}" />
 </parameter>
 

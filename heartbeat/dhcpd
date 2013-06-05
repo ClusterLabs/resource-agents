@@ -79,7 +79,7 @@ dhcpd_meta_data()  {
   <longdesc lang="en">
 Manage an ISC DHCP server service in a chroot environment.
   </longdesc>
-  <shortdesc lang="en">Chrooted ISC DHCP Server resource agent.</shortdesc>
+  <shortdesc lang="en">Chrooted ISC DHCP server resource agent.</shortdesc>
   <parameters>
     <parameter name="config" unique="1" required="1">
       <longdesc lang="en">
@@ -149,7 +149,7 @@ Manage an ISC DHCP server service in a chroot environment.
 	file should be pulled into the chrooted environment. This
 	is a space delimited list.
       </longdesc>
-      <shortdesc lang="en">Include Files</shortdesc>
+      <shortdesc lang="en">Include files</shortdesc>
       <content type="string" default="$OCF_RESKEY_includes_default"/>
     </parameter>
     <parameter name="leases" unique="0" required="0">

@@ -83,7 +83,7 @@ and name for each instance.
 
 <parameter name="config" unique="1" required="1">
 <longdesc lang="en">
-The VCL configuration file that varnish should manage, for example
+The VCL configuration file that Varnish should manage, for example
 "/etc/varnish/default.vcl".
 </longdesc>
 <shortdesc lang="en">VCL file</shortdesc>
@@ -92,7 +92,7 @@ The VCL configuration file that varnish should manage, for example
 
 <parameter name="name" unique="1">
 <longdesc lang="en">
-Override the name of the instance that should be given to varnish
+Override the name of the instance that should be given to Varnish
 (defaults to the resource identifier).
 </longdesc>
 <shortdesc lang="en">Instance name</shortdesc>
@@ -102,9 +102,9 @@ Override the name of the instance that should be given to varnish
 <parameter name="pid" unique="1">
 <longdesc lang="en">
 Write the process's PID to the specified file.
-The default will include the specified name, ie.:
-"/var/run/varnish_production.pid". Unlike what this help message shows.
-It is most likely not necessary to change this parameter.
+The default will include the specified name, i.e.:
+"/var/run/varnish_production.pid". Unlike what this help message shows,
+it is most likely not necessary to change this parameter.
 </longdesc>
 <shortdesc lang="en">Listen address</shortdesc>
 <content type="string" default="${OCF_RESKEY_pid_default}" />
@@ -128,7 +128,7 @@ Provide a management interface, for example "127.0.0.1:2222"
 
 <parameter name="ttl">
 <longdesc lang="en">
-Specifies a hard minimum time to live for cached documents.
+Specify a hard minimum time to live for cached documents.
 </longdesc>
 <shortdesc lang="en">TTL</shortdesc>
 <content type="integer" default="${OCF_RESKEY_ttl_default}" />
@@ -136,7 +136,7 @@ Specifies a hard minimum time to live for cached documents.
 
 <parameter name="varnish_user">
 <longdesc lang="en">
-Specifies the name of an unprivileged user to which the 
+Specify the name of an unprivileged user to which the 
 child process should switch before it starts accepting 
 connections.
 </longdesc>
@@ -146,7 +146,7 @@ connections.
 
 <parameter name="varnish_group">
 <longdesc lang="en">
-Specifies  the  name  of an unprivileged group to which 
+Specify the name of an unprivileged group to which 
 the child process should switch before it starts accepting 
 connections.
 </longdesc>
@@ -194,7 +194,7 @@ For example: 100,3000,120
 
 <parameter name="client_binary">
 <longdesc lang="en">
-This is used to control varnish via a CLI. It's currently
+This is used to control Varnish via a CLI. It's currently
 only used to check the status of the running child process.
 </longdesc>
 <shortdesc lang="en">Varnish admin utility</shortdesc>
