@@ -269,13 +269,19 @@ lv_activate_and_tag()
 			# be removed from the VG via a separate call before
 			# the tag can be removed.
 			ocf_log err "Attempting volume group clean-up and retry"
-			vgreduce --removemissing --force $OCF_RESKEY_vg_name
+			vgreduce --removemissing --mirrorsonly --force $OCF_RESKEY_vg_name
 
 			# Retry tag deletion
 			lvchange --deltag $tag $lv_path
 			if [ $? -ne 0 ]; then
-				ocf_log err "Failed to delete tag from $lv_path"
-				return $OCF_ERR_GENERIC
+	                        if [ "$self_fence" ]; then
+	                                ocf_log err "Failed to delete tag from $lv_path: REBOOTING"
+                	                sync
+                        	        reboot -fn
+	                        else
+	                                ocf_log err "Failed to delete tag from $lv_path"
+                	        fi
+                        	return $OCF_ERR_GENERIC
 			fi
 		fi
 
@@ -355,7 +361,7 @@ lv_activate()
 
 		ocf_log notice "Attempting cleanup of $OCF_RESKEY_vg_name"
 
-		if vgreduce --removemissing --force --config \
+		if vgreduce --removemissing --mirrorsonly --force --config \
 		    "activation { volume_list = \"$OCF_RESKEY_vg_name\" }" \
 		    $OCF_RESKEY_vg_name; then
 			ocf_log notice "$OCF_RESKEY_vg_name now consistent"
