@@ -183,6 +183,36 @@ verify_tags_environment()
 	return $OCF_SUCCESS
 }
 
+check_initrd_warning()
+{
+	# First check to see if there is an initrd img we can safely
+	# compare timestamps agaist.  If not, don't even bother with
+	# this check.  This is known to work in rhel/fedora distros
+	ls "/boot/*$(uname -r)*.img" > /dev/null 2>&1
+	if [ $? -ne 0 ]; then
+		return
+	fi
+
+	##
+	# Now check to see if the initrd has been updated.
+	# If not, the machine could boot and activate the VG outside
+	# the control of pacemaker
+	##
+	if [ "$(find /boot -name *.img -newer /etc/lvm/lvm.conf)" = "" ]; then
+		ocf_log warn "LVM:  Improper setup detected"
+		ocf_log warn "* initrd image needs to be newer than lvm.conf"
+
+		# While dangerous if not done the first time, there are many
+		# cases where we don't simply want to fail here.  Instead,
+		# keep warning until the user remakes the initrd - or has
+		# it done for them by upgrading the kernel.
+		#
+		# initrd can be updated using this command.
+		# dracut -H -f /boot/initramfs-$(uname -r).img $(uname -r)
+		#
+	fi
+}
+
 ##
 # does this vg have our tag
 ##
@@ -295,6 +325,8 @@ LVM_status() {
 			if ! verify_tags_environment; then
 				rc=$OCF_ERR_GENERIC
 			fi
+			# let the user know if their initrd is older than lvm.conf.
+			check_initrd_warning
 			;;
 		*)
 			: ;;
