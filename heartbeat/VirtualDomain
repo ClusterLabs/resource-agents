@@ -126,9 +126,9 @@ Be sure to set the timeout of these operations to accommodate this delay.
 <parameter name="autoset_utilization_cpu" unique="0" required="0">
 <longdesc lang="en">
 If set true, the agent will detect the number of domainU's vCPUs from virsh, and put it 
-into the cpu utilization of the resource when the monitor is executed.
+into the CPU utilization of the resource when the monitor is executed.
 </longdesc>
-<shortdesc lang="en">Enable auto setting the cpu utilization of the resource</shortdesc>
+<shortdesc lang="en">Enable auto-setting the CPU utilization of the resource</shortdesc>
 <content type="boolean" default="true" />
 </parameter>
 
@@ -137,7 +137,7 @@ into the cpu utilization of the resource when the monitor is executed.
 If set true, the agent will detect the number of *Max memory* from virsh, and put it 
 into the hv_memory utilization of the resource when the monitor is executed.
 </longdesc>
-<shortdesc lang="en">Enable auto setting the hv_memory utilization of the resource</shortdesc>
+<shortdesc lang="en">Enable auto-setting the hv_memory utilization of the resource</shortdesc>
 <content type="boolean" default="true" />
 </parameter>
 

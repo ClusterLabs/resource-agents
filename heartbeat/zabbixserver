@@ -59,7 +59,7 @@ zabbixserver_meta_data() {
 <version>0.0.1</version>
 
 <longdesc lang="en">
-This is a zabbixserver Resource Agent for zabbix_server monitoring
+This is a Zabbix server Resource Agent for zabbix_server monitoring
 daemon. See: http://www.zabbix.com/
 </longdesc>
 <shortdesc lang="en">Zabbix server resource agent</shortdesc>
@@ -77,7 +77,7 @@ Location of the zabbix_server binary.
 <parameter name="pid" unique="1" required="0">
 <longdesc lang="en">
 Path to zabbix_server pidfile. As it's created by daemon itself
-it must be the same as specified in the zabbix configuration file
+it must be the same as specified in the Zabbix configuration file
 with parameter 'PidFile='.
 </longdesc>
 <shortdesc lang="en">Path to pidfile</shortdesc>

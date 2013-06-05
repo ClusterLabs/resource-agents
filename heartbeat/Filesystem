@@ -185,10 +185,10 @@ for the stop operation.
 
 <parameter name="force_clones">
 <longdesc lang="en">
-The usage of a clone setup for local filesystems is forbidden
+The use of a clone setup for local filesystems is forbidden
 by default. For special setups like glusterfs, cloning a mount
-of a local device with a filesystem like ext4 or xfs, independently
-on several nodes is a valid use-case.
+of a local device with a filesystem like ext4 or xfs independently
+on several nodes is a valid use case.
 
 Only set this to "true" if you know what you are doing!
 </longdesc>
