@@ -246,6 +246,97 @@ mount_in_use () {
 	return $NO
 }
 
+strip_trailing_slashes()
+{
+	local tmp=$1
+	while [ "${tmp#${tmp%?}}" = "/" ]
+	do
+		tmp="${tmp%/}"
+	done
+	echo "$tmp"
+}
+
+##
+# Returns whether or not the device is mounted.
+# If the mountpoint does not match the one provided, the
+# mount point found is printed to stdout.
+##
+real_mountpoint()
+{
+	declare dev=$1
+	declare mp=$2
+	declare ret=$NO
+	declare output
+	declare tmp_mp
+	declare tmp_dev
+	declare found=1
+	declare poss_mp=""
+
+	# if the 'findmnt' exists, use it. It is much faster
+	which findmnt > /dev/null 2>&1
+	if [ $? -eq 0 ]; then
+		# this returns a list of all the mount points for this device
+		output=$(findmnt -o TARGET --noheadings $dev)
+		if [ $? -ne 0 ]; then
+			return $NO
+		fi
+
+		# -r means to include '/' character and not treat it as escape character
+		while read -r tmp
+		do
+			ret=$YES
+			if [ "$tmp_mp" != "$mp" ]; then
+				poss_mp=$tmp_mp
+			else
+				found=0
+				break
+			fi
+		done < <(echo $output)
+
+	else
+		# slow method reading /proc/mounts dir.
+		while read -r tmp_dev tmp_mp junk_a junk_b junk_c junk_d
+		do
+			if [ "${tmp_dev%${tmp_dev#?}}" != "-" ]; then
+				# XXX fork/clone warning XXX
+				tmp_dev="$(printf "$tmp_dev")"
+			fi
+
+			# CIFS mounts can sometimes have trailing slashes
+			# in their first field in /proc/mounts, so strip them.
+			tmp_dev="$(strip_trailing_slashes "$tmp_dev")"
+			real_device "$tmp_dev"
+			tmp_dev="$REAL_DEVICE"
+
+			# XXX fork/clone warning XXX
+			# Mountpoint from /proc/mounts containing spaces will
+			# have spaces represented in octal.  printf takes care
+			# of this for us.
+			tmp_mp="$(printf "$tmp_mp")"
+
+			if [ -n "$tmp_dev" -a "$tmp_dev" = "$dev" ]; then
+				ret=$YES
+				#
+				# Check to see if its mounted in the right
+				# place
+				#
+				if [ -n "$tmp_mp" ]; then
+					if [ "$tmp_mp" != "$mp" ]; then
+						poss_mp=$tmp_mp
+					else
+						found=0
+						break
+					fi
+				fi
+			fi
+		done < <(cat /proc/mounts)
+	fi
+
+	if [ $found -ne 0 ]; then
+		echo "$poss_mp"
+	fi
+	return $ret
+}
 
 #
 # is_mounted device mount_point
@@ -255,10 +346,9 @@ mount_in_use () {
 #
 is_mounted () {
 
-	declare mp tmp_mp
-	declare dev tmp_dev
+	declare mp
+	declare dev
 	declare ret=$FAIL
-	declare found=1
 	declare poss_mp
 
 	if [ $# -ne 2 ]; then
@@ -279,52 +369,16 @@ is_mounted () {
 		mp="$2"
 	fi
 
-	ret=$NO
-
 	# This bash glyph simply removes a trailing slash
 	# if one exists.  /a/b/ -> /a/b; /a/b -> /a/b.
 	mp="${mp%/}"
 
-	typeset proc_mounts=$(mktemp /tmp/fs.proc.mounts.XXXXXX)
-	cat /proc/mounts > $proc_mounts
+	poss_mp=$(real_mountpoint "$dev" "$mp")
+	ret=$?
 
-	while read -r tmp_dev tmp_mp junk_a junk_b junk_c junk_d
-	do
-		# XXX fork/clone warning XXX
-		if [ "${tmp_dev:0:1}" != "-" ]; then
-			tmp_dev="$(printf "$tmp_dev")"
-		fi
-
-		# CIFS mounts can sometimes have trailing slashes
-		# in their first field in /proc/mounts, so strip them.
-		tmp_dev="$(echo $tmp_dev | sed 's/\/*$//g')"
-		real_device "$tmp_dev"
-		tmp_dev="$REAL_DEVICE"
-
-		# XXX fork/clone warning XXX
-		# Mountpoint from /proc/mounts containing spaces will
-		# have spaces represented in octal.  printf takes care
-		# of this for us.
-		tmp_mp="$(printf "$tmp_mp")"
-
-		if [ -n "$tmp_dev" -a "$tmp_dev" = "$dev" ]; then
-			#
-			# Check to see if its mounted in the right
-			# place
-			#
-			if [ -n "$tmp_mp" ]; then
-				if [ "$tmp_mp" != "$mp" ]; then
-					poss_mp=$tmp_mp
-				else
-					found=0
-				fi
-			fi
-			ret=$YES
-		fi
-	done < $proc_mounts
-	rm -f $proc_mounts
-
-	if [ $ret -eq $YES ] && [ $found -ne 0 ]; then
+	if [ $ret -eq $YES ] && [ -n "$poss_mp" ]; then
+		# if we made it here, then the device is mounted, but not where
+		# we expected it to be
 		case $OCF_RESKEY_fstype in
 		  cifs|nfs|nfs4)
 		    ret=$NO
