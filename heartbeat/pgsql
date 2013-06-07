@@ -1526,6 +1526,36 @@ exec_func_with_timeout() {
     wait $func_pid
 }
 
+# retry command when command doesn't return 0
+# arg1       : count >= 0 (if arg1 is 0, it retries command in infinitum(1day))
+# arg2..argN : command and args
+exec_with_retry() {
+    local count="86400"
+    local output
+    local rc
+
+    if [ "$1" -ne 0 ]; then
+        count=$1
+    fi
+    shift
+
+    while [ $count -gt 0 ]; do
+        output=`$*`
+        rc=$?
+        if [ $rc -ne 0 ]; then
+            ocf_log warn "Retrying(remain $count). \"$*\" failed. rc=$rc. stdout=\"$output\"."
+            count=`expr $count - 1`
+            sleep 1
+        else
+            printf "${output}"
+            return 0
+        fi
+    done
+
+    ocf_log err "giving up executing \"$*\""
+    return $rc
+}
+
 is_node_online() {
     crm_mon -1 -n | tr '[A-Z]' '[a-z]' | grep -e "^node $1 " -e "^node $1:" | grep -q -v "offline"
 }
