@@ -60,6 +60,18 @@
 		<content type="string" />
 	</parameter>
 
+
+	<parameter name="update_source">
+		<longdesc lang="en">
+			Update 'notify-source', 'transfer-source', and 'query-source' to match
+			the cluster ip associated with this service.
+		</longdesc>
+		<shortdesc lang="en">
+			Use cluster ip as source.
+		</shortdesc>
+		<content type="string" />
+	</parameter>
+
 	<parameter name="shutdown_wait">
 		<longdesc lang="en">
 			Wait X seconds for correct end of service shutdown

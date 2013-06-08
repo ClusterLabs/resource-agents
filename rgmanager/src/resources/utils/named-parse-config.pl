@@ -21,11 +21,11 @@
 ##
 ##  Parse named.conf (from STDIN) and add options from cluster.conf
 ##  
-##  ./named-parse-config.pl "directory" "pid-file" "listen-on"
+##  ./named-parse-config.pl "directory" "pid-file" "listen-on" "set source <true | false>"
 ##
 use strict;
 
-if ($#ARGV < 2) {
+if ($#ARGV < 3) {
 	die ("Not enough arguments");
 }
 
@@ -37,6 +37,11 @@ while (my $line = <STDIN>) {
 		print "\tdirectory \"$ARGV[0]\";\n";
 		print "\tpid-file \"$ARGV[1]\";\n";
 		print "\tlisten-on { $ARGV[2] };\n";
+		if ($ARGV[3] =~ "1|true|TRUE|yes|YES|on|ON") {
+			print "\tnotify-source $ARGV[2];\n";
+			print "\ttransfer-source $ARGV[2];\n";
+			print "\tquery-source $ARGV[2];\n";
+		}
 	} else {
 		print $line, "\n";
 	}
