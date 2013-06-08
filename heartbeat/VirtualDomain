@@ -154,7 +154,8 @@ This port will be used in the qemu migrateuri. If unset, the port will be a rand
 Path to the snapshot directory where the virtual machine image will be stored.  When this 
 parameter is set, the virtual machine's RAM state will be saved to a file in the snapshot
 directory when stopped.  If on start a state file is present for the domain, the domain
-will be restored to the same state it was in right before it stopped last.
+will be restored to the same state it was in right before it stopped last.  This option
+is incompatible with the 'force_stop' option. 
 </longdesc>
 <shortdesc lang="en">
 Restore state on start/stop
@@ -523,6 +524,13 @@ VirtualDomain_Validate_All() {
 	if [ -z $OCF_RESKEY_config ]; then
 		ocf_log error "Missing configuration parameter \"config\"."
 		return $OCF_ERR_CONFIGURED
+	fi
+
+	if ocf_is_true $OCF_RESKEY_force_stop; then
+		if [ -n "$OCF_RESKEY_snapshot" ]; then
+			ocf_log error "The 'force_stop' and 'snapshot' options can not be used together."
+			return $OCF_ERR_CONFIGURED
+		fi
 	fi
 
 	# check if we can read the config file (otherwise we're unable to
