@@ -895,6 +895,12 @@ pgsql_replication_monitor() {
         change_data_status "$NODENAME" "LATEST"
         change_pgsql_status "$NODENAME" "PRI"
         control_slave_status || return $OCF_ERR_GENERIC
+        if [ $RE_CONTROL_SLAVE = "true" ]; then
+            sleep 2
+            ocf_log info "re-controlling slave status."
+            RE_CONTROL_SLAVE="none"
+            control_slave_status || return $OCF_ERR_GENERIC
+        fi
         return $rc
     fi
 
@@ -1312,6 +1318,7 @@ set_sync_mode() {
     else
         ocf_log info "Setup $1 into sync mode."
         echo "synchronous_standby_names = '$1'" > "$REP_MODE_CONF"
+        [ $RE_CONTROL_SLAVE = "false" ] && RE_CONTROL_SLAVE="true"
         exec_with_retry 0 reload_conf
     fi
 }
@@ -1755,6 +1762,7 @@ if is_replication; then
     PGSQL_MASTER_BASELINE="${RESOURCE_NAME}-master-baseline"
 
     NODE_LIST=`echo $OCF_RESKEY_node_list | tr '[A-Z]' '[a-z]'`
+    RE_CONTROL_SLAVE="false"
 fi
 
 case "$1" in
