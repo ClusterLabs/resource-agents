@@ -1075,9 +1075,7 @@ control_slave_status() {
                 change_data_status "$target" "$data_status"
                 if [ "$OCF_RESKEY_rep_mode" = "sync" ]; then
                     change_master_score "$target" "$CAN_NOT_PROMOTE"
-                    if ! is_sync_mode "$target"; then
-                        set_sync_mode "$target"
-                    fi
+                    set_sync_mode "$target"
                 else
                     if [ $number_of_nodes -le 2 ]; then
                         change_master_score "$target" "$CAN_PROMOTE"
@@ -1096,16 +1094,14 @@ control_slave_status() {
             "DISCONNECT")
                 change_data_status "$target" "$data_status"
                 change_master_score "$target" "$CAN_NOT_PROMOTE"
-                if [ "$OCF_RESKEY_rep_mode" = "sync" ] && \
-                   is_sync_mode "$target"; then
+                if [ "$OCF_RESKEY_rep_mode" = "sync" ]; then
                     set_async_mode "$target"
                 fi
                 ;;
             *)
                 change_data_status "$target" "$data_status"
                 change_master_score "$target" "$CAN_NOT_PROMOTE"
-                if [ "$OCF_RESKEY_rep_mode" = "sync" ] && \
-                    is_sync_mode "$target"; then
+                if [ "$OCF_RESKEY_rep_mode" = "sync" ]; then
                     set_async_mode "$target"
                 fi
                 change_pgsql_status "$target" "HS:connected"
@@ -1296,20 +1292,14 @@ set_async_mode_all() {
 }
 
 set_async_mode() {
-    local sync_node_in_conf
-
-    sync_node_in_conf=`cat $REP_MODE_CONF | cut -d "'" -f 2`
-    if [ -n "$sync_node_in_conf" ]; then
+    cat $REP_MODE_CONF |  grep -q -e "[,' ]$1[,' ]"
+    if [ $? -eq 0 ]; then
         ocf_log info "Setup $1 into async mode."
-        sync_node_in_conf=`echo $sync_node_in_conf | sed "s/$1//g" |\
-                           sed "s/^,//g" | sed "s/,,/,/g" | sed "s/,$//g"`
-        echo "synchronous_standby_names = '$sync_node_in_conf'" > "$REP_MODE_CONF"
+        echo "synchronous_standby_names = ''" > "$REP_MODE_CONF"
     else
-        ocf_log info "$1 is already in async mode."
+        ocf_log debug "$1 is already in async mode."
         return 0
     fi
-
-    ocf_log info "All synced nodes : \"$sync_node_in_conf\""
     exec_with_retry 0 reload_conf
 }
 
@@ -1324,10 +1314,6 @@ set_sync_mode() {
         echo "synchronous_standby_names = '$1'" > "$REP_MODE_CONF"
         exec_with_retry 0 reload_conf
     fi
-}
-
-is_sync_mode() {
-    cat $REP_MODE_CONF |  grep -q -e "[,' ]$1[,' ]"
 }
 
 reload_conf() {
