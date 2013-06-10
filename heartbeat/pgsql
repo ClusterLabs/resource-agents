@@ -1419,9 +1419,7 @@ change_data_status() {
         output=`$CRM_ATTR_FOREVER -N "$1" -n "$PGSQL_DATA_STATUS_ATTR" -G -q 2>/dev/null`
         if [ "$output" != "$2" ]; then
             ocf_log info "Changing $PGSQL_DATA_STATUS_ATTR on $1 : $output->$2."
-            exec_func_with_timeout "$CRM_ATTR_FOREVER" "-N $1 -n \
-                                    $PGSQL_DATA_STATUS_ATTR -v \"$2\"" \
-                                    $OCF_RESKEY_crm_attr_timeout
+            exec_with_timeout 0 "$CRM_ATTR_FOREVER" -N $1 -n $PGSQL_DATA_STATUS_ATTR -v "$2"
             if [ $? -ne 0 ]; then
                 ocf_log err "Can't change $PGSQL_DATA_STATUS_ATTR."
                 return 1
@@ -1502,26 +1500,32 @@ report_psql_error()
 
 #
 # timeout management function
-# arg1 : command
-# arg2 : command's args
-# arg3 : timeout(s)
-#
-exec_func_with_timeout() {
+# arg1   timeout >= 0 (if arg1 is 0, OCF_RESKEY_crm_attr_timeout is used.)
+# arg2 : command
+# arg3 : command's args
+exec_with_timeout() {
     local func_pid
-    local count
+    local count=$OCF_RESKEY_crm_attr_timeout
     local rc
 
-    $1 `eval echo $2` &
+    if [ "$1" -ne 0 ]; then
+        count=$1
+    fi
+    shift
+
+    $* &
     func_pid=$!
-    count=0
+    sleep .1
+
     while kill -s 0 $func_pid >/dev/null 2>&1; do
         sleep 1
-        count=`expr $count + 1`
-        if [ $count -ge $3 ]; then
-            ocf_log debug "Execute $1 time out."
+        count=`expr $count - 1`
+        if [ $count -le 0 ]; then
+            ocf_log err "\"$*\" (pid=$func_pid) timed out."
             kill -s 9 $func_pid >/dev/null 2>&1
-            return 0
+            return 1
         fi
+        ocf_log info "Waiting($count). \"$*\" (pid=$func_pid)."
     done
     wait $func_pid
 }
