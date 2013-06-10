@@ -1031,7 +1031,6 @@ control_slave_status() {
     local target
     local all_data_status
     local tmp_data_status
-    local node_name
     local number_of_nodes
 
     all_data_status=`su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
@@ -1057,14 +1056,12 @@ control_slave_status() {
         data_status="DISCONNECT"
         if [ -n "$all_data_status" ]; then
             for tmp_data_status in $all_data_status; do
-                node_name=`echo $tmp_data_status | cut -d "|" -f 1`
-                state=`echo $tmp_data_status | cut -d "|" -f 2`
-                sync_state=`echo $tmp_data_status | cut -d "|" -f 3`
-                ocf_log debug "node=$node_name, state=$state, sync_state=$sync_state"
-                if [ "$node_name" = "$target" ];then
-                    data_status="$state|$sync_state"
-                    break
+                if ! echo $tmp_data_status | grep -q "^${target}|"; then
+                    continue
                 fi
+                data_status=`echo $tmp_data_status | cut -d "|" -f 2,3`
+                ocf_log debug "node_name and data_status is $tmp_data_status"
+                break
             done
         fi
 
