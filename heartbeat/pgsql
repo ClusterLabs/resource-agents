@@ -558,7 +558,7 @@ pgsql_replication_start() {
     # initializing for replication
     change_pgsql_status "$NODENAME" "STOP"
     delete_master_baseline
-    $CRM_MASTER -v $CAN_NOT_PROMOTE
+    exec_with_retry 0 $CRM_MASTER -v $CAN_NOT_PROMOTE
     rm -f ${XLOG_NOTE_FILE}.* $REP_MODE_CONF $RECOVERY_CONF
     if ! make_recovery_conf || ! delete_xlog_location || ! set_async_mode_all; then
         return $OCF_ERR_GENERIC
@@ -650,7 +650,7 @@ pgsql_promote() {
     fi
 
     change_data_status "$NODENAME" "LATEST"
-    $CRM_MASTER -v $PROMOTE_ME
+    exec_with_retry 0 $CRM_MASTER -v $PROMOTE_ME
     change_pgsql_status "$NODENAME" "PRI"
     return $OCF_SUCCESS
 }
@@ -664,7 +664,7 @@ pgsql_demote() {
         return $OCF_ERR_CONFIGURED
     fi
 
-    $CRM_MASTER -v $CAN_NOT_PROMOTE
+    exec_with_retry 0 $CRM_MASTER -v $CAN_NOT_PROMOTE
     delete_master_baseline
 
     if ! pgsql_status; then
@@ -753,7 +753,7 @@ pgsql_real_stop() {
 pgsql_replication_stop() {
     local rc
 
-    $CRM_MASTER -v $CAN_NOT_PROMOTE
+    exec_with_retry 5 $CRM_MASTER -v $CAN_NOT_PROMOTE
     delete_xlog_location
 
     if ! pgsql_status
@@ -908,7 +908,7 @@ pgsql_replication_monitor() {
             rm -f ${XLOG_NOTE_FILE}.*
         fi
     else
-        output=`$CRM_ATTR_FOREVER -N "$NODENAME" \
+        output=`exec_with_retry 0 $CRM_ATTR_FOREVER -N "$NODENAME" \
                 -n "$PGSQL_DATA_STATUS_ATTR" -G -q`
         if [ "$output" = "DISCONNECT" ]; then
             change_pgsql_status "$NODENAME" "HS:alone"
@@ -967,7 +967,7 @@ pgsql_pre_promote() {
                           sort | head -1`
             if [ "$cmp_location" != "$my_master_baseline" ]; then
                 ocf_log err "My data is newer than new master's one. New master's location : $master_baseline"
-                $CRM_FAILCOUNT -r $OCF_RESOURCE_INSTANCE -U $NODENAME -v INFINITY
+                exec_with_retry 0 $CRM_FAILCOUNT -r $OCF_RESOURCE_INSTANCE -U $NODENAME -v INFINITY
                 return $OCF_ERR_GENERIC
             fi
         fi
@@ -1193,7 +1193,7 @@ have_master_right() {
                     head -1 | cut -d " " -f 2`
         if [ "$newestXlog" = "$mylocation" ]; then
             ocf_log info "I have a master right."
-            $CRM_MASTER -v $PROMOTE_ME
+            exec_with_retry 5 $CRM_MASTER -v $PROMOTE_ME
             return 0
         fi
         change_data_status "$NODENAME" "DISCONNECT"
@@ -1257,11 +1257,11 @@ show_xlog_location() {
     local location
 
     location=`get_my_location` || return 1
-    $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_XLOG_LOC_NAME" -v "$location"
+    exec_with_retry 0 $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_XLOG_LOC_NAME" -v "$location"
 }
 
 delete_xlog_location() {
-    $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_XLOG_LOC_NAME" -D
+    exec_with_retry 5 $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_XLOG_LOC_NAME" -D
 }
 
 show_master_baseline() {
@@ -1276,11 +1276,11 @@ show_master_baseline() {
     fi
     location=`get_my_location`
     ocf_log info "My master baseline : $location."
-    $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_MASTER_BASELINE" -v "$location"
+    exec_with_retry 0 $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_MASTER_BASELINE" -v "$location"
 }
 
 delete_master_baseline() {
-    $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_MASTER_BASELINE" -D
+    exec_with_retry 5 $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_MASTER_BASELINE" -D
 }
 
 set_async_mode_all() {
@@ -1309,7 +1309,7 @@ set_async_mode() {
     fi
 
     ocf_log info "All synced nodes : \"$sync_node_in_conf\""
-    reload_conf
+    exec_with_retry 0 reload_conf
 }
 
 set_sync_mode() {
@@ -1326,7 +1326,7 @@ set_sync_mode() {
 
     sync_node_in_conf=`cat $REP_MODE_CONF | cut -d "'" -f 2`
     ocf_log info "All synced nodes : \"$sync_node_in_conf\""
-    reload_conf
+    exec_with_retry 0 reload_conf
 }
 
 is_sync_mode() {
@@ -1396,11 +1396,7 @@ change_pgsql_status() {
             fi
         fi
         ocf_log info "Changing $PGSQL_STATUS_ATTR on $1 : $output->$2."
-        $CRM_ATTR_REBOOT -N "$1" -n "$PGSQL_STATUS_ATTR" -v "$2"
-        if [ $? -ne 0 ]; then
-            ocf_log err "Can't change $PGSQL_STATUS_ATTR."
-            return 1
-        fi
+        exec_with_retry 0 $CRM_ATTR_REBOOT -N "$1" -n "$PGSQL_STATUS_ATTR" -v "$2"
     fi
     return 0
 }
@@ -1419,11 +1415,7 @@ change_data_status() {
         output=`$CRM_ATTR_FOREVER -N "$1" -n "$PGSQL_DATA_STATUS_ATTR" -G -q 2>/dev/null`
         if [ "$output" != "$2" ]; then
             ocf_log info "Changing $PGSQL_DATA_STATUS_ATTR on $1 : $output->$2."
-            exec_with_timeout 0 "$CRM_ATTR_FOREVER" -N $1 -n $PGSQL_DATA_STATUS_ATTR -v "$2"
-            if [ $? -ne 0 ]; then
-                ocf_log err "Can't change $PGSQL_DATA_STATUS_ATTR."
-                return 1
-            fi
+            exec_with_retry 0 exec_with_timeout 0 "$CRM_ATTR_FOREVER" -N $1 -n $PGSQL_DATA_STATUS_ATTR -v "$2"
         else
             break
         fi
@@ -1439,11 +1431,7 @@ set_master_score() {
     current_score=`$CRM_ATTR_REBOOT -N "$1" -n "master-$3" -G -q 2>/dev/null`
     if [ -n "$current_score" -a "$current_score" != "$2" ]; then
         ocf_log info "Changing $3 master score on $1 : $current_score->$2."
-        $CRM_ATTR_REBOOT -N "$target" -n "master-$3" -v "$2"
-        if [ $? -ne 0 ]; then
-            ocf_log err "Can't change master score."
-            return 1
-        fi
+        exec_with_retry 0 $CRM_ATTR_REBOOT -N "$target" -n "master-$3" -v "$2"
     fi
     return 0
 }
