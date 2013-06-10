@@ -1,15 +1,15 @@
 #!/bin/sh
 #
-# Support:      linux-ha@lists.linux-ha.org
-# License:      GNU General Public License (GPL)
+# Support:	  linux-ha@lists.linux-ha.org
+# License:	  GNU General Public License (GPL)
 #
 #   Resource Agent for domains managed by the libvirt API.
 #   Requires a running libvirt daemon (libvirtd).
 #
 #   (c) 2008-2010 Florian Haas, Dejan Muhamedagic,
-#                 and Linux-HA contributors
+#				 and Linux-HA contributors
 #
-#	usage: $0 {start|stop|status|monitor|migrate_to|migrate_from|meta-data|validate-all}
+#		usage: $0 {start|stop|status|monitor|migrate_to|migrate_from|meta-data|validate-all}
 #
 #######################################################################
 # Initialization:
@@ -40,7 +40,7 @@ usage() {
 }
 
 meta_data() {
-	cat <<EOF
+		cat <<EOF
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="VirtualDomain">
@@ -149,6 +149,20 @@ This port will be used in the qemu migrateuri. If unset, the port will be a rand
 <content type="integer" />
 </parameter>
 
+<parameter name="snapshot">
+<longdesc lang="en">
+Path to the snapshot directory where the virtual machine image will be stored.  When this 
+parameter is set, the virtual machine's RAM state will be saved to a file in the snapshot
+directory when stopped.  If on start a state file is present for the domain, the domain
+will be restored to the same state it was in right before it stopped last.  This option
+is incompatible with the 'force_stop' option. 
+</longdesc>
+<shortdesc lang="en">
+Restore state on start/stop
+</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -166,27 +180,27 @@ EOF
 }
 
 set_util_attr() {
-    local attr=$1 val=$2
-    local cval outp
+	local attr=$1 val=$2
+	local cval outp
 
-    cval=$(crm_resource -Q -r $OCF_RESOURCE_INSTANCE -z -g $attr 2>/dev/null)
-    if [ "$cval" != "$val" ]; then
-       outp=`crm_resource -r $OCF_RESOURCE_INSTANCE -z -p $attr -v $val 2>&1` ||
-           ocf_log warn "crm_resource failed to set utilization attribute $attr: $outp"
-    fi
+	cval=$(crm_resource -Q -r $OCF_RESOURCE_INSTANCE -z -g $attr 2>/dev/null)
+	if [ "$cval" != "$val" ]; then
+	   outp=`crm_resource -r $OCF_RESOURCE_INSTANCE -z -p $attr -v $val 2>&1` ||
+	   ocf_log warn "crm_resource failed to set utilization attribute $attr: $outp"
+	fi
 }
 
 update_utilization() {
-    local dom_cpu dom_mem
+	local dom_cpu dom_mem
 
-    if ocf_is_true "$OCF_RESKEY_autoset_utilization_cpu"; then
-       dom_cpu=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} | awk '/CPU\(s\)/{print $2}')
-       test -n "$dom_cpu" && set_util_attr cpu $dom_cpu
-    fi
-    if ocf_is_true "$OCF_RESKEY_autoset_utilization_hv_memory"; then
-       dom_mem=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} | awk '/Max memory/{printf("%d", $3/1024)}')
-       test -n "$dom_mem" && set_util_attr hv_memory "$dom_mem"
-    fi
+	if ocf_is_true "$OCF_RESKEY_autoset_utilization_cpu"; then
+	   dom_cpu=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} | awk '/CPU\(s\)/{print $2}')
+	   test -n "$dom_cpu" && set_util_attr cpu $dom_cpu
+	fi
+	if ocf_is_true "$OCF_RESKEY_autoset_utilization_hv_memory"; then
+	   dom_mem=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} | awk '/Max memory/{printf("%d", $3/1024)}')
+	   test -n "$dom_mem" && set_util_attr hv_memory "$dom_mem"
+	fi
 }
 
 # Set options to be passed to virsh:
@@ -196,317 +210,355 @@ VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor} --quiet"
 STATEFILE="${HA_RSCTMP}/VirtualDomain-${OCF_RESOURCE_INSTANCE}.state"
 
 VirtualDomain_Define() {
-    local virsh_output
-    local domain_name
-    # Note: passing in the domain name from outside the script is
-    # intended for testing and debugging purposes only. Don't do this
-    # in production, instead let the script figure out the domain name
-    # from the config file. You have been warned.
-    if [ -z "$DOMAIN_NAME" ]; then
-	# Spin until we have a domain name
-	while true; do
-	    virsh_output=$((virsh ${VIRSH_OPTIONS} define ${OCF_RESKEY_config}) 2>&1)
-	    domain_name=`echo "$virsh_output" | sed -n -e 's/Domain \(.*\) defined from .*$/\1/p'`
-            if [ -n "$domain_name" ]; then
-		break;
-            fi
-	    domain_name=`echo $virsh_output | sed -n -e "s/.* '\(.*\)' already exists .*/\1/p"`
-            if [ -n "$domain_name" ]; then
-		break;
-            fi
-	    ocf_log debug "Domain not defined yet, probably unable to connect to hypervisor. Retrying."
-            sleep 1
-	done
-	echo "$domain_name" > $STATEFILE
-	ocf_log info "Domain name \"$domain_name\" saved to $STATEFILE."
-    else
-	ocf_log warn "Domain name ${DOMAIN_NAME} already defined, overriding configuration file ${OCF_RESKEY_config}. You should do this for testing only."
-    fi
+	local virsh_output
+	local domain_name
+	# Note: passing in the domain name from outside the script is
+	# intended for testing and debugging purposes only. Don't do this
+	# in production, instead let the script figure out the domain name
+	# from the config file. You have been warned.
+	if [ -z "$DOMAIN_NAME" ]; then
+		# Spin until we have a domain name
+		while true; do
+			virsh_output=$((virsh ${VIRSH_OPTIONS} define ${OCF_RESKEY_config}) 2>&1)
+			domain_name=`echo "$virsh_output" | sed -n -e 's/Domain \(.*\) defined from .*$/\1/p'`
+			if [ -n "$domain_name" ]; then
+				break;
+			fi
+			domain_name=`echo $virsh_output | sed -n -e "s/.* '\(.*\)' already exists .*/\1/p"`
+			if [ -n "$domain_name" ]; then
+				break;
+			fi
+			ocf_log debug "Domain not defined yet, probably unable to connect to hypervisor. Retrying."
+			sleep 1
+		done
+		echo "$domain_name" > $STATEFILE
+		ocf_log info "Domain name \"$domain_name\" saved to $STATEFILE."
+	else
+		ocf_log warn "Domain name ${DOMAIN_NAME} already defined, overriding configuration file ${OCF_RESKEY_config}. You should do this for testing only."
+	fi
 }
 
 VirtualDomain_Cleanup_Statefile() {
-    rm -f $STATEFILE || ocf_log warn "Failed to remove $STATEFILE during $__OCF_ACTION."
+	rm -f $STATEFILE || ocf_log warn "Failed to remove $STATEFILE during $__OCF_ACTION."
 }
 
 VirtualDomain_Status() {
-    local try=0
-    rc=$OCF_ERR_GENERIC
-    status="no state"
-    while [ "$status" = "no state" ]; do
-	try=$(($try + 1 ))
-        status="`virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME`"
-        case "$status" in
-	    "shut off")
-	        # shut off: domain is defined, but not started
-		ocf_log debug "Virtual domain $DOMAIN_NAME is currently $status."
-	        rc=$OCF_NOT_RUNNING
-	        ;;
-	    running|paused|idle|blocked|"in shutdown")
-		# running: domain is currently actively consuming cycles
-		# paused: domain is paused (suspended)
-		# idle: domain is running but idle
-		# blocked: synonym for idle used by legacy Xen versions
-		# in shutdown: the domain is in process of shutting down, but has not completely shutdown or crashed.
-		ocf_log debug "Virtual domain $DOMAIN_NAME is currently $status."
-	        rc=$OCF_SUCCESS
-	        ;;
-            ""|"no state")
-		# Empty string may be returned when virsh does not
-		# receive a reply from libvirtd.
-		# "no state" may occur when the domain is currently
-		# being migrated (on the migration target only), or
-		# whenever virsh can't reliably obtain the domain
-		# state.
-		status="no state"
-		if [ "$__OCF_ACTION" = "stop" ] && [ $try -ge 3 ]; then
-		    # During the stop operation, we want to bail out
-		    # quickly, so as to be able to force-stop (destroy)
-		    # the domain if necessary.
-		    ocf_log error "Virtual domain $DOMAIN_NAME has no state during stop operation, bailing out."
-		    return $OCF_ERR_GENERIC;
-		else
-		    # During all other actions, we just wait and try
-		    # again, relying on the CRM/LRM to time us out if
-		    # this takes too long.
-		    ocf_log info "Virtual domain $DOMAIN_NAME currently has no state, retrying."
-		    sleep 1
-		fi
-		;;
-            *)
-		# any other output is unexpected.
-                ocf_log error "Virtual domain $DOMAIN_NAME has unknown status \"$status\"!"
-                ;;
-        esac
-    done
-    return $rc
+	local try=0
+	rc=$OCF_ERR_GENERIC
+	status="no state"
+	while [ "$status" = "no state" ]; do
+		try=$(($try + 1 ))
+		status="`virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME`"
+		case "$status" in
+			"shut off")
+				# shut off: domain is defined, but not started
+				ocf_log debug "Virtual domain $DOMAIN_NAME is currently $status."
+				rc=$OCF_NOT_RUNNING
+				;;
+			running|paused|idle|blocked|"in shutdown")
+				# running: domain is currently actively consuming cycles
+				# paused: domain is paused (suspended)
+				# idle: domain is running but idle
+				# blocked: synonym for idle used by legacy Xen versions
+				# in shutdown: the domain is in process of shutting down, but has not completely shutdown or crashed.
+				ocf_log debug "Virtual domain $DOMAIN_NAME is currently $status."
+				rc=$OCF_SUCCESS
+				;;
+			""|"no state")
+				# Empty string may be returned when virsh does not
+				# receive a reply from libvirtd.
+				# "no state" may occur when the domain is currently
+				# being migrated (on the migration target only), or
+				# whenever virsh can't reliably obtain the domain
+				# state.
+				status="no state"
+				if [ "$__OCF_ACTION" = "stop" ] && [ $try -ge 3 ]; then
+					# During the stop operation, we want to bail out
+					# quickly, so as to be able to force-stop (destroy)
+					# the domain if necessary.
+					ocf_log error "Virtual domain $DOMAIN_NAME has no state during stop operation, bailing out."
+					return $OCF_ERR_GENERIC;
+				else
+					# During all other actions, we just wait and try
+					# again, relying on the CRM/LRM to time us out if
+					# this takes too long.
+					ocf_log info "Virtual domain $DOMAIN_NAME currently has no state, retrying."
+					sleep 1
+				fi
+				;;
+			*)
+				# any other output is unexpected.
+				ocf_log error "Virtual domain $DOMAIN_NAME has unknown status \"$status\"!"
+				;;
+		esac
+	done
+	return $rc
 }
 
 VirtualDomain_Start() {
-    if VirtualDomain_Status; then
-	ocf_log info "Virtual domain $DOMAIN_NAME already running."
+	local snapshotimage
+
+	if VirtualDomain_Status; then
+		ocf_log info "Virtual domain $DOMAIN_NAME already running."
+		return $OCF_SUCCESS
+	fi
+
+	snapshotimage="$OCF_RESKEY_snapshot/${DOMAIN_NAME}.state"
+	if [ -n "$OCF_RESKEY_snapshot" -a -f "$snapshotimage" ]; then
+		virsh restore $snapshotimage
+		if [ $? -eq 0 ]; then
+			rm -f $snapshotimage
+			return $OCF_SUCCESS
+		fi
+		ocf_log error "Failed to restore ${DOMAIN_NAME} from state file in ${OCF_RESKEY_snapshot} directory."
+		return $OCF_ERR_GENERIC
+	fi
+
+	virsh $VIRSH_OPTIONS start ${DOMAIN_NAME}
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log error "Failed to start virtual domain ${DOMAIN_NAME}."
+		return $OCF_ERR_GENERIC
+	fi
+
+	while ! VirtualDomain_Monitor; do
+		sleep 1
+	done
 	return $OCF_SUCCESS
-    fi
-
-    virsh $VIRSH_OPTIONS start ${DOMAIN_NAME}
-    rc=$?
-    if [ $rc -ne 0 ]; then
-	ocf_log error "Failed to start virtual domain ${DOMAIN_NAME}."
-	return $OCF_ERR_GENERIC
-    fi
-
-    while ! VirtualDomain_Monitor; do
-	sleep 1
-    done
-    return $OCF_SUCCESS
 }
 
 VirtualDomain_Stop() {
-    local i
-    local status
-    local shutdown_timeout
-    local out ex
+	local i
+	local status
+	local shutdown_timeout
+	local out ex
+	local needshutdown=1
 
-    VirtualDomain_Status
-    status=$?
+	VirtualDomain_Status
+	status=$?
 
-    case $status in
-	$OCF_SUCCESS)
-	    if ! ocf_is_true $OCF_RESKEY_force_stop; then
-		# Issue a graceful shutdown request
-		ocf_log info "Issuing graceful shutdown request for domain ${DOMAIN_NAME}."
-		virsh $VIRSH_OPTIONS shutdown ${DOMAIN_NAME}
-	        # The "shutdown_timeout" we use here is the operation
-		# timeout specified in the CIB, minus 5 seconds
-		shutdown_timeout=$(( $NOW + ($OCF_RESKEY_CRM_meta_timeout/1000) -5 ))
-		# Loop on status until we reach $shutdown_timeout
-		while [ $NOW -lt $shutdown_timeout ]; do
-		    VirtualDomain_Status
-		    status=$?
-		    case $status in
-			$OCF_NOT_RUNNING)
-			    # This was a graceful shutdown. Clean
-			    # up and return.
-			    VirtualDomain_Cleanup_Statefile
-			    return $OCF_SUCCESS
-			    ;;
-			$OCF_SUCCESS)
-			    # Domain is still running, keep
-			    # waiting (until shutdown_timeout
-			    # expires)
-			    sleep 1
-			    ;;
-			*)
-			    # Something went wrong. Bail out and
-			    # resort to forced stop (destroy).
-			    break;
-		    esac
-		    NOW=$(date +%s)
-		done
-	    fi
-	    ;;
-	$OCF_NOT_RUNNING)
-	    ocf_log info "Domain $DOMAIN_NAME already stopped."
-	    return $OCF_SUCCESS
-    esac
-    # OK. Now if the above graceful shutdown hasn't worked, kill
-    # off the domain with destroy. If that too does not work,
-    # have the LRM time us out.
-    ocf_log info "Issuing forced shutdown (destroy) request for domain ${DOMAIN_NAME}."
-    out=$(virsh $VIRSH_OPTIONS destroy ${DOMAIN_NAME} 2>&1)
-    ex=$?
-    echo >&2 "$out"
-    # unconditionally clean up.
-    VirtualDomain_Cleanup_Statefile
-    case $ex$out in
-	*"error:"*"domain is not running"*)
-	    : ;; # unexpected path to the intended outcome, all is well
-	[!0]*)
-	    return $OCF_ERR_GENERIC ;;
-	0*)
-	    while [ $status != $OCF_NOT_RUNNING ]; do
-		VirtualDomain_Status
-		status=$?
-	    done ;;
-    esac
-    return $OCF_SUCCESS
+	case $status in
+		$OCF_SUCCESS)
+			if ocf_is_true $OCF_RESKEY_force_stop; then
+				# if force stop, don't bother attempting graceful shutdown.
+				break;
+			fi
+
+			ocf_log info "Issuing graceful shutdown request for domain ${DOMAIN_NAME}."
+
+			if [ -n "$OCF_RESKEY_snapshot" ]; then
+				virsh save $DOMAIN_NAME "$OCF_RESKEY_snapshot/${DOMAIN_NAME}.state"
+				if [ $? -eq 0 ]; then
+					needshutdown=0
+				else
+					ocf_log error "Failed to save snapshot state of ${DOMAIN_NAME} on stop"
+				fi
+			fi
+
+			# issue the shutdown if save state didn't shutdown for us
+			if [ $needshutdown -eq 1 ]; then
+				# Issue a graceful shutdown request
+				virsh $VIRSH_OPTIONS shutdown ${DOMAIN_NAME}
+			fi
+
+			# The "shutdown_timeout" we use here is the operation
+			# timeout specified in the CIB, minus 5 seconds
+			shutdown_timeout=$(( $NOW + ($OCF_RESKEY_CRM_meta_timeout/1000) -5 ))
+			# Loop on status until we reach $shutdown_timeout
+			while [ $NOW -lt $shutdown_timeout ]; do
+				VirtualDomain_Status
+				status=$?
+				case $status in
+					$OCF_NOT_RUNNING)
+						# This was a graceful shutdown. Clean
+						# up and return.
+						VirtualDomain_Cleanup_Statefile
+						return $OCF_SUCCESS
+						;;
+					$OCF_SUCCESS)
+						# Domain is still running, keep
+						# waiting (until shutdown_timeout
+						# expires)
+						sleep 1
+						;;
+					*)
+						# Something went wrong. Bail out and
+						# resort to forced stop (destroy).
+						break;
+				esac
+				NOW=$(date +%s)
+			done
+			;;
+		$OCF_NOT_RUNNING)
+			ocf_log info "Domain $DOMAIN_NAME already stopped."
+			return $OCF_SUCCESS
+	esac
+	# OK. Now if the above graceful shutdown hasn't worked, kill
+	# off the domain with destroy. If that too does not work,
+	# have the LRM time us out.
+	ocf_log info "Issuing forced shutdown (destroy) request for domain ${DOMAIN_NAME}."
+	out=$(virsh $VIRSH_OPTIONS destroy ${DOMAIN_NAME} 2>&1)
+	ex=$?
+	echo >&2 "$out"
+	# unconditionally clean up.
+	VirtualDomain_Cleanup_Statefile
+	case $ex$out in
+		*"error:"*"domain is not running"*)
+			: ;; # unexpected path to the intended outcome, all is well
+		[!0]*)
+			return $OCF_ERR_GENERIC ;;
+		0*)
+			while [ $status != $OCF_NOT_RUNNING ]; do
+				VirtualDomain_Status
+				status=$?
+			done ;;
+	esac
+	return $OCF_SUCCESS
 }
 
 VirtualDomain_Migrate_To() {
-    local target_node
-    local remoteuri
-    local transport_suffix
-    local migrateuri
-    local migrateport
-    local migrate_target
-    local hypervisor
+	local target_node
+	local remoteuri
+	local transport_suffix
+	local migrateuri
+	local migrateport
+	local migrate_target
+	local hypervisor
 
-    target_node="$OCF_RESKEY_CRM_meta_migrate_target"
+	target_node="$OCF_RESKEY_CRM_meta_migrate_target"
 
-    if VirtualDomain_Status; then
-        # Find out the remote hypervisor to connect to. That is, turn
-        # something like "qemu://foo:9999/system" into
-        # "qemu+tcp://bar:9999/system"
-	if [ -n "${OCF_RESKEY_migration_transport}" ]; then
-	    transport_suffix="+${OCF_RESKEY_migration_transport}"
-	fi
-	# A typical migration URI via a special  migration network looks
-	# like "tcp://bar-mig:49152". The port would be randomly chosen
-	# by libvirt from the range 49152-49215 if omitted, at least since
-	# version 0.7.4 ...
-	if [ -n "${OCF_RESKEY_migration_network_suffix}" ]; then
-	    hypervisor="${OCF_RESKEY_hypervisor%%[+:]*}"
-	    # Hostname might be a FQDN
-	    migrate_target=$(echo ${target_node} | sed -e "s,^\([^.]\+\),\1${OCF_RESKEY_migration_network_suffix},")
-	    case $hypervisor in
-		qemu)
-		    # For quiet ancient libvirt versions a migration port is needed
-		    # and the URI must not contain the "//". Newer versions can handle
-		    # the "bad" URI.
-		    migrateuri="tcp:${migrate_target}:${OCF_RESKEY_migrateport}"
-		    ;;
-		xen)
-		    migrateuri="xenmigr://${migrate_target}"
-		    ;;
-		*)
-		    ocf_log warn "$DOMAIN_NAME: Migration via dedicated network currently not supported for ${hypervisor}."
-		    ;;
-	    esac
-	fi
-        # Scared of that sed expression? So am I. :-)
-	remoteuri=$(echo ${OCF_RESKEY_hypervisor} | sed -e "s,\(.*\)://[^/:]*\(:\?[0-9]*\)/\(.*\),\1${transport_suffix}://${target_node}\2/\3,")
+	if VirtualDomain_Status; then
+		# Find out the remote hypervisor to connect to. That is, turn
+		# something like "qemu://foo:9999/system" into
+		# "qemu+tcp://bar:9999/system"
+		if [ -n "${OCF_RESKEY_migration_transport}" ]; then
+			transport_suffix="+${OCF_RESKEY_migration_transport}"
+		fi
+		# A typical migration URI via a special  migration network looks
+		# like "tcp://bar-mig:49152". The port would be randomly chosen
+		# by libvirt from the range 49152-49215 if omitted, at least since
+		# version 0.7.4 ...
+		if [ -n "${OCF_RESKEY_migration_network_suffix}" ]; then
+			hypervisor="${OCF_RESKEY_hypervisor%%[+:]*}"
+			# Hostname might be a FQDN
+			migrate_target=$(echo ${target_node} | sed -e "s,^\([^.]\+\),\1${OCF_RESKEY_migration_network_suffix},")
+			case $hypervisor in
+				qemu)
+					# For quiet ancient libvirt versions a migration port is needed
+					# and the URI must not contain the "//". Newer versions can handle
+					# the "bad" URI.
+					migrateuri="tcp:${migrate_target}:${OCF_RESKEY_migrateport}"
+					;;
+				xen)
+					migrateuri="xenmigr://${migrate_target}"
+					;;
+				*)
+					ocf_log warn "$DOMAIN_NAME: Migration via dedicated network currently not supported for ${hypervisor}."
+					;;
+			esac
+		fi
+		# Scared of that sed expression? So am I. :-)
+		remoteuri=$(echo ${OCF_RESKEY_hypervisor} | sed -e "s,\(.*\)://[^/:]*\(:\?[0-9]*\)/\(.*\),\1${transport_suffix}://${target_node}\2/\3,")
 
-	# OK, we know where to connect to. Now do the actual migration.
-	ocf_log info "$DOMAIN_NAME: Starting live migration to ${target_node} (using remote hypervisor URI ${remoteuri} ${migrateuri})."
-	virsh ${VIRSH_OPTIONS} migrate --live $DOMAIN_NAME ${remoteuri} ${migrateuri}
-	rc=$?
-	if [ $rc -ne 0 ]; then
-	    ocf_log err "$DOMAIN_NAME: live migration to ${remoteuri} ${migrateuri} failed: $rc"
-	    return $OCF_ERR_GENERIC
+		# OK, we know where to connect to. Now do the actual migration.
+		ocf_log info "$DOMAIN_NAME: Starting live migration to ${target_node} (using remote hypervisor URI ${remoteuri} ${migrateuri})."
+		virsh ${VIRSH_OPTIONS} migrate --live $DOMAIN_NAME ${remoteuri} ${migrateuri}
+		rc=$?
+		if [ $rc -ne 0 ]; then
+			ocf_log err "$DOMAIN_NAME: live migration to ${remoteuri} ${migrateuri} failed: $rc"
+			return $OCF_ERR_GENERIC
+		else
+			ocf_log info "$DOMAIN_NAME: live migration to ${target_node} succeeded."
+			VirtualDomain_Cleanup_Statefile
+			return $OCF_SUCCESS
+		fi
 	else
-	    ocf_log info "$DOMAIN_NAME: live migration to ${target_node} succeeded."
-	    VirtualDomain_Cleanup_Statefile
-	    return $OCF_SUCCESS
+		ocf_log err "$DOMAIN_NAME: migrate_to: Not active locally!"
+		return $OCF_ERR_GENERIC
 	fi
-    else
-	ocf_log err "$DOMAIN_NAME: migrate_to: Not active locally!"
-	return $OCF_ERR_GENERIC
-    fi
 }
 
 VirtualDomain_Migrate_From() {
-    while ! VirtualDomain_Monitor; do
-	sleep 1
-    done
-    ocf_log info "$DOMAIN_NAME: live migration from ${OCF_RESKEY_CRM_meta_migrate_source} succeeded."
-    return $OCF_SUCCESS
+	while ! VirtualDomain_Monitor; do
+		sleep 1
+	done
+	ocf_log info "$DOMAIN_NAME: live migration from ${OCF_RESKEY_CRM_meta_migrate_source} succeeded."
+	return $OCF_SUCCESS
 }
 
 VirtualDomain_Monitor() {
-    # First, check the domain status. If that returns anything other
-    # than $OCF_SUCCESS, something is definitely wrong.
-    VirtualDomain_Status
-    rc=$?
-    if [ ${rc} -eq ${OCF_SUCCESS} ]; then
-	# OK, the generic status check turned out fine.  Now, if we
-	# have monitor scripts defined, run them one after another.
-	for script in ${OCF_RESKEY_monitor_scripts}; do
-	    script_output="$($script 2>&1)"
-	    script_rc=$?
-	    if [ ${script_rc} -ne ${OCF_SUCCESS} ]; then
-		# A monitor script returned a non-success exit
-		# code. Stop iterating over the list of scripts, log a
-		# warning message, and propagate $OCF_ERR_GENERIC.
-		ocf_log warn "Monitor command \"${script}\" for domain ${DOMAIN_NAME} returned ${script_rc} with output: ${script_output}"
-		rc=$OCF_ERR_GENERIC
-		break
-	    else
-		ocf_log debug "Monitor command \"${script}\" for domain ${DOMAIN_NAME} completed successfully with output: ${script_output}"
-	    fi
-	done
-    fi
+	# First, check the domain status. If that returns anything other
+	# than $OCF_SUCCESS, something is definitely wrong.
+	VirtualDomain_Status
+	rc=$?
+	if [ ${rc} -eq ${OCF_SUCCESS} ]; then
+		# OK, the generic status check turned out fine.  Now, if we
+		# have monitor scripts defined, run them one after another.
+		for script in ${OCF_RESKEY_monitor_scripts}; do
+			script_output="$($script 2>&1)"
+			script_rc=$?
+			if [ ${script_rc} -ne ${OCF_SUCCESS} ]; then
+				# A monitor script returned a non-success exit
+				# code. Stop iterating over the list of scripts, log a
+				# warning message, and propagate $OCF_ERR_GENERIC.
+				ocf_log warn "Monitor command \"${script}\" for domain ${DOMAIN_NAME} returned ${script_rc} with output: ${script_output}"
+				rc=$OCF_ERR_GENERIC
+				break
+			else
+				ocf_log debug "Monitor command \"${script}\" for domain ${DOMAIN_NAME} completed successfully with output: ${script_output}"
+			fi
+		done
+	fi
 
-    update_utilization
+	update_utilization
 
-    return ${rc}
+	return ${rc}
 }
 
 VirtualDomain_Validate_All() {
-    # Required binaries:
-    for binary in virsh sed; do
-        check_binary $binary
-    done
+	# Required binaries:
+	for binary in virsh sed; do
+		check_binary $binary
+	done
 
-    if [ -z $OCF_RESKEY_config ]; then
-	ocf_log error "Missing configuration parameter \"config\"."
-	return $OCF_ERR_CONFIGURED
-    fi
-
-    # check if we can read the config file (otherwise we're unable to
-    # deduce $DOMAIN_NAME from it, see below)
-    if [ ! -r $OCF_RESKEY_config ]; then
-	if ocf_is_probe; then
-	    ocf_log info "Configuration file $OCF_RESKEY_config not readable during probe."
-	elif [ "$__OCF_ACTION" = "stop" ]; then
-	    ocf_log info "Configuration file $OCF_RESKEY_config not readable, resource considered stopped."
-	else
-	    ocf_log error "Configuration file $OCF_RESKEY_config does not exist or is not readable."
-	    return $OCF_ERR_INSTALLED
+	if [ -z $OCF_RESKEY_config ]; then
+		ocf_log error "Missing configuration parameter \"config\"."
+		return $OCF_ERR_CONFIGURED
 	fi
-    fi
+
+	if ocf_is_true $OCF_RESKEY_force_stop; then
+		if [ -n "$OCF_RESKEY_snapshot" ]; then
+			ocf_log error "The 'force_stop' and 'snapshot' options can not be used together."
+			return $OCF_ERR_CONFIGURED
+		fi
+	fi
+
+	# check if we can read the config file (otherwise we're unable to
+	# deduce $DOMAIN_NAME from it, see below)
+	if [ ! -r $OCF_RESKEY_config ]; then
+		if ocf_is_probe; then
+			ocf_log info "Configuration file $OCF_RESKEY_config not readable during probe."
+		elif [ "$__OCF_ACTION" = "stop" ]; then
+			ocf_log info "Configuration file $OCF_RESKEY_config not readable, resource considered stopped."
+		else
+			ocf_log error "Configuration file $OCF_RESKEY_config does not exist or is not readable."
+			return $OCF_ERR_INSTALLED
+		fi
+	fi
 }
 
 if [ $# -ne 1 ]; then
-  usage
-  exit $OCF_ERR_ARGS
+	usage
+	exit $OCF_ERR_ARGS
 fi
 
 case $1 in
-  meta-data)		meta_data
-			exit $OCF_SUCCESS
-			;;
-  usage)		usage
-			exit $OCF_SUCCESS
-			;;
+	meta-data)	meta_data
+		exit $OCF_SUCCESS
+		;;
+	usage)	usage
+		exit $OCF_SUCCESS
+		;;
 esac
 
 # Everything except usage and meta-data must pass the validate test
@@ -519,52 +571,52 @@ VirtualDomain_Validate_All || exit $?
 # domain is running. The only thing we can do here is to assume that
 # it is not running.
 if [ ! -r $OCF_RESKEY_config ]; then
-    ocf_is_probe && exit $OCF_NOT_RUNNING
-    [ "$__OCF_ACTION" = "stop" ] && exit $OCF_SUCCESS
+	ocf_is_probe && exit $OCF_NOT_RUNNING
+	[ "$__OCF_ACTION" = "stop" ] && exit $OCF_SUCCESS
 fi
 
 # Define the domain on startup, and re-define whenever someone deleted
 # the state file, or touched the config.
 if [ ! -e $STATEFILE ] || [ $OCF_RESKEY_config -nt $STATEFILE ]; then
-    VirtualDomain_Define
+	VirtualDomain_Define
 fi
 # By now, we should definitely be able to read from the state file.
 # If not, something went wrong.
 if [ ! -r $STATEFILE ]; then
-    ocf_log err "$STATEFILE not found or unreadable. This is unexpected. Cannot determine domain name."
-    exit $OCF_ERR_GENERIC
+	ocf_log err "$STATEFILE not found or unreadable. This is unexpected. Cannot determine domain name."
+	exit $OCF_ERR_GENERIC
 fi
 # Finally, retrieve the domain name from the state file.
 DOMAIN_NAME=`cat $STATEFILE 2>/dev/null`
 if [ -z $DOMAIN_NAME ]; then
-    ocf_log err "$STATEFILE is empty. This is unexpected. Cannot determine domain name."
-    exit $OCF_ERR_GENERIC
+	ocf_log err "$STATEFILE is empty. This is unexpected. Cannot determine domain name."
+	exit $OCF_ERR_GENERIC
 fi
 
 case $1 in
-    start)
-	VirtualDomain_Start
-	;;
-    stop)
-	VirtualDomain_Stop
-	;;
-    migrate_to)
-	VirtualDomain_Migrate_To
-	;;
-    migrate_from)
-	VirtualDomain_Migrate_From
-	;;
-    status)
-	VirtualDomain_Status
-	;;
-    monitor)
-	VirtualDomain_Monitor
-        ;;
-    validate-all)
-	;;
-    *)
-	usage
-	exit $OCF_ERR_UNIMPLEMENTED
-	;;
+	start)
+		VirtualDomain_Start
+		;;
+	stop)
+		VirtualDomain_Stop
+		;;
+	migrate_to)
+		VirtualDomain_Migrate_To
+		;;
+	migrate_from)
+		VirtualDomain_Migrate_From
+		;;
+	status)
+		VirtualDomain_Status
+		;;
+	monitor)
+		VirtualDomain_Monitor
+		;;
+	validate-all)
+		;;
+	*)
+		usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
 esac
 exit $?
