@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Copyright (C) 1997-2003 Sistina Software, Inc.  All rights reserved.
-# Copyright (C) 2004-2011 Red Hat, Inc.  All rights reserved.
+# Copyright (C) 2004-2013 Red Hat, Inc.  All rights reserved.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -21,11 +21,7 @@
 #     Hardy Merrill <hmerrill at redhat.com>
 #     Lon Hohberger <lhh at redhat.com>
 #     Michael Moon <Michael dot Moon at oracle.com>
-#
-# chkconfig: 345 99 01
-# description: Service script for starting/stopping      \
-#	       Oracle(R) Database 10g on                 \
-#		        Red Hat Enterprise Linux 5
+#     Ryan McCabe <rmccabe at redhat.com>
 #
 # NOTES:
 #
@@ -44,15 +40,16 @@
 # Oracle is a registered trademark of Oracle Corporation.
 # Oracle9i is a trademark of Oracle Corporation.
 # Oracle10g is a trademark of Oracle Corporation.
+# Oracle11g is a trademark of Oracle Corporation.
 # All other trademarks are property of their respective owners.
 #
 
-. /etc/init.d/functions
+. $(dirname $0)/ocf-shellfuncs
+. $(dirname $0)/utils/config-utils.sh
+. $(dirname $0)/utils/messages.sh
+. $(dirname $0)/utils/ra-skelet.sh
 
-#
-# Source stuff from /etc/sysconfig, but this may be overridden if
-# this is being called as a cluster resource agent instead.
-#. /etc/sysconfig/oracledb
+. /etc/init.d/functions
 
 declare SCRIPT="`basename $0`"
 declare SCRIPTDIR="`dirname $0`"
@@ -123,7 +120,7 @@ export ORACLE_HOSTNAME
 export LD_LIBRARY_PATH=$ORACLE_HOME/lib:$ORACLE_HOME/opmn/lib
 export PATH=$ORACLE_HOME/bin:$ORACLE_HOME/opmn/bin:$ORACLE_HOME/dcm/bin:$PATH
 
-declare -i	RESTART_RETRIES=0
+declare -i	RESTART_RETRIES=3
 declare -r	DB_PROCNAMES="pmon"
 #declare -r	DB_PROCNAMES="pmonXX" # testing
 #declare -r	DB_PROCNAMES="pmon smon dbw0 lgwr"
@@ -131,6 +128,15 @@ declare -r	DB_PROCNAMES="pmon"
 declare -r	LSNR_PROCNAME="tnslsnr"
 #declare -r	LSNR_PROCNAME="tnslsnrXX" # testing
 
+# clulog will not log messages when run by the oracle user.
+# This is a hack to work around that.
+if [ "`id -u`" = "`id -u $ORACLE_USER`" ]; then
+	ocf_log() {
+		prio=$1
+		shift
+		logger -i -p daemon."$prio" -- "$*"
+	}
+fi
 
 ##########################################################
 # (Hopefully) No user-serviceable parts below this line. #
@@ -143,10 +149,10 @@ meta_data()
     <version>1.0</version>
 
     <longdesc lang="en">
-	Oracle 10g Failover Instance
+	Oracle 10g/11g Failover Instance
     </longdesc>
     <shortdesc lang="en">
-	Oracle 10g Failover Instance
+	Oracle 10g/11g Failover Instance
     </shortdesc>
 
     <parameters>
@@ -172,7 +178,6 @@ meta_data()
             </shortdesc>
 	    <content type="string"/>
         </parameter>
-
 
         <parameter name="user" required="1">
 	    <longdesc lang="en">
@@ -200,8 +205,10 @@ meta_data()
 	    <longdesc lang="en">
 		This is the Oracle installation type:
 		base - Database Instance and Listener only
+		base-11g - Oracle11g Database Instance and Listener Only
 		base-em (or 10g) - Database, Listener, Enterprise Manager,
 				   and iSQL*Plus
+		base-em-11g - Database, Listener, Enterprise Manager dbconsole
 		ias (or 10g-ias) - Internet Application Server (Infrastructure)
 	    </longdesc>
             <shortdesc lang="en">
@@ -249,86 +256,55 @@ meta_data()
 EOT
 }
 
-
 #
-# "action"-like macro supporting functions
-#
-faction()
-{
-	echo -n "$1"
-	shift
-	$*
-	if [ $? -eq 0 ]; then
-		echo_success
-		echo
-		return 0
-	fi
-
-	echo_failure
-	echo
-	return 1
-}
-
-
-#
-# Start Oracle9i (database portion)
+# Start Oracle9i/10g/11g (database portion)
 #
 start_db()
 {
-	declare tmpfile
-	declare logfile
 	declare -i rv
+	declare startup_cmd
+	declare startup_stdout
 
-	tmpfile="$(mktemp /tmp/$SCRIPT-start.XXXXXX)"
-	logfile=@LOGDIR@/$SCRIPT-start.log
+	ocf_log info "Starting Oracle DB $ORACLE_SID"
 
-	#
 	# Set up our sqlplus script.  Basically, we're trying to 
 	# capture output in the hopes that it's useful in the case
 	# that something doesn't work properly.
-	#
-	echo "startup" > $tmpfile
-	echo "quit" >> $tmpfile
-
-	sqlplus "/ as sysdba" < $tmpfile &> $logfile
+	startup_cmd="set heading off;\nstartup;\nquit;\n"
+	startup_stdout=$(echo -e "$startup_cmd" | sqlplus -S "/ as sysdba")
 	rv=$?
 
-	rm -f $tmpfile
-
-	# Dump logfile to /var/log/messages
-	logger -f $logfile
+	# Dump output to syslog for debugging
+	ocf_log debug "[$ORACLE_SID] [$rv] sent $startup_cmd"
+	ocf_log debug "[$ORACLE_SID] [$rv] got $startup_stdout"
 
 	if [ $rv -ne 0 ]; then
-		echo "ORACLE_HOME Incorrectly set?"
-		echo "See $logfile for more information."
-		return 1
+	    ocf_log error "Starting Oracle DB $ORACLE_SID failed, sqlplus returned $rv"
+	    return 1
 	fi
 
-	# 
 	# If we see:
 	# ORA-.....: failure, we failed
-	#
-
-	rm -f $tmpfile
-	grep -q "^ORA-" $logfile
-	if [ $? -eq 0 ]; then
-		echo "ORACLE_SID Incorrectly set?"
-		rm -f $tmpfile
-		echo "See $logfile for more information."
-		return 1
+	# Troubleshooting:
+	#   ORA-00845 - Try rm -f /dev/shm/ora_*
+	#   ORA-01081 - Try echo -e 'shutdown abort;\nquit;'|sqlplus "/ as sysdba"
+	if [[ "$startup_stdout" =~ "ORA-" ]] || [[ "$startup_stdout" =~ "failure" ]]; then
+	    ocf_log error "Starting Oracle DB $ORACLE_SID failed, found errors in stdout"
+	    return 1
 	fi
 
+	ocf_log info "Started Oracle DB $ORACLE_SID successfully"
 	return 0
 }
 
 
 #
-# Stop Oracle9i (database portion)
+# Stop Oracle (database portion)
 #
 stop_db()
 {
-	declare tmpfile
-	declare logfile
+	declare stop_cmd
+	declare stop_stdout
 	declare -i rv
 	declare how_shutdown="$1"
 
@@ -336,40 +312,30 @@ stop_db()
 		how_shutdown="immediate"
 	fi
 
-	tmpfile="$(mktemp /tmp/$SCRIPT-stop.XXXXXX)"
-	logfile=@LOGDIR@/$SCRIPT-stop.log
+	ocf_log info "Stopping Oracle DB $ORACLE_SID $how_shutdown"
 
 	# Setup for Stop ...
-	echo "shutdown $how_shutdown" > $tmpfile
-	echo "quit" >> $tmpfile
-
-	sqlplus "/ as sysdba" < $tmpfile &> $logfile
+	stop_cmd="set heading off;\nshutdown $how_shutdown;\nquit;\n"
+	stop_stdout=$(echo -e "$stop_cmd" | sqlplus -S "/ as sysdba")
 	rv=$?
 
-	rm -f $tmpfile
+	# Log stdout of the stop command
+	ocf_log debug "[$ORACLE_SID] sent stop command $stop_cmd"
+	ocf_log debug "[$ORACLE_SID] got $stop_stdout"
 
-	# Dump logfile to /var/log/messages
-	logger -f $logfile
-
+	# sqlplus returned failure. We'll return failed to rhcs
 	if [ $rv -ne 0 ]; then
-		echo "ORACLE_HOME Incorrectly set?"
-		echo "See $logfile for more information."
-		return 1
+	    ocf_log error "Stopping Oracle DB $ORACLE_SID failed, sqlplus returned $rv"
+	    return 1
 	fi
 
-	# 
-	# If we see 'failure' in the log, we're done.
-	#
-	rm -f $tmpfile
-	grep -q "^ORA-" $logfile
-	if [ $? -eq 0 ]; then
-		echo_failure
-		echo
-		echo "Possible reason: ORACLE_SID Incorrectly set."
-		echo "See $logfile for more information."
-		return 1
+	# If we see 'ORA-' or 'failure' in stdout, we're done.
+	if [[ "$startup_stdout" =~ "ORA-" ]] || [[ "$startup_stdout" =~ "failure" ]]; then
+	    ocf_log error "Stopping Oracle DB $ORACLE_SID failed, errors in stdout"
+	    return 1
 	fi
 
+	ocf_log info "Stopped Oracle DB $ORACLE_SID successfully"
 	return 0
 }
 
@@ -385,12 +351,15 @@ force_cleanup()
 	# Patch from Shane Bradley to fix 471266
 	pids=`ps ax | grep $ORACLE_HOME | grep "ora_.*_${ORACLE_SID}" | grep -v grep | awk '{print $1}'`
 
-	logger -t $SCRIPT "<err> Not all Oracle processes exited cleanly, killing"
-	
+	ocf_log error "Not all Oracle processes for $ORACLE_SID exited cleanly, killing"
+
 	for pid in $pids; do
 		kill -9 $pid
-		if [ $? -eq 0 ]; then
-			logger -t $SCRIPT "Killed $pid"
+		rv=$?
+		if [ $rv -eq 0 ]; then
+			ocf_log info "Cleanup $ORACLE_SID Killed PID $pid"
+		else
+			ocf_log error "Cleanup $ORACLE_SID Kill PID $pid failed: $rv"
 		fi
 	done
 
@@ -405,14 +374,19 @@ force_cleanup()
 exit_idle()
 {
 	declare -i n=0
+
+	ocf_log debug "Waiting for Oracle processes for $ORACLE_SID to terminate..."
 	while ps ax | grep $ORACLE_HOME | grep -q -v grep; do
 		if [ $n -ge 90 ]; then
+			ocf_log debug "Timed out while waiting for Oracle processes for $ORACLE_SID to terminate"
 			force_cleanup
 			return 0
 		fi
 		sleep 1
 		((n++))
 	done
+
+	ocf_log debug "All Oracle processes for $ORACLE_SID have terminated"
 	return 0
 }
 
@@ -451,24 +425,27 @@ get_db_status()
 		for (( i=$RESTART_RETRIES ; i; i-- )) ; do
 			# this db process is down - stop and
 			# (re)start all ora_XXXX_$ORACLE_SID processes
-			logger -t $SCRIPT "Restarting Oracle Database..."
+			ocf_log info "Restarting Oracle Database $ORACLE_SID"
 			stop_db immediate
-			if [ $? != 0 ] ; then
+			if [ $? -ne 0 ] ; then
 				# stop failed - return 1
+				ocf_log error "Error stopping Oracle Database $ORACLE_SID"
 				return 1
 			fi
 
 			start_db
-			if [ $? == 0 ] ; then
+			if [ $? -eq 0 ] ; then
 				# ora_XXXX_$ORACLE_SID processes started
 				# successfully, so break out of the
 				# stop/start # 'for' loop
+				ocf_log info "Restarted Oracle Database $ORACLE_SID successfully"
 				break
 			fi
 		done
 
 		if [ $i -eq 0 ]; then
 			# stop/start's failed - return 1 (failure)
+			ocf_log error "Failed to restart Oracle Database $ORACLE_SID after $RESTART_RETRIES tries"
 			return 1
 		fi
 	done
@@ -484,42 +461,46 @@ get_lsnr_status()
 	declare -i subsys_lock=$1
 	declare -i rv
 
-	status $LSNR_PROCNAME
+	ocf_log debug "Checking status for listener $ORACLE_LISTENER"
+	lsnrctl status "$ORACLE_LISTENER" >& /dev/null
 	rv=$?
-	if [ $rv == 0 ] ; then
+	if [ $rv -eq 0 ] ; then
+		ocf_log debug "Listener $ORACLE_LISTENER is up"
 		return 0 # Listener is running fine
 	fi
 
-	#
 	# We're not supposed to be running, and we are,
 	# in fact, not running.  Return 3
-	#
 	if [ $subsys_lock -ne 0 ]; then
+		ocf_log debug "Listener $ORACLE_LISTENER is stopped as expected"
 		return 3
 	fi
 
-	#
 	# Listener is NOT running (but should be) - try to restart
-	#
 	for (( i=$RESTART_RETRIES ; i; i-- )) ; do
-
-		action "Restarting Oracle listener:" lsnrctl start \
-					$ORACLE_LISTENER
-		lsnrctl status $ORACLE_LISTENER >& /dev/null
-		if [ $? == 0 ] ; then
+		ocf_log info "Listener $ORACLE_LISTENER is down, attempting to restart"
+		lsnrctl start "$ORACLE_LISTENER" >& /dev/null
+		lsnrctl status "$ORACLE_LISTENER" >& /dev/null
+		if [ $? -eq 0 ] ; then
+			ocf_log info "Listener $ORACLE_LISTENER was restarted successfully"
 			break # Listener was (re)started and is running fine
 		fi
 	done
 
 	if [ $i -eq 0 ]; then
 		# stop/start's failed - return 1 (failure)
+		ocf_log error "Failed to restart listener $ORACLE_LISTENER after $RESTART_RETRIES tries"
 		return 1
 	fi
 
-	status $LSNR_PROCNAME
-	if [ $? != 0 ] ; then
+	lsnrctl_stdout=$(lsnrctl status "$ORACLE_LISTENER")
+	rv=$?
+	if [ $rv -ne 0 ] ; then
+		ocf_log error "Starting listener $ORACLE_LISTENER failed: $rv output $lsnrctl_stdout"
 		return 1 # Problem restarting the Listener
 	fi
+
+	ocf_log info "Listener $ORACLE_LISTENER started successfully"
 	return 0 # Success restarting the Listener
 }
 
@@ -554,12 +535,12 @@ get_opmn_proc_status()
 		_status=`echo $_status | cut -f2 -d' '`
 		if [ "${_status}" == "Alive" ] || [ "${_status}" == "Init" ]; then
 			if [ $i -lt $RESTART_RETRIES ] ; then
-				echo "  $comp$type_pretty restarted"
+				ocf_log info "$comp$type_pretty restarted"
 			fi
-			echo "  $comp$type_pretty (pid $_pid) is running..."
+			ocf_log info "$comp$type_pretty (pid $_pid) is running..."
 			break
 		else
-			echo "  $comp$type_pretty is stopped"
+			ocf_log info "$comp$type_pretty is stopped"
 
 			#
 			# Try to restart it, but don't worry if we fail.  OPMN
@@ -577,6 +558,7 @@ get_opmn_proc_status()
 
 	if [ $i -eq 0 ]; then
 		# restarts failed - return 1 (failure)
+		ocf_log error "Failed to restart OPMN process $comp"
 		return 1
 	fi
 
@@ -597,7 +579,7 @@ get_opmn_status()
 		#
 		# OPMN not running??
 		#
-		echo "opmn is stopped"
+		ocf_log info "OPMN is stopped"
 
 		if [ $subsys_lock -eq 0 ]; then
 			#
@@ -613,8 +595,8 @@ get_opmn_status()
 	#
 	# Print out the PIDs for everyone.
 	#
-	echo "opmn is running..."
-	echo "opmn components:"
+	ocf_log info "OPMN is running..."
+	ocf_log info "opmn components:"
 
 	#
 	# Check the OPMN-managed processes
@@ -628,6 +610,7 @@ get_opmn_status()
 	# restarted.
 	#
 	if [ $ct_errors -ne 0 ]; then
+		ocf_log error "$ct_errors errors occurred while restarting OPMN-managed processes"
 		return 1
 	fi
 	return 0
@@ -672,10 +655,7 @@ update_status()
 #
 oops()
 {
-	echo "Please configure this script ($0) to"
-	echo "match your installation."
-	echo 
-	echo "    $1 failed validation checks."
+	ocf_log error "$ORACLE_SID: Fatal: $1 failed validation checks"
 	exit 1
 }
 
@@ -686,6 +666,8 @@ oops()
 #
 validation_checks()
 {
+	ocf_log debug "Validating configuration for $ORACLE_SID"
+
 	#
 	# If the oracle user doesn't exist, we're done.
 	#
@@ -714,8 +696,12 @@ validation_checks()
 		ORACLE_TYPE="base-em"
 	elif [ "$ORACLE_TYPE" = "10g-ias" ] || [ "$ORACLE_TYPE" = "ias" ]; then
 		ORACLE_TYPE="ias"
+	elif [ "$ORACLE_TYPE" = "11g" ] || [ "$ORACLE_TYPE" = "base-em-11g" ]; then
+		ORACLE_TYPE="base-em-11g"
+	elif [ "$ORACLE_TYPE" = "base-11g" ]; then
+		ORACLE_TYPE="base-11g"
 	else
-		oops ORACLE_TYPE
+		oops "ORACLE_TYPE $ORACLE_TYPE"
 	fi
 
 	#
@@ -728,7 +714,7 @@ validation_checks()
 	# Oracle needs to be run as the Oracle user, not root!
 	#
 	if [ "`id -u`" = "0" ]; then
-		echo "Restarting $0 as $ORACLE_USER."
+		#echo "Restarting $0 as $ORACLE_USER."
 		#
 		# Breaks on RHEL5 
 		# exec sudo -u $ORACLE_USER $0 $*
@@ -740,75 +726,191 @@ validation_checks()
 	#
 	# If we're not root and not the Oracle user, we're done.
 	#
-	[ "`id -u`" = "`id -u $ORACLE_USER`" ] || exit 1
-	[ "`id -g`" = "`id -g $ORACLE_USER`" ] || exit 1
+	[ "`id -u`" = "`id -u $ORACLE_USER`" ] || oops "not ORACLE_USER after su"
+	[ "`id -g`" = "`id -g $ORACLE_USER`" ] || oops "not ORACLE_GROUP after su"
 
 	#
 	# Go home.
 	#
-	cd $ORACLE_HOME
+	cd "$ORACLE_HOME"
 
+	ocf_log debug "Validation checks for $ORACLE_SID succeeded"
 	return 0
 }
 
 
 #
-# Start Oracle9i Application Server Infrastructure
+# Start Oracle 9i/10g/11g Application Server Infrastructure
 #
 start_oracle()
 {
-	faction "Starting Oracle Database:" start_db || return 1
-	action "Starting Oracle Listener:" lsnrctl start $ORACLE_LISTENER || return 1
+	ocf_log info "Starting service $ORACLE_SID"
+
+	start_db
+	rv=$?
+	if [ $rv -ne 0 ]; then
+		ocf_log error "Starting service $ORACLE_SID failed"
+		return 1
+	fi
+
+	ocf_log info "Starting listener $ORACLE_LISTENER"
+	lsnrctl_stdout=$(lsnrctl start "$ORACLE_LISTENER")
+	rv=$?
+	if [ $rv -ne 0 ]; then
+		ocf_log debug "[$ORACLE_SID] Listener $ORACLE_LISTENER start returned $rv output $lsnrctl_stdout"
+		ocf_log error "Starting service $ORACLE_SID failed"
+		return 1
+	fi
 
 	if [ "$ORACLE_TYPE" = "base-em" ]; then
-		action "Starting iSQL*Plus:" isqlplusctl start || return 1
-		action "Starting Oracle EM DB Console:" emctl start dbconsole || return 1
+		ocf_log info "Starting iSQL*Plus for $ORACLE_SID"
+		isqlplusctl start
+		if [ $? -ne 0 ]; then
+			ocf_log error "iSQL*Plus startup for $ORACLE_SID failed"
+			ocf_log error "Starting service $ORACLE_SID failed"
+			return 1
+		else
+			ocf_log info "iSQL*Plus startup for $ORACLE_SID succeeded"
+		fi
+
+		ocf_log info "Starting Oracle EM DB Console for $ORACLE_SID"
+		emctl start dbconsole
+		if [ $? -ne 0 ]; then
+			ocf_log error "Oracle EM DB Console startup for $ORACLE_SID failed"
+			ocf_log error "Starting service $ORACLE_SID failed"
+			return 1
+		else
+			ocf_log info "Oracle EM DB Console startup for $ORACLE_SID succeeded"
+		fi
 	elif [ "$ORACLE_TYPE" = "ias" ]; then
-		action "Starting Oracle EM:" emctl start em || return 1
-		action "Starting iAS Infrastructure:" opmnctl startall || return 1
+		ocf_log info "Starting Oracle EM for $ORACLE_SID"
+		emctl start em
+		if [ $? -ne 0 ]; then
+			ocf_log error "Oracle EM startup for $ORACLE_SID failed"
+			ocf_log error "Starting service $ORACLE_SID failed"
+			return 1
+		else
+			ocf_log info "Oracle EM startup for $ORACLE_SID succeeded"
+		fi
+
+		ocf_log info "Starting iAS Infrastructure for $ORACLE_SID"
+		opmnctl startall
+		if [ $? -ne 0 ]; then
+			ocf_log error "iAS Infrastructure startup for $ORACLE_SID failed"
+			ocf_log error "Starting service $ORACLE_SID failed"
+			return 1
+		else
+			ocf_log info "iAS Infrastructure startup for $ORACLE_SID succeeded"
+		fi
+	elif [ "$ORACLE_TYPE" = "base-em-11g" ]; then
+		ocf_log info "Starting Oracle EM DB Console for $ORACLE_SID"
+		emctl start dbconsole
+		if [ $? -ne 0 ]; then
+			ocf_log error "Oracle EM DB Console startup for $ORACLE_SID failed"
+			ocf_log error "Starting service $ORACLE_SID failed"
+			return 1
+		else
+			ocf_log info "Oracle EM DB Console startup for $ORACLE_SID succeeded"
+		fi
 	fi
 
 	if [ -n "$LOCKFILE" ]; then
-		touch $LOCKFILE
+		touch "$LOCKFILE"
 	fi
+
+	ocf_log info "Starting service $ORACLE_SID completed successfully"
 	return 0
 }
 
 
 #
-# Stop Oracle9i Application Server Infrastructure
+# Stop Oracle 9i/10g/11g Application Server Infrastructure
 #
 stop_oracle()
 {
+	ocf_log info "Stopping service $ORACLE_SID"
+
 	if ! [ -e "$ORACLE_HOME/bin/lsnrctl" ]; then
-		echo "Oracle Listener Control is not available"
-		echo "    ($ORACLE_HOME not mounted?)"
+		ocf_log error "Oracle Listener Control is not available ($ORACLE_HOME not mounted?)"
 		return 0
 	fi
 
 	if [ "$ORACLE_TYPE" = "base-em" ]; then
-		action "Stopping Oracle EM DB Console:" emctl stop dbconsole || return 1
-		action "Stopping iSQL*Plus:" isqlplusctl stop || return 1
+		ocf_log info "Stopping Oracle EM DB Console for $ORACLE_SID"
+		emctl stop dbconsole
+		if [ $? -ne 0 ]; then
+			ocf_log error "Stopping Oracle EM DB Console for $ORACLE_SID failed"
+			ocf_log error "Stopping service $ORACLE_SID failed"
+			return 1
+		else
+			ocf_log info "Stopping Oracle EM DB Console for $ORACLE_SID succeeded"
+		fi
+
+		ocf_log info "Stopping iSQL*Plus for $ORACLE_SID"
+		isqlplusctl stop
+		if [ $? -ne 0 ]; then
+			ocf_log error "Stopping iSQL*Plus for $ORACLE_SID failed"
+			ocf_log error "Stopping service $ORACLE_SID failed"
+			return 1
+		else
+			ocf_log info "Stopping iSQL*Plus for $ORACLE_SID succeeded"
+		fi
 	elif [ "$ORACLE_TYPE" = "ias" ]; then
-		action "Stopping iAS Infrastructure:" opmnctl stopall || return 1
-		action "Stopping Oracle EM:" emctl stop em || return 1
+		ocf_log info "Stopping iAS Infrastructure for $ORACLE_SID"
+		opmnctl stopall
+		if [ $? -ne 0 ]; then
+			ocf_log error "Stopping iAS Infrastructure for $ORACLE_SID failed"
+			ocf_log error "Stopping service $ORACLE_SID failed"
+			return 1
+		else
+			ocf_log info "Stopping iAS Infrastructure for $ORACLE_SID succeeded"
+		fi
+
+		ocf_log info "Stopping Oracle EM for $ORACLE_SID"
+		emctl stop em
+		if [ $? -ne 0 ]; then
+			ocf_log error "Stopping Oracle EM for $ORACLE_SID failed"
+			ocf_log error "Stopping service $ORACLE_SID failed"
+			return 1
+		else
+			ocf_log info "Stopping Oracle EM for $ORACLE_SID succeeded"
+		fi
+	elif [ "$ORACLE_TYPE" = "base-em-11g" ]; then
+		ocf_log info "Stopping Oracle EM DB Console for $ORACLE_SID"
+		emctl stop dbconsole
+		if [ $? -ne 0 ]; then
+			ocf_log error "Stopping Oracle EM DB Console for $ORACLE_SID failed"
+			ocf_log error "Stopping service $ORACLE_SID failed"
+			return 1
+		else
+			ocf_log info "Stopping Oracle EM DB Console for $ORACLE_SID succeeded"
+		fi
 	fi
 
-	faction "Stopping Oracle Database:" stop_db immediate
+	stop_db immediate || stop_db abort
 	if [ $? -ne 0 ]; then
-		faction "Stopping Oracle Database (hard):" stop_db abort || return 1
+		ocf_log error "Stopping service $ORACLE_SID failed"
+		return 1
 	fi
 
-	action "Stopping Oracle Listener:" lsnrctl stop $ORACLE_LISTENER
-	faction "Waiting for all Oracle processes to exit:" exit_idle 
-
+	ocf_log info "Stopping listener $ORACLE_LISTENER for $ORACLE_SID"
+	lsnrctl_stdout=$(lsnrctl stop "$ORACLE_LISTENER")
+	rv=$?
 	if [ $? -ne 0 ]; then
-		echo "WARNING: Not all Oracle processes exited cleanly"
+		ocf_log error "Listener $ORACLE_LISTENER stop failed for $ORACLE_SID: $rv output $lsnrctl_stdout"
+		# XXX - failure?
+	fi
+
+	exit_idle 
+	if [ $? -ne 0 ]; then
+		ocf_log warning "WARNING: Not all Oracle processes exited cleanly for $ORACLE_SID"
 	fi
 
 	if [ -n "$LOCKFILE" ]; then
-		rm -f $LOCKFILE
+		rm -f "$LOCKFILE"
 	fi
+
+	ocf_log info "Stopping service $ORACLE_SID succeeded"
 	return 0
 }
 
@@ -836,10 +938,12 @@ status_oracle()
 	declare -i subsys_lock=1
 	declare -i last 
 
+	ocf_log debug "Checking status for $ORACLE_SID depth $depth"
+
 	#
 	# Check for lock file.  Crude and rudimentary, but it works
 	#
-	if [ -z "$LOCKFILE" ] || [ -f $LOCKFILE ]; then
+	if [ -z "$LOCKFILE" ] || [ -f "$LOCKFILE" ]; then
 		subsys_lock=0 
 	fi
 
@@ -853,9 +957,9 @@ status_oracle()
 	update_status $? $last
 	last=$?
 	
-	if [ "$ORACLE_TYPE" = "base-em" ]; then
+	if [ "$ORACLE_TYPE" = "base-em" ] || [ "$ORACLE_TYPE" = "base-em-11g" ]; then
 		# XXX Add isqlplus status check?!
-		emctl status dbconsole 2>&1 | grep "is running"
+		emctl status dbconsole >&/dev/null
 		update_status $? $last
 		last=$?
 	elif [ "$ORACLE_TYPE" = "ias" ]; then
@@ -870,9 +974,10 @@ status_oracle()
 	# file back. XXX - this kosher?
 	#
 	if [ $last -eq 0 ] && [ $subsys_lock -ne 0 ]; then
-		touch $LOCKFILE
+		touch "$LOCKFILE"
 	fi
 
+	ocf_log debug "Status returning $last for $ORACLE_SID"
 	return $last
 }
 

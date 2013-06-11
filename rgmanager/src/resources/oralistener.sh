@@ -1,7 +1,5 @@
 #!/bin/bash
 #
-# $Id: oralistener.sh 127 2009-08-21 09:17:52Z hevirtan $
-#
 # Red Hat Cluster Suite resource agent for controlling Oracle 10g
 # listener instances. This script will start, stop and monitor running
 # listeners.
@@ -14,7 +12,7 @@
 #
 #
 # Copyright (C) 1997-2003 Sistina Software, Inc.  All rights reserved.
-# Copyright (C) 2004-2011 Red Hat, Inc.  All rights reserved.
+# Copyright (C) 2004-2013 Red Hat, Inc.  All rights reserved.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -45,126 +43,148 @@ LISTENER=$OCF_RESKEY_name
 
 LC_ALL=C
 LANG=C
-PATH=/bin:/sbin:/usr/bin:/usr/sbin:$ORACLE_HOME/bin
-export LC_ALL LANG PATH ORACLE_HOME
+PATH=$ORACLE_HOME/bin:/bin:/sbin:/usr/bin:/usr/sbin
+export LC_ALL LANG PATH ORACLE_USER ORACLE_HOME
+
+# clulog will not log messages when run by the oracle user.
+# This is a hack to work around that.
+if [ "`id -u`" = "`id -u $ORACLE_USER`" ]; then
+	ocf_log() {
+		prio=$1
+		shift
+		logger -i -p daemon."$prio" -- "$*"
+	}
+fi
 
 verify_all() {
-    clog_service_verify $CLOG_INIT
+	ocf_log debug "Validating configuration for $LISTENER"
 
-    if [ -z "$OCF_RESKEY_name" ]; then
-        clog_service_verify $CLOG_FAILED "Invalid name of service (listener name)"
-        return $OCF_ERR_ARGS
-    fi
+	if [ -z "$OCF_RESKEY_name" ]; then
+		ocf_log error "Validation for $LISTENER failed: Invalid name of service (listener name)"
+		return $OCF_ERR_ARGS
+	fi
 
-    if [ -z "$OCF_RESKEY_home" ]; then
-        clog_service_verify $CLOG_FAILED "No Oracle home specified."
-        return $OCF_ERR_ARGS
-    fi
+	if [ -z "$OCF_RESKEY_home" ]; then
+		ocf_log error "Validation for $LISTENER failed: No Oracle home specified."
+		return $OCF_ERR_ARGS
+	fi
 
-    if [ -z "$OCF_RESKEY_user" ]; then
-        clog_service_verify $CLOG_FAILED "No Oracle username specified."
-        return $OCF_ERR_ARGS
-    fi
-        
-    # Make sure the lsnrctl binary is in our $PATH
-    if [ ! -x $(which lsnrctl) ]; then
-        clog_service_verify $CLOG_FAILED "oralistener:${OCF_RESKEY_home}: Unable to locate lsnrctl command from path! ($PATH)"
-        return $OCF_ERR_GENERIC
-    fi
+	if [ -z "$OCF_RESKEY_user" ]; then
+		ocf_log error "Validation for $LISTENER failed: No Oracle username specified."
+		return $OCF_ERR_ARGS
+	fi
+ 
+	# Super user? Automatically change UID and exec as oracle user.
+	# Oracle needs to be run as the Oracle user, not root!
+	if [ "`id -u`" = "0" ]; then
+		su $OCF_RESKEY_user -c "$0 $*"
+		exit $?
+	fi
 
-    clog_service_verify $CLOG_SUCCEED
-    return 0
+	# Make sure the lsnrctl binary is in our $PATH
+	if [ ! -x $(which lsnrctl) ]; then
+		ocf_log error "Validation for $LISTENER failed: Unable to locate lsnrctl command from path! ($PATH)"
+		return $OCF_ERR_GENERIC
+	fi
+
+	ocf_log debug "Validation checks for $LISTENER succeeded"
+	return 0
 }
 
-start () {
-    clog_service_start $CLOG_INIT
-    
-    logfile="/tmp/oracle_lsn.$$"
-    su -p - $ORACLE_USER -c "lsnrctl start $LISTENER > $logfile"
+start() {
+	ocf_log info "Starting listener $LISTENER"
+	lsnrctl_stdout=$(lsnrctl start "$LISTENER")
+	if [ $? -ne 0 ]; then
+		ocf_log error "start listener $LISTENER failed $lsnrctl_stdout"
+		return $OCF_ERR_GENERIC
+	fi
 
-    initlog -q -c "cat $logfile"
-    rm -f $logfile
-
-    clog_service_start $CLOG_SUCCEED
-    return 0
+	ocf_log info "Listener $LISTENER started successfully"
+	return 0
 }
  
-stop () {
-    clog_service_stop $CLOG_INIT
-    
-    logfile="/tmp/oracle_lsn.$$"
-    su -p - $ORACLE_USER -c "lsnrctl stop $LISTENER > $logfile"
+stop() {
+	ocf_log info "Stopping listener $LISTENER"
 
-    initlog -q -c "cat $logfile"
-    rm -f $logfile
+	lsnrctl_stdout=$(lsnrctl stop "$LISTENER")
+	if [ $? -ne 0 ]; then
+		ocf_log debug "stop listener $LISTENER failed $lsnrctl_stdout"
+		return $OCF_ERR_GENERIC
+	fi
 
-    clog_service_stop $CLOG_SUCCEED
-    return 0
+	ocf_log info "Listener $LISTENER stopped successfully"
+	return 0
 }
  
-monitor () {
-    clog_service_status $CLOG_INIT
-    
-    su -p - $ORACLE_USER -c "lsnrctl status $LISTENER"
-    rv=$?
-    if [ $rv == 0 ]; then
-        clog_service_status $CLOG_SUCCEED
-	    return 0 # Listener is running fine
-    else
-        clog_service_status $CLOG_FAILED
-        return $OCF_ERR_GENERIC
-    fi
+monitor() {
+	declare -i depth=$1
+
+	ocf_log debug "Checking status for listener $LISTENER depth $depth"
+	lsnrctl status "$LISTENER" >& /dev/null
+	if [ $? -ne 0 ]; then
+		ocf_log error "Listener $LISTENER not running"
+		return $OCF_ERR_GENERIC
+	fi
+
+	ocf_log debug "Listener $LISTENER is up"
+	return 0 # Listener is running fine
 }
 
 recover() {
+	ocf_log debug "Recovering listener $LISTENER"
+
 	for (( i=$RESTART_RETRIES ; i; i-- )); do
 		start
-		if [ $? == 0 ] ; then
-		    break
+		if [ $? -eq 0 ] ; then
+			ocf_log debug "Restarted listener $LISTENER successfully"
+			break
 		fi
 	done
 
 	if [ $i -eq 0 ]; then
 		# stop/start's failed - return 1 (failure)
+		ocf_log debug "Failed to restart listener $LISTENER after $RESTART_RETRIES tries"
 		return 1
 	fi
 
-    status
-	if [ $? != 0 ] ; then
+	status
+	if [ $? -ne 0 ] ; then
+		ocf_log debug "Failed to restart listener $LISTENER"
 		return 1 # Problem restarting the Listener
 	fi
 
+	ocf_log debug "Restarted listener $LISTENER successfully"
 	return 0 # Success restarting the Listener
 }
 
 case $1 in
-    meta-data)
-        cat `echo $0 | sed 's/^\(.*\)\.sh$/\1.metadata/'`
-        exit 0
-        ;;
-    verify-all)
-        verify_all
-        exit $?
-        ;;
-    start)
-        verify_all && start
-        exit $?
-        ;;
-    stop)
-        verify_all && stop
-        exit $?
-        ;;
-    recover)
-        verify_all && recover
-        exit $?
-        ;;
-    status|monitor)
-        verify_all
-        monitor
-        exit $?
-        ;;
-    *)
-        echo "Usage: $0 {start|stop|recover|monitor|status|meta-data|verify-all}"
-        exit $OCF_ERR_GENERIC
-        ;;
+	meta-data)
+		cat `echo $0 | sed 's/^\(.*\)\.sh$/\1.metadata/'`
+		exit 0
+		;;
+	verify-all)
+		verify_all $*
+		exit $?
+		;;
+	start)
+		verify_all $* && start
+		exit $?
+		;;
+	stop)
+		verify_all $* && stop
+		exit $?
+		;;
+	recover)
+		verify_all $* && recover
+		exit $?
+		;;
+	status|monitor)
+		verify_all $*
+		monitor $OCF_CHECK_LEVEL
+		exit $?
+		;;
+	*)
+		echo "Usage: $0 {start|stop|recover|monitor|status|meta-data|verify-all}"
+		exit $OCF_ERR_GENERIC
+		;;
 esac
