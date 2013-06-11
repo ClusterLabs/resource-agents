@@ -20,7 +20,7 @@ MAINTAINERCLEANFILES	= Makefile.in
 
 SUBDIRS			= utils
 
-TARGET			= fs.sh oracledb.sh
+TARGET			= fs.sh
 
 RESOURCES		= service.sh ip.sh nfsclient.sh nfsexport.sh \
 			  script.sh netfs.sh clusterfs.sh smb.sh \
@@ -28,7 +28,7 @@ RESOURCES		= service.sh ip.sh nfsclient.sh nfsexport.sh \
 			  postgres-8.sh tomcat-5.sh lvm.sh \
 			  vm.sh SAPInstance SAPDatabase named.sh \
 			  ASEHAagent.sh drbd.sh nfsserver.sh \
-			  tomcat-6.sh orainstance.sh oralistener.sh
+			  tomcat-6.sh orainstance.sh oralistener.sh oracledb.sh
 
 METADATA		= apache.metadata openldap.metadata samba.metadata \
 			  mysql.metadata postgres-8.metadata \
