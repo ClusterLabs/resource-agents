@@ -358,9 +358,9 @@ named_stop () {
     
     named_status || return $OCF_SUCCESS
     
-    $OCF_RESKEY_rndc stop >/dev/null & 
+    $OCF_RESKEY_rndc stop >/dev/null
     if [ $? -ne 0 ]; then
-	ocf_log info "rndc stop failed. Killing named."
+        ocf_log info "rndc stop failed. Killing named."
         kill `cat ${OCF_RESKEY_named_pidfile}`
     fi
  
