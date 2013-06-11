@@ -962,6 +962,7 @@ mysql_start() {
     --pid-file=$OCF_RESKEY_pid \
     --socket=$OCF_RESKEY_socket \
     --datadir=$OCF_RESKEY_datadir \
+    --log-error=$OCF_RESKEY_log \
     --user=$OCF_RESKEY_user $OCF_RESKEY_additional_parameters \
     $mysql_extra_params >/dev/null 2>&1 &
     pid=$!
