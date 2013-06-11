@@ -36,13 +36,11 @@ OCF_RESKEY_binary_default=pound
 OCF_RESKEY_ctl_binary_default=poundctl
 OCF_RESKEY_pid_default=/var/run/pound_${OCF_RESKEY_name}.pid
 OCF_RESKEY_socket_path_default=/var/lib/pound/pound.cfg
-OCF_RESKEY_maxfiles_default=0
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 : ${OCF_RESKEY_ctl_binary=${OCF_RESKEY_ctl_binary_default}}
 : ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
 : ${OCF_RESKEY_socket_path=${OCF_RESKEY_socket_path_default}}
-: ${OCF_RESKEY_maxfiles=${OCF_RESKEY_maxfiles_default}}
 
 meta_data() {
 	cat <<END
@@ -118,11 +116,10 @@ Control "/var/lib/pound/pound.cfg"
 <parameter name="maxfiles">
 <longdesc lang="en">
 Determines how many files pound is allowed to open at
-a time. Helps to fix the 'Too many open files' error message. Will be set
-only, if set to a value grater than zero.
+a time. Helps to fix the 'Too many open files' error message.
 </longdesc>
 <shortdesc lang="en">Allowed number of open files.</shortdesc>
-<content type="integer" default="${OCF_RESKEY_maxfiles_default}" />
+<content type="integer" default="" />
 </parameter>
 
 </parameters>
@@ -205,7 +202,7 @@ pound_start() {
         return $OCF_ERR_CONFIGURED
     fi 
 
-    if [ "$OCF_RESKEY_maxfiles" -gt 0 ]; then
+    if [ -n "$OCF_RESKEY_maxfiles" ]; then
         ulimit -n $OCF_RESKEY_maxfiles
         u_rc=$?
         if [ "$u_rc" -ne 0 ]; then
