@@ -10,7 +10,7 @@
 #
 # usage: ./Filesystem {start|stop|status|monitor|validate-all|meta-data}
 #
-#	  OCF parameters are as below:
+#	OCF parameters are as below:
 #		OCF_RESKEY_device
 #		OCF_RESKEY_directory
 #		OCF_RESKEY_fstype
@@ -21,7 +21,7 @@
 #		OCF_RESKEY_force_clones
 #
 #OCF_RESKEY_device    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
-#			Or a -U or -L option for mount, or an NFS mount specification
+#                       Or a -U or -L option for mount, or an NFS mount specification
 #OCF_RESKEY_directory : the mount point for the filesystem
 #OCF_RESKEY_fstype    : optional name of the filesystem type. e.g. ext2
 #OCF_RESKEY_options   : options to be given to the mount command via -o
@@ -219,13 +219,13 @@ END
 #	It's really a bug that you have to do this at all...
 #
 flushbufs() {
-    if have_binary $BLOCKDEV ; then
-      if [ "$blockdevice" = "yes" ] ; then
-        $BLOCKDEV --flushbufs $1
-        return $?
-      fi
-    fi
-    return 0
+	if have_binary $BLOCKDEV ; then
+		if [ "$blockdevice" = "yes" ] ; then
+			$BLOCKDEV --flushbufs $1
+			return $?
+		fi
+	fi
+	return 0
 }
 
 # Take advantage of /etc/mtab if present, use portable mount command
@@ -255,10 +255,12 @@ determine_blockdevice() {
 	# Get the current real device name, if possible.
 	# (specified devname could be -L or -U...)
 	case "$FSTYPE" in
-	nfs4|nfs|smbfs|cifs|glusterfs|ceph|tmpfs|none) ;;
-	*)	DEVICE=`list_mounts | grep " $MOUNTPOINT " | cut -d' ' -f1`
+	nfs4|nfs|smbfs|cifs|glusterfs|ceph|tmpfs|none)
+		: ;;
+	*)
+		DEVICE=`list_mounts | grep " $MOUNTPOINT " | cut -d' ' -f1`
 		if [ -b "$DEVICE" ]; then
-		  blockdevice=yes
+			blockdevice=yes
 		fi
 		;;
 	esac
@@ -300,7 +302,7 @@ ocfs2_fetch_uuid() {
 
 ocfs2_set_uuid() {
 	_OCFS2_uuid_cache="$HA_RSCTMP/Filesystem.ocfs2_uuid.$(echo $DEVICE|tr / .)"
-	
+
 	if [ "$OP" != "start" -a -e "$_OCFS2_uuid_cache" ]; then
 		# Trust the cache.
 		OCFS2_UUID=$(cat $_OCFS2_uuid_cache 2>/dev/null)
@@ -339,7 +341,7 @@ ocfs2_init()
 
 	OCFS2_SLES10=""
 	if [ "X$HA_cluster_type" = "Xcman" ]; then
-	    return
+		return
 	elif [ "X$HA_cluster_type" != "Xopenais" ]; then
 		if grep -q "SUSE Linux Enterprise Server 10" /etc/SuSE-release >/dev/null 2>&1 ; then
 			OCFS2_SLES10="yes"
@@ -376,7 +378,7 @@ ocfs2_init()
 	fi
 
 	ocfs2_set_uuid
-	
+
 	if [ -n "$OCF_RESKEY_ocfs2_cluster" ]; then
 		OCFS2_CLUSTER=$(echo $OCF_RESKEY_ocfs2_cluster)
 	else
@@ -432,22 +434,21 @@ is_option() {
 
 is_fsck_needed() {
 	case $OCF_RESKEY_run_fsck in
-	    force) true;;
-	    no)    false;;
-	    ""|auto)
+		force) true;;
+		no)    false;;
+		""|auto)
 		case $FSTYPE in
-		    ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs4|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|ceph|tmpfs)
+			ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs4|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|ceph|tmpfs)
 			false;;
-		    *)
+			*)
 			true;;
 		esac;;
-	    *)
+		*)
 		ocf_log warn "Invalid parameter value for fsck: '$OCF_RESKEY_run_fsck'; setting to 'auto'"
 		OCF_RESKEY_run_fsck="auto"
 		is_fsck_needed;;
 	esac
 }
-
 
 #
 # START: Start up the filesystem
@@ -463,7 +464,7 @@ Filesystem_start()
 		OCF_RESKEY_CRM_meta_notify_type="pre"
 		OCF_RESKEY_CRM_meta_notify_operation="start"
 		Filesystem_notify
-	fi		
+	fi
 
 	# See if the device is already mounted.
 	if Filesystem_status >/dev/null 2>&1 ; then
@@ -512,8 +513,8 @@ Filesystem_start()
 			# if the error is >= 4 then there is a big problem
 			if [ $? -ge 4 ]; then
 				ocf_log err "Couldn't sucessfully fsck filesystem for $DEVICE"
-				return $OCF_ERR_GENERIC	
-			fi	
+				return $OCF_ERR_GENERIC
+			fi
 		fi
 	fi
 
@@ -527,14 +528,14 @@ Filesystem_start()
 	flushbufs $DEVICE
 	# Mount the filesystem.
 	case "$FSTYPE" in
-	none) $MOUNT $options $DEVICE $MOUNTPOINT &&
-		bind_mount
-		;;
-	"") $MOUNT $options $DEVICE $MOUNTPOINT ;;
-	*) $MOUNT -t $FSTYPE $options $DEVICE $MOUNTPOINT ;;
-        esac
+		none) $MOUNT $options $DEVICE $MOUNTPOINT &&
+			bind_mount
+			;;
+		"") $MOUNT $options $DEVICE $MOUNTPOINT ;;
+		*) $MOUNT -t $FSTYPE $options $DEVICE $MOUNTPOINT ;;
+	esac
 
-        if [ $? -ne 0 ]; then
+	if [ $? -ne 0 ]; then
 		ocf_log err "Couldn't mount filesystem $DEVICE on $MOUNTPOINT"
 		if [ -n "$OCFS2_SLES10" ]; then
 			ocfs2_cleanup
@@ -642,43 +643,44 @@ Filesystem_notify() {
 
 	case " $n_active " in
 	*" $n_myself "*) ;;
-	*)	ocf_log err "$OCFS2_UUID: $n_myself (local) not on active list!"
+	*)
+		ocf_log err "$OCFS2_UUID: $n_myself (local) not on active list!"
 		return $OCF_ERR_GENERIC
 		;;
 	esac
 
 	if [ -d "$OCFS2_FS_ROOT" ]; then
-	entry_prefix=$OCFS2_FS_ROOT/
-	for entry in $OCFS2_FS_ROOT/* ; do
-		n_fs="${entry##$entry_prefix}"
-		# ocf_log info "$OCFS2_UUID: Found current node $n_fs"
-		case " $n_active " in
-		*" $n_fs "*)
-			# Construct a list of nodes which are present
-			# already in the membership.
-			n_exists="$n_exists $n_fs"
-			ocf_log info "$OCFS2_UUID: Keeping node: $n_fs"
-			;;
-		*)
-			# Node is in the membership currently, but not on our 
-			# active list. Must be removed.
-			if [ "$n_op" = "start" ]; then
-				ocf_log warn "$OCFS2_UUID: Removing nodes on start"
-			fi
-			ocf_log info "$OCFS2_UUID: Removing dead node: $n_fs"
-			if ! rm -f $entry ; then
-				ocf_log err "$OCFS2_UUID: Removal of $n_fs failed!"
-			fi
-			;;
-		esac
-	done
+		entry_prefix=$OCFS2_FS_ROOT/
+		for entry in $OCFS2_FS_ROOT/* ; do
+			n_fs="${entry##$entry_prefix}"
+			# ocf_log info "$OCFS2_UUID: Found current node $n_fs"
+			case " $n_active " in
+			*" $n_fs "*)
+				# Construct a list of nodes which are present
+				# already in the membership.
+				n_exists="$n_exists $n_fs"
+				ocf_log info "$OCFS2_UUID: Keeping node: $n_fs"
+				;;
+			*)
+				# Node is in the membership currently, but not on our 
+				# active list. Must be removed.
+				if [ "$n_op" = "start" ]; then
+					ocf_log warn "$OCFS2_UUID: Removing nodes on start"
+				fi
+				ocf_log info "$OCFS2_UUID: Removing dead node: $n_fs"
+				if ! rm -f $entry ; then
+					ocf_log err "$OCFS2_UUID: Removal of $n_fs failed!"
+				fi
+				;;
+			esac
+		done
 	else
 		ocf_log info "$OCFS2_UUID: heartbeat directory doesn't exist yet, creating."
 		mkdir -p $OCFS2_FS_ROOT
 	fi
 
 	ocf_log info "$OCFS2_UUID: Existing node list: $n_exists"
-	
+
 	# (2)
 	for entry in $n_active ; do
 		# ocf_log info "$OCFS2_UUID: Expected active node: $entry"
@@ -818,10 +820,10 @@ Filesystem_status()
 	if list_mounts | grep -q " $MOUNTPOINT " >/dev/null 2>&1; then
 		rc=$OCF_SUCCESS
 		msg="$MOUNTPOINT is mounted (running)"
-        else
+	else
 		rc=$OCF_NOT_RUNNING
 		msg="$MOUNTPOINT is unmounted (stopped)"
-        fi
+	fi
 
 	# TODO: For ocfs2, or other cluster filesystems, should we be
 	# checking connectivity to other nodes here, or the IO path to
@@ -829,12 +831,11 @@ Filesystem_status()
 	
 	# Special case "monitor" to check whether the UUID cached and
 	# on-disk still match?
-	
-        case "$OP" in
-	status)	ocf_log info "$msg";;
+	case "$OP" in
+		status)	ocf_log info "$msg";;
 	esac
 
-        return $rc
+	return $rc
 }
 # end of Filesystem_status
 
@@ -877,10 +878,8 @@ Filesystem_monitor_20()
 		dd_opts="oflag=direct,sync bs=4k conv=fsync,sync"
 	fi
 	status_dir=`dirname $STATUSFILE`
-	[ -d "$status_dir" ] ||
-		mkdir -p "$status_dir"
-	err_output=`
-		echo "${OCF_RESOURCE_INSTANCE}" | dd of=${STATUSFILE} $dd_opts 2>&1`
+	[ -d "$status_dir" ] || mkdir -p "$status_dir"
+	err_output=`echo "${OCF_RESOURCE_INSTANCE}" | dd of=${STATUSFILE} $dd_opts 2>&1`
 	if [ $? -ne 0 ]; then
 		ocf_log err "Failed to write status file ${STATUSFILE}"
 		ocf_log err "dd said: $err_output"
@@ -922,7 +921,7 @@ Filesystem_monitor()
 
 
 #
-# VALIDATE_ALL: Are the instance parameters valid?
+#	VALIDATE_ALL: Are the instance parameters valid?
 #	FIXME!!  The only part that's useful is the return code.
 #	This code always returns $OCF_SUCCESS (!)
 #
@@ -975,17 +974,18 @@ set_blockdevice_var() {
 	nfs4|nfs|smbfs|cifs|none|glusterfs|ceph) return;;
 	esac
 
-    if `is_option "loop"`; then
-        return
-    fi
+	if `is_option "loop"`; then
+		return
+	fi
 
 	case $DEVICE in
 	-*) # Oh... An option to mount instead...  Typically -U or -L
 		;;
-	/dev/null)	# Special case for BSC
+	/dev/null) # Special case for BSC
 		blockdevice=yes
 		;;
-	*)	if [ ! -b "$DEVICE"  -a ! -d "$DEVICE" -a "X$OP" != Xstart ] ; then
+	*)
+		if [ ! -b "$DEVICE"  -a ! -d "$DEVICE" -a "X$OP" != Xstart ] ; then
 			ocf_log warn "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
 		fi
 		if [ ! -d "$DEVICE" ]; then
@@ -1013,10 +1013,10 @@ OP=$1
 
 # These operations do not require instance parameters
 case $OP in
-meta-data)	meta_data
+	meta-data) meta_data
 		exit $OCF_SUCCESS
 		;;
-usage)		usage
+	usage) usage
 		exit $OCF_SUCCESS
 		;;
 esac
@@ -1044,7 +1044,7 @@ else
 	# TODO: / mounted via Filesystem sounds dangerous. On stop, we'll
 	# kill the whole system. Is that a good idea?
 fi
-	
+
 # Check to make sure the utilites are found
 if [ "X${HOSTOS}" != "XOpenBSD" ];then
 check_binary $MODPROBE
@@ -1061,16 +1061,16 @@ fi
 # These operations do not require the clone checking + OCFS2
 # initialization.
 case $OP in
-status)		Filesystem_status
+	status) Filesystem_status
 		exit $?
 		;;
-monitor)	Filesystem_monitor
+	monitor) Filesystem_monitor
 		exit $?
 		;;
-validate-all)	Filesystem_validate_all
+	validate-all) Filesystem_validate_all
 		exit $?
 		;;
-stop)		Filesystem_stop
+	stop) Filesystem_stop
 		exit $?
 		;;
 esac
@@ -1080,52 +1080,53 @@ is_option "ro" &&
 	CLUSTERSAFE=2
 
 case $FSTYPE in
-ocfs2)	ocfs2_init
-        CLUSTERSAFE=1
+ocfs2) ocfs2_init
+	CLUSTERSAFE=1
 	;;
-nfs4|nfs|smbfs|cifs|none|gfs2|glusterfs|ceph)	CLUSTERSAFE=1 # this is kind of safe too
+nfs4|nfs|smbfs|cifs|none|gfs2|glusterfs|ceph)
+	CLUSTERSAFE=1 # this is kind of safe too
 	;;
 # add here CLUSTERSAFE=0 for all filesystems which are not
 # cluster aware and which, even if when mounted read-only,
 # could still modify parts of it such as journal/metadata
 ext4|ext4dev|ext3|reiserfs|reiser4|xfs|jfs)
 	if ocf_is_true "$OCF_RESKEY_force_clones"; then
-	  CLUSTERSAFE=2
+		CLUSTERSAFE=2
 	else
-	  CLUSTERSAFE=0 # these are not allowed
+		CLUSTERSAFE=0 # these are not allowed
 	fi
 	;;
 esac
 
 if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
-case $CLUSTERSAFE in
-0)
-	ocf_log err "DANGER! $FSTYPE on $DEVICE is NOT cluster-aware!"
-	ocf_log err "DO NOT RUN IT AS A CLONE!"
-	ocf_log err "Politely refusing to proceed to avoid data corruption."
-	exit $OCF_ERR_CONFIGURED
-	;;
-2)
-	ocf_log warn "$FSTYPE on $DEVICE is NOT cluster-aware!"
-	if ocf_is_true "$OCF_RESKEY_force_clones"; then
-	  ocf_log warn "But we'll let it run because we trust _YOU_ verified it's safe to do so."
-	else
-	  ocf_log warn "But we'll let it run because it is mounted read-only."
-	  ocf_log warn "Please make sure that it's meta data is read-only too!"
-	fi
-	;;
-esac
+	case $CLUSTERSAFE in
+	0)
+		ocf_log err "DANGER! $FSTYPE on $DEVICE is NOT cluster-aware!"
+		ocf_log err "DO NOT RUN IT AS A CLONE!"
+		ocf_log err "Politely refusing to proceed to avoid data corruption."
+		exit $OCF_ERR_CONFIGURED
+		;;
+	2)
+		ocf_log warn "$FSTYPE on $DEVICE is NOT cluster-aware!"
+		if ocf_is_true "$OCF_RESKEY_force_clones"; then
+			ocf_log warn "But we'll let it run because we trust _YOU_ verified it's safe to do so."
+		else
+			ocf_log warn "But we'll let it run because it is mounted read-only."
+			ocf_log warn "Please make sure that it's meta data is read-only too!"
+		fi
+		;;
+	esac
 fi
 
 case $OP in
-start)	Filesystem_start
-	;;
-notify)	Filesystem_notify
-	;;
-*)	usage
-	exit $OCF_ERR_UNIMPLEMENTED
-	;;
-esac
+	start) Filesystem_start
+		;;
+	notify) Filesystem_notify
+		;;
+	*) usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+	esac
 exit $?
 
 
