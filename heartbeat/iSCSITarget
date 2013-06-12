@@ -507,10 +507,16 @@ iSCSITarget_validate() {
     esac
     for var in ${unsupported_params}; do
 	envar=OCF_RESKEY_${var}
+	defvar=OCF_RESKEY_${var}_default
 	if [ -n "${!envar}" ]; then
-	    ocf_log warn "Configuration parameter \"${var}\"" \
-		"is not supported by the iSCSI implementation" \
-		"and will be ignored."
+            if  [[ "${!envar}" != "${!defvar}" ]];then
+                    case "$__OCF_ACTION" in
+                        start|validate-all)
+                          ocf_log warn "Configuration parameter \"${var}\"" \
+                            "is not supported by the iSCSI implementation" \
+                            "and will be ignored." ;;
+                    esac
+            fi
 	fi
     done
 
