@@ -848,6 +848,7 @@ pgsql_real_monitor() {
         rc=$?
         if [ $rc -ne  0 ]; then
             report_psql_error $rc $loglevel
+            ocf_log err "Can't check my recovery status."
             return $OCF_ERR_GENERIC
         fi
 
@@ -872,6 +873,7 @@ pgsql_real_monitor() {
     rc=$?
     if [ $rc -ne  0 ]; then
         report_psql_error $rc $loglevel
+        ocf_log err "Monitor query failed."
         return $OCF_ERR_GENERIC
     fi
 
@@ -1042,6 +1044,7 @@ control_slave_status() {
         fi
     else
         report_psql_error $rc warn
+        ocf_log err "Can't get replication status."
         return 1
     fi
 
@@ -1273,6 +1276,7 @@ show_master_baseline() {
     rc=$?
     if [ $rc -ne 0 ]; then
         report_psql_error $rc warn
+        ocf_log warn "CHECKPOINT failed."
     fi
     location=`get_my_location`
     ocf_log info "My master baseline : $location."
@@ -1476,7 +1480,7 @@ report_psql_error()
     rc=$1
     loglevel=${2:-err}
 
-    ocf_log $loglevel "PostgreSQL $OCF_RESKEY_pgdb isn't running"
+    ocf_log $loglevel "PostgreSQL $OCF_RESKEY_pgdb isn't running. rc=$?"
     if [ $rc -eq 1 ]; then
         ocf_log err "Fatal error (out of memory, file not found, etc.) occurred while executing the psql command."
     elif [ $rc -eq 2 ]; then
