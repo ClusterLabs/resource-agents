@@ -847,7 +847,7 @@ pgsql_real_monitor() {
                 -Atc \"${CHECK_MS_SQL}\""`
         rc=$?
         if [ $rc -ne  0 ]; then
-            report_psql_error $rc $loglevel
+            report_psql_error $rc $loglevel "Can't get PostgreSQL recovery status."
             return $OCF_ERR_GENERIC
         fi
 
@@ -871,7 +871,7 @@ pgsql_real_monitor() {
                   -c '$OCF_RESKEY_monitor_sql'"
     rc=$?
     if [ $rc -ne  0 ]; then
-        report_psql_error $rc $loglevel
+        report_psql_error $rc $loglevel "PostgreSQL $OCF_RESKEY_pgdb isn't running."
         return $OCF_ERR_GENERIC
     fi
 
@@ -1041,7 +1041,7 @@ control_slave_status() {
             all_data_status=`echo $all_data_status | sed "s/\n/ /g"`
         fi
     else
-        report_psql_error $rc warn
+        report_psql_error $rc err "Can't get PostgreSQL replication status."
         return 1
     fi
 
@@ -1229,8 +1229,7 @@ get_my_location() {
             -Atc \"${CHECK_XLOG_LOC_SQL}\""`
     rc=$?
     if [ $rc -ne 0 ]; then
-        report_psql_error $rc warn
-        ocf_log err "Can't get my xlog location."
+        report_psql_error $rc err "Can't get my xlog location."
         return 1
     fi
     replay_loc=`echo $output | cut -d "|" -f 1`
@@ -1272,7 +1271,7 @@ show_master_baseline() {
                        -U $OCF_RESKEY_pgdba -c 'CHECKPOINT'"
     rc=$?
     if [ $rc -ne 0 ]; then
-        report_psql_error $rc warn
+        report_psql_error $rc err "Can't issue CHECKPOINT."
     fi
     location=`get_my_location`
     ocf_log info "My master baseline : $location."
@@ -1472,11 +1471,13 @@ report_psql_error()
 {
     local rc
     local loglevel
+    local message
 
     rc=$1
     loglevel=${2:-err}
+    message="$3"
 
-    ocf_log $loglevel "PostgreSQL $OCF_RESKEY_pgdb isn't running"
+    ocf_log $loglevel "$message rc=$rc"
     if [ $rc -eq 1 ]; then
         ocf_log err "Fatal error (out of memory, file not found, etc.) occurred while executing the psql command."
     elif [ $rc -eq 2 ]; then
