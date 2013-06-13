@@ -76,48 +76,48 @@ apachecat() {
 # set parameters (as shell vars) from our apache config file
 #
 get_apache_params() {
-  configfile=$1
-  shift 1
-  vars=`echo $@ | sed 's/ /,/g'`
+	configfile=$1
+	shift 1
+	vars=`echo $@ | sed 's/ /,/g'`
 
-  eval `
-  apachecat $configfile | awk -v vars="$vars" '
-  BEGIN{
-    split(vars,v,",");
-    for( i in v )
-  	  vl[i]=tolower(v[i]);
-  }
-  {
-	  for( i in v )
-	  	if( tolower($1)==vl[i] ) {
+	eval `
+	apachecat $configfile | awk -v vars="$vars" '
+	BEGIN{
+		split(vars,v,",");
+		for( i in v )
+			vl[i]=tolower(v[i]);
+	}
+	{
+		for( i in v )
+			if( tolower($1)==vl[i] ) {
 			print v[i]"="$2
 			delete vl[i]
 			break
 		}
-  }
-  '`
+	}
+	'`
 }
 
 #
-#	Return the location(s) that are handled by the given handler
+# Return the location(s) that are handled by the given handler
 #
 FindLocationForHandler() {
-  PerlScript='while (<>) {
-	/<Location "?([^ >"]+)/i && ($loc=$1);
-	'"/SetHandler +$2"'/i && print "$loc\n"; 
-  }'
-  apachecat $1 | perl -e "$PerlScript"
+	PerlScript='while (<>) {
+		/<Location "?([^ >"]+)/i && ($loc=$1);
+		'"/SetHandler +$2"'/i && print "$loc\n"; 
+	}'
+	apachecat $1 | perl -e "$PerlScript"
 }
 
 #
-#	Check if the port is valid
+# Check if the port is valid
 #
 CheckPort() {
-  ocf_is_decimal "$1" && [ $1 -gt 0 ]
+	ocf_is_decimal "$1" && [ $1 -gt 0 ]
 }
 
 buildlocalurl() {
-  [ "x$Listen" != "x" ] &&
+	[ "x$Listen" != "x" ] &&
 	echo "http://${Listen}" ||
 	echo "${LOCALHOST}:${PORT}"
 }
@@ -128,66 +128,67 @@ fixtesturl() {
 	test_url="`buildlocalurl`$test_url"
 }
 #
-#	Get all the parameters we need from the Apache config file
+# Get all the parameters we need from the Apache config file
 #
 GetParams() {
-  ConfigFile=$1
-  if [ ! -f $ConfigFile ]; then
-  	return $OCF_ERR_INSTALLED
-  fi
-  get_apache_params $ConfigFile ServerRoot PidFile Port Listen
-  case $PidFile in
-    /*)	;;
-    [[:alnum:]]*)	PidFile=$ServerRoot/$PidFile;;
-    *)
-        # If the PidFile is not set in the config, set
-        # a default location.
-        PidFile=$HA_VARRUNDIR/${httpd_basename}.pid
-        # Force the daemon to use this location by using
-        # the -c option, which adds the PidFile directive
-        # as if it was in the configuration file to begin with.
-        PIDFILE_DIRECTIVE="true"
-        ;;
-  esac
+	ConfigFile=$1
+	if [ ! -f $ConfigFile ]; then
+		return $OCF_ERR_INSTALLED
+	fi
+	get_apache_params $ConfigFile ServerRoot PidFile Port Listen
+	case $PidFile in
+		/*) ;;
+		[[:alnum:]]*) PidFile=$ServerRoot/$PidFile;;
+		*)
+			# If the PidFile is not set in the config, set
+			# a default location.
+			PidFile=$HA_VARRUNDIR/${httpd_basename}.pid
+			# Force the daemon to use this location by using
+			# the -c option, which adds the PidFile directive
+			# as if it was in the configuration file to begin with.
+			PIDFILE_DIRECTIVE="true"
+			;;
+	esac
 
-  for p in "$PORT" "$Port" 80; do
-    if CheckPort "$p"; then
-      PORT="$p"
-      break
-    fi
-  done
+	for p in "$PORT" "$Port" 80; do
+		if CheckPort "$p"; then
+			PORT="$p"
+			break
+		fi
+	done
  
-  echo $Listen | grep ':' >/dev/null ||  # Listen could be just port spec
-	  Listen="localhost:$Listen"
+	echo $Listen | grep ':' >/dev/null || # Listen could be just port spec
+		Listen="localhost:$Listen"
 
-  #
-  # It's difficult to figure out whether the server supports
-  # the status operation.
-  # (we start our server with -DSTATUS - just in case :-))
-  #
-  # Typically (but not necessarily) the status URL is /server-status
-  #
-  # For us to think status will work, we have to have the following things:
-  #
-  # - The server-status handler has to be mapped to some URL somewhere
-  #
-  # We assume that:
-  #
-  # - the "main" web server at $PORT will also support it if we can find it
-  #	somewhere in the file
-  # - it will be supported at the same URL as the one we find in the file
-  #
-  # If this doesn't work for you, then set the statusurl attribute.
-  #
-  if
-     [ "X$STATUSURL" = "X" ]
-  then
-      StatusURL=`FindLocationForHandler $1 server-status | tail -1`
-      STATUSURL="`buildlocalurl`$StatusURL"
-  fi
-  if ! test "$PidFile"; then
-  	return $OCF_ERR_INSTALLED
-  else
-  	return $OCF_SUCCESS
-  fi
+	#
+	# It's difficult to figure out whether the server supports
+	# the status operation.
+	# (we start our server with -DSTATUS - just in case :-))
+	#
+	# Typically (but not necessarily) the status URL is /server-status
+	#
+	# For us to think status will work, we have to have the following things:
+	#
+	# - The server-status handler has to be mapped to some URL somewhere
+	#
+	# We assume that:
+	#
+	# - the "main" web server at $PORT will also support it if we can find it
+	#   somewhere in the file
+	# - it will be supported at the same URL as the one we find in the file
+	#
+	# If this doesn't work for you, then set the statusurl attribute.
+	#
+	if
+		 [ "X$STATUSURL" = "X" ]
+	then
+		StatusURL=`FindLocationForHandler $1 server-status | tail -1`
+		STATUSURL="`buildlocalurl`$StatusURL"
+	fi
+
+	if ! test "$PidFile"; then
+		return $OCF_ERR_INSTALLED
+	else
+		return $OCF_SUCCESS
+	fi
 }
