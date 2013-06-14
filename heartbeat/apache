@@ -300,6 +300,9 @@ apache_monitor_10() {
 	then
 		return $OCF_SUCCESS
 	else
+		if ! ocf_is_probe; then
+			ocf_log err "Failed to access httpd status page."
+		fi
 		return $OCF_ERR_GENERIC
 	fi
 }
@@ -308,6 +311,9 @@ apache_monitor_basic() {
 	then
 		return $OCF_SUCCESS
 	else
+		if ! ocf_is_probe; then
+			ocf_log err "Failed to access httpd status page."
+		fi
 		return $OCF_ERR_GENERIC
 	fi
 }
