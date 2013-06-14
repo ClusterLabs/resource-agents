@@ -196,39 +196,8 @@ apache_start() {
 	return $ec
 }
 
-apache_stop() {
-	if
-		silent_status
-	then
-		if
-			kill $ApachePID
-		then
-			tries=0
-			while
-				ProcessRunning $ApachePID &&
-				[ $tries -lt 10 ]
-			do
-				sleep 1
-				kill $ApachePID >/dev/null 
-				ocf_log info "Killing apache PID $ApachePID"
-				tries=`expr $tries + 1`
-			done
-		else
-			ocf_log warn "Killing apache PID $ApachePID FAILED."
-		fi
-
-		if
-			ProcessRunning $ApachePID
-		then
-			ocf_log info "$CMD still running ($ApachePID)."
-			false
-		else
-			ocf_log info "$CMD stopped."
-		fi
-	else
-		ocf_log info "$CMD is not running."
-	fi
-
+signal_children()
+{
 	for sig in SIGTERM SIGHUP SIGKILL ; do
 		if pgrep -f $HTTPD.*$CONFIGFILE >/dev/null ; then
 			pkill -$sig -f $HTTPD.*$CONFIGFILE >/dev/null
@@ -238,6 +207,41 @@ apache_stop() {
 			break
 		fi
 	done
+}
+
+apache_stop() {
+	local ret=$OCF_SUCCESS
+	local tries=0
+
+	if ! silent_status; then
+		ocf_log info "$CMD is not running."
+		signal_children
+		return $ret
+	fi
+	
+	while
+		ProcessRunning $ApachePID &&
+		[ $tries -lt 10 ]
+	do
+		if [ $tries -ne 0 ]; then
+			# don't sleep on the first try
+			sleep 1
+		else
+			ocf_log info "Killing apache PID $ApachePID"
+		fi
+		kill $ApachePID >/dev/null 
+		tries=`expr $tries + 1`
+	done
+
+	if ProcessRunning $ApachePID; then
+		ocf_log info "$CMD still running ($ApachePID). Killing pid failed."
+		ret=$OCF_ERR_GENERIC
+	else
+		ocf_log info "$CMD stopped."
+	fi
+
+	signal_children
+	return $ret
 }
 
 apache_monitor_10() {
