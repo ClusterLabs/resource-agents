@@ -209,9 +209,55 @@ signal_children()
 	done
 }
 
+graceful_stop()
+{
+	local tries=10
+	local pid=$1
+
+	# Try graceful stop for half timeout period if timeout period is present
+	if [ -n $OCF_RESKEY_CRM_meta_timeout ]; then
+		tries=$((($OCF_RESKEY_CRM_meta_timeout/1000) / 2))
+	fi
+
+	ocf_log info "Attempting graceful stop of apache PID $pid"
+	kill -WINCH $pid >/dev/null
+	while
+		ProcessRunning $pid &&
+		[ $tries -gt 0 ]
+	do
+		sleep 1
+		tries=`expr $tries - 1`
+	done
+
+	if [ $tries -eq 0 ]; then
+		# graceful stop didn't work, process still up.
+		return 1
+	fi
+
+	return 0
+}
+
+kill_stop()
+{
+	local tries=0
+	local pid=$1
+
+	ocf_log info "Killing apache PID $pid"
+	while
+		ProcessRunning $pid &&
+		[ $tries -lt 10 ]
+	do
+		if [ $tries -ne 0 ]; then
+			# don't sleep on the first try
+			sleep 1
+		fi
+		kill $pid >/dev/null 
+		tries=`expr $tries + 1`
+	done
+}
+
 apache_stop() {
 	local ret=$OCF_SUCCESS
-	local tries=0
 
 	if ! silent_status; then
 		ocf_log info "$CMD is not running."
@@ -219,24 +265,17 @@ apache_stop() {
 		return $ret
 	fi
 	
-	while
-		ProcessRunning $ApachePID &&
-		[ $tries -lt 10 ]
-	do
-		if [ $tries -ne 0 ]; then
-			# don't sleep on the first try
-			sleep 1
-		else
-			ocf_log info "Killing apache PID $ApachePID"
-		fi
-		kill $ApachePID >/dev/null 
-		tries=`expr $tries + 1`
-	done
+	graceful_stop $ApachePID
+	if [ $? -ne 0 ]; then
+		kill_stop $ApachePID
 
-	if ProcessRunning $ApachePID; then
-		ocf_log info "$CMD still running ($ApachePID). Killing pid failed."
-		ret=$OCF_ERR_GENERIC
-	else
+		if ProcessRunning $ApachePID; then
+			ocf_log info "$CMD still running ($ApachePID). Killing pid failed."
+			ret=$OCF_ERR_GENERIC
+		fi
+	fi
+
+	if [ $ret -eq 0 ]; then
 		ocf_log info "$CMD stopped."
 	fi
 
