@@ -229,7 +229,7 @@ function vg_start_clustered
 		ocf_log err "Failed to activate volume group, $OCF_RESKEY_vg_name"
 		ocf_log notice "Attempting cleanup of $OCF_RESKEY_vg_name"
 
-		if ! vgreduce --removemissing --force $OCF_RESKEY_vg_name; then
+		if ! vgreduce --removemissing --mirrorsonly --force $OCF_RESKEY_vg_name; then
 			ocf_log err "Failed to make $OCF_RESKEY_vg_name consistent"
 			return $OCF_ERR_GENERIC
 		fi
