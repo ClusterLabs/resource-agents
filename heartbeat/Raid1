@@ -441,6 +441,10 @@ if ocf_is_true $WAIT_FOR_UDEV && ! have_binary udevadm; then
 	WAIT_FOR_UDEV=0
 fi
 
+if ! ocf_is_true $WAIT_FOR_UDEV; then
+	export MDADM_NO_UDEV=1
+fi
+
 if ocf_is_true $FORCESTOP && ! have_binary lsof; then
 	ocf_log warn "Please install lsof(8), we may need it when stopping Raid device! Now continuing anyway ..."
 fi
