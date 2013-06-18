@@ -51,6 +51,9 @@ usage() {
 EOF
 }
 
+# default for "tag"
+OUR_TAG="pacemaker"
+
 meta_data() {
 	cat <<EOF
 <?xml version="1.0"?>
@@ -83,6 +86,14 @@ can be as simple as setting 'volume_list = []' depending on your setup.
 </longdesc>
 <shortdesc lang="en">Exclusive activation</shortdesc>
 <content type="boolean" default="false" />
+</parameter>
+
+<parameter name="tag" unique="0" required="0">
+<longdesc lang="en">
+If "exclusive" is set on a non clustered volume group, this overrides the tag to be used.
+</longdesc>
+<shortdesc lang="en">Exclusive activation tag</shortdesc>
+<content type="string" default="$OUR_TAG" />
 </parameter>
 
 <parameter name="partial_activation" unique="0" required="0">
@@ -632,7 +643,6 @@ LVM_MAJOR="${LVM_VERSION%%.*}"
 VOLUME=$OCF_RESKEY_volgrpname
 OP_METHOD=$1
 
-OUR_TAG="pacemaker"
 if [ -n "$OCF_RESKEY_tag" ]; then
 	OUR_TAG=$OCF_RESKEY_tag
 fi
