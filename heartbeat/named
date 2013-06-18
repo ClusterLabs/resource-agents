@@ -232,6 +232,39 @@ named_validate_all() {
     return $OCF_SUCCESS
 }
 
+##
+# Attempt to generate a /etc/rndc.key if one is not present
+##
+rndc_key_generator()
+{
+    local rndc_options="-a -r /dev/urandom -u $OCF_RESKEY_named_user"
+
+    if [ -s /etc/rndc.key ]; then
+        # file already exists
+        return
+    fi
+
+    if ! have_binary "rndc-confgen"; then
+        # can't autogen key... Report this, but not as a warning or error.
+        # It is possible that the user configured the key in named.conf
+        ocf_log info "rndc-confgen tool not present, unable to autogen /etc/rndc.key."
+        return
+    fi 
+
+    if [ -n "$OCF_RESKEY_rootdir" ]; then
+        rndc_options="$rndc_options -t $OCF_RESKEY_rootdir"
+    fi
+
+    rndc-confgen $rndc_options > /dev/null 2>&1;
+    if [ $? -eq 0 ]; then
+        if have_binary "restorecon"; then
+            restorecon /etc/rndc.key
+        fi
+    else
+        ocf_log info "failed to auto-generate /etc/rndc.key file."
+    fi
+}
+
 #
 # named_getpid. Get pid of named process with a given parameters.
 #
@@ -319,6 +352,8 @@ named_start() {
         OCF_RESKEY_named_options="-c $OCF_RESKEY_named_config $OCF_RESKEY_named_options"
     fi
 
+    rndc_key_generator
+
     if ! ${OCF_RESKEY_named} -u ${OCF_RESKEY_named_user} $root_dir_opt ${OCF_RESKEY_named_options}
     then
         ocf_log err "named failed to start."
@@ -358,9 +393,9 @@ named_stop () {
     
     named_status || return $OCF_SUCCESS
     
-    $OCF_RESKEY_rndc stop >/dev/null & 
+    $OCF_RESKEY_rndc stop >/dev/null
     if [ $? -ne 0 ]; then
-	ocf_log info "rndc stop failed. Killing named."
+        ocf_log info "rndc stop failed. Killing named."
         kill `cat ${OCF_RESKEY_named_pidfile}`
     fi
  
