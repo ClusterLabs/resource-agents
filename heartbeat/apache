@@ -17,8 +17,8 @@
 #
 #
 # An example usage in /etc/ha.d/haresources: 
-#       node1  10.0.0.170 apache::/opt/IBMHTTPServer/conf/httpd.conf
-#       node1  10.0.0.170 IBMhttpd
+#	 node1 10.0.0.170 apache::/opt/IBMHTTPServer/conf/httpd.conf
+#	 node1 10.0.0.170 IBMhttpd
 #
 # Our parsing of the Apache config files is very rudimentary.
 # It'll work with lots of different configurations - but not every
@@ -56,10 +56,8 @@ HA_VARRUNDIR=${HA_VARRUN}
 IBMHTTPD=/opt/IBMHTTPServer/bin/httpd
 HTTPDLIST="/sbin/httpd2 /usr/sbin/httpd2 /usr/sbin/apache2 /sbin/httpd /usr/sbin/httpd /usr/sbin/apache $IBMHTTPD"
 MPM=/usr/share/apache2/find_mpm
-if
-  [ -x $MPM ]
-then
-  HTTPDLIST="$HTTPDLIST `$MPM 2>/dev/null`"
+if [ -x $MPM ]; then
+	HTTPDLIST="$HTTPDLIST `$MPM 2>/dev/null`"
 fi
 
 LOCALHOST="http://localhost"
@@ -80,13 +78,13 @@ DEFAULT_NORMCONFIG="/etc/apache2/httpd.conf"
 CMD=`basename $0`
 
 #	The config-file-pathname is the pathname to the configuration
-#	file for this web server.  Various appropriate defaults are
-#	assumed if no config file is specified.  If this command is
+#	file for this web server. Various appropriate defaults are
+#	assumed if no config file is specified. If this command is
 #	invoked as *IBM*, then the default config file name is
 #	$DEFAULT_IBMCONFIG, otherwise the default config file
 #	will be $DEFAULT_NORMCONFIG.
 usage() {
-  cat <<-!
+cat <<-!
 usage: $0 action
 
 action:
@@ -96,9 +94,9 @@ action:
 
 	status	return the status of web server, run or down
 
-	monitor  return TRUE if the web server appears to be working.
-                For this to be supported you must configure mod_status
-		 and give it a server-status URL.  You have to have 
+	monitor	return TRUE if the web server appears to be working.
+		For this to be supported you must configure mod_status
+		and give it a server-status URL. You have to have 
 		installed either curl or wget for this to work.
 
 	meta-data	show meta data message
@@ -111,36 +109,32 @@ action:
 # return TRUE if a process with given PID is running
 #
 ProcessRunning() {
-    ApachePID=$1
-    # Use /proc if it looks like it's here...
-    if
-      [ -d /proc -a -d /proc/1 ]
-    then
-       [ -d /proc/$ApachePID ]
-    else
-      #  This assumes we're running as root...
-      kill -s 0 "$ApachePID" >/dev/null 2>&1
-    fi
+	ApachePID=$1
+	# Use /proc if it looks like it's here...
+	if [ -d /proc -a -d /proc/1 ]; then
+		[ -d /proc/$ApachePID ]
+	else
+		# This assumes we're running as root...
+		kill -s 0 "$ApachePID" >/dev/null 2>&1
+	fi
 }
 
 silent_status() {
-  if
-    [ -f $PidFile  ] 
-  then
-    ProcessRunning `cat $PidFile`
-  else
-    : No pid file
-    false
-  fi
+	if [ -f $PidFile ]; then
+		ProcessRunning `cat $PidFile`
+	else
+		: No pid file
+		false
+	fi
 }
 
 # May be useful to add other distros in future
 validate_default_config() {
-  if [ -e /etc/SuSE-release ]; then
-    validate_default_suse_config
-  else
-    return 0
-  fi
+	if [ -e /etc/SuSE-release ]; then
+		validate_default_suse_config
+	else
+		return 0
+	fi
 }
 
 # When using the default /etc/apache2/httpd.conf on SUSE, the file
@@ -152,137 +146,194 @@ validate_default_config() {
 # the relevant config is generated and valid.  We're also taking
 # this opportunity to enable mod_status if it's not present.
 validate_default_suse_config() {
-  if [ "$CONFIGFILE" = "$DEFAULT_NORMCONFIG" ] && \
-     grep -Eq '^Include[[:space:]]+/etc/apache2/sysconfig.d/include.conf' "$CONFIGFILE"
-  then
-    [ -x "/usr/sbin/a2enmod" ] && ocf_run -q /usr/sbin/a2enmod status
-    ocf_run -q /etc/init.d/apache2 configtest
-    return
-  else
-    return 0
-  fi
+	if [ "$CONFIGFILE" = "$DEFAULT_NORMCONFIG" ] && \
+		grep -Eq '^Include[[:space:]]+/etc/apache2/sysconfig.d/include.conf' "$CONFIGFILE"
+	then
+		[ -x "/usr/sbin/a2enmod" ] && ocf_run -q /usr/sbin/a2enmod status
+		ocf_run -q /etc/init.d/apache2 configtest
+		return
+	else
+		return 0
+	fi
 }
 
 apache_start() {
-  if
-    silent_status
-  then
-    ocf_log info "$CMD already running (pid $ApachePID)"
-    return $OCF_SUCCESS
-  fi
-  validate_default_config || return $OCF_ERR_CONFIGURED
-  # https://bugs.launchpad.net/ubuntu/+source/apache2/+bug/603211
-  [ -d /var/run/apache2 ] || mkdir /var/run/apache2
-  if [ -z $PIDFILE_DIRECTIVE ];
-  then
-     ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE
-  else
-     ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE -c "PidFile $PidFile"
-  fi
-  tries=0
-  while :  # wait until the user set timeout
-  do
-    apache_monitor
-	ec=$?
-	if [ $ec -eq $OCF_NOT_RUNNING ]
+	if
+		silent_status
 	then
-		tries=`expr $tries + 1`
-		ocf_log info "waiting for apache $CONFIGFILE to come up"
-		sleep 1
-	else
-		break
+		ocf_log info "$CMD already running (pid $ApachePID)"
+		return $OCF_SUCCESS
 	fi
-  done
+
+	validate_default_config || return $OCF_ERR_CONFIGURED
+	# https://bugs.launchpad.net/ubuntu/+source/apache2/+bug/603211
+	[ -d /var/run/apache2 ] || mkdir /var/run/apache2
+
+	if [ -z $PIDFILE_DIRECTIVE ]; then
+		ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE
+	else
+		ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE -c "PidFile $PidFile"
+	fi
+
+	tries=0
+	while : # wait until the user set timeout
+	do
+		apache_monitor
+		ec=$?
+		if [ $ec -eq $OCF_NOT_RUNNING ]
+		then
+			tries=`expr $tries + 1`
+			ocf_log info "waiting for apache $CONFIGFILE to come up"
+			sleep 1
+		else
+			break
+		fi
+	done
+
 	if [ $ec -ne 0 ] && silent_status; then
 		apache_stop
 	fi
 	return $ec
 }
 
-apache_stop() {
-  if
-    silent_status
-  then
-    if
-      kill $ApachePID
-    then
-      tries=0
-      while
-        ProcessRunning $ApachePID &&
-        [ $tries -lt 10 ]
-      do
-        sleep 1
-        kill $ApachePID >/dev/null 
-        ocf_log info "Killing apache PID $ApachePID"
-        tries=`expr $tries + 1`
-      done
-    else
-      ocf_log warn "Killing apache PID $ApachePID FAILED."
-    fi
-    if
-      ProcessRunning $ApachePID
-    then
-      ocf_log info "$CMD still running ($ApachePID)."
-      false
-    else
-      ocf_log info "$CMD stopped."
-    fi
-  else
-    ocf_log info "$CMD is not running."
-  fi
+signal_children()
+{
+	for sig in SIGTERM SIGHUP SIGKILL ; do
+		if pgrep -f $HTTPD.*$CONFIGFILE >/dev/null ; then
+			pkill -$sig -f $HTTPD.*$CONFIGFILE >/dev/null
+			ocf_log info "apache children were signalled ($sig)"
+			sleep 1
+		else
+			break
+		fi
+	done
+}
 
-  for sig in SIGTERM SIGHUP SIGKILL ; do
-    if pgrep -f $HTTPD.*$CONFIGFILE >/dev/null ; then
-      pkill -$sig  -f $HTTPD.*$CONFIGFILE >/dev/null
-      ocf_log info "apache children were signalled ($sig)"
-      sleep 1
-    else
-      break
-    fi
-  done
+graceful_stop()
+{
+	local tries=10
+	local pid=$1
+
+	# Try graceful stop for half timeout period if timeout period is present
+	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+		tries=$((($OCF_RESKEY_CRM_meta_timeout/1000) / 2))
+	fi
+
+	ocf_log info "Attempting graceful stop of apache PID $pid"
+	kill -WINCH $pid >/dev/null
+	while
+		ProcessRunning $pid &&
+		[ $tries -gt 0 ]
+	do
+		sleep 1
+		tries=`expr $tries - 1`
+	done
+
+	if [ $tries -eq 0 ]; then
+		# graceful stop didn't work, process still up.
+		return 1
+	fi
+
+	return 0
+}
+
+kill_stop()
+{
+	local tries=0
+	local pid=$1
+
+	ocf_log info "Killing apache PID $pid"
+	while
+		ProcessRunning $pid &&
+		[ $tries -lt 10 ]
+	do
+		if [ $tries -ne 0 ]; then
+			# don't sleep on the first try
+			sleep 1
+		fi
+		kill $pid >/dev/null 
+		tries=`expr $tries + 1`
+	done
+}
+
+apache_stop() {
+	local ret=$OCF_SUCCESS
+
+	if ! silent_status; then
+		ocf_log info "$CMD is not running."
+		signal_children
+		return $ret
+	fi
+	
+	graceful_stop $ApachePID
+	if [ $? -ne 0 ]; then
+		kill_stop $ApachePID
+
+		if ProcessRunning $ApachePID; then
+			ocf_log info "$CMD still running ($ApachePID). Killing pid failed."
+			ret=$OCF_ERR_GENERIC
+		fi
+	fi
+
+	if [ $ret -eq 0 ]; then
+		ocf_log info "$CMD stopped."
+	fi
+
+	signal_children
+	return $ret
 }
 
 apache_monitor_10() {
-  if [ "$TESTCONFFILE" ]; then
-    readtestconf < $TESTCONFFILE
-  else
-	test_url="$TESTURL"
-	test_regex="$TESTREGEX10"
-  fi
-  whattorun=`gethttpclient`
-  fixtesturl
-  is_testconf_sane ||
-    return $OCF_ERR_CONFIGURED
-  if $whattorun "$test_url" | grep -Ei "$test_regex" > /dev/null
-  then
-  	return $OCF_SUCCESS
-  else
-  	return $OCF_ERR_GENERIC
-  fi
+	if [ "$TESTCONFFILE" ]; then
+		readtestconf < $TESTCONFFILE
+	else
+		test_url="$TESTURL"
+		test_regex="$TESTREGEX10"
+	fi
+
+	whattorun=`gethttpclient`
+	fixtesturl
+	is_testconf_sane ||
+		return $OCF_ERR_CONFIGURED
+
+	if $whattorun "$test_url" | grep -Ei "$test_regex" > /dev/null
+	then
+		return $OCF_SUCCESS
+	else
+		if ! ocf_is_probe; then
+			ocf_log err "Failed to access httpd status page."
+		fi
+		return $OCF_ERR_GENERIC
+	fi
 }
 apache_monitor_basic() {
-  if ${ourhttpclient}_func "$STATUSURL" | grep -Ei "$TESTREGEX" > /dev/null
-  then
-  	return $OCF_SUCCESS
-  else
-  	return $OCF_ERR_GENERIC
-  fi
+	if ${ourhttpclient}_func "$STATUSURL" | grep -Ei "$TESTREGEX" > /dev/null
+	then
+		return $OCF_SUCCESS
+	else
+		if ! ocf_is_probe; then
+			ocf_log err "Failed to access httpd status page."
+		fi
+		return $OCF_ERR_GENERIC
+	fi
 }
 apache_monitor() {
-  silent_status
-  if [ $? -ne 0 ]; then
-    ocf_log info "$CMD not running"
-    return $OCF_NOT_RUNNING
-  fi
-  ourhttpclient=`findhttpclient`  # we'll need one
-  if [ -z "$ourhttpclient" ]; then
-    ocf_log err "could not find a http client; make sure that either wget or curl is available"
-    return $OCF_ERR_INSTALLED
-  fi
-  case `ocf_check_level 10` in
-  0) apache_monitor_basic;;
-  10) apache_monitor_10;;
-  esac
+	silent_status
+	if [ $? -ne 0 ]; then
+		ocf_log info "$CMD not running"
+		return $OCF_NOT_RUNNING
+	fi
+
+	ourhttpclient=`findhttpclient`  # we'll need one
+	if [ -z "$ourhttpclient" ]; then
+		ocf_log err "could not find a http client; make sure that either wget or curl is available"
+		return $OCF_ERR_INSTALLED
+	fi
+
+	case `ocf_check_level 10` in
+		0) apache_monitor_basic;;
+		10) apache_monitor_10;;
+	esac
 }
 
 apache_meta_data(){
@@ -463,90 +514,87 @@ END
 }
 
 apache_validate_all() {
-  if CheckPort $PORT; then
+	if CheckPort $PORT; then
 # We are sure to succeed here, since we forced $PORT to be valid in GetParams()
-	: OK
-  else
-	ocf_log err "Port number $PORT is invalid!"
-	return $OCF_ERR_INSTALLED
-  fi
+		: OK
+	else
+		ocf_log err "Port number $PORT is invalid!"
+		return $OCF_ERR_INSTALLED
+	fi
 
-  case $STATUSURL in
-      http://*) ;;
-      *) 
-      ocf_log err "Invalid STATUSURL $STATUSURL"
-      return $OCF_ERR_CONFIGURED ;;
-  esac
+	case $STATUSURL in
+		http://*) ;;
+		*) 
+			ocf_log err "Invalid STATUSURL $STATUSURL"
+			return $OCF_ERR_CONFIGURED ;;
+	esac
 
-  if [ ! -x $HTTPD ]; then
-	ocf_log err "HTTPD $HTTPD not found or is not an executable!"
-	return $OCF_ERR_INSTALLED
-  fi
-  if [ ! -f $CONFIGFILE ]; then
+	if [ ! -x $HTTPD ]; then
+		ocf_log err "HTTPD $HTTPD not found or is not an executable!"
+		return $OCF_ERR_INSTALLED
+	fi
+
+	if [ ! -f $CONFIGFILE ]; then
 # We are sure to succeed here, since we have parsed $CONFIGFILE before getting here
-	ocf_log err "Configuration file $CONFIGFILE not found!"
-	return $OCF_ERR_INSTALLED
-  fi
+		ocf_log err "Configuration file $CONFIGFILE not found!"
+		return $OCF_ERR_INSTALLED
+	fi
 
-  return $OCF_SUCCESS
+	return $OCF_SUCCESS
 }
 
 find_httpd_prog() {
-    case $0 in
-      *IBM*)	HTTPD=$IBMHTTPD
-		  DefaultConfig=$DEFAULT_IBMCONFIG;;
-      *)	
-	  HTTPD=
-	  for h in $HTTPDLIST
-	  do
-	    if
-	      [ -f $h -a -x $h ]
-	    then
-	      HTTPD=$h
-	      break
-	    fi
-	  done
-  # Let the user know that the $HTTPD used is not the one (s)he specified via $OCF_RESKEY_httpd
-	  if
-	    [ "X$OCF_RESKEY_httpd" != X -a "X$HTTPD" != X ]
-	  then
-	    ocf_log info "Using $HTTPD as HTTPD"
-	  fi
-	  DefaultConfig=$DEFAULT_NORMCONFIG;;
-    esac
+	case $0 in
+		*IBM*)
+			HTTPD=$IBMHTTPD
+			DefaultConfig=$DEFAULT_IBMCONFIG;;
+		*)	
+			HTTPD=
+			for h in $HTTPDLIST
+			do
+				if [ -f $h -a -x $h ]; then
+					HTTPD=$h
+					break
+				fi
+			done
+
+			# Let the user know that the $HTTPD used is not the one (s)he specified via $OCF_RESKEY_httpd
+			if [ "X$OCF_RESKEY_httpd" != X -a "X$HTTPD" != X ]; then
+				ocf_log info "Using $HTTPD as HTTPD"
+			fi
+			DefaultConfig=$DEFAULT_NORMCONFIG
+			;;
+	esac
 }
 
 apache_getconfig() {
-  # these variables are global
-  HTTPD="$OCF_RESKEY_httpd"
-  PORT="$OCF_RESKEY_port"
-  STATUSURL="$OCF_RESKEY_statusurl"
-  CONFIGFILE="$OCF_RESKEY_configfile"
-  OPTIONS="$OCF_RESKEY_options"
-  CLIENT=${OCF_RESKEY_client}
-  TESTREGEX=${OCF_RESKEY_testregex:-'</ *html *>'}
-  TESTURL="$OCF_RESKEY_testurl"
-  TESTREGEX10=${OCF_RESKEY_testregex10}
-  TESTCONFFILE="$OCF_RESKEY_testconffile"
-  TESTNAME="$OCF_RESKEY_testname"
-  : ${OCF_RESKEY_envfiles="/etc/apache2/envvars"}
-  source_envfiles $OCF_RESKEY_envfiles
+	# these variables are global
+	HTTPD="$OCF_RESKEY_httpd"
+	PORT="$OCF_RESKEY_port"
+	STATUSURL="$OCF_RESKEY_statusurl"
+	CONFIGFILE="$OCF_RESKEY_configfile"
+	OPTIONS="$OCF_RESKEY_options"
+	CLIENT=${OCF_RESKEY_client}
+	TESTREGEX=${OCF_RESKEY_testregex:-'</ *html *>'}
+	TESTURL="$OCF_RESKEY_testurl"
+	TESTREGEX10=${OCF_RESKEY_testregex10}
+	TESTCONFFILE="$OCF_RESKEY_testconffile"
+	TESTNAME="$OCF_RESKEY_testname"
+	: ${OCF_RESKEY_envfiles="/etc/apache2/envvars"}
+	source_envfiles $OCF_RESKEY_envfiles
 
-  if
-    [ "X$HTTPD" = X -o ! -f "$HTTPD" -o ! -x "$HTTPD" ]
-  then
-    find_httpd_prog
-  fi
-  CONFIGFILE=${CONFIGFILE:-$DefaultConfig}
-  httpd_basename=`basename $HTTPD`
-  case $httpd_basename in
-    *-*)	httpd_basename=`echo "$httpd_basename" | sed -e 's%\-.*%%'`;;
-  esac
-  GetParams $CONFIGFILE
+	if [ "X$HTTPD" = X -o ! -f "$HTTPD" -o ! -x "$HTTPD" ]; then
+		find_httpd_prog
+	fi
+
+	CONFIGFILE=${CONFIGFILE:-$DefaultConfig}
+	httpd_basename=`basename $HTTPD`
+	case $httpd_basename in
+		*-*)	httpd_basename=`echo "$httpd_basename" | sed -e 's%\-.*%%'`;;
+	esac
+	GetParams $CONFIGFILE
 }
 
 OCF_REQUIRED_PARAMS=""
 OCF_REQUIRED_BINARIES=""
 ocf_rarun $*
-
-# vim:sw=2:ts=8:
