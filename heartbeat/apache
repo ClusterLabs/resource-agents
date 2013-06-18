@@ -215,7 +215,7 @@ graceful_stop()
 	local pid=$1
 
 	# Try graceful stop for half timeout period if timeout period is present
-	if [ -n $OCF_RESKEY_CRM_meta_timeout ]; then
+	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
 		tries=$((($OCF_RESKEY_CRM_meta_timeout/1000) / 2))
 	fi
 
