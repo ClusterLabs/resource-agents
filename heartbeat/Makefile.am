@@ -51,7 +51,6 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			Dummy			\
 		        IPaddr			\
 		        IPaddr2			\
-		        drbd			\
 			anything		\
 			AoEtarget		\
 			apache			\
