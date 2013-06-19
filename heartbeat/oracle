@@ -216,7 +216,7 @@ execsql() {
 	if [ "$US" = "$ORACLE_OWNER" ]; then
 		sqlplus -S /nolog
 	else
-		su - $ORACLE_OWNER -c ". $ORA_ENVF; sqlplus -S /nolog"
+		su - $ORACLE_OWNER -s /bin/sh -c ". $ORA_ENVF; sqlplus -S /nolog"
 	fi
 }
 
