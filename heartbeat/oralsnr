@@ -146,7 +146,7 @@ runasdba() {
 		(
 		echo ". $ORA_ENVF"
 		cat
-		) | su - $ORACLE_OWNER
+		) | su -s $SH - $ORACLE_OWNER
 	fi
 }
 
