@@ -218,9 +218,37 @@ mark_readonly() {
 	fi
 	return $rc
 }
+mknod_raid1_stop() {
+	# first create a block device file, then try to stop the
+	# array
+	local rc n tmp_block_file
+	n=`echo $1 | sed 's/[^0-9]*//'`
+	if ! ocf_is_decimal "$n"; then
+		ocf_log warn "could not get the minor device number from $1"
+		return 1
+	fi
+	tmp_block_file="$HA_RSCTMP/${OCF_RESOURCE_INSTANCE}-`basename $1`"
+	rm -f $tmp_block_file
+	ocf_log info "block device file $1 missing, creating one in order to stop the array"
+	mknod $tmp_block_file b 9 $n
+	$MDADM --stop $tmp_block_file --config=$RAIDCONF --wait-clean -W
+	rc=$?
+	rm -f $tmp_block_file
+	return $rc
+}
 raid1_stop_one() {
 	ocf_log info "Stopping array $1"
-	$MDADM --stop $1 --config=$RAIDCONF --wait-clean -W
+	if [ -b "$1" ]; then
+		$MDADM --stop $1 --config=$RAIDCONF --wait-clean -W &&
+			return
+	else
+		# newer mdadm releases can stop arrays when given the
+		# basename; try that first
+		$MDADM --stop `basename $1` --config=$RAIDCONF --wait-clean -W &&
+			return
+		# otherwise create a block device file
+		mknod_raid1_stop $1
+	fi
 }
 get_users_pids() {
 	local mddev=$1
