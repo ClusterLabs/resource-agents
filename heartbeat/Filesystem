@@ -193,7 +193,7 @@ on several nodes is a valid use case.
 Only set this to "true" if you know what you are doing!
 </longdesc>
 <shortdesc lang="en">allow running as a clone, regardless of filesystem type</shortdesc>
-<content type="boolean" default="$OCF_RESKEY_force_clones_default" />
+<content type="boolean" default="false" />
 </parameter>
 
 </parameters>
