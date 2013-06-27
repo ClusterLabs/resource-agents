@@ -1129,7 +1129,7 @@ have_master_right() {
     ocf_log debug "Checking if I have a master right."
 
     data_status=`$CRM_ATTR_FOREVER -N "$NODENAME" -n \
-                 "$PGSQL_DATA_STATUS_ATTR" -G -q`
+                 "$PGSQL_DATA_STATUS_ATTR" -G -q 2>/dev/null`
     if [ "$OCF_RESKEY_rep_mode" = "sync" ]; then
         if [ -n "$data_status" -a "$data_status" != "STREAMING|SYNC" -a \
              "$data_status" != "LATEST" ]; then
