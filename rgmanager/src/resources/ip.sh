@@ -937,6 +937,10 @@ inet6)
 	;;
 esac
 
+# Force ipv6 addresses to lower case
+if [ "$OCF_RESKEY_family" = "inet6" ]; then
+	OCF_RESKEY_address=$(echo $OCF_RESKEY_address | tr '[:upper:]' '[:lower:]')
+fi
 
 if [ -z "$OCF_CHECK_LEVEL" ]; then
 	OCF_CHECK_LEVEL=0
