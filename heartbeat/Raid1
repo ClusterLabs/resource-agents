@@ -107,6 +107,16 @@ will fail and the node will be fenced.
 <shortdesc lang="en">force stop processes using the array</shortdesc>
 <content type="boolean" default="true" />
 </parameter>
+
+<parameter name="udev" unique="0" required="0">
+<longdesc lang="en">
+Wait until udevd creates a device in the start operation. On a
+normally loaded host this should happen quickly, but you may be
+unlucky. If you are not using udev set this to "no".
+</longdesc>
+<shortdesc lang="en">udev</shortdesc>
+<content type="boolean" default="true" />
+</parameter>
 </parameters>
 
 <actions>
@@ -121,6 +131,11 @@ will fail and the node will be fenced.
 END
 }
 
+udev_settle() {
+	if ocf_is_true $WAIT_FOR_UDEV; then
+		udevadm settle $*
+	fi
+}
 list_conf_arrays() {
 	test -f $RAIDCONF || {
 		ocf_log err "$RAIDCONF gone missing!"
@@ -153,6 +168,7 @@ are_arrays_stopped() {
 md_assemble() {
 	local mddev=$1
 	$MDADM --assemble $mddev --config=$RAIDCONF $MDADM_HOMEHOST
+	udev_settle --exit-if-exists=$mddev
 }
 #
 # START: Start up the RAID device
@@ -202,9 +218,37 @@ mark_readonly() {
 	fi
 	return $rc
 }
+mknod_raid1_stop() {
+	# first create a block device file, then try to stop the
+	# array
+	local rc n tmp_block_file
+	n=`echo $1 | sed 's/[^0-9]*//'`
+	if ! ocf_is_decimal "$n"; then
+		ocf_log warn "could not get the minor device number from $1"
+		return 1
+	fi
+	tmp_block_file="$HA_RSCTMP/${OCF_RESOURCE_INSTANCE}-`basename $1`"
+	rm -f $tmp_block_file
+	ocf_log info "block device file $1 missing, creating one in order to stop the array"
+	mknod $tmp_block_file b 9 $n
+	$MDADM --stop $tmp_block_file --config=$RAIDCONF --wait-clean -W
+	rc=$?
+	rm -f $tmp_block_file
+	return $rc
+}
 raid1_stop_one() {
 	ocf_log info "Stopping array $1"
-	$MDADM --stop $1 --config=$RAIDCONF --wait-clean -W
+	if [ -b "$1" ]; then
+		$MDADM --stop $1 --config=$RAIDCONF --wait-clean -W &&
+			return
+	else
+		# newer mdadm releases can stop arrays when given the
+		# basename; try that first
+		$MDADM --stop `basename $1` --config=$RAIDCONF --wait-clean -W &&
+			return
+		# otherwise create a block device file
+		mknod_raid1_stop $1
+	fi
 }
 get_users_pids() {
 	local mddev=$1
@@ -299,7 +343,9 @@ raid1_monitor_one() {
 	local TRY_READD=0
 	local pbsize
 	# check if the md device exists first
-	if [ ! -b $mddev ]; then
+	# but not if we are in the stop operation
+	# device existence is important only for the running arrays
+	if [ "$__OCF_ACTION" != "stop" -a ! -b $mddev ]; then
 		ocf_log info "$mddev is not a block device"
 		return $OCF_NOT_RUNNING
 	fi
@@ -398,6 +444,7 @@ esac
 RAIDCONF="$OCF_RESKEY_raidconf"
 MDDEV="$OCF_RESKEY_raiddev"
 FORCESTOP="${OCF_RESKEY_force_stop:-1}"
+WAIT_FOR_UDEV="${OCF_RESKEY_udev:-1}"
 
 if [ -z "$RAIDCONF" ] ; then
 	ocf_log err "Please set OCF_RESKEY_raidconf!"
@@ -412,6 +459,18 @@ fi
 if [ -z "$MDDEV" ] ; then
 	ocf_log err "Please set OCF_RESKEY_raiddev to the Raid device you want to control!"
 	exit $OCF_ERR_CONFIGURED
+fi
+
+if ocf_is_true $WAIT_FOR_UDEV && ! have_binary udevadm; then
+	if [ "$__OCF_ACTION" = "start" ]; then
+		ocf_log warn "either install udevadm or set udev to false"
+		ocf_log info "setting udev to false!"
+	fi
+	WAIT_FOR_UDEV=0
+fi
+
+if ! ocf_is_true $WAIT_FOR_UDEV; then
+	export MDADM_NO_UDEV=1
 fi
 
 if ocf_is_true $FORCESTOP && ! have_binary lsof; then
