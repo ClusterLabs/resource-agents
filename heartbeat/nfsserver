@@ -13,7 +13,8 @@ else
 fi
 
 DEFAULT_INIT_SCRIPT="/etc/init.d/nfsserver"
-DEFAULT_NOTIFY_CMD="/sbin/sm-notify"
+DEFAULT_NOTIFY_CMD=`which sm-notify`
+DEFAULT_NOTIFY_CMD=${DEFAULT_NOTIFY_CMD:-"/sbin/sm-notify"}
 DEFAULT_NOTIFY_FOREGROUND="false"
 DEFAULT_RPCPIPEFS_DIR="/var/lib/nfs/rpc_pipefs"
 EXEC_MODE=0
