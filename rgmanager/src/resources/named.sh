@@ -33,6 +33,7 @@ declare NAMED_conf_dir="`generate_name_for_conf_dir`"
 declare NAMED_gen_config_file="$NAMED_conf_dir/named.conf"
 declare NAMED_url_list
 declare NAMED_parse_config=$(dirname $0)/utils/named-parse-config.pl
+declare NAMED_update_src="false"
 
 verify_all()
 {
@@ -60,6 +61,9 @@ verify_all()
 		return $OCF_ERR_ARGS
 	fi
 
+	if [ -n "$OCF_RESKEY_update_source" ]; then
+		NAMED_update_src=$OCF_RESKEY_update_source
+	fi
 	clog_service_verify $CLOG_SUCCEED
 		
 	return 0
@@ -89,7 +93,7 @@ generate_config_file()
 	declare tmp_file=`mktemp -t cluster.XXXXXXXXXX`
 	mv "$generated_file" "$tmp_file"
 
-	"$NAMED_parse_config" "$OCF_RESKEY_named_working_dir" "$NAMED_pid_file" "$ip_address" \
+	"$NAMED_parse_config" "$OCF_RESKEY_named_working_dir" "$NAMED_pid_file" "$ip_address" "$NAMED_update_src"\
 		 < "$tmp_file" > "$generated_file"
 
 	rm "$tmp_file"	
