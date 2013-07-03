@@ -43,10 +43,10 @@ YES_STR="yes"
 # There is no way to return a string from a function
 # in bash without cloning the process, which is exactly
 # what we are trying to avoid.  So, we have to resort
-# to using a dedicated global variable.  This one is
-# for the real_device() function below.
-#
+# to using a dedicated global variables.
 declare REAL_DEVICE
+declare STRIP_SLASHES=""
+declare FINDMNT_OUTPUT=""
 
 #
 # Stub ocf_log function for when we are using
@@ -192,6 +192,48 @@ verify_device()
 	return $OCF_ERR_ARGS
 }
 
+##
+# Tries to use findmnt util to return list
+# of mountpoints for a device
+#
+# Global variables are used to reduce forking when capturing stdout.
+#
+# Return values
+# 0 - device mount points found, mountpoint list returned to FINDMNT_OUTPUT global variable
+# 1 - device mount not found
+# 2 - findmnt tool isn't found
+#
+##
+try_findmnt()
+{
+	FINDMNT_OUTPUT=""
+
+	which findmnt > /dev/null 2>&1
+	if [ $? -eq 0 ]; then
+		FINDMNT_OUTPUT=$(findmnt -o TARGET --noheadings $1)
+		if [ $? -ne 0 ]; then
+			return 1
+		else
+			return 0
+		fi
+	fi
+
+	return 2
+}
+
+##
+# Returns result in global variable to reduce forking
+##
+strip_trailing_slashes()
+{
+	local tmp=$1
+	while [ "${tmp#${tmp%?}}" = "/" ]
+	do
+		tmp="${tmp%/}"
+	done
+
+	STRIP_SLASHES="$tmp"
+}
 
 #
 # mount_in_use device mount_point
@@ -204,6 +246,8 @@ mount_in_use () {
 	declare mp tmp_mp
 	declare dev tmp_dev
 	declare junka junkb junkc junkd
+	declare res=$FAIL
+	declare findmnt_res=2
 
 	if [ $# -ne 2 ]; then
 		ocf_log err "Usage: mount_in_use device mount_point".
@@ -213,23 +257,48 @@ mount_in_use () {
 	dev="$1"
 	mp="$2"
 
-	typeset proc_mounts=$(mktemp /tmp/fs.proc.mounts.XXXXXX)
-	cat /proc/mounts > $proc_mounts
+	# First try and find out if the device has a mount point by
+	# attempting to use the findmnt tool. It is much faster than
+	# iterating through /proc/mounts
+	try_findmnt $dev
+	findmnt_res=$?
+	if [ $findmnt_res -eq 0 ]; then
+		case $OCF_RESKEY_fstype in
+		cifs|nfs|nfs4)
+			# -r means to include '/' character and not treat it as escape character
+			while read -r tmp_mp
+			do
+				if [ "$tmp_mp" = "$mp" ]; then
+					return $YES
+				fi
+			done < <(echo $FINDMNT_OUTPUT)
+			;;
+		*)
+			return $YES
+			;;
+		esac
+	fi
 
 	while read -r tmp_dev tmp_mp junka junkb junkc junkd; do
-		# XXX fork/clone warning XXX
-		if [ "${tmp_dev:0:1}" != "-" ]; then
-			tmp_dev="$(printf "$tmp_dev")"
-		fi
+		# Does the device match? We might have already tried findmnt
+		# which is why this could get skipped
+		if [ $findmnt_res -eq 2 ]; then
+			if [ "${tmp_dev:0:1}" != "-" ]; then
+				# XXX fork/clone warning XXX
+				tmp_dev="$(printf "$tmp_dev")"
+			fi
 
-		if [ -n "$tmp_dev" -a "$tmp_dev" = "$dev" ]; then
-		  case $OCF_RESKEY_fstype in
-		    cifs|nfs|nfs4)
-		      ;;
-		    *)
-		      return $YES
-		      ;;
-		  esac
+			strip_trailing_slashes "$tmp_dev"
+			tmp_dev="$STRIP_SLASHES"
+			if [ -n "$tmp_dev" -a "$tmp_dev" = "$dev" ]; then
+				case $OCF_RESKEY_fstype in
+				cifs|nfs|nfs4)
+					;;
+				*)
+					return $YES
+					;;
+				esac
+			fi
 		fi
 
 		# Mountpoint from /proc/mounts containing spaces will
@@ -240,12 +309,91 @@ mount_in_use () {
 		if [ -n "$tmp_mp" -a "$tmp_mp" = "$mp" ]; then
 			return $YES
 		fi
-	done < $proc_mounts
-	rm -f $proc_mounts
+	done < <(cat /proc/mounts)
 
 	return $NO
 }
 
+##
+# Returns whether or not the device is mounted.
+# If the mountpoint does not match the one provided, the
+# mount point found is printed to stdout.
+##
+real_mountpoint()
+{
+	declare dev=$1
+	declare mp=$2
+	declare ret=$NO
+	declare tmp_mp
+	declare tmp_dev
+	declare found=1
+	declare poss_mp=""
+
+	try_findmnt $dev
+	case $? in
+	0)  #findmnt found mount points, loop through them to find a match
+
+		# -r means to include '/' character and not treat it as escape character
+		while read -r tmp_mp
+		do
+			ret=$YES
+			if [ "$tmp_mp" != "$mp" ]; then
+				poss_mp=$tmp_mp
+			else
+				found=0
+				break
+			fi
+		done < <(echo $FINDMNT_OUTPUT)
+		;;
+	1)
+		# findmnt found no mount points for the device
+		return $NO
+		;;
+	2)  # findmnt tool could not be used.
+		# Using slow method reading /proc/mounts dir.
+		while read -r tmp_dev tmp_mp junk_a junk_b junk_c junk_d
+		do
+			if [ "${tmp_dev:0:1}" != "-" ]; then
+				# XXX fork/clone warning XXX
+				tmp_dev="$(printf "$tmp_dev")"
+			fi
+
+			# CIFS mounts can sometimes have trailing slashes
+			# in their first field in /proc/mounts, so strip them.
+			strip_trailing_slashes "$tmp_dev"
+			tmp_dev="$STRIP_SLASHES"
+			real_device "$tmp_dev"
+			tmp_dev="$REAL_DEVICE"
+
+			# XXX fork/clone warning XXX
+			# Mountpoint from /proc/mounts containing spaces will
+			# have spaces represented in octal.  printf takes care
+			# of this for us.
+			tmp_mp="$(printf "$tmp_mp")"
+
+			if [ -n "$tmp_dev" -a "$tmp_dev" = "$dev" ]; then
+				ret=$YES
+				#
+				# Check to see if its mounted in the right
+				# place
+				#
+				if [ -n "$tmp_mp" ]; then
+					if [ "$tmp_mp" != "$mp" ]; then
+						poss_mp=$tmp_mp
+					else
+						found=0
+						break
+					fi
+				fi
+			fi
+		done < <(cat /proc/mounts)
+	esac
+
+	if [ $found -ne 0 ]; then
+		echo "$poss_mp"
+	fi
+	return $ret
+}
 
 #
 # is_mounted device mount_point
@@ -255,10 +403,9 @@ mount_in_use () {
 #
 is_mounted () {
 
-	declare mp tmp_mp
-	declare dev tmp_dev
+	declare mp
+	declare dev
 	declare ret=$FAIL
-	declare found=1
 	declare poss_mp
 
 	if [ $# -ne 2 ]; then
@@ -279,52 +426,16 @@ is_mounted () {
 		mp="$2"
 	fi
 
-	ret=$NO
-
 	# This bash glyph simply removes a trailing slash
 	# if one exists.  /a/b/ -> /a/b; /a/b -> /a/b.
 	mp="${mp%/}"
 
-	typeset proc_mounts=$(mktemp /tmp/fs.proc.mounts.XXXXXX)
-	cat /proc/mounts > $proc_mounts
+	poss_mp=$(real_mountpoint "$dev" "$mp")
+	ret=$?
 
-	while read -r tmp_dev tmp_mp junk_a junk_b junk_c junk_d
-	do
-		# XXX fork/clone warning XXX
-		if [ "${tmp_dev:0:1}" != "-" ]; then
-			tmp_dev="$(printf "$tmp_dev")"
-		fi
-
-		# CIFS mounts can sometimes have trailing slashes
-		# in their first field in /proc/mounts, so strip them.
-		tmp_dev="$(echo $tmp_dev | sed 's/\/*$//g')"
-		real_device "$tmp_dev"
-		tmp_dev="$REAL_DEVICE"
-
-		# XXX fork/clone warning XXX
-		# Mountpoint from /proc/mounts containing spaces will
-		# have spaces represented in octal.  printf takes care
-		# of this for us.
-		tmp_mp="$(printf "$tmp_mp")"
-
-		if [ -n "$tmp_dev" -a "$tmp_dev" = "$dev" ]; then
-			#
-			# Check to see if its mounted in the right
-			# place
-			#
-			if [ -n "$tmp_mp" ]; then
-				if [ "$tmp_mp" != "$mp" ]; then
-					poss_mp=$tmp_mp
-				else
-					found=0
-				fi
-			fi
-			ret=$YES
-		fi
-	done < $proc_mounts
-	rm -f $proc_mounts
-
-	if [ $ret -eq $YES ] && [ $found -ne 0 ]; then
+	if [ $ret -eq $YES ] && [ -n "$poss_mp" ]; then
+		# if we made it here, then the device is mounted, but not where
+		# we expected it to be
 		case $OCF_RESKEY_fstype in
 		  cifs|nfs|nfs4)
 		    ret=$NO
