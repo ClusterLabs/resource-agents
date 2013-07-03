@@ -49,16 +49,17 @@
 
 #ifdef HAVE_LIBNET_1_0_API
 #	define	LTYPE	struct libnet_link_int
+	static u_char *mk_packet(u_int32_t ip, u_char *device, u_char *macaddr, u_char *broadcast, u_char *netmask, u_short arptype);
+	static int send_arp(struct libnet_link_int *l, u_char *device, u_char *buf);
 #endif
 #ifdef HAVE_LIBNET_1_1_API
 #	define	LTYPE	libnet_t
+	static libnet_t *mk_packet(libnet_t* lntag, u_int32_t ip, u_char *device, u_char macaddr[6], u_char *broadcast, u_char *netmask, u_short arptype);
+	int send_arp(libnet_t* lntag);
 #endif
 
 #define PIDDIR       HA_VARRUNDIR "/" PACKAGE
 #define PIDFILE_BASE PIDDIR "/send_arp-"
-
-static int send_arp(LTYPE* l, u_int32_t ip, u_char *device, u_char mac[6]
-,	u_char *broadcast, u_char *netmask, u_short arptype);
 
 static char print_usage[]={
 "send_arp: sends out custom ARP packet.\n"
@@ -135,13 +136,19 @@ main(int argc, char *argv[])
 	char*	netmask;
 	u_int32_t	ip;
 	u_char  src_mac[6];
-	LTYPE*	l;
 	int	repeatcount = 1;
 	int	j;
 	long	msinterval = 1000;
 	int	flag;
 	char    pidfilenamebuf[64];
 	char    *pidfilename = NULL;
+
+#ifdef HAVE_LIBNET_1_0_API
+	LTYPE*	l;
+	u_char *request, *reply;
+#elif defined(HAVE_LIBNET_1_1_API)
+	LTYPE *request, *reply;
+#endif
 
 	CL_SIGNAL(SIGTERM, byebye);
 	CL_SIGINTERRUPT(SIGTERM, 1);
@@ -201,6 +208,24 @@ main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
+	if (!strcasecmp(macaddr, AUTO_MAC_ADDR)) {
+		if (get_hw_addr(device, src_mac) < 0) {
+			 cl_log(LOG_ERR, "Cannot find mac address for %s",
+					 device);
+			 unlink(pidfilename);
+			 return EXIT_FAILURE;
+		}
+	}
+	else {
+		convert_macaddr((unsigned char *)macaddr, src_mac);
+	}
+
+/*
+ * We need to send both a broadcast ARP request as well as the ARP response we
+ * were already sending.  All the interesting research work for this fix was
+ * done by Masaki Hasegawa <masaki-h@pp.iij4u.or.jp> and his colleagues.
+ */
+
 #if defined(HAVE_LIBNET_1_0_API)
 #ifdef ON_DARWIN
 	if ((ip = libnet_name_resolve((unsigned char*)ipaddr, 1)) == -1UL) {
@@ -219,49 +244,24 @@ main(int argc, char *argv[])
 		unlink(pidfilename);
 		return EXIT_FAILURE;
 	}
-#elif defined(HAVE_LIBNET_1_1_API)
-	if ((l=libnet_init(LIBNET_LINK, device, errbuf)) == NULL) {
-		cl_log(LOG_ERR, "libnet_init failure on %s: %s", device, errbuf);
+	request = mk_packet(ip, (unsigned char*)device, src_mac
+		, (unsigned char*)broadcast, (unsigned char*)netmask
+		, ARPOP_REQUEST);
+	reply = mk_packet(ip, (unsigned char*)device, src_mac
+		, (unsigned char *)broadcast
+		, (unsigned char *)netmask, ARPOP_REPLY);
+	if (!request || !reply) {
+		cl_log(LOG_ERR, "could not create packets");
 		unlink(pidfilename);
 		return EXIT_FAILURE;
 	}
-	if ((signed)(ip = libnet_name2addr4(l, ipaddr, 1)) == -1) {
-		cl_log(LOG_ERR, "Cannot resolve IP address [%s]", ipaddr);
-		unlink(pidfilename);
-		return EXIT_FAILURE;
-	}
-#else
-#	error "Must have LIBNET API version defined."
-#endif
-
-	if (!strcasecmp(macaddr, AUTO_MAC_ADDR)) {
-		if (get_hw_addr(device, src_mac) < 0) {
-			 cl_log(LOG_ERR, "Cannot find mac address for %s", 
-					 device);
-			 unlink(pidfilename);
-			 return EXIT_FAILURE;
-		}
-	}
-	else {
-		convert_macaddr((unsigned char *)macaddr, src_mac);
-	}
-
-/*
- * We need to send both a broadcast ARP request as well as the ARP response we
- * were already sending.  All the interesting research work for this fix was
- * done by Masaki Hasegawa <masaki-h@pp.iij4u.or.jp> and his colleagues.
- */
 	for (j=0; j < repeatcount; ++j) {
-		c = send_arp(l, ip, (unsigned char*)device, src_mac
-			, (unsigned char*)broadcast, (unsigned char*)netmask
-			, ARPOP_REQUEST);
+		c = send_arp(l, (unsigned char*)device, request);
 		if (c < 0) {
 			break;
 		}
 		mssleep(msinterval / 2);
-		c = send_arp(l, ip, (unsigned char*)device, src_mac
-			, (unsigned char *)broadcast
-			, (unsigned char *)netmask, ARPOP_REPLY);
+		c = send_arp(l, (unsigned char*)device, reply);
 		if (c < 0) {
 			break;
 		}
@@ -269,6 +269,50 @@ main(int argc, char *argv[])
 			mssleep(msinterval / 2);
 		}
 	}
+#elif defined(HAVE_LIBNET_1_1_API)
+	if ((request=libnet_init(LIBNET_LINK, device, errbuf)) == NULL) {
+		cl_log(LOG_ERR, "libnet_init failure on %s: %s", device, errbuf);
+		unlink(pidfilename);
+		return EXIT_FAILURE;
+	}
+	if ((reply=libnet_init(LIBNET_LINK, device, errbuf)) == NULL) {
+		cl_log(LOG_ERR, "libnet_init failure on %s: %s", device, errbuf);
+		unlink(pidfilename);
+		return EXIT_FAILURE;
+	}
+	if ((signed)(ip = libnet_name2addr4(request, ipaddr, 1)) == -1) {
+		cl_log(LOG_ERR, "Cannot resolve IP address [%s]", ipaddr);
+		unlink(pidfilename);
+		return EXIT_FAILURE;
+	}
+	request = mk_packet(request, ip, (unsigned char*)device, src_mac
+		, (unsigned char*)broadcast, (unsigned char*)netmask
+		, ARPOP_REQUEST);
+	reply = mk_packet(reply, ip, (unsigned char*)device, src_mac
+		, (unsigned char *)broadcast
+		, (unsigned char *)netmask, ARPOP_REPLY);
+	if (!request || !reply) {
+		cl_log(LOG_ERR, "could not create packets");
+		unlink(pidfilename);
+		return EXIT_FAILURE;
+	}
+	for (j=0; j < repeatcount; ++j) {
+		c = send_arp(request);
+		if (c < 0) {
+			break;
+		}
+		mssleep(msinterval / 2);
+		c = send_arp(reply);
+		if (c < 0) {
+			break;
+		}
+		if (j != repeatcount-1) {
+			mssleep(msinterval / 2);
+		}
+	}
+#else
+#	error "Must have LIBNET API version defined."
+#endif
 
 	unlink(pidfilename);
 	return c < 0  ? EXIT_FAILURE : EXIT_SUCCESS;
@@ -387,10 +431,9 @@ get_hw_addr(char *device, u_char mac[6])
  */
 
 #ifdef HAVE_LIBNET_1_0_API
-int
-send_arp(struct libnet_link_int *l, u_int32_t ip, u_char *device, u_char *macaddr, u_char *broadcast, u_char *netmask, u_short arptype)
+u_char *
+mk_packet(u_int32_t ip, u_char *device, u_char *macaddr, u_char *broadcast, u_char *netmask, u_short arptype)
 {
-	int n;
 	u_char *buf;
 	u_char *target_mac;
 	u_char device_mac[6];
@@ -400,7 +443,7 @@ send_arp(struct libnet_link_int *l, u_int32_t ip, u_char *device, u_char *macadd
 
 	if (libnet_init_packet(LIBNET_ARP_H + LIBNET_ETH_H, &buf) == -1) {
 	cl_log(LOG_ERR, "libnet_init_packet memory:");
-		return -1;
+		return NULL;
 	}
 
 	/* Convert ASCII Mac Address to 6 Hex Digits. */
@@ -409,14 +452,14 @@ send_arp(struct libnet_link_int *l, u_int32_t ip, u_char *device, u_char *macadd
 	if (get_hw_addr((char*)device, device_mac) < 0) {
 		cl_log(LOG_ERR, "Cannot find mac address for %s",
 				device);
-		return -1;
+		return NULL;
 	}
 
 	if (libnet_build_ethernet(bcast_mac, device_mac, ETHERTYPE_ARP, NULL, 0
 	,	buf) == -1) {
 		cl_log(LOG_ERR, "libnet_build_ethernet failed:");
 		libnet_destroy_packet(&buf);
-		return -1;
+		return NULL;
 	}
 
 	if (arptype == ARPOP_REQUEST) {
@@ -426,8 +469,8 @@ send_arp(struct libnet_link_int *l, u_int32_t ip, u_char *device, u_char *macadd
 		target_mac = macaddr;
 	}
 	else {
-		cl_log(LOG_ERR, "unkonwn arptype:");
-		return -1;
+		cl_log(LOG_ERR, "unknown arptype");
+		return NULL;
 	}
 
 	/*
@@ -447,16 +490,9 @@ send_arp(struct libnet_link_int *l, u_int32_t ip, u_char *device, u_char *macadd
 		buf + LIBNET_ETH_H) == -1) {
 	        cl_log(LOG_ERR, "libnet_build_arp failed:");
 		libnet_destroy_packet(&buf);
-		return -1;
+		return NULL;
 	}
-
-	n = libnet_write_link_layer(l, (char*)device, buf, LIBNET_ARP_H + LIBNET_ETH_H);
-	if (n == -1) {
-		cl_log(LOG_ERR, "libnet_build_ethernet failed:");
-	}
-
-	libnet_destroy_packet(&buf);
-	return (n);
+	return buf;
 }
 #endif /* HAVE_LIBNET_1_0_API */
 
@@ -464,10 +500,9 @@ send_arp(struct libnet_link_int *l, u_int32_t ip, u_char *device, u_char *macadd
 
 
 #ifdef HAVE_LIBNET_1_1_API
-int
-send_arp(libnet_t* lntag, u_int32_t ip, u_char *device, u_char macaddr[6], u_char *broadcast, u_char *netmask, u_short arptype)
+libnet_t*
+mk_packet(libnet_t* lntag, u_int32_t ip, u_char *device, u_char macaddr[6], u_char *broadcast, u_char *netmask, u_short arptype)
 {
-	int n;
 	u_char *target_mac;
 	u_char device_mac[6];
 	u_char bcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
@@ -481,7 +516,7 @@ send_arp(libnet_t* lntag, u_int32_t ip, u_char *device, u_char macaddr[6], u_cha
 	}
 	else {
 		cl_log(LOG_ERR, "unkonwn arptype:");
-		return -1;
+		return NULL;
 	}
 
 	/*
@@ -502,28 +537,49 @@ send_arp(libnet_t* lntag, u_int32_t ip, u_char *device, u_char macaddr[6], u_cha
 		0		/* packet id */
 	) == -1 ) {
 		cl_log(LOG_ERR, "libnet_build_arp failed:");
-		return -1;
+		return NULL;
 	}
 
 	/* Ethernet header */
 	if (get_hw_addr((char *)device, device_mac) < 0) {
 		cl_log(LOG_ERR, "Cannot find mac address for %s",
 				device);
-		return -1;
+		return NULL;
 	}
 
 	if (libnet_build_ethernet(bcast_mac, device_mac, ETHERTYPE_ARP, NULL, 0
 	,	lntag, 0) == -1 ) {
 		cl_log(LOG_ERR, "libnet_build_ethernet failed:");
-		return -1;
+		return NULL;
 	}
+	return lntag;
+}
+#endif /* HAVE_LIBNET_1_1_API */
+
+#ifdef HAVE_LIBNET_1_0_API
+int
+send_arp(struct libnet_link_int *l, u_char *device, u_char *buf)
+{
+	int n;
+
+	n = libnet_write_link_layer(l, (char*)device, buf, LIBNET_ARP_H + LIBNET_ETH_H);
+	if (n == -1) {
+		cl_log(LOG_ERR, "libnet_write_link_layer failed");
+	}
+	return (n);
+}
+#endif /* HAVE_LIBNET_1_0_API */
+
+#ifdef HAVE_LIBNET_1_1_API
+int
+send_arp(libnet_t* lntag)
+{
+	int n;
 
 	n = libnet_write(lntag);
 	if (n == -1) {
-		cl_log(LOG_ERR, "libnet_build_ethernet failed:");
+		cl_log(LOG_ERR, "libnet_write failed");
 	}
-	libnet_clear_packet(lntag);
-
 	return (n);
 }
 #endif /* HAVE_LIBNET_1_1_API */
