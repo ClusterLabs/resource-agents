@@ -23,6 +23,7 @@
 #######################################################################
 # OCF parameters:
 #   OCF_RESKEY_resource_name - The name of the resource. Default is ${OCF_RESOURCE_INSTANCE}
+#   OCF_RESKEY_jboss_version - The version of JBoss. Default is 5.
 # why not let the RA log through lrmd?
 # 2009/09/09 Nakahira:
 # jboss_console is used to record output of the "run.sh".
@@ -31,7 +32,7 @@
 #   OCF_RESKEY_shutdown_timeout - Time-out at the time of the stop. Default is 5
 #   OCF_RESKEY_kill_timeout - The re-try number of times awaiting a stop. Default is 10
 #   OCF_RESKEY_user - A user name to start a JBoss. Default is root
-#   OCF_RESKEY_statusurl - URL for state confirmation. Default is http://127.0.0.1:8080
+#   OCF_RESKEY_statusurl - URL for state confirmation. Default is ${OCF_RESKEY_statusurl_default}
 #   OCF_RESKEY_java_home - Home directory of the Java. Default is ${JAVA_HOME}
 #   OCF_RESKEY_java_opts - Options for Java.
 #   OCF_RESKEY_jboss_home - Home directory of Jboss. Default is None
@@ -41,8 +42,8 @@
 # It is difficult to set it automatically because jboss_pstring
 # greatly depends on the environment. At any rate, system architect
 # should note that pstring doesn't influence other processes.
-#   OCF_RESKEY_pstring - String Jboss will found in procceslist. Default is "java -Dprogram.name=run.sh"
-#   OCF_RESKEY_run_opts - Options for jboss to run. Default is "-c default"
+#   OCF_RESKEY_pstring - String Jboss will found in procceslist. Default is ${OCF_RESKEY_pstring_default}
+#   OCF_RESKEY_run_opts - Options for jboss to run. Default is ${OCF_RESKEY_run_opts_default}
 #   OCF_RESKEY_shutdown_opts - Options for jboss to shutdonw. Default is "-s 127.0.0.1:1099"
 #   OCF_RESKEY_rotate_consolelog - Control console log logrotation flag. Default is false.
 #   OCF_RESKEY_rotate_value - console log logrotation value. Default is 86400 span(seconds).
@@ -260,6 +261,16 @@ Resource script for Jboss. It manages a Jboss instance as an HA resource.
 
 <parameters>
 
+<parameter name="jboss_version" unique="0" required="0">
+<longdesc lang="en">
+The version of JBoss. Default is 5.
+The usage of JBoss was greatly changed as of JBoss 6.
+Specify "6" when you use JBoss 6.
+</longdesc>
+<shortdesc>The version of JBoss</shortdesc>
+<content type="integer" default="5" />
+</parameter>
+
 <parameter name="resource_name" unique="1" required="0">
 <longdesc lang="en">
 The name of the resource. Defaults to the name of the resource
@@ -313,7 +324,7 @@ A user name to start a JBoss.
 URL to test in the monitor operation.
 </longdesc>
 <shortdesc>URL to test in the monitor operation.</shortdesc>
-<content type="string" default="http://127.0.0.1:8080" />
+<content type="string" default="${OCF_RESKEY_statusurl_default}" />
 </parameter>
 
 <parameter name="java_home" unique="0" required="0">
@@ -346,7 +357,7 @@ Home directory of Jboss.
 With this string heartbeat matches for the right process to kill.
 </longdesc>
 <shortdesc>pkill/pgrep search string</shortdesc>
-<content type="string" default="java -Dprogram.name=run.sh" />
+<content type="string" default="${OCF_RESKEY_pstring_default}" />
 </parameter>
 
 <parameter name="run_opts" unique="0" required="0">
@@ -354,7 +365,7 @@ With this string heartbeat matches for the right process to kill.
 Start options to start Jboss with, defaults are from the Jboss-Doku.
 </longdesc>
 <shortdesc>options for jboss run.sh</shortdesc>
-<content type="string" default="-c default" />
+<content type="string" default="${OCF_RESKEY_run_opts_default}" />
 </parameter>
 
 <parameter name="shutdown_opts" unique="0" required="0">
@@ -411,14 +422,29 @@ validate_all_jboss()
 }
 
 COMMAND=$1
+JBOSS_VERSION="${OCF_RESKEY_jboss_version-5}"
+if ! ocf_is_decimal $JBOSS_VERSION; then
+	ocf_log err "Invalid parameter value: jboss_version [$JBOSS_VERSION]"
+	return $OCF_ERR_ARGS
+fi
+# Setting of the default value
+if [ "$JBOSS_VERSION" -le 5 ]; then
+	OCF_RESKEY_statusurl_default="http://127.0.0.1:8080"
+	OCF_RESKEY_pstring_default="java -Dprogram.name=run.sh"
+	OCF_RESKEY_run_opts_default="-c default"
+else
+	OCF_RESKEY_statusurl_default="http://127.0.0.1:9990"
+	OCF_RESKEY_pstring_default=""
+	OCF_RESKEY_run_opts_default=""
+fi
 RESOURCE_NAME="${OCF_RESKEY_resource_name-${OCF_RESOURCE_INSTANCE}}"
 CONSOLE="${OCF_RESKEY_console-/var/log/${RESOURCE_NAME}.log}"
 SHUTDOWN_TIMEOUT="${OCF_RESKEY_shutdown_timeout-5}"
 KILL_TIMEOUT="${OCF_RESKEY_kill_timeout-10}"
 JBOSS_USER="${OCF_RESKEY_user-root}"
-STATUSURL="${OCF_RESKEY_statusurl-http://127.0.0.1:8080}"
-PSTRING="${OCF_RESKEY_pstring-java -Dprogram.name=run.sh}"
-RUN_OPTS="${OCF_RESKEY_run_opts--c default}"
+STATUSURL="${OCF_RESKEY_statusurl-${OCF_RESKEY_statusurl_default}}"
+PSTRING="${OCF_RESKEY_pstring-${OCF_RESKEY_pstring_default}}"
+RUN_OPTS="${OCF_RESKEY_run_opts-${OCF_RESKEY_run_opts_default}}"
 SHUTDOWN_OPTS="${OCF_RESKEY_shutdown_opts--s 127.0.0.1:1099}"
 ROTATELOG_FLG="${OCF_RESKEY_rotate_consolelog-false}"
 ROTATEVALUE="${OCF_RESKEY_rotate_value-86400}"
