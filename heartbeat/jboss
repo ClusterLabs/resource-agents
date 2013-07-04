@@ -43,6 +43,7 @@
 # greatly depends on the environment. At any rate, system architect
 # should note that pstring doesn't influence other processes.
 #   OCF_RESKEY_pstring - String Jboss will found in procceslist. Default is ${OCF_RESKEY_pstring_default}
+#   OCF_RESKEY_run_command - JBoss start command. Default is "${OCF_RESKEY_run_command_default}"
 #   OCF_RESKEY_run_opts - Options for jboss to run. Default is ${OCF_RESKEY_run_opts_default}
 #   OCF_RESKEY_shutdown_opts - Options for jboss to shutdonw. Default is "-s 127.0.0.1:1099"
 #   OCF_RESKEY_rotate_consolelog - Control console log logrotation flag. Default is false.
@@ -142,14 +143,14 @@ start_jboss()
 
 	ocf_log info "Starting JBoss[$RESOURCE_NAME]"
 	if [ "$JBOSS_USER" = root ]; then
-		"$JBOSS_HOME/bin/run.sh" $RUN_OPTS \
+		"$RUN_COMMAND" $RUN_OPTS \
 			>> "$CONSOLE" 2>&1 &
 	else
 		su - -s /bin/sh "$JBOSS_USER" \
 			-c "export JAVA_HOME=\"${JAVA_HOME}\"; \
                             export JAVA_OPTS=\"${JAVA_OPTS}\"; \
                             export JBOSS_HOME=\"${JBOSS_HOME}\"; \
-                            \"$JBOSS_HOME/bin/run.sh\" $RUN_OPTS" \
+                            \"$RUN_COMMAND\" $RUN_OPTS" \
 			>> "$CONSOLE" 2>&1 &
 	fi
 
@@ -360,6 +361,14 @@ With this string heartbeat matches for the right process to kill.
 <content type="string" default="${OCF_RESKEY_pstring_default}" />
 </parameter>
 
+<parameter name="run_command" unique="0" required="0">
+<longdesc lang="en">
+JBoss start command.
+</longdesc>
+<shortdesc>JBoss start command.</shortdesc>
+<content type="string" default="${OCF_RESKEY_run_command_default}" />
+</parameter>
+
 <parameter name="run_opts" unique="0" required="0">
 <longdesc lang="en">
 Start options to start Jboss with, defaults are from the Jboss-Doku.
@@ -431,10 +440,12 @@ fi
 if [ "$JBOSS_VERSION" -le 5 ]; then
 	OCF_RESKEY_statusurl_default="http://127.0.0.1:8080"
 	OCF_RESKEY_pstring_default="java -Dprogram.name=run.sh"
+	OCF_RESKEY_run_command_default="${OCF_RESKEY_jboss_home}/bin/run.sh"
 	OCF_RESKEY_run_opts_default="-c default"
 else
 	OCF_RESKEY_statusurl_default="http://127.0.0.1:9990"
 	OCF_RESKEY_pstring_default=""
+	OCF_RESKEY_run_command_default="${OCF_RESKEY_jboss_home}/bin/standalone.sh"
 	OCF_RESKEY_run_opts_default=""
 fi
 RESOURCE_NAME="${OCF_RESKEY_resource_name-${OCF_RESOURCE_INSTANCE}}"
@@ -469,6 +480,7 @@ fi
 JAVA_HOME="${OCF_RESKEY_java_home-${JAVA_HOME}}"
 JAVA_OPTS="${OCF_RESKEY_java_opts}"
 JBOSS_HOME="${OCF_RESKEY_jboss_home}"
+RUN_COMMAND="${OCF_RESKEY_run_command-${OCF_RESKEY_run_command_default}}"
 
 LSB_STATUS_STOPPED=3
 if [ ! -d "$JAVA_HOME" -o ! -d "$JBOSS_HOME" ]; then
