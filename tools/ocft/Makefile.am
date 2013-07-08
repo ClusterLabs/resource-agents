@@ -43,6 +43,7 @@ ocftcfgs_DATA      =  apache  	\
 		       	 iscsi	\
 		       	 named	\
 		       	 postfix	\
+			 tomcat	\
 		       	 Xinetd	\
 			 SendArp
 
