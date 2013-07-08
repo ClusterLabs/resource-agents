@@ -1,0 +1,73 @@
+# tomcat
+#
+# NOTE: Clean up $catalina_home/logs before running this test
+#       otherwise creating the pid/log files may fail
+#       in the test case with a different user.
+
+CONFIG
+	Agent tomcat
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	HangTimeout 120
+
+VARIABLE
+	# Adjust accrding to your configuration
+	catalina_home=/opt/tomcat7
+	tomcat_user=tomcat7
+	java_home=/usr/lib/jvm/java-1.6.0-openjdk.x86_64
+
+CASE-BLOCK required_args_tomcat
+	Env OCF_RESKEY_catalina_home=${catalina_home}
+	Env OCF_RESKEY_tomcat_user=${tomcat_user}
+	Env OCF_RESKEY_java_home=${java_home}
+
+CASE-BLOCK args_clear
+	Unenv OCF_RESKEY_catalina_home
+	Unenv OCF_RESKEY_tomcat_user
+	Unenv OCF_RESKEY_java_home
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare_tomcat
+	Include required_args_tomcat
+	Include default_status
+
+# Test CASE
+#
+CASE "normal start tomcat require_args (user:user)"
+	Include prepare_tomcat
+	AgentRun start OCF_SUCCESS
+	AgentRun monitor OCF_SUCCESS
+	AgentRun stop  OCF_SUCCESS
+	AgentRun monitor OCF_NOT_RUNNING
+	Include args_clear
+
+CASE "normal start tomcat require_args (user:root)"
+	Include prepare_tomcat
+	Unenv OCF_RESKEY_tomcat_user
+	AgentRun start OCF_SUCCESS
+	AgentRun monitor OCF_SUCCESS
+	AgentRun stop  OCF_SUCCESS
+	AgentRun monitor OCF_NOT_RUNNING
+	Include args_clear
+
+CASE "error start tomcat no catalina_home"
+	Include prepare_tomcat
+	Unenv OCF_RESKEY_catalina_home
+	AgentRun start OCF_ERR_INSTALLED
+	Include args_clear
+
+CASE "error start tomcat no java_home"
+	Include prepare_tomcat
+	Unenv OCF_RESKEY_java_home
+	AgentRun start OCF_ERR_INSTALLED
+	Include args_clear
+
+CASE "error start tomcat no java command"
+	Include prepare_tomcat
+	Env OCF_RESKEY_java_home=/var
+	AgentRun start OCF_ERR_INSTALLED
+	AgentRun stop OCF_SUCCESS
+	AgentRun monitor OCF_NOT_RUNNING
+	Include args_clear
+
