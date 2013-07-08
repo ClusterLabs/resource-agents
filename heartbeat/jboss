@@ -269,8 +269,7 @@ stop_jboss6()
 	if [ $? -eq 0 ]; then
 		kill -s TERM $JBOSS_PID
 	else
-		ocf_log err "PID file is broken: $JBOSS_PIDFILE"
-		return $OCF_ERR_GENERIC
+		ocf_log warn "PID file is broken: $JBOSS_PIDFILE"
 	fi
 
 	lapse_sec=0
