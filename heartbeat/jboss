@@ -23,6 +23,7 @@
 #######################################################################
 # OCF parameters:
 #   OCF_RESKEY_resource_name - The name of the resource. Default is ${OCF_RESOURCE_INSTANCE}
+#   OCF_RESKEY_jboss_version - The version of JBoss. Default is 5.
 # why not let the RA log through lrmd?
 # 2009/09/09 Nakahira:
 # jboss_console is used to record output of the "run.sh".
@@ -31,7 +32,7 @@
 #   OCF_RESKEY_shutdown_timeout - Time-out at the time of the stop. Default is 5
 #   OCF_RESKEY_kill_timeout - The re-try number of times awaiting a stop. Default is 10
 #   OCF_RESKEY_user - A user name to start a JBoss. Default is root
-#   OCF_RESKEY_statusurl - URL for state confirmation. Default is http://127.0.0.1:8080
+#   OCF_RESKEY_statusurl - URL for state confirmation. Default is ${OCF_RESKEY_statusurl_default}
 #   OCF_RESKEY_java_home - Home directory of the Java. Default is ${JAVA_HOME}
 #   OCF_RESKEY_java_opts - Options for Java.
 #   OCF_RESKEY_jboss_home - Home directory of Jboss. Default is None
@@ -41,9 +42,12 @@
 # It is difficult to set it automatically because jboss_pstring
 # greatly depends on the environment. At any rate, system architect
 # should note that pstring doesn't influence other processes.
-#   OCF_RESKEY_pstring - String Jboss will found in procceslist. Default is "java -Dprogram.name=run.sh"
-#   OCF_RESKEY_run_opts - Options for jboss to run. Default is "-c default -l lpg4j"
+#   OCF_RESKEY_jboss_base_dir - Base directory of JBoss. Default is ${OCF_RESKEY_jboss_base_dir_default}
+#   OCF_RESKEY_pstring - String Jboss will found in procceslist. Default is ${OCF_RESKEY_pstring_default}
+#   OCF_RESKEY_run_command - JBoss start command. Default is "${OCF_RESKEY_run_command_default}"
+#   OCF_RESKEY_run_opts - Options for jboss to run. Default is ${OCF_RESKEY_run_opts_default}
 #   OCF_RESKEY_shutdown_opts - Options for jboss to shutdonw. Default is "-s 127.0.0.1:1099"
+#   OCF_RESKEY_pidfile - JBoss Process ID file. Default is "/var/run/${OCF_RESKEY_resource_name}.pid"
 #   OCF_RESKEY_rotate_consolelog - Control console log logrotation flag. Default is false.
 #   OCF_RESKEY_rotate_value - console log logrotation value. Default is 86400 span(seconds).
 #   OCF_RESKEY_rotate_logsuffix - Control console log logrotation suffix. Default is .%F.
@@ -100,6 +104,24 @@ monitor_jboss()
 	isrunning_jboss $1
 }
 
+getpid()
+{
+	# The check that PID file is made definitely
+	if [ -f $JBOSS_PIDFILE ]; then
+		JBOSS_PID=`head -n 1 $JBOSS_PIDFILE`
+	fi
+}
+
+pidcheck_jboss()
+{
+	getpid
+	if [ -n "$JBOSS_PID" ]; then
+		kill -s 0 $JBOSS_PID >/dev/null 2>&1
+		[ $? -eq 0 ] && return 0
+	fi
+	return 1
+}
+
 rotate_console()
 {
 	# Look for rotatelogs/rotatelogs2
@@ -141,21 +163,28 @@ start_jboss()
 
 	ocf_log info "Starting JBoss[$RESOURCE_NAME]"
 	if [ "$JBOSS_USER" = root ]; then
-		"$JBOSS_HOME/bin/run.sh" $RUN_OPTS \
+		"$RUN_COMMAND" $RUN_OPTS \
 			>> "$CONSOLE" 2>&1 &
 	else
-		su - -s /bin/bash "$JBOSS_USER" \
-			-c "export JAVA_HOME=${JAVA_HOME}; \
+		su - -s /bin/sh "$JBOSS_USER" \
+			-c "export JAVA_HOME=\"${JAVA_HOME}\"; \
                             export JAVA_OPTS=\"${JAVA_OPTS}\"; \
-                            export JBOSS_HOME=${JBOSS_HOME}; \
-                            $JBOSS_HOME/bin/run.sh $RUN_OPTS" \
+                            export JBOSS_HOME=\"${JBOSS_HOME}\"; \
+                            export JBOSS_BASE_DIR=\"${JBOSS_BASE_DIR}\"; \
+                            export JBOSS_PIDFILE=\"${JBOSS_PIDFILE}\"; \
+                            export LAUNCH_JBOSS_IN_BACKGROUND=${LAUNCH_JBOSS_IN_BACKGROUND}; \
+                            \"$RUN_COMMAND\" $RUN_OPTS" \
 			>> "$CONSOLE" 2>&1 &
 	fi
 
 	while true; do
 		monitor_jboss start
 		if [ $? = $OCF_SUCCESS ]; then
-			break
+			# PID file check after JBoss6.
+			[ "x$LAUNCH_JBOSS_IN_BACKGROUND" = "x" ] && break
+			pidcheck_jboss
+			[ $? -eq 0 ] && break
+			ocf_log warn "PID file is not created correctly."
 		fi
 		ocf_log info "start_jboss[$RESOURCE_NAME]: retry monitor_jboss"
 		sleep 3
@@ -164,7 +193,7 @@ start_jboss()
 	return $OCF_SUCCESS
 }
 
-stop_jboss()
+stop_jboss5()
 {
 	ocf_log info "Stopping JBoss[$RESOURCE_NAME]"
 
@@ -172,10 +201,10 @@ stop_jboss()
 		"$JBOSS_HOME/bin/shutdown.sh" $SHUTDOWN_OPTS -S \
 			>> "$CONSOLE" 2>&1 &
 	else
-		su - -s /bin/bash "$JBOSS_USER" \
-			-c "export JAVA_HOME=${JAVA_HOME}; \
-                            export JBOSS_HOME=${JBOSS_HOME}; \
-                            $JBOSS_HOME/bin/shutdown.sh $SHUTDOWN_OPTS -S" \
+		su - -s /bin/sh "$JBOSS_USER" \
+			-c "export JAVA_HOME=\"${JAVA_HOME}\"; \
+                            export JBOSS_HOME=\"${JBOSS_HOME}\"; \
+                            \"$JBOSS_HOME/bin/shutdown.sh\" $SHUTDOWN_OPTS -S" \
 			>> "$CONSOLE" 2>&1 &
 
 	fi
@@ -227,6 +256,54 @@ stop_jboss()
 	return $OCF_SUCCESS
 }
 
+stop_jboss6()
+{
+	local lapse_sec
+
+	ocf_log info "Stopping JBoss[$RESOURCE_NAME]"
+
+	# JBoss6 get PID from PID file.
+	# Then send a signal to PID by the following order and stop.
+	# SIGTERM - SIGQUIT - SIGKILL
+	pidcheck_jboss
+	if [ $? -eq 0 ]; then
+		kill -s TERM $JBOSS_PID
+	else
+		ocf_log warn "PID file is broken: $JBOSS_PIDFILE"
+	fi
+
+	lapse_sec=0
+	while pgrep -f "$PSTRING" > /dev/null; do
+		sleep 1
+		lapse_sec=`expr $lapse_sec + 1`
+		ocf_log info "stop_jboss[$RESOURCE_NAME]: stop NORM $lapse_sec/$KILL_TIMEOUT"
+		if [ $lapse_sec -ge $KILL_TIMEOUT ]; then
+			break
+		fi
+	done
+
+	if pgrep -f "$PSTRING" > /dev/null; then 
+		ocf_log info "stop_jboss[$RESOURCE_NAME]: output a JVM thread dump to $CONSOLE"
+		kill -s QUIT $JBOSS_PID
+		lapse_sec=0
+		while pgrep -f "$PSTRING" > /dev/null; do
+			sleep 1
+			lapse_sec=`expr $lapse_sec + 1`
+			ocf_log info "stop_jboss[$RESOURCE_NAME]: kill jboss by SIGKILL ($lapse_sec/@@@)"
+			kill -s KILL $JBOSS_PID
+		done
+	fi
+
+	# PID file may not delete when send SIGKILL.
+	rm -f $JBOSS_PIDFILE
+
+	if ocf_is_true $ROTATELOG_FLG; then
+		rm -f "${CONSOLE}"
+	fi
+
+	return $OCF_SUCCESS
+}
+
 status_jboss()
 {
         if ! pgrep -f "$PSTRING" > /dev/null; then
@@ -259,6 +336,16 @@ Resource script for Jboss. It manages a Jboss instance as an HA resource.
 <shortdesc lang="en">Manages a JBoss application server instance</shortdesc>
 
 <parameters>
+
+<parameter name="jboss_version" unique="0" required="0">
+<longdesc lang="en">
+The version of JBoss. Default is 5.
+The usage of JBoss was greatly changed as of JBoss 6.
+Specify "6" when you use JBoss 6.
+</longdesc>
+<shortdesc>The version of JBoss</shortdesc>
+<content type="integer" default="5" />
+</parameter>
 
 <parameter name="resource_name" unique="1" required="0">
 <longdesc lang="en">
@@ -313,7 +400,7 @@ A user name to start a JBoss.
 URL to test in the monitor operation.
 </longdesc>
 <shortdesc>URL to test in the monitor operation.</shortdesc>
-<content type="string" default="http://127.0.0.1:8080" />
+<content type="string" default="${OCF_RESKEY_statusurl_default}" />
 </parameter>
 
 <parameter name="java_home" unique="0" required="0">
@@ -333,7 +420,7 @@ Java options.
 <content type="string" default=""/>
 </parameter>
 
-<parameter name="jboss_home" unique="1" required="1">
+<parameter name="jboss_home" unique="0" required="1">
 <longdesc lang="en">
 Home directory of Jboss.
 </longdesc>
@@ -341,12 +428,28 @@ Home directory of Jboss.
 <content type="string" default=""/>
 </parameter>
 
+<parameter name="jboss_base_dir" unique="0" required="0">
+<longdesc lang="en">
+Base directory of JBoss. This parameter is not used in JBoss5.
+</longdesc>
+<shortdesc>Base directory of JBoss.</shortdesc>
+<content type="string" default="${OCF_RESKEY_jboss_base_dir_default}" />
+</parameter>
+
 <parameter name="pstring" unique="0" required="0">
 <longdesc lang="en">
 With this string heartbeat matches for the right process to kill.
 </longdesc>
 <shortdesc>pkill/pgrep search string</shortdesc>
-<content type="string" default="java -Dprogram.name=run.sh" />
+<content type="string" default="${OCF_RESKEY_pstring_default}" />
+</parameter>
+
+<parameter name="run_command" unique="0" required="0">
+<longdesc lang="en">
+JBoss start command.
+</longdesc>
+<shortdesc>JBoss start command.</shortdesc>
+<content type="string" default="${OCF_RESKEY_run_command_default}" />
 </parameter>
 
 <parameter name="run_opts" unique="0" required="0">
@@ -354,7 +457,7 @@ With this string heartbeat matches for the right process to kill.
 Start options to start Jboss with, defaults are from the Jboss-Doku.
 </longdesc>
 <shortdesc>options for jboss run.sh</shortdesc>
-<content type="string" default="-c default -l lpg4j" />
+<content type="string" default="${OCF_RESKEY_run_opts_default}" />
 </parameter>
 
 <parameter name="shutdown_opts" unique="0" required="0">
@@ -363,6 +466,16 @@ Stop options to stop Jboss with.
 </longdesc>
 <shortdesc>options for jboss shutdown.sh</shortdesc>
 <content type="string" default="-s 127.0.0.1:1099" />
+</parameter>
+
+<parameter name="pidfile" unique="1" required="0">
+<longdesc lang="en">
+JBoss Process ID file.
+This parameter being effective after JBoss6.
+The PID file is not made in JBoss5, and this parameter value is ignored.
+</longdesc>
+<shortdesc>JBoss Process ID file.</shortdesc>
+<content type="string" default="/var/run/${OCF_RESKEY_resource_name}.pid" />
 </parameter>
 
 <parameter name="rotate_consolelog" unique="0">
@@ -412,13 +525,39 @@ validate_all_jboss()
 
 COMMAND=$1
 RESOURCE_NAME="${OCF_RESKEY_resource_name-${OCF_RESOURCE_INSTANCE}}"
+JBOSS_VERSION="${OCF_RESKEY_jboss_version-5}"
+if ! ocf_is_decimal $JBOSS_VERSION; then
+	ocf_log err "Invalid parameter value: jboss_version [$JBOSS_VERSION]"
+	return $OCF_ERR_ARGS
+fi
+# Setting of the default value
+if [ "$JBOSS_VERSION" -le 5 ]; then
+	OCF_RESKEY_statusurl_default="http://127.0.0.1:8080"
+	OCF_RESKEY_pstring_default="java -Dprogram.name=run.sh"
+	OCF_RESKEY_run_command_default="${OCF_RESKEY_jboss_home}/bin/run.sh"
+	OCF_RESKEY_run_opts_default="-c default"
+	STOP_JBOSS=stop_jboss5
+	# The following parameters not used.
+	JBOSS_PIDFILE=""
+	LAUNCH_JBOSS_IN_BACKGROUND=""
+else
+	OCF_RESKEY_jboss_base_dir_default="${OCF_RESKEY_jboss_home}/standalone"
+	JBOSS_BASE_DIR="${OCF_RESKEY_jboss_base_dir-${OCF_RESKEY_jboss_base_dir_default}}"
+	OCF_RESKEY_statusurl_default="http://127.0.0.1:9990"
+	OCF_RESKEY_pstring_default="java.*-Djboss.server.base.dir=${JBOSS_BASE_DIR}( .*)?$"
+	OCF_RESKEY_run_command_default="${OCF_RESKEY_jboss_home}/bin/standalone.sh"
+	OCF_RESKEY_run_opts_default=""
+	STOP_JBOSS=stop_jboss6
+	JBOSS_PIDFILE="${OCF_RESKEY_pidfile-/var/run/$RESOURCE_NAME.pid}"
+	LAUNCH_JBOSS_IN_BACKGROUND=y
+fi
 CONSOLE="${OCF_RESKEY_console-/var/log/${RESOURCE_NAME}.log}"
 SHUTDOWN_TIMEOUT="${OCF_RESKEY_shutdown_timeout-5}"
 KILL_TIMEOUT="${OCF_RESKEY_kill_timeout-10}"
 JBOSS_USER="${OCF_RESKEY_user-root}"
-STATUSURL="${OCF_RESKEY_statusurl-http://127.0.0.1:8080}"
-PSTRING="${OCF_RESKEY_pstring-java -Dprogram.name=run.sh}"
-RUN_OPTS="${OCF_RESKEY_run_opts--c default -l lpg4j}"
+STATUSURL="${OCF_RESKEY_statusurl-${OCF_RESKEY_statusurl_default}}"
+PSTRING="${OCF_RESKEY_pstring-${OCF_RESKEY_pstring_default}}"
+RUN_OPTS="${OCF_RESKEY_run_opts-${OCF_RESKEY_run_opts_default}}"
 SHUTDOWN_OPTS="${OCF_RESKEY_shutdown_opts--s 127.0.0.1:1099}"
 ROTATELOG_FLG="${OCF_RESKEY_rotate_consolelog-false}"
 ROTATEVALUE="${OCF_RESKEY_rotate_value-86400}"
@@ -443,6 +582,7 @@ fi
 JAVA_HOME="${OCF_RESKEY_java_home-${JAVA_HOME}}"
 JAVA_OPTS="${OCF_RESKEY_java_opts}"
 JBOSS_HOME="${OCF_RESKEY_jboss_home}"
+RUN_COMMAND="${OCF_RESKEY_run_command-${OCF_RESKEY_run_command_default}}"
 
 LSB_STATUS_STOPPED=3
 if [ ! -d "$JAVA_HOME" -o ! -d "$JBOSS_HOME" ]; then
@@ -455,7 +595,7 @@ if [ ! -d "$JAVA_HOME" -o ! -d "$JBOSS_HOME" ]; then
 	exit $OCF_ERR_INSTALLED
 fi
 
-export JAVA_HOME JAVA_OPTS JBOSS_HOME
+export JAVA_HOME JAVA_OPTS JBOSS_HOME JBOSS_BASE_DIR JBOSS_PIDFILE LAUNCH_JBOSS_IN_BACKGROUND
 
 JAVA=${JAVA_HOME}/bin/java
 
@@ -476,7 +616,7 @@ case "$COMMAND" in
 		exit $func_status
 		;;
 	stop)
-		stop_jboss
+		$STOP_JBOSS
 		func_status=$?
 		exit $func_status
 		;;
