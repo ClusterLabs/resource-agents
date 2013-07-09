@@ -290,7 +290,7 @@ stop_jboss6()
 			sleep 1
 			lapse_sec=`expr $lapse_sec + 1`
 			ocf_log info "stop_jboss[$RESOURCE_NAME]: kill jboss by SIGKILL ($lapse_sec/@@@)"
-			kill -s -KILL $JBOSS_PID
+			kill -s KILL $JBOSS_PID
 		done
 	fi
 
