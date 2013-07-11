@@ -144,7 +144,7 @@ start_jboss()
 		"$JBOSS_HOME/bin/run.sh" $RUN_OPTS \
 			>> "$CONSOLE" 2>&1 &
 	else
-		su - -s /bin/bash "$JBOSS_USER" \
+		su - -s /bin/sh "$JBOSS_USER" \
 			-c "export JAVA_HOME=${JAVA_HOME}; \
                             export JAVA_OPTS=\"${JAVA_OPTS}\"; \
                             export JBOSS_HOME=${JBOSS_HOME}; \
@@ -172,7 +172,7 @@ stop_jboss()
 		"$JBOSS_HOME/bin/shutdown.sh" $SHUTDOWN_OPTS -S \
 			>> "$CONSOLE" 2>&1 &
 	else
-		su - -s /bin/bash "$JBOSS_USER" \
+		su - -s /bin/sh "$JBOSS_USER" \
 			-c "export JAVA_HOME=${JAVA_HOME}; \
                             export JBOSS_HOME=${JBOSS_HOME}; \
                             $JBOSS_HOME/bin/shutdown.sh $SHUTDOWN_OPTS -S" \
