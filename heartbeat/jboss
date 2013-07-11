@@ -370,7 +370,7 @@ Stop options to stop Jboss with.
 Rotate console log flag.
 </longdesc>
 <shortdesc>Rotate console log flag</shortdesc>
-<content type="string" default="false" />
+<content type="boolean" default="false" />
 </parameter>
 
 <parameter name="rotate_value" unique="0">
