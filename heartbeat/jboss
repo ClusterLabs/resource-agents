@@ -197,40 +197,74 @@ wait_process_exit()
     return 0
 }
 
+stop_jboss5()
+{
+    if [ "$JBOSS_USER" = root ]; then
+        "$JBOSS_HOME/bin/shutdown.sh" $SHUTDOWN_OPTS -S \
+            >> "$CONSOLE" 2>&1 &
+    else
+        su - -s /bin/sh "$JBOSS_USER" \
+            -c "export JAVA_HOME=\"${JAVA_HOME}\"; \
+                export JBOSS_HOME=\"${JBOSS_HOME}\"; \
+                \"$JBOSS_HOME/bin/shutdown.sh\" $SHUTDOWN_OPTS -S" \
+            >> "$CONSOLE" 2>&1 &
+    fi
+    if ! wait_process_exit $SHUTDOWN_TIMEOUT; then
+        output_thread_dump
+        if ! wait_process_exit $KILL_TIMEOUT TERM; then
+            return 1
+        fi
+    fi
+    return 0
+}
+
+stop_jboss6()
+{
+    pkill -TERM -f "$PSTRING"
+
+    if ! wait_process_exit $SHUTDOWN_TIMEOUT; then
+        output_thread_dump
+        return 1
+    fi
+    return 0
+}
+
 stop_jboss()
 {
-    ocf_log info "Stopping JBoss[$RESOURCE_NAME]"
+    local rc
 
     if ! pgrep -f "$PSTRING" > /dev/null; then
         ocf_log info "JBoss[$RESOURCE_NAME] is already stopped."
     else
-        if [ "$JBOSS_USER" = root ]; then
-            "$JBOSS_HOME/bin/shutdown.sh" $SHUTDOWN_OPTS -S \
-                >> "$CONSOLE" 2>&1 &
+        ocf_log info "Stopping JBoss[$RESOURCE_NAME]"
+        # JBoss5 : shutdonw.sh -> SIGQUIT(output thread dump) -> SIGTERM
+        #   If the JBoss process hangs, JBoss RA waits $SHUTDOWN_TIMEOUT
+        #   seconds and tries kill TERM and QUIT for $KILL_TIMEOUT seconds.
+        # JBoss6 : SIGTERM -> SIGQUIT(output thread dump)
+        #   If the JBoss process hangs, JBoss RA waits $SHUTDOWN_TIMEOUT
+        #   seconds and tries kill QUIT.
+        if [ "$JBOSS_VERSION" -le 5 ]; then
+            stop_jboss5
+            rc=$?
         else
-            su - -s /bin/sh "$JBOSS_USER" \
-                -c "export JAVA_HOME=\"${JAVA_HOME}\"; \
-                    export JBOSS_HOME=\"${JBOSS_HOME}\"; \
-                    \"$JBOSS_HOME/bin/shutdown.sh\" $SHUTDOWN_OPTS -S" \
-                >> "$CONSOLE" 2>&1 &
+            stop_jboss6
+            rc=$?
         fi
-        if ! wait_process_exit $SHUTDOWN_TIMEOUT; then
-            output_thread_dump
-            if ! wait_process_exit $KILL_TIMEOUT TERM; then
-                # If the JBoss process hangs, JBoss RA waits $SHUTDOWN_TIMEOUT
-                # seconds and tries kill TERM and QUIT for $KILL_TIMEOUT seconds.
-                # The stop timeout of RA should be
-                # longer than $SHUTDOWN_TIMEOUT + $KILL_TIMEOUT.
-                wait_process_exit 0 KILL
-            fi
+        if [ $rc -ne 0 ]; then
+            # JBoss5
+            #   The stop timeout of RA should be
+            #   longer than $SHUTDOWN_TIMEOUT + $KILL_TIMEOUT.
+            # JBoss6
+            #   The stop timeout of RA should be longer than $SHUTDOWN_TIMEOUT.
+            wait_process_exit 0 KILL
         fi
+        ocf_log info "JBoss[$RESOURCE_NAME] is stopped."
     fi
 
     if ocf_is_true $ROTATELOG_FLG; then
         rm -f "${CONSOLE}"
     fi
 
-    ocf_log info "JBoss[$RESOURCE_NAME] is stopped."
     return $OCF_SUCCESS
 }
 
