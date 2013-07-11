@@ -170,6 +170,30 @@ output_thread_dump()
 	pkill -QUIT -f "$PSTRING"
 }
 
+# arg1 : timeout
+# arg2 : send specified signal
+wait_process_exit()
+{
+    local lapse_sec=0
+    local timeout=$1
+    local signal=$2
+
+    while pgrep -f "$PSTRING" > /dev/null; do
+        sleep 1
+        lapse_sec=`expr $lapse_sec + 1`
+        if [ -n "$signal" ]; then
+            ocf_log info "stop_jboss[$RESOURCE_NAME]: kill jboss by SIG$signal ($lapse_sec/$timeout)"
+            pkill -$signal -f "$PSTRING"
+        else
+            ocf_log info "stop_jboss[$RESOURCE_NAME]: stop NORM $lapse_sec/$timeout"
+        fi
+	if [ "$timeout" -ne 0 -a $lapse_sec -ge $timeout ]; then
+            return 1
+	fi
+    done
+    return 0
+}
+
 stop_jboss()
 {
 	ocf_log info "Stopping JBoss[$RESOURCE_NAME]"
@@ -186,48 +210,20 @@ stop_jboss()
 
 	fi
 
-	lapse_sec=0
-	while pgrep -f "$PSTRING" > /dev/null; do
-		sleep 1
-		lapse_sec=`expr $lapse_sec + 1`
-		ocf_log info "stop_jboss[$RESOURCE_NAME]: stop NORM $lapse_sec/$SHUTDOWN_TIMEOUT"
-		if [ $lapse_sec -ge $SHUTDOWN_TIMEOUT ]; then
-			break
-		fi
-	done
-
-	if pgrep -f "$PSTRING" > /dev/null; then 
+	if ! wait_process_exit $SHUTDOWN_TIMEOUT; then
 		output_thread_dump
-		lapse_sec=0
-		while true; do
-			sleep 1
-			lapse_sec=`expr $lapse_sec + 1`
-			ocf_log info "stop_jboss[$RESOURCE_NAME]: kill jboss by SIGTERM ($lapse_sec/$KILL_TIMEOUT)"
-			pkill -TERM -f "$PSTRING"
-			if pgrep -f "$PSTRING" > /dev/null; then
-				if [ $lapse_sec -ge $KILL_TIMEOUT ]; then
-					break
-				fi
-			else
-				break
-			fi
-		done
+		wait_process_exit $KILL_TIMEOUT TERM
 	fi
+
 	# If the JBoss process hangs, JBoss RA waits $SHUTDOWN_TIMEOUT
 	# seconds and tries kill TERM and QUIT for $KILL_TIMEOUT seconds.
 	# The stop timeout of RA should be
 	# longer than $SHUTDOWN_TIMEOUT + $KILL_TIMEOUT.
-	lapse_sec=0
-	while pgrep -f "$PSTRING" > /dev/null; do
-		sleep 1
-		lapse_sec=`expr $lapse_sec + 1`
-		ocf_log info "stop_jboss[$RESOURCE_NAME]: kill jboss by SIGKILL ($lapse_sec/@@@)"
-		pkill -KILL -f "$PSTRING"
-	done
+        wait_process_exit 0 KILL
 
-	if ocf_is_true $ROTATELOG_FLG; then
-		rm -f "${CONSOLE}"
-	fi
+        if ocf_is_true $ROTATELOG_FLG; then
+            rm -f "${CONSOLE}"
+        fi
 
 	return $OCF_SUCCESS
 }
