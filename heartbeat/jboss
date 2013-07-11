@@ -42,7 +42,7 @@
 # greatly depends on the environment. At any rate, system architect
 # should note that pstring doesn't influence other processes.
 #   OCF_RESKEY_pstring - String Jboss will found in procceslist. Default is "java -Dprogram.name=run.sh"
-#   OCF_RESKEY_run_opts - Options for jboss to run. Default is "-c default -l lpg4j"
+#   OCF_RESKEY_run_opts - Options for jboss to run. Default is "-c default"
 #   OCF_RESKEY_shutdown_opts - Options for jboss to shutdonw. Default is "-s 127.0.0.1:1099"
 #   OCF_RESKEY_rotate_consolelog - Control console log logrotation flag. Default is false.
 #   OCF_RESKEY_rotate_value - console log logrotation value. Default is 86400 span(seconds).
@@ -354,7 +354,7 @@ With this string heartbeat matches for the right process to kill.
 Start options to start Jboss with, defaults are from the Jboss-Doku.
 </longdesc>
 <shortdesc>options for jboss run.sh</shortdesc>
-<content type="string" default="-c default -l lpg4j" />
+<content type="string" default="-c default" />
 </parameter>
 
 <parameter name="shutdown_opts" unique="0" required="0">
@@ -418,7 +418,7 @@ KILL_TIMEOUT="${OCF_RESKEY_kill_timeout-10}"
 JBOSS_USER="${OCF_RESKEY_user-root}"
 STATUSURL="${OCF_RESKEY_statusurl-http://127.0.0.1:8080}"
 PSTRING="${OCF_RESKEY_pstring-java -Dprogram.name=run.sh}"
-RUN_OPTS="${OCF_RESKEY_run_opts--c default -l lpg4j}"
+RUN_OPTS="${OCF_RESKEY_run_opts--c default}"
 SHUTDOWN_OPTS="${OCF_RESKEY_shutdown_opts--s 127.0.0.1:1099}"
 ROTATELOG_FLG="${OCF_RESKEY_rotate_consolelog-false}"
 ROTATEVALUE="${OCF_RESKEY_rotate_value-86400}"
