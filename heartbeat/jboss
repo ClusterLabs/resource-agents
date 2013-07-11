@@ -386,7 +386,7 @@ Java options.
 <content type="string" default=""/>
 </parameter>
 
-<parameter name="jboss_home" unique="1" required="1">
+<parameter name="jboss_home" unique="0" required="1">
 <longdesc lang="en">
 Home directory of Jboss.
 </longdesc>
