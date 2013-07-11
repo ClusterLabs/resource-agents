@@ -164,6 +164,12 @@ start_jboss()
 	return $OCF_SUCCESS
 }
 
+output_thread_dump()
+{
+	ocf_log info "stop_jboss[$RESOURCE_NAME]: output a JVM thread dump to $CONSOLE"
+	pkill -QUIT -f "$PSTRING"
+}
+
 stop_jboss()
 {
 	ocf_log info "Stopping JBoss[$RESOURCE_NAME]"
@@ -191,8 +197,7 @@ stop_jboss()
 	done
 
 	if pgrep -f "$PSTRING" > /dev/null; then 
-		ocf_log info "stop_jboss[$RESOURCE_NAME]: output a JVM thread dump to $CONSOLE"
-		pkill -QUIT -f "$PSTRING"
+		output_thread_dump
 		lapse_sec=0
 		while true; do
 			sleep 1
