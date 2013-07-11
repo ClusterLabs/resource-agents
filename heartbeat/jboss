@@ -161,6 +161,7 @@ start_jboss()
 		sleep 3
 	done
 
+	ocf_log info "JBoss[$RESOURCE_NAME] is started."
 	return $OCF_SUCCESS
 }
 
@@ -225,6 +226,7 @@ stop_jboss()
             rm -f "${CONSOLE}"
         fi
 
+	ocf_log info "JBoss[$RESOURCE_NAME] is stopped."
 	return $OCF_SUCCESS
 }
 
