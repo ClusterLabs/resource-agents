@@ -514,7 +514,11 @@ END
 }
 
 apache_validate_all() {
-	if [ ! -x $HTTPD ]; then
+	if [ -z "$HTTPD" ]; then
+		ocf_log err "apache httpd program not found"
+		return $OCF_ERR_INSTALLED
+	fi
+	if [ ! -x "$HTTPD" ]; then
 		ocf_log err "HTTPD $HTTPD not found or is not an executable!"
 		return $OCF_ERR_INSTALLED
 	fi
@@ -566,10 +570,12 @@ apache_getconfig() {
 	fi
 
 	CONFIGFILE=${CONFIGFILE:-$DefaultConfig}
-	httpd_basename=`basename $HTTPD`
-	case $httpd_basename in
-		*-*)	httpd_basename=`echo "$httpd_basename" | sed -e 's%\-.*%%'`;;
-	esac
+	if [ -n "$HTTPD" ]; then
+		httpd_basename=`basename $HTTPD`
+		case $httpd_basename in
+			*-*)	httpd_basename=`echo "$httpd_basename" | sed -e 's%\-.*%%'`;;
+		esac
+	fi
 	GetParams $CONFIGFILE
 }
 
