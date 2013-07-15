@@ -514,32 +514,10 @@ END
 }
 
 apache_validate_all() {
-	if CheckPort $PORT; then
-# We are sure to succeed here, since we forced $PORT to be valid in GetParams()
-		: OK
-	else
-		ocf_log err "Port number $PORT is invalid!"
-		return $OCF_ERR_INSTALLED
-	fi
-
-	case $STATUSURL in
-		http://*) ;;
-		*) 
-			ocf_log err "Invalid STATUSURL $STATUSURL"
-			return $OCF_ERR_CONFIGURED ;;
-	esac
-
 	if [ ! -x $HTTPD ]; then
 		ocf_log err "HTTPD $HTTPD not found or is not an executable!"
 		return $OCF_ERR_INSTALLED
 	fi
-
-	if [ ! -f $CONFIGFILE ]; then
-# We are sure to succeed here, since we have parsed $CONFIGFILE before getting here
-		ocf_log err "Configuration file $CONFIGFILE not found!"
-		return $OCF_ERR_INSTALLED
-	fi
-
 	return $OCF_SUCCESS
 }
 
