@@ -23,6 +23,7 @@
 #######################################################################
 # OCF parameters:
 #   OCF_RESKEY_resource_name - The name of the resource. Default is ${OCF_RESOURCE_INSTANCE}
+#   OCF_RESKEY_jboss_version - The version of JBoss. Default is 5.
 # why not let the RA log through lrmd?
 # 2009/09/09 Nakahira:
 # jboss_console is used to record output of the "run.sh".
@@ -31,7 +32,7 @@
 #   OCF_RESKEY_shutdown_timeout - Time-out at the time of the stop. Default is 5
 #   OCF_RESKEY_kill_timeout - The re-try number of times awaiting a stop. Default is 10
 #   OCF_RESKEY_user - A user name to start a JBoss. Default is root
-#   OCF_RESKEY_statusurl - URL for state confirmation. Default is http://127.0.0.1:8080
+#   OCF_RESKEY_statusurl - URL for state confirmation. Default is ${OCF_RESKEY_statusurl_default}
 #   OCF_RESKEY_java_home - Home directory of the Java. Default is ${JAVA_HOME}
 #   OCF_RESKEY_java_opts - Options for Java.
 #   OCF_RESKEY_jboss_home - Home directory of Jboss. Default is None
@@ -41,8 +42,10 @@
 # It is difficult to set it automatically because jboss_pstring
 # greatly depends on the environment. At any rate, system architect
 # should note that pstring doesn't influence other processes.
-#   OCF_RESKEY_pstring - String Jboss will found in procceslist. Default is "java -Dprogram.name=run.sh"
-#   OCF_RESKEY_run_opts - Options for jboss to run. Default is "-c default -l lpg4j"
+#   OCF_RESKEY_jboss_base_dir - Base directory of JBoss. Default is ${OCF_RESKEY_jboss_base_dir_default}
+#   OCF_RESKEY_pstring - String Jboss will found in procceslist. Default is ${OCF_RESKEY_pstring_default}
+#   OCF_RESKEY_run_command - JBoss start command. Default is "${OCF_RESKEY_run_command_default}"
+#   OCF_RESKEY_run_opts - Options for jboss to run. Default is ${OCF_RESKEY_run_opts_default}
 #   OCF_RESKEY_shutdown_opts - Options for jboss to shutdonw. Default is "-s 127.0.0.1:1099"
 #   OCF_RESKEY_rotate_consolelog - Control console log logrotation flag. Default is false.
 #   OCF_RESKEY_rotate_value - console log logrotation value. Default is 86400 span(seconds).
@@ -53,9 +56,9 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
-usage() 
+usage()
 {
-	cat <<-!
+    cat <<-!
 usage: $0 action
 
 action:
@@ -72,176 +75,216 @@ action:
 
         validate-all    validate the instance parameters
 !
-	return $OCF_ERR_ARGS
+    return $OCF_ERR_ARGS
 }
 
 isrunning_jboss()
 {
-	local rc
-	if [ -z "$1" ];then
-		ocf_run -q -err wget -t 1 -O /dev/null $STATUSURL
-	else
-		# Retry message for restraint
-		wget -t 1 -O /dev/null $STATUSURL 2>/dev/null
-	fi
-	rc=$?
-	if [ $rc -eq 0 ]; then
-		return $OCF_SUCCESS
-	fi
-	# JBoss service error 
-	return $OCF_ERR_GENERIC
+    local rc
+    if [ -z "$1" ];then
+        ocf_run -q -err wget -t 1 -O /dev/null $STATUSURL
+    else
+        # Retry message for restraint
+        wget -t 1 -O /dev/null $STATUSURL 2>/dev/null
+    fi
+    rc=$?
+    if [ $rc -eq 0 ]; then
+        return $OCF_SUCCESS
+    fi
+    # JBoss service error
+    return $OCF_ERR_GENERIC
 }
 
 monitor_jboss()
 {
-	if ! pgrep -f "$PSTRING" > /dev/null; then
-		return $OCF_NOT_RUNNING
-	fi
-	isrunning_jboss $1
+    if ! pgrep -f "$PSTRING" > /dev/null; then
+        return $OCF_NOT_RUNNING
+    fi
+    isrunning_jboss $1
 }
 
 rotate_console()
 {
-	# Look for rotatelogs/rotatelogs2
-	if [ -x /usr/sbin/rotatelogs ]; then
-		ROTATELOGS=/usr/sbin/rotatelogs
-	elif [ -x /usr/sbin/rotatelogs2 ]; then
-		ROTATELOGS=/usr/sbin/rotatelogs2
-	else
-		ocf_log warn "rotatelogs command not found."
-		return 1
-	fi
+    # Look for rotatelogs/rotatelogs2
+    if [ -x /usr/sbin/rotatelogs ]; then
+        ROTATELOGS=/usr/sbin/rotatelogs
+    elif [ -x /usr/sbin/rotatelogs2 ]; then
+        ROTATELOGS=/usr/sbin/rotatelogs2
+    else
+        ocf_log warn "rotatelogs command not found."
+        return 1
+    fi
 
-	# Clean up and set permissions on required files
-	rm -rf "$CONSOLE"
-	mkfifo -m700 "$CONSOLE"
-	chown --dereference "$JBOSS_USER" "$CONSOLE" || true
+    # Clean up and set permissions on required files
+    rm -rf "$CONSOLE"
+    mkfifo -m700 "$CONSOLE"
+    chown --dereference "$JBOSS_USER" "$CONSOLE" || true
 
-	su - -s /bin/sh $JBOSS_USER \
-		-c "$ROTATELOGS -l \"$CONSOLE$ROTATELOG_SUFFIX\" $ROTATEVALUE" \
-		< "$CONSOLE" > /dev/null 2>&1 &
+    su - -s /bin/sh $JBOSS_USER \
+        -c "$ROTATELOGS -l \"$CONSOLE$ROTATELOG_SUFFIX\" $ROTATEVALUE" \
+        < "$CONSOLE" > /dev/null 2>&1 &
 }
 
 start_jboss()
 {
-	monitor_jboss start
-	if [ $? = $OCF_SUCCESS ]; then
-		ocf_log info "JBoss already running."
-		return $OCF_SUCCESS
-	fi
-	
-	if ocf_is_true $ROTATELOG_FLG; then
-		rotate_console
-		if [ $? = 0 ]; then
-			ocf_log debug "Rotate console log succeeded."
-		else
-			ocf_log warn "Rotate console log failed. Starting jboss without console log rotation."
-		fi
-	fi
+    monitor_jboss start
+    if [ $? = $OCF_SUCCESS ]; then
+        ocf_log info "JBoss already running."
+        return $OCF_SUCCESS
+    fi
 
-	ocf_log info "Starting JBoss[$RESOURCE_NAME]"
-	if [ "$JBOSS_USER" = root ]; then
-		"$JBOSS_HOME/bin/run.sh" $RUN_OPTS \
-			>> "$CONSOLE" 2>&1 &
-	else
-		su - -s /bin/bash "$JBOSS_USER" \
-			-c "export JAVA_HOME=${JAVA_HOME}; \
-                            export JAVA_OPTS=\"${JAVA_OPTS}\"; \
-                            export JBOSS_HOME=${JBOSS_HOME}; \
-                            $JBOSS_HOME/bin/run.sh $RUN_OPTS" \
-			>> "$CONSOLE" 2>&1 &
-	fi
+    if ocf_is_true $ROTATELOG_FLG; then
+        rotate_console
+        if [ $? = 0 ]; then
+            ocf_log debug "Rotate console log succeeded."
+        else
+            ocf_log warn "Rotate console log failed. Starting jboss without console log rotation."
+        fi
+    fi
 
-	while true; do
-		monitor_jboss start
-		if [ $? = $OCF_SUCCESS ]; then
-			break
-		fi
-		ocf_log info "start_jboss[$RESOURCE_NAME]: retry monitor_jboss"
-		sleep 3
-	done
+    ocf_log info "Starting JBoss[$RESOURCE_NAME]"
+    if [ "$JBOSS_USER" = root ]; then
+        "$RUN_COMMAND" $RUN_OPTS \
+            >> "$CONSOLE" 2>&1 &
+    else
+        su - -s /bin/sh "$JBOSS_USER" \
+            -c "export JAVA_HOME=\"${JAVA_HOME}\"; \
+                export JAVA_OPTS=\"${JAVA_OPTS}\"; \
+                export JBOSS_HOME=\"${JBOSS_HOME}\"; \
+                export JBOSS_BASE_DIR=\"${JBOSS_BASE_DIR}\"; \
+                \"$RUN_COMMAND\" $RUN_OPTS" \
+            >> "$CONSOLE" 2>&1 &
+    fi
 
-	return $OCF_SUCCESS
+    while true; do
+        monitor_jboss start
+        if [ $? = $OCF_SUCCESS ]; then
+            break
+        fi
+        ocf_log info "start_jboss[$RESOURCE_NAME]: retry monitor_jboss"
+        sleep 3
+    done
+
+    ocf_log info "JBoss[$RESOURCE_NAME] is started."
+    return $OCF_SUCCESS
+}
+
+output_thread_dump()
+{
+    ocf_log info "stop_jboss[$RESOURCE_NAME]: output a JVM thread dump to $CONSOLE"
+    pkill -QUIT -f "$PSTRING"
+}
+
+# arg1 : timeout
+# arg2 : send specified signal
+wait_process_exit()
+{
+    local lapse_sec=0
+    local timeout=$1
+    local signal=$2
+
+    while pgrep -f "$PSTRING" > /dev/null; do
+        sleep 1
+        lapse_sec=`expr $lapse_sec + 1`
+        if [ -n "$signal" ]; then
+            ocf_log info "stop_jboss[$RESOURCE_NAME]: kill jboss by SIG$signal ($lapse_sec/$timeout)"
+            pkill -$signal -f "$PSTRING"
+        else
+            ocf_log info "stop_jboss[$RESOURCE_NAME]: stop NORM $lapse_sec/$timeout"
+        fi
+        if [ "$timeout" -ne 0 -a $lapse_sec -ge $timeout ]; then
+            return 1
+        fi
+    done
+    return 0
+}
+
+stop_jboss5()
+{
+    if [ "$JBOSS_USER" = root ]; then
+        "$JBOSS_HOME/bin/shutdown.sh" $SHUTDOWN_OPTS -S \
+            >> "$CONSOLE" 2>&1 &
+    else
+        su - -s /bin/sh "$JBOSS_USER" \
+            -c "export JAVA_HOME=\"${JAVA_HOME}\"; \
+                export JBOSS_HOME=\"${JBOSS_HOME}\"; \
+                \"$JBOSS_HOME/bin/shutdown.sh\" $SHUTDOWN_OPTS -S" \
+            >> "$CONSOLE" 2>&1 &
+    fi
+    if ! wait_process_exit $SHUTDOWN_TIMEOUT; then
+        output_thread_dump
+        if ! wait_process_exit $KILL_TIMEOUT TERM; then
+            return 1
+        fi
+    fi
+    return 0
+}
+
+stop_jboss6()
+{
+    pkill -TERM -f "$PSTRING"
+
+    if ! wait_process_exit $SHUTDOWN_TIMEOUT; then
+        output_thread_dump
+        return 1
+    fi
+    return 0
 }
 
 stop_jboss()
 {
-	ocf_log info "Stopping JBoss[$RESOURCE_NAME]"
+    local rc
 
-	if [ "$JBOSS_USER" = root ]; then
-		"$JBOSS_HOME/bin/shutdown.sh" $SHUTDOWN_OPTS -S \
-			>> "$CONSOLE" 2>&1 &
-	else
-		su - -s /bin/bash "$JBOSS_USER" \
-			-c "export JAVA_HOME=${JAVA_HOME}; \
-                            export JBOSS_HOME=${JBOSS_HOME}; \
-                            $JBOSS_HOME/bin/shutdown.sh $SHUTDOWN_OPTS -S" \
-			>> "$CONSOLE" 2>&1 &
+    if ! pgrep -f "$PSTRING" > /dev/null; then
+        ocf_log info "JBoss[$RESOURCE_NAME] is already stopped."
+    else
+        ocf_log info "Stopping JBoss[$RESOURCE_NAME]"
+        # JBoss5 : shutdonw.sh -> SIGQUIT(output thread dump) -> SIGTERM
+        #   If the JBoss process hangs, JBoss RA waits $SHUTDOWN_TIMEOUT
+        #   seconds and tries kill TERM and QUIT for $KILL_TIMEOUT seconds.
+        # JBoss6 : SIGTERM -> SIGQUIT(output thread dump)
+        #   If the JBoss process hangs, JBoss RA waits $SHUTDOWN_TIMEOUT
+        #   seconds and tries kill QUIT.
+        if [ "$JBOSS_VERSION" -le 5 ]; then
+            stop_jboss5
+            rc=$?
+        else
+            stop_jboss6
+            rc=$?
+        fi
+        if [ $rc -ne 0 ]; then
+            # JBoss5
+            #   The stop timeout of RA should be
+            #   longer than $SHUTDOWN_TIMEOUT + $KILL_TIMEOUT.
+            # JBoss6
+            #   The stop timeout of RA should be longer than $SHUTDOWN_TIMEOUT.
+            wait_process_exit 0 KILL
+        fi
+        ocf_log info "JBoss[$RESOURCE_NAME] is stopped."
+    fi
 
-	fi
+    if ocf_is_true $ROTATELOG_FLG; then
+        rm -f "${CONSOLE}"
+    fi
 
-	lapse_sec=0
-	while pgrep -f "$PSTRING" > /dev/null; do
-		sleep 1
-		lapse_sec=`expr $lapse_sec + 1`
-		ocf_log info "stop_jboss[$RESOURCE_NAME]: stop NORM $lapse_sec/$SHUTDOWN_TIMEOUT"
-		if [ $lapse_sec -ge $SHUTDOWN_TIMEOUT ]; then
-			break
-		fi
-	done
-
-	if pgrep -f "$PSTRING" > /dev/null; then 
-		ocf_log info "stop_jboss[$RESOURCE_NAME]: output a JVM thread dump to $CONSOLE"
-		pkill -QUIT -f "$PSTRING"
-		lapse_sec=0
-		while true; do
-			sleep 1
-			lapse_sec=`expr $lapse_sec + 1`
-			ocf_log info "stop_jboss[$RESOURCE_NAME]: kill jboss by SIGTERM ($lapse_sec/$KILL_TIMEOUT)"
-			pkill -TERM -f "$PSTRING"
-			if pgrep -f "$PSTRING" > /dev/null; then
-				if [ $lapse_sec -ge $KILL_TIMEOUT ]; then
-					break
-				fi
-			else
-				break
-			fi
-		done
-	fi
-	# If the JBoss process hangs, JBoss RA waits $SHUTDOWN_TIMEOUT
-	# seconds and tries kill TERM and QUIT for $KILL_TIMEOUT seconds.
-	# The stop timeout of RA should be
-	# longer than $SHUTDOWN_TIMEOUT + $KILL_TIMEOUT.
-	lapse_sec=0
-	while pgrep -f "$PSTRING" > /dev/null; do
-		sleep 1
-		lapse_sec=`expr $lapse_sec + 1`
-		ocf_log info "stop_jboss[$RESOURCE_NAME]: kill jboss by SIGKILL ($lapse_sec/@@@)"
-		pkill -KILL -f "$PSTRING"
-	done
-
-	if ocf_is_true $ROTATELOG_FLG; then
-		rm -f "${CONSOLE}"
-	fi
-
-	return $OCF_SUCCESS
+    return $OCF_SUCCESS
 }
 
 status_jboss()
 {
-        if ! pgrep -f "$PSTRING" > /dev/null; then
-                echo "JBoss process[$RESOURCE_NAME] is not running."
-                return $OCF_NOT_RUNNING
-        fi
+    if ! pgrep -f "$PSTRING" > /dev/null; then
+        echo "JBoss process[$RESOURCE_NAME] is not running."
+        return $OCF_NOT_RUNNING
+    fi
 
-        if isrunning_jboss; then
-                echo "JBoss[$RESOURCE_NAME] is running."
-                return $OCF_SUCCESS
-        else
-                echo "JBoss process[$RESOURCE_NAME] is running."
-                echo "But, we can not access JBoss web service."
-                return $OCF_NOT_RUNNING
-        fi
+    if isrunning_jboss; then
+        echo "JBoss[$RESOURCE_NAME] is running."
+        return $OCF_SUCCESS
+    else
+        echo "JBoss process[$RESOURCE_NAME] is running."
+        echo "But, we can not access JBoss web service."
+        return $OCF_NOT_RUNNING
+    fi
 }
 
 
@@ -259,6 +302,16 @@ Resource script for Jboss. It manages a Jboss instance as an HA resource.
 <shortdesc lang="en">Manages a JBoss application server instance</shortdesc>
 
 <parameters>
+
+<parameter name="jboss_version" unique="0" required="0">
+<longdesc lang="en">
+The version of JBoss. Default is 5.
+The usage of JBoss was greatly changed as of JBoss 6.
+Specify "6" when you use JBoss 6.
+</longdesc>
+<shortdesc>The version of JBoss</shortdesc>
+<content type="integer" default="5" />
+</parameter>
 
 <parameter name="resource_name" unique="1" required="0">
 <longdesc lang="en">
@@ -313,7 +366,7 @@ A user name to start a JBoss.
 URL to test in the monitor operation.
 </longdesc>
 <shortdesc>URL to test in the monitor operation.</shortdesc>
-<content type="string" default="http://127.0.0.1:8080" />
+<content type="string" default="${OCF_RESKEY_statusurl_default}" />
 </parameter>
 
 <parameter name="java_home" unique="0" required="0">
@@ -333,7 +386,7 @@ Java options.
 <content type="string" default=""/>
 </parameter>
 
-<parameter name="jboss_home" unique="1" required="1">
+<parameter name="jboss_home" unique="0" required="1">
 <longdesc lang="en">
 Home directory of Jboss.
 </longdesc>
@@ -341,12 +394,28 @@ Home directory of Jboss.
 <content type="string" default=""/>
 </parameter>
 
+<parameter name="jboss_base_dir" unique="0" required="0">
+<longdesc lang="en">
+Base directory of JBoss. This parameter is not used in JBoss5.
+</longdesc>
+<shortdesc>Base directory of JBoss.</shortdesc>
+<content type="string" default="${OCF_RESKEY_jboss_base_dir_default}" />
+</parameter>
+
 <parameter name="pstring" unique="0" required="0">
 <longdesc lang="en">
 With this string heartbeat matches for the right process to kill.
 </longdesc>
 <shortdesc>pkill/pgrep search string</shortdesc>
-<content type="string" default="java -Dprogram.name=run.sh" />
+<content type="string" default="${OCF_RESKEY_pstring_default}" />
+</parameter>
+
+<parameter name="run_command" unique="0" required="0">
+<longdesc lang="en">
+JBoss start command.
+</longdesc>
+<shortdesc>JBoss start command.</shortdesc>
+<content type="string" default="${OCF_RESKEY_run_command_default}" />
 </parameter>
 
 <parameter name="run_opts" unique="0" required="0">
@@ -354,7 +423,7 @@ With this string heartbeat matches for the right process to kill.
 Start options to start Jboss with, defaults are from the Jboss-Doku.
 </longdesc>
 <shortdesc>options for jboss run.sh</shortdesc>
-<content type="string" default="-c default -l lpg4j" />
+<content type="string" default="${OCF_RESKEY_run_opts_default}" />
 </parameter>
 
 <parameter name="shutdown_opts" unique="0" required="0">
@@ -370,7 +439,7 @@ Stop options to stop Jboss with.
 Rotate console log flag.
 </longdesc>
 <shortdesc>Rotate console log flag</shortdesc>
-<content type="string" default="false" />
+<content type="boolean" default="false" />
 </parameter>
 
 <parameter name="rotate_value" unique="0">
@@ -401,41 +470,60 @@ Rotate console log suffix.
 </actions>
 </resource-agent>
 END
-	return $OCF_SUCCESS
+    return $OCF_SUCCESS
 }
 
 validate_all_jboss()
 {
-	ocf_log info "validate_all_jboss[$RESOURCE_NAME]"
-	return $OCF_SUCCESS
+    ocf_log info "validate_all_jboss[$RESOURCE_NAME]"
+    return $OCF_SUCCESS
 }
 
 COMMAND=$1
+JBOSS_VERSION="${OCF_RESKEY_jboss_version-5}"
+if ! ocf_is_decimal $JBOSS_VERSION; then
+    ocf_log err "Invalid parameter value: jboss_version [$JBOSS_VERSION]"
+    return $OCF_ERR_ARGS
+fi
+# Setting of the default value
+if [ "$JBOSS_VERSION" -le 5 ]; then
+    OCF_RESKEY_statusurl_default="http://127.0.0.1:8080"
+    OCF_RESKEY_pstring_default="java -Dprogram.name=run.sh"
+    OCF_RESKEY_run_command_default="${OCF_RESKEY_jboss_home}/bin/run.sh"
+    OCF_RESKEY_run_opts_default="-c default"
+else
+    OCF_RESKEY_jboss_base_dir_default="${OCF_RESKEY_jboss_home}/standalone"
+    JBOSS_BASE_DIR="${OCF_RESKEY_jboss_base_dir-${OCF_RESKEY_jboss_base_dir_default}}"
+    OCF_RESKEY_statusurl_default="http://127.0.0.1:9990"
+    OCF_RESKEY_pstring_default="java.*-Djboss.server.base.dir=${JBOSS_BASE_DIR}( .*)?$"
+    OCF_RESKEY_run_command_default="${OCF_RESKEY_jboss_home}/bin/standalone.sh"
+    OCF_RESKEY_run_opts_default=""
+fi
 RESOURCE_NAME="${OCF_RESKEY_resource_name-${OCF_RESOURCE_INSTANCE}}"
 CONSOLE="${OCF_RESKEY_console-/var/log/${RESOURCE_NAME}.log}"
 SHUTDOWN_TIMEOUT="${OCF_RESKEY_shutdown_timeout-5}"
 KILL_TIMEOUT="${OCF_RESKEY_kill_timeout-10}"
 JBOSS_USER="${OCF_RESKEY_user-root}"
-STATUSURL="${OCF_RESKEY_statusurl-http://127.0.0.1:8080}"
-PSTRING="${OCF_RESKEY_pstring-java -Dprogram.name=run.sh}"
-RUN_OPTS="${OCF_RESKEY_run_opts--c default -l lpg4j}"
+STATUSURL="${OCF_RESKEY_statusurl-${OCF_RESKEY_statusurl_default}}"
+PSTRING="${OCF_RESKEY_pstring-${OCF_RESKEY_pstring_default}}"
+RUN_OPTS="${OCF_RESKEY_run_opts-${OCF_RESKEY_run_opts_default}}"
 SHUTDOWN_OPTS="${OCF_RESKEY_shutdown_opts--s 127.0.0.1:1099}"
 ROTATELOG_FLG="${OCF_RESKEY_rotate_consolelog-false}"
 ROTATEVALUE="${OCF_RESKEY_rotate_value-86400}"
 ROTATELOG_SUFFIX="${OCF_RESKEY_rotate_logsuffix-.%F}"
 
 if [ $# -ne 1 ]; then
-	usage
-	exit $OCF_ERR_ARGS
+    usage
+    exit $OCF_ERR_ARGS
 fi
 
 if [ "$COMMAND" = "meta-data" ]; then
-	metadata_jboss
-	exit $OCF_SUCCESS
+    metadata_jboss
+    exit $OCF_SUCCESS
 fi
 if [ "$COMMAND" = "help" -o "$COMMAND" = "usage" ]; then
-	usage
-	exit $OCF_SUCCESS
+    usage
+    exit $OCF_SUCCESS
 fi
 
 # test if these two are set and if directories exist and if the
@@ -443,58 +531,59 @@ fi
 JAVA_HOME="${OCF_RESKEY_java_home-${JAVA_HOME}}"
 JAVA_OPTS="${OCF_RESKEY_java_opts}"
 JBOSS_HOME="${OCF_RESKEY_jboss_home}"
+RUN_COMMAND="${OCF_RESKEY_run_command-${OCF_RESKEY_run_command_default}}"
 
 LSB_STATUS_STOPPED=3
 if [ ! -d "$JAVA_HOME" -o ! -d "$JBOSS_HOME" ]; then
-	case $COMMAND in
-		stop)		exit	$OCF_SUCCESS;;
-		monitor)	exit	$OCF_NOT_RUNNING;;
-		status)		exit	$LSB_STATUS_STOPPED;;
-	esac
-	ocf_log err "JAVA_HOME or JBOSS_HOME does not exist."
-	exit $OCF_ERR_INSTALLED
+    case $COMMAND in
+        stop)       exit    $OCF_SUCCESS;;
+        monitor)    exit    $OCF_NOT_RUNNING;;
+        status)     exit    $LSB_STATUS_STOPPED;;
+    esac
+    ocf_log err "JAVA_HOME or JBOSS_HOME does not exist."
+    exit $OCF_ERR_INSTALLED
 fi
 
-export JAVA_HOME JAVA_OPTS JBOSS_HOME
+export JAVA_HOME JAVA_OPTS JBOSS_HOME JBOSS_BASE_DIR
 
 JAVA=${JAVA_HOME}/bin/java
 
 if [ ! -x "$JAVA" ]; then
-	case $COMMAND in
-		stop)		exit	$OCF_SUCCESS;;
-		monitor)	exit	$OCF_NOT_RUNNING;;
-		status)		exit	$LSB_STATUS_STOPPED;;
-	esac
-	ocf_log err "java command does not exist."
-	exit $OCF_ERR_INSTALLED
+    case $COMMAND in
+        stop)       exit    $OCF_SUCCESS;;
+        monitor)    exit    $OCF_NOT_RUNNING;;
+        status)     exit    $LSB_STATUS_STOPPED;;
+    esac
+    ocf_log err "java command does not exist."
+    exit $OCF_ERR_INSTALLED
 fi
 
 case "$COMMAND" in
-	start)
-		start_jboss
-		func_status=$?
-		exit $func_status
-		;;
-	stop)
-		stop_jboss
-		func_status=$?
-		exit $func_status
-		;;
-	status)
-		status_jboss
-		exit $?
-		;;
-	monitor)
-		monitor_jboss
-		func_status=$?
-		exit $func_status
-		;;
-	validate-all)
-		validate_all_jboss
-		exit $?
-		;;
-	*)
-		usage
-		exit $OCF_ERR_UNIMPLEMENTED;;
+    start)
+        start_jboss
+        func_status=$?
+        exit $func_status
+        ;;
+    stop)
+        stop_jboss
+        func_status=$?
+        exit $func_status
+        ;;
+    status)
+        status_jboss
+        exit $?
+        ;;
+    monitor)
+        monitor_jboss
+        func_status=$?
+        exit $func_status
+        ;;
+    validate-all)
+        validate_all_jboss
+        exit $?
+        ;;
+    *)
+        usage
+        exit $OCF_ERR_UNIMPLEMENTED;;
 esac
 

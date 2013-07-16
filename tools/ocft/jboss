@@ -1,0 +1,83 @@
+# jboss
+#
+# NOTE: Clean up $jboss_home/standalone/log before running this test
+#       otherwise creating the pid/log files may fail
+#       in the test case with a different user.
+
+CONFIG
+	Agent jboss
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	HangTimeout 120
+
+# Note : Change setting by a version of JBoss.
+#
+VARIABLE
+	# JBoss5 Environment require
+#	jboss_version=5
+#	jboss_home=/opt/jboss5/current
+#	java_home=/usr/lib/jvm/java-1.6.0-openjdk.x86_64
+#	user=jboss5
+	# JBoss6 Environment require
+	jboss_version=6
+	jboss_home=/opt/jboss6/current
+	java_home=/usr/lib/jvm/java-1.7.0-openjdk.x86_64
+	user=jboss6
+
+CASE-BLOCK required_args_jboss
+	Env OCF_RESKEY_jboss_home=${jboss_home}
+	Env OCF_RESKEY_java_home=${java_home}
+	Env OCF_RESKEY_jboss_version=${jboss_version}
+	Env OCF_RESKEY_user=${user}
+
+CASE-BLOCK args_clear
+	Unenv OCF_RESKEY_jboss_home
+	Unenv OCF_RESKEY_java_home
+	Unenv OCF_RESKEY_jboss_version
+	Unenv OCF_RESKEY_user
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare_jboss
+	Include required_args_jboss
+	Include default_status
+
+# Test CASE
+#
+CASE "normal start jboss require_args (user:user)"
+	Include prepare_jboss
+	AgentRun start OCF_SUCCESS
+	AgentRun monitor OCF_SUCCESS
+	AgentRun stop  OCF_SUCCESS
+	AgentRun monitor OCF_NOT_RUNNING
+	Include args_clear
+
+CASE "normal start jboss require_args (user:root)"
+	Include prepare_jboss
+	Unenv OCF_RESKEY_user
+	AgentRun start OCF_SUCCESS
+	AgentRun monitor OCF_SUCCESS
+	AgentRun stop  OCF_SUCCESS
+	AgentRun monitor OCF_NOT_RUNNING
+	Include args_clear
+
+CASE "error start jboss no jboss_home"
+	Include prepare_jboss
+	Unenv OCF_RESKEY_jboss_home
+	AgentRun start OCF_ERR_INSTALLED
+	Include args_clear
+
+CASE "error start jboss no java_home"
+	Include prepare_jboss
+	Unenv OCF_RESKEY_java_home
+	AgentRun start OCF_ERR_INSTALLED
+	Include args_clear
+
+CASE "error start jboss no java command"
+	Include prepare_jboss
+	Env OCF_RESKEY_java_home=/var
+	AgentRun start OCF_ERR_INSTALLED
+	AgentRun stop OCF_SUCCESS
+	AgentRun monitor OCF_NOT_RUNNING
+	Include args_clear
+
