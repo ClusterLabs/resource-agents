@@ -23,7 +23,7 @@ SUBDIRS			= ocft
 
 INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include
 
-halibdir		= $(libdir)/heartbeat
+halibdir		= $(libexecdir)/heartbeat
 
 EXTRA_DIST		= ocf-tester.8 sfex_init.8
 
