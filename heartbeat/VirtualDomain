@@ -206,52 +206,18 @@ update_utilization() {
 # Set options to be passed to virsh:
 VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor} --quiet"
 
-# A state file where we record the domain name:
-STATEFILE="${HA_RSCTMP}/VirtualDomain-${OCF_RESOURCE_INSTANCE}.state"
-
-VirtualDomain_Define() {
-	local virsh_output
-	local domain_name
-	# Note: passing in the domain name from outside the script is
-	# intended for testing and debugging purposes only. Don't do this
-	# in production, instead let the script figure out the domain name
-	# from the config file. You have been warned.
-	if [ -z "$DOMAIN_NAME" ]; then
-		# Spin until we have a domain name
-		while true; do
-			virsh_output=$( (virsh ${VIRSH_OPTIONS} define ${OCF_RESKEY_config}) 2>&1)
-			domain_name=`echo "$virsh_output" | sed -n -e 's/Domain \(.*\) defined from .*$/\1/p'`
-			if [ -n "$domain_name" ]; then
-				break;
-			fi
-			domain_name=`echo $virsh_output | sed -n -e "s/.* '\(.*\)' already exists .*/\1/p"`
-			if [ -n "$domain_name" ]; then
-				break;
-			fi
-			ocf_log debug "Domain not defined yet, probably unable to connect to hypervisor. Retrying."
-			sleep 1
-		done
-		echo "$domain_name" > $STATEFILE
-		ocf_log info "Domain name \"$domain_name\" saved to $STATEFILE."
-	else
-		ocf_log warn "Domain name ${DOMAIN_NAME} already defined, overriding configuration file ${OCF_RESKEY_config}. You should do this for testing only."
-	fi
-}
-
-VirtualDomain_Cleanup_Statefile() {
-	rm -f $STATEFILE || ocf_log warn "Failed to remove $STATEFILE during $__OCF_ACTION."
-}
-
 VirtualDomain_Status() {
 	local try=0
 	rc=$OCF_ERR_GENERIC
 	status="no state"
 	while [ "$status" = "no state" ]; do
 		try=$(($try + 1 ))
-		status="`virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME`"
+		status="`virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME 2>&1`"
 		case "$status" in
-			"shut off")
-				# shut off: domain is defined, but not started
+			*"error:"*"Domain not found"*|"shut off")
+				# shut off: domain is defined, but not started, will not happen if
+				#   domain is created but not defined
+				# Domain not found: domain is not defined and thus not started
 				ocf_log debug "Virtual domain $DOMAIN_NAME is currently $status."
 				rc=$OCF_NOT_RUNNING
 				;;
@@ -264,7 +230,7 @@ VirtualDomain_Status() {
 				ocf_log debug "Virtual domain $DOMAIN_NAME is currently $status."
 				rc=$OCF_SUCCESS
 				;;
-			""|"no state")
+			""|*"Failed to reconnect to the hypervisor"*|"no state")
 				# Empty string may be returned when virsh does not
 				# receive a reply from libvirtd.
 				# "no state" may occur when the domain is currently
@@ -314,7 +280,7 @@ VirtualDomain_Start() {
 		return $OCF_ERR_GENERIC
 	fi
 
-	virsh $VIRSH_OPTIONS start ${DOMAIN_NAME}
+	virsh $VIRSH_OPTIONS create ${OCF_RESKEY_config}
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		ocf_log error "Failed to start virtual domain ${DOMAIN_NAME}."
@@ -370,9 +336,7 @@ VirtualDomain_Stop() {
 				status=$?
 				case $status in
 					$OCF_NOT_RUNNING)
-						# This was a graceful shutdown. Clean
-						# up and return.
-						VirtualDomain_Cleanup_Statefile
+						# This was a graceful shutdown.
 						return $OCF_SUCCESS
 						;;
 					$OCF_SUCCESS)
@@ -400,10 +364,8 @@ VirtualDomain_Stop() {
 	out=$(virsh $VIRSH_OPTIONS destroy ${DOMAIN_NAME} 2>&1)
 	ex=$?
 	echo >&2 "$out"
-	# unconditionally clean up.
-	VirtualDomain_Cleanup_Statefile
 	case $ex$out in
-		*"error:"*"domain is not running"*)
+		*"error:"*"domain is not running"*|*"error:"*"Domain not found"*)
 			: ;; # unexpected path to the intended outcome, all is well
 		[!0]*)
 			return $OCF_ERR_GENERIC ;;
@@ -469,7 +431,6 @@ VirtualDomain_Migrate_To() {
 			return $OCF_ERR_GENERIC
 		else
 			ocf_log info "$DOMAIN_NAME: live migration to ${target_node} succeeded."
-			VirtualDomain_Cleanup_Statefile
 			return $OCF_SUCCESS
 		fi
 	else
@@ -566,7 +527,7 @@ VirtualDomain_Validate_All || exit $?
 
 # During a probe, it is permissible for the config file to not be
 # readable (it might be on shared storage not available during the
-# probe). In that case, VirtualDomain_Define can't work and we're
+# probe). In that case, we're
 # unable to get the domain name. Thus, we also can't check whether the
 # domain is running. The only thing we can do here is to assume that
 # it is not running.
@@ -575,21 +536,10 @@ if [ ! -r $OCF_RESKEY_config ]; then
 	[ "$__OCF_ACTION" = "stop" ] && exit $OCF_SUCCESS
 fi
 
-# Define the domain on startup, and re-define whenever someone deleted
-# the state file, or touched the config.
-if [ ! -e $STATEFILE ] || [ $OCF_RESKEY_config -nt $STATEFILE ]; then
-	VirtualDomain_Define
-fi
-# By now, we should definitely be able to read from the state file.
-# If not, something went wrong.
-if [ ! -r $STATEFILE ]; then
-	ocf_log err "$STATEFILE not found or unreadable. This is unexpected. Cannot determine domain name."
-	exit $OCF_ERR_GENERIC
-fi
-# Finally, retrieve the domain name from the state file.
-DOMAIN_NAME=`cat $STATEFILE 2>/dev/null`
+# Retrieve the domain name from the xml file.
+DOMAIN_NAME=`egrep '.*<name>.*</name>$' ${OCF_RESKEY_config} | sed -e 's/.*<name>\(.*\)<\/name>$/\1/' 2>/dev/null`
 if [ -z $DOMAIN_NAME ]; then
-	ocf_log err "$STATEFILE is empty. This is unexpected. Cannot determine domain name."
+	ocf_log err "This is unexpected. Cannot determine domain name."
 	exit $OCF_ERR_GENERIC
 fi
 
@@ -620,3 +570,4 @@ case $1 in
 		;;
 esac
 exit $?
+
