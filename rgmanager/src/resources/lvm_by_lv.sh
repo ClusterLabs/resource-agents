@@ -29,6 +29,60 @@ lv_verify()
 	return $OCF_SUCCESS
 }
 
+# lv_owner
+#
+# Returns:
+#    1 == We are the owner
+#    2 == We can claim it
+#    0 == Owned by someone else
+function lv_owner
+{
+        local my_name=$1
+        local owner=$2
+
+        if [ -z "$my_name" ]; then
+                ocf_log err "Unable to determine cluster node name"
+                return 0
+        fi
+
+        if [ -z "$owner" ]; then
+                # No-one owns this LV yet, so we can claim it
+                return 2
+        fi
+
+        if [ $owner != $my_name ]; then
+                if is_node_member_clustat $owner ; then
+                        return 0
+                fi
+                return 2
+        fi
+
+        return 1
+}
+
+steal_tag()
+{
+	local owner=$1
+	local lv_path=$2
+
+        ocf_log notice "Owner of $lv_path is not in the cluster"
+        ocf_log notice "Stealing $lv_path"
+
+        lvchange --deltag $owner $lv_path
+        if [ $? -ne 0 ]; then
+ 	       ocf_log err "Failed to steal $lv_path from $owner"
+               return $OCF_ERR_GENERIC
+        fi
+
+        # Warning --deltag doesn't always result in failure
+        if [ ! -z `lvs -o tags --noheadings $lv_path` ]; then
+        	ocf_log err "Failed to steal $lv_path from $owner."
+         	return $OCF_ERR_GENERIC
+       	fi
+		
+	return $OCF_SUCCESS
+}
+
 restore_transient_failed_pvs()
 {
 	local a=0
@@ -318,35 +372,13 @@ lv_activate()
 	declare lv_path="$OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name"
 	declare owner=`lvs -o tags --noheadings $lv_path | tr -d ' '`
 	declare my_name=$(local_node_name)
+	local owned
 
-	if [ -z "$my_name" ]; then
-		ocf_log err "Unable to determine cluster node name"
+	lv_owner $my_name $owner
+	owned=$?
+	if [ $owned -eq 0 ]; then
+		ocf_log info "Someone else owns this logical volume"
 		return $OCF_ERR_GENERIC
-	fi
-
-	#
-	# FIXME: This code block is repeated below... might be
-	# nice to put it in a function
-	#
-	if [ ! -z $owner ] && [ $owner != $my_name ]; then
-		if is_node_member_clustat $owner ; then
-			ocf_log err "$owner owns $lv_path unable to $1"
-			return $OCF_ERR_GENERIC
-		fi
-		ocf_log notice "Owner of $lv_path is not in the cluster"
-		ocf_log notice "Stealing $lv_path"
-
-		lvchange --deltag $owner $lv_path
-		if [ $? -ne 0 ]; then
-			ocf_log err "Failed to steal $lv_path from $owner"
-			return $OCF_ERR_GENERIC
-		fi
-
-		# Warning --deltag doesn't always result in failure
-		if [ ! -z `lvs -o tags --noheadings $lv_path | tr -d ' '` ]; then
-			ocf_log err "Failed to steal $lv_path from $owner."
-			return $OCF_ERR_GENERIC
-		fi
 	fi
 
 	# If this is a partial VG, attempt to
@@ -354,6 +386,10 @@ lv_activate()
 	if [[ $(vgs -o attr --noheadings $OCF_RESKEY_vg_name) =~ ...p ]]; then
 		ocf_log err "Volume group \"$OCF_RESKEY_vg_name\" has PVs marked as missing"
 		restore_transient_failed_pvs
+	fi
+
+	if [ ! -z "$owner" ] && [ $owned -eq 2 ]; then
+		steal_tag $owner $lv_path
 	fi
 
 	if ! lv_activate_and_tag $1 $my_name $lv_path; then
@@ -366,25 +402,18 @@ lv_activate()
 		    $OCF_RESKEY_vg_name; then
 			ocf_log notice "$OCF_RESKEY_vg_name now consistent"
 			owner=`lvs -o tags --noheadings $lv_path | tr -d ' '`
-			if [ ! -z $owner ] && [ $owner != $my_name ]; then
-				if is_node_member_clustat $owner ; then
-					ocf_log err "$owner owns $lv_path unable to $1"
-					return $OCF_ERR_GENERIC
-				fi
-				ocf_log notice "Owner of $lv_path is not in the cluster"
-				ocf_log notice "Stealing $lv_path"
 
-				lvchange --deltag $owner $lv_path
-				if [ $? -ne 0 ]; then
-					ocf_log err "Failed to steal $lv_path from $owner"
-					return $OCF_ERR_GENERIC
+			lv_owner $my_name $owner
+			owned=$?
+			if [ ! -z "$owner" ] && [ $owned -eq 2 ]; then
+				steal_tag $owner $lv_path
+				ret=$?
+				if [ $ret -ne $OCF_SUCCESS ]; then
+					return $ret
 				fi
-
-				# Warning --deltag doesn't always result in failure
-				if [ ! -z `lvs -o tags --noheadings $lv_path | tr -d ' '` ]; then
-					ocf_log err "Failed to steal $lv_path from $owner."
-					return $OCF_ERR_GENERIC
-				fi
+			elif [ $owned -eq 0 ]; then
+				ocf_log info "Someone else owns this logical volume"
+				return $OCF_ERR_GENERIC
 			fi
 
 			if ! lv_activate_and_tag $1 $my_name $lv_path; then
