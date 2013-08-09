@@ -1018,7 +1018,7 @@ pgsql_notify() {
                 start|stop)
                     MASTER_NODE=`echo $OCF_RESKEY_CRM_meta_notify_master_uname | \
                                   sed "s/ /\n/g" | head -1 | tr '[A-Z]' '[a-z]'`
-                    if [ "$NODENAME " = "$MASTER_NODE" ]; then
+                    if [ "$NODENAME" = "$MASTER_NODE" ]; then
                         control_slave_status
                     fi
                     return $OCF_SUCCESS
