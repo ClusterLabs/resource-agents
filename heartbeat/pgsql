@@ -1266,12 +1266,6 @@ show_master_baseline() {
     local rc
     local location
 
-    runasowner -q err "$OCF_RESKEY_psql $psql_options \
-                       -U $OCF_RESKEY_pgdba -c 'CHECKPOINT'"
-    rc=$?
-    if [ $rc -ne 0 ]; then
-        report_psql_error $rc err "Can't issue CHECKPOINT."
-    fi
     location=`get_my_location`
     ocf_log info "My master baseline : $location."
     exec_with_retry 0 $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_MASTER_BASELINE" -v "$location"
