@@ -40,6 +40,7 @@ declare -i	RESTART_RETRIES=3
 ORACLE_USER=$OCF_RESKEY_user
 ORACLE_HOME=$OCF_RESKEY_home
 LISTENER=$OCF_RESKEY_name
+[ -n "$OCF_RESKEY_tns_admin" ] && export TNS_ADMIN=$OCF_RESKEY_tns_admin
 
 LC_ALL=C
 LANG=C

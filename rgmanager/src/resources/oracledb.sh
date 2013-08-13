@@ -61,6 +61,7 @@ declare SCRIPTDIR="`dirname $0`"
 [ -n "$OCF_RESKEY_lockfile" ] && LOCKFILE=$OCF_RESKEY_lockfile
 [ -n "$OCF_RESKEY_type" ] && ORACLE_TYPE=$OCF_RESKEY_type
 [ -n "$OCF_RESKEY_vhost" ] && ORACLE_HOSTNAME=$OCF_RESKEY_vhost
+[ -n "$OCF_RESKEY_tns_admin" ] && export TNS_ADMIN=$OCF_RESKEY_tns_admin
 
 ######################################################
 # Customize these to match your Oracle installation. #
@@ -231,6 +232,17 @@ meta_data()
 	    <content type="string"/>
         </parameter>
 
+        <parameter name="tns_admin" required="0" unique="1">
+	    <longdesc lang="en">
+			Full path to the directory that contains the Oracle
+        listener tnsnames.ora configuration file.  The shell
+        variable TNS_ADMIN is set to the value provided.
+	    </longdesc>
+            <shortdesc lang="en">
+		Full path to the directory containing tnsnames.ora
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
     </parameters>
 
     <actions>
