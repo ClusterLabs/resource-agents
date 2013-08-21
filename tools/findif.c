@@ -564,7 +564,7 @@ main(int argc, char ** argv) {
 	char *	netmaskbits = NULL;
 	struct in_addr	in;
 	struct in_addr	addr_out;
-	unsigned long	netmask;
+	unsigned long	netmask = 0;
 	char	best_if[MAXSTR];
 	char *	if_specified = NULL;
 	struct ifreq	ifr;
