@@ -238,14 +238,34 @@ eDir_status() {
         ocf_log err "Cannot retrieve interfaces from $NDSCONF. eDirectory may not be correctly configured."
         exit $OCF_ERR_GENERIC
     fi
-    NDSD_SOCKS=$(netstat -ntlp | grep -ce "$IFACE.*ndsd")
 
-    if [ "$NDSD_SOCKS" -eq 1 ] ; then
+    # In case of multiple IP's split into an array
+    # and check all of them
+    IFS=', ' read -a IFACE2 <<< "$IFACE"
+    ocf_log debug "Found ${#IFACE2[@]} interfaces from $NDSCONF."
+
+    counter=${#IFACE2[@]}
+
+    for IFACE in ${IFACE2[@]}
+    do
+        ocf_log debug "Checking ndsd instance for $IFACE"
+        NDSD_SOCKS=$(netstat -ntlp | grep -ce "$IFACE.*ndsd")
+
+	if [ "$NDSD_SOCKS" -eq 1 ] ; then
+	   let counter=counter-1
+	   ocf_log debug "Found ndsd instance for $IFACE"
+	elif [ "$NDSD_SOCKS" -gt 1 ] ; then
+            ocf_log err "More than 1 ndsd listening socket matched. Likely misconfiguration of eDirectory."
+            exit $OCF_ERR_GENERIC
+	fi
+    done
+
+    if [ $counter -eq 0 ] ; then
         # Correct ndsd instance is definitely running
-        # Further checks are superfluous (I think...)
-        return 0
-    elif [ "$NDSD_SOCKS" -gt 1 ] ; then
-        ocf_log err "More than 1 ndsd listening socket matched. Likely misconfiguration of eDirectory."
+        ocf_log debug "All ndsd instances found."
+        return 0;
+    elif [ $counter -lt ${#IFACE2[@]} ]; then
+        ocf_log err "Only some ndsd listening sockets matched, something is very wrong."
         exit $OCF_ERR_GENERIC
     fi
 
@@ -270,7 +290,7 @@ eDir_status() {
         exit $OCF_ERR_GENERIC
     fi
 
-    # Instance is not running, but no other error detected.
+    ocf_log debug "ndsd instance is not running, but no other error detected."
     return 1
 }
 
