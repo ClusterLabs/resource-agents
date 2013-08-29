@@ -259,8 +259,9 @@ exec_cli(){
 	fi
 
 	ocf_run $OCF_RESKEY_client_binary $host $var
+	rc=$?
 	ocf_log debug "--- redis --- $OCF_RESKEY_client_binary $host $var"
-	if [ 0 -ne "$?" ]; then
+	if [ 0 -ne $rc ]; then
 		return $OCF_ERR_GENERIC
 	else
 		return $OCF_SUCCESS
@@ -387,12 +388,12 @@ set_master() {
 		return $OCF_ERR_GENERIC
 	elif [ ! -z "$host" ] ; then
 		ocf_log debug "--- redis --- set_master $master_host"
-		exec_cli "slaveof $master_host $OCF_RESKEY_port" 2>/dev/null 1>&2
+		exec_cli "slaveof $master_host $OCF_RESKEY_port" >> "$OCF_RESKEY_log_default" 2>&1 &
 		sleep 3
 		check_synced
 	else
 		ocf_log debug "--- redis --- set_master $master_host"
-		exec_cli $host "slaveof $master_host $OCF_RESKEY_port" 2>/dev/null 1>&2
+		exec_cli $host "slaveof $master_host $OCF_RESKEY_port" >> "$OCF_RESKEY_log_default" 2>&1 &
 		sleep 3
 		check_synced
 	fi
@@ -419,10 +420,10 @@ unset_master() {
 
 	ocf_log debug "--- redis --- become a slave of no one";
 	if [ ! -z "$host" ] ; then
-		exec_cli 'slaveof no one' 2>/dev/null 1>&2
+		exec_cli 'slaveof no one' >> "$OCF_RESKEY_log_default" 2>&1 &
 		rc=$?
 	else
-		exec_cli $host 'slaveof no one' 2>/dev/null 1>&2
+		exec_cli $host 'slaveof no one' >> "$OCF_RESKEY_log_default" 2>&1 &
 		rc=$?
 	fi
 	tmp=`mktemp`
@@ -583,10 +584,10 @@ redis_stop() {
 		ocf_log info "$REDIS_SERVER_NAME is not running";
 		return $OCF_SUCCESS
 	fi
-
-	${OCF_RESKEY_client_binary} -s $OCF_RESKEY_socket shutdown
+	
+	exec_cli shutdown >> "$OCF_RESKEY_log_default" 2>&1 &
 	rc=$?
-
+	
 	if [ $rc -ne 0 ]; then
 		ocf_log err "$REDIS_SERVER_NAME stop command failed: $rc"
 		return $OCF_ERR_GENERIC
