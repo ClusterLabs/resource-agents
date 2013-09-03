@@ -237,7 +237,7 @@ cat <<END
 
 		When used in master-slave configuration, besides from starting/stopping daemon
 		allows to fail-over (enable on promote, disable on demote)
-		static defined route. Make sure, that this satic route is disabled by default.
+		static defined route. Make sure, that this static route is disabled by default.
 	</longdesc>
 	<shortdesc lang="en">Manages Bird routing daemon</shortdesc>
 
