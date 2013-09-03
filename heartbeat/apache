@@ -522,6 +522,10 @@ apache_validate_all() {
 		ocf_log err "HTTPD $HTTPD not found or is not an executable!"
 		return $OCF_ERR_INSTALLED
 	fi
+	if [ ! -f $CONFIGFILE ]; then
+		ocf_log err "Configuration file $CONFIGFILE not found!"
+		return $OCF_ERR_INSTALLED
+	fi
 	return $OCF_SUCCESS
 }
 
