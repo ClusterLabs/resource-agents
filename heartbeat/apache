@@ -105,23 +105,33 @@ action:
 	!
 }
 
+get_pid() {
+	if [ -f $PidFile ]; then
+		cat $PidFile
+	else
+		false
+	fi
+}
 #
 # return TRUE if a process with given PID is running
 #
 ProcessRunning() {
-	ApachePID=$1
+	local pid=$1
+
 	# Use /proc if it looks like it's here...
 	if [ -d /proc -a -d /proc/1 ]; then
-		[ -d /proc/$ApachePID ]
+		[ -d /proc/$pid ]
 	else
 		# This assumes we're running as root...
-		kill -s 0 "$ApachePID" >/dev/null 2>&1
+		kill -s 0 "$pid" >/dev/null 2>&1
 	fi
 }
-
 silent_status() {
-	if [ -f $PidFile ]; then
-		ProcessRunning `cat $PidFile`
+	local pid
+
+	pid=`get_pid`
+	if [ -n "$pid" ]; then
+		ProcessRunning $pid
 	else
 		: No pid file
 		false
@@ -161,7 +171,7 @@ apache_start() {
 	if
 		silent_status
 	then
-		ocf_log info "$CMD already running (pid $ApachePID)"
+		ocf_log info "$CMD already running (pid `get_pid`)"
 		return $OCF_SUCCESS
 	fi
 
@@ -201,7 +211,7 @@ signal_children()
 	for sig in SIGTERM SIGHUP SIGKILL ; do
 		if pgrep -f $HTTPD.*$CONFIGFILE >/dev/null ; then
 			pkill -$sig -f $HTTPD.*$CONFIGFILE >/dev/null
-			ocf_log info "apache children were signalled ($sig)"
+			ocf_log info "signal $sig sent to apache children"
 			sleep 1
 		else
 			break
@@ -258,19 +268,21 @@ kill_stop()
 
 apache_stop() {
 	local ret=$OCF_SUCCESS
+	local pid
 
 	if ! silent_status; then
 		ocf_log info "$CMD is not running."
 		signal_children
 		return $ret
 	fi
-	
-	graceful_stop $ApachePID
-	if [ $? -ne 0 ]; then
-		kill_stop $ApachePID
 
-		if ProcessRunning $ApachePID; then
-			ocf_log info "$CMD still running ($ApachePID). Killing pid failed."
+	pid=`get_pid`
+	graceful_stop $pid
+	if [ $? -ne 0 ]; then
+		kill_stop $pid
+
+		if ProcessRunning $pid; then
+			ocf_log info "$CMD still running ($pid). Killing pid failed."
 			ret=$OCF_ERR_GENERIC
 		fi
 	fi
