@@ -24,7 +24,7 @@ CASE "check base env"
 CASE "check base env: set non-existing OCF_RESKEY_statusurl"
 	Include prepare
 	Env OCF_RESKEY_statusurl="yoyoyoyo"
-	AgentRun start OCF_ERR_CONFIGURED
+	AgentRun start OCF_ERR_GENERIC
 
 CASE "check base env: set non-existing OCF_RESKEY_configfile"
 	Include prepare
