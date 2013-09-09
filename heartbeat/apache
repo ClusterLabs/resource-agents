@@ -63,7 +63,8 @@ fi
 LOCALHOST="http://localhost"
 HTTPDOPTS="-DSTATUS"
 DEFAULT_IBMCONFIG=/opt/IBMHTTPServer/conf/httpd.conf
-DEFAULT_NORMCONFIG="/etc/apache2/httpd.conf"
+DEFAULT_SUSECONFIG="/etc/apache2/httpd.conf"
+DEFAULT_RHELCONFIG="/etc/httpd/conf/httpd.conf"
 #
 # You can also set
 #	HTTPD
@@ -82,7 +83,8 @@ CMD=`basename $0`
 #	assumed if no config file is specified. If this command is
 #	invoked as *IBM*, then the default config file name is
 #	$DEFAULT_IBMCONFIG, otherwise the default config file
-#	will be $DEFAULT_NORMCONFIG.
+#	will be either $DEFAULT_RHELCONFIG or $DEFAULT_SUSECONFIG depending
+#	on which is detected.
 usage() {
 cat <<-!
 usage: $0 action
@@ -146,7 +148,7 @@ validate_default_config() {
 # the relevant config is generated and valid.  We're also taking
 # this opportunity to enable mod_status if it's not present.
 validate_default_suse_config() {
-	if [ "$CONFIGFILE" = "$DEFAULT_NORMCONFIG" ] && \
+	if [ "$CONFIGFILE" = "$DEFAULT_SUSECONFIG" ] && \
 		grep -Eq '^Include[[:space:]]+/etc/apache2/sysconfig.d/include.conf' "$CONFIGFILE"
 	then
 		[ -x "/usr/sbin/a2enmod" ] && ocf_run -q /usr/sbin/a2enmod status
@@ -336,6 +338,16 @@ apache_monitor() {
 	esac
 }
 
+detect_default_config()
+{
+	if [ -f $DEFAULT_SUSECONFIG ]; then
+		echo $DEFAULT_SUSECONFIG
+	else
+		echo $DEFAULT_RHELCONFIG
+	fi
+}
+
+
 apache_meta_data(){
 	cat <<END
 <?xml version="1.0"?>
@@ -373,7 +385,7 @@ This file is parsed to provide defaults for various other
 resource agent parameters.
 </longdesc>
 <shortdesc lang="en">configuration file path</shortdesc>
-<content type="string" default="/etc/apache2/httpd.conf" />
+<content type="string" default="$(detect_default_config)" />
 </parameter>
 
 <parameter name="httpd">
@@ -548,7 +560,7 @@ find_httpd_prog() {
 			if [ "X$OCF_RESKEY_httpd" != X -a "X$HTTPD" != X ]; then
 				ocf_log info "Using $HTTPD as HTTPD"
 			fi
-			DefaultConfig=$DEFAULT_NORMCONFIG
+			DefaultConfig=$(detect_default_config)
 			;;
 	esac
 }
