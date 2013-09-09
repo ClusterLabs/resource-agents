@@ -60,6 +60,7 @@ declare SCRIPTDIR="`dirname $0`"
 ORACLE_USER=$OCF_RESKEY_user
 ORACLE_HOME=$OCF_RESKEY_home
 ORACLE_SID=$OCF_RESKEY_name
+[ -n "$OCF_RESKEY_tns_admin" ] && export TNS_ADMIN=$OCF_RESKEY_tns_admin
 
 # Optional parameters with default values
 LISTENERS=$OCF_RESKEY_listeners
