@@ -19,6 +19,7 @@ ora_common_getconfig() {
 	ORACLE_SID=$1
 	ORACLE_HOME=$2
 	ORACLE_OWNER=$3
+	TNS_ADMIN=$4
 
 	# get ORACLE_HOME from /etc/oratab if not set
 	[ x = "x$ORACLE_HOME" ] &&
@@ -28,9 +29,13 @@ ora_common_getconfig() {
 	[ x = "x$ORACLE_OWNER" ] &&
 		ORACLE_OWNER=`ls -ld $ORACLE_HOME/. 2>/dev/null | awk 'NR==1{print $3}'`
 
+	# There are use-cases were users want to be able to set a custom TMS_ADMIN path.
+	# When TNS_ADMIN is not provided, use the default path.
+	[ x = "x$TNS_ADMIN" ] &&
+		TNS_ADMIN=$ORACLE_HOME/network/admin
+
 	LD_LIBRARY_PATH=$ORACLE_HOME/lib
 	LIBPATH=$ORACLE_HOME/lib
-	TNS_ADMIN=$ORACLE_HOME/network/admin
 	PATH=$ORACLE_HOME/bin:$ORACLE_HOME/dbs:$PATH
 	export ORACLE_SID ORACLE_HOME ORACLE_OWNER TNS_ADMIN
 	export LD_LIBRARY_PATH LIBPATH
@@ -70,7 +75,7 @@ ORACLE_HOME=$ORACLE_HOME
 ORACLE_OWNER=$ORACLE_OWNER
 LD_LIBRARY_PATH=$ORACLE_HOME/lib
 LIBPATH=$ORACLE_HOME/lib
-TNS_ADMIN=$ORACLE_HOME/network/admin
+TNS_ADMIN=$TNS_ADMIN
 export ORACLE_SID ORACLE_HOME ORACLE_OWNER TNS_ADMIN
 export LD_LIBRARY_PATH LIBPATH
 EOF
