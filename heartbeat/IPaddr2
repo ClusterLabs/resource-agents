@@ -181,6 +181,9 @@ determine this from the netmask.
 You can specify an additional label for your IP address here.
 This label is appended to your interface name.
 
+The kernel allows alphanumeric labels up to a maximum length of 15
+characters including the interface name and colon (e.g. eth0:foobar1234)
+
 A label can be specified in nic parameter but it is deprecated.
 If a label is specified in nic name, this parameter has no effect.
 </longdesc>
@@ -455,6 +458,10 @@ ip_init() {
 
 	if [ -n "$IFLABEL" ]; then
 		IFLABEL=${NIC}:${IFLABEL}
+		if [ ${#IFLABEL} -gt 15 ]; then
+			ocf_log err "Interface label [$IFLABEL] exceeds maximum character limit of 15"
+			exit $OCF_ERR_CONFIGURED
+		fi
 	fi
 
 	if [ "$IP_INC_GLOBAL" -gt 1 ] && ! ocf_is_true "$OCF_RESKEY_unique_clone_address"; then
