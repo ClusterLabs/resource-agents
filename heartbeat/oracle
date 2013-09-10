@@ -473,7 +473,7 @@ ora_cleanup() {
 }
 
 oracle_getconfig() {
-	ora_common_getconfig "$OCF_RESKEY_sid" "$OCF_RESKEY_home" "$OCF_RESKEY_user"
+	ora_common_getconfig "$OCF_RESKEY_sid" "$OCF_RESKEY_home" "$OCF_RESKEY_user" "$OCF_RESKEY_tns_admin"
 
 	clear_backupmode=${OCF_RESKEY_clear_backupmode:-"false"}
 	shutdown_method=${OCF_RESKEY_shutdown_method:-"checkpoint/abort"}
