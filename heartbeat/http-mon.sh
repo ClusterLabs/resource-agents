@@ -24,6 +24,27 @@ fi
 WGETOPTS="-O- -q -L --no-proxy --bind-address=$bind_address"
 CURLOPTS="-o - -Ss -L --interface lo $curl_ipv6_opts"
 
+request_url_header() {
+	which curl >/dev/null 2>&1
+	if [ $? -eq 0 ]; then
+		curl -IL --connect-timeout 5 --interface lo $curl_ipv6_opts "$1" > /dev/null 2>&1
+		return $?
+	fi
+
+	which wget >/dev/null 2>&1
+	if [ $? -eq 0 ]; then
+		local header=$(wget --server-response --spider --timeout=5 --tries=2 "$1" 2>&1)
+		if [ $? -eq 0 ]; then
+			return $OCF_SUCCESS
+		fi
+
+		# a 4xx error is still a server response.
+		echo "$header" | grep "HTTP/1.1 4.. " > /dev/null 2>&1
+		return $?
+	fi
+	return $OCF_ERR_GENERIC
+}
+
 #
 # run the http client
 #

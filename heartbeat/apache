@@ -308,16 +308,55 @@ apache_monitor_10() {
 		return $OCF_ERR_GENERIC
 	fi
 }
+
+# If the user has not provided any basic monitoring 
+# information, allow the agent to verify the server is
+# healthy and capable of processing requests by requesting
+# the http header of website's index 
+attempt_index_monitor_request() {
+	local indexpage=""
+	
+	if [ -n "$OCF_RESKEY_testregex" ]; then
+		return 1;
+	fi
+	if [ -n "$OCF_RESKEY_testregex10" ]; then
+		return 1;
+	fi
+	if [ -n "$OCF_RESKEY_testurl" ]; then
+		return 1;
+	fi
+	if [ -n "$OCF_RESKEY_statusurl" ]; then
+		return 1;
+	fi
+	if [ -n "$OCF_RESKEY_testconffile" ]; then
+		return 1;
+	fi
+
+	indexpage=$(buildlocalurl)
+
+	request_url_header $indexpage
+	if [ $? -ne 0 ]; then
+		return $OCF_ERR_GENERIC
+	fi
+	ocf_log info "Successfully retrieved http header at $indexpage" 
+	return 0
+}
+
 apache_monitor_basic() {
 	if ${ourhttpclient}_func "$STATUSURL" | grep -Ei "$TESTREGEX" > /dev/null
 	then
 		return $OCF_SUCCESS
-	else
-		if ! ocf_is_probe; then
-			ocf_log err "Failed to access httpd status page."
-		fi
-		return $OCF_ERR_GENERIC
 	fi
+
+	attempt_index_monitor_request
+	if [ $? -eq 0 ]; then
+		return $OCF_SUCCESS
+	fi
+
+	if ! ocf_is_probe; then
+		ocf_log err "Failed to access httpd status page."
+	fi
+	return $OCF_ERR_GENERIC
 }
 apache_monitor() {
 	silent_status
