@@ -405,7 +405,7 @@ retry_exclusive_start()
 		shift 2
 	done
 
-	return ocf_run vgchange $vgchange_options $OCF_RESKEY_volgrpname
+	ocf_run vgchange $vgchange_options $OCF_RESKEY_volgrpname
 }
 
 #
