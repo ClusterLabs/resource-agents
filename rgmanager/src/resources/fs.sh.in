@@ -185,6 +185,18 @@ do_metadata()
 	    <content type="string"/>
         </parameter>
 
+        <parameter name="use_findmnt">
+            <longdesc lang="en">
+        Use findmnt to determine if and where a filesystem is mounted.
+        Disabling this uses the failback method (should be used if autofs
+        maps are located on network storage (ie. nfs, iscsi, etc).
+            </longdesc>
+            <shortdesc lang="en">
+        Utilize findmnt to detect if and where filesystems are mounted
+            </shortdesc>
+            <content type="boolean"/>
+        </parameter>
+
     </parameters>
 
     <actions>
