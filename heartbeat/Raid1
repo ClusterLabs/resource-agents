@@ -117,6 +117,21 @@ unlucky. If you are not using udev set this to "no".
 <shortdesc lang="en">udev</shortdesc>
 <content type="boolean" default="true" />
 </parameter>
+
+<parameter name="force_clones">
+<longdesc lang="en">
+Activating the same md RAID array on multiple nodes at the same time
+will result in data corruption and thus is forbidden by default.
+
+A safe example could be an array that is only named identically across
+all nodes, but is in fact distinct.
+
+Only set this to "true" if you know what you are doing!
+</longdesc>
+<shortdesc lang="en">force ability to run as a clone</shortdesc>
+<content type="boolean" default="false" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -461,8 +476,9 @@ if [ -z "$MDDEV" ] ; then
 	exit $OCF_ERR_CONFIGURED
 fi
 
-if ocf_is_clone; then
+if ocf_is_clone && ! ocf_is_true "$OCF_RESKEY_force_clones"; then
 	ocf_log err "md RAID arrays are NOT safe to run as a clone!"
+	ocf_log err "Please read the comment on the force_clones parameter."
 	exit $OCF_ERR_CONFIGURED
 fi
 
