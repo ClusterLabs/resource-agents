@@ -461,7 +461,7 @@ if [ -z "$MDDEV" ] ; then
 	exit $OCF_ERR_CONFIGURED
 fi
 
-if [ -n "OCF_RESKEY_CRM_meta_clone_max" ]; then
+if ocf_is_clone; then
 	ocf_log err "md RAID arrays are NOT safe to run as a clone!"
 	exit $OCF_ERR_CONFIGURED
 fi
