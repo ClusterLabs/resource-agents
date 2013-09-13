@@ -25,7 +25,7 @@ EXTRA_DIST		= $(ocf_SCRIPTS) $(ocfcommon_DATA) \
 
 INCLUDES		= -I$(top_srcdir)/include -I$(top_srcdir)/linux-ha
 
-halibdir		= $(libdir)/heartbeat
+halibdir		= $(libexecdir)/heartbeat
 
 ocfdir		        = $(OCF_RA_DIR_PREFIX)/heartbeat
 
