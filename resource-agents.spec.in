@@ -255,7 +255,7 @@ rm -rf %{buildroot}
 %dir %{_sysconfdir}/ha.d
 %{_sysconfdir}/ha.d/shellfuncs
 
-%{_libdir}/heartbeat
+%{_libexecdir}/heartbeat
 
 %post -n resource-agents
 if [ $1 = 2 ]; then
