@@ -201,12 +201,19 @@ verify_device()
 # Return values
 # 0 - device mount points found, mountpoint list returned to FINDMNT_OUTPUT global variable
 # 1 - device mount not found
-# 2 - findmnt tool isn't found
+# 2 - findmnt tool isn't found or can not be used
 #
 ##
 try_findmnt()
 {
 	FINDMNT_OUTPUT=""
+
+	case $OCF_RESKEY_use_findmnt in
+	false|no|off)
+		return 2 ;;
+	*)
+		: ;;
+	esac
 
 	which findmnt > /dev/null 2>&1
 	if [ $? -eq 0 ]; then
@@ -244,8 +251,9 @@ strip_trailing_slashes()
 #
 mount_in_use () {
 	declare mp tmp_mp
+	declare tmp_type
 	declare dev tmp_dev
-	declare junka junkb junkc junkd
+	declare junkb junkc junkd
 	declare res=$FAIL
 	declare findmnt_res=2
 
@@ -279,7 +287,12 @@ mount_in_use () {
 		esac
 	fi
 
-	while read -r tmp_dev tmp_mp junka junkb junkc junkd; do
+	while read -r tmp_dev tmp_mp tmp_type junkb junkc junkd; do
+
+		if [ "$tmp_type" = "autofs" ]; then
+			continue
+		fi 
+
 		# Does the device match? We might have already tried findmnt
 		# which is why this could get skipped
 		if [ $findmnt_res -eq 2 ]; then
@@ -326,6 +339,7 @@ real_mountpoint()
 	declare ret=$NO
 	declare tmp_mp
 	declare tmp_dev
+	declare tmp_type
 	declare found=1
 	declare poss_mp=""
 
@@ -351,8 +365,12 @@ real_mountpoint()
 		;;
 	2)  # findmnt tool could not be used.
 		# Using slow method reading /proc/mounts dir.
-		while read -r tmp_dev tmp_mp junk_a junk_b junk_c junk_d
+		while read -r tmp_dev tmp_mp tmp_type junk_b junk_c junk_d
 		do
+			if [ "$tmp_type" = "autofs" ]; then
+				continue
+			fi 
+
 			if [ "${tmp_dev:0:1}" != "-" ]; then
 				# XXX fork/clone warning XXX
 				tmp_dev="$(printf "$tmp_dev")"
