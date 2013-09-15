@@ -77,9 +77,9 @@ OCF_RESKEY_multicast_querier_default=0
 
 : ${OCF_RESKEY_stp=${OCF_RESKEY_stp_default}}
 : ${OCF_RESKEY_stp_fd=${OCF_RESKEY_stp_fd_default}}
-: ${CF_RESKEY_multicast_router=${OCF_RESKEY_multicast_router_default}}
-: ${CF_RESKEY_multicast_snooping=${OCF_RESKEY_multicast_snooping_default}}
-: ${CF_RESKEY_multicast_querier=${OCF_RESKEY_multicast_querier_default}}
+: ${OCF_RESKEY_multicast_router=${OCF_RESKEY_multicast_router_default}}
+: ${OCF_RESKEY_multicast_snooping=${OCF_RESKEY_multicast_snooping_default}}
+: ${OCF_RESKEY_multicast_querier=${OCF_RESKEY_multicast_querier_default}}
 
 # binaries
 : ${BRCTL:=brctl}
