@@ -247,6 +247,8 @@ Xen_Count_running() {
 Xen_Monitor() {
   Xen_Status ${DOMAIN_NAME}
   if [ $? -eq ${OCF_NOT_RUNNING} ]; then
+	ocf_is_probe ||
+	  ocf_log err "Xen domain $DOMAIN_NAME stopped"
 	return ${OCF_NOT_RUNNING}
   fi
   if [ "X${OCF_RESKEY_monitor_scripts}" = "X" ]; then
@@ -496,4 +498,4 @@ case $1 in
 			;;
 esac
 exit $?
-
+# vim:sw=2:ts=4:
