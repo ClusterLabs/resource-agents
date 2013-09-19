@@ -1098,7 +1098,7 @@ ext4|ext4dev|ext3|reiserfs|reiser4|xfs|jfs)
 	;;
 esac
 
-if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
+if ocf_is_clone; then
 	case $CLUSTERSAFE in
 	0)
 		ocf_log err "DANGER! $FSTYPE on $DEVICE is NOT cluster-aware!"
