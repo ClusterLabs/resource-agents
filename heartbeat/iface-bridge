@@ -1,0 +1,843 @@
+#!/bin/sh
+#
+#       OCF Resource Agent compliant iface-bridge script.
+#
+#       Implements network Bridge interface management
+#
+# Copyright (C) 2013 Red Hat, Inc.  All rights reserved.
+# Author: Fabio M. Di Nitto <fdinitto@redhat.com>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+#
+
+# TODO:
+#       * Eventually improve bridge_check to verify all runtime
+#         parameters. Is it really necessary?
+#       * consider add support for advanced multicast timers tuning
+#         sethashel       <bridge> <int>   set hash elasticity                   default 4
+#         sethashmax      <bridge> <int>   set hash max                          default 512
+#         setmclmc        <bridge> <int>   set multicast last member count       default 2, ?
+#         setmcsqc        <bridge> <int>   set multicast startup query count     default 2, ?
+#         setmclmi        <bridge> <time>  set multicast last member interval    default HZ
+#         setmcmi         <bridge> <time>  set multicast membership interval     default 260 * HZ
+#         setmcqpi        <bridge> <time>  set multicast querier interval        default 255 * HZ
+#         setmcqi         <bridge> <time>  set multicast query interval          detault 125 * HZ
+#         setmcqri        <bridge> <time>  set multicast query response interval default 10 * HZ
+#         setmcqri        <bridge> <time>  set multicast startup query interval  default 125 * hZ / 4
+#
+#
+#	OCF parameters are as below
+#	OCF_RESKEY_bridge_name
+#       OCF_RESKEY_bridge_slaves
+#       OCF_RESKEY_bridge_ageing
+#       OCF_RESKEY_port_hairpin
+#       OCF_RESKEY_stp
+#       OCF_RESKEY_stp_bridgeprio
+#       OCF_RESKEY_stp_fd
+#       OCF_RESKEY_stp_maxage
+#       OCF_RESKEY_stp_hello
+#       OCF_RESKEY_stp_pathcost
+#       OCF_RESKEY_stp_portprio
+#       OCF_RESKEY_multicast_router
+#       OCF_RESKEY_multicast_snooping
+#       OCF_RESKEY_multicast_querier
+#       OCF_RESKEY_multicast_port_router
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_stp_default=false
+OCF_RESKEY_stp_fd_default=0
+OCF_RESKEY_multicast_router_default=1
+OCF_RESKEY_multicast_snooping_default=1
+OCF_RESKEY_multicast_querier_default=0
+
+: ${OCF_RESKEY_stp=${OCF_RESKEY_stp_default}}
+: ${OCF_RESKEY_stp_fd=${OCF_RESKEY_stp_fd_default}}
+: ${OCF_RESKEY_multicast_router=${OCF_RESKEY_multicast_router_default}}
+: ${OCF_RESKEY_multicast_snooping=${OCF_RESKEY_multicast_snooping_default}}
+: ${OCF_RESKEY_multicast_querier=${OCF_RESKEY_multicast_querier_default}}
+
+# binaries
+: ${BRCTL:=brctl}
+
+#######################################################################
+
+bridge_usage() {
+	cat <<END
+usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+bridge_meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="iface-bridge">
+  <version>1.0</version>
+
+  <longdesc lang="en">
+    This resource manages Bridge network interfaces.
+    It can add, remove, configure bridges and spanning-tree.
+  </longdesc>
+
+  <shortdesc lang="en">
+    Manages Bridge network interfaces.
+  </shortdesc>
+
+  <parameters>
+    <parameter name="bridge_name" unique="1" required="1">
+      <longdesc lang="en">
+        Define the name of the bridge (max 15 charaters).
+      </longdesc>
+      <shortdesc lang="en">
+        Name of the bridge
+      </shortdesc>
+      <content type="string"/>
+    </parameter>
+
+    <parameter name="bridge_slaves" unique="1">
+      <longdesc lang="en">
+        Define the list of interfaces, space separated, to add to the bridge.
+        The list can be empty.
+      </longdesc>
+      <shortdesc lang="en">
+        Network interface
+      </shortdesc>
+      <content type="string"/>
+    </parameter>
+
+    <parameter name="bridge_ageing" unique="0">
+      <longdesc lang="en">
+        Set the ethernet (MAC) address ageing time in seconds.
+      </longdesc>
+      <shortdesc lang="en">
+        MAC ageing in seconds.
+      </shortdesc>
+      <content type="integer"/>
+    </parameter>
+
+    <parameter name="port_hairpin" unique="0">
+      <longdesc lang="en">
+        Set hairpin forwarding mode.
+        A list of ports that should have hairpin enabled
+        can be specified using the following
+        Example: eth0 eth1
+      </longdesc>
+      <shortdesc lang="en">
+        Set hairpin forwarding mode.
+      </shortdesc>
+      <content type="string"/>
+    </parameter>
+
+    <parameter name="stp" unique="0">
+      <longdesc lang="en">
+        Enable or disable Spanning Tree Protocol on the bridge.
+      </longdesc>
+      <shortdesc lang="en">
+        Spanning Tree Protocol
+      </shortdesc>
+      <content type="boolean" default="${OCF_RESKEY_stp_default}"/>
+    </parameter>
+
+    <parameter name="stp_bridgeprio" unique="0">
+      <longdesc lang="en">
+        Set the bridge's priority to defined value. The priority value is a
+        number between  0  and 65535), and has no dimension. Lower priority values are
+        preferred. The bridge with the lowest priority will be elected as root bridge.
+      </longdesc>
+      <shortdesc lang="en">
+        Set the bridge's priority.
+      </shortdesc>
+      <content type="integer"/>
+    </parameter>
+
+    <parameter name="stp_fd" unique="0">
+      <longdesc lang="en">
+        Set the bridge forward delay (in seconds).
+      </longdesc>
+      <shortdesc lang="en">
+        Set the bridge forward delay.
+      </shortdesc>
+      <content type="integer" default="${OCF_RESKEY_stp_fd_default}"/>
+    </parameter>
+
+    <parameter name="stp_maxage" unique="0">
+      <longdesc lang="en">
+        Set the bridge maximum message age (in seconds).
+      </longdesc>
+      <shortdesc lang="en">
+        Set the bridge maximum message age.
+      </shortdesc>
+      <content type="integer"/>
+    </parameter>
+
+    <parameter name="stp_hello" unique="0">
+      <longdesc lang="en">
+        Set the bridge hello time (in seconds).
+      </longdesc>
+      <shortdesc lang="en">
+        Set the bridge hello time.
+      </shortdesc>
+      <content type="integer"/>
+    </parameter>
+
+    <parameter name="stp_pathcost" unique="0">
+      <longdesc lang="en">
+        Set the port cost. This is a dimensionless metric.
+        A list of port/cost can be specified using the following
+        format: slave cost slave cost.
+        Example: eth0 100 eth1 1000
+      </longdesc>
+      <shortdesc lang="en">
+        Set the port cost.
+      </shortdesc>
+      <content type="string"/>
+    </parameter>
+
+    <parameter name="stp_portprio" unique="0">
+      <longdesc lang="en">
+        Set the port priority. This is a number between 0 and 63.
+        $BRCTL man page reports a value between 0 and 255, but
+        tests show a limit of 63 on a live system.
+        This metric is used in the designated port and root port
+        selection algorithms.
+        A list of port/priority can be specified using the following
+        format: slave cost slave cost.
+        Example: eth0 10 eth1 60
+      </longdesc>
+      <shortdesc lang="en">
+        Set the port priority.
+      </shortdesc>
+      <content type="string"/>
+    </parameter>
+
+    <parameter name="multicast_router" unique="0">
+      <longdesc lang="en">
+        Enable or disable multicast routing on the bridge.
+      </longdesc>
+      <shortdesc lang="en">
+        Enable or disable multicast routing.
+      </shortdesc>
+      <content type="boolean" default="${OCF_RESKEY_multicast_router_default}"/>
+    </parameter>
+
+    <parameter name="multicast_snooping" unique="0">
+      <longdesc lang="en">
+        Enable or disable multicast snooping on the bridge.
+      </longdesc>
+      <shortdesc lang="en">
+        Enable or disable multicast snooping.
+      </shortdesc>
+      <content type="boolean" default="${OCF_RESKEY_multicast_snooping_default}"/>
+    </parameter>
+
+    <parameter name="multicast_port_router" unique="0">
+      <longdesc lang="en">
+        Enable or disable a port from the multicast router.
+        Kernel enables all port by default.
+        A list of port can be specified using the following
+        format: slave 0|1 slave 0|1.
+        Example: eth0 1 eth1 0
+      </longdesc>
+      <shortdesc lang="en">
+        Enable or disable a port from the multicast router.
+      </shortdesc>
+      <content type="string"/>
+    </parameter>
+  </parameters>
+
+  <actions>
+    <action name="start"        timeout="30s" />
+    <action name="stop"         timeout="20s" />
+    <action name="status"       timeout="20s" depth="0" interval="10s" />
+    <action name="monitor"      timeout="20s" depth="0" interval="10s" />
+    <action name="meta-data"    timeout="5s" />
+    <action name="validate-all" timeout="20s" />
+  </actions>
+</resource-agent>
+END
+}
+
+# commodity function
+# split_string eth0 100 eth1 1000 eth2 100
+# eth0 100
+# eth1 1000
+# eth2 100
+
+split_string() {
+	while [ -n "$1" ]; do
+		echo $1 $2
+		shift && shift
+	done
+}
+
+# check if the interface is admin up/down
+
+iface_is_up() {
+	if ! $IP2UTIL -o link show $1 | \
+	    sed -e 's#.*<##g' -e 's#>.*##' -e 's#LOWER_UP##g' | \
+	    grep -q UP; then
+		return 1
+	fi
+	return 0
+}
+
+# check if the slaves have link layer up/down
+# see kernel network documentation on meaning of LOWER_UP flag
+# for more in depth explanation on how it works
+# NOTE: this check is not reliable in virt environment
+# since interfaces are always LOWER_UP. There is no way
+# from the guest to know if the host has disconnected somehow
+
+iface_lower_is_up() {
+	if ! $IP2UTIL -o link show $1 | \
+	    grep -q LOWER_UP; then
+		return 1
+	fi
+	return 0
+}
+
+# wrapup function to check if any interface defined in
+# option lists is a slave
+
+iface_is_slave() {
+	for slave in $OCF_RESKEY_bridge_slaves; do
+		if [ "$1" = "$slave" ]; then
+			return 0
+		fi	
+	done
+	return 1
+}
+
+bridge_validate() {
+	check_binary $BRCTL
+	check_binary $IP2UTIL
+
+	if [ -z "$OCF_RESKEY_bridge_name" ]; then
+		ocf_log err "Invalid OCF_RESKEY_bridge_name: value cannot be empty"
+		return 1
+	fi
+
+	# the echo .. is the equivalent of strlen in bash
+	#
+	# /usr/include/linux/if.h:#define IFNAMSIZ        16
+	# needs to include 0 byte end string
+
+	if [ "${#OCF_RESKEY_bridge_name}" -gt 15 ]; then
+		ocf_log err "Invalid OCF_RESKEY_bridge_name: name is too long"
+		return 1
+	fi
+
+	if [ ! -d "/sys/class/net" ]; then
+		ocf_log err "Unable to find sysfs network class in /sys"
+		return 1
+	fi
+
+	for slave in $OCF_RESKEY_bridge_slaves; do
+		if [ ! -e "/sys/class/net/$slave" ]; then
+			ocf_log err "Invalid OCF_RESKEY_bridge_slaves: $slave does not exists"
+			return 1
+		fi
+	done
+
+	# check if declared harpin ports are slaves
+	for hairpin in $OCF_RESKEY_port_hairpin; do
+		if ! iface_is_slave $hairpin; then
+			ocf_log err "Invalid OCF_RESKEY_port_hairpin: $hairpin is not listed in OCF_RESKEY_bridge_slaves"
+			return 1
+		fi
+	done
+
+	if [ -n "$OCF_RESKEY_bridge_ageing" ]; then
+		if ! ocf_is_decimal "$OCF_RESKEY_bridge_ageing"; then
+			ocf_log err "Invalid OCF_RESKEY_bridge_ageing: must be a decimal value (0 or greater)"
+			return 1
+		fi
+	fi
+
+	# OCF_RESKEY_stp_fd needs special handling as it can be 0 or greater
+	# but only when configured before OCF_RESKEY_stp.
+	# if enabled after OCF_RESKEY_stp with stp=true the value range is
+	# different. It is not clear from the man page or brctl documentation
+	# what the range is ahead of time.
+	if [ -n "$OCF_RESKEY_stp_fd" ]; then
+		if ! ocf_is_decimal "$OCF_RESKEY_stp_fd" || \
+		   [ "$OCF_RESKEY_stp_fd" -lt 0 ]; then
+			ocf_log err "Invalid OCF_RESKEY_stp_fd: must be a decimal value (0 or greater)"
+			return 1
+		fi
+	fi
+
+	if ocf_is_true "$OCF_RESKEY_stp"; then
+
+		if [ -n "$OCF_RESKEY_stp_bridgeprio" ]; then
+			if ! ocf_is_decimal "$OCF_RESKEY_stp_bridgeprio" || \
+			   [ "$OCF_RESKEY_stp_bridgeprio" -gt 65535 ]; then
+				ocf_log err "Invalid OCF_RESKEY_stp_bridgeprio: must be a decimal value between 0 and 65535 included"
+				return 1
+			fi
+		fi
+
+		if [ -n "$OCF_RESKEY_stp_hello" ]; then
+			if ! ocf_is_decimal "$OCF_RESKEY_stp_hello"; then
+				ocf_log err "Invalid OCF_RESKEY_stp_hello: must be a decimal value (0 or greater)"
+				return 1
+			fi
+		fi
+
+		if [ -n "$OCF_RESKEY_stp_maxage" ]; then
+			if ! ocf_is_decimal "$OCF_RESKEY_stp_maxage"; then
+				ocf_log err "Invalid OCF_RESKEY_stp_maxage: must be a decimal value (0 or greater)"
+				return 1
+			fi
+		fi
+
+		if [ -n "$OCF_RESKEY_stp_pathcost" ]; then
+			split_string $OCF_RESKEY_stp_pathcost | { while read iface cost; do
+					if ! iface_is_slave $iface; then
+						ocf_log err "Invalid OCF_RESKEY_stp_pathcost: $iface is not listed in OCF_RESKEY_bridge_slaves"
+						return 1
+					fi
+
+					if ! ocf_is_decimal $cost; then
+						ocf_log err "Invalid OCF_RESKEY_stp_pathcost: cost must be a decimal value (0 or great)"
+						return 1
+					fi
+				done
+			}
+		fi
+
+		if [ -n "$OCF_RESKEY_stp_portprio" ]; then
+			split_string $OCF_RESKEY_stp_portprio | { while read iface prio; do
+					if ! iface_is_slave $iface; then
+						ocf_log err "Invalid OCF_RESKEY_stp_portprio: $iface is not listed in OCF_RESKEY_bridge_slaves"
+						return 1
+					fi
+
+					if ! ocf_is_decimal $prio || \
+					   [ "$prio" -gt "63" ]; then
+						ocf_log err "Invalid OCF_RESKEY_stp_portprio: priority must be a decimal value between 0 and 63 included"
+						return 1
+					fi
+				done
+			}
+		fi
+
+	fi
+
+	if [ -n "$OCF_RESKEY_multicast_port_router" ]; then
+		split_string $OCF_RESKEY_multicast_port_router | { while read iface mcport; do
+				if ! iface_is_slave $iface; then
+					ocf_log err "Invalid OCF_RESKEY_multicast_port_router: $iface is not listed in OCF_RESKEY_bridge_slaves"
+					return 1
+				fi
+
+				if ! ocf_is_decimal $mcport || \
+				   [ "$mcport" -gt "1" ]; then
+					ocf_log err "Invalid OCF_RESKEY_multicast_port_router: valuer must be 0 (disabled) or 1 (enabled)"
+					return 1
+				fi
+			done
+		}
+	fi
+
+	return 0
+}
+
+bridge_check() {
+	if [ -e "/sys/class/net/$OCF_RESKEY_bridge_name" ]; then
+		if [ ! -e "$HA_RSCTMP/iface-bridge.$OCF_RESKEY_bridge_name" ]; then
+			return $OCF_ERR_GENERIC
+		fi
+	else
+		if [ -e "$HA_RSCTMP/iface-bridge.$OCF_RESKEY_bridge_name" ]; then
+			error="$(rm -f "$HA_RSCTMP/iface-bridge.$OCF_RESKEY_bridge_name" 2>&1)"
+			if [ "$?" != "0" ]; then
+				ocf_log err "Unable to remove stale lock file for bridge $OCF_RESKEY_bridge_name: $error"
+				return $OCF_ERR_GENERIC
+			fi
+		fi
+		return $OCF_NOT_RUNNING
+	fi
+
+	# we check if all slaves are still part of the bridge
+	for slave in $OCF_RESKEY_bridge_slaves; do
+		if [ ! -e "/sys/class/net/$OCF_RESKEY_bridge_name/brif/$slave" ]; then
+			ocf_log err "Interface $slave is not part of the bridge $OCF_RESKEY_bridge_name"
+			return $OCF_ERR_GENERIC
+		fi
+		if ! iface_is_up $slave; then
+			ocf_log err "Interface $slave of the bridge $OCF_RESKEY_bridge_name is administratively down"
+			return $OCF_ERR_GENERIC
+		fi
+	done
+
+	# check if bridge is still "UP"
+	# is there a cleaner way?
+
+	if ! iface_is_up $OCF_RESKEY_bridge_name; then
+		ocf_log err "Bridge $OCF_RESKEY_bridge_name is administratively down"
+		return $OCF_ERR_GENERIC
+	fi
+
+	if ! iface_lower_is_up $OCF_RESKEY_bridge_name; then
+		ocf_log err "Bridge $OCF_RESKEY_bridge_name has no active link-layer slaves"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+# we need a simpler stop version to clean after us if start fails
+# without involving any error checking
+# rolling back in case of failure is otherwise complex
+
+bridge_force_stop() {
+	$IP2UTIL link set dev "$OCF_RESKEY_bridge_name" down 2>&1
+	for slave in $OCF_RESKEY_bridge_slaves; do
+		$IP2UTIL link set dev "$slave" down 2>&1
+	done
+	$BRCTL delbr "$OCF_RESKEY_bridge_name" 2>&1
+	rm -f "$HA_RSCTMP/iface-bridge.$OCF_RESKEY_bridge_name" 2>&1
+}
+
+bridge_start() {
+	# check if the bridge already exists
+	bridge_check
+	ret=$?
+	if [ "$ret" != "$OCF_NOT_RUNNING" ]; then
+		return $ret
+	fi
+
+	# create the bridge
+	error="$($BRCTL addbr "$OCF_RESKEY_bridge_name" 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to create bridge $OCF_RESKEY_bridge_name: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	# add slaves if configured
+	for slave in $OCF_RESKEY_bridge_slaves; do
+		error="$($BRCTL addif "$OCF_RESKEY_bridge_name" "$slave" 2>&1)"
+		if [ "$?" != "0" ]; then
+			ocf_log err "Unable to add interface $slave to bridge $OCF_RESKEY_bridge_name: $error"
+			return $OCF_ERR_GENERIC
+		fi
+	done
+
+	# set haripin forward mode
+	for hairpin in $OCF_RESKEY_port_hairpin; do
+		error="$($BRCTL hairpin "$OCF_RESKEY_bridge_name" "$hairpin" on 2>&1)"
+		if [ "$?" != "0" ]; then
+			ocf_log err "Unable to set hairpin on for interface $hairpin to bridge $OCF_RESKEY_bridge_name: $error"
+			return $OCF_ERR_GENERIC
+		fi
+	done
+
+	# set bridge ageing
+	if [ -n "$OCF_RESKEY_bridge_ageing" ]; then
+		error="$($BRCTL setageing "$OCF_RESKEY_bridge_name" "$OCF_RESKEY_bridge_ageing" 2>&1)"
+		if [ "$?" != "0" ]; then
+			ocf_log err "Unable to set bridge $OCF_RESKEY_bridge_name ageing to $OCF_RESKEY_bridge_ageing: $error"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
+	# OCF_RESKEY_stp_fd needs special handling as it can be 0 or greater
+	# but only when configured before OCF_RESKEY_stp.
+	# if enabled after OCF_RESKEY_stp with stp=true the value range is
+	# different. It is not clear from the man page or brctl documentation
+	# what the range is ahead of time.
+	if [ -n "$OCF_RESKEY_stp_fd" ]; then
+		error="$($BRCTL setfd "$OCF_RESKEY_bridge_name" "$OCF_RESKEY_stp_fd" 2>&1)"
+		if [ "$?" != "0" ]; then
+			ocf_log err "Unable to set bridge forward delay $OCF_RESKEY_stp_fd on bridge $OCF_RESKEY_bridge_name : $error"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
+	# enable/disable spanning tree protocol
+	if ocf_is_true "$OCF_RESKEY_stp"; then
+		error="$($BRCTL stp "$OCF_RESKEY_bridge_name" on 2>&1)"
+		if [ "$?" != "0" ]; then
+			ocf_log err "Unable to enable STP on bridge $OCF_RESKEY_bridge_name : $error"
+			return $OCF_ERR_GENERIC
+		fi
+
+		# set bridge priority
+		if [ -n "$OCF_RESKEY_stp_bridgeprio" ]; then
+			error="$($BRCTL setbridgeprio "$OCF_RESKEY_bridge_name" "$OCF_RESKEY_stp_bridgeprio" 2>&1)"
+			if [ "$?" != "0" ]; then
+				ocf_log err "Unable to set bridge priority $OCF_RESKEY_stp_bridgeprio on bridge $OCF_RESKEY_bridge_name : $error"
+				return $OCF_ERR_GENERIC
+			fi
+		fi
+
+		# set hello timer
+		if [ -n "$OCF_RESKEY_stp_hello" ]; then
+			error="$($BRCTL sethello "$OCF_RESKEY_bridge_name" "$OCF_RESKEY_stp_hello" 2>&1)"
+			if [ "$?" != "0" ]; then
+				ocf_log err "Unable to set bridge hello timer $OCF_RESKEY_stp_hello on bridge $OCF_RESKEY_bridge_name : $error"
+				return $OCF_ERR_GENERIC
+			fi
+		fi
+
+
+		# set max age
+		if [ -n "$OCF_RESKEY_stp_maxage" ]; then
+			error="$($BRCTL setmaxage "$OCF_RESKEY_bridge_name" "$OCF_RESKEY_stp_maxage" 2>&1)"
+			if [ "$?" != "0" ]; then
+				ocf_log err "Unable to set bridge max age $OCF_RESKEY_stp_maxage on bridge $OCF_RESKEY_bridge_name : $error"
+				return $OCF_ERR_GENERIC
+			fi
+		fi
+
+		# set path cost per port
+		if [ -n "$OCF_RESKEY_stp_pathcost" ]; then
+			split_string $OCF_RESKEY_stp_pathcost | { while read iface cost; do
+				error="$($BRCTL setpathcost "$OCF_RESKEY_bridge_name" "$iface" "$cost" 2>&1)"
+				if [ "$?" != "0" ]; then
+					ocf_log err "Unable to set pathcost $cost for interface $iface on bridge $OCF_RESKEY_bridge_name : $error"
+					return $OCF_ERR_GENERIC
+				fi
+				done
+			}
+		fi
+
+		# set port priority per port
+		if [ -n "$OCF_RESKEY_stp_portprio" ]; then
+			split_string $OCF_RESKEY_stp_portprio | { while read iface prio; do
+				error="$($BRCTL setportprio "$OCF_RESKEY_bridge_name" "$iface" "$prio" 2>&1)"
+				if [ "$?" != "0" ]; then
+					ocf_log err "Unable to set portprio $prio for interface $iface on bridge $OCF_RESKEY_bridge_name : $error"
+					return $OCF_ERR_GENERIC
+				fi
+				done
+			}
+		fi
+	else
+		# stp off is default via brctl/kernel interface but it
+		# is best to force it since we don't know if default
+		# has changed across kernel releases
+		error="$($BRCTL stp "$OCF_RESKEY_bridge_name" off 2>&1)"
+		if [ "$?" != "0" ]; then
+			ocf_log err "Unable to disable STP on bridge $OCF_RESKEY_bridge_name : $error"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
+	# set slaves up
+	for slave in $OCF_RESKEY_bridge_slaves; do
+		error="$($IP2UTIL link set dev "$slave" up 2>&1)"
+		if [ "$?" != "0" ]; then
+			ocf_log err "Unable to set slave $slave for bridge $OCF_RESKEY_bridge_name up: $error"
+			return $OCF_ERR_GENERIC
+		fi
+	done
+
+	# set the bridge up
+	error="$($IP2UTIL link set dev "$OCF_RESKEY_bridge_name" up 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to set bridge $OCF_RESKEY_bridge_name up: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	# multicast operations can only be executed after the bridge is up
+	# and configured.
+
+	# enable/disable multicast router
+	if ocf_is_true "$OCF_RESKEY_multicast_router"; then
+		mcrouter=1
+	else
+		mcrouter=0
+	fi
+	if [ -e "/sys/class/net/$OCF_RESKEY_bridge_name/bridge/multicast_router" ]; then
+		error="$(echo $mcrouter > /sys/class/net/$OCF_RESKEY_bridge_name/bridge/multicast_router 2>&1)"
+		if [ "$?" != "0" ]; then
+			ocf_log err "Unable to set OCF_RESKEY_multicast_router for bridge $OCF_RESKEY_bridge_name: $error"
+			return $OCF_ERR_GENERIC
+		fi
+	else
+		ocf_log warn "Unable to set multicast router on bridge $OCF_RESKEY_bridge_name because kernel does not support it"
+	fi
+
+	# enable/disable multicast snoopint
+	if ocf_is_true "$OCF_RESKEY_multicast_snooping"; then
+		mcsnooping=1
+	else
+		mcsnooping=0
+	fi
+	if [ -e "/sys/class/net/$OCF_RESKEY_bridge_name/bridge/multicast_snooping" ]; then
+		error="$(echo $mcsnooping > /sys/class/net/$OCF_RESKEY_bridge_name/bridge/multicast_snooping 2>&1)"
+		if [ "$?" != "0" ]; then
+			ocf_log err "Unable to set OCF_RESKEY_multicast_snooping for bridge $OCF_RESKEY_bridge_name: $error"
+			return $OCF_ERR_GENERIC
+		fi
+	else
+		ocf_log warn "Unable to set multicast snooping on bridge $OCF_RESKEY_bridge_name because kernel does not support it"
+	fi
+
+	# enable/disable multicast querier
+	if ocf_is_true "$OCF_RESKEY_multicast_querier"; then
+		mcquerier=1
+	else
+		mcquerier=0
+	fi
+	if [ -e "/sys/class/net/$OCF_RESKEY_bridge_name/bridge/multicast_querier" ]; then
+		error="$(echo $mcquerier > /sys/class/net/$OCF_RESKEY_bridge_name/bridge/multicast_querier 2>&1)"
+		if [ "$?" != "0" ]; then
+			ocf_log err "Unable to set OCF_RESKEY_multicast_querier for bridge $OCF_RESKEY_bridge_name: $error"
+			return $OCF_ERR_GENERIC
+		fi
+	else
+		ocf_log warn "Unable to set multicast querier on bridge $OCF_RESKEY_bridge_name because kernel does not support it"
+	fi
+
+	# set multicast router per port
+	if [ -n "$OCF_RESKEY_multicast_port_router" ]; then
+		split_string $OCF_RESKEY_multicast_port_router | { while read iface mcport; do
+			if [ -e "/sys/class/net/$iface/brport/multicast_router" ]; then
+				error="$(echo $mcport > /sys/class/net/$iface/brport/multicast_router 2>&1)"
+				if [ "$?" != "0" ]; then
+					ocf_log err "Unable to set OCF_RESKEY_multicast_port_router $mcport for interface $iface on bridge $OCF_RESKEY_bridge_name : $error"
+					return $OCF_ERR_GENERIC
+				fi
+			else
+				ocf_log warn "Unable to set multicast port router on bridge $OCF_RESKEY_bridge_name because kernel does not support it"
+			fi
+			done
+		}
+	fi
+
+	error="$(touch "$HA_RSCTMP/iface-bridge.$OCF_RESKEY_bridge_name")"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to write lock file for bridge $OCF_RESKEY_bridge_name: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+bridge_stop() {
+	bridge_check
+	ret=$?
+	if [ "$ret" = "$OCF_NOT_RUNNING" ]; then
+		return $OCF_SUCCESS
+	fi
+	if [ "$ret" != "$OCF_SUCCESS" ]; then
+		return $ret
+	fi
+
+	# set bridge down
+	error="$($IP2UTIL link set dev "$OCF_RESKEY_bridge_name" down 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to set bridge $OCF_RESKEY_bridge_name down: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	# set slaves down
+	for slave in $OCF_RESKEY_bridge_slaves; do
+		error="$($IP2UTIL link set dev "$slave" down 2>&1)"
+		if [ "$?" != "0" ]; then
+			ocf_log err "Unable to set slave $slave for bridge $OCF_RESKEY_bridge_name down: $error"
+			return $OCF_ERR_GENERIC
+		fi
+	done
+
+	# delete bridge
+	error="$($BRCTL delbr "$OCF_RESKEY_bridge_name" 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to delete bridge $OCF_RESKEY_bridge_name: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	error="$(rm -f "$HA_RSCTMP/iface-bridge.$OCF_RESKEY_bridge_name" 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to remove lock file for bridge $OCF_RESKEY_bridge_name: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+case $__OCF_ACTION in
+	meta-data)
+		bridge_meta_data
+		exit $OCF_SUCCESS
+	;;
+	usage|help)
+		bridge_usage
+		exit $OCF_SUCCESS
+	;;
+esac
+
+if [ ! -d "$HA_RSCTMP" ]; then
+	ocf_log debug "$HA_RSCTMP not found, we are probably being executed manually"
+	mkdir -p "$HA_RSCTMP"
+fi
+
+if [ -n "$__OCF_ACTION" ] && ! bridge_validate; then
+	exit $OCF_ERR_CONFIGURED
+fi
+
+case $__OCF_ACTION in
+	start|stop)
+		if ! ocf_is_root; then
+			ocf_log err "You must be root for $__OCF_ACTION operation."
+			exit $OCF_ERR_PERM
+		fi
+	;;
+esac
+
+case $__OCF_ACTION in
+	start)
+		bridge_start
+		ret=$?
+		if [ "$ret" != "$OCF_SUCCESS" ]; then
+			bridge_force_stop
+		fi
+		exit $ret
+	;;
+	stop)
+		bridge_stop
+		exit $?
+	;;
+	status|monitor)
+		bridge_check
+		exit $?
+	;;
+	validate-all)
+		# bridge_validate above does the trick
+	;;
+	*)
+		bridge_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+	;;
+esac
+# vi:sw=4:ts=8:
