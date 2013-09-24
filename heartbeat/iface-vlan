@@ -1,0 +1,475 @@
+#!/bin/sh
+#
+#       OCF Resource Agent compliant iface-vlan script.
+#
+#       Implements network VLAN interface management
+#
+# Copyright (C) 2013 Red Hat, Inc.  All rights reserved.
+# Author: Fabio M. Di Nitto <fdinitto@redhat.com>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+#
+
+# TODO:
+#
+#	OCF parameters are as below
+#       OCF_RESKEY_vlan_interface
+#       OCF_RESKEY_vlan_id
+#	OCF_RESKEY_vlan_name
+#       OCF_RESKEY_vlan_reorder_hdr
+#       OCF_RESKEY_vlan_gvrp
+#       OCF_RESKEY_vlan_mvrp
+#       OCF_RESKEY_vlan_loose_binding
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_vlan_reorder_hdr_default=1
+OCF_RESKEY_vlan_gvrp_default=0
+OCF_RESKEY_vlan_mvrp_default=0
+OCF_RESKEY_vlan_loose_binding_default=0
+OCF_RESKEY_vlan_name_default=${OCF_RESKEY_vlan_interface}.${OCF_RESKEY_vlan_id}
+
+: ${OCF_RESKEY_vlan_name=${OCF_RESKEY_vlan_name_default}}
+: ${OCF_RESKEY_vlan_reorder_hdr=${OCF_RESKEY_vlan_reorder_hdr_default}}
+: ${OCF_RESKEY_vlan_gvrp=${OCF_RESKEY_vlan_gvrp_default}}
+
+# don't set defaults for mvrp or loose binding since both
+# are rather new kernel features and they might not be supported
+#: ${OCF_RESKEY_vlan_mvrp=${OCF_RESKEY_vlan_mvrp_default}}
+#: ${OCF_RESKEY_vlan_loose_binding=${OCF_RESKEY_vlan_loose_binding_default}}
+
+#######################################################################
+
+vlan_usage() {
+	cat <<END
+usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+vlan_meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="iface-vlan">
+  <version>1.0</version>
+
+  <longdesc lang="en">
+    This resource manages VLAN network interfaces.
+    It can add, remove, configure VLANs.
+  </longdesc>
+
+  <shortdesc lang="en">
+    Manages VLAN network interfaces.
+  </shortdesc>
+
+  <parameters>
+    <parameter name="vlan_interface" unique="1" required="1">
+      <longdesc lang="en">
+        Define the interface where VLAN should be attached.
+      </longdesc>
+      <shortdesc lang="en">
+        Network interface.
+      </shortdesc>
+      <content type="string"/>
+    </parameter>
+
+    <parameter name="vlan_id" unique="1" required="1">
+      <longdesc lang="en">
+        Define the VLAN ID. It has to be a value between 0 and 4094.
+      </longdesc>
+      <shortdesc lang="en">
+        Define the VLAN ID.
+      </shortdesc>
+      <content type="integer"/>
+    </parameter>
+
+    <parameter name="vlan_name" unique="1">
+      <longdesc lang="en">
+        Define the name of the VLAN interface (max 15 charaters).
+      </longdesc>
+      <shortdesc lang="en">
+        Name of the VLAN.
+      </shortdesc>
+      <content type="string" default="vlan_interface.vlan.id" />
+    </parameter>
+
+    <parameter name="vlan_reorder_hdr" unique="0">
+      <longdesc lang="en">
+        Enable or disable header reordering.
+      </longdesc>
+      <shortdesc lang="en">
+        Enable or disable header reordering.
+      </shortdesc>
+      <content type="boolean" default="${OCF_RESKEY_vlan_reorder_hdr_default}"/>
+    </parameter>
+
+    <parameter name="vlan_gvrp" unique="0">
+      <longdesc lang="en">
+        Enable or disable GARP VLAN registration protocol.
+      </longdesc>
+      <shortdesc lang="en">
+        Enable or disable gvrp.
+      </shortdesc>
+      <content type="boolean" default="${OCF_RESKEY_vlan_gvrp_default}"/>
+    </parameter>
+
+    <parameter name="vlan_mvrp" unique="0">
+      <longdesc lang="en">
+        Enable or disable Multiple VLAN Registration Protocol.
+        Please note that most distributions do not ship a version of iproute2
+        that supports mvrp yet, even if the kernel has support for it.
+        Check output of $IPADDR2 link add type vlan --help in the FLAG
+        section to verify if mvrp support is available.
+      </longdesc>
+      <shortdesc lang="en">
+        Enable or disable mvrp.
+      </shortdesc>
+      <content type="boolean" default="${OCF_RESKEY_vlan_mvrp_default}"/>
+    </parameter>
+
+    <parameter name="vlan_loose_binding" unique="0">
+      <longdesc lang="en">
+        Enable or disable VLAN loose bind. By default the VLAN interface
+        admin status (UP/DOWN) follows the underneath inteface status.
+        Enabling loose bind allows the VLAN to disconnect from the
+        interface status. Be very careful that enabling loose binding
+        could invalidate this agent monitor operations.
+        Please note that most distributions do not ship a version of iproute2
+        that supports loose_binding yet, even if the kernel has support for it.
+        Check output of $IPADDR2 link add type vlan --help in the FLAG
+        section to verify if loose_binding support is available.
+      </longdesc>
+      <shortdesc lang="en">
+        Enable or disable loose binding.
+      </shortdesc>
+      <content type="boolean" default="${OCF_RESKEY_vlan_loose_binding_default}"/>
+    </parameter>
+  </parameters>
+
+  <actions>
+    <action name="start"        timeout="30s" />
+    <action name="stop"         timeout="20s" />
+    <action name="status"       timeout="20s" depth="0" interval="10s" />
+    <action name="monitor"      timeout="20s" depth="0" interval="10s" />
+    <action name="meta-data"    timeout="5s" />
+    <action name="validate-all" timeout="20s" />
+  </actions>
+</resource-agent>
+END
+}
+
+# check if the interface is admin up/down
+
+iface_is_up() {
+	if ! $IP2UTIL -o link show $1 | \
+	    sed -e 's#.*<##g' -e 's#>.*##' -e 's#LOWER_UP##g' | \
+	    grep -q UP; then
+		return 1
+	fi
+	return 0
+}
+
+# check if the slaves have link layer up/down
+# see kernel network documentation on meaning of LOWER_UP flag
+# for more in depth explanation on how it works
+# NOTE: this check is not reliable in virt environment
+# since interfaces are always LOWER_UP. There is no way
+# from the guest to know if the host has disconnected somehow
+
+iface_lower_is_up() {
+	if ! $IP2UTIL -o link show $1 | \
+	    grep -q LOWER_UP; then
+		return 1
+	fi
+	return 0
+}
+
+vlan_validate() {
+	check_binary $IP2UTIL
+
+	if [ -z "$OCF_RESKEY_vlan_interface" ]; then
+		ocf_log err "Invalid OCF_RESKEY_vlan_interface: value cannot be empty"
+		return 1
+	fi
+
+	# the echo .. is the equivalent of strlen in bash
+	#
+	# /usr/include/linux/if.h:#define IFNAMSIZ        16
+	# needs to include 0 byte end string
+
+	if [ "${#OCF_RESKEY_vlan_interface}" -gt 15 ]; then
+		ocf_log err "Invalid OCF_RESKEY_vlan_interface: name is too long"
+		return 1
+	fi
+
+	if [ ! -d "/sys/class/net" ]; then
+		ocf_log err "Unable to find sysfs network class in /sys"
+		return 1
+	fi
+
+	if [ ! -e "/sys/class/net/$OCF_RESKEY_vlan_interface" ]; then
+		ocf_log err "Invalid OCF_RESKEY_vlan_interface: $OCF_RESKEY_vlan_interface does not exists"
+		return 1
+	fi
+
+	if [ -z "$OCF_RESKEY_vlan_id" ]; then
+		ocf_log err "Invalid OCF_RESKEY_vlan_id: value cannot be empty"
+		return 1
+	fi
+	if ! ocf_is_decimal "$OCF_RESKEY_vlan_id" || \
+	   [ "$OCF_RESKEY_vlan_id" -gt "4094" ]; then
+		ocf_log err "Invalid OCF_RESKEY_vlan_id: must be a decimal value (0 to 4094 included)"
+		return 1
+	fi
+
+	if [ "${#OCF_RESKEY_vlan_name}" -gt 15 ]; then
+		ocf_log err "Invalid OCF_RESKEY_vlan_name: name is too long"
+		return 1
+	fi
+
+	return 0
+}
+
+vlan_check() {
+	if [ -e "/sys/class/net/$OCF_RESKEY_vlan_name" ]; then
+		if [ ! -e "$HA_RSCTMP/iface-vlan.$OCF_RESKEY_vlan_name" ]; then
+			return $OCF_ERR_GENERIC
+		fi
+	else
+		if [ -e "$HA_RSCTMP/iface-vlan.$OCF_RESKEY_vlan_name" ]; then
+			error="$(rm -f "$HA_RSCTMP/iface-vlan.$OCF_RESKEY_vlan_name" 2>&1)"
+			if [ "$?" != "0" ]; then
+				ocf_log err "Unable to remove stale lock file for vlan $OCF_RESKEY_vlan_name: $error"
+				return $OCF_ERR_GENERIC
+			fi
+		fi
+		return $OCF_NOT_RUNNING
+	fi
+
+	if ! iface_is_up $OCF_RESKEY_vlan_interface; then
+		if ocf_is_true "$OCF_RESKEY_vlan_loose_binding"; then
+			ocf_log warn "Interface $OCF_RESKEY_vlan_interface is administratively down"
+		else
+			ocf_log err "Interface $OCF_RESKEY_vlan_interface is administratively down"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
+	if ! iface_is_up $OCF_RESKEY_vlan_name; then
+		ocf_log err "VLAN $OCF_RESKEY_vlan_name is administratively down"
+		return $OCF_ERR_GENERIC
+	fi
+
+	if ! iface_lower_is_up $OCF_RESKEY_vlan_name; then
+		ocf_log err "VLAN $OCF_RESKEY_vlan_name has no active link-layer"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+# we need a simpler stop version to clean after us if start fails
+# without involving any error checking
+# rolling back in case of failure is otherwise complex
+
+vlan_force_stop() {
+	$IP2UTIL link delete "$OCF_RESKEY_vlan_name" >/dev/null 2>&1
+	rm -f "$HA_RSCTMP/iface-vlan.$OCF_RESKEY_vlan_name" 2>&1
+}
+
+vlan_start() {
+	# check if the vlan already exists
+	vlan_check
+	ret=$?
+	if [ "$ret" != "$OCF_NOT_RUNNING" ]; then
+		return $ret
+	fi
+
+	# make sure kernel module is loaded
+	if [ ! -e /proc/net/vlan ]; then
+		error="$(modprobe 8021q 2>&1)"
+		if [ "$?" != "0" ]; then
+			ocf_log err "Unable to load kernel 8021q driver: $error"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
+	# generate options
+	VLANOPTS=""
+
+	if [ -n "$OCF_RESKEY_vlan_reorder_hdr" ]; then
+		if ocf_is_true "$OCF_RESKEY_vlan_reorder_hdr"; then
+			VLANOPTS="reorder_hdr on"
+		else
+			VLANOPTS="reorder_hdr off"
+		fi
+	fi
+
+	if [ -n "$OCF_RESKEY_vlan_gvrp" ]; then
+		if ocf_is_true "$OCF_RESKEY_vlan_gvrp"; then
+			VLANOPTS="$VLANOPTS gvrp on"
+		else
+			VLANOPTS="$VLANOPTS gvrp off"
+		fi
+	fi
+
+	if [ -n "$OCF_RESKEY_vlan_mvrp" ]; then
+		if ocf_is_true "$OCF_RESKEY_vlan_mvrp"; then
+			VLANOPTS="$VLANOPTS mvrp on"
+		else
+			VLANOPTS="$VLANOPTS mvrp off"
+		fi
+	fi
+
+	if [ -n "$OCF_RESKEY_vlan_loose_binding" ]; then
+		if ocf_is_true "$OCF_RESKEY_vlan_loose_binding"; then
+			VLANOPTS="$VLANOPTS loose_binding on"
+		else
+			VLANOPTS="$VLANOPTS loose_binding off"
+		fi
+	fi
+
+	# create the VLAN
+	error="$($IP2UTIL link add link "$OCF_RESKEY_vlan_interface" name "$OCF_RESKEY_vlan_name" type vlan id "$OCF_RESKEY_vlan_id" $VLANOPTS 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to create VLAN $OCF_RESKEY_vlan_name: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	# set the interface up
+	error="$($IP2UTIL link set dev "$OCF_RESKEY_vlan_interface" up 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to set VLAN $OCF_RESKEY_vlan_interface up: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	# set the vlan up
+	error="$($IP2UTIL link set dev "$OCF_RESKEY_vlan_name" up 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to set VLAN $OCF_RESKEY_vlan_name up: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	error="$(touch "$HA_RSCTMP/iface-vlan.$OCF_RESKEY_vlan_name" 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to create lock file for VLAN $OCF_RESKEY_vlan_name: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+vlan_stop() {
+	vlan_check
+	ret=$?
+	if [ "$ret" = "$OCF_NOT_RUNNING" ]; then
+		return $OCF_SUCCESS
+	fi
+	if [ "$ret" != "$OCF_SUCCESS" ]; then
+		return $ret
+	fi
+
+	# set vlan down
+	error="$($IP2UTIL link set dev "$OCF_RESKEY_vlan_name" down 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to set VLAN $OCF_RESKEY_vlan_name down: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	# delete vlan
+	error="$($IP2UTIL link delete "$OCF_RESKEY_vlan_name" 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to delete VLAN $OCF_RESKEY_vlan_name: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	error="$(rm -f "$HA_RSCTMP/iface-vlan.$OCF_RESKEY_vlan_name" 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to remove lock file for VLAN $OCF_RESKEY_vlan_name: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+case $__OCF_ACTION in
+	meta-data)
+		vlan_meta_data
+		exit $OCF_SUCCESS
+	;;
+	usage|help)
+		vlan_usage
+		exit $OCF_SUCCESS
+	;;
+esac
+
+if [ ! -d "$HA_RSCTMP" ]; then
+	ocf_log debug "$HA_RSCTMP not found, we are probably being executed manually"
+	mkdir -p "$HA_RSCTMP"
+fi
+
+if [ -n "$__OCF_ACTION" ] && ! vlan_validate; then
+	exit $OCF_ERR_CONFIGURED
+fi
+
+case $__OCF_ACTION in
+	start|stop)
+		if ! ocf_is_root; then
+			ocf_log err "You must be root for $__OCF_ACTION operation."
+			exit $OCF_ERR_PERM
+		fi
+	;;
+esac
+
+case $__OCF_ACTION in
+	start)
+		vlan_start
+		ret=$?
+		if [ "$ret" != "$OCF_SUCCESS" ]; then
+			vlan_force_stop
+		fi
+		exit $ret
+	;;
+	stop)
+		vlan_stop
+		exit $?
+	;;
+	status|monitor)
+		vlan_check
+		exit $?
+	;;
+	validate-all)
+		# vlan_validate above does the trick
+	;;
+	*)
+		vlan_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+	;;
+esac
+# vi:sw=4:ts=8:
