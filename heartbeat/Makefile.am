@@ -74,6 +74,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			IPsrcaddr		\
 			iSCSITarget		\
 			iSCSILogicalUnit	\
+			iface-bridge		\
 			jboss			\
 			LinuxSCSI		\
 			LVM			\

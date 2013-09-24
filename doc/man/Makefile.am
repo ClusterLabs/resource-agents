@@ -103,6 +103,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_fio.7 \
                           ocf_heartbeat_iSCSILogicalUnit.7 \
                           ocf_heartbeat_iSCSITarget.7 \
+                          ocf_heartbeat_iface-bridge.7 \
                           ocf_heartbeat_ids.7 \
                           ocf_heartbeat_iscsi.7 \
                           ocf_heartbeat_jboss.7 \
