@@ -1290,7 +1290,7 @@ set_async_mode() {
     cat $REP_MODE_CONF |  grep -q -e "[,' ]$1[,' ]"
     if [ $? -eq 0 ]; then
         ocf_log info "Setup $1 into async mode."
-        echo "synchronous_standby_names = ''" > "$REP_MODE_CONF"
+        runasowner -q err "echo \"synchronous_standby_names = ''\" > \"$REP_MODE_CONF\""
     else
         ocf_log debug "$1 is already in async mode."
         return 0
@@ -1306,7 +1306,7 @@ set_sync_mode() {
         ocf_log debug "$sync_node_in_conf is already sync mode."
     else
         ocf_log info "Setup $1 into sync mode."
-        echo "synchronous_standby_names = '$1'" > "$REP_MODE_CONF"
+        runasowner -q err "echo \"synchronous_standby_names = '$1'\" > \"$REP_MODE_CONF\""
         [ "$RE_CONTROL_SLAVE" = "false" ] && RE_CONTROL_SLAVE="true"
         exec_with_retry 0 reload_conf
     fi
