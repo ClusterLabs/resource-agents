@@ -834,8 +834,7 @@ use Getopt::Long;
 use Pod::Usage;
 #use English;
 #use Time::HiRes qw( gettimeofday tv_interval );
-use Socket;
-use Socket6;
+use Socket qw( :DEFAULT inet_pton getaddrinfo getnameinfo NI_NUMERICHOST NI_NUMERICSERV NI_NAMEREQD );
 use Sys::Hostname;
 use POSIX qw(setsid :sys_wait_h);
 use Sys::Syslog qw(:DEFAULT setlogsock);
@@ -4034,7 +4033,7 @@ sub _service_up
 {
 	my ($v, $r, $force) = (@_);
 
-	if ($r->{failcount} > 0) {
+	if (defined($r->{failcount}) && $r->{failcount} > 0) {
 		ld_log("Resetting soft failure count: " . $r->{server} . ":" .
 		       $r->{port} . " (" . get_virtual_id_str($v) . ")");
 	}
@@ -5060,17 +5059,21 @@ sub ld_gethostbyname
 	if ($name =~ /\[(.*)\]/) {
 		$name = $1;
 	}
-	my @host = getaddrinfo($name, 0, $af);
-	if (!defined($host[3])) {
-		return undef;
+	my %hints = ( family => $af );
+	my ( $err, @res ) = getaddrinfo($name, 0, \%hints);
+	return undef if ($err);
+	while( my $ai = shift @res ) {
+		my ( $err, $hostname, $servicename ) = getnameinfo( $ai->{addr}, NI_NUMERICHOST );
+		if (!$err) {
+			if ($ai->{family} == AF_INET6) {
+				return "[$hostname]";
+			}
+			else {
+				return $hostname;
+			}
+		}
 	}
-	my @ret = getnameinfo($host[3], NI_NUMERICHOST | NI_NUMERICSERV);
-	if ($host[0] == AF_INET6) {
-		return "[$ret[0]]";
-	}
-	else {
-		return $ret[0];
-	}
+	return undef;
 }
 
 # ld_gethostbyaddr
@@ -5085,13 +5088,13 @@ sub ld_gethostbyaddr
 	my ($ip)=(@_);
 
 	$ip = &ld_strip_brackets($ip);
-	my @host = getaddrinfo($ip,0);
-	if (!defined($host[3])) {
-		return undef;
+	my ( $err, @res ) = getaddrinfo($ip,0);
+	return undef if ($err);
+	while( my $ai = shift @res ) {
+		my ( $err, $host, $service ) = getnameinfo($ai->{addr}, NI_NAMEREQD);
+		return $host unless($err);
 	}
-	my @ret = getnameinfo($host[3], NI_NAMEREQD);
-	return undef unless(scalar(@ret) == 2);
-	return $ret[0];
+	return undef;
 }
 
 # ld_getservbyname
