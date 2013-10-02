@@ -209,6 +209,39 @@ Xen_Status() {
   fi
 }
 
+# If the guest is rebooting, it may completely disappear from the
+# list of defined guests, thus xm/xen-list would return with not
+# running; apparently, this period lasts only for a second or
+# two
+# If a non-probe monitor returns not running, then test status
+# again for 5 times (perhaps it'll show up)
+Xen_Status_with_Retry() {
+  local rc cnt=5
+
+  Xen_Status $1
+  rc=$?
+  if ocf_is_probe || [ "$__OCF_ACTION" != "stop" ]; then
+	return $rc
+  fi
+  while [ $rc -eq $OCF_NOT_RUNNING -a $cnt -gt 0 ]; do
+	case "$__OCF_ACTION" in
+	stop)
+	  ocf_log debug "domain $1 reported as not running, waiting $cnt seconds ..."
+	  ;;
+	monitor)
+	  ocf_log warn "domain $1 reported as not running, but it is expected to be running! Retrying for $cnt seconds ..."
+	  ;;
+	*) : not reachable
+		;;
+	esac
+	sleep 1
+	Xen_Status $1
+	rc=$?
+	let cnt=$((cnt-1))
+  done
+  return $rc
+}
+
 Xen_Adjust_Memory() {
     if ocf_is_true "${OCF_RESKEY_allow_mem_management}"; then
       CNTNEW=$1
@@ -245,7 +278,7 @@ Xen_Count_running() {
 }
 
 Xen_Monitor() {
-  Xen_Status ${DOMAIN_NAME}
+  Xen_Status_with_Retry ${DOMAIN_NAME}
   if [ $? -eq ${OCF_NOT_RUNNING} ]; then
 	ocf_is_probe ||
 	  ocf_log err "Xen domain $DOMAIN_NAME stopped"
@@ -344,7 +377,7 @@ xen_domain_stop() {
 
 Xen_Stop() {
   local vm
-  if Xen_Status ${DOMAIN_NAME}; then
+  if Xen_Status_with_Retry ${DOMAIN_NAME}; then
     vm=${DOMAIN_NAME}
   elif Xen_Status migrating-${DOMAIN_NAME}; then
     ocf_log info "Xen domain $DOMAIN_NAME is migrating" 
