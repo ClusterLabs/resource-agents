@@ -46,7 +46,7 @@ Manages NFS exports
 <parameter name="clientspec" unique="0" required="1">
 <longdesc lang="en">
 The client specification allowing remote machines to mount the directory
-over NFS.
+(or directories) over NFS.
 </longdesc>
 <shortdesc lang="en">
 Client ACL.
@@ -56,7 +56,8 @@ Client ACL.
 
 <parameter name="options" unique="0" required="0">
 <longdesc lang="en">
-The options to pass to exportfs for the exported directory.
+The options to pass to exportfs for the exported directory
+or directories.
 </longdesc>
 <shortdesc lang="en">
 Export options.
@@ -66,10 +67,11 @@ Export options.
 
 <parameter name="directory" unique="0" required="1">
 <longdesc lang="en">
-The directory which you wish to export using NFS.
+The directory or directories to be exported using NFS. Multiple
+directories are separated by white space.
 </longdesc>
 <shortdesc lang="en">
-The directory to export.
+The directory or directories to export.
 </shortdesc>
 <content type="string" />
 </parameter>
@@ -79,13 +81,17 @@ The directory to export.
 The fsid option to pass to exportfs. This can be a unique positive
 integer, a UUID, or the special string "root" which is functionally
 identical to numeric fsid of 0.
+If multiple directories are being exported, then they are
+assigned ids sequentially starting with this fsid (fsid, fsid+1,
+fsid+2, ...). Obviously, in that case the fsid must be an
+integer.
 0 (root) identifies the export as the root of an NFSv4
 pseudofilesystem -- avoid this setting unless you understand its
 special status.
 This value will override any fsid provided via the options parameter.
 </longdesc>
 <shortdesc lang="en">
-Unique fsid within cluster.
+Unique fsid within cluster or starting fsid for multiple exports.
 </shortdesc>
 <content type="string" />
 </parameter>
@@ -171,18 +177,48 @@ exportfs_methods() {
 	!
 }
 
-backup_rmtab() {
-	local rmtab_backup
-	if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
-		rmtab_backup="${OCF_RESKEY_directory}/${OCF_RESKEY_rmtab_backup}"
-		grep ":${OCF_RESKEY_directory}:" /var/lib/nfs/rmtab > ${rmtab_backup}
+reset_fsid() {
+	CURRENT_FSID=$OCF_RESKEY_fsid
+}
+bump_fsid() {
+	let $((CURRENT_FSID++))
+}
+get_fsid() {
+	echo $CURRENT_FSID
+}
+
+# run a function on all directories
+forall() {
+	local func=$1
+	shift 1
+	local fast_exit=""
+	local dir rc=0
+	if [ "$2" = fast_exit ]; then
+		fast_exit=1
+		shift 1
 	fi
+	reset_fsid
+	for dir in $OCF_RESKEY_directory; do
+		$func $dir "$@"
+		rc=$(($rc | $?))
+		bump_fsid
+		[ "$fast_exit" ] && continue
+		[ $rc -ne 0 ] && return $rc
+	done
+	return $rc
+}
+
+backup_rmtab() {
+	local dir=$1
+	local rmtab_backup
+	rmtab_backup="$dir/${OCF_RESKEY_rmtab_backup}"
+	grep ":$dir:" /var/lib/nfs/rmtab > ${rmtab_backup}
 }
 
 restore_rmtab() {
+	local dir=$1
 	local rmtab_backup
-	if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
-	rmtab_backup="${OCF_RESKEY_directory}/${OCF_RESKEY_rmtab_backup}"
+	rmtab_backup="$dir/${OCF_RESKEY_rmtab_backup}"
 	if [ -r ${rmtab_backup} ]; then
 		local tmpf=`mktemp`
 		sort -u ${rmtab_backup} /var/lib/nfs/rmtab > $tmpf &&
@@ -192,7 +228,6 @@ restore_rmtab() {
 	else
 		ocf_log warn "rmtab backup ${rmtab_backup} not found or not readable."
 	fi
-	fi
 }
 
 exportfs_usage() {
@@ -201,88 +236,95 @@ exportfs_usage() {
 END
 }
 
+format_exports() {
+	# exportfs output wraps lines for long export directory names.
+	# We unwrap here with sed.
+	# We then do a literal match on the full line (grep -x -F)
+	exportfs |
+		sed -e '$! N; s/\n[[:space:]]\+/ /; t; s/[[:space:]]\+\([^[:space:]]\+\)\(\n\|$\)/ \1\2/g; P;D;'
+}
 is_exported() {
 	local dir=$1
 	local spec=$2
-	exportfs |
-		sed -e '$! N; s/\n[[:space:]]\+/ /; t; s/[[:space:]]\+\([^[:space:]]\+\)\(\n\|$\)/ \1\2/g; P;D;' |
-		grep -q -x -F "$dir $spec"
+	local rc
+	format_exports | grep -q -x -F "$dir $spec"
+	rc=$?
+	if [ $rc -ne 0 -a "$spec" = "*" ]; then
+		# on some platforms, exportfs may print
+		# "<world>" instead of "*"
+		format_exports | grep -q -x -F "$dir <world>"
+		rc=$?
+	fi
+	# log something only for monitors
+	if [ $rc -ne 0 -a "$__OCF_ACTION" = "monitor" ]; then
+		local sev="info"
+		ocf_is_probe || sev="err"
+		ocf_log $sev "$dir not exported to $spec (stopped)."
+	fi
+	return $rc
 }
 
 exportfs_monitor ()
 {
-	local rc
-	# exportfs output wraps lines for long export directory names.
-	# We unwrap here with sed.
-	# We then do a literal match on the full line (grep -x -F)
-	is_exported "${OCF_RESKEY_directory}" "${OCF_RESKEY_clientspec}"
-	rc=$?
-
-	# on some platforms, exportfs may print "<world>" instead of
-	# "*"
-	if [ $rc -eq 1 -a "${OCF_RESKEY_clientspec}" = "*" ]; then
-		is_exported "${OCF_RESKEY_directory}" "<world>"
-		rc=$?
-	fi
-
-#Adapt grep status code to OCF return code
-	case $rc in
-	0)
-		if [ "$__OCF_ACTION" = "start" ]; then
-			ocf_log info "Directory ${OCF_RESKEY_directory} is exported to ${OCF_RESKEY_clientspec} (started)."
+	if forall is_exported "${OCF_RESKEY_clientspec}"; then
+		if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
+			forall backup_rmtab
 		fi
-		# Backup the rmtab to ensure smooth NFS-over-TCP failover
-		backup_rmtab
 		return $OCF_SUCCESS
-		;;
-	1)
-		ocf_log info "Directory ${OCF_RESKEY_directory} is not exported to ${OCF_RESKEY_clientspec} (stopped)."
-		return $OCF_NOT_RUNNING;;
-	*)
-		ocf_log err "Unable to determine export status for ${OCF_RESKEY_directory}."
-		return $OCF_ERR_GENERIC;;
-	esac
+	else
+		return $OCF_NOT_RUNNING
+	fi
 }
 
+export_one() {
+	local dir=$1
+	local opts sep
+	sep=""
+	if [ -n "$OCF_RESKEY_options" ]; then
+		opts="$OCF_RESKEY_options"
+		sep=","
+	fi
+	if echo "$opts" | grep fsid >/dev/null; then
+		#replace fsid in options list
+		opts=`echo "$opts" | sed "s/fsid=[0-9]\+/fsid=$(get_fsid)/g"`
+	else
+		#tack the fsid option onto our options list.
+		opts="${opts}${sep}fsid=$(get_fsid)"
+	fi
+	opts="-o $opts"
+
+	# if any of directories fails to export we can exit
+	# immediately
+	ocf_run exportfs -v $opts "${OCF_RESKEY_clientspec}:$dir" ||
+		exit $OCF_ERR_GENERIC
+
+	ocf_log info "directory $dir exported"
+	return $OCF_SUCCESS
+}
 exportfs_start ()
 {
 	if exportfs_monitor; then
-		ocf_log debug "${OCF_RESKEY_directory} already exported"
+		ocf_log debug "already exported"
 		return $OCF_SUCCESS
 	fi
-		
-	ocf_log info "Exporting file system ..."
-
-	if [ ${OCF_RESKEY_options} ]; then
-		OPTIONS="${OCF_RESKEY_options}"
-		OPTPREFIX=','
-	fi
-	if [ `echo ${OPTIONS} | grep fsid` ]; then
-		#replace fsid provided in options list with one provided in fsid param.
-		OPTIONS=`echo ${OPTIONS} | sed "s/fsid=[0-9]\+/fsid=${OCF_RESKEY_fsid}/g"`
-	else
-		#tack the fsid option onto our options list.
-		OPTIONS="${OPTIONS}${OPTPREFIX}fsid=${OCF_RESKEY_fsid}"
-	fi
-	OPTIONS="-o ${OPTIONS}"
-
-	ocf_run exportfs -v ${OPTIONS} ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory} || exit $OCF_ERR_GENERIC
+	ocf_log info "Exporting file system(s) ..."
+	forall export_one
 
 	# Restore the rmtab to ensure smooth NFS-over-TCP failover
-	restore_rmtab
-
-	ocf_log info "File system exported"
-	return $OCF_SUCCESS
+	if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
+		forall restore_rmtab
+	fi
 }
 
 unlock_fs() {
+	local dir=$1
 	local unlockfile
 	unlockfile=/proc/fs/nfsd/unlock_filesystem
 	if [ -w ${unlockfile} ]; then
-		echo "${OCF_RESKEY_directory}" > ${unlockfile}
-		ocf_log info "Unlocked NFS export ${OCF_RESKEY_directory}"
+		echo "$dir" > ${unlockfile}
+		ocf_log info "Unlocked NFS export $dir"
 	else
-		ocf_log warn "Unable to unlock NFS export ${OCF_RESKEY_directory}, ${unlockfile} not found or not writable"
+		ocf_log warn "Unable to unlock NFS export $dir, ${unlockfile} not found or not writable"
 	fi
 }
 wait_for_leasetime() {
@@ -300,10 +342,11 @@ wait_for_leasetime() {
 cleanup_export_cache() {
 	# see if the cache is blocking unexport
 	local contentfile=/proc/net/rpc/nfsd.export/content
-	local fsid_re="fsid=$OCF_RESKEY_fsid,"
+	local fsid_re
 	local i=1
+	fsid_re="fsid=(echo `forall get_fsid`|sed 's/ /|/g'),"
 	while :; do
-		fgrep -q "$fsid_re" $contentfile ||
+		grep -E -q "$fsid_re" $contentfile ||
 			break
 		ocf_log info "Cleanup export cache ... (try $i)"
 		ocf_run exportfs -f
@@ -311,24 +354,32 @@ cleanup_export_cache() {
 		let i=$i+1
 	done
 }
+unexport_one() {
+	local dir=$1
+	ocf_run exportfs -v -u ${OCF_RESKEY_clientspec}:$dir
+}
 exportfs_stop ()
 {
+	local rc
+
 	exportfs_monitor
 	if [ $? -eq $OCF_NOT_RUNNING ]; then
-		ocf_log debug "${OCF_RESKEY_directory} not exported"
+		ocf_log debug "not exported"
 		return $OCF_SUCCESS
 	fi
 
 	ocf_log info "Un-exporting file system ..."
 
 	# Backup the rmtab to ensure smooth NFS-over-TCP failover
-	backup_rmtab
+	if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
+		forall backup_rmtab
+	fi
 
-	ocf_run exportfs -v -u ${OCF_RESKEY_clientspec}:${OCF_RESKEY_directory}
+	forall unexport_one
 	rc=$?
 
 	if ocf_is_true ${OCF_RESKEY_unlock_on_stop}; then
-		unlock_fs
+		forall unlock_fs
 	fi
 
 	if ocf_is_true ${OCF_RESKEY_wait_for_leasetime_on_stop}; then
@@ -337,18 +388,30 @@ exportfs_stop ()
 
 	if [ $rc -eq 0 ]; then
 		cleanup_export_cache
-		ocf_log info "Un-exported file system"
+		ocf_log info "Un-exported file system(s)"
 		return $OCF_SUCCESS
 	else
-		ocf_log err "Failed to un-export file system"
-		exit $OCF_ERR_GENERIC
+		ocf_log err "Failed to un-export file system(s)"
+		return $OCF_ERR_GENERIC
 	fi
 }
 
+testdir() {
+	if [ ! -d $1 ]; then
+		ocf_is_probe ||
+			ocf_log err "$1 does not exist or is not a directory"
+		return 1
+	fi
+	return 0
+}
 exportfs_validate_all ()
 {
-	if [ ! -d $OCF_RESKEY_directory ]; then
-		ocf_log err "$OCF_RESKEY_directory does not exist or is not a directory"
+	if [ `echo "$OCF_RESKEY_directory" | wc -w` -gt 1 ] &&
+			! ocf_is_decimal "$OCF_RESKEY_fsid"; then
+		ocf_log err "use integer fsid when exporting multiple directories"
+		return $OCF_ERR_CONFIGURED
+	fi
+	if ! forall testdir; then
 		return $OCF_ERR_INSTALLED
 	fi
 }
