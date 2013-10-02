@@ -295,7 +295,7 @@ VirtualDomain_Start() {
 force_stop()
 {
 	local out ex
-	local status
+	local status=0
 
 	ocf_log info "Issuing forced shutdown (destroy) request for domain ${DOMAIN_NAME}."
 	out=$(virsh $VIRSH_OPTIONS destroy ${DOMAIN_NAME} 2>&1)
