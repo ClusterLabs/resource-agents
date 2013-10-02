@@ -223,7 +223,7 @@ test_metadata() {
     action=meta-data
     msg=${1:-"Testing: $action"}
     debug $msg
-    bash $agent $action | (cd $DATADIR/resource-agents && $METADATA_LINT)
+    $agent $action | (cd $DATADIR/resource-agents && $METADATA_LINT)
     rc=$?
     #echo rc: $rc
     return $rc
@@ -237,12 +237,12 @@ test_command() {
     	lrm_test_command $action "$msg"
     	return $?
     fi
-    #echo Running: "export $ra_args; bash $agent $action 2>&1 > /dev/null"
+    #echo Running: "export $ra_args; $agent $action 2>&1 > /dev/null"
     if [ $verbose -eq 0 ]; then
-	command_output=`bash $agent $action 2>&1`
+	command_output=`$agent $action 2>&1`
     else
     	debug $msg
-	bash $agent $action
+	$agent $action
     fi
     rc=$?
     #echo rc: $rc
