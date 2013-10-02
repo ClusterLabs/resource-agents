@@ -1,0 +1,74 @@
+# exportfs
+#
+#
+
+CONFIG
+	Agent exportfs
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
+        HangTimeout 40
+
+SETUP-AGENT
+        # nothing
+
+CASE-BLOCK set_testenv
+        Env OCF_RESKEY_directory=/usr
+        Env OCF_RESKEY_fsid=105
+        Env OCF_RESKEY_clientspec="*"
+	Env OCF_RESKEY_CRM_meta_timeout=30000
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+        Include set_testenv
+	Include default_status
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: no 'OCF_RESKEY_fsid'"
+	Include prepare
+	Env OCF_RESKEY_fsid=
+	AgentRun start OCF_ERR_CONFIGURED
+
+CASE "check base env: invalid 'OCF_RESKEY_directory'"
+	Include prepare
+	Env OCF_RESKEY_directory=/no_such
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
+
+CASE "normal start"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "stop with no env"
+	Include prepare
+	Env OCF_RESKEY_directory=/no_such
+	AgentRun stop OCF_SUCCESS
+
+CASE "started: monitor"
+	Include prepare
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "not started: monitor"
+	Include prepare
+	AgentRun monitor OCF_NOT_RUNNING

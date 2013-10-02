@@ -39,6 +39,7 @@ ocftcfgs_DATA      =  apache  	\
 		       	 db2		\
 		       	 oracle		\
 		       	 drbd.linbit		\
+		       	 exportfs	\
 		       	 nfsserver	\
 		       	 portblock	\
 		       	 iscsi	\
