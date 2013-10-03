@@ -220,10 +220,14 @@ generate_name_for_conf_dir()
 	return 0;
 }
 
+#
+# Usage: create_pid_directory [username]
+#
 create_pid_directory()
 {
 	declare program_name="$(basename $0 | sed 's/^\(.*\)\..*/\1/')"
 	declare dirname="$RA_COMMON_pid_dir/$program_name"
+	declare username="$1"
 
 	if [ -d "$dirname" ]; then
 		return 0;
@@ -233,9 +237,17 @@ create_pid_directory()
 	mkdir -p "$dirname"
 	
 	if [ "$program_name" = "mysql" ]; then
-		chown mysql.root "$dirname"
+		if [ -n "$username" ]; then
+			chown "${username}.root" "$dirname"
+		else
+			chown mysql.root "$dirname"
+		fi
 	elif [ "$program_name" = "tomcat-5" -o "$program_name" = "tomcat-6" ]; then
-		chown tomcat.root "$dirname"
+		if [ -n "$username" ]; then
+			chown "${username}.root" "$dirname"
+		else
+			chown tomcat.root "$dirname"
+		fi
 	fi
 
 	return 0;
