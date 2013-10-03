@@ -95,12 +95,44 @@ isrunning_jboss()
     return $OCF_ERR_GENERIC
 }
 
+monitor_rotatelogs()
+{
+    pgrep -f "$ROTATELOGS.*$CONSOLE$ROTATELOG_SUFFIX" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        ocf_log warn "A rotatelogs command for $CONSOLE is not running. Restarting it."
+        start_rotatelogs
+        if [ $? = 0 ]; then
+            ocf_log info "Restart rotatelogs process succeeded."
+        else
+            ocf_log warn "Restart rotatelogs process failed."
+        fi
+    fi
+}
+
 monitor_jboss()
 {
     if ! pgrep -f "$PSTRING" > /dev/null; then
         return $OCF_NOT_RUNNING
     fi
     isrunning_jboss $1
+    rc=$?
+    if [ $rc -ne $OCF_SUCCESS ]; then
+        return $rc
+    fi
+    if ocf_is_true $ROTATELOG_FLG; then
+       # Monitor rotatelogs process and restart it if it is stopped.
+       # And never consider rotatelogs process failure to be a monitor failure
+       # as long as JBoss process works fine.
+       monitor_rotatelogs
+    fi
+    return $OCF_SUCCESS
+}
+
+start_rotatelogs()
+{
+    su - -s /bin/sh $JBOSS_USER \
+        -c "$ROTATELOGS -l \"$CONSOLE$ROTATELOG_SUFFIX\" $ROTATEVALUE" \
+        < "$CONSOLE" > /dev/null 2>&1 &
 }
 
 rotate_console()
@@ -110,9 +142,7 @@ rotate_console()
     mkfifo -m700 "$CONSOLE"
     chown --dereference "$JBOSS_USER" "$CONSOLE" || true
 
-    su - -s /bin/sh $JBOSS_USER \
-        -c "$ROTATELOGS -l \"$CONSOLE$ROTATELOG_SUFFIX\" $ROTATEVALUE" \
-        < "$CONSOLE" > /dev/null 2>&1 &
+    start_rotatelogs
 }
 
 start_jboss()
