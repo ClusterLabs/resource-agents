@@ -236,6 +236,45 @@ strip_trailing_slashes()
 }
 
 #
+# kill_procs_using_mount mount_point [signal]
+# 
+# Kill any processes using the specified mountpoint, using the optional 
+# specified signal. This is used in place of fuser to avoid it becoming
+# blocked while following symlinks to an unresponsive file system.  
+# Defaults to SIGKILL if no signal specified. 
+# 
+kill_procs_using_mount () {
+	declare mp
+	declare procs
+
+	if [ $# -lt 1 -o -z "$1" ]; then
+		ocf_log err "Usage: kill_procs_using_mount mount_point [signal]"
+		return $FAIL
+	fi
+
+	strip_trailing_slashes "$1"
+	mp="$STRIP_SLASHES"
+
+	if [ -z "$mp" ]; then
+		ocf_log err "Usage: kill_procs_using_mount mount_point [signal]"
+		return $FAIL
+	fi
+
+	# anything held open in mount point after the slash
+	procs=$(find /proc/[0-9]*/fd/ -type l -lname "${mp}/*" -or -lname "${mp}" 2>/dev/null | awk -F/ '{print $3}' | uniq)
+
+	for pid in $procs; do
+		if [ -n "$2" ]; then
+			kill -s $2 $pid
+		else
+			kill -s KILL $pid
+		fi	
+	done
+
+	return $SUCCESS
+}
+
+#
 # mount_in_use device mount_point
 #
 # Check to see if either the device or mount point are in use anywhere on
@@ -967,11 +1006,11 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 			fi
 
 			ocf_log warning "Sending SIGTERM to processes on $mp"
-			fuser -TERM -kvm "$mp"
+			kill_procs_using_mount "$mp" "TERM"
 			continue
 		else
 			ocf_log warning "Sending SIGKILL to processes on $mp"
-			fuser -kvm "$mp"
+			kill_procs_using_mount "$mp"
 
 			if [ $? -eq 0 ]; then
 				# someone is still accessing the mount, We've already sent
