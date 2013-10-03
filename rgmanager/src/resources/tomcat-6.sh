@@ -227,7 +227,8 @@ case $1 in
 		exit $?
 		;;
 	stop)
-		verify_all && stop
+		verify_all 
+		stop
 		exit $?
 		;;
 	status|monitor)
