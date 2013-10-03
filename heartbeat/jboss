@@ -101,7 +101,7 @@ monitor_rotatelogs()
     if [ $? -ne 0 ]; then
         ocf_log warn "A rotatelogs command for $CONSOLE is not running. Restarting it."
         start_rotatelogs
-        if [ $? = 0 ]; then
+        if [ $? -eq 0 ]; then
             ocf_log info "Restart rotatelogs process succeeded."
         else
             ocf_log warn "Restart rotatelogs process failed."
@@ -154,14 +154,14 @@ rotate_console()
 start_jboss()
 {
     monitor_jboss start
-    if [ $? = $OCF_SUCCESS ]; then
+    if [ $? -eq $OCF_SUCCESS ]; then
         ocf_log info "JBoss already running."
         return $OCF_SUCCESS
     fi
 
     if ocf_is_true $ROTATELOG_FLG; then
         rotate_console
-        if [ $? = 0 ]; then
+        if [ $? -eq 0 ]; then
             ocf_log debug "Rotate console log succeeded."
         else
             ocf_log err "Rotate console log failed. Avoid starting jboss without console log rotation."
@@ -185,7 +185,7 @@ start_jboss()
 
     while true; do
         monitor_jboss start
-        if [ $? = $OCF_SUCCESS ]; then
+        if [ $? -eq $OCF_SUCCESS ]; then
             break
         fi
         ocf_log info "start_jboss[$RESOURCE_NAME]: retry monitor_jboss"
