@@ -137,6 +137,15 @@ start_rotatelogs()
 
 rotate_console()
 {
+    # Check $CONSOLE$ROTATELOG_SUFFIX is writable or not.
+    CURRENT_ROTATELOG_SUFFIX=`date +"$ROTATELOG_SUFFIX"`
+    su - -s /bin/sh $JBOSS_USER \
+        -c "touch \"$CONSOLE$CURRENT_ROTATELOG_SUFFIX\"" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        ocf_log err "$CONSOLE$CURRENT_ROTATELOG_SUFFIX is not writable."
+        return $OCF_ERR_GENERIC
+    fi
+
     # Clean up and set permissions on required files
     if [ -p "$CONSOLE" ]; then
         rm -rf "$CONSOLE"
