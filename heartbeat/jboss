@@ -105,16 +105,6 @@ monitor_jboss()
 
 rotate_console()
 {
-    # Look for rotatelogs/rotatelogs2
-    if [ -x /usr/sbin/rotatelogs ]; then
-        ROTATELOGS=/usr/sbin/rotatelogs
-    elif [ -x /usr/sbin/rotatelogs2 ]; then
-        ROTATELOGS=/usr/sbin/rotatelogs2
-    else
-        ocf_log warn "rotatelogs command not found."
-        return 1
-    fi
-
     # Clean up and set permissions on required files
     rm -rf "$CONSOLE"
     mkfifo -m700 "$CONSOLE"
@@ -497,6 +487,13 @@ validate_all_jboss()
         return $OCF_ERR_INSTALLED
     fi
 
+    if ocf_is_true $ROTATELOG_FLG; then
+        if [ ! -x "$ROTATELOGS" ]; then
+            ocf_log err "rotatelogs command does not exist."
+            return $OCF_ERR_INSTALLED
+        fi
+    fi
+
     return $OCF_SUCCESS
 }
 
@@ -559,6 +556,16 @@ LSB_STATUS_STOPPED=3
 export JAVA_HOME JAVA_OPTS JBOSS_HOME JBOSS_BASE_DIR
 
 JAVA=${JAVA_HOME}/bin/java
+
+ROTATELOGS=""
+if ocf_is_true $ROTATELOG_FLG; then
+    # Look for rotatelogs/rotatelogs2
+    if [ -x /usr/sbin/rotatelogs ]; then
+        ROTATELOGS=/usr/sbin/rotatelogs
+    elif [ -x /usr/sbin/rotatelogs2 ]; then
+        ROTATELOGS=/usr/sbin/rotatelogs2
+    fi
+fi
 
 validate_all_jboss
 rc=$?
