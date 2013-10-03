@@ -128,7 +128,8 @@ start_jboss()
         if [ $? = 0 ]; then
             ocf_log debug "Rotate console log succeeded."
         else
-            ocf_log warn "Rotate console log failed. Starting jboss without console log rotation."
+            ocf_log err "Rotate console log failed. Avoid starting jboss without console log rotation."
+            return $OCF_ERR_GENERIC
         fi
     fi
 
