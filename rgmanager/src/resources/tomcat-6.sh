@@ -120,7 +120,7 @@ generate_config_file()
 
 	$(dirname $0)/utils/tomcat-parse-config.pl $ip_addresses < "$original_file" > "$generated_file"
 
-        sha1_addToFile "$generated_file"
+        sha1_addToFileXML "$generated_file"
 	clog_generate_config $CLOG_SUCCEED "$original_file" "$generated_file"
                
 	return 0;
@@ -130,7 +130,6 @@ start()
 {
 	clog_service_start $CLOG_INIT
 
-	create_pid_directory
 	create_conf_directory "$TOMCAT_conf_dir"
 	check_pid_file "$TOMCAT_pid_file"
 
@@ -153,6 +152,8 @@ start()
 
 	. "$OCF_RESKEY_config_file"
 
+	create_pid_directory "$TOMCAT_USER"
+
 	generate_config_file "$CATALINA_BASE/conf/server.xml" "$TOMCAT_gen_config_file" "$ip_addresses"
 	rm -f "$TOMCAT_gen_catalina_base/conf/tomcat6.conf"
 	( cat $OCF_RESKEY_config_file | grep -v 'CATALINA_PID=' | grep -v 'CATALINA_BASE='; echo CATALINA_BASE="$TOMCAT_gen_catalina_base"; echo CATALINA_PID="$TOMCAT_pid_file") > "$TOMCAT_gen_catalina_base/conf/tomcat6.conf" 
@@ -168,7 +169,7 @@ start()
 
 	eval "$tomcat6_options"
 
-	/usr/sbin/tomcat6 start
+	/bin/su -s /bin/sh $TOMCAT_USER -c "/usr/sbin/tomcat6 start"
 
 	if [ $? -ne 0 ]; then
 		clog_service_start $CLOG_FAILED
