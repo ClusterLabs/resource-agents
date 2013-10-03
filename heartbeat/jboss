@@ -485,6 +485,13 @@ validate_all_jboss()
         return $OCF_ERR_INSTALLED
     fi
 
+    if [ "$JBOSS_VERSION" -gt 5 ]; then
+        if [ ! -d "$JBOSS_BASE_DIR" ]; then
+            ocf_log err "JBOSS_BASE_DIR does not exist."
+            return $OCF_ERR_INSTALLED
+        fi
+    fi
+
     if [ ! -x "$JAVA" ]; then
         ocf_log err "java command does not exist."
         return $OCF_ERR_INSTALLED
