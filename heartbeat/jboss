@@ -475,7 +475,21 @@ END
 
 validate_all_jboss()
 {
-    ocf_log info "validate_all_jboss[$RESOURCE_NAME]"
+    if [ ! -d "$JAVA_HOME" ]; then
+        ocf_log err "JAVA_HOME does not exist."
+        return $OCF_ERR_INSTALLED
+    fi
+
+    if [ ! -d "$JBOSS_HOME" ]; then
+        ocf_log err "JBOSS_HOME does not exist."
+        return $OCF_ERR_INSTALLED
+    fi
+
+    if [ ! -x "$JAVA" ]; then
+        ocf_log err "java command does not exist."
+        return $OCF_ERR_INSTALLED
+    fi
+
     return $OCF_SUCCESS
 }
 
@@ -534,28 +548,23 @@ JBOSS_HOME="${OCF_RESKEY_jboss_home}"
 RUN_COMMAND="${OCF_RESKEY_run_command-${OCF_RESKEY_run_command_default}}"
 
 LSB_STATUS_STOPPED=3
-if [ ! -d "$JAVA_HOME" -o ! -d "$JBOSS_HOME" ]; then
-    case $COMMAND in
-        stop)       exit    $OCF_SUCCESS;;
-        monitor)    exit    $OCF_NOT_RUNNING;;
-        status)     exit    $LSB_STATUS_STOPPED;;
-    esac
-    ocf_log err "JAVA_HOME or JBOSS_HOME does not exist."
-    exit $OCF_ERR_INSTALLED
-fi
 
 export JAVA_HOME JAVA_OPTS JBOSS_HOME JBOSS_BASE_DIR
 
 JAVA=${JAVA_HOME}/bin/java
 
-if [ ! -x "$JAVA" ]; then
+validate_all_jboss
+rc=$?
+
+[ "$COMMAND" = "validate-all" ] && exit $rc
+
+if [ $rc -ne 0 ]; then
     case $COMMAND in
         stop)       exit    $OCF_SUCCESS;;
         monitor)    exit    $OCF_NOT_RUNNING;;
         status)     exit    $LSB_STATUS_STOPPED;;
+        *)          exit    $rc;;
     esac
-    ocf_log err "java command does not exist."
-    exit $OCF_ERR_INSTALLED
 fi
 
 case "$COMMAND" in
