@@ -138,7 +138,13 @@ start_rotatelogs()
 rotate_console()
 {
     # Clean up and set permissions on required files
-    rm -rf "$CONSOLE"
+    if [ -p "$CONSOLE" ]; then
+        rm -rf "$CONSOLE"
+    elif [ -e "$CONSOLE" ]; then
+        DATE=`date +"%F-%H%M%S"`
+        ocf_log warn "$CONSOLE already exists. It is saved as $CONSOLE-$DATE"
+        mv "$CONSOLE" "$CONSOLE-$DATE"
+    fi
     mkfifo -m700 "$CONSOLE"
     chown --dereference "$JBOSS_USER" "$CONSOLE" || true
 
