@@ -1734,7 +1734,7 @@ BACKUPLABEL=${OCF_RESKEY_pgdata}/backup_label
 RESOURCE_NAME=`echo $OCF_RESOURCE_INSTANCE | cut -d ":" -f 1`
 PGSQL_WAL_RECEIVER_STATUS_ATTR="${RESOURCE_NAME}-receiver-status"
 RECOVERY_CONF=${OCF_RESKEY_pgdata}/recovery.conf
-NODENAME=`uname -n | tr '[A-Z]' '[a-z]'`
+NODENAME=$(ocf_local_nodename | tr '[A-Z]' '[a-z]')
 
 if is_replication; then
     REP_MODE_CONF=${OCF_RESKEY_tmpdir}/rep_mode.conf
