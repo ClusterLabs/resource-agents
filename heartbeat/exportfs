@@ -152,28 +152,41 @@ END
 return $OCF_SUCCESS
 }
 
+exportfs_methods() {
+  cat <<-!
+	start
+	stop
+	status
+	monitor
+	validate-all
+	methods
+	meta-data
+	usage
+	!
+}
+
 backup_rmtab() {
-    local rmtab_backup
-    if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
-	rmtab_backup="${OCF_RESKEY_directory}/${OCF_RESKEY_rmtab_backup}"
-	grep ":${OCF_RESKEY_directory}:" /var/lib/nfs/rmtab > ${rmtab_backup}
-    fi
+	local rmtab_backup
+	if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
+		rmtab_backup="${OCF_RESKEY_directory}/${OCF_RESKEY_rmtab_backup}"
+		grep ":${OCF_RESKEY_directory}:" /var/lib/nfs/rmtab > ${rmtab_backup}
+	fi
 }
 
 restore_rmtab() {
-    local rmtab_backup
-    if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
+	local rmtab_backup
+	if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
 	rmtab_backup="${OCF_RESKEY_directory}/${OCF_RESKEY_rmtab_backup}"
 	if [ -r ${rmtab_backup} ]; then
-	    local tmpf=`mktemp`
-	    sort -u ${rmtab_backup} /var/lib/nfs/rmtab > $tmpf &&
+		local tmpf=`mktemp`
+		sort -u ${rmtab_backup} /var/lib/nfs/rmtab > $tmpf &&
 		install -o root -m 644 $tmpf /var/lib/nfs/rmtab
-	    rm -f $tmpf
-	    ocf_log debug "Restored `wc -l ${rmtab_backup}` rmtab entries from ${rmtab_backup}."
+		rm -f $tmpf
+		ocf_log debug "Restored `wc -l ${rmtab_backup}` rmtab entries from ${rmtab_backup}."
 	else
-	    ocf_log warn "rmtab backup ${rmtab_backup} not found or not readable."
+		ocf_log warn "rmtab backup ${rmtab_backup} not found or not readable."
 	fi
-    fi
+	fi
 }
 
 exportfs_usage() {
@@ -186,8 +199,8 @@ is_exported() {
 	local dir=$1
 	local spec=$2
 	exportfs |
-	        sed -e '$! N; s/\n[[:space:]]\+/ /; t; s/[[:space:]]\+\([^[:space:]]\+\)\(\n\|$\)/ \1\2/g; P;D;' |
-			grep -q -x -F "$dir $spec"
+		sed -e '$! N; s/\n[[:space:]]\+/ /; t; s/[[:space:]]\+\([^[:space:]]\+\)\(\n\|$\)/ \1\2/g; P;D;' |
+		grep -q -x -F "$dir $spec"
 }
 
 exportfs_monitor ()
@@ -210,7 +223,7 @@ exportfs_monitor ()
 	case $rc in
 	0)
 		ocf_log info "Directory ${OCF_RESKEY_directory} is exported to ${OCF_RESKEY_clientspec} (started)."
-	        # Backup the rmtab to ensure smooth NFS-over-TCP failover
+		# Backup the rmtab to ensure smooth NFS-over-TCP failover
 		backup_rmtab
 		return $OCF_SUCCESS
 		;;
@@ -324,60 +337,14 @@ exportfs_stop ()
 	fi
 }
 
-exportfs_validate ()
+exportfs_validate_all ()
 {
-	# Checks for required parameters
-	if [ -z "$OCF_RESKEY_directory" ]; then
-		ocf_log err "Missing required parameter \"directory\""
-		exit $OCF_ERR_CONFIGURED
-	fi
-	if [ -z "$OCF_RESKEY_fsid" ]; then
-		ocf_log err "Missing required parameter \"fsid\""
-		exit $OCF_ERR_CONFIGURED
-	fi
-	if [ -z "$OCF_RESKEY_clientspec" ]; then
-		ocf_log err "Missing required parameter \"clientspec\""
-		exit $OCF_ERR_CONFIGURED
-	fi
-	
-	# Checks applicable only to non-probes
-	if ! ocf_is_probe; then
-		if [ ! -d $OCF_RESKEY_directory ]; then
-			ocf_log err "$OCF_RESKEY_directory does not exist or is not a directory"
-			exit $OCF_ERR_INSTALLED
-		fi
+	if [ ! -d $OCF_RESKEY_directory ]; then
+		ocf_log err "$OCF_RESKEY_directory does not exist or is not a directory"
+		return $OCF_ERR_INSTALLED
 	fi
 }
 
-if [ $# -ne 1 ]; then
-	exportfs_usage
-	exit $OCF_ERR_ARGS
-fi
-
-case $__OCF_ACTION in
-	meta-data)  exportfs_meta_data
-		exit $OCF_SUCCESS
-		;;
-	usage|help) exportfs_usage
-		exit $OCF_SUCCESS
-		;;
-	*)
-		;;
-esac
-
-exportfs_validate
-
-case $__OCF_ACTION in
-	start)		exportfs_start
-		;;
-	stop)		exportfs_stop
-		;;
-	status|monitor)	exportfs_monitor
-		;;
-	validate-all)
-		# nothing to do -- we're already validated
-		;;
-	*)		exportfs_usage
-			exit $OCF_ERR_UNIMPLEMENTED
-		;;
-esac
+OCF_REQUIRED_PARAMS="directory fsid clientspec"
+OCF_REQUIRED_BINARIES="exportfs"
+ocf_rarun $*
