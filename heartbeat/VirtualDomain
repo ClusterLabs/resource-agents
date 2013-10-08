@@ -202,9 +202,6 @@ update_utilization() {
 	fi
 }
 
-# Set options to be passed to virsh:
-VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor} --quiet"
-
 VirtualDomain_Status() {
 	local try=0
 	rc=$OCF_ERR_GENERIC
@@ -532,6 +529,9 @@ esac
 
 OCF_RESKEY_hypervisor_default="$(virsh --quiet uri)"
 : ${OCF_RESKEY_hypervisor=${OCF_RESKEY_hypervisor_default}}
+
+# Set options to be passed to virsh:
+VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor} --quiet"
 
 # Everything except usage and meta-data must pass the validate test
 VirtualDomain_Validate_All || exit $?
