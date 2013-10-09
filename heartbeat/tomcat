@@ -103,6 +103,22 @@ isalive_tomcat()
 }
 
 ############################################################################
+# Check rotatelogs process and restart if it is stopped
+monitor_rotatelogs()
+{
+	pgrep -f "$ROTATELOGS.*$CATALINA_BASE/logs/catalina_%F.log" > /dev/null 2>&1
+	if [ $? -ne 0 ]; then
+		ocf_log warn "A rotatelogs command for $CATALINA_BASE/logs/catalina_%F.log is not running. Restarting it."
+		start_rotatelogs
+		if [ $? -eq 0 ]; then
+			ocf_log info "Restart rotatelogs process succeeded."
+		else
+			ocf_log warn "Restart rotatelogs process failed."
+		fi
+	fi
+}
+
+############################################################################
 # Check tomcat process and service availability
 monitor_tomcat()
 {
@@ -110,7 +126,23 @@ monitor_tomcat()
 		return $OCF_NOT_RUNNING
 	isrunning_tomcat ||
 		return $OCF_ERR_GENERIC
+	if ocf_is_true ${CATALINA_ROTATE_LOG}; then
+		# Monitor rotatelogs process and restart it if it is stopped.
+		# And never consider rotatelogs process failure to be a monitor failure
+		# as long as Tomcat process works fine.
+		monitor_rotatelogs
+	fi
 	return $OCF_SUCCESS
+}
+
+############################################################################
+# Startup rotatelogs process
+start_rotatelogs()
+{
+	# -s is required because tomcat5.5's login shell is /bin/false
+	su - -s /bin/sh $RESOURCE_TOMCAT_USER \
+        	-c "$ROTATELOGS -l \"$CATALINA_BASE/logs/catalina_%F.log\" $CATALINA_ROTATETIME" \
+        	< "$CATALINA_OUT" > /dev/null 2>&1 &
 }
 
 ############################################################################
@@ -138,10 +170,7 @@ rotate_catalina_out()
 	mkfifo -m700 "$CATALINA_OUT"
 	chown --dereference "$RESOURCE_TOMCAT_USER" "$CATALINA_OUT" || true
 
-	# -s is required because tomcat5.5's login shell is /bin/false
-	su - -s /bin/sh $RESOURCE_TOMCAT_USER \
-        	-c "$ROTATELOGS -l \"$CATALINA_BASE/logs/catalina_%F.log\" $CATALINA_ROTATETIME" \
-        	< "$CATALINA_OUT" > /dev/null 2>&1 &
+	start_rotatelogs
 }
 
 ############################################################################
