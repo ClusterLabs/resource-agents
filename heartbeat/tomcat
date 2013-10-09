@@ -117,16 +117,6 @@ monitor_tomcat()
 # Execute catalina.out log rotation
 rotate_catalina_out()
 {
-	# Look for rotatelogs/rotatelogs2
-	if [ -x /usr/sbin/rotatelogs ]; then
-		ROTATELOGS=/usr/sbin/rotatelogs
-	elif [ -x /usr/sbin/rotatelogs2 ]; then
-		ROTATELOGS=/usr/sbin/rotatelogs2
-	else
-		ocf_log warn "rotatelogs command not found."
-		return 1
-	fi
-
 	# Clean up and set permissions on required files
 	rm -rf "$CATALINA_BASE"/temp/* "$CATALINA_OUT"
 	mkfifo -m700 "$CATALINA_OUT"
@@ -481,6 +471,13 @@ validate_all_tomcat()
 		fi
 	fi
 
+	if ocf_is_true ${CATALINA_ROTATE_LOG}; then
+		if [ ! -x "$ROTATELOGS" ]; then
+			ocf_log err "rotatelogs command does not exist."
+			rc=$OCF_ERR_INSTALLED
+		fi
+	fi
+
 	return $rc
 }
 
@@ -551,6 +548,16 @@ if [ ! -x "$JAVA" ]; then
 	esac
 	ocf_log err "java command does not exist."
 	exit $OCF_ERR_INSTALLED
+fi
+
+ROTATELOGS=""
+if ocf_is_true ${CATALINA_ROTATE_LOG}; then
+	# Look for rotatelogs/rotatelogs2
+	if [ -x /usr/sbin/rotatelogs ]; then
+		ROTATELOGS=/usr/sbin/rotatelogs
+	elif [ -x /usr/sbin/rotatelogs2 ]; then
+		ROTATELOGS=/usr/sbin/rotatelogs2
+	fi
 fi
 
 #
