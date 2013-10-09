@@ -8,28 +8,9 @@ ipcheck_ipv4() {
 ipcheck_ipv6() {
   ! echo "$1" | grep -qs "[^0-9:a-fA-F]"
 }
-ifcheck_ipv4() {
-  local ifcheck=$1
-  local procfile="/proc/net/dev"
-  local ifstr rest
-
-  while read ifstr rest ; do
-    # Interface name may be concatenated to Receive field with ':'
-    case "$ifstr" in
-      "$ifcheck:"*) return 0;;
-    esac
-  done < $procfile
-  return 1
-}
-ifcheck_ipv6() {
-  local ifcheck="$1"
-  local procfile="/proc/net/if_inet6"
-  local tmp ifstr
-
-  while read tmp tmp tmp tmp tmp ifstr ; do
-    [ "$ifstr" = "$ifcheck" ] && return 0
-  done < $procfile
-  return 1
+ifcheck() {
+  local ifname="$1"
+  $IP2UTIL link show dev $ifname 2>&1 >/dev/null
 }
 prefixcheck() {
   local prefix=$1
@@ -71,6 +52,15 @@ findif_check_params()
   local nic="$OCF_RESKEY_nic"
   local netmask="$OCF_RESKEY_cidr_netmask"
   local brdcast="$OCF_RESKEY_broadcast"
+  local errmsg
+
+  if [ -n "$nic" ] ; then
+    errmsg=`ifcheck $nic`
+    if [ $? -ne 0 ] ; then
+      ocf_log err "Invalid interface name [$nic]: $errmsg"
+      return $OCF_ERR_CONFIGURED
+    fi
+  fi
 
   if [ "$family" = "inet6" ] ; then
     ipcheck_ipv6 $match
@@ -78,13 +68,7 @@ findif_check_params()
       ocf_log err "IP address [$match] not valid."
       return $OCF_ERR_CONFIGURED
     fi
-    if [ -n "$nic" ] ; then
-      ifcheck_ipv6 $nic
-      if [ $? = 1 ] ; then
-        ocf_log err "Unknown interface [$nic] No such device."
-        return $OCF_ERR_CONFIGURED
-      fi
-    else
+    if [ -z "$nic" ] ; then
       echo $match | grep -qis '^fe80::'
       if [ $? = 0 ] ; then
         ocf_log err "'nic' parameter is mandatory for a link local address [$match]."
@@ -104,13 +88,6 @@ findif_check_params()
     if [ $? = 1 ] ; then
       ocf_log err "IP address [$match] not valid."
       return $OCF_ERR_CONFIGURED
-    fi
-    if [ -n "$nic" ] ; then
-      ifcheck_ipv4 $nic
-      if [ $? = 1 ] ; then
-        ocf_log err "Unknown interface [$nic] No such device."
-        return $OCF_ERR_CONFIGURED
-      fi
     fi
     if [ -n "$netmask" ] ; then
       prefixcheck $netmask 32
