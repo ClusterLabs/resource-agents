@@ -178,7 +178,8 @@ start_tomcat()
 		if [ $? = 0 ]; then
 			ocf_log debug "Rotate catalina.out succeeded."
 		else
-			ocf_log warn "Rotate catalina.out failed. Starting tomcat without catalina.out rotation."
+			ocf_log err "Rotate catalina.out failed. Avoid starting tomcat without catalina.out rotation."
+			return $OCF_ERR_GENERIC
 		fi
 	fi
 	
