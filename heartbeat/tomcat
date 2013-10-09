@@ -210,7 +210,7 @@ start_tomcat()
 	validate_all_tomcat || exit $?
 
 	monitor_tomcat
-	if [ $? = $OCF_SUCCESS ]; then
+	if [ $? -eq $OCF_SUCCESS ]; then
 		return $OCF_SUCCESS
 	fi
 
@@ -220,7 +220,7 @@ start_tomcat()
 	#ocf_log debug "catalina.out rotation FLG = ${CATALINA_ROTATE_LOG}"
 	if ocf_is_true ${CATALINA_ROTATE_LOG}; then
 		rotate_catalina_out
-		if [ $? = 0 ]; then
+		if [ $? -eq 0 ]; then
 			ocf_log debug "Rotate catalina.out succeeded."
 		else
 			ocf_log err "Rotate catalina.out failed. Avoid starting tomcat without catalina.out rotation."
@@ -235,7 +235,7 @@ start_tomcat()
 
 	while true; do
 		monitor_tomcat
-		if [ $? = $OCF_SUCCESS ]; then
+		if [ $? -eq $OCF_SUCCESS ]; then
 			break
 		fi
 		ocf_log debug "start_tomcat[$TOMCAT_NAME]: retry monitor_tomcat"
