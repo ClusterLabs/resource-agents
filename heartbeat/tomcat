@@ -117,6 +117,15 @@ monitor_tomcat()
 # Execute catalina.out log rotation
 rotate_catalina_out()
 {
+	# Check catalina_%F.log is writable or not.
+	CURRENT_ROTATELOG_SUFFIX=`date +"%F"`
+	su - -s /bin/sh $RESOURCE_TOMCAT_USER \
+		-c "touch \"$CATALINA_BASE/logs/catalina_$CURRENT_ROTATELOG_SUFFIX.log\"" > /dev/null 2>&1
+	if [ $? -ne 0 ]; then
+		ocf_log err "$CATALINA_BASE/logs/catalina_$CURRENT_ROTATELOG_SUFFIX.log is not writable."
+		return $OCF_ERR_GENERIC
+	fi
+
 	# Clean up and set permissions on required files
 	rm -rf "$CATALINA_BASE"/temp/* "$CATALINA_OUT"
 	mkfifo -m700 "$CATALINA_OUT"
