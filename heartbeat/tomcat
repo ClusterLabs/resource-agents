@@ -127,7 +127,14 @@ rotate_catalina_out()
 	fi
 
 	# Clean up and set permissions on required files
-	rm -rf "$CATALINA_BASE"/temp/* "$CATALINA_OUT"
+	rm -rf "$CATALINA_BASE"/temp/*
+	if [ -p "$CATALINA_OUT" ]; then
+		rm -f "$CATALINA_OUT"
+	elif [ -e "$CATALINA_OUT" ]; then
+		DATE=`date +"%F-%H%M%S"`
+		ocf_log warn "$CATALINA_OUT already exists. It is saved as $CATALINA_OUT-$DATE"
+		mv "$CATALINA_OUT" "$CATALINA_OUT-$DATE"
+	fi
 	mkfifo -m700 "$CATALINA_OUT"
 	chown --dereference "$RESOURCE_TOMCAT_USER" "$CATALINA_OUT" || true
 
