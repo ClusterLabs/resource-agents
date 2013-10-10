@@ -113,6 +113,18 @@ do_metadata()
 	    <content type="boolean"/>
         </parameter>
 
+        <parameter name="self_fence">
+            <longdesc lang="en">
+                If set and unmounting the file system fails, the node will
+                immediately reboot.  Generally, this is used in conjunction
+                with force_unmount support, but it is not required.
+            </longdesc>
+            <shortdesc lang="en">
+                Seppuku Unmount
+            </shortdesc>
+            <content type="boolean"/>
+        </parameter>
+
         <parameter name="options">
             <longdesc lang="en">
 	    	Provides a list of mount options.  If none are specified,
