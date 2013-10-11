@@ -95,50 +95,86 @@ isrunning_jboss()
     return $OCF_ERR_GENERIC
 }
 
+monitor_rotatelogs()
+{
+    pgrep -f "$ROTATELOGS.*$CONSOLE$ROTATELOG_SUFFIX" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        ocf_log warn "A rotatelogs command for $CONSOLE is not running. Restarting it."
+        start_rotatelogs
+        if [ $? -eq 0 ]; then
+            ocf_log info "Restart rotatelogs process succeeded."
+        else
+            ocf_log warn "Restart rotatelogs process failed."
+        fi
+    fi
+}
+
 monitor_jboss()
 {
     if ! pgrep -f "$PSTRING" > /dev/null; then
         return $OCF_NOT_RUNNING
     fi
     isrunning_jboss $1
+    rc=$?
+    if [ $rc -ne $OCF_SUCCESS ]; then
+        return $rc
+    fi
+    if ocf_is_true $ROTATELOG_FLG; then
+       # Monitor rotatelogs process and restart it if it is stopped.
+       # And never consider rotatelogs process failure to be a monitor failure
+       # as long as JBoss process works fine.
+       monitor_rotatelogs
+    fi
+    return $OCF_SUCCESS
 }
 
-rotate_console()
+start_rotatelogs()
 {
-    # Look for rotatelogs/rotatelogs2
-    if [ -x /usr/sbin/rotatelogs ]; then
-        ROTATELOGS=/usr/sbin/rotatelogs
-    elif [ -x /usr/sbin/rotatelogs2 ]; then
-        ROTATELOGS=/usr/sbin/rotatelogs2
-    else
-        ocf_log warn "rotatelogs command not found."
-        return 1
-    fi
-
-    # Clean up and set permissions on required files
-    rm -rf "$CONSOLE"
-    mkfifo -m700 "$CONSOLE"
-    chown --dereference "$JBOSS_USER" "$CONSOLE" || true
-
     su - -s /bin/sh $JBOSS_USER \
         -c "$ROTATELOGS -l \"$CONSOLE$ROTATELOG_SUFFIX\" $ROTATEVALUE" \
         < "$CONSOLE" > /dev/null 2>&1 &
 }
 
+rotate_console()
+{
+    # Check $CONSOLE$ROTATELOG_SUFFIX is writable or not.
+    CURRENT_ROTATELOG_SUFFIX=`date +"$ROTATELOG_SUFFIX"`
+    su - -s /bin/sh $JBOSS_USER \
+        -c "touch \"$CONSOLE$CURRENT_ROTATELOG_SUFFIX\"" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        ocf_log err "$CONSOLE$CURRENT_ROTATELOG_SUFFIX is not writable."
+        return $OCF_ERR_GENERIC
+    fi
+
+    # Clean up and set permissions on required files
+    if [ -p "$CONSOLE" ]; then
+        rm -rf "$CONSOLE"
+    elif [ -e "$CONSOLE" ]; then
+        DATE=`date +"%F-%H%M%S"`
+        ocf_log warn "$CONSOLE already exists. It is saved as $CONSOLE-$DATE"
+        mv "$CONSOLE" "$CONSOLE-$DATE"
+    fi
+    mkfifo -m700 "$CONSOLE"
+    chown --dereference "$JBOSS_USER" "$CONSOLE" || true
+
+    start_rotatelogs
+}
+
 start_jboss()
 {
     monitor_jboss start
-    if [ $? = $OCF_SUCCESS ]; then
+    if [ $? -eq $OCF_SUCCESS ]; then
         ocf_log info "JBoss already running."
         return $OCF_SUCCESS
     fi
 
     if ocf_is_true $ROTATELOG_FLG; then
         rotate_console
-        if [ $? = 0 ]; then
+        if [ $? -eq 0 ]; then
             ocf_log debug "Rotate console log succeeded."
         else
-            ocf_log warn "Rotate console log failed. Starting jboss without console log rotation."
+            ocf_log err "Rotate console log failed. Avoid starting jboss without console log rotation."
+            return $OCF_ERR_GENERIC
         fi
     fi
 
@@ -158,7 +194,7 @@ start_jboss()
 
     while true; do
         monitor_jboss start
-        if [ $? = $OCF_SUCCESS ]; then
+        if [ $? -eq $OCF_SUCCESS ]; then
             break
         fi
         ocf_log info "start_jboss[$RESOURCE_NAME]: retry monitor_jboss"
@@ -475,7 +511,35 @@ END
 
 validate_all_jboss()
 {
-    ocf_log info "validate_all_jboss[$RESOURCE_NAME]"
+    if [ ! -d "$JAVA_HOME" ]; then
+        ocf_log err "JAVA_HOME does not exist."
+        return $OCF_ERR_INSTALLED
+    fi
+
+    if [ ! -d "$JBOSS_HOME" ]; then
+        ocf_log err "JBOSS_HOME does not exist."
+        return $OCF_ERR_INSTALLED
+    fi
+
+    if [ "$JBOSS_VERSION" -gt 5 ]; then
+        if [ ! -d "$JBOSS_BASE_DIR" ]; then
+            ocf_log err "JBOSS_BASE_DIR does not exist."
+            return $OCF_ERR_INSTALLED
+        fi
+    fi
+
+    if [ ! -x "$JAVA" ]; then
+        ocf_log err "java command does not exist."
+        return $OCF_ERR_INSTALLED
+    fi
+
+    if ocf_is_true $ROTATELOG_FLG; then
+        if [ ! -x "$ROTATELOGS" ]; then
+            ocf_log err "rotatelogs command does not exist."
+            return $OCF_ERR_INSTALLED
+        fi
+    fi
+
     return $OCF_SUCCESS
 }
 
@@ -534,28 +598,33 @@ JBOSS_HOME="${OCF_RESKEY_jboss_home}"
 RUN_COMMAND="${OCF_RESKEY_run_command-${OCF_RESKEY_run_command_default}}"
 
 LSB_STATUS_STOPPED=3
-if [ ! -d "$JAVA_HOME" -o ! -d "$JBOSS_HOME" ]; then
-    case $COMMAND in
-        stop)       exit    $OCF_SUCCESS;;
-        monitor)    exit    $OCF_NOT_RUNNING;;
-        status)     exit    $LSB_STATUS_STOPPED;;
-    esac
-    ocf_log err "JAVA_HOME or JBOSS_HOME does not exist."
-    exit $OCF_ERR_INSTALLED
-fi
 
 export JAVA_HOME JAVA_OPTS JBOSS_HOME JBOSS_BASE_DIR
 
 JAVA=${JAVA_HOME}/bin/java
 
-if [ ! -x "$JAVA" ]; then
+ROTATELOGS=""
+if ocf_is_true $ROTATELOG_FLG; then
+    # Look for rotatelogs/rotatelogs2
+    if [ -x /usr/sbin/rotatelogs ]; then
+        ROTATELOGS=/usr/sbin/rotatelogs
+    elif [ -x /usr/sbin/rotatelogs2 ]; then
+        ROTATELOGS=/usr/sbin/rotatelogs2
+    fi
+fi
+
+validate_all_jboss
+rc=$?
+
+[ "$COMMAND" = "validate-all" ] && exit $rc
+
+if [ $rc -ne 0 ]; then
     case $COMMAND in
         stop)       exit    $OCF_SUCCESS;;
         monitor)    exit    $OCF_NOT_RUNNING;;
         status)     exit    $LSB_STATUS_STOPPED;;
+        *)          exit    $rc;;
     esac
-    ocf_log err "java command does not exist."
-    exit $OCF_ERR_INSTALLED
 fi
 
 case "$COMMAND" in
