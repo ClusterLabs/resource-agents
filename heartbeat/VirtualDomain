@@ -202,9 +202,6 @@ update_utilization() {
 	fi
 }
 
-# Set options to be passed to virsh:
-VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor} --quiet"
-
 VirtualDomain_Status() {
 	local try=0
 	rc=$OCF_ERR_GENERIC
@@ -260,6 +257,15 @@ VirtualDomain_Status() {
 	return $rc
 }
 
+verify_undefined() {
+	for dom in `virsh --connect=${OCF_RESKEY_hypervisor} list --all --name`; do
+		if [ "$dom" = "$DOMAIN_NAME" ]; then
+			virsh $VIRSH_OPTIONS undefine $DOMAIN_NAME > /dev/null 2>&1
+			return
+		fi
+	done
+}
+
 VirtualDomain_Start() {
 	local snapshotimage
 
@@ -278,6 +284,14 @@ VirtualDomain_Start() {
 		ocf_log error "Failed to restore ${DOMAIN_NAME} from state file in ${OCF_RESKEY_snapshot} directory."
 		return $OCF_ERR_GENERIC
 	fi
+
+	# Make sure domain is undefined before creating.
+	# The 'create' command guarantees that the domain will be
+	# undefined on shutdown, but requires the domain to be undefined.
+	# if a user defines the domain
+	# outside of this agent, we have to ensure that the domain
+	# is restored to an 'undefined' state before creating.
+	verify_undefined
 
 	virsh $VIRSH_OPTIONS create ${OCF_RESKEY_config}
 	rc=$?
@@ -532,6 +546,9 @@ esac
 
 OCF_RESKEY_hypervisor_default="$(virsh --quiet uri)"
 : ${OCF_RESKEY_hypervisor=${OCF_RESKEY_hypervisor_default}}
+
+# Set options to be passed to virsh:
+VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor} --quiet"
 
 # Everything except usage and meta-data must pass the validate test
 VirtualDomain_Validate_All || exit $?
