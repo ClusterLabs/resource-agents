@@ -3023,36 +3023,55 @@ sub check_ldap
 	require Net::LDAP;
 	my $port = ld_checkport($v, $r);
 
-	&ld_debug(2, "Checking ldap server=$$r{server} port=$port");
-
+	my $result;
 	my $recstr = $$r{receive};
-	my $ldap = Net::LDAP->new("$$r{server}", port => $port,
+
+	&ld_debug(2, "Checking ldap server=$$r{server} port=$port");
+	eval {
+		local $SIG{'__DIE__'} = "DEFAULT";
+		local $SIG{'ALRM'} = sub { die "Timeout Alarm" };
+		&ld_debug(4, "Timeout is $$v{checktimeout}");
+		&ld_debug(2, "Starting Check");
+		alarm $$v{checktimeout};
+
+		my $ldap = Net::LDAP->new("$$r{server}", port => $port,
 					timeout => $$v{negotiatetimeout});
-	if(!$ldap) {
-		service_set($v, $r, "down", {do_log => 1}, "Connection failed");
-		&ld_debug(4, "Connection failed");
-		return $SERVICE_DOWN;
-	}
+		if(!$ldap) {
+		    service_set($v, $r, "down", {do_log => 1}, "Connection failed");
+		    &ld_debug(4, "Connection failed");
+		    alarm 0; # Cancel the alarm
+		    return $SERVICE_DOWN;
+		}
 
-	my $mesg;
-	if ($$v{login} && $$v{passwd}) {
-		$mesg = $ldap->bind($$v{login}, password=>$$v{passwd}) ;
-	}
-	else {
-		$mesg = $ldap->bind ;
-	}
-	if ($mesg->is_error) {
-		service_set($v, $r, "down", {do_log => 1}, "Bind failed");
-		&ld_debug(4, "Bind failed");
-		return $SERVICE_DOWN;
-	}
+		my $mesg;
+		if ($$v{login} && $$v{passwd}) {
+		    $mesg = $ldap->bind($$v{login}, password=>$$v{passwd}) ;
+		}
+		else {
+		    $mesg = $ldap->bind ;
+		}
+		if ($mesg->is_error) {
+		    service_set($v, $r, "down", {do_log => 1}, "Bind failed");
+		    &ld_debug(4, "Bind failed");
+		    alarm 0; # Cancel the alarm
+		    return $SERVICE_DOWN;
+		}
 
-	&ld_debug(4, "Base : " . substr($$r{request},1));
-	my $result = $ldap->search (
-		base	=> substr($$r{request},1) . "",
-		scope	=> "base",
-		filter	=> "(objectClass=*)"
-		);
+		&ld_debug(4, "Base : " . substr($$r{request},1));
+		$result = $ldap->search (
+		    base	=> substr($$r{request},1) . "",
+		    scope	=> "base",
+		    filter	=> "(objectClass=*)"
+		    );
+
+		alarm 0; # Cancel the alarm
+	};
+
+	if (!defined($result)) {
+		service_set($v, $r, "down", {do_log => 1}, "No answer received");
+                &ld_debug(2, "check timeout alarm");
+                return $SERVICE_DOWN;
+        }
 
 	if($result->count != 1) {
 		service_set($v, $r, "down", {do_log => 1}, "No answer received");
