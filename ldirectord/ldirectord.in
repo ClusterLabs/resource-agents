@@ -3894,7 +3894,7 @@ sub _remove_service
 		&system_wrapper("$IPVSADM -d $ipvsadm_args");
 		&ld_log("Deleted $log_args");
 		&ld_emailalert_send("Deleted $log_args", $v,
-				    $rservice, $currenttime);
+				    $rservice, $tag eq "fallback" ? 0 : $currenttime);
 	}
 }
 
