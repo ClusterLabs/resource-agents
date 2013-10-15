@@ -1985,7 +1985,7 @@ sub _ld_read_config_real_resolve
 				" (could not resolve host)");
 		}
 		if( defined($port) ){
-			$resolved_port=&ld_getservbyname($port);
+			$resolved_port=&ld_getservbyname($port,"");
 			unless( defined($resolved_port) ){
 				&config_error($line,
 					"invalid port ($port) for real server" .
