@@ -2835,7 +2835,7 @@ sub check_http
 	&ld_debug(2, "check_http: url=\"$$r{url}\" "
 		. "virtualhost=\"$virtualhost\"");
 
-	my $ua = new LWP::UserAgent();
+	my $ua = new LWP::UserAgent(ssl_opts => { verify_hostname => 0 });
 
 	my $h = undef;
 	if ($$v{service} eq "http_proxy") {
@@ -2876,13 +2876,15 @@ sub check_http
 	}
 
 	if ($$v{service} eq "https") {
-		&ld_debug(2, "SSL-Cipher: " .
-			$res->header('Client-SSL-Cipher'));
-		&ld_debug(2, "SSL-Cert-Subject: " .
-			$res->header('Client-SSL-Cert-Subject'));
-		&ld_debug(2, "SSL-Cert-Issuer: " .
-			$res->header('Client-SSL-Cert-Issuer'));
+                &ld_debug(2, "SSL-Cipher: " .
+                        ($res->header('Client-SSL-Cipher') || '<not set>'));
+                &ld_debug(2, "SSL-Cert-Subject: " .
+                        ($res->header('Client-SSL-Cert-Subject') || '<not set>'));
+                &ld_debug(2, "SSL-Cert-Issuer: " .
+                        ($res->header('Client-SSL-Cert-Issuer') || '<not set>'));
 	}
+
+	&ld_debug(2, "Return status: " . $res->status_line);
 
 	my $recstr = $$r{receive};
 	if ($res->is_success && (!($recstr =~ /.+/) ||
