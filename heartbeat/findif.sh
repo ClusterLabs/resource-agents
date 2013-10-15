@@ -54,6 +54,13 @@ findif_check_params()
   local brdcast="$OCF_RESKEY_broadcast"
   local errmsg
 
+  # Do a sanity check only on start and validate-all
+  # to avoid returning OCF_ERR_CONFIGURED from the monitor operation.
+  case $__OCF_ACTION in
+      start|validate-all)	true;;
+      *)			return $OCF_SUCCESS;;
+  esac
+
   if [ -n "$nic" ] ; then
     errmsg=`ifcheck $nic`
     if [ $? -ne 0 ] ; then
