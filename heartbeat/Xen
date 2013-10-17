@@ -213,16 +213,13 @@ Xen_Status() {
 # list of defined guests, thus xm/xen-list would return with not
 # running; apparently, this period lasts only for a second or
 # two
-# If a non-probe monitor returns not running, then test status
+# If a status returns not running, then test status
 # again for 5 times (perhaps it'll show up)
 Xen_Status_with_Retry() {
   local rc cnt=5
 
   Xen_Status $1
   rc=$?
-  if ocf_is_probe || [ "$__OCF_ACTION" != "stop" ]; then
-	return $rc
-  fi
   while [ $rc -eq $OCF_NOT_RUNNING -a $cnt -gt 0 ]; do
 	case "$__OCF_ACTION" in
 	stop)
@@ -278,7 +275,11 @@ Xen_Count_running() {
 }
 
 Xen_Monitor() {
-  Xen_Status_with_Retry ${DOMAIN_NAME}
+  if ocf_is_probe; then
+	Xen_Status ${DOMAIN_NAME}
+  else
+	Xen_Status_with_Retry ${DOMAIN_NAME}
+  fi
   if [ $? -eq ${OCF_NOT_RUNNING} ]; then
 	ocf_is_probe ||
 	  ocf_log err "Xen domain $DOMAIN_NAME stopped"
