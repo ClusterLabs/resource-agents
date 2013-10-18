@@ -997,6 +997,14 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 			;;
 		esac
 
+		case ${OCF_RESKEY_no_unmount} in
+			yes|YES|true|TRUE|YES|on|ON|1)
+				ocf_log debug "Skipping umount on stop because of 'no_unmount' option"
+				return $OCF_SUCCESS
+				;;
+			*) : ;;
+		esac
+
 		ocf_log info "unmounting $mp"
 		umount "$mp"
 		ret_val=$?
