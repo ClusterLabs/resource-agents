@@ -125,6 +125,8 @@ PureFTPd_status()
 
 PureFTPd_start()
 {
+  local pid_dir
+
   #
   # make a few checks and start Pure-FTPd
   #
@@ -143,6 +145,13 @@ PureFTPd_start()
 	if [ ! -x "$OCF_RESKEY_script" ]; then
 		ocf_log err "Pure-FTPd script '$OCF_RESKEY_script' does not exist or cannot be executed"
 		exit $OCF_ERR_GENERIC
+	fi
+
+	# make sure that the pid directory exists
+	pid_dir=`dirname $OCF_RESKEY_pidfile`
+	if [ ! -d $pid_dir ] ; then
+		ocf_log info "Creating PID directory '$pid_dir'."
+		mkdir -p $pid_dir
 	fi
 
 	# test for pure-ftpd-wrapper (e.g. Debian GNU/Linux Systems)
