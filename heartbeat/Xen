@@ -176,12 +176,11 @@ add this parameter with a list of scripts to monitor.
 How long to wait for a guest to reboot
 </shortdesc>
 <longdesc lang="en">
-If the guest is rebooting, it may completely disappear from the
-list of defined guests, thus xm/xen-list would return with not
-running; apparently, this period lasts only for a second or
-two
+When the guest is rebooting, there is a short interval where the guest
+completely disappears from "xm list", which, in turn, will cause the monitor
+operation to return a "not running" status. 
 
-If a monitor status returns not running, then test status
+If a monitor status returns "not running", then test status
 again for wait_for_reboot seconds (perhaps it'll show up).
 
 NOTE: This timer increases the amount of time the cluster will
