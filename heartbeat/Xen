@@ -226,10 +226,10 @@ Xen_Status_with_Retry() {
   while [ $rc -eq $OCF_NOT_RUNNING -a $cnt -gt 0 ]; do
 	case "$__OCF_ACTION" in
 	stop)
-	  ocf_log debug "Xen domain $1 appears to be stopped but may be rebooting.  Waiting $cnt seconds ..."
+	  ocf_log debug "Xen domain $1 appears to be stopped but may be rebooting.  Checking $cnt more times ..."
 	  ;;
 	monitor)
-	  ocf_log warn "Xen domain $1 appears to be stopped but may be rebooting.  Retrying for $cnt seconds ..."
+	  ocf_log warn "Xen domain $1 appears to be stopped but may be rebooting.  Checking $cnt more times ..."
 	  ;;
 	*) : not reachable
 		;;
