@@ -474,7 +474,7 @@ get_lsnr_status()
 	declare -i rv
 
 	ocf_log debug "Checking status for listener $ORACLE_LISTENER"
-	lsnrctl status "$ORACLE_LISTENER" >& /dev/null
+	lsnrctl status $ORACLE_LISTENER >& /dev/null
 	rv=$?
 	if [ $rv -eq 0 ] ; then
 		ocf_log debug "Listener $ORACLE_LISTENER is up"
@@ -491,8 +491,8 @@ get_lsnr_status()
 	# Listener is NOT running (but should be) - try to restart
 	for (( i=$RESTART_RETRIES ; i; i-- )) ; do
 		ocf_log info "Listener $ORACLE_LISTENER is down, attempting to restart"
-		lsnrctl start "$ORACLE_LISTENER" >& /dev/null
-		lsnrctl status "$ORACLE_LISTENER" >& /dev/null
+		lsnrctl start $ORACLE_LISTENER >& /dev/null
+		lsnrctl status $ORACLE_LISTENER >& /dev/null
 		if [ $? -eq 0 ] ; then
 			ocf_log info "Listener $ORACLE_LISTENER was restarted successfully"
 			break # Listener was (re)started and is running fine
@@ -505,7 +505,7 @@ get_lsnr_status()
 		return 1
 	fi
 
-	lsnrctl_stdout=$(lsnrctl status "$ORACLE_LISTENER")
+	lsnrctl_stdout=$(lsnrctl status $ORACLE_LISTENER)
 	rv=$?
 	if [ $rv -ne 0 ] ; then
 		ocf_log error "Starting listener $ORACLE_LISTENER failed: $rv output $lsnrctl_stdout"
@@ -766,7 +766,7 @@ start_oracle()
 	fi
 
 	ocf_log info "Starting listener $ORACLE_LISTENER"
-	lsnrctl_stdout=$(lsnrctl start "$ORACLE_LISTENER")
+	lsnrctl_stdout=$(lsnrctl start $ORACLE_LISTENER)
 	rv=$?
 	if [ $rv -ne 0 ]; then
 		ocf_log debug "[$ORACLE_SID] Listener $ORACLE_LISTENER start returned $rv output $lsnrctl_stdout"
@@ -906,7 +906,7 @@ stop_oracle()
 	fi
 
 	ocf_log info "Stopping listener $ORACLE_LISTENER for $ORACLE_SID"
-	lsnrctl_stdout=$(lsnrctl stop "$ORACLE_LISTENER")
+	lsnrctl_stdout=$(lsnrctl stop $ORACLE_LISTENER)
 	rv=$?
 	if [ $? -ne 0 ]; then
 		ocf_log error "Listener $ORACLE_LISTENER stop failed for $ORACLE_SID: $rv output $lsnrctl_stdout"
