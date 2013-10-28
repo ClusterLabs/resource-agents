@@ -916,6 +916,10 @@ stop: Could not match $OCF_RESKEY_device with a real device"
         *)		force_umount="" ;;
 	esac
 
+	#
+	# self_fence _MUST_ be initialized before calling do_pre_unmount
+	# The netfs agent depends on the self_fence variable.
+	#
 	case ${OCF_RESKEY_self_fence} in
         $YES_STR)	self_fence=$YES ;;
 	on)		self_fence=$YES ;;

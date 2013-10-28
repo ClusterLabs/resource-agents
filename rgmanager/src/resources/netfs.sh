@@ -361,6 +361,79 @@ do_mount() {
 	return 0
 }
 
+do_nfs_rpc_check() {
+	# see man nfs TRANSPORT PROTOCOL section for defaults
+	local nfsproto=tcp
+	local nfsmountproto=udp
+
+	# follow the same logic as mount.nfs option parser.
+	# the rightmost option wins over previous ones, so don't break when
+	# we find something.
+
+	for o in $(echo ${OCF_RESKEY_options} | sed -e s/,/\ /g); do
+		if echo $o | grep -q "^proto=" ; then
+			nfsproto="$(echo $o | cut -d "=" -f 2)"
+		fi
+		if echo $o | grep -q "^mountproto=" ; then
+			nfsmountproto="$(echo $o | cut -d "=" -f 2)"
+		fi
+		case $o in
+		tcp)	nfsproto=tcp;;
+		udp)	nfsproto=udp;;
+		rdma)	nfsproto=rdma;;
+		esac
+	done
+
+	ocf_log debug "Testing generic rpc access on server ${OCF_RESKEY_host} with protocol $nfsproto"
+	if ! rpcinfo -T $nfsproto ${OCF_RESKEY_host} > /dev/null 2>&1; then
+		ocf_log alert "RPC server on ${OCF_RESKEY_host} with $nfsproto is not responding"
+		return 1
+	fi
+
+	ocf_log debug "Testing nfs rcp access on server ${OCF_RESKEY_host} with protocol $nfsproto"
+	if ! rpcinfo -T $nfsproto ${OCF_RESKEY_host} nfs > /dev/null 2>&1; then
+		ocf_log alert "NFS server on ${OCF_RESKEY_host} with $nfsproto is not responding"
+		return 1 
+	fi
+
+	if [ "$OCF_RESKEY_fstype" = nfs ]; then
+		ocf_log debug "Testing mountd rpc access on server ${OCF_RESKEY_host} with protocol $nfsmountproto"
+		if ! rpcinfo -T $nfsmountproto ${OCF_RESKEY_host} mountd; then
+			ocf_log alert "MOUNTD server on ${OCF_RESKEY_host} with $nfsmountproto is not responding"
+			return 1
+		fi
+	fi
+
+	return 0
+}
+
+do_pre_unmount() {
+	case $OCF_RESKEY_fstype in
+	nfs|nfs4)
+		if [ "$self_fence" != $YES ]; then
+			ocf_log debug "Skipping pre unmount checks: self_fence is disabled"
+			return 0
+		fi
+
+		is_mounted "$dev" "$mp"
+		case $? in
+		$NO)
+			ocf_log debug "Skipping pre unmount checks: device is not mounted"
+			return 0
+			;;
+		esac
+
+		ocf_log info "pre unmount: checking if nfs server ${OCF_RESKEY_host} is alive"
+		if ! do_nfs_rpc_check; then
+			ocf_log alert "NFS server not responding - REBOOTING"
+			sleep 2
+			reboot -fn
+		fi
+		;;
+	esac
+
+	return 0
+}
 
 do_force_unmount() {
         case $OCF_RESKEY_fstype in
