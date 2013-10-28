@@ -517,7 +517,7 @@ is_alive()
 {
 	declare errcode
 	declare mount_point="$1"
-	declare file=".writable_test.$(hostname)"
+	declare file
 	declare rw
 
 	if [ $# -ne 1 ]; then
@@ -553,18 +553,8 @@ is_alive()
                 fi
 	done
 	if [ $rw -eq $YES ]; then
-	        file="$mount_point"/$file
-		while true; do
-			if [ -e "$file" ]; then
-				file=${file}_tmp
-				continue
-			else
-			        break
-			fi
-		done
-		touch $file > /dev/null 2> /dev/null
-		errcode=$?
-		if [ $errcode -ne 0 ]; then
+		file=$(mktemp "$mount_point/.check_writable.$(hostname).XXXXXX")
+		if [ ! -e $file ]; then
 			ocf_log err "${OCF_RESOURCE_INSTANCE}: is_alive: failed write test on [$mount_point]. Return code: $errcode"
 			return $NO
 		fi
