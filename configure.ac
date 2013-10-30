@@ -107,10 +107,12 @@ dnl ===============================================
 dnl Helpers 
 dnl ===============================================
 cc_supports_flag() {
-         local CFLAGS="$@"
-         AC_MSG_CHECKING(whether $CC supports "$@")
-         AC_COMPILE_IFELSE([int main(){return 0;}] ,[RC=0; AC_MSG_RESULT(yes)],[RC=1; AC_MSG_RESULT(no)])
-         return $RC
+	local CPPFLAGS="$@"
+	AC_MSG_CHECKING(whether $CC supports "$@")
+	AC_PREPROC_IFELSE([AC_LANG_PROGRAM([])],
+			  [RC=0; AC_MSG_RESULT([yes])],
+			  [RC=1; AC_MSG_RESULT([no])])
+	return $RC
 }
 
 extract_header_define() {
@@ -690,8 +692,9 @@ if test "$new_libnet" = yes; then
    AC_MSG_CHECKING(for libnet API 1.1.4: )
    save_CFLAGS="$CFLAGS"
    CFLAGS="$CFLAGS -fgnu89-inline -Wall -Werror"
-   AC_COMPILE_IFELSE([#include <libnet.h>
-   int main(){libnet_t *l=NULL; libnet_pblock_record_ip_offset(l, l->total_size); return(0); }],
+   AC_COMPILE_IFELSE([
+	AC_LANG_SOURCE(#include <libnet.h>
+			  int main(){libnet_t *l=NULL; libnet_pblock_record_ip_offset(l, l->total_size); return(0); })],
       [AC_MSG_RESULT(no)],
       [AC_DEFINE(HAVE_LIBNET_1_1_4_API, 1, Libnet 1.1.4 API) AC_MSG_RESULT(yes)])
    CFLAGS="$save_CFLAGS"
