@@ -213,7 +213,6 @@ dnl ===============================================
 dnl General Processing
 dnl ===============================================
 
-INIT_EXT=""
 echo Our Host OS: $host_os/$host
 
 AC_MSG_NOTICE(Sanitizing exec_prefix: ${exec_prefix})
@@ -328,7 +327,6 @@ POWEROFF_OPTIONS="-f"
 case "$host_os" in
 *bsd*)		LIBS="-L/usr/local/lib"
 		CPPFLAGS="$CPPFLAGS -I/usr/local/include"
-		INIT_EXT=".sh"
 		;;
 *solaris*)
 		REBOOT_OPTIONS="-n"
@@ -346,7 +344,6 @@ darwin*)
 		;;
 esac
 
-AC_SUBST(INIT_EXT)
 AC_DEFINE_UNQUOTED(HA_LOG_FACILITY, LOG_DAEMON, Default logging facility)
 
 AC_MSG_NOTICE(Host CPU: $host_cpu)
