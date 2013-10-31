@@ -124,6 +124,7 @@ function monitor() {
 		info[$key]="$value"
 	done < <(redis_client info)
 	if [[ -z "${info[role]}" ]]; then
+		pidof "$REDIS_SERVER" | grep -q "\<$pid\>" || return $OCF_NOT_RUNNING
 		ocf_log err "monitor: Could not get role from \`$REDIS_CLIENT -s $REDIS_SOCKET info\`"
 		return $OCF_ERR_GENERIC
 	fi
@@ -232,7 +233,7 @@ function stop() {
 			crm_master_reboot -D
 			return $OCF_SUCCESS
 		fi
-		if (( status != OCF_RUNNING_MASTER )) && (( status != OCF_SUCCESS )); then
+		if (( status != OCF_RUNNING_MASTER )) && (( status != OCF_SUCCESS )) && (( status != OCF_ERR_GENERIC )); then # we allow OCF_ERR_GENERIC because monitor can generate an error if we probe redis in the middle of shutdown (the sucket won't be responding but the process is up)
 			ocf_log err "stop: Unknown error while stopping"
 			return $OCF_ERR_GENERIC
 		fi
