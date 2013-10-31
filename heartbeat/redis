@@ -226,7 +226,7 @@ function stop() {
 	pid="$(<"$REDIS_PIDFILE")"
 	kill -TERM "$pid"
 
-	for (( i=0; i<10; i+ )); do
+	for (( i=0; i<10; i++ )); do
 		monitor
 		status=$?
 		if (( status == OCF_NOT_RUNNING )); then
