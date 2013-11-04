@@ -21,4 +21,4 @@ MAINTAINERCLEANFILES    = Makefile.in config.h.in config.h.in~
 idir=$(includedir)/heartbeat
 i_HEADERS = agent_config.h
 
-noinst_HEADERS = config.h
+noinst_HEADERS = config.h IPv6addr.h

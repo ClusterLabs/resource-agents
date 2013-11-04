@@ -32,19 +32,23 @@ ocfdir		        = $(OCF_RA_DIR_PREFIX)/heartbeat
 dtddir			= $(datadir)/$(PACKAGE_NAME)
 dtd_DATA		= ra-api-1.dtd
 
-if USE_IPV6ADDR
+if USE_IPV6ADDR_AGENT
 ocf_PROGRAMS           = IPv6addr
-halib_PROGRAMS         = send_ua
 else
 ocf_PROGRAMS           =
+endif
+
+if IPV6ADDR_COMPATIBLE
+halib_PROGRAMS         = send_ua
+else
 halib_PROGRAMS         =
 endif
 
-IPv6addr_SOURCES        = IPv6addr.c
-send_ua_SOURCES         = IPv6addr.c
+IPv6addr_SOURCES        = IPv6addr.c IPv6addr_utils.c
+send_ua_SOURCES         = send_ua.c IPv6addr_utils.c
 
 IPv6addr_LDADD          = -lplumb $(LIBNETLIBS)
-send_ua_LDADD           = -lplumb $(LIBNETLIBS)
+send_ua_LDADD           = $(LIBNETLIBS)
 
 ocf_SCRIPTS	     =  ClusterMon		\
 			CTDB			\
