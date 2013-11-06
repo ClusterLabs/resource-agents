@@ -1,0 +1,73 @@
+# SendArp
+
+CONFIG
+	Agent SendArp
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	HangTimeout 15
+
+CASE-BLOCK required_args
+	Env OCF_RESKEY_ip=127.0.0.1
+	Env OCF_RESKEY_nic=eth0
+	Env OCF_RESKEY_background=false
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+	Include required_args
+	Include default_status
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: unset 'OCF_RESKEY_ip'"
+	Include prepare
+	Unenv OCF_RESKEY_ip
+	AgentRun start OCF_ERR_CONFIGURED
+
+CASE "check base env: set invalid 'OCF_RESKEY_ip'"
+	Include prepare
+	Env OCF_RESKEY_ip=not_ip_address
+	AgentRun start OCF_ERR_GENERIC
+
+CASE "check base env: unset 'OCF_RESKEY_nic'"
+	Include prepare
+	Unenv OCF_RESKEY_nic
+	AgentRun start OCF_ERR_CONFIGURED
+
+CASE "check base env: set invalid 'OCF_RESKEY_nic'"
+	Include prepare
+	Env OCF_RESKEY_nic=not_nic
+	AgentRun start OCF_ERR_GENERIC
+
+CASE "normal start"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "monitor with running"
+	Include prepare
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "monitor with not running"
+	Include prepare
+	AgentRun monitor OCF_NOT_RUNNING
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED

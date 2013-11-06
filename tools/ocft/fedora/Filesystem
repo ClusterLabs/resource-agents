@@ -1,0 +1,110 @@
+# Filesystem
+# by dejan@suse.de on 
+# Tue Feb 15 18:50:04 CET 2011
+
+CONFIG
+	Agent Filesystem
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	HangTimeout 20
+
+VARIABLE
+	OCFT_fs=/tmp/resource-agents/ocft-Filesystem-fs
+	OCFT_loop=/dev/loop7
+	OCFT_dir=/tmp/resource-agents/ocft-Filesystem-mnt
+
+SETUP-AGENT
+	losetup $OCFT_loop 2>/dev/null && exit 1
+	rmdir $OCFT_dir 2>/dev/null || true
+	mkdir -p $OCFT_dir
+	dd if=/dev/zero of=$OCFT_fs bs=1 count=0 seek=16M 2>/dev/null
+	mke2fs -j -Fq -m 0 $OCFT_fs
+	losetup $OCFT_loop $OCFT_fs
+
+CLEANUP-AGENT
+	rmdir $OCFT_dir
+	rm -f $OCFT_fs
+	losetup -d $OCFT_loop
+
+CASE-BLOCK required_args
+	Env OCF_RESKEY_device=$OCFT_loop
+	Env OCF_RESKEY_fstype=ext3
+	Env OCF_RESKEY_directory=$OCFT_dir
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+	Include required_args
+	Include default_status
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: invalid 'OCF_RESKEY_device'"
+	Include prepare
+	Env OCF_RESKEY_device=/dev/no_such_device
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "check base env: unset 'OCF_RESKEY_device'"
+	Include prepare
+	Unenv OCF_RESKEY_device
+	AgentRun start OCF_ERR_CONFIGURED
+
+CASE "normal start"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "monitor when running"
+	Include prepare
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "monitor when not running"
+	Include prepare
+	AgentRun monitor OCF_NOT_RUNNING
+
+CASE "monitor depth 10 when running"
+	Include prepare
+	AgentRun start
+	Env OCF_CHECK_LEVEL=10
+	AgentRun monitor OCF_SUCCESS
+
+CASE "monitor depth 20 with running"
+	Include prepare
+	AgentRun start
+	Env OCF_CHECK_LEVEL=20
+	AgentRun monitor OCF_SUCCESS
+
+CASE "start insert failure (remove device)"
+	Include prepare
+	Bash losetup -d $OCFT_loop
+	BashAtExit losetup $OCFT_loop $OCFT_fs
+	AgentRun start OCF_ERR_GENERIC
+
+CASE "monitor depth 20 insert failure (r/o fs)"
+	Include prepare
+	AgentRun start
+	Bash mount -o remount,ro $OCFT_dir
+	BashAtExit mount -o remount,rw $OCFT_dir
+	Env OCF_CHECK_LEVEL=20
+	AgentRun monitor OCF_ERR_GENERIC
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
+

@@ -28,6 +28,7 @@ AC_USE_SYSTEM_EXTENSIONS
 CRM_DTD_VERSION="1.0"
 
 PKG_FEATURES=""
+OCFT_TEST_CASES="default"
 
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -55,6 +56,14 @@ AC_ARG_WITH(version,
 AC_ARG_WITH(pkg-name,
     [  --with-pkg-name=name     Override package name (if you're a packager needing to pretend) ],
     [ PACKAGE_NAME="$withval" ])
+
+
+AC_ARG_WITH(ocft-cases,
+    [  --with-ocft-cases=cases Set which ocft test cases to install. ],
+    [ OCFT_TEST_CASES="$withval" ])
+
+AM_CONDITIONAL(OCFT_FEDORA_CASES, test "x$OCFT_TEST_CASES" = "xfedora" )
+AM_CONDITIONAL(OCFT_DEFAULT_CASES, test "x$OCFT_TEST_CASES" = "xdefault" )
 
 dnl 
 dnl AM_INIT_AUTOMAKE([1.11.1 foreign dist-bzip2 dist-xz])

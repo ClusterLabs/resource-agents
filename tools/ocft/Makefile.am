@@ -22,32 +22,50 @@ EXTRA_DIST		= $(ocftcfgs_DATA) $(ocft_DATA)
 sbin_SCRIPTS		= ocft
 
 ocftcfgsdir		= $(datadir)/$(PACKAGE_NAME)/ocft/configs
-ocftcfgs_DATA      =  apache  	\
-			 IPaddr2	\
-			 IPaddr2v4	\
-			 IPaddr2v6	\
-			 IPv6addr	\
-			 Filesystem	\
-			 LVM	\
-		       	 Raid1	\
-			 IPsrcaddr  	\
-			 MailTo		\
-			 jboss	\
-		       	 mysql		\
-		       	 mysql-proxy		\
-		       	 pgsql		\
-		       	 db2		\
-		       	 oracle		\
-		       	 drbd.linbit		\
-		       	 exportfs	\
-		       	 nfsserver	\
-		       	 portblock	\
-		       	 iscsi	\
-		       	 named	\
-		       	 postfix	\
-			 tomcat	\
-		       	 Xinetd	\
-			 SendArp
+
+ocftcfgs_DATA      =
+if OCFT_FEDORA_CASES
+ocftcfgs_DATA      += fedora/Filesystem	\
+	fedora/IPaddr2v4	\
+	fedora/IPaddr2v6	\
+	fedora/IPsrcaddr	\
+	fedora/SendArp	\
+	fedora/Xinetd	\
+	fedora/apache	\
+	fedora/mysql	\
+	fedora/nfsserver	\
+	fedora/pgsql	\
+	fedora/tomcat
+endif
+
+if OCFT_DEFAULT_CASES
+ocftcfgs_DATA      += default/apache	\
+	default/IPaddr2	\
+	default/IPaddr2v4	\
+	default/IPaddr2v6	\
+	default/IPv6addr	\
+	default/Filesystem	\
+	default/LVM	\
+	default/Raid1	\
+	default/IPsrcaddr	\
+	default/MailTo		\
+	default/jboss	\
+	default/mysql		\
+	default/mysql-proxy		\
+	default/pgsql		\
+	default/db2		\
+	default/oracle		\
+	default/drbd.linbit		\
+	default/exportfs	\
+	default/nfsserver	\
+	default/portblock	\
+	default/iscsi	\
+	default/named	\
+	default/postfix	\
+	default/tomcat	\
+	default/Xinetd	\
+	default/SendArp
+endif
 
 ocftdir			= $(datadir)/$(PACKAGE_NAME)/ocft
 ocft_DATA		= README	\
