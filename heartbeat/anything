@@ -104,6 +104,8 @@ anything_start() {
 }
 
 anything_stop() {
+	local rc=$OCF_SUCCESS
+
         if [ -n "$OCF_RESKEY_stop_timeout" ]
         then
                 stop_timeout=$OCF_RESKEY_stop_timeout
@@ -131,20 +133,17 @@ anything_stop() {
                 done
                 ocf_log warn "Stop with SIGTERM failed/timed out, now sending SIGKILL."
                 kill -s 9 $pid
-                rm -f $pidfile
                 if ! anything_status
                 then
                         ocf_log warn "SIGKILL did the job."
-                        return $OCF_SUCCESS
+                        rc=$OCF_SUCCESS
                 else
                         ocf_log err "Failed to stop - even with SIGKILL."
-                        return $OCF_ERR_GENERIC
+                        rc=$OCF_ERR_GENERIC
                 fi
-	else
-		# was not running, so stop can be considered successful
-		rm -f $pidfile 
-		return $OCF_SUCCESS
 	fi
+	rm -f $pidfile 
+	return $rc
 }
 
 anything_monitor() {
