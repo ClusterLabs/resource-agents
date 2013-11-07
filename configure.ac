@@ -107,10 +107,12 @@ dnl ===============================================
 dnl Helpers 
 dnl ===============================================
 cc_supports_flag() {
-         local CFLAGS="$@"
-         AC_MSG_CHECKING(whether $CC supports "$@")
-         AC_COMPILE_IFELSE([int main(){return 0;}] ,[RC=0; AC_MSG_RESULT(yes)],[RC=1; AC_MSG_RESULT(no)])
-         return $RC
+	local CPPFLAGS="$@"
+	AC_MSG_CHECKING(whether $CC supports "$@")
+	AC_PREPROC_IFELSE([AC_LANG_PROGRAM([])],
+			  [RC=0; AC_MSG_RESULT([yes])],
+			  [RC=1; AC_MSG_RESULT([no])])
+	return $RC
 }
 
 extract_header_define() {
@@ -213,7 +215,6 @@ dnl ===============================================
 dnl General Processing
 dnl ===============================================
 
-INIT_EXT=""
 echo Our Host OS: $host_os/$host
 
 AC_MSG_NOTICE(Sanitizing exec_prefix: ${exec_prefix})
@@ -328,7 +329,6 @@ POWEROFF_OPTIONS="-f"
 case "$host_os" in
 *bsd*)		LIBS="-L/usr/local/lib"
 		CPPFLAGS="$CPPFLAGS -I/usr/local/include"
-		INIT_EXT=".sh"
 		;;
 *solaris*)
 		REBOOT_OPTIONS="-n"
@@ -346,7 +346,6 @@ darwin*)
 		;;
 esac
 
-AC_SUBST(INIT_EXT)
 AC_DEFINE_UNQUOTED(HA_LOG_FACILITY, LOG_DAEMON, Default logging facility)
 
 AC_MSG_NOTICE(Host CPU: $host_cpu)
@@ -693,8 +692,9 @@ if test "$new_libnet" = yes; then
    AC_MSG_CHECKING(for libnet API 1.1.4: )
    save_CFLAGS="$CFLAGS"
    CFLAGS="$CFLAGS -fgnu89-inline -Wall -Werror"
-   AC_COMPILE_IFELSE([#include <libnet.h>
-   int main(){libnet_t *l=NULL; libnet_pblock_record_ip_offset(l, l->total_size); return(0); }],
+   AC_COMPILE_IFELSE([
+	AC_LANG_SOURCE(#include <libnet.h>
+			  int main(){libnet_t *l=NULL; libnet_pblock_record_ip_offset(l, l->total_size); return(0); })],
       [AC_MSG_RESULT(no)],
       [AC_DEFINE(HAVE_LIBNET_1_1_4_API, 1, Libnet 1.1.4 API) AC_MSG_RESULT(yes)])
    CFLAGS="$save_CFLAGS"

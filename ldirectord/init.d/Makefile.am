@@ -23,28 +23,6 @@ initddir		= $(INITDIRPREFIX)
 
 initd_SCRIPTS	        = ldirectord
 
-install-initdSCRIPTS: $(initd_SCRIPTS)
-	@$(NORMAL_INSTALL)
-	$(mkinstalldirs) $(DESTDIR)$(initddir)
-	@list='$(initd_SCRIPTS)'; for p in $$list; do \
-	  f="`echo $$p|sed '$(transform)'`"; \
-	  if test -f $$p; then \
-	    echo " $(INSTALL_SCRIPT) $$p $(DESTDIR)$(initddir)/$$f@INIT_EXT@"; \
-	    $(INSTALL_SCRIPT) $$p $(DESTDIR)$(initddir)/$$f@INIT_EXT@; \
-	  elif test -f $(srcdir)/$$p; then \
-	    echo " $(INSTALL_SCRIPT) $(srcdir)/$$p $(DESTDIR)$(initddir)/$$f@INIT_EXT@"; \
-	    $(INSTALL_SCRIPT) $(srcdir)/$$p $(DESTDIR)$(initddir)/$$f@INIT_EXT@; \
-	  else :; fi; \
-	done
-
-uninstall-initdSCRIPTS:
-	@$(NORMAL_UNINSTALL)
-	@list='$(initd_SCRIPTS)'; for p in $$list; do \
-	  f="`echo $$p|sed '$(transform)'`"; \
-	  echo " rm -f $(DESTDIR)$(initddir)/$$f@INIT_EXT@"; \
-	  rm -f $(DESTDIR)$(initddir)/$$f@INIT_EXT@; \
-	done
-
 EXTRA_DIST              = $(initd_SCRIPTS) \
-			  ldirectord.debian ldirectord.debian.default.in
+			  $(initd_SCRIPTS).debian $(initd_SCRIPTS).debian.default.in
 
