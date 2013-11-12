@@ -6,6 +6,7 @@
 # Authors:      Serge Dubrouski (sergeyfd@gmail.com) -- original RA
 #               Florian Haas (florian@linbit.com) -- makeover
 #               Takatoshi MATSUO (matsuo.tak@gmail.com) -- support replication
+#               David Corlette (dcorlette@netiq.com) -- add support for non-standard library locations and non-standard port
 #
 # Copyright:    2006-2012 Serge Dubrouski <sergeyfd@gmail.com>
 #                         and other Linux-HA contributors
@@ -40,6 +41,7 @@ OCF_RESKEY_pgdata_default=/var/lib/pgsql/data
 OCF_RESKEY_pgdba_default=postgres
 OCF_RESKEY_pghost_default=""
 OCF_RESKEY_pgport_default=5432
+OCF_RESKEY_pglibs_default=/usr/lib
 OCF_RESKEY_start_opt_default=""
 OCF_RESKEY_pgdb_default=template1
 OCF_RESKEY_logfile_default=/dev/null
@@ -69,6 +71,7 @@ OCF_RESKEY_stop_escalate_in_slave_default=30
 : ${OCF_RESKEY_pgdba=${OCF_RESKEY_pgdba_default}}
 : ${OCF_RESKEY_pghost=${OCF_RESKEY_pghost_default}}
 : ${OCF_RESKEY_pgport=${OCF_RESKEY_pgport_default}}
+: ${OCF_RESKEY_pglibs=${OCF_RESKEY_pglibs_default}}
 : ${OCF_RESKEY_config=${OCF_RESKEY_pgdata}/postgresql.conf}
 : ${OCF_RESKEY_start_opt=${OCF_RESKEY_start_opt_default}}
 : ${OCF_RESKEY_pgdb=${OCF_RESKEY_pgdb_default}}
@@ -187,6 +190,15 @@ Port where PostgreSQL is listening
 </longdesc>
 <shortdesc lang="en">pgport</shortdesc>
 <content type="integer" default="${OCF_RESKEY_pgport_default}" />
+</parameter>
+
+<parameter name="pglibs" unique="0" required="0">
+<longdesc lang="en">
+Custom location of the Postgres libraries. If not set, the standard location
+will be used.
+</longdesc>
+<shortdesc lang="en">pglibs</shortdesc>
+<content type="string" default="${OCF_RESKEY_pglibs_default}" />
 </parameter>
 
 <parameter name="monitor_user" unique="0" required="0">
@@ -1807,12 +1819,25 @@ else
 fi
 
 if [ -n "$OCF_RESKEY_pghost" ]; then
-   psql_options="$psql_options -h $OCF_RESKEY_pghost"
+    psql_options="$psql_options -h $OCF_RESKEY_pghost"
 else
-   if [ -n "$OCF_RESKEY_socketdir" ]; then
-       psql_options="$psql_options -h $OCF_RESKEY_socketdir"
-   fi
+    if [ -n "$OCF_RESKEY_socketdir" ]; then
+        psql_options="$psql_options -h $OCF_RESKEY_socketdir"
+    fi
 fi
+
+if [ -n "$OCF_RESKEY_pgport" ]; then
+    export PGPORT=$OCF_RESKEY_pgport
+fi
+
+if [ -n "$OCF_RESKEY_pglibs" ]; then
+    if [ -n "$LD_LIBRARY_PATH" ]; then
+        export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$OCF_RESKEY_pglibs
+    else
+        export LD_LIBRARY_PATH=$OCF_RESKEY_pglibs
+    fi
+fi
+   
 
 # What kind of method was invoked?
 case "$1" in
