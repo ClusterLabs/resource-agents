@@ -219,7 +219,14 @@ try_findmnt()
 	if [ $? -eq 0 ]; then
 		FINDMNT_OUTPUT=$(findmnt -o TARGET --noheadings $1)
 		if [ $? -ne 0 ]; then
-			return 1
+			# workaround mount helpers inconsistency that still
+			# add / on the device entry in /proc/mounts
+			FINDMNT_OUTPUT=$(findmnt -o TARGET --noheadings $1/)
+			if [ $? -ne 0 ]; then
+				return 1
+			else
+				return 0
+			fi
 		else
 			return 0
 		fi
