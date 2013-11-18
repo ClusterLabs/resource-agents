@@ -209,7 +209,7 @@ try_findmnt()
 	FINDMNT_OUTPUT=""
 
 	case $OCF_RESKEY_use_findmnt in
-	false|no|off)
+	0|false|no|off)
 		return 2 ;;
 	*)
 		: ;;
