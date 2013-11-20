@@ -578,7 +578,16 @@ JAVA_OPTS="${OCF_RESKEY_java_opts}"
 CATALINA_HOME="${OCF_RESKEY_catalina_home}"
 CATALINA_BASE="${OCF_RESKEY_catalina_base-${OCF_RESKEY_catalina_home}}"
 CATALINA_OUT="${OCF_RESKEY_catalina_out-$CATALINA_BASE/logs/catalina.out}"
-CATALINA_PID="${OCF_RESKEY_catalina_pid-$CATALINA_BASE/logs/catalina.pid}"
+
+CATALINA_PID=$OCF_RESKEY_catalina_pid
+if [ -z "$CATALINA_PID" ]; then
+	mkdir -p "${HA_RSCTMP}/${TOMCAT_NAME}_tomcatstate/"
+	if [ "${RESOURCE_TOMCAT_USER}" != "root" ]; then
+		chown ${RESOURCE_TOMCAT_USER} "${HA_RSCTMP}/${TOMCAT_NAME}_tomcatstate/"
+	fi
+	CATALINA_PID="${HA_RSCTMP}/${TOMCAT_NAME}_tomcatstate/catalina.pid"
+fi
+
 MAX_STOP_TIME="${OCF_RESKEY_max_stop_time}"
 
 TOMCAT_START_OPTS="${OCF_RESKEY_tomcat_start_opts}"
