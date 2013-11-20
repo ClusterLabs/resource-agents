@@ -101,11 +101,14 @@ isalive_tomcat()
 	# As the server stops, the PID file disappears. To avoid race conditions, 
 	# we will have remembered the PID of a running instance on script entry.
 	local pid=$rememberedPID
-	# If there is a PID file, use that
+	# If there is a PID file, attempt to use that
 	if [ -f $CATALINA_PID ]; then
+		local tmp
 		ocf_log debug "Reading pid from $CATALINA_PID"
-		# race conditions on PID file being removed by stopping tomcat...
-		pid=`head -n 1 $CATALINA_PID`
+		tmp=`head -n 1 $CATALINA_PID`
+		if [ $? -eq 0 ]; then
+			pid=$tmp
+		fi
 	fi
 	if [ -n "$pid" ] && [ "$pid" -gt 0 ]; then
 		# Retry message for restraint
