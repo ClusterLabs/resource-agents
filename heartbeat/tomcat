@@ -267,7 +267,14 @@ start_tomcat()
 # Stop Tomcat
 stop_tomcat()
 {
-	RA_TIMEOUT=$((OCF_RESKEY_CRM_meta_timeout/1000))
+	local stop_time
+	local RA_TIMEOUT=20
+	local TOMCAT_STOP_OPTS=""
+
+	if [ -n $OCF_RESKEY_CRM_meta_timeout ]; then
+		RA_TIMEOUT=$((OCF_RESKEY_CRM_meta_timeout/1000))
+	fi
+
 	STOP_TIMEOUT=$((RA_TIMEOUT-5))
 	if [ -n "$MAX_STOP_TIME" ]; then
 		if [ $MAX_STOP_TIME -gt $RA_TIMEOUT ]; then
@@ -286,14 +293,20 @@ stop_tomcat()
 
 	echo "`date "+%Y/%m/%d %T"`: stop  ###########################" >> "$TOMCAT_CONSOLE"
 
-	attemptTomcatCommand stop $STOP_TIMEOUT -force
+	if [ "$TOMCAT_START_SCRIPT" = "$CATALINA_HOME/bin/catalina.sh" ]; then
+		TOMCAT_STOP_OPTS="$STOP_TIMEOUT --force"
+	fi
+	stop_time=$(date +%s)
+	attemptTomcatCommand stop $TOMCAT_STOP_OPTS
 
 	lapse_sec=0
 	while isalive_tomcat; do
 		sleep 1
-		lapse_sec=`expr $lapse_sec + 1`
-		ocf_log debug "stop_tomcat[$TOMCAT_NAME]: stop failed, killing with SIGKILL ($lapse_sec)"
-		kill -s KILL $rememberedPID
+		lapse_sec=`expr $(date +%s) - $stop_time`
+		if [ $lapse_sec -ge $STOP_TIMEOUT ]; then
+			ocf_log debug "stop_tomcat[$TOMCAT_NAME]: stop failed, killing with SIGKILL ($lapse_sec)"
+			kill -s KILL $rememberedPID > /dev/null 2>&1
+		fi
 	done
 
 	if ocf_is_true ${CATALINA_ROTATE_LOG}; then
