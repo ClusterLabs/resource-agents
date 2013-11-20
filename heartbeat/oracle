@@ -543,6 +543,7 @@ oracle_start() {
 
 	# check/create the monitor user
 	if ! check_mon_user; then
+		ocf_log err "Could not create monitor user $MONUSR: $output"
 		return $OCF_ERR_GENERIC
 	fi
 
