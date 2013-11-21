@@ -35,7 +35,7 @@ Summary:	Open Source HA Reusable Cluster Resource Scripts
 Version:	@version@
 Release:	@specver@%{?rcver:%{rcver}}%{?numcomm:.%{numcomm}}%{?alphatag:.%{alphatag}}%{?dirty:.%{dirty}}%{?dist}
 License:	GPLv2+ and LGPLv2+
-URL:		http://to.be.defined.com/
+URL:		https://github.com/ClusterLabs/resource-agents
 %if 0%{?fedora} || 0%{?centos_version} || 0%{?rhel}
 Group:		System Environment/Base
 %else
