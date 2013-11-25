@@ -308,6 +308,10 @@ prepare_directory ()
 	[ -d "$fp/$STATD_DIR/sm.bak" ] || mkdir -p "$fp/$STATD_DIR/sm.bak"
 	[ -n "`id -u rpcuser`" -a "`id -g rpcuser`" ] && chown -R rpcuser.rpcuser "$fp/$STATD_DIR"
 
+	[ -f "$fp/etab" ] || touch "$fp/etab"
+	[ -f "$fp/xtab" ] || touch "$fp/xtab"
+	[ -f "$fp/rmtab" ] || touch "$fp/rmtab"
+
 	[ $SELINUX_ENABLED -eq 0 ] && chcon -R "$SELINUX_LABEL" "$fp"
 }
 
