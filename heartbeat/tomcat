@@ -72,21 +72,6 @@ action:
 !
 }
 
-detect_start_script()
-{
-	if [ -e "$CATALINA_HOME/bin/catalina.sh" ]; then
-		echo "$CATALINA_HOME/bin/catalina.sh"
-		return 0
-	fi
-
-	if [ -e "/usr/sbin/tomcat" ]; then
-		echo "/usr/sbin/tomcat"
-		return 0
-	fi
-
-	return 1
-}
-
 ############################################################################
 # Check tomcat service availability
 isrunning_tomcat()
@@ -207,15 +192,24 @@ cat<<-END_TOMCAT_COMMAND
 	export JAVA_ENDORSED_DIRS="${JAVA_ENDORSED_DIRS}"
 	export LOGGING_CONFIG="${LOGGING_CONFIG}"
 	export LOGGING_MANAGER="${LOGGING_MANAGER}"
+	export TOMCAT_CFG=${TOMCAT_CFG}
 	$TOMCAT_START_SCRIPT $@
 END_TOMCAT_COMMAND
 }
 attemptTomcatCommand()
 {
+	if [ -n "$REDIRECT_DEFAULT_CONFIG" ]; then
+		export TOMCAT_CFG=$(mktemp ${HA_RSCTMP}/tomcat-tmp-XXXXX.cfg)
+	fi
+
 	if [ "$RESOURCE_TOMCAT_USER" = root ]; then
 		"$TOMCAT_START_SCRIPT" $@ >> "$TOMCAT_CONSOLE" 2>&1
 	else
 		tomcatCommand $@ | su - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1
+	fi
+
+	if [ -n "$REDIRECT_DEFAULT_CONFIG" ]; then
+		rm -f "$TOMCAT_CFG"
 	fi
 }
 
@@ -616,11 +610,6 @@ JAVA_ENDORSED_DIRS="${OCF_RESKEY_java_endorsed_dirs}"
 LOGGING_CONFIG="${OCF_RESKEY_logging_config}"
 LOGGING_MANAGER="${OCF_RESKEY_logging_manager}"
 
-
-if [ -z "${TOMCAT_START_SCRIPT}" ]; then
-	TOMCAT_START_SCRIPT=$(detect_start_script)
-fi
-
 LSB_STATUS_STOPPED=3
 if [ $# -ne 1 ]; then
 	usage
@@ -630,6 +619,15 @@ case "$COMMAND" in
 	meta-data) metadata_tomcat; exit $OCF_SUCCESS;;
 	help|usage) usage; exit $OCF_SUCCESS;;
 esac
+
+if [ -z "${TOMCAT_START_SCRIPT}" ]; then
+	if [ -e "$CATALINA_HOME/bin/catalina.sh" ]; then
+		TOMCAT_START_SCRIPT="$CATALINA_HOME/bin/catalina.sh"
+	elif [ -e "/usr/sbin/tomcat" ]; then
+		REDIRECT_DEFAULT_CONFIG=1
+		TOMCAT_START_SCRIPT="/usr/sbin/tomcat"
+	fi
+fi
 
 if [ ! -d "$JAVA_HOME" -o ! -d "$CATALINA_HOME" -o ! -d "$CATALINA_BASE" ]; then
 	case $COMMAND in
