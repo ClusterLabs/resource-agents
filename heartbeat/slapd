@@ -526,10 +526,14 @@ parameters=$OCF_RESKEY_parameters
 pid_file=$OCF_RESKEY_pidfile
 
 if [ -z "$config" ]; then
-  if [ -e "/etc/ldap/slapd.d" ]; then
-    config="/etc/ldap/slapd.d"
-  else
-    config="/etc/ldap/slapd.conf"
+  config_dirname="/etc/ldap"
+  if [ -e "/etc/openldap" ]; then
+    config_dirname="/etc/openldap"
+  fi
+
+  config="$config_dirname/slapd.conf"
+  if [ -e "$config_dirname/slapd.d" ]; then
+    config="$config_dirname/slapd.d"
   fi
 fi
 
