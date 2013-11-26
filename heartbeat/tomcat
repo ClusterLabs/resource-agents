@@ -72,6 +72,21 @@ action:
 !
 }
 
+detect_start_script()
+{
+	if [ -e "$CATALINA_HOME/bin/catalina.sh" ]; then
+		echo "$CATALINA_HOME/bin/catalina.sh"
+		return 0
+	fi
+
+	if [ -e "/usr/sbin/tomcat" ]; then
+		echo "/usr/sbin/tomcat"
+		return 0
+	fi
+
+	return 1
+}
+
 ############################################################################
 # Check tomcat service availability
 isrunning_tomcat()
@@ -86,11 +101,14 @@ isalive_tomcat()
 	# As the server stops, the PID file disappears. To avoid race conditions, 
 	# we will have remembered the PID of a running instance on script entry.
 	local pid=$rememberedPID
-	# If there is a PID file, use that
+	# If there is a PID file, attempt to use that
 	if [ -f $CATALINA_PID ]; then
+		local tmp
 		ocf_log debug "Reading pid from $CATALINA_PID"
-		# race conditions on PID file being removed by stopping tomcat...
-		pid=`head -n 1 $CATALINA_PID`
+		tmp=`head -n 1 $CATALINA_PID`
+		if [ $? -eq 0 ]; then
+			pid=$tmp
+		fi
 	fi
 	if [ -n "$pid" ] && [ "$pid" -gt 0 ]; then
 		# Retry message for restraint
@@ -189,13 +207,13 @@ cat<<-END_TOMCAT_COMMAND
 	export JAVA_ENDORSED_DIRS="${JAVA_ENDORSED_DIRS}"
 	export LOGGING_CONFIG="${LOGGING_CONFIG}"
 	export LOGGING_MANAGER="${LOGGING_MANAGER}"
-	$CATALINA_HOME/bin/catalina.sh $@
+	$TOMCAT_START_SCRIPT $@
 END_TOMCAT_COMMAND
 }
 attemptTomcatCommand()
 {
 	if [ "$RESOURCE_TOMCAT_USER" = root ]; then
-		"$CATALINA_HOME/bin/catalina.sh" $@ >> "$TOMCAT_CONSOLE" 2>&1
+		"$TOMCAT_START_SCRIPT" $@ >> "$TOMCAT_CONSOLE" 2>&1
 	else
 		tomcatCommand $@ | su - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1
 	fi
@@ -249,7 +267,14 @@ start_tomcat()
 # Stop Tomcat
 stop_tomcat()
 {
-	RA_TIMEOUT=$((OCF_RESKEY_CRM_meta_timeout/1000))
+	local stop_time
+	local RA_TIMEOUT=20
+	local TOMCAT_STOP_OPTS=""
+
+	if [ -n $OCF_RESKEY_CRM_meta_timeout ]; then
+		RA_TIMEOUT=$((OCF_RESKEY_CRM_meta_timeout/1000))
+	fi
+
 	STOP_TIMEOUT=$((RA_TIMEOUT-5))
 	if [ -n "$MAX_STOP_TIME" ]; then
 		if [ $MAX_STOP_TIME -gt $RA_TIMEOUT ]; then
@@ -268,14 +293,20 @@ stop_tomcat()
 
 	echo "`date "+%Y/%m/%d %T"`: stop  ###########################" >> "$TOMCAT_CONSOLE"
 
-	attemptTomcatCommand stop $STOP_TIMEOUT -force
+	if [ "$TOMCAT_START_SCRIPT" = "$CATALINA_HOME/bin/catalina.sh" ]; then
+		TOMCAT_STOP_OPTS="$STOP_TIMEOUT --force"
+	fi
+	stop_time=$(date +%s)
+	attemptTomcatCommand stop $TOMCAT_STOP_OPTS
 
 	lapse_sec=0
 	while isalive_tomcat; do
 		sleep 1
-		lapse_sec=`expr $lapse_sec + 1`
-		ocf_log debug "stop_tomcat[$TOMCAT_NAME]: stop failed, killing with SIGKILL ($lapse_sec)"
-		kill -s KILL $rememberedPID
+		lapse_sec=`expr $(date +%s) - $stop_time`
+		if [ $lapse_sec -ge $STOP_TIMEOUT ]; then
+			ocf_log debug "stop_tomcat[$TOMCAT_NAME]: stop failed, killing with SIGKILL ($lapse_sec)"
+			kill -s KILL $rememberedPID > /dev/null 2>&1
+		fi
 	done
 
 	if ocf_is_true ${CATALINA_ROTATE_LOG}; then
@@ -413,6 +444,14 @@ A PID file name for Tomcat.
 <content type="string" default="" />
 </parameter>
 
+<parameter name="tomcat_start_script" unique="0" required="0">
+<longdesc lang="en">
+Absolute path to the custom tomcat start script to use.
+</longdesc>
+<shortdesc>Tomcat start script location</shortdesc>
+<content type="string" default="$TOMCAT_START_SCRIPT" />
+</parameter>
+
 <parameter name="tomcat_start_opts" unique="0">
 <longdesc lang="en">
 Tomcat start options.
@@ -500,6 +539,11 @@ validate_all_tomcat()
 
 	check_binary $WGET
 
+	if [ -z "${TOMCAT_START_SCRIPT}" ]; then
+		ocf_log err "No default tomcat start script detected. Please specify start script location using the 'tomcat_start_script' option"
+		rc=$OCF_ERR_CONFIGURED
+	fi
+
 	if [ -n "$MAX_STOP_TIME" ] && [ "$MAX_STOP_TIME" -lt 0 ]; then
 		ocf_log err "max_stop_time must be set to a value greater than 0."
 		rc=$OCF_ERR_CONFIGURED
@@ -550,10 +594,20 @@ JAVA_OPTS="${OCF_RESKEY_java_opts}"
 CATALINA_HOME="${OCF_RESKEY_catalina_home}"
 CATALINA_BASE="${OCF_RESKEY_catalina_base-${OCF_RESKEY_catalina_home}}"
 CATALINA_OUT="${OCF_RESKEY_catalina_out-$CATALINA_BASE/logs/catalina.out}"
-CATALINA_PID="${OCF_RESKEY_catalina_pid-$CATALINA_BASE/logs/catalina.pid}"
+
+CATALINA_PID=$OCF_RESKEY_catalina_pid
+if [ -z "$CATALINA_PID" ]; then
+	mkdir -p "${HA_RSCTMP}/${TOMCAT_NAME}_tomcatstate/"
+	if [ "${RESOURCE_TOMCAT_USER}" != "root" ]; then
+		chown ${RESOURCE_TOMCAT_USER} "${HA_RSCTMP}/${TOMCAT_NAME}_tomcatstate/"
+	fi
+	CATALINA_PID="${HA_RSCTMP}/${TOMCAT_NAME}_tomcatstate/catalina.pid"
+fi
+
 MAX_STOP_TIME="${OCF_RESKEY_max_stop_time}"
 
 TOMCAT_START_OPTS="${OCF_RESKEY_tomcat_start_opts}"
+TOMCAT_START_SCRIPT="${OCF_RESKEY_tomcat_start_script}"
 CATALINA_OPTS="-Dname=$TOMCAT_NAME ${OCF_RESKEY_catalina_opts}"
 CATALINA_TMPDIR="${OCF_RESKEY_catalina_tmpdir}"
 CATALINA_ROTATE_LOG="${OCF_RESKEY_catalina_rotate_log-NO}"
@@ -561,6 +615,11 @@ CATALINA_ROTATETIME="${OCF_RESKEY_catalina_rotatetime-86400}"
 JAVA_ENDORSED_DIRS="${OCF_RESKEY_java_endorsed_dirs}"
 LOGGING_CONFIG="${OCF_RESKEY_logging_config}"
 LOGGING_MANAGER="${OCF_RESKEY_logging_manager}"
+
+
+if [ -z "${TOMCAT_START_SCRIPT}" ]; then
+	TOMCAT_START_SCRIPT=$(detect_start_script)
+fi
 
 LSB_STATUS_STOPPED=3
 if [ $# -ne 1 ]; then
