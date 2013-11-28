@@ -208,7 +208,8 @@ VirtualDomain_Status() {
 	status="no state"
 	while [ "$status" = "no state" ]; do
 		try=$(($try + 1 ))
-		status="`virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME 2>&1`|tr 'A-Z' 'a-z'"
+		status=`virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME 2>&1`
+		status=`echo $status|tr 'A-Z' 'a-z'`
 		case "$status" in
 			*"error:"*"domain not found"*|"shut off")
 				# shut off: domain is defined, but not started, will not happen if
