@@ -208,9 +208,9 @@ VirtualDomain_Status() {
 	status="no state"
 	while [ "$status" = "no state" ]; do
 		try=$(($try + 1 ))
-		status="`virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME 2>&1`"
+		status="`virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME 2>&1`|tr 'A-Z' 'a-z'"
 		case "$status" in
-			*"error:"*"Domain not found"*|"shut off")
+			*"error:"*"domain not found"*|"shut off")
 				# shut off: domain is defined, but not started, will not happen if
 				#   domain is created but not defined
 				# Domain not found: domain is not defined and thus not started
@@ -226,7 +226,7 @@ VirtualDomain_Status() {
 				ocf_log debug "Virtual domain $DOMAIN_NAME is currently $status."
 				rc=$OCF_SUCCESS
 				;;
-			""|*"Failed to reconnect to the hypervisor"*|"no state")
+			""|*"failed to "*"connect to the hypervisor"*|"no state")
 				# Empty string may be returned when virsh does not
 				# receive a reply from libvirtd.
 				# "no state" may occur when the domain is currently
