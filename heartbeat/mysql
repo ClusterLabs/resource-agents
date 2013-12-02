@@ -137,8 +137,8 @@ MYSQL_OPTIONS_TEST="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password
 MYSQL_TOO_MANY_CONN_ERR=1040
 
 CRM_MASTER="${HA_SBIN_DIR}/crm_master -l reboot "
-HOSTNAME=`uname -n`
-CRM_ATTR="${HA_SBIN_DIR}/crm_attribute -N $HOSTNAME "
+NODENAME=$(ocf_local_nodename)
+CRM_ATTR="${HA_SBIN_DIR}/crm_attribute -N $NODENAME "
 INSTANCE_ATTR_NAME=`echo ${OCF_RESOURCE_INSTANCE}| awk -F : '{print $1}'`
 CRM_ATTR_REPL_INFO="${HA_SBIN_DIR}/crm_attribute --type crm_config --name ${INSTANCE_ATTR_NAME}_REPL_INFO -s mysql_replication"
 
@@ -998,7 +998,7 @@ mysql_start() {
         # node that is just joining the cluster, and the CRM may have
         # promoted a master before.
         master_host=`echo $OCF_RESKEY_CRM_meta_notify_master_uname|tr -d " "`
-        if [ "$master_host" -a "$master_host" != ${HOSTNAME} ]; then
+        if [ "$master_host" -a "$master_host" != ${NODENAME} ]; then
             ocf_log info "Changing MySQL configuration to replicate from $master_host."
             set_master
             start_slave
@@ -1147,7 +1147,7 @@ mysql_notify() {
             # time to check whether our replication slave is working
             # correctly.
             master_host=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname|tr -d " "`
-            if [ "$master_host" = ${HOSTNAME} ]; then
+            if [ "$master_host" = ${NODENAME} ]; then
                 ocf_log info "This will be the new master, ignoring post-promote notification."
             else
                 ocf_log info "Resetting replication"
@@ -1172,7 +1172,7 @@ mysql_notify() {
         ;;
         'pre-demote')
             demote_host=`echo $OCF_RESKEY_CRM_meta_notify_demote_uname|tr -d " "`
-            if [ $demote_host = ${HOSTNAME} ]; then
+            if [ $demote_host = ${NODENAME} ]; then
                 ocf_log info "post-demote notification for $demote_host"
                 set_read_only on
                 if [ $? -ne 0 ]; then
@@ -1199,7 +1199,7 @@ mysql_notify() {
         ;;
         'post-demote')
             demote_host=`echo $OCF_RESKEY_CRM_meta_notify_demote_uname|tr -d " "`
-            if [ $demote_host = ${HOSTNAME} ]; then
+            if [ $demote_host = ${NODENAME} ]; then
                 ocf_log info "Ignoring post-demote notification for my own demotion."
                 return $OCF_SUCCESS
             fi

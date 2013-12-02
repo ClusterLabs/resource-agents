@@ -856,7 +856,7 @@ sapinstance_notify() {
     # that is, when a slave resource was startet after the promote event of a already running master (e.g. node of slave was down)
     # We also have to make sure to overrule the globaly set resource_stickiness or any fail-count factors => INFINITY
     local n_uname="$OCF_RESKEY_CRM_meta_notify_demote_uname"
-    if [ ${n_uname} != ${HOSTNAME} ]; then
+    if [ ${n_uname} != ${NODENAME} ]; then
       ${HA_SBIN_DIR}/crm_master -v INFINITY -l reboot
     fi
   fi
@@ -879,6 +879,7 @@ SAPCONTROL=""
 DIR_PROFILE=""
 SAPSTARTPROFILE=""
 CLONE=0
+NODENAME=$(ocf_local_nodename)
 
 
 if
