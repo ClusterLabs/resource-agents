@@ -714,7 +714,8 @@ AM_CONDITIONAL(USE_LIBNET, test "x$libnet_version" != "xnone" )
 dnl ************************************************************************
 dnl * Check for netinet/icmp6.h to enable the IPv6addr resource agent
 AC_CHECK_HEADERS(netinet/icmp6.h,[],[],[#include <sys/types.h>])
-AM_CONDITIONAL(USE_IPV6ADDR, test "$ac_cv_header_netinet_icmp6_h" = yes && test "$ac_cv_header_heartbeat_glue_config_h" = yes)
+AM_CONDITIONAL(USE_IPV6ADDR_AGENT, test "$ac_cv_header_netinet_icmp6_h" = yes && test "$ac_cv_header_heartbeat_glue_config_h" = yes)
+AM_CONDITIONAL(IPV6ADDR_COMPATIBLE, test "$ac_cv_header_netinet_icmp6_h" = yes)
 
 dnl ========================================================================
 dnl Compiler flags

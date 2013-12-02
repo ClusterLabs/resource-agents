@@ -86,6 +86,7 @@
  */
 
 #include <config.h>
+#include <IPv6addr.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -134,9 +135,7 @@
 #define	OCF_ERR_CONFIGURED	6
 #define	OCF_NOT_RUNNING		7
 
-const char* IF_INET6	 	= "/proc/net/if_inet6";
 const char* APP_NAME		= "IPv6addr";
-const char* APP_NAME_SUA	= "send_ua";
 
 const char*	START_CMD 	= "start";
 const char*	STOP_CMD  	= "stop";
@@ -148,11 +147,7 @@ const char*	RELOAD_CMD 	= "reload";
 const char*	META_DATA_CMD 	= "meta-data";
 const char*	VALIDATE_CMD 	= "validate-all";
 
-char		BCAST_ADDR[]	= "ff02::1";
-const int	UA_REPEAT_COUNT	= 5;
 const int	QUERY_COUNT	= 5;
-
-#define 	HWADDR_LEN 	6 /* mac address length */
 
 struct in6_ifreq {
 	struct in6_addr ifr6_addr;
@@ -169,7 +164,6 @@ static int meta_data_addr6(void);
 
 
 static void usage(const char* self);
-static void usage_send_ua(const char* self);
 int write_pid_file(const char *pid_file);
 int create_pid_directory(const char *pid_file);
 static void byebye(int nsig);
@@ -181,7 +175,6 @@ static char* get_if(struct in6_addr* addr_target, int* plen_target, char* prov_i
 static int assign_addr6(struct in6_addr* addr6, int prefix_len, char* if_name);
 static int unassign_addr6(struct in6_addr* addr6, int prefix_len, char* if_name);
 int is_addr6_available(struct in6_addr* addr6);
-static int send_ua(struct in6_addr* src_ip, char* if_name);
 
 int
 main(int argc, char* argv[])
@@ -190,39 +183,10 @@ main(int argc, char* argv[])
 	char*		ipv6addr;
 	char*		cidr_netmask;
 	int		ret;
-	int		count = UA_REPEAT_COUNT;
-	int		interval = 1000;	/* default 1000 msec */
-	int		senduaflg = 0;
-	int		ch;
-	int		i;
 	char*		cp;
 	char*		prov_ifname = NULL;
 	int		prefix_len = -1;
 	struct in6_addr	addr6;
-
-	/* Check binary name */
-	if (strcmp(basename(argv[0]), APP_NAME_SUA) == 0) {
-		senduaflg = 1;
-		if (argc < 4) {
-			usage_send_ua(argv[0]);
-			return OCF_ERR_ARGS;
-		}
-		while ((ch = getopt(argc, argv, "h?c:i:")) != EOF) {
-			switch(ch) {
-			case 'c': /* count option */
-				count = atoi(optarg);
-			    break;
-			case 'i': /* interval option */
-				interval = atoi(optarg);
-			    break;
-			case 'h':
-			case '?':
-			default:
-				usage_send_ua(argv[0]);
-				return OCF_ERR_ARGS;
-			}
-		}
-	}
 
 	/* Check the count of parameters first */
 	if (argc < 2) {
@@ -235,11 +199,7 @@ main(int argc, char* argv[])
 	signal(SIGTERM, byebye);
 
 	/* open system log */
-	if (senduaflg) {
-		cl_log_set_entity(APP_NAME_SUA);
-	} else {
-		cl_log_set_entity(APP_NAME);
-	}
+	cl_log_set_entity(APP_NAME);
 	cl_log_set_facility(LOG_DAEMON);
 
 	/* the meta-data dont need any parameter */
@@ -248,12 +208,9 @@ main(int argc, char* argv[])
 		return OCF_SUCCESS;
 	}
 
-	if (senduaflg) {
-		ipv6addr = argv[optind];
-	} else {
-		/* check the OCF_RESKEY_ipv6addr parameter, should be an IPv6 address */
-		ipv6addr = getenv("OCF_RESKEY_ipv6addr");
-	}
+	/* check the OCF_RESKEY_ipv6addr parameter, should be an IPv6 address */
+	ipv6addr = getenv("OCF_RESKEY_ipv6addr");
+
 	if (ipv6addr == NULL) {
 		cl_log(LOG_ERR, "Please set OCF_RESKEY_ipv6addr to the IPv6 address you want to manage.");
 		usage(argv[0]);
@@ -271,12 +228,9 @@ main(int argc, char* argv[])
 		*cp=0;
 	}
 
-	if (senduaflg) {
-		cidr_netmask = argv[optind+1];
-	} else {
-		/* get provided netmask (optional) */
-		cidr_netmask = getenv("OCF_RESKEY_cidr_netmask");
-	}
+	/* get provided netmask (optional) */
+	cidr_netmask = getenv("OCF_RESKEY_cidr_netmask");
+
 	if (cidr_netmask != NULL) {
 		if ((atol(cidr_netmask) < 0) || (atol(cidr_netmask) > 128)) {
 			cl_log(LOG_ERR, "Invalid prefix_len [%s], "
@@ -294,12 +248,9 @@ main(int argc, char* argv[])
 		prefix_len = 0;
 	}
 
-	if (senduaflg) {
-		prov_ifname = argv[optind+2];
-	} else {
-		/* get provided interface name (optional) */
-		prov_ifname = getenv("OCF_RESKEY_nic");
-	}
+	/* get provided interface name (optional) */
+	prov_ifname = getenv("OCF_RESKEY_nic");
+
 	if (inet_pton(AF_INET6, ipv6addr, &addr6) <= 0) {
 		cl_log(LOG_ERR, "Invalid IPv6 address [%s]", ipv6addr);
 		usage(argv[0]);
@@ -310,15 +261,6 @@ main(int argc, char* argv[])
 	if (access(IF_INET6, R_OK)) {
 		cl_log(LOG_ERR, "No support for INET6 on this system.");
 		return OCF_ERR_GENERIC;
-	}
-
-	if (senduaflg) {
-		/* Send unsolicited advertisement packet to neighbor */
-		for (i = 0; i < count; i++) {
-			send_ua(&addr6, prov_ifname);
-			usleep(interval * 1000);
-		}
-		return OCF_SUCCESS;
 	}
 
 	/* create the pid file so we can make sure that only one IPv6addr
@@ -465,118 +407,6 @@ monitor_addr6(struct in6_addr* addr6, int prefix_len)
 		return OCF_SUCCESS;
 	}
 	return OCF_NOT_RUNNING;
-}
-
-/* Send an unsolicited advertisement packet
- * Please refer to rfc4861 / rfc3542
- */
-int
-send_ua(struct in6_addr* src_ip, char* if_name)
-{
-	int status = -1;
-	int fd;
-
-	int ifindex;
-	int hop;
-	struct ifreq ifr;
-	u_int8_t *payload = NULL;
-	int    payload_size;
-	struct nd_neighbor_advert *na;
-	struct nd_opt_hdr *opt;
-	struct sockaddr_in6 src_sin6;
-	struct sockaddr_in6 dst_sin6;
-
-	if ((fd = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6)) == -1) {
-		cl_log(LOG_ERR, "socket(IPPROTO_ICMPV6) failed: %s",
-		       strerror(errno));
-		return status;
-	}
-	/* set the outgoing interface */
-	ifindex = if_nametoindex(if_name);
-	if (setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_IF,
-		       &ifindex, sizeof(ifindex)) < 0) {
-		cl_log(LOG_ERR, "setsockopt(IPV6_MULTICAST_IF) failed: %s",
-		       strerror(errno));
-		goto err;
-	}
-	/* set the hop limit */
-	hop = 255; /* 255 is required. see rfc4861 7.1.2 */
-	if (setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
-		       &hop, sizeof(hop)) < 0) {
-		cl_log(LOG_ERR, "setsockopt(IPV6_MULTICAST_HOPS) failed: %s",
-		       strerror(errno));
-		goto err;
-	}
-	
-	/* set the source address */
-	memset(&src_sin6, 0, sizeof(src_sin6));
-	src_sin6.sin6_family = AF_INET6;
-	src_sin6.sin6_addr = *src_ip;
-	src_sin6.sin6_port = 0;
-	if (IN6_IS_ADDR_LINKLOCAL(&src_sin6.sin6_addr) ||
-	    IN6_IS_ADDR_MC_LINKLOCAL(&src_sin6.sin6_addr)) {
-		src_sin6.sin6_scope_id = ifindex;
-	}
-
-	if (bind(fd, (struct sockaddr *)&src_sin6, sizeof(src_sin6)) < 0) {
-		cl_log(LOG_ERR, "bind() failed: %s", strerror(errno));
-		goto err;
-	}
-
-
-	/* get the hardware address */
-	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_name, if_name, sizeof(ifr.ifr_name) - 1);
-	if (ioctl(fd, SIOCGIFHWADDR, &ifr) < 0) {
-		cl_log(LOG_ERR, "ioctl(SIOCGIFHWADDR) failed: %s", strerror(errno));
-		goto err;
-	}
-
-	/* build a neighbor advertisement message */
-	payload_size = sizeof(struct nd_neighbor_advert)
-			 + sizeof(struct nd_opt_hdr) + HWADDR_LEN;
-	payload = memalign(sysconf(_SC_PAGESIZE), payload_size);
-	if (!payload) {
-		cl_log(LOG_ERR, "malloc for payload failed");
-		goto err;
-	}
-	memset(payload, 0, payload_size);
-
-	/* Ugly typecast from ia64 hell! */
-	na = (struct nd_neighbor_advert *)((void *)payload);
-	na->nd_na_type = ND_NEIGHBOR_ADVERT;
-	na->nd_na_code = 0;
-	na->nd_na_cksum = 0; /* calculated by kernel */
-	na->nd_na_flags_reserved = ND_NA_FLAG_OVERRIDE;
-	na->nd_na_target = *src_ip;
-
-	/* options field; set the target link-layer address */
-	opt = (struct nd_opt_hdr *)(payload + sizeof(struct nd_neighbor_advert));
-	opt->nd_opt_type = ND_OPT_TARGET_LINKADDR;
-	opt->nd_opt_len = 1; /* The length of the option in units of 8 octets */
-	memcpy(payload + sizeof(struct nd_neighbor_advert)
-			+ sizeof(struct nd_opt_hdr),
-	       &ifr.ifr_hwaddr.sa_data, HWADDR_LEN);
-
-	/* sending an unsolicited neighbor advertisement to all */
-	memset(&dst_sin6, 0, sizeof(dst_sin6));
-	dst_sin6.sin6_family = AF_INET6;
-	inet_pton(AF_INET6, BCAST_ADDR, &dst_sin6.sin6_addr); /* should not fail */
-
-	if (sendto(fd, payload, payload_size, 0,
-		   (struct sockaddr *)&dst_sin6, sizeof(dst_sin6))
-	    != payload_size) {
-		cl_log(LOG_ERR, "sendto(%s) failed: %s",
-		       if_name, strerror(errno));
-		goto err;
-	}
-
-	status = 0;
-
-err:
-	close(fd);
-	free(payload);
-	return status;
 }
 
 /* find the network interface associated with an address */
@@ -819,12 +649,6 @@ is_addr6_available(struct in6_addr* addr6)
 static void usage(const char* self)
 {
 	printf("usage: %s {start|stop|status|monitor|validate-all|meta-data}\n",self);
-	return;
-}
-
-static void usage_send_ua(const char* self)
-{
-	printf("usage: %s [-i[=Interval]] [-c[=Count]] [-h] IPv6-Address Prefix Interface\n",self);
 	return;
 }
 
