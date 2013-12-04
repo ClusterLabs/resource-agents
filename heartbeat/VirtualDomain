@@ -208,8 +208,7 @@ VirtualDomain_Status() {
 	status="no state"
 	while [ "$status" = "no state" ]; do
 		try=$(($try + 1 ))
-		status=`virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME 2>&1`
-		status=`echo $status|tr 'A-Z' 'a-z'`
+		status=$(virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME 2>&1|tr 'A-Z' 'a-z')
 		case "$status" in
 			*"error:"*"domain not found"*|"shut off")
 				# shut off: domain is defined, but not started, will not happen if
@@ -313,11 +312,11 @@ force_stop()
 	local status=0
 
 	ocf_log info "Issuing forced shutdown (destroy) request for domain ${DOMAIN_NAME}."
-	out=$(virsh $VIRSH_OPTIONS destroy ${DOMAIN_NAME} 2>&1)
+	out=$(virsh $VIRSH_OPTIONS destroy ${DOMAIN_NAME} 2>&1|tr 'A-Z' 'a-z')
 	ex=$?
 	echo >&2 "$out"
 	case $ex$out in
-		*"error:"*"domain is not running"*|*"error:"*"Domain not found"*)
+		*"error:"*"domain is not running"*|*"error:"*"domain not found"*)
 			: ;; # unexpected path to the intended outcome, all is well
 		[!0]*)
 			return $OCF_ERR_GENERIC ;;
