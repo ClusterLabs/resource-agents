@@ -20,6 +20,7 @@ CASE-BLOCK set_testenv
 
 CASE-BLOCK crm_setting
         Env OCF_RESKEY_sid=$OCFT_sid
+	Env OCF_RESKEY_monuser=OCFMON
 	Env OCF_RESKEY_CRM_meta_timeout=30000
 
 CASE-BLOCK default_status

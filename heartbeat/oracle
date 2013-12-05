@@ -27,6 +27,8 @@
 #	OCF_RESKEY_ipcrm (optional; defaults to "instance")
 #	OCF_RESKEY_clear_backupmode (optional; default to "false")
 #	OCF_RESKEY_shutdown_method (optional; default to "checkpoint/abort")
+#	OCF_RESKEY_monuser
+#	OCF_RESKEY_monpassword (optional; default to same as monuser)
 #
 # Initialization:
 
@@ -98,6 +100,27 @@ If this does not work for you, just set it explicitely.
 </longdesc>
 <shortdesc lang="en">user</shortdesc>
 <content type="string" default="" />
+</parameter>
+
+<parameter name="monuser" unique="0" required="1">
+<longdesc lang="en">
+Monitoring user name. Every connection as
+sysdba is logged in an audit log. This can
+result in a large number of new files created.
+Make sure that the password for this user does
+not expire.
+</longdesc>
+<shortdesc lang="en">monuser</shortdesc>
+<content type="string" default="OCFMON" />
+</parameter>
+
+<parameter name="monpassword" unique="0">
+<longdesc lang="en">
+Password for the monitoring user. Make sure
+that the password for this user does not expire.
+</longdesc>
+<shortdesc lang="en">monpassword</shortdesc>
+<content type="string" default="OCFMON" />
 </parameter>
 
 <parameter name="ipcrm" unique="0">
@@ -250,7 +273,7 @@ dbasql() {
 	runsql "connect / as sysdba" $*
 }
 monsql() {
-	runsql "connect $MONUSR/$MONUSR" $*
+	runsql "connect $MONUSR/\"$MONPWD\"" $*
 }
 # use dbasql_one if the query should result in a single line output
 # at times people stuff commands in oracle .profile
@@ -328,22 +351,13 @@ getipc() {
 show_mon_user() {
 	echo "select USERNAME, ACCOUNT_STATUS from dba_users where USERNAME='$MONUSR';"
 }
-mk_mon_user() {
-	cat<<EOF
-create user $MONUSR identified by $MONUSR;
-grant create session to $MONUSR;
-grant select on v_\$instance to $MONUSR;
-EOF
-}
 check_mon_user() {
 	local output
-	dbasql show_mon_user | grep -w "^$MONUSR" >/dev/null &&
-		return 0
-	output=`dbasql mk_mon_user show_mon_user`
-	if echo "$output" | grep -w "^$MONUSR" >/dev/null; then
+	output=`dbasql show_mon_user`
+	if echo "$output" | grep -iw "^$MONUSR" >/dev/null; then
 		return 0
 	else
-		ocf_log err "could not create $MONUSR oracle user"
+		ocf_log err "$MONUSR oracle user does not exist"
 		ocf_log err "sqlplus output: $output"
 		return 1
 	fi
@@ -417,7 +431,7 @@ ipcdesc() {
 }
 rmipc() {
 	local what=$1 id=$2
-	ipcs -$what | filteroraipc | grep -w $id >/dev/null 2>&1 ||
+	ipcs -$what | filteroraipc | grep -iw $id >/dev/null 2>&1 ||
 		return
 	ocf_log info "Removing `ipcdesc $what` $id."
 	ipcrm -$what $id
@@ -541,7 +555,7 @@ oracle_start() {
 	fi
 	output=`dbasql dbopen`
 
-	# check/create the monitor user
+	# check the monitor user
 	if ! check_mon_user; then
 		return $OCF_ERR_GENERIC
 	fi
@@ -650,8 +664,12 @@ show_procs() {
 proc_pids() { show_procs | awk '{print $1}'; }
 PROCS_CLEANUP_TIME="30"
 
-MONUSR="OCFMON"
-OCF_REQUIRED_PARAMS="sid"
+MONUSR=$(echo ${OCF_RESKEY_monuser} | awk '{print toupper($0)}')
+
+: ${OCF_RESKEY_monpassword=${MONUSR}}
+
+MONPWD="$OCF_RESKEY_monpassword"
+OCF_REQUIRED_PARAMS="sid monuser"
 OCF_REQUIRED_BINARIES="sqlplus"
 ocf_rarun $*
 
