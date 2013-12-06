@@ -50,6 +50,8 @@ OCF_RESKEY_backend_type_default=malloc
 OCF_RESKEY_backend_size_default=1G
 OCF_RESKEY_backend_file_default=/var/lib/varnish/${OCF_RESKEY_name}.bin
 OCF_RESKEY_worker_threads_default=100,3000,120
+OCF_RESKEY_maxfiles_default=131072
+OCF_RESKEY_max_locked_memory_default=82000
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 : ${OCF_RESKEY_client_binary=${OCF_RESKEY_client_binary_default}}
@@ -62,6 +64,8 @@ OCF_RESKEY_worker_threads_default=100,3000,120
 : ${OCF_RESKEY_backend_size=${OCF_RESKEY_backend_size_default}}
 : ${OCF_RESKEY_backend_file=${OCF_RESKEY_backend_file_default}}
 : ${OCF_RESKEY_worker_threads=${OCF_RESKEY_worker_threads_default}}
+: ${OCF_RESKEY_maxfiles=${OCF_RESKEY_maxfiles_default}}
+: ${OCF_RESKEY_max_locked_memory=${OCF_RESKEY_max_locked_memory_default}}
 
 
 meta_data() {
@@ -201,6 +205,22 @@ only used to check the status of the running child process.
 <content type="string" default="${OCF_RESKEY_client_binary_default}" />
 </parameter>
 
+<parameter name="maxfiles">
+<longdesc lang="en">
+Maximum number of open files (for ulimit -n)
+</longdesc>
+<shortdesc lang="en">Max open files</shortdesc>
+<content type="string" default="${OCF_RESKEY_maxfiles_default}" />
+</parameter>
+
+<parameter name="max_locked_memory">
+<longdesc lang="en">
+Locked shared memory limit (for ulimit -l)
+</longdesc>
+<shortdesc lang="en">Max locked memory</shortdesc>
+<content type="string" default="${OCF_RESKEY_max_locked_memory_default}" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -286,6 +306,26 @@ varnish_start() {
                 return $OCF_ERR_CONFIGURED 
                 ;;
     esac
+
+    # set maximum locked shared memory
+    if [ -n "$OCF_RESKEY_max_locked_memory" ]; then
+        ocf_log info "Setting max_locked_memory to ${OCF_RESKEY_max_locked_memory}"
+        ulimit -l $OCF_RESKEY_max_locked_memory
+        u_rc=$?
+        if [ "$u_rc" -ne 0 ]; then
+           ocf_log warn "Could not set ulimit for locked share memory for Varnish to '$OCF_RESKEY_max_locked_memory'"
+        fi
+    fi
+
+    # set maximum number of open files
+    if [ -n "$OCF_RESKEY_maxfiles" ]; then
+        ulimit -n $OCF_RESKEY_maxfiles
+        u_rc=$?
+        if [ "$u_rc" -ne 0 ]; then
+           ocf_log warn "Could not set ulimit for open files for Varnish to '$OCF_RESKEY_maxfiles'"
+        fi
+    fi
+
     ocf_run $OCF_RESKEY_binary \
         -P $OCF_RESKEY_pid \
         -a $OCF_RESKEY_listen_address \
