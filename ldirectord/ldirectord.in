@@ -835,7 +835,7 @@ use Pod::Usage;
 #use English;
 #use Time::HiRes qw( gettimeofday tv_interval );
 use Socket;
-use Socket6;
+use Socket6 qw( NI_NUMERICHOST NI_NUMERICSERV NI_NAMEREQD getaddrinfo getnameinfo);
 use Sys::Hostname;
 use POSIX qw(setsid :sys_wait_h);
 use Sys::Syslog qw(:DEFAULT setlogsock);
