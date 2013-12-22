@@ -191,16 +191,16 @@ LXC_stop() {
 	# On a 'sysvinit' this would require the container to have an inittab file containing "p0::powerfail:/sbin/init 0"
 	typeset -i PID=0
 	# This should work for traditional 'sysvinit' and 'upstart'
-	lxc-ps -C init -opid |while read CN PID ;do
+	lxc-ps --name "${OCF_RESKEY_container}" -- -C init -o pid,comm |while read CN PID CMD ;do
 		[ $PID -gt 1 ] || continue
-		[ "$CN" = "${OCF_RESKEY_container}" ] || continue
+		[ "$CMD" = "init" ] || continue
 		ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_container} "as it was found to be using \"sysV init\" or \"upstart\""
 		kill -PWR $PID
 	done
 	# This should work for containers using 'systemd' instead of 'init'
-	lxc-ps -C systemd -opid |while read CN PID ;do
-		[[ $PID -gt 1 ]] || continue
-		[[ "$CN" = "${OCF_RESKEY_container}" ]] || continue
+	lxc-ps --name "${OCF_RESKEY_container}" -- -C systemd -o pid,comm |while read CN PID CMD ;do
+		[ $PID -gt 1 ] || continue
+		[ "$CMD" = "systemd" ] || continue
 		ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_container} "as it was found to be using \"systemd\""
 		kill -PWR $PID
 	done
