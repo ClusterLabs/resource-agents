@@ -1,0 +1,910 @@
+#!/bin/bash
+#
+#
+#   OCF Resource Agent compliant PERSISTENT SCSI RESERVATION resource script.
+#
+#
+# Copyright (c) 2011 Evgeny Nifontov, All Rights Reserved.
+#
+# "Heartbeat drbd OCF Resource Agent: 2007, Lars Marowsky-Bree" was used 
+# as example of multistate OCF Resource Agent.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+#
+
+# OCF instance parameters
+#	OCF_RESKEY_sg_persist_resource
+#	OCF_RESKEY_config_file
+#	OCF_RESKEY_devs
+#	OCF_RESKEY_required_devs_nof
+#	OCF_RESKEY_reservation_type
+#	OCF_RESKEY_master_score_base
+#	OCF_RESKEY_master_score_dev_factor
+
+#.  This resource agent manages SCSI PERSISTENT RESERVATIONS.
+#.  "sg_persist" from sg3_utils is used, please read its documentation.
+#.  Should be used as multistate (Master/Slave) resource
+#.  Slave registers its node id ("crm_node -i") as reservation key ( --param-rk ) on each device in the "devs" list.
+#.  Master reservs all devices from "devs" list with reservation "--prout-type" value from "reservation_type" parameter.
+#.
+#.	OCF_RESKEY_sg_persist_resource
+#.       ------------------------------
+#.  The name of the sg_persist resource. This parameter is required.
+#.  
+#.	OCF_RESKEY_config_file
+#.      ----------------------	
+#.  Full path to the sg_persist resource configuration file. Default /etc/sg_persist.conf
+#.  Configuration file should be owned by "root" and can only be writable by owner.
+#.  The config file is sourced as shell script with ". \$config_file".
+#.  It should provide a function with a name "sg_persist_resource_\$sg_persist_resource_name"
+#.  which is then called (with no parameters).
+#.  Resorce init functions for several sg_persist resources can be put in one configuration file.
+#.  
+#.  Config file example for sg_persist_resource=MDRAID1:
+#.  ...............................
+#.  sg_persist_resource_MDRAID1() {
+#.      devs="/dev/sdd /dev/sde"
+#.      required_devs_nof=2
+#.  }
+#.  ...............................
+#.
+#.  Configuration file can be used for any resource parameter other then sg_persist_resource and config_file.If some parameter is specified in config file and also as crm resource parameter - the value from crm is used.   
+#.  
+#.
+#.	OCF_RESKEY_devs
+#.      ---------------
+#.  Device list - required, couldn't be empty 
+#.  "echo \$devs" is actually used, so shell wildcars are allowed.
+#.  
+#.	OCF_RESKEY_required_devs_nof
+#.      ----------------------------
+#.  Minimum number of "working" devices from device list "devs": 
+#.      1) existing 
+#.      2) "sg_persist --read-keys \$device" works (Return code 0)
+#.  resorce actions "start","monitor","promote" and "validate-all" return "\$OCF_ERR_INSTALLED" if the actual number of "working" devices is less then "required_devs_nof".
+#.  resorce actions "stop" and "demote" tries to remove reservations and registration keys from all working devices, but always return "\$OCF_SUCCESS"
+#.  Default 1
+#.  
+#.	OCF_RESKEY_reservation_type
+#.      ---------------------------
+#.  reservation type, used for --prout-type option of "sg_persist" command   
+#.  Default 1 - "write exclusive"
+#.  
+#.      OCF_RESKEY_master_score_base
+#.      ----------------------------
+#.  "master_score_base" value is used in "master_score" calculation:
+#.  master_score = \$master_score_base + \$master_score_dev_factor * \$working_devs  
+#.  if set to bigger value in sg_persist resource configuration file on some node, this node will be "preferred" for master role. 
+#.  Default 0
+#.  
+#.	OCF_RESKEY_master_score_dev_factor
+#.      ----------------------------------
+#.  Working device factor in master_score calculation - each "working" device provides additional value to "master_score", so the node that sees more devices will be preferred for the "Master"-role
+#.  Setting it to 0 will disable this behavior. 
+#.  Default 100
+#.
+#.	OCF_RESKEY_master_score_delay
+#.      ----------------------------------
+#.  master decreases its master_score after delay of \$master_score_delay seconds
+#.  slave increases ist master_score after delay of \$master_score_delay seconds
+#.  so if some device gets inaccessible, the slave decreases its master_score first and the resource will no be sweatched
+#.  and after this device reappears again the master increases its master_score first
+#.  this can work only if the master_score_delay is bigger then monitor interval on both master and slave
+#.  Setting it to 0 will disable this behavior.
+#.  Default 30
+
+# TODO
+# 
+# 1) PROBLEM: devices which were not accessible during 'start' action, will be never registered/reserved 
+#    TODO:    'Master' and 'Salve' registers new devs in 'monitor' action
+#    TODO:    'Master' reserves new devs in 'monitor' action
+
+#######################################################################
+# Initialization:
+
+[ -z "$OCF_ROOT" ] && exit 5
+[ -d ${OCF_ROOT}/resource.d/heartbeat ] && OCF_FUNCTIONS_DIR="${OCF_ROOT}/resource.d/heartbeat"
+[ -d ${OCF_ROOT}/lib/heartbeat ] && OCF_FUNCTIONS_DIR="${OCF_ROOT}/lib/heartbeat"
+
+[ -z "$OCF_FUNCTIONS_DIR" ] && exit 5
+[ -e ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs ] && OCF_SHELLFUNCS="${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs"
+[ -e ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs ] && OCF_SHELLFUNCS="${OCF_FUNCTIONS_DIR}/ocf-shellfuncs"
+
+[ -z "$OCF_SHELLFUNCS" ] && exit 5
+. $OCF_SHELLFUNCS
+#######################################################################
+
+# uncomment the next line for debugging messages
+HA_debug=1
+
+RESOURCE="$OCF_RESKEY_sg_persist_resource"
+
+meta_data() {
+    cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="sg_persist">
+<version>1.1</version>
+
+<longdesc lang="en">
+This resource agent manages SCSI PERSISTENT RESERVATIONS.
+"sg_persist" from sg3_utils is used, please see its documentation.
+Should be used as multistate (Master/Slave) resource
+Slave registers its node id ("crm_node -i") as reservation key ( --param-rk ) on each device in the "devs" list.
+Master reservs all devices from "devs" list with reservation "--prout-type" value from "reservation_type" parameter.
+</longdesc>
+<shortdesc lang="en">Manages SCSI PERSISTENT RESERVATIONS</shortdesc>
+
+<parameters>
+<parameter name="sg_persist_resource" unique="1" required="1">
+<longdesc lang="en">
+The name of the sg_persist resource. This parameter is required.
+</longdesc>
+<shortdesc lang="en">sg_persist resource name</shortdesc>
+<content type="string"/>
+</parameter>
+<parameter name="config_file" unique="1" required="0">
+<longdesc lang="en">
+Full path to the sg_persist resource configuration file. Default /etc/sg_persist.conf
+</longdesc>
+<shortdesc lang="en">Path to sg_persist.conf</shortdesc>
+<content type="string"/>
+</parameter>
+<parameter name="devs" unique="1" required="0">
+<longdesc lang="en">
+Device list - required, couldn't be empty 
+</longdesc>
+<shortdesc lang="en">device list</shortdesc>
+<content type="string"/>
+</parameter>
+<parameter name="required_devs_nof" unique="1" required="0">
+<longdesc lang="en">
+Minimum number of "working" devices from device list. Default 1
+</longdesc>
+<shortdesc lang="en">minimum number of working devices</shortdesc>
+<content type="string" default="1"/>
+</parameter>
+<parameter name="reservation_type" unique="1" required="0">
+<longdesc lang="en">
+reservation type. Default type 1: write_exclusive
+</longdesc>
+<shortdesc lang="en">reservation type</shortdesc>
+<content type="string"/>
+</parameter>
+<parameter name="master_score_base" unique="1" required="0">
+<longdesc lang="en">
+master_score_base value. Default 0
+</longdesc>
+<shortdesc lang="en">base master_score value</shortdesc>
+<content type="string"/>
+</parameter>
+<parameter name="master_score_dev_factor" unique="1" required="0">
+<longdesc lang="en">
+Working device factor in master_score calculation. Default 100
+</longdesc>
+<shortdesc lang="en">working device factor in master_score calculation</shortdesc>
+<content type="string"/>
+</parameter>
+</parameters>
+
+<actions>
+<action name="start"   timeout="30" />
+<action name="promote"   timeout="30" />
+<action name="demote"   timeout="30" />
+<action name="notify"   timeout="30" />
+<action name="stop"    timeout="30" />
+<action name="monitor" depth="0"  timeout="20" interval="29" role="Slave" />
+<action name="monitor" depth="0"  timeout="20" interval="60" role="Master" />
+<action name="meta-data"  timeout="5" />
+<action name="validate-all"  timeout="30" />
+</actions>
+</resource-agent>
+END
+
+    exit $OCF_SUCCESS
+}
+
+sg_persist_do_cmd() {
+    local cmd="$*"
+    ocf_log debug "$RESOURCE: Calling $cmd"
+    local cmd_out
+    cmd_out=$($cmd)
+    ret=$?
+	
+    if [ $ret -ne 0 ]
+    then
+	ocf_log err "$RESOURCE: Exit code $ret"
+	ocf_log err "$RESOURCE: Command output: $cmd_out"
+    else
+	ocf_log debug "$RESOURCE: Exit code $ret"
+	ocf_log debug "$RESOURCE: Command output: $cmd_out"
+    fi
+	
+    echo $cmd_out
+	
+    return $ret
+}
+
+sg_persist_init() {
+	
+    if ocf_is_root
+    then 
+	:
+    else
+	ocf_log err "You must be root to perform this operation."
+	exit $OCF_ERR_PERM
+    fi
+
+    : ${SG_PERSIST:=sg_persist}
+    check_binary $SG_PERSIST
+    
+    ROLE=$OCF_RESKEY_CRM_meta_role
+    NOW=`date +%s`
+
+    #CRM_MASTER="${HA_SBIN_DIR}/crm_master -l reboot "
+    
+    MASTER_SCORE_VAR_NAME="master-${OCF_RESOURCE_INSTANCE}"
+    PENDING_VAR_NAME="pending-$MASTER_SCORE_VAR_NAME"
+    
+    #MASTER_SCORE_UPDATER="${HA_SBIN_DIR}/attrd_updater --lifetime=reboot --name=$MASTER_SCORE_VAR_NAME"
+    #PENDING_UPDATER="${HA_SBIN_DIR}/attrd_updater --lifetime=reboot --name=$PENDING_VAR_NAME"
+    
+    #only works with corocync ???
+    CRM_NODE="${HA_SBIN_DIR}/crm_node"
+    if [ -z "$RESOURCE" ]
+    then
+	ocf_log err "sg_persist_resource not defined."
+	if [ "$FORCE_OCF_SUCCESS" != "YES" ]
+	then
+	    exit $OCF_ERR_INSTALLED
+	fi
+    fi
+
+    NODE_ID_DEC=`$CRM_NODE -i`
+
+    NODE=`$CRM_NODE -l | $GREP $NODE_ID_DEC`
+    NODE=${NODE#$NODE_ID_DEC }
+    NODE=${NODE% *}
+    
+    MASTER_SCORE_ATTRIBUTE="${HA_SBIN_DIR}/crm_attribute --lifetime=reboot --name=$MASTER_SCORE_VAR_NAME --node=$NODE"
+    #MASTER_SCORE_ATTRIBUTE="${HA_SBIN_DIR}/crm_master --lifetime=reboot"
+    CRM_MASTER="${HA_SBIN_DIR}/crm_master --lifetime=reboot"
+    PENDING_ATTRIBUTE="${HA_SBIN_DIR}/crm_attribute --lifetime=reboot --name=$PENDING_VAR_NAME --node=$NODE"
+
+    NODE_ID_HEX=`printf '0x%x' $NODE_ID_DEC` 
+
+    if [ -z "$NODE_ID_HEX" ]
+    then
+	ocf_log err "Couldn't get node id with \"$CRM_NODE\""
+	if [ "$FORCE_OCF_SUCCESS" != "YES" ]
+	then
+	    exit $OCF_ERR_INSTALLED
+	fi
+    fi
+
+    ocf_log debug "$RESOURCE: NODE:$NODE, ROLE:$ROLE, NODE_ID DEC:$NODE_ID_DEC HEX:$NODE_ID_HEX"
+
+    CLONE_NO="$OCF_RESKEY_CRM_meta_clone"
+	
+    SG_PERSIST_CONF="${OCF_RESKEY_config_file:=/etc/sg_persist.conf}"
+
+    # no default value for device list
+    devs=""
+
+    # default number of required devices
+    required_devs_nof=1
+	
+    # default reservation type
+    reservation_type=1
+	
+    # default master score base 
+    master_score_base=0
+
+    # default device factor for master score
+    master_score_dev_factor=100
+
+    # default delay for master score
+    master_score_delay=30
+
+    if [ -f "$SG_PERSIST_CONF" ]
+    then
+	sg_persist_read_config
+    fi
+	
+    DEVS=${OCF_RESKEY_devs:=$devs}
+    REQUIRED_DEVS_NOF=${OCF_RESKEY_required_devs_nof:=$required_devs_nof}
+    RESERVATION_TYPE=${OCF_RESKEY_reservation_type:=$reservation_type}
+    MASTER_SCORE_BASE=${OCF_RESKEY_master_score_base:=$master_score_base}
+    MASTER_SCORE_DEV_FACTOR=${OCF_RESKEY_master_score_dev_factor:=$master_score_dev_factor}
+    MASTER_SCORE_DELAY=${OCF_RESKEY_master_score_delay:=$master_score_delay}
+    
+    ocf_log debug "$RESOURCE: DEVS=$DEVS"
+    ocf_log debug "$RESOURCE: REQUIRED_DEVS_NOF=$REQUIRED_DEVS_NOF"
+    ocf_log debug "$RESOURCE: RESERVATION_TYPE=$RESERVATION_TYPE"
+    ocf_log debug "$RESOURCE: MASTER_SCORE_BASE=$MASTER_SCORE_BASE"
+    ocf_log debug "$RESOURCE: MASTER_SCORE_DEV_FACTOR=$MASTER_SCORE_DEV_FACTOR"
+    ocf_log debug "$RESOURCE: MASTER_SCORE_DELAY=$MASTER_SCORE_DELAY"
+
+    #expand path wildcards
+    DEVS=$(echo $DEVS)
+
+    if [ -z "$DEVS" ]
+    then
+	ocf_log err "\"devs\" not defined"
+	if [ "$FORCE_OCF_SUCCESS" != "YES" ]
+	then
+	    exit $OCF_ERR_INSTALLED
+	fi
+    fi
+ 
+    sg_persist_check_devs
+    sg_persist_get_status
+}
+
+sg_persist_read_config() {
+    
+    OWNER_UID=`stat --format %u $SG_PERSIST_CONF`
+    DO_SOURCE_FILE='YES'
+    
+    if [ $OWNER_UID -ne 0 ]
+    then
+	ocf_log err "resource configuration file \"$SG_PERSIST_CONF\" not owned by \"root\""
+    	DO_SOURCE_FILE='NO'
+	if [ "$FORCE_OCF_SUCCESS" != "YES" ]
+	then
+    	    exit $OCF_ERR_INSTALLED
+	fi
+    fi
+
+    ACCESS_RIGHTS=`stat --format %A $SG_PERSIST_CONF`
+    GROUP_WRITE=${ACCESS_RIGHTS:5:1}
+    OTHER_WRITE=${ACCESS_RIGHTS:8:1}
+
+    if [ "$GROUP_WRITE$OTHER_WRITE" != "--" ]
+    then
+	ocf_log err "resource configuration file \"$SG_PERSIST_CONF\" writable not only by owner"
+    	DO_SOURCE_FILE='NO'
+	if [ "$FORCE_OCF_SUCCESS" != "YES" ]
+	then
+    	    exit $OCF_ERR_INSTALLED
+	fi
+    fi
+
+    if [ "$DO_SOURCE_FILE" == "YES" ]
+    then
+	. $SG_PERSIST_CONF
+    fi
+
+    unset DEVS
+    unset REQUIRED_DEVS_NOF
+    declare -F sg_persist_resource_$RESOURCE >/dev/null 2>&1
+    if [ $? -eq 0 ] 
+    then
+	sg_persist_resource_$RESOURCE
+    else
+	ocf_log err "Function sg_persist_resource_$RESOURCE not defined in $SG_PERSIST_CONF"
+	if [ "$FORCE_OCF_SUCCESS" != "YES" ]
+	then
+    	    exit $OCF_ERR_INSTALLED
+	fi
+    fi
+
+}
+
+#######################################################################
+
+sg_persist_action_usage() {
+    cat <<END
+usage: $0 {start|stop|monitor|validate-all|promote|demote|notify|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+sg_persist_get_status() {
+
+    unset WORKING_DEVS[*]
+	
+    for dev in ${EXISTING_DEVS[*]}
+    do
+	READ_KEYS=`sg_persist_do_cmd $SG_PERSIST --in --read-keys $dev`
+	READ_KEYS_RET=$?
+
+	if [ $READ_KEYS_RET -eq 0 ] 
+	then
+	    WORKING_DEVS+=($dev)
+	    echo $READ_KEYS | $GREP $NODE_ID_HEX >/dev/null
+	    if [ $? -eq 0 ] 
+	    then
+		REGISTERED_DEVS+=($dev)
+
+		READ_RESERVATION=`sg_persist_do_cmd $SG_PERSIST --in --read-reservation $dev`
+		READ_RESERVATION_RET=$?
+
+		if [ $READ_RESERVATION_RET -eq 0 ]
+		then
+		    echo $READ_RESERVATION | $GREP $NODE_ID_HEX >/dev/null
+		    if [ $? -eq 0 ] 
+		    then
+			RESERVED_DEVS+=($dev)
+		    fi
+
+		    reservation_key=`echo $READ_RESERVATION | $GREP -o 'Key=0x[0-9a-f]*' | $GREP -o '0x[0-9a-f]*'`
+		    if [ "$reservation_key" != "" ] 
+		    then
+			DEVS_WITH_RESERVATION+=($dev)
+			RESERVATION_KEYS+=($reservation_key)
+		    fi
+		fi
+	    fi
+	fi
+    done
+
+    WORKING_DEVS_NOF=${#WORKING_DEVS[*]}
+
+    ocf_log debug "$RESOURCE: working devices: `sg_persist_echo_array ${WORKING_DEVS[*]}`"
+    ocf_log debug "$RESOURCE: number of working devices: $WORKING_DEVS_NOF"
+    
+    ocf_log debug "$RESOURCE: registered devices: `sg_persist_echo_array ${REGISTERED_DEVS[*]}`"
+    ocf_log debug "$RESOURCE: reserved devices: `sg_persist_echo_array ${RESERVED_DEVS[*]}`"
+    ocf_log debug "$RESOURCE: devices with reservation: `sg_persist_echo_array ${DEVS_WITH_RESERVATION[*]}`"
+    ocf_log debug "$RESOURCE: reservation keys: `sg_persist_echo_array ${RESERVATION_KEYS[*]}`"
+	
+    MASTER_SCORE=$(($MASTER_SCORE_BASE + $MASTER_SCORE_DEV_FACTOR*$WORKING_DEVS_NOF))
+    ocf_log debug "$RESOURCE: master_score: $MASTER_SCORE_BASE + $MASTER_SCORE_DEV_FACTOR*$WORKING_DEVS_NOF = $MASTER_SCORE"
+
+}
+
+sg_persist_check_devs() {
+
+    for dev in $DEVS 
+    do
+	if [ -e "$dev" ]
+	then
+	    EXISTING_DEVS+=($dev)
+	fi
+    done
+
+    EXISTING_DEVS_NOF=${#EXISTING_DEVS[*]}
+    if [ $EXISTING_DEVS_NOF -lt $REQUIRED_DEVS_NOF ] 
+    then
+	ocf_log err "Number of existing devices=$EXISTING_DEVS_NOF less then required_devs_nof=$REQUIRED_DEVS_NOF"
+	if [ "$FORCE_OCF_SUCCESS" != "YES" ]
+	then
+    	    exit $OCF_ERR_INSTALLED
+	fi
+    fi
+
+}
+
+sg_persist_is_registered() {
+    for registered_dev in ${REGISTERED_DEVS[*]}
+    do
+	if [ "$registered_dev" == "$1" ]
+	then
+	    return 0
+	fi
+    done
+    return 1
+}
+
+sg_persist_get_reservation_key() {
+    for array_index in ${!DEVS_WITH_RESERVATION[*]}
+    do
+	if [ "${DEVS_WITH_RESERVATION[$array_index]}" == "$1" ]
+	then
+	    echo ${RESERVATION_KEYS[$array_index]}
+	    return 0
+	fi
+    done
+    echo ""
+}
+
+sg_persist_action_start() {
+
+    #sg_persist_do_cmd $CRM_MASTER -v $MASTER_SCORE
+    #sg_persist_do_cmd $MASTER_SCORE_UPDATER --update=$MASTER_SCORE
+    sg_persist_do_cmd $MASTER_SCORE_ATTRIBUTE --update=$MASTER_SCORE
+    #sg_persist_do_cmd $CRM_MASTER --attr-value=$MASTER_SCORE
+    #sg_persist_do_cmd $PENDING_UPDATER --update=""
+    sg_persist_do_cmd $PENDING_ATTRIBUTE --update=""
+    
+    if [ $WORKING_DEVS_NOF -lt $REQUIRED_DEVS_NOF ] 
+    then
+	ocf_log err "$RESOURCE: Number of working devices=$WORKING_DEVS_NOF less then required_devs_nof=$REQUIRED_DEVS_NOF"
+	exit $OCF_ERR_GENERIC
+    fi
+
+    for dev in ${WORKING_DEVS[*]}
+    do
+	if sg_persist_is_registered $dev
+	then
+	    : OK
+	else
+	    sg_persist_do_cmd $SG_PERSIST --out --register --param-rk=0 --param-sark=$NODE_ID_HEX $dev
+		sg_persist --in --read-status $dev
+	    if [ $? -ne 0 ]
+	    then
+		return $OCF_ERR_GENERIC
+	    fi
+	fi
+    done
+
+    return $OCF_SUCCESS
+}
+
+sg_persist_action_stop() {
+
+    if [ ${#REGISTERED_DEVS[*]} -eq 0 ]
+    then
+	ocf_log debug "$RESOURCE stop: already no registrations"
+		
+    else
+	# Clear preference for becoming master
+	#sg_persist_do_cmd $CRM_MASTER -D
+	#sg_persist_do_cmd $MASTER_SCORE_UPDATER --delete
+	sg_persist_do_cmd $MASTER_SCORE_ATTRIBUTE --delete
+	#sg_persist_do_cmd $CRM_MASTER --delete-attr
+	#sg_persist_do_cmd $PENDING_UPDATER --delete
+	sg_persist_do_cmd $PENDING_ATTRIBUTE --delete
+
+	for dev in ${REGISTERED_DEVS[*]}
+	do
+	    sg_persist_do_cmd $SG_PERSIST --out --register --param-rk=$NODE_ID_HEX --param-sark=0 $dev
+	done
+    fi
+
+    return $OCF_SUCCESS
+}
+
+sg_persist_echo_array() {
+    str_count=0
+    arr_str=""
+    for str in "$@"
+    do
+	arr_str="$arr_str[$str_count]:$str "	
+	str_count=$(($str_count+1))
+    done
+    echo $arr_str
+}
+
+sg_persist_parse_act_pending() {
+    
+    ACT_PENDING_TS=0
+    ACT_PENDING_SCORE=0
+
+    if [ -n "$ACT_PENDING" ]
+    then
+	ACT_PENDING_TS=${ACT_PENDING%%_*}
+	ACT_PENDING_SCORE=${ACT_PENDING##*_}
+    fi
+}
+
+sg_persist_clear_pending() {
+    if [ -n "$ACT_PENDING" ] 
+    then
+	DO_PENDING_UPDATE="YES"
+	NEW_PENDING=""
+    fi
+}
+
+sg_persist_new_master_score() {
+    DO_MASTER_SCORE_UPDATE="YES"
+    NEW_MASTER_SCORE=$1
+}
+
+sg_persist_new_pending() {
+    DO_PENDING_UPDATE="YES"
+    NEW_PENDING=$1
+}
+
+sg_persist_action_monitor() {
+
+    #ACT_MASTER_SCORE=`sg_persist_do_cmd $ATTRD_UPDATER --query`
+    ACT_MASTER_SCORE=`sg_persist_do_cmd $MASTER_SCORE_ATTRIBUTE --query --quiet`
+    #ACT_MASTER_SCORE=`sg_persist_do_cmd $CRM_MASTER --get-value --quiet`
+    ocf_log debug "$RESOURCE monitor: ACT_MASTER_SCORE=$ACT_MASTER_SCORE"
+    
+    ACT_PENDING=`sg_persist_do_cmd $PENDING_ATTRIBUTE --query --quiet`
+    ocf_log debug "$RESOURCE monitor: ACT_PENDING=$ACT_PENDING"
+
+    sg_persist_parse_act_pending
+    ocf_log debug "$RESOURCE monitor: ACT_PENDING_TS=$ACT_PENDING_TS"
+    ocf_log debug "$RESOURCE monitor: ACT_PENDING_VAL=$ACT_PENDING_SCORE"
+   
+    ocf_log debug "$MASTER_SCORE, $ACT_MASTER_SCORE, $ROLE"
+    
+    DO_MASTER_SCORE_UPDATE="NO"
+    DO_PENDING_UPDATE="NO"
+    if [ -n "$ACT_MASTER_SCORE" ] 
+    then
+	if [ $ACT_MASTER_SCORE -ne $MASTER_SCORE ]
+	then
+	
+	    if [ "$ROLE" == "Master" ]
+	    then
+		if [ $MASTER_SCORE -lt $ACT_MASTER_SCORE ]
+		then
+		    if [ -n "$ACT_PENDING" ] 
+		    then
+			if [ $(($NOW-$ACT_PENDING_TS-$MASTER_SCORE_DELAY)) -ge 0 ]
+			then
+			    sg_persist_new_master_score $MASTER_SCORE
+			    sg_persist_clear_pending
+			fi
+		    else
+			if [ $MASTER_SCORE_DELAY -eq 0 ]
+			then
+			    sg_persist_new_master_score $MASTER_SCORE
+			    sg_persist_clear_pending
+			else
+			    sg_persist_new_pending "${NOW}_${MASTER_SCORE}"
+			fi
+		    fi
+		else
+		    sg_persist_new_master_score $MASTER_SCORE
+		    sg_persist_clear_pending
+		fi
+	    else
+		if [ $MASTER_SCORE -gt $ACT_MASTER_SCORE ]
+		then
+		    if [ -n "$ACT_PENDING" ] 
+		    then
+			if [ $(($NOW-$ACT_PENDING_TS-$MASTER_SCORE_DELAY)) -ge 0 ]
+			then
+			    sg_persist_new_master_score $MASTER_SCORE
+			    sg_persist_clear_pending
+			fi
+		    else
+			if [ $MASTER_SCORE_DELAY -eq 0 ]
+			then
+			    sg_persist_new_master_score $MASTER_SCORE
+			    sg_persist_clear_pending
+			else
+			    sg_persist_new_pending "${NOW}_${MASTER_SCORE}"
+			fi
+		    fi
+		else
+		    sg_persist_new_master_score $MASTER_SCORE
+		    sg_persist_clear_pending
+		fi
+	    fi
+	else
+	    sg_persist_clear_pending
+	fi
+    fi
+
+    if [ $DO_MASTER_SCORE_UPDATE == "YES" ]
+    then
+	sg_persist_do_cmd $MASTER_SCORE_ATTRIBUTE --update=$NEW_MASTER_SCORE
+	#sg_persist_do_cmd CRM_MASTER --update=$NEW_MASTER_SCORE
+    fi
+
+    if [ $DO_PENDING_UPDATE == "YES" ]
+    then
+	sg_persist_do_cmd $PENDING_ATTRIBUTE --update=$NEW_PENDING
+    fi
+
+    if [ ${#REGISTERED_DEVS[*]} -eq 0 ]
+    then
+	ocf_log debug "$RESOURCE monitor: no registrations"
+	return $OCF_NOT_RUNNING
+    fi
+
+    if [ ${#RESERVED_DEVS[*]} -gt 0 ] 
+    then
+	return $OCF_RUNNING_MASTER
+    fi
+
+    if [ ${#REGISTERED_DEVS[*]} -gt 0 ] 
+    then
+	if [ $RESERVATION_TYPE -eq 7 ] || [ $RESERVATION_TYPE -eq 8]
+	then
+                if [ ${#DEVS_WITH_RESERVATION[*]} -gt 0 ]
+                then
+                        return $OCF_RUNNING_MASTER
+                else
+                        return $OCF_SUCCESS
+                fi
+	else
+		return $OCF_SUCCESS
+	fi
+    fi
+
+    ocf_log err "$RESOURCE monitor: unexpected state"
+	
+    return $OCF_ERR_GENERIC
+}
+
+sg_persist_action_promote() {
+
+    if [ ${#RESERVED_DEVS[*]} -gt 0 ] 
+    then
+	ocf_log info "$RESOURCE promote: already master"
+	return $OCF_SUCCESS
+    fi
+
+    for dev in ${WORKING_DEVS[*]}
+    do
+	reservation_key=`sg_persist_get_reservation_key $dev`
+	echo "RK=$reservation_key"
+	if [ $RESERVATION_TYPE -eq 1 ] || [ $RESERVATION_TYPE -eq 3 ] || [ $RESERVATION_TYPE -eq 5 ] || [ $RESERVATION_TYPE -eq 6 ]
+	then
+		if [ "$reservation_key" == "" ] 
+		then
+		    sg_persist_do_cmd $SG_PERSIST --out --reserve --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
+		    if [ $? -ne 0 ]
+		    then
+			return $OCF_ERR_GENERIC
+		    fi
+		else
+		    sg_persist_do_cmd $SG_PERSIST --out --preempt --param-sark=$reservation_key --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
+		    if [ $? -ne 0 ]
+		    then
+			return $OCF_ERR_GENERIC
+		    fi
+		fi
+	else	
+		if [ "$reservation_key" == "" ] 
+		then
+		    sg_persist_do_cmd $SG_PERSIST --out --reserve --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
+		    if [ $? -ne 0 ]
+		    then
+			return $OCF_ERR_GENERIC
+		    fi
+		else 
+		    ocf_log info "$RESOURCE promote: there already exist an reservation holder, all registrants become reservation holders"
+		    return $OCF_SUCCESS
+		fi
+	fi
+    done
+
+    return $OCF_SUCCESS
+}
+
+sg_persist_action_demote() {
+   #in case of 7/8, --release won't realse the reservation unless unregister the key.	
+   if [ $RESERVATION_TYPE -eq 7 ] || [ $RESERVATION_TYPE -eq 8 ]   
+   then
+    	if [ ${#REGISTERED_DEVS[*]} -eq 0 ] 
+    	then
+		ocf_log info "$RESOURCE promote: already slave"
+		return $OCF_SUCCESS
+    	fi
+
+	for dev in ${REGISTERED_DEVS[*]}
+    	do
+		sg_persist_do_cmd $SG_PERSIST --out --register --param-rk=$NODE_ID_HEX --param-sark=0 $dev
+    	done
+    else
+	if [ ${#RESERVED_DEVS[*]} -eq 0 ] 
+    	then
+		ocf_log info "$RESOURCE promote: already slave"
+		return $OCF_SUCCESS
+	fi
+
+	for dev in ${RESERVED_DEVS[*]}
+    	do
+		sg_persist_do_cmd $SG_PERSIST --out --release --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
+    	done
+    fi
+
+    return $OCF_SUCCESS
+}
+
+sg_persist_action_notify() {
+    local n_type="$OCF_RESKEY_CRM_meta_notify_type"
+    local n_op="$OCF_RESKEY_CRM_meta_notify_operation"
+    set -- $OCF_RESKEY_CRM_meta_notify_active_resource
+    local n_active="$#"
+    set -- $OCF_RESKEY_CRM_meta_notify_stop_resource
+    local n_stop="$#"
+    set -- $OCF_RESKEY_CRM_meta_notify_start_resource
+    local n_start="$#"
+
+    ocf_log debug "$RESOURCE notify: $n_type for $n_op - counts: active $n_active - starting $n_start - stopping $n_stop"
+	
+    return $OCF_SUCCESS
+}
+
+sg_persist_action_validate_all () {
+    if [ -n "$SG_PERSIST_CONF" ] && [ ! -f "$SG_PERSIST_CONF" ]
+    then
+	ocf_log err "Configuration file does not exist: $SG_PERSIST_CONF"
+	return $OCF_ERR_CONFIGURED
+    fi
+
+    if [ -z "$RESOURCE" ]
+    then
+	ocf_log err "No resource name specified!"
+	return $OCF_ERR_ARGS
+    fi
+	
+    if [ "$OCF_RESKEY_CRM_meta_master_max" != "1" ] && [ "$RESERVATION_TYPE"  != "7" ] && [ "$RESERVATION_TYPE" != "8" ]
+    then
+	ocf_log err "Master options misconfigured."
+	exit $OCF_ERR_CONFIGURED
+    fi
+
+    return $OCF_SUCCESS
+}
+
+if [ $# -ne 1 ]
+then
+    echo "Incorrect parameter count."
+    sg_persist_action_usage
+    exit $OCF_ERR_ARGS
+fi
+
+: ${OCF_RESKEY_CRM_meta_interval=0}
+
+ACTION=$1
+case $ACTION in
+    meta-data)	
+	meta_data
+	;;
+		
+    validate-all)	
+	sg_persist_init
+	sg_persist_action_validate_all
+	;;
+
+    start|promote)
+	ocf_log debug "$RESOURCE: starting action \"$ACTION\""
+	#ocf_log debug `env`
+		
+	sg_persist_init
+	sg_persist_action_$ACTION
+	exit $?
+	;;
+    
+    monitor)
+	FORCE_OCF_SUCCESS='YES'
+	ocf_log debug "$RESOURCE: starting action \"$ACTION\""
+	#ocf_log debug `env`
+		
+	sg_persist_init
+	sg_persist_action_$ACTION
+	exit $?
+	;;
+    stop|demote)	
+	FORCE_OCF_SUCCESS='YES'
+	ocf_log debug "$RESOURCE: starting action \"$ACTION\""
+		
+	sg_persist_init
+	sg_persist_action_$ACTION
+	exit $OCF_SUCCESS
+	;;
+		
+    notify)	
+	sg_persist_action_notify
+	exit $?
+	;;
+
+    usage|help)	
+	sg_persist_action_usage
+	exit $OCF_SUCCESS
+	;;
+
+    *)	sg_persist_action_usage
+	exit $OCF_ERR_ARGS
+	;;
+esac
