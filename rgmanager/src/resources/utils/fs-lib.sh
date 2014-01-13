@@ -275,7 +275,7 @@ kill_procs_using_mount () {
 	fi
 
 	# anything held open in mount point after the slash
-	procs=$(find /proc/[0-9]*/fd/ -type l -lname "${mp}/*" -or -lname "${mp}" 2>/dev/null | awk -F/ '{print $3}' | uniq)
+	procs=$(find /proc/[0-9]*/ -type l -lname "${mp}/*" -or -lname "${mp}" 2>/dev/null | awk -F/ '{print $3}' | uniq)
 
 	for pid in $procs; do
 		if [ -n "$2" ]; then
