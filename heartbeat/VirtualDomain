@@ -202,6 +202,35 @@ update_utilization() {
 	fi
 }
 
+# attempt to check domain status outside of libvirt using the emulator process
+pid_status()
+{
+	local rc=$OCF_ERR_GENERIC
+	local emulator
+
+	emulator=$(basename $(egrep '[[:space:]]*<emulator>.*</emulator>[[:space:]]*$' ${OCF_RESKEY_config} | sed -e 's/[[:space:]]*<emulator>\(.*\)<\/emulator>[[:space:]]*$/\1/'))
+
+	case "$emulator" in
+		qemu-kvm)
+			ps awx | grep "[q]emu-kvm.*-name $DOMAIN_NAME " > /dev/null 2>&1
+			if [ $? -eq 0 ]; then
+				# domain exists and is running
+				ocf_log debug "Virtual domain $DOMAIN_NAME is currently running."
+				rc=$OCF_SUCCESS
+			else 
+				# domain pid does not exist on local machine
+				ocf_log debug "Virtual domain $DOMAIN_NAME is currently not running."
+				rc=$OCF_NOT_RUNNING
+			fi
+			;;
+		# This can be expanded to check for additional emulators
+		*)
+			;;
+	esac
+
+	return $rc
+}
+
 VirtualDomain_Status() {
 	local try=0
 	rc=$OCF_ERR_GENERIC
@@ -240,6 +269,14 @@ VirtualDomain_Status() {
 					# the domain if necessary.
 					ocf_log error "Virtual domain $DOMAIN_NAME has no state during stop operation, bailing out."
 					return $OCF_ERR_GENERIC;
+				elif [ "$__OCF_ACTION" = "monitor" ]; then
+					pid_status
+					rc=$?
+					if [ $rc -ne $OCF_ERR_GENERIC ]; then
+						# we've successfully determined the domains status outside of libvirt
+						return $rc
+					fi
+
 				else
 					# During all other actions, we just wait and try
 					# again, relying on the CRM/LRM to time us out if
