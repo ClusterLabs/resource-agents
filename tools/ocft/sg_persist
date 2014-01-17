@@ -1,0 +1,284 @@
+# sg_persist
+
+CONFIG
+	Agent sg_persist
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	InstallPackage open-iscsi
+	InstallPackage iscsitarget
+	InstallPackage sg3_utils
+	HangTimeout 20
+
+VARIABLE
+	OCFT_disk=/var/run/resource-agents/ocft-sg_disk
+	OCFT_target="iqn.2013-12.ocft.localhost:disk0"
+	OCFT_sg_conf="/tmp/sg_persist.conf"
+
+    # please modify it by yourself.
+	IP_2=
+	OCFT_portal="$IP_2:3260"
+
+SETUP-AGENT
+	# create an iscsi target at node IP_2
+	ifconfig|grep -q $IP_2	
+	if [ $? -eq 0 ]
+	then
+		dd if=/dev/zero of=$OCFT_disk bs=1024k count=1 2>/dev/null
+		echo "Target $OCFT_target" >> /etc/iet/ietd.conf
+		echo "        Lun 0 Path=$OCFT_disk,Type=fileio" >> /etc/iet/ietd.conf
+		/etc/init.d/iscsitarget restart 2>/dev/null
+	fi
+
+	# connect to the target	
+	iscsiadm --mode discoverydb --type sendtargets --portal $IP_2 --discover 2>/dev/null
+	iscsiadm --mode node --targetname $OCFT_target --portal $OCFT_portal --login 2>/dev/null
+	
+	# start pacemaker to get node_id through crm_node -i
+	systemctl start pacemaker
+
+	# get the disk attached through target name.
+	get_scsi_disk_attached()
+	{		
+		found=0
+		while read line
+		do
+			if [ "$found" = "0" ];then
+				echo $line|grep -q "$1"
+				[ $? -eq 0 ] && found=1
+			fi
+	
+			if [ "$found" = "1" ];then
+				echo $line|grep -q "Attached scsi disk"
+				if [ $? = 0 ];then
+					found=0;
+					disk_attached=`echo $line|tr -s ' '|cut -d' ' -f4`
+					echo "$disk_attached"
+					break
+				fi
+			fi
+		done  <<< "`iscsiadm -m session -P3`"
+	}	
+
+	OCFT_sg_disk=`get_scsi_disk_attached $OCFT_target`
+
+	cat  > $OCFT_sg_conf  <<EOF
+		sg_persist_resource_sg1(){
+			devs="/dev/$OCFT_sg_disk"
+			required_dev_nof=1
+		}
+	EOF
+
+CLEANUP-AGENT
+	iscsiadm --mode node --targetname $OCFT_target --portal $OCFT_portal --logout 2>/dev/null
+	rm -f $OCFT_disk
+	rm -f $OCFT_sg_conf
+	sed -i "/^Target $OCFT_target/,+1d" /etc/iet/ietd.conf
+
+CASE-BLOCK required_args
+	Env HA_SBIN_DIR=""
+	Env OCF_RESKEY_config_file=$OCFT_sg_conf
+	Env OCF_RESKEY_sg_persist_resource="sg1"
+	Env OCF_RESKEY_reservation_type=1
+	Env OCF_RESKEY_CRM_meta_notify=true
+	Env OCF_RESKEY_CRM_meta_master_max=1
+
+CASE-BLOCK required_args_error
+	Env HA_SBIN_DIR=""
+	Env OCF_RESKEY_config_file=$OCFT_sg_conf
+	Env OCF_RESKEY_sg_persist_resource="sg1"
+	Env OCF_RESKEY_reservation_type=1
+	Env OCF_RESKEY_CRM_meta_notify=true
+	Env OCF_RESKEY_CRM_meta_master_max=2
+
+CASE-BLOCK required_args_type_5
+	Env HA_SBIN_DIR=""
+	Env OCF_RESKEY_config_file=$OCFT_sg_conf
+	Env OCF_RESKEY_sg_persist_resource="sg1"
+	Env OCF_RESKEY_reservation_type=5
+	Env OCF_RESKEY_CRM_meta_notify=true
+	Env OCF_RESKEY_CRM_meta_master_max=1
+
+CASE-BLOCK required_args_type_7
+	Env HA_SBIN_DIR=""
+	Env OCF_RESKEY_config_file=$OCFT_sg_conf
+	Env OCF_RESKEY_sg_persist_resource="sg1"
+	Env OCF_RESKEY_reservation_type=7
+	Env OCF_RESKEY_CRM_meta_notify=true
+	Env OCF_RESKEY_CRM_meta_master_max=2
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+	Include required_args
+	Include default_status
+
+CASE-BLOCK prepare_type_5
+	Include required_args_type_5
+	Include default_status
+
+CASE-BLOCK prepare_type_7
+	Include required_args_type_7
+	Include default_status
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: invalid 'OCF_RESKEY_sg_persist_resource'"
+	Include prepare
+	Unenv OCF_RESKEY_sg_persist_resource
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "check base env: unset 'OCF_RESKEY_sg_persist_devs'"
+	Include prepare
+	Unenv OCF_RESKEY_devs
+	Unenv OCF_RESKEY_config_file
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "validate all"
+	Include required_args
+	AgentRun validate-all OCF_SUCCESS
+
+CASE "validate all--type:5"
+	Include required_args_type_5
+	AgentRun validate-all OCF_SUCCESS
+
+CASE "validate all--type:7"
+	Include required_args_type_7
+	AgentRun validate-all OCF_SUCCESS
+
+CASE "validate all--error configured"
+	Include required_args_error
+	AgentRun validate-all OCF_ERR_CONFIGURED
+
+CASE "normal start"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop
+	AgentRun stop OCF_SUCCESS
+
+CASE "monitor when running"
+	Include prepare
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "monitor when not running"
+	Include prepare
+	AgentRun stop
+	AgentRun monitor OCF_NOT_RUNNING
+
+CASE "Primary/Secondary monitor"
+	Include prepare
+	AgentRun start
+	AgentRun promote
+	AgentRun monitor OCF_RUNNING_MASTER
+	AgentRun demote
+	AgentRun monitor OCF_SUCCESS
+	AgentRun stop
+
+CASE "promote/demote test in single-primary mode"
+	Include prepare
+	Include@$IP_2 prepare
+
+    # start 
+	AgentRun start
+	AgentRun@$IP_2 start
+
+	# promote local first
+	AgentRun promote OCF_SUCCESS
+
+    # demote local prepare for remote promote
+	AgentRun demote
+    
+    # remote promote
+	AgentRun@$IP_2 promote OCF_SUCCESS
+	AgentRun@$IP_2 monitor OCF_RUNNING_MASTER
+	AgentRun monitor OCF_SUCCESS
+	
+     # promote local then promote(by preempt) remote, which will cause local OCF_NOT_RUNNING
+	AgentRun promote OCF_SUCCESS
+	AgentRun monitor OCF_RUNNING_MASTER
+	AgentRun@$IP_2 monitor OCF_NOT_RUNNING
+
+    # remove all reservation registration
+	AgentRun demote
+	AgentRun stop 
+	AgentRun@$IP_2 stop
+
+
+CASE "normal start--type 5"
+	Include prepare_type_5
+	Include@$IP_2 prepare_type_5
+	AgentRun start OCF_SUCCESS
+	AgentRun@$IP_2 start OCF_SUCCESS
+
+CASE "promote/demote test in single-primary mode"
+	Include prepare_type_5
+	Include@$IP_2 prepare_type_5
+
+    # start 
+	AgentRun start
+	AgentRun@$IP_2 start
+
+    # promote local first
+	AgentRun promote OCF_SUCCESS
+	AgentRun monitor OCF_RUNNING_MASTER
+
+    # demote local prepare for remote promote
+	AgentRun demote
+	# remote promote
+	AgentRun@$IP_2 promote OCF_SUCCESS
+	AgentRun@$IP_2 monitor OCF_RUNNING_MASTER
+	AgentRun monitor OCF_SUCCESS
+	
+     # promote local then promote(by preempt) remote, which will cause local OCF_NOT_RUNNING
+	AgentRun promote OCF_SUCCESS
+	AgentRun monitor OCF_RUNNING_MASTER
+	AgentRun@$IP_2 monitor OCF_NOT_RUNNING
+
+    # remove all reservation registration
+	AgentRun demote
+	AgentRun stop 
+	AgentRun@$IP_2 stop
+
+CASE "normal start--type 7: 2 masters"
+	Include prepare_type_7
+	Include@$IP_2 prepare_type_7
+	AgentRun start OCF_SUCCESS
+	AgentRun@$IP_2 start OCF_SUCCESS
+
+
+CASE "Primary/Primary monitor--type 7"
+	Include prepare_type_7
+	Include@$IP_2 prepare_type_7
+	
+	AgentRun start OCF_SUCCESS
+	AgentRun@$IP_2 start OCF_SUCCESS
+
+	AgentRun promote OCF_SUCCESS
+	AgentRun monitor OCF_RUNNING_MASTER
+
+	AgentRun@$IP_2 promote OCF_SUCCESS
+	AgentRun monitor OCF_RUNNING_MASTER
+	AgentRun@$IP_2 monitor OCF_RUNNING_MASTER
+	
+	AgentRun demote OCF_SUCCESS
+	AgentRun monitor OCF_NOT_RUNNING
+	AgentRun@$IP_2 demote OCF_SUCCESS
+	AgentRun@$IP_2 monitor OCF_NOT_RUNNING
+	
+	AgentRun stop 
+	AgentRun@$IP_2 stop
