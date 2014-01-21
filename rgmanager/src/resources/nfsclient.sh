@@ -200,7 +200,8 @@ verify_options()
 			;;
 		insecure)
 			;;
-
+		sec=*)
+			;;
 		rw)
 			;;
 		ro)
