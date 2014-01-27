@@ -565,7 +565,7 @@ if [ ! -r $OCF_RESKEY_config ]; then
 fi
 
 # Retrieve the domain name from the xml file.
-DOMAIN_NAME=`egrep '.*<name>.*</name>$' ${OCF_RESKEY_config} | sed -e 's/.*<name>\(.*\)<\/name>$/\1/' 2>/dev/null`
+DOMAIN_NAME=`egrep '[[:space:]]*<name>.*</name>[[:space:]]*$' ${OCF_RESKEY_config} | sed -e 's/[[:space:]]*<name>\(.*\)<\/name>[[:space:]]*$/\1/' 2>/dev/null`
 if [ -z $DOMAIN_NAME ]; then
 	ocf_log err "This is unexpected. Cannot determine domain name."
 	exit $OCF_ERR_GENERIC
