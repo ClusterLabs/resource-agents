@@ -112,12 +112,13 @@ meta_data() {
 
 <longdesc lang="en">
 This resource agent manages CTDB, allowing one to use Clustered Samba in a
-Linux-HA/Pacemaker cluster.  You need a shared filesystem (e.g. OCFS2) on
+Linux-HA/Pacemaker cluster.  You need a shared filesystem (e.g. OCFS2 or GFS2) on
 which the CTDB lock will be stored.  Create /etc/ctdb/nodes containing a list
 of private IP addresses of each node in the cluster, then configure this RA
-as a clone.  To have CTDB manage Samba, set ctdb_manages_samba="yes".
-Note that this option will be deprecated in future, in favour of configuring
-a separate Samba resource.
+as a clone.  This agent expects the samba and windbind resources
+to be managed outside of CTDB's control as a separate set of resources controlled
+by the cluster manager.  The optional support for enabling CTDB management of these
+daemons will be depreciated.
 
 For more information see http://linux-ha.org/wiki/CTDB_(resource_agent)
 </longdesc>
