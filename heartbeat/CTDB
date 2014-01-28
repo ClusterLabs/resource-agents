@@ -546,7 +546,13 @@ ctdb_start() {
 
 	# Use logfile by default, or syslog if asked for
 	local log_option="--logfile=$OCF_RESKEY_ctdb_logfile"
-	[ "$OCF_RESKEY_ctdb_logfile" = "syslog" ] && log_option="--syslog"
+	if [ "$OCF_RESKEY_ctdb_logfile" = "syslog" ]; then
+		log_option="--syslog"
+	elif [ ! -d "$(dirname $OCF_RESKEY_ctdb_logfile)" ]; then
+		# ensure the logfile's directory exists, otherwise ctdb will fail to start
+		mkdir -p $(dirname $OCF_RESKEY_ctdb_logfile)
+	fi
+
 	# public addresses file (should not be present, but need to set for correctness if it is)
 	local pub_addr_option=""
 	[ -f "${OCF_RESKEY_ctdb_config_dir}/public_addresses" ] && \
