@@ -72,6 +72,14 @@
 #######################################################################
 # Default parameter values:
 
+# Some distro's ctdb package stores the persistent db in /var/lib/ctdb,
+# others store in /var/ctdb. This attempts to detect the correct default
+# directory.
+var_prefix="/var/lib/ctdb"
+if [ ! -d "$var_prefix" ] && [ -d "/var/ctdb" ]; then
+	var_prefix="/var/ctdb"
+fi
+
 : ${OCF_RESKEY_ctdb_manages_samba:=no}
 : ${OCF_RESKEY_ctdb_manages_winbind:=no}
 : ${OCF_RESKEY_ctdb_service_smb:=""}
@@ -84,8 +92,8 @@
 : ${OCF_RESKEY_ctdb_config_dir:=/etc/ctdb}
 : ${OCF_RESKEY_ctdb_binary:=/usr/bin/ctdb}
 : ${OCF_RESKEY_ctdbd_binary:=/usr/sbin/ctdbd}
-: ${OCF_RESKEY_ctdb_socket:=/var/lib/ctdb/ctdb.socket}
-: ${OCF_RESKEY_ctdb_dbdir:=/var/lib/ctdb}
+: ${OCF_RESKEY_ctdb_socket:=${var_prefix}/ctdb.socket}
+: ${OCF_RESKEY_ctdb_dbdir:=${var_prefix}}
 : ${OCF_RESKEY_ctdb_logfile:=/var/log/ctdb/log.ctdb}
 : ${OCF_RESKEY_ctdb_debuglevel:=2}
 
@@ -235,7 +243,7 @@ Full path to the domain socket that ctdbd will create, used for
 local clients to attach and communicate with the ctdb daemon.
 </longdesc>
 <shortdesc lang="en">CTDB socket location</shortdesc>
-<content type="string" default="/var/lib/ctdb/ctdb.socket" />
+<content type="string" default="${OCF_RESKEY_ctdb_socket}" />
 </parameter>
 
 <parameter name="ctdb_dbdir" unique="1" required="0">
@@ -244,7 +252,7 @@ The directory to put the local CTDB database files in.
 Persistent database files will be put in ctdb_dbdir/persistent.
 </longdesc>
 <shortdesc lang="en">CTDB database directory</shortdesc>
-<content type="string" default="/var/lib/ctdb" />
+<content type="string" default="${OCF_RESKEY_ctdb_dbdir}" />
 </parameter>
 
 <parameter name="ctdb_logfile" unique="0" required="0">
