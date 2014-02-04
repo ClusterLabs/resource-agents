@@ -132,6 +132,9 @@ END
 db2_validate() {
     local db2home db2sql db2instance
 
+    # db2 uses korn shell
+    check_binary "ksh"
+
     # check required instance vars
     if [ -z "$OCF_RESKEY_instance" ]
     then
