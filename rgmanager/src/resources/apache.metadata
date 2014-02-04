@@ -21,6 +21,16 @@
 	    <content type="string"/>
         </parameter>
 
+        <parameter name="httpd" >
+	    <longdesc lang="en">
+	        Define the full path to the httpd binary.
+	    </longdesc>
+            <shortdesc lang="en">
+                httpd binary
+            </shortdesc>
+	    <content type="string" />
+        </parameter>
+
         <parameter name="server_root">
             <longdesc lang="en">
                 Define an alternate initial ServerRoot

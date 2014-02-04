@@ -28,10 +28,13 @@ export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 . $(dirname $0)/utils/messages.sh
 . $(dirname $0)/utils/ra-skelet.sh
 
-if [ -x /usr/sbin/httpd ]; then
-	declare APACHE_HTTPD=/usr/sbin/httpd
-elif [ -x /usr/sbin/apache2 ]; then
-	declare APACHE_HTTPD=/usr/sbin/apache2
+APACHE_HTTPD=$OCF_RESKEY_httpd
+if [ -z "$APACHE_HTTPD" ]; then
+	if [ -x /usr/sbin/httpd ]; then
+		declare APACHE_HTTPD=/usr/sbin/httpd
+	elif [ -x /usr/sbin/apache2 ]; then
+		declare APACHE_HTTPD=/usr/sbin/apache2
+	fi
 fi
 declare APACHE_serverConfigFile
 declare APACHE_pid_file="`generate_name_for_pid_file`"
@@ -59,6 +62,11 @@ verify_all()
 		clog_service_verify $CLOG_FAILED "Invalid Name Of Service"
 		return $OCF_ERR_ARGS
 	fi
+
+	if [ -n "$OCF_RESKEY_httpd" ] && ! [ -e $OCF_RESKEY_httpd ]; then
+		clog_service_verify $CLOG_FAILED "Invalid httpd binary, $OCF_RESKEY_http does not exist"
+		return $OCF_ERR_ARGS
+	fi 
 
 	if [ -z "$OCF_RESKEY_service_name" ]; then
 		clog_service_verify $CLOG_FAILED_NOT_CHILD
