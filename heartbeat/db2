@@ -383,8 +383,17 @@ db2_check_config_compatibility() {
 #
 db2_start() {
     local output start_cmd db
+    local start_opts="dbpartitionnum $db2node"
 
-    if output=$(runasdb2 db2start dbpartitionnum $db2node)
+    # If we detect that db partitions are not in use, and no
+    # partition is explicitly specified, activate without
+    # partition information. This allows db2 instances without
+    # partition support to be managed. 
+    if [ -z "$OCF_RESKEY_dbpartitionnum" ] && ! [ -a "$db2sql/db2nodes.cfg" ]; then
+        start_opts=""
+    fi
+
+    if output=$(runasdb2 db2start $start_opts)
     then
         ocf_log info "DB2 instance $instance($db2node) started: $output"
     else
@@ -476,10 +485,15 @@ db2_start() {
 #
 db2_stop_bg() {
     local rc output
+    local stop_opts="dbpartitionnum $db2node"
 
     rc=$OCF_SUCCESS
 
-    if output=$(runasdb2 db2stop force dbpartitionnum $db2node)
+    if [ -z "$OCF_RESKEY_dbpartitionnum" ] && ! [ -a "$db2sql/db2nodes.cfg" ]; then
+        stop_opts=""
+    fi
+
+    if output=$(runasdb2 db2stop force $stop_opts)
     then
         ocf_log info "DB2 instance $instance($db2node) stopped: $output"
     else
