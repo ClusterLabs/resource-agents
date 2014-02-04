@@ -211,6 +211,14 @@ db2_validate() {
     return $OCF_SUCCESS
 }
 
+master_score()
+{
+    if ! have_binary "crm_master"; then
+        return
+    fi
+
+    crm_master $*
+}
 
 #
 # Run the given command as db2 instance user
@@ -519,7 +527,7 @@ db2_stop() {
     local stop_timeout grace_timeout stop_bg_pid i must_kill
 
     # remove master score
-    crm_master -D -l reboot
+    master_score -D -l reboot
 
     # be very early here in order to avoid stale data
     rm -f $STATE_FILE
@@ -647,7 +655,7 @@ db2_monitor() {
     if ! db2_instance_status
     then
         # instance is dead remove master score
-        crm_master -D -l reboot
+        master_score -D -l reboot
         exit $OCF_NOT_RUNNING
     fi
 
@@ -684,22 +692,22 @@ db2_monitor() {
                     ocf_log err "DB2 message: $output"
 
                     # dead primary, remove master score
-                    crm_master -D -l reboot
+                    master_score -D -l reboot
                     return $OCF_ERR_GENERIC
                 esac
             fi
 
             ocf_log debug "DB2 database $instance($db2node)/$db appears to be working"
-            ocf_is_ms && crm_master -v 10000 -l reboot
+            ocf_is_ms && master_score -v 10000 -l reboot
             ;;
 
             Standby/*Peer)
-            crm_master -v 8000 -l reboot
+            master_score -v 8000 -l reboot
             ;;
 
             Standby/*)
             ocf_log warn "DB2 database $instance($db2node)/$db in status $hadr can never be promoted"
-            crm_master -D -l reboot
+            master_score -D -l reboot
             ;;
 
             *)
