@@ -5,7 +5,8 @@
 #
 # Description:  Manages an Asterisk PBX as an HA resource
 #
-# Authors:      Martin Gerhard Loschwitz
+# Authors:	John Cahill      
+#		Martin Gerhard Loschwitz
 #               Florian Haas
 #
 # Support:      linux-ha@lists.linux-ha.org
@@ -76,8 +77,8 @@ usage() {
         The 'stop' operation stops the database.
         The 'validate-all' operation reports whether the parameters are valid
         The 'meta-data' operation reports this RA's meta-data information
-        The 'status' operation reports whether the database is running
-        The 'monitor' operation reports whether the database seems to be working
+        The 'status' operation reports whether asterisk is running
+        The 'monitor' operation reports whether asterisk  seems to be working
 
 UEND
 }
@@ -167,13 +168,23 @@ a time. Helps to fix the 'Too many open files' error message.
 <parameter name="monitor_sipuri" unique="0" required="0">
 <longdesc lang="en">
 A SIP URI to check when monitoring. During monitor, the agent will
-attempt to do a SIP OPTIONS request against this URI.
+attempt to do a SIP REGISTRATION request against this URI.
 Requires the sipsak utility to be present and executable.
 If unset, the agent does no SIP URI monitoring.
 </longdesc>
 <shortdesc lang="en">SIP URI to check when monitoring</shortdesc>
 <content type="string" />
 </parameter>
+
+
+<parameter name="monitor_password" unique="0" required="0">
+<longdesc lang="en">
+A SIP password to use when testing registration during monitoring.
+</longdesc>
+<shortdesc lang="en">SIP username to check when monitoring</shortdesc>
+<content type="string" />
+</parameter>
+
 
 </parameters>
 
@@ -213,14 +224,9 @@ asterisk_validate() {
         check_binary sipsak
     fi
 
-    # A config file on shared storage that is not available
-    # during probes is OK.
     if [ ! -f $OCF_RESKEY_config ]; then
-        if ! ocf_is_probe; then
-            ocf_log err "Config $OCF_RESKEY_config doesn't exist"
-            return $OCF_ERR_INSTALLED
-        fi
-        ocf_log_warn "Config $OCF_RESKEY_config not available during a probe"
+        ocf_log err "Config $OCF_RESKEY_config doesn't exist"
+        return $OCF_ERR_INSTALLED
     fi
 
     getent passwd $OCF_RESKEY_user >/dev/null 2>&1
@@ -302,7 +308,7 @@ asterisk_monitor() {
     #   This can also happen if sipsak is run too early after asterisk
     #   start.
     if [ -n "$OCF_RESKEY_monitor_sipuri" ]; then
-        ocf_run sipsak -s "$OCF_RESKEY_monitor_sipuri"
+        ocf_run sipsak -U -s "$OCF_RESKEY_monitor_sipuri" -a "$OCF_RESKEY_monitor_password" -W 1 -C none -N -l 5059 -vv
         rc=$?
         case "$rc" in
           1|2) return $OCF_ERR_GENERIC;;
@@ -404,6 +410,17 @@ asterisk_stop() {
         return $OCF_SUCCESS
     fi
 
+    # do a "soft shutdown" via the asterisk command line first
+    asterisk_rx 'core stop now'
+
+    asterisk_status
+    rc=$?
+    if [ $rc -eq $OCF_NOT_RUNNING ]; then
+        ocf_log info "Asterisk PBX stopped"
+        return $OCF_SUCCESS
+    fi
+
+    # If "core stop now" didn't succeed, try SIGTERM
     pid=`cat $ASTRUNDIR/asterisk.pid`
     ocf_run kill -s TERM $pid
     rc=$?
