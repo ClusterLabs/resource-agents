@@ -1,0 +1,295 @@
+#!/bin/sh
+#
+#  OCF Resource Agent compliant resource script.
+#
+# Copyright (c) 2012 Rafał Trojniak resource-agents@trojniak.net
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like. Any license provided herein, whether implied or
+# otherwise, applies only to this software file. Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+
+# History :
+# - Forked from anything plugin to Bird plugin
+#
+# Authors :
+# Rafał Trójniak resource-agents@trojniak.net
+# OCF instance parameters
+#
+
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+
+bird_ping() {
+	birdc "show protocols" >/dev/null
+}
+
+bird_static_configured() {
+	! birdc "show protocols" |
+		awk "\$1==\"$OCF_RESKEY_name\" && \$2==\"Static\" {exit 1}"
+}
+
+bird_static_status() {
+	! birdc "show protocols" |
+		awk "\$1==\"$OCF_RESKEY_name\" && \$2==\"Static\" && \$4==\"up\" {exit 1}"
+}
+
+# Returns:
+# OCF_RUNNING_MASTER - when bird_is_ms is true, and static route is up
+# OCF_SUCCESS - when bird_is_ms is false and bird pings, when bird_is_ms is true and static route is down
+# OCF_NOT_RUNNING - when bird doesn't pings
+# OCF_ERR_CONFIGURED - when bird pings and static route is not configured
+bird_status() {
+	if bird_ping
+	then
+		if ocf_is_ms ; then
+			if bird_static_configured
+			then
+				if bird_static_status
+				then
+					return $OCF_RUNNING_MASTER
+				else
+					return $OCF_SUCCESS
+				fi
+			else
+				return $OCF_ERR_CONFIGURED
+			fi
+		else
+			return $OCF_SUCCESS
+		fi
+	else
+		return $OCF_NOT_RUNNING
+	fi
+}
+
+
+bird_start() {
+	bird_status
+	ret=$?
+	[ $ret = $OCF_ERR_CONFIGURED ] && return $OCF_ERR_CONFIGURED
+	if [ $ret = $OCF_NOT_RUNNING ]
+	then
+		ocf_log info "Starting Bird"
+		# Execute the command as created above
+		ocf_run bird
+
+		# Waiting for start
+		while /bin/true ; do
+			bird_status
+			ret=$?
+			[ $ret = $OCF_ERR_CONFIGURED ] && return $OCF_ERR_CONFIGURED
+			[ $ret = $OCF_SUCCESS ] && return $OCF_SUCCESS
+			[ $ret = $OCF_RUNNING_MASTER ] && return $OCF_SUCCESS
+			[ $ret != $OCF_NOT_RUNNING ] && return $OCF_ERR_GENERIC
+			sleep 1
+		done
+		return $OCF_ERR_GENERIC
+	else
+		# If already running, consider start successful
+		ocf_log info "$process: $cmd is already running"
+		return $OCF_SUCCESS
+	fi
+}
+
+bird_stop() {
+	bird_status
+	ret=$?
+	[ $ret = $OCF_ERR_CONFIGURED ] && return $OCF_ERR_CONFIGURED
+	if [ $ret = $OCF_SUCCESS -o $ret = $OCF_RUNNING_MASTER ]
+	then
+		ocf_log info "Stopping Bird"
+		# Execute the command as created above
+		ocf_run birdc down
+
+		# Waiting for stopping bird
+		while /bin/true ; do
+			bird_status
+			ret=$?
+			[ $ret = $OCF_NOT_RUNNING ] && return $OCF_SUCCESS
+			[ $ret = $OCF_ERR_CONFIGURED ] && return $OCF_ERR_CONFIGURED
+			[ $ret != $OCF_SUCCESS -a $ret != $OCF_RUNNING_MASTER ] && return $OCF_ERR_GENERIC
+			sleep 1
+		done
+		return $OCF_ERR_GENERIC
+	else
+		# If already running, consider start successful
+		ocf_log info "$process: $cmd is already stopped"
+		return $OCF_SUCCESS
+	fi
+}
+
+bird_promote() {
+	bird_status
+	ret=$?
+	[ $ret = $OCF_RUNNING_MASTER ] && return $OCF_SUCCESS
+	[ $ret = $OCF_NOT_RUNNING ] && return $OCF_NOT_RUNNING
+	[ $ret = $OCF_ERR_CONFIGURED ] && return $OCF_ERR_CONFIGURED
+	if [ $ret = $OCF_SUCCESS ]
+	then
+		ocf_log info  "BIRD: Enabling static route '$OCF_RESKEY_name'"
+		ocf_run birdc "enable $OCF_RESKEY_name"
+
+		# Waiting for stopping bird
+		while /bin/true ; do
+			bird_status
+			ret=$?
+			[ $ret = $OCF_NOT_RUNNING ] && return $OCF_NOT_RUNNING
+			[ $ret = $OCF_ERR_CONFIGURED ] && return $OCF_ERR_CONFIGURED
+			[ $ret = $OCF_RUNNING_MASTER ] && return $OCF_SUCCESS
+			[ $ret != $OCF_SUCCESS ] && return $OCF_ERR_GENERIC
+			sleep 1
+		done
+	else
+		# If already running, consider start successful
+		ocf_log err "Unknown error - got $ret from status"
+		return $OCF_ERR_GENERIC
+	fi
+}
+
+bird_demote() {
+	bird_status
+	ret=$?
+	[ $ret = $OCF_SUCCESS ] && return $OCF_SUCCESS
+	[ $ret = $OCF_NOT_RUNNING ] && return $OCF_NOT_RUNNING
+	[ $ret = $OCF_ERR_CONFIGURED ] && return $OCF_ERR_CONFIGURED
+	if [ $ret = $OCF_RUNNING_MASTER ]
+	then
+		ocf_log info "BIRD: Disabling static route '$OCF_RESKEY_name'"
+		ocf_run birdc "disable $OCF_RESKEY_name"
+
+		# Waiting for stopping bird
+		while /bin/true ; do
+			bird_status
+			ret=$?
+			[ $ret = $OCF_NOT_RUNNING ] && return $OCF_NOT_RUNNING
+			[ $ret = $OCF_ERR_CONFIGURED ] && return $OCF_ERR_CONFIGURED
+			[ $ret = $OCF_SUCCESS ] && return $OCF_SUCCESS
+			[ $ret != $OCF_RUNNING_MASTER ] && return $OCF_ERR_GENERIC
+			sleep 1
+		done
+	else
+		# If already running, consider start successful
+		ocf_log err "Unknown error - got $ret from status"
+		return $OCF_ERR_GENERIC
+	fi
+}
+
+bird_validate() {
+
+	if ! have_binary bird ; then
+		ocf_log err "Failed to find bird"
+		return $OCF_ERR_INSTALLED
+	fi
+
+	if ! bird -p ; then
+		ocf_log err "Bird configuration file seems to be broken"
+		return $OCF_ERR_INSTALLED
+	fi
+
+	if [ -z "$OCF_RESKEY_name" ] ; then
+		ocf_log err "No name parameter configured"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	if ! have_binary birdc ; then
+		ocf_log err "Failed to find birdc"
+		return $OCF_ERR_INSTALLED
+	fi
+
+	if ! bird_ping ; then
+		ocf_log err "Failed to get status using birdc"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	if ! bird_static_configured ; then
+		ocf_log err "Failed to get status of static '$OCF_RESKEY_name'"
+		return $OCF_ERR_INSTALLED
+	fi
+	return $OCF_SUCCESS
+}
+
+bird_meta() {
+cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="Bird">
+	<version>1.0</version>
+	<longdesc lang="en">
+		This agent manages Bird routing daemon.
+
+		When used in standard mode (primitive resource) just manages
+		(starts and stops) BIRD routing daemon
+
+		When used in master-slave configuration, besides from starting/stopping daemon
+		allows to fail-over (enable on promote, disable on demote)
+		static defined route. Make sure, that this static route is disabled by default.
+	</longdesc>
+	<shortdesc lang="en">Manages Bird routing daemon</shortdesc>
+
+	<parameters>
+		<parameter name="name">
+			<longdesc lang="en">
+				Static route name as defined in bird.
+				This route should be disabled by default.
+				It will be enabled when this resource will be started.
+			</longdesc>
+			<shortdesc lang="en">Static route name</shortdesc>
+			<content type="string" default=""/>
+		</parameter>
+	</parameters>
+	<actions>
+		<action name="start" timeout="20s" />
+		<action name="stop" timeout="20s" />
+		<action name="promote" timeout="20s" />
+		<action name="demote" timeout="20s" />
+		<action name="monitor" depth="0" timeout="20s" interval="10" />
+		<action name="meta-data" timeout="5" />
+		<action name="validate-all" timeout="5" />
+	</actions>
+</resource-agent>
+END
+exit 0
+}
+
+case "$1" in
+	meta-data|metadata|meta_data)
+		bird_meta
+	;;
+	start)
+		bird_start
+	;;
+	stop)
+		bird_stop
+	;;
+	promote)
+		bird_promote
+	;;
+	demote)
+		bird_demote
+	;;
+	monitor)
+		bird_status
+	;;
+	validate-all)
+		bird_validate
+	;;
+	*)
+		ocf_log err "$0 was called with unsupported arguments: $*"
+		exit $OCF_ERR_UNIMPLEMENTED
+	;;
+esac
