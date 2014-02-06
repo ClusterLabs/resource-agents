@@ -711,7 +711,9 @@ Following checktype and service are supported.
 
 B<checktype: >B<connect> | B<external> | B<external-perl> | B<negotiate> | B<off> | B<on> | B<checktimeout>I<N>
 
-B<service: >B<dns> | B<nntp> | B<none> | B<simpletcp> | B<sip>
+B<service: >B<dns> | B<http> | B<https> | B<nntp> | B<none> | B<simpletcp> | B<sip>
+
+Note: When using a service type with http or https, you need to install perl module perl-Net-INET6Glue.
 
 
 =head1 FILES
@@ -835,7 +837,7 @@ use Pod::Usage;
 #use English;
 #use Time::HiRes qw( gettimeofday tv_interval );
 use Socket;
-use Socket6 qw(NI_NUMERICHOST NI_NUMERICSERV NI_NAMEREQD getaddrinfo getnameinfo);
+use Socket6 qw(NI_NUMERICHOST NI_NUMERICSERV NI_NAMEREQD getaddrinfo getnameinfo inet_pton);
 use Sys::Hostname;
 use POSIX qw(setsid :sys_wait_h);
 use Sys::Syslog qw(:DEFAULT setlogsock);
@@ -2826,14 +2828,19 @@ sub check_http
 	}
 	my ($v, $r) = @_;
 
-	$$r{url} =~ /(http|https):\/\/([^:\/]+)(:([^\/]+))?(\/.*)/;
-	my $host = $2;
-	#my $port = $3;
-	my $uri = $4;
+	my $host = $$r{server};
 	my $virtualhost = (defined $$v{virtualhost} ? $$v{virtualhost} : $host);
 
 	&ld_debug(2, "check_http: url=\"$$r{url}\" "
 		. "virtualhost=\"$virtualhost\"");
+
+	if (inet_pton(AF_INET6,&ld_strip_brackets($host))) {
+		require Net::INET6Glue::INET_is_INET6;
+		# Workaround for Net-HTTP IPv6 Address URLs Broken
+		push(@LWP::Protocol::http::EXTRA_SOCK_OPTS, "PeerAddr" => $host);
+		push(@LWP::Protocol::http::EXTRA_SOCK_OPTS, "PeerHost" => &ld_strip_brackets($host));
+		push(@LWP::Protocol::http::EXTRA_SOCK_OPTS, "Host" => &ld_strip_brackets($host));
+	}
 
 	my $ua = new LWP::UserAgent(ssl_opts => { verify_hostname => 0 });
 
