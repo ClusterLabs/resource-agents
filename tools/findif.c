@@ -568,7 +568,7 @@ main(int argc, char ** argv) {
 	char	best_if[MAXSTR];
 	char *	if_specified = NULL;
 	struct ifreq	ifr;
-	unsigned long	best_netmask = INT_MAX;
+	unsigned long	best_netmask = UINT_MAX;
 	int		argerrs	= 0;
 	int		nmbits;
 
