@@ -581,8 +581,8 @@ case $1 in
 		;;
 esac
 
-OCF_RESKEY_hypervisor_default="$(virsh --quiet uri)"
-: ${OCF_RESKEY_hypervisor=${OCF_RESKEY_hypervisor_default}}
+# Grab the virsh uri default, but only if hypervisor isn't set
+: ${OCF_RESKEY_hypervisor=$(virsh --quiet uri)}
 
 # Set options to be passed to virsh:
 VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor} --quiet"
