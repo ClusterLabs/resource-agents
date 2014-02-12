@@ -211,8 +211,8 @@ pid_status()
 	emulator=$(basename $(egrep '[[:space:]]*<emulator>.*</emulator>[[:space:]]*$' ${OCF_RESKEY_config} | sed -e 's/[[:space:]]*<emulator>\(.*\)<\/emulator>[[:space:]]*$/\1/'))
 
 	case "$emulator" in
-		qemu-kvm)
-			ps awx | grep "[q]emu-kvm.*-name $DOMAIN_NAME " > /dev/null 2>&1
+		qemu-kvm|qemu-system-*)
+			ps awx | grep -E "[q]emu-(kvm|system).*-name $DOMAIN_NAME " > /dev/null 2>&1
 			if [ $? -eq 0 ]; then
 				# domain exists and is running
 				ocf_log debug "Virtual domain $DOMAIN_NAME is currently running."
