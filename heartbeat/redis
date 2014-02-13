@@ -13,7 +13,8 @@
 #       Marian Marinov,
 #       Florian Haas:                 MySQL script
 #       Martin Walter:                rewrite as redis
-#       Jose Junior:                      tweaks to the redis version
+#       Jose Junior:                  tweaks to the redis version
+#       Michael Braun:                properly bringup as slave (even if no master has already been promoted)
 #
 # Support:  linux-ha@lists.linux-ha.org
 # License:  GNU General Public License (GPL)
@@ -29,11 +30,13 @@
 # OCF instance parameters:
 #   OCF_RESKEY_binary
 #   OCF_RESKEY_client_binary
+#   OCF_RESKEY_aof_check_binary
 #   OCF_RESKEY_config
 #   OCF_RESKEY_user
 #   OCF_RESKEY_group
 #   OCF_RESKEY_log
 #   OCF_RESKEY_pid
+#   OCF_RESKEY_tmp
 #######################################################################
 # Initialization:
 
@@ -46,23 +49,26 @@ PATH=$PATH:/usr/local/bin:/usr/local/sbin
 # Fill in some defaults if no values are specified
 OCF_RESKEY_binary_default=redis-server
 OCF_RESKEY_client_binary_default=redis-cli
+OCF_RESKEY_aof_check_binary_default=redis-check-aof
 OCF_RESKEY_config_default=/etc/redis/redis.conf
-OCF_RESKEY_port_default=6379
 OCF_RESKEY_user_default=redis
 OCF_RESKEY_group_default=redis
 OCF_RESKEY_log_default=/var/log/redis/redis-server.log
 OCF_RESKEY_pid_default=/var/run/redis.pid
+OCF_RESKEY_tmp_default=/var/run/
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
-REDIS_SERVER_NAME=${OCF_RESKEY_binary}
-
 : ${OCF_RESKEY_client_binary=${OCF_RESKEY_client_binary_default}}
+: ${OCF_RESKEY_aof_check_binary=${OCF_RESKEY_aof_check_binary_default}}
 : ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
-: ${OCF_RESKEY_port=${OCF_RESKEY_port_default}}
 : ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
 : ${OCF_RESKEY_group=${OCF_RESKEY_group_default}}
 : ${OCF_RESKEY_log=${OCF_RESKEY_log_default}}
 : ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
+: ${OCF_RESKEY_tmp=${OCF_RESKEY_tmp_default}}
+
+REDIS_SERVER_NAME=${OCF_RESOURCE_INSTANCE}
+: ${REDIS_SERVER_NAME=${OCF_RESKEY_binary}}
 
 #######################################################################
 
@@ -114,12 +120,12 @@ Name of the redis client binary. Use an absolute path if the binary is not resol
 <content type="string" default="${OCF_RESKEY_client_binary_default}" />
 </parameter>
 
-<parameter name="port" unique="0" required="0">
+<parameter name="aof_check_binary" unique="0" required="0">
 <longdesc lang="en">
-Port where the redis server is listening
+Name of the redis aof-check binary. Use an absolute path if the binary is not resolvable via \$PATH
 </longdesc>
-<shortdesc lang="en">redis port</shortdesc>
-<content type="string" default="${OCF_RESKEY_port_default}" />
+<shortdesc lang="en">redis aof-check binary</shortdesc>
+<content type="string" default="${OCF_RESKEY_aof_check_binary_default}" />
 </parameter>
 
 <parameter name="config" unique="0" required="0">
@@ -162,6 +168,14 @@ The pidfile to be used for redis-server.
 <content type="string" default="${OCF_RESKEY_pid_default}"/>
 </parameter>
 
+<parameter name="tmp" unique="0" required="0">
+<longdesc lang="en">
+The tmpdir to be used for pacemaker managing.
+</longdesc>
+<shortdesc lang="en">pacemaker redis tmp file</shortdesc>
+<content type="string" default="${OCF_RESKEY_tmp_default}"/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -190,14 +204,36 @@ CRM_MASTER="${HA_SBIN_DIR}/crm_master -l reboot "
 
 # Convenience functions
 
+config_get() {
+    grep "^\s*$1\s" $OCF_RESKEY_config | awk '{print $2}' | tail -n1
+}
+
+redis_cmd() {
+    local userun
+    local port
+    local password
+    userun=$1
+    shift
+    port=$(config_get port)
+    password=$(config_get requirepass)
+    if [ $userun -eq 0 ]; then
+      $OCF_RESKEY_client_binary -p "$port" -a "$password" "$@"
+      return $?
+    else
+      ocf_run -q $OCF_RESKEY_client_binary -p "$port" -a "$password" "$@"
+      return $?
+    fi
+}
+
 read_ms_status() {
     local tmp
     local has_slave_role
     local master_host
     local master_host_value
+    local should_be_slave
 
     tmp=$(mktemp -p $HA_RSCTMP)
-    redis-cli info >$tmp
+    redis_cmd 0 info >$tmp
     if [ $? -ne 0 ]; then
         ocf_log info "Could not determine master/slave status";
         rm -f $tmp
@@ -213,10 +249,16 @@ read_ms_status() {
         master_host_value=$(echo $master_host | cut -d':' -f2 | tr -d " ")
     fi
 
+    test_slave
+    should_be_slave=$?
+
     rm -f $tmp
 
     if [ $has_slave_role -eq 0 -a "x$master_host_value" != "x"  ]; then
         ocf_log info "$REDIS_SERVER_NAME is running (as slave)";
+        return $OCF_SUCCESS;
+    elif [ $should_be_slave -eq 0 ]; then
+        ocf_log info "$REDIS_SERVER_NAME is running (as master, becoming slave when possible)";
         return $OCF_SUCCESS;
     else
         ocf_log info "$REDIS_SERVER_NAME is running (as master)";
@@ -235,6 +277,10 @@ read_pid() {
         pid=$(pidof -s $OCF_RESKEY_binary)
     fi
 
+    if [ $? -eq 0 -a "x$pid" != "x" ]; then
+        kill -0 $pid
+    fi
+
     if [ $? -ne 0 -o "x$pid" = "x" ]; then
         ocf_log info "Could not read PID, $REDIS_SERVER_NAME is not running";
         return $OCF_NOT_RUNNING
@@ -249,19 +295,34 @@ remove_pid() {
     rm -f $OCF_RESKEY_pid
 }
 
+mark_slave() {
+    ocf_log info "Mark $OCF_RESOURCE_INSTANCE to be a slave";
+    touch $OCF_RESKEY_tmp/$OCF_RESOURCE_INSTANCE.slave
+}
+
+unmark_slave() {
+    ocf_log info "Mark $OCF_RESOURCE_INSTANCE to be a master";
+    rm -f $OCF_RESKEY_tmp/$OCF_RESOURCE_INSTANCE.slave
+}
+
+test_slave() {
+    [ -e $OCF_RESKEY_tmp/$OCF_RESOURCE_INSTANCE.slave ]
+    return $?
+}
+
 set_master() {
     local master_host=$1
+    local port
+    port=$(config_get port)
 
     ocf_log info "Set $REDIS_SERVER_NAME to be a slave of $master_host";
-    ocf_run $OCF_RESKEY_client_binary slaveof $master_host $OCF_RESKEY_port
+    redis_cmd 1 slaveof $master_host $port
     return $?
 }
 
 unset_master() {
-    local rc
-
     ocf_log info "Set $REDIS_SERVER_NAME to become a slave of no one";
-    ocf_run $OCF_RESKEY_client_binary slaveof no one
+    redis_cmd 1 slaveof no one
     return $?
 }
 
@@ -271,7 +332,7 @@ unset_master() {
 
 redis_validate() {
     check_binary $OCF_RESKEY_binary
-    check_binary  $OCF_RESKEY_client_binary
+    check_binary $OCF_RESKEY_client_binary
     check_binary start-stop-daemon
 
     if [ ! -f $OCF_RESKEY_config ]; then
@@ -324,28 +385,67 @@ redis_start() {
 
     local master_host
     local rc
+    local append
+    local appendfilename
 
     redis_status
     rc=$?
 
     if [ $rc -eq $OCF_RUNNING_MASTER -o $rc -eq $OCF_SUCCESS ]; then
         ocf_log info "$REDIS_SERVER_NAME is already running"
-        return $OCF_SUCCESS
+    else
+       touch $OCF_RESKEY_log
+       chown $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_log
+       chmod 0640 $OCF_RESKEY_log
+   
+       touch $OCF_RESKEY_pid
+       chown $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_pid
+  
+       # repair AOF
+       append=$(config_get appendonly)
+       if [ -n "$append" -a "$append" = "yes" ]; then
+         appendfilename=$(config_get appendfilename)
+         if [ -z "$appendfilename" ]; then
+           appendfilename="appendonly.aof"
+         fi
+         if [ "{$appendfilename:0:1}" != "/" ]; then
+           appendfilename="$(config_get dir)/${appendfilename}"
+         fi
+         rc=0
+         if [ -e "$appendfilename" ]; then
+           ocf_log info "Redis is using $appendfilename as appendfilename"
+           ocf_run -q $OCF_RESKEY_aof_check_binary "$appendfilename"
+           rc=$?
+         fi
+         if [ $rc -ne 0 ]; then
+           ocf_log warn "Redis needs to fix $appendfilename"
+           echo y | $OCF_RESKEY_aof_check_binary --fix "$appendfilename"
+         fi
+       fi
+ 
+       start-stop-daemon --start --quiet --umask 007 --pidfile $OCF_RESKEY_pid --make-pidfile --chuid $OCF_RESKEY_user:$OCF_RESKEY_group --exec $(which $OCF_RESKEY_binary) -- $OCF_RESKEY_config
+       rc=$?
+   
+       if [ $rc -ne 0 ]; then
+           ocf_log err "$OCF_RESKEY_binary start command failed: $rc"
+           return $OCF_NOT_RUNNING
+       fi
+
+       ocf_log info "$REDIS_SERVER_NAME started"
     fi
 
-    touch $OCF_RESKEY_log
-    chown $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_log
-    chmod 0640 $OCF_RESKEY_log
-
-    touch $OCF_RESKEY_pid
-    chown $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_pid
-
-    start-stop-daemon --start --quiet --umask 007 --pidfile $OCF_RESKEY_pid --make-pidfile --chuid $OCF_RESKEY_user:$OCF_RESKEY_group --exec  /usr/local/bin/redis-server -- $OCF_RESKEY_config
-    rc=$?
-
-    if [ $rc -ne 0 ]; then
-        ocf_log err "$OCF_RESKEY_binary start command failed: $rc"
-        return $OCF_NOT_RUNNING
+    # wait for redis to actually open the tcp port
+    # as redis starts but does not open this port if db files are corrupt
+    for i in $(seq 1 5); do
+        redis_cmd 0 info >/dev/null
+        if [ $? -eq 0 ]; then
+            break
+        fi
+        sleep 1
+    done
+    redis_cmd 1 info >/dev/null
+    if [ $? -ne 0 ]; then
+        return $OCF_ERR_GENERIC
     fi
 
     if ocf_is_ms; then
@@ -356,7 +456,7 @@ redis_start() {
         if [ ! -z "$master_host" -a "$master_host" != $(uname -n) ]; then
             ocf_log info "Changing redis configuration to replicate from host: $master_host"
             while true; do
-                $OCF_RESKEY_client_binary info |grep 'loading:0'
+                redis_cmd 0 info |grep 'loading:0'
                 if [ $? -eq 0 ]; then
                     break
                 else
@@ -366,6 +466,7 @@ redis_start() {
             done
             set_master $master_host
         fi
+        mark_slave
 
         # We also need to set a master preference, otherwise Pacemaker
         # won't ever promote us in the absence of any explicit
@@ -374,7 +475,6 @@ redis_start() {
         $CRM_MASTER -v 1
     fi
 
-    ocf_log info "$REDIS_SERVER_NAME started"
     return $OCF_SUCCESS
 }
 
@@ -394,7 +494,7 @@ redis_stop() {
         return $OCF_SUCCESS
     fi
 
-    start-stop-daemon --stop --retry 10 --quiet --oknodo --pidfile $OCF_RESKEY_pid --exec $( which $OCF_RESKEY_binary)
+    start-stop-daemon --stop --retry 10 --quiet --oknodo --pidfile $OCF_RESKEY_pid
     rc=$?
 
     if [ $rc -ne 0 ]; then
@@ -404,6 +504,7 @@ redis_stop() {
 
     ocf_log info "$REDIS_SERVER_NAME stopped";
     remove_pid
+    unmark_slave
     return $OCF_SUCCESS
 }
 
@@ -417,6 +518,9 @@ redis_promote() {
         return $OCF_NOT_RUNNING
     fi
 
+    unmark_slave
+    unset_master
+
     # Existing master gets a higher-than-default master preference, so
     # the cluster manager does not shuffle the master role around
     # unnecessarily
@@ -427,6 +531,7 @@ redis_promote() {
 
 redis_demote() {
     local rc
+    local master_host
 
     redis_status
     rc=$?
@@ -434,6 +539,25 @@ redis_demote() {
     if [ $rc -ne $OCF_RUNNING_MASTER -a $rc -ne $OCF_SUCCESS ]; then
         return $OCF_NOT_RUNNING
     fi
+
+    # Now, let's see whether there is a master. We might be a new
+    # node that is just joining the cluster, and the CRM may have
+    # promoted a master before.
+    master_host=$(echo $OCF_RESKEY_CRM_meta_notify_master_uname | tr -d " ")
+    if [ ! -z "$master_host" -a "$master_host" != $(uname -n) ]; then
+        ocf_log info "Changing redis configuration to replicate from host: $master_host"
+        while true; do
+            redis_cmd 0 info |grep 'loading:0'
+            if [ $? -eq 0 ]; then
+                break
+            else
+                ocf_log err "Redis still loading data, giving it a second to finish"
+                sleep 1
+            fi
+        done
+        set_master $master_host
+    fi
+    mark_slave
 
     # Return master preference to default, so the cluster manager gets
     # a chance to select a new master
