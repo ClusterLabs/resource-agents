@@ -64,6 +64,7 @@ usage() {
 
         The 'start' operation starts the dhcpd server.
         The 'stop' operation stops the dhcpd server.
+        The 'restart' operation restarts the dhcpd server.
         The 'monitor' operation reports whether the dhcpd service is running.
         The 'validate-all' operation reports whether the parameters are valid.
 EOF
@@ -171,6 +172,7 @@ Manage an ISC DHCP server service in a chroot environment.
   <actions>
     <action name="start"        timeout="20" />
     <action name="stop"         timeout="20" />
+    <action name="restart"         timeout="20" />
     <action name="monitor"      timeout="20" interval="10" depth="0" />
     <action name="meta-data"    timeout="5" />
     <action name="validate-all"   timeout="20" />
@@ -538,6 +540,9 @@ esac
 case $__OCF_ACTION in
 start)          dhcpd_start;;
 stop)           dhcpd_stop;;
+restart)        dhcpd_stop
+                dhcpd_start
+                ;;
 monitor)        dhcpd_monitor;;
 *)              dhcpd_usage
                 exit $OCF_ERR_UNIMPLEMENTED
