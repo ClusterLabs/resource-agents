@@ -48,7 +48,7 @@ ocftcfgs_DATA      =  apache  	\
 			 tomcat	\
 		       	 Xinetd	\
 			 SendArp \
-			sg_persist
+			 sg_persist
 
 ocftdir			= $(datadir)/$(PACKAGE_NAME)/ocft
 ocft_DATA		= README	\
