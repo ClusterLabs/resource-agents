@@ -561,7 +561,7 @@ check_slave() {
         if ocf_is_true $OCF_RESKEY_evict_outdated_slaves; then
             # We're supposed to bail out if we lag too far
             # behind. Let's check our lag.
-            if [ $secs_behind -gt $OCF_RESKEY_max_slave_lag ]; then
+            if [ "$secs_behind" = "NULL" ] || [ $secs_behind -gt $OCF_RESKEY_max_slave_lag ]; then
                 ocf_log err "MySQL Slave is $secs_behind seconds behind master (allowed maximum: $OCF_RESKEY_max_slave_lag)."
                 ocf_log err "See $tmpfile for details"
 
@@ -570,7 +570,7 @@ check_slave() {
 
                 exit $OCF_ERR_INSTALLED
             fi
-            elif ocf_is_ms; then
+        elif ocf_is_ms; then
             # Even if we're not set to evict lagging slaves, we can
             # still use the seconds behind master value to set our
             # master preference.
@@ -584,7 +584,7 @@ check_slave() {
         fi
 
         # is the slave ok to have a VIP on it
-        if [ $secs_behind -gt $OCF_RESKEY_max_slave_lag ]; then
+        if [ "$secs_behind" = "NULL" ] || [ $secs_behind -gt $OCF_RESKEY_max_slave_lag ]; then
             set_reader_attr 0
         else
             set_reader_attr 1
