@@ -56,6 +56,26 @@ AC_ARG_WITH(pkg-name,
     [  --with-pkg-name=name     Override package name (if you're a packager needing to pretend) ],
     [ PACKAGE_NAME="$withval" ])
 
+AC_PATH_PROGS(PKGCONFIG, pkg-config)
+if test x"${PKGCONFIG}" = x""; then
+   AC_MSG_ERROR(You need pkgconfig installed in order to build ${PACKAGE})
+fi
+
+AC_ARG_WITH([systemdsystemunitdir],
+     [AS_HELP_STRING([--with-systemdsystemunitdir=DIR], [Directory for systemd service files])],,
+     [with_systemdsystemunitdir=auto])
+AS_IF([test "x$with_systemdsystemunitdir" = "xyes" -o "x$with_systemdsystemunitdir" = "xauto"], [
+     def_systemdsystemunitdir=$($PKGCONFIG --variable=systemdsystemunitdir systemd)
+
+     AS_IF([test "x$def_systemdsystemunitdir" = "x"],
+         [AS_IF([test "x$with_systemdsystemunitdir" = "xyes"],
+                [AC_MSG_ERROR([systemd support requested but pkg-config unable to query systemd package])])
+          with_systemdsystemunitdir=no],
+         [with_systemdsystemunitdir="$def_systemdsystemunitdir"])])
+AS_IF([test "x$with_systemdsystemunitdir" != "xno"],
+      [AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])])
+AM_CONDITIONAL([HAVE_SYSTEMD], [test "x$with_systemdsystemunitdir" != "xno"])
+
 dnl 
 dnl AM_INIT_AUTOMAKE([1.11.1 foreign dist-bzip2 dist-xz])
 dnl
@@ -451,7 +471,6 @@ AC_PATH_PROGS(PING, ping, /bin/ping)
 AC_PATH_PROGS(IFCONFIG, ifconfig, /sbin/ifconfig)
 AC_PATH_PROGS(MAILCMD, mailx mail, mail)
 AC_PATH_PROGS(EGREP, egrep)
-AC_PATH_PROGS(PKGCONFIG, pkg-config)
 
 AC_SUBST(MAILCMD)
 AC_SUBST(EGREP)
@@ -486,10 +505,6 @@ dnl Libraries
 dnl ===============================================
 AC_CHECK_LIB(socket, socket)			
 AC_CHECK_LIB(gnugetopt, getopt_long)		dnl if available
-
-if test x"${PKGCONFIG}" = x""; then
-   AC_MSG_ERROR(You need pkgconfig installed in order to build ${PACKAGE})
-fi
 
 if test "x${enable_thread_safe}" = "xyes"; then
         GPKGNAME="gthread-2.0"
@@ -861,6 +876,8 @@ ldirectord/ldirectord   					\
 	ldirectord/init.d/ldirectord   				\
 	ldirectord/init.d/ldirectord.debian			\
 	ldirectord/init.d/ldirectord.debian.default		\
+	ldirectord/systemd/Makefile	\
+	ldirectord/systemd/ldirectord.service	\
 	ldirectord/logrotate.d/Makefile				\
 	ldirectord/OCF/Makefile					\
 	ldirectord/OCF/ldirectord				\

@@ -18,28 +18,7 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
 MAINTAINERCLEANFILES    = Makefile.in
-CLEANFILES	       	= ldirectord.8
 
-EXTRA_DIST              = ldirectord ldirectord.cf
-
-SUBDIRS			= logrotate.d init.d OCF systemd
-
-ldirectord.8: ldirectord
-	$(POD2MAN) --section=8 $< > $@
-
-sbin_SCRIPTS		= ldirectord
-
-if BUILD_POD_DOC
-man_MANS	        = ldirectord.8
+if HAVE_SYSTEMD
+systemdsystemunit_DATA = ldirectord.service
 endif
-
-harddir			= $(sysconfdir)/ha.d/resource.d
-
-.PHONY: install-exec-hook
-install-exec-hook:
-	$(INSTALL) -d $(DESTDIR)$(harddir)
-	cd $(DESTDIR)$(harddir) && ln -s -f $(sbindir)/ldirectord .
-
-.PHONY: uninstall-hook
-uninstall-hook:
-	rm -f $(DESTDIR)$(harddir)/ldirectord
