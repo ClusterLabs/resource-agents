@@ -220,7 +220,7 @@ asterisk_validate() {
             ocf_log err "Config $OCF_RESKEY_config doesn't exist"
             return $OCF_ERR_INSTALLED
         fi
-        ocf_log_warn "Config $OCF_RESKEY_config not available during a probe"
+        ocf_log warn "Config $OCF_RESKEY_config not available during a probe"
     fi
 
     getent passwd $OCF_RESKEY_user >/dev/null 2>&1

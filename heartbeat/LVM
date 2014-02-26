@@ -552,7 +552,7 @@ LVM_validate_all() {
 	# Having cloned lvm resources with exclusive vg activation makes no sense at all.
 	##
 	if ocf_is_clone; then
-		ocf_log_err "cloned lvm resources can not be activated exclusively"
+		ocf_log err "cloned lvm resources can not be activated exclusively"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
