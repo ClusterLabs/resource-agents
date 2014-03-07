@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 #
-#	Example of a stateful OCF Resource Agent. 
+#	Example of a stateful OCF Resource Agent.
 #
 # Copyright (c) 2006 Andrew Beekhof
 #
@@ -61,6 +61,8 @@ Location to store the resource state in
 <actions>
 <action name="start"   timeout="20s" />
 <action name="stop"    timeout="20s" />
+<action name="promote"    timeout="20s" />
+<action name="demote"    timeout="20s" />
 <action name="monitor" depth="0"  timeout="20" interval="10"/>
 <action name="meta-data"  timeout="5" />
 <action name="validate-all"  timeout="20s" />
@@ -90,16 +92,16 @@ stateful_check_state() {
     if [ -f ${OCF_RESKEY_state} ]; then
 	state=`cat ${OCF_RESKEY_state}`
 	if [ "x$target" = "x$state" ]; then
-	    return 0
+	    return $OCF_SUCCESS
 	fi
 
     else
 	if [ "x$target" = "x" ]; then
-	    return 0
+	    return $OCF_SUCCESS
 	fi
     fi
 
-    return 1
+    return $OCF_ERR_GENERIC
 }
 
 stateful_start() {
@@ -110,28 +112,28 @@ stateful_start() {
     fi
     stateful_update slave
     $CRM_MASTER -v 5
-    return 0
+    return $OCF_SUCCESS
 }
 
 stateful_demote() {
-    stateful_check_state 
+    stateful_check_state
     if [ $? = 0 ]; then
        	# CRM Error - Should never happen
 	return $OCF_NOT_RUNNING
     fi
     stateful_update slave
     $CRM_MASTER -v 5
-    return 0
+    return $OCF_SUCCESS
 }
 
 stateful_promote() {
-    stateful_check_state 
+    stateful_check_state
     if [ $? = 0 ]; then
 	return $OCF_NOT_RUNNING
     fi
     stateful_update master
     $CRM_MASTER -v 10
-    return 0
+    return $OCF_SUCCESS
 }
 
 stateful_stop() {
@@ -144,7 +146,7 @@ stateful_stop() {
     if [ -f ${OCF_RESKEY_state} ]; then
 	rm ${OCF_RESKEY_state}
     fi
-    return 0
+    return $OCF_SUCCESS
 }
 
 stateful_monitor() {
@@ -163,7 +165,7 @@ stateful_monitor() {
 	cat ${OCF_RESKEY_state}
 	return $OCF_ERR_GENERIC
     fi
-    return 7
+    return $OCF_NOT_RUNNING
 }
 
 stateful_validate() {
@@ -185,4 +187,3 @@ usage|help)	stateful_usage $OCF_SUCCESS;;
 esac
 
 exit $?
-
