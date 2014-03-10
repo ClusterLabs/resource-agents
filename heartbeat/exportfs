@@ -95,6 +95,9 @@ Unique fsid within cluster.
 Relinquish NFS locks associated with this filesystem when the resource
 stops. Enabling this parameter is highly recommended unless the path exported
 by this ${__SCRIPT_NAME} resource is also exported by a different resource.
+
+Note: Unlocking is only possible on Linux systems where
+/proc/fs/nfsd/unlock_filesystem exists and is writable.
 </longdesc>
 <shortdesc lang="en">
 Unlock filesystem on stop?
