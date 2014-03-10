@@ -14,7 +14,7 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
-OCF_RESKEY_unlock_on_stop_default=0
+OCF_RESKEY_unlock_on_stop_default=1
 OCF_RESKEY_wait_for_leasetime_on_stop_default=0
 OCF_RESKEY_rmtab_backup_default=".rmtab"
 
