@@ -202,13 +202,40 @@ update_utilization() {
 	fi
 }
 
+get_emulator()
+{
+	local emulator=""
+
+	emulator=$(virsh $VIRSH_OPTIONS dumpxml $DOMAIN_NAME 2>/dev/null | sed -n -e 's/^.*<emulator>\(.*\)<\/emulator>.*$/\1/p')
+	if [ -z "$emulator" ] && [ -a "$EMULATOR_STATE" ]; then
+		emulator=$(cat $EMULATOR_STATE)
+	fi
+	if [ -z "$emulator" ]; then
+		emulator=$(cat ${OCF_RESKEY_config} | sed -n -e 's/^.*<emulator>\(.*\)<\/emulator>.*$/\1/p')
+	fi
+
+	if [ -n "$emulator" ]; then
+		basename $emulator
+	else 
+		ocf_log error "Unable to determine emulator for $DOMAIN_NAME" 
+	fi
+}
+
+update_emulator_cache()
+{
+	local emulator
+
+	emulator=$(get_emulator)
+	if [ -n "$emulator" ]; then
+		echo $emulator > $EMULATOR_STATE
+	fi
+}
+
 # attempt to check domain status outside of libvirt using the emulator process
 pid_status()
 {
 	local rc=$OCF_ERR_GENERIC
-	local emulator
-
-	emulator=$(basename $(egrep '[[:space:]]*<emulator>.*</emulator>[[:space:]]*$' ${OCF_RESKEY_config} | sed -e 's/[[:space:]]*<emulator>\(.*\)<\/emulator>[[:space:]]*$/\1/'))
+	local emulator=$(get_emulator)
 
 	case "$emulator" in
 		qemu-kvm|qemu-system-*)
@@ -282,12 +309,13 @@ VirtualDomain_Status() {
 					# again, relying on the CRM/LRM to time us out if
 					# this takes too long.
 					ocf_log info "Virtual domain $DOMAIN_NAME currently has no state, retrying."
-					sleep 1
 				fi
+				sleep 1
 				;;
 			*)
 				# any other output is unexpected.
 				ocf_log error "Virtual domain $DOMAIN_NAME has unknown status \"$status\"!"
+				sleep 1
 				;;
 		esac
 	done
@@ -340,6 +368,7 @@ VirtualDomain_Start() {
 	while ! VirtualDomain_Monitor; do
 		sleep 1
 	done
+	
 	return $OCF_SUCCESS
 }
 
@@ -530,6 +559,7 @@ VirtualDomain_Monitor() {
 		done
 	fi
 
+	update_emulator_cache
 	update_utilization
 
 	return ${rc}
@@ -607,6 +637,8 @@ if [ -z $DOMAIN_NAME ]; then
 	ocf_log err "This is unexpected. Cannot determine domain name."
 	exit $OCF_ERR_GENERIC
 fi
+
+EMULATOR_STATE="${HA_RSCTMP}/VirtualDomain-${DOMAIN_NAME}-emu.state"
 
 case $1 in
 	start)
