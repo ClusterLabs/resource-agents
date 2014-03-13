@@ -21,11 +21,13 @@ OCF_RESKEY_force_stop_default=0
 OCF_RESKEY_autoset_utilization_cpu_default="true"
 OCF_RESKEY_autoset_utilization_hv_memory_default="true"
 OCF_RESKEY_migrateport_default=$(( 49152 + $(ocf_maybe_random) % 64 ))
+OCF_RESKEY_CRM_meta_timeout_default=90000
 
 : ${OCF_RESKEY_force_stop=${OCF_RESKEY_force_stop_default}}
 : ${OCF_RESKEY_autoset_utilization_cpu=${OCF_RESKEY_autoset_utilization_cpu_default}}
 : ${OCF_RESKEY_autoset_utilization_hv_memory=${OCF_RESKEY_autoset_utilization_hv_memory_default}}
 : ${OCF_RESKEY_migrateport=${OCF_RESKEY_migrateport_default}}
+: ${OCF_RESKEY_CRM_meta_timeout=${OCF_RESKEY_CRM_meta_timeout_default}}
 #######################################################################
 
 ## I'd very much suggest to make this RA use bash,
@@ -165,8 +167,8 @@ Restore state on start/stop
 </parameters>
 
 <actions>
-<action name="start" timeout="90" />
-<action name="stop" timeout="90" />
+<action name="start" timeout="$OCF_RESKEY_CRM_meta_timeout_default" />
+<action name="stop" timeout="$OCF_RESKEY_CRM_meta_timeout_default" />
 <action name="status" depth="0" timeout="30" interval="10" />
 <action name="monitor" depth="0" timeout="30" interval="10" />
 <action name="migrate_from" timeout="60" />
