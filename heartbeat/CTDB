@@ -660,6 +660,8 @@ ctdb_monitor() {
 	if [ $? -ne 0 ]; then
 		if echo $status | grep -qs 'Connection refused'; then
 			return $OCF_NOT_RUNNING
+		elif echo $status | grep -qs 'No such file or directory'; then
+			return $OCF_NOT_RUNNING
 		else
 			ocf_log err "CTDB status call failed: $status"
 			return $OCF_ERR_GENERIC
