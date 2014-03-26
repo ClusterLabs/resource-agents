@@ -745,19 +745,6 @@ kill_ase()
 	ocf_log debug "sybaseASE: End 'kill_ase'."
 }
 
-
-#######################################################################################
-# Function name: terminate                                                            #
-# Parameter: None                                                                     #
-# Return value: Always be 1                                                           #
-# Description: This function is called automatically after this script is terminated. #
-#######################################################################################
-terminate()
-{
-	ocf_log debug "sybaseASE: This monitor script has been signaled to terminate."
-	exit 1
-}
-
 #####################################################################################
 # Function name: ase_status                                                         #
 # Parameter:                                                                        #
@@ -895,8 +882,6 @@ EOF
 
 	return 0
 }
-
-trap terminate SIGTERM
 
 #############################
 # Do some real work here... #

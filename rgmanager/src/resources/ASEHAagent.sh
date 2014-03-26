@@ -211,6 +211,22 @@ meta_data()
 EOT
 }
 
+#######################################################################################
+# Function name: terminate                                                            #
+# Parameter: None                                                                     #
+# Return value: Always be 1                                                           #
+# Description: This function is called automatically after this script is terminated. #
+#######################################################################################
+terminate()
+{
+       ocf_log debug "sybaseASE: This monitor script has been signaled to terminate."
+       exit 1
+}
+trap terminate SIGTERM
+
+#############################
+# Do some real work here... #
+#############################
 ase_heartbeat_wrapper()
 {
 	# default heartbeat agent ocf root.
