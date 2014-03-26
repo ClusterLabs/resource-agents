@@ -231,6 +231,7 @@ ase_heartbeat_wrapper()
 {
 	# default heartbeat agent ocf root.
 	export OCF_ROOT=/usr/lib/ocf
+	export OCF_RESKEY_is_rgmanager_wrapper="true"
 	heartbeat_ase="${OCF_ROOT}/resource.d/heartbeat/sybaseASE"
 
 	if ! [ -a $heartbeat_ase ]; then

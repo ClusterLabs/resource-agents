@@ -55,6 +55,21 @@
 
 #######################################################################
 
+# Default timeouts when we aren't using the rgmanager wrapper
+if ! ocf_is_true "$OCF_RESKEY_is_rgmanager_wrapper"; then
+	if [ -z "$OCF_RESKEY_CRM_meta_timeout" ]; then
+		case $1 in
+			start|stop) OCF_RESKEY_CRM_meta_timeout=300000 ;;
+			*) OCF_RESKEY_CRM_meta_timeout=100000 ;;
+		esac
+	fi
+	default_timeout=$(((${OCF_RESKEY_CRM_meta_timeout}/1000) - 5))
+	default_force_stop_timeout=$(((${OCF_RESKEY_CRM_meta_timeout}/1000) - 5))
+	: ${OCF_RESKEY_shutdown_timeout=${default_force_stop_timeout}}
+	: ${OCF_RESKEY_deep_probe_timeout=${default_timeout}}
+	: ${OCF_RESKEY_start_timeout=${default_timeout}}
+fi
+
 PROG=${0}
 
 export LD_POINTER_GUARD=0
@@ -157,35 +172,6 @@ meta_data()
 			<content type="string" default="sybase" />
 		</parameter>
 
-		<parameter name="shutdown_timeout" required="1">
-			<longdesc lang="en">
-				The maximum seconds to wait for the ASE server to shutdown before killing the process directly
-			</longdesc>
-			<shortdesc>
-				Shutdown timeout value
-			</shortdesc>
-			<content type="integer" default="0" />
-		</parameter>
-
-		<parameter name="start_timeout" required="1">
-			<longdesc lang="en">
-				The maximum seconds to wait for an ASE server to complete before determining that the server had failed to start
-			</longdesc>
-			<shortdesc lang="en">
-				Start timeout value
-			</shortdesc>
-			<content type="integer" default="0" />
-		</parameter>
-
-		<parameter name="deep_probe_timeout" required="1">
-			<longdesc lang="en">
-				The maximum seconds to wait for the response of ASE server before determining that the server had no response while running deep probe
-			</longdesc>
-			<shortdesc lang="en">
-				Deep probe timeout value
-			</shortdesc>
-			<content type="integer" default="0" />
-		</parameter>
 	</parameters>
 	<actions>
 		<action name="start" timeout="300" />
