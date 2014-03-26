@@ -232,6 +232,8 @@ verify_all()
 {
 	ocf_log debug "sybaseASE: Start 'verify_all'"
 
+	check_binary "ksh"
+
 	# Check if the parameter 'sybase_home' is set.	
 	if [[ -z "$OCF_RESKEY_sybase_home" ]]
 	then
