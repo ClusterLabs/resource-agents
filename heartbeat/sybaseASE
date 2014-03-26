@@ -70,8 +70,6 @@ if ! ocf_is_true "$OCF_RESKEY_is_rgmanager_wrapper"; then
 	: ${OCF_RESKEY_start_timeout=${default_timeout}}
 fi
 
-PROG=${0}
-
 export LD_POINTER_GUARD=0
 
 #######################################################################################
@@ -530,7 +528,7 @@ ase_stop()
 	# monitor this process (set -m), so we can terminate it later if it is
 	# not needed.
 	set -m
-	$PROG kill &
+	kill_ase $OCF_RESKEY_shutdown_timeout &
 	KILL_PID=$!     # If successful, we will also terminate watchdog process
 
 	# Run "shutdown with nowait" from isql command line to shutdown the server
@@ -889,9 +887,6 @@ case $1 in
 		verify_all || exit 1
 		ase_status $OCF_CHECK_LEVEL
 		exit $?
-		;;
-	kill)
-		kill_ase $OCF_RESKEY_shutdown_timeout
 		;;
 	meta-data)
 		meta_data
