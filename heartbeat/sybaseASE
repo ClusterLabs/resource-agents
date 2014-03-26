@@ -117,7 +117,7 @@ meta_data()
 			<content type="string" default="OCS-15_0" />
 		</parameter>
 
-		<parameter name="server_name" required="1">
+		<parameter name="server_name" unique="1" required="1">
 			<longdesc lang="en">
 				The ASE server name which is configured for the HA service
 			</longdesc>
