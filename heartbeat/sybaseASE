@@ -209,6 +209,31 @@ meta_data()
 EOT
 }
 
+ase_engine0_process()
+{
+	sed -n -e '/engine 0/s/^.*os pid \([0-9]*\).*online$/\1/p' $CONSOLE_LOG
+}
+
+ase_engine0_thread()
+{
+	sed -n -e 's/.*Thread.*LWP \([0-9]*\).*online as engine 0.*/\1/p' $CONSOLE_LOG
+}
+
+ase_engine_threadpool_pid()
+{
+	sed -n -e 's/.*Adaptive Server is running as process id \([0-9]*\).*/\1/p' $CONSOLE_LOG
+}
+
+ase_all_pids()
+{
+	local PIDS=$(sed -n -e '/engine /s/^.*os pid \([0-9]*\).*online$/\1/p' $CONSOLE_LOG)
+	if [ -z "$PIDS" ]; then
+		#engines are running in a threadpool
+		PIDS=$(ase_engine_threadpool_pid)
+	fi
+	echo $PIDS
+}
+
 ##################################################################################################
 # Function Name: verify_all                                                                      #
 # Parameter: None                                                                                #
@@ -557,7 +582,8 @@ EOF
 	# other node from starting up the package before it has been stopped and the file system has been unmounted.
 	
 	# Get all processes ids from log file
-	declare -a ENGINE_ALL=(`sed -n -e '/engine /s/^.*os pid \([0-9]*\).*online$/\1/p' $CONSOLE_LOG`)
+	declare -a ENGINE_ALL=$(ase_all_pids)
+
 	typeset -i num_procs=${#ENGINE_ALL[@]}
 
 	# We cannot find any process id from log file. It may be because the log file is corrupted or be deleted.
@@ -631,30 +657,36 @@ EOF
 ####################################################################################
 ase_is_running()
 {
+	local PID
+	local THREAD
 	# If the error log doesn't exist, we can say there is no ASE is running.
 	if [[ ! -f $CONSOLE_LOG ]]
 	then
+		ocf_log debug "could not find console log $CONSOLE_LOG"
 		return 1
 	fi
 
 	# The error log file exists. Check if the engine 0 is alive.
-	ENGINE_0=(`sed -n -e '/engine 0/s/^.*os pid \([0-9]*\).*online$/\1/p' $CONSOLE_LOG`)
-	if [[ "$ENGINE_0" = "" ]]
-	then
-		# The engine 0 is down.
-		return 1 
-	else
-		kill -s 0 $ENGINE_0 > /dev/null 2>&1
-		if [[ $? != 0 ]]
-		then
-			# The engine 0 is not running.
-			return 1
-		else
+	PID=$(ase_engine0_process)
+	if [ -n "$PID" ]; then
+		kill -s 0 $PID > /dev/null 2>&1
+		if [ $? -eq 0 ]; then
 			# The engine 0 is running.
 			return 0
 		fi
-        fi
+		# The engine 0 is not running.
+		return 1
+	fi
 
+	PID=$(ase_engine_threadpool_pid)
+	THREAD=$(ase_engine0_thread)
+	if [ -n "$PID" ] && [ -n "$THREAD" ]; then
+		ps -AL | grep -q "${PID}[[:space:]]*${THREAD} "
+		if [ $? -eq 0 ]; then
+			# engine 0 thread is running
+			return 0
+		fi
+	fi
 	return 1
 }
 
@@ -682,7 +714,7 @@ kill_ase()
         done
 
 	# Get the process ids from log file
-	declare -a ENGINE_ALL=`sed -n -e '/engine /s/^.*os pid \([0-9]*\).*online$/\1/p' $CONSOLE_LOG`
+	declare -a ENGINE_ALL=$(ase_all_pids)
 
 	# If there is no process id found in the log file, we need not to continue.
 	if [[ "${ENGINE_ALL[@]}" = "" ]]
