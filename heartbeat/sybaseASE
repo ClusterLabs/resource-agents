@@ -495,8 +495,13 @@ EOF
 		return 1
 	fi
 
-	ocf_log debug "sybaseASE: End 'ase_start' successfully."
+	ase_is_running
+	if [ $? -ne 0 ]; then
+		ocf_log err "sybaseASE: ase_start could not detect database initialized properly."
 
+		return 1
+	fi
+	ocf_log debug "sybaseASE: End 'ase_start' successfully."
 	return 0
 }
 
@@ -672,6 +677,7 @@ ase_is_running()
 		kill -s 0 $PID > /dev/null 2>&1
 		if [ $? -eq 0 ]; then
 			# The engine 0 is running.
+			ocf_log debug "Found engine 0 pid $PID to be running"
 			return 0
 		fi
 		# The engine 0 is not running.
@@ -684,6 +690,7 @@ ase_is_running()
 		ps -AL | grep -q "${PID}[[:space:]]*${THREAD} "
 		if [ $? -eq 0 ]; then
 			# engine 0 thread is running
+			ocf_log debug "Found engine 0 thread $THREAD in pid $PID to be running"
 			return 0
 		fi
 	fi
