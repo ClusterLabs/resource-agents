@@ -361,7 +361,7 @@ verify_all()
 
 	ocf_log debug "sybaseASE: End 'verify_all' successfully."
 
-	return 0
+	return $OCF_SUCCESS
 }
 
 ################################################################################################################
@@ -431,7 +431,7 @@ ase_start()
 	then
 		# The server is running. 
 		ocf_log info "sybaseASE: Server is running. Start is success."
-		return 0
+		return $OCF_SUCCESS
 	fi
 
 	# The server is not running. We need to start it.
@@ -478,17 +478,17 @@ EOF
 	then
 		# The server cannot start in specified time. We think the start is failed.
 		ocf_log err "sybaseASE: Failed to start ASE server '$OCF_RESKEY_server_name'. Please check the server error log $CONSOLE_LOG for possible problems."
-		return 1
+		return $OCF_ERR_GENERIC
 	fi
 
 	ase_is_running
 	if [ $? -ne 0 ]; then
 		ocf_log err "sybaseASE: ase_start could not detect database initialized properly."
 
-		return 1
+		return $OCF_ERR_GENERIC
 	fi
 	ocf_log debug "sybaseASE: End 'ase_start' successfully."
-	return 0
+	return $OCF_SUCCESS
 }
 
 #############################################################################################
@@ -509,7 +509,7 @@ ase_stop()
 	then
 		# The ASE server is not running. We need not to shutdown it.
 		ocf_log info "sybaseASE: The dataserver $OCF_RESKEY_server_name is not running."
-		return 0
+		return $OCF_SUCCESS
 	fi
 
 	# Call get_login_string() to parse the login/password string
@@ -583,7 +583,7 @@ EOF
 	then
 		ocf_log err "sybaseASE: Unable to find the process id from $CONSOLE_LOG."
 		ocf_log err "sybaseASE: Stop ASE server failed."
-		return 1
+		return $OCF_ERR_GENERIC
 	fi
 
 	# Monitor the system processes to make sure all ASE related processes have gone away.
@@ -635,7 +635,7 @@ EOF
 
 	ocf_log debug "sybaseASE: End 'ase_stop'."
 
-	return 0
+	return $OCF_SUCCESS
 }
 
 ####################################################################################
@@ -654,7 +654,7 @@ ase_is_running()
 	if [[ ! -f $CONSOLE_LOG ]]
 	then
 		ocf_log debug "could not find console log $CONSOLE_LOG"
-		return 1
+		return $OCF_NOT_RUNNING
 	fi
 
 	# The error log file exists. Check if the engine 0 is alive.
@@ -664,10 +664,10 @@ ase_is_running()
 		if [ $? -eq 0 ]; then
 			# The engine 0 is running.
 			ocf_log debug "Found engine 0 pid $PID to be running"
-			return 0
+			return $OCF_SUCCESS
 		fi
 		# The engine 0 is not running.
-		return 1
+		return $OCF_NOT_RUNNING
 	fi
 
 	PID=$(ase_engine_threadpool_pid)
@@ -677,10 +677,12 @@ ase_is_running()
 		if [ $? -eq 0 ]; then
 			# engine 0 thread is running
 			ocf_log debug "Found engine 0 thread $THREAD in pid $PID to be running"
-			return 0
+			return $OCF_SUCCESS
 		fi
+		# The engine 0 is not running.
+		return $OCF_NOT_RUNNING
 	fi
-	return 1
+	return $OCF_ERR_GENERIC
 }
 
 ####################################################################################
@@ -713,7 +715,7 @@ kill_ase()
 	if [[ "${ENGINE_ALL[@]}" = "" ]]
 	then
 		ocf_log err "sybaseASE: Unable to find the process id from $CONSOLE_LOG."
-		return
+		return $OCF_ERR_GENERIC
 	fi
 
 	# Kill the datasever process(es)
@@ -729,6 +731,7 @@ kill_ase()
 	done
 
 	ocf_log debug "sybaseASE: End 'kill_ase'."
+	return $OCF_SUCCESS
 }
 
 #####################################################################################
@@ -744,15 +747,16 @@ kill_ase()
 #####################################################################################
 ase_status()
 {
+	local rc
 	ocf_log debug "sybaseASE: Start 'ase_status'."
 
 	# Step 1: Check if the engine 0 is alive
 	ase_is_running
-	if [[ $? = 1 ]]
-	then
+	rc=$?
+	if [ $rc -ne 0 ]; then
 		# ASE is down. Return fail to rgmanager to trigger the failover process.
 		ocf_log err "sybaseASE: ASE server is down."
-		return 1
+		return $rc
 	fi
 
 	# ASE process is still alive. 
@@ -766,13 +770,13 @@ ase_status()
 		then
 			# Deep probe failed. This means the server has been down.
 			ocf_log err "sybaseASE: Deep probe found the ASE server is down."
-			return 1
+			return $OCF_ERR_GENERIC
 		fi
 	fi
 
 	ocf_log debug "sybaseASE: End 'ase_status'."
 
-	return 0
+	return $OCF_SUCCESS
 }
 
 ####################################################################################
@@ -874,23 +878,23 @@ EOF
 #############################
 case $1 in
 	start)
-		verify_all || exit 1
+		verify_all || exit $OCF_ERR_GENERIC
 		ase_start
 		exit $?
 		;;
 	stop)
-		verify_all || exit 1
+		verify_all || exit $OCF_ERR_GENERIC
 		ase_stop
 		exit $?
 		;;
 	status | monitor)
-		verify_all || exit 1
+		verify_all || exit $OCF_ERR_GENERIC
 		ase_status $OCF_CHECK_LEVEL
 		exit $?
 		;;
 	meta-data)
 		meta_data
-		exit $?
+		exit $OCF_SUCCESS
 		;;
 	validate-all)
 		verify_all
