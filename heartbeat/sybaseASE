@@ -69,7 +69,19 @@ if ! ocf_is_true "$OCF_RESKEY_is_rgmanager_wrapper"; then
 	: ${OCF_RESKEY_deep_probe_timeout=${default_timeout}}
 	: ${OCF_RESKEY_start_timeout=${default_timeout}}
 fi
-: ${OCF_RESKEY_sybase_user="sybase"}
+
+sybase_user_default="sybase"
+sybase_home_default="/opt/sybase"
+ase_default="ASE-15_0"
+ocs_default="OCS-15_0"
+
+: ${OCF_RESKEY_sybase_user=${sybase_user_default}}
+: ${OCF_RESKEY_sybase_ase=${ase_default}}
+: ${OCF_RESKEY_sybase_ocs=${ocs_default}}
+: ${OCF_RESKEY_sybase_home=${sybase_home_default}}
+
+interfaces_file_default="${OCF_RESKEY_sybase_home}/interfaces"
+: ${OCF_RESKEY_interfaces_file=${interfaces_file_default}}
 
 export LD_POINTER_GUARD=0
 
@@ -101,34 +113,34 @@ meta_data()
 
 	<parameters>
 
-		<parameter name="sybase_home" required="1">
+		<parameter name="sybase_home">
 			<longdesc lang="en">
 				The home directory of sybase products
 			</longdesc>
 			<shortdesc lang="en">
 				SYBASE home directory
 			</shortdesc>
-			<content type="string" />
+			<content type="string" default="${sybase_home_default}"/>
 		</parameter>
 
-		<parameter name="sybase_ase" required="1">
+		<parameter name="sybase_ase">
 			<longdesc lang="en">
 				The directory name under sybase_home where ASE products are installed
 			</longdesc>
 			<shortdesc lang="en">
 				SYBASE_ASE directory name
 			</shortdesc>
-			<content type="string" default="ASE-15_0" />
+			<content type="string" default="$ase_default" />
 		</parameter>
 
-		<parameter name="sybase_ocs" required="1">
+		<parameter name="sybase_ocs">
 			<longdesc lang="en">
 				The directory name under sybase_home where OCS products are installed, i.e. ASE-15_0
 			</longdesc>
 			<shortdesc lang="en">
 				SYBASE_OCS directory name
 			</shortdesc>
-			<content type="string" default="OCS-15_0" />
+			<content type="string" default="${ocs_default}" />
 		</parameter>
 
 		<parameter name="server_name" unique="1" required="1">
@@ -141,24 +153,24 @@ meta_data()
 			<content type="string" />
 		</parameter>
 
-		<parameter name="interfaces_file" required="1">
+		<parameter name="interfaces_file">
 			<longdesc lang="en">
 				The full path of interfaces file which is used to start/access the ASE server
 			</longdesc>
 			<shortdesc lang="en">
 				Interfaces file
 			</shortdesc>
-			<content type="string" />
+			<content type="string" default="$interfaces_file_default"/>
 		</parameter>
 
-		<parameter name="sybase_user" >
+		<parameter name="sybase_user">
 			<longdesc lang="en">
 				The user who can run ASE server
 			</longdesc>
 			<shortdesc lang="en">
 				Sybase user
 			</shortdesc>
-			<content type="string" default="sybase" />
+			<content type="string" default="$sybase_user_default" />
 		</parameter>
 
 		<parameter name="db_user" required="1">
@@ -168,17 +180,17 @@ meta_data()
 			<shortdesc lang="en">
 				Sybase user
 			</shortdesc>
-			<content type="string" />
+			<content type="string"/>
 		</parameter>
 
-		<parameter name="db_passwd" >
+		<parameter name="db_passwd">
 			<longdesc lang="en">
 				The database user's password required to login to isql.
 			</longdesc>
 			<shortdesc lang="en">
 				Sybase user
 			</shortdesc>
-			<content type="string"  />
+			<content type="string"/>
 		</parameter>
 
 	</parameters>
