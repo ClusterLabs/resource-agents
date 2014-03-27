@@ -69,6 +69,7 @@ if ! ocf_is_true "$OCF_RESKEY_is_rgmanager_wrapper"; then
 	: ${OCF_RESKEY_deep_probe_timeout=${default_timeout}}
 	: ${OCF_RESKEY_start_timeout=${default_timeout}}
 fi
+: ${OCF_RESKEY_sybase_user="sybase"}
 
 export LD_POINTER_GUARD=0
 
@@ -140,16 +141,6 @@ meta_data()
 			<content type="string" />
 		</parameter>
 
-		<parameter name="login_file" required="1">
-			<longdesc lang="en">
-				The full path of login file which contains the login/password pair
-			</longdesc>
-			<shortdesc lang="en">
-				Login file
-			</shortdesc>
-			<content type="string" />
-		</parameter>
-
 		<parameter name="interfaces_file" required="1">
 			<longdesc lang="en">
 				The full path of interfaces file which is used to start/access the ASE server
@@ -160,7 +151,7 @@ meta_data()
 			<content type="string" />
 		</parameter>
 
-		<parameter name="sybase_user" required="1">
+		<parameter name="sybase_user" >
 			<longdesc lang="en">
 				The user who can run ASE server
 			</longdesc>
@@ -168,6 +159,26 @@ meta_data()
 				Sybase user
 			</shortdesc>
 			<content type="string" default="sybase" />
+		</parameter>
+
+		<parameter name="db_user" required="1">
+			<longdesc lang="en">
+				The database user required to login to isql.
+			</longdesc>
+			<shortdesc lang="en">
+				Sybase user
+			</shortdesc>
+			<content type="string" />
+		</parameter>
+
+		<parameter name="db_passwd" >
+			<longdesc lang="en">
+				The database user's password required to login to isql.
+			</longdesc>
+			<shortdesc lang="en">
+				Sybase user
+			</shortdesc>
+			<content type="string"  />
 		</parameter>
 
 	</parameters>
@@ -295,27 +306,6 @@ verify_all()
 		return $OCF_ERR_ARGS
 	fi
 
-	# Check if the parameter 'login_file' is set.	
-	if [[ -z "$OCF_RESKEY_login_file" ]]
-	then
-		ocf_log err "sybaseASE: The parameter 'login_file' is not set."
-		return $OCF_ERR_ARGS
-	fi
-
-	# Check if the login file exist.
-	if [[ ! -f $OCF_RESKEY_login_file ]]
-	then
-		ocf_log err "sybaseASE: The login file '$OCF_RESKEY_login_file' doesn't exist."
-		return $OCF_ERR_ARGS
-	fi
-
-	# Check if the parameter 'sybase_user' is set
-	if [[ -z "$OCF_RESKEY_sybase_user" ]]
-	then
-		ocf_log err "sybaseASE: The parameter 'sybase_user' is not set."
-		return $OCF_ERR_ARGS
-	fi
-
 	# Check if the user 'sybase_user' exist
 	id -u $OCF_RESKEY_sybase_user
 	if [[ $? != 0 ]]
@@ -335,6 +325,13 @@ verify_all()
 	if [[ ! -f $OCF_RESKEY_interfaces_file ]]
 	then
 		ocf_log err "sybaseASE: The interfaces file '$OCF_RESKEY_interfaces_file' doesn't exist."
+		return $OCF_ERR_ARGS
+	fi
+
+	# Check if the parameter 'db_user' is set
+	if [[ -z "$OCF_RESKEY_db_user" ]]
+	then
+		ocf_log err "sybaseASE: The parameter 'db_user' is not set."
 		return $OCF_ERR_ARGS
 	fi
 
@@ -364,52 +361,12 @@ verify_all()
 	return $OCF_SUCCESS
 }
 
-################################################################################################################
-# Function name: get_login_string                                                                              #
-# Parameter: None                                                                                              #
-# Return value:                                                                                                #
-#              0    SUCCESS                                                                                    #
-#              1    FAIL                                                                                       #
-# Description: Analyze the login_file to format the login string. This function will set the global variable   #
-#              "login_string". If the login/password is clear text, the "login_string" will become to "-Ulogin #
-#              -Ppassword" if there is no error. If there are any errors in this function, the string          #
-#              "login_string" will be still empty. In current stage, the encrypted string is not supported     #
-#              because "haisql" is not available on this platform.                                             #
-################################################################################################################
-get_login_string()
+set_login_string()
 {
 	tmpstring=""
 	login_sting=""
 
-	# Read the first column. The valid value will be "normal" or "encrypted". Any other values are invalid.
-	login_type=`head -1 $OCF_RESKEY_login_file | awk '{print $1}'`
-	if [[ $login_type = "normal" ]]
-	then
-		# The login/password pair is saved in clear text.
-		# Abstract the login/password from the line. 
-		tmpstring=`head -1 $OCF_RESKEY_login_file | awk '{print $2}'`
-
-		# Abstract "user" from the string.
-		user=`echo $tmpstring | awk -F'/' '{print $1}'`
-		# Check if the "user" string is NULL. If it is NULL, it means this is not a valid user.
-		if  [[ -z $user ]]
-		then
-			ocf_log err "sybaseASE: Login username is not specified in the file '$OCF_RESKEY_login_file'"
-			return 1
-		fi
-
-		# Abstract "password" from the string.
-		passwd=`echo $tmpstring | awk -F'/' '{print $2}'`
-
-		# Format the "login_string".
-		login_string="-U$user -P$passwd"
-	else
-		# The login_type is invalid value.
-		ocf_log err "sybaseASE: Login type specified in the file $OCF_RESKEY_login_file is not 'normal' or 'encrypted' which are only supported values."
-		return 1
-	fi
-
-	# The "login_file" has been analyzed successfully. Now, the value of "login_string" contains the login/password information.
+	login_string="-U$OCF_RESKEY_db_user -P$OCF_RESKEY_db_passwd"
 	return 0
 }
 
@@ -512,16 +469,7 @@ ase_stop()
 		return $OCF_SUCCESS
 	fi
 
-	# Call get_login_string() to parse the login/password string
-	get_login_string
-	if [[ $? = 1 ]]
-	then
-		# The login account cannot be used. So we will kill the process directly.
-		ocf_log info "sybaseASE: Cannot parse the login file $OCF_RESKEY_login_file. Kill the processes of ASE directly."
-		# Kill the OS processes immediately.
-		kill_ase 0
-		return $?
-	fi
+	set_login_string
 
 	# Just in case things are hung, start a process that will wait for the
 	# timeout period, then kill any remaining porcesses.  We'll need to
@@ -798,14 +746,7 @@ deep_probe()
 	tmpfile1="$(mktemp /tmp/sybaseASE.1.XXXXXX)"
 	tmpfile2="$(mktemp /tmp/sybaseASE.2.XXXXXX)"
 	
-	# Get the login_string by analyzing the login_file.
-	get_login_string
-	if [[ $? = 1 ]]
-	then
-		# Login string cannot be fetched. Cannot continue the deep probe.
-		ocf_log err "sybaseASE: Cannot run the deep probe because of incorrect login file $OCF_RESKEY_login_file. Deep probe failed."
-		return 1
-	fi
+	set_login_string
 
 	rm -f $tmpfile1
 	rm -f $tmpfile2

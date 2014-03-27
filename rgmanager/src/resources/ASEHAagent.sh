@@ -224,6 +224,61 @@ terminate()
 }
 trap terminate SIGTERM
 
+##
+# The rgmanager sybase agent used a login file to hold user/password.
+# This login file has to be parsed and passed as an environment variable
+# to the new heartbeat sybase agent.
+##
+set_login_env()
+{
+	tmpstring=""
+	login_sting=""
+
+	# Check if the parameter 'login_file' is set.	
+	if [[ -z "$OCF_RESKEY_login_file" ]]
+	then
+		ocf_log err "sybaseASE: The parameter 'login_file' is not set."
+		exit $OCF_ERR_ARGS
+	fi
+
+	# Check if the login file exist.
+	if [[ ! -f $OCF_RESKEY_login_file ]]
+	then
+		ocf_log err "sybaseASE: The login file '$OCF_RESKEY_login_file' doesn't exist."
+		exit $OCF_ERR_ARGS
+	fi
+
+	# Read the first column. The valid value will be "normal" or "encrypted". Any other values are invalid.
+	login_type=`head -1 $OCF_RESKEY_login_file | awk '{print $1}'`
+	if [[ $login_type = "normal" ]]
+	then
+		# The login/password pair is saved in clear text.
+		# Abstract the login/password from the line. 
+		tmpstring=`head -1 $OCF_RESKEY_login_file | awk '{print $2}'`
+
+		# Abstract "user" from the string.
+		user=`echo $tmpstring | awk -F'/' '{print $1}'`
+		# Check if the "user" string is NULL. If it is NULL, it means this is not a valid user.
+		if  [[ -z $user ]]
+		then
+			ocf_log err "sybaseASE: Login username is not specified in the file '$OCF_RESKEY_login_file'"
+			exit $OCF_ERR_ARGS
+		fi
+
+		# Abstract "password" from the string.
+		passwd=`echo $tmpstring | awk -F'/' '{print $2}'`
+
+		export OCF_RESKEY_db_user="$user"
+		export OCF_RESKEY_db_passwd="$passwd"
+	else
+		# The login_type is invalid value.
+		ocf_log err "sybaseASE: Login type specified in the file $OCF_RESKEY_login_file is not 'normal' or 'encrypted' which are only supported values."
+		exit $OCF_ERR_GENERIC
+	fi
+
+	return 0
+}
+
 #############################
 # Do some real work here... #
 #############################
@@ -246,7 +301,8 @@ ase_heartbeat_wrapper()
 # Do some real work here... #
 #############################
 case $1 in
-	start | stop | status | monitor | kill | validate-all)
+	start | stop | status | monitor | validate-all)
+		set_login_env
 		ase_heartbeat_wrapper "$1"
 		exit $?
 		;;
