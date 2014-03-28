@@ -3,17 +3,18 @@
 #######################################################################
 
 # Attempt to detect a default binary
-OCF_RESKEY_binary_default=$(which mysqld_safe 2> /dev/null)
+if [ -f /etc/redhat_release ]; then
+	OCF_RESKEY_binary_default="/usr/libexec/mysqld"
+else
+	OCF_RESKEY_binary_default="$(which mysqld 2> /dev/null)"
+fi
 if [ "$OCF_RESKEY_binary_default" = "" ]; then
-	OCF_RESKEY_binary_default=$(which safe_mysqld 2> /dev/null)
+	OCF_RESKEY_binary_default="$(which mysqld_safe 2> /dev/null)"
 fi
 
 # Fill in some defaults if no values are specified
 HOSTOS=`uname`
 if [ "X${HOSTOS}" = "XOpenBSD" ];then
-	if [ "$OCF_RESKEY_binary_default" = "" ]; then
-		OCF_RESKEY_binary_default="/usr/local/bin/mysqld_safe"
-	fi
 	OCF_RESKEY_config_default="/etc/my.cnf"
 	OCF_RESKEY_datadir_default="/var/mysql"
 	OCF_RESKEY_user_default="_mysql"
@@ -22,9 +23,6 @@ if [ "X${HOSTOS}" = "XOpenBSD" ];then
 	OCF_RESKEY_pid_default="/var/mysql/mysqld.pid"
 	OCF_RESKEY_socket_default="/var/run/mysql/mysql.sock"
 else
-	if [ "$OCF_RESKEY_binary_default" = "" ]; then
-		OCF_RESKEY_binary_default="/usr/bin/safe_mysqld"
-	fi
 	OCF_RESKEY_config_default="/etc/my.cnf"
 	OCF_RESKEY_datadir_default="/var/lib/mysql"
 	OCF_RESKEY_user_default="mysql"
