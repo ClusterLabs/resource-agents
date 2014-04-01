@@ -21,11 +21,13 @@ OCF_RESKEY_force_stop_default=0
 OCF_RESKEY_autoset_utilization_cpu_default="true"
 OCF_RESKEY_autoset_utilization_hv_memory_default="true"
 OCF_RESKEY_migrateport_default=$(( 49152 + $(ocf_maybe_random) % 64 ))
+OCF_RESKEY_CRM_meta_timeout_default=90000
 
 : ${OCF_RESKEY_force_stop=${OCF_RESKEY_force_stop_default}}
 : ${OCF_RESKEY_autoset_utilization_cpu=${OCF_RESKEY_autoset_utilization_cpu_default}}
 : ${OCF_RESKEY_autoset_utilization_hv_memory=${OCF_RESKEY_autoset_utilization_hv_memory_default}}
 : ${OCF_RESKEY_migrateport=${OCF_RESKEY_migrateport_default}}
+: ${OCF_RESKEY_CRM_meta_timeout=${OCF_RESKEY_CRM_meta_timeout_default}}
 #######################################################################
 
 ## I'd very much suggest to make this RA use bash,
@@ -165,8 +167,8 @@ Restore state on start/stop
 </parameters>
 
 <actions>
-<action name="start" timeout="90" />
-<action name="stop" timeout="90" />
+<action name="start" timeout="$OCF_RESKEY_CRM_meta_timeout_default" />
+<action name="stop" timeout="$OCF_RESKEY_CRM_meta_timeout_default" />
 <action name="status" depth="0" timeout="30" interval="10" />
 <action name="monitor" depth="0" timeout="30" interval="10" />
 <action name="migrate_from" timeout="60" />
@@ -183,9 +185,17 @@ set_util_attr() {
 	local cval outp
 
 	cval=$(crm_resource -Q -r $OCF_RESOURCE_INSTANCE -z -g $attr 2>/dev/null)
+	if [ $? -ne 0 ] && [ -z "$cval" ]; then
+		crm_resource -Q -r $OCF_RESOURCE_INSTANCE -z -g $attr 2>&1 | grep -e "not connected" > /dev/null 2>&1
+		if [ $? -eq 0 ]; then
+			ocf_log debug "Unable to set utilization attribute, cib is not available"
+			return
+		fi
+	fi
+
 	if [ "$cval" != "$val" ]; then
-	   outp=`crm_resource -r $OCF_RESOURCE_INSTANCE -z -p $attr -v $val 2>&1` ||
-	   ocf_log warn "crm_resource failed to set utilization attribute $attr: $outp"
+		outp=$(crm_resource -r $OCF_RESOURCE_INSTANCE -z -p $attr -v $val 2>&1) ||
+		ocf_log warn "crm_resource failed to set utilization attribute $attr: $outp"
 	fi
 }
 
@@ -193,12 +203,41 @@ update_utilization() {
 	local dom_cpu dom_mem
 
 	if ocf_is_true "$OCF_RESKEY_autoset_utilization_cpu"; then
-	   dom_cpu=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} | awk '/CPU\(s\)/{print $2}')
+	   dom_cpu=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} 2>/dev/null | awk '/CPU\(s\)/{print $2}')
 	   test -n "$dom_cpu" && set_util_attr cpu $dom_cpu
 	fi
 	if ocf_is_true "$OCF_RESKEY_autoset_utilization_hv_memory"; then
-	   dom_mem=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} | awk '/Max memory/{printf("%d", $3/1024)}')
+	   dom_mem=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} 2>/dev/null | awk '/Max memory/{printf("%d", $3/1024)}')
 	   test -n "$dom_mem" && set_util_attr hv_memory "$dom_mem"
+	fi
+}
+
+get_emulator()
+{
+	local emulator=""
+
+	emulator=$(virsh $VIRSH_OPTIONS dumpxml $DOMAIN_NAME 2>/dev/null | sed -n -e 's/^.*<emulator>\(.*\)<\/emulator>.*$/\1/p')
+	if [ -z "$emulator" ] && [ -a "$EMULATOR_STATE" ]; then
+		emulator=$(cat $EMULATOR_STATE)
+	fi
+	if [ -z "$emulator" ]; then
+		emulator=$(cat ${OCF_RESKEY_config} | sed -n -e 's/^.*<emulator>\(.*\)<\/emulator>.*$/\1/p')
+	fi
+
+	if [ -n "$emulator" ]; then
+		basename $emulator
+	else 
+		ocf_log error "Unable to determine emulator for $DOMAIN_NAME" 
+	fi
+}
+
+update_emulator_cache()
+{
+	local emulator
+
+	emulator=$(get_emulator)
+	if [ -n "$emulator" ]; then
+		echo $emulator > $EMULATOR_STATE
 	fi
 }
 
@@ -206,9 +245,7 @@ update_utilization() {
 pid_status()
 {
 	local rc=$OCF_ERR_GENERIC
-	local emulator
-
-	emulator=$(basename $(egrep '[[:space:]]*<emulator>.*</emulator>[[:space:]]*$' ${OCF_RESKEY_config} | sed -e 's/[[:space:]]*<emulator>\(.*\)<\/emulator>[[:space:]]*$/\1/'))
+	local emulator=$(get_emulator)
 
 	case "$emulator" in
 		qemu-kvm|qemu-system-*)
@@ -237,13 +274,13 @@ VirtualDomain_Status() {
 	status="no state"
 	while [ "$status" = "no state" ]; do
 		try=$(($try + 1 ))
-		status=$(virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME 2>&1|tr 'A-Z' 'a-z')
+		status=$(virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME 2>&1 | tr 'A-Z' 'a-z')
 		case "$status" in
 			*"error:"*"domain not found"*|"shut off")
 				# shut off: domain is defined, but not started, will not happen if
 				#   domain is created but not defined
 				# Domain not found: domain is not defined and thus not started
-				ocf_log debug "Virtual domain $DOMAIN_NAME is currently $status."
+				ocf_log debug "Virtual domain $DOMAIN_NAME is not running: $(echo $status | sed s/error://g)"
 				rc=$OCF_NOT_RUNNING
 				;;
 			running|paused|idle|blocked|"in shutdown")
@@ -282,12 +319,13 @@ VirtualDomain_Status() {
 					# again, relying on the CRM/LRM to time us out if
 					# this takes too long.
 					ocf_log info "Virtual domain $DOMAIN_NAME currently has no state, retrying."
-					sleep 1
 				fi
+				sleep 1
 				;;
 			*)
 				# any other output is unexpected.
 				ocf_log error "Virtual domain $DOMAIN_NAME has unknown status \"$status\"!"
+				sleep 1
 				;;
 		esac
 	done
@@ -295,7 +333,7 @@ VirtualDomain_Status() {
 }
 
 verify_undefined() {
-	for dom in `virsh --connect=${OCF_RESKEY_hypervisor} list --all --name`; do
+	for dom in `virsh --connect=${OCF_RESKEY_hypervisor} list --all --name 2>/dev/null`; do
 		if [ "$dom" = "$DOMAIN_NAME" ]; then
 			virsh $VIRSH_OPTIONS undefine $DOMAIN_NAME > /dev/null 2>&1
 			return
@@ -340,6 +378,7 @@ VirtualDomain_Start() {
 	while ! VirtualDomain_Monitor; do
 		sleep 1
 	done
+	
 	return $OCF_SUCCESS
 }
 
@@ -530,6 +569,7 @@ VirtualDomain_Monitor() {
 		done
 	fi
 
+	update_emulator_cache
 	update_utilization
 
 	return ${rc}
@@ -582,7 +622,7 @@ case $1 in
 esac
 
 # Grab the virsh uri default, but only if hypervisor isn't set
-: ${OCF_RESKEY_hypervisor=$(virsh --quiet uri)}
+: ${OCF_RESKEY_hypervisor=$(virsh --quiet uri 2>/dev/null)}
 
 # Set options to be passed to virsh:
 VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor} --quiet"
@@ -607,6 +647,8 @@ if [ -z $DOMAIN_NAME ]; then
 	ocf_log err "This is unexpected. Cannot determine domain name."
 	exit $OCF_ERR_GENERIC
 fi
+
+EMULATOR_STATE="${HA_RSCTMP}/VirtualDomain-${DOMAIN_NAME}-emu.state"
 
 case $1 in
 	start)
