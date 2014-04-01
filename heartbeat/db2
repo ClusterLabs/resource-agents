@@ -532,8 +532,8 @@ db2_stop() {
     # be very early here in order to avoid stale data
     rm -f $STATE_FILE
 
-    if ! db2_instance_status
-    then
+    db2_instance_status
+    if [ $? -eq $OCF_NOT_RUNNING ]; then
         ocf_log info "DB2 instance $instance already stopped"
         return $OCF_SUCCESS
     fi
@@ -610,7 +610,12 @@ db2_instance_status() {
     local pscount
 
     pscount=$(runasdb2 $db2bin/db2nps $db2node | cut -c9- |  grep ' db2[^ ]' | wc -l)
-    test $pscount -ge 4
+    if [ $pscount -ge 4 ]; then
+        return $OCF_SUCCESS;
+    elif [ $pscount -ge 1 ]; then
+        return $OCF_GENERIC_ERR
+    fi
+    return $OCF_NOT_RUNNING
 }
 
 #
@@ -651,12 +656,14 @@ db2_hadr_status() {
 #
 db2_monitor() {
     local CMD output hadr db
+    local rc
 
-    if ! db2_instance_status
-    then
+    db2_instance_status
+    rc=$?
+    if [ $rc -ne $OCF_SUCCESS ]; then
         # instance is dead remove master score
         master_score -D -l reboot
-        exit $OCF_NOT_RUNNING
+        exit $rc
     fi
 
     [ $db2node = 0 ] || return 0
