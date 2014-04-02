@@ -671,7 +671,8 @@ set_blockdevice_var() {
 		;;
 	*)
 		if [ ! -b "$DEVICE"  -a ! -d "$DEVICE" -a "X$OP" != Xstart ] ; then
-			ocf_log warn "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
+			ocf_log err "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
+			exit $OCF_ERR_INSTALLED
 		fi
 		if [ ! -d "$DEVICE" ]; then
 			blockdevice=yes
