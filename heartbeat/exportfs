@@ -14,7 +14,7 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
-OCF_RESKEY_unlock_on_stop_default=0
+OCF_RESKEY_unlock_on_stop_default=1
 OCF_RESKEY_wait_for_leasetime_on_stop_default=0
 OCF_RESKEY_rmtab_backup_default=".rmtab"
 
@@ -95,6 +95,12 @@ Unique fsid within cluster.
 Relinquish NFS locks associated with this filesystem when the resource
 stops. Enabling this parameter is highly recommended unless the path exported
 by this ${__SCRIPT_NAME} resource is also exported by a different resource.
+
+Note: Unlocking is only possible on Linux systems where
+/proc/fs/nfsd/unlock_filesystem exists and is writable. If your system does
+not fulfill this requirement (on account of having an nonrecent kernel,
+for example), you may set this parameter to 0 to silence the associated
+warning.
 </longdesc>
 <shortdesc lang="en">
 Unlock filesystem on stop?
