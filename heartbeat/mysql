@@ -411,7 +411,7 @@ get_read_only() {
     local read_only_state
 
     read_only_state=`$MYSQL $MYSQL_OPTIONS_REPL \
-        -e "SHOW VARIABLES" | grep read_only | awk '{print $2}'`
+        -ss -e "SHOW VARIABLES LIKE 'read_only'" | awk '{print $2}'`
 
     if [ "$read_only_state" = "ON" ]; then
         return 0
