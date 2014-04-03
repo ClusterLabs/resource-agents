@@ -48,24 +48,13 @@
 #######################################################################
 # Initialization:
 
-#[ -z "$OCF_ROOT" ] && exit 5
-#[ -d ${OCF_ROOT}/resource.d/heartbeat ] && OCF_FUNCTIONS_DIR="${OCF_ROOT}/resource.d/heartbeat"
-#[ -d ${OCF_ROOT}/lib/heartbeat ] && OCF_FUNCTIONS_DIR="${OCF_ROOT}/lib/heartbeat"
-
-#[ -z "$OCF_FUNCTIONS_DIR" ] && exit 5
-#[ -e ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs ] && OCF_SHELLFUNCS="${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs"
-#[ -e ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs ] && OCF_SHELLFUNCS="${OCF_FUNCTIONS_DIR}/ocf-shellfuncs"
-
-#[ -z "$OCF_SHELLFUNCS" ] && exit 5
-#. $OCF_SHELLFUNCS
-
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 #######################################################################
 
 
 # uncomment the next line for debugging messages
-HA_debug=1
+# HA_debug=1
 
 RESOURCE="$OCF_RESKEY_sg_persist_resource"
 
@@ -116,8 +105,7 @@ Resorce init functions for several sg_persist resources can be put in one config
 
 <parameter name="devs" unique="0" required="1">
 <longdesc lang="en">
-Device list  
-"echo \$devs" is actually used, so shell wildcars are allowed.
+Device list. Shell wildcars are allowed.
 </longdesc>
 <shortdesc lang="en">device list</shortdesc>
 <content type="string"/>
@@ -128,9 +116,9 @@ Device list
 Minimum number of "working" devices from device list
       1) existing 
       2) "sg_persist --read-keys \$device" works (Return code 0)
-resorce actions "start","monitor","promote" and "validate-all" return "\$OCF_ERR_INSTALLED"
+resource actions "start","monitor","promote" and "validate-all" return "\$OCF_ERR_INSTALLED"
 if the actual number of "working" devices is less then "required_devs_nof".
-resorce actions "stop" and "demote" tries to remove reservations and registration keys from 
+resource actions "stop" and "demote" tries to remove reservations and registration keys from 
 all working devices, but always return "\$OCF_SUCCESS"
 </longdesc>
 <shortdesc lang="en">minimum number of working devices</shortdesc>
@@ -177,6 +165,7 @@ Setting it to 0 will disable this behavior.
 </longdesc>
 <shortdesc lang="en">master_score decrease/increase delay time</shortdesc>
 <content type="string" default="30" />
+</parameter>
 </parameters>
 
 <actions>
@@ -218,7 +207,7 @@ sg_persist_do_cmd() {
 
 sg_persist_init() {
     
-    if [ !ocf_is_root ]; then
+    if ! ocf_is_root ; then
         ocf_log err "You must be root to perform this operation."
         exit $OCF_ERR_PERM
     fi 
@@ -236,9 +225,7 @@ sg_persist_init() {
     CRM_NODE="${HA_SBIN_DIR}/crm_node"
     if [ -z "$RESOURCE" ]; then
         ocf_log err "sg_persist_resource not defined."
-        if [ "$FORCE_OCF_SUCCESS" != "YES" ]; then
-            exit $OCF_ERR_INSTALLED
-        fi
+        exit $OCF_ERR_INSTALLED
     fi
 
     NODE_ID_DEC=$($CRM_NODE -i)
@@ -255,9 +242,7 @@ sg_persist_init() {
 
     if [ -z "$NODE_ID_HEX" ]; then
         ocf_log err "Couldn't get node id with \"$CRM_NODE\""
-        if [ "$FORCE_OCF_SUCCESS" != "YES" ]; then
-            exit $OCF_ERR_INSTALLED
-        fi
+        exit $OCF_ERR_INSTALLED
     fi
 
     ocf_log debug "$RESOURCE: NODE:$NODE, ROLE:$ROLE, NODE_ID DEC:$NODE_ID_DEC HEX:$NODE_ID_HEX"
@@ -299,9 +284,7 @@ sg_persist_init() {
 
     if [ -z "$DEVS" ]; then
         ocf_log err "\"devs\" not defined"
-        if [ "$FORCE_OCF_SUCCESS" != "YES" ]; then
-            exit $OCF_ERR_INSTALLED
-        fi
+        exit $OCF_ERR_INSTALLED
     fi
  
     sg_persist_check_devs
@@ -314,9 +297,7 @@ sg_persist_read_config() {
 	. $SG_PERSIST_CONF
     else
         ocf_log err "resource configuration file \"$SG_PERSIST_CONF\" not owned by \"root\""
-        if [ "$FORCE_OCF_SUCCESS" != "YES" ]; then
-            exit $OCF_ERR_INSTALLED
-        fi
+        exit $OCF_ERR_INSTALLED
     fi
 
     unset DEVS
@@ -326,9 +307,7 @@ sg_persist_read_config() {
         sg_persist_resource_$RESOURCE
     else
         ocf_log err "Function sg_persist_resource_$RESOURCE not defined in $SG_PERSIST_CONF"
-        if [ "$FORCE_OCF_SUCCESS" != "YES" ]; then
-            exit $OCF_ERR_INSTALLED
-        fi
+        exit $OCF_ERR_INSTALLED
     fi
 
 }
@@ -398,9 +377,7 @@ sg_persist_check_devs() {
     EXISTING_DEVS_NOF=${#EXISTING_DEVS[*]}
     if [ $EXISTING_DEVS_NOF -lt $REQUIRED_DEVS_NOF ]; then 
         ocf_log err "Number of existing devices=$EXISTING_DEVS_NOF less then required_devs_nof=$REQUIRED_DEVS_NOF"
-        if [ "$FORCE_OCF_SUCCESS" != "YES" ]; then
-            exit $OCF_ERR_INSTALLED
-        fi
+        exit $OCF_ERR_INSTALLED
     fi
 
 }
@@ -442,7 +419,8 @@ sg_persist_action_start() {
             : OK
         else
             sg_persist_do_cmd $SG_PERSIST --out --register --param-rk=0 --param-sark=$NODE_ID_HEX $dev
-            if sg_persist --in --read-status $dev ; then
+            if [ $? -ne 0 ]
+            then
                 return $OCF_ERR_GENERIC
             fi
         fi
@@ -527,58 +505,57 @@ sg_persist_action_monitor() {
     DO_PENDING_UPDATE="NO"
     if [ -n "$ACT_MASTER_SCORE" ] 
     then
-        if [ $ACT_MASTER_SCORE -ne $MASTER_SCORE ]
-        then
-            if [ "$ROLE" == "Master" ]
-            then
-                if [ $MASTER_SCORE -lt $ACT_MASTER_SCORE ]
-                then
-                    if [ -n "$ACT_PENDING" ] 
-                    then
-                        if [ $(($NOW-$ACT_PENDING_TS-$MASTER_SCORE_DELAY)) -ge 0 ]
-                        then
-                            sg_persist_new_master_score $MASTER_SCORE
-                            sg_persist_clear_pending
-                        fi
-                    else
-                        if [ $MASTER_SCORE_DELAY -eq 0 ]
-                        then
-                            sg_persist_new_master_score $MASTER_SCORE
-                            sg_persist_clear_pending
-                        else
-                            sg_persist_new_pending "${NOW}_${MASTER_SCORE}"
-                        fi
-                    fi
-                else
-                    sg_persist_new_master_score $MASTER_SCORE
-                    sg_persist_clear_pending
-                fi
-            else
-                if [ $MASTER_SCORE -gt $ACT_MASTER_SCORE ]
-                then
-                    if [ -n "$ACT_PENDING" ] 
-                    then
-                        if [ $(($NOW-$ACT_PENDING_TS-$MASTER_SCORE_DELAY)) -ge 0 ]
-                        then
-                            sg_persist_new_master_score $MASTER_SCORE
-                            sg_persist_clear_pending
-                        fi
-                    else
-                        if [ $MASTER_SCORE_DELAY -eq 0 ]
-                        then
-                            sg_persist_new_master_score $MASTER_SCORE
-                            sg_persist_clear_pending
-                        else
-                            sg_persist_new_pending "${NOW}_${MASTER_SCORE}"
-                        fi
-                    fi
-                else
-                    sg_persist_new_master_score $MASTER_SCORE
-                    sg_persist_clear_pending
-                fi
-            fi
-        else
+        if [ $ACT_MASTER_SCORE -eq $MASTER_SCORE ]; then
             sg_persist_clear_pending
+        else
+	        case $ROLE in
+            Master)  
+                if [ $MASTER_SCORE -lt $ACT_MASTER_SCORE ]; then
+                    if [ -n "$ACT_PENDING" ] 
+                    then
+                        if [ $(($NOW-$ACT_PENDING_TS-$MASTER_SCORE_DELAY)) -ge 0 ]; then
+                            sg_persist_new_master_score $MASTER_SCORE
+                            sg_persist_clear_pending
+                        fi
+                    else
+                        if [ $MASTER_SCORE_DELAY -eq 0 ]; then
+                            sg_persist_new_master_score $MASTER_SCORE
+                            sg_persist_clear_pending
+                        else
+                            sg_persist_new_pending "${NOW}_${MASTER_SCORE}"
+                        fi
+                    fi
+                else
+                    sg_persist_new_master_score $MASTER_SCORE
+                    sg_persist_clear_pending
+                fi
+                ;;
+
+            Slave)
+                if [ $MASTER_SCORE -gt $ACT_MASTER_SCORE ]; then
+                    if [ -n "$ACT_PENDING" ]; then 
+                        if [ $(($NOW-$ACT_PENDING_TS-$MASTER_SCORE_DELAY)) -ge 0 ]; then
+                            sg_persist_new_master_score $MASTER_SCORE
+                            sg_persist_clear_pending
+                        fi
+                    else
+                        if [ $MASTER_SCORE_DELAY -eq 0 ]; then
+                            sg_persist_new_master_score $MASTER_SCORE
+                            sg_persist_clear_pending
+                        else
+                            sg_persist_new_pending "${NOW}_${MASTER_SCORE}"
+                        fi
+                    fi
+                else
+                    sg_persist_new_master_score $MASTER_SCORE
+                    sg_persist_clear_pending
+                fi
+                ;;
+
+            *)
+                ;;
+
+            esac
         fi
     fi
 
@@ -595,11 +572,11 @@ sg_persist_action_monitor() {
         return $OCF_NOT_RUNNING
     fi
 
-    if [ ${#RESERVED_DEVS[*]} -gt 0 ]; then 
+    if [ ${#RESERVED_DEVS[*]} -eq ${#WORKING_DEVS[*]} ]; then 
         return $OCF_RUNNING_MASTER
     fi
 
-    if [ ${#REGISTERED_DEVS[*]} -gt 0 ]; then 
+    if [ ${#REGISTERED_DEVS[*]} -eq ${#WORKING_DEVS[*]} ]; then 
         if [ $RESERVATION_TYPE -eq 7 ] || [ $RESERVATION_TYPE -eq 8]; then
             if [ ${#DEVS_WITH_RESERVATION[*]} -gt 0 ]; then
                 return $OCF_RUNNING_MASTER
@@ -626,9 +603,9 @@ sg_persist_action_promote() {
     for dev in ${WORKING_DEVS[*]}
     do
         reservation_key=`sg_persist_get_reservation_key $dev`
-        echo "RK=$reservation_key"
-        if [ $RESERVATION_TYPE -eq 1 ] || [ $RESERVATION_TYPE -eq 3 ] || [ $RESERVATION_TYPE -eq 5 ] || [ $RESERVATION_TYPE -eq 6 ]; then
-            if [ "$reservation_key" == "" ]; then 
+        case $RESERVATION_TYPE in
+        1|3|5|6)        
+            if [ -z "$reservation_key" ]; then
                 sg_persist_do_cmd $SG_PERSIST --out --reserve --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
                 if [ $? -ne 0 ]; then
                     return $OCF_ERR_GENERIC
@@ -639,7 +616,9 @@ sg_persist_action_promote() {
                     return $OCF_ERR_GENERIC
                 fi
             fi
-        else    
+            ;;
+
+        7|8) 
             if [ -z "$reservation_key" ]; then
                 sg_persist_do_cmd $SG_PERSIST --out --reserve --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
                 if [ $? -ne 0 ]
@@ -650,25 +629,21 @@ sg_persist_action_promote() {
                 ocf_log info "$RESOURCE promote: there already exist an reservation holder, all registrants become reservation holders"
                 return $OCF_SUCCESS
             fi
-        fi
+            ;;
+  
+        *)
+            return $OCF_ERR_ARGS
+            ;;
+
+        esac
     done
 
     return $OCF_SUCCESS
 }
 
 sg_persist_action_demote() {
-   #in case of 7/8, --release won't release the reservation unless unregister the key.    
-   if [ $RESERVATION_TYPE -eq 7 ] || [ $RESERVATION_TYPE -eq 8 ]; then 
-        if [ ${#REGISTERED_DEVS[*]} -eq 0 ]; then 
-            ocf_log info "$RESOURCE demote: already slave"
-            return $OCF_SUCCESS
-        fi
-
-        for dev in ${REGISTERED_DEVS[*]}
-        do
-            sg_persist_do_cmd $SG_PERSIST --out --register --param-rk=$NODE_ID_HEX --param-sark=0 $dev
-        done
-    else
+    case $RESERVATION_TYPER in
+    1|3|5|6)
         if [ ${#RESERVED_DEVS[*]} -eq 0 ]; then 
             ocf_log info "$RESOURCE demote: already slave"
             return $OCF_SUCCESS
@@ -677,8 +652,31 @@ sg_persist_action_demote() {
         for dev in ${RESERVED_DEVS[*]}
         do
             sg_persist_do_cmd $SG_PERSIST --out --release --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
+            if [ $? -ne 0 ]; then
+               return $OCF_ERR_GENERIC
+            fi
         done
-    fi
+        ;;
+
+    7|8)  #in case of 7/8, --release won't release the reservation unless unregister the key.    
+        if [ ${#REGISTERED_DEVS[*]} -eq 0 ]; then 
+            ocf_log info "$RESOURCE demote: already slave"
+            return $OCF_SUCCESS
+        fi
+
+        for dev in ${REGISTERED_DEVS[*]}
+        do
+            sg_persist_do_cmd $SG_PERSIST --out --register --param-rk=$NODE_ID_HEX --param-sark=0 $dev
+            if [ $? -ne 0 ]; then
+               return $OCF_ERR_GENERIC
+            fi
+        done
+        ;;
+   
+    *)
+        return $OCF_ERR_ARGS
+        ;;
+    esac
 
     return $OCF_SUCCESS
 }
@@ -723,8 +721,6 @@ if [ $# -ne 1 ]; then
     exit $OCF_ERR_ARGS
 fi
 
-: ${OCF_RESKEY_CRM_meta_interval=0}
-
 ACTION=$1
 case $ACTION in
     meta-data)    
@@ -736,32 +732,11 @@ case $ACTION in
         sg_persist_action_validate_all
         ;;
 
-    start|promote)
+    start|promote|monitor|stop|demote)
         ocf_log debug "$RESOURCE: starting action \"$ACTION\""
-        #ocf_log debug `env`
-        
         sg_persist_init
         sg_persist_action_$ACTION
         exit $?
-        ;;
-        
-    monitor)
-        FORCE_OCF_SUCCESS='YES'
-        ocf_log debug "$RESOURCE: starting action \"$ACTION\""
-        #ocf_log debug `env`
-        
-        sg_persist_init
-        sg_persist_action_$ACTION
-        exit $?
-        ;;
-
-    stop|demote)    
-        FORCE_OCF_SUCCESS='YES'
-        ocf_log debug "$RESOURCE: starting action \"$ACTION\""
-        
-        sg_persist_init
-        sg_persist_action_$ACTION
-        exit $OCF_SUCCESS
         ;;
         
     notify)    
