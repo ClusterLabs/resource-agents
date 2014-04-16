@@ -82,6 +82,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			iface-bridge		\
 			iface-vlan		\
 			jboss			\
+			kamailio		\
 			LinuxSCSI		\
 			LVM			\
 			lxc			\
