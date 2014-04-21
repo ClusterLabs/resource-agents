@@ -87,9 +87,18 @@ CMIRROR="cmirrord"
 DAEMON_PATH="${sbindir}/clvmd"
 CMIRROR_PATH="${sbindir}/cmirrord"
 LOCK_FILE="/var/lock/subsys/$DAEMON"
-LVM_VGCHANGE=${sbindir}/vgchange
-LVM_VGDISPLAY=${sbindir}/vgdisplay
-LVM_VGSCAN=${sbindir}/vgscan
+
+# attempt to detect where the vg tools are located
+# for some reason this isn't consistent with sbindir
+# in some distros.
+vgtoolsdir=$(dirname $(which vgchange 2> /dev/null) 2> /dev/null)
+if [ -z "$vgtoolsdir" ]; then
+       vgtoolsdir="$sbindir"
+fi
+
+LVM_VGCHANGE=${vgtoolsdir}/vgchange
+LVM_VGDISPLAY=${vgtoolsdir}/vgdisplay
+LVM_VGSCAN=${vgtoolsdir}/vgscan
 
 # Leaving this in for legacy. We do not want to advertize
 # the abilty to set options in the systconfig exists, we want
