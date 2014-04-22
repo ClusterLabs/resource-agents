@@ -392,7 +392,7 @@ ip_init() {
 	if ocf_is_decimal "$IP_INC_GLOBAL" && [ $IP_INC_GLOBAL -gt 0 ]; then
 		:
 	else
-		ocf_log err "Invalid OCF_RESKEY_incarnations_max_global [$IP_INC_GLOBAL], should be positive integer"
+		ocf_log err "Invalid OCF_RESKEY_meta_clone_max [$IP_INC_GLOBAL], should be positive integer"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
