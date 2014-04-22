@@ -401,22 +401,41 @@ killkill()
 	done
 }
 
-
-stop_locking()
+stop_process()
 {
-	declare ret 
+	declare process=$1
 
-	ocf_log info "Stopping rpc.statd"
-	if terminate rpc.statd; then
-		ocf_log debug "rpc.statd is stopped"
+	ocf_log info "Stopping $process"
+	if terminate $process; then
+		ocf_log debug "$process is stopped"
 	else
-		if killkill rpc.statd; then
-			ocf_log debug "rpc.statd is stopped"
+		if killkill $process; then
+			ocf_log debug "$process is stopped"
 		else
-			ocf_log debug "Failed to stop rpc.statd"
+			ocf_log debug "Failed to stop $process"
 			return 1
 		fi
 	fi
+	return 0
+}
+
+stop_locking()
+{
+	ret=0
+
+	# sm-notify can prevent umount of /var/lib/nfs/statd if
+	# it is still trying to notify unresponsive clients.
+	stop_process sm-notify
+	if [ $? -ne 0]; then
+		ret=1
+	fi
+
+	stop_process rpc.statd
+	if [ $? -ne 0]; then
+		ret=1
+	fi
+
+	return $ret
 }
 
 
