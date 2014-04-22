@@ -106,10 +106,17 @@ generate_config_file()
 start()
 {
 	declare ip_list;
+	declare username=""
 	
 	clog_service_start $CLOG_INIT
 
-	create_pid_directory
+	# Pull out the user name from the options argument if it is set.
+	# We need this to properly set the pidfile permissions
+	if [ -n "$OCF_RESKEY_named_options" ]; then
+		username=$(echo "$OCF_RESKEY_named_options" | sed -n -e 's/^.*-u[[:space:]]*\(\S*\)[[:space:]]*.*$/\1/p')
+	fi
+
+	create_pid_directory "$username"
 	create_conf_directory "$NAMED_conf_dir"
 	check_pid_file "$NAMED_pid_file"
 
@@ -136,6 +143,8 @@ start()
 		clog_looking_for $CLOG_FAILED_NOT_FOUND "IP Addresses"
 		return $OCF_ERR_GENERIC
 	fi
+
+	[ -x /sbin/portrelease ] && /sbin/portrelease named &>/dev/null
 
 	generate_config_file "$OCF_RESKEY_config_file" "$NAMED_gen_config_file" "$ip_list"
 

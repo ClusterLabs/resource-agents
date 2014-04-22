@@ -220,22 +220,12 @@ generate_name_for_conf_dir()
 	return 0;
 }
 
-#
-# Usage: create_pid_directory [username]
-#
-create_pid_directory()
+set_pid_directory_permissions()
 {
-	declare program_name="$(basename $0 | sed 's/^\(.*\)\..*/\1/')"
-	declare dirname="$RA_COMMON_pid_dir/$program_name"
-	declare username="$1"
+	declare program_name="$1"
+	declare dirname="$2"
+	declare username="$3"
 
-	if [ -d "$dirname" ]; then
-		return 0;
-	fi
-	
-	chmod 711 "$RA_COMMON_pid_dir"
-	mkdir -p "$dirname"
-	
 	if [ "$program_name" = "mysql" ]; then
 		if [ -n "$username" ]; then
 			chown "${username}.root" "$dirname"
@@ -248,8 +238,32 @@ create_pid_directory()
 		else
 			chown tomcat.root "$dirname"
 		fi
+	elif [ "$program_name" = "named" ]; then
+		if [ -n "$username" ]; then
+			chown "${username}.root" "$dirname"
+		fi
 	fi
+}
 
+#
+# Usage: create_pid_directory [username]
+#
+create_pid_directory()
+{
+	declare program_name="$(basename $0 | sed 's/^\(.*\)\..*/\1/')"
+	declare dirname="$RA_COMMON_pid_dir/$program_name"
+	declare username="$1"
+
+	if [ -d "$dirname" ]; then
+		# make sure the permissions are correct even if directory exists
+		set_pid_directory_permissions "$program_name" "$dirname" "$username"
+		return 0;
+	fi
+	
+	chmod 711 "$RA_COMMON_pid_dir"
+	mkdir -p "$dirname"
+
+	set_pid_directory_permissions "$program_name" "$dirname" "$username"
 	return 0;
 }
 
