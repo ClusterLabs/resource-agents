@@ -249,21 +249,29 @@ pid_status()
 
 	case "$emulator" in
 		qemu-kvm|qemu-system-*)
+			rc=$OCF_NOT_RUNNING
 			ps awx | grep -E "[q]emu-(kvm|system).*-name $DOMAIN_NAME " > /dev/null 2>&1
 			if [ $? -eq 0 ]; then
-				# domain exists and is running
-				ocf_log debug "Virtual domain $DOMAIN_NAME is currently running."
 				rc=$OCF_SUCCESS
-			else 
-				# domain pid does not exist on local machine
-				ocf_log debug "Virtual domain $DOMAIN_NAME is currently not running."
-				rc=$OCF_NOT_RUNNING
+			fi
+			;;
+		libvirt_lxc)
+			rc=$OCF_NOT_RUNNING
+			ps awx | grep -E "[l]ibvirt_lxc.*-name $DOMAIN_NAME " > /dev/null 2>&1
+			if [ $? -eq 0 ]; then
+				rc=$OCF_SUCCESS
 			fi
 			;;
 		# This can be expanded to check for additional emulators
 		*)
 			;;
 	esac
+
+	if [ $rc -eq $OCF_SUCCESS ]; then
+		ocf_log debug "Virtual domain $DOMAIN_NAME is currently running."
+	elif [ $rc -eq $OCF_NOT_RUNNING ]; then
+		ocf_log debug "Virtual domain $DOMAIN_NAME is currently not running."
+	fi
 
 	return $rc
 }
