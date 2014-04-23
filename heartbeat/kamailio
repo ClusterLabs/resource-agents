@@ -37,6 +37,7 @@
 #  OCF_RESKEY_proto
 #  OCF_RESKEY_sipsak
 #  OCF_RESKEY_kamctlrc
+#  OCF_RESKEY_kamuser
 
 # Initialization:
 
@@ -54,6 +55,7 @@ RESKEY_port_default=5060
 RESKEY_proto_default="udptcp"
 RESKEY_sipsak_default="/usr/bin/sipsak"
 RESKEY_kamctlrc_default="/etc/kamailio/kamctlrc"
+RESKEY_kamuser_default=""
 
 #######################################################################
 : ${OCF_RESKEY_binary=${RESKEY_binary_default}}
@@ -64,6 +66,7 @@ RESKEY_kamctlrc_default="/etc/kamailio/kamctlrc"
 : ${OCF_RESKEY_proto=${RESKEY_proto_default}}
 : ${OCF_RESKEY_sipsak=${RESKEY_sipsak_default}}
 : ${OCF_RESKEY_kamctlrc=${RESKEY_kamctlrc_default}}
+: ${OCF_RESKEY_kamuser=${RESKEY_kamuser_default}}
 
 #######################################################################
 usage() {
@@ -112,8 +115,6 @@ Parameters for a third Kamailio instance:
     conffile=/etc/kamailio/kamailio3.cfg
     kamctlrc=""
     pidfile="/var/run/kamailio3.pid"
-...
-
 </longdesc>
 
 <shortdesc lang="en">Resource agent for Kamailio</shortdesc>
@@ -231,14 +232,23 @@ Parameters for a third Kamailio instance:
    </longdesc>
    <shortdesc lang="en">protocol</shortdesc>
    <content type="string" default="${RESKEY_kamctlrc_default}" />
+
+  <parameter name="kamuser" unique="0" required="0">
+   <longdesc lang="en">
+    The user account for kamailio process to run with.
+    Uses the current user, if not specified or empty.
+    There is no check, if running kamailio with the specified user account is possible.
+   </longdesc>
+   <shortdesc lang="en">kamailio user</shortdesc>
+   <content type="string" default="${RESKEY_kamuser_default}" />
   </parameter>
 </parameters>
 
  <actions>
-  <action name="start" timeout="30" />
+  <action name="start" timeout="60" />
   <action name="stop" timeout="30" />
-  <action name="status" depth="0" timeout="30" interval="10" start-delay="30" />
-  <action name="monitor" depth="0" timeout="30" interval="10" start-delay="30" />
+  <action name="status" timeout="30" interval="10" />
+  <action name="monitor" timeout="30" interval="10" />
   <action name="meta-data" timeout="5" />
   <action name="validate-all" timeout="5" />
   <action name="notify" timeout="5" />
@@ -250,11 +260,6 @@ END
 }
 
 #######################################################################
-# Constants
-
-# Timeouts
-KAMAILIO_START_TIMEOUT=3      # time for kamailio process to come up (s)
-KAMAILIO_STOP_TIMEOUT=25      # time for kill SIGTERM (s)
 
 ###
 #Check if a process with given PID is running
@@ -454,64 +459,67 @@ kamailio_monitor() {
 }
 
 kamailio_start() {
-if
-  kamailio_status
-then
-  ocf_log info "kamailio already running."
-  return $OCF_SUCCESS
-else
-  kamailio_cmd
-  #ocf_log debug ${kam_cmd}
-
-  local errorfile error output
-  errorfile=`mktemp`
-  output=`${kam_cmd} 2>>$errorfile`
-  result=$?
-  error=`cat $errorfile`
-  rm -f $errorfile
-
-  if [ $result -eq 0 ]; then
-     local -i wait_tries=$KAMAILIO_START_TIMEOUT
-     result=1
-     while [ $wait_tries != 0 -a $result != 0 ]; do
-          sleep 1
-          ((wait_tries--))
-          kamailio_get_pid >/dev/null
-          result=$?
-     done
-     if [ $result -ne 0 ]; then
-       if [ $result -eq 2 ]; then
-         ocf_log err "kamailio instance could not be started: PID file does not contain a PID of a ${OCF_RESKEY_binary} process!"
-         result=$OCF_ERR_GENERIC
-       else
-         ocf_log error "Kamailio has not started (timeout)!"
-         result=$OCF_NOT_RUNNING
-       fi
-     else
-       ocf_log info "kamailio instance PID=$PID started."
-       result=$OCF_SUCCESS
-     fi
+  if
+    kamailio_status
+  then
+    ocf_log info "kamailio already running."
+    return $OCF_SUCCESS
   else
+    kamailio_cmd
+    if [ "$OCF_RESKEY_kamuser" != "" ]; then
+      kam_cmd="su -s /bin/bash $OCF_RESKEY_kamuser -c \"$kam_cmd\""
+    fi
+    ocf_log info "start kamailio with $kam_cmd."
+    local errorfile error output
+    errorfile=`mktemp`
+    output=$(eval ${kam_cmd} 2>>$errorfile)
+    result=$?
+    error=`cat $errorfile`
+    rm -f $errorfile
+
+    if [ $result -eq 0 ]; then
+      result=1
+      while [ $result -ne 0 ]; do
+        sleep 1
+        kamailio_get_pid >/dev/null
+        result=$?
+      done
+      ocf_log info "kamailio instance PID=$PID started."
+      # check with monitor operation if running correctly
+      result=$OCF_NOT_RUNNING
+      while [ $result -ne $OCF_SUCCESS ]; do
+        sleep 1
+        kamailio_monitor
+        result=$?
+        ocf_log info "monitor in start returned $result"
+      done
+      ocf_log info "kamailio started successful."
+    else
       ocf_log err "kamailio instance could not be started, $(kamailio_format_result $result "$output" "$error")"
       result=$OCF_NOT_RUNNING
+    fi
+    return $result
   fi
-  return $result
-fi
 }
 
 kamailio_stop() {
   result=$OCF_SUCCESS
   kamailio_cmd
-  
+
   ocf_log info "Stopping kamailio by sending SIGTERM to ${kam_cmd}"
   pkill -SIGTERM -x -f "${kam_cmd}"
   if [ "$?" -eq 0 ]; then
      TRIES=0
+     if [ "$OCF_RESKEY_CRM_meta_timeout" != "" ]; then
+       KAMAILIO_STOP_TIMEOUT=$(( ($OCF_RESKEY_CRM_meta_timeout/1000) - 7 ))
+     else
+       KAMAILIO_STOP_TIMEOUT=20
+     fi
      while isRunning_cmd "${kam_cmd}" && [ "$TRIES" -lt "${KAMAILIO_STOP_TIMEOUT}" ]
      do
         sleep 1
         ocf_log info "kamailio ${kam_cmd} is still running after SIGTERM"
-        TRIES=`expr $TRIES + 1`
+        ((TRIES++))
      done
      isRunning_cmd "${kam_cmd}"
      RET=$?
@@ -523,7 +531,7 @@ kamailio_stop() {
         do
            sleep 1
            ocf_log info "kamailio ${kam_cmd} is still running after SIGKILL"
-           TRIES=`expr $TRIES + 1`
+           ((TRIES++))
         done
         isRunning_cmd "${kam_cmd}"
         RET=$?
