@@ -1651,7 +1651,8 @@ pgsql_validate_all() {
             else
                 if grep -q "$rep_mode_string" $OCF_RESKEY_config; then
                     ocf_log info "deleting include directive from $OCF_RESKEY_config"
-                    sed -i "/${rep_mode_string//\//\\/}/d" $OCF_RESKEY_config
+                    rep_mode_string=`echo $rep_mode_string | sed -e 's|/|\\\\/|g'`
+                    sed -i "/$rep_mode_string/d" $OCF_RESKEY_config
                 fi
             fi
         fi
