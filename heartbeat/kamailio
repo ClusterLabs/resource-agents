@@ -267,7 +267,7 @@ END
 ###
 isRunning_PID()
 {
-  kill -s 0 "$1" > /dev/null 2>&1
+    kill -s 0 "$1" > /dev/null 2>&1
 }
 
 ###
@@ -276,7 +276,7 @@ isRunning_PID()
 ###
 isRunning_cmd()
 {
-  pkill -s 0 "$1" > /dev/null 2>&1
+    pkill -s 0 "$1" > /dev/null 2>&1
 }
 
 ###
@@ -287,17 +287,18 @@ isRunning_cmd()
 # Parameter 3: Error output (stderr).
 #     Returns: Formatted result.
 kamailio_format_result() {
-  local exitstatus="$1"
-  local value="$2"
-  local error="$3"
-  echo -n "exit status: ${exitstatus}"
-  if [ -n "$value" ]; then
-  echo -n ", value: ${value}"
-  fi
-  if [ -n "$error" ]; then
-  echo -n ", error: ${error}"
-  fi
-  echo
+    local exitstatus="$1"
+    local value="$2"
+    local error="$3"
+
+    echo -n "exit status: ${exitstatus}"
+    if [ -n "$value" ]; then
+        echo -n ", value: ${value}"
+    fi
+    if [ -n "$error" ]; then
+        echo -n ", error: ${error}"
+    fi
+    echo
 }
 
 ###
@@ -307,20 +308,20 @@ kamailio_format_result() {
 
 kamailio_cmd()
 {
-  case ${OCF_RESKEY_proto} in
-     udp)  listen_param="-T -l udp:${OCF_RESKEY_listen_address}:${OCF_RESKEY_port} -l udp:127.0.0.1:${OCF_RESKEY_port}"
+    case ${OCF_RESKEY_proto} in
+    udp)  listen_param="-T -l udp:${OCF_RESKEY_listen_address}:${OCF_RESKEY_port} -l udp:127.0.0.1:${OCF_RESKEY_port}"
            ;;
-     tcp)  listen_param="-l tcp:${OCF_RESKEY_listen_address}:${OCF_RESKEY_port} -l tcp:127.0.0.1:${OCF_RESKEY_port}"
+    tcp)  listen_param="-l tcp:${OCF_RESKEY_listen_address}:${OCF_RESKEY_port} -l tcp:127.0.0.1:${OCF_RESKEY_port}"
            ;;
-     udptcp)  listen_param1="-l udp:${OCF_RESKEY_listen_address}:${OCF_RESKEY_port} -l udp:127.0.0.1:${OCF_RESKEY_port}"
+    udptcp)  listen_param1="-l udp:${OCF_RESKEY_listen_address}:${OCF_RESKEY_port} -l udp:127.0.0.1:${OCF_RESKEY_port}"
               listen_param2="-l tcp:${OCF_RESKEY_listen_address}:${OCF_RESKEY_port} -l tcp:127.0.0.1:${OCF_RESKEY_port}"
               listen_param="${listen_param1} ${listen_param2}"
            ;;
-     *)  listen_param="-T"
+    *)  listen_param="-T"
            ;;
-  esac
+    esac
 
-  kam_cmd="${OCF_RESKEY_binary} -P ${OCF_RESKEY_pidfile} -f ${OCF_RESKEY_conffile} $listen_param"
+    kam_cmd="${OCF_RESKEY_binary} -P ${OCF_RESKEY_pidfile} -f ${OCF_RESKEY_conffile} $listen_param"
 }
 
 ###
@@ -340,326 +341,326 @@ kamailio_cmd()
 #                   from our instance are still active
 
 kamailio_get_pid() {
-  if [ -f ${OCF_RESKEY_pidfile} ]; then
-    PID=`head -n 1 $OCF_RESKEY_pidfile`
-    if [ ! -z "$PID" ]; then
-       #Cross check if the PID file really contains a process of our kamailio instance:
-       kamailio_cmd
-       CROSSPID=`pgrep -o -f "${kam_cmd}"`
-       if [ x"$PID" == x"$CROSSPID" ]; then
-         #ocf_log debug "Found kamailio process PID with value: $PID."
-         return 0
-       else
-         #ocf_log debug "PID file does not contain a PID of a $OCF_RESKEY_binary process!"
-         return 2
-       fi
+    if [ -f ${OCF_RESKEY_pidfile} ]; then
+        PID=`head -n 1 $OCF_RESKEY_pidfile`
+        if [ ! -z "$PID" ]; then
+            #Cross check if the PID file really contains a process of our kamailio instance:
+            kamailio_cmd
+            CROSSPID=`pgrep -o -f "${kam_cmd}"`
+            if [ x"$PID" == x"$CROSSPID" ]; then
+                #ocf_log debug "Found kamailio process PID with value: $PID."
+                return 0
+            else
+                #ocf_log debug "PID file does not contain a PID of a $OCF_RESKEY_binary process!"
+                return 2
+            fi
+        else
+            #PID file does not contain a valid PID
+            rm -f ${OCF_RESKEY_pidfile}
+            return 2
+        fi
     else
-       #PID file does not contain a valid PID
-       rm -f ${OCF_RESKEY_pidfile}
-       return 2
+        # No PID file found!
+        #Check if still a process exists even though we don't have the PID any longer:
+        kamailio_cmd
+        pgrep -f "${kam_cmd}"
+        if [ $? -eq 0 ]; then
+            ocf_log info "PID file does not contain a valid PID, but kamailio process is still active"
+            return 2
+        else
+            ocf_log info "No PID file found and our kamailio instance is not active"
+            return 1
+        fi
     fi
-  else
-      # No PID file found!
-      #Check if still a process exists even though we don't have the PID any longer:
-      kamailio_cmd
-      pgrep -f "${kam_cmd}"
-      if [ $? -eq 0 ]; then
-        ocf_log info "PID file does not contain a valid PID, but kamailio process is still active"
-        return 2
-      else
-        ocf_log info "No PID file found and our kamailio instance is not active"
-        return 1
-      fi
-  fi
 }
 
 kamailio_status() {
-  local not_running_log_level="warn"
-  if [ "$__OCF_ACTION" = "start" ]; then
-    not_running_log_level="debug"
-  fi
+    local not_running_log_level="warn"
 
-  kamailio_get_pid >/dev/null
-  RET=$?
-  if [ $RET -eq 0 ]; then
-    PID=`head -n 1 $OCF_RESKEY_pidfile`
-    isRunning_PID "$PID"
+    if [ "$__OCF_ACTION" = "start" ]; then
+        not_running_log_level="debug"
+    fi
+
+    kamailio_get_pid >/dev/null
     RET=$?
-    if [ "$RET" -ne 0 ]; then
-        ocf_log $not_running_log_level "PID from $PID from ${OCF_RESKEY_pidfile} not running"
-        rm -f ${OCF_RESKEY_pidfile}
-        return $OCF_NOT_RUNNING
-    fi
+    if [ $RET -eq 0 ]; then
+        PID=`head -n 1 $OCF_RESKEY_pidfile`
+        isRunning_PID "$PID"
+        RET=$?
+        if [ "$RET" -ne 0 ]; then
+            ocf_log $not_running_log_level "PID from $PID from ${OCF_RESKEY_pidfile} not running"
+            rm -f ${OCF_RESKEY_pidfile}
+            return $OCF_NOT_RUNNING
+        fi
 
-    rc=0
-    # In case that OCF_RESKEY_kamctlrc we perfom a health check via "kamctl monitor 1"
-    if [ ! -z ${OCF_RESKEY_kamctlrc} ]; then
-      # PID is running now but it is not save to check via kamctl without care, because 
-      # the implementation analysis in the case that we kill all running processes
-      # shows that in case that the fifo cannot be read, then kamctl blocks. This needs
-      # to be avoided.
-      # In order to be on the safe side, we run this check therefore under "timeout" control:
-      rc=1
-      timeout 3 kamctl monitor 1 |grep "Up since" ; rc=$?
-    fi
+        rc=0
+        # In case that OCF_RESKEY_kamctlrc we perfom a health check via "kamctl monitor 1"
+        if [ ! -z ${OCF_RESKEY_kamctlrc} ]; then
+            # PID is running now but it is not save to check via kamctl without care, because 
+            # the implementation analysis in the case that we kill all running processes
+            # shows that in case that the fifo cannot be read, then kamctl blocks. This needs
+            # to be avoided.
+            # In order to be on the safe side, we run this check therefore under "timeout" control:
+            rc=1
+            timeout 3 kamctl monitor 1 |grep "Up since" ; rc=$?
+        fi
 
-    if [ $rc -ne 0 ];
-    then
-        ocf_log $not_running_log_level "Kamailio is not up according to kamctl monitor!"
-        return $OCF_NOT_RUNNING
-    else
-        local errorfile error output
-        errorfile=`mktemp`
-        case ${OCF_RESKEY_proto} in
-           udp)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp>/dev/null 2>>$errorfile`
-                 result=$?
-                 ;;
-           tcp)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport tcp>/dev/null 2>>$errorfile`
-                 result=$?
-                 ;;
-           udptcp)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport tcp>/dev/null 2>>$errorfile`
-                    result=$?
-                    if [ $result -eq 0 ]; then
-                      output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp>/dev/null 2>>$errorfile`
-                      result=$?
-                    else
-                      error=`cat $errorfile`
-                      rm -f $errorfile
-                      ocf_log $not_running_log_level "Kamailio is running, but not functional as sipsak TCP check failed with $(kamailio_format_result $result "$output" "$error")"
-                      result=$?
-                    fi
-                 ;;
-           *)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp>/dev/null 2>>$errorfile`
-               result=$?
-               ;;
-        esac
-
-        error=`cat $errorfile`
-        rm -f $errorfile
-
-        if [ $result -ne 0 ]; then
-           ocf_log $not_running_log_level "Kamailio is running, but not functional as sipsak ${OCF_RESKEY_proto} failed with $(kamailio_format_result $result "$output" "$error")"
-           return $OCF_ERR_GENERIC
+        if [ $rc -ne 0 ]; then
+            ocf_log $not_running_log_level "Kamailio is not up according to kamctl monitor!"
+            return $OCF_NOT_RUNNING
         else
-           return $OCF_SUCCESS
+            local errorfile error output
+            errorfile=`mktemp`
+            case ${OCF_RESKEY_proto} in
+            udp)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp>/dev/null 2>>$errorfile`
+                result=$?
+                ;;
+            tcp)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport tcp>/dev/null 2>>$errorfile`
+                result=$?
+                ;;
+            udptcp)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport tcp>/dev/null 2>>$errorfile`
+                result=$?
+                if [ $result -eq 0 ]; then
+                    output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp>/dev/null 2>>$errorfile`
+                    result=$?
+                else
+                    error=`cat $errorfile`
+                    rm -f $errorfile
+                    ocf_log $not_running_log_level "Kamailio is running, but not functional as sipsak TCP check failed with $(kamailio_format_result $result "$output" "$error")"
+                    result=$?
+                fi
+                ;;
+            *)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp>/dev/null 2>>$errorfile`
+                result=$?
+                ;;
+            esac
+
+            error=`cat $errorfile`
+            rm -f $errorfile
+
+            if [ $result -ne 0 ]; then
+                ocf_log $not_running_log_level "Kamailio is running, but not functional as sipsak ${OCF_RESKEY_proto} failed with $(kamailio_format_result $result "$output" "$error")"
+                return $OCF_ERR_GENERIC
+            else
+                return $OCF_SUCCESS
+            fi
+        fi
+    else
+        if [ $RET -eq 2 ]; then
+          ocf_log $not_running_log_level "PID file does not contain a PID of a ${OCF_RESKEY_binary} process!"
+          return $OCF_ERR_GENERIC
+        else
+          return $OCF_NOT_RUNNING
         fi
     fi
-  else
-    if [ $RET -eq 2 ]; then
-      ocf_log $not_running_log_level "PID file does not contain a PID of a ${OCF_RESKEY_binary} process!"
-      return $OCF_ERR_GENERIC
-    else
-      return $OCF_NOT_RUNNING
-    fi
-  fi
 }
 
 kamailio_monitor() {
- kamailio_status
+    kamailio_status
 }
 
 kamailio_start() {
-  local errorfile error output
+    local errorfile error output
 
-  if
-    kamailio_status
-  then
-    ocf_log info "kamailio already running."
-    return $OCF_SUCCESS
-  fi
+    if
+        kamailio_status
+    then
+        ocf_log info "kamailio already running."
+        return $OCF_SUCCESS
+    fi
 
-  kamailio_cmd
-  if [ "$OCF_RESKEY_kamuser" != "" ]; then
-    kam_cmd="su -s /bin/bash $OCF_RESKEY_kamuser -c \"$kam_cmd\""
-  fi
+    kamailio_cmd
+    if [ "$OCF_RESKEY_kamuser" != "" ]; then
+        kam_cmd="su -s /bin/bash $OCF_RESKEY_kamuser -c \"$kam_cmd\""
+    fi
 
-  ocf_log info "start kamailio with $kam_cmd."
-  errorfile=`mktemp`
-  output=$(eval ${kam_cmd} 2>>$errorfile)
-  result=$?
-  error=`cat $errorfile`
-  rm -f $errorfile
+    ocf_log info "start kamailio with $kam_cmd."
+    errorfile=`mktemp`
+    output=$(eval ${kam_cmd} 2>>$errorfile)
+    result=$?
+    error=`cat $errorfile`
+    rm -f $errorfile
 
-  if [ $result -eq 0 ]; then
-    result=1
-    while [ $result -ne 0 ]; do
-      sleep 1
-      kamailio_get_pid >/dev/null
-      result=$?
-    done
+    if [ $result -eq 0 ]; then
+        result=1
+        while [ $result -ne 0 ]; do
+            sleep 1
+            kamailio_get_pid >/dev/null
+            result=$?
+        done
 
-    ocf_log info "kamailio instance PID=$PID started."
-    # check with monitor operation if running correctly
-    result=$OCF_ERR_GENERIC
-    while [ $result -ne $OCF_SUCCESS ]; do
-      sleep 1
-      kamailio_monitor
-      result=$?
-      ocf_log info "monitor in start returned $result"
-    done
-    ocf_log info "kamailio started successful."
+        ocf_log info "kamailio instance PID=$PID started."
+        # check with monitor operation if running correctly
+        result=$OCF_ERR_GENERIC
+        while [ $result -ne $OCF_SUCCESS ]; do
+            sleep 1
+            kamailio_monitor
+            result=$?
+            ocf_log info "monitor in start returned $result"
+        done
+        ocf_log info "kamailio started successful."
 
-  else
-    ocf_log err "kamailio instance could not be started, $(kamailio_format_result $result "$output" "$error")"
-    result=$OCF_ERR_GENERIC
-  fi
+    else
+        ocf_log err "kamailio instance could not be started, $(kamailio_format_result $result "$output" "$error")"
+        result=$OCF_ERR_GENERIC
+    fi
 
-  return $result
+    return $result
 }
 
 kamailio_stop() {
-  local TRIES=0
-  result=$OCF_SUCCESS
+    local TRIES=0
+    result=$OCF_SUCCESS
 
-  kamailio_cmd
+    kamailio_cmd
 
-  ocf_log info "Stopping kamailio by sending SIGTERM to ${kam_cmd}"
-  pkill -SIGTERM -x -f "${kam_cmd}"
-  if [ $? -eq 1 ]; then
-    # already stopped. no processes found
-    rm -f ${OCF_RESKEY_pidfile}
-    return $result
-  fi
+    ocf_log info "Stopping kamailio by sending SIGTERM to ${kam_cmd}"
+    pkill -SIGTERM -x -f "${kam_cmd}"
+    if [ $? -eq 1 ]; then
+        # already stopped. no processes found
+        rm -f ${OCF_RESKEY_pidfile}
+        return $result
+    fi
 
-  if [ "$OCF_RESKEY_CRM_meta_timeout" != "" ]; then
-    KAMAILIO_STOP_TIMEOUT=$(( ($OCF_RESKEY_CRM_meta_timeout/1000) - 7 ))
-  else
-    KAMAILIO_STOP_TIMEOUT=20
-  fi
+    if [ "$OCF_RESKEY_CRM_meta_timeout" != "" ]; then
+        KAMAILIO_STOP_TIMEOUT=$(( ($OCF_RESKEY_CRM_meta_timeout/1000) - 7 ))
+    else
+        KAMAILIO_STOP_TIMEOUT=20
+    fi
 
-  while isRunning_cmd "${kam_cmd}" && [ "$TRIES" -lt "${KAMAILIO_STOP_TIMEOUT}" ]
-  do
-    sleep 1
-    ocf_log info "kamailio ${kam_cmd} is still running after SIGTERM"
-    ((TRIES++))
-  done
-
-  isRunning_cmd "${kam_cmd}"
-  RET=$?
-
-  if [ "$RET" -eq 0 ]; then
-    ocf_log info "Killing ${kam_cmd} with SIGKILL"
-    TRIES=0
-    pkill -SIGKILL -x -f "${kam_cmd}" > /dev/null 2>&1
-
-    while isRunning_cmd "${kam_cmd}" && [ "$TRIES" -lt 3 ]
+    while isRunning_cmd "${kam_cmd}" && [ "$TRIES" -lt "${KAMAILIO_STOP_TIMEOUT}" ]
     do
-      sleep 1
-      ocf_log info "kamailio ${kam_cmd} is still running after SIGKILL"
-      ((TRIES++))
+        sleep 1
+        ocf_log info "kamailio ${kam_cmd} is still running after SIGTERM"
+        ((TRIES++))
     done
 
     isRunning_cmd "${kam_cmd}"
     RET=$?
-    if [ "$RET" -eq 0 ]; then
-      ocf_log fatal "kamailio is still running even after SIGKILL"
-      result=$OCF_ERR_GENERIC
-    fi
-  else
-    ocf_log info "${kam_cmd} has stopped."
-  fi
 
-  rm -f ${OCF_RESKEY_pidfile}
-  return $result
+    if [ "$RET" -eq 0 ]; then
+        ocf_log info "Killing ${kam_cmd} with SIGKILL"
+        TRIES=0
+        pkill -SIGKILL -x -f "${kam_cmd}" > /dev/null 2>&1
+
+        while isRunning_cmd "${kam_cmd}" && [ "$TRIES" -lt 3 ]
+        do
+            sleep 1
+            ocf_log info "kamailio ${kam_cmd} is still running after SIGKILL"
+            ((TRIES++))
+        done
+
+        isRunning_cmd "${kam_cmd}"
+        RET=$?
+        if [ "$RET" -eq 0 ]; then
+            ocf_log fatal "kamailio is still running even after SIGKILL"
+            result=$OCF_ERR_GENERIC
+        fi
+    else
+        ocf_log info "${kam_cmd} has stopped."
+    fi
+
+    rm -f ${OCF_RESKEY_pidfile}
+    return $result
 
 }
 
 kamailio_validate_all() {
-  # Check if kamailio configuration is valid before starting the server
+    # Check if kamailio configuration is valid before starting the server
 
-  if [ ! -f $OCF_RESKEY_binary ]; then
-     ocf_log err "File OCF_RESKEY_binary [${OCF_RESKEY_binary}] does not exist!"
-     return $OCF_NOT_INSTALLED
-  fi
-  
-  out=$($OCF_RESKEY_binary -c 2>&1 > /dev/null)
-  retcode=$?
-  if [ "$retcode" -ne '0' ]; then
-     ocf_log info "Not starting kamailio: $OCF_RESKEY_binary does not start!"
-     return $OCF_ERR_CONFIGURED
-  fi
-  
-  case $OCF_RESKEY_monitoring_ip in
-     "")    ocf_log err "Required parameter OCF_RESKEY_monitoring_ip is missing!"
-            return $OCF_ERR_CONFIGURED
-            ;;
-     [0-9]*.[0-9]*.[0-9]*.[0-9]*)     : OK
-            ;;
-     *)     ocf_log err "Parameter OCF_RESKEY_monitoring_ip [$OCF_RESKEY_monitoring_ip] is not an IP address!"
-            return $OCF_ERR_CONFIGURED
-            ;;
-     esac 
-
-  case $OCF_RESKEY_listen_address in
-     "")    ocf_log err "Required parameter $OCF_RESKEY_listen_address is missing!"
-            return $OCF_ERR_CONFIGURED
-            ;;
-     [0-9]*.[0-9]*.[0-9]*.[0-9]*)    : OK
-            ;;
-     *)     ocf_log err "Parameter OCF_RESKEY_listen_address [$OCF_RESKEY_listen_address] not an IP address!"
-            return $OCF_ERR_CONFIGURED
-            ;;
-     esac 
-
-  if [ ! -f ${OCF_RESKEY_sipsak} ]; then
-     ocf_log err "sipsak [${OCF_RESKEY_sipsak}] does not exist!"
-     return $OCF_NOT_INSTALLED
-  fi
-
-  if [ ! -z ${OCF_RESKEY_kamctlrc} ]; then
-    if [ ! -f ${OCF_RESKEY_kamctlrc} ]; then
-       ocf_log err "kamctlrc file [${kamctlrc}] does not exist!"
+    if [ ! -f $OCF_RESKEY_binary ]; then
+       ocf_log err "File OCF_RESKEY_binary [${OCF_RESKEY_binary}] does not exist!"
        return $OCF_NOT_INSTALLED
     fi
-  else
-    ocf_log debug "No monitoring via kamctl monitor because the parameter [kamctlrc] is empty."
-  fi
+  
+    out=$($OCF_RESKEY_binary -c 2>&1 > /dev/null)
+    retcode=$?
+    if [ "$retcode" -ne '0' ]; then
+        ocf_log info "Not starting kamailio: $OCF_RESKEY_binary does not start!"
+        return $OCF_ERR_CONFIGURED
+    fi
 
-  if [ ! -f ${OCF_RESKEY_conffile} ]; then
-     ocf_log err "Kamailio configuration file provided in the parameter conffile [${OCF_RESKEY_conffile}] does not exist!"
-     return $OCF_ERR_CONFIGURED
-  fi
+    case $OCF_RESKEY_monitoring_ip in
+    "")    ocf_log err "Required parameter OCF_RESKEY_monitoring_ip is missing!"
+           return $OCF_ERR_CONFIGURED
+           ;;
+    [0-9]*.[0-9]*.[0-9]*.[0-9]*)     : OK
+            ;;
+    *)     ocf_log err "Parameter OCF_RESKEY_monitoring_ip [$OCF_RESKEY_monitoring_ip] is not an IP address!"
+           return $OCF_ERR_CONFIGURED
+           ;;
+    esac 
 
-  case $OCF_RESKEY_proto in
-     "")    ocf_log err "Parameter $OCF_RESKEY_proto is empty!"
+    case $OCF_RESKEY_listen_address in
+    "")    ocf_log err "Required parameter $OCF_RESKEY_listen_address is missing!"
+           return $OCF_ERR_CONFIGURED
+           ;;
+    [0-9]*.[0-9]*.[0-9]*.[0-9]*)    : OK
+           ;;
+    *)     ocf_log err "Parameter OCF_RESKEY_listen_address [$OCF_RESKEY_listen_address] not an IP address!"
+           return $OCF_ERR_CONFIGURED
+           ;;
+    esac 
+
+    if [ ! -f ${OCF_RESKEY_sipsak} ]; then
+        ocf_log err "sipsak [${OCF_RESKEY_sipsak}] does not exist!"
+        return $OCF_NOT_INSTALLED
+    fi
+
+    if [ ! -z ${OCF_RESKEY_kamctlrc} ]; then
+        if [ ! -f ${OCF_RESKEY_kamctlrc} ]; then
+            ocf_log err "kamctlrc file [${kamctlrc}] does not exist!"
+            return $OCF_NOT_INSTALLED
+        fi
+    else
+        ocf_log debug "No monitoring via kamctl monitor because the parameter [kamctlrc] is empty."
+    fi
+
+    if [ ! -f ${OCF_RESKEY_conffile} ]; then
+        ocf_log err "Kamailio configuration file provided in the parameter conffile [${OCF_RESKEY_conffile}] does not exist!"
+        return $OCF_ERR_CONFIGURED
+    fi
+
+    case $OCF_RESKEY_proto in
+    "")   ocf_log err "Parameter $OCF_RESKEY_proto is empty!"
+          return $OCF_ERR_CONFIGURED
+          ;;
+    udp|tcp|udptcp)    : OK
+        ;;
+    *)   ocf_log err "Parameter value $OCF_RESKEY_proto for parameter [proto] not yet supported!"
          return $OCF_ERR_CONFIGURED
          ;;
-     udp|tcp|udptcp)    : OK
-         ;;
-     *)     ocf_log err "Parameter value $OCF_RESKEY_proto for parameter [proto] not yet supported!"
-         return $OCF_ERR_CONFIGURED
-         ;;
-     esac
+    esac
 
-  return $OCF_SUCCESS
+    return $OCF_SUCCESS
 }
 
 if [ $# -ne 1 ]; then
-  usage
-  exit $OCF_ERR_ARGS
+    usage
+    exit $OCF_ERR_ARGS
 fi
 
 case $__OCF_ACTION in
-  meta-data) meta_data
-      exit $OCF_SUCCESS
-  ;;
-  start|stop|status|monitor)
-      kamailio_${__OCF_ACTION}
-  ;;
-  validate-all) kamailio_validate_all
-  ;;
-  notify) exit $OCF_SUCCESS
-  ;;
-  usage) usage
-       exit $OCF_SUCCESS
-  ;;
-#  reload) #Not supported by Kamailio, but not needed by pacemaker
-#  ;;
-#  recover #Not needed by pacemaker
-#  ;;
-  *) usage
-       exit $OCF_ERR_UNIMPLEMENTED
-  ;;
+    meta-data) meta_data
+        exit $OCF_SUCCESS
+    ;;
+    start|stop|status|monitor)
+        kamailio_${__OCF_ACTION}
+    ;;
+    validate-all) kamailio_validate_all
+    ;;
+    notify) exit $OCF_SUCCESS
+    ;;
+    usage) usage
+        exit $OCF_SUCCESS
+    ;;
+#   reload) #Not supported by Kamailio, but not needed by pacemaker
+#   ;;
+#   recover #Not needed by pacemaker
+#   ;;
+    *) usage
+        exit $OCF_ERR_UNIMPLEMENTED
+        ;;
 esac
 
 exit $?
