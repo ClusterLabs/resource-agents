@@ -295,6 +295,7 @@ kamailio_format_result() {
     if [ -n "$value" ]; then
         echo -n ", value: ${value}"
     fi
+
     if [ -n "$error" ]; then
         echo -n ", error: ${error}"
     fi
@@ -350,32 +351,33 @@ kamailio_get_pid() {
             if [ x"$PID" == x"$CROSSPID" ]; then
                 #ocf_log debug "Found kamailio process PID with value: $PID."
                 return 0
-            else
-                #ocf_log debug "PID file does not contain a PID of a $OCF_RESKEY_binary process!"
-                return 2
             fi
-        else
-            #PID file does not contain a valid PID
-            rm -f ${OCF_RESKEY_pidfile}
+            #ocf_log debug "PID file does not contain a PID of a $OCF_RESKEY_binary process!"
             return 2
         fi
-    else
-        # No PID file found!
-        #Check if still a process exists even though we don't have the PID any longer:
-        kamailio_cmd
-        pgrep -f "${kam_cmd}"
-        if [ $? -eq 0 ]; then
-            ocf_log info "PID file does not contain a valid PID, but kamailio process is still active"
-            return 2
-        else
-            ocf_log info "No PID file found and our kamailio instance is not active"
-            return 1
-        fi
+
+        #PID file does not contain a valid PID
+        rm -f ${OCF_RESKEY_pidfile}
+        return 2
     fi
+
+
+    # No PID file found!
+    # Check if still a process exists even though we don't have the PID any longer:
+    kamailio_cmd
+    pgrep -f "${kam_cmd}"
+    if [ $? -eq 0 ]; then
+        ocf_log info "PID file does not contain a valid PID, but kamailio process is still active"
+        return 2
+    fi
+
+    ocf_log info "No PID file found and our kamailio instance is not active"
+    return 1
 }
 
 kamailio_status() {
     local not_running_log_level="warn"
+    local errorfile error output
 
     if [ "$__OCF_ACTION" = "start" ]; then
         not_running_log_level="debug"
@@ -383,76 +385,74 @@ kamailio_status() {
 
     kamailio_get_pid >/dev/null
     RET=$?
-    if [ $RET -eq 0 ]; then
-        PID=`head -n 1 $OCF_RESKEY_pidfile`
-        isRunning_PID "$PID"
-        RET=$?
-        if [ "$RET" -ne 0 ]; then
-            ocf_log $not_running_log_level "PID from $PID from ${OCF_RESKEY_pidfile} not running"
-            rm -f ${OCF_RESKEY_pidfile}
-            return $OCF_NOT_RUNNING
-        fi
-
-        rc=0
-        # In case that OCF_RESKEY_kamctlrc we perfom a health check via "kamctl monitor 1"
-        if [ ! -z ${OCF_RESKEY_kamctlrc} ]; then
-            # PID is running now but it is not save to check via kamctl without care, because 
-            # the implementation analysis in the case that we kill all running processes
-            # shows that in case that the fifo cannot be read, then kamctl blocks. This needs
-            # to be avoided.
-            # In order to be on the safe side, we run this check therefore under "timeout" control:
-            rc=1
-            timeout 3 kamctl monitor 1 |grep "Up since" ; rc=$?
-        fi
-
-        if [ $rc -ne 0 ]; then
-            ocf_log $not_running_log_level "Kamailio is not up according to kamctl monitor!"
-            return $OCF_NOT_RUNNING
-        else
-            local errorfile error output
-            errorfile=`mktemp`
-            case ${OCF_RESKEY_proto} in
-            udp)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp>/dev/null 2>>$errorfile`
-                result=$?
-                ;;
-            tcp)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport tcp>/dev/null 2>>$errorfile`
-                result=$?
-                ;;
-            udptcp)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport tcp>/dev/null 2>>$errorfile`
-                result=$?
-                if [ $result -eq 0 ]; then
-                    output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp>/dev/null 2>>$errorfile`
-                    result=$?
-                else
-                    error=`cat $errorfile`
-                    rm -f $errorfile
-                    ocf_log $not_running_log_level "Kamailio is running, but not functional as sipsak TCP check failed with $(kamailio_format_result $result "$output" "$error")"
-                    result=$?
-                fi
-                ;;
-            *)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp>/dev/null 2>>$errorfile`
-                result=$?
-                ;;
-            esac
-
-            error=`cat $errorfile`
-            rm -f $errorfile
-
-            if [ $result -ne 0 ]; then
-                ocf_log $not_running_log_level "Kamailio is running, but not functional as sipsak ${OCF_RESKEY_proto} failed with $(kamailio_format_result $result "$output" "$error")"
-                return $OCF_ERR_GENERIC
-            else
-                return $OCF_SUCCESS
-            fi
-        fi
-    else
+    if [ $RET -ne 0 ]; then
         if [ $RET -eq 2 ]; then
-          ocf_log $not_running_log_level "PID file does not contain a PID of a ${OCF_RESKEY_binary} process!"
-          return $OCF_ERR_GENERIC
-        else
-          return $OCF_NOT_RUNNING
+            ocf_log $not_running_log_level "PID file does not contain a PID of a ${OCF_RESKEY_binary} process!"
+            return $OCF_ERR_GENERIC
         fi
+        return $OCF_NOT_RUNNING
     fi
+
+    PID=`head -n 1 $OCF_RESKEY_pidfile`
+    isRunning_PID "$PID"
+    RET=$?
+    if [ "$RET" -ne 0 ]; then
+        ocf_log $not_running_log_level "PID from $PID from ${OCF_RESKEY_pidfile} not running"
+        rm -f ${OCF_RESKEY_pidfile}
+        return $OCF_NOT_RUNNING
+    fi
+
+    rc=0
+    # In case that OCF_RESKEY_kamctlrc we perfom a health check via "kamctl monitor 1"
+    if [ ! -z ${OCF_RESKEY_kamctlrc} ]; then
+        # PID is running now but it is not save to check via kamctl without care, because 
+        # the implementation analysis in the case that we kill all running processes
+        # shows that in case that the fifo cannot be read, then kamctl blocks. This needs
+        # to be avoided.
+        # In order to be on the safe side, we run this check therefore under "timeout" control:
+        rc=1
+        timeout 3 kamctl monitor 1 |grep "Up since" ; rc=$?
+    fi
+
+    if [ $rc -ne 0 ]; then
+        ocf_log $not_running_log_level "Kamailio is not up according to kamctl monitor!"
+        return $OCF_NOT_RUNNING
+    fi
+
+    errorfile=`mktemp`
+    case ${OCF_RESKEY_proto} in
+    udp)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp>/dev/null 2>>$errorfile`
+          result=$?
+          ;;
+    tcp)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport tcp>/dev/null 2>>$errorfile`
+          result=$?
+          ;;
+    udptcp) output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport tcp>/dev/null 2>>$errorfile`
+            result=$?
+            if [ $result -eq 0 ]; then
+                output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp>/dev/null 2>>$errorfile`
+                result=$?
+            else
+                error=`cat $errorfile`
+                rm -f $errorfile
+                ocf_log $not_running_log_level "Kamailio is running, but not functional as sipsak TCP check failed with $(kamailio_format_result $result "$output" "$error")"
+                result=$?
+            fi
+            ;;
+    *)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp>/dev/null 2>>$errorfile`
+        result=$?
+        ;;
+    esac
+
+    error=`cat $errorfile`
+    rm -f $errorfile
+
+    if [ $result -ne 0 ]; then
+        ocf_log $not_running_log_level "Kamailio is running, but not functional as sipsak ${OCF_RESKEY_proto} failed with $(kamailio_format_result $result "$output" "$error")"
+        return $OCF_ERR_GENERIC
+    fi
+
+    return $OCF_SUCCESS
 }
 
 kamailio_monitor() {
