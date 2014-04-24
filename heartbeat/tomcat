@@ -610,6 +610,18 @@ JAVA_ENDORSED_DIRS="${OCF_RESKEY_java_endorsed_dirs}"
 LOGGING_CONFIG="${OCF_RESKEY_logging_config}"
 LOGGING_MANAGER="${OCF_RESKEY_logging_manager}"
 
+if [ -z "${TOMCAT_START_SCRIPT}" ]; then
+	if [ -e "$CATALINA_HOME/bin/catalina.sh" ]; then
+		TOMCAT_START_SCRIPT="$CATALINA_HOME/bin/catalina.sh"
+	elif [ -e "/usr/sbin/tomcat" ]; then
+		REDIRECT_DEFAULT_CONFIG=1
+		TOMCAT_START_SCRIPT="/usr/sbin/tomcat"
+	elif [ -e "/usr/sbin/tomcat6" ]; then
+		REDIRECT_DEFAULT_CONFIG=1
+		TOMCAT_START_SCRIPT="/usr/sbin/tomcat6"
+	fi
+fi
+
 LSB_STATUS_STOPPED=3
 if [ $# -ne 1 ]; then
 	usage
@@ -619,15 +631,6 @@ case "$COMMAND" in
 	meta-data) metadata_tomcat; exit $OCF_SUCCESS;;
 	help|usage) usage; exit $OCF_SUCCESS;;
 esac
-
-if [ -z "${TOMCAT_START_SCRIPT}" ]; then
-	if [ -e "$CATALINA_HOME/bin/catalina.sh" ]; then
-		TOMCAT_START_SCRIPT="$CATALINA_HOME/bin/catalina.sh"
-	elif [ -e "/usr/sbin/tomcat" ]; then
-		REDIRECT_DEFAULT_CONFIG=1
-		TOMCAT_START_SCRIPT="/usr/sbin/tomcat"
-	fi
-fi
 
 if [ ! -d "$JAVA_HOME" -o ! -d "$CATALINA_HOME" -o ! -d "$CATALINA_BASE" ]; then
 	case $COMMAND in
