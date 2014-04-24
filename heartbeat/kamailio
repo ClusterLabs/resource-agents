@@ -486,7 +486,7 @@ kamailio_start() {
       done
       ocf_log info "kamailio instance PID=$PID started."
       # check with monitor operation if running correctly
-      result=$OCF_NOT_RUNNING
+      result=$OCF_ERR_GENERIC
       while [ $result -ne $OCF_SUCCESS ]; do
         sleep 1
         kamailio_monitor
@@ -496,7 +496,7 @@ kamailio_start() {
       ocf_log info "kamailio started successful."
     else
       ocf_log err "kamailio instance could not be started, $(kamailio_format_result $result "$output" "$error")"
-      result=$OCF_NOT_RUNNING
+      result=$OCF_ERR_GENERIC
     fi
     return $result
   fi
