@@ -459,47 +459,52 @@ kamailio_monitor() {
 }
 
 kamailio_start() {
+  local errorfile error output
+
   if
     kamailio_status
   then
     ocf_log info "kamailio already running."
     return $OCF_SUCCESS
-  else
-    kamailio_cmd
-    if [ "$OCF_RESKEY_kamuser" != "" ]; then
-      kam_cmd="su -s /bin/bash $OCF_RESKEY_kamuser -c \"$kam_cmd\""
-    fi
-    ocf_log info "start kamailio with $kam_cmd."
-    local errorfile error output
-    errorfile=`mktemp`
-    output=$(eval ${kam_cmd} 2>>$errorfile)
-    result=$?
-    error=`cat $errorfile`
-    rm -f $errorfile
-
-    if [ $result -eq 0 ]; then
-      result=1
-      while [ $result -ne 0 ]; do
-        sleep 1
-        kamailio_get_pid >/dev/null
-        result=$?
-      done
-      ocf_log info "kamailio instance PID=$PID started."
-      # check with monitor operation if running correctly
-      result=$OCF_ERR_GENERIC
-      while [ $result -ne $OCF_SUCCESS ]; do
-        sleep 1
-        kamailio_monitor
-        result=$?
-        ocf_log info "monitor in start returned $result"
-      done
-      ocf_log info "kamailio started successful."
-    else
-      ocf_log err "kamailio instance could not be started, $(kamailio_format_result $result "$output" "$error")"
-      result=$OCF_ERR_GENERIC
-    fi
-    return $result
   fi
+
+  kamailio_cmd
+  if [ "$OCF_RESKEY_kamuser" != "" ]; then
+    kam_cmd="su -s /bin/bash $OCF_RESKEY_kamuser -c \"$kam_cmd\""
+  fi
+
+  ocf_log info "start kamailio with $kam_cmd."
+  errorfile=`mktemp`
+  output=$(eval ${kam_cmd} 2>>$errorfile)
+  result=$?
+  error=`cat $errorfile`
+  rm -f $errorfile
+
+  if [ $result -eq 0 ]; then
+    result=1
+    while [ $result -ne 0 ]; do
+      sleep 1
+      kamailio_get_pid >/dev/null
+      result=$?
+    done
+
+    ocf_log info "kamailio instance PID=$PID started."
+    # check with monitor operation if running correctly
+    result=$OCF_ERR_GENERIC
+    while [ $result -ne $OCF_SUCCESS ]; do
+      sleep 1
+      kamailio_monitor
+      result=$?
+      ocf_log info "monitor in start returned $result"
+    done
+    ocf_log info "kamailio started successful."
+
+  else
+    ocf_log err "kamailio instance could not be started, $(kamailio_format_result $result "$output" "$error")"
+    result=$OCF_ERR_GENERIC
+  fi
+
+  return $result
 }
 
 kamailio_stop() {
