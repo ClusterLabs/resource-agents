@@ -232,6 +232,7 @@ Parameters for a third Kamailio instance:
    </longdesc>
    <shortdesc lang="en">protocol</shortdesc>
    <content type="string" default="${RESKEY_kamctlrc_default}" />
+  </parameter>
 
   <parameter name="kamuser" unique="0" required="0">
    <longdesc lang="en">
