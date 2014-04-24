@@ -508,45 +508,55 @@ kamailio_start() {
 }
 
 kamailio_stop() {
+  local TRIES=0
   result=$OCF_SUCCESS
+
   kamailio_cmd
 
   ocf_log info "Stopping kamailio by sending SIGTERM to ${kam_cmd}"
   pkill -SIGTERM -x -f "${kam_cmd}"
-  if [ "$?" -eq 0 ]; then
-     TRIES=0
-     if [ "$OCF_RESKEY_CRM_meta_timeout" != "" ]; then
-       KAMAILIO_STOP_TIMEOUT=$(( ($OCF_RESKEY_CRM_meta_timeout/1000) - 7 ))
-     else
-       KAMAILIO_STOP_TIMEOUT=20
-     fi
-     while isRunning_cmd "${kam_cmd}" && [ "$TRIES" -lt "${KAMAILIO_STOP_TIMEOUT}" ]
-     do
-        sleep 1
-        ocf_log info "kamailio ${kam_cmd} is still running after SIGTERM"
-        ((TRIES++))
-     done
-     isRunning_cmd "${kam_cmd}"
-     RET=$?
-     if [ "$RET" -eq 0 ]; then
-        ocf_log info "Killing ${kam_cmd} with SIGKILL"
-        TRIES=0
-        pkill -SIGKILL -x -f "${kam_cmd}" > /dev/null 2>&1
-        while isRunning_cmd "${kam_cmd}" && [ "$TRIES" -lt 3 ]
-        do
-           sleep 1
-           ocf_log info "kamailio ${kam_cmd} is still running after SIGKILL"
-           ((TRIES++))
-        done
-        isRunning_cmd "${kam_cmd}"
-        RET=$?
-        if [ "$RET" -eq 0 ]; then
-          ocf_log fatal "kamailio is still running even after SIGKILL"
-          result=$OCF_ERR_GENERIC
-        fi
-     else
-        ocf_log info "${kam_cmd} has stopped."
-     fi
+  if [ $? -eq 1 ]; then
+    # already stopped. no processes found
+    rm -f ${OCF_RESKEY_pidfile}
+    return $result
+  fi
+
+  if [ "$OCF_RESKEY_CRM_meta_timeout" != "" ]; then
+    KAMAILIO_STOP_TIMEOUT=$(( ($OCF_RESKEY_CRM_meta_timeout/1000) - 7 ))
+  else
+    KAMAILIO_STOP_TIMEOUT=20
+  fi
+
+  while isRunning_cmd "${kam_cmd}" && [ "$TRIES" -lt "${KAMAILIO_STOP_TIMEOUT}" ]
+  do
+    sleep 1
+    ocf_log info "kamailio ${kam_cmd} is still running after SIGTERM"
+    ((TRIES++))
+  done
+
+  isRunning_cmd "${kam_cmd}"
+  RET=$?
+
+  if [ "$RET" -eq 0 ]; then
+    ocf_log info "Killing ${kam_cmd} with SIGKILL"
+    TRIES=0
+    pkill -SIGKILL -x -f "${kam_cmd}" > /dev/null 2>&1
+
+    while isRunning_cmd "${kam_cmd}" && [ "$TRIES" -lt 3 ]
+    do
+      sleep 1
+      ocf_log info "kamailio ${kam_cmd} is still running after SIGKILL"
+      ((TRIES++))
+    done
+
+    isRunning_cmd "${kam_cmd}"
+    RET=$?
+    if [ "$RET" -eq 0 ]; then
+      ocf_log fatal "kamailio is still running even after SIGKILL"
+      result=$OCF_ERR_GENERIC
+    fi
+  else
+    ocf_log info "${kam_cmd} has stopped."
   fi
 
   rm -f ${OCF_RESKEY_pidfile}
