@@ -165,8 +165,8 @@ findif()
   if [ $family = "inet" ] ; then
     if [ -z "$brdcast" ] ; then
       if [ -n "$7" ] ; then
-        set -- `ip -o -f $family addr show | grep $7`
-        [ "$5" = brd ] && brdcast=$6
+        eval $(ipcalc -b ${match%*/}/$netmask)
+        brdcast=$BROADCAST
       fi
     fi
   else
