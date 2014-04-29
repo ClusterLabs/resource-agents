@@ -916,6 +916,10 @@ ip_stop() {
 }
 
 ip_monitor() {
+        # Try to detect link failure for physical host
+        $IP2UTIL -o link show $NIC | grep "state UP"
+        [ $? -ne 0 ] && return $OCF_ERR_GENERIC
+
 	# TODO: Implement more elaborate monitoring like checking for
 	# interface health maybe via a daemon like FailSafe etc...
 
