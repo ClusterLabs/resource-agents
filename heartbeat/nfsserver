@@ -186,6 +186,8 @@ if [ $SELINUX_ENABLED -eq 0 ]; then
 	export SELINUX_LABEL="$(ls -ldZ $STATD_PATH | cut -f4 -d' ')"
 fi
 
+NFS_SCRIPT_HANDLES_LOCK_NOTIFY=0
+
 ##
 # EXEC_MODE values
 # 1  user init script or default init script
@@ -229,6 +231,8 @@ set_exec_mode()
 	if which systemctl > /dev/null 2>&1; then
 		if systemctl list-unit-files | grep nfs-server > /dev/null && systemctl list-unit-files | grep nfs-lock > /dev/null; then
 			EXEC_MODE=2
+			# when using systemd, the nfs-lock service file handles nfsv3 locking daemons for us.
+			NFS_SCRIPT_HANDLES_LOCK_NOTIFY=1
 			return 0
 		fi
 	fi
@@ -344,31 +348,11 @@ unbind_tree ()
 	fi
 }
 
-nfsserver_start ()
+notify_locks()
 {
-	if nfsserver_monitor; then
-		ocf_log debug "NFS server is already started"
-		return $OCF_SUCCESS
+	if [ $NFS_SCRIPT_HANDLES_LOCK_NOTIFY -eq 1 ]; then
+		return
 	fi
-
-	prepare_directory
-	bind_tree
-
-	rm -rf $STATD_PATH/sm.ha/* > /dev/null 2>&1
-	cp -rpf $STATD_PATH/sm $STATD_PATH/sm.bak /var/lib/nfs/state $STATD_PATH/sm.ha > /dev/null 2>&1
-
-	ocf_log info "Starting NFS server ..."
-
-	fn=`mktemp`
-	nfs_exec start > $fn 2>&1
-	rc=$?
-	ocf_log debug `cat $fn`
-	rm -f $fn
-
-	if [ $rc -ne 0 ]; then
-		ocf_log err "Failed to start NFS server"
-		return $rc
-	fi	
 
 	#Notify the nfs server has been moved or rebooted
 	#The init script do that already, but with the hostname, which may be ignored by client
@@ -405,7 +389,35 @@ nfsserver_start ()
 	  rm -rf $STATD_PATH/sm.ha > /dev/null 2>&1
 	  cp -rpf $STATD_PATH/sm.ha.save $STATD_PATH/sm.ha > /dev/null 2>&1
 	done
+}
 
+nfsserver_start ()
+{
+	if nfsserver_monitor; then
+		ocf_log debug "NFS server is already started"
+		return $OCF_SUCCESS
+	fi
+
+	prepare_directory
+	bind_tree
+
+	rm -rf $STATD_PATH/sm.ha/* > /dev/null 2>&1
+	cp -rpf $STATD_PATH/sm $STATD_PATH/sm.bak /var/lib/nfs/state $STATD_PATH/sm.ha > /dev/null 2>&1
+
+	ocf_log info "Starting NFS server ..."
+
+	fn=`mktemp`
+	nfs_exec start > $fn 2>&1
+	rc=$?
+	ocf_log debug `cat $fn`
+	rm -f $fn
+
+	if [ $rc -ne 0 ]; then
+		ocf_log err "Failed to start NFS server"
+		return $rc
+	fi	
+
+	notify_locks
 
 	ocf_log info "NFS server started"
 	return $OCF_SUCCESS
