@@ -287,6 +287,17 @@ meta_data()
 	    <content type="string" default="auto" />
 	</parameter>
 
+	<parameter name="no_kill">
+            <longdesc lang="en">
+		Do not force kill vm during stop, instead
+		fail after the timeout expires.
+            </longdesc>
+            <shortdesc lang="en">
+		Don't force kill vm on stop.
+            </shortdesc >
+	    <content type="boolean" default="false" />
+	</parameter>
+
     </parameters>
 
     <actions>
@@ -510,6 +521,7 @@ do_virsh_stop()
 		done
 	done
 
+	ocf_log err "Stop operation timed out for vm '$OCF_RESKEY_name'"
 	return 1
 }
 
@@ -858,6 +870,11 @@ validate_all()
 		export migrateuriopt="tcp:%s"
 	fi
 
+	case "$OCF_RESKEY_no_kill" in
+		yes|true|1|YES|TRUE|on|ON)
+			OCF_RESKEY_no_kill=1
+		;;
+	esac
 	#virsh list --all | awk '{print $2}' | grep -q "^$OCF_RESKEY_name\$"
 	return $?
 }
@@ -1036,7 +1053,11 @@ case $1 in
 		;;
 	stop)
 		validate_all || exit $OCF_ERR_ARGS
-		do_stop shutdown destroy
+		if [ $OCF_RESKEY_no_kill -eq 1 ]; then
+			do_stop shutdown
+		else
+			do_stop shutdown destroy
+		fi
 		exit $?
 		;;
 	kill)
