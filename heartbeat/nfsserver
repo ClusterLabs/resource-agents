@@ -401,6 +401,8 @@ nfsserver_start ()
 	prepare_directory
 	bind_tree
 
+	# remove the sm-notify pid so sm-notify will be allowed to run again without requiring a reboot.
+	rm -f /var/run/sm-notify.pid
 	rm -rf $STATD_PATH/sm.ha/* > /dev/null 2>&1
 	cp -rpf $STATD_PATH/sm $STATD_PATH/sm.bak /var/lib/nfs/state $STATD_PATH/sm.ha > /dev/null 2>&1
 
