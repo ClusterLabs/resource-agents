@@ -355,7 +355,7 @@ nfsserver_start ()
 	bind_tree
 
 	rm -rf $STATD_PATH/sm.ha/* > /dev/null 2>&1
-	cp -rf $STATD_PATH/sm $STATD_PATH/sm.bak /var/lib/nfs/state $STATD_PATH/sm.ha > /dev/null 2>&1
+	cp -rpf $STATD_PATH/sm $STATD_PATH/sm.bak /var/lib/nfs/state $STATD_PATH/sm.ha > /dev/null 2>&1
 
 	ocf_log info "Starting NFS server ..."
 
@@ -399,11 +399,11 @@ nfsserver_start ()
 	esac
 
 	rm -rf $STATD_PATH/sm.ha.save > /dev/null 2>&1
-	cp -rf $STATD_PATH/sm.ha $STATD_PATH/sm.ha.save > /dev/null 2>&1
+	cp -rpf $STATD_PATH/sm.ha $STATD_PATH/sm.ha.save > /dev/null 2>&1
 	for ip in `echo ${OCF_RESKEY_nfs_ip} | sed 's/,/ /g'`; do
 	  ${OCF_RESKEY_nfs_notify_cmd} $opts $ip -P $STATD_PATH/sm.ha
 	  rm -rf $STATD_PATH/sm.ha > /dev/null 2>&1
-	  cp -rf $STATD_PATH/sm.ha.save $STATD_PATH/sm.ha > /dev/null 2>&1
+	  cp -rpf $STATD_PATH/sm.ha.save $STATD_PATH/sm.ha > /dev/null 2>&1
 	done
 
 
