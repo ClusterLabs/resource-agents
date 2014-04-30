@@ -259,7 +259,11 @@ nfs_systemd_exec()
 		server_res=$?
 	fi
 
-	if [ $lock_res -ne $server_res ]; then
+	# When probing, only return the server's status
+	# The locking daemons are allowed to be up without the nfs-server for client usage
+	if ocf_is_probe; then
+		return $server_res
+	elif [ $lock_res -ne $server_res ]; then
 		# If one is running and the other isn't, or for whatever other reason
 		# the return code's aren't the same, this is bad.
 		ocf_log err "Systemd services nfs-lock and nfs-server are not in the same state after attempting $cmd command"
