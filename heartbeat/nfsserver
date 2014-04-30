@@ -54,26 +54,24 @@ Init script for nfsserver
 <content type="string" default="auto detected" />
 </parameter>
 
-<parameter name="nfs_notify_cmd" unique="0" required="0">
-<longdesc lang="en">
-The tool to send out NSM reboot notification; it should be either sm-notify or rpc.statd.
-Failover of nfsserver can be considered as rebooting to different machines.
-The nfsserver resource agent use this command to notify all clients about the occurrence of failover.
-</longdesc>
-<shortdesc lang="en">
-The tool to send out notification.
-</shortdesc>
-<content type="string" default="$DEFAULT_NOTIFY_CMD" />
-</parameter>
-
 <parameter name="nfs_notify_foreground" unique="0" required="0">
 <longdesc lang="en">
-Keeps the notify tool attached to its controlling terminal and running in the foreground.
+Keeps the sm-notify attached to its controlling terminal and running in the foreground.
 </longdesc>
 <shortdesc lang="en">
 Keeps the notify tool running in the foreground.
 </shortdesc>
 <content type="boolean" default="$DEFAULT_NOTIFY_FOREGROUND" />
+</parameter>
+
+<parameter name="nfs_ip" unique="0" required="0">
+<longdesc lang="en">
+Comma separated list of floating IP addresses used to access the nfs service
+</longdesc>
+<shortdesc lang="en">
+IP addresses.
+</shortdesc>
+<content type="string"/>
 </parameter>
 
 <parameter name="nfs_smnotify_retry_time" unique="0" required="0">
@@ -97,16 +95,6 @@ And this directory must be able to fail-over before nfsserver itself.
 Directory to store nfs server related information.
 </shortdesc>
 <content type="string" default="" />
-</parameter>
-
-<parameter name="nfs_ip" unique="0" required="1">
-<longdesc lang="en">
-Comma separated list of floating IP addresses used to access the nfs service
-</longdesc>
-<shortdesc lang="en">
-IP addresses.
-</shortdesc>
-<content type="string"/>
 </parameter>
 
 <parameter name="rpcpipefs_dir" unique="0" required="0">
@@ -186,8 +174,6 @@ if [ $SELINUX_ENABLED -eq 0 ]; then
 	export SELINUX_LABEL="$(ls -ldZ $STATD_PATH | cut -f4 -d' ')"
 fi
 
-NFS_SCRIPT_HANDLES_LOCK_NOTIFY=0
-
 ##
 # EXEC_MODE values
 # 1  user init script or default init script
@@ -232,44 +218,12 @@ set_exec_mode()
 		if systemctl list-unit-files | grep nfs-server > /dev/null && systemctl list-unit-files | grep nfs-lock > /dev/null; then
 			EXEC_MODE=2
 			# when using systemd, the nfs-lock service file handles nfsv3 locking daemons for us.
-			NFS_SCRIPT_HANDLES_LOCK_NOTIFY=1
 			return 0
 		fi
 	fi
 
 	ocf_log err "No init script or systemd unit file detected for nfs server"
 	exit $OCF_ERR_INSTALLED
-}
-
-nfs_systemd_exec()
-{
-	local cmd=$1
-	local server_res
-	local lock_res
-
-	if [ "$cmd" = "stop" ]; then
-		systemctl $cmd nfs-server.service
-		server_res=$?
-		systemctl $cmd nfs-lock.service
-		lock_res=$?
-	else
-		systemctl $cmd nfs-lock.service
-		lock_res=$?
-		systemctl $cmd nfs-server.service
-		server_res=$?
-	fi
-
-	# When probing, only return the server's status
-	# The locking daemons are allowed to be up without the nfs-server for client usage
-	if ocf_is_probe; then
-		return $server_res
-	elif [ $lock_res -ne $server_res ]; then
-		# If one is running and the other isn't, or for whatever other reason
-		# the return code's aren't the same, this is bad.
-		ocf_log err "Systemd services nfs-lock and nfs-server are not in the same state after attempting $cmd command"
-		return $OCF_ERR_GENERIC
-	fi
-	return $server_res
 }
 
 ##
@@ -282,8 +236,24 @@ nfs_exec()
 
 	case $EXEC_MODE in 
 		1) ${OCF_RESKEY_nfs_init_script} $cmd;;
-		2) nfs_systemd_exec $cmd;;
+		2) systemctl $cmd nfs-server.service
 	esac
+}
+
+v3locking_exec()
+{
+	local cmd=$1
+	set_exec_mode
+
+	if [ $EXEC_MODE -eq 2 ]; then
+		systemctl $cmd nfs-lock.service
+	else 
+		case $cmd in
+			start) locking_start;;
+			stop) locking_stop;;
+			status) locking_status;;
+		esac
+	fi
 }
 
 nfsserver_monitor ()
@@ -294,9 +264,17 @@ nfsserver_monitor ()
 	ocf_log debug `cat $fn`
 	rm -f $fn
 
-#Adapte LSB status code to OCF return code
+	#Adapte LSB status code to OCF return code
 	if [ $rc -eq 0 ]; then
-		return $OCF_SUCCESS
+		# don't report success if nfs servers are up
+		# without locking daemons.
+		v3locking_exec "status"
+		rc=$?
+		if [ $rc -ne 0 ]; then
+			ocf_log error "NFS server is up, but the locking daemons are down"
+			rc=$OCF_ERR_GENERIC
+		fi
+		return $rc
 	elif [ $rc -eq 3 ]; then
 		return $OCF_NOT_RUNNING
 	else
@@ -352,51 +330,162 @@ unbind_tree ()
 	fi
 }
 
-notify_locks()
+binary_status()
 {
-	if [ $NFS_SCRIPT_HANDLES_LOCK_NOTIFY -eq 1 ]; then
-		return
+	local binary=$1
+	local pid
+
+	pid=$(pgrep ${binary})
+	case $? in
+		0)
+			echo "$pid"
+			return $OCF_SUCCESS;;
+		1)
+			return $OCF_NOT_RUNNING;;
+		*)
+			return $OCF_ERR_GENERIC;;
+	esac
+}
+
+locking_status()
+{
+	binary_status "rpc.statd" > /dev/null 2>&1
+}
+
+locking_start()
+{
+	local ret=$OCF_SUCCESS
+
+	ocf_log info "Starting rpc.statd."
+
+	if [ -n "$OCF_RESKEY_nfs_ip" ]; then
+		rm -rf $STATD_PATH/sm.ha.save > /dev/null 2>&1
+		cp -rpf $STATD_PATH/sm.ha $STATD_PATH/sm.ha.save > /dev/null 2>&1
+		for ip in `echo ${OCF_RESKEY_nfs_ip} | sed 's/,/ /g'`; do
+			rpc.statd -n $ip -P $STATD_PATH/sm.ha
+			ret=$?
+			if [ $ret -eq 0 ]; then
+				break
+			fi
+			rm -rf $STATD_PATH/sm.ha > /dev/null 2>&1
+			cp -rpf $STATD_PATH/sm.ha.save $STATD_PATH/sm.ha > /dev/null 2>&1
+		done
+	else
+		rpc.statd -d
 	fi
 
-	#Notify the nfs server has been moved or rebooted
-	#The init script do that already, but with the hostname, which may be ignored by client
-	#we have to do it again with the nfs_ip 
-	local opts
+	ret=$?
+	if [ $ret -ne 0 ]; then
+		ocf_log err "Failed to start rpc.statd"
+		return $ret
+	fi
+	touch /var/lock/subsys/nfslock
 
-	case ${OCF_RESKEY_nfs_notify_cmd##*/} in 
-	sm-notify)
-		# run in foreground, if requested
-		if ocf_is_true "$OCF_RESKEY_nfs_notify_foreground"; then
-			opts="-d"
-		fi
+	return $ret
+}
 
-		if [ -n "$OCF_RESKEY_nfs_smnotify_retry_time" ]; then
-			opts="$opts -m $OCF_RESKEY_nfs_smnotify_retry_time"
-		fi
+terminate()
+{
+	declare pids
+	declare i=0
 
-		opts="$opts -f -v"
-		;;
-
-	rpc.statd)
-		if ocf_is_true "$OCF_RESKEY_nfs_notify_foreground"; then
-			opts="-F"
-		fi
-		opts="$opts -n"
-		;;
-
-	esac
-
-	rm -rf $STATD_PATH/sm.ha.save > /dev/null 2>&1
-	cp -rpf $STATD_PATH/sm.ha $STATD_PATH/sm.ha.save > /dev/null 2>&1
-	for ip in `echo ${OCF_RESKEY_nfs_ip} | sed 's/,/ /g'`; do
-	  ${OCF_RESKEY_nfs_notify_cmd} $opts $ip -P $STATD_PATH/sm.ha
-	  rm -rf $STATD_PATH/sm.ha > /dev/null 2>&1
-	  cp -rpf $STATD_PATH/sm.ha.save $STATD_PATH/sm.ha > /dev/null 2>&1
+	while : ; do
+		pids=$(binary_status $1)
+		[ -z "$pids" ] && return 0
+	 	kill $pids
+		sleep 1
+		((i++))
+		[ $i -gt 3 ] && return 1
 	done
+}
+
+
+killkill()
+{
+	declare pids
+	declare i=0
+
+	while : ; do
+		pids=$(binary_status $1)
+		[ -z "$pids" ] && return 0
+	 	kill -9 $pids
+		sleep 1
+		((i++))
+		[ $i -gt 3 ] && return 1
+	done
+}
+
+stop_process()
+{
+	declare process=$1
+
+	ocf_log info "Stopping $process"
+	if terminate $process; then
+		ocf_log debug "$process is stopped"
+	else
+		if killkill $process; then
+			ocf_log debug "$process is stopped"
+		else
+			ocf_log debug "Failed to stop $process"
+			return 1
+		fi
+	fi
+	return 0
+}
+
+locking_stop()
+{
+	ret=0
+
+	# sm-notify can prevent umount of /var/lib/nfs/statd if
+	# it is still trying to notify unresponsive clients.
+	stop_process sm-notify
+	if [ $? -ne 0]; then
+		ret=$OCF_ERR_GENERIC
+	fi
+
+	stop_process rpc.statd
+	if [ $? -ne 0]; then
+		ret=$OCF_ERR_GENERIC
+	fi
+
+	return $ret
+}
+
+renotify_locks()
+{
+	# run in foreground, if requested
+	if ocf_is_true "$OCF_RESKEY_nfs_notify_foreground"; then
+		opts="-d"
+	fi
+
+	if [ -n "$OCF_RESKEY_nfs_smnotify_retry_time" ]; then
+		opts="$opts -m $OCF_RESKEY_nfs_smnotify_retry_time"
+	fi
+
+	# forces re-notificaiton regardless if notifies have already gone out
+	opts="$opts -f"
+
+	ocf_log info "executing sm-notify"
+
+	if [ -n "$OCF_RESKEY_nfs_ip" ]; then
+		rm -rf $STATD_PATH/sm.ha.save > /dev/null 2>&1
+		cp -rpf $STATD_PATH/sm.ha $STATD_PATH/sm.ha.save > /dev/null 2>&1
+		for ip in `echo ${OCF_RESKEY_nfs_ip} | sed 's/,/ /g'`; do
+			sm-notify $opts -v $ip -P $STATD_PATH/sm.ha
+			rm -rf $STATD_PATH/sm.ha > /dev/null 2>&1
+			cp -rpf $STATD_PATH/sm.ha.save $STATD_PATH/sm.ha > /dev/null 2>&1
+		done
+	else
+		sm-notify $opts
+	fi
 }
 
 nfsserver_start ()
 {
+	local notifies_sent=0;
+	local rc;
+
 	if nfsserver_monitor; then
 		ocf_log debug "NFS server is already started"
 		return $OCF_SUCCESS
@@ -412,6 +501,21 @@ nfsserver_start ()
 
 	ocf_log info "Starting NFS server ..."
 
+	# check to see if we need to start rpc.statd
+	v3locking_exec "status"
+	if [ $? -ne $OCF_SUCCESS ]; then
+		v3locking_exec "start"
+		rc=$?
+		if [ $rc -ne 0 ]; then
+			ocf_log error "Failed to start NFS server locking daemons"
+			return $rc
+		fi
+		# rpc.statd sends notifies automatically
+		notifies_sent=1
+	else
+		ocf_log info "rpc.statd already up"
+	fi
+
 	fn=`mktemp`
 	nfs_exec start > $fn 2>&1
 	rc=$?
@@ -423,7 +527,11 @@ nfsserver_start ()
 		return $rc
 	fi	
 
-	notify_locks
+	# notify peers using sm-notify if rpc.statd was already initialized.
+	# Otherwise the initalization of rpc.statd started sm-notify for us.
+	if [ $notifies_sent -eq 0 ]; then
+		renotify_locks
+	fi
 
 	ocf_log info "NFS server started"
 	return $OCF_SUCCESS
@@ -438,6 +546,12 @@ nfsserver_stop ()
 	rc=$?
 	ocf_log debug `cat $fn`
 	rm -f $fn
+
+	v3locking_exec "stop"
+	if [ $? -ne 0 ]; then
+		ocf_log err "Failed to stop NFS locking daemons"
+		rc=$OCF_ERR_GENERIC
+	fi
 
 	if [ $rc -eq 0 ]; then
 		unbind_tree 
@@ -455,11 +569,6 @@ nfsserver_validate ()
 	##
 	set_exec_mode
 	check_binary ${OCF_RESKEY_nfs_notify_cmd}
-
-	if [ x = x"${OCF_RESKEY_nfs_ip}" ]; then
-		ocf_log err "nfs_ip not set"
-		exit $OCF_ERR_CONFIGURED
-	fi
 
 	if [ x = "x$OCF_RESKEY_nfs_shared_infodir" ]; then
 		ocf_log err "nfs_shared_infodir not set"
@@ -485,7 +594,7 @@ nfsserver_validate ()
 }
 
 if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
-	ocf_log err "THIS RA DO NOT SUPPORT CLONE MODE!"
+	ocf_log err "THIS RA DOES NOT SUPPORT CLONE MODE!"
 	exit $OCF_ERR_CONFIGURED
 fi
 
