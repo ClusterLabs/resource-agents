@@ -13,6 +13,11 @@ else
 fi
 
 DEFAULT_INIT_SCRIPT="/etc/init.d/nfsserver"
+if ! [ -f $DEFAULT_INIT_SCRIPT ]; then
+	# On some systems, the script is just called nfs
+	DEFAULT_INIT_SCRIPT="/etc/init.d/nfs"
+fi
+
 DEFAULT_NOTIFY_CMD=`which sm-notify`
 DEFAULT_NOTIFY_CMD=${DEFAULT_NOTIFY_CMD:-"/sbin/sm-notify"}
 DEFAULT_NOTIFY_FOREGROUND="false"
