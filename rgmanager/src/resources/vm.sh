@@ -20,6 +20,13 @@
 
 PATH=/bin:/sbin:/usr/bin:/usr/sbin
 
+# Only allow pid status checks during monitor operations.
+# Otherwise we want proceed with failing if virsh is not available.
+ALLOW_PID_STATUS_CHECK=0
+if [ "$1" = "monitor" ] || [ "$1" = "status" ]; then
+	ALLOW_PID_STATUS_CHECK=1
+fi
+
 export PATH
 
 . $(dirname $0)/ocf-shellfuncs || exit 1
@@ -27,6 +34,8 @@ export PATH
 #
 # Virtual Machine start/stop script (requires the virsh command)
 #
+
+EMULATOR_STATE="/var/run/vm-${OCF_RESKEY_name}-emu.state"
 
 # Indeterminate state: xend/libvirtd is down.
 export OCF_APP_ERR_INDETERMINATE=150
@@ -415,6 +424,34 @@ get_timeout()
 	return 0
 }
 
+get_emulator()
+{
+	local emulator=""
+
+	emulator=$(virsh $VIRSH_OPTIONS dumpxml $OCF_RESKEY_name 2>/dev/null | sed -n -e 's/^.*<emulator>\(.*\)<\/emulator>.*$/\1/p')
+	if [ -z "$emulator" ] && [ -a "$EMULATOR_STATE" ]; then
+		emulator=$(cat $EMULATOR_STATE)
+	fi
+	if [ -z "$emulator" ]; then
+		emulator=$(cat ${OCF_RESKEY_config} | sed -n -e 's/^.*<emulator>\(.*\)<\/emulator>.*$/\1/p')
+	fi
+
+	if [ -n "$emulator" ]; then
+		basename $emulator
+	else 
+		ocf_log error "Unable to determine emulator for $OCF_RESKEY_name" 
+	fi
+}
+
+update_emulator_cache()
+{
+	local emulator
+
+	emulator=$(get_emulator)
+	if [ -n "$emulator" ]; then
+		echo $emulator > $EMULATOR_STATE
+	fi
+}
 
 #
 # Start a virtual machine given the parameters from
@@ -424,6 +461,7 @@ do_virsh_start()
 {
 	declare cmdline
 	declare snapshotimage
+	declare rc
 
 	echo -n "Virtual machine $OCF_RESKEY_name is "
 	do_status && return 0
@@ -449,9 +487,12 @@ do_virsh_start()
 	ocf_log debug "$cmdline"
 
 	$cmdline
-	return $?
-}
+	rc=$?
 
+	update_emulator_cache
+
+	return $rc
+}
 
 do_xm_stop()
 {
@@ -592,6 +633,41 @@ xm_status()
 	return $OCF_NOT_RUNNING
 }
 
+# attempt to check domain status outside of libvirt using the emulator process
+vm_pid_status()
+{
+	local rc=$OCF_ERR_GENERIC
+	local emulator
+
+	if [ $ALLOW_PID_STATUS_CHECK -eq 0 ]; then
+		echo "indeterminate"
+		return $OCF_APP_ERR_INDETERMINATE
+	fi
+
+	emulator=$(get_emulator)
+	case "$emulator" in
+		qemu-kvm|qemu-system-*)
+			rc=$OCF_NOT_RUNNING
+			ps awx | grep -E "[q]emu-(kvm|system).*-name $OCF_RESKEY_name " > /dev/null 2>&1
+			if [ $? -eq 0 ]; then
+				rc=$OCF_SUCCESS
+			fi
+			;;
+		# This can be expanded to check for additional emulators
+		*)
+			echo "indeterminate"
+			return $OCF_APP_ERR_INDETERMINATE
+			;;
+	esac
+
+	if [ $rc -eq $OCF_SUCCESS ]; then
+		echo "running"
+	elif [ $rc -eq $OCF_NOT_RUNNING ]; then
+		echo "shut off"
+	fi
+
+	return $rc
+}
 
 virsh_status()
 {
@@ -611,9 +687,10 @@ virsh_status()
 	# libvirtd is required for migration.
 	#
 	pid=$(pidof libvirtd)
-	if [ -z "$pid" ]; then 
-		echo indeterminate
-		return $OCF_APP_ERR_INDETERMINATE
+	if [ -z "$pid" ]; then
+		# attempt to determine if vm is running from pid file
+		vm_pid_status
+		return $?
 	fi
 
 	state=$(virsh domstate $OCF_RESKEY_name)
@@ -622,6 +699,7 @@ virsh_status()
 
 	if [ "$state" = "running" ] || [ "$state" = "paused" ] || [ "$state" = "no state" ] || 
 	   [ "$state" = "idle" ]; then
+		update_emulator_cache
 		return 0
 	fi
 
@@ -741,7 +819,20 @@ choose_management_tool()
 	return 0
 }
 
-
+get_hypervisor()
+{
+	local hypervisor="`virsh version | grep \"Running hypervisor:\" | awk '{print $3}' | tr A-Z a-z`"
+	# if virsh gives us nothing (likely because libvirt is down), we can attempt
+	# to determine auto detect the hypervisor is qemu if a qemu emulator is used
+	# for this domain.
+	if [ -z "$hypervisor" ]; then
+		get_emulator | grep "qemu" > /dev/null 2>&1
+		if [ $? -eq 0 ]; then
+			hypervisor="qemu"
+		fi
+	fi
+	echo $hypervisor
+}
 
 validate_all()
 {
@@ -756,7 +847,7 @@ validate_all()
 	#
 	if [ -z "$OCF_RESKEY_hypervisor" ] ||
 	   [ "$OCF_RESKEY_hypervisor" = "auto" ]; then
-		export OCF_RESKEY_hypervisor="`virsh version | grep \"Running hypervisor:\" | awk '{print $3}' | tr A-Z a-z`"
+		export OCF_RESKEY_hypervisor="`get_hypervisor`"
 		if [ -z "$OCF_RESKEY_hypervisor" ]; then
 			ocf_log err "Could not determine Hypervisor"
 			return $OCF_ERR_ARGS
