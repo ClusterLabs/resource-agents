@@ -228,7 +228,9 @@ exportfs_monitor ()
 #Adapt grep status code to OCF return code
 	case $rc in
 	0)
-		ocf_log info "Directory ${OCF_RESKEY_directory} is exported to ${OCF_RESKEY_clientspec} (started)."
+		if [ "$__OCF_ACTION" = "start" ]; then
+			ocf_log info "Directory ${OCF_RESKEY_directory} is exported to ${OCF_RESKEY_clientspec} (started)."
+		fi
 		# Backup the rmtab to ensure smooth NFS-over-TCP failover
 		backup_rmtab
 		return $OCF_SUCCESS
