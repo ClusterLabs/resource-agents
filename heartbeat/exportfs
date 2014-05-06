@@ -351,6 +351,15 @@ exportfs_validate_all ()
 	fi
 }
 
+# If someone puts a trailing slash at the end of the export directory,
+# this agent is going to fail in some unexpected ways due to how
+# export strings are matched.  The simplest solution here is to strip off
+# a trailing '/' in the directory before processing anything.
+newdir=$(echo "$OCF_RESKEY_directory" | sed -n -e 's/^\(.*\)\/$/\1/p')
+if [ -n "$newdir" ]; then
+	OCF_RESKEY_directory=$newdir
+fi
+
 OCF_REQUIRED_PARAMS="directory fsid clientspec"
 OCF_REQUIRED_BINARIES="exportfs"
 ocf_rarun $*
