@@ -147,7 +147,7 @@ Location of the rmtab backup, relative to directory.
 
 <actions>
 <action name="start"   timeout="40" />
-<action name="stop"    timeout="10" />
+<action name="stop"    timeout="120" />
 <action name="monitor" depth="0"  timeout="20" interval="10" />
 <action name="meta-data"  timeout="5" />
 <action name="validate-all"  timeout="30" />
