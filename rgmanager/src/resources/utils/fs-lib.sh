@@ -260,6 +260,7 @@ strip_trailing_slashes()
 kill_procs_using_mount () {
 	declare mp
 	declare procs
+	declare mmap_procs
 
 	if [ $# -lt 1 -o -z "$1" ]; then
 		ocf_log err "Usage: kill_procs_using_mount mount_point [signal]"
@@ -276,6 +277,10 @@ kill_procs_using_mount () {
 
 	# anything held open in mount point after the slash
 	procs=$(find /proc/[0-9]*/ -type l -lname "${mp}/*" -or -lname "${mp}" 2>/dev/null | awk -F/ '{print $3}' | uniq)
+
+	# anything with memory mapping to something in the mountpoint
+	mmap_procs=$(grep " ${mp}" /proc/[0-9]*/maps | awk -F/ '{print $3}' | uniq)
+	procs=$(echo -e "${procs}\n${mmap_procs}" | sort | uniq)
 
 	for pid in $procs; do
 		if [ -n "$2" ]; then
