@@ -196,6 +196,26 @@ Only set this to "true" if you know what you are doing!
 <content type="boolean" default="false" />
 </parameter>
 
+<parameter name="force_unmount">
+<longdesc lang="en">
+This option allows specifying how to handle processes that are
+currently accessing the mount directory.
+
+"true"  : Default value, kill processes accessing mount point
+"safe"  : Kill processes accessing mount point using methods that
+          avoid functions that could potentially block during process
+          detection 
+"false" : Do not kill any processes.
+
+The 'safe' option uses shell logic to walk the /procs/ directory
+for pids using the mount point while the default option uses the
+fuser cli tool. fuser is known to perform operations that can potentially
+block if unresponsive nfs mounts are in use on the system.
+</longdesc>
+<shortdesc lang="en">Kill processes before unmount</shortdesc>
+<content type="boolean" default="true" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -400,6 +420,25 @@ Filesystem_start()
 }
 # end of Filesystem_start
 
+get_pids()
+{
+	local dir=$1
+	local procs
+	local mmap_procs
+
+	if ocf_is_true  "$FORCE_UNMOUNT"; then
+		if [ "X${HOSTOS}" = "XOpenBSD" ];then
+			fstat | grep $dir | awk '{print $3}'
+		else
+			$FUSER -m $dir 2>/dev/null
+		fi
+	elif [ "$FORCE_UNMOUNT" = "safe" ]; then
+		procs=$(find /proc/[0-9]*/ -type l -lname "${dir}/*" -or -lname "${dir}" 2>/dev/null | awk -F/ '{print $3}')
+		mmap_procs=$(grep " ${dir}" /proc/[0-9]*/maps | awk -F/ '{print $3}')
+		printf "${procs}\n${mmap_procs}" | sort | uniq
+	fi
+}
+
 signal_processes() {
 	local dir=$1
 	local sig=$2
@@ -407,15 +446,9 @@ signal_processes() {
 	# fuser returns a non-zero return code if none of the
 	# specified files is accessed or in case of a fatal 
 	# error.
-	pids=$(
-		if [ "X${HOSTOS}" = "XOpenBSD" ];then
-			fstat | grep $dir | awk '{print $3}'
-		else
-			$FUSER -m $dir 2>/dev/null
-		fi
-	)
+	pids=$(get_pids "$dir")
 	if [ -z "$pids" ]; then
-		ocf_log info "No processes on $dir were signalled"
+		ocf_log info "No processes on $dir were signalled. force_unmount is set to '$FORCE_UNMOUNT'"
 		return
 	fi
 	for pid in $pids; do
@@ -687,6 +720,11 @@ if [ $# -ne 1 ]; then
 fi
 
 # Check the OCF_RESKEY_ environment variables...
+FORCE_UNMOUNT="yes"
+if [ -n "${OCF_RESKEY_force_unmount}" ]; then
+	FORCE_UNMOUNT=$OCF_RESKEY_force_unmount
+fi
+
 DEVICE=$OCF_RESKEY_device
 FSTYPE=$OCF_RESKEY_fstype
 if [ ! -z "$OCF_RESKEY_options" ]; then
