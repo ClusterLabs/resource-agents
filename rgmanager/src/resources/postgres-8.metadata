@@ -63,6 +63,16 @@
 		<content type="integer" />
 	</parameter>
 
+        <parameter name="startup_wait">
+                <longdesc lang="en">
+                        Wait X seconds for correct end of service startup
+                </longdesc>
+                <shortdesc lang="en">
+			Wait X seconds for correct end of service startup.
+                </shortdesc>
+                <content type="number" default="10"/>
+        </parameter>
+
         <parameter name="service_name" inherit="service%name">
             <longdesc lang="en">
 	    	Inherit the service name.  We need to know
