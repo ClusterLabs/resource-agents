@@ -293,7 +293,7 @@ verify_options()
 
 			if [ "$OCF_RESKEY_fstype" = "ext3" ] ||
 			   [ "$OCF_RESKEY_fstype" = "ext4" ]; then
-				case $0 in
+				case $o in
 				noload|data=*)
 					continue
 					;;
