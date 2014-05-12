@@ -796,7 +796,7 @@ write_pid_file(const char *pid_file)
 			return -1;
 		}
 
-		cl_log(LOG_INFO, "Killed old send_arp process [%lu]", pid);
+		cl_log(LOG_INFO, "Killed old send_ua process [%lu]", pid);
 	}
 
 	if (snprintf(pidbuf, sizeof(pidbuf), "%u"
