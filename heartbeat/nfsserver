@@ -91,6 +91,17 @@ Specifies the length of sm-notify retry time (minutes).
 <content type="integer" default="" />
 </parameter>
 
+<parameter name="nfsd_args" unique="0" required="0">
+<longdesc lang="en">
+Specifies what arguments to pass to the nfs daemon on startup. View the rpc.nfsd man page for information on what arguments are available.
+Note that setting this value will override all settings placed in the local /etc/sysconfig/nfs file.
+</longdesc>
+<shortdesc lang="en">
+rpc.nfsd options
+</shortdesc>
+<content type="string" />
+</parameter>
+
 <parameter name="nfs_shared_infodir" unique="0" required="1">
 <longdesc lang="en">
 The nfsserver resource agent will save nfs related information in this specific directory.
@@ -285,6 +296,33 @@ nfsserver_monitor ()
 	else
 		return $OCF_ERR_GENERIC
 	fi
+}
+
+set_nfsd_args()
+{
+	local args
+
+	if [ -z "$OCF_RESKEY_nfsd_args" ]; then
+		return
+	fi
+	
+	# If we don't move this file. It will override our environment variables.
+	mv -f /etc/sysconfig/nfs /etc/sysconfig/nfs.bu
+
+	echo "RPCNFSDARGS=$OCF_RESKEY_nfsd_args" > /etc/sysconfig/nfs
+	export RPCNFSDARGS=$OCF_RESKEY_nfsd_args
+
+}
+
+cleanup_nfsd_args()
+{
+
+	if [ -z "$OCF_RESKEY_nfsd_args" ]; then
+		return
+	fi
+
+	rm -f /etc/sysconfig/nfs
+	mv -f /etc/sysconfig/nfs.bu /etc/sysconfig/nfs
 }
 
 prepare_directory ()
@@ -521,11 +559,13 @@ nfsserver_start ()
 		ocf_log info "rpc.statd already up"
 	fi
 
+	set_nfsd_args
 	fn=`mktemp`
 	nfs_exec start > $fn 2>&1
 	rc=$?
 	ocf_log debug "$(cat $fn)"
 	rm -f $fn
+	cleanup_nfsd_args
 
 	if [ $rc -ne 0 ]; then
 		ocf_log err "Failed to start NFS server"
