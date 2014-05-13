@@ -266,7 +266,7 @@ nfsserver_monitor ()
 	fn=`mktemp`
 	nfs_exec status > $fn 2>&1 
 	rc=$?
-	ocf_log debug `cat $fn`
+	ocf_log debug "$(cat $fn)"
 	rm -f $fn
 
 	#Adapte LSB status code to OCF return code
@@ -524,7 +524,7 @@ nfsserver_start ()
 	fn=`mktemp`
 	nfs_exec start > $fn 2>&1
 	rc=$?
-	ocf_log debug `cat $fn`
+	ocf_log debug "$(cat $fn)"
 	rm -f $fn
 
 	if [ $rc -ne 0 ]; then
@@ -549,7 +549,7 @@ nfsserver_stop ()
 	fn=`mktemp`
 	nfs_exec stop > $fn 2>&1
 	rc=$?
-	ocf_log debug `cat $fn`
+	ocf_log debug "$(cat $fn)"
 	rm -f $fn
 
 	v3locking_exec "stop"
