@@ -147,7 +147,7 @@ Location of the rmtab backup, relative to directory.
 
 <actions>
 <action name="start"   timeout="40" />
-<action name="stop"    timeout="10" />
+<action name="stop"    timeout="120" />
 <action name="monitor" depth="0"  timeout="20" interval="10" />
 <action name="meta-data"  timeout="5" />
 <action name="validate-all"  timeout="30" />
@@ -228,7 +228,9 @@ exportfs_monitor ()
 #Adapt grep status code to OCF return code
 	case $rc in
 	0)
-		ocf_log info "Directory ${OCF_RESKEY_directory} is exported to ${OCF_RESKEY_clientspec} (started)."
+		if [ "$__OCF_ACTION" = "start" ]; then
+			ocf_log info "Directory ${OCF_RESKEY_directory} is exported to ${OCF_RESKEY_clientspec} (started)."
+		fi
 		# Backup the rmtab to ensure smooth NFS-over-TCP failover
 		backup_rmtab
 		return $OCF_SUCCESS
@@ -350,6 +352,15 @@ exportfs_validate_all ()
 		return $OCF_ERR_INSTALLED
 	fi
 }
+
+# If someone puts a trailing slash at the end of the export directory,
+# this agent is going to fail in some unexpected ways due to how
+# export strings are matched.  The simplest solution here is to strip off
+# a trailing '/' in the directory before processing anything.
+newdir=$(echo "$OCF_RESKEY_directory" | sed -n -e 's/^\(.*\)\/$/\1/p')
+if [ -n "$newdir" ]; then
+	OCF_RESKEY_directory=$newdir
+fi
 
 OCF_REQUIRED_PARAMS="directory fsid clientspec"
 OCF_REQUIRED_BINARIES="exportfs"
