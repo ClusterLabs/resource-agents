@@ -352,7 +352,22 @@ build_virsh_cmdline()
 		cmdline="$cmdline -c $OCF_RESKEY_hypervisor_uri"
 	fi
 
-	cmdline="$cmdline $operation $OCF_RESKEY_name"
+	case "$operation" in
+	create)
+		# assert specified xmlfile is known to exist,
+		# sanity check it defines expected domain name
+		grep -q "$OCF_RESKEY_name" "$OCF_RESKEY_xmlfile"
+		if [ $? -ne 0 ]; then
+			ocf_log err \
+			"xmlfile ($OCF_RESKEY_xmlfile) - domain ($OCF_RESKEY_name) mismatch"
+			return $OCF_ERR_ARGS
+		fi
+		cmdline="$cmdline $operation $OCF_RESKEY_xmlfile"
+		;;
+	*)
+		cmdline="$cmdline $operation $OCF_RESKEY_name"
+		;;
+	esac
 		
 	echo $cmdline
 }
@@ -478,11 +493,12 @@ do_virsh_start()
 	fi
 
 	if [ -n "$OCF_RESKEY_xmlfile" -a -f "$OCF_RESKEY_xmlfile" ]; then
-		# TODO: try to use build_virsh_cmdline for the hypervisor_uri
-		cmdline="virsh create $OCF_RESKEY_xmlfile"
+		cmdline="virsh $(build_virsh_cmdline create)"
 	else
 		cmdline="virsh $(build_virsh_cmdline start)"
 	fi
+	rc=$?
+	[ $rc -eq 0 ] || return $rc
 
 	ocf_log debug "$cmdline"
 
