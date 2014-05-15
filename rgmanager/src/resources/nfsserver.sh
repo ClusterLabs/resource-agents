@@ -97,6 +97,21 @@ meta_data()
 	    <content type="string" default=".clumanager/nfs"/>
         </parameter>
 
+        <parameter name="statdport">
+            <longdesc lang="en">
+		Specifies the port number used for RPC listener sockets. If
+		this option is not specified, rpc.statd chooses a random
+		ephemeral port for each listener socket. This option can be
+		used to fix the port value of its listeners when SM_NOTIFY
+		requests must traverse a firewall between
+		clients and servers.
+            </longdesc>
+            <shortdesc lang="en">
+                This is the port where rpc.statd should listen on.
+            </shortdesc>
+	    <content type="integer" default=""/>
+        </parameter>
+
     </parameters>
 
     <actions>
@@ -153,10 +168,26 @@ verify_nfspath()
 }
 
 
+verify_statdport()
+{
+	if [ -z "$OCF_RESKEY_statdport" ]; then
+		# this is fine, statdport is optional
+		return 0
+	fi
+
+	[ $OCF_RESKEY_statdport -gt 0 && $OCF_RESKEY_statdport -le 65535 ] && return 0
+
+	ocf_log err "$OCF_RESKEY_statdport is not a valid port number"
+
+	return $OCF_ERR_ARGS
+}
+
+
 verify_all()
 {
 	verify_path || return 1
 	verify_nfspath || return 1
+	verify_statdport || return 1
 
 	return 0
 }
@@ -339,6 +370,7 @@ cleanup_tree()
 start_locking()
 {
 	declare ret
+	declare statdport=""
 	[ -x /sbin/rpc.statd ] || return 1
 	
 	#
@@ -352,6 +384,10 @@ start_locking()
 		return 0
 	fi
 
+	if [ -n "$OCF_RESKEY_statdport" ]; then
+		statdport="-p $OCF_RESKEY_statdport"
+	fi
+
 	#
 	# Set this resrouce script as the callout program.  We are evil.
 	# In cases where we want to preserve lock information, this is needed
@@ -359,7 +395,7 @@ start_locking()
 	#
 	ocf_log info "Starting rpc.statd"
 	rm -f /var/run/sm-notify.pid
-	rpc.statd -H $0 -d
+	rpc.statd -H $0 -d $statdport
 	ret=$?
 	if [ $ret -ne 0 ]; then
 		ocf_log err "Failed to start rpc.statd"
