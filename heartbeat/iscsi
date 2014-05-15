@@ -268,7 +268,8 @@ open_iscsi_add() {
 }
 open_iscsi_get_session_id() {
 	local target="$1"
-	$iscsiadm -m session 2>/dev/null | grep "$target$" |
+	$iscsiadm -m session 2>/dev/null |
+		grep -E "$target($|[[:space:]])" |
 		awk '{print $2}' | tr -d '[]'
 }
 open_iscsi_remove() {
