@@ -102,7 +102,7 @@ rpc.nfsd options
 <content type="string" />
 </parameter>
 
-<parameter name="nfs_shared_infodir" unique="0" required="1">
+<parameter name="nfs_shared_infodir" unique="0" required="0">
 <longdesc lang="en">
 The nfsserver resource agent will save nfs related information in this specific directory.
 And this directory must be able to fail-over before nfsserver itself.
@@ -327,6 +327,10 @@ cleanup_nfsd_args()
 
 prepare_directory ()
 {
+	if [ -z "$fp" ]; then
+		return
+	fi
+
 	[ -d "$fp" ] || mkdir -p $fp
 	[ -d "$rpcpipefs_make_dir" ] || mkdir -p $rpcpipefs_make_dir
 	[ -d "$fp/v4recovery" ] || mkdir -p $fp/v4recovery
@@ -355,6 +359,10 @@ is_bound ()
 
 bind_tree ()
 {
+	if [ -z "$fp" ]; then
+		return
+	fi
+
 	if is_bound /var/lib/nfs; then
 		ocf_log debug "$fp is already bound to /var/lib/nfs"
 		return 0
@@ -615,8 +623,9 @@ nfsserver_validate ()
 	set_exec_mode
 	check_binary ${OCF_RESKEY_nfs_notify_cmd}
 
-	if [ x = "x$OCF_RESKEY_nfs_shared_infodir" ]; then
-		ocf_log err "nfs_shared_infodir not set"
+
+	if [ -n "$OCF_RESKEY_CRM_meta_clone" ] && [ -n "$OCF_RESKEY_nfs_shared_infodir" ]; then
+		ocf_log err "This RA does not support clone mode when a shared info directory is in use."
 		exit $OCF_ERR_CONFIGURED
 	fi
 
@@ -637,11 +646,6 @@ nfsserver_validate ()
 
 	return $OCF_SUCCESS
 }
-
-if [ -n "$OCF_RESKEY_CRM_meta_clone" ]; then
-	ocf_log err "THIS RA DOES NOT SUPPORT CLONE MODE!"
-	exit $OCF_ERR_CONFIGURED
-fi
 
 nfsserver_validate
 
