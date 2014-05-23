@@ -126,6 +126,10 @@ Requires:	perl-Net-IMAP-Simple-SSL
 Requires(post):	/sbin/chkconfig
 Requires(preun):/sbin/chkconfig
 %endif
+%if %{defined systemd_requires}
+BuildRequires:  systemd
+%{?systemd_requires}
+%endif
 
 %description -n ldirectord
 The Linux Director Daemon (ldirectord) was written by Jacob Rief.
@@ -174,6 +178,9 @@ export CFLAGS
 %configure \
 	%{?conf_opt_rsctmpdir:%conf_opt_rsctmpdir} \
 	%{conf_opt_fatal} \
+%if %{defined _unitdir}
+    --with-systemdsystemunitdir=%{_unitdir} \
+%endif
 	--with-pkg-name=%{name} \
 	--with-ras-set=%{rasset}
 
@@ -198,7 +205,11 @@ rm -rf %{buildroot}/usr/share/doc/resource-agents
 test -d %{buildroot}/sbin || mkdir %{buildroot}/sbin
 (
   cd %{buildroot}/sbin
-  ln -sf /%{_sysconfdir}/init.d/ldirectord rcldirectord 
+%if %{defined _unitdir}
+  ln -s /usr/sbin/service rcldirectord
+%else
+  ln -sf /%{_sysconfdir}/init.d/ldirectord rcldirectord
+%endif
 ) || true
 %endif
 %endif
@@ -270,9 +281,25 @@ ccs_update_schema > /dev/null 2>&1 ||:
 
 %if 0%{?suse_version}
 %preun -n ldirectord
+%if %{defined _unitdir}
+%service_del_preun ldirectord.service
+%else
 %stop_on_removal ldirectord
+%endif
 %postun -n ldirectord
+%if %{defined _unitdir}
+%service_del_postun ldirectord.service
+%else
 %insserv_cleanup
+%endif
+%post -n ldirectord
+%if %{defined _unitdir}
+%service_add_post ldirectord.service
+%endif
+%pre -n ldirectord
+%if %{defined _unitdir}
+%service_add_pre ldirectord.service
+%endif
 %endif
 
 %if 0%{?fedora}
@@ -292,7 +319,12 @@ ccs_update_schema > /dev/null 2>&1 ||:
 %dir %{_sysconfdir}/ha.d
 %dir %{_sysconfdir}/ha.d/resource.d
 %{_sysconfdir}/ha.d/resource.d/ldirectord
+%if %{defined _unitdir}
+%{_unitdir}/ldirectord.service
+%exclude %{_sysconfdir}/init.d/ldirectord
+%else
 %{_sysconfdir}/init.d/ldirectord
+%endif
 %if 0%{?suse_version}
 /sbin/rcldirectord
 %endif
