@@ -34,7 +34,9 @@ declare PSQL_conf_dir="`generate_name_for_conf_dir`"
 declare PSQL_gen_config_file="$PSQL_conf_dir/postgresql.conf"
 declare PSQL_kill_timeout="5"
 declare PSQL_stop_timeout="15"
-declare PSQL_wait_after_start="2"
+if [ -z "$OCF_RESKEY_startup_wait" ]; then
+	OCF_RESKEY_startup_wait=10
+fi
 
 verify_all()
 {
@@ -117,6 +119,7 @@ generate_config_file()
 start()
 {
 	declare pguser_group
+	declare count=0
 	clog_service_start $CLOG_INIT
 
 	create_pid_directory
@@ -155,12 +158,17 @@ start()
 	su - "$OCF_RESKEY_postmaster_user" -c "$PSQL_POSTMASTER -c config_file=\"$PSQL_gen_config_file\" \
 		$OCF_RESKEY_postmaster_options" &> /dev/null &
 
-	# We need to sleep for a second to allow pg_ctl to detect that we've started.
-	sleep $PSQL_wait_after_start
+	# We need to sleep briefly to allow pg_ctl to detect that we've started.
 	# We need to fetch "-D /path/to/pgsql/data" from $OCF_RESKEY_postmaster_options
-	su - "$OCF_RESKEY_postmaster_user" -c "$PSQL_CTL status $OCF_RESKEY_postmaster_options" &> /dev/null
+	until [ "$count" -gt "$OCF_RESKEY_startup_wait" ] || 
+		[ `su - "$OCF_RESKEY_postmaster_user" -c \
+			"$PSQL_CTL status $OCF_RESKEY_postmaster_options" &> /dev/null; echo $?` = '0' ]
+	do
+		sleep 1
+		let count=$count+1
+	done
 
-	if [ $? -ne 0 ]; then
+	if [ "$count" -gt "$OCF_RESKEY_startup_wait" ]; then
 		clog_service_start $CLOG_FAILED
 		return $OCF_ERR_GENERIC
 	fi
