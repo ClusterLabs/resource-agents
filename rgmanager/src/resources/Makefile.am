@@ -28,7 +28,8 @@ RESOURCES		= service.sh ip.sh nfsclient.sh nfsexport.sh \
 			  postgres-8.sh tomcat-5.sh lvm.sh \
 			  vm.sh SAPInstance SAPDatabase named.sh \
 			  ASEHAagent.sh drbd.sh nfsserver.sh \
-			  tomcat-6.sh orainstance.sh oralistener.sh oracledb.sh
+			  tomcat-6.sh orainstance.sh oralistener.sh oracledb.sh \
+			  bind-mount.sh
 
 METADATA		= apache.metadata openldap.metadata samba.metadata \
 			  mysql.metadata postgres-8.metadata \
