@@ -164,7 +164,7 @@ rsyncd_start()
 	if  grep -v "^#" "$CONF_FILE" | grep "pid file" > /dev/null ; then
 		$COMMAND;
 		if [ $? -ne 0 ]; then
-			ocf_log err "Error. rsycn daemon returned error $?."
+			ocf_log err "Error. rsync daemon returned error $?."
 			exit $OCF_ERR_GENERIC
 		fi
 	else
