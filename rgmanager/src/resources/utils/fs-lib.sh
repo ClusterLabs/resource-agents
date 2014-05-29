@@ -230,11 +230,11 @@ try_findmnt()
 
 	which findmnt > /dev/null 2>&1
 	if [ $? -eq 0 ]; then
-		FINDMNT_OUTPUT=$(findmnt -o TARGET --noheadings $1)
+		FINDMNT_OUTPUT="$(findmnt -o TARGET --noheadings $1)"
 		if [ $? -ne 0 ]; then
 			# workaround mount helpers inconsistency that still
 			# add / on the device entry in /proc/mounts
-			FINDMNT_OUTPUT=$(findmnt -o TARGET --noheadings $1/)
+			FINDMNT_OUTPUT="$(findmnt -o TARGET --noheadings $1/)"
 			if [ $? -ne 0 ]; then
 				return 1
 			else
@@ -338,7 +338,7 @@ mount_in_use () {
 				if [ "$tmp_mp" = "$mp" ]; then
 					return $YES
 				fi
-			done < <(echo $FINDMNT_OUTPUT)
+			done < <(echo "$FINDMNT_OUTPUT")
 			;;
 		*)
 			return $YES
@@ -416,7 +416,7 @@ real_mountpoint()
 				found=0
 				break
 			fi
-		done < <(echo $FINDMNT_OUTPUT)
+		done < <(echo "$FINDMNT_OUTPUT")
 		;;
 	1)
 		# findmnt found no mount points for the device
