@@ -6,7 +6,7 @@
 #		an Active-Passive High Availability setup.
 #
 # Author:	Michel Rode <rode@b1-systems.de> : vsftpd script 
-# License:      GNU General Public License (GPL) 
+# License:      GNU General Public License (GPLv2) 
 #
 #
 #	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
