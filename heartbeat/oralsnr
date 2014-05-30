@@ -268,7 +268,7 @@ oralsnr_validate_all() {
 # used in ora-common.sh
 show_procs() {
 	ps -e -o pid,user,args |
-		grep '[t]nslsnr' | grep -w "$listener" | grep -w "$ORACLE_OWNER"
+		grep '[t]nslsnr' | grep -i -w "$listener" | grep -w "$ORACLE_OWNER"
 }
 proc_pids() { show_procs | awk '{print $1}'; }
 PROCS_CLEANUP_TIME="10"
