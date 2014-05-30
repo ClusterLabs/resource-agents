@@ -388,7 +388,8 @@ exit_idle()
 	declare -i n=0
 
 	ocf_log debug "Waiting for Oracle processes for $ORACLE_SID to terminate..."
-	while ps ax | grep $ORACLE_HOME | grep "ora_.*_${ORACLE_SID}" | grep -v grep | awk '{print $1}'; do
+	# grep -q "." keeps this loop going if the previous commands produce any stdout
+	while ps ax | grep $ORACLE_HOME | grep "ora_.*_${ORACLE_SID}" | grep -v grep | awk '{print $1}' | grep -q "."; do
 		if [ $n -ge 90 ]; then
 			ocf_log debug "Timed out while waiting for Oracle processes for $ORACLE_SID to terminate"
 			force_cleanup
