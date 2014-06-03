@@ -1,77 +1,38 @@
 # sg_persist
+# Before use sg_persist ocft test case you have to prepare to make pacemaker 
+# can be started successfully because sg_persist RA needs to use the result of
+# `crm_node -i` as sg_persist register key.
 
 CONFIG
 	Agent sg_persist
 	AgentRoot /usr/lib/ocf/resource.d/heartbeat
-	InstallPackage open-iscsi
-	InstallPackage iscsitarget
 	InstallPackage sg3_utils
 	HangTimeout 20
 
 VARIABLE
-	OCFT_disk=/var/run/resource-agents/ocft-sg_disk
-	OCFT_target="iqn.2013-12.ocft.localhost:disk0"
+	
+    #Please set the disk you want to test for example "/dev/sdd"
+	OCFT_sg_disk=
+
 	OCFT_sg_conf="/tmp/sg_persist.conf"
 
-    # please modify it by yourself.
+    # please set the IP addrees of the other server.
 	IP_2=
-	OCFT_portal="$IP_2:3260"
 
 SETUP-AGENT
-	# create an iscsi target at node IP_2
-	ifconfig|grep -q $IP_2	
-	if [ $? -eq 0 ]
-	then
-		dd if=/dev/zero of=$OCFT_disk bs=1024k count=1 2>/dev/null
-		echo "Target $OCFT_target" >> /etc/iet/ietd.conf
-		echo "        Lun 0 Path=$OCFT_disk,Type=fileio" >> /etc/iet/ietd.conf
-		/etc/init.d/iscsitarget restart 2>/dev/null
-	fi
-
-	# connect to the target	
-	iscsiadm --mode discoverydb --type sendtargets --portal $IP_2 --discover 2>/dev/null
-	iscsiadm --mode node --targetname $OCFT_target --portal $OCFT_portal --login 2>/dev/null
-	
 	# start pacemaker to get node_id through crm_node -i
 	systemctl start pacemaker
 
-	# get the disk attached through target name.
-	get_scsi_disk_attached()
-	{		
-		found=0
-		while read line
-		do
-			if [ "$found" = "0" ];then
-				echo $line|grep -q "$1"
-				[ $? -eq 0 ] && found=1
-			fi
-	
-			if [ "$found" = "1" ];then
-				echo $line|grep -q "Attached scsi disk"
-				if [ $? = 0 ];then
-					found=0;
-					disk_attached=`echo $line|tr -s ' '|cut -d' ' -f4`
-					echo "$disk_attached"
-					break
-				fi
-			fi
-		done  <<< "`iscsiadm -m session -P3`"
-	}	
-
-	OCFT_sg_disk=`get_scsi_disk_attached $OCFT_target`
-
 	cat  > $OCFT_sg_conf  <<EOF
 		sg_persist_resource_sg1(){
-			devs="/dev/$OCFT_sg_disk"
+			devs=$OCFT_sg_disk
 			required_dev_nof=1
 		}
 	EOF
 
 CLEANUP-AGENT
-	iscsiadm --mode node --targetname $OCFT_target --portal $OCFT_portal --logout 2>/dev/null
 	rm -f $OCFT_disk
 	rm -f $OCFT_sg_conf
-	sed -i "/^Target $OCFT_target/,+1d" /etc/iet/ietd.conf
 
 CASE-BLOCK required_args
 	Env HA_SBIN_DIR=""
