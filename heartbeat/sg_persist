@@ -1,3 +1,4 @@
+
 #!/bin/bash
 #
 #
@@ -47,6 +48,17 @@
 
 #######################################################################
 # Initialization:
+
+#[ -z "$OCF_ROOT" ] && exit 5
+#[ -d ${OCF_ROOT}/resource.d/heartbeat ] && OCF_FUNCTIONS_DIR="${OCF_ROOT}/resource.d/heartbeat"
+#[ -d ${OCF_ROOT}/lib/heartbeat ] && OCF_FUNCTIONS_DIR="${OCF_ROOT}/lib/heartbeat"
+
+#[ -z "$OCF_FUNCTIONS_DIR" ] && exit 5
+#[ -e ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs ] && OCF_SHELLFUNCS="${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs"
+#[ -e ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs ] && OCF_SHELLFUNCS="${OCF_FUNCTIONS_DIR}/ocf-shellfuncs"
+
+#[ -z "$OCF_SHELLFUNCS" ] && exit 5
+#. $OCF_SHELLFUNCS
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
@@ -103,7 +115,7 @@ Resorce init functions for several sg_persist resources can be put in one config
 <content type="string" default="/etc/sg_persist.conf"/>
 </parameter>
 
-<parameter name="devs" unique="0" required="1">
+<parameter name="devs" unique="0" required="0">
 <longdesc lang="en">
 Device list. Shell wildcars are allowed.
 </longdesc>
@@ -250,28 +262,36 @@ sg_persist_init() {
     # default configure file path
     SG_PERSIST_CONF="${OCF_RESKEY_config_file:=/etc/sg_persist.conf}"
 
-    if [ -f "$SG_PERSIST_CONF" ]; then
-        sg_persist_read_config
-    fi
-    
     # no default value for device list
-    DEVS=${OCF_RESKEY_devs:=""}
+    devs=""
 
     # default number of required devices
-    REQUIRED_DEVS_NOF=${OCF_RESKEY_required_devs_nof:=1}
+    required_devs_nof=1
 
     # default reservation type
-    RESERVATION_TYPE=${OCF_RESKEY_reservation_type:=1}
+    reservation_type=1
 
     # default master score base 
-    MASTER_SCORE_BASE=${OCF_RESKEY_master_score_base:=0}
+    master_score_base=0
 
     # default device factor for master score
-    MASTER_SCORE_DEV_FACTOR=${OCF_RESKEY_master_score_dev_factor:=100}
+    master_score_dev_factor=100
 
     # default delay for master score
-    MASTER_SCORE_DELAY=${OCF_RESKEY_master_score_delay:=30}
-    
+    master_score_delay=30
+
+    if [ -f "$SG_PERSIST_CONF" ]
+    then
+        sg_persist_read_config
+    fi
+
+    DEVS=${OCF_RESKEY_devs:=$devs}
+    REQUIRED_DEVS_NOF=${OCF_RESKEY_required_devs_nof:=$required_devs_nof}
+    RESERVATION_TYPE=${OCF_RESKEY_reservation_type:=$reservation_type}
+    MASTER_SCORE_BASE=${OCF_RESKEY_master_score_base:=$master_score_base}
+    MASTER_SCORE_DEV_FACTOR=${OCF_RESKEY_master_score_dev_factor:=$master_score_dev_factor}
+    MASTER_SCORE_DELAY=${OCF_RESKEY_master_score_delay:=$master_score_delay}
+
     ocf_log debug "$RESOURCE: DEVS=$DEVS"
     ocf_log debug "$RESOURCE: REQUIRED_DEVS_NOF=$REQUIRED_DEVS_NOF"
     ocf_log debug "$RESOURCE: RESERVATION_TYPE=$RESERVATION_TYPE"
@@ -577,7 +597,7 @@ sg_persist_action_monitor() {
     fi
 
     if [ ${#REGISTERED_DEVS[*]} -eq ${#WORKING_DEVS[*]} ]; then 
-        if [ $RESERVATION_TYPE -eq 7 ] || [ $RESERVATION_TYPE -eq 8]; then
+        if [ $RESERVATION_TYPE -eq 7 ] || [ $RESERVATION_TYPE -eq 8 ]; then
             if [ ${#DEVS_WITH_RESERVATION[*]} -gt 0 ]; then
                 return $OCF_RUNNING_MASTER
              else
@@ -642,7 +662,7 @@ sg_persist_action_promote() {
 }
 
 sg_persist_action_demote() {
-    case $RESERVATION_TYPER in
+    case $RESERVATION_TYPE in
     1|3|5|6)
         if [ ${#RESERVED_DEVS[*]} -eq 0 ]; then 
             ocf_log info "$RESOURCE demote: already slave"
