@@ -394,9 +394,11 @@ set_env_args()
 		set_arg "RPCMOUNTDOPTS" "-p $OCF_RESKEY_mountd_port" "$tmpconfig"
 	fi
 
-	# statd args
+	# statd args. we always want to perform the notify using sm-notify after
+	# both rpc.statd and the nfsd daemons are initialized
+	statd_args="--no-notify"
 	if [ -n "$OCF_RESKEY_statd_outgoing_port" ]; then
-		statd_args="-o $OCF_RESKEY_statd_outgoing_port"
+		statd_args="$statd_args -o $OCF_RESKEY_statd_outgoing_port"
 	fi
 	if [ -n "$OCF_RESKEY_statd_port" ]; then
 		statd_args="$statd_args -p $OCF_RESKEY_statd_port"
@@ -508,21 +510,7 @@ locking_start()
 
 	ocf_log info "Starting rpc.statd."
 
-	if [ -n "$OCF_RESKEY_nfs_ip" ]; then
-		rm -rf $STATD_PATH/sm.ha.save > /dev/null 2>&1
-		cp -rpf $STATD_PATH/sm.ha $STATD_PATH/sm.ha.save > /dev/null 2>&1
-		for ip in `echo ${OCF_RESKEY_nfs_ip} | sed 's/,/ /g'`; do
-			rpc.statd -n $ip -P $STATD_PATH/sm.ha
-			ret=$?
-			if [ $ret -eq 0 ]; then
-				break
-			fi
-			rm -rf $STATD_PATH/sm.ha > /dev/null 2>&1
-			cp -rpf $STATD_PATH/sm.ha.save $STATD_PATH/sm.ha > /dev/null 2>&1
-		done
-	else
-		rpc.statd -d
-	fi
+	rpc.statd $STATDARG
 
 	ret=$?
 	if [ $ret -ne 0 ]; then
@@ -602,7 +590,7 @@ locking_stop()
 	return $ret
 }
 
-renotify_locks()
+notify_locks()
 {
 	# run in foreground, if requested
 	if ocf_is_true "$OCF_RESKEY_nfs_notify_foreground"; then
@@ -621,14 +609,10 @@ renotify_locks()
 	opts="$opts -f"
 
 	ocf_log info "executing sm-notify"
-
 	if [ -n "$OCF_RESKEY_nfs_ip" ]; then
-		rm -rf $STATD_PATH/sm.ha.save > /dev/null 2>&1
-		cp -rpf $STATD_PATH/sm.ha $STATD_PATH/sm.ha.save > /dev/null 2>&1
 		for ip in `echo ${OCF_RESKEY_nfs_ip} | sed 's/,/ /g'`; do
-			sm-notify $opts -v $ip -P $STATD_PATH/sm.ha
-			rm -rf $STATD_PATH/sm.ha > /dev/null 2>&1
-			cp -rpf $STATD_PATH/sm.ha.save $STATD_PATH/sm.ha > /dev/null 2>&1
+			cp -rpfn $STATD_PATH/sm.ha/* $STATD_PATH/  > /dev/null 2>&1
+			sm-notify $opts -v $ip
 		done
 	else
 		sm-notify $opts
@@ -637,7 +621,6 @@ renotify_locks()
 
 nfsserver_start ()
 {
-	local notifies_sent=0;
 	local rc;
 
 	if nfsserver_monitor; then
@@ -651,6 +634,10 @@ nfsserver_start ()
 
 	# remove the sm-notify pid so sm-notify will be allowed to run again without requiring a reboot.
 	rm -f /var/run/sm-notify.pid
+	#
+	# Synchronize these before starting statd
+	#
+	cp -rpfn $STATD_PATH/sm.ha/* $STATD_PATH/ > /dev/null 2>&1
 	rm -rf $STATD_PATH/sm.ha/* > /dev/null 2>&1
 	cp -rpf $STATD_PATH/sm $STATD_PATH/sm.bak /var/lib/nfs/state $STATD_PATH/sm.ha > /dev/null 2>&1
 
@@ -665,8 +652,6 @@ nfsserver_start ()
 			ocf_log error "Failed to start NFS server locking daemons"
 			return $rc
 		fi
-		# rpc.statd sends notifies automatically
-		notifies_sent=1
 	else
 		ocf_log info "rpc.statd already up"
 	fi
@@ -682,11 +667,7 @@ nfsserver_start ()
 		return $rc
 	fi	
 
-	# notify peers using sm-notify if rpc.statd was already initialized.
-	# Otherwise the initalization of rpc.statd started sm-notify for us.
-	if [ $notifies_sent -eq 0 ]; then
-		renotify_locks
-	fi
+	notify_locks
 
 	ocf_log info "NFS server started"
 	return $OCF_SUCCESS
@@ -695,6 +676,11 @@ nfsserver_start ()
 nfsserver_stop ()
 {
 	ocf_log info "Stopping NFS server ..."
+
+	# backup the current sm state information to the ha folder before stopping.
+	# the ha folder will be synced after startup, restoring the statd client state
+	rm -rf $STATD_PATH/sm.ha/* > /dev/null 2>&1
+	cp -rpf $STATD_PATH/sm $STATD_PATH/sm.bak /var/lib/nfs/state $STATD_PATH/sm.ha > /dev/null 2>&1
 
 	fn=`mktemp`
 	nfs_exec stop > $fn 2>&1
