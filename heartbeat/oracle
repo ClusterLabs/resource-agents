@@ -529,6 +529,8 @@ is_proc_running() {
 # instance in OPEN state?
 instance_live() {
 	local status=`monsql_one dbstat`
+	[ "$status" = OPEN ] && return 0
+	status=`dbasql_one dbstat`
 	if [ "$status" = OPEN ]; then
 		return 0
 	else
@@ -575,7 +577,7 @@ oracle_getconfig() {
 oracle_start() {
 	local status output
 	if is_proc_running; then
-		status="`monsql_one dbstat`"
+		status="`dbasql_one dbstat`"
 		case "$status" in
 		"OPEN")
 			: nothing to be done, we can leave right now
