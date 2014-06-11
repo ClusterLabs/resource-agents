@@ -284,7 +284,7 @@ Expects to have a fully populated OCF RA-compliant environment set.
 EOF
 }
 
-statefile=conntrackd.${OCF_RESOURCE_INSTANCE}.master
+statefile=conntrackd.${OCF_RESOURCE_INSTANCE//:[0-9]*}.master
 
 master_score=1000
 slave_score=100
