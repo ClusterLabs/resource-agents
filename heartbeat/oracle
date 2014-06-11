@@ -390,6 +390,9 @@ show_mon_user_profile() {
 set_mon_user_profile() {
 	echo "alter user $MONUSR profile $MONPROFILE;"
 }
+reset_mon_user_password() {
+	echo "alter user $MONUSR identified by $MONPWD;"
+}
 check_mon_profile() {
 	local output
 	output=`dbasql show_mon_profile`
@@ -409,6 +412,9 @@ check_mon_user() {
 	local output
 	output=`dbasql show_mon_user`
 	if echo "$output" | grep -iw "^$MONUSR" >/dev/null; then
+		if echo "$output" | grep -w "EXPIRED" >/dev/null; then
+			dbasql reset_mon_user_password
+		fi
 		output=`dbasql show_mon_user_profile`
 		if echo "$output" | grep -iw "^$MONPROFILE" >/dev/null; then
 			return 0
