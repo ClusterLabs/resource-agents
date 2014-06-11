@@ -62,6 +62,16 @@ Init script for nfsserver
 <content type="string" default="auto detected" />
 </parameter>
 
+<parameter name="nfs_no_notify" unique="0" required="0">
+<longdesc lang="en">
+Do not send reboot notifications to NFSv3 clients during server startup.
+</longdesc>
+<shortdesc lang="en">
+Disable NFSv3 server reboot notifications
+</shortdesc>
+<content type="boolean" default="false" />
+</parameter>
+
 <parameter name="nfs_notify_foreground" unique="0" required="0">
 <longdesc lang="en">
 Keeps the sm-notify attached to its controlling terminal and running in the foreground.
@@ -70,16 +80,6 @@ Keeps the sm-notify attached to its controlling terminal and running in the fore
 Keeps the notify tool running in the foreground.
 </shortdesc>
 <content type="boolean" default="$DEFAULT_NOTIFY_FOREGROUND" />
-</parameter>
-
-<parameter name="nfs_ip" unique="0" required="0">
-<longdesc lang="en">
-Comma separated list of floating IP addresses used to access the nfs service
-</longdesc>
-<shortdesc lang="en">
-IP addresses.
-</shortdesc>
-<content type="string"/>
 </parameter>
 
 <parameter name="nfs_smnotify_retry_time" unique="0" required="0">
@@ -92,6 +92,16 @@ causes sm-notify to continue sending notifications to unresponsive peers until i
 Specifies the length of sm-notify retry time (minutes).
 </shortdesc>
 <content type="integer" default="" />
+</parameter>
+
+<parameter name="nfs_ip" unique="0" required="0">
+<longdesc lang="en">
+Comma separated list of floating IP addresses used to access the nfs service
+</longdesc>
+<shortdesc lang="en">
+IP addresses.
+</shortdesc>
+<content type="string"/>
 </parameter>
 
 <parameter name="nfsd_args" unique="0" required="0">
@@ -592,6 +602,11 @@ locking_stop()
 
 notify_locks()
 {
+	if ocf_is_true "$OCF_RESKEY_nfs_no_notify"; then
+		# we've been asked not to notify clients
+		return;
+	fi
+
 	# run in foreground, if requested
 	if ocf_is_true "$OCF_RESKEY_nfs_notify_foreground"; then
 		opts="-d"
