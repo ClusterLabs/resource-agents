@@ -261,6 +261,17 @@ v3locking_exec()
 	fi
 }
 
+nfs_target_exec()
+{
+	local cmd=$1
+	set_exec_mode
+
+	# This is only a systemd target that needs to be started before nfs-server.service
+	case $EXEC_MODE in 
+		2) systemctl $cmd nfs.target
+	esac
+}
+
 nfsserver_monitor ()
 {
 	fn=`mktemp`
@@ -505,6 +516,19 @@ nfsserver_start ()
 	cp -rpf $STATD_PATH/sm $STATD_PATH/sm.bak /var/lib/nfs/state $STATD_PATH/sm.ha > /dev/null 2>&1
 
 	ocf_log info "Starting NFS server ..."
+
+	# check to see if we need to start the nfs.target
+	nfs_target_exec "status"
+	if [ $? -ne $OCF_SUCCESS ]; then
+		nfs_target_exec "start"
+		rc=$?
+		if [ $rc -ne 0 ]; then
+			ocf_log error "Failed to start nfs.target"
+			return $rc
+		fi
+	else
+		ocf_log info "nfs.target already up"
+	fi
 
 	# check to see if we need to start rpc.statd
 	v3locking_exec "status"
