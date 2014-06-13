@@ -1,0 +1,81 @@
+# apache
+# make sure that your apache configuration loads mod_status
+
+CONFIG
+	Agent apache
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	InstallPackage httpd
+        HangTimeout 20
+
+SETUP-AGENT
+
+        cat << END >> /var/www/html/index.html 
+<html>
+ <body>My Test Site</body>
+ </html>
+END
+
+	cp /etc/httpd/conf/httpd.conf /etc/httpd/conf/httpd.conf.bu
+        cat << END >>  /etc/httpd/conf/httpd.conf
+<Location /server-status>
+    SetHandler server-status
+    Order deny,allow
+    Deny from all
+    Allow from 127.0.0.1
+</Location>
+END
+
+CLEANUP-AGENT
+	mv -f /etc/httpd/conf/httpd.conf.bu /etc/httpd/conf/httpd.conf
+	rm -f /var/www/html/index.html	
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+	Include default_status
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: set non-existing OCF_RESKEY_statusurl"
+	Include prepare
+	Env OCF_RESKEY_statusurl="yoyoyoyo"
+	AgentRun start OCF_ERR_GENERIC
+
+CASE "check base env: set non-existing OCF_RESKEY_configfile"
+	Include prepare
+	Env OCF_RESKEY_configfile="/yoyoyoyo/nosuchfile"
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "normal start"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "running monitor"
+	Include prepare
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "not running monitor"
+	Include prepare
+	AgentRun monitor OCF_NOT_RUNNING
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
