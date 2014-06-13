@@ -6,7 +6,7 @@
 #
 #	Resource Agent for the Xen Hypervisor.
 #	Manages Xen virtual machine instances by
-#	mapping cluster resource start and stop,  
+#	mapping cluster resource start and stop,
 #	to Xen create and shutdown, respectively.
 #
 #	usage: $0  {start|stop|status|monitor|meta-data}
@@ -32,11 +32,10 @@
 
 #######################################################################
 
-
 usage() {
-  cat <<-!
+  cat <<-END
 	usage: $0 {start|stop|status|monitor|meta-data|validate-all}
-	!
+	END
 }
 
 
@@ -122,7 +121,7 @@ without installed PV drivers.
 </parameter>
 <parameter name="allow_mem_management" unique="0" required="0">
 <longdesc lang="en">
-This parameter enables dynamic adjustment of memory for start 
+This parameter enables dynamic adjustment of memory for start
 and stop actions used for Dom0 and the DomUs. The default is
 to not adjust memory dynamically.
 </longdesc>
@@ -196,7 +195,7 @@ Xen_Status() {
     STATUS_NOSPACES=`echo "$STATUS" | awk '{ print $1,$2}'`
     if [ "$STATUS_NOSPACES" = "(status 2)" -o "$STATUS_NOSPACES" = "(status 1)" ]; then
       return $OCF_SUCCESS
-    else 
+    else
       return $OCF_NOT_RUNNING
     fi
   else
@@ -208,7 +207,7 @@ Xen_Status() {
     else
       return $OCF_SUCCESS
     fi
-    
+
   fi
 }
 
@@ -326,7 +325,7 @@ Xen_Start() {
   rc=$?
   if [ $rc -ne 0 ]; then
     return $OCF_ERR_GENERIC
-  else 
+  else
     if ocf_is_true "${OCF_RESKEY_allow_mem_management}"; then
       $xentool mem-set ${DOMAIN_NAME} ${NEWMEM}
     fi
@@ -357,14 +356,14 @@ xen_domain_stop() {
       else
         $xentool shutdown $dom
       fi
-          
+
       while Xen_Status $dom && [ "$timeout" -gt 0 ]; do
         ocf_log debug "$dom still not stopped. Waiting..."
         timeout=$((timeout-1))
         sleep 1
       done
     fi
-    
+
     if [ "$timeout" -eq 0 ]; then
       while Xen_Status $dom; do
         ocf_log warn "Xen domain $dom will be destroyed!"
@@ -384,10 +383,10 @@ Xen_Stop() {
   if Xen_Status_with_Retry ${DOMAIN_NAME}; then
     vm=${DOMAIN_NAME}
   elif Xen_Status migrating-${DOMAIN_NAME}; then
-    ocf_log info "Xen domain $DOMAIN_NAME is migrating" 
+    ocf_log info "Xen domain $DOMAIN_NAME is migrating"
     vm="migrating-${DOMAIN_NAME}"
   else
-    ocf_log info "Xen domain $DOMAIN_NAME already stopped." 
+    ocf_log info "Xen domain $DOMAIN_NAME already stopped."
   fi
 
   if [ "$vm" ]; then
@@ -407,7 +406,7 @@ Xen_Migrate_To() {
   target_node="$OCF_RESKEY_CRM_meta_migrate_target"
   target_attr="$OCF_RESKEY_node_ip_attribute"
   target_addr="$target_node"
- 
+
   if Xen_Status ${DOMAIN_NAME}; then
     ocf_log info "$DOMAIN_NAME: Starting $xentool migrate to $target_node"
 
@@ -428,7 +427,7 @@ Xen_Migrate_To() {
     if [ $rc -ne 0 ]; then
       ocf_log err "$DOMAIN_NAME: $xentool migrate to $target_node failed: $rc"
       return $OCF_ERR_GENERIC
-    else 
+    else
       Xen_Adjust_Memory 0
       ocf_log info "$DOMAIN_NAME: $xentool migrate to $target_node succeeded."
       return $OCF_SUCCESS
@@ -513,7 +512,7 @@ fi
 
 if [ -n "$OCF_RESKEY_shutdown_timeout" ]; then
 	ocf_is_decimal "$OCF_RESKEY_shutdown_timeout" || {
-		ocf_log err "shutdown_timeout must be a number" 
+		ocf_log err "shutdown_timeout must be a number"
 		exit $OCF_ERR_CONFIGURED
 	}
 fi
