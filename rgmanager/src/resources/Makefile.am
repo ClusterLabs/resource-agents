@@ -26,7 +26,7 @@ RESOURCES		= service.sh ip.sh nfsclient.sh nfsexport.sh \
 			  script.sh netfs.sh clusterfs.sh smb.sh \
 			  apache.sh openldap.sh samba.sh mysql.sh \
 			  postgres-8.sh tomcat-5.sh lvm.sh \
-			  vm.sh SAPInstance SAPDatabase named.sh \
+			  vm.sh SAPInstance SAPDatabase named.sh db2.sh \
 			  ASEHAagent.sh drbd.sh nfsserver.sh \
 			  tomcat-6.sh orainstance.sh oralistener.sh oracledb.sh \
 			  bind-mount.sh

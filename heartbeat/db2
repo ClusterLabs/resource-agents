@@ -132,6 +132,9 @@ END
 db2_validate() {
     local db2home db2sql db2instance
 
+    # db2 uses korn shell
+    check_binary "ksh"
+
     # check required instance vars
     if [ -z "$OCF_RESKEY_instance" ]
     then
@@ -208,6 +211,14 @@ db2_validate() {
     return $OCF_SUCCESS
 }
 
+master_score()
+{
+    if ! have_binary "crm_master"; then
+        return
+    fi
+
+    crm_master $*
+}
 
 #
 # Run the given command as db2 instance user
@@ -380,8 +391,17 @@ db2_check_config_compatibility() {
 #
 db2_start() {
     local output start_cmd db
+    local start_opts="dbpartitionnum $db2node"
 
-    if output=$(runasdb2 db2start dbpartitionnum $db2node)
+    # If we detect that db partitions are not in use, and no
+    # partition is explicitly specified, activate without
+    # partition information. This allows db2 instances without
+    # partition support to be managed. 
+    if [ -z "$OCF_RESKEY_dbpartitionnum" ] && ! [ -a "$db2sql/db2nodes.cfg" ]; then
+        start_opts=""
+    fi
+
+    if output=$(runasdb2 db2start $start_opts)
     then
         ocf_log info "DB2 instance $instance($db2node) started: $output"
     else
@@ -473,10 +493,15 @@ db2_start() {
 #
 db2_stop_bg() {
     local rc output
+    local stop_opts="dbpartitionnum $db2node"
 
     rc=$OCF_SUCCESS
 
-    if output=$(runasdb2 db2stop force dbpartitionnum $db2node)
+    if [ -z "$OCF_RESKEY_dbpartitionnum" ] && ! [ -a "$db2sql/db2nodes.cfg" ]; then
+        stop_opts=""
+    fi
+
+    if output=$(runasdb2 db2stop force $stop_opts)
     then
         ocf_log info "DB2 instance $instance($db2node) stopped: $output"
     else
@@ -502,13 +527,13 @@ db2_stop() {
     local stop_timeout grace_timeout stop_bg_pid i must_kill
 
     # remove master score
-    crm_master -D -l reboot
+    master_score -D -l reboot
 
     # be very early here in order to avoid stale data
     rm -f $STATE_FILE
 
-    if ! db2_instance_status
-    then
+    db2_instance_status
+    if [ $? -eq $OCF_NOT_RUNNING ]; then
         ocf_log info "DB2 instance $instance already stopped"
         return $OCF_SUCCESS
     fi
@@ -585,7 +610,12 @@ db2_instance_status() {
     local pscount
 
     pscount=$(runasdb2 $db2bin/db2nps $db2node | cut -c9- |  grep ' db2[^ ]' | wc -l)
-    test $pscount -ge 4
+    if [ $pscount -ge 4 ]; then
+        return $OCF_SUCCESS;
+    elif [ $pscount -ge 1 ]; then
+        return $OCF_GENERIC_ERR
+    fi
+    return $OCF_NOT_RUNNING
 }
 
 #
@@ -626,12 +656,14 @@ db2_hadr_status() {
 #
 db2_monitor() {
     local CMD output hadr db
+    local rc
 
-    if ! db2_instance_status
-    then
+    db2_instance_status
+    rc=$?
+    if [ $rc -ne $OCF_SUCCESS ]; then
         # instance is dead remove master score
-        crm_master -D -l reboot
-        exit $OCF_NOT_RUNNING
+        master_score -D -l reboot
+        exit $rc
     fi
 
     [ $db2node = 0 ] || return 0
@@ -667,22 +699,22 @@ db2_monitor() {
                     ocf_log err "DB2 message: $output"
 
                     # dead primary, remove master score
-                    crm_master -D -l reboot
+                    master_score -D -l reboot
                     return $OCF_ERR_GENERIC
                 esac
             fi
 
             ocf_log debug "DB2 database $instance($db2node)/$db appears to be working"
-            ocf_is_ms && crm_master -v 10000 -l reboot
+            ocf_is_ms && master_score -v 10000 -l reboot
             ;;
 
             Standby/*Peer)
-            crm_master -v 8000 -l reboot
+            master_score -v 8000 -l reboot
             ;;
 
             Standby/*)
             ocf_log warn "DB2 database $instance($db2node)/$db in status $hadr can never be promoted"
-            crm_master -D -l reboot
+            master_score -D -l reboot
             ;;
 
             *)
