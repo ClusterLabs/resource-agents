@@ -462,12 +462,12 @@ stop_locking()
 	# sm-notify can prevent umount of /var/lib/nfs/statd if
 	# it is still trying to notify unresponsive clients.
 	stop_process sm-notify
-	if [ $? -ne 0]; then
+	if [ $? -ne 0 ]; then
 		ret=1
 	fi
 
 	stop_process rpc.statd
-	if [ $? -ne 0]; then
+	if [ $? -ne 0 ]; then
 		ret=1
 	fi
 
