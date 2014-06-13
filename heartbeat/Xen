@@ -45,6 +45,9 @@ usage() {
 : ${OCF_RESKEY_allow_mem_management=0}
 : ${OCF_RESKEY_reserved_Dom0_memory=512}
 
+# prefer xl
+xentool=$(which xl 2> /dev/null || which xm)
+
 meta_data() {
 	cat <<END
 <?xml version="1.0"?>
@@ -95,9 +98,9 @@ Name of the virtual machine.
 </parameter>
 <parameter name="shutdown_timeout">
 <longdesc lang="en">
-The Xen agent will first try an orderly shutdown using xm shutdown.
+The Xen agent will first try an orderly shutdown using xl shutdown.
 Should this not succeed within this timeout, the agent will escalate to
-xm destroy, forcibly killing the node.
+xl destroy, forcibly killing the node.
 
 If this is not set, it will default to two-third of the stop action
 timeout.
@@ -187,7 +190,7 @@ Xen_Status() {
      	return $OCF_SUCCESS
      fi
   fi
-  STATUS=`xm list --long $1 2>/dev/null | grep status 2>/dev/null`
+  STATUS=`$xentool list --long $1 2>/dev/null | grep status 2>/dev/null`
   if [ "X${STATUS}" != "X" ]; then
     # we have Xen 3.0.4 or higher
     STATUS_NOSPACES=`echo "$STATUS" | awk '{ print $1,$2}'`
@@ -198,7 +201,7 @@ Xen_Status() {
     fi
   else
     # we have Xen 3.0.3 or lower
-    STATUS=`xm list --long $1 2>/dev/null | grep state 2>/dev/null`
+    STATUS=`$xentool list --long $1 2>/dev/null | grep state 2>/dev/null`
     echo "${STATUS}" | grep -qs "[-r][-b][-p]---"
     if [ $? -ne 0 ]; then
       return $OCF_NOT_RUNNING
@@ -210,7 +213,7 @@ Xen_Status() {
 }
 
 # If the guest is rebooting, it may completely disappear from the
-# list of defined guests, thus xm/xen-list would return with not
+# list of defined guests, thus xl/xen-list would return with not
 # running; apparently, this period lasts only for a second or
 # two
 # If a status returns not running, then test status
@@ -251,16 +254,16 @@ Xen_Adjust_Memory() {
       #NEWMEM=`echo "(${MAXMEM}-${OCF_RESKEY_reserved_Dom0_memory})/(${RUNCNT}+${CNTNEW})"|bc`
       NEWMEM=$(( (${MAXMEM} - ${OCF_RESKEY_reserved_Dom0_memory}) / (${RUNCNT} + ${CNTNEW} ) ))
       # do not rely on ballooning add dom0_mem=512 instead to force memory for dom0
-      #xm mem-set Domain-0 ${OCF_RESKEY_reserved_Dom0_memory}
+      #$xentool mem-set Domain-0 ${OCF_RESKEY_reserved_Dom0_memory}
       for DOM in ${RUNNING}; do
-        xm mem-set ${DOM} ${NEWMEM} 
+        $xentool mem-set ${DOM} ${NEWMEM}
       done
       ocf_log info "Adjusted memory to: $NEWMEM, for the following $RUNCNT domains: $RUNNING"
     fi
 }
 
 Xen_List_all() {
-	xm list | grep -v -e "Name" -e "Domain-0" | awk '{print $1}'
+	$xentool list | grep -v -e "Name" -e "Domain-0" | awk '{print $1}'
 }
 Xen_List_running() {
 	ALL_DOMS=`Xen_List_all`
@@ -298,7 +301,7 @@ Xen_Monitor() {
 }
 
 Xen_Total_Memory() {
-	xm info | grep "^total_memory" | awk '{print $3}'
+	$xentool info | grep "^total_memory" | awk '{print $3}'
 }
 
 Xen_Start() {
@@ -316,16 +319,16 @@ Xen_Start() {
     Xen_Adjust_Memory 1
     ocf_log info "New memory for virtual domains: ${NEWMEM}"
     sed -i -e "/^memory=/ s/^memory=.*/memory=${NEWMEM}/" ${OCF_RESKEY_xmfile}
-    xm mem-set ${DOMAIN_NAME} ${NEWMEM} 
+    $xentool mem-set ${DOMAIN_NAME} ${NEWMEM}
   fi
 
-  xm create ${OCF_RESKEY_xmfile} name=$DOMAIN_NAME
+  $xentool create ${OCF_RESKEY_xmfile} name=$DOMAIN_NAME
   rc=$?
   if [ $rc -ne 0 ]; then
     return $OCF_ERR_GENERIC
   else 
     if ocf_is_true "${OCF_RESKEY_allow_mem_management}"; then
-      xm mem-set ${DOMAIN_NAME} ${NEWMEM}
+      $xentool mem-set ${DOMAIN_NAME} ${NEWMEM}
     fi
   fi
   while sleep 1; do
@@ -350,9 +353,9 @@ xen_domain_stop() {
     if [ "$timeout" -gt 0 ]; then
       ocf_log info "Xen domain $dom will be stopped (timeout: ${timeout}s)"
       if ocf_is_true "${OCF_RESKEY_shutdown_acpi}"; then
-        xm trigger $dom power
+        $xentool trigger $dom power
       else
-        xm shutdown $dom
+        $xentool shutdown $dom
       fi
           
       while Xen_Status $dom && [ "$timeout" -gt 0 ]; do
@@ -369,7 +372,7 @@ xen_domain_stop() {
         sleep 1
       done
       # Note: This does not give up. stop isn't allowed to to fail.
-      # If xm destroy fails, stop will eventually timeout.
+      # If $xentool destroy fails, stop will eventually timeout.
       # This is the correct behaviour.
     fi
 
@@ -390,9 +393,9 @@ Xen_Stop() {
   if [ "$vm" ]; then
     xen_domain_stop $vm
   else
-  # It is supposed to be gone, but there have been situations where xm
-  # list / xen-list showed it as stopped but it was still instantiated.
-  # Nuke it once more to make sure:
+  # It is supposed to be gone, but there have been situations where
+  # $xentool list / xen-list showed it as stopped but it was still
+  # instantiated. Nuke it once more to make sure:
     $xenkill ${DOMAIN_NAME}
   fi
 
@@ -406,8 +409,8 @@ Xen_Migrate_To() {
   target_addr="$target_node"
  
   if Xen_Status ${DOMAIN_NAME}; then
-    ocf_log info "$DOMAIN_NAME: Starting xm migrate to $target_node"
-    
+    ocf_log info "$DOMAIN_NAME: Starting $xentool migrate to $target_node"
+
     if [ -n "$target_attr" ]; then
 	  nodevalue=`crm_attribute --type nodes --node-uname $target_node --attr-name $target_attr --get-value -q`
 	  if [ -n "${nodevalue}" -a "${nodevalue}" != "(null)" ]; then
@@ -416,15 +419,18 @@ Xen_Migrate_To() {
 	  fi
     fi
 
-    xm migrate --live $DOMAIN_NAME $target_addr
-
+    if [[ "$xentool" == *xm ]]; then
+        $xentool migrate --live $DOMAIN_NAME $target_addr
+    else
+        $xentool migrate $DOMAIN_NAME $target_addr
+    fi
     rc=$?
     if [ $rc -ne 0 ]; then
-      ocf_log err "$DOMAIN_NAME: xm migrate to $target_node failed: $rc"
+      ocf_log err "$DOMAIN_NAME: $xentool migrate to $target_node failed: $rc"
       return $OCF_ERR_GENERIC
     else 
       Xen_Adjust_Memory 0
-      ocf_log info "$DOMAIN_NAME: xm migrate to $target_node succeeded."
+      ocf_log info "$DOMAIN_NAME: $xentool migrate to $target_node succeeded."
       return $OCF_SUCCESS
     fi
   else
@@ -495,14 +501,14 @@ else
 	DOMAIN_NAME=${DOMAIN_NAME:-${OCF_RESOURCE_INSTANCE}}
 fi
 
-for binary in xm sed awk; do
+for binary in sed awk; do
     check_binary $binary
 done
 
 if have_binary xen-destroy ; then
   xenkill="xen-destroy"
 else
-  xenkill="xm destroy"
+  xenkill="$xentool destroy"
 fi
 
 if [ -n "$OCF_RESKEY_shutdown_timeout" ]; then
