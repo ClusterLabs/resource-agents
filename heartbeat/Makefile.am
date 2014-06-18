@@ -93,6 +93,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			mysql			\
 			mysql-proxy		\
 			named			\
+			nfsnotify		\
 			nfsserver		\
 			oracle			\
 			oralsnr			\
