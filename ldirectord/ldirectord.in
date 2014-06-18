@@ -700,6 +700,13 @@ The log format is:
 
 Default: no separate logging of service checks.
 
+B<ops = >B<yes> | B<no>
+
+Specify that a virtual service uses one-packet scheduling. This option
+can be used only for UDP services. If this option is specified, all connections
+are created only to schedule one packet. Option is useful to schedule
+UDP packets from same client port to different real servers.
+
 =head1 IPv6
 
 Directives for IPv6 are virtual6, real6, fallback6.
@@ -1364,6 +1371,7 @@ sub read_config
 			$vsrv{num_connects} = 0;
 			$vsrv{httpmethod} = "GET";
 			$vsrv{secret} = "";
+			$vsrv{ops} = "no";
 			push(@VIRTUAL, \%vsrv);
 			while(<CFGFILE>) {
 				$line++;
@@ -1496,6 +1504,12 @@ sub read_config
 						}
 					} else {
 						&config_error($line, "invalid protocol");
+					}
+				} elsif ($rcmd  =~ /^ops\s*=\s*(.*)/) {
+					if ($1 eq "yes" || $1 eq "no") {
+						$vsrv{ops} = $1;
+					} else {
+						&config_error($line, "ops must be 'yes' or 'no'");
 					}
 				} elsif ($rcmd =~ /^service\s*=\s*(.*)/) {
 					$1 =~ /(\w+)/ && ($1 eq "dns"	||
@@ -2239,6 +2253,9 @@ sub ld_setup
 			$$v{proto} = "-f";
 		}
 		$$v{flags} = "$$v{proto} " .  &get_virtual_option($v) . " ";
+		if ($$v{protocol} eq "udp" && $$v{ops} eq "yes") {
+			$$v{flags} .= "-o ";
+		}
 		$$v{flags} .= "-s $$v{scheduler} " if defined ($$v{scheduler});
 		if (defined $$v{persistent}) {
 			$$v{flags} .= "-p $$v{persistent} ";
