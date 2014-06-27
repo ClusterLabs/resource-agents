@@ -86,7 +86,7 @@ CMD=`basename $0`
 #	will be either $DEFAULT_RHELCONFIG or $DEFAULT_SUSECONFIG depending
 #	on which is detected.
 usage() {
-cat <<-!
+cat <<-END
 usage: $0 action
 
 action:
@@ -104,7 +104,7 @@ action:
 	meta-data	show meta data message
 
 	validate-all	validate the instance parameters
-	!
+END
 }
 
 get_pid() {
