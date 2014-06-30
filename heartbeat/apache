@@ -86,7 +86,7 @@ CMD=`basename $0`
 #	will be either $DEFAULT_RHELCONFIG or $DEFAULT_SUSECONFIG depending
 #	on which is detected.
 usage() {
-cat <<-!
+cat <<-END
 usage: $0 action
 
 action:
@@ -104,7 +104,7 @@ action:
 	meta-data	show meta data message
 
 	validate-all	validate the instance parameters
-	!
+END
 }
 
 get_pid() {
@@ -157,12 +157,13 @@ validate_default_config() {
 # that include, we run "/etc/init.d/apache2 configtest" to ensure
 # the relevant config is generated and valid.  We're also taking
 # this opportunity to enable mod_status if it's not present.
+# Note: no longer necessary with systemd
 validate_default_suse_config() {
 	if [ "$CONFIGFILE" = "$DEFAULT_SUSECONFIG" ] && \
 		grep -Eq '^Include[[:space:]]+/etc/apache2/sysconfig.d/include.conf' "$CONFIGFILE"
 	then
 		[ -x "/usr/sbin/a2enmod" ] && ocf_run -q /usr/sbin/a2enmod status
-		ocf_run -q /etc/init.d/apache2 configtest
+		[ -e "/etc/init.d/apache2" ] && ocf_run -q /etc/init.d/apache2 configtest
 		return
 	else
 		return 0
