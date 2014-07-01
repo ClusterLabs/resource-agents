@@ -40,6 +40,7 @@ ocftcfgs_DATA      =  apache  	\
 		       	 oracle		\
 		       	 drbd.linbit		\
 		       	 exportfs	\
+		       	 exportfs-multidir	\
 		       	 nfsserver	\
 		       	 portblock	\
 		       	 iscsi	\
