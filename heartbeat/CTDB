@@ -80,6 +80,11 @@ if [ ! -d "$var_prefix" ] && [ -d "/var/ctdb" ]; then
 	var_prefix="/var/ctdb"
 fi
 
+run_prefix="/run"
+if [ ! -d "$var_prefix" ] && [ -d "/var/run" ]; then
+	var_prefix="/var/run"
+fi
+
 : ${OCF_RESKEY_ctdb_manages_samba:=no}
 : ${OCF_RESKEY_ctdb_manages_winbind:=no}
 : ${OCF_RESKEY_ctdb_service_smb:=""}
@@ -95,6 +100,7 @@ fi
 : ${OCF_RESKEY_ctdb_socket:=${var_prefix}/ctdb.socket}
 : ${OCF_RESKEY_ctdb_dbdir:=${var_prefix}}
 : ${OCF_RESKEY_ctdb_logfile:=/var/log/ctdb/log.ctdb}
+: ${OCF_RESKEY_ctdb_rundir:=${run_prefix}/ctdb}
 : ${OCF_RESKEY_ctdb_debuglevel:=2}
 
 : ${OCF_RESKEY_smb_conf:=/etc/samba/smb.conf}
@@ -263,6 +269,15 @@ value "syslog".
 </longdesc>
 <shortdesc lang="en">CTDB log file location</shortdesc>
 <content type="string" default="/var/log/ctdb/log.ctdb" />
+</parameter>
+
+<parameter name="ctdb_rundir" unique="0" required="0">
+<longdesc lang="en">
+Full path to ctdb runtime directory, used for storage of socket
+lock state.
+</longdesc>
+<shortdesc lang="en">CTDB runtime directory location</shortdesc>
+<content type="string" default="${OCF_RESKEY_ctdb_rundir}" />
 </parameter>
 
 <parameter name="ctdb_debuglevel" unique="0" required="0">
@@ -553,6 +568,9 @@ ctdb_start() {
 		# ensure the logfile's directory exists, otherwise ctdb will fail to start
 		mkdir -p $(dirname $OCF_RESKEY_ctdb_logfile)
 	fi
+
+	# ensure ctdb's rundir exists, otherwise it will fail to start
+	mkdir -p $OCF_RESKEY_ctdb_rundir 2>/dev/null
 
 	# public addresses file (should not be present, but need to set for correctness if it is)
 	local pub_addr_option=""
