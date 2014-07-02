@@ -144,6 +144,7 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  sapdb-nosha.sh	\
 			  sapdb.sh		\
 			  ora-common.sh		\
+			  mysql-common.sh		\
 			  findif.sh
 
 # Legacy locations
