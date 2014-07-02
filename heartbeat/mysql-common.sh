@@ -123,12 +123,16 @@ mysql_common_validate()
 }
 
 mysql_common_status() {
-    if [ ! -e $OCF_RESKEY_pid ]; then
-        ocf_log $1 "MySQL is not running"
-        return $OCF_NOT_RUNNING;
-    fi
+    local loglevel=$1
+    local pid=$2
+    if [ -z "$pid" ]; then
+        if [ ! -e $OCF_RESKEY_pid ]; then
+            ocf_log $loglevel "MySQL is not running"
+            return $OCF_NOT_RUNNING;
+        fi
 
-    pid=`cat $OCF_RESKEY_pid`;
+        pid=`cat $OCF_RESKEY_pid`;
+    fi
     if [ -d /proc -a -d /proc/1 ]; then
         [ "u$pid" != "u" -a -d /proc/$pid ]
     else
@@ -138,7 +142,7 @@ mysql_common_status() {
     if [ $? -eq 0 ]; then
         return $OCF_SUCCESS;
     else
-        ocf_log $1 "MySQL not running: removing old PID file"
+        ocf_log $loglevel "MySQL not running: removing old PID file"
         rm -f $OCF_RESKEY_pid
         return $OCF_NOT_RUNNING;
     fi
@@ -209,7 +213,7 @@ mysql_common_start()
     while [ $start_wait = 1 ]; do
         if ! ps $pid > /dev/null 2>&1; then
             wait $pid
-            ocf_log err "MySQL server failed to start (rc=$?), please check your installation"
+            ocf_log err "MySQL server failed to start (pid=$pid) (rc=$?), please check your installation"
             return $OCF_ERR_GENERIC
         fi
         mysql_common_status info
@@ -251,7 +255,7 @@ mysql_common_stop()
     count=0
     while [ $count -lt $shutdown_timeout ]
     do
-        mysql_common_status info
+        mysql_common_status info $pid
         rc=$?
         if [ $rc = $OCF_NOT_RUNNING ]; then
             break
@@ -261,7 +265,7 @@ mysql_common_stop()
         ocf_log debug "MySQL still hasn't stopped yet. Waiting..."
     done
 
-    mysql_common_status info
+    mysql_common_status info $pid
     if [ $? != $OCF_NOT_RUNNING ]; then
         ocf_log info "MySQL failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL..."
         /bin/kill -KILL $pid > /dev/null
@@ -273,15 +277,3 @@ mysql_common_stop()
     return $OCF_SUCCESS
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
