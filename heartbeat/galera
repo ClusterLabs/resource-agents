@@ -23,6 +23,44 @@
 # Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
 #
 
+##
+# README.
+# 
+# This agent only supports being configured as a multistate Master
+# resource.
+#
+# Slave vs Master role:
+#
+# During the 'Slave' role, galera instances are in read-only mode and
+# will not attempt to connect to the cluster. This role exists only as
+# a means to determine which galera instance is the most up-to-date. The
+# most up-to-date node will be used to bootstrap a galera cluster that
+# has no current members.
+#
+# The galera instances will only begin to be promoted to the Master role
+# once all the nodes in the 'wsrep_cluster_address' connection address
+# have entered read-only mode. At that point the node containing the
+# database that is most current will be promoted to Master. Once the first
+# Master instance bootstraps the galera cluster, the other nodes will be
+# promoted to Master as well.
+#
+# Example: Create a galera cluster using nodes rhel7-node1 rhel7-node2 rhel7-node3
+#
+# pcs resource create db galera enable_creation=true \
+# wsrep_cluster_address="gcomm://rhel7-auto1,rhel7-auto2,rhel7-auto3" meta master-max=3 --master
+#
+# By setting the 'enable_creation' option, the database will be automatically 
+# generated at startup. The meta attribute 'master-max=3' means that all 3
+# nodes listed in the wsrep_cluster_address list will be allowed to connect
+# to the galera cluster and perform replication.
+#
+# NOTE: If you have more nodes in the pacemaker cluster then you wish
+# to have in the galera cluster, make sure to use location contraints to prevent
+# pacemaker from attempting to place a galera instance on a node that is
+# not in the 'wsrep_cluster_address" list. 
+#
+##
+
 #######################################################################
 # Initialization:
 
