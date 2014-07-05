@@ -373,7 +373,7 @@ Filesystem_start()
 	#       accordingly
 
 	if [ $blockdevice = "yes" ]; then
-		if [ "$DEVICE" != "/dev/null" -a ! -b "$DEVICE" ] ; then
+		if [ ! -b "$DEVICE" ] ; then
 			ocf_log err "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
 			exit $OCF_ERR_INSTALLED
 		fi
@@ -698,9 +698,6 @@ set_blockdevice_var() {
 
 	case $DEVICE in
 	-*) # Oh... An option to mount instead...  Typically -U or -L
-		;;
-	/dev/null) # Special case for BSC
-		blockdevice=yes
 		;;
 	*)
 		if [ ! -b "$DEVICE"  -a ! -d "$DEVICE" -a "X$OP" != Xstart ] ; then
