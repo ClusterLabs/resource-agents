@@ -54,7 +54,17 @@ do_metadata()
 
 	<parameters>
 
-		<parameter name="mountpoint" primary="1">
+		<parameter name="name" primary="1" unique="1">
+			<longdesc lang="en">
+			Symbolic name for this bind mount.
+			</longdesc>
+			<shortdesc lang="en">
+			Bind Mount Name
+			</shortdesc>
+		<content type="string"/>
+		</parameter>
+
+		<parameter name="mountpoint" unique="1" required="1">
 			<longdesc lang="en">
 			Target of this bind mount
 			</longdesc>
@@ -64,7 +74,7 @@ do_metadata()
 		<content type="string"/>
 		</parameter>
 
-		<parameter name="source">
+		<parameter name="source" required="1">
 			<longdesc lang="en">
 			Source of the bind mount
 			</longdesc>
