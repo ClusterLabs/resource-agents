@@ -275,6 +275,18 @@ get_last_commit()
     fi
 }
 
+wait_for_sync()
+{
+    local state=$(get_status_variable "wsrep_local_state")
+
+    ocf_log info "Waiting for database to sync with the cluster. "
+    while [ "$state" != "4" ]; do
+        sleep 1
+        state=$(get_status_variable "wsrep_local_state")
+    done
+    ocf_log info "Database synced."
+}
+
 is_readonly()
 {
     local res=$(get_option_variable "read_only")
@@ -423,6 +435,10 @@ galera_promote()
         promote_everyone
         clear_bootstrap_node
         ocf_log info "Bootstrap complete, promoting the rest of the galera instances."
+    else
+        # if this is not the bootstrap node, make sure this instance
+        # syncs with the rest of the cluster before promotion returns.
+        wait_for_sync
     fi
 
     # last commit is no longer relevant once promoted
