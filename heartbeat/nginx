@@ -745,7 +745,7 @@ Case insensitive.
 <content type="string" />
 </parameter>
 
-<parameter name="testconffile">
+<parameter name="test20conffile">
 <longdesc lang="en">
 A file which contains a more complex test configuration. Could be useful if
 you have to check more than one web application or in case sensitive
