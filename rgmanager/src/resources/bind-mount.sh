@@ -37,7 +37,7 @@ export OCF_RESKEY_options="bind"
 export OCF_RESKEY_device="$OCF_RESKEY_source"
 rv=0
 
-do_meta_data()
+do_metadata()
 {
 	cat <<EOT
 <?xml version="1.0" ?>
