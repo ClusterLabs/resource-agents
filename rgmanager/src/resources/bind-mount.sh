@@ -37,7 +37,7 @@ export OCF_RESKEY_options="bind"
 export OCF_RESKEY_device="$OCF_RESKEY_source"
 rv=0
 
-do_meta_data()
+do_metadata()
 {
 	cat <<EOT
 <?xml version="1.0" ?>
@@ -54,7 +54,17 @@ do_meta_data()
 
 	<parameters>
 
-		<parameter name="mountpoint" primary="1">
+		<parameter name="name" primary="1" unique="1">
+			<longdesc lang="en">
+			Symbolic name for this bind mount.
+			</longdesc>
+			<shortdesc lang="en">
+			Bind Mount Name
+			</shortdesc>
+		<content type="string"/>
+		</parameter>
+
+		<parameter name="mountpoint" unique="1" required="1">
 			<longdesc lang="en">
 			Target of this bind mount
 			</longdesc>
@@ -64,7 +74,7 @@ do_meta_data()
 		<content type="string"/>
 		</parameter>
 
-		<parameter name="source">
+		<parameter name="source" required="1">
 			<longdesc lang="en">
 			Source of the bind mount
 			</longdesc>
