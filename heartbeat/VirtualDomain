@@ -264,6 +264,14 @@ pid_status()
 			;;
 		# This can be expanded to check for additional emulators
 		*)
+			# We may be running xen with PV domains, they don't
+			# have an emulator set. try xenstore-ls in this case
+			if have_binary xenstore-ls; then
+				xenstore-ls -f /vm | grep -E "/vm.*name = \"$DOMAIN_NAME\"" > /dev/null 2>&1
+				if [ $? -eq 0 ]; then
+					rc=$OCF_SUCCESS
+				fi
+			fi
 			;;
 	esac
 
