@@ -27,6 +27,9 @@
 #	OCF_RESKEY_ipcrm (optional; defaults to "instance")
 #	OCF_RESKEY_clear_backupmode (optional; default to "false")
 #	OCF_RESKEY_shutdown_method (optional; default to "checkpoint/abort")
+#	OCF_RESKEY_monuser (optional; defaults to "OCFMON")
+#	OCF_RESKEY_monpassword (optional; defaults to "OCFMON")
+#	OCF_RESKEY_monprofile (optional; defaults to "OCFMONPROFILE")
 #
 # Initialization:
 
@@ -55,6 +58,11 @@ oracle_usage() {
 
 	!
 }
+
+# Defaults
+OCF_RESKEY_monuser_default="OCFMON"
+OCF_RESKEY_monpassword_default="OCFMON"
+OCF_RESKEY_monprofile_default="OCFMONPROFILE"
 
 oracle_meta_data() {
 	cat <<END
@@ -98,6 +106,39 @@ If this does not work for you, just set it explicitely.
 </longdesc>
 <shortdesc lang="en">user</shortdesc>
 <content type="string" default="" />
+</parameter>
+
+<parameter name="monuser" unique="0">
+<longdesc lang="en">
+Monitoring user name. Every connection as
+sysdba is logged in an audit log. This can
+result in a large number of new files created.
+A new user is created (if it doesn't exist) in
+the start action and subsequently used in monitor.
+It should have very limited rights. Make sure
+that the password for this user does not expire.
+</longdesc>
+<shortdesc lang="en">monuser</shortdesc>
+<content type="string" default="$OCF_RESKEY_monuser_default" />
+</parameter>
+
+<parameter name="monpassword" unique="0">
+<longdesc lang="en">
+Password for the monitoring user. Make sure
+that the password for this user does not expire.
+</longdesc>
+<shortdesc lang="en">monpassword</shortdesc>
+<content type="string" default="$OCF_RESKEY_monpassword_default" />
+</parameter>
+
+<parameter name="monprofile" unique="0">
+<longdesc lang="en">
+Profile used by the monitoring user. If the
+profile does not exist, it will be created
+with a non-expiring password.
+</longdesc>
+<shortdesc lang="en">monprofile</shortdesc>
+<content type="string" default="$OCF_RESKEY_monprofile_default" />
 </parameter>
 
 <parameter name="ipcrm" unique="0">
@@ -250,7 +291,7 @@ dbasql() {
 	runsql "connect / as sysdba" $*
 }
 monsql() {
-	runsql "connect $MONUSR/$MONUSR" $*
+	runsql "connect $MONUSR/\"$MONPWD\"" $*
 }
 # use dbasql_one if the query should result in a single line output
 # at times people stuff commands in oracle .profile
@@ -325,22 +366,69 @@ getipc() {
 	echo "oradebug tracefile_name"
 	echo "oradebug ipc"
 }
+show_mon_profile() {
+	echo "select PROFILE from dba_profiles where PROFILE='$MONPROFILE';"
+}
+mk_mon_profile() {
+	cat<<EOF
+create profile $MONPROFILE limit FAILED_LOGIN_ATTEMPTS UNLIMITED PASSWORD_LIFE_TIME UNLIMITED;
+EOF
+}
 show_mon_user() {
 	echo "select USERNAME, ACCOUNT_STATUS from dba_users where USERNAME='$MONUSR';"
 }
 mk_mon_user() {
 	cat<<EOF
-create user $MONUSR identified by $MONUSR;
+create user $MONUSR identified by "$MONPWD" profile $MONPROFILE;
 grant create session to $MONUSR;
 grant select on v_\$instance to $MONUSR;
 EOF
 }
+show_mon_user_profile() {
+	echo "select PROFILE from dba_users where USERNAME='$MONUSR';"
+}
+set_mon_user_profile() {
+	echo "alter user $MONUSR profile $MONPROFILE;"
+}
+reset_mon_user_password() {
+	echo "alter user $MONUSR identified by $MONPWD;"
+}
+check_mon_profile() {
+	local output
+	output=`dbasql show_mon_profile`
+	if echo "$output" | grep -iw "^$MONPROFILE" >/dev/null; then
+		return 0
+	fi
+	output=`dbasql mk_mon_profile show_mon_profile`
+	if echo "$output" | grep -iw "^$MONPROFILE" >/dev/null; then
+		return 0
+	else
+		ocf_log err "could not create $MONPROFILE oracle profile"
+		ocf_log err "sqlplus output: $output"
+		return 1
+	fi
+}
 check_mon_user() {
 	local output
-	dbasql show_mon_user | grep -w "^$MONUSR" >/dev/null &&
-		return 0
+	output=`dbasql show_mon_user`
+	if echo "$output" | grep -iw "^$MONUSR" >/dev/null; then
+		if echo "$output" | grep -w "EXPIRED" >/dev/null; then
+			dbasql reset_mon_user_password
+		fi
+		output=`dbasql show_mon_user_profile`
+		if echo "$output" | grep -iw "^$MONPROFILE" >/dev/null; then
+			return 0
+		else
+			output=`dbasql set_mon_user_profile`
+			echo "$output" | grep -iw "^User altered." >/dev/null &&
+				return 0
+			ocf_log err "could not set profile for $MONUSR oracle user"
+			ocf_log err "sqlplus output: $output"
+			return 1
+		fi
+	fi
 	output=`dbasql mk_mon_user show_mon_user`
-	if echo "$output" | grep -w "^$MONUSR" >/dev/null; then
+	if echo "$output" | grep -iw "^$MONUSR" >/dev/null; then
 		return 0
 	else
 		ocf_log err "could not create $MONUSR oracle user"
@@ -417,7 +505,7 @@ ipcdesc() {
 }
 rmipc() {
 	local what=$1 id=$2
-	ipcs -$what | filteroraipc | grep -w $id >/dev/null 2>&1 ||
+	ipcs -$what | filteroraipc | grep -iw $id >/dev/null 2>&1 ||
 		return
 	ocf_log info "Removing `ipcdesc $what` $id."
 	ipcrm -$what $id
@@ -447,6 +535,8 @@ is_proc_running() {
 # instance in OPEN state?
 instance_live() {
 	local status=`monsql_one dbstat`
+	[ "$status" = OPEN ] && return 0
+	status=`dbasql_one dbstat`
 	if [ "$status" = OPEN ]; then
 		return 0
 	else
@@ -493,7 +583,7 @@ oracle_getconfig() {
 oracle_start() {
 	local status output
 	if is_proc_running; then
-		status="`monsql_one dbstat`"
+		status="`dbasql_one dbstat`"
 		case "$status" in
 		"OPEN")
 			: nothing to be done, we can leave right now
@@ -540,6 +630,11 @@ oracle_start() {
 		clear_backup_mode
 	fi
 	output=`dbasql dbopen`
+
+	# check/create the monitor profile
+	if ! check_mon_profile; then
+		return $OCF_ERR_GENERIC
+	fi
 
 	# check/create the monitor user
 	if ! check_mon_user; then
@@ -650,7 +745,12 @@ show_procs() {
 proc_pids() { show_procs | awk '{print $1}'; }
 PROCS_CLEANUP_TIME="30"
 
-MONUSR="OCFMON"
+MONUSR=${OCF_RESKEY_monuser:-$OCF_RESKEY_monuser_default}
+MONPWD=${OCF_RESKEY_monpassword:-$OCF_RESKEY_monpassword_default}
+MONPROFILE=${OCF_RESKEY_monprofile_default:-$OCF_RESKEY_monprofile_default}
+
+MONUSR=$(echo $MONUSR | awk '{print toupper($0)}')
+MONPROFILE=$(echo $MONPROFILE | awk '{print toupper($0)}')
 OCF_REQUIRED_PARAMS="sid"
 OCF_REQUIRED_BINARIES="sqlplus"
 ocf_rarun $*
