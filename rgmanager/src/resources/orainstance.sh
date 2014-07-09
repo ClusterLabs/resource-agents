@@ -207,7 +207,7 @@ exit_idle() {
 	declare -i n=0
 	
 	ocf_log debug "Waiting for Oracle processes for $ORACLE_SID to terminate..."
-	while ps ax | grep $ORACLE_SID | grep -q -v $LSNR_PROCNAME | grep -q -v grep; do
+	while ps ax | grep $ORACLE_SID | grep -v grep | grep -q -v $LSNR_PROCNAME; do
 		if [ $n -ge 90 ]; then
 			ocf_log debug "Timed out while waiting for Oracle processes for $ORACLE_SID to terminate"
 			force_cleanup

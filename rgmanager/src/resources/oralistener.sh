@@ -107,6 +107,12 @@ start() {
 stop() {
 	ocf_log info "Stopping listener $LISTENER"
 
+	monitor $OCF_CHECK_LEVEL
+	if [ $? -ne 0 ]; then
+		ocf_log info "Listener $LISTENER already stopped"
+		return 0
+	fi
+
 	lsnrctl_stdout=$(lsnrctl stop "$LISTENER")
 	if [ $? -ne 0 ]; then
 		ocf_log debug "stop listener $LISTENER failed $lsnrctl_stdout"
