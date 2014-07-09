@@ -1,0 +1,629 @@
+#!/bin/sh
+#
+# Copyright (c) 2014 David Vossel <dvossel@redhat.com>
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+##
+# README.
+# 
+# This agent only supports being configured as a multistate Master
+# resource.
+#
+# Slave vs Master role:
+#
+# During the 'Slave' role, galera instances are in read-only mode and
+# will not attempt to connect to the cluster. This role exists only as
+# a means to determine which galera instance is the most up-to-date. The
+# most up-to-date node will be used to bootstrap a galera cluster that
+# has no current members.
+#
+# The galera instances will only begin to be promoted to the Master role
+# once all the nodes in the 'wsrep_cluster_address' connection address
+# have entered read-only mode. At that point the node containing the
+# database that is most current will be promoted to Master. Once the first
+# Master instance bootstraps the galera cluster, the other nodes will be
+# promoted to Master as well.
+#
+# Example: Create a galera cluster using nodes rhel7-node1 rhel7-node2 rhel7-node3
+#
+# pcs resource create db galera enable_creation=true \
+# wsrep_cluster_address="gcomm://rhel7-auto1,rhel7-auto2,rhel7-auto3" meta master-max=3 --master
+#
+# By setting the 'enable_creation' option, the database will be automatically 
+# generated at startup. The meta attribute 'master-max=3' means that all 3
+# nodes listed in the wsrep_cluster_address list will be allowed to connect
+# to the galera cluster and perform replication.
+#
+# NOTE: If you have more nodes in the pacemaker cluster then you wish
+# to have in the galera cluster, make sure to use location contraints to prevent
+# pacemaker from attempting to place a galera instance on a node that is
+# not in the 'wsrep_cluster_address" list. 
+#
+##
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+. ${OCF_FUNCTIONS_DIR}/mysql-common.sh
+
+#######################################################################
+
+usage() {
+  cat <<UEND
+usage: $0 (start|stop|validate-all|meta-data|monitor|promote|demote|notify)
+
+$0 manages a galera Database as an HA resource.
+
+The 'start' operation starts the database.
+The 'stop' operation stops the database.
+The 'status' operation reports whether the database is running
+The 'monitor' operation reports whether the database seems to be working
+The 'promote' operation makes this mysql server run as master
+The 'demote' operation makes this mysql server run as slave
+The 'validate-all' operation reports whether the parameters are valid
+
+UEND
+}
+
+meta_data() {
+   cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="galera">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for managing galara database.
+</longdesc>
+<shortdesc lang="en">Manages a galara instance</shortdesc>
+<parameters>
+
+<parameter name="binary" unique="0" required="0">
+<longdesc lang="en">
+Location of the MySQL server binary
+</longdesc>
+<shortdesc lang="en">MySQL server binary</shortdesc>
+<content type="string" default="${OCF_RESKEY_binary_default}" />
+</parameter>
+
+<parameter name="client_binary" unique="0" required="0">
+<longdesc lang="en">
+Location of the MySQL client binary
+</longdesc>
+<shortdesc lang="en">MySQL client binary</shortdesc>
+<content type="string" default="${OCF_RESKEY_client_binary_default}" />
+</parameter>
+
+<parameter name="config" unique="0" required="0">
+<longdesc lang="en">
+Configuration file
+</longdesc>
+<shortdesc lang="en">MySQL config</shortdesc>
+<content type="string" default="${OCF_RESKEY_config_default}" />
+</parameter>
+
+<parameter name="datadir" unique="0" required="0">
+<longdesc lang="en">
+Directory containing databases
+</longdesc>
+<shortdesc lang="en">MySQL datadir</shortdesc>
+<content type="string" default="${OCF_RESKEY_datadir_default}" />
+</parameter>
+
+<parameter name="user" unique="0" required="0">
+<longdesc lang="en">
+User running MySQL daemon
+</longdesc>
+<shortdesc lang="en">MySQL user</shortdesc>
+<content type="string" default="${OCF_RESKEY_user_default}" />
+</parameter>
+
+<parameter name="group" unique="0" required="0">
+<longdesc lang="en">
+Group running MySQL daemon (for logfile and directory permissions)
+</longdesc>
+<shortdesc lang="en">MySQL group</shortdesc>
+<content type="string" default="${OCF_RESKEY_group_default}"/>
+</parameter>
+
+<parameter name="log" unique="0" required="0">
+<longdesc lang="en">
+The logfile to be used for mysqld.
+</longdesc>
+<shortdesc lang="en">MySQL log file</shortdesc>
+<content type="string" default="${OCF_RESKEY_log_default}"/>
+</parameter>
+
+<parameter name="pid" unique="0" required="0">
+<longdesc lang="en">
+The pidfile to be used for mysqld.
+</longdesc>
+<shortdesc lang="en">MySQL pid file</shortdesc>
+<content type="string" default="${OCF_RESKEY_pid_default}"/>
+</parameter>
+
+<parameter name="socket" unique="0" required="0">
+<longdesc lang="en">
+The socket to be used for mysqld.
+</longdesc>
+<shortdesc lang="en">MySQL socket</shortdesc>
+<content type="string" default="${OCF_RESKEY_socket_default}"/>
+</parameter>
+
+<parameter name="enable_creation" unique="0" required="0">
+<longdesc lang="en">
+If the MySQL database does not exist, it will be created
+</longdesc>
+<shortdesc lang="en">Create the database if it does not exist</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_enable_creation_default}"/>
+</parameter>
+
+<parameter name="additional_parameters" unique="0" required="0">
+<longdesc lang="en">
+Additional parameters which are passed to the mysqld on startup.
+(e.g. --skip-external-locking or --skip-grant-tables)
+</longdesc>
+<shortdesc lang="en">Additional parameters to pass to mysqld</shortdesc>
+<content type="string" default="${OCF_RESKEY_additional_parameters_default}"/>
+</parameter>
+
+
+<parameter name="wsrep_cluster_address" unique="0" required="1">
+<longdesc lang="en">
+The galera cluster address. This takes the form of:
+gcomm://node,node,node
+
+Only nodes present in this node list will be allowed to start a galera instance.
+It is expected that the galera node names listed in this address match valid
+pacemaker node names.
+</longdesc>
+<shortdesc lang="en">Galera cluster address</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="120" />
+<action name="stop" timeout="120" />
+<action name="status" timeout="60" />
+<action name="monitor" depth="0" timeout="30" interval="20" />
+<action name="monitor" role="Master" depth="0" timeout="30" interval="10" />
+<action name="monitor" role="Slave" depth="0" timeout="30" interval="30" />
+<action name="promote" timeout="120" />
+<action name="demote" timeout="120" />
+<action name="notify" timeout="90" />
+<action name="validate-all" timeout="5" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+get_option_variable()
+{
+    local key=$1
+
+    echo 'SHOW VARIABLES;' | $MYSQL -u root 2>/dev/null | grep "^${key}[[:space:]]" | awk '{print $2}'
+}
+
+get_status_variable()
+{
+    local key=$1
+
+    echo 'show status;' | $MYSQL -u root 2>/dev/null | grep "^${key}[[:space:]]" | awk '{print $2}'
+}
+
+set_bootstrap_node()
+{
+    local node=$1
+
+    ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-bootstrap" -v "true"
+}
+
+clear_bootstrap_node()
+{
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-bootstrap" -D
+}
+
+is_bootstrap()
+{
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-bootstrap" -Q 2>/dev/null
+
+}
+
+clear_last_commit()
+{
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" -D
+}
+
+set_last_commit()
+{
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" -v $1
+}
+
+get_last_commit()
+{
+    local node=$1
+
+    if [ -z "$node" ]; then
+       ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" -Q 2>/dev/null
+    else 
+       ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" -Q 2>/dev/null
+    fi
+}
+
+wait_for_sync()
+{
+    local state=$(get_status_variable "wsrep_local_state")
+
+    ocf_log info "Waiting for database to sync with the cluster. "
+    while [ "$state" != "4" ]; do
+        sleep 1
+        state=$(get_status_variable "wsrep_local_state")
+    done
+    ocf_log info "Database synced."
+}
+
+is_readonly()
+{
+    local res=$(get_option_variable "read_only")
+
+    if ! ocf_is_true "$res"; then
+        return 1
+    fi
+
+    cluster_status=$(get_status_variable "wsrep_cluster_status")
+    if ! [ "$cluster_status" = "Disconnected" ]; then
+        return 1
+    fi
+
+    return 0
+}
+
+master_exists()
+{
+    # determine if a master instance is already up and is healthy
+    crm_mon --as-xml | grep "resource.*id=\"${OCF_RESOURCE_INSTANCE}\".*role=\"Master\".*active=\"true\".*orphaned=\"false\".*failed=\"false\"" > /dev/null 2>&1
+    return $?
+}
+
+clear_master_score()
+{
+    local node=$1
+    if [ -z "$node" ]; then
+        $CRM_MASTER -D
+    else 
+        $CRM_MASTER -D -N $node
+    fi
+}
+
+set_master_score()
+{
+    local node=$1
+
+    if [ -z "$node" ]; then
+        $CRM_MASTER -v 100
+    else 
+        $CRM_MASTER -N $node -v 100
+    fi
+}
+
+promote_everyone()
+{
+
+    for node in $(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' '); do
+
+        set_master_score $node
+    done
+}
+
+greater_than_equal_long()
+{
+    # there are values we need to compare in this script
+    # that are too large for shell -gt to process
+    echo | awk -v n1="$1" -v n2="$2"  '{if (n1>=n2) printf ("true"); else printf ("false");}' |  grep -q "true"
+}
+
+detect_first_master()
+{
+    local best_commit=0
+    local best_node="$NODENAME"
+    local last_commit=0
+    local missing_nodes=0
+
+    for node in $(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' '); do
+        last_commit=$(get_last_commit $node)
+
+        if [ -z "$last_commit" ]; then
+            ocf_log info "Waiting on node <${node}> to report database status before Master instances can start."
+            missing_nodes=1
+            continue
+        fi
+
+        # this means -1, or that no commit has occured yet.
+        if [ "$last_commit" = "18446744073709551615" ]; then
+            last_commit="0"
+        fi
+
+        greater_than_equal_long "$last_commit" "$best_commit"
+        if [ $? -eq 0 ]; then
+            best_node=$node
+            best_commit=$last_commit
+        fi
+
+    done
+
+    if [ $missing_nodes -eq 1 ]; then
+        return
+    fi
+
+    ocf_log info "Promoting $best_node to be our bootstrap node"
+    set_master_score $best_node
+    set_bootstrap_node $best_node
+}
+
+# For galera, promote is really start
+galera_promote()
+{
+    local rc
+    local extra_opts
+    local bootstrap
+    
+    master_exists
+    if [ $? -eq 0 ]; then
+        # join without bootstrapping
+        extra_opts="--wsrep-cluster-address=${OCF_RESKEY_wsrep_cluster_address}"
+    else
+        bootstrap=$(is_bootstrap)
+
+        if ocf_is_true $bootstrap; then
+            ocf_log info "Node <${NODENAME}> is bootstrapping the cluster"
+            extra_opts="--wsrep-cluster-address=gcomm://"
+        else
+            ocf_log err "Failure, Attempted to promote Master instance of $OCF_RESOURCE_INSTANCE before bootstrap node has been detected."
+            return $OCF_ERR_GENERIC
+        fi
+
+    fi
+
+    # make sure the read only instance is stopped
+    mysql_common_stop
+    rc=$?
+    if [ $rc -ne $OCF_SUCCESS ] && [ $rc -ne $OCF_NOT_RUNNING ]; then
+        ocf_log err "Failed to stop read-only galera instance during promotion to Master"
+        return $rc
+    fi
+
+    sleep 4
+
+    mysql_common_prepare_dirs
+    mysql_common_start "$extra_opts"
+    rc=$?
+    if [ $rc != $OCF_SUCCESS ]; then
+        return $rc
+    fi
+
+    galera_monitor
+    rc=$?
+    if [ $rc != $OCF_SUCCESS -a $rc != $OCF_RUNNING_MASTER ]; then
+        ocf_log err "Failed initial monitor action"
+        return $rc
+    fi
+
+    is_readonly
+    if [ $? -eq 0 ]; then
+        ocf_log err "Failure. Master instance started in read-only mode, check configuration."
+        return $OCF_ERR_GENERIC
+    fi
+
+    if ocf_is_true $bootstrap; then
+        promote_everyone
+        clear_bootstrap_node
+        ocf_log info "Bootstrap complete, promoting the rest of the galera instances."
+    else
+        # if this is not the bootstrap node, make sure this instance
+        # syncs with the rest of the cluster before promotion returns.
+        wait_for_sync
+    fi
+
+    # last commit is no longer relevant once promoted
+    clear_last_commit
+
+    ocf_log info "Galera started"
+    return $OCF_SUCCESS
+}
+
+galera_demote()
+{
+    mysql_common_stop
+    rc=$?
+    if [ $rc -ne $OCF_SUCCESS ] && [ $rc -ne $OCF_NOT_RUNNING ]; then
+        ocf_log err "Failed to stop Master galera instance during demotion to Master"
+        return $rc
+    fi
+
+    # if this node was previously a bootstrap node, that is no longer the case.
+    clear_bootstrap_node
+
+    # start again in slave mode so the new last commit is recorded
+    galera_start
+}
+
+galera_start()
+{
+    local extra_opts='--read-only=true'
+    local last_commit
+
+    echo $OCF_RESKEY_wsrep_cluster_address | grep -q $NODENAME
+    if [ $? -ne 0 ]; then
+        ocf_log err "local node <${NODENAME}> must be a member of the wsrep_cluster_address <${OCF_RESKEY_wsrep_cluster_address}>to start this galera instance"
+        return $OCF_ERR_CONFIGURED
+    fi
+
+    mysql_common_prepare_dirs
+    mysql_common_start "$extra_opts"
+
+    is_readonly
+    if [ $? -ne 0 ]; then
+        ocf_log err "Failure. Slave instance did not start correctly in read-only mode, Make sure local galera.cnf does not have wsrep_cluster_address set."
+        return $OCF_ERR_GENERIC
+    fi
+
+    ocf_log info "attempting to detect last commit version"
+    while [ -z "$last_commit" ]; do
+        last_commit=$(get_status_variable "wsrep_last_committed")
+        if [ -z "$last_commit" ]; then
+            sleep 1
+        fi
+    done
+    ocf_log info "Last commit version found:  $last_commit"
+
+    set_last_commit $last_commit
+
+    master_exists
+    if [ $? -eq 0 ]; then
+        ocf_log info "Master instances are already up, setting master score so this instance will join galera cluster."
+        set_master_score $NODENAME
+    else
+        clear_master_score
+        detect_first_master
+    fi
+
+    return $OCF_SUCCESS
+}
+
+galera_monitor()
+{
+    local rc
+    local status_loglevel="err"
+
+    # Set loglevel to info during probe
+    if ocf_is_probe; then
+        status_loglevel="info"
+    fi
+ 
+    mysql_common_status $status_loglevel
+    rc=$?
+
+    # If status returned an error, return that immediately
+    if [ $rc -ne $OCF_SUCCESS ]; then
+        return $rc
+    fi
+
+    echo $OCF_RESKEY_wsrep_cluster_address | grep -q $NODENAME
+    if [ $? -ne 0 ]; then
+        ocf_log err "local node <${NODENAME}> is started, but is not a member of the wsrep_cluster_address <${OCF_RESKEY_wsrep_cluster_address}>"
+        return $OCF_ERR_GENERIC
+    fi
+
+    is_readonly
+    if [ $? -ne 0 ]; then
+        if ocf_is_probe; then
+            # restore master score during probe
+            # if we detect this is a master instance
+            set_master_score
+        fi
+        rc=$OCF_RUNNING_MASTER
+        # TODO detect if cluster is connected or not here.
+    else 
+        master_exists
+        if [ $? -ne 0 ]; then
+            detect_first_master
+        else
+            # a master instance exists and is healthy, promote this
+            # local read only instance
+            # so it can join the master galera cluster.
+            set_master_score
+        fi
+    fi
+    # TODO look at what is done in the wait script
+
+    return $rc
+}
+
+galera_stop()
+{
+    local rc
+    # make sure the process is stopped
+    mysql_common_stop
+    rc=$1
+
+    clear_last_commit
+    clear_master_score
+    clear_bootstrap_node
+    return $rc
+}
+
+galera_validate()
+{
+    if ! ocf_is_ms; then
+        ocf_log err "Galera must be configured as a multistate Master/Slave resource."
+        return $OCF_ERR_CONFIGURED
+    fi
+
+    if [ -z "$OCF_RESKEY_wsrep_cluster_address" ]; then
+        ocf_log err "Galera must be configured with a wsrep_cluster_address value."
+        return $OCF_ERR_CONFIGURED
+    fi
+
+    mysql_common_validate
+}
+
+case "$1" in
+  meta-data)    meta_data
+        exit $OCF_SUCCESS;;
+  usage|help)   usage
+        exit $OCF_SUCCESS;;
+esac
+
+galera_validate
+rc=$?
+LSB_STATUS_STOPPED=3
+if [ $rc -ne 0 ]; then
+    case "$1" in
+        stop) exit $OCF_SUCCESS;;
+        monitor) exit $OCF_NOT_RUNNING;;
+        status) exit $LSB_STATUS_STOPPED;;
+        *) exit $rc;;
+    esac
+fi
+
+# What kind of method was invoked?
+case "$1" in
+  start)    galera_start;;
+  stop)     galera_stop;;
+  status)   mysql_common_status err;;
+  monitor)  galera_monitor;;
+  promote)  galera_promote;;
+  demote)   galera_demote;;
+  notify)   galera_notify;;
+  validate-all) exit $OCF_SUCCESS;;
+
+ *)     usage
+        exit $OCF_ERR_UNIMPLEMENTED;;
+esac
+
+# vi:sw=4:ts=4:et:

@@ -74,6 +74,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			exportfs		\
 			Filesystem		\
 			fio			\
+			galera			\
 			ids			\
 			iscsi			\
 			ICP			\
@@ -144,6 +145,7 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  sapdb-nosha.sh	\
 			  sapdb.sh		\
 			  ora-common.sh		\
+			  mysql-common.sh		\
 			  findif.sh
 
 # Legacy locations
