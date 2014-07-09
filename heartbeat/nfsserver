@@ -331,7 +331,7 @@ nfs_exec()
 
 	case $EXEC_MODE in 
 		1) ${OCF_RESKEY_nfs_init_script} $cmd;;
-		2) systemctl $cmd nfs-server.service
+		2) systemctl $cmd nfs-server.service ;;
 	esac
 }
 
@@ -659,6 +659,12 @@ nfsserver_start ()
 	cp -rpf $STATD_PATH/sm $STATD_PATH/sm.bak /var/lib/nfs/state $STATD_PATH/sm.ha > /dev/null 2>&1
 
 	ocf_log info "Starting NFS server ..."
+
+	# mounts /proc/fs/nfsd for us
+	lsmod | grep -q nfsd
+	if [ $? -ne 0 ]; then
+		modprobe nfsd
+	fi
 
 	# check to see if we need to start rpc.statd
 	v3locking_exec "status"
