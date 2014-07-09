@@ -382,12 +382,20 @@ set_arg()
 	local key="$1"
 	local value="$2"
 	local file="$3"
+	local requires_sysconfig="$4"
 
 	if [ -z "$value" ]; then
 		return
 	fi
 
-	echo "${key}=\"${value}\"" >> $file
+	# only write to the tmp /etc/sysconfig/nfs if sysconfig exists.
+	# otherwise this distro does not support setting these options.
+	if [ -d "/etc/sysconfig" ]; then
+		echo "${key}=\"${value}\"" >> $file
+	elif [ "$requires_sysconfig" = "true" ]; then
+		ocf_log warn "/etc/sysconfig/nfs not found, unable to set port and nfsd args."
+	fi
+
 	export ${key}="${value}"
 }
 
@@ -397,11 +405,11 @@ set_env_args()
 	local statd_args
 
 	# nfsd args
-	set_arg "RPCNFSDARGS" "$OCF_RESKEY_nfsd_args" "$tmpconfig"
+	set_arg "RPCNFSDARGS" "$OCF_RESKEY_nfsd_args" "$tmpconfig" "true"
 
 	# mountd args
 	if [ -n "$OCF_RESKEY_mountd_port" ]; then
-		set_arg "RPCMOUNTDOPTS" "-p $OCF_RESKEY_mountd_port" "$tmpconfig"
+		set_arg "RPCMOUNTDOPTS" "-p $OCF_RESKEY_mountd_port" "$tmpconfig" "true"
 	fi
 
 	# statd args. we always want to perform the notify using sm-notify after
@@ -413,14 +421,14 @@ set_env_args()
 	if [ -n "$OCF_RESKEY_statd_port" ]; then
 		statd_args="$statd_args -p $OCF_RESKEY_statd_port"
 	fi
-	set_arg "STATDARG" "$statd_args" "$tmpconfig"
+	set_arg "STATDARG" "$statd_args" "$tmpconfig" "false"
 
 	# lockd ports
-	set_arg "LOCKD_UDPPORT" "$OCF_RESKEY_lockd_udp_port" "$tmpconfig"
-	set_arg "LOCKD_TCPPORT" "$OCF_RESKEY_lockd_tcp_port" "$tmpconfig"
+	set_arg "LOCKD_UDPPORT" "$OCF_RESKEY_lockd_udp_port" "$tmpconfig" "true"
+	set_arg "LOCKD_TCPPORT" "$OCF_RESKEY_lockd_tcp_port" "$tmpconfig" "true"
 
 	# rquotad_port
-	set_arg "RPCRQUOTADOPTS" "$OCF_RESKEY_rquotad_port" "$tmpconfig"
+	set_arg "RPCRQUOTADOPTS" "$OCF_RESKEY_rquotad_port" "$tmpconfig" "true"
 
 	# override local nfs config. preserve previous local config though.
 	if [ -s $tmpconfig ]; then
