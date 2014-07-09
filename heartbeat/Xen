@@ -189,6 +189,14 @@ Xen_Status() {
      	return $OCF_SUCCESS
      fi
   fi
+  if have_binary xenstore-ls; then
+	  xenstore-ls -f /vm | grep -E "/vm.*name = \"$1\"" > /dev/null 2>&1
+	  if [ $? -ne 0 ]; then
+		  return $OCF_NOT_RUNNING
+	  else
+		  return $OCF_SUCCESS
+	  fi
+  fi
   STATUS=`$xentool list --long $1 2>/dev/null | grep status 2>/dev/null`
   if [ "X${STATUS}" != "X" ]; then
     # we have Xen 3.0.4 or higher
