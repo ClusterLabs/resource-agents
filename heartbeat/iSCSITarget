@@ -270,16 +270,16 @@ iSCSITarget_start() {
 	    # automatically creates the corresponding target if it
 	    # doesn't already exist.
 	    for portal in ${OCF_RESKEY_portals}; do
-		if [ "$OCF_RESKEY_implementation" == "lio" ] ; then
-		    ocf_run lio_node --addnp ${OCF_RESKEY_iqn} 1 \
-			${portal} || exit $OCF_ERR_GENERIC
-		else
-		    ocf_run targetcli /iscsi create ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
-		    if [ $portal != ${OCF_RESKEY_portals_default} ] ; then
-			IFS=':' read -a sep_portal <<< "$portal"
-			ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/portals create "${sep_portal[0]}" "${sep_portal[1]}" || exit $OCF_ERR_GENERIC
-		    fi
-		fi
+                if [ "$OCF_RESKEY_implementation" == "lio" ] ; then
+                    ocf_run lio_node --addnp ${OCF_RESKEY_iqn} 1 \
+                        ${portal} || exit $OCF_ERR_GENERIC
+                else
+                    ocf_run targetcli /iscsi create ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
+                    if [ $portal != ${OCF_RESKEY_portals_default} ] ; then
+                        IFS=':' read -a sep_portal <<< "$portal"
+                        ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/portals create "${sep_portal[0]}" "${sep_portal[1]}" || exit $OCF_ERR_GENERIC
+                    fi
+                fi
 	    done
 	    # in lio, we can set target parameters by manipulating
 	    # the appropriate configfs entries
@@ -297,40 +297,40 @@ iSCSITarget_start() {
 	    # this, we need to switch the target to "permissive mode".
 	    if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
 		for initiator in ${OCF_RESKEY_allowed_initiators}; do
-		    if [ "$OCF_RESKEY_implementation" == "lio" ] ; then
-			ocf_run lio_node --addnodeacl ${OCF_RESKEY_iqn} 1 \
-			    ${initiator} || exit $OCF_ERR_GENERIC
-		    else
-			ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/acls create ${initiator} || exit $OCF_ERR_GENERIC
-		    fi
+                    if [ "$OCF_RESKEY_implementation" == "lio" ] ; then
+                        ocf_run lio_node --addnodeacl ${OCF_RESKEY_iqn} 1 \
+                            ${initiator} || exit $OCF_ERR_GENERIC
+                    else
+                        ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/acls create ${initiator} || exit $OCF_ERR_GENERIC
+                    fi
 		done
 	    else
-		if [ "$OCF_RESKEY_implementation" == "lio" ] ; then
-		    ocf_run lio_node --permissive ${OCF_RESKEY_iqn} 1 || exit $OCF_ERR_GENERIC
+                if [ "$OCF_RESKEY_implementation" == "lio" ] ; then
+                    ocf_run lio_node --permissive ${OCF_RESKEY_iqn} 1 || exit $OCF_ERR_GENERIC
 
-		    # permissive mode enables read-only access by default,
-		    # so we need to change that to RW to be in line with
-		    # the other implementations.
-		    echo 0 > "/sys/kernel/config/target/iscsi/${OCF_RESKEY_iqn}/tpgt_1/attrib/demo_mode_write_protect"
-		    if [ `cat /sys/kernel/config/target/iscsi/${OCF_RESKEY_iqn}/tpgt_1/attrib/demo_mode_write_protect` -ne 0 ]; then
-			ocf_log err "Failed to disable write protection for target ${OCF_RESKEY_iqn}."
-			exit $OCF_ERR_GENERIC
-		    fi
-		else
-		    ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute authentication=0 demo_mode_write_protect=0 generate_node_acls=1 cache_dynamic_acls=1 || exit $OCF_ERR_GENERIC
-		fi
+                    # permissive mode enables read-only access by default,
+                    # so we need to change that to RW to be in line with
+                    # the other implementations.
+                    echo 0 > "/sys/kernel/config/target/iscsi/${OCF_RESKEY_iqn}/tpgt_1/attrib/demo_mode_write_protect"
+                    if [ `cat /sys/kernel/config/target/iscsi/${OCF_RESKEY_iqn}/tpgt_1/attrib/demo_mode_write_protect` -ne 0 ]; then
+                        ocf_log err "Failed to disable write protection for target ${OCF_RESKEY_iqn}."
+                        exit $OCF_ERR_GENERIC
+                    fi
+                else
+                    ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute authentication=0 demo_mode_write_protect=0 generate_node_acls=1 cache_dynamic_acls=1 || exit $OCF_ERR_GENERIC
+                fi
 	    fi
 	    # TODO: add CHAP authentication support when it gets added
 	    # back into LIO
-	    if [ "$OCF_RESKEY_implementation" == "lio" ] ; then
-		ocf_run lio_node --disableauth ${OCF_RESKEY_iqn} 1 || exit $OCF_ERR_GENERIC
-		# Finally, we need to enable the target to allow
-		# initiators to connect
-		ocf_run lio_node --enabletpg=${OCF_RESKEY_iqn} 1 || exit $OCF_ERR_GENERIC
-	    else
-		ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute authentication=0 || exit $OCF_ERR_GENERIC
-#		ocf_run targetcli /iscsi 
-	    fi
+            if [ "$OCF_RESKEY_implementation" == "lio" ] ; then
+                ocf_run lio_node --disableauth ${OCF_RESKEY_iqn} 1 || exit $OCF_ERR_GENERIC
+                # Finally, we need to enable the target to allow
+                # initiators to connect
+                ocf_run lio_node --enabletpg=${OCF_RESKEY_iqn} 1 || exit $OCF_ERR_GENERIC
+            else
+                ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute authentication=0 || exit $OCF_ERR_GENERIC
+#               ocf_run targetcli /iscsi 
+            fi
 	    ;;
     esac
 
@@ -446,9 +446,9 @@ iSCSITarget_stop() {
 		# associated TPGs, network portals, and LUNs.
 		ocf_run lio_node --deliqn ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
 		;;
-	    lio-t)
-		ocf_run targetcli /iscsi delete ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
-		;;
+            lio-t)
+                ocf_run targetcli /iscsi delete ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
+                ;;
 	esac
     fi
 
@@ -560,9 +560,9 @@ iSCSITarget_validate() {
 		check_binary tcm_node
 		check_binary lio_node
 		;;
-	    lio-t)
-		check_binary targetcli
-		;;
+            lio-t)
+                check_binary targetcli
+                ;;
 	esac
 
         # Is the required kernel functionality available?
@@ -589,9 +589,9 @@ iSCSITarget_validate() {
 		    exit $OCF_ERR_INSTALLED
 		fi
 		;;
-	    lio-t)
-          #targetcli loads the needed kernel modules
-		;;
+            lio-t)
+                #targetcli loads the needed kernel modules
+                ;;
 	esac
     fi
 
