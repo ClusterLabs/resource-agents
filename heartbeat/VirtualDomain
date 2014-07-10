@@ -430,7 +430,7 @@ save_config(){
 	if [ -s ${CFGTMP} ]; then
 		if virt-xml-validate ${CFGTMP} domain 2>/dev/null ;	then
 			ocf_log info "Saving domain $DOMAIN_NAME to ${OCF_RESKEY_config}. Please make sure it's present on all nodes."
-			if mv ${CFGTMP} ${OCF_RESKEY_config} ; then
+			if cat ${CFGTMP} > ${OCF_RESKEY_config} ; then
 				ocf_log info "Saved $DOMAIN_NAME domain's configuration to ${OCF_RESKEY_config}."
 			else	
 				ocf_log warn "Moving ${CFGTMP} to ${OCF_RESKEY_config} failed."
