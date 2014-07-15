@@ -345,7 +345,7 @@ iSCSILogicalUnit_start() {
 
             if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
                 for initiator in ${OCF_RESKEY_allowed_initiators}; do
-                    acl_configfs_path="/sys/kernel/config/target/iscsi/${OCF_RESKEY_target_iqn}/tpgt_1/acls/${initiator}"
+                    acl_configfs_path="/sys/kernel/config/target/iscsi/${OCF_RESKEY_target_iqn}/tpgt_1/acls/${initiator}/lun_${OCF_RESKEY_lun}"
                     if [ ! -e "${acl_configfs_path}" ]; then
                         ocf_run lio_node --addlunacl=${OCF_RESKEY_target_iqn} 1 \
                         ${initiator} ${OCF_RESKEY_lun} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
