@@ -43,6 +43,7 @@ OCF_RESKEY_replication_port_default="3306"
 OCF_RESKEY_max_slave_lag_default="3600"
 OCF_RESKEY_evict_outdated_slaves_default="false"
 OCF_RESKEY_reader_attribute_default="readable"
+OCF_RESKEY_client_timeout_default="0"
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
@@ -75,11 +76,13 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 
 : ${OCF_RESKEY_reader_attribute=${OCF_RESKEY_reader_attribute_default}}
 
+: ${OCF_RESKEY_client_timeout=${OCF_RESKEY_client_timeout_default}}
+
 #######################################################################
 # Convenience variables
 
 MYSQL=$OCF_RESKEY_client_binary
-MYSQL_OPTIONS_LOCAL="-S $OCF_RESKEY_socket --connect_timeout=10"
+MYSQL_OPTIONS_LOCAL="-S $OCF_RESKEY_socket --connect_timeout=$OCF_RESKEY_client_timeout"
 MYSQL_OPTIONS_REPL="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_replication_user --password=$OCF_RESKEY_replication_passwd"
 MYSQL_OPTIONS_TEST="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
 MYSQL_TOO_MANY_CONN_ERR=1040
