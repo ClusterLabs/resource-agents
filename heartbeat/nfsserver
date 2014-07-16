@@ -428,7 +428,9 @@ set_env_args()
 	set_arg "LOCKD_TCPPORT" "$OCF_RESKEY_lockd_tcp_port" "$tmpconfig" "true"
 
 	# rquotad_port
-	set_arg "RPCRQUOTADOPTS" "-p $OCF_RESKEY_rquotad_port" "$tmpconfig" "true"
+	if [ -n "$OCF_RESKEY_rquotad_port" ]; then
+		set_arg "RPCRQUOTADOPTS" "-p $OCF_RESKEY_rquotad_port" "$tmpconfig" "true"
+	fi
 
 	# override local nfs config. preserve previous local config though.
 	if [ -s $tmpconfig ]; then
