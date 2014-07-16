@@ -572,6 +572,11 @@ VirtualDomain_Migrate_To() {
 		# Scared of that sed expression? So am I. :-)
 		remoteuri=$(echo ${OCF_RESKEY_hypervisor} | sed -e "s,\(.*\)://[^/:]*\(:\?[0-9]*\)/\(.*\),\1${transport_suffix}://${target_node}\2/\3,")
 
+		# save config if needed
+		if ocf_is_true "$OCF_RESKEY_save_config_on_stop"; then	
+			save_config
+		fi
+
 		# OK, we know where to connect to. Now do the actual migration.
 		ocf_log info "$DOMAIN_NAME: Starting live migration to ${target_node} (using remote hypervisor URI ${remoteuri} ${migrateuri})."
 		virsh ${VIRSH_OPTIONS} migrate --live $DOMAIN_NAME ${remoteuri} ${migrateuri}
@@ -594,6 +599,10 @@ VirtualDomain_Migrate_From() {
 		sleep 1
 	done
 	ocf_log info "$DOMAIN_NAME: live migration from ${OCF_RESKEY_CRM_meta_migrate_source} succeeded."
+	# save config if needed
+	if ocf_is_true "$OCF_RESKEY_save_config_on_stop"; then	
+		save_config
+	fi
 	return $OCF_SUCCESS
 }
 
@@ -729,3 +738,4 @@ case $1 in
 		;;
 esac
 exit $?
+
