@@ -310,6 +310,16 @@ wait_for_sync()
     ocf_log info "Database synced."
 }
 
+is_primary()
+{
+    cluster_status=$(get_status_variable "wsrep_cluster_status")
+    if [ "$cluster_status" = "Primary" ]; then
+        return 0
+    fi
+    ocf_log info "Galera instance wsrep_cluster_status=${cluster_status}"
+    return 1
+}
+
 is_readonly()
 {
     local res=$(get_option_variable "read_only")
@@ -462,6 +472,12 @@ galera_promote()
         return $OCF_ERR_GENERIC
     fi
 
+    is_primary
+    if [ $? -ne 0 ]; then
+        ocf_log err "Failure. Master instance started, but is not in Primary mode."
+        return $OCF_ERR_GENERIC
+    fi
+
     if ocf_is_true $bootstrap; then
         promote_everyone
         clear_bootstrap_node
@@ -564,13 +580,18 @@ galera_monitor()
 
     is_readonly
     if [ $? -ne 0 ]; then
+        is_primary
+        if [ $? -ne 0 ]; then
+            ocf_log err "local node <${NODENAME}> is neither in primary mode nor in read_only mode. Unknown state."
+            return $OCF_ERR_GENERIC
+        fi
+
         if ocf_is_probe; then
             # restore master score during probe
             # if we detect this is a master instance
             set_master_score
         fi
         rc=$OCF_RUNNING_MASTER
-        # TODO detect if cluster is connected or not here.
     else 
         master_exists
         if [ $? -ne 0 ]; then
