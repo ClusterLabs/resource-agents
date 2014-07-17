@@ -68,6 +68,13 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 . ${OCF_FUNCTIONS_DIR}/mysql-common.sh
 
+# It is common for some galera instances to store
+# check user that can be used to query status
+# in this file
+if [ -f "/etc/sysconfig/clustercheck" ]; then
+    . /etc/sysconfig/clustercheck
+fi
+
 #######################################################################
 
 usage() {
@@ -203,6 +210,22 @@ pacemaker node names.
 <content type="string" default=""/>
 </parameter>
 
+<parameter name="check_user" unique="0" required="0">
+<longdesc lang="en">
+Cluster check user.
+</longdesc>
+<shortdesc lang="en">MySQL test user</shortdesc>
+<content type="string" default="root" />
+</parameter>
+
+<parameter name="check_passwd" unique="0" required="0">
+<longdesc lang="en">
+Cluster check user password
+</longdesc>
+<shortdesc lang="en">check password</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -226,14 +249,14 @@ get_option_variable()
 {
     local key=$1
 
-    echo 'SHOW VARIABLES;' | $MYSQL -u root 2>/dev/null | grep "^${key}[[:space:]]" | awk '{print $2}'
+    $MYSQL $MYSQL_OPTIONS_CHECK  -e "SHOW VARIABLES like '$key';" | tail -1
 }
 
 get_status_variable()
 {
     local key=$1
 
-    echo 'show status;' | $MYSQL -u root 2>/dev/null | grep "^${key}[[:space:]]" | awk '{print $2}'
+    $MYSQL $MYSQL_OPTIONS_CHECK -e "show status like '$key';" | tail -1
 }
 
 set_bootstrap_node()
@@ -285,6 +308,16 @@ wait_for_sync()
         state=$(get_status_variable "wsrep_local_state")
     done
     ocf_log info "Database synced."
+}
+
+is_primary()
+{
+    cluster_status=$(get_status_variable "wsrep_cluster_status")
+    if [ "$cluster_status" = "Primary" ]; then
+        return 0
+    fi
+    ocf_log info "Galera instance wsrep_cluster_status=${cluster_status}"
+    return 1
 }
 
 is_readonly()
@@ -439,6 +472,12 @@ galera_promote()
         return $OCF_ERR_GENERIC
     fi
 
+    is_primary
+    if [ $? -ne 0 ]; then
+        ocf_log err "Failure. Master instance started, but is not in Primary mode."
+        return $OCF_ERR_GENERIC
+    fi
+
     if ocf_is_true $bootstrap; then
         promote_everyone
         clear_bootstrap_node
@@ -541,13 +580,18 @@ galera_monitor()
 
     is_readonly
     if [ $? -ne 0 ]; then
+        is_primary
+        if [ $? -ne 0 ]; then
+            ocf_log err "local node <${NODENAME}> is neither in primary mode nor in read_only mode. Unknown state."
+            return $OCF_ERR_GENERIC
+        fi
+
         if ocf_is_probe; then
             # restore master score during probe
             # if we detect this is a master instance
             set_master_score
         fi
         rc=$OCF_RUNNING_MASTER
-        # TODO detect if cluster is connected or not here.
     else 
         master_exists
         if [ $? -ne 0 ]; then
@@ -609,6 +653,21 @@ if [ $rc -ne 0 ]; then
         status) exit $LSB_STATUS_STOPPED;;
         *) exit $rc;;
     esac
+fi
+
+if [ -z "${OCF_RESKEY_check_passwd}" ]; then
+    # This value is automatically sourced from /etc/sysconfig/checkcluster if available
+    OCF_RESKEY_check_passwd=${MYSQL_PASSWORD}
+fi
+if [ -z "${OCF_RESKEY_check_user}" ]; then
+    # This value is automatically sourced from /etc/sysconfig/checkcluster if available
+    OCF_RESKEY_check_user=${MYSQL_USERNAME}
+fi
+: ${OCF_RESKEY_check_user="root"}
+
+MYSQL_OPTIONS_CHECK="-nNE --user=${OCF_RESKEY_check_user}"
+if [ -n "${OCF_RESKEY_check_passwd}" ]; then
+    MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK --password=${MYSQL_PASSWORD}"
 fi
 
 # What kind of method was invoked?
