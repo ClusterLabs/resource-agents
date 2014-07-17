@@ -68,6 +68,13 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 . ${OCF_FUNCTIONS_DIR}/mysql-common.sh
 
+# It is common for some galera instances to store
+# check user that can be used to query status
+# in this file
+if [ -f "/etc/sysconfig/clustercheck" ]; then
+    . /etc/sysconfig/clustercheck
+fi
+
 #######################################################################
 
 usage() {
@@ -203,6 +210,22 @@ pacemaker node names.
 <content type="string" default=""/>
 </parameter>
 
+<parameter name="check_user" unique="0" required="0">
+<longdesc lang="en">
+Cluster check user.
+</longdesc>
+<shortdesc lang="en">MySQL test user</shortdesc>
+<content type="string" default="root" />
+</parameter>
+
+<parameter name="check_passwd" unique="0" required="0">
+<longdesc lang="en">
+Cluster check user password
+</longdesc>
+<shortdesc lang="en">check password</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -226,14 +249,14 @@ get_option_variable()
 {
     local key=$1
 
-    echo 'SHOW VARIABLES;' | $MYSQL -u root 2>/dev/null | grep "^${key}[[:space:]]" | awk '{print $2}'
+    $MYSQL $MYSQL_OPTIONS_CHECK  -e "SHOW VARIABLES like '$key';" | tail -1
 }
 
 get_status_variable()
 {
     local key=$1
 
-    echo 'show status;' | $MYSQL -u root 2>/dev/null | grep "^${key}[[:space:]]" | awk '{print $2}'
+    $MYSQL $MYSQL_OPTIONS_CHECK -e "show status like '$key';" | tail -1
 }
 
 set_bootstrap_node()
@@ -609,6 +632,21 @@ if [ $rc -ne 0 ]; then
         status) exit $LSB_STATUS_STOPPED;;
         *) exit $rc;;
     esac
+fi
+
+if [ -z "${OCF_RESKEY_check_passwd}" ]; then
+    # This value is automatically sourced from /etc/sysconfig/checkcluster if available
+    OCF_RESKEY_check_passwd=${MYSQL_PASSWORD}
+fi
+if [ -z "${OCF_RESKEY_check_user}" ]; then
+    # This value is automatically sourced from /etc/sysconfig/checkcluster if available
+    OCF_RESKEY_check_user=${MYSQL_USERNAME}
+fi
+: ${OCF_RESKEY_check_user="root"}
+
+MYSQL_OPTIONS_CHECK="-nNE --user=${OCF_RESKEY_check_user}"
+if [ -n "${OCF_RESKEY_check_passwd}" ]; then
+    MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK --password=${MYSQL_PASSWORD}"
 fi
 
 # What kind of method was invoked?
