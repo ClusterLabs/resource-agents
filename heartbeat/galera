@@ -316,7 +316,12 @@ is_primary()
     if [ "$cluster_status" = "Primary" ]; then
         return 0
     fi
-    ocf_log info "Galera instance wsrep_cluster_status=${cluster_status}"
+
+    if [ -z "$cluster_status" ]; then
+        ocf_log err "Unable to retrieve wsrep_cluster_status, verify check_user '$OCF_RESKEY_check_user' has permissions to view status"
+    else
+        ocf_log info "Galera instance wsrep_cluster_status=${cluster_status}"
+    fi
     return 1
 }
 
