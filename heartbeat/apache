@@ -157,17 +157,20 @@ validate_default_config() {
 # that include, we run "/etc/init.d/apache2 configtest" to ensure
 # the relevant config is generated and valid.  We're also taking
 # this opportunity to enable mod_status if it's not present.
-# Note: no longer necessary with systemd
 validate_default_suse_config() {
 	if [ "$CONFIGFILE" = "$DEFAULT_SUSECONFIG" ] && \
 		grep -Eq '^Include[[:space:]]+/etc/apache2/sysconfig.d/include.conf' "$CONFIGFILE"
 	then
 		[ -x "/usr/sbin/a2enmod" ] && ocf_run -q /usr/sbin/a2enmod status
-		[ -e "/etc/init.d/apache2" ] && ocf_run -q /etc/init.d/apache2 configtest
-		return
-	else
-		return 0
+		# init script style, for crusty old SUSE
+		if [ -e "/etc/init.d/apache2" ]; then
+			ocf_run -q /etc/init.d/apache2 configtest || return 1
+		# systemd style, for shiny new SUSE
+		elif [ -e "/usr/sbin/start_apache2" ]; then
+			ocf_run -q /usr/sbin/start_apache2 -t || return 1
+		fi
 	fi
+	return 0
 }
 
 apache_start() {
