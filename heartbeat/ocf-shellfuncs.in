@@ -330,6 +330,29 @@ ocf_log() {
 	fi
 }
 
+
+#
+# ocf_exit_reason: print exit error string to stderr
+# Usage:           Allows the OCF script to provide a string
+#                  describing why the exit code was returned.
+# Arguments:   reason - required, The string that represents why the error
+#                       occured.
+#              action_filter - optional, only record this exit string when
+#                              the action specified by this option is being
+#                              executed.
+#
+ocf_exit_reason()
+{
+	local action_filter=$2
+	if [ $# -lt 1 ]; then
+		ocf_log err "Not enough arguments [$#] to ocf_log_exit_msg."
+	fi
+
+	if [ -z "action_filter" ] || [ "$__OCF_ACTION" = "$action_filter" ]; then
+		printf "@OCF_EXIT_REASON_COOKIE@${1}" 1>&2
+	fi
+}
+
 #
 # ocf_deprecated: Log a deprecation warning
 # Usage:          ocf_deprecated [param-name]

@@ -187,6 +187,8 @@ AC_ARG_WITH(initdir,
     [  --with-initdir=DIR      directory for init (rc) scripts [${INITDIR}]],
     [ INITDIR="$withval" ])
 
+OCF_EXIT_REASON_COOKIE="ocf-exit-reason:"
+
 OCF_ROOT_DIR="/usr/lib/ocf"
 AC_ARG_WITH(ocf-root,
     [  --with-ocf-root=DIR      directory for OCF scripts [${OCF_ROOT_DIR}]],
@@ -399,6 +401,9 @@ if test "$ac_cv_header_heartbeat_glue_config_h" = "yes"; then
 else
   enable_libnet=no
 fi
+
+AC_DEFINE_UNQUOTED(OCF_EXIT_REASON_COOKIE,"$OCF_EXIT_REASON_COOKIE", OCF exit message delimiter - specifies the start of the exit reason string)
+AC_SUBST(OCF_EXIT_REASON_COOKIE)
 
 AC_DEFINE_UNQUOTED(OCF_ROOT_DIR,"$OCF_ROOT_DIR", OCF root directory - specified by the OCF standard)
 AC_SUBST(OCF_ROOT_DIR)
