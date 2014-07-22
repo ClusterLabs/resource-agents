@@ -519,6 +519,25 @@ LVM_validate_all() {
 	check_binary $AWK
 
 	##
+	# lvmetad is a daemon that caches lvm metadata to improve the
+	# performance of LVM commands. This daemon should never be used when
+	# volume groups exist that are being managed by the cluster. The lvmetad
+	# daemon introduces a response lag, where certain LVM commands look like
+	# they have completed (like vg activation) when in fact the command
+	# is still in progress by the lvmetad.  This can cause reliability issues
+	# when managing volume groups in the cluster.  For Example, if you have a
+	# volume group that is a dependency for another application, it is possible
+	# the cluster will think the volume group is activated and attempt to start
+	# the application before volume group is really accesible... lvmetad is bad.
+	##
+	lvm dumpconfig global/use_lvmetad | grep 'use_lvmetad.*=.*1' > /dev/null 2>&1
+	if [ $? -eq 0 ]; then
+		# for now warn users that lvmetad is enabled and that they should disable it. In the
+		# future we may want to consider refusing to start, or killing the lvmetad daemon.
+		ocf_log warn "Disable lvmetad in lvm.conf. lvmetad should never be enabled in a clustered environment. Set use_lvmetad=0 and kill the lvmetad process"
+	fi
+	
+	##
 	# Off-the-shelf tests...
 	##
 	VGOUT=`vgck ${VOLUME} 2>&1`
