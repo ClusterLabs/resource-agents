@@ -416,7 +416,7 @@ start_nginx() {
     return $OCF_SUCCESS
   fi
   if 
-    ocf_run $NGINXD -t -c $CONFIGFILE
+    ocf_run $NGINXD $OPTIONS -t -c $CONFIGFILE
   then
     : Configuration file $CONFIGFILE looks OK
   else
@@ -442,7 +442,7 @@ start_nginx() {
       [ $ec -eq $OCF_NOT_RUNNING ]
     then
       tries=`expr $tries + 1`
-      ocf_log info "Waiting for $NGINXD -c $CONFIGFILE to come up (try $tries)"
+      ocf_log info "Waiting for $NGINXD $OPTIONS -c $CONFIGFILE to come up (try $tries)"
       true
     else
       false
@@ -838,11 +838,11 @@ validate_all_nginx() {
     exit $OCF_ERR_CONFIGURED
   fi
   if
-    ocf_run $NGINXD -t -c $CONFIGFILE
+    ocf_run $NGINXD $OPTIONS -t -c $CONFIGFILE
   then
     : Cool $NGINXD likes $CONFIGFILE
   else
-    ocf_log err "$NGINXD -t -c $CONFIGFILE reported a configuration error."
+    ocf_log err "$NGINXD $OPTIONS -t -c $CONFIGFILE reported a configuration error."
     return $OCF_ERR_CONFIGURED
   fi
   return $OCF_SUCCESS
