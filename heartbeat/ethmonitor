@@ -1,14 +1,14 @@
 #!/bin/sh
 #
-#       OCF Resource Agent compliant script.
-#       Monitor the vitality of a local network interface.
+#	   OCF Resource Agent compliant script.
+#	   Monitor the vitality of a local network interface.
 #
 # 	Based on the work by Robert Euhus and Lars Marowsky-Brée.
 #
 #	Transfered from Ipaddr2 into ethmonitor by Alexander Krauth
 #
 # Copyright (c) 2011 Robert Euhus, Alexander Krauth, Lars Marowsky-Brée
-#                    All Rights Reserved.
+#					All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of version 2 of the GNU General Public License as
@@ -29,12 +29,12 @@
 # along with this program; if not, write the Free Software Foundation,
 # Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
 #
-#     OCF parameters are as below
+#	 OCF parameters are as below
 #
 #	OCF_RESKEY_interface
 #	OCF_RESKEY_multiplicator
 #	OCF_RESKEY_name
-#       OCF_RESKEY_repeat_count
+#	   OCF_RESKEY_repeat_count
 #	OCF_RESKEY_repeat_interval
 #	OCF_RESKEY_pktcnt_timeout
 #	OCF_RESKEY_arping_count
@@ -159,12 +159,12 @@ Maximum number of IPs from ARP cache list to check for ARP REQUEST (arping) answ
 
 </parameters>
 <actions>
-<action name="start"   timeout="60s" />
-<action name="stop"    timeout="20s" />
-<action name="status" depth="0"  timeout="60s" interval="10s" />
-<action name="monitor" depth="0"  timeout="60s" interval="10s" />
-<action name="meta-data"  timeout="5s" />
-<action name="validate-all"  timeout="20s" />
+<action name="start" timeout="60s" />
+<action name="stop" timeout="20s" />
+<action name="status" depth="0" timeout="60s" interval="10s" />
+<action name="monitor" depth="0" timeout="60s" interval="10s" />
+<action name="meta-data" timeout="5s" />
+<action name="validate-all" timeout="20s" />
 </actions>
 </resource-agent>
 END
@@ -173,7 +173,7 @@ END
 }
 
 #
-#	Return true, if the interface exists
+# Return true, if the interface exists
 #
 is_interface() {
 	#
@@ -181,7 +181,7 @@ is_interface() {
 	#
 	local iface=`$IP2UTIL -o -f inet addr show | grep " $1 " \
 		| cut -d ' ' -f2 | sort -u | grep -v '^ipsec[0-9][0-9]*$'`
-        [ "$iface" != "" ]
+		[ "$iface" != "" ]
 }
 
 if_init() {
@@ -196,19 +196,21 @@ if_init() {
 
 	if is_interface $NIC
 	then
-	  case "$NIC" in
-	    *:*) ocf_log err "Do not specify a virtual interface : $OCF_RESKEY_interface"
-	         exit $OCF_ERR_CONFIGURED;;
-	    *)  ;;
-	  esac
+		case "$NIC" in
+			*:*) ocf_log err "Do not specify a virtual interface : $OCF_RESKEY_interface"
+				 exit $OCF_ERR_CONFIGURED;;
+			*)   ;;
+		esac
 	else
-	  case $__OCF_ACTION in
-	    validate-all) ocf_log err "Interface $NIC does not exist"
-                            exit $OCF_ERR_CONFIGURED;;
-	    *)   	    ocf_log warn "Interface $NIC does not exist"
-                            ## It might be a bond interface which is temporarily not available, therefore we want to continue here
-	                    ;;
-	  esac
+		case $__OCF_ACTION in
+			validate-all)
+				ocf_log err "Interface $NIC does not exist"
+				exit $OCF_ERR_CONFIGURED;;
+			*)	
+				## It might be a bond interface which is temporarily not available, therefore we want to continue here
+				ocf_log warn "Interface $NIC does not exist"
+				;;
+		esac
 	fi
 
 	: ${OCF_RESKEY_multiplier:="1"}
@@ -219,11 +221,11 @@ if_init() {
 	
 	ATTRNAME=${OCF_RESKEY_name:-"ethmonitor-$NIC"}
 	
-        REP_COUNT=${OCF_RESKEY_repeat_count:-5}
+	REP_COUNT=${OCF_RESKEY_repeat_count:-5}
 	if ! ocf_is_decimal "$REP_COUNT" -o [ $REP_COUNT -lt 1 ]; then
 		ocf_log err "Invalid OCF_RESKEY_repeat_count [$REP_COUNT]"
 		exit $OCF_ERR_CONFIGURED
-        fi
+	fi
 	REP_INTERVAL_S=${OCF_RESKEY_repeat_interval:-10}
 	if ! ocf_is_decimal "$REP_INTERVAL_S"; then
 		ocf_log err "Invalid OCF_RESKEY_repeat_interval [$REP_INTERVAL_S]"
@@ -249,7 +251,7 @@ if_init() {
 		ocf_log err "Invalid OCF_RESKEY_arping_cache_entries [$OCF_RESKEY_arping_cache_entries]"
 		exit $OCF_ERR_CONFIGURED
 	fi
-  return $OCF_SUCCESS
+	return $OCF_SUCCESS
 }
 
 # get the link status on $NIC
@@ -277,7 +279,7 @@ watch_pkt_counter () {
 	for n in `seq $(( $OCF_RESKEY_pktcnt_timeout * 10 ))`; do
 		sleep 0.1
 		RX_PACKETS_NEW="`get_rx_packets`"
-		ocf_log debug "RX_PACKETS_OLD: $RX_PACKETS_OLD    RX_PACKETS_NEW: $RX_PACKETS_NEW"
+		ocf_log debug "RX_PACKETS_OLD: $RX_PACKETS_OLD	RX_PACKETS_NEW: $RX_PACKETS_NEW"
 		if [ "$RX_PACKETS_OLD" -ne "$RX_PACKETS_NEW" ]; then
 			ocf_log debug "we received some packets."
 			return 0
@@ -308,7 +310,7 @@ do_arping () {
 }
 
 #
-# 	Check the interface depending on the level given as parameter: $OCF_RESKEY_check_level
+# Check the interface depending on the level given as parameter: $OCF_RESKEY_check_level
 #
 # 09: check for nonempty ARP cache
 # 10: watch for packet counter changes
@@ -325,7 +327,7 @@ if_check () {
 	# always check link status first
 	link_status="`get_link_status`"
 	ocf_log debug "link_status: $link_status (1=up, 0=down)"
-        [ $link_status -eq 0 ] && return $OCF_NOT_RUNNING
+		[ $link_status -eq 0 ] && return $OCF_NOT_RUNNING
 
 	# watch for packet counter changes
 	ocf_log debug "watch for packet counter changes" 
@@ -362,61 +364,61 @@ END
 }
 
 set_cib_value() {
-    local score=`expr $1 \* $OCF_RESKEY_multiplier`
-    attrd_updater -n $ATTRNAME -v $score -q
-    local rc=$?
-    case $rc in
-        0) ocf_log debug "attrd_updater: Updated $ATTRNAME = $score" ;;
-        *) ocf_log warn "attrd_updater: Could not update $ATTRNAME = $score: rc=$rc";;
-    esac
-    return $rc
+	local score=`expr $1 \* $OCF_RESKEY_multiplier`
+	attrd_updater -n $ATTRNAME -v $score -q
+	local rc=$?
+	case $rc in
+		0) ocf_log debug "attrd_updater: Updated $ATTRNAME = $score" ;;
+		*) ocf_log warn "attrd_updater: Could not update $ATTRNAME = $score: rc=$rc";;
+	esac
+	return $rc
 }
 
 if_monitor() {
-    ha_pseudo_resource $OCF_RESOURCE_INSTANCE monitor
-    local pseudo_status=$?
-    if [ $pseudo_status -ne $OCF_SUCCESS ]; then
-      exit $pseudo_status
-    fi
-    
-    local mon_rc=$OCF_NOT_RUNNING
-    local attr_rc=$OCF_NOT_RUNNING
-    local runs=0
-    local start_time
-    local end_time
-    local sleep_time
-    while [ $mon_rc -ne $OCF_SUCCESS -a $REP_COUNT -gt 0 ]
-    do
-      start_time=`date +%s%N`
-      if_check
-      mon_rc=$?
-      REP_COUNT=$(( $REP_COUNT - 1 ))
-      if [ $mon_rc -ne $OCF_SUCCESS -a $REP_COUNT -gt 0 ]; then
-        ocf_log warn "Monitoring of $OCF_RESOURCE_INSTANCE failed, $REP_COUNT retries left."
-	end_time=`date +%s%N`
-	sleep_time=`echo "scale=9; ( $start_time + ( $REP_INTERVAL_S * 1000000000 ) - $end_time ) / 1000000000" | bc -q 2> /dev/null`
-        sleep $sleep_time 2> /dev/null
-        runs=$(($runs + 1))
-      fi
+	ha_pseudo_resource $OCF_RESOURCE_INSTANCE monitor
+	local pseudo_status=$?
+	if [ $pseudo_status -ne $OCF_SUCCESS ]; then
+		exit $pseudo_status
+	fi
+	
+	local mon_rc=$OCF_NOT_RUNNING
+	local attr_rc=$OCF_NOT_RUNNING
+	local runs=0
+	local start_time
+	local end_time
+	local sleep_time
+	while [ $mon_rc -ne $OCF_SUCCESS -a $REP_COUNT -gt 0 ]
+	do
+		start_time=`date +%s%N`
+		if_check
+		mon_rc=$?
+		REP_COUNT=$(( $REP_COUNT - 1 ))
+		if [ $mon_rc -ne $OCF_SUCCESS -a $REP_COUNT -gt 0 ]; then
+			ocf_log warn "Monitoring of $OCF_RESOURCE_INSTANCE failed, $REP_COUNT retries left."
+			end_time=`date +%s%N`
+			sleep_time=`echo "scale=9; ( $start_time + ( $REP_INTERVAL_S * 1000000000 ) - $end_time ) / 1000000000" | bc -q 2> /dev/null`
+			sleep $sleep_time 2> /dev/null
+			runs=$(($runs + 1))
+		fi
 
-      if [ $mon_rc -eq $OCF_SUCCESS -a $runs -ne 0 ]; then
-        ocf_log info "Monitoring of $OCF_RESOURCE_INSTANCE recovered from error"
-      fi
-    done
-    
-    ocf_log debug "Monitoring return code: $mon_rc"
-    if [ $mon_rc -eq $OCF_SUCCESS ]; then
-      set_cib_value 1
-      attr_rc=$?
-    else
-      ocf_log err "Monitoring of $OCF_RESOURCE_INSTANCE failed."
-      set_cib_value 0
-      attr_rc=$?
-    fi
+		if [ $mon_rc -eq $OCF_SUCCESS -a $runs -ne 0 ]; then
+			ocf_log info "Monitoring of $OCF_RESOURCE_INSTANCE recovered from error"
+		fi
+	done
+	
+	ocf_log debug "Monitoring return code: $mon_rc"
+	if [ $mon_rc -eq $OCF_SUCCESS ]; then
+		set_cib_value 1
+		attr_rc=$?
+	else
+		ocf_log err "Monitoring of $OCF_RESOURCE_INSTANCE failed."
+		set_cib_value 0
+		attr_rc=$?
+	fi
 
-    ## The resource should not fail, if the interface is down. It should fail, if the update of the CIB variable has errors.
-    ## To react on the interface failure you must use constraints based on the CIB variable value, not on the resource itself.
-    exit $attr_rc
+	## The resource should not fail, if the interface is down. It should fail, if the update of the CIB variable has errors.
+	## To react on the interface failure you must use constraints based on the CIB variable value, not on the resource itself.
+	exit $attr_rc
 }
 
 if_stop()
@@ -442,9 +444,9 @@ if_start()
 
 
 if_validate() {
-    check_binary $IP2UTIL
-    check_binary arping
-    if_init
+	check_binary $IP2UTIL
+	check_binary arping
+	if_init
 }
 
 case $__OCF_ACTION in
@@ -468,7 +470,7 @@ monitor|status)	if_monitor
 		exit $?
 		;;
 validate-all)	exit $?
-                ;;
+		;;
 *)		if_usage
 		exit $OCF_ERR_UNIMPLEMENTED
 		;;
