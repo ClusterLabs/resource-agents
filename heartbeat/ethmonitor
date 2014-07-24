@@ -324,20 +324,37 @@ do_arping () {
 # the tests for higher check levels are run.
 #
 if_check () {
+	local arp_list
 	# always check link status first
 	link_status="`get_link_status`"
 	ocf_log debug "link_status: $link_status (1=up, 0=down)"
-		[ $link_status -eq 0 ] && return $OCF_NOT_RUNNING
+
+	if [ $link_status -eq 0 ]; then
+		ocf_log notice "link_status: DOWN"
+		return $OCF_NOT_RUNNING
+	fi
 
 	# watch for packet counter changes
-	ocf_log debug "watch for packet counter changes" 
-	watch_pkt_counter && return $OCF_SUCCESS
+	ocf_log debug "watch for packet counter changes"
+	watch_pkt_counter
+	if [ $? -eq 0 ]; then
+		return $OCF_SUCCESS
+	else 
+		ocf_log debug "No packets received during packet watch timeout"
+	fi
 
 	# check arping ARP cache entries
-	ocf_log debug "check arping ARP cache entries" 
-	for ip in `get_arp_list`; do
+	ocf_log debug "check arping ARP cache entries"
+	arp_list=`get_arp_list`
+	for ip in `echo $arp_list`; do
 		do_arping $ip && return $OCF_SUCCESS
 	done
+
+	# if we get here, the ethernet device is considered not running.
+	# provide some logging information
+	if [ -z "$arp_list" ]; then
+		ocf_log info "No ARP cache entries found to arping" 
+	fi
 
 	# watch for packet counter changes in promiscios mode
 #	ocf_log debug "watch for packet counter changes in promiscios mode" 
