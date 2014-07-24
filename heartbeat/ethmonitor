@@ -419,6 +419,28 @@ if_monitor() {
     exit $attr_rc
 }
 
+if_stop()
+{
+	attrd_updater -D -n $ATTRNAME
+	ha_pseudo_resource $OCF_RESOURCE_INSTANCE stop
+}
+
+if_start()
+{
+	local rc
+	ha_pseudo_resource $OCF_RESOURCE_INSTANCE start
+	rc=$?
+	if [ $rc -ne $OCF_SUCCESS ]; then
+		ocf_log err "Failure to create ethmonitor state file"
+		return $rc
+	fi
+
+	# perform the first monitor during the start operation
+	if_monitor
+	return $?
+}
+
+
 if_validate() {
     check_binary $IP2UTIL
     check_binary arping
@@ -436,11 +458,10 @@ esac
 if_validate
 
 case $__OCF_ACTION in
-start)		ha_pseudo_resource $OCF_RESOURCE_INSTANCE start
+start)		if_start
 		exit $?
 		;;
-stop)		attrd_updater -D -n $ATTRNAME
-                ha_pseudo_resource $OCF_RESOURCE_INSTANCE stop
+stop)		if_stop
 		exit $?
 		;;
 monitor|status)	if_monitor
