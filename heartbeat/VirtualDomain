@@ -452,7 +452,6 @@ save_config(){
 				if ocf_is_true "$OCF_RESKEY_sync_config_on_save"; then	
 					sync_config
 				fi
-			fi
 			else	
 				ocf_log warn "Moving ${CFGTMP} to ${OCF_RESKEY_config} failed."
 			fi
