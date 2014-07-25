@@ -166,7 +166,7 @@ This parameter instructs the RA to save the configuration back to the xml file p
 <parameter name="sync_config_on_save" unique="0" required="0">
 <longdesc lang="en">
 When save_config_on_stop is enabled this parameter instructs the RA to 
-call csync2 -cx to synchronize the file to all nodes.
+call csync2 -x to synchronize the file to all nodes.
 csync2 must be properly set up for this to work.
 </longdesc>
 <shortdesc lang="en">Save running VM's config back to its config file</shortdesc>
@@ -437,8 +437,8 @@ force_stop()
 }
 
 sync_config(){
-	ocf_log info "Syncing $DOMAIN_NAME config file with csync2 -cx ${OCF_RESKEY_config}"
-	csync2 -cx ${OCF_RESKEY_config}
+	ocf_log info "Syncing $DOMAIN_NAME config file with csync2 -x ${OCF_RESKEY_config}"
+	csync2 -x ${OCF_RESKEY_config}
 }
 
 save_config(){
