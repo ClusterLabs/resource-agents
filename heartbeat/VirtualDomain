@@ -23,6 +23,7 @@ OCF_RESKEY_autoset_utilization_hv_memory_default="true"
 OCF_RESKEY_migrateport_default=$(( 49152 + $(ocf_maybe_random) % 64 ))
 OCF_RESKEY_CRM_meta_timeout_default=90000
 OCF_RESKEY_save_config_on_stop_default=false
+OCF_RESKEY_sync_config_on_save_default=false
 
 : ${OCF_RESKEY_force_stop=${OCF_RESKEY_force_stop_default}}
 : ${OCF_RESKEY_autoset_utilization_cpu=${OCF_RESKEY_autoset_utilization_cpu_default}}
@@ -30,6 +31,7 @@ OCF_RESKEY_save_config_on_stop_default=false
 : ${OCF_RESKEY_migrateport=${OCF_RESKEY_migrateport_default}}
 : ${OCF_RESKEY_CRM_meta_timeout=${OCF_RESKEY_CRM_meta_timeout_default}}
 : ${OCF_RESKEY_save_config_on_stop=${OCF_RESKEY_save_config_on_stop_default}}
+: ${OCF_RESKEY_sync_config_on_save=${OCF_RESKEY_sync_config_on_save_default}}
 #######################################################################
 
 ## I'd very much suggest to make this RA use bash,
@@ -156,6 +158,16 @@ This port will be used in the qemu migrateuri. If unset, the port will be a rand
 <longdesc lang="en">
 Changes to a running VM's config are normally lost on stop. 
 This parameter instructs the RA to save the configuration back to the xml file provided in the "config" parameter.
+</longdesc>
+<shortdesc lang="en">Save running VM's config back to its config file</shortdesc>
+<content type="boolean" />
+</parameter>
+
+<parameter name="sync_config_on_save" unique="0" required="0">
+<longdesc lang="en">
+When save_config_on_stop is enabled this parameter instructs the RA to 
+call csync2 -cx to synchronize the file to all nodes.
+csync2 must be properly set up for this to work.
 </longdesc>
 <shortdesc lang="en">Save running VM's config back to its config file</shortdesc>
 <content type="boolean" />
@@ -424,6 +436,11 @@ force_stop()
 	return $OCF_SUCCESS
 }
 
+sync_config(){
+	ocf_log info "Syncing $DOMAIN_NAME config file with csync2 -cx ${OCF_RESKEY_config}"
+	csync2 -cx ${OCF_RESKEY_config}
+}
+
 save_config(){
 	CFGTMP=$(mktemp -t vmcfgsave.XXX)
 	virsh $VIRSH_OPTIONS dumpxml ${DOMAIN_NAME} > ${CFGTMP}
@@ -432,6 +449,10 @@ save_config(){
 			ocf_log info "Saving domain $DOMAIN_NAME to ${OCF_RESKEY_config}. Please make sure it's present on all nodes."
 			if cat ${CFGTMP} > ${OCF_RESKEY_config} ; then
 				ocf_log info "Saved $DOMAIN_NAME domain's configuration to ${OCF_RESKEY_config}."
+				if ocf_is_true "$OCF_RESKEY_sync_config_on_save"; then	
+					sync_config
+				fi
+			fi
 			else	
 				ocf_log warn "Moving ${CFGTMP} to ${OCF_RESKEY_config} failed."
 			fi
