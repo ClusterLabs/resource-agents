@@ -844,7 +844,12 @@ use Pod::Usage;
 #use English;
 #use Time::HiRes qw( gettimeofday tv_interval );
 use Socket;
-use Socket6 qw(NI_NUMERICHOST NI_NUMERICSERV NI_NAMEREQD getaddrinfo getnameinfo inet_pton);
+use Socket6 qw(NI_NUMERICHOST NI_NUMERICSERV NI_NAMEREQD getaddrinfo getnameinfo inet_pton inet_ntop);
+# Workaround warnning messages : Three "_in6" symbols redefined.
+eval "use Socket6 qw(pack_sockaddr_in6)" unless defined &pack_sockaddr_in6;
+eval "use Socket6 qw(sockaddr_in6)" unless defined &sockaddr_in6;
+eval "use Socket6 qw(unpack_sockaddr_in6)" unless defined &unpack_sockaddr_in6;
+
 use Sys::Hostname;
 use POSIX qw(setsid :sys_wait_h);
 use Sys::Syslog qw(:DEFAULT setlogsock);
