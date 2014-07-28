@@ -410,6 +410,8 @@ check_mon_profile() {
 }
 check_mon_user() {
 	local output
+	local output2
+
 	output=`dbasql show_mon_user`
 	if echo "$output" | grep -iw "^$MONUSR" >/dev/null; then
 		if echo "$output" | grep -w "EXPIRED" >/dev/null; then
@@ -420,10 +422,12 @@ check_mon_user() {
 			return 0
 		else
 			output=`dbasql set_mon_user_profile`
-			echo "$output" | grep -iw "^User altered." >/dev/null &&
+			output2=`dbasql show_mon_user_profile`
+			if echo "$output2" | grep -iw "^$MONPROFILE" >/dev/null; then
 				return 0
+			fi
 			ocf_log err "could not set profile for $MONUSR oracle user"
-			ocf_log err "sqlplus output: $output"
+			ocf_log err "sqlplus output: $output( $output2 )"
 			return 1
 		fi
 	fi
