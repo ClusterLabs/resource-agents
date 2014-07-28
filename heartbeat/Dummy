@@ -126,6 +126,11 @@ dummy_monitor() {
 	if false ; then
 		return $OCF_ERR_GENERIC
 	fi
+
+	if ! ocf_is_probe; then
+		# set exit string only when NOT_RUNNING occurs during an actual monitor operation.
+		ocf_exit_reason "No process state file found" "monitor"
+	fi
 	return $OCF_NOT_RUNNING
 }
 
@@ -135,6 +140,7 @@ dummy_validate() {
     state_dir=`dirname "$OCF_RESKEY_state"`
     touch "$state_dir/$$"
     if [ $? != 0 ]; then
+	ocf_exit_reason "State file \"$OCF_RESKEY_state\" is not writable"
 	return $OCF_ERR_ARGS
     fi
     rm "$state_dir/$$"

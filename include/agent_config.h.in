@@ -1,2 +1,6 @@
 /* Where Resouce agents keep state files */
 #undef HA_RSCTMPDIR
+
+/* The string delimiter used to signify the start of the exit reason string
+ * in an agent's stderr output.*/
+#undef OCF_EXIT_REASON_COOKIE
