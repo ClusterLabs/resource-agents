@@ -79,7 +79,7 @@ fi
 
 usage() {
   cat <<UEND
-usage: $0 (start|stop|validate-all|meta-data|monitor|promote|demote|notify)
+usage: $0 (start|stop|validate-all|meta-data|monitor|promote|demote)
 
 $0 manages a galera Database as an HA resource.
 
@@ -237,7 +237,6 @@ Cluster check user password
 <action name="monitor" role="Slave" depth="0" timeout="30" interval="30" />
 <action name="promote" timeout="120" />
 <action name="demote" timeout="120" />
-<action name="notify" timeout="90" />
 <action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 </actions>
@@ -683,7 +682,6 @@ case "$1" in
   monitor)  galera_monitor;;
   promote)  galera_promote;;
   demote)   galera_demote;;
-  notify)   galera_notify;;
   validate-all) exit $OCF_SUCCESS;;
 
  *)     usage
