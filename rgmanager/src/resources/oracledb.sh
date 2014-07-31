@@ -361,7 +361,7 @@ force_cleanup()
 	declare pid
 
 	# Patch from Shane Bradley to fix 471266
-	pids=`ps ax | grep $ORACLE_HOME | grep "ora_.*_${ORACLE_SID}" | grep -v grep | awk '{print $1}'`
+	pids=`ps ax | grep "ora_.*_${ORACLE_SID}" | grep -v grep | awk '{print $1}'`
 
 	ocf_log error "Not all Oracle processes for $ORACLE_SID exited cleanly, killing"
 
@@ -389,7 +389,7 @@ exit_idle()
 
 	ocf_log debug "Waiting for Oracle processes for $ORACLE_SID to terminate..."
 	# grep -q "." keeps this loop going if the previous commands produce any stdout
-	while ps ax | grep $ORACLE_HOME | grep "ora_.*_${ORACLE_SID}" | grep -v grep | awk '{print $1}' | grep -q "."; do
+	while ps ax | grep "ora_.*_${ORACLE_SID}" | grep -v grep | awk '{print $1}' | grep -q "."; do
 		if [ $n -ge 90 ]; then
 			ocf_log debug "Timed out while waiting for Oracle processes for $ORACLE_SID to terminate"
 			force_cleanup
