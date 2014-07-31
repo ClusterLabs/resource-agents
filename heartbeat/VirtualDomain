@@ -113,6 +113,16 @@ associated IP is reachable through the favored network.
 <content type="string" default="" />
 </parameter>
 
+<parameter name="force_migration_uri" unique="0" required="0">
+<longdesc lang="en">
+Enforce passing of migration uri when calling virsh at during
+live migration. This is useful if you have multiple networks
+on your host but the migration network suffix happens zu be "".
+</longdesc>
+<shortdesc lang="en">Force usage of migrate URI</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 <parameter name="monitor_scripts" unique="0" required="0">
 <longdesc lang="en">
 To additionally monitor services within the virtual domain, add this
@@ -550,7 +560,7 @@ VirtualDomain_Migrate_To() {
 		# like "tcp://bar-mig:49152". The port would be randomly chosen
 		# by libvirt from the range 49152-49215 if omitted, at least since
 		# version 0.7.4 ...
-		if [ -n "${OCF_RESKEY_migration_network_suffix}" ]; then
+		if [ -n "${OCF_RESKEY_migration_network_suffix}" ] || [ -n "${OCF_RESKEY_force_migration_uri}" ]; then
 			hypervisor="${OCF_RESKEY_hypervisor%%[+:]*}"
 			# Hostname might be a FQDN
 			migrate_target=$(echo ${target_node} | sed -e "s,^\([^.]\+\),\1${OCF_RESKEY_migration_network_suffix},")
