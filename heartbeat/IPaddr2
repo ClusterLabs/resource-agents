@@ -345,12 +345,12 @@ ip_init() {
 	local rc
 
 	if [ X`uname -s` != "XLinux" ]; then
-		ocf_log err "IPaddr2 only supported Linux."
+		ocf_exit_reason "IPaddr2 only supported Linux."
 		exit $OCF_ERR_INSTALLED
 	fi
 
 	if [ X"$OCF_RESKEY_ip" = "X" ]; then
-		ocf_log err "IP address (the ip parameter) is mandatory"
+		ocf_exit_reason "IP address (the ip parameter) is mandatory"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
@@ -362,7 +362,7 @@ ip_init() {
         then
           : YAY!
         else
-		ocf_log err "You must be root for $__OCF_ACTION operation."
+		ocf_exit_reason "You must be root for $__OCF_ACTION operation."
 		exit $OCF_ERR_PERM
 	fi
 
@@ -385,14 +385,14 @@ ip_init() {
 	IP_INC_NO=`expr ${OCF_RESKEY_CRM_meta_clone:-0} + 1`
 
 	if ocf_is_true ${OCF_RESKEY_lvs_support} && [ $IP_INC_GLOBAL -gt 1 ]; then
-		ocf_log err "LVS and load sharing do not go together well"
+		ocf_exit_reason "LVS and load sharing do not go together well"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
 	if ocf_is_decimal "$IP_INC_GLOBAL" && [ $IP_INC_GLOBAL -gt 0 ]; then
 		:
 	else
-		ocf_log err "Invalid meta-attribute clone_max [$IP_INC_GLOBAL], should be positive integer"
+		ocf_exit_reason "Invalid meta-attribute clone_max [$IP_INC_GLOBAL], should be positive integer"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
@@ -400,20 +400,20 @@ ip_init() {
 	if [ $? -ne 0 ];then
 		FAMILY=inet
 		if ocf_is_true $OCF_RESKEY_lvs_ipv6_addrlabel ;then
-			ocf_log err "IPv4 does not support lvs_ipv6_addrlabel"
+			ocf_exit_reason "IPv4 does not support lvs_ipv6_addrlabel"
 			exit $OCF_ERR_CONFIGURED
 		fi
 	else
 		FAMILY=inet6
 		if ocf_is_true $OCF_RESKEY_lvs_support ;then
-			ocf_log err "The IPv6 does not support lvs_support"
+			ocf_exit_reason "The IPv6 does not support lvs_support"
 			exit $OCF_ERR_CONFIGURED
 		fi
 		if ocf_is_true $OCF_RESKEY_lvs_ipv6_addrlabel ;then
 			if ocf_is_decimal "$OCF_RESKEY_lvs_ipv6_addrlabel_value" && [ $OCF_RESKEY_lvs_ipv6_addrlabel_value -ge 0 ]; then
 			    :
 			else
-			    ocf_log err "Invalid lvs_ipv6_addrlabel_value [$OCF_RESKEY_lvs_ipv6_addrlabel_value], should be positive integer"
+			    ocf_exit_reason "Invalid lvs_ipv6_addrlabel_value [$OCF_RESKEY_lvs_ipv6_addrlabel_value], should be positive integer"
 			    exit $OCF_ERR_CONFIGURED
 			fi
 		fi
@@ -449,7 +449,7 @@ ip_init() {
 			ocf_log warn "[$FINDIF] failed"
 			exit $OCF_SUCCESS
 		else
-			ocf_log err "[$FINDIF] failed"
+			ocf_exit_reason "[$FINDIF] failed"
 			exit $rc
 		fi
 	fi
@@ -459,7 +459,7 @@ ip_init() {
 	if [ -n "$IFLABEL" ]; then
 		IFLABEL=${NIC}:${IFLABEL}
 		if [ ${#IFLABEL} -gt 15 ]; then
-			ocf_log err "Interface label [$IFLABEL] exceeds maximum character limit of 15"
+			ocf_exit_reason "Interface label [$IFLABEL] exceeds maximum character limit of 15"
 			exit $OCF_ERR_CONFIGURED
 		fi
 	fi
@@ -776,7 +776,8 @@ END
 }
 
 ip_start() {
-	if [ -z "$NIC" ]; then # no nic found or specified
+	if [ -z "$NIC" ]; then
+		ocf_exit_reason "No nic found or specified"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
@@ -806,7 +807,7 @@ ip_start() {
 				--local-node $IP_INC_NO \
 				--hashmode $IP_CIP_HASH
 		if [ $? -ne 0 ]; then
-			ocf_log err "iptables failed"
+			ocf_exit_reason "iptables failed"
 			exit $OCF_ERR_GENERIC
 		fi
 	fi
@@ -829,7 +830,7 @@ ip_start() {
 		add_interface $OCF_RESKEY_ip $NETMASK ${BRDCAST:-none} $NIC $IFLABEL
 		
 		if [ $? -ne 0 ]; then
-			ocf_log err "$CMD failed."
+			ocf_exit_reason "$CMD failed."
 			exit $OCF_ERR_GENERIC
 		fi
 	fi
@@ -904,6 +905,7 @@ ip_stop() {
 	if [ "$ip_del_if" = "yes" ]; then
 		delete_interface $OCF_RESKEY_ip $NIC $NETMASK
 		if [ $? -ne 0 ]; then
+			ocf_exit_reason "Unable to remove IP [${OCF_RESKEY_ip} from interface [ $NIC ]"
 			exit $OCF_ERR_GENERIC
 		fi
 	
@@ -947,7 +949,7 @@ set_send_arp_program() {
 	    ARP_SEND_FUN=run_send_ib_arp
 	;;
 	*)
-	    ocf_log err "unrecognized arp_sender value: $OCF_RESKEY_arp_sender"
+	    ocf_exit_reason "unrecognized arp_sender value: $OCF_RESKEY_arp_sender"
 	    exit $OCF_ERR_CONFIGURED
 	;;
 	esac
@@ -982,21 +984,21 @@ ip_validate() {
 
     if ocf_is_true "$OCF_RESKEY_unique_clone_address" &&
 	    ! ocf_is_true "$OCF_RESKEY_CRM_meta_globally_unique"; then
-	ocf_log err "unique_clone_address makes sense only with meta globally_unique set"
+	ocf_exit_reason "unique_clone_address makes sense only with meta globally_unique set"
 	exit $OCF_ERR_CONFIGURED
     fi
 
     if ocf_is_decimal "$OCF_RESKEY_arp_interval" && [ $OCF_RESKEY_arp_interval -gt 0 ]; then
 	:
     else
-	ocf_log err "Invalid OCF_RESKEY_arp_interval [$OCF_RESKEY_arp_interval]"
+	ocf_exit_reason "Invalid OCF_RESKEY_arp_interval [$OCF_RESKEY_arp_interval]"
 	exit $OCF_ERR_CONFIGURED
     fi
 
     if ocf_is_decimal "$OCF_RESKEY_arp_count" && [ $OCF_RESKEY_arp_count -gt 0 ]; then
 	:
     else
-	ocf_log err "Invalid OCF_RESKEY_arp_count [$OCF_RESKEY_arp_count]"
+	ocf_exit_reason "Invalid OCF_RESKEY_arp_count [$OCF_RESKEY_arp_count]"
 	exit $OCF_ERR_CONFIGURED
     fi
 
@@ -1008,13 +1010,13 @@ ip_validate() {
 	sourceip|sourceip-sourceport|sourceip-sourceport-destport)
 		;;
 	*)
-		ocf_log err "Invalid OCF_RESKEY_clusterip_hash [$IP_CIP_HASH]"
+		ocf_exit_reason "Invalid OCF_RESKEY_clusterip_hash [$IP_CIP_HASH]"
 		exit $OCF_ERR_CONFIGURED
 		;;
 	esac
 
 	if ocf_is_true ${OCF_RESKEY_lvs_support}; then
-		ecf_log err "LVS and load sharing not advised to try"
+		ocf_exit_reason "LVS and load sharing not advised to try"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
@@ -1027,7 +1029,7 @@ ip_validate() {
 	esac
 
 	if [ $valid -eq 0 ]; then
-	  ocf_log err "Invalid IF_MAC [$IF_MAC]"
+	  ocf_exit_reason "Invalid IF_MAC [$IF_MAC]"
 	  exit $OCF_ERR_CONFIGURED
 	fi
 
