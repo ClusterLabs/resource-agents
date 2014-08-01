@@ -56,7 +56,7 @@ check_binary () {
     if ! have_binary "$1"; then
 	if [ "$OCF_NOT_RUNNING" = 7 ]; then
 	    # Chances are we have a fully setup OCF environment
-	    ocf_log err "Setup problem: couldn't find command: $1"
+	    ocf_exit_reason "Setup problem: couldn't find command: $1"
 	else 
 	    echo "Setup problem: couldn't find command: $1"
 	fi
