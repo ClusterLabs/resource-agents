@@ -152,7 +152,7 @@ check_statd_pidfile()
 			return $OCF_SUCCESS
 		fi
 
-		ocf_log err "$(cat $pidfile) for $binary is no longer running, sm-notify needs to re-notify clients"
+		ocf_exit_reason "$(cat $pidfile) for $binary is no longer running, sm-notify needs to re-notify clients"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -179,7 +179,7 @@ write_statd_pid()
 			return $OCF_NOT_RUNNING;;
 		*)
 			rm -f "$pidfile" > /dev/null 2>&1 
-			ocf_log err "Error encountered detecting pid status of $binary"
+		  	ocf_exit_reason "Error encountered detecting pid status of $binary"
 			return $OCF_ERR_GENERIC;;
 	esac
 }
@@ -243,7 +243,7 @@ v3notify_start()
 		ocf_log info "sending notifications on default source address."
 		$SM_NOTIFY_BINARY -f $OCF_RESKEY_notify_args -P $cur_statd
 		if [ $? -ne 0 ]; then
-			ocf_log err "sm-notify failed, view syslog for more information."
+			ocf_exit_reason "sm-notify execution failed, view syslog for more information"
 			return $OCF_ERR_GENERIC
 		fi
 		
@@ -269,7 +269,7 @@ v3notify_start()
 		ocf_log info "sending notifications with source address $ip"
 		$SM_NOTIFY_BINARY -f $OCF_RESKEY_notify_args -v $ip -P "$cur_statd"
 		if [ $? -ne 0 ]; then
-			ocf_log err "sm-notify with source host set to, $ip, failed. view syslog for more information"
+			ocf_exit_reason "sm-notify with source host set to [ $ip ] failed. view syslog for more information"
 			return $OCF_ERR_GENERIC
 		fi
 	done
