@@ -295,8 +295,11 @@ export_one() {
 
 	# if any of directories fails to export we can exit
 	# immediately
-	ocf_run exportfs -v $opts "${OCF_RESKEY_clientspec}:$dir" ||
+	ocf_run exportfs -v $opts "${OCF_RESKEY_clientspec}:$dir"
+	if [ $? -ne 0 ]; then
+		ocf_exit_reason "exportfs failed - exportfs -v $opts ${OCF_RESKEY_clientspec}:$dir"
 		exit $OCF_ERR_GENERIC
+	fi
 
 	ocf_log info "directory $dir exported"
 	return $OCF_SUCCESS
@@ -391,7 +394,7 @@ exportfs_stop ()
 		ocf_log info "Un-exported file system(s)"
 		return $OCF_SUCCESS
 	else
-		ocf_log err "Failed to un-export file system(s)"
+		ocf_exit_reason "Failed to un-export file system(s)"
 		return $OCF_ERR_GENERIC
 	fi
 }
@@ -408,7 +411,7 @@ exportfs_validate_all ()
 {
 	if [ `echo "$OCF_RESKEY_directory" | wc -w` -gt 1 ] &&
 			! ocf_is_decimal "$OCF_RESKEY_fsid"; then
-		ocf_log err "use integer fsid when exporting multiple directories"
+		ocf_exit_reason "use integer fsid when exporting multiple directories"
 		return $OCF_ERR_CONFIGURED
 	fi
 	if ! forall testdir; then
