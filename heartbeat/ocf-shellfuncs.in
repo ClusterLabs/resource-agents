@@ -360,12 +360,20 @@ ocf_log() {
 ocf_exit_reason()
 {
 	local action_filter=$2
+	local cookie="$OCF_EXIT_REASON_PREFIX"
+
+	if [ -z "$cookie" ]; then
+		# use a default prefix
+		cookie="ocf-exit-reason:"
+	fi
+
+
 	if [ $# -lt 1 ]; then
 		ocf_log err "Not enough arguments [$#] to ocf_log_exit_msg."
 	fi
 
 	if [ -z "$action_filter" ] || [ "$__OCF_ACTION" = "$action_filter" ]; then
-		printf "@OCF_EXIT_REASON_COOKIE@${1}" 1>&2
+		printf >&2 "%s%s\n" "$cookie" "$1"
 		__ha_log_ignore_stderr_once="true"
 		ha_log "ERROR: $1"
 	fi
