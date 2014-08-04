@@ -86,6 +86,7 @@ DAEMON="clvmd"
 CMIRROR="cmirrord"
 DAEMON_PATH="${sbindir}/clvmd"
 CMIRROR_PATH="${sbindir}/cmirrord"
+LVMCONF="${sbindir}/lvmconf"
 LOCK_FILE="/var/lock/subsys/$DAEMON"
 
 # attempt to detect where the vg tools are located
@@ -349,6 +350,11 @@ clvmd_start()
 		ocf_log debug "$DAEMON already started"
 		clvmd_activate_all
 		return $?;
+	fi
+
+	# autoset locking type to clusted when lvmconf tool is available
+	if [ -x "$LVMCONF"  ]; then
+		$LVMCONF --enable-cluster > /dev/null 2>&1
 	fi
 
 	# if either of these fail, script will exit OCF_ERR_GENERIC
