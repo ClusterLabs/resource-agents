@@ -278,7 +278,7 @@ determine_blockdevice() {
 	nfs4|nfs|smbfs|cifs|glusterfs|ceph|tmpfs|none)
 		: ;;
 	*)
-		DEVICE=`list_mounts | grep " $MOUNTPOINT " | cut -d' ' -f1`
+		DEVICE=`list_mounts 2>/dev/null | grep " $MOUNTPOINT " | cut -d' ' -f1`
 		if [ -b "$DEVICE" ]; then
 			blockdevice=yes
 		fi
@@ -289,7 +289,7 @@ determine_blockdevice() {
 # Lists all filesystems potentially mounted under a given path,
 # excluding the path itself.
 list_submounts() {
-	list_mounts | grep " $1/" | cut -d' ' -f2 | sort -r
+	list_mounts 2>/dev/null | grep " $1/" | cut -d' ' -f2 | sort -r
 }
 
 # kernels < 2.6.26 can't handle bind remounts
@@ -459,7 +459,7 @@ signal_processes() {
 try_umount() {
 	local SUB=$1
 	$UMOUNT $umount_force $SUB
-	list_mounts | grep -q " $SUB " >/dev/null 2>&1 || {
+	list_mounts 2>/dev/null | grep -q " $SUB " >/dev/null 2>&1 || {
 		ocf_log info "unmounted $SUB successfully"
 		return $OCF_SUCCESS
 	}
@@ -539,7 +539,7 @@ Filesystem_stop()
 #
 Filesystem_status()
 {
-	if list_mounts | grep -q " $MOUNTPOINT " >/dev/null 2>&1; then
+	if list_mounts 2>/dev/null | grep -q " $MOUNTPOINT "; then
 		rc=$OCF_SUCCESS
 		msg="$MOUNTPOINT is mounted (running)"
 	else
