@@ -329,7 +329,7 @@ Xen_Start() {
     $xentool mem-set ${DOMAIN_NAME} ${NEWMEM}
   fi
 
-  $xentool create ${OCF_RESKEY_xmfile} name=$DOMAIN_NAME
+  $xentool create ${OCF_RESKEY_xmfile} name=\"$DOMAIN_NAME\"
   rc=$?
   if [ $rc -ne 0 ]; then
     return $OCF_ERR_GENERIC
