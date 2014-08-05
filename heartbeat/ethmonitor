@@ -70,9 +70,12 @@ The resource configuration requires a monitor operation, because the monitor doe
 In addition to the resource configuration, you need to configure some location constraints, based on a CIB attribute value.
 The name of the attribute value is configured in the 'name' option of this RA.
 
-Example constraint configuration:
+Example constraint configuration using crmsh
 location loc_connected_node my_resource_grp \
         rule $id="rule_loc_connected_node" -INF: ethmonitor eq 0
+
+Example constraint configuration using pcs. Only allow 'my_resource' to run on nodes where eth0 ethernet device is available.
+pcs constraint location my_resource rule score=-INFINITY ethmonitor-eth0 ne 1
 
 The ethmonitor works in 3 different modes to test the interface vitality.
 1. call ip to see if the link status is up (if link is down -> error)
