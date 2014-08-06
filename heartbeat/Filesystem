@@ -338,6 +338,58 @@ is_fsck_needed() {
 	esac
 }
 
+fstype_supported()
+{
+	local support="$FSTYPE"
+	local rc
+
+	if [ "X${HOSTOS}" != "XOpenBSD" ];then
+		# skip checking /proc/filesystems for obsd
+		return $OCF_SUCCESS
+	fi
+
+	if [ -z "$FSTYPE" -o "$FSTYPE" = none ]; then
+		: No FSTYPE specified, rely on the system has the right file-system support already 
+		return $OCF_SUCCESS
+	fi
+
+	# support fuse-filesystems (e.g. GlusterFS)
+	case $FSTYPE in
+		glusterfs) support="fuse";;
+	esac
+
+	grep -w "$support"'$' /proc/filesystems >/dev/null
+	if [ $? -eq 0 ]; then
+		# found the fs type
+		return $OCF_SUCCESS
+	fi
+
+	# if here, we should attempt to load the module and then
+	# check the if the filesystem support exists again.
+	$MODPROBE $support >/dev/null
+	if [ $? -ne 0 ]; then
+		ocf_log err "Couldn't find filesystem $FSTYPE in /proc/filesystems and failed to load kernal module"
+		return $OCF_ERR_INSTALLED
+	fi
+
+	# It is possible for the module to load and not be complete initialized
+	# before we check /proc/filesystems again. Give this a few trys before
+	# giving up entirely.
+	for try in $(seq 5); do
+		grep -w "$support"'$' /proc/filesystems >/dev/null
+		if [ $? -eq 0 ] ; then
+			# yes. found the filesystem after doing the modprobe
+			return $OCF_SUCCESS
+		fi
+		ocf_log debug "Unable to find support for $FSTYPE in /proc/filesystems after modprobe, trying again"
+		sleep 1
+	done
+
+	ocf_log err "Couldn't find filesystem $FSTYPE in /proc/filesystems"
+	return $OCF_ERR_INSTALLED
+}
+
+
 #
 # START: Start up the filesystem
 #
@@ -349,24 +401,7 @@ Filesystem_start()
 		return $OCF_SUCCESS
 	fi
 
-	if [ "X${HOSTOS}" != "XOpenBSD" ];then
-		if [ -z "$FSTYPE" -o "$FSTYPE" = none ]; then
-			: No FSTYPE specified, rely on the system has the right file-system support already 
-		else
-			local support="$FSTYPE"
-			# support fuse-filesystems (e.g. GlusterFS)
-			case $FSTYPE in
-				glusterfs) support="fuse";;
-			esac
-			grep -w "$support"'$' /proc/filesystems >/dev/null ||
-				$MODPROBE $support >/dev/null
-			grep -w "$support"'$' /proc/filesystems >/dev/null
-			if [ $? -ne 0 ] ; then
-				ocf_log err "Couldn't find filesystem $FSTYPE in /proc/filesystems"
-				return $OCF_ERR_INSTALLED
-			fi
-		fi
-	fi
+	fstype_supported || exit $OCF_ERR_INSTALLED
 
 	# Check the filesystem & auto repair.  
 	# NOTE: Some filesystem types don't need this step...  Please modify
