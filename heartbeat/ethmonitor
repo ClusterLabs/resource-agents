@@ -160,6 +160,22 @@ Maximum number of IPs from ARP cache list to check for ARP REQUEST (arping) answ
 <content type="integer" default="5"/>
 </parameter>
 
+<parameter name="infiniband_device">
+<longdesc lang="en">
+For interfaces that are infiniband devices.
+</longdesc>
+<shortdesc lang="en">infiniband device</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="infiniband_port">
+<longdesc lang="en">
+For infiniband devices, this is the port to monitor.
+</longdesc>
+<shortdesc lang="en">infiniband port</shortdesc>
+<content type="integer" />
+</parameter>
+
 </parameters>
 <actions>
 <action name="start" timeout="60s" />
@@ -185,6 +201,17 @@ is_interface() {
 	local iface=`$IP2UTIL -o -f inet addr show | grep " $1 " \
 		| cut -d ' ' -f2 | sort -u | grep -v '^ipsec[0-9][0-9]*$'`
 		[ "$iface" != "" ]
+}
+
+infiniband_status()
+{
+	local device="$OCF_RESKEY_infiniband_device"
+
+	if [ -n "$OCF_RESKEY_infiniband_port" ]; then
+		device="${OCF_RESKEY_infiniband_device}:${OCF_RESKEY_infiniband_port}"
+	fi
+	
+	ibstatus ${device} | grep -q ACTIVE 
 }
 
 if_init() {
@@ -253,6 +280,11 @@ if_init() {
 	if ! ocf_is_decimal "$OCF_RESKEY_arping_cache_entries"; then
 		ocf_log err "Invalid OCF_RESKEY_arping_cache_entries [$OCF_RESKEY_arping_cache_entries]"
 		exit $OCF_ERR_CONFIGURED
+	fi
+
+	if [ -n "$OCF_RESKEY_infiniband_device" ]; then
+		#ibstatus is required if an infiniband_device is provided
+		check_binary ibstatus
 	fi
 	return $OCF_SUCCESS
 }
@@ -335,6 +367,15 @@ if_check () {
 	if [ $link_status -eq 0 ]; then
 		ocf_log notice "link_status: DOWN"
 		return $OCF_NOT_RUNNING
+	fi
+
+	# if this is an infiniband device, try ibstatus script
+	if [ -n "$OCF_RESKEY_infiniband_device" ]; then
+		if infiniband_status; then
+			return $OCF_SUCCESS
+		fi
+		ocf_log info "Infiniband device $OCF_RESKEY_infiniband_device is not available, check ibstatus for more information"
+		return $OCF_NOT_RUNNING	
 	fi
 
 	# watch for packet counter changes
