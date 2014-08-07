@@ -195,10 +195,20 @@ fi
 
 # Is xinetd running at all
 if [ -z "`get_xinetd_pid`" ]; then
-    ocf_log err "xinetd not running, we manage just xinetd services, not the daemon itself"
     case "$1" in
     stop) exit $OCF_SUCCESS;;
-    start|monitor|status) exit $OCF_ERR_INSTALLED;;
+    start)
+	ocf_log err "xinetd not running, we manage just xinetd services, not the daemon itself"
+	exit $OCF_ERR_INSTALLED
+	;;
+    status|monitor)
+	if ocf_is_probe; then
+	    exit $OCF_NOT_RUNNING
+	else
+	    ocf_log err "xinetd stopped"
+	    exit $OCF_ERR_GENERIC
+	fi
+	;;
     esac
 fi
 
