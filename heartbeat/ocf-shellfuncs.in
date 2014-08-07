@@ -346,37 +346,30 @@ ocf_log() {
 	fi
 }
 
-
 #
 # ocf_exit_reason: print exit error string to stderr
 # Usage:           Allows the OCF script to provide a string
 #                  describing why the exit code was returned.
 # Arguments:   reason - required, The string that represents why the error
 #                       occured.
-#              action_filter - optional, only record this exit string when
-#                              the action specified by this option is being
-#                              executed.
 #
 ocf_exit_reason()
 {
-	local action_filter=$2
 	local cookie="$OCF_EXIT_REASON_PREFIX"
+	local fmt=$1
 
+	if [ $# -lt 1 ]; then
+		ocf_log err "Not enough arguments [$#] to ocf_log_exit_msg."
+	fi
 	if [ -z "$cookie" ]; then
 		# use a default prefix
 		cookie="ocf-exit-reason:"
 	fi
 
-
-	if [ $# -lt 1 ]; then
-		ocf_log err "Not enough arguments [$#] to ocf_log_exit_msg."
-	fi
-
-	if [ -z "$action_filter" ] || [ "$__OCF_ACTION" = "$action_filter" ]; then
-		printf >&2 "%s%s\n" "$cookie" "$1"
-		__ha_log_ignore_stderr_once="true"
-		ha_log "ERROR: $1"
-	fi
+	shift
+	printf >&2 "%s${fmt}\n" "$cookie" "$@"
+	__ha_log_ignore_stderr_once="true"
+	ha_log "ERROR: $1"
 }
 
 #
