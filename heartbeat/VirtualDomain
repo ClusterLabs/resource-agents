@@ -383,7 +383,7 @@ VirtualDomain_Start() {
 			rm -f $snapshotimage
 			return $OCF_SUCCESS
 		fi
-		ocf_log error "Failed to restore ${DOMAIN_NAME} from state file in ${OCF_RESKEY_snapshot} directory."
+		ocf_exit_reason "Failed to restore ${DOMAIN_NAME} from state file in ${OCF_RESKEY_snapshot} directory."
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -398,7 +398,7 @@ VirtualDomain_Start() {
 	virsh $VIRSH_OPTIONS create ${OCF_RESKEY_config}
 	rc=$?
 	if [ $rc -ne 0 ]; then
-		ocf_log error "Failed to start virtual domain ${DOMAIN_NAME}."
+		ocf_exit_reason "Failed to start virtual domain ${DOMAIN_NAME}."
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -422,6 +422,7 @@ force_stop()
 		*"error:"*"domain is not running"*|*"error:"*"domain not found"*)
 			: ;; # unexpected path to the intended outcome, all is well
 		[!0]*)
+			ocf_exit_reason "forced stop failed"
 			return $OCF_ERR_GENERIC ;;
 		0*)
 			while [ $status != $OCF_NOT_RUNNING ]; do
@@ -582,14 +583,14 @@ VirtualDomain_Migrate_To() {
 		virsh ${VIRSH_OPTIONS} migrate --live $DOMAIN_NAME ${remoteuri} ${migrateuri}
 		rc=$?
 		if [ $rc -ne 0 ]; then
-			ocf_log err "$DOMAIN_NAME: live migration to ${remoteuri} ${migrateuri} failed: $rc"
+			ocf_exit_reason "$DOMAIN_NAME: live migration to ${remoteuri} ${migrateuri} failed: $rc"
 			return $OCF_ERR_GENERIC
 		else
 			ocf_log info "$DOMAIN_NAME: live migration to ${target_node} succeeded."
 			return $OCF_SUCCESS
 		fi
 	else
-		ocf_log err "$DOMAIN_NAME: migrate_to: Not active locally!"
+		ocf_exit_reason "$DOMAIN_NAME: migrate_to: Not active locally!"
 		return $OCF_ERR_GENERIC
 	fi
 }
@@ -621,7 +622,7 @@ VirtualDomain_Monitor() {
 				# A monitor script returned a non-success exit
 				# code. Stop iterating over the list of scripts, log a
 				# warning message, and propagate $OCF_ERR_GENERIC.
-				ocf_log warn "Monitor command \"${script}\" for domain ${DOMAIN_NAME} returned ${script_rc} with output: ${script_output}"
+				ocf_exit_reason "Monitor command \"${script}\" for domain ${DOMAIN_NAME} returned ${script_rc} with output: ${script_output}"
 				rc=$OCF_ERR_GENERIC
 				break
 			else
@@ -643,13 +644,13 @@ VirtualDomain_Validate_All() {
 	done
 
 	if [ -z $OCF_RESKEY_config ]; then
-		ocf_log error "Missing configuration parameter \"config\"."
+		ocf_exit_reason "Missing configuration parameter \"config\"."
 		return $OCF_ERR_CONFIGURED
 	fi
 
 	if ocf_is_true $OCF_RESKEY_force_stop; then
 		if [ -n "$OCF_RESKEY_snapshot" ]; then
-			ocf_log error "The 'force_stop' and 'snapshot' options can not be used together."
+			ocf_exit_reason "The 'force_stop' and 'snapshot' options can not be used together."
 			return $OCF_ERR_CONFIGURED
 		fi
 	fi
@@ -662,7 +663,7 @@ VirtualDomain_Validate_All() {
 		elif [ "$__OCF_ACTION" = "stop" ]; then
 			ocf_log info "Configuration file $OCF_RESKEY_config not readable, resource considered stopped."
 		else
-			ocf_log error "Configuration file $OCF_RESKEY_config does not exist or is not readable."
+			ocf_exit_reason "Configuration file $OCF_RESKEY_config does not exist or is not readable."
 			return $OCF_ERR_INSTALLED
 		fi
 	fi
@@ -705,7 +706,7 @@ fi
 # Retrieve the domain name from the xml file.
 DOMAIN_NAME=`egrep '[[:space:]]*<name>.*</name>[[:space:]]*$' ${OCF_RESKEY_config} | sed -e 's/[[:space:]]*<name>\(.*\)<\/name>[[:space:]]*$/\1/' 2>/dev/null`
 if [ -z $DOMAIN_NAME ]; then
-	ocf_log err "This is unexpected. Cannot determine domain name."
+	ocf_exit_reason "Unable to determine domain name."
 	exit $OCF_ERR_GENERIC
 fi
 

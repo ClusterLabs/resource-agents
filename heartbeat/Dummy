@@ -127,9 +127,9 @@ dummy_monitor() {
 		return $OCF_ERR_GENERIC
 	fi
 
-	if ! ocf_is_probe; then
+	if ! ocf_is_probe && [ "$__OCF_ACTION" = "monitor" ]; then
 		# set exit string only when NOT_RUNNING occurs during an actual monitor operation.
-		ocf_exit_reason "No process state file found" "monitor"
+		ocf_exit_reason "No process state file found"
 	fi
 	return $OCF_NOT_RUNNING
 }
