@@ -20,6 +20,9 @@
 #			of virtual machine
 #		OCF_RESKEY_reserved_Dom0_memory
 #			minimum memory reserved for domain 0
+#               OCF_RESKEY_shutdown_acpi
+#                       Allow xen to send ACPI power events to the domU
+#                       for hvm guests.
 #		OCF_RESKEY_monitor_scripts
 #			scripts to monitor services within the
 #			virtual domain
@@ -223,10 +226,10 @@ Xen_Status_with_Retry() {
   while [ $rc -eq $OCF_NOT_RUNNING -a $cnt -gt 0 ]; do
 	case "$__OCF_ACTION" in
 	stop)
-	  ocf_log debug "domain $1 reported as not running, waiting $cnt seconds ..."
+	  ocf_log debug "Xen domain $1 appears to be stopped but may be rebooting.  Checking $cnt more times ..."
 	  ;;
 	monitor)
-	  ocf_log warn "domain $1 reported as not running, but it is expected to be running! Retrying for $cnt seconds ..."
+	  ocf_log warn "Xen domain $1 appears to be stopped but may be rebooting.  Checking $cnt more times ..."
 	  ;;
 	*) : not reachable
 		;;
@@ -255,7 +258,7 @@ Xen_Adjust_Memory() {
       for DOM in ${RUNNING}; do
         xm mem-set ${DOM} ${NEWMEM} 
       done
-      ocf_log info "Adjusted memory to: $NEWMEM, for the following $RUNCNT domains: $RUNNING"
+      ocf_log info "Adjusted memory to: $NEWMEM for the following $RUNCNT domains: $RUNNING"
     fi
 }
 
@@ -356,7 +359,7 @@ xen_domain_stop() {
       fi
           
       while Xen_Status $dom && [ "$timeout" -gt 0 ]; do
-        ocf_log debug "$dom still not stopped. Waiting..."
+        ocf_log debug "Xen domain $dom still not stopped. Waiting..."
         timeout=$((timeout-1))
         sleep 1
       done
@@ -406,13 +409,13 @@ Xen_Migrate_To() {
   target_addr="$target_node"
  
   if Xen_Status ${DOMAIN_NAME}; then
-    ocf_log info "$DOMAIN_NAME: Starting xm migrate to $target_node"
+    ocf_log info "Xen domain $DOMAIN_NAME: Starting xm migrate to $target_node"
     
     if [ -n "$target_attr" ]; then
 	  nodevalue=`crm_attribute --type nodes --node-uname $target_node --attr-name $target_attr --get-value -q`
 	  if [ -n "${nodevalue}" -a "${nodevalue}" != "(null)" ]; then
 	  	target_addr="$nodevalue"
-		ocf_log info "$DOMAIN_NAME: $target_node is using address $target_addr"
+		ocf_log info "Xen domain $DOMAIN_NAME: $target_node is using address $target_addr"
 	  fi
     fi
 
@@ -420,15 +423,15 @@ Xen_Migrate_To() {
 
     rc=$?
     if [ $rc -ne 0 ]; then
-      ocf_log err "$DOMAIN_NAME: xm migrate to $target_node failed: $rc"
+      ocf_log err "Xen domain $DOMAIN_NAME: xm migrate to $target_node failed: $rc"
       return $OCF_ERR_GENERIC
     else 
       Xen_Adjust_Memory 0
-      ocf_log info "$DOMAIN_NAME: xm migrate to $target_node succeeded."
+      ocf_log info "Xen domain $DOMAIN_NAME: xm migrate to $target_node succeeded."
       return $OCF_SUCCESS
     fi
   else
-    ocf_log err "$DOMAIN_NAME: migrate_to: Not active locally!"
+    ocf_log err "Xen domain $DOMAIN_NAME: migrate_to: Not active locally!"
     return $OCF_ERR_GENERIC
   fi
 }
@@ -443,17 +446,17 @@ Xen_Migrate_From() {
   fi
 
   while ! Xen_Status ${DOMAIN_NAME} && [ $timeout -gt 0 ]; do
-    ocf_log debug "$DOMAIN_NAME: Not yet active locally, waiting (timeout: ${timeout}s)"
+    ocf_log debug "Xen domain $DOMAIN_NAME: Not yet active locally, waiting (timeout: ${timeout}s)"
     timeout=$((timeout-1))
     sleep 1
   done
 
   if Xen_Status ${DOMAIN_NAME}; then
     Xen_Adjust_Memory 0
-    ocf_log info "$DOMAIN_NAME: Active locally, migration successful"
+    ocf_log info "Xen domain $DOMAIN_NAME: Active locally, migration successful"
     return $OCF_SUCCESS
   else
-    ocf_log err "$DOMAIN_NAME: Not active locally, migration failed!"
+    ocf_log err "Xen domain $DOMAIN_NAME: Not active locally, migration failed!"
     return $OCF_ERR_GENERIC
   fi
 }
@@ -533,3 +536,4 @@ case $1 in
 esac
 exit $?
 # vim:sw=2:ts=4:
+
