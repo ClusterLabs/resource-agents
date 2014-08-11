@@ -357,6 +357,7 @@ ocf_exit_reason()
 {
 	local cookie="$OCF_EXIT_REASON_PREFIX"
 	local fmt=$1
+	local msg
 
 	if [ $# -lt 1 ]; then
 		ocf_log err "Not enough arguments [$#] to ocf_log_exit_msg."
@@ -367,9 +368,12 @@ ocf_exit_reason()
 	fi
 
 	shift
-	printf >&2 "%s${fmt}\n" "$cookie" "$@"
+
+	msg=$(printf "${fmt}" "$@")
+
+	printf >&2 "%s${msg}\n" "$cookie"
 	__ha_log_ignore_stderr_once="true"
-	ha_log "ERROR: $1"
+	ha_log "ERROR: $msg"
 }
 
 #
