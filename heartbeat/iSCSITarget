@@ -310,7 +310,6 @@ iSCSITarget_start() {
 	    # initiators to connect
 	    ocf_run lio_node --enabletpg=${OCF_RESKEY_iqn} 1 || exit $OCF_ERR_GENERIC
 	    ;;
-    esac
         lio-t)
             # lio distinguishes between targets and target portal
             # groups (TPGs). We will always create one TPG, with the
