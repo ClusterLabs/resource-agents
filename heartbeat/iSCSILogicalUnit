@@ -41,6 +41,8 @@ elif have_binary tgtadm; then
     OCF_RESKEY_implementation_default="tgt"
 elif have_binary lio_node; then
     OCF_RESKEY_implementation_default="lio"
+elif have_binary targetcli; then
+    OCF_RESKEY_implementation_default="lio-t"
 fi
 : ${OCF_RESKEY_implementation=${OCF_RESKEY_implementation_default}}
 
@@ -91,9 +93,9 @@ an SCSI Target, exported via a daemon that speaks the iSCSI protocol.
 <parameter name="implementation" required="0" unique="0">
 <longdesc lang="en">
 The iSCSI target daemon implementation. Must be one of "iet", "tgt",
-or "lio".  If unspecified, an implementation is selected based on the
+"lio", or "lio-t".  If unspecified, an implementation is selected based on the
 availability of management utilities, with "iet" being tried first,
-then "tgt", then "lio".
+then "tgt", then "lio", then "lio-t".
 </longdesc>
 <shortdesc lang="en">iSCSI target daemon implementation</shortdesc>
 <content type="string" default="${OCF_RESKEY_implementation_default}"/>
@@ -336,6 +338,22 @@ iSCSILogicalUnit_start() {
                done
            fi
 	    ;;
+        lio-t)
+            # For lio, we first have to create a target device, then
+            # add it to the Target Portal Group as an LU.
+            ocf_run targetcli /backstores/block create name=${OCF_RESOURCE_INSTANCE} dev=${OCF_RESKEY_path} write_back=False || exit $OCF_ERR_GENERIC
+            if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
+                echo ${OCF_RESKEY_scsi_sn} > /sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE}/wwn/vpd_unit_serial
+            fi
+            ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns create /backstores/block/${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+
+            if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
+                for initiator in ${OCF_RESKEY_allowed_initiators}; do
+                    ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls create ${initiator} add_mapped_luns=False || exit $OCF_ERR_GENERIC
+                    ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/${initiator} create ${OCF_RESKEY_lun} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+                done
+            fi
+            ;;
     esac
 
     return $OCF_SUCCESS
@@ -373,6 +391,19 @@ iSCSILogicalUnit_stop() {
                fi
 		ocf_run lio_node --dellun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
 		ocf_run tcm_node --freedev=iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
+		;;
+            lio-t)
+               ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns delete ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+               if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
+                   for initiator in ${OCF_RESKEY_allowed_initiators}; do
+                       if targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/${initiator} status | grep "Mapped LUNs: 0" >/dev/null ; then
+                           ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/ delete ${initiator}
+                       fi
+                   done
+               fi
+
+               ocf_run targetcli /backstores/block delete ${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
+               ;;
 	esac
     fi
     
@@ -411,6 +442,10 @@ iSCSILogicalUnit_monitor() {
 	    configfs_path="/sys/kernel/config/target/iscsi/${OCF_RESKEY_target_iqn}/tpgt_1/lun/lun_${OCF_RESKEY_lun}/${OCF_RESOURCE_INSTANCE}/udev_path"
 	    [ -e ${configfs_path} ] && [ `cat ${configfs_path}` = "${OCF_RESKEY_path}" ] && return $OCF_SUCCESS
 	    ;;
+        lio-t)
+            configfs_path="/sys/kernel/config/target/iscsi/${OCF_RESKEY_target_iqn}/tpgt_1/lun/lun_${OCF_RESKEY_lun}/*/udev_path"
+            [ -e ${configfs_path} ] && [ `cat ${configfs_path}` = "${OCF_RESKEY_path}" ] && return $OCF_SUCCESS
+            ;;
     esac
     
     return $OCF_NOT_RUNNING
@@ -428,7 +463,7 @@ iSCSILogicalUnit_validate() {
 
     # Is the configured implementation supported?
     case "$OCF_RESKEY_implementation" in
-	"iet"|"tgt"|"lio")
+	"iet"|"tgt"|"lio"|"lio-t")
 	    ;;
 	"")
 	    # The user didn't specify an implementation, and we were
@@ -499,6 +534,9 @@ iSCSILogicalUnit_validate() {
 	lio)
 	    unsupported_params="scsi_id vendor_id product_id tgt_bstype tgt_bsoflags tgt_device_type"
 	    ;;
+        lio-t)
+            unsupported_params="scsi_id vendor_id product_id tgt_bstype tgt_bsoflags tgt_device_type lio_iblock"
+            ;;
     esac
     for var in ${unsupported_params}; do
 	envar=OCF_RESKEY_${var}
@@ -528,6 +566,9 @@ iSCSILogicalUnit_validate() {
 		check_binary tcm_node
 		check_binary lio_node
 		;;
+            lio-t)
+                check_binary targetcli
+                ;;
 	esac
 
         # Is the required kernel functionality available?
