@@ -360,16 +360,12 @@ iSCSITarget_start() {
 		;;
 	esac
 
-	return $OCF_SUCCESS
+	iSCSITarget_monitor
 }
 
 iSCSITarget_stop() {
-	local rc
-
 	iSCSITarget_monitor
-	rc=$?
-
-	if [ $rc -eq $OCF_NOT_RUNNING ]; then
+	if [ $? -eq $OCF_NOT_RUNNING ]; then
 		return $OCF_SUCCESS
 	fi
 
