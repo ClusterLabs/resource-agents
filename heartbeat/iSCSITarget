@@ -364,8 +364,15 @@ iSCSITarget_start() {
 }
 
 iSCSITarget_stop() {
+	local rc
+
 	iSCSITarget_monitor
-	if [ $? =  $OCF_SUCCESS ]; then
+	rc=$?
+
+	if [ $rc -eq $OCF_NOT_RUNNING ]; then
+		return $OCF_SUCCESS
+	fi
+
 	local tid
 	case $OCF_RESKEY_implementation in
 	iet)
@@ -476,7 +483,6 @@ iSCSITarget_stop() {
 		ocf_run targetcli /iscsi delete ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
 		;;
 	esac
-	fi
 
 	return $OCF_SUCCESS
 }
