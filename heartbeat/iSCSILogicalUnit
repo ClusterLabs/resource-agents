@@ -377,12 +377,13 @@ iSCSILogicalUnit_start() {
 		;;
 	esac
 
-	return $OCF_SUCCESS
+	# Force the monitor operation to pass before start is considered a success.
+	iSCSILogicalUnit_monitor
 }
 
 iSCSILogicalUnit_stop() {
 	iSCSILogicalUnit_monitor
-	if [ $? = $OCF_SUCCESS ]; then
+	if [ $? -eq $OCF_NOT_RUNNING ]; then
 		return $OCF_SUCCESS
 	fi
 
