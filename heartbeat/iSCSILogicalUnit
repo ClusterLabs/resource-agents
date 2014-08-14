@@ -383,62 +383,64 @@ iSCSILogicalUnit_start() {
 iSCSILogicalUnit_stop() {
 	iSCSILogicalUnit_monitor
 	if [ $? = $OCF_SUCCESS ]; then
-		case $OCF_RESKEY_implementation in
-		iet)
-		# IET allows us to remove LUs while they are in use
-		ocf_run ietadm --op delete \
-			--tid=${TID} \
-			--lun=${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
-			;;
-		tgt)
-			# tgt will fail to remove an LU while it is in use,
-			# but at the same time does not allow us to
-			# selectively shut down a connection that is using a
-			# specific LU. Thus, we need to loop here until tgtd
-			# decides that the LU is no longer in use, or we get
-			# timed out by the LRM.
-			while ! ocf_run -warn tgtadm --lld iscsi --op delete --mode logicalunit \
-				--tid ${TID} \
-				--lun=${OCF_RESKEY_lun}; do
-				sleep 1
-			done
-			;;
-		lio)
+		return $OCF_SUCCESS
+	fi
 
+	case $OCF_RESKEY_implementation in
 
-			acls_configfs_path="/sys/kernel/config/target/iscsi/${OCF_RESKEY_target_iqn}/tpgt_1/acls"
-			for initiatorpath in ${acls_configfs_path}/*; do
-				initiator=$(basename "${initiatorpath}")
-				if [ -e "${initiatorpath}/lun_${OCF_RESKEY_lun}" ]; then
-					ocf_log info "deleting acl at ${initiatorpath}/lun_${OCF_RESKEY_lun}"
-					ocf_run lio_node --dellunacl=${OCF_RESKEY_target_iqn} 1 \
-						${initiator} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+	iet)
+	# IET allows us to remove LUs while they are in use
+	ocf_run ietadm --op delete \
+		--tid=${TID} \
+		--lun=${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+		;;
+	tgt)
+		# tgt will fail to remove an LU while it is in use,
+		# but at the same time does not allow us to
+		# selectively shut down a connection that is using a
+		# specific LU. Thus, we need to loop here until tgtd
+		# decides that the LU is no longer in use, or we get
+		# timed out by the LRM.
+		while ! ocf_run -warn tgtadm --lld iscsi --op delete --mode logicalunit \
+			--tid ${TID} \
+			--lun=${OCF_RESKEY_lun}; do
+			sleep 1
+		done
+		;;
+	lio)
+
+		acls_configfs_path="/sys/kernel/config/target/iscsi/${OCF_RESKEY_target_iqn}/tpgt_1/acls"
+		for initiatorpath in ${acls_configfs_path}/*; do
+			initiator=$(basename "${initiatorpath}")
+			if [ -e "${initiatorpath}/lun_${OCF_RESKEY_lun}" ]; then
+				ocf_log info "deleting acl at ${initiatorpath}/lun_${OCF_RESKEY_lun}"
+				ocf_run lio_node --dellunacl=${OCF_RESKEY_target_iqn} 1 \
+					${initiator} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+			fi
+		done
+		lun_configfs_path="/sys/kernel/config/target/iscsi/${OCF_RESKEY_target_iqn}/tpgt_1/lun/lun_#{${OCF_RESKEY_lun}/"
+		if [ -e "${lun_configfs_path}" ]; then
+			ocf_run lio_node --dellun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+		fi
+		block_configfs_path="/sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESKEY_INSTANCE}/udev_path"
+		if [ -e "${block_configfs_path}" ]; then
+			ocf_run tcm_node --freedev=iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
+		fi
+		;;
+	lio-t)
+		ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns delete ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+		if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
+			for initiator in ${OCF_RESKEY_allowed_initiators}; do
+				if targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/${initiator} status | grep "Mapped LUNs: 0" >/dev/null ; then
+					ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/ delete ${initiator}
 				fi
 			done
-			lun_configfs_path="/sys/kernel/config/target/iscsi/${OCF_RESKEY_target_iqn}/tpgt_1/lun/lun_#{${OCF_RESKEY_lun}/"
-			if [ -e "${lun_configfs_path}" ]; then
-				ocf_run lio_node --dellun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
-			fi
-			block_configfs_path="/sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESKEY_INSTANCE}/udev_path"
-			if [ -e "${block_configfs_path}" ]; then
-				ocf_run tcm_node --freedev=iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
-			fi
-			;;
-		lio-t)
-			ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns delete ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
-			if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
-				for initiator in ${OCF_RESKEY_allowed_initiators}; do
-					if targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/${initiator} status | grep "Mapped LUNs: 0" >/dev/null ; then
-						ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/ delete ${initiator}
-					fi
-				done
-			fi
+		fi
 
-			ocf_run targetcli /backstores/block delete ${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
-			;;
-		esac
-	fi
-	
+		ocf_run targetcli /backstores/block delete ${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
+		;;
+	esac
+
 	return $OCF_SUCCESS
 }
 
