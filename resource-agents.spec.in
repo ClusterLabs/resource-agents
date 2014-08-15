@@ -30,6 +30,12 @@
 %bcond_@rgmanager@ rgmanager
 %bcond_@linux-ha@ linuxha
 
+# build with HA_BIN compatibility for the existing Heartbeat stack
+%bcond_@compat-habindir@ compat_habindir
+%if %{with compat_habindir}
+%global _libexecdir %{_libdir}
+%endif
+
 Name:		resource-agents
 Summary:	Open Source HA Reusable Cluster Resource Scripts
 Version:	@version@

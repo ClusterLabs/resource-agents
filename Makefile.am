@@ -43,6 +43,12 @@ else
 LINUX_HA = with
 endif
 
+if WITH_COMPAT_HABINDIR
+COMPAT_HABINDIR = without
+else
+COMPAT_HABINDIR = with
+endif
+
 EXTRA_DIST		= autogen.sh .version make/release.mk \
 			  make/git-version-gen make/gitlog-to-changelog \
 			  AUTHORS COPYING COPYING.GPLv3 COPYING.LGPL ChangeLog \
@@ -142,6 +148,7 @@ $(SPEC): $(SPEC).in
 		-e "s#@rcver@#$$rcver#g" \
 		-e "s#@rgmanager@#$(RGMANAGER)#g" \
 		-e "s#@linux-ha@#$(LINUX_HA)#g" \
+		-e "s#@compat-habindir@#$(COMPAT_HABINDIR)#g" \
 	$< > $@-t; \
 	if [ -z "$$dirty" ]; then sed -i -e "s#%glo.*dirty.*##g" $@-t; fi; \
 	if [ -z "$$alphatag" ]; then sed -i -e "s#%glo.*alphatag.*##g" $@-t; fi; \

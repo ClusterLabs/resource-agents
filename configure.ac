@@ -233,6 +233,13 @@ fi
 AM_CONDITIONAL(BUILD_LINUX_HA, test $BUILD_LINUX_HA -eq 1)
 AM_CONDITIONAL(BUILD_RGMANAGER, test $BUILD_RGMANAGER -eq 1)
 
+AC_ARG_WITH(compat-habindir,
+    [  --with-compat-habindir      use HA_BIN directory with compatibility for the Heartbeat stack [${libexecdir}]],
+    [],
+    [with_compat_habindir=no])
+AM_CONDITIONAL(WITH_COMPAT_HABINDIR, test "x$with_compat_habindir" != "xno")
+
+
 dnl ===============================================
 dnl General Processing
 dnl ===============================================
@@ -296,6 +303,10 @@ case $libdir in
     AC_MSG_RESULT($libdir);
     ;;
 esac
+
+if test "x$with_compat_habindir" != "xno" ; then
+  libexecdir=${libdir}
+fi
 
 dnl Expand autoconf variables so that we dont end up with '${prefix}' 
 dnl in #defines and python scripts
@@ -917,6 +928,7 @@ AC_MSG_RESULT([  Arch-independent files   = ${datadir}])
 AC_MSG_RESULT([  Documentation            = ${docdir}])
 AC_MSG_RESULT([  State information        = ${localstatedir}])
 AC_MSG_RESULT([  System configuration     = ${sysconfdir}])
+AC_MSG_RESULT([  HA_BIN directory prefix  = ${libexecdir}])
 AC_MSG_RESULT([  RA state files           = ${HA_RSCTMPDIR}])
 AC_MSG_RESULT([  AIS Plugins              = ${LCRSODIR}])
 AC_MSG_RESULT([])
