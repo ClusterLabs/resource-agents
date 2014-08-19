@@ -218,7 +218,7 @@ if_init() {
 	local rc
 
 	if [ X"$OCF_RESKEY_interface" = "X" ]; then
-		ocf_log err "Interface name (the interface parameter) is mandatory"
+		ocf_exit_reason "Interface name (the interface parameter) is mandatory"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
@@ -227,14 +227,14 @@ if_init() {
 	if is_interface $NIC
 	then
 		case "$NIC" in
-			*:*) ocf_log err "Do not specify a virtual interface : $OCF_RESKEY_interface"
+			*:*) ocf_exit_reason "Do not specify a virtual interface : $OCF_RESKEY_interface"
 				 exit $OCF_ERR_CONFIGURED;;
 			*)   ;;
 		esac
 	else
 		case $__OCF_ACTION in
 			validate-all)
-				ocf_log err "Interface $NIC does not exist"
+				ocf_exit_reason "Interface $NIC does not exist"
 				exit $OCF_ERR_CONFIGURED;;
 			*)	
 				## It might be a bond interface which is temporarily not available, therefore we want to continue here
@@ -245,7 +245,7 @@ if_init() {
 
 	: ${OCF_RESKEY_multiplier:="1"}
 	if ! ocf_is_decimal "$OCF_RESKEY_multiplier"; then
-		ocf_log err "Invalid OCF_RESKEY_multiplier [$OCF_RESKEY_multiplier]"
+		ocf_exit_reason "Invalid OCF_RESKEY_multiplier [$OCF_RESKEY_multiplier]"
 		exit $OCF_ERR_CONFIGURED
 	fi
 	
@@ -253,32 +253,32 @@ if_init() {
 	
 	REP_COUNT=${OCF_RESKEY_repeat_count:-5}
 	if ! ocf_is_decimal "$REP_COUNT" -o [ $REP_COUNT -lt 1 ]; then
-		ocf_log err "Invalid OCF_RESKEY_repeat_count [$REP_COUNT]"
+		ocf_exit_reason "Invalid OCF_RESKEY_repeat_count [$REP_COUNT]"
 		exit $OCF_ERR_CONFIGURED
 	fi
 	REP_INTERVAL_S=${OCF_RESKEY_repeat_interval:-10}
 	if ! ocf_is_decimal "$REP_INTERVAL_S"; then
-		ocf_log err "Invalid OCF_RESKEY_repeat_interval [$REP_INTERVAL_S]"
+		ocf_exit_reason "Invalid OCF_RESKEY_repeat_interval [$REP_INTERVAL_S]"
 		exit $OCF_ERR_CONFIGURED
 	fi
 	: ${OCF_RESKEY_pktcnt_timeout:="5"}
 	if ! ocf_is_decimal "$OCF_RESKEY_pktcnt_timeout"; then
-		ocf_log err "Invalid OCF_RESKEY_pktcnt_timeout [$OCF_RESKEY_pktcnt_timeout]"
+		ocf_exit_reason "Invalid OCF_RESKEY_pktcnt_timeout [$OCF_RESKEY_pktcnt_timeout]"
 		exit $OCF_ERR_CONFIGURED
 	fi
 	: ${OCF_RESKEY_arping_count:="1"}
 	if ! ocf_is_decimal "$OCF_RESKEY_arping_count"; then
-		ocf_log err "Invalid OCF_RESKEY_arping_count [$OCF_RESKEY_arping_count]"
+		ocf_exit_reason "Invalid OCF_RESKEY_arping_count [$OCF_RESKEY_arping_count]"
 		exit $OCF_ERR_CONFIGURED
 	fi
 	: ${OCF_RESKEY_arping_timeout:="1"}
 	if ! ocf_is_decimal "$OCF_RESKEY_arping_timeout"; then
-		ocf_log err "Invalid OCF_RESKEY_arping_timeout [$OCF_RESKEY_arping_count]"
+		ocf_exit_reason "Invalid OCF_RESKEY_arping_timeout [$OCF_RESKEY_arping_count]"
 		exit $OCF_ERR_CONFIGURED
 	fi
 	: ${OCF_RESKEY_arping_cache_entries:="5"}
 	if ! ocf_is_decimal "$OCF_RESKEY_arping_cache_entries"; then
-		ocf_log err "Invalid OCF_RESKEY_arping_cache_entries [$OCF_RESKEY_arping_cache_entries]"
+		ocf_exit_reason "Invalid OCF_RESKEY_arping_cache_entries [$OCF_RESKEY_arping_cache_entries]"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
@@ -494,7 +494,7 @@ if_start()
 	ha_pseudo_resource $OCF_RESOURCE_INSTANCE start
 	rc=$?
 	if [ $rc -ne $OCF_SUCCESS ]; then
-		ocf_log err "Failure to create ethmonitor state file"
+		ocf_exit_reason "Failure to create ethmonitor state file"
 		return $rc
 	fi
 
