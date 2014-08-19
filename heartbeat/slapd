@@ -268,7 +268,7 @@ slapd_pid()
       return $OCF_SUCCESS
     fi
 
-    ocf_log err "slapd pid file '$pid_file' empty."
+    ocf_exit_reason "slapd pid file '$pid_file' empty."
     return $OCF_ERR_GENERIC
   fi
 
@@ -316,7 +316,7 @@ slapd_start()
   elif [ -f "$config" ]; then
     options="$options -f $config"
   else
-    ocf_log err "slapd configuration '$config' does not exist."
+    ocf_exit_reason "slapd configuration '$config' does not exist."
     return $OCF_ERR_INSTALLED
   fi
 
@@ -331,7 +331,7 @@ slapd_start()
   fi
 
   if [ $rc -ne 0 ]; then
-    ocf_log err "slapd returned error."
+    ocf_exit_reason "slapd returned error."
 
     return $OCF_ERR_GENERIC
   fi
@@ -366,7 +366,7 @@ slapd_stop()
 
   terminate $pid TERM $OCF_RESKEY_stop_escalate; rc=$?
   if [ $rc -ne 0  ]; then
-    ocf_log err "slapd failed to stop. Escalating to KILL."
+    ocf_exit_reason "slapd failed to stop. Escalating to KILL."
     terminate $pid KILL; rc=$?
   fi
 
@@ -391,12 +391,12 @@ slapd_monitor()
   if [ $state -eq $OCF_NOT_RUNNING ]; then
     if [ -z "$1" ];then
       if ! ocf_is_probe; then
-        ocf_log err "slapd process not found."
+        ocf_exit_reason "slapd process not found."
       fi
     fi
     return $state
   elif [ $state -ne $OCF_SUCCESS ]; then
-    ocf_log err "slapd returned error."
+    ocf_exit_reason "slapd returned error."
     return $state
   fi
 
@@ -427,7 +427,7 @@ slapd_monitor()
     if ocf_is_probe; then
       ocf_log info "slapd configuration '$config' does not exist during probe."
     else
-      ocf_log err "slapd configuration '$config' does not exist."
+      ocf_exit_reason "slapd configuration '$config' does not exist."
       return $OCF_ERR_INSTALLED
     fi
   fi
@@ -447,12 +447,12 @@ slapd_monitor()
         ocf_log debug "slapd database with suffix '$suffix' reachable"
         ;;
       "49")
-        ocf_log err "slapd database with suffix '$suffix' unreachable. Invalid credentials."
+        ocf_exit_reason "slapd database with suffix '$suffix' unreachable. Invalid credentials."
         return $OCF_ERR_CONFIGURED
         ;;
       *)
         if [ -z "$1" ] || [ -n "$1" -a $rc -ne 1 ]; then
-          ocf_log err "slapd database with suffix '$suffix' unreachable. exit code ($rc)"
+          ocf_exit_reason "slapd database with suffix '$suffix' unreachable. exit code ($rc)"
         fi
         state=$OCF_ERR_GENERIC
         ;;
@@ -480,7 +480,7 @@ slapd_validate_all()
       if ocf_is_probe; then
         ocf_log info "slapd configuration '$config' does not exist during probe."
       else
-        ocf_log err "slapd configuration '$config' does not exist."
+        ocf_exit_reason "slapd configuration '$config' does not exist."
         return $OCF_ERR_INSTALLED
       fi
     fi
@@ -489,14 +489,14 @@ slapd_validate_all()
   if [ -z "$user" ]; then
     user=`id -nu 2>/dev/null`
   elif ! id "$user" >/dev/null 2>&1; then
-    ocf_log err "slapd user '$user' does not exist"
+    ocf_exit_reason "slapd user '$user' does not exist"
     return $OCF_ERR_INSTALLED
   fi
 
   if [ -z "$group" ]; then
     group=`id -ng 2>/dev/null`
   elif ! grep "^$group:" /etc/group >/dev/null 2>&1; then
-    ocf_log err "slapd group '$group' does not exist"
+    ocf_exit_reason "slapd group '$group' does not exist"
     return $OCF_ERR_INSTALLED
   fi
 

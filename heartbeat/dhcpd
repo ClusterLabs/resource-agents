@@ -189,17 +189,17 @@ dhcpd_validate_all() {
 	# chroot mode is enabled.
 	if ocf_is_true $OCF_RESKEY_chrooted ; then
 	    if ! test -e "$OCF_RESKEY_chrooted_path"; then
-		ocf_log err "Path $OCF_RESKEY_chrooted_path does not exist."
+		ocf_exit_reason "Path $OCF_RESKEY_chrooted_path does not exist."
 		return $OCF_ERR_INSTALLED
 	    fi
 
 	    if test -n "$OCF_RESKEY_chrooted_path/$OCF_RESKEY_config" -a ! -r "$OCF_RESKEY_chrooted_path/$OCF_RESKEY_config"; then
-		ocf_log err "Configuration file $OCF_RESKEY_chrooted_path/$OCF_RESKEY_config doesn't exist"
+		ocf_exit_reason "Configuration file $OCF_RESKEY_chrooted_path/$OCF_RESKEY_config doesn't exist"
 		return $OCF_ERR_INSTALLED
 	    fi
 	else
 	    if test -n "$OCF_RESKEY_config" -a ! -r "$OCF_RESKEY_config"; then
-		ocf_log err "Configuration file $OCF_RESKEY_config doesn't exist"
+		ocf_exit_reason "Configuration file $OCF_RESKEY_config doesn't exist"
 		return $OCF_ERR_INSTALLED
 	    fi
 	fi
@@ -207,7 +207,7 @@ dhcpd_validate_all() {
     fi 
 
     if ! getent passwd $OCF_RESKEY_user >/dev/null 2>&1; then
-        ocf_log err "User $OCF_RESKEY_user doesn't exist"
+        ocf_exit_reason "User $OCF_RESKEY_user doesn't exist"
         return $OCF_ERR_INSTALLED
     fi
 
@@ -264,7 +264,7 @@ dhcpd_initialize_chroot() {
     ## If there is no conf file, we can't initialize the chrooted 
     ## environment, return with "program not configured"
     if ! [ -f $OCF_RESKEY_config ] ; then
-	ocf_log err "dhcpd has not been configured."
+	ocf_exit_reason "dhcpd has not been configured."
 	return $OCF_ERR_CONFIGURED
     fi
 
@@ -283,7 +283,7 @@ dhcpd_initialize_chroot() {
 	if [ -e $i ] ; then
 	    DEFAULT_FILE_LIST="$DEFAULT_FILE_LIST $i"
 	else
-	    ocf_log err "include file $i does not exist"
+	    ocf_exit_reason "include file $i does not exist"
 	    return $OCF_ERR_INSTALLED
 	fi
     done
@@ -299,7 +299,7 @@ dhcpd_initialize_chroot() {
 
 	# Next, we copy the configuration file into place.
 	cp -aL "$i" "$OCF_RESKEY_chrooted_path/${i%/*}/" > /dev/null 2>&1 ||
-	    { ocf_log err "could not copy $i to chroot jail"; return $OCF_ERR_GENERIC; }
+	    { ocf_exit_reason "could not copy $i to chroot jail"; return $OCF_ERR_GENERIC; }
     done
 
     libdir=$(basename $(echo /var/lib/dhcp/lib*))
@@ -328,7 +328,7 @@ dhcpd_initialize_chroot() {
     for i in $cplibs ; do
 	if [ -s "$i" ]; then
 	    cp -pL "$i" "/var/lib/dhcp/$libdir/" ||
-		{ ocf_log err "could not copy $i to chroot jail"; return $OCF_ERR_GENERIC; }
+		{ ocf_exit_reason "could not copy $i to chroot jail"; return $OCF_ERR_GENERIC; }
 	fi
     done
 
@@ -339,7 +339,7 @@ dhcpd_initialize_chroot() {
 dhcpd_initialize() {
     ## If there is no conf file, we can't start a dhcp service.
     if ! [ -f $OCF_RESKEY_config ] ; then
-	ocf_log err "dhcpd has not been configured."
+	ocf_exit_reason "dhcpd has not been configured."
 	return $OCF_ERR_CONFIGURED
     fi
 
@@ -392,10 +392,10 @@ dhcpd_start() {
     # Only initialize the chrooted path(s) if chroot mode is enabled.
     if ocf_is_true $OCF_RESKEY_chrooted ; then
 	dhcpd_initialize_chroot ||
-	    { ocf_log err "Could not fully initialize the chroot environment." ; return $OCF_ERR_INSTALLED; }
+	    { ocf_exit_reason "Could not fully initialize the chroot environment." ; return $OCF_ERR_INSTALLED; }
     else
 	dhcpd_initialize ||
-	    { ocf_log err "Could not fully initialize the runtime environment." ; return $OCF_ERR_INSTALLED; }
+	    { ocf_exit_reason "Could not fully initialize the runtime environment." ; return $OCF_ERR_INSTALLED; }
     fi
 
     dhcpd_validate_all || exit
@@ -501,7 +501,7 @@ dhcpd_stop () {
 
     #If still up
     if dhcpd_monitor 2>&1; then
-        ocf_log err "dhcpd is still up! Trying kill -s KILL"
+        ocf_log notice "dhcpd is still up! Trying kill -s KILL"
 
 	kill -s SIGKILL `cat $PIDF`
     fi

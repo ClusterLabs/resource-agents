@@ -175,8 +175,8 @@ verify_tags_environment()
 	# guarantee our tag will be filtered on startup
 	##
 	if ! lvm dumpconfig activation/volume_list; then
-		ocf_log err "LVM: Improper setup detected"
-		ocf_log err "The volume_list filter must be initialized in lvm.conf for exclusive activation without clvmd"
+		ocf_log err  "LVM: Improper setup detected"
+		ocf_exit_reason "The volume_list filter must be initialized in lvm.conf for exclusive activation without clvmd"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -187,7 +187,7 @@ verify_tags_environment()
 	##
 	if lvm dumpconfig activation/volume_list | grep -e "\"@$OUR_TAG\"" -e "\"${OCF_RESKEY_volgrpname}\""; then
 		ocf_log err "LVM:  Improper setup detected"
-		ocf_log err "The volume_list in lvm.conf must not contain the cluster tag, \"$OUR_TAG\", or volume group, $OCF_RESKEY_volgrpname"
+		ocf_exit_reason "The volume_list in lvm.conf must not contain the cluster tag, \"$OUR_TAG\", or volume group, $OCF_RESKEY_volgrpname"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -257,7 +257,7 @@ strip_tags()
 	done
 
 	if [ ! -z `vgs -o tags --noheadings $OCF_RESKEY_volgrpname | tr -d ' '` ]; then
-		ocf_log err "Failed to remove ownership tags from $OCF_RESKEY_volgrpname"
+		ocf_exit_reason "Failed to remove ownership tags from $OCF_RESKEY_volgrpname"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -284,7 +284,7 @@ set_tags()
 
 	vgchange --addtag $OUR_TAG $OCF_RESKEY_volgrpname
 	if [ $? -ne 0 ]; then
-		ocf_log err "Failed to add ownership tag to $OCF_RESKEY_volgrpname"
+		ocf_exit_reason "Failed to add ownership tag to $OCF_RESKEY_volgrpname"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -315,7 +315,7 @@ LVM_status() {
 		test "`cd /dev/$1 && ls`" != ""
 		rc=$?
 		if [ $rc -ne 0 ]; then
-			ocf_log err "VG $1 with no logical volumes is not supported by this RA!"
+			ocf_exit_reason "VG $1 with no logical volumes is not supported by this RA!"
 		fi
 	fi
 
@@ -328,7 +328,7 @@ LVM_status() {
 			# If vg is running, make sure the correct tag is present. Otherwise we
 			# can not guarantee exclusive activation.
 			if ! check_tags; then
-				ocf_log err "WARNING: $OCF_RESKEY_volgrpname is active without the cluster tag, \"$OUR_TAG\""
+				ocf_exit_reason "WARNING: $OCF_RESKEY_volgrpname is active without the cluster tag, \"$OUR_TAG\""
 				rc=$OCF_ERR_GENERIC
 			fi
 
@@ -397,7 +397,7 @@ retry_exclusive_start()
 			return $OCF_ERR_GENERIC;;
 		*)
 			if ! lvchange -an $OCF_RESKEY_volgrpname/$1; then
-				ocf_log err "Unable to perform required deactivation of $OCF_RESKEY_volgrpname/$1 before starting"
+				ocf_exit_reason "Unable to perform required deactivation of $OCF_RESKEY_volgrpname/$1 before starting"
 				return $OCF_ERR_GENERIC
 			fi
 			;;
@@ -456,7 +456,7 @@ LVM_start() {
 		: OK Volume $vg activated just fine!
 		return $OCF_SUCCESS 
 	else
-		ocf_log err "LVM: $vg did not activate correctly"
+		ocf_exit_reason "LVM: $vg did not activate correctly"
 		return $OCF_NOT_RUNNING
 	fi
 }
@@ -485,7 +485,7 @@ LVM_stop() {
 		ocf_run vgchange $vgchange_options $vg
 		res=$?
 		if LVM_status $vg; then
-			ocf_log err "LVM: $vg did not stop correctly"
+			ocf_exit_reason "LVM: $vg did not stop correctly"
 			res=1
 		fi
 
@@ -542,7 +542,7 @@ LVM_validate_all() {
 	##
 	VGOUT=`vgck ${VOLUME} 2>&1`
 	if [ $? -ne 0 ]; then
-		ocf_log err "Volume group [$VOLUME] does not exist or contains error! ${VGOUT}"
+		ocf_exit_reason "Volume group [$VOLUME] does not exist or contains error! ${VGOUT}"
 		exit $OCF_ERR_GENERIC
 	fi
 
@@ -555,7 +555,7 @@ LVM_validate_all() {
 		VGOUT=`vgdisplay -v ${VOLUME} 2>&1`
 	fi
 	if [ $? -ne 0 ]; then
-		ocf_log err "Volume group [$VOLUME] does not exist or contains error! ${VGOUT}"
+		ocf_exit_reason "Volume group [$VOLUME] does not exist or contains error! ${VGOUT}"
 		exit $OCF_ERR_GENERIC
 	fi
 
@@ -571,7 +571,7 @@ LVM_validate_all() {
 	# Having cloned lvm resources with exclusive vg activation makes no sense at all.
 	##
 	if ocf_is_clone; then
-		ocf_log err "cloned lvm resources can not be activated exclusively"
+		ocf_exit_reason "cloned lvm resources can not be activated exclusively"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
@@ -590,7 +590,7 @@ LVM_validate_all() {
 		# verify is clvmd running
 		##
 		if ! ps -C clvmd > /dev/null 2>&1; then
-			ocf_log err "$OCF_RESKEY_volgrpname has the cluster attribute set, but 'clvmd' is not running"
+			ocf_exit_reason "$OCF_RESKEY_volgrpname has the cluster attribute set, but 'clvmd' is not running"
 			exit $OCF_ERR_GENERIC
 		fi
 		;;
@@ -627,7 +627,7 @@ esac
 if 
 	[ -z "$OCF_RESKEY_volgrpname" ]
 then
-	ocf_log err "You must identify the volume group name!"
+	ocf_exit_reason "You must identify the volume group name!"
 	exit $OCF_ERR_CONFIGURED 
 fi
 
@@ -654,7 +654,7 @@ rc=$?
 if
 	( [ $rc -ne 0 ] || [ -z "$LVM_VERSION" ] )
 then
-	ocf_log err "LVM: $1 could not determine LVM version. Try 'vgchange --version' manually and modify $0 ?"
+	ocf_exit_reason "LVM: $1 could not determine LVM version. Try 'vgchange --version' manually and modify $0 ?"
 	exit $OCF_ERR_INSTALLED
 fi
 LVM_MAJOR="${LVM_VERSION%%.*}"

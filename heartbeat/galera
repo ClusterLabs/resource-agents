@@ -317,7 +317,7 @@ is_primary()
     fi
 
     if [ -z "$cluster_status" ]; then
-        ocf_log err "Unable to retrieve wsrep_cluster_status, verify check_user '$OCF_RESKEY_check_user' has permissions to view status"
+        ocf_exit_reason "Unable to retrieve wsrep_cluster_status, verify check_user '$OCF_RESKEY_check_user' has permissions to view status"
     else
         ocf_log info "Galera instance wsrep_cluster_status=${cluster_status}"
     fi
@@ -440,7 +440,7 @@ galera_promote()
             ocf_log info "Node <${NODENAME}> is bootstrapping the cluster"
             extra_opts="--wsrep-cluster-address=gcomm://"
         else
-            ocf_log err "Failure, Attempted to promote Master instance of $OCF_RESOURCE_INSTANCE before bootstrap node has been detected."
+            ocf_exit_reason "Failure, Attempted to promote Master instance of $OCF_RESOURCE_INSTANCE before bootstrap node has been detected."
             return $OCF_ERR_GENERIC
         fi
 
@@ -450,7 +450,7 @@ galera_promote()
     mysql_common_stop
     rc=$?
     if [ $rc -ne $OCF_SUCCESS ] && [ $rc -ne $OCF_NOT_RUNNING ]; then
-        ocf_log err "Failed to stop read-only galera instance during promotion to Master"
+        ocf_exit_reason "Failed to stop read-only galera instance during promotion to Master"
         return $rc
     fi
 
@@ -466,19 +466,19 @@ galera_promote()
     galera_monitor
     rc=$?
     if [ $rc != $OCF_SUCCESS -a $rc != $OCF_RUNNING_MASTER ]; then
-        ocf_log err "Failed initial monitor action"
+        ocf_exit_reason "Failed initial monitor action"
         return $rc
     fi
 
     is_readonly
     if [ $? -eq 0 ]; then
-        ocf_log err "Failure. Master instance started in read-only mode, check configuration."
+        ocf_exit_reason "Failure. Master instance started in read-only mode, check configuration."
         return $OCF_ERR_GENERIC
     fi
 
     is_primary
     if [ $? -ne 0 ]; then
-        ocf_log err "Failure. Master instance started, but is not in Primary mode."
+        ocf_exit_reason "Failure. Master instance started, but is not in Primary mode."
         return $OCF_ERR_GENERIC
     fi
 
@@ -504,7 +504,7 @@ galera_demote()
     mysql_common_stop
     rc=$?
     if [ $rc -ne $OCF_SUCCESS ] && [ $rc -ne $OCF_NOT_RUNNING ]; then
-        ocf_log err "Failed to stop Master galera instance during demotion to Master"
+        ocf_exit_reason "Failed to stop Master galera instance during demotion to Master"
         return $rc
     fi
 
@@ -522,7 +522,7 @@ galera_start()
 
     echo $OCF_RESKEY_wsrep_cluster_address | grep -q $NODENAME
     if [ $? -ne 0 ]; then
-        ocf_log err "local node <${NODENAME}> must be a member of the wsrep_cluster_address <${OCF_RESKEY_wsrep_cluster_address}>to start this galera instance"
+        ocf_exit_reason "local node <${NODENAME}> must be a member of the wsrep_cluster_address <${OCF_RESKEY_wsrep_cluster_address}>to start this galera instance"
         return $OCF_ERR_CONFIGURED
     fi
 
@@ -531,7 +531,7 @@ galera_start()
 
     is_readonly
     if [ $? -ne 0 ]; then
-        ocf_log err "Failure. Slave instance did not start correctly in read-only mode, Make sure local galera.cnf does not have wsrep_cluster_address set."
+        ocf_exit_reason "Slave instance did not start correctly in read-only mode, Make sure local galera.cnf does not have wsrep_cluster_address set."
         return $OCF_ERR_GENERIC
     fi
 
@@ -578,7 +578,7 @@ galera_monitor()
 
     echo $OCF_RESKEY_wsrep_cluster_address | grep -q $NODENAME
     if [ $? -ne 0 ]; then
-        ocf_log err "local node <${NODENAME}> is started, but is not a member of the wsrep_cluster_address <${OCF_RESKEY_wsrep_cluster_address}>"
+        ocf_exit_reason "local node <${NODENAME}> is started, but is not a member of the wsrep_cluster_address <${OCF_RESKEY_wsrep_cluster_address}>"
         return $OCF_ERR_GENERIC
     fi
 
@@ -586,7 +586,7 @@ galera_monitor()
     if [ $? -ne 0 ]; then
         is_primary
         if [ $? -ne 0 ]; then
-            ocf_log err "local node <${NODENAME}> is neither in primary mode nor in read_only mode. Unknown state."
+            ocf_exit_reason "local node <${NODENAME}> is neither in primary mode nor in read_only mode. Unknown state."
             return $OCF_ERR_GENERIC
         fi
 
@@ -628,12 +628,12 @@ galera_stop()
 galera_validate()
 {
     if ! ocf_is_ms; then
-        ocf_log err "Galera must be configured as a multistate Master/Slave resource."
+        ocf_exit_reason "Galera must be configured as a multistate Master/Slave resource."
         return $OCF_ERR_CONFIGURED
     fi
 
     if [ -z "$OCF_RESKEY_wsrep_cluster_address" ]; then
-        ocf_log err "Galera must be configured with a wsrep_cluster_address value."
+        ocf_exit_reason "Galera must be configured with a wsrep_cluster_address value."
         return $OCF_ERR_CONFIGURED
     fi
 

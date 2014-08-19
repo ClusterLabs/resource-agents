@@ -211,21 +211,21 @@ named_validate_all() {
         if ocf_is_probe; then
            ocf_log info "Configuration file ${OCF_RESKEY_named_rootdir}/${OCF_RESKEY_named_config} not readable during probe."
         else
-           ocf_log err "Configuration file ${OCF_RESKEY_named_rootdir}/${OCF_RESKEY_named_config} doesn't exist"
+           ocf_exit_reason "Configuration file ${OCF_RESKEY_named_rootdir}/${OCF_RESKEY_named_config} doesn't exist"
            return $OCF_ERR_INSTALLED
         fi
     fi
 
     getent passwd $OCF_RESKEY_named_user >/dev/null 2>&1
     if [ ! $? -eq 0 ]; then
-        ocf_log err "User $OCF_RESKEY_named_user doesn't exist";
+        ocf_exit_reason "User $OCF_RESKEY_named_user doesn't exist";
         return $OCF_ERR_INSTALLED;
     fi
 
     if [ -z "$OCF_RESKEY_monitor_request" -o \
          -z "$OCF_RESKEY_monitor_response" -o \
          -z "$OCF_RESKEY_monitor_ip" ]; then
-        ocf_log err "None of monitor_request, monitor_response, and monitor_ip can be empty"
+        ocf_exit_reason "None of monitor_request, monitor_response, and monitor_ip can be empty"
         return $OCF_ERR_CONFIGURED
     fi                            
          
@@ -309,7 +309,7 @@ named_monitor() {
 
     if [ $? -ne 0 ] || ! echo $output | grep -q '.* has .*address '"$OCF_RESKEY_monitor_response" 
     then
-       ocf_log err "named didn't answer properly for $OCF_RESKEY_monitor_request."
+       ocf_exit_reason "named didn't answer properly for $OCF_RESKEY_monitor_request."
        ocf_log err "Expected: $OCF_RESKEY_monitor_response."
        ocf_log err "Got: $output"
        return $OCF_ERR_GENERIC
@@ -356,7 +356,7 @@ named_start() {
 
     if ! ${OCF_RESKEY_named} -u ${OCF_RESKEY_named_user} $root_dir_opt ${OCF_RESKEY_named_options}
     then
-        ocf_log err "named failed to start."
+        ocf_exit_reason "named failed to start."
         return $OCF_ERR_GENERIC
     fi
     
@@ -368,7 +368,7 @@ named_start() {
             echo $pid > ${OCF_RESKEY_named_pidfile}
         fi
     else
-        ocf_log err "named failed to start. Probably error in configuration."
+        ocf_exit_reason "named failed to start. Probably error in configuration."
         return $OCF_ERR_GENERIC
     fi
         
@@ -420,7 +420,7 @@ named_stop () {
     
     #If still up    
     if named_status 2>&1; then
-        ocf_log err "named is still up! Killing"
+        ocf_exit_reason "named is still up! Killing"
         kill -9 `cat ${OCF_RESKEY_named_pidfile}`
     fi
     
@@ -460,7 +460,7 @@ then
 fi
 
 if [ `id -u` -ne 0 ]; then
-    ocf_log err "$0 must be run as root"
+    ocf_exit_reason "$0 must be run as root"
     exit $OCF_ERR_GENERIC
 fi
 

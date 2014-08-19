@@ -131,7 +131,7 @@ MailToStatus () {
 
 MailToValidateAll () {
 	if [ -z "$MAILCMD" ]; then
-		ocf_log err "MAILCMD not set: complain to the packager"
+		ocf_exit_reason "MAILCMD not set: complain to the packager"
 		exit $OCF_ERR_INSTALLED
 	fi
 	check_binary "$MAILCMD"
@@ -169,7 +169,7 @@ esac
 if 
   [ -z "$OCF_RESKEY_email" ]
 then
-  ocf_log err "At least 1 Email address has to be given!"
+  ocf_exit_reason "At least 1 Email address has to be given!"
   exit $OCF_ERR_CONFIGURED
 fi
 

@@ -169,7 +169,7 @@ check_process()
 			return $OCF_NOT_RUNNING;;
 		*)
 			rm -f "$pidfile" > /dev/null 2>&1 
-			ocf_log err "Error encountered detecting pid status of $binary"
+			ocf_exit_reason "Error encountered detecting pid status of $binary"
 			return $OCF_ERR_GENERIC;;
 	esac
 }
@@ -180,7 +180,7 @@ clvmd_status()
 	local mirror_rc
 	clvmd_validate
 	if [ $? -ne $OCF_SUCCESS ]; then
-		ocf_log error "Unable to monitor, Environment validation failed."
+		ocf_exit_reason "Unable to monitor, Environment validation failed."
 		return $?
 	fi
 
@@ -260,7 +260,7 @@ clvmd_stop()
 			ocf_log info "Deactivating clustered VG(s):" 
 			ocf_run ${LVM_VGCHANGE} -anl $LVM_VGS
 			if [ $? -ne 0 ]; then
-				ocf_log error "Failed to deactivate volume groups, cluster vglist = $LVM_VGS" 
+				ocf_exit_reason "Failed to deactivate volume groups, cluster vglist = $LVM_VGS" 
 				return $OCF_ERR_GENERIC
 			fi
 		fi
@@ -268,14 +268,14 @@ clvmd_stop()
 		ocf_log info "Signaling $DAEMON to exit"
 		killall -TERM $DAEMON
 		if [ $? != 0 ]; then
-			ocf_log error "Failed to signal -TERM to $DAEMON"
+			ocf_exit_reason "Failed to signal -TERM to $DAEMON"
 			return $OCF_ERR_GENERIC
 		fi
 
 		wait_for_process $DAEMON $CLVMD_TIMEOUT
 		rc=$?
 		if [ $rc -ne $OCF_SUCCESS ]; then
-			ocf_log error "$DAEMON failed to exit"
+			ocf_exit_reason "$DAEMON failed to exit"
 			return $rc
 		fi
 
@@ -313,7 +313,7 @@ start_process()
 		ocf_run $binary_path $opts
 		rc=$?
 		if [ $rc -ne 0 ]; then
-			ocf_log error "Failed to launch $binary_path, exit code $rc"
+			ocf_exit_reason "Failed to launch $binary_path, exit code $rc"
 			exit $OCF_ERR_GENERIC
 		fi
 	fi
@@ -341,7 +341,7 @@ clvmd_start()
 
 	clvmd_validate
 	if [ $? -ne $OCF_SUCCESS ]; then
-		ocf_log error "Unable to start, Environment validation failed."
+		ocf_exit_reason "Unable to start, Environment validation failed."
 		return $?
 	fi
 
