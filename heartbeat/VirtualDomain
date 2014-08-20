@@ -360,12 +360,10 @@ VirtualDomain_Status() {
 }
 
 verify_undefined() {
-	for dom in `virsh --connect=${OCF_RESKEY_hypervisor} list --all --name 2>/dev/null`; do
-		if [ "$dom" = "$DOMAIN_NAME" ]; then
-			virsh $VIRSH_OPTIONS undefine $DOMAIN_NAME > /dev/null 2>&1
-			return
-		fi
-	done
+	if virsh --connect=${OCF_RESKEY_hypervisor} list --all --name 2>/dev/null | grep -wqs "$DOMAIN_NAME"
+	then
+		virsh $VIRSH_OPTIONS undefine $DOMAIN_NAME > /dev/null 2>&1
+	fi
 }
 
 VirtualDomain_Start() {
