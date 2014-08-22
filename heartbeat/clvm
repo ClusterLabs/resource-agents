@@ -213,7 +213,6 @@ wait_for_process()
 	local count=0
 
 	ocf_log info "Waiting for $binary to exit"
-	usleep 500000
 	while [ $count -le $timeout ]; do
 		check_process $binary
 		if [ $? -eq $OCF_NOT_RUNNING ]; then
