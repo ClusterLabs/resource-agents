@@ -184,7 +184,7 @@ Delay_Validate_All() {
 # _Return_ on validation success
 	return $OCF_SUCCESS
   else
-	echo "Some of the instance parameters are invalid"
+	ocf_exit_reason "Some of the instance parameters are invalid"
 # _Exit_ on validation failure
 	exit $OCF_ERR_ARGS
   fi

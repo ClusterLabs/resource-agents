@@ -134,7 +134,7 @@ postfix_start()
     ret=$?
 
     if [ $ret -ne 0 ]; then
-        ocf_log err "Postfix returned error: " $ret
+        ocf_exit_reason "Postfix returned error: " $ret
         return $OCF_ERR_GENERIC
     fi
 
@@ -165,7 +165,7 @@ postfix_stop()
     ret=$?
 
     if [ $ret -ne 0 ]; then
-        ocf_log err "Postfix returned an error while stopping: " $ret
+        ocf_exit_reason "Postfix returned an error while stopping: " $ret
         return $OCF_ERR_GENERIC
     fi
 
@@ -181,14 +181,14 @@ postfix_stop()
     # escalate to abort if we did not stop by now
     # @TODO shall we loop here too?
     if postfix_running info; then
-        ocf_log err "Postfix failed to stop. Escalating to 'abort'."
+        ocf_exit_reason "Postfix failed to stop. Escalating to 'abort'."
 
         $binary $OPTIONS abort >/dev/null 2>&1; ret=$?
         sleep 5
 
         # postfix abort did not succeed
         if postfix_running; then
-            ocf_log err "Postfix failed to abort."
+            ocf_exit_reason "Postfix failed to abort."
             return $OCF_ERR_GENERIC
         fi
     fi
@@ -238,14 +238,14 @@ postfix_validate_all()
                 # skip in-depth directory checks if config file isn't readable during probe
                 dir_check=false
             else
-                ocf_log err "Postfix configuration directory '$config_dir' does not exist or is not readable."
+                ocf_exit_reason "Postfix configuration directory '$config_dir' does not exist or is not readable."
                 return $OCF_ERR_INSTALLED
             fi
         fi
 
         alternate_config_directories=`postconf -h alternate_config_directories 2>/dev/null | grep "$config_dir/\?"`
         if [ "x$alternate_config_directories" = "x" ]; then
-            ocf_log err "Postfix main configuration must contain correct 'alternate_config_directories' parameter."
+            ocf_exit_reason "Postfix main configuration must contain correct 'alternate_config_directories' parameter."
             return $OCF_ERR_INSTALLED
         fi
     fi
@@ -257,7 +257,7 @@ postfix_validate_all()
             if ocf_is_probe; then
                 ocf_log info "Postfix queue directory '$queue_dir' not readable during probe."
             else
-                ocf_log err "Postfix queue directory '$queue_dir' does not exist or is not readable."
+                ocf_exit_reason "Postfix queue directory '$queue_dir' does not exist or is not readable."
                 return $OCF_ERR_INSTALLED
             fi
         fi
@@ -266,14 +266,14 @@ postfix_validate_all()
             data_dir=`postconf $OPTION_CONFIG_DIR -h data_directory 2>/dev/null`
             data_dir_count=`echo "$data_dir" | tr ',' ' ' | wc -w`
             if [ $data_dir_count -gt 1 ]; then
-            	ocf_log err "Postfix data directory '$orig_data_dir' cannot be set to multiple directories."
+            	ocf_exit_reason "Postfix data directory '$orig_data_dir' cannot be set to multiple directories."
                 return $OCF_ERR_INSTALLED
             fi
             if [ ! -d "$data_dir" ]; then
                 if ocf_is_probe; then
                     ocf_log info "Postfix data directory '$data_dir' not readable during probe."
                 else
-                    ocf_log err "Postfix data directory '$data_dir' does not exist or is not readable."
+                    ocf_exit_reason "Postfix data directory '$data_dir' does not exist or is not readable."
                     return $OCF_ERR_INSTALLED
                 fi
             fi
@@ -287,7 +287,7 @@ postfix_validate_all()
                     if ocf_is_probe; then
                         ocf_log info "Directory '$dir' is not writable by user '$user' during probe."
                     else
-                        ocf_log err "Directory '$dir' is not writable by user '$user'."
+                        ocf_exit_reason "Directory '$dir' is not writable by user '$user'."
                         return $OCF_ERR_PERM;
                     fi
                 fi
@@ -300,7 +300,7 @@ postfix_validate_all()
         $binary $OPTIONS check >/dev/null 2>&1
         ret=$?
         if [ $ret -ne 0 ]; then
-            ocf_log err "Postfix 'check' failed: " $ret
+            ocf_exit_reason "Postfix 'check' failed: " $ret
             return $OCF_ERR_GENERIC
         fi
     fi

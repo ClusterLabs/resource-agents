@@ -89,11 +89,11 @@ hup_inetd () {
 	if kill -s HUP $pid; then
             ocf_log info "asked xinetd to reload by sending SIGHUP to process $pid!"
 	else
-            ocf_log err "could not send SIGHUP to process $pid!"
+            ocf_exit_reason "could not send SIGHUP to process $pid!"
             exit $OCF_ERR_GENERIC
 	fi
     else
-	ocf_log err "xinetd process not found!"
+	ocf_exit_reason "xinetd process not found!"
 	exit $OCF_ERR_GENERIC
     fi
 }
@@ -161,7 +161,7 @@ xup_usage () {
 
 xup_validate_all () {
     if [ ! -f "$SVCDEF" ]; then
-        ocf_log err "service $service missing $SVCDEF"
+        ocf_exit_reason "service $service missing $SVCDEF"
 	return $OCF_ERR_INSTALLED
     fi
     return $OCF_SUCCESS
@@ -185,7 +185,7 @@ case "$1" in
 esac
 
 if [ -z "$OCF_RESKEY_service" ]; then
-    ocf_log err "please define \"service\" parameter"
+    ocf_exit_reason "please define \"service\" parameter"
     if [ "$1" = "start" ]; then 
 	exit $OCF_ERR_CONFIGURED
     else
@@ -198,14 +198,14 @@ if [ -z "`get_xinetd_pid`" ]; then
     case "$1" in
     stop) exit $OCF_SUCCESS;;
     start)
-	ocf_log err "xinetd not running, we manage just xinetd services, not the daemon itself"
+	ocf_exit_reason "xinetd not running, we manage just xinetd services, not the daemon itself"
 	exit $OCF_ERR_INSTALLED
 	;;
     status|monitor)
 	if ocf_is_probe; then
 	    exit $OCF_NOT_RUNNING
 	else
-	    ocf_log err "xinetd stopped"
+	    ocf_exit_reason "xinetd stopped"
 	    exit $OCF_ERR_GENERIC
 	fi
 	;;
@@ -214,7 +214,7 @@ fi
 
 # Make sure the OCF_RESKEY_service is a valid xinetd service name
 if [ ! -f $SVCDEF ]; then
-    ocf_log err "service definition $SVCDEF not found!"
+    ocf_exit_reason "service definition $SVCDEF not found!"
     if [ "$1" = "start" ]; then 
 	exit $OCF_ERR_INSTALLED
     else

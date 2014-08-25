@@ -174,7 +174,7 @@ route_start() {
 	ocf_log info "${OCF_RESOURCE_INSTANCE} Added network route: $route_spec"
 	return $OCF_SUCCESS
     else
-	ocf_log error "${OCF_RESOURCE_INSTANCE} Failed to add network route: $route_spec"
+	ocf_exit_reason "${OCF_RESOURCE_INSTANCE} Failed to add network route: $route_spec"
     fi
     return $OCF_ERR_GENERIC
 }
@@ -189,7 +189,7 @@ route_stop() {
 		ocf_log info "${OCF_RESOURCE_INSTANCE} Removed network route: $route_spec"
 		return $OCF_SUCCESS
 	    else
-		ocf_log error "${OCF_RESOURCE_INSTANCE} Failed to remove network route: $route_spec"
+		ocf_exit_reason "${OCF_RESOURCE_INSTANCE} Failed to remove network route: $route_spec"
 	    fi
 	    ;;
 	$OCF_NOT_RUNNING)
@@ -224,24 +224,24 @@ route_validate() {
     # If we're running as a clone, are the clone meta attrs OK?
     if [ "${OCF_RESKEY_CRM_meta_clone}" ]; then
 	if [ "${OCF_RESKEY_CRM_meta_clone_node_max}" != 1 ]; then
-	    ocf_log error "Misconfigured clone parameters. Must set meta attribute \"clone_node_max\" to 1, got ${OCF_RESKEY_CRM_meta_clone_node_max}."
+	    ocf_exit_reason "Misconfigured clone parameters. Must set meta attribute \"clone_node_max\" to 1, got ${OCF_RESKEY_CRM_meta_clone_node_max}."
 	    return $OCF_ERR_ARGS
 	fi
     fi
     # Did we get a destination?
     if [ -z "${OCF_RESKEY_destination}" ]; then
-	ocf_log error "Missing required parameter \"destination\"."
+	ocf_exit_reason "Missing required parameter \"destination\"."
 	return $OCF_ERR_ARGS
     fi
     # Did we get either a device or a gateway address?
     if [ -z "${OCF_RESKEY_device}" -a -z "${OCF_RESKEY_gateway}" ]; then
-	ocf_log error "Must specifiy either \"device\", or \"gateway\", or both."
+	ocf_exit_reason "Must specifiy either \"device\", or \"gateway\", or both."
 	return $OCF_ERR_ARGS
     fi
     # If a device has been configured, is it available on this system?
     if [ -n "${OCF_RESKEY_device}" ]; then
 	if ! ip link show ${OCF_RESKEY_device} >/dev/null 2>&1; then
-	    ocf_log error "Network device ${OCF_RESKEY_device} appears not to be available on this system."
+	    ocf_exit_reason "Network device ${OCF_RESKEY_device} appears not to be available on this system."
 	    # OCF_ERR_ARGS prevents the resource from running anywhere at all,
 	    # maybe another node has the interface?
             # OCF_ERR_INSTALLED just prevents starting on this particular node.
@@ -256,7 +256,7 @@ route_validate() {
         # this system?
 	if [ -n "${OCF_RESKEY_source}" ]; then
 	    if ! ip address show | grep -w ${OCF_RESKEY_source} >/dev/null 2>&1; then
-		ocf_log error "Source address ${OCF_RESKEY_source} appears not to be available on this system."
+		ocf_exit_reason "Source address ${OCF_RESKEY_source} appears not to be available on this system."
 	    # same reason as with _device:
 		return $OCF_ERR_INSTALLED
 	    fi
@@ -264,7 +264,7 @@ route_validate() {
         # If a gateway address has been configured, is it reachable?
 	if [ -n "${OCF_RESKEY_gateway}" ]; then
 	    if ! ip route get ${OCF_RESKEY_gateway} >/dev/null 2>&1; then
-		ocf_log error "Gateway address ${OCF_RESKEY_gateway} is unreachable."
+		ocf_exit_reason "Gateway address ${OCF_RESKEY_gateway} is unreachable."
 	    # same reason as with _device:
 		return $OCF_ERR_INSTALLED
 	    fi

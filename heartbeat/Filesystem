@@ -368,7 +368,7 @@ fstype_supported()
 	# check the if the filesystem support exists again.
 	$MODPROBE $support >/dev/null
 	if [ $? -ne 0 ]; then
-		ocf_log err "Couldn't find filesystem $FSTYPE in /proc/filesystems and failed to load kernal module"
+		ocf_exit_reason "Couldn't find filesystem $FSTYPE in /proc/filesystems and failed to load kernal module"
 		return $OCF_ERR_INSTALLED
 	fi
 
@@ -385,7 +385,7 @@ fstype_supported()
 		sleep 1
 	done
 
-	ocf_log err "Couldn't find filesystem $FSTYPE in /proc/filesystems"
+	ocf_exit_reason "Couldn't find filesystem $FSTYPE in /proc/filesystems"
 	return $OCF_ERR_INSTALLED
 }
 
@@ -409,7 +409,7 @@ Filesystem_start()
 
 	if [ $blockdevice = "yes" ]; then
 		if [ "$DEVICE" != "/dev/null" -a ! -b "$DEVICE" ] ; then
-			ocf_log err "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
+			ocf_exit_reason "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
 			exit $OCF_ERR_INSTALLED
 		fi
 
@@ -424,7 +424,7 @@ Filesystem_start()
 			# NOTE: if any errors at all are detected, it returns non-zero
 			# if the error is >= 4 then there is a big problem
 			if [ $? -ge 4 ]; then
-				ocf_log err "Couldn't sucessfully fsck filesystem for $DEVICE"
+				ocf_exit_reason "Couldn't sucessfully fsck filesystem for $DEVICE"
 				return $OCF_ERR_GENERIC
 			fi
 		fi
@@ -433,7 +433,7 @@ Filesystem_start()
 	[ -d "$MOUNTPOINT" ] ||
 		ocf_run mkdir -p $MOUNTPOINT
 	if [ ! -d "$MOUNTPOINT" ] ; then
-		ocf_log err "Couldn't find directory  [$MOUNTPOINT] to use as a mount point"
+		ocf_exit_reason "Couldn't find directory  [$MOUNTPOINT] to use as a mount point"
 		exit $OCF_ERR_INSTALLED
 	fi
 
@@ -448,7 +448,7 @@ Filesystem_start()
 	esac
 
 	if [ $? -ne 0 ]; then
-		ocf_log err "Couldn't mount filesystem $DEVICE on $MOUNTPOINT"
+		ocf_exit_reason "Couldn't mount filesystem $DEVICE on $MOUNTPOINT"
 		return $OCF_ERR_GENERIC
 	fi
 	return $OCF_SUCCESS
@@ -507,7 +507,7 @@ fs_stop() {
 		while [ $cnt -gt 0 ]; do
 			try_umount $SUB &&
 				return $OCF_SUCCESS
-			ocf_log err "Couldn't unmount $SUB; trying cleanup with $sig"
+			ocf_exit_reason "Couldn't unmount $SUB; trying cleanup with $sig"
 			signal_processes $SUB $sig
 			cnt=$((cnt-1))
 			sleep 1
@@ -558,7 +558,7 @@ Filesystem_stop()
 			fs_stop $SUB $timeout
 			rc=$?
 			if [ $rc -ne $OCF_SUCCESS ]; then
-				ocf_log err "Couldn't unmount $SUB, giving up!"
+				ocf_exit_reason "Couldn't unmount $SUB, giving up!"
 			fi
 		done
 	fi
@@ -611,7 +611,7 @@ Filesystem_monitor_10()
 	dd_opts="iflag=direct bs=4k count=1"
 	err_output=`dd if=$DEVICE $dd_opts 2>&1 >/dev/null`
 	if [ $? -ne 0 ]; then
-		ocf_log err "Failed to read device $DEVICE"
+		ocf_exit_reason "Failed to read device $DEVICE"
 		ocf_log err "dd said: $err_output"
 		return $OCF_ERR_GENERIC
 	fi
@@ -634,18 +634,18 @@ Filesystem_monitor_20()
 	[ -d "$status_dir" ] || mkdir -p "$status_dir"
 	err_output=`echo "${OCF_RESOURCE_INSTANCE}" | dd of=${STATUSFILE} $dd_opts 2>&1`
 	if [ $? -ne 0 ]; then
-		ocf_log err "Failed to write status file ${STATUSFILE}"
+		ocf_exit_reason "Failed to write status file ${STATUSFILE}"
 		ocf_log err "dd said: $err_output"
 		return $OCF_ERR_GENERIC
 	fi
 	test -f ${STATUSFILE}
 	if [ $? -ne 0 ]; then
-		ocf_log err "Cannot stat the status file ${STATUSFILE}"
+		ocf_exit_reason "Cannot stat the status file ${STATUSFILE}"
 		return $OCF_ERR_GENERIC
 	fi
 	cat ${STATUSFILE} > /dev/null
 	if [ $? -ne 0 ]; then
-		ocf_log err "Cannot read the status file ${STATUSFILE}"
+		ocf_exit_reason "Cannot read the status file ${STATUSFILE}"
 		return $OCF_ERR_GENERIC
 	fi
 	return $OCF_SUCCESS
@@ -663,7 +663,7 @@ Filesystem_monitor()
 		10) Filesystem_monitor_10; rc=$?;;
 		20) Filesystem_monitor_20; rc=$?;;
 		*)
-			ocf_log err "unsupported monitor level $OCF_CHECK_LEVEL"
+			ocf_exit_reason "unsupported monitor level $OCF_CHECK_LEVEL"
 			rc=$OCF_ERR_CONFIGURED
 		;;
 		esac
@@ -780,7 +780,7 @@ case $OP in
 esac
 
 if [ x = x"$DEVICE" ]; then
-	ocf_log err "Please set OCF_RESKEY_device to the device to be managed"
+	ocf_exit_reason "Please set OCF_RESKEY_device to the device to be managed"
 	exit $OCF_ERR_CONFIGURED
 fi
 
@@ -792,7 +792,7 @@ set_blockdevice_var
 # But the output of `mount` and /proc/mounts do not.
 if [ -z "$OCF_RESKEY_directory" ]; then
 	if [ X$OP = "Xstart" -o $blockdevice = "no" ]; then
-		ocf_log err "Please specify the directory"
+		ocf_exit_reason "Please specify the directory"
 		exit $OCF_ERR_CONFIGURED 
 	fi
 else
@@ -854,7 +854,7 @@ esac
 if ocf_is_clone; then
 	case $CLUSTERSAFE in
 	0)
-		ocf_log err "DANGER! $FSTYPE on $DEVICE is NOT cluster-aware!"
+		ocf_exit_reason "DANGER! $FSTYPE on $DEVICE is NOT cluster-aware!"
 		ocf_log err "DO NOT RUN IT AS A CLONE!"
 		ocf_log err "Politely refusing to proceed to avoid data corruption."
 		exit $OCF_ERR_CONFIGURED

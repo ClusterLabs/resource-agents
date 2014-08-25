@@ -288,7 +288,7 @@ apache_stop() {
 		kill_stop $pid
 
 		if ProcessRunning $pid; then
-			ocf_log info "$CMD still running ($pid). Killing pid failed."
+			ocf_exit_reason "$CMD still running ($pid). Killing pid failed."
 			ret=$OCF_ERR_GENERIC
 		fi
 	fi
@@ -319,7 +319,7 @@ apache_monitor_10() {
 		return $OCF_SUCCESS
 	else
 		if ! ocf_is_probe; then
-			ocf_log err "Failed to access httpd status page."
+			ocf_exit_reason "Failed to access httpd status page."
 		fi
 		return $OCF_ERR_GENERIC
 	fi
@@ -370,7 +370,7 @@ apache_monitor_basic() {
 	fi
 
 	if ! ocf_is_probe; then
-		ocf_log err "Failed to access httpd status page."
+		ocf_exit_reason "Failed to access httpd status page."
 	fi
 	return $OCF_ERR_GENERIC
 }
@@ -383,7 +383,7 @@ apache_monitor() {
 
 	ourhttpclient=`findhttpclient`  # we'll need one
 	if [ -z "$ourhttpclient" ]; then
-		ocf_log err "could not find a http client; make sure that either wget or curl is available"
+		ocf_exit_reason "could not find a http client; make sure that either wget or curl is available"
 		return $OCF_ERR_INSTALLED
 	fi
 
@@ -582,15 +582,15 @@ END
 
 apache_validate_all() {
 	if [ -z "$HTTPD" ]; then
-		ocf_log err "apache httpd program not found"
+		ocf_exit_reason "apache httpd program not found"
 		return $OCF_ERR_INSTALLED
 	fi
 	if [ ! -x "$HTTPD" ]; then
-		ocf_log err "HTTPD $HTTPD not found or is not an executable!"
+		ocf_exit_reason "HTTPD $HTTPD not found or is not an executable!"
 		return $OCF_ERR_INSTALLED
 	fi
 	if [ ! -f $CONFIGFILE ]; then
-		ocf_log err "Configuration file $CONFIGFILE not found!"
+		ocf_exit_reason "Configuration file $CONFIGFILE not found!"
 		return $OCF_ERR_INSTALLED
 	fi
 	return $OCF_SUCCESS

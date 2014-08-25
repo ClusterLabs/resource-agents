@@ -111,7 +111,7 @@ END
 }
 
 errorexit() {
-	ocf_log err "$*"
+	ocf_exit_reason "$*"
 	exit $OCF_ERR_GENERIC
 }
 
@@ -253,7 +253,7 @@ CheckIP() {
 	    ( [ $1 -le 254 ] && [ $2 -le 254 ] && [ $3 -le 254 ] && [ $4 -le 254 ] )
 	then
 	    if [ $1 -eq 127 ]; then
-		ocf_log err "IP address [$ip] is a loopback address, thus can not be preferred source address"
+		ocf_exit_reason "IP address [$ip] is a loopback address, thus can not be preferred source address"
 		exit $OCF_ERR_CONFIGURED
 	    fi
 	else
@@ -368,7 +368,7 @@ ip_status() {
 
 	  case $IF in
 	  	lo*)  
-		    ocf_log err "IP address [$BASEIP] is served by loopback, thus can not be preferred source address"
+		    ocf_exit_reason "IP address [$BASEIP] is served by loopback, thus can not be preferred source address"
 		    exit $OCF_ERR_CONFIGURED
 		    ;;
 		*)return $OCF_SUCCESS;;
@@ -394,7 +394,7 @@ srca_validate_all() {
 	if CheckIP "$ipaddress"; then
 	  : 
 	else
-	  ocf_log err "Invalid IP address [$ipaddress]"
+	  ocf_exit_reason "Invalid IP address [$ipaddress]"
 	  exit $OCF_ERR_CONFIGURED
 	fi
 
@@ -406,7 +406,7 @@ srca_validate_all() {
 	if ip_status "$ipaddress"; then
 	  :
 	else
-	  ocf_log err "We are not serving [$ipaddress], hence can not make it a preferred source address"
+	  ocf_exit_reason "We are not serving [$ipaddress], hence can not make it a preferred source address"
 	  exit $OCF_ERR_INSTALLED
 	fi
 }
@@ -434,7 +434,7 @@ if
   [ -z "$OCF_RESKEY_ipaddress" ]
 then
 #  usage
-  ocf_log err "Please set OCF_RESKEY_ipaddress to the preferred source IP address!"
+  ocf_exit_reason "Please set OCF_RESKEY_ipaddress to the preferred source IP address!"
   exit $OCF_ERR_CONFIGURED
 fi
 
@@ -447,7 +447,7 @@ fi
 findif_out=`$FINDIF -C`
 rc=$?
 [ $rc -ne 0 ] && {
-    ocf_log err "[$FINDIF -C] failed"
+    ocf_exit_reason "[$FINDIF -C] failed"
     exit $rc
 }
 

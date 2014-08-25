@@ -117,7 +117,7 @@ symlink_monitor() {
         rc=$OCF_NOT_RUNNING
     elif [ ! -L  "$OCF_RESKEY_link" ]; then
         if [ -z "$OCF_RESKEY_backup_suffix" ]; then
-            ocf_log err "$OCF_RESKEY_link exists but is not a symbolic link!"
+            ocf_exit_reason "$OCF_RESKEY_link exists but is not a symbolic link!"
             exit $OCF_ERR_INSTALLED
         else
             ocf_log debug "$OCF_RESKEY_link exists but is not a symbolic link, will be moved to ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix} on start"
@@ -128,7 +128,7 @@ symlink_monitor() {
         rc=$OCF_SUCCESS
     else
         if [ -z "$OCF_RESKEY_backup_suffix" ]; then
-            ocf_log err "$OCF_RESKEY_link does not point to ${OCF_RESKEY_target}!"
+            ocf_exit_reason "$OCF_RESKEY_link does not point to ${OCF_RESKEY_target}!"
             exit $OCF_ERR_INSTALLED
         else
             ocf_log debug "$OCF_RESKEY_link does not point to ${OCF_RESKEY_target}, will be moved to ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix} on start"
@@ -146,7 +146,7 @@ symlink_start() {
                 # have errored out. But there is a chance that
                 # something else put that file there after
                 # symlink_monitor ran.
-                ocf_log err "$OCF_RESKEY_link exists and no backup_suffix is set, won't overwrite."
+                ocf_exit_reason "$OCF_RESKEY_link exists and no backup_suffix is set, won't overwrite."
                 exit $OCF_ERR_GENERIC
             else
                 ocf_log debug "Found $OCF_RESKEY_link, moving to ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix}"
@@ -174,7 +174,7 @@ symlink_stop() {
             fi
             return $OCF_SUCCESS
         else
-            ocf_log err "Removing $OCF_RESKEY_link failed."
+            ocf_exit_reason "Removing $OCF_RESKEY_link failed."
             return $OCF_ERR_GENERIC
         fi
     else
@@ -184,11 +184,11 @@ symlink_stop() {
 
 symlink_validate_all() {
     if [ "x${OCF_RESKEY_link}" = "x" ]; then
-        ocf_log err "Mandatory parameter link is unset"
+        ocf_exit_reason "Mandatory parameter link is unset"
         exit $OCF_ERR_CONFIGURED
     fi
     if [ "x${OCF_RESKEY_target}" = "x" ]; then
-        ocf_log err "Mandatory parameter target is unset"
+        ocf_exit_reason "Mandatory parameter target is unset"
         exit $OCF_ERR_CONFIGURED
     fi
 

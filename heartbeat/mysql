@@ -394,7 +394,7 @@ get_slave_info() {
         else
             # Instance produced an empty "SHOW SLAVE STATUS" output --
             # instance is not a slave
-            ocf_log err "check_slave invoked on an instance that is not a replication slave."
+            ocf_exit_reason "check_slave invoked on an instance that is not a replication slave."
             return $OCF_ERR_GENERIC
         fi
 
@@ -415,7 +415,7 @@ check_slave() {
             # Whoa. Replication ran into an error. This slave has
             # diverged from its master. Make sure this resource
             # doesn't restart in place.
-            ocf_log err "MySQL instance configured for replication, but replication has failed."
+            ocf_exit_reason "MySQL instance configured for replication, but replication has failed."
             ocf_log err "See $tmpfile for details"
 
             # Just pull the reader VIP away, killing MySQL here would be pretty evil
@@ -454,7 +454,7 @@ check_slave() {
             # We don't have a replication SQL thread running. Not a
             # good thing. Try to recoved by restarting the SQL thread
             # and remove reader vip.  Prevent MySQL restart.
-            ocf_log err "MySQL Slave SQL threads currently not running."
+            ocf_exit_reason "MySQL Slave SQL threads currently not running."
             ocf_log err "See $tmpfile for details"
 
             # Remove reader vip
@@ -472,7 +472,7 @@ check_slave() {
             # We're supposed to bail out if we lag too far
             # behind. Let's check our lag.
             if [ "$secs_behind" = "NULL" ] || [ $secs_behind -gt $OCF_RESKEY_max_slave_lag ]; then
-                ocf_log err "MySQL Slave is $secs_behind seconds behind master (allowed maximum: $OCF_RESKEY_max_slave_lag)."
+                ocf_exit_reason "MySQL Slave is $secs_behind seconds behind master (allowed maximum: $OCF_RESKEY_max_slave_lag)."
                 ocf_log err "See $tmpfile for details"
 
                 # Remove reader vip
@@ -507,7 +507,7 @@ check_slave() {
         # instance is not a slave
         # TODO: Needs to handle when get_slave_info will return too many connections error
         rm -f $tmpfile
-        ocf_log err "check_slave invoked on an instance that is not a replication slave."
+        ocf_exit_reason "check_slave invoked on an instance that is not a replication slave."
         exit $OCF_ERR_GENERIC
     fi
 }
@@ -596,7 +596,7 @@ unset_master(){
     ocf_run $MYSQL $MYSQL_OPTIONS_REPL \
         -e "STOP SLAVE IO_THREAD"
     if [ $? -gt 0 ]; then
-        ocf_log err "Error stopping slave IO thread"
+        ocf_exit_reason "Error stopping slave IO thread"
         exit $OCF_ERR_GENERIC
     fi
 
@@ -620,14 +620,14 @@ unset_master(){
     ocf_run $MYSQL $MYSQL_OPTIONS_REPL \
         -e "STOP SLAVE"
     if [ $? -gt 0 ]; then
-        ocf_log err "Error stopping rest slave threads"
+        ocf_exit_reason "Error stopping rest slave threads"
         exit $OCF_ERR_GENERIC
     fi
 
     ocf_run $MYSQL $MYSQL_OPTIONS_REPL \
         -e "RESET SLAVE /*!50516 ALL */;"
     if [ $? -gt 0 ]; then
-        ocf_log err "Failed to reset slave"
+        ocf_exit_reason "Failed to reset slave"
         exit $OCF_ERR_GENERIC
     fi
 }
@@ -737,7 +737,7 @@ mysql_monitor() {
         rc=$?
 
         if [ $rc -ne 0 ]; then
-            ocf_log err "Failed to select from $test_table";
+            ocf_exit_reason "Failed to select from $test_table";
             return $OCF_ERR_GENERIC;
         fi
     fi
@@ -800,7 +800,7 @@ mysql_start() {
             set_master
             start_slave
             if [ $? -ne 0 ]; then
-                ocf_log err "Failed to start slave"
+                ocf_exit_reason "Failed to start slave"
                 return $OCF_ERR_GENERIC
             fi
         else
@@ -823,7 +823,7 @@ mysql_start() {
     mysql_monitor
     rc=$?
     if [ $rc != $OCF_SUCCESS -a $rc != $OCF_RUNNING_MASTER ]; then
-        ocf_log err "Failed initial monitor action"
+        ocf_exit_reason "Failed initial monitor action"
         return $rc
     fi
 
@@ -921,7 +921,7 @@ mysql_notify() {
 
                 start_slave
                 if [ $? -ne 0 ]; then
-                    ocf_log err "Failed to start slave"
+                    ocf_exit_reason "Failed to start slave"
                     return $OCF_ERR_GENERIC
                 fi
             fi
@@ -933,7 +933,7 @@ mysql_notify() {
                 ocf_log info "post-demote notification for $demote_host"
                 set_read_only on
                 if [ $? -ne 0 ]; then
-                    ocf_log err "Failed to set read-only";
+                    ocf_exit_reason "Failed to set read-only";
                     return $OCF_ERR_GENERIC;
                 fi
 

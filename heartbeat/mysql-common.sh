@@ -98,24 +98,24 @@ mysql_common_validate()
     check_binary  $OCF_RESKEY_client_binary
 
     if [ ! -f $OCF_RESKEY_config ]; then
-        ocf_log err "Config $OCF_RESKEY_config doesn't exist";
+        ocf_exit_reason "Config $OCF_RESKEY_config doesn't exist";
         return $OCF_ERR_INSTALLED;
     fi
 
     if [ ! -d $OCF_RESKEY_datadir ]; then
-        ocf_log err "Datadir $OCF_RESKEY_datadir doesn't exist";
+        ocf_exit_reason "Datadir $OCF_RESKEY_datadir doesn't exist";
         return $OCF_ERR_INSTALLED;
     fi
 
     getent passwd $OCF_RESKEY_user >/dev/null 2>&1
     if [ ! $? -eq 0 ]; then
-        ocf_log err "User $OCF_RESKEY_user doesn't exit";
+        ocf_exit_reason "User $OCF_RESKEY_user doesn't exit";
         return $OCF_ERR_INSTALLED;
     fi
 
     getent group $OCF_RESKEY_group >/dev/null 2>&1
     if [ ! $? -eq 0 ]; then
-        ocf_log err "Group $OCF_RESKEY_group doesn't exist";
+        ocf_exit_reason "Group $OCF_RESKEY_group doesn't exist";
         return $OCF_ERR_INSTALLED;
     fi
 
@@ -162,7 +162,7 @@ mysql_common_prepare_dirs()
         $MYSQL_BINDIR/mysql_install_db --datadir=$OCF_RESKEY_datadir
         rc=$?
         if [ $rc -ne 0 ] ; then
-            ocf_log err "Initialization failed: $rc";
+            ocf_exit_reason "Initialization failed: $rc";
             exit $OCF_ERR_GENERIC
         fi
         chown -R $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_datadir
@@ -187,7 +187,7 @@ mysql_common_prepare_dirs()
     # user
     for dir in $pid_dir $socket_dir; do
         if ! su -s /bin/sh - $OCF_RESKEY_user -c "test -w $dir"; then
-            ocf_log err "Directory $dir is not writable by $OCF_RESKEY_user"
+            ocf_exit_reason "Directory $dir is not writable by $OCF_RESKEY_user"
             exit $OCF_ERR_PERM;
         fi
     done
@@ -213,7 +213,7 @@ mysql_common_start()
     while [ $start_wait = 1 ]; do
         if ! ps $pid > /dev/null 2>&1; then
             wait $pid
-            ocf_log err "MySQL server failed to start (pid=$pid) (rc=$?), please check your installation"
+            ocf_exit_reason "MySQL server failed to start (pid=$pid) (rc=$?), please check your installation"
             return $OCF_ERR_GENERIC
         fi
         mysql_common_status info
@@ -244,7 +244,7 @@ mysql_common_stop()
     /bin/kill $pid > /dev/null
     rc=$?
     if [ $rc != 0 ]; then
-        ocf_log err "MySQL couldn't be stopped"
+        ocf_exit_reason "MySQL couldn't be stopped"
         return $OCF_ERR_GENERIC
     fi
     # stop waiting

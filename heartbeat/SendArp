@@ -166,10 +166,10 @@ sendarp_start() {
 	# and wait-ing would be equal to not running in
 	# background
 	($SENDARP $ARGS ||
-	    ocf_log err "Could not send gratuitous arps") &
+	    ocf_exit_reason "Could not send gratuitous arps") &
     else
 	$SENDARP $ARGS || {
-	    ocf_log err "Could not send gratuitous arps"
+	    ocf_exit_reason "Could not send gratuitous arps"
 	    rc=$OCF_ERR_GENERIC
 	}
     fi

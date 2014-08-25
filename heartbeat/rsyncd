@@ -127,7 +127,7 @@ rsyncd_status()
 				return $OCF_ERR_GENERIC
 			fi
 		else
-			ocf_log err "PID file empty!"
+			ocf_exit_reason "PID file empty!"
 			return $OCF_ERR_GENERIC
 		fi
 	fi
@@ -145,7 +145,7 @@ rsyncd_start()
 	if [ $retVal -eq $OCF_SUCCESS ]; then
 		exit $OCF_SUCCESS
 	elif [ $retVal -ne $OCF_NOT_RUNNING ]; then
-		ocf_log err "Error. Unknown status."
+		ocf_exit_reason "Error. Unknown status."
 		exit $OCF_ERR_GENERIC
 	fi
 
@@ -164,11 +164,11 @@ rsyncd_start()
 	if  grep -v "^#" "$CONF_FILE" | grep "pid file" > /dev/null ; then
 		$COMMAND;
 		if [ $? -ne 0 ]; then
-			ocf_log err "Error. rsync daemon returned error $?."
+			ocf_exit_reason "Error. rsync daemon returned error $?."
 			exit $OCF_ERR_GENERIC
 		fi
 	else
-		ocf_log err "Error. \"pid file\" entry required in the rsyncd config file by rsyncd OCF RA."
+		ocf_exit_reason "Error. \"pid file\" entry required in the rsyncd config file by rsyncd OCF RA."
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -186,7 +186,7 @@ rsyncd_stop()
 			if [ $? -ne 0 ]; then
 				kill -s KILL $PID
 				if [ $? -ne 0 ]; then
-					ocf_log err "Error. Could not stop rsync daemon."
+					ocf_exit_reason "Error. Could not stop rsync daemon."
 					return $OCF_ERR_GENERIC
 				fi
 			fi
@@ -205,18 +205,18 @@ rsyncd_monitor()
 rsyncd_validate_all()
 {
 	if [ -n "$OCF_RESKEY_binpath" -a ! -x "$OCF_RESKEY_binpath" ]; then
-		ocf_log err "Binary path $OCF_RESKEY_binpath does not exist."
+		ocf_exit_reason "Binary path $OCF_RESKEY_binpath does not exist."
 		exit $OCF_ERR_ARGS
 	fi
 	if [ -n "$OCF_RESKEY_conffile" -a ! -f "$OCF_RESKEY_conffile" ]; then
-		ocf_log err "Config file $OCF_RESKEY_conffile does not exist."
+		ocf_exit_reason "Config file $OCF_RESKEY_conffile does not exist."
 		exit $OCF_ERR_ARGS
 	fi
 
 	if  grep -v "^#" "$CONF_FILE" | grep "pid file" > /dev/null ; then
 		:
 	else
-		ocf_log err "Error. \"pid file\" entry required in the rsyncd config file by rsyncd OCF RA."
+		ocf_exit_reason "Error. \"pid file\" entry required in the rsyncd config file by rsyncd OCF RA."
 		return $OCF_ERR_GENERIC
 	fi
 

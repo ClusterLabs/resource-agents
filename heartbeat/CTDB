@@ -544,7 +544,7 @@ ctdb_start() {
 	mkdir -p $persistent_db_dir 2>/dev/null
 	for pdbase in $(ls $persistent_db_dir/*.tdb.[0-9] 2>/dev/null$) ; do
 		/usr/bin/tdbdump $pdbase >/dev/null 2>/dev/null || {
-			ocf_log err "Persistent database $pdbase is corrupted!  CTDB will not start."
+			ocf_exit_reason "Persistent database $pdbase is corrupted!  CTDB will not start."
 			return $OCF_ERR_GENERIC
 		}
 	done
@@ -552,7 +552,7 @@ ctdb_start() {
 	# Add necessary configuration to smb.conf
 	init_smb_conf
 	if [ $? -ne 0 ]; then
-		ocf_log err "Failed to update $OCF_RESKEY_smb_conf."
+		ocf_exit_reason "Failed to update $OCF_RESKEY_smb_conf."
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -596,7 +596,7 @@ ctdb_start() {
 		# cleanup smb.conf
 		cleanup_smb_conf
 		
-		ocf_log err "Failed to execute $OCF_RESKEY_ctdbd_binary."
+		ocf_exit_reason "Failed to execute $OCF_RESKEY_ctdbd_binary."
 		return $OCF_ERR_GENERIC
 	else
 		# Wait a bit for CTDB to stabilize
@@ -610,7 +610,7 @@ ctdb_start() {
 			if [ $? -ne 0 ]; then
 				# CTDB will be running, kill it before returning
 				ctdb_stop
-				ocf_log err "Can't invoke $OCF_RESKEY_ctdb_binary --socket=$OCF_RESKEY_ctdb_socket status"
+				ocf_exit_reason "Can't invoke $OCF_RESKEY_ctdb_binary --socket=$OCF_RESKEY_ctdb_socket status"
 				return $OCF_ERR_GENERIC
 			fi
 			if ! echo $status | grep -qs 'UNHEALTHY (THIS'; then
@@ -626,7 +626,7 @@ ctdb_start() {
 	# ctdbd will (or can) actually still be running at this point, so kill it
 	ctdb_stop
 	
-	ocf_log err "Timeout waiting for CTDB to stabilize"
+	ocf_exit_reason "Timeout waiting for CTDB to stabilize"
 	return $OCF_ERR_GENERIC
 }
 
@@ -681,7 +681,7 @@ ctdb_monitor() {
 		elif echo $status | grep -qs 'No such file or directory'; then
 			return $OCF_NOT_RUNNING
 		else
-			ocf_log err "CTDB status call failed: $status"
+			ocf_exit_reason "CTDB status call failed: $status"
 			return $OCF_ERR_GENERIC
 		fi
 	fi
@@ -689,7 +689,7 @@ ctdb_monitor() {
 		return $OCF_SUCCESS
 	fi
 
-	ocf_log err "CTDB status is bad: $status"
+	ocf_exit_reason "CTDB status is bad: $status"
 	return $OCF_ERR_GENERIC
 }
 
@@ -702,12 +702,12 @@ ctdb_validate() {
 	done
 
 	if [ -z "$CTDB_SYSCONFIG" ]; then
-		ocf_log err "Can't find CTDB config file (expecting /etc/sysconfig/ctdb, /etc/default/ctdb or similar)"
+		ocf_exit_reason "Can't find CTDB config file (expecting /etc/sysconfig/ctdb, /etc/default/ctdb or similar)"
 		return $OCF_ERR_INSTALLED
 	fi
 
 	if ocf_is_true "$OCF_RESKEY_ctdb_manages_samba" && [ ! -f "$OCF_RESKEY_smb_conf" ]; then
-		ocf_log err "Samba config file '$OCF_RESKEY_smb_conf' does not exist."
+		ocf_exit_reason "Samba config file '$OCF_RESKEY_smb_conf' does not exist."
 		return $OCF_ERR_INSTALLED
 	fi
 
@@ -716,19 +716,19 @@ ctdb_validate() {
 	fi
 
 	if [ ! -f "$OCF_RESKEY_ctdb_config_dir/nodes" ]; then
-		ocf_log err "$OCF_RESKEY_ctdb_config_dir/nodes does not exist."
+		ocf_exit_reason "$OCF_RESKEY_ctdb_config_dir/nodes does not exist."
 		return $OCF_ERR_ARGS
 	fi
 
 	if [ -z "$OCF_RESKEY_ctdb_recovery_lock" ]; then
-		ocf_log err "ctdb_recovery_lock not specified."
+		ocf_exit_reason "ctdb_recovery_lock not specified."
 		return $OCF_ERR_CONFIGURED
 	fi
 
 	lock_dir=$(dirname "$OCF_RESKEY_ctdb_recovery_lock")
 	touch "$lock_dir/$$" 2>/dev/null
 	if [ $? != 0 ]; then
-		ocf_log err "Directory for lock file '$OCF_RESKEY_ctdb_recovery_lock' does not exist, or is not writable."
+		ocf_exit_reason "Directory for lock file '$OCF_RESKEY_ctdb_recovery_lock' does not exist, or is not writable."
 		return $OCF_ERR_ARGS
 	fi
 	rm "$lock_dir/$$"

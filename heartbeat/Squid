@@ -216,7 +216,7 @@ are_pids_sane()
 	if [[ "${SQUID_PIDS[1]}" = "${SQUID_PIDS[2]}" ]]; then
 		return $OCF_SUCCESS
 	else
-		ocf_log err "$SQUID_NAME:Pid unmatch"
+		ocf_exit_reason "$SQUID_NAME:Pid unmatch"
 		return $OCF_ERR_GENERIC
 	fi
 }
@@ -253,7 +253,7 @@ monitor_squid()
 			"${SQUID_PIDS[0]},${SQUID_PIDS[1]},${SQUID_PIDS[2]}"
 		(( trialcount = trialcount + 1 ))
 		if (( trialcount > SQUID_CONFIRM_TRIALCOUNT )); then
-			ocf_log err "$SQUID_NAME:Inconsistency of processes remains unsolved"
+			ocf_exit_reason "$SQUID_NAME:Inconsistency of processes remains unsolved"
 			return $OCF_ERR_GENERIC
 		fi
 		sleep 1
@@ -348,7 +348,7 @@ fi
 
 SQUID_CONF="${OCF_RESKEY_squid_conf}"
 if [[ -z "$SQUID_CONF" ]]; then
-	ocf_log err "SQUID_CONF is not defined"
+	ocf_exit_reason "SQUID_CONF is not defined"
 	exit $OCF_ERR_CONFIGURED
 fi
 
@@ -374,23 +374,23 @@ fi
 
 SQUID_EXE="${OCF_RESKEY_squid_exe}"
 if [[ -z "$SQUID_EXE" ]]; then
-	ocf_log err "SQUID_EXE is not defined"
+	ocf_exit_reason "SQUID_EXE is not defined"
 	exit $OCF_ERR_CONFIGURED
 fi
 if [[ ! -x "$SQUID_EXE" ]]; then
-	ocf_log err "$SQUID_EXE is not found"
+	ocf_exit_reason "$SQUID_EXE is not found"
 	exit $OCF_ERR_CONFIGURED
 fi
 
 SQUID_PIDFILE="${OCF_RESKEY_squid_pidfile}"
 if [[ -z "$SQUID_PIDFILE" ]]; then
-	ocf_log err "SQUID_PIDFILE is not defined"
+	ocf_exit_reason "SQUID_PIDFILE is not defined"
 	exit $OCF_ERR_CONFIGURED
 fi
 
 SQUID_PORT="${OCF_RESKEY_squid_port}"
 if [[ -z "$SQUID_PORT" ]]; then
-	ocf_log err "SQUID_PORT is not defined"
+	ocf_exit_reason "SQUID_PORT is not defined"
 	exit $OCF_ERR_CONFIGURED
 fi
 

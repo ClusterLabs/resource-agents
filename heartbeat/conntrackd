@@ -98,7 +98,7 @@ meta_expect()
                 # [, not [[, or it won't work ;)
                 [ $val $op $expect ] && return
         fi
-        ocf_log err "meta parameter misconfigured, expected $what $op $expect, but found ${val:-unset}."
+        ocf_exit_reason "meta parameter misconfigured, expected $what $op $expect, but found ${val:-unset}."
         exit $OCF_ERR_CONFIGURED
 }
 
@@ -123,7 +123,7 @@ conntrackd_monitor() {
 		# now see if it acceppts queries
 		if ! $OCF_RESKEY_binary -C $OCF_RESKEY_config -s > /dev/null 2>&1; then
 			rc=$OCF_ERR_GENERIC
-			ocf_log err "conntrackd is running but not responding to queries"
+			ocf_exit_reason "conntrackd is running but not responding to queries"
 		fi
 		if conntrackd_is_master; then
 			rc=$OCF_RUNNING_MASTER
@@ -154,7 +154,7 @@ conntrackd_start() {
 			conntrackd_set_master_score $slave_score
 			# -n = request resync from the others
 			if ! $OCF_RESKEY_binary -C $OCF_RESKEY_config -n; then
-				ocf_log err "$OCF_RESKEY_binary -C $OCF_RESKEY_config -n failed during start."
+				ocf_exit_reason "$OCF_RESKEY_binary -C $OCF_RESKEY_config -n failed during start."
 				rc=$OCF_ERR_GENERIC
 			else
 				rc=$OCF_SUCCESS
@@ -170,7 +170,7 @@ conntrackd_start() {
 			ha_pseudo_resource $statefile stop
 			;;
 		$OCF_ERR_GENERIC)
-			ocf_log err "conntrackd start failed"
+			ocf_exit_reason "conntrackd start failed"
 			rc=$OCF_ERR_GENERIC
 			break
 			;;
@@ -208,7 +208,7 @@ conntrackd_stop() {
 conntrackd_validate_all() {
 	check_binary "$OCF_RESKEY_binary"
 	if ! [ -e "$OCF_RESKEY_config" ]; then
-		ocf_log err "Config FILE $OCF_RESKEY_config does not exist"
+		ocf_exit_reason "Config FILE $OCF_RESKEY_config does not exist"
 		return $OCF_ERR_INSTALLED
 	fi
         meta_expect master-node-max = 1
@@ -227,7 +227,7 @@ conntrackd_promote() {
 		# -B = send a bulk update on the line
 		for parm in c f R B; do
 			if ! $OCF_RESKEY_binary -C $OCF_RESKEY_config -$parm; then
-				ocf_log err "$OCF_RESKEY_binary -C $OCF_RESKEY_config -$parm failed during promote."
+				ocf_exit_reason "$OCF_RESKEY_binary -C $OCF_RESKEY_config -$parm failed during promote."
 				rc=$OCF_ERR_GENERIC
 				break
 			fi
@@ -245,7 +245,7 @@ conntrackd_demote() {
 		# -n = request a resync from the others
 		for parm in t n; do
 			if ! $OCF_RESKEY_binary -C $OCF_RESKEY_config -$parm; then
-                        	ocf_log err "$OCF_RESKEY_binary -C $OCF_RESKEY_config -$parm failed during demote."
+                        	ocf_exit_reason "$OCF_RESKEY_binary -C $OCF_RESKEY_config -$parm failed during demote."
                         	rc=$OCF_ERR_GENERIC
                         	break
                 	fi

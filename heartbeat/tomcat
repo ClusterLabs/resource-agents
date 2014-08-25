@@ -157,7 +157,7 @@ rotate_catalina_out()
 	su - -s /bin/sh $RESOURCE_TOMCAT_USER \
 		-c "touch \"$CATALINA_BASE/logs/catalina_$CURRENT_ROTATELOG_SUFFIX.log\"" > /dev/null 2>&1
 	if [ $? -ne 0 ]; then
-		ocf_log err "$CATALINA_BASE/logs/catalina_$CURRENT_ROTATELOG_SUFFIX.log is not writable."
+		ocf_exit_reason "$CATALINA_BASE/logs/catalina_$CURRENT_ROTATELOG_SUFFIX.log is not writable."
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -235,7 +235,7 @@ start_tomcat()
 		if [ $? -eq 0 ]; then
 			ocf_log debug "Rotate catalina.out succeeded."
 		else
-			ocf_log err "Rotate catalina.out failed. Avoid starting tomcat without catalina.out rotation."
+			ocf_exit_reason "Rotate catalina.out failed. Avoid starting tomcat without catalina.out rotation."
 			return $OCF_ERR_GENERIC
 		fi
 	fi
@@ -534,12 +534,12 @@ validate_all_tomcat()
 	check_binary $WGET
 
 	if [ -z "${TOMCAT_START_SCRIPT}" ]; then
-		ocf_log err "No default tomcat start script detected. Please specify start script location using the 'tomcat_start_script' option"
+		ocf_exit_reason "No default tomcat start script detected. Please specify start script location using the 'tomcat_start_script' option"
 		rc=$OCF_ERR_CONFIGURED
 	fi
 
 	if [ -n "$MAX_STOP_TIME" ] && [ "$MAX_STOP_TIME" -lt 0 ]; then
-		ocf_log err "max_stop_time must be set to a value greater than 0."
+		ocf_exit_reason "max_stop_time must be set to a value greater than 0."
 		rc=$OCF_ERR_CONFIGURED
 	fi
 
@@ -550,14 +550,14 @@ validate_all_tomcat()
 		ocf_log debug "grep port=\"$port\" $CATALINA_BASE/conf/server.xml"
 		grep "port=\"$port\"" $CATALINA_BASE/conf/server.xml > /dev/null 2>&1
 		if [ $? -ne 0 ]; then
-			ocf_log err "Your configured status URL specifies a port ($port), but the server does not have a connector listening to that port in $CATALINA_BASE/conf/server.xml"
+			ocf_exit_reason "Your configured status URL specifies a port ($port), but the server does not have a connector listening to that port in $CATALINA_BASE/conf/server.xml"
 			rc=$OCF_ERR_INSTALLED
 		fi
 	fi
 
 	if ocf_is_true ${CATALINA_ROTATE_LOG}; then
 		if [ ! -x "$ROTATELOGS" ]; then
-			ocf_log err "rotatelogs command does not exist."
+			ocf_exit_reason "rotatelogs command does not exist."
 			rc=$OCF_ERR_INSTALLED
 		fi
 	fi
@@ -638,7 +638,7 @@ if [ ! -d "$JAVA_HOME" -o ! -d "$CATALINA_HOME" -o ! -d "$CATALINA_BASE" ]; then
 		monitor)	exit	$OCF_NOT_RUNNING;;
 		status)		exit	$LSB_STATUS_STOPPED;;
 	esac
-	ocf_log err "JAVA_HOME or CATALINA_HOME or CATALINA_BASE does not exist."
+	ocf_exit_reason "JAVA_HOME or CATALINA_HOME or CATALINA_BASE does not exist."
 	exit $OCF_ERR_INSTALLED
 fi
 
@@ -652,7 +652,7 @@ if [ ! -x "$JAVA" ]; then
 		monitor)	exit	$OCF_NOT_RUNNING;;
 		status)		exit	$LSB_STATUS_STOPPED;;
 	esac
-	ocf_log err "java command does not exist."
+	ocf_exit_reason "java command does not exist."
 	exit $OCF_ERR_INSTALLED
 fi
 
