@@ -252,7 +252,9 @@ Path to PostgreSQL server log output file.
 
 <parameter name="socketdir" unique="0" required="0">
 <longdesc lang="en">
-Unix socket directory for PostgreSQL
+Unix socket directory for PostgreSQL.
+
+If you use PostgreSQL 9.3 or higher and define unix_socket_directories in the postgresql.conf, then you must set socketdir to determine which directory is used for psql command.
 </longdesc>
 <shortdesc lang="en">socketdir</shortdesc>
 <content type="string" default="" />
@@ -1578,6 +1580,9 @@ pgsql_validate_all() {
     local version
     local check_config_rc
     local rep_mode_string
+    local socket_directories
+
+    version=`cat $OCF_RESKEY_pgdata/PG_VERSION`
 
     if ! check_binary2 "$OCF_RESKEY_pgctl" || 
        ! check_binary2 "$OCF_RESKEY_psql"; then
@@ -1587,7 +1592,23 @@ pgsql_validate_all() {
     check_config "$OCF_RESKEY_config"
     check_config_rc=$?
     [ $check_config_rc -eq 2 ] && return $OCF_ERR_INSTALLED
-    [ $check_config_rc -eq 0 ] && : ${OCF_RESKEY_socketdir=`get_pgsql_param unix_socket_directory`}
+    if [ $check_config_rc -eq 0 ]; then
+        ocf_version_cmp "$version" "9.3"
+        if [ $? -eq 0 ]; then
+            : ${OCF_RESKEY_socketdir=`get_pgsql_param unix_socket_directory`}
+        else
+            # unix_socket_directories is used by PostgreSQL 9.3 or higher.
+            socket_directories=`get_pgsql_param unix_socket_directories`
+            if [ -n "$socket_directories" ]; then
+                # unix_socket_directories may have multiple socket directories and the pgsql RA can not know which directory is used for psql command.
+                # Therefore, the user must set OCF_RESKEY_socketdir explicitly.
+                if [ -z "$OCF_RESKEY_socketdir" ]; then
+                    ocf_log err "In PostgreSQL 9.3 or higher, socketdir can't be empty if you define unix_socket_directories in the postgresql.conf."
+                    return $OCF_ERR_CONFIGURED
+                fi
+            fi
+        fi
+    fi
 
     getent passwd $OCF_RESKEY_pgdba >/dev/null 2>&1
     if [ ! $? -eq 0 ]; then
@@ -1617,7 +1638,6 @@ pgsql_validate_all() {
     fi
 
     if is_replication || [ "$OCF_RESKEY_rep_mode" = "slave" ]; then
-        version=`cat $OCF_RESKEY_pgdata/PG_VERSION`
         if [ `printf "$version\n9.1" | sort -n | head -1` != "9.1" ]; then
             ocf_exit_reason "Replication mode needs PostgreSQL 9.1 or higher."
             return $OCF_ERR_INSTALLED
