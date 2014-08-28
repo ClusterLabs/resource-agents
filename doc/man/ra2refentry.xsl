@@ -50,7 +50,8 @@
   <xsl:apply-templates select="$this" mode="description"/>
   <xsl:apply-templates select="$this" mode="parameters"/>
   <xsl:apply-templates select="$this" mode="actions"/>
-  <xsl:apply-templates select="$this" mode="example"/>
+  <xsl:apply-templates select="$this" mode="examplecrmsh"/>
+  <xsl:apply-templates select="$this" mode="examplepcs"/>
   <xsl:apply-templates select="$this" mode="seealso"/>
  </xsl:template>
 
@@ -403,10 +404,10 @@
   </xsl:template>
 
 
-  <!-- Mode Example -->
-  <xsl:template match="resource-agent" mode="example">
+  <!-- Mode Example CRM Shell-->
+  <xsl:template match="resource-agent" mode="examplecrmsh">
     <refsection>
-      <title>Example</title>
+      <title>Example CRM Shell</title>
       <para>
 	<xsl:text>The following is an example configuration for a </xsl:text>
 	<xsl:value-of select="@name"/>
@@ -428,7 +429,7 @@
 	    <xsl:text> \
   params \
 </xsl:text>
-	    <xsl:apply-templates select="parameters" mode="example"/>
+	    <xsl:apply-templates select="parameters" mode="examplecrmsh"/>
 	  </xsl:when>
 	  <xsl:otherwise>
 	  <xsl:value-of select="@name"/><xsl:text> \</xsl:text>
@@ -440,7 +441,7 @@
 	  <xsl:text>
   meta allow-migrate="true" \</xsl:text>
 	</xsl:if>
-	<xsl:apply-templates select="actions" mode="example"/>
+	<xsl:apply-templates select="actions" mode="examplecrmsh"/>
       </programlisting>
       <!-- Insert a master/slave set definition if the resource
       agent supports promotion and demotion -->
@@ -457,15 +458,15 @@
     </refsection>
   </xsl:template>
 
-  <xsl:template match="parameters" mode="example">
-    <xsl:apply-templates select="parameter[@required = 1]" mode="example"/>
+  <xsl:template match="parameters" mode="examplecrmsh">
+    <xsl:apply-templates select="parameter[@required = 1]" mode="examplecrmsh"/>
   </xsl:template>
 
-  <xsl:template match="parameter" mode="example">
+  <xsl:template match="parameter" mode="examplecrmsh">
     <xsl:text>    </xsl:text>
     <xsl:value-of select="@name"/>
     <xsl:text>=</xsl:text>
-    <xsl:apply-templates select="content" mode="example"/>
+    <xsl:apply-templates select="content" mode="examplecrmsh"/>
     <xsl:text> \</xsl:text>
     <xsl:if test="following-sibling::parameter/@required = 1">
       <xsl:text>
@@ -473,7 +474,7 @@
     </xsl:if>
   </xsl:template>
 
-  <xsl:template match="content" mode="example">
+  <xsl:template match="content" mode="examplecrmsh">
     <xsl:choose>
       <xsl:when test="@default != ''">
 	<xsl:text>"</xsl:text>
@@ -486,23 +487,23 @@
     </xsl:choose>
   </xsl:template>
 
-  <xsl:template match="actions" mode="example">
+  <xsl:template match="actions" mode="examplecrmsh">
     <!-- In the CRM shell example, show only the monitor action -->
-    <xsl:apply-templates select="action[@name = 'monitor']" mode="example"/>
+    <xsl:apply-templates select="action[@name = 'monitor']" mode="examplecrmsh"/>
   </xsl:template>
 
-  <xsl:template match="action" mode="example">
+  <xsl:template match="action" mode="examplecrmsh">
     <xsl:text>
   op </xsl:text>
     <xsl:value-of select="@name"/>
     <xsl:text> </xsl:text>
-    <xsl:apply-templates select="@*" mode="example"/>
+    <xsl:apply-templates select="@*" mode="examplecrmsh"/>
     <xsl:if test="following-sibling::action/@name = 'monitor'">
       <xsl:text>\</xsl:text>
     </xsl:if>
   </xsl:template>
 
-  <xsl:template match="action/@*" mode="example">
+  <xsl:template match="action/@*" mode="examplecrmsh">
     <xsl:choose>
       <xsl:when test="name() = 'name'"><!-- suppress --></xsl:when>
       <xsl:otherwise>
@@ -517,9 +518,113 @@
     </xsl:if>
   </xsl:template>
 
-  <xsl:template match="longdesc" mode="example"/>
+  <xsl:template match="longdesc" mode="examplecrmsh"/>
 
-  <xsl:template match="shortdesc" mode="example"/>
+  <xsl:template match="shortdesc" mode="examplecrmsh"/>
+
+  <!-- Mode Example PCS-->
+  <xsl:template match="resource-agent" mode="examplepcs">
+    <refsection>
+      <title>Example PCS</title>
+      <para>
+	<xsl:text>The following is an example configuration for a </xsl:text>
+	<xsl:value-of select="@name"/>
+	<xsl:text> resource using </xsl:text>
+	<citerefentry><refentrytitle>pcs</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+      </para>
+      <programlisting>
+	<xsl:text>pcs resource create p_</xsl:text>
+	<xsl:value-of select="@name"/>
+	<xsl:text> </xsl:text>
+	<xsl:value-of select="$class"/>
+	<xsl:text>:</xsl:text>
+	<xsl:value-of select="$provider"/>
+	<xsl:text>:</xsl:text>
+	<xsl:choose>
+	  <xsl:when test="parameters/parameter[@required = 1]">
+	    <xsl:value-of select="@name"/>
+	    <xsl:text> \
+</xsl:text>
+	    <xsl:apply-templates select="parameters" mode="examplepcs"/>
+	  </xsl:when>
+	  <xsl:otherwise>
+	  <xsl:value-of select="@name"/><xsl:text> \</xsl:text>
+	  </xsl:otherwise>
+	</xsl:choose>
+	<xsl:apply-templates select="actions" mode="examplepcs"/>
+
+     <!-- Insert a master/slave set definition if the resource
+      agent supports promotion and demotion -->
+      <xsl:if test="actions/action/@name = 'promote' and actions/action/@name = 'demote'">
+	  <xsl:text>--master</xsl:text>
+      </xsl:if>
+      </programlisting>
+
+    </refsection>
+  </xsl:template>
+
+  <xsl:template match="parameters" mode="examplepcs">
+    <xsl:apply-templates select="parameter[@required = 1]" mode="examplepcs"/>
+  </xsl:template>
+
+  <xsl:template match="parameter" mode="examplepcs">
+    <xsl:text>  </xsl:text>
+    <xsl:value-of select="@name"/>
+    <xsl:text>=</xsl:text>
+    <xsl:apply-templates select="content" mode="examplepcs"/>
+    <xsl:text> \</xsl:text>
+    <xsl:if test="following-sibling::parameter/@required = 1">
+      <xsl:text>
+</xsl:text>
+    </xsl:if>
+  </xsl:template>
+
+  <xsl:template match="content" mode="examplepcs">
+    <xsl:choose>
+      <xsl:when test="@default != ''">
+	<xsl:text>"</xsl:text>
+	<xsl:value-of select="@default"/>
+	<xsl:text>"</xsl:text>
+      </xsl:when>
+      <xsl:otherwise>
+	<replaceable><xsl:value-of select="@type"/></replaceable>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+  <xsl:template match="actions" mode="examplepcs">
+    <!-- In the CRM shell example, show only the monitor action -->
+    <xsl:apply-templates select="action[@name = 'monitor']" mode="examplepcs"/>
+  </xsl:template>
+
+  <xsl:template match="action" mode="examplepcs">
+    <xsl:text>
+  op </xsl:text>
+    <xsl:value-of select="@name"/>
+    <xsl:text> </xsl:text>
+    <xsl:apply-templates select="@*" mode="examplepcs"/>
+    <xsl:if test="following-sibling::action/@name = 'monitor'">
+      <xsl:text>\</xsl:text>
+    </xsl:if>
+  </xsl:template>
+
+  <xsl:template match="action/@*" mode="examplepcs">
+    <xsl:choose>
+      <xsl:when test="name() = 'name'"><!-- suppress --></xsl:when>
+      <xsl:otherwise>
+	<xsl:value-of select="name()"/>
+	<xsl:text>="</xsl:text>
+	<xsl:value-of select="current()"/>
+	<xsl:text>" </xsl:text>
+      </xsl:otherwise>
+    </xsl:choose>
+    <xsl:if test="following-sibling::*">
+      <xsl:text> </xsl:text>
+    </xsl:if>
+  </xsl:template>
+
+  <xsl:template match="longdesc" mode="examplepcs"/>
+  <xsl:template match="shortdesc" mode="examplepcs"/>
 
   <xsl:template match="resource-agent" mode="seealso">
     <refsection>
