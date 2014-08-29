@@ -133,14 +133,17 @@ anything_stop() {
                 done
                 ocf_log warn "Stop with SIGTERM failed/timed out, now sending SIGKILL."
                 kill -s 9 $pid
-                if ! anything_status
-                then
-                        ocf_log warn "SIGKILL did the job."
-                        rc=$OCF_SUCCESS
-                else
-                        ocf_log err "Failed to stop - even with SIGKILL."
-                        rc=$OCF_ERR_GENERIC
-                fi
+                while :
+                do
+                        if ! anything_status
+                        then
+                                ocf_log warn "SIGKILL did the job."
+                                rc=$OCF_SUCCESS
+                                break
+                        fi
+                        ocf_log info "The job still hasn't stopped yet. Waiting..."
+                        sleep 1
+                done
 	fi
 	rm -f $pidfile 
 	return $rc
