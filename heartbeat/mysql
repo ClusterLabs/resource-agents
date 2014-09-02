@@ -45,6 +45,7 @@
 #   OCF_RESKEY_max_slave_lag
 #   OCF_RESKEY_evict_outdated_slaves
 #   OCF_RESKEY_reader_attribute
+#   OCF_RESKEY_client_timeout
 
 #######################################################################
 # Initialization:
@@ -277,6 +278,19 @@ This parameter is only meaningful in master/slave set configurations.
 <shortdesc lang="en">Sets the node attribute that determines
 whether a node is usable for clients to read from.</shortdesc>
 <content type="string" default="${OCF_RESKEY_reader_attribute_default}" />
+</parameter>
+
+<parameter name="client_timeout" unique="0" required="0">
+<longdesc lang="en">
+This parameter specify a timeout for the MySQL client.
+
+The default value is 0(second).
+It means that timeout is disabled, the MySQL client waits for response from the MySQL server until the operation timeout is occurred.
+
+It is recommended that you do not change this parameter from the default value unless you have a explicit timeout requirement to understand the MySQL server as a failure.
+</longdesc>
+<shortdesc lang="en">A timeout for the MySQL client</shortdesc>
+<content type="integer" default="${OCF_RESKEY_client_timeout_default}" />
 </parameter>
 </parameters>
 
