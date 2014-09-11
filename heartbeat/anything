@@ -76,14 +76,9 @@ anything_start() {
 		then
 			# We have logfile and errlogfile, so redirect STDOUT und STDERR to different files
 			cmd="su - $user -c \"cd $workdir; nohup $binfile $cmdline_options >> $logfile 2>> $errlogfile & \"'echo \$!' "
-		else if [ -n "$logfile" ]
-			then
-				# We only have logfile so redirect STDOUT and STDERR to the same file
-				cmd="su - $user -c \"cd $workdir; nohup $binfile $cmdline_options >> $logfile 2>&1 & \"'echo \$!' "
-			else
-				# We have neither logfile nor errlogfile, so we're not going to redirect anything
-				cmd="su - $user -c \"cd $workdir; nohup $binfile $cmdline_options & \"'echo \$!'"
-			fi
+		else
+			# We only have logfile so redirect STDOUT and STDERR to the same file
+			cmd="su - $user -c \"cd $workdir; nohup $binfile $cmdline_options >> $logfile 2>&1 & \"'echo \$!' "
 		fi
 		ocf_log debug "Starting $process: $cmd"
 		# Execute the command as created above
@@ -172,7 +167,7 @@ cmdline_options="$OCF_RESKEY_cmdline_options"
 workdir="$OCF_RESKEY_workdir"
 pidfile="$OCF_RESKEY_pidfile"
 [ -z "$pidfile" ] && pidfile=${HA_VARRUN}/anything_${process}.pid
-logfile="$OCF_RESKEY_logfile"
+logfile="${OCF_RESKEY_logfile:-/dev/null}"
 errlogfile="$OCF_RESKEY_errlogfile"
 user="$OCF_RESKEY_user"
 [ -z "$user" ] && user=root
@@ -249,7 +244,7 @@ File to read/write the PID from/to.
 File to write STDOUT to
 </longdesc>
 <shortdesc lang="en">File to write STDOUT to</shortdesc>
-<content type="string" />
+<content type="string" default="/dev/null" />
 </parameter>
 <parameter name="errlogfile" required="0">
 <longdesc lang="en">
