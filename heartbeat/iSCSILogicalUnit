@@ -419,11 +419,11 @@ iSCSILogicalUnit_stop() {
 					${initiator} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
 			fi
 		done
-		lun_configfs_path="/sys/kernel/config/target/iscsi/${OCF_RESKEY_target_iqn}/tpgt_1/lun/lun_#{${OCF_RESKEY_lun}/"
+		lun_configfs_path="/sys/kernel/config/target/iscsi/${OCF_RESKEY_target_iqn}/tpgt_1/lun/lun_${OCF_RESKEY_lun}/"
 		if [ -e "${lun_configfs_path}" ]; then
 			ocf_run lio_node --dellun=${OCF_RESKEY_target_iqn} 1 ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
 		fi
-		block_configfs_path="/sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESKEY_INSTANCE}/udev_path"
+		block_configfs_path="/sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE}/udev_path"
 		if [ -e "${block_configfs_path}" ]; then
 			ocf_run tcm_node --freedev=iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
 		fi
@@ -478,7 +478,7 @@ iSCSILogicalUnit_monitor() {
 		[ -e ${configfs_path} ] && [ `cat ${configfs_path}` = "${OCF_RESKEY_path}" ] && return $OCF_SUCCESS
 
 		# if we aren't activated, is a block device still left over?
-		block_configfs_path="/sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESKEY_INSTANCE}/udev_path"
+		block_configfs_path="/sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE}/udev_path"
 		[ -e ${block_configfs_path} ] && ocf_log warn "existing block without an active lun: ${block_configfs_path}"
 		[ -e ${block_configfs_path} ] && return $OCF_ERR_GENERIC
 
