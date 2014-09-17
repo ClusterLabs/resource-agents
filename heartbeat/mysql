@@ -1006,7 +1006,7 @@ rc=$?
 LSB_STATUS_STOPPED=3
 if [ $rc -ne 0 ]; then
     case "$1" in
-        stop) exit $OCF_SUCCESS;;
+        stop) ;;
         monitor) exit $OCF_NOT_RUNNING;;
         status) exit $LSB_STATUS_STOPPED;;
         *) exit $rc;;
