@@ -671,7 +671,7 @@ fi
 
 MYSQL_OPTIONS_CHECK="-nNE --user=${OCF_RESKEY_check_user}"
 if [ -n "${OCF_RESKEY_check_passwd}" ]; then
-    MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK --password=${MYSQL_PASSWORD}"
+    MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK --password=${OCF_RESKEY_check_passwd}"
 fi
 
 # What kind of method was invoked?
