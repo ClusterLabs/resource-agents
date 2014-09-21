@@ -356,7 +356,7 @@ ocf_log() {
 ocf_exit_reason()
 {
 	local cookie="$OCF_EXIT_REASON_PREFIX"
-	local fmt=$1
+	local fmt="$1"
 	local msg
 
 	if [ $# -lt 1 ]; then
