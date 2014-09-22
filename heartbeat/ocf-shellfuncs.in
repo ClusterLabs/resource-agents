@@ -43,14 +43,6 @@ unset LANGUAGE; export LANGUAGE
 
 __SCRIPT_NAME=`basename $0`
 
-# This is internal to shellfuncs.
-# When set, ha_log can be used in a way that guarantees
-# that stderr will not be printed to. This allows us to
-# use ocf_exit_reason to print a string to stderr and use
-# ha_log to print the same string to the other log facilities
-# without having duplicate messages sent to stderr.
-__ha_log_ignore_stderr_once=""
-
 if [ -z "$OCF_ROOT" ]; then
     : ${OCF_ROOT=@OCF_ROOT_DIR@}
 fi
@@ -189,12 +181,11 @@ set_logtag() {
 	fi
 }
 
-ha_log() {
-	local ignore_stderr="$__ha_log_ignore_stderr_once"
+__ha_log() {
+	local ignore_stderr=false
 	local loglevel
 
-	# always reset this variable
-	__ha_log_ignore_stderr_once=""
+	[ "x$1" = "x--ignore-stderr" ] && ignore_stderr=true && shift
 
 	[ none = "$HA_LOGFACILITY" ] && HA_LOGFACILITY=""
 	# if we're connected to a tty, then output to stderr
@@ -255,6 +246,11 @@ ha_log() {
             echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_DEBUGLOG
           fi
         fi
+}
+
+ha_log()
+{
+	__ha_log "$@"
 }
 
 ha_debug() {
@@ -356,24 +352,34 @@ ocf_log() {
 ocf_exit_reason()
 {
 	local cookie="$OCF_EXIT_REASON_PREFIX"
-	local fmt="$1"
+	local fmt
 	local msg
 
-	if [ $# -lt 1 ]; then
-		ocf_log err "Not enough arguments [$#] to ocf_log_exit_msg."
-	fi
+	# No argument is likely not intentional.
+	# Just one argument implies a printf format string of just "%s".
+	# "Least surprise" in case some interpolated string from variable
+	# expansion or other contains a percent sign.
+	# More than one argument: first argument is going to be the format string.
+	case $# in
+	0)	ocf_log err "Not enough arguments to ocf_log_exit_msg." ;;
+	1)	fmt="%s" ;;
+
+	*)	fmt=$1
+		shift
+		case $fmt in
+		*%*) : ;; # ok, does look like a format string
+		*) ocf_log warn "Does not look like format string: [$fmt]" ;;
+		esac ;;
+	esac
+
 	if [ -z "$cookie" ]; then
 		# use a default prefix
 		cookie="ocf-exit-reason:"
 	fi
 
-	shift
-
 	msg=$(printf "${fmt}" "$@")
-
-	printf >&2 "%s${msg}\n" "$cookie"
-	__ha_log_ignore_stderr_once="true"
-	ha_log "ERROR: $msg"
+	printf >&2 "%s%s\n" "$cookie" "$msg"
+	__ha_log --ignore-stderr "ERROR: $msg"
 }
 
 #
