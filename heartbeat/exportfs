@@ -181,7 +181,7 @@ reset_fsid() {
 	CURRENT_FSID=$OCF_RESKEY_fsid
 }
 bump_fsid() {
-	let $((CURRENT_FSID++))
+	CURRENT_FSID=$((CURRENT_FSID+1))
 }
 get_fsid() {
 	echo $CURRENT_FSID
