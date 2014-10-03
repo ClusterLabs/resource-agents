@@ -101,6 +101,15 @@ it has initialized.
 <content type="string"/>
 </parameter>
 
+<parameter name="force_kill" required="0" unique="0">
+<longdesc lang="en">
+Kill a container immediately rather than waiting for it to gracefully
+shutdown
+</longdesc>
+<shortdesc lang="en">force kill</shortdesc>
+<content type="boolean"/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -190,15 +199,19 @@ docker_stop()
 	fi
 
 	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
-		timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000) -5 ))
+		timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000) -10 ))
 		if [ $timeout -lt 10 ]; then
 			timeout=10
 		fi
 	fi
 
-	ocf_log debug "waiting $timeout seconds before killing container"
+	if ocf_is_true "$OCF_RESKEY_force_kill"; then
+		ocf_run docker kill $CONTAINER
+	else 	
+		ocf_log debug "waiting $timeout second[s] before killing container"
+		ocf_run docker stop -t=$timeout $CONTAINER
+	fi
 
-	ocf_run docker stop -t=$timeout $CONTAINER
 	if [ $? -ne 0 ]; then
 		ocf_log err "Failed to stop container, ${CONTAINER}, based on image, ${OCF_RESKEY_image}."
 		return $OCF_ERR_GENERIC
