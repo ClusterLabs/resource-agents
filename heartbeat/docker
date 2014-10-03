@@ -170,20 +170,20 @@ docker_start()
 		ocf_log notice "Beginning pull of image, ${OCF_RESKEY_image}"
 		docker pull "${OCF_RESKEY_image}"
 		if [ $? -ne 0 ]; then
-			ocf_log err "failed to pull image ${OCF_RESKEY_image}"
+			ocf_exit_reason "failed to pull image ${OCF_RESKEY_image}"
 			return $OCF_ERR_GENERIC
 		fi
 	fi
 
 	ocf_run docker run $run_opts $OCF_RESKEY_image $OCF_RESKEY_run_cmd
 	if [ $? -ne 0 ]; then
-		ocf_log err "docker run command failed to launch container"
+		ocf_exit_reason "docker run command failed to launch container"
 		return $OCF_ERR_GENERIC
 	fi
 
 	docker_monitor
 	if [ $? -ne $OCF_SUCCESS ]; then
-		ocf_log err "Newly created docker container exited after start"
+		ocf_exit_reason "Newly created docker container exited after start"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -213,13 +213,13 @@ docker_stop()
 	fi
 
 	if [ $? -ne 0 ]; then
-		ocf_log err "Failed to stop container, ${CONTAINER}, based on image, ${OCF_RESKEY_image}."
+		ocf_exit_reason "Failed to stop container, ${CONTAINER}, based on image, ${OCF_RESKEY_image}."
 		return $OCF_ERR_GENERIC
 	fi
 
 	ocf_run docker rm $CONTAINER
 	if [ $? -ne 0 ]; then
-		ocf_log err "Failed to remove stopped container, ${CONTAINER}, based on image, ${OCF_RESKEY_image}."
+		ocf_exit_reason "Failed to remove stopped container, ${CONTAINER}, based on image, ${OCF_RESKEY_image}."
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -253,13 +253,13 @@ docker_validate()
 {
 	check_binary docker
 	if [ -z "$OCF_RESKEY_image" ]; then
-		ocf_log err "'image' option is required"
+		ocf_exit_reason "'image' option is required"
 		exit $OCF_ERR_CONFIGURED
 	fi 
 
 	image_exists
 	if [ $? -ne 0 ]; then
-		ocf_log err "base image, ${OCF_RESKEY_image}, could not be found."
+		ocf_exit_reason "base image, ${OCF_RESKEY_image}, could not be found."
 		exit $OCF_ERR_CONFIGURED
 	fi
 
