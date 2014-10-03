@@ -88,7 +88,7 @@ environment variables into the newly created container. Note the '-d'
 option is supplied regardless of this value to force containers to run 
 in the background.
 </longdesc>
-<shortdesc lang="en">docker image</shortdesc>
+<shortdesc lang="en">run options</shortdesc>
 <content type="string"/>
 </parameter>
 
