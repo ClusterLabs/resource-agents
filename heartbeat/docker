@@ -115,6 +115,7 @@ END
 }
 
 #######################################################################
+REQUIRE_IMAGE_PULL=0
 
 docker_usage()
 {
@@ -154,6 +155,15 @@ docker_start()
 
 	if [ -n "$OCF_RESKEY_run_opts" ]; then
 		run_opts="$run_opts $OCF_RESKEY_run_opts"
+	fi
+
+	if [ $REQUIRE_IMAGE_PULL -eq 1 ]; then
+		ocf_log notice "Beginning pull of image, ${OCF_RESKEY_image}"
+		docker pull "${OCF_RESKEY_image}"
+		if [ $? -ne 0 ]; then
+			ocf_log err "failed to pull image ${OCF_RESKEY_image}"
+			return $OCF_ERR_GENERIC
+		fi
 	fi
 
 	ocf_run docker run $run_opts $OCF_RESKEY_image $OCF_RESKEY_run_cmd
@@ -206,17 +216,23 @@ docker_stop()
 image_exists()
 {
 	local res=1
-	docker images | awk '{print $1}' | grep "^${OCF_RESKEY_image}\$" > /dev/null 2>&1
+
+
+	echo "${OCF_RESKEY_image}" | grep -q ":"
+	if [ $? -eq 0 ]; then
+		docker images | awk '{print $1 ":" $2}' |  grep "^${OCF_RESKEY_image}\$" > /dev/null 2>&1
+	else
+		docker images | awk '{print $1}' | grep "^${OCF_RESKEY_image}\$" > /dev/null 2>&1
+	fi
 	if [ $? -eq 0 ]; then
 		return 0
 	fi
 	if ocf_is_true "$OCF_RESKEY_allow_pull"; then
-		docker search $OCF_RESKEY_image | awk '{print $1}' | grep "^${OCF_RESKEY_image}\$" > /dev/null 2>&1
-		if [ $? -eq 0 ]; then
-			ocf_log notice "Image (${OCF_RESKEY_image}) does not exist locally, but has been found in the docker registry. This image will be pulled on start"
-			return 0
-		fi
+		REQUIRE_IMAGE_PULL=1
+		ocf_log notice "Image (${OCF_RESKEY_image}) does not exist locally but will be pulled during start"
+		return 0
 	fi 
+	# image not found.
 	return 1
 }
 
