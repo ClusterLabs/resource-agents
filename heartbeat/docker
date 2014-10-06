@@ -62,7 +62,7 @@ The docker image to base this container off of.
 <parameter name="container" required="0" unique="0">
 <longdesc lang="en">
 The name to give the created container. By default this will 
-be that resource's instance name prefixed with 'HA-'.
+be that resource's instance name.
 </longdesc>
 <shortdesc lang="en">docker container name</shortdesc>
 <content type="string"/>
@@ -305,7 +305,7 @@ docker_validate()
 	return $OCF_SUCCESS
 }
 
-: ${OCF_RESKEY_container=HA-${OCF_RESOURCE_INSTANCE}}
+: ${OCF_RESKEY_container=${OCF_RESOURCE_INSTANCE}}
 CONTAINER=$OCF_RESKEY_container
 
 case $__OCF_ACTION in
