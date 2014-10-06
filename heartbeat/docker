@@ -110,6 +110,16 @@ shutdown
 <content type="boolean"/>
 </parameter>
 
+<parameter name="reuse" required="0" unique="0">
+<longdesc lang="en">
+Allow the container to be reused after stopping the container. By default
+containers are removed after stop. With the reuse option containers
+will persist after the container stops.
+</longdesc>
+<shortdesc lang="en">reuse container</shortdesc>
+<content type="boolean"/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -135,8 +145,29 @@ Expects to have a fully populated OCF RA-compliant environment set.
 END
 }
 
+container_exists()
+{
+	docker inspect $CONTAINER > /dev/null 2>&1
+}
+
+remove_container()
+{
+	if ocf_is_true "$OCF_RESKEY_reuse"; then
+		# never remove the container if we have reuse enabled.
+		return 0
+	fi
+
+	ocf_log notice "Cleaning up inactive container, ${CONTAINER}."
+	ocf_run docker rm $CONTAINER
+}
+
 docker_monitor()
 {
+	container_exists
+	if [ $? -ne 0 ]; then
+		return $OCF_NOT_RUNNING
+	fi
+
 	docker inspect $CONTAINER 2>&1 | grep '^ *\"Running.*:.*true' > /dev/null 2>&1
 	if [ $? -eq 0 ]; then
 		return $OCF_SUCCESS
@@ -145,8 +176,7 @@ docker_monitor()
 	# check for left over containers that may be inactive but left over after a reboot.
 	docker inspect $CONTAINER 2>&1 | grep '^ *\"Running.*:.*false' > /dev/null 2>&1
 	if [ $? -eq 0 ]; then
-		ocf_log notice "Cleaning up inactive container, ${CONTAINER}. Container exists but is not running."
-		docker rm $CONTAINER > /dev/null 2>&1
+		remove_container
 		return $OCF_NOT_RUNNING
 	fi
 
@@ -175,9 +205,16 @@ docker_start()
 		fi
 	fi
 
-	ocf_run docker run $run_opts $OCF_RESKEY_image $OCF_RESKEY_run_cmd
+	if ocf_is_true "$OCF_RESKEY_reuse" && container_exists; then
+		ocf_log info "starting existing container $CONTAINER."
+		ocf_run docker start $CONTAINER
+	else 
+		ocf_log info "running container $CONTAINER for the first time"
+		ocf_run docker run $run_opts $OCF_RESKEY_image $OCF_RESKEY_run_cmd
+	fi
+
 	if [ $? -ne 0 ]; then
-		ocf_exit_reason "docker run command failed to launch container"
+		ocf_exit_reason "docker failed to launch container"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -217,7 +254,7 @@ docker_stop()
 		return $OCF_ERR_GENERIC
 	fi
 
-	ocf_run docker rm $CONTAINER
+	remove_container
 	if [ $? -ne 0 ]; then
 		ocf_exit_reason "Failed to remove stopped container, ${CONTAINER}, based on image, ${OCF_RESKEY_image}."
 		return $OCF_ERR_GENERIC
