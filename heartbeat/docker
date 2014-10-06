@@ -163,21 +163,23 @@ remove_container()
 
 docker_monitor()
 {
+	local val
+
 	container_exists
 	if [ $? -ne 0 ]; then
 		return $OCF_NOT_RUNNING
 	fi
 
-	docker inspect $CONTAINER 2>&1 | grep '^ *\"Running.*:.*true' > /dev/null 2>&1
-	if [ $? -eq 0 ]; then
-		return $OCF_SUCCESS
+	# retrieve the 'Running' attribute for the container
+	val=$(docker inspect --format {{.State.Running}} $CONTAINER 2>/dev/null)
+	if [ $? -ne 0 ]; then
+		#not running as a result of container not being found
+		return $OCF_NOT_RUNNING
 	fi
 
-	# check for left over containers that may be inactive but left over after a reboot.
-	docker inspect $CONTAINER 2>&1 | grep '^ *\"Running.*:.*false' > /dev/null 2>&1
-	if [ $? -eq 0 ]; then
-		remove_container
-		return $OCF_NOT_RUNNING
+	if ocf_is_true "$val"; then
+		# container exists and is running
+		return $OCF_SUCCESS
 	fi
 
 	return $OCF_NOT_RUNNING
