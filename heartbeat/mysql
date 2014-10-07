@@ -1007,7 +1007,16 @@ LSB_STATUS_STOPPED=3
 if [ $rc -ne 0 ]; then
     case "$1" in
         stop) ;;
-        monitor) exit $OCF_NOT_RUNNING;;
+        monitor)
+            mysql_common_status "info"
+            if [ $? -eq $OCF_SUCCESS ]; then
+                # if validatation fails and pid is active, always treat this as an error
+                ocf_exit_reason "environment validation failed, active pid is in unknown state."
+                exit $OCF_ERR_GENERIC
+            fi
+            # validation failed and pid is not active, it's safe to say this instance is inactive.
+            exit $OCF_NOT_RUNNING;;
+
         status) exit $LSB_STATUS_STOPPED;;
         *) exit $rc;;
     esac
