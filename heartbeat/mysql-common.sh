@@ -94,8 +94,16 @@ CRM_ATTR_REPL_INFO="${HA_SBIN_DIR}/crm_attribute --type crm_config --name ${INST
 
 mysql_common_validate()
 {
-    check_binary $OCF_RESKEY_binary
-    check_binary  $OCF_RESKEY_client_binary
+
+    if ! have_binary "$OCF_RESKEY_binary"; then
+        ocf_exit_reason "Setup problem: couldn't find command: $OCF_RESKEY_binary"
+        return $OCF_ERR_INSTALLED;
+    fi
+
+    if ! have_binary "$OCF_RESKEY_client_binary"; then
+        ocf_exit_reason "Setup problem: couldn't find command: $OCF_RESKEY_client_binary"
+        return $OCF_ERR_INSTALLED;
+    fi
 
     if [ ! -f $OCF_RESKEY_config ]; then
         ocf_exit_reason "Config $OCF_RESKEY_config doesn't exist";
