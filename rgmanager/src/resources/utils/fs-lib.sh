@@ -27,6 +27,10 @@ LANG=C
 PATH=/bin:/sbin:/usr/bin:/usr/sbin
 export LC_ALL LANG PATH
 
+# Define this value to 0 by default, bind-mount.sh or any other agent
+# that uses this value will alter it after sourcing fs-lib.sh
+export IS_BIND_MOUNT=0
+
 # Private return codes
 FAIL=2
 NO=1
