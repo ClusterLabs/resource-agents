@@ -67,6 +67,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			dhcpd		\
 			Delay			\
 			dnsupdate		\
+			docker			\
 			eDir88			\
 			EvmsSCC			\
 			Evmsd			\
