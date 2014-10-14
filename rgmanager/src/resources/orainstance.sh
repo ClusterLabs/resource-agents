@@ -116,6 +116,15 @@ start_db() {
 	# Troubleshooting:
 	#   ORA-00845 - Try rm -f /dev/shm/ora_*
 	#   ORA-01081 - Try echo -e 'shutdown abort;\nquit;'|sqlplus "/ as sysdba"
+	# We need to ignore some non-fatl errors
+
+	ignore_error=(ORA-32004)
+
+	for error in ${ignore_error[*]}
+	do
+		startup_stdout=$(echo "$startup_stdout" | sed "s/${error}//g")
+	done
+
 	if [[ "$startup_stdout" =~ "ORA-" ]] || [[ "$startup_stdout" =~ "failure" ]]; then
 		ocf_log error "Starting Oracle DB $ORACLE_SID failed, found errors in stdout"
 		return 1
