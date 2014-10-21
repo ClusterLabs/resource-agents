@@ -226,6 +226,11 @@ update_utilization() {
 get_emulator()
 {
 	local emulator=""
+	local loglevel="error"
+
+	if ocf_is_probe; then
+		loglevel="notice"
+	fi
 
 	emulator=$(virsh $VIRSH_OPTIONS dumpxml $DOMAIN_NAME 2>/dev/null | sed -n -e 's/^.*<emulator>\(.*\)<\/emulator>.*$/\1/p')
 	if [ -z "$emulator" ] && [ -a "$EMULATOR_STATE" ]; then
@@ -238,7 +243,7 @@ get_emulator()
 	if [ -n "$emulator" ]; then
 		basename $emulator
 	else 
-		ocf_log error "Unable to determine emulator for $DOMAIN_NAME" 
+		ocf_log $loglevel "Unable to determine emulator for $DOMAIN_NAME"
 	fi
 }
 
