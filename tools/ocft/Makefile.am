@@ -48,7 +48,8 @@ ocftcfgs_DATA      =  apache  	\
 		       	 postfix	\
 			 tomcat	\
 		       	 Xinetd	\
-			 SendArp
+			 SendArp \
+			 sg_persist
 
 ocftdir			= $(datadir)/$(PACKAGE_NAME)/ocft
 ocft_DATA		= README	\
