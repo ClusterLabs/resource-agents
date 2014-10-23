@@ -157,6 +157,11 @@ remove_container()
 		return 0
 	fi
 
+	container_exists
+	if [ $? -ne 0 ]; then
+		# don't attempt to remove a container that doesn't exist
+		return 0
+	fi
 	ocf_log notice "Cleaning up inactive container, ${CONTAINER}."
 	ocf_run docker rm $CONTAINER
 }
@@ -210,7 +215,10 @@ docker_start()
 	if ocf_is_true "$OCF_RESKEY_reuse" && container_exists; then
 		ocf_log info "starting existing container $CONTAINER."
 		ocf_run docker start $CONTAINER
-	else 
+	else
+		# make sure any previous container matching our container name is cleaned up first.
+		# we already know at this point it wouldn't be running 
+		remove_container
 		ocf_log info "running container $CONTAINER for the first time"
 		ocf_run docker run $run_opts $OCF_RESKEY_image $OCF_RESKEY_run_cmd
 	fi
@@ -234,6 +242,7 @@ docker_stop()
 	local timeout=60
 	docker_monitor
 	if [ $? -eq  $OCF_NOT_RUNNING ]; then
+		remove_container
 		return $OCF_SUCCESS
 	fi
 
