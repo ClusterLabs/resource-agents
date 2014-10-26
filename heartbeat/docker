@@ -106,6 +106,20 @@ it has initialized.
 <content type="string"/>
 </parameter>
 
+<parameter name="monitor_cmd" required="0" unique="0">
+<longdesc lang="en">
+Specifiy the full path of a command to launch within the container to check
+the health of the container. This command must return 0 to indicate that
+the container is healthy. A non-zero return code will indicate that the
+container has failed and should be recovered.
+
+The command is executed using nsenter. In the future 'docker exec' will
+be used once it is more widely supported.
+</longdesc>
+<shortdesc lang="en">monitor command</shortdesc>
+<content type="string"/>
+</parameter>
+
 <parameter name="force_kill" required="0" unique="0">
 <longdesc lang="en">
 Kill a container immediately rather than waiting for it to gracefully
@@ -150,6 +164,22 @@ Expects to have a fully populated OCF RA-compliant environment set.
 END
 }
 
+
+monitor_cmd_exec()
+{
+	local rc=$OCF_SUCCESS
+	if [ -n "$OCF_RESKEY_monitor_cmd" ]; then
+		out=$(echo "$OCF_RESKEY_monitor_cmd" | nsenter --target $(docker inspect --format {{.State.Pid}} ${CONTAINER}) --mount --uts --ipc --net --pid 2>&1)
+		rc=$?
+		if [ $rc -ne 0 ]; then
+			ocf_log info "monitor cmd failed with exit code $rc"
+			ocf_log info "stdout/stderr: $out"
+			rc=$OCF_ERR_GENERIC
+		fi
+	fi
+	return $rc
+}
+
 container_exists()
 {
 	docker inspect $CONTAINER > /dev/null 2>&1
@@ -171,7 +201,7 @@ remove_container()
 	ocf_run docker rm $CONTAINER
 }
 
-docker_monitor()
+docker_simple_status()
 {
 	local val
 
@@ -195,11 +225,25 @@ docker_monitor()
 	return $OCF_NOT_RUNNING
 }
 
+docker_monitor()
+{
+	local rc=0
+
+	docker_simple_status
+	rc=$?
+
+	if [ $rc -ne 0 ]; then
+		return $rc
+	fi
+
+	monitor_cmd_exec
+}
+
 docker_start()
 {
 	local run_opts="-d --name=${CONTAINER}"
 	# check to see if the container has already started
-	docker_monitor
+	docker_simple_status
 	if [ $? -eq $OCF_SUCCESS ]; then
 		return $OCF_SUCCESS
 	fi
@@ -233,19 +277,29 @@ docker_start()
 		return $OCF_ERR_GENERIC
 	fi
 
-	docker_monitor
-	if [ $? -ne $OCF_SUCCESS ]; then
-		ocf_exit_reason "Newly created docker container exited after start"
-		return $OCF_ERR_GENERIC
-	fi
 
-	return $OCF_SUCCESS
+	# wait for monitor to pass before declaring that the container is started
+	while true; do
+		docker_simple_status
+		if [ $? -ne $OCF_SUCCESS ]; then
+			ocf_exit_reason "Newly created docker container exited after start"
+			return $OCF_ERR_GENERIC
+		fi
+
+		monitor_cmd_exec
+		if [ $? -eq $OCF_SUCCESS ]; then
+			return $OCF_SUCCESS
+		fi
+
+		ocf_exit_reason "waiting on monitor_cmd to pass after start"
+		sleep 1
+	done
 }
 
 docker_stop()
 {
 	local timeout=60
-	docker_monitor
+	docker_simple_status
 	if [ $? -eq  $OCF_NOT_RUNNING ]; then
 		remove_container
 		return $OCF_SUCCESS
@@ -309,6 +363,10 @@ docker_validate()
 		ocf_exit_reason "'image' option is required"
 		exit $OCF_ERR_CONFIGURED
 	fi 
+
+	if [ -n "$OCF_RESKEY_monitor_cmd" ]; then
+		check_binary nsenter
+	fi
 
 	image_exists
 	if [ $? -ne 0 ]; then
