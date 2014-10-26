@@ -59,7 +59,7 @@ The docker image to base this container off of.
 <content type="string"/>
 </parameter>
 
-<parameter name="container" required="0" unique="0">
+<parameter name="name" required="0" unique="0">
 <longdesc lang="en">
 The name to give the created container. By default this will 
 be that resource's instance name.
@@ -87,6 +87,11 @@ users to do things such as setting a custom entry point and injecting
 environment variables into the newly created container. Note the '-d' 
 option is supplied regardless of this value to force containers to run 
 in the background.
+
+NOTE: Do not explicitly specify the --name argument in the run_opts. This
+agent will set --name using either the resource's instance or the name
+provided in the 'name' argument of this agent.
+
 </longdesc>
 <shortdesc lang="en">run options</shortdesc>
 <content type="string"/>
@@ -314,8 +319,16 @@ docker_validate()
 	return $OCF_SUCCESS
 }
 
-: ${OCF_RESKEY_container=${OCF_RESOURCE_INSTANCE}}
-CONTAINER=$OCF_RESKEY_container
+: ${OCF_RESKEY_name=${OCF_RESOURCE_INSTANCE}}
+
+if [ -n "$OCF_RESKEY_container" ]; then
+	# we'll keep the container attribute around for a bit in order not to break
+	# any existing deployments. The 'name' attribute is prefered now though.
+	CONTAINER=$OCF_RESKEY_container
+	ocf_log warn "The 'container' attribute is depreciated"
+else
+	CONTAINER=$OCF_RESKEY_name
+fi
 
 case $__OCF_ACTION in
 meta-data) meta_data
