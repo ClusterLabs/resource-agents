@@ -168,15 +168,28 @@ END
 monitor_cmd_exec()
 {
 	local rc=$OCF_SUCCESS
-	if [ -n "$OCF_RESKEY_monitor_cmd" ]; then
-		out=$(echo "$OCF_RESKEY_monitor_cmd" | nsenter --target $(docker inspect --format {{.State.Pid}} ${CONTAINER}) --mount --uts --ipc --net --pid 2>&1)
-		rc=$?
-		if [ $rc -ne 0 ]; then
-			ocf_log info "monitor cmd failed with exit code $rc"
-			ocf_log info "stdout/stderr: $out"
-			rc=$OCF_ERR_GENERIC
-		fi
+	local out
+
+	if [ -z "$OCF_RESKEY_monitor_cmd" ]; then
+		return $rc
 	fi
+
+	out=$(echo "$OCF_RESKEY_monitor_cmd" | nsenter --target $(docker inspect --format {{.State.Pid}} ${CONTAINER}) --mount --uts --ipc --net --pid 2>&1)
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log info "monitor cmd exit code = $rc"
+		ocf_log info "stdout/stderr: $out"
+
+		if [ $rc -eq 127 ]; then
+			ocf_exit_reason "monitor_cmd, ${OCF_RESKEY_monitor_cmd} , not found within container."
+			# there is no recovering from this, exit immediately
+			exit $OCF_ERR_ARGS
+		fi
+		rc=$OCF_ERR_GENERIC
+	else 
+		ocf_log info "monitor cmd passed: exit code = $rc"
+	fi
+
 	return $rc
 }
 
@@ -288,6 +301,7 @@ docker_start()
 
 		monitor_cmd_exec
 		if [ $? -eq $OCF_SUCCESS ]; then
+			ocf_log notice "Container $CONTAINER  started successfully"
 			return $OCF_SUCCESS
 		fi
 
@@ -365,6 +379,7 @@ docker_validate()
 	fi 
 
 	if [ -n "$OCF_RESKEY_monitor_cmd" ]; then
+		ocf_log info "checking for nsenter, which is required when 'monitor_cmd' is specified"
 		check_binary nsenter
 	fi
 
