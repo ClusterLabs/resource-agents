@@ -1,0 +1,187 @@
+#!/bin/sh
+#
+# Copyright (c) 2014 David Vossel <dvossel@redhat.com>
+#					All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+
+default_config="/etc/ganesha/ganesha.conf"
+default_pidfile="/var/run/ganesha.pid"
+binary=$(which ganesha.nfsd 2> /dev/null)
+
+if [ -z "$binary" ]; then
+	binary="/usr/bin/ganesha.nfsd"
+fi
+
+meta_data() {
+cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="ganesha" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+The ganesha Resource Agent manages the ganesha nfs daemon in user space.
+</longdesc>
+<shortdesc lang="en">ganesha agent</shortdesc>
+
+<parameters>
+
+<parameter name="config" required="0">
+<longdesc lang="en">
+Full path to ganesha config file
+</longdesc>
+<shortdesc lang="en">config file</shortdesc>
+<content type="string" default="$default_config" />
+</parameter>
+
+
+<parameter name="pidfile" required="0">
+<longdesc lang="en">
+Full path to ganesha pidfile.
+</longdesc>
+<shortdesc lang="en">pidfile path</shortdesc>
+<content type="string" default="$default_pidfile" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="60" />
+<action name="stop"         timeout="60" />
+<action name="monitor"      timeout="30" interval="10" depth="0" />
+<action name="meta-data"    timeout="5" />
+<action name="validate-all" timeout="20" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+ganesha_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+ganesha_start() {
+	local opts="-f $OCF_RESKEY_config -p $OCF_RESKEY_pidfile $OCF_RESKEY_options -d"
+	local rc
+
+	ganesha_monitor
+	if [ $? -eq $OCF_SUCCESS ]; then
+		return $OCF_SUCCESS
+	fi
+
+	ocf_log info "Starting [${binary} ${opts}] "
+	ocf_run $binary $opts
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log error "Failed to launch $binary, exit code $rc"
+		return $OCF_ERR_GENERIC
+	fi
+
+	# make sure monitor returns running
+	ganesha_monitor
+}
+
+ganesha_stop() {
+	local pid
+	local timeout=20
+
+	ganesha_monitor
+	if [ $? -eq $OCF_NOT_RUNNING ]; then
+		return $OCF_SUCCESS
+	fi
+
+	pid=$(cat $OCF_RESKEY_pidfile)
+
+	ocf_log info "Killing ganesha at pid $pid"
+	ocf_stop_processes "TERM" "$timeout" "$pid" 
+
+	ganesha_monitor
+	if [ $? -ne $OCF_NOT_RUNNING ]; then
+		ocf_log err "Failed to stop ganesha at pid $pid"
+		return $OCF_ERR_GENERIC
+	fi
+	return $OCF_SUCCESS
+}
+
+ganesha_monitor() {
+	local pidfile=$OCF_RESKEY_pidfile
+
+	if [ -e "$pidfile" ]; then
+		cat /proc/$(cat $pidfile)/cmdline 2>/dev/null | grep -a "${binary}" > /dev/null 2>&1
+		if [ $? -eq 0 ];then
+			return $OCF_SUCCESS
+		fi
+		# deleting stale pidfile
+		rm -f $pidfile
+	fi
+	return $OCF_NOT_RUNNING
+}
+
+ganesha_validate() {
+	check_binary $binary
+
+	# TODO verify kernal NFS is not up.
+
+	# verify config file exists
+	if ! [ -f "${OCF_RESKEY_config}" ]; then
+		ocf_log err "No configfile found at ${OCF_RESKEY_config}"
+		return $OCF_ERR_ARGS
+	fi
+	return $OCF_SUCCESS
+}
+
+: ${OCF_RESKEY_config=${default_config}}
+: ${OCF_RESKEY_pidfile=${default_pidfile}}
+
+case $__OCF_ACTION in
+meta-data)	meta_data
+		exit $OCF_SUCCESS
+		;;
+start)		ganesha_start;;
+stop)		ganesha_stop;;
+monitor)	ganesha_monitor;;
+validate-all)	ganesha_validate;;
+usage|help)	ganesha_usage
+		exit $OCF_SUCCESS
+		;;
+*)		ganesha_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
+
