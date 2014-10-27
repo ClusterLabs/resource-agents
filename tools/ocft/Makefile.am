@@ -48,6 +48,8 @@ ocftcfgs_DATA      =  apache  	\
 		       	 postfix	\
 			 tomcat	\
 		       	 Xinetd	\
+		       	 Xen	\
+		       	 VirtualDomain	\
 			 SendArp
 
 ocftdir			= $(datadir)/$(PACKAGE_NAME)/ocft

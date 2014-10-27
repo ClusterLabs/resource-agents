@@ -1,0 +1,70 @@
+# VirtualDomain
+# by dejan@suse.de on 
+# Tue Jul  8 12:48:03 CEST 2014
+
+CONFIG
+	Agent VirtualDomain
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	HangTimeout 20
+
+# set OCFT_config to the libvirt configuration file
+# the guest is going to be stopped and started
+VARIABLE
+	OCFT_config=/etc/libvirt/qemu/sle11-sp3.xml
+
+CASE-BLOCK required_args
+	Env OCF_RESKEY_config=$OCFT_config
+
+CASE-BLOCK unset_utilization
+	Env OCF_RESKEY_autoset_utilization_hv_memory=false
+	Env OCF_RESKEY_autoset_utilization_cpu=false
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+	Include required_args
+	Include unset_utilization
+	Include default_status
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: invalid 'OCF_RESKEY_config'"
+	Include prepare
+	Env OCF_RESKEY_config=/no_such_file
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "check base env: unset 'OCF_RESKEY_config'"
+	Include prepare
+	Unenv OCF_RESKEY_config
+	AgentRun start OCF_ERR_CONFIGURED
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "monitor when running"
+	Include prepare
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "monitor when not running"
+	Include prepare
+	AgentRun monitor OCF_NOT_RUNNING
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
+

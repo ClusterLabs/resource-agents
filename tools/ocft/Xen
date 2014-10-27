@@ -1,0 +1,65 @@
+# Xen
+# by dejan@suse.de on 
+# Tue Jul  8 12:20:23 CEST 2014
+
+CONFIG
+	Agent Xen
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	HangTimeout 20
+
+# set OCFT_xmfile to the xen-xm format file
+# the guest is going to be stopped and started
+VARIABLE
+	OCFT_xmfile=/etc/xen/vm/xen-f
+
+CASE-BLOCK required_args
+	Env OCF_RESKEY_xmfile=$OCFT_xmfile
+
+CASE-BLOCK default_status
+	AgentRun stop
+
+CASE-BLOCK prepare
+	Include required_args
+	Include default_status
+
+CASE "check base env"
+	Include prepare
+	AgentRun start OCF_SUCCESS
+
+CASE "check base env: invalid 'OCF_RESKEY_xmfile'"
+	Include prepare
+	Env OCF_RESKEY_xmfile=/no_such_file
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "check base env: unset 'OCF_RESKEY_xmfile'"
+	Include prepare
+	Unenv OCF_RESKEY_xmfile
+	AgentRun start OCF_ERR_INSTALLED
+
+CASE "normal stop"
+	Include prepare
+	AgentRun start
+	AgentRun stop OCF_SUCCESS
+
+CASE "double start"
+	Include prepare
+	AgentRun start
+	AgentRun start OCF_SUCCESS
+
+CASE "double stop"
+	Include prepare
+	AgentRun stop OCF_SUCCESS
+
+CASE "monitor when running"
+	Include prepare
+	AgentRun start
+	AgentRun monitor OCF_SUCCESS
+
+CASE "monitor when not running"
+	Include prepare
+	AgentRun monitor OCF_NOT_RUNNING
+
+CASE "unimplemented command"
+	Include prepare
+	AgentRun no_cmd OCF_ERR_UNIMPLEMENTED
+
