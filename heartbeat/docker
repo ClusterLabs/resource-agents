@@ -59,7 +59,7 @@ The docker image to base this container off of.
 <content type="string"/>
 </parameter>
 
-<parameter name="container" required="0" unique="0">
+<parameter name="name" required="0" unique="0">
 <longdesc lang="en">
 The name to give the created container. By default this will 
 be that resource's instance name.
@@ -87,6 +87,11 @@ users to do things such as setting a custom entry point and injecting
 environment variables into the newly created container. Note the '-d' 
 option is supplied regardless of this value to force containers to run 
 in the background.
+
+NOTE: Do not explicitly specify the --name argument in the run_opts. This
+agent will set --name using either the resource's instance or the name
+provided in the 'name' argument of this agent.
+
 </longdesc>
 <shortdesc lang="en">run options</shortdesc>
 <content type="string"/>
@@ -98,6 +103,20 @@ Specifiy a command to launch within the container once
 it has initialized.
 </longdesc>
 <shortdesc lang="en">run command</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="monitor_cmd" required="0" unique="0">
+<longdesc lang="en">
+Specifiy the full path of a command to launch within the container to check
+the health of the container. This command must return 0 to indicate that
+the container is healthy. A non-zero return code will indicate that the
+container has failed and should be recovered.
+
+The command is executed using nsenter. In the future 'docker exec' will
+be used once it is more widely supported.
+</longdesc>
+<shortdesc lang="en">monitor command</shortdesc>
 <content type="string"/>
 </parameter>
 
@@ -145,6 +164,35 @@ Expects to have a fully populated OCF RA-compliant environment set.
 END
 }
 
+
+monitor_cmd_exec()
+{
+	local rc=$OCF_SUCCESS
+	local out
+
+	if [ -z "$OCF_RESKEY_monitor_cmd" ]; then
+		return $rc
+	fi
+
+	out=$(echo "$OCF_RESKEY_monitor_cmd" | nsenter --target $(docker inspect --format {{.State.Pid}} ${CONTAINER}) --mount --uts --ipc --net --pid 2>&1)
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log info "monitor cmd exit code = $rc"
+		ocf_log info "stdout/stderr: $out"
+
+		if [ $rc -eq 127 ]; then
+			ocf_exit_reason "monitor_cmd, ${OCF_RESKEY_monitor_cmd} , not found within container."
+			# there is no recovering from this, exit immediately
+			exit $OCF_ERR_ARGS
+		fi
+		rc=$OCF_ERR_GENERIC
+	else 
+		ocf_log info "monitor cmd passed: exit code = $rc"
+	fi
+
+	return $rc
+}
+
 container_exists()
 {
 	docker inspect $CONTAINER > /dev/null 2>&1
@@ -157,11 +205,16 @@ remove_container()
 		return 0
 	fi
 
+	container_exists
+	if [ $? -ne 0 ]; then
+		# don't attempt to remove a container that doesn't exist
+		return 0
+	fi
 	ocf_log notice "Cleaning up inactive container, ${CONTAINER}."
 	ocf_run docker rm $CONTAINER
 }
 
-docker_monitor()
+docker_simple_status()
 {
 	local val
 
@@ -185,11 +238,25 @@ docker_monitor()
 	return $OCF_NOT_RUNNING
 }
 
+docker_monitor()
+{
+	local rc=0
+
+	docker_simple_status
+	rc=$?
+
+	if [ $rc -ne 0 ]; then
+		return $rc
+	fi
+
+	monitor_cmd_exec
+}
+
 docker_start()
 {
 	local run_opts="-d --name=${CONTAINER}"
 	# check to see if the container has already started
-	docker_monitor
+	docker_simple_status
 	if [ $? -eq $OCF_SUCCESS ]; then
 		return $OCF_SUCCESS
 	fi
@@ -210,7 +277,10 @@ docker_start()
 	if ocf_is_true "$OCF_RESKEY_reuse" && container_exists; then
 		ocf_log info "starting existing container $CONTAINER."
 		ocf_run docker start $CONTAINER
-	else 
+	else
+		# make sure any previous container matching our container name is cleaned up first.
+		# we already know at this point it wouldn't be running 
+		remove_container
 		ocf_log info "running container $CONTAINER for the first time"
 		ocf_run docker run $run_opts $OCF_RESKEY_image $OCF_RESKEY_run_cmd
 	fi
@@ -220,20 +290,32 @@ docker_start()
 		return $OCF_ERR_GENERIC
 	fi
 
-	docker_monitor
-	if [ $? -ne $OCF_SUCCESS ]; then
-		ocf_exit_reason "Newly created docker container exited after start"
-		return $OCF_ERR_GENERIC
-	fi
 
-	return $OCF_SUCCESS
+	# wait for monitor to pass before declaring that the container is started
+	while true; do
+		docker_simple_status
+		if [ $? -ne $OCF_SUCCESS ]; then
+			ocf_exit_reason "Newly created docker container exited after start"
+			return $OCF_ERR_GENERIC
+		fi
+
+		monitor_cmd_exec
+		if [ $? -eq $OCF_SUCCESS ]; then
+			ocf_log notice "Container $CONTAINER  started successfully"
+			return $OCF_SUCCESS
+		fi
+
+		ocf_exit_reason "waiting on monitor_cmd to pass after start"
+		sleep 1
+	done
 }
 
 docker_stop()
 {
 	local timeout=60
-	docker_monitor
+	docker_simple_status
 	if [ $? -eq  $OCF_NOT_RUNNING ]; then
+		remove_container
 		return $OCF_SUCCESS
 	fi
 
@@ -296,6 +378,11 @@ docker_validate()
 		exit $OCF_ERR_CONFIGURED
 	fi 
 
+	if [ -n "$OCF_RESKEY_monitor_cmd" ]; then
+		ocf_log info "checking for nsenter, which is required when 'monitor_cmd' is specified"
+		check_binary nsenter
+	fi
+
 	image_exists
 	if [ $? -ne 0 ]; then
 		ocf_exit_reason "base image, ${OCF_RESKEY_image}, could not be found."
@@ -305,8 +392,16 @@ docker_validate()
 	return $OCF_SUCCESS
 }
 
-: ${OCF_RESKEY_container=${OCF_RESOURCE_INSTANCE}}
-CONTAINER=$OCF_RESKEY_container
+: ${OCF_RESKEY_name=${OCF_RESOURCE_INSTANCE}}
+
+if [ -n "$OCF_RESKEY_container" ]; then
+	# we'll keep the container attribute around for a bit in order not to break
+	# any existing deployments. The 'name' attribute is prefered now though.
+	CONTAINER=$OCF_RESKEY_container
+	ocf_log warn "The 'container' attribute is depreciated"
+else
+	CONTAINER=$OCF_RESKEY_name
+fi
 
 case $__OCF_ACTION in
 meta-data) meta_data
