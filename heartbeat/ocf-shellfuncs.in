@@ -62,11 +62,6 @@ fi
 # to make sure that ocf_is_probe() always works
 : ${OCF_RESKEY_CRM_meta_interval=0}
 
-# pacemaker sets HA_use_logd, some others use HA_LOGD :/
-if ocf_is_true "$HA_use_logd"; then
-	: ${HA_LOGD:=yes}
-fi
-
 ocf_is_root() {
 	if [ X`id -u` = X0 ]; then
 		true
@@ -836,3 +831,8 @@ __ocf_set_defaults "$@"
 
 : ${OCF_TRACE_RA:=$OCF_RESKEY_trace_ra}
 ocf_is_true "$OCF_TRACE_RA" && ocf_start_trace
+
+# pacemaker sets HA_use_logd, some others use HA_LOGD :/
+if ocf_is_true "$HA_use_logd"; then
+	: ${HA_LOGD:=yes}
+fi
