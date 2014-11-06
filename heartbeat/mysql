@@ -211,9 +211,9 @@ Additional parameters which are passed to the mysqld on startup.
 MySQL replication user. This user is used for starting and stopping
 MySQL replication, for setting and resetting the master host, and for
 setting and unsetting read-only mode. Because of that, this user must
-have SUPER, REPLICATION SLAVE, REPLICATION CLIENT, and PROCESS
-privileges on all nodes within the cluster. Mandatory if you define
-a master-slave resource.
+have SUPER, REPLICATION SLAVE, REPLICATION CLIENT, PROCESS and RELOAD
+privileges on all nodes within the cluster. Mandatory if you define a
+master-slave resource.
 </longdesc>
 <shortdesc lang="en">MySQL replication user</shortdesc>
 <content type="string" default="${OCF_RESKEY_replication_user_default}" />
