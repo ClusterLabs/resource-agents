@@ -509,7 +509,7 @@ function vg_stop_single
 
 	#  Make sure we are the owner before we strip the tags
 	vg_owner
-	if [ $? -ne 0 ]; then
+	if [ $? -eq 1 ]; then
 		strip_tags
 	fi
 
