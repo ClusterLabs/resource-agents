@@ -33,9 +33,9 @@
 #######################################################################
 
 usage() {
-  cat <<-END
+	cat <<-END
 	usage: $0 {start|stop|status|monitor|meta-data|validate-all}
-	END
+END
 }
 
 
@@ -57,7 +57,7 @@ meta_data() {
 <longdesc lang="en">
 Resource Agent for the Xen Hypervisor.
 Manages Xen virtual machine instances by mapping cluster resource
-start and stop,  to Xen create and shutdown, respectively.
+start and stop, to Xen create and shutdown, respectively.
 
 A note on names
 
@@ -181,42 +181,41 @@ END
 }
 
 Xen_Status() {
-  if expr "x$xentool" : "x.*xl" >/dev/null; then
-    $xentool list $1 >/dev/null 2>&1
-    if [ $? -ne 0 ]; then
-      return $OCF_NOT_RUNNING
-    else
-      return $OCF_SUCCESS
-    fi
-  fi
-  if have_binary xen-list; then
-     xen-list $1 2>/dev/null | grep -qs "State.*[-r][-b][-p]--" 2>/dev/null
-     if [ $? -ne 0 ]; then
-     	return $OCF_NOT_RUNNING
-     else
-     	return $OCF_SUCCESS
-     fi
-  fi
-  STATUS=`$xentool list --long $1 2>/dev/null | grep status 2>/dev/null`
-  if [ "X${STATUS}" != "X" ]; then
-    # we have Xen 3.0.4 or higher
-    STATUS_NOSPACES=`echo "$STATUS" | awk '{ print $1,$2}'`
-    if [ "$STATUS_NOSPACES" = "(status 2)" -o "$STATUS_NOSPACES" = "(status 1)" ]; then
-      return $OCF_SUCCESS
-    else
-      return $OCF_NOT_RUNNING
-    fi
-  else
-    # we have Xen 3.0.3 or lower
-    STATUS=`$xentool list --long $1 2>/dev/null | grep state 2>/dev/null`
-    echo "${STATUS}" | grep -qs "[-r][-b][-p]---"
-    if [ $? -ne 0 ]; then
-      return $OCF_NOT_RUNNING
-    else
-      return $OCF_SUCCESS
-    fi
-
-  fi
+	if expr "x$xentool" : "x.*xl" >/dev/null; then
+		$xentool list $1 >/dev/null 2>&1
+		if [ $? -ne 0 ]; then
+			return $OCF_NOT_RUNNING
+		else
+			return $OCF_SUCCESS
+		fi
+	fi
+	if have_binary xen-list; then
+		xen-list $1 2>/dev/null | grep -qs "State.*[-r][-b][-p]--" 2>/dev/null
+		if [ $? -ne 0 ]; then
+			return $OCF_NOT_RUNNING
+		else
+			return $OCF_SUCCESS
+		fi
+	fi
+	STATUS=`$xentool list --long $1 2>/dev/null | grep status 2>/dev/null`
+	if [ "X${STATUS}" != "X" ]; then
+		# we have Xen 3.0.4 or higher
+		STATUS_NOSPACES=`echo "$STATUS" | awk '{ print $1,$2}'`
+		if [ "$STATUS_NOSPACES" = "(status 2)" -o "$STATUS_NOSPACES" = "(status 1)" ]; then
+			return $OCF_SUCCESS
+		else
+			return $OCF_NOT_RUNNING
+		fi
+	else
+		# we have Xen 3.0.3 or lower
+		STATUS=`$xentool list --long $1 2>/dev/null | grep state 2>/dev/null`
+		echo "${STATUS}" | grep -qs "[-r][-b][-p]---"
+		if [ $? -ne 0 ]; then
+			return $OCF_NOT_RUNNING
+		else
+			return $OCF_SUCCESS
+		fi
+	fi
 }
 
 # If the guest is rebooting, it may completely disappear from the
@@ -226,47 +225,47 @@ Xen_Status() {
 # If a status returns not running, then test status
 # again for 5 times (perhaps it'll show up)
 Xen_Status_with_Retry() {
-  local rc cnt=5
+	local rc cnt=5
 
-  Xen_Status $1
-  rc=$?
-  while [ $rc -eq $OCF_NOT_RUNNING -a $cnt -gt 0 ]; do
-	case "$__OCF_ACTION" in
-	stop)
-	  ocf_log debug "domain $1 reported as not running, waiting $cnt seconds ..."
-	  ;;
-	monitor)
-	  ocf_log warn "domain $1 reported as not running, but it is expected to be running! Retrying for $cnt seconds ..."
-	  ;;
-	*) : not reachable
-		;;
-	esac
-	sleep 1
 	Xen_Status $1
 	rc=$?
-	let cnt=$((cnt-1))
-  done
-  return $rc
+	while [ $rc -eq $OCF_NOT_RUNNING -a $cnt -gt 0 ]; do
+		case "$__OCF_ACTION" in
+			stop)
+				ocf_log debug "domain $1 reported as not running, waiting $cnt seconds ..."
+				;;
+			monitor)
+				ocf_log warn "domain $1 reported as not running, but it is expected to be running! Retrying for $cnt seconds ..."
+				;;
+			*) : not reachable
+				;;
+		esac
+		sleep 1
+		Xen_Status $1
+		rc=$?
+		let cnt=$((cnt-1))
+	done
+	return $rc
 }
 
 Xen_Adjust_Memory() {
-    if ocf_is_true "${OCF_RESKEY_allow_mem_management}"; then
-      CNTNEW=$1
-      RUNNING=`Xen_List_running`
-      RUNCNT=`Xen_Count_running`
-      MAXMEM=`Xen_Total_Memory`
-      if [ ${RUNCNT} -eq 0 -a ${CNTNEW} -eq 0 ]; then
-	RUNCNT=1
-      fi
-      #NEWMEM=`echo "(${MAXMEM}-${OCF_RESKEY_reserved_Dom0_memory})/(${RUNCNT}+${CNTNEW})"|bc`
-      NEWMEM=$(( (${MAXMEM} - ${OCF_RESKEY_reserved_Dom0_memory}) / (${RUNCNT} + ${CNTNEW} ) ))
-      # do not rely on ballooning add dom0_mem=512 instead to force memory for dom0
-      #$xentool mem-set Domain-0 ${OCF_RESKEY_reserved_Dom0_memory}
-      for DOM in ${RUNNING}; do
-        $xentool mem-set ${DOM} ${NEWMEM}
-      done
-      ocf_log info "Adjusted memory to: $NEWMEM, for the following $RUNCNT domains: $RUNNING"
-    fi
+	if ocf_is_true "${OCF_RESKEY_allow_mem_management}"; then
+		CNTNEW=$1
+		RUNNING=`Xen_List_running`
+		RUNCNT=`Xen_Count_running`
+		MAXMEM=`Xen_Total_Memory`
+		if [ ${RUNCNT} -eq 0 -a ${CNTNEW} -eq 0 ]; then
+			RUNCNT=1
+		fi
+		#NEWMEM=`echo "(${MAXMEM}-${OCF_RESKEY_reserved_Dom0_memory})/(${RUNCNT}+${CNTNEW})"|bc`
+		NEWMEM=$(( (${MAXMEM} - ${OCF_RESKEY_reserved_Dom0_memory}) / (${RUNCNT} + ${CNTNEW} ) ))
+		# do not rely on ballooning add dom0_mem=512 instead to force memory for dom0
+		#$xentool mem-set Domain-0 ${OCF_RESKEY_reserved_Dom0_memory}
+		for DOM in ${RUNNING}; do
+			$xentool mem-set ${DOM} ${NEWMEM}
+		done
+		ocf_log info "Adjusted memory to: $NEWMEM, for the following $RUNCNT domains: $RUNNING"
+	fi
 }
 
 Xen_List_all() {
@@ -285,26 +284,26 @@ Xen_Count_running() {
 }
 
 Xen_Monitor() {
-  if ocf_is_probe; then
-	Xen_Status ${DOMAIN_NAME}
-  else
-	Xen_Status_with_Retry ${DOMAIN_NAME}
-  fi
-  if [ $? -eq ${OCF_NOT_RUNNING} ]; then
-	ocf_is_probe ||
-	  ocf_log err "Xen domain $DOMAIN_NAME stopped"
-	return ${OCF_NOT_RUNNING}
-  fi
-  if [ "X${OCF_RESKEY_monitor_scripts}" = "X" ]; then
-	return ${OCF_SUCCESS}
-  fi
-  for SCRIPT in ${OCF_RESKEY_monitor_scripts}; do
-	$SCRIPT
-	if [ $? -ne 0 ]; then
-		return ${OCF_ERR_GENERIC}
+	if ocf_is_probe; then
+		Xen_Status ${DOMAIN_NAME}
+	else
+		Xen_Status_with_Retry ${DOMAIN_NAME}
 	fi
-  done
-  return ${OCF_SUCCESS}
+	if [ $? -eq ${OCF_NOT_RUNNING} ]; then
+		ocf_is_probe ||
+		ocf_log err "Xen domain $DOMAIN_NAME stopped"
+		return ${OCF_NOT_RUNNING}
+	fi
+	if [ "X${OCF_RESKEY_monitor_scripts}" = "X" ]; then
+		return ${OCF_SUCCESS}
+	fi
+	for SCRIPT in ${OCF_RESKEY_monitor_scripts}; do
+		$SCRIPT
+		if [ $? -ne 0 ]; then
+			return ${OCF_ERR_GENERIC}
+		fi
+	done
+	return ${OCF_SUCCESS}
 }
 
 Xen_Total_Memory() {
@@ -312,181 +311,183 @@ Xen_Total_Memory() {
 }
 
 Xen_Start() {
-  if Xen_Status ${DOMAIN_NAME}; then
-    ocf_log info "Xen domain $DOMAIN_NAME already running."
-    return $OCF_SUCCESS
-  fi
+	if Xen_Status ${DOMAIN_NAME}; then
+		ocf_log info "Xen domain $DOMAIN_NAME already running."
+		return $OCF_SUCCESS
+	fi
 
-  if [ ! -f "${OCF_RESKEY_xmfile}" ]; then
-    ocf_log err "Config file ${OCF_RESKEY_xmfile} for $DOMAIN_NAME does not exist."
-    return $OCF_ERR_INSTALLED
-  fi
+	if [ ! -f "${OCF_RESKEY_xmfile}" ]; then
+		ocf_log err "Config file ${OCF_RESKEY_xmfile} for $DOMAIN_NAME does not exist."
+		return $OCF_ERR_INSTALLED
+	fi
 
-  if ocf_is_true "${OCF_RESKEY_allow_mem_management}"; then
-    Xen_Adjust_Memory 1
-    ocf_log info "New memory for virtual domains: ${NEWMEM}"
-    sed -i -e "/^memory=/ s/^memory=.*/memory=${NEWMEM}/" ${OCF_RESKEY_xmfile}
-    $xentool mem-set ${DOMAIN_NAME} ${NEWMEM}
-  fi
+	if ocf_is_true "${OCF_RESKEY_allow_mem_management}"; then
+		Xen_Adjust_Memory 1
+		ocf_log info "New memory for virtual domains: ${NEWMEM}"
+		sed -i -e "/^memory=/ s/^memory=.*/memory=${NEWMEM}/" ${OCF_RESKEY_xmfile}
+		$xentool mem-set ${DOMAIN_NAME} ${NEWMEM}
+	fi
 
-  $xentool create ${OCF_RESKEY_xmfile} name=\"$DOMAIN_NAME\"
-  rc=$?
-  if [ $rc -ne 0 ]; then
-    return $OCF_ERR_GENERIC
-  else
-    if ocf_is_true "${OCF_RESKEY_allow_mem_management}"; then
-      $xentool mem-set ${DOMAIN_NAME} ${NEWMEM}
-    fi
-  fi
-  while sleep 1; do
-    Xen_Monitor && return $OCF_SUCCESS
-  done
+	$xentool create ${OCF_RESKEY_xmfile} name=\"$DOMAIN_NAME\"
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		return $OCF_ERR_GENERIC
+	else
+		if ocf_is_true "${OCF_RESKEY_allow_mem_management}"; then
+			$xentool mem-set ${DOMAIN_NAME} ${NEWMEM}
+		fi
+	fi
+	while sleep 1; do
+		Xen_Monitor && return $OCF_SUCCESS
+	done
 }
 
 xen_domain_stop() {
-    local dom=$1
-    local timeout
+	local dom=$1
+	local timeout
 
-    if [ -n "$OCF_RESKEY_shutdown_timeout" ]; then
-      timeout=$OCF_RESKEY_shutdown_timeout
-    elif [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
-      # Allow 2/3 of the action timeout for the orderly shutdown
-      # (The origin unit is ms, hence the conversion)
-      timeout=$((OCF_RESKEY_CRM_meta_timeout/1500))
-    else
-      timeout=60
-    fi
+	if [ -n "$OCF_RESKEY_shutdown_timeout" ]; then
+		timeout=$OCF_RESKEY_shutdown_timeout
+	elif [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+		# Allow 2/3 of the action timeout for the orderly shutdown
+		# (The origin unit is ms, hence the conversion)
+		timeout=$((OCF_RESKEY_CRM_meta_timeout/1500))
+	else
+		timeout=60
+	fi
 
-    if [ "$timeout" -gt 0 ]; then
-      ocf_log info "Xen domain $dom will be stopped (timeout: ${timeout}s)"
-      if ocf_is_true "${OCF_RESKEY_shutdown_acpi}"; then
-        $xentool trigger $dom power
-      else
-        $xentool shutdown $dom
-      fi
+	if [ "$timeout" -gt 0 ]; then
+		ocf_log info "Xen domain $dom will be stopped (timeout: ${timeout}s)"
+		if ocf_is_true "${OCF_RESKEY_shutdown_acpi}"; then
+			$xentool trigger $dom power
+		else
+			$xentool shutdown $dom
+		fi
 
-      while Xen_Status $dom && [ "$timeout" -gt 0 ]; do
-        ocf_log debug "$dom still not stopped. Waiting..."
-        timeout=$((timeout-1))
-        sleep 1
-      done
-    fi
+		while Xen_Status $dom && [ "$timeout" -gt 0 ]; do
+			ocf_log debug "$dom still not stopped. Waiting..."
+			timeout=$((timeout-1))
+			sleep 1
+		done
+	fi
 
-    if [ "$timeout" -eq 0 ]; then
-      while Xen_Status $dom; do
-        ocf_log warn "Xen domain $dom will be destroyed!"
-	$xenkill $dom
-        sleep 1
-      done
-      # Note: This does not give up. stop isn't allowed to to fail.
-      # If $xentool destroy fails, stop will eventually timeout.
-      # This is the correct behaviour.
-    fi
+	if [ "$timeout" -eq 0 ]; then
+		while Xen_Status $dom; do
+			ocf_log warn "Xen domain $dom will be destroyed!"
+			$xenkill $dom
+			sleep 1
+		done
+		# Note: This does not give up. stop isn't allowed to to fail.
+		# If $xentool destroy fails, stop will eventually timeout.
+		# This is the correct behaviour.
+	fi
 
-    ocf_log info "Xen domain $dom stopped."
+	ocf_log info "Xen domain $dom stopped."
 }
 
 Xen_Stop() {
-  local vm
-  if Xen_Status_with_Retry ${DOMAIN_NAME}; then
-    vm=${DOMAIN_NAME}
-  elif Xen_Status migrating-${DOMAIN_NAME}; then
-    ocf_log info "Xen domain $DOMAIN_NAME is migrating"
-    vm="migrating-${DOMAIN_NAME}"
-  else
-    ocf_log info "Xen domain $DOMAIN_NAME already stopped."
-  fi
+	local vm
+	if Xen_Status_with_Retry ${DOMAIN_NAME}; then
+		vm=${DOMAIN_NAME}
+	elif Xen_Status migrating-${DOMAIN_NAME}; then
+		ocf_log info "Xen domain $DOMAIN_NAME is migrating"
+		vm="migrating-${DOMAIN_NAME}"
+	else
+		ocf_log info "Xen domain $DOMAIN_NAME already stopped."
+	fi
 
-  if [ "$vm" ]; then
-    xen_domain_stop $vm
-  else
-  # It is supposed to be gone, but there have been situations where
-  # $xentool list / xen-list showed it as stopped but it was still
-  # instantiated. Nuke it once more to make sure:
-    $xenkill ${DOMAIN_NAME}
-  fi
+	if [ "$vm" ]; then
+		xen_domain_stop $vm
+	else
+		# It is supposed to be gone, but there have been situations where
+		# $xentool list / xen-list showed it as stopped but it was still
+		# instantiated. Nuke it once more to make sure:
+		$xenkill ${DOMAIN_NAME}
+	fi
 
-  Xen_Adjust_Memory 0
-  return $OCF_SUCCESS
+	Xen_Adjust_Memory 0
+	return $OCF_SUCCESS
 }
 
 Xen_Migrate_To() {
-  target_node="$OCF_RESKEY_CRM_meta_migrate_target"
-  target_attr="$OCF_RESKEY_node_ip_attribute"
-  target_addr="$target_node"
+	target_node="$OCF_RESKEY_CRM_meta_migrate_target"
+	target_attr="$OCF_RESKEY_node_ip_attribute"
+	target_addr="$target_node"
 
-  if Xen_Status ${DOMAIN_NAME}; then
-    ocf_log info "$DOMAIN_NAME: Starting $xentool migrate to $target_node"
+	if Xen_Status ${DOMAIN_NAME}; then
+		ocf_log info "$DOMAIN_NAME: Starting $xentool migrate to $target_node"
 
-    if [ -n "$target_attr" ]; then
-	  nodevalue=`crm_attribute --type nodes --node-uname $target_node --attr-name $target_attr --get-value -q`
-	  if [ -n "${nodevalue}" -a "${nodevalue}" != "(null)" ]; then
-	  	target_addr="$nodevalue"
-		ocf_log info "$DOMAIN_NAME: $target_node is using address $target_addr"
-	  fi
-    fi
+		if [ -n "$target_attr" ]; then
+			nodevalue=`crm_attribute --type nodes --node-uname $target_node --attr-name $target_attr --get-value -q`
+			if [ -n "${nodevalue}" -a "${nodevalue}" != "(null)" ]; then
+				target_addr="$nodevalue"
+				ocf_log info "$DOMAIN_NAME: $target_node is using address $target_addr"
+			fi
+		fi
 
-    if expr "x$xentool" : "x.*xm" >/dev/null; then
-        $xentool migrate --live $DOMAIN_NAME $target_addr
-    else
-        $xentool migrate $DOMAIN_NAME $target_addr
-    fi
-    rc=$?
-    if [ $rc -ne 0 ]; then
-      ocf_log err "$DOMAIN_NAME: $xentool migrate to $target_node failed: $rc"
-      return $OCF_ERR_GENERIC
-    else
-      Xen_Adjust_Memory 0
-      ocf_log info "$DOMAIN_NAME: $xentool migrate to $target_node succeeded."
-      return $OCF_SUCCESS
-    fi
-  else
-    ocf_log err "$DOMAIN_NAME: migrate_to: Not active locally!"
-    return $OCF_ERR_GENERIC
-  fi
+		if expr "x$xentool" : "x.*xm" >/dev/null; then
+			$xentool migrate --live $DOMAIN_NAME $target_addr
+		else
+			$xentool migrate $DOMAIN_NAME $target_addr
+		fi
+		rc=$?
+		if [ $rc -ne 0 ]; then
+			ocf_log err "$DOMAIN_NAME: $xentool migrate to $target_node failed: $rc"
+			return $OCF_ERR_GENERIC
+		else
+			Xen_Adjust_Memory 0
+			ocf_log info "$DOMAIN_NAME: $xentool migrate to $target_node succeeded."
+			return $OCF_SUCCESS
+		fi
+	else
+		ocf_log err "$DOMAIN_NAME: migrate_to: Not active locally!"
+		return $OCF_ERR_GENERIC
+	fi
 }
 
 Xen_Migrate_From() {
-  if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
-      # Allow 2/3 of the action timeout for status to stabilize
-      # (The origin unit is ms, hence the conversion)
-      timeout=$((OCF_RESKEY_CRM_meta_timeout/1500))
-  else
-      timeout=10		# should be plenty
-  fi
+	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+		# Allow 2/3 of the action timeout for status to stabilize
+		# (The origin unit is ms, hence the conversion)
+		timeout=$((OCF_RESKEY_CRM_meta_timeout/1500))
+	else
+		timeout=10		# should be plenty
+	fi
 
-  while ! Xen_Status ${DOMAIN_NAME} && [ $timeout -gt 0 ]; do
-    ocf_log debug "$DOMAIN_NAME: Not yet active locally, waiting (timeout: ${timeout}s)"
-    timeout=$((timeout-1))
-    sleep 1
-  done
+	while ! Xen_Status ${DOMAIN_NAME} && [ $timeout -gt 0 ]; do
+		ocf_log debug "$DOMAIN_NAME: Not yet active locally, waiting (timeout: ${timeout}s)"
+		timeout=$((timeout-1))
+		sleep 1
+	done
 
-  if Xen_Status ${DOMAIN_NAME}; then
-    Xen_Adjust_Memory 0
-    ocf_log info "$DOMAIN_NAME: Active locally, migration successful"
-    return $OCF_SUCCESS
-  else
-    ocf_log err "$DOMAIN_NAME: Not active locally, migration failed!"
-    return $OCF_ERR_GENERIC
-  fi
+	if Xen_Status ${DOMAIN_NAME}; then
+		Xen_Adjust_Memory 0
+		ocf_log info "$DOMAIN_NAME: Active locally, migration successful"
+		return $OCF_SUCCESS
+	else
+		ocf_log err "$DOMAIN_NAME: Not active locally, migration failed!"
+		return $OCF_ERR_GENERIC
+	fi
 }
 
 Xen_Validate_All() {
-  return $OCF_SUCCESS
+	return $OCF_SUCCESS
 }
 
 if [ $# -ne 1 ]; then
-  usage
-  exit $OCF_ERR_ARGS
+	usage
+	exit $OCF_ERR_ARGS
 fi
 
 case $1 in
-  meta-data)		meta_data
-			exit $OCF_SUCCESS
-			;;
-  usage)		usage
-			exit $OCF_SUCCESS
-			;;
+	meta-data)
+		meta_data
+		exit $OCF_SUCCESS
+		;;
+	usage)
+		usage
+		exit $OCF_SUCCESS
+		;;
 esac
 
 # the name business:
@@ -509,13 +510,13 @@ else
 fi
 
 for binary in sed awk; do
-    check_binary $binary
+	check_binary $binary
 done
 
 if have_binary xen-destroy ; then
-  xenkill="xen-destroy"
+	xenkill="xen-destroy"
 else
-  xenkill="$xentool destroy"
+	xenkill="$xentool destroy"
 fi
 
 if [ -n "$OCF_RESKEY_shutdown_timeout" ]; then
@@ -526,23 +527,31 @@ if [ -n "$OCF_RESKEY_shutdown_timeout" ]; then
 fi
 
 case $1 in
-  start)		Xen_Start
-			;;
-  stop)			Xen_Stop
-			;;
-  migrate_to)		Xen_Migrate_To
-			;;
-  migrate_from)		Xen_Migrate_From
-			;;
-  monitor)		Xen_Monitor
-			;;
-  status)		Xen_Status ${DOMAIN_NAME}
-			;;
-  validate-all)		Xen_Validate_All
-			;;
-  *)			usage
-			exit $OCF_ERR_UNIMPLEMENTED
-			;;
+	start)
+		Xen_Start
+		;;
+	stop)
+		Xen_Stop
+		;;
+	migrate_to)
+		Xen_Migrate_To
+		;;
+	migrate_from)
+		Xen_Migrate_From
+		;;
+	monitor)
+		Xen_Monitor
+		;;
+	status)
+		Xen_Status ${DOMAIN_NAME}
+		;;
+	validate-all)
+		Xen_Validate_All
+		;;
+	*)
+		usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
 esac
 exit $?
 # vim:sw=2:ts=4:
