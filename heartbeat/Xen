@@ -181,6 +181,14 @@ END
 }
 
 Xen_Status() {
+  if expr "x$xentool" : "x.*xl" >/dev/null; then
+    $xentool list $1 >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+      return $OCF_NOT_RUNNING
+    else
+      return $OCF_SUCCESS
+    fi
+  fi
   if have_binary xen-list; then
      xen-list $1 2>/dev/null | grep -qs "State.*[-r][-b][-p]--" 2>/dev/null
      if [ $? -ne 0 ]; then
@@ -188,14 +196,6 @@ Xen_Status() {
      else
      	return $OCF_SUCCESS
      fi
-  fi
-  if have_binary xenstore-ls; then
-	  xenstore-ls -f /vm | grep -E "/vm.*name = \"$1\"" > /dev/null 2>&1
-	  if [ $? -ne 0 ]; then
-		  return $OCF_NOT_RUNNING
-	  else
-		  return $OCF_SUCCESS
-	  fi
   fi
   STATUS=`$xentool list --long $1 2>/dev/null | grep status 2>/dev/null`
   if [ "X${STATUS}" != "X" ]; then
@@ -426,7 +426,7 @@ Xen_Migrate_To() {
 	  fi
     fi
 
-    if [[ "$xentool" == *xm ]]; then
+    if expr "x$xentool" : "x.*xm" >/dev/null; then
         $xentool migrate --live $DOMAIN_NAME $target_addr
     else
         $xentool migrate $DOMAIN_NAME $target_addr
