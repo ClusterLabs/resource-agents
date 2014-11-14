@@ -82,6 +82,9 @@ meta_data() {
 Resource script for MySQL.
 May manage a standalone MySQL database, a clone set with externally
 managed replication, or a complete master/slave replication setup.
+Note, when master/slave replication is in use, the resource must
+be setup to use notifications. Set 'notify=true' in the metadata
+attributes when defining a MySQL master/slave instance.
 
 While managing replication, the default behavior is to use uname -n 
 values in the change master to command.  Other IPs can be specified 
