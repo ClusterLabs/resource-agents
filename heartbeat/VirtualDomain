@@ -226,7 +226,8 @@ update_utilization() {
 get_emulator()
 {
 	local emulator=""
-	local loglevel="error"
+	# An emulator is not required, so only report message in debug mode
+	local loglevel="debug"
 
 	if ocf_is_probe; then
 		loglevel="notice"
@@ -281,11 +282,17 @@ pid_status()
 		# This can be expanded to check for additional emulators
 		*)
 			# We may be running xen with PV domains, they don't
-			# have an emulator set. try xenstore-ls in this case
-			if have_binary xenstore-ls; then
-				xenstore-ls -f /vm | grep -E "/vm.*name = \"$DOMAIN_NAME\"" > /dev/null 2>&1
+			# have an emulator set. try xl list or xen-lists
+			if have_binary xl; then
+				xl list $DOMAIN_NAME >/dev/null 2>&1
 				if [ $? -eq 0 ]; then
-					rc=$OCF_SUCCESS
+					return $OCF_SUCCESS
+				fi
+			fi
+			if have_binary xen-list; then
+				xen-list $DOMAIN_NAME 2>/dev/null | grep -qs "State.*[-r][-b][-p]--" 2>/dev/null
+				if [ $? -eq 0 ]; then
+					return $OCF_SUCCESS
 				fi
 			fi
 			;;
