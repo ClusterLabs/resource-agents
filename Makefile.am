@@ -60,7 +60,7 @@ if BUILD_RGMANAGER
 if BUILD_LINUX_HA
 	$(LN_S) ${CLUSTERDATA} $(DESTDIR)${OCF_RA_DIR_PREFIX}/redhat
 endif
-	$(INSTALL) -d $(DESTDIR)/$(LOGDIR)
+	$(INSTALL) -d $(DESTDIR)$(LOGDIR)
 endif
 
 dist-clean-local:

@@ -239,7 +239,7 @@ AC_SUBST(INITDIR)
 if test "${prefix}" = "/usr"; then
  INITDIRPREFIX="$INITDIR" 
 else
- INITDIRPREFIX="${prefix}/$INITDIR"
+ INITDIRPREFIX="${prefix}$INITDIR"
 fi
 
 AC_SUBST(INITDIRPREFIX)

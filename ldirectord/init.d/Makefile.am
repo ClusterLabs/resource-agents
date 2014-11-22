@@ -25,7 +25,7 @@ initd_SCRIPTS	        = ldirectord
 
 install-initdSCRIPTS: $(initd_SCRIPTS)
 	@$(NORMAL_INSTALL)
-	$(mkinstalldirs) $(DESTDIR)$(initddir)
+	$(MKDIR_P) $(DESTDIR)$(initddir)
 	@list='$(initd_SCRIPTS)'; for p in $$list; do \
 	  f="`echo $$p|sed '$(transform)'`"; \
 	  if test -f $$p; then \

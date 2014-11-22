@@ -37,7 +37,7 @@ harddir			= $(sysconfdir)/ha.d/resource.d
 
 .PHONY: install-exec-hook
 install-exec-hook:
-	$(mkinstalldirs) $(DESTDIR)$(harddir)
+	$(MKDIR_P) $(DESTDIR)$(harddir)
 	cd $(DESTDIR)$(harddir) && ln -s -f $(sbindir)/ldirectord .
 
 .PHONY: uninstall-hook
