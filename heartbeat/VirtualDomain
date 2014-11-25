@@ -284,15 +284,16 @@ pid_status()
 			# We may be running xen with PV domains, they don't
 			# have an emulator set. try xl list or xen-lists
 			if have_binary xl; then
+				rc=$OCF_NOT_RUNNING
 				xl list $DOMAIN_NAME >/dev/null 2>&1
 				if [ $? -eq 0 ]; then
-					return $OCF_SUCCESS
+					rc=$OCF_SUCCESS
 				fi
-			fi
-			if have_binary xen-list; then
+			elif have_binary xen-list; then
+				rc=$OCF_NOT_RUNNING
 				xen-list $DOMAIN_NAME 2>/dev/null | grep -qs "State.*[-r][-b][-p]--" 2>/dev/null
 				if [ $? -eq 0 ]; then
-					return $OCF_SUCCESS
+					rc=$OCF_SUCCESS
 				fi
 			fi
 			;;
