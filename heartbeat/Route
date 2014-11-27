@@ -87,7 +87,7 @@ the system default route.
 <content type="string" />
 </parameter>
 
-<parameter name="device" unique="1">
+<parameter name="device" unique="0">
 <longdesc lang="en">
 The outgoing network device to use for this route.
 </longdesc>
@@ -95,7 +95,7 @@ The outgoing network device to use for this route.
 <content type="string" default="" />
 </parameter>
 
-<parameter name="gateway" unique="1">
+<parameter name="gateway" unique="0">
 <longdesc lang="en">
 The gateway IP address to use for this route.
 </longdesc>
@@ -103,7 +103,7 @@ The gateway IP address to use for this route.
 <content type="string" default="" />
 </parameter>
 
-<parameter name="source" unique="1">
+<parameter name="source" unique="0">
 <longdesc lang="en">
 The source IP address to be configured for the route.
 </longdesc>
