@@ -23,7 +23,7 @@ OCF_RESKEY_autoset_utilization_hv_memory_default="true"
 OCF_RESKEY_migrateport_default=$(( 49152 + $(ocf_maybe_random) % 64 ))
 OCF_RESKEY_CRM_meta_timeout_default=90000
 OCF_RESKEY_save_config_on_stop_default=false
-OCF_RESKEY_sync_config_on_save_default=false
+OCF_RESKEY_sync_config_on_stop_default=false
 
 : ${OCF_RESKEY_force_stop=${OCF_RESKEY_force_stop_default}}
 : ${OCF_RESKEY_autoset_utilization_cpu=${OCF_RESKEY_autoset_utilization_cpu_default}}
@@ -31,7 +31,11 @@ OCF_RESKEY_sync_config_on_save_default=false
 : ${OCF_RESKEY_migrateport=${OCF_RESKEY_migrateport_default}}
 : ${OCF_RESKEY_CRM_meta_timeout=${OCF_RESKEY_CRM_meta_timeout_default}}
 : ${OCF_RESKEY_save_config_on_stop=${OCF_RESKEY_save_config_on_stop_default}}
-: ${OCF_RESKEY_sync_config_on_save=${OCF_RESKEY_sync_config_on_save_default}}
+: ${OCF_RESKEY_sync_config_on_stop=${OCF_RESKEY_sync_config_on_stop_default}}
+
+if ocf_is_true ${OCF_RESKEY_sync_config_on_stop}; then
+	OCF_RESKEY_save_config_on_stop="true"
+fi
 #######################################################################
 
 ## I'd very much suggest to make this RA use bash,
@@ -163,9 +167,10 @@ This parameter instructs the RA to save the configuration back to the xml file p
 <content type="boolean" />
 </parameter>
 
-<parameter name="sync_config_on_save" unique="0" required="0">
+<parameter name="sync_config_on_stop" unique="0" required="0">
 <longdesc lang="en">
-When save_config_on_stop is enabled this parameter instructs the RA to 
+Setting this automatically enables save_config_on_stop. 
+When enabled this parameter instructs the RA to 
 call csync2 -x to synchronize the file to all nodes.
 csync2 must be properly set up for this to work.
 </longdesc>
@@ -438,7 +443,9 @@ force_stop()
 
 sync_config(){
 	ocf_log info "Syncing $DOMAIN_NAME config file with csync2 -x ${OCF_RESKEY_config}"
-	csync2 -x ${OCF_RESKEY_config}
+	if ! csync2 -x ${OCF_RESKEY_config}; then
+		ocf_log warn "Syncing ${OCF_RESKEY_config} failed."; 
+	fi
 }
 
 save_config(){
@@ -449,7 +456,7 @@ save_config(){
 			ocf_log info "Saving domain $DOMAIN_NAME to ${OCF_RESKEY_config}. Please make sure it's present on all nodes."
 			if cat ${CFGTMP} > ${OCF_RESKEY_config} ; then
 				ocf_log info "Saved $DOMAIN_NAME domain's configuration to ${OCF_RESKEY_config}."
-				if ocf_is_true "$OCF_RESKEY_sync_config_on_save"; then	
+				if ocf_is_true "$OCF_RESKEY_sync_config_on_stop"; then	
 					sync_config
 				fi
 			else	
@@ -677,6 +684,11 @@ VirtualDomain_Validate_All() {
 			ocf_log error "Configuration file $OCF_RESKEY_config does not exist or is not readable."
 			return $OCF_ERR_INSTALLED
 		fi
+	fi
+
+	# Check if csync2 is available when config tells us we might need it.
+	if ocf_is_true $OCF_RESKEY_sync_config_on_stop; then
+		check_binary csync2; 
 	fi
 }
 
