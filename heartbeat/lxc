@@ -297,7 +297,6 @@ LXC_validate() {
 
 	    check_binary lxc-start
 	    check_binary lxc-stop
-	    check_binary lxc-ps
 	    check_binary lxc-info
 	fi
 	return $OCF_SUCCESS
