@@ -45,14 +45,90 @@ getnetworkinfo()
   echo $line)
 }
 
+# previous versions of the IPaddr2 resource agent used to accept a netmask
+# in dotted quad notation (and convert to cidr notation implicitly; possibly
+# with warnings nobody ever noticed)
+# We can do so here as well.
+maybe_convert_dotted_quad_to_cidr()
+{
+	# does this even look like a dotted quad notation?
+	case $netmask in
+	# invalid if it contains other than digits and dots
+	# invalid if it contains adjacent dots,
+	#   or starts or ends with a dot
+	#   or more than three dots
+	#   or more than three digits in a row
+	*[!0-9.]* | *..* | *.*.*.*.* | .* | *. | *[0-9][0-9][0-9][0-9]* )
+		return ;;
+
+	# do we have three dots?
+	# component range check on <= 255 is done below
+	*.*.*.*) : ;;
+
+	*)	return ;;
+	esac
+
+	local IFS=.
+	set -- $netmask
+	[ $# = 4 ] || return;
+
+	local b m=0 mask;
+	for b ; do
+		[ $b -le 255 ] || return;
+		m=$(( (m << 8) + b ));
+	done;
+	case $m in
+	# for i in `seq 32 -1 0`; do printf "%10u) netmask=$i ;;\n" $(( ((1 << i)-1) << (32 - i) )); done
+        4294967295) mask=32 ;;
+        4294967294) mask=31 ;;
+        4294967292) mask=30 ;;
+        4294967288) mask=29 ;;
+        4294967280) mask=28 ;;
+        4294967264) mask=27 ;;
+        4294967232) mask=26 ;;
+        4294967168) mask=25 ;;
+        4294967040) mask=24 ;;
+        4294966784) mask=23 ;;
+        4294966272) mask=22 ;;
+        4294965248) mask=21 ;;
+        4294963200) mask=20 ;;
+        4294959104) mask=19 ;;
+        4294950912) mask=18 ;;
+        4294934528) mask=17 ;;
+        4294901760) mask=16 ;;
+        4294836224) mask=15 ;;
+        4294705152) mask=14 ;;
+        4294443008) mask=13 ;;
+        4293918720) mask=12 ;;
+        4292870144) mask=11 ;;
+        4290772992) mask=10 ;;
+        4286578688) mask=9 ;;
+        4278190080) mask=8 ;;
+        4261412864) mask=7 ;;
+        4227858432) mask=6 ;;
+        4160749568) mask=5 ;;
+        4026531840) mask=4 ;;
+        3758096384) mask=3 ;;
+        3221225472) mask=2 ;;
+        2147483648) mask=1 ;;
+                 0) mask=0 ;;
+		 *) ocf_log err "Bogus netmask: $netmask" ; return ;;
+	esac
+	ocf_log warn "Please convert dotted quad netmask $netmask to CIDR notation $mask!"
+	netmask=$mask
+}
+
 findif_check_params()
 {
   local family="$1"
   local match="$OCF_RESKEY_ip"
   local nic="$OCF_RESKEY_nic"
-  local netmask="$OCF_RESKEY_cidr_netmask"
+  # netmask NOT local, see maybe_convert_dotted_quad_to_cidr
+        netmask="$OCF_RESKEY_cidr_netmask"
   local brdcast="$OCF_RESKEY_broadcast"
   local errmsg
+
+  maybe_convert_dotted_quad_to_cidr
 
   # Do a sanity check only on start and validate-all
   # to avoid returning OCF_ERR_CONFIGURED from the monitor operation.
