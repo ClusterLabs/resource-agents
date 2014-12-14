@@ -466,7 +466,7 @@ prepare_directory ()
 	[ -f "$fp/xtab" ] || touch "$fp/xtab"
 	[ -f "$fp/rmtab" ] || touch "$fp/rmtab"
 
-	dd if=/dev/urandom of=$fp/$STATD_DIR/state bs=1 count=4 &> /dev/null
+	dd if=/dev/urandom of=$fp/$STATD_DIR/state bs=1 count=4 >/dev/null 2>&1
 	[ -n "`id -u rpcuser`" -a "`id -g rpcuser`" ] && chown rpcuser.rpcuser "$fp/$STATD_DIR/state"
 	[ $SELINUX_ENABLED -eq 0 ] && chcon -R "$SELINUX_LABEL" "$fp"
 }
@@ -546,15 +546,15 @@ locking_start()
 
 terminate()
 {
-	declare pids
-	declare i=0
+	local pids
+	local i=0
 
 	while : ; do
 		pids=$(binary_status $1)
 		[ -z "$pids" ] && return 0
 	 	kill $pids
 		sleep 1
-		((i++))
+		i=$((i + 1))
 		[ $i -gt 3 ] && return 1
 	done
 }
@@ -562,22 +562,22 @@ terminate()
 
 killkill()
 {
-	declare pids
-	declare i=0
+	local pids
+	local i=0
 
 	while : ; do
 		pids=$(binary_status $1)
 		[ -z "$pids" ] && return 0
 	 	kill -9 $pids
 		sleep 1
-		((i++))
+		i=$((i + 1))
 		[ $i -gt 3 ] && return 1
 	done
 }
 
 stop_process()
 {
-	declare process=$1
+	local process=$1
 
 	ocf_log info "Stopping $process"
 	if terminate $process; then
