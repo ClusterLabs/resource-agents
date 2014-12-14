@@ -234,7 +234,7 @@ get_emulator()
 	fi
 
 	emulator=$(virsh $VIRSH_OPTIONS dumpxml $DOMAIN_NAME 2>/dev/null | sed -n -e 's/^.*<emulator>\(.*\)<\/emulator>.*$/\1/p')
-	if [ -z "$emulator" ] && [ -a "$EMULATOR_STATE" ]; then
+	if [ -z "$emulator" ] && [ -e "$EMULATOR_STATE" ]; then
 		emulator=$(cat $EMULATOR_STATE)
 	fi
 	if [ -z "$emulator" ]; then
