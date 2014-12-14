@@ -243,7 +243,7 @@ Xen_Status_with_Retry() {
 		sleep 1
 		Xen_Status $1
 		rc=$?
-		let cnt=$((cnt-1))
+		cnt=$((cnt-1))
 	done
 	return $rc
 }
