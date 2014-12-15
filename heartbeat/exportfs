@@ -354,7 +354,7 @@ cleanup_export_cache() {
 		ocf_log info "Cleanup export cache ... (try $i)"
 		ocf_run exportfs -f
 		sleep 0.5
-		let i=$i+1
+		i=$((i + 1))
 	done
 }
 unexport_one() {

@@ -308,12 +308,12 @@ dhcpd_initialize_chroot() {
     if test -x /usr/bin/ldd ; then
 	get_ldd_deps()
 	{
-	    ldd_wl="\/$libdir\/lib"
-	    ldd_bl="\/$libdir\/libc\."
+	    ldd_wl="/$libdir/lib"
+	    ldd_bl="/$libdir/libc\."
 	    /usr/bin/ldd "$1" | while read a b c d ; do
 		[ -n "$c" ] || continue
-		[[ $c =~ $ldd_wl ]] || continue
-		[[ $c =~ $ldd_bl ]] && continue
+		echo "$c" | grep -q "$ldd_wl" || continue
+		echo "$c" | grep -q "$ldd_bl" && continue
 		echo $c
 	    done
 	}
