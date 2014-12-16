@@ -545,7 +545,7 @@ status_oracle() {
 
 case $1 in
 	meta-data)
-		cat `echo $0 | sed 's/^\(.*\)\.sh$/\1.metadata/'`
+		cat ${0/.sh/.metadata}
 		exit 0
 		;;
 	start)

@@ -94,7 +94,7 @@ fi
 # This one doesn't need to pass the verify check
 case $1 in
     meta-data)
-	cat `echo $0 | sed 's/^\(.*\)\.sh$/\1.metadata/'` && exit 0
+	cat ${0/.sh/.metadata}
 	exit $OCF_ERR_GENERIC
 	;;
 esac
