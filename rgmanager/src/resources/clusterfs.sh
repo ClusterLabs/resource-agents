@@ -224,7 +224,7 @@ verify_options()
 	#
 	# From mount(8)
 	#
-	for o in `echo $OCF_RESKEY_options | sed -e s/,/\ /g`; do
+	for o in ${OCF_RESKEY_options//,/ }; do
 		case $o in
 		async|atime|auto|defaults|dev|exec|_netdev|noatime)
 			continue
@@ -325,9 +325,11 @@ do_force_unmount() {
 		service nfs start
 		service nfslock start
 		echo "$nfsexports" | { while read line; do
-			nfsexp=$(echo $line | awk '{print $1}')
-			nfsopts=$(echo $line | sed -e 's#.*(##g' -e 's#).*##g')
-			nfsacl=$(echo $line | awk '{print $2}' | sed -e 's#(.*##g')
+			nfsexp=${line%% *}
+			parop=${line//*\(}
+			nfsopts=${parop%%\)*}
+			op=${line/* }
+			nfsacl=${op%%\(*}
 			if [ -n "$nfsopts" ]; then
 				exportfs -i -o "$nfsopts" "$nfsacl":$nfsexp
 			else
