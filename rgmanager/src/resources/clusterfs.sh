@@ -326,9 +326,9 @@ do_force_unmount() {
 		service nfslock start
 		echo "$nfsexports" | { while read line; do
 			nfsexp=${line%% *}
-			parop=${line//*\(}
+			parop=${line##*\(}
 			nfsopts=${parop%%\)*}
-			op=${line/* }
+			op=${line#* }
 			nfsacl=${op%%\(*}
 			if [ -n "$nfsopts" ]; then
 				exportfs -i -o "$nfsopts" "$nfsacl":$nfsexp
