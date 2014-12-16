@@ -383,10 +383,10 @@ do_nfs_rpc_check() {
 	# we find something.
 
 	for o in ${OCF_RESKEY_options//,/ }; do
-		if [[ $o =~ ^proto= ]]; then
+		if [ ${o%%=*} == proto ]; then
 			nfsproto="${o/*=}}"
 		fi
-		if [[ $o =~ ^mountproto= ]]; then
+		if [ ${o%%=*} == mountproto ]; then
 			nfsmountproto="${o/*=}"
 		fi
 		case $o in
