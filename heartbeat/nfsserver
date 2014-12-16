@@ -460,7 +460,8 @@ prepare_directory ()
 	[ -d "$fp/$STATD_DIR/sm" ] || mkdir -p "$fp/$STATD_DIR/sm"
 	[ -d "$fp/$STATD_DIR/sm.ha" ] || mkdir -p "$fp/$STATD_DIR/sm.ha"
 	[ -d "$fp/$STATD_DIR/sm.bak" ] || mkdir -p "$fp/$STATD_DIR/sm.bak"
-	[ -n "`id -u rpcuser`" -a "`id -g rpcuser`" ] && chown -R rpcuser.rpcuser "$fp/$STATD_DIR"
+	[ -n "`id -u rpcuser 2>/dev/null`" -a "`id -g rpcuser 2>/dev/null`" ] &&
+		chown -R rpcuser.rpcuser "$fp/$STATD_DIR"
 
 	[ -f "$fp/etab" ] || touch "$fp/etab"
 	[ -f "$fp/xtab" ] || touch "$fp/xtab"
