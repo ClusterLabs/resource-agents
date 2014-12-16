@@ -223,7 +223,7 @@ verify_options()
 	#
 	# From mount(1)
 	#
-	for o in `echo $OCF_RESKEY_options | sed -e s/,/\ /g`; do
+	for o in ${OCF_RESKEY_options//,/ }; do
 		case $o in
 		async|atime|auto|defaults|dev|exec|_netdev|noatime)
 			continue
@@ -382,12 +382,12 @@ do_nfs_rpc_check() {
 	# the rightmost option wins over previous ones, so don't break when
 	# we find something.
 
-	for o in $(echo ${OCF_RESKEY_options} | sed -e s/,/\ /g); do
-		if echo $o | grep -q "^proto=" ; then
-			nfsproto="$(echo $o | cut -d "=" -f 2)"
+	for o in ${OCF_RESKEY_options//,/ }; do
+		if [[ $o =~ ^proto= ]]; then
+			nfsproto="${o/*=}}"
 		fi
-		if echo $o | grep -q "^mountproto=" ; then
-			nfsmountproto="$(echo $o | cut -d "=" -f 2)"
+		if [[ $o =~ ^mountproto= ]]; then
+			nfsmountproto="${o/*=}"
 		fi
 		case $o in
 		tcp)	nfsproto=tcp;;
