@@ -87,7 +87,7 @@ MYSQL_TOO_MANY_CONN_ERR=1040
 CRM_MASTER="${HA_SBIN_DIR}/crm_master -l reboot "
 NODENAME=$(ocf_local_nodename)
 CRM_ATTR="${HA_SBIN_DIR}/crm_attribute -N $NODENAME "
-INSTANCE_ATTR_NAME=`echo ${OCF_RESOURCE_INSTANCE}| awk -F : '{print $1}'`
+INSTANCE_ATTR_NAME=${OCF_RESOURCE_INSTANCE%%:*}
 CRM_ATTR_REPL_INFO="${HA_SBIN_DIR}/crm_attribute --type crm_config --name ${INSTANCE_ATTR_NAME}_REPL_INFO -s mysql_replication"
 
 #######################################################################
@@ -268,7 +268,7 @@ mysql_common_stop()
         if [ $rc = $OCF_NOT_RUNNING ]; then
             break
         fi
-        count=`expr $count + 1`
+        count=$(( $count + 1 ))
         sleep 1
         ocf_log debug "MySQL still hasn't stopped yet. Waiting..."
     done
