@@ -445,8 +445,9 @@ galera_promote()
         bootstrap=$(is_bootstrap)
 
         if ocf_is_true $bootstrap; then
+            # http://galeracluster.com/documentation-webpages/startingcluster.html#starting-the-first-cluster-node
             ocf_log info "Node <${NODENAME}> is bootstrapping the cluster"
-            extra_opts="--wsrep-cluster-address=gcomm://"
+            extra_opts="--wsrep-new-cluster --wsrep-cluster-address=gcomm://${OCF_RESKEY_wsrep_cluster_address}"
         else
             ocf_exit_reason "Failure, Attempted to promote Master instance of $OCF_RESOURCE_INSTANCE before bootstrap node has been detected."
             return $OCF_ERR_GENERIC
