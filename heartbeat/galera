@@ -352,7 +352,7 @@ nodes()
 master_exists()
 {
     # determine if a master instance is already up and is healthy
-    # crm_mon --as-xml | xmllint  --xpath "//clone/resource[@resource_agent=\"ocf::${OCF_RESOURCE_PROVIDER}:${OCF_RESOURCE_TYPE}\"][@role=\"Master\"][@orphaned=\"false\"][@failed=\"false\"]/node/@name' - > /dev/null
+    # crm_mon --as-xml | xmllint  --xpath "//clone/resource[@id=\"${OCF_RESOURCE_INSTANCE}\"][@resource_agent=\"ocf::${OCF_RESOURCE_PROVIDER}:${OCF_RESOURCE_TYPE}\"][@role=\"Master\"][@active=\"false\"][@orphaned=\"false\"][@failed=\"false\"]/node/@name' - > /dev/null
     crm_mon --as-xml | grep "resource.*id=\"${OCF_RESOURCE_INSTANCE}\".*role=\"Master\".*active=\"true\".*orphaned=\"false\".*failed=\"false\"" > /dev/null 2>&1
     return $?
 }
