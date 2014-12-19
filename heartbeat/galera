@@ -370,8 +370,11 @@ set_master_score()
 
 promote_everyone()
 {
-
-    for node in $(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' '); do
+    local nodes=${$OCF_RESKEY_wsrep_cluster_address#gcomm://}
+    local old_ifs=$IFS
+    IFS=,
+    for node in $nodes; do
+        IFS=$old_ifs
 
         set_master_score $node
     done
@@ -391,7 +394,11 @@ detect_first_master()
     local last_commit=0
     local missing_nodes=0
 
-    for node in $(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' '); do
+    local nodes=${$OCF_RESKEY_wsrep_cluster_address#gcomm://}
+    local old_ifs=$IFS
+    IFS=,
+    for node in $nodes; do
+        IFS=$old_ifs
         last_commit=$(get_last_commit $node)
 
         if [ -z "$last_commit" ]; then
