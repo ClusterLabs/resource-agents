@@ -340,6 +340,15 @@ is_readonly()
     return 0
 }
 
+nodes()
+{
+    local nodes=${OCF_RESKEY_wsrep_cluster_address#gcomm://}
+    local local_ifs=$IFS
+    IFS=,
+    echo $nodes
+    IFS=$local_ifs
+}
+
 master_exists()
 {
     # determine if a master instance is already up and is healthy
@@ -371,12 +380,7 @@ set_master_score()
 
 promote_everyone()
 {
-    local nodes=${$OCF_RESKEY_wsrep_cluster_address#gcomm://}
-    local old_ifs=$IFS
-    IFS=,
-    for node in $nodes; do
-        IFS=$old_ifs
-
+    for node in $(nodes); do
         set_master_score $node
     done
 }
@@ -395,11 +399,7 @@ detect_first_master()
     local last_commit=0
     local missing_nodes=0
 
-    local nodes=${$OCF_RESKEY_wsrep_cluster_address#gcomm://}
-    local old_ifs=$IFS
-    IFS=,
-    for node in $nodes; do
-        IFS=$old_ifs
+    for node in $(nodes); do
         last_commit=$(get_last_commit $node)
 
         if [ -z "$last_commit" ]; then
