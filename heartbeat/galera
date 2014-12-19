@@ -384,7 +384,7 @@ greater_than_equal_long()
 {
     # there are values we need to compare in this script
     # that are too large for shell -gt to process
-    echo | awk -v n1="$1" -v n2="$2"  '{if (n1>=n2) printf ("true"); else printf ("false");}' |  grep -q "true"
+    echo | awk -v n1="$1" -v n2="$2"  '{exit(!(n1>=n2));}'
 }
 
 detect_first_master()
