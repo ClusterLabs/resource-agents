@@ -69,6 +69,9 @@ Meta parameters are passed into the resource agent in the
 underscores. Thus, the +target-role+ attribute maps to an environment
 variable named +OCF_RESKEY_CRM_meta_target_role+.
 
+The <<_script_variables>> section contains other system environment
+variables.
+
 === Actions
 
 Any resource agent must support one command-line argument which
@@ -1093,6 +1096,16 @@ primarily for convenience purposes. For additional variables
 available while the agent is being executed, refer to
 <<_environment_variables>> and <<_return_codes>>.
 
+=== +$OCF_RA_VERSION_MAJOR+
+
+The major version number of the resource agent API that the cluster
+manager is currently using.
+
+=== +$OCF_RA_VERSION_MINOR+
+
+The minor version number of the resource agent API that the cluster
+manager is currently using.
+
 === +$OCF_ROOT+
 
 The root of the OCF resource agent hierarchy. This should never be
@@ -1106,12 +1119,27 @@ The directory where the resource agents shell function library,
 variable may, however, be overridden from the command line while
 testing a new or modified resource agent.
 
+=== +$OCF_EXIT_REASON_PREFIX+
+
+Used as a prefix when printing error messages from the resource agent.
+Script functions use this automaticly so no explicit use is required
+for shell based scripts.
+
 === +$OCF_RESOURCE_INSTANCE+
 
 The resource instance name. For primitive (non-clone, non-stateful)
 resources, this is simply the resource name. For clones and stateful
 resources, this is the primitive name, followed by a colon an the
 clone instance number (such as +p_foobar:0+).
+
+=== +$OCF_RESOURCE_TYPE+
+
+The resource type of the current resource, e.g. IPaddr2.
+
+=== +$OCF_RESOURCE_PROVIDER+
+
+The resource provider, e.g. heartbeat. This may not be in all cluster
+managers of Resource Agent API version 1.0.
 
 === +$__OCF_ACTION+
 
