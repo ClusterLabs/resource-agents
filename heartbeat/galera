@@ -342,10 +342,14 @@ is_readonly()
 
 nodes()
 {
-    local nodes=${OCF_RESKEY_wsrep_cluster_address#gcomm://}
+    local nodes_noscheme=${OCF_RESKEY_wsrep_cluster_address#gcomm://}
+    local nodes=${nodes_noscheme%\?*}
     local local_ifs=$IFS
+    local node
     IFS=,
-    echo $nodes
+    for node in $nodes; do
+      echo ${node%:*}
+    done
     IFS=$local_ifs
 }
 
