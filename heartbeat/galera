@@ -351,6 +351,16 @@ nodes()
       echo ${node%:*}
     done
     IFS=$local_ifs
+
+    ## Alternate xmllint method of determining nodes based on cluster configuration
+    ## take the current node, go .. to get its siblings, and then take all of the managed, non-failed, non-orphaned nodes
+    #local n
+    #for node in $(crm_mon --as-xml | xmllint  --xpath "//clone/resource[@id=\"${OCF_RESOURCE_INSTANCE}\"][@resource_agent=\"ocf::${OCF_RESOURCE_PROVIDER}:${OCF_RESOURCE__TYPE}\"][@role=\"Master\"][@active=\"false\"][@orphaned=\"false\"][@failed=\"false\"]/node/@name' - > /dev/null
+    #do
+    #  # name="tulwaurt007" name="tulwaurt006" name="tulwaurt005"
+    #  n=${node#*=\"}
+    #  echo ${n%\"}
+    #done
 }
 
 master_exists()
