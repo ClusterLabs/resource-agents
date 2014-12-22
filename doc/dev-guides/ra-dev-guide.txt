@@ -96,6 +96,7 @@ actions:
 * +usage+ or +help+ -- displays a usage message when the resource
   agent is invoked from the command line, rather than by the cluster
   manager.
+* +notify+ -- inform resource about changes in state of other clones.
 * +status+ -- historical (deprecated) synonym for +monitor+.
 
 === Timeouts
@@ -159,6 +160,7 @@ OCF Resource Agent Developers Guide.
     <action name="stop"         timeout="20" />
     <action name="monitor"      timeout="20"
                                 interval="10" depth="0" />
+    <action name="notify"       timeout="20" />
     <action name="reload"       timeout="20" />
     <action name="migrate_to"   timeout="20" />
     <action name="migrate_from" timeout="20" />
@@ -453,6 +455,7 @@ stop)		foobar_stop;;
 status|monitor)	foobar_monitor;;
 promote)	foobar_promote;;
 demote)		foobar_demote;;
+notify)		foobar_notify;;
 reload)		ocf_log info "Reloading..."
 	        foobar_start
 		;;
