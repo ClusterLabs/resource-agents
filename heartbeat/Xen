@@ -328,8 +328,24 @@ Xen_Start() {
 		$xentool mem-set ${DOMAIN_NAME} ${NEWMEM}
 	fi
 
-	$xentool create ${OCF_RESKEY_xmfile} name=\"$DOMAIN_NAME\"
+	# the latest xl management tool is squeamish about some
+	# characters in a name (the vm name is xen-f):
+	# /etc/xen/vm/xen-f:15: config parsing error near `xen':
+	# syntax error, unexpected IDENT, expecting STRING or NUMBER
+	# or '['
+	# /etc/xen/vm/xen-f:15: config parsing error near `-f': lexical error
+	#
+	# the older xm management tool cannot digest quotes (see
+	# https://developerbugs.linuxfoundation.org/show_bug.cgi?id=2671)
+	#
+	# hence the following
+	if expr "x$xentool" : "x.*xl" >/dev/null; then
+		$xentool create ${OCF_RESKEY_xmfile} name=\"$DOMAIN_NAME\"
+	else
+		$xentool create ${OCF_RESKEY_xmfile} name="$DOMAIN_NAME"
+	fi
 	rc=$?
+
 	if [ $rc -ne 0 ]; then
 		return $OCF_ERR_GENERIC
 	else
@@ -554,4 +570,3 @@ case $1 in
 		;;
 esac
 exit $?
-# vim:sw=2:ts=4:
