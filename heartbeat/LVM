@@ -68,7 +68,7 @@ as an HA resource.
 <shortdesc lang="en">Controls the availability of an LVM Volume Group</shortdesc>
 
 <parameters>
-<parameter name="volgrpname" unique="0" required="1">
+<parameter name="volgrpname" unique="1" required="1">
 <longdesc lang="en">
 The name of volume group.
 </longdesc>
