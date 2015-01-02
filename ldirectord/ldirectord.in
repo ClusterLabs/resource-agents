@@ -4469,13 +4469,14 @@ sub ld_emailalert_net_smtp
 	my $smtp = Net::SMTP->new($smtp_server);
 
 	if ($smtp) {
-		$smtp->mail("$ENV{USER}\@$hostname");
+		my $myusername = getpwuid( $< );
+		$smtp->mail("$myusername\@$hostname");
 		$smtp->to($to_addr);
 		$smtp->data();
 		if($EMAILALERTFROM) {
 			$smtp->datasend("From: $EMAILALERTFROM\n");
 		} else {
-			$smtp->datasend("From: $ENV{USER}\@$hostname\n");
+			$smtp->datasend("From: $myusername\@$hostname\n");
 		}
 		$smtp->datasend("To: $to_addr\n");
 		$smtp->datasend("Subject: $subject\n\n");
