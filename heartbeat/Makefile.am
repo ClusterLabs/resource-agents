@@ -117,6 +117,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			slapd			\
 			SphinxSearchDaemon	\
 			Squid			\
+			sshtunnel		\
 			Stateful		\
 			SysInfo			\
 			scsi2reservation	\
