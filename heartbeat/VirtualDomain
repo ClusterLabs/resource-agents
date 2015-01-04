@@ -450,20 +450,22 @@ sync_config(){
 
 save_config(){
 	CFGTMP=$(mktemp -t vmcfgsave.XXX)
-	virsh $VIRSH_OPTIONS dumpxml ${DOMAIN_NAME} > ${CFGTMP}
+	virsh $VIRSH_OPTIONS dumpxml --inactive --security-info ${DOMAIN_NAME} > ${CFGTMP}
 	if [ -s ${CFGTMP} ]; then
-		if virt-xml-validate ${CFGTMP} domain 2>/dev/null ;	then
-			ocf_log info "Saving domain $DOMAIN_NAME to ${OCF_RESKEY_config}. Please make sure it's present on all nodes."
-			if cat ${CFGTMP} > ${OCF_RESKEY_config} ; then
-				ocf_log info "Saved $DOMAIN_NAME domain's configuration to ${OCF_RESKEY_config}."
-				if ocf_is_true "$OCF_RESKEY_sync_config_on_stop"; then	
-					sync_config
+		if ! cmp -s ${CFGTMP} ${OCF_RESKEY_config}; then
+			if virt-xml-validate ${CFGTMP} domain 2>/dev/null ;	then
+				ocf_log info "Saving domain $DOMAIN_NAME to ${OCF_RESKEY_config}. Please make sure it's present on all nodes or sync_config_on_stop is on."
+				if cat ${CFGTMP} > ${OCF_RESKEY_config} ; then
+					ocf_log info "Saved $DOMAIN_NAME domain's configuration to ${OCF_RESKEY_config}."
+					if ocf_is_true "$OCF_RESKEY_sync_config_on_stop"; then	
+						sync_config
+					fi
+				else	
+					ocf_log warn "Moving ${CFGTMP} to ${OCF_RESKEY_config} failed."
 				fi
-			else	
-				ocf_log warn "Moving ${CFGTMP} to ${OCF_RESKEY_config} failed."
+			else
+				ocf_log warn "Domain $DOMAIN_NAME config failed to validate after dump. Skipping config update."
 			fi
-		else
-			ocf_log warn "Domain $DOMAIN_NAME config failed to validate after dump. Skipping config update."
 		fi
 	else
 		ocf_log warn "Domain $DOMAIN_NAME config has 0 size. Skipping config update."
@@ -651,6 +653,11 @@ VirtualDomain_Monitor() {
 
 	update_emulator_cache
 	update_utilization
+   # Save configuration on monitor as well, so we will have a better chance of 
+	# having fresh and up to date config files on all nodes.
+	if ocf_is_true "$OCF_RESKEY_save_config_on_stop"; then	
+		save_config
+	fi
 
 	return ${rc}
 }
