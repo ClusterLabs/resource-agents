@@ -88,7 +88,7 @@ CASE "check base env"
 CASE "check base env: invalid 'OCF_RESKEY_sg_persist_resource'"
 	Include prepare
 	Unenv OCF_RESKEY_sg_persist_resource
-	AgentRun start OCF_ERR_INSTALLED
+	AgentRun start OCF_ERR_CONFIGURED
 
 CASE "check base env: unset 'OCF_RESKEY_sg_persist_devs'"
 	Include prepare
