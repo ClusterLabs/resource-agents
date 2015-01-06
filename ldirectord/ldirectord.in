@@ -597,7 +597,7 @@ B<login = ">I<username>B<">
 For FTP, IMAP, LDAP, MySQL, Oracle, POP and PostgreSQL, the username
 used to log in.
 
-For Radius the passwd is used for the attribute User-Name.
+For Radius the username is used for the attribute User-Name.
 
 For SIP, the username is used as both the to and from address for an
 OPTIONS query.
