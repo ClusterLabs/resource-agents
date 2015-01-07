@@ -9,3 +9,4 @@ ExecStopPost=/usr/bin/rm -f /var/lock/subsys/ldirectord
 ExecReload=@sbindir@/ldirectord reload
 PIDFile=/var/run/ldirectord.ldirectord.pid
 Type=forking
+KillMode=none
