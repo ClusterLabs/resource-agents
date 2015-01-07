@@ -149,14 +149,26 @@ vsftpd_start()
 		exit $OCF_ERR_GENERIC
 	fi
 
-	pidof vsftpd > $PIDFILE
- 	if [ $? -ne 0 ]; then
-		ocf_log err "Error getting pid. Error: $?."
-		exit $OCF_ERR_GENERIC
-	fi 
+	PID=$( pgrep $OCF_RESKEY_binpath )
+	case $? in
+		0)
+			ocf_log info "PID file (pid:${PID} at $PIDFILE) created for vsftpd."
+			ocf_log info "Started vsftpd."
+			echo $PID > $PIDFILE
+			exit $OCF_SUCCESS
+			;;
+		1)
+			rm -f "$PIDFILE" > /dev/null 2>&1
+			ocf_log info "$Error getting pid."
+			exit $OCF_ERR_GENERIC
+			;;
+		*)
+			rm -f "$PIDFILE" > /dev/null 2>&1
+			ocf_exit_reason "Error encountered detecting pid of vsftpd."
+			exit OCF_ERR_GENERIC
+			;;
+	esac
 
-	ocf_log info "Started vsftpd."
-	exit $OCF_SUCCESS
 }
 
 
