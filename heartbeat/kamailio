@@ -49,7 +49,7 @@
 
 RESKEY_binary_default="/usr/sbin/kamailio"
 RESKEY_conffile_default="/etc/kamailio/kamailio.cfg"
-RESKEY_pidfile_default="/var/run/kamailio.pid"
+RESKEY_pidfile_default="/var/run/kamailio_${OCF_RESOURCE_INSTANCE}/kamailio.pid"
 RESKEY_monitoring_ip_default=127.0.0.1
 RESKEY_port_default=5060
 RESKEY_proto_default="udptcp"
@@ -100,7 +100,6 @@ meta_data() {
     port=5070
     conffile=/etc/kamailio/kamailio2.cfg
     kamctlrc=""
-    pidfile="/var/run/kamailio2.pid"
 
  Only one instance can be monitored via the command "kamctl monitor"
  because the kamctl tool of kamailio 4.x is not designed for multiple
@@ -114,7 +113,6 @@ Parameters for a third Kamailio instance:
     port=5080
     conffile=/etc/kamailio/kamailio3.cfg
     kamctlrc=""
-    pidfile="/var/run/kamailio3.pid"
 </longdesc>
 
 <shortdesc lang="en">Resource agent for Kamailio</shortdesc>
@@ -138,7 +136,11 @@ Parameters for a third Kamailio instance:
 
   <parameter name="pidfile" unique="0" required="0">
    <longdesc lang="en">
-     The kamailio PID file. Make sure to use unique PID file names in case of multiple instances.
+     The kamailio PID file. The directory used must be writable by kamailio
+     process user. Be sure to use unique name for running more than one
+     instance. Try to use absolute path names.
+     If empty, resource agent create a unique directory from the resource
+     instance name for the PID file and assign it to the process user.
    </longdesc>
    <shortdesc lang="en">PID file</shortdesc>
    <content type="string" default="${RESKEY_pidfile_default}" />
@@ -456,13 +458,22 @@ kamailio_monitor() {
 }
 
 kamailio_start() {
-    local errorfile error output
+    local errorfile error output piddir
 
     if
         kamailio_status
     then
         ocf_log info "kamailio already running."
         return $OCF_SUCCESS
+    fi
+
+    # if pidfile directory does not exist, create it with kamailio process owner
+    piddir=`dirname "${OCF_RESKEY_pidfile}"`
+    if [ ! -d "$piddir" ]; then
+        mkdir -p "$piddir"
+        if [ "$OCF_RESKEY_kamuser" != "" ]; then
+            chown ${OCF_RESKEY_kamuser} "$piddir"
+        fi
     fi
 
     kamailio_cmd
@@ -505,6 +516,7 @@ kamailio_start() {
 }
 
 kamailio_stop() {
+    local piddir
     local TRIES=0
     result=$OCF_SUCCESS
 
@@ -514,7 +526,14 @@ kamailio_stop() {
     pkill -SIGTERM -x -f "${kam_cmd}"
     if [ $? -eq 1 ]; then
         # already stopped. no processes found
-        rm -f ${OCF_RESKEY_pidfile}
+        # in case of not specified pidfile, delete the created directory
+        # otherwise only the pidfile itself
+        if [ "${OCF_RESKEY_pidfile}" == "${RESKEY_pidfile_default}" ]; then
+            piddir=`dirname "${OCF_RESKEY_pidfile}"`
+            rm -rf "$piddir"
+        else
+            rm -f "${OCF_RESKEY_pidfile}"
+        fi
         return $result
     fi
 
@@ -556,7 +575,14 @@ kamailio_stop() {
         ocf_log info "${kam_cmd} has stopped."
     fi
 
-    rm -f ${OCF_RESKEY_pidfile}
+    # in case of not specified pidfile, delete the created directory
+    # otherwise only the pidfile itself
+    if [ "${OCF_RESKEY_pidfile}" == "${RESKEY_pidfile_default}" ]; then
+        piddir=`dirname "${OCF_RESKEY_pidfile}"`
+        rm -rf "$piddir"
+    else
+        rm -f "${OCF_RESKEY_pidfile}"
+    fi
     return $result
 
 }
