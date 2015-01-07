@@ -295,9 +295,9 @@ virtual=192.168.6.240:80
 # Note that using checktype=connect and protocol=udp
 # will also effect ping checks
 #virtual=192.168.6.240:1812
-#	real=192.168.6.2::1812 gate
-#	real=192.168.6.3::1812 gate
-#	real=192.168.6.6::1812 gate
+#	real=192.168.6.2:1812 gate
+#	real=192.168.6.3:1812 gate
+#	real=192.168.6.6:1812 gate
 #	fallback=127.0.0.1:1812 gate
 #	scheduler=rr
 #	#persistent=600
@@ -305,7 +305,7 @@ virtual=192.168.6.240:80
 #	protocol=udp
 #	checktype=negotiate
 #	service=radius
-#	password="readuser"
+#	login="readuser"
 #	passwd="genericpassword"
 #	secret="somesecret"
 #	checktimeout=1
