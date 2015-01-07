@@ -155,7 +155,7 @@ vsftpd_start()
 		exit $OCF_ERR_GENERIC
 	fi 
 
-        ocf_log info "Started vsftpd."
+	ocf_log info "Started vsftpd."
 	exit $OCF_SUCCESS
 }
 
@@ -187,10 +187,8 @@ vsftpd_monitor()
 
 vsftpd_validate_all()
 {
-	if [ -n "$OCF_RESKEY_binpath" -a ! -x "$OCF_RESKEY_binpath" ]; then
-		ocf_log err "Binary path $OCF_RESKEY_binpath does not exist."
-		exit $OCF_ERR_ARGS
-	fi
+	check_binary $OCF_RESKEY_binpath
+
 	if [ -n "$OCF_RESKEY_conffile" -a ! -f "$OCF_RESKEY_conffile" ]; then
 		ocf_log err "Config file $OCF_RESKEY_conffile does not exist."
 		exit $OCF_ERR_ARGS
