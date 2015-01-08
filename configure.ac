@@ -190,13 +190,11 @@ AC_ARG_WITH(initdir,
 OCF_ROOT_DIR="/usr/lib/ocf"
 AC_ARG_WITH(ocf-root,
     [  --with-ocf-root=DIR      directory for OCF scripts [${OCF_ROOT_DIR}]],
-    [ if test x"$withval" = xprefix; then OCF_ROOT_DIR=${prefix}; else
-	 OCF_ROOT_DIR="$withval"; fi ])
+    [ OCF_ROOT_DIR="$withval" ])
 HA_RSCTMPDIR=${localstatedir}/run/resource-agents
 AC_ARG_WITH(rsctmpdir,
     [  --with-rsctmpdir=DIR      directory for resource agents state files [${HA_RSCTMPDIR}]],
-    [ if test x"$withval" = xprefix; then HA_RSCTMPDIR=${prefix}; else
-	 HA_RSCTMPDIR="$withval"; fi ])
+    [ HA_RSCTMPDIR="$withval" ])
 
 AC_ARG_ENABLE([libnet],
  [  --enable-libnet 	Use libnet for ARP based funcationality, [default=try]], 
@@ -364,6 +362,7 @@ case "$host_os" in
 *solaris*)
 		REBOOT_OPTIONS="-n"
 		POWEROFF_OPTIONS="-n"
+		LDFLAGS+=" -lssp -lssp_nonshared"
 		;;
 *linux*)	
 		AC_DEFINE_UNQUOTED(ON_LINUX, 1, Compiling for Linux platform)
@@ -432,26 +431,18 @@ HA_VARLIBHBDIR=${localstatedir}/lib/heartbeat
 AC_DEFINE_UNQUOTED(HA_VARLIBHBDIR,"$HA_VARLIBHBDIR", Whatever this used to mean)
 AC_SUBST(HA_VARLIBHBDIR)
 
-OCF_RA_DIR="${OCF_ROOT_DIR}/resource.d/"
+OCF_RA_DIR="${OCF_ROOT_DIR}/resource.d"
 AC_DEFINE_UNQUOTED(OCF_RA_DIR,"$OCF_RA_DIR", Location for OCF RAs)
 AC_SUBST(OCF_RA_DIR)
 
-if test "${prefix}" = "/usr"; then
- OCF_RA_DIR_PREFIX="$OCF_RA_DIR"
-else
- OCF_RA_DIR_PREFIX="${prefix}/$OCF_RA_DIR"
-fi
+OCF_RA_DIR_PREFIX="$OCF_RA_DIR"
 AC_SUBST(OCF_RA_DIR_PREFIX)
 
-OCF_LIB_DIR="${OCF_ROOT_DIR}/lib/"
+OCF_LIB_DIR="${OCF_ROOT_DIR}/lib"
 AC_DEFINE_UNQUOTED(OCF_LIB_DIR,"$OCF_LIB_DIR", Location for shared code for OCF RAs)
 AC_SUBST(OCF_LIB_DIR)
 
-if test "${prefix}" = "/usr"; then
- OCF_LIB_DIR_PREFIX="$OCF_LIB_DIR"
-else
- OCF_LIB_DIR_PREFIX="${prefix}/$OCF_LIB_DIR"
-fi
+OCF_LIB_DIR_PREFIX="$OCF_LIB_DIR"
 AC_SUBST(OCF_LIB_DIR_PREFIX)
 
 dnl ===============================================
@@ -793,7 +784,7 @@ else
 		-Wno-strict-aliasing
 		-Wpointer-arith 
 		-Wstrict-prototypes
-    		-Wunsigned-char
+		-Wunsigned-char
 		-Wwrite-strings"
 
 # Additional warnings it might be nice to enable one day
