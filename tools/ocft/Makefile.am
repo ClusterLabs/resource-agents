@@ -46,6 +46,7 @@ ocftcfgs_DATA      =  apache  	\
 		       	 iscsi	\
 		       	 named	\
 		       	 postfix	\
+			 sg_persist \
 			 tomcat	\
 		       	 Xinetd	\
 		       	 Xen	\

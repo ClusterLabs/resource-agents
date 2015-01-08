@@ -121,6 +121,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			SysInfo			\
 			scsi2reservation	\
 			sfex			\
+                        sg_persist              \
 			symlink			\
 			syslog-ng		\
 			tomcat			\
