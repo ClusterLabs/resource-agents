@@ -1,0 +1,253 @@
+#!/bin/bash
+#
+# Resource script for vsftpd
+#
+# Description:  Manages vsftpd as an OCF resource in 
+#		an Active-Passive High Availability setup.
+#
+# Author:	Michel Rode <rode@b1-systems.de> : vsftpd script 
+# License:      GNU General Public License (GPLv2) 
+#
+#
+#	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+#
+#	The "start" arg starts vsftpd.
+#
+#	The "stop" arg stops it.
+#
+# OCF parameters:
+#  OCF_RESKEY_binpath
+#  OCF_RESKEY_conffile
+#  OCF_RESKEY_pidfile
+#
+##########################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+: ${OCF_RESKEY_binpath="/usr/sbin/vsftpd"}
+: ${OCF_RESKEY_conffile="/etc/vsftpd/vsftpd.conf"}
+: ${OCF_RESKEY_pidfile="/var/run/vsftpd.pid"}
+
+USAGE="Usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
+
+##########################################################################
+
+usage() 
+{
+	echo $USAGE >&2
+}
+
+meta_data() 
+{
+cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="vsftpd">
+<version>1.0</version>
+<longdesc lang="en">
+This script manages vsftpd
+</longdesc>
+<shortdesc lang="en">Manages an vsftpd</shortdesc>
+
+<parameters>
+
+<parameter name="binpath">
+<longdesc lang="en">
+The vsftpd binary path.
+For example, "/usr/sbin/vsftpd"
+</longdesc>
+<shortdesc lang="en">Full path to the vsftpd binary</shortdesc>
+<content type="string" default="/usr/sbin/vsftpd"/>
+</parameter>
+
+<parameter name="conffile">
+<longdesc lang="en">
+The vsftpd configuration file name with full path. 
+For example, "/etc/vsftpd/vsftpd.conf"
+</longdesc>
+<shortdesc lang="en">Configuration file name with full path</shortdesc>
+<content type="string" default="/etc/vsftpd/vsftpd.conf" />
+</parameter>
+
+<parameter name="pidfile">
+<longdesc lang="en">
+The vsftpd pidfile with full path. 
+For example, "/var/run/vsftpd.pid"
+</longdesc>
+<shortdesc lang="en">PID file with full path</shortdesc>
+<content type="string" default="/var/run/vsftpd.pid" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="20s"/>
+<action name="stop" timeout="20s"/>
+<action name="monitor" depth="0" timeout="20s" interval="60s" />
+<action name="validate-all" timeout="20s"/>
+<action name="meta-data"  timeout="5s"/>
+</actions>
+</resource-agent>
+END
+exit $OCF_SUCCESS
+}
+
+get_pidfile()
+{
+	PIDFILE=$OCF_RESKEY_pidfile
+}
+
+vsftpd_status()
+{
+	if [ -n "$PIDFILE" -a -f $PIDFILE ]; then
+		# vsftpd is probably running
+		PID=`cat $PIDFILE`
+		if [ -n "$PID" ]; then
+			if ps -p $PID | grep vsftpd >/dev/null ; then
+				ocf_log info "vsftpd daemon running"
+				return $OCF_SUCCESS
+			else
+				ocf_log info "vsftpd daemon is not running but pid file exists"
+				return $OCF_ERR_GENERIC
+			fi
+		else
+			ocf_log err "PID file empty!"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+		
+	# vsftpd is not running
+	ocf_log info "vsftpd daemon is not running"
+	return $OCF_NOT_RUNNING
+}
+
+
+vsftpd_start()
+{
+	# if vsftpd is running return success
+	vsftpd_status
+	retVal=$?
+	if [ $retVal -eq $OCF_SUCCESS ]; then
+		exit $OCF_SUCCESS
+	elif [ $retVal -ne $OCF_NOT_RUNNING ]; then
+		ocf_log err "Error. Unknown status."
+		exit $OCF_ERR_GENERIC
+	fi
+
+	if [ -n "$OCF_RESKEY_binpath" ]; then
+		COMMAND="$OCF_RESKEY_binpath"
+	fi
+	if [ -n "$OCF_RESKEY_conffile" ]; then
+		COMMAND="$COMMAND $OCF_RESKEY_conffile"
+	fi
+
+	$COMMAND;
+ 	if [ $? -ne 0 ]; then
+		ocf_log err "Error. vsftpd returned error $?."
+		exit $OCF_ERR_GENERIC
+	fi
+
+	PID=$( pgrep $OCF_RESKEY_binpath )
+	case $? in
+		0)
+			ocf_log info "PID file (pid:${PID} at $PIDFILE) created for vsftpd."
+			ocf_log info "Started vsftpd."
+			echo $PID > $PIDFILE
+			exit $OCF_SUCCESS
+			;;
+		1)
+			rm -f "$PIDFILE" > /dev/null 2>&1
+			ocf_log info "$Error getting pid."
+			exit $OCF_ERR_GENERIC
+			;;
+		*)
+			rm -f "$PIDFILE" > /dev/null 2>&1
+			ocf_exit_reason "Error encountered detecting pid of vsftpd."
+			exit OCF_ERR_GENERIC
+			;;
+	esac
+
+}
+
+
+vsftpd_stop()
+{
+	if vsftpd_status ; then
+		PID=`cat $PIDFILE`
+		if [ -n "$PID" ] ; then
+			kill $PID
+			if [ $? -ne 0 ]; then
+				kill -s KILL $PID
+				if [ $? -ne 0 ]; then
+					ocf_log err "Error. Could not stop vsftpd daemon."
+					return $OCF_ERR_GENERIC
+				fi
+			fi
+			rm $PIDFILE 2>/dev/null
+		fi
+	fi
+	ocf_log info "Stopped vsftpd daemon."
+	exit $OCF_SUCCESS
+}
+
+vsftpd_monitor()
+{
+	vsftpd_status
+}
+
+vsftpd_validate_all()
+{
+	check_binary $OCF_RESKEY_binpath
+
+	if [ -n "$OCF_RESKEY_conffile" -a ! -f "$OCF_RESKEY_conffile" ]; then
+		ocf_log err "Config file $OCF_RESKEY_conffile does not exist."
+		exit $OCF_ERR_ARGS
+	fi
+	
+	return $OCF_SUCCESS
+}
+
+
+#
+# Main
+#
+ 
+if [ $# -ne 1 ]; then
+	usage
+	exit $OCF_ERR_ARGS
+fi
+
+case $1 in
+	start)	get_pidfile
+		vsftpd_start
+		;;
+	
+	stop)	get_pidfile
+		vsftpd_stop
+		;;
+
+	status)	get_pidfile
+		vsftpd_status
+		;;
+
+	monitor)get_pidfile
+		vsftpd_monitor
+		;;
+
+	validate-all)	vsftpd_validate_all
+			;;
+
+	meta-data)	meta_data
+			;;
+
+	usage)	usage
+		exit $OCF_SUCCESS
+		;;
+
+	*)	usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+
