@@ -10,3 +10,6 @@ ExecReload=@sbindir@/ldirectord reload
 PIDFile=/var/run/ldirectord.ldirectord.pid
 Type=forking
 KillMode=none
+
+[Install]
+WantedBy=multi-user.target
