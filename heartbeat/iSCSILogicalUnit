@@ -362,7 +362,7 @@ iSCSILogicalUnit_start() {
 	lio-t)
 		# For lio, we first have to create a target device, then
 		# add it to the Target Portal Group as an LU.
-		ocf_run targetcli /backstores/block create name=${OCF_RESOURCE_INSTANCE} dev=${OCF_RESKEY_path} write_back=False || exit $OCF_ERR_GENERIC
+		ocf_run targetcli /backstores/block create name=${OCF_RESOURCE_INSTANCE} dev=${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
 		if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
 			echo ${OCF_RESKEY_scsi_sn} > /sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE}/wwn/vpd_unit_serial
 		fi
