@@ -359,10 +359,31 @@ VirtualDomain_Status() {
 	return $rc
 }
 
+# virsh undefine removes configuration files if they are in
+# directories which are managed by libvirt. such directories
+# include also subdirectories of /etc (for instance
+# /etc/libvirt/*) which may be surprising. VirtualDomain didn't
+# include the undefine call before, hence this wasn't an issue
+# before.
+#
+# There seems to be no way to find out which directories are
+# managed by libvirt.
+#
 verify_undefined() {
+	local tmpf
 	if virsh --connect=${OCF_RESKEY_hypervisor} list --all --name 2>/dev/null | grep -wqs "$DOMAIN_NAME"
 	then
-		virsh $VIRSH_OPTIONS undefine $DOMAIN_NAME > /dev/null 2>&1
+		tmpf=$(mktemp -t vmcfgsave.XXXXXX)
+		if [ ! -r "$tmpf" ]; then
+			ocf_log warn "unable to create temp file, disk full?"
+			# we must undefine the domain
+			virsh $VIRSH_OPTIONS undefine $DOMAIN_NAME > /dev/null 2>&1
+		else
+			cp -p $OCF_RESKEY_config $tmpf
+			virsh $VIRSH_OPTIONS undefine $DOMAIN_NAME > /dev/null 2>&1
+			[ -f $OCF_RESKEY_config ] || cp -f $tmpf $OCF_RESKEY_config
+			rm -f $tmpf
+		fi
 	fi
 }
 
