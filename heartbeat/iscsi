@@ -179,7 +179,7 @@ open_iscsi_setup() {
 	discovery=open_iscsi_discovery
 	add_disk=open_iscsi_add
 	remove_disk=open_iscsi_remove
-	disk_status=open_iscsi_status
+	disk_status=open_iscsi_monitor
 	iscsiadm=${OCF_RESKEY_iscsiadm}
 
 	have_binary ${iscsiadm} ||
@@ -283,13 +283,13 @@ open_iscsi_remove() {
 		return 1
 	fi
 }
-# open_iscsi_status return codes:
+# open_iscsi_monitor return codes:
 #   0: target running (logged in)
 #   1: target not running and target record exists
 #   2: iscsiadm -m session error (unexpected)
 #   3: target record does not exist (discovery necessary)
 #
-open_iscsi_status() {
+open_iscsi_monitor() {
 	local target="$1"
 	local session_id conn_state outp
 	local prev_state
@@ -363,7 +363,7 @@ wait_for_udev() {
 		sleep 1
 	done
 }
-iscsi_status() {
+iscsi_monitor() {
 	$disk_status $OCF_RESKEY_target $*
 	case $? in
 		0) return $OCF_SUCCESS;;
@@ -399,7 +399,7 @@ iscsi_start() {
 		ocf_log warning "iscsi $PORTAL $OCF_RESKEY_target in failed state"
 	;;
 	esac
-	iscsi_status 1 # enforce wait
+	iscsi_monitor 1 # enforce wait
 	if [ $? -eq $OCF_SUCCESS ]; then
 		return $OCF_SUCCESS
 	else
@@ -407,11 +407,11 @@ iscsi_start() {
 	fi
 }
 iscsi_stop() {
-	iscsi_status
+	iscsi_monitor
 	if [ $? -ne $OCF_NOT_RUNNING ] ; then
 		$remove_disk $OCF_RESKEY_target ||
 			return $OCF_ERR_GENERIC
-		iscsi_status
+		iscsi_monitor
 		if [ $? -ne $OCF_NOT_RUNNING ] ; then
 			return $OCF_ERR_GENERIC
 		else
@@ -420,14 +420,6 @@ iscsi_stop() {
 	else
 		ocf_log info "iscsi $OCF_RESKEY_target already stopped"
 		return $OCF_SUCCESS
-	fi
-}
-
-iscsi_monitor() {
-	if $disk_status $OCF_RESKEY_target; then
-		return $OCF_SUCCESS
-	else
-		return $OCF_NOT_RUNNING
 	fi
 }
 
@@ -494,7 +486,7 @@ case "$1" in
 	;;
 	stop)	iscsi_stop
 	;;
-	status)	iscsi_status
+	status)	iscsi_monitor
 		rc=$?
 		case $rc in
 		$OCF_SUCCESS)
@@ -509,7 +501,7 @@ case "$1" in
 		esac
 		exit $rc
 		;;
-	monitor)	iscsi_status
+	monitor)	iscsi_monitor
 	;;
 	validate-all)	# everything already validated
 		# just exit successfully here.
