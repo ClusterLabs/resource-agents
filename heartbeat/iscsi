@@ -283,6 +283,12 @@ open_iscsi_remove() {
 		return 1
 	fi
 }
+# open_iscsi_status return codes:
+#   0: target running (logged in)
+#   1: target not running and target record exists
+#   2: iscsiadm -m session error (unexpected)
+#   3: target record does not exist (discovery necessary)
+#
 open_iscsi_status() {
 	local target="$1"
 	local session_id conn_state outp
@@ -292,8 +298,13 @@ open_iscsi_status() {
 	recov=${2:-$OCF_RESKEY_try_recovery}
 	session_id=`open_iscsi_get_session_id "$target"`
 	prev_state=""
-	[ -z "$session_id" ] &&
-		return 1
+	if [ -z "$session_id" ]; then
+		if $iscsiadm -m node -p $OCF_RESKEY_portal -T $target >/dev/null 2>&1; then
+			return 1 # record found
+		else
+			return 3
+		fi
+	fi
 	while :; do
 		outp=`$iscsiadm -m session -r $session_id -P 1` ||
 			return 2
@@ -326,6 +337,7 @@ open_iscsi_status() {
 }
 
 disk_discovery() {
+	discovery_type=${OCF_RESKEY_discovery_type}
 	$discovery  # discover and setup the real portal string (address)
 	case $? in
 	0) ;;
@@ -355,18 +367,25 @@ iscsi_status() {
 	$disk_status $OCF_RESKEY_target $*
 	case $? in
 		0) return $OCF_SUCCESS;;
-		1) return $OCF_NOT_RUNNING;;
+		1|3) return $OCF_NOT_RUNNING;;
 		2) return $OCF_ERR_GENERIC;;
 	esac
 }
 iscsi_start() {
-	iscsi_status
-	case $? in
-	$OCF_SUCCESS)
+	local rc
+	$disk_status $OCF_RESKEY_target
+	rc=$?
+	if [ $rc -eq 3 ]; then
+		disk_discovery
+		$disk_status $OCF_RESKEY_target
+		rc=$?
+	fi
+	case $rc in
+	0)
 		ocf_log info "iscsi $PORTAL $OCF_RESKEY_target already running"
 		return $OCF_SUCCESS
 	;;
-	$OCF_NOT_RUNNING)
+	1)
 		$add_disk $PORTAL $OCF_RESKEY_target ||
 			return $OCF_ERR_GENERIC
 		case "$OCF_RESKEY_udev" in
@@ -449,6 +468,7 @@ Linux) setup=open_iscsi_setup
 ;;
 esac
 
+PORTAL="$OCF_RESKEY_portal" # updated by discovery
 LSB_STATUS_STOPPED=3
 $setup
 setup_rc=$?
@@ -470,8 +490,6 @@ fi
 # which method was invoked?
 case "$1" in
 	start)
-		discovery_type=${OCF_RESKEY_discovery_type}
-		disk_discovery
 		iscsi_start
 	;;
 	stop)	iscsi_stop
