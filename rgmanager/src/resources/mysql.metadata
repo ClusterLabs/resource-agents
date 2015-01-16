@@ -84,6 +84,17 @@
 	    <content type="string"/>
         </parameter>
 
+        <parameter name="user">
+            <longdesc lang="en">
+	    	MySQL user name.  This is the user the MySQL
+		instance runs as.
+            </longdesc>
+            <shortdesc lang="en">
+	    	MySQL user name.
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
     </parameters>
 
     <actions>

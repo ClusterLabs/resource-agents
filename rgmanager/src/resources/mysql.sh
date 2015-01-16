@@ -75,7 +75,7 @@ start()
 
 	clog_service_start $CLOG_INIT
 
-	create_pid_directory
+	create_pid_directory "$OCF_RESKEY_user"
 	check_pid_file "$MYSQL_pid_file"
 
 	if [ $? -ne 0 ]; then
