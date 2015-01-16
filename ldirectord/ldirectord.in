@@ -130,10 +130,10 @@ Timeout in seconds for negotiate checks.
 
 If defined in a virtual server section then the global value is overridden.
 
-If undefined then the value of connecttimeout is used.  connecttimeout is
+If undefined then the value of checktimeout is used.  checktimeout is
 also a global value that may be overridden by a per-virtual setting.
 
-If both negotiatetimeout and connecttimeout are unset, the default is used.
+If both negotiatetimeout and checktimeout are unset, the default is used.
 
 Default: 30 seconds
 
