@@ -1,0 +1,243 @@
+#!/bin/sh
+# License:      GNU General Public License (GPL)
+# 
+# Description: Derived from "apache" script. Modified to check an URL resource
+#
+# Author: Maxim Ianoglo a.k.a dotNox (dotNox@gmail.com)
+#
+# Original Release: 
+#
+# OCF parameters:
+#  OCF_RESKEY_url              : URL to check
+#  OCF_RESKEY_http_user        : User for HTTP Auth ( if there is any )
+#  OCF_RESKEY_http_password    : Password for HTTP Auth ( if there is any )
+#                              : should be specified with OCF_RESKEY_http_user
+#                              : otherwise a default password "password"
+#                              : will be used
+#  OCF_RESKEY_client           : Client to use ( curl, wget or other )
+#                              : for curl and wget there are predefined client options
+#                              : that are used by default
+#  OCF_RESKEY_client_opts      : Client Addition opts
+#  OCF_RESKEY_match            : Output match regular expression
+#
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+HA_VARRUNDIR=${HA_VARRUN}
+
+#######################################################################
+#
+# Configuration options - usually you don't need to change these
+#
+#######################################################################
+#
+# default options for http clients
+WGETOPTS="-O- -q -L --no-proxy"
+CURLOPTS="-o - -Ss -L"
+#
+#	End of Configuration options
+#######################################################################
+
+CMD=`basename $0`
+
+usage() {
+    cat <<UEND
+usage: $0 action
+
+action:
+    start         always returns OCF_SUCCESS
+
+    stop          always returns OCF_SUCCESS
+
+    status        always returns OCF_SUCCESS
+
+    monitor       returns status or URL check. You have to have 
+                  installed either curl or wget for this to work.
+
+    meta-data     show meta data message
+
+    validate-all  validate the instance parameters
+UEND
+    exit $1
+}
+
+#
+# run the http client
+#
+http_client_curl() {
+    cl_opts="$CURLOPTS $HTTP_CLIENT_OPTS"
+    if [ x != "x$HTTP_USER" ]; then
+        echo "-u $HTTP_USER:$HTTP_PASS" | curl -K - $cl_opts "$1"
+    else
+        curl $cl_opts "$1"
+    fi
+}
+http_client_wget() {
+    auth=""
+    cl_opts="$WGETOPTS $HTTP_CLIENT_OPTS"
+    [ x != "x$HTTP_USER" ] && auth="--http-user=$HTTP_USER --http-passwd=$HTTP_PASS"
+    wget $auth $cl_opts "$1"
+}
+
+#
+# rely on whatever the user provided
+#
+http_client_userdefined() {
+	$HTTP_CLIENT $HTTP_CLIENT_OPTS "$1"
+}
+
+#
+# Always return Success
+#
+start_httpmon() {
+    return $OCF_SUCCESS
+}
+
+#
+# Always return Success
+#
+stop_httpmon() {
+    return $OCF_SUCCESS
+}
+
+#
+# Always return Success
+#
+status_httpmon() {
+    return $OCF_SUCCESS
+}
+
+monitor_httpmon() {
+    if [ "x$HTTP_CLIENT" != x ]; then
+        if [ "$HTTP_CLIENT" == "wget" ]; then
+            http_client=http_client_wget
+        elif [ "$HTTP_CLIENT" == "curl" ]; then
+            http_client=http_client_curl
+        else
+            http_client=http_client_userdefined
+        fi
+    elif which wget >/dev/null 2>&1; then
+        http_client=http_client_wget
+    elif which curl >/dev/null 2>&1; then
+        http_client=http_client_curl
+    else
+        return $OCF_ERR_CONFIGURED
+    fi
+
+    echo $HTTP_URL | grep -qs "^http://"
+    if [ $? -ne 0 ]; then
+        HTTP_URL="http://$HTTP_URL"
+    fi
+    $http_client "$HTTP_URL" | grep -Ei "$HTTP_MATCH" > /dev/null
+}
+
+metadata_httpmon() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="apache">
+<version>1.0</version>
+
+<longdesc lang="en">
+This is the resource agent for HTTP resources
+
+The start, stop and status operaions returns always success.
+</longdesc>
+<shortdesc lang="en">Monitors HTTP resources</shortdesc>
+
+<parameters>
+<parameter name="url" required="1" unique="1">
+<longdesc lang="en">
+HTTP Resource ( URL ) to check.
+</longdesc>
+<shortdesc lang="en">URL to check</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="http_user">
+<longdesc lang="en">
+User for HTTP Auth.
+</longdesc>
+<shortdesc lang="en">HTTP Auth User</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="http_password" >
+<longdesc lang="en">
+Password for HTTP Auth ( if there is any )
+should be specified with http_user otherwise a default password "password"
+will be used.
+</longdesc>
+<shortdesc lang="en">HTTP Auth Password</shortdesc>
+<content type="integer" />
+</parameter>
+
+<parameter name="client">
+<longdesc lang="en">
+Client to use to query to URL. If not specified, the RA will
+try to find one on the system. Currently, wget and curl are
+supported. For example, you can set this parameter to "curl" if
+you prefer that to wget.
+</longdesc>
+<shortdesc lang="en"></shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="client_opts">
+<longdesc lang="en">
+Client Addition opts.
+</longdesc>
+<shortdesc lang="en">HTTP Client additional opts</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="match">
+<longdesc lang="en">
+Regular expression to match in the output of URL.
+Case insensitive.
+</longdesc>
+<shortdesc lang="en">Regular expression to match</shortdesc>
+<content type="string"/>
+</parameter>
+</parameters>
+
+<actions>
+<action name="start"   timeout="5s" />
+<action name="stop"    timeout="5s" />
+<action name="status"  timeout="5s" />
+<action name="monitor" depth="0"  timeout="20s" interval="10" />
+<action name="meta-data"  timeout="5" />
+<action name="validate-all"  timeout="5" />
+</actions>
+</resource-agent>
+END
+	exit $OCF_SUCCESS
+}
+
+validate_all_httpmon() {
+    return $OCF_SUCCESS
+}
+
+if
+  [ $# -eq 1 ]
+then
+  COMMAND=$1
+  HTTP_URL="$OCF_RESKEY_url"
+  HTTP_USER="$OCF_RESKEY_http_user"
+  HTTP_PASS=${OCF_RESKEY_http_password:-'password'}
+  HTTP_CLIENT=${OCF_RESKEY_client}
+  HTTP_CLIENT_OPTS=${OCF_RESKEY_client_opts}
+  HTTP_MATCH=${OCF_RESKEY_match}
+else
+  usage $OCF_ERR_ARGS
+fi
+
+case $COMMAND in
+    start)        start_httpmon;;
+    stop)         stop_httpmon;;
+    status)       status_httpmon;;
+    monitor)      monitor_httpmon;;
+    meta-data)    metadata_httpmon;;
+    validate-all) validate_all_httpmon;;
+    *)            usage $OCF_ERR_UNIMPLEMENTED;;
+esac
