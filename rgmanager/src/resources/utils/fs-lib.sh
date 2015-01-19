@@ -583,7 +583,7 @@ is_alive()
 	done
 	if [ $rw -eq $YES ]; then
 		file=$(mktemp "$mount_point/.check_writable.$(hostname).XXXXXX")
-		if [ ! -e $file ]; then
+		if [ ! -e "$file" ]; then
 			ocf_log err "${OCF_RESOURCE_INSTANCE}: is_alive: failed write test on [$mount_point]. Return code: $errcode"
 			return $NO
 		fi
