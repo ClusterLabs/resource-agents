@@ -68,6 +68,8 @@ verify_all()
 
 start()
 {
+	declare username=""
+
         if status; then
                 ocf_log info "Starting Service $OCF_RESOURCE_INSTANCE > Already running"
                 return $OCF_SUCCESS
@@ -75,7 +77,13 @@ start()
 
 	clog_service_start $CLOG_INIT
 
-	create_pid_directory
+	# Pull out the user name from the options argument if it is set.
+	# We need this to properly set the pidfile permissions
+	if [ -n "$OCF_RESKEY_mysqld_options" ]; then
+		username=$(echo "$OCF_RESKEY_mysqld_options" | sed -n -e 's/^.*--user=\(\S*\)[[:space:]]*.*$/\1/p;s/^.*-u[[:space:]]*\(\S*\)[[:space:]]*.*$/\1/p')
+	fi
+
+	create_pid_directory "$username"
 	check_pid_file "$MYSQL_pid_file"
 
 	if [ $? -ne 0 ]; then
