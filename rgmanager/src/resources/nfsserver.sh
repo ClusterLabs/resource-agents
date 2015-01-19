@@ -23,6 +23,11 @@ if [ $SELINUX_ENABLED ]; then
 	export SELINUX_LABEL="$(ls -ldZ /var/lib/nfs/statd | cut -f4 -d' ')"
 fi
 
+# strip trailing / off so pattern matching will work consistently.
+while [ "${OCF_RESKEY_path#${OCF_RESKEY_path%?}}" = "/" ]
+do
+	OCF_RESKEY_path="${OCF_RESKEY_path%/}"
+done
 
 log_do()
 {
