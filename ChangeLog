@@ -1,3 +1,257 @@
+* Tue Jan 20 2015 resource-agents contributors
+- release candidate 3.9.6 rc1
+- VirtualDomain: add sync_config_on_stop to sync the config to
+  other nodes
+- mysql.sh: Allow MySQL to run as user other than mysql
+- fs-lib.sh: Fix missed detection of write failure
+- iscsi: run iscsi discovery only when necessary
+- VirtualDomain: save the config before virsh undefine
+  (bnc#891915)
+- sg_persist: new RA
+- ldirectord: Add Install section for systemd unit file.
+- kamilio: new RA
+- findif.sh: Use the most specific matching route
+- LVM: volgrpname is unique (meta-data update)
+- ldirectord: Get correct user for sending email (bnc#910497)
+- iSCSILogicalUnit: do not set write_back when creating
+  backstore/block
+- portblock: Feature: reset_tcp_on_unblock_stop
+- nfsserver: prevent error messages on platforms without rpcuser
+- Xen: fix regression with xm and quoting (lf#2671)
+- lxc: re-add LXCpre1.0 logic
+- lxc: fix for missing lxc-ps command
+- Route: some unique attributes are not unique (meta-data)
+- IPaddr2 findif: accept dotted quad netmask
+- VirtualDomain: For Xen, prefer xl to xen-list (boo#901453)
+- Xen: Use xl list $domain return code in status check
+  (boo#901453)
+- pgsql: PostgreSQL 9.3 compatibility for unix_socket_directories
+- lvm_by_vg.sh: Only strip tag on stop if we are owner
+- ocf-shellfuncs: set HA_LOGD depending on HA_use_logd
+- mysql: avoid use of check_binary in common validation function.
+- mysql: report error when validation fails during monitor yet
+  pid is still active
+- docker: new RA
+- mysql: do not report success on 'stop' if validation fails
+- anything: fix output redirection
+- mysql: fix unexpected operation error that caused by MySQL
+  client timeout.
+- Middle: anything: Prevent stop failure, even if the job takes
+  time to stop.
+- doc: Add pcs to man page example section
+- multiple RA: exit reason support
+- Build: add --compat-habindir option for HA_BIN backward
+  compatibility
+- iSCSITarget: monitor operation must pass before start is
+  considered complete
+- iSCSILogicalUnit: monitor operation must pass before start is
+  considered complete
+- iSCSILogicalUnit:  Fixes the check for pre-existing LUN ACLs
+- iSCSITarget: fixes syntax error caused by targetcli update
+- Filesystem: when loading kernel modules wait for filesystem to
+  initialize
+- ethmonitor: add infiniband status monitoring support
+- Xinetd: refine exit codes when xinetd is stopped
+- Xen: Properly quote domain name in call to create
+- Xen: Use xenstore-ls to get status if available
+- Xen: Replace use of xm with xl (bnc#882548)
+- oracle: fix setting monitor user profile for other languages
+  (nls)
+- apache: Revised fix for init script reference on SUSE
+  (bnc#884674)
+- VirtualDomain: Try xenstore-ls if no emulator is set
+  (bnc#885292)
+- galera: new RA
+- VirtualDomain: Add support for qemu-dm as emulator (bnc#885292)
+- CTDB: add ctdb_rundir parameter and create on startup
+- VirtualDomain: new parameter save_config_on_stop to enable
+  saving running VM's configuration
+- fs-lib.sh: Force kill processes with access to shared libraries
+  on mount point
+- iSCSILogicalUnit: add targetcli support
+- Filesystem: Add force_unmount option
+- nfsserver: regenerate statd state file before starting nfs
+- nfsnotify: new RA
+- nfsserver: introducing nfs_no_notify option for suppressing
+  reboot notifications
+- nfsserver: Keep statd directories synced with ha backup
+- oracle: reset MONUSR password if expired
+- oracle: try as sysdba if monitor as MONUSR fails
+- oracle: Make monitoring user configurable (bnc#850589)
+- oralistener.sh: Do not fail during stop if listener has already
+  stopped
+- nfsserver: Add options for explicitly setting nfs daemon ports
+- vsftpd: new RA
+- fs-lib.sh: Fix usage of findmnt to work for filesystems
+  containing bind mounts
+- exportfs: allow multiple exports
+- ldirectord: Update .spec file with systemd support (bnc#863250)
+- ldirectord: Add systemd unit file (bnc#863250)
+- nfsserver: Do not require shared info directory when cloned
+- nfsserver: Allow dynamically setting rpc.nfsd options.
+- iscsi: iscsi status fails with open-iscsi with support for
+  flash (bnc#878039)
+- Med: rgmanager/fs: typo preventing passing some mount opts
+- nfsserver.sh: add an optional option for the rpc.statd
+  listening port
+- Feature: addition of bind-mount resource agent for rgmanager
+- exportfs: Do not fail during monitor and stop operations if dir
+  has trailing slash
+- nfsserver: Do not fail monitor if lock services are enabled
+- nfsserver: let systemd service files handle lock notifications
+- vm.sh: 'no_kill' option for preventing auto destruction of vm
+  after timeout period
+- vm.sh: Monitor kvm resources without requiring libvirtd to be
+  up
+- nfsserver: preserve statd directory permissions during
+  sm-notify or else lock recovery fails
+- kamailio: new RA
+- nfsserver.sh: On stop, kill sm-notify so /var/lib/nfs/statd can
+  be unmounted
+- db2: Report OCF_ERR_GENERIC instead of OCF_NOT_RUNNING when
+  instance is not completely up
+- named.sh: Fix issues running named daemon as a non-root user
+- db2.sh: rgmanager wrapper for the heartbeat db2 agent
+- CTDB: do not fail monitor operation when ctdb socket does not
+  exist
+- exportfs: set unlock_on_stop_default=1 (bnc#864263)
+- dnsupdate: new RA
+- clvm: new RA
+- mysql: handle $secs_behind = NULL
+- dhcpd: Added a restart-function
+- high: conntrackd: allow probe to return OCF_RUNNING_MASTER
+- VirtualDomain: check process table for qemu-system-* too, not
+  just qemu-kvm
+- VirtualDomain: avoid running "virsh uri" if hypervisor is set
+- apache.sh: Add ability to set custom httpd binary
+- db2: Allow db2 agent to work without crm_master binary
+- VirtualDomain: Attempt to determine vm status even when libvirt
+  is unavailable
+- VirtualDomain: Fixes parsing domain name from xml file.
+- fs-lib.sh: Fixes failure to unmount local fs when process runs
+  with cwd inside fs mount
+- ldirectord: Fix sockaddr_in6 redefined error
+- Pure-FTPd: Create pid directory if needed
+- VirtualDomain: support more virsh domstate output formats
+- varnish: Added support for ulimit -l and ulimit -n
+- lxc: support up-to-date lxc-ps versions
+- tomcat: Override default tomcat config with resource options
+- nfsserver: nfsserver not starting due to missing etab file
+- tomcat: Avoid unnecessary force kill of tomcat on stop
+- tomcat: Avoid race condition in reading pid file on stop
+- slapd: find the correct default slapd config in fedora
+- tomcat: Detect start script location
+- pgsql: Support for non-standard port and library locations
+- fix netfs unmount/self_fence integration
+- Med: oracledb.sh: Remove quotes around listener name
+- IPaddr2/findif.sh: Do a sanity check only on start and
+  validate-all
+- ldirectord: Disable HTTPS SSL certificate hostname checking
+- tomcat: Monitor rotatelogs process and restart when it is
+  stopped
+- jboss: Monitor rotatelogs process and restart when it is
+  stopped
+- mysql: Fix for the issue of detecting an unconfigured slave
+  with empty master_host since setting empty master_host is not
+  allowed with 5.5
+- IPaddr2/findif.sh: Robust parameter checking for 'nic'
+- VirtualDomain: Ensure it is possible to manage a libvirt domain
+  defined outside of VirtualDomain
+- VirtualDomain: Fix ability to use default libvirt hypervisor
+  without explicitly setting agent attribute
+- tomcat-6.sh: Fixes setting TOMCAT_USER correctly
+- tomcat-s.sh: Do not fail on stop if config validation fails.
+- fs-lib.sh: Removes usage of fuser -kvm from fs-lib.sh based
+  agents.
+- ldirectord: Use an alarm for LDAP check to ensure it times out
+- exportfs: stop with no directory should succeed
+- Xen: retry domain lookup in repeating monitor and stop
+- Fixes lvm metadata corruption caused when activating by lv
+  using tags.
+- ldirector: fix using service name instead of port number
+  (bnc#836759)
+- Filesystem: remove SLES10 compatibility code
+- Raid1: disallow md raid arrays as clone resources to avoid data
+  corruption
+- apache: put back config file existence test
+- VirtualDomain: Do not attempt graceful shutdown if force_stop
+  is enabled
+- Med: oracledb.sh: Fix process name grep in exit_idle
+- VirtualDomain: use virsh create instead of define to start it
+  non-persistent
+- eDir88: multiple IP support
+- apache: better handling of not installed apache
+- jboss: add jboss_base_dir parameter to support multi-instances
+  on JBoss 6
+- jboss: stop the JBoss daemon by sending a signal on JBoss 6
+- jboss: add run_command parameter to change the start up script
+- jboss: add jboss_version parameter to support JBoss 6
+- tomcat: use root as the default for tomcat_user instead of
+  RUNASIS mode
+- tomcat: multiple tomcat instances based on CATALINE_BASE
+- pound: add parameter maxfiles to set ulimit
+- apache: remove unnecessary and imperfect checks from
+  validate_all (bnc#827927)
+- pgsql: set only one node into sync mode when using 3 nodes or
+  higher
+- Med: oracledb.sh: Set RESTART_RETRIES back to 0
+- Raid1: stop arrays even with block device file missing
+  (bnc#821861)
+- oracle/oralsnr: use /bin/sh in sudo calls (bnc#825517)
+- apache: Properly check meta_timeout variable during graceful
+  stop
+- Raid1: set MDADM_NO_UDEV appropriately if udev is not used
+- Raid1: wait for udevd to settle (bnc#821861)
+- iSCSILogicalUnit: add tgt specific parameters bstype, bsoflags,
+  device_type
+- apache: Attempt graceful stop before -TERM signal
+- LVM: Warn user if initrd is older than lvm.conf when using
+  exclusive activation with tags
+- LVM: Exclusive activation without clvmd using filtering with
+  tags.
+- named: Attempt to autogen /etc/rndc.key using rndc-confgen tool
+- mysql: really use log setting (bnc#823095)
+- mysql: test properly for failed process start (bnc#823095)
+- Med: Don't preserve SELinux context when copying files to
+  /var/lib/nfs/sm
+- Med: Cleanup oracledb.sh rgmanager agent and add support for
+  Oracle 11g
+- Med: Cleanup oralistener.sh and add support for Oracle 11g
+- Med: Cleanup orainstance.sh and add support for Oracle 11g
+- fs-lib.sh: Faster filesystem start/stop through use of
+  'findmnt' command for 'is_mounted' function
+- named.sh: Addition of update-source option.
+- LVM: Retry exclusive activation after deactivating vg
+  cluster-wide
+- LVM: Retry deactivating vg allowing udev to settle
+- ip.sh: Fixes usage of ipv6 addresses with uppercase lettering
+- LVM: Verify setup on start plus verify exclusive activation is
+  possible.
+- Route: add IPv6 support
+- build: Place resource state information in /var/run/... by
+  default
+- DRBD: remove deprecated drbd agent.
+- fs-lib.sh: Always honor self_fence option when
+  force_unmount="on"
+- postgres-8: Shutdown postgres with SIGINT before forcing
+  SIGQUIT
+- tools: send_arp.libnet: reuse ARP packets (debian#701914)
+- ethmonitor: correctly detect when the network is unplugged.
+- Raid1: do not test for device existence in the stop operation
+  (bnc#821861)
+- mysql: Attempt to auto-detect mysql binary default location.
+- VirtualDomain: Support saving and restoring virtual machine
+  snapshot state files
+- nfsserver: Cleanup shared nfs dir mount
+- nfsserver: Enable file locking daemon when systemd is being
+  used
+- nfsserver: Maintain SELinux permissions on failover for nfs v3
+  lock state
+- nfsserver: Improve support for v3 file lock recovery
+- nfsserver: Add systemd unit-file support when init scripts are
+  not present
+- VirtualDomain: Properly detect defined lxc domains
+
 * Thu Feb  7 2013 Linux-HA contributors
 - stable release 3.9.5
 - IPaddr2: support nic:iflabel format in nic parameter
