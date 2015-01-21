@@ -1,0 +1,370 @@
+#!/bin/sh
+#
+# Copyright (c) 2014 David Vossel <dvossel@redhat.com>
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+
+RMQ_SERVER=/usr/sbin/rabbitmq-server
+RMQ_CTL=/usr/sbin/rabbitmqctl
+RMQ_DATA_DIR="/var/lib/rabbitmq/mnesia"
+RMQ_PID_DIR="/var/run/rabbitmq"
+RMQ_PID_FILE="/var/run/rabbitmq/rmq.pid"
+RMQ_LOG_DIR="/var/log/rabbitmq"
+NODENAME=$(ocf_local_nodename)
+
+RMQ_CRM_ATTR_COOKIE="rmq-node-attr-${OCF_RESOURCE_INSTANCE}"
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="rabbitmq-cluster" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+Starts cloned rabbitmq cluster instance
+</longdesc>
+<shortdesc lang="en">rabbitmq clustered</shortdesc>
+
+<parameters>
+<parameter name="set_policy" unique="1">
+<longdesc lang="en">
+Policy string to pass to 'rabbitmqctl set_policy' right after bootstrapping the first rabbitmq instance.
+</longdesc>
+<shortdesc lang="en">rabbitmqctl set_policy args</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="100" />
+<action name="stop"         timeout="90" />
+<action name="monitor"      timeout="40" interval="10" depth="0" />
+<action name="meta-data"    timeout="10" />
+<action name="validate-all"   timeout="20" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+rmq_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|migrate_to|migrate_from|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+rmq_wipe_data()
+{
+	rm -rf $RMQ_DATA_DIR > /dev/null 2>&1 
+}
+
+rmq_local_node()
+{
+
+	local node_name=$(rabbitmqctl status 2>&1 | sed -n -e "s/^.*[S|s]tatus of node \(.*\)\s.*$/\1/p" | tr -d "'")
+
+	if [ -z "$node_name" ]; then
+		node_name=$(cat /etc/rabbitmq/rabbitmq-env.conf 2>/dev/null | grep "\s*RABBITMQ_NODENAME=" | awk -F= '{print $2}')
+	fi
+
+	echo "$node_name"
+}
+
+rmq_join_list()
+{
+	cibadmin -Q 2>/dev/null | grep "$RMQ_CRM_ATTR_COOKIE" | sed -n -e "s/^.*value=.\(.*\)\".*$/\1/p"
+}
+
+rmq_write_nodename()
+{
+	local node_name=$(rmq_local_node)
+
+	if [ -z "$node_name" ]; then
+		ocf_log err "Failed to determine rabbitmq node name, exiting"
+		exit $OCF_ERR_GENERIC
+	fi
+
+	# store the pcmknode to rmq node mapping as an attribute
+	${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "$RMQ_CRM_ATTR_COOKIE" -v "$node_name"
+}
+
+rmq_delete_nodename()
+{
+	# remove node-name
+	${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "$RMQ_CRM_ATTR_COOKIE" -D
+}
+
+prepare_dir () {
+	if [ ! -d ${1} ] ; then
+		mkdir -p ${1}
+		chown -R rabbitmq:rabbitmq ${1}
+		chmod 755 ${1}
+	fi
+}
+
+remove_pid () {
+	rm -f ${RMQ_PID_FILE} > /dev/null 2>&1
+}
+
+rmq_monitor() {
+	local rc
+
+	$RMQ_CTL cluster_status > /dev/null 2>&1
+	rc=$?
+	case "$rc" in
+	0)
+		ocf_log debug "RabbitMQ server is running normally"
+		rmq_write_nodename
+		
+		return $OCF_SUCCESS
+	;;
+	2)
+		ocf_log info "RabbitMQ server is not running"
+		rmq_delete_nodename
+		return $OCF_NOT_RUNNING
+	;;
+	*)
+		ocf_log err "Unexpected return code from '$RMQ_CTL cluster status' exit code: $rc"
+		rmq_delete_nodename
+		return $OCF_ERR_GENERIC
+	;;
+	esac
+}
+
+rmq_init_and_wait()
+{
+	local rc
+
+	prepare_dir $RMQ_PID_DIR
+	prepare_dir $RMQ_LOG_DIR
+	remove_pid
+
+	# the server startup script uses this environment variable
+	export RABBITMQ_PID_FILE="$RMQ_PID_FILE"
+
+	setsid sh -c "$RMQ_SERVER > ${RMQ_LOG_DIR}/startup_log 2> ${RMQ_LOG_DIR}/startup_err" &
+
+	ocf_log info "Waiting for server to start"
+	$RMQ_CTL wait $RMQ_PID_FILE
+	rc=$?
+	if [ $rc -ne $OCF_SUCCESS ]; then
+		remove_pid
+		ocf_log info "rabbitmq-server start failed: $rc"
+		return $OCF_ERR_GENERIC
+	fi
+
+	rmq_monitor
+	return $?
+}
+
+rmq_set_policy()
+{
+	$RMQ_CTL set_policy $@ > /dev/null 2>&1
+}
+
+rmq_start_first()
+{
+	local rc
+
+	ocf_log info "Bootstrapping rabbitmq cluster"
+	rmq_wipe_data
+	rmq_init_and_wait
+	rc=$?
+
+	if [ $rc -eq 0 ]; then
+		rc=$OCF_SUCCESS
+		ocf_log info "cluster bootstrapped"
+
+		if [ -n "$OCF_RESKEY_set_policy" ]; then
+			# do not quote set_policy, we are passing in arguments
+			rmq_set_policy $OCF_RESKEY_set_policy > /dev/null 2>&1
+			if [ $? -ne 0 ]; then
+				ocf_log err "Failed to set policy: $OCF_RESKEY_set_policy"
+				rc=$OCF_ERR_GENERIC
+			else 
+				ocf_log info "Policy set: $OCF_RESKEY_set_policy"
+			fi
+		fi
+
+	else
+		ocf_log info "failed to bootstrap cluster. Check SELINUX policy"
+		rc=$OCF_ERR_GENERIC
+	fi
+
+	return $rc
+}
+
+rmq_join_existing()
+{
+	local join_list="$1"
+	local rc=$OCF_ERR_GENERIC
+
+	ocf_log info "Joining existing cluster with [ $(echo $join_list | tr '\n' ' ') ] nodes."
+	rmq_init_and_wait
+	if [ $? -ne 0 ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	# unconditionally join the cluster
+	$RMQ_CTL stop_app > /dev/null 2>&1
+	for node in $(echo "$join_list"); do
+		ocf_log info "Attempting to join cluster with target node $node"
+		$RMQ_CTL join_cluster $node
+		if [ $? -eq 0 ]; then
+			ocf_log info "Joined cluster by connecting to node $node, starting app"
+			$RMQ_CTL start_app
+			rc=$?
+			if [ $rc -ne 0 ]; then
+				ocf_log err "'$RMQ_CTL start_app' failed"
+			fi
+			break;
+		fi
+	done
+
+	if [ "$rc" -ne 0 ]; then
+		ocf_log info "Join process incomplete, shutting down."
+		return $OCF_ERR_GENERIC
+	fi
+
+	ocf_log info "Successfully joined existing rabbitmq cluster"
+	return $OCF_SUCCESS
+}
+
+rmq_start() {
+	local join_list=""
+	local rc
+
+	rmq_monitor
+	if [ $? -eq $OCF_SUCCESS ]; then
+		return $OCF_SUCCESS
+	fi
+
+	join_list=$(rmq_join_list)
+
+	# No join list means no active instances are up. This instance
+	# is the first, so it needs to bootstrap the rest
+	if [ -z "$join_list" ]; then
+		rmq_start_first
+		rc=$?
+		return $rc
+	fi
+
+	# first try to join without wiping mnesia data
+	rmq_join_existing "$join_list"
+	if [ $? -ne 0 ]; then
+		ocf_log info "node failed to join, wiping data directory and trying again"
+		# if the graceful join fails, use the hammer and reset all the data.
+		rmq_stop 
+		rmq_wipe_data
+		rmq_join_existing "$join_list"
+		if [ $? -ne 0 ]; then
+			ocf_log info "node failed to join even after reseting local data. Check SELINUX policy"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
+	return $OCF_SUCCESS
+}
+
+rmq_stop() {
+	rmq_monitor
+	if [ $? -eq $OCF_NOT_RUNNING ]; then
+		return $OCF_SUCCESS
+	fi
+
+	$RMQ_CTL stop
+	rc=$?
+
+	if [ $rc -ne 0 ]; then
+		ocf_log err "rabbitmq-server stop command failed: $RMQ_CTL stop, $rc"
+		return $rc
+	fi
+
+	#TODO add kill logic
+	stop_wait=1
+	while [ $stop_wait = 1 ]; do
+		rmq_monitor
+		rc=$?
+		if [ "$rc" -eq $OCF_NOT_RUNNING ]; then
+			stop_wait=0
+			break
+		elif [ "$rc" -ne $OCF_SUCCESS ]; then
+			ocf_log info "rabbitmq-server stop failed: $rc"
+			exit $OCF_ERR_GENERIC
+		fi
+		sleep 1
+	done
+
+	remove_pid
+	return $OCF_SUCCESS
+}
+
+rmq_validate() {
+	check_binary $RMQ_SERVER
+	check_binary $RMQ_CTL
+
+	# This resource only makes sense as a clone right now. at some point
+	# we may want to verify the following.
+	#TODO verify cloned
+	#TODO verify ordered=true
+
+	# Given that this resource does the cluster join explicitly,
+	# having a cluster_nodes list in the static config file will
+	# likely conflict with this agent. 
+	#TODO verify no cluster list in rabbitmq conf
+	#cat /etc/rabbitmq/rabbitmq.config | grep "cluster_nodes"
+
+	return $OCF_SUCCESS
+}
+
+case $__OCF_ACTION in
+meta-data)	meta_data
+		exit $OCF_SUCCESS
+		;;
+start)		rmq_start;;
+stop)		rmq_stop;;
+monitor)	rmq_monitor;;
+validate-all)	rmq_validate;;
+usage|help)	rmq_usage
+		exit $OCF_SUCCESS
+		;;
+*)		rmq_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
+

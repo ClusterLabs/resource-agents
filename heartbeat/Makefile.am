@@ -106,6 +106,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			pgsql			\
 			proftpd			\
 			Pure-FTPd		\
+			rabbitmq-cluster	\
 			Raid1			\
 			redis			\
 			Route			\
