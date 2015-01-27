@@ -130,26 +130,6 @@ getpid() {
 }
 
 #
-# Check if PID directory exists
-#
-check_piddir() {
-    local piddir
-    local severity
-
-    # lower severity to info during probe
-    severity=err
-    ocf_is_probe && severity=info
-
-    piddir=`dirname ${OCF_RESKEY_pid}`
-    if [ ! -d $piddir ]; then
-        ocf_log $severity "PID directory ${piddir} doesn't exist"
-        return 1
-    fi
-
-    return 0
-}
-
-#
 # Check for the server configuration file
 #
 check_config() {
@@ -322,9 +302,8 @@ zabbixserver_monitor() {
 # validate configuration
 #
 zabbixserver_validate_all() {
-    check_piddir || return $OCF_ERR_INSTALLED
     check_config $OCF_RESKEY_config || return $OCF_ERR_INSTALLED
-
+    ocf_mkstatedir root 755 `dirname $OCF_RESKEY_pid` || return $OCF_ERR_INSTALLED
     return $OCF_SUCCESS
 }
 

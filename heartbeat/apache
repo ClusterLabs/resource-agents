@@ -593,6 +593,7 @@ apache_validate_all() {
 		ocf_exit_reason "Configuration file $CONFIGFILE not found!"
 		return $OCF_ERR_INSTALLED
 	fi
+	ocf_mkstatedir root 755 `dirname $PidFile` || return $OCF_ERR_INSTALLED
 	return $OCF_SUCCESS
 }
 
