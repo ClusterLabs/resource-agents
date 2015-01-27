@@ -263,12 +263,12 @@ parse_cfg()
           stat=2
           continue
           ;;
-	SETUP-AGENT)
+        SETUP-AGENT)
           case_parse_finish
           stat=3
           continue
           ;;
-	CLEANUP-AGENT)
+        CLEANUP-AGENT)
           case_parse_finish
           stat=4
           continue
@@ -645,6 +645,7 @@ set_ocf_env()
 start_test()
 {
   local sh shs testsh agents line ret
+  local varlib
 
   if ! cd $CASES_DIR >/dev/null 2>&1; then
     die "cases directory not found."
@@ -674,8 +675,19 @@ start_test()
               cleanup_${shs}.sh"
     fi
 
+    if [ -n "$opt_trace_ra" ]; then
+      varlib=${HA_VARLIB:="/var/lib/heartbeat"}
+      export OCF_RESKEY_trace_ra=1
+      # not exactly resource type, but for this purpose ...
+      export OCF_RESOURCE_TYPE="ocft_$shs"
+      echo "RA trace on, output in $varlib/trace_ra/${OCF_RESOURCE_TYPE}"
+    fi
+
     for sh in $testsh; do
       if [ -r "$sh" ]; then
+        if [ -n "$opt_trace_ra" ]; then
+          OCF_RESOURCE_INSTANCE="`echo $sh | sed 's/_.*//'`"
+        fi
         ./$sh
         ret=$?
 
@@ -742,13 +754,14 @@ $0 ACTION [OPTION] [agent1 [agent2] [...]]
 ACTIONs include:
      make [-d dir]   Generate the testing shell scripts.
                        -d  The directory that contains 
-		           configuration of cases.
-     test [-v|-i]    Execute the testing shell scripts.
+           configuration of cases.
+     test [-v|-i|-X]  Execute the testing shell scripts.
                        -v  Verbose output mode.
                        -i  Incremental mode, skip case 
                            which succeeded. If cleaning 
                            the status of incremental mode
                            is needed, try to '$0 clean RA_NAME'.
+                       -X  Trace the RA
      clean           Delete the testing shell scripts.
      help [-v]       Show this help and exit.
                        -v  Show HOWTO and exit.
@@ -843,10 +856,14 @@ case "$command" in
     parse_cfg "$@"
     ;;
   test)
-    for v in 1 2; do
+    for v in 1 2 3; do
       case "$1" in
         -v)
           opt_verbose=1
+          shift
+          ;;
+        -X)
+          opt_trace_ra=1
           shift
           ;;
         -i)
@@ -874,3 +891,5 @@ case "$command" in
     exit 1
     ;;
 esac
+
+# vim:ts=2:sw=2:et:
