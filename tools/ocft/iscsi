@@ -16,9 +16,9 @@ SETUP-AGENT
 	dd if=/dev/zero of=$OCFT_disk bs=1024k count=1 2>/dev/null
 	echo Target $OCFT_target >> /etc/ietd.conf
 	echo "        Lun 0 Path=$OCFT_disk,Type=fileio" >> /etc/ietd.conf
-	/etc/init.d/iscsitarget start
-	/etc/init.d/open-iscsi start
-	/etc/init.d/iscsitarget restart
+	rciscsitarget start
+	rcopen-iscsi start
+	rciscsitarget restart
 
 CLEANUP-AGENT
 	rm -f $OCFT_disk

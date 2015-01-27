@@ -8,8 +8,8 @@ CONFIG
         HangTimeout 20
 
 SETUP-AGENT
-	/etc/init.d/apache2 start
-	/etc/init.d/apache2 stop
+	rcapache2 start
+	rcapache2 stop
 
 CASE-BLOCK default_status
 	AgentRun stop
