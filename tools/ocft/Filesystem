@@ -1,6 +1,9 @@
 # Filesystem
 # by dejan@suse.de on 
 # Tue Feb 15 18:50:04 CET 2011
+#
+# NB: Replace /var/run below with /run if your system mounts /run
+# as tmpfs!
 
 CONFIG
 	Agent Filesystem
