@@ -822,6 +822,7 @@ ocf_start_trace() {
 	fi
 	PS4='+ `date +"%T"`: ${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}: '
 	set -x
+	env=$( echo; printenv | sort )
 }
 ocf_stop_trace() {
 	set +x
