@@ -89,12 +89,22 @@ agent_install()
   done
 }
 
+set_ocf_env()
+{
+  export OCF_RA_VERSION_MAJOR=1
+  export OCF_RA_VERSION_MINOR=0
+  export OCF_RESOURCE_TYPE=$1
+  export OCF_RESOURCE_INSTANCE=${OCF_RESOURCE_INSTANCE:-"ocft"}
+}
+
 agent_run()
 {
   local agent cmd timeout pid i ret aroot
   agent="$1"
   cmd="$2"
   timeout="$3"
+
+  set_ocf_env $agent
 
   aroot=${__OCFT__MYROOT:-$__OCFT__AGENT_ROOT}
 
@@ -292,3 +302,5 @@ while read __OCFT__line; do
   fi
 done <<<"$(sed 's/#.*//' $OCF_LIB/ocf-returncodes)"
 
+
+# vim:ts=2:sw=2:et:

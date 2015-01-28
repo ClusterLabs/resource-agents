@@ -632,16 +632,6 @@ EOF
   done
 }
 
-set_ocf_env()
-{
-  local cfg=$1
-
-  export OCF_RA_VERSION_MAJOR=1
-  export OCF_RA_VERSION_MINOR=0
-  export OCF_RESOURCE_TYPE=${OCF_RESOURCE_TYPE:-"$cfg"}
-  export OCF_RESOURCE_INSTANCE=${OCF_RESOURCE_INSTANCE:-"ocft"}
-}
-
 start_test()
 {
   local sh shs testsh agents line ret
@@ -664,7 +654,6 @@ start_test()
   fi
 
   for shs in "${agents[@]}"; do
-    set_ocf_env $shs
     if [ -z "$opt_incremental" ]; then
       testsh="setup_${shs}.sh
               $(ls -1 [0-9]*_${shs}.sh 2>/dev/null | sort -n)
@@ -678,15 +667,13 @@ start_test()
     if [ -n "$opt_trace_ra" ]; then
       varlib=${HA_VARLIB:="/var/lib/heartbeat"}
       export OCF_RESKEY_trace_ra=1
-      # not exactly resource type, but for this purpose ...
-      export OCF_RESOURCE_TYPE="ocft_$shs"
-      echo "RA trace on, output in $varlib/trace_ra/${OCF_RESOURCE_TYPE}"
+      echo "RA trace on, output in $varlib/trace_ra"
     fi
 
     for sh in $testsh; do
       if [ -r "$sh" ]; then
         if [ -n "$opt_trace_ra" ]; then
-          OCF_RESOURCE_INSTANCE="`echo $sh | sed 's/_.*//'`"
+          export OCF_RESOURCE_INSTANCE="`echo $sh | sed 's/_.*//'`"
         fi
         ./$sh
         ret=$?
