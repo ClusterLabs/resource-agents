@@ -595,7 +595,7 @@ ctdb_start() {
 	if [ $? -ne 0 ]; then
 		# cleanup smb.conf
 		cleanup_smb_conf
-		
+
 		ocf_exit_reason "Failed to execute $OCF_RESKEY_ctdbd_binary."
 		return $OCF_ERR_GENERIC
 	else
@@ -622,10 +622,10 @@ ctdb_start() {
 			fi
 		done
 	fi
-	
+
 	# ctdbd will (or can) actually still be running at this point, so kill it
 	ctdb_stop
-	
+
 	ocf_exit_reason "Timeout waiting for CTDB to stabilize"
 	return $OCF_ERR_GENERIC
 }
@@ -634,7 +634,7 @@ ctdb_start() {
 ctdb_stop() {
 	# Do nothing if already stopped
 	pkill -0 -f $OCF_RESKEY_ctdbd_binary || return $OCF_SUCCESS
-	
+
 	# Tell it to die nicely
 	invoke_ctdb shutdown >/dev/null 2>&1
 	rv=$?
