@@ -97,10 +97,10 @@ fi
 : ${OCF_RESKEY_ctdb_config_dir:=/etc/ctdb}
 : ${OCF_RESKEY_ctdb_binary:=/usr/bin/ctdb}
 : ${OCF_RESKEY_ctdbd_binary:=/usr/sbin/ctdbd}
-: ${OCF_RESKEY_ctdb_socket:=${var_prefix}/ctdb.socket}
 : ${OCF_RESKEY_ctdb_dbdir:=${var_prefix}}
 : ${OCF_RESKEY_ctdb_logfile:=/var/log/ctdb/log.ctdb}
 : ${OCF_RESKEY_ctdb_rundir:=${run_prefix}/ctdb}
+: ${OCF_RESKEY_ctdb_socket:=${OCF_RESKEY_ctdb_rundir}/ctdbd.socket}
 : ${OCF_RESKEY_ctdb_debuglevel:=2}
 
 : ${OCF_RESKEY_smb_conf:=/etc/samba/smb.conf}
