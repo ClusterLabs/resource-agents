@@ -10,8 +10,8 @@ CONFIG
 	InstallPackage bind-utils
 
 SETUP-AGENT
-	/etc/init.d/named start
-	/etc/init.d/named stop
+	rcnamed start
+	rcnamed stop
 
 CASE-BLOCK crm_setting
         Env OCF_RESKEY_CRM_meta_timeout=15000
