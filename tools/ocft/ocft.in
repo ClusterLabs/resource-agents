@@ -635,6 +635,7 @@ EOF
 start_test()
 {
   local sh shs testsh agents line ret
+  local rc=0
   local varlib
 
   if ! cd $CASES_DIR >/dev/null 2>&1; then
@@ -684,6 +685,7 @@ start_test()
                 warn "SETUP failed, break all tests of '$shs'."
                 break
               fi
+              rc=$((rc|ret))
               ;;
           cleanup*)
               if [ $ret -ne 0 ]; then
@@ -697,6 +699,7 @@ start_test()
                 1) touch ${sh%.*}.retest ;;
                 0) rm -f ${sh%.*}.retest ;;
               esac
+              rc=$((rc|ret))
               ;;
         esac
       fi
@@ -706,6 +709,7 @@ start_test()
       sed -r 's/\^\[\[[0-9]+m|\^I|.$//g' >>logs/$shs.log
     done
   done
+  return $rc
 }
 
 agent_clean()
