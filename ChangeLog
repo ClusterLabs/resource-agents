@@ -1,3 +1,10 @@
+* Thu Jan 29 2015 resource-agents contributors
+- stable release 3.9.6
+- VirtualDomain: add migrate_options parameter
+- VirtualDomain: enforce C locale in status
+- ocf-shellfuncs: add printenv to RA trace
+- nginx: allow different URLs for level 10 and 20 monitor
+
 * Tue Jan 20 2015 resource-agents contributors
 - release candidate 3.9.6 rc1
 - VirtualDomain: add sync_config_on_stop to sync the config to
