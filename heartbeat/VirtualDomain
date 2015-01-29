@@ -664,7 +664,7 @@ VirtualDomain_Migrate_To() {
 			migrateuri=`echo "$migrate_opts" |
 				sed "s/.*--migrateuri=\([^ ]*\).*/\1/;s/%n/$target_node/g"`
 			migrate_opts=`echo "$migrate_opts" |
-				sed "s/\(.*\)--migrateuri=[^ ]*\(.*\)/\1\3/"`
+				sed "s/\(.*\)--migrateuri=[^ ]*\(.*\)/\1\2/"`
 		else
 			migrateuri=`mk_migrateuri`
 		fi
