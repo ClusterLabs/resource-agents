@@ -7,6 +7,8 @@
 : ${OCF_RESKEY_config:=/etc/redis/redis.conf}
 : ${OCF_RESKEY_user:=redis}
 : ${OCF_RESKEY_rundir:=/var/run/redis}
+: ${OCF_RESKEY_pidfile_name:=redis-server.pid}
+: ${OCF_RESKEY_socket_name:=redis.sock}
 : ${OCF_RESKEY_port:=6379}
 
 REDIS_SERVER="$OCF_RESKEY_bin"
@@ -14,8 +16,8 @@ REDIS_CLIENT="$OCF_RESKEY_client_bin"
 REDIS_CONFIG="$OCF_RESKEY_config"
 REDIS_USER="$OCF_RESKEY_user"
 REDIS_RUNDIR="$OCF_RESKEY_rundir"
-REDIS_PIDFILE="$OCF_RESKEY_rundir/redis-server.pid"
-REDIS_SOCKET="$OCF_RESKEY_rundir/redis.sock"
+REDIS_PIDFILE="$OCF_RESKEY_rundir/$OCF_RESKEY_pidfile_name"
+REDIS_SOCKET="$OCF_RESKEY_rundir/$OCF_RESKEY_socket_name"
 REDIS_REPLICATION_PORT="$OCF_RESKEY_port"
 
 function meta_data() {
@@ -73,6 +75,24 @@ Directory to store socket and pid file in
 </longdesc>
 <shortdesc lang="en">Redis var/run dir</shortdesc>
 <content type="string" default="${OCF_RESKEY_rundir}"/>
+</parameter>
+
+<parameter name="pidfile_name" unique="0" required="0">
+<longdesc lang="en">
+The filename to use for the pidfile. Will be created in the rundir. 
+Should only be a basename, not a full path.
+</longdesc>
+<shortdesc lang="en">Redis pidfile name</shortdesc>
+<content type="string" default="${OCF_RESKEY_pidfile_name}"/>
+</parameter>
+
+<parameter name="socket_name" unique="0" required="0">
+<longdesc lang="en">
+The filename to use for the socket. Will be crated in the rundir. 
+Should only be a basename, not a full path.
+</longdesc>
+<shortdesc lang="en">Redis socket name</shortdesc>
+<content type="string" default="${OCF_RESKEY_socket_name}"/>
 </parameter>
 
 <parameter name="port" unique="0" required="0">
@@ -184,7 +204,7 @@ function start() {
 
 	while true; do
 		# wait for redis to start
-		typeset -A info=
+		typeset -A info
 		while read line; do
 			[[ "$line" == "#"* ]] && continue
 			[[ "$line" != *":"* ]] && continue
@@ -226,7 +246,7 @@ function stop() {
 	pid="$(<"$REDIS_PIDFILE")"
 	kill -TERM "$pid"
 
-	for (( i=0; i<10; i++ )); do
+	while true; do
 		monitor
 		status=$?
 		if (( status == OCF_NOT_RUNNING )); then
@@ -239,15 +259,6 @@ function stop() {
 		fi
 		sleep 1
 	done
-	monitor
-	status=$?
-	if (( status == OCF_NOT_RUNNING )); then
-		crm_master_reboot -D
-		return $OCF_SUCCESS
-	fi
-
-	ocf_log err "stop: Unknown error while stopping"
-	return $OCF_ERR_GENERIC
 }
 
 function promote() {
@@ -286,6 +297,15 @@ function demote() {
 	master_host="${OCF_RESKEY_CRM_meta_notify_promote_uname// /}"
 	: "${master_host:=${OCF_RESKEY_CRM_meta_notify_master_uname// /}}"
 	master_port="${REDIS_REPLICATION_PORT}"
+
+	# The elected master has to remain a slave during startup.
+        # During this period a placeholder master host is assigned.
+	current_host=$(crm_node -n)
+	if [ "$master_host" == "$current_host" ]
+	then
+		ocf_log debug "this slave will soon become master, setting placeholder master in the meantime"
+		master_host="no-such-master"
+	fi
 	redis_client slaveof "$master_host" "$master_port"
 
 	monitor
