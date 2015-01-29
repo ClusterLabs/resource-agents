@@ -114,9 +114,26 @@ At the moment Qemu/KVM and Xen migration via a dedicated network is supported.
 
 Note: Be sure this composed host name is locally resolveable and the
 associated IP is reachable through the favored network.
+
+See also the migrate_options parameter below.
 </longdesc>
 <shortdesc lang="en">Migration network host name suffix</shortdesc>
 <content type="string" default="" />
+</parameter>
+
+<parameter name="migrate_options" unique="0" required="0">
+<longdesc lang="en">
+Extra virsh options for the guest live migration. You can also specify
+here --migrateuri if the calculated migrate URI is unsuitable for your
+environment. If --migrateuri is set then migration_network_suffix
+and migrateport are effectively ignored. Use "%n" as the placeholder
+for the target node name.
+
+Please refer to the libvirt documentation for details on guest
+migration.
+</longdesc>
+<shortdesc lang="en">live migrate options</shortdesc>
+<content type="string" />
 </parameter>
 
 <parameter name="monitor_scripts" unique="0" required="0">
@@ -591,14 +608,45 @@ VirtualDomain_Stop() {
 	force_stop
 }
 
+mk_migrateuri() {
+	local target_node
+	local migrate_target
+	local hypervisor
+
+	target_node="$OCF_RESKEY_CRM_meta_migrate_target"
+
+	# A typical migration URI via a special  migration network looks
+	# like "tcp://bar-mig:49152". The port would be randomly chosen
+	# by libvirt from the range 49152-49215 if omitted, at least since
+	# version 0.7.4 ...
+	if [ -n "${OCF_RESKEY_migration_network_suffix}" ]; then
+		hypervisor="${OCF_RESKEY_hypervisor%%[+:]*}"
+		# Hostname might be a FQDN
+		migrate_target=$(echo ${target_node} | sed -e "s,^\([^.]\+\),\1${OCF_RESKEY_migration_network_suffix},")
+		case $hypervisor in
+			qemu)
+				# For quiet ancient libvirt versions a migration port is needed
+				# and the URI must not contain the "//". Newer versions can handle
+				# the "bad" URI.
+				echo "tcp:${migrate_target}:${OCF_RESKEY_migrateport}"
+				;;
+			xen)
+				echo "xenmigr://${migrate_target}"
+				;;
+			*)
+				ocf_log warn "$DOMAIN_NAME: Migration via dedicated network currently not supported for ${hypervisor}."
+				;;
+		esac
+	fi
+}
+
 VirtualDomain_Migrate_To() {
+	local rc
 	local target_node
 	local remoteuri
 	local transport_suffix
 	local migrateuri
-	local migrateport
-	local migrate_target
-	local hypervisor
+	local migrate_opts
 
 	target_node="$OCF_RESKEY_CRM_meta_migrate_target"
 
@@ -609,28 +657,16 @@ VirtualDomain_Migrate_To() {
 		if [ -n "${OCF_RESKEY_migration_transport}" ]; then
 			transport_suffix="+${OCF_RESKEY_migration_transport}"
 		fi
-		# A typical migration URI via a special  migration network looks
-		# like "tcp://bar-mig:49152". The port would be randomly chosen
-		# by libvirt from the range 49152-49215 if omitted, at least since
-		# version 0.7.4 ...
-		if [ -n "${OCF_RESKEY_migration_network_suffix}" ]; then
-			hypervisor="${OCF_RESKEY_hypervisor%%[+:]*}"
-			# Hostname might be a FQDN
-			migrate_target=$(echo ${target_node} | sed -e "s,^\([^.]\+\),\1${OCF_RESKEY_migration_network_suffix},")
-			case $hypervisor in
-				qemu)
-					# For quiet ancient libvirt versions a migration port is needed
-					# and the URI must not contain the "//". Newer versions can handle
-					# the "bad" URI.
-					migrateuri="tcp:${migrate_target}:${OCF_RESKEY_migrateport}"
-					;;
-				xen)
-					migrateuri="xenmigr://${migrate_target}"
-					;;
-				*)
-					ocf_log warn "$DOMAIN_NAME: Migration via dedicated network currently not supported for ${hypervisor}."
-					;;
-			esac
+
+		# User defined migrateuri or do we make one?
+		migrate_opts="$OCF_RESKEY_migrate_options"
+		if echo "$migrate_opts" | fgrep -qs -- "--migrateuri="; then
+			migrateuri=`echo "$migrate_opts" |
+				sed "s/.*--migrateuri=\([^ ]*\).*/\1/;s/%n/$target_node/g"`
+			migrate_opts=`echo "$migrate_opts" |
+				sed "s/\(.*\)--migrateuri=[^ ]*\(.*\)/\1\3/"`
+		else
+			migrateuri=`mk_migrateuri`
 		fi
 		# Scared of that sed expression? So am I. :-)
 		remoteuri=$(echo ${OCF_RESKEY_hypervisor} | sed -e "s,\(.*\)://[^/:]*\(:\?[0-9]*\)/\(.*\),\1${transport_suffix}://${target_node}\2/\3,")
@@ -641,11 +677,11 @@ VirtualDomain_Migrate_To() {
 		fi
 
 		# OK, we know where to connect to. Now do the actual migration.
-		ocf_log info "$DOMAIN_NAME: Starting live migration to ${target_node} (using remote hypervisor URI ${remoteuri} ${migrateuri})."
-		virsh ${VIRSH_OPTIONS} migrate --live $DOMAIN_NAME ${remoteuri} ${migrateuri}
+		ocf_log info "$DOMAIN_NAME: Starting live migration to ${target_node} (using virsh ${VIRSH_OPTIONS} migrate --live $migrate_opts $DOMAIN_NAME $remoteuri $migrateuri)."
+		virsh ${VIRSH_OPTIONS} migrate --live $migrate_opts $DOMAIN_NAME $remoteuri $migrateuri
 		rc=$?
 		if [ $rc -ne 0 ]; then
-			ocf_exit_reason "$DOMAIN_NAME: live migration to ${remoteuri} ${migrateuri} failed: $rc"
+			ocf_exit_reason "$DOMAIN_NAME: live migration to ${target_node} failed: $rc"
 			return $OCF_ERR_GENERIC
 		else
 			ocf_log info "$DOMAIN_NAME: live migration to ${target_node} succeeded."
