@@ -857,6 +857,9 @@ case "$command" in
           opt_incremental=1
           shift
           ;;
+        -*)
+          die "bad option $1"
+          ;;
       esac
     done
     start_test "$@"
