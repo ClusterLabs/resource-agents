@@ -331,12 +331,13 @@ VirtualDomain_Status() {
 	status="no state"
 	while [ "$status" = "no state" ]; do
 		try=$(($try + 1 ))
-		status=$(virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME 2>&1 | tr 'A-Z' 'a-z')
+		status=$(LANG=C virsh $VIRSH_OPTIONS domstate $DOMAIN_NAME 2>&1 | tr 'A-Z' 'a-z')
 		case "$status" in
-			*"error:"*"failed to get domain"*|"shut off")
+			*"error:"*"domain not found"|*"error:"*"failed to get domain"*|"shut off")
 				# shut off: domain is defined, but not started, will not happen if
 				#   domain is created but not defined
-				# failed to get domain: domain is not defined and thus not started
+				# "Domain not found" or "failed to get domain": domain is not defined
+				#   and thus not started
 				ocf_log debug "Virtual domain $DOMAIN_NAME is not running: $(echo $status | sed s/error://g)"
 				rc=$OCF_NOT_RUNNING
 				;;
