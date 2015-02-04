@@ -197,7 +197,7 @@ function start() {
 	fi
 
 	[[ ! -d "$REDIS_RUNDIR" ]] && mkdir -p "$REDIS_RUNDIR"
-	chown -R redis "$REDIS_RUNDIR"
+	chown -R "$REDIS_USER" "$REDIS_RUNDIR"
 
 	ocf_log info "start: $REDIS_SERVER --daemonize yes --unixsocket '$REDIS_SOCKET' --pidfile '$REDIS_PIDFILE'"
 	output="$(su "$REDIS_USER" -s /bin/sh -c "cd '$REDIS_RUNDIR'; exec '$REDIS_SERVER' '$REDIS_CONFIG' --daemonize yes --unixsocket '$REDIS_SOCKET' --pidfile '$REDIS_PIDFILE'" 2>&1)"
@@ -253,7 +253,7 @@ function stop() {
 			crm_master_reboot -D
 			return $OCF_SUCCESS
 		fi
-		if (( status != OCF_RUNNING_MASTER )) && (( status != OCF_SUCCESS )) && (( status != OCF_ERR_GENERIC )); then # we allow OCF_ERR_GENERIC because monitor can generate an error if we probe redis in the middle of shutdown (the sucket won't be responding but the process is up)
+		if (( status != OCF_RUNNING_MASTER )) && (( status != OCF_SUCCESS )) && (( status != OCF_ERR_GENERIC )); then # we allow OCF_ERR_GENERIC because monitor can generate an error if we probe redis in the middle of shutdown (the socket won't be responding but the process is up)
 			ocf_log err "stop: Unknown error while stopping"
 			return $OCF_ERR_GENERIC
 		fi
@@ -299,13 +299,14 @@ function demote() {
 	master_port="${REDIS_REPLICATION_PORT}"
 
 	# The elected master has to remain a slave during startup.
-        # During this period a placeholder master host is assigned.
-	current_host=$(crm_node -n)
-	if [ "$master_host" == "$current_host" ]
-	then
-		ocf_log debug "this slave will soon become master, setting placeholder master in the meantime"
+	# During this period a placeholder master host is assigned.
+	current_host="$(crm_node -n)"
+	if [[ "$master_host" == "$current_host" ]]; then
 		master_host="no-such-master"
 	fi
+
+	ocf_log info "demote: Setting master to '$master_host'"
+
 	redis_client slaveof "$master_host" "$master_port"
 
 	monitor
