@@ -216,6 +216,12 @@ function start() {
 			break
 		elif (( info[loading] == 1 )); then
 			sleep "${info[loading_eta_seconds]}"
+		elif pidof "$REDIS_SERVER" >/dev/null; then
+			# unknown error, but the process still exists.
+			# This check is mainly because redis daemonizes before it starts listening, causing `redis-cli` to fail
+			#   See https://github.com/antirez/redis/issues/2368
+			# It's possible that the `pidof` will pick up a different redis, but in that case, the start operation will just time out
+			sleep 1
 		else
 			ocf_log err "start: Unknown error waiting for redis to start"
 			return $OCF_ERR_GENERIC
