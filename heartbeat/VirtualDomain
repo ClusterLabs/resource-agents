@@ -482,12 +482,13 @@ force_stop()
 	local status=0
 
 	ocf_log info "Issuing forced shutdown (destroy) request for domain ${DOMAIN_NAME}."
-	out=$(virsh $VIRSH_OPTIONS destroy ${DOMAIN_NAME} 2>&1)
+	out=$(LANG=C virsh $VIRSH_OPTIONS destroy ${DOMAIN_NAME} 2>&1)
 	ex=$?
 	translate=$(echo $out|tr 'A-Z' 'a-z')
 	echo >&2 "$translate"
 	case $ex$translate in
-		*"error:"*"domain is not running"*|*"error:"*"domain not found"*)
+		*"error:"*"domain is not running"*|*"error:"*"domain not found"*|\
+		*"error:"*"failed to get domain"*)
 			: ;; # unexpected path to the intended outcome, all is well
 		[!0]*)
 			ocf_exit_reason "forced stop failed"
