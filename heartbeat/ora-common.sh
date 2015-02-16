@@ -17,8 +17,12 @@ rmtmpfiles() {
 
 ora_common_getconfig() {
 	ORACLE_SID=$1
+	# optional, defaults to whatever is in oratab
 	ORACLE_HOME=$2
+	# optional, defaults to the owner of ORACLE_HOME
 	ORACLE_OWNER=$3
+	# optional, defaults to $ORACLE_HOME/network/admin
+	# (only the oralsnr may provide and use this one)
 	TNS_ADMIN=$4
 
 	# get ORACLE_HOME from /etc/oratab if not set
