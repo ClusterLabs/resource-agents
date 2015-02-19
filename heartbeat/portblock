@@ -48,7 +48,7 @@ usage()
 	    nmbd smbd 				\\
 	    $CMD::tcp::137,138::unblock
 
-	This will do the follwing things:
+	This will do the following things:
 
 	  - DROP all incoming packets for TCP ports 137 and 138
 	  - Bring up the IP alias 10.10.10.20
