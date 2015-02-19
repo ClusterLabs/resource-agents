@@ -39,7 +39,7 @@ usage()
 
 	$CMD is used to temporarily block ports using iptables.
 
-	It can be used to turn off a port before bringing
+	It can be used to blackhole a port before bringing
 	up an IP address, and enable it after a service is started.
 	To do that for samba, the following resource line can be used:
 
