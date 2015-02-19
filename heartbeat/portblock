@@ -56,11 +56,14 @@ usage()
 	  - Re-enable TCP ports 137 and 138
 	        (enable normal firewall rules on those ports)
 
-	This prevents clients from getting ICMP port unreachable
-	if they try to reconnect to the service after the alias is
-	enabled but before nmbd and smbd are running.  These packets
-	will cause some clients to give up attempting to reconnect to
-	the server.
+	This prevents clients from getting TCP RST if they try to reconnect
+	to the service after the alias is enabled but before nmbd and smbd
+	are running.  These packets will cause some clients to give up
+	attempting to reconnect to the server.
+
+	Attempts to connect to UDP and other non-TCP ports which have nothing
+	listening can result in ICMP port unreachable responses, which can
+	have the same undesirable affect on some clients.
 
 	NOTE: iptables is Linux-specific.
 
