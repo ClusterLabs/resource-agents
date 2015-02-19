@@ -62,7 +62,7 @@ usage()
 	will cause some clients to give up attempting to reconnect to
 	the server.
 
-	NOTE:  iptables is linux-specific...
+	NOTE: iptables is Linux-specific.
 
 	An additional feature in the portblock RA is the tickle ACK function
 	enabled by specifying the tickle_dir parameter. The tickle ACK 
