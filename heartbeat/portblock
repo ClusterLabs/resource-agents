@@ -149,7 +149,7 @@ The protocol used to be blocked/unblocked.
 The port number used to be blocked/unblocked.
 </longdesc>
 <shortdesc lang="en">portno</shortdesc>
-<content type="integer" default="" />
+<content type="string" default="" />
 </parameter>
 
 <parameter name="action" unique="0" required="1">
