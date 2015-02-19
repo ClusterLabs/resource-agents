@@ -41,12 +41,18 @@ usage()
 
 	It can be used to blackhole a port before bringing
 	up an IP address, and enable it after a service is started.
-	To do that for samba, the following resource line can be used:
+	To do that for samba, the following can be used:
 
-	$CMD::tcp::137,138::block		\\
-	    10.10.10.20				\\
-	    nmbd smbd 				\\
-	    $CMD::tcp::137,138::unblock
+	crm configure <<EOF
+	primitive portblock-samba ocf:heartbeat:portblock \\
+	  params protocol=tcp portno=137,138 action=block
+	primitive portunblock-samba ocf:heartbeat:portblock \\
+	  params protocol=tcp portno=137,138 action=unblock
+	primitive samba-vip ocf:heartbeat:IPaddr2 \\
+	  params ip=10.10.10.20
+	group g-samba \\
+	  portblock-samba samba-vip nmbd smbd portunblock-samba
+	EOF
 
 	This will do the following things:
 
