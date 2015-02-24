@@ -39,16 +39,22 @@ usage()
 
 	$CMD is used to temporarily block ports using iptables.
 
-	It can be used to turn off a port before bringing
+	It can be used to blackhole a port before bringing
 	up an IP address, and enable it after a service is started.
-	To do that for samba, the following resource line can be used:
+	To do that for samba, the following can be used:
 
-	$CMD::tcp::137,138::block		\\
-	    10.10.10.20				\\
-	    nmbd smbd 				\\
-	    $CMD::tcp::137,138::unblock
+	crm configure <<EOF
+	primitive portblock-samba ocf:heartbeat:portblock \\
+	  params protocol=tcp portno=137,138 action=block
+	primitive portunblock-samba ocf:heartbeat:portblock \\
+	  params protocol=tcp portno=137,138 action=unblock
+	primitive samba-vip ocf:heartbeat:IPaddr2 \\
+	  params ip=10.10.10.20
+	group g-samba \\
+	  portblock-samba samba-vip nmbd smbd portunblock-samba
+	EOF
 
-	This will do the follwing things:
+	This will do the following things:
 
 	  - DROP all incoming packets for TCP ports 137 and 138
 	  - Bring up the IP alias 10.10.10.20
@@ -56,13 +62,16 @@ usage()
 	  - Re-enable TCP ports 137 and 138
 	        (enable normal firewall rules on those ports)
 
-	This prevents clients from getting ICMP port unreachable
-	if they try to reconnect to the service after the alias is
-	enabled but before nmbd and smbd are running.  These packets
-	will cause some clients to give up attempting to reconnect to
-	the server.
+	This prevents clients from getting TCP RST if they try to reconnect
+	to the service after the alias is enabled but before nmbd and smbd
+	are running.  These packets will cause some clients to give up
+	attempting to reconnect to the server.
 
-	NOTE:  iptables is linux-specific...
+	Attempts to connect to UDP and other non-TCP ports which have nothing
+	listening can result in ICMP port unreachable responses, which can
+	have the same undesirable affect on some clients.
+
+	NOTE: iptables is Linux-specific.
 
 	An additional feature in the portblock RA is the tickle ACK function
 	enabled by specifying the tickle_dir parameter. The tickle ACK 
@@ -140,7 +149,7 @@ The protocol used to be blocked/unblocked.
 The port number used to be blocked/unblocked.
 </longdesc>
 <shortdesc lang="en">portno</shortdesc>
-<content type="integer" default="" />
+<content type="string" default="" />
 </parameter>
 
 <parameter name="action" unique="0" required="1">
