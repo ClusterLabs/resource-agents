@@ -391,7 +391,12 @@ set_arg()
 	# only write to the tmp /etc/sysconfig/nfs if sysconfig exists.
 	# otherwise this distro does not support setting these options.
 	if [ -d "/etc/sysconfig" ]; then
-		echo "${key}=\"${value}\"" >> $file
+		# replace if the value exists, append otherwise
+		if grep "^\s*${key}=" $file ; then
+			sed -i "s/\s*${key}=.*$/${key}=\"${value}\"/" $file
+		else
+			echo "${key}=\"${value}\"" >> $file
+		fi
 	elif [ "$requires_sysconfig" = "true" ]; then
 		ocf_log warn "/etc/sysconfig/nfs not found, unable to set port and nfsd args."
 	fi
@@ -403,6 +408,9 @@ set_env_args()
 {
 	local tmpconfig=$(mktemp ${HA_RSCTMP}/nfsserver-tmp-XXXXX)
 	local statd_args
+
+	## Take the $NFS_SYSCONFIG file as our skeleton
+	cp $NFS_SYSCONFIG $tmpconfig
 
 	# nfsd args
 	set_arg "RPCNFSDARGS" "$OCF_RESKEY_nfsd_args" "$tmpconfig" "true"
