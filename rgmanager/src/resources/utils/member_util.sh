@@ -30,6 +30,9 @@
 #
 is_node_member_clustat()
 {
+	local node="$1"
+	local output_list
+
 	# Still having a tag while (a) online but (b) not running pacemaker 
 	# (e.g. crm_node) or rgmanager not considered adequate for things like
 	# the LVM agent - so we use corosync-quorumtool instead.  The function
@@ -51,8 +54,19 @@ is_node_member_clustat()
 	#           1          1 rhel7-1.priv.redhat.com
 	#           2          1 rhel7-2.priv.redhat.com
 	#
-	corosync-quorumtool -l | grep -v "^Nodeid" | grep -i " $1\$" &> /dev/null
-	return $?
+
+	output_list=$(corosync-quorumtool -l | grep -v "^Nodeid")
+
+	# first try searching for the node in the output as both a FQDN or shortname
+	echo "$output_list" | grep -i -e " $node\$" -e " $node\..*\$" &> /dev/null && return 0
+
+	# if the node was not found in the quorum list, try any known aliases found in /etc/hosts
+	for alias in $(cat /etc/hosts | grep -e "\s$node\s" -e "\s$node\$" | tail -n 1 | sed 's/\t/ /g' | cut -f2- -d " ");
+	do
+		echo "$output_list" | grep -i -e " $alias\$" &> /dev/null && return 0
+	done
+
+	return 1
 }
 
 

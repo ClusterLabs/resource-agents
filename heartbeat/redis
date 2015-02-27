@@ -4,12 +4,19 @@
 
 : ${OCF_RESKEY_bin:=/usr/bin/redis-server}
 : ${OCF_RESKEY_client_bin:=/usr/bin/redis-cli}
-: ${OCF_RESKEY_config:=/etc/redis/redis.conf}
 : ${OCF_RESKEY_user:=redis}
 : ${OCF_RESKEY_rundir:=/var/run/redis}
 : ${OCF_RESKEY_pidfile_name:=redis-server.pid}
 : ${OCF_RESKEY_socket_name:=redis.sock}
 : ${OCF_RESKEY_port:=6379}
+
+if [ -z "$OCF_RESKEY_config" ]; then
+	if [ -f "/etc/redis.conf" ]; then
+		OCF_RESKEY_config="/etc/redis.conf"
+	else
+		OCF_RESKEY_config="/etc/redis/redis.conf"
+	fi
+fi
 
 REDIS_SERVER="$OCF_RESKEY_bin"
 REDIS_CLIENT="$OCF_RESKEY_client_bin"
@@ -108,9 +115,9 @@ Port for replication client to connect to on remote server
 <action name="start" timeout="120" />
 <action name="stop" timeout="120" />
 <action name="status" timeout="60" />
-<action name="monitor" depth="0" timeout="30" interval="20" />
-<action name="monitor" role="Master" depth="0" timeout="30" interval="20" />
-<action name="monitor" role="Slave" depth="0" timeout="30" interval="60" />
+<action name="monitor" depth="0" timeout="60" interval="45" />
+<action name="monitor" role="Master" depth="0" timeout="60" interval="20" />
+<action name="monitor" role="Slave" depth="0" timeout="60" interval="60" />
 <action name="promote" timeout="120" />
 <action name="demote" timeout="120" />
 <action name="notify" timeout="90" />
@@ -130,11 +137,24 @@ function redis_client() {
 	"$REDIS_CLIENT" -s "$REDIS_SOCKET" "$@" | sed 's/\r//'
 }
 
-function monitor() {
+function simple_status() {
+
 	pid="$(<"$REDIS_PIDFILE")"
 	pidof "$REDIS_SERVER" | grep -q "\<$pid\>" || return $OCF_NOT_RUNNING
 
 	ocf_log debug "monitor: redis-server running under pid $pid"
+
+	return $OCF_SUCCESS
+}
+
+function monitor() {
+	local res
+
+	simple_status
+	res=$?
+	if (( res != OCF_SUCCESS )); then
+		return $res
+	fi
 
 	typeset -A info
 	while read line; do
@@ -246,6 +266,7 @@ function stop() {
 
 	if (( status == OCF_NOT_RUNNING )); then
 		ocf_log info "stop: redis is already stopped"
+		crm_master_reboot -D
 		return $OCF_SUCCESS
 	fi
 
@@ -253,15 +274,11 @@ function stop() {
 	kill -TERM "$pid"
 
 	while true; do
-		monitor
+		simple_status
 		status=$?
 		if (( status == OCF_NOT_RUNNING )); then
 			crm_master_reboot -D
 			return $OCF_SUCCESS
-		fi
-		if (( status != OCF_RUNNING_MASTER )) && (( status != OCF_SUCCESS )) && (( status != OCF_ERR_GENERIC )); then # we allow OCF_ERR_GENERIC because monitor can generate an error if we probe redis in the middle of shutdown (the socket won't be responding but the process is up)
-			ocf_log err "stop: Unknown error while stopping"
-			return $OCF_ERR_GENERIC
 		fi
 		sleep 1
 	done
@@ -298,6 +315,9 @@ function demote() {
 	if (( status == OCF_SUCCESS )); then
 		ocf_log info "demote: Already running as slave"
 		return $OCF_SUCCESS
+	elif (( status == OCF_NOT_RUNNING )); then
+		ocf_log err "demote: Failed to demote, redis not running."
+		return $OCF_NOT_RUNNING
 	fi
 
 	master_host="${OCF_RESKEY_CRM_meta_notify_promote_uname// /}"
