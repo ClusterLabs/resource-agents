@@ -4,12 +4,19 @@
 
 : ${OCF_RESKEY_bin:=/usr/bin/redis-server}
 : ${OCF_RESKEY_client_bin:=/usr/bin/redis-cli}
-: ${OCF_RESKEY_config:=/etc/redis/redis.conf}
 : ${OCF_RESKEY_user:=redis}
 : ${OCF_RESKEY_rundir:=/var/run/redis}
 : ${OCF_RESKEY_pidfile_name:=redis-server.pid}
 : ${OCF_RESKEY_socket_name:=redis.sock}
 : ${OCF_RESKEY_port:=6379}
+
+if [ -z "$OCF_RESKEY_config" ]; then
+	if [ -f "/etc/redis.conf" ]; then
+		OCF_RESKEY_config="/etc/redis.conf"
+	else
+		OCF_RESKEY_config="/etc/redis/redis.conf"
+	fi
+fi
 
 REDIS_SERVER="$OCF_RESKEY_bin"
 REDIS_CLIENT="$OCF_RESKEY_client_bin"
