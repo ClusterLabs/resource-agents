@@ -137,11 +137,24 @@ function redis_client() {
 	"$REDIS_CLIENT" -s "$REDIS_SOCKET" "$@" | sed 's/\r//'
 }
 
-function monitor() {
+function simple_status() {
+
 	pid="$(<"$REDIS_PIDFILE")"
 	pidof "$REDIS_SERVER" | grep -q "\<$pid\>" || return $OCF_NOT_RUNNING
 
 	ocf_log debug "monitor: redis-server running under pid $pid"
+
+	return $OCF_SUCCESS
+}
+
+function monitor() {
+	local res
+
+	simple_status
+	res=$?
+	if (( res != OCF_SUCCESS )); then
+		return $res
+	fi
 
 	typeset -A info
 	while read line; do
@@ -260,15 +273,11 @@ function stop() {
 	kill -TERM "$pid"
 
 	while true; do
-		monitor
+		simple_status
 		status=$?
 		if (( status == OCF_NOT_RUNNING )); then
 			crm_master_reboot -D
 			return $OCF_SUCCESS
-		fi
-		if (( status != OCF_RUNNING_MASTER )) && (( status != OCF_SUCCESS )) && (( status != OCF_ERR_GENERIC )); then # we allow OCF_ERR_GENERIC because monitor can generate an error if we probe redis in the middle of shutdown (the socket won't be responding but the process is up)
-			ocf_log err "stop: Unknown error while stopping"
-			return $OCF_ERR_GENERIC
 		fi
 		sleep 1
 	done
