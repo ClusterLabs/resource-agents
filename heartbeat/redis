@@ -314,6 +314,9 @@ function demote() {
 	if (( status == OCF_SUCCESS )); then
 		ocf_log info "demote: Already running as slave"
 		return $OCF_SUCCESS
+	elif (( status == OCF_NOT_RUNNING )); then
+		ocf_log err "demote: Failed to demote, redis not running."
+		return $OCF_NOT_RUNNING
 	fi
 
 	master_host="${OCF_RESKEY_CRM_meta_notify_promote_uname// /}"
