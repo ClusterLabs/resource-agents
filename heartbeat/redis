@@ -18,6 +18,8 @@ if [ -z "$OCF_RESKEY_config" ]; then
 	fi
 fi
 
+CHECK_SLAVE_STATE=0
+
 REDIS_SERVER="$OCF_RESKEY_bin"
 REDIS_CLIENT="$OCF_RESKEY_client_bin"
 REDIS_CONFIG="$OCF_RESKEY_config"
@@ -128,6 +130,19 @@ Port for replication client to connect to on remote server
 EOI
 }
 
+INSTANCE_ATTR_NAME=`echo ${OCF_RESOURCE_INSTANCE}| awk -F : '{print $1}'`
+CRM_ATTR_REPL_INFO="${HA_SBIN_DIR}/crm_attribute --type crm_config --name ${INSTANCE_ATTR_NAME}_REPL_INFO -s redis_replication"
+
+function set_master()
+{
+	${CRM_ATTR_REPL_INFO} -v "$1" -q
+}
+
+function last_known_master()
+{
+	$CRM_ATTR_REPL_INFO --query  -q  2>/dev/null
+}
+
 function crm_master_reboot() {
 	"${HA_SBIN_DIR}/crm_master" -l reboot "$@"
 }
@@ -178,7 +193,7 @@ function monitor() {
 		if [[ -z "$score" ]]; then
 			score="${info[slave_priority]}"
 			if [[ -z "$score" ]]; then
-				if [[ "${info[role]}" == "master" ]]; then
+				if [[ "$(last_known_master)" == "$NODENAME" ]]; then
 					score=1000
 				else
 					score=1
@@ -190,10 +205,13 @@ function monitor() {
 		fi
 
 		if [[ "${info[role]}" == "master" ]]; then
+			if ocf_is_probe; then
+				set_master "$NODENAME"
+			fi
 			return $OCF_RUNNING_MASTER
 		fi
 
-		if [[ -n "$CHECK_SLAVE_STATE" ]]; then
+		if [ "$CHECK_SLAVE_STATE" -eq 1 ]; then
 			if [[ "${info[master_link_status]}" != "up" ]]; then
 				ocf_log err "monitor: Slave mode link has failed (link=${info[master_link_status]})"
 				return $OCF_ERR_GENERIC
@@ -290,6 +308,7 @@ function promote() {
 
 	if (( status == OCF_RUNNING_MASTER )); then
 		ocf_log info "promote: Already running as master"
+		set_master "$NODENAME"
 		return $OCF_SUCCESS
 	elif (( status != OCF_SUCCESS )); then
 		ocf_log err "promote: Node is not running as a slave"
@@ -301,6 +320,7 @@ function promote() {
 	monitor
 	status=$?
 	if (( status == OCF_RUNNING_MASTER )); then
+		set_master "$NODENAME"
 		return $OCF_SUCCESS
 	fi
 
@@ -309,7 +329,9 @@ function promote() {
 }
 
 function demote() {
-	CHECK_SLAVE_STATE=1 monitor
+	CHECK_SLAVE_STATE=1
+
+	monitor
 	status=$?
 
 	if (( status == OCF_SUCCESS )); then
@@ -326,8 +348,13 @@ function demote() {
 
 	# The elected master has to remain a slave during startup.
 	# During this period a placeholder master host is assigned.
-	current_host="$(crm_node -n)"
-	if [[ "$master_host" == "$current_host" ]]; then
+	last_master="$(last_known_master)"
+	if [[ "$master_host" == "$NODENAME" ]] || [[ "$last_master" == "$NODENAME" ]]; then
+		CHECK_SLAVE_STATE=0
+		master_host="no-such-master"
+	elif [ -z "$master_host" ] || [ -z "$last_master" ]; then
+		# no master has been picked or no master has started yet.
+		CHECK_SLAVE_STATE=0
 		master_host="no-such-master"
 	fi
 
@@ -335,12 +362,17 @@ function demote() {
 
 	redis_client slaveof "$master_host" "$master_port"
 
-	monitor
-	status=$?
+	# wait briefly for the slave to connect to the master	
+	for (( c=1; c <= 20; c++ ))
+	do
+		monitor
+		status=$?
+		if (( status == OCF_SUCCESS )); then
+			return $OCF_SUCCESS
+		fi
+		sleep 1
+	done
 
-	if (( status == OCF_SUCCESS )); then
-		return $OCF_SUCCESS
-	fi
 	ocf_log err "demote: Unexpected error setting slave mode (status=$status)"
 	return $OCF_ERR_GENERIC
 }
@@ -352,6 +384,8 @@ function notify() {
 			monitor
 			status=$?
 			if (( status == OCF_SUCCESS )); then # were a slave
+				# calling demote updates the slave's connection
+				# to the newly appointed Master instance.
 				demote
 			fi
 			;;
@@ -377,6 +411,8 @@ function validate() {
 		return $OCF_ERR_CONFIGURED
 	fi
 }
+
+NODENAME=$(ocf_local_nodename)
 
 ocf_log debug "action=${1:-$__OCF_ACTION} notify_type=${OCF_RESKEY_CRM_meta_notify_type} notify_operation=${OCF_RESKEY_CRM_meta_notify_operation} master_host=${OCF_RESKEY_CRM_meta_notify_master_uname} slave_host=${OCF_RESKEY_CRM_meta_notify_slave_uname} promote_host=${OCF_RESKEY_CRM_meta_notify_promote_uname} demote_host=${OCF_RESKEY_CRM_meta_notify_demote_uname}; params: bin=${OCF_RESKEY_bin} client_bin=${OCF_RESKEY_client_bin} config=${OCF_RESKEY_config} user=${OCF_RESKEY_user} rundir=${OCF_RESKEY_rundir} port=${OCF_RESKEY_port}"
 
