@@ -266,6 +266,7 @@ function stop() {
 
 	if (( status == OCF_NOT_RUNNING )); then
 		ocf_log info "stop: redis is already stopped"
+		crm_master_reboot -D
 		return $OCF_SUCCESS
 	fi
 
