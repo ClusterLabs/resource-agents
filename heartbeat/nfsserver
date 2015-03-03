@@ -409,8 +409,10 @@ set_env_args()
 	local tmpconfig=$(mktemp ${HA_RSCTMP}/nfsserver-tmp-XXXXX)
 	local statd_args
 
-	## Take the $NFS_SYSCONFIG file as our skeleton
-	cp $NFS_SYSCONFIG $tmpconfig
+	if [ -f "$NFS_SYSCONFIG" ]; then
+		## Take the $NFS_SYSCONFIG file as our skeleton
+		cp $NFS_SYSCONFIG $tmpconfig
+	fi
 
 	# nfsd args
 	set_arg "RPCNFSDARGS" "$OCF_RESKEY_nfsd_args" "$tmpconfig" "true"
@@ -442,14 +444,20 @@ set_env_args()
 
 	# override local nfs config. preserve previous local config though.
 	if [ -s $tmpconfig ]; then
-		cat $NFS_SYSCONFIG | grep -e "$NFS_SYSCONFIG_AUTOGEN_TAG"
+		cat $NFS_SYSCONFIG | grep -q -e "$NFS_SYSCONFIG_AUTOGEN_TAG" > /dev/null 2>&1 
 		if [ $? -ne 0 ]; then
 			# backup local nfs config if it doesn't have our HA autogen tag in it.
 			mv -f $NFS_SYSCONFIG $NFS_SYSCONFIG_LOCAL_BACKUP
 		fi
-		echo "# $NFS_SYSCONFIG_AUTOGEN_TAG" > $NFS_SYSCONFIG
-		echo "# local config backup stored here, '$NFS_SYSCONFIG_LOCAL_BACKUP'" >> $NFS_SYSCONFIG
-		cat $tmpconfig >> $NFS_SYSCONFIG
+
+		cat $tmpconfig | grep -q -e "$NFS_SYSCONFIG_AUTOGEN_TAG" > /dev/null 2>&1 
+		if [ $? -ne 0 ]; then
+			echo "# $NFS_SYSCONFIG_AUTOGEN_TAG" > $NFS_SYSCONFIG
+			echo "# local config backup stored here, '$NFS_SYSCONFIG_LOCAL_BACKUP'" >> $NFS_SYSCONFIG
+			cat $tmpconfig >> $NFS_SYSCONFIG
+		else
+			cat $tmpconfig > $NFS_SYSCONFIG
+		fi
 	fi
 	rm -f $tmpconfig
 }
