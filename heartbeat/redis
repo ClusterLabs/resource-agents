@@ -111,6 +111,17 @@ Port for replication client to connect to on remote server
 <shortdesc lang="en">Replication port</shortdesc>
 <content type="string" default="${OCF_RESKEY_port}"/>
 </parameter>
+
+<parameter name="wait_last_known_master" unique="0" required="0">
+<longdesc lang="en">
+During redis cluster bootstrap, wait for the last known master to be
+promoted before allowing any other instances in the cluster to be
+promoted. This lessens the risk of data loss when persistent data
+is in use.
+</longdesc>
+<shortdesc lang="en">Wait for last known master</shortdesc>
+<content type="boolean" default="false"/>
+</parameter>
 </parameters>
 
 <actions>
@@ -133,12 +144,18 @@ EOI
 INSTANCE_ATTR_NAME=`echo ${OCF_RESOURCE_INSTANCE}| awk -F : '{print $1}'`
 CRM_ATTR_REPL_INFO="${HA_SBIN_DIR}/crm_attribute --type crm_config --name ${INSTANCE_ATTR_NAME}_REPL_INFO -s redis_replication"
 MASTER_HOST=""
+MASTER_ACTIVE_CACHED=""
+MASTER_ACTIVE=""
 
 master_is_active()
 {
-    # determine if a master instance is already up and is healthy
-    crm_mon --as-xml | grep "resource.*id=\"${OCF_RESOURCE_INSTANCE}\".*role=\"Master\".*active=\"true\".*orphaned=\"false\".*failed=\"false\"" > /dev/null 2>&1
-    return $?
+	if [ -z "$MASTER_ACTIVE_CACHED" ]; then
+		# determine if a master instance is already up and is healthy
+		crm_mon --as-xml | grep "resource.*id=\"${OCF_RESOURCE_INSTANCE}\".*role=\"Master\".*active=\"true\".*orphaned=\"false\".*failed=\"false\"" > /dev/null 2>&1
+		MASTER_ACTIVE=$?
+		MASTER_ACTIVE_CACHED="true"
+	fi
+	return $MASTER_ACTIVE
 }
 
 function set_master()
@@ -157,6 +174,46 @@ function last_known_master()
 
 function crm_master_reboot() {
 	"${HA_SBIN_DIR}/crm_master" -l reboot "$@"
+}
+
+function calculate_score()
+{
+	perf_score="$1"
+	connected_clients="$2"
+
+    	if ocf_is_true "$OCF_RESKEY_wait_last_known_master"; then
+		# only set perferred score by slave_priority if
+		# we are not waiting for the last known master. Otherwise
+		# we want the agent to have complete control over the scoring.
+		perf_score=""
+		connected_clients="0"
+	fi
+
+	if [[ -z "$perf_score" ]]; then
+		if [[ "$(last_known_master)" == "$NODENAME" ]]; then
+			perf_score=1000
+		else
+			perf_score=1
+		fi
+	fi
+	perf_score=$(( perf_score + connected_clients ))
+	echo "$perf_score"
+}
+
+function set_score()
+{
+	local score="$1"
+
+    	if ocf_is_true "$OCF_RESKEY_wait_last_known_master" && ! master_is_active; then
+		local last_master="$(last_known_master)"
+		if [ -n "$last_master" ] && [[ "$last_master" != "$NODENAME" ]]; then
+			ocf_log info "Postponing setting master score for ${NODENAME} until last known master instance [${last_master}] is promoted"
+			return
+		fi
+	fi
+
+	ocf_log debug "monitor: Setting master score to '$score'"
+	crm_master_reboot -v "$score"
 }
 
 function redis_client() {
@@ -203,17 +260,8 @@ function monitor() {
 		# We then add 1 for each connected client
 		score="$(crm_master_reboot --get-value --quiet)"
 		if [[ -z "$score" ]]; then
-			score="${info[slave_priority]}"
-			if [[ -z "$score" ]]; then
-				if [[ "$(last_known_master)" == "$NODENAME" ]]; then
-					score=1000
-				else
-					score=1
-				fi
-			fi
-			score=$(( score + info[connected_clients] ))
-			ocf_log debug "monitor: Setting master score to '$score'"
-			crm_master_reboot -v "$score"
+			score=$(calculate_score "${info[slave_priority]}" "${info[connected_clients]}")
+			set_score "$score"
 		fi
 
 		if [[ "${info[role]}" == "master" ]]; then
