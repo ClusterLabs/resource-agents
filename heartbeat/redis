@@ -132,15 +132,27 @@ EOI
 
 INSTANCE_ATTR_NAME=`echo ${OCF_RESOURCE_INSTANCE}| awk -F : '{print $1}'`
 CRM_ATTR_REPL_INFO="${HA_SBIN_DIR}/crm_attribute --type crm_config --name ${INSTANCE_ATTR_NAME}_REPL_INFO -s redis_replication"
+MASTER_HOST=""
+
+master_is_active()
+{
+    # determine if a master instance is already up and is healthy
+    crm_mon --as-xml | grep "resource.*id=\"${OCF_RESOURCE_INSTANCE}\".*role=\"Master\".*active=\"true\".*orphaned=\"false\".*failed=\"false\"" > /dev/null 2>&1
+    return $?
+}
 
 function set_master()
 {
+	MASTER_HOST="$1"
 	${CRM_ATTR_REPL_INFO} -v "$1" -q
 }
 
 function last_known_master()
 {
-	$CRM_ATTR_REPL_INFO --query  -q  2>/dev/null
+	if [ -z "$MASTER_HOST" ]; then
+		MASTER_HOST="$(${CRM_ATTR_REPL_INFO} --query  -q  2>/dev/null)"
+	fi
+	echo "$MASTER_HOST"
 }
 
 function crm_master_reboot() {
@@ -216,8 +228,8 @@ function monitor() {
 				ocf_log err "monitor: Slave mode link has failed (link=${info[master_link_status]})"
 				return $OCF_ERR_GENERIC
 			fi
-			if [[ "${info[master_host]}" != "${OCF_RESKEY_CRM_meta_notify_master_uname}" ]]; then
-				ocf_log err "monitor: Slave mode current master does not match running master. current=${info[master_host]}, running=${OCF_RESKEY_CRM_meta_notify_master_uname}"
+			if [[ "${info[master_host]}" != "$(last_known_master)" ]]; then
+				ocf_log err "monitor: Slave mode current master does not match running master. current=${info[master_host]}, running=$(last_known_master)"
 				return $OCF_ERR_GENERIC
 			fi
 		fi
@@ -329,8 +341,10 @@ function promote() {
 }
 
 function demote() {
-	CHECK_SLAVE_STATE=1
+	local master_host
+	local master_port
 
+	CHECK_SLAVE_STATE=1
 	monitor
 	status=$?
 
@@ -342,18 +356,17 @@ function demote() {
 		return $OCF_NOT_RUNNING
 	fi
 
-	master_host="${OCF_RESKEY_CRM_meta_notify_promote_uname// /}"
-	: "${master_host:=${OCF_RESKEY_CRM_meta_notify_master_uname// /}}"
+	master_host="$(last_known_master)"
 	master_port="${REDIS_REPLICATION_PORT}"
 
 	# The elected master has to remain a slave during startup.
 	# During this period a placeholder master host is assigned.
-	last_master="$(last_known_master)"
-	if [[ "$master_host" == "$NODENAME" ]] || [[ "$last_master" == "$NODENAME" ]]; then
+	if [ -z "$master_host" ] || [[ "$master_host" == "$NODENAME" ]]; then
 		CHECK_SLAVE_STATE=0
 		master_host="no-such-master"
-	elif [ -z "$master_host" ] || [ -z "$last_master" ]; then
-		# no master has been picked or no master has started yet.
+	elif ! master_is_active; then
+		# no master has been promoted yet. we'll be notified when the
+		# master starts.
 		CHECK_SLAVE_STATE=0
 		master_host="no-such-master"
 	fi
