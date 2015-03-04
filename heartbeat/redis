@@ -222,6 +222,11 @@ function redis_client() {
 }
 
 function simple_status() {
+	local pid
+
+	if ! [ -f "$REDIS_PIDFILE" ]; then
+		return $OCF_NOT_RUNNING
+	fi
 
 	pid="$(<"$REDIS_PIDFILE")"
 	pidof "$REDIS_SERVER" | grep -q "\<$pid\>" || return $OCF_NOT_RUNNING
@@ -248,7 +253,6 @@ function monitor() {
 		info[$key]="$value"
 	done < <(redis_client info)
 	if [[ -z "${info[role]}" ]]; then
-		pidof "$REDIS_SERVER" | grep -q "\<$pid\>" || return $OCF_NOT_RUNNING
 		ocf_log err "monitor: Could not get role from \`$REDIS_CLIENT -s $REDIS_SOCKET info\`"
 		return $OCF_ERR_GENERIC
 	fi
@@ -258,7 +262,7 @@ function monitor() {
 		# If score isn't set we the redis setting 'slave_priority'.
 		# If that isn't set, we default to 1000 for a master, and 1 for slave.
 		# We then add 1 for each connected client
-		score="$(crm_master_reboot --get-value --quiet)"
+		score="$(crm_master_reboot --get-value --quiet 2>/dev/null)"
 		if [[ -z "$score" ]]; then
 			score=$(calculate_score "${info[slave_priority]}" "${info[connected_clients]}")
 			set_score "$score"
@@ -273,7 +277,7 @@ function monitor() {
 
 		if [ "$CHECK_SLAVE_STATE" -eq 1 ]; then
 			if [[ "${info[master_link_status]}" != "up" ]]; then
-				ocf_log err "monitor: Slave mode link has failed (link=${info[master_link_status]})"
+				ocf_log info "monitor: Slave mode link has not yet been established (link=${info[master_link_status]})"
 				return $OCF_ERR_GENERIC
 			fi
 			if [[ "${info[master_host]}" != "$(last_known_master)" ]]; then
