@@ -107,6 +107,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			proftpd			\
 			Pure-FTPd		\
 			Raid1			\
+			redis			\
 			Route			\
 			rsyncd			\
 			rsyslog			\
