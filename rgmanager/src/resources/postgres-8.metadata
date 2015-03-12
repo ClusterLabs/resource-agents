@@ -51,18 +51,6 @@
 		<content type="string" default="-D /var/lib/pgsql/data"/>
 	</parameter>
 
-	<parameter name="shutdown_wait">
-		<longdesc lang="en">
-			Wait X seconds for correct end of service shutdown. 
-			This option is ignored in current release.
-		</longdesc>
-		<shortdesc lang="en">
-			Wait X seconds for correct end of service shutdown
-			This option is ignored in current release.
-		</shortdesc>
-		<content type="integer" />
-	</parameter>
-
         <parameter name="startup_wait">
                 <longdesc lang="en">
                         Wait X seconds for correct end of service startup
