@@ -368,7 +368,7 @@ fstype_supported()
 	# check the if the filesystem support exists again.
 	$MODPROBE $support >/dev/null
 	if [ $? -ne 0 ]; then
-		ocf_exit_reason "Couldn't find filesystem $FSTYPE in /proc/filesystems and failed to load kernal module"
+		ocf_exit_reason "Couldn't find filesystem $FSTYPE in /proc/filesystems and failed to load kernel module"
 		return $OCF_ERR_INSTALLED
 	fi
 
@@ -424,7 +424,7 @@ Filesystem_start()
 			# NOTE: if any errors at all are detected, it returns non-zero
 			# if the error is >= 4 then there is a big problem
 			if [ $? -ge 4 ]; then
-				ocf_exit_reason "Couldn't sucessfully fsck filesystem for $DEVICE"
+				ocf_exit_reason "Couldn't successfully fsck filesystem for $DEVICE"
 				return $OCF_ERR_GENERIC
 			fi
 		fi
