@@ -404,7 +404,10 @@ This is optional for replication.
 If this is true, RA checks wal_receiver process on monitor
 and notifies its status using "(resource name)-receiver-status" attribute.
 It's useful for checking whether PostgreSQL (hot standby) connects to primary.
-The attribute shows status as "normal" or "ERROR".
+The attribute shows status as "normal" or "normal (master)" or "ERROR".
+Note that if you configure PostgreSQL as master/slave resource, then
+wal receiver is not running in the master and the attribute shows status as
+"normal (master)" consistently because it is normal status.
 </longdesc>
 <shortdesc lang="en">check_wal_receiver</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_check_wal_receiver_default}" />
@@ -820,13 +823,21 @@ pgsql_status() {
 pgsql_wal_receiver_status() {
     local PID
     local receiver_parent_pids
+    local pgsql_real_monitor_status=$1
 
     PID=`head -n 1 $PIDFILE`
     receiver_parent_pids=`ps -ef | tr -s " " | grep "[w]al receiver process" | cut -d " " -f 3`
+
     if echo "$receiver_parent_pids" | grep -q -w "$PID" ; then
         attrd_updater -n "$PGSQL_WAL_RECEIVER_STATUS_ATTR" -v "normal" -q
         return 0
     fi
+
+    if [ $pgsql_real_monitor_status -eq "$OCF_RUNNING_MASTER" ]; then
+        attrd_updater -n "$PGSQL_WAL_RECEIVER_STATUS_ATTR" -v "normal (master)" -q
+        return 0
+    fi
+
     attrd_updater -n "$PGSQL_WAL_RECEIVER_STATUS_ATTR" -v "ERROR" -q
     ocf_log warn "wal receiver process is not running"
     return 1
@@ -848,10 +859,6 @@ pgsql_real_monitor() {
     then
         ocf_log info "PostgreSQL is down"
         return $OCF_NOT_RUNNING
-    fi
-
-    if ocf_is_true ${OCF_RESKEY_check_wal_receiver}; then
-        pgsql_wal_receiver_status
     fi
 
     if is_replication; then
@@ -943,6 +950,11 @@ pgsql_monitor() {
 
     pgsql_real_monitor
     rc=$?
+
+    if ocf_is_true ${OCF_RESKEY_check_wal_receiver}; then
+        pgsql_wal_receiver_status $rc
+    fi
+
     if ! is_replication; then
         return $rc
     else
