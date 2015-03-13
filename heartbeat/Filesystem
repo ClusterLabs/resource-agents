@@ -275,7 +275,7 @@ determine_blockdevice() {
 	# Get the current real device name, if possible.
 	# (specified devname could be -L or -U...)
 	case "$FSTYPE" in
-	nfs4|nfs|smbfs|cifs|glusterfs|ceph|tmpfs|none)
+	nfs4|nfs|smbfs|cifs|glusterfs|ceph|tmpfs|overlayfs|none)
 		: ;;
 	*)
 		DEVICE=`list_mounts | grep " $MOUNTPOINT " | cut -d' ' -f1`
@@ -326,7 +326,7 @@ is_fsck_needed() {
 		no)    false;;
 		""|auto)
 		case $FSTYPE in
-			ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs4|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|ceph|tmpfs)
+			ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs4|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|ceph|tmpfs|overlayfs)
 			false;;
 			*)
 			true;;
@@ -368,7 +368,7 @@ fstype_supported()
 	# check the if the filesystem support exists again.
 	$MODPROBE $support >/dev/null
 	if [ $? -ne 0 ]; then
-		ocf_exit_reason "Couldn't find filesystem $FSTYPE in /proc/filesystems and failed to load kernal module"
+		ocf_exit_reason "Couldn't find filesystem $FSTYPE in /proc/filesystems and failed to load kernel module"
 		return $OCF_ERR_INSTALLED
 	fi
 
@@ -424,7 +424,7 @@ Filesystem_start()
 			# NOTE: if any errors at all are detected, it returns non-zero
 			# if the error is >= 4 then there is a big problem
 			if [ $? -ge 4 ]; then
-				ocf_exit_reason "Couldn't sucessfully fsck filesystem for $DEVICE"
+				ocf_exit_reason "Couldn't successfully fsck filesystem for $DEVICE"
 				return $OCF_ERR_GENERIC
 			fi
 		fi
@@ -724,7 +724,7 @@ set_blockdevice_var() {
 
 	# these are definitely not block devices
 	case $FSTYPE in
-	nfs4|nfs|smbfs|cifs|none|glusterfs|ceph) return;;
+	nfs4|nfs|smbfs|cifs|none|glusterfs|ceph|overlayfs) return;;
 	esac
 
 	if `is_option "loop"`; then
@@ -836,7 +836,7 @@ is_option "ro" &&
 	CLUSTERSAFE=2
 
 case $FSTYPE in
-nfs4|nfs|smbfs|cifs|none|gfs2|glusterfs|ceph|ocfs2)
+nfs4|nfs|smbfs|cifs|none|gfs2|glusterfs|ceph|ocfs2|overlayfs)
 	CLUSTERSAFE=1 # this is kind of safe too
 	;;
 # add here CLUSTERSAFE=0 for all filesystems which are not
