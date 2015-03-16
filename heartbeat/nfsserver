@@ -391,7 +391,12 @@ set_arg()
 	# only write to the tmp /etc/sysconfig/nfs if sysconfig exists.
 	# otherwise this distro does not support setting these options.
 	if [ -d "/etc/sysconfig" ]; then
-		echo "${key}=\"${value}\"" >> $file
+		# replace if the value exists, append otherwise
+		if grep "^\s*${key}=" $file ; then
+			sed -i "s/\s*${key}=.*$/${key}=\"${value}\"/" $file
+		else
+			echo "${key}=\"${value}\"" >> $file
+		fi
 	elif [ "$requires_sysconfig" = "true" ]; then
 		ocf_log warn "/etc/sysconfig/nfs not found, unable to set port and nfsd args."
 	fi
@@ -403,6 +408,11 @@ set_env_args()
 {
 	local tmpconfig=$(mktemp ${HA_RSCTMP}/nfsserver-tmp-XXXXX)
 	local statd_args
+
+	if [ -f "$NFS_SYSCONFIG" ]; then
+		## Take the $NFS_SYSCONFIG file as our skeleton
+		cp $NFS_SYSCONFIG $tmpconfig
+	fi
 
 	# nfsd args
 	set_arg "RPCNFSDARGS" "$OCF_RESKEY_nfsd_args" "$tmpconfig" "true"
@@ -434,14 +444,20 @@ set_env_args()
 
 	# override local nfs config. preserve previous local config though.
 	if [ -s $tmpconfig ]; then
-		cat $NFS_SYSCONFIG | grep -e "$NFS_SYSCONFIG_AUTOGEN_TAG"
+		cat $NFS_SYSCONFIG | grep -q -e "$NFS_SYSCONFIG_AUTOGEN_TAG" > /dev/null 2>&1 
 		if [ $? -ne 0 ]; then
 			# backup local nfs config if it doesn't have our HA autogen tag in it.
 			mv -f $NFS_SYSCONFIG $NFS_SYSCONFIG_LOCAL_BACKUP
 		fi
-		echo "# $NFS_SYSCONFIG_AUTOGEN_TAG" > $NFS_SYSCONFIG
-		echo "# local config backup stored here, '$NFS_SYSCONFIG_LOCAL_BACKUP'" >> $NFS_SYSCONFIG
-		cat $tmpconfig >> $NFS_SYSCONFIG
+
+		cat $tmpconfig | grep -q -e "$NFS_SYSCONFIG_AUTOGEN_TAG" > /dev/null 2>&1 
+		if [ $? -ne 0 ]; then
+			echo "# $NFS_SYSCONFIG_AUTOGEN_TAG" > $NFS_SYSCONFIG
+			echo "# local config backup stored here, '$NFS_SYSCONFIG_LOCAL_BACKUP'" >> $NFS_SYSCONFIG
+			cat $tmpconfig >> $NFS_SYSCONFIG
+		else
+			cat $tmpconfig > $NFS_SYSCONFIG
+		fi
 	fi
 	rm -f $tmpconfig
 }
