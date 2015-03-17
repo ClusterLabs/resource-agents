@@ -104,7 +104,7 @@ rmq_local_node()
 
 rmq_join_list()
 {
-	cibadmin -Q 2>/dev/null | grep "$RMQ_CRM_ATTR_COOKIE" | sed -n -e "s/^.*value=.\(.*\)\".*$/\1/p"
+    cibadmin -Q --xpath "//node_state[@crmd='online']//nvpair[@name='$RMQ_CRM_ATTR_COOKIE']" | grep "$RMQ_CRM_ATTR_COOKIE" | sed -n -e "s/^.*value=.\(.*\)\".*$/\1/p"
 }
 
 rmq_write_nodename()
