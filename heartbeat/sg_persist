@@ -30,7 +30,7 @@
 #
 #
 # OCF instance parameters
-#    OCF_RESKEY_sg_persist_binary
+#    OCF_RESKEY_binary
 #    OCF_RESKEY_devs
 #    OCF_RESKEY_required_devs_nof
 #    OCF_RESKEY_reservation_type
@@ -81,10 +81,10 @@ Master reservs all devices from "devs" list with reservation "--prout-type" valu
 <parameters>
 <parameter name="binary" unique="0">
 <longdesc lang="en">
-The name of the binary that manages the resource
+The name of the binary that manages the resource.
 </longdesc>
-<shortdesc>the binay name of the resource</shortdesc>
-<content type="string" default="sg_persist"/>
+<shortdesc>the binary name of the resource</shortdesc>
+<content type="string" default="$sg_persist_binary"/>
 </parameter>
 
 <parameter name="devs" unique="0" required="1">
@@ -177,7 +177,7 @@ sg_persist_init() {
         exit $OCF_ERR_PERM
     fi 
 
-    : ${SG_PERSIST:="$sg_persist_binary"}
+    SG_PERSIST=${OCF_RESKEY_binary:-"$sg_persist_binary"}
     check_binary $SG_PERSIST
     
     ROLE=$OCF_RESKEY_CRM_meta_role
