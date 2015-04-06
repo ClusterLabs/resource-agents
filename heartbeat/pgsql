@@ -1808,6 +1808,14 @@ pgsql_validate_all() {
         fi
     fi
 
+    if use_replication_slot; then
+        ocf_version_cmp "$version" "9.4"
+        if [ $? -eq 0 -o $? -eq 3 ]; then
+            ocf_exit_reason "Replication slot needs PostgreSQL 9.4 or higher."
+            return $OCF_ERR_CONFIGURED
+        fi
+    fi
+
     return $OCF_SUCCESS
 }
 
