@@ -64,6 +64,7 @@ OCF_RESKEY_tmpdir_default="/var/lib/pgsql/tmp"
 OCF_RESKEY_xlog_check_count_default="3"
 OCF_RESKEY_crm_attr_timeout_default="5"
 OCF_RESKEY_stop_escalate_in_slave_default=30
+OCF_RESKEY_replication_slot_name_default=""
 
 : ${OCF_RESKEY_pgctl=${OCF_RESKEY_pgctl_default}}
 : ${OCF_RESKEY_psql=${OCF_RESKEY_psql_default}}
@@ -96,6 +97,7 @@ OCF_RESKEY_stop_escalate_in_slave_default=30
 : ${OCF_RESKEY_xlog_check_count=${OCF_RESKEY_xlog_check_count_default}}
 : ${OCF_RESKEY_crm_attr_timeout=${OCF_RESKEY_crm_attr_timeout_default}}
 : ${OCF_RESKEY_stop_escalate_in_slave=${OCF_RESKEY_stop_escalate_in_slave_default}}
+: ${OCF_RESKEY_replication_slot_name=${OCF_RESKEY_replication_slot_name_default}}
 
 usage() {
     cat <<EOF
@@ -361,6 +363,25 @@ This is optional for replication.
 <content type="boolean" default="${OCF_RESKEY_restart_on_promote_default}" />
 </parameter>
 
+<parameter name="replication_slot_name" unique="0" required="0">
+<longdesc lang="en">
+Set this option when using replication slots.
+When the master node has 1 slave node,one replication slot would be created with the name "replication_slot_name".
+When the master node has 2 or more slave nodes,the replication slots would be created for each node, with the name adding the node name as postfix.
+For example, replication_slot_name is "sample" and 2 slaves which are "node_a" and "node_b" connect to
+their slots, the slots names are "sample_node_a" and "sample_node_b".
+
+pgsql RA doesn't monitor and delete the repliation slot.
+When the slave node has been disconnected in failure or the like, execute one of the following manually.
+Otherwise it may eventually cause a disk full because the master node will continue to accumulate the unsent WAL.
+1. recover and reconnect the slave node to the master node as soon as possible.
+2. delete the slot on the master node by following psql command.
+$ select pg_drop_replication_slot('replication_slot_name');
+</longdesc>
+<shortdesc lang="en">replication_slot_name</shortdesc>
+<content type="string" default="${OCF_RESKEY_replication_slot_name_default}" />
+</parameter>
+
 <parameter name="tmpdir" unique="0" required="0">
 <longdesc lang="en">
 Path to temporary directory.
@@ -561,6 +582,17 @@ pgsql_real_start() {
         sleep 1
         ocf_log debug "PostgreSQL still hasn't started yet. Waiting..."
     done
+
+    # create replication slot on the master and slave nodes.
+    # creating slot on the slave node is in preparation for failover.
+    if use_replication_slot; then
+        create_replication_slot
+        rc=$?
+        if [ $rc -eq $OCF_ERR_GENERIC ]; then
+            ocf_exit_reason ocf_exit_reason "PostgreSQL can't create replication_slot."
+            return $OCF_ERR_GENERIC
+        fi
+    fi
 
     ocf_log info "PostgreSQL is started."
     return $rc
@@ -1226,6 +1258,82 @@ is_replication() {
     return 1
 }
 
+use_replication_slot() {
+    if [ -n "$OCF_RESKEY_replication_slot_name" ]; then
+        return 0
+    fi
+
+    return 1
+}
+
+create_replication_slot_name() {
+    local number_of_nodes=0
+    local target
+    local replication_slot_name
+    local replication_slot_name_list_tmp
+    local replication_slot_name_list
+
+    if [ -n "$NODE_LIST" ]; then
+        number_of_nodes=`echo $NODE_LIST | wc -w`
+    fi
+
+    # If the number of nodes 2 or less, Master node has 1 or less Slave node.
+    # The Master node should have 1 slot for the Slave, which is named "$OCF_RES_KEY_replication_slot_name".
+    if [ $number_of_nodes -le 2 ]; then
+        replication_slot_name_list="$OCF_RESKEY_replication_slot_name"
+
+    # If the number of nodes 3 or more, the Master has some Slave nodes.
+    # The Master node should have some slots equal to the number of Slaves, and
+    # the Slave nodes connect to their dedicated slot on the Master.
+    # To ensuring that the slots name are each unique, add postfix to $OCF_RESKEY_replication_slot.
+    # The postfix is "_$target".
+    else
+        for target in $NODE_LIST
+        do
+            if [ "$target" != "$NODENAME" ]; then
+                replication_slot_name="$OCF_RESKEY_replication_slot_name"_"$target"
+                replication_slot_name_list_tmp="$replication_slot_name_list"
+                replication_slot_name_list="$replication_slot_name_list_tmp $replication_slot_name"
+            fi
+        done
+    fi
+
+    echo $replication_slot_name_list
+}
+
+create_replication_slot() {
+    local replication_slot_name
+    local replication_slot_name_list
+    local output
+    local rc
+    local CREATE_REPLICATION_SLOT_sql
+
+    replication_slot_name_list=`create_replication_slot_name`
+    ocf_log debug "replication slot names are $replication_slot_name_list."
+
+    for replication_slot_name in $replication_slot_name_list
+    do
+        # create replication slot when the same name slot is not exists.
+        # If the same name slot is already exists, don't create new slot and reuse the old slot.
+        CREATE_REPLICATION_SLOT_sql="SELECT pg_create_physical_replication_slot('$replication_slot_name') \
+                                     FROM (VALUES (1)) AS t \
+                                     WHERE NOT EXISTS (SELECT * FROM pg_replication_slots WHERE slot_name = '$replication_slot_name');"
+
+        output=`su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
+                $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
+                -Atc \"$CREATE_REPLICATION_SLOT_sql\""`
+        rc=$?
+        if [ $rc -eq 0 ]; then
+            ocf_log info "PostgreSQL creates or alredy exist the replication slot($replication_slot_name)"
+        else
+            ocf_exit_reason "$output"
+            return $OCF_ERR_GENERIC
+        fi
+    done
+
+    return 0
+}
+
 get_my_location() {
     local rc
     local output
@@ -1340,12 +1448,23 @@ reload_conf() {
 }
 
 user_recovery_conf() {
+    local number_of_nodes
+
     # put archive_cleanup_command and recovery_end_command only when defined by user
     if [ -n "$OCF_RESKEY_archive_cleanup_command" ]; then
         echo "archive_cleanup_command = '${OCF_RESKEY_archive_cleanup_command}'"
     fi
     if [ -n "$OCF_RESKEY_recovery_end_command" ]; then
         echo "recovery_end_command = '${OCF_RESKEY_recovery_end_command}'"
+    fi
+
+    if use_replication_slot; then
+        number_of_nodes=`echo $NODE_LIST | wc -w`
+        if [ $number_of_nodes -le 2 ]; then
+            echo "primary_slot_name = '${OCF_RESKEY_replication_slot_name}'"
+        else
+            echo "primary_slot_name = '${OCF_RESKEY_replication_slot_name}_$NODENAME'"
+        fi
     fi
 }
 
