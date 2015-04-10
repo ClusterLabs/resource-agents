@@ -51,7 +51,7 @@ mk_action_func() {
 }
 validate_args() {
 	is_function $ACTION_FUNC || {
-		ocf_log err "$__OCF_ACTION: action not supported"
+		ocf_exit_reason "$__OCF_ACTION: action not supported"
 		run_function ${OCF_RESOURCE_TYPE}_methods
 		exit $OCF_ERR_UNIMPLEMENTED
 	}
@@ -74,7 +74,7 @@ check_required_params() {
 	local v
 	for v in $OCF_REQUIRED_PARAMS; do
 		is_var_defined OCF_RESKEY_$v || {
-			ocf_log err "$v: required parameter not set"
+			ocf_exit_reason "$v: required parameter not set"
 			exit $OCF_ERR_CONFIGURED
 		}
 	done
@@ -95,7 +95,7 @@ handle_invalid_env() {
 				exit $OCF_NOT_RUNNING
 			else
 				# in recurring monitor, this amounts to error
-				ocf_log err $msg
+				ocf_exit_reason "$msg"
 				exit $OCF_ERR_GENERIC
 			fi
 		;;
@@ -104,7 +104,7 @@ handle_invalid_env() {
 			exit $LSB_STATUS_STOPPED
 		;;
 		*)
-			ocf_log err $msg
+			ocf_exit_reason "$msg"
 			exit $rc
 		;;
 	esac
