@@ -763,7 +763,7 @@ do_post_unmount() {
 
 
 # Agent-specific force unmount logic, if required
-# return = nonzero if successful, or 0 if unsuccessful
+# return = 0 if successful, or nonzero if unsuccessful
 # (unsuccessful = try harder)
 do_force_unmount() {
 	return 1
