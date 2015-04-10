@@ -229,6 +229,9 @@ named_validate_all() {
         return $OCF_ERR_CONFIGURED
     fi                            
          
+    # make sure that the pidfile directory exists
+    ocf_mkstatedir $OCF_RESKEY_named_user 755 `dirname $OCF_RESKEY_named_pidfile` || return $OCF_ERR_INSTALLED
+
     return $OCF_SUCCESS
 }
 
@@ -487,3 +490,5 @@ case "$1" in
     *)
                 exit $OCF_ERR_UNIMPLEMENTED;;
 esac
+
+# vim:ts=4:sw=4:et:

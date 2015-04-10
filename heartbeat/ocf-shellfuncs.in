@@ -748,6 +748,87 @@ ocf_stop_processes() {
 }
 
 #
+# create a given status directory
+# if the directory path doesn't start with $HA_VARRUN, then
+# we return with error (most of the calls would be with the user
+# supplied configuration, hence we need to do necessary
+# protection)
+# used mostly for PID files
+#
+# usage: ocf_mkstatedir owner permissions path
+#
+# owner: user.group
+# permissions: permissions
+# path: directory path
+#
+# example:
+#	ocf_mkstatedir named 755 `dirname $pidfile`
+#
+ocf_mkstatedir()
+{
+	local owner
+	local perms
+	local path
+
+	owner=$1
+	perms=$2
+	path=$3
+
+	test -d $path && return 0
+	[ $(id -u) = 0 ] || return 1
+
+	case $path in
+	$HA_VARRUN/*) : this path is ok ;;
+	*) ocf_log err "cannot create $path (does not start with $HA_VARRUN)"
+		return 1
+	;;
+	esac
+
+	mkdir -p $path &&
+	chown $owner $path &&
+	chmod $perms $path
+}
+
+#
+# create a unique status directory in $HA_VARRUN
+# used mostly for PID files
+# the directory is by default set to
+#   $HA_VARRUN/$OCF_RESOURCE_INSTANCE
+# the directory name is printed to stdout
+#
+# usage: ocf_unique_rundir owner permissions name
+#
+# owner: user.group (default: "root")
+# permissions: permissions (default: "755")
+# name: some unique string (default: "$OCF_RESOURCE_INSTANCE")
+#
+# to use the default either don't set the parameter or set it to
+# empty string ("")
+# example:
+#
+#	STATEDIR=`ocf_unique_rundir named "" myownstatedir`
+#
+ocf_unique_rundir()
+{
+	local path
+	local owner
+	local perms
+	local name
+
+	owner=${1:-"root"}
+	perms=${2:-"755"}
+	name=${3:-"$OCF_RESOURCE_INSTANCE"}
+	path=$HA_VARRUN/$name
+	if [ ! -d $path ]; then
+		[ $(id -u) = 0 ] || return 1
+		mkdir -p $path &&
+		chown $owner $path &&
+		chmod $perms $path || return 1
+	fi
+	echo $path
+}
+
+#
 # RA tracing may be turned on by setting OCF_TRACE_RA
 # the trace output will be saved to OCF_TRACE_FILE, if set, or
 # by default to
