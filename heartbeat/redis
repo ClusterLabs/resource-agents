@@ -4,12 +4,21 @@
 
 : ${OCF_RESKEY_bin:=/usr/bin/redis-server}
 : ${OCF_RESKEY_client_bin:=/usr/bin/redis-cli}
-: ${OCF_RESKEY_config:=/etc/redis/redis.conf}
 : ${OCF_RESKEY_user:=redis}
 : ${OCF_RESKEY_rundir:=/var/run/redis}
 : ${OCF_RESKEY_pidfile_name:=redis-server.pid}
 : ${OCF_RESKEY_socket_name:=redis.sock}
 : ${OCF_RESKEY_port:=6379}
+
+if [ -z "$OCF_RESKEY_config" ]; then
+	if [ -f "/etc/redis.conf" ]; then
+		OCF_RESKEY_config="/etc/redis.conf"
+	else
+		OCF_RESKEY_config="/etc/redis/redis.conf"
+	fi
+fi
+
+CHECK_SLAVE_STATE=0
 
 REDIS_SERVER="$OCF_RESKEY_bin"
 REDIS_CLIENT="$OCF_RESKEY_client_bin"
@@ -102,15 +111,26 @@ Port for replication client to connect to on remote server
 <shortdesc lang="en">Replication port</shortdesc>
 <content type="string" default="${OCF_RESKEY_port}"/>
 </parameter>
+
+<parameter name="wait_last_known_master" unique="0" required="0">
+<longdesc lang="en">
+During redis cluster bootstrap, wait for the last known master to be
+promoted before allowing any other instances in the cluster to be
+promoted. This lessens the risk of data loss when persistent data
+is in use.
+</longdesc>
+<shortdesc lang="en">Wait for last known master</shortdesc>
+<content type="boolean" default="false"/>
+</parameter>
 </parameters>
 
 <actions>
 <action name="start" timeout="120" />
 <action name="stop" timeout="120" />
 <action name="status" timeout="60" />
-<action name="monitor" depth="0" timeout="30" interval="20" />
-<action name="monitor" role="Master" depth="0" timeout="30" interval="20" />
-<action name="monitor" role="Slave" depth="0" timeout="30" interval="60" />
+<action name="monitor" depth="0" timeout="60" interval="45" />
+<action name="monitor" role="Master" depth="0" timeout="60" interval="20" />
+<action name="monitor" role="Slave" depth="0" timeout="60" interval="60" />
 <action name="promote" timeout="120" />
 <action name="demote" timeout="120" />
 <action name="notify" timeout="90" />
@@ -121,8 +141,79 @@ Port for replication client to connect to on remote server
 EOI
 }
 
+INSTANCE_ATTR_NAME=`echo ${OCF_RESOURCE_INSTANCE}| awk -F : '{print $1}'`
+CRM_ATTR_REPL_INFO="${HA_SBIN_DIR}/crm_attribute --type crm_config --name ${INSTANCE_ATTR_NAME}_REPL_INFO -s redis_replication"
+MASTER_HOST=""
+MASTER_ACTIVE_CACHED=""
+MASTER_ACTIVE=""
+
+master_is_active()
+{
+	if [ -z "$MASTER_ACTIVE_CACHED" ]; then
+		# determine if a master instance is already up and is healthy
+		crm_mon --as-xml | grep "resource.*id=\"${OCF_RESOURCE_INSTANCE}\".*role=\"Master\".*active=\"true\".*orphaned=\"false\".*failed=\"false\"" > /dev/null 2>&1
+		MASTER_ACTIVE=$?
+		MASTER_ACTIVE_CACHED="true"
+	fi
+	return $MASTER_ACTIVE
+}
+
+function set_master()
+{
+	MASTER_HOST="$1"
+	${CRM_ATTR_REPL_INFO} -v "$1" -q
+}
+
+function last_known_master()
+{
+	if [ -z "$MASTER_HOST" ]; then
+		MASTER_HOST="$(${CRM_ATTR_REPL_INFO} --query  -q  2>/dev/null)"
+	fi
+	echo "$MASTER_HOST"
+}
+
 function crm_master_reboot() {
 	"${HA_SBIN_DIR}/crm_master" -l reboot "$@"
+}
+
+function calculate_score()
+{
+	perf_score="$1"
+	connected_clients="$2"
+
+    	if ocf_is_true "$OCF_RESKEY_wait_last_known_master"; then
+		# only set perferred score by slave_priority if
+		# we are not waiting for the last known master. Otherwise
+		# we want the agent to have complete control over the scoring.
+		perf_score=""
+		connected_clients="0"
+	fi
+
+	if [[ -z "$perf_score" ]]; then
+		if [[ "$(last_known_master)" == "$NODENAME" ]]; then
+			perf_score=1000
+		else
+			perf_score=1
+		fi
+	fi
+	perf_score=$(( perf_score + connected_clients ))
+	echo "$perf_score"
+}
+
+function set_score()
+{
+	local score="$1"
+
+    	if ocf_is_true "$OCF_RESKEY_wait_last_known_master" && ! master_is_active; then
+		local last_master="$(last_known_master)"
+		if [ -n "$last_master" ] && [[ "$last_master" != "$NODENAME" ]]; then
+			ocf_log info "Postponing setting master score for ${NODENAME} until last known master instance [${last_master}] is promoted"
+			return
+		fi
+	fi
+
+	ocf_log debug "monitor: Setting master score to '$score'"
+	crm_master_reboot -v "$score"
 }
 
 function redis_client() {
@@ -130,11 +221,29 @@ function redis_client() {
 	"$REDIS_CLIENT" -s "$REDIS_SOCKET" "$@" | sed 's/\r//'
 }
 
-function monitor() {
+function simple_status() {
+	local pid
+
+	if ! [ -f "$REDIS_PIDFILE" ]; then
+		return $OCF_NOT_RUNNING
+	fi
+
 	pid="$(<"$REDIS_PIDFILE")"
 	pidof "$REDIS_SERVER" | grep -q "\<$pid\>" || return $OCF_NOT_RUNNING
 
 	ocf_log debug "monitor: redis-server running under pid $pid"
+
+	return $OCF_SUCCESS
+}
+
+function monitor() {
+	local res
+
+	simple_status
+	res=$?
+	if (( res != OCF_SUCCESS )); then
+		return $res
+	fi
 
 	typeset -A info
 	while read line; do
@@ -144,7 +253,6 @@ function monitor() {
 		info[$key]="$value"
 	done < <(redis_client info)
 	if [[ -z "${info[role]}" ]]; then
-		pidof "$REDIS_SERVER" | grep -q "\<$pid\>" || return $OCF_NOT_RUNNING
 		ocf_log err "monitor: Could not get role from \`$REDIS_CLIENT -s $REDIS_SOCKET info\`"
 		return $OCF_ERR_GENERIC
 	fi
@@ -154,32 +262,26 @@ function monitor() {
 		# If score isn't set we the redis setting 'slave_priority'.
 		# If that isn't set, we default to 1000 for a master, and 1 for slave.
 		# We then add 1 for each connected client
-		score="$(crm_master_reboot --get-value --quiet)"
+		score="$(crm_master_reboot --get-value --quiet 2>/dev/null)"
 		if [[ -z "$score" ]]; then
-			score="${info[slave_priority]}"
-			if [[ -z "$score" ]]; then
-				if [[ "${info[role]}" == "master" ]]; then
-					score=1000
-				else
-					score=1
-				fi
-			fi
-			score=$(( score + info[connected_clients] ))
-			ocf_log debug "monitor: Setting master score to '$score'"
-			crm_master_reboot -v "$score"
+			score=$(calculate_score "${info[slave_priority]}" "${info[connected_clients]}")
+			set_score "$score"
 		fi
 
 		if [[ "${info[role]}" == "master" ]]; then
+			if ocf_is_probe; then
+				set_master "$NODENAME"
+			fi
 			return $OCF_RUNNING_MASTER
 		fi
 
-		if [[ -n "$CHECK_SLAVE_STATE" ]]; then
+		if [ "$CHECK_SLAVE_STATE" -eq 1 ]; then
 			if [[ "${info[master_link_status]}" != "up" ]]; then
-				ocf_log err "monitor: Slave mode link has failed (link=${info[master_link_status]})"
+				ocf_log info "monitor: Slave mode link has not yet been established (link=${info[master_link_status]})"
 				return $OCF_ERR_GENERIC
 			fi
-			if [[ "${info[master_host]}" != "${OCF_RESKEY_CRM_meta_notify_master_uname}" ]]; then
-				ocf_log err "monitor: Slave mode current master does not match running master. current=${info[master_host]}, running=${OCF_RESKEY_CRM_meta_notify_master_uname}"
+			if [[ "${info[master_host]}" != "$(last_known_master)" ]]; then
+				ocf_log err "monitor: Slave mode current master does not match running master. current=${info[master_host]}, running=$(last_known_master)"
 				return $OCF_ERR_GENERIC
 			fi
 		fi
@@ -246,6 +348,7 @@ function stop() {
 
 	if (( status == OCF_NOT_RUNNING )); then
 		ocf_log info "stop: redis is already stopped"
+		crm_master_reboot -D
 		return $OCF_SUCCESS
 	fi
 
@@ -253,15 +356,11 @@ function stop() {
 	kill -TERM "$pid"
 
 	while true; do
-		monitor
+		simple_status
 		status=$?
 		if (( status == OCF_NOT_RUNNING )); then
 			crm_master_reboot -D
 			return $OCF_SUCCESS
-		fi
-		if (( status != OCF_RUNNING_MASTER )) && (( status != OCF_SUCCESS )) && (( status != OCF_ERR_GENERIC )); then # we allow OCF_ERR_GENERIC because monitor can generate an error if we probe redis in the middle of shutdown (the socket won't be responding but the process is up)
-			ocf_log err "stop: Unknown error while stopping"
-			return $OCF_ERR_GENERIC
 		fi
 		sleep 1
 	done
@@ -273,6 +372,7 @@ function promote() {
 
 	if (( status == OCF_RUNNING_MASTER )); then
 		ocf_log info "promote: Already running as master"
+		set_master "$NODENAME"
 		return $OCF_SUCCESS
 	elif (( status != OCF_SUCCESS )); then
 		ocf_log err "promote: Node is not running as a slave"
@@ -284,6 +384,7 @@ function promote() {
 	monitor
 	status=$?
 	if (( status == OCF_RUNNING_MASTER )); then
+		set_master "$NODENAME"
 		return $OCF_SUCCESS
 	fi
 
@@ -292,22 +393,33 @@ function promote() {
 }
 
 function demote() {
-	CHECK_SLAVE_STATE=1 monitor
+	local master_host
+	local master_port
+
+	CHECK_SLAVE_STATE=1
+	monitor
 	status=$?
 
 	if (( status == OCF_SUCCESS )); then
 		ocf_log info "demote: Already running as slave"
 		return $OCF_SUCCESS
+	elif (( status == OCF_NOT_RUNNING )); then
+		ocf_log err "demote: Failed to demote, redis not running."
+		return $OCF_NOT_RUNNING
 	fi
 
-	master_host="${OCF_RESKEY_CRM_meta_notify_promote_uname// /}"
-	: "${master_host:=${OCF_RESKEY_CRM_meta_notify_master_uname// /}}"
+	master_host="$(last_known_master)"
 	master_port="${REDIS_REPLICATION_PORT}"
 
 	# The elected master has to remain a slave during startup.
 	# During this period a placeholder master host is assigned.
-	current_host="$(crm_node -n)"
-	if [[ "$master_host" == "$current_host" ]]; then
+	if [ -z "$master_host" ] || [[ "$master_host" == "$NODENAME" ]]; then
+		CHECK_SLAVE_STATE=0
+		master_host="no-such-master"
+	elif ! master_is_active; then
+		# no master has been promoted yet. we'll be notified when the
+		# master starts.
+		CHECK_SLAVE_STATE=0
 		master_host="no-such-master"
 	fi
 
@@ -315,12 +427,17 @@ function demote() {
 
 	redis_client slaveof "$master_host" "$master_port"
 
-	monitor
-	status=$?
+	# wait briefly for the slave to connect to the master	
+	for (( c=1; c <= 20; c++ ))
+	do
+		monitor
+		status=$?
+		if (( status == OCF_SUCCESS )); then
+			return $OCF_SUCCESS
+		fi
+		sleep 1
+	done
 
-	if (( status == OCF_SUCCESS )); then
-		return $OCF_SUCCESS
-	fi
 	ocf_log err "demote: Unexpected error setting slave mode (status=$status)"
 	return $OCF_ERR_GENERIC
 }
@@ -332,6 +449,8 @@ function notify() {
 			monitor
 			status=$?
 			if (( status == OCF_SUCCESS )); then # were a slave
+				# calling demote updates the slave's connection
+				# to the newly appointed Master instance.
 				demote
 			fi
 			;;
@@ -357,6 +476,8 @@ function validate() {
 		return $OCF_ERR_CONFIGURED
 	fi
 }
+
+NODENAME=$(ocf_local_nodename)
 
 ocf_log debug "action=${1:-$__OCF_ACTION} notify_type=${OCF_RESKEY_CRM_meta_notify_type} notify_operation=${OCF_RESKEY_CRM_meta_notify_operation} master_host=${OCF_RESKEY_CRM_meta_notify_master_uname} slave_host=${OCF_RESKEY_CRM_meta_notify_slave_uname} promote_host=${OCF_RESKEY_CRM_meta_notify_promote_uname} demote_host=${OCF_RESKEY_CRM_meta_notify_demote_uname}; params: bin=${OCF_RESKEY_bin} client_bin=${OCF_RESKEY_client_bin} config=${OCF_RESKEY_config} user=${OCF_RESKEY_user} rundir=${OCF_RESKEY_rundir} port=${OCF_RESKEY_port}"
 
