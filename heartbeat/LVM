@@ -293,7 +293,7 @@ set_tags()
 }
 
 get_lv_number() {
-	echo "`vgdisplay $1|sed -n '/Cur LV/p'|awk '{print $3}'`"
+	vgdisplay $1|awk '/Cur LV/{print $3}'
 }
 
 #
@@ -317,7 +317,7 @@ LVM_status() {
 	fi
 	# Here we always return true if the volume grouop is empty
 	lv_nu=$(get_lv_number $1)
-	if [ $lv_nu -eq 0 ]; then
+	if [ "$lv_nu" = "0" ]; then
             return 0
 	fi
 	
@@ -494,7 +494,7 @@ LVM_stop() {
 	do
 		ocf_run vgchange $vgchange_options $vg
 		res=$?
-		if [ $lv_nu -eq 0 ]; then
+		if [ "$lv_nu" = "0" ]; then
 			res=0
 		elif LVM_status $vg; then
 			ocf_exit_reason "LVM: $vg did not stop correctly"
