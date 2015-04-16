@@ -287,7 +287,7 @@ asterisk_monitor() {
 
     if [ $rc -ne 0 ]; then
       ocf_log err "Failed to connect to the Asterisk PBX"
-      return $OCF_ERR_GENERIC
+      return $OCF_NOT_RUNNIG
     fi
 
     # Optionally check the monitor URI with sipsak
