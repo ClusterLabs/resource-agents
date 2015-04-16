@@ -19,6 +19,9 @@ OCF_RESKEY_ctl_default="/usr/sbin/rabbitmqctl"
 OCF_RESKEY_debug_default=false
 OCF_RESKEY_username_default="rabbitmq"
 OCF_RESKEY_groupname_default="rabbitmq"
+OCF_RESKEY_admin_user_default="guest"
+OCF_RESKEY_admin_password_default="guest"
+OCF_RESKEY_definitions_dump_file_default="/etc/rabbitmq/definitions"
 OCF_RESKEY_pid_file_default=/var/run/rabbitmq/p_pid
 OCF_RESKEY_log_dir_default=/var/log/rabbitmq
 OCF_RESKEY_mnesia_base_default=/var/lib/rabbitmq/mnesia
@@ -33,6 +36,9 @@ OCF_RESKEY_erlang_cookie_file_default="/var/lib/rabbitmq/.erlang.cookie"
 : ${OCF_RESKEY_debug=${OCF_RESKEY_debug_default}}
 : ${OCF_RESKEY_username=${OCF_RESKEY_username_default}}
 : ${OCF_RESKEY_groupname=${OCF_RESKEY_groupname_default}}
+: ${OCF_RESKEY_admin_user=${OCF_RESKEY_admin_user_default}}
+: ${OCF_RESKEY_admin_password=${OCF_RESKEY_admin_password_default}}
+: ${OCF_RESKEY_definitions_dump_file=${OCF_RESKEY_definitions_dump_file_default}}
 : ${OCF_RESKEY_log_dir=${OCF_RESKEY_log_dir_default}}
 : ${OCF_RESKEY_mnesia_base=${OCF_RESKEY_mnesia_base_default}}
 : ${OCF_RESKEY_pid_file=${OCF_RESKEY_pid_file_default}}
@@ -126,6 +132,30 @@ RabbitMQ group name
 </longdesc>
 <shortdesc lang="en">RabbitMQ group name</shortdesc>
 <content type="string" default="${OCF_RESKEY_groupname_default}" />
+</parameter>
+
+<parameter name="admin_user" unique="0" required="0">
+<longdesc lang="en">
+RabbitMQ default admin user for API
+</longdesc>
+<shortdesc lang="en">RabbitMQ admin user</shortdesc>
+<content type="string" default="${OCF_RESKEY_admin_user_default}" />
+</parameter>
+
+<parameter name="admin_password" unique="0" required="0">
+<longdesc lang="en">
+RabbitMQ default admin user password for API
+</longdesc>
+<shortdesc lang="en">RabbitMQ admin password</shortdesc>
+<content type="string" default="${OCF_RESKEY_admin_password_default}" />
+</parameter>
+
+<parameter name="definitions_dump_file" unique="0" required="0">
+<longdesc lang="en">
+RabbitMQ default definitions dump file
+</longdesc>
+<shortdesc lang="en">RabbitMQ definitions dump file</shortdesc>
+<content type="string" default="${OCF_RESKEY_definitions_dump_file}" />
 </parameter>
 
 <parameter name="command_timeout" unique="0" required="0">
@@ -1374,6 +1404,16 @@ action_notify() {
                       rc2=$OCF_SUCCESS
                     fi
                     ocf_log info "${LH} post-start end."
+                    if [[ -s ${OCF_RESKEY_definitions_dump_file} ]] ; then
+                        ocf_log info "File ${OCF_RESKEY_definitions_dump_file} exists"
+                        ocf_run  curl -X POST -u $OCF_RESKEY_admin_user:$OCF_RESKEY_admin_password 127.0.0.1:15672/api/definitions --header "Content-Type:application/json" -d "$(<${OCF_RESKEY_definitions_dump_file})"
+                        rc=$?
+                        if [[ $rc == $OCF_SUCCESS ]] ; then
+                            ocf_log info "RMQ definitions have imported succesfully."
+                        else
+                            ocf_log err "RMQ definitions have not imported."
+                        fi
+                    fi
                     if [[ $rc2 == $OCF_ERR_GENERIC ]] ; then
                         ocf_log warn "${LH} Failed to join the cluster on post-start. The resource will be restarted."
                         ocf_log info "${LH} post-start end."
