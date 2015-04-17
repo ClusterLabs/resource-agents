@@ -293,6 +293,18 @@ set_tags()
 }
 
 #
+#	Return whether volume group is empty(0:empty; 1: contains lvs)
+#
+vg_is_empty() {
+	grep "logical_volumes" /etc/lvm/backup/$1
+	if [ $? -eq 0 ]; then
+		return 1
+	else
+		return 0
+	fi
+}
+
+#
 #	Return LVM status (silently)
 #
 LVM_status() {
@@ -311,12 +323,14 @@ LVM_status() {
 		fi
 	fi
 	
+	# Here we always return true if the volume group is empty
+	if vg_is_empty $vg; then
+        	return 0
+	fi
+	
 	if [ -d /dev/$1 ]; then
 		test "`cd /dev/$1 && ls`" != ""
 		rc=$?
-		if [ $rc -ne 0 ]; then
-			ocf_exit_reason "VG $1 with no logical volumes is not supported by this RA!"
-		fi
 	fi
 
 	if [ $rc -ne 0 ]; then
@@ -484,7 +498,10 @@ LVM_stop() {
 	do
 		ocf_run vgchange $vgchange_options $vg
 		res=$?
-		if LVM_status $vg; then
+
+		if vg_is_empty $vg; then
+		        res=0
+		elif LVM_status $vg; then
 			ocf_exit_reason "LVM: $vg did not stop correctly"
 			res=1
 		fi
