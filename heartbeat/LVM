@@ -482,7 +482,6 @@ LVM_stop() {
 	local res=$OCF_ERR_GENERIC
 	local vgchange_options="-aln"
 	local vg=$1
-	local lv_nu
 
 	if ! vgs $vg > /dev/null 2>&1; then
 		ocf_log info "Volume group $vg not found"
