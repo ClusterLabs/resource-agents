@@ -470,6 +470,10 @@ get_slave_info() {
             slave_io=`parse_slave_info Slave_IO_Running $tmpfile`
             last_errno=`parse_slave_info Last_Errno $tmpfile`
             secs_behind=`parse_slave_info Seconds_Behind_Master $tmpfile`
+            if [ $secs_behind -gt 86400 ]; then
+                ocf_log debug "Ignoring enourmous secs_behind: $secs_behind"
+                secs_behind=0
+            fi
             ocf_log debug "MySQL instance running as a replication slave"
         else
             # Instance produced an empty "SHOW SLAVE STATUS" output --
