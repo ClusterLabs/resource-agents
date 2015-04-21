@@ -376,9 +376,11 @@ get_slave_info() {
             
     if [ "$master_log_file" -a "$master_host" ]; then
         # variables are already defined, get_slave_info has been run before
+        tmpfile=$last_tmpfile
         return $OCF_SUCCESS
     else
         tmpfile=`mktemp ${HA_RSCTMP}/check_slave.${OCF_RESOURCE_INSTANCE}.XXXXXX`
+        last_tmpfile=$tmpfile
 
         $MYSQL $MYSQL_OPTIONS_REPL \
         -e 'SHOW SLAVE STATUS\G' > $tmpfile
@@ -408,6 +410,7 @@ get_slave_info() {
 check_slave() {
     # Checks slave status
     local rc new_master
+    local tmpfile
 
     get_slave_info
     rc=$?
@@ -518,6 +521,7 @@ check_slave() {
 set_master() {
     local new_master master_log_file master_log_pos
     local master_params
+    local tmpfile
 
     new_master=`$CRM_ATTR_REPL_INFO --query  -q | cut -d'|' -f1`
 
