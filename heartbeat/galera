@@ -441,6 +441,7 @@ galera_promote()
             extra_opts="--wsrep-cluster-address=gcomm://"
         else
             ocf_exit_reason "Failure, Attempted to promote Master instance of $OCF_RESOURCE_INSTANCE before bootstrap node has been detected."
+            clear_last_commit
             return $OCF_ERR_GENERIC
         fi
     fi
@@ -452,8 +453,12 @@ galera_promote()
             clear_bootstrap_node
             ocf_log info "boostrap node already up, promoting the rest of the galera instances."
         fi
+        clear_last_commit
         return $OCF_SUCCESS
     fi
+
+    # last commit is no longer relevant once promoted
+    clear_last_commit
 
     mysql_common_prepare_dirs
     mysql_common_start "$extra_opts"
@@ -490,9 +495,6 @@ galera_promote()
         # syncs with the rest of the cluster before promotion returns.
         wait_for_sync
     fi
-
-    # last commit is no longer relevant once promoted
-    clear_last_commit
 
     ocf_log info "Galera started"
     return $OCF_SUCCESS
