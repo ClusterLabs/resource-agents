@@ -342,6 +342,14 @@ is_readonly()
 
 master_exists()
 {
+    if [ "$__OCF_ACTION" = "demote" ]; then
+        # We don't want to detect master instances during demote.
+        # 1. we could be detecting ourselves as being master, which is no longer the case.
+        # 2. we could be detecting other master instances that are in the process of shutting down.
+        # by not detecting other master instances in "demote" we are deferring this check
+        # to the next recurring monitor operation which will be much more accurate
+        return 1
+    fi
     # determine if a master instance is already up and is healthy
     crm_mon --as-xml | grep "resource.*id=\"${OCF_RESOURCE_INSTANCE}\".*role=\"Master\".*active=\"true\".*orphaned=\"false\".*failed=\"false\"" > /dev/null 2>&1
     return $?
