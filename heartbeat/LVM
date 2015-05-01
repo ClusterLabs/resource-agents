@@ -516,6 +516,9 @@ LVM_stop() {
 #	Check whether the OCF instance parameters are valid
 #
 LVM_validate_all() {
+	local missing=""
+	local unknown=""
+
 	check_binary $AWK
 
 	##
@@ -542,8 +545,41 @@ LVM_validate_all() {
 	##
 	VGOUT=`vgck ${VOLUME} 2>&1`
 	if [ $? -ne 0 ]; then
-		ocf_exit_reason "Volume group [$VOLUME] does not exist or contains error! ${VGOUT}"
-		exit $OCF_ERR_GENERIC
+		# Inconsistency might be due to missing physical volumes, which doesn't 
+		# automatically mean we should fail.  If partial_activation=true then 
+		# we should let start try to handle it, or if no PVs are listed as
+		# "unknown device" then another node may have marked a device missing 
+		# where we have access to all of them and can start without issue. 
+		vgs -o pv_attr,pv_name --noheadings $OCF_RESKEY_volgrpname | \
+		while read attr device; do
+			if [[ "$attr" =~ ..m ]]; then
+				missing="yes"
+			fi
+			if [ "`echo $device`" == "unknown device" ]; then
+				unknown="yes"
+			fi
+		done
+		# If no results found then the upcoming vgdisplay will fail 
+
+		if [ -z "$missing" ]; then
+			if [ -z "$unknown" ]; then
+				if ! ocf_is_true "$OCF_RESKEY_partial_activation" ; then
+					# We are missing devices and cannot activate partially
+					ocf_exit_reason "Volume group [$VOLUME] has devices missing.  Consider partial_activation=true to attempt to activate partially"
+					exit $OCF_ERR_GENERIC
+				else
+					# We are missing devices but are allowed to activate partially. 
+					# Assume that caused the vgck failure and carry on
+					ocf_log warn "Volume group inconsistency detected with missing device(s) and partial_activation enabled.  Proceeding with requested action."
+				fi
+			fi
+			# else the vg is partial but all devices are accounted for, so another 
+			# node must have marked the device missing.  Proceed.
+		else
+			# vgck failure was for something other than missing devices
+			ocf_exit_reason "Volume group [$VOLUME] does not exist or contains error! ${VGOUT}"
+			exit $OCF_ERR_GENERIC
+		fi
 	fi
 
 	##
