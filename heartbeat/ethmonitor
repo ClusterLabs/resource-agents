@@ -176,6 +176,14 @@ For infiniband devices, this is the port to monitor.
 <content type="integer" />
 </parameter>
 
+<parameter name="link_status_only">
+<longdesc lang="en">
+Only report success based on link status. Do not perform RX counter or arping related connectivity tests.
+</longdesc>
+<shortdesc lang="en">link status check only</shortdesc>
+<content type="boolean" default="false" />
+</parameter>
+
 </parameters>
 <actions>
 <action name="start" timeout="60s" />
@@ -376,6 +384,11 @@ if_check () {
 		fi
 		ocf_log info "Infiniband device $OCF_RESKEY_infiniband_device is not available, check ibstatus for more information"
 		return $OCF_NOT_RUNNING	
+	fi
+
+	# if using link_status_only, skip RX count and arping related tests
+	if ocf_is_true "$OCF_RESKEY_link_status_only"; then
+		return $OCF_SUCCESS
 	fi
 
 	# watch for packet counter changes
