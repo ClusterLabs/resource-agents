@@ -207,6 +207,25 @@ END
 #######################################################################
 # Functions invoked by resource manager actions
 
+# Invokes the given command as a rabbitmq user and wrapped in the
+# timeout command.
+su_rabbit_cmd() {
+    local cmd=${1:-status}
+    local LH="${LL} su_rabbit_cmd():"
+    local rc=1
+    local user=$OCF_RESKEY_username
+    local mail=/var/spool/mail/rabbitmq
+    local pwd=/var/lib/rabbitmq
+    local home=/var/lib/rabbitmq
+
+    ocf_log debug "${LH} invoking a command: ${cmd}"
+    su $user -s /bin/sh -c "USER=${user} MAIL=${mail} PWD=${pwd} HOME=${home} LOGNAME=${user} \
+      ${COMMAND_TIMEOUT} ${cmd}"
+    rc=$?
+    ocf_log info "${LH} the invoked command exited ${rc}: ${cmd}"
+    return $rc
+}
+
 now() {
     date -u +%s
 }
@@ -278,7 +297,7 @@ rmq_setup_env() {
     # user
     for dir in ${PID_DIR} "${OCF_RESKEY_mnesia_base}" "${OCF_RESKEY_log_dir}"; do
         if test -e ${dir}; then
-            if ! su -s /bin/sh - $OCF_RESKEY_username -c "test -w ${dir}"; then
+            if [ ! -z $(su -s /bin/sh - $OCF_RESKEY_username -c "find ${dir} ! -writable") ]; then
                 ocf_log warn "Directory ${dir} is not writable by ${OCF_RESKEY_username}, chowning."
                 chown -R ${OCF_RESKEY_username}:${OCF_RESKEY_groupname} "${dir}"
             fi
@@ -323,13 +342,13 @@ reset_mnesia() {
         if ! $make_amnesia ; then
             # rabbit app is not running, reset mnesia
             ocf_log info "${LH} Execute reset with timeout: ${TIMEOUT_ARG}"
-            ocf_run ${COMMAND_TIMEOUT} ${OCF_RESKEY_ctl} reset
+            su_rabbit_cmd "${OCF_RESKEY_ctl} reset"
             rc=$?
-            if [[ $rc != $OCF_SUCCESS ]] ; then
+            if [[ $rc != 0 ]] ; then
                 ocf_log info "${LH} Execute force_reset with timeout: ${TIMEOUT_ARG}"
-                ocf_run ${COMMAND_TIMEOUT} ${OCF_RESKEY_ctl} force_reset
+                su_rabbit_cmd "${OCF_RESKEY_ctl} force_reset"
                 rc=$?
-                if [[ $rc != $OCF_SUCCESS ]] ; then
+                if [[ $rc != 0 ]] ; then
                     ocf_log warn "${LH} Mnesia couldn't cleaned, even by force-reset command."
                     make_amnesia=true
                 fi
@@ -504,9 +523,9 @@ join_to_cluster() {
         fi
     fi
     ocf_log info "${LH} Execute join_cluster with timeout: ${TIMEOUT_ARG}"
-    ocf_run ${COMMAND_TIMEOUT} ${OCF_RESKEY_ctl} join_cluster $rmq_node
+    su_rabbit_cmd "${OCF_RESKEY_ctl} join_cluster $rmq_node"
     rc=$?
-    if [[ $rc != $OCF_SUCCESS ]] ; then
+    if [[ $rc != 0 ]] ; then
         ocf_log err "${LH} Can't join to cluster by node '${rmq_node}'. Stopping."
         action_stop
         return $OCF_ERR_GENERIC
@@ -566,9 +585,9 @@ unjoin_nodes_from_cluster() {
 
                 # unjoin node
                 ocf_log info "${LH} Execute forget_cluster_node with timeout: ${TIMEOUT_ARG}"
-                ocf_run ${COMMAND_TIMEOUT} ${OCF_RESKEY_ctl} forget_cluster_node ${nodename} 2>&1
+                su_rabbit_cmd "${OCF_RESKEY_ctl} forget_cluster_node ${nodename}"
                 rc=$?
-                if [[ $rc == $OCF_SUCCESS ]] ; then
+                if [[ $rc == 0 ]] ; then
                     ocf_log info "${LH} node '${nodename}' unjoined succesfully."
                 else
                     ocf_log info "${LH} unjoining node '${nodename}' failed."
@@ -589,12 +608,21 @@ stop_server_process() {
     rc=$?
     if [[ $rc != 0 ]] ; then
       ocf_log err "${LH} RMQ-server process PIDFILE was not found!"
-      return $OCF_ERR_GENERIC
+      su_rabbit_cmd "${OCF_RESKEY_ctl} stop 2>&1 >> \"${OCF_RESKEY_log_dir}/shutdown_log\""
+      rc=$?
+      if [[ $rc == 0 ]] ; then
+          ocf_log info "${LH} RMQ-server process stopped succesfully, although there was no PIDFILE found."
+          return $OCF_SUCCESS
+      else
+          ocf_log err "${LH} Cannot stop RMQ-server process, and cannot kill it by unknown PID! Try to stop it manually!"
+          return $OCF_ERR_GENERIC
+      fi
     fi
 
     ocf_log info "${LH} Execute stop with timeout: ${TIMEOUT_ARG}"
-    ocf_run ${COMMAND_TIMEOUT} ${OCF_RESKEY_ctl} stop ${OCF_RESKEY_pid_file} 2>&1 >> "${OCF_RESKEY_log_dir}/shutdown_log"
-    if [[ $rc == $OCF_SUCCESS ]] ; then
+    su_rabbit_cmd "${OCF_RESKEY_ctl} stop ${OCF_RESKEY_pid_file} 2>&1 >> \"${OCF_RESKEY_log_dir}/shutdown_log\""
+    rc=$?
+    if [[ $rc == 0 ]] ; then
         ocf_log info "${LH} RMQ-server process (PID=${pid}) stopped succesfully."
     else
         # RMQ-server process can't stop succesfully
@@ -622,7 +650,12 @@ stop_rmq_server_app() {
 
     # stop the app
     ocf_log info "${LH} Execute stop_app with timeout: ${TIMEOUT_ARG}"
-    ocf_run ${COMMAND_TIMEOUT} ${OCF_RESKEY_ctl} stop_app 2>&1 >> "${OCF_RESKEY_log_dir}/shutdown_log"
+    su_rabbit_cmd "${OCF_RESKEY_ctl} stop_app 2>&1 >> \"${OCF_RESKEY_log_dir}/shutdown_log\""
+    rc=$?
+    if [[ $rc != 0 ]] ; then
+         ocf_log err "${LH} RMQ-server app cannot be stopped."
+         return $OCF_ERR_GENERIC
+    fi
 
     get_status rabbit
     rc=$?
@@ -665,7 +698,8 @@ start_beam_process() {
     [ -f /etc/default/rabbitmq-server ] && . /etc/default/rabbitmq-server
 
     # run beam process
-    RABBITMQ_NODE_ONLY=1 ${OCF_RESKEY_binary} >> "${OCF_RESKEY_log_dir}/startup_log" 2>/dev/null &
+    local command="${OCF_RESKEY_binary} >> \"${OCF_RESKEY_log_dir}/startup_log\" 2>/dev/null"
+    RABBITMQ_NODE_ONLY=1 su rabbitmq -s /bin/sh -c "${command}"&
     ts_end=$(( $(now) + ${OCF_RESKEY_start_time} ))
     rc=$OCF_ERR_GENERIC
     while [ $(now) -lt ${ts_end} ]; do
@@ -732,12 +766,17 @@ try_to_start_rmq_app() {
 
     ocf_log info "${LH} begin."
     ocf_log info "${LH} Execute start_app with timeout: ${TIMEOUT_ARG}"
-    ocf_run ${COMMAND_TIMEOUT} ${OCF_RESKEY_ctl} start_app >>$startup_log 2>&1
+    su_rabbit_cmd "${OCF_RESKEY_ctl} start_app >>${startup_log} 2>&1"
     rc=$?
-    if [[ $rc == $OCF_SUCCESS ]] ; then
+    if [[ $rc == 0 ]] ; then
         ocf_log info "${LH} start_app was successful."
         ocf_log info "${LH} waiting for start to finish with timeout: ${TIMEOUT_ARG}"
-        ocf_run ${COMMAND_TIMEOUT} ${OCF_RESKEY_ctl} wait ${OCF_RESKEY_pid_file}
+        su_rabbit_cmd "${OCF_RESKEY_ctl} wait ${OCF_RESKEY_pid_file}"
+        rc=$?
+        if [[ $rc != 0 ]] ; then
+             ocf_log err "${LH} RMQ-server app failed to wait for start."
+             return $OCF_ERR_GENERIC
+        fi
         rc=$OCF_SUCCESS
         # Loading enabled modules
         ocf_log info "${LH} start plugins."
@@ -844,8 +883,9 @@ start_rmq_server_app() {
 }
 
 # check status of rabbit beam process or a rabbit app, if rabbit arg specified
+# by default, test if the kernel app is running, otherwise consider it is "not running"
 get_status() {
-    local what="$1"
+    local what="${1:-kernel}"
     local rc=$OCF_ERR_GENERIC
     local body
 
