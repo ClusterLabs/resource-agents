@@ -289,39 +289,6 @@ function monitor() {
 	return $OCF_SUCCESS
 }
 
-function get_replication_status() {
-	typeset -A info
-	while read line; do
-		[[ "$line" == "#"* ]] && continue
-		[[ "$line" != *":"* ]] && continue
-		IFS=':' read -r key value <<< "$line"
-		info[$key]="$value"
-	done < <(redis_client info)
-
-	if [[ -z "${info[role]}" ]]; then
-		ocf_log err "monitor: Could not get role from \`$REDIS_CLIENT -s $REDIS_SOCKET info\`"
-		return $OCF_ERR_GENERIC
-	fi
-
-	if [[ "${info[role]}" != "slave" ]]; then
-		ocf_log err "get_replication_status: Is not a slave (role=${info[role]})\`"
-		return $OCF_ERR_GENERIC
-	fi
-
-	if [[ "${info[master_sync_in_progress]}" == "1" ]]; then
-		ocf_log info "get_replication_status: Master / Slave sync in progress, (master=${info[master_host]}, link=${info[master_link_status]}, master_sync_in_progress=${info[master_sync_in_progress]})"
-		return 128
-	fi
-
-	if [[ "${info[master_sync_in_progress]}" == "0" ]] && [[ "${info[master_link_status]}" == "up" ]] ; then
-		ocf_log info "get_replication_status: Master / Slave in sync and up (master=${info[master_host]}, link=${info[master_link_status]}, master_sync_in_progress=${info[master_sync_in_progress]})"
-		return $OCF_SUCCESS
-	fi
-
-	return $OCF_ERR_GENERIC
-
-}
-
 function start() {
 	monitor
 	status=$?
@@ -468,18 +435,9 @@ function demote() {
 	#       This can take an arbitraty time (data) and should 
 	#       only be parametrized by the start operation timeout
 	#	by the administrator, not by this resource agent code
-	for (( c=1; c <= 20; c++ ))
-	do
+	while true; do 
 		# Wait infinite if replication is syncing
 		# Then start/demote operation timeout determines timeout
-		get_replication_status
-		status=$?
-		if (( status == 128 )); then
-			c=1
-			sleep 1
-			continue
-		fi
-
 		monitor
 		status=$?
 		if (( status == OCF_SUCCESS )); then
