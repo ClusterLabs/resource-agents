@@ -387,15 +387,27 @@ ip_status() {
 
 srca_validate_all() {
 
-    check_binary $AWK
-    check_binary $IFCONFIG
+	if [ -z "$OCF_RESKEY_ipaddress" ]; then
+		#  usage
+		ocf_exit_reason "Please set OCF_RESKEY_ipaddress to the preferred source IP address!"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+
+	if ! [ "x$SYSTYPE" = "xLinux" ]; then
+		# checks after this point are only relevant for linux.
+		return $OCF_SUCCESS
+	fi
+
+	check_binary $AWK
+	check_binary $IFCONFIG
 
 #	The IP address should be in good shape
 	if CheckIP "$ipaddress"; then
 	  : 
 	else
 	  ocf_exit_reason "Invalid IP address [$ipaddress]"
-	  exit $OCF_ERR_CONFIGURED
+	  return $OCF_ERR_CONFIGURED
 	fi
 
 	if ocf_is_probe; then
@@ -407,8 +419,9 @@ srca_validate_all() {
 	  :
 	else
 	  ocf_exit_reason "We are not serving [$ipaddress], hence can not make it a preferred source address"
-	  exit $OCF_ERR_INSTALLED
+	  return $OCF_ERR_INSTALLED
 	fi
+	return $OCF_SUCCESS
 }
 
 if
@@ -430,18 +443,22 @@ case $1 in
 			;;
 esac
 
-if 
-  [ -z "$OCF_RESKEY_ipaddress" ]
-then
-#  usage
-  ocf_exit_reason "Please set OCF_RESKEY_ipaddress to the preferred source IP address!"
-  exit $OCF_ERR_CONFIGURED
-fi
-
 ipaddress="$OCF_RESKEY_ipaddress"
 
-if [ "x$SYSTYPE" = "xLinux" ]; then
-	srca_validate_all
+srca_validate_all
+rc=$?
+if [ $rc -ne $OCF_SUCCESS ]; then
+	case $1 in
+		# if we can't validate the configuration during a stop, that
+		# means the resources isn't configured correctly. There's no way
+		# to actually stop the resource in this situation because there's
+		# no way it could have even started. Return success here
+		# to indicate that the resource is not running, otherwise the
+		# stop action will fail causing the node to be fenced just because
+		# of a mis configuration.
+		stop) exit $OCF_SUCCESS;;
+		*)    exit $rc;;
+	esac
 fi
 
 findif_out=`$FINDIF -C`
