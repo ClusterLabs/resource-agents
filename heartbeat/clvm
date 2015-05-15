@@ -60,6 +60,18 @@ Options to clvmd. Refer to clvmd.8 for detailed descriptions.
 <shortdesc lang="en">Daemon Options</shortdesc>
 <content type="string" default="-d0"/>
 </parameter>
+
+<parameter name="activate_vgs" unique="0">
+<longdesc lang="en">
+Whether or not to activate all cluster volume groups after starting
+the clvmd or not. Note that clustered volume groups will always be
+deactivated before the clvmd stops regardless of what this option
+is set to.
+</longdesc>
+<shortdesc lang="en">Activate volume groups</shortdesc>
+<content type="boolean" default="true"/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -77,6 +89,7 @@ END
 #######################################################################
 
 : ${OCF_RESKEY_daemon_options:="-d0"}
+: ${OCF_RESKEY_activate_vgs:="true"}
 
 sbindir=$HA_SBIN_DIR
 if [ -z $sbindir ]; then
@@ -322,6 +335,11 @@ start_process()
 
 clvmd_activate_all()
 {
+
+	if ! ocf_is_true "$OCF_RESKEY_activate_vgs"; then
+		ocf_log info "skipping vg activation, activate_vgs is set to $OCF_RESKEY_activate_vgs"
+		return $OCF_SUCCESS
+	fi
 	# Activate all volume groups by leaving the
 	# "volume group name" parameter empty
 	ocf_run ${LVM_VGCHANGE} -aay
