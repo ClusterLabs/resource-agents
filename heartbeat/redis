@@ -427,14 +427,23 @@ function demote() {
 
 	redis_client slaveof "$master_host" "$master_port"
 
-	# wait briefly for the slave to connect to the master	
-	for (( c=1; c <= 20; c++ ))
-	do
+	# Wait forever for the slave to connect to the master and finish the 
+	# sync. Timeout is controlled by Pacemaker "op start timeout=XX".
+	#
+	# hint: redis master_link_status will only come "up" when 
+	#       the SYNC with the master has completed.
+	#       This can take an arbitraty time (data) and should 
+	#       only be parametrized by the start operation timeout
+	#	by the administrator, not by this resource agent code
+	while true; do 
+		# Wait infinite if replication is syncing
+		# Then start/demote operation timeout determines timeout
 		monitor
 		status=$?
 		if (( status == OCF_SUCCESS )); then
 			return $OCF_SUCCESS
 		fi
+		
 		sleep 1
 	done
 
