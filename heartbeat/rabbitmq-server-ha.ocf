@@ -759,6 +759,18 @@ try_to_start_rmq_app() {
     local rc=$OCF_ERR_GENERIC
     local LH="${LL} try_to_start_rmq_app():"
 
+    get_status
+    rc=$?
+    if [[ $rc != $OCF_SUCCESS ]] ; then
+        ocf_log info "${LH} RMQ-runtime (beam) not started, starting..."
+        start_beam_process
+        rc=$?
+        if [[ $rc != $OCF_SUCCESS ]]; then
+            ocf_log err "${LH} Failed to start beam - returning from the function"
+            return $OCF_ERR_GENERIC
+        fi
+    fi
+
 
     if [[ -z $startup_log ]] ; then
         startup_log="${OCF_RESKEY_log_dir}/startup_log"
