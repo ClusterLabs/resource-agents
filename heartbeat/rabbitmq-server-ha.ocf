@@ -1146,6 +1146,7 @@ jjj_join () {
 }
 
 action_notify() {
+    local rc_join=$OCF_SUCCESS
     local rc=$OCF_ERR_GENERIC
     local rc2=$OCF_ERR_GENERIC
     local LH="${LL} notify:"
@@ -1183,8 +1184,16 @@ action_notify() {
         case "$OCF_RESKEY_CRM_meta_notify_operation" in
             promote)
                 ocf_log info "${LH} post-promote begin."
-                jjj_join ${OCF_RESKEY_CRM_meta_notify_promote_uname}
-                rc=$?
+                check_need_join_to ${OCF_RESKEY_CRM_meta_notify_promote_uname}
+                rc_join=$?
+                if [[ ${rc_join} == $OCF_SUCCESS ]]; then
+                  ocf_log warn "${LH} Going to join node ${OCF_RESKEY_CRM_meta_notify_promote_uname}"
+                  jjj_join ${OCF_RESKEY_CRM_meta_notify_promote_uname}
+                  rc=$?
+                else
+                  ocf_log warn "${LH} We are already clustered with node ${OCF_RESKEY_CRM_meta_notify_promote_uname}"
+                  rc=$OCF_SUCCESS
+                fi
                 ocf_log info "${LH} post-promote end."
                 if [[ $rc == $OCF_ERR_GENERIC ]] ; then
                     ocf_log err "${LH} Failed to join the cluster on post-promote. Master resource is failed."
@@ -1194,11 +1203,19 @@ action_notify() {
             start)
                 ocf_log info "${LH} post-start begin."
                 # check did this event from this host
-                my_host "$OCF_RESKEY_CRM_meta_notify_start_uname"
+                my_host "${OCF_RESKEY_CRM_meta_notify_start_uname} ${OCF_RESKEY_CRM_meta_notify_active_uname}"
                 rc=$?
                 if [[ $rc == $OCF_SUCCESS ]] ; then
-                    jjj_join ${OCF_RESKEY_CRM_meta_notify_master_uname}
-                    rc2=$?
+                    check_need_join_to ${OCF_RESKEY_CRM_meta_notify_master_uname}
+                    rc_join=$?
+                    if [[ ${rc_join} == $OCF_SUCCESS ]]; then
+                      ocf_log warn "${LH} Going to join node ${OCF_RESKEY_CRM_meta_notify_master_uname}"
+                      jjj_join ${OCF_RESKEY_CRM_meta_notify_master_uname}
+                      rc2=$?
+                    else
+                      ocf_log warn "${LH} We are already clustered with node ${OCF_RESKEY_CRM_meta_notify_master_uname}"
+                      rc2=$OCF_SUCCESS
+                    fi
                     ocf_log info "${LH} post-start end."
                     if [[ $rc2 == $OCF_ERR_GENERIC ]] ; then
                         ocf_log warn "${LH} Failed to join the cluster on post-start. Resource is failed."
