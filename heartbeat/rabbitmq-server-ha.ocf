@@ -363,7 +363,7 @@ reset_mnesia() {
     # remove mnesia files, if required
     if $make_amnesia ; then
         kill_rmq_and_remove_pid
-        ocf_run find ${MNESIA_FILES} -type f -delete
+        ocf_run rm -rf ${MNESIA_FILES}*
         ocf_log warn "${LH} Beam have been killed. Mnesia files appear corrupted and have been removed."
     fi
     # always return OCF SUCCESS
