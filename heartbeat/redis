@@ -172,6 +172,21 @@ function last_known_master()
 	echo "$MASTER_HOST"
 }
 
+## Pidof does not work with prelink on centos
+##    see https://bugzilla.redhat.com/show_bug.cgi?id=760251
+function get_redis_pid {
+	local _PID="$(ps ax -o pid,cmd | grep -e "^[[:space:]]*[[:digit:]][[:digit:]]*[[:space:]][[:space:]]*${REDIS_SERVER}" | awk '{print $1}')"
+	# print the pid
+	echo $_PID
+	# Mimic RC code of pidof
+	if [ -z "$_PID" ]; then
+		return 1
+	else
+		return 0
+	fi
+}
+
+
 function crm_master_reboot() {
 	"${HA_SBIN_DIR}/crm_master" -l reboot "$@"
 }
@@ -229,7 +244,7 @@ function simple_status() {
 	fi
 
 	pid="$(<"$REDIS_PIDFILE")"
-	pidof "$REDIS_SERVER" | grep -q "\<$pid\>" || return $OCF_NOT_RUNNING
+	get_redis_pid | grep -q "\<$pid\>" || return $OCF_NOT_RUNNING
 
 	ocf_log debug "monitor: redis-server running under pid $pid"
 
@@ -318,7 +333,7 @@ function start() {
 			break
 		elif (( info[loading] == 1 )); then
 			sleep "${info[loading_eta_seconds]}"
-		elif pidof "$REDIS_SERVER" >/dev/null; then
+		elif get_redis_pid >/dev/null; then
 			# unknown error, but the process still exists.
 			# This check is mainly because redis daemonizes before it starts listening, causing `redis-cli` to fail
 			#   See https://github.com/antirez/redis/issues/2368
