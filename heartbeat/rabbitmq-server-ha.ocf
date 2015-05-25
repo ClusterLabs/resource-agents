@@ -376,7 +376,7 @@ block_client_access()
 {
     # do not add temporary RMQ blocking rule, if it is already exist
     # otherwise, try to add a blocking rule with max of 5 retries
-    tries=5
+    local tries=5
     until $(iptables -nvL | grep -q 'temporary RMQ block') || [[ $tries -eq 0 ]]; do
       ((tries--))
       iptables -I INPUT -p tcp -m tcp --dport ${OCF_RESKEY_node_port} -m state --state NEW,RELATED,ESTABLISHED \
@@ -431,6 +431,24 @@ get_running_nodes() {
     return $?
 }
 
+# Get all known cluster nodes including offline ones
+get_all_pacemaker_nodes()
+{
+    echo `crm_node -l | awk '{print $2}' | grep -v "^$" | sed -e '/(null)/d'`
+    return $?
+}
+
+# Get alive cluster nodes in visible partition, but the specified one
+get_alive_pacemaker_nodes_but()
+{
+    if [ -z $1 ]; then
+        echo `crm_node -l -p | sed -e '/(null)/d'`
+    else
+        echo `crm_node -l -p | sed -e "s/${1}//g" | sed -e '/(null)/d'`
+    fi
+    return $?
+}
+
 check_need_join_to() {
     local join_to=$(rabbit_node_name $1)
     local node
@@ -477,7 +495,7 @@ kill_rmq_and_remove_pid() {
 }
 
 trim_var(){
-    string="$*"
+    local string="$*"
     echo ${string%% }
 }
 
@@ -826,6 +844,7 @@ start_rmq_server_app() {
     local startup_log="${OCF_RESKEY_log_dir}/startup_log"
     local startup_output
     local LH="${LL} start_rmq_server_app():"
+    local a
 
     #We are performing initial start check.
     #We are not ready to provide service.
@@ -956,11 +975,19 @@ get_monitor() {
     local scope
     local LH="${LL} get_monitor():"
     local status_master
+    local rabbit_running
+    local nodelist
+    local prev_rc
+    local max
+    local our_uptime
+    local node_uptime
+    local node_start_time
 
     get_status
     rc=$?
     if [[ $rc == $OCF_NOT_RUNNING ]] ; then
         ocf_log info "${LH} get_status() returns ${rc}."
+        ocf_log info "${LH} ensuring this slave does not get promoted."
         master_score 0
         return $OCF_NOT_RUNNING
     elif [[ $rc == $OCF_SUCCESS ]] ; then
@@ -984,7 +1011,7 @@ get_monitor() {
         then
             ocf_log info "${LH} rabbit app is running. checking if we are the part of healthy cluster"
             prev_rc=$rc
-            nodelist=`crm_node -p -l | grep -v lost | awk '{print $2}' | grep -v "^$" | sed -e '/(null)/d'`
+            nodelist=$(get_alive_pacemaker_nodes_but)
             for node in $nodelist
             do
                 ocf_log info "${LH} rabbit app is running. looking for master on $node"
@@ -1012,7 +1039,7 @@ get_monitor() {
     else
         ocf_log info "${LH} preparing to update master score for node"
         our_uptime=$(srv_uptime)
-        nodelist=$( crm_node -p -l | grep -v lost | awk '{print $2}' | grep -v "^$" | grep -v "${THIS_PCMK_NODE}" | sed -e '/(null)/d' )
+        nodelist=$(get_alive_pacemaker_nodes_but $THIS_PCMK_NODE)
         max=1
         for node in $nodelist
         do
@@ -1176,6 +1203,7 @@ action_notify() {
     local rc=$OCF_ERR_GENERIC
     local rc2=$OCF_ERR_GENERIC
     local LH="${LL} notify:"
+    local nodelist
 
     if [[ ${OCF_RESKEY_debug} == "true" ]] ; then
         d=`date '+%Y%m%d %H:%M:%S'`
@@ -1192,7 +1220,7 @@ action_notify() {
                 my_host "$OCF_RESKEY_CRM_meta_notify_promote_uname"
                 rc=$?
                 if [[ $rc == $OCF_SUCCESS ]] ; then
-                    nodelist=`crm_node -l | awk '{print $2}' | grep -v "^$" | sed -e '/(null)/d'`
+                    nodelist=$(get_all_pacemaker_nodes)
                     for i in $nodelist
                     do
                        crm_attribute -N $i -l reboot --name 'rabbit-master' --delete
@@ -1326,7 +1354,6 @@ action_notify() {
 
 action_promote() {
     local rc=$OCF_ERR_GENERIC
-    local pid
     local LH="${LL} promote:"
 
     if [[ ${OCF_RESKEY_debug} == "true" ]] ; then
@@ -1424,7 +1451,6 @@ action_promote() {
 
 action_demote() {
     local rc=$OCF_ERR_GENERIC
-    local pid
     local LH="${LL} demote:"
 
     if [[ ${OCF_RESKEY_debug} == "true" ]] ; then
