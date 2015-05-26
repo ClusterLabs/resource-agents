@@ -194,6 +194,7 @@ Erlang cookie file path where the cookie will be put, if requested
 <action name="status" timeout="20" />
 <action name="monitor" depth="0" timeout="30" interval="5" />
 <action name="monitor" depth="0" timeout="30" interval="3" role="Master"/>
+<action name="monitor" depth="30" timeout="60" interval="103" />
 <action name="promote" timeout="30" />
 <action name="demote"  timeout="30" />
 <action name="notify"   timeout="20" />
@@ -983,6 +984,7 @@ get_monitor() {
     local node_uptime
     local node_start_time
 
+    ocf_log info "${LH} CHECK LEVEL IS: ${OCF_CHECK_LEVEL}"
     get_status
     rc=$?
     if [[ $rc == $OCF_NOT_RUNNING ]] ; then
@@ -1008,7 +1010,7 @@ get_monitor() {
     ocf_log info "${LH} checking if rabbit app is running"
 
     if [ $rabbit_running == $OCF_SUCCESS ]
-        then
+    then
             ocf_log info "${LH} rabbit app is running. checking if we are the part of healthy cluster"
             prev_rc=$rc
             nodelist=$(get_alive_pacemaker_nodes_but)
@@ -1030,6 +1032,28 @@ get_monitor() {
                 fi
             done
             [ $rc -eq $OCF_ERR_GENERIC ] && ocf_log err "${LH} rabbit node is running out of the cluster"
+    else
+      if [ "$OCF_CHECK_LEVEL" -gt 20 ]; then
+            ocf_log info "${LH} rabbit app is not running. checking if there is a master"
+            prev_rc=$rc
+            is_master $THIS_PCMK_NODE
+            i_am_master=$?
+            if [ $i_am_master -eq 0 ]; then
+              ocf_log err "${LH} we are the master and rabbit app is not running. this is a failure"
+              exit $OCF_FAILED_MASTER
+            fi
+            nodelist=$(get_alive_pacemaker_nodes_but)
+            for node in $nodelist
+            do
+                is_master $node
+                status_master=$?
+                ocf_log info "${LH} fetched master attribute for $node. attr value is ${status_master}"
+                if [ $status_master -eq 0 ] ; then
+                    rc=$OCF_ERR_GENERIC
+                    ocf_log info "${LH} rabbit app is not running. master is $node. exiting to be restarted by pacemaker"
+                fi
+            done
+      fi
     fi
 
     if [[ $rc == $OCF_ERR_GENERIC ]]; then
