@@ -1029,10 +1029,11 @@ get_monitor() {
                     fi
                 fi
             done
+            [ $rc -eq $OCF_ERR_GENERIC ] && ocf_log err "${LH} rabbit node is running out of the cluster"
     fi
 
     if [[ $rc == $OCF_ERR_GENERIC ]]; then
-        ocf_log info "${LH} get_status() returns generic error ${rc}"
+        ocf_log err "${LH} get_status() returns generic error ${rc}"
         ocf_log info "${LH} ensuring this slave does not get promoted."
         master_score 0
         return $OCF_ERR_GENERIC
@@ -1074,6 +1075,17 @@ get_monitor() {
             ocf_log info "${LH} we are the oldest node"
             master_score 1000
         fi
+    fi
+
+    # Check if the rabbitmqctl control plane is alive.
+    # The rabbit app may be not running and the command
+    # will return > 0, so we only check if the command execution
+    # has timed out (which is a code 137)
+    su_rabbit_cmd "${OCF_RESKEY_ctl} list_channels 2>&1 > /dev/null"
+    rc2=$?
+    if [ $rc2 -eq 137 -o $rc2 -eq 124 ]; then
+        ocf_log err "${LH} rabbitmqctl is not responding. The resource is failed."
+        return $OCF_ERR_GENERIC
     fi
     ocf_log info "${LH} get_monitor function ready to return ${rc}"
     return $rc
