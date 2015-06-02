@@ -592,7 +592,7 @@ pgsql_real_start() {
         create_replication_slot
         rc=$?
         if [ $rc -eq $OCF_ERR_GENERIC ]; then
-            ocf_exit_reason ocf_exit_reason "PostgreSQL can't create replication_slot."
+            ocf_exit_reason "PostgreSQL can't create replication_slot."
             return $OCF_ERR_GENERIC
         fi
     fi
