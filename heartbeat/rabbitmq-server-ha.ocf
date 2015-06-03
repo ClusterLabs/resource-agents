@@ -1228,6 +1228,8 @@ jjj_join () {
             join_to_cluster "${join_to}"
             rc=$?
             if [[ $rc != $OCF_SUCCESS ]] ; then
+                ocf_log err "${LH} Failed to join the cluster. The mnesia will be reset."
+                reset_mnesia
                 rc=$OCF_ERR_GENERIC
             fi
     fi
