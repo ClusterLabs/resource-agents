@@ -286,6 +286,7 @@ rmq_setup_env() {
     RMQ_START_TIME="${MNESIA_FILES}/ocf_server_start_time.txt"
     MASTER_FLAG_FILE="${MNESIA_FILES}/ocf_master_for_${OCF_RESOURCE_INSTANCE}"
     THIS_PCMK_NODE=`crm_node -n`
+    TOTALVMEM=`free -mt | awk '/Total:/ {print $2}'`
     # check and make PID file dir
     local PID_DIR=$( dirname $OCF_RESKEY_pid_file )
     if [ ! -d ${PID_DIR} ] ; then
@@ -977,6 +978,8 @@ get_monitor() {
     local LH="${LL} get_monitor():"
     local status_master
     local rabbit_running
+    local name
+    local node
     local nodelist
     local prev_rc
     local max
@@ -1104,13 +1107,60 @@ get_monitor() {
     # Check if the rabbitmqctl control plane is alive.
     # The rabbit app may be not running and the command
     # will return > 0, so we only check if the command execution
-    # has timed out (which is a code 137)
+    # has timed out (which is a code 137 or 124)
     su_rabbit_cmd "${OCF_RESKEY_ctl} list_channels 2>&1 > /dev/null"
-    rc2=$?
-    if [ $rc2 -eq 137 -o $rc2 -eq 124 ]; then
+    local rc_alive=$?
+    if [ $rc_alive -eq 137 -o $rc_alive -eq 124 ]; then
         ocf_log err "${LH} rabbitmqctl is not responding. The resource is failed."
         return $OCF_ERR_GENERIC
     fi
+
+    # Check for memory alarms for this Master or Slave node.
+    # Skip the check if rabbit app is not running yet.
+    # If alert found, reset the alarm
+    # and restart the resource as it likely means a dead end situation
+    # when rabbitmq cluster is running with blocked publishing due
+    # to high memory watermark exceeded.
+    local alarms=`su_rabbit_cmd "${OCF_RESKEY_ctl} -q eval 'rabbit_alarm:get_alarms().'"`
+    local rc_alarms=$?
+    if [ $rc_alarms -eq 0 -a -n "${alarms}" ]; then
+        for node in "${alarms}"; do
+            name=`echo ${node} | perl -n -e "m/memory,'(?<n>\S+)+'/ && print \"$+{n}\n\""`
+            if [[ "${name}" == "${RABBITMQ_NODENAME}" ]] ; then
+                ocf_log err "${LH} Found raised memory alarm. Erasing the alarm and restarting."
+                su_rabbit_cmd "${OCF_RESKEY_ctl} set_vm_memory_high_watermark 10 2>&1 > /dev/null"
+                rc=$OCF_ERR_GENERIC
+                break
+            fi
+        done
+    fi
+
+    # Check if the list of all queues is available,
+    # Skip the check if rabbit app is not running yet.
+    # Also report some queues stats and total virtual memory.
+    local queues=`su_rabbit_cmd "${OCF_RESKEY_ctl} -q list_queues memory messages consumer_utilisation"`
+    local rc_queues=$?
+    if [ $rc_queues -eq 0 -a -n "${queues}" ]; then
+        local q_c=`echo -e "${queues}" | wc -l`
+        local m_b=`echo -e "${queues}" | awk -v sum=0 '{sum+=$1} END {print sum}'`
+        local mem=$(( $m_b / 1048576 ))
+        local mes=`echo -e "${queues}" | awk -v sum=0 '{sum+=$2} END {print sum}'`
+        local c_u=`echo -e "${queues}" | awk -v sum=0 -v cnt=${q_c} '{sum+=$3} END {print (sum+1)/(cnt+1)}'`
+        local status=`echo $(su_rabbit_cmd "${OCF_RESKEY_ctl} -q status")`
+        ocf_log info "${LH} RabbitMQ is running ${q_c} queues consuming ${mem}m of ${TOTALVMEM}m total, with ${mes} queued messages, average consumer utilization ${c_u}"
+        ocf_log info "${LH} RabbitMQ status: ${status}"
+    fi
+
+    # If the rabbit app is running,
+    # we have to additionally check here if the channels/queues/alarms list results were ok.
+    if [ $rabbit_running -eq $OCF_SUCCESS ]; then
+        # Check if the rabbitmqctl control plane returned no errors for issued requests.
+        if [ $rc_alive -ne 0 -o $rc_alarms -ne 0 -o $rc_queues -ne 0 ]; then
+            ocf_log err "${LH} rabbitmqctl exited with errors."
+            rc=$OCF_ERR_GENERIC
+        fi
+    fi
+
     ocf_log info "${LH} get_monitor function ready to return ${rc}"
     return $rc
 }
