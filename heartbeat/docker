@@ -195,7 +195,7 @@ monitor_cmd_exec()
 
 container_exists()
 {
-	docker inspect $CONTAINER > /dev/null 2>&1
+	docker inspect --format {{.State.Running}} $CONTAINER | egrep '(true|false)' >/dev/null 2>&1
 }
 
 remove_container()
