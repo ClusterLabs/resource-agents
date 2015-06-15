@@ -61,7 +61,7 @@ The docker image to base this container off of.
 
 <parameter name="name" required="0" unique="0">
 <longdesc lang="en">
-The name to give the created container. By default this will 
+The name to give the created container. By default this will
 be that resource's instance name.
 </longdesc>
 <shortdesc lang="en">docker container name</shortdesc>
@@ -72,7 +72,7 @@ be that resource's instance name.
 <longdesc lang="en">
 Allow the image to be pulled from the configured docker registry when
 the image does not exist locally. NOTE, this can drastically increase
-the time required to start the container if the image repository is 
+the time required to start the container if the image repository is
 pulled over the network.
 </longdesc>
 <shortdesc lang="en">Allow pulling non-local images</shortdesc>
@@ -84,8 +84,8 @@ pulled over the network.
 Add options to be appended to the 'docker run' command which is used
 when creating the container during the start action. This option allows
 users to do things such as setting a custom entry point and injecting
-environment variables into the newly created container. Note the '-d' 
-option is supplied regardless of this value to force containers to run 
+environment variables into the newly created container. Note the '-d'
+option is supplied regardless of this value to force containers to run
 in the background.
 
 NOTE: Do not explicitly specify the --name argument in the run_opts. This
@@ -99,7 +99,7 @@ provided in the 'name' argument of this agent.
 
 <parameter name="run_cmd" required="0" unique="0">
 <longdesc lang="en">
-Specifiy a command to launch within the container once 
+Specifiy a command to launch within the container once
 it has initialized.
 </longdesc>
 <shortdesc lang="en">run command</shortdesc>
@@ -186,7 +186,7 @@ monitor_cmd_exec()
 			exit $OCF_ERR_ARGS
 		fi
 		rc=$OCF_ERR_GENERIC
-	else 
+	else
 		ocf_log info "monitor cmd passed: exit code = $rc"
 	fi
 
@@ -195,7 +195,7 @@ monitor_cmd_exec()
 
 container_exists()
 {
-	docker inspect $CONTAINER > /dev/null 2>&1
+	docker inspect --format {{.State.Running}} $CONTAINER | egrep '(true|false)' >/dev/null 2>&1
 }
 
 remove_container()
@@ -279,7 +279,7 @@ docker_start()
 		ocf_run docker start $CONTAINER
 	else
 		# make sure any previous container matching our container name is cleaned up first.
-		# we already know at this point it wouldn't be running 
+		# we already know at this point it wouldn't be running
 		remove_container
 		ocf_log info "running container $CONTAINER for the first time"
 		ocf_run docker run $run_opts $OCF_RESKEY_image $OCF_RESKEY_run_cmd
@@ -328,7 +328,7 @@ docker_stop()
 
 	if ocf_is_true "$OCF_RESKEY_force_kill"; then
 		ocf_run docker kill $CONTAINER
-	else 	
+	else
 		ocf_log debug "waiting $timeout second[s] before killing container"
 		ocf_run docker stop -t=$timeout $CONTAINER
 	fi
@@ -365,7 +365,7 @@ image_exists()
 		REQUIRE_IMAGE_PULL=1
 		ocf_log notice "Image (${OCF_RESKEY_image}) does not exist locally but will be pulled during start"
 		return 0
-	fi 
+	fi
 	# image not found.
 	return 1
 }
@@ -376,7 +376,7 @@ docker_validate()
 	if [ -z "$OCF_RESKEY_image" ]; then
 		ocf_exit_reason "'image' option is required"
 		exit $OCF_ERR_CONFIGURED
-	fi 
+	fi
 
 	if [ -n "$OCF_RESKEY_monitor_cmd" ]; then
 		ocf_log info "checking for nsenter, which is required when 'monitor_cmd' is specified"
