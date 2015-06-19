@@ -20,6 +20,7 @@ fi
 
 CHECK_SLAVE_STATE=0
 
+REDIS_CHECK_DUMP="/usr/bin/redis-check-dump"
 REDIS_SERVER="$OCF_RESKEY_bin"
 REDIS_CLIENT="$OCF_RESKEY_client_bin"
 REDIS_CONFIG="$OCF_RESKEY_config"
@@ -28,6 +29,17 @@ REDIS_RUNDIR="$OCF_RESKEY_rundir"
 REDIS_PIDFILE="$OCF_RESKEY_rundir/$OCF_RESKEY_pidfile_name"
 REDIS_SOCKET="$OCF_RESKEY_rundir/$OCF_RESKEY_socket_name"
 REDIS_REPLICATION_PORT="$OCF_RESKEY_port"
+
+if ! [ -f $REDIS_CHECK_DUMP ]; then
+	REDIS_CHECK_DUMP="$(which redis-check-dump 2>/dev/null)"
+fi
+
+if [ -f "$REDIS_CONFIG" ]; then
+	REDIS_DUMP_DIR="$(cat $REDIS_CONFIG | grep "^\s*dir\s" | awk '{ print $2 }' 2>/dev/null)"
+	REDIS_DUMP_FILE="$(cat $REDIS_CONFIG | grep "^\s*dbfilename\s" | awk '{ print $2 }' 2>/dev/null)"
+fi
+: ${REDIS_DUMP_DIR:=/var/lib/redis/}
+: ${REDIS_DUMP_FILE:=dump.rdb}
 
 function meta_data() {
 	cat <<EOI
@@ -289,6 +301,14 @@ function monitor() {
 	return $OCF_SUCCESS
 }
 
+function check_dump_file()
+{
+	if ! have_binary "$REDIS_CHECK_DUMP"; then
+		return 0
+	fi
+	$REDIS_CHECK_DUMP ${REDIS_DUMP_DIR}/${REDIS_DUMP_FILE} 2>&1
+}
+
 function start() {
 	monitor
 	status=$?
@@ -300,6 +320,16 @@ function start() {
 
 	[[ ! -d "$REDIS_RUNDIR" ]] && mkdir -p "$REDIS_RUNDIR"
 	chown -R "$REDIS_USER" "$REDIS_RUNDIR"
+
+	# check for 0 byte database dump file. This is an unrecoverable start
+	# condition that we can avoid by deleting the 0 byte database file.
+	if [ -f "${REDIS_DUMP_DIR}/${REDIS_DUMP_FILE}" ]; then
+		local size="$(stat --format "%s" ${REDIS_DUMP_DIR}/${REDIS_DUMP_FILE})"
+		if [ "$?" -eq "0" ] && [ "$size" -eq "0" ]; then
+			ocf_log notice "Detected 0 byte ${REDIS_DUMP_FILE}, deleting zero length file to avoid start failure."
+			rm -f ${REDIS_DUMP_DIR}/${REDIS_DUMP_FILE}
+		fi
+	fi
 
 	ocf_log info "start: $REDIS_SERVER --daemonize yes --unixsocket '$REDIS_SOCKET' --pidfile '$REDIS_PIDFILE'"
 	output="$(su "$REDIS_USER" -s /bin/sh -c "cd '$REDIS_RUNDIR'; exec '$REDIS_SERVER' '$REDIS_CONFIG' --daemonize yes --unixsocket '$REDIS_SOCKET' --pidfile '$REDIS_PIDFILE'" 2>&1)"
@@ -325,7 +355,8 @@ function start() {
 			# It's possible that the `pidof` will pick up a different redis, but in that case, the start operation will just time out
 			sleep 1
 		else
-			ocf_log err "start: Unknown error waiting for redis to start"
+			check_output="$(check_dump_file)"
+			ocf_log err "start: Unknown error waiting for redis to start. redis-check-dump output=${check_output//$'\n'/; }"
 			return $OCF_ERR_GENERIC
 		fi
 	done
@@ -338,7 +369,8 @@ function start() {
 		return $OCF_SUCCESS
 	fi
 
-	ocf_log err "start: Unknown error starting redis. output=${output//$'\n'/; }"
+	check_output="$(check_dump_file)"
+	ocf_log err "start: Unknown error starting redis. redis-server output=${output//$'\n'/; } redis-check-dump output=${check_output//$'\n'/; }"
 	return $status
 }
 
