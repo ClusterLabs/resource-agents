@@ -505,6 +505,25 @@ pgsql_methods() {
 EOF
 }
 
+#   Execulte SQL and return the result.
+exec_sql() {
+    local postgres_sql=$1
+    local postgres_options=$2
+    local output
+    local rc
+
+    if [ $2 != "" ]; then
+        postgres_options="-$2"
+    fi
+
+    output=`su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
+                $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
+                $postgres_options \"$postgres_sql\""`
+    rc=$?
+
+    echo $output
+    return $?
+}
 
 #pgsql_real_start: Starts PostgreSQL
 pgsql_real_start() {
@@ -895,10 +914,9 @@ pgsql_real_monitor() {
 
     if is_replication; then
         #Check replication state
-        output=`su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
-                $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
-                -Atc \"${CHECK_MS_SQL}\""`
+        output=`exec_sql "${CHECK_MS_SQL}" Atc`
         rc=$?
+
         if [ $rc -ne  0 ]; then
             report_psql_error $rc $loglevel "Can't get PostgreSQL recovery status."
             return $OCF_ERR_GENERIC
@@ -1319,24 +1337,34 @@ create_replication_slot() {
     local output
     local rc
     local CREATE_REPLICATION_SLOT_sql
+    local DELETE_REPLICATION_SLOT_sql
 
     replication_slot_name_list=`create_replication_slot_name`
     ocf_log debug "replication slot names are $replication_slot_name_list."
 
     for replication_slot_name in $replication_slot_name_list
     do
-        # create replication slot when the same name slot is not exists.
-        # If the same name slot is already exists, don't create new slot and reuse the old slot.
-        CREATE_REPLICATION_SLOT_sql="SELECT pg_create_physical_replication_slot('$replication_slot_name') \
-                                     FROM (VALUES (1)) AS t \
-                                     WHERE NOT EXISTS (SELECT * FROM pg_replication_slots WHERE slot_name = '$replication_slot_name');"
+        # If the same name slot is already exists, initialize(delete and create) the slot.
+        if [ `check_replication_slot $replication_slot_name` == "1" ]; then
+            DELETE_REPLICATION_SLOT_sql="SELECT pg_drop_replication_slot('$replication_slot_name');"
+            output=`exec_sql "$DELETE_REPLICATION_SLOT_sql" Atc`
+            rc=$?
 
-        output=`su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
-                $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
-                -Atc \"$CREATE_REPLICATION_SLOT_sql\""`
+            if [ $rc -eq 0 ]; then
+                ocf_log info "PostgreSQL delete the replication slot($replication_slot_name)."
+            else
+                ocf_exit_reason "$output"
+                return $OCF_ERR_GENERIC
+            fi
+        fi
+
+        CREATE_REPLICATION_SLOT_sql="SELECT pg_create_physical_replication_slot('$replication_slot_name');" 
+
+        output=`exec_sql "$CREATE_REPLICATION_SLOT_sql" Atc`
         rc=$?
+
         if [ $rc -eq 0 ]; then
-            ocf_log info "PostgreSQL creates or alredy exist the replication slot($replication_slot_name)"
+            ocf_log info "PostgreSQL creates the replication slot($replication_slot_name)."
         else
             ocf_exit_reason "$output"
             return $OCF_ERR_GENERIC
@@ -1344,6 +1372,16 @@ create_replication_slot() {
     done
 
     return 0
+}
+
+# This function check the replication slot does exists.
+check_replication_slot(){
+    local replication_slot_name=$1
+    local output
+    local CHECK_REPLICATION_SLOT_sql="SELECT count(*) FROM pg_replication_slots WHERE slot_name = '$replication_slot_name'"
+
+    output=`exec_sql "$CHECK_REPLICATION_SLOT_sql" Atc`
+    echo "$output"
 }
 
 get_my_location() {
@@ -1357,10 +1395,9 @@ get_my_location() {
     local log2
     local newer_location
 
-    output=`su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
-            $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
-            -Atc \"${CHECK_XLOG_LOC_SQL}\""`
+    output=`exec_sql "${CHECK_XLOG_LOC_SQL}" Atc`
     rc=$?
+
     if [ $rc -ne 0 ]; then
         report_psql_error $rc err "Can't get my xlog location."
         return 1
