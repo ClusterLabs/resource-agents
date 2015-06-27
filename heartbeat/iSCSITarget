@@ -326,10 +326,13 @@ iSCSITarget_start() {
 		# automatically creates the corresponding target if it
 		# doesn't already exist.
 		for portal in ${OCF_RESKEY_portals}; do
-			ocf_run targetcli /iscsi create ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
 			if [ $portal != ${OCF_RESKEY_portals_default} ] ; then
+				ocf_run targetcli /iscsi set global auto_add_default_portal=false || exit $OCF_ERR_GENERIC
+				ocf_run targetcli /iscsi create ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
 				IFS=':' read -a sep_portal <<< "$portal"
 				ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/portals create "${sep_portal[0]}" "${sep_portal[1]}" || exit $OCF_ERR_GENERIC
+			else
+				ocf_run targetcli /iscsi create ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
 			fi
 		done
 		# in lio, we can set target parameters by manipulating
