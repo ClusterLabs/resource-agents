@@ -18,6 +18,13 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Use runuser if available for SELinux.
+if [ -x /sbin/runuser ]; then
+    SU=runuser
+else
+    SU=su
+fi
+
 #
 # Get PostgreSQL Configuration parameter
 #
@@ -475,7 +482,7 @@ runasowner() {
         esac
     done
 
-    ocf_run $quietrun $loglevel su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; $*"
+    ocf_run $quietrun $loglevel $SU $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; $*"
 }
 
 #
@@ -512,7 +519,7 @@ exec_sql() {
     local output
     local rc
 
-    output=`su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
+    output=`$SU $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
                 $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
                 -Atc \"$sql\""`
     rc=$?
