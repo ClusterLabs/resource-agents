@@ -38,6 +38,14 @@ OCF_RESKEY_leases_default="/db/dhcpd.leases"
 OCF_RESKEY_interface_default=""
 OCF_RESKEY_includes_default=""
 
+# On some systems, the chrooted default is slightly different.
+# Lets do our best to support both by default.
+if [ ! -d "$OCF_RESKEY_chrooted_path_default" ]; then
+	if [ -d "/var/lib/dhcpd" ]; then
+		OCF_RESKEY_chrooted_path_default="/var/lib/dhcpd"
+	fi
+fi
+
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 : ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
 : ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
@@ -304,7 +312,7 @@ dhcpd_initialize_chroot() {
 	    { ocf_exit_reason "could not copy $i to chroot jail"; return $OCF_ERR_GENERIC; }
     done
 
-    libdir=$(basename $(echo /var/lib/dhcp/lib*))
+    libdir=$(basename $(echo ${OCF_RESKEY_chrooted_path}/lib*))
     if test -x /usr/bin/ldd ; then
 	get_ldd_deps()
 	{
@@ -329,7 +337,7 @@ dhcpd_initialize_chroot() {
     done | sort -u`
     for i in $cplibs ; do
 	if [ -s "$i" ]; then
-	    cp -pL "$i" "/var/lib/dhcp/$libdir/" ||
+	    cp -pL "$i" "${OCF_RESKEY_chrooted_path}/$libdir/" ||
 		{ ocf_exit_reason "could not copy $i to chroot jail"; return $OCF_ERR_GENERIC; }
 	fi
     done
