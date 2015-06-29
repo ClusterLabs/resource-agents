@@ -506,6 +506,22 @@ EOF
 }
 
 
+# Execulte SQL and return the result.
+exec_sql() {
+    local sql=$1
+    local output
+    local rc
+
+    output=`su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
+                $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
+                -Atc \"$sql\""`
+    rc=$?
+
+    echo $output
+    return $rc
+}
+
+
 #pgsql_real_start: Starts PostgreSQL
 pgsql_real_start() {
     local pgctl_options
@@ -895,10 +911,9 @@ pgsql_real_monitor() {
 
     if is_replication; then
         #Check replication state
-        output=`su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
-                $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
-                -Atc \"${CHECK_MS_SQL}\""`
+        output=`exec_sql "${CHECK_MS_SQL}"`
         rc=$?
+
         if [ $rc -ne  0 ]; then
             report_psql_error $rc $loglevel "Can't get PostgreSQL recovery status."
             return $OCF_ERR_GENERIC
@@ -1095,10 +1110,9 @@ control_slave_status() {
     local tmp_data_status
     local number_of_nodes
 
-    all_data_status=`su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
-                     $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
-                     -Atc \"${CHECK_REPLICATION_STATE_SQL}\""`
+    all_data_status=`exec_sql "${CHECK_REPLICATION_STATE_SQL}"`
     rc=$?
+
     if [ $rc -eq 0 ]; then
         if [ -n "$all_data_status" ]; then
             all_data_status=`echo $all_data_status | sed "s/\n/ /g"`
@@ -1331,10 +1345,9 @@ create_replication_slot() {
                                      FROM (VALUES (1)) AS t \
                                      WHERE NOT EXISTS (SELECT * FROM pg_replication_slots WHERE slot_name = '$replication_slot_name');"
 
-        output=`su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
-                $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
-                -Atc \"$CREATE_REPLICATION_SLOT_sql\""`
+        output=`exec_sql "$CREATE_REPLICATION_SLOT_sql"`
         rc=$?
+
         if [ $rc -eq 0 ]; then
             ocf_log info "PostgreSQL creates or alredy exist the replication slot($replication_slot_name)"
         else
@@ -1357,10 +1370,9 @@ get_my_location() {
     local log2
     local newer_location
 
-    output=`su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
-            $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
-            -Atc \"${CHECK_XLOG_LOC_SQL}\""`
+    output=`exec_sql "$CHECK_REPLICATION_SLOT_sql"`
     rc=$?
+
     if [ $rc -ne 0 ]; then
         report_psql_error $rc err "Can't get my xlog location."
         return 1
