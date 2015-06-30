@@ -473,7 +473,7 @@ stop_oracle() {
 		ocf_log info "Stopping listener $LISTENER for $ORACLE_SID"
 		lsnrctl_stdout=$(lsnrctl stop "$LISTENER")
 		rv=$?
-		if [ $? -ne 0 ]; then
+		if [ $rv -ne 0 ]; then
 			ocf_log error "Listener $LISTENER stop failed for $ORACLE_SID: $rv output $lsnrctl_stdout"
 			# XXX - failure?
 		fi
