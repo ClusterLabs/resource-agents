@@ -37,7 +37,7 @@
 #
 #  REFERENCE:
 #   1. http://www.linux-ha.org/doc/dev-guides/ra-dev-guide.html
-#   2. link to old nagios script
+#   2. TBC: link to an old OCF script for Nagios 3
 #
 # ---------------------------- CONSTANT DECLARATION ---------------------------
 # WHAT: Define PATH.
@@ -590,8 +590,6 @@ start)          nagios_start;;
 stop)           nagios_stop;;
 nagiospid)      get_nagios_pid;;
 status|monitor) nagios_monitor;;
-#reload)         ocf_log info "Reloading Nagios configiruation file..."
-#                nagios_reload
 reload)         nagios_reload ;;
 validate-all)   ;;
 *)            	ocf_log info "$0 usage ..."
