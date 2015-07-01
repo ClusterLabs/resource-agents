@@ -7,10 +7,11 @@
 #
 #
 # NAME
-#       nagios_ocf : Nagios OCF resource agent script.
+#       nagios4 : OCF resource agent script for Nagios 4 Server
 #
 # REVISION HISTORY
 #       04/15/2015    T.J. Yang   Adding     moto bash script specification
+#       07/01/2015    T.J. Yang   submitted to https://github.com/ClusterLabs/resource-agents 
 #
 # USAGE
 #   1. put this script in OCF_
