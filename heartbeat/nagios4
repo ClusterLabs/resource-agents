@@ -561,26 +561,6 @@ nagios_reload() {
 }
 
 
-# WHAT: find nagios running status
-# WHY:  
-# NOTE: 
-
-# WHAT: find nagios running status
-# WHY:  
-# NOTE: 
-
-# WHAT: find nagios running status
-# WHY:  
-# NOTE: 
-
-# WHAT: find nagios running status
-# WHY:  
-# NOTE: 
-
-# WHAT: Define PATH.
-# WHY:  Mainly for security reasons.
-# NOTE: This should only be changed if you know what you're doing.
-
 # **************************** MAIN SCRIPT ************************************
 
 # This OCF agent script need to be ran as root user.
