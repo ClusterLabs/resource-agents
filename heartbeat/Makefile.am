@@ -94,6 +94,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			ManageVE		\
 			mysql			\
 			mysql-proxy		\
+			nagios4 		\
 			named			\
 			nfsnotify		\
 			nfsserver		\
