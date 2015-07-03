@@ -1,10 +1,9 @@
 #!/bin/sh
 #  License:      GNU General Public License (GPL)
-#   (c) 2015 T.J. Yang  and Linux-HA contributors
+#        (c) 2015 T.J. Yang  and Linux-HA contributors
 # -----------------------------------------------------------------------------
 #      O C F    R E S O U R C E    S C R I P T   S P E C I F I C A T I O N
 # -----------------------------------------------------------------------------
-#
 #
 # NAME
 #       nagios4 : OCF resource agent script for Nagios 4 Server
@@ -14,9 +13,12 @@
 #       07/01/2015    T.J. Yang   submitted to https://github.com/ClusterLabs/resource-agents 
 #
 # USAGE
-#   1. put this script in OCF_
+#   1. put this script in OCF resource directory(/usr/lib/ocf/resource.d/heartbeat/nagios4)
+#
 # DEBUG    
-# OCF_ROOT=/usr/lib/ocf /usr/lib/ocf/resource.d/heartbeat/nagios
+#
+# OCF_ROOT=/usr/lib/ocf /usr/lib/ocf/resource.d/heartbeat/nagios4
+#
 # DESCRIPTION
 #       
 #
@@ -40,15 +42,19 @@
 #   2. TBC: link to an old OCF script for Nagios 3
 #
 # ---------------------------- CONSTANT DECLARATION ---------------------------
-# WHAT: Define PATH.
-# WHY:  Mainly for security reasons.
-# NOTE: This should only be changed if you know what you're doing.
-#
-
 # WHAT: Define exit status flags.
 # WHY:  Easier to program with a mnemonic than with the numbers.
-# NOTE: THESE DO NOT CHANGE UNLESS NOTIFIED BY HP!  Startup depends on these
-#       exit statuses being defined this way.
+#     OCF_SUCCESS (0)
+#     OCF_ERR_GENERIC (1)
+#     OCF_ERR_ARGS (2)
+#     OCF_ERR_UNIMPLEMENTED (3)
+#     OCF_ERR_PERM (4)
+#     OCF_ERR_INSTALLED (5)
+#     OCF_ERR_CONFIGURED (6)
+#     OCF_NOT_RUNNING (7)
+#     OCF_RUNNING_MASTER (8)
+#     OCF_FAILED_MASTER (9)
+       
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 #[root@nagios1 heartbeat]# locate  .ocf-shellfuncs
@@ -56,38 +62,6 @@
 #[root@nagios1 heartbeat]#
 #
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
-# ocf_is_root() {
-# ocf_maybe_random() {
-# ocf_is_decimal() {
-# ocf_is_true() {
-# ocf_is_hex() {
-# ocf_is_octal() {
-# ocf_log() {
-# ocf_exit_reason()
-# ocf_deprecated() {
-# ocf_run() {
-# ocf_pidfile_status() {
-# ocf_take_lock() {
-# ocf_release_lock_on_exit() {
-# ocf_is_probe() {
-# ocf_is_clone() {
-# ocf_is_ms() {
-# ocf_is_ver() {
-# ocf_ver2num() {
-# ocf_ver_level(){
-# ocf_ver_complete_level(){
-# ocf_version_cmp() {
-# ocf_local_nodename() {
-# ocf_check_level()
-# ocf_stop_processes() {
-# ocf_is_bash4() {
-# ocf_trace_redirect_to_file() {
-# ocf_trace_redirect_to_fd() {
-# ocf_default_trace_dest() {
-# ocf_start_trace() {
-# ocf_stop_trace() {
-# ocf_is_true "$OCF_TRACE_RA" && ocf_start_trace
-
 # Fill in some defaults if no values are specified
 # cutomized for CentOS 7.1, Nagios 3.5.1
 : ${OCF_RESKEY_installdir="/usr/bin"}
@@ -111,11 +85,8 @@ OCF_RESKEY_PidFile="/var/nagios/nagios.pid"
 
 #
 # ---------------------------- VARIABLE DECLARATION ---------------------------
-#
-# WHAT: enable oracle tracing.
-#export ORACLE_TRACE='T'
-#
-SH=/bin/bash
+
+
 # ---------------------------- FUNCTION DECLARATION ---------------------------
 # WHAT: define usage function.
 # WHY:  to advise the usage of this script.
@@ -132,8 +103,8 @@ nagios_usage() {
 USAGEND
 }
 
-# WHAT: Define meta data to describe  Nagios service for pacemaker.
-# WHY:  
+# WHAT: Define meta data to describe Nagios service for pacemaker.
+# WHY:  OCF script requirement.
 nagios_meta_data() {
         cat <<END
 <?xml version="1.0"?>
@@ -271,7 +242,7 @@ END
 #    return $OCF_SUCCESS
 #}
 
-# TODO: above is in better logic
+# TODO: change the login to above sample code, the logic is better.
 # WHAT: a series of check to ensure current node has all the needed configuration.
 nagios_validate_all(){
     ocf_log debug "nagios_validate_all: checking all the config files"
@@ -302,7 +273,6 @@ nagios_validate_all(){
 	fi
 }
 
-
 nagios_monitor(){
     local rc
     # exit immediately if configuration is not valid
@@ -324,9 +294,6 @@ nagios_monitor(){
     esac
     return $rc
 }
-
-
-
 
 # WHAT: return TRUE if a process with given PID is running
 # NOTE: input process id
@@ -370,9 +337,9 @@ nagios_running_pid(){
 	ocf_log debug "Nagios Running PID=${RunningPID}"
 	return ${RunningPID}
 }
+
 # WHAT: find nagios running status
 # WHY:  
-# NOTE: 
 nagios_file_pid(){
     local OCF_RESKEY_PidFile=/var/nagios/nagios.pid
 	if [ -f ${OCF_RESKEY_PidFile} ]; then
@@ -468,7 +435,6 @@ nagios_stop() {
     return $OCF_SUCCESS
 
 }
-
 
 nagios_start() {
 	if 
