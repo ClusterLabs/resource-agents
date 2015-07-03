@@ -111,6 +111,7 @@ Allowed initiators. A space-separated list of initiators allowed to
 connect to this target. Initiators may be listed in any syntax
 the target implementation allows. If this parameter is empty or
 not set, access to this target will be allowed from any initiator.
+When using lio-t you should set this in iSCSILogicalUnit - not here.
 </longdesc>
 <shortdesc lang="en">List of iSCSI initiators allowed to connect
 to this target</shortdesc>
@@ -555,10 +556,15 @@ iSCSITarget_validate() {
 		# specific IP address.
 		unsupported_params="portals"
 		;;
-	lio|lio-t)
+	lio)
 		# TODO: Remove incoming_username and incoming_password
 		# from this check when LIO 3.0 gets CHAP authentication
 		unsupported_params="tid incoming_username incoming_password"
+		;;
+	lio-t)
+		# TODO: Remove incoming_username and incoming_password
+		# from this check when LIO 3.0 gets CHAP authentication
+		unsupported_params="tid incoming_username incoming_password allowed_initiators"
 		;;
 	esac
 
