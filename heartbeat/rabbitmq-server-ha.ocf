@@ -299,7 +299,8 @@ rmq_setup_env() {
     # user
     for dir in ${PID_DIR} "${OCF_RESKEY_mnesia_base}" "${OCF_RESKEY_log_dir}"; do
         if test -e ${dir}; then
-            if [ ! -z $(su -s /bin/sh - $OCF_RESKEY_username -c "find ${dir} ! -writable") ]; then
+            local files=$(su -s /bin/sh - $OCF_RESKEY_username -c "find ${dir} ! -writable")
+            if [ ! -z "${files}" ]; then
                 ocf_log warn "Directory ${dir} is not writable by ${OCF_RESKEY_username}, chowning."
                 chown -R ${OCF_RESKEY_username}:${OCF_RESKEY_groupname} "${dir}"
             fi
