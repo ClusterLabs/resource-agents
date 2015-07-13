@@ -995,7 +995,7 @@ get_monitor() {
         ocf_log info "${LH} get_status() returns ${rc}."
         ocf_log info "${LH} ensuring this slave does not get promoted."
         master_score 0
-        return $OCF_NOT_RUNNING
+        return $OCF_ERR_GENERIC
     elif [[ $rc == $OCF_SUCCESS ]] ; then
         ocf_log info "${LH} get_status() returns ${rc}."
         ocf_log info "${LH} also checking if we are master."
@@ -1331,7 +1331,7 @@ action_notify() {
                 if [ -z ${OCF_RESKEY_CRM_meta_notify_promote_uname} ] ; then
                   ocf_log warn "${LH} there are no nodes to join to reported on post-promote. The resource will be restarted."
                   ocf_log info "${LH} post-promote end."
-                  return $OCF_NOT_RUNNING
+                  return $OCF_ERR_GENERIC
                 fi
                 # Note, this should fail when the mnesia is inconsistent.
                 # For example, when the "old" master processing the promition of the new one.
@@ -1341,7 +1341,7 @@ action_notify() {
                 ocf_log info "${LH} post-promote end."
                 if [[ $rc == $OCF_ERR_GENERIC ]] ; then
                     ocf_log err "${LH} Failed to join the cluster on post-promote. The resource will be restarted."
-                    return $OCF_NOT_RUNNING
+                    return $OCF_ERR_GENERIC
                 fi
                 ;;
             start)
@@ -1351,7 +1351,7 @@ action_notify() {
                 if [ -z "${nodes_list}" ] ; then
                   ocf_log warn "${LH} there are no nodes to join to reported on post-promote. The resource will be restarted."
                   ocf_log info "${LH} post-start end."
-                  return $OCF_NOT_RUNNING
+                  return $OCF_ERR_GENERIC
                 fi
                 # check did this event from this host
                 my_host "${nodes_list}"
@@ -1360,7 +1360,7 @@ action_notify() {
                 if [ -z ${OCF_RESKEY_CRM_meta_notify_master_uname} ] ; then
                   ocf_log warn "${LH} there are no nodes to join to reported on post-start. The resource will be restarted."
                   ocf_log info "${LH} post-start end."
-                  return $OCF_NOT_RUNNING
+                  return $OCF_ERR_GENERIC
                 fi
                 if [[ $rc == $OCF_SUCCESS ]] ; then
                     check_need_join_to ${OCF_RESKEY_CRM_meta_notify_master_uname}
@@ -1377,7 +1377,7 @@ action_notify() {
                     if [[ $rc2 == $OCF_ERR_GENERIC ]] ; then
                         ocf_log warn "${LH} Failed to join the cluster on post-start. The resource will be restarted."
                         ocf_log info "${LH} post-start end."
-                        return $OCF_NOT_RUNNING
+                        return $OCF_ERR_GENERIC
                     fi
                 fi
                 ;;
@@ -1388,7 +1388,7 @@ action_notify() {
                 if [ -z ${OCF_RESKEY_CRM_meta_notify_stop_uname} ] ; then
                   ocf_log warn "${LH} there are no nodes being stopped reported on post-stop. The resource will be restarted."
                   ocf_log info "${LH} post-stop end."
-                  return $OCF_NOT_RUNNING
+                  return $OCF_ERR_GENERIC
                 fi
                 my_host "${OCF_RESKEY_CRM_meta_notify_stop_uname}"
                 rc=$?
@@ -1410,7 +1410,7 @@ action_notify() {
                 if [ -z ${OCF_RESKEY_CRM_meta_notify_demote_uname} ] ; then
                   ocf_log warn "${LH} there are no nodes being demoted reported on post-demote. The resource will be restarted."
                   ocf_log info "${LH} post-demote end."
-                  return $OCF_NOT_RUNNING
+                  return $OCF_ERR_GENERIC
                 fi
                 my_host "${OCF_RESKEY_CRM_meta_notify_demote_uname}"
                 rc=$?
