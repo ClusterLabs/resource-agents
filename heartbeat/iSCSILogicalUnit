@@ -429,15 +429,21 @@ iSCSILogicalUnit_stop() {
 		fi
 		;;
 	lio-t)
-		ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns delete ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+		# "targetcli delete" will fail if the LUN is already
+		# gone. Log a warning and still push ahead.
+		ocf_run -warn targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns delete ${OCF_RESKEY_lun}
 		if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
 			for initiator in ${OCF_RESKEY_allowed_initiators}; do
 				if targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/${initiator} status | grep "Mapped LUNs: 0" >/dev/null ; then
-					ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/ delete ${initiator}
+					ocf_run -warn targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/ delete ${initiator}
 				fi
 			done
 		fi
 
+		# If we've proceeded down to here and we're unable to
+		# delete the backstore, then something is seriously
+		# wrong and we need to fail the stop operation
+		# (potentially causing fencing)
 		ocf_run targetcli /backstores/block delete ${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
 		;;
 	esac
