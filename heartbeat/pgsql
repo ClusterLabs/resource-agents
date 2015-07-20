@@ -18,6 +18,13 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Use runuser if available for SELinux.
+if [ -x /sbin/runuser ]; then
+    SU=runuser
+else
+    SU=su
+fi
+
 #
 # Get PostgreSQL Configuration parameter
 #
@@ -475,7 +482,7 @@ runasowner() {
         esac
     done
 
-    ocf_run $quietrun $loglevel su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; $*"
+    ocf_run $quietrun $loglevel $SU $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; $*"
 }
 
 #
@@ -895,7 +902,7 @@ pgsql_real_monitor() {
 
     if is_replication; then
         #Check replication state
-        output=`su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
+        output=`$SU $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
                 $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
                 -Atc \"${CHECK_MS_SQL}\""`
         rc=$?
@@ -1095,7 +1102,7 @@ control_slave_status() {
     local tmp_data_status
     local number_of_nodes
 
-    all_data_status=`su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
+    all_data_status=`$SU $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
                      $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
                      -Atc \"${CHECK_REPLICATION_STATE_SQL}\""`
     rc=$?
@@ -1331,7 +1338,7 @@ create_replication_slot() {
                                      FROM (VALUES (1)) AS t \
                                      WHERE NOT EXISTS (SELECT * FROM pg_replication_slots WHERE slot_name = '$replication_slot_name');"
 
-        output=`su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
+        output=`$SU $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
                 $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
                 -Atc \"$CREATE_REPLICATION_SLOT_sql\""`
         rc=$?
@@ -1357,7 +1364,7 @@ get_my_location() {
     local log2
     local newer_location
 
-    output=`su $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
+    output=`$SU $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
             $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
             -Atc \"${CHECK_XLOG_LOC_SQL}\""`
     rc=$?
