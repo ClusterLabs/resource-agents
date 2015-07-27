@@ -351,13 +351,12 @@ image_exists()
 {
 	local res=1
 
-
 	echo "${OCF_RESKEY_image}" | grep -q ":"
 	if [ $? -eq 0 ]; then
-		docker images | awk '{print $1 ":" $2}' |  grep "^${OCF_RESKEY_image}\$" > /dev/null 2>&1
+		docker images | awk '{print $1 ":" $2}' | egrep "^(docker.io\/)?${OCF_RESKEY_image}\$" > /dev/null 2>&1
 	else
 		# if no tag is specified, column 2 (tag) must be "latest"
-		docker images | awk '$2 == "latest" {print $1}' | grep "^${OCF_RESKEY_image}\$" > /dev/null 2>&1
+		docker images | awk '$2 == "latest" {print $1}' | egrep "^(docker.io\/)?${OCF_RESKEY_image}\$" > /dev/null 2>&1
 	fi
 	if [ $? -eq 0 ]; then
 		return 0
