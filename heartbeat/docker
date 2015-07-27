@@ -356,7 +356,8 @@ image_exists()
 	if [ $? -eq 0 ]; then
 		docker images | awk '{print $1 ":" $2}' |  grep "^${OCF_RESKEY_image}\$" > /dev/null 2>&1
 	else
-		docker images | awk '{print $1}' | grep "^${OCF_RESKEY_image}\$" > /dev/null 2>&1
+		# if no tag is specified, column 2 (tag) must be "latest"
+		docker images | awk '$2 == "latest" {print $1}' | grep "^${OCF_RESKEY_image}\$" > /dev/null 2>&1
 	fi
 	if [ $? -eq 0 ]; then
 		return 0
