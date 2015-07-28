@@ -381,11 +381,34 @@ image_exists()
 	return 1
 }
 
+docker_image_name_validate()
+{
+	# ensure docker image name is valid before run, image name may be formatted as follow:
+	# - image
+	# - image:tag
+	# - repository/image
+	# - repository/image:tag
+	#
+	# rule for container/repository name could be found at:
+	# - https://github.com/docker/distribution/blob/v2.2.0/reference/regexp.go#L6-L16
+	#
+	# rule for image tag:
+	# - https://github.com/docker/distribution/blob/v2.2.0/reference/regexp.go#L24-L25
+
+	echo "${OCF_RESKEY_image}" | egrep -q -s "^([a-z0-9]+([._-]{0,1}[a-z0-9])*\/)*[a-zA-Z0-9]+([._-]{0,1}[a-z0-9])*(:[A-Za-z0-9][A-Za-z0-9.-]*){0,1}$"
+}
+
 docker_validate()
 {
 	check_binary docker
 	if [ -z "$OCF_RESKEY_image" ]; then
 		ocf_exit_reason "'image' option is required"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	docker_image_name_validate
+	if [ $? -ne 0 ]; then
+		ocf_exit_reason "'image' name validation failed"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
