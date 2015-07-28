@@ -349,8 +349,6 @@ docker_stop()
 
 image_exists()
 {
-	local res=1
-
 	echo "${OCF_RESKEY_image}" | grep -q ":"
 	if [ $? -eq 0 ]; then
 		docker images | awk '{print $1 ":" $2}' | egrep "^(docker.io\/)?${OCF_RESKEY_image}\$" > /dev/null 2>&1
