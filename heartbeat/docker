@@ -349,16 +349,29 @@ docker_stop()
 
 image_exists()
 {
-	echo "${OCF_RESKEY_image}" | grep -q ":"
-	if [ $? -eq 0 ]; then
-		docker images | awk '{print $1 ":" $2}' | egrep "^(docker.io\/)?${OCF_RESKEY_image}\$" > /dev/null 2>&1
-	else
-		# if no tag is specified, column 2 (tag) must be "latest"
-		docker images | awk '$2 == "latest" {print $1}' | egrep "^(docker.io\/)?${OCF_RESKEY_image}\$" > /dev/null 2>&1
+	# assume that OCF_RESKEY_name have been validated
+	local IMAGE_NAME="$(echo ${OCF_RESKEY_name} | awk -F':' '{print $1}')"
+
+	# if no tag was specified, use default "latest"
+	local COLON_FOUND=0
+	local IMAGE_TAG="latest"
+
+	COLON_FOUND="$(echo "${OCF_RESKEY_name}" | grep -o ':' | grep -c .)"
+
+	if [ ${COLON_FOUND} -ne 0 ]; then
+		IMAGE_TAG="$(echo ${OCF_RESKEY_name} | awk -F':' '{print $NF}')"
 	fi
+
+	# IMAGE_NAME might be following formats:
+	# - image
+	# - repository/image
+	# - docker.io/image (some distro will display "docker.io/" as prefix)
+	docker images | awk '{print $1 ":" $2}' | egrep -q -s "^(docker.io\/)?${IMAGE_NAME}:${IMAGE_TAG}\$"
 	if [ $? -eq 0 ]; then
+		# image found
 		return 0
 	fi
+
 	if ocf_is_true "$OCF_RESKEY_allow_pull"; then
 		REQUIRE_IMAGE_PULL=1
 		ocf_log notice "Image (${OCF_RESKEY_image}) does not exist locally but will be pulled during start"
