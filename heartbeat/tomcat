@@ -49,6 +49,13 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Use runuser if available for SELinux.
+if [ -x /sbin/runuser ]; then 
+  SU=runuser
+else
+  SU=su
+fi
+
 ############################################################################
 # Usage
 usage() 
@@ -143,7 +150,7 @@ monitor_tomcat()
 start_rotatelogs()
 {
 	# -s is required because tomcat5.5's login shell is /bin/false
-	su - -s /bin/sh $RESOURCE_TOMCAT_USER \
+	$SU - -s /bin/sh $RESOURCE_TOMCAT_USER \
         	-c "$ROTATELOGS -l \"$CATALINA_BASE/logs/catalina_%F.log\" $CATALINA_ROTATETIME" \
         	< "$CATALINA_OUT" > /dev/null 2>&1 &
 }
@@ -154,7 +161,7 @@ rotate_catalina_out()
 {
 	# Check catalina_%F.log is writable or not.
 	CURRENT_ROTATELOG_SUFFIX=`date +"%F"`
-	su - -s /bin/sh $RESOURCE_TOMCAT_USER \
+	$SU - -s /bin/sh $RESOURCE_TOMCAT_USER \
 		-c "touch \"$CATALINA_BASE/logs/catalina_$CURRENT_ROTATELOG_SUFFIX.log\"" > /dev/null 2>&1
 	if [ $? -ne 0 ]; then
 		ocf_exit_reason "$CATALINA_BASE/logs/catalina_$CURRENT_ROTATELOG_SUFFIX.log is not writable."
@@ -205,7 +212,7 @@ attemptTomcatCommand()
 	if [ "$RESOURCE_TOMCAT_USER" = root ]; then
 		"$TOMCAT_START_SCRIPT" $@ >> "$TOMCAT_CONSOLE" 2>&1
 	else
-		tomcatCommand $@ | su - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1
+		tomcatCommand $@ | $SU - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1
 	fi
 
 	if [ -n "$REDIRECT_DEFAULT_CONFIG" ]; then
