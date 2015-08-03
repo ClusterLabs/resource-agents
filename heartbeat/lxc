@@ -274,7 +274,12 @@ LXC_stop() {
 	done
 
 	# If the container is still running, it will be stopped now. regardless of state!
-	ocf_run lxc-stop -n ${OCF_RESKEY_container} || exit $OCF_ERR_GENERIC
+	# LXC prior 1.0.0
+	if ocf_version_cmp "`lxc_version`" 1.0.0 ; then
+		ocf_run lxc-stop -n ${OCF_RESKEY_container} || exit $OCF_ERR_GENERIC
+	else
+		ocf_run lxc-stop -n ${OCF_RESKEY_container} -k || exit $OCF_ERR_GENERIC
+	fi
 	ocf_log info "Container" ${OCF_RESKEY_container} "stopped"
 	ocf_run rm -f $TRANS_RES_STATE
 
