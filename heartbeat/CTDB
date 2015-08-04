@@ -452,6 +452,8 @@ init_smb_conf() {
 			vfs_fileid="$vfs_fileid\tvfs objects = fileid\n"
 		fi
 	fi
+	# Preserve permissions of smb.conf
+	cp -a $OCF_RESKEY_smb_conf $OCF_RESKEY_smb_conf.$$
 	awk '
 		/^[[:space:]]*\[/ { global = 0 }
 		/^[[:space:]]*\[global\]/ { global = 1 }
@@ -472,7 +474,8 @@ init_smb_conf() {
 \tidmap backend = $OCF_RESKEY_smb_idmap_backend\n\
 \tctdbd socket = $OCF_RESKEY_ctdb_socket\n$private_dir$vfs_fileid\
 \t# CTDB-RA: End auto-generated section (do not change above)" > $OCF_RESKEY_smb_conf.$$
-	mv -f $OCF_RESKEY_smb_conf.$$ $OCF_RESKEY_smb_conf
+	dd conv=notrunc,fsync of=$OCF_RESKEY_smb_conf.$$ if=/dev/null >/dev/null 2>&1
+	mv $OCF_RESKEY_smb_conf.$$ $OCF_RESKEY_smb_conf
 }
 
 
@@ -480,8 +483,10 @@ init_smb_conf() {
 cleanup_smb_conf() {
 	ocf_is_true "$OCF_RESKEY_ctdb_manages_samba" || return 0
 
+	# preserve permissions of smb.conf
+	cp -a $OCF_RESKEY_smb_conf $OCF_RESKEY_smb_conf.$$
 	sed '/# CTDB-RA: Begin/,/# CTDB-RA: End/d' $OCF_RESKEY_smb_conf > $OCF_RESKEY_smb_conf.$$
-	mv -f $OCF_RESKEY_smb_conf.$$ $OCF_RESKEY_smb_conf
+	mv $OCF_RESKEY_smb_conf.$$ $OCF_RESKEY_smb_conf
 }
 
 append_ctdb_sysconfig() {
