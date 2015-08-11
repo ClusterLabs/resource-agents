@@ -1,7 +1,4 @@
-#!/bin/sh
-
-FINDIF_IPCALC=$HA_BIN/findif-ipcalc
-
+#!/bin/bash
 ipcheck_ipv4() {
   local r1_to_255="([1-9][0-9]?|1[0-9][0-9]|2[0-4][0-9]|25[0-5])"
   local r0_to_255="([0-9][0-9]?|1[0-9][0-9]|2[0-4][0-9]|25[0-5])"
@@ -120,6 +117,48 @@ maybe_convert_dotted_quad_to_cidr()
 	ocf_log warn "Please convert dotted quad netmask $netmask to CIDR notation $mask!"
 	netmask=$mask
 }
+
+cidr2mask() {
+	local i mask=""
+	local full_octets=$(($1/8))
+	local partial_octet=$(($1%8))
+
+	for ((i=0;i<4;i+=1)); do
+		if [ $i -lt $full_octets ]; then
+			mask+=255
+		elif [ $i -eq $full_octets ]; then
+			mask+=$((256 - 2**(8-$partial_octet)))
+		else
+			mask+=0
+		fi
+		test $i -lt 3 && mask+=.
+	done
+
+	echo $mask
+}
+
+bcastcalc(){
+    local IFS='.' ip i
+    local -a oct msk
+
+    read -ra oct <<<"$1"
+    read -ra msk <<<"$2"
+
+    for i in ${!oct[@]}; do
+        ip+=( "$(( oct[i] + ( 255 - ( oct[i] | msk[i] ) ) ))" )
+    done
+
+    echo "${ip[*]}"
+}
+
+bcastfromcidr() {
+	local ip cidr mask
+	ip=$(echo "$1" | awk -F/ '{ print $1 }')
+	cidr=${1#*/}
+	mask=$(cidr2mask $cidr)
+	bcastcalc $ip $mask
+}
+
 
 findif_check_params()
 {
@@ -243,7 +282,7 @@ findif()
   [ -z "$netmask" ] && { netmask=${1#*/}; match=$match/$netmask; }
   if [ $family = "inet" ] ; then
     if [ -z "$brdcast" ] ; then
-      brdcast=$($FINDIF_IPCALC broadcast $match)
+      brdcast=$(bcastfromcidr $match)
     fi
   else
     if [ -z "$OCF_RESKEY_nic" -a "$netmask" != "${1#*/}" ] ; then
