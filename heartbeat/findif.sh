@@ -1,4 +1,7 @@
 #!/bin/sh
+
+FINDIF_IPCALC=$HA_BIN/findif-ipcalc
+
 ipcheck_ipv4() {
   local r1_to_255="([1-9][0-9]?|1[0-9][0-9]|2[0-4][0-9]|25[0-5])"
   local r0_to_255="([0-9][0-9]?|1[0-9][0-9]|2[0-4][0-9]|25[0-5])"
@@ -237,13 +240,10 @@ findif()
     esac
   fi
   [ -z "$nic" ] && nic=$3
-  [ -z "$netmask" ] && netmask=${1#*/}
+  [ -z "$netmask" ] && { netmask=${1#*/}; match=$match/$netmask; }
   if [ $family = "inet" ] ; then
     if [ -z "$brdcast" ] ; then
-      if [ -n "$7" ] ; then
-        set -- `ip -o -f $family addr show | grep $7`
-        [ "$5" = brd ] && brdcast=$6
-      fi
+      brdcast=$($FINDIF_IPCALC broadcast $match)
     fi
   else
     if [ -z "$OCF_RESKEY_nic" -a "$netmask" != "${1#*/}" ] ; then
