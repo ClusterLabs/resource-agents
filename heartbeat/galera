@@ -440,7 +440,7 @@ galera_promote()
     master_exists
     if [ $? -eq 0 ]; then
         # join without bootstrapping
-        extra_opts="--wsrep-cluster-address=${OCF_RESKEY_wsrep_cluster_address}"
+        extra_opts="--wsrep-cluster-address=gcomm://${OCF_RESKEY_wsrep_cluster_address}"
     else
         bootstrap=$(is_bootstrap)
 
