@@ -218,7 +218,11 @@ function set_score()
 
 function redis_client() {
 	ocf_log debug "redis_client: '$REDIS_CLIENT' -s '$REDIS_SOCKET' $@"
-	"$REDIS_CLIENT" -s "$REDIS_SOCKET" "$@" | sed 's/\r//'
+	if [ -n "$clientpasswd" ]; then
+		"$REDIS_CLIENT" -s "$REDIS_SOCKET" -a "$clientpasswd" "$@" | sed 's/\r//'
+	else 
+		"$REDIS_CLIENT" -s "$REDIS_SOCKET" "$@" | sed 's/\r//'
+	fi
 }
 
 function simple_status() {
@@ -487,6 +491,9 @@ function validate() {
 }
 
 NODENAME=$(ocf_local_nodename)
+if [ -n "$REDIS_CONFIG" ]; then
+	clientpasswd="$(cat $REDIS_CONFIG | 's/^\s*requirepass\s*\(.*\)\s*$/\1/p' | tail -n 1)"
+fi
 
 ocf_log debug "action=${1:-$__OCF_ACTION} notify_type=${OCF_RESKEY_CRM_meta_notify_type} notify_operation=${OCF_RESKEY_CRM_meta_notify_operation} master_host=${OCF_RESKEY_CRM_meta_notify_master_uname} slave_host=${OCF_RESKEY_CRM_meta_notify_slave_uname} promote_host=${OCF_RESKEY_CRM_meta_notify_promote_uname} demote_host=${OCF_RESKEY_CRM_meta_notify_demote_uname}; params: bin=${OCF_RESKEY_bin} client_bin=${OCF_RESKEY_client_bin} config=${OCF_RESKEY_config} user=${OCF_RESKEY_user} rundir=${OCF_RESKEY_rundir} port=${OCF_RESKEY_port}"
 
