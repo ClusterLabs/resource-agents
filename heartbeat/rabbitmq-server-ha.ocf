@@ -1406,7 +1406,7 @@ action_notify() {
                     ocf_log info "${LH} post-start end."
                     if [[ -s ${OCF_RESKEY_definitions_dump_file} ]] ; then
                         ocf_log info "File ${OCF_RESKEY_definitions_dump_file} exists"
-                        ocf_run  curl -X POST -u $OCF_RESKEY_admin_user:$OCF_RESKEY_admin_password 127.0.0.1:15672/api/definitions --header "Content-Type:application/json" -d "$(<${OCF_RESKEY_definitions_dump_file})"
+                        ocf_run  curl -X POST -u $OCF_RESKEY_admin_user:$OCF_RESKEY_admin_password 127.0.0.1:15672/api/definitions --header "Content-Type:application/json" -d @$OCF_RESKEY_definitions_dump_file
                         rc=$?
                         if [[ $rc == $OCF_SUCCESS ]] ; then
                             ocf_log info "RMQ definitions have imported succesfully."
