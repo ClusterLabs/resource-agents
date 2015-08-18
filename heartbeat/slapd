@@ -32,6 +32,7 @@
 #   OCF_RESKEY_password
 #   OCF_RESKEY_parameters
 #   OCF_RESKEY_stop_escalate
+#   OCF_RESKEY_maxfiles
 #
 ################################################################################
 
@@ -53,6 +54,7 @@
 : ${OCF_RESKEY_password=""}
 : ${OCF_RESKEY_parameters=""}
 : ${OCF_RESKEY_stop_escalate=15}
+: ${OCF_RESKEY_maxfiles=""}
 
 USAGE="Usage: $0 {start|stop|status|monitor|validate-all|meta-data}"
 ORIG_IFS=$IFS
@@ -196,6 +198,14 @@ SIGKILL
 <shortdesc lang="en">Seconds before stop escalation to KILL</shortdesc>
 <content type="integer" default="15" />
 </parameter>
+
+<parameter name="maxfiles">
+<longdesc lang="en">
+Maximum number of open files (for ulimit -n)
+</longdesc>
+<shortdesc lang="en">Max open files</shortdesc>
+<content type="string" default="4096" />
+</parameter>
 </parameters>
 
 <actions>
@@ -322,6 +332,14 @@ slapd_start()
 
   if [ -n "$parameters" ]; then
     options="$options $parameters"
+  fi
+  
+  if [ -n "$OCF_RESKEY_maxfiles" ]; then
+    ulimit -n $OCF_RESKEY_maxfiles
+    u_rc=$?
+      if [ "$u_rc" -ne 0 ]; then
+        ocf_log warn "Could not set ulimit for open files for slapd to '$OCF_RESKEY_maxfiles'"
+      fi
   fi
 
   if [ -n "$services" ]; then
