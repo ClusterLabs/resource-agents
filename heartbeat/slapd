@@ -54,7 +54,7 @@
 : ${OCF_RESKEY_password=""}
 : ${OCF_RESKEY_parameters=""}
 : ${OCF_RESKEY_stop_escalate=15}
-: ${OCF_RESKEY_maxfiles=4096}
+: ${OCF_RESKEY_maxfiles=""}
 
 USAGE="Usage: $0 {start|stop|status|monitor|validate-all|meta-data}"
 ORIG_IFS=$IFS
@@ -335,10 +335,10 @@ slapd_start()
   fi
   
   if [ -n "$OCF_RESKEY_maxfiles" ]; then
-      ulimit -n $OCF_RESKEY_maxfiles
-      u_rc=$?
+    ulimit -n $OCF_RESKEY_maxfiles
+    u_rc=$?
       if [ "$u_rc" -ne 0 ]; then
-         ocf_log warn "Could not set ulimit for open files for slapd to '$OCF_RESKEY_maxfiles'"
+        ocf_log warn "Could not set ulimit for open files for slapd to '$OCF_RESKEY_maxfiles'"
       fi
   fi
 
