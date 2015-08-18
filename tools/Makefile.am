@@ -29,7 +29,6 @@ EXTRA_DIST		= ocf-tester.8 sfex_init.8
 
 sbin_PROGRAMS		= 
 sbin_SCRIPTS		= ocf-tester
-halib_SCRIPTS		= findif-ipcalc
 halib_PROGRAMS		= findif
 
 man8_MANS		= ocf-tester.8
