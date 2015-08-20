@@ -1594,7 +1594,7 @@ set_master_score() {
     current_score=`$CRM_ATTR_REBOOT -N "$1" -n "master-$3" -G -q 2>/dev/null`
     if [ -n "$current_score" -a "$current_score" != "$2" ]; then
         ocf_log info "Changing $3 master score on $1 : $current_score->$2."
-        exec_with_retry 0 $CRM_ATTR_REBOOT -N "$target" -n "master-$3" -v "$2"
+        exec_with_retry 0 $CRM_ATTR_REBOOT -N "$1" -n "master-$3" -v "$2"
     fi
     return 0
 }
