@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Copyright (c) 2011 Holger Teutsch <holger.teutsch@web.de>
-# Copyright (c) 2014 David Vossel <dvossel@redhat.com>
+# Copyright (c) 2014 David Vossel <davidvossel@gmail.com>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
