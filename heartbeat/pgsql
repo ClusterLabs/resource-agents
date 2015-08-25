@@ -613,8 +613,7 @@ pgsql_real_start() {
     # creating slot on the slave node is in preparation for failover.
     if use_replication_slot; then
         create_replication_slot
-        rc=$?
-        if [ $rc -eq $OCF_ERR_GENERIC ]; then
+        if [ $? -eq $OCF_ERR_GENERIC ]; then
             ocf_exit_reason "PostgreSQL can't create replication_slot."
             return $OCF_ERR_GENERIC
         fi
