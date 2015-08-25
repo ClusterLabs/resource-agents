@@ -28,6 +28,7 @@ OCF_RESKEY_mnesia_base_default=/var/lib/rabbitmq/mnesia
 OCF_RESKEY_node_port_default=5672
 OCF_RESKEY_erlang_cookie_default=false
 OCF_RESKEY_erlang_cookie_file_default="/var/lib/rabbitmq/.erlang.cookie"
+OCF_RESKEY_max_rabbitmqctl_timeouts_default=1
 
 : ${HA_LOGTAG="lrmd"}
 : ${HA_LOGFACILITY="daemon"}
@@ -45,6 +46,7 @@ OCF_RESKEY_erlang_cookie_file_default="/var/lib/rabbitmq/.erlang.cookie"
 : ${OCF_RESKEY_node_port=${OCF_RESKEY_node_port_default}}
 : ${OCF_RESKEY_erlang_cookie=${OCF_RESKEY_erlang_cookie_default}}
 : ${OCF_RESKEY_erlang_cookie_file=${OCF_RESKEY_erlang_cookie_file_default}}
+: ${OCF_RESKEY_max_rabbitmqctl_timeouts=${OCF_RESKEY_max_rabbitmqctl_timeouts_default}}
 
 #######################################################################
 
@@ -214,6 +216,16 @@ Erlang cookie file path where the cookie will be put, if requested
 </longdesc>
 <shortdesc lang="en">Erlang cookie file</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_erlang_cookie_file_default}" />
+</parameter>
+
+<parameter name="max_rabbitmqctl_timeouts" unique="0" required="0">
+<longdesc lang="en">
+If during monitor call rabbitmqctl times out, the timeout is ignored
+unless it is Nth timeout in a row. Here N is the value of the current parameter.
+If too many timeouts happen in a raw, the monitor call will return with error.
+</longdesc>
+<shortdesc lang="en">Fail only if that many rabbitmqctl timeouts in a row occurred</shortdesc>
+<content type="string" default="${OCF_RESKEY_max_rabbitmqctl_timeouts_default}" />
 </parameter>
 
 </parameters>
@@ -1007,6 +1019,46 @@ is_master() {
     return 0
 }
 
+# Verify if su_rabbit_cmd exited by timeout by checking its return code.
+# If it did not, return 0. If it did AND it is
+# $OCF_RESKEY_max_rabbitmqctl_timeouts'th timeout in a row,
+# return 2 to signal get_monitor that it should
+# exit with error. Otherwise return 1 to signal that there was a timeout,
+# but it should be ignored. Timeouts for different operations are tracked
+# separately. The second argument is used to distingush them.
+check_timeouts() {
+    local op_rc=$1
+    local crm_attr_name=$2
+    local op_name=$3
+
+    if [ $op_rc -ne 124 -a $op_rc -ne 137 ]; then
+        ocf_run crm_attribute -N $THIS_PCMK_NODE -l reboot --name $crm_attr_name --update 0
+        return 0
+    fi
+
+    local count
+    count=`crm_attribute -N $THIS_PCMK_NODE -l reboot --name $crm_attr_name --query 2>/dev/null | awk '{print $3}' | awk -F "=" '{print $2}' | sed -e '/(null)/d'`
+    if [ $? -ne 0 ]; then
+        # the crm_attribute exited with error. In that case most probably it printed garbage
+        # instead of the number we need. So defensively assume that it is zero.
+
+        count=0
+    fi
+
+    count=$((count+1))
+    # There is a slight chance that this piece of code will be executed twice simultaneously.
+    # As a result, $crm_attr_name's value will be one less than it should be. But we don't need
+    # precise calculation here.
+    ocf_run crm_attribute -N $THIS_PCMK_NODE -l reboot --name $crm_attr_name --update $count
+
+    if [ $count -lt $OCF_RESKEY_max_rabbitmqctl_timeouts ]; then
+        ocf_log warn "${LH} 'rabbitmqctl $op_name' timed out $count of max. $OCF_RESKEY_max_rabbitmqctl_timeouts time(s) in a row. Doing nothing for now."
+        return 1
+    else
+        ocf_log err "${LH} 'rabbitmqctl $op_name' timed out $count of max. $OCF_RESKEY_max_rabbitmqctl_timeouts time(s) in a row and is not responding. The resource is failed."
+        return 2
+    fi
+}
 
 get_monitor() {
     local rc=$OCF_ERR_GENERIC
@@ -1140,60 +1192,90 @@ get_monitor() {
         fi
     fi
 
+    # Skip all other checks if rabbit app is not running
+    if [ $rabbit_running -ne $OCF_SUCCESS ]; then
+        ocf_log info "${LH} RabbitMQ is not running, get_monitor function ready to return ${rc}"
+        return $rc
+    fi
+
     # Check if the rabbitmqctl control plane is alive.
-    # The rabbit app may be not running and the command
-    # will return > 0, so we only check if the command execution
-    # has timed out (which is a code 137 or 124)
+    local rc_alive
+    local timeout_alive
     su_rabbit_cmd "${OCF_RESKEY_ctl} list_channels 2>&1 > /dev/null"
-    local rc_alive=$?
-    if [ $rc_alive -eq 137 -o $rc_alive -eq 124 ]; then
-        ocf_log err "${LH} rabbitmqctl is not responding. The resource is failed."
+    rc_alive=$?
+    check_timeouts $rc_alive "rabbit_list_channels_timeouts" "list_channels"
+    timeout_alive=$?
+
+    if [ $timeout_alive -eq 2 ]; then
         return $OCF_ERR_GENERIC
+    elif [ $timeout_alive -eq 0 ]; then
+        if [ $rc_alive -ne 0 ]; then
+            ocf_log err "${LH} rabbitmqctl list_channels exited with errors."
+            rc=$OCF_ERR_GENERIC
+        fi
     fi
 
     # Check for memory alarms for this Master or Slave node.
-    # Skip the check if rabbit app is not running yet.
     # If alert found, reset the alarm
     # and restart the resource as it likely means a dead end situation
     # when rabbitmq cluster is running with blocked publishing due
     # to high memory watermark exceeded.
-    local alarms=`su_rabbit_cmd "${OCF_RESKEY_ctl} -q eval 'rabbit_alarm:get_alarms().'"`
-    local rc_alarms=$?
-    if [ $rc_alarms -eq 0 -a -n "${alarms}" ]; then
-        for node in "${alarms}"; do
-            name=`echo ${node} | perl -n -e "m/memory,'(?<n>\S+)+'/ && print \"$+{n}\n\""`
-            if [[ "${name}" == "${RABBITMQ_NODENAME}" ]] ; then
-                ocf_log err "${LH} Found raised memory alarm. Erasing the alarm and restarting."
-                su_rabbit_cmd "${OCF_RESKEY_ctl} set_vm_memory_high_watermark 10 2>&1 > /dev/null"
-                rc=$OCF_ERR_GENERIC
-                break
-            fi
-        done
+    local alarms
+    local rc_alarms
+    local timeout_alarms
+    alarms=`su_rabbit_cmd "${OCF_RESKEY_ctl} -q eval 'rabbit_alarm:get_alarms().'"`
+    rc_alarms=$?
+    check_timeouts $rc_alarms "rabbit_get_alarms_timeouts" "get_alarms"
+    timeout_alarms=$?
+
+    if [ $timeout_alarms -eq 2 ]; then
+        return $OCF_ERR_GENERIC
+
+    elif [ $timeout_alarms -eq 0 ]; then
+        if [ $rc_alarms -ne 0 ]; then
+            ocf_log err "${LH} rabbitmqctl get_alarms exited with errors."
+            rc=$OCF_ERR_GENERIC
+
+        elif [ -n "${alarms}" ]; then
+            for node in "${alarms}"; do
+                name=`echo ${node} | perl -n -e "m/memory,'(?<n>\S+)+'/ && print \"$+{n}\n\""`
+                if [[ "${name}" == "${RABBITMQ_NODENAME}" ]] ; then
+                    ocf_log err "${LH} Found raised memory alarm. Erasing the alarm and restarting."
+                    su_rabbit_cmd "${OCF_RESKEY_ctl} set_vm_memory_high_watermark 10 2>&1 > /dev/null"
+                    rc=$OCF_ERR_GENERIC
+                    break
+                fi
+            done
+        fi
     fi
 
     # Check if the list of all queues is available,
-    # Skip the check if rabbit app is not running yet.
     # Also report some queues stats and total virtual memory.
-    local queues=`su_rabbit_cmd "${OCF_RESKEY_ctl} -q list_queues memory messages consumer_utilisation"`
-    local rc_queues=$?
-    if [ $rc_queues -eq 0 -a -n "${queues}" ]; then
-        local q_c=`echo -e "${queues}" | wc -l`
-        local m_b=`echo -e "${queues}" | awk -v sum=0 '{sum+=$1} END {print sum}'`
-        local mem=$(( $m_b / 1048576 ))
-        local mes=`echo -e "${queues}" | awk -v sum=0 '{sum+=$2} END {print sum}'`
-        local c_u=`echo -e "${queues}" | awk -v sum=0 -v cnt=${q_c} '{sum+=$3} END {print (sum+1)/(cnt+1)}'`
-        local status=`echo $(su_rabbit_cmd "${OCF_RESKEY_ctl} -q status")`
-        ocf_log info "${LH} RabbitMQ is running ${q_c} queues consuming ${mem}m of ${TOTALVMEM}m total, with ${mes} queued messages, average consumer utilization ${c_u}"
-        ocf_log info "${LH} RabbitMQ status: ${status}"
-    fi
+    local queues
+    local rc_queues
+    local timeout_queues
+    queues=`su_rabbit_cmd "${OCF_RESKEY_ctl} -q list_queues memory messages consumer_utilisation"`
+    rc_queues=$?
+    check_timeouts $rc_queues "rabbit_list_queues_timeouts" "list_queues"
+    timeout_queues=$?
 
-    # If the rabbit app is running,
-    # we have to additionally check here if the channels/queues/alarms list results were ok.
-    if [ $rabbit_running -eq $OCF_SUCCESS ]; then
-        # Check if the rabbitmqctl control plane returned no errors for issued requests.
-        if [ $rc_alive -ne 0 -o $rc_alarms -ne 0 -o $rc_queues -ne 0 ]; then
-            ocf_log err "${LH} rabbitmqctl exited with errors."
+    if [ $timeout_queues -eq 2 ]; then
+        return $OCF_ERR_GENERIC
+
+    elif [ $timeout_queues -eq 0 ]; then
+        if [ $rc_queues -ne 0 ]; then
+            ocf_log err "${LH} rabbitmqctl list_queues exited with errors."
             rc=$OCF_ERR_GENERIC
+
+        elif [ -n "${queues}" ]; then
+            local q_c=`echo -e "${queues}" | wc -l`
+            local m_b=`echo -e "${queues}" | awk -v sum=0 '{sum+=$1} END {print sum}'`
+            local mem=$(( $m_b / 1048576 ))
+            local mes=`echo -e "${queues}" | awk -v sum=0 '{sum+=$2} END {print sum}'`
+            local c_u=`echo -e "${queues}" | awk -v sum=0 -v cnt=${q_c} '{sum+=$3} END {print (sum+1)/(cnt+1)}'`
+            local status=`echo $(su_rabbit_cmd "${OCF_RESKEY_ctl} -q status")`
+            ocf_log info "${LH} RabbitMQ is running ${q_c} queues consuming ${mem}m of ${TOTALVMEM}m total, with ${mes} queued messages, average consumer utilization ${c_u}"
+            ocf_log info "${LH} RabbitMQ status: ${status}"
         fi
     fi
 
@@ -1249,6 +1331,10 @@ action_start() {
     if [[ $rc == $OCF_SUCCESS ]] ; then
         ocf_log info "${LH} RMQ prepared for start succesfully."
     fi
+
+    ocf_run crm_attribute -N $THIS_PCMK_NODE -l reboot --name 'rabbit_list_channels_timeouts' --update '0'
+    ocf_run crm_attribute -N $THIS_PCMK_NODE -l reboot --name 'rabbit_get_alarms_timeouts' --update '0'
+    ocf_run crm_attribute -N $THIS_PCMK_NODE -l reboot --name 'rabbit_list_queues_timeouts' --update '0'
 
     ocf_log info "${LH} action end."
     return $rc
