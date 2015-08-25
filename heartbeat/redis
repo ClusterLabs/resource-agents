@@ -217,8 +217,13 @@ function set_score()
 }
 
 function redis_client() {
+	pw=$(cat "$REDIS_CONFIG" | sed 's/^\s*//' | grep ^masterauth | awk '{print $2}')
 	ocf_log debug "redis_client: '$REDIS_CLIENT' -s '$REDIS_SOCKET' $@"
-	"$REDIS_CLIENT" -s "$REDIS_SOCKET" "$@" | sed 's/\r//'
+	if [ -z "$pw" ]; then
+		"$REDIS_CLIENT" -s "$REDIS_SOCKET" "$@" | sed 's/\r//'
+	else
+		"$REDIS_CLIENT" -s "$REDIS_SOCKET" -a "$pw" "$@" | sed 's/\r//'
+	fi
 }
 
 function simple_status() {
