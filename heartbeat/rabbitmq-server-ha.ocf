@@ -971,12 +971,17 @@ get_status() {
     rc=$?
 
     if [[ $rc != 0 ]] ; then
+        ocf_log info "get_status() failed with code ${rc}. Command output: ${body}"
         return $OCF_NOT_RUNNING
     fi
 
     if [[ ! -z $what ]] ; then
         rc=$OCF_NOT_RUNNING
         echo "$body" | grep "\{${what}," 2>&1 > /dev/null && rc=$OCF_SUCCESS
+
+        if [[ $rc != $OCF_SUCCESS ]] ; then
+            ocf_log info "get_status(): app ${what} was not found in command output: ${body}"
+        fi
     fi
 
     return $rc
