@@ -1396,7 +1396,7 @@ get_my_location() {
     local log2
     local newer_location
 
-    output=`exec_sql "$CHECK_REPLICATION_SLOT_sql"`
+    output=`exec_sql "$CHECK_XLOG_LOC_SQL"`
     rc=$?
 
     if [ $rc -ne 0 ]; then
