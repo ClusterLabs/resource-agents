@@ -1448,11 +1448,12 @@ action_notify() {
         case "$OCF_RESKEY_CRM_meta_notify_operation" in
             promote)
                 ocf_log info "${LH} post-promote begin."
-                # Report not running, if the list of nodes being promoted reported empty
+                # Do nothing, if the list of nodes being promoted reported empty.
+                # Delegate recovery, if needed, to the "running out of the cluster" monitor's logic
                 if [ -z ${OCF_RESKEY_CRM_meta_notify_promote_uname} ] ; then
-                  ocf_log warn "${LH} there are no nodes to join to reported on post-promote. The resource will be restarted."
+                  ocf_log warn "${LH} there are no nodes to join to reported on post-promote. Nothing to do."
                   ocf_log info "${LH} post-promote end."
-                  return $OCF_ERR_GENERIC
+                  return $OCF_SUCCESS
                 fi
                 # Note, this should fail when the mnesia is inconsistent.
                 # For example, when the "old" master processing the promition of the new one.
@@ -1468,20 +1469,22 @@ action_notify() {
             start)
                 ocf_log info "${LH} post-start begin."
                 local nodes_list="${OCF_RESKEY_CRM_meta_notify_start_uname} ${OCF_RESKEY_CRM_meta_notify_active_uname}"
-                # Report not running, if the list of nodes being started or running reported empty
+                # Do nothing, if the list of nodes being started or running reported empty
+                # Delegate recovery, if needed, to the "running out of the cluster" monitor's logic
                 if [ -z "${nodes_list}" ] ; then
-                  ocf_log warn "${LH} there are no nodes to join to reported on post-promote. The resource will be restarted."
+                  ocf_log warn "${LH} I'm a last man standing and I must survive!"
                   ocf_log info "${LH} post-start end."
-                  return $OCF_ERR_GENERIC
+                  return $OCF_SUCCESS
                 fi
                 # check did this event from this host
                 my_host "${nodes_list}"
                 rc=$?
-                # Report not running, if there is no master reported
+                # Do nothing, if there is no master reported
+                # Delegate recovery, if needed, to the "running out of the cluster" monitor's logic
                 if [ -z ${OCF_RESKEY_CRM_meta_notify_master_uname} ] ; then
-                  ocf_log warn "${LH} there are no nodes to join to reported on post-start. The resource will be restarted."
+                  ocf_log warn "${LH} there are no nodes to join to reported on post-start. Nothing to do."
                   ocf_log info "${LH} post-start end."
-                  return $OCF_ERR_GENERIC
+                  return $OCF_SUCCESS
                 fi
                 if [[ $rc == $OCF_SUCCESS ]] ; then
                     check_need_join_to ${OCF_RESKEY_CRM_meta_notify_master_uname}
