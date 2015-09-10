@@ -3659,6 +3659,7 @@ sub check_dns
 		local $SIG{'ALRM'} = sub { die "timeout\n"; };
 		alarm($$v{negotiatetimeout});
 		$res->nameservers($server);
+		$res->port($$r{port}//$$v{port}//53);
 		if ($$v{"protocol"} eq "tcp") {
 			$res->usevc(1);
 		}
