@@ -4239,9 +4239,9 @@ sub do_fallback_command
 	$v->{fallbackcommand_status} = $status;
 
 	if (defined($v->{fallbackcommand})) {
-		&system_wrapper($v->{fallbackcommand} . " " . $status);
+		&system_wrapper($v->{fallbackcommand} . " " . $status . " " . $v->{server} . ":" . $v->{port} . " " . $v->{protocol});
 	} elsif (defined($FALLBACKCOMMAND)) {
-		&system_wrapper($FALLBACKCOMMAND . " " . $status);
+		&system_wrapper($FALLBACKCOMMAND . " " . $status . " " . $v->{server} . ":" . $v->{port} . " " . $v->{protocol});
 	}
 }
 
