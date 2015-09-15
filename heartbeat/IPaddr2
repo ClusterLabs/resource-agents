@@ -169,8 +169,10 @@ routing table.
 
 <parameter name="broadcast">
 <longdesc lang="en">
-Broadcast address associated with the IP. If left empty, the script will
-determine this from the netmask.
+Broadcast address associated with the IP. It is possible to use the
+special symbols '+' and '-' instead of the broadcast address. In this
+case, the broadcast address is derived by setting/resetting the host
+bits of the interface prefix.
 </longdesc>
 <shortdesc lang="en">Broadcast address</shortdesc>
 <content type="string" default=""/>

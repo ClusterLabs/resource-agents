@@ -182,8 +182,10 @@ findif_check_params()
     if [ -n "$brdcast" ] ; then
       ipcheck_ipv4 $brdcast
       if [ $? = 1 ] ; then
-        ocf_log err "Invalid broadcast address [$brdcast]."
-        return $OCF_ERR_CONFIGURED
+        if [ "$brdcast" != "+" -a "$brdcast" != "-" ]; then
+          ocf_log err "Invalid broadcast address [$brdcast]."
+          return $OCF_ERR_CONFIGURED
+        fi
       fi
     fi
   fi
