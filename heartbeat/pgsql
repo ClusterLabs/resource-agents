@@ -515,7 +515,7 @@ EOF
 
 # Execulte SQL and return the result.
 exec_sql() {
-    local sql=$1
+    local sql="$1"
     local output
     local rc
 
