@@ -1082,7 +1082,7 @@ get_monitor() {
         ocf_log info "${LH} get_status() returns ${rc}."
         ocf_log info "${LH} ensuring this slave does not get promoted."
         master_score 0
-        return $OCF_ERR_GENERIC
+        return $OCF_NOT_RUNNING
     elif [[ $rc == $OCF_SUCCESS ]] ; then
         ocf_log info "${LH} get_status() returns ${rc}."
         ocf_log info "${LH} also checking if we are master."
