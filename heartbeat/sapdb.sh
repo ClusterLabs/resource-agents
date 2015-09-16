@@ -243,7 +243,7 @@ sapdatabase_monitor() {
       
       if [ $rc -ne $OCF_SUCCESS ]
       then
-        ocf_log err "The SAP database $SID ist not running: $output"
+        ocf_log err "The SAP database $SID is not running: $output"
       fi
     fi
   fi
