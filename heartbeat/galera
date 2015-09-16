@@ -704,6 +704,18 @@ if [ -n "${OCF_RESKEY_check_passwd}" ]; then
     MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK --password=${OCF_RESKEY_check_passwd}"
 fi
 
+# This value is automatically sourced from /etc/sysconfig/checkcluster if available
+if [ -n "${MYSQL_HOST}" ]; then
+    MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK -h ${MYSQL_HOST}"
+fi
+
+# This value is automatically sourced from /etc/sysconfig/checkcluster if available
+if [ -n "${MYSQL_PORT}" ]; then
+    MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK -P ${MYSQL_PORT}"
+fi
+
+
+
 # What kind of method was invoked?
 case "$1" in
   start)    galera_start;;
