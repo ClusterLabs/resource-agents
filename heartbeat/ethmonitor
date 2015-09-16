@@ -308,7 +308,7 @@ get_rx_packets () {
 	ocf_log debug "$IP2UTIL -o -s link show dev $NIC"
 	$IP2UTIL -o -s link show dev "$NIC" \
 		| sed 's/.* RX: [^0-9]*[0-9]* *\([0-9]*\) .*/\1/'
-		# the first number after RX: ist the # of bytes ,
+		# the first number after RX: is the # of bytes ,
 		# the second is the # of packets received
 }
 
