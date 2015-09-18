@@ -455,7 +455,8 @@ get_nodes__base(){
     then
         infotype='running_db_nodes'
     fi
-    local c_status=$(${OCF_RESKEY_ctl} eval "mnesia:system_info(${infotype})." 2>/dev/null)
+    local c_status
+    c_status=$(${OCF_RESKEY_ctl} eval "mnesia:system_info(${infotype})." 2>/dev/null)
     rc=$?
     if [[ $rc != 0 ]] ; then
         echo ''
@@ -1487,6 +1488,10 @@ action_notify() {
                   return $OCF_SUCCESS
                 fi
                 if [[ $rc == $OCF_SUCCESS ]] ; then
+                    # Now we need to:
+                    # a. join to the cluster if we are not joined yet
+                    # b. start the RabbitMQ application, which is always
+                    #    stopped after start action finishes
                     check_need_join_to ${OCF_RESKEY_CRM_meta_notify_master_uname}
                     rc_join=$?
                     if [[ ${rc_join} == $OCF_SUCCESS ]]; then
@@ -1495,7 +1500,11 @@ action_notify() {
                       rc2=$?
                     else
                       ocf_log warn "${LH} We are already clustered with node ${OCF_RESKEY_CRM_meta_notify_master_uname}"
-                      rc2=$OCF_SUCCESS
+                      if try_to_start_rmq_app; then
+                          rc2=$OCF_SUCCESS
+                      else
+                          rc2=$OCF_ERR_GENERIC
+                      fi
                     fi
                     ocf_log info "${LH} post-start end."
                     if [[ -s ${OCF_RESKEY_definitions_dump_file} ]] ; then
