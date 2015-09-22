@@ -234,12 +234,7 @@ fi
 SYSLOG_NG_NAME=${CONFIGFILE##*/}
 SYSLOG_NG_NAME=${SYSLOG_NG_NAME%.*}
 
-SYSLOG_NG_EXE="${OCF_RESKEY_syslog_ng_binary-/sbin/syslog-ng}"
-# why not default to /sbin/syslog-ng?
-#if [[ -z "$SYSLOG_NG_EXE" ]]; then
-#	ocf_log err "Undefined parameter:syslog_ng_binary"
-#	exit $OCF_ERR_CONFIGURED
-#fi
+SYSLOG_NG_EXE="${OCF_RESKEY_syslog_ng_binary:-/sbin/syslog-ng}"
 if [[ ! -x "$SYSLOG_NG_EXE" ]]; then
 	ocf_log err "Invalid value:syslog_ng_binary:$SYSLOG_NG_EXE"
 	exit $OCF_ERR_CONFIGURED
