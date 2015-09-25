@@ -340,6 +340,29 @@ is_readonly()
     return 0
 }
 
+nodes()
+{
+    local nodes_noscheme=${OCF_RESKEY_wsrep_cluster_address#gcomm://}
+    local nodes=${nodes_noscheme%\?*}
+    local local_ifs=$IFS
+    local node
+    IFS=,
+    for node in $nodes; do
+      echo ${node%:*}
+    done
+    IFS=$local_ifs
+
+    ## Alternate xmllint method of determining nodes based on cluster configuration
+    ## take the current node, go .. to get its siblings, and then take all of the managed, non-failed, non-orphaned nodes
+    #local n
+    #for node in $(crm_mon --as-xml | xmllint  --xpath "//clone/resource[@id=\"${OCF_RESOURCE_INSTANCE}\"][@resource_agent=\"ocf::${OCF_RESOURCE_PROVIDER}:${OCF_RESOURCE__TYPE}\"][@role=\"Master\"][@active=\"false\"][@orphaned=\"false\"][@failed=\"false\"]/node/@name' - > /dev/null
+    #do
+    #  # name="tulwaurt007" name="tulwaurt006" name="tulwaurt005"
+    #  n=${node#*=\"}
+    #  echo ${n%\"}
+    #done
+}
+
 master_exists()
 {
     if [ "$__OCF_ACTION" = "demote" ]; then
@@ -351,6 +374,7 @@ master_exists()
         return 1
     fi
     # determine if a master instance is already up and is healthy
+    # crm_mon --as-xml | xmllint  --xpath "//clone/resource[@id=\"${OCF_RESOURCE_INSTANCE}\"][@resource_agent=\"ocf::${OCF_RESOURCE_PROVIDER}:${OCF_RESOURCE_TYPE}\"][@role=\"Master\"][@active=\"false\"][@orphaned=\"false\"][@failed=\"false\"]/node/@name' - > /dev/null
     crm_mon --as-xml | grep "resource.*id=\"${OCF_RESOURCE_INSTANCE}\".*role=\"Master\".*active=\"true\".*orphaned=\"false\".*failed=\"false\"" > /dev/null 2>&1
     return $?
 }
@@ -378,9 +402,7 @@ set_master_score()
 
 promote_everyone()
 {
-
-    for node in $(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' '); do
-
+    for node in $(nodes); do
         set_master_score $node
     done
 }
@@ -389,7 +411,7 @@ greater_than_equal_long()
 {
     # there are values we need to compare in this script
     # that are too large for shell -gt to process
-    echo | awk -v n1="$1" -v n2="$2"  '{if (n1>=n2) printf ("true"); else printf ("false");}' |  grep -q "true"
+    echo | awk -v n1="$1" -v n2="$2"  '{exit(!(n1>=n2));}'
 }
 
 detect_first_master()
@@ -399,7 +421,7 @@ detect_first_master()
     local last_commit=0
     local missing_nodes=0
 
-    for node in $(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' '); do
+    for node in $(nodes); do
         last_commit=$(get_last_commit $node)
 
         if [ -z "$last_commit" ]; then
@@ -445,8 +467,9 @@ galera_promote()
         bootstrap=$(is_bootstrap)
 
         if ocf_is_true $bootstrap; then
+            # http://galeracluster.com/documentation-webpages/startingcluster.html#starting-the-first-cluster-node
             ocf_log info "Node <${NODENAME}> is bootstrapping the cluster"
-            extra_opts="--wsrep-cluster-address=gcomm://"
+            extra_opts="--wsrep-new-cluster"
         else
             ocf_exit_reason "Failure, Attempted to promote Master instance of $OCF_RESOURCE_INSTANCE before bootstrap node has been detected."
             clear_last_commit
