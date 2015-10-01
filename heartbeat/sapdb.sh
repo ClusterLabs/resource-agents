@@ -44,11 +44,11 @@ background_check_saphostexec() {
 #                       misbehavior
 #
 cleanup_saphostexec() {
-  pkill -9 -f "$SAPHOSTEXEC"
-  pkill -9 -f "$SAPHOSTSRV"
-  oscolpid=`pgrep -f "$SAPHOSTOSCOL"`       # we check saposcol pid, because it
-                                            # might not run under control of
-					    # saphostexec
+  pkill -9 -f saphostexec
+  pkill -9 -f sapstartsrv
+  oscolpid=`pgrep -f saposcol`       # we check saposcol pid, because it
+                                     # might not run under control of
+                                     # saphostexec
 
   # cleanup saposcol shared memory, otherwise it will not start again
   if [ -n "$oscolpid" ];then
@@ -70,7 +70,7 @@ cleanup_saphostexec() {
 #
 check_saphostexec() {
   chkrc=$OCF_SUCCESS
-  running=`pgrep -f "$SAPHOSTEXEC" | wc -l`
+  running=`pgrep -f saphostexec | wc -l`
 
   if [ $running -gt 0 ]; then
     if background_check_saphostexec; then
@@ -88,7 +88,7 @@ check_saphostexec() {
     
     # now make sure the daemon has been started and is able to respond
     srvrc=1
-    while [ $srvrc -ne 0 -a `pgrep -f "$SAPHOSTEXEC" | wc -l` -gt 0 ]
+    while [ $srvrc -ne 0 -a `pgrep -f saphostexec | wc -l` -gt 0 ]
     do
       sleep 1
       background_check_saphostexec
