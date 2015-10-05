@@ -52,6 +52,8 @@ OCF_RESKEY_max_rabbitmqctl_timeouts_default=1
 
 OCF_RESKEY_start_time_default=$((OCF_RESKEY_CRM_meta_timeout / 6000 + 2))
 : ${OCF_RESKEY_start_time=${OCF_RESKEY_start_time_default}}
+OCF_RESKEY_stop_time_default=$((OCF_RESKEY_CRM_meta_timeout / 6000 + 2))
+: ${OCF_RESKEY_stop_time=${OCF_RESKEY_start_time_default}}
 OCF_RESKEY_command_timeout_default=""
 : ${OCF_RESKEY_command_timeout=${OCF_RESKEY_command_timeout_default}}
 TIMEOUT_ARG=$((OCF_RESKEY_CRM_meta_timeout / 6000 + 30))
@@ -176,6 +178,14 @@ Timeout for start rabbitmq server
 <content type="string" default="${OCF_RESKEY_start_time_default}" />
 </parameter>
 
+<parameter name="stop_time" unique="0" required="0">
+<longdesc lang="en">
+Timeout for stopping rabbitmq server
+</longdesc>
+<shortdesc lang="en">Timeout for stopping rabbitmq server</shortdesc>
+<content type="string" default="${OCF_RESKEY_stop_time_default}" />
+</parameter>
+
 <parameter name="debug" unique="0" required="0">
 <longdesc lang="en">
 The debug flag for agent (${OCF_RESKEY_binary}) instance.
@@ -253,6 +263,12 @@ END
 # Invokes the given command as a rabbitmq user and wrapped in the
 # timeout command.
 su_rabbit_cmd() {
+    if [[ "$1" == "-t" ]]; then
+      local timeout=$2
+      shift 2
+    else
+      local timeout=$COMMAND_TIMEOUT
+    fi
     local cmd=${1:-status}
     local LH="${LL} su_rabbit_cmd():"
     local rc=1
@@ -1061,6 +1077,15 @@ check_timeouts() {
     fi
 }
 
+wait_sync() {
+  wait_time=$1
+
+  queues="${COMMAND_TIMEOUT} ${OCF_RESKEY_ctl} list_queues name state"
+  su_rabbit_cmd -t "${wait_time}s" "sh -c \"while $queues | grep -q 'syncing,'; \
+      do sleep 1; done\""
+  return $?
+}
+
 get_monitor() {
     local rc=$OCF_ERR_GENERIC
     local scope
@@ -1355,6 +1380,10 @@ action_stop() {
 
     ocf_log info "${LH} action begin."
 
+    # Wait for synced state first
+    ocf_log info "${LH} waiting $((OCF_RESKEY_stop_time/2)) to sync"
+    wait_sync $((OCF_RESKEY_stop_time/2))
+
     # remove master flag
     # remove master score
     crm_attribute -N $THIS_PCMK_NODE -l reboot --name 'rabbit-master' --delete
@@ -1536,7 +1565,10 @@ action_notify() {
                 my_host "${OCF_RESKEY_CRM_meta_notify_stop_uname}"
                 rc=$?
                 if [[ $rc != $OCF_SUCCESS ]] ; then
-                    # On ohter nodes processing the post-stop, make sure the stopped node will be forgotten
+                    # Wait for synced state first
+                    ocf_log info "${LH} waiting $((OCF_RESKEY_stop_time/2)) to sync"
+                    wait_sync $((OCF_RESKEY_stop_time/2))
+                    # On other nodes processing the post-stop, make sure the stopped node will be forgotten
                     unjoin_nodes_from_cluster "${OCF_RESKEY_CRM_meta_notify_stop_uname}"
                 else
                     # On the nodes being stopped, reset the master score
@@ -1558,9 +1590,12 @@ action_notify() {
                 my_host "${OCF_RESKEY_CRM_meta_notify_demote_uname}"
                 rc=$?
                 if [[ $rc != $OCF_SUCCESS ]] ; then
-                    # On ohter nodes processing the post-demote, make sure the demoted node will be forgotten
+                    # On other nodes processing the post-demote, make sure the demoted node will be forgotten
                     unjoin_nodes_from_cluster "${OCF_RESKEY_CRM_meta_notify_demote_uname}"
                 else
+                    # Wait for synced state first
+                    ocf_log info "${LH} waiting $((OCF_RESKEY_stop_time/2)) to sync"
+                    wait_sync $((OCF_RESKEY_stop_time/2))
                     # On the nodes being demoted, reset the master score
                     ocf_log info "${LH} resetting the master score."
                     master_score 0
@@ -1701,6 +1736,11 @@ action_demote() {
         "$OCF_RUNNING_MASTER")
             # Running as master. Normal, expected behavior.
             ocf_log warn "${LH} Resource is currently running as Master"
+
+            # Wait for synced state first
+            ocf_log info "${LH} waiting $((OCF_RESKEY_stop_time/2)) to sync"
+            wait_sync $((OCF_RESKEY_stop_time/2))
+
             stop_rmq_server_app
             rc=$?
             crm_attribute -N $THIS_PCMK_NODE -l reboot --name 'rabbit-master' --delete
