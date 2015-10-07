@@ -1,0 +1,132 @@
+Notes regarding the Galera resource agent
+---
+
+In the resource agent, the action of bootstrapping a Galera cluster is
+implemented into a series of small steps, by using:
+
+  * Two CIB attributes `last-committed` and `bootstrap` to elect a
+    bootstrap node that will restart the cluster.
+
+  * One CIB attribute `sync-needed` that will identify that joining
+    nodes are in the process of synchronizing their local database
+    via SST.
+
+  * A Master/Slave pacemaker resource which helps splitting the boot
+    into steps, up to a point where a galera node is available.
+
+  * the recurring monitor action to coordinate switch from one
+    state to another.
+
+How boot works
+====
+
+There are two things to know to understand how the resource agent
+restart a Galera cluster.
+
+### Bootstrap the cluster with the right node
+
+When synced, the nodes of a galera clusters have in common a last seqno,
+which identifies the last transaction considered successful by a
+majority of nodes in the cluster (think quorum).
+
+To restart a cluster, the resource agent must ensure that it will
+bootstrap the cluster from an node which is up-to-date, i.e which has
+the highest seqno of all nodes.
+
+As a result, if the resource agent cannot retrieve the seqno on all
+nodes, it won't be able to safely identify a bootstrap node, and
+will simply refuse to start the galera cluster.
+
+### synchronizing nodes can be a long operation
+
+Starting a bootstrap node is relatively fast, so it's performed
+during the "promote" operation, which is a one-off, time-bounded
+operation.
+
+Subsequent nodes will need to synchronize via SST, which consists
+in "pushing" an entire Galera DB from one node to another.
+
+There is no perfect time-out, as time spent during synchronization
+depends on the size of the DB. Thus, joiner nodes are started during
+the "monitor" operation, which is a recurring operation that can
+better track the progress of the SST.
+
+
+State flow
+====
+
+General idea for starting Galera:
+
+  * Before starting the Galera cluster each node needs to go in Slave
+    state so that the agent records its last seqno into the CIB.
+    __ This uses attribute last-committed __
+
+  * When all node went in Slave, the agent can safely determine the
+    last seqno and elect a bootstrap node (`detect_first_master()`).
+    __ This uses attribute bootstrap __
+
+  * The agent then sets the score of the elected bootstrap node to
+    Master so that pacemaker promote it and start the first Galera
+    server.
+
+  * Once the first Master is running, the agent can start joiner
+    nodes during the "monitor" operation, and starts monitoring
+    their SST sync.
+    __ This uses attribute sync-needed __
+
+  * Only when SST is over on joiner nodes, the agent promotes them
+    to Master. At this point, the entire Galera cluster is up.
+
+
+Attribute usage and liveness
+====
+
+Here is how attributes are created on a per-node basis. If you
+modify the resource agent make sure those properties still hold.
+
+### last-committed
+
+It is just a temporary hint for the resource agent to help
+elect a bootstrap node. Once the bootstrap attribute is set on one
+of the nodes, we can get rid of last-committed.
+
+ - Used   : during Slave state to compare seqno
+ - Created: before entering Slave state:
+              . at startup in `galera_start()`
+              . or when a Galera node is stopped in `galera_demote()`
+ - Deleted: just before node starts in `galera_start_local_node()`;
+            cleaned-up during `galera_demote()` and `galera_stop()`
+
+We delete last-committed before starting Galera, to avoid race
+conditions that could arise due to discrepancies between the CIB and
+Galera.
+
+### bootstrap
+
+Attribute set on the node that is elected to bootstrap Galera.
+
+- Used   : during promotion in `galera_start_local_node()`
+- Created: at startup once all nodes have `last-committed`;
+           or during monitor if all nodes have failed
+- Deleted: in `galera_start_local_node()`, just after the bootstrap
+           node started and is ready;
+           cleaned-up during `galera_demote()` and `galera_stop()`
+
+There cannot be more than one bootstrap node at any time, otherwise
+the Galera cluster would stop replicating properly.
+
+### sync-needed
+
+While this attribute is set on a node, the Galera node is in JOIN
+state, i.e. SST is in progress and the node cannot serve queries.
+
+The resource agent relies on the underlying SST method to monitor
+the progress of the SST. For instance, with `wsrep_sst_rsync`,
+timeout would be reported by rsync, the Galera node would go in
+Non-primary state, which would make `galera_monitor()` fail.
+
+- Used   : during recurring slave monitor in `check_sync_status()`
+- Created: in `galera_start_local_node()`, just after the joiner
+           node started and entered the Galera cluster
+- Deleted: during recurring slave monitor in `check_sync_status()`
+           as soon as the Galera code reports to be SYNC-ed.
