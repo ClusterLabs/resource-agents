@@ -17,6 +17,8 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
+OCF_RESKEY_migration_downtime_default=0
+OCF_RESKEY_migration_speed_default=0
 OCF_RESKEY_force_stop_default=0
 OCF_RESKEY_autoset_utilization_cpu_default="true"
 OCF_RESKEY_autoset_utilization_hv_memory_default="true"
@@ -25,6 +27,8 @@ OCF_RESKEY_CRM_meta_timeout_default=90000
 OCF_RESKEY_save_config_on_stop_default=false
 OCF_RESKEY_sync_config_on_stop_default=false
 
+: ${OCF_RESKEY_migration_downtime=${OCF_RESKEY_migration_downtime_default}}
+: ${OCF_RESKEY_migration_speed=${OCF_RESKEY_migration_speed_default}}
 : ${OCF_RESKEY_force_stop=${OCF_RESKEY_force_stop_default}}
 : ${OCF_RESKEY_autoset_utilization_cpu=${OCF_RESKEY_autoset_utilization_cpu_default}}
 : ${OCF_RESKEY_autoset_utilization_hv_memory=${OCF_RESKEY_autoset_utilization_hv_memory_default}}
@@ -102,6 +106,22 @@ use libvirt's default transport to connect to the remote hypervisor.
 </longdesc>
 <shortdesc lang="en">Remote hypervisor transport</shortdesc>
 <content type="string" default="" />
+</parameter>
+
+<parameter name="migration_downtime" unique="0" required="0">
+<longdesc lang="en">
+Define max downtime during live migration in milliseconds
+</longdesc>
+<shortdesc lang="en">Live migration downtime</shortdesc>
+<content type="integer" default="${OCF_RESKEY_migration_downtime_default}" />
+</parameter>
+
+<parameter name="migration_speed" unique="0" required="0">
+<longdesc lang="en">
+Define live migration speed per resource in MiB/s
+</longdesc>
+<shortdesc lang="en">Live migration speed</shortdesc>
+<content type="integer" default="${OCF_RESKEY_migration_speed_default}" />
 </parameter>
 
 <parameter name="migration_network_suffix" unique="0" required="0">
@@ -649,6 +669,7 @@ VirtualDomain_Migrate_To() {
 	local transport_suffix
 	local migrateuri
 	local migrate_opts
+	local migrate_pid
 
 	target_node="$OCF_RESKEY_CRM_meta_migrate_target"
 
@@ -678,9 +699,28 @@ VirtualDomain_Migrate_To() {
 			save_config
 		fi
 
+		# Live migration speed limit
+		if [ ${OCF_RESKEY_migration_speed} -ne 0 ]; then
+			ocf_log info "$DOMAIN_NAME: Setting live migration speed limit for $DOMAIN_NAME (using: virsh ${VIRSH_OPTIONS} migrate-setspeed $DOMAIN_NAME ${OCF_RESKEY_migration_speed})."
+			virsh ${VIRSH_OPTIONS} migrate-setspeed $DOMAIN_NAME ${OCF_RESKEY_migration_speed}
+		fi
+
 		# OK, we know where to connect to. Now do the actual migration.
-		ocf_log info "$DOMAIN_NAME: Starting live migration to ${target_node} (using virsh ${VIRSH_OPTIONS} migrate --live $migrate_opts $DOMAIN_NAME $remoteuri $migrateuri)."
-		virsh ${VIRSH_OPTIONS} migrate --live $migrate_opts $DOMAIN_NAME $remoteuri $migrateuri
+		ocf_log info "$DOMAIN_NAME: Starting live migration to ${target_node} (using: virsh ${VIRSH_OPTIONS} migrate --live $migrate_opts $DOMAIN_NAME $remoteuri $migrateuri)."
+		virsh ${VIRSH_OPTIONS} migrate --live $migrate_opts $DOMAIN_NAME $remoteuri $migrateuri &
+
+		migrate_pid=${!}
+
+		# Live migration downtime interval
+		# Note: You can set downtime only while live migration is in progress
+		if [ ${OCF_RESKEY_migration_downtime} -ne 0 ]; then
+			sleep 2
+			ocf_log info "$DOMAIN_NAME: Setting live migration downtime for $DOMAIN_NAME (using: virsh ${VIRSH_OPTIONS} migrate-setmaxdowntime $DOMAIN_NAME ${OCF_RESKEY_migration_downtime})."
+			virsh ${VIRSH_OPTIONS} migrate-setmaxdowntime $DOMAIN_NAME ${OCF_RESKEY_migration_downtime}
+		fi
+
+		wait ${migrate_pid}
+
 		rc=$?
 		if [ $rc -ne 0 ]; then
 			ocf_exit_reason "$DOMAIN_NAME: live migration to ${target_node} failed: $rc"
@@ -776,6 +816,18 @@ VirtualDomain_Validate_All() {
 	# Check if csync2 is available when config tells us we might need it.
 	if ocf_is_true $OCF_RESKEY_sync_config_on_stop; then
 		check_binary csync2; 
+	fi
+
+	# Check if migration_speed is a decimal value
+	if ! ocf_is_decimal ${OCF_RESKEY_migration_speed}; then
+		ocf_exit_reason "migration_speed has to be a decimal value"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	# Check if migration_downtime is a decimal value
+	if ! ocf_is_decimal ${OCF_RESKEY_migration_downtime}; then
+		ocf_exit_reason "migration_downtime has to be a decimal value"
+		return $OCF_ERR_CONFIGURED
 	fi
 }
 
