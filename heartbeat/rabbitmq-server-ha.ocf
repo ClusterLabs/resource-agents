@@ -1270,8 +1270,7 @@ get_monitor() {
 
         elif [ -n "${queues}" ]; then
             local q_c=`echo -e "${queues}" | wc -l`
-            local m_b=`echo -e "${queues}" | awk -v sum=0 '{sum+=$1} END {print sum}'`
-            local mem=$(( $m_b / 1048576 ))
+            local mem=`echo -e "${queues}" | awk -v sum=0 '{sum+=$1} END {print (sum/1048576)}'`
             local mes=`echo -e "${queues}" | awk -v sum=0 '{sum+=$2} END {print sum}'`
             local c_u=`echo -e "${queues}" | awk -v sum=0 -v cnt=${q_c} '{sum+=$3} END {print (sum+1)/(cnt+1)}'`
             local status=`echo $(su_rabbit_cmd "${OCF_RESKEY_ctl} -q status")`
