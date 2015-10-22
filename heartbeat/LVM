@@ -98,11 +98,11 @@ If "exclusive" is set on a non clustered volume group, this overrides the tag to
 
 <parameter name="partial_activation" unique="0" required="0">
 <longdesc lang="en">
-If set, the volume group will be activated even only partial of the physical
-volumes available. It helps to set to true, when you are using mirroring
+If set, the volume group will be activated partially even with some
+physical volumes missing. It helps to set to true when using mirrored
 logical volumes.
 </longdesc>
-<shortdesc lang="en">Activate VG even with partial PV only</shortdesc>
+<shortdesc lang="en">Activate VG partially when missing PVs</shortdesc>
 <content type="string" default="false" />
 </parameter>
 
