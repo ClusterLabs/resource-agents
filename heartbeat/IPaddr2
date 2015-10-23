@@ -682,19 +682,35 @@ run_send_arp() {
 #
 run_send_ua() {
 	local i
-	# Wait until the allocated IPv6 address gets ready by checking
-	# "tentative" flag is disappeared, otherwise send_ua can not
-	# send the unsolicited advertisement requests.
-	for i in 1 2 3 4 5; do
-		$IP2UTIL -o -f $FAMILY addr show dev $NIC \
-			| grep -q -e "$OCF_RESKEY_ip/$NETMASK .* tentative"
-		[ $? -ne 0 ] && break
-		if [ $i -eq 5 ]; then
-			ocf_log warn "$OCF_RESKEY_ip still has 'tentative' status. (ignored)"
+
+	# Duplicate Address Detection [DAD]
+	# Kernel will flag the IP as 'tentative' until it ensured that
+	# there is no duplicates.
+	# If there is, it will flag it as 'dadfailed'
+	for i in $(seq 1 10); do
+		ipstatus=$($IP2UTIL -o -f $FAMILY addr show dev $NIC to $OCF_RESKEY_ip/$NETMASK)
+		case "$ipstatus" in
+		*dadfailed*)
+			ocf_log err "IPv6 address collision $OCF_RESKEY_ip [DAD]"
+			$IP2UTIL -f $FAMILY addr del dev $NIC $OCF_RESKEY_ip/$NETMASK
+			if [ $? -ne 0 ]; then
+				ocf_log err "Could not delete IPv6 address"
+			fi
+			return $OCF_ERR_GENERIC
+			;;
+		*tentative*)
+			if [ $i -eq 10 ]; then
+				ofc_log warn "IPv6 address : DAD is still in tentative"
+			fi
+			;;
+		*)
 			break
-		fi
+			;;
+		esac
 		sleep 1
 	done
+	# Now the address should be usable
+
 	ARGS="-i $OCF_RESKEY_arp_interval -c $OCF_RESKEY_arp_count $OCF_RESKEY_ip $NETMASK $NIC"
 	ocf_log info "$SENDUA $ARGS"
 	$SENDUA $ARGS || ocf_log err "Could not send ICMPv6 Unsolicited Neighbor Advertisements."
@@ -847,6 +863,10 @@ ip_start() {
 		else
 		    if [ -x $SENDUA ]; then
 			run_send_ua
+			if [ $? -ne 0 ]; then
+				ocf_exit_reason "run_send_ua failed."
+				exit $OCF_ERR_GENERIC
+			fi
 		    fi
 		fi
 		;;
