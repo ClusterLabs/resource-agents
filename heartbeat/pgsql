@@ -50,6 +50,7 @@ OCF_RESKEY_pghost_default=""
 OCF_RESKEY_pgport_default=5432
 OCF_RESKEY_pglibs_default=/usr/lib
 OCF_RESKEY_start_opt_default=""
+OCF_RESKEY_ctl_opt_default=""
 OCF_RESKEY_pgdb_default=template1
 OCF_RESKEY_logfile_default=/dev/null
 OCF_RESKEY_stop_escalate_default=30
@@ -82,6 +83,7 @@ OCF_RESKEY_replication_slot_name_default=""
 : ${OCF_RESKEY_pglibs=${OCF_RESKEY_pglibs_default}}
 : ${OCF_RESKEY_config=${OCF_RESKEY_pgdata}/postgresql.conf}
 : ${OCF_RESKEY_start_opt=${OCF_RESKEY_start_opt_default}}
+: ${OCF_RESKEY_ctl_opt=${OCF_RESKEY_ctl_opt_default}}
 : ${OCF_RESKEY_pgdb=${OCF_RESKEY_pgdb_default}}
 : ${OCF_RESKEY_logfile=${OCF_RESKEY_logfile_default}}
 : ${OCF_RESKEY_stop_escalate=${OCF_RESKEY_stop_escalate_default}}
@@ -404,7 +406,7 @@ Number of checks of xlog on monitor before promote.
 This is optional for replication.
 </longdesc>
 <shortdesc lang="en">xlog check count</shortdesc>
-<content type="integer" default="${OCF_RESKEY_check_count_default}" />
+<content type="integer" default="${OCF_RESKEY_xlog_check_count_default}" />
 </parameter>
 
 <parameter name="crm_attr_timeout" unique="0" required="0">
