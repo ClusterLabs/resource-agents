@@ -1,0 +1,365 @@
+#!/bin/sh
+#
+#
+# NovaCompute agent manages compute daemons.
+#
+# Copyright (c) 2015
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+###
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+###
+
+: ${__OCF_ACTION=$1}
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="NovaCompute" version="1.0">
+<version>1.0</version>
+
+<longdesc lang="en">
+OpenStack Nova Compute Server.
+</longdesc>
+<shortdesc lang="en">OpenStack Nova Compute Server</shortdesc>
+
+<parameters>
+
+<parameter name="auth_url" unique="0" required="1">
+<longdesc lang="en">
+Authorization URL for connecting to keystone in admin context
+</longdesc>
+<shortdesc lang="en">Authorization URL</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="username" unique="0" required="1">
+<longdesc lang="en">
+Username for connecting to keystone in admin context
+</longdesc>
+<shortdesc lang="en">Username</shortdesc>
+</parameter>
+
+<parameter name="password" unique="0" required="1">
+<longdesc lang="en">
+Password for connecting to keystone in admin context
+</longdesc>
+<shortdesc lang="en">Password</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="tenant_name" unique="0" required="1">
+<longdesc lang="en">
+Tenant name for connecting to keystone in admin context.
+Note that with Keystone V3 tenant names are only unique within a domain.
+</longdesc>
+<shortdesc lang="en">Tenant name</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="domain" unique="0" required="0">
+<longdesc lang="en">
+DNS domain in which hosts live, useful when the cluster uses short names and nova uses FQDN
+</longdesc>
+<shortdesc lang="en">DNS domain</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="endpoint_type" unique="0" required="0">
+<longdesc lang="en">
+Nova API location (internal, public or admin URL)
+</longdesc>
+<shortdesc lang="en">Nova API location (internal, public or admin URL)</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="no_shared_storage" unique="0" required="0">
+<longdesc lang="en">
+Disable shared storage recovery for instances. Use at your own risk!
+</longdesc>
+<shortdesc lang="en">Disable shared storage recovery for instances</shortdesc>
+<content type="boolean" default="0" />
+</parameter>
+
+<parameter name="evacuation_delay" unique="0" required="0">
+<longdesc lang="en">
+How long to wait for nova to finish evacuating instances elsewhere
+before starting nova-compute.  Only used when the agent detects
+evacuations might be in progress.
+
+You may need to increase the start timeout when increasing this value.
+</longdesc>
+<shortdesc lang="en">Delay to allow evacuations time to complete</shortdesc>
+<content type="integer" default="120" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="600" />
+<action name="stop"         timeout="300" />
+<action name="monitor"      timeout="20" interval="10" depth="0"/>
+<action name="validate-all" timeout="20" />
+<action name="meta-data"    timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+# don't exit on TERM, to test that lrmd makes sure that we do exit
+trap sigterm_handler TERM
+sigterm_handler() {
+	ocf_log info "They use TERM to bring us down. No such luck."
+	return
+}
+
+nova_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+nova_pid() {
+    ps axf | grep python.*nova-compute | grep -v grep | awk '{print $1}'
+}
+
+nova_start() {
+    nova_monitor
+    if [ $? = $OCF_SUCCESS ]; then
+	return $OCF_SUCCESS
+    fi
+
+    state=$(attrd_updater -p -n evacuate -N ${NOVA_HOST} | sed -e 's/.*value=//' | tr -d '"' )
+    if [ -z "$state" ]; then
+	: never been fenced
+
+    elif [ "$state" = no ]; then
+	: has been evacuated, however it could have been 1s ago
+	ocf_log info "Pausing to give evacuations from ${NOVA_HOST} time to complete"
+	sleep ${OCF_RESKEY_evacuation_delay}
+
+    else
+	ocf_log info "Waiting for pending evacuations from ${NOVA_HOST}"
+	while [ "$state" != "no" ]; do
+	    state=$(attrd_updater -p -n evacuate -N ${NOVA_HOST} | sed -e 's/.*value=//' | tr -d '"' )
+	    sleep 5
+	done
+
+	ocf_log info "Pausing to give evacuations from ${NOVA_HOST} time to complete"
+	sleep ${OCF_RESKEY_evacuation_delay}
+    fi
+
+    export LIBGUESTFS_ATTACH_METHOD=appliance
+    su nova -s /bin/sh -c /usr/bin/nova-compute &
+
+    rc=$OCF_NOT_RUNNING
+    ocf_log info "Waiting for nova to start"
+    while [ $rc != $OCF_SUCCESS ]; do
+	nova_monitor
+	rc=$?
+    done
+
+##   TEMPORARY disable call to "service enable" that seems to create
+##   issues and it is unnecessary since fence_compute doesn't disable
+##   the service
+
+#    if [ -n "${OCF_RESKEY_domain}" ]; then
+#	export service_host="${NOVA_HOST}.${OCF_RESKEY_domain}"
+#    else
+#	export service_host="${NOVA_HOST}"
+#    fi
+
+#    python -c "import os; from novaclient import client as nova_client; nova = nova_client.Client('2', os.environ.get('OCF_RESKEY_username'), os.environ.get('OCF_RESKEY_password'), os.environ.get('OCF_RESKEY_tenant_name'), os.environ.get('OCF_RESKEY_auth_url')); nova.services.enable(os.environ.get('service_host'), 'nova-compute');"
+
+#    rc=$?
+#    if [ $rc != 0 ]; then
+#	ocf_exit_reason "nova.services.enable failed $rc"
+#	exit $OCF_NOT_RUNNING
+#    fi
+
+    return $OCF_SUCCESS
+}
+
+nova_stop() {
+    pid=$(nova_pid)
+    if [ -n "$pid" ]; then
+	su nova -c "kill -TERM $pid" -s /bin/bash	
+    fi
+
+    while [ -n "$pid" ]; do
+	sleep 1
+	pid=$(nova_pid)
+    done
+    
+    return $OCF_SUCCESS
+}
+
+nova_monitor() {
+    pid=$(nova_pid)
+    if [ -n "$pid" ]; then
+	## TEMPORARY disable call to fence_compute to avoid noise on first
+	## first startup due to nova-compute not being fast enough to populate
+	## the db and fence_compute checking if node exists and it's enabled
+	#state=$(fence_compute ${fence_options} -o status -n $NOVA_HOST | grep Status)
+	#if [ "$state" = "Status: ON" ]; then
+	    return $OCF_SUCCESS
+	#else
+	#    ocf_exit_reason "Nova status: $state"
+	#    return $OCF_ERR_GENERIC
+	#fi
+    fi
+
+    return $OCF_NOT_RUNNING
+}
+
+nova_notify() {
+    return $OCF_SUCCESS
+}
+
+nova_validate() {
+    rc=$OCF_SUCCESS
+    fence_options=""
+
+    check_binary crudini
+    check_binary nova-compute
+
+    if [ ! -f /etc/nova/nova.conf ]; then
+	   ocf_exit_reason "/etc/nova/nova.conf not found"
+	   exit $OCF_ERR_CONFIGURED
+    fi
+
+    if [ -z "${OCF_RESKEY_auth_url}" ]; then
+	   ocf_exit_reason "auth_url not configured"
+	   exit $OCF_ERR_CONFIGURED
+    fi
+
+    fence_options="${fence_options} -k ${OCF_RESKEY_auth_url}"
+
+    if [ -z "${OCF_RESKEY_username}" ]; then
+	   ocf_exit_reason "username not configured"
+	   exit $OCF_ERR_CONFIGURED
+    fi
+
+    fence_options="${fence_options} -l ${OCF_RESKEY_username}"
+
+    if [ -z "${OCF_RESKEY_password}" ]; then
+	   ocf_exit_reason "password not configured"
+	   exit $OCF_ERR_CONFIGURED
+    fi
+
+    fence_options="${fence_options} -p ${OCF_RESKEY_password}"
+
+    if [ -z "${OCF_RESKEY_tenant_name}" ]; then
+	   ocf_exit_reason "tenant_name not configured"
+	   exit $OCF_ERR_CONFIGURED
+    fi
+
+    fence_options="${fence_options} -t ${OCF_RESKEY_tenant_name}"
+
+    if [ -n "${OCF_RESKEY_domain}" ]; then
+	fence_options="${fence_options} -d ${OCF_RESKEY_domain}"
+    fi
+
+    if [ -n "${OCF_RESKEY_no_shared_storage}" ]; then
+	if ocf_is_true "${OCF_RESKEY_no_shared_storage}"; then
+	    fence_options="${fence_options} --no-shared-storage"
+	fi
+    fi
+
+    if [ -n "${OCF_RESKEY_endpoint_type}" ]; then
+	case ${OCF_RESKEY_endpoint_type} in
+	    adminURL|publicURL|internalURL) ;;
+	    *)
+		ocf_exit_reason "endpoint_type ${OCF_RESKEY_endpoint_type} not valid. Use adminURL or publicURL or internalURL"
+		exit $OCF_ERR_CONFIGURED
+	    ;;
+	esac
+	fence_options="${fence_options} -e ${OCF_RESKEY_endpoint_type}"
+    fi
+
+    # We take a chance here and hope that host is either not configured
+    # or configured in nova.conf.
+    NOVA_HOST=$(crudini --get /etc/nova/nova.conf DEFAULT host 2>/dev/null)
+    if [ $? = 1 ]; then
+	if [ -n "${OCF_RESKEY_domain}" ]; then
+	    NOVA_HOST=$(uname -n | awk -F. '{print $1}')
+	else
+	    NOVA_HOST=$(uname -n)
+	fi
+    fi
+
+    # If the host is configured in nova.conf, check that it's not a FQDN.
+    crudini --get /etc/nova/nova.conf DEFAULT host 2>/dev/null
+    if [ $? = 0 ]; then
+	if [ -n "${OCF_RESKEY_domain}" ]; then
+	    short_host=$(uname -n | awk -F. '{print $1}')
+	    if [ "$NOVA_HOST" != "${short_host}" ]; then
+		ocf_exit_reason "Invalid Nova host name, must be ${short_host} in order for instance recovery to function"
+		rc=$OCF_ERR_CONFIGURED
+	    fi
+
+	elif [ "$NOVA_HOST" != "$(uname -n)" ]; then
+            ocf_exit_reason "Invalid Nova host name, must be $(uname -n) in order for instance recovery to function"
+	    rc=$OCF_ERR_CONFIGURED
+	fi
+    fi
+
+    if [ $rc != $OCF_SUCCESS ]; then
+	exit $rc
+    fi
+    return $rc
+}
+
+: ${OCF_RESKEY_evacuation_delay=120}
+case $__OCF_ACTION in
+meta-data)	meta_data
+		exit $OCF_SUCCESS
+		;;
+usage|help)	nova_usage
+		exit $OCF_SUCCESS
+		;;
+esac
+
+case $__OCF_ACTION in
+start)		nova_validate; nova_start;;
+stop)		nova_stop;;
+monitor)	nova_validate; nova_monitor;;
+notify)		nova_notify;;
+validate-all)	exit $OCF_SUCCESS;;
+*)		nova_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
