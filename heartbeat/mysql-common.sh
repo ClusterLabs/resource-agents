@@ -258,6 +258,14 @@ mysql_common_stop()
     fi
 
     pid=`cat $OCF_RESKEY_pid 2> /dev/null `
+
+    mysql_common_check_pid $pid
+    if [ $? -ne 0 ]; then
+        rm -f $OCF_RESKEY_pid
+        ocf_log info "MySQL is already stopped"
+        return $OCF_SUCCESS;
+    fi
+
     /bin/kill $pid > /dev/null
     rc=$?
     if [ $rc != 0 ]; then
