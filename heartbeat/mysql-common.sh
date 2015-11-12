@@ -159,8 +159,10 @@ mysql_common_status() {
     if [ $? -eq 0 ]; then
         return $OCF_SUCCESS;
     else
-        ocf_log $loglevel "MySQL not running: removing old PID file"
-        rm -f $OCF_RESKEY_pid
+        if [ -e $OCF_RESKEY_pid ]; then
+            ocf_log $loglevel "MySQL not running: removing old PID file"
+            rm -f $OCF_RESKEY_pid
+        fi
         return $OCF_NOT_RUNNING;
     fi
 }
