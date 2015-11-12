@@ -130,6 +130,17 @@ mysql_common_validate()
     return $OCF_SUCCESS
 }
 
+mysql_common_check_pid() {
+    local pid=$1
+
+    if [ -d /proc -a -d /proc/1 ]; then
+        [ "u$pid" != "u" -a -d /proc/$pid ]
+    else
+        kill -s 0 $pid >/dev/null 2>&1
+    fi
+    return $?
+}
+
 mysql_common_status() {
     local loglevel=$1
     local pid=$2
@@ -141,11 +152,9 @@ mysql_common_status() {
 
         pid=`cat $OCF_RESKEY_pid`;
     fi
-    if [ -d /proc -a -d /proc/1 ]; then
-        [ "u$pid" != "u" -a -d /proc/$pid ]
-    else
-        kill -s 0 $pid >/dev/null 2>&1
-    fi
+
+    mysql_common_check_pid $pid
+
 
     if [ $? -eq 0 ]; then
         return $OCF_SUCCESS;
