@@ -130,6 +130,17 @@ mysql_common_validate()
     return $OCF_SUCCESS
 }
 
+mysql_common_check_pid() {
+    local pid=$1
+
+    if [ -d /proc -a -d /proc/1 ]; then
+        [ "u$pid" != "u" -a -d /proc/$pid ]
+    else
+        kill -s 0 $pid >/dev/null 2>&1
+    fi
+    return $?
+}
+
 mysql_common_status() {
     local loglevel=$1
     local pid=$2
@@ -141,17 +152,17 @@ mysql_common_status() {
 
         pid=`cat $OCF_RESKEY_pid`;
     fi
-    if [ -d /proc -a -d /proc/1 ]; then
-        [ "u$pid" != "u" -a -d /proc/$pid ]
-    else
-        kill -s 0 $pid >/dev/null 2>&1
-    fi
+
+    mysql_common_check_pid $pid
+
 
     if [ $? -eq 0 ]; then
         return $OCF_SUCCESS;
     else
-        ocf_log $loglevel "MySQL not running: removing old PID file"
-        rm -f $OCF_RESKEY_pid
+        if [ -e $OCF_RESKEY_pid ]; then
+            ocf_log $loglevel "MySQL not running: removing old PID file"
+            rm -f $OCF_RESKEY_pid
+        fi
         return $OCF_NOT_RUNNING;
     fi
 }
@@ -249,6 +260,14 @@ mysql_common_stop()
     fi
 
     pid=`cat $OCF_RESKEY_pid 2> /dev/null `
+
+    mysql_common_check_pid $pid
+    if [ $? -ne 0 ]; then
+        rm -f $OCF_RESKEY_pid
+        ocf_log info "MySQL is already stopped"
+        return $OCF_SUCCESS;
+    fi
+
     /bin/kill $pid > /dev/null
     rc=$?
     if [ $rc != 0 ]; then
