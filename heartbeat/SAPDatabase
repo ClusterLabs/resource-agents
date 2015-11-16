@@ -78,7 +78,7 @@ Resource script for SAP databases. It manages a SAP database of any type as an H
 The purpose of the resource agent is to start, stop and monitor the database instance of a SAP system. Together with the RDBMS system it will also control the related network service for the database. Like the Oracle Listener and the xserver of MaxDB.
 The resource agent expects a standard SAP installation of the database and therefore needs less parameters to configure.
 The resource agent supports the following databases:
-- Oracle 10.2 and 11.2
+- Oracle 10.2, 11.2 and 12
 - DB/2 UDB for Windows and Unix 9.x
 - SAP-DB / MaxDB 7.x
 - Sybase ASE 15.7
