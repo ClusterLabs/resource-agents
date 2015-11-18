@@ -576,6 +576,8 @@ overridden by an optional per real-server based receive regexp.
 
 For a DNS check this should be any one the A record's addresses or
 any one of the PTR record's names.
+In case of dynamic DNS answers (different answers on the same question)
+a regex to match multiple addresses or PTR record names could also defined.
 
 For a MySQL check, the receive setting is not used.
 
