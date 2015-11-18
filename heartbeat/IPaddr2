@@ -800,7 +800,7 @@ ip_start() {
 		exit $OCF_SUCCESS
 	fi
 	
-	if [ -n "$IP_CIP" ] && [ $ip_status = "no" ] || [ $ip_status = "partial2" ]; then
+	if [ -n "$IP_CIP" ] && ([ $ip_status = "no" ] || [ $ip_status = "partial2" ]); then
 		$MODPROBE ip_conntrack
 		$IPTABLES -I INPUT -d $OCF_RESKEY_ip -i $NIC -j CLUSTERIP \
 				--new \
