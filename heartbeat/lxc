@@ -30,7 +30,7 @@
 # Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
 
 # OCF instance parameters
-#       OCF_RESKEY_container
+#       OCF_RESKEY_containername
 #       OCF_RESKEY_config
 #       OCF_RESKEY_log
 #	OCF_RESKEY_use_screen
@@ -64,7 +64,7 @@ I have absolutly no idea how this is done with 'upstart' or 'systemd', YMMV if y
 <shortdesc lang="en">Manages LXC containers</shortdesc>
 
 <parameters>
-<parameter name="container" required="1" unique="1">
+<parameter name="containername" required="1" unique="1">
 <longdesc lang="en">The unique name for this 'Container Instance' e.g. 'test1'.</longdesc>
 <shortdesc lang="en">Container Name</shortdesc>
 <content type="string" default=""/>
@@ -144,9 +144,9 @@ cgroup_mounted() {
 LXC_start() {
 	# put this here as it's so long it gets messy later!!!
 	if ocf_is_true $OCF_RESKEY_use_screen; then
-		STARTCMD="screen -dmS ${OCF_RESKEY_container} lxc-start -f ${OCF_RESKEY_config} -n ${OCF_RESKEY_container} -o ${OCF_RESKEY_log}"
+		STARTCMD="screen -dmS ${OCF_RESKEY_containername} lxc-start -f ${OCF_RESKEY_config} -n ${OCF_RESKEY_container} -o ${OCF_RESKEY_log}"
 	else
-		STARTCMD="lxc-start -f ${OCF_RESKEY_config} -n ${OCF_RESKEY_container} -o ${OCF_RESKEY_log} -d"
+		STARTCMD="lxc-start -f ${OCF_RESKEY_config} -n ${OCF_RESKEY_containername} -o ${OCF_RESKEY_log} -d"
 	fi
 
 	LXC_status
@@ -162,13 +162,13 @@ LXC_start() {
 		exit $OCF_ERR_GENERIC
 	fi
 
-	ocf_log info "Starting" ${OCF_RESKEY_container}
+	ocf_log info "Starting" ${OCF_RESKEY_containername}
 	ocf_run ${STARTCMD} || exit $OCF_ERR_GENERIC
 
 	# Spin on status, wait for the cluster manager to time us out if
 	# we fail
 	while ! LXC_status; do
-		ocf_log info "Container ${OCF_RESKEY_container} has not started, waiting"
+		ocf_log info "Container ${OCF_RESKEY_containername} has not started, waiting"
 		sleep 1
 	done
 
@@ -203,32 +203,32 @@ LXC_stop() {
 	# LXC prior 1.0.0
 	if ocf_version_cmp "`lxc_version`" 1.0.0 ; then
 		# This should work for traditional 'sysvinit' and 'upstart'
-		lxc-ps --name "${OCF_RESKEY_container}" -- -C init -o pid,comm |while read CN PID CMD ;do
+		lxc-ps --name "${OCF_RESKEY_containername}" -- -C init -o pid,comm |while read CN PID CMD ;do
 			[ $PID -gt 1 ] || continue
 			[ "$CMD" = "init" ] || continue
-			ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_container} "as it was found to be using \"sysV init\" or \"upstart\""
+			ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_containername} "as it was found to be using \"sysV init\" or \"upstart\""
 			kill -PWR $PID
 		done
 		# This should work for containers using 'systemd' instead of 'init'
-		lxc-ps --name "${OCF_RESKEY_container}" -- -C systemd -o pid,comm |while read CN PID CMD ;do
+		lxc-ps --name "${OCF_RESKEY_containername}" -- -C systemd -o pid,comm |while read CN PID CMD ;do
 			[ $PID -gt 1 ] || continue
 			[ "$CMD" = "systemd" ] || continue
-			ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_container} "as it was found to be using \"systemd\""
+			ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_containername} "as it was found to be using \"systemd\""
 			kill -PWR $PID
 		done
 	else
-		PID=$(lxc-info --name "${OCF_RESKEY_container}" -p -H)
+		PID=$(lxc-info --name "${OCF_RESKEY_containername}" -p -H)
 
 		# If there is no PID the container seems to be down which
 		# shouldn't happen.
 		if [ $PID -eq 0 ]; then
-			ocf_log err "${OCF_RESKEY_container} seems to run, but has no PID."
+			ocf_log err "${OCF_RESKEY_containername} seems to run, but has no PID."
 			exit $OCF_ERR_GENERIC
 		fi
 
 		# Rescue me.
 		if [ $PID -eq 1 ]; then
-			ocf_log err "${OCF_RESKEY_container} seems to run with PID 1 which cannot be."
+			ocf_log err "${OCF_RESKEY_containername} seems to run with PID 1 which cannot be."
 			PID=0
 			CMD=
 		else
@@ -237,13 +237,13 @@ LXC_stop() {
 
 		# This should work for traditional 'sysvinit' and 'upstart'
 		if [ "$CMD" = "init" ]; then
-			ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_container} "as it was found to be using \"sysV init\" or \"upstart\""
+			ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_containername} "as it was found to be using \"sysV init\" or \"upstart\""
 			kill -PWR $PID
 		fi
 
 		# This should work for containers using 'systemd' instead of 'init'
 		if [ "$CMD" = "systemd" ]; then
-			ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_container} "as it was found to be using \"systemd\""
+			ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_containername} "as it was found to be using \"systemd\""
 			kill -PWR $PID
 		fi
 	fi
@@ -274,8 +274,8 @@ LXC_stop() {
 	done
 
 	# If the container is still running, it will be stopped now. regardless of state!
-	ocf_run lxc-stop -n ${OCF_RESKEY_container} || exit $OCF_ERR_GENERIC
-	ocf_log info "Container" ${OCF_RESKEY_container} "stopped"
+	ocf_run lxc-stop -n ${OCF_RESKEY_containername} || exit $OCF_ERR_GENERIC
+	ocf_log info "Container" ${OCF_RESKEY_containername} "stopped"
 	ocf_run rm -f $TRANS_RES_STATE
 
 	return $OCF_SUCCESS
@@ -285,8 +285,8 @@ LXC_status() {
 	# run lxc-info with -s option for LXC-0.7.5 or later
 	local lxc_info_opt="-s"
 	ocf_version_cmp "`lxc_version`" 0.7.5 && lxc_info_opt=""
-	S=`lxc-info $lxc_info_opt -n ${OCF_RESKEY_container}`
-	ocf_log debug "State of ${OCF_RESKEY_container}: $S"
+	S=`lxc-info $lxc_info_opt -n ${OCF_RESKEY_containername}`
+	ocf_log debug "State of ${OCF_RESKEY_containername}: $S"
 	if [[ "${S##* }" = "RUNNING" ]] ; then 
 		return $OCF_SUCCESS
 	fi
@@ -296,7 +296,7 @@ LXC_status() {
 LXC_monitor() {
 	LXC_status && return $OCF_SUCCESS
 	if [ -f $TRANS_RES_STATE ]; then
-		ocf_log err "${OCF_RESKEY_container} is not running, but state file ${TRANS_RES_STATE} exists."
+		ocf_log err "${OCF_RESKEY_containername} is not running, but state file ${TRANS_RES_STATE} exists."
 		exit $OCF_ERR_GENERIC
 	fi
 	return $OCF_NOT_RUNNING
@@ -305,7 +305,7 @@ LXC_monitor() {
 
 LXC_validate() {
 	# Quick check that all required attributes are set
-	if [ -z "${OCF_RESKEY_container}" ]; then
+	if [ -z "${OCF_RESKEY_containername}" ]; then
 		ocf_log err "LXC container name not set!"
 		exit $OCF_ERR_CONFIGURED
 	fi
