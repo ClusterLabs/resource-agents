@@ -214,6 +214,9 @@ If this directive is defined, the supplied script is executed whenever all
 real servers for a virtual service are down or when the first real server
 comes up again. In the first case, it is called with "start" as its first
 argument, in the latter with "stop".
+Additional parameters are vserver with vport (vserver:vport) as second param
+and protocol (tcp/udp) as third param to identify the virtual service
+within the fallback script.
 
 If defined in a virtual server section then the global value is overridden.
 
@@ -573,6 +576,8 @@ overridden by an optional per real-server based receive regexp.
 
 For a DNS check this should be any one the A record's addresses or
 any one of the PTR record's names.
+In case of dynamic DNS answers (different answers on the same question)
+a regex to match multiple addresses or PTR record names could also defined.
 
 For a MySQL check, the receive setting is not used.
 
@@ -3632,6 +3637,7 @@ sub check_dns
 	my $request;
 	my $server;
 	my ($v,$r) = @_;
+	my $port = ld_checkport($v, $r);
 	{
 		# Net::DNS makes unguarded calls to eval
 		# which throw a fatal exception if they fail
@@ -3659,6 +3665,7 @@ sub check_dns
 		local $SIG{'ALRM'} = sub { die "timeout\n"; };
 		alarm($$v{negotiatetimeout});
 		$res->nameservers($server);
+		$res->port($port);
 		if ($$v{"protocol"} eq "tcp") {
 			$res->usevc(1);
 		}
@@ -3671,9 +3678,10 @@ sub check_dns
 		return $SERVICE_DOWN;
 	}
 
+	my $recstr = $$r{receive};
 	foreach $rr ($query->answer) {
-		if (($rr->type eq "A" and $rr->address eq $$r{"receive"}) or
-		    ($rr->type eq "PTR" and $rr->ptrdname eq $$r{"receive"})) {
+		if (($rr->type eq "A" and length($recstr) and $rr->address =~ /$recstr/) or
+		    ($rr->type eq "PTR" and length($recstr) and $rr->ptrdname =~ /$recstr/)) {
 			service_set($v, $r, "up", {do_log => 1}, "Success");
 			return $SERVICE_UP;
 		}
@@ -4238,9 +4246,9 @@ sub do_fallback_command
 	$v->{fallbackcommand_status} = $status;
 
 	if (defined($v->{fallbackcommand})) {
-		&system_wrapper($v->{fallbackcommand} . " " . $status);
+		&system_wrapper($v->{fallbackcommand} . " " . $status . " " . $v->{server} . ":" . $v->{port} . " " . $v->{protocol});
 	} elsif (defined($FALLBACKCOMMAND)) {
-		&system_wrapper($FALLBACKCOMMAND . " " . $status);
+		&system_wrapper($FALLBACKCOMMAND . " " . $status . " " . $v->{server} . ":" . $v->{port} . " " . $v->{protocol});
 	}
 }
 
