@@ -272,7 +272,8 @@ fi
 ##
 # EXEC_MODE values
 # 1  user init script or default init script
-# 2  systemd
+# 2  systemd (with nfs-lock.service)
+# 3  systemd (without nfs-lock.service)
 #
 # On error, this function will terminate the process
 # with error code $OCF_ERR_INSTALLED
@@ -307,12 +308,22 @@ set_exec_mode()
 	fi
 
 	##
-	# Last of all, attempt systemd.
+	# Attempt systemd (with nfs-lock.service).
 	##
 	if which systemctl > /dev/null 2>&1; then
 		if systemctl list-unit-files | grep nfs-server > /dev/null && systemctl list-unit-files | grep nfs-lock > /dev/null; then
 			EXEC_MODE=2
 			# when using systemd, the nfs-lock service file handles nfsv3 locking daemons for us.
+			return 0
+		fi
+	fi
+
+	##
+	# Attempt systemd (without nfs-lock.service).
+	##
+	if which systemctl > /dev/null 2>&1; then
+		if systemctl list-unit-files | grep nfs-server > /dev/null; then
+			EXEC_MODE=3
 			return 0
 		fi
 	fi
@@ -332,6 +343,7 @@ nfs_exec()
 	case $EXEC_MODE in 
 		1) ${OCF_RESKEY_nfs_init_script} $cmd;;
 		2) systemctl $cmd nfs-server.service ;;
+		3) systemctl $cmd nfs-server.service ;;
 	esac
 }
 
