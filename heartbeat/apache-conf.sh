@@ -24,7 +24,9 @@ apachecat() {
 	function procline() {
 		split($0,a);
 		if( a[1]~/^[Ii]nclude$/ ) {
-			procinclude(a[2]);
+			includedir=a[2];
+			gsub("\"","",includedir);
+			procinclude(includedir);
 		} else {
 			if( a[1]=="ServerRoot" ) {
 				rootdir=a[2];
