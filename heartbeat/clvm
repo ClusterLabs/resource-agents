@@ -378,7 +378,7 @@ clvmd_start()
 	if ocf_is_true $OCF_RESKEY_with_cmirrord; then
 		start_process $CMIRROR_PATH
 	fi
-	start_process $DAEMON_PATH $CLVMDOPTS
+	start_process $DAEMON_PATH "$CLVMDOPTS"
 
 	# Refresh local cache.
 	#
