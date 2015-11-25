@@ -273,7 +273,7 @@ fi
 # EXEC_MODE values
 # 1  user init script or default init script
 # 2  systemd (with nfs-lock.service)
-# 3  systemd (without nfs-lock.service)
+# 3  systemd (with rpc-statd.service)
 #
 # On error, this function will terminate the process
 # with error code $OCF_ERR_INSTALLED
@@ -319,10 +319,10 @@ set_exec_mode()
 	fi
 
 	##
-	# Attempt systemd (without nfs-lock.service).
+	# Attempt systemd (with rpc-statd.service).
 	##
 	if which systemctl > /dev/null 2>&1; then
-		if systemctl list-unit-files | grep nfs-server > /dev/null; then
+		if systemctl list-unit-files | grep nfs-server > /dev/null && systemctl list-unit-files | grep rpc-statd > /dev/null; then
 			EXEC_MODE=3
 			return 0
 		fi
@@ -354,6 +354,8 @@ v3locking_exec()
 
 	if [ $EXEC_MODE -eq 2 ]; then
 		systemctl $cmd nfs-lock.service
+	elif [ $EXEC_MODE -eq 3 ]; then
+		systemctl $cmd rpc-statd.service
 	else 
 		case $cmd in
 			start) locking_start;;
