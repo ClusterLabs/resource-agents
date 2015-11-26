@@ -1,0 +1,250 @@
+#!/bin/sh
+#
+#  License:      GNU General Public License (GPL)
+#  (c) 2015 T.J. Yang, O. Albrigtsen
+#           and Linux-HA contributors
+#
+# -----------------------------------------------------------------------------
+#      O C F    R E S O U R C E    S C R I P T   S P E C I F I C A T I O N
+# -----------------------------------------------------------------------------
+#
+# NAME
+#       nagios : OCF resource agent script for Nagios Server
+#
+
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_user_default="nagios"
+OCF_RESKEY_group_default="nagios"
+OCF_RESKEY_binary_default="/usr/sbin/nagios"
+OCF_RESKEY_config_default="/etc/nagios/nagios.cfg"
+OCF_RESKEY_log_default="/var/log/nagios/nagios.log"
+OCF_RESKEY_retention_default="/var/log/nagios/retention.dat"
+OCF_RESKEY_command_default="/var/log/nagios/rw/nagios.cmd"
+OCF_RESKEY_pid_default="/var/run/nagios.pid"
+
+: ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
+: ${OCF_RESKEY_group=${OCF_RESKEY_group_default}}
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
+: ${OCF_RESKEY_log=${OCF_RESKEY_log_default}}
+: ${OCF_RESKEY_retention=${OCF_RESKEY_retention_default}}
+: ${OCF_RESKEY_command=${OCF_RESKEY_command_default}}
+: ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
+
+
+nagios_usage() {
+  cat <<END
+    usage: $0 (start|stop|validate-all|meta-data|help|usage|monitor)
+    $0 manages a Nagios instance as an OCF HA resource.
+    The 'start' operation starts the instance.
+    The 'stop' operation stops the instance.
+    The 'status' operation reports whether the instance is running
+    The 'monitor' operation reports whether the instance seems to be working
+    The 'validate-all' operation reports whether the parameters are valid
+END
+}
+
+nagios_meta_data() {
+        cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="nagios">
+<version>0.75</version>
+
+<longdesc lang="en">OCF Resource script for Nagios 3.x or 4.x. It manages a Nagios instance as a HA resource.</longdesc>
+<shortdesc lang="en">Nagios resource agent</shortdesc>
+
+<parameters>
+
+<parameter name="user">
+    <longdesc lang="en">User running Nagios daemon (for file permissions)</longdesc>
+    <shortdesc lang="en">Nagios user</shortdesc>
+    <content type="string" default="${OCF_RESKEY_user_default}" />
+</parameter>
+
+<parameter name="group">
+    <longdesc lang="en">Group running Nagios daemon (for file permissions)</longdesc>
+    <shortdesc lang="en">Nagios group</shortdesc>
+    <content type="string" default="${OCF_RESKEY_group_default}" />
+</parameter>
+
+<parameter name="binary">
+    <longdesc lang="en">Location of the Nagios binary</longdesc>
+    <shortdesc lang="en">Nagios binary</shortdesc>
+    <content type="string" default="${OCF_RESKEY_binary_default}" />
+</parameter>
+
+<parameter name="config">
+    <longdesc lang="en">Configuration file</longdesc>
+    <shortdesc lang="en">Nagios config</shortdesc>
+    <content type="string" default="${OCF_RESKEY_config_default}" />
+</parameter>
+
+<parameter name="log">
+    <longdesc lang="en">Location of the Nagios log</longdesc>
+    <shortdesc lang="en">Nagios log</shortdesc>
+    <content type="string" default="${OCF_RESKEY_log_default}" />
+</parameter>
+
+<parameter name="retention">
+    <longdesc lang="en">Location of the Nagios retention file</longdesc>
+    <shortdesc lang="en">Nagios retention file</shortdesc>
+    <content type="string" default="${OCF_RESKEY_retention_default}" />
+</parameter>
+
+<parameter name="command">
+    <longdesc lang="en">Location of the Nagios external command file</longdesc>
+    <shortdesc lang="en">Nagios command file</shortdesc>
+    <content type="string" default="${OCF_RESKEY_command_default}" />
+</parameter>
+
+<parameter name="pid">
+    <longdesc lang="en">Location of the Nagios pid/lock</longdesc>
+    <shortdesc lang="en">Nagios pid file</shortdesc>
+    <content type="string" default="${OCF_RESKEY_pid_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="20" />
+<action name="stop" timeout="20" />
+<action name="status" timeout="20" />
+<action name="monitor" depth="0" timeout="20" interval="10" start-delay="10" />
+<action name="validate-all" timeout="20" />
+<action name="meta-data" timeout="20" />
+</actions>
+</resource-agent>
+END
+}
+
+
+nagios_start() {
+    nagios_validate_all
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        return $rc
+    fi
+
+
+    # if resource is already running,no need to continue code after this.
+    if nagios_monitor; then
+        ocf_log info "Nagios is already running"
+        return $OCF_SUCCESS
+    fi
+
+    # Remove ${OCF_RESKEY_pid} if it exists
+    rm -f ${OCF_RESKEY_pid}
+
+    ocf_run -q touch ${OCF_RESKEY_log} ${OCF_RESKEY_retention} ${OCF_RESKEY_pid}
+    chown ${OCF_RESKEY_user}:${OCF_RESKEY_group} ${OCF_RESKEY_log} ${OCF_RESKEY_retention} ${OCF_RESKEY_pid}
+    rm -f ${OCF_RESKEY_command}
+    [ -x /sbin/restorecon ] && /sbin/restorecon ${OCF_RESKEY_pid}
+    ocf_run -q ${OCF_RESKEY_binary} -d ${OCF_RESKEY_config}
+
+    while ! nagios_monitor; do
+        sleep 1
+    done
+
+    if [ $? -eq "0" ]; then
+        ocf_log info "Nagios started"
+        return ${OCF_SUCCESS}
+    fi
+
+    return $OCF_SUCCESS
+}
+
+nagios_stop() {
+    nagios_monitor
+    if [ "$?" -ne "$OCF_SUCCESS" ]; then
+        # Currently not running. Nothing to do.
+        ocf_log info "Resource is already stopped"
+        rm -f ${OCF_RESKEY_pid}
+
+        return $OCF_SUCCESS
+    fi
+
+    kill `cat ${OCF_RESKEY_pid}`
+
+    # Wait for process to stop
+    while nagios_monitor; do
+        sleep 1
+    done
+    
+    return $OCF_SUCCESS
+}
+
+nagios_monitor(){
+    ocf_pidfile_status ${OCF_RESKEY_pid} > /dev/null 2>&1
+    case "$?" in
+        0)
+            rc=$OCF_SUCCESS
+            ;;
+        1|2)
+            rc=$OCF_NOT_RUNNING
+            ;;
+        *)
+            rc=$OCF_ERR_GENERIC
+            ;;
+    esac
+    return $rc
+}
+
+nagios_validate_all(){
+    check_binary ${OCF_RESKEY_binary}
+    
+    if [ ! -f ${OCF_RESKEY_config} ]; then
+        ocf_exit_reason "Configuration file ${OCF_RESKEY_config} not found"
+        return ${OCF_ERR_INSTALLED}
+    fi
+    
+    ${OCF_RESKEY_binary} -v ${OCF_RESKEY_config} > /dev/null 2>&1;
+    if [ $? -ne "0" ]; then
+        ocf_exit_reason "Configuration check failed"
+        return ${OCF_ERR_INSTALLED}
+    fi
+}
+
+
+# **************************** MAIN SCRIPT ************************************
+
+# This OCF agent script need to be run as root user.
+if ! ocf_is_root; then
+        echo  "$0 agent script need to be run as root user."
+        ocf_log debug "$0 agent script need to be run as root user."
+        exit $OCF_ERR_GENERIC
+fi
+
+# Make sure meta-data and usage always succeed
+case $__OCF_ACTION in
+meta-data)      nagios_meta_data
+                exit $OCF_SUCCESS
+                ;;
+usage|help)     nagios_usage
+                exit $OCF_SUCCESS
+                ;;
+esac
+
+# Anything other than meta-data and usage must pass validation
+# this will failed on Nagios slave when config files are in master:/dev/drbd0
+# nagios_validate_all || exit $?
+
+# Translate each action into the appropriate function call
+case $__OCF_ACTION in
+start)          nagios_start;;
+stop)           nagios_stop;;
+status|monitor) nagios_monitor;;
+validate-all)   nagios_validate_all;;
+*)              nagios_usage
+                exit $OCF_ERR_UNIMPLEMENTED
+                ;;
+esac
+rc=$?
+
+exit $rc
+  
+# End of this script
