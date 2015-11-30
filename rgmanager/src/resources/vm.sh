@@ -164,6 +164,16 @@ meta_data()
             <content type="string" default="live"/>
         </parameter>
 
+	<parameter name="migrate_options">
+	    <longdesc lang="en">
+	    	Extra options for the guest live migration.
+	    </longdesc>
+	    <shortdesc lang="en">
+	    	Extra options for the guest live migration.
+	    </shortdesc>
+            <content type="string"/>
+        </parameter>
+
 	<parameter name="tunnelled">
 	    <longdesc lang="en">
 	    	Tunnel data over ssh to securely migrate virtual machines.
@@ -980,16 +990,16 @@ virsh_migrate()
 	# Xen and qemu have different migration mechanisms
 	#
 	if [ "$OCF_RESKEY_hypervisor" = "xen" ]; then 
-		cmd="virsh migrate $migrate_opt $OCF_RESKEY_name $OCF_RESKEY_hypervisor_uri $(printf $OCF_RESKEY_migration_uri $target)"
+		cmd="virsh migrate $migrate_opt $OCF_RESKEY_migrate_options $OCF_RESKEY_name $OCF_RESKEY_hypervisor_uri $(printf $OCF_RESKEY_migration_uri $target)"
 		ocf_log debug "$cmd"
 		
 		err=$($cmd 2>&1 | head -1; exit ${PIPESTATUS[0]})
 		rv=$?
 	elif [ "$OCF_RESKEY_hypervisor" = "qemu" ]; then
 		if [ -z "$tunnelled_opt" ]; then
-			cmd="virsh migrate $tunnelled_opt $migrate_opt $OCF_RESKEY_name $(printf $OCF_RESKEY_migration_uri $target) $(printf $migrateuriopt $target)"
+			cmd="virsh migrate $tunnelled_opt $migrate_opt $OCF_RESKEY_migrate_options $OCF_RESKEY_name $(printf $OCF_RESKEY_migration_uri $target) $(printf $migrateuriopt $target)"
 		else
-			cmd="virsh migrate $tunnelled_opt $migrate_opt $OCF_RESKEY_name $(printf $OCF_RESKEY_migration_uri $target)"
+			cmd="virsh migrate $tunnelled_opt $migrate_opt $OCF_RESKEY_migrate_options $OCF_RESKEY_name $(printf $OCF_RESKEY_migration_uri $target)"
 		fi
 		ocf_log debug "$cmd"
 		
@@ -1031,7 +1041,7 @@ xm_migrate()
 
 	# migrate() function  sets target using migration_mapping;
 	# no need to do it here anymore
-	cmd="xm migrate $migrate_opt $OCF_RESKEY_name $target"
+	cmd="xm migrate $migrate_opt $OCF_RESKEY_migrate_options $OCF_RESKEY_name $target"
 	ocf_log debug "$cmd"
 
 	err=$($cmd 2>&1 | head -1; exit ${PIPESTATUS[0]})
