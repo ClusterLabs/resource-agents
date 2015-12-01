@@ -782,6 +782,19 @@ start_filesystem() {
 	declare mount_options=""
 
 	#
+	# Check if fstype is supported
+	#
+	verify_fstype
+	case $? in
+	$OCF_ERR_ARGS)
+		ocf_log err "File system type $OCF_RESKEY_fstype not supported"
+                return $OCF_ERR_ARGS
+		;;
+	*)
+		;;
+	esac
+
+	#
 	# Check if mount point was specified.  If not, no need to continue.
 	#
 	case "$mp" in
