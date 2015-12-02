@@ -7,6 +7,7 @@
 #               Florian Haas (florian@linbit.com) -- makeover
 #               Takatoshi MATSUO (matsuo.tak@gmail.com) -- support replication
 #               David Corlette (dcorlette@netiq.com) -- add support for non-standard library locations and non-standard port
+#               Mikhail A. Kulagin (m.kulagin@postgrespro.ru) -- add reload action
 #
 # Copyright:    2006-2012 Serge Dubrouski <sergeyfd@gmail.com>
 #                         and other Linux-HA contributors
@@ -110,12 +111,13 @@ OCF_RESKEY_replication_slot_name_default=""
 
 usage() {
     cat <<EOF
-        usage: $0 start|stop|status|monitor|promote|demote|notify|meta-data|validate-all|methods
+        usage: $0 start|stop|reload|status|monitor|promote|demote|notify|meta-data|validate-all|methods
 
         $0 manages a PostgreSQL Server as an HA resource.
 
         The 'start' operation starts the PostgreSQL server.
         The 'stop' operation stops the PostgreSQL server.
+        The 'reload' operation reload the PostgreSQL server configuration.
         The 'status' operation reports whether the PostgreSQL is up.
         The 'monitor' operation reports whether the PostgreSQL is running.
         The 'promote' operation promotes the PostgreSQL server.
@@ -447,6 +449,7 @@ wal receiver is not running in the master and the attribute shows status as
 <actions>
 <action name="start" timeout="120" />
 <action name="stop" timeout="120" />
+<action name="reload" timeout="5" />
 <action name="status" timeout="60" />
 <action name="monitor" depth="0" timeout="30" interval="30"/>
 <action name="monitor" depth="0" timeout="30" interval="29" role="Master" />
@@ -503,6 +506,7 @@ pgsql_methods() {
     cat <<EOF
     start
     stop
+    reload
     status
     monitor
     promote
@@ -858,6 +862,61 @@ pgsql_stop() {
         pgsql_replication_stop
         return $?
     fi
+}
+
+#
+# reload configuration (or restart if changes cannot be applied without reload)
+#
+pgsql_reload() {
+    local rc
+    local tmp_file
+    tmp_file="${OCF_RESKEY_tmpdir}/recovery.conf.check"
+
+    ocf_log info "pgsql RA reload called"
+
+    # check if we can just reload
+    # or restart needed (in case changed parameters in recovery.conf)
+
+    # check if we a master
+    pgsql_real_monitor
+    rc=$?
+    if [ $rc -eq $OCF_RUNNING_MASTER ]; then
+        ocf_log debug "we are a master -> reload is enough"
+        exec_with_retry 0 reload_conf
+        return $?
+    fi
+
+    make_recovery_conf "${tmp_file}"
+    rc=$?
+    if [ $rc -eq 0 ]; then
+        #runasowner "diff --new-file ${RECOVERY_CONF} ${tmp_file} >/dev/null"
+        if [ -f ${RECOVERY_CONF} ]; then
+            ocf_log debug "comparing recovery.conf"
+            runasowner "cmp --silent ${RECOVERY_CONF} ${tmp_file}"
+            rc=$?
+        else
+            # recovery.conf missing
+            if [ -s ${tmp_file} ]; then
+                ocf_log debug "new recovery.conf"
+                rc=1
+            else
+                ocf_log debug "empty recovery.conf"
+                rc=0
+            fi
+        fi
+        ocf_log debug "removing temporary file"
+        runasowner "rm -f ${tmp_file}"
+        if [ $rc -eq 0 ]; then
+            ocf_log debug "recovery.conf is unchanged -> reload is enough"
+            exec_with_retry 0 reload_conf
+            return $?
+        fi
+    fi
+
+    ocf_log debug "recovery.conf need to be changed -> restart needed"
+    pgsql_stop
+    pgsql_start
+    return $?
 }
 
 #
@@ -1521,21 +1580,29 @@ user_recovery_conf() {
 }
 
 make_recovery_conf() {
-    runasowner "touch $RECOVERY_CONF"
+    local output_file
+
+    if [ -n "$1" ]; then
+        output_file="$1"
+    else
+        output_file="$RECOVERY_CONF"
+    fi
+
+    runasowner "touch $output_file"
     if [ $? -ne 0 ]; then
-        ocf_exit_reason "Can't create recovery.conf."
+        ocf_exit_reason "Can't create ${output_file}."
         return 1
     fi
 
-cat > $RECOVERY_CONF <<END
+cat > $output_file <<END
 standby_mode = 'on'
 primary_conninfo = 'host=${OCF_RESKEY_master_ip} port=${OCF_RESKEY_pgport} user=${OCF_RESKEY_repuser} application_name=${NODENAME} ${OCF_RESKEY_primary_conninfo_opt}'
 restore_command = '${OCF_RESKEY_restore_command}'
 recovery_target_timeline = 'latest'
 END
 
-    user_recovery_conf >> $RECOVERY_CONF
-    ocf_log debug "Created recovery.conf. host=${OCF_RESKEY_master_ip}, user=${OCF_RESKEY_repuser}"
+    user_recovery_conf >> $output_file
+    ocf_log debug "Created ${output_file}. host=${OCF_RESKEY_master_ip}, user=${OCF_RESKEY_repuser}"
     return 0
 }
 
@@ -2067,6 +2134,10 @@ case "$1" in
 
     stop)       pgsql_stop
                 exit $?;;
+
+    reload)     pgsql_reload
+                exit $?;;
+
     *)
                 exit $OCF_ERR_UNIMPLEMENTED;;
 esac
