@@ -19,6 +19,8 @@
 #		OCF_RESKEY_run_fsck
 #		OCF_RESKEY_fast_stop
 #		OCF_RESKEY_force_clones
+#		OCF_RESKEY_max_retry_count
+#		OCF_RESKEY_network_mount_timeout
 #
 #OCF_RESKEY_device    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
 #                       Or a -U or -L option for mount, or an NFS mount specification
@@ -30,6 +32,8 @@
 #OCF_RESKEY_fast_stop : fast stop: yes(default)/no
 #OCF_RESKEY_force_clones : allow running the resource as clone. e.g. local xfs mounts
 #                         for each brick in a glusterfs setup
+#OCF_RESKEY_max_retry_count: max retry count for network backend filesystem
+#OCF_RESKEY_network_mount_timeout: max retry timeout for network backend filesystem
 #
 #
 # This assumes you want to manage a filesystem on a shared (SCSI) bus,
@@ -216,6 +220,26 @@ block if unresponsive nfs mounts are in use on the system.
 <content type="boolean" default="true" />
 </parameter>
 
+<parameter name="max_retry_count">
+<longdesc lang="en">
+While trying mount a filesystem from remote service provider, it may encounter
+some networking issue that might lead to a failure in the end, set a maximum
+retry count for that could avoid fall into a infinite waiting loop.
+</longdesc>
+<shortdesc lang="en">max retry count for network backend filesystem</shortdesc>
+<content type="string" default="15" />
+</parameter>
+
+<parameter name="network_mount_timeout">
+<longdesc lang="en">
+While trying mount a filesystem from remote service provider, it may encounter
+some networking issue that might lead to a failure in the end, set a maximum
+retry timeout for that could avoid fall into a infinite waiting loop.
+</longdesc>
+<shortdesc lang="en">max retry timeout for network mount (default: 5s)</shortdesc>
+<content type="string" default="5" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -389,6 +413,114 @@ fstype_supported()
 	return $OCF_ERR_INSTALLED
 }
 
+#
+# Determine backend filesystem support state
+#
+backend_support()
+{
+	# network backended service type need maximum retry count (default: 15)
+	max_retry_count=${OCF_RESKEY_max_retry_count:-15}
+
+	# maxinum retry timeout for network mount command (default: 5s)
+	network_mount_timeout=${OCF_RESKEY_network_mount_timeout:-5}
+
+	echo "${max_retry_count}" | egrep "^[0-9]+$"
+	if [ $? -eq 0 ]; then
+		# warn if setting max_retry_count too large
+		if [ ${max_retry_count} -ge 1000 ]; then
+			ocf_log warn "it is not recommend to set max_retry_count >= 1000"
+		fi
+	else
+		ocf_exit_reason "max_retry_count should be an integer"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	# support_state
+	# 0: supported fstype, and test passed
+	# 1: supported fstype, but test failed
+	# 2: unknown fstype (default)
+	support_state=2
+
+	while [ "${max_retry_count}" -gt 0 ]; do
+		case "$FSTYPE" in
+			glusterfs)
+				# NOTE: gluster service does not always return its status so quickly
+				msg="$(timeout ${network_mount_timeout} gluster volume status 2>&1)"
+				if [ $? -eq 0 ]; then
+					support_state=0
+					break
+				else
+					support_state=1
+					ocf_log debug "${msg}"
+				fi
+				;;
+			ceph)
+				# it should fail immediately if ceph does not proper configure
+				# NOTE: degraded state is accepted
+				msg="$(timeout ${network_mount_timeout} ceph health 2>&1)"
+				if [ $? -eq 0 ]; then
+					support_state=0
+					break
+				else
+					support_state=1
+					ocf_log debug "${msg}"
+				fi
+				;;
+			overlay|overlayfs)
+				# it should fail immediately if kernel module not load
+				lsmod | grep -q "$FSTYPE"
+				[ $? -eq 0 ] && support_state=0 || support_state=1
+				break
+				;;
+			nfs4|nfs|smbfs|cifs|gfs2|ocfs2)
+				# assume all these type were ready when start
+				support_state=0
+				;;
+			*)
+				# unknown $FSTYPE
+				support_state=2
+				;;
+		esac
+
+		# retry until max_retry_count exceeded
+		max_retry_count=$((max_retry_count - 1))
+
+		# sleep a little while if testing failed
+		sleep 1
+	done
+
+	return ${support_state}
+}
+
+#
+# Mount the filesystem.
+#
+try_mount()
+{
+	# determine for backend support
+	support_state=$(backend_support $FSTYPE)
+
+	if [ ${support_state} -eq 1 ]; then
+		ocf_exit_reason "Backend [$FSTYPE] not available"
+		return $OCF_ERR_GENERIC
+	elif [ ${support_state} -eq 2 ]; then
+		# log it down, but it is not necessarily an error
+		ocf_log info "Unknown backend filesystem [$FSTYPE]"
+	fi
+
+	# FIXME: need to handle "mount" command timeout
+	case "$FSTYPE" in
+		none)
+			$MOUNT $options $DEVICE $MOUNTPOINT && bind_mount
+			;;
+		"")
+			$MOUNT $options $DEVICE $MOUNTPOINT
+			;;
+		*)
+			$MOUNT -t $FSTYPE $options $DEVICE $MOUNTPOINT
+			;;
+	esac
+}
 
 #
 # START: Start up the filesystem
@@ -444,15 +576,9 @@ Filesystem_start()
 	fi
 
 	flushbufs $DEVICE
-	# Mount the filesystem.
-	case "$FSTYPE" in
-		none) $MOUNT $options $DEVICE $MOUNTPOINT &&
-			bind_mount
-			;;
-		"") $MOUNT $options $DEVICE $MOUNTPOINT ;;
-		*) $MOUNT -t $FSTYPE $options $DEVICE $MOUNTPOINT ;;
-	esac
 
+	# try to mount target within specific retry count
+	try_mount $FSTYPE
 	if [ $? -ne 0 ]; then
 		ocf_exit_reason "Couldn't mount device [$DEVICE] as $MOUNTPOINT"
 		return $OCF_ERR_GENERIC
