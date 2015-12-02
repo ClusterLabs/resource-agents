@@ -438,6 +438,26 @@ Filesystem_start()
 	fi
 
 	flushbufs $DEVICE
+
+	# Wait for glusterfs service ready before mount
+	# TODO: service check for all other network based filesystems
+	if [ "$FSTYPE" = "glusterfs" ]; then
+		# default timeout 15s
+		local timeout=${OCF_RESKEY_CRM_meta_timeout:-15000}
+
+		while [ $timeout -gt 0 ]; do
+			gluster volume status && break
+			timeout=$((timeout - 1))
+			sleep 1
+		done
+
+		# if service can not be ready within specific peroid, consider it as a failure
+		if [ $timeout -le 0 ]; then
+			ocf_exit_reason "Backend service [$FSTYPE] not ready"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
 	# Mount the filesystem.
 	case "$FSTYPE" in
 		none) $MOUNT $options $DEVICE $MOUNTPOINT &&
