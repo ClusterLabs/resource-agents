@@ -417,7 +417,7 @@ if ocf_is_true "$OCF_RESKEY_CRM_meta_globally_unique"; then
 			exit $OCF_ERR_CONFIGURED
 		fi
 	fi
-	: ${OCF_RESKEY_name=`echo ${OCF_RESOURCE_INSTANCE} | sed -e 's/\(.*\):\(.*\)$/\1-\2/'`} 
+	: ${OCF_RESKEY_name=`echo ${OCF_RESOURCE_INSTANCE} | tr ':' '-'`} 
 else 
 	: ${OCF_RESKEY_name=${OCF_RESOURCE_INSTANCE}}
 fi
