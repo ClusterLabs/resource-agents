@@ -20,7 +20,7 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
-# 
+#
 
 # Build version: $Format:%H$
 
@@ -41,17 +41,17 @@
 unset LC_ALL; export LC_ALL
 unset LANGUAGE; export LANGUAGE
 
-__SCRIPT_NAME=`basename $0`
+__SCRIPT_NAME="$(basename $0)"
 
 if [ -z "$OCF_ROOT" ]; then
-    : ${OCF_ROOT=@OCF_ROOT_DIR@}
+	: ${OCF_ROOT=@OCF_ROOT_DIR@}
 fi
 
-if [ "$OCF_FUNCTIONS_DIR" = ${OCF_ROOT}/resource.d/heartbeat ]; then  # old
+if [ "$OCF_FUNCTIONS_DIR" = "${OCF_ROOT}/resource.d/heartbeat" ]; then  # old
 	unset OCF_FUNCTIONS_DIR
 fi
 
-: ${OCF_FUNCTIONS_DIR:=${OCF_ROOT}/lib/heartbeat}
+: ${OCF_FUNCTIONS_DIR:="${OCF_ROOT}/lib/heartbeat"}
 
 . ${OCF_FUNCTIONS_DIR}/ocf-binaries
 . ${OCF_FUNCTIONS_DIR}/ocf-returncodes
@@ -63,7 +63,7 @@ fi
 : ${OCF_RESKEY_CRM_meta_interval=0}
 
 ocf_is_root() {
-	if [ X`id -u` = X0 ]; then
+	if [ "X$(id -u)" = "X0" ]; then
 		true
 	else
 		false
@@ -90,35 +90,48 @@ ocf_maybe_random() {
 #
 ocf_is_decimal() {
 	case "$1" in
-	""|*[!0-9]*)	# empty, or at least one non-decimal
-		false ;;
-	*)
-		true ;;
+		""|*[!0-9]*)
+			# empty, or at least one non-decimal
+			false
+			;;
+		*)
+			true
+			;;
 	esac
 }
 
 ocf_is_true() {
 	case "$1" in
-	yes|true|1|YES|TRUE|ja|on|ON) true ;;
-	*)	false ;;
+		yes|true|1|YES|TRUE|ja|on|ON)
+			true
+			;;
+		*)
+			false
+			;;
 	esac
 }
 
 ocf_is_hex() {
 	case "$1" in
-        ""|*[!0-9a-fA-F]*)	# empty, or at least one non-hex
-		false ;;
-	*)
-		true ;;
+	    ""|*[!0-9a-fA-F]*)
+			# empty, or at least one non-hex
+			false
+			;;
+		*)
+			true
+			;;
 	esac
 }
 
 ocf_is_octal() {
 	case "$1" in
-        ""|*[!0-7]*)	# empty, or at least one non-octal
-		false ;;
-	*)
-		true ;;
+		""|*[!0-7]*)
+			# empty, or at least one non-octal
+			false
+			;;
+		*)
+			true
+			;;
 	esac
 }
 
@@ -155,11 +168,11 @@ __ocf_set_defaults() {
 		: Fill in some things with reasonable values.
 		: ${OCF_RESOURCE_INSTANCE:="default"}
 		return 0
-        fi
+	    fi
 
 	if [ "x$__OCF_ACTION" = "xmeta-data" ]; then
 		OCF_RESOURCE_INSTANCE="undef"
-	fi	
+	fi
 
 	if [ -z "$OCF_RESOURCE_INSTANCE" ]; then
 		ha_log "ERROR: Need to tell us our resource instance name."
@@ -190,7 +203,7 @@ __ha_log() {
 	[ none = "$HA_LOGFACILITY" ] && HA_LOGFACILITY=""
 	# if we're connected to a tty, then output to stderr
 	if tty >/dev/null; then
-		if [ "x$HA_debug" = "x0" -a "x$loglevel" = xdebug ] ; then
+		if [ "x$HA_debug" = "x0" -a "x$loglevel" = "xdebug" ]; then
 			return 0
 		elif [ "$ignore_stderr" = "true" ]; then
 			# something already printed this error to stderr, so ignore
@@ -206,46 +219,47 @@ __ha_log() {
 
 	set_logtag
 
-	if [ "x${HA_LOGD}" = "xyes" ] ; then 
+	if [ "x${HA_LOGD}" = "xyes" ]; then
 		ha_logger -t "${HA_LOGTAG}" "$@"
-		if [ "$?" -eq "0" ] ; then
+		if [ $? -eq 0 ]; then
 			return 0
 		fi
 	fi
 
-	if
-	  [ -n "$HA_LOGFACILITY" ]
-        then
-	  : logging through syslog
-	  # loglevel is unknown, use 'notice' for now
-          loglevel=notice
-          case "${*}" in
-            *ERROR*)		loglevel=err;;
-            *WARN*)		loglevel=warning;;
-            *INFO*|info)	loglevel=info;;
-	  esac
-	  logger -t "$HA_LOGTAG" -p ${HA_LOGFACILITY}.${loglevel} "${*}"
-        fi	
-        if
-	  [ -n "$HA_LOGFILE" ]
-	then
-	  : appending to $HA_LOGFILE
-	  echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_LOGFILE
+	if [ -n "$HA_LOGFACILITY" ]; then
+		: logging through syslog
+		# loglevel is unknown, use 'notice' for now
+		loglevel=notice
+		case "${*}" in
+			*ERROR*)
+				loglevel="err"
+				;;
+			*WARN*)
+				loglevel="warning"
+				;;
+			*INFO*|info)
+				loglevel="info"
+				;;
+		esac
+		logger -t "$HA_LOGTAG" -p ${HA_LOGFACILITY}.${loglevel} "${*}"
 	fi
-	if
-	  [ -z "$HA_LOGFACILITY" -a -z "$HA_LOGFILE" ] && ! [ "$ignore_stderr" = "true" ]
-	then
-	  : appending to stderr
-	  echo `hadate`"${*}" >&2
+
+	if [ -n "$HA_LOGFILE" ]; then
+		: appending to $HA_LOGFILE
+		echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_LOGFILE
 	fi
-        if
-          [ -n "$HA_DEBUGLOG" ]
-        then
-          : appending to $HA_DEBUGLOG
-		  if [ "$HA_LOGFILE"x != "$HA_DEBUGLOG"x ]; then
-            echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_DEBUGLOG
-          fi
-        fi
+
+	if [ -z "$HA_LOGFACILITY" -a -z "$HA_LOGFILE" ] && ! [ "$ignore_stderr" = "true" ]; then
+		: appending to stderr
+		echo `hadate`"${*}" >&2
+	fi
+
+	if [ -n "$HA_DEBUGLOG" ]; then
+		: appending to $HA_DEBUGLOG
+		if [ "$HA_LOGFILE"x != "$HA_DEBUGLOG"x ]; then
+			echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_DEBUGLOG
+		fi
+	fi
 }
 
 ha_log()
@@ -255,9 +269,10 @@ ha_log()
 
 ha_debug() {
 
-        if [ "x${HA_debug}" = "x0" ] ; then
-                return 0
-        fi
+	if [ "x${HA_debug}" = "x0" ]; then
+		return 0
+	fi
+
 	if tty >/dev/null; then
 		if [ "$HA_LOGTAG" ]; then
 			echo "$HA_LOGTAG: $*"
@@ -269,70 +284,79 @@ ha_debug() {
 
 	set_logtag
 
-        if [ "x${HA_LOGD}" = "xyes" ] ; then  
+	if [ "x${HA_LOGD}" = "xyes" ]; then
 		ha_logger -t "${HA_LOGTAG}" -D "ha-debug" "$@"
-                if [ "$?" -eq "0" ] ; then
-                        return 0
-                fi
-        fi
-
-	[ none = "$HA_LOGFACILITY" ] && HA_LOGFACILITY=""
-
-	if
-	  [ -n "$HA_LOGFACILITY" ]
-	then
-	  : logging through syslog
-	  logger -t "$HA_LOGTAG" -p "${HA_LOGFACILITY}.debug" "${*}"
+		if [ $? -eq 0 ]; then
+			return 0
+		fi
 	fi
-        if
-	  [ -n "$HA_DEBUGLOG" ]
-	then
-	  : appending to $HA_DEBUGLOG
-	  echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_DEBUGLOG
+
+	[ "none" = "$HA_LOGFACILITY" ] && HA_LOGFACILITY=""
+
+	if [ -n "$HA_LOGFACILITY" ]; then
+		: logging through syslog
+		logger -t "$HA_LOGTAG" -p "${HA_LOGFACILITY}.debug" "${*}"
 	fi
-	if
-	  [ -z "$HA_LOGFACILITY" -a -z "$HA_DEBUGLOG" ]
-	then
-	  : appending to stderr
-	  echo "$HA_LOGTAG:	`hadate`${*}:	${HA_LOGFACILITY}" >&2
+
+	if [ -n "$HA_DEBUGLOG" ]; then
+		: appending to $HA_DEBUGLOG
+		echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_DEBUGLOG
+	fi
+
+	if [ -z "$HA_LOGFACILITY" ] && [ -z "$HA_DEBUGLOG" ]; then
+		: appending to stderr
+		echo "$HA_LOGTAG:	`hadate`${*}:	${HA_LOGFACILITY}" >&2
 	fi
 }
 
 ha_parameter() {
 	local VALUE
-    VALUE=`sed -e 's%[	][	]*% %' -e 's%^ %%' -e 's%#.*%%'   $HA_CF | grep -i "^$1 " | sed 's%[^ ]* %%'`
-    if
-	[ "X$VALUE" = X ]
-    then
-	
-	case $1 in
-	    keepalive)	VALUE=2;;
-	    deadtime)
-		ka=`ha_parameter keepalive`
-		VALUE=`expr $ka '*' 2 '+' 1`;;
-	esac
-    fi
-    echo $VALUE
+	VALUE=`sed -e 's%[	][	]*% %' -e 's%^ %%' -e 's%#.*%%'   $HA_CF | grep -i "^$1 " | sed 's%[^ ]* %%'`
+
+	if [ "X$VALUE" = "X" ]; then
+		case $1 in
+			keepalive)
+				VALUE=2
+				;;
+			deadtime)
+				ka=$(ha_parameter keepalive)
+				VALUE=`expr $ka '*' 2 '+' 1`
+				;;
+		esac
+	fi
+	echo $VALUE
 }
 
 ocf_log() {
 	# TODO: Revisit and implement internally.
-	if
-          [ $# -lt 2 ]
-        then
-          ocf_log err "Not enough arguments [$#] to ocf_log."
-        fi
-        __OCF_PRIO="$1"
-        shift
-        __OCF_MSG="$*"
+	if [ $# -lt 2 ]; then
+		ocf_log err "Not enough arguments [$#] to ocf_log."
+	fi
 
-        case "${__OCF_PRIO}" in
-          crit)	__OCF_PRIO="CRIT";;
-          err)	__OCF_PRIO="ERROR";;
-          warn)	__OCF_PRIO="WARNING";;
-          info)	__OCF_PRIO="INFO";;
-          debug)__OCF_PRIO="DEBUG";;
-          *)	__OCF_PRIO=`echo ${__OCF_PRIO}| tr '[a-z]' '[A-Z]'`;;
+	__OCF_PRIO="$1"
+	shift
+
+	__OCF_MSG="$*"
+
+	case "${__OCF_PRIO}" in
+		crit)
+			__OCF_PRIO="CRIT"
+			;;
+		err)
+			__OCF_PRIO="ERROR"
+			;;
+		warn)
+			__OCF_PRIO="WARNING"
+			;;
+		info)
+			__OCF_PRIO="INFO"
+			;;
+		debug)
+			__OCF_PRIO="DEBUG"
+			;;
+		*)
+			__OCF_PRIO=$(echo "${__OCF_PRIO}" | tr '[:lower:]' '[:upper:]')
+			;;
 	esac
 
 	if [ "${__OCF_PRIO}" = "DEBUG" ]; then
@@ -351,9 +375,11 @@ ocf_log() {
 #
 ocf_exit_reason()
 {
-	local cookie="$OCF_EXIT_REASON_PREFIX"
 	local fmt
 	local msg
+	local cookie
+
+	cookie="$OCF_EXIT_REASON_PREFIX"
 
 	# No argument is likely not intentional.
 	# Just one argument implies a printf format string of just "%s".
@@ -361,15 +387,24 @@ ocf_exit_reason()
 	# expansion or other contains a percent sign.
 	# More than one argument: first argument is going to be the format string.
 	case $# in
-	0)	ocf_log err "Not enough arguments to ocf_log_exit_msg." ;;
-	1)	fmt="%s" ;;
-
-	*)	fmt=$1
-		shift
-		case $fmt in
-		*%*) : ;; # ok, does look like a format string
-		*) ocf_log warn "Does not look like format string: [$fmt]" ;;
-		esac ;;
+		0)
+			ocf_log err "Not enough arguments to ocf_log_exit_msg."
+			;;
+		1)
+			fmt="%s"
+			;;
+		*)
+			fmt=$1
+			shift
+			case $fmt in
+				*%*)
+					: # ok, does look like a format string
+					;;
+				*)
+					ocf_log warn "Does not look like format string: [$fmt]"
+					;;
+			esac
+			;;
 	esac
 
 	if [ -z "$cookie" ]; then
@@ -390,16 +425,17 @@ ocf_exit_reason()
 #                            the warning (default
 #                            "ignore_deprecation")
 ocf_deprecated() {
-    local param
-    param=${1:-ignore_deprecation}
-    # don't use ${!param} here, it's a bashism
-    if ! ocf_is_true $(eval echo \$OCF_RESKEY_$param); then
-	ocf_log warn "This resource agent is deprecated" \
-	    "and may be removed in a future release." \
-	    "See the man page for details." \
-	    "To suppress this warning, set the \"${param}\"" \
-	    "resource parameter to true."
-    fi
+	local param
+	param=${1:-ignore_deprecation}
+
+	# don't use ${!param} here, it's a bashism
+	if ! ocf_is_true $(eval echo \$OCF_RESKEY_$param); then
+		ocf_log warn "This resource agent is deprecated" \
+		"and may be removed in a future release." \
+		"See the man page for details." \
+		"To suppress this warning, set the \"${param}\"" \
+		"resource parameter to true."
+	fi
 }
 
 #
@@ -412,96 +448,104 @@ ocf_deprecated() {
 ocf_run() {
 	local rc
 	local output
-	local verbose=1
-	local loglevel=err
+	local verbose
+	local loglevel
 	local var
 
-	for var in 1 2
-	do
-	    case "$1" in
-		"-q")
-		    verbose=""
-		    shift 1;;
-		"-info"|"-warn"|"-err")
-		    loglevel=`echo $1 | sed -e s/-//g`
-		    shift 1;;
-		*)
-		    ;;		
-	    esac
+	verbose=1
+	loglevel="err"
+
+	for var in $(seq 1 2); do
+		case "$1" in
+			"-q")
+				verbose=""
+				shift 1
+				;;
+			"-info"|"-warn"|"-err")
+				loglevel="$(echo $1 | sed -e s/-//g)"
+				shift 1
+				;;
+			*)
+				;;
+		esac
 	done
 
 	output=`"$@" 2>&1`
 	rc=$?
-	output=`echo $output`
-	if [ $rc -eq 0 ]; then 
-	    if [ "$verbose" -a ! -z "$output" ]; then
-		ocf_log info "$output"
-	    fi
-	    return $OCF_SUCCESS
+	output=$(echo "$output")
+
+	if [ $rc -eq 0 ]; then
+		if [ "$verbose" ] && [ ! -z "$output" ]; then
+			ocf_log info "$output"
+		fi
+		return $OCF_SUCCESS
 	else
-	    if [ ! -z "$output" ]; then
-		ocf_log $loglevel "$output"
-	    else
-		ocf_log $loglevel "command failed: $*"
-	    fi
-	    return $rc
+		if [ ! -z "$output" ]; then
+			ocf_log $loglevel "$output"
+		else
+			ocf_log $loglevel "command failed: $*"
+		fi
+		return $rc
 	fi
 }
 
 ocf_pidfile_status() {
-    local pid pidfile=$1
-    if [ ! -e $pidfile ]; then
-	# Not exists
-	return 2
-    fi
-    pid=`cat $pidfile`
-    kill -0 $pid 2>&1 > /dev/null
-    if [ $? = 0 ]; then
-	return 0
-    fi
+	local pid pidfile=$1
+	if [ ! -e $pidfile ]; then
+		# Not exists
+		return 2
+	fi
 
-    # Stale
-    return 1
+	pid=`cat $pidfile`
+	kill -0 $pid >/dev/null 2>&1
+
+	if [ $? -eq 0 ]; then
+		return 0
+	fi
+
+	# Stale
+	return 1
 }
 
 ocf_take_lock() {
-    local lockfile=$1
-    local rnd=$(ocf_maybe_random)
+	local lockfile
+	local rnd
 
-    sleep 0.$rnd
-    while 
-	ocf_pidfile_status $lockfile
-    do
-	ocf_log info "Sleeping until $lockfile is released..."
+	lockfile=$1
+	rnd=$(ocf_maybe_random)
+
 	sleep 0.$rnd
-    done
-    echo $$ > $lockfile
+	while ocf_pidfile_status $lockfile; do
+		ocf_log info "Sleeping until $lockfile is released..."
+		sleep 0.$rnd
+	done
+	echo $$ > $lockfile
 }
 
 
 ocf_release_lock_on_exit() {
-    local lockfile=$1
-    trap "rm -f $lockfile" EXIT
+	local lockfile=$1
+	trap 'rm -f "${lockfile}"' EXIT
 }
 
 # returns true if the CRM is currently running a probe. A probe is
 # defined as a monitor operation with a monitoring interval of zero.
 ocf_is_probe() {
-    [ "$__OCF_ACTION" = "monitor" -a "$OCF_RESKEY_CRM_meta_interval" = 0 ]
+	[ "$__OCF_ACTION" = "monitor" ] && [ "$OCF_RESKEY_CRM_meta_interval" -eq 0 ]
 }
 
 # returns true if the resource is configured as a clone. This is
 # defined as a resource where the clone-max meta attribute is present,
 # and set to greater than zero.
 ocf_is_clone() {
-    [ ! -z "${OCF_RESKEY_CRM_meta_clone_max}" ] && [ "${OCF_RESKEY_CRM_meta_clone_max}" -gt 0 ]
+	[ ! -z "${OCF_RESKEY_CRM_meta_clone_max}" ] && [ "${OCF_RESKEY_CRM_meta_clone_max}" -gt 0 ]
 }
 
 # returns true if the resource is configured as a multistate
 # (master/slave) resource. This is defined as a resource where the
 # master-max meta attribute is present, and set to greater than zero.
 ocf_is_ms() {
-    [ ! -z "${OCF_RESKEY_CRM_meta_master_max}" ] && [ "${OCF_RESKEY_CRM_meta_master_max}" -gt 0 ]
+	[ ! -z "${OCF_RESKEY_CRM_meta_master_max}" ] && [ "${OCF_RESKEY_CRM_meta_master_max}" -gt 0 ]
 }
 
 # version check functions
@@ -512,15 +556,18 @@ ocf_is_ms() {
 ocf_is_ver() {
 	echo $1 | grep '^[0-9][0-9.-]*[0-9]$' >/dev/null 2>&1
 }
+
 ocf_ver2num() {
 	echo $1 | awk -F'[.-]' '
 	{for(i=1; i<=NF; i++) s=s*1000+$i; print s}
 	'
 }
-ocf_ver_level(){
+
+ocf_ver_level() {
 	echo $1 | awk -F'[.-]' '{print NF}'
 }
-ocf_ver_complete_level(){
+
+ocf_ver_complete_level() {
 	local ver="$1"
 	local level="$2"
 	local i=0
@@ -547,6 +594,7 @@ ocf_version_cmp() {
 	local v1_level=`ocf_ver_level $v1`
 	local v2_level=`ocf_ver_level $v2`
 	local level_diff
+
 	if [ $v1_level -lt $v2_level ]; then
 		level_diff=`expr $v2_level - $v1_level`
 		v1=`ocf_ver_complete_level $v1 $level_diff`
@@ -554,8 +602,10 @@ ocf_version_cmp() {
 		level_diff=`expr $v1_level - $v2_level`
 		v2=`ocf_ver_complete_level $v2 $level_diff`
 	fi
+
 	v1=`ocf_ver2num $v1`
 	v2=`ocf_ver2num $v2`
+
 	if [ $v1 -eq $v2 ]; then
 		return 1
 	elif [ $v1 -lt $v2 ]; then
@@ -569,8 +619,10 @@ ocf_local_nodename() {
 	# use crm_node -n for pacemaker > 1.1.8
 	which pacemakerd > /dev/null 2>&1
 	if [ $? -eq 0 ]; then
-		local version=$(pacemakerd -$ | grep "Pacemaker .*" | awk '{ print $2 }')
-		version=$(echo $version | awk -F- '{ print $1 }')
+		local version
+		version="$(pacemakerd -$ | grep "Pacemaker .*" | awk '{ print $2 }')"
+		version="$(echo $version | awk -F- '{ print $1 }')"
+
 		ocf_version_cmp "$version" "1.1.8"
 		if [ $? -eq 2 ]; then
 			which crm_node > /dev/null 2>&1
@@ -591,15 +643,15 @@ dirname()
 	local a
 	local b
 
-	[ $# = 1 ] || return 1
+	[ $# -eq 1 ] || return 1
 	a="$1"
-	while [ 1 ]; do
+	while true; do
 		b="${a%/}"
 		[ "$a" = "$b" ] && break
 		a="$b"
 	done
 	b=${a%/*}
-	[ -z "$b" -o "$a" = "$b"  ] && b="."
+	[ -z "$b" -o "$a" = "$b" ] && b="."
 
 	echo "$b"
 	return 0
@@ -634,30 +686,41 @@ dirname()
 #
 ha_pseudo_resource()
 {
-  local ha_resource_tracking_file="${3:-${HA_RSCTMP}/$1}"
-  case $2 in
-    start|restart|reload)  touch "$ha_resource_tracking_file";;
-    stop) rm -f "$ha_resource_tracking_file";;
-    status|monitor)
-           if
-             [ -f "$ha_resource_tracking_file" ]
-           then
-             return 0
-           else
-             case $2 in
-               status)	return 3;;
-               *)	return 7;;
-             esac
-           fi;;
-    print)  echo "$ha_resource_tracking_file";;
-    *)	return 3;;
-  esac
+	local ha_resource_tracking_file="${3:-${HA_RSCTMP}/$1}"
+	case $2 in
+		start|restart|reload)
+			touch "$ha_resource_tracking_file"
+			;;
+		stop)
+			rm -f "$ha_resource_tracking_file"
+			;;
+		status|monitor)
+			if [ -f "$ha_resource_tracking_file" ]; then
+				return 0
+			else
+				case $2 in
+					status)
+						return 3
+						;;
+					*)
+						return 7
+						;;
+				esac
+			fi
+			;;
+		print)
+			echo "$ha_resource_tracking_file"
+			;;
+		*)
+			return 3
+			;;
+	esac
 }
 
 # usage: rmtempdir TMPDIR
 rmtempdir()
 {
-	[ $# = 1 ] || return 1
+	[ $# -eq 1 ] || return 1
 	if [ -e "$1" ]; then
 		rmdir "$1" || return 1
 	fi
@@ -667,10 +730,10 @@ rmtempdir()
 # usage: maketempfile [-d]
 maketempfile()
 {
-	if [ $# = 1 -a "$1" = "-d" ]; then
+	if [ $# -eq 1 ] && [ "$1" = "-d" ]; then
 		mktemp -d
-		return -0
-	elif [ $# != 0 ]; then
+		return 0
+	elif [ $# -ne 0 ]; then
 		return 1
 	fi
 
@@ -681,7 +744,7 @@ maketempfile()
 # usage: rmtempfile TMPFILE
 rmtempfile ()
 {
-	[ $# = 1 ] || return 1
+	[ $# -eq 1 ] || return 1
 	if [ -e "$1" ]; then
 		rm "$1" || return 1
 	fi
@@ -693,9 +756,12 @@ rmtempfile ()
 # (in increasing order, 0 is optional)
 ocf_check_level()
 {
-	local lvl prev
+	local lvl
+	local prev
+
 	lvl=0
 	prev=0
+
 	if ocf_is_decimal "$OCF_CHECK_LEVEL"; then
 		# the level list should be very short
 		for lvl; do
@@ -717,7 +783,7 @@ ocf_check_level()
 # given; if one or more processes are still running we try KILL;
 # the wait_time is the _total_ time we'll spend in this function
 # this time may be slightly exceeded if the processes won't leave
-# 
+#
 # returns:
 #     0: all processes left
 #     1: some processes still running
@@ -725,22 +791,22 @@ ocf_check_level()
 # example:
 #
 # ocf_stop_processes TERM 5 $pids
-# 
+#
 ocf_stop_processes() {
 	local signals="$1"
 	local wait_time="$(($2/`echo $signals|wc -w`))"
 	shift 2
 	local pids="$*"
 	local sig i
+
 	test -z "$pids" &&
 		return 0
 	for sig in $signals KILL; do
 		kill -s $sig $pids 2>/dev/null
 		# try to leave early, and yet leave processes time to exit
 		sleep 0.2
-		for i in `seq $wait_time`; do
-			kill -s 0 $pids 2>/dev/null ||
-				return 0
+		for i in $(seq $wait_time); do
+			kill -s 0 $pids 2>/dev/null || return 0
 			sleep 1
 		done
 	done
@@ -775,17 +841,20 @@ ocf_mkstatedir()
 	path=$3
 
 	test -d $path && return 0
-	[ $(id -u) = 0 ] || return 1
+	[ "$(id -u)" -eq 0 ] || return 1
 
 	case $path in
-	$HA_VARRUN/*) : this path is ok ;;
-	*) ocf_log err "cannot create $path (does not start with $HA_VARRUN)"
-		return 1
-	;;
+		$HA_VARRUN/*)
+			: this path is ok
+			;;
+		*)
+			ocf_log err "cannot create $path (does not start with $HA_VARRUN)"
+			return 1
+			;;
 	esac
 
-	mkdir -p $path &&
-	chown $owner $path &&
+	mkdir -p $path && \
+	chown $owner $path && \
 	chmod $perms $path
 }
 
@@ -816,16 +885,17 @@ ocf_unique_rundir()
 	local name
 
 	owner=${1:-"root"}
-	perms=${2:-"755"}
+	perms=${2:-"0755"}
 	name=${3:-"$OCF_RESOURCE_INSTANCE"}
-	path=$HA_VARRUN/$name
-	if [ ! -d $path ]; then
-		[ $(id -u) = 0 ] || return 1
-		mkdir -p $path &&
-		chown $owner $path &&
-		chmod $perms $path || return 1
+	path="${HA_VARRUN}/${name}"
+
+	if [ ! -d "${path}" ]; then
+		[ "$(id -u)" -eq 0 ] || return 1
+		mkdir -p "${path}" && \
+		chown "${owner}" "${path}" && \
+		chmod "${perms}" "${path}" || return 1
 	fi
-	echo $path
+	echo "${path}"
 }
 
 #
@@ -844,9 +914,9 @@ ocf_unique_rundir()
 # OCF_TRACE_FILE is set to a path.
 #
 ocf_is_bash4() {
-	echo "$SHELL" | grep bash > /dev/null &&
-			[ ${BASH_VERSINFO[0]} = "4" ]
+	echo "$SHELL" | grep -q "bash" && [ ${BASH_VERSINFO[0]} = "4" ]
 }
+
 ocf_trace_redirect_to_file() {
 	local dest=$1
 	if ocf_is_bash4; then
@@ -856,6 +926,7 @@ ocf_trace_redirect_to_file() {
 		exec 2>$dest
 	fi
 }
+
 ocf_trace_redirect_to_fd() {
 	local fd=$1
 	if ocf_is_bash4; then
@@ -864,9 +935,10 @@ ocf_trace_redirect_to_fd() {
 		exec 2>&$fd
 	fi
 }
+
 __ocf_test_trc_dest() {
 	local dest=$1
-	if ! touch $dest; then
+	if ! touch "$dest"; then
 		ocf_log warn "$dest not writable, trace not going to happen"
 		__OCF_TRC_DEST=""
 		__OCF_TRC_MANAGE=""
@@ -874,11 +946,11 @@ __ocf_test_trc_dest() {
 	fi
 	return 0
 }
+
 ocf_default_trace_dest() {
 	tty >/dev/null && return
-	if [ -n "$OCF_RESOURCE_TYPE" -a \
-			-n "$OCF_RESOURCE_INSTANCE" -a -n "$__OCF_ACTION" ]; then
-		local ts=`date +%F.%T`
+	if [ -n "$OCF_RESOURCE_TYPE" ] && [ -n "$OCF_RESOURCE_INSTANCE" ] && [ -n "$__OCF_ACTION" ]; then
+		local ts=$(date +%F.%T)
 		__OCF_TRC_DEST=$HA_VARLIB/trace_ra/${OCF_RESOURCE_TYPE}/${OCF_RESOURCE_INSTANCE}.${__OCF_ACTION}.$ts
 		__OCF_TRC_MANAGE="1"
 	fi
@@ -886,25 +958,34 @@ ocf_default_trace_dest() {
 
 ocf_start_trace() {
 	export __OCF_TRC_DEST="" __OCF_TRC_MANAGE=""
+
 	case "$OCF_TRACE_FILE" in
-	[3-9]) ocf_trace_redirect_to_fd "$OCF_TRACE_FILE" ;;
-	/*/*) __OCF_TRC_DEST=$OCF_TRACE_FILE ;;
-	"") ocf_default_trace_dest ;;
-	*)
-		ocf_log warn "OCF_TRACE_FILE must be set to either FD (open for writing) or absolute file path"
-		ocf_default_trace_dest
-		;;
+		[3-9])
+			ocf_trace_redirect_to_fd "$OCF_TRACE_FILE"
+			;;
+		/*/*)
+			__OCF_TRC_DEST=$OCF_TRACE_FILE
+			;;
+		"")
+			ocf_default_trace_dest
+			;;
+		*)
+			ocf_log warn "OCF_TRACE_FILE must be set to either FD (open for writing) or absolute file path"
+			ocf_default_trace_dest
+			;;
 	esac
+
 	if [ "$__OCF_TRC_DEST" ]; then
-		mkdir -p `dirname $__OCF_TRC_DEST`
-		__ocf_test_trc_dest $__OCF_TRC_DEST ||
+		mkdir -p "$(dirname ${__OCF_TRC_DEST})"
+		__ocf_test_trc_dest "${__OCF_TRC_DEST}" ||
 			return
-		ocf_trace_redirect_to_file "$__OCF_TRC_DEST"
+		ocf_trace_redirect_to_file "${__OCF_TRC_DEST}"
 	fi
 	PS4='+ `date +"%T"`: ${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}: '
 	set -x
-	env=$( echo; printenv | sort )
+	env=$(echo; printenv | sort)
 }
+
 ocf_stop_trace() {
 	set +x
 }
@@ -916,5 +997,5 @@ ocf_is_true "$OCF_TRACE_RA" && ocf_start_trace
 
 # pacemaker sets HA_use_logd, some others use HA_LOGD :/
 if ocf_is_true "$HA_use_logd"; then
-	: ${HA_LOGD:=yes}
+	: ${HA_LOGD:="yes"}
 fi
