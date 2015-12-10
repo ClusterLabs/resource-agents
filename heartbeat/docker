@@ -403,7 +403,27 @@ docker_validate()
 	return $OCF_SUCCESS
 }
 
-: ${OCF_RESKEY_name=${OCF_RESOURCE_INSTANCE}}
+# TODO :
+# When a user starts plural clones in a node in globally-unique, a user cannot appoint plural name parameters.
+# When a user appoints reuse, the resource agent cannot connect plural clones with a container.
+
+if ocf_is_true "$OCF_RESKEY_CRM_meta_globally_unique"; then
+	if [ -n "$OCF_RESKEY_name" ]; then
+		if [ -n "$OCF_RESKEY_CRM_meta_clone_node_max" ] && [ "$OCF_RESKEY_CRM_meta_clone_node_max" -ne 1 ]
+		then
+			ocf_exit_reason "Cannot make plural clones from the same name parameter."
+			exit $OCF_ERR_CONFIGURED
+		fi
+		if [ -n "$OCF_RESKEY_CRM_meta_master_node_max" ] && [ "$OCF_RESKEY_CRM_meta_master_node_max" -ne 1 ]
+		then
+			ocf_exit_reason "Cannot make plural master from the same name parameter."
+			exit $OCF_ERR_CONFIGURED
+		fi
+	fi
+	: ${OCF_RESKEY_name=`echo ${OCF_RESOURCE_INSTANCE} | tr ':' '-'`} 
+else 
+	: ${OCF_RESKEY_name=${OCF_RESOURCE_INSTANCE}}
+fi
 
 if [ -n "$OCF_RESKEY_container" ]; then
 	# we'll keep the container attribute around for a bit in order not to break
