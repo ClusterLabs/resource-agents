@@ -570,7 +570,7 @@ locking_start()
 		ocf_log err "Failed to start rpc.statd"
 		return $ret
 	fi
-	touch /var/lock/subsys/nfslock
+	[ -d /var/lock/subsys ] && touch /var/lock/subsys/nfslock
 
 	return $ret
 }
