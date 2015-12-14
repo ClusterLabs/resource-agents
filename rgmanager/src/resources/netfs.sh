@@ -80,14 +80,14 @@ do_metadata()
 	    <content type="string"/>
         </parameter>
 
-        <parameter name="fstype" required="0">
+        <parameter name="fstype">
 	    <longdesc lang="en">
 	    	File System type (nfs, nfs4 or cifs)
 	    </longdesc>
             <shortdesc lang="en">
 	    	File System Type
             </shortdesc>
-	    <content type="string"/>
+	    <content type="string" default="nfs"/>
         </parameter>
 
         <parameter name="no_unmount" required="0">
@@ -464,11 +464,6 @@ do_force_unmount() {
 
 populate_defaults()
 {
-	if [ -z "$OCF_RESKEY_fstype" ]; then
-		export OCF_RESKEY_fstype=nfs
-	fi
-
-
         case $OCF_RESKEY_fstype in
 	nfs|nfs4)
 		export OCF_RESKEY_device="$OCF_RESKEY_host:$OCF_RESKEY_export"
