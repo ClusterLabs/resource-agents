@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Support:      linux-ha@lists.linux-ha.org
-# License:      GNU General Public License (GPL)c
+# License:      GNU General Public License (GPL)
 # 
 # Filesystem
 #      Description: Manages a Filesystem on a shared storage medium.
