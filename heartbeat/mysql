@@ -347,6 +347,7 @@ is_slave() {
    
     get_slave_info
     rc=$?
+    rm -f $tmpfile
 
     if [ $rc -eq 0 ]; then
        # show slave status is not empty
