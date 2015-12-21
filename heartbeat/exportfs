@@ -201,7 +201,7 @@ forall() {
 	for dir in $OCF_RESKEY_directory; do
 		$func $dir "$@"
 		rc=$(($rc | $?))
-		bump_fsid
+		[ $NUMDIRS -gt 1 ] && bump_fsid
 		[ "$fast_exit" ] && continue
 		[ $rc -ne 0 ] && return $rc
 	done
@@ -409,7 +409,7 @@ testdir() {
 }
 exportfs_validate_all ()
 {
-	if [ `echo "$OCF_RESKEY_directory" | wc -w` -gt 1 ] &&
+	if [ $NUMDIRS -gt 1 ] &&
 			! ocf_is_decimal "$OCF_RESKEY_fsid"; then
 		ocf_exit_reason "use integer fsid when exporting multiple directories"
 		return $OCF_ERR_CONFIGURED
@@ -428,6 +428,7 @@ if [ -n "$newdir" ]; then
 	OCF_RESKEY_directory=$newdir
 fi
 
+NUMDIRS=`echo "$OCF_RESKEY_directory" | wc -w`
 OCF_REQUIRED_PARAMS="directory fsid clientspec"
 OCF_REQUIRED_BINARIES="exportfs"
 ocf_rarun $*
