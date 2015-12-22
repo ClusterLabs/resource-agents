@@ -144,12 +144,14 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  ocf-directories 	\
 			  ocf-returncodes 	\
  			  ocf-rarun		\
+ 			  ocf-distro		\
 			  apache-conf.sh 	\
 			  http-mon.sh    	\
 			  sapdb-nosha.sh	\
 			  sapdb.sh		\
 			  ora-common.sh		\
 			  mysql-common.sh		\
+			  nfsserver-redhat.sh		\
 			  findif.sh
 
 # Legacy locations
