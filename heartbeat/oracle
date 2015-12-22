@@ -403,7 +403,7 @@ check_mon_profile() {
 	if echo "$output" | grep -iw "^$MONPROFILE" >/dev/null; then
 		return 0
 	else
-		ocf_log err "could not create $MONPROFILE oracle profile"
+		ocf_exit_reason "could not create $MONPROFILE oracle profile"
 		ocf_log err "sqlplus output: $output"
 		return 1
 	fi
@@ -426,7 +426,7 @@ check_mon_user() {
 			if echo "$output2" | grep -iw "^$MONPROFILE" >/dev/null; then
 				return 0
 			fi
-			ocf_log err "could not set profile for $MONUSR oracle user"
+			ocf_exit_reason "could not set profile for $MONUSR oracle user"
 			ocf_log err "sqlplus output: $output( $output2 )"
 			return 1
 		fi
@@ -435,7 +435,7 @@ check_mon_user() {
 	if echo "$output" | grep -iw "^$MONUSR" >/dev/null; then
 		return 0
 	else
-		ocf_log err "could not create $MONUSR oracle user"
+		ocf_exit_reason "could not create $MONUSR oracle user"
 		ocf_log err "sqlplus output: $output"
 		return 1
 	fi
@@ -622,7 +622,7 @@ oracle_start() {
 		;;
 	*)
 		: error!!
-		ocf_log err "oracle $ORACLE_SID can not be mounted (status: $status)"
+		ocf_exit_reason "oracle $ORACLE_SID can not be mounted (status: $status)"
 		return $OCF_ERR_GENERIC
 		;;
 	esac
@@ -646,10 +646,10 @@ oracle_start() {
 	fi
 
 	if ! is_proc_running; then
-		ocf_log err "oracle process not running: $output"
+		ocf_exit_reason "oracle process not running: $output"
 		return $OCF_ERR_GENERIC
 	elif ! instance_live; then
-		ocf_log err "oracle instance $ORACLE_SID not started: $output"
+		ocf_exit_reason "oracle instance $ORACLE_SID not started: $output"
 		return $OCF_ERR_GENERIC
 	else
 		: cool, we are up and running
@@ -672,7 +672,7 @@ oracle_stop() {
 	fi
 	ocf_stop_processes TERM $PROCS_CLEANUP_TIME `proc_pids`  # kill the procs if they hanged
 	if is_proc_running; then
-		ocf_log err "Oracle instance $ORACLE_SID not stopped: $output"
+		ocf_exit_reason "Oracle instance $ORACLE_SID not stopped: $output"
 		return $OCF_ERR_GENERIC
 	else
 		ocf_log info "Oracle instance $ORACLE_SID stopped: $output"
@@ -692,7 +692,7 @@ oracle_monitor() {
 		return $OCF_NOT_RUNNING
 	fi
 	if ! instance_live; then
-		ocf_log err "oracle instance $ORACLE_SID is down"
+		ocf_exit_reason "oracle instance $ORACLE_SID is down"
 		return $OCF_ERR_GENERIC
 	fi
 	#ocf_log info "Oracle instance $ORACLE_SID is alive"
@@ -727,14 +727,14 @@ oracle_validate_all() {
 	case "${shutdown_method}" in
 	"immediate") ;;
 	"checkpoint/abort") ;;
-	*) ocf_log err "unsupported shutdown_method, please read meta-data"
+	*) ocf_exit_reason "unsupported shutdown_method, please read meta-data"
 		return $OCF_ERR_CONFIGURED
 		;;
 	esac
 
 	case "${IPCRM}" in
 	"none"|"instance"|"orauser") ;;
-	*) ocf_log err "unsupported ipcrm setting, please read meta-data"
+	*) ocf_exit_reason "unsupported ipcrm setting, please read meta-data"
 		return $OCF_ERR_CONFIGURED
 		;;
 	esac
