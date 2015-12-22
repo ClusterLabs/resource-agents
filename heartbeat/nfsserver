@@ -498,7 +498,7 @@ prepare_directory ()
 	[ -f "$fp/rmtab" ] || touch "$fp/rmtab"
 
 	dd if=/dev/urandom of=$fp/$STATD_DIR/state bs=1 count=4 >/dev/null 2>&1
-	[ -n "`id -u rpcuser`" -a "`id -g rpcuser`" ] && chown rpcuser.rpcuser "$fp/$STATD_DIR/state"
+	[ -n "`id -u rpcuser 2>/dev/null`" -a "`id -g rpcuser 2>/dev/null`" ] && chown rpcuser.rpcuser "$fp/$STATD_DIR/state"
 	[ $SELINUX_ENABLED -eq 0 ] && chcon -R "$SELINUX_LABEL" "$fp"
 }
 
