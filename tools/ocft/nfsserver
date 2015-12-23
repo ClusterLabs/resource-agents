@@ -20,9 +20,6 @@ SETUP-AGENT
 
 CASE-BLOCK required_args
 	Env OCF_RESKEY_nfs_init_script=$INITSCRIPT
-	Env OCF_RESKEY_nfs_ip=127.0.0.1
-	Env OCF_RESKEY_nfs_shared_infodir=/var/lib/nfs
-	Env OCF_RESKEY_nfs_notify_cmd=/usr/sbin/sm-notify
 
 CASE-BLOCK default_status
 	AgentRun stop
