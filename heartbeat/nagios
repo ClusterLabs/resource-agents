@@ -212,13 +212,6 @@ nagios_validate_all(){
 
 # **************************** MAIN SCRIPT ************************************
 
-# This OCF agent script need to be run as root user.
-if ! ocf_is_root; then
-        echo  "$0 agent script need to be run as root user."
-        ocf_log debug "$0 agent script need to be run as root user."
-        exit $OCF_ERR_GENERIC
-fi
-
 # Make sure meta-data and usage always succeed
 case $__OCF_ACTION in
 meta-data)      nagios_meta_data
@@ -229,9 +222,12 @@ usage|help)     nagios_usage
                 ;;
 esac
 
-# Anything other than meta-data and usage must pass validation
-# this will failed on Nagios slave when config files are in master:/dev/drbd0
-# nagios_validate_all || exit $?
+# This OCF agent script need to be run as root user.
+if ! ocf_is_root; then
+        echo  "$0 agent script need to be run as root user."
+        ocf_log debug "$0 agent script need to be run as root user."
+        exit $OCF_ERR_GENERIC
+fi
 
 # Translate each action into the appropriate function call
 case $__OCF_ACTION in
