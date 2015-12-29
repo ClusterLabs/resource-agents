@@ -56,5 +56,7 @@ ocftcfgs_DATA      =  apache  	\
 ocftdir			= $(datadir)/$(PACKAGE_NAME)/ocft
 ocft_DATA		= README	\
 			  README.zh_CN	\
-			  caselib
+			  caselib	\
+			  runocft.prereq
+ocft_SCRIPTS	= runocft
 
