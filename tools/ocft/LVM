@@ -8,13 +8,16 @@ CONFIG
 	HangTimeout 20
 
 VARIABLE
-	OCFT_pv=/var/run/resource-agents/ocft-LVM-pv
+	OCFT_vardir="`mount | grep '/run ' | awk '{print $3}'`"
+	OCFT_pv=$OCFT_vardir/resource-agents/ocft-LVM-pv
 	OCFT_vg=ocft-vg
 	OCFT_lv=ocft-lv
-	OCFT_loop=/dev/loop7
+	OCFT_loop_f="$OCFT_vardir/resource-agents/ocft-loopdev"
+	OCFT_loop="`cat $OCFT_loop_f 2>/dev/null`"
 
 SETUP-AGENT
-	losetup $OCFT_loop 2>/dev/null && exit 1
+	losetup -f > $OCFT_loop_f
+	OCFT_loop=`cat $OCFT_loop_f`
 	dd if=/dev/zero of=$OCFT_pv bs=1 count=0 seek=16M 2>/dev/null
 	losetup $OCFT_loop $OCFT_pv
 	pvcreate $OCFT_loop
@@ -27,7 +30,7 @@ CLEANUP-AGENT
 	vgremove -f $OCFT_vg
 	pvremove $OCFT_loop
 	losetup -d $OCFT_loop
-	rm $OCFT_pv
+	rm $OCFT_pv $OCFT_loop_f
 
 CASE-BLOCK required_args
 	Env OCF_RESKEY_volgrpname=$OCFT_vg
