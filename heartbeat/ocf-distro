@@ -1,0 +1,47 @@
+#
+# This is OCF Linux distribution query support
+# 
+# Currently needed for the nfsserver RA which has some already
+# released RH specific stuff (/etc/sysconfig/nfs editing)
+# 
+
+_DEBIAN_VERSION_FILE="/etc/debian_version"
+_REDHAT_RELEASE_FILE="/etc/redhat-release"
+_SUSE_RELEASE_FILE="/etc/SuSE-release"
+_RELEASE_FILES="/etc/*-release"
+_REDHAT_BASED_DISTROS_RE='red *hat|fedora|centos|scientific linux'
+
+get_release_id() {
+	if which lsb_release >/dev/null 2>&1; then
+		lsb_release -si
+	elif [ -e $_DEBIAN_VERSION_FILE ]; then
+		echo Debian
+	elif [ -e $_SUSE_RELEASE_FILE ]; then
+		echo SUSE
+	elif [ -e $_REDHAT_RELEASE_FILE ]; then
+		echo Redhat
+	else # FIXME not exactly the id here, but will do for our purpose
+		cat $_RELEASE_FILES 2>/dev/null
+	fi
+}
+
+is_redhat_based() {
+	get_release_id | egrep -qsi "$_REDHAT_BASED_DISTROS_RE"
+}
+
+# get_os_ver() is currently unused
+get_os_ver() {
+	if which lsb_release >/dev/null 2>&1; then
+		OS=`lsb_release -si`
+		VER=`lsb_release -sr`
+	elif [ -f $_DEBIAN_VERSION_FILE ]; then
+		OS=Debian
+		VER=$(cat $_DEBIAN_VERSION_FILE)
+	elif [ -f $_REDHAT_RELEASE_FILE ]; then
+		OS=RedHat  # redhat or similar
+		VER= # here some complex sed script
+	else
+		OS=$(uname -s)
+		VER=$(uname -r)
+	fi
+}

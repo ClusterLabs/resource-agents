@@ -3,14 +3,23 @@
 CONFIG
 	Agent nfsserver
 	AgentRoot /usr/lib/ocf/resource.d/heartbeat
-	InstallPackage nfs-kernel-server
+	InstallPackage $NFSPKG
 	HangTimeout 20
 
+SETUP-AGENT
+	INITSCRIPT=""
+	if test -f /etc/init.d/nfsserver; then
+		INITSCRIPT="/etc/init.d/nfsserver"
+	fi
+	if test -e /etc/SuSE-release; then
+		NFSPKG=nfs-kernel-server
+	elif test -e /etc/redhat-release; then
+		NFSPKG=nfs-utils
+	fi
+	true
+
 CASE-BLOCK required_args
-	Env OCF_RESKEY_nfs_init_script=/etc/init.d/nfsserver
-	Env OCF_RESKEY_nfs_ip=127.0.0.1
-	Env OCF_RESKEY_nfs_shared_infodir=/var/lib/nfs
-	Env OCF_RESKEY_nfs_notify_cmd=/usr/sbin/sm-notify
+	Env OCF_RESKEY_nfs_init_script=$INITSCRIPT
 
 CASE-BLOCK default_status
 	AgentRun stop
@@ -27,16 +36,6 @@ CASE "check base env: invalid 'OCF_RESKEY_nfs_init_script'"
 	Include prepare
 	Env OCF_RESKEY_nfs_init_script=no_such_script
 	AgentRun start OCF_ERR_INSTALLED
-
-CASE "check base env: unset 'OCF_RESKEY_nfs_ip'"
-	Include prepare
-	Unenv OCF_RESKEY_nfs_ip
-	AgentRun start OCF_ERR_CONFIGURED
-
-CASE "check base env: unset 'OCF_RESKEY_nfs_shared_infodir'"
-	Include prepare
-	Unenv OCF_RESKEY_nfs_shared_infodir
-	AgentRun start OCF_ERR_CONFIGURED
 
 CASE "check base env: invalid 'OCF_RESKEY_nfs_notify_cmd'"
 	Include prepare
