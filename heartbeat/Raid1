@@ -153,7 +153,7 @@ udev_settle() {
 }
 list_conf_arrays() {
 	test -f $RAIDCONF || {
-		ocf_log err "$RAIDCONF gone missing!"
+		ocf_exit_reason "$RAIDCONF gone missing!"
 		exit $OCF_ERR_GENERIC
 	}
 	grep ^ARRAY $RAIDCONF | awk '{print $2}'
@@ -199,7 +199,7 @@ raid1_start() {
 	if [ $rc -ne $OCF_NOT_RUNNING ]; then
 		# If the array is in a broken state, this agent doesn't
 		# know how to repair that.
-		ocf_log err "$RAIDDEVS in a broken state; cannot start (rc=$rc)"
+		ocf_exit_reason "$RAIDDEVS in a broken state; cannot start (rc=$rc)"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -214,7 +214,7 @@ raid1_start() {
 	if [ $? -eq $OCF_SUCCESS ]; then
 	    return $OCF_SUCCESS
 	else
-	    ocf_log err "Couldn't start RAID for $RAIDDEVS"
+	    ocf_exit_reason "Couldn't start RAID for $RAIDDEVS"
 	    return $OCF_ERR_GENERIC
 	fi
 }
@@ -229,7 +229,7 @@ mark_readonly() {
 	$MDADM --readonly $mddev --config=$RAIDCONF
 	rc=$?
 	if [ $rc -ne 0 ]; then
-		ocf_log err "Failed to set $mddev readonly (rc=$rc)"
+		ocf_exit_reason "Failed to set $mddev readonly (rc=$rc)"
 	fi
 	return $rc
 }
@@ -344,7 +344,7 @@ raid1_stop() {
 		return $OCF_SUCCESS
 	fi
 
-	ocf_log err "RAID $RAIDDEVS still active after stop command!"
+	ocf_exit_reason "RAID $RAIDDEVS still active after stop command!"
 	return $OCF_ERR_GENERIC
 }
 
@@ -375,13 +375,13 @@ raid1_monitor_one() {
 		1)	ocf_log warn "$mddev has at least one failed device."
 			TRY_READD=1
 			;;
-		2)	ocf_log err "$mddev has failed."
+		2)	ocf_exit_reason "$mddev has failed."
 			return $OCF_ERR_GENERIC
 			;;
-		4)	ocf_log err "mdadm failed on $mddev."
+		4)	ocf_exit_reason "mdadm failed on $mddev."
 			return $OCF_ERR_GENERIC
 			;;
-		*)	ocf_log err "mdadm returned an unknown result ($rc)."
+		*)	ocf_exit_reason "mdadm returned an unknown result ($rc)."
 			return $OCF_ERR_GENERIC
 			;;
 		esac
@@ -403,7 +403,7 @@ raid1_monitor_one() {
 	fi
 	if ! dd if=$mddev count=1 bs=$pbsize of=/dev/null \
 	     iflag=direct >/dev/null 2>&1 ; then
-		ocf_log err "$mddev: I/O error on read"
+		ocf_exit_reason "$mddev: I/O error on read"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -462,22 +462,22 @@ FORCESTOP="${OCF_RESKEY_force_stop:-1}"
 WAIT_FOR_UDEV="${OCF_RESKEY_udev:-1}"
 
 if [ -z "$RAIDCONF" ] ; then
-	ocf_log err "Please set OCF_RESKEY_raidconf!"
+	ocf_exit_reason "Please set OCF_RESKEY_raidconf!"
 	exit $OCF_ERR_CONFIGURED
 fi
 
 if [ ! -r "$RAIDCONF" ] ; then
-	ocf_log err "Configuration file [$RAIDCONF] does not exist, or can not be opend!"
+	ocf_exit_reason "Configuration file [$RAIDCONF] does not exist, or can not be opend!"
 	exit $OCF_ERR_INSTALLED
 fi
 
 if [ -z "$MDDEV" ] ; then
-	ocf_log err "Please set OCF_RESKEY_raiddev to the Raid device you want to control!"
+	ocf_exit_reason "Please set OCF_RESKEY_raiddev to the Raid device you want to control!"
 	exit $OCF_ERR_CONFIGURED
 fi
 
 if ocf_is_clone && ! ocf_is_true "$OCF_RESKEY_force_clones"; then
-	ocf_log err "md RAID arrays are NOT safe to run as a clone!"
+	ocf_exit_reason "md RAID arrays are NOT safe to run as a clone!"
 	ocf_log err "Please read the comment on the force_clones parameter."
 	exit $OCF_ERR_CONFIGURED
 fi
@@ -512,10 +512,10 @@ fi
 
 if [ $HAVE_RAIDTOOLS = true ]; then
 	if [ "$MDDEV" = "auto" ]; then
-		ocf_log err "autoconf supported only with mdadm!"
+		ocf_exit_reason "autoconf supported only with mdadm!"
 		exit $OCF_ERR_INSTALLED
 	elif [ `echo $MDDEV|wc -w` -gt 1 ]; then
-		ocf_log err "multiple devices supported only with mdadm!"
+		ocf_exit_reason "multiple devices supported only with mdadm!"
 		exit $OCF_ERR_INSTALLED
 	fi
 fi

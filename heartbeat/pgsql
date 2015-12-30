@@ -1774,7 +1774,7 @@ pgsql_validate_all() {
                 # unix_socket_directories may have multiple socket directories and the pgsql RA can not know which directory is used for psql command.
                 # Therefore, the user must set OCF_RESKEY_socketdir explicitly.
                 if [ -z "$OCF_RESKEY_socketdir" ]; then
-                    ocf_log err "In PostgreSQL 9.3 or higher, socketdir can't be empty if you define unix_socket_directories in the postgresql.conf."
+                    ocf_exit_reason "In PostgreSQL 9.3 or higher, socketdir can't be empty if you define unix_socket_directories in the postgresql.conf."
                     return $OCF_ERR_CONFIGURED
                 fi
             fi

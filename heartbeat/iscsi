@@ -194,7 +194,7 @@ open_iscsi_setup() {
 		# the discussion at the linux-ha-dev ML)
 		return 1
 	else
-		ocf_log err "iscsid not running; please start open-iscsi utilities"
+		ocf_exit_reason "iscsid not running; please start open-iscsi utilities"
 		return 2
 	fi
 }
@@ -227,7 +227,7 @@ open_iscsi_discovery() {
 	output=`$cmd`
 	if [ $? -ne 0 -o x = "x$output" ]; then
 		[ x != "x$output" ] && {
-			ocf_log err "$cmd FAILED"
+			ocf_exit_reason "$cmd FAILED"
 			echo "$output"
 		}
 		return 3
@@ -244,7 +244,7 @@ open_iscsi_discovery() {
 	case `echo "$PORTAL" | wc -w` in
 	0) #target not found
 		echo "$output"
-		ocf_log err "target $OCF_RESKEY_target not found at portal $OCF_RESKEY_portal"
+		ocf_exit_reason "target $OCF_RESKEY_target not found at portal $OCF_RESKEY_portal"
 		return 1
 	;;
 	1) #we're ok
@@ -258,7 +258,7 @@ open_iscsi_discovery() {
 			fi
 		done
 		echo "$output"
-		ocf_log err "sorry, can't handle multihomed hosts unless you specify the portal exactly"
+		ocf_exit_reason "sorry, can't handle multihomed hosts unless you specify the portal exactly"
 		return 2
 	;;
 	esac
@@ -279,7 +279,7 @@ open_iscsi_remove() {
 	if [ "$session_id" ]; then
 		$iscsiadm -m session -r $session_id -u
 	else
-		ocf_log err "cannot find session id for target $target"
+		ocf_exit_reason "cannot find session id for target $target"
 		return 1
 	fi
 }
@@ -328,7 +328,7 @@ open_iscsi_monitor() {
 					fi
 					sleep 1
 				else
-					ocf_log err "iscsiadm output: $outp"
+					ocf_exit_reason "iscsiadm output: $outp"
 					return 2
 				fi
 			;;
@@ -443,12 +443,12 @@ case "$1" in
 esac
 
 if [ x = "x$OCF_RESKEY_target" ]; then
-	ocf_log err "target parameter not set"
+	ocf_exit_reason "target parameter not set"
 	exit $OCF_ERR_CONFIGURED
 fi
 
 if [ x = "x$OCF_RESKEY_portal" ]; then
-	ocf_log err "portal parameter not set"
+	ocf_exit_reason "portal parameter not set"
 	exit $OCF_ERR_CONFIGURED
 fi
 
@@ -465,7 +465,7 @@ LSB_STATUS_STOPPED=3
 $setup
 setup_rc=$?
 if [ $setup_rc -gt 1 ]; then
-	ocf_log info "iscsi initiator utilities not installed or not setup"
+	ocf_exit_reason "iscsi initiator utilities not installed or not setup"
 	case "$1" in
 		stop) exit $OCF_SUCCESS;;
 		monitor) exit $OCF_NOT_RUNNING;;
@@ -475,7 +475,7 @@ if [ $setup_rc -gt 1 ]; then
 fi
 
 if [ `id -u` != 0 ]; then
-	ocf_log err "$0 must be run as root"
+	ocf_exit_reason "$0 must be run as root"
 	exit $OCF_ERR_PERM
 fi
 
