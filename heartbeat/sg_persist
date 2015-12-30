@@ -248,15 +248,15 @@ sg_persist_get_status() {
     
     for dev in ${EXISTING_DEVS[*]}
     do
-        READ_KEYS=`ocf_run $SG_PERSIST --in --read-keys $dev 2>&1`
-        if [ $? -eq $OCF_SUCCESS ]; then 
+        READ_KEYS=`$SG_PERSIST --in --read-keys $dev 2>&1`
+        if [ $? -eq 0 ]; then
             WORKING_DEVS+=($dev)
             echo $READ_KEYS | $GREP $NODE_ID_HEX >/dev/null
             if [ $? -eq 0 ]; then 
                 REGISTERED_DEVS+=($dev)
 
-                READ_RESERVATION=`ocf_run $SG_PERSIST --in --read-reservation $dev 2>&1`
-                if [ $? -eq $OCF_SUCCESS ]; then
+                READ_RESERVATION=`$SG_PERSIST --in --read-reservation $dev 2>&1`
+                if [ $? -eq 0 ]; then
                     echo $READ_RESERVATION | $GREP $NODE_ID_HEX >/dev/null
                     if [ $? -eq 0 ]; then 
                         RESERVED_DEVS+=($dev)
@@ -414,10 +414,10 @@ sg_persist_action_stop() {
 
 sg_persist_action_monitor() {
 
-    ACT_MASTER_SCORE=`ocf_run -q $MASTER_SCORE_ATTRIBUTE --query --quiet 2>&1`
+    ACT_MASTER_SCORE=`$MASTER_SCORE_ATTRIBUTE --query --quiet 2>&1`
     ocf_log debug "$RESOURCE monitor: ACT_MASTER_SCORE=$ACT_MASTER_SCORE"
     
-    ACT_PENDING=`ocf_run $PENDING_ATTRIBUTE --query --quiet 2>&1`
+    ACT_PENDING=`$PENDING_ATTRIBUTE --query --quiet 2>&1`
     ocf_log debug "$RESOURCE monitor: ACT_PENDING=$ACT_PENDING"
 
     sg_persist_parse_act_pending
