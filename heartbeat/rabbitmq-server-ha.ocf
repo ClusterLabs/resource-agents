@@ -672,9 +672,9 @@ join_to_cluster() {
     local LH="${LL} join_to_cluster():"
 
     ocf_log info "${LH} start."
-    ocf_log info "${LH} Joining to cluster by node '${rmq_node}'."
 
     rmq_node=$(rabbit_node_name $node)
+    ocf_log info "${LH} Joining to cluster by node '${rmq_node}'."
     get_status rabbit
     rc=$?
     if [ $rc -eq $OCF_SUCCESS ] ; then
