@@ -797,7 +797,7 @@ pgsql_real_stop() {
     if pgsql_status
     then
         #PostgreSQL is still up. Use another shutdown mode.
-        ocf_log info "PostgreSQL failed to stop after ${OCF_RESKEY_stop_escalate}s using -m fast. Trying -m immediate..."
+        ocf_log info "PostgreSQL failed to stop after ${stop_escalate}s using -m fast. Trying -m immediate..."
         runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m immediate"
     fi
 
