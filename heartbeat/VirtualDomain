@@ -51,7 +51,7 @@ usage() {
   echo "usage: $0 {start|stop|status|monitor|migrate_to|migrate_from|meta-data|validate-all}"
 }
 
-meta_data() {
+VirtualDomain_meta_data() {
 		cat <<EOF
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
@@ -362,7 +362,7 @@ pid_status()
 	return $rc
 }
 
-VirtualDomain_Status() {
+VirtualDomain_status() {
 	local try=0
 	rc=$OCF_ERR_GENERIC
 	status="no state"
@@ -455,10 +455,10 @@ verify_undefined() {
 	fi
 }
 
-VirtualDomain_Start() {
+VirtualDomain_start() {
 	local snapshotimage
 
-	if VirtualDomain_Status; then
+	if VirtualDomain_status; then
 		ocf_log info "Virtual domain $DOMAIN_NAME already running."
 		return $OCF_SUCCESS
 	fi
@@ -489,7 +489,7 @@ VirtualDomain_Start() {
 		return $OCF_ERR_GENERIC
 	fi
 
-	while ! VirtualDomain_Monitor; do
+	while ! VirtualDomain_monitor; do
 		sleep 1
 	done
 	
@@ -515,7 +515,7 @@ force_stop()
 			return $OCF_ERR_GENERIC ;;
 		0*)
 			while [ $status != $OCF_NOT_RUNNING ]; do
-				VirtualDomain_Status
+				VirtualDomain_status
 				status=$?
 			done ;;
 	esac
@@ -554,13 +554,13 @@ save_config(){
 	rm -f ${CFGTMP}
 }
 
-VirtualDomain_Stop() {
+VirtualDomain_stop() {
 	local i
 	local status
 	local shutdown_timeout
 	local needshutdown=1
 
-	VirtualDomain_Status
+	VirtualDomain_status
 	status=$?
 
 	case $status in
@@ -598,7 +598,7 @@ VirtualDomain_Stop() {
 			shutdown_timeout=$(( $NOW + ($OCF_RESKEY_CRM_meta_timeout/1000) -5 ))
 			# Loop on status until we reach $shutdown_timeout
 			while [ $NOW -lt $shutdown_timeout ]; do
-				VirtualDomain_Status
+				VirtualDomain_status
 				status=$?
 				case $status in
 					$OCF_NOT_RUNNING)
@@ -662,7 +662,7 @@ mk_migrateuri() {
 	fi
 }
 
-VirtualDomain_Migrate_To() {
+VirtualDomain_migrate_to() {
 	local rc
 	local target_node
 	local remoteuri
@@ -673,7 +673,7 @@ VirtualDomain_Migrate_To() {
 
 	target_node="$OCF_RESKEY_CRM_meta_migrate_target"
 
-	if VirtualDomain_Status; then
+	if VirtualDomain_status; then
 		# Find out the remote hypervisor to connect to. That is, turn
 		# something like "qemu://foo:9999/system" into
 		# "qemu+tcp://bar:9999/system"
@@ -735,8 +735,8 @@ VirtualDomain_Migrate_To() {
 	fi
 }
 
-VirtualDomain_Migrate_From() {
-	while ! VirtualDomain_Monitor; do
+VirtualDomain_migrate_from() {
+	while ! VirtualDomain_monitor; do
 		sleep 1
 	done
 	ocf_log info "$DOMAIN_NAME: live migration from ${OCF_RESKEY_CRM_meta_migrate_source} succeeded."
@@ -747,10 +747,10 @@ VirtualDomain_Migrate_From() {
 	return $OCF_SUCCESS
 }
 
-VirtualDomain_Monitor() {
+VirtualDomain_monitor() {
 	# First, check the domain status. If that returns anything other
 	# than $OCF_SUCCESS, something is definitely wrong.
-	VirtualDomain_Status
+	VirtualDomain_status
 	rc=$?
 	if [ ${rc} -eq ${OCF_SUCCESS} ]; then
 		# OK, the generic status check turned out fine.  Now, if we
@@ -782,22 +782,10 @@ VirtualDomain_Monitor() {
 	return ${rc}
 }
 
-VirtualDomain_Validate_All() {
-	# Required binaries:
-	for binary in virsh sed; do
-		check_binary $binary
-	done
-
-	if [ -z $OCF_RESKEY_config ]; then
-		ocf_exit_reason "Missing configuration parameter \"config\"."
+VirtualDomain_validate_all() {
+	if ocf_is_true $OCF_RESKEY_force_stop && [ -n "$OCF_RESKEY_snapshot" ]; then
+		ocf_exit_reason "The 'force_stop' and 'snapshot' options can not be used together."
 		return $OCF_ERR_CONFIGURED
-	fi
-
-	if ocf_is_true $OCF_RESKEY_force_stop; then
-		if [ -n "$OCF_RESKEY_snapshot" ]; then
-			ocf_exit_reason "The 'force_stop' and 'snapshot' options can not be used together."
-			return $OCF_ERR_CONFIGURED
-		fi
 	fi
 
 	# check if we can read the config file (otherwise we're unable to
@@ -808,14 +796,19 @@ VirtualDomain_Validate_All() {
 		elif [ "$__OCF_ACTION" = "stop" ]; then
 			ocf_log info "Configuration file $OCF_RESKEY_config not readable, resource considered stopped."
 		else
-			ocf_exit_reason "Configuration file $OCF_RESKEY_config does not exist or is not readable."
-			return $OCF_ERR_INSTALLED
+			ocf_exit_reason "Configuration file $OCF_RESKEY_config does not exist or not readable."
 		fi
+		return $OCF_ERR_INSTALLED
+	fi
+
+	if [ -z $DOMAIN_NAME ]; then
+		ocf_exit_reason "Unable to determine domain name."
+		return $OCF_ERR_INSTALLED
 	fi
 
 	# Check if csync2 is available when config tells us we might need it.
 	if ocf_is_true $OCF_RESKEY_sync_config_on_stop; then
-		check_binary csync2; 
+		check_binary csync2
 	fi
 
 	# Check if migration_speed is a decimal value
@@ -831,74 +824,19 @@ VirtualDomain_Validate_All() {
 	fi
 }
 
-if [ $# -ne 1 ]; then
-	usage
-	exit $OCF_ERR_ARGS
-fi
+VirtualDomain_getconfig() {
+	# Grab the virsh uri default, but only if hypervisor isn't set
+	: ${OCF_RESKEY_hypervisor=$(virsh --quiet uri 2>/dev/null)}
 
-case $1 in
-	meta-data)	meta_data
-		exit $OCF_SUCCESS
-		;;
-	usage)	usage
-		exit $OCF_SUCCESS
-		;;
-esac
+	# Set options to be passed to virsh:
+	VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor} --quiet"
 
-# Grab the virsh uri default, but only if hypervisor isn't set
-: ${OCF_RESKEY_hypervisor=$(virsh --quiet uri 2>/dev/null)}
+	# Retrieve the domain name from the xml file.
+	DOMAIN_NAME=`egrep '[[:space:]]*<name>.*</name>[[:space:]]*$' ${OCF_RESKEY_config} 2>/dev/null | sed -e 's/[[:space:]]*<name>\(.*\)<\/name>[[:space:]]*$/\1/'`
 
-# Set options to be passed to virsh:
-VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor} --quiet"
+	EMULATOR_STATE="${HA_RSCTMP}/VirtualDomain-${DOMAIN_NAME}-emu.state"
+}
 
-# Everything except usage and meta-data must pass the validate test
-VirtualDomain_Validate_All || exit $?
-
-# During a probe, it is permissible for the config file to not be
-# readable (it might be on shared storage not available during the
-# probe). In that case, we're
-# unable to get the domain name. Thus, we also can't check whether the
-# domain is running. The only thing we can do here is to assume that
-# it is not running.
-if [ ! -r $OCF_RESKEY_config ]; then
-	ocf_is_probe && exit $OCF_NOT_RUNNING
-	[ "$__OCF_ACTION" = "stop" ] && exit $OCF_SUCCESS
-fi
-
-# Retrieve the domain name from the xml file.
-DOMAIN_NAME=`egrep '[[:space:]]*<name>.*</name>[[:space:]]*$' ${OCF_RESKEY_config} | sed -e 's/[[:space:]]*<name>\(.*\)<\/name>[[:space:]]*$/\1/' 2>/dev/null`
-if [ -z $DOMAIN_NAME ]; then
-	ocf_exit_reason "Unable to determine domain name."
-	exit $OCF_ERR_GENERIC
-fi
-
-EMULATOR_STATE="${HA_RSCTMP}/VirtualDomain-${DOMAIN_NAME}-emu.state"
-
-case $1 in
-	start)
-		VirtualDomain_Start
-		;;
-	stop)
-		VirtualDomain_Stop
-		;;
-	migrate_to)
-		VirtualDomain_Migrate_To
-		;;
-	migrate_from)
-		VirtualDomain_Migrate_From
-		;;
-	status)
-		VirtualDomain_Status
-		;;
-	monitor)
-		VirtualDomain_Monitor
-		;;
-	validate-all)
-		;;
-	*)
-		usage
-		exit $OCF_ERR_UNIMPLEMENTED
-		;;
-esac
-exit $?
-
+OCF_REQUIRED_PARAMS="config"
+OCF_REQUIRED_BINARIES="virsh sed"
+ocf_rarun $*
