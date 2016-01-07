@@ -902,7 +902,9 @@ ocf_start_trace() {
 			return
 		ocf_trace_redirect_to_file "$__OCF_TRC_DEST"
 	fi
-	PS4='+ `date +"%T"`: ${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}: '
+	if [ -n "$BASH_VERSION" ]; then
+		PS4='+ `date +"%T"`: ${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}: '
+	fi
 	set -x
 	env=$( echo; printenv | sort )
 }
