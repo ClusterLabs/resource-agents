@@ -375,10 +375,14 @@ This is optional for replication.
 <parameter name="replication_slot_name" unique="0" required="0">
 <longdesc lang="en">
 Set this option when using replication slots.
+Can only use lower case letters, numbers and underscore for replication_slot_name.
+
 When the master node has 1 slave node,one replication slot would be created with the name "replication_slot_name".
 When the master node has 2 or more slave nodes,the replication slots would be created for each node, with the name adding the node name as postfix.
-For example, replication_slot_name is "sample" and 2 slaves which are "node_a" and "node_b" connect to
-their slots, the slots names are "sample_node_a" and "sample_node_b".
+For example, replication_slot_name is "sample" and 2 slaves which are "node1" and "node2" connect to
+their slots, the slots names are "sample_node1" and "sample_node2".
+If the node name contains a upper case letter, hyphen and dot, those characters will be converted to a lower case letter or an underscore.
+For example, Node-1.example.com to node_1_example_com.
 
 pgsql RA doesn't monitor and delete the repliation slot.
 When the slave node has been disconnected in failure or the like, execute one of the following manually.
@@ -1325,6 +1329,9 @@ create_replication_slot_name() {
         for target in $NODE_LIST
         do
             if [ "$target" != "$NODENAME" ]; then
+                # The Uppercase, "-" and "." don't allow to use in slot_name.
+                # If the NODENAME contains them, convert upper case to lower case and "_" and "." to "_".
+                target=`echo "$target" | tr '[A-Z.-]' '[a-z__]'`
                 replication_slot_name="$OCF_RESKEY_replication_slot_name"_"$target"
                 replication_slot_name_list_tmp="$replication_slot_name_list"
                 replication_slot_name_list="$replication_slot_name_list_tmp $replication_slot_name"
@@ -1501,6 +1508,7 @@ reload_conf() {
 
 user_recovery_conf() {
     local number_of_nodes
+    local nodename_tmp
 
     # put archive_cleanup_command and recovery_end_command only when defined by user
     if [ -n "$OCF_RESKEY_archive_cleanup_command" ]; then
@@ -1515,7 +1523,8 @@ user_recovery_conf() {
         if [ $number_of_nodes -le 2 ]; then
             echo "primary_slot_name = '${OCF_RESKEY_replication_slot_name}'"
         else
-            echo "primary_slot_name = '${OCF_RESKEY_replication_slot_name}_$NODENAME'"
+            nodename_tmp=`echo "$NODENAME" | tr '[A-Z.-]' '[a-z__]'`
+            echo "primary_slot_name = '${OCF_RESKEY_replication_slot_name}_$nodename_tmp'"
         fi
     fi
 }
@@ -1864,6 +1873,12 @@ pgsql_validate_all() {
         ocf_version_cmp "$version" "9.4"
         if [ $? -eq 0 -o $? -eq 3 ]; then
             ocf_exit_reason "Replication slot needs PostgreSQL 9.4 or higher."
+            return $OCF_ERR_CONFIGURED
+        fi
+
+        echo "$OCF_RESKEY_replication_slot_name" | grep -q -e [^a-z0-9_]
+        if [ $? -eq 0 ]; then
+            ocf_exit_reason "Invalid replication_slot_name($OCF_RESKEY_replication_slot_name). only use lower case letters, numbers, and the underscore character."
             return $OCF_ERR_CONFIGURED
         fi
     fi
