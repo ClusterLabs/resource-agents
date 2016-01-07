@@ -3,26 +3,61 @@
 CONFIG
 	Agent iscsi
 	AgentRoot /usr/lib/ocf/resource.d/heartbeat
-	InstallPackage open-iscsi
-	InstallPackage iscsitarget
+	InstallPackage open-iscsi targetcli
 	HangTimeout 20
 
 VARIABLE
-	OCFT_disk=/var/run/resource-agents/ocft-iscsi
-	OCFT_target="iqn.2011-03.ocft.localhost:disk0"
+	OCFT_disk="/var/run/resource-agents/ocft-iscsi"
+	OCFT_target="iqn.2003-01.org.linux-iscsi:ocft"
 	OCFT_portal="127.0.0.1:3260"
+	OCFT_loop_f="/var/run/resource-agents/ocft-iscsi-loopdev"
+	OCFT_loop="`cat $OCFT_loop_f 2>/dev/null`"
+	OCF_ROOT=/usr/lib/ocf
+	OCF_RESKEY_iqn=$OCFT_target
+	OCF_RESKEY_portals=$OCFT_portal
+	OCF_RESKEY_target_iqn=$OCFT_target
+	OCF_RESKEY_path=$OCFT_loop
+	OCF_RESKEY_lun=1
 
 SETUP-AGENT
-	dd if=/dev/zero of=$OCFT_disk bs=1024k count=1 2>/dev/null
-	echo Target $OCFT_target >> /etc/ietd.conf
-	echo "        Lun 0 Path=$OCFT_disk,Type=fileio" >> /etc/ietd.conf
-	rciscsitarget start
-	rcopen-iscsi start
-	rciscsitarget restart
+	losetup -f > $OCFT_loop_f
+	OCFT_loop="`cat $OCFT_loop_f`"
+	dd if=/dev/zero of=$OCFT_disk bs=1 count=0 seek=16M 2>/dev/null
+	losetup $OCFT_loop $OCFT_disk
+	if [ -n "`which rcopen-iscsi >/dev/null 2>&1`" ]; then
+		rcopen-iscsi start
+	else
+		rciscsi start
+		rciscsid start
+	fi
+	if systemctl list-unit-files 2>/dev/null | fgrep -q target.service; then
+		systemctl start target.service
+	else
+		rctarget start
+	fi
+	export OCF_ROOT=/usr/lib/ocf
+	export OCF_RESKEY_iqn=$OCFT_target
+	export OCF_RESKEY_portals=$OCFT_portal
+	export OCF_RESKEY_target_iqn=$OCFT_target
+	export OCF_RESKEY_path=$OCFT_loop
+	export OCF_RESKEY_lun=1
+	/usr/lib/ocf/resource.d/heartbeat/iSCSITarget start
+	/usr/lib/ocf/resource.d/heartbeat/iSCSILogicalUnit start
 
 CLEANUP-AGENT
-	rm -f $OCFT_disk
-	sed -i "/^Target $OCFT_target/,+1d" /etc/ietd.conf
+	export OCF_ROOT=/usr/lib/ocf
+	export OCF_RESKEY_iqn=$OCFT_target
+	export OCF_RESKEY_portals=$OCFT_portal
+	export OCF_RESKEY_target_iqn=$OCFT_target
+	export OCF_RESKEY_path=$OCFT_loop
+	export OCF_RESKEY_lun=1
+	/usr/lib/ocf/resource.d/heartbeat/iSCSILogicalUnit stop
+	/usr/lib/ocf/resource.d/heartbeat/iSCSITarget stop
+	if systemctl list-unit-files 2>/dev/null | fgrep -q target.service; then
+		systemctl stop target.service
+	fi
+	losetup -d $OCFT_loop
+	rm -f $OCFT_disk $OCFT_loop_f
 
 CASE-BLOCK required_args
 	Env OCF_RESKEY_portal=$OCFT_portal
