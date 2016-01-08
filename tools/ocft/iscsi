@@ -7,12 +7,11 @@ CONFIG
 	HangTimeout 20
 
 VARIABLE
-	OCFT_disk="/var/run/resource-agents/ocft-iscsi"
+	OCFT_rundir="`get_rundir`"
+	OCFT_disk="$OCFT_rundir/resource-agents/ocft-iscsi"
 	OCFT_target="iqn.2003-01.org.linux-iscsi:ocft"
 	OCFT_portal="127.0.0.1:3260"
-	OCFT_loop_f="/var/run/resource-agents/ocft-iscsi-loopdev"
-	OCFT_loop="`cat $OCFT_loop_f 2>/dev/null`"
-	OCF_ROOT=/usr/lib/ocf
+	OCFT_loop="`loopbackeddev make $OCFT_disk 16M`"
 	OCF_RESKEY_iqn=$OCFT_target
 	OCF_RESKEY_portals=$OCFT_portal
 	OCF_RESKEY_target_iqn=$OCFT_target
@@ -20,10 +19,6 @@ VARIABLE
 	OCF_RESKEY_lun=1
 
 SETUP-AGENT
-	losetup -f > $OCFT_loop_f
-	OCFT_loop="`cat $OCFT_loop_f`"
-	dd if=/dev/zero of=$OCFT_disk bs=1 count=0 seek=16M 2>/dev/null
-	losetup $OCFT_loop $OCFT_disk
 	if [ -n "`which rcopen-iscsi >/dev/null 2>&1`" ]; then
 		rcopen-iscsi start
 	else
@@ -35,7 +30,6 @@ SETUP-AGENT
 	else
 		rctarget start
 	fi
-	export OCF_ROOT=/usr/lib/ocf
 	export OCF_RESKEY_iqn=$OCFT_target
 	export OCF_RESKEY_portals=$OCFT_portal
 	export OCF_RESKEY_target_iqn=$OCFT_target
@@ -45,7 +39,6 @@ SETUP-AGENT
 	/usr/lib/ocf/resource.d/heartbeat/iSCSILogicalUnit start
 
 CLEANUP-AGENT
-	export OCF_ROOT=/usr/lib/ocf
 	export OCF_RESKEY_iqn=$OCFT_target
 	export OCF_RESKEY_portals=$OCFT_portal
 	export OCF_RESKEY_target_iqn=$OCFT_target
@@ -56,8 +49,7 @@ CLEANUP-AGENT
 	if systemctl list-unit-files 2>/dev/null | fgrep -q target.service; then
 		systemctl stop target.service
 	fi
-	losetup -d $OCFT_loop
-	rm -f $OCFT_disk $OCFT_loop_f
+	loopbackeddev unmake $OCFT_disk
 
 CASE-BLOCK required_args
 	Env OCF_RESKEY_portal=$OCFT_portal

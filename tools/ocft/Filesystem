@@ -8,24 +8,17 @@ CONFIG
 	HangTimeout 20
 
 VARIABLE
-	OCFT_vardir="`mount | grep '/run ' | awk '{print $3}'`"
-	OCFT_fs="$OCFT_vardir/resource-agents/ocft-Filesystem-fs"
-	OCFT_dir="$OCFT_vardir/resource-agents/ocft-Filesystem-mnt"
-	OCFT_loop_f="$OCFT_vardir/resource-agents/ocft-loopdev"
-	OCFT_loop="`cat $OCFT_loop_f 2>/dev/null`"
+	OCFT_rundir="`get_rundir`"
+	OCFT_fs="$OCFT_rundir/resource-agents/ocft-Filesystem-fs"
+	OCFT_dir="$OCFT_rundir/resource-agents/ocft-Filesystem-mnt"
+	OCFT_loop="`loopbackeddev make $OCFT_fs 16M`"
 
 SETUP-AGENT
-	losetup -f > $OCFT_loop_f
-	rmdir $OCFT_dir 2>/dev/null || true
-	mkdir $OCFT_dir
-	dd if=/dev/zero of=$OCFT_fs bs=1 count=0 seek=16M 2>/dev/null
-	mke2fs -j -Fq -m 0 $OCFT_fs
-	losetup `cat $OCFT_loop_f` $OCFT_fs
+	mke2fs -j -Fq -m 0 $OCFT_loop
 
 CLEANUP-AGENT
+	loopbackeddev unmake $OCFT_fs
 	rmdir $OCFT_dir
-	rm $OCFT_fs $OCFT_loop_f
-	losetup -d $OCFT_loop
 
 CASE-BLOCK required_args
 	Env OCF_RESKEY_device=$OCFT_loop
