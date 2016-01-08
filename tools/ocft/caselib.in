@@ -255,6 +255,9 @@ export OCF_ROOT=@OCF_ROOT_DIR@
 export OCF_LIB=@OCF_LIB_DIR@/heartbeat
 __OCFT__AGENT_ROOT=@OCF_RA_DIR@/heartbeat
 __OCFT__CASES_DIR=/var/lib/@PACKAGE_NAME@/ocft/cases
+OCFT_DIR=@datadir@/@PACKAGE_NAME@/ocft
+
+. $OCFT_DIR/helpers.sh
 
 __OCFT__atexit_num=0
 
@@ -276,6 +279,11 @@ export HA_SBIN_DIR=$__OCFT__fakebin
 
 . $OCF_LIB/ocf-returncodes || {
   echo "${__OCFT__showhost}ERROR: $OCF_LIB/ocf-returncodes not found."
+  quit 3
+}
+
+. $OCF_LIB/ocf-directories || {
+  echo "${__OCFT__showhost}ERROR: $OCF_LIB/ocf-directories not found."
   quit 3
 }
 
