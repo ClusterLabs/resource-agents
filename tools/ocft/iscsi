@@ -19,16 +19,15 @@ VARIABLE
 	OCF_RESKEY_lun=1
 
 SETUP-AGENT
-	if [ -n "`which rcopen-iscsi >/dev/null 2>&1`" ]; then
-		rcopen-iscsi start
+	if systemctl list-unit-files 2>/dev/null | fgrep -q iscsid.service; then
+		systemctl start iscsid.service
 	else
-		rciscsi start
-		rciscsid start
+		/etc/init.d/open-iscsi start
 	fi
 	if systemctl list-unit-files 2>/dev/null | fgrep -q target.service; then
 		systemctl start target.service
 	else
-		rctarget start
+		/etc/init.d/target start
 	fi
 	export OCF_RESKEY_iqn=$OCFT_target
 	export OCF_RESKEY_portals=$OCFT_portal
