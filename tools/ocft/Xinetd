@@ -7,8 +7,8 @@ CONFIG
 
 SETUP-AGENT
 	sed -i /disable/s/yes/no/ /etc/xinetd.d/echo
-	if which rcxinetd >/dev/null 2>&1; then
-		rcxinetd start
+	if which /etc/init.d/xinetd >/dev/null 2>&1; then
+		/etc/init.d/xinetd start
 	elif systemctl list-unit-files | grep -qs xinetd; then
 		systemctl start xinetd
 	fi
