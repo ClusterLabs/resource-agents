@@ -117,6 +117,17 @@ meta_data()
 	    <content type="integer" default=""/>
         </parameter>
 
+        <parameter name="krbhost">
+            <longdesc lang="en">
+                This is the Kerberos hostname, which should be set according
+                to the floating IP.
+            </longdesc>
+            <shortdesc lang="en">
+                This is the Kerberos hostname.
+            </shortdesc>
+            <content type="string"/>
+        </parameter>
+
     </parameters>
 
     <actions>
@@ -206,25 +217,53 @@ nfs_daemons()
 	case $1 in
 	start)
 		ocf_log info "Starting NFS daemons"
-		/etc/init.d/nfs start
-		if [ $? -ne 0 ]; then
+		if [ -z "$OCF_RESKEY_krbhost" ]; then
+			/etc/init.d/nfs start
+			rv=$?
+		else
+			unshare -u /bin/bash -c "hostname $OCF_RESKEY_krbhost; /etc/init.d/nfs start"
+			rv=$?
+			unshare -u /bin/bash -c "hostname $OCF_RESKEY_krbhost; /etc/init.d/rpcgssd start"
+			if [ $rv -ne 0 ]; then
+				ocf_log err "Failed to start rpcgssd"
+				return $OCF_ERR_GENERIC
+			fi
+			unshare -u /bin/bash -c "hostname $OCF_RESKEY_krbhost; /etc/init.d/rpcidmapd start"
+			if [ $rv -ne 0 ]; then
+				ocf_log err "Failed to start rpcidmapd"
+				return $OCF_ERR_GENERIC
+			fi
+		fi
+
+		if [ $rv -ne 0 ]; then
 			ocf_log err "Failed to start NFS daemons"
-			return 1
+			return $OCF_ERR_GENERIC
 		fi
 
 		ocf_log debug "NFS daemons are running"
-		return 0
+		return $OCF_SUCCESS
 		;;
 	stop)
 		ocf_log info "Stopping NFS daemons"
+		if [ -n "$OCF_RESKEY_krbhost"]; then
+			if ! /etc/init.d/rpcidmapd stop; then
+				ocf_log err "Failed to stop rpcidmapd"
+				return $OCF_ERR_GENERIC
+			fi
+			if ! /etc/init.d/rpcgssd stop; then
+				ocf_log err "Failed to stop rpcgssd"
+				return $OCF_ERR_GENERIC
+			fi
+		fi
+
 		if ! /etc/init.d/nfs stop; then
 			ocf_log err "Failed to stop NFS daemons"
-			return 1
+			return $OCF_ERR_GENERIC
 		fi
 
 		ocf_log debug "NFS daemons are stopped"
 
-		return 0
+		return $OCF_SUCCESS
 		;;
 	status|monitor)
 		declare recoverydir="$OCF_RESKEY_path/$OCF_RESKEY_nfspath/v4recovery"
@@ -233,11 +272,23 @@ nfs_daemons()
 		[ "$val" = "$recoverydir" ] || ocf_log warning \
 			"NFSv4 recovery directory is $val instead of $recoverydir"
 		/etc/init.d/nfs status
-		if [ $? -eq 0 ]; then
-			ocf_log debug "NFS daemons are running"
-			return 0
+		if [ $? -ne 0 ]; then
+			ocf_log err "NFS is not running"
+			return $OCF_NOT_RUNNING
 		fi
-		return $OCF_NOT_RUNNING
+		/etc/init.d/rpcgssd status
+		if [ $? -ne 0 ]; then
+			ocf_log err "rpcgssd is not running"
+			return $OCF_NOT_RUNNING
+		fi
+		/etc/init.d/rpcidmapd status
+		if [ $? -ne 0 ]; then
+			ocf_log err "rpcidmapd is not running"
+			return $OCF_NOT_RUNNING
+		fi
+
+		ocf_log debug "NFS daemons are running"
+		return $OCF_SUCCESS
 		;;
 	esac
 }
