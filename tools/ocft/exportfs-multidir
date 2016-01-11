@@ -5,22 +5,23 @@
 CONFIG
 	Agent exportfs
 	AgentRoot /usr/lib/ocf/resource.d/heartbeat
-        HangTimeout 40
+	InstallPackage nfs-kernel-server
+	HangTimeout 40
 
 SETUP-AGENT
-        # nothing
+	# nothing
 
 CASE-BLOCK set_testenv
-        Env OCF_RESKEY_directory="/usr /var"
-        Env OCF_RESKEY_fsid=105
-        Env OCF_RESKEY_clientspec="*"
+	Env OCF_RESKEY_directory="/usr /var"
+	Env OCF_RESKEY_fsid=105
+	Env OCF_RESKEY_clientspec="*"
 	Env OCF_RESKEY_CRM_meta_timeout=30000
 
 CASE-BLOCK default_status
 	AgentRun stop
 
 CASE-BLOCK prepare
-        Include set_testenv
+	Include set_testenv
 	Include default_status
 
 CASE "check base env"

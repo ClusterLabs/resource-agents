@@ -7,8 +7,13 @@ CONFIG
         HangTimeout 20
 
 SETUP-AGENT
-	/etc/init.d/mysql start
-	/etc/init.d/mysql stop
+	if systemctl list-unit-files 2>/dev/null | fgrep -q mysql.service; then
+		systemctl start mysql.service
+		systemctl stop mysql.service
+	else
+		/etc/init.d/mysql start
+		/etc/init.d/mysql stop
+	fi
 
 CASE-BLOCK crm_setting
 	Env OCF_RESKEY_CRM_meta_timeout=15000
