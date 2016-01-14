@@ -122,23 +122,14 @@ start()
 		return $OCF_ERR_GENERIC
 	fi
 
-	declare i=$OCF_RESKEY_startup_wait
-	while [ "$i" -gt 0 ]; do
-		if [ -f "$MYSQL_pid_file" ]; then
-			break;			
-		fi
-		sleep 1
-		let i=$i-1
-        done
-
-        if [ "$i" -eq 0 ]; then
-		clog_service_start $CLOG_FAILED_TIMEOUT
-		return $OCF_ERR_GENERIC
-	fi
-	
 	clog_service_start $CLOG_SUCCEED
 
-	return 0;
+	# Sleep 1 sec before checking status so mysqld can start
+	sleep 1
+
+	status
+
+	return $?;
 }
 
 stop()
@@ -162,7 +153,27 @@ status()
 
 	status_check_pid "$MYSQL_pid_file"
 	case $? in
-		$OCF_NOT_RUNNING)
+	$OCF_NOT_RUNNING)
+		ps auxww | grep -Pv "grep|$MYSQL_MYSQLD" | grep "$MYSQL_pid_file" &> /dev/null
+		if [ "$?" -eq "0" ];then
+			declare i=$OCF_RESKEY_startup_wait
+			while [ "$i" -gt 0 ]; do
+				if [ -f "$MYSQL_pid_file" ]; then
+					break;
+				fi
+				sleep 1
+				let i=$i-1
+			done
+
+			if [ "$i" -eq 0 ]; then
+				clog_service_start $CLOG_FAILED_TIMEOUT
+				return $OCF_ERR_GENERIC
+			else
+				clog_service_status $CLOG_SUCCEED
+				exit 0
+			fi
+		fi
+
 		clog_service_status $CLOG_FAILED "$MYSQL_pid_file"
 		return $OCF_NOT_RUNNING
 		;;
