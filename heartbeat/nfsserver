@@ -269,6 +269,10 @@ nfs_exec()
 	set_exec_mode
 
 	case $EXEC_MODE in 
+		[23]) test $cmd = "status" && cmd="is-active" ;;
+	esac
+
+	case $EXEC_MODE in
 		1) ${OCF_RESKEY_nfs_init_script} $cmd;;
 		2) systemctl $cmd nfs-server.service ;;
 		3) systemctl $cmd nfs-server.service ;;
