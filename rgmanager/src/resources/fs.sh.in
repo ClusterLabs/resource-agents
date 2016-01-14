@@ -240,7 +240,7 @@ verify_fstype()
 	[ -z "$OCF_RESKEY_fstype" ] && return 0
 
 	case $OCF_RESKEY_fstype in
-	ext2|ext3|ext4|btrfs|jfs|xfs|reiserfs|vfat|tmpfs|vxfs)
+	ext2|ext3|ext4|btrfs|jfs|xfs|reiserfs|vfat|vxfs)
 		return 0
 		;;
 	*)
@@ -357,13 +357,6 @@ verify_options()
 			esac
 			;;
 
-		tmpfs)
-			case $o in
-			size=*|nr_blocks=*|mode=*)
-				continue
-				;;
-			esac
-			;;
 		btrfs)
 			# tbd
 			continue
