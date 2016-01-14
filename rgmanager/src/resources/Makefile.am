@@ -29,13 +29,14 @@ RESOURCES		= service.sh ip.sh nfsclient.sh nfsexport.sh \
 			  vm.sh SAPInstance SAPDatabase named.sh db2.sh \
 			  ASEHAagent.sh drbd.sh nfsserver.sh \
 			  tomcat-6.sh orainstance.sh oralistener.sh oracledb.sh \
-			  bind-mount.sh
+			  bind-mount.sh oradg.sh
 
 METADATA		= apache.metadata openldap.metadata samba.metadata \
 			  mysql.metadata postgres-8.metadata \
 			  tomcat-5.metadata named.metadata lvm.metadata \
 			  drbd.metadata tomcat-6.metadata \
-			  orainstance.metadata oralistener.metadata
+			  orainstance.metadata oralistener.metadata \
+			  oradg.metadata
 
 HELPERS			= ocf-shellfuncs svclib_nfslock \
 			  lvm_by_lv.sh lvm_by_vg.sh
