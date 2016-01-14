@@ -193,7 +193,7 @@ force_cleanup() {
 
 	ocf_log error "Not all Oracle processes for $ORACLE_SID exited cleanly, killing"
 	
-	pids=`ps ax | grep "ora_.*_${ORACLE_SID}" | grep -v grep | awk '{print $1}'`
+	pids=`ps ax | grep "ora_.*_${ORACLE_SID}$" | grep -v grep | awk '{print $1}'`
 
 	for pid in $pids; do
 		kill -9 $pid
@@ -216,7 +216,7 @@ exit_idle() {
 	declare -i n=0
 	
 	ocf_log debug "Waiting for Oracle processes for $ORACLE_SID to terminate..."
-	while ps ax | grep ora_.*_${ORACLE_SID} | grep -v grep | grep -q -v $LSNR_PROCNAME; do
+	while ps ax | grep "ora_.*_${ORACLE_SID}$" | grep -v grep | grep -q -v $LSNR_PROCNAME; do
 		if [ $n -ge 90 ]; then
 			ocf_log debug "Timed out while waiting for Oracle processes for $ORACLE_SID to terminate"
 			force_cleanup
@@ -475,7 +475,15 @@ stop_oracle() {
 		rv=$?
 		if [ $rv -ne 0 ]; then
 			ocf_log error "Listener $LISTENER stop failed for $ORACLE_SID: $rv output $lsnrctl_stdout"
-			# XXX - failure?
+
+			pid=`ps ax | grep "tnslsnr $LISTENER " | grep -v grep | awk '{print $1}'`
+			kill -9 $pid
+			rv=$?
+			if [ $rv -eq 0 ]; then
+				ocf_log info "Cleanup $LISTENER Killed PID $pid"
+			else
+				ocf_log error "Cleanup $LISTENER Kill PID $pid failed: $rv"
+			fi
 		fi
 	done
 
