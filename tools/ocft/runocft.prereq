@@ -1,0 +1,30 @@
+apache
+db2	prog:~db2inst1/sqllib/bin/db2
+drbd.linbit	run:false
+exportfs
+exportfs-multidir
+Filesystem
+IPaddr2	run:ip addr show dev eth0
+IPaddr2v4	run:ip addr show dev eth0 && ip addr show dev eth1
+IPaddr2v6	run:ip addr show dev eth0 && ip addr show dev eth1
+IPsrcaddr	run:false
+IPv6addr	run:ip addr show dev eth0 && ip addr show dev eth1
+iscsi
+jboss	run:false
+LVM
+MailTo
+mysql
+mysql-proxy	run:false
+named
+nfsserver
+oracle	prog:sqlplus
+pgsql
+portblock
+postfix
+Raid1
+SendArp
+sg_persist	run:false
+tomcat	run:false
+VirtualDomain	run:false
+Xen	run:false
+Xinetd

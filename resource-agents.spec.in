@@ -252,6 +252,9 @@ rm -rf %{buildroot}
 %dir %{_datadir}/%{name}/ocft
 %{_datadir}/%{name}/ocft/configs
 %{_datadir}/%{name}/ocft/caselib
+%{_datadir}/%{name}/ocft/helpers.sh
+%{_datadir}/%{name}/ocft/runocft
+%{_datadir}/%{name}/ocft/runocft.prereq
 %{_datadir}/%{name}/ocft/README
 %{_datadir}/%{name}/ocft/README.zh_CN
 

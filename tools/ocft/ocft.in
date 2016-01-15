@@ -637,6 +637,7 @@ start_test()
   local sh shs testsh agents line ret
   local rc=0
   local varlib
+  local rc_f
 
   if ! cd $CASES_DIR >/dev/null 2>&1; then
     die "cases directory not found."
@@ -671,7 +672,8 @@ start_test()
       echo "RA trace on, output in $varlib/trace_ra"
     fi
 
-    for sh in $testsh; do
+    rc_f=`mktemp`
+    (for sh in $testsh; do
       if [ -r "$sh" ]; then
         if [ -n "$opt_trace_ra" ]; then
           export OCF_RESOURCE_INSTANCE="`echo $sh | sed 's/_.*//'`"
@@ -681,11 +683,11 @@ start_test()
 
         case "$sh" in
           setup*)
+              rc=$((rc|ret))
               if [ $ret -ne 0 ]; then
                 warn "SETUP failed, break all tests of '$shs'."
                 break
               fi
-              rc=$((rc|ret))
               ;;
           cleanup*)
               if [ $ret -ne 0 ]; then
@@ -703,12 +705,14 @@ start_test()
               ;;
         esac
       fi
-    done 2>&1 | while read -r line; do
+    done 2>&1; echo $rc > $rc_f) | while read -r line; do
       echo "$line"
       echo "$(date '+%F %T'): $line" | cat -A |
       sed -r 's/\^\[\[[0-9]+m|\^I|.$//g' >>logs/$shs.log
     done
   done
+  rc=`cat $rc_f`
+  rm -f $rc_f
   return $rc
 }
 

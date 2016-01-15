@@ -8,8 +8,13 @@ CONFIG
         HangTimeout 20
 
 SETUP-AGENT
-	rcapache2 start
-	rcapache2 stop
+	if systemctl list-unit-files 2>/dev/null | fgrep -q apache2.service; then
+		systemctl start apache2.service
+		systemctl stop apache2.service
+	else
+		/etc/init.d/apache2 start
+		/etc/init.d/apache2 stop
+	fi
 
 CASE-BLOCK default_status
 	AgentRun stop

@@ -5,6 +5,14 @@ CONFIG
 	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	InstallPackage xinetd
 
+SETUP-AGENT
+	sed -i /disable/s/yes/no/ /etc/xinetd.d/echo
+	if which /etc/init.d/xinetd >/dev/null 2>&1; then
+		/etc/init.d/xinetd start
+	elif systemctl list-unit-files | grep -qs xinetd; then
+		systemctl start xinetd
+	fi
+
 CASE-BLOCK required_args
 	Env OCF_RESKEY_service=discard
 

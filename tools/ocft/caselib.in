@@ -47,40 +47,22 @@ agent_install()
 
   for pkg in "$@"; do
     if [ -e /etc/SuSE-release ]; then
-      if ! rpm -ql "$pkg" >/dev/null 2>&1; then
-        echo "${__OCFT__showhost}Installing $pkg ..."
-        zypper -q install -y "$pkg" >/dev/null 2>&1
-        if ! rpm -ql "$pkg" >/dev/null 2>&1; then
-          echo
-          echo "${__OCFT__showhost}ERROR: Install '$pkg' failed."
-          quit 2
-        fi
-        echo "done"
+      if ! zypper -q install -y "$pkg" >/dev/null 2>&1; then
         echo
+        echo "${__OCFT__showhost}ERROR: Install '$pkg' failed."
+        quit 2
       fi
     elif [ -e /etc/debian_version ]; then
-      if ! dpkg -L "$pkg" >/dev/null 2>&1; then
-        echo "${__OCFT__showhost}Installing $pkg ..."
-        apt-get -y install "$pkg" >/dev/null 2>&1
-        if ! dpkg -L "$pkg" >/dev/null 2>&1; then
-          echo
-          echo "${__OCFT__showhost}ERROR: Install '$pkg' failed."
-          quit 2
-        fi
-        echo "done"
+      if ! apt-get -y install "$pkg" >/dev/null 2>&1; then
         echo
+        echo "${__OCFT__showhost}ERROR: Install '$pkg' failed."
+        quit 2
       fi
     elif [ -e /etc/redhat-release ]; then
-      if ! rpm -ql "$pkg" >/dev/null 2>&1; then
-        echo "${__OCFT__showhost}Installing $pkg ..."
-        yum -y install "$pkg" >/dev/null 2>&1
-        if ! rpm -ql "$pkg" >/dev/null 2>&1; then
-          echo
-          echo "${__OCFT__showhost}ERROR: Install '$pkg' failed."
-          quit 2
-        fi
-        echo "done"
+      if ! yum -y install "$pkg" >/dev/null 2>&1; then
         echo
+        echo "${__OCFT__showhost}ERROR: Install '$pkg' failed."
+        quit 2
       fi
     else
       echo "${__OCFT__showhost}ERROR: Cannot detect your OS type."
@@ -105,6 +87,9 @@ agent_run()
   timeout="$3"
 
   set_ocf_env $agent
+
+  export OCF_RESKEY_CRM_meta_timeout
+  : ${OCF_RESKEY_CRM_meta_timeout:=$timeout}
 
   aroot=${__OCFT__MYROOT:-$__OCFT__AGENT_ROOT}
 
@@ -270,6 +255,9 @@ export OCF_ROOT=@OCF_ROOT_DIR@
 export OCF_LIB=@OCF_LIB_DIR@/heartbeat
 __OCFT__AGENT_ROOT=@OCF_RA_DIR@/heartbeat
 __OCFT__CASES_DIR=/var/lib/@PACKAGE_NAME@/ocft/cases
+OCFT_DIR=@datadir@/@PACKAGE_NAME@/ocft
+
+. $OCFT_DIR/helpers.sh
 
 __OCFT__atexit_num=0
 
@@ -291,6 +279,11 @@ export HA_SBIN_DIR=$__OCFT__fakebin
 
 . $OCF_LIB/ocf-returncodes || {
   echo "${__OCFT__showhost}ERROR: $OCF_LIB/ocf-returncodes not found."
+  quit 3
+}
+
+. $OCF_LIB/ocf-directories || {
+  echo "${__OCFT__showhost}ERROR: $OCF_LIB/ocf-directories not found."
   quit 3
 }
 

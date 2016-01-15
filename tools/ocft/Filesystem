@@ -2,31 +2,23 @@
 # by dejan@suse.de on 
 # Tue Feb 15 18:50:04 CET 2011
 #
-# NB: Replace /var/run below with /run if your system mounts /run
-# as tmpfs!
-
 CONFIG
 	Agent Filesystem
 	AgentRoot /usr/lib/ocf/resource.d/heartbeat
 	HangTimeout 20
 
 VARIABLE
-	OCFT_fs=/var/run/resource-agents/ocft-Filesystem-fs
-	OCFT_loop=/dev/loop7
-	OCFT_dir=/var/run/resource-agents/ocft-Filesystem-mnt
+	OCFT_rundir="`get_rundir`"
+	OCFT_fs="$OCFT_rundir/resource-agents/ocft-Filesystem-fs"
+	OCFT_dir="$OCFT_rundir/resource-agents/ocft-Filesystem-mnt"
+	OCFT_loop="`loopbackeddev make $OCFT_fs 16M`"
 
 SETUP-AGENT
-	losetup $OCFT_loop 2>/dev/null && exit 1
-	rmdir $OCFT_dir 2>/dev/null || true
-	mkdir $OCFT_dir
-	dd if=/dev/zero of=$OCFT_fs bs=1 count=0 seek=16M 2>/dev/null
-	mke2fs -j -Fq -m 0 $OCFT_fs
-	losetup $OCFT_loop $OCFT_fs
+	mke2fs -j -Fq -m 0 $OCFT_loop
 
 CLEANUP-AGENT
+	loopbackeddev unmake $OCFT_fs
 	rmdir $OCFT_dir
-	rm $OCFT_fs
-	losetup -d $OCFT_loop
 
 CASE-BLOCK required_args
 	Env OCF_RESKEY_device=$OCFT_loop

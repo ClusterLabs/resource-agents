@@ -3,18 +3,13 @@
 CONFIG
 	Agent nfsserver
 	AgentRoot /usr/lib/ocf/resource.d/heartbeat
-	InstallPackage $NFSPKG
+	InstallPackage nfs-kernel-server
 	HangTimeout 20
 
 SETUP-AGENT
 	INITSCRIPT=""
 	if test -f /etc/init.d/nfsserver; then
 		INITSCRIPT="/etc/init.d/nfsserver"
-	fi
-	if test -e /etc/SuSE-release; then
-		NFSPKG=nfs-kernel-server
-	elif test -e /etc/redhat-release; then
-		NFSPKG=nfs-utils
 	fi
 	true
 
