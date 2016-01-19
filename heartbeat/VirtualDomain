@@ -171,7 +171,7 @@ Be sure to set the timeout of these operations to accommodate this delay.
 
 <parameter name="autoset_utilization_cpu" unique="0" required="0">
 <longdesc lang="en">
-If set true, the agent will detect the number of domainU's vCPUs from virsh, and put it 
+If set true, the agent will detect the number of domainU's vCPUs from virsh, and put it
 into the CPU utilization of the resource when the monitor is executed.
 </longdesc>
 <shortdesc lang="en">Enable auto-setting the CPU utilization of the resource</shortdesc>
@@ -180,7 +180,7 @@ into the CPU utilization of the resource when the monitor is executed.
 
 <parameter name="autoset_utilization_hv_memory" unique="0" required="0">
 <longdesc lang="en">
-If set true, the agent will detect the number of *Max memory* from virsh, and put it 
+If set true, the agent will detect the number of *Max memory* from virsh, and put it
 into the hv_memory utilization of the resource when the monitor is executed.
 </longdesc>
 <shortdesc lang="en">Enable auto-setting the hv_memory utilization of the resource</shortdesc>
@@ -206,8 +206,8 @@ This parameter instructs the RA to save the configuration back to the xml file p
 
 <parameter name="sync_config_on_stop" unique="0" required="0">
 <longdesc lang="en">
-Setting this automatically enables save_config_on_stop. 
-When enabled this parameter instructs the RA to 
+Setting this automatically enables save_config_on_stop.
+When enabled this parameter instructs the RA to
 call csync2 -x to synchronize the file to all nodes.
 csync2 must be properly set up for this to work.
 </longdesc>
@@ -217,11 +217,11 @@ csync2 must be properly set up for this to work.
 
 <parameter name="snapshot">
 <longdesc lang="en">
-Path to the snapshot directory where the virtual machine image will be stored.  When this 
+Path to the snapshot directory where the virtual machine image will be stored.  When this
 parameter is set, the virtual machine's RAM state will be saved to a file in the snapshot
 directory when stopped.  If on start a state file is present for the domain, the domain
 will be restored to the same state it was in right before it stopped last.  This option
-is incompatible with the 'force_stop' option. 
+is incompatible with the 'force_stop' option.
 </longdesc>
 <shortdesc lang="en">
 Restore state on start/stop
@@ -297,7 +297,7 @@ get_emulator()
 
 	if [ -n "$emulator" ]; then
 		basename $emulator
-	else 
+	else
 		ocf_log $loglevel "Unable to determine emulator for $DOMAIN_NAME"
 	fi
 }
@@ -427,6 +427,17 @@ VirtualDomain_status() {
 	return $rc
 }
 
+# In case of crash, the container's systemd unit is not removed by libvirt.
+# We need to delete it to be able to restart. We should not find any scope
+# of the former domain.
+verify_systemd_units() {
+	systemctl --no-legend -t scope | grep "$DOMAIN_NAME" 2>&1 > /dev/null
+
+	if [ $? -eq 0 ] ; then
+		systemctl reset-failed
+	fi
+}
+
 # virsh undefine removes configuration files if they are in
 # directories which are managed by libvirt. such directories
 # include also subdirectories of /etc (for instance
@@ -482,6 +493,11 @@ VirtualDomain_start() {
 	# is restored to an 'undefined' state before creating.
 	verify_undefined
 
+	# Make sure domain's systemd scope is deleted.
+	# In case of domain failure, libvirt does not delete them and cannot
+	# restart it.
+	verify_systemd_units
+
 	virsh $VIRSH_OPTIONS create ${OCF_RESKEY_config}
 	rc=$?
 	if [ $rc -ne 0 ]; then
@@ -492,7 +508,7 @@ VirtualDomain_start() {
 	while ! VirtualDomain_monitor; do
 		sleep 1
 	done
-	
+
 	return $OCF_SUCCESS
 }
 
@@ -525,7 +541,7 @@ force_stop()
 sync_config(){
 	ocf_log info "Syncing $DOMAIN_NAME config file with csync2 -x ${OCF_RESKEY_config}"
 	if ! csync2 -x ${OCF_RESKEY_config}; then
-		ocf_log warn "Syncing ${OCF_RESKEY_config} failed."; 
+		ocf_log warn "Syncing ${OCF_RESKEY_config} failed.";
 	fi
 }
 
@@ -538,10 +554,10 @@ save_config(){
 				ocf_log info "Saving domain $DOMAIN_NAME to ${OCF_RESKEY_config}. Please make sure it's present on all nodes or sync_config_on_stop is on."
 				if cat ${CFGTMP} > ${OCF_RESKEY_config} ; then
 					ocf_log info "Saved $DOMAIN_NAME domain's configuration to ${OCF_RESKEY_config}."
-					if ocf_is_true "$OCF_RESKEY_sync_config_on_stop"; then	
+					if ocf_is_true "$OCF_RESKEY_sync_config_on_stop"; then
 						sync_config
 					fi
-				else	
+				else
 					ocf_log warn "Moving ${CFGTMP} to ${OCF_RESKEY_config} failed."
 				fi
 			else
@@ -583,7 +599,7 @@ VirtualDomain_stop() {
 			fi
 
 			# save config if needed
-			if ocf_is_true "$OCF_RESKEY_save_config_on_stop"; then	
+			if ocf_is_true "$OCF_RESKEY_save_config_on_stop"; then
 				save_config
 			fi
 
@@ -695,7 +711,7 @@ VirtualDomain_migrate_to() {
 		remoteuri=$(echo ${OCF_RESKEY_hypervisor} | sed -e "s,\(.*\)://[^/:]*\(:\?[0-9]*\)/\(.*\),\1${transport_suffix}://${target_node}\2/\3,")
 
 		# save config if needed
-		if ocf_is_true "$OCF_RESKEY_save_config_on_stop"; then	
+		if ocf_is_true "$OCF_RESKEY_save_config_on_stop"; then
 			save_config
 		fi
 
@@ -741,7 +757,7 @@ VirtualDomain_migrate_from() {
 	done
 	ocf_log info "$DOMAIN_NAME: live migration from ${OCF_RESKEY_CRM_meta_migrate_source} succeeded."
 	# save config if needed
-	if ocf_is_true "$OCF_RESKEY_save_config_on_stop"; then	
+	if ocf_is_true "$OCF_RESKEY_save_config_on_stop"; then
 		save_config
 	fi
 	return $OCF_SUCCESS
@@ -773,9 +789,9 @@ VirtualDomain_monitor() {
 
 	update_emulator_cache
 	update_utilization
-   # Save configuration on monitor as well, so we will have a better chance of 
+   # Save configuration on monitor as well, so we will have a better chance of
 	# having fresh and up to date config files on all nodes.
-	if ocf_is_true "$OCF_RESKEY_save_config_on_stop"; then	
+	if ocf_is_true "$OCF_RESKEY_save_config_on_stop"; then
 		save_config
 	fi
 
