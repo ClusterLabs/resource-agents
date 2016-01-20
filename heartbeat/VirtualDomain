@@ -431,9 +431,8 @@ VirtualDomain_status() {
 # We need to delete it to be able to restart. We should not find any scope
 # of the former domain.
 verify_systemd_units() {
-	systemctl --no-legend -t scope | grep "$DOMAIN_NAME" 2>&1 > /dev/null
-
-	if [ $? -eq 0 ] ; then
+	if systemctl --no-legend -t scope | grep -q "$DOMAIN_NAME"
+	then
 		systemctl reset-failed
 	fi
 }
@@ -496,7 +495,10 @@ VirtualDomain_start() {
 	# Make sure domain's systemd scope is deleted.
 	# In case of domain failure, libvirt does not delete them and cannot
 	# restart it.
-	verify_systemd_units
+	if which systemctl >/dev/null 2>&1
+	then
+		verify_systemd_units
+	fi
 
 	virsh $VIRSH_OPTIONS create ${OCF_RESKEY_config}
 	rc=$?
