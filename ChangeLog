@@ -1,3 +1,94 @@
+* Wed Jan 20 2016 resource-agents contributors
+- release candidate 3.9.7 rc1
+- nfsserver.sh: add hostname attribute for NFS export (required for NFSv4+Kerberos support)
+- oradg.sh: new RA for Oracle Data Guard
+- ocf_shellfuncs: suppress bash specific trace_ra log on dash
+- sg_persist: remove uncalled for ocf_run calls
+- multiple RA: replace error log messages with calls to ocf_exit_reason
+- nfsserver: only do redhat specific stuff on redhat
+- exportfs: don't increment fsid for single directory
+- Filesystem: add tmpfs support
+- netfs.sh: move defaults to metadata
+- nfsserver: /var/lock/subsys is non-standard, check for it first
+- nagios: new RA
+- docker: check for errors in the container name
+- mysql: fix grep failure on MySQL 5.6 or higher when checking read_only variable
+- VirtualDomain: new attributes migration_speed and migration_downtime
+- fs: remove not-working tmpfs support
+- vm.sh: add migrate_options parameter
+- nfsserver: Use rpc-statd.service for NFS locking in EXEC_MODE=3 (bsc#955114)
+- nfsserver: Add EXEC_MODE for systemd without nfs-lock.service (bsc#955114)
+- IPaddr2: Add IPv6 DAD collision detection
+- Filesystem: add overlay as supported filesystem
+- ldirectord: dns_check and fallbackcommand enhancements
+- IPaddr2: fix potential syntax error on if-then-else
+- SAPDatabase: add Oracle 12 to list of supported databases (bsc#953991)
+- mysql-common.sh: fix issue where "removing old PID file" wasnt logged
+- mysql-common.sh: when mysql has been stopped, mysql stop returns success
+- mysql.sh: wait up to startup_wait seconds before failing if mysqld startup is slow
+- orainstance.sh: fix 90s wait/killing of databases containing the name of the database being killed, and added cleanup code to kill remaining listener process
+- ip.sh: Use DAD to check for IPv6 address collision
+- iSCSITarget: fix to only create one IQN and add portals to it
+- galera: document the bootstrap flow
+- galera: start joining nodes during 'monitor' to allow long-running SST
+- galera: add support for MYSQL_HOST and MYSQL_PORT from /etc/sysconfig/clustercheck
+- redis: fix password parser
+- pgsql fix exec_sql errors like "unknown variable select pg_ " in dash
+- pgsql: fix get_my_location() sql regression
+- docker: fix image variable name
+- pgsql: Fix return code override in pgsql_real_start()
+- slapd: add "maxfiles" parameter to set max number of open files (for ulimit -n)
+- redis: use required client password when set
+- send_arp: fix for infiniband, re-merge from upstream iputils arping
+- CTDB: Preserve smb.conf permissions (bsc#935253)
+- lxc: fix emergency stop functionality on 1.0
+- tomcat: use runuser instead of su for SELinux enforcing mode
+- pgsql: use runuser intead of su command for SELinux enforcing mode
+- docker: image name check fixes
+- iSCSITarget: properly create portals for lio-t implementation
+- iSCSILogicalUnit: when deleting a LUN or initiator fails with lio-t, proceed with warning
+- iSCSILogicalUnit: return OCF_NOT_RUNNING on monitor if backing path does not exist
+- iSCSILogicalUnit: add check for leftover target/core entries for lio-t
+- pgsql: delete old replication slot when creating a new slot.
+- Filesystem: support RozoFS
+- orainstance.sh: interpret listener stop results correctly
+- dhcpd: use correct default chroot for RHEL based systems
+- LVM: allow vgck failures if partial_activation is true
+- redis: avoid 0 byte dump.rdb start failures
+- docker: fix container_exist test
+- redis: fixed start operation if replication sync takes > 20 seconds
+- ethmonitor: add link_status_only option for skipping RX counter and arping tests
+- clvm: fix issue with only first option of daemon_options being used
+- IPsrcaddr: return correct error code during stop when misconfigured
+- clvm: activate_vgs option for enable/disable of automatic vg activation
+- galera: properly redetect bootstrap after demote
+- galera: clear last know sequence number any time promote is even attempted
+- asterisk: fix return code
+- galera: retrieve last sequence number without using read-only mode
+- redis: add wait_last_known_master option
+- redis: only connect to active master instances
+- redis: do not attempt to demote if redis is dead
+- redis: reliable shutdown.
+- pgsql: add support for replication slots
+- redis: set executable bit to be able to greate docs (make rpm)
+- rabbitmq-cluster: fix rmq_join_list() to only return online nodes
+- rabbitmq-cluster: new RA
+- Filesystem: support overlayfs
+- sg_persist: use default binary setting in meta-data
+- dnsupdate: use nsupdate_opts parameter
+- nfsserver: merge options into existing /etc/sysconfig/nfs
+- portblock: portno param can be a string like 137,138
+- portblock: replace ancient heartbeat config with crm configure
+- portblock: clarify TCP RST vs ICMP port unreachable
+- VirtualDomain: enforce C locale in force_stop
+- redis: retry on unknown error when starting
+- redis: remove stop timeout and add placeholder master during election period
+- CTDB: Change default socket location to CTDB's expected default.
+- multiple RA: make sure that the pidfile directory exist
+- multiple RA: create state-directory writable by the application
+- orainstance.sh: Handle ORA-* error messages
+- redis: new RA
+
 * Thu Jan 29 2015 resource-agents contributors
 - stable release 3.9.6
 - VirtualDomain: add migrate_options parameter
