@@ -2108,7 +2108,7 @@ sub add_real_server
 	my $new_rsrv;
 	my $rsrv;
 
-	$new_rsrv = {"server"=>$ip, "port"=>$port};
+	$new_rsrv = {"server"=>$ip, "port"=>$port, "failcount"=>0};
 
 	$flags =~ /(\w+)(.*)/ && ($1 eq "gate" || $1 eq "masq" || $1 eq "ipip")
 		or &config_error($line,	"forward method must be gate, masq or ipip");
