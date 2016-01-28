@@ -293,10 +293,42 @@ v3locking_exec()
 	fi
 }
 
+nfsserver_systemd_monitor()
+{
+	local threads_num
+	local rc
+
+	nfs_exec is-active
+	rc=$?
+
+	# Now systemctl is-active can't detect the failure of kernel process like nfsd.
+	# So, if the return value of systemctl is-active is 0, check the threads number
+	# to make sure the process is running really.
+	# /proc/fs/nfsd/threads has the numbers of the nfsd threads.
+	if [ $rc -eq 0 ]; then
+		threads_num=`cat /proc/fs/nfsd/threads 2>/dev/null`
+		if [ $? -eq 0 ]; then
+			if [ $threads_num -gt 0 ]; then
+				return $OCF_SUCCESS
+			else
+				return 3
+			fi
+		else
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
+	return $rc
+}
+
 nfsserver_monitor ()
 {
+	set_exec_mode
 	fn=`mktemp`
-	nfs_exec status > $fn 2>&1 
+	case $EXEC_MODE in
+               1) nfs_exec status > $fn 2>&1;;
+            [23]) nfsserver_systemd_monitor > $fn 2>&1;;
+	esac
 	rc=$?
 	ocf_log debug "$(cat $fn)"
 	rm -f $fn
