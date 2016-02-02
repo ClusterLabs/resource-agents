@@ -353,7 +353,7 @@ check_sync_status()
         return $OCF_ERR_GENERIC
     fi
 
-    if [ "$state" == "4" -a "$ready" == "ON" ]; then
+    if [ "$state" = "4" -a "$ready" = "ON" ]; then
         ocf_log info "local node synced with the cluster"
         # when sync is finished, we are ready to switch to Master
         clear_sync_needed
