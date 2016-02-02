@@ -279,6 +279,22 @@ is_bootstrap()
 
 }
 
+set_heuristic_recovered()
+{
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-heuristic-recovered" -v "true"
+}
+
+clear_heuristic_recovered()
+{
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-heuristic-recovered" -D
+}
+
+is_heuristic_recovered()
+{
+    local node=$1
+    ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-heuristic-recovered" -Q 2>/dev/null
+}
+
 clear_last_commit()
 {
     ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" -D
@@ -429,8 +445,19 @@ detect_first_master()
     local best_node="$NODENAME"
     local last_commit=0
     local missing_nodes=0
+    local nodes=""
+    local nodes_recovered=""
 
+    # avoid selecting a recovered node as bootstrap if possible
     for node in $(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' '); do
+        if is_heuristic_recovered $node; then
+            nodes_recovered="$nodes_recovered $node"
+        else
+            nodes="$nodes $node"
+        fi
+    done
+
+    for node in $nodes_recovered $nodes; do
         last_commit=$(get_last_commit $node)
 
         if [ -z "$last_commit" ]; then
@@ -517,8 +544,14 @@ galera_start_local_node()
 
     if ocf_is_true $bootstrap; then
         clear_bootstrap_node
+        # clear attribute heuristic-recovered. if last shutdown was
+        # not clean, we cannot be extra-cautious by requesting a SST
+        # since this is the bootstrap node
+        clear_heuristic_recovered
     else
         set_sync_needed
+        # attribute heuristic-recovered will be cleared once the joiner
+        # has finished syncing and is promoted to Master
     fi
 
     ocf_log info "Galera started"
@@ -561,6 +594,12 @@ detect_last_commit()
                                      --tc-heuristic-recover=rollback > $tmp 2>/dev/null
 
                 last_commit="$(cat $tmp | sed -n $recovered_position_regex)"
+                if [ ! -z "$last_commit" ]; then
+                    ocf_log warn "State recovered. force SST at next restart for full resynchronization"
+                    rm -f ${OCF_RESKEY_datadir}/grastate.dat
+                    # try not to use this node if bootstrap is needed
+                    set_heuristic_recovered
+                fi
             fi
         fi
         rm -f $tmp $tmperr
@@ -598,6 +637,8 @@ galera_promote()
         # promoting other masters only performs sanity checks
         # as the joining nodes were started during the "monitor" op
         if ! check_sync_needed; then
+            # sync is done, clear info about last recovery
+            clear_heuristic_recovered
             return $OCF_SUCCESS
         else
             ocf_exit_reason "Attempted to promote local node while sync was still needed."
