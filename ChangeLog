@@ -1,3 +1,10 @@
+* Wed Feb  3 2016 resource-agents contributors
+- stable release 3.9.7
+- ldirectord: fix unset failcount error
+- iscsi: add portal check to open_iscsi_get_session_id()
+- galera: use mysql's --tc-heuristic-recover if crash recovery is needed
+- nfsserver: fix monitor for systemd
+
 * Wed Jan 20 2016 resource-agents contributors
 - release candidate 3.9.7 rc1
 - nfsserver.sh: add hostname attribute for NFS export (required for NFSv4+Kerberos support)
