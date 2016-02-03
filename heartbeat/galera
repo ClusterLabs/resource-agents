@@ -279,6 +279,22 @@ is_bootstrap()
 
 }
 
+set_heuristic_recovered()
+{
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-heuristic-recovered" -v "true"
+}
+
+clear_heuristic_recovered()
+{
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-heuristic-recovered" -D
+}
+
+is_heuristic_recovered()
+{
+    local node=$1
+    ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-heuristic-recovered" -Q 2>/dev/null
+}
+
 clear_last_commit()
 {
     ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" -D
@@ -337,7 +353,7 @@ check_sync_status()
         return $OCF_ERR_GENERIC
     fi
 
-    if [ "$state" == "4" -a "$ready" == "ON" ]; then
+    if [ "$state" = "4" -a "$ready" = "ON" ]; then
         ocf_log info "local node synced with the cluster"
         # when sync is finished, we are ready to switch to Master
         clear_sync_needed
@@ -429,8 +445,19 @@ detect_first_master()
     local best_node="$NODENAME"
     local last_commit=0
     local missing_nodes=0
+    local nodes=""
+    local nodes_recovered=""
 
+    # avoid selecting a recovered node as bootstrap if possible
     for node in $(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' '); do
+        if is_heuristic_recovered $node; then
+            nodes_recovered="$nodes_recovered $node"
+        else
+            nodes="$nodes $node"
+        fi
+    done
+
+    for node in $nodes_recovered $nodes; do
         last_commit=$(get_last_commit $node)
 
         if [ -z "$last_commit" ]; then
@@ -517,14 +544,77 @@ galera_start_local_node()
 
     if ocf_is_true $bootstrap; then
         clear_bootstrap_node
+        # clear attribute heuristic-recovered. if last shutdown was
+        # not clean, we cannot be extra-cautious by requesting a SST
+        # since this is the bootstrap node
+        clear_heuristic_recovered
     else
         set_sync_needed
+        # attribute heuristic-recovered will be cleared once the joiner
+        # has finished syncing and is promoted to Master
     fi
 
     ocf_log info "Galera started"
     return $OCF_SUCCESS
 }
 
+detect_last_commit()
+{
+    local last_commit
+    local recover_args="--defaults-file=$OCF_RESKEY_config \
+                        --pid-file=$OCF_RESKEY_pid \
+                        --socket=$OCF_RESKEY_socket \
+                        --datadir=$OCF_RESKEY_datadir \
+                        --user=$OCF_RESKEY_user"
+    local recovered_position_regex='s/.*WSREP\:\s*[R|r]ecovered\s*position.*\:\(.*\)\s*$/\1/p'
+
+    ocf_log info "attempting to detect last commit version by reading ${OCF_RESKEY_datadir}/grastate.dat"
+    last_commit="$(cat ${OCF_RESKEY_datadir}/grastate.dat | sed -n 's/^seqno.\s*\(.*\)\s*$/\1/p')"
+    if [ -z "$last_commit" ] || [ "$last_commit" = "-1" ]; then
+        local tmp=$(mktemp)
+        local tmperr=$(mktemp)
+
+        ocf_log info "now attempting to detect last commit version using 'mysqld_safe --wsrep-recover'"
+
+        ${OCF_RESKEY_binary} $recover_args --wsrep-recover > $tmp 2> $tmperr
+
+        last_commit="$(cat $tmp | sed -n $recovered_position_regex)"
+        if [ -z "$last_commit" ]; then
+            # Galera uses InnoDB's 2pc transactions internally. If
+            # server was stopped in the middle of a replication, the
+            # recovery may find a "prepared" XA transaction in the
+            # redo log, and mysql won't recover automatically
+
+            cat $tmperr | grep -q -E '\[ERROR\]\s+Found\s+[0-9]+\s+prepared\s+transactions!' 2>/dev/null
+            if [ $? -eq 0 ]; then
+                # we can only rollback the transaction, but that's OK
+                # since the DB will get resynchronized anyway
+                ocf_log warn "local node <${NODENAME}> was not shutdown properly. Rollback stuck transaction with --tc-heuristic-recover"
+                ${OCF_RESKEY_binary} $recover_args --wsrep-recover \
+                                     --tc-heuristic-recover=rollback > $tmp 2>/dev/null
+
+                last_commit="$(cat $tmp | sed -n $recovered_position_regex)"
+                if [ ! -z "$last_commit" ]; then
+                    ocf_log warn "State recovered. force SST at next restart for full resynchronization"
+                    rm -f ${OCF_RESKEY_datadir}/grastate.dat
+                    # try not to use this node if bootstrap is needed
+                    set_heuristic_recovered
+                fi
+            fi
+        fi
+        rm -f $tmp $tmperr
+    fi
+
+    if [ ! -z "$last_commit" ]; then
+        ocf_log info "Last commit version found:  $last_commit"
+        set_last_commit $last_commit
+        return $OCF_SUCCESS
+    else
+        ocf_exit_reason "Unable to detect last known write sequence number"
+        clear_last_commit
+        return $OCF_ERR_GENERIC
+    fi
+}
 
 galera_promote()
 {
@@ -547,6 +637,8 @@ galera_promote()
         # promoting other masters only performs sanity checks
         # as the joining nodes were started during the "monitor" op
         if ! check_sync_needed; then
+            # sync is done, clear info about last recovery
+            clear_heuristic_recovered
             return $OCF_SUCCESS
         else
             ocf_exit_reason "Attempted to promote local node while sync was still needed."
@@ -569,13 +661,15 @@ galera_demote()
     clear_last_commit
     clear_sync_needed
 
-    # record last commit by "starting" galera. start is just detection of the last sequence number
-    galera_start
+    # record last commit for next promotion
+    detect_last_commit
+    rc=$?
+    return $rc
 }
 
 galera_start()
 {
-    local last_commit
+    local rc
 
     echo $OCF_RESKEY_wsrep_cluster_address | grep -q $NODENAME
     if [ $? -ne 0 ]; then
@@ -591,34 +685,11 @@ galera_start()
 
     mysql_common_prepare_dirs
 
-    ocf_log info "attempting to detect last commit version by reading ${OCF_RESKEY_datadir}/grastate.dat"
-    last_commit="$(cat ${OCF_RESKEY_datadir}/grastate.dat | sed -n 's/^seqno.\s*\(.*\)\s*$/\1/p')"
-    if [ -z "$last_commit" ] || [ "$last_commit" = "-1" ]; then
-        ocf_log info "now attempting to detect last commit version using 'mysqld_safe --wsrep-recover'"
-        local tmp=$(mktemp)
-        ${OCF_RESKEY_binary} --defaults-file=$OCF_RESKEY_config \
-            --pid-file=$OCF_RESKEY_pid \
-            --socket=$OCF_RESKEY_socket \
-            --datadir=$OCF_RESKEY_datadir \
-            --user=$OCF_RESKEY_user \
-            --wsrep-recover > $tmp 2>&1
-
-        last_commit="$(cat $tmp | sed -n 's/.*WSREP\:\s*[R|r]ecovered\s*position.*\:\(.*\)\s*$/\1/p')"
-        rm -f $tmp
-
-        if [ "$last_commit" = "-1" ]; then
-            last_commit="0"
-        fi
+    detect_last_commit
+    rc=$?
+    if [ $rc -ne $OCF_SUCCESS ]; then
+        return $rc
     fi
-
-    if [ -z "$last_commit" ]; then
-        ocf_exit_reason "Unable to detect last known write sequence number"
-        clear_last_commit
-        return $OCF_ERR_GENERIC
-    fi
-    ocf_log info "Last commit version found:  $last_commit"
-
-    set_last_commit $last_commit
 
     master_exists
     if [ $? -eq 0 ]; then

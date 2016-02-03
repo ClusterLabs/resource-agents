@@ -25,7 +25,7 @@ restart a Galera cluster.
 
 ### Bootstrap the cluster with the right node
 
-When synced, the nodes of a galera clusters have in common a last seqno,
+When synced, the nodes of a galera cluster have in common a last seqno,
 which identifies the last transaction considered successful by a
 majority of nodes in the cluster (think quorum).
 
@@ -130,3 +130,20 @@ Non-primary state, which would make `galera_monitor()` fail.
            node started and entered the Galera cluster
 - Deleted: during recurring slave monitor in `check_sync_status()`
            as soon as the Galera code reports to be SYNC-ed.
+
+### heuristic-recovered
+
+If a galera node was unexpectedly killed in a middle of a replication,
+InnoDB can retain the equivalent of a XA transaction in prepared state
+in its redo log. If so, mysqld cannot recover state (nor last seqno)
+automatically, and special recovery heuristic has to be used to
+unblock the node.
+
+This attribute is used to keep track of forced recoveries to prevent
+bootstrapping a cluster from a recovered node when possible.
+
+- Used   : during `detect_first_master()` to elect the bootstrap node
+- Created: in `detect_last_commit()` if the node has a pending XA
+           transaction to recover in the redo log
+- Deleted: when a node is promoted to Master. This attribute is
+           kept in the CIB if a node in stopped.
