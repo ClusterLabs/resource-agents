@@ -17,7 +17,7 @@
 
 MAINTAINERCLEANFILES = Makefile.in
 
-EXTRA_DIST		= $(ocftcfgs_DATA) $(ocft_DATA)
+EXTRA_DIST		= $(ocftcfgs_DATA) $(ocft_DATA) $(ocft_SCRIPTS)
 
 sbin_SCRIPTS		= ocft
 
