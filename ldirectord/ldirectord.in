@@ -602,7 +602,7 @@ B<login = ">I<username>B<">
 For FTP, IMAP, LDAP, MySQL, Oracle, POP and PostgreSQL, the username
 used to log in.
 
-For Radius the username is used for the attribute User-Name.
+For RADIUS the username is used for the attribute User-Name.
 
 For SIP, the username is used as both the to and from address for an
 OPTIONS query.
@@ -628,7 +628,7 @@ B<passwd = ">I<password>B<">
 Password to use to login to FTP, IMAP, LDAP, MySQL, Oracle, POP, PostgreSQL
 and SIP servers.
 
-For Radius the passwd is used for the attribute User-Password.
+For RADIUS the passwd is used for the attribute User-Password.
 
 Default:
 
@@ -652,7 +652,7 @@ against.  This is a required setting.
 
 B<secret = ">I<radiussecret>B<">
 
-Secret to use for Radius servers, this is the secret used to perform an
+Secret to use for RADIUS servers, this is the secret used to perform an
 Access-Request with the username (set by B<login> above) and passwd (set by
 B<passwd> above).
 
@@ -2964,7 +2964,7 @@ sub check_pop
 	my ($v, $r, $ssl) = @_;
 	my $port = ld_checkport($v, $r);
 
-	&ld_debug(2, "Checking pop server=$$r{server} port=$port ssl=$ssl");
+	&ld_debug(2, "Checking POP3 server=$$r{server} port=$port ssl=$ssl");
 
 	my $pop = new Mail::POP3Client(USER => $$v{login},
 					PASSWORD => $$v{passwd},
@@ -2999,7 +2999,7 @@ sub check_imap
 	my ($v, $r) = @_;
 	my $port = ld_checkport($v, $r);
 
-	&ld_debug(2, "Checking imap server=$$r{server} port=$port");
+	&ld_debug(2, "Checking IMAP server=$$r{server} port=$port");
 
 	my $imap = Net::IMAP::Simple->new($$r{server},
 					port => $port,
@@ -3030,7 +3030,7 @@ sub check_imaps
 	my ($v, $r) = @_;
 	my $port = ld_checkport($v, $r);
 
-	&ld_debug(2, "Checking imaps server=$$r{server} port=$port");
+	&ld_debug(2, "Checking IMAPS server=$$r{server} port=$port");
 
 	my $imaps = Net::IMAP::Simple::SSL->new($$r{server},
 					port => $port,
@@ -3063,7 +3063,7 @@ sub check_ldap
 	my $result;
 	my $recstr = $$r{receive};
 
-	&ld_debug(2, "Checking ldap server=$$r{server} port=$port");
+	&ld_debug(2, "Checking LDAP server=$$r{server} port=$port");
 	eval {
 		local $SIG{'__DIE__'} = "DEFAULT";
 		local $SIG{'ALRM'} = sub { die "Timeout Alarm" };
@@ -3141,7 +3141,7 @@ sub check_nntp
 	my $port = ld_checkport($v, $r);
 	my $status = 1;
 
-	&ld_debug(2, "Checking nntp server=$$r{server} port=$port");
+	&ld_debug(2, "Checking NNTP server=$$r{server} port=$port");
 
 	unless ($sock = IO::Socket::INET6->new(PeerAddr => $$r{server},
 		PeerPort => $port, Proto => 'tcp',
@@ -3174,7 +3174,7 @@ sub check_radius
 
 	my ($v, $r) = @_;
 
-	&ld_debug(2, "Checking radius");
+	&ld_debug(2, "Checking RADIUS");
 
 	my $port = ld_checkport($v, $r);
 	my $radius;
@@ -3187,19 +3187,19 @@ sub check_radius
 		&ld_debug(2, "Starting Check");
 		alarm $$v{checktimeout};
 
-		&ld_debug(2, "Starting Radius");
+		&ld_debug(2, "Starting RADIUS");
 		$radius = new Authen::Radius(Host => "$$r{server}:$port",
 					     Secret=>$$v{secret},
 					     TimeOut=>$$v{negotiatetimeout},
 					     Errmode=>'die');
 		$result = $radius->check_pwd($$v{login}, $$v{passwd});
-		&ld_debug(2, "Finished Radius");
+		&ld_debug(2, "Finished RADIUS");
 		alarm 0; # Cancel the alarm
 	};
 	if ($result eq "") {
 		&service_set($v, $r, "down", {do_log => 1});
 		&ld_debug(3, "Deactivated service $$r{server}:$$r{port}: $@");
-		&ld_debug(3, "Radius Error: ".$radius->get_error);
+		&ld_debug(3, "RADIUS Error: ".$radius->get_error);
 		return $SERVICE_DOWN;
 	} else {
 		&service_set($v, $r, "up", {do_log => 1});
@@ -3429,7 +3429,7 @@ sub check_sip
 	my ($v, $r) = @_;
 	my $sip_d_port = ld_checkport($v, $r);
 
-	&ld_debug(2, "Checking sip server=$$r{server} port=$sip_d_port");
+	&ld_debug(2, "Checking SIP server=$$r{server} port=$sip_d_port");
 
 
 	eval {
@@ -3592,7 +3592,7 @@ sub check_ftp
 	my $debug = ($DEBUG > 2) ? 1 : 0;
 	my $port = ld_checkport($v, $r);
 
-	&ld_debug(2, "Checking ftp server=$$r{server} port=$port");
+	&ld_debug(2, "Checking FTP server=$$r{server} port=$port");
 	&ld_debug(4, "Timeout is $$v{negotiatetimeout}");
 
 	open(TMP,'+>', undef);
@@ -3657,7 +3657,7 @@ sub check_dns
 	
 	$server = &ld_strip_brackets($$r{server});
 
-	&ld_debug(2, "Checking dns: request=\"$request\" receive=\""
+	&ld_debug(2, "Checking DNS: request=\"$request\" receive=\""
 		. $$r{"receive"} . "\"\n");
 
 	eval {
