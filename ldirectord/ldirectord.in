@@ -2718,6 +2718,18 @@ sub run_child
 	my $real = $$v{real};
 	my $virtual_id = get_virtual_id_str($v);
 	my $checkinterval = $$v{checkinterval} || $CHECKINTERVAL;
+
+	# delete any entries in EMAILSTATUS that don't belong to this child
+	my %myservices = ();
+	foreach my $r (@$real) {
+		my $virtual_str = &get_virtual($v);
+		my $id = $r->{server} . ":" . $r->{port} . " ($virtual_str)";
+		$myservices{$id} = 1;
+	}
+	foreach my $id (keys %EMAILSTATUS) {
+		delete $EMAILSTATUS{$id} unless defined $myservices{$id};
+	}
+
 	$0 = "ldirectord $virtual_id";
 	while (1) {
 		foreach my $r (@$real) {
