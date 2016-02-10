@@ -2662,24 +2662,8 @@ sub ld_main
 			check_signal();
 
 		} else {
-			my @real_checked;
-			foreach my $v (@VIRTUAL) {
-				my $real = $$v{real};
-				my $virtual_id = get_virtual_id_str($v);
+			_ld_main_check_all();
 
-				REAL: foreach my $r (@$real) {
-					my $real_id = get_real_id_str($r, $v);
-					check_signal();
-					foreach my $tmp_id (@real_checked) {
-						if($real_id eq $tmp_id) {
-							&ld_debug(3, "Already checked: real server=$real_id (virtual=$virtual_id)");
-							next REAL;
-						}
-					}
-					_check_real($v, $r);
-					push(@real_checked, $real_id);
-				}
-			}
 			check_signal();
 			if (!check_cfgfile()) {
 				sleep $CHECKINTERVAL;
@@ -2727,6 +2711,30 @@ sub run_child
 		$0 = "ldirectord $virtual_id";
 		sleep $checkinterval;
 		ld_emailalert_resend();
+	}
+}
+
+# run checks for everything
+sub _ld_main_check_all
+{
+	my @real_checked;
+
+	foreach my $v (@VIRTUAL) {
+		my $real = $$v{real};
+		my $virtual_id = get_virtual_id_str($v);
+
+		REAL: foreach my $r (@$real) {
+			my $real_id = get_real_id_str($r, $v);
+			check_signal();
+			foreach my $tmp_id (@real_checked) {
+				if($real_id eq $tmp_id) {
+					&ld_debug(3, "Already checked: real server=$real_id (virtual=$virtual_id)");
+					next REAL;
+				}
+			}
+			_check_real($v, $r);
+			push(@real_checked, $real_id);
+		}
 	}
 }
 
