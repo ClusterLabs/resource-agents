@@ -2590,6 +2590,10 @@ sub ld_start
 		}
 		purge_virtual($nv, "start");
 	}
+
+	# initial check of all real servers while we are still starting up so
+	# any e-mail notifications sent out are in 'starting' daemon status.
+	_ld_main_check_all();
 }
 
 sub ld_cmd_children
