@@ -296,8 +296,17 @@ mysql_common_stop()
 
     mysql_common_status info $pid
     if [ $? != $OCF_NOT_RUNNING ]; then
-        ocf_log info "MySQL failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL..."
-        /bin/kill -KILL $pid > /dev/null
+        # parent (mysqld_safe) will respawn child (mysqld) if we only kill the child with -KILL
+        ppid=`ps -o ppid= $pid`
+        ocf_log info "MySQL failed to stop after ${shutdown_timeout}s using SIGTERM. Sending SIGKILL to parent $ppid and child $pid."
+        /bin/kill -KILL $ppid $pid > /dev/null
+    fi
+
+    # Double check if it is really dead now
+    mysql_common_status info
+    if [ $? = $OCF_SUCCESS ]; then
+      ocf_log err "MySQL still running after we sent SIGKILL. Nothing more we can do here."
+      return $OCF_ERR_GENERIC
     fi
 
     ocf_log info "MySQL stopped";
