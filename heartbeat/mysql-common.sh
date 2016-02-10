@@ -300,9 +300,15 @@ mysql_common_stop()
         /bin/kill -KILL $pid > /dev/null
     fi
 
-    ocf_log info "MySQL stopped";
-    rm -f /var/lock/subsys/mysqld
-    rm -f $OCF_RESKEY_socket
-    return $OCF_SUCCESS
+    mysql_common_status info $pid
+    if [ $? = $OCF_SUCCESS ]; then
+      ocf_log err "SIGKILL left a running process. Nothing more we can do."
+      return $OCF_ERR_GENERIC
+    else
+      ocf_log info "MySQL stopped";
+      rm -f /var/lock/subsys/mysqld
+      rm -f $OCF_RESKEY_socket
+      return $OCF_SUCCESS
+    fi
 
 }
