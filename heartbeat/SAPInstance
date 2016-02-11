@@ -78,10 +78,11 @@ sapinstance_meta_data() {
 <longdesc lang="en">
 Usually a SAP system consists of one database and at least one or more SAP instances (sometimes called application servers). One SAP Instance is defined by having exactly one instance profile. The instance profiles can usually be found in the directory /sapmnt/SID/profile. Each instance must be configured as it's own resource in the cluster configuration.
 The resource agent supports the following SAP versions:
-- SAP WebAS ABAP Release 6.20 - 7.30
-- SAP WebAS Java Release 6.40 - 7.30
-- SAP WebAS ABAP + Java Add-In Release 6.20 - 7.30 (Java is not monitored by the cluster in that case)
+- SAP WebAS ABAP Release 6.20 - 7.40
+- SAP WebAS Java Release 6.40 - 7.40
+- SAP WebAS ABAP + Java Add-In Release 6.20 - 7.40 (Java is not monitored by the cluster in that case)
 When using a SAP Kernel 6.40 please check and implement the actions from the section "Manual postprocessing" from SAP note 995116 (http://sdn.sap.com).
+Other versions may also work with this agent, but have not been verified.
 
 All operations of the SAPInstance resource agent are done by using the startup framework called SAP Management Console or sapstartsrv that was introduced with SAP kernel release 6.40. Find more information about the SAP Management Console in SAP note 1014480. Using this framework defines a clear interface for the Heartbeat cluster, how it sees the SAP system. The options for monitoring the SAP system are also much better than other methods like just watching the ps command for running processes or doing some pings to the application. sapstartsrv uses SOAP messages to request the status of running SAP processes. Therefore it can actually ask a process itself what it's status is, independent from other problems that might exist at the same time.
 
