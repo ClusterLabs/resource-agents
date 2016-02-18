@@ -65,6 +65,7 @@ HTTPDOPTS="-DSTATUS"
 DEFAULT_IBMCONFIG=/opt/IBMHTTPServer/conf/httpd.conf
 DEFAULT_SUSECONFIG="/etc/apache2/httpd.conf"
 DEFAULT_RHELCONFIG="/etc/httpd/conf/httpd.conf"
+DEFAULT_DEBIANCONFIG="/etc/apache2/apache2.conf"
 #
 # You can also set
 #	HTTPD
@@ -144,6 +145,8 @@ silent_status() {
 validate_default_config() {
 	if [ -e /etc/SuSE-release ]; then
 		validate_default_suse_config
+	elif [ -e /etc/debian_version ]; then
+		validate_default_debian_config
 	else
 		return 0
 	fi
@@ -173,6 +176,24 @@ validate_default_suse_config() {
 	return 0
 }
 
+# Debian's Default configuration uses a lock directory /var/lock/apache2
+# which is only generated using the lsb init script issues configtest. To
+# ensure these default directories are present it's useful to run a configtest
+# prior to the resource startup which will create the needed directories
+#
+# To support multiple apache instances the debian scripts and configs
+# obey apache2/envvars. (copy /etc/apache2 -> /etc/apache2-instance)
+# adjust (SUFFIX) envvars and set OCF_RESKEY_envfiles
+validate_default_debian_config() {
+	if find /etc/apache2* -name apache2.conf | grep -q "$CONFIGFILE"
+	then
+		export APACHE_CONFDIR=$(dirname $CONFIGFILE)
+		[ -x "/usr/sbin/a2enmod" ] && ocf_run -q /usr/sbin/a2enmod status
+		ocf_run -q /usr/sbin/apache2ctl configtest || return 1
+	fi
+	return 0
+}
+
 apache_start() {
 	if
 		silent_status
@@ -182,8 +203,6 @@ apache_start() {
 	fi
 
 	validate_default_config || return $OCF_ERR_CONFIGURED
-	# https://bugs.launchpad.net/ubuntu/+source/apache2/+bug/603211
-	[ -d /var/run/apache2 ] || mkdir /var/run/apache2
 
 	if [ -z $PIDFILE_DIRECTIVE ]; then
 		ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE
@@ -397,6 +416,8 @@ detect_default_config()
 {
 	if [ -f $DEFAULT_SUSECONFIG ]; then
 		echo $DEFAULT_SUSECONFIG
+	elif [ -f $DEFAULT_DEBIANCONFIG ]; then
+		echo $DEFAULT_DEBIANCONFIG
 	else
 		echo $DEFAULT_RHELCONFIG
 	fi
