@@ -302,7 +302,7 @@ apache_stop() {
 }
 
 apache_monitor_10() {
-	if [ "$TESTCONFFILE" ]; then
+	if [ -f "$TESTCONFFILE" ] && [ -r "$TESTCONFFILE" ]; then
 		readtestconf < $TESTCONFFILE
 	else
 		test_url="$TESTURL"
@@ -593,6 +593,12 @@ apache_validate_all() {
 		ocf_exit_reason "Configuration file $CONFIGFILE not found!"
 		return $OCF_ERR_INSTALLED
 	fi
+
+	if [ ! -f "$TESTCONFFILE" ] || [ ! -r "$TESTCONFFILE" ]; then
+		ocf_exit_reason "Configuration file $TESTCONFFILE not found, or not readable."
+		return $OCF_ERR_INSTALLED
+	fi
+
 	ocf_mkstatedir root 755 `dirname $PidFile` || return $OCF_ERR_INSTALLED
 	return $OCF_SUCCESS
 }
