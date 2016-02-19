@@ -210,7 +210,11 @@ sapdatabase_monitor() {
       then
         DBINST="-dbinstance $OCF_RESKEY_DBINSTANCE "
       fi
-      output=`$SAPHOSTCTRL -function GetDatabaseStatus -dbname $SID -dbtype $DBTYPE $DBINST`
+      if [ -n "$OCF_RESKEY_DBOSUSER" ]
+      then
+        DBOSUSER="-dbuser $OCF_RESKEY_DBOSUSER "
+      fi
+      output=`$SAPHOSTCTRL -function GetDatabaseStatus -dbname $SID -dbtype $DBTYPE $DBINST $DBOSUSER`
 
       # we have to parse the output, because the returncode doesn't tell anything about the instance status
       for SERVICE in `echo "$output" | grep -i 'Component[ ]*Name *[:=] [A-Za-z][A-Za-z0-9_]* (' | sed 's/^.*Component[ ]*Name *[:=] *\([A-Za-z][A-Za-z0-9_]*\).*$/\1/i'`
@@ -255,30 +259,43 @@ sapdatabase_monitor() {
 # sapdatabase_status: Are there any database processes on this host ?
 #
 sapdatabase_status() {
+  sid=`echo $SID | tr '[:upper:]' '[:lower:]'`
+
+  SUSER=${OCF_RESKEY_DBOSUSER:-""}
+
   case $DBTYPE in
     ADA) SEARCH="$SID/db/pgm/kernel"
-         SUSER=`grep "^SdbOwner" /etc/opt/sdb | awk -F'=' '{print $2}'`
+         [ -z "$SUSER" ] && SUSER=`grep "^SdbOwner" /etc/opt/sdb | awk -F'=' '{print $2}'`
          SNUM=2
          ;;
-    ORA) SEARCH="ora_[a-z][a-z][a-z][a-z]_"
-         SUSER="ora`echo $SID | tr '[:upper:]' '[:lower:]'`"
-         SNUM=4
+    ORA) DBINST=${OCF_RESKEY_DBINSTANCE}
+          DBINST=${OCF_RESKEY_DBINSTANCE:-${SID}}
+          SEARCH="ora_[a-z][a-z][a-z][a-z]_$DBINST"
+
+          if [ -z "$SUSER" ]; then
+            id "oracle" > /dev/null 2> /dev/null && SUSER="oracle"
+            id "ora${sid}" > /dev/null 2> /dev/null && SUSER="${SUSER:+${SUSER},}ora${sid}"
+          fi
+
+          SNUM=4
          ;;
     DB6) SEARCH="db2[a-z][a-z][a-z]"
-         SUSER="db2`echo $SID | tr '[:upper:]' '[:lower:]'`"
+         [ -z "$SUSER" ] && SUSER="db2${sid}"
          SNUM=2
          ;;
     SYB) SEARCH="dataserver"
-         SUSER="syb`echo $SID | tr '[:upper:]' '[:lower:]'`"
+         [ -z "$SUSER" ] && SUSER="syb${sid}"
          SNUM=1
 		 ;;
     HDB) SEARCH="hdb[a-z]*server"
-         SUSER="`echo $SID | tr '[:upper:]' '[:lower:]'`adm"
+         [ -z "$SUSER" ] && SUSER="${sid}adm"
          SNUM=1
 		 ;;
   esac
 
-  cnt=`ps -u $SUSER -o args 2> /dev/null | grep -c $SEARCH`
+  [ -z "$SUSER" ] && return $OCF_ERR_INSTALLED
+
+  cnt=`ps -u $SUSER -o args 2> /dev/null | grep -v grep | grep -c $SEARCH`
   [ $cnt -ge $SNUM ] && return $OCF_SUCCESS
   return $OCF_NOT_RUNNING
 }
