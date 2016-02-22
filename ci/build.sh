@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -eo pipefail
+set -o pipefail
 [[ "${DEBUG:-}" ]] && set -x
 
 declare -i failed
@@ -16,14 +16,17 @@ fail() {
 
 check() {
   local script="$1"
-  shellcheck "$script" || fail "$script"
-  success "$script"
+  if shellcheck "$script"; then
+	success "$script"
+  else
+	fail "$script"
+  fi
 }
 
 find_prunes() {
   local prunes="! -path './.git/*'"
   if [ -f .gitmodules ]; then
-    while read module; do
+    while read -r module; do
       prunes="$prunes ! -path './$module/*'"
     done < <(grep path .gitmodules | awk '{print $3}')
   fi
@@ -31,15 +34,18 @@ find_prunes() {
 }
 
 find_cmd() {
-  echo "find . -type f -and \( -perm +111 -or -name '*.sh' \) $(find_prunes)"
+  echo "find . -type f -and \( -perm /111 -or -name '*.sh' \) $(find_prunes)"
 }
 
 check_all_executables() {
   echo "Checking executables and .sh files..."
-  eval "$(find_cmd)" | while read script; do
+  while read -r script; do
     head=$(head -n1 "$script")
+    [[ "$head" =~ .*ruby.* ]] && continue
+    [[ "$head" =~ .*zsh.* ]] && continue
+    [[ "$head" =~ ^#compdef.* ]] && continue
     check "$script"
-  done
+  done < <(eval "$(find_cmd)")
   exit $failed
 }
 
