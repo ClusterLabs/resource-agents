@@ -594,9 +594,24 @@ apache_validate_all() {
 		return $OCF_ERR_INSTALLED
 	fi
 
-	if [ ! -f "$TESTCONFFILE" ] || [ ! -r "$TESTCONFFILE" ]; then
-		ocf_exit_reason "Configuration file $TESTCONFFILE not found, or not readable."
-		return $OCF_ERR_INSTALLED
+	# validate testconffile/testurl before apache_monitor_10()
+	if [ -n "$TESTCONFFILE" ]; then
+		if [ ! -f "$TESTCONFFILE" ] || [ ! -r "$TESTCONFFILE" ]; then
+			ocf_exit_reason "Configuration file $TESTCONFFILE not found, or not readable."
+			return $OCF_ERR_INSTALLED
+		fi
+	else
+		if [ -n "$TESTURL" ]; then
+			# remove leading or trailing spaces/tabs
+			local temp=$(printf "$TESTURL" | sed -e 's/^[ \t]*//g' -e 's/[ \t]*$//g')
+
+			if [ -z "$temp" ]; then
+				ocf_exit_reason "testurl: \"$TESTURL\" seems to be an empty string?"
+				return $OCF_ERR_CONFIGURED
+			fi
+		fi
+
+		# FIXME: validate TESTREGEX10 will be needed if empty regex is not allow.
 	fi
 
 	ocf_mkstatedir root 755 `dirname $PidFile` || return $OCF_ERR_INSTALLED
