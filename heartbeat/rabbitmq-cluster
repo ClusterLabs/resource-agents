@@ -39,7 +39,14 @@ RMQ_PID_FILE="/var/run/rabbitmq/rmq.pid"
 RMQ_LOG_DIR="/var/log/rabbitmq"
 NODENAME=$(ocf_local_nodename)
 
+# this attr represents the current active local rmq node name.
+# when rmq stops or the node is fenced, this attr disappears
 RMQ_CRM_ATTR_COOKIE="rmq-node-attr-${OCF_RESOURCE_INSTANCE}"
+# this attr represents the last known active local rmq node name
+# when rmp stops or the node is fenced, the attr stays forever so
+# we can continue to map an offline pcmk node to it's rmq node name
+# equivalent. 
+RMQ_CRM_ATTR_COOKIE_LAST_KNOWN="rmq-node-attr-last-known-${OCF_RESOURCE_INSTANCE}"
 
 meta_data() {
 	cat <<END
@@ -79,7 +86,7 @@ END
 
 rmq_usage() {
 	cat <<END
-usage: $0 {start|stop|monitor|migrate_to|migrate_from|validate-all|meta-data}
+usage: $0 {start|stop|monitor|notify|validate-all|meta-data}
 
 Expects to have a fully populated OCF RA-compliant environment set.
 END
@@ -116,8 +123,13 @@ rmq_write_nodename()
 		exit $OCF_ERR_GENERIC
 	fi
 
-	# store the pcmknode to rmq node mapping as an attribute
+	# store the pcmknode to rmq node mapping as a transient attribute. This allows
+	# us to retrieve the join list with a simple xpath.
 	${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "$RMQ_CRM_ATTR_COOKIE" -v "$node_name"
+
+	# the pcmknode to rmq node mapping as a permanent attribute as well. this lets
+	# us continue to map offline nodes to their equivalent rmq node name
+	${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l forever --name "$RMQ_CRM_ATTR_COOKIE_LAST_KNOWN" -v "$node_name"
 }
 
 rmq_delete_nodename()
@@ -262,6 +274,40 @@ rmq_join_existing()
 	return $OCF_SUCCESS
 }
 
+rmq_notify() {
+	node_list="${OCF_RESKEY_CRM_meta_notify_stop_uname}"
+	mode="${OCF_RESKEY_CRM_meta_notify_type}-${OCF_RESKEY_CRM_meta_notify_operation}"
+
+
+	# When notifications are on, this agent is going to "forget" nodes once they
+	# leave the cluster. This is thought to resolve some issues where rabbitmq
+	# blocks trying to sync with an offline node after a fencing action occurs.
+	if ! [ "${mode}" = "post-stop" ]; then
+		return $OCF_SUCCESS
+	fi
+
+	rmq_monitor
+	if [ $? -ne $OCF_SUCCESS ]; then
+		# only run forget when we are for sure active 
+		return $OCF_SUCCESS
+	fi
+
+	# forget each stopped rmq instance in the provided pcmk node in the list.
+	for node in $(echo "$node_list"); do
+		local rmq_node="$(${HA_SBIN_DIR}/crm_attribute -N $node -l forever --query --name $RMQ_CRM_ATTR_COOKIE_LAST_KNOWN -q)"
+		if [ -z "$rmq_node" ]; then
+			ocf_log warn "Unable to map pcmk node $node to a known rmq node."
+			continue	
+		fi
+		ocf_log notice "Forgetting stopped node $rmq_node"
+		$RMQ_CTL forget_cluster_node $rmq_node
+		if [ $? -ne 0 ]; then
+			ocf_log warn "Unable to forget offline node $rmq_node."
+		fi
+	done
+	return $OCF_SUCCESS
+}
+
 rmq_start() {
 	local join_list=""
 	local rc
@@ -357,6 +403,7 @@ start)		rmq_start;;
 stop)		rmq_stop;;
 monitor)	rmq_monitor;;
 validate-all)	rmq_validate;;
+notify)		rmq_notify;;
 usage|help)	rmq_usage
 		exit $OCF_SUCCESS
 		;;
