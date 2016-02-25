@@ -443,6 +443,7 @@ do_post_mount() {
 		if [ "$OCF_RESKEY_nfslock" = "yes" ] || \
 	   	   [ "$OCF_RESKEY_nfslock" = "1" ]; then
 			mkdir -p "$mp"/.clumanager/statd
+			chown rpcuser.rpcuser "$mp"/.clumanager/statd
 			notify_list_merge "$mp"/.clumanager/statd
 		fi
 	fi
@@ -457,6 +458,7 @@ do_force_unmount() {
 		ocf_log warning "Dropping node-wide NFS locks"
 		pkill -KILL -x lockd
 		mkdir -p "$mp"/.clumanager/statd
+		chown rpcuser.rpcuser "$mp"/.clumanager/statd
 		# Copy out the notify list; our
 		# IPs are already torn down
 		notify_list_store "$mp"/.clumanager/statd
