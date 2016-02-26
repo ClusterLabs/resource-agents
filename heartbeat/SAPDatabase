@@ -18,6 +18,7 @@
 #       OCF_RESKEY_DIR_EXECUTABLE      (optional, well known directories will be searched by default)
 #       OCF_RESKEY_DBTYPE              (mandatory, one of the following values: ORA,ADA,DB6,SYB,HDB)
 #       OCF_RESKEY_DBINSTANCE          (optional, Database instance name, if not equal to SID)
+#       OCF_RESKEY_DBOSUSER            (optional, the Linux user that owns the database processes on operating system level)
 #       OCF_RESKEY_STRICT_MONITORING   (optional, activate application level monitoring - with Oracle a failover will occur in case of an archiver stuck)
 #       OCF_RESKEY_AUTOMATIC_RECOVER   (optional, automatic startup recovery, default is false)
 #       OCF_RESKEY_MONITOR_SERVICES    (optional, default is to monitor all database services)
@@ -69,7 +70,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="SAPDatabase">
-<version>2.06</version>
+<version>2.14</version>
 
 <shortdesc lang="en">Manages a SAP database instance as an HA resource.</shortdesc>
 <longdesc lang="en">
@@ -113,6 +114,11 @@ Usually you can leave this empty. Then the default: /usr/sap/hostctrl/exe is use
  <parameter name="DBINSTANCE" unique="1" required="0">
   <longdesc lang="en">Must be used for special database implementations, when database instance name is not equal to the SID (e.g. Oracle DataGuard)</longdesc>
   <shortdesc lang="en">Database instance name, if not equal to SID</shortdesc>
+  <content type="string" default="" />
+ </parameter>
+ <parameter name="DBOSUSER" unique="1" required="0">
+  <longdesc lang="en">The parameter can be set, if the database processes on operating system level are not executed with the default user of the used database type. Defaults: ADA=taken from /etc/opt/sdb, DB6=db2SID, ORA=oraSID and oracle, SYB=sybSID, HDB=SIDadm</longdesc>
+  <shortdesc lang="en">the Linux user that owns the database processes on operating system level</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="NETSERVICENAME" unique="0" required="0">
@@ -305,6 +311,10 @@ DBTYPE=`echo "$OCF_RESKEY_DBTYPE" | tr '[:lower:]' '[:upper:]'`
 if saphostctrl_installed; then
                     . ${OCF_FUNCTIONS_DIR}/sapdb.sh
 else
+                    if [ -n "${OCF_RESKEY_DBOSUSER}" ]; then
+                      ocf_exit_reason "Usage of parameter OCF_RESKEY_DBOSUSER is not possible without having SAP Host-Agent installed"
+                      exit $OCF_ERR_ARGS
+                    fi
                     . ${OCF_FUNCTIONS_DIR}/sapdb-nosha.sh
 fi
 sapdatabase_init
