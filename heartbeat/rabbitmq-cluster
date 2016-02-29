@@ -289,7 +289,19 @@ rmq_start() {
 		rmq_stop 
 		rmq_wipe_data
 		rmq_join_existing "$join_list"
-		if [ $? -ne 0 ]; then
+		rc=$?
+
+                # Restore users (if any)
+                BaseDataDir=`dirname $RMQ_DATA_DIR`
+                if [ -f $BaseDataDir/users.erl ] ; then
+                        rabbitmqctl eval "
+                                {ok, [Users]} = file:consult(\"$BaseDataDir/users.erl\"),
+                                lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user, X) end, Users).
+                        "
+                        rm -f $BaseDataDir/users.erl
+                fi
+
+		if [ $rc -ne 0 ]; then
 			ocf_log info "node failed to join even after reseting local data. Check SELINUX policy"
 			return $OCF_ERR_GENERIC
 		fi
@@ -299,6 +311,13 @@ rmq_start() {
 }
 
 rmq_stop() {
+        # Backup users
+        BaseDataDir=`dirname $RMQ_DATA_DIR`
+        rabbitmqctl eval "
+                Users = mnesia:dirty_select(rabbit_user, [{ {internal_user, '\\\$1', '_', '_'}, [{'/=', '\\\$1', <<\"guest\">>}], ['\\\$_'] } ]),
+                file:write_file(\"$BaseDataDir/users.erl\", io_lib:fwrite(\"~p.~n\", [Users])).
+        "
+
 	rmq_monitor
 	if [ $? -eq $OCF_NOT_RUNNING ]; then
 		return $OCF_SUCCESS
