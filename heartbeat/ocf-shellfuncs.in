@@ -151,16 +151,16 @@ __ocf_set_defaults() {
 		: ${OCF_RESOURCE_TYPE:=$__SCRIPT_NAME}
 	fi
 
+	if [ "x$__OCF_ACTION" = "xmeta-data" ]; then
+		: ${OCF_RESOURCE_INSTANCE:="RESOURCE_ID"}
+	fi
+
 	if [ -z "$OCF_RA_VERSION_MAJOR" ]; then
 		: We are being invoked as an init script.
 		: Fill in some things with reasonable values.
 		: ${OCF_RESOURCE_INSTANCE:="default"}
 		return 0
         fi
-
-	if [ "x$__OCF_ACTION" = "xmeta-data" ]; then
-		OCF_RESOURCE_INSTANCE="undef"
-	fi	
 
 	if [ -z "$OCF_RESOURCE_INSTANCE" ]; then
 		ha_log "ERROR: Need to tell us our resource instance name."
