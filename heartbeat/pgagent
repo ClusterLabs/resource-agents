@@ -1,0 +1,121 @@
+#!/bin/sh
+#
+#       High-Availability nginx OCF resource agent
+#
+# Description:  starts/stops pgagent.
+# Author:       Oleg Selin
+# License:      GNU General Public License (GPL)
+#
+# OCF parameters:
+#  OCF_RESKEY_connection_string
+#  OCF_RESKEY_user
+#  OCF_RESKEY_options
+#
+#######################################################################
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+meta_data() {
+        cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="pgagent" version="1.0">
+<version>1.0</version>
+
+<longdesc lang="en">This is a pgagent Resource Agent.</longdesc>
+<shortdesc lang="en">Controls pgagent</shortdesc>
+
+<parameters>
+<parameter name="connection_string">
+<longdesc lang="en">Connection string for pgagent.</longdesc>
+<shortdesc lang="en">pgagent connection string</shortdesc>
+<content type="string" default="user=postgres host=/var/run/postgresql" />
+</parameter>
+<parameter name="user">
+<longdesc lang="en">User to run pgagent as.</longdesc>
+<shortdesc lang="en">User to run pgagent</shortdesc>
+<content type="string" default="postgres" />
+</parameter>
+<parameter name="options">
+<longdesc lang="en">Options for pgagent.</longdesc>
+<shortdesc lang="en">pgagent run options, see pgagent --help for details</shortdesc>
+<content type="string" default="" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start"        timeout="20" />
+<action name="stop"         timeout="20" />
+<action name="monitor"      timeout="20" interval="10" depth="0" />
+<action name="meta-data"    timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+pgagent_usage() {
+        cat <<END
+usage: $0 {start|stop|monitor|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+pgagent_start() {
+        local PID=`pgrep pgagent`
+        if [ -z $PID ] ; then
+                su $USER -c "pgagent $OPTIONS $CONNECTION_STRING"
+                ocf_log "pgagent was started"
+        else
+                ocf_log "pgagent already running"
+        fi
+        return $OCF_SUCCESS
+}
+
+pgagent_stop() {
+        local PID=`pgrep pgagent`
+        if [ -z $PID ] ; then
+                ocf_log "pgagent already stopped"
+                return $OCF_SUCCESS
+        else
+                /bin/kill -15 $PID
+                if pgagent_monitor ; then
+                        ocf_log warn "pgagent was NOT stopped!"
+                        return $OCF_ERR_GENERIC
+                else
+                        return $OCF_SUCCESS
+                fi
+        fi
+}
+
+pgagent_monitor() {
+        local PID=`pgrep pgagent`
+        if [ -z $PID ] ; then
+                return $OCF_NOT_RUNNING
+        else
+                return $OCF_SUCCESS
+        fi
+}
+
+if [ "$__OCF_ACTION" = "meta-data" ]; then
+    meta_data
+    exit $OCF_SUCCESS
+fi
+
+case $__OCF_ACTION in
+start)          pgagent_start;;
+stop)           pgagent_stop;;
+monitor)        pgagent_monitor;;
+usage|help)     pgagent_usage
+                exit $OCF_SUCCESS
+                ;;
+*)              pgagent_usage
+                exit $OCF_ERR_UNIMPLEMENTED
+                ;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
