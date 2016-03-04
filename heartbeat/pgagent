@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#       High-Availability nginx OCF resource agent
+#       High-Availability pgagent OCF resource agent
 #
 # Description:  starts/stops pgagent.
 # Author:       Oleg Selin
