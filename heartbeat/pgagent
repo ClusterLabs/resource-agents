@@ -2,7 +2,9 @@
 #
 #       High-Availability pgagent OCF resource agent
 #
-# Description:  starts/stops pgagent.
+# Description:  Starts/stops pgagent
+#               This agent is for Debian systems only,
+#               as it rely on start-stop-daemon.
 # Author:       Oleg Selin
 # License:      GNU General Public License (GPL)
 #
