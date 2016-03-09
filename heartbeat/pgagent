@@ -1,10 +1,8 @@
 #!/bin/sh
 #
-#       High-Availability pgagent OCF resource agent
+# High-Availability pgagent OCF resource agent
 #
 # Description:  Starts/stops pgagent
-#               This agent is for Debian systems only,
-#               as it rely on start-stop-daemon.
 # Author:       Oleg Selin
 # License:      GNU General Public License (GPL)
 #
@@ -18,10 +16,10 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
-OCF_RESKEY_executable_default="/usr/bin/pgagent"
+OCF_RESKEY_executable_default="`which pgagent`"
 OCF_RESKEY_connection_string_default="user=postgres host=/var/run/postgresql"
 OCF_RESKEY_user_default="postgres"
-OCF_RESKEY_options_default="-r 5"
+OCF_RESKEY_options_default="-r 1 -t 1"
 
 : ${OCF_RESKEY_executable="${OCF_RESKEY_executable_default}"}
 : ${OCF_RESKEY_connection_string="${OCF_RESKEY_connection_string_default}"}
@@ -30,7 +28,6 @@ OCF_RESKEY_options_default="-r 5"
 
 pgagent_validate_all() {
         check_binary pgagent
-        check_binary start-stop-daemon
         ocf_log debug "executable: '$OCF_RESKEY_executable'"
         ocf_log debug "connection string: '$OCF_RESKEY_connection_string'"
         ocf_log debug "user: '$OCF_RESKEY_user'"
@@ -53,12 +50,9 @@ pgagent_validate_all() {
 
 pgagent_start() {
         pgagent_validate_all
-        start-stop-daemon --exec $OCF_RESKEY_executable --chuid $OCF_RESKEY_user --background --start -- $OCF_RESKEY_options $OCF_RESKEY_connection_string
-        check_status
-        if [ $? -eq 0 ]; then
-                return $OCF_SUCCESS
-        elif [ $? -eq 1 ]; then
-                ocf_log info "pgagent already running"
+        nohup su - $OCF_RESKEY_user -c "'$OCF_RESKEY_executable' $OCF_RESKEY_options '$OCF_RESKEY_connection_string'" > /dev/null 2>&1 &
+        sleep 1
+        if [ -n pgagent_monitor ]; then
                 return $OCF_SUCCESS
         fi
         return $OCF_ERR_GENERIC
@@ -66,28 +60,19 @@ pgagent_start() {
 
 pgagent_stop() {
         pgagent_validate_all
-        start-stop-daemon --exec $OCF_RESKEY_executable --chuid $OCF_RESKEY_user --stop
-        check_status
-        if [ $? -eq 0 ]; then
-                return $OCF_SUCCESS
-        elif [ $? -eq 1 ]; then
-                ocf_log info "pgagent is not running and the pid file exists!"
-                return $OCF_SUCCESS
+        pid=`pgrep -f -x -U $OCF_RESKEY_user "$OCF_RESKEY_executable $OCF_RESKEY_options $OCF_RESKEY_connection_string"`
+        if [ -n "$pid" ]; then
+                ocf_run kill $pid || return $OCF_ERR_GENERIC
         fi
-        return $OCF_ERR_GENERIC
+        return $OCF_SUCCESS
 }
 
 pgagent_monitor() {
-        check_status
-        if [ $? -eq 0 ]; then
-                return $OCF_SUCCESS
+        if [ -z "$OCF_RESKEY_executable" ]; then
+                return $OCF_ERR_INSTALLED
         fi
-        return $OCF_NOT_RUNNING
-}
-
-check_status() {
-        start-stop-daemon --exec $OCF_RESKEY_executable --status
-        return $?
+        ocf_run pgrep -f -x -U "$OCF_RESKEY_user" "$OCF_RESKEY_executable $OCF_RESKEY_options $OCF_RESKEY_connection_string" || return $OCF_NOT_RUNNING
+        return $OCF_SUCCESS
 }
 
 meta_data() {
