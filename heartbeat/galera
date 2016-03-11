@@ -343,26 +343,39 @@ check_sync_needed()
     ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-sync-needed" -Q 2>/dev/null
 }
 
+
+# this function is called when attribute sync-needed is set in the CIB
 check_sync_status()
 {
-    local state=$(get_status_variable "wsrep_local_state")
-    local ready=$(get_status_variable "wsrep_ready")
+    # if the pidfile is created, mysqld is up and running
+    # an IST might still be in progress, check wsrep status
+    if [ -e $OCF_RESKEY_pid ]; then
+        local cluster_status=$(get_status_variable "wsrep_cluster_status")
+        local state=$(get_status_variable "wsrep_local_state")
+        local ready=$(get_status_variable "wsrep_ready")
 
-    if [ -z "$state" -o -z "$ready" ]; then
-        ocf_exit_reason "Unable to retrieve state transfer status, verify check_user '$OCF_RESKEY_check_user' has permissions to view status"
-        return $OCF_ERR_GENERIC
+        if [ -z "$cluster_status" -o -z "$state" -o -z "$ready" ]; then
+            ocf_exit_reason "Unable to retrieve state transfer status, verify check_user '$OCF_RESKEY_check_user' has permissions to view status"
+            return $OCF_ERR_GENERIC
+        fi
+
+        if [ "$cluster_status" != "Primary" ]; then
+            ocf_exit_reason "local node <${NODENAME}> is started, but not in primary mode. Unknown state."
+            return $OCF_ERR_GENERIC
+        fi
+
+        if [ "$state" = "4" -a "$ready" = "ON" ]; then
+            ocf_log info "local node synced with the cluster"
+            # when sync is finished, we are ready to switch to Master
+            clear_sync_needed
+            set_master_score
+            return $OCF_SUCCESS
+        fi
     fi
 
-    if [ "$state" = "4" -a "$ready" = "ON" ]; then
-        ocf_log info "local node synced with the cluster"
-        # when sync is finished, we are ready to switch to Master
-        clear_sync_needed
-        set_master_score
-        return $OCF_SUCCESS
-    else
-        ocf_log info "local node syncing"
-        return $OCF_SUCCESS
-    fi
+    # if we pass here, an IST or SST is still in progress
+    ocf_log info "local node syncing"
+    return $OCF_SUCCESS
 }
 
 is_primary()
@@ -488,6 +501,73 @@ detect_first_master()
     set_bootstrap_node $best_node
 }
 
+detect_galera_pid()
+{
+    ps auxww | grep -v -e "${OCF_RESKEY_binary}" -e grep | grep -qe "--pid-file=$OCF_RESKEY_pid"
+}
+
+galera_status()
+{
+    local loglevel=$1
+    local rc
+    local running
+
+    if [ -e $OCF_RESKEY_pid ]; then
+        mysql_common_status $loglevel
+        rc=$?
+    else
+        # if pidfile is not created, the server may
+        # still be starting up, e.g. running SST
+        detect_galera_pid
+        running=$?
+        if [ $running -eq 0 ]; then
+            rc=$OCF_SUCCESS
+        else
+            ocf_log $loglevel "MySQL is not running"
+            rc=$OCF_NOT_RUNNING
+        fi
+    fi
+
+    return $rc
+}
+
+galera_start_nowait()
+{
+    local mysql_extra_params="$1"
+    local pid
+    local running
+
+    ${OCF_RESKEY_binary} --defaults-file=$OCF_RESKEY_config \
+    --pid-file=$OCF_RESKEY_pid \
+    --socket=$OCF_RESKEY_socket \
+    --datadir=$OCF_RESKEY_datadir \
+    --log-error=$OCF_RESKEY_log \
+    --user=$OCF_RESKEY_user $OCF_RESKEY_additional_parameters \
+    $mysql_extra_params >/dev/null 2>&1 &
+    pid=$!
+
+    # Spin waiting for the server to be spawned.
+    # Let the CRM/LRM time us out if required.
+    start_wait=1
+    while [ $start_wait = 1 ]; do
+        if ! ps $pid > /dev/null 2>&1; then
+            wait $pid
+            ocf_exit_reason "MySQL server failed to start (pid=$pid) (rc=$?), please check your installation"
+            return $OCF_ERR_GENERIC
+        fi
+        detect_galera_pid
+        running=$?
+        if [ $running -eq 0 ]; then
+            start_wait=0
+        else
+            ocf_log info "MySQL is not running"
+        fi
+        sleep 2
+    done
+
+    return $OCF_SUCCESS
+}
+
 galera_start_local_node()
 {
     local rc
@@ -516,39 +596,53 @@ galera_start_local_node()
     clear_last_commit
 
     mysql_common_prepare_dirs
-    mysql_common_start "$extra_opts"
-    rc=$?
-    if [ $rc != $OCF_SUCCESS ]; then
-        return $rc
-    fi
 
-    mysql_common_status info
-    rc=$?
-
-    if [ $rc != $OCF_SUCCESS ]; then
-        ocf_exit_reason "Failed initial monitor action"
-        return $rc
-    fi
-
-    is_readonly
-    if [ $? -eq 0 ]; then
-        ocf_exit_reason "Failure. Master instance started in read-only mode, check configuration."
-        return $OCF_ERR_GENERIC
-    fi
-
-    is_primary
-    if [ $? -ne 0 ]; then
-        ocf_exit_reason "Failure. Master instance started, but is not in Primary mode."
-        return $OCF_ERR_GENERIC
-    fi
-
+    # At start time, if galera requires a SST rather than an IST, the
+    # mysql server's pidfile won't be available until SST finishes,
+    # which can be longer than the start timeout.  So we only check
+    # bootstrap node extensively. Joiner nodes are monitored in the
+    # "monitor" op
     if ocf_is_true $bootstrap; then
+        # start server and wait until it's up and running
+        mysql_common_start "$extra_opts"
+        rc=$?
+        if [ $rc != $OCF_SUCCESS ]; then
+            return $rc
+        fi
+
+        mysql_common_status info
+        rc=$?
+
+        if [ $rc != $OCF_SUCCESS ]; then
+            ocf_exit_reason "Failed initial monitor action"
+            return $rc
+        fi
+
+        is_readonly
+        if [ $? -eq 0 ]; then
+            ocf_exit_reason "Failure. Master instance started in read-only mode, check configuration."
+            return $OCF_ERR_GENERIC
+        fi
+
+        is_primary
+        if [ $? -ne 0 ]; then
+            ocf_exit_reason "Failure. Master instance started, but is not in Primary mode."
+            return $OCF_ERR_GENERIC
+        fi
+
         clear_bootstrap_node
         # clear attribute heuristic-recovered. if last shutdown was
         # not clean, we cannot be extra-cautious by requesting a SST
         # since this is the bootstrap node
         clear_heuristic_recovered
     else
+        # only start server, defer full checks to "monitor" op
+        galera_start_nowait "$extra_opts"
+        rc=$?
+        if [ $rc != $OCF_SUCCESS ]; then
+            return $rc
+        fi
+
         set_sync_needed
         # attribute heuristic-recovered will be cleared once the joiner
         # has finished syncing and is promoted to Master
@@ -677,7 +771,7 @@ galera_start()
         return $OCF_ERR_CONFIGURED
     fi
 
-    mysql_common_status info
+    galera_status info
     if [ $? -ne $OCF_NOT_RUNNING ]; then
         ocf_exit_reason "master galera instance started outside of the cluster's control"
         return $OCF_ERR_GENERIC
@@ -712,7 +806,8 @@ galera_monitor()
         status_loglevel="info"
     fi
 
-    mysql_common_status $status_loglevel
+    # Check whether mysql is running or about to start after sync
+    galera_status $status_loglevel
     rc=$?
 
     if [ $rc -eq $OCF_NOT_RUNNING ]; then
@@ -741,7 +836,8 @@ galera_monitor()
         return $rc
     fi
 
-    # if we make it here, mysql is running. Check cluster status now.
+    # if we make it here, mysql is running or about to start after sync.
+    # Check cluster status now.
 
     echo $OCF_RESKEY_wsrep_cluster_address | grep -q $NODENAME
     if [ $? -ne 0 ]; then
@@ -749,18 +845,21 @@ galera_monitor()
         return $OCF_ERR_GENERIC
     fi
 
-    is_primary
+    check_sync_needed
     if [ $? -eq 0 ]; then
-        check_sync_needed
-        if [ $? -eq 0 ]; then
-            # galera running and sync is needed: slave state
-            if ocf_is_probe; then
-                # prevent state change during probe
-                rc=$OCF_SUCCESS
-            else
-                check_sync_status
-                rc=$?
-            fi
+        # galera running and sync is needed: slave state
+        if ocf_is_probe; then
+            # prevent state change during probe
+            rc=$OCF_SUCCESS
+        else
+            check_sync_status
+            rc=$?
+        fi
+    else
+        is_primary
+        if [ $? -ne 0 ]; then
+            ocf_exit_reason "local node <${NODENAME}> is started, but not in primary mode. Unknown state."
+            rc=$OCF_ERR_GENERIC
         else
             # galera running, no need to sync: master state and everything's clear
             rc=$OCF_RUNNING_MASTER
@@ -771,9 +870,6 @@ galera_monitor()
                 set_master_score
             fi
         fi
-    else
-        ocf_exit_reason "local node <${NODENAME}> is started, but not in primary mode. Unknown state."
-        rc=$OCF_ERR_GENERIC
     fi
 
     return $rc
@@ -858,7 +954,7 @@ fi
 case "$1" in
   start)    galera_start;;
   stop)     galera_stop;;
-  status)   mysql_common_status err;;
+  status)   galera_status err;;
   monitor)  galera_monitor;;
   promote)  galera_promote;;
   demote)   galera_demote;;
