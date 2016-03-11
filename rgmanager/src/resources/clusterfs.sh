@@ -301,6 +301,7 @@ do_pre_unmount() {
 	   [ "$OCF_RESKEY_nfslock" = "1" ]; then
 		ocf_log warning "Dropping node-wide NFS locks"
 		mkdir -p $mp/.clumanager/statd
+		chown rpcuser.rpcuser $mp/.clumanager/statd
 		pkill -KILL -x lockd
 		# Copy out the notify list; our 
 		# IPs are already torn down
