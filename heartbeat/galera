@@ -279,20 +279,20 @@ is_bootstrap()
 
 }
 
-set_heuristic_recovered()
+set_no_grastate()
 {
-    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-heuristic-recovered" -v "true"
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-no-grastate" -v "true"
 }
 
-clear_heuristic_recovered()
+clear_no_grastate()
 {
-    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-heuristic-recovered" -D
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-no-grastate" -D
 }
 
-is_heuristic_recovered()
+is_no_grastate()
 {
     local node=$1
-    ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-heuristic-recovered" -Q 2>/dev/null
+    ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-no-grastate" -Q 2>/dev/null
 }
 
 clear_last_commit()
@@ -463,7 +463,7 @@ detect_first_master()
 
     # avoid selecting a recovered node as bootstrap if possible
     for node in $(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' '); do
-        if is_heuristic_recovered $node; then
+        if is_no_grastate $node; then
             nodes_recovered="$nodes_recovered $node"
         else
             nodes="$nodes $node"
@@ -631,10 +631,10 @@ galera_start_local_node()
         fi
 
         clear_bootstrap_node
-        # clear attribute heuristic-recovered. if last shutdown was
+        # clear attribute no-grastate. if last shutdown was
         # not clean, we cannot be extra-cautious by requesting a SST
         # since this is the bootstrap node
-        clear_heuristic_recovered
+        clear_no_grastate
     else
         # only start server, defer full checks to "monitor" op
         galera_start_nowait "$extra_opts"
@@ -644,7 +644,7 @@ galera_start_local_node()
         fi
 
         set_sync_needed
-        # attribute heuristic-recovered will be cleared once the joiner
+        # attribute no-grastate will be cleared once the joiner
         # has finished syncing and is promoted to Master
     fi
 
@@ -667,6 +667,12 @@ detect_last_commit()
     if [ -z "$last_commit" ] || [ "$last_commit" = "-1" ]; then
         local tmp=$(mktemp)
         local tmperr=$(mktemp)
+
+        # if we pass here because grastate.dat doesn't exist,
+        # try not to bootstrap from this node if possible
+        if [ ! -f ${OCF_RESKEY_datadir}/grastate.dat ]; then
+            set_no_grastate
+        fi
 
         ocf_log info "now attempting to detect last commit version using 'mysqld_safe --wsrep-recover'"
 
@@ -691,8 +697,8 @@ detect_last_commit()
                 if [ ! -z "$last_commit" ]; then
                     ocf_log warn "State recovered. force SST at next restart for full resynchronization"
                     rm -f ${OCF_RESKEY_datadir}/grastate.dat
-                    # try not to use this node if bootstrap is needed
-                    set_heuristic_recovered
+                    # try not to bootstrap from this node if possible
+                    set_no_grastate
                 fi
             fi
         fi
@@ -731,8 +737,8 @@ galera_promote()
         # promoting other masters only performs sanity checks
         # as the joining nodes were started during the "monitor" op
         if ! check_sync_needed; then
-            # sync is done, clear info about last recovery
-            clear_heuristic_recovered
+            # sync is done, clear info about last startup
+            clear_no_grastate
             return $OCF_SUCCESS
         else
             ocf_exit_reason "Attempted to promote local node while sync was still needed."
@@ -754,6 +760,7 @@ galera_demote()
     clear_bootstrap_node
     clear_last_commit
     clear_sync_needed
+    clear_no_grastate
 
     # record last commit for next promotion
     detect_last_commit
@@ -886,6 +893,7 @@ galera_stop()
     clear_master_score
     clear_bootstrap_node
     clear_sync_needed
+    clear_no_grastate
     return $rc
 }
 
