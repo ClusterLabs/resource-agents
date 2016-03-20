@@ -131,7 +131,12 @@ sapdatabase_start() {
     then
       FORCE="-force"
     fi
-    output=`$SAPHOSTCTRL -function StartDatabase -dbname $SID -dbtype $DBTYPE $DBINST $FORCE -service`
+    DBOSUSER=""
+    if [ -n "$OCF_RESKEY_DBOSUSER" ]
+    then
+      DBOSUSER="-dbuser $OCF_RESKEY_DBOSUSER "
+    fi
+    output=`$SAPHOSTCTRL -function StartDatabase -dbname $SID -dbtype $DBTYPE $DBINST $DBOSUSER $FORCE -service`
 
     sapdatabase_monitor 1
     rc=$?
@@ -168,7 +173,12 @@ sapdatabase_stop() {
     then
       DBINST="-dbinstance $OCF_RESKEY_DBINSTANCE "
     fi
-    output=`$SAPHOSTCTRL -function StopDatabase -dbname $SID -dbtype $DBTYPE $DBINST -force -service`
+    DBOSUSER=""
+    if [ -n "$OCF_RESKEY_DBOSUSER" ]
+    then
+      DBOSUSER="-dbuser $OCF_RESKEY_DBOSUSER "
+    fi
+    output=`$SAPHOSTCTRL -function StopDatabase -dbname $SID -dbtype $DBTYPE $DBINST $DBOSUSER -force -service`
 
     if [ $? -eq 0 ]
     then
