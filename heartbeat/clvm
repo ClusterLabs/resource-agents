@@ -151,6 +151,12 @@ clvmd_validate()
 		check_binary $LVM_VGSCAN
 	fi
 
+	LVM_CONF_F="/etc/lvm/lvm.conf"
+	if [ -f $LVM_CONF_F ] && grep -qs '^[ ]*use_lvmetad[ ]*=[ ]*1' < $LVM_CONF_F; then
+		ocf_exit_reason "lvmetad is not cluster aware but use_lvmetad = 1 in $LVM_CONF_F"
+		return $OCF_ERR_CONFIGURED
+	fi
+
 	# Future validation checks here.
 	return $OCF_SUCCESS
 }
