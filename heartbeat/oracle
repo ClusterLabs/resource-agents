@@ -611,6 +611,7 @@ oracle_start() {
 		if echo "$output" | grep ORA-01081 >/dev/null 2>&1; then
 			ocf_log info "ORA-01081 error found, trying to cleanup oracle (dbstart_mount output: $output)"
 			ora_cleanup
+			output=`dbasql dbstop_immediate`
 			output=`dbasql dbstart_mount`
 		fi
 	fi
