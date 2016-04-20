@@ -452,8 +452,10 @@ iSCSILogicalUnit_stop() {
 }
 
 iSCSILogicalUnit_monitor() {
-	# If our backing device (or file) doesn't even exist, we're not running
-	[ -e ${OCF_RESKEY_path} ] || return $OCF_NOT_RUNNING
+	if [ x"${OCF_RESKEY_tgt_bstype}" != x"rbd" ]; then
+		# If our backing device (or file) doesn't even exist, we're not running
+		[ -e ${OCF_RESKEY_path} ] || return $OCF_NOT_RUNNING
+	fi
 
 	case $OCF_RESKEY_implementation in
 	iet)
