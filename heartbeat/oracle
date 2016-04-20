@@ -402,6 +402,9 @@ check_mon_profile() {
 	output=`dbasql mk_mon_profile show_mon_profile`
 	if echo "$output" | grep -iw "^$MONPROFILE" >/dev/null; then
 		return 0
+	elif echo "$output" | grep ORA-65140 >/dev/null 2>&1; then
+		ocf_exit_reason "monprofile must start with C## for container databases"
+		return $OCF_ERR_CONFIGURED
 	else
 		ocf_exit_reason "could not create $MONPROFILE oracle profile"
 		ocf_log err "sqlplus output: $output"
