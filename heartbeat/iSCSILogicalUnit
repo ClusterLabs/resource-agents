@@ -72,6 +72,7 @@ OCF_RESKEY_lio_iblock=${OCF_RESKEY_lio_iblock:-$OCF_RESKEY_lio_iblock_default}
 #
 # OCF_RESKEY_tgt_bstype
 # OCF_RESKEY_tgt_bsoflags
+# OCF_RESKEY_tgt_bsopts
 # OCF_RESKEY_tgt_device_type
 
 #######################################################################
@@ -176,6 +177,15 @@ TGT specific backing store open flags (direct|sync).
 See tgtadm(8).
 </longdesc>
 <shortdesc lang="en">TGT backing store open flags</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="tgt_bsopts" required="0" unique="0">
+<longdesc lang="en">
+TGT specific backing store options.
+See tgtadm(8).
+</longdesc>
+<shortdesc lang="en">TGT backing store options</shortdesc>
 <content type="string" />
 </parameter>
 
@@ -303,6 +313,7 @@ iSCSILogicalUnit_start() {
 		tgt_args=""
 		[[ $OCF_RESKEY_tgt_bstype ]]	&& tgt_args="$tgt_args --bstype=$OCF_RESKEY_tgt_bstype"
 		[[ $OCF_RESKEY_tgt_bsoflags ]]	&& tgt_args="$tgt_args --bsoflags=$OCF_RESKEY_tgt_bsoflags"
+		[[ $OCF_RESKEY_tgt_bsopts ]]	&& tgt_args="$tgt_args --bsopts=$OCF_RESKEY_tgt_bsopts"
 		[[ $OCF_RESKEY_tgt_device_type ]]	&& tgt_args="$tgt_args --device-type=$OCF_RESKEY_tgt_device_type"
 
 		ocf_run tgtadm --lld iscsi --op new --mode logicalunit \
@@ -583,16 +594,16 @@ iSCSILogicalUnit_validate() {
 	iet)
 		# IET does not support setting the vendor and product ID
 		# (it always uses "IET" and "VIRTUAL-DISK")
-		unsupported_params="vendor_id product_id allowed_initiators lio_iblock tgt_bstype tgt_bsoflags tgt_device_type"
+		unsupported_params="vendor_id product_id allowed_initiators lio_iblock tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type"
 		;;
 	tgt)
 		unsupported_params="allowed_initiators lio_iblock"
 		;;
 	lio)
-		unsupported_params="scsi_id vendor_id product_id tgt_bstype tgt_bsoflags tgt_device_type"
+		unsupported_params="scsi_id vendor_id product_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type"
 		;;
 	lio-t)
-		unsupported_params="scsi_id vendor_id product_id tgt_bstype tgt_bsoflags tgt_device_type lio_iblock"
+		unsupported_params="scsi_id vendor_id product_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type lio_iblock"
 		;;
 	esac
 
