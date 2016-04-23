@@ -19,4 +19,4 @@ exec_prefix=@exec_prefix@
 : ${HA_DOCDIR:=@datadir@/doc/heartbeat}
 : ${__SCRIPT_NAME:=`basename $0`}
 : ${HA_VARRUN:=@localstatedir@/run}
-: ${HA_VARLOCK:=@localstatedir@/lock/subsys/}
+: ${HA_VARLOCK:=@localstatedir@/lock/subsys}
