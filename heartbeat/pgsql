@@ -782,7 +782,7 @@ pgsql_real_stop() {
 
     # Stop PostgreSQL, do not wait for clients to disconnect
     if [ $stop_escalate -gt 0 ]; then
-            runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m fast"
+            runasowner "$OCF_RESKEY_pgctl -W -D $OCF_RESKEY_pgdata stop -m fast"
     fi
 
     # stop waiting
@@ -802,7 +802,7 @@ pgsql_real_stop() {
     then
         #PostgreSQL is still up. Use another shutdown mode.
         ocf_log info "PostgreSQL failed to stop after ${stop_escalate}s using -m fast. Trying -m immediate..."
-        runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata stop -m immediate"
+        runasowner "$OCF_RESKEY_pgctl -W -D $OCF_RESKEY_pgdata stop -m immediate"
     fi
 
     while :
