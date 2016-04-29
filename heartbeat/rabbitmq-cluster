@@ -156,7 +156,7 @@ rmq_monitor() {
 		return $OCF_NOT_RUNNING
 	;;
 	*)
-		ocf_log err "Unexpected return code from '$RMQ_CTL cluster status' exit code: $rc"
+		ocf_log err "Unexpected return code from '$RMQ_CTL cluster_status' exit code: $rc"
 		rmq_delete_nodename
 		return $OCF_ERR_GENERIC
 	;;
