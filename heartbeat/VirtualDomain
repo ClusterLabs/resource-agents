@@ -280,12 +280,6 @@ update_utilization() {
 get_emulator()
 {
 	local emulator=""
-	# An emulator is not required, so only report message in debug mode
-	local loglevel="debug"
-
-	if ocf_is_probe; then
-		loglevel="notice"
-	fi
 
 	emulator=$(virsh $VIRSH_OPTIONS dumpxml $DOMAIN_NAME 2>/dev/null | sed -n -e 's/^.*<emulator>\(.*\)<\/emulator>.*$/\1/p')
 	if [ -z "$emulator" ] && [ -e "$EMULATOR_STATE" ]; then
@@ -297,8 +291,6 @@ get_emulator()
 
 	if [ -n "$emulator" ]; then
 		basename $emulator
-	else 
-		ocf_log $loglevel "Unable to determine emulator for $DOMAIN_NAME"
 	fi
 }
 
@@ -317,6 +309,12 @@ pid_status()
 {
 	local rc=$OCF_ERR_GENERIC
 	local emulator=$(get_emulator)
+	# An emulator is not required, so only report message in debug mode
+	local loglevel="debug"
+
+	if ocf_is_probe; then
+		loglevel="notice"
+	fi
 
 	case "$emulator" in
 		qemu-kvm|qemu-dm|qemu-system-*)
@@ -349,6 +347,8 @@ pid_status()
 				if [ $? -eq 0 ]; then
 					rc=$OCF_SUCCESS
 				fi
+			else 
+				ocf_log $loglevel "Unable to determine emulator for $DOMAIN_NAME"
 			fi
 			;;
 	esac
