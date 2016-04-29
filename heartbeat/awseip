@@ -1,0 +1,219 @@
+#!/bin/sh
+#
+#
+#    Manage Elastic IP with Pacemaker
+#
+#
+# Copyright 2016 guessi <guessi@gmail.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+#
+
+#
+#  Prerequisites:
+#
+#  - preconfigured AWS CLI running environment (AccessKey, SecretAccessKey, etc.)
+#  - a reserved secondary private IP address for EC2 instances high availablity
+#  - IAM user role with the following permissions:
+#    * DescribeInstances
+#    * AssociateAddress
+#    * DisassociateAddress
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+
+#
+# Defaults
+#
+OCF_RESKEY_awscli_default="/usr/bin/awscli"
+OCF_RESKEY_api_delay_default="1"
+
+: ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
+: ${OCF_RESKEY_api_delay=${OCF_RESKEY_api_delay_default}}
+
+meta_data() {
+    cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="awseip" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+description
+</longdesc>
+<shortdesc lang="en"></shortdesc>
+
+<parameters>
+
+<parameter name="awscli" unique="0">
+<longdesc lang="en">
+command line tools for aws services
+</longdesc>
+<shortdesc lang="en">aws cli tools</shortdesc>
+<content type="string" default="${OCF_RESKEY_awscli_default}" />
+</parameter>
+
+<parameter name="elastic_ip" unique="1" required="1">
+<longdesc lang="en">
+reserved elastic ip for ec2 instance
+</longdesc>
+<shortdesc lang="en">reserved elastic ip for ec2 instance</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="api_delay" unique="0">
+<longdesc lang="en">
+a short delay between API calls, to avoid sending API too quick
+</longdesc>
+<shortdesc lang="en">a short delay between API calls</shortdesc>
+<content type="integer" default="${OCF_RESKEY_api_delay_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="10" />
+<action name="stop"         timeout="10" />
+<action name="monitor"      timeout="10" interval="20" depth="0" />
+<action name="reload"       timeout="10" />
+<action name="migrate_to"   timeout="10" />
+<action name="migrate_from" timeout="10" />
+<action name="meta-data"    timeout="5" />
+<action name="validate"     timeout="10" />
+<action name="validate-all" timeout="10" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+awseip_usage() {
+    cat <<END
+usage: $0 {start|stop|monitor|migrate_to|migrate_from|validate|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+awseip_start() {
+    awseip_monitor && return $OCF_SUCCESS
+
+    $AWSCLI ec2 associate-address  \
+        --instance-id ${INSTANCE_ID} \
+        --public-ip ${ELASTIC_IP}
+    RET=$?
+
+    # delay to avoid sending request too fast
+    sleep ${OCF_RESKEY_api_delay}
+
+    if [ $RET -ne 0 ]; then
+        return $OCF_NOT_RUNNING
+    fi
+
+    ocf_log info "elastic_ip have been successfully bring up (${ELASTIC_IP})"
+    return $OCF_SUCCESS
+}
+
+awseip_stop() {
+    awseip_monitor || return $OCF_SUCCESS
+
+    $AWSCLI ec2 disassociate-address  \
+        --public-ip ${ELASTIC_IP}
+    RET=$?
+
+    # delay to avoid sending request too fast
+    sleep ${OCF_RESKEY_api_delay}
+
+    if [ $RET -ne 0 ]; then
+        return $OCF_NOT_RUNNING
+    fi
+
+    ocf_log info "elastic_ip have been successfully bring down (${ELASTIC_IP})"
+    return $OCF_SUCCESS
+}
+
+awseip_monitor() {
+    $AWSCLI ec2 describe-instances --instance-id "${INSTANCE_ID}" | grep -q "${ELASTIC_IP}"
+    RET=$?
+
+    if [ $RET -ne 0 ]; then
+        return $OCF_NOT_RUNNING
+    fi
+    return $OCF_SUCCESS
+}
+
+awseip_validate() {
+    check_binary ${AWSCLI}
+
+    if [ -z "${INSTANCE_ID}" ]; then
+        ocf_log info "instant_id could not been found, is this EC2 instance?"
+        return $OCF_GENERIC
+    fi
+
+    return $OCF_SUCCESS
+}
+
+: ${OCF_RESKEY_awscli="/usr/bin/aws"}
+AWSCLI="${OCF_RESKEY_awscli}"
+ELASTIC_IP="${OCF_RESKEY_elastic_ip}"
+INSTANCE_ID="$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"
+
+case $__OCF_ACTION in
+    meta-data)
+        meta_data
+        exit $OCF_SUCCESS
+        ;;
+    start)
+        awseip_start
+        ;;
+    stop)
+        awseip_stop
+        ;;
+    monitor)
+        awseip_monitor
+        ;;
+    migrate_to)
+        ocf_log info "Migrating ${OCF_RESOURCE_INSTANCE} to ${OCF_RESKEY_CRM_meta_migrate_target}."
+	awseip_stop
+        ;;
+    migrate_from)
+        ocf_log info "Migrating ${OCF_RESOURCE_INSTANCE} from ${OCF_RESKEY_CRM_meta_migrate_source}."
+        awseip_start
+        ;;
+    reload)
+        ocf_log info "Reloading ${OCF_RESOURCE_INSTANCE} ..."
+        ;;
+    validate|validate-all)
+        awseip_validate
+        ;;
+    usage|help)
+        awseip_usage
+        exit $OCF_SUCCESS
+        ;;
+    *)
+        awseip_usage
+        exit $OCF_ERR_UNIMPLEMENTED
+        ;;
+esac
+
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
