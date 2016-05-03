@@ -126,6 +126,16 @@ Usually you can leave this empty. Then the default: /usr/sap/hostctrl/exe is use
   <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
   <content type="string" default="" />
  </parameter>
+  <parameter name="START_TIMEOUT" unique="0" required="0">
+  <longdesc lang="en">Timeout passed to saphostctrl for function StartDatabase. If is not set will use be default saphostctrl timeout.</longdesc>
+  <shortdesc lang="en">StartDatabase timeout parameter</shortdesc>
+  <content type="string" default="" />
+ </parameter>
+ <parameter name="STOP_TIMEOUT" unique="0" required="0">
+  <longdesc lang="en">Timeout passed to saphostctrl for function StopDatabase. If is not set will use be default saphostctrl timeout.</longdesc>
+  <shortdesc lang="en">StopDatabase timeout parameter</shortdesc>
+  <content type="string" default="" />
+ </parameter>
  <parameter name="DBJ2EE_ONLY" unique="0" required="0">
   <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
   <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
@@ -299,6 +309,8 @@ if  [ -z "$OCF_RESKEY_SID" ]; then
   exit $OCF_ERR_ARGS
 fi
 SID=`echo "$OCF_RESKEY_SID"`
+START_TIMEOUT=`echo "$OCF_RESKEY_START_TIMEOUT"`
+STOP_TIMEOUT=`echo "$OCF_RESKEY_STOP_TIMEOUT"`
 
 if [ -z "$OCF_RESKEY_DBTYPE" ]; then
   ocf_log err "Please set OCF_RESKEY_DBTYPE to the database vendor specific tag (ADA,DB6,ORA,SYB,HDB)!"
