@@ -712,6 +712,17 @@ can be used only for UDP services. If this option is specified, all connections
 are created only to schedule one packet. Option is useful to schedule
 UDP packets from same client port to different real servers.
 
+B<servicename = >I<short name>
+
+A name for this service. This is for the sole purpose of making it easier
+to know which service is affected when e-mail notifications are sent out.
+It will be included in the e-mail subject and body.
+
+B<comment = >I<comment>
+
+Notes about this service to be included in e-mail notifications (for example,
+purpose of the service or relevant administrator to contact).
+
 =head1 IPv6
 
 Directives for IPv6 are virtual6, real6, fallback6.
@@ -1617,6 +1628,10 @@ sub read_config
 				} elsif  ($rcmd =~ /^smtp\s*=\s*(.*)/) {
 					$1 =~ /(^([0-9A-Za-z._+-]+))/ or &config_error($line, "invalid SMTP server address");
 					$vsrv{smtp} = $1;
+				} elsif  ($rcmd =~ /^servicename\s*=\s*(.*)/) {
+					$vsrv{servicename} = $1;
+				} elsif  ($rcmd =~ /^comment\s*=\s*(.*)/) {
+					$vsrv{comment} = $1;
 				} else {
 					&config_error($line, "Unknown command \"$linedata\"");
 				}
@@ -4430,6 +4445,7 @@ sub ld_emailalert_send
 	my $id;
 	my $statusfilter;
 	my $smtp_server;
+	my $virtual_info;
 
 	$frequency = defined $v->{emailalertfreq} ?  $v->{emailalertfreq} :
 				$EMAILALERTFREQ;
@@ -4460,15 +4476,42 @@ sub ld_emailalert_send
 				$SMTP;
 
 	&ld_log("emailalert: $subject");
+
+	# get extra service details
+	$virtual_info = _ld_virtual_server_details($v);
+
+	# add service name into e-mail subject if it has been set
+	if ($v->{servicename}) {
+		$subject = "[" . $v->{servicename}  ."] $subject";
+	}
+
 	if (defined $smtp_server) {
-		$status = &ld_emailalert_net_smtp($smtp_server, $to_addr, $subject);
+		$status = &ld_emailalert_net_smtp($smtp_server, $to_addr, $subject, $virtual_info);
 	}
 	else {
-		$status = &ld_emailalert_mail_send($to_addr, $subject);
+		$status = &ld_emailalert_mail_send($to_addr, $subject, $virtual_info);
 	}
 
 	return($status);
 }
+
+# generate virtual server information to go in to alert e-mails
+sub _ld_virtual_server_details
+{
+	my ($v) = @_;
+	my $details;
+
+	if ($v->{servicename}) {
+		$details .= "Service name: " . $v->{servicename} . "\n"
+	}
+
+	if ($v->{comment}) {
+		$details .= "Comment: " . $v->{comment} . "\n";
+	}
+
+	return $details;
+}
+
 
 # ld_emailalert_net_smtp
 # Send email alerts via SMTP server
@@ -4478,7 +4521,7 @@ sub ld_emailalert_send
 #	  1 on error
 sub ld_emailalert_net_smtp
 {
-	my ($smtp_server, $to_addr, $subject) = (@_);
+	my ($smtp_server, $to_addr, $subject, $extrabody) = (@_);
 	my $status = 0;
 
 	use Net::SMTP;
@@ -4504,6 +4547,7 @@ sub ld_emailalert_net_smtp
 				"Log-Message: $subject\n" .
 				"Daemon-Status: " .
 				&daemon_status_str() . "\n");
+		$smtp->datasend("\n$extrabody\n") if ($extrabody);
 		$smtp->dataend();
 		$smtp->quit;
 	} else {
@@ -4522,7 +4566,7 @@ sub ld_emailalert_net_smtp
 #	  1 on error
 sub ld_emailalert_mail_send
 {
-	my ($to_addr, $subject) = (@_);
+	my ($to_addr, $subject, $extrabody) = (@_);
 	my $emailmsg;
 	my $emailfh;
 	my $status = 0;
@@ -4535,6 +4579,7 @@ sub ld_emailalert_mail_send
 	print $emailfh "ldirectord host: " . hostname() . "\n" .
 		       "Log-Message: $subject\n" .
 		       "Daemon-Status: " . &daemon_status_str() . "\n";
+	print $emailfh "\n$extrabody\n" if ($extrabody);
 	unless ($emailfh->close) {
 		&ld_log("failed to send email message\n");
 		$status = 1;
