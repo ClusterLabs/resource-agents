@@ -351,6 +351,13 @@ rmq_start() {
                         "
                         rm -f $BaseDataDir/users.erl
                 fi
+                if [ -f $BaseDataDir/users_perms.erl ] ; then
+                        rabbitmqctl eval "
+                                {ok, [UsersPerms]} = file:consult(\"$BaseDataDir/users_perms.erl\"),
+                                lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user_permission, X) end, UsersPerms).
+                        "
+                        rm -f $BaseDataDir/users_perms.erl
+                fi
 
 		if [ $rc -ne 0 ]; then
 			ocf_log info "node failed to join even after reseting local data. Check SELINUX policy"
@@ -367,6 +374,11 @@ rmq_stop() {
         rabbitmqctl eval "
                 Users = mnesia:dirty_select(rabbit_user, [{ {internal_user, '\\\$1', '_', '_'}, [{'/=', '\\\$1', <<\"guest\">>}], ['\\\$_'] } ]),
                 file:write_file(\"$BaseDataDir/users.erl\", io_lib:fwrite(\"~p.~n\", [Users])).
+        "
+
+        rabbitmqctl eval "
+                UsersPerms = mnesia:dirty_select(rabbit_user_permission, [{ {'\\\$1', '\\\$2', '\\\$3'}, [{'/=', '\\\$2', {{user_vhost,<<\"guest\">>,<<\"/\">>}}}], ['\\\$_'] } ]),
+                file:write_file(\"$BaseDataDir/users_perms.erl\", io_lib:fwrite(\"~p.~n\", [UsersPerms])).
         "
 
 	rmq_monitor
