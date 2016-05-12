@@ -779,6 +779,12 @@ pgsql_real_stop() {
     if [ "$1" = "slave" ]; then
         stop_escalate="$OCF_RESKEY_stop_escalate_in_slave"
     fi
+    # adjust stop_escalate time when it is longer than the timeout
+    if [ -n "$OCF_RESKEY_CRM_meta_timeout" ] && \
+        [ "$stop_escalate" -ge $((OCF_RESKEY_CRM_meta_timeout/1000)) ]; then
+        stop_escalate=$(((OCF_RESKEY_CRM_meta_timeout/1000) - 10))
+        ocf_log info "stop_escalate(or stop_escalate_in_slave) time is adjusted to ${stop_escalate} based on the configured timeout."
+    fi
 
     # Stop PostgreSQL, do not wait for clients to disconnect
     if [ $stop_escalate -gt 0 ]; then
