@@ -16,11 +16,15 @@ if is_redhat_based; then
 	. ${OCF_FUNCTIONS_DIR}/nfsserver-redhat.sh
 fi
 
+DEFAULT_INIT_SCRIPT_LIST="/etc/init.d/nfsserver /etc/init.d/nfs /etc/init.d/nfs-kernel-server"
 DEFAULT_INIT_SCRIPT="/etc/init.d/nfsserver"
-if ! [ -f $DEFAULT_INIT_SCRIPT ]; then
-	# On some systems, the script is just called nfs
-	DEFAULT_INIT_SCRIPT="/etc/init.d/nfs"
-fi
+for script in $DEFAULT_INIT_SCRIPT_LIST
+do
+	if [ -f $script -a -x $script ]; then
+		DEFAULT_INIT_SCRIPT=$script
+		break
+	fi
+done
 
 DEFAULT_NOTIFY_CMD=`which sm-notify`
 DEFAULT_NOTIFY_CMD=${DEFAULT_NOTIFY_CMD:-"/sbin/sm-notify"}
