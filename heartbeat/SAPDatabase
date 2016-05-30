@@ -129,12 +129,12 @@ Usually you can leave this empty. Then the default: /usr/sap/hostctrl/exe is use
   <content type="string" default="" />
  </parameter>
   <parameter name="START_TIMEOUT" unique="0" required="0">
-  <longdesc lang="en">Timeout passed to saphostctrl for function StartDatabase. If is not set, default saphostctrl timeout will be used.</longdesc>
+  <longdesc lang="en">Timeout passed to saphostctrl for function StartDatabase. If is not set will use be default saphostctrl timeout.</longdesc>
   <shortdesc lang="en">StartDatabase timeout parameter</shortdesc>
   <content type="string" default="" />
  </parameter>
  <parameter name="STOP_TIMEOUT" unique="0" required="0">
-  <longdesc lang="en">Timeout passed to saphostctrl for function StopDatabase. If is not set, default saphostctrl timeout will be used.</longdesc>
+  <longdesc lang="en">Timeout passed to saphostctrl for function StopDatabase. If is not set will use be default saphostctrl timeout.</longdesc>
   <shortdesc lang="en">StopDatabase timeout parameter</shortdesc>
   <content type="string" default="" />
  </parameter>
