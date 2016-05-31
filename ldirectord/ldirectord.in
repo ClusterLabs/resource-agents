@@ -2889,6 +2889,8 @@ sub check_http
 {
 	use LWP::UserAgent;
 	use LWP::Debug;
+	use Net::HTTP;
+	use URI;
 	if($DEBUG > 2) {
 		LWP::Debug::level('+');
 	}
@@ -2901,9 +2903,12 @@ sub check_http
 		. "virtualhost=\"$virtualhost\"");
 
 	if (inet_pton(AF_INET6,&ld_strip_brackets($host))) {
-		no warnings 'once';
 		require Net::INET6Glue::INET_is_INET6;
-		# Workaround for Net-HTTP IPv6 Address URLs Broken
+	}
+
+	# Workaround for Net-HTTP IPv6 Address URLs Broken
+	if ($LWP::VERSION < 6.08 || $Net::HTTP::VERSION < 6.07 || $URI::VERSION < 1.64) {
+		no warnings 'once';
 		@LWP::Protocol::http::EXTRA_SOCK_OPTS = (PeerAddr => $host,
 							 PeerHost => &ld_strip_brackets($host),
 							 Host => &ld_strip_brackets($host));
