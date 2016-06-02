@@ -2903,10 +2903,6 @@ sub check_http
 	if (inet_pton(AF_INET6,&ld_strip_brackets($host))) {
 		no warnings 'once';
 		require Net::INET6Glue::INET_is_INET6;
-		# Workaround for Net-HTTP IPv6 Address URLs Broken
-		@LWP::Protocol::http::EXTRA_SOCK_OPTS = (PeerAddr => $host,
-							 PeerHost => &ld_strip_brackets($host),
-							 Host => &ld_strip_brackets($host));
 	}
 
 	my $ua = new LWP::UserAgent(ssl_opts => { verify_hostname => 0 });
