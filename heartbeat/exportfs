@@ -266,6 +266,10 @@ is_exported() {
 
 exportfs_monitor ()
 {
+	if ! ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" monitor; then
+		return $OCF_NOT_RUNNING
+	fi
+
 	if forall is_exported "${OCF_RESKEY_clientspec}"; then
 		if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
 			forall backup_rmtab
@@ -311,6 +315,8 @@ exportfs_start ()
 		return $OCF_SUCCESS
 	fi
 	ocf_log info "Exporting file system(s) ..."
+
+	ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" start
 	forall export_one
 
 	# Restore the rmtab to ensure smooth NFS-over-TCP failover
@@ -391,6 +397,8 @@ exportfs_stop ()
 
 	if [ $rc -eq 0 ]; then
 		cleanup_export_cache
+		ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" stop
+
 		ocf_log info "Un-exported file system(s)"
 		return $OCF_SUCCESS
 	else
