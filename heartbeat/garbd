@@ -1,0 +1,417 @@
+#!/bin/sh
+#
+# Copyright (c) 2015 Damien Ciabrini <dciabrin@redhat.com>
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+##
+# README.
+#
+# Resource agent for garbd, the Galera arbitrator
+#
+# You can use this agent if you run an even number of galera nodes,
+# and you want an additional node to avoid split-brain situations.
+#
+# garbd requires that a Galera cluster is running, so make sure to
+# add a proper ordering constraint to the cluster, e.g.:
+#
+#   pcs constraint order galera-master then garbd
+#
+# If you add garbd to the cluster while Galera is not running, you
+# might want to disable it before setting up ordering constraint, e.g.:
+#
+#   pcs resource create garbd garbd \
+#      wsrep_cluster_address=gcomm://node1:4567,node2:4567 \
+#      meta target-role=stopped
+#
+# Use location constraints to avoid running galera and garbd on
+# the same node, e.g.:
+#
+#   pcs constraint colocation add garbd with galera-master -INFINITY
+#   pcs constraint location garbd prefers node3=INFINITY
+#
+##
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+# Set default paramenter values
+
+OCF_RESKEY_binary_default="/usr/sbin/garbd"
+OCF_RESKEY_log_default="/var/log/garbd.log"
+OCF_RESKEY_pid_default="/var/run/garbd.pid"
+OCF_RESKEY_user_default="mysql"
+if [ "X${HOSTOS}" = "XOpenBSD" ];then
+    OCF_RESKEY_group_default="_mysql"
+else
+    OCF_RESKEY_group_default="mysql"
+fi
+
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_log=${OCF_RESKEY_log_default}}
+: ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
+: ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
+: ${OCF_RESKEY_group=${OCF_RESKEY_group_default}}
+
+usage() {
+  cat <<UEND
+usage: $0 (start|stop|validate-all|meta-data|status|monitor)
+
+$0 manages a Galera arbitrator.
+
+The 'start' operation starts the arbitrator.
+The 'stop' operation stops the arbitrator.
+The 'status' operation reports whether the arbitrator is running
+The 'monitor' operation reports whether the arbitrator seems to be working
+The 'validate-all' operation reports whether the parameters are valid
+
+UEND
+}
+
+meta_data() {
+   cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="garbd">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for managing Galera arbitrator.
+</longdesc>
+<shortdesc lang="en">Manages a galera arbitrator instance</shortdesc>
+<parameters>
+
+<parameter name="binary" unique="0" required="0">
+<longdesc lang="en">
+Location of the Galera arbitrator binary
+</longdesc>
+<shortdesc lang="en">garbd server binary</shortdesc>
+<content type="string" default="${OCF_RESKEY_binary_default}" />
+</parameter>
+
+<parameter name="user" unique="0" required="0">
+<longdesc lang="en">
+User running the garbd process
+</longdesc>
+<shortdesc lang="en">garbd user</shortdesc>
+<content type="string" default="${OCF_RESKEY_user_default}" />
+</parameter>
+
+<parameter name="group" unique="0" required="0">
+<longdesc lang="en">
+Group running garbd (for logfile permissions)
+</longdesc>
+<shortdesc lang="en">garbd group</shortdesc>
+<content type="string" default="${OCF_RESKEY_group_default}"/>
+</parameter>
+
+<parameter name="log" unique="0" required="0">
+<longdesc lang="en">
+The logfile to be used for garbd.
+</longdesc>
+<shortdesc lang="en">Galera arbitrator log file</shortdesc>
+<content type="string" default="${OCF_RESKEY_log_default}"/>
+</parameter>
+
+<parameter name="pid" unique="0" required="0">
+<longdesc lang="en">
+The pidfile to be used for garbd.
+</longdesc>
+<shortdesc lang="en">Galera arbitrator pidfile</shortdesc>
+<content type="string" default="${OCF_RESKEY_pid_default}"/>
+</parameter>
+
+<parameter name="options" unique="0" required="0">
+<longdesc lang="en">
+Additional parameters which are passed to garbd on startup.
+</longdesc>
+<shortdesc lang="en">Additional parameters to pass to garbd</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="wsrep_cluster_address" unique="0" required="1">
+<longdesc lang="en">
+The galera cluster address. This takes the form of:
+gcomm://node:port,node:port,node:port
+
+Unlike Galera servers, port is mandatory for garbd.
+</longdesc>
+<shortdesc lang="en">Galera cluster address</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="wsrep_cluster_name" unique="0" required="1">
+<longdesc lang="en">
+The group name of the Galera cluster to connect to.
+</longdesc>
+<shortdesc lang="en">Galera cluster name</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="20" />
+<action name="stop" timeout="20" />
+<action name="monitor" depth="0" timeout="20" interval="20" />
+<action name="validate-all" timeout="5" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+
+garbd_start()
+{
+    local rc
+    local pid
+    local start_wait
+    local garbd_params
+
+    garbd_status info
+    rc=$?
+    if [ $rc -eq $OCF_SUCCESS ]; then
+        ocf_exit_reason "garbd started outside of the cluster's control"
+        return $OCF_ERR_GENERIC;
+    fi
+
+    touch $OCF_RESKEY_log
+    chown $OCF_RESKEY_user:$OCF_RESKEY_group $OCF_RESKEY_log
+    chmod 0640 $OCF_RESKEY_log
+    [ -x /sbin/restorecon ] && /sbin/restorecon $OCF_RESKEY_log
+
+    garbd_params="--address=${OCF_RESKEY_wsrep_cluster_address} \
+                  --group ${OCF_RESKEY_wsrep_cluster_name} \
+                  --log ${OCF_RESKEY_log}"
+
+    if [ ! -z "${OCF_RESKEY_options}" ]; then
+        garbd_params="${garbd_params} --options=${OCF_RESKEY_options}"
+    fi
+
+    # garbd has no parameter to run as a specific user,
+    # so we need to start it by our own means
+    pid=$(su - -s /bin/sh $OCF_RESKEY_user -c "${OCF_RESKEY_binary} ${garbd_params} >/dev/null 2>&1 & echo \$!")
+
+    # garbd doesn't create a pidfile either, so we create our own
+    echo $pid > $OCF_RESKEY_pid
+    if [ $? -ne 0 ]; then
+        ocf_exit_reason "Cannot create pidfile for garbd at $OCF_RESKEY_pid (rc=$?), please check your installation"
+        return $OCF_ERR_GENERIC
+    fi
+
+    # Spin waiting for garbd to connect to the cluster.
+    # Let the CRM/LRM time us out if required.
+    start_wait=1
+    while [ $start_wait -eq 1 ]; do
+        garbd_monitor info
+        rc=$?
+        if [ $rc -eq $OCF_NOT_RUNNING ]; then
+            ocf_exit_reason "garbd failed to start (pid=$pid), check logs in ${OCF_RESKEY_log}"
+            return $OCF_ERR_GENERIC
+        elif [ $rc -eq $OCF_SUCCESS ]; then
+            start_wait=0
+        fi
+        sleep 2
+    done
+
+    ocf_log info "garbd connected to cluster \"${OCF_RESKEY_wsrep_cluster_name}\""
+    return $OCF_SUCCESS
+}
+
+garbd_status()
+{
+    local loglevel=$1
+    local rc
+    ocf_pidfile_status $OCF_RESKEY_pid
+    rc=$?
+
+    if [ $rc -eq 0 ]; then
+        return $OCF_SUCCESS
+    elif [ $rc -eq 2 ]; then
+        return $OCF_NOT_RUNNING
+    else
+        # clean up if pidfile is stale
+        if [ $rc -eq 1 ]; then
+            ocf_log $loglevel "garbd not running: removing old PID file"
+            rm -f $OCF_RESKEY_pid
+        fi
+        return $OCF_ERR_GENERIC
+    fi
+}
+
+garbd_monitor()
+{
+    local rc
+    local pid
+    local loglevel=$1
+
+    # Set loglevel to info during probe
+    if ocf_is_probe; then
+        loglevel="info"
+    fi
+
+    garbd_status $loglevel
+    rc=$?
+
+    # probe just wants to know if garbd is running or not
+    if [ ocf_is_probe -a $rc -ne $OCF_SUCCESS ]; then
+        rc=$OCF_NOT_RUNNING
+    fi
+
+    # Consider garbd is working if it's connected to at least
+    # one node in the galera cluster.
+    # Note: a Galera node in Non-Primary state will be
+    # stopped by the galera RA. So we can assume that
+    # garbd will always be connected to the right partition
+    if [ $rc -eq $OCF_SUCCESS ]; then
+        pid=`cat $OCF_RESKEY_pid 2> /dev/null `
+        netstat -tnp 2>/dev/null | grep -s -q "ESTABLISHED.*${pid}/"
+        if [ $? -ne 0 ]; then
+            ocf_log $loglevel "garbd disconnected from cluster \"${OCF_RESKEY_wsrep_cluster_name}\""
+            rc=$OCF_ERR_GENERIC
+        fi
+    fi
+
+    return $rc
+}
+
+garbd_stop()
+{
+    local rc
+    local pid
+
+    if [ ! -f $OCF_RESKEY_pid ]; then
+        ocf_log info "garbd is not running"
+        return $OCF_SUCCESS
+    fi
+
+    pid=`cat $OCF_RESKEY_pid 2> /dev/null `
+
+    ocf_log info "stopping garbd"
+
+    # make sure the process is stopped
+    ocf_stop_processes TERM 10 $pid
+    rc=$?
+
+    if [ $rc -ne 0 ]; then
+        return $OCF_ERR_GENERIC
+    else
+        rm -f $OCF_RESKEY_pid
+        ocf_log info "garbd stopped"
+        return $OCF_SUCCESS
+    fi
+}
+
+garbd_validate()
+{
+    if ! have_binary "$OCF_RESKEY_binary"; then
+        ocf_exit_reason "Setup problem: couldn't find command: $OCF_RESKEY_binary"
+        return $OCF_ERR_INSTALLED;
+    fi
+
+    if ! have_binary "netstat"; then
+        ocf_exit_reason "Setup problem: couldn't find command: netstat"
+        return $OCF_ERR_INSTALLED;
+    fi
+
+    if [ -z "$OCF_RESKEY_wsrep_cluster_address" ]; then
+        ocf_exit_reason "garbd must be configured with a wsrep_cluster_address value."
+        return $OCF_ERR_CONFIGURED
+    fi
+
+    # unlike galera RA, ports must be set in cluster address for garbd
+    # https://github.com/codership/galera/issues/98
+    for node in $(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' '); do
+        echo $node | grep -s -q ':[1-9][0-9]*$'
+        if [ $? -ne 0 ]; then
+            ocf_exit_reason "wsrep_cluster_address must specify ports (gcomm://node1:port,node2:port)."
+            return $OCF_ERR_CONFIGURED
+        fi
+    done
+
+    # Ensure that the encryption method is set if garbd is configured
+    # to use SSL.
+    echo $OCF_RESKEY_options | grep -s -q -i -E '\bsocket.ssl_(key|cert)='
+    if [ $? -eq 0 ]; then
+        echo $OCF_RESKEY_options | grep -s -q -i -E '\bsocket.ssl_cipher='
+        if [ $? -ne 0 ]; then
+            ocf_exit_reason "option socket.ssl_cipher must be set if SSL is enabled."
+            return $OCF_ERR_CONFIGURED
+        fi
+    fi
+
+    if [ -z "$OCF_RESKEY_wsrep_cluster_name" ]; then
+        ocf_exit_reason "garbd must be configured with a wsrep_cluster_name value."
+        return $OCF_ERR_CONFIGURED
+    fi
+
+    if ! getent passwd $OCF_RESKEY_user >/dev/null 2>&1; then
+        ocf_exit_reason "User $OCF_RESKEY_user doesn't exist"
+        return $OCF_ERR_INSTALLED
+    fi
+
+    if ! getent group $OCF_RESKEY_group >/dev/null 2>&1; then
+        ocf_exit_reason "Group $OCF_RESKEY_group doesn't exist"
+        return $OCF_ERR_INSTALLED
+    fi
+
+    return $OCF_SUCCESS
+}
+
+case "$1" in
+  meta-data)    meta_data
+        exit $OCF_SUCCESS;;
+  usage|help)   usage
+        exit $OCF_SUCCESS;;
+esac
+
+garbd_validate
+rc=$?
+
+# trap configuration errors early, but don't block stop in such cases
+LSB_STATUS_STOPPED=3
+if [ $rc -ne 0 ]; then
+    case "$1" in
+        stop) exit $OCF_SUCCESS;;
+        status) exit $LSB_STATUS_STOPPED;;
+        *) exit $rc;;
+    esac
+fi
+
+# What kind of method was invoked?
+case "$1" in
+  start)    garbd_start;;
+  stop)     garbd_stop;;
+  status)   garbd_status err;;
+  monitor)  garbd_monitor err;;
+  promote)  garbd_promote;;
+  demote)   garbd_demote;;
+  validate-all) exit $OCF_SUCCESS;;
+
+ *)     usage
+        exit $OCF_ERR_UNIMPLEMENTED;;
+esac
