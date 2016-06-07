@@ -613,8 +613,7 @@ dirname()
 # resource monitoring, and better resource tracking in general, this will
 # become essential.
 #
-# These scripts work because ${HA_RSCTMP} is cleaned out every time
-# heartbeat is started.
+# These scripts work because ${HA_RSCTMP} is cleaned on node reboot.
 #
 # We create "resource-string" tracking files under ${HA_RSCTMP} in a
 # very simple way:
