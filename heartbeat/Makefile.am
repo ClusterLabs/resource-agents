@@ -50,98 +50,98 @@ send_ua_SOURCES         = send_ua.c IPv6addr_utils.c
 IPv6addr_LDADD          = -lplumb $(LIBNETLIBS)
 send_ua_LDADD           = $(LIBNETLIBS)
 
-ocf_SCRIPTS	     =  ClusterMon		\
+ocf_SCRIPTS	     =  AoEtarget		\
+			AudibleAlarm		\
+			ClusterMon		\
 			CTDB			\
+			Delay			\
 			Dummy			\
+			EvmsSCC			\
+			Evmsd			\
+			Filesystem		\
+			ICP			\
 			IPaddr			\
 			IPaddr2			\
+			IPsrcaddr		\
+			LVM			\
+			LinuxSCSI		\
+			MailTo			\
+			ManageRAID		\
+			ManageVE		\
+			Pure-FTPd		\
+			Raid1			\
+			Route			\
+			SAPDatabase		\
+			SAPInstance		\
+			SendArp			\
+			ServeRAID		\
+			SphinxSearchDaemon	\
+			Squid			\
+			Stateful		\
+			SysInfo			\
+			VIPArip			\
+			VirtualDomain		\
+			WAS			\
+			WAS6			\
+			WinPopup		\
+			Xen			\
+			Xinetd			\
 			anything		\
-			AoEtarget		\
 			apache			\
 			asterisk		\
 			awseip			\
 			awsvip			\
-			nginx			\
-			AudibleAlarm		\
 			clvm			\
 			conntrackd		\
 			db2			\
 			dhcpd			\
-			Delay			\
 			dnsupdate		\
 			docker			\
 			eDir88			\
-			EvmsSCC			\
-			Evmsd			\
 			ethmonitor		\
 			exportfs		\
-			Filesystem		\
 			fio			\
 			galera			\
 			garbd			\
-			ids			\
-			iscsi			\
-			ICP			\
-			IPsrcaddr		\
-			iSCSITarget		\
 			iSCSILogicalUnit	\
+			iSCSITarget		\
+			ids			\
 			iface-bridge		\
 			iface-vlan		\
+			iscsi			\
 			jboss			\
 			kamailio		\
-			LinuxSCSI		\
-			LVM			\
 			lxc			\
-			MailTo			\
-			ManageRAID		\
-			ManageVE		\
 			mysql			\
 			mysql-proxy		\
 			nagios			\
 			named			\
 			nfsnotify		\
 			nfsserver		\
+			nginx			\
 			oracle			\
 			oralsnr			\
+			pgagent			\
+			pgsql			\
 			pingd			\
 			portblock		\
 			postfix			\
 			pound			\
-			pgagent			\
-			pgsql			\
 			proftpd			\
-			Pure-FTPd		\
 			rabbitmq-cluster	\
-			Raid1			\
 			redis			\
-			Route			\
 			rsyncd			\
 			rsyslog			\
-			SAPDatabase		\
-			SAPInstance		\
-			SendArp			\
-			ServeRAID		\
-			slapd			\
-			SphinxSearchDaemon	\
-			Squid			\
-			Stateful		\
-			SysInfo			\
 			scsi2reservation	\
 			sfex			\
 			sg_persist              \
+			slapd			\
 			symlink			\
 			syslog-ng		\
 			tomcat			\
-			VIPArip			\
-			VirtualDomain		\
 			varnish			\
 			vmware			\
 			vsftpd			\
-			WAS			\
-			WAS6			\
-			WinPopup		\
-			Xen			\
-			Xinetd			\
 			zabbixserver
 
 ocfcommondir		= $(OCF_LIB_DIR_PREFIX)/heartbeat
