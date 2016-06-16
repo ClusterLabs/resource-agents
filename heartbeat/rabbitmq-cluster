@@ -366,14 +366,40 @@ rmq_start() {
 		rmq_join_existing "$join_list"
 		rc=$?
 
-                # Restore users (if any)
-                BaseDataDir=`dirname $RMQ_DATA_DIR`
-                if [ -f $BaseDataDir/users.erl ] ; then
-                        rabbitmqctl eval "
-                                {ok, [Users]} = file:consult(\"$BaseDataDir/users.erl\"),
-                                lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user, X) end, Users).
-                        "
-                        rm -f $BaseDataDir/users.erl
+		# Restore users (if any)
+		BaseDataDir=`dirname $RMQ_DATA_DIR`
+		if [ -f $BaseDataDir/users.erl ] ; then
+			rabbitmqctl eval "
+
+				[WildPattern] = ets:select(mnesia_gvar, [ { {{rabbit_user, wild_pattern}, '\\\$1'}, [], ['\\\$1'] } ]),
+
+				%% Read users first
+				{ok, [Users]} = file:consult(\"$BaseDataDir/users.erl\"),
+
+				Upgrade = fun
+					({internal_user, A, B, C}) -> {internal_user, A, B, C, rabbit_password_hashing_md5};
+					({internal_user, A, B, C, D}) -> {internal_user, A, B, C, D}
+				end,
+
+				Downgrade = fun
+					({internal_user, A, B, C}) -> {internal_user, A, B, C};
+					({internal_user, A, B, C, rabbit_password_hashing_md5}) -> {internal_user, A, B, C};
+					%% Incompatible scheme, so we will loose user's password ('B' value) during conversion.
+					%% Unfortunately, this case will require manual intervention - user have to run:
+					%%    rabbitmqctl change_password <A> <somenewpassword>
+					({internal_user, A, B, C, _}) -> {internal_user, A, B, C}
+				end,
+
+				case WildPattern of
+					%% Version < 3.6.0
+					{internal_user,'_','_','_'} ->
+						lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user, Downgrade(X)) end, Users);
+					%% Version >= 3.6.0
+					{internal_user,'_','_','_','_'} ->
+						lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user, Upgrade(X)) end, Users)
+				end.
+			"
+			rm -f $BaseDataDir/users.erl
                 fi
 
 		if [ $rc -ne 0 ]; then
@@ -386,12 +412,22 @@ rmq_start() {
 }
 
 rmq_stop() {
-        # Backup users
-        BaseDataDir=`dirname $RMQ_DATA_DIR`
-        rabbitmqctl eval "
-                Users = mnesia:dirty_select(rabbit_user, [{ {internal_user, '\\\$1', '_', '_'}, [{'/=', '\\\$1', <<\"guest\">>}], ['\\\$_'] } ]),
-                file:write_file(\"$BaseDataDir/users.erl\", io_lib:fwrite(\"~p.~n\", [Users])).
-        "
+	# Backup users
+	BaseDataDir=`dirname $RMQ_DATA_DIR`
+	rabbitmqctl eval "
+		[WildPattern] = ets:select(mnesia_gvar, [ { {{rabbit_user, wild_pattern}, '\\\$1'}, [], ['\\\$1'] } ]),
+
+		Users = case WildPattern of
+			%% Version < 3.6.0
+			{internal_user,'_','_','_'} ->
+				mnesia:dirty_select(rabbit_user, [{ {internal_user, '\\\$1', '_', '_'}, [{'/=', '\\\$1', <<\"guest\">>}], ['\\\$_'] } ]);
+			%% Version >= 3.6.0
+			{internal_user,'_','_','_','_'} ->
+				mnesia:dirty_select(rabbit_user, [{ {internal_user, '\\\$1', '_', '_', '_'}, [{'/=', '\\\$1', <<\"guest\">>}], ['\\\$_'] } ])
+		end,
+
+		file:write_file(\"$BaseDataDir/users.erl\", io_lib:fwrite(\"~p.~n\", [Users])).
+	"
 
 	rmq_monitor
 	if [ $? -eq $OCF_NOT_RUNNING ]; then
