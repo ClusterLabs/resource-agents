@@ -1019,8 +1019,8 @@ if [ $rc -ne 0 ]; then
                 ocf_exit_reason "environment validation failed, active pid is in unknown state."
                 exit $OCF_ERR_GENERIC
             fi
-            # validation failed and pid is not active, it's safe to say this instance is inactive.
-            exit $OCF_NOT_RUNNING;;
+            # validation failed
+            exit $rc;;
 
         status) exit $LSB_STATUS_STOPPED;;
         *) exit $rc;;
