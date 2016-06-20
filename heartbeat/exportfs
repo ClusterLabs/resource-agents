@@ -270,7 +270,7 @@ exportfs_monitor ()
 		return $OCF_NOT_RUNNING
 	fi
 
-	if forall is_exported "${OCF_RESKEY_clientspec}"; then
+	if forall is_exported "$(echo "${OCF_RESKEY_clientspec}" | tr -d '[]')"; then
 		if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
 			forall backup_rmtab
 		fi
