@@ -370,6 +370,8 @@ rmq_start() {
 		BaseDataDir=`dirname $RMQ_DATA_DIR`
 		if [ -f $BaseDataDir/users.erl ] ; then
 			rabbitmqctl eval "
+				%% Run only if Mnesia is ready, otherwise exit.
+				lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) orelse halt(),
 
 				[WildPattern] = ets:select(mnesia_gvar, [ { {{rabbit_user, wild_pattern}, '\\\$1'}, [], ['\\\$1'] } ]),
 
@@ -415,6 +417,9 @@ rmq_stop() {
 	# Backup users
 	BaseDataDir=`dirname $RMQ_DATA_DIR`
 	rabbitmqctl eval "
+		%% Run only if Mnesia is still available, otherwise exit.
+		lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) orelse halt(),
+
 		[WildPattern] = ets:select(mnesia_gvar, [ { {{rabbit_user, wild_pattern}, '\\\$1'}, [], ['\\\$1'] } ]),
 
 		Users = case WildPattern of
