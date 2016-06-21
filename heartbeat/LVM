@@ -311,18 +311,15 @@ LVM_status() {
 		fi
 	fi
 	
-	if [ -d /dev/$1 ]; then
-		test "`cd /dev/$1 && ls`" != ""
-		rc=$?
-		if [ $rc -ne 0 ]; then
-			ocf_exit_reason "VG $1 with no logical volumes is not supported by this RA!"
-		fi
-	fi
-
-	if [ $rc -ne 0 ]; then
+	# Ask lvm whether the volume group is active.  This maps to
+	# the question "Are there any logical volumes that are active in
+	# the specified volume group?".
+	lvs --noheadings -o selected  -S lv_active=active,vg_name=${1}|grep -q 1
+	if [ $? -ne 0 ]; then
 		ocf_log $loglevel "LVM Volume $1 is not available (stopped)"
 		rc=$OCF_NOT_RUNNING
 	else
+		rc=0
 		case $(get_vg_mode) in
 		1) # exclusive with tagging.
 			# If vg is running, make sure the correct tag is present. Otherwise we
