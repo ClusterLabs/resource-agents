@@ -279,6 +279,22 @@ rmq_join_existing()
 	return $OCF_SUCCESS
 }
 
+rmq_forget_cluster_node_remotely() {
+	local running_cluster_nodes="$1"
+	local node_to_forget="$2"
+
+	ocf_log info "Forgetting $node_to_forget via nodes [ $(echo $running_cluster_nodes | tr '\n' ' ') ]."
+	for running_cluster_node in $running_cluster_nodes; do
+		rabbitmqctl -n $running_cluster_node forget_cluster_node $node_to_forget
+		if [ $? = 0 ]; then
+			ocf_log info "Succeeded forgetting $node_to_forget via $running_cluster_node."
+			return
+		else
+			ocf_log err "Failed to forget node $node_to_forget via $running_cluster_node."
+		fi
+	done
+}
+
 rmq_notify() {
 	node_list="${OCF_RESKEY_CRM_meta_notify_stop_uname}"
 	mode="${OCF_RESKEY_CRM_meta_notify_type}-${OCF_RESKEY_CRM_meta_notify_operation}"
@@ -336,9 +352,12 @@ rmq_start() {
 	rmq_join_existing "$join_list"
 	if [ $? -ne 0 ]; then
 		ocf_log info "node failed to join, wiping data directory and trying again"
+		local local_rmq_node="$(${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l forever --query --name $RMQ_CRM_ATTR_COOKIE_LAST_KNOWN -q)"
+
 		# if the graceful join fails, use the hammer and reset all the data.
 		rmq_stop 
 		rmq_wipe_data
+		rmq_forget_cluster_node_remotely "$join_list" "$local_rmq_node"
 		rmq_join_existing "$join_list"
 		rc=$?
 
