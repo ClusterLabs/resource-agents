@@ -76,6 +76,8 @@
 # in this file
 if [ -f "/etc/sysconfig/clustercheck" ]; then
     . /etc/sysconfig/clustercheck
+elif [ -f "/etc/default/clustercheck" ]; then
+    . /etc/default/clustercheck
 fi
 
 #######################################################################
