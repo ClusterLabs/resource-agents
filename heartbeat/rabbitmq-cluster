@@ -370,35 +370,36 @@ rmq_start() {
 		BaseDataDir=`dirname $RMQ_DATA_DIR`
 		if [ -f $BaseDataDir/users.erl ] ; then
 			rabbitmqctl eval "
-				%% Run only if Mnesia is ready, otherwise exit.
-				lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) orelse halt(),
+				%% Run only if Mnesia is ready.
+				lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
+				begin
+					[WildPattern] = ets:select(mnesia_gvar, [ { {{rabbit_user, wild_pattern}, '\\\$1'}, [], ['\\\$1'] } ]),
 
-				[WildPattern] = ets:select(mnesia_gvar, [ { {{rabbit_user, wild_pattern}, '\\\$1'}, [], ['\\\$1'] } ]),
+					%% Read users first
+					{ok, [Users]} = file:consult(\"$BaseDataDir/users.erl\"),
 
-				%% Read users first
-				{ok, [Users]} = file:consult(\"$BaseDataDir/users.erl\"),
+					Upgrade = fun
+						({internal_user, A, B, C}) -> {internal_user, A, B, C, rabbit_password_hashing_md5};
+						({internal_user, A, B, C, D}) -> {internal_user, A, B, C, D}
+					end,
 
-				Upgrade = fun
-					({internal_user, A, B, C}) -> {internal_user, A, B, C, rabbit_password_hashing_md5};
-					({internal_user, A, B, C, D}) -> {internal_user, A, B, C, D}
-				end,
+					Downgrade = fun
+						({internal_user, A, B, C}) -> {internal_user, A, B, C};
+						({internal_user, A, B, C, rabbit_password_hashing_md5}) -> {internal_user, A, B, C};
+						%% Incompatible scheme, so we will loose user's password ('B' value) during conversion.
+						%% Unfortunately, this case will require manual intervention - user have to run:
+						%%    rabbitmqctl change_password <A> <somenewpassword>
+						({internal_user, A, B, C, _}) -> {internal_user, A, B, C}
+					end,
 
-				Downgrade = fun
-					({internal_user, A, B, C}) -> {internal_user, A, B, C};
-					({internal_user, A, B, C, rabbit_password_hashing_md5}) -> {internal_user, A, B, C};
-					%% Incompatible scheme, so we will loose user's password ('B' value) during conversion.
-					%% Unfortunately, this case will require manual intervention - user have to run:
-					%%    rabbitmqctl change_password <A> <somenewpassword>
-					({internal_user, A, B, C, _}) -> {internal_user, A, B, C}
-				end,
-
-				case WildPattern of
-					%% Version < 3.6.0
-					{internal_user,'_','_','_'} ->
-						lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user, Downgrade(X)) end, Users);
-					%% Version >= 3.6.0
-					{internal_user,'_','_','_','_'} ->
-						lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user, Upgrade(X)) end, Users)
+					case WildPattern of
+						%% Version < 3.6.0
+						{internal_user,'_','_','_'} ->
+							lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user, Downgrade(X)) end, Users);
+						%% Version >= 3.6.0
+						{internal_user,'_','_','_','_'} ->
+							lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user, Upgrade(X)) end, Users)
+					end
 				end.
 			"
 			rm -f $BaseDataDir/users.erl
@@ -417,21 +418,22 @@ rmq_stop() {
 	# Backup users
 	BaseDataDir=`dirname $RMQ_DATA_DIR`
 	rabbitmqctl eval "
-		%% Run only if Mnesia is still available, otherwise exit.
-		lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) orelse halt(),
+		%% Run only if Mnesia is still available.
+		lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
+		begin
+			[WildPattern] = ets:select(mnesia_gvar, [ { {{rabbit_user, wild_pattern}, '\\\$1'}, [], ['\\\$1'] } ]),
 
-		[WildPattern] = ets:select(mnesia_gvar, [ { {{rabbit_user, wild_pattern}, '\\\$1'}, [], ['\\\$1'] } ]),
+			Users = case WildPattern of
+				%% Version < 3.6.0
+				{internal_user,'_','_','_'} ->
+					mnesia:dirty_select(rabbit_user, [{ {internal_user, '\\\$1', '_', '_'}, [{'/=', '\\\$1', <<\"guest\">>}], ['\\\$_'] } ]);
+				%% Version >= 3.6.0
+				{internal_user,'_','_','_','_'} ->
+					mnesia:dirty_select(rabbit_user, [{ {internal_user, '\\\$1', '_', '_', '_'}, [{'/=', '\\\$1', <<\"guest\">>}], ['\\\$_'] } ])
+			end,
 
-		Users = case WildPattern of
-			%% Version < 3.6.0
-			{internal_user,'_','_','_'} ->
-				mnesia:dirty_select(rabbit_user, [{ {internal_user, '\\\$1', '_', '_'}, [{'/=', '\\\$1', <<\"guest\">>}], ['\\\$_'] } ]);
-			%% Version >= 3.6.0
-			{internal_user,'_','_','_','_'} ->
-				mnesia:dirty_select(rabbit_user, [{ {internal_user, '\\\$1', '_', '_', '_'}, [{'/=', '\\\$1', <<\"guest\">>}], ['\\\$_'] } ])
-		end,
-
-		file:write_file(\"$BaseDataDir/users.erl\", io_lib:fwrite(\"~p.~n\", [Users])).
+			file:write_file(\"$BaseDataDir/users.erl\", io_lib:fwrite(\"~p.~n\", [Users]))
+		end.
 	"
 
 	rmq_monitor
