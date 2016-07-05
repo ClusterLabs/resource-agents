@@ -162,12 +162,7 @@ rmq_monitor() {
 		
 		return $OCF_SUCCESS
 	;;
-	2)
-		ocf_log info "RabbitMQ server is not running"
-		rmq_delete_nodename
-		return $OCF_NOT_RUNNING
-	;;
-	69)
+	2|68|69|70|75|78)
 		ocf_log info "RabbitMQ server is not running"
 		rmq_delete_nodename
 		return $OCF_NOT_RUNNING
