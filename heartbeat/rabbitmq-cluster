@@ -399,10 +399,11 @@ rmq_start() {
 						%% Version >= 3.6.0
 						{internal_user,'_','_','_','_'} ->
 							lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user, Upgrade(X)) end, Users)
-					end
+					end,
+
+					ok = file:delete(\"$BaseDataDir/users.erl\")
 				end.
 			"
-			rm -f $BaseDataDir/users.erl
                 fi
 
 		if [ $rc -ne 0 ]; then
