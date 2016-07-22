@@ -280,6 +280,17 @@ rmq_forget_cluster_node_remotely() {
 
 	ocf_log info "Forgetting $node_to_forget via nodes [ $(echo $running_cluster_nodes | tr '\n' ' ') ]."
 	for running_cluster_node in $running_cluster_nodes; do
+		# if rabbitmq app went down on the node where it should be running,
+		# attempt to start it as a last resort
+		if ! $RMQ_CTL -n $running_cluster_node cluster_status | grep running_nodes > /dev/null; then
+			ocf_log warn "RabbitMQ on $running_cluster_node reports no running nodes, trying start_app there."
+			if $RMQ_CTL -n $running_cluster_node start_app; then
+				ocf_log info "Successful start_app on $running_cluster_node."
+			else
+				ocf_log err "Failed start_app on $running_cluster_node."
+			fi
+		fi
+
 		rabbitmqctl -n $running_cluster_node forget_cluster_node $node_to_forget
 		if [ $? = 0 ]; then
 			ocf_log info "Succeeded forgetting $node_to_forget via $running_cluster_node."
