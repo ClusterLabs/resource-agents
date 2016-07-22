@@ -755,7 +755,7 @@ PROCS_CLEANUP_TIME="30"
 
 MONUSR=${OCF_RESKEY_monuser:-$OCF_RESKEY_monuser_default}
 MONPWD=${OCF_RESKEY_monpassword:-$OCF_RESKEY_monpassword_default}
-MONPROFILE=${OCF_RESKEY_monprofile_default:-$OCF_RESKEY_monprofile_default}
+MONPROFILE=${OCF_RESKEY_monprofile:-$OCF_RESKEY_monprofile_default}
 
 MONUSR=$(echo $MONUSR | awk '{print toupper($0)}')
 MONPROFILE=$(echo $MONPROFILE | awk '{print toupper($0)}')
