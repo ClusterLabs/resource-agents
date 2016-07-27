@@ -238,6 +238,11 @@ rmq_start_first()
 	return $rc
 }
 
+rmq_is_clustered()
+{
+    $RMQ_CTL eval 'rabbit_mnesia:is_clustered().' | grep -q true
+}
+
 rmq_join_existing()
 {
 	local join_list="$1"
@@ -248,6 +253,11 @@ rmq_join_existing()
 	if [ $? -ne 0 ]; then
 		return $OCF_ERR_GENERIC
 	fi
+
+        if rmq_is_clustered; then
+            ocf_log info "Successfully re-joined existing rabbitmq cluster automatically"
+            return $OCF_SUCCESS
+        fi
 
 	# unconditionally join the cluster
 	$RMQ_CTL stop_app > /dev/null 2>&1
