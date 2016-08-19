@@ -312,7 +312,7 @@ nfsserver_systemd_monitor()
 	local rc
 	local fn
 
-	ocf_log info "Status: rpcbind"
+	ocf_log debug "Status: rpcbind"
 	rpcinfo > /dev/null 2>&1
 	rc=$?
 	if [ "$rc" -ne "0" ]; then
@@ -320,7 +320,7 @@ nfsserver_systemd_monitor()
 		return $OCF_NOT_RUNNING
 	fi
 
-	ocf_log info "Status: nfs-mountd"
+	ocf_log debug "Status: nfs-mountd"
 	rpcinfo -t localhost 100005 > /dev/null 2>&1
 	rc=$?
 	if [ "$rc" -ne "0" ]; then
@@ -328,7 +328,7 @@ nfsserver_systemd_monitor()
 		return $OCF_NOT_RUNNING
 	fi
 
-	ocf_log info "Status: nfs-idmapd"
+	ocf_log debug "Status: nfs-idmapd"
 	fn=`mktemp`
 	nfs_exec status nfs-idmapd > $fn 2>&1
 	rc=$?
@@ -339,7 +339,7 @@ nfsserver_systemd_monitor()
 		return $OCF_NOT_RUNNING
 	fi
 
-	ocf_log info "Status: rpc-statd"
+	ocf_log debug "Status: rpc-statd"
 	rpcinfo -t localhost 100024 > /dev/null 2>&1
 	rc=$?
 	if [ "$rc" -ne "0" ]; then
