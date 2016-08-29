@@ -371,7 +371,7 @@ show_mon_profile() {
 }
 mk_mon_profile() {
 	cat<<EOF
-create profile $MONPROFILE limit FAILED_LOGIN_ATTEMPTS UNLIMITED PASSWORD_LIFE_TIME UNLIMITED;
+create profile "$MONPROFILE" limit FAILED_LOGIN_ATTEMPTS UNLIMITED PASSWORD_LIFE_TIME UNLIMITED;
 EOF
 }
 show_mon_user() {
@@ -379,7 +379,7 @@ show_mon_user() {
 }
 mk_mon_user() {
 	cat<<EOF
-create user $MONUSR identified by "$MONPWD" profile $MONPROFILE;
+create user $MONUSR identified by "$MONPWD" profile "$MONPROFILE";
 grant create session to $MONUSR;
 grant select on v_\$instance to $MONUSR;
 EOF
@@ -388,7 +388,7 @@ show_mon_user_profile() {
 	echo "select PROFILE from dba_users where USERNAME='$MONUSR';"
 }
 set_mon_user_profile() {
-	echo "alter user $MONUSR profile $MONPROFILE;"
+	echo "alter user $MONUSR profile '$MONPROFILE';"
 }
 reset_mon_user_password() {
 	echo "alter user $MONUSR identified by $MONPWD;"
@@ -758,7 +758,7 @@ MONPWD=${OCF_RESKEY_monpassword:-$OCF_RESKEY_monpassword_default}
 MONPROFILE=${OCF_RESKEY_monprofile:-$OCF_RESKEY_monprofile_default}
 
 MONUSR=$(echo $MONUSR | awk '{print toupper($0)}')
-MONPROFILE=$(echo $MONPROFILE | awk '{print toupper($0)}')
+MONPROFILE=$(echo "$MONPROFILE" | awk '{print toupper($0)}')
 OCF_REQUIRED_PARAMS="sid"
 OCF_REQUIRED_BINARIES="sqlplus"
 ocf_rarun $*
