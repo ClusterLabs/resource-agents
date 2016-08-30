@@ -291,7 +291,7 @@ dbasql() {
 	runsql "connect / as sysdba" $*
 }
 monsql() {
-	runsql "connect $MONUSR/\"$MONPWD\"" $*
+	runsql "connect \"$MONUSR\"/\"$MONPWD\"" $*
 }
 # use dbasql_one if the query should result in a single line output
 # at times people stuff commands in oracle .profile
@@ -379,19 +379,19 @@ show_mon_user() {
 }
 mk_mon_user() {
 	cat<<EOF
-create user $MONUSR identified by "$MONPWD" profile "$MONPROFILE";
-grant create session to $MONUSR;
-grant select on v_\$instance to $MONUSR;
+create user "$MONUSR" identified by "$MONPWD" profile "$MONPROFILE";
+grant create session to "$MONUSR";
+grant select on v_\$instance to "$MONUSR";
 EOF
 }
 show_mon_user_profile() {
 	echo "select PROFILE from dba_users where USERNAME='$MONUSR';"
 }
 set_mon_user_profile() {
-	echo "alter user $MONUSR profile '$MONPROFILE';"
+	echo "alter user "$MONUSR" profile '$MONPROFILE';"
 }
 reset_mon_user_password() {
-	echo "alter user $MONUSR identified by $MONPWD;"
+	echo "alter user "$MONUSR" identified by "$MONPWD";"
 }
 check_mon_profile() {
 	local output
@@ -437,6 +437,9 @@ check_mon_user() {
 	output=`dbasql mk_mon_user show_mon_user`
 	if echo "$output" | grep -iw "^$MONUSR" >/dev/null; then
 		return 0
+	elif echo "$output" | grep ORA-65096 >/dev/null 2>&1; then
+		ocf_exit_reason "monuser must start with C## for container databases"
+		return $OCF_ERR_CONFIGURED
 	else
 		ocf_exit_reason "could not create $MONUSR oracle user"
 		ocf_log err "sqlplus output: $output"
@@ -757,7 +760,7 @@ MONUSR=${OCF_RESKEY_monuser:-$OCF_RESKEY_monuser_default}
 MONPWD=${OCF_RESKEY_monpassword:-$OCF_RESKEY_monpassword_default}
 MONPROFILE=${OCF_RESKEY_monprofile:-$OCF_RESKEY_monprofile_default}
 
-MONUSR=$(echo $MONUSR | awk '{print toupper($0)}')
+MONUSR=$(echo "$MONUSR" | awk '{print toupper($0)}')
 MONPROFILE=$(echo "$MONPROFILE" | awk '{print toupper($0)}')
 OCF_REQUIRED_PARAMS="sid"
 OCF_REQUIRED_BINARIES="sqlplus"
