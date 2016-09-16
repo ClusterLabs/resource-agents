@@ -128,10 +128,10 @@ CASE "check additional env: specify iflabel in 'OCF_RESKEY_nic'"
 	Include check_iflabel_removed
 
 # monitor should return OCF_ERR_GENERIC rather than OCF_ERR_CONFIGURED
-# when the specified OCF_RESKEY_nic is disappeard by a failure.
+# when the specified OCF_RESKEY_nic is vanished by a failure.
 # This has been changed as of 3.9.6.
-CASE "monitor failure when 'OCF_RESKEY_nic' is disappeared"
+CASE "monitor failure when 'OCF_RESKEY_nic' is vanished"
 	Include prepare
-	Env OCF_RESKEY_nic=ethDisappear
+	Env OCF_RESKEY_nic=ethVanished
 	Env OCF_RESKEY_CRM_meta_interval=10 # not in probe
 	AgentRun monitor OCF_ERR_GENERIC
