@@ -56,6 +56,10 @@ else
   SU=su
 fi
 
+if which systemctl > /dev/null 2>&1; then
+	SYSTEMD=1
+fi
+
 ############################################################################
 # Usage
 usage() 
@@ -90,6 +94,10 @@ isrunning_tomcat()
 # 
 isalive_tomcat()
 {
+	if ocf_is_true $SYSTEMD; then
+		systemctl is-active tomcat@${TOMCAT_NAME} > /dev/null 2>&1
+		return $?
+	fi
 	# As the server stops, the PID file disappears. To avoid race conditions, 
 	# we will have remembered the PID of a running instance on script entry.
 	local pid=$rememberedPID
@@ -184,9 +192,31 @@ rotate_catalina_out()
 }
 
 ############################################################################
+# Create systemd configuration
+create_systemd_config()
+{
+cat<<-EOF > /etc/sysconfig/tomcat@${TOMCAT_NAME}
+JAVA_HOME=${JAVA_HOME}
+JAVA_OPTS="${JAVA_OPTS}"
+CATALINA_HOME=${CATALINA_HOME}
+CATALINA_BASE=${CATALINA_BASE}
+CATALINA_OUT=${CATALINA_OUT}
+CATALINA_OPTS="${CATALINA_OPTS}"
+CATALINA_TMPDIR="${CATALINA_TMPDIR}"
+JAVA_ENDORSED_DIRS="${JAVA_ENDORSED_DIRS}"
+LOGGING_CONFIG="${LOGGING_CONFIG}"
+LOGGING_MANAGER="${LOGGING_MANAGER}"
+TOMCAT_CFG=${TOMCAT_CFG}
+EOF
+}
+
+############################################################################
 # Tomcat Command
 tomcatCommand()
 {
+	if ocf_is_true $SYSTEMD; then
+		systemctl $@ tomcat@${TOMCAT_NAME}
+	else
 cat<<-END_TOMCAT_COMMAND
 	export JAVA_HOME=${JAVA_HOME}
 	export JAVA_OPTS="${JAVA_OPTS}"
@@ -202,6 +232,7 @@ cat<<-END_TOMCAT_COMMAND
 	export TOMCAT_CFG=${TOMCAT_CFG}
 	$TOMCAT_START_SCRIPT $@
 END_TOMCAT_COMMAND
+	fi
 }
 attemptTomcatCommand()
 {
@@ -209,7 +240,9 @@ attemptTomcatCommand()
 		export TOMCAT_CFG=$(mktemp ${HA_RSCTMP}/tomcat-tmp-XXXXX.cfg)
 	fi
 
-	if [ "$RESOURCE_TOMCAT_USER" = root ]; then
+	if ocf_is_true $SYSTEMD; then
+		tomcatCommand $@
+	elif [ "$RESOURCE_TOMCAT_USER" = root ]; then
 		"$TOMCAT_START_SCRIPT" $@ >> "$TOMCAT_CONSOLE" 2>&1
 	else
 		tomcatCommand $@ | $SU - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1
@@ -224,6 +257,9 @@ attemptTomcatCommand()
 # Start Tomcat
 start_tomcat()
 {
+	if ocf_is_true $SYSTEMD; then
+		create_systemd_config
+	fi
 	cd "$CATALINA_HOME/bin"
 
 	validate_all_tomcat || exit $?
@@ -334,11 +370,11 @@ Resource script for Tomcat. It manages a Tomcat instance as a cluster resource.
 <parameters>
 
 <parameter name="tomcat_name" unique="1" >
-<longdesc lang="en"><![CDATA[
+<longdesc lang="en">
 The name of the resource, added as a Java parameter in JAVA_OPTS:
--Dname=<tomcat_name> to Tomcat process on start. Used to ensure
+-Dname=&lt;tomcat_name&gt; to Tomcat process on start. Used to ensure
 process is still running and must be unique.
-]]></longdesc>
+</longdesc>
 <shortdesc>The name of the resource</shortdesc>
 <content type="string" default="" />
 </parameter>
