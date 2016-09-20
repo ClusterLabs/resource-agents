@@ -153,6 +153,23 @@ but ONLY if using forking mode (B<fork = >I<yes>).
 
 Default: 10 seconds
 
+B<checkintervalspread = >I<n>
+
+Defines the maximum number of second to be randomly added to checkinterval.
+
+When fork=no this option is not used.
+
+When fork=yes this option defines the maximum additional amount of time
+each forked child sleeps per virtual service pool before running all
+realserver checks for that pool.
+
+If set in the virtual server section then the global value is overridden.
+
+This option causes checks to spread out in time, in order to avoid
+overloading services probed using the same test.
+
+Default: 0 seconds
+
 B<checkcount = >I<n>
 
 This option is deprecated and slated for removal in a future version.
@@ -770,6 +787,7 @@ use vars qw(
 	    $VERSION_STR
 	    $AUTOCHECK
 	    $CHECKINTERVAL
+	    $CHECKINTERVALSPREAD
 	    $LDIRECTORD
 	    $LDIRLOG
 	    $NEGOTIATETIMEOUT
@@ -858,7 +876,7 @@ set_defaults();
 use Getopt::Long;
 use Pod::Usage;
 #use English;
-#use Time::HiRes qw( gettimeofday tv_interval );
+use Time::HiRes qw(sleep);
 use Socket;
 use Socket6 qw(NI_NUMERICHOST NI_NUMERICSERV NI_NAMEREQD getaddrinfo getnameinfo inet_pton inet_ntop);
 # Workaround warnning messages : Three "_in6" symbols redefined.
@@ -1275,6 +1293,7 @@ sub set_defaults
 	$CALLBACK         = undef;
 	$CHECKCOUNT       = 1;
 	$CHECKINTERVAL    = 10;
+	$CHECKINTERVALSPREAD      = 0;
 	$CHECKTIMEOUT     = -1;
 	$CLEANSTOP	  = "yes";
 	$DEFAULT_CHECKTIMEOUT     = 5;
@@ -1455,6 +1474,9 @@ sub read_config
 				} elsif ($rcmd =~ /^checkinterval\s*=\s*(.*)/){
 					$1 =~ /(\d+)/ && $1 or &config_error($line, "invalid checkinterval");
 					$vsrv{checkinterval} = $1
+				} elsif ($rcmd =~ /^checkintervalspread\s*=\s*(.*)/){
+					$1 =~ /(\d+)/ && $1 or &config_error($line, "invalid checkintervalspread");
+					$vsrv{checkintervalspread} = $1
 				} elsif ($rcmd =~ /^checkport\s*=\s*(.*)/){
 					$1 =~ /(\d+)/ or &config_error($line, "invalid port");
 					( $1 > 0 && $1 < 65536 ) or &config_error($line, "checkport must be in range 1..65536");
@@ -1682,6 +1704,10 @@ sub read_config
 			$1 =~ /(\d+)/ && $1 or &config_error($line,
 					"invalid check interval value");
 			$CHECKINTERVAL = $1;
+		} elsif ($linedata  =~ /^checkintervalspread\s*=\s*(.*)/) {
+			$1 =~ /(\d+)/ && $1 or &config_error($line,
+					"invalid check interval spread value");
+			$CHECKINTERVALSPREAD = $1;
 		} elsif ($linedata  =~ /^checkcount\s*=\s*(.*)/) {
 			$1 =~ /(\d+)/ && $1 or &config_error($line,
 					"invalid check count value");
@@ -2721,6 +2747,7 @@ sub run_child
 	my $real = $$v{real};
 	my $virtual_id = get_virtual_id_str($v);
 	my $checkinterval = $$v{checkinterval} || $CHECKINTERVAL;
+	my $checkintervalspread = $$v{checkintervalspread} || $CHECKINTERVALSPREAD;
 
 	# delete any entries in EMAILSTATUS that don't belong to this child
 	my %myservices = ();
@@ -2740,7 +2767,7 @@ sub run_child
 			_check_real($v, $r);
 		}
 		$0 = "ldirectord $virtual_id";
-		sleep $checkinterval;
+		sleep $checkinterval + (random($$) * $checkintervalspread);
 		ld_emailalert_resend();
 	}
 }
