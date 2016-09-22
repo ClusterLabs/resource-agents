@@ -56,7 +56,7 @@ else
   SU=su
 fi
 
-if which systemctl > /dev/null 2>&1; then
+if ! ocf_is_true $OCF_RESKEY_force_script && which systemctl > /dev/null 2>&1; then
 	SYSTEMD=1
 fi
 
@@ -481,6 +481,14 @@ A PID file name for Tomcat.
 <content type="string" default="" />
 </parameter>
 
+<parameter name="force_script" unique="0" required="0">
+<longdesc lang="en">
+Force use of Tomcat start script when systemd is available.
+</longdesc>
+<shortdesc>Force use of Tomcat start script (systemd)</shortdesc>
+<content type="string" default="$OCF_RESKEY_force_script" />
+</parameter>
+
 <parameter name="tomcat_start_script" unique="0" required="0">
 <longdesc lang="en">
 Absolute path to the custom tomcat start script to use.
@@ -625,6 +633,7 @@ TOMCAT_NAME="${OCF_RESKEY_tomcat_name-tomcat}"
 TOMCAT_CONSOLE="${OCF_RESKEY_script_log-/var/log/$TOMCAT_NAME.log}"
 RESOURCE_TOMCAT_USER="${OCF_RESKEY_tomcat_user-root}"
 RESOURCE_STATUSURL="${OCF_RESKEY_statusurl-http://127.0.0.1:8080}"
+OCF_RESKEY_force_script_default=0
 
 JAVA_HOME="${OCF_RESKEY_java_home}"
 JAVA_OPTS="${OCF_RESKEY_java_opts}"
@@ -643,6 +652,7 @@ fi
 
 MAX_STOP_TIME="${OCF_RESKEY_max_stop_time}"
 
+: ${OCF_RESKEY_force_script=${OCF_RESKEY_force_script_default}}
 TOMCAT_START_OPTS="${OCF_RESKEY_tomcat_start_opts}"
 TOMCAT_START_SCRIPT="${OCF_RESKEY_tomcat_start_script}"
 CATALINA_OPTS="-Dname=$TOMCAT_NAME ${OCF_RESKEY_catalina_opts}"
