@@ -56,7 +56,7 @@ else
   SU=su
 fi
 
-if ! ocf_is_true $OCF_RESKEY_force_script && which systemctl > /dev/null 2>&1; then
+if ! ocf_is_true $OCF_RESKEY_force_script && pidof systemd > /dev/null 2>&1; then
 	SYSTEMD=1
 fi
 
