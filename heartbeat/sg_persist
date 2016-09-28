@@ -191,7 +191,7 @@ sg_persist_init() {
     CRM_NODE="${HA_SBIN_DIR}/crm_node"
     NODE_ID_DEC=$($CRM_NODE -i)
 
-    NODE=$($CRM_NODE -l | $GREP $NODE_ID_DEC)
+    NODE=$($CRM_NODE -l | $GREP -w ^$NODE_ID_DEC)
     NODE=${NODE#$NODE_ID_DEC }
     NODE=${NODE% *}
     
@@ -251,13 +251,13 @@ sg_persist_get_status() {
         READ_KEYS=`$SG_PERSIST --in --read-keys $dev 2>&1`
         if [ $? -eq 0 ]; then
             WORKING_DEVS+=($dev)
-            echo $READ_KEYS | $GREP $NODE_ID_HEX >/dev/null
+            echo "$READ_KEYS" | $GREP -w $NODE_ID_HEX\$ >/dev/null
             if [ $? -eq 0 ]; then 
                 REGISTERED_DEVS+=($dev)
 
                 READ_RESERVATION=`$SG_PERSIST --in --read-reservation $dev 2>&1`
                 if [ $? -eq 0 ]; then
-                    echo $READ_RESERVATION | $GREP $NODE_ID_HEX >/dev/null
+                    echo "$READ_RESERVATION" | $GREP -w $NODE_ID_HEX\$ >/dev/null
                     if [ $? -eq 0 ]; then 
                         RESERVED_DEVS+=($dev)
                     fi
