@@ -384,7 +384,7 @@ sg_persist_action_start() {
         if sg_persist_is_registered $dev ; then
             : OK
         else
-            ocf_run $SG_PERSIST --out --register --param-rk=0 --param-sark=$NODE_ID_HEX $dev
+            ocf_run $SG_PERSIST --out --no-inquiry --register --param-rk=0 --param-sark=$NODE_ID_HEX $dev
             if [ $? -ne $OCF_SUCCESS ]
             then
                 return $OCF_ERR_GENERIC
@@ -406,7 +406,7 @@ sg_persist_action_stop() {
 
         for dev in ${REGISTERED_DEVS[*]}
         do
-            ocf_run $SG_PERSIST --out --register --param-rk=$NODE_ID_HEX --param-sark=0 $dev
+            ocf_run $SG_PERSIST --out --no-inquiry --register --param-rk=$NODE_ID_HEX --param-sark=0 $dev
         done
     fi
 
@@ -532,12 +532,12 @@ sg_persist_action_promote() {
         case $RESERVATION_TYPE in
         1|3|5|6)        
             if [ -z "$reservation_key" ]; then
-                ocf_run $SG_PERSIST --out --reserve --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
+                ocf_run $SG_PERSIST --out --no-inquiry --reserve --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
                 if [ $? -ne $OCF_SUCCESS ]; then
                     return $OCF_ERR_GENERIC
                 fi
             else
-                ocf_run $SG_PERSIST --out --preempt --param-sark=$reservation_key --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
+                ocf_run $SG_PERSIST --out --no-inquiry --preempt --param-sark=$reservation_key --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
                 if [ $? -ne $OCF_SUCCESS ]; then
                     return $OCF_ERR_GENERIC
                 fi
@@ -546,7 +546,7 @@ sg_persist_action_promote() {
 
         7|8) 
             if [ -z "$reservation_key" ]; then
-                ocf_run $SG_PERSIST --out --reserve --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
+                ocf_run $SG_PERSIST --out --no-inquiry --reserve --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
                 if [ $? -ne $OCF_SUCCESS ]
                 then
                     return $OCF_ERR_GENERIC
@@ -577,7 +577,7 @@ sg_persist_action_demote() {
 
         for dev in ${RESERVED_DEVS[*]}
         do
-            ocf_run $SG_PERSIST --out --release --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
+            ocf_run $SG_PERSIST --out --no-inquiry --release --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
             if [ $? -ne  $OCF_SUCCESS ]; then
                return $OCF_ERR_GENERIC
             fi
@@ -592,7 +592,7 @@ sg_persist_action_demote() {
 
         for dev in ${REGISTERED_DEVS[*]}
         do
-            ocf_run $SG_PERSIST --out --register --param-rk=$NODE_ID_HEX --param-sark=0 $dev
+            ocf_run $SG_PERSIST --out --no-inquiry --register --param-rk=$NODE_ID_HEX --param-sark=0 $dev
             if [ $? -ne $OCF_SUCCESS ]; then
                return $OCF_ERR_GENERIC
             fi
