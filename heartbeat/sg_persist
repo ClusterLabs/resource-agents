@@ -184,7 +184,7 @@ sg_persist_init() {
     NOW=$(date +%s)
 
     RESOURCE="${OCF_RESOURCE_INSTANCE}"
-    MASTER_SCORE_VAR_NAME="master-${OCF_RESOURCE_INSTANCE}"
+    MASTER_SCORE_VAR_NAME="master-${OCF_RESOURCE_INSTANCE//:/-}"
     PENDING_VAR_NAME="pending-$MASTER_SCORE_VAR_NAME"
     
     #only works with corocync 
