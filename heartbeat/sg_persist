@@ -249,26 +249,27 @@ sg_persist_get_status() {
     for dev in ${EXISTING_DEVS[*]}
     do
         READ_KEYS=`$SG_PERSIST --in --read-keys $dev 2>&1`
+        [ $? -eq 0 ] || continue
+
+        WORKING_DEVS+=($dev)
+
+        echo "$READ_KEYS" | $GREP -qw $NODE_ID_HEX\$
+        [ $? -eq 0 ] || continue
+
+        REGISTERED_DEVS+=($dev)
+
+        READ_RESERVATION=`$SG_PERSIST --in --read-reservation $dev 2>&1`
+        [ $? -eq 0 ] || continue
+
+        echo "$READ_RESERVATION" | $GREP -qw $NODE_ID_HEX\$
         if [ $? -eq 0 ]; then
-            WORKING_DEVS+=($dev)
-            echo "$READ_KEYS" | $GREP -w $NODE_ID_HEX\$ >/dev/null
-            if [ $? -eq 0 ]; then 
-                REGISTERED_DEVS+=($dev)
+            RESERVED_DEVS+=($dev)
+        fi
 
-                READ_RESERVATION=`$SG_PERSIST --in --read-reservation $dev 2>&1`
-                if [ $? -eq 0 ]; then
-                    echo "$READ_RESERVATION" | $GREP -w $NODE_ID_HEX\$ >/dev/null
-                    if [ $? -eq 0 ]; then 
-                        RESERVED_DEVS+=($dev)
-                    fi
-
-                    reservation_key=`echo $READ_RESERVATION | $GREP -o 'Key=0x[0-9a-f]*' | $GREP -o '0x[0-9a-f]*'`
-                    if [ -n "$reservation_key" ]; then 
-                        DEVS_WITH_RESERVATION+=($dev)
-                        RESERVATION_KEYS+=($reservation_key)
-                    fi
-                fi
-            fi
+        reservation_key=`echo $READ_RESERVATION | $GREP -o 'Key=0x[0-9a-f]*' | $GREP -o '0x[0-9a-f]*'`
+        if [ -n "$reservation_key" ]; then
+            DEVS_WITH_RESERVATION+=($dev)
+            RESERVATION_KEYS+=($reservation_key)
         fi
     done
 
