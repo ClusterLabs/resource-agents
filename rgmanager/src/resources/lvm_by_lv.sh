@@ -183,6 +183,8 @@ lv_activate_resilient()
 
 lv_status_clustered()
 {
+	declare lv_path="$OCF_RESKEY_vg_name/$OCF_RESKEY_lv_name"
+
 	#
 	# Check if device is active
 	#
