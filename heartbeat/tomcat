@@ -56,10 +56,6 @@ else
   SU=su
 fi
 
-if ! ocf_is_true $OCF_RESKEY_force_script && (ps -p 1 | grep systemd > /dev/null 2>&1); then
-	SYSTEMD=1
-fi
-
 ############################################################################
 # Usage
 usage() 
@@ -633,7 +629,7 @@ TOMCAT_NAME="${OCF_RESKEY_tomcat_name-tomcat}"
 TOMCAT_CONSOLE="${OCF_RESKEY_script_log-/var/log/$TOMCAT_NAME.log}"
 RESOURCE_TOMCAT_USER="${OCF_RESKEY_tomcat_user-root}"
 RESOURCE_STATUSURL="${OCF_RESKEY_statusurl-http://127.0.0.1:8080}"
-OCF_RESKEY_force_script_default=0
+OCF_RESKEY_force_script_default=1
 
 JAVA_HOME="${OCF_RESKEY_java_home}"
 JAVA_OPTS="${OCF_RESKEY_java_opts}"
@@ -666,6 +662,9 @@ LOGGING_MANAGER="${OCF_RESKEY_logging_manager}"
 if [ -z "${TOMCAT_START_SCRIPT}" ]; then
 	if [ -e "$CATALINA_HOME/bin/catalina.sh" ]; then
 		TOMCAT_START_SCRIPT="$CATALINA_HOME/bin/catalina.sh"
+	elif ! ocf_is_true $OCF_RESKEY_force_script && \
+	     ps -p 1 | grep -q systemd; then
+		SYSTEMD=1
 	elif [ -e "/usr/sbin/tomcat" ]; then
 		REDIRECT_DEFAULT_CONFIG=1
 		TOMCAT_START_SCRIPT="/usr/sbin/tomcat"
