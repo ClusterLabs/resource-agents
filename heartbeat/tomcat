@@ -477,12 +477,12 @@ A PID file name for Tomcat.
 <content type="string" default="" />
 </parameter>
 
-<parameter name="force_script" unique="0" required="0">
+<parameter name="force_systemd" unique="0" required="0">
 <longdesc lang="en">
-Force use of Tomcat start script when systemd is available.
+Force use of systemd when available.
 </longdesc>
-<shortdesc>Force use of Tomcat start script (systemd)</shortdesc>
-<content type="string" default="$OCF_RESKEY_force_script" />
+<shortdesc>Force use of systemd when available</shortdesc>
+<content type="string" default="$OCF_RESKEY_force_systemd_default" />
 </parameter>
 
 <parameter name="tomcat_start_script" unique="0" required="0">
@@ -629,7 +629,7 @@ TOMCAT_NAME="${OCF_RESKEY_tomcat_name-tomcat}"
 TOMCAT_CONSOLE="${OCF_RESKEY_script_log-/var/log/$TOMCAT_NAME.log}"
 RESOURCE_TOMCAT_USER="${OCF_RESKEY_tomcat_user-root}"
 RESOURCE_STATUSURL="${OCF_RESKEY_statusurl-http://127.0.0.1:8080}"
-OCF_RESKEY_force_script_default=1
+OCF_RESKEY_force_systemd_default=0
 
 JAVA_HOME="${OCF_RESKEY_java_home}"
 JAVA_OPTS="${OCF_RESKEY_java_opts}"
@@ -648,7 +648,7 @@ fi
 
 MAX_STOP_TIME="${OCF_RESKEY_max_stop_time}"
 
-: ${OCF_RESKEY_force_script=${OCF_RESKEY_force_script_default}}
+: ${OCF_RESKEY_force_systemd=${OCF_RESKEY_force_systemd_default}}
 TOMCAT_START_OPTS="${OCF_RESKEY_tomcat_start_opts}"
 TOMCAT_START_SCRIPT="${OCF_RESKEY_tomcat_start_script}"
 CATALINA_OPTS="-Dname=$TOMCAT_NAME ${OCF_RESKEY_catalina_opts}"
@@ -660,11 +660,11 @@ LOGGING_CONFIG="${OCF_RESKEY_logging_config}"
 LOGGING_MANAGER="${OCF_RESKEY_logging_manager}"
 
 if [ -z "${TOMCAT_START_SCRIPT}" ]; then
-	if [ -e "$CATALINA_HOME/bin/catalina.sh" ]; then
-		TOMCAT_START_SCRIPT="$CATALINA_HOME/bin/catalina.sh"
-	elif ! ocf_is_true $OCF_RESKEY_force_script && \
+	if ocf_is_true $OCF_RESKEY_force_systemd && \
 	     ps -p 1 | grep -q systemd; then
 		SYSTEMD=1
+	elif [ -e "$CATALINA_HOME/bin/catalina.sh" ]; then
+		TOMCAT_START_SCRIPT="$CATALINA_HOME/bin/catalina.sh"
 	elif [ -e "/usr/sbin/tomcat" ]; then
 		REDIRECT_DEFAULT_CONFIG=1
 		TOMCAT_START_SCRIPT="/usr/sbin/tomcat"
