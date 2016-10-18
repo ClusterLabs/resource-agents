@@ -113,8 +113,8 @@ the health of the container. This command must return 0 to indicate that
 the container is healthy. A non-zero return code will indicate that the
 container has failed and should be recovered.
 
-The command is executed using nsenter. In the future 'docker exec' will
-be used once it is more widely supported.
+If 'docker exec' is supported, it is used to execute the command. If not,
+nsenter is used.
 </longdesc>
 <shortdesc lang="en">monitor command</shortdesc>
 <content type="string"/>
@@ -174,8 +174,14 @@ monitor_cmd_exec()
 		return $rc
 	fi
 
-	out=$(echo "$OCF_RESKEY_monitor_cmd" | nsenter --target $(docker inspect --format {{.State.Pid}} ${CONTAINER}) --mount --uts --ipc --net --pid 2>&1)
-	rc=$?
+	if docker exec --help >/dev/null 2>&1; then
+		out=$(docker exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
+		rc=$?
+	else
+		out=$(echo "$OCF_RESKEY_monitor_cmd" | nsenter --target $(docker inspect --format {{.State.Pid}} ${CONTAINER}) --mount --uts --ipc --net --pid 2>&1)
+		rc=$?
+	fi
+
 	if [ $rc -ne 0 ]; then
 		ocf_log info "monitor cmd exit code = $rc"
 		ocf_log info "stdout/stderr: $out"
@@ -390,8 +396,11 @@ docker_validate()
 	fi
 
 	if [ -n "$OCF_RESKEY_monitor_cmd" ]; then
-		ocf_log info "checking for nsenter, which is required when 'monitor_cmd' is specified"
-		check_binary nsenter
+		docker exec --help >/dev/null 2>&1
+		if [ ! $? ]; then
+			ocf_log info "checking for nsenter, which is required when 'monitor_cmd' is specified"
+			check_binary nsenter
+		fi
 	fi
 
 	image_exists
