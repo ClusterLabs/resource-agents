@@ -229,7 +229,7 @@ sapdatabase_monitor() {
       # we have to parse the output, because the returncode doesn't tell anything about the instance status
       for SERVICE in `echo "$output" | grep -i 'Component[ ]*Name *[:=] [A-Za-z][A-Za-z0-9_]* (' | sed 's/^.*Component[ ]*Name *[:=] *\([A-Za-z][A-Za-z0-9_]*\).*$/\1/i'`
       do 
-        COLOR=`echo "$output" | grep -i "Component[ ]*Name *[:=] *$SERVICE (" | sed 's/^.*Status *[:=] *\([A-Za-z][A-Za-z0-9_]*\).*$/\1/i'`
+        COLOR=`echo "$output" | grep -i "Component[ ]*Name *[:=] *$SERVICE (" | sed 's/^.*Status *[:=] *\([A-Za-z][A-Za-z0-9_]*\).*$/\1/i' | uniq`
         STATE=0
 
         case $COLOR in
