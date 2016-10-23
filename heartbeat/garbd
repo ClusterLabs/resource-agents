@@ -278,7 +278,7 @@ garbd_monitor()
     rc=$?
 
     # probe just wants to know if garbd is running or not
-    if [ ocf_is_probe -a $rc -ne $OCF_SUCCESS ]; then
+    if ocf_is_probe && [ $rc -ne $OCF_SUCCESS ]; then
         rc=$OCF_NOT_RUNNING
     fi
 
