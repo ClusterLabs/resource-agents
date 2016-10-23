@@ -90,13 +90,13 @@ For example "/packages/conntrackd-0.9.14/etc/conntrackd/conntrackd.conf"</longde
 END
 }
 
-meta_expect()
+meta_expect_eq()
 {
-	local what=$1 whatvar=OCF_RESKEY_CRM_meta_${1//-/_} op=$2 expect=$3
+	local what=$1 whatvar=OCF_RESKEY_CRM_meta_${1//-/_} expect=$2
 	local val=${!whatvar}
 	if [[ -n $val ]]; then
 		# [, not [[, or it won't work ;)
-		[ $val $op $expect ] && return
+		[ $val = $expect ] && return
 	fi
 	ocf_exit_reason "meta parameter misconfigured, expected $what $op $expect, but found ${val:-unset}."
 	exit $OCF_ERR_CONFIGURED
@@ -211,9 +211,9 @@ conntrackd_validate_all() {
 		ocf_exit_reason "Config FILE $OCF_RESKEY_config does not exist"
 		return $OCF_ERR_INSTALLED
 	fi
-	meta_expect master-node-max = 1
-	meta_expect master-max = 1
-	meta_expect clone-node-max = 1
+	meta_expect_eq master-node-max 1
+	meta_expect_eq master-max 1
+	meta_expect_eq clone-node-max 1
 
 	return $OCF_SUCCESS
 }
