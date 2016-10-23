@@ -56,11 +56,9 @@ else
   SU=su
 fi
 
-############################################################################
-# Usage
 usage() 
 {
-	cat <<-!
+	cat <<-EOF
 usage: $0 action
 
 action:
@@ -76,18 +74,14 @@ action:
         meta-data       show meta data message
 
         validate-all    validate the instance parameters
-!
+EOF
 }
 
-############################################################################
-# Check tomcat service availability
 isrunning_tomcat()
 {
 	$WGET --tries=20 -O /dev/null $RESOURCE_STATUSURL >/dev/null 2>&1
 }
 
-############################################################################
-# 
 isalive_tomcat()
 {
 	if ocf_is_true $SYSTEMD; then
@@ -116,7 +110,6 @@ isalive_tomcat()
 	false
 }
 
-############################################################################
 # Check rotatelogs process and restart if it is stopped
 monitor_rotatelogs()
 {
@@ -132,8 +125,6 @@ monitor_rotatelogs()
 	fi
 }
 
-############################################################################
-# Check tomcat process and service availability
 monitor_tomcat()
 {
 	isalive_tomcat ||
@@ -149,8 +140,6 @@ monitor_tomcat()
 	return $OCF_SUCCESS
 }
 
-############################################################################
-# Startup rotatelogs process
 start_rotatelogs()
 {
 	# -s is required because tomcat5.5's login shell is /bin/false
@@ -159,7 +148,6 @@ start_rotatelogs()
         	< "$CATALINA_OUT" > /dev/null 2>&1 &
 }
 
-############################################################################
 # Execute catalina.out log rotation
 rotate_catalina_out()
 {
@@ -187,8 +175,6 @@ rotate_catalina_out()
 	start_rotatelogs
 }
 
-############################################################################
-# Create systemd configuration
 create_systemd_config()
 {
 cat<<-EOF > /etc/sysconfig/tomcat@${TOMCAT_NAME}
@@ -206,8 +192,7 @@ TOMCAT_CFG=${TOMCAT_CFG}
 EOF
 }
 
-############################################################################
-# Tomcat Command
+# shellcheck disable=SC2068
 tomcatCommand()
 {
 	if ocf_is_true $SYSTEMD; then
@@ -230,10 +215,13 @@ cat<<-END_TOMCAT_COMMAND
 END_TOMCAT_COMMAND
 	fi
 }
+
+# shellcheck disable=SC2068
 attemptTomcatCommand()
 {
 	if [ -n "$REDIRECT_DEFAULT_CONFIG" ]; then
-		export TOMCAT_CFG=$(mktemp ${HA_RSCTMP}/tomcat-tmp-XXXXX.cfg)
+		TOMCAT_CFG=$(mktemp "${HA_RSCTMP}/tomcat-tmp-XXXXX.cfg")
+		export TOMCAT_CFG
 	fi
 
 	if ocf_is_true $SYSTEMD; then
@@ -249,14 +237,12 @@ attemptTomcatCommand()
 	fi
 }
 
-############################################################################
-# Start Tomcat
 start_tomcat()
 {
 	if ocf_is_true $SYSTEMD; then
 		create_systemd_config
 	fi
-	cd "$CATALINA_HOME/bin"
+	cd "$CATALINA_HOME/bin" || return $OCF_ERR_GENERIC
 
 	validate_all_tomcat || exit $?
 
@@ -278,7 +264,7 @@ start_tomcat()
 			return $OCF_ERR_GENERIC
 		fi
 	fi
-	
+
 	echo "`date "+%Y/%m/%d %T"`: start ===========================" >> "$TOMCAT_CONSOLE"
 
 	ocf_log debug "CATALINA_OPTS value = ${CATALINA_OPTS}"
@@ -296,15 +282,13 @@ start_tomcat()
 	return $OCF_SUCCESS
 }
 
-############################################################################
-# Stop Tomcat
 stop_tomcat()
 {
 	local stop_time
 	local RA_TIMEOUT=20
 	local TOMCAT_STOP_OPTS=""
 
-	if [ -n $OCF_RESKEY_CRM_meta_timeout ]; then
+	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
 		RA_TIMEOUT=$((OCF_RESKEY_CRM_meta_timeout/1000))
 	fi
 
