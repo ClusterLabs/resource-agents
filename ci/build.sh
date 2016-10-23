@@ -22,7 +22,7 @@ warn() {
 
 fail() {
 	printf "\r\033[2K  [\033[0;31mFAIL\033[0m] Checking %s...\n" "$1"
-	failed=1
+	failed=$((failed + 1))
 }
 
 check() {
@@ -57,18 +57,25 @@ find_cmd() {
 check_all_executables() {
 	echo "Checking executables and .sh files..."
 	while read -r script; do
+		file --mime "$script" | grep 'charset=binary' >/dev/null 2>&1 && continue
 		head=$(head -n1 "$script")
 		[[ "$head" =~ .*ruby.* ]] && continue
 		[[ "$head" =~ .*zsh.* ]] && continue
 		[[ "$head" =~ ^#compdef.* ]] && continue
-		[[ "$head" =~ ^.*\.c ]] && continue
-		[[ "$head" =~ ^ldirectord.in ]] && continue
+		[[ "$script" =~ ^.*\.c ]] && continue
+		[[ "$script" =~ ^.*\.orig ]] && continue
+		[[ "$script" =~ ^ldirectord.in ]] && continue
 		check "$script"
 	done < <(eval "$(find_cmd)")
-	exit $failed
+	if [ $failed -gt 0 ]; then
+		echo "$failed failures detected."
+		exit 1
+	fi
+	exit 0
 }
 
 ./autogen.sh
 ./configure
 make
+[ $? ] || failed=$((failed + 1))
 check_all_executables
