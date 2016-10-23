@@ -245,7 +245,7 @@ int send_tickle_ack(const sock_addr *dst,
 		ip4pkt.tcp.window   = htons(1234);
 		ip4pkt.tcp.check    = tcp_checksum((uint16_t *)&ip4pkt.tcp, sizeof(ip4pkt.tcp), &ip4pkt.ip);
 
-		s = socket(AF_INET, SOCK_RAW, htons(IPPROTO_RAW));
+		s = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
 		if (s == -1) {
 			fprintf(stderr, "Failed to open raw socket (%s)\n", strerror(errno));
 			return -1;

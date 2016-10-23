@@ -16,11 +16,15 @@ if is_redhat_based; then
 	. ${OCF_FUNCTIONS_DIR}/nfsserver-redhat.sh
 fi
 
+DEFAULT_INIT_SCRIPT_LIST="/etc/init.d/nfsserver /etc/init.d/nfs /etc/init.d/nfs-kernel-server"
 DEFAULT_INIT_SCRIPT="/etc/init.d/nfsserver"
-if ! [ -f $DEFAULT_INIT_SCRIPT ]; then
-	# On some systems, the script is just called nfs
-	DEFAULT_INIT_SCRIPT="/etc/init.d/nfs"
-fi
+for script in $DEFAULT_INIT_SCRIPT_LIST
+do
+	if [ -f $script -a -x $script ]; then
+		DEFAULT_INIT_SCRIPT=$script
+		break
+	fi
+done
 
 DEFAULT_NOTIFY_CMD=`which sm-notify`
 DEFAULT_NOTIFY_CMD=${DEFAULT_NOTIFY_CMD:-"/sbin/sm-notify"}
@@ -266,12 +270,21 @@ set_exec_mode()
 nfs_exec()
 {
 	local cmd=$1
+	local svc=$2
 	set_exec_mode
 
 	case $EXEC_MODE in 
 		1) ${OCF_RESKEY_nfs_init_script} $cmd;;
-		2) systemctl $cmd nfs-server.service ;;
-		3) systemctl $cmd nfs-server.service ;;
+		2) if ! echo $svc | grep -q "\."; then
+			svc="${svc}.service"
+		   fi
+		   systemctl $cmd $svc
+		   ;;
+		3) if ! echo $svc | grep -q "\."; then
+			svc="${svc}.service"
+		   fi
+		   systemctl $cmd $svc
+		   ;;
 	esac
 }
 
@@ -281,9 +294,9 @@ v3locking_exec()
 	set_exec_mode
 
 	if [ $EXEC_MODE -eq 2 ]; then
-		systemctl $cmd nfs-lock.service
+		nfs_exec $cmd nfs-lock.service
 	elif [ $EXEC_MODE -eq 3 ]; then
-		systemctl $cmd rpc-statd.service
+		nfs_exec $cmd rpc-statd.service
 	else 
 		case $cmd in
 			start) locking_start;;
@@ -293,10 +306,80 @@ v3locking_exec()
 	fi
 }
 
+nfsserver_systemd_monitor()
+{
+	local threads_num
+	local rc
+	local fn
+
+	ocf_log debug "Status: rpcbind"
+	rpcinfo > /dev/null 2>&1
+	rc=$?
+	if [ "$rc" -ne "0" ]; then
+		ocf_exit_reason "rpcbind is not running"
+		return $OCF_NOT_RUNNING
+	fi
+
+	ocf_log debug "Status: nfs-mountd"
+	rpcinfo -t localhost 100005 > /dev/null 2>&1
+	rc=$?
+	if [ "$rc" -ne "0" ]; then
+		ocf_exit_reason "nfs-mountd is not running"
+		return $OCF_NOT_RUNNING
+	fi
+
+	ocf_log debug "Status: nfs-idmapd"
+	fn=`mktemp`
+	nfs_exec status nfs-idmapd > $fn 2>&1
+	rc=$?
+	ocf_log debug "$(cat $fn)"
+	rm -f $fn
+	if [ "$rc" -ne "0" ]; then
+		ocf_exit_reason "nfs-idmapd is not running"
+		return $OCF_NOT_RUNNING
+	fi
+
+	ocf_log debug "Status: rpc-statd"
+	rpcinfo -t localhost 100024 > /dev/null 2>&1
+	rc=$?
+	if [ "$rc" -ne "0" ]; then
+		ocf_exit_reason "rpc-statd is not running"
+		return $OCF_NOT_RUNNING
+	fi
+
+	nfs_exec is-active nfs-server
+	rc=$?
+
+	# Now systemctl is-active can't detect the failure of kernel process like nfsd.
+	# So, if the return value of systemctl is-active is 0, check the threads number
+	# to make sure the process is running really.
+	# /proc/fs/nfsd/threads has the numbers of the nfsd threads.
+	if [ $rc -eq 0 ]; then
+		threads_num=`cat /proc/fs/nfsd/threads 2>/dev/null`
+		if [ $? -eq 0 ]; then
+			if [ $threads_num -gt 0 ]; then
+				return $OCF_SUCCESS
+			else
+				return 3
+			fi
+		else
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
+	return $rc
+}
+
 nfsserver_monitor ()
 {
+	local fn
+
+	set_exec_mode
 	fn=`mktemp`
-	nfs_exec status > $fn 2>&1 
+	case $EXEC_MODE in
+               1) nfs_exec status nfs-server > $fn 2>&1;;
+            [23]) nfsserver_systemd_monitor > $fn 2>&1;;
+	esac
 	rc=$?
 	ocf_log debug "$(cat $fn)"
 	rm -f $fn
@@ -312,7 +395,7 @@ nfsserver_monitor ()
 			rc=$OCF_ERR_GENERIC
 		fi
 		return $rc
-	elif [ $rc -eq 3 ]; then
+	elif [ $rc -eq 3 ] || [ $rc -eq $OCF_NOT_RUNNING ]; then
 		return $OCF_NOT_RUNNING
 	else
 		return $OCF_ERR_GENERIC
@@ -523,6 +606,7 @@ notify_locks()
 nfsserver_start ()
 {
 	local rc;
+	local fn
 
 	if nfsserver_monitor; then
 		ocf_log debug "NFS server is already started"
@@ -550,6 +634,23 @@ nfsserver_start ()
 		modprobe nfsd
 	fi
 
+	# systemd
+	case $EXEC_MODE in
+            [23]) nfs_exec start rpcbind
+		  local i=1
+		  while : ; do
+			ocf_log info "Start: rpcbind i: $i"
+			rpcinfo > /dev/null 2>&1
+			rc=$?
+			if [ "$rc" -eq "0" ]; then
+				break;
+			fi
+			sleep 1
+			i=$((i + 1))
+		  done
+		  ;;
+	esac
+
 	# check to see if we need to start rpc.statd
 	v3locking_exec "status"
 	if [ $? -ne $OCF_SUCCESS ]; then
@@ -563,8 +664,54 @@ nfsserver_start ()
 		ocf_log info "rpc.statd already up"
 	fi
 
+	# systemd
+	case $EXEC_MODE in
+            [23]) nfs_exec start nfs-mountd
+		  local i=1
+		  while : ; do
+			ocf_log info "Start: nfs-mountd i: $i"
+			rpcinfo -t localhost 100005 > /dev/null 2>&1
+			rc=$?
+			if [ "$rc" -eq "0" ]; then
+				break;
+			fi
+			sleep 1
+			i=$((i + 1))
+		  done
+
+		  nfs_exec start nfs-idmapd
+		  local i=1
+		  while : ; do
+			ocf_log info "Start: nfs-idmapd i: $i"
+			fn=`mktemp`
+			nfs_exec status nfs-idmapd > $fn 2>&1
+			rc=$?
+			ocf_log debug "$(cat $fn)"
+			rm -f $fn
+			if [ "$rc" -eq "0" ]; then
+				break;
+			fi
+			sleep 1
+			i=$((i + 1))
+		  done
+
+		  nfs_exec start rpc-statd
+		  local i=1
+		  while : ; do
+			ocf_log info "Start: rpc-statd i: $i"
+			rpcinfo -t localhost 100024 > /dev/null 2>&1
+			rc=$?
+			if [ "$rc" -eq "0" ]; then
+				break;
+			fi
+			sleep 1
+			i=$((i + 1))
+		  done
+	esac
+
+
 	fn=`mktemp`
-	nfs_exec start > $fn 2>&1
+	nfs_exec start nfs-server > $fn 2>&1
 	rc=$?
 	ocf_log debug "$(cat $fn)"
 	rm -f $fn
@@ -572,7 +719,13 @@ nfsserver_start ()
 	if [ $rc -ne 0 ]; then
 		ocf_exit_reason "Failed to start NFS server"
 		return $rc
-	fi	
+	fi
+
+	tfn="/proc/fs/nfsd/threads"
+	if [ ! -f "$tfn" ] || [ "$(cat $tfn)" -le "0" ]; then
+		ocf_exit_reason "Failed to start NFS server: /proc/fs/nfsd/threads"
+		return $OCF_ERR_GENERIC
+	fi
 
 	notify_locks
 
@@ -582,6 +735,8 @@ nfsserver_start ()
 
 nfsserver_stop ()
 {
+	local fn
+
 	ocf_log info "Stopping NFS server ..."
 
 	# backup the current sm state information to the ha folder before stopping.
@@ -590,10 +745,56 @@ nfsserver_stop ()
 	cp -rpf $STATD_PATH/sm $STATD_PATH/sm.bak /var/lib/nfs/state $STATD_PATH/sm.ha > /dev/null 2>&1
 
 	fn=`mktemp`
-	nfs_exec stop > $fn 2>&1
+	nfs_exec stop nfs-server > $fn 2>&1
 	rc=$?
 	ocf_log debug "$(cat $fn)"
 	rm -f $fn
+
+	if [ $rc -ne 0 ]; then
+		ocf_exit_reason "Failed to stop NFS server"
+		return $rc
+	fi
+
+	# systemd
+	case $EXEC_MODE in
+            [23]) ocf_log info "Stop: threads"
+		  tfn="/proc/fs/nfsd/threads"
+		  if [ -f "$tfn" ] && [ "$(cat $tfn)" -gt "0" ]; then
+			ocf_exit_reason "NFS server failed to stop: /proc/fs/nfsd/threads"
+			return $OCF_ERR_GENERIC
+		  fi
+
+		  nfs_exec stop rpc-statd > /dev/null 2>&1
+		  ocf_log info "Stop: rpc-statd"
+		  rpcinfo -t localhost 100024 > /dev/null 2>&1
+		  rc=$?
+		  if [ "$rc" -eq "0" ]; then
+			ocf_exit_reason "Failed to stop rpc-statd"
+			return $OCF_ERR_GENERIC
+		  fi
+
+		  nfs_exec stop nfs-idmapd > /dev/null 2>&1
+		  ocf_log info "Stop: nfs-idmapd"
+		  fn=`mktemp`
+		  nfs_exec status nfs-idmapd > $fn 2>&1
+		  rc=$?
+		  ocf_log debug "$(cat $fn)"
+		  rm -f $fn
+		  if [ "$rc" -eq "0" ]; then
+			ocf_exit_reason "Failed to stop nfs-idmapd"
+			return $OCF_ERR_GENERIC
+		  fi
+
+		  nfs_exec stop nfs-mountd > /dev/null 2>&1
+		  ocf_log info "Stop: nfs-mountd"
+		  rpcinfo -t localhost 100005 > /dev/null 2>&1
+		  rc=$?
+		  if [ "$rc" -eq "0" ]; then
+			ocf_exit_reason "Failed to stop nfs-mountd"
+			return $OCF_ERR_GENERIC
+		  fi
+	esac
+
 
 	v3locking_exec "stop"
 	if [ $? -ne 0 ]; then
@@ -601,13 +802,18 @@ nfsserver_stop ()
 		rc=$OCF_ERR_GENERIC
 	fi
 
-	if [ $rc -eq 0 ]; then
-		unbind_tree 
-		ocf_log info "NFS server stopped"
-	else 
-		ocf_exit_reason "Failed to stop NFS server"
-	fi
-	return $rc
+	# systemd
+	case $EXEC_MODE in
+            [23]) nfs_exec stop rpcbind > /dev/null 2>&1
+		  ocf_log info "Stop: rpcbind"
+
+		  nfs_exec stop rpc-gssd > /dev/null 2>&1
+		  ocf_log info "Stop: rpc-gssd"
+	esac
+
+	unbind_tree
+	ocf_log info "NFS server stopped"
+	return 0
 }
 
 nfsserver_validate ()

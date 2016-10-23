@@ -105,6 +105,15 @@ listens on ${OCF_RESKEY_portal_default}.
 <content type="string" default="${OCF_RESKEY_portals_default}"/>
 </parameter>
 
+<parameter name="iser_portals" required="0" unique="0">
+<longdesc lang="en">
+iSCSI iSER network portal addresses. Not supported by all
+implementations.
+</longdesc>
+<shortdesc lang="en">iSCSI iSER enabled portal addresses</shortdesc>
+<content type="string"/>
+</parameter>
+
 <parameter name="allowed_initiators" required="0" unique="0">
 <longdesc lang="en">
 Allowed initiators. A space-separated list of initiators allowed to
@@ -347,6 +356,17 @@ iSCSITarget_start() {
 				ocf_log warn "Unsupported iSCSI target parameter ${name}: will be ignored."
 			fi
 		done
+		
+		# allow iSER enabled portal
+		for iser_portal in ${OCF_RESKEY_iser_portals}; do
+                       configfs_path="/sys/kernel/config/target/iscsi/${OCF_RESKEY_iqn}/tpgt_1/np/${iser_portal}\:*/iser"
+                       if [ -f ${configfs_path} ]; then
+                                 echo "1" > ${configfs_path} || exit $OCF_ERR_GENERIC
+                       else
+                                 ocf_log warn "Unable to set iSER on: $iser_portal"
+                       fi
+                done
+		
 		# lio does per-initiator filtering by default. To disable
 		# this, we need to switch the target to "permissive mode".
 		if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then

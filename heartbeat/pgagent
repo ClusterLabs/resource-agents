@@ -1,0 +1,139 @@
+#!/bin/sh
+#
+# High-Availability pgagent OCF resource agent
+#
+# Description:  Starts/stops pgagent
+# Author:       Oleg Selin
+# License:      GNU General Public License (GPL)
+#
+# OCF parameters:
+#  OCF_RESKEY_connection_string
+#  OCF_RESKEY_user
+#  OCF_RESKEY_options
+#
+#######################################################################
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+OCF_RESKEY_executable_default="`which pgagent`"
+OCF_RESKEY_connection_string_default="user=postgres host=/var/run/postgresql"
+OCF_RESKEY_user_default="postgres"
+OCF_RESKEY_options_default="-r 1 -t 1"
+
+: ${OCF_RESKEY_executable="${OCF_RESKEY_executable_default}"}
+: ${OCF_RESKEY_connection_string="${OCF_RESKEY_connection_string_default}"}
+: ${OCF_RESKEY_user="${OCF_RESKEY_user_default}"}
+: ${OCF_RESKEY_options="${OCF_RESKEY_options_default}"}
+
+pgagent_validate_all() {
+        check_binary pgagent
+        ocf_log debug "executable: '$OCF_RESKEY_executable'"
+        ocf_log debug "connection string: '$OCF_RESKEY_connection_string'"
+        ocf_log debug "user: '$OCF_RESKEY_user'"
+        ocf_log debug "options: '$OCF_RESKEY_options'"
+        if [ -z "$OCF_RESKEY_connection_string" ]; then
+                ocf_log err "Connection string is not configured!"
+                exit $OCF_ERR_CONFIGURED
+        fi
+        if [ -z "$OCF_RESKEY_user" ]; then
+                ocf_log err "User is not configured!"
+                exit $OCF_ERR_CONFIGURED
+        fi
+        getent passwd $OCF_RESKEY_user >/dev/null 2>&1
+        if [ ! $? -eq 0 ]; then
+                ocf_log err "User $OCF_RESKEY_user doesn't exist";
+                return $OCF_ERR_CONFIGURED;
+        fi
+        return $OCF_SUCCESS
+}
+
+pgagent_start() {
+        pgagent_validate_all
+        nohup su - $OCF_RESKEY_user -c "'$OCF_RESKEY_executable' $OCF_RESKEY_options '$OCF_RESKEY_connection_string'" > /dev/null 2>&1 &
+        sleep 1
+        if [ -n pgagent_monitor ]; then
+                return $OCF_SUCCESS
+        fi
+        return $OCF_ERR_GENERIC
+}
+
+pgagent_stop() {
+        pgagent_validate_all
+        pid=`pgrep -f -x -U $OCF_RESKEY_user "$OCF_RESKEY_executable $OCF_RESKEY_options $OCF_RESKEY_connection_string"`
+        if [ -n "$pid" ]; then
+                ocf_run kill $pid || return $OCF_ERR_GENERIC
+        fi
+        return $OCF_SUCCESS
+}
+
+pgagent_monitor() {
+        if [ -z "$OCF_RESKEY_executable" ]; then
+                return $OCF_ERR_INSTALLED
+        fi
+        ocf_run pgrep -f -x -U "$OCF_RESKEY_user" "$OCF_RESKEY_executable $OCF_RESKEY_options $OCF_RESKEY_connection_string" || return $OCF_NOT_RUNNING
+        return $OCF_SUCCESS
+}
+
+meta_data() {
+        cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="pgagent" version="1.0">
+<version>1.0</version>
+<longdesc lang="en">This is a pgagent Resource Agent.</longdesc>
+<shortdesc lang="en">Controls pgagent</shortdesc>
+<parameters>
+<parameter name="connection_string">
+<longdesc lang="en">Connection string for pgagent.</longdesc>
+<shortdesc lang="en">pgagent connection string</shortdesc>
+<content type="string" default="$OCF_RESKEY_connection_string_default" />
+</parameter>
+<parameter name="user">
+<longdesc lang="en">User to run pgagent as.</longdesc>
+<shortdesc lang="en">User to run pgagent</shortdesc>
+<content type="string" default="$OCF_RESKEY_user_default" />
+</parameter>
+<parameter name="options">
+<longdesc lang="en">Options for pgagent.</longdesc>
+<shortdesc lang="en">pgagent run options, see pgagent --help for details</shortdesc>
+<content type="string" default="$OCF_RESKEY_options_default" />
+</parameter>
+</parameters>
+<actions>
+<action name="start" timeout="5" />
+<action name="stop" timeout="5" />
+<action name="monitor" timeout="20" interval="10" depth="0" />
+<action name="meta-data" timeout="5" />
+<action name="validate-all" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+pgagent_usage() {
+        cat <<END
+usage: $0 {start|stop|monitor|meta-data|validate-all}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+case $__OCF_ACTION in
+start)          pgagent_start;;
+stop)           pgagent_stop;;
+monitor)        pgagent_monitor;;
+validate-all)   pgagent_validate_all;;
+usage|help)     pgagent_usage
+                exit $OCF_SUCCESS
+                ;;
+meta-data)      meta_data
+                exit $OCF_SUCCESS
+                ;;
+*)              pgagent_usage
+                exit $OCF_ERR_UNIMPLEMENTED
+                ;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc

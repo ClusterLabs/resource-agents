@@ -4,6 +4,6 @@ RADIR=$1
 PREFIX=$2
 SUFFIX=$3
 
-for f in `find $RADIR -type f -executable`; do
-    echo ${PREFIX}`basename $f`${SUFFIX}
+find "$RADIR" -type f -executable | while read -r file; do
+    echo "${PREFIX}$(basename "$file")${SUFFIX}"
 done

@@ -184,14 +184,14 @@ sg_persist_init() {
     NOW=$(date +%s)
 
     RESOURCE="${OCF_RESOURCE_INSTANCE}"
-    MASTER_SCORE_VAR_NAME="master-${OCF_RESOURCE_INSTANCE}"
+    MASTER_SCORE_VAR_NAME="master-${OCF_RESOURCE_INSTANCE//:/-}"
     PENDING_VAR_NAME="pending-$MASTER_SCORE_VAR_NAME"
     
     #only works with corocync 
     CRM_NODE="${HA_SBIN_DIR}/crm_node"
     NODE_ID_DEC=$($CRM_NODE -i)
 
-    NODE=$($CRM_NODE -l | $GREP $NODE_ID_DEC)
+    NODE=$($CRM_NODE -l | $GREP -w ^$NODE_ID_DEC)
     NODE=${NODE#$NODE_ID_DEC }
     NODE=${NODE% *}
     
@@ -249,26 +249,27 @@ sg_persist_get_status() {
     for dev in ${EXISTING_DEVS[*]}
     do
         READ_KEYS=`$SG_PERSIST --in --read-keys $dev 2>&1`
+        [ $? -eq 0 ] || continue
+
+        WORKING_DEVS+=($dev)
+
+        echo "$READ_KEYS" | $GREP -qw $NODE_ID_HEX\$
+        [ $? -eq 0 ] || continue
+
+        REGISTERED_DEVS+=($dev)
+
+        READ_RESERVATION=`$SG_PERSIST --in --read-reservation $dev 2>&1`
+        [ $? -eq 0 ] || continue
+
+        echo "$READ_RESERVATION" | $GREP -qw $NODE_ID_HEX\$
         if [ $? -eq 0 ]; then
-            WORKING_DEVS+=($dev)
-            echo $READ_KEYS | $GREP $NODE_ID_HEX >/dev/null
-            if [ $? -eq 0 ]; then 
-                REGISTERED_DEVS+=($dev)
+            RESERVED_DEVS+=($dev)
+        fi
 
-                READ_RESERVATION=`$SG_PERSIST --in --read-reservation $dev 2>&1`
-                if [ $? -eq 0 ]; then
-                    echo $READ_RESERVATION | $GREP $NODE_ID_HEX >/dev/null
-                    if [ $? -eq 0 ]; then 
-                        RESERVED_DEVS+=($dev)
-                    fi
-
-                    reservation_key=`echo $READ_RESERVATION | $GREP -o 'Key=0x[0-9a-f]*' | $GREP -o '0x[0-9a-f]*'`
-                    if [ -n "$reservation_key" ]; then 
-                        DEVS_WITH_RESERVATION+=($dev)
-                        RESERVATION_KEYS+=($reservation_key)
-                    fi
-                fi
-            fi
+        reservation_key=`echo $READ_RESERVATION | $GREP -o 'Key=0x[0-9a-f]*' | $GREP -o '0x[0-9a-f]*'`
+        if [ -n "$reservation_key" ]; then
+            DEVS_WITH_RESERVATION+=($dev)
+            RESERVATION_KEYS+=($reservation_key)
         fi
     done
 
@@ -383,7 +384,7 @@ sg_persist_action_start() {
         if sg_persist_is_registered $dev ; then
             : OK
         else
-            ocf_run $SG_PERSIST --out --register --param-rk=0 --param-sark=$NODE_ID_HEX $dev
+            ocf_run $SG_PERSIST --out --no-inquiry --register --param-rk=0 --param-sark=$NODE_ID_HEX $dev
             if [ $? -ne $OCF_SUCCESS ]
             then
                 return $OCF_ERR_GENERIC
@@ -405,7 +406,7 @@ sg_persist_action_stop() {
 
         for dev in ${REGISTERED_DEVS[*]}
         do
-            ocf_run $SG_PERSIST --out --register --param-rk=$NODE_ID_HEX --param-sark=0 $dev
+            ocf_run $SG_PERSIST --out --no-inquiry --register --param-rk=$NODE_ID_HEX --param-sark=0 $dev
         done
     fi
 
@@ -531,12 +532,12 @@ sg_persist_action_promote() {
         case $RESERVATION_TYPE in
         1|3|5|6)        
             if [ -z "$reservation_key" ]; then
-                ocf_run $SG_PERSIST --out --reserve --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
+                ocf_run $SG_PERSIST --out --no-inquiry --reserve --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
                 if [ $? -ne $OCF_SUCCESS ]; then
                     return $OCF_ERR_GENERIC
                 fi
             else
-                ocf_run $SG_PERSIST --out --preempt --param-sark=$reservation_key --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
+                ocf_run $SG_PERSIST --out --no-inquiry --preempt --param-sark=$reservation_key --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
                 if [ $? -ne $OCF_SUCCESS ]; then
                     return $OCF_ERR_GENERIC
                 fi
@@ -545,7 +546,7 @@ sg_persist_action_promote() {
 
         7|8) 
             if [ -z "$reservation_key" ]; then
-                ocf_run $SG_PERSIST --out --reserve --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
+                ocf_run $SG_PERSIST --out --no-inquiry --reserve --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
                 if [ $? -ne $OCF_SUCCESS ]
                 then
                     return $OCF_ERR_GENERIC
@@ -576,7 +577,7 @@ sg_persist_action_demote() {
 
         for dev in ${RESERVED_DEVS[*]}
         do
-            ocf_run $SG_PERSIST --out --release --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
+            ocf_run $SG_PERSIST --out --no-inquiry --release --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
             if [ $? -ne  $OCF_SUCCESS ]; then
                return $OCF_ERR_GENERIC
             fi
@@ -591,7 +592,7 @@ sg_persist_action_demote() {
 
         for dev in ${REGISTERED_DEVS[*]}
         do
-            ocf_run $SG_PERSIST --out --register --param-rk=$NODE_ID_HEX --param-sark=0 $dev
+            ocf_run $SG_PERSIST --out --no-inquiry --register --param-rk=$NODE_ID_HEX --param-sark=0 $dev
             if [ $? -ne $OCF_SUCCESS ]; then
                return $OCF_ERR_GENERIC
             fi

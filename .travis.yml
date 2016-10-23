@@ -1,8 +1,13 @@
 language: bash
-install:
-  - ./ci/install.sh
+sudo: false
+
+addons:
+  apt:
+    sources:
+      - debian-sid
+    packages:
+      - shellcheck
 script:
   - ./ci/build.sh
 notifications:
   email: false
-sudo: required

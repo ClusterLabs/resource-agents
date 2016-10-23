@@ -78,7 +78,7 @@ BSD_Status() {
   fi
 
   if 
-    [ -f $HA_VARLOCK/var/lock/subsys/${base}.pid ] 
+    [ -f $HA_VARLOCK/${base}.pid ] 
   then
     echo "${base} dead but lock file exists"
     return 2

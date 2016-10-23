@@ -386,7 +386,7 @@ get_activate_options()
 ##
 retry_exclusive_start()
 {
-	local vgchange_options=$(get_activate_options)
+	local vgchange_options="$(get_activate_options)"
 
 	# Deactivate each LV in the group one by one cluster wide
 	set -- $(lvs -o name,attr --noheadings $OCF_RESKEY_volgrpname 2> /dev/null)
@@ -412,7 +412,7 @@ retry_exclusive_start()
 #	Enable LVM volume
 #
 LVM_start() {
-	local vgchange_options=$(get_activate_options)
+	local vgchange_options="$(get_activate_options)"
 	local vg=$1
 	local clvmd=0
 

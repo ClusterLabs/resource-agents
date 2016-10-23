@@ -105,6 +105,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_exportfs.7 \
                           ocf_heartbeat_fio.7 \
                           ocf_heartbeat_galera.7 \
+                          ocf_heartbeat_garbd.7 \
                           ocf_heartbeat_iSCSILogicalUnit.7 \
                           ocf_heartbeat_iSCSITarget.7 \
                           ocf_heartbeat_iface-bridge.7 \
@@ -116,6 +117,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_lxc.7 \
                           ocf_heartbeat_mysql.7 \
                           ocf_heartbeat_mysql-proxy.7 \
+                          ocf_heartbeat_nagios.7 \
                           ocf_heartbeat_named.7 \
                           ocf_heartbeat_nfsnotify.7 \
                           ocf_heartbeat_nfsserver.7 \

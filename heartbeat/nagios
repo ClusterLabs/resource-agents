@@ -130,7 +130,6 @@ nagios_start() {
         return $rc
     fi
 
-
     # if resource is already running,no need to continue code after this.
     if nagios_monitor; then
         ocf_log info "Nagios is already running"
@@ -138,11 +137,12 @@ nagios_start() {
     fi
 
     # Remove ${OCF_RESKEY_pid} if it exists
-    rm -f ${OCF_RESKEY_pid}
+    rm -f "${OCF_RESKEY_pid}"
 
     ocf_run -q touch ${OCF_RESKEY_log} ${OCF_RESKEY_retention} ${OCF_RESKEY_pid}
     chown ${OCF_RESKEY_user}:${OCF_RESKEY_group} ${OCF_RESKEY_log} ${OCF_RESKEY_retention} ${OCF_RESKEY_pid}
-    rm -f ${OCF_RESKEY_command}
+    rm -f "${OCF_RESKEY_command}"
+
     [ -x /sbin/restorecon ] && /sbin/restorecon ${OCF_RESKEY_pid}
     ocf_run -q ${OCF_RESKEY_binary} -d ${OCF_RESKEY_config}
 
@@ -150,7 +150,7 @@ nagios_start() {
         sleep 1
     done
 
-    if [ $? -eq "0" ]; then
+    if [ $? -eq 0 ]; then
         ocf_log info "Nagios started"
         return ${OCF_SUCCESS}
     fi
@@ -160,7 +160,7 @@ nagios_start() {
 
 nagios_stop() {
     nagios_monitor
-    if [ "$?" -ne "$OCF_SUCCESS" ]; then
+    if [ $? -ne $OCF_SUCCESS ]; then
         # Currently not running. Nothing to do.
         ocf_log info "Resource is already stopped"
         rm -f ${OCF_RESKEY_pid}
@@ -174,7 +174,7 @@ nagios_stop() {
     while nagios_monitor; do
         sleep 1
     done
-    
+
     return $OCF_SUCCESS
 }
 
@@ -195,15 +195,15 @@ nagios_monitor(){
 }
 
 nagios_validate_all(){
-    check_binary ${OCF_RESKEY_binary}
-    
-    if [ ! -f ${OCF_RESKEY_config} ]; then
+    check_binary "${OCF_RESKEY_binary}"
+
+    if [ ! -f "${OCF_RESKEY_config}" ]; then
         ocf_exit_reason "Configuration file ${OCF_RESKEY_config} not found"
         return ${OCF_ERR_INSTALLED}
     fi
-    
-    ${OCF_RESKEY_binary} -v ${OCF_RESKEY_config} > /dev/null 2>&1;
-    if [ $? -ne "0" ]; then
+
+    ${OCF_RESKEY_binary} -v ${OCF_RESKEY_config} >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
         ocf_exit_reason "Configuration check failed"
         return ${OCF_ERR_INSTALLED}
     fi
@@ -242,5 +242,5 @@ esac
 rc=$?
 
 exit $rc
-  
+
 # End of this script

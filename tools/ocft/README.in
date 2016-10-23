@@ -2,11 +2,11 @@ INTRODUCTION & DESIGN
 ~~~~~~~~~~~~~~~~~~~~~
 
   - Ocft is a testing tool for resource agents. Instead of the policy of HA,
-    it mainly concerns whether resource agents run correct locally. It can 
-    design types of complicated environments to test the reliability of 
-    resource agents. Precisely, it is to display whether resource agents can 
-    return to correct or expected value. The advantage of the tool provides 
-    us with competence to design conditions which can be recorded or reproduced. 
+    it mainly concerns whether resource agents run correct locally. It can
+    design types of complicated environments to test the reliability of
+    resource agents. Precisely, it is to display whether resource agents can
+    return to correct or expected value. The advantage of the tool provides
+    us with competence to design conditions which can be recorded or reproduced.
     Hence it is useful to debuggers.
 
 * Components
@@ -14,29 +14,29 @@ INTRODUCTION & DESIGN
       - Turning configuration files of test case to executable scripts.
 
     ** Configuration file  (@datadir@/@PACKAGE_NAME@/ocft/configs/)
-      - Every configuration file directs only one resource agent and share the same 
+      - Every configuration file directs only one resource agent and share the same
         name with resource agent but contains more test cases.
 
     ** The testing script  (/var/lib/@PACKAGE_NAME@/ocft/cases/)
-      - After the generator reads configuration files and generates many testing 
+      - After the generator reads configuration files and generates many testing
         scripts and the script is underway, the test begins.
 
 * How to customize the environment of testing
-  - Ocft designs the running conditions through two ways, one is changing the 
-    environment variables of resource agents (it is the interface left by OCF itself), 
-    the other is modifying the OS environment of resource agents, such as altering 
+  - Ocft designs the running conditions through two ways, one is changing the
+    environment variables of resource agents (it is the interface left by OCF itself),
+    the other is modifying the OS environment of resource agents, such as altering
     the permission of some key file or IP address of the machine.
 
 * How to test
-  - Firstly, you need to sketch the all complex and uncommon environments against 
-    a certain resource agent and keep in mind what consequences may be caused by 
-    these uncommon environments. 
-    Secondly, write the designed conditions and foreknown consequences into 
-    configuration files, and then run the generator to translate the test case to 
-    executable scripts. 
-    Finally, you need running these scripts to observe the output and learn 
-    the running status of each test case, which will compares the predicated result 
-    with the actual one. If they differ, you will be able to find the bugs of the 
+  - Firstly, you need to sketch the all complex and uncommon environments against
+    a certain resource agent and keep in mind what consequences may be caused by
+    these uncommon environments.
+    Secondly, write the designed conditions and foreknown consequences into
+    configuration files, and then run the generator to translate the test case to
+    executable scripts.
+    Finally, you need running these scripts to observe the output and learn
+    the running status of each test case, which will compares the predicated result
+    with the actual one. If they differ, you will be able to find the bugs of the
     resource agent.
   - All of the output with test will be recorded into the log files, you can find them
     in /var/lib/@PACKAGE_NAME@/ocft/cases/logs.
@@ -45,7 +45,7 @@ INTRODUCTION & DESIGN
 HOW TO WRITE CONFIGURATION FILE
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  - There are only 6 top level options that are all spelled by capital letters and "-". 
+  - There are only 6 top level options that are all spelled by capital letters and "-".
     Every top level option contains sub-options that they are initials.
 
 * 'CONFIG' (top level option)
@@ -63,17 +63,17 @@ HOW TO WRITE CONFIGURATION FILE
 
     ** 'InstallPackage' (sub-option)
       - Grammar: InstallPackage package [package2 [...]]
-      - It will test whether the system have installed the service of the resource agent. 
+      - It will test whether the system have installed the service of the resource agent.
         If not, it will download from Internet and have it installed automatically.
 
     ** 'HangTimeout' (sub-option)
       - Grammar: HangTimeout secs
-      - If you alter some key options, some resource agents will get puzzled and stop, 
-        which will influence the running of the following test case.  Hence timeout setting is 
+      - If you alter some key options, some resource agents will get puzzled and stop,
+        which will influence the running of the following test case.  Hence timeout setting is
         needed, if the resource agent stops timeout, the scripts will kill this resource agent.
 
 * 'VARIABLE' (top level option)
-  - Garmmar: 
+  - Grammar:
       VARIABLE
           VAR1=value1
           VAR2=value2
@@ -83,14 +83,14 @@ HOW TO WRITE CONFIGURATION FILE
     affect the activity of agent, but the variables in VARIABLE just be shared with top level option.
 
 * 'SETUP-AGENT' (top level option)
-  - Grammar: 
+  - Grammar:
       SETUP-AGENT
           bash scripts...
 	  ...
-  - Some of Agents may need to be initialized before testing, you can do it here with bash script. 
+  - Some of Agents may need to be initialized before testing, you can do it here with bash script.
 
 * 'CLEANUP-AGENT' (top level option)
-  - Garmmar:
+  - Grammar:
       CLEANUP-AGENT
           bash scripts...
           ...
@@ -98,50 +98,50 @@ HOW TO WRITE CONFIGURATION FILE
 
 * 'CASE' & 'CASE-BLOCK' (top level option)
   - Grammar: CASE "description" & CASE-BLOCK macro_name
-  - Usually, the conditions you designed are more than one and a few 'CASE "..."' will 
-    appear in configuration file. It is worth noting that the following sub-options 
+  - Usually, the conditions you designed are more than one and a few 'CASE "..."' will
+    appear in configuration file. It is worth noting that the following sub-options
     have 2 spellings:
-    One is general, where shell affects the local environment; the other is special, 
+    One is general, where shell affects the local environment; the other is special,
     where each options added "@ipaddr". It can remotely execute shell codes. In other words,
     it is to execute the shell codes from a remote host, which is meaningful when a resource
     agent needs 2 hosts. This remote shell is not a remote execution only through "ssh", but
     running a remote shell in the background while the test case is running. The remote shell
     runs in the background till the end and saves the results during the process. That is to
-    say, you can alternatively carry out local and remote shell code segments. 
-    The "CASE-BLOCK" option is a macro definer, the statements in "CASE-BLOCK" will be inserted 
+    say, you can alternatively carry out local and remote shell code segments.
+    The "CASE-BLOCK" option is a macro definer, the statements in "CASE-BLOCK" will be inserted
     into "CASE" if you "Include" the "macro_name".
 
     ** 'Env' (sub-option)
       - Grammar: Env VARIABLE=value
-      - It is to set up an environment variable of the resource agent. They usually appear to 
+      - It is to set up an environment variable of the resource agent. They usually appear to
         be OCF_RESKEY_xxx. One point is to be noted is there is no blank by both sides of "=".
 
     ** 'Unenv' (sub-option)
-      - Grammer: Unenv VARIABLE [VARIABLE2 [...]]
+      - Grammar: Unenv VARIABLE [VARIABLE2 [...]]
       - Remove the environment variable.
 
     ** 'Include' (sub-option)
-      - Garmmer: Include macro_name
-      - It will be replaced by statements in 'macro_name', of course, you should define the 
+      - Grammar: Include macro_name
+      - It will be replaced by statements in 'macro_name', of course, you should define the
         content of 'macro_name' with 'CASE-BLOCK' first.
 
     ** 'Bash' (sub-option)
       - Grammar: Bash bash_codes
-      - This option is to set up the environment of OS, where you can insert BASH code to 
-        customize the system randomly. Note, do not cause unrecoverable consequences to the 
+      - This option is to set up the environment of OS, where you can insert BASH code to
+        customize the system randomly. Note, do not cause unrecoverable consequences to the
         system.
 
     ** 'BashAtExit' (sub-option)
       - Grammar: BashAtExit bash_codes
-      - This option is to recover the OS environment in order to run another test case 
-        correctly. Of cause you can use 'Bash' option to recover it. However, if mistakes occur 
-        in the process, the script will quit directly instead of running your recovery codes. 
-        If it happens, you ought to use BashAtExit which can restore the system environment 
+      - This option is to recover the OS environment in order to run another test case
+        correctly. Of cause you can use 'Bash' option to recover it. However, if mistakes occur
+        in the process, the script will quit directly instead of running your recovery codes.
+        If it happens, you ought to use BashAtExit which can restore the system environment
         before you quit.
 
     ** 'AgentRun' (sub-option)
       - Grammar: AgentRun cmd [ret_value]
-      - This option is to run resource agent. "cmd" is the parameter of the resource agent, 
-        such as "start, status, stop ...". The second parameter is optional. It will compare the 
-        actual returned value with the expected value when the script has run recourse agent. 
+      - This option is to run resource agent. "cmd" is the parameter of the resource agent,
+        such as "start, status, stop ...". The second parameter is optional. It will compare the
+        actual returned value with the expected value when the script has run recourse agent.
         If differs, bugs will be found.

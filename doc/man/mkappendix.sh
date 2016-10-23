@@ -7,7 +7,7 @@ cat <<EOF
   <title>Resource agent manual pages</title>
 EOF
 
-for manpage in `printf "%s\n" $@ | sort -f`; do
+for manpage in $(printf "%s\n" "$@" | sort -f); do
     cat <<EOF
   <xi:include href="./$manpage" xmlns:xi="http://www.w3.org/2001/XInclude"/>
 EOF

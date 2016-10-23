@@ -123,7 +123,7 @@ symlink_monitor() {
             ocf_log debug "$OCF_RESKEY_link exists but is not a symbolic link, will be moved to ${OCF_RESKEY_link}${OCF_RESKEY_backup_suffix} on start"
             rc=$OCF_NOT_RUNNING
         fi
-    elif readlink -f "$OCF_RESKEY_link" | egrep -q "^${OCF_RESKEY_target}$"; then
+    elif readlink -m "$OCF_RESKEY_link" | egrep -q "^${OCF_RESKEY_target}$"; then
         ocf_log debug "$OCF_RESKEY_link exists and is a symbolic link to ${OCF_RESKEY_target}."
         rc=$OCF_SUCCESS
     else

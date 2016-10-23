@@ -76,6 +76,7 @@ ocf_SCRIPTS	     =  ClusterMon		\
 			Filesystem		\
 			fio			\
 			galera			\
+			garbd			\
 			ids			\
 			iscsi			\
 			ICP			\

@@ -23,6 +23,8 @@ quiescent=no
 
 # Sample for an http virtual service
 virtual=192.168.6.240:80
+	servicename=Web Site
+	comment=Test load balanced web site
 	real=192.168.6.2:80 gate
 	real=192.168.6.3:80 gate
 	real=192.168.6.6:80 gate

@@ -1,3 +1,4 @@
+#!/bin/sh
 OCFTDIR=/usr/share/resource-agents/ocft
 CONFDIR=$OCFTDIR/configs
 

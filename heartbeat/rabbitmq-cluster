@@ -39,7 +39,14 @@ RMQ_PID_FILE="/var/run/rabbitmq/rmq.pid"
 RMQ_LOG_DIR="/var/log/rabbitmq"
 NODENAME=$(ocf_local_nodename)
 
+# this attr represents the current active local rmq node name.
+# when rmq stops or the node is fenced, this attr disappears
 RMQ_CRM_ATTR_COOKIE="rmq-node-attr-${OCF_RESOURCE_INSTANCE}"
+# this attr represents the last known active local rmq node name
+# when rmp stops or the node is fenced, the attr stays forever so
+# we can continue to map an offline pcmk node to it's rmq node name
+# equivalent. 
+RMQ_CRM_ATTR_COOKIE_LAST_KNOWN="rmq-node-attr-last-known-${OCF_RESOURCE_INSTANCE}"
 
 meta_data() {
 	cat <<END
@@ -79,7 +86,7 @@ END
 
 rmq_usage() {
 	cat <<END
-usage: $0 {start|stop|monitor|migrate_to|migrate_from|validate-all|meta-data}
+usage: $0 {start|stop|monitor|notify|validate-all|meta-data}
 
 Expects to have a fully populated OCF RA-compliant environment set.
 END
@@ -116,8 +123,13 @@ rmq_write_nodename()
 		exit $OCF_ERR_GENERIC
 	fi
 
-	# store the pcmknode to rmq node mapping as an attribute
+	# store the pcmknode to rmq node mapping as a transient attribute. This allows
+	# us to retrieve the join list with a simple xpath.
 	${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "$RMQ_CRM_ATTR_COOKIE" -v "$node_name"
+
+	# the pcmknode to rmq node mapping as a permanent attribute as well. this lets
+	# us continue to map offline nodes to their equivalent rmq node name
+	${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l forever --name "$RMQ_CRM_ATTR_COOKIE_LAST_KNOWN" -v "$node_name"
 }
 
 rmq_delete_nodename()
@@ -150,13 +162,13 @@ rmq_monitor() {
 		
 		return $OCF_SUCCESS
 	;;
-	2)
+	2|68|69|70|75|78)
 		ocf_log info "RabbitMQ server is not running"
 		rmq_delete_nodename
 		return $OCF_NOT_RUNNING
 	;;
 	*)
-		ocf_log err "Unexpected return code from '$RMQ_CTL cluster status' exit code: $rc"
+		ocf_log err "Unexpected return code from '$RMQ_CTL cluster_status' exit code: $rc"
 		rmq_delete_nodename
 		return $OCF_ERR_GENERIC
 	;;
@@ -226,6 +238,11 @@ rmq_start_first()
 	return $rc
 }
 
+rmq_is_clustered()
+{
+    $RMQ_CTL eval 'rabbit_mnesia:is_clustered().' | grep -q true
+}
+
 rmq_join_existing()
 {
 	local join_list="$1"
@@ -236,6 +253,11 @@ rmq_join_existing()
 	if [ $? -ne 0 ]; then
 		return $OCF_ERR_GENERIC
 	fi
+
+        if rmq_is_clustered; then
+            ocf_log info "Successfully re-joined existing rabbitmq cluster automatically"
+            return $OCF_SUCCESS
+        fi
 
 	# unconditionally join the cluster
 	$RMQ_CTL stop_app > /dev/null 2>&1
@@ -262,6 +284,56 @@ rmq_join_existing()
 	return $OCF_SUCCESS
 }
 
+rmq_forget_cluster_node_remotely() {
+	local running_cluster_nodes="$1"
+	local node_to_forget="$2"
+
+	ocf_log info "Forgetting $node_to_forget via nodes [ $(echo $running_cluster_nodes | tr '\n' ' ') ]."
+	for running_cluster_node in $running_cluster_nodes; do
+		rabbitmqctl -n $running_cluster_node forget_cluster_node $node_to_forget
+		if [ $? = 0 ]; then
+			ocf_log info "Succeeded forgetting $node_to_forget via $running_cluster_node."
+			return
+		else
+			ocf_log err "Failed to forget node $node_to_forget via $running_cluster_node."
+		fi
+	done
+}
+
+rmq_notify() {
+	node_list="${OCF_RESKEY_CRM_meta_notify_stop_uname}"
+	mode="${OCF_RESKEY_CRM_meta_notify_type}-${OCF_RESKEY_CRM_meta_notify_operation}"
+
+
+	# When notifications are on, this agent is going to "forget" nodes once they
+	# leave the cluster. This is thought to resolve some issues where rabbitmq
+	# blocks trying to sync with an offline node after a fencing action occurs.
+	if ! [ "${mode}" = "post-stop" ]; then
+		return $OCF_SUCCESS
+	fi
+
+	rmq_monitor
+	if [ $? -ne $OCF_SUCCESS ]; then
+		# only run forget when we are for sure active 
+		return $OCF_SUCCESS
+	fi
+
+	# forget each stopped rmq instance in the provided pcmk node in the list.
+	for node in $(echo "$node_list"); do
+		local rmq_node="$(${HA_SBIN_DIR}/crm_attribute -N $node -l forever --query --name $RMQ_CRM_ATTR_COOKIE_LAST_KNOWN -q)"
+		if [ -z "$rmq_node" ]; then
+			ocf_log warn "Unable to map pcmk node $node to a known rmq node."
+			continue	
+		fi
+		ocf_log notice "Forgetting stopped node $rmq_node"
+		$RMQ_CTL forget_cluster_node $rmq_node
+		if [ $? -ne 0 ]; then
+			ocf_log warn "Unable to forget offline node $rmq_node."
+		fi
+	done
+	return $OCF_SUCCESS
+}
+
 rmq_start() {
 	local join_list=""
 	local rc
@@ -285,11 +357,26 @@ rmq_start() {
 	rmq_join_existing "$join_list"
 	if [ $? -ne 0 ]; then
 		ocf_log info "node failed to join, wiping data directory and trying again"
+		local local_rmq_node="$(${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l forever --query --name $RMQ_CRM_ATTR_COOKIE_LAST_KNOWN -q)"
+
 		# if the graceful join fails, use the hammer and reset all the data.
 		rmq_stop 
 		rmq_wipe_data
+		rmq_forget_cluster_node_remotely "$join_list" "$local_rmq_node"
 		rmq_join_existing "$join_list"
-		if [ $? -ne 0 ]; then
+		rc=$?
+
+                # Restore users (if any)
+                BaseDataDir=`dirname $RMQ_DATA_DIR`
+                if [ -f $BaseDataDir/users.erl ] ; then
+                        rabbitmqctl eval "
+                                {ok, [Users]} = file:consult(\"$BaseDataDir/users.erl\"),
+                                lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user, X) end, Users).
+                        "
+                        rm -f $BaseDataDir/users.erl
+                fi
+
+		if [ $rc -ne 0 ]; then
 			ocf_log info "node failed to join even after reseting local data. Check SELINUX policy"
 			return $OCF_ERR_GENERIC
 		fi
@@ -299,6 +386,13 @@ rmq_start() {
 }
 
 rmq_stop() {
+        # Backup users
+        BaseDataDir=`dirname $RMQ_DATA_DIR`
+        rabbitmqctl eval "
+                Users = mnesia:dirty_select(rabbit_user, [{ {internal_user, '\\\$1', '_', '_'}, [{'/=', '\\\$1', <<\"guest\">>}], ['\\\$_'] } ]),
+                file:write_file(\"$BaseDataDir/users.erl\", io_lib:fwrite(\"~p.~n\", [Users])).
+        "
+
 	rmq_monitor
 	if [ $? -eq $OCF_NOT_RUNNING ]; then
 		return $OCF_SUCCESS
@@ -357,6 +451,7 @@ start)		rmq_start;;
 stop)		rmq_stop;;
 monitor)	rmq_monitor;;
 validate-all)	rmq_validate;;
+notify)		rmq_notify;;
 usage|help)	rmq_usage
 		exit $OCF_SUCCESS
 		;;
