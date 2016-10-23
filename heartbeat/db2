@@ -442,6 +442,10 @@ db2_start() {
             # communicate our FAL to other nodes the might start concurrently
             db2_fal_attrib $db set $FIRST_ACTIVE_LOG
 
+            # ignore false positive:
+            # error: Can't use > in [ ]. Escape it or use [[..]]. [SC2073]
+            # see https://github.com/koalaman/shellcheck/issues/691
+            # shellcheck disable=SC2073
             if master_fal=$(db2_fal_attrib $db get) && [ "$master_fal" '>' $FIRST_ACTIVE_LOG ]
             then
                 ocf_log info "DB2 database $instance($db2node)/$db is Primary and outdated, starting as secondary"
