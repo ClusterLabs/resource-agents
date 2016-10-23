@@ -246,7 +246,7 @@ eDir_status() {
 
     counter=${#IFACE2[@]}
 
-    for IFACE in ${IFACE2[@]}
+    for IFACE in "${IFACE2[@]}"
     do
         ocf_log debug "Checking ndsd instance for $IFACE"
         NDSD_SOCKS=$(netstat -ntlp | grep -ce "$IFACE.*ndsd")
@@ -410,7 +410,7 @@ eDir_validate() {
 # Start of main logic
 #
 
-ocf_log debug "$0 started with arguments \"$@\""
+ocf_log debug "$0 started with arguments \"$*\""
 
 NDSBASE=/opt/novell/eDirectory
 NDSNLDAP=$NDSBASE/sbin/nldap
