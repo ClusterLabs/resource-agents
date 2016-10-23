@@ -448,7 +448,7 @@ Filesystem_start()
 	esac
 
 	if [ $? -ne 0 ]; then
-		ocf_exit_reason "Couldn't mount filesystem $DEVICE on $MOUNTPOINT"
+		ocf_exit_reason "Couldn't mount device [$DEVICE] as $MOUNTPOINT"
 		return $OCF_ERR_GENERIC
 	fi
 	return $OCF_SUCCESS
