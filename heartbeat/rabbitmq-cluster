@@ -203,7 +203,7 @@ rmq_init_and_wait()
 
 rmq_set_policy()
 {
-	$RMQ_CTL set_policy $@ > /dev/null 2>&1
+	$RMQ_CTL set_policy "$@" > /dev/null 2>&1
 }
 
 rmq_start_first()
