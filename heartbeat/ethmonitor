@@ -3,7 +3,7 @@
 #	   OCF Resource Agent compliant script.
 #	   Monitor the vitality of a local network interface.
 #
-# 	Based on the work by Robert Euhus and Lars Marowsky-Brée.
+# 	Based on the work by Robert Euhus and Lars Marowsky-Bree.
 #
 #	Transfered from Ipaddr2 into ethmonitor by Alexander Krauth
 #
