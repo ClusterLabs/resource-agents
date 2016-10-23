@@ -680,7 +680,7 @@ Filesystem_monitor()
 #
 Filesystem_validate_all()
 {
-	if [ -n $MOUNTPOINT -a ! -d $MOUNTPOINT ]; then
+	if [ -n "$MOUNTPOINT" ] && [ ! -d "$MOUNTPOINT" ]; then
 		ocf_log warn "Mountpoint $MOUNTPOINT does not exist"
 	fi
 
