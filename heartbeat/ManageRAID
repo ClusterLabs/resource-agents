@@ -136,16 +136,16 @@ start_raid()
     return $retcode
   fi
 
-  for ldev in ${RAID_LOCALDISKS[@]}; do
+  for ldev in "${RAID_LOCALDISKS[@]}"; do
     if [[ ! -b $ldev ]]; then
       ocf_log err "$ldev is not a (local) block device."
       return $OCF_ERR_ARGS
     fi
   done
 
-  $MDADM -A $RAID_DEVPATH -a yes -u ${!RAID_UUID} ${RAID_LOCALDISKS[@]} &> /dev/null
+  $MDADM -A $RAID_DEVPATH -a yes -u ${!RAID_UUID} "${RAID_LOCALDISKS[@]}" &> /dev/null
   if [[ $? != 0 ]]; then
-    ocf_log err "starting ${!RAID_DEV} with ${RAID_LOCALDISKS[@]} failed."
+    ocf_log err "starting ${!RAID_DEV} with ${RAID_LOCALDISKS[*]} failed."
     return $OCF_ERR_GENERIC
   fi
 
@@ -199,11 +199,11 @@ status_raid()
   declare -i retcode_uuidcheck
 
   $CAT $RAID_MDSTAT | $GREP -e "${!RAID_DEV}[\ ]*:[\ ]*active" &> /dev/null
-  if [[ $? != 0 ]]; then
+  if [ $? -ne 0 ]; then
     return $OCF_NOT_RUNNING
   fi
  
-  if [[ ! -e $RAID_DEVPATH ]]; then
+  if [ ! -e $RAID_DEVPATH ]; then
     return $OCF_ERR_GENERIC
   fi
 
@@ -212,13 +212,13 @@ status_raid()
   $MDADM --detail -t $RAID_DEVPATH | $GREP -qEe "^[\ ]*UUID[\ ]*:[\ ]*${!RAID_UUID}" &> /dev/null
   retcode_uuidcheck=$?
 
-  if [[ $retcode_raidcheck > 3 ]]; then
+  if [ $retcode_raidcheck -gt 3 ]; then
     ocf_log err "mdadm returned error code $retcode_raidcheck while checking ${!RAID_DEV}."
     return $OCF_ERR_GENERIC
-  elif [[ $retcode_raidcheck == 3 ]]; then
+  elif [ $retcode_raidcheck -eq 3 ]; then
     ocf_log err "${!RAID_DEV} has failed."
     return $OCF_ERR_GENERIC
-  elif [[ $retcode_raidcheck < 3 && $retcode_uuidcheck != 0  ]]; then
+  elif [ $retcode_raidcheck -lt 3 ] && [ $retcode_uuidcheck != 0  ]; then
     ocf_log err "active RAID ${!RAID_DEV} and configured UUID (!$RAID_UUID) do not match."
     return $OCF_ERR_GENERIC
   fi
@@ -336,7 +336,7 @@ fi
 RAID_LOCALDISKS=${OCF_RESKEY_raidname}_LOCALDISKS[@]
 RAID_LOCALDISKS=( "${!RAID_LOCALDISKS}" )
 
-if [[ ${#RAID_LOCALDISKS[@]} < 1 ]]; then
+if [ ${#RAID_LOCALDISKS[@]} -lt 1 ]; then
   ocf_log err "you have to specify at least one local disk."
   exit $OCF_ERR_ARGS
 fi
