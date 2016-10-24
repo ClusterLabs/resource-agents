@@ -7,12 +7,12 @@
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 2
 # of the License, or (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -50,94 +50,98 @@ send_ua_SOURCES         = send_ua.c IPv6addr_utils.c
 IPv6addr_LDADD          = -lplumb $(LIBNETLIBS)
 send_ua_LDADD           = $(LIBNETLIBS)
 
-ocf_SCRIPTS	     =  ClusterMon		\
-			CTDB			\
-			Dummy			\
-		        IPaddr			\
-		        IPaddr2			\
-			anything		\
-			AoEtarget		\
-			apache			\
-			asterisk		\
-			nginx			\
+ocf_SCRIPTS	     =  AoEtarget		\
 			AudibleAlarm		\
-			clvm		\
-			conntrackd		\
-			db2			\
-			dhcpd		\
+			ClusterMon		\
+			CTDB			\
 			Delay			\
-			dnsupdate		\
-			docker			\
-			eDir88			\
+			Dummy			\
 			EvmsSCC			\
 			Evmsd			\
-			ethmonitor		\
-			exportfs		\
 			Filesystem		\
-			fio			\
-			galera			\
-			garbd			\
-			ids			\
-			iscsi			\
 			ICP			\
+			IPaddr			\
+			IPaddr2			\
 			IPsrcaddr		\
-			iSCSITarget		\
-			iSCSILogicalUnit	\
-			iface-bridge		\
-			iface-vlan		\
-			jboss			\
-			kamailio		\
-			LinuxSCSI		\
 			LVM			\
-			lxc			\
+			LinuxSCSI		\
 			MailTo			\
 			ManageRAID		\
 			ManageVE		\
+			Pure-FTPd		\
+			Raid1			\
+			Route			\
+			SAPDatabase		\
+			SAPInstance		\
+			SendArp			\
+			ServeRAID		\
+			SphinxSearchDaemon	\
+			Squid			\
+			Stateful		\
+			SysInfo			\
+			VIPArip			\
+			VirtualDomain		\
+			WAS			\
+			WAS6			\
+			WinPopup		\
+			Xen			\
+			Xinetd			\
+			anything		\
+			apache			\
+			asterisk		\
+			awseip			\
+			awsvip			\
+			clvm			\
+			conntrackd		\
+			db2			\
+			dhcpd			\
+			dnsupdate		\
+			docker			\
+			eDir88			\
+			ethmonitor		\
+			exportfs		\
+			fio			\
+			galera			\
+			garbd			\
+			iSCSILogicalUnit	\
+			iSCSITarget		\
+			ids			\
+			iface-bridge		\
+			iface-vlan		\
+			iscsi			\
+			jboss			\
+			kamailio		\
+			lxc			\
 			mysql			\
 			mysql-proxy		\
 			nagios			\
 			named			\
 			nfsnotify		\
 			nfsserver		\
+			nginx			\
 			oracle			\
 			oralsnr			\
+			pgagent			\
+			pgsql			\
 			pingd			\
 			portblock		\
 			postfix			\
 			pound			\
-			pgsql			\
 			proftpd			\
-			Pure-FTPd		\
 			rabbitmq-cluster	\
-			Raid1			\
 			redis			\
-			Route			\
 			rsyncd			\
 			rsyslog			\
-			SAPDatabase		\
-			SAPInstance		\
-			SendArp			\
-			ServeRAID		\
-			slapd			\
-			SphinxSearchDaemon	\
-			Squid			\
-			Stateful		\
-			SysInfo			\
 			scsi2reservation	\
 			sfex			\
-                        sg_persist              \
+			sg_persist              \
+			slapd			\
 			symlink			\
 			syslog-ng		\
 			tomcat			\
-			VIPArip			\
-			VirtualDomain		\
 			varnish			\
 			vmware			\
-			WAS			\
-			WAS6			\
-			WinPopup		\
-			Xen			\
-			Xinetd			\
+			vsftpd			\
 			zabbixserver
 
 ocfcommondir		= $(OCF_LIB_DIR_PREFIX)/heartbeat
@@ -152,8 +156,8 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  sapdb-nosha.sh	\
 			  sapdb.sh		\
 			  ora-common.sh		\
-			  mysql-common.sh		\
-			  nfsserver-redhat.sh		\
+			  mysql-common.sh	\
+			  nfsserver-redhat.sh	\
 			  findif.sh
 
 # Legacy locations
