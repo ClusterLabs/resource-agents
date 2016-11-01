@@ -804,10 +804,7 @@ nfsserver_stop ()
 
 	# systemd
 	case $EXEC_MODE in
-            [23]) nfs_exec stop rpcbind > /dev/null 2>&1
-		  ocf_log info "Stop: rpcbind"
-
-		  nfs_exec stop rpc-gssd > /dev/null 2>&1
+            [23]) nfs_exec stop rpc-gssd > /dev/null 2>&1
 		  ocf_log info "Stop: rpc-gssd"
 	esac
 
