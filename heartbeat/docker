@@ -182,18 +182,16 @@ monitor_cmd_exec()
 		rc=$?
 	fi
 
-	if [ $rc -ne 0 ]; then
-		ocf_log info "monitor cmd exit code = $rc"
-		ocf_log info "stdout/stderr: $out"
-
-		if [ $rc -eq 127 ]; then
-			ocf_exit_reason "monitor_cmd, ${OCF_RESKEY_monitor_cmd} , not found within container."
-			# there is no recovering from this, exit immediately
-			exit $OCF_ERR_ARGS
-		fi
+	if [ $rc -eq 127 ]; then
+		ocf_log err "monitor cmd failed (rc=$rc), output: $out"
+		ocf_exit_reason "monitor_cmd, ${OCF_RESKEY_monitor_cmd} , not found within container."
+		# there is no recovering from this, exit immediately
+		exit $OCF_ERR_ARGS
+	elif [ $rc -ne 0 ]; then
+		ocf_exit_reason "monitor cmd failed (rc=$rc), output: $out"
 		rc=$OCF_ERR_GENERIC
 	else
-		ocf_log info "monitor cmd passed: exit code = $rc"
+		ocf_log debug "monitor cmd passed: exit code = $rc"
 	fi
 
 	return $rc
