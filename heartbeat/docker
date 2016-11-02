@@ -115,6 +115,13 @@ container has failed and should be recovered.
 
 If 'docker exec' is supported, it is used to execute the command. If not,
 nsenter is used.
+
+Note: Using this method for monitoring processes inside a container
+is not recommended, as containerd tries to track processes running
+inside the container and does not deal well with many short-lived
+processes being spawned. Ensure that your container monitors its
+own processes and terminates on fatal error rather than invoking
+a command from the outside.
 </longdesc>
 <shortdesc lang="en">monitor command</shortdesc>
 <content type="string"/>
