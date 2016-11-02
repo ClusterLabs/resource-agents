@@ -90,6 +90,10 @@ isrunning_tomcat()
 # 
 isalive_tomcat()
 {
+	if ocf_is_true $SYSTEMD; then
+		systemctl is-active tomcat@${TOMCAT_NAME} > /dev/null 2>&1
+		return $?
+	fi
 	# As the server stops, the PID file disappears. To avoid race conditions, 
 	# we will have remembered the PID of a running instance on script entry.
 	local pid=$rememberedPID
@@ -184,9 +188,31 @@ rotate_catalina_out()
 }
 
 ############################################################################
+# Create systemd configuration
+create_systemd_config()
+{
+cat<<-EOF > /etc/sysconfig/tomcat@${TOMCAT_NAME}
+JAVA_HOME=${JAVA_HOME}
+JAVA_OPTS="${JAVA_OPTS}"
+CATALINA_HOME=${CATALINA_HOME}
+CATALINA_BASE=${CATALINA_BASE}
+CATALINA_OUT=${CATALINA_OUT}
+CATALINA_OPTS="${CATALINA_OPTS}"
+CATALINA_TMPDIR="${CATALINA_TMPDIR}"
+JAVA_ENDORSED_DIRS="${JAVA_ENDORSED_DIRS}"
+LOGGING_CONFIG="${LOGGING_CONFIG}"
+LOGGING_MANAGER="${LOGGING_MANAGER}"
+TOMCAT_CFG=${TOMCAT_CFG}
+EOF
+}
+
+############################################################################
 # Tomcat Command
 tomcatCommand()
 {
+	if ocf_is_true $SYSTEMD; then
+		systemctl $@ tomcat@${TOMCAT_NAME}
+	else
 cat<<-END_TOMCAT_COMMAND
 	export JAVA_HOME=${JAVA_HOME}
 	export JAVA_OPTS="${JAVA_OPTS}"
@@ -202,6 +228,7 @@ cat<<-END_TOMCAT_COMMAND
 	export TOMCAT_CFG=${TOMCAT_CFG}
 	$TOMCAT_START_SCRIPT $@
 END_TOMCAT_COMMAND
+	fi
 }
 attemptTomcatCommand()
 {
@@ -209,7 +236,9 @@ attemptTomcatCommand()
 		export TOMCAT_CFG=$(mktemp ${HA_RSCTMP}/tomcat-tmp-XXXXX.cfg)
 	fi
 
-	if [ "$RESOURCE_TOMCAT_USER" = root ]; then
+	if ocf_is_true $SYSTEMD; then
+		tomcatCommand $@
+	elif [ "$RESOURCE_TOMCAT_USER" = root ]; then
 		"$TOMCAT_START_SCRIPT" $@ >> "$TOMCAT_CONSOLE" 2>&1
 	else
 		tomcatCommand $@ | $SU - -s /bin/sh "$RESOURCE_TOMCAT_USER" >> "$TOMCAT_CONSOLE" 2>&1
@@ -224,6 +253,9 @@ attemptTomcatCommand()
 # Start Tomcat
 start_tomcat()
 {
+	if ocf_is_true $SYSTEMD; then
+		create_systemd_config
+	fi
 	cd "$CATALINA_HOME/bin"
 
 	validate_all_tomcat || exit $?
@@ -334,11 +366,11 @@ Resource script for Tomcat. It manages a Tomcat instance as a cluster resource.
 <parameters>
 
 <parameter name="tomcat_name" unique="1" >
-<longdesc lang="en"><![CDATA[
+<longdesc lang="en">
 The name of the resource, added as a Java parameter in JAVA_OPTS:
--Dname=<tomcat_name> to Tomcat process on start. Used to ensure
+-Dname=&lt;tomcat_name&gt; to Tomcat process on start. Used to ensure
 process is still running and must be unique.
-]]></longdesc>
+</longdesc>
 <shortdesc>The name of the resource</shortdesc>
 <content type="string" default="" />
 </parameter>
@@ -443,6 +475,14 @@ A PID file name for Tomcat.
 </longdesc>
 <shortdesc>A PID file name for Tomcat</shortdesc>
 <content type="string" default="" />
+</parameter>
+
+<parameter name="force_systemd" unique="0" required="0">
+<longdesc lang="en">
+Force use of systemd when available.
+</longdesc>
+<shortdesc>Force use of systemd when available</shortdesc>
+<content type="string" default="$OCF_RESKEY_force_systemd_default" />
 </parameter>
 
 <parameter name="tomcat_start_script" unique="0" required="0">
@@ -589,6 +629,7 @@ TOMCAT_NAME="${OCF_RESKEY_tomcat_name-tomcat}"
 TOMCAT_CONSOLE="${OCF_RESKEY_script_log-/var/log/$TOMCAT_NAME.log}"
 RESOURCE_TOMCAT_USER="${OCF_RESKEY_tomcat_user-root}"
 RESOURCE_STATUSURL="${OCF_RESKEY_statusurl-http://127.0.0.1:8080}"
+OCF_RESKEY_force_systemd_default=0
 
 JAVA_HOME="${OCF_RESKEY_java_home}"
 JAVA_OPTS="${OCF_RESKEY_java_opts}"
@@ -607,6 +648,7 @@ fi
 
 MAX_STOP_TIME="${OCF_RESKEY_max_stop_time}"
 
+: ${OCF_RESKEY_force_systemd=${OCF_RESKEY_force_systemd_default}}
 TOMCAT_START_OPTS="${OCF_RESKEY_tomcat_start_opts}"
 TOMCAT_START_SCRIPT="${OCF_RESKEY_tomcat_start_script}"
 CATALINA_OPTS="-Dname=$TOMCAT_NAME ${OCF_RESKEY_catalina_opts}"
@@ -618,7 +660,10 @@ LOGGING_CONFIG="${OCF_RESKEY_logging_config}"
 LOGGING_MANAGER="${OCF_RESKEY_logging_manager}"
 
 if [ -z "${TOMCAT_START_SCRIPT}" ]; then
-	if [ -e "$CATALINA_HOME/bin/catalina.sh" ]; then
+	if ocf_is_true $OCF_RESKEY_force_systemd && \
+	     ps -p 1 | grep -q systemd; then
+		SYSTEMD=1
+	elif [ -e "$CATALINA_HOME/bin/catalina.sh" ]; then
 		TOMCAT_START_SCRIPT="$CATALINA_HOME/bin/catalina.sh"
 	elif [ -e "/usr/sbin/tomcat" ]; then
 		REDIRECT_DEFAULT_CONFIG=1
