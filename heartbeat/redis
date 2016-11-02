@@ -324,6 +324,10 @@ function start() {
 
 	[[ ! -d "$REDIS_RUNDIR" ]] && mkdir -p "$REDIS_RUNDIR"
 	chown -R "$REDIS_USER" "$REDIS_RUNDIR"
+	if have_binary "restorecon"; then
+		restorecon -Rv "$REDIS_RUNDIR"
+	fi
+
 
 	# check for 0 byte database dump file. This is an unrecoverable start
 	# condition that we can avoid by deleting the 0 byte database file.
