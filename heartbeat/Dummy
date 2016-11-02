@@ -4,7 +4,7 @@
 #	Dummy OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.
 #
-# Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Brée
+# Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Bree
 #                    All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify

@@ -513,10 +513,10 @@ mysqlproxy_monitor_20()
             mysql_server_host=`echo $pa | cut -d : -f 1`
             mysql_server_port=`echo $pa | cut -d : -f 2`
 
-            if [ -n $mysql_server_host ]; then
+            if [ -n "$mysql_server_host" ]; then
                 mysql_server_parameter="$mysql_server_parameter --host=$mysql_server_host"
             fi
-            if [ -n $mysql_server_port ]; then
+            if [ -n "$mysql_server_port" ]; then
                 mysql_server_parameter="$mysql_server_parameter --port=$mysql_server_port"
             fi
         fi

@@ -4,7 +4,7 @@
 #	SysInfo OCF Resource Agent
 #	It records (in the CIB) various attributes of a node
 #
-# Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Brée
+# Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Bree
 #                    All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
