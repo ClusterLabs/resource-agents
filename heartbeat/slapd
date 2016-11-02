@@ -228,6 +228,10 @@ terminate()
   local waited=0
 
   kill -$signal $pid >/dev/null 2>&1; rc=$?
+  if [ $rc -ne 0 ]; then
+    ocf_exit_reason "Failed in the $signal signal of the kill command to slapd."
+    return 2 
+  fi
 
   while [ \( $rc -eq 0 \) -a \( $recheck -eq 0 -o $waited -lt $recheck \) ]; do
     kill -0 $pid >/dev/null 2>&1; rc=$?
@@ -383,9 +387,14 @@ slapd_stop()
   fi
 
   terminate $pid TERM $OCF_RESKEY_stop_escalate; rc=$?
-  if [ $rc -ne 0  ]; then
+  if [ $rc -eq 1  ]; then
     ocf_exit_reason "slapd failed to stop. Escalating to KILL."
     terminate $pid KILL; rc=$?
+  fi
+
+  if [ $rc -eq 2 ]; then
+    ocf_log err "cannot stop slapd."
+    return $OCF_ERR_GENERIC
   fi
 
   if [ -f "$pid_file" ]; then
