@@ -263,18 +263,12 @@ slapd_pid()
 slapd_status()
 {
   local pid=$1
-  local state=$?
 
-  if [ $state -eq $OCF_SUCCESS ]; then
-
-    if ! kill -0 $pid >/dev/null 2>&1; then
-      return $OCF_NOT_RUNNING
-    else
-      return $OCF_SUCCESS
-    fi
+  if ! kill -0 $pid >/dev/null 2>&1; then
+    return $OCF_NOT_RUNNING
+  else
+    return $OCF_SUCCESS
   fi
-
-  return $state
 }
 
 slapd_start()
