@@ -288,12 +288,22 @@
                 <xsl:value-of select="$NL"/>
             </xsl:for-each>
 
-            <!-- optional (start) -->
+            <!-- interleave (start) -->
             <xsl:call-template name="tag-start">
-                <xsl:with-param name="name" select="'optional'"/>
+                <xsl:with-param name="name" select="'interleave'"/>
                 <xsl:with-param name="indent" select="concat($indent, $indent)"/>
             </xsl:call-template>
             <xsl:value-of select="$NL"/>
+
+                <!-- ref name="RESOURCEACTION" -->
+                <xsl:call-template name="tag-self">
+                    <xsl:with-param name="name" select="'ref'"/>
+                    <xsl:with-param name="attrs" select="concat(
+                        'name=', $Q, 'RESOURCEACTION', $Q)"/>
+                    <xsl:with-param name="indent" select="concat($indent, $indent,
+                                                                 $indent)"/>
+                </xsl:call-template>
+                <xsl:value-of select="$NL"/>
 
                 <!-- ref name="CHILDREN" -->
                 <xsl:call-template name="tag-self">
@@ -305,9 +315,9 @@
                 </xsl:call-template>
                 <xsl:value-of select="$NL"/>
 
-            <!-- optional (end) -->
+            <!-- interleave (end) -->
             <xsl:call-template name="tag-end">
-                <xsl:with-param name="name" select="'optional'"/>
+                <xsl:with-param name="name" select="'interleave'"/>
                 <xsl:with-param name="indent" select="concat($indent, $indent)"/>
             </xsl:call-template>
             <xsl:value-of select="$NL"/>
