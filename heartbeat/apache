@@ -373,7 +373,7 @@ attempt_index_monitor_request() {
 	if [ $? -ne 0 ]; then
 		return $OCF_ERR_GENERIC
 	fi
-	ocf_log info "Successfully retrieved http header at $indexpage" 
+	ocf_log debug "Successfully retrieved http header at $indexpage"
 	return 0
 }
 
