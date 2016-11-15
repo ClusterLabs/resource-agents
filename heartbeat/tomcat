@@ -580,7 +580,7 @@ validate_all_tomcat()
 
 	check_binary $WGET
 
-	if [ -z "${TOMCAT_START_SCRIPT}" ]; then
+	if ! ocf_is_true $OCF_RESKEY_force_systemd && [ -z "${TOMCAT_START_SCRIPT}" ]; then
 		ocf_exit_reason "No default tomcat start script detected. Please specify start script location using the 'tomcat_start_script' option"
 		rc=$OCF_ERR_CONFIGURED
 	fi
