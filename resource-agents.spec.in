@@ -84,7 +84,7 @@ BuildRequires:  libxslt docbook_4 docbook-xsl-stylesheets
 %if %{with rgmanager}
 # system tools shared by several agents
 Requires: /bin/bash /bin/grep /bin/sed /bin/gawk
-Requires: /bin/ps /usr/bin/pkill /bin/hostname
+Requires: /bin/ps /usr/bin/pkill /bin/hostname /bin/netstat
 Requires: /sbin/fuser
 Requires: /sbin/findfs /bin/mount
 
