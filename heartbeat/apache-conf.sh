@@ -80,7 +80,7 @@ apachecat() {
 get_apache_params() {
 	configfile=$1
 	shift 1
-	vars=`echo $@ | sed 's/ /,/g'`
+	vars=$(echo "$@" | sed 's/ /,/g')
 
 	eval `
 	apachecat $configfile | awk -v vars="$vars" '

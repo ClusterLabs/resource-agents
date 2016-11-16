@@ -359,7 +359,7 @@ if [ -f /etc/sysconfig/ctdb ]; then
 	CTDB_SYSCONFIG=/etc/sysconfig/ctdb
 elif [ -f /etc/default/ctdb ]; then
 	CTDB_SYSCONFIG=/etc/default/ctdb
-elif [ -f $OCF_RESKEY_ctdb_config_dir/ctdb ]; then
+elif [ -f "$OCF_RESKEY_ctdb_config_dir/ctdb" ]; then
 	CTDB_SYSCONFIG=$OCF_RESKEY_ctdb_config_dir/ctdb
 fi
 
@@ -368,14 +368,16 @@ CTDB_SYSCONFIG_BACKUP=${CTDB_SYSCONFIG}.ctdb-ra-orig
 
 invoke_ctdb() {
 	# CTDB's defaults are:
-	local timeout=3
-	local timelimit=120
+	local timeout
+	local timelimit
+	timeout=3
+	timelimit=120
 	# ...but we override with the timeout for the current op:
 	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
 		timeout=$((OCF_RESKEY_CRM_meta_timeout/1000))
 		timelimit=$((OCF_RESKEY_CRM_meta_timeout/1000))
 	fi
-	$OCF_RESKEY_ctdb_binary --socket=$OCF_RESKEY_ctdb_socket \
+	$OCF_RESKEY_ctdb_binary --socket="$OCF_RESKEY_ctdb_socket" \
 		-t $timeout -T $timelimit \
 		"$@"
 }
@@ -385,23 +387,24 @@ invoke_ctdb() {
 # with CTDB, but will generally have no effect, beacuase the relevant
 # CTDB_MANAGES_* options won't be set in /etc/sysconfig/ctdb.
 enable_event_scripts() {
-	local event_dir=$OCF_RESKEY_ctdb_config_dir/events.d
+	local event_dir
+	event_dir=$OCF_RESKEY_ctdb_config_dir/events.d
 
 	if [ -f "${OCF_RESKEY_ctdb_config_dir}/public_addresses" ]; then
-		chmod u+x $event_dir/10.interface
+		chmod u+x "$event_dir/10.interface"
 	else
-		chmod a-x $event_dir/10.interface
+		chmod a-x "$event_dir/10.interface"
 	fi
 	if [ -f "${OCF_RESKEY_ctdb_config_dir}/static-routes" ]; then
-		chmod u+x $event_dir/11.routing
+		chmod u+x "$event_dir/11.routing"
 	else
-		chmod a-x $event_dir/11.routing
+		chmod a-x "$event_dir/11.routing"
 	fi
 	if ocf_is_true "$OCF_RESKEY_ctdb_manages_samba" || \
 	   ocf_is_true "$OCF_RESKEY_ctdb_manages_winbind"; then
-		chmod u+x $event_dir/50.samba
+		chmod u+x "$event_dir/50.samba"
 	else
-		chmod a-x $event_dir/50.samba
+		chmod a-x "$event_dir/50.samba"
 	fi
 }
 
@@ -411,9 +414,9 @@ set_ctdb_variables() {
 	rv=$OCF_SUCCESS
 	set | grep ^CTDB_SET_ | cut -d_ -f3- |
 	while read v; do
-		varname=`echo $v | cut -d= -f1`
-		value=`echo $v | cut -d= -f2`
-		invoke_ctdb setvar $varname $value || rv=$OCF_ERR_GENERIC
+		varname=$(echo "$v" | cut -d= -f1)
+		value=$(echo "$v" | cut -d= -f2)
+		invoke_ctdb setvar "$varname" "$value" || rv=$OCF_ERR_GENERIC
 	done || rv=$OCF_ERR_GENERIC
 	return $rv
 }
@@ -434,13 +437,15 @@ init_smb_conf() {
 	ocf_is_true "$OCF_RESKEY_ctdb_manages_samba" || return 0
 
 	# replace these things in smb.conf
-	local repl='# CTDB-RA:|passdb backend|clustering|idmap backend|private dir|ctdbd socket'
+	local repl
+	repl='# CTDB-RA:|passdb backend|clustering|idmap backend|private dir|ctdbd socket'
 
 	local private_dir
 	[ -n "$OCF_RESKEY_smb_private_dir" ] && private_dir="\tprivate dir = $OCF_RESKEY_smb_private_dir\n"
 
 	local vfs_fileid
-	local do_vfs=0
+	local do_vfs
+	do_vfs=0
 	if  [ -n "$OCF_RESKEY_smb_fileid_algorithm" ]; then
 		repl="${repl}|fileid:algorithm|fileid:mapping"
 		vfs_fileid="\tfileid:algorithm = $OCF_RESKEY_smb_fileid_algorithm\n"
@@ -453,7 +458,7 @@ init_smb_conf() {
 		fi
 	fi
 	# Preserve permissions of smb.conf
-	cp -a $OCF_RESKEY_smb_conf $OCF_RESKEY_smb_conf.$$
+	cp -a "$OCF_RESKEY_smb_conf" "$OCF_RESKEY_smb_conf.$$"
 	awk '
 		/^[[:space:]]*\[/ { global = 0 }
 		/^[[:space:]]*\[global\]/ { global = 1 }
@@ -467,15 +472,15 @@ init_smb_conf() {
 			} else {
 				print
 			}
-		}' $OCF_RESKEY_smb_conf | sed "/^[[:space:]]*\[global\]/ a\\
+		}' "$OCF_RESKEY_smb_conf" | sed "/^[[:space:]]*\[global\]/ a\\
 \t# CTDB-RA: Begin auto-generated section (do not change below)\n\
 \tpassdb backend = $OCF_RESKEY_smb_passdb_backend\n\
 \tclustering = yes\n\
 \tidmap backend = $OCF_RESKEY_smb_idmap_backend\n\
 \tctdbd socket = $OCF_RESKEY_ctdb_socket\n$private_dir$vfs_fileid\
-\t# CTDB-RA: End auto-generated section (do not change above)" > $OCF_RESKEY_smb_conf.$$
-	dd conv=notrunc,fsync of=$OCF_RESKEY_smb_conf.$$ if=/dev/null >/dev/null 2>&1
-	mv $OCF_RESKEY_smb_conf.$$ $OCF_RESKEY_smb_conf
+\t# CTDB-RA: End auto-generated section (do not change above)" > "$OCF_RESKEY_smb_conf.$$"
+	dd conv=notrunc,fsync of="$OCF_RESKEY_smb_conf.$$" if=/dev/null >/dev/null 2>&1
+	mv "$OCF_RESKEY_smb_conf.$$" "$OCF_RESKEY_smb_conf"
 }
 
 
@@ -484,13 +489,13 @@ cleanup_smb_conf() {
 	ocf_is_true "$OCF_RESKEY_ctdb_manages_samba" || return 0
 
 	# preserve permissions of smb.conf
-	cp -a $OCF_RESKEY_smb_conf $OCF_RESKEY_smb_conf.$$
-	sed '/# CTDB-RA: Begin/,/# CTDB-RA: End/d' $OCF_RESKEY_smb_conf > $OCF_RESKEY_smb_conf.$$
-	mv $OCF_RESKEY_smb_conf.$$ $OCF_RESKEY_smb_conf
+	cp -a "$OCF_RESKEY_smb_conf" "$OCF_RESKEY_smb_conf.$$"
+	sed '/# CTDB-RA: Begin/,/# CTDB-RA: End/d' "$OCF_RESKEY_smb_conf" > "$OCF_RESKEY_smb_conf.$$"
+	mv "$OCF_RESKEY_smb_conf.$$" "$OCF_RESKEY_smb_conf"
 }
 
 append_ctdb_sysconfig() {
-	[ -n "$2" ] && echo "$1=$2" >> $CTDB_SYSCONFIG
+	[ -n "$2" ] && echo "$1=$2" >> "$CTDB_SYSCONFIG"
 }
 
 # Generate a new, minimal CTDB config file that's just enough
@@ -547,8 +552,8 @@ ctdb_start() {
 	# Die if databases are corrupted
 	persistent_db_dir="${OCF_RESKEY_ctdb_dbdir}/persistent"
 	mkdir -p $persistent_db_dir 2>/dev/null
-	for pdbase in $(ls $persistent_db_dir/*.tdb.[0-9] 2>/dev/null$) ; do
-		/usr/bin/tdbdump $pdbase >/dev/null 2>/dev/null || {
+	for pdbase in $persistent_db_dir/*.tdb.[0-9]; do
+		/usr/bin/tdbdump "$pdbase" >/dev/null 2>/dev/null || {
 			ocf_exit_reason "Persistent database $pdbase is corrupted!  CTDB will not start."
 			return $OCF_ERR_GENERIC
 		}
@@ -566,7 +571,8 @@ ctdb_start() {
 	enable_event_scripts
 
 	# Use logfile by default, or syslog if asked for
-	local log_option="--logfile=$OCF_RESKEY_ctdb_logfile"
+	local log_option
+	log_option="--logfile=$OCF_RESKEY_ctdb_logfile"
 	if [ "$OCF_RESKEY_ctdb_logfile" = "syslog" ]; then
 		log_option="--syslog"
 	elif [ ! -d "$(dirname $OCF_RESKEY_ctdb_logfile)" ]; then
@@ -578,25 +584,27 @@ ctdb_start() {
 	mkdir -p $OCF_RESKEY_ctdb_rundir 2>/dev/null
 
 	# public addresses file (should not be present, but need to set for correctness if it is)
-	local pub_addr_option=""
+	local pub_addr_option
+	pub_addr_option=""
 	[ -f "${OCF_RESKEY_ctdb_config_dir}/public_addresses" ] && \
 		pub_addr_option="--public-addresses=${OCF_RESKEY_ctdb_config_dir}/public_addresses"
 	# start as disabled
-	local start_as_disabled="--start-as-disabled"
+	local start_as_disabled
+	start_as_disabled="--start-as-disabled"
 	ocf_is_true "$OCF_RESKEY_ctdb_start_as_disabled" || start_as_disabled=""
 
 	# Start her up
-	$OCF_RESKEY_ctdbd_binary \
-		--reclock=$OCF_RESKEY_ctdb_recovery_lock \
-		--nlist=$OCF_RESKEY_ctdb_config_dir/nodes \
-		--socket=$OCF_RESKEY_ctdb_socket \
-		--dbdir=$OCF_RESKEY_ctdb_dbdir \
-		--dbdir-persistent=$OCF_RESKEY_ctdb_dbdir/persistent \
-		--event-script-dir=$OCF_RESKEY_ctdb_config_dir/events.d \
-		--notification-script=$OCF_RESKEY_ctdb_config_dir/notify.sh \
+	"$OCF_RESKEY_ctdbd_binary" \
+		--reclock="$OCF_RESKEY_ctdb_recovery_lock" \
+		--nlist="$OCF_RESKEY_ctdb_config_dir/nodes" \
+		--socket="$OCF_RESKEY_ctdb_socket" \
+		--dbdir="$OCF_RESKEY_ctdb_dbdir" \
+		--dbdir-persistent="$OCF_RESKEY_ctdb_dbdir/persistent" \
+		--event-script-dir="$OCF_RESKEY_ctdb_config_dir/events.d" \
+		--notification-script="$OCF_RESKEY_ctdb_config_dir/notify.sh" \
 		--transport=tcp \
 		$start_as_disabled $log_option $pub_addr_option \
-		-d $OCF_RESKEY_ctdb_debuglevel
+		-d "$OCF_RESKEY_ctdb_debuglevel"
 	if [ $? -ne 0 ]; then
 		# cleanup smb.conf
 		cleanup_smb_conf
@@ -618,7 +626,7 @@ ctdb_start() {
 				ocf_exit_reason "Can't invoke $OCF_RESKEY_ctdb_binary --socket=$OCF_RESKEY_ctdb_socket status"
 				return $OCF_ERR_GENERIC
 			fi
-			if ! echo $status | grep -qs 'UNHEALTHY (THIS'; then
+			if ! echo "$status" | grep -qs 'UNHEALTHY (THIS'; then
 				# Status does not say this node is unhealthy,
 				# so we're good to go.  Do a bit of final
 				# setup and (hopefully) return success.
@@ -638,7 +646,7 @@ ctdb_start() {
 
 ctdb_stop() {
 	# Do nothing if already stopped
-	pkill -0 -f $OCF_RESKEY_ctdbd_binary || return $OCF_SUCCESS
+	pkill -0 -f "$OCF_RESKEY_ctdbd_binary" || return $OCF_SUCCESS
 
 	# Tell it to die nicely
 	invoke_ctdb shutdown >/dev/null 2>&1
@@ -646,13 +654,13 @@ ctdb_stop() {
 
 	# No more Mr. Nice Guy
 	count=0
-	while pkill -0 -f $OCF_RESKEY_ctdbd_binary ; do
+	while pkill -0 -f "$OCF_RESKEY_ctdbd_binary" ; do
 		sleep 1
-		count=$(($count + 1))
+		count=$((count + 1))
 		[ $count -gt 10 ] && {
 			ocf_log info "killing ctdbd "
-			pkill -9 -f $OCF_RESKEY_ctdbd_binary
-			pkill -9 -f ${OCF_RESKEY_ctdb_config_dir}/events.d/
+			pkill -9 -f "$OCF_RESKEY_ctdbd_binary"
+			pkill -9 -f "${OCF_RESKEY_ctdb_config_dir}/events.d/"
 		}
 	done
 
@@ -664,7 +672,7 @@ ctdb_stop() {
 
 	# Unclean shutdown, return success if there's no ctdbds left (we
 	# killed them forcibly, but at least they're good and dead).
-	pkill -0 -f $OCF_RESKEY_ctdbd_binary || return $OCF_SUCCESS
+	pkill -0 -f "$OCF_RESKEY_ctdbd_binary" || return $OCF_SUCCESS
 
 	# Problem: ctdb shutdown didn't work and neither did some vigorous
 	# kill -9ing.  Only thing to do is report failure.
@@ -681,16 +689,16 @@ ctdb_monitor() {
 	# whereas if it's wedged, it'll say various other unpleasant things.
 	status=$(invoke_ctdb status 2>&1)
 	if [ $? -ne 0 ]; then
-		if echo $status | grep -qs 'Connection refused'; then
+		if echo "$status" | grep -qs 'Connection refused'; then
 			return $OCF_NOT_RUNNING
-		elif echo $status | grep -qs 'No such file or directory'; then
+		elif echo "$status" | grep -qs 'No such file or directory'; then
 			return $OCF_NOT_RUNNING
 		else
 			ocf_exit_reason "CTDB status call failed: $status"
 			return $OCF_ERR_GENERIC
 		fi
 	fi
-	if echo $status | grep -Eqs '(OK|DISABLED) \(THIS'; then
+	if echo "$status" | grep -Eqs '(OK|DISABLED) \(THIS'; then
 		return $OCF_SUCCESS
 	fi
 

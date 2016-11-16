@@ -90,20 +90,20 @@ For example "/packages/conntrackd-0.9.14/etc/conntrackd/conntrackd.conf"</longde
 END
 }
 
-meta_expect()
+meta_expect_eq()
 {
-        local what=$1 whatvar=OCF_RESKEY_CRM_meta_${1//-/_} op=$2 expect=$3
-        local val=${!whatvar}
-        if [[ -n $val ]]; then
-                # [, not [[, or it won't work ;)
-                [ $val $op $expect ] && return
-        fi
-        ocf_exit_reason "meta parameter misconfigured, expected $what $op $expect, but found ${val:-unset}."
-        exit $OCF_ERR_CONFIGURED
+	local what=$1 whatvar=OCF_RESKEY_CRM_meta_${1//-/_} expect=$2
+	local val=${!whatvar}
+	if [[ -n $val ]]; then
+		# [, not [[, or it won't work ;)
+		[ $val = $expect ] && return
+	fi
+	ocf_exit_reason "meta parameter misconfigured, expected $what $op $expect, but found ${val:-unset}."
+	exit $OCF_ERR_CONFIGURED
 }
 
 conntrackd_is_master() {
-	# You can't query conntrackd whether it is master or slave. It can be both at the same time. 
+	# You can't query conntrackd whether it is master or slave. It can be both at the same time.
 	# This RA creates a statefile during promote and enforces master-max=1 and clone-node-max=1
 	ha_pseudo_resource $statefile monitor
 }
@@ -119,7 +119,7 @@ conntrackd_monitor() {
 	local conntrack_socket=$(awk '/^[ \t]*UNIX[ \t]*{/,/^[ \t]*}/ { if ($1 == "Path") { print $2 } }' $OCF_RESKEY_config)
 	[ -S "$conntrack_socket" ] && rc=$OCF_SUCCESS
 	if [ "$rc" -eq "$OCF_SUCCESS" ]; then
-		# conntrackd is running 
+		# conntrackd is running
 		# now see if it acceppts queries
 		if ! $OCF_RESKEY_binary -C $OCF_RESKEY_config -s > /dev/null 2>&1; then
 			rc=$OCF_ERR_GENERIC
@@ -128,12 +128,12 @@ conntrackd_monitor() {
 		if conntrackd_is_master; then
 			rc=$OCF_RUNNING_MASTER
 			# Restore master setting on probes
-	                if [ $OCF_RESKEY_CRM_meta_interval -eq 0 ]; then
+			if [ $OCF_RESKEY_CRM_meta_interval -eq 0 ]; then
 				conntrackd_set_master_score $master_score
 			fi
 		else
 			# Restore master setting on probes
-	                if [ $OCF_RESKEY_CRM_meta_interval -eq 0 ]; then
+			if [ $OCF_RESKEY_CRM_meta_interval -eq 0 ]; then
 				conntrackd_set_master_score $slave_score
 			fi
 		fi
@@ -142,14 +142,14 @@ conntrackd_monitor() {
 }
 
 conntrackd_start() {
-        rc=$OCF_ERR_GENERIC
+	rc=$OCF_ERR_GENERIC
 
-        # Keep trying to start the resource;
-        # wait for the CRM to time us out if this fails
+	# Keep trying to start the resource;
+	# wait for the CRM to time us out if this fails
 	while :; do
 		conntrackd_monitor
 		status=$?
-		case "$status" in 
+		case "$status" in
 		$OCF_SUCCESS)
 			conntrackd_set_master_score $slave_score
 			# -n = request resync from the others
@@ -180,28 +180,28 @@ conntrackd_start() {
 }
 
 conntrackd_stop() {
-        rc=$OCF_ERR_GENERIC
+	rc=$OCF_ERR_GENERIC
 
-        # Keep trying to bring down the resource;
-        # wait for the CRM to time us out if this fails
-        while :; do
-                conntrackd_monitor
-                status=$?
-                case "$status" in
-                $OCF_SUCCESS|$OCF_ERR_GENERIC)
+	# Keep trying to bring down the resource;
+	# wait for the CRM to time us out if this fails
+	while :; do
+		conntrackd_monitor
+		status=$?
+		case "$status" in
+		$OCF_SUCCESS|$OCF_ERR_GENERIC)
 			ocf_log info "Stopping conntrackd"
-                        $OCF_RESKEY_binary -C $OCF_RESKEY_config -k
-                        ;;
-                $OCF_NOT_RUNNING)
-                        rc=$OCF_SUCCESS
-                        break
-                        ;;
-                $OCF_RUNNING_MASTER)
-                        ocf_log warn "conntrackd still master"
+			$OCF_RESKEY_binary -C $OCF_RESKEY_config -k
 			;;
-                esac
-        done
-        return $rc
+		$OCF_NOT_RUNNING)
+			rc=$OCF_SUCCESS
+			break
+			;;
+		$OCF_RUNNING_MASTER)
+			ocf_log warn "conntrackd still master"
+			;;
+		esac
+	done
+	return $rc
 
 }
 
@@ -211,10 +211,10 @@ conntrackd_validate_all() {
 		ocf_exit_reason "Config FILE $OCF_RESKEY_config does not exist"
 		return $OCF_ERR_INSTALLED
 	fi
-        meta_expect master-node-max = 1
-        meta_expect master-max = 1
-        meta_expect clone-node-max = 1
-	
+	meta_expect_eq master-node-max 1
+	meta_expect_eq master-max 1
+	meta_expect_eq clone-node-max 1
+
 	return $OCF_SUCCESS
 }
 
@@ -245,11 +245,11 @@ conntrackd_demote() {
 		# -n = request a resync from the others
 		for parm in t n; do
 			if ! $OCF_RESKEY_binary -C $OCF_RESKEY_config -$parm; then
-                        	ocf_exit_reason "$OCF_RESKEY_binary -C $OCF_RESKEY_config -$parm failed during demote."
-                        	rc=$OCF_ERR_GENERIC
-                        	break
-                	fi
-        	done
+				ocf_exit_reason "$OCF_RESKEY_binary -C $OCF_RESKEY_config -$parm failed during demote."
+				rc=$OCF_ERR_GENERIC
+				break
+			fi
+		done
 		ha_pseudo_resource $statefile stop
 		conntrackd_set_master_score $slave_score
 	fi
@@ -278,7 +278,7 @@ conntrackd_notify() {
 }
 
 conntrackd_usage() {
-        cat <<EOF
+	cat <<EOF
 usage: $0 {start|stop|promote|demote|monitor|validate-all|meta-data}
 Expects to have a fully populated OCF RA-compliant environment set.
 EOF

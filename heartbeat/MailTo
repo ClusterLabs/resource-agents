@@ -95,7 +95,7 @@ EOF
 
 SubjectLine() {
   case $1 in
-    ??*)	echo $@;;
+    ??*)	echo "$@";;
     *)		echo "Resource Group";;
   esac
 }

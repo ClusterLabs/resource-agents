@@ -316,11 +316,10 @@ SysInfo_monitor() {
 	SysInfoStats
 	exit $OCF_SUCCESS
 
-    elif [ x$OCF_RESKEY_CRM_meta_globally_unique = xtrue  
-	    -o x$OCF_RESKEY_CRM_meta_globally_unique = xTrue
-	    -o x$OCF_RESKEY_CRM_meta_globally_unique = xyes
-	    -o x$OCF_RESKEY_CRM_meta_globally_unique = xYes
-	]; then
+    elif [ x$OCF_RESKEY_CRM_meta_globally_unique = xtrue ] ||
+	 [ x$OCF_RESKEY_CRM_meta_globally_unique = xTrue ] ||
+	 [ x$OCF_RESKEY_CRM_meta_globally_unique = xyes ] ||
+	 [ x$OCF_RESKEY_CRM_meta_globally_unique = xYes ]; then
 	SysInfoStats
 	exit $OCF_SUCCESS
     fi

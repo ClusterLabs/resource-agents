@@ -79,7 +79,7 @@ CMD=`basename $0`
 #	file for this web server.  Various appropriate defaults are
 #	assumed if no config file is specified.
 usage() {
-  cat <<-!
+  cat <<-EOF
 usage: $0 action
 
 action:
@@ -100,7 +100,7 @@ action:
 	meta-data	show meta data message
 
 	validate-all	validate the instance parameters
-	!
+	EOF
   exit $1
 }
 
@@ -273,7 +273,7 @@ nginxcat() {
 get_nginx_params() {
   configfile=$1
   shift 1
-  vars=`echo $@ | sed 's/ /,/g'`
+  vars=`echo "$@" | sed 's/ /,/g'`
 
   eval `
   nginxcat $configfile | awk -v vars="$vars" '

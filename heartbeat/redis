@@ -229,7 +229,7 @@ function set_score()
 }
 
 function redis_client() {
-	ocf_log debug "redis_client: '$REDIS_CLIENT' -s '$REDIS_SOCKET' $@"
+	ocf_log debug "redis_client: '$REDIS_CLIENT' -s '$REDIS_SOCKET' $*"
 	if [ -n "$clientpasswd" ]; then
 		"$REDIS_CLIENT" -s "$REDIS_SOCKET" -a "$clientpasswd" "$@" | sed 's/\r//'
 	else 
