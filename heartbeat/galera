@@ -767,6 +767,13 @@ galera_demote()
     clear_sync_needed
     clear_no_grastate
 
+    # Clear master score here rather than letting pacemaker do so once
+    # demote finishes. This way a promote cannot take place right
+    # after this demote even if pacemaker is requested to do so. It
+    # will first have to run a start/monitor op, to reprobe the state
+    # of the other galera nodes and act accordingly.
+    clear_master_score
+
     # record last commit for next promotion
     detect_last_commit
     rc=$?
