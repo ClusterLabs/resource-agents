@@ -662,13 +662,13 @@ detect_last_commit()
                         --socket=$OCF_RESKEY_socket \
                         --datadir=$OCF_RESKEY_datadir \
                         --user=$OCF_RESKEY_user"
+    local recovery_file_regex='s/.*WSREP\:.*position\s*recovery.*--log_error='\''\([^'\'']*\)'\''.*/\1/p'
     local recovered_position_regex='s/.*WSREP\:\s*[R|r]ecovered\s*position.*\:\(.*\)\s*$/\1/p'
 
     ocf_log info "attempting to detect last commit version by reading ${OCF_RESKEY_datadir}/grastate.dat"
     last_commit="$(cat ${OCF_RESKEY_datadir}/grastate.dat | sed -n 's/^seqno.\s*\(.*\)\s*$/\1/p')"
     if [ -z "$last_commit" ] || [ "$last_commit" = "-1" ]; then
         local tmp=$(mktemp)
-        local tmperr=$(mktemp)
 
         # if we pass here because grastate.dat doesn't exist,
         # try not to bootstrap from this node if possible
@@ -678,33 +678,36 @@ detect_last_commit()
 
         ocf_log info "now attempting to detect last commit version using 'mysqld_safe --wsrep-recover'"
 
-        ${OCF_RESKEY_binary} $recover_args --wsrep-recover > $tmp 2> $tmperr
+        ${OCF_RESKEY_binary} $recover_args --wsrep-recover --log-error=$tmp 2>/dev/null
 
-        last_commit="$(cat $tmp | sed -n $recovered_position_regex)"
+        last_commit="$(cat $tmp | sed -n $recovered_position_regex | tail -1)"
         if [ -z "$last_commit" ]; then
             # Galera uses InnoDB's 2pc transactions internally. If
             # server was stopped in the middle of a replication, the
             # recovery may find a "prepared" XA transaction in the
             # redo log, and mysql won't recover automatically
 
-            cat $tmperr | grep -q -E '\[ERROR\]\s+Found\s+[0-9]+\s+prepared\s+transactions!' 2>/dev/null
-            if [ $? -eq 0 ]; then
-                # we can only rollback the transaction, but that's OK
-                # since the DB will get resynchronized anyway
-                ocf_log warn "local node <${NODENAME}> was not shutdown properly. Rollback stuck transaction with --tc-heuristic-recover"
-                ${OCF_RESKEY_binary} $recover_args --wsrep-recover \
-                                     --tc-heuristic-recover=rollback > $tmp 2>/dev/null
+            local recovery_file="$(cat $tmp | sed -n $recovery_file_regex)"
+            if [ -e $recovery_file ]; then
+                cat $recovery_file | grep -q -E '\[ERROR\]\s+Found\s+[0-9]+\s+prepared\s+transactions!' 2>/dev/null
+                if [ $? -eq 0 ]; then
+                    # we can only rollback the transaction, but that's OK
+                    # since the DB will get resynchronized anyway
+                    ocf_log warn "local node <${NODENAME}> was not shutdown properly. Rollback stuck transaction with --tc-heuristic-recover"
+                    ${OCF_RESKEY_binary} $recover_args --wsrep-recover \
+                                         --tc-heuristic-recover=rollback --log-error=$tmp 2>/dev/null
 
-                last_commit="$(cat $tmp | sed -n $recovered_position_regex)"
-                if [ ! -z "$last_commit" ]; then
-                    ocf_log warn "State recovered. force SST at next restart for full resynchronization"
-                    rm -f ${OCF_RESKEY_datadir}/grastate.dat
-                    # try not to bootstrap from this node if possible
-                    set_no_grastate
+                    last_commit="$(cat $tmp | sed -n $recovered_position_regex | tail -1)"
+                    if [ ! -z "$last_commit" ]; then
+                        ocf_log warn "State recovered. force SST at next restart for full resynchronization"
+                        rm -f ${OCF_RESKEY_datadir}/grastate.dat
+                        # try not to bootstrap from this node if possible
+                        set_no_grastate
+                    fi
                 fi
             fi
         fi
-        rm -f $tmp $tmperr
+        rm -f $tmp
     fi
 
     if [ ! -z "$last_commit" ]; then
