@@ -10,7 +10,7 @@ ipcheck_ipv6() {
 }
 ifcheck() {
   local ifname="$1"
-  $IP2UTIL link show dev $ifname >/dev/null 2>&1
+  $IP2UTIL link show dev $ifname 2>&1
 }
 prefixcheck() {
   local prefix=$1
