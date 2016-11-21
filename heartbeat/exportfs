@@ -79,8 +79,8 @@ The directory or directories to export.
 <parameter name="fsid" unique="1" required="1">
 <longdesc lang="en">
 The fsid option to pass to exportfs. This can be a unique positive
-integer, a UUID, or the special string "root" which is functionally
-identical to numeric fsid of 0.
+integer, a UUID (assuredly sans comma characters), or the special string
+"root" which is functionally identical to numeric fsid of 0.
 If multiple directories are being exported, then they are
 assigned ids sequentially starting with this fsid (fsid, fsid+1,
 fsid+2, ...). Obviously, in that case the fsid must be an
@@ -290,7 +290,7 @@ export_one() {
 	fi
 	if echo "$opts" | grep fsid >/dev/null; then
 		#replace fsid in options list
-		opts=`echo "$opts" | sed "s/fsid=[0-9]\+/fsid=$(get_fsid)/g"`
+		opts=`echo "$opts" | sed "s,fsid=[^,]*,fsid=$(get_fsid),g"`
 	else
 		#tack the fsid option onto our options list.
 		opts="${opts}${sep}fsid=$(get_fsid)"
@@ -417,6 +417,10 @@ testdir() {
 }
 exportfs_validate_all ()
 {
+	if echo "$OCF_RESKEY_fsid" | grep -q -F ','; then
+		ocf_exit_reason "$OCF_RESKEY_fsid cannot contain a comma"
+		return $OCF_ERR_CONFIGURED
+	fi
 	if [ $NUMDIRS -gt 1 ] &&
 			! ocf_is_decimal "$OCF_RESKEY_fsid"; then
 		ocf_exit_reason "use integer fsid when exporting multiple directories"
