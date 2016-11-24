@@ -572,6 +572,12 @@ is_alive()
 		return $NO
 	fi
 
+	case ${OCF_RESKEY_write_check} in
+		no|NO|false|FALSE|off|OFF|0)
+			return $YES
+			;;
+	esac
+
 	[ $OCF_CHECK_LEVEL -lt 20 ] && return $YES
 
 	# depth 20 check (write test)

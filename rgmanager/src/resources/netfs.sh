@@ -148,6 +148,16 @@ do_metadata()
             <content type="boolean"/>
         </parameter>
 
+        <parameter name="write_check" required="0">
+            <longdesc lang="en">
+	        Write check (default: on).
+            </longdesc>
+            <shortdesc lang="en">
+	        Write check
+            </shortdesc>
+            <content type="boolean" default="on"/>
+        </parameter>
+
     </parameters>
 
     <actions>
