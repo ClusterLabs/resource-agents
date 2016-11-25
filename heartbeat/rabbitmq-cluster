@@ -353,75 +353,71 @@ rmq_start() {
 		return $rc
 	fi
 
-	# first try to join without wiping mnesia data
+	# Try to join existing cluster
+	ocf_log info "wiping data directory before joining"
+	local local_rmq_node="$(${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l forever --query --name $RMQ_CRM_ATTR_COOKIE_LAST_KNOWN -q)"
+
+	rmq_stop
+	rmq_wipe_data
+	rmq_forget_cluster_node_remotely "$join_list" "$local_rmq_node"
 	rmq_join_existing "$join_list"
-	if [ $? -ne 0 ]; then
-		ocf_log info "node failed to join, wiping data directory and trying again"
-		local local_rmq_node="$(${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l forever --query --name $RMQ_CRM_ATTR_COOKIE_LAST_KNOWN -q)"
+	rc=$?
 
-		# if the graceful join fails, use the hammer and reset all the data.
-		rmq_stop 
-		rmq_wipe_data
-		rmq_forget_cluster_node_remotely "$join_list" "$local_rmq_node"
-		rmq_join_existing "$join_list"
-		rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log info "node failed to join even after reseting local data. Check SELINUX policy"
+		return $OCF_ERR_GENERIC
+	fi
 
-		# Restore users and users' permissions (if any)
-		BaseDataDir=`dirname $RMQ_DATA_DIR`
-		if [ -f $BaseDataDir/users.erl ] ; then
-			rabbitmqctl eval "
-				%% Run only if Mnesia is ready.
-				lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
-				begin
-					[WildPattern] = ets:select(mnesia_gvar, [ { {{rabbit_user, wild_pattern}, '\\\$1'}, [], ['\\\$1'] } ]),
+	# Restore users and users' permissions (if any)
+	BaseDataDir=`dirname $RMQ_DATA_DIR`
+	if [ -f $BaseDataDir/users.erl ] ; then
+		rabbitmqctl eval "
+			%% Run only if Mnesia is ready.
+			lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
+			begin
+				[WildPattern] = ets:select(mnesia_gvar, [ { {{rabbit_user, wild_pattern}, '\\\$1'}, [], ['\\\$1'] } ]),
 
-					%% Read users first
-					{ok, [Users]} = file:consult(\"$BaseDataDir/users.erl\"),
+				%% Read users first
+				{ok, [Users]} = file:consult(\"$BaseDataDir/users.erl\"),
 
-					Upgrade = fun
-						({internal_user, A, B, C}) -> {internal_user, A, B, C, rabbit_password_hashing_md5};
-						({internal_user, A, B, C, D}) -> {internal_user, A, B, C, D}
-					end,
+				Upgrade = fun
+					({internal_user, A, B, C}) -> {internal_user, A, B, C, rabbit_password_hashing_md5};
+					({internal_user, A, B, C, D}) -> {internal_user, A, B, C, D}
+				end,
 
-					Downgrade = fun
-						({internal_user, A, B, C}) -> {internal_user, A, B, C};
-						({internal_user, A, B, C, rabbit_password_hashing_md5}) -> {internal_user, A, B, C};
-						%% Incompatible scheme, so we will loose user's password ('B' value) during conversion.
-						%% Unfortunately, this case will require manual intervention - user have to run:
-						%%    rabbitmqctl change_password <A> <somenewpassword>
-						({internal_user, A, B, C, _}) -> {internal_user, A, B, C}
-					end,
+				Downgrade = fun
+					({internal_user, A, B, C}) -> {internal_user, A, B, C};
+					({internal_user, A, B, C, rabbit_password_hashing_md5}) -> {internal_user, A, B, C};
+					%% Incompatible scheme, so we will loose user's password ('B' value) during conversion.
+					%% Unfortunately, this case will require manual intervention - user have to run:
+					%%    rabbitmqctl change_password <A> <somenewpassword>
+					({internal_user, A, B, C, _}) -> {internal_user, A, B, C}
+				end,
 
-					case WildPattern of
-						%% Version < 3.6.0
-						{internal_user,'_','_','_'} ->
-							lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user, Downgrade(X)) end, Users);
-						%% Version >= 3.6.0
-						{internal_user,'_','_','_','_'} ->
-							lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user, Upgrade(X)) end, Users)
-					end,
+				case WildPattern of
+					%% Version < 3.6.0
+					{internal_user,'_','_','_'} ->
+						lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user, Downgrade(X)) end, Users);
+					%% Version >= 3.6.0
+					{internal_user,'_','_','_','_'} ->
+						lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user, Upgrade(X)) end, Users)
+				end,
 
-					ok = file:delete(\"$BaseDataDir/users.erl\")
-				end.
-			"
-                fi
-                if [ -f $BaseDataDir/users_perms.erl ] ; then
-                        rabbitmqctl eval "
-				%% Run only if Mnesia is ready.
-				lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
-				begin
-					{ok, [UsersPerms]} = file:consult(\"$BaseDataDir/users_perms.erl\"),
-					lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user_permission, X) end, UsersPerms),
+				ok = file:delete(\"$BaseDataDir/users.erl\")
+			end.
+		"
+	fi
+	if [ -f $BaseDataDir/users_perms.erl ] ; then
+		rabbitmqctl eval "
+			%% Run only if Mnesia is ready.
+			lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
+			begin
+				{ok, [UsersPerms]} = file:consult(\"$BaseDataDir/users_perms.erl\"),
+				lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user_permission, X) end, UsersPerms),
 
-					ok = file:delete(\"$BaseDataDir/users_perms.erl\")
-				end.
-                        "
-                fi
-
-		if [ $rc -ne 0 ]; then
-			ocf_log info "node failed to join even after reseting local data. Check SELINUX policy"
-			return $OCF_ERR_GENERIC
-		fi
+				ok = file:delete(\"$BaseDataDir/users_perms.erl\")
+			end.
+		"
 	fi
 
 	return $OCF_SUCCESS
