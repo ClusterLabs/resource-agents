@@ -1337,7 +1337,7 @@ create_replication_slot_name() {
             if [ "$target" != "$NODENAME" ]; then
                 # The Uppercase, "-" and "." don't allow to use in slot_name.
                 # If the NODENAME contains them, convert upper case to lower case and "_" and "." to "_".
-                target=`echo "$target" | tr '[A-Z.-]' '[a-z__]'`
+                target=`echo "$target" | tr 'A-Z.-' 'a-z__'`
                 replication_slot_name="$OCF_RESKEY_replication_slot_name"_"$target"
                 replication_slot_name_list_tmp="$replication_slot_name_list"
                 replication_slot_name_list="$replication_slot_name_list_tmp $replication_slot_name"
@@ -1529,7 +1529,7 @@ user_recovery_conf() {
         if [ $number_of_nodes -le 2 ]; then
             echo "primary_slot_name = '${OCF_RESKEY_replication_slot_name}'"
         else
-            nodename_tmp=`echo "$NODENAME" | tr '[A-Z.-]' '[a-z__]'`
+            nodename_tmp=`echo "$NODENAME" | tr 'A-Z.-' 'a-z__'`
             echo "primary_slot_name = '${OCF_RESKEY_replication_slot_name}_$nodename_tmp'"
         fi
     fi
@@ -1640,7 +1640,7 @@ change_master_score() {
             instance=`expr $instance + 1`
         done
     else
-        # If globally-unique=false and Pacemaker version is 1.1.8 or higher 
+        # If globally-unique=false and Pacemaker version is 1.1.8 or higher
         # Master/Slave resource has no instance number
         set_master_score $1 $2 ${RESOURCE_NAME} || return 1
     fi
@@ -1770,7 +1770,7 @@ pgsql_validate_all() {
 
     version=`cat $OCF_RESKEY_pgdata/PG_VERSION`
 
-    if ! check_binary2 "$OCF_RESKEY_pgctl" || 
+    if ! check_binary2 "$OCF_RESKEY_pgctl" ||
        ! check_binary2 "$OCF_RESKEY_psql"; then
         return $OCF_ERR_INSTALLED
     fi
@@ -1924,7 +1924,7 @@ check_socket_dir() {
         fi
 
         if ! chown $OCF_RESKEY_pgdba:`getent passwd \
-             $OCF_RESKEY_pgdba | cut -d ":" -f 4` "$OCF_RESKEY_socketdir" 
+             $OCF_RESKEY_pgdba | cut -d ":" -f 4` "$OCF_RESKEY_socketdir"
         then
             ocf_exit_reason "Can't change ownership for $OCF_RESKEY_socketdir"
             exit $OCF_ERR_PERM
@@ -2058,7 +2058,7 @@ if [ -n "$OCF_RESKEY_pglibs" ]; then
         export LD_LIBRARY_PATH=$OCF_RESKEY_pglibs
     fi
 fi
-   
+
 
 # What kind of method was invoked?
 case "$1" in
