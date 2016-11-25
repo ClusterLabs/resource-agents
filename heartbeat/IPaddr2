@@ -76,6 +76,7 @@ OCF_RESKEY_clusterip_hash_default="sourceip-sourceport"
 OCF_RESKEY_unique_clone_address_default=false
 OCF_RESKEY_arp_interval_default=200
 OCF_RESKEY_arp_count_default=5
+OCF_RESKEY_arp_count_refresh_default=0
 OCF_RESKEY_arp_bg_default=true
 OCF_RESKEY_arp_mac_default="ffffffffffff"
 
@@ -86,6 +87,7 @@ OCF_RESKEY_arp_mac_default="ffffffffffff"
 : ${OCF_RESKEY_unique_clone_address=${OCF_RESKEY_unique_clone_address_default}}
 : ${OCF_RESKEY_arp_interval=${OCF_RESKEY_arp_interval_default}}
 : ${OCF_RESKEY_arp_count=${OCF_RESKEY_arp_count_default}}
+: ${OCF_RESKEY_arp_count_refresh=${OCF_RESKEY_arp_count_refresh_default}}
 : ${OCF_RESKEY_arp_bg=${OCF_RESKEY_arp_bg_default}}
 : ${OCF_RESKEY_arp_mac=${OCF_RESKEY_arp_mac_default}}
 #######################################################################
@@ -274,10 +276,20 @@ Specify the interval between unsolicited ARP packets in milliseconds.
 
 <parameter name="arp_count">
 <longdesc lang="en">
-Number of unsolicited ARP packets to send.
+Number of unsolicited ARP packets to send at resource initialization.
 </longdesc>
-<shortdesc lang="en">ARP packet count</shortdesc>
+<shortdesc lang="en">ARP packet count sent during initialization</shortdesc>
 <content type="integer" default="${OCF_RESKEY_arp_count_default}"/>
+</parameter>
+
+<parameter name="arp_count_refresh">
+<longdesc lang="en">
+Number of unsolicited ARP packets to send during resource monitoring. Doing
+so helps mitigate issues of stuck ARP caches resulting from split-brain
+situations.
+</longdesc>
+<shortdesc lang="en">ARP packet count sent during monitoring</shortdesc>
+<content type="integer" default="${OCF_RESKEY_arp_count_refresh_default}"/>
 </parameter>
 
 <parameter name="arp_bg">
@@ -660,20 +672,30 @@ is_infiniband() {
 # Run send_arp to note peers about new mac address
 #
 run_send_arp() {
-	ARGS="-i $OCF_RESKEY_arp_interval -r $OCF_RESKEY_arp_count -p $SENDARPPIDFILE $NIC $OCF_RESKEY_ip auto not_used not_used"
 	if [ "x$IP_CIP" = "xyes" ] ; then
 	    if [ x = "x$IF_MAC" ] ; then
 		MY_MAC=auto
 	    else
 		MY_MAC=`echo ${IF_MAC} | sed -e 's/://g'`
 	    fi
-	    ARGS="-i $OCF_RESKEY_arp_interval -r $OCF_RESKEY_arp_count -p $SENDARPPIDFILE $NIC $OCF_RESKEY_ip $MY_MAC not_used not_used"
-	fi
-	ocf_log info "$SENDARP $ARGS"
-	if ocf_is_true $OCF_RESKEY_arp_bg; then
-		($SENDARP $ARGS || ocf_log err "Could not send gratuitous arps")& >&2
 	else
-		$SENDARP $ARGS || ocf_log err "Could not send gratuitous arps"
+		MY_MAC=auto
+	fi
+	if [ "x$1" = "xrefresh" ] ; then
+		ARP_COUNT=$OCF_RESKEY_arp_count_refresh
+		LOGLEVEL=debug
+	else
+		ARP_COUNT=$OCF_RESKEY_arp_count
+		LOGLEVEL=info
+	fi
+	if [ $ARP_COUNT -ne 0 ] ; then
+		ARGS="-i $OCF_RESKEY_arp_interval -r $ARP_COUNT -p $SENDARPPIDFILE $NIC $OCF_RESKEY_ip $MY_MAC not_used not_used"
+		ocf_log $LOGLEVEL "$SENDARP $ARGS"
+		if ocf_is_true $OCF_RESKEY_arp_bg; then
+			($SENDARP $ARGS || ocf_log err "Could not send gratuitous arps")& >&2
+		else
+			$SENDARP $ARGS || ocf_log err "Could not send gratuitous arps"
+		fi
 	fi
 }
 
@@ -720,12 +742,21 @@ run_send_ua() {
 # Run ipoibarping to note peers about new Infiniband address
 #
 run_send_ib_arp() {
-	ARGS="-q -c $OCF_RESKEY_arp_count -U -I $NIC $OCF_RESKEY_ip"
-	ocf_log info "ipoibarping $ARGS"
-	if ocf_is_true $OCF_RESKEY_arp_bg; then
-		(ipoibarping $ARGS || ocf_log err "Could not send gratuitous arps")& >&2
+	if [ "x$1" = "xrefresh" ] ; then
+		ARP_COUNT=$OCF_RESKEY_arp_count_refresh
+		LOGLEVEL=debug
 	else
-		ipoibarping $ARGS || ocf_log err "Could not send gratuitous arps"
+		ARP_COUNT=$OCF_RESKEY_arp_count
+		LOGLEVEL=info
+	fi
+	if [ $ARP_COUNT -ne 0 ] ; then
+		ARGS="-q -c $ARP_COUNT -U -I $NIC $OCF_RESKEY_ip"
+		ocf_log $LOGLEVEL "ipoibarping $ARGS"
+		if ocf_is_true $OCF_RESKEY_arp_bg; then
+			(ipoibarping $ARGS || ocf_log err "Could not send gratuitous arps")& >&2
+		else
+			ipoibarping $ARGS || ocf_log err "Could not send gratuitous arps"
+		fi
 	fi
 }
 
@@ -946,6 +977,7 @@ ip_monitor() {
 	local ip_status=`ip_served`
 	case $ip_status in
 	ok)
+		$ARP_SEND_FUN refresh
 		return $OCF_SUCCESS
 		;;
 	partial|no|partial2)
