@@ -2,9 +2,9 @@
 #
 # SAPInstance
 #
-# Description:	Manages a single SAP Instance as a High-Availability
-#		resource. One SAP Instance is defined by one 
-#               SAP Instance-Profile. start/stop handels all services
+# Description:  Manages a single SAP Instance as a High-Availability
+#               resource. One SAP Instance is defined by one
+#               SAP Instance-Profile. start/stop handles all services
 #               of the START-Profile, status and monitor care only
 #               about essential services.
 #
@@ -13,7 +13,7 @@
 # License:      GNU General Public License (GPL)
 # Copyright:    (c) 2006-2008 Alexander Krauth
 #
-# An example usage: 
+# An example usage:
 #      See usage() function below for more details...
 #
 # OCF instance parameters:
@@ -23,10 +23,10 @@
 #	OCF_RESKEY_START_PROFILE    (optional, well known directories will be searched by default)
 #	OCF_RESKEY_START_WAITTIME   (optional, to solve timing problems during J2EE-Addin start)
 #	OCF_RESKEY_AUTOMATIC_RECOVER    (optional, automatic startup recovery using cleanipc, default is false)
-#       OCF_RESKEY_MONITOR_SERVICES     (optional, default is to monitor critical services only)
-#       OCF_RESKEY_SHUTDOWN_METHOD      (optional, defaults to NORMAL, KILL: terminate the SAP instance with OS commands - faster, at your own risk)
-#       OCF_RESKEY_ERS_InstanceName     (optional, InstanceName of the ERS instance in a Master/Slave configuration)
-#       OCF_RESKEY_ERS_START_PROFILE    (optional, START_PROFILE of the ERS instance in a Master/Slave configuration)
+#	OCF_RESKEY_MONITOR_SERVICES     (optional, default is to monitor critical services only)
+#	OCF_RESKEY_SHUTDOWN_METHOD      (optional, defaults to NORMAL, KILL: terminate the SAP instance with OS commands - faster, at your own risk)
+#	OCF_RESKEY_ERS_InstanceName     (optional, InstanceName of the ERS instance in a Master/Slave configuration)
+#	OCF_RESKEY_ERS_START_PROFILE    (optional, START_PROFILE of the ERS instance in a Master/Slave configuration)
 #	OCF_RESKEY_PRE_START_USEREXIT	(optional, lists a script which can be executed before the resource is started)
 #	OCF_RESKEY_POST_START_USEREXIT	(optional, lists a script which can be executed after the resource is started)
 #	OCF_RESKEY_PRE_STOP_USEREXIT	(optional, lists a script which can be executed before the resource is stopped)
@@ -49,7 +49,7 @@ SH=/bin/sh
 sapinstance_usage() {
   methods=`sapinstance_methods`
   methods=`echo $methods | tr ' ' '|'`
-  cat <<-!
+  cat <<-EOF
 	usage: $0 ($methods)
 
 	$0 manages a SAP Instance as an HA resource.
@@ -58,13 +58,13 @@ sapinstance_usage() {
 	The 'stop' operation stops the instance
 	The 'status' operation reports whether the instance is running
 	The 'monitor' operation reports whether the instance seems to be working
-        The 'promote' operation starts the primary instance in a Master/Slave configuration
-        The 'demote' operation stops the primary instance and starts the ERS instance
-        The 'notify' operation always returns SUCCESS
+	The 'promote' operation starts the primary instance in a Master/Slave configuration
+	The 'demote' operation stops the primary instance and starts the ERS instance
+	The 'notify' operation always returns SUCCESS
 	The 'validate-all' operation reports whether the parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
-	!
+	EOF
 }
 
 sapinstance_meta_data() {
@@ -117,7 +117,7 @@ The statuses RED and GRAY are reported as NOT_RUNNING to the cluster. Depending 
   <content type="string" default="" />
  </parameter>
  <parameter name="START_WAITTIME" unique="0" required="0">
-  <longdesc lang="en">After that time in seconds a monitor operation is executed by the resource agent. Does the monitor return SUCCESS, the start ishandled as SUCCESS. This is useful to resolve timing problems with e.g. the J2EE-Addin instance.Usually the resource agent waits until all services are started and the SAP Management Console reports a GREEN status. A double stack installation (ABAP + Java AddIn) consists of an ABAP dispatcher and aJAVA instance. Normally the start of the JAVA instance takes much longer than the start of the ABAP instance. For a JAVA Instance you may need to configure a much higher timeout for the start operation of the resource in Heartbeat. The disadvantage here is, that the discovery of a failed start by the cluster takes longer. Somebody might say: For me it is important, that the ABAP instance is up and running. A failure of the JAVA instance shall not cause a failover of the SAP instance.
+  <longdesc lang="en">After that time in seconds a monitor operation is executed by the resource agent. Does the monitor return SUCCESS, the start ishandled as SUCCESS. This is useful to resolve timing problems with e.g. the J2EE-Addin instance.Usually the resource agent waits until all services are started and the SAP Management Console reports a GREEN status. A double stack installation (ABAP + Java AddIn) consists of an ABAP dispatcher and a JAVA instance. Normally the start of the JAVA instance takes much longer than the start of the ABAP instance. For a JAVA Instance you may need to configure a much higher timeout for the start operation of the resource in Heartbeat. The disadvantage here is, that the discovery of a failed start by the cluster takes longer. Somebody might say: For me it is important, that the ABAP instance is up and running. A failure of the JAVA instance shall not cause a failover of the SAP instance.
 Actually the SAP MC reports a YELLOW status, if the JAVA instance of a double stack system fails. From the resource agent point of view YELLOW means:everything is OK. Setting START_WAITTIME to a lower value determines the resource agent to check the status of the instance during a start operation after that time. As it would wait normally for a GREEN status, now it reports SUCCESS to the cluster in case of a YELLOW status already after the specified time.
 
 That is only useful for double stack systems.
@@ -143,7 +143,7 @@ Those services are monitored within the SAPInstance resource agent:
 
 That names match the strings used in the output of the command 'sapcontrol -nr [Instance-Nr] -function GetProcessList'.
 The default should fit most cases where you want to manage a SAP Instance from the cluster. You may change this with this parameter, if you like to monitor more/less or other services that sapstartsrv supports.
-You may specify multiple services seperated by a | (pipe) sign in this parameter: disp+work|msg_server|enserver
+You may specify multiple services separated by a | (pipe) sign in this parameter: disp+work|msg_server|enserver
   </longdesc>
   <shortdesc lang="en">Services to monitor</shortdesc>
   <content type="string" default="disp+work|msg_server|enserver|enrepserver|jcontrol|jstart"/>
@@ -219,7 +219,7 @@ END
 # methods: What methods/operations do we support?
 #
 sapinstance_methods() {
-  cat <<-!
+  cat <<-EOF
 	start
 	stop
 	status
@@ -231,7 +231,7 @@ sapinstance_methods() {
 	methods
 	meta-data
 	usage
-	!
+	EOF
 }
 
 
@@ -389,7 +389,7 @@ check_sapstartsrv() {
     then
       runninginst=`echo "$output" | grep '^0 : ' | cut -d' ' -f3`
       if [ "$runninginst" != "$InstanceName" ]
-      then 
+      then
         ocf_log warn "sapstartsrv is running for instance $runninginst, that service will be killed"
         restart=1
       else
@@ -457,7 +457,7 @@ check_sapstartsrv() {
 # sapuserexit : Many SAP customers need some additional processes/tools to run their SAP systems.
 #               This specialties do not allow a totally generic SAP cluster resource agent.
 #               Someone should write a resource agent for each additional process you need, if it
-#               is required to monitor that process within the cluster manager. To enable 
+#               is required to monitor that process within the cluster manager. To enable
 #               you to extent this resource agent without developing a new one, this user exit
 #               was introduced.
 #
@@ -487,7 +487,7 @@ cleanup_instance() {
   pkill -9 -f -U $sidadm $InstanceName
   ocf_log info "Terminated instance using 'pkill -9 -f -U $sidadm $InstanceName'"
 
-  # it is necessary to call cleanipc as user sidadm if the system has 'vmcj/enable = ON' set - otherwise SHM-segments in /dev/shm/SAP_ES2* cannot beremoved
+  # it is necessary to call cleanipc as user sidadm if the system has 'vmcj/enable = ON' set - otherwise SHM-segments in /dev/shm/SAP_ES2* cannot be removed
   su - $sidadm -c "cleanipc $InstanceNr remove"
   ocf_log info "Tried to remove shared memory resources using 'cleanipc $InstanceNr remove' as user $sidadm"
 
@@ -662,7 +662,7 @@ sapinstance_monitor() {
       case $COLOR in
         GREEN|YELLOW)       STATE=$OCF_SUCCESS;;
         *)                  STATE=$OCF_NOT_RUNNING;;
-      esac 
+      esac
 
       SEARCH=`echo "$OCF_RESKEY_MONITOR_SERVICES" | sed 's/\+/\\\+/g' | sed 's/\./\\\./g'`
       if [ `echo "$SERVICE" | egrep -c "$SEARCH"` -eq 1 ]
@@ -687,7 +687,7 @@ sapinstance_monitor() {
       fi
     fi
   fi
- 
+
   return $rc
 }
 
@@ -710,7 +710,7 @@ sapinstance_status() {
 
 
 #
-# sapinstance_validate: Check the symantic of the input parameters 
+# sapinstance_validate: Check the semantics of the input parameters
 #
 sapinstance_validate() {
   local rc=$OCF_SUCCESS
@@ -853,9 +853,9 @@ sapinstance_notify() {
     # instance to score 10.
     ${HA_SBIN_DIR}/crm_master -v 100 -l reboot
   elif [ "${n_type}_${n_op}" = "pre_demote" ]; then
-    # if we are a slave and a demote event is anounced, make sure we have the highes wish to became master
-    # that is, when a slave resource was startet after the promote event of a already running master (e.g. node of slave was down)
-    # We also have to make sure to overrule the globaly set resource_stickiness or any fail-count factors => INFINITY
+    # if we are a slave and a demote event is announced, make sure we are highest on the list to become master
+    # that is, when a slave resource was started after the promote event of an already running master (e.g. node of slave was down)
+    # We also have to make sure to overrule the globally set resource_stickiness or any fail-count factors => INFINITY
     local n_uname="$OCF_RESKEY_CRM_meta_notify_demote_uname"
     if [ ${n_uname} != ${NODENAME} ]; then
       ${HA_SBIN_DIR}/crm_master -v INFINITY -l reboot
