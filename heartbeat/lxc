@@ -1,7 +1,8 @@
 #!/bin/bash
-# Should now conform to guidelines: http://www.linux-ha.org/doc/dev-guides/ra-dev-guide.html
+# Should now conform to guidelines:
+# https://github.com/ClusterLabs/resource-agents/blob/master/doc/dev-guides/ra-dev-guide.asc
 #
-#	LXC (Linux Containers) OCF RA. 
+#	LXC (Linux Containers) OCF RA.
 #	Used to cluster enable the start, stop and monitoring of a LXC container.
 #
 # Copyright (c) 2011 AkurIT.com.au, Darren Thompson

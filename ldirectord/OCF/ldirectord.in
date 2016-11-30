@@ -6,9 +6,9 @@
 #   Tested on SuSE Linux Enterprise Server 10.
 #
 #   Should conform to the specification found at
-#    http://www.linux-ha.org/OCFResourceAgent
+#    https://github.com/ClusterLabs/resource-agents/blob/master/doc/dev-guides/ra-dev-guide.asc
 #   and
-#   http://www.opencf.org/cgi-bin/viewcvs.cgi/specs/ra/resource-agent-api.txt?rev=HEAD
+#    https://github.com/ClusterLabs/OCF-spec/blob/master/ra/resource-agent-api.md
 #
 #   ToDo: Add parameter to start several instances of ldirectord
 #   with different config files.

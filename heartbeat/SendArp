@@ -9,7 +9,7 @@
 #       Based on IPaddr2: Copyright (C) 2003 Tuomo Soini <tis@foobar.fi>
 #
 # 	License:      GNU General Public License (GPL)
-# 	Support:      linux-ha@lists.linux-ha.org
+# 	Support:      users@clusterlabs.org
 #
 #	This script send out gratuitous Arp for an IP address
 #

@@ -5,7 +5,7 @@
 # Author:	Alan Robertson
 #		Sun Jiang Dong
 #
-# Support:	linux-ha@lists.linux-ha.org
+# Support:	users@clusterlabs.org
 #
 # License:	GNU General Public License (GPL)
 #
