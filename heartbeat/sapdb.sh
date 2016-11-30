@@ -15,7 +15,7 @@
 
 
 #
-# background_check_saphostexec : Run a request to saphostexec in a separat task, to be able to react on a hanging process
+# background_check_saphostexec : Run a request to saphostexec in a separate task, to be able to react to a hanging process
 #
 background_check_saphostexec() {
   timeout=600
@@ -35,7 +35,7 @@ background_check_saphostexec() {
     fi
   done
 
-  # child already has finished, now evaluate it's returncode 
+  # child has already finished, now evaluate its returncode
   wait $pid
 }
 
@@ -46,20 +46,20 @@ background_check_saphostexec() {
 cleanup_saphostexec() {
   pkill -9 -f "$SAPHOSTEXEC"
   pkill -9 -f "$SAPHOSTSRV"
-  oscolpid=`pgrep -f "$SAPHOSTOSCOL"`       # we check saposcol pid, because it
+  oscolpid=$(pgrep -f "$SAPHOSTOSCOL")      # we check saposcol pid, because it
                                             # might not run under control of
-					    # saphostexec
+                                            # saphostexec
 
   # cleanup saposcol shared memory, otherwise it will not start again
   if [ -n "$oscolpid" ];then
     kill -9 $oscolpid
-    oscolipc=`ipcs -m | grep "4dbe " | awk '{print $2}'`
+    oscolipc=$(ipcs -m | grep "4dbe " | awk '{print $2}')
     if [ -n "$oscolipc" ]; then
       ipcrm -m $oscolipc
     fi
   fi
 
-  # removing the unix domain socket file as it might have wrong permissions or 
+  # removing the unix domain socket file as it might have wrong permissions or
   # ownership - it will be recreated by saphostexec during next start
   [ -r /tmp/.sapstream1128 ] && rm -f /tmp/.sapstream1128
 }
@@ -70,7 +70,7 @@ cleanup_saphostexec() {
 #
 check_saphostexec() {
   chkrc=$OCF_SUCCESS
-  running=`pgrep -f "$SAPHOSTEXEC" | wc -l`
+  running=$(pgrep -f "$SAPHOSTEXEC" | wc -l)
 
   if [ $running -gt 0 ]; then
     if background_check_saphostexec; then
@@ -85,10 +85,10 @@ check_saphostexec() {
     ocf_log warn "saphostexec is not running on node `hostname`, it will be started now"
     cleanup_saphostexec
     output=`$SAPHOSTEXEC -restart 2>&1`
-    
+
     # now make sure the daemon has been started and is able to respond
     srvrc=1
-    while [ $srvrc -ne 0 -a `pgrep -f "$SAPHOSTEXEC" | wc -l` -gt 0 ]
+    while [ $srvrc -ne 0 ] && [ "$(pgrep -f "$SAPHOSTEXEC" | wc -l)" -gt 0 ]
     do
       sleep 1
       background_check_saphostexec
@@ -97,14 +97,14 @@ check_saphostexec() {
 
     if [ $srvrc -eq 0 ]
     then
-      ocf_log info "saphostexec on node `hostname` was restarted !"
+      ocf_log info "saphostexec on node $(hostname) was restarted !"
       chkrc=$OCF_SUCCESS
     else
-      ocf_log error "saphostexec on node `hostname` could not be started! - $output"
+      ocf_log error "saphostexec on node $(hostname) could not be started! - $output"
       chkrc=$OCF_ERR_GENERIC
     fi
   fi
-  
+
   return $chkrc
 }
 
@@ -116,7 +116,7 @@ sapdatabase_start() {
 
   check_saphostexec
   rc=$?
-  
+
   if [ $rc -eq $OCF_SUCCESS ]
   then
     sapuserexit PRE_START_USEREXIT "$OCF_RESKEY_PRE_START_USEREXIT"
@@ -145,14 +145,14 @@ sapdatabase_start() {
     then
       ocf_log info "SAP database $SID started: $output"
       rc=$OCF_SUCCESS
-    
+
       sapuserexit POST_START_USEREXIT "$OCF_RESKEY_POST_START_USEREXIT"
     else
       ocf_log err "SAP database $SID start failed: $output"
       rc=$OCF_ERR_GENERIC
     fi
   fi
-  
+
   return $rc
 }
 
@@ -163,7 +163,7 @@ sapdatabase_stop() {
 
   check_saphostexec
   rc=$?
-  
+
   if [ $rc -eq $OCF_SUCCESS ]
   then
     sapuserexit PRE_STOP_USEREXIT "$OCF_RESKEY_PRE_STOP_USEREXIT"
@@ -191,7 +191,7 @@ sapdatabase_stop() {
   fi
 
   sapuserexit POST_STOP_USEREXIT "$OCF_RESKEY_POST_STOP_USEREXIT"
-  
+
   return $rc
 }
 
@@ -210,11 +210,11 @@ sapdatabase_monitor() {
   else
     check_saphostexec
     rc=$?
-  
+
     if [ $rc -eq $OCF_SUCCESS ]
     then
       count=0
-      
+
       DBINST=""
       if [ -n "$OCF_RESKEY_DBINSTANCE" ]
       then
@@ -228,14 +228,14 @@ sapdatabase_monitor() {
 
       # we have to parse the output, because the returncode doesn't tell anything about the instance status
       for SERVICE in `echo "$output" | grep -i 'Component[ ]*Name *[:=] [A-Za-z][A-Za-z0-9_]* (' | sed 's/^.*Component[ ]*Name *[:=] *\([A-Za-z][A-Za-z0-9_]*\).*$/\1/i'`
-      do 
+      do
         COLOR=`echo "$output" | grep -i "Component[ ]*Name *[:=] *$SERVICE (" | sed 's/^.*Status *[:=] *\([A-Za-z][A-Za-z0-9_]*\).*$/\1/i' | uniq`
         STATE=0
 
         case $COLOR in
           Running)       STATE=$OCF_SUCCESS;;
           *)             STATE=$OCF_NOT_RUNNING;;
-        esac 
+        esac
 
         SEARCH=`echo "$OCF_RESKEY_MONITOR_SERVICES" | sed 's/\+/\\\+/g' | sed 's/\./\\\./g'`
         if [ `echo "$SERVICE" | egrep -c "$SEARCH"` -eq 1 ]
@@ -254,7 +254,7 @@ sapdatabase_monitor() {
         ocf_log err "The resource does not run any services which this RA could monitor!"
         rc=$OCF_ERR_ARGS
       fi
-      
+
       if [ $rc -ne $OCF_SUCCESS ]
       then
         ocf_log err "The SAP database $SID is not running: $output"
@@ -322,7 +322,7 @@ sapdatabase_recover() {
 
 
 #
-# sapdatabase_validate: Check the symantic of the input parameters 
+# sapdatabase_validate: Check the semantics of the input parameters
 #
 sapdatabase_validate() {
   rc=$OCF_SUCCESS
