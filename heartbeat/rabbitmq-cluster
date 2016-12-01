@@ -366,7 +366,7 @@ rmq_start() {
 		rmq_join_existing "$join_list"
 		rc=$?
 
-		# Restore users (if any)
+		# Restore users and users' permissions (if any)
 		BaseDataDir=`dirname $RMQ_DATA_DIR`
 		if [ -f $BaseDataDir/users.erl ] ; then
 			rabbitmqctl eval "
@@ -408,9 +408,10 @@ rmq_start() {
                 if [ -f $BaseDataDir/users_perms.erl ] ; then
                         rabbitmqctl eval "
                                 {ok, [UsersPerms]} = file:consult(\"$BaseDataDir/users_perms.erl\"),
-                                lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user_permission, X) end, UsersPerms).
+                                lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user_permission, X) end, UsersPerms),
+
+				ok = file:delete(\"$BaseDataDir/users_perms.erl\").
                         "
-                        rm -f $BaseDataDir/users_perms.erl
                 fi
 
 		if [ $rc -ne 0 ]; then
@@ -423,7 +424,7 @@ rmq_start() {
 }
 
 rmq_stop() {
-	# Backup users
+	# Backup users and users' permissions
 	BaseDataDir=`dirname $RMQ_DATA_DIR`
 	rabbitmqctl eval "
 		%% Run only if Mnesia is still available.
@@ -440,14 +441,12 @@ rmq_stop() {
 					mnesia:dirty_select(rabbit_user, [{ {internal_user, '\\\$1', '_', '_', '_'}, [{'/=', '\\\$1', <<\"guest\">>}], ['\\\$_'] } ])
 			end,
 
-			Users /= [] andalso file:write_file(\"$BaseDataDir/users.erl\", io_lib:fwrite(\"~p.~n\", [Users]))
+			Users /= [] andalso file:write_file(\"$BaseDataDir/users.erl\", io_lib:fwrite(\"~p.~n\", [Users])),
+
+			UsersPerms = mnesia:dirty_select(rabbit_user_permission, [{{'\\\$1', {'\\\$2', '\\\$3','\\\$4'}, '\\\$5'}, [{'/=', '\\\$3', <<\"guest\">>}], ['\\\$_']}]),
+			UsersPerms /= [] andalso file:write_file(\"$BaseDataDir/users_perms.erl\", io_lib:fwrite(\"~p.~n\", [UsersPerms]))
 		end.
 	"
-
-        rabbitmqctl eval "
-                UsersPerms = mnesia:dirty_select(rabbit_user_permission, [{ {'\\\$1', '\\\$2', '\\\$3'}, [{'/=', '\\\$2', {{user_vhost,<<\"guest\">>,<<\"/\">>}}}], ['\\\$_'] } ]),
-                file:write_file(\"$BaseDataDir/users_perms.erl\", io_lib:fwrite(\"~p.~n\", [UsersPerms])).
-        "
 
 	rmq_monitor
 	if [ $? -eq $OCF_NOT_RUNNING ]; then
