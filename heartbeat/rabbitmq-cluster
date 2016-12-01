@@ -407,10 +407,14 @@ rmq_start() {
                 fi
                 if [ -f $BaseDataDir/users_perms.erl ] ; then
                         rabbitmqctl eval "
-                                {ok, [UsersPerms]} = file:consult(\"$BaseDataDir/users_perms.erl\"),
-                                lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user_permission, X) end, UsersPerms),
+				%% Run only if Mnesia is ready.
+				lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
+				begin
+					{ok, [UsersPerms]} = file:consult(\"$BaseDataDir/users_perms.erl\"),
+					lists:foreach(fun(X) -> mnesia:dirty_write(rabbit_user_permission, X) end, UsersPerms),
 
-				ok = file:delete(\"$BaseDataDir/users_perms.erl\").
+					ok = file:delete(\"$BaseDataDir/users_perms.erl\")
+				end.
                         "
                 fi
 
