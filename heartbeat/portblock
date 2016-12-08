@@ -242,7 +242,7 @@ active_grep_pat()
 chain_isactive()
 {
   PAT=`active_grep_pat "$1" "$2" "$3"`
-  $IPTABLES -n -L INPUT | grep "$PAT" >/dev/null
+  $IPTABLES -w -n -L INPUT | grep "$PAT" >/dev/null
 }
 
 save_tcp_connections()
@@ -370,13 +370,13 @@ IptablesBLOCK()
     : OK -- chain already active
   else
     if $try_reset ; then
-      $IPTABLES -I OUTPUT -p "$1" -s "$3" -m multiport --sports "$2" -j REJECT --reject-with tcp-reset
+      $IPTABLES -w -I OUTPUT -p "$1" -s "$3" -m multiport --sports "$2" -j REJECT --reject-with tcp-reset
       tickle_local
     fi
-    $IPTABLES -I INPUT -p "$1" -d "$3" -m multiport --dports "$2" -j DROP
+    $IPTABLES -w -I INPUT -p "$1" -d "$3" -m multiport --dports "$2" -j DROP
     rc=$?
     if $try_reset ; then
-      $IPTABLES -D OUTPUT -p "$1" -s "$3" -m multiport --sports "$2" -j REJECT --reject-with tcp-reset
+      $IPTABLES -w -D OUTPUT -p "$1" -s "$3" -m multiport --sports "$2" -j REJECT --reject-with tcp-reset
     fi
   fi
 
@@ -389,7 +389,7 @@ IptablesUNBLOCK()
   if
     chain_isactive "$1" "$2" "$3"
   then
-    $IPTABLES -D INPUT -p "$1" -d "$3" -m multiport --dports "$2" -j DROP
+    $IPTABLES -w -D INPUT -p "$1" -d "$3" -m multiport --dports "$2" -j DROP
   else
     : Chain Not active
   fi
