@@ -1493,7 +1493,7 @@ set_sync_mode() {
         ocf_log debug "$sync_node_in_conf is already sync mode."
     else
         ocf_log info "Setup $1 into sync mode."
-        runasowner -q err "echo \"synchronous_standby_names = '$1'\" > \"$REP_MODE_CONF\""
+        runasowner -q err "echo \"synchronous_standby_names = '\\\"$1\\\"'\" > \"$REP_MODE_CONF\""
         [ "$RE_CONTROL_SLAVE" = "false" ] && RE_CONTROL_SLAVE="true"
         exec_with_retry 0 reload_conf
     fi
