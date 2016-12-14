@@ -395,6 +395,12 @@ fstype_supported()
 #
 Filesystem_start()
 {
+	# Check if there are any mounts mounted under the mountpoint
+	if list_mounts | grep -q -E " $MOUNTPOINT/\w+" >/dev/null 2>&1; then
+		ocf_log err "There is one or more mounts mounted under $MOUNTPOINT."
+		return $OCF_ERR_CONFIGURED
+	fi
+
 	# See if the device is already mounted.
 	if Filesystem_status >/dev/null 2>&1 ; then
 		ocf_log info "Filesystem $MOUNTPOINT is already mounted."
