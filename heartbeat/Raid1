@@ -2,7 +2,7 @@
 #
 #
 # License:      GNU General Public License (GPL)
-# Support:      linux-ha@lists.linux-ha.org
+# Support:      users@clusterlabs.org
 # 
 # Raid1
 #      Description: Manages a Linux software RAID device on a shared storage medium.

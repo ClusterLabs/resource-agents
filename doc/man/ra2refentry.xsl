@@ -70,7 +70,7 @@
    <refentryinfo>
      <productname><xsl:value-of select="$package"/></productname>
      <productnumber><xsl:value-of select="$version"/></productnumber>
-     <corpauthor>Linux-HA contributors (see the resource agent source for information about individual authors)</corpauthor>
+     <corpauthor>ClusterLabs contributors (see the resource agent source for information about individual authors)</corpauthor>
    </refentryinfo>
  </xsl:template>
 
@@ -97,7 +97,7 @@
    <refsynopsisdiv>
      <cmdsynopsis sepchar=" ">
        <command moreinfo="none">
-	 <xsl:value-of select="@name"/>
+         <xsl:value-of select="@name"/>
        </command>
        <xsl:apply-templates select="actions" mode="synopsis"/>
      </cmdsynopsis>
@@ -136,15 +136,15 @@
 
     <xsl:choose>
     <xsl:when test="starts-with($string, '&#xA;') or starts-with($string, ' ')" >
-	<!-- trim leading newlines and other witespace -->
-	<xsl:variable name="normalized" select="normalize-space($string)" />
-	<xsl:variable name="nlen" select="string-length($normalized)" />
-	<xsl:if test="$nlen &gt; 0" >
-	    <xsl:variable name="leading" select="string-length(substring-before($string, substring($normalized, 1, 1)))" />
+        <!-- trim leading newlines and other witespace -->
+        <xsl:variable name="normalized" select="normalize-space($string)" />
+        <xsl:variable name="nlen" select="string-length($normalized)" />
+        <xsl:if test="$nlen &gt; 0" >
+            <xsl:variable name="leading" select="string-length(substring-before($string, substring($normalized, 1, 1)))" />
             <xsl:call-template name="break_into_para">
-	    <xsl:with-param name="string" select="substring($string, $leading + 1)" />
+            <xsl:with-param name="string" select="substring($string, $leading + 1)" />
             </xsl:call-template>
-	</xsl:if>
+        </xsl:if>
     </xsl:when>
     <xsl:otherwise>
 
@@ -155,29 +155,29 @@
             <xsl:variable name="first" select="substring-before($string, $lf)" />
            <!-- recursively call on remaining string -->
             <xsl:call-template name="break_into_para">
-	    <xsl:with-param name="string" select="$first"/>
+            <xsl:with-param name="string" select="$first"/>
             </xsl:call-template>
             <xsl:call-template name="break_into_para">
-	    <xsl:with-param name="string" select="substring-after($string, $lf)" />
+            <xsl:with-param name="string" select="substring-after($string, $lf)" />
             </xsl:call-template>
         </xsl:when>
         <xsl:when test="contains($string, $lf_dash)">
             <xsl:variable name="first" select="substring-before($string, $lf_dash)" />
            <!-- recursively call on remaining string -->
             <xsl:call-template name="break_into_para">
-	    <xsl:with-param name="string" select="$first"/>
+            <xsl:with-param name="string" select="$first"/>
             </xsl:call-template>
             <xsl:call-template name="break_into_para">
-	    <xsl:with-param name="string" select="concat('-',substring-after($string, $lf_dash))" />
+            <xsl:with-param name="string" select="concat('-',substring-after($string, $lf_dash))" />
             </xsl:call-template>
         </xsl:when>
         <xsl:otherwise>
             <para>
-	    <xsl:value-of select="'&#xA;'"/>
-	    <xsl:value-of select="$string"/>
-	    <xsl:value-of select="'&#xA;'"/>
+            <xsl:value-of select="'&#xA;'"/>
+            <xsl:value-of select="$string"/>
+            <xsl:value-of select="'&#xA;'"/>
             </para>
-	    <xsl:value-of select="'&#xA;'"/>
+            <xsl:value-of select="'&#xA;'"/>
         </xsl:otherwise>
     </xsl:choose>
     </xsl:otherwise>
@@ -218,14 +218,14 @@
     <refsection>
       <title>Supported Parameters</title>
       <xsl:choose>
-	<xsl:when test="parameters">
-	  <xsl:apply-templates mode="parameters"/>
-	</xsl:when>
-	<xsl:otherwise>
-	  <para>
-	    <xsl:text>This resource agent does not support any parameters.</xsl:text>
-	  </para>
-	</xsl:otherwise>
+        <xsl:when test="parameters">
+          <xsl:apply-templates mode="parameters"/>
+        </xsl:when>
+        <xsl:otherwise>
+          <para>
+            <xsl:text>This resource agent does not support any parameters.</xsl:text>
+          </para>
+        </xsl:otherwise>
       </xsl:choose>
     </refsection>
   </xsl:template>
@@ -245,10 +245,10 @@
       <option><xsl:value-of select="concat($variable.prefix, @name)"/></option>
     </term>
     <listitem>
-	<xsl:apply-templates select="longdesc" mode="parameters"/>
-	<para>
-	<xsl:apply-templates select="content" mode="parameters"/>
-	</para>
+        <xsl:apply-templates select="longdesc" mode="parameters"/>
+        <para>
+        <xsl:apply-templates select="content" mode="parameters"/>
+        </para>
     </listitem>
    </varlistentry>
   </xsl:template>
@@ -265,45 +265,45 @@
     <xsl:if test="@type != '' or @default != ''">
       <xsl:text> (</xsl:text>
       <xsl:if test="../@unique = 1">
-	<xsl:text>unique, </xsl:text>
+        <xsl:text>unique, </xsl:text>
       </xsl:if>
       <xsl:choose>
-	<xsl:when test="../@required = 1">
-	  <xsl:text>required</xsl:text>
-	</xsl:when>
-	<xsl:otherwise>
-	  <xsl:text>optional</xsl:text>
-	</xsl:otherwise>
+        <xsl:when test="../@required = 1">
+          <xsl:text>required</xsl:text>
+        </xsl:when>
+        <xsl:otherwise>
+          <xsl:text>optional</xsl:text>
+        </xsl:otherwise>
       </xsl:choose>
       <xsl:text>, </xsl:text>
       <xsl:if test="@parameter != ''">
-	<xsl:value-of select="@type"/>
-	<xsl:text>, </xsl:text>
+        <xsl:value-of select="@type"/>
+        <xsl:text>, </xsl:text>
       </xsl:if>
       <xsl:if test="@type != ''">
-	<xsl:value-of select="@type"/>
-	<xsl:text>, </xsl:text>
+        <xsl:value-of select="@type"/>
+        <xsl:text>, </xsl:text>
       </xsl:if>
       <xsl:choose>
-	  <xsl:when test="@default != ''">
-	    <xsl:text>default </xsl:text>
-	    <xsl:if test="@type = 'string'">
-	      <xsl:text>&quot;</xsl:text>
-	    </xsl:if>
-	    <code>
-	      <xsl:value-of select="@default"/>
-	    </code>
-	    <xsl:if test="@type = 'string'">
-	      <xsl:text>&quot;</xsl:text>
-	    </xsl:if>
-	  </xsl:when>
-	  <xsl:when test="@type='boolean' and @default = ''">
-	    <xsl:text>default </xsl:text>
-	    <code>false</code>
-	  </xsl:when>
-	  <xsl:otherwise>
-	    <xsl:text>no default</xsl:text>
-	  </xsl:otherwise>
+          <xsl:when test="@default != ''">
+            <xsl:text>default </xsl:text>
+            <xsl:if test="@type = 'string'">
+              <xsl:text>&quot;</xsl:text>
+            </xsl:if>
+            <code>
+              <xsl:value-of select="@default"/>
+            </code>
+            <xsl:if test="@type = 'string'">
+              <xsl:text>&quot;</xsl:text>
+            </xsl:if>
+          </xsl:when>
+          <xsl:when test="@type='boolean' and @default = ''">
+            <xsl:text>default </xsl:text>
+            <code>false</code>
+          </xsl:when>
+          <xsl:otherwise>
+            <xsl:text>no default</xsl:text>
+          </xsl:otherwise>
       </xsl:choose>
       <xsl:text>)</xsl:text>
     </xsl:if>
@@ -315,16 +315,16 @@
     <refsection>
       <title>Supported Actions</title>
       <xsl:choose>
-	<xsl:when test="actions">
-	  <xsl:apply-templates select="actions" mode="actions"/>
-	</xsl:when>
-	<xsl:otherwise>
-	  <!-- This should actually never happen. Every RA must
-	       advertise the actions it supports. -->
-	  <para>
-	    <xsl:text>This resource agent does not advertise any supported actions.</xsl:text>
-	  </para>
-	</xsl:otherwise>
+        <xsl:when test="actions">
+          <xsl:apply-templates select="actions" mode="actions"/>
+        </xsl:when>
+        <xsl:otherwise>
+          <!-- This should actually never happen. Every RA must
+               advertise the actions it supports. -->
+          <para>
+            <xsl:text>This resource agent does not advertise any supported actions.</xsl:text>
+          </para>
+        </xsl:otherwise>
       </xsl:choose>
     </refsection>
   </xsl:template>
@@ -340,64 +340,64 @@
    <varlistentry>
     <term>
       <option>
-	<xsl:value-of select="@name"/>
-	<xsl:if test="@role != ''">
-	  <xsl:text> (</xsl:text>
-	  <xsl:value-of select="@role"/>
-	  <xsl:text> role)</xsl:text>
-	</xsl:if>
+        <xsl:value-of select="@name"/>
+        <xsl:if test="@role != ''">
+          <xsl:text> (</xsl:text>
+          <xsl:value-of select="@role"/>
+          <xsl:text> role)</xsl:text>
+        </xsl:if>
       </option>
     </term>
     <listitem>
       <para>
-	<xsl:choose>
-	  <xsl:when test="@name = 'start'">
-	    <xsl:text>Starts the resource.</xsl:text>
-	  </xsl:when>
-	  <xsl:when test="@name = 'stop'">
-	    <xsl:text>Stops the resource.</xsl:text>
-	  </xsl:when>
-	  <xsl:when test="@name = 'status'">
-	    <xsl:text>Performs a status check.</xsl:text>
-	  </xsl:when>
-	  <xsl:when test="@name = 'monitor'">
-	    <xsl:text>Performs a detailed status check.</xsl:text>
-	  </xsl:when>
-	  <xsl:when test="@name = 'promote'">
-	    <xsl:text>Promotes the resource to the Master role.</xsl:text>
-	  </xsl:when>
-	  <xsl:when test="@name = 'demote'">
-	    <xsl:text>Demotes the resource to the Slave role.</xsl:text>
-	  </xsl:when>
-	  <xsl:when test="@name = 'migrate_from'">
-	    <xsl:text>Executes steps necessary for migrating the
-	    resource </xsl:text>
-	    <emphasis>away from</emphasis>
-	    <xsl:text> the node.</xsl:text>
-	  </xsl:when>
-	  <xsl:when test="@name = 'migrate_to'">
-	    <xsl:text>Executes steps necessary for migrating the
-	    resource </xsl:text>
-	    <emphasis>to</emphasis>
-	    <xsl:text> the node.</xsl:text>
-	  </xsl:when>
-	  <xsl:when test="@name = 'validate-all'">
-	    <xsl:text>Performs a validation of the resource configuration.</xsl:text>
-	  </xsl:when>
-	  <xsl:when test="@name = 'meta-data'">
-	    <xsl:text>Retrieves resource agent metadata (internal use only).</xsl:text>
-	  </xsl:when>
-	</xsl:choose>
-	<xsl:if test="@timeout != ''">
-	  <xsl:text> Suggested minimum timeout: </xsl:text>
-	  <xsl:value-of select="@timeout"/>
-	  <xsl:text>.</xsl:text>
-	</xsl:if>
-	<xsl:if test="@interval != ''">
-	  <xsl:text> Suggested interval: </xsl:text>
-	  <xsl:value-of select="@interval"/>
-	  <xsl:text>.</xsl:text>
-	</xsl:if>
+        <xsl:choose>
+          <xsl:when test="@name = 'start'">
+            <xsl:text>Starts the resource.</xsl:text>
+          </xsl:when>
+          <xsl:when test="@name = 'stop'">
+            <xsl:text>Stops the resource.</xsl:text>
+          </xsl:when>
+          <xsl:when test="@name = 'status'">
+            <xsl:text>Performs a status check.</xsl:text>
+          </xsl:when>
+          <xsl:when test="@name = 'monitor'">
+            <xsl:text>Performs a detailed status check.</xsl:text>
+          </xsl:when>
+          <xsl:when test="@name = 'promote'">
+            <xsl:text>Promotes the resource to the Master role.</xsl:text>
+          </xsl:when>
+          <xsl:when test="@name = 'demote'">
+            <xsl:text>Demotes the resource to the Slave role.</xsl:text>
+          </xsl:when>
+          <xsl:when test="@name = 'migrate_from'">
+            <xsl:text>Executes steps necessary for migrating the
+            resource </xsl:text>
+            <emphasis>away from</emphasis>
+            <xsl:text> the node.</xsl:text>
+          </xsl:when>
+          <xsl:when test="@name = 'migrate_to'">
+            <xsl:text>Executes steps necessary for migrating the
+            resource </xsl:text>
+            <emphasis>to</emphasis>
+            <xsl:text> the node.</xsl:text>
+          </xsl:when>
+          <xsl:when test="@name = 'validate-all'">
+            <xsl:text>Performs a validation of the resource configuration.</xsl:text>
+          </xsl:when>
+          <xsl:when test="@name = 'meta-data'">
+            <xsl:text>Retrieves resource agent metadata (internal use only).</xsl:text>
+          </xsl:when>
+        </xsl:choose>
+        <xsl:if test="@timeout != ''">
+          <xsl:text> Suggested minimum timeout: </xsl:text>
+          <xsl:value-of select="@timeout"/>
+          <xsl:text>.</xsl:text>
+        </xsl:if>
+        <xsl:if test="@interval != ''">
+          <xsl:text> Suggested interval: </xsl:text>
+          <xsl:value-of select="@interval"/>
+          <xsl:text>.</xsl:text>
+        </xsl:if>
       </para>
     </listitem>
    </varlistentry>
@@ -409,51 +409,51 @@
     <refsection>
       <title>Example CRM Shell</title>
       <para>
-	<xsl:text>The following is an example configuration for a </xsl:text>
-	<xsl:value-of select="@name"/>
-	<xsl:text> resource using the </xsl:text>
-	<citerefentry><refentrytitle>crm</refentrytitle><manvolnum>8</manvolnum></citerefentry>
-	<xsl:text> shell:</xsl:text>
+        <xsl:text>The following is an example configuration for a </xsl:text>
+        <xsl:value-of select="@name"/>
+        <xsl:text> resource using the </xsl:text>
+        <citerefentry><refentrytitle>crm</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+        <xsl:text> shell:</xsl:text>
       </para>
       <programlisting>
-	<xsl:text>primitive p_</xsl:text>
-	<xsl:value-of select="@name"/>
-	<xsl:text> </xsl:text>
-	<xsl:value-of select="$class"/>
-	<xsl:text>:</xsl:text>
-	<xsl:value-of select="$provider"/>
-	<xsl:text>:</xsl:text>
-	<xsl:choose>
-	  <xsl:when test="parameters/parameter[@required = 1]">
-	    <xsl:value-of select="@name"/>
-	    <xsl:text> \
+        <xsl:text>primitive p_</xsl:text>
+        <xsl:value-of select="@name"/>
+        <xsl:text> </xsl:text>
+        <xsl:value-of select="$class"/>
+        <xsl:text>:</xsl:text>
+        <xsl:value-of select="$provider"/>
+        <xsl:text>:</xsl:text>
+        <xsl:choose>
+          <xsl:when test="parameters/parameter[@required = 1]">
+            <xsl:value-of select="@name"/>
+            <xsl:text> \
   params \
 </xsl:text>
-	    <xsl:apply-templates select="parameters" mode="examplecrmsh"/>
-	  </xsl:when>
-	  <xsl:otherwise>
-	  <xsl:value-of select="@name"/><xsl:text> \</xsl:text>
-	  </xsl:otherwise>
-	</xsl:choose>
-	<!-- Insert a suggested allow-migrate meta attribute if the
-	     resource agent supports migration -->
-	<xsl:if test="actions/action[@name = 'migrate_from' or @name = 'migrate_to']">
-	  <xsl:text>
+            <xsl:apply-templates select="parameters" mode="examplecrmsh"/>
+          </xsl:when>
+          <xsl:otherwise>
+          <xsl:value-of select="@name"/><xsl:text> \</xsl:text>
+          </xsl:otherwise>
+        </xsl:choose>
+        <!-- Insert a suggested allow-migrate meta attribute if the
+             resource agent supports migration -->
+        <xsl:if test="actions/action[@name = 'migrate_from' or @name = 'migrate_to']">
+          <xsl:text>
   meta allow-migrate="true" \</xsl:text>
-	</xsl:if>
-	<xsl:apply-templates select="actions" mode="examplecrmsh"/>
+        </xsl:if>
+        <xsl:apply-templates select="actions" mode="examplecrmsh"/>
       </programlisting>
       <!-- Insert a master/slave set definition if the resource
       agent supports promotion and demotion -->
       <xsl:if test="actions/action/@name = 'promote' and actions/action/@name = 'demote'">
-	<programlisting>
-	  <xsl:text>ms ms_</xsl:text>
-	  <xsl:value-of select="@name"/>
-	  <xsl:text> p_</xsl:text>
-	  <xsl:value-of select="@name"/>
-	<xsl:text> \
+        <programlisting>
+          <xsl:text>ms ms_</xsl:text>
+          <xsl:value-of select="@name"/>
+          <xsl:text> p_</xsl:text>
+          <xsl:value-of select="@name"/>
+        <xsl:text> \
   meta notify="true" interleave="true"</xsl:text>
-	</programlisting>
+        </programlisting>
       </xsl:if>
     </refsection>
   </xsl:template>
@@ -477,12 +477,12 @@
   <xsl:template match="content" mode="examplecrmsh">
     <xsl:choose>
       <xsl:when test="@default != ''">
-	<xsl:text>"</xsl:text>
-	<xsl:value-of select="@default"/>
-	<xsl:text>"</xsl:text>
+        <xsl:text>"</xsl:text>
+        <xsl:value-of select="@default"/>
+        <xsl:text>"</xsl:text>
       </xsl:when>
       <xsl:otherwise>
-	<replaceable><xsl:value-of select="@type"/></replaceable>
+        <replaceable><xsl:value-of select="@type"/></replaceable>
       </xsl:otherwise>
     </xsl:choose>
   </xsl:template>
@@ -507,10 +507,10 @@
     <xsl:choose>
       <xsl:when test="name() = 'name'"><!-- suppress --></xsl:when>
       <xsl:otherwise>
-	<xsl:value-of select="name()"/>
-	<xsl:text>="</xsl:text>
-	<xsl:value-of select="current()"/>
-	<xsl:text>" </xsl:text>
+        <xsl:value-of select="name()"/>
+        <xsl:text>="</xsl:text>
+        <xsl:value-of select="current()"/>
+        <xsl:text>" </xsl:text>
       </xsl:otherwise>
     </xsl:choose>
     <xsl:if test="following-sibling::*">
@@ -527,36 +527,36 @@
     <refsection>
       <title>Example PCS</title>
       <para>
-	<xsl:text>The following is an example configuration for a </xsl:text>
-	<xsl:value-of select="@name"/>
-	<xsl:text> resource using </xsl:text>
-	<citerefentry><refentrytitle>pcs</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+        <xsl:text>The following is an example configuration for a </xsl:text>
+        <xsl:value-of select="@name"/>
+        <xsl:text> resource using </xsl:text>
+        <citerefentry><refentrytitle>pcs</refentrytitle><manvolnum>8</manvolnum></citerefentry>
       </para>
       <programlisting>
-	<xsl:text>pcs resource create p_</xsl:text>
-	<xsl:value-of select="@name"/>
-	<xsl:text> </xsl:text>
-	<xsl:value-of select="$class"/>
-	<xsl:text>:</xsl:text>
-	<xsl:value-of select="$provider"/>
-	<xsl:text>:</xsl:text>
-	<xsl:choose>
-	  <xsl:when test="parameters/parameter[@required = 1]">
-	    <xsl:value-of select="@name"/>
-	    <xsl:text> \
+        <xsl:text>pcs resource create p_</xsl:text>
+        <xsl:value-of select="@name"/>
+        <xsl:text> </xsl:text>
+        <xsl:value-of select="$class"/>
+        <xsl:text>:</xsl:text>
+        <xsl:value-of select="$provider"/>
+        <xsl:text>:</xsl:text>
+        <xsl:choose>
+          <xsl:when test="parameters/parameter[@required = 1]">
+            <xsl:value-of select="@name"/>
+            <xsl:text> \
 </xsl:text>
-	    <xsl:apply-templates select="parameters" mode="examplepcs"/>
-	  </xsl:when>
-	  <xsl:otherwise>
-	  <xsl:value-of select="@name"/><xsl:text> \</xsl:text>
-	  </xsl:otherwise>
-	</xsl:choose>
-	<xsl:apply-templates select="actions" mode="examplepcs"/>
+            <xsl:apply-templates select="parameters" mode="examplepcs"/>
+          </xsl:when>
+          <xsl:otherwise>
+          <xsl:value-of select="@name"/><xsl:text> \</xsl:text>
+          </xsl:otherwise>
+        </xsl:choose>
+        <xsl:apply-templates select="actions" mode="examplepcs"/>
 
      <!-- Insert a master/slave set definition if the resource
       agent supports promotion and demotion -->
       <xsl:if test="actions/action/@name = 'promote' and actions/action/@name = 'demote'">
-	  <xsl:text>--master</xsl:text>
+          <xsl:text>--master</xsl:text>
       </xsl:if>
       </programlisting>
 
@@ -582,12 +582,12 @@
   <xsl:template match="content" mode="examplepcs">
     <xsl:choose>
       <xsl:when test="@default != ''">
-	<xsl:text>"</xsl:text>
-	<xsl:value-of select="@default"/>
-	<xsl:text>"</xsl:text>
+        <xsl:text>"</xsl:text>
+        <xsl:value-of select="@default"/>
+        <xsl:text>"</xsl:text>
       </xsl:when>
       <xsl:otherwise>
-	<replaceable><xsl:value-of select="@type"/></replaceable>
+        <replaceable><xsl:value-of select="@type"/></replaceable>
       </xsl:otherwise>
     </xsl:choose>
   </xsl:template>
@@ -612,10 +612,10 @@
     <xsl:choose>
       <xsl:when test="name() = 'name'"><!-- suppress --></xsl:when>
       <xsl:otherwise>
-	<xsl:value-of select="name()"/>
-	<xsl:text>="</xsl:text>
-	<xsl:value-of select="current()"/>
-	<xsl:text>" </xsl:text>
+        <xsl:value-of select="name()"/>
+        <xsl:text>="</xsl:text>
+        <xsl:value-of select="current()"/>
+        <xsl:text>" </xsl:text>
       </xsl:otherwise>
     </xsl:choose>
     <xsl:if test="following-sibling::*">
@@ -630,13 +630,11 @@
     <refsection>
       <title>See also</title>
       <para>
-	<ulink>
-	  <xsl:attribute name="url">
-	    <xsl:text>http://www.linux-ha.org/wiki/</xsl:text>
-	    <xsl:value-of select="@name"/>
-	    <xsl:text>_(resource_agent)</xsl:text>
-	  </xsl:attribute>
-	</ulink>
+        <ulink>
+          <xsl:attribute name="url">
+            <xsl:text>http://clusterlabs.org/</xsl:text>
+          </xsl:attribute>
+        </ulink>
       </para>
     </refsection>
   </xsl:template>

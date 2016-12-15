@@ -11,7 +11,7 @@
 # Description:	given parameters of a service name and start|stop|status,
 #		will enable, disable or report on a specified xinetd service
 # Config:	all services must have a descriptor file in /etc/xinetd.d
-# Support:	linux-ha@lists.linux-ha.org
+# Support:	users@clusterlabs.org
 # License:	GNU General Public License (GPL)
 #
 #	  OCF parameters are as below:
