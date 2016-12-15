@@ -79,31 +79,35 @@ BuildRequires:  libxslt docbook_4 docbook-xsl-stylesheets
 %endif
 
 ## Runtime deps
-## These apply to rgmanager agents only to guarantee agents
-## are functional
-%if %{with rgmanager}
 # system tools shared by several agents
 Requires: /bin/bash /bin/grep /bin/sed /bin/gawk
 Requires: /bin/ps /usr/bin/pkill /bin/hostname /bin/netstat
-Requires: /sbin/fuser
-Requires: /sbin/findfs /bin/mount
+Requires: /sbin/fuser /bin/mount
 
-# fs.sh
-Requires: /sbin/quotaon /sbin/quotacheck
+# Filesystem / fs.sh / netfs.sh
 Requires: /sbin/fsck
 Requires: /sbin/fsck.ext2 /sbin/fsck.ext3 /sbin/fsck.ext4
 Requires: /sbin/fsck.xfs
+Requires: /sbin/mount.nfs /sbin/mount.nfs4 /sbin/mount.cifs
 
-# ip.sh
-Requires: /sbin/ip /usr/sbin/ethtool
-Requires: /sbin/rdisc /usr/sbin/arping /bin/ping /bin/ping6
+# IPaddr2
+Requires: /sbin/ip
 
-# lvm.sh
+# LVM / lvm.sh
 Requires: /sbin/lvm
 
-# netfs.sh
-Requires: /sbin/mount.nfs /sbin/mount.nfs4 /sbin/mount.cifs
+# nfsserver / netfs.sh
 Requires: /usr/sbin/rpc.nfsd /sbin/rpc.statd /usr/sbin/rpc.mountd
+
+# rgmanager
+%if %{with rgmanager}
+# ip.sh
+Requires: /usr/sbin/ethtool
+Requires: /sbin/rdisc /usr/sbin/arping /bin/ping /bin/ping6
+
+#nfsexport.sh
+Requires: /sbin/findfs 
+Requires: /sbin/quotaon /sbin/quotacheck
 %endif
 
 %description
