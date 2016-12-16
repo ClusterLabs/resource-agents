@@ -43,6 +43,7 @@ elif have_binary lio_node; then
 	OCF_RESKEY_implementation_default="lio"
 elif have_binary targetcli; then
 	OCF_RESKEY_implementation_default="lio-t"
+	targetcli_safe=${OCF_FUNCTIONS_DIR}/targetcli_safe
 fi
 : ${OCF_RESKEY_implementation=${OCF_RESKEY_implementation_default}}
 
@@ -373,16 +374,16 @@ iSCSILogicalUnit_start() {
 	lio-t)
 		# For lio, we first have to create a target device, then
 		# add it to the Target Portal Group as an LU.
-		ocf_run targetcli /backstores/block create name=${OCF_RESOURCE_INSTANCE} dev=${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
+		ocf_run $targetcli_safe /backstores/block create name=${OCF_RESOURCE_INSTANCE} dev=${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
 		if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
 			echo ${OCF_RESKEY_scsi_sn} > /sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE}/wwn/vpd_unit_serial
 		fi
-		ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns create /backstores/block/${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+		ocf_run $targetcli_safe /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns create /backstores/block/${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
 
 		if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
 			for initiator in ${OCF_RESKEY_allowed_initiators}; do
-				ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls create ${initiator} add_mapped_luns=False || exit $OCF_ERR_GENERIC
-				ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/${initiator} create ${OCF_RESKEY_lun} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+				ocf_run $targetcli_safe /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls create ${initiator} add_mapped_luns=False || exit $OCF_ERR_GENERIC
+				ocf_run $targetcli_safe /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/${initiator} create ${OCF_RESKEY_lun} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
 			done
 		fi
 		;;
@@ -442,11 +443,11 @@ iSCSILogicalUnit_stop() {
 	lio-t)
 		# "targetcli delete" will fail if the LUN is already
 		# gone. Log a warning and still push ahead.
-		ocf_run -warn targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns delete ${OCF_RESKEY_lun}
+		ocf_run -warn $targetcli_safe /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns delete ${OCF_RESKEY_lun}
 		if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
 			for initiator in ${OCF_RESKEY_allowed_initiators}; do
-				if targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/${initiator} status | grep "Mapped LUNs: 0" >/dev/null ; then
-					ocf_run -warn targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/ delete ${initiator}
+				if $targetcli_safe /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/${initiator} status | grep "Mapped LUNs: 0" >/dev/null ; then
+					ocf_run -warn $targetcli_safe /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/ delete ${initiator}
 				fi
 			done
 		fi
@@ -455,7 +456,7 @@ iSCSILogicalUnit_stop() {
 		# delete the backstore, then something is seriously
 		# wrong and we need to fail the stop operation
 		# (potentially causing fencing)
-		ocf_run targetcli /backstores/block delete ${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
+		ocf_run $targetcli_safe /backstores/block delete ${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
 		;;
 	esac
 

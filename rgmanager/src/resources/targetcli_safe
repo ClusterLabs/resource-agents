@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+#     targetcli safe invokation. Avoids concurrent use of targetcli.
+#
+# Copyright (C) 2016 Universidad de La Laguna. All Rights Reserved.
+
+if [ -z "$OCF_ROOT" ]; then
+    : ${OCF_ROOT=/usr/lib/ocf}
+fi
+
+if [ "$OCF_FUNCTIONS_DIR" = ${OCF_ROOT}/resource.d/heartbeat ]; then  # old
+        unset OCF_FUNCTIONS_DIR
+fi
+
+: ${OCF_FUNCTIONS_DIR:=${OCF_ROOT}/lib/heartbeat}
+
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+
+function __trap_error() {
+  ha_log "ERROR: targetcli_safe lock aborted."
+  exit $OCF_ERR_GENERIC
+}
+
+
+# lock and retry until fd is released
+function __lock() {
+  local -r LOCKNAME=$1
+  local -r LOCKFILE_DIR=/var/lock
+  # lock file descriptor
+  local -r LOCK_FD=200
+  local lock_file=$LOCKFILE_DIR/$LOCKNAME.lock
+  local rnd=$(ocf_maybe_random)
+
+  # lock file
+  eval "exec $LOCK_FD>$lock_file"
+  
+  flock -n $LOCK_FD
+
+  # retry until lock is released
+  while [ $? -ne 0 ]
+  do
+    ocf_log info "Sleeping until $lock_file is released..."
+    sleep 0.$rnd
+    flock -n $LOCK_FD
+  done
+}
+
+function targetcli_safe() {
+  trap __trap_error SIGINT SIGTERM
+  __lock targetcli_safe
+  # invoke targetcli with original arguments
+  targetcli $@
+}
+
+
+targetcli_safe $@
