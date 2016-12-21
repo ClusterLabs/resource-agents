@@ -778,7 +778,7 @@ ocf_mkstatedir()
 	[ $(id -u) = 0 ] || return 1
 
 	case $path in
-	$HA_VARRUN/*) : this path is ok ;;
+	${HA_VARRUN%/}/*) : this path is ok ;;
 	*) ocf_log err "cannot create $path (does not start with $HA_VARRUN)"
 		return 1
 	;;
