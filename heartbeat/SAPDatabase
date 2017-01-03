@@ -10,7 +10,7 @@
 # License:      GNU General Public License (GPL)
 # Copyright:    (c) 2006, 2007, 2010, 2012 Alexander Krauth
 #
-# An example usage: 
+# An example usage:
 #      See usage() function below for more details...
 #
 # OCF instance parameters:
@@ -47,7 +47,7 @@ SH=/bin/sh
 usage() {
   methods=`sapdatabase_methods`
   methods=`echo $methods | tr ' ' '|'`
-  cat <<-!
+  cat <<-EOF
 	usage: $0 ($methods)
 
 	$0 manages a SAP database of any type as an HA resource.
@@ -62,7 +62,7 @@ usage() {
 	The 'validate-all' operation reports whether the parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
-	!
+	EOF
 }
 
 meta_data() {
@@ -83,7 +83,7 @@ The resource agent supports the following databases:
 - DB/2 UDB for Windows and Unix 9.x
 - SAP-DB / MaxDB 7.x
 - Sybase ASE 15.7
-- SAP HANA Database since 1.00 - with SAP node 1625203 (http://sdn.sap.com)
+- SAP HANA Database since 1.00 - with SAP note 1625203 (http://sdn.sap.com)
 
 In fact this resource agent does not run any database commands directly. It uses the SAP standard process SAPHostAgent to control the database.
 The SAPHostAgent must be installed on each cluster node locally. It will not work, if you try to run the SAPHostAgent also as a HA resource.
@@ -206,7 +206,7 @@ END
 # methods: What methods/operations do we support?
 #
 sapdatabase_methods() {
-  cat <<-!
+  cat <<-EOF
 	start
 	stop
 	status
@@ -216,7 +216,7 @@ sapdatabase_methods() {
 	methods
 	meta-data
 	usage
-	!
+	EOF
 }
 
 
@@ -287,7 +287,7 @@ case "$1" in
   *);;
 esac
 
-if  ! ocf_is_root 
+if  ! ocf_is_root
 then
   ocf_log err "$0 must be run as root"
   exit $OCF_ERR_PERM
@@ -320,9 +320,9 @@ fi
 sapdatabase_init
 
 
-# we always want to fall to the faster status method in case of a probe by the cluster  
+# we always want to fall to the faster status method in case of a probe by the cluster
 ACTION=$1
-if ocf_is_probe 
+if ocf_is_probe
 then
   ACTION=status
 fi
