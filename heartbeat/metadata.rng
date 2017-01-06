@@ -1,0 +1,91 @@
+<grammar xmlns="http://relaxng.org/ns/structure/1.0">
+
+<start><element name="resource-agent">
+	<attribute name="name" />
+	<element name="version"> <text /> </element>
+	<element name="longdesc"> <attribute name="lang" /> <text /> </element>
+	<element name="shortdesc"> <attribute name="lang" /> <text /> </element>
+
+	<element name="parameters"> <oneOrMore>
+		<element name="parameter">
+			<attribute name="name" />
+			<optional>
+			<attribute name="unique"> <ref name="boolean-values" /> </attribute>
+			</optional>
+			<optional>
+				<attribute name="required"> <ref name="boolean-values" /> </attribute>
+			</optional>
+
+			<element name="longdesc">
+				<attribute name="lang" />
+				<text />
+			</element>
+
+			<element name="shortdesc">
+				<attribute name="lang" />
+				<text />
+			</element>
+
+			<element name="content">
+				<choice>
+					<attribute name="type">
+						<choice>
+							<value>boolean</value>
+							<value>string</value>
+							<value>second</value>
+							<value>integer</value>
+						</choice>
+					</attribute>
+					<group>
+						<attribute name="type">
+							<value>select</value>
+						</attribute>
+						<zeroOrMore>
+							<element name="option">
+								<attribute name="value" />
+							</element>
+						</zeroOrMore>
+					</group>
+				</choice>
+				<optional>
+					<attribute name="default"> <text /> </attribute>
+				</optional>
+			</element>
+		</element>
+	</oneOrMore> </element>
+
+	<element name="actions"> <oneOrMore>
+		<element name="action">
+			<attribute name="name" />
+			<optional>
+				<attribute name="depth" />
+			</optional>
+			<attribute name="timeout" />
+			<optional>
+				<attribute name="interval" />
+			</optional>
+			<optional>
+				<attribute name="start-delay" />
+			</optional>
+			<optional>
+				<attribute name="role"> <ref name="role-values" /> </attribute>
+			</optional>
+		</element>
+	</oneOrMore> </element>
+</element></start>
+
+<define name="boolean-values">
+	<choice>
+		<value>0</value>
+		<value>1</value>
+	</choice>
+</define>
+
+<define name="role-values">
+	<choice>
+		<value>Master</value>
+		<value>Slave</value>
+	</choice>
+</define>
+
+</grammar>

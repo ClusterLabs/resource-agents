@@ -72,7 +72,6 @@ meta_data() {
 <resource-agent name="SAPDatabase">
 <version>2.14</version>
 
-<shortdesc lang="en">Manages a SAP database instance as an HA resource.</shortdesc>
 <longdesc lang="en">
 Resource script for SAP databases. It manages a SAP database of any type as an HA resource.
 
@@ -93,6 +92,7 @@ Release: 7.20
 Patch Number: 90
 or compile time after: Dec 17 2011
 </longdesc>
+<shortdesc lang="en">Manages a SAP database instance as an HA resource.</shortdesc>
 <parameters>
  <parameter name="SID" unique="1" required="1">
   <longdesc lang="en">The unique database system identifier. e.g. P01</longdesc>

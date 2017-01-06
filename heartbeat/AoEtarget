@@ -48,7 +48,7 @@ meta_data() {
     cat <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="AoEtarget" version="0.1">
+<resource-agent name="AoEtarget">
   <version>1.0</version>
   <longdesc lang="en">
 This resource agent manages an ATA-over-Ethernet (AoE) target using vblade.

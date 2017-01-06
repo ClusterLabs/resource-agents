@@ -161,9 +161,7 @@ The action (block/unblock) to be done on the protocol::portno.
 </parameter>
 
 <parameter name="reset_local_on_unblock_stop" unique="0" required="0">
-<content type="boolean" default="${OCF_RESKEY_reset_local_on_unblock_stop_default}" />
-<shortdesc lang="en">(try to) reset server TCP sessions when unblock stops</shortdesc>
-<longdesc>
+<longdesc lang="en">
 If for some reason the long lived server side TCP sessions won't be cleaned up
 by a reconfiguration/flush/stop of whatever services this portblock protects,
 they would linger in the connection table, even after the IP is gone
@@ -178,6 +176,8 @@ by injecting a temporary iptables rule to TCP-reset outgoing packets from the
 blocked ports, and additionally tickle them locally,
 just before it starts to DROP incoming packets on "unblock stop".
 </longdesc>
+<shortdesc lang="en">(try to) reset server TCP sessions when unblock stops</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_reset_local_on_unblock_stop_default}" />
 </parameter>
 
 <parameter name="ip" unique="0" required="0">

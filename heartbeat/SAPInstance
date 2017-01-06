@@ -74,7 +74,6 @@ sapinstance_meta_data() {
 <resource-agent name="SAPInstance">
 <version>2.14</version>
 
-<shortdesc lang="en">Manages a SAP instance as an HA resource.</shortdesc>
 <longdesc lang="en">
 Usually a SAP system consists of one database and at least one or more SAP instances (sometimes called application servers). One SAP Instance is defined by having exactly one instance profile. The instance profiles can usually be found in the directory /sapmnt/SID/profile. Each instance must be configured as it's own resource in the cluster configuration.
 The resource agent supports the following SAP versions:
@@ -95,6 +94,7 @@ sapstartsrv knows 4 status colours:
 The SAPInstance resource agent will interpret GREEN and YELLOW as OK. That means that minor problems will not be reported to the Heartbeat cluster. This prevents the cluster from doing an unwanted failover.
 The statuses RED and GRAY are reported as NOT_RUNNING to the cluster. Depending on the status the cluster expects from the resource, it will do a restart, failover or just nothing.
 </longdesc>
+<shortdesc lang="en">Manages a SAP instance as an HA resource.</shortdesc>
 <parameters>
  <parameter name="InstanceName" unique="1" required="1">
   <longdesc lang="en">The full qualified SAP instance name. e.g. P01_DVEBMGS00_sapp01ci. Usually this is the name of the SAP instance profile.</longdesc>

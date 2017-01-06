@@ -163,3 +163,8 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 # Legacy locations
 hbdir			= $(sysconfdir)/ha.d
 hb_DATA			= shellfuncs
+
+check: $(ocf_SCRIPTS:=.check)
+
+%.check: %
+	OCF_ROOT=. OCF_FUNCTIONS_DIR=. ./$< meta-data | xmllint --noout --relaxng metadata.rng -

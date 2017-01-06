@@ -83,7 +83,7 @@ dhcpd_meta_data()  {
         cat <<EOF
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="dhcpd" version="0.1">
+<resource-agent name="dhcpd">
   <version>0.1</version>
   <longdesc lang="en">
 Manage an ISC DHCP server service in a chroot environment.

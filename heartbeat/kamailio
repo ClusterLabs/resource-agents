@@ -80,7 +80,7 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="kamailio" version="1.0">
+<resource-agent name="kamailio">
 <version>1.0</version>
 
 <longdesc lang="en">

@@ -46,7 +46,7 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="pound" version="0.1">
+<resource-agent name="pound">
 <version>1.0</version>
 
 <longdesc lang="en">

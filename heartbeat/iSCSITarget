@@ -56,7 +56,7 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="iSCSITarget" version="0.9">
+<resource-agent name="iSCSITarget">
 <version>0.9</version>
 
 <longdesc lang="en">

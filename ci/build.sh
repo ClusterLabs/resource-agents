@@ -76,6 +76,6 @@ check_all_executables() {
 
 ./autogen.sh
 ./configure
-make
+make check
 [ $? ] || failed=$((failed + 1))
 check_all_executables

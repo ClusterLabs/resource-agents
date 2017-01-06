@@ -52,7 +52,7 @@ pgagent_start() {
         pgagent_validate_all
         nohup su - $OCF_RESKEY_user -c "'$OCF_RESKEY_executable' $OCF_RESKEY_options '$OCF_RESKEY_connection_string'" > /dev/null 2>&1 &
         sleep 1
-        if [ -n pgagent_monitor ]; then
+        if pgagent_monitor; then
                 return $OCF_SUCCESS
         fi
         return $OCF_ERR_GENERIC
@@ -79,7 +79,7 @@ meta_data() {
         cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="pgagent" version="1.0">
+<resource-agent name="pgagent">
 <version>1.0</version>
 <longdesc lang="en">This is a pgagent Resource Agent.</longdesc>
 <shortdesc lang="en">Controls pgagent</shortdesc>
