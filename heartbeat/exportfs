@@ -247,6 +247,10 @@ is_exported() {
 	local dir=$1
 	local spec=$2
 	local rc
+
+	# IPv6 addresses are encased in brackets that need to be removed
+	spec=$(echo $spec | sed 's/\[//;s/\]//')
+
 	format_exports | grep -q -x -F "$dir $spec"
 	rc=$?
 	if [ $rc -ne 0 -a "$spec" = "*" ]; then
