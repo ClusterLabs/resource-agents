@@ -363,7 +363,7 @@ ip_init() {
 		exit $OCF_ERR_INSTALLED
 	fi
 
-	if [ X"$OCF_RESKEY_ip" = "X" ]; then
+	if [ X"$OCF_RESKEY_ip" = "X" ] && [ "$__OCF_ACTION" != "stop" ]; then
 		ocf_exit_reason "IP address (the ip parameter) is mandatory"
 		exit $OCF_ERR_CONFIGURED
 	fi
