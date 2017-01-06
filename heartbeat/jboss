@@ -345,7 +345,7 @@ The version of JBoss. Default is 5.
 The usage of JBoss was greatly changed as of JBoss 6.
 Specify "6" when you use JBoss 6.
 </longdesc>
-<shortdesc>The version of JBoss</shortdesc>
+<shortdesc lang="en">The version of JBoss</shortdesc>
 <content type="integer" default="5" />
 </parameter>
 
@@ -354,7 +354,7 @@ Specify "6" when you use JBoss 6.
 The name of the resource. Defaults to the name of the resource
 instance.
 </longdesc>
-<shortdesc>The name of the resource</shortdesc>
+<shortdesc lang="en">The name of the resource</shortdesc>
 <content type="string" default="${OCF_RESOURCE_INSTANCE}" />
 </parameter>
 
@@ -362,7 +362,7 @@ instance.
 <longdesc lang="en">
 A destination of the log of jboss run and shutdown script.
 </longdesc>
-<shortdesc>jboss log path</shortdesc>
+<shortdesc lang="en">jboss log path</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -374,7 +374,7 @@ signal is used to terminate the jboss process. You should set the
 timeout for the stop operation to a value bigger than the sum of
 the timeout parameters. See also kill_timeout.
 </longdesc>
-<shortdesc>shutdown timeout</shortdesc>
+<shortdesc lang="en">shutdown timeout</shortdesc>
 <content type="integer" default="5" />
 </parameter>
 
@@ -385,7 +385,7 @@ it TERM and QUIT signals, intermittently and once a second. After
 this timeout expires, if the process is still live, we use the
 KILL signal. See also shutdown_timeout.
 </longdesc>
-<shortdesc>stop by signal timeout</shortdesc>
+<shortdesc lang="en">stop by signal timeout</shortdesc>
 <content type="integer" default="10" />
 </parameter>
 
@@ -393,7 +393,7 @@ KILL signal. See also shutdown_timeout.
 <longdesc lang="en">
 A user name to start a JBoss.
 </longdesc>
-<shortdesc>A user name to start a resource.</shortdesc>
+<shortdesc lang="en">A user name to start a resource.</shortdesc>
 <content type="string" default="root"/>
 </parameter>
 
@@ -401,7 +401,7 @@ A user name to start a JBoss.
 <longdesc lang="en">
 URL to test in the monitor operation.
 </longdesc>
-<shortdesc>URL to test in the monitor operation.</shortdesc>
+<shortdesc lang="en">URL to test in the monitor operation.</shortdesc>
 <content type="string" default="${OCF_RESKEY_statusurl_default}" />
 </parameter>
 
@@ -410,7 +410,7 @@ URL to test in the monitor operation.
 Home directory of Java. Defaults to the environment variable
 JAVA_HOME. If it is not set, then define this parameter.
 </longdesc>
-<shortdesc>Home directory of Java.</shortdesc>
+<shortdesc lang="en">Home directory of Java.</shortdesc>
 <content type="string" default="$JAVA_HOME"/>
 </parameter>
 
@@ -418,7 +418,7 @@ JAVA_HOME. If it is not set, then define this parameter.
 <longdesc lang="en">
 Java options.
 </longdesc>
-<shortdesc>Java options.</shortdesc>
+<shortdesc lang="en">Java options.</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
@@ -426,7 +426,7 @@ Java options.
 <longdesc lang="en">
 Home directory of Jboss.
 </longdesc>
-<shortdesc>Home directory of Jboss.</shortdesc>
+<shortdesc lang="en">Home directory of Jboss.</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
@@ -434,7 +434,7 @@ Home directory of Jboss.
 <longdesc lang="en">
 Base directory of JBoss. This parameter is not used in JBoss5.
 </longdesc>
-<shortdesc>Base directory of JBoss.</shortdesc>
+<shortdesc lang="en">Base directory of JBoss.</shortdesc>
 <content type="string" default="${OCF_RESKEY_jboss_base_dir_default}" />
 </parameter>
 
@@ -442,7 +442,7 @@ Base directory of JBoss. This parameter is not used in JBoss5.
 <longdesc lang="en">
 With this string heartbeat matches for the right process to kill.
 </longdesc>
-<shortdesc>pkill/pgrep search string</shortdesc>
+<shortdesc lang="en">pkill/pgrep search string</shortdesc>
 <content type="string" default="${OCF_RESKEY_pstring_default}" />
 </parameter>
 
@@ -450,7 +450,7 @@ With this string heartbeat matches for the right process to kill.
 <longdesc lang="en">
 JBoss start command.
 </longdesc>
-<shortdesc>JBoss start command.</shortdesc>
+<shortdesc lang="en">JBoss start command.</shortdesc>
 <content type="string" default="${OCF_RESKEY_run_command_default}" />
 </parameter>
 
@@ -458,7 +458,7 @@ JBoss start command.
 <longdesc lang="en">
 Start options to start Jboss with, defaults are from the Jboss-Doku.
 </longdesc>
-<shortdesc>options for jboss run.sh</shortdesc>
+<shortdesc lang="en">options for jboss run.sh</shortdesc>
 <content type="string" default="${OCF_RESKEY_run_opts_default}" />
 </parameter>
 
@@ -466,7 +466,7 @@ Start options to start Jboss with, defaults are from the Jboss-Doku.
 <longdesc lang="en">
 Stop options to stop Jboss with.
 </longdesc>
-<shortdesc>options for jboss shutdown.sh</shortdesc>
+<shortdesc lang="en">options for jboss shutdown.sh</shortdesc>
 <content type="string" default="-s 127.0.0.1:1099" />
 </parameter>
 
@@ -474,7 +474,7 @@ Stop options to stop Jboss with.
 <longdesc lang="en">
 Rotate console log flag.
 </longdesc>
-<shortdesc>Rotate console log flag</shortdesc>
+<shortdesc lang="en">Rotate console log flag</shortdesc>
 <content type="boolean" default="false" />
 </parameter>
 
@@ -482,7 +482,7 @@ Rotate console log flag.
 <longdesc lang="en">
 Console log rotation value (default is 86400 seconds).
 </longdesc>
-<shortdesc>Console log rotation value (default is 86400 seconds)</shortdesc>
+<shortdesc lang="en">Console log rotation value (default is 86400 seconds)</shortdesc>
 <content type="integer" default="86400" />
 </parameter>
 
@@ -490,7 +490,7 @@ Console log rotation value (default is 86400 seconds).
 <longdesc lang="en">
 Rotate console log suffix.
 </longdesc>
-<shortdesc>Rotate console log suffix</shortdesc>
+<shortdesc lang="en">Rotate console log suffix</shortdesc>
 <content type="integer" default=".%F" />
 </parameter>
 

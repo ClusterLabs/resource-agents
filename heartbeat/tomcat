@@ -355,7 +355,7 @@ The name of the resource, added as a Java parameter in JAVA_OPTS:
 -Dname=&lt;tomcat_name&gt; to Tomcat process on start. Used to ensure
 process is still running and must be unique.
 </longdesc>
-<shortdesc>The name of the resource</shortdesc>
+<shortdesc lang="en">The name of the resource</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -363,7 +363,7 @@ process is still running and must be unique.
 <longdesc lang="en">
 Log file, used during start and stop operations.
 </longdesc>
-<shortdesc>Log file</shortdesc>
+<shortdesc lang="en">Log file</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -371,7 +371,7 @@ Log file, used during start and stop operations.
 <longdesc lang="en">
 Time-out for stop operation. DEPRECATED
 </longdesc>
-<shortdesc>Time-out for the stop operation. DEPRECATED</shortdesc>
+<shortdesc lang="en">Time-out for the stop operation. DEPRECATED</shortdesc>
 <content type="integer" default="" />
 </parameter>
 
@@ -380,7 +380,7 @@ Time-out for stop operation. DEPRECATED
 Maximum number of times to retry stop operation before suspending
 and killing Tomcat. DEPRECATED. Does not retry.
 </longdesc>
-<shortdesc>Max retry count for stop operation. DEPRECATED</shortdesc>
+<shortdesc lang="en">Max retry count for stop operation. DEPRECATED</shortdesc>
 <content type="integer" default="" />
 </parameter>
 
@@ -388,7 +388,7 @@ and killing Tomcat. DEPRECATED. Does not retry.
 <longdesc lang="en">
 The user who starts Tomcat.
 </longdesc>
-<shortdesc>The user who starts Tomcat</shortdesc>
+<shortdesc lang="en">The user who starts Tomcat</shortdesc>
 <content type="string" default="root" />
 </parameter>
 
@@ -396,7 +396,7 @@ The user who starts Tomcat.
 <longdesc lang="en">
 URL for state confirmation.
 </longdesc>
-<shortdesc>URL for state confirmation</shortdesc>
+<shortdesc lang="en">URL for state confirmation</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -409,7 +409,7 @@ The default value is five seconds before the timeout value of stop operation.
 When it is over this value, it stops a process in kill commands.
 This parameter is only effective on Tomcat 6 or later.
 </longdesc>
-<shortdesc>The max time it should take for proper shutdown.</shortdesc>
+<shortdesc lang="en">The max time it should take for proper shutdown.</shortdesc>
 <content type="integer" default="" />
 </parameter>
 
@@ -417,7 +417,7 @@ This parameter is only effective on Tomcat 6 or later.
 <longdesc lang="en">
 Home directory of Java.
 </longdesc>
-<shortdesc>Home directory of Java</shortdesc>
+<shortdesc lang="en">Home directory of Java</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -425,7 +425,7 @@ Home directory of Java.
 <longdesc lang="en">
 Java JVM options used on start and stop.
 </longdesc>
-<shortdesc>Java options parsed to JVM, used on start and stop.</shortdesc>
+<shortdesc lang="en">Java options parsed to JVM, used on start and stop.</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -433,7 +433,7 @@ Java JVM options used on start and stop.
 <longdesc lang="en">
 Home directory of Tomcat.
 </longdesc>
-<shortdesc>Home directory of Tomcat</shortdesc>
+<shortdesc lang="en">Home directory of Tomcat</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -441,7 +441,7 @@ Home directory of Tomcat.
 <longdesc lang="en">
 Instance directory of Tomcat
 </longdesc>
-<shortdesc>Instance directory of Tomcat, defaults to catalina_home</shortdesc>
+<shortdesc lang="en">Instance directory of Tomcat, defaults to catalina_home</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -449,7 +449,7 @@ Instance directory of Tomcat
 <longdesc lang="en">
 Log file name of Tomcat
 </longdesc>
-<shortdesc>Log file name of Tomcat, defaults to catalina_base/logs/catalina.out</shortdesc>
+<shortdesc lang="en">Log file name of Tomcat, defaults to catalina_base/logs/catalina.out</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -457,7 +457,7 @@ Log file name of Tomcat
 <longdesc lang="en">
 A PID file name for Tomcat.
 </longdesc>
-<shortdesc>A PID file name for Tomcat</shortdesc>
+<shortdesc lang="en">A PID file name for Tomcat</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -465,7 +465,7 @@ A PID file name for Tomcat.
 <longdesc lang="en">
 Force use of systemd when available.
 </longdesc>
-<shortdesc>Force use of systemd when available</shortdesc>
+<shortdesc lang="en">Force use of systemd when available</shortdesc>
 <content type="string" default="$OCF_RESKEY_force_systemd_default" />
 </parameter>
 
@@ -473,7 +473,7 @@ Force use of systemd when available.
 <longdesc lang="en">
 Absolute path to the custom tomcat start script to use.
 </longdesc>
-<shortdesc>Tomcat start script location</shortdesc>
+<shortdesc lang="en">Tomcat start script location</shortdesc>
 <content type="string" default="$TOMCAT_START_SCRIPT" />
 </parameter>
 
@@ -481,7 +481,7 @@ Absolute path to the custom tomcat start script to use.
 <longdesc lang="en">
 Tomcat start options.
 </longdesc>
-<shortdesc>Tomcat start options</shortdesc>
+<shortdesc lang="en">Tomcat start options</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -489,7 +489,7 @@ Tomcat start options.
 <longdesc lang="en">
 Catalina options, for the start operation only.
 </longdesc>
-<shortdesc>Catalina options</shortdesc>
+<shortdesc lang="en">Catalina options</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -497,7 +497,7 @@ Catalina options, for the start operation only.
 <longdesc lang="en">
 Temporary directory of Tomcat
 </longdesc>
-<shortdesc>Temporary directory of Tomcat, defaults to none</shortdesc>
+<shortdesc lang="en">Temporary directory of Tomcat, defaults to none</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -505,7 +505,7 @@ Temporary directory of Tomcat
 <longdesc lang="en">
 Rotate catalina.out flag.
 </longdesc>
-<shortdesc>Rotate catalina.out flag</shortdesc>
+<shortdesc lang="en">Rotate catalina.out flag</shortdesc>
 <content type="boolean" default="NO" />
 </parameter>
 
@@ -513,7 +513,7 @@ Rotate catalina.out flag.
 <longdesc lang="en">
 catalina.out rotation interval (seconds).
 </longdesc>
-<shortdesc>catalina.out rotation interval (seconds)</shortdesc>
+<shortdesc lang="en">catalina.out rotation interval (seconds)</shortdesc>
 <content type="integer" default="" />
 </parameter>
 
@@ -521,7 +521,7 @@ catalina.out rotation interval (seconds).
 <longdesc lang="en">
 Java_endorsed_dirs of tomcat
 </longdesc>
-<shortdesc>Java_endorsed_dirs of Tomcat, defaults to none</shortdesc>
+<shortdesc lang="en">Java_endorsed_dirs of Tomcat, defaults to none</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -529,7 +529,7 @@ Java_endorsed_dirs of tomcat
 <longdesc lang="en">
 Logging_config of tomcat
 </longdesc>
-<shortdesc>Logging_config of Tomcat, defaults to none</shortdesc>
+<shortdesc lang="en">Logging_config of Tomcat, defaults to none</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -537,7 +537,7 @@ Logging_config of tomcat
 <longdesc lang="en">
 Logging_manager of tomcat
 </longdesc>
-<shortdesc>Logging_manager of Tomcat, defaults to none.</shortdesc>
+<shortdesc lang="en">Logging_manager of Tomcat, defaults to none.</shortdesc>
 <content type="string" default="" />
 </parameter>
 

@@ -83,7 +83,7 @@ This manages a Squid instance as an HA resource.
 This is a required parameter. This parameter specifies squid's
 executable file.
 </longdesc>
-<shortdesc>Executable file</shortdesc>
+<shortdesc lang="en">Executable file</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
@@ -92,7 +92,7 @@ executable file.
 This is a required parameter. This parameter specifies a configuration file
 for a squid instance managed by this RA.
 </longdesc>
-<shortdesc>Configuration file</shortdesc>
+<shortdesc lang="en">Configuration file</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
@@ -101,7 +101,7 @@ for a squid instance managed by this RA.
 This is a required parameter. This parameter specifies a process id file
 for a squid instance managed by this RA.
 </longdesc>
-<shortdesc>Pidfile</shortdesc>
+<shortdesc lang="en">Pidfile</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
@@ -111,7 +111,7 @@ This is a required parameter. This parameter specifies a port number
 for a squid instance managed by this RA. If plural ports are used,
 you must specifiy the only one of them.
 </longdesc>
-<shortdesc>Port number</shortdesc>
+<shortdesc lang="en">Port number</shortdesc>
 <content type="integer" default=""/>
 </parameter>
 
@@ -121,7 +121,7 @@ On stop, a squid shutdown is invoked first. If the resource
 doesn't stop within this timeout, we resort to stopping
 processes by sending signals and finally KILLing them.
 </longdesc>
-<shortdesc>how long to wait for squid shutdown to stop the
+<shortdesc lang="en">how long to wait for squid shutdown to stop the
 instance before resorting to kill</shortdesc>
 <content type="integer" default="10"/>
 </parameter>
@@ -134,7 +134,7 @@ If 'x' is included, both of STDOUT and STDERR redirect to the logfile
 specified by "debug_log", and then the builtin shell option 'x' is turned on.
 It is similar about 'v'.
 </longdesc>
-<shortdesc>Debug mode</shortdesc>
+<shortdesc lang="en">Debug mode</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
@@ -148,7 +148,7 @@ following rules: "/var/log/" as a directory part, the basename of
 the configuration file given by "syslog_ng_conf" as a basename part,
 ".log" as a suffix.
 </longdesc>
-<shortdesc>A destination of the debug log</shortdesc>
+<shortdesc lang="en">A destination of the debug log</shortdesc>
 <content type="string" default=""/>
 </parameter>
 

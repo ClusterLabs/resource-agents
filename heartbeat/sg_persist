@@ -83,7 +83,7 @@ Master reservs all devices from "devs" list with reservation "--prout-type" valu
 <longdesc lang="en">
 The name of the binary that manages the resource.
 </longdesc>
-<shortdesc>the binary name of the resource</shortdesc>
+<shortdesc lang="en">the binary name of the resource</shortdesc>
 <content type="string" default="$sg_persist_binary"/>
 </parameter>
 

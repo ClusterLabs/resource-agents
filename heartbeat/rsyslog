@@ -79,7 +79,7 @@ This script manages a rsyslog instance as an HA resource.
 This parameter specifies a configuration file 
 for a rsyslog instance managed by this RA.
 </longdesc>
-<shortdesc>Configuration file</shortdesc>
+<shortdesc lang="en">Configuration file</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
@@ -87,7 +87,7 @@ for a rsyslog instance managed by this RA.
 <longdesc lang="en">
 This parameter specifies rsyslog's executable file.
 </longdesc>
-<shortdesc>rsyslog executable</shortdesc>
+<shortdesc lang="en">rsyslog executable</shortdesc>
 <content type="string" default="/sbin/rsyslogd"/>
 </parameter>
 
@@ -97,7 +97,7 @@ This parameter specifies startup options for a
 rsyslog instance managed by this RA. When no value is given, no startup 
 options is used. Don't use option '-F'. It causes a stuck of a start action.
 </longdesc>
-<shortdesc>Start options</shortdesc>
+<shortdesc lang="en">Start options</shortdesc>
 <content type="string" default=""/>
 </parameter>
 

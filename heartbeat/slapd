@@ -105,7 +105,7 @@ For example, "/usr/bin/ldapsearch".
 Full path to a slapd configuration directory or a slapd configuration file.
 For example, "/etc/ldap/slapd.d" or "/etc/ldap/slapd.conf".
 </longdesc>
-<shortdesc>Full path to configuration directory or file</shortdesc>
+<shortdesc lang="en">Full path to configuration directory or file</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
@@ -139,7 +139,7 @@ Group name or id slapd will run with.
 LDAP (and other scheme) URLs slapd will serve.
 For example, "ldap://127.0.0.1:389 ldaps:/// ldapi:///"
 </longdesc>
-<shortdesc>LDAP (and other scheme) URLs to serve</shortdesc>
+<shortdesc lang="en">LDAP (and other scheme) URLs to serve</shortdesc>
 <content type="string" default="ldap:///"/>
 </parameter>
 
@@ -150,7 +150,7 @@ suffixes can be specified by providing a space seperated list. By providing one
 or more suffixes here, the ignore_suffix parameter is discarded. All suffixes
 will be monitored if left blank.
 </longdesc>
-<shortdesc>Suffix that will be monitored for availability.</shortdesc>
+<shortdesc lang="en">Suffix that will be monitored for availability.</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
@@ -160,7 +160,7 @@ Suffix (database backend) that will not be monitored for availability. Multiple
 suffixes can be specified by providing a space seperated list. No suffix will
 be excluded if left blank.
 </longdesc>
-<shortdesc>Suffix that will not be monitored for availability.</shortdesc>
+<shortdesc lang="en">Suffix that will not be monitored for availability.</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
@@ -169,7 +169,7 @@ be excluded if left blank.
 Distinguished Name used to bind to the LDAP directory for testing. Leave blank
 to bind to the LDAP directory anonymously.
 </longdesc>
-<shortdesc>Distinguished Name used to bind to the LDAP directory for testing.</shortdesc>
+<shortdesc lang="en">Distinguished Name used to bind to the LDAP directory for testing.</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
@@ -177,7 +177,7 @@ to bind to the LDAP directory anonymously.
 <longdesc lang="en">
 Password used to bind to the LDAP directory for testing.
 </longdesc>
-<shortdesc>Password used to bind to the LDAP directory for testing.</shortdesc>
+<shortdesc lang="en">Password used to bind to the LDAP directory for testing.</shortdesc>
 <content type="string" default=""/>
 </parameter>
 

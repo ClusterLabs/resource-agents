@@ -81,7 +81,7 @@ This script manages a syslog-ng instance as an HA resource.
 This parameter specifies a configuration file 
 for a syslog-ng instance managed by this RA.
 </longdesc>
-<shortdesc>Configuration file</shortdesc>
+<shortdesc lang="en">Configuration file</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
@@ -89,7 +89,7 @@ for a syslog-ng instance managed by this RA.
 <longdesc lang="en">
 This parameter specifies syslog-ng's executable file.
 </longdesc>
-<shortdesc>syslog-ng executable</shortdesc>
+<shortdesc lang="en">syslog-ng executable</shortdesc>
 <content type="string" default="/sbin/syslog-ng"/>
 </parameter>
 
@@ -99,7 +99,7 @@ This parameter specifies startup options for a
 syslog-ng instance managed by this RA. When no value is given, no startup 
 options is used. Don't use option '-F'. It causes a stuck of a start action.
 </longdesc>
-<shortdesc>Start options</shortdesc>
+<shortdesc lang="en">Start options</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
@@ -110,7 +110,7 @@ And then the confirmation of its completion is waited for
 the specified seconds by this parameter.
 The default value is 10.
 </longdesc>
-<shortdesc>Number of seconds to await to confirm a normal stop method</shortdesc>
+<shortdesc lang="en">Number of seconds to await to confirm a normal stop method</shortdesc>
 <content type="integer" default="10"/>
 </parameter>
 
