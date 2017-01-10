@@ -1,3 +1,83 @@
+* Tue Jan 10 2017 resource-agents contributors
+- release candidate 4.0.0 rc1
+- CI: add metadata verification
+- ocf_mkstatedir: fix path check
+- IPaddr2: return success on stop with invalid IP
+- Filesystem: check if there are any mounts mounted under the mountpoint
+- specfile: make requirements general and update comments
+- portblock: use -w (wait) to avoid "insufficient privileges" error
+- rabbitmq-cluster: fix dump/restore users for RabbitMQ ver. 3.6.x and newer
+- Updated mailing list/wiki references
+- pgsql: fix tr replacement for replication slot names
+- IPaddr2: log refresh arp packets at debug level instead of info
+- IPaddr2: add option to enable sending refresh arp packets in monitor
+- findif.sh: fix to ifcheck() to not suppress stdout of "ip"
+- galera: prevent promote right after demote
+- galera: make last commit parsing compatible with MariaDB 10.1.18+
+- specfile: add requires netstat
+- multiple RA: fixed issues discovered by ShellCheck
+- apache: reduce log spam for success
+- rgmanager: fix RNG schema for cluster config
+- LVM: add error messages for partial_activation
+- slapd: improved stop processing
+- docker: clarify limitations of monitor_cmd in parameter description
+- redis: restore rundir security context
+- docker: reduce monitor log spam
+- nfsserver: dont stop rpcbind, as other services might use it
+- Filesystem: improved exit reason if mount fails
+- Delay: set default startdelay lower than start timeout to avoid timeout with default values
+- docker: use docker exec for monitor_cmd if supported
+- sapdb.sh add support for HANA Multi-Tenant Databases
+- lvm.sh: fix status clustered to check specified logical volume
+- sg_persist: do not spill info output to stderr
+- sg_persist: allow to run resource agent in debug mode
+- sg_persist: fix matching of hex node ids
+- tomcat: add systemd support and option to disable it
+- oracle: add quotes for monuser and monpassword and inform user to start monuser with C## if it's a container database
+- rabbitmq-cluster: allow automatic cluster recovery before forcing it
+- nfsserver: systemd tests to make sure all services are running and monitored
+- rabbitmq-cluster: add POSIX error codes to detect node failure
+- rabbitmq-cluster: forget node before 2nd joining attempt
+- exportfs: add IPv6 support
+- galera: source settings from /etc/default/clustercheck
+- pgsql: fix to adjust stop_escalate time when it is longer than the timeout
+- heartbeat/Makefile.am: add missing agents
+- exportfs: fix monitor reporting wrong state after the node has been fenced
+- Rename ra-dev-guide.txt to ra-dev-guide.asc
+- awseip: add support to associate secondary private IP with elastic IP
+- garbd: new RA
+- ldirectord: fix for IPv4/IPv6 mixed environments
+- ocf-tester: fix to allow non-shell based agents.
+- nfsserver: add support to detect which init script to use
+- ldirectord: run initial check of all services on start to make sure all services always have the correct state
+- sapdb.sh: pass start/stop timeouts to saphostctrl
+- SAPDatabase: Add START_TIMEOUT and STOP_TIMEOUT parameters
+- rabbitmq-cluster: backup and restore RabbitMQ users during resource restart
+- iSCSILogicalUnit: add support for rbd store.
+- awseip: new RA to manage AWS EC2 elastic IP
+- awsvip: new RA to manage AWS EC2 secondary private IP
+- oracle: inform user that monprofile must start with C## for container databases
+- tickle_tcp: fix "Failed to open raw socket (Invalid argument)" issue
+- symlink: handle missing directories in target
+- mysql: handle non-standard mysql server port
+- VirtualDomain: fix unnecessary error when probing nonexistent domain
+- sapdb.sh fix to evaluate parameter DBOSUSER in start and stop
+- oracle: fix to be able to recover from ORA-01081
+- oralsnr: fix status check fail when username is more than 8 characters long
+- galera: don't bootstrap from a node with no grastate.dat when possible
+- galera: fix monitoring of joining node for long running SST
+- pgagent: new RA
+- ocf_shellfuncs: set OCF_RESOURCE_INSTANCE default to "RESOURCE_ID" for meta-data
+- ldirectord: add new "servicename" and "comment" options for alert e-mails
+- clusterfs.sh / fs.sh: fix .clumanager/statd ownership
+- rabbitmq-cluster: forget stopped rmq nodes with notify=true
+- apache: ensure readable $TESTCONFFILE and improved error handling for testurl/testregex
+- SAPDatabase: support Oracle 12c
+- apache: add Debian support
+- iSCSITarget: iSER enabled portal support
+- SAPInstance: update SAP WebAS version support statement
+- ldirectord: don't send "inaccessible real server" e-mails per child in fork=yes mode
+
 * Wed Feb  3 2016 resource-agents contributors
 - stable release 3.9.7
 - ldirectord: fix unset failcount error
