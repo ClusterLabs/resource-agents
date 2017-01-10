@@ -187,7 +187,7 @@ AC_ARG_WITH(initdir,
     [  --with-initdir=DIR      directory for init (rc) scripts [${INITDIR}]],
     [ INITDIR="$withval" ])
 
-OCF_ROOT_DIR="/usr/lib/ocf"
+OCF_ROOT_DIR="${prefix}/lib/ocf"
 AC_ARG_WITH(ocf-root,
     [  --with-ocf-root=DIR      directory for OCF scripts [${OCF_ROOT_DIR}]],
     [ OCF_ROOT_DIR="$withval" ])

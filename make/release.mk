@@ -35,7 +35,7 @@ endif
 tarballs: tag
 	./autogen.sh
 	./configure
-	make distcheck
+	DISTCHECK_CONFIGURE_FLAGS="--with-systemdsystemunitdir=no" make distcheck
 
 sha256: tarballs $(project)-$(version).sha256
 
