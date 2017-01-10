@@ -30,7 +30,7 @@ halibdir		= $(libexecdir)/heartbeat
 ocfdir		        = $(OCF_RA_DIR_PREFIX)/heartbeat
 
 dtddir			= $(datadir)/$(PACKAGE_NAME)
-dtd_DATA		= ra-api-1.dtd
+dtd_DATA		= ra-api-1.dtd metadata.rng
 
 if USE_IPV6ADDR_AGENT
 ocf_PROGRAMS           = IPv6addr
@@ -167,4 +167,4 @@ hb_DATA			= shellfuncs
 check: $(ocf_SCRIPTS:=.check)
 
 %.check: %
-	OCF_ROOT=. OCF_FUNCTIONS_DIR=. ./$< meta-data | xmllint --noout --relaxng metadata.rng -
+	OCF_ROOT=$(abs_srcdir) OCF_FUNCTIONS_DIR=$(abs_srcdir) ./$< meta-data | xmllint --path $(abs_srcdir) --noout --relaxng $(abs_srcdir)/metadata.rng -
