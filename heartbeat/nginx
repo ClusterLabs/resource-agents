@@ -721,7 +721,7 @@ Case insensitive.
 Client to use to query to Nginx for level 10 and level 20 tests.
 If not specified, the RA will try to find one on the system.
 Currently, wget and curl are supported, with curl being preferred.
-For example, you can set this paramter to "wget" if you prefer that to curl.
+For example, you can set this parameter to "wget" if you prefer that to curl.
 </longdesc>
 <shortdesc lang="en">http client</shortdesc>
 <content type="string" />

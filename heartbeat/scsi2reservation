@@ -35,7 +35,7 @@ scsi-2 reservation
 <parameter name="scsi_reserve" unique="0" required="0">
 <longdesc lang="en">
 The scsi_reserve is a command from scsires package. 
-It helps to issue SCSI-2 reservation on SCSI devices.
+It helps one to issue SCSI-2 reservation on SCSI devices.
 </longdesc>
 <shortdesc lang="en">Manages exclusive access to shared storage media thrugh SCSI-2 reservations</shortdesc>
 <content type="string" default="/usr/sbin/scsi_reserve" />

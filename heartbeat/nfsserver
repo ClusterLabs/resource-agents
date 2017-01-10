@@ -43,7 +43,7 @@ nfsserver_meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-Nfsserver helps to manage the Linux nfs server as a failover-able resource in Linux-HA.
+Nfsserver helps one to manage the Linux nfs server as a failover-able resource in Linux-HA.
 It depends on Linux specific NFS implementation details, so is considered not portable to other platforms yet.
 </longdesc>
 
