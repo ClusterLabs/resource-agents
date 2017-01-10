@@ -1120,10 +1120,19 @@ pgsql_notify() {
     return $OCF_SUCCESS
 }
 
+# convert the node name to SQL identifier
+convert_to_sqlidentifier() {
+    local identifier
+
+    identifier=$(echo "$1" | sed 's/\(^[0-9]\)/_\1/' | tr .- __)
+    echo "$identifier"
+}
+
 control_slave_status() {
     local rc
     local data_status
     local target
+    local tmp_target
     local all_data_status
     local tmp_data_status
     local number_of_nodes
@@ -1149,7 +1158,8 @@ control_slave_status() {
         data_status="DISCONNECT"
         if [ -n "$all_data_status" ]; then
             for tmp_data_status in $all_data_status; do
-                if ! echo $tmp_data_status | grep -q "^${target}|"; then
+                tmp_target=$(convert_to_sqlidentifier "${target}")
+                if ! echo "$tmp_data_status" | grep -q "^${tmp_target}|"; then
                     continue
                 fi
                 data_status=`echo $tmp_data_status | cut -d "|" -f 2,3`
@@ -1487,13 +1497,17 @@ set_async_mode() {
 
 set_sync_mode() {
     local sync_node_in_conf
+    local synchronous_standby_name
 
     sync_node_in_conf=`cat $REP_MODE_CONF | cut -d "'" -f 2`
     if [ -n "$sync_node_in_conf" ]; then
         ocf_log debug "$sync_node_in_conf is already sync mode."
     else
         ocf_log info "Setup $1 into sync mode."
-        runasowner -q err "echo \"synchronous_standby_names = '$1'\" > \"$REP_MODE_CONF\""
+        synchronous_standby_name=$(convert_to_sqlidentifier "$1")
+        ocf_log debug "Convert the node name to SQL identifier. synchrnous_standby_names is $synchronous_standby_name"
+
+        runasowner -q err "echo \"synchronous_standby_names = '$synchronous_standby_name'\" > \"$REP_MODE_CONF\""
         [ "$RE_CONTROL_SLAVE" = "false" ] && RE_CONTROL_SLAVE="true"
         exec_with_retry 0 reload_conf
     fi
@@ -1536,15 +1550,20 @@ user_recovery_conf() {
 }
 
 make_recovery_conf() {
+    local application_name
+
     runasowner "touch $RECOVERY_CONF"
     if [ $? -ne 0 ]; then
         ocf_exit_reason "Can't create recovery.conf."
         return 1
     fi
 
+    application_name=$(convert_to_sqlidentifier "${NODENAME}")
+    ocf_log debug "Convert the node name to SQL identifier. application_name is ${application_name}"
+
 cat > $RECOVERY_CONF <<END
 standby_mode = 'on'
-primary_conninfo = 'host=${OCF_RESKEY_master_ip} port=${OCF_RESKEY_pgport} user=${OCF_RESKEY_repuser} application_name=${NODENAME} ${OCF_RESKEY_primary_conninfo_opt}'
+primary_conninfo = 'host=${OCF_RESKEY_master_ip} port=${OCF_RESKEY_pgport} user=${OCF_RESKEY_repuser} application_name=${application_name} ${OCF_RESKEY_primary_conninfo_opt}'
 restore_command = '${OCF_RESKEY_restore_command}'
 recovery_target_timeline = 'latest'
 END
