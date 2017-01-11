@@ -722,7 +722,7 @@ run_send_ua() {
 			;;
 		*tentative*)
 			if [ $i -eq 10 ]; then
-				ofc_log warn "IPv6 address : DAD is still in tentative"
+				ocf_log warn "IPv6 address : DAD is still in tentative"
 			fi
 			;;
 		*)
