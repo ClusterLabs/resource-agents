@@ -221,25 +221,6 @@ set_exec_mode()
 	fi
 
 	##
-	# If the user defined an init script, It must exist for us to continue
-	##
-	if [ -n "$OCF_RESKEY_nfs_init_script" ]; then
-		# check_binary will exit the process if init script does not exist
-		check_binary ${OCF_RESKEY_nfs_init_script}
-		EXEC_MODE=1
-		return 0
-	fi
-
-	##
-	# Check to see if the default init script exists, if so we'll use that.
-	##
-	if which $DEFAULT_INIT_SCRIPT > /dev/null 2>&1; then
-		OCF_RESKEY_nfs_init_script=$DEFAULT_INIT_SCRIPT
-		EXEC_MODE=1
-		return 0
-	fi
-
-	##
 	# Attempt systemd (with nfs-lock.service).
 	##
 	if which systemctl > /dev/null 2>&1; then
@@ -258,6 +239,25 @@ set_exec_mode()
 			EXEC_MODE=3
 			return 0
 		fi
+	fi
+
+	##
+	# If the user defined an init script, It must exist for us to continue
+	##
+	if [ -n "$OCF_RESKEY_nfs_init_script" ]; then
+		# check_binary will exit the process if init script does not exist
+		check_binary ${OCF_RESKEY_nfs_init_script}
+		EXEC_MODE=1
+		return 0
+	fi
+
+	##
+	# Check to see if the default init script exists, if so we'll use that.
+	##
+	if which $DEFAULT_INIT_SCRIPT > /dev/null 2>&1; then
+		OCF_RESKEY_nfs_init_script=$DEFAULT_INIT_SCRIPT
+		EXEC_MODE=1
+		return 0
 	fi
 
 	ocf_exit_reason "No init script or systemd unit file detected for nfs server"
