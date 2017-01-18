@@ -75,6 +75,8 @@ OCF_RESKEY_lio_iblock=${OCF_RESKEY_lio_iblock:-$OCF_RESKEY_lio_iblock_default}
 # OCF_RESKEY_tgt_bsopts
 # OCF_RESKEY_tgt_device_type
 
+# targetcli: iSCSITarget and iSCSILogicalUnit must use the same lockfile
+TARGETLOCKFILE=${HA_RSCTMP}/targetcli.lock
 #######################################################################
 
 meta_data() {
@@ -371,6 +373,8 @@ iSCSILogicalUnit_start() {
 		fi
 		;;
 	lio-t)
+		ocf_take_lock $TARGETLOCKFILE
+		ocf_release_lock_on_exit $TARGETLOCKFILE
 		# For lio, we first have to create a target device, then
 		# add it to the Target Portal Group as an LU.
 		ocf_run targetcli /backstores/block create name=${OCF_RESOURCE_INSTANCE} dev=${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
@@ -440,6 +444,8 @@ iSCSILogicalUnit_stop() {
 		fi
 		;;
 	lio-t)
+		ocf_take_lock $TARGETLOCKFILE
+		ocf_release_lock_on_exit $TARGETLOCKFILE
 		# "targetcli delete" will fail if the LUN is already
 		# gone. Log a warning and still push ahead.
 		ocf_run -warn targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns delete ${OCF_RESKEY_lun}
