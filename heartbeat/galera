@@ -208,10 +208,27 @@ The galera cluster address. This takes the form of:
 gcomm://node,node,node
 
 Only nodes present in this node list will be allowed to start a galera instance.
-It is expected that the galera node names listed in this address match valid
-pacemaker node names.
+The galera node names listed in this address are expected to match valid
+pacemaker node names. If both names need to differ, you must provide a
+mapping in option cluster_host_map.
 </longdesc>
 <shortdesc lang="en">Galera cluster address</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="cluster_host_map" unique="0" required="0">
+<longdesc lang="en">
+A mapping of pacemaker node names to galera node names.
+
+To be used when both pacemaker and galera names need to differ,
+(e.g. when galera names map to IP from a specific network interface)
+This takes the form of:
+pcmk1:node.1.galera;pcmk2:node.2.galera;pcmk3:node.3.galera
+
+where the galera resource started on node pcmk1 would be named
+node.1.galera in the wsrep_cluster_address
+</longdesc>
+<shortdesc lang="en">Pacemaker to Galera name mapping</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
@@ -454,6 +471,27 @@ greater_than_equal_long()
     echo | awk -v n1="$1" -v n2="$2"  '{if (n1>=n2) printf ("true"); else printf ("false");}' |  grep -q "true"
 }
 
+galera_to_pcmk_name()
+{
+    local galera=$1
+    if [ -z "$OCF_RESKEY_cluster_host_map" ]; then
+        echo $galera
+    else
+        echo "$OCF_RESKEY_cluster_host_map" | tr ';' '\n' | tr -d ' ' | sed 's/:/ /' | awk -F' ' '$2=="'"$galera"'" {print $1;exit}'
+    fi
+}
+
+pcmk_to_galera_name()
+{
+    local pcmk=$1
+    if [ -z "$OCF_RESKEY_cluster_host_map" ]; then
+        echo $pcmk
+    else
+        echo "$OCF_RESKEY_cluster_host_map" | tr ';' '\n' | tr -d ' ' | sed 's/:/ /' | awk -F' ' '$1=="'"$pcmk"'" {print $2;exit}'
+    fi
+}
+
+
 detect_first_master()
 {
     local best_commit=0
@@ -465,6 +503,14 @@ detect_first_master()
 
     # avoid selecting a recovered node as bootstrap if possible
     for node in $(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' '); do
+        local pcmk_node=$(galera_to_pcmk_name $node)
+        if [ -z "$pcmk_node" ]; then
+            ocf_log error "Could not determine pacemaker node from galera name <${node}>."
+            return
+        else
+            node=$pcmk_node
+        fi
+
         if is_no_grastate $node; then
             nodes_recovered="$nodes_recovered $node"
         else
@@ -783,10 +829,17 @@ galera_demote()
 galera_start()
 {
     local rc
+    local galera_node
 
-    echo $OCF_RESKEY_wsrep_cluster_address | grep -q $NODENAME
+    galera_node=$(pcmk_to_galera_name $NODENAME)
+    if [ -z "$galera_node" ]; then
+        ocf_exit_reason "Could not determine galera name from pacemaker node <${NODENAME}>."
+        return $OCF_ERR_CONFIGURED
+    fi
+
+    echo $OCF_RESKEY_wsrep_cluster_address | grep -q -F $galera_node
     if [ $? -ne 0 ]; then
-        ocf_exit_reason "local node <${NODENAME}> must be a member of the wsrep_cluster_address <${OCF_RESKEY_wsrep_cluster_address}>to start this galera instance"
+        ocf_exit_reason "local node <${NODENAME}> (galera node <${galera_node}>) must be a member of the wsrep_cluster_address <${OCF_RESKEY_wsrep_cluster_address}> to start this galera instance"
         return $OCF_ERR_CONFIGURED
     fi
 
@@ -818,6 +871,7 @@ galera_start()
 galera_monitor()
 {
     local rc
+    local galera_node
     local status_loglevel="err"
 
     # Set loglevel to info during probe
@@ -857,10 +911,15 @@ galera_monitor()
 
     # if we make it here, mysql is running or about to start after sync.
     # Check cluster status now.
+    galera_node=$(pcmk_to_galera_name $NODENAME)
+    if [ -z "$galera_node" ]; then
+        ocf_exit_reason "Could not determine galera name from pacemaker node <${NODENAME}>."
+        return $OCF_ERR_CONFIGURED
+    fi
 
-    echo $OCF_RESKEY_wsrep_cluster_address | grep -q $NODENAME
+    echo $OCF_RESKEY_wsrep_cluster_address | grep -q -F $galera_node
     if [ $? -ne 0 ]; then
-        ocf_exit_reason "local node <${NODENAME}> is started, but is not a member of the wsrep_cluster_address <${OCF_RESKEY_wsrep_cluster_address}>"
+        ocf_exit_reason "local node <${NODENAME}> (galera node <${galera_node}>) is started, but is not a member of the wsrep_cluster_address <${OCF_RESKEY_wsrep_cluster_address}>"
         return $OCF_ERR_GENERIC
     fi
 
