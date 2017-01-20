@@ -970,6 +970,14 @@ ip_stop() {
 	exit $OCF_SUCCESS
 }
 
+nic_monitor()
+{
+        ps -ef|grep -w "NetworkManager"|grep -v grep &> /dev/null
+        if [ "$?" -ne 0 ];then
+                ethtool $NIC|grep "Link detected: yes" &> /dev/null
+        fi
+}
+
 ip_monitor() {
 	# TODO: Implement more elaborate monitoring like checking for
 	# interface health maybe via a daemon like FailSafe etc...
@@ -977,6 +985,7 @@ ip_monitor() {
 	local ip_status=`ip_served`
 	case $ip_status in
 	ok)
+                nic_monitor || return $OCF_ERR_GENERIC
 		$ARP_SEND_FUN refresh
 		return $OCF_SUCCESS
 		;;
