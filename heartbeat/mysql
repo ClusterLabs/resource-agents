@@ -725,7 +725,7 @@ mysql_monitor() {
 
     # If status returned an error, return that immediately
     if [ $rc -ne $OCF_SUCCESS ]; then
-        if ( ocf_is_ms ); then
+        if ocf_is_ms ; then
             # This is a master slave setup but monitored host returned some errors.
             # Immediately remove it from the pool of possible masters by erasing its master-mysql key
             # When new mysql master election is started and node got no or negative master-mysql attribute the following is logged
