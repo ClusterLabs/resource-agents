@@ -233,6 +233,7 @@ rm -rf %{buildroot}
 %if %{with linuxha}
 %doc doc/README.webapps
 %doc %{_datadir}/%{name}/ra-api-1.dtd
+%doc %{_datadir}/%{name}/metadata.rng
 %endif
 
 %if %{with rgmanager}
