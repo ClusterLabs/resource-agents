@@ -548,7 +548,7 @@ LVM_validate_all() {
 		# "unknown device" then another node may have marked a device missing 
 		# where we have access to all of them and can start without issue. 
 		if vgs -o pv_attr --noheadings $OCF_RESKEY_volgrpname 2>/dev/null | grep 'm' > /dev/null 2>&1; then
-			if vgs -o pv_name --noheadings $OCF_RESKEY_volgrpname 2>/dev/null | grep -E "unknown device|Couldn't find device|Device mismatch detected" > /dev/null 2>&1; then
+			if vgs -o pv_name --noheadings $OCF_RESKEY_volgrpname 2>&1 | grep -E "unknown device|Couldn't find device|Device mismatch detected" > /dev/null 2>&1; then
 				if ! ocf_is_true "$OCF_RESKEY_partial_activation" ; then
 					# We are missing devices and cannot activate partially
 					ocf_exit_reason "Volume group [$VOLUME] has devices missing.  Consider partial_activation=true to attempt to activate partially"
