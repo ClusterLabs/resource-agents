@@ -436,6 +436,11 @@ function demote() {
 	local master_host
 	local master_port
 
+	# client kill is only supported in Redis 2.8.12 or greater
+	version=$(redis_client -v | awk '{print $NF}')
+	ocf_version_cmp "$version" "2.8.11"
+	client_kill=$?
+
 	CHECK_SLAVE_STATE=1
 	monitor
 	status=$?
@@ -478,9 +483,15 @@ function demote() {
 	while true; do 
 		# Wait infinite if replication is syncing
 		# Then start/demote operation timeout determines timeout
+		if [ "$client_kill" -eq 2 ]; then
+			redis_client CLIENT PAUSE 2000
+		fi
 		monitor
 		status=$?
 		if (( status == OCF_SUCCESS )); then
+			if [ "$client_kill" -eq 2 ]; then
+				redis_client CLIENT KILL type normal
+			fi
 			return $OCF_SUCCESS
 		fi
 		
