@@ -1,3 +1,15 @@
+* Tue Jan 31 2017 resource-agents contributors
+- stable release 4.0.0
+- LVM: fix partial activation detection
+- Filesystem: add ZFS support
+- specfile: add metadata.rng
+- redis: use "CLIENT KILL type normal" to notify clients of master being demoted
+- IPaddr2: add IPv4 collision detection
+- galera: add "cluster_host_map" parameter to map Pacemaker hostnames to Galera hostnames
+- multiple RA: fix grammar, spelling and typos
+- pgsql: add support for PostgreSQL 9.6
+- rabbitmq-cluster: reset Mnesia and fetch data when joining cluster
+
 * Tue Jan 10 2017 resource-agents contributors
 - release candidate 4.0.0 rc1
 - CI: add metadata verification
