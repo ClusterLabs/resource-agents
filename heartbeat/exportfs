@@ -165,7 +165,7 @@ return $OCF_SUCCESS
 }
 
 exportfs_methods() {
-  cat <<-!
+  cat <<-EOF
 	start
 	stop
 	status
@@ -174,7 +174,7 @@ exportfs_methods() {
 	methods
 	meta-data
 	usage
-	!
+	EOF
 }
 
 reset_fsid() {
