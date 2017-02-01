@@ -266,11 +266,14 @@ is_exported() {
 
 exportfs_monitor ()
 {
+	local spec
+
 	if ! ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" monitor; then
 		return $OCF_NOT_RUNNING
 	fi
 
-	if forall is_exported "$(echo "${OCF_RESKEY_clientspec}" | tr -d '[]')"; then
+	spec="$(echo "$OCF_RESKEY_clientspec" | sed -e 's/^\[*//' -e 's/\]*$//')"
+	if forall is_exported "$spec"; then
 		if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
 			forall backup_rmtab
 		fi
