@@ -1,3 +1,8 @@
+* Thu Feb  2 2017 resource-agents contributors
+- stable release 4.0.1
+- galera: remove "long SST monitoring" support due to corner-case issues
+- exportfs: improve regexp handling of clientspec (only strip brackets from edges to support IPv6)
+
 * Tue Jan 31 2017 resource-agents contributors
 - stable release 4.0.0
 - LVM: fix partial activation detection
