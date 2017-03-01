@@ -1063,8 +1063,13 @@ pgsql_pre_promote() {
             cmp_location=`printf "$master_baseline\n$my_master_baseline\n" |\
                           sort | head -1`
             if [ "$cmp_location" != "$my_master_baseline" ]; then
+                # We used to set the failcount to INF for the resource here in
+                # order to move the master to the other node. However, setting
+                # the failcount should be done only by the CRM and so this use
+                # got deprecated in pacemaker version 1.1.17. Now we do the
+                # "ban resource from the node".
                 ocf_exit_reason "My data is newer than new master's one. New master's location : $master_baseline"
-                exec_with_retry 0 $CRM_FAILCOUNT -r $OCF_RESOURCE_INSTANCE -U $NODENAME -v INFINITY
+                exec_with_retry 0 $CRM_RESOURCE -B -r $OCF_RESOURCE_INSTANCE -N $NODENAME -Q
                 return $OCF_ERR_GENERIC
             fi
         fi
@@ -1977,7 +1982,7 @@ if is_replication; then
     CRM_MASTER="${HA_SBIN_DIR}/crm_master -l reboot"
     CRM_ATTR_REBOOT="${HA_SBIN_DIR}/crm_attribute -l reboot"
     CRM_ATTR_FOREVER="${HA_SBIN_DIR}/crm_attribute -l forever"
-    CRM_FAILCOUNT="${HA_SBIN_DIR}/crm_failcount"
+    CRM_RESOURCE="${HA_SBIN_DIR}/crm_resource"
 
     CAN_NOT_PROMOTE="-INFINITY"
     CAN_PROMOTE="100"
