@@ -203,8 +203,16 @@ Parameters for a third Kamailio instance:
     The installation path of the sipsak tool, which is used 
     for monitoring Kamailio via SIP OPTIONS polling. 
    </longdesc>
-   <shortdesc lang="en">protocol</shortdesc>
+   <shortdesc lang="en">sipsak path</shortdesc>
    <content type="string" default="${RESKEY_sipsak_default}" />
+  </parameter>
+
+  <parameter name="kamctl" unique="0" required="0">
+   <longdesc lang="en">
+    The installation path of the "kamctl" control tool. 
+   </longdesc>
+   <shortdesc lang="en">kamctl path</shortdesc>
+   <content type="string" default="${RESKEY_kamctl_default}" />
   </parameter>
 
   <parameter name="kamctlrc" unique="0" required="0">
@@ -234,7 +242,7 @@ Parameters for a third Kamailio instance:
     configured per cluster node.
 
    </longdesc>
-   <shortdesc lang="en">protocol</shortdesc>
+   <shortdesc lang="en">kamctlrc path</shortdesc>
    <content type="string" default="${RESKEY_kamctlrc_default}" />
   </parameter>
 
