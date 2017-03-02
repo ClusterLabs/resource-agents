@@ -379,6 +379,11 @@ iSCSILogicalUnit_start() {
 		fi
 		ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns create /backstores/block/${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
 
+		if $(ip a | grep -q inet6); then
+			ocf_run -q targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/portals delete 0.0.0.0 3260
+			ocf_run -q targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/portals create ::0
+		fi
+
 		if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
 			for initiator in ${OCF_RESKEY_allowed_initiators}; do
 				ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls create ${initiator} add_mapped_luns=False || exit $OCF_ERR_GENERIC
