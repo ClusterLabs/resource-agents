@@ -520,6 +520,7 @@ detect_last_commit()
     last_commit="$(cat ${OCF_RESKEY_datadir}/grastate.dat | sed -n 's/^seqno.\s*\(.*\)\s*$/\1/p')"
     if [ -z "$last_commit" ] || [ "$last_commit" = "-1" ]; then
         local tmp=$(mktemp)
+        chown $OCF_RESKEY_user:$OCF_RESKEY_group $tmp
 
         # if we pass here because grastate.dat doesn't exist,
         # try not to bootstrap from this node if possible
