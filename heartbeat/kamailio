@@ -54,6 +54,7 @@ RESKEY_monitoring_ip_default=127.0.0.1
 RESKEY_port_default=5060
 RESKEY_proto_default="udptcp"
 RESKEY_sipsak_default="/usr/bin/sipsak"
+RESKEY_kamctl_default="/usr/bin/kamctl"
 RESKEY_kamctlrc_default="/etc/kamailio/kamctlrc"
 RESKEY_kamuser_default=""
 
@@ -65,6 +66,7 @@ RESKEY_kamuser_default=""
 : ${OCF_RESKEY_port=${RESKEY_port_default}}
 : ${OCF_RESKEY_proto=${RESKEY_proto_default}}
 : ${OCF_RESKEY_sipsak=${RESKEY_sipsak_default}}
+: ${OCF_RESKEY_kamctl=${RESKEY_kamctl_default}}
 : ${OCF_RESKEY_kamctlrc=${RESKEY_kamctlrc_default}}
 : ${OCF_RESKEY_kamuser=${RESKEY_kamuser_default}}
 
@@ -201,8 +203,16 @@ Parameters for a third Kamailio instance:
     The installation path of the sipsak tool, which is used 
     for monitoring Kamailio via SIP OPTIONS polling. 
    </longdesc>
-   <shortdesc lang="en">protocol</shortdesc>
+   <shortdesc lang="en">sipsak path</shortdesc>
    <content type="string" default="${RESKEY_sipsak_default}" />
+  </parameter>
+
+  <parameter name="kamctl" unique="0" required="0">
+   <longdesc lang="en">
+    The installation path of the "kamctl" control tool. 
+   </longdesc>
+   <shortdesc lang="en">kamctl path</shortdesc>
+   <content type="string" default="${RESKEY_kamctl_default}" />
   </parameter>
 
   <parameter name="kamctlrc" unique="0" required="0">
@@ -232,7 +242,7 @@ Parameters for a third Kamailio instance:
     configured per cluster node.
 
    </longdesc>
-   <shortdesc lang="en">protocol</shortdesc>
+   <shortdesc lang="en">kamctlrc path</shortdesc>
    <content type="string" default="${RESKEY_kamctlrc_default}" />
   </parameter>
 
@@ -414,7 +424,7 @@ kamailio_status() {
         # to be avoided.
         # In order to be on the safe side, we run this check therefore under "timeout" control:
         rc=1
-        timeout 3 kamctl monitor 1 |grep "Up since" ; rc=$?
+        timeout 3 ${OCF_RESKEY_kamctl} monitor 1 |grep "Up since" ; rc=$?
     fi
 
     if [ $rc -ne 0 ]; then
