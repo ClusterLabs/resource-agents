@@ -41,6 +41,7 @@ elif have_binary lio_node; then
 	OCF_RESKEY_implementation_default="lio"
 elif have_binary targetcli; then
 	OCF_RESKEY_implementation_default="lio-t"
+	targetcli_safe=${OCF_FUNCTIONS_DIR}/targetcli_safe
 fi
 : ${OCF_RESKEY_implementation=${OCF_RESKEY_implementation_default}}
 
@@ -334,14 +335,14 @@ iSCSITarget_start() {
 		# number 1. In lio, creating a network portal
 		# automatically creates the corresponding target if it
 		# doesn't already exist.
-		ocf_run targetcli /iscsi set global auto_add_default_portal=false || exit $OCF_ERR_GENERIC
-		ocf_run targetcli /iscsi create ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
+		ocf_run $targetcli_safe /iscsi set global auto_add_default_portal=false || exit $OCF_ERR_GENERIC
+		ocf_run $targetcli_safe /iscsi create ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
 		for portal in ${OCF_RESKEY_portals}; do
 			if [ $portal != ${OCF_RESKEY_portals_default} ] ; then
 				IFS=':' read -a sep_portal <<< "$portal"
-				ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/portals create "${sep_portal[0]}" "${sep_portal[1]}" || exit $OCF_ERR_GENERIC
+				ocf_run $targetcli_safe /iscsi/${OCF_RESKEY_iqn}/tpg1/portals create "${sep_portal[0]}" "${sep_portal[1]}" || exit $OCF_ERR_GENERIC
 			else
-				ocf_run targetcli /iscsi create ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
+				ocf_run $targetcli_safe /iscsi create ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
 			fi
 		done
 		# in lio, we can set target parameters by manipulating
@@ -371,15 +372,15 @@ iSCSITarget_start() {
 		# this, we need to switch the target to "permissive mode".
 		if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
 			for initiator in ${OCF_RESKEY_allowed_initiators}; do
-				ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/acls create ${initiator} || exit $OCF_ERR_GENERIC
+				ocf_run $targetcli_safe /iscsi/${OCF_RESKEY_iqn}/tpg1/acls create ${initiator} || exit $OCF_ERR_GENERIC
 			done
 		else
-			ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute authentication=0 demo_mode_write_protect=0 generate_node_acls=1 cache_dynamic_acls=1 || exit $OCF_ERR_GENERIC
+			ocf_run $targetcli_safe /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute authentication=0 demo_mode_write_protect=0 generate_node_acls=1 cache_dynamic_acls=1 || exit $OCF_ERR_GENERIC
 		fi
 		# TODO: add CHAP authentication support when it gets added
 		# back into LIO
-		ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute authentication=0 || exit $OCF_ERR_GENERIC
-#			   ocf_run targetcli /iscsi 
+		ocf_run $targetcli_safe /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute authentication=0 || exit $OCF_ERR_GENERIC
+#			   ocf_run $targetcli_safe /iscsi 
 		;;
 	esac
 
@@ -499,7 +500,7 @@ iSCSITarget_stop() {
 		ocf_run lio_node --deliqn ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
 		;;
 	lio-t)
-		ocf_run targetcli /iscsi delete ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
+		ocf_run $targetcli_safe /iscsi delete ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
 		;;
 	esac
 
