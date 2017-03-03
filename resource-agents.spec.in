@@ -42,7 +42,7 @@ Version:	@version@
 Release:	@specver@%{?rcver:%{rcver}}%{?numcomm:.%{numcomm}}%{?alphatag:.%{alphatag}}%{?dirty:.%{dirty}}%{?dist}
 License:	GPLv2+ and LGPLv2+
 URL:		https://github.com/ClusterLabs/resource-agents
-%if 0%{?fedora} || 0%{?centos_version} || 0%{?rhel}
+%if 0%{?fedora} || 0%{?centos_ver} || 0%{?rhel}
 Group:		System Environment/Base
 %else
 Group:		Productivity/Clustering/HA
@@ -60,7 +60,7 @@ BuildRequires: perl python-devel
 BuildRequires: libxslt glib2-devel
 BuildRequires: which
 
-%if 0%{?fedora} || 0%{?centos_version} || 0%{?rhel}
+%if 0%{?fedora} || 0%{?centos_ver} || 0%{?rhel}
 BuildRequires: cluster-glue-libs-devel
 BuildRequires: docbook-style-xsl docbook-dtds
 %if 0%{?rhel} == 0
@@ -80,21 +80,47 @@ BuildRequires:  libxslt docbook_4 docbook-xsl-stylesheets
 
 ## Runtime deps
 # system tools shared by several agents
-Requires: /bin/bash /bin/grep /bin/sed /bin/gawk
-Requires: /bin/ps /usr/bin/pkill /bin/hostname /bin/netstat
+%if 0%{?centos_ver} > 6 || 0%{?rhel} > 6
+Requires: /usr/bin/bash /usr/bin/gawk
+Requires: /usr/bin/ps
+Requires: /usr/sbin/fuser /usr/bin/mount
+%else
+Requires: /bin/bash /bin/gawk
+Requires: /bin/ps
 Requires: /sbin/fuser /bin/mount
+%endif
+Requires: /bin/grep /bin/sed
+Requires: /usr/bin/pkill /bin/hostname /bin/netstat
 
 # Filesystem / fs.sh / netfs.sh
+%if 0%{?centos_ver} > 6 || 0%{?rhel} > 6
+Requires: /usr/sbin/fsck
+Requires: /usr/sbin/fsck.ext2 /usr/sbin/fsck.ext3 /usr/sbin/fsck.ext4
+Requires: /usr/sbin/fsck.xfs
+Requires: /usr/sbin/mount.cifs
+%else
 Requires: /sbin/fsck
 Requires: /sbin/fsck.ext2 /sbin/fsck.ext3 /sbin/fsck.ext4
+%if 0%{?rhel} == 0
 Requires: /sbin/fsck.xfs
-Requires: /sbin/mount.nfs /sbin/mount.nfs4 /sbin/mount.cifs
+%endif
+Requires: /sbin/mount.cifs
+%endif
+Requires: /sbin/mount.nfs /sbin/mount.nfs4
 
 # IPaddr2
+%if 0%{?centos_ver} > 6 || 0%{?rhel} > 6
+Requires: /usr/sbin/ip
+%else
 Requires: /sbin/ip
+%endif
 
 # LVM / lvm.sh
+%if 0%{?centos_ver} > 6 || 0%{?rhel} > 6
+Requires: /usr/sbin/lvm
+%else
 Requires: /sbin/lvm
+%endif
 
 # nfsserver / netfs.sh
 Requires: /usr/sbin/rpc.nfsd /sbin/rpc.statd /usr/sbin/rpc.mountd
@@ -119,14 +145,14 @@ service managers.
 %package -n ldirectord
 License:	GPLv2+
 Summary:	A Monitoring Daemon for Maintaining High Availability Resources
-%if 0%{?fedora} || 0%{?centos_version} || 0%{?rhel}
+%if 0%{?fedora} || 0%{?centos_ver} || 0%{?rhel}
 Group:		System Environment/Daemons
 %else
 Group:		Productivity/Clustering/HA
 %endif
 Obsoletes:	heartbeat-ldirectord <= %{version}
 Provides:	heartbeat-ldirectord = %{version}
-%if 0%{?fedora} > 18 || 0%{?centos_version} > 6 || 0%{?rhel} > 6
+%if 0%{?fedora} > 18 || 0%{?centos_ver} > 6 || 0%{?rhel} > 6
 BuildRequires: perl-podlators
 %endif
 Requires:       %{SSLeay} perl-libwww-perl perl-MailTools
@@ -154,7 +180,7 @@ See 'ldirectord -h' and linux-ha/doc/ldirectord for more information.
 %endif
 
 %prep
-%if 0%{?suse_version} == 0 && 0%{?fedora} == 0 && 0%{?centos_version} == 0 && 0%{?rhel} == 0
+%if 0%{?suse_version} == 0 && 0%{?fedora} == 0 && 0%{?centos_ver} == 0 && 0%{?rhel} == 0
 %{error:Unable to determine the distribution/version. This is generally caused by missing /etc/rpm/macros.dist. Please install the correct build packages or define the required macros manually.}
 exit 1
 %endif
@@ -165,7 +191,7 @@ if [ ! -f configure ]; then
 	./autogen.sh
 fi
 
-%if 0%{?fedora} >= 11 || 0%{?centos_version} > 5 || 0%{?rhel} > 5
+%if 0%{?fedora} >= 11 || 0%{?centos_ver} > 5 || 0%{?rhel} > 5
 CFLAGS="$(echo '%{optflags}')"
 %global conf_opt_fatal "--enable-fatal-warnings=no"
 %else
