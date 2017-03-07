@@ -13,14 +13,20 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+STATD_PATH="/var/lib/nfs/statd"
+
 # Defaults
 OCF_RESKEY_unlock_on_stop_default=1
 OCF_RESKEY_wait_for_leasetime_on_stop_default=0
 OCF_RESKEY_rmtab_backup_default=".rmtab"
+OCF_RESKEY_merge_notify_list_default=0
+OCF_RESKEY_state_subdir_default=".clumanager"
 
 : ${OCF_RESKEY_unlock_on_stop=${OCF_RESKEY_unlock_on_stop_default}}
 : ${OCF_RESKEY_wait_for_leasetime_on_stop=${OCF_RESKEY_wait_for_leasetime_on_stop_default}}
 : ${OCF_RESKEY_rmtab_backup=${OCF_RESKEY_rmtab_backup_default}}
+: ${OCF_RESKEY_merge_notify_list=${OCF_RESKEY_merge_notify_list_default}}
+: ${OCF_RESKEY_state_subdir=${OCF_RESKEY_state_subdir_default}}
 #######################################################################
 
 exportfs_meta_data() {
@@ -149,6 +155,33 @@ Location of the rmtab backup, relative to directory.
 </shortdesc>
 <content type="string" default="${OCF_RESKEY_rmtab_backup_default}" />
 </parameter>
+
+<parameter name="merge_notify_list" unique="0" required="0">
+<longdesc lang="en">
+In a multi-server configuration it is necessary to run rpc.statd with
+an HA callout.  Setting merge_notify_list to true will cause the contents
+of the hidden directory created on each export by the HA callout to be
+merged into /var/lib/nfs/statd/sm upon failover.  This is necessary so
+the correct clients are notified to reclaim their locks.
+</longdesc>
+<shortdesc lang="en">
+Merge notify list?
+</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_merge_notify_list_default}" />
+</parameter>
+
+<parameter name="state_subdir">
+<longdesc lang="en">
+The name of the hidden subdirectory used by rpc.statd's HA callout to
+share information about monitored clients.  This parameter is only
+meaningful if merge_notify_list is set to true.
+</longdesc>
+<shortdesc lang="en">
+Location of the state subdirectory, relative to directory.
+</shortdesc>
+<content type="string" default="${OCF_RESKEY_state_subdir_default}" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -311,6 +344,28 @@ export_one() {
 	ocf_log info "directory $dir exported"
 	return $OCF_SUCCESS
 }
+
+merge_notify_list()
+{
+	local dir=$1
+	local subdir=${OCF_RESKEY_state_subdir}
+
+	if [ ! -d $dir/$subdir/statd ]; then
+		mkdir -p $dir/$subdir/statd/sm
+		chown -R rpcuser.rpcuser $dir/$subdir/statd
+	fi
+	if selinuxenabled; then
+		if [ $(ls -ldZ $STATD_PATH | awk '{ print NF }') -gt 5 ]; then
+			SELINUX_LABEL="$(ls -ldZ $STATD_PATH | cut -f5 -d' ')"
+		else
+			SELINUX_LABEL="$(ls -ldZ $STATD_PATH | cut -f4 -d' ')"
+		fi
+		chcon -R $SELINUX_LABEL $dir/$subdir/statd
+	fi
+	cp -Rdpf $dir/$subdir/statd/sm/* $STATD_PATH/sm
+	return 0
+}
+
 exportfs_start ()
 {
 	if exportfs_monitor; then
@@ -325,6 +380,10 @@ exportfs_start ()
 	# Restore the rmtab to ensure smooth NFS-over-TCP failover
 	if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
 		forall restore_rmtab
+	fi
+
+	if ocf_is_true ${OCF_RESKEY_merge_notify_list}; then
+		forall merge_notify_list
 	fi
 }
 
