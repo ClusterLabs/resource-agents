@@ -45,6 +45,9 @@ HA_STATD_PIDFILE_PREV="$NFSNOTIFY_TMP_DIR/rpc.statd_${OCF_RESOURCE_INSTANCE}.pid
 STATD_PATH="/var/lib/nfs/statd"
 SM_NOTIFY_BINARY="${sbindir}/sm-notify"
 IS_RENOTIFY=0
+OCF_RESKEY_start_grace_default=0
+
+: ${OCF_RESKEY_start_grace=${OCF_RESKEY_start_grace_default}}
 
 meta_data() {
 	cat <<END
@@ -81,6 +84,21 @@ arguments.
 </longdesc>
 <shortdesc lang="en">sm-notify arguments</shortdesc>
 <content type="string" default="false" />
+</parameter>
+
+<parameter name="start_grace" unique="0" required="0">
+<longdesc lang="en">
+If set to true, this will trigger a grace period before calling sm-notify,
+allowing the notified clients to reclaim their locks.  If you are running
+a multi-server configuration (where the nfs daemon is a clone resource or
+perhaps not even managed by the cluster) then this should be set to true.
+If you are running a single-server configuration (where the nfs daemon and
+all of the exports move as a single unit) then this should be set to false.
+</longdesc>
+<shortdesc lang="en">
+Trigger grace period before calling sm-notify?
+</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_start_grace_default}" />
 </parameter>
 
 </parameters>
@@ -233,6 +251,11 @@ v3notify_start()
 
 	statd_backup="$STATD_PATH/nfsnotify.bu"
 	copy_statd "$STATD_PATH" "$statd_backup"
+
+	if ocf_is_true ${OCF_RESKEY_start_grace}; then
+		pkill -KILL -x lockd
+		is_renotify=0
+	fi
 
 	if [ -z "$OCF_RESKEY_source_host" ]; then
 		if [ "$is_renotify" -eq 0 ]; then
