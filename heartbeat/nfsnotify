@@ -276,6 +276,9 @@ v3notify_start()
 	# do sm-notify for each ip
 	for ip in `echo ${OCF_RESKEY_source_host} | sed 's/,/ /g'`; do
 
+		# don't bother if we don't actually have the ip
+		$IP2UTIL addr show | grep -q $ip || continue
+
 		# have the first sm-notify use the actual statd directory so the
 		# notify list can be managed properly.
 		if [ "$is_renotify" -eq 0 ]; then
