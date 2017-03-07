@@ -297,7 +297,11 @@ esac
 which restorecon > /dev/null 2>&1 && selinuxenabled
 SELINUX_ENABLED=$?
 if [ $SELINUX_ENABLED -eq 0 ]; then
-	export SELINUX_LABEL="$(ls -ldZ $STATD_PATH | cut -f4 -d' ')"
+	if [ $(ls -ldZ $STATD_PATH | awk '{ print NF }') -gt 5 ]; then
+		export SELINUX_LABEL="$(ls -ldZ $STATD_PATH | cut -f5 -d' ')"
+	else
+		export SELINUX_LABEL="$(ls -ldZ $STATD_PATH | cut -f4 -d' ')"
+	fi
 fi
 
 case $__OCF_ACTION in
