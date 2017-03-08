@@ -78,7 +78,6 @@ is set to.
 <action name="start"        timeout="90" />
 <action name="stop"         timeout="90" />
 <action name="monitor"      timeout="90" interval="30" depth="0" />
-<action name="reload"       timeout="90" />
 <action name="meta-data"    timeout="10" />
 <action name="validate-all"   timeout="20" />
 </actions>
