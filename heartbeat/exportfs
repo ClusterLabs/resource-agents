@@ -354,7 +354,10 @@ merge_notify_list()
 		mkdir -p $dir/$subdir/statd/sm
 		chown -R rpcuser.rpcuser $dir/$subdir/statd
 	fi
-	if selinuxenabled; then
+
+	which restorecon > /dev/null 2>&1 && selinuxenabled
+	SELINUX_ENABLED=$?
+	if [ $SELINUX_ENABLED -eq 0 ]; then
 		if [ $(ls -ldZ $STATD_PATH | awk '{ print NF }') -gt 5 ]; then
 			SELINUX_LABEL="$(ls -ldZ $STATD_PATH | cut -f5 -d' ')"
 		else
