@@ -1479,7 +1479,7 @@ set_async_mode_all() {
 }
 
 set_async_mode() {
-    cat $REP_MODE_CONF |  grep -q -e "[,' ]$1[,' ]"
+    cat $REP_MODE_CONF |  grep -q -E "(\"$1\")|([,' ]$1[,' ])"
     if [ $? -eq 0 ]; then
         ocf_log info "Setup $1 into async mode."
         runasowner -q err "echo \"synchronous_standby_names = ''\" > \"$REP_MODE_CONF\""
