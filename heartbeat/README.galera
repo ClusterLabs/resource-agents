@@ -77,6 +77,13 @@ General idea for starting Galera:
   * Only when SST is over on joiner nodes, the agent promotes them
     to Master. At this point, the entire Galera cluster is up.
 
+  * SST failures can't always be recovered automatically, so if
+    a failure occurs while galera is syncing on a node (attribute
+    sync-needed set), pacemaker will prevent the resource from
+    restarting on that node.
+    User will have to run "pcs cleanup galera" on the node to unblock
+    the resource and automatically trigger an SST at next restart.
+
 
 Attribute usage and liveness
 ====
@@ -133,14 +140,10 @@ Non-primary state, which would make `galera_monitor()` fail.
 
 ### no-grastate
 
-If a galera node was unexpectedly killed in a middle of a replication,
-InnoDB can retain the equivalent of a XA transaction in prepared state
-in its redo log. If so, mysqld cannot recover state (nor last seqno)
-automatically, and special recovery heuristic has to be used to
-unblock the node.
-
-This transient attribute is used to keep track of forced recoveries to
-prevent bootstrapping a cluster from a recovered node when possible.
+This transient attribute is used to keep track of node which did not
+shutdown cleanly or failed to join the cluster during SST. It is also
+used to prevent bootstrapping a cluster from a recovered node when
+possible.
 
 - Used   : during `detect_first_master()` to elect the bootstrap node
 - Created: in `detect_last_commit()` if the node has a pending XA
