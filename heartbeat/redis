@@ -372,6 +372,11 @@ function start() {
 		fi
 	done
 
+	while ! [ -s "$REDIS_PIDFILE" ]; do
+		ocf_log debug "start: Waiting for pid file '$REDIS_PIDFILE' to appear"
+		sleep 1
+	done
+
 	ocf_is_ms && demote # pacemaker expects resources to start in slave mode
 
 	monitor
