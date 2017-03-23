@@ -33,6 +33,9 @@ REDIS_REPLICATION_PORT="$OCF_RESKEY_port"
 if ! [ -f $REDIS_CHECK_DUMP ]; then
 	REDIS_CHECK_DUMP="$(which redis-check-dump 2>/dev/null)"
 fi
+if [ -z "$REDIS_CHECK_DUMP" ]; then
+	REDIS_CHECK_DUMP="$(which redis-check-rdb 2>/dev/null)"
+fi
 
 if [ -f "$REDIS_CONFIG" ]; then
 	REDIS_DUMP_DIR="$(cat $REDIS_CONFIG | grep "^\s*dir\s" | awk '{ print $2 }' 2>/dev/null)"
