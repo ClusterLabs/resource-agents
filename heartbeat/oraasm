@@ -1,0 +1,179 @@
+#!/bin/sh
+#
+#  License:      GNU General Public License (GPL)
+#  (c) 2017 O. Albrigtsen
+#           and Linux-HA contributors
+#
+# -----------------------------------------------------------------------------
+#      O C F    R E S O U R C E    S C R I P T   S P E C I F I C A T I O N
+# -----------------------------------------------------------------------------
+#
+# NAME
+#       oraasm : OCF resource agent script for Oracle ASM
+#
+
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_user_default="grid"
+
+: ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
+
+
+oraasm_usage() {
+	cat <<END
+    usage: $0 (start|stop|validate-all|meta-data|help|usage|monitor)
+    $0 manages a Oracle ASM Disk Group as an OCF HA resource.
+    The 'start' operation starts the instance.
+    The 'stop' operation stops the instance.
+    The 'status' operation reports whether the instance is running
+    The 'monitor' operation reports whether the instance seems to be working
+    The 'validate-all' operation reports whether the parameters are valid
+END
+}
+
+oraasm_meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="oraasm">
+<version>0.75</version>
+
+<longdesc lang="en">OCF Resource script for Oracle ASM. It uses the ohasd init-script to manage a Oracle ASM Disk Group as a HA resource.</longdesc>
+<shortdesc lang="en">Oracle ASM resource agent</shortdesc>
+
+<parameters>
+
+<parameter name="user">
+    <longdesc lang="en">Oracle Grid user</longdesc>
+    <shortdesc lang="en">Oracle Grid user</shortdesc>
+    <content type="string" default="${OCF_RESKEY_user_default}" />
+</parameter>
+
+<parameter name="diskgroup" required="1">
+    <longdesc lang="en">
+The name of the Oracle Disk Group.
+If not specified, then the Disk Group along with its home should be listed in /etc/oratab.
+    </longdesc>
+    <shortdesc lang="en">Oracle Disk Group</shortdesc>
+    <content type="string" default="" />
+</parameter>
+
+<parameter name="home" unique="0">
+<longdesc lang="en">The Oracle Grid home directory</longdesc>
+<shortdesc lang="en">home</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="60" />
+<action name="stop" timeout="60" />
+<action name="status" timeout="30" />
+<action name="monitor" depth="0" timeout="30" interval="10" />
+<action name="validate-all" timeout="5" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+oraasm_methods() {
+	cat <<-!
+	start
+	stop
+	status
+	monitor
+	validate-all
+	methods
+	meta-data
+	usage
+	!
+}
+
+oraasm_getconfig() {
+	[ x = "x$OCF_RESKEY_home" ] &&
+		OCF_RESKEY_home=`awk -F: "/^+$OCF_RESKEY_diskgroup:/"'{print $2}' /etc/oratab`
+	PATH="$OCF_RESKEY_home/bin:$PATH"
+
+	ORA_ENVF=`mktemp`
+	cat << EOF > $ORA_ENVF
+PATH="$OCF_RESKEY_home/bin:$PATH"
+EOF
+	chmod 644 $ORA_ENVF
+	trap "rm -f $ORA_ENVF" EXIT
+}
+
+oraasm_start() {
+	# if resource is already running, no need to continue code after this.
+	if oraasm_monitor; then
+		ocf_log info "Oracle ASM is already running"
+		return $OCF_SUCCESS
+	fi
+
+	ocf_run -q /etc/init.d/ohasd start
+
+	while ! oraasm_monitor; do
+		sleep 1
+	done
+
+	return $OCF_SUCCESS
+}
+
+oraasm_stop() {
+	oraasm_monitor
+	if [ $? -ne $OCF_SUCCESS ]; then
+		# Currently not running. Nothing to do.
+		ocf_log info "Oracle ASM is already stopped"
+
+		return $OCF_SUCCESS
+	fi
+
+	ocf_run -q /etc/init.d/ohasd stop
+
+	# Wait for process to stop
+	while oraasm_monitor; do
+		sleep 1
+	done
+
+	return $OCF_SUCCESS
+}
+
+oraasm_monitor() {
+	su - $OCF_RESKEY_user -c ". $ORA_ENVF; crsctl check has | grep -q \"CRS-4638\""
+	case "$?" in
+		0)
+			rc=$OCF_SUCCESS
+			;;
+		1)
+			rc=$OCF_NOT_RUNNING
+			ocf_log info "Oracle ASM is not running"
+			;;
+		*)
+			rc=$OCF_ERR_GENERIC
+			;;
+	esac
+	return $rc
+}
+
+oraasm_status() {
+	rc=$(oraasm_monitor)
+	return $rc
+}
+
+oraasm_validate_all() {
+	if [ x = "x$OCF_RESKEY_home" ]; then
+		ocf_exit_reason "home not set"
+		return $OCF_ERR_CONFIGURED
+	fi
+}
+
+
+OCF_REQUIRED_PARAMS="user diskgroup"
+OCF_REQUIRED_BINARIES="/etc/init.d/ohasd crsctl"
+ocf_rarun $*
+
+# vim:tabstop=4:shiftwidth=4:textwidth=0:wrapmargin=0

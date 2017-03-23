@@ -119,6 +119,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			nfsnotify		\
 			nfsserver		\
 			nginx			\
+			oraasm			\
 			oracle			\
 			oralsnr			\
 			pgagent			\
