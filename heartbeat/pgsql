@@ -299,7 +299,7 @@ It requires master_ip restore_command parameters.
 <parameter name="node_list" unique="0" required="0">
 <longdesc lang="en">
 All node names. Please separate each node name with a space.
-This is required for replication.
+This is optional for replication. Defaults to all nodes in the cluster
 </longdesc>
 <shortdesc lang="en">node list</shortdesc>
 <content type="string" default="${OCF_RESKEY_node_list_default}" />
@@ -615,16 +615,6 @@ pgsql_real_start() {
         ocf_log debug "PostgreSQL still hasn't started yet. Waiting..."
     done
 
-    # create replication slot on the master and slave nodes.
-    # creating slot on the slave node is in preparation for failover.
-    if use_replication_slot; then
-        create_replication_slot
-        if [ $? -eq $OCF_ERR_GENERIC ]; then
-            ocf_exit_reason "PostgreSQL can't create replication_slot."
-            return $OCF_ERR_GENERIC
-        fi
-    fi
-
     ocf_log info "PostgreSQL is started."
     return $rc
 }
@@ -686,6 +676,15 @@ pgsql_promote() {
     ocf_log info "Creating $PGSQL_LOCK."
     touch $PGSQL_LOCK
     show_master_baseline
+
+    # create replication slots on master before promotion
+    if use_replication_slot; then
+        create_replication_slot
+        if [ $? -eq $OCF_ERR_GENERIC ]; then
+            ocf_exit_reason "PostgreSQL can't create replication_slot."
+            return $OCF_ERR_GENERIC
+        fi
+    fi
 
     if ocf_is_true ${OCF_RESKEY_restart_on_promote}; then
         ocf_log info "Restarting PostgreSQL instead of promote."
@@ -1997,7 +1996,12 @@ if is_replication; then
     PGSQL_XLOG_LOC_NAME="${RESOURCE_NAME}-xlog-loc"
     PGSQL_MASTER_BASELINE="${RESOURCE_NAME}-master-baseline"
 
-    NODE_LIST=`echo $OCF_RESKEY_node_list | tr '[A-Z]' '[a-z]'`
+    if [ $(echo $e | wc -w) -eq 0 ]; then
+        # defaulting nodelist to all nodes in the cluster if not specified
+        NODE_LIST=$(crm_node --list | cut -d ' ' -f 2)
+    else
+        NODE_LIST=`echo $OCF_RESKEY_node_list | tr '[A-Z]' '[a-z]'`
+    fi
     RE_CONTROL_SLAVE="false"
 fi
 
