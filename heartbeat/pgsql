@@ -614,6 +614,15 @@ pgsql_real_start() {
         ocf_log debug "PostgreSQL still hasn't started yet. Waiting..."
     done
 
+    # delete replication slots on all nodes. On master node will be created during promotion.
+    if use_replication_slot; then
+        delete_replication_slots
+        if [ $? -eq $OCF_ERR_GENERIC ]; then
+            ocf_exit_reason "PostgreSQL can't clean up replication_slot."
+            return $OCF_ERR_GENERIC
+        fi
+    fi
+
     ocf_log info "PostgreSQL is started."
     return $rc
 }
@@ -678,7 +687,7 @@ pgsql_promote() {
 
     # create replication slots on master before promotion
     if use_replication_slot; then
-        create_replication_slot
+        create_replication_slots
         if [ $? -eq $OCF_ERR_GENERIC ]; then
             ocf_exit_reason "PostgreSQL can't create replication_slot."
             return $OCF_ERR_GENERIC
@@ -1348,7 +1357,34 @@ create_replication_slot_name() {
     echo $replication_slot_name_list
 }
 
-create_replication_slot() {
+delete_replication_slot(){
+    DELETE_REPLICATION_SLOT_sql="SELECT pg_drop_replication_slot('$1');"
+    output=`exec_sql "$DELETE_REPLICATION_SLOT_sql"`
+    return $?
+}
+
+delete_replication_slots() {
+    local replication_slot_name_list
+    local replication_slot_name
+
+    replication_slot_name_list=`create_replication_slot_name`
+    ocf_log debug "replication slot names are $replication_slot_name_list."
+
+    for replication_slot_name in $replication_slot_name_list
+    do
+        if [ `check_replication_slot $replication_slot_name` = "1" ]; then
+            delete_replication_slot $replication_slot_name
+            if [ $? -eq 0 ]; then
+                ocf_log info "PostgreSQL delete the replication slot($replication_slot_name)."
+            else
+                ocf_exit_reason "$output"
+                return $OCF_ERR_GENERIC
+            fi
+        fi
+    done
+}
+
+create_replication_slots() {
     local replication_slot_name
     local replication_slot_name_list
     local output
@@ -1363,11 +1399,8 @@ create_replication_slot() {
     do
         # If the same name slot is already exists, initialize(delete and create) the slot.
         if [ `check_replication_slot $replication_slot_name` = "1" ]; then
-            DELETE_REPLICATION_SLOT_sql="SELECT pg_drop_replication_slot('$replication_slot_name');"
-            output=`exec_sql "$DELETE_REPLICATION_SLOT_sql"`
-            rc=$?
-
-            if [ $rc -eq 0 ]; then
+            delete_replication_slot $replication_slot_name
+            if [ $? -eq 0 ]; then
                 ocf_log info "PostgreSQL delete the replication slot($replication_slot_name)."
             else
                 ocf_exit_reason "$output"
