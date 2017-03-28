@@ -572,10 +572,22 @@ ctdb_start() {
 
 	# Use logfile by default, or syslog if asked for
 	local log_option
-	log_option="--logfile=$OCF_RESKEY_ctdb_logfile"
-	if [ "$OCF_RESKEY_ctdb_logfile" = "syslog" ]; then
-		log_option="--syslog"
-	elif [ ! -d "$(dirname $OCF_RESKEY_ctdb_logfile)" ]; then
+	# --logging supported from v4.3.0 and --logfile / --syslog support 
+	# has been removed from newer versions
+	version=$(ctdb version | awk '{print $NF}')
+	ocf_version_cmp "$version" "4.2.14"
+	if [ "$?" -eq "2" ]; then
+		log_option="--logging=file:$OCF_RESKEY_ctdb_logfile"
+		if [ "$OCF_RESKEY_ctdb_logfile" = "syslog" ]; then
+			log_option="--logging=syslog"
+		fi
+	else
+		log_option="--logfile=$OCF_RESKEY_ctdb_logfile"
+		if [ "$OCF_RESKEY_ctdb_logfile" = "syslog" ]; then
+			log_option="--syslog"
+		fi
+	fi
+	if [ ! -d "$(dirname $OCF_RESKEY_ctdb_logfile)" ]; then
 		# ensure the logfile's directory exists, otherwise ctdb will fail to start
 		mkdir -p $(dirname $OCF_RESKEY_ctdb_logfile)
 	fi
