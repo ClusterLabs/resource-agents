@@ -710,10 +710,14 @@ run_send_arp() {
 	if [ $ARP_COUNT -ne 0 ] ; then
 		ARGS="-i $OCF_RESKEY_arp_interval -r $ARP_COUNT -p $SENDARPPIDFILE $NIC $OCF_RESKEY_ip $MY_MAC not_used not_used"
 		ocf_log $LOGLEVEL "$SENDARP $ARGS"
-		if ocf_is_true $OCF_RESKEY_arp_bg; then
-			($SENDARP $ARGS || ocf_log err "Could not send gratuitous arps")& >&2
-		else
-			$SENDARP $ARGS || ocf_log err "Could not send gratuitous arps"
+		output=$($SENDARP $ARGS 2>&1)
+		rc=$?
+		if [ $rc -ne $OCF_SUCCESS ]; then
+			if ! ocf_is_true $OCF_RESKEY_arp_bg; then
+			    ocf_log err "send_arp output: $output"
+			fi
+			ocf_exit_reason "Could not send gratuitous arps"
+			exit $OCF_ERR_GENERIC
 		fi
 	fi
 }
@@ -771,10 +775,14 @@ run_send_ib_arp() {
 	if [ $ARP_COUNT -ne 0 ] ; then
 		ARGS="-q -c $ARP_COUNT -U -I $NIC $OCF_RESKEY_ip"
 		ocf_log $LOGLEVEL "ipoibarping $ARGS"
-		if ocf_is_true $OCF_RESKEY_arp_bg; then
-			(ipoibarping $ARGS || ocf_log err "Could not send gratuitous arps")& >&2
-		else
-			ipoibarping $ARGS || ocf_log err "Could not send gratuitous arps"
+		output=$(ipoibarping $ARGS 2>&1)
+		rc=$?
+		if [ $rc -ne $OCF_SUCCESS ]; then
+			if ! ocf_is_true $OCF_RESKEY_arp_bg; then
+			    ocf_log err "ipoibarping output: $output"
+			fi
+			ocf_exit_reason "Could not send gratuitous arps"
+			exit $OCF_ERR_GENERIC
 		fi
 	fi
 }
