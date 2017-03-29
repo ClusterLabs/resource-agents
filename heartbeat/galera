@@ -451,14 +451,24 @@ pcmk_to_galera_name()
 detect_first_master()
 {
     local best_commit=0
-    local best_node="$NODENAME"
     local last_commit=0
     local missing_nodes=0
     local nodes=""
     local nodes_recovered=""
+    local all_nodes
+    local best_node_gcomm
+    local best_node
+
+    all_nodes=$(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' ')
+    best_node_gcomm=$(echo "$all_nodes" | sed 's/^.* \(.*\)$/\1/')
+    best_node=$(galera_to_pcmk_name $best_node_gcomm)
+    if [ -z "$best_node" ]; then
+        ocf_log error "Could not determine initial best node from galera name <${best_node_gcomm}>."
+        return
+    fi
 
     # avoid selecting a recovered node as bootstrap if possible
-    for node in $(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' '); do
+    for node in $all_nodes; do
         local pcmk_node=$(galera_to_pcmk_name $node)
         if [ -z "$pcmk_node" ]; then
             ocf_log error "Could not determine pacemaker node from galera name <${node}>."
@@ -520,6 +530,7 @@ detect_last_commit()
     last_commit="$(cat ${OCF_RESKEY_datadir}/grastate.dat | sed -n 's/^seqno.\s*\(.*\)\s*$/\1/p')"
     if [ -z "$last_commit" ] || [ "$last_commit" = "-1" ]; then
         local tmp=$(mktemp)
+        chown $OCF_RESKEY_user:$OCF_RESKEY_group $tmp
 
         # if we pass here because grastate.dat doesn't exist,
         # try not to bootstrap from this node if possible

@@ -73,6 +73,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_MailTo.7 \
                           ocf_heartbeat_ManageRAID.7 \
                           ocf_heartbeat_ManageVE.7 \
+                          ocf_heartbeat_NodeUtilization.7 \
                           ocf_heartbeat_Pure-FTPd.7 \
                           ocf_heartbeat_Raid1.7 \
                           ocf_heartbeat_Route.7 \

@@ -29,6 +29,8 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+OCF_RESKEY_check_writethrough_default="false"
+
 #######################################################################
 
 
@@ -104,6 +106,14 @@ logical volumes.
 </longdesc>
 <shortdesc lang="en">Activate VG partially when missing PVs</shortdesc>
 <content type="string" default="false" />
+</parameter>
+
+<parameter name="check_writethrough" unique="0" required="0">
+<longdesc lang="en">
+If set to true, check if cache_mode is set to writethrough.
+</longdesc>
+<shortdesc lang="en">Check if cache_mode is set to writethrough</shortdesc>
+<content type="string" default="${OCF_RESKEY_check_writethrough_default}" />
 </parameter>
 
 </parameters>
@@ -583,6 +593,13 @@ LVM_validate_all() {
 		exit $OCF_ERR_GENERIC
 	fi
 
+	if ocf_is_true "$OCF_RESKEY_check_writethrough"; then
+		if ! lvs --noheadings -o cache_mode "$OCF_RESKEY_volgrpname" | grep -q "writethrough"; then
+			ocf_exit_reason "LVM cache is not in writethrough mode."
+			exit $OCF_ERR_CONFIGURED
+		fi
+	fi
+
 	##
 	# If exclusive activation is not enabled, then
 	# further checking of proper setup is not necessary
@@ -689,6 +706,8 @@ OP_METHOD=$1
 if [ -n "$OCF_RESKEY_tag" ]; then
 	OUR_TAG=$OCF_RESKEY_tag
 fi
+
+: ${OCF_RESKEY_check_writethrough=${OCF_RESKEY_check_writethrough_default}}
 
 # What kind of method was invoked?
 case "$1" in

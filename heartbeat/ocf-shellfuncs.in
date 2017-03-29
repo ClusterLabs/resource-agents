@@ -231,7 +231,7 @@ __ha_log() {
 	  [ -n "$HA_LOGFILE" ]
 	then
 	  : appending to $HA_LOGFILE
-	  echo "$HA_LOGTAG:	"`hadate`"${*}" >> $HA_LOGFILE
+	  echo `hadate`" $HA_LOGTAG:    ${*}" >> $HA_LOGFILE
 	fi
 	if
 	  [ -z "$HA_LOGFACILITY" -a -z "$HA_LOGFILE" ] && ! [ "$ignore_stderr" = "true" ]

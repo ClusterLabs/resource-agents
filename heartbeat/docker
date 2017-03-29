@@ -360,24 +360,31 @@ docker_stop()
 
 image_exists()
 {
-	# assume that OCF_RESKEY_name have been validated
-	local IMAGE_NAME="$(echo ${OCF_RESKEY_image} | awk -F':' '{print $1}')"
-
 	# if no tag was specified, use default "latest"
 	local COLON_FOUND=0
+	local SLASH_FOUND=0
+	local SERVER_NAME=""
+	local IMAGE_NAME="${OCF_RESKEY_image}"
 	local IMAGE_TAG="latest"
 
-	COLON_FOUND="$(echo "${OCF_RESKEY_image}" | grep -o ':' | grep -c .)"
+	SLASH_FOUND="$(echo "${OCF_RESKEY_image}" | grep -o '/' | grep -c .)"
 
-	if [ ${COLON_FOUND} -ne 0 ]; then
-		IMAGE_TAG="$(echo ${OCF_RESKEY_image} | awk -F':' '{print $NF}')"
+	if [ ${SLASH_FOUND} -ge 1 ]; then
+		SERVER_NAME="$(echo ${IMAGE_NAME} | cut -d / -f 1-${SLASH_FOUND})"
+		IMAGE_NAME="$(echo ${IMAGE_NAME} | awk -F'/' '{print $NF}')"
+	fi
+
+	COLON_FOUND="$(echo "${IMAGE_NAME}" | grep -o ':' | grep -c .)"
+	if [ ${COLON_FOUND} -ge 1 ]; then
+		IMAGE_TAG="$(echo ${IMAGE_NAME} | awk -F':' '{print $NF}')"
+		IMAGE_NAME="$(echo ${IMAGE_NAME} | cut -d : -f 1-${COLON_FOUND})"
 	fi
 
 	# IMAGE_NAME might be following formats:
 	# - image
-	# - repository/image
+	# - repository:port/image
 	# - docker.io/image (some distro will display "docker.io/" as prefix)
-	docker images | awk '{print $1 ":" $2}' | egrep -q -s "^(docker.io\/)?${IMAGE_NAME}:${IMAGE_TAG}\$"
+	docker images | awk '{print $1 ":" $2}' | egrep -q -s "^(docker.io\/|${SERVER_NAME}\/)?${IMAGE_NAME}:${IMAGE_TAG}\$"
 	if [ $? -eq 0 ]; then
 		# image found
 		return 0
