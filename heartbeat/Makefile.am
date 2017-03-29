@@ -68,6 +68,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			MailTo			\
 			ManageRAID		\
 			ManageVE		\
+			NodeUtilization	\
 			Pure-FTPd		\
 			Raid1			\
 			Route			\
