@@ -2019,7 +2019,7 @@ if is_replication; then
     PGSQL_XLOG_LOC_NAME="${RESOURCE_NAME}-xlog-loc"
     PGSQL_MASTER_BASELINE="${RESOURCE_NAME}-master-baseline"
 
-    if [ $(echo $e | wc -w) -eq 0 ]; then
+    if [ $(echo $OCF_RESKEY_node_list | wc -w) -eq 0 ]; then
         # defaulting nodelist to all nodes in the cluster if not specified
         NODE_LIST=$(crm_node --list | cut -d ' ' -f 2)
     else
