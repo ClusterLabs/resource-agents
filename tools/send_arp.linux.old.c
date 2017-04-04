@@ -137,25 +137,22 @@ static socklen_t sll_len(size_t halen)
 void usage(void)
 {
 	fprintf(stderr,
-		"Usage: send_arp [-fqbDUAV] [-c count] [-w timeout] [-I device] [-s source] destination\n"
-		"  -f : quit on first reply (not available in libnet version)\n"
-		"  -q : be quiet (not available in libnet version)\n"
-		"  -b : keep broadcasting, don't go unicast (not available in libnet version)\n"
-		"  -i : repeat interval in milliseconds (ignored)\n"
-		"  -p : pid file (ignored)\n"
-		"  -D : duplicate address detection mode (not available in libnet version)\n"
-		"  -U : Unsolicited ARP mode, update your neighbours (not available in libnet version)\n"
-		"  -A : ARP answer mode, update your neighbours (not available in libnet version)\n"
-		"  -V : print version and exit (not available in libnet version)\n"
+		"Usage: arping [-fqbDUAV] [-c count] [-w timeout] [-I device] [-s source] destination\n"
+		"  -f : quit on first reply\n"
+		"  -q : be quiet\n"
+		"  -b : keep broadcasting, don't go unicast\n"
+		"  -D : duplicate address detection mode\n"
+		"  -U : Unsolicited ARP mode, update your neighbours\n"
+		"  -A : ARP answer mode, update your neighbours\n"
+		"  -V : print version and exit\n"
 		"  -c count : how many packets to send\n"
-		"  -w timeout : how long to wait for a reply (not available in libnet version)\n"
+		"  -w timeout : how long to wait for a reply\n"
 		"  -I device : which ethernet device to use"
 #ifdef DEFAULT_DEVICE_STR
 			" (" DEFAULT_DEVICE_STR ")"
 #endif
 			"\n"
-		"  -s source : source ip address (not available in libnet version)\n"
-		"  -m mac : source MAC address (ignored).\n"
+		"  -s source : source ip address\n"
 		"  destination : ask for what ip address\n"
 		);
 	exit(2);
@@ -1047,7 +1044,7 @@ main(int argc, char **argv)
 
 	disable_capability_raw();
 
-	while ((ch = getopt(argc, argv, "h?bfDUAqc:w:s:I:Vi:m:p:")) != EOF) {
+	while ((ch = getopt(argc, argv, "h?bfDUAqc:w:s:I:Vr:i:p:")) != EOF) {
 		switch(ch) {
 		case 'b':
 			broadcast_only=1;
@@ -1066,6 +1063,9 @@ main(int argc, char **argv)
 		case 'q':
 			quiet++;
 			break;
+		case 'r': /* send_arp.libnet compatibility option */
+			hb_mode = 1;
+			/* fall-through */
 		case 'c':
 			count = atoi(optarg);
 			break;
@@ -1086,10 +1086,9 @@ main(int argc, char **argv)
 			exit(0);
 		case 'p':
 		case 'i':
-		case 'm':
-			hb_mode = 1;
-			/* send_arp.libnet compatibility options, ignore */
-			break;
+		    hb_mode = 1;
+		    /* send_arp.libnet compatibility options, ignore */
+		    break;
 		case 'h':
 		case '?':
 		default:
@@ -1099,15 +1098,30 @@ main(int argc, char **argv)
 
 	if(hb_mode) {
 	    /* send_arp.libnet compatibility mode */
-	    unsolicited = 1;
-	}
+	    if (argc - optind != 5) {
+		usage();
+		return 1;
+	    }
+	    /*
+	     *	argv[optind+1] DEVICE		dc0,eth0:0,hme0:0,
+	     *	argv[optind+2] IP		192.168.195.186
+	     *	argv[optind+3] MAC ADDR		00a0cc34a878
+	     *	argv[optind+4] BROADCAST	192.168.195.186
+	     *	argv[optind+5] NETMASK		ffffffffffff
+	     */
 
-	argc -= optind;
-	argv += optind;
-	if (argc != 1)
+	    unsolicited = 1;
+	    device.name = argv[optind];
+	    target = argv[optind+1];
+
+	} else {
+	    argc -= optind;
+	    argv += optind;
+	    if (argc != 1)
 		usage();
 
-	target = *argv;
+	    target = *argv;
+	}
 	
 	if (device.name && !*device.name)
 		device.name = NULL;

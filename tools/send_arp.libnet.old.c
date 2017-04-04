@@ -62,14 +62,35 @@
 #define PIDFILE_BASE PIDDIR "/send_arp-"
 
 static char print_usage[]={
-"Usage: send_arp [-i repeatinterval-ms] [-c count] [-p pidfile] [-I device] [-m mac] destination\n"
-"  -i repeatinterval-ms : repeat interval in milliseconds (ignored in Linux version)\n"
-"  -c count : how many packets to send\n"
-"  -p pidfile : pid file (ignored in Linux version)\n"
-"  -I device : which ethernet device to use\n"
-"  -m mac : source MAC address (ignored in Linux version).\n"
-"           If \"auto\" device address is used\n"
-"  destination : ask for what ip address\n"
+"send_arp: sends out custom ARP packet.\n"
+"  usage: send_arp [-i repeatinterval-ms] [-r repeatcount] [-p pidfile] \\\n"
+"              device src_ip_addr src_hw_addr broadcast_ip_addr netmask\n"
+"\n"
+"  where:\n"
+"    repeatinterval-ms: timing, in milliseconds of sending arp packets\n"
+"      For each ARP announcement requested, a pair of ARP packets is sent,\n"
+"      an ARP request, and an ARP reply. This is becuse some systems\n"
+"      ignore one or the other, and this combination gives the greatest\n"
+"      chance of success.\n"
+"\n"
+"      Each time an ARP is sent, if another ARP will be sent then\n"
+"      the code sleeps for half of repeatinterval-ms.\n"
+"\n"
+"    repeatcount: how many pairs of ARP packets to send.\n"
+"                 See above for why pairs are sent\n"
+"\n"
+"    pidfile: pid file to use\n"
+"\n"
+"    device: netowrk interace to use\n"
+"\n"
+"    src_ip_addr: source ip address\n"
+"\n"
+"    src_hw_addr: source hardware address.\n"
+"                 If \"auto\" then the address of device\n"
+"\n"
+"    broadcast_ip_addr: ignored\n"
+"\n"
+"    netmask: ignored\n"
 };
 
 static const char * SENDARPNAME = "send_arp";
@@ -137,38 +158,41 @@ main(int argc, char *argv[])
         cl_log_set_facility(LOG_USER);
 	cl_inherit_logging_environment(0);
 
-	while ((flag = getopt(argc, argv, "h?c:I:i:p:m:")) != EOF) {
+	while ((flag = getopt(argc, argv, "i:r:p:")) != EOF) {
 		switch(flag) {
 
 		case 'i':	msinterval= atol(optarg);
 				break;
 
-		case 'c':	repeatcount= atoi(optarg);
+		case 'r':	repeatcount= atoi(optarg);
 				break;
 
 		case 'p':	pidfilename= optarg;
 				break;
 
-		case 'I':	device= optarg;
-				break;
-
-		case 'm':	macaddr= optarg;
-				break;
-
-		case 'h':
-		case '?':
 		default:	fprintf(stderr, "%s\n\n", print_usage);
 				return 1;
 				break;
 		}
 	}
+	if (argc-optind != 5) {
+		fprintf(stderr, "%s\n\n", print_usage);
+		return 1;
+	}
 
-	argc -= optind;
-	argv += optind;
-	if (argc != 1)
-		usage();
+	/*
+	 *	argv[optind+1] DEVICE		dc0,eth0:0,hme0:0,
+	 *	argv[optind+2] IP		192.168.195.186
+	 *	argv[optind+3] MAC ADDR		00a0cc34a878
+	 *	argv[optind+4] BROADCAST	192.168.195.186
+	 *	argv[optind+5] NETMASK		ffffffffffff
+	 */
 
-	ipaddr = *argv;
+	device    = argv[optind];
+	ipaddr    = argv[optind+1];
+	macaddr   = argv[optind+2];
+	broadcast = argv[optind+3];
+	netmask   = argv[optind+4];
 
 	if (!pidfilename) {
 		if (snprintf(pidfilenamebuf, sizeof(pidfilenamebuf), "%s%s", 
