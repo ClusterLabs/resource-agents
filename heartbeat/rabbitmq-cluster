@@ -56,7 +56,9 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-Starts cloned rabbitmq cluster instance
+Starts cloned rabbitmq cluster instance. NB: note that this RA
+cannot be spawned across a mix of pacemaker and pacemaker-remote nodes.
+Only on pacemaker *or* pacemaker-remote nodes exclusively.
 </longdesc>
 <shortdesc lang="en">rabbitmq clustered</shortdesc>
 
@@ -111,7 +113,25 @@ rmq_local_node()
 
 rmq_join_list()
 {
-    cibadmin -Q --xpath "//node_state[@crmd='online']//nvpair[@name='$RMQ_CRM_ATTR_COOKIE']" | grep "$RMQ_CRM_ATTR_COOKIE" | sed -n -e "s/^.*value=.\(.*\)\".*$/\1/p"
+	local join_list=$(cibadmin -Q --xpath "//node_state[@crmd='online']//nvpair[@name='$RMQ_CRM_ATTR_COOKIE']" | grep "$RMQ_CRM_ATTR_COOKIE" | sed -n -e "s/^.*value=.\(.*\)\".*$/\1/p")
+	# If join_list is empty we want to check if there are any remote nodes
+	# where rabbitmq is allowed to run (i.e. nodes without the crmd=online selector)
+	if [ -z "$join_list" ]; then
+		# Get all the nodes written in the ATTR_COOKIE no matter if
+		# they are online or not. This will be one line per node like
+		# rabbit@overcloud-rabbit-0
+		# rabbit@overcloud-rabbit-1
+		# ...
+		local remote_join_list=$(cibadmin -Q --xpath "//node_state//nvpair[@name='$RMQ_CRM_ATTR_COOKIE']" | grep "$RMQ_CRM_ATTR_COOKIE" | sed -n -e "s/^.*value=.\(.*\)\".*$/\1/p")
+		# The following expression prepares a filter like '-e overcloud-rabbit-0 -e overcloud-rabbit-1 -e ...'
+		local filter=$(crm_mon -r --as-xml | xmllint --format --xpath "//nodes//node[@online='true' and @standby='false']/@name" - | xargs -n1 echo | awk -F= '{print "-e "$2}')
+		# export the intersection which gives us only the nodes that
+		# a) wrote their namein the cib attrd
+		# b) run on nodes where pacemaker_remote is enabled
+		join_list="$(echo $remote_join_list | grep $filter)"
+	fi
+
+	echo $join_list
 }
 
 rmq_write_nodename()
