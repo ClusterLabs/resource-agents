@@ -650,7 +650,9 @@ db2_hadr_status() {
     fi
 
     echo "$output" |
-    awk '/^HADR is not active/ {print "Standard/Standalone"; exit; }
+    awk '/^\s+HADR_(ROLE|STATE) =/ {printf $3"/"}
+         /^\s+HADR_CONNECT_STATUS =/ {print $3; exit; }
+         /^HADR is not active/ {print "Standard/Standalone"; exit; }
          /^Role *State */ {getline; printf "%s/%s\n", $1, $2; exit; }'
 }
 
@@ -680,7 +682,7 @@ db2_monitor() {
 
         # set master preference accordingly
         case "$hadr" in
-            Primary/*|Standard/*)
+            PRIMARY/*|Primary/*|Standard/*)
             # perform  a basic health check
             CMD="if db2 connect to $db;
             then 
@@ -712,11 +714,11 @@ db2_monitor() {
             ocf_is_ms && master_score -v 10000 -l reboot
             ;;
 
-            Standby/*Peer)
+            STANDBY/PEER/*|Standby/*Peer)
             master_score -v 8000 -l reboot
             ;;
 
-            Standby/*)
+            STANDBY/*|Standby/*)
             ocf_log warn "DB2 database $instance($db2node)/$db in status $hadr can never be promoted"
             master_score -D -l reboot
             ;;
@@ -755,17 +757,17 @@ db2_promote() {
             return $OCF_SUCCESS
             ;;
 
-            Primary/Peer)
+            PRIMARY/PEER/*|PRIMARY/REMOTE_CATCHUP/*|Primary/Peer)
             # nothing to do, only update pacemaker's view
             echo MASTER > $STATE_FILE
             return $OCF_SUCCESS
             ;;
 
-            Standby/Peer)
+            STANDBY/PEER/CONNECTED|Standby/Peer)
             # must take over 
             ;;
 
-            Standby/DisconnectedPeer)
+            STANDBY/PEER/DISCONNECTED|Standby/DisconnectedPeer)
             # must take over forced 
             force="by force peer window only"
             ;;
