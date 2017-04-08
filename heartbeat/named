@@ -25,6 +25,7 @@ OCF_RESKEY_named_pidfile_default="/var/run/named/named.pid"
 OCF_RESKEY_named_rootdir_default=""
 OCF_RESKEY_named_options_default=""
 OCF_RESKEY_named_keytab_file_default=""
+OCF_RESKEY_rndc_options_default=""
 OCF_RESKEY_monitor_request_default="localhost"
 OCF_RESKEY_monitor_response_default="127.0.0.1"
 OCF_RESKEY_monitor_ip_default="127.0.0.1"
@@ -38,6 +39,7 @@ OCF_RESKEY_monitor_ip_default="127.0.0.1"
 : ${OCF_RESKEY_named_rootdir=${OCF_RESKEY_named_rootdir_default}}
 : ${OCF_RESKEY_named_options=${OCF_RESKEY_named_options_default}}
 : ${OCF_RESKEY_named_keytab_file=${OCF_RESKEY_named_keytab_file_default}}
+: ${OCF_RESKEY_rndc_options=${OCF_RESKEY_rndc_options_default}}
 : ${OCF_RESKEY_monitor_request=${OCF_RESKEY_monitor_request_default}}
 : ${OCF_RESKEY_monitor_response=${OCF_RESKEY_monitor_response_default}}
 : ${OCF_RESKEY_monitor_ip=${OCF_RESKEY_monitor_ip_default}}
@@ -142,6 +144,14 @@ named service keytab file (for GSS-TSIG).
 </longdesc>
 <shortdesc lang="en">named_keytab_file</shortdesc>
 <content type="string" default="${OCF_RESKEY_named_keytab_file_default}" />
+</parameter>
+
+<parameter name="rndc_options" unique="0" required="0">
+<longdesc lang="en">
+Options for rndc process if any.
+</longdesc>
+<shortdesc lang="en">rndc_options</shortdesc>
+<content type="string" default="${OCF_RESKEY_rndc_options_default}" />
 </parameter>
 
 <parameter name="monitor_request" unique="0" required="0">
@@ -326,7 +336,7 @@ named_monitor() {
 #
 
 named_reload() {
-    $OCF_RESKEY_rndc reload >/dev/null || return $OCF_ERR_GENERIC
+    $OCF_RESKEY_rndc $OCF_RESKEY_rndc_options reload >/dev/null || return $OCF_ERR_GENERIC
     
     return $OCF_SUCCESS
 }
@@ -396,7 +406,7 @@ named_stop () {
     
     named_status || return $OCF_SUCCESS
     
-    $OCF_RESKEY_rndc stop >/dev/null
+    $OCF_RESKEY_rndc $OCF_RESKEY_rndc_options stop >/dev/null
     if [ $? -ne 0 ]; then
         ocf_log info "rndc stop failed. Killing named."
         kill `cat ${OCF_RESKEY_named_pidfile}`
