@@ -415,6 +415,13 @@ promote_everyone()
 {
 
     for node in $(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' '); do
+        local pcmk_node=$(galera_to_pcmk_name $node)
+        if [ -z "$pcmk_node" ]; then
+            ocf_log err "Could not determine pacemaker node from galera name <${node}>."
+            return
+        else
+            node=$pcmk_node
+        fi
 
         set_master_score $node
     done
@@ -463,7 +470,7 @@ detect_first_master()
     best_node_gcomm=$(echo "$all_nodes" | sed 's/^.* \(.*\)$/\1/')
     best_node=$(galera_to_pcmk_name $best_node_gcomm)
     if [ -z "$best_node" ]; then
-        ocf_log error "Could not determine initial best node from galera name <${best_node_gcomm}>."
+        ocf_log err "Could not determine initial best node from galera name <${best_node_gcomm}>."
         return
     fi
 
@@ -471,7 +478,7 @@ detect_first_master()
     for node in $all_nodes; do
         local pcmk_node=$(galera_to_pcmk_name $node)
         if [ -z "$pcmk_node" ]; then
-            ocf_log error "Could not determine pacemaker node from galera name <${node}>."
+            ocf_log err "Could not determine pacemaker node from galera name <${node}>."
             return
         else
             node=$pcmk_node
