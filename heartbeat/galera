@@ -1,6 +1,7 @@
 #!/bin/sh
 #
 # Copyright (c) 2014 David Vossel <davidvossel@gmail.com>
+#               2015-2017 Damien Ciabrini <dciabrin@redhat.com>
 #                    All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -31,18 +32,20 @@
 #
 # Slave vs Master role:
 #
-# During the 'Slave' role, galera instances are in read-only mode and
-# will not attempt to connect to the cluster. This role exists only as
-# a means to determine which galera instance is the most up-to-date. The
-# most up-to-date node will be used to bootstrap a galera cluster that
-# has no current members.
+# The 'Slave' role exists as a means to determine which galera
+# instance is the most up-to-date. The most up-to-date node will be
+# used to bootstrap a galera cluster that has no current members.
 #
-# The galera instances will only begin to be promoted to the Master role
-# once all the nodes in the 'wsrep_cluster_address' connection address
-# have entered read-only mode. At that point the node containing the
-# database that is most current will be promoted to Master. Once the first
-# Master instance bootstraps the galera cluster, the other nodes will be
-# promoted to Master as well.
+# The first galera instance is started during the promotion to the
+# Master role. This initial promotion only takes place once all
+# the nodes in the 'wsrep_cluster_address' connection address
+# have reported their local database state.
+#
+# Once the first Master instance has bootstrapped the galera cluster,
+# the other nodes will join the cluster and start synchronizing via
+# SST. They will stay in Slave role as long SST is in progress. Their
+# promotion to Master will be triggered as soon as a monitor operation
+# detects that synchronization is finished.
 #
 # Example: Create a galera cluster using nodes rhel7-node1 rhel7-node2 rhel7-node3
 #
@@ -254,6 +257,7 @@ Cluster check user password
 <action name="monitor" depth="0" timeout="30" interval="20" />
 <action name="monitor" role="Master" depth="0" timeout="30" interval="10" />
 <action name="monitor" role="Slave" depth="0" timeout="30" interval="30" />
+<action name="monitor" role="Slave" depth="0" timeout="30" interval="8" on-fail="block"/>
 <action name="promote" timeout="300" />
 <action name="demote" timeout="120" />
 <action name="validate-all" timeout="5" />
@@ -332,16 +336,56 @@ get_last_commit()
     fi
 }
 
-wait_for_sync()
+set_sync_needed()
 {
-    local state=$(get_status_variable "wsrep_local_state")
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-sync-needed" -v "true"
+}
 
-    ocf_log info "Waiting for database to sync with the cluster. "
-    while [ "$state" != "4" ]; do
-        sleep 1
-        state=$(get_status_variable "wsrep_local_state")
-    done
-    ocf_log info "Database synced."
+clear_sync_needed()
+{
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-sync-needed" -D
+}
+
+check_sync_needed()
+{
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-sync-needed" -Q &>/dev/null
+}
+
+
+# This function is called when a mysqld server is running
+# and attribute sync-needed is set in the CIB
+monitor_sync_status()
+{
+    local promote_allowed=$1
+
+    # if the pidfile is created, mysqld is up and running
+    # an IST might still be in progress, check wsrep status
+    if [ -e $OCF_RESKEY_pid ]; then
+        local cluster_status=$(get_status_variable "wsrep_cluster_status")
+        local state=$(get_status_variable "wsrep_local_state")
+        local ready=$(get_status_variable "wsrep_ready")
+
+        if [ -z "$cluster_status" -o -z "$state" -o -z "$ready" ]; then
+            ocf_exit_reason "Unable to retrieve state transfer status, verify check_user '$OCF_RESKEY_check_user' has permissions to view status"
+            return $OCF_ERR_GENERIC
+        fi
+
+        if [ "$cluster_status" != "Primary" ]; then
+            ocf_exit_reason "local node <${NODENAME}> is started, but not in primary mode. Unknown state."
+            return $OCF_ERR_GENERIC
+        fi
+
+        # when sync is finished, change resource state if requested
+        if [ "$ready" = "ON" ] && [ "$state" = "4" -o "$state" = "2" ]; then
+            if ocf_is_true "$promote_allowed"; then
+                clear_sync_needed
+                set_master_score
+            fi
+        fi
+    fi
+
+    # if we pass here, an IST or SST is still in progress
+    return $OCF_SUCCESS
 }
 
 is_primary()
@@ -411,13 +455,33 @@ set_master_score()
     fi
 }
 
-promote_everyone()
+is_master()
 {
+    local node=$1
 
-    for node in $(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' '); do
+    if [ -z "$node" ]; then
+        $CRM_MASTER -Q &>/dev/null
+    else
+        $CRM_MASTER -N $node -Q &>/dev/null
+    fi
+}
 
-        set_master_score $node
-    done
+is_sync_monitor()
+{
+    # We can't use a dedicated op name for the sync monitor op, nor we
+    # can distinguish it based on a specific depth value. So we assume
+    # that this is the only monitor op that has on-fail=block
+    [ "$OCF_RESKEY_CRM_meta_on_fail" = "block" ]
+}
+
+is_managed()
+{
+    ! (crm_resource -Q -r $OCF_RESOURCE_INSTANCE -N $NODENAME --meta -g is-managed 2>/dev/null | grep -q false)
+}
+
+last_probed_state()
+{
+    cibadmin -Q --xpath "//lrm_rsc_op[@id=\"${OCF_RESOURCE_INSTANCE}_last_0\" and @on_node=\"${NODENAME}\"]" 2>/dev/null | sed -n 's/.*rc-code="\([^"]*\)".*/\1/p'
 }
 
 greater_than_equal_long()
@@ -515,6 +579,155 @@ detect_first_master()
     set_bootstrap_node $best_node
 }
 
+detect_galera_pid()
+{
+    # detect the server process rather than the mysqld_safe script
+    ps auxww | grep -v -e "${OCF_RESKEY_binary}" -e grep | grep -qe "--pid-file=$OCF_RESKEY_pid"
+}
+
+galera_status()
+{
+    local loglevel=$1
+    local rc
+    local running
+
+    if [ -e $OCF_RESKEY_pid ]; then
+        mysql_common_status $loglevel
+        rc=$?
+    else
+        # if pidfile is not created, the server may
+        # still be starting up, e.g. running SST
+        detect_galera_pid
+        running=$?
+        if [ $running -eq 0 ]; then
+            rc=$OCF_SUCCESS
+        else
+            ocf_log $loglevel "MySQL is not running"
+            rc=$OCF_NOT_RUNNING
+        fi
+    fi
+
+    return $rc
+}
+
+galera_start_nowait()
+{
+    local mysql_extra_params="$1"
+    local pid
+    local running
+
+    ${OCF_RESKEY_binary} --defaults-file=$OCF_RESKEY_config \
+    --pid-file=$OCF_RESKEY_pid \
+    --socket=$OCF_RESKEY_socket \
+    --datadir=$OCF_RESKEY_datadir \
+    --log-error=$OCF_RESKEY_log \
+    --user=$OCF_RESKEY_user $OCF_RESKEY_additional_parameters \
+    $mysql_extra_params >/dev/null 2>&1 &
+    pid=$!
+
+    # Spin waiting for the server to be spawned.
+    # Let the CRM/LRM time us out if required.
+    start_wait=1
+    while [ $start_wait = 1 ]; do
+        if ! ps $pid > /dev/null 2>&1; then
+            wait $pid
+            ocf_exit_reason "MySQL server failed to start (pid=$pid) (rc=$?), please check your installation"
+            return $OCF_ERR_GENERIC
+        fi
+        detect_galera_pid
+        running=$?
+        if [ $running -eq 0 ]; then
+            start_wait=0
+        else
+            ocf_log info "MySQL is not running"
+        fi
+        sleep 2
+    done
+
+    return $OCF_SUCCESS
+}
+
+galera_start_local_node()
+{
+    local rc
+    local extra_opts
+    local bootstrap
+
+    bootstrap=$(is_bootstrap)
+
+    master_exists
+    if [ $? -eq 0 ]; then
+        # join without bootstrapping
+        ocf_log info "Node <${NODENAME}> is joining the cluster"
+        extra_opts="--wsrep-cluster-address=${OCF_RESKEY_wsrep_cluster_address}"
+    elif ocf_is_true $bootstrap; then
+        ocf_log info "Node <${NODENAME}> is bootstrapping the cluster"
+        extra_opts="--wsrep-cluster-address=gcomm://"
+    else
+        ocf_exit_reason "Failure, Attempted to join cluster of $OCF_RESOURCE_INSTANCE before master node has been detected."
+        clear_last_commit
+        return $OCF_ERR_GENERIC
+    fi
+
+    # clear last_commit before we start galera to make sure there
+    # won't be discrepency between the cib and galera if this node
+    # processes a few transactions and fails before we detect it
+    clear_last_commit
+
+    mysql_common_prepare_dirs
+
+    # At start time, if galera requires a SST rather than an IST, the
+    # mysql server's pidfile won't be available until SST finishes,
+    # which can be longer than the start timeout.  So we only check
+    # bootstrap node extensively. Joiner nodes are monitored in a
+    # dedicated "monitor" op
+    if ocf_is_true $bootstrap; then
+        # start server and wait until it's up and running
+        mysql_common_start "$extra_opts"
+        rc=$?
+        if [ $rc != $OCF_SUCCESS ]; then
+            return $rc
+        fi
+
+        mysql_common_status info
+        rc=$?
+
+        if [ $rc != $OCF_SUCCESS ]; then
+            ocf_exit_reason "Failed initial monitor action"
+            return $rc
+        fi
+
+        is_readonly
+        if [ $? -eq 0 ]; then
+            ocf_exit_reason "Failure. Master instance started in read-only mode, check configuration."
+            return $OCF_ERR_GENERIC
+        fi
+
+        is_primary
+        if [ $? -ne 0 ]; then
+            ocf_exit_reason "Failure. Master instance started, but is not in Primary mode."
+            return $OCF_ERR_GENERIC
+        fi
+
+        clear_bootstrap_node
+        clear_no_grastate
+    else
+        # only start server, defer full checks to "monitor" op
+        galera_start_nowait "$extra_opts"
+        rc=$?
+        if [ $rc != $OCF_SUCCESS ]; then
+            return $rc
+        fi
+
+        set_sync_needed
+        # attribute no-grastate will be cleared once the joiner
+        # has finished syncing and is promoted to Master
+    fi
+
+    ocf_log info "Galera started"
+    return $OCF_SUCCESS
+}
+
 detect_last_commit()
 {
     local last_commit
@@ -583,88 +796,36 @@ detect_last_commit()
     fi
 }
 
-# For galera, promote is really start
 galera_promote()
 {
     local rc
     local extra_opts
     local bootstrap
-    
-    master_exists
-    if [ $? -eq 0 ]; then
-        # join without bootstrapping
-        extra_opts="--wsrep-cluster-address=${OCF_RESKEY_wsrep_cluster_address}"
-    else
-        bootstrap=$(is_bootstrap)
 
-        if ocf_is_true $bootstrap; then
-            ocf_log info "Node <${NODENAME}> is bootstrapping the cluster"
-            extra_opts="--wsrep-cluster-address=gcomm://"
+    master_exists
+    if [ $? -ne 0 ]; then
+        # promoting the first master will bootstrap the cluster
+        if is_bootstrap; then
+            galera_start_local_node
+            rc=$?
+            return $rc
         else
-            ocf_exit_reason "Failure, Attempted to promote Master instance of $OCF_RESOURCE_INSTANCE before bootstrap node has been detected."
-            clear_last_commit
+            ocf_exit_reason "Attempted to start the cluster without being a bootstrap node."
+            return $OCF_ERR_GENERIC
+        fi
+    else
+        # promoting other masters only performs sanity checks
+        # as the joining nodes were started during the "monitor" op
+        if ! check_sync_needed; then
+            # sync is done, clear info about last startup
+            ocf_log info "local node synced with the cluster"
+            clear_no_grastate
+            return $OCF_SUCCESS
+        else
+            ocf_exit_reason "Attempted to promote local node while sync was still needed."
             return $OCF_ERR_GENERIC
         fi
     fi
-
-    galera_monitor
-    if [ $? -eq $OCF_RUNNING_MASTER ]; then
-        if ocf_is_true $bootstrap; then
-            promote_everyone
-            clear_bootstrap_node
-            ocf_log info "boostrap node already up, promoting the rest of the galera instances."
-        fi
-        clear_last_commit
-        return $OCF_SUCCESS
-    fi
-
-    # last commit is no longer relevant once promoted
-    clear_last_commit
-
-    mysql_common_prepare_dirs
-    mysql_common_start "$extra_opts"
-    rc=$?
-    if [ $rc != $OCF_SUCCESS ]; then
-        return $rc
-    fi
-
-    galera_monitor
-    rc=$?
-    if [ $rc != $OCF_SUCCESS -a $rc != $OCF_RUNNING_MASTER ]; then
-        ocf_exit_reason "Failed initial monitor action"
-        return $rc
-    fi
-
-    is_readonly
-    if [ $? -eq 0 ]; then
-        ocf_exit_reason "Failure. Master instance started in read-only mode, check configuration."
-        return $OCF_ERR_GENERIC
-    fi
-
-    is_primary
-    if [ $? -ne 0 ]; then
-        ocf_exit_reason "Failure. Master instance started, but is not in Primary mode."
-        return $OCF_ERR_GENERIC
-    fi
-
-    if ocf_is_true $bootstrap; then
-        promote_everyone
-        clear_bootstrap_node
-        # clear attribute no-grastate. if last shutdown was
-        # not clean, we cannot be extra-cautious by requesting a SST
-        # since this is the bootstrap node
-        clear_no_grastate
-        ocf_log info "Bootstrap complete, promoting the rest of the galera instances."
-    else
-        # if this is not the bootstrap node, make sure this instance
-        # syncs with the rest of the cluster before promotion returns.
-        wait_for_sync
-        # sync is done, clear info about last startup
-        clear_no_grastate
-    fi
-
-    ocf_log info "Galera started"
-    return $OCF_SUCCESS
 }
 
 galera_demote()
@@ -686,11 +847,9 @@ galera_demote()
     # after this demote even if pacemaker is requested to do so. It
     # will first have to run a start/monitor op, to reprobe the state
     # of the other galera nodes and act accordingly.
+    # This start/monitor op will record the last commit when needed
     clear_master_score
 
-    # record last commit for next promotion
-    detect_last_commit
-    rc=$?
     return $rc
 }
 
@@ -711,13 +870,19 @@ galera_start()
         return $OCF_ERR_CONFIGURED
     fi
 
-    galera_monitor
-    if [ $? -eq $OCF_RUNNING_MASTER ]; then
+    galera_status info
+    if [ $? -ne $OCF_NOT_RUNNING ]; then
         ocf_exit_reason "master galera instance started outside of the cluster's control"
         return $OCF_ERR_GENERIC
     fi
 
     mysql_common_prepare_dirs
+
+    if check_sync_needed; then
+        ocf_log warn "Previous start failed during sync. force SST for full resynchronization"
+        rm -f ${OCF_RESKEY_datadir}/grastate.dat
+        clear_sync_needed
+    fi
 
     detect_last_commit
     rc=$?
@@ -727,8 +892,7 @@ galera_start()
 
     master_exists
     if [ $? -eq 0 ]; then
-        ocf_log info "Master instances are already up, setting master score so this instance will join galera cluster."
-        set_master_score $NODENAME
+        ocf_log info "Master instances are already up, local node will join in when started"
     else
         clear_master_score
         detect_first_master
@@ -737,34 +901,136 @@ galera_start()
     return $OCF_SUCCESS
 }
 
+# a probe runs all the monitor tests and updates the attributes
+# according to the server state (e.g. sync-needed)
+galera_probe()
+{
+    local rc
+
+    galera_status info
+    rc=$?
+    if [ $rc -ne $OCF_SUCCESS ]; then
+        clear_master_score
+        return $rc
+    fi
+
+    # server is running, check synchronization status.
+
+    if [ ! -e $OCF_RESKEY_pid ]; then
+        # pidfile is not created yet, assume the server is still
+        # starting up and performing an SST -> slave
+        clear_master_score
+        set_sync_needed
+        return $OCF_SUCCESS
+    else
+        # ensure server is healthy, and update sync-needed flag
+        # according to the server's wsrep sync status
+        set_sync_needed
+        monitor_sync_status true
+        rc=$?
+        if [ $rc -eq $OCF_SUCCESS ]; then
+            # if sync is finished, a regular monitor op will validate
+            # the master state
+            check_sync_needed
+            if [ $? -ne 0 ]; then
+                galera_monitor
+                rc=$?
+            fi
+        fi
+        if [ $rc -ne $OCF_RUNNING_MASTER ];then
+            clear_master_score
+        fi
+        return $rc
+    fi
+}
+
+# This monitor function only perform state checks when attribute
+# sync-needed is set. Failure will block automatic restart.
+galera_sync_monitor()
+{
+    local rc
+    local promote_allowed=$(is_managed && echo true)
+    if [ -n "$1" ]; then
+        promote_allowed="$1"
+    fi
+
+    # when a galera server is starting up, not all SST failures can be
+    # recovered automatically (e.g. wsrep_sst_rsync crashing, leaving
+    # a rsyncd process running), so we need a dedicated monitor action
+    # to prevent the resource from restarting in case mysqld_safe
+    # fails during startup
+    check_sync_needed
+    if [ $? -eq 0 ]; then
+        galera_status err
+        rc=$?
+        if [ $rc -eq $OCF_SUCCESS ]; then
+            # When the SST or IST is finished, clear sync flag and
+            # promote the resource to Master.
+            monitor_sync_status $promote_allowed
+            rc=$?
+            if [ $rc -eq $OCF_SUCCESS ]; then
+                check_sync_needed
+                if [ $? -eq 0 ]; then
+                    # log progress if sync is still ongoing
+                    ocf_log info "local node syncing"
+                fi
+            fi
+        fi
+    else
+        # no sync to monitor, leave checks to regular monitor op
+        # This function is called only during slave state, hence
+        # the return code here
+        rc=$OCF_SUCCESS
+    fi
+
+    return $rc
+}
+
 galera_monitor()
 {
     local rc
     local galera_node
     local status_loglevel="err"
 
-    # Set loglevel to info during probe
-    if ocf_is_probe; then
-        status_loglevel="info"
+    # when sync is in progress, delegate real monitoring to
+    # galera_sync_monitor, because any failure during sync must
+    # prevent resource from restarting automatically
+    check_sync_needed
+    if [ $? -eq 0 ]; then
+        return $OCF_SUCCESS
     fi
 
-    mysql_common_status $status_loglevel
+    # check whether mysql is running
+    if ! is_master; then
+        status_loglevel="info"
+    fi
+    galera_status $status_loglevel
     rc=$?
 
     if [ $rc -eq $OCF_NOT_RUNNING ]; then
-        last_commit=$(get_last_commit $node)
-        if [ -n "$last_commit" ]; then
-            # if last commit is set, this instance is considered started in slave mode
-            rc=$OCF_SUCCESS
-            master_exists
-            if [ $? -ne 0 ]; then
-                detect_first_master
-            else
-                # a master instance exists and is healthy, promote this
-                # local read only instance
-                # so it can join the master galera cluster.
-                set_master_score
+        if is_managed; then
+            # only perform these checks when starting up
+            if ! is_master; then
+                last_commit=$(get_last_commit $NODENAME)
+                if [ -n "$last_commit" ];then
+                    rc=$OCF_SUCCESS
+
+                    master_exists
+                    if [ $? -ne 0 ]; then
+                        detect_first_master
+                    else
+                        # a master instance exists and is healthy.
+                        # start this node and mark it as "pending sync"
+                        ocf_log info "cluster is running. start local node to join in"
+                        galera_start_local_node
+                        rc=$?
+                    fi
+                fi
             fi
+        else
+            # when unmanaged, return "error" rather than "not running"
+            # to recover state if mysqld is manually restarted
+            rc=$OCF_ERR_GENERIC
         fi
         return $rc
     elif [ $rc -ne $OCF_SUCCESS ]; then
@@ -785,32 +1051,55 @@ galera_monitor()
     fi
 
     is_primary
-    if [ $? -eq 0 ]; then
-
-        if ocf_is_probe; then
-            # restore master score during probe
-            # if we detect this is a master instance
-            set_master_score
-        fi
-        rc=$OCF_RUNNING_MASTER
-    else
+    if [ $? -ne 0 ]; then
         ocf_exit_reason "local node <${NODENAME}> is started, but not in primary mode. Unknown state."
         rc=$OCF_ERR_GENERIC
+    else
+        # galera is running, no need to sync: master state
+        rc=$OCF_RUNNING_MASTER
     fi
 
     return $rc
 }
+
+
+galera_unmanaged_monitor()
+{
+    # In case of error, galera won't be restarted automatically when
+    # it is unmanaged.  If for any reason mysqld is manually restarted
+    # while the resource is still unmanaged, try to update the sync
+    # flag according to the server's state to give monitor op a chance
+    # to recover.
+
+    if detect_galera_pid; then
+        if [ ! -e $OCF_RESKEY_pid ]; then
+            set_sync_needed
+        else
+            # We can't promote the resource while it is unmanaged, so
+            # proceed with sync monitoring only if the resource was
+            # already in Master state before being unmanaged
+            if check_sync_needed && [ "$(last_probed_state)" = "$OCF_RUNNING_MASTER" ]; then
+                galera_sync_monitor true
+            fi
+        fi
+    fi
+
+    # sync flag updated, continue with regular monitor op
+    galera_monitor
+}
+
 
 galera_stop()
 {
     local rc
     # make sure the process is stopped
     mysql_common_stop
-    rc=$1
+    rc=$?
 
     clear_last_commit
     clear_master_score
     clear_bootstrap_node
+    clear_sync_needed
     clear_no_grastate
     return $rc
 }
@@ -880,8 +1169,18 @@ fi
 case "$1" in
   start)    galera_start;;
   stop)     galera_stop;;
-  status)   mysql_common_status err;;
-  monitor)  galera_monitor;;
+  status)   galera_status err;;
+  monitor)
+      if ocf_is_probe; then
+          galera_probe
+      elif is_sync_monitor; then
+          galera_sync_monitor
+      elif ! is_managed; then
+          galera_unmanaged_monitor
+      else
+          galera_monitor
+      fi
+      ;;
   promote)  galera_promote;;
   demote)   galera_demote;;
   validate-all) exit $OCF_SUCCESS;;
