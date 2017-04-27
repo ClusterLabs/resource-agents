@@ -31,6 +31,7 @@
 #	OCF_RESKEY_POST_START_USEREXIT	(optional, lists a script which can be executed after the resource is started)
 #	OCF_RESKEY_PRE_STOP_USEREXIT	(optional, lists a script which can be executed before the resource is stopped)
 #	OCF_RESKEY_POST_STOP_USEREXIT	(optional, lists a script which can be executed after the resource is stopped)
+#	OCF_RESKEY_IS_ERS               (needed for ENQ/REPL NW 740)
 #
 #  TODO: - Option to shutdown sapstartsrv for non-active instances -> that means: do probes only with OS tools (sapinstance_status)
 #        - Option for better standalone enqueue server monitoring, using ensmon (test enque-deque)
@@ -195,6 +196,15 @@ The name of the SAP START profile. Specify this parameter, if you have changed t
   <shortdesc lang="en">Path to a post-start script</shortdesc>
   <content type="string" default="" />
  </parameter>
+ <parameter name="IS_ERS" unique="0" required="0">
+  <longdesc lang="en">Only used for ASCS/ERS SAP Netweaver installations without implementing a master/slave resource to
+    allow the ASCS to 'find' the ERS running on an other cluster node after a resource failure. This parameter should be set
+    to true 'only' for the ERS instance for implementations following the SAP NetWeaver 7.40 HA certification (NW-HA-CLU-740). This includes also
+    systems for NetWeaver less than 7.40, if you like to impelemnt the NW-HA-CLU-740 scenario.
+  </longdesc>
+  <shortdesc lang="en">Mark SAPInstance as ERS instance</shortdesc>
+  <content type="boolean" default="false" />
+ </parameter>
 </parameters>
 
 <actions>
@@ -340,6 +350,12 @@ sapinstance_init() {
     currentSTART_PROFILE=$OCF_RESKEY_ERS_START_PROFILE
   else
     currentSTART_PROFILE=$OCF_RESKEY_START_PROFILE
+  fi
+
+  if [ -z "$OCF_RESKEY_IS_ERS" ]; then
+      is_ers="no"
+  else
+      is_ers="$OCF_RESKEY_IS_ERS"
   fi
 
   if [ -z "$currentSTART_PROFILE" ]
@@ -568,9 +584,11 @@ sapinstance_start() {
     ocf_log info "SAP Instance $SID-$InstanceName started: $output"
     rc=$OCF_SUCCESS
     sapuserexit POST_START_USEREXIT "$OCF_RESKEY_POST_START_USEREXIT"
+    if ocf_is_true $is_ers; then crm_attribute -n runs_ers_${SID} -v 1 -l reboot; fi
   else
     ocf_log err "SAP Instance $SID-$InstanceName start failed: $output"
     rc=$OCF_NOT_RUNNING
+    if ocf_is_true $is_ers; then crm_attribute -n runs_ers_${SID} -v 0 -l reboot; fi
   fi
 
   return $rc
@@ -628,6 +646,7 @@ sapinstance_stop() {
   fi
 
   sapuserexit POST_STOP_USEREXIT "$OCF_RESKEY_POST_STOP_USEREXIT"
+  if ocf_is_true $is_ers; then crm_attribute -n runs_ers_${SID} -v 0 -l reboot;  fi
 
   return $rc
 }
