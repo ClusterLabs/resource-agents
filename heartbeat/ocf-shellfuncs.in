@@ -606,6 +606,22 @@ dirname()
 	return 0
 }
 
+# usage: systemd_drop_in <name> <After|Before> <dependency.service>
+systemd_drop_in()
+{
+	if [ $# -ne 3 ]; then
+          ocf_log err "Incorrect number of arguments [$#] for systemd_drop_in."
+        fi
+
+	systemdrundir="/run/systemd/system/resource-agents-deps.target.d"
+	mkdir "$systemdrundir"
+	cat > "$systemdrundir/$1.conf" <<EOF
+[Unit]
+$2=$3
+EOF
+	systemctl daemon-reload
+}
+
 #
 # pseudo_resource status tracking function...
 #

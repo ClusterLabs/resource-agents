@@ -864,6 +864,7 @@ heartbeat/Makefile						\
    heartbeat/ocf-directories					\
    heartbeat/ocf-shellfuncs					\
    heartbeat/shellfuncs						\
+systemd/Makefile						\
 tools/Makefile							\
    tools/ocf-tester						\
    tools/ocft/Makefile						\
