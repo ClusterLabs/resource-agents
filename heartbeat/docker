@@ -106,6 +106,15 @@ it has initialized.
 <content type="string"/>
 </parameter>
 
+<parameter name="mount_points" required="0" unique="0">
+<longdesc lang="en">
+A comma separated list of directories that the container is expecting to use.
+The agent will ensure they exist by running 'mkdir -p' 
+</longdesc>
+<shortdesc lang="en">Required mount points</shortdesc>
+<content type="string"/>
+</parameter>
+
 <parameter name="monitor_cmd" required="0" unique="0">
 <longdesc lang="en">
 Specifiy the full path of a command to launch within the container to check
@@ -263,8 +272,18 @@ docker_monitor()
 	monitor_cmd_exec
 }
 
+docker_create_mounts() {
+	oldIFS="$IFS"
+	IFS=","
+	for directory in $OCF_RESKEY_mount_points; do
+		mkdir -p "$directory"
+	done
+	IFS="$oldIFS"
+}
+
 docker_start()
 {
+	docker_create_mounts
 	local run_opts="-d --name=${CONTAINER}"
 	# check to see if the container has already started
 	docker_simple_status
