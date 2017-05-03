@@ -56,6 +56,7 @@
 #	OCF_RESKEY_arp_count
 #	OCF_RESKEY_arp_bg
 #	OCF_RESKEY_arp_mac
+#	OCF_RESKEY_preferred_lft
 #
 #	OCF_RESKEY_CRM_meta_clone
 #	OCF_RESKEY_CRM_meta_clone_max
@@ -80,6 +81,7 @@ OCF_RESKEY_arp_count_refresh_default=0
 OCF_RESKEY_arp_bg_default=true
 OCF_RESKEY_arp_mac_default="ffffffffffff"
 OCF_RESKEY_run_arping_default=false
+OCF_RESKEY_preferred_lft_default="forever"
 
 : ${OCF_RESKEY_lvs_support=${OCF_RESKEY_lvs_support_default}}
 : ${OCF_RESKEY_lvs_ipv6_addrlabel=${OCF_RESKEY_lvs_ipv6_addrlabel_default}}
@@ -92,6 +94,7 @@ OCF_RESKEY_run_arping_default=false
 : ${OCF_RESKEY_arp_bg=${OCF_RESKEY_arp_bg_default}}
 : ${OCF_RESKEY_arp_mac=${OCF_RESKEY_arp_mac_default}}
 : ${OCF_RESKEY_run_arping=${OCF_RESKEY_run_arping_default}}
+: ${OCF_RESKEY_preferred_lft=${OCF_RESKEY_preferred_lft_default}}
 #######################################################################
 
 SENDARP=$HA_BIN/send_arp
@@ -350,6 +353,17 @@ Whether or not to run arping for IPv4 collision detection check.
 <content type="string" default="${OCF_RESKEY_run_arping_default}"/>
 </parameter>
 
+<parameter name="preferred_lft">
+<longdesc lang="en">
+For IPv6, set the preferred lifetime of the IP address.
+This can be used to ensure that the created IP address will not
+be used as a source address for routing.
+Expects a value as specified in section 5.5.4 of RFC 4862.
+</longdesc>
+<shortdesc lang="en">IPv6 preferred lifetime</shortdesc>
+<content type="string" default="${OCF_RESKEY_preferred_lft_default}"/>
+</parameter>
+
 </parameters>
 <actions>
 <action name="start"   timeout="20s" />
@@ -589,6 +603,10 @@ add_interface () {
 	if [ ! -z "$label" ]; then
 		cmd="$cmd label $label"
 		msg="${msg} (with label $label)"
+	fi
+	if [ "$FAMILY" = "inet6" ] ;then
+		cmd="$cmd preferred_lft $OCF_RESKEY_preferred_lft"
+		msg="${msg} (with preferred_lft $OCF_RESKEY_preferred_lft)"
 	fi
 
 	ocf_log info "$msg"
@@ -1073,6 +1091,11 @@ ip_validate() {
 	:
     else
 	ocf_exit_reason "Invalid OCF_RESKEY_arp_count [$OCF_RESKEY_arp_count]"
+	exit $OCF_ERR_CONFIGURED
+    fi
+
+    if [ -z "$OCF_RESKEY_preferred_lft" ]; then
+	ocf_exit_reason "Empty value is invalid for OCF_RESKEY_preferred_lft"
 	exit $OCF_ERR_CONFIGURED
     fi
 
