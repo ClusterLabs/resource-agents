@@ -633,6 +633,14 @@ db2_instance_dead() {
 }
 
 #
+# true if the database level is < 10, false otherwise
+#
+db2_is_pre10() {
+        runasdb2 db2level | grep -q 'SQL0' >/dev/null 2>&1
+}
+
+
+#
 # return the status of the db as "Role/Status"
 # e.g. Primary/Peer, Standby/RemoteCatchupPending
 #
@@ -640,18 +648,56 @@ db2_instance_dead() {
 #
 db2_hadr_status() {
     local db=$1
-    local output
+    local output status role
 
     output=$(runasdb2 db2pd -hadr -db $db)
     if [ $? != 0 ]
     then
         echo "Down/Off"
-        return 1 
+        return 1
     fi
 
-    echo "$output" |
-    awk '/^HADR is not active/ {print "Standard/Standalone"; exit; }
-         /^Role *State */ {getline; printf "%s/%s\n", $1, $2; exit; }'
+    if db2_is_pre10; then
+        echo "$output" |
+            awk '/^HADR is not active/ {print "Standard/Standalone"; exit; }
+                 /^Role *State */ {getline; printf "%s/%s\n", $1, $2; exit; }'
+    else
+        status=$(echo $output | grep "HADR is not active")
+        if [ "$status" != "" ]
+        then
+            echo "Standard/Standalone"
+            return 0
+        fi
+
+        role=$(echo "$output" | grep HADR_ROLE | awk '{print $3}')
+        if [ "$role" == "STANDBY" ]
+        then
+            role="Standby"
+        else
+            role="Primary"
+        fi
+
+        status=$(echo "$output" | grep HADR_STATE | awk '{print $3}')
+        case "$status" in
+            LOCAL_CATCHUP)
+                status="LocalCatchup"
+                ;;
+            REMOTE_CATCHUP_PENDING)
+                status="RemoteCatchupPending"
+                ;;
+            REMOTE_CATCHUP)
+                status="RemoteCatchup"
+                ;;
+            PEER)
+                status="Peer"
+                ;;
+            DISCONNECTED_PEER)
+                status="DisconnectedPeer"
+                ;;
+        esac
+
+        echo "$role/$status"
+    fi
 }
 
 #
