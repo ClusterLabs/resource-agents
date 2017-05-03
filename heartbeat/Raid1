@@ -3,7 +3,7 @@
 #
 # License:      GNU General Public License (GPL)
 # Support:      users@clusterlabs.org
-# 
+#
 # Raid1
 #      Description: Manages a Linux software RAID device on a shared storage medium.
 #  Original Author: Eric Z. Ayers (eric.ayers@compgen.com)
@@ -31,7 +31,7 @@
 #
 # EXAMPLE config file /etc/mdadm.conf (for more info:man mdadm.conf)
 #
-#  DEVICE /dev/sdb1 /dev/sdc1 
+#  DEVICE /dev/sdb1 /dev/sdc1
 #  ARRAY /dev/md0 UUID=4a865b55:ba27ef8d:29cd5701:6fb42799
 #######################################################################
 # Initialization:
@@ -389,8 +389,8 @@ raid1_monitor_one() {
 	if [ "$__OCF_ACTION" = "monitor" -a "$OCF_RESKEY_CRM_meta_interval" != 0 \
 		-a $TRY_READD -eq 1 -a $OCF_CHECK_LEVEL -gt 0 ]; then
 		ocf_log info "Attempting recovery sequence to re-add devices on $mddev:"
-		$MDADM $mddev --fail detached 
-		$MDADM $mddev --remove failed 
+		$MDADM $mddev --fail detached
+		$MDADM $mddev --remove failed
 		$MDADM $mddev --re-add missing
 		# TODO: At this stage, there's nothing to actually do
 		# here. Either this worked or it did not.
@@ -448,7 +448,7 @@ case "$1" in
 	meta_data
 	exit $OCF_SUCCESS
 	;;
-  usage) 
+  usage)
 	usage
 	exit $OCF_SUCCESS
 	;;
@@ -467,7 +467,7 @@ if [ -z "$RAIDCONF" ] ; then
 fi
 
 if [ ! -r "$RAIDCONF" ] ; then
-	ocf_exit_reason "Configuration file [$RAIDCONF] does not exist, or can not be opend!"
+	ocf_exit_reason "Configuration file [$RAIDCONF] does not exist, or can not be opened!"
 	exit $OCF_ERR_INSTALLED
 fi
 
@@ -530,7 +530,7 @@ fi
 # [ $HAVE_RAIDTOOLS = false ] <=> we have $MDADM,
 # otherwise we have raidtools (raidstart and raidstop)
 
-# Look for how we are called 
+# Look for how we are called
 case "$1" in
   start)
 	raid1_start
@@ -538,10 +538,10 @@ case "$1" in
   stop)
 	raid1_stop
 	;;
-  status) 
+  status)
 	raid1_status
 	;;
-  monitor) 
+  monitor)
 	raid1_monitor
 	;;
   validate-all)
@@ -549,7 +549,7 @@ case "$1" in
 	;;
   *)
 	usage
-	exit $OCF_ERR_UNIMPLEMENTED 
+	exit $OCF_ERR_UNIMPLEMENTED
 	;;
 esac
 
