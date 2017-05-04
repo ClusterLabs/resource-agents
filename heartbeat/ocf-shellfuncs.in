@@ -438,15 +438,15 @@ ocf_run() {
 	    if [ "$verbose" -a ! -z "$output" ]; then
 		ocf_log info "$output"
 	    fi
-	    return $OCF_SUCCESS
 	else
 	    if [ ! -z "$output" ]; then
 		ocf_log $loglevel "$output"
 	    else
 		ocf_log $loglevel "command failed: $*"
 	    fi
-	    return $rc
 	fi
+
+	return $rc
 }
 
 ocf_pidfile_status() {
