@@ -136,8 +136,12 @@ sapdatabase_start() {
     then
       DBOSUSER="-dbuser $OCF_RESKEY_DBOSUSER "
     fi
-    output=`$SAPHOSTCTRL -function StartDatabase -dbname $SID -dbtype $DBTYPE $DBINST $DBOSUSER $FORCE -service`
-
+      if [ -z $START_TIMEOUT ]
+      then
+       output=`$SAPHOSTCTRL -function StartDatabase -dbname $SID -dbtype $DBTYPE $DBINST $FORCE -service`
+      else
+       output=`$SAPHOSTCTRL -function StartDatabase -dbname $SID -dbtype $DBTYPE $DBINST -timeout $STOP_TIMEOUT $FORCE -service`
+      fi
     sapdatabase_monitor 1
     rc=$?
 
@@ -178,8 +182,12 @@ sapdatabase_stop() {
     then
       DBOSUSER="-dbuser $OCF_RESKEY_DBOSUSER "
     fi
-    output=`$SAPHOSTCTRL -function StopDatabase -dbname $SID -dbtype $DBTYPE $DBINST $DBOSUSER -force -service`
-
+      if [ -z $STOP_TIMEOUT ]
+      then
+       output=`$SAPHOSTCTRL -function StopDatabase -dbname $SID -dbtype $DBTYPE $DBINST -force -service`
+      else
+       output=`$SAPHOSTCTRL -function StopDatabase -dbname $SID -dbtype $DBTYPE $DBINST -timeout $STOP_TIMEOUT -force -service`
+      fi     
     if [ $? -eq 0 ]
     then
       ocf_log info "SAP database $SID stopped: $output"
