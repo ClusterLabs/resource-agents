@@ -482,6 +482,11 @@ if ocf_is_clone && ! ocf_is_true "$OCF_RESKEY_force_clones"; then
 	exit $OCF_ERR_CONFIGURED
 fi
 
+if ocf_is_clone; then
+	ocf_log err "md RAID arrays are NOT safe to run as a clone!"
+	exit $OCF_ERR_CONFIGURED
+fi
+
 if ocf_is_true $WAIT_FOR_UDEV && ! have_binary udevadm; then
 	if [ "$__OCF_ACTION" = "start" ]; then
 		ocf_log warn "either install udevadm or set udev to false"
