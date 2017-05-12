@@ -328,6 +328,18 @@ The program to send ARP packets with on start. Available options are:
 <content type="string" default=""/>
 </parameter>
 
+<parameter name="send_arp_opts">
+<longdesc lang="en">
+Extra options to pass to the arp_sender program.
+Available options are vary depending on which arp_sender is used.
+
+A typical use case is specifying '-A' for iputils_arping to use
+ARP REPLY instead of ARP REQUEST as Gratuitous ARPs.
+</longdesc>
+<shortdesc lang="en">Options for ARP sender</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
 <parameter name="flush_routes">
 <longdesc lang="en">
 Flush the routing table on stop. This is for
@@ -751,15 +763,15 @@ build_arp_sender_cmd() {
 		    MY_MAC=auto
 	    fi
 
-	    ARGS="-i $OCF_RESKEY_arp_interval -r $ARP_COUNT -p $SENDARPPIDFILE $NIC $OCF_RESKEY_ip $MY_MAC not_used not_used"
+	    ARGS="$OCF_RESKEY_send_arp_opts -i $OCF_RESKEY_arp_interval -r $ARP_COUNT -p $SENDARPPIDFILE $NIC $OCF_RESKEY_ip $MY_MAC not_used not_used"
 	    ARP_SENDER_CMD="$SENDARP $ARGS"
 	    ;;
 	iputils_arping)
-	    ARGS="-U -c $ARP_COUNT -I $NIC $OCF_RESKEY_ip"
+	    ARGS="$OCF_RESKEY_send_arp_opts -U -c $ARP_COUNT -I $NIC $OCF_RESKEY_ip"
 	    ARP_SENDER_CMD="run_with_pidfile arping $ARGS"
 	    ;;
 	libnet_arping)
-	    ARGS="-U -c $ARP_COUNT -i $NIC -S $OCF_RESKEY_ip $OCF_RESKEY_ip"
+	    ARGS="$OCF_RESKEY_send_arp_opts -U -c $ARP_COUNT -i $NIC -S $OCF_RESKEY_ip $OCF_RESKEY_ip"
 	    ARP_SENDER_CMD="run_with_pidfile arping $ARGS"
 	    ;;
 	ipoibarping)
