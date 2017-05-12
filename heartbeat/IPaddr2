@@ -55,7 +55,6 @@
 #	OCF_RESKEY_arp_interval
 #	OCF_RESKEY_arp_count
 #	OCF_RESKEY_arp_bg
-#	OCF_RESKEY_arp_mac
 #	OCF_RESKEY_preferred_lft
 #
 #	OCF_RESKEY_CRM_meta_clone
@@ -79,7 +78,6 @@ OCF_RESKEY_arp_interval_default=200
 OCF_RESKEY_arp_count_default=5
 OCF_RESKEY_arp_count_refresh_default=0
 OCF_RESKEY_arp_bg_default=true
-OCF_RESKEY_arp_mac_default="ffffffffffff"
 OCF_RESKEY_run_arping_default=false
 OCF_RESKEY_preferred_lft_default="forever"
 
@@ -92,7 +90,6 @@ OCF_RESKEY_preferred_lft_default="forever"
 : ${OCF_RESKEY_arp_count=${OCF_RESKEY_arp_count_default}}
 : ${OCF_RESKEY_arp_count_refresh=${OCF_RESKEY_arp_count_refresh_default}}
 : ${OCF_RESKEY_arp_bg=${OCF_RESKEY_arp_bg_default}}
-: ${OCF_RESKEY_arp_mac=${OCF_RESKEY_arp_mac_default}}
 : ${OCF_RESKEY_run_arping=${OCF_RESKEY_run_arping_default}}
 : ${OCF_RESKEY_preferred_lft=${OCF_RESKEY_preferred_lft_default}}
 #######################################################################
@@ -303,17 +300,6 @@ Whether or not to send the ARP packets in the background.
 </longdesc>
 <shortdesc lang="en">ARP from background</shortdesc>
 <content type="string" default="${OCF_RESKEY_arp_bg_default}"/>
-</parameter>
-
-<parameter name="arp_mac">
-<longdesc lang="en">
-MAC address to send the ARP packets to.
-
-You really shouldn't be touching this.
-
-</longdesc>
-<shortdesc lang="en">ARP MAC</shortdesc>
-<content type="string" default="${OCF_RESKEY_arp_mac_default}"/>
 </parameter>
 
 <parameter name="arp_sender">
