@@ -1016,8 +1016,8 @@ ip_stop() {
 			ocf_log warn "Could not kill previously running send_arp for $OCF_RESKEY_ip"
 		else
 			ocf_log info "killed previously running send_arp for $OCF_RESKEY_ip"
-			rm -f "$SENDARPPIDFILE"
 		fi
+		rm -f "$SENDARPPIDFILE"
 	fi
 	local ip_status=`ip_served`
 	ocf_log info "IP status = $ip_status, IP_CIP=$IP_CIP"
