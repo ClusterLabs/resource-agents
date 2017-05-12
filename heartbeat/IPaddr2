@@ -271,8 +271,12 @@ a unique address to manage
 <parameter name="arp_interval">
 <longdesc lang="en">
 Specify the interval between unsolicited ARP packets in milliseconds.
+
+This parameter is deprecated and used for the backward compatibility only.
+It is effective only for the send_arp binary which is built with libnet,
+and send_ua for IPv6. It has no effect for other arp_sender.
 </longdesc>
-<shortdesc lang="en">ARP packet interval in ms</shortdesc>
+<shortdesc lang="en">ARP packet interval in ms (deprecated)</shortdesc>
 <content type="integer" default="${OCF_RESKEY_arp_interval_default}"/>
 </parameter>
 
