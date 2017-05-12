@@ -727,7 +727,9 @@ log_arp_sender() {
 
     output=$($cmdline 2>&1)
     rc=$?
-    if [ $rc -ne 0 ]; then
+    if [ $rc -ne 0 ] && \
+       [ "$ARP_SENDER" != "libnet_arping" ] ; then
+        # libnet_arping always return an error as no answers
         ocf_log err "Could not send gratuitous arps: rc=$rc"
     fi
     ocf_log $LOGLEVEL "$output"
