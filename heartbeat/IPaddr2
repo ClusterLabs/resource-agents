@@ -318,9 +318,11 @@ You really shouldn't be touching this.
 
 <parameter name="arp_sender">
 <longdesc lang="en">
-The program to send ARP packets with on start. For infiniband
-interfaces, default is ipoibarping. If ipoibarping is not
-available, set this to send_arp.
+The program to send ARP packets with on start. Available options are:
+ - send_arp: default
+ - ipoibarping: default for infiniband interfaces if ipoibarping is available
+ - iputils_arping: use arping in iputils package
+ - libnet_arping: use another variant of arping based on libnet
 </longdesc>
 <shortdesc lang="en">ARP sender</shortdesc>
 <content type="string" default=""/>
@@ -719,6 +721,23 @@ log_arp_sender() {
     ocf_log $LOGLEVEL "$output"
 }
 
+# wrapper function to manage PID file to run arping in background
+run_with_pidfile() {
+    local cmdline
+    local pid
+    local rc
+
+    cmdline="$@"
+
+    $cmdline &
+    pid=$!
+    echo "$pid" > $SENDARPPIDFILE
+    wait $pid
+    rc=$?
+    rm -f $SENDARPPIDFILE
+    return $rc
+}
+
 build_arp_sender_cmd() {
     case "$ARP_SENDER" in
 	send_arp)
@@ -734,6 +753,14 @@ build_arp_sender_cmd() {
 
 	    ARGS="-i $OCF_RESKEY_arp_interval -r $ARP_COUNT -p $SENDARPPIDFILE $NIC $OCF_RESKEY_ip $MY_MAC not_used not_used"
 	    ARP_SENDER_CMD="$SENDARP $ARGS"
+	    ;;
+	iputils_arping)
+	    ARGS="-U -c $ARP_COUNT -I $NIC $OCF_RESKEY_ip"
+	    ARP_SENDER_CMD="run_with_pidfile arping $ARGS"
+	    ;;
+	libnet_arping)
+	    ARGS="-U -c $ARP_COUNT -i $NIC -S $OCF_RESKEY_ip $OCF_RESKEY_ip"
+	    ARP_SENDER_CMD="run_with_pidfile arping $ARGS"
 	    ;;
 	ipoibarping)
 	    ARGS="-q -c $ARP_COUNT -U -I $NIC $OCF_RESKEY_ip"
@@ -1053,6 +1080,12 @@ set_send_arp_program() {
 	case "$OCF_RESKEY_arp_sender" in
 	send_arp)
 	    check_binary $SENDARP
+	;;
+	iputils_arping)
+	    check_binary arping
+	;;
+	libnet_arping)
+	    check_binary arping
 	;;
 	ipoibarping)
 	    check_binary ipoibarping
