@@ -719,6 +719,34 @@ log_arp_sender() {
     ocf_log $LOGLEVEL "$output"
 }
 
+build_arp_sender_cmd() {
+    case "$ARP_SENDER" in
+	send_arp)
+	    if [ "x$IP_CIP" = "xyes" ] ; then
+	        if [ x = "x$IF_MAC" ] ; then
+		    MY_MAC=auto
+	        else
+		    MY_MAC=`echo ${IF_MAC} | sed -e 's/://g'`
+	        fi
+	    else
+		    MY_MAC=auto
+	    fi
+
+	    ARGS="-i $OCF_RESKEY_arp_interval -r $ARP_COUNT -p $SENDARPPIDFILE $NIC $OCF_RESKEY_ip $MY_MAC not_used not_used"
+	    ARP_SENDER_CMD="$SENDARP $ARGS"
+	    ;;
+	ipoibarping)
+	    ARGS="-q -c $ARP_COUNT -U -I $NIC $OCF_RESKEY_ip"
+	    ARP_SENDER_CMD="ipoibarping $ARGS"
+	    ;;
+	*)
+	    # should not occur
+	    ocf_exit_reason "unrecognized arp_sender value: $ARP_SENDER"
+	    exit $OCF_ERR_GENERIC
+	    ;;
+    esac
+}
+
 #
 # Send Unsolicited ARPs to update neighbor's ARP cache
 #
@@ -736,7 +764,7 @@ run_arp_sender() {
 
         # prepare arguments for each arp sender program
         # $ARP_SENDER_CMD should be set
-	$ARP_SEND_FUN
+	build_arp_sender_cmd
 
 	ocf_log $LOGLEVEL "$ARP_SENDER_CMD"
 
@@ -745,24 +773,6 @@ run_arp_sender() {
 	else
 		log_arp_sender $ARP_SENDER_CMD
 	fi
-}
-
-#
-# Run send_arp binary to send unsolicited ARPs
-#
-run_send_arp() {
-	if [ "x$IP_CIP" = "xyes" ] ; then
-	    if [ x = "x$IF_MAC" ] ; then
-		MY_MAC=auto
-	    else
-		MY_MAC=`echo ${IF_MAC} | sed -e 's/://g'`
-	    fi
-	else
-		MY_MAC=auto
-	fi
-
-	ARGS="-i $OCF_RESKEY_arp_interval -r $ARP_COUNT -p $SENDARPPIDFILE $NIC $OCF_RESKEY_ip $MY_MAC not_used not_used"
-	ARP_SENDER_CMD="$SENDARP $ARGS"
 }
 
 
@@ -803,14 +813,6 @@ run_send_ua() {
 	ARGS="-i $OCF_RESKEY_arp_interval -c $OCF_RESKEY_arp_count $OCF_RESKEY_ip $NETMASK $NIC"
 	ocf_log info "$SENDUA $ARGS"
 	$SENDUA $ARGS || ocf_log err "Could not send ICMPv6 Unsolicited Neighbor Advertisements."
-}
-
-#
-# Run ipoibarping to note peers about new Infiniband address
-#
-run_send_ib_arp() {
-	ARGS="-q -c $ARP_COUNT -U -I $NIC $OCF_RESKEY_ip"
-	ARP_SENDER_CMD="ipoibarping $ARGS"
 }
 
 # Do we already serve this IP address on the given $NIC?
@@ -1046,7 +1048,7 @@ ip_monitor() {
 
 # make sure that we have something to send ARPs with
 set_send_arp_program() {
-    ARP_SEND_FUN=run_send_arp
+    ARP_SENDER=send_arp
     if [ -n "$OCF_RESKEY_arp_sender" ]; then
 	case "$OCF_RESKEY_arp_sender" in
 	send_arp)
@@ -1054,21 +1056,21 @@ set_send_arp_program() {
 	;;
 	ipoibarping)
 	    check_binary ipoibarping
-	    ARP_SEND_FUN=run_send_ib_arp
 	;;
 	*)
 	    ocf_exit_reason "unrecognized arp_sender value: $OCF_RESKEY_arp_sender"
 	    exit $OCF_ERR_CONFIGURED
 	;;
 	esac
+	ARP_SENDER="$OCF_RESKEY_arp_sender"
     else
 	if is_infiniband; then
-	    ARP_SEND_FUN=run_send_ib_arp
+	    ARP_SENDER=ipoibarping
 	    if ! have_binary ipoibarping; then
 	    	[ "$__OCF_ACTION" = start ] &&
 		    ocf_log warn "using send_arp for infiniband because ipoibarping is not available (set arp_sender to \"send_arp\" to suppress this message)"
 		check_binary $SENDARP
-		ARP_SEND_FUN=run_send_arp
+		ARP_SENDER=send_arp
 	    fi
 	fi
     fi
