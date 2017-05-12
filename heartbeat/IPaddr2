@@ -705,6 +705,20 @@ is_infiniband() {
 	$IP2UTIL link show $NIC | grep link/infiniband >/dev/null
 }
 
+log_arp_sender() {
+    local cmdline
+    local output
+    local rc
+    cmdline="$@"
+
+    output=$($cmdline 2>&1)
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        ocf_log err "Could not send gratuitous arps: rc=$rc"
+    fi
+    ocf_log $LOGLEVEL "$output"
+}
+
 #
 # Run send_arp to note peers about new mac address
 #
@@ -729,9 +743,9 @@ run_send_arp() {
 		ARGS="-i $OCF_RESKEY_arp_interval -r $ARP_COUNT -p $SENDARPPIDFILE $NIC $OCF_RESKEY_ip $MY_MAC not_used not_used"
 		ocf_log $LOGLEVEL "$SENDARP $ARGS"
 		if ocf_is_true $OCF_RESKEY_arp_bg; then
-			($SENDARP $ARGS || ocf_log err "Could not send gratuitous arps")& >&2
+			log_arp_sender $SENDARP $ARGS &
 		else
-			$SENDARP $ARGS || ocf_log err "Could not send gratuitous arps"
+			log_arp_sender $SENDARP $ARGS
 		fi
 	fi
 }
@@ -790,9 +804,9 @@ run_send_ib_arp() {
 		ARGS="-q -c $ARP_COUNT -U -I $NIC $OCF_RESKEY_ip"
 		ocf_log $LOGLEVEL "ipoibarping $ARGS"
 		if ocf_is_true $OCF_RESKEY_arp_bg; then
-			(ipoibarping $ARGS || ocf_log err "Could not send gratuitous arps")& >&2
+			log_arp_sender ipoibarping $ARGS &
 		else
-			ipoibarping $ARGS || ocf_log err "Could not send gratuitous arps"
+			log_arp_sender ipoibarping $ARGS
 		fi
 	fi
 }
