@@ -720,7 +720,35 @@ log_arp_sender() {
 }
 
 #
-# Run send_arp to note peers about new mac address
+# Send Unsolicited ARPs to update neighbor's ARP cache
+#
+run_arp_sender() {
+	if [ "x$1" = "xrefresh" ] ; then
+		ARP_COUNT=$OCF_RESKEY_arp_count_refresh
+		LOGLEVEL=debug
+	else
+		ARP_COUNT=$OCF_RESKEY_arp_count
+		LOGLEVEL=info
+	fi
+	if [ $ARP_COUNT -eq 0 ] ; then
+		return
+	fi
+
+        # prepare arguments for each arp sender program
+        # $ARP_SENDER_CMD should be set
+	$ARP_SEND_FUN
+
+	ocf_log $LOGLEVEL "$ARP_SENDER_CMD"
+
+	if ocf_is_true $OCF_RESKEY_arp_bg; then
+		log_arp_sender $ARP_SENDER_CMD &
+	else
+		log_arp_sender $ARP_SENDER_CMD
+	fi
+}
+
+#
+# Run send_arp binary to send unsolicited ARPs
 #
 run_send_arp() {
 	if [ "x$IP_CIP" = "xyes" ] ; then
@@ -732,23 +760,11 @@ run_send_arp() {
 	else
 		MY_MAC=auto
 	fi
-	if [ "x$1" = "xrefresh" ] ; then
-		ARP_COUNT=$OCF_RESKEY_arp_count_refresh
-		LOGLEVEL=debug
-	else
-		ARP_COUNT=$OCF_RESKEY_arp_count
-		LOGLEVEL=info
-	fi
-	if [ $ARP_COUNT -ne 0 ] ; then
-		ARGS="-i $OCF_RESKEY_arp_interval -r $ARP_COUNT -p $SENDARPPIDFILE $NIC $OCF_RESKEY_ip $MY_MAC not_used not_used"
-		ocf_log $LOGLEVEL "$SENDARP $ARGS"
-		if ocf_is_true $OCF_RESKEY_arp_bg; then
-			log_arp_sender $SENDARP $ARGS &
-		else
-			log_arp_sender $SENDARP $ARGS
-		fi
-	fi
+
+	ARGS="-i $OCF_RESKEY_arp_interval -r $ARP_COUNT -p $SENDARPPIDFILE $NIC $OCF_RESKEY_ip $MY_MAC not_used not_used"
+	ARP_SENDER_CMD="$SENDARP $ARGS"
 }
+
 
 #
 # Run send_ua to note send ICMPv6 Unsolicited Neighbor Advertisements.
@@ -793,22 +809,8 @@ run_send_ua() {
 # Run ipoibarping to note peers about new Infiniband address
 #
 run_send_ib_arp() {
-	if [ "x$1" = "xrefresh" ] ; then
-		ARP_COUNT=$OCF_RESKEY_arp_count_refresh
-		LOGLEVEL=debug
-	else
-		ARP_COUNT=$OCF_RESKEY_arp_count
-		LOGLEVEL=info
-	fi
-	if [ $ARP_COUNT -ne 0 ] ; then
-		ARGS="-q -c $ARP_COUNT -U -I $NIC $OCF_RESKEY_ip"
-		ocf_log $LOGLEVEL "ipoibarping $ARGS"
-		if ocf_is_true $OCF_RESKEY_arp_bg; then
-			log_arp_sender ipoibarping $ARGS &
-		else
-			log_arp_sender ipoibarping $ARGS
-		fi
-	fi
+	ARGS="-q -c $ARP_COUNT -U -I $NIC $OCF_RESKEY_ip"
+	ARP_SENDER_CMD="ipoibarping $ARGS"
 }
 
 # Do we already serve this IP address on the given $NIC?
@@ -942,7 +944,7 @@ ip_start() {
 		;;
 	*)
 		if [ $FAMILY = "inet" ];then
-		    $ARP_SEND_FUN
+		    run_arp_sender
 		else
 		    if [ -x $SENDUA ]; then
 			run_send_ua
@@ -1029,7 +1031,7 @@ ip_monitor() {
 	local ip_status=`ip_served`
 	case $ip_status in
 	ok)
-		$ARP_SEND_FUN refresh
+		run_arp_sender refresh
 		return $OCF_SUCCESS
 		;;
 	partial|no|partial2)
