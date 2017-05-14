@@ -420,7 +420,7 @@ start_nginx() {
   then
     : Configuration file $CONFIGFILE looks OK
   else
-    return $OCF_ERR_CONFIGURED
+    return $OCF_ERR_INSTALLED
   fi
   NGINX_VERSION=`$NGINXD -v 2>&1`
   ocf_log info "Starting $NGINXD - $NGINX_VERSION"
