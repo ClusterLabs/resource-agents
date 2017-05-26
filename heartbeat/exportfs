@@ -420,6 +420,10 @@ testdir() {
 }
 exportfs_validate_all ()
 {
+	if ! echo "$OCF_RESKEY_fsid" | grep -q -E "^(root|[[:xdigit:][:punct:]]*)$"; then
+		ocf_exit_reason "$OCF_RESKEY_fsid is not a valid fsid"
+		return $OCF_ERR_CONFIGURED
+	fi
 	if [ $NUMDIRS -gt 1 ] &&
 			! ocf_is_decimal "$OCF_RESKEY_fsid"; then
 		ocf_exit_reason "use integer fsid when exporting multiple directories"
