@@ -431,7 +431,7 @@ LVM_start() {
 	if [ "$LVM_MAJOR" -eq "1" ]; then
 		ocf_run vgscan $vg
 	else
-		ocf_run vgscan
+		ocf_run vgscan --cache
 	fi
 
 	case $(get_vg_mode) in
