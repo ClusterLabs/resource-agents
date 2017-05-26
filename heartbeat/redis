@@ -33,6 +33,9 @@ REDIS_REPLICATION_PORT="$OCF_RESKEY_port"
 if ! [ -f $REDIS_CHECK_DUMP ]; then
 	REDIS_CHECK_DUMP="$(which redis-check-dump 2>/dev/null)"
 fi
+if [ -z "$REDIS_CHECK_DUMP" ]; then
+	REDIS_CHECK_DUMP="$(which redis-check-rdb 2>/dev/null)"
+fi
 
 if [ -f "$REDIS_CONFIG" ]; then
 	REDIS_DUMP_DIR="$(cat $REDIS_CONFIG | grep "^\s*dir\s" | awk '{ print $2 }' 2>/dev/null)"
@@ -367,6 +370,11 @@ function start() {
 			ocf_log err "start: Unknown error waiting for redis to start. redis-check-dump output=${check_output//$'\n'/; }"
 			return $OCF_ERR_GENERIC
 		fi
+	done
+
+	while ! [ -s "$REDIS_PIDFILE" ]; do
+		ocf_log debug "start: Waiting for pid file '$REDIS_PIDFILE' to appear"
+		sleep 1
 	done
 
 	ocf_is_ms && demote # pacemaker expects resources to start in slave mode
