@@ -455,7 +455,7 @@ rmq_stop() {
 					{'EXIT', _} -> [];
 					Any -> Any
 				end,
-				Result /= [] andalso file:write_file(Filename, io_lib:fwrite(\"~p.~n\", [RuntimeParams]))
+				Result /= [] andalso file:write_file(Filename, io_lib:fwrite(\"~p.~n\", [Result]))
 			end,
 
 			%% Backup users
