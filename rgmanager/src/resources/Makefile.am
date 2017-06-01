@@ -68,7 +68,7 @@ rngdir			= ${CLUSTERDATA}/relaxng
 rng_DATA		= $(DTD) $(XSL) $(RESRNG)
 
 $(TARGET):
-	cat $@.in | sed \
+	cat $(abs_srcdir)/$@.in | sed \
 		-e 's#@''LOGDIR@#${LOGDIR}#g' \
 	> $@.out
 	chmod +x $@.out
