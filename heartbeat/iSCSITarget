@@ -339,6 +339,10 @@ iSCSITarget_start() {
 		# doesn't already exist.
 		ocf_take_lock $TARGETLOCKFILE
 		ocf_release_lock_on_exit $TARGETLOCKFILE
+
+		# delete saved settings to rely on defaults
+		rm -rf $HOME/.targetcli
+
 		ocf_run targetcli /iscsi set global auto_add_default_portal=false || exit $OCF_ERR_GENERIC
 		ocf_run targetcli /iscsi create ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
 		for portal in ${OCF_RESKEY_portals}; do
