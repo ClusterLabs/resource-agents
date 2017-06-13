@@ -361,6 +361,12 @@ clvmd_start()
 		return $?
 	fi
 
+	# systemd drop-in to stop process before storage services during
+	# shutdown/reboot
+	if ps -p 1 | grep -q systemd ; then
+		systemd_drop_in "99-clvmd" "After" "blk-availability.service"
+	fi
+
 	clvmd_status
 	if [ $? -eq $OCF_SUCCESS ]; then
 		ocf_log debug "$DAEMON already started"

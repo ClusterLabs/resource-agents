@@ -416,6 +416,12 @@ LVM_start() {
 	local vg=$1
 	local clvmd=0
 
+	# systemd drop-in to stop process before storage services during
+	# shutdown/reboot
+	if ps -p 1 | grep -q systemd ; then
+		systemd_drop_in "99-LVM" "After" "blk-availability.service"
+	fi
+
 	# TODO: This MUST run vgimport as well
 	ocf_log info "Activating volume group $vg"
 	if [ "$LVM_MAJOR" -eq "1" ]; then

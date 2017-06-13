@@ -253,6 +253,10 @@ rm -rf %{buildroot}
 /usr/lib/ocf/resource.d/redhat
 %endif
 
+%if %{defined _unitdir}
+%{_unitdir}/resource-agents-deps.target
+%endif
+
 %dir %{_datadir}/%{name}
 %dir %{_datadir}/%{name}/ocft
 %{_datadir}/%{name}/ocft/configs
