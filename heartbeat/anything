@@ -85,8 +85,10 @@ anything_start() {
 		eval $cmd > $pidfile
 		if anything_status
 		then
-			ocf_log debug "$process: $cmd started successfully"
-			return $OCF_SUCCESS
+			ocf_log debug "$process: $cmd started successfully, calling monitor"
+			anything_monitor
+			myres=$?
+			return $myres
 		else 
 			ocf_log err "$process: $cmd could not be started"
 			return $OCF_ERR_GENERIC
