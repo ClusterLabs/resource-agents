@@ -214,7 +214,7 @@ This is a generic OCF RA to manage almost anything.
 <shortdesc lang="en">Manages an arbitrary service</shortdesc>
 
 <parameters>
-<parameter name="binfile" required="1" unique="1">
+<parameter name="binfile" required="1" unique="0">
 <longdesc lang="en">
 The full name of the binary to be executed. This is expected to keep running with the same pid and not just do something and exit.
 </longdesc>
