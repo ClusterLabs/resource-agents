@@ -470,15 +470,37 @@ ocf_pidfile_status() {
 # first the directory is created with the name given as $1
 # then a file named "pid" is created within that directory with
 # the process PID
+# stale locks are handled carefully, the inode of a directory
+# needs to match before and after test if the process is running
+# empty directories are also handled appropriately
+# we relax (sleep) occasionally to allow for other processes to
+# finish managing the lock in case they are in the middle of the
+# business
 
+relax() { sleep 0.5; }
 ocf_get_stale_pid() {
-	local piddir=$1
-	local pid
+	local piddir pid dir_inode
+
+	piddir="$1"
 	[ -z "$piddir" ] && return 2
+	dir_inode="`ls -di $piddir 2>/dev/null`"
+	[ -z "$dir_inode" ] && return 1
 	pid=`cat $piddir/pid 2>/dev/null`
-	[ -z "$pid" ] && return 1 # no process
-	kill -0 $pid >/dev/null 2>&1 && return 1 # not stale
-	echo $pid
+	if [ -z "$pid" ]; then
+		# empty directory?
+		relax
+		if [ "$dir_inode" = "`ls -di $piddir 2>/dev/null`" ]; then
+			echo $dir_inode
+		else
+			return 1
+		fi
+	elif kill -0 $pid >/dev/null 2>&1; then
+		return 1
+	elif relax && [ -e "$piddir/pid" ] && [ "$dir_inode" = "`ls -di $piddir 2>/dev/null`" ]; then
+		echo $pid
+	else
+		return 1
+	fi
 }
 
 # There is a race when the following two functions to manage the
