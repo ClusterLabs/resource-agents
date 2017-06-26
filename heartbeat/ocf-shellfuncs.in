@@ -72,10 +72,11 @@ ocf_is_root() {
 }
 
 ocf_maybe_random() {
-	local rnd="$RANDOM"
-	# Something sane-ish in case a shell doesn't support $RANDOM
-	[ -n "$rnd" ] || rnd=$$
-	echo $rnd
+	if test -c /dev/urandom; then
+		od -An -N4 -tu4 /dev/urandom | tr -d '[:space:]'
+	else
+		awk -v pid=$$ 'BEGIN{srand(pid); print rand()}' | sed 's/^.*[.]//'
+	fi
 }
 
 # Portability comments:
@@ -465,24 +466,63 @@ ocf_pidfile_status() {
     return 1
 }
 
-ocf_take_lock() {
-    local lockfile=$1
-    local rnd=$(ocf_maybe_random)
+# mkdir(1) based locking
+# first the directory is created with the name given as $1
+# then a file named "pid" is created within that directory with
+# the process PID
 
-    sleep 0.$rnd
-    while 
-	ocf_pidfile_status $lockfile
-    do
-	ocf_log info "Sleeping until $lockfile is released..."
-	sleep 0.$rnd
-    done
-    echo $$ > $lockfile
+ocf_get_stale_pid() {
+	local piddir=$1
+	local pid
+	[ -z "$piddir" ] && return 2
+	pid=`cat $piddir/pid 2>/dev/null`
+	[ -z "$pid" ] && return 1 # no process
+	kill -0 $pid >/dev/null 2>&1 && return 1 # not stale
+	echo $pid
 }
 
+# There is a race when the following two functions to manage the
+# lock file (mk and rm) are invoked in parallel by different
+# instances. It is up to the caller to reduce probability of that
+# taking place (see ocf_take_lock() below).
+
+ocf_mk_pid() {
+	mkdir $1 2>/dev/null && echo $$ > $1/pid
+}
+ocf_rm_pid() {
+	rm -f $1/pid
+	rmdir $1 2>/dev/null
+}
+
+# Testing and subsequently removing a stale lock (containing the
+# process pid) is inherently difficult to do in such a way as to
+# prevent a race between creating a pid file and removing it and
+# its directory. We reduce the probability of that happening by
+# checking if the stale lock persists over a random period of
+# time.
+
+ocf_take_lock() {
+	local lockdir=$1
+	local rnd
+	local stale_pid
+
+	# we don't want it too short, so strip leading zeros
+	rnd=$(ocf_maybe_random | sed 's/^0*//')
+	stale_pid=`ocf_get_stale_pid $lockdir`
+	if [ -n "$stale_pid" ]; then
+		sleep 0.$rnd
+		# remove "stale pid" only if it persists
+		[ "$stale_pid" = "`ocf_get_stale_pid $lockdir`" ] &&
+			ocf_rm_pid $lockdir
+	fi
+	while ! ocf_mk_pid $lockdir; do
+		ocf_log info "Sleeping until $lockdir is released..."
+		sleep 0.$rnd
+	done
+}
 
 ocf_release_lock_on_exit() {
-    local lockfile=$1
-    trap "rm -f $lockfile" EXIT
+	trap "ocf_rm_pid $1" EXIT
 }
 
 # returns true if the CRM is currently running a probe. A probe is
