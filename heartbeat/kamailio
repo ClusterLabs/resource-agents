@@ -36,8 +36,11 @@
 #  OCF_RESKEY_port
 #  OCF_RESKEY_proto
 #  OCF_RESKEY_sipsak
+#  OCF_RESKEY_kamctl
 #  OCF_RESKEY_kamctlrc
 #  OCF_RESKEY_kamuser
+#  OCF_RESKEY_kamgroup
+#  OCF_RESKEY_extra_options
 
 # Initialization:
 
@@ -57,6 +60,8 @@ RESKEY_sipsak_default="/usr/bin/sipsak"
 RESKEY_kamctl_default="/usr/bin/kamctl"
 RESKEY_kamctlrc_default="/etc/kamailio/kamctlrc"
 RESKEY_kamuser_default=""
+RESKEY_kamgroup_default=""
+RESKEY_extra_options_default=""
 
 #######################################################################
 : ${OCF_RESKEY_binary=${RESKEY_binary_default}}
@@ -69,6 +74,8 @@ RESKEY_kamuser_default=""
 : ${OCF_RESKEY_kamctl=${RESKEY_kamctl_default}}
 : ${OCF_RESKEY_kamctlrc=${RESKEY_kamctlrc_default}}
 : ${OCF_RESKEY_kamuser=${RESKEY_kamuser_default}}
+: ${OCF_RESKEY_kamgroup=${RESKEY_kamgroup_default}}
+: ${OCF_RESKEY_extra_options=${RESKEY_extra_options_default}}
 
 #######################################################################
 usage() {
@@ -190,9 +197,21 @@ Parameters for a third Kamailio instance:
    <content type="string" default="${RESKEY_port_default}" />
   </parameter>
 
+  <parameter name="extra_options" unique="0" required="0">
+   <longdesc lang="en">
+    Extra options to add to kamailio start.
+   </longdesc>
+   <shortdesc lang="en">extra_options</shortdesc>
+   <content type="string" default="${RESKEY_extra_options}" />
+  </parameter>
+
+
   <parameter name="proto" unique="0" required="0">
    <longdesc lang="en">
-    The protocol used for SIP proto  =  udp|tcp|udptcp. 
+    The protocol used for SIP proto  =  udp|tcp|udptcp|conf_udp|conf_tcp|conf_udptcp.
+    Using the options "conf_*" does not add any "-l" parameters to the kamailio command,
+    the "listen" parameters from kamailio.conf are used instead. The sipsak checks are
+    performed depending what protocol is defined after the underscore.
    </longdesc>
    <shortdesc lang="en">protocol</shortdesc>
    <content type="string" default="${RESKEY_proto_default}" />
@@ -254,6 +273,15 @@ Parameters for a third Kamailio instance:
    </longdesc>
    <shortdesc lang="en">kamailio user</shortdesc>
    <content type="string" default="${RESKEY_kamuser_default}" />
+  </parameter>
+
+  <parameter name="kamgroup" unique="0" required="0">
+   <longdesc lang="en">
+    The group for kamailio process to run with.
+    Uses the current group, if not specified or empty.
+   </longdesc>
+   <shortdesc lang="en">kamailio group</shortdesc>
+   <content type="string" default="${RESKEY_kamgroup_default}" />
   </parameter>
 </parameters>
 
@@ -331,11 +359,27 @@ kamailio_cmd()
               listen_param2="-l tcp:${OCF_RESKEY_listen_address}:${OCF_RESKEY_port} -l tcp:127.0.0.1:${OCF_RESKEY_port}"
               listen_param="${listen_param1} ${listen_param2}"
            ;;
+    conf_*)
+           # doing nothing, no listen_param set
+           ;;
     *)  listen_param="-T"
            ;;
     esac
 
-    kam_cmd="${OCF_RESKEY_binary} -P ${OCF_RESKEY_pidfile} -f ${OCF_RESKEY_conffile} $listen_param"
+    kam_cmd="${OCF_RESKEY_binary} -P ${OCF_RESKEY_pidfile} -f ${OCF_RESKEY_conffile}"
+
+    if [ -n "${listen_param}" ]; then
+        kam_cmd="${kam_cmd} ${listen_param}"
+    fi
+    if [ -n "${OCF_RESKEY_kamuser}" ]; then
+        kam_cmd="${kam_cmd} -u ${OCF_RESKEY_kamuser}"
+    fi
+    if [ -n "${OCF_RESKEY_kamgroup}" ]; then
+        kam_cmd="${kam_cmd} -g ${OCF_RESKEY_kamgroup}"
+    fi
+    if [ -n "${OCF_RESKEY_extra_options}" ]; then
+        kam_cmd="${kam_cmd} ${OCF_RESKEY_extra_options}"
+    fi
 }
 
 ###
@@ -424,7 +468,7 @@ kamailio_status() {
         # to be avoided.
         # In order to be on the safe side, we run this check therefore under "timeout" control:
         rc=1
-        timeout 3 ${OCF_RESKEY_kamctl} monitor 1 |grep "Up since" ; rc=$?
+        timeout 3 ${OCF_RESKEY_kamctl} monitor 1 |grep "since" ; rc=$?
     fi
 
     if [ $rc -ne 0 ]; then
