@@ -72,6 +72,18 @@ anything_status() {
 anything_start() {
 	if ! anything_status
 	then
+		#Make sure that PID Directory exists and is writable by proper user
+		piddir=`dirname $pidfile`
+		if ! su -s /bin/sh - $user -c "test -w $piddir"; then
+			#PID Directory is not writeable by user
+			ocf_log warn "Directory $piddir is not writable by $user, attempting to fix."
+			ocf_log info "Creating directory $piddir"
+			mkdir -p $piddir
+			ocf_log info "Changing permissions for $piddir for user $user"
+			chown $user: $piddir
+		else
+			ocf_log debug "Directory $piddir exists, and is writeable by $user. All fine"
+		fi
 		if [ -n "$logfile" -a -n "$errlogfile" ]
 		then
 			# We have logfile and errlogfile, so redirect STDOUT und STDERR to different files
@@ -85,8 +97,10 @@ anything_start() {
 		eval $cmd > $pidfile
 		if anything_status
 		then
-			ocf_log debug "$process: $cmd started successfully"
-			return $OCF_SUCCESS
+			ocf_log debug "$process: $cmd started successfully, calling monitor"
+			anything_monitor
+			myres=$?
+			return $myres
 		else 
 			ocf_log err "$process: $cmd could not be started"
 			return $OCF_ERR_GENERIC
@@ -214,7 +228,7 @@ This is a generic OCF RA to manage almost anything.
 <shortdesc lang="en">Manages an arbitrary service</shortdesc>
 
 <parameters>
-<parameter name="binfile" required="1" unique="1">
+<parameter name="binfile" required="1" unique="0">
 <longdesc lang="en">
 The full name of the binary to be executed. This is expected to keep running with the same pid and not just do something and exit.
 </longdesc>
