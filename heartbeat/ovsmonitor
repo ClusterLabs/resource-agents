@@ -36,14 +36,9 @@
 #	OCF_RESKEY_bridge
 #	OCF_RESKEY_multiplicator
 #	OCF_RESKEY_name
-#	   OCF_RESKEY_repeat_count
+#	OCF_RESKEY_repeat_count
 #	OCF_RESKEY_repeat_interval
 #	OCF_RESKEY_pktcnt_timeout
-#	OCF_RESKEY_arping_count
-#	OCF_RESKEY_arping_timeout
-#	OCF_RESKEY_arping_cache_entries
-#
-#   TODO: Check against IPv6
 #
 #######################################################################
 # Initialization:
@@ -145,7 +140,7 @@ Timeout for the RX packet counter. Stop listening for packet counter changes aft
 
 <parameter name="link_status_only">
 <longdesc lang="en">
-Only report success based on link status. Do not perform RX counter or arping related connectivity tests.
+Only report success based on link status. Do not perform RX counter related connectivity tests.
 </longdesc>
 <shortdesc lang="en">link status check only</shortdesc>
 <content type="boolean" default="false" />
@@ -250,22 +245,6 @@ if_init() {
 		ocf_exit_reason "Invalid OCF_RESKEY_pktcnt_timeout [$OCF_RESKEY_pktcnt_timeout]"
 		exit $OCF_ERR_CONFIGURED
 	fi
-	: ${OCF_RESKEY_arping_count:="1"}
-	if ! ocf_is_decimal "$OCF_RESKEY_arping_count"; then
-		ocf_exit_reason "Invalid OCF_RESKEY_arping_count [$OCF_RESKEY_arping_count]"
-		exit $OCF_ERR_CONFIGURED
-	fi
-	: ${OCF_RESKEY_arping_timeout:="1"}
-	if ! ocf_is_decimal "$OCF_RESKEY_arping_timeout"; then
-		ocf_exit_reason "Invalid OCF_RESKEY_arping_timeout [$OCF_RESKEY_arping_count]"
-		exit $OCF_ERR_CONFIGURED
-	fi
-	: ${OCF_RESKEY_arping_cache_entries:="5"}
-	if ! ocf_is_decimal "$OCF_RESKEY_arping_cache_entries"; then
-		ocf_exit_reason "Invalid OCF_RESKEY_arping_cache_entries [$OCF_RESKEY_arping_cache_entries]"
-		exit $OCF_ERR_CONFIGURED
-	fi
-
 	return $OCF_SUCCESS
 }
 
@@ -308,35 +287,11 @@ watch_pkt_counter () {
 	return 1
 }
 
-# returns list of cached ARP entries for $BOND
-# sorted by age ("last confirmed")
-# max. OCF_RESKEY_arping_cache_entries entries
-#get_arp_list () {
-#	$IP2UTIL -s neighbour show dev $BOND \
-#		| sort -t/ -k2,2n | cut -d' ' -f1 \
-#		| head -n $OCF_RESKEY_arping_cache_entries
-#		# the "used" entries in `ip -s neighbour show` are:
-#		# "last used"/"last confirmed"/"last updated"
-#}
-
-# arping the IP given as argument $1 on $BOND
-# until OCF_RESKEY_arping_count answers are received
-#do_arping () {
-#	# TODO: add the source IP
-#	# TODO: check for diffenrent arping versions out there
-#	arping -q -c $OCF_RESKEY_arping_count -w $OCF_RESKEY_arping_timeout -I $BOND $1
-#	# return with the exit code of the arping command
-#	return $?
-#}
-
 #
 # Check the bond depending on the level given as parameter: $OCF_RESKEY_check_level
 #
-# 09: check for nonempty ARP cache
 # 10: watch for packet counter changes
 #
-# 19: check arping_ip_list
-# 20: check arping ARP cache entries
 #
 # 30:  watch for packet counter changes in promiscios mode
 #
@@ -344,7 +299,6 @@ watch_pkt_counter () {
 # the tests for higher check levels are run.
 #
 if_check () {
-	local arp_list
 	# always check link status first
 	link_status="`get_link_status`"
 	ocf_log debug "link_status: $link_status (up > 0, down = 0)"
@@ -354,7 +308,7 @@ if_check () {
 		return $OCF_NOT_RUNNING
 	fi
 
-	# if using link_status_only, skip RX count and arping related tests
+	# if using link_status_only, skip RX count related test
 	if ocf_is_true "$OCF_RESKEY_link_status_only"; then
 		return $OCF_SUCCESS
 	fi
@@ -476,7 +430,6 @@ if_validate() {
 	check_binary ovs-vsctl
 	check_binary ovs-appctl
 	check_binary ovs-ofctl
-	check_binary arping
 	if_init
 }
 
