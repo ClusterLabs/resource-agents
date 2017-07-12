@@ -371,7 +371,6 @@ raid1_monitor_one() {
 			return $OCF_NOT_RUNNING
 		fi
 	fi
-
 	if ! grep -e "^$md[ \t:]" /proc/mdstat >/dev/null ; then
 		ocf_log info "$md not found in /proc/mdstat"
 		return $OCF_NOT_RUNNING
