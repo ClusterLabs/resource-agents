@@ -353,16 +353,22 @@ raid1_stop() {
 #
 raid1_monitor_one() {
 	local mddev=$1
-	local md=`echo $mddev | sed 's,/dev/,,'`
+	local md=
 	local rc
 	local TRY_READD=0
 	local pbsize
 	# check if the md device exists first
 	# but not if we are in the stop operation
 	# device existence is important only for the running arrays
-	if [ "$__OCF_ACTION" != "stop" -a ! -b $mddev ]; then
-		ocf_log info "$mddev is not a block device"
-		return $OCF_NOT_RUNNING
+	if [ "$__OCF_ACTION" != "stop" ]; then
+		if [ -h "$mddev" ]; then
+			md=$(ls $mddev -l | awk -F'/' '{print $NF}')
+		elif [ -b "$mddev" ]; then
+			md=$(echo $mddev | sed 's,/dev/,,')
+		else
+			ocf_log info "$mddev is not a block device"
+			return $OCF_NOT_RUNNING
+		fi
 	fi
 	if ! grep -e "^$md[ \t:]" /proc/mdstat >/dev/null ; then
 		ocf_log info "$md not found in /proc/mdstat"
