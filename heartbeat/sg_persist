@@ -415,10 +415,10 @@ sg_persist_action_stop() {
 
 sg_persist_action_monitor() {
 
-    ACT_MASTER_SCORE=`$MASTER_SCORE_ATTRIBUTE --query --quiet 2>&1`
+    ACT_MASTER_SCORE=`$MASTER_SCORE_ATTRIBUTE --query --quiet 2>/dev/null`
     ocf_log debug "$RESOURCE monitor: ACT_MASTER_SCORE=$ACT_MASTER_SCORE"
     
-    ACT_PENDING=`$PENDING_ATTRIBUTE --query --quiet 2>&1`
+    ACT_PENDING=`$PENDING_ATTRIBUTE --query --quiet 2>/dev/null`
     ocf_log debug "$RESOURCE monitor: ACT_PENDING=$ACT_PENDING"
 
     sg_persist_parse_act_pending
