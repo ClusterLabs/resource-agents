@@ -134,6 +134,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			proftpd			\
 			rabbitmq-cluster	\
 			redis			\
+			rkt			\
 			rsyncd			\
 			rsyslog			\
 			scsi2reservation	\
