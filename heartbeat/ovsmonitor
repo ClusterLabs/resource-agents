@@ -168,17 +168,6 @@ is_bond() {
 	#
 	# List bonds but exclude FreeS/WAN ipsecN virtual bonds
 	#
-	local iface=`ovs-vsctl list-ports $OCF_RESKEY_bridge|grep -q $OCF_RESKEY_bond`
-		[ "$iface" != "" ]
-}
-
-#
-# Return true, if the bond exists
-#
-is_bond() {
-	#
-	# List bonds but exclude FreeS/WAN ipsecN virtual bonds
-	#
 	ovs-appctl bond/show $OCF_RESKEY_bond 1>/dev/null 2>&1
 }
 
