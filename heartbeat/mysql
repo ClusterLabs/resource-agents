@@ -957,7 +957,7 @@ mysql_notify() {
 			master_host=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname|tr -d " "`
 			if [ "$master_host" = ${NODENAME} ]; then
 				ocf_log info "This will be the new master, ignoring post-promote notification."
-                touch "${OCF_RESKEY_mysql_master_lock_file}"
+				touch "${OCF_RESKEY_mysql_master_lock_file}"
 			else
 				ocf_log info "Resetting replication"
 				unset_master
@@ -984,9 +984,9 @@ mysql_notify() {
 			if [ $demote_host = ${NODENAME} ]; then
 				ocf_log info "pre-demote notification for $demote_host"
 
-                ocf_log info "pre-demote Removing custom replication master marker."
-                rm -f "${OCF_RESKEY_mysql_master_lock_file}"
-                
+				ocf_log info "pre-demote Removing custom replication master marker."
+				rm -f "${OCF_RESKEY_mysql_master_lock_file}"
+				
 				set_read_only on
 				if [ $? -ne 0 ]; then
 					ocf_exit_reason "Failed to set read-only";
