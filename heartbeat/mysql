@@ -46,6 +46,7 @@
 #   OCF_RESKEY_evict_outdated_slaves
 #   OCF_RESKEY_reader_attribute
 #   OCF_RESKEY_mysql_master_lock_file
+#   OCF_RESKEY_ensure_follow_correct_master
 
 #######################################################################
 # Initialization:
@@ -299,6 +300,18 @@ is a running MySQL master. Usefull for external script.</shortdesc>
 <content type="string" default="${OCF_RESKEY_mysql_master_lock_file_default}" />
 </parameter>
 </parameters>
+
+<parameter name="ensure_follow_correct_master" unique="0" required="0">
+<longdesc lang="en">
+If set to true, we will double-check that current master host set on slave matches
+the master host which is elected by the crm. If replication was setup by ip
+this might return false positives. That's why default is false.
+</longdesc>
+<shortdesc lang="en">On slave disconnect check if slave is following correct master
+before START SLAVE is attempted.
+</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_ensure_follow_correct_master_default}" />
+</parameter>
 
 <actions>
 <action name="start" timeout="120" />
