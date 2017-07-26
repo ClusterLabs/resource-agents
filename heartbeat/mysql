@@ -524,28 +524,10 @@ check_slave() {
 	fi
 
 	if ocf_is_true $OCF_RESKEY_evict_outdated_slaves; then
-		# We're supposed to bail out if we lag too far
-		# behind. Let's check our lag.
+		# We're supposed to bail out if we lag too far behind. Let's check our lag.
 		if [ "$Seconds_Behind_Master" = "NULL" ] || [ $Seconds_Behind_Master -gt $OCF_RESKEY_max_slave_lag ]; then
-			ocf_exit_reason "MySQL Slave is $Seconds_Behind_Master seconds behind master (allowed maximum: $OCF_RESKEY_max_slave_lag)."
-			ocf_log err "See $tmpfile for details"
-
-			# Remove reader vip
-			set_reader_attr 0
-
-			exit $OCF_ERR_INSTALLED
+			quit_on_error "Replication failed max_slave_lag: $OCF_RESKEY_max_slave_lag current_lag: $Seconds_Behind_Master" $OCF_ERR_INSTALLED
 		fi
-	elif ocf_is_ms; then
-		# Even if we're not set to evict lagging slaves, we can
-		# still use the seconds behind master value to set our
-		# master preference.
-		local master_pref
-		master_pref=$((${OCF_RESKEY_max_slave_lag}-${Seconds_Behind_Master}))
-		if [ $master_pref -lt 0 ]; then
-			# Sanitize a below-zero preference to just zero
-			master_pref=0
-		fi
-		$CRM_MASTER -v $master_pref
 	fi
 
 	# is the slave ok to have a VIP on it
@@ -555,8 +537,22 @@ check_slave() {
 		set_reader_attr 1
 	fi
 
+	# Even if we're not set to evict lagging slaves, we can still use the seconds behind master value to set our master preference.
+	local master_pref
+	master_pref=$((${OCF_RESKEY_max_slave_lag}-${Seconds_Behind_Master}))
+	if [ $master_pref -lt 0 ]; then
+		# Sanitize a below-zero preference to just zero
+		master_pref=0
+	fi
+
+	ocf_log debug "check_slave setting master preference to $master_pref via $CRM_MASTER -v $master_pref"
+	$CRM_MASTER -v $master_pref
+
 	ocf_log debug "MySQL instance running as a replication slave"
+
 	rm -f $tmpfile
+
+	return $OCF_SUCCESS
 }
 
 set_master() {
