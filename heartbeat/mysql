@@ -497,40 +497,30 @@ check_slave() {
 		quit_on_error "Replication failed Last_Errno: $Last_Errno Last_Error: $Last_Error" $OCF_ERR_GENERIC
 	fi
 
-	if [ "$Slave_IO_Running" != 'Yes' ]; then
-		# Not necessarily a bad thing. The master may have
-		# temporarily shut down, and the slave may just be
-		# reconnecting. A warning can't hurt, though.
-		ocf_log warn "MySQL Slave IO threads currently not running."
+	if [ "$Slave_SQL_Running" != 'Yes' ] || [ "$Slave_IO_Running" != 'Yes' ]; then
+		# We dont have a replication SQL thread running. Not a good thing but not so bad thing too.
+		# Not necessarily a bad thing. The master may have temporarily shut down, and the slave may just be reconnecting. A warning can't hurt, though.
+		# Try to recoved by restarting the SQL thread and remove reader vip.
+
+		ocf_log warn "Slave_SQL_Running ($Slave_SQL_Running) or Slave_IO_Running ($Slave_IO_Running) currently NOT running"
 
 		# Sanity check, are we at least on the right master
 		new_master=`$CRM_ATTR_REPL_INFO --query  -q | cut -d'|' -f1`
 
-		if [ "$master_host" != "$new_master" ]; then
-		   # Not pointing to the right master, not good, removing the VIPs
-		   set_reader_attr 0
-
-		   exit $OCF_SUCCESS
+		if ocf_is_true $OCF_RESKEY_ensure_follow_correct_master; then
+			if [ "$master_host" != "$new_master" ]; then
+				quit_on_error "Replication failed node master: $master_host cluster master: $new_master" $OCF_ERR_GENERIC
+			fi
 		fi
 
-	fi
-
-	if [ "$Slave_SQL_Running" != 'Yes' ]; then
-		# We don't have a replication SQL thread running. Not a
-		# good thing. Try to recoved by restarting the SQL thread
-		# and remove reader vip.  Prevent MySQL restart.
-		ocf_exit_reason "MySQL Slave SQL threads currently not running."
-		ocf_log err "See $tmpfile for details"
-
-		# Remove reader vip
-		set_reader_attr 0
-
+		ocf_log warn "Attempting START SLAVE"
 		# try to restart slave
 		ocf_run $MYSQL $MYSQL_OPTIONS_REPL \
 			-e "START SLAVE"
 
-		# Return success to prevent a restart
-		exit $OCF_SUCCESS
+		# quit_on_error should always quit with success here
+		# If further errors occur after this start slave they will be cought by the checks above
+		quit_on_error "Replication failed Slave_SQL_Running ($Slave_SQL_Running) Slave_IO_Running ($Slave_IO_Running) ... start slave was attempted" 0
 	fi
 
 	if ocf_is_true $OCF_RESKEY_evict_outdated_slaves; then
