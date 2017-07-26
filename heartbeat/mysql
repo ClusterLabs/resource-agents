@@ -308,8 +308,7 @@ the master host which is elected by the crm. If replication was setup by ip
 this might return false positives. That's why default is false.
 </longdesc>
 <shortdesc lang="en">On slave disconnect check if slave is following correct master
-before START SLAVE is attempted.
-</shortdesc>
+before START SLAVE is attempted.</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_ensure_follow_correct_master_default}" />
 </parameter>
 
