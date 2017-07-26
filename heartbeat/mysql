@@ -479,20 +479,22 @@ check_slave() {
 		quit_on_error "MYSQL_TOO_MANY_CONN_ERR ($MYSQL_TOO_MANY_CONN_ERR) ... check succeeded but node not suitable for failover/reader vip" 0
 	fi
 
-	# Did we receive an error other than max_connections?
-	if [ $Last_Errno -ne 0 -a $Last_Errno -ne "$MYSQL_TOO_MANY_CONN_ERR" ]; then
-		# Whoa. Replication ran into an error. This slave has
-		# diverged from its master. Make sure this resource
-		# doesn't restart in place.
-		ocf_exit_reason "MySQL instance configured for replication, but replication has failed."
-		ocf_log err "See $tmpfile for details"
-
-		# Just pull the reader VIP away, killing MySQL here would be pretty evil
-		# on a loaded server
-
-		set_reader_attr 0
-		exit $OCF_SUCCESS
-
+	# If any of these is set, non-blank and non-zero (0) replication ran into a serious issue and slave can NOT be trusted anymore to be suitable for
+	# - up2date readable vip
+	# - slave that can be elected as master
+	# If we promote such slave there is a huge chance of data loss. That's why we better:
+	# - remove read vip
+	# - remove master score
+	# - fail the check
+	if [ "${Last_SQL_Error}" != "" ] || [ "${Last_SQL_Errno}" != "0" ]; then
+		quit_on_error "Replication failed Last_SQL_Errno: $Last_SQL_Errno Last_SQL_Error: $Last_SQL_Error" $OCF_ERR_GENERIC
+	fi
+	if [ "${Last_IO_Error}" != "" ] || [ "${Last_IO_Errno}" != "0" ]; then
+		quit_on_error "Replication failed Last_IO_Errno: $Last_IO_Errno Last_IO_Error: $Last_IO_Error" $OCF_ERR_GENERIC
+	fi
+	if [ "${Last_Error}" != "" ] || [ "${Last_Errno}" != "0" ]; then
+		# Did we receive an error other than max_connections?
+		quit_on_error "Replication failed Last_Errno: $Last_Errno Last_Error: $Last_Error" $OCF_ERR_GENERIC
 	fi
 
 	if [ "$Slave_IO_Running" != 'Yes' ]; then
