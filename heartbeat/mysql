@@ -425,32 +425,32 @@ get_slave_info() {
 	if [ "$master_log_file" -a "$master_host" ]; then
 		# variables are already defined, get_slave_info has been run before
 		return $OCF_SUCCESS
-	else
-		tmpfile=`mktemp ${HA_RSCTMP}/check_slave.${OCF_RESOURCE_INSTANCE}.XXXXXX`
+    fi
 
-		$MYSQL $MYSQL_OPTIONS_REPL \
-		-e 'SHOW SLAVE STATUS\G' > $tmpfile
+	tmpfile=`mktemp ${HA_RSCTMP}/check_slave.${OCF_RESOURCE_INSTANCE}.XXXXXX`
 
-		if [ -s $tmpfile ]; then
-			master_host=`parse_slave_info Master_Host $tmpfile`
-			master_user=`parse_slave_info Master_User $tmpfile`
-			master_port=`parse_slave_info Master_Port $tmpfile`
-			master_log_file=`parse_slave_info Master_Log_File $tmpfile`
-			master_log_pos=`parse_slave_info Read_Master_Log_Pos $tmpfile`
-			slave_sql=`parse_slave_info Slave_SQL_Running $tmpfile`
-			slave_io=`parse_slave_info Slave_IO_Running $tmpfile`
-			last_errno=`parse_slave_info Last_Errno $tmpfile`
-			secs_behind=`parse_slave_info Seconds_Behind_Master $tmpfile`
-			ocf_log debug "MySQL instance running as a replication slave"
-		else
-			# Instance produced an empty "SHOW SLAVE STATUS" output --
-			# instance is not a slave
-			ocf_exit_reason "check_slave invoked on an instance that is not a replication slave."
-			return $OCF_ERR_GENERIC
-		fi
+	$MYSQL $MYSQL_OPTIONS_REPL \
+	-e 'SHOW SLAVE STATUS\G' > $tmpfile
 
-		return $OCF_SUCCESS
-	fi
+	if [ ! -s $tmpfile ]; then
+		# Instance produced an empty "SHOW SLAVE STATUS" output --
+		# instance is not a slave
+		ocf_exit_reason "check_slave invoked on an instance that is not a replication slave."
+		return $OCF_ERR_GENERIC
+    fi
+
+	master_host=`parse_slave_info Master_Host $tmpfile`
+	master_user=`parse_slave_info Master_User $tmpfile`
+	master_port=`parse_slave_info Master_Port $tmpfile`
+	master_log_file=`parse_slave_info Master_Log_File $tmpfile`
+	master_log_pos=`parse_slave_info Read_Master_Log_Pos $tmpfile`
+	slave_sql=`parse_slave_info Slave_SQL_Running $tmpfile`
+	slave_io=`parse_slave_info Slave_IO_Running $tmpfile`
+	last_errno=`parse_slave_info Last_Errno $tmpfile`
+	secs_behind=`parse_slave_info Seconds_Behind_Master $tmpfile`
+	ocf_log debug "MySQL instance running as a replication slave"
+
+	return $OCF_SUCCESS
 }
 
 check_slave() {
