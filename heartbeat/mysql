@@ -444,10 +444,10 @@ get_slave_info() {
 	master_port=`parse_slave_info Master_Port $tmpfile`
 	master_log_file=`parse_slave_info Master_Log_File $tmpfile`
 	master_log_pos=`parse_slave_info Read_Master_Log_Pos $tmpfile`
-	slave_sql=`parse_slave_info Slave_SQL_Running $tmpfile`
-	slave_io=`parse_slave_info Slave_IO_Running $tmpfile`
-	last_errno=`parse_slave_info Last_Errno $tmpfile`
-	secs_behind=`parse_slave_info Seconds_Behind_Master $tmpfile`
+	Slave_SQL_Running=`parse_slave_info Slave_SQL_Running $tmpfile`
+	Slave_IO_Running=`parse_slave_info Slave_IO_Running $tmpfile`
+	Last_Errno=`parse_slave_info Last_Errno $tmpfile`
+	Seconds_Behind_Master=`parse_slave_info Seconds_Behind_Master $tmpfile`
 	ocf_log debug "MySQL instance running as a replication slave"
 
 	return $OCF_SUCCESS
@@ -462,7 +462,7 @@ check_slave() {
 
 	if [ $rc -eq 0 ]; then
 		# Did we receive an error other than max_connections?
-		if [ $last_errno -ne 0 -a $last_errno -ne "$MYSQL_TOO_MANY_CONN_ERR" ]; then
+		if [ $Last_Errno -ne 0 -a $Last_Errno -ne "$MYSQL_TOO_MANY_CONN_ERR" ]; then
 			# Whoa. Replication ran into an error. This slave has
 			# diverged from its master. Make sure this resource
 			# doesn't restart in place.
@@ -478,12 +478,12 @@ check_slave() {
 		fi
 
 		# If we got max_connections, let's remove the vip
-		if [ $last_errno -eq "$MYSQL_TOO_MANY_CONN_ERR" ]; then
+		if [ $Last_Errno -eq "$MYSQL_TOO_MANY_CONN_ERR" ]; then
 			set_reader_attr 0
 			exit $OCF_SUCCESS
 		fi
 
-		if [ "$slave_io" != 'Yes' ]; then
+		if [ "$Slave_IO_Running" != 'Yes' ]; then
 			# Not necessarily a bad thing. The master may have
 			# temporarily shut down, and the slave may just be
 			# reconnecting. A warning can't hurt, though.
@@ -501,7 +501,7 @@ check_slave() {
 
 		fi
 
-		if [ "$slave_sql" != 'Yes' ]; then
+		if [ "$Slave_SQL_Running" != 'Yes' ]; then
 			# We don't have a replication SQL thread running. Not a
 			# good thing. Try to recoved by restarting the SQL thread
 			# and remove reader vip.  Prevent MySQL restart.
@@ -522,8 +522,8 @@ check_slave() {
 		if ocf_is_true $OCF_RESKEY_evict_outdated_slaves; then
 			# We're supposed to bail out if we lag too far
 			# behind. Let's check our lag.
-			if [ "$secs_behind" = "NULL" ] || [ $secs_behind -gt $OCF_RESKEY_max_slave_lag ]; then
-				ocf_exit_reason "MySQL Slave is $secs_behind seconds behind master (allowed maximum: $OCF_RESKEY_max_slave_lag)."
+			if [ "$Seconds_Behind_Master" = "NULL" ] || [ $Seconds_Behind_Master -gt $OCF_RESKEY_max_slave_lag ]; then
+				ocf_exit_reason "MySQL Slave is $Seconds_Behind_Master seconds behind master (allowed maximum: $OCF_RESKEY_max_slave_lag)."
 				ocf_log err "See $tmpfile for details"
 
 				# Remove reader vip
@@ -536,7 +536,7 @@ check_slave() {
 			# still use the seconds behind master value to set our
 			# master preference.
 			local master_pref
-			master_pref=$((${OCF_RESKEY_max_slave_lag}-${secs_behind}))
+			master_pref=$((${OCF_RESKEY_max_slave_lag}-${Seconds_Behind_Master}))
 			if [ $master_pref -lt 0 ]; then
 				# Sanitize a below-zero preference to just zero
 				master_pref=0
@@ -545,7 +545,7 @@ check_slave() {
 		fi
 
 		# is the slave ok to have a VIP on it
-		if [ "$secs_behind" = "NULL" ] || [ $secs_behind -gt $OCF_RESKEY_max_slave_lag ]; then
+		if [ "$Seconds_Behind_Master" = "NULL" ] || [ $Seconds_Behind_Master -gt $OCF_RESKEY_max_slave_lag ]; then
 			set_reader_attr 0
 		else
 			set_reader_attr 1
