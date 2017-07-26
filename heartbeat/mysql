@@ -332,6 +332,23 @@ END
 
 # Convenience functions
 
+quit_on_error() {
+	local error_message="$1"
+	local exit_code="$2"
+
+	if ocf_is_ms; then
+		# Clear master-mysql score so we don't get promoted to master ever
+		$CRM_MASTER -D
+		# Removing reader vip
+		set_reader_attr 0
+	fi
+
+	# Log the error
+	ocf_log err "error_message: ${error_message} exit_code: ${exit_code}"
+
+	exit $exit_code
+}
+
 set_read_only() {
 	# Sets or unsets read-only mode. Accepts one boolean as its
 	# optional argument. If invoked without any arguments, defaults to
