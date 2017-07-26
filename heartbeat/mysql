@@ -470,8 +470,7 @@ check_slave() {
 		# instance is not a slave
 		# TODO: Needs to handle when get_slave_info will return too many connections error
 		rm -f $tmpfile
-		ocf_exit_reason "check_slave invoked on an instance that is not a replication slave."
-		exit $OCF_ERR_GENERIC
+        quit_on_error "check_slave invoked on an instance that is not a replication slave: $rc" $OCF_ERR_GENERIC
 	fi
 
 	# Did we receive an error other than max_connections?
