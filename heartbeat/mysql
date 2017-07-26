@@ -283,7 +283,6 @@ This parameter is only meaningful in master/slave set configurations.
 whether a node is usable for clients to read from.</shortdesc>
 <content type="string" default="${OCF_RESKEY_reader_attribute_default}" />
 </parameter>
-</parameters>
 
 <parameter name="mysql_master_lock_file" unique="1" required="0">
 <longdesc lang="en">
@@ -299,7 +298,6 @@ only on master host.
 is a running MySQL master. Usefull for external script.</shortdesc>
 <content type="string" default="${OCF_RESKEY_mysql_master_lock_file_default}" />
 </parameter>
-</parameters>
 
 <parameter name="ensure_follow_correct_master" unique="0" required="0">
 <longdesc lang="en">
@@ -311,6 +309,7 @@ this might return false positives. That's why default is false.
 before START SLAVE is attempted.</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_ensure_follow_correct_master_default}" />
 </parameter>
+</parameters>
 
 <actions>
 <action name="start" timeout="120" />
