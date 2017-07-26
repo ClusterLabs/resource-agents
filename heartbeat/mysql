@@ -470,7 +470,13 @@ check_slave() {
 		# instance is not a slave
 		# TODO: Needs to handle when get_slave_info will return too many connections error
 		rm -f $tmpfile
-        quit_on_error "check_slave invoked on an instance that is not a replication slave: $rc" $OCF_ERR_GENERIC
+		quit_on_error "check_slave invoked on an instance that is not a replication slave: $rc" $OCF_ERR_GENERIC
+	fi
+
+	if [ "${Last_Errno}" == "$MYSQL_TOO_MANY_CONN_ERR" ]; then
+		# If we got max_connections, let's remove master score used by the failover and reader vip.
+		# However finish check nicely (0) to avoid restarting slave bussy with reading
+		quit_on_error "MYSQL_TOO_MANY_CONN_ERR ($MYSQL_TOO_MANY_CONN_ERR) ... check succeeded but node not suitable for failover/reader vip" 0
 	fi
 
 	# Did we receive an error other than max_connections?
@@ -487,12 +493,6 @@ check_slave() {
 		set_reader_attr 0
 		exit $OCF_SUCCESS
 
-	fi
-
-	# If we got max_connections, let's remove the vip
-	if [ $Last_Errno -eq "$MYSQL_TOO_MANY_CONN_ERR" ]; then
-		set_reader_attr 0
-		exit $OCF_SUCCESS
 	fi
 
 	if [ "$Slave_IO_Running" != 'Yes' ]; then
