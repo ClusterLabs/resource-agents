@@ -777,17 +777,7 @@ mysql_monitor() {
 
 	# If status returned an error, return that immediately
 	if [ $rc -ne $OCF_SUCCESS ]; then
-		if ocf_is_ms ; then
-			# This is a master slave setup but monitored host returned some errors.
-			# Immediately remove it from the pool of possible masters by erasing its master-mysql key
-			# When new mysql master election is started and node got no or negative master-mysql attribute the following is logged
-			#   nodename.com pengine: debug: master_color: mysql:0 master score: -1
-			# If there are NO nodes with positive vaule election of mysql master will fail with
-			#   nodename.com pengine: info: master_color: ms_mysql: Promoted 0 instances of a possible 1 to master
-			$CRM_MASTER -D
-		fi
-
-		return $rc
+        quit_on_error "mysql_status returned error: $rc" $rc
 	fi
 
 	if [ $OCF_CHECK_LEVEL -gt 0 -a -n "$OCF_RESKEY_test_table" ]; then
