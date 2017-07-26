@@ -465,100 +465,7 @@ check_slave() {
 	get_slave_info
 	rc=$?
 
-	if [ $rc -eq 0 ]; then
-		# Did we receive an error other than max_connections?
-		if [ $Last_Errno -ne 0 -a $Last_Errno -ne "$MYSQL_TOO_MANY_CONN_ERR" ]; then
-			# Whoa. Replication ran into an error. This slave has
-			# diverged from its master. Make sure this resource
-			# doesn't restart in place.
-			ocf_exit_reason "MySQL instance configured for replication, but replication has failed."
-			ocf_log err "See $tmpfile for details"
-
-			# Just pull the reader VIP away, killing MySQL here would be pretty evil
-			# on a loaded server
-
-			set_reader_attr 0
-			exit $OCF_SUCCESS
-
-		fi
-
-		# If we got max_connections, let's remove the vip
-		if [ $Last_Errno -eq "$MYSQL_TOO_MANY_CONN_ERR" ]; then
-			set_reader_attr 0
-			exit $OCF_SUCCESS
-		fi
-
-		if [ "$Slave_IO_Running" != 'Yes' ]; then
-			# Not necessarily a bad thing. The master may have
-			# temporarily shut down, and the slave may just be
-			# reconnecting. A warning can't hurt, though.
-			ocf_log warn "MySQL Slave IO threads currently not running."
-
-			# Sanity check, are we at least on the right master
-			new_master=`$CRM_ATTR_REPL_INFO --query  -q | cut -d'|' -f1`
-
-			if [ "$master_host" != "$new_master" ]; then
-			   # Not pointing to the right master, not good, removing the VIPs
-			   set_reader_attr 0
-
-			   exit $OCF_SUCCESS
-			fi
-
-		fi
-
-		if [ "$Slave_SQL_Running" != 'Yes' ]; then
-			# We don't have a replication SQL thread running. Not a
-			# good thing. Try to recoved by restarting the SQL thread
-			# and remove reader vip.  Prevent MySQL restart.
-			ocf_exit_reason "MySQL Slave SQL threads currently not running."
-			ocf_log err "See $tmpfile for details"
-
-			# Remove reader vip
-			set_reader_attr 0
-
-			# try to restart slave
-			ocf_run $MYSQL $MYSQL_OPTIONS_REPL \
-				-e "START SLAVE"
-
-			# Return success to prevent a restart
-			exit $OCF_SUCCESS
-		fi
-
-		if ocf_is_true $OCF_RESKEY_evict_outdated_slaves; then
-			# We're supposed to bail out if we lag too far
-			# behind. Let's check our lag.
-			if [ "$Seconds_Behind_Master" = "NULL" ] || [ $Seconds_Behind_Master -gt $OCF_RESKEY_max_slave_lag ]; then
-				ocf_exit_reason "MySQL Slave is $Seconds_Behind_Master seconds behind master (allowed maximum: $OCF_RESKEY_max_slave_lag)."
-				ocf_log err "See $tmpfile for details"
-
-				# Remove reader vip
-				set_reader_attr 0
-
-				exit $OCF_ERR_INSTALLED
-			fi
-		elif ocf_is_ms; then
-			# Even if we're not set to evict lagging slaves, we can
-			# still use the seconds behind master value to set our
-			# master preference.
-			local master_pref
-			master_pref=$((${OCF_RESKEY_max_slave_lag}-${Seconds_Behind_Master}))
-			if [ $master_pref -lt 0 ]; then
-				# Sanitize a below-zero preference to just zero
-				master_pref=0
-			fi
-			$CRM_MASTER -v $master_pref
-		fi
-
-		# is the slave ok to have a VIP on it
-		if [ "$Seconds_Behind_Master" = "NULL" ] || [ $Seconds_Behind_Master -gt $OCF_RESKEY_max_slave_lag ]; then
-			set_reader_attr 0
-		else
-			set_reader_attr 1
-		fi
-
-		ocf_log debug "MySQL instance running as a replication slave"
-		rm -f $tmpfile
-	else
+	if [ $rc -ne 0 ]; then
 		# Instance produced an empty "SHOW SLAVE STATUS" output --
 		# instance is not a slave
 		# TODO: Needs to handle when get_slave_info will return too many connections error
@@ -566,6 +473,99 @@ check_slave() {
 		ocf_exit_reason "check_slave invoked on an instance that is not a replication slave."
 		exit $OCF_ERR_GENERIC
 	fi
+
+	# Did we receive an error other than max_connections?
+	if [ $Last_Errno -ne 0 -a $Last_Errno -ne "$MYSQL_TOO_MANY_CONN_ERR" ]; then
+		# Whoa. Replication ran into an error. This slave has
+		# diverged from its master. Make sure this resource
+		# doesn't restart in place.
+		ocf_exit_reason "MySQL instance configured for replication, but replication has failed."
+		ocf_log err "See $tmpfile for details"
+
+		# Just pull the reader VIP away, killing MySQL here would be pretty evil
+		# on a loaded server
+
+		set_reader_attr 0
+		exit $OCF_SUCCESS
+
+	fi
+
+	# If we got max_connections, let's remove the vip
+	if [ $Last_Errno -eq "$MYSQL_TOO_MANY_CONN_ERR" ]; then
+		set_reader_attr 0
+		exit $OCF_SUCCESS
+	fi
+
+	if [ "$Slave_IO_Running" != 'Yes' ]; then
+		# Not necessarily a bad thing. The master may have
+		# temporarily shut down, and the slave may just be
+		# reconnecting. A warning can't hurt, though.
+		ocf_log warn "MySQL Slave IO threads currently not running."
+
+		# Sanity check, are we at least on the right master
+		new_master=`$CRM_ATTR_REPL_INFO --query  -q | cut -d'|' -f1`
+
+		if [ "$master_host" != "$new_master" ]; then
+		   # Not pointing to the right master, not good, removing the VIPs
+		   set_reader_attr 0
+
+		   exit $OCF_SUCCESS
+		fi
+
+	fi
+
+	if [ "$Slave_SQL_Running" != 'Yes' ]; then
+		# We don't have a replication SQL thread running. Not a
+		# good thing. Try to recoved by restarting the SQL thread
+		# and remove reader vip.  Prevent MySQL restart.
+		ocf_exit_reason "MySQL Slave SQL threads currently not running."
+		ocf_log err "See $tmpfile for details"
+
+		# Remove reader vip
+		set_reader_attr 0
+
+		# try to restart slave
+		ocf_run $MYSQL $MYSQL_OPTIONS_REPL \
+			-e "START SLAVE"
+
+		# Return success to prevent a restart
+		exit $OCF_SUCCESS
+	fi
+
+	if ocf_is_true $OCF_RESKEY_evict_outdated_slaves; then
+		# We're supposed to bail out if we lag too far
+		# behind. Let's check our lag.
+		if [ "$Seconds_Behind_Master" = "NULL" ] || [ $Seconds_Behind_Master -gt $OCF_RESKEY_max_slave_lag ]; then
+			ocf_exit_reason "MySQL Slave is $Seconds_Behind_Master seconds behind master (allowed maximum: $OCF_RESKEY_max_slave_lag)."
+			ocf_log err "See $tmpfile for details"
+
+			# Remove reader vip
+			set_reader_attr 0
+
+			exit $OCF_ERR_INSTALLED
+		fi
+	elif ocf_is_ms; then
+		# Even if we're not set to evict lagging slaves, we can
+		# still use the seconds behind master value to set our
+		# master preference.
+		local master_pref
+		master_pref=$((${OCF_RESKEY_max_slave_lag}-${Seconds_Behind_Master}))
+		if [ $master_pref -lt 0 ]; then
+			# Sanitize a below-zero preference to just zero
+			master_pref=0
+		fi
+		$CRM_MASTER -v $master_pref
+	fi
+
+	# is the slave ok to have a VIP on it
+	if [ "$Seconds_Behind_Master" = "NULL" ] || [ $Seconds_Behind_Master -gt $OCF_RESKEY_max_slave_lag ]; then
+		set_reader_attr 0
+	else
+		set_reader_attr 1
+	fi
+
+	ocf_log debug "MySQL instance running as a replication slave"
+	rm -f $tmpfile
 }
 
 set_master() {
