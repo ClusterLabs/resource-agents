@@ -777,41 +777,34 @@ mysql_monitor() {
 
 	# If status returned an error, return that immediately
 	if [ $rc -ne $OCF_SUCCESS ]; then
-        quit_on_error "mysql_status returned error: $rc" $rc
+		quit_on_error "mysql_status returned error: $rc" $rc
 	fi
 
 	if [ $OCF_CHECK_LEVEL -gt 0 -a -n "$OCF_RESKEY_test_table" ]; then
-		# Check if this instance is configured as a slave, and if so
-		# check slave status
-		if is_slave; then
-			check_slave
-		fi
-
 		# Check for test table
-		ocf_run -q $MYSQL $MYSQL_OPTIONS_TEST \
-			-e "SELECT COUNT(*) FROM $OCF_RESKEY_test_table"
-		rc=$?
-
-		if [ $rc -ne 0 ]; then
-			# We are master/slave and test failed. Delete master score for this node as it is considered unhealthy because of this particular failed check.
-			ocf_is_ms && $CRM_MASTER -D
-			ocf_exit_reason "Failed to select from $test_table";
-			return $OCF_ERR_GENERIC;
+		if ! ocf_run -q $MYSQL $MYSQL_OPTIONS_TEST -e "SELECT COUNT(*) FROM $OCF_RESKEY_test_table"; then
+			quit_on_error "Failed to select from $test_table" $OCF_ERR_GENERIC
 		fi
-	else
-		# In case no exnteded tests are enabled and we are in master/slave mode _always_ set the master score to 1 if we reached this point
-		ocf_is_ms && $CRM_MASTER -v 1
 	fi
 
-	if ocf_is_ms && ! get_read_only; then
-		ocf_log debug "MySQL monitor succeeded (master)";
-		# Always set master score for the master
-		$CRM_MASTER -v 2
-		return $OCF_RUNNING_MASTER
+	if ocf_is_ms; then
+		if is_slave; then
+			# Check slave replication status in details
+			check_slave
+			ocf_log debug "MySQL monitor succeeded (slave) ... returning $OCF_SUCCESS";
+			return $OCF_SUCCESS
+		else
+			# master is always readable and always with highest scores
+			$CRM_MASTER -v $((${OCF_RESKEY_max_slave_lag}+1))
+			set_reader_attr 1
+			ocf_log debug "MySQL monitor succeeded (master) ... returning $OCF_RUNNING_MASTER";
+			return $OCF_RUNNING_MASTER
+		fi
 	else
-		ocf_log debug "MySQL monitor succeeded";
+		ocf_log debug "MySQL monitor succeeded ... returning $OCF_SUCCESS";
 		return $OCF_SUCCESS
 	fi
+
 }
 
 mysql_start() {
