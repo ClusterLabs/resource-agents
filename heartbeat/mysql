@@ -45,6 +45,7 @@
 #   OCF_RESKEY_max_slave_lag
 #   OCF_RESKEY_evict_outdated_slaves
 #   OCF_RESKEY_reader_attribute
+#   OCF_RESKEY_mysql_master_lock_file
 
 #######################################################################
 # Initialization:
@@ -280,6 +281,22 @@ This parameter is only meaningful in master/slave set configurations.
 <shortdesc lang="en">Sets the node attribute that determines
 whether a node is usable for clients to read from.</shortdesc>
 <content type="string" default="${OCF_RESKEY_reader_attribute_default}" />
+</parameter>
+</parameters>
+
+<parameter name="mysql_master_lock_file" unique="1" required="0">
+<longdesc lang="en">
+This is a lock file that is created whenever instance is
+promoted as MySQL master in ms configuration
+
+Lock file is removed whenever machine is no longer MySQL master.
+
+It is intended to be used by helper scripts that should be running
+only on master host.
+</longdesc>
+<shortdesc lang="en">Create helper file to identify if current server
+is a running MySQL master. Usefull for external script.</shortdesc>
+<content type="string" default="${OCF_RESKEY_mysql_master_lock_file_default}" />
 </parameter>
 </parameters>
 
@@ -927,6 +944,7 @@ mysql_notify() {
 			master_host=`echo $OCF_RESKEY_CRM_meta_notify_promote_uname|tr -d " "`
 			if [ "$master_host" = ${NODENAME} ]; then
 				ocf_log info "This will be the new master, ignoring post-promote notification."
+                touch "${OCF_RESKEY_mysql_master_lock_file}"
 			else
 				ocf_log info "Resetting replication"
 				unset_master
@@ -952,6 +970,10 @@ mysql_notify() {
 			demote_host=`echo $OCF_RESKEY_CRM_meta_notify_demote_uname|tr -d " "`
 			if [ $demote_host = ${NODENAME} ]; then
 				ocf_log info "post-demote notification for $demote_host"
+
+                ocf_log info "pre-demote Removing custom replication master marker."
+                rm -f "${OCF_RESKEY_mysql_master_lock_file}"
+                
 				set_read_only on
 				if [ $? -ne 0 ]; then
 					ocf_exit_reason "Failed to set read-only";

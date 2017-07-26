@@ -45,6 +45,7 @@ OCF_RESKEY_replication_port_default="3306"
 OCF_RESKEY_max_slave_lag_default="3600"
 OCF_RESKEY_evict_outdated_slaves_default="false"
 OCF_RESKEY_reader_attribute_default="readable"
+OCF_RESKEY_mysql_master_lock_file_default="/var/lock/replication_master"
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
@@ -76,6 +77,8 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 : ${OCF_RESKEY_evict_outdated_slaves=${OCF_RESKEY_evict_outdated_slaves_default}}
 
 : ${OCF_RESKEY_reader_attribute=${OCF_RESKEY_reader_attribute_default}}
+
+: ${OCF_RESKEY_mysql_master_lock_file=${OCF_RESKEY_mysql_master_lock_file_default}}
 
 #######################################################################
 # Convenience variables
