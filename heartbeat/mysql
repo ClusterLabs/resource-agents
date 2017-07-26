@@ -969,7 +969,7 @@ mysql_notify() {
 		'pre-demote')
 			demote_host=`echo $OCF_RESKEY_CRM_meta_notify_demote_uname|tr -d " "`
 			if [ $demote_host = ${NODENAME} ]; then
-				ocf_log info "post-demote notification for $demote_host"
+				ocf_log info "pre-demote notification for $demote_host"
 
                 ocf_log info "pre-demote Removing custom replication master marker."
                 rm -f "${OCF_RESKEY_mysql_master_lock_file}"
@@ -993,7 +993,7 @@ mysql_notify() {
 						-e "KILL ${thread}"
 				done
 			else
-			   ocf_log info "Ignoring post-demote notification execpt for my own demotion."
+			   ocf_log info "Ignoring pre-demote notification execpt for my own demotion."
 			fi
 			return $OCF_SUCCESS
 		;;
