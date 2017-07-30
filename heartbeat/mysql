@@ -897,6 +897,30 @@ mysql_demote() {
         return $OCF_NOT_RUNNING
     fi
 
+    # Demote Master
+    demote_host=`echo $OCF_RESKEY_CRM_meta_notify_demote_uname|tr -d " "`
+    if [ $demote_host = ${NODENAME} ]; then
+        ocf_log info "Set read-only mode on"
+        set_read_only on
+        if [ $? -ne 0 ]; then
+            ocf_exit_reason "Failed to set read-only";
+            return $OCF_ERR_GENERIC;
+        fi
+
+        # Must kill all existing user threads because they are still Read/write
+        # in order for the slaves to complete the read of binlogs
+        local tmpfile
+        tmpfile=`mktemp ${HA_RSCTMP}/threads.${OCF_RESOURCE_INSTANCE}.XXXXXX`
+        $MYSQL $MYSQL_OPTIONS_REPL \
+        -e "SHOW PROCESSLIST" > $tmpfile
+
+        for thread in `awk '$0 !~ /Binlog Dump|system user|event_scheduler|SHOW PROCESSLIST/ && $0 ~ /^[0-9]/ {print $1}' $tmpfile`
+        do
+            ocf_run $MYSQL $MYSQL_OPTIONS_REPL \
+                -e "KILL ${thread}"
+        done
+    fi
+
     # Return master preference to default, so the cluster manager gets
     # a chance to select a new master
     $CRM_MASTER -v 1
@@ -949,30 +973,7 @@ mysql_notify() {
             return $OCF_SUCCESS
         ;;
         'pre-demote')
-            demote_host=`echo $OCF_RESKEY_CRM_meta_notify_demote_uname|tr -d " "`
-            if [ $demote_host = ${NODENAME} ]; then
-                ocf_log info "post-demote notification for $demote_host"
-                set_read_only on
-                if [ $? -ne 0 ]; then
-                    ocf_exit_reason "Failed to set read-only";
-                    return $OCF_ERR_GENERIC;
-                fi
-
-                # Must kill all existing user threads because they are still Read/write
-                # in order for the slaves to complete the read of binlogs
-                local tmpfile
-                tmpfile=`mktemp ${HA_RSCTMP}/threads.${OCF_RESOURCE_INSTANCE}.XXXXXX`
-                $MYSQL $MYSQL_OPTIONS_REPL \
-                -e "SHOW PROCESSLIST" > $tmpfile
-
-                for thread in `awk '$0 !~ /Binlog Dump|system user|event_scheduler|SHOW PROCESSLIST/ && $0 ~ /^[0-9]/ {print $1}' $tmpfile`
-                do
-                    ocf_run $MYSQL $MYSQL_OPTIONS_REPL \
-                        -e "KILL ${thread}"
-                done
-            else
-               ocf_log info "Ignoring post-demote notification execpt for my own demotion."
-            fi
+            ocf_log info "Ignoring pre-demote notification for my own demotion."
             return $OCF_SUCCESS
         ;;
         'post-demote')
