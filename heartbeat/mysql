@@ -339,6 +339,8 @@ quit_on_error() {
         $CRM_MASTER -D
         # Removing reader vip
         set_reader_attr 0
+        # Always clean this file as we are in a failure mode
+        rm -f "${OCF_RESKEY_mysql_master_lock_file}"
     fi
 
     # Log the error
