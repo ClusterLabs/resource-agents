@@ -777,12 +777,14 @@ mysql_monitor() {
             # Check slave replication status in details
             check_slave
             ocf_log debug "MySQL monitor succeeded (slave) ... returning $OCF_SUCCESS";
+            rm -f "${OCF_RESKEY_mysql_master_lock_file}"
             return $OCF_SUCCESS
         else
             # master is always readable and always with highest scores
             $CRM_MASTER -v $((${OCF_RESKEY_max_slave_lag}+1))
             set_reader_attr 1
             ocf_log debug "MySQL monitor succeeded (master) ... returning $OCF_RUNNING_MASTER";
+            touch "${OCF_RESKEY_mysql_master_lock_file}"
             return $OCF_RUNNING_MASTER
         fi
     else
