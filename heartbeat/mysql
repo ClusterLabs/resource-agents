@@ -878,11 +878,12 @@ mysql_start() {
 
 mysql_stop() {
     if ocf_is_ms; then
-        # clear preference for becoming master
+        # Clear master-mysql score so we don't get promoted to master ever
         $CRM_MASTER -D
-
-        # Remove VIP capability
+        # Removing reader vip
         set_reader_attr 0
+        # Always clean this file as we are in a failure mode
+        rm -f "${OCF_RESKEY_mysql_master_lock_file}"
     fi
 
     mysql_common_stop
