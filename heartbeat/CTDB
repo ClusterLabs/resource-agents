@@ -553,6 +553,7 @@ ctdb_start() {
 	persistent_db_dir="${OCF_RESKEY_ctdb_dbdir}/persistent"
 	mkdir -p $persistent_db_dir 2>/dev/null
 	for pdbase in $persistent_db_dir/*.tdb.[0-9]; do
+		[ -f "$pdbase" ] || break
 		/usr/bin/tdbdump "$pdbase" >/dev/null 2>/dev/null || {
 			ocf_exit_reason "Persistent database $pdbase is corrupted!  CTDB will not start."
 			return $OCF_ERR_GENERIC
