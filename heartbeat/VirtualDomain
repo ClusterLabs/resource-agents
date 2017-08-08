@@ -108,6 +108,17 @@ use libvirt's default transport to connect to the remote hypervisor.
 <content type="string" default="" />
 </parameter>
 
+<parameter name="migration_user" unique="0" required="0">
+<longdesc lang="en">
+The username will be used in the remote libvirt remoteuri/migrateuri. No user will be
+given (which means root) in the username if omitted
+
+If remoteuri is set, migration_user will be ignored.
+</longdesc>
+<shortdesc lang="en">Remote username for the remoteuri</shortdesc>
+<content type="string" />
+</parameter>
+
 <parameter name="migration_downtime" unique="0" required="0">
 <longdesc lang="en">
 Define max downtime during live migration in milliseconds
@@ -133,12 +144,29 @@ insert the suffix immediately prior to the first period (.) in the FQDN.
 At the moment Qemu/KVM and Xen migration via a dedicated network is supported.
 
 Note: Be sure this composed host name is locally resolveable and the
-associated IP is reachable through the favored network.
+associated IP is reachable through the favored network. This suffix will
+be added to the remoteuri and migrateuri parameters.
 
 See also the migrate_options parameter below.
 </longdesc>
 <shortdesc lang="en">Migration network host name suffix</shortdesc>
 <content type="string" default="" />
+</parameter>
+
+<parameter name="migrateuri" unique="0" required="0">
+<longdesc lang="en">
+You can also specify here if the calculated migrate URI is unsuitable for your
+environment.
+
+If migrateuri is set then migration_network_suffix, migrateport and
+--migrateuri in migrate_options are effectively ignored. Use "%n" as the
+placeholder for the target node name.
+
+Please refer to the libvirt documentation for details on guest
+migration.
+</longdesc>
+<shortdesc lang="en">Custom migrateuri for migration state transfer</shortdesc>
+<content type="string" />
 </parameter>
 
 <parameter name="migrate_options" unique="0" required="0">
@@ -193,6 +221,20 @@ This port will be used in the qemu migrateuri. If unset, the port will be a rand
 </longdesc>
 <shortdesc lang="en">Port for migrateuri</shortdesc>
 <content type="integer" />
+</parameter>
+
+<parameter name="remoteuri" unique="0" required="0">
+<longdesc lang="en">
+Use this URI as virsh connection URI to commuicate with a remote hypervisor.
+
+If remoteuri is set then migration_user and migration_network_suffix are
+effectively ignored. Use "%n" as the placeholder for the target node name.
+
+Please refer to the libvirt documentation for details on guest
+migration.
+</longdesc>
+<shortdesc lang="en">Custom remoteuri to communicate with a remote hypervisor</shortdesc>
+<content type="string" />
 </parameter>
 
 <parameter name="save_config_on_stop" unique="0" required="0">
@@ -677,22 +719,52 @@ VirtualDomain_migrate_to() {
 		# Find out the remote hypervisor to connect to. That is, turn
 		# something like "qemu://foo:9999/system" into
 		# "qemu+tcp://bar:9999/system"
-		if [ -n "${OCF_RESKEY_migration_transport}" ]; then
-			transport_suffix="+${OCF_RESKEY_migration_transport}"
+
+		if [ -n "${OCF_RESKEY_remoteuri}" ]; then
+			remoteuri=`echo "${OCF_RESKEY_remoteuri}" |
+				sed "s/%n/$target_node/g"`
+		else
+			if [ -n "${OCF_RESKEY_migration_transport}" ]; then
+				transport_suffix="+${OCF_RESKEY_migration_transport}"
+			fi
+
+			# append user defined suffix if virsh target should differ from cluster node name
+			if [ -n "${OCF_RESKEY_migration_network_suffix}" ]; then
+				# Hostname might be a FQDN
+				target_node=$(echo ${target_node} | sed -e "s,^\([^.]\+\),\1${OCF_RESKEY_migration_network_suffix},")
+			fi
+
+			# a remote user has been defined to connect to target_node
+			if echo ${OCF_RESKEY_migration_user} | grep -q "^[a-z][-a-z0-9]*$" ; then
+				target_node="${OCF_RESKEY_migration_user}@${target_node}"
+			fi
+
+			# Scared of that sed expression? So am I. :-)
+			remoteuri=$(echo ${OCF_RESKEY_hypervisor} | sed -e "s,\(.*\)://[^/:]*\(:\?[0-9]*\)/\(.*\),\1${transport_suffix}://${target_node}\2/\3,")
 		fi
 
 		# User defined migrateuri or do we make one?
 		migrate_opts="$OCF_RESKEY_migrate_options"
-		if echo "$migrate_opts" | fgrep -qs -- "--migrateuri="; then
+
+		# migration_uri is directly set
+		if [ -n "${OCF_RESKEY_migrateuri}" ]; then
+			migrateuri=`echo "${OCF_RESKEY_migrateuri}" |
+				sed "s/%n/$target_node/g"`
+
+		# extract migrationuri from options
+		elif echo "$migrate_opts" | fgrep -qs -- "--migrateuri="; then
 			migrateuri=`echo "$migrate_opts" |
 				sed "s/.*--migrateuri=\([^ ]*\).*/\1/;s/%n/$target_node/g"`
-			migrate_opts=`echo "$migrate_opts" |
-				sed "s/\(.*\)--migrateuri=[^ ]*\(.*\)/\1\2/"`
+
+		# auto generate
 		else
 			migrateuri=`mk_migrateuri`
 		fi
-		# Scared of that sed expression? So am I. :-)
-		remoteuri=$(echo ${OCF_RESKEY_hypervisor} | sed -e "s,\(.*\)://[^/:]*\(:\?[0-9]*\)/\(.*\),\1${transport_suffix}://${target_node}\2/\3,")
+
+		# remove --migrateuri from migration_opts
+		migrate_opts=`echo "$migrate_opts" |
+			sed "s/\(.*\)--migrateuri=[^ ]*\(.*\)/\1\2/"`
+
 
 		# save config if needed
 		if ocf_is_true "$OCF_RESKEY_save_config_on_stop"; then
