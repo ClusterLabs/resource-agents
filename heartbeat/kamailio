@@ -197,6 +197,15 @@ Parameters for a third Kamailio instance:
    <content type="string" default="${RESKEY_port_default}" />
   </parameter>
 
+  <parameter name="extra_options" unique="0" required="0">
+   <longdesc lang="en">
+    Extra options to add to kamailio start.
+   </longdesc>
+   <shortdesc lang="en">extra_options</shortdesc>
+   <content type="string" default="${RESKEY_extra_options}" />
+  </parameter>
+
+
   <parameter name="proto" unique="0" required="0">
    <longdesc lang="en">
     The protocol used for SIP proto  =  udp|tcp|udptcp|conf_udp|conf_tcp|conf_udptcp.
@@ -458,7 +467,7 @@ kamailio_status() {
         # to be avoided.
         # In order to be on the safe side, we run this check therefore under "timeout" control:
         rc=1
-        timeout 3 ${OCF_RESKEY_kamctl} monitor 1 |grep "Up since" ; rc=$?
+        timeout 3 ${OCF_RESKEY_kamctl} monitor 1 |grep "since" ; rc=$?
     fi
 
     if [ $rc -ne 0 ]; then
