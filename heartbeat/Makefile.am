@@ -87,6 +87,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			WinPopup		\
 			Xen			\
 			Xinetd			\
+			ZFS			\
 			anything		\
 			apache			\
 			asterisk		\
