@@ -234,41 +234,48 @@ then
 fi
 
 case $1 in
-    start)      minio_validate_all
-                        minio_start
-                        ;;
+    start)
+        minio_validate_all
+        minio_start
+        ;;
 
-    stop)       minio_stop
-                ;;
+    stop)
+        minio_stop
+        ;;
 
-    status)     if minio_status
-                then
-                                ocf_log info "Minio is running"
-                                exit $OCF_SUCCESS
-                        else
-                                ocf_log info "Minio is stopped"
-                                exit $OCF_NOT_RUNNING
-                        fi
-                ;;
+    status)
+        if minio_status; then
+            ocf_log info "Minio is running"
+            exit $OCF_SUCCESS
+        else
+            ocf_log info "Minio is stopped"
+            exit $OCF_NOT_RUNNING
+        fi
+        ;;
 
-    monitor)    minio_monitor
-                        ;;
+    monitor)
+        minio_monitor
+        ;;
 
-    validate-all)       minio_validate_all
-                                        exit $OCF_SUCCESS
-                                ;;
+    validate-all)
+        minio_validate_all
+        exit $OCF_SUCCESS
+        ;;
 
-    meta-data|metadata|meta_data)       meta_data
-                                ;;
+    meta-data|metadata|meta_data)
+        meta_data
+        ;;
 
-    usage)      usage
-                exit $OCF_SUCCESS
-                        ;;
+    usage)
+        usage
+        exit $OCF_SUCCESS
+        ;;
 
-    *)  usage
-                ocf_log err "$0 was called with unsupported args: $*"
-                exit $OCF_ERR_UNIMPLEMENTED
-                ;;
+    *)
+        usage
+        ocf_log err "$0 was called with unsupported args: $*"
+        exit $OCF_ERR_UNIMPLEMENTED
+        ;;
 esac
 rc=$?
 ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
