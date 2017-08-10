@@ -21,20 +21,14 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
-# Set the variable below to '1' to enable zpool import/export logging.
-# This is useful to determine how long these operations take on your system.
-# DEBUG=0
-DEBUGLOG="/var/log/ZFS_cluster_debug.log"
+# Defaults
+OCF_RESKEY_importforce_default=true
+
+: ${OCF_RESKEY_importforce=${OCF_RESKEY_importforce_default}}
 
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
 #######################################################################
-
-debug_log () {
-    if [ "$DEBUG" -eq 1 ]; then
-        echo "$(date):${OCF_RESKEY_pool}:" "$@" >> "$DEBUGLOG"
-    fi
-}
 
 meta_data() {
         cat <<END
@@ -68,7 +62,7 @@ Arguments to zpool import, e.g. "-d /dev/disk/by-id".
 zpool import is given the -f option.
 </longdesc>
 <shortdesc lang="en">Import is forced</shortdesc>
-<content type="boolean" default="true" />
+<content type="boolean" default="${OCF_RESKEY_importforce_default}" />
 </parameter>
 </parameters>
 
@@ -93,7 +87,7 @@ zpool_is_imported () {
 # If the pool is already imported, no operation is taken.
 zpool_import () {
     if ! zpool_is_imported; then
-        debug_log "starting import"
+        ocf_log debug "${OCF_RESKEY_pool}:starting import"
 
         # The meanings of the options to import are as follows:
         #   -f : import even if the pool is marked as imported to another
@@ -102,16 +96,16 @@ zpool_import () {
         #   -o cachefile=none : the import should be temporary, so do not
         #        cache it persistently (across machine reboots). We want
         #        the CRM to explicitly control imports of this pool.
-	if [ ${OCF_RESKEY_importforce} = 1 ]; then
+	if ocf_is_true "${OCF_RESKEY_importforce}"; then
 	    FORCE=-f
 	else
 	    FORCE=""
 	fi
         if zpool import $FORCE $OCF_RESKEY_importargs -o cachefile=none "$OCF_RESKEY_pool" ; then
-            debug_log "import successful"
+            ocf_log debug "${OCF_RESKEY_pool}:import successful"
             return $OCF_SUCCESS
         else
-            debug_log "import failed"
+            ocf_log debug "${OCF_RESKEY_pool}:import failed"
             return $OCF_ERR_GENERIC
         fi
     fi
@@ -121,17 +115,17 @@ zpool_import () {
 # If the pool is not imported, no operation is taken.
 zpool_export () {
     if zpool_is_imported; then
-        debug_log "starting export"
+        ocf_log debug "${OCF_RESKEY_pool}:starting export"
 
         # -f : force the export, even if we have mounted filesystems
         # Please note that this may fail with a "busy" error if there are
         # other kernel subsystems accessing the pool (e.g. SCSI targets).
         # Always make sure the pool export is last in your failover logic.
         if zpool export -f "$OCF_RESKEY_pool" ; then
-            debug_log "export successful"
+            ocf_log debug "${OCF_RESKEY_pool}:export successful"
             return $OCF_SUCCESS
 	else
-            debug_log "export failed"
+            ocf_log debug "${OCF_RESKEY_pool}:export failed"
             return $OCF_ERR_GENERIC
 	fi
     fi
@@ -177,7 +171,7 @@ zpool_validate () {
 }
 
 usage () {
-    echo $USAGE >&2
+    echo "$USAGE" >&2
     return $1
 }
 
