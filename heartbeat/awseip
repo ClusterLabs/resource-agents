@@ -56,9 +56,15 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-description
+Resource Agent for Amazon AWS Elastic IP Addresses.
+
+It manages AWS Elastic IP Addresses with awscli.
+
+Credentials needs to be setup by running "aws configure".
+
+See https://aws.amazon.com/cli/ for more information about awscli.
 </longdesc>
-<shortdesc lang="en"></shortdesc>
+<shortdesc lang="en">Amazon AWS Elastic IP Address Resource Agent</shortdesc>
 
 <parameters>
 
@@ -78,7 +84,7 @@ reserved elastic ip for ec2 instance
 <content type="string" default="" />
 </parameter>
 
-<parameter name="allocation_id" unique="1" required="0">
+<parameter name="allocation_id" unique="1" required="1">
 <longdesc lang="en">
 reserved allocation id for ec2 instance
 </longdesc>
@@ -132,7 +138,7 @@ END
 awseip_start() {
     awseip_monitor && return $OCF_SUCCESS
 
-    if [ -n "${ALLOCATION_ID}" ] && [ -n "${PRIVATE_IP_ADDRESS}" ]; then
+    if [ -n "${PRIVATE_IP_ADDRESS}" ]; then
         $AWSCLI ec2 associate-address  \
             --instance-id ${INSTANCE_ID} \
             --network-interface-id ${NETWORK_ID} \
@@ -142,7 +148,7 @@ awseip_start() {
     else
         $AWSCLI ec2 associate-address  \
             --instance-id ${INSTANCE_ID} \
-            --public-ip ${ELASTIC_IP}
+            --allocation-id ${ALLOCATION_ID}
         RET=$?
     fi
 
@@ -160,8 +166,10 @@ awseip_start() {
 awseip_stop() {
     awseip_monitor || return $OCF_SUCCESS
 
+    ASSOCIATION_ID=$($AWSCLI ec2 describe-addresses \
+                         --allocation-id ${ALLOCATION_ID} | grep -m 1 "AssociationId" | awk -F'"' '{print$4}')
     $AWSCLI ec2 disassociate-address  \
-        --public-ip ${ELASTIC_IP}
+        --association-id ${ASSOCIATION_ID}
     RET=$?
 
     # delay to avoid sending request too fast
@@ -189,8 +197,8 @@ awseip_validate() {
     check_binary ${AWSCLI}
 
     if [ -z "${INSTANCE_ID}" ]; then
-        ocf_log info "instant_id could not been found, is this EC2 instance?"
-        return $OCF_GENERIC
+        ocf_exit_reason "instance_id not found. Is this a EC2 instance?"
+        return $OCF_ERR_GENERIC
     fi
 
     return $OCF_SUCCESS
