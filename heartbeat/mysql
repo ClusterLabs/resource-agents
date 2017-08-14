@@ -324,7 +324,7 @@ get_read_only() {
     local read_only_state
 
     read_only_state=`$MYSQL $MYSQL_OPTIONS_REPL \
-        -e "SHOW VARIABLES" | grep -w read_only | awk '{print $2}'`
+        --skip-column-names -e "SHOW VARIABLES LIKE 'read_only'" | awk '{print $2}'`
 
     if [ "$read_only_state" = "ON" ]; then
         return 0
@@ -719,13 +719,22 @@ mysql_monitor() {
     fi
  
     mysql_common_status $status_loglevel
-
     rc=$?
 
     # TODO: check max connections error
 
     # If status returned an error, return that immediately
     if [ $rc -ne $OCF_SUCCESS ]; then
+        if ocf_is_ms ; then
+            # This is a master slave setup but monitored host returned some errors.
+            # Immediately remove it from the pool of possible masters by erasing its master-mysql key
+            # When new mysql master election is started and node got no or negative master-mysql attribute the following is logged
+            #   nodename.com pengine: debug: master_color: mysql:0 master score: -1
+            # If there are NO nodes with positive vaule election of mysql master will fail with
+            #   nodename.com pengine: info: master_color: ms_mysql: Promoted 0 instances of a possible 1 to master
+            $CRM_MASTER -D
+        fi
+
         return $rc
     fi
 
@@ -742,13 +751,20 @@ mysql_monitor() {
         rc=$?
 
         if [ $rc -ne 0 ]; then
+            # We are master/slave and test failed. Delete master score for this node as it is considered unhealthy because of this particular failed check.
+            ocf_is_ms && $CRM_MASTER -D
             ocf_exit_reason "Failed to select from $test_table";
             return $OCF_ERR_GENERIC;
         fi
+    else
+        # In case no exnteded tests are enabled and we are in master/slave mode _always_ set the master score to 1 if we reached this point
+        ocf_is_ms && $CRM_MASTER -v 1
     fi
 
     if ocf_is_ms && ! get_read_only; then
         ocf_log debug "MySQL monitor succeeded (master)";
+        # Always set master score for the master
+        $CRM_MASTER -v 2
         return $OCF_RUNNING_MASTER
     else
         ocf_log debug "MySQL monitor succeeded";

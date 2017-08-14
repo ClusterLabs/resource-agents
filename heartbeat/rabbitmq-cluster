@@ -398,7 +398,7 @@ rmq_start() {
 				case file:consult(Filename) of
 					{error, _} ->
 						ok;
-					{ok, [Result]) ->
+					{ok, [Result]} ->
 						lists:foreach(fun(X) -> mnesia:dirty_write(Table, PostprocessFun(X)) end, Result),
 						file:delete(Filename)
 				end

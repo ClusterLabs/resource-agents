@@ -253,7 +253,7 @@ save_tcp_connections()
 		netstat -tn |awk -F '[:[:space:]]+' '
 			$8 == "ESTABLISHED" && $4 == "'$OCF_RESKEY_ip'" \
 			{printf "%s:%s\t%s:%s\n", $4,$5, $6,$7}' |
-			dd of="$statefile".new conv=fsync && 
+			dd of="$statefile".new conv=fsync status=none &&
 			mv "$statefile".new "$statefile"
 	else
 		netstat -tn |awk -F '[:[:space:]]+' '

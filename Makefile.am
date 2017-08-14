@@ -37,7 +37,7 @@ RGMANAGER = with
 endif
 
 if BUILD_LINUX_HA
-SUBDIRS	+= include heartbeat tools ldirectord doc
+SUBDIRS	+= include heartbeat tools ldirectord doc systemd
 LINUX_HA = without
 else
 LINUX_HA = with
