@@ -229,6 +229,19 @@ Restore state on start/stop
 <content type="string" default=""/>
 </parameter>
 
+<parameter name="shutdown_mode">
+<longdesc lang="en">
+virsh shutdown method to use. Please verify that it is supported by your virsh toolsed with 'virsh help shutdown'
+When this parameter is set --mode shutdown_mode is passed as an additional argument to the 'virsh shutdown' command.
+One can use this option in case default acpi method does not work. Verify that this mode is supported
+by your VM.  By default --mode is not passed.
+</longdesc>
+<shortdesc lang="en">
+Instruct virsh to use specific shutdown mode
+</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -590,7 +603,10 @@ VirtualDomain_stop() {
 			# issue the shutdown if save state didn't shutdown for us
 			if [ $needshutdown -eq 1 ]; then
 				# Issue a graceful shutdown request
-				virsh $VIRSH_OPTIONS shutdown ${DOMAIN_NAME}
+				if [ -n "${OCF_RESKEY_CRM_shutdown_mode}" ]; then
+					shutdown_opts="--mode ${OCF_RESKEY_CRM_shutdown_mode}"
+				fi
+				virsh $VIRSH_OPTIONS shutdown ${DOMAIN_NAME} $shutdown_opts
 			fi
 
 			# The "shutdown_timeout" we use here is the operation
