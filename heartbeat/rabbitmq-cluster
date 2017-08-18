@@ -37,7 +37,7 @@ RMQ_DATA_DIR="/var/lib/rabbitmq/mnesia"
 RMQ_PID_DIR="/var/run/rabbitmq"
 RMQ_PID_FILE="/var/run/rabbitmq/rmq.pid"
 RMQ_LOG_DIR="/var/log/rabbitmq"
-NODENAME=$(ocf_local_nodename)
+NODENAME=${OCF_RESKEY_CRM_meta_physical_host:-$(ocf_local_nodename)}
 
 # this attr represents the current active local rmq node name.
 # when rmq stops or the node is fenced, this attr disappears
