@@ -593,7 +593,7 @@ pgsql_real_start() {
     pgctl_options="$pgctl_options -o '$postgres_options'"
 
     # Invoke pg_ctl
-    runasowner "unset PGUSER; unset PGPASSWORD; $OCF_RESKEY_pgctl $pgctl_options start"
+    runasowner "unset PGUSER; unset PGPASSWORD; $OCF_RESKEY_pgctl $pgctl_options -W start"
 
     if [ $? -eq 0 ]; then
         # Probably started.....
@@ -709,7 +709,7 @@ pgsql_promote() {
             return $OCF_ERR_GENERIC
         fi
     else
-        runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata promote"
+        runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata -W promote"
         if [ $? -eq 0 ]; then
             ocf_log info "PostgreSQL promote command sent."
         else
