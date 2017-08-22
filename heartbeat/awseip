@@ -42,7 +42,7 @@
 #
 # Defaults
 #
-OCF_RESKEY_awscli_default="/usr/bin/awscli"
+OCF_RESKEY_awscli_default="/usr/bin/aws"
 OCF_RESKEY_api_delay_default="1"
 
 : ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
@@ -211,7 +211,6 @@ case $__OCF_ACTION in
         ;;
 esac 
 
-: ${OCF_RESKEY_awscli="/usr/bin/aws"}
 AWSCLI="${OCF_RESKEY_awscli}"
 ELASTIC_IP="${OCF_RESKEY_elastic_ip}"
 ALLOCATION_ID="${OCF_RESKEY_allocation_id}"
@@ -221,6 +220,7 @@ NETWORK_ID="$($AWSCLI ec2 describe-instances --instance-id ${INSTANCE_ID} | grep
 
 case $__OCF_ACTION in
     start)
+        awseip_validate
         awseip_start
         ;;
     stop)

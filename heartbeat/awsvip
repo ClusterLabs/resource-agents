@@ -42,7 +42,7 @@
 #
 # Defaults
 #
-OCF_RESKEY_awscli_default="/usr/bin/awscli"
+OCF_RESKEY_awscli_default="/usr/bin/aws"
 OCF_RESKEY_api_delay_default="1"
 
 : ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
@@ -186,7 +186,6 @@ case $__OCF_ACTION in
         ;;
 esac
 
-: ${OCF_RESKEY_awscli="/usr/bin/aws"}
 AWSCLI="${OCF_RESKEY_awscli}"
 SECONDARY_PRIVATE_IP="${OCF_RESKEY_secondary_private_ip}"
 INSTANCE_ID="$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"
@@ -194,6 +193,7 @@ NETWORK_ID="$($AWSCLI ec2 describe-instances --instance-id ${INSTANCE_ID} | grep
 
 case $__OCF_ACTION in
     start)
+        awsvip_validate
         awsvip_start
         ;;
     stop)
