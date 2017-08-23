@@ -318,8 +318,6 @@ case $OCF_RESKEY_family in
         esac ;;
     *) ocf_exit_reason "Address family '${OCF_RESKEY_family}' not recognized." ;;
 esac
-echo "addr_family: $addr_family" >> /tmp/log
-echo "RESKEY_family: $OCF_RESKEY_family" >> /tmp/log
 
 case $__OCF_ACTION in
 start)		route_start;;
