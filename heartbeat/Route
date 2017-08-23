@@ -291,7 +291,7 @@ done
 
 route_validate || exit $?
 
-case $OCF_RESKEY_destination in
+case $OCF_RESKEY_gateway in
 *:*) addr_family="-6" ;;
   *) addr_family="-4" ;;
 esac
