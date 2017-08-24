@@ -170,7 +170,7 @@ ec2ip_validate() {
 	ocf_log debug "Testing aws command"
 	aws --version 2>&1
 	if [ "$?" -gt 0 ]; then
-		error "Error while executing aws command as user root! Please check if AWS CLI tools (Python flavor) are properly installed and configured." && exit $OCF_ERR_INSTALLED
+		ocf_log error "Error while executing aws command as user root! Please check if AWS CLI tools (Python flavor) are properly installed and configured." && exit $OCF_ERR_INSTALLED
 	fi
 	ocf_log debug "ok"
 
