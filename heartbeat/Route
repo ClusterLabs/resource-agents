@@ -31,6 +31,11 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Default values
+OCF_RESKEY_family_default="detect"
+
+: ${OCF_RESKEY_family=${OCF_RESKEY_family_default}}
+
 #######################################################################
 
 meta_data() {
@@ -117,6 +122,17 @@ The routing table to be configured for the route.
 </longdesc>
 <shortdesc lang="en">Routing table</shortdesc>
 <content type="string" default="" />
+</parameter>
+
+<parameter name="family" unique="0" required="1">
+<longdesc lang="en">
+The address family to be used for the route
+ip4      IP version 4
+ip6      IP version 6
+detect   Detect from 'destination' address.
+</longdesc>
+<shortdesc lang="en">Address Family</shortdesc>
+<content type="string" default="${OCF_RESKEY_family}" />
 </parameter>
 
 </parameters>
@@ -291,9 +307,16 @@ done
 
 route_validate || exit $?
 
-case $OCF_RESKEY_destination in
-*:*) addr_family="-6" ;;
-  *) addr_family="-4" ;;
+case $OCF_RESKEY_family in
+    ip4) addr_family="-4" ;;
+    ip6) addr_family="-6" ;;
+    detect)
+        case $OCF_RESKEY_destination in
+            *:*)     addr_family="-6" ;;
+            *.*)     addr_family="-4" ;;
+              *) ocf_exit_reason "Address family detection requires a numeric destination address." ;;
+        esac ;;
+    *) ocf_exit_reason "Address family '${OCF_RESKEY_family}' not recognized." ;;
 esac
 
 case $__OCF_ACTION in
