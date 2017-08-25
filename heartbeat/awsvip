@@ -42,7 +42,7 @@
 #
 # Defaults
 #
-OCF_RESKEY_awscli_default="/usr/bin/awscli"
+OCF_RESKEY_awscli_default="/usr/bin/aws"
 OCF_RESKEY_api_delay_default="1"
 
 : ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
@@ -56,9 +56,15 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-description
+Resource Agent for Amazon AWS Secondary Private IP Addresses.
+
+It manages AWS Secondary Private IP Addresses with awscli.
+
+Credentials needs to be setup by running "aws configure".
+
+See https://aws.amazon.com/cli/ for more information about awscli.
 </longdesc>
-<shortdesc lang="en"></shortdesc>
+<shortdesc lang="en">Amazon AWS Secondary Private IP Address Resource Agent</shortdesc>
 
 <parameters>
 
@@ -166,8 +172,8 @@ awsvip_validate() {
     check_binary ${AWSCLI}
 
     if [ -z "${INSTANCE_ID}" ]; then
-        ocf_log info "instant_id could not been found, is this EC2 instance?"
-        return $OCF_GENERIC
+        ocf_exit_reason "instance_id not found. Is this a EC2 instance?"
+        return $OCF_ERR_GENERIC
     fi
 
     return $OCF_SUCCESS
@@ -180,7 +186,6 @@ case $__OCF_ACTION in
         ;;
 esac
 
-: ${OCF_RESKEY_awscli="/usr/bin/aws"}
 AWSCLI="${OCF_RESKEY_awscli}"
 SECONDARY_PRIVATE_IP="${OCF_RESKEY_secondary_private_ip}"
 INSTANCE_ID="$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"
@@ -188,6 +193,7 @@ NETWORK_ID="$($AWSCLI ec2 describe-instances --instance-id ${INSTANCE_ID} | grep
 
 case $__OCF_ACTION in
     start)
+        awsvip_validate
         awsvip_start
         ;;
     stop)
