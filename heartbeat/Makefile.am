@@ -115,6 +115,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			jboss			\
 			kamailio		\
 			lxc			\
+			minio			\
 			mysql			\
 			mysql-proxy		\
 			nagios			\
