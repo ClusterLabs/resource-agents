@@ -142,6 +142,12 @@ Those services are monitored within the SAPInstance resource agent:
 - jcontrol
 - jstart
 
+Some other services could be monitored as well. They have to be
+given with the parameter MONITOR_SERVICES, e.g.:
+
+ - sapwebdisp
+ - TREXDaemon.x
+
 That names match the strings used in the output of the command 'sapcontrol -nr [Instance-Nr] -function GetProcessList'.
 The default should fit most cases where you want to manage a SAP Instance from the cluster. You may change this with this parameter, if you like to monitor more/less or other services that sapstartsrv supports.
 You may specify multiple services separated by a | (pipe) sign in this parameter: disp+work|msg_server|enserver
