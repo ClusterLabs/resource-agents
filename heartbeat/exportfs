@@ -76,7 +76,7 @@ The directory or directories to export.
 <content type="string" />
 </parameter>
 
-<parameter name="fsid" unique="1" required="1">
+<parameter name="fsid" unique="1" required="0">
 <longdesc lang="en">
 The fsid option to pass to exportfs. This can be a unique positive
 integer, a UUID (assuredly sans comma characters), or the special string
@@ -197,11 +197,11 @@ forall() {
 		fast_exit=1
 		shift 1
 	fi
-	reset_fsid
+	[ -n "$(get_fsid)" ] && reset_fsid
 	for dir in $OCF_RESKEY_directory; do
 		$func $dir "$@"
 		rc=$(($rc | $?))
-		[ $NUMDIRS -gt 1 ] && bump_fsid
+		[ $NUMDIRS -gt 1 ] && [ -n "$(get_fsid)" ] && bump_fsid
 		[ "$fast_exit" ] && continue
 		[ $rc -ne 0 ] && return $rc
 	done
@@ -291,12 +291,14 @@ export_one() {
 		opts="$OCF_RESKEY_options"
 		sep=","
 	fi
-	if echo "$opts" | grep fsid >/dev/null; then
-		#replace fsid in options list
-		opts=`echo "$opts" | sed "s,fsid=[^,]*,fsid=$(get_fsid),g"`
-	else
-		#tack the fsid option onto our options list.
-		opts="${opts}${sep}fsid=$(get_fsid)"
+	if [ -n "$(get_fsid)" ]; then
+		if echo "$opts" | grep fsid >/dev/null; then
+			#replace fsid in options list
+			opts=`echo "$opts" | sed "s,fsid=[^,]*,fsid=$(get_fsid),g"`
+		else
+			#tack the fsid option onto our options list.
+			opts="${opts}${sep}fsid=$(get_fsid)"
+		fi
 	fi
 	opts="-o $opts"
 
@@ -353,18 +355,21 @@ wait_for_leasetime() {
 }
 cleanup_export_cache() {
 	# see if the cache is blocking unexport
+	# TODO: this doesn't work without fsid
 	local contentfile=/proc/net/rpc/nfsd.export/content
 	local fsid_re
 	local i=1
-	fsid_re="fsid=(echo `forall get_fsid`|sed 's/ /|/g'),"
-	while :; do
-		grep -E -q "$fsid_re" $contentfile ||
-			break
-		ocf_log info "Cleanup export cache ... (try $i)"
-		ocf_run exportfs -f
-		sleep 0.5
-		i=$((i + 1))
-	done
+	if [ -n "$(get_fsid)" ]; then
+		fsid_re="fsid=(echo `forall get_fsid`|sed 's/ /|/g'),"
+		while :; do
+			grep -E -q "$fsid_re" $contentfile ||
+				break
+			ocf_log info "Cleanup export cache ... (try $i)"
+			ocf_run exportfs -f
+			sleep 0.5
+			i=$((i + 1))
+		done
+	fi
 }
 unexport_one() {
 	local dir=$1
@@ -420,14 +425,16 @@ testdir() {
 }
 exportfs_validate_all ()
 {
-	if echo "$OCF_RESKEY_fsid" | grep -q -F ','; then
-		ocf_exit_reason "$OCF_RESKEY_fsid cannot contain a comma"
-		return $OCF_ERR_CONFIGURED
-	fi
-	if [ $NUMDIRS -gt 1 ] &&
-			! ocf_is_decimal "$OCF_RESKEY_fsid"; then
-		ocf_exit_reason "use integer fsid when exporting multiple directories"
-		return $OCF_ERR_CONFIGURED
+	if [ -n "$OCF_RESKEY_fsid" ]; then
+		if echo "$OCF_RESKEY_fsid" | grep -q -F ','; then
+			ocf_exit_reason "$OCF_RESKEY_fsid cannot contain a comma"
+			return $OCF_ERR_CONFIGURED
+		fi
+		if [ $NUMDIRS -gt 1 ] &&
+			   ! ocf_is_decimal "$OCF_RESKEY_fsid"; then
+			ocf_exit_reason "use integer fsid when exporting multiple directories"
+			return $OCF_ERR_CONFIGURED
+		fi
 	fi
 	if ! forall testdir; then
 		return $OCF_ERR_INSTALLED
@@ -444,6 +451,6 @@ if [ -n "$newdir" ]; then
 fi
 
 NUMDIRS=`echo "$OCF_RESKEY_directory" | wc -w`
-OCF_REQUIRED_PARAMS="directory fsid clientspec"
+OCF_REQUIRED_PARAMS="directory clientspec"
 OCF_REQUIRED_BINARIES="exportfs"
 ocf_rarun $*
