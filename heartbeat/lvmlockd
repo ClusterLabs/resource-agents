@@ -1,0 +1,438 @@
+#!/bin/bash
+#
+#
+#	lvmlockd OCF Resource Agent
+#
+# Copyright (c) 2017 SUSE LINUX, Eric Ren
+#			All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.	Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="lvmlockd">
+<version>1.0</version>
+
+<longdesc lang="en">
+This agent manages the lvmlockd daemon. "lvmlockd" is like "clvmd". Both
+are used by LVM commands to coordinate access to shared storage, but with
+different design and implementations. "lvmlockd" can use two lock managers:
+dlm and sanlock. This agent only supports "dlm + lvmlockd". If dlm (or corosync)
+are already being used by other cluster software, you are advised to select
+dlm, then configure "controld" resource agent for dlm and this agent for "lvmlockd".
+Otherwise, consider sanlock for "lvmlockd" if dlm/corosync is not required.
+For more information, refer to manpage lvmlockd.8.
+</longdesc>
+<shortdesc lang="en">This agent manages the lvmlockd daemon</shortdesc>
+
+<parameters>
+<parameter name="pidfile" unique="0">
+<longdesc lang="en">pid file</longdesc>
+<shortdesc lang="en">pid file</shortdesc>
+<content type="string" default="/run/lvmlockd.pid"/>
+</parameter>
+
+<parameter name="socket_path" unique="0">
+<longdesc lang="en">Set the socket path to listen on.</longdesc>
+<shortdesc lang="en">socket path</shortdesc>
+<content type="string" default="/run/lvm/lvmlockd.socket"/>
+</parameter>
+
+<parameter name="syslog_priority" unique="0">
+<longdesc lang="en">Write log messages from this level up to syslog.</longdesc>
+<shortdesc lang="en">syslog priority</shortdesc>
+<content type="string" default="warning"/>
+</parameter>
+
+<parameter name="adopt" unique="0">
+<longdesc lang="en">
+Adopt locks from a previous instance of lvmlockd.
+</longdesc>
+<shortdesc lang="en">Adopt locks from a previous instance of lvmlockd</shortdesc>
+<content type="integer" default="1"/>
+</parameter>
+
+<parameter name="activate_vgs" unique="0">
+<longdesc lang="en">
+Whether or not to activate all shared volume groups after starting
+the lvmlockd. Note that shared volume groups will always be deactivated
+before the lvmlockd stops regardless of what this option is set to.
+</longdesc>
+<shortdesc lang="en">Activate volume groups</shortdesc>
+<content type="boolean" default="true"/>
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"		timeout="90" />
+<action name="stop"		timeout="90" />
+<action name="monitor"		timeout="90" interval="30" depth="0" />
+<action name="meta-data"	timeout="10" />
+<action name="validate-all"	timeout="20" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+: ${OCF_RESKEY_pidfile:="/run/lvmlockd.pid"}
+: ${OCF_RESKEY_activate_vgs:="true"}
+
+LOCKD="lvmlockd"
+# 0.5s sleep each count
+TIMEOUT_COUNT=20
+
+usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+END
+}
+
+get_pid()
+{
+	if [ -f ${OCF_RESKEY_pidfile} ] ; then
+		cat ${OCF_RESKEY_pidfile}
+	else
+		false
+	fi
+}
+
+daemon_is_running()
+{
+	local pid=$1
+
+	# Use /proc if it exists there
+	if [ -d /proc ] && [ -d /proc/1 ] ; then
+		[ -d /proc/"$pid" ]
+	else
+		kill -s 0 "$pid" >/dev/null 2>&1
+	fi
+}
+
+silent_status()
+{
+	local pid=$(get_pid)
+
+	if [ -n "$pid" ] ; then
+		daemon_is_running "$pid"
+	else
+		# No pid file
+		false
+	fi
+}
+
+shared_vgs()
+{
+	local vg_list=()
+	# the 6th attr bit is either (c)lustered or (s)hared
+	local offset=5
+
+	while read -r vg attr ; do
+		if [ "${attr:$offset:1}" = "s" ] ; then
+			vg_list=(${vg_list[@]} $vg)
+		fi
+	done <<< "$(vgs --noheadings -o name,attr 2>/dev/null)"
+
+	echo "${vg_list[@]}"
+}
+
+# Immdiately exit shell on error, if it retures, it must be successful
+deactivate_all_vgs()
+{
+	# Try to deactivate all volume groups, before stop shared VG(s)
+	# and lvmlockd. If fails, some logical volumes are still being
+	# used. In such case, we exit immdiately, leaving lvmlockd running.
+	# We cannot kill lvmlockd forcely because that will leave lockspaces/
+	# locks behind.
+	ocf_log info "Deactivating shared volume groups..."
+	ocf_run vgchange -an $(shared_vgs)
+	if [ $? -ne $OCF_SUCCESS ] ; then
+		ocf_log info "Failed to deactivate VG(s)."
+		exit $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+activate_all_vgs()
+{
+	if ! ocf_is_true "$OCF_RESKEY_activate_vgs" ; then
+		ocf_log info "\"activate_vgs\" is set to $OCF_RESKEY_activate_vgs, skipping activation."
+		return $OCF_SUCCESS
+	fi
+
+	ocf_log info "Activating all shared volume groups..."
+	# FIXME:
+	# David Teigland (lvmlockd feature author) suggests to use "aay", i.e.
+	# auto-activation here. I gave it a try. The problem are:
+	# 1) It will try to activate every VGs if auto_activation_volume_list is
+	# _not_ defined; the command returns error code if any clustered volume
+	# on the system;
+	# 2) The command will get error output like "LV locked by other host: xxx"
+	# when the LVs have been activated on other nodes using "-aay".
+	#
+	# I think it makes sense to only activate shared LVs by this RA. The behavior
+	# is same as clvmd. If the issues above disappear and someone raises a strong
+	# reason in the future, we can change this that time.
+	ocf_run vgchange -asy $(shared_vgs)
+	if [ $? -ne $OCF_SUCCESS ] ; then
+		ocf_log info "Failed to activate shared VG(s):"
+		lvmlockd_stop
+		exit $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+check_config()
+{
+	local out=""
+	local use_lvmlockd=""
+	local lock_type=""
+
+	# To use lvmlockd, ensure configure lvm.conf:
+	# locking_type = 1
+	# use_lvmlockd = 1
+	out=$(lvmconfig 'global/use_lvmlockd')
+	use_lvmlockd=$(echo "$out" | cut -d'=' -f2)
+
+	out=$(lvmconfig 'global/locking_type')
+	lock_type=$(echo "$out" | cut -d'=' -f2)
+
+	if [ "$use_lvmlockd" -ne 1 ] ; then
+		ocf_log info "lvmlockd is not enabled, please ensure \"use_lvmlockd=1\""
+	fi
+	if [ "$lock_type" -ne 1 ] ; then
+		ocf_log info "locking type is wrong, please ensure \"locking_type=1\""
+	fi
+
+	if [ "$use_lvmlockd" -ne 1 ] || [ "$lock_type" -ne 1 ] ; then
+		ocf_exit_reason "Improper configuration to use lvmlockd."
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+check_dlm_controld()
+{
+	local pid=""
+
+	# dlm daemon should have only one instance, but for safe...
+	pid=$(pgrep dlm_controld | head -n1)
+	if ! daemon_is_running $pid ; then
+		ocf_exit_reason "DLM is not running. Is it configured?"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+lvmlockd_start() {
+	local extras=""
+
+	ocf_log info "checking config settings for ${LOCKD}..."
+	check_config
+
+	ocf_log info "checking if DLM is started first..."
+	check_dlm_controld
+
+	if silent_status ; then
+		ocf_log info "${LOCKD} already started (pid=$(get_pid))"
+		activate_all_vgs
+		return $OCF_SUCCESS
+	fi
+
+	if [ ! -z "$OCF_RESKEY_socket_path" ] ; then
+		extras="$extras -s ${OCF_RESKEY_socket_path}"
+	fi
+	if [ ! -z "$OCF_RESKEY_syslog_priority" ] ; then
+		extras="$extras -S ${OCF_RESKEY_syslog_priority}"
+	fi
+	if [ ! -z "$OCF_RESKEY_adopt" ] ; then
+		extras="$extras -A ${OCF_RESKEY_adopt}"
+	else
+		# Inside lvmlockd daemon, this option defaults to 0. But, we
+		# want it defaults to 1 for resource agent. When RA monitor pulls
+		# this daemon up, we expect it to adopt locks from a previous
+		# instance of lvmlockd.
+		extras="$extras -A 1"
+	fi
+	# This client only support "dlm" lock manager
+	extras="$extras -g dlm"
+
+	ocf_log info "starting ${LOCKD}..."
+	ocf_run ${LOCKD} -p ${OCF_RESKEY_pidfile} $extras
+	rc=$?
+	if [ $rc -ne $OCF_SUCCESS ] ; then
+		ocf_exit_reason "Failed to start ${LOCKD}, exit code: $rc"
+		return $OCF_ERR_GENERIC
+	fi
+
+	# lvmlockd requires shared VGs to be started before they're used
+	ocf_log info "start lockspaces of shared VG(s)..."
+	ocf_run vgchange --lockstart $(shared_vgs)
+	rc=$?
+	if [ $rc -ne $OCF_SUCCESS ] ; then
+		ocf_exit_reason "Failed to start shared VG(s), exit code: $rc"
+		return $OCF_ERR_GENERIC
+	fi
+
+	activate_all_vgs
+	return $OCF_SUCCESS
+}
+
+# Each shared VG has its own lockspace. Besides, lvm_global lockspace
+# is for global use, and it should be the last one to close. It should
+# be enough to only check on lvm_global.
+wait_lockspaces_close()
+{
+	local retries=0
+
+	ocf_log info "Waiting for all lockspaces to be closed"
+	while [ $retries -lt "$TIMEOUT_COUNT" ]
+	do
+		if ! dlm_tool ls lvm_global | grep -Eqs "^name[[:space:]]+lvm_global" ; then
+			return $OCF_SUCCESS
+		fi
+
+		sleep 0.5
+		retries=$((retries + 1))
+	done
+
+	ocf_exit_reason "Failed to close all lockspaces clearly"
+	exit $OCF_ERR_GENERIC
+}
+
+kill_stop()
+{
+	local pid=$1
+	local retries=0
+
+	ocf_log info "Killing ${LOCKD} (pid=$pid)"
+	while
+		daemon_is_running $pid && [ $retries -lt "$TIMEOUT_COUNT" ]
+	do
+		if [ $retries -ne 0 ] ; then
+			# don't sleep on the first try
+			sleep 0.5
+		fi
+		kill -s TERM $pid >/dev/null 2>&1
+		retries=$((retries + 1))
+	done
+
+}
+
+lvmlockd_stop() {
+	local pid=""
+
+	if ! silent_status ; then
+		ocf_log info "${LOCKD} is not running"
+		return $OCF_SUCCESS
+	fi
+
+	deactivate_all_vgs
+
+	# lvmlockd requires shared VGs to be started before they're used
+	ocf_log info "stop the lockspaces of shared VG(s)..."
+	ocf_run vgchange --lockstop $(shared_vgs)
+	rc=$?
+	if [ $rc -ne $OCF_SUCCESS ] ; then
+		ocf_exit_reason "Failed to stop VG(s), exit code: $rc"
+		return $OCF_ERR_GENERIC
+	fi
+
+	wait_lockspaces_close
+
+	pid=$(get_pid)
+	kill_stop $pid
+	if silent_status ; then
+		ocf_exit_reason "Failed to stop, ${LOCKD}[$pid] still running."
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+lvmlockd_monitor() {
+	if silent_status ; then
+		return $OCF_SUCCESS
+	fi
+
+	ocf_log info "${LOCKD} not running"
+	return $OCF_NOT_RUNNING
+}
+
+lvmlockd_validate() {
+	check_binary ${LOCKD}
+	check_binary vgchange
+	check_binary vgs
+	check_binary lvmconfig
+	check_binary dlm_tool
+	check_binary pgrep
+
+	return $OCF_SUCCESS
+}
+
+
+# Make sure meta-data and usage always succeed
+case $__OCF_ACTION in
+meta-data)		meta_data
+			exit $OCF_SUCCESS
+			;;
+usage|help)		usage
+			exit $OCF_SUCCESS
+			;;
+esac
+
+# Anything other than meta-data and usage must pass validation
+lvmlockd_validate || exit $?
+
+# Translate each action into the appropriate function call
+case $__OCF_ACTION in
+start)			lvmlockd_start
+			;;
+stop)			lvmlockd_stop
+			;;
+monitor)		lvmlockd_monitor
+			;;
+validate-all)		lvmlockd_validate
+			;;
+*)			usage
+			exit $OCF_ERR_UNIMPLEMENTED
+			;;
+esac
+rc=$?
+
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
