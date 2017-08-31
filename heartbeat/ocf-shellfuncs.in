@@ -433,7 +433,7 @@ ocf_run() {
 
 	output=`"$@" 2>&1`
 	rc=$?
-	output=`echo "$output" | tr -s ' \t\r\n' ' '`
+	[ -n "$output" ] && output="$(echo "$output" | tr -s ' \t\r\n' ' ')"
 	if [ $rc -eq 0 ]; then 
 	    if [ "$verbose" -a ! -z "$output" ]; then
 		ocf_log info "$output"
