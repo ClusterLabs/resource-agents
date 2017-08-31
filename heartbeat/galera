@@ -332,6 +332,27 @@ get_last_commit()
     fi
 }
 
+clear_safe_to_bootstrap()
+{
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-safe-to-bootstrap" -D
+}
+
+set_safe_to_bootstrap()
+{
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-safe-to-bootstrap" -v $1
+}
+
+get_safe_to_bootstrap()
+{
+    local node=$1
+
+    if [ -z "$node" ]; then
+        ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-safe-to-bootstrap" -Q 2>/dev/null
+    else
+        ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-safe-to-bootstrap" -Q 2>/dev/null
+    fi
+}
+
 wait_for_sync()
 {
     local state=$(get_status_variable "wsrep_local_state")
@@ -465,6 +486,7 @@ detect_first_master()
     local all_nodes
     local best_node_gcomm
     local best_node
+    local safe_to_bootstrap
 
     all_nodes=$(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' ')
     best_node_gcomm=$(echo "$all_nodes" | sed 's/^.* \(.*\)$/\1/')
@@ -492,6 +514,19 @@ detect_first_master()
     done
 
     for node in $nodes_recovered $nodes; do
+        safe_to_bootstrap=$(get_safe_to_bootstrap $node)
+
+        if [ "$safe_to_bootstrap" = "1" ]; then
+            # Galera marked the node as safe to boostrap during shutdown. Let's just
+            # pick it as our bootstrap node.
+            ocf_log info "Node <${node}> is marked as safe to bootstrap."
+            best_node=$node
+
+            # We don't need to wait for the other nodes to report state in this case
+            missing_nodes=0
+            break
+        fi
+
         last_commit=$(get_last_commit $node)
 
         if [ -z "$last_commit" ]; then
@@ -520,6 +555,22 @@ detect_first_master()
     ocf_log info "Promoting $best_node to be our bootstrap node"
     set_master_score $best_node
     set_bootstrap_node $best_node
+}
+
+detect_safe_to_bootstrap()
+{
+    local safe_to_bootstrap=""
+
+    if [ -f ${OCF_RESKEY_datadir}/grastate.dat ]; then
+        ocf_log info "attempting to read safe_to_bootstrap flag from ${OCF_RESKEY_datadir}/grastate.dat"
+        safe_to_bootstrap=$(sed -n 's/^safe_to_bootstrap:\s*\(.*\)$/\1/p' < ${OCF_RESKEY_datadir}/grastate.dat)
+    fi
+
+    if [ "$safe_to_bootstrap" = "1" ] || [ "$safe_to_bootstrap" = "0" ]; then
+        set_safe_to_bootstrap $safe_to_bootstrap
+    else
+        clear_safe_to_bootstrap
+    fi
 }
 
 detect_last_commit()
@@ -596,7 +647,7 @@ galera_promote()
     local rc
     local extra_opts
     local bootstrap
-    
+    local safe_to_bootstrap
     master_exists
     if [ $? -eq 0 ]; then
         # join without bootstrapping
@@ -605,6 +656,11 @@ galera_promote()
         bootstrap=$(is_bootstrap)
 
         if ocf_is_true $bootstrap; then
+            # The best node for bootstrapping wasn't cleanly shutdown. Allow
+            # bootstrapping anyways
+            if [ "$(get_safe_to_bootstrap)" = "0" ]; then
+                sed -ie 's/^\(safe_to_bootstrap:\) 0/\1 1/' ${OCF_RESKEY_datadir}/grastate.dat
+            fi
             ocf_log info "Node <${NODENAME}> is bootstrapping the cluster"
             extra_opts="--wsrep-cluster-address=gcomm://"
         else
@@ -621,12 +677,14 @@ galera_promote()
             clear_bootstrap_node
             ocf_log info "boostrap node already up, promoting the rest of the galera instances."
         fi
+        clear_safe_to_bootstrap
         clear_last_commit
         return $OCF_SUCCESS
     fi
 
-    # last commit is no longer relevant once promoted
+    # last commit/safe_to_bootstrap flag are no longer relevant once promoted
     clear_last_commit
+    clear_safe_to_bootstrap
 
     mysql_common_prepare_dirs
     mysql_common_start "$extra_opts"
@@ -687,6 +745,7 @@ galera_demote()
     clear_bootstrap_node
     clear_last_commit
     clear_no_grastate
+    clear_safe_to_bootstrap
 
     # Clear master score here rather than letting pacemaker do so once
     # demote finishes. This way a promote cannot take place right
@@ -696,6 +755,7 @@ galera_demote()
     clear_master_score
 
     # record last commit for next promotion
+    detect_safe_to_bootstrap
     detect_last_commit
     rc=$?
     return $rc
@@ -726,6 +786,7 @@ galera_start()
 
     mysql_common_prepare_dirs
 
+    detect_safe_to_bootstrap
     detect_last_commit
     rc=$?
     if [ $rc -ne $OCF_SUCCESS ]; then
@@ -815,6 +876,7 @@ galera_stop()
     mysql_common_stop
     rc=$1
 
+    clear_safe_to_bootstrap
     clear_last_commit
     clear_master_score
     clear_bootstrap_node
