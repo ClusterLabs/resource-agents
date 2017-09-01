@@ -20,4 +20,6 @@ MAINTAINERCLEANFILES    = Makefile.in
 
 if HAVE_SYSTEMD
 dist_systemdsystemunit_DATA = resource-agents-deps.target
+
+dist_systemdtmpfiles_DATA = resource-agents.conf
 endif
