@@ -6,6 +6,7 @@ addons:
     sources:
       - debian-sid
     packages:
+      - libxml2-utils
       - shellcheck
 script:
   - ./ci/build.sh
