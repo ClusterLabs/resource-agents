@@ -127,6 +127,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			oraasm			\
 			oracle			\
 			oralsnr			\
+			ovsmonitor		\
 			pgagent			\
 			pgsql			\
 			pingd			\
