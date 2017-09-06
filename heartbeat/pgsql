@@ -61,6 +61,7 @@ OCF_RESKEY_check_wal_receiver_default="false"
 # Defaults for replication
 OCF_RESKEY_rep_mode_default=none
 OCF_RESKEY_node_list_default=""
+OCF_RESKEY_sync_num_default=""
 OCF_RESKEY_restore_command_default=""
 OCF_RESKEY_archive_cleanup_command_default=""
 OCF_RESKEY_recovery_end_command_default=""
@@ -95,6 +96,7 @@ OCF_RESKEY_replication_slot_name_default=""
 # for replication
 : ${OCF_RESKEY_rep_mode=${OCF_RESKEY_rep_mode_default}}
 : ${OCF_RESKEY_node_list=${OCF_RESKEY_node_list_default}}
+: ${OCF_RESKEY_sync_num=${OCF_RESKEY_sync_num_default}}
 : ${OCF_RESKEY_restore_command=${OCF_RESKEY_restore_command_default}}
 : ${OCF_RESKEY_archive_cleanup_command=${OCF_RESKEY_archive_cleanup_command_default}}
 : ${OCF_RESKEY_recovery_end_command=${OCF_RESKEY_recovery_end_command_default}}
@@ -303,6 +305,15 @@ This is optional for replication. Defaults to all nodes in the cluster
 </longdesc>
 <shortdesc lang="en">node list</shortdesc>
 <content type="string" default="${OCF_RESKEY_node_list_default}" />
+</parameter>
+
+<parameter name="sync_num" unique="0" required="0">
+<longdesc lang="en">
+Number of the synchronous standby nodes for replication for multiple synchronous replication.
+If your PostgreSQL version is 9.6 or later, you can set "2" or more.
+</longdesc>
+<shortdesc lang="en">sync_num</shortdesc>
+<content type="integer" default="${OCF_RESKEY_rep_mode_default}" />
 </parameter>
 
 <parameter name="restore_command" unique="0" required="0">
@@ -1801,6 +1812,7 @@ pgsql_validate_all() {
     local check_config_rc
     local rep_mode_string
     local socket_directories
+    local number_of_nodes
 
     version=`cat $OCF_RESKEY_pgdata/PG_VERSION`
 
@@ -1929,6 +1941,24 @@ pgsql_validate_all() {
         if ! mkdir -p $OCF_RESKEY_tmpdir || ! chown $OCF_RESKEY_pgdba $OCF_RESKEY_tmpdir || ! chmod 700 $OCF_RESKEY_tmpdir; then
             ocf_exit_reason "Can't create directory $OCF_RESKEY_tmpdir or it is not readable by $OCF_RESKEY_pgdba"
             return $OCF_ERR_PERM
+        fi
+        if [ $OCF_RESKEY_sync_num -ge 2 ]; then
+            if [ "$OCF_RESKEY_rep_mode" != "sync" ]; then
+                ocf_exit_reason "\"sync_num\" requires that \"rep_mode\" is \"sync\""
+                return $OCF_ERR_CONFIGURED
+            else
+                ocf_version_cmp "$version" "9.6"
+                if [ $? -eq 0 ] || [ $? -eq 3 ]; then
+                    ocf_exit_reason "PostgreSQL version must be at least 9.6 for multiple synchronous replication."
+                    return $OCF_ERR_CONFIGURED
+                fi
+            fi
+
+            number_of_nodes=$(echo $NODE_LIST | wc -w)
+            if [ $OCF_RESKEY_sync_num -gt $number_of_nodes ]; then
+                ocf_exit_reason "\"sync_num\" must be less than the number of the nodes."
+                return $OCF_ERR_CONFIGURED
+            fi
         fi
     fi
 
