@@ -989,6 +989,44 @@ ocf_stop_trace() {
 	set +x
 }
 
+# Helper functions to map from nodename/bundle-name and physical hostname
+# list_index_for_word "node0 node1 node2 node3 node4 node5" node4 --> 5
+# list_word_at_index "NA host1 host2 host3 host4 host5" 3      --> host2
+
+# list_index_for_word "node1 node2 node3 node4 node5" node7 --> ""
+# list_word_at_index "host1 host2 host3 host4 host5" 8      --> ""
+
+# attribute_target node1                                    --> host1
+list_index_for_word() {
+	echo $1 | tr ' ' '\n' | awk -v x="$2" '$0~x {print NR}'
+}
+
+list_word_at_index() {
+	echo $1 | tr ' ' '\n' | awk -v n="$2" 'n == NR'
+}
+
+ocf_attribute_target() {
+	if [ x$1 = x ]; then
+		if [ x$OCF_RESKEY_CRM_meta_container_attribute_target = xhost -a x$OCF_RESKEY_CRM_meta_physical_host != x ]; then
+			echo $OCF_RESKEY_CRM_meta_physical_host
+		else
+			echo $OCF_RESKEY_CRM_meta_on_node
+		fi
+		return
+	elif [ x"$OCF_RESKEY_CRM_meta_notify_all_uname" != x ]; then
+		index=$(list_index_for_word "$OCF_RESKEY_CRM_meta_notify_all_uname" $1)
+		mapping=""
+		if [ x$index != x ]; then
+			mapping=$(list_word_at_index "$OCF_RESKEY_CRM_meta_notify_all_hosts" $index)
+		fi
+		if [ x$mapping != x -a x$mapping != xNA ]; then
+			echo $mapping
+			return
+		fi
+	fi
+	echo $1
+}
+
 __ocf_set_defaults "$@"
 
 : ${OCF_TRACE_RA:=$OCF_RESKEY_trace_ra}
