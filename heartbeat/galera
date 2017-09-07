@@ -68,6 +68,8 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 . ${OCF_FUNCTIONS_DIR}/mysql-common.sh
 
+NODENAME=$(ocf_attribute_target)
+
 # It is common for some galera instances to store
 # check user that can be used to query status
 # in this file
@@ -279,7 +281,7 @@ get_status_variable()
 
 set_bootstrap_node()
 {
-    local node=$1
+    local node=$(ocf_attribute_target $1)
 
     ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-bootstrap" -v "true"
 }
@@ -307,7 +309,7 @@ clear_no_grastate()
 
 is_no_grastate()
 {
-    local node=$1
+    local node=$(ocf_attribute_target $1)
     ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-no-grastate" -Q 2>/dev/null
 }
 
@@ -323,7 +325,7 @@ set_last_commit()
 
 get_last_commit()
 {
-    local node=$1
+    local node=$(ocf_attribute_target $1)
 
     if [ -z "$node" ]; then
        ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" -Q 2>/dev/null
@@ -344,7 +346,7 @@ set_safe_to_bootstrap()
 
 get_safe_to_bootstrap()
 {
-    local node=$1
+    local node=$(ocf_attribute_target $1)
 
     if [ -z "$node" ]; then
         ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-safe-to-bootstrap" -Q 2>/dev/null
@@ -413,7 +415,7 @@ master_exists()
 
 clear_master_score()
 {
-    local node=$1
+    local node=$(ocf_attribute_target $1)
     if [ -z "$node" ]; then
         $CRM_MASTER -D
     else 
@@ -423,7 +425,7 @@ clear_master_score()
 
 set_master_score()
 {
-    local node=$1
+    local node=$(ocf_attribute_target $1)
 
     if [ -z "$node" ]; then
         $CRM_MASTER -v 100
@@ -542,7 +544,7 @@ detect_first_master()
 
         greater_than_equal_long "$last_commit" "$best_commit"
         if [ $? -eq 0 ]; then
-            best_node=$node
+            best_node=$(ocf_attribute_target $node)
             best_commit=$last_commit
         fi
 

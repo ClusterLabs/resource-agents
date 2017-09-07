@@ -188,7 +188,8 @@ function last_known_master()
 }
 
 function crm_master_reboot() {
-	"${HA_SBIN_DIR}/crm_master" -l reboot "$@"
+	local node=$(ocf_attribute_target)
+	"${HA_SBIN_DIR}/crm_master" -N $node -l reboot "$@"
 }
 
 function calculate_score()
@@ -545,7 +546,7 @@ function validate() {
 	fi
 }
 
-NODENAME=$(ocf_local_nodename)
+NODENAME=$(ocf_attribute_target)
 if [ -f "$REDIS_CONFIG" ]; then
 	clientpasswd="$(cat $REDIS_CONFIG | sed -n -e  's/^\s*requirepass\s*\(.*\)\s*$/\1/p' | tail -n 1)"
 fi
