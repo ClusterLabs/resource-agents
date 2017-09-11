@@ -102,7 +102,7 @@ rmq_wipe_data()
 rmq_local_node()
 {
 
-	local node_name=$(rabbitmqctl status 2>&1 | sed -n -e "s/^.*[S|s]tatus of node \(.*\)\s.*$/\1/p" | tr -d "'")
+	local node_name=$($RMQ_CTL status 2>&1 | sed -n -e "s/^.*[S|s]tatus of node \(.*\)\s.*$/\1/p" | tr -d "'")
 
 	if [ -z "$node_name" ]; then
 		node_name=$(cat /etc/rabbitmq/rabbitmq-env.conf 2>/dev/null | grep "\s*RABBITMQ_NODENAME=" | awk -F= '{print $2}')
@@ -310,7 +310,7 @@ rmq_forget_cluster_node_remotely() {
 
 	ocf_log info "Forgetting $node_to_forget via nodes [ $(echo $running_cluster_nodes | tr '\n' ' ') ]."
 	for running_cluster_node in $running_cluster_nodes; do
-		rabbitmqctl -n $running_cluster_node forget_cluster_node $node_to_forget
+		$RMQ_CTL -n $running_cluster_node forget_cluster_node $node_to_forget
 		if [ $? = 0 ]; then
 			ocf_log info "Succeeded forgetting $node_to_forget via $running_cluster_node."
 			return
@@ -390,7 +390,7 @@ rmq_start() {
 
 	# Restore users, user permissions, and policies (if any)
 	BaseDataDir=`dirname $RMQ_DATA_DIR`
-	rabbitmqctl eval "
+	$RMQ_CTL eval "
 		%% Run only if Mnesia is ready.
 		lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
 		begin
@@ -446,7 +446,7 @@ rmq_start() {
 rmq_stop() {
 	# Backup users, user permissions, and policies
 	BaseDataDir=`dirname $RMQ_DATA_DIR`
-	rabbitmqctl eval "
+	$RMQ_CTL eval "
 		%% Run only if Mnesia is still available.
 		lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
 		begin
