@@ -545,7 +545,7 @@ function validate() {
 	fi
 }
 
-NODENAME=$(ocf_local_nodename)
+NODENAME=${OCF_RESKEY_CRM_meta_physical_host:-$(ocf_local_nodename)}
 if [ -f "$REDIS_CONFIG" ]; then
 	clientpasswd="$(cat $REDIS_CONFIG | sed -n -e  's/^\s*requirepass\s*\(.*\)\s*$/\1/p' | tail -n 1)"
 fi
