@@ -68,6 +68,17 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 . ${OCF_FUNCTIONS_DIR}/mysql-common.sh
 
+# In regular circumstances NODENAME gives the name of the pacemaker
+# node the resource agent is running on. But when galera runs in a
+# container (pacemaker bundle), NODENAME will be the bundle replica's
+# name.
+# We want to know the hosting node's name, because bundle replicas can
+# move across physical nodes when they are restarted, whereas the
+# attributes defined by the resource agent represent the state of a
+# galera database, so they have to "stick" to the node they describe.
+OCF_NODENAME=$(ocf_local_nodename)
+NODENAME=${OCF_RESKEY_CRM_meta_physical_host:-${OCF_NODENAME}}
+
 # It is common for some galera instances to store
 # check user that can be used to query status
 # in this file
@@ -441,9 +452,18 @@ promote_everyone()
             ocf_log err "Could not determine pacemaker node from galera name <${node}>."
             return
         else
+	    # if running in a bundle, use the bundle's pacemaker remote name
+	    if [ "${NODENAME}" != "${OCF_NODENAME}" ]; then
+		local bundle_node=$(crm_mon --as-xml | xmllint --xpath "string(//bundle/replica[resource/node[@name=\"${pcmk_node}\"]]/resource[@id=\"${OCF_RESOURCE_INSTANCE}\"]/node/@name" -)
+		if [ -z "$bundle_node" ]; then
+		    ocf_log err "Could not determine bundle node from pacemaker node <${pcmk_node}>."
+		    return
+		else
+		    pcmk_node=$bundle_node
+		fi
+	    fi
             node=$pcmk_node
         fi
-
         set_master_score $node
     done
 }
@@ -552,9 +572,12 @@ detect_first_master()
         return
     fi
 
-    ocf_log info "Promoting $best_node to be our bootstrap node"
-    set_master_score $best_node
+    ocf_log info "Selecting $best_node to be our bootstrap node"
     set_bootstrap_node $best_node
+    if [ "$best_node" = "${NODENAME}" ]; then
+	ocf_log info "We are the bootstrap node, promoting ourself to bootstrap the cluster"
+	set_master_score
+    fi
 }
 
 detect_safe_to_bootstrap()
@@ -796,7 +819,7 @@ galera_start()
     master_exists
     if [ $? -eq 0 ]; then
         ocf_log info "Master instances are already up, setting master score so this instance will join galera cluster."
-        set_master_score $NODENAME
+        set_master_score
     else
         clear_master_score
         detect_first_master
