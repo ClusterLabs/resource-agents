@@ -233,6 +233,8 @@ findif()
     fi
     case $1 in
     */*) : OK ;;
+    # "ip route" doesnt show netmask for IPv6 /128
+    *:*:*) : OK ;;
     *)
       ocf_log err "Unable to find cidr_netmask."
       return $OCF_ERR_GENERIC ;;
@@ -248,7 +250,7 @@ findif()
       fi
     fi
   else
-    if [ -z "$OCF_RESKEY_nic" -a "$netmask" != "${1#*/}" ] ; then
+    if [ -z "$OCF_RESKEY_nic" -a -z "$OCF_RESKEY_cidr_netmask" -a "$netmask" != "${1#*/}" ] ; then
       ocf_log err "Unable to find nic, or netmask mismatch."
       return $OCF_ERR_GENERIC
     fi
