@@ -185,15 +185,15 @@ ec2ip_validate() {
 
 ec2ip_monitor() {
 	ec2ip_validate
-	ocf_log debug "function: ec2ip_monitor: check Route53 record "
+	ocf_log debug "Checking Route53 record sets"
 	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
 	ARECORD="$(aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query "ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']" | grep RESOURCERECORDS | /usr/bin/awk '{ print $2 }' )"
-	ocf_log debug "function: ec2ip_monitor: found IP address: $ARECORD ."
+	ocf_log debug "Found IP address: $ARECORD ."
 	if [ "${ARECORD}" == "${IPADDRESS}" ]; then
-		ocf_log debug "function: ec2ip_monitor:  ARECORD $ARECORD found"
+		ocf_log debug "ARECORD $ARECORD found"
 		return $OCF_SUCCESS
 	else
-		ocf_log debug "function: ec2ip_monitor: no ARECORD found"
+		ocf_log debug "No ARECORD found"
 		return $OCF_NOT_RUNNING
 	fi
 
@@ -203,7 +203,7 @@ ec2ip_monitor() {
 _update_record() {
 	update_action="$1"
 	IPADDRESS="$2"
-	ocf_log info "EC2: Updating Route53 $OCF_RESKEY_hostedzoneid with $IPADDRESS for $OCF_RESKEY_fullname"
+	ocf_log info "Updating Route53 $OCF_RESKEY_hostedzoneid with $IPADDRESS for $OCF_RESKEY_fullname"
 	ROUTE53RECORD="$(maketempfile)"
 	if [ $? -ne 0 ] || [ -z "$ROUTE53RECORD" ]; then
 		ocf_exit_reason "Failed to create temporary file for record update"
@@ -231,7 +231,7 @@ _update_record() {
 	EOF
 	cmd="aws --profile ${OCF_RESKEY_profile} route53 change-resource-record-sets --hosted-zone-id ${OCF_RESKEY_hostedzoneid} \
 	  --change-batch file://${ROUTE53RECORD} "
-	ocf_log debug "function ec2ip_start: executing command: $cmd"
+	ocf_log debug "Executing command: $cmd"
 	CHANGEID=$($cmd | grep CHANGEINFO |	 /usr/bin/awk -F'\t' '{ print $3 }' )
 	ocf_log debug "Change id: ${CHANGEID}"
 	rmtempfile ${ROUTE53RECORD}
@@ -247,20 +247,18 @@ _update_record() {
 }
 
 ec2ip_stop() {
-	ocf_log info "EC2: Bringing down Route53 agent. (Will remove ARECORD)"
+	ocf_log info "Bringing down Route53 agent. (Will remove ARECORD)"
 	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
 	ARECORD="$(aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query "ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']" | grep RESOURCERECORDS | /usr/bin/awk '{ print $2 }' )"
-	ocf_log debug "function: ec2ip_monitor: found IP address: $ARECORD ."
+	ocf_log debug "Found IP address: $ARECORD ."
 	if [ ${ARECORD} != ${IPADDRESS} ]; then
-		ocf_log debug "function: ec2ip_monitor: no ARECORD found"
+		ocf_log debug "No ARECORD found"
 		return $OCF_SUCCESS
 	else
-		ocf_log debug "function: ec2ip_monitor:	ARECORD $ARECORD found"
 		# determine IP address
 		IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
 		# Patch file
-		ocf_log debug "function ec2ip_stop: will delete IP address to ${IPADDRESS}"
-
+		ocf_log debug "Deleting IP address to ${IPADDRESS}"
 		return $OCF_SUCCESS
 	fi
 
@@ -269,9 +267,7 @@ ec2ip_stop() {
 }
 
 ec2ip_start() {
-	# determine IP address
 	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
-	# Patch file
 	_update_record "UPSERT" "$IPADDRESS"
 	return $OCF_SUCCESS
 }
