@@ -66,6 +66,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			LVM			\
 			LinuxSCSI		\
 			lvmlockd		\
+			LVM-activate		\
 			MailTo			\
 			ManageRAID		\
 			ManageVE		\
