@@ -407,6 +407,10 @@ This is optional for replication.
 <longdesc lang="en">
 Number of checks of xlog on monitor before promote.
 This is optional for replication.
+
+Note: For backward compatibility, the terms are unified with PostgreSQL 9.
+      If you are using PostgreSQL 10 or later, replace "xlog" with "wal".
+      Likewise, replacing "location" with "lsn".
 </longdesc>
 <shortdesc lang="en">xlog check count</shortdesc>
 <content type="integer" default="${OCF_RESKEY_xlog_check_count_default}" />
@@ -593,7 +597,7 @@ pgsql_real_start() {
     pgctl_options="$pgctl_options -o '$postgres_options'"
 
     # Invoke pg_ctl
-    runasowner "unset PGUSER; unset PGPASSWORD; $OCF_RESKEY_pgctl $pgctl_options start"
+    runasowner "unset PGUSER; unset PGPASSWORD; $OCF_RESKEY_pgctl $pgctl_options -W start"
 
     if [ $? -eq 0 ]; then
         # Probably started.....
@@ -709,7 +713,7 @@ pgsql_promote() {
             return $OCF_ERR_GENERIC
         fi
     else
-        runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata promote"
+        runasowner "$OCF_RESKEY_pgctl -D $OCF_RESKEY_pgdata -W promote"
         if [ $? -eq 0 ]; then
             ocf_log info "PostgreSQL promote command sent."
         else
@@ -1433,6 +1437,7 @@ check_replication_slot(){
     echo "$output"
 }
 
+# On postgreSQL 10 or later, "location" means "lsn".
 get_my_location() {
     local rc
     local output
@@ -1471,6 +1476,7 @@ get_my_location() {
     return 0
 }
 
+# On postgreSQL 10 or later, "xlog_location" means "wal_lsn".
 show_xlog_location() {
     local location
 
@@ -1478,6 +1484,7 @@ show_xlog_location() {
     exec_with_retry 0 $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_XLOG_LOC_NAME" -v "$location"
 }
 
+# On postgreSQL 10 or later, "xlog_location" means "wal_lsn".
 delete_xlog_location() {
     exec_with_retry 5 $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_XLOG_LOC_NAME" -D
 }
@@ -1862,6 +1869,36 @@ pgsql_validate_all() {
     fi
 
     if is_replication; then
+        REP_MODE_CONF=${OCF_RESKEY_tmpdir}/rep_mode.conf
+        PGSQL_LOCK=${OCF_RESKEY_tmpdir}/PGSQL.lock
+        XLOG_NOTE_FILE=${OCF_RESKEY_tmpdir}/xlog_note
+
+        CRM_MASTER="${HA_SBIN_DIR}/crm_master -l reboot"
+        CRM_ATTR_REBOOT="${HA_SBIN_DIR}/crm_attribute -l reboot"
+        CRM_ATTR_FOREVER="${HA_SBIN_DIR}/crm_attribute -l forever"
+        CRM_RESOURCE="${HA_SBIN_DIR}/crm_resource"
+
+        CAN_NOT_PROMOTE="-INFINITY"
+        CAN_PROMOTE="100"
+        PROMOTE_ME="1000"
+
+        CHECK_MS_SQL="select pg_is_in_recovery()"
+        ocf_version_cmp "$version" "10"
+        if [ $? -eq 1 ] || [ $? -eq 2 ]; then
+            CHECK_XLOG_LOC_SQL="select pg_last_wal_replay_lsn(),pg_last_wal_receive_lsn()"
+        else
+            CHECK_XLOG_LOC_SQL="select pg_last_xlog_replay_location(),pg_last_xlog_receive_location()"
+        fi
+        CHECK_REPLICATION_STATE_SQL="select application_name,upper(state),upper(sync_state) from pg_stat_replication"
+
+        PGSQL_STATUS_ATTR="${RESOURCE_NAME}-status"
+        PGSQL_DATA_STATUS_ATTR="${RESOURCE_NAME}-data-status"
+        PGSQL_XLOG_LOC_NAME="${RESOURCE_NAME}-xlog-loc"
+        PGSQL_MASTER_BASELINE="${RESOURCE_NAME}-master-baseline"
+
+        NODE_LIST=`echo $OCF_RESKEY_node_list | tr '[A-Z]' '[a-z]'`
+        RE_CONTROL_SLAVE="false"
+
         if ! ocf_is_ms; then
             ocf_exit_reason "Replication(rep_mode=async or sync) requires Master/Slave configuration."
             return $OCF_ERR_CONFIGURED
@@ -1988,45 +2025,12 @@ then
     exit $OCF_ERR_GENERIC
 fi
 
-
 PIDFILE=${OCF_RESKEY_pgdata}/postmaster.pid
 BACKUPLABEL=${OCF_RESKEY_pgdata}/backup_label
 RESOURCE_NAME=`echo $OCF_RESOURCE_INSTANCE | cut -d ":" -f 1`
 PGSQL_WAL_RECEIVER_STATUS_ATTR="${RESOURCE_NAME}-receiver-status"
 RECOVERY_CONF=${OCF_RESKEY_pgdata}/recovery.conf
 NODENAME=$(ocf_local_nodename | tr '[A-Z]' '[a-z]')
-
-if is_replication; then
-    REP_MODE_CONF=${OCF_RESKEY_tmpdir}/rep_mode.conf
-    PGSQL_LOCK=${OCF_RESKEY_tmpdir}/PGSQL.lock
-    XLOG_NOTE_FILE=${OCF_RESKEY_tmpdir}/xlog_note
-
-    CRM_MASTER="${HA_SBIN_DIR}/crm_master -l reboot"
-    CRM_ATTR_REBOOT="${HA_SBIN_DIR}/crm_attribute -l reboot"
-    CRM_ATTR_FOREVER="${HA_SBIN_DIR}/crm_attribute -l forever"
-    CRM_RESOURCE="${HA_SBIN_DIR}/crm_resource"
-
-    CAN_NOT_PROMOTE="-INFINITY"
-    CAN_PROMOTE="100"
-    PROMOTE_ME="1000"
-
-    CHECK_MS_SQL="select pg_is_in_recovery()"
-    CHECK_XLOG_LOC_SQL="select pg_last_xlog_replay_location(),pg_last_xlog_receive_location()"
-    CHECK_REPLICATION_STATE_SQL="select application_name,upper(state),upper(sync_state) from pg_stat_replication"
-
-    PGSQL_STATUS_ATTR="${RESOURCE_NAME}-status"
-    PGSQL_DATA_STATUS_ATTR="${RESOURCE_NAME}-data-status"
-    PGSQL_XLOG_LOC_NAME="${RESOURCE_NAME}-xlog-loc"
-    PGSQL_MASTER_BASELINE="${RESOURCE_NAME}-master-baseline"
-
-    if [ $(echo $OCF_RESKEY_node_list | wc -w) -eq 0 ]; then
-        # defaulting nodelist to all nodes in the cluster if not specified
-        NODE_LIST=$(crm_node --list | cut -d ' ' -f 2)
-    else
-        NODE_LIST=`echo $OCF_RESKEY_node_list | tr '[A-Z]' '[a-z]'`
-    fi
-    RE_CONTROL_SLAVE="false"
-fi
 
 case "$1" in
     methods)    pgsql_methods
