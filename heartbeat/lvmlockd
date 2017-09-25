@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 #
 #	lvmlockd OCF Resource Agent
@@ -79,17 +79,6 @@ Adopt locks from a previous instance of lvmlockd.
 <shortdesc lang="en">Adopt locks from a previous instance of lvmlockd</shortdesc>
 <content type="integer" default="1"/>
 </parameter>
-
-<parameter name="activate_vgs" unique="0">
-<longdesc lang="en">
-Whether or not to activate all shared volume groups after starting
-the lvmlockd. Note that shared volume groups will always be deactivated
-before the lvmlockd stops regardless of what this option is set to.
-</longdesc>
-<shortdesc lang="en">Activate volume groups</shortdesc>
-<content type="boolean" default="true"/>
-</parameter>
-
 </parameters>
 
 <actions>
@@ -106,7 +95,6 @@ END
 #######################################################################
 
 : ${OCF_RESKEY_pidfile:="/run/lvmlockd.pid"}
-: ${OCF_RESKEY_activate_vgs:="true"}
 
 LOCKD="lvmlockd"
 # 0.5s sleep each count
@@ -149,69 +137,6 @@ silent_status()
 		# No pid file
 		false
 	fi
-}
-
-shared_vgs()
-{
-	local vg_list=()
-	# the 6th attr bit is either (c)lustered or (s)hared
-	local offset=5
-
-	while read -r vg attr ; do
-		if [ "${attr:$offset:1}" = "s" ] ; then
-			vg_list=(${vg_list[@]} $vg)
-		fi
-	done <<< "$(vgs --noheadings -o name,attr 2>/dev/null)"
-
-	echo "${vg_list[@]}"
-}
-
-# Immdiately exit shell on error, if it retures, it must be successful
-deactivate_all_vgs()
-{
-	# Try to deactivate all volume groups, before stop shared VG(s)
-	# and lvmlockd. If fails, some logical volumes are still being
-	# used. In such case, we exit immdiately, leaving lvmlockd running.
-	# We cannot kill lvmlockd forcely because that will leave lockspaces/
-	# locks behind.
-	ocf_log info "Deactivating shared volume groups..."
-	ocf_run vgchange -an $(shared_vgs)
-	if [ $? -ne $OCF_SUCCESS ] ; then
-		ocf_log info "Failed to deactivate VG(s)."
-		exit $OCF_ERR_GENERIC
-	fi
-
-	return $OCF_SUCCESS
-}
-
-activate_all_vgs()
-{
-	if ! ocf_is_true "$OCF_RESKEY_activate_vgs" ; then
-		ocf_log info "\"activate_vgs\" is set to $OCF_RESKEY_activate_vgs, skipping activation."
-		return $OCF_SUCCESS
-	fi
-
-	ocf_log info "Activating all shared volume groups..."
-	# FIXME:
-	# David Teigland (lvmlockd feature author) suggests to use "aay", i.e.
-	# auto-activation here. I gave it a try. The problem are:
-	# 1) It will try to activate every VGs if auto_activation_volume_list is
-	# _not_ defined; the command returns error code if any clustered volume
-	# on the system;
-	# 2) The command will get error output like "LV locked by other host: xxx"
-	# when the LVs have been activated on other nodes using "-aay".
-	#
-	# I think it makes sense to only activate shared LVs by this RA. The behavior
-	# is same as clvmd. If the issues above disappear and someone raises a strong
-	# reason in the future, we can change this that time.
-	ocf_run vgchange -asy $(shared_vgs)
-	if [ $? -ne $OCF_SUCCESS ] ; then
-		ocf_log info "Failed to activate shared VG(s):"
-		lvmlockd_stop
-		exit $OCF_ERR_GENERIC
-	fi
-
-	return $OCF_SUCCESS
 }
 
 check_config()
@@ -269,7 +194,6 @@ lvmlockd_start() {
 
 	if silent_status ; then
 		ocf_log info "${LOCKD} already started (pid=$(get_pid))"
-		activate_all_vgs
 		return $OCF_SUCCESS
 	fi
 
@@ -299,16 +223,6 @@ lvmlockd_start() {
 		return $OCF_ERR_GENERIC
 	fi
 
-	# lvmlockd requires shared VGs to be started before they're used
-	ocf_log info "start lockspaces of shared VG(s)..."
-	ocf_run vgchange --lockstart $(shared_vgs)
-	rc=$?
-	if [ $rc -ne $OCF_SUCCESS ] ; then
-		ocf_exit_reason "Failed to start shared VG(s), exit code: $rc"
-		return $OCF_ERR_GENERIC
-	fi
-
-	activate_all_vgs
 	return $OCF_SUCCESS
 }
 
@@ -361,15 +275,16 @@ lvmlockd_stop() {
 		return $OCF_SUCCESS
 	fi
 
-	deactivate_all_vgs
-
-	# lvmlockd requires shared VGs to be started before they're used
-	ocf_log info "stop the lockspaces of shared VG(s)..."
-	ocf_run vgchange --lockstop $(shared_vgs)
-	rc=$?
-	if [ $rc -ne $OCF_SUCCESS ] ; then
-		ocf_exit_reason "Failed to stop VG(s), exit code: $rc"
-		return $OCF_ERR_GENERIC
+	if [ -n "$(dlm_tool ls)" ]; then
+		# We are going to stop lvmlockd, at this moment, we hope all shared VG have
+		# been deactivated, otherwise we are in trouble: the stop action will fail!
+		ocf_log info "stop the lockspaces of shared VG(s)..."
+		ocf_run lvmlockctl --stop-lockspaces
+		rc=$?
+		if [ $rc -ne $OCF_SUCCESS ] ; then
+			ocf_exit_reason "Failed to close lockspace, exit code: $rc"
+			return $OCF_ERR_GENERIC
+		fi
 	fi
 
 	wait_lockspaces_close
@@ -395,11 +310,10 @@ lvmlockd_monitor() {
 
 lvmlockd_validate() {
 	check_binary ${LOCKD}
-	check_binary vgchange
-	check_binary vgs
-	check_binary lvmconfig
+	check_binary lvm
 	check_binary dlm_tool
 	check_binary pgrep
+	check_binary lvmlockctl
 
 	return $OCF_SUCCESS
 }
