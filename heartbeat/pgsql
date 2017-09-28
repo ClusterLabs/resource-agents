@@ -1525,28 +1525,104 @@ set_async_mode_all() {
 }
 
 set_async_mode() {
-    cat $REP_MODE_CONF |  grep -q -E "(\"$1\")|([,' ]$1[,' ])"
-    if [ $? -eq 0 ]; then
-        ocf_log info "Setup $1 into async mode."
-        runasowner -q err "echo \"synchronous_standby_names = ''\" > \"$REP_MODE_CONF\""
+    local synchronous_standby_names
+    local synchronous_standby_names_tmp
+    local synchronous_standby_names_new
+    local sync_num
+    local current_sync_num
+    local expected_sync_num
+    local sync_node_list
+
+    if [ -z "$OCF_RESKEY_sync_num" ]; then
+        sync_num="1"
     else
-        ocf_log debug "$1 is already in async mode."
-        return 0
+        sync_num="${OCF_RESKEY_sync_num}"
+    fi
+
+    synchronous_standby_names=$(exec_sql "${CHECK_SYNCHRONOUS_STANDBY_NAMES}")
+    if [ $? -ne 0 ]; then
+        ocf_exit_reason "Can't get \"synchronous_standby_names\"."
+        exit $OCF_ERR_GENERIC
+    fi
+    
+    if [ $sync_num -ge 2 ]; then
+        echo "$synchronous_standby_names" | grep -q -E "(\($1,|, $1,|, $1\))"
+        if [ $? -eq 0 ]; then
+            synchronous_standby_names_tmp=$(echo "synchronous_standby_names = '$synchronous_standby_names'" \
+                                          | sed -e "s/$1//" -e "s/(, /(/" -e "s/, ,/,/" -e "s/, )/)/")
+            current_sync_num=$(echo "$synchronous_standby_names_tmp" | cut -d"'" -f 2 | cut -d"(" -f 1)
+            sync_node_list=$(echo "$synchronous_standby_names_tmp" | cut -d"(" -f 2 | cut -d")" -f 1)
+            if [ $current_sync_num -ge 2 ]; then
+                expected_sync_num=$(expr $current_sync_num - 1)
+                synchronous_standby_names_new="$expected_sync_num ($sync_node_list)"
+                runasowner -q err "echo \"synchronous_standby_names = '$synchronous_standby_names_new'\" > \"$REP_MODE_CONF\""
+            else
+                runasowner -q err "echo \"synchronous_standby_names = ''\" > \"$REP_MODE_CONF\""
+            fi
+        else
+            ocf_log debug "$1 is already in async mode."
+            return 0
+        fi
+    else
+        echo "$synchronous_standby_names" | grep -q -E "(\"$1\")|([,' ]$1[,' ])" 
+        if [ $? -eq 0 ]; then
+            ocf_log info "Setup $1 into async mode."
+            runasowner -q err "echo \"synchronous_standby_names = ''\" > \"$REP_MODE_CONF\""
+        else
+            ocf_log debug "$1 is already in async mode."
+            return 0
+        fi
     fi
     exec_with_retry 0 reload_conf
 }
 
 set_sync_mode() {
-    local sync_node_in_conf
+    local synchronous_standby_names
+    local synchronous_standby_names_new
+    local sync_num
+    local current_sync_num
+    local expected_sync_num
+    local sync_node_list
 
-    sync_node_in_conf=`cat $REP_MODE_CONF | cut -d "'" -f 2`
-    if [ -n "$sync_node_in_conf" ]; then
-        ocf_log debug "$sync_node_in_conf is already sync mode."
+    if [ -z "$OCF_RESKEY_sync_num" ]; then
+        sync_num="1"
     else
-        ocf_log info "Setup $1 into sync mode."
-        runasowner -q err "echo \"synchronous_standby_names = '\\\"$1\\\"'\" > \"$REP_MODE_CONF\""
-        [ "$RE_CONTROL_SLAVE" = "false" ] && RE_CONTROL_SLAVE="true"
-        exec_with_retry 0 reload_conf
+        sync_num="${OCF_RESKEY_sync_num}"
+    fi
+
+    synchronous_standby_names=$(exec_sql "${CHECK_SYNCHRONOUS_STANDBY_NAMES}")
+    if [ $? -ne 0 ]; then
+        ocf_exit_reason "Can't get \"synchronous_standby_names\"."
+        exit $OCF_ERR_GENERIC
+    fi
+
+    if [ $sync_num -ge 2 ]; then
+        if [ -z "$synchronous_standby_names" ]; then
+            # for first slave node
+            runasowner -q err "echo \"synchronous_standby_names = '1 ($1)'\" > \"$REP_MODE_CONF\""
+            exec_with_retry 0 reload_conf
+        elif [ -n "$synchronous_standby_names" ]; then
+            current_sync_num=$(echo "$synchronous_standby_names" | cut -d"'" -f 2 | cut -d"(" -f 1)
+            sync_node_list=$(echo "$synchronous_standby_names" | cut -d"(" -f 2 | cut -d")" -f 1)
+            expected_sync_num=$(expr $current_sync_num + 1)
+            if [ $expected_sync_num -le $OCF_RESKEY_sync_num ]; then
+                synchronous_standby_names_new="$expected_sync_num ($sync_node_list, $1)"
+                runasowner -q err "echo \"synchronous_standby_names = '$synchronous_standby_names_new'\" > \"$REP_MODE_CONF\""
+                [ "$RE_CONTROL_SLAVE" = "false" ] && RE_CONTROL_SLAVE="true"
+                exec_with_retry 0 reload_conf
+            else
+                ocf_log warn "The nodes for SYNC state are already full."
+            fi
+       fi
+    else
+       if [ -n "$synchronous_standby_names" ]; then
+           ocf_log debug "$1 is already sync mode."
+       else
+           ocf_log info "Setup $1 into sync mode."
+           runasowner -q err "echo \"synchronous_standby_names = '\\\"$1\\\"'\" > \"$REP_MODE_CONF\""
+           [ "$RE_CONTROL_SLAVE" = "false" ] && RE_CONTROL_SLAVE="true"
+           exec_with_retry 0 reload_conf
+       fi
     fi
 }
 
@@ -1895,6 +1971,7 @@ pgsql_validate_all() {
         PROMOTE_ME="1000"
 
         CHECK_MS_SQL="select pg_is_in_recovery()"
+        CHECK_SYNCHRONOUS_STANDBY_NAMES="show synchronous_standby_names"
         ocf_version_cmp "$version" "10"
         if [ $? -eq 1 ] || [ $? -eq 2 ]; then
             CHECK_XLOG_LOC_SQL="select pg_last_wal_replay_lsn(),pg_last_wal_receive_lsn()"
