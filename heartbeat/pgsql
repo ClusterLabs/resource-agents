@@ -1150,10 +1150,13 @@ pgsql_notify() {
 control_slave_status() {
     local rc
     local data_status
+    local sync_priority
+    local sync_weight
     local target
     local all_data_status
     local tmp_data_status
     local number_of_nodes
+    local can_promote
 
     all_data_status=`exec_sql "${CHECK_REPLICATION_STATE_SQL}"`
     rc=$?
@@ -1180,15 +1183,19 @@ control_slave_status() {
                     continue
                 fi
                 data_status=`echo $tmp_data_status | cut -d "|" -f 2,3`
-                ocf_log debug "node_name and data_status is $tmp_data_status"
+                sync_priority=`echo $tmp_data_status | cut -d "|" -f 4`
+                ocf_log debug "node_name, data_status and priority is $tmp_data_status"
                 break
             done
         fi
 
         case "$data_status" in
             "STREAMING|SYNC")
+                sync_weight=$(expr $number_of_nodes - $sync_priority)
+                can_promote=$(expr $CAN_PROMOTE + $sync_weight)
+
                 change_data_status "$target" "$data_status"
-                change_master_score "$target" "$CAN_PROMOTE"
+                change_master_score "$target" "$can_promote"
                 change_pgsql_status "$target" "HS:sync"
                 ;;
             "STREAMING|ASYNC")
@@ -1978,7 +1985,7 @@ pgsql_validate_all() {
         else
             CHECK_XLOG_LOC_SQL="select pg_last_xlog_replay_location(),pg_last_xlog_receive_location()"
         fi
-        CHECK_REPLICATION_STATE_SQL="select application_name,upper(state),upper(sync_state) from pg_stat_replication"
+        CHECK_REPLICATION_STATE_SQL="select application_name,upper(state),upper(sync_state),sync_priority from pg_stat_replication"
 
         PGSQL_STATUS_ATTR="${RESOURCE_NAME}-status"
         PGSQL_DATA_STATUS_ATTR="${RESOURCE_NAME}-data-status"
