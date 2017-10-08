@@ -76,6 +76,14 @@ AS_IF([test "x$with_systemdsystemunitdir" != "xno"],
       [AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])])
 AM_CONDITIONAL([HAVE_SYSTEMD], [test "x$with_systemdsystemunitdir" != "xno"])
 
+AC_ARG_WITH([systemdtmpfilesdir],
+     AS_HELP_STRING([--with-systemdtmpfilesdir=DIR], [Directory for systemd tmp files]),
+     [], [with_systemdtmpfilesdir=$($PKGCONFIG --variable=tmpfilesdir systemd)])
+     if test "x$with_systemdtmpfilesdir" != xno; then
+         AC_SUBST([systemdtmpfilesdir], [$with_systemdtmpfilesdir])
+     fi
+AM_CONDITIONAL(HAVE_SYSTEMD, [test -n "$with_systemdtmpfilesdir" -a "x$with_systemdtmpfilesdir" != xno ])
+
 dnl 
 dnl AM_INIT_AUTOMAKE([1.11.1 foreign dist-bzip2 dist-xz])
 dnl

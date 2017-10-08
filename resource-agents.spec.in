@@ -191,6 +191,9 @@ export CFLAGS
 %if %{defined _unitdir}
     --with-systemdsystemunitdir=%{_unitdir} \
 %endif
+%if %{defined _tmpfilesdir}
+    --with-systemdtmpfilesdir=%{_tmpfilesdir} \
+%endif
 	--with-pkg-name=%{name} \
 	--with-ras-set=%{rasset}
 
@@ -255,6 +258,9 @@ rm -rf %{buildroot}
 
 %if %{defined _unitdir}
 %{_unitdir}/resource-agents-deps.target
+%endif
+%if %{defined _tmpfilesdir}
+%{_tmpfilesdir}/%{name}.conf
 %endif
 
 %dir %{_datadir}/%{name}
