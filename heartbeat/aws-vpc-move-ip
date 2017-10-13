@@ -1,0 +1,306 @@
+#!/bin/sh
+#
+#
+# OCF resource agent to move an IP address within a VPC in the AWS
+#
+# Copyright (c) 2017 Markus Guertler (SUSE)
+# Based on code of Adam Gandelman (GitHub ec2-resource-agents/elasticip)
+# All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_awscli_default="/usr/bin/aws"
+OCF_RESKEY_profile_default="default"
+OCF_RESKEY_monapi_default="false"
+
+: ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
+: ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
+: ${OCF_RESKEY_monapi=${OCF_RESKEY_monapi_default}}
+#######################################################################
+
+
+USAGE="usage: $0 {start|stop|status|meta-data}";
+###############################################################################
+
+
+###############################################################################
+#
+# Functions
+#
+###############################################################################
+
+
+metadata() {
+cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="aws-vpc-move-ip">
+<version>2.0</version>
+<longdesc lang="en">
+Resource Agent to move IP addresses within a VPC of the Amazon Webservices EC2
+by changing an entry in an specific routing table
+</longdesc>
+<shortdesc lang="en">Move IP within a APC of the AWS EC2</shortdesc>
+
+<parameters>
+<parameter name="awscli">
+<longdesc lang="en">
+Path to command line tools for AWS
+</longdesc>
+<shortdesc lang="en">Path to AWS CLI tools</shortdesc>
+<content type="string" default="${OCF_RESKEY_awscli_default}" />
+</parameter>
+
+<parameter name="profile">
+<longdesc lang="en">
+Valid AWS CLI profile name (see ~/.aws/config and 'aws configure')
+</longdesc>
+<shortdesc lang="en">profile name</shortdesc>
+<content type="string" default="${OCF_RESKEY_profile_default}" />
+</parameter>
+
+<parameter name="ip" required="1">
+<longdesc lang="en">
+VPC private IP address
+</longdesc>
+<shortdesc lang="en">VPC private IP</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="routing_table" required="1">
+<longdesc lang="en">
+Name of the routing table, where the route for the IP address should be changed, i.e. rtb-...
+</longdesc>
+<shortdesc lang="en">routing table name</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="interface" required="1">
+<longdesc lang="en">
+Name of the network interface, i.e. eth0
+</longdesc>
+<shortdesc lang="en">network interface name</shortdesc>
+<content type="string" default="eth0" />
+</parameter>
+
+<parameter name="monapi">
+<longdesc lang="en">
+Enable enhanced monitoring using AWS API calls to check route table entry
+</longdesc>
+<shortdesc lang="en">Enhanced Monitoring</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_monapi_default}" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="180" />
+<action name="stop" timeout="180" />
+<action name="monitor" depth="0" timeout="30" interval="60" />
+<action name="validate-all" timeout="5" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+ec2ip_validate() {
+	for cmd in aws ip curl; do
+		check_binary "$cmd"
+	done
+
+	if [ -z "$OCF_RESKEY_profile" ]; then
+		ocf_exit_reason "profile parameter not set"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	EC2_INSTANCE_ID="$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"
+
+	if [ -z "${EC2_INSTANCE_ID}" ]; then
+		ocf_exit_reason "Instance ID not found. Is this a EC2 instance?"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+ec2ip_monitor() {
+	if ocf_is_true ${OCF_RESKEY_monapi} || [ "$__OCF_ACTION" = "start" ]; then
+		ocf_log info "monitor: check routing table (API call)"
+		cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 describe-route-tables --route-table-ids $OCF_RESKEY_routing_table"
+		ocf_log debug "executing command: $cmd"
+		ROUTE_TO_INSTANCE="$($cmd | grep $OCF_RESKEY_ip | awk '{ print $3 }')"
+		if [ -z "$ROUTE_TO_INSTANCE" ]; then
+			ROUTE_TO_INSTANCE="<unknown>"
+		fi
+
+		if [ "$EC2_INSTANCE_ID" != "$ROUTE_TO_INSTANCE" ];then 
+			ocf_log warn "not routed to this instance ($EC2_INSTANCE_ID) but to instance $ROUTE_TO_INSTANCE"
+			return $OCF_NOT_RUNNING
+		fi
+	else
+		ocf_log debug "monitor: Enhanced Monitoring disabled - omitting API call"
+	fi
+
+	cmd="ping -W 1 -c 1 $OCF_RESKEY_ip"
+	ocf_log debug "executing command: $cmd"
+	$cmd > /dev/null
+	if [ "$?" -gt 0 ]; then
+		ocf_log warn "IP $OCF_RESKEY_ip not locally reachable via ping on this system"
+		return $OCF_NOT_RUNNING
+	fi
+
+	ocf_log debug "route in VPC and locally reachable"
+	return $OCF_SUCCESS
+}
+
+
+ec2ip_drop() {
+	cmd="ip addr delete ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface"
+	ocf_log debug "executing command: $cmd"
+	$cmd
+	rc=$?
+	if [ "$rc" -gt 0 ]; then
+		ocf_log warn "command failed, rc $rc"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+ec2ip_get_and_configure() {
+	# Adjusting the routing table
+	cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile ec2 replace-route --route-table-id $OCF_RESKEY_routing_table --destination-cidr-block ${OCF_RESKEY_ip}/32 --instance-id $EC2_INSTANCE_ID"
+	ocf_log debug "executing command: $cmd"
+	$cmd
+	rc=$?
+	if [ "$rc" != 0 ]; then
+		ocf_log warn "command failed, rc: $rc"
+		return $OCF_ERR_GENERIC
+	fi
+
+	# Reconfigure the local ip address
+	ec2ip_drop
+	ip addr add "${OCF_RESKEY_ip}/32" dev $OCF_RESKEY_interface
+	rc=$?
+	if [ $rc != 0 ]; then
+		ocf_log warn "command failed, rc: $rc"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+ec2ip_stop() {
+	ocf_log info "EC2: Bringing down IP address $OCF_RESKEY_ip"
+
+	ec2ip_monitor
+	if [ $? = $OCF_NOT_RUNNING ]; then
+		ocf_log info "EC2: Address $OCF_RESKEY_ip already down"
+		return $OCF_SUCCESS
+	fi
+
+	ec2ip_drop
+	if [ $? != $OCF_SUCCESS ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	ec2ip_monitor
+	if [ $? != $OCF_NOT_RUNNING ]; then
+		ocf_log error "EC2: Couldn't bring down IP address $OCF_RESKEY_ip on interface $OCF_RESKEY_interface."
+		return $OCF_ERR_GENERIC
+	fi
+
+	ocf_log info "EC2: Successfully brought down $OCF_RESKEY_ip"
+	return $OCF_SUCCESS
+}
+
+ec2ip_start() {
+	ocf_log info "EC2: Moving IP address $OCF_RESKEY_ip to this host by adjusting routing table $OCF_RESKEY_routing_table"
+
+	ec2ip_monitor
+	if [ $? = $OCF_SUCCESS ]; then
+		ocf_log info "EC2: $OCF_RESKEY_ip already started"
+		return $OCF_SUCCESS
+	fi
+
+	ocf_log info "EC2: Adjusting routing table and locally configuring IP address"
+	ec2ip_get_and_configure
+	rc=$?
+	if [ $rc != $OCF_SUCCESS ]; then
+		ocf_log error "Received $rc from 'aws'"
+		return $OCF_ERR_GENERIC
+	fi
+
+	ec2ip_monitor
+	if [ $? != $OCF_SUCCESS ]; then
+		ocf_log error "EC2: IP address couldn't be configured on this host (IP: $OCF_RESKEY_ip, Interface: $OCF_RESKEY_interface)"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+###############################################################################
+#
+# MAIN
+#
+###############################################################################
+
+case $__OCF_ACTION in
+	meta-data)
+		metadata
+		exit $OCF_SUCCESS
+		;;
+	usage|help)
+		echo $USAGE
+		exit $OCF_SUCCESS
+		;;
+esac
+
+if ! ocf_is_root; then
+	ocf_log err "You must be root for $__OCF_ACTION operation."
+	exit $OCF_ERR_PERM
+fi
+
+ec2ip_validate
+
+case $__OCF_ACTION in
+	start)
+		ec2ip_start;;
+	stop)
+		ec2ip_stop;;
+	monitor)
+		ec2ip_monitor;;
+	validate-all)
+		exit $?;;
+	*)	
+		echo $USAGE
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac

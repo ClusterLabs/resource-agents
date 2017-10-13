@@ -92,6 +92,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			anything		\
 			apache			\
 			asterisk		\
+			aws-vpc-move-ip		\
 			aws-vpc-route53		\
 			awseip			\
 			awsvip			\
