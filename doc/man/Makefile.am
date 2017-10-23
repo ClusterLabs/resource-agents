@@ -95,6 +95,10 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_anything.7 \
                           ocf_heartbeat_apache.7 \
                           ocf_heartbeat_asterisk.7 \
+                          ocf_heartbeat_aws-vpc-move-ip.7 \
+                          ocf_heartbeat_aws-vpc-route53.7 \
+                          ocf_heartbeat_awseip.7 \
+                          ocf_heartbeat_awsvip.7 \
                           ocf_heartbeat_clvm.7 \
                           ocf_heartbeat_conntrackd.7 \
                           ocf_heartbeat_db2.7 \
