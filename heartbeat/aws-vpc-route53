@@ -215,7 +215,11 @@ ec2ip_stop() {
 		# Patch file
 		ocf_log debug "function ec2ip_stop: will delete IP address to ${IPADDRESS}"
 		ocf_log info "EC2: Updating Route53 $OCF_RESKEY_hostedzoneid with $IPADDRESS for $OCF_RESKEY_fullname"
-		ROUTE53RECORD="/var/tmp/route53-${OCF_RESKEY_hostedzoneid}-${IPADDRESS}.json"
+		ROUTE53RECORD="$(maketempfile)"
+		if [ $? -ne 0 ] || [ -z "$ROUTE53RECORD" ]; then
+			ocf_exit_reason "Failed to create temporary file for record update"
+			exit $OCF_ERR_GENERIC
+		fi
 		echo "{ " > ${ROUTE53RECORD}
 		echo "	  \"Comment\": \"Update record to reflect new IP address for a system \", " >>	${ROUTE53RECORD}
 		echo "	  \"Changes\": [ " >>  ${ROUTE53RECORD}
@@ -239,7 +243,7 @@ ec2ip_stop() {
 		ocf_log debug "function ec2ip_start: executing command: $cmd"
 		CHANGEID=$($cmd | grep CHANGEINFO |	 /usr/bin/awk -F'\t' '{ print $3 }' )
 		ocf_log debug "Change id: ${CHANGEID}"
-		rm ${ROUTE53RECORD}
+		rmtempfile ${ROUTE53RECORD}
 		CHANGEID=$(echo $CHANGEID |cut -d'/' -f 3 |cut -d'"' -f 1 )
 		ocf_log debug "Change id: ${CHANGEID}"
 		STATUS="PENDING"
@@ -262,7 +266,11 @@ ec2ip_start() {
 	# Patch file
 	ocf_log debug "function ec2ip_start: will update IP address to ${IPADDRESS}"
 	ocf_log info "EC2: Updating Route53 $OCF_RESKEY_hostedzoneid with $IPADDRESS for $OCF_RESKEY_fullname"
-	ROUTE53RECORD="/var/tmp/route53-${OCF_RESKEY_hostedzoneid}-${IPADDRESS}.json"
+	ROUTE53RECORD="$(maketempfile)"
+	if [ $? -ne 0 ] || [ -z "$ROUTE53RECORD" ]; then
+		ocf_exit_reason "Failed to create temporary file for record update"
+		exit $OCF_ERR_GENERIC
+	fi
 	echo "{ " > ${ROUTE53RECORD}
 	echo "    \"Comment\": \"Update record to reflect new IP address for a system \", " >>  ${ROUTE53RECORD}
 	echo "    \"Changes\": [ " >>  ${ROUTE53RECORD}
@@ -286,7 +294,7 @@ ec2ip_start() {
 	ocf_log debug "function ec2ip_start: executing command: $cmd"
 	CHANGEID=$($cmd | grep CHANGEINFO |  /usr/bin/awk -F'\t' '{ print $3 }' )
 	ocf_log debug "Change id: ${CHANGEID}"
-	rm ${ROUTE53RECORD}
+	rmtempfile ${ROUTE53RECORD}
 	CHANGEID=$(echo $CHANGEID |cut -d'/' -f 3 |cut -d'"' -f 1 )
 	ocf_log debug "Change id: ${CHANGEID}"
 	STATUS="PENDING"
