@@ -67,21 +67,21 @@ hosted zone ID table.
 
 AWS instances will require policies which allow them to update Route53 ARecords:
 {
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "Stmt1471878724000",
-            "Effect": "Allow",
-            "Action": [
-                "route53:ChangeResourceRecordSets",
-                "route53:GetChange",
-                "route53:ListResourceRecordSets",
-            ],
-            "Resource": [
-                "*"
-            ]
-        }
-    ]
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "Stmt1471878724000",
+			"Effect": "Allow",
+			"Action": [
+				"route53:ChangeResourceRecordSets",
+				"route53:GetChange",
+				"route53:ListResourceRecordSets",
+			],
+			"Resource": [
+				"*"
+			]
+		}
+	]
 }
 
 Example Cluster Configuration:
@@ -90,11 +90,11 @@ Use a configuration in "crm configure edit" which looks as follows. Replace
 hostedzoneid, fullname and profile with the appropriate values:
 
 primitive res_route53 ocf:heartbeat:aws-vpc-route53 \
-        params hostedzoneid=EX4MPL3EX4MPL3 fullname=service.cloud.example.corp. profile=cluster \
-        op start interval=0 timeout=180 \
-        op stop interval=0 timeout=180 \
-        op monitor interval=300 timeout=180 \
-        meta target-role=Started
+		params hostedzoneid=EX4MPL3EX4MPL3 fullname=service.cloud.example.corp. profile=cluster \
+		op start interval=0 timeout=180 \
+		op stop interval=0 timeout=180 \
+		op monitor interval=300 timeout=180 \
+		meta target-role=Started
 </longdesc>
 <shortdesc lang="en">Update Route53 VPC record for AWS EC2</shortdesc>
 <parameters>
@@ -200,6 +200,52 @@ ec2ip_monitor() {
 	return $OCF_SUCCESS
 }
 
+_update_record() {
+	update_action="$1"
+	IPADDRESS="$2"
+	ocf_log info "EC2: Updating Route53 $OCF_RESKEY_hostedzoneid with $IPADDRESS for $OCF_RESKEY_fullname"
+	ROUTE53RECORD="$(maketempfile)"
+	if [ $? -ne 0 ] || [ -z "$ROUTE53RECORD" ]; then
+		ocf_exit_reason "Failed to create temporary file for record update"
+		exit $OCF_ERR_GENERIC
+	fi
+	cat >>"${ROUTE53RECORD}" <<-EOF
+	{
+		  "Comment": "Update record to reflect new IP address for a system ",
+		  "Changes": [
+			  {
+				  "Action": "${update_action}",
+				  "ResourceRecordSet": {
+					  "Name": "${OCF_RESKEY_fullname}",
+					  "Type": "A",
+					  "TTL": ${OCF_RESKEY_ttl},
+					  "ResourceRecords": [
+						  {
+							  "Value": "${IPADDRESS}"
+						  }
+					  ]
+				  }
+			  }
+		  ]
+	}
+	EOF
+	cmd="aws --profile ${OCF_RESKEY_profile} route53 change-resource-record-sets --hosted-zone-id ${OCF_RESKEY_hostedzoneid} \
+	  --change-batch file://${ROUTE53RECORD} "
+	ocf_log debug "function ec2ip_start: executing command: $cmd"
+	CHANGEID=$($cmd | grep CHANGEINFO |	 /usr/bin/awk -F'\t' '{ print $3 }' )
+	ocf_log debug "Change id: ${CHANGEID}"
+	rmtempfile ${ROUTE53RECORD}
+	CHANGEID=$(echo $CHANGEID |cut -d'/' -f 3 |cut -d'"' -f 1 )
+	ocf_log debug "Change id: ${CHANGEID}"
+	STATUS="PENDING"
+	MYSECONDS=2
+	while [ "$STATUS" = 'PENDING' ]; do
+		sleep	${MYSECONDS}
+		STATUS="$(aws --profile ${OCF_RESKEY_profile} route53 get-change --id $CHANGEID | grep CHANGEINFO |  /usr/bin/awk -F'\t' '{ print $4 }' |cut -d'"' -f 2 )"
+		ocf_log debug "Waited for ${MYSECONDS} seconds and checked execution of Route 53 update status: ${STATUS} "
+	done
+}
+
 ec2ip_stop() {
 	ocf_log info "EC2: Bringing down Route53 agent. (Will remove ARECORD)"
 	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
@@ -214,49 +260,11 @@ ec2ip_stop() {
 		IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
 		# Patch file
 		ocf_log debug "function ec2ip_stop: will delete IP address to ${IPADDRESS}"
-		ocf_log info "EC2: Updating Route53 $OCF_RESKEY_hostedzoneid with $IPADDRESS for $OCF_RESKEY_fullname"
-		ROUTE53RECORD="$(maketempfile)"
-		if [ $? -ne 0 ] || [ -z "$ROUTE53RECORD" ]; then
-			ocf_exit_reason "Failed to create temporary file for record update"
-			exit $OCF_ERR_GENERIC
-		fi
-		echo "{ " > ${ROUTE53RECORD}
-		echo "	  \"Comment\": \"Update record to reflect new IP address for a system \", " >>	${ROUTE53RECORD}
-		echo "	  \"Changes\": [ " >>  ${ROUTE53RECORD}
-		echo "		  { " >>  ${ROUTE53RECORD}
-		echo "			  \"Action\": \"DELETE\", " >>	${ROUTE53RECORD}
-		echo "			  \"ResourceRecordSet\": { " >>	 ${ROUTE53RECORD}
-		echo "				  \"Name\": \"${OCF_RESKEY_fullname}\", " >>  ${ROUTE53RECORD}
-		echo "				  \"Type\": \"A\", " >>	 ${ROUTE53RECORD}
-		echo "				  \"TTL\": ${OCF_RESKEY_ttl}, " >>	${ROUTE53RECORD}
-		echo "				  \"ResourceRecords\": [ " >>  ${ROUTE53RECORD}
-		echo "					  { " >>  ${ROUTE53RECORD}
-		echo "						  \"Value\": \"${IPADDRESS}\" " >>	${ROUTE53RECORD}
-		echo "					  } " >>  ${ROUTE53RECORD}
-		echo "				  ] " >>  ${ROUTE53RECORD}
-		echo "			  } " >>  ${ROUTE53RECORD}
-		echo "		  } " >>  ${ROUTE53RECORD}
-		echo "	  ] " >>  ${ROUTE53RECORD}
-		echo "}" >> ${ROUTE53RECORD}
-		cmd="aws --profile ${OCF_RESKEY_profile} route53 change-resource-record-sets --hosted-zone-id ${OCF_RESKEY_hostedzoneid} \
-		  --change-batch file://${ROUTE53RECORD} "
-		ocf_log debug "function ec2ip_start: executing command: $cmd"
-		CHANGEID=$($cmd | grep CHANGEINFO |	 /usr/bin/awk -F'\t' '{ print $3 }' )
-		ocf_log debug "Change id: ${CHANGEID}"
-		rmtempfile ${ROUTE53RECORD}
-		CHANGEID=$(echo $CHANGEID |cut -d'/' -f 3 |cut -d'"' -f 1 )
-		ocf_log debug "Change id: ${CHANGEID}"
-		STATUS="PENDING"
-		MYSECONDS=2
-		while [ "$STATUS" = 'PENDING' ]; do
-			sleep	${MYSECONDS}
-			STATUS="$(aws --profile ${OCF_RESKEY_profile} route53 get-change --id $CHANGEID | grep CHANGEINFO |  /usr/bin/awk -F'\t' '{ print $4 }' |cut -d'"' -f 2 )"
-			ocf_log debug "Waited for ${MYSECONDS} seconds and checked execution of Route 53 update status: ${STATUS} "
-		done
 
 		return $OCF_SUCCESS
 	fi
 
+	_update_record "DELETE" "$IPADDRESS"
 	return $OCF_SUCCESS
 }
 
@@ -264,47 +272,7 @@ ec2ip_start() {
 	# determine IP address
 	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
 	# Patch file
-	ocf_log debug "function ec2ip_start: will update IP address to ${IPADDRESS}"
-	ocf_log info "EC2: Updating Route53 $OCF_RESKEY_hostedzoneid with $IPADDRESS for $OCF_RESKEY_fullname"
-	ROUTE53RECORD="$(maketempfile)"
-	if [ $? -ne 0 ] || [ -z "$ROUTE53RECORD" ]; then
-		ocf_exit_reason "Failed to create temporary file for record update"
-		exit $OCF_ERR_GENERIC
-	fi
-	echo "{ " > ${ROUTE53RECORD}
-	echo "    \"Comment\": \"Update record to reflect new IP address for a system \", " >>  ${ROUTE53RECORD}
-	echo "    \"Changes\": [ " >>  ${ROUTE53RECORD}
-	echo "        { " >>  ${ROUTE53RECORD}
-	echo "            \"Action\": \"UPSERT\", " >>  ${ROUTE53RECORD}
-	echo "            \"ResourceRecordSet\": { " >>  ${ROUTE53RECORD}
-	echo "                \"Name\": \"${OCF_RESKEY_fullname}\", " >>  ${ROUTE53RECORD}
-	echo "                \"Type\": \"A\", " >>  ${ROUTE53RECORD}
-	echo "                \"TTL\": ${OCF_RESKEY_ttl} , " >>  ${ROUTE53RECORD}
-	echo "                \"ResourceRecords\": [ " >>  ${ROUTE53RECORD}
-	echo "                    { " >>  ${ROUTE53RECORD}
-	echo "                        \"Value\": \"${IPADDRESS}\" " >>  ${ROUTE53RECORD}
-	echo "                    } " >>  ${ROUTE53RECORD}
-	echo "                ] " >>  ${ROUTE53RECORD}
-	echo "            } " >>  ${ROUTE53RECORD}
-	echo "        } " >>  ${ROUTE53RECORD}
-	echo "    ] " >>  ${ROUTE53RECORD}
-	echo "}" >> ${ROUTE53RECORD}
-	cmd="aws --profile ${OCF_RESKEY_profile} route53 change-resource-record-sets --hosted-zone-id ${OCF_RESKEY_hostedzoneid} \
-	  --change-batch file://${ROUTE53RECORD} "
-	ocf_log debug "function ec2ip_start: executing command: $cmd"
-	CHANGEID=$($cmd | grep CHANGEINFO |  /usr/bin/awk -F'\t' '{ print $3 }' )
-	ocf_log debug "Change id: ${CHANGEID}"
-	rmtempfile ${ROUTE53RECORD}
-	CHANGEID=$(echo $CHANGEID |cut -d'/' -f 3 |cut -d'"' -f 1 )
-	ocf_log debug "Change id: ${CHANGEID}"
-	STATUS="PENDING"
-	MYSECONDS=2
-	while [ "$STATUS" = 'PENDING' ]; do
-		sleep  ${MYSECONDS}
-		STATUS="$(aws --profile ${OCF_RESKEY_profile} route53 get-change --id $CHANGEID | grep CHANGEINFO |  /usr/bin/awk -F'\t' '{ print $4 }' |cut -d'"' -f 2 )"
-		ocf_log debug "Waited for ${MYSECONDS} seconds and checked execution of Route 53 update status: ${STATUS} "
-	done
-
+	_update_record "UPSERT" "$IPADDRESS"
 	return $OCF_SUCCESS
 }
 
