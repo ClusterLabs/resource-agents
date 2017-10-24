@@ -155,6 +155,27 @@ will persist after the container stops.
 <content type="boolean"/>
 </parameter>
 
+<parameter name="query_docker_health" required="0" unique="0">
+<longdesc lang="en">
+Query the builtin healthcheck of docker (v1.12+) to determine health of the
+container. If left empty or set to false it will not be used.
+
+The healthcheck itself has to be configured within docker, e.g. via
+HEALTHCHECK in Dockerfile. This option just queries in what condition
+docker considers the container to be and lets ocf do its thing accordingly.
+
+Note that the time a container is in "starting" state counts against the
+monitor timeout.
+
+This is an additional check besides the standard check for the container
+to be running, and the optional monitor_cmd check. It doesn't disable or
+override them, so all of them (if used) have to come back healthy for the
+container to be considered healthy.
+</longdesc>
+<shortdesc lang="en">use healthcheck</shortdesc>
+<content type="boolean"/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -258,11 +279,58 @@ docker_simple_status()
 	return $OCF_NOT_RUNNING
 }
 
+docker_health_status()
+{
+
+	if ocf_is_true "$OCF_RESKEY_query_docker_health"; then
+                local val
+
+                container_exists
+                if [ $? -ne 0 ]; then
+                        return $OCF_NOT_RUNNING
+                fi
+
+                # retrieve the 'Health' attribute for the container
+                # This is a bash-style do-while loop to wait until instance is started.
+                # if starting takes longer than monitor timeout then upstream will make this fail.
+                while
+
+                        val=$(docker inspect --format {{.State.Health.Status}} $CONTAINER 2>/dev/null)
+                        if [ $? -ne 0 ]; then
+                                #not healthy as a result of container not being found
+                                return $OCF_NOT_RUNNING
+                        fi
+                        test "$val" = "starting"
+                do
+
+                        sleep 1
+                done
+
+                if [ "$val" = "healthy" ]; then
+                        # container exists and is healthy
+                        return $OCF_SUCCESS
+                fi
+
+                return $OCF_NOT_RUNNING
+	fi
+
+	return 0
+}
+
+
+
 docker_monitor()
 {
 	local rc=0
 
 	docker_simple_status
+	rc=$?
+
+	if [ $rc -ne 0 ]; then
+		return $rc
+	fi
+
+	docker_health_status
 	rc=$?
 
 	if [ $rc -ne 0 ]; then
