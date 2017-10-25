@@ -161,7 +161,7 @@ recover|restart)
 	;;
 
 meta-data)
-	cat `echo $0 | sed 's/^\(.*\)\.sh$/\1.metadata/'`
+	cat ${0/.sh/.metadata}
 	;;
 
 validate-all|verify-all)
