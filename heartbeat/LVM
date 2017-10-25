@@ -310,6 +310,18 @@ LVM_status() {
 			fi
 		fi
 	fi
+
+	# Check if VG is still available (e.g. for multipath where the device
+	# doesn't disappear)
+	if [ "$LVM_MAJOR" -eq "1" ]; then
+		output=$(vgscan $vg 2>&1)
+	else
+		output=$(vgscan --cache 2>&1)
+	fi
+	if ! echo "$output" | grep -q "Found.*\"$1\""; then
+		ocf_exit_reason "LVM Volume $1 is not available"
+		return $OCF_ERR_GENERIC
+	fi
 	
 	if [ -d /dev/$1 ]; then
 		test "`cd /dev/$1 && ls`" != ""
