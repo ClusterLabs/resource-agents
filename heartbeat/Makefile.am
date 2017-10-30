@@ -164,6 +164,9 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  http-mon.sh    	\
 			  sapdb-nosha.sh	\
 			  sapdb.sh		\
+			  lvm-clvm.sh       \
+			  lvm-plain.sh      \
+			  lvm-tag.sh        \
 			  ora-common.sh		\
 			  mysql-common.sh	\
 			  nfsserver-redhat.sh	\
