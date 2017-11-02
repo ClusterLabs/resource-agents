@@ -759,10 +759,10 @@ nfsserver_stop ()
 	case $EXEC_MODE in
             [23]) ocf_log info "Stop: threads"
 		  tfn="/proc/fs/nfsd/threads"
-		  if [ -f "$tfn" ] && [ "$(cat $tfn)" -gt "0" ]; then
-			ocf_exit_reason "NFS server failed to stop: /proc/fs/nfsd/threads"
-			return $OCF_ERR_GENERIC
-		  fi
+		  while [ -f "$tfn" ] && [ "$(cat $tfn)" -gt "0" ]; do
+			ocf_log err "NFS server failed to stop: /proc/fs/nfsd/threads"
+			sleep 1
+		  done
 
 		  nfs_exec stop rpc-statd > /dev/null 2>&1
 		  ocf_log info "Stop: rpc-statd"
