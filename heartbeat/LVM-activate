@@ -33,30 +33,6 @@
 # the new features: lvmlockd and system ID, and also supports the old features:
 # clvmd and lvm tag.
 #
-# For LVM activation, we already have an old resource agent "LVM" that supports
-# LVM1, clvmd and lvm tag. Some reasons why we tend to create a new one rather
-# than changing the old:
-# 1. "LVM" supports clvmd and some legacy things. The code looks very messy,
-# which make it difficult to extend for new features, and ensure everything
-# works correctly with huge changes.
-#
-# 2. We want this new RA to do the activation work in a much more safe way by
-# leveraging the new features and activating at VG or LV basis depending on
-# your choice.
-#
-# We will leave the old RA alone while the new one is phased in. In order to replace
-# the old RA smoothly, this RA also tries to support the functionalities of the old
-# RA and inevitably copies some code from the LVM RA.
-#
-# WARNINGS:
-# 1. We support two configure combinations: lvmlockd+LVM-activate and clvm+LVM-activate.
-#    But, you cannot use them in your cluster at the same time!
-# 2. Please put all "lvmlockd"/"clvmd" volume group into auto management by RA,
-#    once you choose pacemaker to manage one of them.  If you manage some
-#    by hand, the stop action of lvmlockd RA may fail and the node may get
-#    fenced consequently, because some DLM lockspaces might be in use and
-#    cannot be closed automatically.
-#
 # Thanks David Teigland! He is the author of these LVM features, giving valuable
 # idea/feedback about this resource agent.
 ############################################################################
@@ -73,7 +49,7 @@ LV=${OCF_RESKEY_lvname}
 
 # How LVM controls access to the VG:
 #
-# 0: place-holder for any incorrect casees; To be safe, we enforce the VG
+# 0: place-holder for any incorrect cases; To be safe, we enforce the VG
 #    must use any of the following protection methods in cluster environment.
 # 1: vg is shared - lvmlockd (new)
 # 2: vg is clustered - clvmd (old)
@@ -105,7 +81,17 @@ meta_data() {
 <longdesc lang="en">
 This agent manages LVM activation/deactivation work for a given volume group.
 It supports both new features: lvmlockd and system ID, and old features:
-clvmd and lvm tag. Please use the new features as possible as you can!
+clvmd and lvm tag.
+
+Notes:
+
+1. There are two possible configuration combinations: lvmlockd+LVM-activate and
+clvm+LVM-activate. However, it is not possible to use both at the same time!
+
+2. Put all "lvmlockd"/"clvmd" volume groups into auto management by the agent
+if using the cluster to manage at least one of them.  If you manage some manually,
+the stop action of the lvmlockd agent may fail and the node may get fenced,
+because some DLM lockspaces might be in use and cannot be closed automatically.
 </longdesc>
 <shortdesc lang="en">This agent activates/deactivates logical volumes.</shortdesc>
 
