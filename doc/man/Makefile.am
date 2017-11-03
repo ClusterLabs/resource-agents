@@ -69,6 +69,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_IPaddr2.7 \
                           ocf_heartbeat_IPsrcaddr.7 \
                           ocf_heartbeat_LVM.7 \
+                          ocf_heartbeat_LVM-activate.7 \
                           ocf_heartbeat_LinuxSCSI.7 \
                           ocf_heartbeat_MailTo.7 \
                           ocf_heartbeat_ManageRAID.7 \
@@ -119,6 +120,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_iscsi.7 \
                           ocf_heartbeat_jboss.7 \
                           ocf_heartbeat_kamailio.7 \
+                          ocf_heartbeat_lvmlockd.7 \
                           ocf_heartbeat_lxc.7 \
                           ocf_heartbeat_mysql.7 \
                           ocf_heartbeat_mysql-proxy.7 \
