@@ -80,8 +80,13 @@ meta_data() {
 
 <longdesc lang="en">
 This agent manages LVM activation/deactivation work for a given volume group.
-It supports both new features: lvmlockd and system ID, and old features:
-clvmd and lvm tag.
+
+It supports the following modes, controlled by the vg_access_mode parameter:
+
+* lvmlockd
+* system_id
+* clvmd
+* tagging
 
 Notes:
 
