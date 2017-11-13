@@ -156,7 +156,7 @@ sendarp_start() {
     fi
 
 
-    ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $INTERFACE $BASEIP auto $BASEIP $ARP_NETMASK"
+    ARGS="-i $ARP_INTERVAL_MS -c $ARP_REPEAT -p $SENDARPPIDFILE -I $INTERFACE -m auto $BASEIP"
     ocf_log debug "$SENDARP $ARGS"
 
     rc=$OCF_SUCCESS
