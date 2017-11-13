@@ -1234,6 +1234,16 @@ control_slave_status() {
                 change_pgsql_status "$target" "HS:connected"
                 ;;
         esac
+        
+        # When failover occures in multiple synchronous replication,
+        # the temporary attribute "$PGSQL_XLOG_LOC_NAME" may remain
+        # in the low priority SYNC node.  
+        if [ "$OCF_RESKEY_rep_mode" = "sync" ] && [ $number_of_nodes -ge 3 ]; then
+            $CRM_ATTR_REBOOT -N "$target" -n "$PGSQL_XLOG_LOC_NAME" -G -q > /dev/null 2>&1
+            if [ $? -eq 0 ]; then
+                delete_xlog_location $target
+            fi
+        fi
     done
     return 0
 }
@@ -1504,7 +1514,15 @@ show_xlog_location() {
 
 # On postgreSQL 10 or later, "xlog_location" means "wal_lsn".
 delete_xlog_location() {
-    exec_with_retry 5 $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_XLOG_LOC_NAME" -D
+    local target
+
+    if [ -n "$1" ]; then
+        target="$1"
+    else
+        target="$NODENAME"
+    fi
+
+    exec_with_retry 5 $CRM_ATTR_REBOOT -N "$target" -n "$PGSQL_XLOG_LOC_NAME" -D
 }
 
 show_master_baseline() {
