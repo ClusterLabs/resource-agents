@@ -1,3 +1,75 @@
+* Tue Nov 14 2017 resource-agents contributors
+- release candidate 4.1.0 rc1
+- nfsserver: allow stop to timeout
+- LVM-activate: add new RA for LVM activation
+- docker: add docker-native healthcheck query
+- aws-vpc-route53: Fix tempfile race (bsc#1059312)
+- aws-vpc-move-ip: cleanup and improvements
+- pgsql: add support for PostgreSQL 10
+- rabbitmq-cluster/redis/galera use ocf_attribute_target
+- ocf-shellfuncs: add ocf_attribute_target()
+- rabbitmq-cluster: Use RMQ_CTL var everywhere instead of rabbitmqctl
+- CI: add libxml2-utils to package list
+- systemd-tmpfiles: create the resource-agents directory
+- rkt: new RA
+- lvmlockd: new RA
+- galera: fix instance name in master_exists()
+- Route: remove debug output
+- Route: add family attribute to set address family
+- galera: honor "safe_to_bootstrap" flag in grastate.dat
+- VirtualDomain: add shutdown_mode attribute
+- aws-vpc-route53: new RA (fate#322781)
+- awseip/awsvip: fixes and improvements
+- ZFS: new RA
+- minio: new RA
+- CTDB: don't fail on empty persistent directory (bsc#1052577)
+- sapdb.sh: add hdbnameserver to monitor services
+- VirtualDomain: new attributes migrateuri, remoteuri, migration_user
+- Raid1: handle case when mddev is a symlink
+- portblock: suppress dd output
+- kamailio: fixes and enhancements for v5.0
+- ocf-shellfuncs: improve locking (ocf_take_lock())
+- anything: create PID directory if it doesnt exist
+- anything: allow multiple instances of binfiles to be run (pidfile will be unique)
+- mysql: properly detect read-only state
+- iSCSILogicalUnit: add emulate_tpu, emulate_3pc and emulate_caw parameters
+- fs.sh: fix builds when srcdir and builddir are seperated
+- LVM: warn when cache mode is not writethrough
+- nginx: fix return code when configfile check fails
+- SAPInstance: Add IS_ERS parameter (bsc#1036486)
+- systemd: add resource-agents-deps target
+- ocf-shellfuncs: simplify ocf_run returned rc
+- docker: add mount_points parameter to create directories used by container if they doesnt exist
+- IPaddr2: add option for specifying IPv6's preferred_lft
+- galera: fix master target during promotion with cluster_host_map
+- rabbitmq-cluster: backup and restore policies
+- DB2: fix HADR support for DB2 V98+
+- pgsql: fix regex to detect async mode
+- rabbitmq-cluster: fix to work on Pacemaker remote nodes
+- oraasm: new RA for Oracle ASM Disk Groups
+- pgsql: fix undefined variable
+- ovsmonitor: new RA
+- NodeUtilization: new RA
+- CTDB: fix for --logfile being replaced with --logging
+- pgsql: allow dynamic membership
+- redis: wait for pid file to appear after start
+- redis: add check and default for redis-check-rdb
+- named: add support for rndc options
+- docker: deal with image name correctly
+- iSCSILogicalUnit: replace openssl with md5sum
+- ra-dev-guide: fix description of OCF_ERR_ARGS
+- clvm: remove reload action from metadata
+- galera: fix the first bootstrap when cluster has no data
+- galera: fix permission of temporary log file for mariadb 10.1.21+
+- kamailio: add kamctl, kamgroup and extra_options parameters
+- ocf_log: use same log format as pacemaker
+- pgsql: replace "crm_failcount" with "crm_resource"
+- ocf-shellfuncs: ocf_run: avoid shell glob expansion of log messages
+- iSCSILogicalUnit: add lio-t IPv6-support
+- iSCSILogicalUnit/iSCSITarget: protect targetcli invocations with locks
+- mysql: set correct master score after maintenance mode
+- varnish: add support for v4.0
+
 * Thu Feb  2 2017 resource-agents contributors
 - stable release 4.0.1
 - galera: remove "long SST monitoring" support due to corner-case issues
