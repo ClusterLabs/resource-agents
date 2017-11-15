@@ -307,18 +307,19 @@ apache_stop() {
 	graceful_stop $pid
 	if [ $? -ne 0 ]; then
 		kill_stop $pid
+	fi
 
-		if ProcessRunning $pid; then
-			ocf_exit_reason "$CMD still running ($pid). Killing pid failed."
-			ret=$OCF_ERR_GENERIC
-		fi
+	signal_children
+
+	if ProcessRunning $pid; then
+		ocf_exit_reason "$CMD still running ($pid). Killing pid failed."
+		ret=$OCF_ERR_GENERIC
 	fi
 
 	if [ $ret -eq 0 ]; then
 		ocf_log info "$CMD stopped."
 	fi
 
-	signal_children
 	return $ret
 }
 
