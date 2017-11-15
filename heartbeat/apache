@@ -278,17 +278,19 @@ kill_stop()
 	local pid=$1
 
 	ocf_log info "Killing apache PID $pid"
-	while
-		ProcessRunning $pid &&
-		[ $tries -lt 10 ]
-	do
-		if [ $tries -ne 0 ]; then
-			# don't sleep on the first try
-			sleep 1
-		fi
-		kill $pid >/dev/null 
-		tries=`expr $tries + 1`
-	done
+	if ProcessRunning $pid; then
+		kill $pid >/dev/null
+		while
+			[ $tries -lt 10 ]
+		do
+			if ProcessRunning $pid; then
+				tries=`expr $tries + 1`
+				sleep 1
+			else
+				break
+			fi
+		done
+	fi
 }
 
 apache_stop() {
@@ -305,18 +307,19 @@ apache_stop() {
 	graceful_stop $pid
 	if [ $? -ne 0 ]; then
 		kill_stop $pid
+	fi
 
-		if ProcessRunning $pid; then
-			ocf_exit_reason "$CMD still running ($pid). Killing pid failed."
-			ret=$OCF_ERR_GENERIC
-		fi
+	signal_children
+
+	if ProcessRunning $pid; then
+		ocf_exit_reason "$CMD still running ($pid). Killing pid failed."
+		ret=$OCF_ERR_GENERIC
 	fi
 
 	if [ $ret -eq 0 ]; then
 		ocf_log info "$CMD stopped."
 	fi
 
-	signal_children
 	return $ret
 }
 
