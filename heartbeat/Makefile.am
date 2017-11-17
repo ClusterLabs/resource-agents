@@ -114,6 +114,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			ids			\
 			iface-bridge		\
 			iface-vlan		\
+			ipsec		\
 			iscsi			\
 			jboss			\
 			kamailio		\
