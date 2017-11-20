@@ -47,8 +47,8 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-This is a Resource Agent to manage IPSEC tunnels associated with a VIP.
-It's meant to be collocated with a specific VIP, and will manage
+This is a Resource Agent to manage IPSEC tunnels associated with a Virtual IP
+Address. It's meant to be collocated with a specific VIP, and will manage
 setting up or down a specific tunnel.
 </longdesc>
 <shortdesc lang="en">Handles IPSEC tunnels for VIPs</shortdesc>
@@ -63,7 +63,7 @@ The name of the tunnel to be monitored.
 </parameter>
 <parameter name="vip" unique="1" required="1">
 <longdesc lang="en">
-VIP that the tunnel is using.
+Virtual IP address that the tunnel is using.
 </longdesc>
 <shortdesc lang="en">VIP</shortdesc>
 <content type="string" default="" />
