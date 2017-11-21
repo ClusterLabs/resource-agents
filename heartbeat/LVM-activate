@@ -731,12 +731,8 @@ lvm_stop() {
 		return $OCF_SUCCESS
 	fi
 
+	lvm_validate
 	ocf_log info "Deactivating ${vol}"
-
-	if ! vgs ${VG} >/dev/null 2>&1 ; then
-                ocf_log info "Volume group ${VG} not found. Nothing to deactivate."
-                return $OCF_SUCCESS
-        fi
 
 	case ${VG_access_mode} in
 	1)
@@ -820,7 +816,6 @@ start)
 	;;
 
 stop)
-	lvm_validate
 	lvm_stop
 	;;
 monitor)
