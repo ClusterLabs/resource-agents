@@ -441,7 +441,7 @@ lvm_validate() {
 	get_VG_access_mode
 	mode=$?
 	if [ $VG_access_mode -ne 4 ] && [ $mode -ne $VG_access_mode ]; then
-		ocf_exit_reason "The specified vg_access_mode doesn't match the mode on VG metadata!"
+		ocf_exit_reason "The specified vg_access_mode doesn't match the lock_type on VG metadata!"
 		exit $OCF_ERR_ARGS
 	fi
 
