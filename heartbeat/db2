@@ -617,7 +617,7 @@ db2_instance_status() {
     if [ $pscount -ge 4 ]; then
         return $OCF_SUCCESS;
     elif [ $pscount -ge 1 ]; then
-        return $OCF_GENERIC_ERR
+        return $OCF_ERR_GENERIC
     fi
     return $OCF_NOT_RUNNING
 }
@@ -767,7 +767,7 @@ db2_promote() {
             # must take over 
             ;;
 
-            STANDBY/PEER/DISCONNECTED|Standby/DisconnectedPeer)
+            STANDBY/PEER/DISCONNECTED|STANDBY/DISCONNECTED_PEER/DISCONNECTED|Standby/DisconnectedPeer)
             # must take over forced 
             force="by force peer window only"
             ;;
