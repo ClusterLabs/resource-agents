@@ -1,3 +1,10 @@
+* Tue Nov 28 2017 resource-agents contributors
+- stable release 4.1.0
+- ipsec: new RA
+- apache: improved stop action
+- db2: fix HADR promote when master failed
+- ethmonitor: add intel omnipath support
+
 * Tue Nov 14 2017 resource-agents contributors
 - release candidate 4.1.0 rc1
 - nfsserver: allow stop to timeout
