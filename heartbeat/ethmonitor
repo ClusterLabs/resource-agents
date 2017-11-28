@@ -219,7 +219,10 @@ infiniband_status()
 		device="${OCF_RESKEY_infiniband_device}:${OCF_RESKEY_infiniband_port}"
 	fi
 	
-	ibstatus ${device} | grep -q ACTIVE 
+	case "${OCF_RESKEY_infiniband_device}" in
+		*ib*|*mlx*) ibstatus ${device} | grep -q ACTIVE ;;
+		*hfi*) opainfo | grep -q Active ;;
+	esac
 }
 
 if_init() {
@@ -291,8 +294,11 @@ if_init() {
 	fi
 
 	if [ -n "$OCF_RESKEY_infiniband_device" ]; then
-		#ibstatus is required if an infiniband_device is provided
-		check_binary ibstatus
+		#ibstatus or opainfo is required if an infiniband_device is provided
+		case "${OCF_RESKEY_infiniband_device}" in
+			*ib*|*mlx*) check_binary ibstatus ;;
+			*hfi*) check_binary opainfo ;;
+		esac
 	fi
 	return $OCF_SUCCESS
 }
