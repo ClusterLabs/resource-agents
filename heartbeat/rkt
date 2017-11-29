@@ -307,7 +307,7 @@ rkt_start()
 		return $OCF_ERR_GENERIC
 	fi
 
-	while ! container_exists || [ "$(container_state)" == "preparing" ] ; do
+	while ! container_exists || [ "$(container_state)" = "preparing" ] ; do
 		ocf_log debug "waiting for container to start"
 		sleep 1
 	done
@@ -417,7 +417,7 @@ rkt_validate()
 		exit $OCF_ERR_CONFIGURED
 	fi
 
-	if echo ${CONTAINER} | grep -q [^a-z0-9-]; then
+	if echo ${CONTAINER} | grep -q '[^a-z0-9-]'; then
 		ocf_exit_reason "'name' must contain only lower case alphanumeric characters and -"
 		exit $OCF_ERR_CONFIGURED
 	fi
