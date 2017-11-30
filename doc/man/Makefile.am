@@ -120,6 +120,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_ids.7 \
                           ocf_heartbeat_iscsi.7 \
                           ocf_heartbeat_jboss.7 \
+			  ocf_heartbeat_jira.7 \
                           ocf_heartbeat_kamailio.7 \
                           ocf_heartbeat_lvmlockd.7 \
                           ocf_heartbeat_lxc.7 \
