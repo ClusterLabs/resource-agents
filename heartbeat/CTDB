@@ -706,6 +706,8 @@ ctdb_monitor() {
 			return $OCF_NOT_RUNNING
 		elif echo "$status" | grep -qs 'No such file or directory'; then
 			return $OCF_NOT_RUNNING
+		elif echo $status | grep -qs 'connect() failed'; then
+			return $OCF_NOT_RUNNING
 		else
 			ocf_exit_reason "CTDB status call failed: $status"
 			return $OCF_ERR_GENERIC
