@@ -1010,7 +1010,11 @@ ocf_attribute_target() {
 		if [ x$OCF_RESKEY_CRM_meta_container_attribute_target = xhost -a x$OCF_RESKEY_CRM_meta_physical_host != x ]; then
 			echo $OCF_RESKEY_CRM_meta_physical_host
 		else
-			echo $OCF_RESKEY_CRM_meta_on_node
+			if [ x$OCF_RESKEY_CRM_meta_on_node != x ]; then
+				echo $OCF_RESKEY_CRM_meta_on_node
+			else
+				ocf_local_nodename
+			fi
 		fi
 		return
 	elif [ x"$OCF_RESKEY_CRM_meta_notify_all_uname" != x ]; then
