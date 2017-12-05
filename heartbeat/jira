@@ -23,12 +23,12 @@
 ####################################################################
 # Parameters:  
 # OCF_RESKEY_statusurl         : Status URL to monitor JIRA 
-#                               (default: http://localhost:8080/status)
+#               (default: http://localhost:8080/status)
 # OCF_RESKEY_java_home         : Java Home
-#                               (default: /usr/lib/jvm/jre)
+#               (default: /usr/lib/jvm/jre)
 # OCF_RESKEY_jira_installation : Jira installtion directory
 # OCF_RESKEY_jira_user         : User running Jira software
-#                               (by default: jira)
+#               (by default: jira)
 ####################################################################
 
 # Initialization
@@ -38,15 +38,15 @@
 
 # Usage
 jira_usage() {
-    cat <<_EOF
+  cat <<_EOF
 Usage: $0 action
 
 Supported Actions:
-        start       : start jira
-        stop        : stop jira 
-        monitor     : show jira status 
-        meta-data   : show the meta-data
-        validate-all: validate the RA configuration
+    start       : start jira
+    stop        : stop jira 
+    monitor     : show jira status 
+    meta-data   : show the meta-data
+    validate-all: validate the RA configuration
 _EOF
 }
 
@@ -62,16 +62,22 @@ jira_start() {
     fi
 
     # Starting Jira
+    waittime=300
     /bin/su -m $jira_user -c "$jira_installation/bin/startup.sh &> /dev/null"
-
-    # Verify jira is running
-    while ! jira_monitor; do
-        ocf_log debug "Resource has not started yet, waiting"
+    while [[ $waittime -gt 0 ]]; do
+      if $(curl --connect-timeout 1 --max-time 3 -s ${statusurl} | grep '{"state":"RUNNING"}' > /dev/null); then
+        waittime=0
+      else
         sleep 1
+        waittime=$(($waittime - 1))
+      fi
     done
 
-    # only return $OCF_SUCCESS if _everything_ succeeded as expected
-    return $OCF_SUCCESS
+    # Verify jira is running
+    jira_monitor
+    rc=$?
+
+    return $?
 }
 
 # Stop
@@ -95,17 +101,29 @@ jira_stop() {
             ;;
     esac
 
-    # sTOPPING Jira
+    # Stopping Jira
+    waittime=300
     /bin/su -m $jira_user -c "$jira_installation/bin/shutdown.sh &> /dev/null"
-
-    # Verify jira is stopped
-    while jira_monitor; do
-        ocf_log debug "Resource has not stopped yet, waiting"
+    while [[ $waittime -gt 0 ]]; do
+      if $(kill -0 $(cat ${jira_installation}/work/catalina.pid 2> /dev/null) 2> /dev/null) ; then
         sleep 1
+        waittime=$(($waittime - 1))
+      else
+        waittime=0
+      fi
     done
 
-    # only return $OCF_SUCCESS if _everything_ succeeded as expected
-    return $OCF_SUCCESS
+    # Stop JIRA forcely if it failed
+    if $(kill -0 $(cat ${jira_installation}/work/catalina.pid 2> /dev/null) 2> /dev/null) ; then
+      kill -9 $(cat ${jira_installation}/work/catalina.pid)
+      sleep 1
+    fi
+
+    # Verify jira is stopped
+    jira_monitor
+    rc=$?
+
+    return $rc
 
 }
 
@@ -116,12 +134,9 @@ jira_monitor() {
     # exit immediately if configuration is not valid
     jira_validate_all || exit $?
 
-    # Check if Tomcat is running
-    IS_TOMCAT_RUNNING=$(pgrep -f "Dcatalina.home=${jira_installation}")
-
-    if [ -n "$IS_TOMCAT_RUNNING" ] ; then
+    if $(kill -0 $(cat ${jira_installation}/work/catalina.pid 2> /dev/null) 2> /dev/null) ; then
       # Is jira working
-      if $(curl -s ${statusurl} | grep '{"state":"RUNNING"}' > /dev/null) ; then
+      if $(curl --connect-timeout 1 --max-time 3 -s ${statusurl} | grep '{"state":"RUNNING"}' > /dev/null) ; then
         rc=0
       else
         # Jira has a problem
@@ -173,7 +188,7 @@ jira_meta_data(){
     cat <<EOF
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="jira">
+<resource-agent name="jira" version="0.1">
   <version>0.1</version>
   <longdesc lang="en">
 OCF Resource Agent to manage JIRA software
@@ -218,7 +233,7 @@ OCF Resource Agent to manage JIRA software
   <actions>
     <action name="start"        timeout="300" />
     <action name="stop"         timeout="300" />
-    <action name="monitor"      timeout="300"
+    <action name="monitor"      timeout="30"
                                 interval="10" depth="0" />
     <action name="meta-data"    timeout="5" />
     <action name="validate-all"   timeout="20" />
