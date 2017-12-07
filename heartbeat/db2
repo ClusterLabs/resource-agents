@@ -714,7 +714,7 @@ db2_monitor() {
             ocf_is_ms && master_score -v 10000 -l reboot
             ;;
 
-            STANDBY/PEER/*|Standby/*Peer)
+            STANDBY/*PEER/*|Standby/*Peer)
             master_score -v 8000 -l reboot
             ;;
 
@@ -767,7 +767,7 @@ db2_promote() {
             # must take over 
             ;;
 
-            STANDBY/PEER/DISCONNECTED|STANDBY/DISCONNECTED_PEER/DISCONNECTED|Standby/DisconnectedPeer)
+            STANDBY/*PEER/DISCONNECTED|Standby/DisconnectedPeer)
             # must take over forced 
             force="by force peer window only"
             ;;
