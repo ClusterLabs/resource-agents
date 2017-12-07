@@ -388,7 +388,7 @@ show_mon_user_profile() {
 	echo "select PROFILE from dba_users where USERNAME='$MONUSR';"
 }
 set_mon_user_profile() {
-	echo "alter user "$MONUSR" profile '$MONPROFILE';"
+	echo "alter user "$MONUSR" profile "$MONPROFILE";"
 }
 reset_mon_user_password() {
 	echo "alter user "$MONUSR" identified by "$MONPWD";"
