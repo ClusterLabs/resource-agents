@@ -361,6 +361,8 @@ elif [ -f /etc/default/ctdb ]; then
 	CTDB_SYSCONFIG=/etc/default/ctdb
 elif [ -f "$OCF_RESKEY_ctdb_config_dir/ctdb" ]; then
 	CTDB_SYSCONFIG=$OCF_RESKEY_ctdb_config_dir/ctdb
+elif [ -f "$OCF_RESKEY_ctdb_config_dir/ctdbd.conf" ]; then
+	CTDB_SYSCONFIG=$OCF_RESKEY_ctdb_config_dir/ctdbd.conf
 fi
 
 # Backup paths
