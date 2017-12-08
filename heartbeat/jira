@@ -63,7 +63,7 @@ jira_start() {
 
     # Starting Jira
     waittime=300
-    /bin/su -m $jira_user -c "$jira_installation/bin/startup.sh &> /dev/null"
+    su -m $jira_user -c "$jira_installation/bin/startup.sh &> /dev/null"
     while [[ $waittime -gt 0 ]]; do
       if $(curl --connect-timeout 1 --max-time 3 -s ${statusurl} | grep '{"state":"RUNNING"}' > /dev/null); then
         waittime=0
@@ -103,7 +103,7 @@ jira_stop() {
 
     # Stopping Jira
     waittime=300
-    /bin/su -m $jira_user -c "$jira_installation/bin/shutdown.sh &> /dev/null"
+    su -m $jira_user -c "$jira_installation/bin/shutdown.sh &> /dev/null"
     while [[ $waittime -gt 0 ]]; do
       if $(kill -0 $(cat ${jira_installation}/work/catalina.pid 2> /dev/null) 2> /dev/null) ; then
         sleep 1
