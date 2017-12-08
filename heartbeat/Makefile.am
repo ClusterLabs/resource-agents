@@ -117,6 +117,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			ipsec		\
 			iscsi			\
 			jboss			\
+			jira			\
 			kamailio		\
 			lxc			\
 			minio			\
