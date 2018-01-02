@@ -400,7 +400,11 @@ srca_validate_all() {
 	fi
 
 	check_binary $AWK
-	check_binary $IFCONFIG
+	case "$SYSTYPE" in
+		*BSD|SunOS)
+			check_binary $IFCONFIG
+			;;
+	esac
 
 #	The IP address should be in good shape
 	if CheckIP "$ipaddress"; then
