@@ -97,6 +97,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			aws-vpc-route53		\
 			awseip			\
 			awsvip			\
+			azure-lb		\
 			clvm			\
 			conntrackd		\
 			db2			\
