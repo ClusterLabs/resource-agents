@@ -440,7 +440,7 @@ init_smb_conf() {
 
 	# replace these things in smb.conf
 	local repl
-	repl='# CTDB-RA:|passdb backend|clustering|idmap backend|private dir|ctdbd socket'
+	repl='# CTDB-RA:|passdb backend|clustering|idmap backend|idmap config[[:space:]]*\*[[:space:]]*:[[:space:]]*backend|private dir|ctdbd socket'
 
 	local private_dir
 	[ -n "$OCF_RESKEY_smb_private_dir" ] && private_dir="\tprivate dir = $OCF_RESKEY_smb_private_dir\n"
@@ -460,6 +460,12 @@ init_smb_conf() {
 		fi
 	fi
 	# Preserve permissions of smb.conf
+	local idmap_config
+	if grep -Eqs '^[[:space:]]*idmap backend[[:space:]]*=' $OCF_RESKEY_smb_conf; then
+		idmap_config=old
+	else
+		idmap_config=new
+	fi
 	cp -a "$OCF_RESKEY_smb_conf" "$OCF_RESKEY_smb_conf.$$"
 	awk '
 		/^[[:space:]]*\[/ { global = 0 }
@@ -478,9 +484,15 @@ init_smb_conf() {
 \t# CTDB-RA: Begin auto-generated section (do not change below)\n\
 \tpassdb backend = $OCF_RESKEY_smb_passdb_backend\n\
 \tclustering = yes\n\
-\tidmap backend = $OCF_RESKEY_smb_idmap_backend\n\
 \tctdbd socket = $OCF_RESKEY_ctdb_socket\n$private_dir$vfs_fileid\
 \t# CTDB-RA: End auto-generated section (do not change above)" > "$OCF_RESKEY_smb_conf.$$"
+	if [ "$idmap_config" = "old" ]; then
+		sed -i "/^[[:space:]]*clustering = yes/ a\\
+\tidmap backend = $OCF_RESKEY_smb_idmap_backend" $OCF_RESKEY_smb_conf.$$
+	else
+		sed -i "/^[[:space:]]*clustering = yes/ a\\
+\tidmap config * : backend = $OCF_RESKEY_smb_idmap_backend" $OCF_RESKEY_smb_conf.$$
+	fi
 	dd conv=notrunc,fsync of="$OCF_RESKEY_smb_conf.$$" if=/dev/null >/dev/null 2>&1
 	mv "$OCF_RESKEY_smb_conf.$$" "$OCF_RESKEY_smb_conf"
 }
