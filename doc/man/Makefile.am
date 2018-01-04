@@ -71,8 +71,6 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_LVM.7 \
                           ocf_heartbeat_LVM-activate.7 \
                           ocf_heartbeat_LinuxSCSI.7 \
-                          ocf_heartbeat_LXCInfo.7 \
-                          ocf_heartbeat_MachineInfo.7 \
                           ocf_heartbeat_MailTo.7 \
                           ocf_heartbeat_ManageRAID.7 \
                           ocf_heartbeat_ManageVE.7 \
@@ -127,6 +125,8 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_kamailio.7 \
                           ocf_heartbeat_lvmlockd.7 \
                           ocf_heartbeat_lxc.7 \
+                          ocf_heartbeat_lxd-info.7 \
+                          ocf_heartbeat_machine-info.7 \
                           ocf_heartbeat_mysql.7 \
                           ocf_heartbeat_mysql-proxy.7 \
                           ocf_heartbeat_nagios.7 \
