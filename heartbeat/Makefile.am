@@ -67,8 +67,6 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			LinuxSCSI		\
 			lvmlockd		\
 			LVM-activate		\
-			LXDInfo			\
-			MachineInfo		\
 			MailTo			\
 			ManageRAID		\
 			ManageVE		\
@@ -123,6 +121,8 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			jira			\
 			kamailio		\
 			lxc			\
+			lxd-info		\
+			machine-info	\
 			minio			\
 			mysql			\
 			mysql-proxy		\
@@ -164,10 +164,10 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  ocf-binaries	 	\
 			  ocf-directories 	\
 			  ocf-returncodes 	\
- 			  ocf-rarun		\
- 			  ocf-distro		\
+			  ocf-rarun		\
+			  ocf-distro		\
 			  apache-conf.sh 	\
-			  http-mon.sh    	\
+			  http-mon.sh		\
 			  sapdb-nosha.sh	\
 			  sapdb.sh		\
 			  lvm-clvm.sh       \
