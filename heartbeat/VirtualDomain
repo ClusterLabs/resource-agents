@@ -197,6 +197,21 @@ Be sure to set the timeout of these operations to accommodate this delay.
 <content type="string" default="" />
 </parameter>
 
+<parameter name="start_scripts" unique="0" required="0">
+<longdesc lang="en">
+To additionally start services within the virtual domain, add this
+parameter with a list of scripts to start. Each executed script gets
+one argument with Domain Name, specified in the libvirt configuration 
+file for this virtual domain.
+
+Note: when start scripts are used, the start operation will complete
+only when all start scripts have completed successfully.
+Be sure to set the timeout of these operations to accommodate this delay.
+</longdesc>
+<shortdesc lang="en">space-separated list of start scripts</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 <parameter name="autoset_utilization_cpu" unique="0" required="0">
 <longdesc lang="en">
 If set true, the agent will detect the number of domainU's vCPUs from virsh, and put it
@@ -517,6 +532,21 @@ VirtualDomain_start() {
 		ocf_log info "Virtual domain $DOMAIN_NAME already running."
 		return $OCF_SUCCESS
 	fi
+
+	# If we have start scripts defined, run them one after another.
+	for script in ${OCF_RESKEY_start_scripts}; do
+		script_output="$($script $DOMAIN_NAME 2>&1)"
+		script_rc=$?
+		if [ ${script_rc} -ne ${OCF_SUCCESS} ]; then
+			# A start script returned a non-success exit
+			# code. Stop iterating over the list of scripts, log a
+			# warning message, and propagate $OCF_ERR_GENERIC.
+			ocf_exit_reason "Start command \"${script}\" for domain ${DOMAIN_NAME} returned ${script_rc} with output: ${script_output}"
+			return $OCF_ERR_GENERIC
+		else
+			ocf_log info "Start command \"${script}\" for domain ${DOMAIN_NAME} completed successfully with output: ${script_output}"
+		fi
+	done
 
 	snapshotimage="$OCF_RESKEY_snapshot/${DOMAIN_NAME}.state"
 	if [ -n "$OCF_RESKEY_snapshot" -a -f "$snapshotimage" ]; then
