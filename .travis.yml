@@ -8,6 +8,8 @@ addons:
     packages:
       - libxml2-utils
       - xsltproc
+      - docbook
+      - docbook-xml
       - shellcheck
 script:
   - ./ci/build.sh
