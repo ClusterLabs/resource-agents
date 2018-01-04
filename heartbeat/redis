@@ -66,7 +66,7 @@ if [ -z "$REDIS_CHECK_DUMP" ]; then
 	REDIS_CHECK_DUMP="$(which redis-check-rdb 2>/dev/null)"
 fi
 
-if [ -f "$REDIS_CONFIG" ]; then
+if [ -r "$REDIS_CONFIG" ]; then
 	REDIS_DUMP_DIR="$(cat $REDIS_CONFIG | grep "^\s*dir\s" | awk '{ print $2 }' 2>/dev/null)"
 	REDIS_DUMP_FILE="$(cat $REDIS_CONFIG | grep "^\s*dbfilename\s" | awk '{ print $2 }' 2>/dev/null)"
 fi
@@ -265,7 +265,7 @@ function redis_client() {
 	ocf_log debug "redis_client: '$REDIS_CLIENT' -s '$REDIS_SOCKET' $*"
 	if [ -n "$clientpasswd" ]; then
 		"$REDIS_CLIENT" -s "$REDIS_SOCKET" -a "$clientpasswd" "$@" | sed 's/\r//'
-	else 
+	else
 		"$REDIS_CLIENT" -s "$REDIS_SOCKET" "$@" | sed 's/\r//'
 	fi
 }
@@ -576,7 +576,7 @@ function validate() {
 }
 
 NODENAME=$(ocf_attribute_target)
-if [ -f "$REDIS_CONFIG" ]; then
+if [ -r "$REDIS_CONFIG" ]; then
 	clientpasswd="$(cat $REDIS_CONFIG | sed -n -e  's/^\s*requirepass\s*\(.*\)\s*$/\1/p' | tail -n 1)"
 fi
 
