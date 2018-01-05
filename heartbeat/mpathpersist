@@ -94,7 +94,7 @@ Please see man sg_persist(8) and mpathpersist(8) for reservation_type details.
 <longdesc lang="en">
 The name of the binary that manages the resource.
 </longdesc>
-<shortdesc>the binary name of the resource</shortdesc>
+<shortdesc lang="en">the binary name of the resource</shortdesc>
 <content type="string" default="$mpathpersist_binary"/>
 </parameter>
 
