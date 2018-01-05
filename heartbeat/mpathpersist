@@ -49,10 +49,10 @@
 OCF_RESKEY_binary_default="mpathpersist"
 OCF_RESKEY_devs_default=""
 OCF_RESKEY_required_devs_no_default=1
-OCF_RESKEY_reservation_type=1
-OCF_RESKEY_master_score_base=0
-OCF_RESKEY_master_score_dev_factor=100
-OCF_RESKEY_master_score_delay=30
+OCF_RESKEY_reservation_type_default=1
+OCF_RESKEY_master_score_base_default=0
+OCF_RESKEY_master_score_dev_factor_default=100
+OCF_RESKEY_master_score_delay_default=30
 
 #######################################################################
 # Initialization:
@@ -61,13 +61,13 @@ OCF_RESKEY_master_score_delay=30
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # set default values
-    : ${mpathpersist_binary=${OCF_RESKEY_binary_default}} 		# binary name for the resource
-    : ${devs=${OCF_RESKEY_devs_default}}                            	# device list
-    : ${required_devs_no=${OCF_RESKEY_required_devs_no_default}}   	# number of required devices
-    : ${reservation_type=${OCF_RESKEY_reservation_type}}		# reservation type
-    : ${master_score_base=${OCF_RESKEY_master_score_base}}		# master score base 
-    : ${master_score_dev_factor=${OCF_RESKEY_master_score_dev_factor}}	# device factor for master score
-    : ${master_score_delay=${OCF_RESKEY_master_score_delay}}		# delay for master score
+    : ${mpathpersist_binary=${OCF_RESKEY_binary_default}} 			# binary name for the resource
+    : ${devs=${OCF_RESKEY_devs_default}}                            		# device list
+    : ${required_devs_no=${OCF_RESKEY_required_devs_no_default}}   		# number of required devices
+    : ${reservation_type=${OCF_RESKEY_reservation_type_default}}		# reservation type
+    : ${master_score_base=${OCF_RESKEY_master_score_base_default}}		# master score base 
+    : ${master_score_dev_factor=${OCF_RESKEY_master_score_dev_factor_default}}	# device factor for master score
+    : ${master_score_delay=${OCF_RESKEY_master_score_delay_default}}		# delay for master score
 
 #######################################################################
 
@@ -113,7 +113,7 @@ Minimum number of "working" devices from device list
       1) existing 
       2) "mpathpersist --in --read-keys \$device" works (Return code 0)
 resource actions "start","monitor","promote" and "validate-all" return "\$OCF_ERR_INSTALLED"
-if the actual number of "working" devices is less then "required_devs_no".
+if the actual number of "working" devices is less then OCF_RESKEY_required_devs_no_default.
 resource actions "stop" and "demote" tries to remove reservations and registration keys from 
 all working devices, but always return "\$OCF_SUCCESS"
 </longdesc>
@@ -153,7 +153,7 @@ Setting it to 0 will disable this behavior.
 
 <parameter name="master_score_delay" unique="0" required="0">
 <longdesc lang="en">
-master/slave decreases/increases its master_score after delay of \$master_score_delay seconds
+master/slave decreases/increases its master_score after delay of OCF_RESKEY_master_score_delay_default seconds
 so if some device gets inaccessible, the slave decreases its master_score first and the resource will no be watched
 and after this device reappears again the master increases its master_score first
 this can work only if the master_score_delay is bigger then monitor interval on both master and slave
