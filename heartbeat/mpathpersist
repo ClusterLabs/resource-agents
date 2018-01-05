@@ -42,8 +42,17 @@
 # TODO
 # 
 # 1) PROBLEM: devices which were not accessible during 'start' action, will be never registered/reserved 
-#    TODO:    'Master' and 'Salve' registers new devs in 'monitor' action
+#    TODO:    'Master' and 'Slave' registers new devs in 'monitor' action
 #    TODO:    'Master' reserves new devs in 'monitor' action
+
+#Defaults
+OCF_RESKEY_binary_default="mpathpersist"
+OCF_RESKEY_devs_default=""
+OCF_RESKEY_required_devs_no_default=1
+OCF_RESKEY_reservation_type=1
+OCF_RESKEY_master_score_base=0
+OCF_RESKEY_master_score_dev_factor=100
+OCF_RESKEY_master_score_delay=30
 
 #######################################################################
 # Initialization:
@@ -52,13 +61,13 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # set default values
-    : ${mpathpersist_binary="mpathpersist"} # binary name for the resource
-    : ${devs=""}                            # device list
-    : ${required_devs_nof=1}                # number of required devices
-    : ${reservation_type=1}                 # reservation type
-    : ${master_score_base=0}                # master score base 
-    : ${master_score_dev_factor=100}        # device factor for master score
-    : ${master_score_delay=30}              # delay for master score
+    : ${mpathpersist_binary=${OCF_RESKEY_binary_default}} 		# binary name for the resource
+    : ${devs=${OCF_RESKEY_devs_default}}                            	# device list
+    : ${required_devs_no=${OCF_RESKEY_required_devs_no_default}}   	# number of required devices
+    : ${reservation_type=${OCF_RESKEY_reservation_type}}		# reservation type
+    : ${master_score_base=${OCF_RESKEY_master_score_base}}		# master score base 
+    : ${master_score_dev_factor=${OCF_RESKEY_master_score_dev_factor}}	# device factor for master score
+    : ${master_score_delay=${OCF_RESKEY_master_score_delay}}		# delay for master score
 
 #######################################################################
 
@@ -71,14 +80,14 @@ meta_data() {
 <version>1.1</version>
 
 <longdesc lang="en">
-This resource agent manages SCSI PERSISTENT RESERVATIONS ON MULTIPATH DEVICES.
+This resource agent manages SCSI persistent reservations on multipath devices.
 "mpathpersist" from multipath-tools is used, please see its documentation.
 Should be used as multistate (Master/Slave) resource
 Slave registers its node id ("crm_node -i") as reservation key ( --param-sark ) on each device in the params "devs" list.
 Master reservs all devices from params "devs" list with reservation "--prout-type" value from "reservation_type" parameter.
-Please see man SG_PERSIST(8) and MPATHPERSIST(8) for reservation_type details.
+Please see man sg_persist(8) and mpathpersist(8) for reservation_type details.
 </longdesc>
-<shortdesc lang="en">Manages SCSI PERSISTENT RESERVATIONS ON MULTIPATH DEVICES</shortdesc>
+<shortdesc lang="en">Manages SCSI persistent reservations on multipath devices</shortdesc>
 
 <parameters>
 <parameter name="binary" unique="0">
@@ -211,14 +220,14 @@ mpathpersist_init() {
     ocf_log debug "$RESOURCE: NODE:$NODE, ROLE:$ROLE, NODE_ID DEC:$NODE_ID_DEC HEX:$NODE_ID_HEX"
 
     DEVS=${OCF_RESKEY_devs:=$devs}
-    REQUIRED_DEVS_NOF=${OCF_RESKEY_required_devs_nof:=$required_devs_nof}
+    REQUIRED_DEVS_NO=${OCF_RESKEY_required_devs_no:=$required_devs_no}
     RESERVATION_TYPE=${OCF_RESKEY_reservation_type:=$reservation_type}
     MASTER_SCORE_BASE=${OCF_RESKEY_master_score_base:=$master_score_base}
     MASTER_SCORE_DEV_FACTOR=${OCF_RESKEY_master_score_dev_factor:=$master_score_dev_factor}
     MASTER_SCORE_DELAY=${OCF_RESKEY_master_score_delay:=$master_score_delay}
 
     ocf_log debug "$RESOURCE: DEVS=$DEVS"
-    ocf_log debug "$RESOURCE: REQUIRED_DEVS_NOF=$REQUIRED_DEVS_NOF"
+    ocf_log debug "$RESOURCE: REQUIRED_DEVS_NO=$REQUIRED_DEVS_NO"
     ocf_log debug "$RESOURCE: RESERVATION_TYPE=$RESERVATION_TYPE"
     ocf_log debug "$RESOURCE: MASTER_SCORE_BASE=$MASTER_SCORE_BASE"
     ocf_log debug "$RESOURCE: MASTER_SCORE_DEV_FACTOR=$MASTER_SCORE_DEV_FACTOR"
@@ -274,18 +283,18 @@ mpathpersist_get_status() {
         fi
     done
 
-    WORKING_DEVS_NOF=${#WORKING_DEVS[*]}
+    WORKING_DEVS_NO=${#WORKING_DEVS[*]}
 
     ocf_log debug "$RESOURCE: working devices: `mpathpersist_echo_array ${WORKING_DEVS[*]}`"
-    ocf_log debug "$RESOURCE: number of working devices: $WORKING_DEVS_NOF"
+    ocf_log debug "$RESOURCE: number of working devices: $WORKING_DEVS_NO"
     
     ocf_log debug "$RESOURCE: registered devices: `mpathpersist_echo_array ${REGISTERED_DEVS[*]}`"
     ocf_log debug "$RESOURCE: reserved devices: `mpathpersist_echo_array ${RESERVED_DEVS[*]}`"
     ocf_log debug "$RESOURCE: devices with reservation: `mpathpersist_echo_array ${DEVS_WITH_RESERVATION[*]}`"
     ocf_log debug "$RESOURCE: reservation keys: `mpathpersist_echo_array ${RESERVATION_KEYS[*]}`"
     
-    MASTER_SCORE=$(($MASTER_SCORE_BASE + $MASTER_SCORE_DEV_FACTOR*$WORKING_DEVS_NOF))
-    ocf_log debug "$RESOURCE: master_score: $MASTER_SCORE_BASE + $MASTER_SCORE_DEV_FACTOR*$WORKING_DEVS_NOF = $MASTER_SCORE"
+    MASTER_SCORE=$(($MASTER_SCORE_BASE + $MASTER_SCORE_DEV_FACTOR*$WORKING_DEVS_NO))
+    ocf_log debug "$RESOURCE: master_score: $MASTER_SCORE_BASE + $MASTER_SCORE_DEV_FACTOR*$WORKING_DEVS_NO = $MASTER_SCORE"
 
 }
 
@@ -298,9 +307,9 @@ mpathpersist_check_devs() {
         fi
     done
 
-    EXISTING_DEVS_NOF=${#EXISTING_DEVS[*]}
-    if [ $EXISTING_DEVS_NOF -lt $REQUIRED_DEVS_NOF ]; then 
-        ocf_log err "Number of existing devices=$EXISTING_DEVS_NOF less then required_devs_nof=$REQUIRED_DEVS_NOF"
+    EXISTING_DEVS_NO=${#EXISTING_DEVS[*]}
+    if [ $EXISTING_DEVS_NO -lt $REQUIRED_DEVS_NO ]; then 
+        ocf_log err "Number of existing devices=$EXISTING_DEVS_NO less then required_devs_no=$REQUIRED_DEVS_NO"
         exit $OCF_ERR_INSTALLED
     fi
 
@@ -375,8 +384,8 @@ mpathpersist_action_start() {
     ocf_run $MASTER_SCORE_ATTRIBUTE --update=$MASTER_SCORE
     ocf_run $PENDING_ATTRIBUTE --update=""
 
-    if [ $WORKING_DEVS_NOF -lt $REQUIRED_DEVS_NOF ]; then
-        ocf_log err "$RESOURCE: Number of working devices=$WORKING_DEVS_NOF less then required_devs_nof=$REQUIRED_DEVS_NOF"
+    if [ $WORKING_DEVS_NO -lt $REQUIRED_DEVS_NO ]; then
+        ocf_log err "$RESOURCE: Number of working devices=$WORKING_DEVS_NO less then required_devs_no=$REQUIRED_DEVS_NO"
         exit $OCF_ERR_GENERIC
     fi
 

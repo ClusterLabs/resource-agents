@@ -150,6 +150,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			scsi2reservation	\
 			sfex			\
 			sg_persist              \
+			mpathpersist		\
 			slapd			\
 			symlink			\
 			syslog-ng		\
