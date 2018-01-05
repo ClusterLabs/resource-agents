@@ -1,0 +1,675 @@
+#!/bin/bash
+#
+#
+#   OCF Resource Agent compliant PERSISTENT SCSI RESERVATION on multipath devices resource script.
+#   Testversion for a mpathpersist implementation for demo purposes by Andreas Thomas
+#
+# Copyright (c) 2017 Evgeny Nifontov, lwang@suse.com, 
+#                    Andreas Tomas<Andreas.Tomas@suse.com>,
+#                    Zhu Lingshan<lszhu@suse.com> 
+#                    All Rights Reserved.
+#
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+#
+# OCF instance parameters
+#    OCF_RESKEY_binary
+#    OCF_RESKEY_devs
+#    OCF_RESKEY_required_devs_no
+#    OCF_RESKEY_reservation_type
+#    OCF_RESKEY_master_score_base
+#    OCF_RESKEY_master_score_dev_factor
+#    OCF_RESKEY_master_score_delay
+#
+# TODO
+# 
+# 1) PROBLEM: devices which were not accessible during 'start' action, will be never registered/reserved 
+#    TODO:    'Master' and 'Salve' registers new devs in 'monitor' action
+#    TODO:    'Master' reserves new devs in 'monitor' action
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# set default values
+    : ${mpathpersist_binary="mpathpersist"} # binary name for the resource
+    : ${devs=""}                            # device list
+    : ${required_devs_nof=1}                # number of required devices
+    : ${reservation_type=1}                 # reservation type
+    : ${master_score_base=0}                # master score base 
+    : ${master_score_dev_factor=100}        # device factor for master score
+    : ${master_score_delay=30}              # delay for master score
+
+#######################################################################
+
+
+meta_data() {
+    cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="mpathpersist">
+<version>1.1</version>
+
+<longdesc lang="en">
+This resource agent manages SCSI PERSISTENT RESERVATIONS ON MULTIPATH DEVICES.
+"mpathpersist" from multipath-tools is used, please see its documentation.
+Should be used as multistate (Master/Slave) resource
+Slave registers its node id ("crm_node -i") as reservation key ( --param-sark ) on each device in the params "devs" list.
+Master reservs all devices from params "devs" list with reservation "--prout-type" value from "reservation_type" parameter.
+Please see man SG_PERSIST(8) and MPATHPERSIST(8) for reservation_type details.
+</longdesc>
+<shortdesc lang="en">Manages SCSI PERSISTENT RESERVATIONS ON MULTIPATH DEVICES</shortdesc>
+
+<parameters>
+<parameter name="binary" unique="0">
+<longdesc lang="en">
+The name of the binary that manages the resource.
+</longdesc>
+<shortdesc>the binary name of the resource</shortdesc>
+<content type="string" default="$mpathpersist_binary"/>
+</parameter>
+
+<parameter name="devs" unique="0" required="1">
+<longdesc lang="en">
+Device list. Multiple devices can be listed with blank space as separator. 
+Shell wildcars are allowed.
+</longdesc>
+<shortdesc lang="en">device list</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="required_devs_no" unique="0" required="0">
+<longdesc lang="en">
+Minimum number of "working" devices from device list
+      1) existing 
+      2) "mpathpersist --in --read-keys \$device" works (Return code 0)
+resource actions "start","monitor","promote" and "validate-all" return "\$OCF_ERR_INSTALLED"
+if the actual number of "working" devices is less then "required_devs_no".
+resource actions "stop" and "demote" tries to remove reservations and registration keys from 
+all working devices, but always return "\$OCF_SUCCESS"
+</longdesc>
+<shortdesc lang="en">minimum number of working devices</shortdesc>
+<content type="string" default="1"/>
+</parameter>
+
+<parameter name="reservation_type" unique="0" required="0">
+<longdesc lang="en">
+reservation type 
+</longdesc>
+<shortdesc lang="en">reservation type</shortdesc>
+<content type="string" default="1" />
+</parameter>
+
+<parameter name="master_score_base" unique="0" required="0">
+<longdesc lang="en">
+master_score_base value
+"master_score_base" value is used in "master_score" calculation:
+master_score = \$master_score_base + \$master_score_dev_factor * \$working_devs  
+if set to bigger value in mpathpersist resource configuration on some node, this node will be "preferred" for master role. 
+</longdesc>
+<shortdesc lang="en">base master_score value</shortdesc>
+<content type="string" default="0" />
+</parameter>
+
+<parameter name="master_score_dev_factor" unique="0" required="0">
+<longdesc lang="en">
+Working device factor in master_score calculation
+each "working" device provides additional value to "master_score", 
+so the node that sees more devices will be preferred for the "Master"-role
+Setting it to 0 will disable this behavior. 
+</longdesc>
+<shortdesc lang="en">working device factor in master_score calculation</shortdesc>
+<content type="string" default="100" />
+</parameter>
+
+<parameter name="master_score_delay" unique="0" required="0">
+<longdesc lang="en">
+master/slave decreases/increases its master_score after delay of \$master_score_delay seconds
+so if some device gets inaccessible, the slave decreases its master_score first and the resource will no be watched
+and after this device reappears again the master increases its master_score first
+this can work only if the master_score_delay is bigger then monitor interval on both master and slave
+Setting it to 0 will disable this behavior.
+</longdesc>
+<shortdesc lang="en">master_score decrease/increase delay time</shortdesc>
+<content type="string" default="30" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start"   timeout="30" />
+<action name="promote"   timeout="30" />
+<action name="demote"   timeout="30" />
+<action name="notify"   timeout="30" />
+<action name="stop"    timeout="30" />
+<action name="monitor" depth="0"  timeout="20" interval="29" role="Slave" />
+<action name="monitor" depth="0"  timeout="20" interval="60" role="Master" />
+<action name="meta-data"  timeout="5" />
+<action name="validate-all"  timeout="30" />
+</actions>
+</resource-agent>
+END
+
+    exit $OCF_SUCCESS
+}
+
+mpathpersist_init() {
+    
+    if ! ocf_is_root ; then
+        ocf_log err "You must be root to perform this operation."
+        exit $OCF_ERR_PERM
+    fi 
+
+    MPATHPERSIST=${OCF_RESKEY_binary:-"$mpathpersist_binary"}
+    check_binary $MPATHPERSIST
+    
+    ROLE=$OCF_RESKEY_CRM_meta_role
+    NOW=$(date +%s)
+
+    RESOURCE="${OCF_RESOURCE_INSTANCE}"
+    MASTER_SCORE_VAR_NAME="master-${OCF_RESOURCE_INSTANCE}"
+    PENDING_VAR_NAME="pending-$MASTER_SCORE_VAR_NAME"
+    
+    #only works with corocync 
+    CRM_NODE="${HA_SBIN_DIR}/crm_node"
+    NODE_ID_DEC=$($CRM_NODE -i)
+
+    NODE=$($CRM_NODE -l | $GREP -w ^$NODE_ID_DEC)
+    NODE=${NODE#$NODE_ID_DEC }
+    NODE=${NODE% *}
+    
+    MASTER_SCORE_ATTRIBUTE="${HA_SBIN_DIR}/crm_attribute --lifetime=reboot --name=$MASTER_SCORE_VAR_NAME --node=$NODE"
+    CRM_MASTER="${HA_SBIN_DIR}/crm_master --lifetime=reboot"
+    PENDING_ATTRIBUTE="${HA_SBIN_DIR}/crm_attribute --lifetime=reboot --name=$PENDING_VAR_NAME --node=$NODE"
+
+    NODE_ID_HEX=$(printf '0x%x' $NODE_ID_DEC)
+
+    if [ -z "$NODE_ID_HEX" ]; then
+        ocf_log err "Couldn't get node id with \"$CRM_NODE\""
+        exit $OCF_ERR_INSTALLED
+    fi
+
+    ocf_log debug "$RESOURCE: NODE:$NODE, ROLE:$ROLE, NODE_ID DEC:$NODE_ID_DEC HEX:$NODE_ID_HEX"
+
+    DEVS=${OCF_RESKEY_devs:=$devs}
+    REQUIRED_DEVS_NOF=${OCF_RESKEY_required_devs_nof:=$required_devs_nof}
+    RESERVATION_TYPE=${OCF_RESKEY_reservation_type:=$reservation_type}
+    MASTER_SCORE_BASE=${OCF_RESKEY_master_score_base:=$master_score_base}
+    MASTER_SCORE_DEV_FACTOR=${OCF_RESKEY_master_score_dev_factor:=$master_score_dev_factor}
+    MASTER_SCORE_DELAY=${OCF_RESKEY_master_score_delay:=$master_score_delay}
+
+    ocf_log debug "$RESOURCE: DEVS=$DEVS"
+    ocf_log debug "$RESOURCE: REQUIRED_DEVS_NOF=$REQUIRED_DEVS_NOF"
+    ocf_log debug "$RESOURCE: RESERVATION_TYPE=$RESERVATION_TYPE"
+    ocf_log debug "$RESOURCE: MASTER_SCORE_BASE=$MASTER_SCORE_BASE"
+    ocf_log debug "$RESOURCE: MASTER_SCORE_DEV_FACTOR=$MASTER_SCORE_DEV_FACTOR"
+    ocf_log debug "$RESOURCE: MASTER_SCORE_DELAY=$MASTER_SCORE_DELAY"
+
+    #expand path wildcards
+    DEVS=$(echo $DEVS)
+
+    if [ -z "$DEVS" ]; then
+        ocf_log err "\"devs\" not defined"
+        exit $OCF_ERR_INSTALLED
+    fi
+ 
+    mpathpersist_check_devs
+    mpathpersist_get_status
+}
+
+mpathpersist_action_usage() {
+    cat <<END
+    usage: $0 {start|stop|monitor|validate-all|promote|demote|notify|meta-data}
+
+    Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+mpathpersist_get_status() {
+
+    unset WORKING_DEVS[*]
+    
+    for dev in ${EXISTING_DEVS[*]}
+    do
+        READ_KEYS=`$MPATHPERSIST --in --read-keys $dev 2>&1`
+        if [ $? -eq 0 ]; then
+            WORKING_DEVS+=($dev)
+            echo "$READ_KEYS" | $GREP -w $NODE_ID_HEX\$ >/dev/null
+            if [ $? -eq 0 ]; then 
+                REGISTERED_DEVS+=($dev)
+
+                READ_RESERVATION=`$MPATHPERSIST --in --read-reservation $dev 2>&1`
+                if [ $? -eq 0 ]; then
+                    echo "$READ_RESERVATION" | $GREP -w $NODE_ID_HEX\$ >/dev/null
+                    if [ $? -eq 0 ]; then 
+                        RESERVED_DEVS+=($dev)
+                    fi
+
+                    reservation_key=`echo $READ_RESERVATION | $GREP -o 'Key=0x[0-9a-f]*' | $GREP -o '0x[0-9a-f]*'`
+                    if [ -n "$reservation_key" ]; then 
+                        DEVS_WITH_RESERVATION+=($dev)
+                        RESERVATION_KEYS+=($reservation_key)
+                    fi
+                fi
+            fi
+        fi
+    done
+
+    WORKING_DEVS_NOF=${#WORKING_DEVS[*]}
+
+    ocf_log debug "$RESOURCE: working devices: `mpathpersist_echo_array ${WORKING_DEVS[*]}`"
+    ocf_log debug "$RESOURCE: number of working devices: $WORKING_DEVS_NOF"
+    
+    ocf_log debug "$RESOURCE: registered devices: `mpathpersist_echo_array ${REGISTERED_DEVS[*]}`"
+    ocf_log debug "$RESOURCE: reserved devices: `mpathpersist_echo_array ${RESERVED_DEVS[*]}`"
+    ocf_log debug "$RESOURCE: devices with reservation: `mpathpersist_echo_array ${DEVS_WITH_RESERVATION[*]}`"
+    ocf_log debug "$RESOURCE: reservation keys: `mpathpersist_echo_array ${RESERVATION_KEYS[*]}`"
+    
+    MASTER_SCORE=$(($MASTER_SCORE_BASE + $MASTER_SCORE_DEV_FACTOR*$WORKING_DEVS_NOF))
+    ocf_log debug "$RESOURCE: master_score: $MASTER_SCORE_BASE + $MASTER_SCORE_DEV_FACTOR*$WORKING_DEVS_NOF = $MASTER_SCORE"
+
+}
+
+mpathpersist_check_devs() {
+
+    for dev in $DEVS 
+    do
+        if [ -e "$dev" ]; then
+            EXISTING_DEVS+=($dev)
+        fi
+    done
+
+    EXISTING_DEVS_NOF=${#EXISTING_DEVS[*]}
+    if [ $EXISTING_DEVS_NOF -lt $REQUIRED_DEVS_NOF ]; then 
+        ocf_log err "Number of existing devices=$EXISTING_DEVS_NOF less then required_devs_nof=$REQUIRED_DEVS_NOF"
+        exit $OCF_ERR_INSTALLED
+    fi
+
+}
+
+mpathpersist_is_registered() {
+    for registered_dev in ${REGISTERED_DEVS[*]}
+    do
+        if [ "$registered_dev" == "$1" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+mpathpersist_get_reservation_key() {
+    for array_index in ${!DEVS_WITH_RESERVATION[*]}
+    do
+        if [ "${DEVS_WITH_RESERVATION[$array_index]}" == "$1" ]; then
+            echo ${RESERVATION_KEYS[$array_index]}
+            return 0
+        fi
+    done
+    echo ""
+}
+
+mpathpersist_echo_array() {
+    str_count=0
+    arr_str=""
+
+    for str in "$@"
+    do
+        arr_str="$arr_str[$str_count]:$str "    
+        str_count=$(($str_count+1))
+    done
+    echo $arr_str
+}
+
+mpathpersist_parse_act_pending() {
+    
+    ACT_PENDING_TS=0
+    ACT_PENDING_SCORE=0
+
+    if [ -n "$ACT_PENDING" ]; then
+        ACT_PENDING_TS=${ACT_PENDING%%_*}
+        ACT_PENDING_SCORE=${ACT_PENDING##*_}
+    fi
+}
+
+mpathpersist_clear_pending() {
+    if [ -n "$ACT_PENDING" ]; then 
+        DO_PENDING_UPDATE="YES"
+        NEW_PENDING=""
+    fi
+}
+
+mpathpersist_new_master_score() {
+    DO_MASTER_SCORE_UPDATE="YES"
+    NEW_MASTER_SCORE=$1
+}
+
+mpathpersist_new_pending() {
+    DO_PENDING_UPDATE="YES"
+    NEW_PENDING=$1
+}
+
+
+# Functions invoked by resource manager actions
+
+mpathpersist_action_start() {
+
+    ocf_run $MASTER_SCORE_ATTRIBUTE --update=$MASTER_SCORE
+    ocf_run $PENDING_ATTRIBUTE --update=""
+
+    if [ $WORKING_DEVS_NOF -lt $REQUIRED_DEVS_NOF ]; then
+        ocf_log err "$RESOURCE: Number of working devices=$WORKING_DEVS_NOF less then required_devs_nof=$REQUIRED_DEVS_NOF"
+        exit $OCF_ERR_GENERIC
+    fi
+
+    for dev in ${WORKING_DEVS[*]}
+    do
+        if mpathpersist_is_registered $dev ; then
+            : OK
+        else
+            ocf_run $MPATHPERSIST --out --register --param-sark=$NODE_ID_HEX $dev
+            if [ $? -ne $OCF_SUCCESS ]
+            then
+                return $OCF_ERR_GENERIC
+            fi
+        fi
+    done
+
+    return $OCF_SUCCESS
+}
+
+mpathpersist_action_stop() {
+
+    if [ ${#REGISTERED_DEVS[*]} -eq 0 ]; then
+        ocf_log debug "$RESOURCE stop: already no registrations"
+    else
+        # Clear preference for becoming master
+        ocf_run $MASTER_SCORE_ATTRIBUTE --delete
+        ocf_run $PENDING_ATTRIBUTE --delete
+
+        for dev in ${REGISTERED_DEVS[*]}
+        do
+            ocf_run $MPATHPERSIST --out --register --param-rk=$NODE_ID_HEX $dev
+        done
+    fi
+
+    return $OCF_SUCCESS
+}
+
+mpathpersist_action_monitor() {
+
+    ACT_MASTER_SCORE=`$MASTER_SCORE_ATTRIBUTE --query --quiet 2>&1`
+    ocf_log debug "$RESOURCE monitor: ACT_MASTER_SCORE=$ACT_MASTER_SCORE"
+    
+    ACT_PENDING=`$PENDING_ATTRIBUTE --query --quiet 2>&1`
+    ocf_log debug "$RESOURCE monitor: ACT_PENDING=$ACT_PENDING"
+
+    mpathpersist_parse_act_pending
+    ocf_log debug "$RESOURCE monitor: ACT_PENDING_TS=$ACT_PENDING_TS"
+    ocf_log debug "$RESOURCE monitor: ACT_PENDING_VAL=$ACT_PENDING_SCORE"
+   
+    ocf_log debug "$MASTER_SCORE, $ACT_MASTER_SCORE, $ROLE"
+    
+    DO_MASTER_SCORE_UPDATE="NO"
+    DO_PENDING_UPDATE="NO"
+    if [ -n "$ACT_MASTER_SCORE" ] 
+    then
+        if [ $ACT_MASTER_SCORE -eq $MASTER_SCORE ]; then
+            mpathpersist_clear_pending
+        else
+            case $ROLE in
+            Master)  
+                if [ $MASTER_SCORE -lt $ACT_MASTER_SCORE ]; then
+                    if [ -n "$ACT_PENDING" ] 
+                    then
+                        if [ $(($NOW-$ACT_PENDING_TS-$MASTER_SCORE_DELAY)) -ge 0 ]; then
+                            mpathpersist_new_master_score $MASTER_SCORE
+                            mpathpersist_clear_pending
+                        fi
+                    else
+                        if [ $MASTER_SCORE_DELAY -eq 0 ]; then
+                            mpathpersist_new_master_score $MASTER_SCORE
+                            mpathpersist_clear_pending
+                        else
+                            mpathpersist_new_pending "${NOW}_${MASTER_SCORE}"
+                        fi
+                    fi
+                else
+                    mpathpersist_new_master_score $MASTER_SCORE
+                    mpathpersist_clear_pending
+                fi
+                ;;
+
+            Slave)
+                if [ $MASTER_SCORE -gt $ACT_MASTER_SCORE ]; then
+                    if [ -n "$ACT_PENDING" ]; then 
+                        if [ $(($NOW-$ACT_PENDING_TS-$MASTER_SCORE_DELAY)) -ge 0 ]; then
+                            mpathpersist_new_master_score $MASTER_SCORE
+                            mpathpersist_clear_pending
+                        fi
+                    else
+                        if [ $MASTER_SCORE_DELAY -eq 0 ]; then
+                            mpathpersist_new_master_score $MASTER_SCORE
+                            mpathpersist_clear_pending
+                        else
+                            mpathpersist_new_pending "${NOW}_${MASTER_SCORE}"
+                        fi
+                    fi
+                else
+                    mpathpersist_new_master_score $MASTER_SCORE
+                    mpathpersist_clear_pending
+                fi
+                ;;
+
+            *)
+                ;;
+
+            esac
+        fi
+    fi
+
+    if [ $DO_MASTER_SCORE_UPDATE == "YES" ]; then
+        ocf_run $MASTER_SCORE_ATTRIBUTE --update=$NEW_MASTER_SCORE
+    fi
+
+    if [ $DO_PENDING_UPDATE == "YES" ]; then
+        ocf_run $PENDING_ATTRIBUTE --update=$NEW_PENDING
+    fi
+
+    if [ ${#REGISTERED_DEVS[*]} -eq 0 ]; then
+        ocf_log debug "$RESOURCE monitor: no registrations"
+        return $OCF_NOT_RUNNING
+    fi
+
+    if [ ${#RESERVED_DEVS[*]} -eq ${#WORKING_DEVS[*]} ]; then 
+        return $OCF_RUNNING_MASTER
+    fi
+
+    if [ ${#REGISTERED_DEVS[*]} -eq ${#WORKING_DEVS[*]} ]; then 
+        if [ $RESERVATION_TYPE -eq 7 ] || [ $RESERVATION_TYPE -eq 8 ]; then
+            if [ ${#DEVS_WITH_RESERVATION[*]} -gt 0 ]; then
+                return $OCF_RUNNING_MASTER
+             else
+                return $OCF_SUCCESS
+            fi
+        else
+            return $OCF_SUCCESS
+        fi
+    fi
+
+    ocf_log err "$RESOURCE monitor: unexpected state"
+    
+    return $OCF_ERR_GENERIC
+}
+
+mpathpersist_action_promote() {
+
+    if [ ${#RESERVED_DEVS[*]} -gt 0 ]; then 
+        ocf_log info "$RESOURCE promote: already master"
+        return $OCF_SUCCESS
+    fi
+
+    for dev in ${WORKING_DEVS[*]}
+    do
+        reservation_key=`mpathpersist_get_reservation_key $dev`
+        case $RESERVATION_TYPE in
+        1|3|5|6)        
+            if [ -z "$reservation_key" ]; then
+                ocf_run $MPATHPERSIST --out --reserve --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
+                if [ $? -ne $OCF_SUCCESS ]; then
+                    return $OCF_ERR_GENERIC
+                fi
+            else
+                ocf_run $MPATHPERSIST --out --preempt --param-sark=$reservation_key --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
+                if [ $? -ne $OCF_SUCCESS ]; then
+                    return $OCF_ERR_GENERIC
+                fi
+            fi
+            ;;
+
+        7|8) 
+            if [ -z "$reservation_key" ]; then
+                ocf_run $MPATHPERSIST --out --reserve --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
+                if [ $? -ne $OCF_SUCCESS ]
+                then
+                    return $OCF_ERR_GENERIC
+                fi
+            else 
+                ocf_log info "$RESOURCE promote: there already exist an reservation holder, all registrants become reservation holders"
+                return $OCF_SUCCESS
+            fi
+            ;;
+  
+        *)
+            return $OCF_ERR_ARGS
+            ;;
+
+        esac
+    done
+
+    return $OCF_SUCCESS
+}
+
+mpathpersist_action_demote() {
+    case $RESERVATION_TYPE in
+    1|3|5|6)
+        if [ ${#RESERVED_DEVS[*]} -eq 0 ]; then 
+            ocf_log info "$RESOURCE demote: already slave"
+            return $OCF_SUCCESS
+        fi
+
+        for dev in ${RESERVED_DEVS[*]}
+        do
+            ocf_run $MPATHPERSIST --out --release --param-rk=$NODE_ID_HEX --prout-type=$RESERVATION_TYPE $dev
+            if [ $? -ne  $OCF_SUCCESS ]; then
+               return $OCF_ERR_GENERIC
+            fi
+        done
+        ;;
+
+    7|8)  #in case of 7/8, --release won't release the reservation unless unregister the key.    
+        if [ ${#REGISTERED_DEVS[*]} -eq 0 ]; then 
+            ocf_log info "$RESOURCE demote: already slave"
+            return $OCF_SUCCESS
+        fi
+
+        for dev in ${REGISTERED_DEVS[*]}
+        do
+            ocf_run $MPATHPERSIST --out --register --param-rk=$NODE_ID_HEX --param-sark=0 $dev
+            if [ $? -ne $OCF_SUCCESS ]; then
+               return $OCF_ERR_GENERIC
+            fi
+        done
+        ;;
+   
+    *)
+        return $OCF_ERR_ARGS
+        ;;
+    esac
+
+    return $OCF_SUCCESS
+}
+
+mpathpersist_action_notify() {
+    local n_type="$OCF_RESKEY_CRM_meta_notify_type"
+    local n_op="$OCF_RESKEY_CRM_meta_notify_operation"
+    set -- $OCF_RESKEY_CRM_meta_notify_active_resource
+    local n_active="$#"
+    set -- $OCF_RESKEY_CRM_meta_notify_stop_resource
+    local n_stop="$#"
+    set -- $OCF_RESKEY_CRM_meta_notify_start_resource
+    local n_start="$#"
+
+    ocf_log debug "$RESOURCE notify: $n_type for $n_op - counts: active $n_active - starting $n_start - stopping $n_stop"
+    
+    return $OCF_SUCCESS
+}
+
+mpathpersist_action_validate_all () {
+
+    if [ "$OCF_RESKEY_CRM_meta_master_max" != "1" ] && [ "$RESERVATION_TYPE"  != "7" ] && [ "$RESERVATION_TYPE" != "8" ]; then
+        ocf_log err "Master options misconfigured."
+        exit $OCF_ERR_CONFIGURED
+    fi
+
+    return $OCF_SUCCESS
+}
+
+if [ $# -ne 1 ]; then
+    echo "Incorrect parameter count."
+    mpathpersist_action_usage
+    exit $OCF_ERR_ARGS
+fi
+
+ACTION=$1
+case $ACTION in
+    meta-data)    
+        meta_data
+        ;;
+        
+    validate-all)    
+        mpathpersist_init
+        mpathpersist_action_validate_all
+        ;;
+
+    start|promote|monitor|stop|demote)
+        ocf_log debug "$RESOURCE: starting action \"$ACTION\""
+        mpathpersist_init
+        mpathpersist_action_$ACTION
+        exit $?
+        ;;
+        
+    notify)    
+        mpathpersist_action_notify
+        exit $?
+        ;;
+
+    usage|help)    
+        mpathpersist_action_usage
+        exit $OCF_SUCCESS
+        ;;
+
+    *)  
+        mpathpersist_action_usage
+        exit $OCF_ERR_ARGS
+        ;;
+
+    esac
