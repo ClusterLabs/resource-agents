@@ -1,6 +1,35 @@
 #!/bin/bash
+#
+# Resource agent script for redis server.
+#
+# Copyright (c) 2013 Patrick Hemmer <patrick.hemmer@gmail.com>
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+#
 
-. ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 : ${OCF_RESKEY_bin:=/usr/bin/redis-server}
 : ${OCF_RESKEY_client_bin:=/usr/bin/redis-cli}
@@ -37,14 +66,14 @@ if [ -z "$REDIS_CHECK_DUMP" ]; then
 	REDIS_CHECK_DUMP="$(which redis-check-rdb 2>/dev/null)"
 fi
 
-if [ -f "$REDIS_CONFIG" ]; then
-	REDIS_DUMP_DIR="$(cat $REDIS_CONFIG | grep "^\s*dir\s" | awk '{ print $2 }' 2>/dev/null)"
-	REDIS_DUMP_FILE="$(cat $REDIS_CONFIG | grep "^\s*dbfilename\s" | awk '{ print $2 }' 2>/dev/null)"
+if [ -r "$REDIS_CONFIG" ]; then
+	REDIS_DUMP_DIR="$(grep "^\s*dir\s" < "$REDIS_CONFIG" | awk '{ print $2 }' 2>/dev/null)"
+	REDIS_DUMP_FILE="$(grep "^\s*dbfilename\s" < "$REDIS_CONFIG" | awk '{ print $2 }' 2>/dev/null)"
 fi
 : ${REDIS_DUMP_DIR:=/var/lib/redis/}
 : ${REDIS_DUMP_FILE:=dump.rdb}
 
-function meta_data() {
+redis_meta_data() {
 	cat <<EOI
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
@@ -156,7 +185,7 @@ is in use.
 EOI
 }
 
-INSTANCE_ATTR_NAME=`echo ${OCF_RESOURCE_INSTANCE}| awk -F : '{print $1}'`
+INSTANCE_ATTR_NAME=$(echo "${OCF_RESOURCE_INSTANCE}" | awk -F : '{print $1}')
 CRM_ATTR_REPL_INFO="${HA_SBIN_DIR}/crm_attribute --type crm_config --name ${INSTANCE_ATTR_NAME}_REPL_INFO -s redis_replication"
 MASTER_HOST=""
 MASTER_ACTIVE_CACHED=""
@@ -173,13 +202,13 @@ master_is_active()
 	return $MASTER_ACTIVE
 }
 
-function set_master()
+set_master()
 {
 	MASTER_HOST="$1"
 	${CRM_ATTR_REPL_INFO} -v "$1" -q
 }
 
-function last_known_master()
+last_known_master()
 {
 	if [ -z "$MASTER_HOST" ]; then
 		MASTER_HOST="$(${CRM_ATTR_REPL_INFO} --query  -q  2>/dev/null)"
@@ -187,17 +216,18 @@ function last_known_master()
 	echo "$MASTER_HOST"
 }
 
-function crm_master_reboot() {
-	local node=$(ocf_attribute_target)
-	"${HA_SBIN_DIR}/crm_master" -N $node -l reboot "$@"
+crm_master_reboot() {
+	local node
+	node=$(ocf_attribute_target)
+	"${HA_SBIN_DIR}/crm_master" -N "$node" -l reboot "$@"
 }
 
-function calculate_score()
+calculate_score()
 {
 	perf_score="$1"
 	connected_clients="$2"
 
-    	if ocf_is_true "$OCF_RESKEY_wait_last_known_master"; then
+	if ocf_is_true "$OCF_RESKEY_wait_last_known_master"; then
 		# only set perferred score by slave_priority if
 		# we are not waiting for the last known master. Otherwise
 		# we want the agent to have complete control over the scoring.
@@ -216,12 +246,15 @@ function calculate_score()
 	echo "$perf_score"
 }
 
-function set_score()
+set_score()
 {
-	local score="$1"
+	local score
+	local last_master
 
-    	if ocf_is_true "$OCF_RESKEY_wait_last_known_master" && ! master_is_active; then
-		local last_master="$(last_known_master)"
+	score="$1"
+
+	if ocf_is_true "$OCF_RESKEY_wait_last_known_master" && ! master_is_active; then
+		last_master="$(last_known_master)"
 		if [ -n "$last_master" ] && [[ "$last_master" != "$NODENAME" ]]; then
 			ocf_log info "Postponing setting master score for ${NODENAME} until last known master instance [${last_master}] is promoted"
 			return
@@ -232,16 +265,16 @@ function set_score()
 	crm_master_reboot -v "$score"
 }
 
-function redis_client() {
+redis_client() {
 	ocf_log debug "redis_client: '$REDIS_CLIENT' -s '$REDIS_SOCKET' $*"
 	if [ -n "$clientpasswd" ]; then
 		"$REDIS_CLIENT" -s "$REDIS_SOCKET" -a "$clientpasswd" "$@" | sed 's/\r//'
-	else 
+	else
 		"$REDIS_CLIENT" -s "$REDIS_SOCKET" "$@" | sed 's/\r//'
 	fi
 }
 
-function simple_status() {
+simple_status() {
 	local pid
 
 	if ! [ -f "$REDIS_PIDFILE" ]; then
@@ -256,7 +289,7 @@ function simple_status() {
 	return $OCF_SUCCESS
 }
 
-function monitor() {
+redis_monitor() {
 	local res
 
 	simple_status
@@ -309,7 +342,7 @@ function monitor() {
 	return $OCF_SUCCESS
 }
 
-function check_dump_file()
+check_dump_file()
 {
 	if ! have_binary "$REDIS_CHECK_DUMP"; then
 		return 0
@@ -317,8 +350,10 @@ function check_dump_file()
 	$REDIS_CHECK_DUMP ${REDIS_DUMP_DIR}/${REDIS_DUMP_FILE} 2>&1
 }
 
-function start() {
-	monitor
+redis_start() {
+	local size
+
+	redis_monitor
 	status=$?
 
 	if (( status == OCF_SUCCESS )) || (( status == OCF_RUNNING_MASTER )); then
@@ -336,10 +371,10 @@ function start() {
 	# check for 0 byte database dump file. This is an unrecoverable start
 	# condition that we can avoid by deleting the 0 byte database file.
 	if [ -f "${REDIS_DUMP_DIR}/${REDIS_DUMP_FILE}" ]; then
-		local size="$(stat --format "%s" ${REDIS_DUMP_DIR}/${REDIS_DUMP_FILE})"
+		size="$(stat --format "%s" ${REDIS_DUMP_DIR}/${REDIS_DUMP_FILE})"
 		if [ "$?" -eq "0" ] && [ "$size" -eq "0" ]; then
 			ocf_log notice "Detected 0 byte ${REDIS_DUMP_FILE}, deleting zero length file to avoid start failure."
-			rm -f ${REDIS_DUMP_DIR}/${REDIS_DUMP_FILE}
+			rm -f "${REDIS_DUMP_DIR}/${REDIS_DUMP_FILE}"
 		fi
 	fi
 
@@ -378,9 +413,9 @@ function start() {
 		sleep 1
 	done
 
-	ocf_is_ms && demote # pacemaker expects resources to start in slave mode
+	ocf_is_ms && redis_demote # pacemaker expects resources to start in slave mode
 
-	monitor
+	redis_monitor
 	status=$?
 	if (( status == OCF_SUCCESS )) || (( status == OCF_RUNNING_MASTER )); then
 		return $OCF_SUCCESS
@@ -391,8 +426,8 @@ function start() {
 	return $status
 }
 
-function stop() {
-	monitor
+redis_stop() {
+	redis_monitor
 	status=$?
 
 	if (( status == OCF_NOT_RUNNING )); then
@@ -415,8 +450,8 @@ function stop() {
 	done
 }
 
-function promote() {
-	monitor
+redis_promote() {
+	redis_monitor
 	status=$?
 
 	if (( status == OCF_RUNNING_MASTER )); then
@@ -430,7 +465,7 @@ function promote() {
 
 	redis_client slaveof no one
 
-	monitor
+	redis_monitor
 	status=$?
 	if (( status == OCF_RUNNING_MASTER )); then
 		set_master "$NODENAME"
@@ -441,7 +476,7 @@ function promote() {
 	return $OCF_ERR_GENERIC
 }
 
-function demote() {
+redis_demote() {
 	local master_host
 	local master_port
 
@@ -451,7 +486,7 @@ function demote() {
 	client_kill=$?
 
 	CHECK_SLAVE_STATE=1
-	monitor
+	redis_monitor
 	status=$?
 
 	if (( status == OCF_SUCCESS )); then
@@ -495,7 +530,7 @@ function demote() {
 		if [ "$client_kill" -eq 2 ]; then
 			redis_client CLIENT PAUSE 2000
 		fi
-		monitor
+		redis_monitor
 		status=$?
 		if (( status == OCF_SUCCESS )); then
 			if [ "$client_kill" -eq 2 ]; then
@@ -511,23 +546,23 @@ function demote() {
 	return $OCF_ERR_GENERIC
 }
 
-function notify() {
+redis_notify() {
 	mode="${OCF_RESKEY_CRM_meta_notify_type}-${OCF_RESKEY_CRM_meta_notify_operation}"
 	case "$mode" in
 		post-demote|post-promote) # change the master
-			monitor
+			redis_monitor
 			status=$?
 			if (( status == OCF_SUCCESS )); then # were a slave
 				# calling demote updates the slave's connection
 				# to the newly appointed Master instance.
-				demote
+				redis_demote
 			fi
 			;;
 	esac
 	return $OCF_SUCCESS
 }
 
-function validate() {
+redis_validate() {
 	if [[ -x "$REDIS_SERVER" ]]; then
 		ocf_log err "validate: $REDIS_SERVER does not exist or is not executable"
 		return $OCF_ERR_INSTALLED
@@ -547,39 +582,39 @@ function validate() {
 }
 
 NODENAME=$(ocf_attribute_target)
-if [ -f "$REDIS_CONFIG" ]; then
-	clientpasswd="$(cat $REDIS_CONFIG | sed -n -e  's/^\s*requirepass\s*\(.*\)\s*$/\1/p' | tail -n 1)"
+if [ -r "$REDIS_CONFIG" ]; then
+	clientpasswd="$(sed -n -e  's/^\s*requirepass\s*\(.*\)\s*$/\1/p' < $REDIS_CONFIG | tail -n 1)"
 fi
 
 ocf_log debug "action=${1:-$__OCF_ACTION} notify_type=${OCF_RESKEY_CRM_meta_notify_type} notify_operation=${OCF_RESKEY_CRM_meta_notify_operation} master_host=${OCF_RESKEY_CRM_meta_notify_master_uname} slave_host=${OCF_RESKEY_CRM_meta_notify_slave_uname} promote_host=${OCF_RESKEY_CRM_meta_notify_promote_uname} demote_host=${OCF_RESKEY_CRM_meta_notify_demote_uname}; params: bin=${OCF_RESKEY_bin} client_bin=${OCF_RESKEY_client_bin} config=${OCF_RESKEY_config} user=${OCF_RESKEY_user} rundir=${OCF_RESKEY_rundir} port=${OCF_RESKEY_port}"
 
 case "${1:-$__OCF_ACTION}" in
 	status|monitor)
-		monitor
+		redis_monitor
 		;;
 	start)
-		start
+		redis_start
 		;;
 	stop)
-		stop
+		redis_stop
 		;;
 	restart)
-		stop && start
+		redis_stop && redis_start
 		;;
 	promote)
-		promote
+		redis_promote
 		;;
 	demote)
-		demote
+		redis_demote
 		;;
 	notify)
-		notify
+		redis_notify
 		;;
 	meta-data)
-		meta_data
+		redis_meta_data
 		;;
 	validate-all)
-		validate
+		redis_validate
 		;;
 	*)
 		echo "Usage: $0 {monitor|start|stop|restart|promote|demote|notify|validate-all|meta-data}"

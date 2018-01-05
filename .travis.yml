@@ -10,6 +10,11 @@ addons:
       - xsltproc
       - docbook
       - docbook-xml
+      - docbook-xsl
+      - docbook-defguide
+      - docbook-dsssl
+      - w3-recs
+      - opensp
       - shellcheck
 script:
   - ./ci/build.sh
