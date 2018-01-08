@@ -70,7 +70,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			MailTo			\
 			ManageRAID		\
 			ManageVE		\
-			NodeUtilization	\
+			NodeUtilization		\
 			Pure-FTPd		\
 			Raid1			\
 			Route			\
@@ -115,14 +115,14 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			ids			\
 			iface-bridge		\
 			iface-vlan		\
-			ipsec		\
+			ipsec			\
 			iscsi			\
 			jboss			\
 			jira			\
 			kamailio		\
 			lxc			\
 			lxd-info		\
-			machine-info	\
+			machine-info		\
 			minio			\
 			mysql			\
 			mysql-proxy		\
@@ -171,9 +171,9 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  http-mon.sh		\
 			  sapdb-nosha.sh	\
 			  sapdb.sh		\
-			  lvm-clvm.sh       \
-			  lvm-plain.sh      \
-			  lvm-tag.sh        \
+			  lvm-clvm.sh		\
+			  lvm-plain.sh		\
+			  lvm-tag.sh		\
 			  ora-common.sh		\
 			  mysql-common.sh	\
 			  nfsserver-redhat.sh	\
