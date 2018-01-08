@@ -49,6 +49,11 @@ dlm and sanlock. This agent only supports "dlm + lvmlockd". If dlm (or corosync)
 are already being used by other cluster software, you are advised to select
 dlm, then configure "controld" resource agent for dlm and this agent for "lvmlockd".
 Otherwise, consider sanlock for "lvmlockd" if dlm/corosync is not required.
+
+Using lvmlockd requires the settings in LVM configuration file (/etc/lvm/lvm.conf):
+"locking_type = 1" and "use_lvmlockd = 1". This RA will change the settings
+respectively if needed.
+
 For more information, refer to manpage lvmlockd.8.
 </longdesc>
 <shortdesc lang="en">This agent manages the lvmlockd daemon</shortdesc>
@@ -139,7 +144,8 @@ silent_status()
 	fi
 }
 
-check_config()
+# change /etc/lvm/lvm.conf to use lvmlockd
+setup_lvm_config()
 {
 	local out=""
 	local use_lvmlockd=""
@@ -155,15 +161,12 @@ check_config()
 	lock_type=$(echo "$out" | cut -d'=' -f2)
 
 	if [ "$use_lvmlockd" -ne 1 ] ; then
-		ocf_log info "lvmlockd is not enabled, please ensure \"use_lvmlockd=1\""
+		ocf_log info "setting \"use_lvmlockd=1\" in /etc/lvm/lvm.conf ..."
+		sed -i 's,^[[:blank:]]*use_lvmlockd[[:blank:]]*=.*,\ \ \ \ use_lvmlockd = 1,g' /etc/lvm/lvm.conf
 	fi
 	if [ "$lock_type" -ne 1 ] ; then
-		ocf_log info "locking type is wrong, please ensure \"locking_type=1\""
-	fi
-
-	if [ "$use_lvmlockd" -ne 1 ] || [ "$lock_type" -ne 1 ] ; then
-		ocf_exit_reason "Improper configuration to use lvmlockd."
-		exit $OCF_ERR_CONFIGURED
+		ocf_log info "setting \"locking_type=1\" in /etc/lvm/lvm.conf ..."
+		sed -i 's,^[[:blank:]]*locking_type[[:blank:]]*=.*,\ \ \ \ locking_type = 1,g' /etc/lvm/lvm.conf
 	fi
 
 	return $OCF_SUCCESS
@@ -186,8 +189,7 @@ check_dlm_controld()
 lvmlockd_start() {
 	local extras=""
 
-	ocf_log info "checking config settings for ${LOCKD}..."
-	check_config
+	setup_lvm_config
 
 	ocf_log info "checking if DLM is started first..."
 	check_dlm_controld
