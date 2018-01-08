@@ -46,8 +46,7 @@
 #    TODO:    'Master' reserves new devs in 'monitor' action
 
 #Defaults
-OCF_RESKEY_binary_default="mpathpersist"
-OCF_RESKEY_devs_default=""
+OCF_RESKEY_mpathpersist_binary_default="mpathpersist"
 OCF_RESKEY_required_devs_no_default=1
 OCF_RESKEY_reservation_type_default=1
 OCF_RESKEY_master_score_base_default=0
@@ -61,13 +60,12 @@ OCF_RESKEY_master_score_delay_default=30
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # set default values
-    : ${mpathpersist_binary=${OCF_RESKEY_binary_default}} 			# binary name for the resource
-    : ${devs=${OCF_RESKEY_devs_default}}                            		# device list
-    : ${required_devs_no=${OCF_RESKEY_required_devs_no_default}}   		# number of required devices
-    : ${reservation_type=${OCF_RESKEY_reservation_type_default}}		# reservation type
-    : ${master_score_base=${OCF_RESKEY_master_score_base_default}}		# master score base 
-    : ${master_score_dev_factor=${OCF_RESKEY_master_score_dev_factor_default}}	# device factor for master score
-    : ${master_score_delay=${OCF_RESKEY_master_score_delay_default}}		# delay for master score
+: ${OCF_RESKEY_mpathpersist_binary=${OCF_RESKEY_mpathpersist_binary_default}}		# binary name for the resource
+: ${OCF_RESKEY_required_devs_no=${OCF_RESKEY_required_devs_no_default}}			# number of required devices
+: ${OCF_RESKEY_reservation_type=${OCF_RESKEY_reservation_type_default}}			# reservation type
+: ${OCF_RESKEY_master_score_base=${OCF_RESKEY_master_score_base_default}}		# master score base
+: ${OCF_RESKEY_master_score_dev_factor=${OCF_RESKEY_master_score_dev_factor_default}}	# device factor for master score
+: ${OCF_RESKEY_master_score_delay=${OCF_RESKEY_master_score_delay_default}}		# delay for master score
 
 #######################################################################
 
@@ -95,7 +93,7 @@ Please see man sg_persist(8) and mpathpersist(8) for reservation_type details.
 The name of the binary that manages the resource.
 </longdesc>
 <shortdesc lang="en">the binary name of the resource</shortdesc>
-<content type="string" default="$mpathpersist_binary"/>
+<content type="string" default="${OCF_RESKEY_mpathpersist_binary_default}"/>
 </parameter>
 
 <parameter name="devs" unique="0" required="1">
@@ -111,14 +109,14 @@ Shell wildcars are allowed.
 <longdesc lang="en">
 Minimum number of "working" devices from device list
       1) existing 
-      2) "mpathpersist --in --read-keys \$device" works (Return code 0)
-resource actions "start","monitor","promote" and "validate-all" return "\$OCF_ERR_INSTALLED"
-if the actual number of "working" devices is less then OCF_RESKEY_required_devs_no_default.
+      2) "mpathpersist --in --read-keys &lt;device&gt;" works (Return code 0)
+resource actions "start","monitor","promote" and "validate-all" return "OCF_ERR_INSTALLED"
+if the actual number of "working" devices is less than "required_devs_no".
 resource actions "stop" and "demote" tries to remove reservations and registration keys from 
-all working devices, but always return "\$OCF_SUCCESS"
+all working devices, but always return "OCF_SUCCESS"
 </longdesc>
 <shortdesc lang="en">minimum number of working devices</shortdesc>
-<content type="string" default="1"/>
+<content type="string" default="${OCF_RESKEY_required_devs_no_default}"/>
 </parameter>
 
 <parameter name="reservation_type" unique="0" required="0">
@@ -126,18 +124,18 @@ all working devices, but always return "\$OCF_SUCCESS"
 reservation type 
 </longdesc>
 <shortdesc lang="en">reservation type</shortdesc>
-<content type="string" default="1" />
+<content type="string" default="${OCF_RESKEY_reservation_type_default}" />
 </parameter>
 
 <parameter name="master_score_base" unique="0" required="0">
 <longdesc lang="en">
 master_score_base value
 "master_score_base" value is used in "master_score" calculation:
-master_score = \$master_score_base + \$master_score_dev_factor * \$working_devs  
+master_score = master_score_base + master_score_dev_factor * working_devs
 if set to bigger value in mpathpersist resource configuration on some node, this node will be "preferred" for master role. 
 </longdesc>
 <shortdesc lang="en">base master_score value</shortdesc>
-<content type="string" default="0" />
+<content type="string" default="${OCF_RESKEY_master_score_base_default}" />
 </parameter>
 
 <parameter name="master_score_dev_factor" unique="0" required="0">
@@ -148,19 +146,19 @@ so the node that sees more devices will be preferred for the "Master"-role
 Setting it to 0 will disable this behavior. 
 </longdesc>
 <shortdesc lang="en">working device factor in master_score calculation</shortdesc>
-<content type="string" default="100" />
+<content type="string" default="${OCF_RESKEY_master_score_dev_factor_default}" />
 </parameter>
 
 <parameter name="master_score_delay" unique="0" required="0">
 <longdesc lang="en">
-master/slave decreases/increases its master_score after delay of OCF_RESKEY_master_score_delay_default seconds
+master/slave decreases/increases its master_score after delay of "master_score_delay" seconds
 so if some device gets inaccessible, the slave decreases its master_score first and the resource will no be watched
 and after this device reappears again the master increases its master_score first
 this can work only if the master_score_delay is bigger then monitor interval on both master and slave
 Setting it to 0 will disable this behavior.
 </longdesc>
 <shortdesc lang="en">master_score decrease/increase delay time</shortdesc>
-<content type="string" default="30" />
+<content type="string" default="${OCF_RESKEY_master_score_delay_default}" />
 </parameter>
 </parameters>
 
@@ -188,7 +186,7 @@ mpathpersist_init() {
         exit $OCF_ERR_PERM
     fi 
 
-    MPATHPERSIST=${OCF_RESKEY_binary:-"$mpathpersist_binary"}
+    MPATHPERSIST="${OCF_RESKEY_mpathpersist_binary}"
     check_binary $MPATHPERSIST
     
     ROLE=$OCF_RESKEY_CRM_meta_role
@@ -219,12 +217,12 @@ mpathpersist_init() {
 
     ocf_log debug "$RESOURCE: NODE:$NODE, ROLE:$ROLE, NODE_ID DEC:$NODE_ID_DEC HEX:$NODE_ID_HEX"
 
-    DEVS=${OCF_RESKEY_devs:=$devs}
-    REQUIRED_DEVS_NO=${OCF_RESKEY_required_devs_no:=$required_devs_no}
-    RESERVATION_TYPE=${OCF_RESKEY_reservation_type:=$reservation_type}
-    MASTER_SCORE_BASE=${OCF_RESKEY_master_score_base:=$master_score_base}
-    MASTER_SCORE_DEV_FACTOR=${OCF_RESKEY_master_score_dev_factor:=$master_score_dev_factor}
-    MASTER_SCORE_DELAY=${OCF_RESKEY_master_score_delay:=$master_score_delay}
+    DEVS="${OCF_RESKEY_devs}"
+    REQUIRED_DEVS_NO="${OCF_RESKEY_required_devs_no}"
+    RESERVATION_TYPE="${OCF_RESKEY_reservation_type}"
+    MASTER_SCORE_BASE="${OCF_RESKEY_master_score_base}"
+    MASTER_SCORE_DEV_FACTOR="${OCF_RESKEY_master_score_dev_factor}"
+    MASTER_SCORE_DELAY="${OCF_RESKEY_master_score_delay}"
 
     ocf_log debug "$RESOURCE: DEVS=$DEVS"
     ocf_log debug "$RESOURCE: REQUIRED_DEVS_NO=$REQUIRED_DEVS_NO"
