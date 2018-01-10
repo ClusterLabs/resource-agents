@@ -785,14 +785,14 @@ Extra options to apply when starting nginx.
 </parameters>
 
 <actions>
-<action name="start"   timeout="40s" />
-<action name="stop"    timeout="60s" />
-<action name="reload"  timeout="40s" />
-<action name="status"  timeout="30s" />
-<action name="monitor" timeout="30s" depth="0" interval="10s" />
-<action name="monitor" timeout="30s" depth="10" interval="30s" />
-<action name="monitor" timeout="45s" depth="20" />
-<action name="monitor" timeout="60s" depth="30" />
+<action name="start"   timeout="40" />
+<action name="stop"    timeout="60" />
+<action name="reload"  timeout="40" />
+<action name="status"  timeout="30" />
+<action name="monitor" timeout="30" depth="0" interval="10" />
+<action name="monitor" timeout="30" depth="10" interval="30" />
+<action name="monitor" timeout="45" depth="20" />
+<action name="monitor" timeout="60" depth="30" />
 <action name="meta-data"  timeout="5" />
 <action name="validate-all"  timeout="5" />
 </actions>

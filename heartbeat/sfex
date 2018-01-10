@@ -111,11 +111,11 @@ The "safety margin" is decided within the range of about 10-20 seconds(It depend
 </parameters>
 
 <actions>
-<action name="start" timeout="120s" />
-<action name="stop" timeout="20s" />
-<action name="monitor" depth="0" timeout="10s" interval="10s" />
-<action name="meta-data" timeout="5s" />
-<action name="validate-all" timeout="5s" />
+<action name="start" timeout="120" />
+<action name="stop" timeout="20" />
+<action name="monitor" depth="0" timeout="10" interval="10" />
+<action name="meta-data" timeout="5" />
+<action name="validate-all" timeout="5" />
 </actions>
 </resource-agent>
 END

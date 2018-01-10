@@ -117,11 +117,11 @@ The default value is 10.
 </parameters>
 
 <actions>
-<action name="start" timeout="60s" />
-<action name="stop" timeout="120s" />
-<action name="status" timeout="60s" />
-<action name="monitor" depth="0" timeout="60s" interval="60s" />
-<action name="meta-data" timeout="5s" />
+<action name="start" timeout="60" />
+<action name="stop" timeout="120" />
+<action name="status" timeout="60" />
+<action name="monitor" depth="0" timeout="60" interval="60" />
+<action name="meta-data" timeout="5" />
 <action name="validate-all"  timeout="5"/>
 </actions>
 </resource-agent>
@@ -300,9 +300,9 @@ esac
 #             </attributes>
 #           </instance_attributes>
 #           <operations>
-#             <op id="op:prmSyslog-ng:start"   name="start" timeout="60s" on_fail="restart"/>
-#             <op id="op:prmSyslog-ng:monitor" name="monitor" interval="10s" timeout="60s" on_fail="restart"/>
-#             <op id="op:prmSyslog-ng:stop"    name="stop" timeout="60s" on_fail="block"/>
+#             <op id="op:prmSyslog-ng:start"   name="start" timeout="60" on_fail="restart"/>
+#             <op id="op:prmSyslog-ng:monitor" name="monitor" interval="10" timeout="60" on_fail="restart"/>
+#             <op id="op:prmSyslog-ng:stop"    name="stop" timeout="60" on_fail="block"/>
 #           </operations>
 #         </primitive>
 
