@@ -129,10 +129,10 @@ set_utilization() {
 
     if ocf_is_true "$OCF_RESKEY_utilization_cpu"; then
         sys_cpu=$(( $(grep -c processor /proc/cpuinfo) - $OCF_RESKEY_utilization_cpu_reservation ))
-        uti_cpu=$(crm_attribute -Q -t nodes -U "$host_name" -z -n cpu 2>/dev/null)
+        uti_cpu=$(crm_attribute -Q -t nodes --node "$host_name" -z -n cpu 2>/dev/null)
 
         if [ "$sys_cpu" != "$uti_cpu" ]; then
-            if ! crm_attribute -t nodes -U "$host_name" -z -n cpu -v $sys_cpu; then
+            if ! crm_attribute -t nodes --node "$host_name" -z -n cpu -v $sys_cpu; then
                 ocf_log err "Failed to set the cpu utilization attribute for $host_name using crm_attribute."
                 return 1
             fi
@@ -141,10 +141,10 @@ set_utilization() {
 
     if ocf_is_true "$OCF_RESKEY_utilization_host_memory"; then
         sys_mem=$(( $(awk '/MemTotal/{printf("%d\n",$2/1024);exit(0)}' /proc/meminfo) - $OCF_RESKEY_utilization_host_memory_reservation ))
-        uti_mem=$(crm_attribute -Q -t nodes -U "$host_name" -z -n host_memory 2>/dev/null)
+        uti_mem=$(crm_attribute -Q -t nodes --node "$host_name" -z -n host_memory 2>/dev/null)
 
         if [ "$sys_mem" != "$uti_mem" ]; then
-            if ! crm_attribute -t nodes -U "$host_name" -z -n host_memory -v $sys_mem; then
+            if ! crm_attribute -t nodes --node "$host_name" -z -n host_memory -v $sys_mem; then
                 ocf_log err "Failed to set the host_memory utilization attribute for $host_name using crm_attribute."
                 return 1
             fi
@@ -153,12 +153,12 @@ set_utilization() {
 
     if ocf_is_true "$OCF_RESKEY_utilization_hv_memory"; then
         hv_mem=$(( $(Host_Total_Memory) - OCF_RESKEY_utilization_hv_memory_reservation ))
-        uti_mem=$(crm_attribute -Q -t nodes -U "$host_name" -z -n hv_memory 2>/dev/null)
+        uti_mem=$(crm_attribute -Q -t nodes --node "$host_name" -z -n hv_memory 2>/dev/null)
 
         [ $hv_mem -lt 0 ] && hv_mem=0
 
         if [ "$hv_mem" != "$uti_mem" ]; then
-            if ! crm_attribute -t nodes -U "$host_name" -z -n hv_memory -v $hv_mem; then
+            if ! crm_attribute -t nodes --node "$host_name" -z -n hv_memory -v $hv_mem; then
                 ocf_log err "Failed to set the hv_memory utilization attribute for $host_name using crm_attribute."
                 return 1
             fi
