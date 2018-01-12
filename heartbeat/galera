@@ -293,7 +293,7 @@ clear_bootstrap_node()
 
 is_bootstrap()
 {
-    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-bootstrap" -Q 2>/dev/null
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-bootstrap" --quiet 2>/dev/null
 
 }
 
@@ -310,7 +310,7 @@ clear_no_grastate()
 is_no_grastate()
 {
     local node=$(ocf_attribute_target $1)
-    ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-no-grastate" -Q 2>/dev/null
+    ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-no-grastate" --quiet 2>/dev/null
 }
 
 clear_last_commit()
@@ -328,9 +328,9 @@ get_last_commit()
     local node=$(ocf_attribute_target $1)
 
     if [ -z "$node" ]; then
-       ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" -Q 2>/dev/null
+       ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" --quiet 2>/dev/null
     else 
-       ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" -Q 2>/dev/null
+       ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" --quiet 2>/dev/null
     fi
 }
 
@@ -349,9 +349,9 @@ get_safe_to_bootstrap()
     local node=$(ocf_attribute_target $1)
 
     if [ -z "$node" ]; then
-        ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-safe-to-bootstrap" -Q 2>/dev/null
+        ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-safe-to-bootstrap" --quiet 2>/dev/null
     else
-        ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-safe-to-bootstrap" -Q 2>/dev/null
+        ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-safe-to-bootstrap" --quiet 2>/dev/null
     fi
 }
 
