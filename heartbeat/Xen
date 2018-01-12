@@ -434,7 +434,7 @@ Xen_Migrate_To() {
 		ocf_log info "$DOMAIN_NAME: Starting $xentool migrate to $target_node"
 
 		if [ -n "$target_attr" ]; then
-			nodevalue=`crm_attribute --type nodes --node $target_node --attr-name $target_attr -G -q`
+			nodevalue=`crm_attribute --type nodes --node $target_node -n $target_attr -G -q`
 			if [ -n "${nodevalue}" -a "${nodevalue}" != "(null)" ]; then
 				target_addr="$nodevalue"
 				ocf_log info "$DOMAIN_NAME: $target_node is using address $target_addr"
