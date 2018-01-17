@@ -56,7 +56,7 @@ BuildRoot: %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 
 # Build dependencies
 BuildRequires: automake autoconf pkgconfig
-BuildRequires: perl python-devel
+BuildRequires: perl
 BuildRequires: libxslt glib2-devel
 BuildRequires: which
 

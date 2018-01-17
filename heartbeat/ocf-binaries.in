@@ -33,7 +33,6 @@ export PATH
 : ${MSGFMT:=msgfmt}
 : ${NETSTAT:=netstat}
 : ${PERL:=perl}
-: ${PYTHON:=python}
 : ${RAIDSTART:=raidstart}
 : ${RAIDSTOP:=raidstop}
 : ${ROUTE:=route}
