@@ -470,7 +470,6 @@ dnl ===============================================
 PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin"
 export PATH
 
-AM_PATH_PYTHON
 AC_CHECK_PROGS(MAKE, gmake make)
 AC_PATH_PROGS(SSH, ssh, /usr/bin/ssh)
 AC_PATH_PROGS(SCP, scp, /usr/bin/scp)
