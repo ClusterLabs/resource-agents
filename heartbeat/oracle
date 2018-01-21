@@ -546,6 +546,7 @@ is_proc_running() {
 instance_live() {
 	local status=`monsql_one dbstat`
 	[ "$status" = OPEN ] && return 0
+	ocf_log warn "Unable to login as \"$MONUSR\", using \"sysdba\" user instead"
 	status=`dbasql_one dbstat`
 	if [ "$status" = OPEN ]; then
 		return 0
