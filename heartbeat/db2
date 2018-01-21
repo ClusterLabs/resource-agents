@@ -272,7 +272,7 @@ db2_fal_attrib() {
         ;;
 
         get)
-        crm_attribute -t nodes -l reboot -n $attr -G -Q 2>&1
+        crm_attribute -t nodes -l reboot -n $attr -G --quiet 2>&1
         rc=$?
         if [ $rc != 0 ]
         then
