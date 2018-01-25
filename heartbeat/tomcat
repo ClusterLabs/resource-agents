@@ -311,7 +311,7 @@ stop_tomcat()
 	echo "`date "+%Y/%m/%d %T"`: stop  ###########################" >> "$TOMCAT_CONSOLE"
 
 	if [ "$TOMCAT_START_SCRIPT" = "$CATALINA_HOME/bin/catalina.sh" ]; then
-		TOMCAT_STOP_OPTS="$STOP_TIMEOUT --force"
+		TOMCAT_STOP_OPTS="$STOP_TIMEOUT -force"
 	fi
 	stop_time=$(date +%s)
 	attemptTomcatCommand stop $TOMCAT_STOP_OPTS
