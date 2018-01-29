@@ -67,11 +67,11 @@ zpool import is given the -f option.
 </parameters>
 
 <actions>
-<action name="start"   timeout="60s" />
-<action name="stop"    timeout="60s" />
-<action name="monitor" depth="0"  timeout="30s" interval="5s" />
-<action name="validate-all"  timeout="30s" />
-<action name="meta-data"  timeout="5s" />
+<action name="start"   timeout="60" />
+<action name="stop"    timeout="60" />
+<action name="monitor" depth="0"  timeout="30" interval="5" />
+<action name="validate-all"  timeout="30" />
+<action name="meta-data"  timeout="5" />
 </actions>
 </resource-agent>
 END
