@@ -246,7 +246,7 @@ mknod_raid1_stop() {
 	rm -f $tmp_block_file
 	ocf_log info "block device file $1 missing, creating one in order to stop the array"
 	mknod $tmp_block_file b 9 $n
-	$MDADM --stop $tmp_block_file --config=$RAIDCONF --wait-clean -W
+	$MDADM --stop $tmp_block_file --config=$RAIDCONF
 	rc=$?
 	rm -f $tmp_block_file
 	return $rc
@@ -254,12 +254,12 @@ mknod_raid1_stop() {
 raid1_stop_one() {
 	ocf_log info "Stopping array $1"
 	if [ -b "$1" ]; then
-		$MDADM --stop $1 --config=$RAIDCONF --wait-clean -W &&
+		$MDADM --stop $1 --config=$RAIDCONF &&
 			return
 	else
 		# newer mdadm releases can stop arrays when given the
 		# basename; try that first
-		$MDADM --stop `basename $1` --config=$RAIDCONF --wait-clean -W &&
+		$MDADM --stop `basename $1` --config=$RAIDCONF &&
 			return
 		# otherwise create a block device file
 		mknod_raid1_stop $1
