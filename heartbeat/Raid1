@@ -384,8 +384,16 @@ raid1_monitor_one() {
 		2)	ocf_exit_reason "$mddev has failed."
 			return $OCF_ERR_GENERIC
 			;;
-		4)	ocf_exit_reason "mdadm failed on $mddev."
-			return $OCF_ERR_GENERIC
+		4)
+			if [ "$__OCF_ACTION" = "stop" ] ; then
+				# There may be a transient invalid device after
+				# we stop MD due to uevent processing, the
+				# original device is stopped though.
+				return $OCF_NOT_RUNNING
+			else
+				ocf_exit_reason "mdadm failed on $mddev."
+				return $OCF_ERR_GENERIC
+			fi
 			;;
 		*)	ocf_exit_reason "mdadm returned an unknown result ($rc)."
 			return $OCF_ERR_GENERIC
