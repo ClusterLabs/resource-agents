@@ -101,12 +101,12 @@ Location of the vblade binary.
     </parameter>
   </parameters>
   <actions>
-    <action name="start" timeout="15"/>
-    <action name="stop" timeout="15"/>
-    <action name="monitor" timeout="15" interval="10" depth="0"/>
-    <action name="reload" timeout="15"/>
-    <action name="meta-data" timeout="5"/>
-    <action name="validate-all" timeout="15"/>
+    <action name="start" timeout="15s"/>
+    <action name="stop" timeout="15s"/>
+    <action name="monitor" timeout="15s" interval="10s" depth="0"/>
+    <action name="reload" timeout="15s"/>
+    <action name="meta-data" timeout="5s"/>
+    <action name="validate-all" timeout="15s"/>
   </actions>
 </resource-agent>
 EOF

@@ -89,8 +89,8 @@ is able to query its indices and respond properly.
 <actions>
 <action name="start"        timeout="20s" />
 <action name="stop"         timeout="20s" />
-<action name="monitor"      timeout="20" interval="10" depth="0" />
-<action name="meta-data"    timeout="5" />
+<action name="monitor"      timeout="20s" interval="10s" depth="0" />
+<action name="meta-data"    timeout="5s" />
 <action name="validate-all"   timeout="20s" />
 </actions>
 </resource-agent>

@@ -77,11 +77,11 @@ refuse to create a symlink if it clashes with an existing file.
 </parameter>
 </parameters>
 <actions>
-<action name="start"   timeout="15" />
-<action name="stop"    timeout="15" />
-<action name="monitor" depth="0"  timeout="15" interval="60"/>
-<action name="meta-data"  timeout="5" />
-<action name="validate-all"  timeout="10" />
+<action name="start"   timeout="15s" />
+<action name="stop"    timeout="15s" />
+<action name="monitor" depth="0"  timeout="15s" interval="60s"/>
+<action name="meta-data"  timeout="5s" />
+<action name="validate-all"  timeout="10s" />
 </actions>
 </resource-agent>
 END

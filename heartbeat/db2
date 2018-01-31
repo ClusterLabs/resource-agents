@@ -109,15 +109,15 @@ The number of the partion (DBPARTITIONNUM) to be managed.
 </parameters>
 
 <actions>
-<action name="start" timeout="120"/>
-<action name="stop" timeout="120"/>
-<action name="promote" timeout="120"/>
-<action name="demote" timeout="120"/>
-<action name="notify" timeout="10"/>
-<action name="monitor" depth="0" timeout="60" interval="20"/>
-<action name="monitor" depth="0" timeout="60" role="Master" interval="22"/>
-<action name="validate-all" timeout="5"/>
-<action name="meta-data" timeout="5"/>
+<action name="start" timeout="120s"/>
+<action name="stop" timeout="120s"/>
+<action name="promote" timeout="120s"/>
+<action name="demote" timeout="120s"/>
+<action name="notify" timeout="10s"/>
+<action name="monitor" depth="0" timeout="60s" interval="20s"/>
+<action name="monitor" depth="0" timeout="60s" role="Master" interval="22s"/>
+<action name="validate-all" timeout="5s"/>
+<action name="meta-data" timeout="5s"/>
 </actions>
 </resource-agent>
 END

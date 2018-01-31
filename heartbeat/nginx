@@ -793,8 +793,8 @@ Extra options to apply when starting nginx.
 <action name="monitor" timeout="30s" depth="10" interval="30s" />
 <action name="monitor" timeout="45s" depth="20" />
 <action name="monitor" timeout="60s" depth="30" />
-<action name="meta-data"  timeout="5" />
-<action name="validate-all"  timeout="5" />
+<action name="meta-data"  timeout="5s" />
+<action name="validate-all"  timeout="5s" />
 </actions>
 </resource-agent>
 END

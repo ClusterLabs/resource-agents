@@ -57,13 +57,13 @@ The node list that should never sound the alarm.
 </parameters>
 
 <actions>
-<action name="start" timeout="10" />
-<action name="stop" timeout="10" />
-<action name="restart" timeout="10" />
-<action name="status" depth="0" timeout="10" interval="10" />
-<action name="monitor" depth="0" timeout="10" interval="10" />
-<action name="meta-data" timeout="5" />
-<action name="validate-all" timeout="5" />
+<action name="start" timeout="10s" />
+<action name="stop" timeout="10s" />
+<action name="restart" timeout="10s" />
+<action name="status" depth="0" timeout="10s" interval="10s" />
+<action name="monitor" depth="0" timeout="10s" interval="10s" />
+<action name="meta-data" timeout="5s" />
+<action name="validate-all" timeout="5s" />
 </actions>
 </resource-agent>
 END

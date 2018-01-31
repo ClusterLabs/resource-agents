@@ -219,12 +219,12 @@ block if unresponsive nfs mounts are in use on the system.
 </parameters>
 
 <actions>
-<action name="start" timeout="60" />
-<action name="stop" timeout="60" />
-<action name="notify" timeout="60" />
-<action name="monitor" depth="0" timeout="40" interval="20" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
+<action name="start" timeout="60s" />
+<action name="stop" timeout="60s" />
+<action name="notify" timeout="60s" />
+<action name="monitor" depth="0" timeout="40s" interval="20s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
 </actions>
 </resource-agent>
 END
