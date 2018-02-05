@@ -60,11 +60,11 @@ descriptions to run.
 </parameters>
 
 <actions>
-<action name="start"        timeout="60" />
-<action name="stop"         timeout="60" />
-<action name="monitor"      timeout="60" interval="10" />
-<action name="meta-data"    timeout="5" />
-<action name="validate-all"   timeout="20" />
+<action name="start"        timeout="60s" />
+<action name="stop"         timeout="60s" />
+<action name="monitor"      timeout="60s" interval="10s" />
+<action name="meta-data"    timeout="5s" />
+<action name="validate-all"   timeout="20s" />
 </actions>
 </resource-agent>
 END

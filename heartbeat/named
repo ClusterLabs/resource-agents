@@ -180,14 +180,14 @@ IP Address where named listens.
 </parameters>
 
 <actions>
-<action name="start" timeout="60" />
-<action name="stop" timeout="60" />
-<action name="reload" timeout="60" />
-<action name="status" timeout="10" />
-<action name="monitor" depth="0" timeout="30" interval="30"/>
-<action name="meta-data" timeout="5" />
-<action name="validate-all" timeout="5" />
-<action name="methods" timeout="5" />
+<action name="start" timeout="60s" />
+<action name="stop" timeout="60s" />
+<action name="reload" timeout="60s" />
+<action name="status" timeout="10s" />
+<action name="monitor" depth="0" timeout="30s" interval="30s"/>
+<action name="meta-data" timeout="5s" />
+<action name="validate-all" timeout="5s" />
+<action name="methods" timeout="5s" />
 </actions>
 </resource-agent>
 

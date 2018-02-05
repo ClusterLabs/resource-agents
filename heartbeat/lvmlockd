@@ -87,11 +87,11 @@ Adopt locks from a previous instance of lvmlockd.
 </parameters>
 
 <actions>
-<action name="start"		timeout="90" />
-<action name="stop"		timeout="90" />
-<action name="monitor"		timeout="90" interval="30" depth="0" />
-<action name="meta-data"	timeout="10" />
-<action name="validate-all"	timeout="20" />
+<action name="start"		timeout="90s" />
+<action name="stop"		timeout="90s" />
+<action name="monitor"		timeout="90s" interval="30s" depth="0" />
+<action name="meta-data"	timeout="10s" />
+<action name="validate-all"	timeout="20s" />
 </actions>
 </resource-agent>
 END

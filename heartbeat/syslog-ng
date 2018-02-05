@@ -122,7 +122,7 @@ The default value is 10.
 <action name="status" timeout="60s" />
 <action name="monitor" depth="0" timeout="60s" interval="60s" />
 <action name="meta-data" timeout="5s" />
-<action name="validate-all"  timeout="5"/>
+<action name="validate-all"  timeout="5s"/>
 </actions>
 </resource-agent>
 END

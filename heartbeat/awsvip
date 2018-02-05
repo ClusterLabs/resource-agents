@@ -95,15 +95,15 @@ a short delay between API calls, to avoid sending API too quick
 </parameters>
 
 <actions>
-<action name="start"        timeout="10" />
-<action name="stop"         timeout="10" />
-<action name="monitor"      timeout="10" interval="20" depth="0" />
-<action name="reload"       timeout="10" />
-<action name="migrate_to"   timeout="10" />
-<action name="migrate_from" timeout="10" />
-<action name="meta-data"    timeout="5" />
-<action name="validate"     timeout="10" />
-<action name="validate-all" timeout="10" />
+<action name="start"        timeout="10s" />
+<action name="stop"         timeout="10s" />
+<action name="monitor"      timeout="10s" interval="20s" depth="0" />
+<action name="reload"       timeout="10s" />
+<action name="migrate_to"   timeout="10s" />
+<action name="migrate_from" timeout="10s" />
+<action name="meta-data"    timeout="5s" />
+<action name="validate"     timeout="10s" />
+<action name="validate-all" timeout="10s" />
 </actions>
 </resource-agent>
 END

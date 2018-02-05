@@ -168,13 +168,13 @@ add this parameter with a list of scripts to monitor.
 </parameters>
 
 <actions>
-<action name="start" timeout="60" />
-<action name="stop" timeout="40" />
-<action name="migrate_from" timeout="120" />
-<action name="migrate_to" timeout="120" />
-<action name="monitor" depth="0" timeout="30" interval="10" />
-<action name="meta-data" timeout="5" />
-<action name="validate-all" timeout="5" />
+<action name="start" timeout="60s" />
+<action name="stop" timeout="40s" />
+<action name="migrate_from" timeout="120s" />
+<action name="migrate_to" timeout="120s" />
+<action name="monitor" depth="0" timeout="30s" interval="10s" />
+<action name="meta-data" timeout="5s" />
+<action name="validate-all" timeout="5s" />
 </actions>
 </resource-agent>
 END

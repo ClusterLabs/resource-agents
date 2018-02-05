@@ -66,11 +66,11 @@ Times to re-try before giving up.
 </parameters>
 
 <actions>
-<action name="start"   timeout="300" />
-<action name="stop"    timeout="100" />
-<action name="monitor" depth="0"  timeout="20" interval="20" />
-<action name="meta-data"  timeout="5" />
-<action name="validate-all"  timeout="30" />
+<action name="start"   timeout="300s" />
+<action name="stop"    timeout="100s" />
+<action name="monitor" depth="0"  timeout="20s" interval="20s" />
+<action name="meta-data"  timeout="5s" />
+<action name="validate-all"  timeout="30s" />
 </actions>
 </resource-agent>
 END
