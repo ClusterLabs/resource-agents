@@ -138,6 +138,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_oraasm.7 \
                           ocf_heartbeat_oracle.7 \
                           ocf_heartbeat_oralsnr.7 \
+                          ocf_heartbeat_ovsmonitor.7 \
                           ocf_heartbeat_pgsql.7 \
                           ocf_heartbeat_pingd.7 \
                           ocf_heartbeat_portblock.7 \
