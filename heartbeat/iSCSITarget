@@ -347,6 +347,12 @@ iSCSITarget_start() {
 				ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/portals create "${sep_portal[0]}" "${sep_portal[1]}" || exit $OCF_ERR_GENERIC
 			else
 				ocf_run targetcli /iscsi create ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
+				if [ ${OCF_RESKEY_portals_default} = "0.0.0.0:3260" ]; then
+					if $(ip a | grep -q inet6); then
+						ocf_run -q targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/portals delete 0.0.0.0 3260
+						ocf_run -q targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/portals create ::0 3260
+					fi
+				fi
 			fi
 		done
 		# in lio, we can set target parameters by manipulating
