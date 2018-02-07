@@ -38,6 +38,7 @@
 : ${OCF_RESKEY_pidfile_name:=redis-server.pid}
 : ${OCF_RESKEY_socket_name:=redis.sock}
 : ${OCF_RESKEY_port:=6379}
+: ${OCF_RESKEY_tunnel_host:=127.0.0.1}
 
 if [ -z "$OCF_RESKEY_config" ]; then
 	if [ -f "/etc/redis.conf" ]; then
@@ -154,6 +155,39 @@ Port for replication client to connect to on remote server
 </longdesc>
 <shortdesc lang="en">Replication port</shortdesc>
 <content type="string" default="${OCF_RESKEY_port}"/>
+</parameter>
+
+<parameter name="tunnel_host" unique="0" required="0">
+<longdesc lang="en">
+When replication traffic is tunnelled, this is the host to target
+to forward outgoing traffic to the redis master. The resource
+agent configures the redis slave to target the master via
+tunnel_host:tunnel_port.
+
+Note that in order to enable replication traffic tunneling,
+parameter {tunnel_port_map} must be populated.
+</longdesc>
+<shortdesc lang="en">Tunnel host for replication traffic</shortdesc>
+<content type="string" default="${OCF_RESKEY_tunnel_host}"/>
+</parameter>
+
+<parameter name="tunnel_port_map" unique="0" required="0">
+<longdesc lang="en">
+A mapping of pacemaker node names to redis port number.
+
+To be used when redis servers need to tunnel replication traffic.
+On every node where the redis resource is running, the redis server
+listens to a different port. Each redis server can access its peers
+for replication traffic via a tunnel accessible at {tunnel_host}:port.
+
+The mapping the form of:
+pcmk1-name:port-for-redis1;pcmk2-name:port-for-redis2;pcmk3-name:port-for-redis3
+
+where the redis resource started on node pcmk1-name would listen on
+port port-for-redis1
+</longdesc>
+<shortdesc lang="en">Mapping of Redis server name to redis port</shortdesc>
+<content type="string" default=""/>
 </parameter>
 
 <parameter name="wait_last_known_master" unique="0" required="0">
@@ -291,6 +325,8 @@ simple_status() {
 
 redis_monitor() {
 	local res
+	local master_name
+	local last_known_master_port
 
 	simple_status
 	res=$?
@@ -334,12 +370,46 @@ redis_monitor() {
 				return $OCF_ERR_GENERIC
 			fi
 			if [[ "${info[master_host]}" != "$(last_known_master)" ]]; then
-				ocf_log err "monitor: Slave mode current master does not match running master. current=${info[master_host]}, running=$(last_known_master)"
-				return $OCF_ERR_GENERIC
+				if [ -n "${OCF_RESKEY_tunnel_port_map}" ]; then
+					master_name=$(port_to_redis_node ${info[master_port]})
+					last_known_master_port=$(redis_node_to_port $(last_known_master))
+					if [[ "${info[master_host]}" != "${OCF_RESKEY_tunnel_host}" ]] ||
+					   [[  "${info[master_port]}" != "${last_known_master_port}" ]]; then
+						ocf_log err "monitor: Slave mode current tunnelled connection to redis server does not match running master. tunnelled='${info[master_host]}:${info[master_port]} (${master_name})', running='$(last_known_master)'"
+						return $OCF_ERR_GENERIC
+					fi
+				else
+					ocf_log err "monitor: Slave mode current master does not match running master. current=${info[master_host]}, running=$(last_known_master)"
+					return $OCF_ERR_GENERIC
+				fi
 			fi
 		fi
 	fi
 	return $OCF_SUCCESS
+}
+
+redis_node_to_port()
+{
+	local node=$1
+	echo "$OCF_RESKEY_tunnel_port_map" | tr ';' '\n' | tr -d ' ' | sed 's/:/ /' | awk -F' ' '$1=="'"$node"'" {print $2;exit}'
+}
+
+port_to_redis_node()
+{
+	local port=$1
+	echo "$OCF_RESKEY_tunnel_port_map" | tr ';' '\n' | tr -d ' ' | sed 's/:/ /' | awk -F' ' '$2=="'"$port"'" {print $1;exit}'
+}
+
+get_tunnel_port_from_master()
+{
+	local master_name=$1
+	crm_attribute --node "$master_name" -l forever --name ${INSTANCE_ATTR_NAME}-tunnel-port --query -q 2>/dev/null
+}
+
+get_master_from_tunnel_port()
+{
+	local master_name=$1
+	crm_attribute --node "$master_name" -l forever --name ${INSTANCE_ATTR_NAME}-tunnel-port --query -q 2>/dev/null
 }
 
 check_dump_file()
@@ -479,6 +549,7 @@ redis_promote() {
 redis_demote() {
 	local master_host
 	local master_port
+	local tunnel_port
 
 	# client kill is only supported in Redis 2.8.12 or greater
 	version=$(redis_client -v | awk '{print $NF}')
@@ -512,7 +583,19 @@ redis_demote() {
 		master_host="no-such-master"
 	fi
 
-	ocf_log info "demote: Setting master to '$master_host'"
+	if [ -n "${OCF_RESKEY_tunnel_port_map}" ]; then
+		# master_host can be the special marker "no-such-master"
+		# while a master is being selected. In this case, no
+		# tunnel port is returned, but this is not fatal.
+		tunnel_port=$(redis_node_to_port "$master_host")
+		if [ -n "$tunnel_port" ]; then
+			ocf_log info "demote: Setting master to '$master_host' via local tunnel '${OCF_RESKEY_tunnel_host}' on port '$tunnel_port'"
+			master_host="${OCF_RESKEY_tunnel_host}"
+			master_port="$tunnel_port"
+		fi
+	else
+		ocf_log info "demote: Setting master to '$master_host'"
+	fi
 
 	redis_client slaveof "$master_host" "$master_port"
 
