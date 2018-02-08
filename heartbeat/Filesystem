@@ -326,7 +326,7 @@ is_fsck_needed() {
 		no)    false;;
 		""|auto)
 		case $FSTYPE in
-			ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs4|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs)
+			ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs4|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs)
 			false;;
 			*)
 			true;;
