@@ -730,7 +730,7 @@ set_blockdevice_var() {
 
 	# these are definitely not block devices
 	case $FSTYPE in
-	nfs4|nfs|smbfs|cifs|none|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs) return;;
+	nfs4|nfs|smbfs|cifs|none|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs) return;;
 	esac
 
 	if `is_option "loop"`; then
@@ -842,7 +842,7 @@ is_option "ro" &&
 	CLUSTERSAFE=2
 
 case $FSTYPE in
-nfs4|nfs|smbfs|cifs|none|gfs2|glusterfs|ceph|ocfs2|overlay|overlayfs|tmpfs)
+nfs4|nfs|smbfs|cifs|none|gfs2|glusterfs|ceph|ocfs2|overlay|overlayfs|tmpfs|cvfs)
 	CLUSTERSAFE=1 # this is kind of safe too
 	;;
 # add here CLUSTERSAFE=0 for all filesystems which are not
