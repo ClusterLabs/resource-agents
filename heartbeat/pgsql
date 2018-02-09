@@ -1946,7 +1946,7 @@ pgsql_validate_all() {
             return $OCF_ERR_CONFIGURED
         fi
 
-        echo "$OCF_RESKEY_replication_slot_name" | grep -q -e [^a-z0-9_]
+        echo "$OCF_RESKEY_replication_slot_name" | grep -q -e '[^a-z0-9_]'
         if [ $? -eq 0 ]; then
             ocf_exit_reason "Invalid replication_slot_name($OCF_RESKEY_replication_slot_name). only use lower case letters, numbers, and the underscore character."
             return $OCF_ERR_CONFIGURED
