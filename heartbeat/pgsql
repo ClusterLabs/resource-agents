@@ -575,6 +575,8 @@ pgsql_real_start() {
         check_socket_dir
     fi
 
+    check_stat_temp_directory
+
     if [ "$OCF_RESKEY_rep_mode" = "slave" ]; then
         rm -f $RECOVERY_CONF
         make_recovery_conf || return $OCF_ERR_GENERIC
@@ -1975,6 +1977,43 @@ check_log_file() {
     fi
 
     return 0
+}
+
+#
+# Check if we need to create stats temp directory in tmpfs
+#
+
+check_stat_temp_directory() {
+    local stats_temp
+
+    stats_temp=`get_pgsql_param stats_temp_directory`
+
+    if [ -z "$stats_temp" ]; then
+        return
+    fi
+
+    if [ "${stats_temp#/}" = "$stats_temp" ]; then
+        stats_temp="$OCF_RESKEY_pgdata/$stats_temp"
+    fi
+
+    if [ -d "$stats_temp" ]; then
+        return
+    fi
+
+    if ! mkdir -p "$stats_temp"; then
+        ocf_exit_reason "Can't create directory $stats_temp"
+        exit $OCF_ERR_PERM
+    fi
+
+    if ! chown $OCF_RESKEY_pgdba: "$stats_temp"; then
+        ocf_exit_reason "Can't change ownership for $stats_temp"
+        exit $OCF_ERR_PERM
+    fi
+
+    if ! chmod 750 "$stats_temp"; then
+        ocf_exit_reason "Can't change permissions for $stats_temp"
+        exit $OCF_ERR_PERM
+    fi
 }
 
 #
