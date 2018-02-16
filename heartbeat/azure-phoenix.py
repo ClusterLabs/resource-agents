@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import sys, re, os, subprocess, time
+import sys, re, os, subprocess, time, syslog
 import logging
 
 OCF_SUCCESS = 0
@@ -17,6 +17,29 @@ PROCESS_EXEC_NAME = None
 PROCESS_EXEC_ARG = None
 PID_FILE = "azure-phoenix-{}.pid"
 
+## https://github.com/ClusterLabs/fence-agents/blob/master/fence/agents/lib/fencing.py.py
+## Own logger handler that uses old-style syslog handler as otherwise everything is sourced
+## from /dev/syslog
+class SyslogLibHandler(logging.StreamHandler):
+	"""
+	A handler class that correctly push messages into syslog
+	"""
+	def emit(self, record):
+		syslog_level = {
+			logging.CRITICAL:syslog.LOG_CRIT,
+			logging.ERROR:syslog.LOG_ERR,
+			logging.WARNING:syslog.LOG_WARNING,
+			logging.INFO:syslog.LOG_INFO,
+			logging.DEBUG:syslog.LOG_DEBUG,
+			logging.NOTSET:syslog.LOG_DEBUG,
+		}[record.levelno]
+
+		msg = self.format(record)
+
+		# syslos.syslog can not have 0x00 character inside or exception is thrown
+		syslog.syslog(syslog_level, msg.replace("\x00", "\n"))
+		return
+
 class AzureConfiguration:
     RGName = None
     VMName = None
@@ -26,6 +49,7 @@ class AzureConfiguration:
     Tenantid = None
     ApplicationId = None
     ApplicationKey = None
+    Verbose = None
 
 def get_azure_config():
     config = AzureConfiguration()
@@ -38,6 +62,7 @@ def get_azure_config():
     config.Tenantid = os.environ.get("OCF_RESKEY_tenantId")
     config.ApplicationId = os.environ.get("OCF_RESKEY_applicationId")
     config.ApplicationKey = os.environ.get("OCF_RESKEY_applicationKey")
+    config.Verbose = os.environ.get("OCF_RESKEY_verbose")
 
     if len(sys.argv) > 2:
         for x in range(2, len(sys.argv)):
@@ -58,6 +83,8 @@ def get_azure_config():
                 config.ApplicationId = argument.replace("applicationId=", "")
             elif (argument.startswith("applicationKey=")):
                 config.ApplicationKey = argument.replace("applicationKey=", "")
+            elif (argument.startswith("verbose=")):
+                config.Verbose = argument.replace("verbose=", "")
             else:
                 fail_usage("Unkown argument %s" % argument)
     
@@ -101,16 +128,26 @@ def get_azure_cloud_environment(config):
 def get_azure_credentials(config):
     credentials = None
     cloud_environment = get_azure_cloud_environment(config)
-    if ocf_is_true(config.UseMSI):
+    if ocf_is_true(config.UseMSI) and cloud_environment:
         from msrestazure.azure_active_directory import MSIAuthentication            
         credentials = MSIAuthentication(cloud_environment=cloud_environment)
-    else:
+    elif ocf_is_true(config.UseMSI):
+        from msrestazure.azure_active_directory import MSIAuthentication            
+        credentials = MSIAuthentication()
+    elif cloud_environment:
         from azure.common.credentials import ServicePrincipalCredentials            
         credentials = ServicePrincipalCredentials(
             client_id = config.ApplicationId,
             secret = config.ApplicationKey,
             tenant = config.Tenantid,
             cloud_environment=cloud_environment
+        )
+    else:
+        from azure.common.credentials import ServicePrincipalCredentials            
+        credentials = ServicePrincipalCredentials(
+            client_id = config.ApplicationId,
+            secret = config.ApplicationKey,
+            tenant = config.Tenantid
         )
 
     return credentials
@@ -278,9 +315,17 @@ def print_metadata():
     print "      <content type=\"string\"/>"
     print "    </parameter>"
 
+    print "    <parameter name=\"verbose\" unique=\"0\" required=\"0\">"
+    print "      <longdesc lang=\"en\">"
+    print "        Enables verbose output"
+    print "      </longdesc>"
+    print "      <shortdesc lang=\"en\">Enables verbose output</shortdesc>"
+    print "      <content type=\"boolean\"/>"
+    print "    </parameter>"
+
     print "  </parameters>"
     print "  <actions>"
-    print "    <action name=\"start\"        timeout=\"600\" />"
+    print "    <action name=\"start\"        timeout=\"900\" />"
     print "    <action name=\"stop\"         timeout=\"20\" />"
     print "    <action name=\"monitor\"      timeout=\"20\" interval=\"10\" depth=\"0\" />"
     print "    <action name=\"meta-data\"    timeout=\"5\" />"
@@ -296,7 +341,7 @@ def fail_usage(message):
 def action_start(config):
 
     if (action_monitor() == OCF_SUCCESS):
-        logging.info("Resource is already running")
+        logging.info("action_start: Resource is already running")
         return OCF_SUCCESS
     
     if os.path.exists(get_pid_file()):
@@ -305,10 +350,10 @@ def action_start(config):
     file = open(get_pid_file(), "w")
     file.close()
 
-    logging.info("Starting new process. Using pid file %s" % get_pid_file())
+    logging.info("action_start: Starting new process. Using pid file %s" % get_pid_file())
     p = subprocess.Popen(PROCESS_EXEC_ARG, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     
-    logging.info("process started. pid %s" % p.pid)   
+    logging.info("action_start: process started. pid %s" % p.pid)   
     file = open(get_pid_file(), "w") 
     file.write(str(p.pid))
     file.close()
@@ -366,14 +411,14 @@ def action_monitor():
         return OCF_NOT_RUNNING
 
 def get_fence_status(config):
-    logging.info("{get_power_status} getting fence status for virtual machine %s" % config.VMName)
+    logging.info("get_fence_status: getting fence status for virtual machine %s" % config.VMName)
     result = AZR_VM_NOT_FENCED
         
     try:
         compute_client = get_azure_compute_client(config)
         network_client = get_azure_network_client(config)
 
-        logging.info("{get_power_status} Testing VM state")            
+        logging.info("get_fence_status: Testing VM state")            
         vm = compute_client.virtual_machines.get(config.RGName, config.VMName, "instanceView")
         
         allNICOK = True
@@ -381,15 +426,15 @@ def get_fence_status(config):
             match = re.match('(/subscriptions/([^/]*)/resourceGroups/([^/]*))(/providers/([^/]*/[^/]*)/([^/]*))?', nic.id)
             
             if match:
-                logging.info("{get_power_status} Getting network interface.")
+                logging.info("get_fence_status: Getting network interface.")
                 nic = network_client.network_interfaces.get(match.group(3), match.group(6))
-                logging.info("{get_power_status} Getting network interface done.")
+                logging.info("get_fence_status: Getting network interface done.")
                 if nic.network_security_group:
                     nsgmatch = re.match('(/subscriptions/([^/]*)/resourceGroups/([^/]*))(/providers/([^/]*/[^/]*)/([^/]*))?', nic.network_security_group.id)
                     if nsgmatch:
-                        logging.info("{get_power_status} Getting NSG.")
+                        logging.info("get_fence_status: Getting NSG.")
                         nsg = network_client.network_security_groups.get(nsgmatch.group(3), nsgmatch.group(6))                                
-                        logging.info("{get_power_status} Getting NSG done.")
+                        logging.info("get_fence_status: Getting NSG done.")
 
                         if len(nsg.network_interfaces) == 1 and ((not nsg.subnets) or len(nsg.subnets) == 0):
                             inboundOk = False
@@ -400,37 +445,37 @@ def get_fence_status(config):
                                     and (rule.protocol == "*") and (rule.destination_address_prefix == "*") \
                                     and (rule.source_address_prefix == "*") and (rule.provisioning_state == "Succeeded") \
                                     and (rule.priority == 100) and (rule.name == "FENCE_DENY_ALL_INBOUND"):
-                                    logging.info("{get_power_status} Inbound rule found.")
+                                    logging.info("get_fence_status: Inbound rule found.")
                                     inboundOk = True
                                 elif (rule.access == "Deny") and (rule.direction == "Outbound")  \
                                     and (rule.source_port_range == "*") and (rule.destination_port_range == "*") \
                                     and (rule.protocol == "*") and (rule.destination_address_prefix == "*") \
                                     and (rule.source_address_prefix == "*") and (rule.provisioning_state == "Succeeded") \
                                     and (rule.priority == 100) and (rule.name == "FENCE_DENY_ALL_OUTBOUND"):
-                                    logging.info("{get_power_status} Outbound rule found.")
+                                    logging.info("get_fence_status: Outbound rule found.")
                                     outboundOk = True
                             
                             nicOK = outboundOk and inboundOk
                             allNICOK = allNICOK & nicOK
 
                         elif len(nsg.network_interfaces) != 1:
-                            fail_usage("{get_power_status} Network security group %s of network interface %s is used by multiple network interfaces. Virtual Machine %s cannot be fenced" % (nic.network_security_group.id, nic.id, vm.id ))
+                            fail_usage("get_fence_status: Network security group %s of network interface %s is used by multiple network interfaces. Virtual Machine %s cannot be fenced" % (nic.network_security_group.id, nic.id, vm.id ))
                         else:
-                            fail_usage("{get_power_status} Network security group %s of network interface %s is also used by a subnet. Virtual Machine %s cannot be fenced" % (nic.network_security_group.id, nic.id, vm.id ))                        
+                            fail_usage("get_fence_status: Network security group %s of network interface %s is also used by a subnet. Virtual Machine %s cannot be fenced" % (nic.network_security_group.id, nic.id, vm.id ))                        
                     else:
-                        fail_usage("{get_power_status} Network Security Group id %s could not be parsed. Contact support" % nic.network_security_group.id)
+                        fail_usage("get_fence_status: Network Security Group id %s could not be parsed. Contact support" % nic.network_security_group.id)
                 else:            
-                    fail_usage("{get_power_status} Network interface id %s does not have a network security group." % nic.id)
+                    fail_usage("get_fence_status: Network interface id %s does not have a network security group." % nic.id)
             else:
-                fail_usage("{get_power_status} Network interface id %s could not be parsed. Contact support" % nic.id)
+                fail_usage("get_fence_status: Network interface id %s could not be parsed. Contact support" % nic.id)
     except Exception as e:
-        fail_usage("{get_power_status} Failed: %s" % e)
+        fail_usage("get_fence_status: Failed: %s" % e)
 
     if allNICOK:
-        logging.info("{get_power_status} All network interface have inbound and outbound deny all rules. Declaring VM as off")
+        logging.info("get_fence_status: All network interface have inbound and outbound deny all rules. Declaring VM as off")
         result = AZR_VM_FENCED
     
-    logging.info("{get_power_status} result is %s (AZR_VM_FENCED: %s, AZR_VM_NOT_FENCED: %s)" % (result, AZR_VM_FENCED, AZR_VM_NOT_FENCED))
+    logging.info("get_fence_status: result is %s (AZR_VM_FENCED: %s, AZR_VM_NOT_FENCED: %s)" % (result, AZR_VM_FENCED, AZR_VM_NOT_FENCED))
     return result
 
 def set_power_status(config):    
@@ -450,7 +495,7 @@ def set_power_status(config):
                 if status.code.startswith("ProvisioningState"):
                     provState = status.code.replace("ProvisioningState/", "")
         
-            logging.info("Testing VM state: ProvisioningState %s, PowerState %s" % (provState, powerState))
+            logging.info("set_power_status: Testing VM state: ProvisioningState %s, PowerState %s" % (provState, powerState))
             
             if (provState.lower() == "succeeded" and (powerState.lower() == "deallocated" or powerState.lower() == "stopped")):
                 break
@@ -465,72 +510,80 @@ def set_power_status(config):
             match = re.match('(/subscriptions/([^/]*)/resourceGroups/([^/]*))(/providers/([^/]*/[^/]*)/([^/]*))?', nic.id)
             
             if match:
-                logging.info("Getting network interface.")
+                logging.info("set_power_status: Getting network interface.")
                 nic = network_client.network_interfaces.get(match.group(3), match.group(6))
-                logging.info("Getting network interface done.")
+                logging.info("set_power_status: Getting network interface done.")
                 if nic.network_security_group:
                     nsgmatch = re.match('(/subscriptions/([^/]*)/resourceGroups/([^/]*))(/providers/([^/]*/[^/]*)/([^/]*))?', nic.network_security_group.id)
                     if nsgmatch:
-                        logging.info("Getting NSG.")
+                        logging.info("set_power_status: Getting NSG.")
                         nsg = network_client.network_security_groups.get(nsgmatch.group(3), nsgmatch.group(6))                                
-                        logging.info("Getting NSG done.")
+                        logging.info("set_power_status: Getting NSG done.")
 
                         if len(nsg.network_interfaces) == 1 and ((not nsg.subnets) or len(nsg.subnets) == 0):
                             rulesCountBefore = len(nsg.security_rules)
-                            logging.info("Rules cound before %s" % rulesCountBefore)
+                            logging.info("set_power_status: Rules cound before %s" % rulesCountBefore)
                             nsg.security_rules[:] = [rule for rule in nsg.security_rules if \
                                 rule.name != "FENCE_DENY_ALL_INBOUND" and rule.name != "FENCE_DENY_ALL_OUTBOUND"]
                             rulesCountAfter = len(nsg.security_rules)
-                            logging.info("Rules cound after %s" % rulesCountAfter)                                
+                            logging.info("set_power_status: Rules cound after %s" % rulesCountAfter)                                
 
                             if (rulesCountBefore != rulesCountAfter):
-                                logging.info("Updating %s" % nsg.name)                               
+                                logging.info("set_power_status: Updating %s" % nsg.name)                               
                                 op = network_client.network_security_groups.create_or_update(nsgmatch.group(3), nsg.name, nsg)
-                                logging.info("Updating of %s started - waiting" % nsg.name)
+                                logging.info("set_power_status: Updating of %s started - waiting" % nsg.name)
                                 op.wait()
-                                logging.info("Updating of %s done" % nsg.name)
+                                logging.info("set_power_status: Updating of %s done" % nsg.name)
                             else:
-                                logging.info("No update of NSG since nothing changed")
+                                logging.info("set_power_status: No update of NSG since nothing changed")
 
                         elif len(nsg.network_interfaces) != 1:
-                            fail_usage("Network security group %s of network interface %s is used by multiple network interfaces. Virtual Machine %s cannot be fenced" % (nic.network_security_group.id, nic.id, vm.id ))
+                            fail_usage("set_power_status: Network security group %s of network interface %s is used by multiple network interfaces. Virtual Machine %s cannot be fenced" % (nic.network_security_group.id, nic.id, vm.id ))
                         else:
-                            fail_usage("Network security group %s of network interface %s is also used by a subnet. Virtual Machine %s cannot be fenced" % (nic.network_security_group.id, nic.id, vm.id ))                        
+                            fail_usage("set_power_status: Network security group %s of network interface %s is also used by a subnet. Virtual Machine %s cannot be fenced" % (nic.network_security_group.id, nic.id, vm.id ))                        
                     else:
-                        fail_usage("Network Security Group id %s could not be parsed. Contact support" % nic.network_security_group.id)
+                        fail_usage("set_power_status: Network Security Group id %s could not be parsed. Contact support" % nic.network_security_group.id)
                 else:            
-                    fail_usage("Network interface id %s does not have a network security group." % nic.id)
+                    fail_usage("set_power_status: Network interface id %s does not have a network security group." % nic.id)
             else:
-                fail_usage("Network interface id %s could not be parsed. Contact support" % nic.id)
+                fail_usage("set_power_status: Network interface id %s could not be parsed. Contact support" % nic.id)
 
-        logging.info("Starting virtual machine %s in resource group %s" % (config.VMName, config.RGName))
+        logging.info("set_power_status: Starting virtual machine %s in resource group %s" % (config.VMName, config.RGName))
         waitOp = compute_client.virtual_machines.start(config.RGName, config.VMName, raw=True)
         if waitOp.response.status_code < 200 or waitOp.response.status_code > 202:
-            fail_usage("Response code is %s. Must be 200, 201 or 202" % waitOp.response.status_code)
+            fail_usage("set_power_status: Response code is %s. Must be 200, 201 or 202" % waitOp.response.status_code)
 
-        logging.info("Virtual machine starting up. Status is %s" % (waitOp.response.status_code))
+        logging.info("set_power_status: Virtual machine starting up. Status is %s" % (waitOp.response.status_code))
     except ImportError as ie:
-        logging.error("Azure Resource Manager Python SDK not found or not accessible: %s" % re.sub("^, ", "", str(ie)))
+        logging.error("set_power_status: Azure Resource Manager Python SDK not found or not accessible: %s" % re.sub("^, ", "", str(ie)))
         return OCF_ERR_GENERIC
     except Exception as e:
-        logging.error("Failed: %s" % re.sub("^, ", "", str(e)))
+        logging.error("set_power_status: Failed: %s" % re.sub("^, ", "", str(e)))
         return OCF_ERR_GENERIC
 
     return OCF_SUCCESS
 
 def action_validate_all(config):
-    logging.info("action_validate_all")
+    logging.info("action_validate_all: start")
 
     try:
         compute_client = get_azure_compute_client(config)
         vm = compute_client.virtual_machines.get(config.RGName, config.VMName, "instanceView")
     except Exception as e:
-        fail_usage("{get_fence_status} Failed: %s" % e)
+        fail_usage("action_validate_all: Failed: %s" % e)
     
     return OCF_SUCCESS
 
 def main():
-    logging.basicConfig(filename='example.log',level=logging.INFO)
+    config = get_azure_config()
+
+    if (ocf_is_true(config.Verbose)):
+        logging.getLogger().setLevel(logging.DEBUG)
+    else:
+        logging.getLogger().setLevel(logging.WARNING)
+    
+    logging.getLogger().addHandler(SyslogLibHandler())	
+    logging.getLogger().addHandler(logging.StreamHandler(sys.stderr))
 
     global OCF_RESOURCE_INSTANCE
     global PROCESS_EXEC_NAME
@@ -545,17 +598,17 @@ def main():
 
     action = None
     if len(sys.argv) > 1:
-            action = sys.argv[1]
-    else:
-        print_help()
+            action = sys.argv[1]    
 
-    logging.info("action is %s" % action)
+    
+    logging.debug("main: action is %s" % action)
 
     result = OCF_ERR_UNIMPLEMENTED
     if action == "meta-data":
         result = print_metadata()
+    elif action == "help":
+        print_help()
     else:
-        config = get_azure_config()
         check_azure_config(config)
 
         if action == "monitor":
@@ -569,7 +622,7 @@ def main():
         elif action:
             result = OCF_ERR_UNIMPLEMENTED 
 
-    logging.info("Done %s" % result)
+    logging.debug("main: Done %s" % result)
     sys.exit(result)
 
 if __name__ == "__main__":
