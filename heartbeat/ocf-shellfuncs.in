@@ -668,6 +668,15 @@ dirname()
 	return 0
 }
 
+# usage: systemd_is_running
+# returns:
+#    0  PID 1 is systemd
+#    1  otherwise
+systemd_is_running()
+{
+	[ "$(cat /proc/1/comm 2>/dev/null)" = "systemd" ]
+}
+
 # usage: systemd_drop_in <name> <After|Before> <dependency.service>
 systemd_drop_in()
 {

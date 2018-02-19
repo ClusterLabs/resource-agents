@@ -645,7 +645,7 @@ LOGGING_MANAGER="${OCF_RESKEY_logging_manager}"
 
 if [ -z "${TOMCAT_START_SCRIPT}" ]; then
 	if ocf_is_true $OCF_RESKEY_force_systemd && \
-	     ps -p 1 | grep -q systemd; then
+	     systemd_is_running; then
 		SYSTEMD=1
 	elif [ -e "$CATALINA_HOME/bin/catalina.sh" ]; then
 		TOMCAT_START_SCRIPT="$CATALINA_HOME/bin/catalina.sh"

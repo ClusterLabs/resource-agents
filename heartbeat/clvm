@@ -363,7 +363,7 @@ clvmd_start()
 
 	# systemd drop-in to stop process before storage services during
 	# shutdown/reboot
-	if ps -p 1 | grep -q systemd ; then
+	if systemd_is_running ; then
 		systemd_drop_in "99-clvmd" "After" "blk-availability.service"
 	fi
 
