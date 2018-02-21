@@ -101,6 +101,9 @@ VLDIR=$HA_RSCTMP
 SENDARPPIDDIR=$HA_RSCTMP
 CIP_lockfile=$HA_RSCTMP/IPaddr2-CIP-${OCF_RESKEY_ip}
 
+# IPv6: rewrite :: to :0: for single-field 0 mistakes
+OCF_RESKEY_ip=`echo $OCF_RESKEY_ip | awk -F: -vOFS=: '/::/ && NF==8 {for (i=1;i<=NF;i++) {$i=$i?$i:0}} {print}'`
+
 #######################################################################
 
 meta_data() {
