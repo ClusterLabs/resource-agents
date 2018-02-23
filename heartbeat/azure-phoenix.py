@@ -2,6 +2,7 @@
 
 import sys, re, os, subprocess, time, syslog
 import logging
+import azure_fence_lib
 
 OCF_SUCCESS = 0
 OCF_ERR_GENERIC = 1
@@ -40,19 +41,8 @@ class SyslogLibHandler(logging.StreamHandler):
 		syslog.syslog(syslog_level, msg.replace("\x00", "\n"))
 		return
 
-class AzureConfiguration:
-    RGName = None
-    VMName = None
-    SubscriptionId = None
-    Cloud = None
-    UseMSI = None
-    Tenantid = None
-    ApplicationId = None
-    ApplicationKey = None
-    Verbose = None
-
 def get_azure_config():
-    config = AzureConfiguration()
+    config = azure_fence_lib.AzureConfiguration()
 
     config.RGName = os.environ.get("OCF_RESKEY_resourceGroup")
     config.VMName = os.environ.get("OCF_RESKEY_vmName")
@@ -99,7 +89,7 @@ def check_azure_config(config):
     if not config.SubscriptionId:
         fail_usage("Parameter subscriptionId required.")
 
-    if not ocf_is_true(config.UseMSI):
+    if not azure_fence_lib.ocf_is_true(config.UseMSI):
         if not config.Tenantid:
             fail_usage("Parameter tenantId required if Service Principal should be used.")
         if not config.ApplicationId:
@@ -110,90 +100,6 @@ def check_azure_config(config):
     if config.Cloud and not (config.Cloud.lower() in ("china", "germany", "usgov")):
         fail_usage("Value %s for cloud parameter not supported. Supported values are china, germany and usgov" % config.Cloud)
 
-def get_azure_cloud_environment(config):
-    cloud_environment = None
-    if config.Cloud:
-        if (config.Cloud.lower() == "china"):
-            from msrestazure.azure_cloud import AZURE_CHINA_CLOUD
-            cloud_environment = AZURE_CHINA_CLOUD
-        elif (config.Cloud.lower() == "germany"):
-            from msrestazure.azure_cloud import AZURE_GERMAN_CLOUD
-            cloud_environment = AZURE_GERMAN_CLOUD
-        elif (config.Cloud.lower() == "usgov"):
-            from msrestazure.azure_cloud import AZURE_US_GOV_CLOUD
-            cloud_environment = AZURE_US_GOV_CLOUD
-
-    return cloud_environment
-
-def get_azure_credentials(config):
-    credentials = None
-    cloud_environment = get_azure_cloud_environment(config)
-    if ocf_is_true(config.UseMSI) and cloud_environment:
-        from msrestazure.azure_active_directory import MSIAuthentication            
-        credentials = MSIAuthentication(cloud_environment=cloud_environment)
-    elif ocf_is_true(config.UseMSI):
-        from msrestazure.azure_active_directory import MSIAuthentication            
-        credentials = MSIAuthentication()
-    elif cloud_environment:
-        from azure.common.credentials import ServicePrincipalCredentials            
-        credentials = ServicePrincipalCredentials(
-            client_id = config.ApplicationId,
-            secret = config.ApplicationKey,
-            tenant = config.Tenantid,
-            cloud_environment=cloud_environment
-        )
-    else:
-        from azure.common.credentials import ServicePrincipalCredentials            
-        credentials = ServicePrincipalCredentials(
-            client_id = config.ApplicationId,
-            secret = config.ApplicationKey,
-            tenant = config.Tenantid
-        )
-
-    return credentials
-
-def get_azure_compute_client(config):
-    from azure.mgmt.compute import ComputeManagementClient
-
-    cloud_environment = get_azure_cloud_environment(config)
-    credentials = get_azure_credentials(config)
-
-    if cloud_environment:
-        compute_client = ComputeManagementClient(
-            credentials,
-            config.SubscriptionId,
-            base_url=cloud_environment.endpoints.resource_manager
-        )
-    else:
-        compute_client = ComputeManagementClient(
-            credentials,
-            config.SubscriptionId
-        )
-    return compute_client
-
-def get_azure_network_client(config):
-    from azure.mgmt.network import NetworkManagementClient
-
-    cloud_environment = get_azure_cloud_environment(config)
-    credentials = get_azure_credentials(config)
-
-    if cloud_environment:
-        network_client = NetworkManagementClient(
-            credentials,
-            config.SubscriptionId,
-            base_url=cloud_environment.endpoints.resource_manager
-        )
-    else:
-        network_client = NetworkManagementClient(
-            credentials,
-            config.SubscriptionId
-        )
-    return network_client
-
-
-# https://stackoverflow.com/questions/715417/converting-from-a-string-to-boolean-in-python
-def ocf_is_true(strValue):
-    return strValue and strValue.lower() in ("yes", "true", "1", "YES", "TRUE", "ja", "on", "ON")
 
 # https://stackoverflow.com/questions/32295395/how-to-get-the-process-name-by-pid-in-linux-using-python
 def get_pname(id):
@@ -415,65 +321,14 @@ def get_fence_status(config):
     result = AZR_VM_NOT_FENCED
         
     try:
-        compute_client = get_azure_compute_client(config)
-        network_client = get_azure_network_client(config)
+        compute_client = azure_fence_lib.get_azure_compute_client(config)
+        network_client = azure_fence_lib.get_azure_network_client(config)
 
-        logging.info("get_fence_status: Testing VM state")            
-        vm = compute_client.virtual_machines.get(config.RGName, config.VMName, "instanceView")
-        
-        allNICOK = True
-        for nic in vm.network_profile.network_interfaces:
-            match = re.match('(/subscriptions/([^/]*)/resourceGroups/([^/]*))(/providers/([^/]*/[^/]*)/([^/]*))?', nic.id)
-            
-            if match:
-                logging.info("get_fence_status: Getting network interface.")
-                nic = network_client.network_interfaces.get(match.group(3), match.group(6))
-                logging.info("get_fence_status: Getting network interface done.")
-                if nic.network_security_group:
-                    nsgmatch = re.match('(/subscriptions/([^/]*)/resourceGroups/([^/]*))(/providers/([^/]*/[^/]*)/([^/]*))?', nic.network_security_group.id)
-                    if nsgmatch:
-                        logging.info("get_fence_status: Getting NSG.")
-                        nsg = network_client.network_security_groups.get(nsgmatch.group(3), nsgmatch.group(6))                                
-                        logging.info("get_fence_status: Getting NSG done.")
+        if azure_fence_lib.get_power_status_impl(compute_client, network_client, config.RGName, config.VMName) == azure_fence_lib.FENCE_STATE_OFF:
+            result = AZR_VM_FENCED
 
-                        if len(nsg.network_interfaces) == 1 and ((not nsg.subnets) or len(nsg.subnets) == 0):
-                            inboundOk = False
-                            outboundOk = False
-                            for rule in nsg.security_rules:                                    
-                                if (rule.access == "Deny") and (rule.direction == "Inbound")  \
-                                    and (rule.source_port_range == "*") and (rule.destination_port_range == "*") \
-                                    and (rule.protocol == "*") and (rule.destination_address_prefix == "*") \
-                                    and (rule.source_address_prefix == "*") and (rule.provisioning_state == "Succeeded") \
-                                    and (rule.priority == 100) and (rule.name == "FENCE_DENY_ALL_INBOUND"):
-                                    logging.info("get_fence_status: Inbound rule found.")
-                                    inboundOk = True
-                                elif (rule.access == "Deny") and (rule.direction == "Outbound")  \
-                                    and (rule.source_port_range == "*") and (rule.destination_port_range == "*") \
-                                    and (rule.protocol == "*") and (rule.destination_address_prefix == "*") \
-                                    and (rule.source_address_prefix == "*") and (rule.provisioning_state == "Succeeded") \
-                                    and (rule.priority == 100) and (rule.name == "FENCE_DENY_ALL_OUTBOUND"):
-                                    logging.info("get_fence_status: Outbound rule found.")
-                                    outboundOk = True
-                            
-                            nicOK = outboundOk and inboundOk
-                            allNICOK = allNICOK & nicOK
-
-                        elif len(nsg.network_interfaces) != 1:
-                            fail_usage("get_fence_status: Network security group %s of network interface %s is used by multiple network interfaces. Virtual Machine %s cannot be fenced" % (nic.network_security_group.id, nic.id, vm.id ))
-                        else:
-                            fail_usage("get_fence_status: Network security group %s of network interface %s is also used by a subnet. Virtual Machine %s cannot be fenced" % (nic.network_security_group.id, nic.id, vm.id ))                        
-                    else:
-                        fail_usage("get_fence_status: Network Security Group id %s could not be parsed. Contact support" % nic.network_security_group.id)
-                else:            
-                    fail_usage("get_fence_status: Network interface id %s does not have a network security group." % nic.id)
-            else:
-                fail_usage("get_fence_status: Network interface id %s could not be parsed. Contact support" % nic.id)
     except Exception as e:
         fail_usage("get_fence_status: Failed: %s" % e)
-
-    if allNICOK:
-        logging.info("get_fence_status: All network interface have inbound and outbound deny all rules. Declaring VM as off")
-        result = AZR_VM_FENCED
     
     logging.info("get_fence_status: result is %s (AZR_VM_FENCED: %s, AZR_VM_NOT_FENCED: %s)" % (result, AZR_VM_FENCED, AZR_VM_NOT_FENCED))
     return result
@@ -482,78 +337,11 @@ def set_power_status(config):
     logging.info("set_power_status: unfencing virtual machine %s in resource group %s" % (config.VMName, config.RGName))
     
     try:
-        compute_client = get_azure_compute_client(config)
-        network_client = get_azure_network_client(config)
+        compute_client = azure_fence_lib.get_azure_compute_client(config)
+        network_client = azure_fence_lib.get_azure_network_client(config)
 
-        while True:
-            powerState = "unknown"
-            provState = "unknown"
-            vm = compute_client.virtual_machines.get(config.RGName, config.VMName, "instanceView")
-            for status in vm.instance_view.statuses:
-                if status.code.startswith("PowerState"):
-                    powerState = status.code.replace("PowerState/", "")
-                if status.code.startswith("ProvisioningState"):
-                    provState = status.code.replace("ProvisioningState/", "")
-        
-            logging.info("set_power_status: Testing VM state: ProvisioningState %s, PowerState %s" % (provState, powerState))
-            
-            if (provState.lower() == "succeeded" and (powerState.lower() == "deallocated" or powerState.lower() == "stopped")):
-                break
-            elif (provState.lower() == "succeeded" and not (powerState.lower() == "deallocated" or powerState.lower() == "stopped")):
-                fail_usage("Virtual machine %s needs to be deallocated or stopped to be unfenced" % (vm.id))                        
-            elif (provState.lower() == "failed" or provState.lower() == "canceled"):
-                fail_usage("Virtual machine operation %s failed or canceled. Virtual machine %s needs to be deallocated or stopped to be unfenced" % (vm.id))
-            else:
-                time.sleep(10)
+        azure_fence_lib.set_power_status_on(compute_client, network_client, config.RGName, config.VMName)
 
-        for nic in vm.network_profile.network_interfaces:
-            match = re.match('(/subscriptions/([^/]*)/resourceGroups/([^/]*))(/providers/([^/]*/[^/]*)/([^/]*))?', nic.id)
-            
-            if match:
-                logging.info("set_power_status: Getting network interface.")
-                nic = network_client.network_interfaces.get(match.group(3), match.group(6))
-                logging.info("set_power_status: Getting network interface done.")
-                if nic.network_security_group:
-                    nsgmatch = re.match('(/subscriptions/([^/]*)/resourceGroups/([^/]*))(/providers/([^/]*/[^/]*)/([^/]*))?', nic.network_security_group.id)
-                    if nsgmatch:
-                        logging.info("set_power_status: Getting NSG.")
-                        nsg = network_client.network_security_groups.get(nsgmatch.group(3), nsgmatch.group(6))                                
-                        logging.info("set_power_status: Getting NSG done.")
-
-                        if len(nsg.network_interfaces) == 1 and ((not nsg.subnets) or len(nsg.subnets) == 0):
-                            rulesCountBefore = len(nsg.security_rules)
-                            logging.info("set_power_status: Rules cound before %s" % rulesCountBefore)
-                            nsg.security_rules[:] = [rule for rule in nsg.security_rules if \
-                                rule.name != "FENCE_DENY_ALL_INBOUND" and rule.name != "FENCE_DENY_ALL_OUTBOUND"]
-                            rulesCountAfter = len(nsg.security_rules)
-                            logging.info("set_power_status: Rules cound after %s" % rulesCountAfter)                                
-
-                            if (rulesCountBefore != rulesCountAfter):
-                                logging.info("set_power_status: Updating %s" % nsg.name)                               
-                                op = network_client.network_security_groups.create_or_update(nsgmatch.group(3), nsg.name, nsg)
-                                logging.info("set_power_status: Updating of %s started - waiting" % nsg.name)
-                                op.wait()
-                                logging.info("set_power_status: Updating of %s done" % nsg.name)
-                            else:
-                                logging.info("set_power_status: No update of NSG since nothing changed")
-
-                        elif len(nsg.network_interfaces) != 1:
-                            fail_usage("set_power_status: Network security group %s of network interface %s is used by multiple network interfaces. Virtual Machine %s cannot be fenced" % (nic.network_security_group.id, nic.id, vm.id ))
-                        else:
-                            fail_usage("set_power_status: Network security group %s of network interface %s is also used by a subnet. Virtual Machine %s cannot be fenced" % (nic.network_security_group.id, nic.id, vm.id ))                        
-                    else:
-                        fail_usage("set_power_status: Network Security Group id %s could not be parsed. Contact support" % nic.network_security_group.id)
-                else:            
-                    fail_usage("set_power_status: Network interface id %s does not have a network security group." % nic.id)
-            else:
-                fail_usage("set_power_status: Network interface id %s could not be parsed. Contact support" % nic.id)
-
-        logging.info("set_power_status: Starting virtual machine %s in resource group %s" % (config.VMName, config.RGName))
-        waitOp = compute_client.virtual_machines.start(config.RGName, config.VMName, raw=True)
-        if waitOp.response.status_code < 200 or waitOp.response.status_code > 202:
-            fail_usage("set_power_status: Response code is %s. Must be 200, 201 or 202" % waitOp.response.status_code)
-
-        logging.info("set_power_status: Virtual machine starting up. Status is %s" % (waitOp.response.status_code))
     except ImportError as ie:
         logging.error("set_power_status: Azure Resource Manager Python SDK not found or not accessible: %s" % re.sub("^, ", "", str(ie)))
         return OCF_ERR_GENERIC
@@ -567,7 +355,7 @@ def action_validate_all(config):
     logging.info("action_validate_all: start")
 
     try:
-        compute_client = get_azure_compute_client(config)
+        compute_client = azure_fence_lib.get_azure_compute_client(config)
         vm = compute_client.virtual_machines.get(config.RGName, config.VMName, "instanceView")
     except Exception as e:
         fail_usage("action_validate_all: Failed: %s" % e)
@@ -577,7 +365,7 @@ def action_validate_all(config):
 def main():
     config = get_azure_config()
 
-    if (ocf_is_true(config.Verbose)):
+    if (azure_fence_lib.ocf_is_true(config.Verbose)):
         logging.getLogger().setLevel(logging.DEBUG)
     else:
         logging.getLogger().setLevel(logging.WARNING)
