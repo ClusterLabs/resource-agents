@@ -1,6 +1,5 @@
 #!@PYTHON@ -tt
 import logging, re, time
-import msrestazure.azure_exceptions
 
 FENCE_SUBNET_NAME = "fence-subnet"
 FENCE_INBOUND_RULE_NAME = "FENCE_DENY_ALL_INBOUND"
@@ -237,6 +236,7 @@ def set_power_status_off(compute_client, network_client, rgName, vmName):
        iCount += 1
 
 def set_power_status_on(compute_client, network_client, rgName, vmName):
+    import msrestazure.azure_exceptions
     logging.info("{set_power_status_on} Unfencing %s in resource group %s" % (vmName, rgName))
 
     vm = None          
