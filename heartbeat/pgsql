@@ -61,6 +61,7 @@ OCF_RESKEY_check_wal_receiver_default="false"
 # Defaults for replication
 OCF_RESKEY_rep_mode_default=none
 OCF_RESKEY_node_list_default=""
+OCF_RESKEY_sync_num_default=""
 OCF_RESKEY_restore_command_default=""
 OCF_RESKEY_archive_cleanup_command_default=""
 OCF_RESKEY_recovery_end_command_default=""
@@ -95,6 +96,7 @@ OCF_RESKEY_replication_slot_name_default=""
 # for replication
 : ${OCF_RESKEY_rep_mode=${OCF_RESKEY_rep_mode_default}}
 : ${OCF_RESKEY_node_list=${OCF_RESKEY_node_list_default}}
+: ${OCF_RESKEY_sync_num=${OCF_RESKEY_sync_num_default}}
 : ${OCF_RESKEY_restore_command=${OCF_RESKEY_restore_command_default}}
 : ${OCF_RESKEY_archive_cleanup_command=${OCF_RESKEY_archive_cleanup_command_default}}
 : ${OCF_RESKEY_recovery_end_command=${OCF_RESKEY_recovery_end_command_default}}
@@ -303,6 +305,15 @@ This is optional for replication. Defaults to all nodes in the cluster
 </longdesc>
 <shortdesc lang="en">node list</shortdesc>
 <content type="string" default="${OCF_RESKEY_node_list_default}" />
+</parameter>
+
+<parameter name="sync_num" unique="0" required="0">
+<longdesc lang="en">
+Number of the synchronous standby nodes for replication for multiple synchronous replication.
+If your PostgreSQL version is 9.6 or later, you can set "2" or more.
+</longdesc>
+<shortdesc lang="en">sync_num</shortdesc>
+<content type="integer" default="${OCF_RESKEY_rep_mode_default}" />
 </parameter>
 
 <parameter name="restore_command" unique="0" required="0">
@@ -1139,10 +1150,13 @@ pgsql_notify() {
 control_slave_status() {
     local rc
     local data_status
+    local sync_priority
+    local sync_weight
     local target
     local all_data_status
     local tmp_data_status
     local number_of_nodes
+    local can_promote
 
     all_data_status=`exec_sql "${CHECK_REPLICATION_STATE_SQL}"`
     rc=$?
@@ -1169,15 +1183,19 @@ control_slave_status() {
                     continue
                 fi
                 data_status=`echo $tmp_data_status | cut -d "|" -f 2,3`
-                ocf_log debug "node_name and data_status is $tmp_data_status"
+                sync_priority=`echo $tmp_data_status | cut -d "|" -f 4`
+                ocf_log debug "node_name, data_status and priority is $tmp_data_status"
                 break
             done
         fi
 
         case "$data_status" in
             "STREAMING|SYNC")
+                sync_weight=$(expr $number_of_nodes - $sync_priority)
+                can_promote=$(expr $CAN_PROMOTE + $sync_weight)
+
                 change_data_status "$target" "$data_status"
-                change_master_score "$target" "$CAN_PROMOTE"
+                change_master_score "$target" "$can_promote"
                 change_pgsql_status "$target" "HS:sync"
                 ;;
             "STREAMING|ASYNC")
@@ -1216,6 +1234,16 @@ control_slave_status() {
                 change_pgsql_status "$target" "HS:connected"
                 ;;
         esac
+        
+        # When failover occures in multiple synchronous replication,
+        # the temporary attribute "$PGSQL_XLOG_LOC_NAME" may remain
+        # in the low priority SYNC node.  
+        if [ "$OCF_RESKEY_rep_mode" = "sync" ] && [ $number_of_nodes -ge 3 ]; then
+            $CRM_ATTR_REBOOT -N "$target" -n "$PGSQL_XLOG_LOC_NAME" -G -q > /dev/null 2>&1
+            if [ $? -eq 0 ]; then
+                delete_xlog_location $target
+            fi
+        fi
     done
     return 0
 }
@@ -1486,7 +1514,15 @@ show_xlog_location() {
 
 # On postgreSQL 10 or later, "xlog_location" means "wal_lsn".
 delete_xlog_location() {
-    exec_with_retry 5 $CRM_ATTR_REBOOT -N "$NODENAME" -n "$PGSQL_XLOG_LOC_NAME" -D
+    local target
+
+    if [ -n "$1" ]; then
+        target="$1"
+    else
+        target="$NODENAME"
+    fi
+
+    exec_with_retry 5 $CRM_ATTR_REBOOT -N "$target" -n "$PGSQL_XLOG_LOC_NAME" -D
 }
 
 show_master_baseline() {
@@ -1514,28 +1550,104 @@ set_async_mode_all() {
 }
 
 set_async_mode() {
-    cat $REP_MODE_CONF |  grep -q -E "(\"$1\")|([,' ]$1[,' ])"
-    if [ $? -eq 0 ]; then
-        ocf_log info "Setup $1 into async mode."
-        runasowner -q err "echo \"synchronous_standby_names = ''\" > \"$REP_MODE_CONF\""
+    local synchronous_standby_names
+    local synchronous_standby_names_tmp
+    local synchronous_standby_names_new
+    local sync_num
+    local current_sync_num
+    local expected_sync_num
+    local sync_node_list
+
+    if [ -z "$OCF_RESKEY_sync_num" ]; then
+        sync_num="1"
     else
-        ocf_log debug "$1 is already in async mode."
-        return 0
+        sync_num="${OCF_RESKEY_sync_num}"
+    fi
+
+    synchronous_standby_names=$(exec_sql "${CHECK_SYNCHRONOUS_STANDBY_NAMES}")
+    if [ $? -ne 0 ]; then
+        ocf_exit_reason "Can't get \"synchronous_standby_names\"."
+        exit $OCF_ERR_GENERIC
+    fi
+    
+    if [ $sync_num -ge 2 ]; then
+        echo "$synchronous_standby_names" | grep -q -E "(\($1,|, $1,|, $1\))"
+        if [ $? -eq 0 ]; then
+            synchronous_standby_names_tmp=$(echo "synchronous_standby_names = '$synchronous_standby_names'" \
+                                          | sed -e "s/$1//" -e "s/(, /(/" -e "s/, ,/,/" -e "s/, )/)/")
+            current_sync_num=$(echo "$synchronous_standby_names_tmp" | cut -d"'" -f 2 | cut -d"(" -f 1)
+            sync_node_list=$(echo "$synchronous_standby_names_tmp" | cut -d"(" -f 2 | cut -d")" -f 1)
+            if [ $current_sync_num -ge 2 ]; then
+                expected_sync_num=$(expr $current_sync_num - 1)
+                synchronous_standby_names_new="$expected_sync_num ($sync_node_list)"
+                runasowner -q err "echo \"synchronous_standby_names = '$synchronous_standby_names_new'\" > \"$REP_MODE_CONF\""
+            else
+                runasowner -q err "echo \"synchronous_standby_names = ''\" > \"$REP_MODE_CONF\""
+            fi
+        else
+            ocf_log debug "$1 is already in async mode."
+            return 0
+        fi
+    else
+        echo "$synchronous_standby_names" | grep -q -E "(\"$1\")|([,' ]$1[,' ])" 
+        if [ $? -eq 0 ]; then
+            ocf_log info "Setup $1 into async mode."
+            runasowner -q err "echo \"synchronous_standby_names = ''\" > \"$REP_MODE_CONF\""
+        else
+            ocf_log debug "$1 is already in async mode."
+            return 0
+        fi
     fi
     exec_with_retry 0 reload_conf
 }
 
 set_sync_mode() {
-    local sync_node_in_conf
+    local synchronous_standby_names
+    local synchronous_standby_names_new
+    local sync_num
+    local current_sync_num
+    local expected_sync_num
+    local sync_node_list
 
-    sync_node_in_conf=`cat $REP_MODE_CONF | cut -d "'" -f 2`
-    if [ -n "$sync_node_in_conf" ]; then
-        ocf_log debug "$sync_node_in_conf is already sync mode."
+    if [ -z "$OCF_RESKEY_sync_num" ]; then
+        sync_num="1"
     else
-        ocf_log info "Setup $1 into sync mode."
-        runasowner -q err "echo \"synchronous_standby_names = '\\\"$1\\\"'\" > \"$REP_MODE_CONF\""
-        [ "$RE_CONTROL_SLAVE" = "false" ] && RE_CONTROL_SLAVE="true"
-        exec_with_retry 0 reload_conf
+        sync_num="${OCF_RESKEY_sync_num}"
+    fi
+
+    synchronous_standby_names=$(exec_sql "${CHECK_SYNCHRONOUS_STANDBY_NAMES}")
+    if [ $? -ne 0 ]; then
+        ocf_exit_reason "Can't get \"synchronous_standby_names\"."
+        exit $OCF_ERR_GENERIC
+    fi
+
+    if [ $sync_num -ge 2 ]; then
+        if [ -z "$synchronous_standby_names" ]; then
+            # for first slave node
+            runasowner -q err "echo \"synchronous_standby_names = '1 ($1)'\" > \"$REP_MODE_CONF\""
+            exec_with_retry 0 reload_conf
+        elif [ -n "$synchronous_standby_names" ]; then
+            current_sync_num=$(echo "$synchronous_standby_names" | cut -d"'" -f 2 | cut -d"(" -f 1)
+            sync_node_list=$(echo "$synchronous_standby_names" | cut -d"(" -f 2 | cut -d")" -f 1)
+            expected_sync_num=$(expr $current_sync_num + 1)
+            if [ $expected_sync_num -le $OCF_RESKEY_sync_num ]; then
+                synchronous_standby_names_new="$expected_sync_num ($sync_node_list, $1)"
+                runasowner -q err "echo \"synchronous_standby_names = '$synchronous_standby_names_new'\" > \"$REP_MODE_CONF\""
+                [ "$RE_CONTROL_SLAVE" = "false" ] && RE_CONTROL_SLAVE="true"
+                exec_with_retry 0 reload_conf
+            else
+                ocf_log warn "The nodes for SYNC state are already full."
+            fi
+       fi
+    else
+       if [ -n "$synchronous_standby_names" ]; then
+           ocf_log debug "$1 is already sync mode."
+       else
+           ocf_log info "Setup $1 into sync mode."
+           runasowner -q err "echo \"synchronous_standby_names = '\\\"$1\\\"'\" > \"$REP_MODE_CONF\""
+           [ "$RE_CONTROL_SLAVE" = "false" ] && RE_CONTROL_SLAVE="true"
+           exec_with_retry 0 reload_conf
+       fi
     fi
 }
 
@@ -1801,6 +1913,7 @@ pgsql_validate_all() {
     local check_config_rc
     local rep_mode_string
     local socket_directories
+    local number_of_nodes
 
     version=`cat $OCF_RESKEY_pgdata/PG_VERSION`
 
@@ -1883,13 +1996,14 @@ pgsql_validate_all() {
         PROMOTE_ME="1000"
 
         CHECK_MS_SQL="select pg_is_in_recovery()"
+        CHECK_SYNCHRONOUS_STANDBY_NAMES="show synchronous_standby_names"
         ocf_version_cmp "$version" "10"
         if [ $? -eq 1 ] || [ $? -eq 2 ]; then
             CHECK_XLOG_LOC_SQL="select pg_last_wal_replay_lsn(),pg_last_wal_receive_lsn()"
         else
             CHECK_XLOG_LOC_SQL="select pg_last_xlog_replay_location(),pg_last_xlog_receive_location()"
         fi
-        CHECK_REPLICATION_STATE_SQL="select application_name,upper(state),upper(sync_state) from pg_stat_replication"
+        CHECK_REPLICATION_STATE_SQL="select application_name,upper(state),upper(sync_state),sync_priority from pg_stat_replication"
 
         PGSQL_STATUS_ATTR="${RESOURCE_NAME}-status"
         PGSQL_DATA_STATUS_ATTR="${RESOURCE_NAME}-data-status"
@@ -1929,6 +2043,24 @@ pgsql_validate_all() {
         if ! mkdir -p $OCF_RESKEY_tmpdir || ! chown $OCF_RESKEY_pgdba $OCF_RESKEY_tmpdir || ! chmod 700 $OCF_RESKEY_tmpdir; then
             ocf_exit_reason "Can't create directory $OCF_RESKEY_tmpdir or it is not readable by $OCF_RESKEY_pgdba"
             return $OCF_ERR_PERM
+        fi
+        if [ $OCF_RESKEY_sync_num -ge 2 ]; then
+            if [ "$OCF_RESKEY_rep_mode" != "sync" ]; then
+                ocf_exit_reason "\"sync_num\" requires that \"rep_mode\" is \"sync\""
+                return $OCF_ERR_CONFIGURED
+            else
+                ocf_version_cmp "$version" "9.6"
+                if [ $? -eq 0 ] || [ $? -eq 3 ]; then
+                    ocf_exit_reason "PostgreSQL version must be at least 9.6 for multiple synchronous replication."
+                    return $OCF_ERR_CONFIGURED
+                fi
+            fi
+
+            number_of_nodes=$(echo $NODE_LIST | wc -w)
+            if [ $OCF_RESKEY_sync_num -gt $number_of_nodes ]; then
+                ocf_exit_reason "\"sync_num\" must be less than the number of the nodes."
+                return $OCF_ERR_CONFIGURED
+            fi
         fi
     fi
 
