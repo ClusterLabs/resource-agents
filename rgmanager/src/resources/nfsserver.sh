@@ -17,7 +17,7 @@ export LC_ALL LANG PATH
 . $(dirname $0)/ocf-shellfuncs
 
 # SELinux information
-which restorecon &> /dev/null && selinuxenabled
+which restorecon &> /dev/null && selinuxenabled &> /dev/null
 export SELINUX_ENABLED=$?
 if [ $SELINUX_ENABLED ]; then
 	export SELINUX_LABEL="$(ls -ldZ /var/lib/nfs/statd | cut -f4 -d' ')"
