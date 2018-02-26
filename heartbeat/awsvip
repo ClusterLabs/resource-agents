@@ -43,9 +43,11 @@
 # Defaults
 #
 OCF_RESKEY_awscli_default="/usr/bin/aws"
+OCF_RESKEY_profile_default="default"
 OCF_RESKEY_api_delay_default="3"
 
 : ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
+: ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
 : ${OCF_RESKEY_api_delay=${OCF_RESKEY_api_delay_default}}
 
 meta_data() {
@@ -76,6 +78,14 @@ command line tools for aws services
 <content type="string" default="${OCF_RESKEY_awscli_default}" />
 </parameter>
 
+<parameter name="profile">
+<longdesc lang="en">
+Valid AWS CLI profile name (see ~/.aws/config and 'aws configure')
+</longdesc>
+<shortdesc lang="en">profile name</shortdesc>
+<content type="string" default="${OCF_RESKEY_profile_default}" />
+</parameter>
+
 <parameter name="secondary_private_ip" unique="1" required="1">
 <longdesc lang="en">
 reserved secondary private ip for ec2 instance
@@ -95,12 +105,11 @@ a short delay between API calls, to avoid sending API too quick
 </parameters>
 
 <actions>
-<action name="start"        timeout="10s" />
-<action name="stop"         timeout="10s" />
-<action name="monitor"      timeout="10s" interval="20s" depth="0" />
-<action name="reload"       timeout="10s" />
-<action name="migrate_to"   timeout="10s" />
-<action name="migrate_from" timeout="10s" />
+<action name="start"        timeout="30s" />
+<action name="stop"         timeout="30s" />
+<action name="monitor"      timeout="30s" interval="20s" depth="0" />
+<action name="migrate_to"   timeout="30s" />
+<action name="migrate_from" timeout="30s" />
 <action name="meta-data"    timeout="5s" />
 <action name="validate"     timeout="10s" />
 <action name="validate-all" timeout="10s" />
@@ -122,7 +131,7 @@ END
 awsvip_start() {
     awsvip_monitor && return $OCF_SUCCESS
 
-    $AWSCLI ec2 assign-private-ip-addresses \
+    $AWSCLI --profile $OCF_RESKEY_profile ec2 assign-private-ip-addresses \
         --network-interface-id ${NETWORK_ID} \
         --private-ip-addresses ${SECONDARY_PRIVATE_IP} \
         --allow-reassignment
@@ -135,14 +144,14 @@ awsvip_start() {
         return $OCF_NOT_RUNNING
     fi
 
-    ocf_log info "secondary_private_ip have been successfully bring up (${SECONDARY_PRIVATE_IP})"
+    ocf_log info "secondary_private_ip has been successfully brought up (${SECONDARY_PRIVATE_IP})"
     return $OCF_SUCCESS
 }
 
 awsvip_stop() {
     awsvip_monitor || return $OCF_SUCCESS
 
-    $AWSCLI ec2 unassign-private-ip-addresses \
+    $AWSCLI --profile $OCF_RESKEY_profile ec2 unassign-private-ip-addresses \
         --network-interface-id ${NETWORK_ID} \
         --private-ip-addresses ${SECONDARY_PRIVATE_IP}
     RET=$?
@@ -154,12 +163,12 @@ awsvip_stop() {
         return $OCF_NOT_RUNNING
     fi
 
-    ocf_log info "secondary_private_ip have been successfully bring down (${SECONDARY_PRIVATE_IP})"
+    ocf_log info "secondary_private_ip has been successfully brought down (${SECONDARY_PRIVATE_IP})"
     return $OCF_SUCCESS
 }
 
 awsvip_monitor() {
-    $AWSCLI ec2 describe-instances --instance-id "${INSTANCE_ID}" | grep -q "${SECONDARY_PRIVATE_IP}"
+    $AWSCLI --profile $OCF_RESKEY_profile ec2 describe-instances --instance-id "${INSTANCE_ID}" | grep -q "${SECONDARY_PRIVATE_IP}"
     RET=$?
 
     if [ $RET -ne 0 ]; then
@@ -170,6 +179,11 @@ awsvip_monitor() {
 
 awsvip_validate() {
     check_binary ${AWSCLI}
+
+    if [ -z "$OCF_RESKEY_profile" ]; then
+        ocf_exit_reason "profile parameter not set"
+        return $OCF_ERR_CONFIGURED
+    fi
 
     if [ -z "${INSTANCE_ID}" ]; then
         ocf_exit_reason "instance_id not found. Is this a EC2 instance?"
@@ -189,7 +203,7 @@ esac
 AWSCLI="${OCF_RESKEY_awscli}"
 SECONDARY_PRIVATE_IP="${OCF_RESKEY_secondary_private_ip}"
 INSTANCE_ID="$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"
-NETWORK_ID="$($AWSCLI ec2 describe-instances --instance-id ${INSTANCE_ID} | grep -m 1 'eni' | awk -F'"' '{print$4}')"
+NETWORK_ID="$($AWSCLI --profile $OCF_RESKEY_profile --output json ec2 describe-instances --instance-id ${INSTANCE_ID} | grep -m 1 'eni' | awk -F'"' '{print$4}')"
 
 case $__OCF_ACTION in
     start)
