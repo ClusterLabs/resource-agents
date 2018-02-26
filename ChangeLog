@@ -1,3 +1,28 @@
+* Mon Feb 26 2018 resource-agents contributors
+- release candidate 4.1.1 rc1
+- awseip/awsvip: improvements (incl multi NIC support)
+- Filesystem: add support for cvfs
+- redis: add support for tunneling replication traffic
+- Raid1: ignore transient devices after stopping a device
+- tomcat: fix invalid stop option
+- oracle: log warning when using using sysdba instead of "monuser"
+- crm_*: use new parameter names
+- syslog-ng: fix to make commercial version supported as well
+- lvmlockd: change lvm.conf to use lvmlockd
+- mariadb: new RA for MariaDB master/slave replication setup with GTID
+- mpathpersist: new RA
+- lxd-info/machine-info: new RAs
+- IPsrcaddr: only check for ifconfig on BSD/Solaris
+- CTDB: cope with deprecated "idmap backend" smb.conf option
+- CTDB: add new possible location for CTDB_SYSCONFIG
+- oracle: fix alter user syntax for set_mon_user_profile
+- db2: improve monitor and simplify STANDBY/.../DISCONNECTED
+- ocf-shellfuncs: fix fallback name for ocf_attribute_target()
+- CTDB: fix initial probe
+- jira: new RA
+- azure-lb: new RA
+- IPsrcaddr: match exact route to avoid failing
+
 * Tue Nov 28 2017 resource-agents contributors
 - stable release 4.1.0
 - ipsec: new RA
