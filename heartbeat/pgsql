@@ -633,6 +633,7 @@ pgsql_real_start() {
 
 pgsql_replication_start() {
     local rc
+    local synchronous_standby_names
 
     # initializing for replication
     change_pgsql_status "$NODENAME" "STOP"
@@ -653,6 +654,13 @@ pgsql_replication_start() {
     if [ $? -ne $OCF_SUCCESS ]; then
         return $OCF_ERR_GENERIC
     fi
+
+    synchronous_standby_names=$(exec_sql "${CHECK_SYNCHRONOUS_STANDBY_NAMES_SQL}")
+    if [ -n "${synchronous_standby_names}" ]; then
+        ocf_exit_reason "Invalid synchronous_standby_names is set in postgresql.conf."
+        return $OCF_ERR_CONFIGURED
+    fi
+
     change_pgsql_status "$NODENAME" "HS:alone"
     return $OCF_SUCCESS
 }
@@ -1883,6 +1891,7 @@ pgsql_validate_all() {
         PROMOTE_ME="1000"
 
         CHECK_MS_SQL="select pg_is_in_recovery()"
+        CHECK_SYNCHRONOUS_STANDBY_NAMES_SQL="show synchronous_standby_names"
         ocf_version_cmp "$version" "10"
         if [ $? -eq 1 ] || [ $? -eq 2 ]; then
             CHECK_XLOG_LOC_SQL="select pg_last_wal_replay_lsn(),pg_last_wal_receive_lsn()"
@@ -1914,7 +1923,7 @@ pgsql_validate_all() {
         if [ $check_config_rc -eq 0 ]; then
             rep_mode_string="include '$REP_MODE_CONF' # added by pgsql RA"
             if [ "$OCF_RESKEY_rep_mode" = "sync" ]; then
-                if ! grep -q "$rep_mode_string" $OCF_RESKEY_config; then
+                if ! grep -q "^[[:space:]]*$rep_mode_string" $OCF_RESKEY_config; then
                     ocf_log info "adding include directive into $OCF_RESKEY_config"
                     echo "$rep_mode_string" >> $OCF_RESKEY_config
                 fi
