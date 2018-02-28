@@ -518,6 +518,14 @@ VirtualDomain_start() {
 		return $OCF_SUCCESS
 	fi
 
+	# systemd drop-in to stop domain before libvirtd terminates services
+	# during shutdown/reboot
+	if systemd_is_running ; then
+		systemd_drop_in "99-VirtualDomain-libvirt" "After" "libvirtd.service"
+		systemd_drop_in "99-VirtualDomain-machines" "Wants" "virt-guest-shutdown.target"
+		systemctl start virt-guest-shutdown.target
+	fi
+
 	snapshotimage="$OCF_RESKEY_snapshot/${DOMAIN_NAME}.state"
 	if [ -n "$OCF_RESKEY_snapshot" -a -f "$snapshotimage" ]; then
 		virsh restore $snapshotimage
@@ -824,6 +832,14 @@ VirtualDomain_migrate_to() {
 }
 
 VirtualDomain_migrate_from() {
+	# systemd drop-in to stop domain before libvirtd terminates services
+	# during shutdown/reboot
+	if systemd_is_running ; then
+		systemd_drop_in "99-VirtualDomain-libvirt" "After" "libvirtd.service"
+		systemd_drop_in "99-VirtualDomain-machines" "Wants" "virt-guest-shutdown.target"
+		systemctl start virt-guest-shutdown.target
+	fi
+
 	while ! VirtualDomain_monitor; do
 		sleep 1
 	done
