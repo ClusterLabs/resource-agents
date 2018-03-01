@@ -53,31 +53,15 @@ def get_azure_config():
     config.ApplicationId = os.environ.get("OCF_RESKEY_applicationId")
     config.ApplicationKey = os.environ.get("OCF_RESKEY_applicationKey")
     config.Verbose = os.environ.get("OCF_RESKEY_verbose")
-
-    if len(sys.argv) > 2:
-        for x in range(2, len(sys.argv)):
-            argument = sys.argv[x]
-            if (argument.startswith("resourceGroup=")):
-                config.RGName = argument.replace("resourceGroup=", "")
-            elif (argument.startswith("vmName=")):
-                config.VMName = argument.replace("vmName=", "")
-            elif (argument.startswith("subscriptionId=")):
-                config.SubscriptionId = argument.replace("subscriptionId=", "")
-            elif (argument.startswith("cloud=")):
-                config.Cloud = argument.replace("cloud=", "")
-            elif (argument.startswith("useMSI=")):
-                config.UseMSI = argument.replace("useMSI=", "")
-            elif (argument.startswith("tenantId=")):
-                config.Tenantid = argument.replace("tenantId=", "")
-            elif (argument.startswith("applicationId=")):
-                config.ApplicationId = argument.replace("applicationId=", "")
-            elif (argument.startswith("applicationKey=")):
-                config.ApplicationKey = argument.replace("applicationKey=", "")
-            elif (argument.startswith("verbose=")):
-                config.Verbose = argument.replace("verbose=", "")
-            else:
-                fail_usage("Unkown argument %s" % argument)
     
+    if not config.RGName:
+        logging.info("resourceGroup not provided. Using metadata service")
+        config.RGName = azure_fence_lib.get_resource_group_from_metadata()
+
+    if not config.SubscriptionId:
+        logging.info("subscriptionId not provided. Using metadata service")
+        config.SubscriptionId = azure_fence_lib.get_subscription_id_from_metadata()
+
     return config
 
 def check_azure_config(config):
@@ -119,124 +103,124 @@ def get_pid_file():
     return PID_FILE.format(OCF_RESOURCE_INSTANCE)
 
 def print_help():
-    print "This resource agent is part of the fencing solution for Azure."
-    print "    It implements the on operation of the Azure fencing."
-    print ""
-    print "Usage:"
-    print "  azure-phoenix <action> resourceGroup=<val> vmName=<val> subscriptionId=<val>"
-    print "    cloud=<val> useMSI=<val> tenantId=<val> applicationId=<val> applicationKey=<val>"
-    print ""
-    print "  action (required): Supported values are: start, stop, "
-    print "                     monitor, meta-data, validate-all"
-    print "  resourceGroup (required): Name of the resource group"
-    print "  vmName (required): Name of the virtual machine that this"
-    print "                     resource agent instance should unfence"
-    print "  subscriptionId (required): Id of the Azure subscription"
-    print "  cloud (optional): Name of the cloud you want to use. Supported values are"
-    print "                    china, germany or usgov. Do not use this parameter if"
-    print "                    you want to use public Azure."
-    print "  useMSI (optional): Determines if Managed Service Identity should be used"
-    print "                     instead of username and password (Service Principal)."
-    print "                     If this parameter is specified, parameters"
-    print "                     tenantId, applicationId and applicationKey are ignored."
-    print "  tenantId (optional): Id of the Azure Active Directory tenant."
-    print "                       Only required if a Service Principal should be used"
-    print "  applicationId (optional): Application ID of the Service Principal."
-    print "                            Only required if a Service Principal should be used"
-    print "  applicationKey (optional): Authentication key of the Service Principal."
-    print "                             Only required if a Service Principal should be used"
+    print("""This resource agent is part of the fencing solution for Azure.
+        It implements the on operation of the Azure fencing.
+    
+    Usage:
+      azure-phoenix <action> resourceGroup=<val> vmName=<val> subscriptionId=<val>
+        cloud=<val> useMSI=<val> tenantId=<val> applicationId=<val> applicationKey=<val>
+    
+      action (required): Supported values are: start, stop,
+                         monitor, meta-data, validate-all
+      resourceGroup (required): Name of the resource group
+      vmName (required): Name of the virtual machine that this
+                         resource agent instance should unfence
+      subscriptionId (required): Id of the Azure subscription
+      cloud (optional): Name of the cloud you want to use. Supported values are
+                        china, germany or usgov. Do not use this parameter if
+                        you want to use public Azure.
+      useMSI (optional): Determines if Managed Service Identity should be used
+                         instead of username and password (Service Principal).
+                         If this parameter is specified, parameters
+                         tenantId, applicationId and applicationKey are ignored.
+      tenantId (optional): Id of the Azure Active Directory tenant.
+                           Only required if a Service Principal should be used
+      applicationId (optional): Application ID of the Service Principal.
+                                Only required if a Service Principal should be used
+      applicationKey (optional): Authentication key of the Service Principal.
+                                 Only required if a Service Principal should be used""")
 
 def print_metadata():
-    print "<?xml version=\"1.0\"?>"
-    print "<!DOCTYPE resource-agent SYSTEM \"ra-api-1.dtd\">"
-    print "<resource-agent name=\"azure-phoenix\">"
-    print "  <version>0.1</version>"
-    print "  <longdesc lang=\"en\">"
-    print "    This resource agent is part of the fencing solution for Azure. It implements the on operation of the Azure fencing."
-    print "  </longdesc>"
-    print "  <shortdesc lang=\"en\">Azure resource agent for fencing on</shortdesc>"
-    print "  <parameters>"
+    print("""<?xml version="1.0"?>
+    <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+    <resource-agent name="azure-phoenix">
+      <version>0.1</version>
+      <longdesc lang="en">
+        This resource agent is part of the fencing solution for Azure. It implements the on operation of the Azure fencing.
+      </longdesc>
+      <shortdesc lang="en">Azure resource agent for fencing on</shortdesc>
+      <parameters>
 
-    print "    <parameter name=\"resourceGroup\" unique=\"0\" required=\"1\">"
-    print "      <longdesc lang=\"en\">"
-    print "        Name of the resource group"
-    print "      </longdesc>"
-    print "      <shortdesc lang=\"en\">Name of the resource group</shortdesc>"
-    print "      <content type=\"string\"/>"
-    print "    </parameter>"
+        <parameter name="resourceGroup" unique="0" required="0">
+          <longdesc lang="en">
+            Name of the resource group. Metadata service is used if the value is not provided.
+          </longdesc>
+          <shortdesc lang="en">Name of the resource group</shortdesc>
+          <content type="string"/>
+        </parameter>
 
-    print "    <parameter name=\"vmName\" unique=\"0\" required=\"1\">"
-    print "      <longdesc lang=\"en\">"
-    print "        Name of the virtual machine that this resource agent instance should unfence"
-    print "      </longdesc>"
-    print "      <shortdesc lang=\"en\">Name of the virtual machine</shortdesc>"
-    print "      <content type=\"string\"/>"
-    print "    </parameter>"
+        <parameter name="vmName" unique="0" required="1">
+          <longdesc lang="en">
+            Name of the virtual machine that this resource agent instance should unfence
+          </longdesc>
+          <shortdesc lang="en">Name of the virtual machine</shortdesc>
+          <content type="string"/>
+        </parameter>
 
-    print "    <parameter name=\"subscriptionId\" unique=\"0\" required=\"1\">"
-    print "      <longdesc lang=\"en\">"
-    print "        Id of the Azure subscription"
-    print "      </longdesc>"
-    print "      <shortdesc lang=\"en\">Id of the Azure subscription</shortdesc>"
-    print "      <content type=\"string\"/>"
-    print "    </parameter>"
+        <parameter name="subscriptionId" unique="0" required="0">
+          <longdesc lang="en">
+            Id of the Azure subscription. Metadata service is used if the value is not provided.
+          </longdesc>
+          <shortdesc lang="en">Id of the Azure subscription</shortdesc>
+          <content type="string"/>
+        </parameter>
 
-    print "    <parameter name=\"cloud\" unique=\"0\" required=\"0\">"
-    print "      <longdesc lang=\"en\">"
-    print "        Name of the cloud you want to use. Supported values are china, germany or usgov. Do not use this parameter if you want to use public Azure."
-    print "      </longdesc>"
-    print "      <shortdesc lang=\"en\">Name of the cloud you want to use.</shortdesc>"
-    print "      <content type=\"string\"/>"
-    print "    </parameter>"
+        <parameter name="cloud" unique="0" required="0">
+          <longdesc lang="en">
+            Name of the cloud you want to use. Supported values are china, germany or usgov. Do not use this parameter if you want to use public Azure.
+          </longdesc>
+          <shortdesc lang="en">Name of the cloud you want to use.</shortdesc>
+          <content type="string"/>
+        </parameter>
 
-    print "    <parameter name=\"useMSI\" unique=\"0\" required=\"0\">"
-    print "      <longdesc lang=\"en\">"
-    print "        Determines if Managed Service Identity should be used instead of username and password (Service Principal). If this parameter is specified, parameters tenantId, applicationId and applicationKey are ignored."
-    print "      </longdesc>"
-    print "      <shortdesc lang=\"en\">Determines if Managed Service Identity should be used.</shortdesc>"
-    print "      <content type=\"boolean\"/>"
-    print "    </parameter>"
+        <parameter name="useMSI" unique="0" required="0">
+          <longdesc lang="en">
+            Determines if Managed Service Identity should be used instead of username and password (Service Principal). If this parameter is specified, parameters tenantId, applicationId and applicationKey are ignored.
+          </longdesc>
+          <shortdesc lang="en">Determines if Managed Service Identity should be used.</shortdesc>
+          <content type="boolean"/>
+        </parameter>
 
-    print "    <parameter name=\"tenantId\" unique=\"0\" required=\"0\">"
-    print "      <longdesc lang=\"en\">"
-    print "        Id of the Azure Active Directory tenant. Only required if a Service Principal should be used"
-    print "      </longdesc>"
-    print "      <shortdesc lang=\"en\">Id of the Azure Active Directory tenant</shortdesc>"
-    print "      <content type=\"string\"/>"
-    print "    </parameter>"
+        <parameter name="tenantId" unique="0" required="0">
+          <longdesc lang="en">
+            Id of the Azure Active Directory tenant. Only required if a Service Principal should be used
+          </longdesc>
+          <shortdesc lang="en">Id of the Azure Active Directory tenant</shortdesc>
+          <content type="string"/>
+        </parameter>
 
-    print "    <parameter name=\"applicationId\" unique=\"0\" required=\"0\">"
-    print "      <longdesc lang=\"en\">"
-    print "        Application ID of the Service Principal. Only required if a Service Principal should be used"
-    print "      </longdesc>"
-    print "      <shortdesc lang=\"en\">Application Id</shortdesc>"
-    print "      <content type=\"string\"/>"
-    print "    </parameter>"
+        <parameter name="applicationId" unique="0" required="0">
+          <longdesc lang="en">
+            Application ID of the Service Principal. Only required if a Service Principal should be used
+          </longdesc>
+          <shortdesc lang="en">Application Id</shortdesc>
+          <content type="string"/>
+        </parameter>
 
-    print "    <parameter name=\"applicationKey\" unique=\"0\" required=\"0\">"
-    print "      <longdesc lang=\"en\">"
-    print "        Authentication key of the Service Principal. Only required if a Service Principal should be used"
-    print "      </longdesc>"
-    print "      <shortdesc lang=\"en\">Authentication key</shortdesc>"
-    print "      <content type=\"string\"/>"
-    print "    </parameter>"
+        <parameter name="applicationKey" unique="0" required="0">
+          <longdesc lang="en">
+            Authentication key of the Service Principal. Only required if a Service Principal should be used
+          </longdesc>
+          <shortdesc lang="en">Authentication key</shortdesc>
+          <content type="string"/>
+        </parameter>
 
-    print "    <parameter name=\"verbose\" unique=\"0\" required=\"0\">"
-    print "      <longdesc lang=\"en\">"
-    print "        Enables verbose output"
-    print "      </longdesc>"
-    print "      <shortdesc lang=\"en\">Enables verbose output</shortdesc>"
-    print "      <content type=\"boolean\"/>"
-    print "    </parameter>"
+        <parameter name="verbose" unique="0" required="0">
+          <longdesc lang="en">
+            Enables verbose output
+          </longdesc>
+          <shortdesc lang="en">Enables verbose output</shortdesc>
+          <content type="boolean"/>
+        </parameter>
 
-    print "  </parameters>"
-    print "  <actions>"
-    print "    <action name=\"start\"        timeout=\"900\" />"
-    print "    <action name=\"stop\"         timeout=\"20\" />"
-    print "    <action name=\"monitor\"      timeout=\"20\" interval=\"10\" depth=\"0\" />"
-    print "    <action name=\"meta-data\"    timeout=\"5\" />"
-    print "  </actions>"
-    print "</resource-agent>"
+      </parameters>
+      <actions>
+        <action name="start"        timeout="900" />
+        <action name="stop"         timeout="20" />
+        <action name="monitor"      timeout="20" interval="10" depth="0" />
+        <action name="meta-data"    timeout="5" />
+      </actions>
+    </resource-agent>""")
 
     return OCF_SUCCESS
 
