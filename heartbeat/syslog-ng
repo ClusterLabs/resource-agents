@@ -93,6 +93,33 @@ This parameter specifies syslog-ng's executable file.
 <content type="string" default="/sbin/syslog-ng"/>
 </parameter>
 
+<parameter name="control_file" unique="0">
+<longdesc lang="en">
+This parameter specifies the path, where syslog-ng would place its control
+socket, through which it can be controlled.
+</longdesc>
+<shortdesc lang="en">process control socket</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="persist_file" unique="0">
+<longdesc lang="en">
+This parameter specifies the path for syslog-ng's persist file, which holds
+persistent information about the mapping of destinations and disk buffers,
+the internal state of sources, etc.
+</longdesc>
+<shortdesc lang="en">persist file path</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="pidfile" unique="0">
+<longdesc lang="en">
+This parameter specifies the path where the pid file of syslog-ng resides.
+</longdesc>
+<shortdesc lang="en">pidfile path</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
 <parameter name="start_opts" unique="0">
 <longdesc lang="en">
 This parameter specifies startup options for a 
@@ -151,7 +178,7 @@ start_syslog_ng()
 	# set -- $SYSLOG_NG_OPTS
 	# ocf_run "$SYSLOG_NG_EXE" -f "$SYSLOG_NG_CONF" "$@"
 	# reduce to this?
-	ocf_run "$SYSLOG_NG_EXE" -f "$CONFIGFILE" $START_OPTS
+	ocf_run "$SYSLOG_NG_EXE" -f "$CONFIGFILE" $START_OPTS $CONTROL_FILE $PERSIST_FILE $PID_FILE
 	ocf_status=$?
 	if [[ "$ocf_status" != "$OCF_SUCCESS" ]]; then
 		return $OCF_ERR_GENERIC
@@ -249,11 +276,18 @@ if ! ocf_is_decimal "$KILL_TERM_TIMEOUT"; then
 	exit $OCF_ERR_CONFIGURED
 fi
 
+CONTROL_FILE="${OCF_RESKEY_control_file}"
+PERSIST_FILE="${OCF_RESKEY_persist_file}"
+PID_FILE="${OCF_RESKEY_pidfile}"
 START_OPTS=${OCF_RESKEY_start_opts}
 EXECUTABLE=$(basename "$SYSLOG_NG_EXE")
 PROCESS_PATTERN="$EXECUTABLE -f $CONFIGFILE"
 
 COMMAND=$1
+
+[ -n "$PERSIST_FILE" ] && PERSIST_FILE="--persist-file $PERSIST_FILE"
+[ -n "$CONTROL_FILE" ] && CONTROL_FILE="--control $CONTROL_FILE"
+[ -n "$PID_FILE" ] && PID_FILE="--pidfile $PID_FILE"
 
 case "$COMMAND" in
 	start)
