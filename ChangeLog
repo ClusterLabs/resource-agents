@@ -1,3 +1,10 @@
+* Mon Mar  5 2018 resource-agents contributors
+- stable release 4.1.1
+- VirtualDomain: properly migrate VMs on node shutdown (bsc#1074014)
+- mpathpersist: fixed issue with reservation key parsing in status()
+- pgsql: create stats temp directory if it doesnt exist
+- pgsql: improved validation for replication mode
+
 * Mon Feb 26 2018 resource-agents contributors
 - release candidate 4.1.1 rc1
 - awseip/awsvip: improvements (incl multi NIC support)
