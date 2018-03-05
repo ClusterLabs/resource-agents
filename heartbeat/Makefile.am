@@ -156,6 +156,8 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			slapd			\
 			symlink			\
 			syslog-ng		\
+			syslog-ng-pe-6		\
+			syslog-ng-pe-7		\
 			tomcat			\
 			varnish			\
 			vmware			\
