@@ -271,7 +271,7 @@ mpathpersist_get_status() {
                         RESERVED_DEVS+=($dev)
                     fi
 
-                    reservation_key=`echo $READ_RESERVATION | $GREP -o 'Key=0x[0-9a-f]*' | $GREP -o '0x[0-9a-f]*'`
+                    reservation_key=`echo $READ_RESERVATION | $GREP -o 'Key = 0x[0-9a-f]*' | $GREP -o '0x[0-9a-f]*'`
                     if [ -n "$reservation_key" ]; then 
                         DEVS_WITH_RESERVATION+=($dev)
                         RESERVATION_KEYS+=($reservation_key)
