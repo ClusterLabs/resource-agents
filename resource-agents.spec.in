@@ -52,16 +52,14 @@ Obsoletes:	heartbeat-resources <= %{version}
 Provides:	heartbeat-resources = %{version}
 
 ## Setup/build bits
-BuildRoot: %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 
 # Build dependencies
-BuildRequires: automake autoconf pkgconfig
-BuildRequires: perl
+BuildRequires: automake autoconf pkgconfig gcc
+BuildRequires: perl-interpreter perl-generators python-devel
 BuildRequires: libxslt glib2-devel
 BuildRequires: which
 
 %if 0%{?fedora} || 0%{?centos_ver} || 0%{?rhel}
-BuildRequires: cluster-glue-libs-devel
 BuildRequires: docbook-style-xsl docbook-dtds
 %if 0%{?rhel} == 0
 BuildRequires: libnet-devel
@@ -131,8 +129,8 @@ Requires: /usr/sbin/rpc.nfsd /sbin/rpc.statd /usr/sbin/rpc.mountd
 Requires: /usr/sbin/ethtool
 Requires: /sbin/rdisc /usr/sbin/arping /bin/ping /bin/ping6
 
-#nfsexport.sh
-Requires: /sbin/findfs 
+# nfsexport.sh
+Requires: /sbin/findfs
 Requires: /sbin/quotaon /sbin/quotacheck
 %endif
 
@@ -260,6 +258,7 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 %doc AUTHORS COPYING COPYING.GPLv3 COPYING.LGPL ChangeLog
 %if %{with linuxha}
+%doc heartbeat/README.*
 %doc doc/README.webapps
 %doc %{_datadir}/%{name}/ra-api-1.dtd
 %doc %{_datadir}/%{name}/metadata.rng
@@ -271,15 +270,15 @@ rm -rf %{buildroot}
 %endif
 
 %if %{with linuxha}
-%dir /usr/lib/ocf
-%dir /usr/lib/ocf/resource.d
-%dir /usr/lib/ocf/lib
+%dir %{_usr}/lib/ocf
+%dir %{_usr}/lib/ocf/resource.d
+%dir %{_usr}/lib/ocf/lib
 
-/usr/lib/ocf/lib/heartbeat
+%{_usr}/lib/ocf/lib/heartbeat
 
-/usr/lib/ocf/resource.d/heartbeat
+%{_usr}/lib/ocf/resource.d/heartbeat
 %if %{with rgmanager}
-/usr/lib/ocf/resource.d/redhat
+%{_usr}/lib/ocf/resource.d/redhat
 %endif
 
 %if %{defined _unitdir}
@@ -301,8 +300,10 @@ rm -rf %{buildroot}
 
 %{_sbindir}/ocf-tester
 %{_sbindir}/ocft
+%if 0%{?suse_version}
 %{_sbindir}/sfex_init
 %{_sbindir}/sfex_stat
+%endif
 
 %{_includedir}/heartbeat
 
@@ -310,7 +311,9 @@ rm -rf %{buildroot}
 
 %{_mandir}/man7/*.7*
 %{_mandir}/man8/ocf-tester.8*
+%if 0%{?suse_version}
 %{_mandir}/man8/sfex_init.8*
+%endif
 
 # For compatability with pre-existing agents
 %dir %{_sysconfdir}/ha.d
@@ -318,6 +321,7 @@ rm -rf %{buildroot}
 
 %{_libexecdir}/heartbeat
 
+%if %{with rgmanager}
 %post -n resource-agents
 if [ $1 = 2 ]; then
  if [ -d %{_var}/run/heartbeat/rsctmp ]; then
@@ -331,33 +335,30 @@ ccs_update_schema > /dev/null 2>&1 ||:
 
 %if 0%{?suse_version}
 %preun -n ldirectord
+%stop_on_removal ldirectord
+%postun -n ldirectord
+%insserv_cleanup
+%endif
+
+%if 0%{?fedora}
+%preun -n ldirectord
 %if %{defined _unitdir}
 %service_del_preun ldirectord.service
 %else
 %stop_on_removal ldirectord
 %endif
 %postun -n ldirectord
+/sbin/ldconfig
 %if %{defined _unitdir}
-%service_del_postun ldirectord.service
+%systemd_postun_with_restart ldirectord.service
+%endif
+%post -n ldirectord
+%if %{defined _unitdir}
+%systemd_post ldirectord.service
 %else
-%insserv_cleanup
-%endif
-%post -n ldirectord
-%if %{defined _unitdir}
-%service_add_post ldirectord.service
-%endif
-%pre -n ldirectord
-%if %{defined _unitdir}
-%service_add_pre ldirectord.service
-%endif
-%endif
-
-%if 0%{?fedora}
-%preun -n ldirectord
-/sbin/chkconfig --del ldirectord
-%postun -n ldirectord -p /sbin/ldconfig
-%post -n ldirectord
 /sbin/chkconfig --add ldirectord
+%endif
+%endif
 %endif
 
 %files -n ldirectord
@@ -379,7 +380,7 @@ ccs_update_schema > /dev/null 2>&1 ||:
 /sbin/rcldirectord
 %endif
 %if 0%{?fedora}
-/usr/lib/ocf/resource.d/heartbeat/ldirectord
+%{_usr}/lib/ocf/resource.d/heartbeat/ldirectord
 %endif
 %endif
 

@@ -21,7 +21,7 @@ dnl     checks for system services
 
 AC_INIT([resource-agents], 
 	m4_esyscmd([make/git-version-gen .tarball-version]),
-	[to_be_defined@foobar.org])
+	[developers@clusterlabs.org])
 
 AC_USE_SYSTEM_EXTENSIONS
 
@@ -156,6 +156,8 @@ extract_header_define() {
 	  rm -f ${Cfile}.c ${Cfile}
 	}
 
+systemddir=${prefix}/lib/systemd/system
+
 AC_MSG_NOTICE(Sanitizing prefix: ${prefix})
 case $prefix in
   NONE)
@@ -166,6 +168,9 @@ case $prefix in
 	fi
 	if test "$sysconfdir" = "\${prefix}/etc"; then
 		sysconfdir="/etc"
+	fi
+	if test "$systemddir" = "NONE/lib/systemd/system"; then
+		systemddir=/lib/systemd/system
 	fi
 	;;
 esac
