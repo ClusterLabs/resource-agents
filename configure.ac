@@ -471,6 +471,13 @@ PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin"
 export PATH
 
 AC_CHECK_PROGS(MAKE, gmake make)
+AC_PATH_PROGS(XSLTPROC, xsltproc)
+AM_CONDITIONAL(BUILD_DOC, test "x$XSLTPROC" != "x" )
+if test "x$XSLTPROC" = "x"; then
+   AC_MSG_WARN([xsltproc not installed, unable to (re-)build manual pages])
+fi
+AC_SUBST(XSLTPROC)
+AC_PATH_PROGS(XMLCATALOG, xmlcatalog)
 AC_PATH_PROGS(SSH, ssh, /usr/bin/ssh)
 AC_PATH_PROGS(SCP, scp, /usr/bin/scp)
 AC_PATH_PROGS(TAR, tar)
@@ -508,6 +515,30 @@ AC_SUBST(IFCONFIG_A_OPT)
 if test x"${MAKE}" = x""; then
    AC_MSG_ERROR(You need (g)make installed in order to build ${PACKAGE})
 fi
+
+STYLESHEET_PREFIX=""
+if test x"${XSLTPROC}" != x""; then
+    AC_MSG_CHECKING(docbook to manpage transform)
+    # first try to figure out correct template using xmlcatalog query,
+    # resort to extensive (semi-deterministic) file search if that fails
+    DOCBOOK_XSL_URI='http://docbook.sourceforge.net/release/xsl/current'
+    DOCBOOK_XSL_PATH='manpages/docbook.xsl'
+    STYLESHEET_PREFIX=$(${XMLCATALOG} "" ${DOCBOOK_XSL_URI} \
+                   | sed -n 's|^file://||p;q')
+    if test x"${STYLESHEET_PREFIX}" = x""; then
+        DIRS=$(find "${datadir}" -name $(basename $(dirname ${DOCBOOK_XSL_PATH})) \
+               -type d | LC_ALL=C sort)
+        XSLT=$(basename ${DOCBOOK_XSL_PATH})
+        for d in ${DIRS}; do
+            if test -f "${d}/${XSLT}"; then
+                 STYLESHEET_PREFIX=$(echo "${d}" | sed 's/\/manpages//')
+                 break
+            fi
+        done
+    fi
+fi
+AC_MSG_RESULT($STYLESHEET_PREFIX)
+AC_SUBST(STYLESHEET_PREFIX)
 
 dnl ===============================================
 dnl Libraries
@@ -588,13 +619,6 @@ AC_SUBST(POWEROFF_CMD)
 AC_SUBST(POWEROFF_OPTIONS)
 AC_DEFINE_UNQUOTED(POWEROFF_CMD, "$POWEROFF_CMD", path to the poweroff command)
 AC_DEFINE_UNQUOTED(POWEROFF_OPTIONS, "$POWEROFF_OPTIONS", poweroff options)
-
-AC_PATH_PROGS(XSLTPROC, xsltproc)
-AM_CONDITIONAL(BUILD_DOC, test "x$XSLTPROC" != "x" )
-if test "x$XSLTPROC" = "x"; then
-   AC_MSG_WARN([xsltproc not installed, unable to (re-)build manual pages])
-fi
-AC_SUBST(XSLTPROC)
 
 AC_PATH_PROGS(POD2MAN, pod2man)
 AM_CONDITIONAL(BUILD_POD_DOC, test "x$POD2MAN" != "x" )
