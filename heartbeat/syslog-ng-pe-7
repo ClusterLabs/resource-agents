@@ -99,7 +99,7 @@ This parameter specifies the path, where syslog-ng would place its control
 socket, through which it can be controlled.
 </longdesc>
 <shortdesc lang="en">process control socket</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="/opt/syslog-ng/var/run/syslog-ng.ctl"/>
 </parameter>
 
 <parameter name="persist_file" unique="0">
@@ -109,7 +109,7 @@ persistent information about the mapping of destinations and disk buffers,
 the internal state of sources, etc.
 </longdesc>
 <shortdesc lang="en">persist file path</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="/opt/syslog-ng/var/syslog-ng.persist"/>
 </parameter>
 
 <parameter name="pidfile" unique="0">
@@ -117,7 +117,7 @@ the internal state of sources, etc.
 This parameter specifies the path where the pid file of syslog-ng resides.
 </longdesc>
 <shortdesc lang="en">pidfile path</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="/opt/syslog-ng/var/run/syslog-ng.pid"/>
 </parameter>
 
 <parameter name="start_opts" unique="0">
@@ -178,7 +178,7 @@ start_syslog_ng()
 	# set -- $SYSLOG_NG_OPTS
 	# ocf_run "$SYSLOG_NG_EXE" -f "$SYSLOG_NG_CONF" "$@"
 	# reduce to this?
-	ocf_run "$SYSLOG_NG_EXE" -f "$CONFIGFILE" $START_OPTS $CONTROL_FILE $PERSIST_FILE $PID_FILE
+	ocf_run "$SYSLOG_NG_EXE" --cfgfile "$CONFIGFILE" --control "$CONTROL_FILE" --persist-file "$PERSIST_FILE" --pidfile "$PID_FILE" $START_OPTS
 	ocf_status=$?
 	if [[ "$ocf_status" != "$OCF_SUCCESS" ]]; then
 		return $OCF_ERR_GENERIC
@@ -195,7 +195,17 @@ start_syslog_ng()
 
 stop_syslog_ng()
 {
-	pkill -TERM -f "$PROCESS_PATTERN"
+	if [ -x /opt/syslog-ng/sbin/syslog-ng-ctl ]; then
+		if [ -S "$CONTROL_FILE" ]; then
+			/opt/syslog-ng/sbin/syslog-ng-ctl stop --control "$CONTROL_FILE"
+			CTL_STATUS=$?
+			[ $CTL_STATUS -ne 0 ] && pkill -TERM -f "$PROCESS_PATTERN"
+		else
+			pkill -TERM -f "$PROCESS_PATTERN"
+		fi
+	else
+		pkill -TERM -f "$PROCESS_PATTERN"
+	fi
 
 	typeset lapse_sec=0
 	while pgrep -f "$PROCESS_PATTERN" > /dev/null; do
@@ -276,18 +286,15 @@ if ! ocf_is_decimal "$KILL_TERM_TIMEOUT"; then
 	exit $OCF_ERR_CONFIGURED
 fi
 
+QDISK_DIR="${OCF_RESKEY_qdisk_dir}"
 CONTROL_FILE="${OCF_RESKEY_control_file}"
 PERSIST_FILE="${OCF_RESKEY_persist_file}"
 PID_FILE="${OCF_RESKEY_pidfile}"
 START_OPTS=${OCF_RESKEY_start_opts}
 EXECUTABLE=$(basename "$SYSLOG_NG_EXE")
-PROCESS_PATTERN="$EXECUTABLE -f $CONFIGFILE"
+PROCESS_PATTERN="$EXECUTABLE --cfgfile $CONFIGFILE"
 
 COMMAND=$1
-
-[ -n "$PERSIST_FILE" ] && PERSIST_FILE="--persist-file $PERSIST_FILE"
-[ -n "$CONTROL_FILE" ] && CONTROL_FILE="--control $CONTROL_FILE"
-[ -n "$PID_FILE" ] && PID_FILE="--pidfile $PID_FILE"
 
 case "$COMMAND" in
 	start)
