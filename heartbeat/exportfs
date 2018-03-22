@@ -272,7 +272,17 @@ exportfs_monitor ()
 		return $OCF_NOT_RUNNING
 	fi
 
-	spec="$(echo "$OCF_RESKEY_clientspec" | sed -e 's/^\[*//' -e 's/\]*$//')"
+	# IPv6 addresses and networks are encased in brackets that need
+	# to be removed
+        case "$OCF_RESKEY_clientspec" in
+		*:*:* )
+			spec="$(echo "$OCF_RESKEY_clientspec" | tr -d '[]')"
+			;;
+		*)
+			spec="$OCF_RESKEY_clientspec"
+			;;
+	esac
+
 	if forall is_exported "$spec"; then
 		if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
 			forall backup_rmtab
