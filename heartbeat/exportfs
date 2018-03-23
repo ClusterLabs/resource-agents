@@ -274,8 +274,8 @@ exportfs_monitor ()
 
 	# IPv6 addresses and networks are encased in brackets that need
 	# to be removed
-        case "$OCF_RESKEY_clientspec" in
-		*:*:* )
+	case "$OCF_RESKEY_clientspec" in
+		*:*:*)
 			spec="$(echo "$OCF_RESKEY_clientspec" | tr -d '[]')"
 			;;
 		*)
