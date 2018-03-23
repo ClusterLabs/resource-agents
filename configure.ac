@@ -471,6 +471,10 @@ PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin"
 export PATH
 
 AC_CHECK_PROGS(MAKE, gmake make)
+AC_PATH_PROGS(BASH_SHELL, bash)
+if test x"${BASH_SHELL}" = x""; then
+   AC_MSG_ERROR(You need bash installed in order to build ${PACKAGE})
+fi
 AC_PATH_PROGS(XSLTPROC, xsltproc)
 AM_CONDITIONAL(BUILD_DOC, test "x$XSLTPROC" != "x" )
 if test "x$XSLTPROC" = "x"; then
@@ -488,6 +492,7 @@ AC_PATH_PROGS(IFCONFIG, ifconfig, /sbin/ifconfig)
 AC_PATH_PROGS(MAILCMD, mailx mail, mail)
 AC_PATH_PROGS(EGREP, egrep)
 
+AC_SUBST(BASH_SHELL)
 AC_SUBST(MAILCMD)
 AC_SUBST(EGREP)
 AC_SUBST(SHELL)
@@ -535,6 +540,9 @@ if test x"${XSLTPROC}" != x""; then
                  break
             fi
         done
+    fi
+    if test x"${STYLESHEET_PREFIX}" = x""; then
+        AC_MSG_ERROR(You need docbook-style-xsl installed in order to build ${PACKAGE})
     fi
 fi
 AC_MSG_RESULT($STYLESHEET_PREFIX)
@@ -919,8 +927,74 @@ doc/Makefile							\
 rgmanager/Makefile						\
 	rgmanager/src/Makefile					\
 	rgmanager/src/resources/Makefile			\
+		rgmanager/src/resources/ocf-shellfuncs		\
+		rgmanager/src/resources/svclib_nfslock		\
+		rgmanager/src/resources/lvm_by_lv.sh		\
+		rgmanager/src/resources/lvm_by_vg.sh		\
 	rgmanager/src/resources/utils/Makefile			\
+		rgmanager/src/resources/utils/fs-lib.sh		\
+		rgmanager/src/resources/utils/messages.sh	\
+		rgmanager/src/resources/utils/config-utils.sh	\
+		rgmanager/src/resources/utils/member_util.sh	\
+		rgmanager/src/resources/utils/ra-skelet.sh	\
 		)
+
+dnl Files we output that need to be executable
+AC_CONFIG_FILES([heartbeat/AoEtarget], [chmod +x heartbeat/AoEtarget])
+AC_CONFIG_FILES([heartbeat/ManageRAID], [chmod +x heartbeat/ManageRAID])
+AC_CONFIG_FILES([heartbeat/ManageVE], [chmod +x heartbeat/ManageVE])
+AC_CONFIG_FILES([heartbeat/Squid], [chmod +x heartbeat/Squid])
+AC_CONFIG_FILES([heartbeat/SysInfo], [chmod +x heartbeat/SysInfo])
+AC_CONFIG_FILES([heartbeat/aws-vpc-route53], [chmod +x heartbeat/aws-vpc-route53])
+AC_CONFIG_FILES([heartbeat/clvm], [chmod +x heartbeat/clvm])
+AC_CONFIG_FILES([heartbeat/conntrackd], [chmod +x heartbeat/conntrackd])
+AC_CONFIG_FILES([heartbeat/dnsupdate], [chmod +x heartbeat/dnsupdate])
+AC_CONFIG_FILES([heartbeat/eDir88], [chmod +x heartbeat/eDir88])
+AC_CONFIG_FILES([heartbeat/fio], [chmod +x heartbeat/fio])
+AC_CONFIG_FILES([heartbeat/iSCSILogicalUnit], [chmod +x heartbeat/iSCSILogicalUnit])
+AC_CONFIG_FILES([heartbeat/iSCSITarget], [chmod +x heartbeat/iSCSITarget])
+AC_CONFIG_FILES([heartbeat/jira], [chmod +x heartbeat/jira])
+AC_CONFIG_FILES([heartbeat/kamailio], [chmod +x heartbeat/kamailio])
+AC_CONFIG_FILES([heartbeat/lxc], [chmod +x heartbeat/lxc])
+AC_CONFIG_FILES([heartbeat/lxd-info], [chmod +x heartbeat/lxd-info])
+AC_CONFIG_FILES([heartbeat/machine-info], [chmod +x heartbeat/machine-info])
+AC_CONFIG_FILES([heartbeat/mariadb], [chmod +x heartbeat/mariadb])
+AC_CONFIG_FILES([heartbeat/mpathpersist], [chmod +x heartbeat/mpathpersist])
+AC_CONFIG_FILES([heartbeat/nfsnotify], [chmod +x heartbeat/nfsnotify])
+AC_CONFIG_FILES([heartbeat/redis], [chmod +x heartbeat/redis])
+AC_CONFIG_FILES([heartbeat/rsyslog], [chmod +x heartbeat/rsyslog])
+AC_CONFIG_FILES([heartbeat/sg_persist], [chmod +x heartbeat/sg_persist])
+AC_CONFIG_FILES([heartbeat/slapd], [chmod +x heartbeat/slapd])
+AC_CONFIG_FILES([heartbeat/syslog-ng], [chmod +x heartbeat/syslog-ng])
+AC_CONFIG_FILES([heartbeat/vsftpd], [chmod +x heartbeat/vsftpd])
+AC_CONFIG_FILES([rgmanager/src/resources/ASEHAagent.sh], [chmod +x rgmanager/src/resources/ASEHAagent.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/apache.sh], [chmod +x rgmanager/src/resources/apache.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/bind-mount.sh], [chmod +x rgmanager/src/resources/bind-mount.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/clusterfs.sh], [chmod +x rgmanager/src/resources/clusterfs.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/db2.sh], [chmod +x rgmanager/src/resources/db2.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/drbd.sh], [chmod +x rgmanager/src/resources/drbd.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/fs.sh], [chmod +x rgmanager/src/resources/fs.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/ip.sh], [chmod +x rgmanager/src/resources/ip.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/lvm.sh], [chmod +x rgmanager/src/resources/lvm.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/mysql.sh], [chmod +x rgmanager/src/resources/mysql.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/named.sh], [chmod +x rgmanager/src/resources/named.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/netfs.sh], [chmod +x rgmanager/src/resources/netfs.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/nfsclient.sh], [chmod +x rgmanager/src/resources/nfsclient.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/nfsexport.sh], [chmod +x rgmanager/src/resources/nfsexport.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/nfsserver.sh], [chmod +x rgmanager/src/resources/nfsserver.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/openldap.sh], [chmod +x rgmanager/src/resources/openldap.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/oracledb.sh], [chmod +x rgmanager/src/resources/oracledb.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/oradg.sh], [chmod +x rgmanager/src/resources/oradg.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/orainstance.sh], [chmod +x rgmanager/src/resources/orainstance.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/oralistener.sh], [chmod +x rgmanager/src/resources/oralistener.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/postgres-8.sh], [chmod +x rgmanager/src/resources/postgres-8.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/samba.sh], [chmod +x rgmanager/src/resources/samba.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/script.sh], [chmod +x rgmanager/src/resources/script.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/service.sh], [chmod +x rgmanager/src/resources/service.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/smb.sh], [chmod +x rgmanager/src/resources/smb.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/tomcat-5.sh], [chmod +x rgmanager/src/resources/tomcat-5.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/tomcat-6.sh], [chmod +x rgmanager/src/resources/tomcat-6.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/vm.sh], [chmod +x rgmanager/src/resources/vm.sh])
 
 dnl Now process the entire list of files added by previous 
 dnl  calls to AC_CONFIG_FILES()
