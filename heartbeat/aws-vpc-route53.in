@@ -1,0 +1,302 @@
+#!@BASH_SHELL@
+#
+#   Copyright 2017 Amazon.com, Inc. and its affiliates. All Rights Reserved.
+#   Licensed under the MIT License.
+#
+#  Copyright 2017 Amazon.com, Inc. and its affiliates
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy of
+# this software and associated documentation files (the "Software"), to deal in
+# the Software without restriction, including without limitation the rights to
+# use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+# of the Software, and to permit persons to whom the Software is furnished to do
+# so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+
+#
+#
+#
+# OCF resource agent to move an IP address within a VPC in the AWS
+# Written by Stefan Schneider , Martin Tegmeier (AWS)
+# Based on code of Markus Guertler#
+#
+#
+# OCF resource agent to move an IP address within a VPC in the AWS
+# Written by Stefan Schneider (AWS) , Martin Tegmeier (AWS)
+# Based on code of Markus Guertler (SUSE)
+#
+# Mar. 15, 2017, vers 1.0.2
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+OCF_RESKEY_ttl_default=10
+
+: ${OCF_RESKEY_ttl:=${OCF_RESKEY_ttl_default}}
+
+#######################################################################
+
+usage() {
+	cat <<-EOT
+	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+	EOT
+}
+
+metadata() {
+cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="aws-vpc-route53">
+<version>1.0</version>
+<longdesc lang="en">
+Update Route53 record of Amazon Webservices EC2 by updating an entry in a
+hosted zone ID table.
+
+AWS instances will require policies which allow them to update Route53 ARecords:
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "Stmt1471878724000",
+			"Effect": "Allow",
+			"Action": [
+				"route53:ChangeResourceRecordSets",
+				"route53:GetChange",
+				"route53:ListResourceRecordSets",
+			],
+			"Resource": [
+				"*"
+			]
+		}
+	]
+}
+
+Example Cluster Configuration:
+
+Use a configuration in "crm configure edit" which looks as follows. Replace
+hostedzoneid, fullname and profile with the appropriate values:
+
+primitive res_route53 ocf:heartbeat:aws-vpc-route53 \
+		params hostedzoneid=EX4MPL3EX4MPL3 fullname=service.cloud.example.corp. profile=cluster \
+		op start interval=0 timeout=180 \
+		op stop interval=0 timeout=180 \
+		op monitor interval=300 timeout=180 \
+		meta target-role=Started
+</longdesc>
+<shortdesc lang="en">Update Route53 VPC record for AWS EC2</shortdesc>
+<parameters>
+<parameter name="hostedzoneid" required="1">
+<longdesc lang="en">
+Hosted zone ID of Route 53. This is the table of
+the Route 53 record.
+</longdesc>
+<shortdesc lang="en">AWS hosted zone ID</shortdesc>
+<content type="string" default="" />
+</parameter>
+<parameter name="fullname" required="1">
+<longdesc lang="en">
+The full name of the service which will host the IP address.
+Example: service.cloud.example.corp.
+Note: The trailing dot is important to Route53!
+</longdesc>
+<shortdesc lang="en">Full service name</shortdesc>
+<content type="string" default="" />
+</parameter>
+<parameter name="ttl" required="0">
+<longdesc lang="en">
+Time to live for Route53 ARECORD
+</longdesc>
+<shortdesc lang="en">ARECORD TTL</shortdesc>
+<content type="string" default="${OCF_RESKEY_ttl_default}" />
+</parameter>
+<parameter name="profile" required="1">
+<longdesc lang="en">
+The name of the AWS CLI profile of the root account. This
+profile will have to use the "text" format for CLI output.
+The file /root/.aws/config should have an entry which looks
+like:
+
+  [profile cluster]
+	region = us-east-1
+	output = text
+
+"cluster" is the name which has to be used in the cluster
+configuration. The region has to be the current one. The
+output has to be "text".
+</longdesc>
+<shortdesc lang="en">AWS Profile Name</shortdesc>
+<content type="string" default="" />
+</parameter>
+</parameters>
+<actions>
+<action name="start" timeout="180s" />
+<action name="stop" timeout="180s" />
+<action name="monitor" depth="0" timeout="180s" interval="300s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
+</actions>
+</resource-agent>
+END
+}
+
+ec2ip_validate() {
+	ocf_log debug "function: validate"
+
+	# Full name
+	[[ -z "$OCF_RESKEY_fullname" ]] && ocf_log error "Full name parameter not set $OCF_RESKEY_fullname!" && exit $OCF_ERR_CONFIGURED
+
+	# Hosted Zone ID
+	[[ -z "$OCF_RESKEY_hostedzoneid" ]] && ocf_log error "Hosted Zone ID parameter not set $OCF_RESKEY_hostedzoneid!" && exit $OCF_ERR_CONFIGURED
+
+	# profile
+	[[ -z "$OCF_RESKEY_profile" ]] && ocf_log error "AWS CLI profile not set $OCF_RESKEY_profile!" && exit $OCF_ERR_CONFIGURED
+
+	# TTL
+	[[ -z "$OCF_RESKEY_ttl" ]] && ocf_log error "TTL not set $OCF_RESKEY_ttl!" && exit $OCF_ERR_CONFIGURED
+
+	ocf_log debug "Testing aws command"
+	aws --version 2>&1
+	if [ "$?" -gt 0 ]; then
+		ocf_log error "Error while executing aws command as user root! Please check if AWS CLI tools (Python flavor) are properly installed and configured." && exit $OCF_ERR_INSTALLED
+	fi
+	ocf_log debug "ok"
+
+	if [ -n "$OCF_RESKEY_profile" ]; then
+		AWS_PROFILE_OPT="--profile $OCF_RESKEY_profile"
+	else
+		AWS_PROFILE_OPT="--profile default"
+	fi
+
+	return $OCF_SUCCESS
+}
+
+ec2ip_monitor() {
+	ec2ip_validate
+	ocf_log debug "Checking Route53 record sets"
+	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
+	ARECORD="$(aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query "ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']" | grep RESOURCERECORDS | /usr/bin/awk '{ print $2 }' )"
+	ocf_log debug "Found IP address: $ARECORD ."
+	if [ "${ARECORD}" == "${IPADDRESS}" ]; then
+		ocf_log debug "ARECORD $ARECORD found"
+		return $OCF_SUCCESS
+	else
+		ocf_log debug "No ARECORD found"
+		return $OCF_NOT_RUNNING
+	fi
+
+	return $OCF_SUCCESS
+}
+
+_update_record() {
+	update_action="$1"
+	IPADDRESS="$2"
+	ocf_log info "Updating Route53 $OCF_RESKEY_hostedzoneid with $IPADDRESS for $OCF_RESKEY_fullname"
+	ROUTE53RECORD="$(maketempfile)"
+	if [ $? -ne 0 ] || [ -z "$ROUTE53RECORD" ]; then
+		ocf_exit_reason "Failed to create temporary file for record update"
+		exit $OCF_ERR_GENERIC
+	fi
+	cat >>"${ROUTE53RECORD}" <<-EOF
+	{
+		  "Comment": "Update record to reflect new IP address for a system ",
+		  "Changes": [
+			  {
+				  "Action": "${update_action}",
+				  "ResourceRecordSet": {
+					  "Name": "${OCF_RESKEY_fullname}",
+					  "Type": "A",
+					  "TTL": ${OCF_RESKEY_ttl},
+					  "ResourceRecords": [
+						  {
+							  "Value": "${IPADDRESS}"
+						  }
+					  ]
+				  }
+			  }
+		  ]
+	}
+	EOF
+	cmd="aws --profile ${OCF_RESKEY_profile} route53 change-resource-record-sets --hosted-zone-id ${OCF_RESKEY_hostedzoneid} \
+	  --change-batch file://${ROUTE53RECORD} "
+	ocf_log debug "Executing command: $cmd"
+	CHANGEID=$($cmd | grep CHANGEINFO |	 /usr/bin/awk -F'\t' '{ print $3 }' )
+	ocf_log debug "Change id: ${CHANGEID}"
+	rmtempfile ${ROUTE53RECORD}
+	CHANGEID=$(echo $CHANGEID |cut -d'/' -f 3 |cut -d'"' -f 1 )
+	ocf_log debug "Change id: ${CHANGEID}"
+	STATUS="PENDING"
+	MYSECONDS=2
+	while [ "$STATUS" = 'PENDING' ]; do
+		sleep	${MYSECONDS}
+		STATUS="$(aws --profile ${OCF_RESKEY_profile} route53 get-change --id $CHANGEID | grep CHANGEINFO |  /usr/bin/awk -F'\t' '{ print $4 }' |cut -d'"' -f 2 )"
+		ocf_log debug "Waited for ${MYSECONDS} seconds and checked execution of Route 53 update status: ${STATUS} "
+	done
+}
+
+ec2ip_stop() {
+	ocf_log info "Bringing down Route53 agent. (Will remove ARECORD)"
+	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
+	ARECORD="$(aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query "ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']" | grep RESOURCERECORDS | /usr/bin/awk '{ print $2 }' )"
+	ocf_log debug "Found IP address: $ARECORD ."
+	if [ ${ARECORD} != ${IPADDRESS} ]; then
+		ocf_log debug "No ARECORD found"
+		return $OCF_SUCCESS
+	else
+		# determine IP address
+		IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
+		# Patch file
+		ocf_log debug "Deleting IP address to ${IPADDRESS}"
+		return $OCF_SUCCESS
+	fi
+
+	_update_record "DELETE" "$IPADDRESS"
+	return $OCF_SUCCESS
+}
+
+ec2ip_start() {
+	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
+	_update_record "UPSERT" "$IPADDRESS"
+	return $OCF_SUCCESS
+}
+
+###############################################################################
+
+case $__OCF_ACTION in
+	usage|help)
+		usage
+		exit $OCF_SUCCESS
+		;;
+	meta-data)
+		metadata
+		exit $OCF_SUCCESS
+		;;
+	monitor)
+		ec2ip_monitor
+		;;
+	stop)
+		ec2ip_stop
+		;;
+	validate-all)
+		ec2ip_validate
+		;;
+	start)
+		ec2ip_start
+		;;
+	*)
+		usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac

@@ -173,7 +173,7 @@ backbash_start()
     fi
   fi
 
-  ssh root@$host '/bin/bash 2>&1
+  ssh root@$host '@BASH_SHELL@ 2>&1
                   sed "s/00/001/g" /tmp/.backbash-log
                   echo 000
                   echo 1' >$__OCFT__CASES_DIR/${host}_r <$__OCFT__CASES_DIR/${host}_w &
