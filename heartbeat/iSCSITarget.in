@@ -375,16 +375,23 @@ iSCSITarget_start() {
 		# lio does per-initiator filtering by default. To disable
 		# this, we need to switch the target to "permissive mode".
 		if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
+			# enable authentication for tpg1 if incoming_username
+			# is defined
+			if [ -n "${OCF_RESKEY_incoming_username}" ]; then
+				ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute authentication=1 || exit $OCF_ERR_GENERIC
+				ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute generate_node_acls=0 || exit $OCF_ERR_GENERIC
+			fi
 			for initiator in ${OCF_RESKEY_allowed_initiators}; do
 				ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/acls create ${initiator} || exit $OCF_ERR_GENERIC
+				# enable chap if incoming_username is defined
+				if [ -n "${OCF_RESKEY_incoming_username}" ]; then
+					ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/acls/${initiator}/ set auth userid=${OCF_RESKEY_incoming_username} || exit $OCF_ERR_GENERIC
+					ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/acls/${initiator}/ set auth password=${OCF_RESKEY_incoming_password} || exit $OCF_ERR_GENERIC
+				fi
 			done
 		else
 			ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute authentication=0 demo_mode_write_protect=0 generate_node_acls=1 cache_dynamic_acls=1 || exit $OCF_ERR_GENERIC
 		fi
-		# TODO: add CHAP authentication support when it gets added
-		# back into LIO
-		ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute authentication=0 || exit $OCF_ERR_GENERIC
-#			   ocf_run targetcli /iscsi 
 		;;
 	esac
 
@@ -586,9 +593,7 @@ iSCSITarget_validate() {
 		unsupported_params="portals"
 		;;
 	lio|lio-t)
-		# TODO: Remove incoming_username and incoming_password
-		# from this check when LIO 3.0 gets CHAP authentication
-		unsupported_params="tid incoming_username incoming_password"
+		unsupported_params="tid"
 		;;
 	esac
 
