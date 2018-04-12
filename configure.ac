@@ -807,7 +807,6 @@ else
 		-Wall
 		-Wbad-function-cast 
 		-Wcast-qual 
-		-Wcast-align 
 		-Wdeclaration-after-statement
 		-Wendif-labels
 		-Wfloat-equal
