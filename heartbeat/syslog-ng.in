@@ -225,7 +225,7 @@ stop_syslog_ng()
 {
 	if [ -x "$SYSLOG_NG_CTL" ]; then
 		if [ -n "${OCF_RESKEY_control_file}" ] && [ -S "${OCF_RESKEY_control_file}" ]; then
-			"$SYSLOG_NG_CTL" stop --control "$CONTROL_FILE"
+			"$SYSLOG_NG_CTL" stop "$CONTROL_FILE"
 			CTL_STATUS=$?
 			[ $CTL_STATUS -ne 0 ] && pkill -TERM -f "$PROCESS_PATTERN"
 		else
