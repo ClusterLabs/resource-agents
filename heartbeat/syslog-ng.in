@@ -76,10 +76,12 @@ For Premium Edition you should set the following parameters
 (based on default path being "/opt/syslog-ng"):
 syslog_ng_binary="/opt/syslog-ng/sbin/syslog-ng"
 syslog_ng_ctl="/opt/syslog-ng/sbin/syslog-ng-ctl"
-qdisk_dir="/opt/syslog-ng/var/"
 control_file="/opt/syslog-ng/var/run/syslog-ng.ctl"
 persist_file="/opt/syslog-ng/var/syslog-ng.persist"
 pidfile="/opt/syslog-ng/var/run/syslog-ng.pid"
+
+Additional parameter for Premium Edition 6 only:
+qdisk_dir="/opt/syslog-ng/var/"
 </longdesc>
 <shortdesc lang="en">Syslog-ng resource agent</shortdesc>
 
@@ -113,9 +115,9 @@ This parameter specifies the path of the syslog-ng-ctl executable file.
 <parameter name="qdisk_dir" unique="0">
 <longdesc lang="en">
 This parameter specifies the directory used for holding disk buffers of
-syslog-ng.
+syslog-ng (only supported in Premium Edition 6).
 </longdesc>
-<shortdesc lang="en">disk buffer directory</shortdesc>
+<shortdesc lang="en">disk buffer directory (PE6 only)</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
