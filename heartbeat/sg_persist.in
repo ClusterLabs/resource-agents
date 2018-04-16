@@ -496,25 +496,25 @@ sg_persist_action_monitor() {
     if [ ${#REGISTERED_DEVS[*]} -eq 0 ]; then
         ocf_log debug "$RESOURCE monitor: no registrations"
         if [ -n "$ACT_MASTER_SCORE" ]; then
-	    ocf_run $MASTER_SCORE_ATTRIBUTE --delete
-	    ocf_run $PENDING_ATTRIBUTE --delete
-	fi
+            ocf_run $MASTER_SCORE_ATTRIBUTE --delete
+            ocf_run $PENDING_ATTRIBUTE --delete
+        fi
         return $OCF_NOT_RUNNING
     fi
 
     if [ ${#RESERVED_DEVS[*]} -eq ${#WORKING_DEVS[*]} ]; then 
         if [ -z "$ACT_MASTER_SCORE" ]; then
-	    ocf_run $MASTER_SCORE_ATTRIBUTE --update=$MASTER_SCORE
-	    ocf_run $PENDING_ATTRIBUTE --update=""
-	fi
+            ocf_run $MASTER_SCORE_ATTRIBUTE --update=$MASTER_SCORE
+            ocf_run $PENDING_ATTRIBUTE --update=""
+        fi
         return $OCF_RUNNING_MASTER
     fi
 
     if [ ${#REGISTERED_DEVS[*]} -eq ${#WORKING_DEVS[*]} ]; then 
         if [ -z "$ACT_MASTER_SCORE" ]; then
-	    ocf_run $MASTER_SCORE_ATTRIBUTE --update=$MASTER_SCORE
-	    ocf_run $PENDING_ATTRIBUTE --update=""
-	fi
+            ocf_run $MASTER_SCORE_ATTRIBUTE --update=$MASTER_SCORE
+            ocf_run $PENDING_ATTRIBUTE --update=""
+        fi
         if [ $RESERVATION_TYPE -eq 7 ] || [ $RESERVATION_TYPE -eq 8 ]; then
             if [ ${#DEVS_WITH_RESERVATION[*]} -gt 0 ]; then
                 return $OCF_RUNNING_MASTER
