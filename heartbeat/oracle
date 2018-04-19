@@ -345,7 +345,7 @@ db_backup_mode() {
 	echo "select 'COUNT'||count(*) from v\$backup where status='ACTIVE';"
 }
 is_clear_backupmode_set(){
-	[ x"${clear_backupmode}" = x"true" ]
+	ocf_is_true "${clear_backupmode}"
 }
 is_instance_in_backup_mode() {
 	local count
