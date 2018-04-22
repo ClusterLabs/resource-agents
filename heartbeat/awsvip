@@ -168,7 +168,11 @@ awsvip_stop() {
 }
 
 awsvip_monitor() {
-    $AWSCLI --profile $OCF_RESKEY_profile ec2 describe-instances --instance-id "${INSTANCE_ID}" | grep -q "${SECONDARY_PRIVATE_IP}"
+    $AWSCLI --profile ${OCF_RESKEY_profile} ec2 describe-instances \
+            --instance-id "${INSTANCE_ID}" \
+            --query 'Reservations[].Instances[].NetworkInterfaces[].PrivateIpAddresses[].PrivateIpAddress[]' \
+            --output text | \
+            grep -q "${SECONDARY_PRIVATE_IP}"
     RET=$?
 
     if [ $RET -ne 0 ]; then
