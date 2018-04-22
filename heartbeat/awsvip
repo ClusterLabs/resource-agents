@@ -203,7 +203,8 @@ esac
 AWSCLI="${OCF_RESKEY_awscli}"
 SECONDARY_PRIVATE_IP="${OCF_RESKEY_secondary_private_ip}"
 INSTANCE_ID="$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"
-NETWORK_ID="$($AWSCLI --profile $OCF_RESKEY_profile --output json ec2 describe-instances --instance-id ${INSTANCE_ID} | grep -m 1 'eni' | awk -F'"' '{print$4}')"
+MAC_ADDRESS="$(curl -s http://169.254.169.254/latest/meta-data/mac)"
+NETWORK_ID="$(curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC_ADDRESS}/interface-id)"
 
 case $__OCF_ACTION in
     start)
