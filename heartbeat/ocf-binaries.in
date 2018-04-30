@@ -43,7 +43,7 @@ export PATH
 : ${WHOAMI:=whoami}
 : ${STRINGSCMD:=strings}
 : ${SCP:=scp}
-: ${SSH:=ssh}
+: ${SSH:=@SSH@}
 : ${SWIG:=swig}
 : ${GZIP_PROG:=gzip}
 : ${TAR:=tar}
