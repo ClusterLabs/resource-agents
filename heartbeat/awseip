@@ -4,7 +4,7 @@
 #    Manage Elastic IP with Pacemaker
 #
 #
-# Copyright 2016 guessi <guessi@gmail.com>
+# Copyright 2016-2018 guessi <guessi@gmail.com>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -184,7 +184,14 @@ awseip_stop() {
 
     ASSOCIATION_ID=$($AWSCLI --profile $OCF_RESKEY_profile --output json ec2 describe-addresses \
                          --allocation-id ${ALLOCATION_ID} | grep -m 1 "AssociationId" | awk -F'"' '{print$4}')
-    $AWSCLI --profile $OCF_RESKEY_profile ec2 disassociate-address  \
+
+    if [ -z "${ASSOCIATION_ID}" ]; then
+        ocf_log info "ASSOCIATION_ID not found while stopping AWS Elastic IP"
+        return $OCF_NOT_RUNNING
+    fi
+
+    $AWSCLI --profile ${OCF_RESKEY_profile} \
+        ec2 disassociate-address \
         --association-id ${ASSOCIATION_ID}
     RET=$?
 
