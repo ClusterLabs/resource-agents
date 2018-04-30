@@ -356,6 +356,8 @@ sapinstance_init() {
   InstanceNr=`echo "$InstanceName" | sed 's/.*\([0-9][0-9]\)$/\1/'`
   SAPVIRHOST=`echo "$myInstanceName" | cut -d_ -f3`
 
+  # make sure that we don't care the content of variable from previous run of sapinstance_init
+  DIR_EXECUTABLE=""
   # optional OCF parameters, we try to guess which directories are correct
   if  [ -z "$OCF_RESKEY_DIR_EXECUTABLE" ]
   then
