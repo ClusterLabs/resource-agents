@@ -301,7 +301,7 @@ abnormal_end() {
   fi
 
   ocf_log err $err_msg
-  exit $OCF_ERR_CONFIGURED
+  exit $OCF_ERR_INSTALLED
 }
 
 #
