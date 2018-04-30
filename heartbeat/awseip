@@ -182,8 +182,9 @@ awseip_start() {
 awseip_stop() {
     awseip_monitor || return $OCF_SUCCESS
 
-    $AWSCLI --profile ${OCF_RESKEY_profile} \
-        ec2 disassociate-address \
+    ASSOCIATION_ID=$($AWSCLI --profile $OCF_RESKEY_profile --output json ec2 describe-addresses \
+                         --allocation-id ${ALLOCATION_ID} | grep -m 1 "AssociationId" | awk -F'"' '{print$4}')
+    $AWSCLI --profile $OCF_RESKEY_profile ec2 disassociate-address  \
         --association-id ${ASSOCIATION_ID}
     RET=$?
 
@@ -199,9 +200,7 @@ awseip_stop() {
 }
 
 awseip_monitor() {
-    $AWSCLI --profile ${OCF_RESKEY_profile} \
-        ec2 describe-addresses \
-            --allocation-id ${ALLOCATION_ID}
+    $AWSCLI --profile $OCF_RESKEY_profile ec2 describe-instances --instance-id "${INSTANCE_ID}" | grep -q "${ELASTIC_IP}"
     RET=$?
 
     if [ $RET -ne 0 ]; then
