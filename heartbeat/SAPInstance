@@ -322,6 +322,8 @@ sapinstance_init() {
 	ASCSInstanceName=`echo $OCF_RESKEY_InstanceName| cut -d_ -f2`
   fi
 
+  # make sure that we don't care the content of variable from previous run of sapinstance_init
+  DIR_EXECUTABLE=""
   # optional OCF parameters, we try to guess which directories are correct
   if  [ -z "$OCF_RESKEY_DIR_EXECUTABLE" ]
   then
