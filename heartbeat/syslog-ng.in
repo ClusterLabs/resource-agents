@@ -71,6 +71,17 @@ metadata_syslog_ng()
 
 <longdesc lang="en">
 This script manages a syslog-ng instance as an HA resource.
+
+For Premium Edition you should set the following parameters
+(based on default path being "/opt/syslog-ng"):
+syslog_ng_binary="/opt/syslog-ng/sbin/syslog-ng"
+syslog_ng_ctl="/opt/syslog-ng/sbin/syslog-ng-ctl"
+control_file="/opt/syslog-ng/var/run/syslog-ng.ctl"
+persist_file="/opt/syslog-ng/var/syslog-ng.persist"
+pidfile="/opt/syslog-ng/var/run/syslog-ng.pid"
+
+Additional parameter for Premium Edition 6 only:
+qdisk_dir="/opt/syslog-ng/var/"
 </longdesc>
 <shortdesc lang="en">Syslog-ng resource agent</shortdesc>
 
@@ -91,6 +102,50 @@ This parameter specifies syslog-ng's executable file.
 </longdesc>
 <shortdesc lang="en">syslog-ng executable</shortdesc>
 <content type="string" default="/sbin/syslog-ng"/>
+</parameter>
+
+<parameter name="syslog_ng_ctl" unique="0">
+<longdesc lang="en">
+This parameter specifies the path of the syslog-ng-ctl executable file.
+</longdesc>
+<shortdesc lang="en">syslog-ng-ctl executable</shortdesc>
+<content type="string" default="/sbin/syslog-ng-ctl"/>
+</parameter>
+
+<parameter name="qdisk_dir" unique="0">
+<longdesc lang="en">
+This parameter specifies the directory used for holding disk buffers of
+syslog-ng (only supported in Premium Edition 6).
+</longdesc>
+<shortdesc lang="en">disk buffer directory (PE6 only)</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="control_file" unique="0">
+<longdesc lang="en">
+This parameter specifies the path, where syslog-ng would place its control
+socket, through which it can be controlled.
+</longdesc>
+<shortdesc lang="en">process control socket</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="persist_file" unique="0">
+<longdesc lang="en">
+This parameter specifies the path for syslog-ng's persist file, which holds
+persistent information about the mapping of destinations and disk buffers,
+the internal state of sources, etc.
+</longdesc>
+<shortdesc lang="en">persist file path</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="pidfile" unique="0">
+<longdesc lang="en">
+This parameter specifies the path where the pid file of syslog-ng resides.
+</longdesc>
+<shortdesc lang="en">pidfile path</shortdesc>
+<content type="string" default=""/>
 </parameter>
 
 <parameter name="start_opts" unique="0">
@@ -168,7 +223,17 @@ start_syslog_ng()
 
 stop_syslog_ng()
 {
-	pkill -TERM -f "$PROCESS_PATTERN"
+	if [ -x "$SYSLOG_NG_CTL" ]; then
+		if [ -n "${OCF_RESKEY_control_file}" ] && [ -S "${OCF_RESKEY_control_file}" ]; then
+			"$SYSLOG_NG_CTL" stop "$CONTROL_FILE"
+			CTL_STATUS=$?
+			[ $CTL_STATUS -ne 0 ] && pkill -TERM -f "$PROCESS_PATTERN"
+		else
+			pkill -TERM -f "$PROCESS_PATTERN"
+		fi
+	else
+		pkill -TERM -f "$PROCESS_PATTERN"
+	fi
 
 	typeset lapse_sec=0
 	while pgrep -f "$PROCESS_PATTERN" > /dev/null; do
@@ -240,6 +305,8 @@ if [[ ! -x "$SYSLOG_NG_EXE" ]]; then
 	exit $OCF_ERR_CONFIGURED
 fi
 
+SYSLOG_NG_CTL="${OCF_RESKEY_syslog_ng_ctl:-/sbin/syslog-ng-ctl}"
+
 # actually, the pidfile has no function; the status is checked by
 # testing for a running process only
 
@@ -249,11 +316,21 @@ if ! ocf_is_decimal "$KILL_TERM_TIMEOUT"; then
 	exit $OCF_ERR_CONFIGURED
 fi
 
-START_OPTS=${OCF_RESKEY_start_opts}
+QDISK_DIR="${OCF_RESKEY_qdisk_dir}"
+CONTROL_FILE="${OCF_RESKEY_control_file}"
+PERSIST_FILE="${OCF_RESKEY_persist_file}"
+PID_FILE="${OCF_RESKEY_pidfile}"
 EXECUTABLE=$(basename "$SYSLOG_NG_EXE")
 PROCESS_PATTERN="$EXECUTABLE -f $CONFIGFILE"
 
 COMMAND=$1
+
+[ -n "$QDISK_DIR" ] && QDISK_DIR="--qdisk-dir $QDISK_DIR"
+[ -n "$PERSIST_FILE" ] && PERSIST_FILE="--persist-file $PERSIST_FILE"
+[ -n "$CONTROL_FILE" ] && CONTROL_FILE="--control $CONTROL_FILE"
+[ -n "$PID_FILE" ] && PID_FILE="--pidfile $PID_FILE"
+
+START_OPTS="${OCF_RESKEY_start_opts} $QDISK_DIR $CONTROL_FILE $PERSIST_FILE $PID_FILE"
 
 case "$COMMAND" in
 	start)
