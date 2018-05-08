@@ -250,7 +250,7 @@ findif()
       fi
     fi
   else
-    if [ -z "$OCF_RESKEY_nic" -a -z "$OCF_RESKEY_cidr_netmask" -a "$netmask" != "${1#*/}" ] ; then
+    if [ -z "$OCF_RESKEY_nic" ] && [ -z "$OCF_RESKEY_cidr_netmask" ] && [ "$netmask" != "${1#*/}" ] ; then
       ocf_log err "Unable to find nic, or netmask mismatch."
       return $OCF_ERR_GENERIC
     fi
