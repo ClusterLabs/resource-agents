@@ -179,9 +179,9 @@ OSInfo_stop() {
 	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_flavor
 	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_az
 	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_ports
-    ${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_region
-    ${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_tenant_id
-    ${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_tenant_name
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_region
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_tenant_id
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_tenant_name
 	exit $OCF_SUCCESS
 }
 
