@@ -148,7 +148,10 @@ osflip_monitor() {
 	local port
 	local buffer
 
-	node_port_ids=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $HOSTNAME|awk -F= '{gsub("\"","");print $NF}'|tr ',' ' '|awk -F: '{print $NF}')
+	node_port_ids=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $HOSTNAME \
+		| awk -F= '{gsub("\"","");print $NF}' \
+		| tr ',' ' ' \
+		| awk -F: '{print $NF}')
 
 	# Is the IP active and attached?
 	result=$($OCF_RESKEY_openstackcli floating ip show \
@@ -204,7 +207,8 @@ osflip_start() {
 	fi
 
 	# Get port_id from subnet_id
-	node_port_ids=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $HOSTNAME|awk '{gsub("value=","") ; gsub("\"","") ; print $NF}')
+	node_port_ids=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $HOSTNAME \
+		| awk '{gsub("value=","") ; gsub("\"","") ; print $NF}')
 	node_port_id=$(echo $node_port_ids|tr ',' '\n'|awk -F: "/$OCF_RESKEY_subnet_id/ {print \$2}")
 	ocf_log info "Moving IP address $OCF_RESKEY_ip_id to port ID $node_port_id"
 
