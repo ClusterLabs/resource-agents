@@ -61,7 +61,7 @@ cat <<END
 <version>2.0</version>
 <longdesc lang="en">
 Resource Agent to move a floating IP address from an instance to another one.
-It relies on attributes given by openstack-info resource agent (openstack_ports, node_id attributes).
+It relies on attributes given by openstack-info resource agent (openstack_ports, openstack_id attributes).
 The attribute called "openstack_floating_ip" is updated.
 </longdesc>
 <shortdesc lang="en">Move a floating IP</shortdesc>
@@ -158,8 +158,8 @@ osflip_monitor() {
 
 	for port in $node_port_ids ; do
 		if echo $result | grep -q $port ; then
-            floating_ip=$(echo $result | awk '/floating_ip_address/ {print $2}')
-            ${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_floating_ip -v $floating_ip
+			floating_ip=$(echo $result | awk '/floating_ip_address/ {print $2}')
+			${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_floating_ip -v $floating_ip
 
 			return $OCF_SUCCESS
 		fi

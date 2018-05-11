@@ -61,7 +61,7 @@ cat <<END
 <version>2.0</version>
 <longdesc lang="en">
 Resource Agent to attach a cinder volume to an instance.
-It relies on attributes given by openstack-info resource agent (node_id attributes).
+It relies on attributes given by openstack-info resource agent (openstack_id attribute).
 </longdesc>
 <shortdesc lang="en">Attach a cinder volume</shortdesc>
 

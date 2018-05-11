@@ -49,10 +49,10 @@ meta_data() {
 OCF resource agent to set attributes from Openstack instance details.
 It records (in the CIB) various attributes of a node.
 Sample output:
-	openstack_az			: nova
-	openstack_flavor	: c1.small
-	openstack_id			: 60ac4343-5828-49b1-8aac-7c69b1417f31
-	openstack_ports  : 7960d889-9750-4160-bf41-c69a41ad72d9:96530d18-57a3-4718-af32-30f2a74c22a2,b0e55a06-bd75-468d-8baa-22cfeb65799f:a55ae917-8016-4b1e-8ffa-04311b9dc7d6
+	openstack_az        : nova
+	openstack_flavor    : c1.small
+	openstack_id        : 60ac4343-5828-49b1-8aac-7c69b1417f31
+	openstack_ports     : 7960d889-9750-4160-bf41-c69a41ad72d9:96530d18-57a3-4718-af32-30f2a74c22a2,b0e55a06-bd75-468d-8baa-22cfeb65799f:a55ae917-8016-4b1e-8ffa-04311b9dc7d6
 
 The layout of openstack_ports is a comma-separated list of tuples "subnet_id:port_id".
 </longdesc>
@@ -142,21 +142,21 @@ OSInfoStats() {
 
     value=""
     for p in $result ; do
-        if [ -z "$value" ] ; then
-            value="$p"
-        else
-            value="$value,$p"
-        fi
-    done
-    ${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_ports -v $value
+		if [ -z "$value" ] ; then
+			value="$p"
+		else
+			value="$value,$p"
+		fi
+	done
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_ports -v $value
 
 
 	if [ ! -z "$OS_REGION_NAME" ] ; then
-        ${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_region -v $OS_REGION_NAME
-    fi
+		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_region -v $OS_REGION_NAME
+	fi
 
-    ${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_tenant_name -v $OS_TENANT_NAME
-    ${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_tenant_id -v $OS_TENANT_ID
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_tenant_name -v $OS_TENANT_NAME
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_tenant_id -v $OS_TENANT_ID
 }
 
 OSInfo_usage() {
@@ -210,8 +210,8 @@ OSInfo_validate() {
 }
 
 if [ $# -ne 1 ]; then
-    OSInfo_usage
-    exit $OCF_ERR_ARGS
+	OSInfo_usage
+	exit $OCF_ERR_ARGS
 fi
 
 : ${OCF_RESKEY_pidfile:="$HA_RSCTMP/OSInfo-${OCF_RESOURCE_HOSTNAME}"}
