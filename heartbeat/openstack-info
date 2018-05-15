@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 #
 # OCF resource agent to set attributes from Openstack instance details.
