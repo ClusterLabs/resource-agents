@@ -5,7 +5,7 @@
 # It records (in the CIB) various attributes of a node
 #
 # Copyright (c) 2018 Mathieu Grzybek
-#                    All Rights Reserved.
+#          All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of version 2 of the GNU General Public License as
@@ -17,8 +17,8 @@
 #
 # Further, this software is distributed without any warranty that it is
 # free of the rightful claim of any third person regarding infringement
-# or the like.  Any license provided herein, whether implied or
-# otherwise, applies only to this software file.  Patent licenses, if
+# or the like. Any license provided herein, whether implied or
+# otherwise, applies only to this software file. Patent licenses, if
 # any, provided herein do not apply to combinations of this program with
 # other software, or any other product whatsoever.
 #
@@ -49,10 +49,10 @@ meta_data() {
 OCF resource agent to set attributes from Openstack instance details.
 It records (in the CIB) various attributes of a node.
 Sample output:
-	openstack_az        : nova
-	openstack_flavor    : c1.small
-	openstack_id        : 60ac4343-5828-49b1-8aac-7c69b1417f31
-	openstack_ports     : 7960d889-9750-4160-bf41-c69a41ad72d9:96530d18-57a3-4718-af32-30f2a74c22a2,b0e55a06-bd75-468d-8baa-22cfeb65799f:a55ae917-8016-4b1e-8ffa-04311b9dc7d6
+	openstack_az      : nova
+	openstack_flavor  : c1.small
+	openstack_id      : 60ac4343-5828-49b1-8aac-7c69b1417f31
+	openstack_ports   : 7960d889-9750-4160-bf41-c69a41ad72d9:96530d18-57a3-4718-af32-30f2a74c22a2,b0e55a06-bd75-468d-8baa-22cfeb65799f:a55ae917-8016-4b1e-8ffa-04311b9dc7d6
 
 The layout of openstack_ports is a comma-separated list of tuples "subnet_id:port_id".
 </longdesc>
@@ -67,7 +67,7 @@ The layout of openstack_ports is a comma-separated list of tuples "subnet_id:por
 <parameter name="delay" unique="0">
 <longdesc lang="en">Interval to allow values to stabilize</longdesc>
 <shortdesc lang="en">Dampening Delay</shortdesc>
-<content type="string" default="0s" />
+<content type="string" default="0" />
 </parameter>
 
 <parameter name="openrc" required="1">
@@ -89,11 +89,11 @@ Path to command line tools for openstack.
 </parameters>
 
 <actions>
-<action name="start"   timeout="20s" />
-<action name="stop"    timeout="20s" />
+<action name="start"  timeout="20s" />
+<action name="stop" timeout="20s" />
 <action name="monitor" timeout="20s" interval="60s"/>
-<action name="meta-data"  timeout="5s" />
-<action name="validate-all"  timeout="20s" />
+<action name="meta-data" timeout="5s" />
+<action name="validate-all" timeout="20s" />
 </actions>
 </resource-agent>
 END
@@ -124,13 +124,13 @@ OSInfoStats() {
 		--column OS-EXT-AZ:availability_zone \
 		$node_id | tr '\n' ' ')
 
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_id -v $node_id
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_id -v $node_id
 
 	value=$(echo $result|awk '{print $2}')
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_flavor -v $value
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_flavor -v $value
 
 	value=$(echo $result|awk '{print $1}')
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_az -v $value
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_az -v $value
 
 	# Network data: ports
 	result=$($OCF_RESKEY_openstackcli port list \
@@ -140,23 +140,22 @@ OSInfoStats() {
 		--column "Fixed IP Addresses" \
 		| awk "/^$node_id/ {gsub(\"subnet_id='\",\"\");gsub(\"'\",\"\");print \$NF\":\"\$2}" | tr '\n' ' ')
 
-    value=""
-    for p in $result ; do
+	value=""
+	for p in $result ; do
 		if [ -z "$value" ] ; then
 			value="$p"
 		else
 			value="$value,$p"
 		fi
 	done
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_ports -v $value
-
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_ports -v $value
 
 	if [ ! -z "$OS_REGION_NAME" ] ; then
-		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_region -v $OS_REGION_NAME
+		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_region -v $OS_REGION_NAME
 	fi
 
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_tenant_name -v $OS_TENANT_NAME
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_tenant_id -v $OS_TENANT_ID
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_tenant_name -v $OS_TENANT_NAME
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_tenant_id -v $OS_TENANT_ID
 }
 
 OSInfo_usage() {
@@ -175,13 +174,13 @@ OSInfo_start() {
 
 OSInfo_stop() {
 	rm -f $OCF_RESKEY_pidfile
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_id
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_flavor
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_az
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_ports
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_region
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_tenant_id
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_tenant_name
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_id
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_flavor
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_az
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_ports
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_region
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_tenant_id
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_tenant_name
 	exit $OCF_SUCCESS
 }
 
