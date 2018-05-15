@@ -133,6 +133,9 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			nfsnotify		\
 			nfsserver		\
 			nginx			\
+			openstack-cinder-volume \
+			openstack-floating-ip   \
+			openstack-info          \
 			oraasm			\
 			oracle			\
 			oralsnr			\
