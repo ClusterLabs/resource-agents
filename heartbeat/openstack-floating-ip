@@ -168,7 +168,7 @@ osflip_monitor() {
 		fi
 	done
 
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_floating_ip
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_floating_ip
 	ocf_log warn "$OCF_RESKEY_ip_id is not attached to any fixed address"
 	return $OCF_NOT_RUNNING
 }
