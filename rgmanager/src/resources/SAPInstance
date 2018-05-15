@@ -106,7 +106,7 @@ Resource script for SAP. It manages a SAP Instance as an HA resource.
   <content type="string" default="3600" />
  </parameter>
  <parameter name="AUTOMATIC_RECOVER" unique="0" required="0">
-  <longdesc lang="en">The SAPInstance resource agent tries to recover a failed start attempt automaticaly one time. This is done by killing runing instance processes and executing cleanipc.</longdesc>
+  <longdesc lang="en">The SAPInstance resource agent tries to recover a failed start attempt automatically one time. This is done by killing running instance processes and executing cleanipc.</longdesc>
   <shortdesc lang="en">Enable or disable automatic startup recovery</shortdesc>
   <content type="boolean" default="false"/>
  </parameter>

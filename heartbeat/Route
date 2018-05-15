@@ -251,7 +251,7 @@ route_validate() {
     fi
     # Did we get either a device or a gateway address?
     if [ -z "${OCF_RESKEY_device}" -a -z "${OCF_RESKEY_gateway}" ]; then
-	ocf_exit_reason "Must specifiy either \"device\", or \"gateway\", or both."
+	ocf_exit_reason "Must specify either \"device\", or \"gateway\", or both."
 	return $OCF_ERR_ARGS
     fi
     # If a device has been configured, is it available on this system?

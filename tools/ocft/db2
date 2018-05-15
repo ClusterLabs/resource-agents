@@ -1,6 +1,6 @@
 # db2
 #
-# This test assumes a db2 ESE instance with two partions and a database.
+# This test assumes a db2 ESE instance with two partitions and a database.
 # Default is instance=db2inst1, database=ocft
 # adapt this in set_testenv below
 #

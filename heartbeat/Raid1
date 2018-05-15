@@ -86,7 +86,7 @@ set to "auto" to manage all devices specified in raidconf.
 The value for the homehost directive; this is an mdadm feature to
 protect RAIDs against being activated by accident. It is recommended to
 create RAIDs managed by the cluster with "homehost" set to a special
-value, so they are not accidentially auto-assembled by nodes not
+value, so they are not accidentally auto-assembled by nodes not
 supposed to own them.
 </longdesc>
 <shortdesc lang="en">Homehost for mdadm</shortdesc>

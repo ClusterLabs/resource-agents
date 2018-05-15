@@ -109,7 +109,7 @@ for a squid instance managed by this RA.
 <longdesc lang="en">
 This is a required parameter. This parameter specifies a port number
 for a squid instance managed by this RA. If plural ports are used,
-you must specifiy the only one of them.
+you must specify the only one of them.
 </longdesc>
 <shortdesc lang="en">Port number</shortdesc>
 <content type="integer" default=""/>

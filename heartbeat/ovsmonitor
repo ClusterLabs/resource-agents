@@ -61,7 +61,7 @@ Monitor the vitality of a local ovs bond.
 You may set up this RA as a clone resource to monitor the network bonds on different nodes, with the same bond name.
 This is not related to the IP address or the network on which a bond is configured.
 You may use this RA to move resources away from a node, which has a faulty bond or prevent moving resources to such a node.
-This gives you independend control of the resources, without involving cluster intercommunication. But it requires your nodes to have more than one network bond.
+This gives you independent control of the resources, without involving cluster intercommunication. But it requires your nodes to have more than one network bond.
 
 The resource configuration requires a monitor operation, because the monitor does the main part of the work.
 In addition to the resource configuration, you need to configure some location constraints, based on a CIB attribute value.

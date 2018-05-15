@@ -720,7 +720,7 @@ write_pid_file(const char *pidfilename)
 		}
 
 		if (kill(pid, SIGKILL) < 0 && errno != ESRCH) {
-			cl_log(LOG_INFO, "Error killing old proccess [%lu] "
+			cl_log(LOG_INFO, "Error killing old process [%lu] "
 	 				"from pid-file [%s]: %s", pid,
 					pidfilename, strerror(errno));
 			return -1;

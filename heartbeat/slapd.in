@@ -146,7 +146,7 @@ For example, "ldap://127.0.0.1:389 ldaps:/// ldapi:///"
 <parameter name="watch_suffix" required="0" unique="0">
 <longdesc lang="en">
 Suffix (database backend) that will be monitored for availability. Multiple
-suffixes can be specified by providing a space seperated list. By providing one
+suffixes can be specified by providing a space separated list. By providing one
 or more suffixes here, the ignore_suffix parameter is discarded. All suffixes
 will be monitored if left blank.
 </longdesc>
@@ -157,7 +157,7 @@ will be monitored if left blank.
 <parameter name="ignore_suffix" required="0" unique="0">
 <longdesc lang="en">
 Suffix (database backend) that will not be monitored for availability. Multiple
-suffixes can be specified by providing a space seperated list. No suffix will
+suffixes can be specified by providing a space separated list. No suffix will
 be excluded if left blank.
 </longdesc>
 <shortdesc lang="en">Suffix that will not be monitored for availability.</shortdesc>
