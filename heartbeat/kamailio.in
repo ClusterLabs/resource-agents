@@ -242,11 +242,11 @@ Parameters for a third Kamailio instance:
     This parameter only needs to be provided in case of using multiple Kamailio server
     instances on a single cluster node:
 
-    In case that the parameter "kamctlrc" is not empty, this ressource agent monitors 
+    In case that the parameter "kamctlrc" is not empty, this resource agent monitors
     the health state of the Kamailio server via the command "kamctl monitor 1". This 
     setting is recommended in case of using a single Kamailio server instance.
 
-    In case that the parameter "kamctlrc" is empty, the ressource agent does not 
+    In case that the parameter "kamctlrc" is empty, the resource agent does not
     monitor the health state of the Kamailio server instance via the "kamctl" command.
 
     Please note that the "kamctl" control command of Kamailio 4.x does not support 
@@ -256,7 +256,7 @@ Parameters for a third Kamailio instance:
     check via "kamctl monitor 1" can be configured for a single Kamailio instance
     only.
 
-    Please refer to the long description of this resoure agent for an example
+    Please refer to the long description of this resource agent for an example
     of parameter combinations in case that multiple instances are to be 
     configured per cluster node.
 

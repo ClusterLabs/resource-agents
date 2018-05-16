@@ -124,7 +124,7 @@ Resource script for SAP databases. It manages a SAP database of any type as an H
   <content type="boolean" default="false"/>
  </parameter>
  <parameter name="AUTOMATIC_RECOVER" unique="0" required="0">
-  <longdesc lang="en">The SAPDatabase resource agent tries to recover a failed start attempt automaticaly one time. This is done by running a forced abort of the RDBMS and/or executing recovery commands.</longdesc>
+  <longdesc lang="en">The SAPDatabase resource agent tries to recover a failed start attempt automatically one time. This is done by running a forced abort of the RDBMS and/or executing recovery commands.</longdesc>
   <shortdesc lang="en">Enable or disable automatic startup recovery</shortdesc>
   <content type="boolean" default="false"/>
  </parameter>

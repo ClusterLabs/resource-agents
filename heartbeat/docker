@@ -99,7 +99,7 @@ provided in the 'name' argument of this agent.
 
 <parameter name="run_cmd" required="0" unique="0">
 <longdesc lang="en">
-Specifiy a command to launch within the container once
+Specify a command to launch within the container once
 it has initialized.
 </longdesc>
 <shortdesc lang="en">run command</shortdesc>
@@ -117,7 +117,7 @@ The agent will ensure they exist by running 'mkdir -p'
 
 <parameter name="monitor_cmd" required="0" unique="0">
 <longdesc lang="en">
-Specifiy the full path of a command to launch within the container to check
+Specify the full path of a command to launch within the container to check
 the health of the container. This command must return 0 to indicate that
 the container is healthy. A non-zero return code will indicate that the
 container has failed and should be recovered.
