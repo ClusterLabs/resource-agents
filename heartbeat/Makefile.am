@@ -168,6 +168,7 @@ ocf_SCRIPTS	     = azure-events		\
 			syslog-ng		\
 			tomcat			\
 			varnish			\
+			vdo-vol			\
 			vmware			\
 			vsftpd			\
 			zabbixserver
