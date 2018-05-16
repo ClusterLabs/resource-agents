@@ -168,11 +168,12 @@ man_MANS	       = ocf_heartbeat_azure-events.7 \
                           ocf_heartbeat_slapd.7 \
                           ocf_heartbeat_sybaseASE.7 \
                           ocf_heartbeat_sg_persist.7 \
-			  ocf_heartbeat_mpathpersist.7 \
+                          ocf_heartbeat_mpathpersist.7 \
                           ocf_heartbeat_symlink.7 \
                           ocf_heartbeat_syslog-ng.7 \
                           ocf_heartbeat_tomcat.7 \
                           ocf_heartbeat_varnish.7 \
+                          ocf_heartbeat_vdo-vol.7 \
                           ocf_heartbeat_vmware.7 \
                           ocf_heartbeat_vsftpd.7 \
                           ocf_heartbeat_zabbixserver.7
