@@ -1,0 +1,241 @@
+#!/usr/local/bin/bash
+#
+# The jail HA resource agent creates and launches a jail managed by
+# iocage. The entire lifecycle must be managed by iocage.
+#
+# Copyright (c) 2018 Mathieu GRZYBEK <mathieu@grzybek.fr>
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+
+meta_data()
+{
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="jail">
+<version>1.0</version>
+
+<longdesc lang="en">
+The jail HA resource agent starts and stops a jail managed by
+iocage. The entire lifecycle must be managed by iocage.
+</longdesc>
+<shortdesc lang="en">IOCage-managed jail resource agent.</shortdesc>
+
+<parameters>
+
+<parameter name="name" required="1" unique="0">
+<longdesc lang="en">
+The name of the jail to manage.
+</longdesc>
+<shortdesc lang="en">jail's name</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="autoset_utilization_cpu" unique="0" required="0">
+<longdesc lang="en">
+If set true, the agent will detect the number of vCPUs configured by rctl and put it
+into the CPU utilization of the resource when the monitor is executed.
+</longdesc>
+<shortdesc lang="en">Enable auto-setting the CPU utilization of the resource</shortdesc>
+<content type="boolean" default="true" />
+</parameter>
+
+<parameter name="autoset_utilization_hv_memory" unique="0" required="0">
+<longdesc lang="en">
+If set true, the agent will detect the number of *Max memory* from rctl, and put it
+into the hv_memory utilization of the resource when the monitor is executed.
+</longdesc>
+<shortdesc lang="en">Enable auto-setting the hv_memory utilization of the resource</shortdesc>
+<content type="boolean" default="true" />
+</parameter>
+
+<parameter name="cpuset" unique="1" required="0">
+<longdesc lang="en">
+Limit the jail to the given cpus.
+</longdesc>
+<shortdesc lang="en">Jail's cpus.</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="memory" unique="1" required="0">
+<longdesc lang="en">
+Sets a memory limit to the jail.
+</longdesc>
+<shortdesc lang="en">Jail's max memory usage.</shortdesc>
+<content type="string"/>
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="90" />
+<action name="stop"         timeout="90" />
+<action name="monitor"      timeout="30" interval="30" depth="0" />
+<action name="meta-data"    timeout="5" />
+<action name="validate-all"   timeout="30" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+jail_usage()
+{
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+# From heartbeat:VirtualDomain
+set_util_attr() {
+	local attr=$1 val=$2
+	local cval outp
+
+	cval=$(crm_resource -Q -r $OCF_RESOURCE_INSTANCE -z -g $attr 2>/dev/null)
+	if [ $? -ne 0 ] && [ -z "$cval" ]; then
+		crm_resource -Q -r $OCF_RESOURCE_INSTANCE -z -g $attr 2>&1 | grep -e "not connected" > /dev/null 2>&1
+		if [ $? -eq 0 ]; then
+			ocf_log debug "Unable to set utilization attribute, cib is not available"
+			return
+		fi
+	fi
+
+	if [ "$cval" != "$val" ]; then
+		outp=$(crm_resource -r $OCF_RESOURCE_INSTANCE -z -p $attr -v $val 2>&1) ||
+		ocf_log warn "crm_resource failed to set utilization attribute $attr: $outp"
+	fi
+}
+
+update_utilization() {
+	local jail_id
+	local jail_cpus
+	local jail_mem
+
+	if ocf_is_true "$OCF_RESKEY_autoset_utilization_cpu" || \
+		ocf_is_true "$OCF_RESKEY_autoset_utilization_hv_memory" ; then
+		jail_id=$(iocage list -h | awk "/$OCF_RESKEY_name/ {print \$1}")
+
+		if ocf_is_true "$OCF_RESKEY_autoset_utilization_cpu" ; then
+			jail_cpus=$(cpuset -g -j $jail_id | awk '{print $NF}' |tr ',' '\n' | wc -l)
+			set_util_attr cpu "$jail_cpus"
+		fi
+
+		if ocf_is_true "$OCF_RESKEY_autoset_utilization_hv_memory" ; then
+			jail_mem=$(rctl -n jail:$jail_id:vmemoryuse:deny | awk -F= '{print $NF}')
+			if [ "x$jail_mem" == "x" ] ; then
+				ocf_debug "Cannot get vmemoryuse from rctl"
+			else
+				set_util_attr hv_memory "$jail_mem"
+			fi
+		fi
+	fi
+}
+
+jail_monitor()
+{
+	update_utilization
+
+	# This is the iocage command:
+	# 	iocage list -h | awk '/$OCF_RESKEY_name/ {print $3}' | grep -q up
+	# But jls is faster.
+
+	jls | grep -q /$OCF_RESKEY_name
+	if [ $? -ne 0 ]; then
+		return $OCF_NOT_RUNNING
+	fi
+
+	return $OCF_SUCCESS
+}
+
+jail_start()
+{
+	iocage start $OCF_RESKEY_name
+	if [ $? -ne $OCF_SUCCESS ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+jail_stop()
+{
+	jail_monitor
+	if [ $? -eq $OCF_NOT_RUNNING ]; then
+		return $OCF_SUCCESS
+	fi
+
+	iocage stop $OCF_RESKEY_name
+	if [ $? -ne 0 ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+jail_validate()
+{
+	check_binary iocage
+	if [ -z "$OCF_RESKEY_name" ]; then
+		ocf_exit_reason "iocage tool could not be found."
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	iocage list -h | grep -q $OCF_RESKEY_name
+	if [ $? -ne 0 ]; then
+		ocf_exit_reason "managed jail ${OCF_RESKEY_name} could not be found."
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+case $__OCF_ACTION in
+	meta-data) meta_data
+		exit $OCF_SUCCESS;;
+	start)
+		jail_validate
+		jail_start;;
+	stop)		jail_stop;;
+	monitor)	jail_monitor;;
+	validate-all)	jail_validate;;
+	usage|help)	jail_usage
+		exit $OCF_SUCCESS
+		;;
+	*)		jail_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc

@@ -1,0 +1,224 @@
+#!/bin/sh
+#
+# The container service HA resource agent creates and launches a jailed
+# service managed by jail/lxd/lxc.
+#
+# Copyright (c) 2018 Mathieu GRZYBEK <mathieu@grzybek.fr>
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+
+meta_data()
+{
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="jailed_service">
+<version>1.0</version>
+
+<longdesc lang="en">
+The jailed service HA resource agent starts and stops a jailed service
+managed by a container engine:
+* lxd: uses "lxc exec" and "systemctl"
+* lxc: uses "lxc-attach" and "systemctl"
+* jail: uses "jexec" and "service"
+
+The managed services should not be enabled at start time.
+</longdesc>
+<shortdesc lang="en">Jailed service resource agent.</shortdesc>
+
+<parameters>
+<parameter name="container" required="1" unique="1">
+<longdesc lang="en">
+The name of the container to manage.
+</longdesc>
+<shortdesc lang="en">container's name</shortdesc>
+<content type="string"/>
+</parameter>
+<parameter name="service" required="1" unique="1">
+<longdesc lang="en">
+The name of the service to manage.
+</longdesc>
+<shortdesc lang="en">service's name</shortdesc>
+<content type="string"/>
+</parameter>
+<parameters>
+<parameter name="engine" required="0" unique="1">
+<longdesc lang="en">
+The type of engine used to ost the container. The possible values are:
+* lxd
+* lxc
+* jail (by default when run on FreeBSD)
+</longdesc>
+<shortdesc lang="en">service's name</shortdesc>
+<content type="string"/>
+</parameter>
+</parameters>
+
+<actions>
+<action name="start"        timeout="90" />
+<action name="stop"         timeout="90" />
+<action name="monitor"      timeout="30" interval="30" depth="0" />
+<action name="meta-data"    timeout="5" />
+<action name="validate-all"   timeout="30" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+service_usage()
+{
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+service_set_commands() {
+	if [ "$OCF_RESKEY_engine" == "jail" ] ; then
+		local jail_id
+		jail_id=$(jls | awk "/$OCF_RESKEY_container/ {print \$1}")
+
+		export START_COMMAND="jexec $jail_id service onestart $OCF_RESKEY_service"
+		export STOP_COMMAND="jexec $jail_id service onestop $OCF_RESKEY_service"
+		export STATUS_COMMAND="jexec $jail_id service onestatus $OCF_RESKEY_service"
+		export TEST_COMMAND="jexec $jail_id service -l | grep -q ^$OCF_RESKEY_service"
+	fi
+
+	if [ "$OCF_RESKEY_engine" == "lxd" ] ; then
+		export START_COMMAND="lxc exec $OCF_RESKEY_container systemctl start $OCF_RESKEY_service"
+		export STOP_COMMAND="lxc exec $OCF_RESKEY_container systemctl stop $OCF_RESKEY_service"
+		export STATUS_COMMAND="lxc exec $OCF_RESKEY_container systemctl is-active $OCF_RESKEY_service"
+		export TEST_COMMAND="lxc exec $OCF_RESKEY_container systemctl | grep -q ^$OCF_RESKEY_service"
+	fi
+
+	if [ "$OCF_RESKEY_engine" == "lxc" ] ; then
+		export START_COMMAND="lxc-attach -n $OCF_RESKEY_container systemctl start $OCF_RESKEY_service"
+		export STOP_COMMAND="lxc-attach -n $OCF_RESKEY_container systemctl stop $OCF_RESKEY_service"
+		export STATUS_COMMAND="lxc-attach -n $OCF_RESKEY_container systemctl is-active $OCF_RESKEY_service"
+		export TEST_COMMAND="lxc-attach -n $OCF_RESKEY_container systemctl | grep -q ^$OCF_RESKEY_service"
+	fi
+}
+
+service_monitor()
+{
+	service_set_commands
+
+	$STATUS_COMMAND
+	if [ $? -ne 0 ]; then
+		return $OCF_NOT_RUNNING
+	fi
+
+	return $OCF_SUCCESS
+}
+
+service_start()
+{
+	service_set_commands
+
+	$START_COMMAND
+	if [ $? -ne $OCF_SUCCESS ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+service_stop()
+{
+	service_monitor
+	if [ $? -eq $OCF_NOT_RUNNING ]; then
+		return $OCF_SUCCESS
+	fi
+
+	$STOP_COMMAND
+	if [ $? -ne 0 ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+service_validate()
+{
+	if [ $(uname) != "FreeBSD" ] ; then
+		if [ $OCF_RESKEY_engine == "lxd" ] ; then
+			check_binary lxc
+		elif [ $OCF_RESKEY_engine == "lxc" ] ; then
+			check_binary lxc-attach
+		else
+			ocf_exit_reason "'engine' option is required"
+			exit $OCF_ERR_CONFIGURED
+		fi
+	fi
+
+	if [ -z "$OCF_RESKEY_container" ]; then
+		ocf_exit_reason "'name' option is required"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	if [ -z "$OCF_RESKEY_service" ]; then
+		ocf_exit_reason "'service' option is required"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	service_set_commands
+
+	$TEST_COMMAND
+	if [ $? -ne 0 ]; then
+		ocf_exit_reason "managed service ${OCF_RESKEY_service}, could not be found."
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+case $__OCF_ACTION in
+	meta-data) meta_data
+		exit $OCF_SUCCESS;;
+	start)
+		service_validate
+		service_start;;
+	stop)		service_stop;;
+	monitor)	service_monitor;;
+	validate-all)	service_validate;;
+	usage|help)	service_usage
+		exit $OCF_SUCCESS
+		;;
+	*)		service_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc

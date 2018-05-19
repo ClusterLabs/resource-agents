@@ -1,0 +1,209 @@
+#!/usr/bin/env bash
+#
+# The IPjail HA resource agent adds and removes IP addresses from
+# jails. It is designed for *BSD systems using "iocage".
+#
+# Copyright (c) 2018 Mathieu GRZYBEK <mathieu@grzybek.fr>
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+
+meta_data()
+{
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="IPjail">
+<version>1.0</version>
+
+<longdesc lang="en">
+The IPjail HA resource agent adds and removes IP addresses from
+jails. It is designed for *BSD systems using "iocage".
+</longdesc>
+<shortdesc lang="en">IP Alias resource agent.</shortdesc>
+
+<parameters>
+<parameter name="ip" required="1" unique="1">
+<longdesc lang="en">
+The IP address to manage.
+</longdesc>
+<shortdesc lang="en">IP Address.</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="prefix" required="1" unique="1">
+<longdesc lang="en">
+The network prefix of the IP address.
+</longdesc>
+<shortdesc lang="en">Prefix.</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="interface" required="1" unique="1">
+<longdesc lang="en">
+The interface to manage.
+</longdesc>
+<shortdesc lang="en">Network interface.</shortdesc>
+<content type="string"/>
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="90" />
+<action name="stop"         timeout="90" />
+<action name="monitor"      timeout="30" interval="30" depth="0" />
+<action name="meta-data"    timeout="5" />
+<action name="validate-all"   timeout="30" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+ipjail_usage()
+{
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+ipjail_monitor()
+{
+	local jail_id
+
+	jail_id=$(jls | awk "/$OCF_RESKEY_name/ {print \$1}")
+
+	jexec $jail_id ifconfig $OCF_RESKEY_interface | grep -q $OCF_RESKEY_ip
+	if [ $? -ne 0 ]; then
+		return $OCF_NOT_RUNNING
+	fi
+
+	return $OCF_SUCCESS
+}
+
+ipjail_start()
+{
+	local current_ip_conf
+	local ip_conf_to_append
+	local iocage_key
+
+	if [[ $OCF_RESKEY_ip =~ ":" ]] ; then
+		iocage_key=ip6_addr
+	else
+		iocage_key=ip4_addr
+	fi
+
+	current_ip_conf=$(iocage get $iocage_key $OCF_RESKEY_name)
+	ip_conf_to_append="$OCF_RESKEY_interface|$OCF_RESKEY_ip/$OCF_RESKEY_prefix"
+
+	if [ "x$current_ip_conf" == "x" ] ; then
+		iocage set $iocage_key="$ip_conf_to_append" $OCF_RESKEY_name
+	else
+		iocage set $iocage_key="$current_ip_conf,$ip_conf_to_append" $OCF_RESKEY_name
+	fi
+
+	if [ $? -ne $OCF_SUCCESS ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+ipjail_stop()
+{
+	local new_ip_conf
+
+	ipjail_monitor
+	if [ $? -eq $OCF_NOT_RUNNING ]; then
+		return $OCF_SUCCESS
+	fi
+
+	new_ip_conf=$(iocage get ip4_addr $OCF_RESKEY_name | \
+		tr ',' '\n' | \
+		grep -v "$OCF_RESKEY_interface|$OCF_RESKEY_ip/$OCF_RESKEY_prefix" | \
+		awk 'BEGIN { ORS="," } /\|/ {print}' | \
+		sed 's/,$//')
+
+	iocage set ip4_addr="$new_ip_conf" $OCF_RESKEY_name
+	if [ $? -ne 0 ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+ipjail_validate()
+{
+	if [ -z "$OCF_RESKEY_name" ] ; then
+		ocf_exit_reason "Jail's name is required"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	if [ -z "$OCF_RESKEY_interface" ] ; then
+		ocf_exit_reason "Jail's iface is required"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	if [ -z "$OCF_RESKEY_ip" ] ; then
+		ocf_exit_reason "Jail's IP address is required"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	if [ -z "$OCF_RESKEY_prefix" ] ; then
+		ocf_exit_reason "Network prefix is required"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+case $__OCF_ACTION in
+	meta-data) meta_data
+		exit $OCF_SUCCESS;;
+	start)
+		ipjail_validate
+		ipjail_start;;
+	stop)		ipjail_stop;;
+	monitor)	ipjail_monitor;;
+	validate-all)	ipjail_validate;;
+	usage|help)	ipjail_usage
+		exit $OCF_SUCCESS
+		;;
+	*)		ipjail_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
