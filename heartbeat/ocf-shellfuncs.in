@@ -680,16 +680,21 @@ systemd_is_running()
 # usage: systemd_drop_in <name> <After|Before> <dependency.service>
 systemd_drop_in()
 {
+	local conf_file
 	if [ $# -ne 3 ]; then
           ocf_log err "Incorrect number of arguments [$#] for systemd_drop_in."
         fi
 
 	systemdrundir="/run/systemd/system/resource-agents-deps.target.d"
-	mkdir "$systemdrundir"
-	cat > "$systemdrundir/$1.conf" <<EOF
+	mkdir -p "$systemdrundir"
+	conf_file="$systemdrundir/$1.conf"
+	cat >"$conf_file" <<EOF
 [Unit]
 $2=$3
 EOF
+	# The information is accessible through systemd API and systemd would
+	# complain about improper permissions.
+	chmod o+r "$conf_file"
 	systemctl daemon-reload
 }
 
