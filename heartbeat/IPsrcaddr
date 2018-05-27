@@ -17,7 +17,11 @@
 #	that such packets carry the same IP irrespective of which host in
 #	a redundant cluster they actually originate from.
 #
-#	It can add a preferred source address, or remove one.
+#	Optionally, with the update_local_route attribute enabled, this
+#	script can update the local route table to use `ipaddress` as the
+#	preferred source address when `ipaddress` is also the destination.
+#
+#	This script can add a preferred source address, or remove one.
 #
 #	usage: IPsrcaddr {start|stop|status|monitor|validate-all|meta-data}
 #
@@ -31,6 +35,10 @@
 #	I can't see why you should have more than one.  And if there is more
 #	than one, we would have to box clever to find out which one is to be
 #	modified, or we would have to pass its identity as an argument.
+#
+#	The update_default_route attribute is enabled by default. If you
+#	configure more than one IPsrcaddr resource, all but one must explicitly
+#	set update_default_route="0" and update_local_route="1".
 #
 #	2) The script depends on Alexey Kuznetsov's ip utility from the
 #	iproute aka iproute2 package.
@@ -58,8 +66,10 @@
 
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
-  CMDSHOW="$IP2UTIL route show   to exact 0.0.0.0/0"
-CMDCHANGE="$IP2UTIL route change to "
+        CMDSHOW="$IP2UTIL route show               to exact 0.0.0.0/0"
+      CMDCHANGE="$IP2UTIL route change             to"
+  CMDSHOW_LOCAL="$IP2UTIL route show   table local to exact $OCF_RESKEY_ipaddress"
+CMDCHANGE_LOCAL="$IP2UTIL route change table local local"
 
 SYSTYPE="`uname -s`"
 
@@ -96,6 +106,33 @@ dotted quad notation  255.255.255.0).
 </longdesc>
 <shortdesc lang="en">Netmask</shortdesc>
 <content type="string" default=""/>
+</parameter>
+
+<parameter name="update_default_route">
+<longdesc lang="en">
+If set, the default route will be updated to use \`ipaddress\` as the
+preferred source IP address.
+
+There should be no more than one IPsrcaddr resource with
+\`update_default_route\` enabled. Configuring multiple IPsrcaddr
+resources without disabling \`update_default_route\` on all but one
+instance will cause monitor failures.
+</longdesc>
+<shortdesc lang="en">Update default route</shortdesc>
+<content type="boolean" default="true"/>
+</parameter>
+
+<parameter name="update_local_route">
+<longdesc lang="en">
+If set, the route to destination \`ipaddress\` in the local route table
+will be updated to use \`ipaddress\` as the preferred source IP
+address.
+
+There can be multiple IPsrcaddr resources with \`update_local_route\`
+enabled.
+</longdesc>
+<shortdesc lang="en">Update local route</shortdesc>
+<content type="boolean" default="false"/>
 </parameter>
 </parameters>
 
@@ -159,25 +196,50 @@ srca_read() {
 	return 2
 }
 
+srca_read_local() {
+	local ROUTE="`$CMDSHOW_LOCAL`" || errorexit "command '$CMDSHOW' failed"
+	local SRCIP=`echo $ROUTE | sed -n "s/$MATCHROUTE/\3/p"`
+	[ -z "$SRCIP" ] && return 1
+	[ $SRCIP = $1 ] && return 0
+	return 2
+}
+
 #
 #	Add (or change if it already exists) the preferred source address
 #	The exit code should conform to LSB exit codes.
 #
 
 srca_start() {
-	srca_read $1
-
-	rc=$?
-	if [ $rc = 0 ]; then 
-		rc=$OCF_SUCCESS
-		ocf_log info "The ip route has been already set.($NETWORK, $INTERFACE, $ROUTE_WO_SRC)"
-	else
-		ip route replace $NETWORK dev $INTERFACE src $1 || \
-			errorexit "command 'ip route replace $NETWORK dev $INTERFACE src $1' failed"
-
-		$CMDCHANGE $ROUTE_WO_SRC src $1 || \
-			errorexit "command '$CMDCHANGE $ROUTE_WO_SRC src $1' failed"
+	if ocf_is_true "$update_default_route"; then
+		srca_read $1
 		rc=$?
+
+		if [ $rc = 0 ]; then
+			rc=$OCF_SUCCESS
+			ocf_log info "The ip route has been already set.($NETWORK, $INTERFACE, $ROUTE_WO_SRC)"
+		else
+			$IP2UTIL route replace $NETWORK $ROUTE_PARAMS scope link proto kernel dev $INTERFACE src $1 || \
+				errorexit "command '$IP2UTIL route replace $NETWORK $ROUTE_PARAMS scope link proto kernel dev $INTERFACE src $1' failed"
+
+			$CMDCHANGE $ROUTE_WO_SRC src $1 || \
+				errorexit "command '$CMDCHANGE $ROUTE_WO_SRC src $1' failed"
+
+			rc=$?
+		fi
+	fi
+
+	if ocf_is_true "$update_local_route"; then
+		srca_read_local $1
+		rc=$?
+
+		if [ $rc = 0 ]; then
+			rc=$OCF_SUCCESS
+			ocf_log info "The local ip route has been already set.($NETWORK, $INTERFACE)"
+		else
+			$CMDCHANGE_LOCAL $1 dev $INTERFACE proto kernel scope host src $1 || \
+				errorexit "command '$CMDCHANGE_LOCAL $1 dev $INTERFACE proto kernel scope host src $1' failed"
+			rc=$?
+		fi
 	fi
 
 	return $rc
@@ -193,39 +255,83 @@ srca_start() {
 #
 
 srca_stop() {
-	srca_read $1
-	rc=$?
+	if ocf_is_true "$update_default_route"; then
+		srca_read $1
+		rc=$?
 
-	if [ $rc = 1 ]; then
-	# We do not have a preferred source address for now
-	  ocf_log info "No preferred source address defined, nothing to stop"
-	  exit $OCF_SUCCESS
+		if [ $rc = 1 ]; then
+			# We do not have a preferred source address for now
+			ocf_log info "No preferred source address defined, nothing to stop"
+			exit $OCF_SUCCESS
+		fi
+
+		[ $rc = 2 ] && errorexit "The address you specified to stop does not match the preferred source address"
+
+		$IP2UTIL route replace $NETWORK $ROUTE_PARAMS scope link proto kernel dev $INTERFACE src $PRIMARY_IP || \
+			errorexit "command '$IP2UTIL route replace $NETWORK $ROUTE_PARAMS scope link proto kernel dev $INTERFACE src $PRIMARY_IP' failed"
+
+		$CMDCHANGE $ROUTE_WO_SRC || \
+			errorexit "command '$CMDCHANGE $ROUTE_WO_SRC' failed"
+
+		rc=$?
 	fi
-	  
-	[ $rc = 2 ] && errorexit "The address you specified to stop does not match the preferred source address"
 
-	ip route replace $NETWORK dev $INTERFACE || \
-		errorexit "command 'ip route replace $NETWORK dev $INTERFACE' failed"
+	if ocf_is_true "$update_local_route"; then
+		if [ $rc = 1 ]; then
+			# We do not have a preferred source address for now
+			ocf_log info "No preferred source address defined, nothing to stop"
+			exit $OCF_SUCCESS
+		fi
 
-	$CMDCHANGE $ROUTE_WO_SRC || \
-		errorexit "command '$CMDCHANGE $ROUTE_WO_SRC' failed"
+		[ $rc = 2 ] && errorexit "The address you specified to stop does not match the preferred source address"
 
-	return $?
+		$CMDCHANGE_LOCAL $1 dev $INTERFACE proto kernel scope host src $PRIMARY_IP || \
+			errorexit "command '$CMDCHANGE_LOCAL $1 dev $INTERFACE proto kernel scope host src $PRIMARY_IP' failed"
+		rc=$?
+	fi
+
+	return $rc
 }
 
 srca_status() {
-	srca_read $1
+	if ocf_is_true "$update_default_route"; then
+		srca_read $1
+		rc=$?
 
-	case $? in
-		0)	echo "OK"
-			return $OCF_SUCCESS;;
+		case $rc in
+			0)	;;
 
-		1)	echo "No preferred source address defined"
-			return $OCF_NOT_RUNNING;;
+			1)	echo "Default route: No preferred source address defined"
+				return $OCF_NOT_RUNNING;;
 
-		2)	echo "Preferred source address has incorrect value"
-			return $OCF_ERR_GENERIC;;
-	esac
+			2)	echo "Default route: Preferred source address has incorrect value"
+				return $OCF_ERR_GENERIC;;
+
+			*)	echo "Default route: Unknown error"
+				return $OCF_ERR_GENERIC;;
+		esac
+	fi
+
+	if ocf_is_true "$update_local_route"; then
+		srca_read_local $1
+		rc=$?
+
+		case $rc in
+			0)	;;
+
+			1)	echo "Local route: No preferred source address defined"
+				return $OCF_NOT_RUNNING;;
+
+			2)	echo "Local route: Preferred source address has incorrect or default value"
+				return $OCF_NOT_RUNNING;;
+
+			*)	echo "Local route: Unknown error"
+				return $OCF_ERR_GENERIC;;
+		esac
+	fi
+
+	echo "OK"
+	return $OCF_SUCCESS
 }
 
 # A not reliable IP address checking function, which only picks up those _obvious_ violations...
@@ -393,6 +499,11 @@ srca_validate_all() {
 		return $OCF_ERR_CONFIGURED
 	fi
 
+	if ! (ocf_is_true "$update_default_route" || ocf_is_true "$update_local_route"); then
+		#  usage
+		ocf_exit_reason "Please set either update_default_route or update_local_route!"
+		return $OCF_ERR_CONFIGURED
+	fi
 
 	if ! [ "x$SYSTYPE" = "xLinux" ]; then
 		# checks after this point are only relevant for linux.
@@ -448,6 +559,8 @@ case $1 in
 esac
 
 ipaddress="$OCF_RESKEY_ipaddress"
+update_default_route="${OCF_RESKEY_update_default_route:-true}"
+update_local_route="${OCF_RESKEY_update_local_route:-false}"
 
 srca_validate_all
 rc=$?
@@ -473,7 +586,11 @@ rc=$?
 }
 
 INTERFACE=`echo $findif_out | awk '{print $1}'`
-NETWORK=`ip route list dev $INTERFACE scope link proto kernel match $ipaddress|grep -o '^[^ ]*'`
+PRIMARY_IP=`$IP2UTIL -o -f inet addr show dev $INTERFACE primary | awk '{print $4}' | cut -d/ -f1`
+
+route_out=`$IP2UTIL route list dev $INTERFACE scope link proto kernel match $ipaddress`
+NETWORK=`echo $route_out | awk '{print $1}'`
+ROUTE_PARAMS=`echo $route_out | sed "s%\($NETWORK\|src [.0-9]*\)%%g"`
 
 case $1 in
 	start)		srca_start $ipaddress
