@@ -294,14 +294,14 @@ abnormal_end() {
     exit $?
   }
 
+  ocf_log err $err_msg
   if [ "$ACTION" = "stop" ]
   then
     cleanup_instance
     exit $OCF_SUCCESS
   fi
 
-  ocf_log err $err_msg
-  exit $OCF_ERR_CONFIGURED
+  exit $OCF_ERR_INSTALLED
 }
 
 #
@@ -316,7 +316,14 @@ sapinstance_init() {
   InstanceName=`echo "$myInstanceName" | cut -d_ -f2`
   InstanceNr=`echo "$InstanceName" | sed 's/.*\([0-9][0-9]\)$/\1/'`
   SAPVIRHOST=`echo "$myInstanceName" | cut -d_ -f3`
+  if [ ! -z "$OCF_RESKEY_ERS_InstanceName" ]
+  then
+	ERSInstanceName=`echo $OCF_RESKEY_ERS_InstanceName| cut -d_ -f2`
+	ASCSInstanceName=`echo $OCF_RESKEY_InstanceName| cut -d_ -f2`
+  fi
 
+  # make sure that we don't care the content of variable from previous run of sapinstance_init
+  DIR_EXECUTABLE=""
   # optional OCF parameters, we try to guess which directories are correct
   if  [ -z "$OCF_RESKEY_DIR_EXECUTABLE" ]
   then
@@ -330,6 +337,16 @@ sapinstance_init() {
       DIR_EXECUTABLE="/usr/sap/$SID/SYS/exe/run"
       SAPSTARTSRV="/usr/sap/$SID/SYS/exe/run/sapstartsrv"
       SAPCONTROL="/usr/sap/$SID/SYS/exe/run/sapcontrol"
+    elif [ ! -z "$ERSInstanceName" ] && have_binary /usr/sap/$SID/$ERSInstanceName/exe/sapstartsrv && have_binary /usr/sap/$SID/$ERSInstanceName/exe/sapcontrol
+    then
+      DIR_EXECUTABLE="/usr/sap/$SID/$ERSInstanceName/exe"
+      SAPSTARTSRV="/usr/sap/$SID/$ERSInstanceName/exe/sapstartsrv"
+      SAPCONTROL="/usr/sap/$SID/$ERSInstanceName/exe/sapcontrol"
+    elif [ ! -z "$ASCSInstanceName" ] && have_binary /usr/sap/$SID/$ASCSInstanceName/exe/sapstartsrv && have_binary /usr/sap/$SID/$ASCSInstanceName/exe/sapcontrol
+    then
+      DIR_EXECUTABLE="/usr/sap/$SID/$ASCSInstanceName/exe"
+      SAPSTARTSRV="/usr/sap/$SID/$ASCSInstanceName/exe/sapstartsrv"
+      SAPCONTROL="/usr/sap/$SID/$ASCSInstanceName/exe/sapcontrol"
     fi
   else
     if have_binary "$OCF_RESKEY_DIR_EXECUTABLE/sapstartsrv" && have_binary "$OCF_RESKEY_DIR_EXECUTABLE/sapcontrol"
