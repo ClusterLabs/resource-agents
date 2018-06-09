@@ -482,6 +482,16 @@ VirtualDomain_status() {
 	return $rc
 }
 
+# In case of crash, the container's systemd unit is not removed by libvirt.
+# We need to delete it to be able to restart. We should not find any scope
+# of the former domain.
+verify_systemd_units() {
+	if systemctl --no-legend -t scope | grep -q "$DOMAIN_NAME"
+	then
+		systemctl reset-failed
+	fi
+}
+
 # virsh undefine removes configuration files if they are in
 # directories which are managed by libvirt. such directories
 # include also subdirectories of /etc (for instance
@@ -544,6 +554,14 @@ VirtualDomain_start() {
 	# outside of this agent, we have to ensure that the domain
 	# is restored to an 'undefined' state before creating.
 	verify_undefined
+
+	# Make sure domain's systemd scope is deleted.
+	# In case of domain failure, libvirt does not delete them and cannot
+	# restart it.
+	if which systemctl >/dev/null 2>&1
+	then
+		verify_systemd_units
+	fi
 
 	virsh $VIRSH_OPTIONS create ${OCF_RESKEY_config}
 	rc=$?
