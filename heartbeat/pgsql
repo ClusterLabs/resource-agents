@@ -1811,6 +1811,7 @@ pgsql_validate_all() {
     local check_config_rc
     local rep_mode_string
     local socket_directories
+    local rc
 
     version=`cat $OCF_RESKEY_pgdata/PG_VERSION`
 
@@ -1895,7 +1896,8 @@ pgsql_validate_all() {
         CHECK_MS_SQL="select pg_is_in_recovery()"
         CHECK_SYNCHRONOUS_STANDBY_NAMES_SQL="show synchronous_standby_names"
         ocf_version_cmp "$version" "10"
-        if [ $? -eq 1 ] || [ $? -eq 2 ]; then
+        rc=$?
+        if [ $rc -eq 1 ]||[ $rc -eq 2 ]; then
             CHECK_XLOG_LOC_SQL="select pg_last_wal_replay_lsn(),pg_last_wal_receive_lsn()"
         else
             CHECK_XLOG_LOC_SQL="select pg_last_xlog_replay_location(),pg_last_xlog_receive_location()"
