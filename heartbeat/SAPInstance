@@ -296,13 +296,13 @@ abnormal_end() {
     exit $?
   }
 
+  ocf_log err $err_msg
   if [ "$ACTION" = "stop" ]
   then
     cleanup_instance
     exit $OCF_SUCCESS
   fi
 
-  ocf_log err $err_msg
   exit $OCF_ERR_CONFIGURED
 }
 
