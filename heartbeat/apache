@@ -204,6 +204,15 @@ apache_start() {
 
 	validate_default_config || return $OCF_ERR_CONFIGURED
 
+	if [ -n "${APACHE_RUN_DIR}" ] && [ ! -d "${APACHE_RUN_DIR}" ]; then
+		mkdir -p "${APACHE_RUN_DIR}"
+	fi
+
+	if [ -n "${APACHE_LOCK_DIR}" ] && [ ! -d "${APACHE_LOCK_DIR}" ]; then
+		mkdir -p "${APACHE_LOCK_DIR}"
+		chown "${APACHE_RUN_USER}" "${APACHE_LOCK_DIR}"
+	fi
+
 	if [ -z $PIDFILE_DIRECTIVE ]; then
 		ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE
 	else
