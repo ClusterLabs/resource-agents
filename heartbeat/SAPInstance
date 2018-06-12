@@ -137,8 +137,10 @@ Those services are monitored within the SAPInstance resource agent:
 
 - disp+work
 - msg_server
-- enserver
-- enrepserver
+- enserver (ENSA1)
+- enq_server (ENSA2)
+- enrepserver (ENSA1)
+- enq_replicator (ENSA2)
 - jcontrol
 - jstart
 
@@ -153,7 +155,7 @@ The default should fit most cases where you want to manage a SAP Instance from t
 You may specify multiple services separated by a | (pipe) sign in this parameter: disp+work|msg_server|enserver
   </longdesc>
   <shortdesc lang="en">Services to monitor</shortdesc>
-  <content type="string" default="disp+work|msg_server|enserver|enrepserver|jcontrol|jstart"/>
+  <content type="string" default="disp+work|msg_server|enserver|enrepserver|jcontrol|jstart|enq_server|enq_replicator"/>
  </parameter>
   <parameter name="SHUTDOWN_METHOD" unique="0" required="0">
   <longdesc lang="en">Usual a SAP Instance is stopped by the command 'sapcontrol -nr InstanceNr -function Stop'. SHUTDOWN_METHOD=KILL means to kill the SAP Instance using OS commands. SAP processes of the instance are terminated with 'kill -9', shared memory is deleted with 'cleanipc' and the 'kill.sap' file will be deleted. That method is much faster than the gracefull stop, but the instance does not have the chance to say goodbye to other SAPinstances in the same system. USE AT YOUR OWN RISK !!</longdesc>
@@ -378,7 +380,7 @@ sapinstance_init() {
 
   if [ -z "$OCF_RESKEY_MONITOR_SERVICES" ]
   then
-    export OCF_RESKEY_MONITOR_SERVICES="disp+work|msg_server|enserver|enrepserver|jcontrol|jstart"
+    export OCF_RESKEY_MONITOR_SERVICES="disp+work|msg_server|enserver|enrepserver|jcontrol|jstart|enq_server|enq_replicator"
   fi
 
   # as root user we need the library path to the SAP kernel to be able to call sapcontrol
