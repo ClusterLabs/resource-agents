@@ -1,4 +1,4 @@
-#!/usr/local/bin/bash
+#!/bin/sh
 #
 # The jail HA resource agent creates and launches a jail managed by
 # iocage. The entire lifecycle must be managed by iocage.

@@ -132,7 +132,7 @@ ipjail_start()
 		iocage set $iocage_key="$current_ip_conf,$ip_conf_to_append" $OCF_RESKEY_name
 	fi
 
-	if [ $? -ne $OCF_SUCCESS ]; then
+	if [ $? -ne $OCF_SUCCESS ] ; then
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -144,7 +144,7 @@ ipjail_stop()
 	local new_ip_conf
 
 	ipjail_monitor
-	if [ $? -eq $OCF_NOT_RUNNING ]; then
+	if [ $? -eq $OCF_NOT_RUNNING ] ; then
 		return $OCF_SUCCESS
 	fi
 

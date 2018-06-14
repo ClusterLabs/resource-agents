@@ -134,7 +134,7 @@ service_monitor()
 	service_set_commands
 
 	$STATUS_COMMAND
-	if [ $? -ne 0 ]; then
+	if [ $? -ne 0 ] ; then
 		return $OCF_NOT_RUNNING
 	fi
 
@@ -146,7 +146,7 @@ service_start()
 	service_set_commands
 
 	$START_COMMAND
-	if [ $? -ne $OCF_SUCCESS ]; then
+	if [ $? -ne $OCF_SUCCESS ] ; then
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -156,12 +156,12 @@ service_start()
 service_stop()
 {
 	service_monitor
-	if [ $? -eq $OCF_NOT_RUNNING ]; then
+	if [ $? -eq $OCF_NOT_RUNNING ] ; then
 		return $OCF_SUCCESS
 	fi
 
 	$STOP_COMMAND
-	if [ $? -ne 0 ]; then
+	if [ $? -ne 0 ] ; then
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -181,12 +181,12 @@ service_validate()
 		fi
 	fi
 
-	if [ -z "$OCF_RESKEY_container" ]; then
+	if [ -z "$OCF_RESKEY_container" ] ; then
 		ocf_exit_reason "'name' option is required"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
-	if [ -z "$OCF_RESKEY_service" ]; then
+	if [ -z "$OCF_RESKEY_service" ] ; then
 		ocf_exit_reason "'service' option is required"
 		exit $OCF_ERR_CONFIGURED
 	fi
@@ -194,7 +194,7 @@ service_validate()
 	service_set_commands
 
 	$TEST_COMMAND
-	if [ $? -ne 0 ]; then
+	if [ $? -ne 0 ] ; then
 		ocf_exit_reason "managed service ${OCF_RESKEY_service}, could not be found."
 		exit $OCF_ERR_CONFIGURED
 	fi

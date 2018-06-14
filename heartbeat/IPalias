@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 #
 # The IPAlias HA resource agent adds and removes aliases from network
 # interfaces. It is designed for *BSD systems using "ifconfig" instead
@@ -101,7 +101,7 @@ END
 
 ipalias_monitor()
 {
-	ifconfig $OCF_RESKEY_interface|grep -q $OCF_RESKEY_ip
+	ifconfig $OCF_RESKEY_interface | grep -q $OCF_RESKEY_ip
 	if [ $? -ne 0 ]; then
 		return $OCF_NOT_RUNNING
 	fi
@@ -112,7 +112,7 @@ ipalias_monitor()
 ipalias_start()
 {
 	ifconfig $OCF_RESKEY_interface alias $OCF_RESKEY_ip netmask $OCF_RESKEY_netmask
-	if [ $? -ne $OCF_SUCCESS ]; then
+	if [ $? -ne $OCF_SUCCESS ] ; then
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -122,12 +122,12 @@ ipalias_start()
 ipalias_stop()
 {
 	ipalias_monitor
-	if [ $? -eq $OCF_NOT_RUNNING ]; then
+	if [ $? -eq $OCF_NOT_RUNNING ] ; then
 		return $OCF_SUCCESS
 	fi
 
 	ifconfig $OCF_RESKEY_interface inet $OCF_RESKEY_ip netmask $OCF_RESKEY_netmask delete
-	if [ $? -ne 0 ]; then
+	if [ $? -ne 0 ] ; then
 		return $OCF_ERR_GENERIC
 	fi
 
