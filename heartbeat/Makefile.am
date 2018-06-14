@@ -60,9 +60,13 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			Evmsd			\
 			Filesystem		\
 			ICP			\
+			IPalias			\
 			IPaddr			\
 			IPaddr2			\
+			IPjail			\
 			IPsrcaddr		\
+			jail			\
+			jail-info		\
 			LVM			\
 			LinuxSCSI		\
 			lvmlockd		\
