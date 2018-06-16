@@ -118,9 +118,13 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_iSCSITarget.7 \
                           ocf_heartbeat_iface-bridge.7 \
                           ocf_heartbeat_iface-vlan.7 \
+                          ocf_heartbeat_ip-jail.7 \
                           ocf_heartbeat_ipsec.7 \
                           ocf_heartbeat_ids.7 \
                           ocf_heartbeat_iscsi.7 \
+                          ocf_heartbeat_jail.7 \
+                          ocf_heartbeat_jailed-service.7 \
+                          ocf_heartbeat_jail-info.7 \
                           ocf_heartbeat_jboss.7 \
                           ocf_heartbeat_jira.7 \
                           ocf_heartbeat_kamailio.7 \
