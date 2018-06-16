@@ -68,7 +68,6 @@ The name of the service to manage.
 <shortdesc lang="en">service's name</shortdesc>
 <content type="string"/>
 </parameter>
-<parameters>
 <parameter name="engine" required="0" unique="1">
 <longdesc lang="en">
 The type of engine used to ost the container. The possible values are:
