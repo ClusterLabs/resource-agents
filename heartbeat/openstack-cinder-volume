@@ -37,6 +37,8 @@
 # Defaults
 OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
 
+export $attached_server_id=""
+
 : ${OCF_RESKEY_openstackcli=${OCF_RESKEY_openstackcli_default}}
 
 #######################################################################
@@ -128,7 +130,6 @@ osvol_validate() {
 
 osvol_monitor() {
 	local result
-	local attached_server_id
 	local node_id
 
 	# Is the volue attached?
@@ -142,10 +143,9 @@ osvol_monitor() {
 		ocf_log warn "$OCF_RESKEY_volume_id is not attached to any instance"
 		return $OCF_NOT_RUNNING
 	else
-		attached_server_id=$(echo $result|head -n1|awk -F "'" '{print $4}')
+		export attached_server_id=$(echo $result|head -n1|awk -F "'" '{print $4}')
 		ocf_log info "$OCF_RESKEY_volume_id is attached to instance $attached_server_id"
-		node_id=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_id -N $HOSTNAME \
-			| awk '{gsub("value=","") ; gsub("\"","") ; print $NF}')
+		node_id=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_id -N $HOSTNAME|awk '{gsub("value=","") ; gsub("\"","") ; print $NF}')
 
 		if [ "$node_id" != "$attached_server_id" ] ; then
 			return $OCF_NOT_RUNNING
@@ -164,8 +164,7 @@ osvol_stop() {
 		return $OCF_SUCCESS
 	fi
 
-	node_id=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_id -N $HOSTNAME \
-		| awk '{gsub("value=","") ; gsub("\"","") ; print $NF}')
+	node_id=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_id -N $HOSTNAME|awk '{gsub("value=","") ; gsub("\"","") ; print $NF}')
 	if ! $OCF_RESKEY_openstackcli server remove volume $node_id $OCF_RESKEY_volume_id ; then
 		ocf_log error "Couldn't remove volume $OCF_RESKEY_volume_id from instance $node_id"
 		return $OCF_ERR_GENERIC
@@ -184,8 +183,16 @@ osvol_start() {
 		return $OCF_SUCCESS
 	fi
 
-	node_id=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_id -N $HOSTNAME \
-		| awk '{gsub("value=","") ; gsub("\"","") ; print $NF}')
+	if [ ! -z $attached_server_id ] ; then
+		if ! $OCF_RESKEY_openstackcli server remove volume $attached_server_id $OCF_RESKEY_volume_id ; then
+			ocf_log error "Couldn't remove volume $OCF_RESKEY_volume_id from instance $attached_server_id"
+			return $OCF_ERR_GENERIC
+		fi	
+	fi
+	
+	export $attached_server_id=""
+	
+	node_id=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_id -N $HOSTNAME|awk '{gsub("value=","") ; gsub("\"","") ; print $NF}')
 	$OCF_RESKEY_openstackcli server add volume $node_id $OCF_RESKEY_volume_id
 	if [ $? != $OCF_SUCCESS ]; then
 		ocf_log error "Couldn't add volume $OCF_RESKEY_volume_id to instance $node_id"
