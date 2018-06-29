@@ -157,6 +157,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			sg_persist              \
 			mpathpersist		\
 			slapd			\
+			sybaseASE		\
 			symlink			\
 			syslog-ng		\
 			tomcat			\
