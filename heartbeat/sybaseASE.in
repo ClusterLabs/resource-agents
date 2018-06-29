@@ -1,5 +1,4 @@
-#!/bin/bash
-
+#!@BASH_SHELL@
 #
 # Sybase Availability Agent for Red Hat Cluster v15.0.2
 # Copyright (C) - 2007
