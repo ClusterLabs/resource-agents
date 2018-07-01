@@ -186,6 +186,11 @@ Usually you can leave this empty. Then the default: /usr/sap/hostctrl/exe is use
   <shortdesc lang="en">path to a post-start script</shortdesc>
   <content type="string" default="" />
  </parameter>
+ <parameter name="SAPHOSTAGENT_EXTRA_ARGUMENTS" unique="0" required="0">
+  <longdesc lang="en">Extra arguments for SAPHostAgent's StartDatabase/StopDatabase/GetDatabaseStatus functions that may be needed (for example by LiveCache)</longdesc>
+  <shortdesc lang="en">Extra arguments for SAPHostAgent's StartDatabase/StopDatabase/GetDatabaseStatus functions</shortdesc>
+  <content type="string" default="" />
+ </parameter>
 </parameters>
 
 <actions>

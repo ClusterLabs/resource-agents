@@ -136,7 +136,7 @@ sapdatabase_start() {
     then
       DBOSUSER="-dbuser $OCF_RESKEY_DBOSUSER "
     fi
-    output=`$SAPHOSTCTRL -function StartDatabase -dbname $SID -dbtype $DBTYPE $DBINST $DBOSUSER $FORCE -service`
+    output=`$SAPHOSTCTRL -function StartDatabase -dbname $SID -dbtype $DBTYPE $DBINST $DBOSUSER $OCF_RESKEY_SAPHOSTAGENT_EXTRA_ARGUMENTS $FORCE -service`
 
     sapdatabase_monitor 1
     rc=$?
@@ -178,7 +178,7 @@ sapdatabase_stop() {
     then
       DBOSUSER="-dbuser $OCF_RESKEY_DBOSUSER "
     fi
-    output=`$SAPHOSTCTRL -function StopDatabase -dbname $SID -dbtype $DBTYPE $DBINST $DBOSUSER -force -service`
+    output=`$SAPHOSTCTRL -function StopDatabase -dbname $SID -dbtype $DBTYPE $DBINST $DBOSUSER $OCF_RESKEY_SAPHOSTAGENT_EXTRA_ARGUMENTS -force -service`
 
     if [ $? -eq 0 ]
     then
@@ -224,7 +224,7 @@ sapdatabase_monitor() {
       then
         DBOSUSER="-dbuser $OCF_RESKEY_DBOSUSER "
       fi
-      output=`$SAPHOSTCTRL -function GetDatabaseStatus -dbname $SID -dbtype $DBTYPE $DBINST $DBOSUSER`
+      output=`$SAPHOSTCTRL -function GetDatabaseStatus -dbname $SID -dbtype $DBTYPE $DBINST $DBOSUSER $OCF_RESKEY_SAPHOSTAGENT_EXTRA_ARGUMENTS`
 
       # we have to parse the output, because the returncode doesn't tell anything about the instance status
       for SERVICE in `echo "$output" | grep -i 'Component[ ]*Name *[:=] [A-Za-z][A-Za-z0-9_]* (' | sed 's/^.*Component[ ]*Name *[:=] *\([A-Za-z][A-Za-z0-9_]*\).*$/\1/i'`
