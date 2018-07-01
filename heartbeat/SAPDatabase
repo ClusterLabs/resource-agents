@@ -83,6 +83,7 @@ The resource agent supports the following databases:
 - SAP-DB / MaxDB 7.x
 - Sybase ASE 15.7
 - SAP HANA Database since 1.00 - with SAP note 1625203 (http://sdn.sap.com)
+- SAP LiveCache 7.9.x instance with SAP note 1927600 (DBTYPE: ADA, LIVECACHE_INSTANCE: true)
 
 In fact this resource agent does not run any database commands directly. It uses the SAP standard process SAPHostAgent to control the database.
 The SAPHostAgent must be installed on each cluster node locally. It will not work, if you try to run the SAPHostAgent also as a HA resource.
@@ -185,6 +186,11 @@ Usually you can leave this empty. Then the default: /usr/sap/hostctrl/exe is use
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed after this resource got stopped.</longdesc>
   <shortdesc lang="en">path to a post-start script</shortdesc>
   <content type="string" default="" />
+ </parameter>
+ <parameter name="LIVECACHE_INSTANCE" unique="0" required="0">
+  <longdesc lang="en">Set this to true if the managed instance is SAP LiveCache instance that can be operated via SAPHostAgent as described in SAP Note 1927600</longdesc>
+  <shortdesc lang="en">Is this a LiveCache instance?</shortdesc>
+  <content type="boolean" default="false"/>
  </parameter>
 </parameters>
 
@@ -306,6 +312,11 @@ if [ -z "$OCF_RESKEY_DBTYPE" ]; then
 fi
 DBTYPE=`echo "$OCF_RESKEY_DBTYPE" | tr '[:lower:]' '[:upper:]'`
 
+if ocf_is_true $OCF_RESKEY_LIVECACHE_INSTANCE && [ "$DBTYPE" != "ADA" ]
+then
+  ocf_log err "LIVECACHE_INSTANCE can be used only with 'ADA' DBTYPE"
+  exit $OCF_ERR_ARGS
+fi
 
 # source functions and initialize global variables
 if saphostctrl_installed; then

@@ -178,7 +178,13 @@ sapdatabase_stop() {
     then
       DBOSUSER="-dbuser $OCF_RESKEY_DBOSUSER "
     fi
-    output=`$SAPHOSTCTRL -function StopDatabase -dbname $SID -dbtype $DBTYPE $DBINST $DBOSUSER -force -service`
+    SERVICE="-service"
+    if ocf_is_true $OCF_RESKEY_LIVECACHE_INSTANCE
+    then
+      # do not stop LiveCache instance with '-service' as it may fail with 'x_server is not active (fault code: 127)'
+      SERVICE=""
+    fi
+    output=`$SAPHOSTCTRL -function StopDatabase -dbname $SID -dbtype $DBTYPE $DBINST $DBOSUSER -force $SERVICE`
 
     if [ $? -eq 0 ]
     then
