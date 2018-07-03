@@ -26,6 +26,9 @@ OCF_RESKEY_migrateport_default=$(( 49152 + $(ocf_maybe_random) % 64 ))
 OCF_RESKEY_CRM_meta_timeout_default=90000
 OCF_RESKEY_save_config_on_stop_default=false
 OCF_RESKEY_sync_config_on_stop_default=false
+OCF_RESKEY_backingfile_default=""
+OCF_RESKEY_stateless_default="false"
+OCF_RESKEY_copyindirs_default=""
 
 : ${OCF_RESKEY_migration_downtime=${OCF_RESKEY_migration_downtime_default}}
 : ${OCF_RESKEY_migration_speed=${OCF_RESKEY_migration_speed_default}}
@@ -36,6 +39,9 @@ OCF_RESKEY_sync_config_on_stop_default=false
 : ${OCF_RESKEY_CRM_meta_timeout=${OCF_RESKEY_CRM_meta_timeout_default}}
 : ${OCF_RESKEY_save_config_on_stop=${OCF_RESKEY_save_config_on_stop_default}}
 : ${OCF_RESKEY_sync_config_on_stop=${OCF_RESKEY_sync_config_on_stop_default}}
+: ${OCF_RESKEY_backingfile=${OCF_RESKEY_backingfile_default}}
+: ${OCF_RESKEY_stateless=${OCF_RESKEY_stateless_default}}
+: ${OCF_RESKEY_copyindirs=${OCF_RESKEY_copyindirs_default}}
 
 if ocf_is_true ${OCF_RESKEY_sync_config_on_stop}; then
 	OCF_RESKEY_save_config_on_stop="true"
@@ -269,6 +275,35 @@ is incompatible with the 'force_stop' option.
 Restore state on start/stop
 </shortdesc>
 <content type="string" default=""/>
+</parameter>
+
+<parameter name="backingfile" unique="0" required="0">
+<longdesc lang="en">
+When the VM is used in Copy-On-Write mode, this is the backing file to use (with its full path).
+The VMs image will be created based on this backing file.
+This backing file will never be changed during the life of the VM.
+</longdesc>
+<shortdesc lang="en">If the VM is wanted to work with Copy-On-Write mode, this is the backing file to use (with its full path)</shortdesc>
+<content type="string" default="${OCF_RESKEY_backingfile_default}" />
+</parameter>
+
+<parameter name="stateless" unique="0" required="0">
+<longdesc lang="en">
+If set to true and backingfile is defined, the start of the VM will systematically create a new qcow2 based on
+the backing file, therefore the VM will always be stateless.  If set to false, the start of the VM will use the
+COW (&lt;vmname&gt;.qcow2) file if it exists, otherwise the first start will create a new qcow2 based on the backing
+file given as backingfile.
+</longdesc>
+<shortdesc lang="en">If set to true, the (&lt;vmname&gt;.qcow2) file will be re-created at each start, based on the backing file (if defined)</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_stateless_default}" />
+</parameter>
+
+<parameter name="copyindirs" unique="0" required="0">
+<longdesc lang="en">
+List of directories for the virt-copy-in before booting the VM. Used only in stateless mode.
+</longdesc>
+<shortdesc lang="en">List of directories for the virt-copy-in before booting the VM stateless mode.</shortdesc>
+<content type="string" default="${OCF_RESKEY_copyindirs_default}" />
 </parameter>
 
 <parameter name="shutdown_mode">
@@ -545,11 +580,49 @@ VirtualDomain_start() {
 	# is restored to an 'undefined' state before creating.
 	verify_undefined
 
-	virsh $VIRSH_OPTIONS create ${OCF_RESKEY_config}
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_exit_reason "Failed to start virtual domain ${DOMAIN_NAME}."
-		return $OCF_ERR_GENERIC
+	if [ -z "${OCF_RESKEY_backingfile}" ]; then
+		virsh $VIRSH_OPTIONS create ${OCF_RESKEY_config}
+		if [ $? -ne 0 ]; then
+			ocf_exit_reason "Failed to start virtual domain ${DOMAIN_NAME}."
+			return $OCF_ERR_GENERIC
+		fi
+	else
+		if ocf_is_true "${OCF_RESKEY_stateless}" || [ ! -s "${OCF_RESKEY_config%%.*}.qcow2" ]; then
+			# Create the Stateless image
+			dirconfig=`dirname ${OCF_RESKEY_config}`
+			qemu-img create -f qcow2 -b ${OCF_RESKEY_backingfile} ${OCF_RESKEY_config%%.*}.qcow2
+			if [ $? -ne 0 ]; then
+				ocf_exit_reason "Failed qemu-img create ${DOMAIN_NAME} with backing file ${OCF_RESKEY_backingfile}."
+				return $OCF_ERR_GENERIC
+			fi
+
+			virsh define ${OCF_RESKEY_config}
+			if [ $? -ne 0 ]; then
+				ocf_exit_reason "Failed to define virtual domain ${DOMAIN_NAME}."
+				return $OCF_ERR_GENERIC
+			fi
+
+			if [ -n "${OCF_RESKEY_copyindirs}" ]; then
+				# Inject copyindirs directories and files
+				virt-copy-in -d ${DOMAIN_NAME}  ${OCF_RESKEY_copyindirs}  /
+				if [ $? -ne 0 ]; then
+					ocf_exit_reason "Failed on virt-copy-in command ${DOMAIN_NAME}."
+					return $OCF_ERR_GENERIC
+				fi
+			fi
+		else
+			virsh define ${OCF_RESKEY_config}
+			if [ $? -ne 0 ]; then
+				ocf_exit_reason "Failed to define virtual domain ${DOMAIN_NAME}."
+				return $OCF_ERR_GENERIC
+			fi
+		fi
+
+		virsh $VIRSH_OPTIONS start ${DOMAIN_NAME}
+		if [ $? -ne 0 ]; then
+			ocf_exit_reason "Failed to start virtual domain ${DOMAIN_NAME}."
+			return $OCF_ERR_GENERIC
+		fi
 	fi
 
 	while ! VirtualDomain_monitor; do
@@ -924,6 +997,11 @@ VirtualDomain_validate_all() {
 	# Check if migration_downtime is a decimal value
 	if ! ocf_is_decimal ${OCF_RESKEY_migration_downtime}; then
 		ocf_exit_reason "migration_downtime has to be a decimal value"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	if ocf_is_true "${OCF_RESKEY_stateless}" && [ -z "${OCF_RESKEY_backingfile}" ]; then
+		ocf_exit_reason "Stateless functionality can't be achieved without a backing file."
 		return $OCF_ERR_CONFIGURED
 	fi
 }
