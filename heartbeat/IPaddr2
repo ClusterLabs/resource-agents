@@ -589,7 +589,7 @@ add_interface () {
 		arping -q -c 2 -w 3 -D -I $iface $ipaddr
 		if [ $? = 1 ]; then
 			ocf_log err "IPv4 address collision $ipaddr [DAD]"
-			return $OCF_ERR_CONFIGURED
+			return $OCF_ERR_GENERIC
 		fi
 	fi
 
