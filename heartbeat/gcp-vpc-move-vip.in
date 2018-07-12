@@ -50,7 +50,7 @@ METADATA = \
   <longdesc lang="en">Floating IP Address on Google Cloud Platform - Using Alias IP address functionality to attach a secondary IP address to a running instance</longdesc>
   <shortdesc lang="en">Floating IP Address on Google Cloud Platform</shortdesc>
   <parameters>
-    <parameter name="hostlist" unique="1" required="1">
+    <parameter name="hostlist" unique="1" required="0">
       <longdesc lang="en">List of hosts in the cluster</longdesc>
       <shortdesc lang="en">Host list</shortdesc>
       <content type="string" default="" />
@@ -177,9 +177,22 @@ def get_zone(project, instance):
   raise Exception("Unable to find instance %s" % (instance))
 
 
+def get_instances_list(project, exclude):
+  hostlist = []
+  request = CONN.instances().aggregatedList(project=project)
+  while request is not None:
+    response = request.execute()
+    zones = response.get('items', {})
+    for zone in zones.values():
+      for inst in zone.get('instances', []):
+        if inst['name'] != exclude:
+          hostlist.append(inst['name'])
+    request = CONN.instances().aggregatedList_next(
+        previous_request=request, previous_response=response)
+  return hostlist
+
+
 def gcp_alias_start(alias):
-  if not alias:
-    sys.exit(OCF_ERR_CONFIGURED)
   my_alias = get_localhost_alias()
   my_zone = get_metadata('instance/zone').split('/')[-1]
   project = get_metadata('project/project-id')
@@ -196,8 +209,11 @@ def gcp_alias_start(alias):
 
   # Loops through all hosts & remove the alias IP from the host that has it
   hostlist = os.environ.get('OCF_RESKEY_hostlist', '')
-  hostlist.replace(THIS_VM, '')
-  for host in hostlist.split():
+  if hostlist:
+    hostlist.replace(THIS_VM, '').split()
+  else:
+    hostlist = get_instances_list(project, THIS_VM)
+  for host in hostlist:
     host_zone = get_zone(project, host)
     host_alias = get_alias(project, host_zone, host)
     if alias == host_alias:
@@ -227,8 +243,6 @@ def gcp_alias_start(alias):
 
 
 def gcp_alias_stop(alias):
-  if not alias:
-    sys.exit(OCF_ERR_CONFIGURED)
   my_alias = get_localhost_alias()
   my_zone = get_metadata('instance/zone').split('/')[-1]
   project = get_metadata('project/project-id')
@@ -239,8 +253,6 @@ def gcp_alias_stop(alias):
 
 
 def gcp_alias_status(alias):
-  if not alias:
-    sys.exit(OCF_ERR_CONFIGURED)
   my_alias = get_localhost_alias()
   if alias == my_alias:
     logging.info('%s has the correct IP address attached' % THIS_VM)
@@ -280,17 +292,21 @@ def configure():
 
 
 def main():
-  configure()
+  if 'meta-data' in sys.argv[1]:
+    print(METADATA)
+    return
 
   alias = os.environ.get('OCF_RESKEY_alias_ip')
+  if not alias:
+    sys.exit(OCF_ERR_CONFIGURED)
+
+  configure()
   if 'start' in sys.argv[1]:
     gcp_alias_start(alias)
   elif 'stop' in sys.argv[1]:
     gcp_alias_stop(alias)
   elif 'status' in sys.argv[1] or 'monitor' in sys.argv[1]:
     gcp_alias_status(alias)
-  elif 'meta-data' in sys.argv[1]:
-    print(METADATA)
   else:
     logging.error('gcp:alias - no such function %s' % str(sys.argv[1]))
 
