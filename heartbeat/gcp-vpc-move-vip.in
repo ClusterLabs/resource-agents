@@ -22,7 +22,10 @@ import os
 import sys
 import time
 
-import googleapiclient.discovery
+try:
+  import googleapiclient.discovery
+except ImportError:
+  pass
 
 if sys.version_info >= (3, 0):
   # Python 3 imports.
@@ -36,6 +39,7 @@ else:
 
 CONN = None
 THIS_VM = None
+ALIAS = None
 OCF_SUCCESS = 0
 OCF_ERR_GENERIC = 1
 OCF_ERR_CONFIGURED = 6
@@ -210,7 +214,7 @@ def gcp_alias_start(alias):
   # Loops through all hosts & remove the alias IP from the host that has it
   hostlist = os.environ.get('OCF_RESKEY_hostlist', '')
   if hostlist:
-    hostlist.replace(THIS_VM, '').split()
+    hostlist = hostlist.replace(THIS_VM, '').split()
   else:
     hostlist = get_instances_list(project, THIS_VM)
   for host in hostlist:
@@ -260,14 +264,31 @@ def gcp_alias_status(alias):
     sys.exit(OCF_NOT_RUNNING)
 
 
-def configure():
+def validate():
+  global ALIAS
   global CONN
   global THIS_VM
 
   # Populate global vars
-  CONN = googleapiclient.discovery.build('compute', 'v1')
-  THIS_VM = get_metadata('instance/name')
+  try:
+    CONN = googleapiclient.discovery.build('compute', 'v1')
+  except Exception as e:
+    logging.error('Couldn\'t connect with google api: ' + str(e))
+    sys.exit(OCF_ERR_CONFIGURED)
 
+  try:
+    THIS_VM = get_metadata('instance/name')
+  except Exception as e:
+    logging.error('Couldn\'t get instance name, is this running inside GCE?: ' + str(e))
+    sys.exit(OCF_ERR_CONFIGURED)
+
+  ALIAS = os.environ.get('OCF_RESKEY_alias_ip')
+  if not ALIAS:
+    logging.error('Missing alias_ip parameter')
+    sys.exit(OCF_ERR_CONFIGURED)
+
+
+def configure_logs():
   # Prepare logging
   logging.basicConfig(
       format='gcp:alias - %(levelname)s - %(message)s', level=logging.INFO)
@@ -296,19 +317,19 @@ def main():
     print(METADATA)
     return
 
-  alias = os.environ.get('OCF_RESKEY_alias_ip')
-  if not alias:
-    sys.exit(OCF_ERR_CONFIGURED)
+  validate()
+  if 'validate-all' in sys.argv[1]:
+    return
 
-  configure()
+  configure_logs()
   if 'start' in sys.argv[1]:
-    gcp_alias_start(alias)
+    gcp_alias_start(ALIAS)
   elif 'stop' in sys.argv[1]:
-    gcp_alias_stop(alias)
+    gcp_alias_stop(ALIAS)
   elif 'status' in sys.argv[1] or 'monitor' in sys.argv[1]:
-    gcp_alias_status(alias)
+    gcp_alias_status(ALIAS)
   else:
-    logging.error('gcp:alias - no such function %s' % str(sys.argv[1]))
+    logging.error('no such function %s' % str(sys.argv[1]))
 
 
 if __name__ == "__main__":
