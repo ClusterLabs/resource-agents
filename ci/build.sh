@@ -58,6 +58,7 @@ check_all_executables() {
 	echo "Checking executables and .sh files..."
 	while read -r script; do
 		file --mime "$script" | grep 'charset=binary' >/dev/null 2>&1 && continue
+		file --mime "$script" | grep 'text/x-python' >/dev/null 2>&1 && continue
 		head=$(head -n1 "$script")
 		[[ "$head" =~ .*ruby.* ]] && continue
 		[[ "$head" =~ .*zsh.* ]] && continue
