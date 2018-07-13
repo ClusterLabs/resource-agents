@@ -501,6 +501,12 @@ AC_SUBST(PING)
 AC_SUBST(RM)
 AC_SUBST(TEST)
 
+AM_PATH_PYTHON
+if test -z "$PYTHON"; then
+    echo "*** Essential program python not found" 1>&2
+    exit 1
+fi
+
 AC_PATH_PROGS(ROUTE, route)
 AC_DEFINE_UNQUOTED(ROUTE, "$ROUTE", path to route command)
 
