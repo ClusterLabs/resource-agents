@@ -664,7 +664,9 @@ redis_validate() {
 	fi
 }
 
-NODENAME=$(ocf_attribute_target)
+if [ "$__OCF_ACTION" != "meta-data" ]; then
+	NODENAME=$(ocf_attribute_target)
+fi
 if [ -r "$REDIS_CONFIG" ]; then
 	clientpasswd="$(sed -n -e  's/^\s*requirepass\s*\(.*\)\s*$/\1/p' < $REDIS_CONFIG | tail -n 1)"
 fi
