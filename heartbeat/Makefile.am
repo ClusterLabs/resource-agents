@@ -112,6 +112,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			garbd			\
 			gcp-vpc-move-ip		\
 			gcp-vpc-move-vip	\
+			gcp-vpc-move-route	\
 			iSCSILogicalUnit	\
 			iSCSITarget		\
 			ids			\
