@@ -66,9 +66,11 @@
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
-. ${OCF_FUNCTIONS_DIR}/mysql-common.sh
 
-NODENAME=$(ocf_attribute_target)
+if [ "$__OCF_ACTION" != "meta-data" ]; then
+    . ${OCF_FUNCTIONS_DIR}/mysql-common.sh
+    NODENAME=$(ocf_attribute_target)
+fi
 
 # It is common for some galera instances to store
 # check user that can be used to query status
