@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!@PYTHON@ -tt
 #
 #	Resource agent for monitoring Azure Scheduled Events
 #
