@@ -101,7 +101,7 @@ DEPRECATED: The admin user of the instance.
 </parameter>
 <parameter name="dbpartitionnum" unique="0" required="0">
 <longdesc lang="en">
-The number of the partion (DBPARTITIONNUM) to be managed.
+The number of the partition (DBPARTITIONNUM) to be managed.
 </longdesc>
 <shortdesc lang="en">database partition number (DBPARTITIONNUM)</shortdesc>
 <content type="string" default="0" />
@@ -584,7 +584,7 @@ db2_stop() {
 
     if [ $must_kill -eq 1 ]
     then
-        # db2nkill kills *all* partions on the node
+        # db2nkill kills *all* partitions on the node
         if [ -x $db2bin/db2nkill ]
         then
             logasdb2 $db2bin/db2nkill $db2node

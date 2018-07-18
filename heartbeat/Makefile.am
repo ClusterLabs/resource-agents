@@ -111,6 +111,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			galera			\
 			garbd			\
 			gcp-vpc-move-ip		\
+			gcp-vpc-move-vip	\
 			iSCSILogicalUnit	\
 			iSCSITarget		\
 			ids			\
@@ -133,6 +134,9 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			nfsnotify		\
 			nfsserver		\
 			nginx			\
+			openstack-cinder-volume \
+			openstack-floating-ip   \
+			openstack-info          \
 			oraasm			\
 			oracle			\
 			oralsnr			\
@@ -154,6 +158,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			sg_persist              \
 			mpathpersist		\
 			slapd			\
+			sybaseASE		\
 			symlink			\
 			syslog-ng		\
 			tomcat			\

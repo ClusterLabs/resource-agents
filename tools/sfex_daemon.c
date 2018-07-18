@@ -60,7 +60,7 @@ static void acquire_lock(void)
 	/* The lock acquisition is possible because it was not updated. */
 	ldata.status = SFEX_STATUS_LOCK;
 	ldata.count = SFEX_NEXT_COUNT(ldata.count);
-	strncpy((char*)(ldata.nodename), nodename, sizeof(ldata.nodename));
+	strncpy((char*)(ldata.nodename), nodename, sizeof(ldata.nodename) - 1);
 	if (write_lockdata(&cdata, &ldata, lock_index) == -1) {
 		cl_log(LOG_ERR, "write_lockdata failed\n");
 		exit(EXIT_FAILURE);

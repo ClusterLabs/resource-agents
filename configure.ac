@@ -491,13 +491,21 @@ AC_PATH_PROGS(PING, ping, /bin/ping)
 AC_PATH_PROGS(IFCONFIG, ifconfig, /sbin/ifconfig)
 AC_PATH_PROGS(MAILCMD, mailx mail, mail)
 AC_PATH_PROGS(EGREP, egrep)
+AC_PATH_PROGS(RM, rm)
 
 AC_SUBST(BASH_SHELL)
 AC_SUBST(MAILCMD)
 AC_SUBST(EGREP)
 AC_SUBST(SHELL)
 AC_SUBST(PING)
+AC_SUBST(RM)
 AC_SUBST(TEST)
+
+AM_PATH_PYTHON
+if test -z "$PYTHON"; then
+    echo "*** Essential program python not found" 1>&2
+    exit 1
+fi
 
 AC_PATH_PROGS(ROUTE, route)
 AC_DEFINE_UNQUOTED(ROUTE, "$ROUTE", path to route command)
@@ -951,6 +959,7 @@ AC_CONFIG_FILES([heartbeat/dnsupdate], [chmod +x heartbeat/dnsupdate])
 AC_CONFIG_FILES([heartbeat/eDir88], [chmod +x heartbeat/eDir88])
 AC_CONFIG_FILES([heartbeat/fio], [chmod +x heartbeat/fio])
 AC_CONFIG_FILES([heartbeat/gcp-vpc-move-ip], [chmod +x heartbeat/gcp-vpc-move-ip])
+AC_CONFIG_FILES([heartbeat/gcp-vpc-move-vip], [chmod +x heartbeat/gcp-vpc-move-vip])
 AC_CONFIG_FILES([heartbeat/iSCSILogicalUnit], [chmod +x heartbeat/iSCSILogicalUnit])
 AC_CONFIG_FILES([heartbeat/iSCSITarget], [chmod +x heartbeat/iSCSITarget])
 AC_CONFIG_FILES([heartbeat/jira], [chmod +x heartbeat/jira])
@@ -965,6 +974,7 @@ AC_CONFIG_FILES([heartbeat/redis], [chmod +x heartbeat/redis])
 AC_CONFIG_FILES([heartbeat/rsyslog], [chmod +x heartbeat/rsyslog])
 AC_CONFIG_FILES([heartbeat/sg_persist], [chmod +x heartbeat/sg_persist])
 AC_CONFIG_FILES([heartbeat/slapd], [chmod +x heartbeat/slapd])
+AC_CONFIG_FILES([heartbeat/sybaseASE], [chmod +x heartbeat/sybaseASE])
 AC_CONFIG_FILES([heartbeat/syslog-ng], [chmod +x heartbeat/syslog-ng])
 AC_CONFIG_FILES([heartbeat/vsftpd], [chmod +x heartbeat/vsftpd])
 AC_CONFIG_FILES([rgmanager/src/resources/ASEHAagent.sh], [chmod +x rgmanager/src/resources/ASEHAagent.sh])

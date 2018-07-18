@@ -165,7 +165,7 @@ The action (block/unblock) to be done on the protocol::portno.
 If for some reason the long lived server side TCP sessions won't be cleaned up
 by a reconfiguration/flush/stop of whatever services this portblock protects,
 they would linger in the connection table, even after the IP is gone
-and services have been switched over to an other node.
+and services have been switched over to another node.
 
 An example would be the default NFS kernel server.
 

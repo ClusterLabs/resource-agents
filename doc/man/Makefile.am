@@ -114,6 +114,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_galera.7 \
                           ocf_heartbeat_garbd.7 \
                           ocf_heartbeat_gcp-vpc-move-ip.7 \
+                          ocf_heartbeat_gcp-vpc-move-vip.7 \
                           ocf_heartbeat_iSCSILogicalUnit.7 \
                           ocf_heartbeat_iSCSITarget.7 \
                           ocf_heartbeat_iface-bridge.7 \
@@ -136,6 +137,9 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_nfsnotify.7 \
                           ocf_heartbeat_nfsserver.7 \
                           ocf_heartbeat_nginx.7 \
+                          ocf_heartbeat_openstack-info.7 \
+                          ocf_heartbeat_openstack-cinder-volume.7 \
+                          ocf_heartbeat_openstack-floating-ip.7 \
                           ocf_heartbeat_oraasm.7 \
                           ocf_heartbeat_oracle.7 \
                           ocf_heartbeat_oralsnr.7 \
@@ -153,6 +157,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_scsi2reservation.7 \
                           ocf_heartbeat_sfex.7 \
                           ocf_heartbeat_slapd.7 \
+                          ocf_heartbeat_sybaseASE.7 \
                           ocf_heartbeat_sg_persist.7 \
 			  ocf_heartbeat_mpathpersist.7 \
                           ocf_heartbeat_symlink.7 \

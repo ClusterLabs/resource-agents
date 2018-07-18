@@ -157,7 +157,7 @@ validate() {
     exit $OCF_ERR_PERM
   fi
 
-  for cmd in gcloud ip curl; do
+  for cmd in ${OCF_RESKEY_gcloud} ip curl; do
     check_binary "$cmd"
   done
 
