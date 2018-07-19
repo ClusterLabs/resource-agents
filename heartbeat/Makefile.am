@@ -185,7 +185,8 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  ora-common.sh		\
 			  mysql-common.sh	\
 			  nfsserver-redhat.sh	\
-			  findif.sh
+			  findif.sh		\
+			  ocf.py
 
 # Legacy locations
 hbdir			= $(sysconfdir)/ha.d
