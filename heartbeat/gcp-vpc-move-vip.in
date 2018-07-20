@@ -55,6 +55,16 @@ METADATA = \
   <longdesc lang="en">Floating IP Address on Google Cloud Platform - Using Alias IP address functionality to attach a secondary IP address to a running instance</longdesc>
   <shortdesc lang="en">Floating IP Address on Google Cloud Platform</shortdesc>
   <parameters>
+    <parameter name="alias_ip" unique="1" required="1">
+      <longdesc lang="en">IP Address to be added including CIDR. E.g 192.168.0.1/32</longdesc>
+      <shortdesc lang="en">IP Address to be added including CIDR. E.g 192.168.0.1/32</shortdesc>
+      <content type="string" default="" />
+    </parameter>
+    <parameter name="alias_range_name" unique="1" required="0">
+      <longdesc lang="en">Subnet name for the Alias IP</longdesc>
+      <shortdesc lang="en">Subnet name for the Alias IP</shortdesc>
+      <content type="string" default="" />
+    </parameter>
     <parameter name="hostlist" unique="1" required="0">
       <longdesc lang="en">List of hosts in the cluster</longdesc>
       <shortdesc lang="en">Host list</shortdesc>
@@ -64,16 +74,6 @@ METADATA = \
       <longdesc lang="en">If enabled (set to true), IP failover logs will be posted to stackdriver logging</longdesc>
       <shortdesc lang="en">Stackdriver-logging support</shortdesc>
       <content type="boolean" default="" />
-    </parameter>
-    <parameter name="alias_ip" unique="1" required="1">
-      <longdesc lang="en">IP Address to be added including CIDR. E.g 192.168.0.1/32</longdesc>
-      <shortdesc lang="en">IP Address to be added including CIDR. E.g 192.168.0.1/32</shortdesc>
-      <content type="string" default="" />
-    </parameter>
-    <parameter name="alias_range_name" unique="1" required="0">
-      <longdesc lang="en">Subnet name for the Alias IP2</longdesc>
-      <shortdesc lang="en">Subnet name for the Alias IP</shortdesc>
-      <content type="string" default="" />
     </parameter>
   </parameters>
   <actions>
