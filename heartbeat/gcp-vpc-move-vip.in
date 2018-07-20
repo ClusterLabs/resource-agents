@@ -169,7 +169,8 @@ def get_localhost_alias():
 
 
 def get_zone(project, instance):
-  request = CONN.instances().aggregatedList(project=project)
+  fl = 'name="%s"' % instance
+  request = CONN.instances().aggregatedList(project=project, filter=fl)
   while request is not None:
     response = request.execute()
     zones = response.get('items', {})
