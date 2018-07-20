@@ -104,7 +104,7 @@ subnet ranges
 Name of the VPC network
 </longdesc>
 <shortdesc lang="en">VPC network</shortdesc>
-<content type="string" default="${OCF_RESKEY_vpc_network_default}" />
+<content type="string" default="default" />
 </parameter>
 
 <parameter name="interface">
@@ -112,7 +112,7 @@ Name of the VPC network
 Name of the network interface
 </longdesc>
 <shortdesc lang="en">Network interface name</shortdesc>
-<content type="string" default="${OCF_RESKEY_interface_default}" />
+<content type="string" default="eth0" />
 </parameter>
 
 <parameter name="route_name" unique="1">
@@ -120,7 +120,7 @@ Name of the network interface
 Route name
 </longdesc>
 <shortdesc lang="en">Route name</shortdesc>
-<content type="string" default="${OCF_RESKEY_route_name_default}" />
+<content type="string" default="ra-%s" />
 </parameter>
 
 <parameter name="stackdriver_logging" unique="0" required="0">
@@ -138,7 +138,7 @@ Route name
 <action name="meta-data" timeout="5s" />
 </actions>
 </resource-agent>
-'''
+''' % os.path.basename(sys.argv[0])
 
 
 class Context(object):
@@ -229,7 +229,7 @@ def validate(ctx):
       GCP_API_URL_PREFIX, ctx.project, ctx.vpc_network)
   ctx.interface = os.environ.get('OCF_RESKEY_interface', 'eth0')
   ctx.route_name = os.environ.get(
-      'OCF_RESKEY_route_name', 'ra-%s' % os.environ['__SCRIPT_NAME'])
+      'OCF_RESKEY_route_name', 'ra-%s' % os.path.basename(sys.argv[0]))
   ctx.iproute = pyroute2.IPRoute()
   atexit.register(ctx.iproute.close)
   idxs = ctx.iproute.link_lookup(ifname=ctx.interface)
@@ -432,7 +432,8 @@ def main():
   elif 'status' in sys.argv[1] or 'monitor' in sys.argv[1]:
     sys.exit(ip_monitor(ctx))
   else:
-    usage = 'usage: $0 {start|stop|monitor|status|meta-data|validate-all}'
+    usage = 'usage: %s {start|stop|monitor|status|meta-data|validate-all}' % \
+        os.path.basename(sys.argv[0])
     logging.error(usage)
     sys.exit(OCF_ERR_UNIMPLEMENTED)
 
