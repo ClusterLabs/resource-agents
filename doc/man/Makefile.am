@@ -115,6 +115,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_garbd.7 \
                           ocf_heartbeat_gcp-vpc-move-ip.7 \
                           ocf_heartbeat_gcp-vpc-move-vip.7 \
+                          ocf_heartbeat_gcp-vpc-move-route.7 \
                           ocf_heartbeat_iSCSILogicalUnit.7 \
                           ocf_heartbeat_iSCSITarget.7 \
                           ocf_heartbeat_iface-bridge.7 \

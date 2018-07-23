@@ -348,6 +348,8 @@ ip_and_route_stop() {
 #
 ###############################################################################
 
+ocf_log warn "gcp-vpc-move-ip is deprecated, prefer to use gcp-vpc-move-route instead"
+
 case $__OCF_ACTION in
   meta-data)  metadata
               exit $OCF_SUCCESS
