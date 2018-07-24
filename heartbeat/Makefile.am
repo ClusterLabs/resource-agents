@@ -90,6 +90,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			Xen			\
 			Xinetd			\
 			ZFS			\
+			aliyun-vpc-move-ip	\
 			anything		\
 			apache			\
 			asterisk		\

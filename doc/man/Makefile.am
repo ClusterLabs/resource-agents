@@ -93,6 +93,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_WinPopup.7 \
                           ocf_heartbeat_Xen.7 \
                           ocf_heartbeat_Xinetd.7 \
+                          ocf_heartbeat_aliyun-vpc-move-ip.7 \
                           ocf_heartbeat_anything.7 \
                           ocf_heartbeat_apache.7 \
                           ocf_heartbeat_asterisk.7 \
