@@ -392,6 +392,8 @@ enable_event_scripts() {
 	local event_dir
 	event_dir=$OCF_RESKEY_ctdb_config_dir/events.d
 
+	chmod u+x "$event_dir/00.ctdb"	# core database health check
+
 	if [ -f "${OCF_RESKEY_ctdb_config_dir}/public_addresses" ]; then
 		chmod u+x "$event_dir/10.interface"
 	else
@@ -563,17 +565,6 @@ ctdb_start() {
 	rv=$?
 	[ $rv -ne 0 ] && return $rv
 
-	# Die if databases are corrupted
-	persistent_db_dir="${OCF_RESKEY_ctdb_dbdir}/persistent"
-	mkdir -p $persistent_db_dir 2>/dev/null
-	for pdbase in $persistent_db_dir/*.tdb.[0-9]; do
-		[ -f "$pdbase" ] || break
-		/usr/bin/tdbdump "$pdbase" >/dev/null 2>/dev/null || {
-			ocf_exit_reason "Persistent database $pdbase is corrupted!  CTDB will not start."
-			return $OCF_ERR_GENERIC
-		}
-	done
-
 	# Add necessary configuration to smb.conf
 	init_smb_conf
 	if [ $? -ne 0 ]; then
@@ -737,9 +728,8 @@ ctdb_monitor() {
 
 
 ctdb_validate() {
-	# Required binaries (full path to tdbdump is intentional, as that's
-	# what's used in ctdb_start, which was lifted from the init script)
-	for binary in pkill /usr/bin/tdbdump; do
+	# Required binaries
+	for binary in pkill; do
 		check_binary $binary
 	done
 
