@@ -61,7 +61,7 @@ sapinstance_usage() {
 	The 'monitor' operation reports whether the instance seems to be working
 	The 'promote' operation starts the primary instance in a Master/Slave configuration
 	The 'demote' operation stops the primary instance and starts the ERS instance
-    The 'reload' operation allows changed parameters (non-unique only) without restarting the service
+	The 'reload' operation allows changed parameters (non-unique only) without restarting the service
 	The 'notify' operation always returns SUCCESS
 	The 'validate-all' operation reports whether the parameters are valid
 	The 'methods' operation reports on the methods $0 supports
@@ -246,7 +246,7 @@ sapinstance_methods() {
 	monitor
         promote
         demote
-    reload
+	reload
         notify
 	validate-all
 	methods
@@ -969,8 +969,8 @@ case "$ACTION" in
   validate-all)                           sapinstance_validate
                                           exit $?;;
   reload )
-                     ocf_log info "reloading SAPInstance parameters"
-                     exit $OCF_SUCCESS;;
+                                          ocf_log info "reloading SAPInstance parameters"
+                                          exit $OCF_SUCCESS;;
   *)                                      sapinstance_methods
                                           exit $OCF_ERR_UNIMPLEMENTED;;
 esac
