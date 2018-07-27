@@ -1,4 +1,4 @@
-#!/bin/sh
+#!@BASH_SHELL@
 #
 #             OCF Resource Agent for managing CTDB
 #
