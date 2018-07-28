@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 #
 # The IPjail HA resource agent adds and removes IP addresses from
 # jails. It is designed for *BSD systems using "iocage".
@@ -117,10 +117,14 @@ ipjail_start()
 	local ip_conf_to_append
 	local iocage_key
 
-	if [[ $OCF_RESKEY_ip =~ ":" ]] ; then
-		iocage_key=ip6_addr
-	else
-		iocage_key=ip4_addr
+	case $OCF_RESKEY_ip in
+		*.*.*.*) iocage_key=ip4_addr ;;
+		*:*) iocage_key=ip6_addr ;;
+	esac
+
+	if [ "x$iocage_key" == "x" ] ; then
+		ocf_log err "Unable get what kind of ip address is given"
+		return $OCF_ERR_GENERIC
 	fi
 
 	current_ip_conf=$(iocage get $iocage_key $OCF_RESKEY_name)
