@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# The IPjail HA resource agent adds and removes IP addresses from
+# The ip-jail HA resource agent adds and removes IP addresses from
 # jails. It is designed for *BSD systems using "iocage".
 #
 # Copyright (c) 2018 Mathieu GRZYBEK <mathieu@grzybek.fr>
@@ -39,11 +39,11 @@ meta_data()
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="IPjail">
+<resource-agent name="ip-jail">
 <version>1.0</version>
 
 <longdesc lang="en">
-The IPjail HA resource agent adds and removes IP addresses from
+The ip-jail HA resource agent adds and removes IP addresses from
 jails. It is designed for *BSD systems using "iocage".
 </longdesc>
 <shortdesc lang="en">IP Alias resource agent.</shortdesc>
