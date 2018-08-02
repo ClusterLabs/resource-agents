@@ -371,7 +371,11 @@ sapinstance_init() {
 
   if [ -z "$currentSTART_PROFILE" ]
   then
-    SAPSTARTPROFILE="$DIR_PROFILE/START_${InstanceName}_${SAPVIRHOST}"
+    if [ ! -r "$DIR_PROFILE/START_${InstanceName}_${SAPVIRHOST}" -a -r "$DIR_PROFILE/${SID}_${InstanceName}_${SAPVIRHOST}" ]; then
+      SAPSTARTPROFILE="$DIR_PROFILE/${SID}_${InstanceName}_${SAPVIRHOST}"
+    else
+      SAPSTARTPROFILE="$DIR_PROFILE/START_${InstanceName}_${SAPVIRHOST}"
+    fi
   else
     SAPSTARTPROFILE="$currentSTART_PROFILE"
   fi
