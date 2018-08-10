@@ -31,6 +31,12 @@
 
 #######################################################################
 
+# This arbitrary value here is used by the rmq_start action to
+# signify that the resource agent must retry the start process
+# It might potentially conflict with OCF assigned error code
+# in the future.
+RMQ_TRY_RESTART_ERROR_CODE=126
+
 RMQ_SERVER=/usr/sbin/rabbitmq-server
 RMQ_CTL=/usr/sbin/rabbitmqctl
 RMQ_DATA_DIR="/var/lib/rabbitmq/mnesia"
@@ -356,7 +362,7 @@ rmq_notify() {
 	return $OCF_SUCCESS
 }
 
-rmq_start() {
+rmq_try_start() {
 	local join_list=""
 	local rc
 
@@ -386,8 +392,16 @@ rmq_start() {
 	rc=$?
 
 	if [ $rc -ne 0 ]; then
-		ocf_log info "node failed to join even after reseting local data. Check SELINUX policy"
-		return $OCF_ERR_GENERIC
+		# we could not join the rabbitmq cluster from any of the running nodes
+		# this might be due to a unexpected reset of those nodes. Give ourself
+		# a chance to start by retrying the entire start sequence.
+
+		ocf_log warn "Failed to join the RabbitMQ cluster from nodes ${join_list}. Stopping local unclustered rabbitmq"
+		rmq_stop
+
+		ocf_log warn "Re-detect available rabbitmq nodes and try to start again"
+		# return an unused OCF value to signify a "retry" condition
+		return $RMQ_TRY_RESTART_ERROR_CODE
 	fi
 
 	# Restore users, user permissions, and policies (if any)
@@ -443,6 +457,15 @@ rmq_start() {
 		end.
 	"
 	return $OCF_SUCCESS
+}
+
+rmq_start() {
+	local rc=$RMQ_TRY_RESTART_ERROR_CODE
+	while [ $rc -eq $RMQ_TRY_RESTART_ERROR_CODE ]; do
+		rmq_try_start
+		rc=$?
+	done
+	return $rc
 }
 
 rmq_stop() {
