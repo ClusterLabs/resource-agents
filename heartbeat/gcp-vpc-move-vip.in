@@ -22,6 +22,11 @@ import os
 import sys
 import time
 
+OCF_FUNCTIONS_DIR="%s/lib/heartbeat" % os.environ.get("OCF_ROOT")
+sys.path.append(OCF_FUNCTIONS_DIR)
+
+from ocf import *
+
 try:
   import googleapiclient.discovery
 except ImportError:
@@ -40,10 +45,6 @@ else:
 CONN = None
 THIS_VM = None
 ALIAS = None
-OCF_SUCCESS = 0
-OCF_ERR_GENERIC = 1
-OCF_ERR_CONFIGURED = 6
-OCF_NOT_RUNNING = 7
 METADATA_SERVER = 'http://metadata.google.internal/computeMetadata/v1/'
 METADATA_HEADERS = {'Metadata-Flavor': 'Google'}
 METADATA = \
@@ -54,6 +55,16 @@ METADATA = \
   <longdesc lang="en">Floating IP Address on Google Cloud Platform - Using Alias IP address functionality to attach a secondary IP address to a running instance</longdesc>
   <shortdesc lang="en">Floating IP Address on Google Cloud Platform</shortdesc>
   <parameters>
+    <parameter name="alias_ip" unique="1" required="1">
+      <longdesc lang="en">IP Address to be added including CIDR. E.g 192.168.0.1/32</longdesc>
+      <shortdesc lang="en">IP Address to be added including CIDR. E.g 192.168.0.1/32</shortdesc>
+      <content type="string" default="" />
+    </parameter>
+    <parameter name="alias_range_name" unique="1" required="0">
+      <longdesc lang="en">Subnet name for the Alias IP</longdesc>
+      <shortdesc lang="en">Subnet name for the Alias IP</shortdesc>
+      <content type="string" default="" />
+    </parameter>
     <parameter name="hostlist" unique="1" required="0">
       <longdesc lang="en">List of hosts in the cluster</longdesc>
       <shortdesc lang="en">Host list</shortdesc>
@@ -63,16 +74,6 @@ METADATA = \
       <longdesc lang="en">If enabled (set to true), IP failover logs will be posted to stackdriver logging</longdesc>
       <shortdesc lang="en">Stackdriver-logging support</shortdesc>
       <content type="boolean" default="" />
-    </parameter>
-    <parameter name="alias_ip" unique="1" required="1">
-      <longdesc lang="en">IP Address to be added including CIDR. E.g 192.168.0.1/32</longdesc>
-      <shortdesc lang="en">IP Address to be added including CIDR. E.g 192.168.0.1/32</shortdesc>
-      <content type="string" default="" />
-    </parameter>
-    <parameter name="alias_range_name" unique="1" required="0">
-      <longdesc lang="en">Subnet name for the Alias IP2</longdesc>
-      <shortdesc lang="en">Subnet name for the Alias IP</shortdesc>
-      <content type="string" default="" />
     </parameter>
   </parameters>
   <actions>
@@ -206,11 +207,11 @@ def gcp_alias_start(alias):
   # If I already have the IP, exit. If it has an alias IP that isn't the VIP,
   # then remove it
   if my_alias == alias:
-    logging.info(
+    logger.info(
         '%s already has %s attached. No action required' % (THIS_VM, alias))
     sys.exit(OCF_SUCCESS)
   elif my_alias:
-    logging.info('Removing %s from %s' % (my_alias, THIS_VM))
+    logger.info('Removing %s from %s' % (my_alias, THIS_VM))
     set_alias(project, my_zone, THIS_VM, '')
 
   # Loops through all hosts & remove the alias IP from the host that has it
@@ -223,7 +224,7 @@ def gcp_alias_start(alias):
     host_zone = get_zone(project, host)
     host_alias = get_alias(project, host_zone, host)
     if alias == host_alias:
-      logging.info(
+      logger.info(
           '%s is attached to %s - Removing all alias IP addresses from %s' %
           (alias, host, host))
       set_alias(project, host_zone, host, '')
@@ -237,14 +238,14 @@ def gcp_alias_start(alias):
   # Check the IP has been added
   my_alias = get_localhost_alias()
   if alias == my_alias:
-    logging.info('Finished adding %s to %s' % (alias, THIS_VM))
+    logger.info('Finished adding %s to %s' % (alias, THIS_VM))
   elif my_alias:
-    logging.error(
+    logger.error(
         'Failed to add IP. %s has an IP attached but it isn\'t %s' %
         (THIS_VM, alias))
     sys.exit(OCF_ERR_GENERIC)
   else:
-    logging.error('Failed to add IP address %s to %s' % (alias, THIS_VM))
+    logger.error('Failed to add IP address %s to %s' % (alias, THIS_VM))
     sys.exit(OCF_ERR_GENERIC)
 
 
@@ -254,14 +255,14 @@ def gcp_alias_stop(alias):
   project = get_metadata('project/project-id')
 
   if my_alias == alias:
-    logging.info('Removing %s from %s' % (my_alias, THIS_VM))
+    logger.info('Removing %s from %s' % (my_alias, THIS_VM))
     set_alias(project, my_zone, THIS_VM, '')
 
 
 def gcp_alias_status(alias):
   my_alias = get_localhost_alias()
   if alias == my_alias:
-    logging.info('%s has the correct IP address attached' % THIS_VM)
+    logger.info('%s has the correct IP address attached' % THIS_VM)
   else:
     sys.exit(OCF_NOT_RUNNING)
 
@@ -275,25 +276,24 @@ def validate():
   try:
     CONN = googleapiclient.discovery.build('compute', 'v1')
   except Exception as e:
-    logging.error('Couldn\'t connect with google api: ' + str(e))
+    logger.error('Couldn\'t connect with google api: ' + str(e))
     sys.exit(OCF_ERR_CONFIGURED)
 
   try:
     THIS_VM = get_metadata('instance/name')
   except Exception as e:
-    logging.error('Couldn\'t get instance name, is this running inside GCE?: ' + str(e))
+    logger.error('Couldn\'t get instance name, is this running inside GCE?: ' + str(e))
     sys.exit(OCF_ERR_CONFIGURED)
 
   ALIAS = os.environ.get('OCF_RESKEY_alias_ip')
   if not ALIAS:
-    logging.error('Missing alias_ip parameter')
+    logger.error('Missing alias_ip parameter')
     sys.exit(OCF_ERR_CONFIGURED)
 
 
 def configure_logs():
   # Prepare logging
-  logging.basicConfig(
-      format='gcp:alias - %(levelname)s - %(message)s', level=logging.INFO)
+  global logger
   logging.getLogger('googleapiclient').setLevel(logging.WARN)
   logging_env = os.environ.get('OCF_RESKEY_stackdriver_logging')
   if logging_env:
@@ -307,10 +307,10 @@ def configure_logs():
         handler.setLevel(logging.INFO)
         formatter = logging.Formatter('gcp:alias "%(message)s"')
         handler.setFormatter(formatter)
-        root_logger = logging.getLogger()
-        root_logger.addHandler(handler)
+        log.addHandler(handler)
+        logger = logging.LoggerAdapter(log, {'OCF_RESOURCE_INSTANCE': OCF_RESOURCE_INSTANCE})
       except ImportError:
-        logging.error('Couldn\'t import google.cloud.logging, '
+        logger.error('Couldn\'t import google.cloud.logging, '
             'disabling Stackdriver-logging support')
 
 
@@ -331,7 +331,7 @@ def main():
   elif 'status' in sys.argv[1] or 'monitor' in sys.argv[1]:
     gcp_alias_status(ALIAS)
   else:
-    logging.error('no such function %s' % str(sys.argv[1]))
+    logger.error('no such function %s' % str(sys.argv[1]))
 
 
 if __name__ == "__main__":
