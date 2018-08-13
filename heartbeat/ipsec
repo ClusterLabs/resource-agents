@@ -109,7 +109,7 @@ END
 
 ipsec_start() {
 	ipsec auto --add "${OCF_RESKEY_tunnel}"
-	ipsec whack --listen &>> /tmp/ipsec-agent.log
+	ipsec whack --listen
 	local return_code=$?
 	if [ $return_code -eq  1 -o $return_code -eq 10 ]; then
 		ocf_log warn "${OCF_RESOURCE_INSTANCE} : Unable to add tunnel ${OCF_RESKEY_tunnel} with return code ${return_code}"
@@ -123,7 +123,7 @@ ipsec_stop() {
 	ipsec auto --down "${OCF_RESKEY_tunnel}"
 	local return_code=$?
 	ocf_log info "${OCF_RESOURCE_INSTANCE} : Put down tunnel ${OCF_RESKEY_tunnel} with return code ${return_code}"
-	ipsec whack --listen &>> /tmp/ipsec-agent.log
+	ipsec whack --listen
 	if [ -n "${OCF_RESKEY_fallbacktunnel}" ]; then
 		# Run this in a subshell and let it run, This will end the stop
 		# operation And the start of the tunnel will hopefully start on the
