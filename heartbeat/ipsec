@@ -75,6 +75,13 @@ The directory where the IPSEC tunnel configurations can be found.
 <shortdesc lang="en">Tunnel name</shortdesc>
 <content type="string" default="${OCF_RESKEY_confdir_default}" />
 </parameter>
+<parameter name="fallbacktunnel" unique="1">
+<longdesc lang="en">
+The name of the tunnel to fall back to when the main tunnel is put down.
+</longdesc>
+<shortdesc lang="en">Tunnel name to fall back to</shortdesc>
+<content type="string" default="" />
+</parameter>
 </parameters>
 
 <actions>
@@ -116,6 +123,16 @@ ipsec_stop() {
 	ipsec auto --down "${OCF_RESKEY_tunnel}"
 	local return_code=$?
 	ocf_log info "${OCF_RESOURCE_INSTANCE} : Put down tunnel ${OCF_RESKEY_tunnel} with return code ${return_code}"
+	ipsec whack --listen &>> /tmp/ipsec-agent.log
+	if [ -n "${OCF_RESKEY_fallbacktunnel}" ]; then
+		# Run this in a subshell and let it run, This will end the stop
+		# operation And the start of the tunnel will hopefully start on the
+		# other node. Meanwhile, this will keep trying to put up the
+		# fallback tunnel up, and will eventually succeed or timeout in the
+		# background.
+		(ipsec auto --up "${OCF_RESKEY_fallbacktunnel}") &
+		disown
+	fi
 	return $OCF_SUCCESS
 }
 
