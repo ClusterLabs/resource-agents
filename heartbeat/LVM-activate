@@ -448,7 +448,7 @@ lvm_validate() {
 		;;
 	*)
 		ocf_exit_reason "You specified an invalid value for vg_access_mode: $VG_access_mode"
-		exit $OCF_ERR_ARGS
+		exit $OCF_ERR_CONFIGURED
 		;;
 	esac
 
@@ -771,7 +771,6 @@ lvm_stop() {
 		return $OCF_SUCCESS
 	fi
 
-	lvm_validate
 	ocf_log info "Deactivating ${vol}"
 
 	case ${VG_access_mode} in
@@ -788,8 +787,8 @@ lvm_stop() {
 		tagging_deactivate
 		;;
 	*)
-		ocf_exit_reason "VG [${VG}] is not properly configured in cluster. It's unsafe!"
-		exit $OCF_ERR_CONFIGURED
+		ocf_log err "VG [${VG}] is not properly configured in cluster. It's unsafe!"
+		exit $OCF_SUCCESS
 		;;
 	esac
 
