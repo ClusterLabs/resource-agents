@@ -1,0 +1,236 @@
+#!/usr/bin/env bash
+#
+#
+# OCF resource agent to set attributes from Consul details.
+# It records (in the CIB) various attributes of a node
+#
+# Copyright (c) 2018 Mathieu Grzybek
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_consulcli_default="/usr/local/bin/consul"
+
+: ${OCF_RESKEY_consulcli=${OCF_RESKEY_consulcli_default}}
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="consul-info">
+<version>1.0</version>
+
+<longdesc lang="en">
+OCF resource agent to set attributes from Consul details.
+It records (in the CIB) various attributes of a node.
+Sample output:
+	consul_dc                       : dc1
+	consul_available_dcs            : 3
+	consul_domain                   : consul
+	consul_failed_services          : apache
+	consul_passing_services         : squid,mysql
+</longdesc>
+<shortdesc lang="en">Records various node attributes in the CIB</shortdesc>
+
+<parameters>
+<parameter name="pidfile" unique="0">
+<longdesc lang="en">PID file</longdesc>
+<shortdesc lang="en">PID file</shortdesc>
+<content type="string" default="$OCF_RESKEY_pidfile" />
+</parameter>
+<parameter name="delay" unique="0">
+<longdesc lang="en">Interval to allow values to stabilize</longdesc>
+<shortdesc lang="en">Dampening Delay</shortdesc>
+<content type="string" default="0s" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start"   timeout="20s" />
+<action name="stop"    timeout="20s" />
+<action name="monitor" timeout="20s" interval="60s"/>
+<action name="meta-data"  timeout="5s" />
+<action name="validate-all"  timeout="20s" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+ConsulInfoStats() {
+	local result
+	local key
+	local value
+
+	for result in $(HOSTNAME=$HOSTNAME python << END
+import requests
+import os
+
+def get_service_state(hostname, service, passing_services, failed_services):
+	url = 'http://localhost:8500/v1/health/service/' + service
+	r = requests.get(url)
+
+	for s in r.json():
+		if s['Node']['Node'] == hostname:
+			for c in s['Checks']:
+				if c['ServiceName'] != '':
+					if c['Status'] != 'passing':
+						failed_services.append(c['ServiceName'])
+						return
+
+	passing_services.append(c['ServiceName'])
+
+def get_info():
+	info = {}
+
+	url = 'http://localhost:8500/v1/agent/self'
+	r = requests.get(url)
+	info['consul_dc'] = r.json()['Config']['Datacenter']
+	info['consul_domain'] = r.json()['DebugConfig']['DNSDomain']
+
+	url = 'http://localhost:8500/v1/catalog/datacenters'
+	r = requests.get(url)
+	info['consul_available_dcs'] = len(r.json())
+
+	return info
+
+def get_local_services():
+	result = []
+
+	url = 'http://localhost:8500/v1/agent/services'
+	r = requests.get(url)
+
+	for s in r.json():
+		result.append(s)
+
+	return result
+
+info = get_info()
+info['consul_passing_services'] = [] 
+info['consul_failed_services'] = []
+
+for s in get_local_services():
+	get_service_state(os.environ['HOSTNAME'], s, info['consul_passing_services'], info['consul_failed_services'])
+
+for k in info:
+	if type(info[k]) is list:
+		print(k + ':' + ','.join(list(set(info[k]))))
+	else:
+		print('%s:%s' % (k, info[k]))
+END
+	) ; do
+		key=$(echo $result|awk -F: '{print $1}')
+		value=$(echo $result|awk -F: '{gsub("^,","");print $2}')
+
+		if [ "x$value" == "x" ] ; then
+			${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n $key
+		else
+			${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n $key -v $value
+		fi
+	done
+}
+
+ConsulInfo_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+ConsulInfo_start() {
+	echo $OCF_RESKEY_clone > $OCF_RESKEY_pidfile
+	ConsulInfoStats
+	exit $OCF_SUCCESS
+}
+
+ConsulInfo_stop() {
+	local node
+
+	rm -f $OCF_RESKEY_pidfile
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n consul_failed_services
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n consul_domain
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n consul_available_dcs
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n consul_passing_services
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n consul_dc
+	exit $OCF_SUCCESS
+}
+
+ConsulInfo_monitor() {
+	if [ -f "$OCF_RESKEY_pidfile" ] ; then
+		ConsulInfoStats
+		exit $OCF_RUNNING
+	fi
+	exit $OCF_NOT_RUNNING
+}
+
+ConsulInfo_validate() {
+	check_binary "awk"
+	python -c 'import os,requests'
+	
+	if [ $? -ne 0 ] ; then
+		return $OCF_NOT_INSTALLED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+if [ $# -ne 1 ]; then
+    ConsulInfo_usage
+    exit $OCF_ERR_ARGS
+fi
+
+: ${OCF_RESKEY_pidfile:="$HA_RSCTMP/ConsulInfo-${OCF_RESOURCE_HOSTNAME}"}
+: ${OCF_RESKEY_clone:="0"}
+if [ x != x${OCF_RESKEY_delay} ]; then
+	OCF_RESKEY_delay="-d ${OCF_RESKEY_delay}"
+fi
+
+case $__OCF_ACTION in
+meta-data)	meta_data
+		exit $OCF_SUCCESS
+		;;
+start)		ConsulInfo_start
+		;;
+stop)		ConsulInfo_stop
+		;;
+monitor)	ConsulInfo_monitor
+		;;
+validate-all)	ConsulInfo_validate
+		;;
+usage|help)	ConsulInfo_usage
+		exit $OCF_SUCCESS
+		;;
+*)		ConsulInfo_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+
+exit $?
+
