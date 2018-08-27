@@ -105,8 +105,8 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_azure-lb.7 \
                           ocf_heartbeat_clvm.7 \
                           ocf_heartbeat_conntrackd.7 \
-                          ocf_heartbeat_consul_catalog.7 \
-                          ocf_heartbeat_consul_info.7 \
+                          ocf_heartbeat_consul-catalog.7 \
+                          ocf_heartbeat_consul-info.7 \
                           ocf_heartbeat_db2.7 \
                           ocf_heartbeat_dhcpd.7 \
                           ocf_heartbeat_docker.7 \
