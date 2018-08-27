@@ -90,6 +90,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			Xen			\
 			Xinetd			\
 			ZFS			\
+			aliyun-vpc-move-ip	\
 			anything		\
 			apache			\
 			asterisk		\
@@ -112,6 +113,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			garbd			\
 			gcp-vpc-move-ip		\
 			gcp-vpc-move-vip	\
+			gcp-vpc-move-route	\
 			iSCSILogicalUnit	\
 			iSCSITarget		\
 			ids			\
@@ -144,6 +146,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			pgagent			\
 			pgsql			\
 			pingd			\
+			podman			\
 			portblock		\
 			postfix			\
 			pound			\
@@ -184,7 +187,8 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  ora-common.sh		\
 			  mysql-common.sh	\
 			  nfsserver-redhat.sh	\
-			  findif.sh
+			  findif.sh		\
+			  ocf.py
 
 # Legacy locations
 hbdir			= $(sysconfdir)/ha.d

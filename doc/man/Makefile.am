@@ -93,6 +93,8 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_WinPopup.7 \
                           ocf_heartbeat_Xen.7 \
                           ocf_heartbeat_Xinetd.7 \
+                          ocf_heartbeat_ZFS.7 \
+                          ocf_heartbeat_aliyun-vpc-move-ip.7 \
                           ocf_heartbeat_anything.7 \
                           ocf_heartbeat_apache.7 \
                           ocf_heartbeat_asterisk.7 \
@@ -115,6 +117,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_garbd.7 \
                           ocf_heartbeat_gcp-vpc-move-ip.7 \
                           ocf_heartbeat_gcp-vpc-move-vip.7 \
+                          ocf_heartbeat_gcp-vpc-move-route.7 \
                           ocf_heartbeat_iSCSILogicalUnit.7 \
                           ocf_heartbeat_iSCSITarget.7 \
                           ocf_heartbeat_iface-bridge.7 \
@@ -130,6 +133,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_lxd-info.7 \
                           ocf_heartbeat_machine-info.7 \
                           ocf_heartbeat_mariadb.7 \
+                          ocf_heartbeat_minio.7 \
                           ocf_heartbeat_mysql.7 \
                           ocf_heartbeat_mysql-proxy.7 \
                           ocf_heartbeat_nagios.7 \
@@ -144,14 +148,17 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_oracle.7 \
                           ocf_heartbeat_oralsnr.7 \
                           ocf_heartbeat_ovsmonitor.7 \
+                          ocf_heartbeat_pgagent.7 \
                           ocf_heartbeat_pgsql.7 \
                           ocf_heartbeat_pingd.7 \
+                          ocf_heartbeat_podman.7 \
                           ocf_heartbeat_portblock.7 \
                           ocf_heartbeat_postfix.7 \
                           ocf_heartbeat_pound.7 \
                           ocf_heartbeat_proftpd.7 \
                           ocf_heartbeat_rabbitmq-cluster.7 \
                           ocf_heartbeat_redis.7 \
+                          ocf_heartbeat_rkt.7 \
                           ocf_heartbeat_rsyncd.7 \
                           ocf_heartbeat_rsyslog.7 \
                           ocf_heartbeat_scsi2reservation.7 \
@@ -165,6 +172,7 @@ man_MANS	       = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_tomcat.7 \
                           ocf_heartbeat_varnish.7 \
                           ocf_heartbeat_vmware.7 \
+                          ocf_heartbeat_vsftpd.7 \
                           ocf_heartbeat_zabbixserver.7
 
 if USE_IPV6ADDR_AGENT
