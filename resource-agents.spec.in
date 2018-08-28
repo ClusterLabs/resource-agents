@@ -14,7 +14,7 @@
 %global numcomm @numcomm@
 %global dirty @dirty@
 
-# 
+#
 # Since this spec file supports multiple distributions, ensure we
 # use the correct group for each.
 #
@@ -68,7 +68,7 @@ BuildRequires: libnet-devel
 %endif
 %endif
 
-%if 0%{?suse_version}  
+%if 0%{?suse_version}
 %if 0%{?suse_version} >= 1140
 BuildRequires:  libnet1
 %else
@@ -81,16 +81,16 @@ BuildRequires:  libxslt docbook_4 docbook-xsl-stylesheets
 ## Runtime deps
 # system tools shared by several agents
 %if 0%{?centos_ver} > 6 || 0%{?rhel} > 6
-Requires: /usr/bin/bash /usr/bin/gawk
+Requires: /usr/bin/gawk
 Requires: /usr/bin/ps
 Requires: /usr/sbin/fuser /usr/bin/mount
 %else
-Requires: /bin/bash /bin/gawk
+Requires: /bin/gawk
 Requires: /bin/ps
 Requires: /sbin/fuser /bin/mount
 %endif
-Requires: /bin/grep /bin/sed
-Requires: /usr/bin/pkill /bin/hostname /bin/netstat
+Requires: bash grep hostname sed
+Requires: /usr/bin/pkill /bin/netstat
 
 # Filesystem / fs.sh / netfs.sh
 %if 0%{?centos_ver} > 6 || 0%{?rhel} > 6
@@ -132,7 +132,7 @@ Requires: /usr/sbin/ethtool
 Requires: /sbin/rdisc /usr/sbin/arping /bin/ping /bin/ping6
 
 #nfsexport.sh
-Requires: /sbin/findfs 
+Requires: /sbin/findfs
 Requires: /sbin/quotaon /sbin/quotacheck
 %endif
 
@@ -157,7 +157,7 @@ BuildRequires: perl-podlators
 %endif
 Requires:       %{SSLeay} perl-libwww-perl perl-MailTools
 Requires:       ipvsadm logrotate
-%if 0%{?fedora_version}
+%if 0%{?fedora}
 Requires:	perl-Net-IMAP-Simple-SSL
 Requires(post):	/sbin/chkconfig
 Requires(preun):/sbin/chkconfig
