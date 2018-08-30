@@ -181,26 +181,16 @@ remove_pid () {
 rmq_monitor() {
 	local rc
 
-	$RMQ_CTL cluster_status > /dev/null 2>&1
-	rc=$?
-	case "$rc" in
-	0)
+	if $RMQ_CTL eval 'rabbit_mnesia:cluster_status_from_mnesia().' | grep -q '^{ok'; then
 		ocf_log debug "RabbitMQ server is running normally"
 		rmq_write_nodename
-		
+
 		return $OCF_SUCCESS
-	;;
-	2|68|69|70|75|78)
-		ocf_log info "RabbitMQ server is not running"
+	else
+		ocf_log info "RabbitMQ server could not get cluster status from mnesia"
 		rmq_delete_nodename
 		return $OCF_NOT_RUNNING
-	;;
-	*)
-		ocf_log err "Unexpected return code from '$RMQ_CTL cluster_status' exit code: $rc"
-		rmq_delete_nodename
-		return $OCF_ERR_GENERIC
-	;;
-	esac
+	fi
 }
 
 rmq_init_and_wait()
