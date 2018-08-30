@@ -167,9 +167,9 @@ ec2ip_monitor() {
 		ocf_log debug "monitor: Enhanced Monitoring disabled - omitting API call"
 	fi
 
-	cmd="ip addr show to '$OCF_RESKEY_ip' up"
+	cmd="ip addr show to $OCF_RESKEY_ip up"
 	ocf_log debug "executing command: $cmd"
-	RESULT=$($cmd | grep '$OCF_RESKEY_ip')
+	RESULT=$($cmd | grep "$OCF_RESKEY_ip")
 	if [ -z "$RESULT" ]; then
 		ocf_log warn "IP $OCF_RESKEY_ip not assigned to running interface"
 		return $OCF_NOT_RUNNING
