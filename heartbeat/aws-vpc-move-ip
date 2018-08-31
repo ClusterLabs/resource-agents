@@ -195,7 +195,7 @@ ec2ip_drop() {
 
 ec2ip_get_and_configure() {
 	# Adjusting the routing table
-	cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile ec2 replace-route --route-table-id $OCF_RESKEY_routing_table --destination-cidr-block ${OCF_RESKEY_ip}/32 --instance-id $EC2_INSTANCE_ID"
+	cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 replace-route --route-table-id $OCF_RESKEY_routing_table --destination-cidr-block ${OCF_RESKEY_ip}/32 --instance-id $EC2_INSTANCE_ID"
 	ocf_log debug "executing command: $cmd"
 	$cmd
 	rc=$?
