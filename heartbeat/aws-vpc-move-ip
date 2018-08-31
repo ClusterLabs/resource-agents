@@ -66,7 +66,7 @@ cat <<END
 Resource Agent to move IP addresses within a VPC of the Amazon Webservices EC2
 by changing an entry in an specific routing table
 </longdesc>
-<shortdesc lang="en">Move IP within a VPC of the AWS EC2</shortdesc>
+<shortdesc lang="en">Move IP within a APC of the AWS EC2</shortdesc>
 
 <parameters>
 <parameter name="awscli">
@@ -85,11 +85,19 @@ Valid AWS CLI profile name (see ~/.aws/config and 'aws configure')
 <content type="string" default="${OCF_RESKEY_profile_default}" />
 </parameter>
 
-<parameter name="ip" required="1">
+<parameter name="address" required="1">
 <longdesc lang="en">
 VPC private IP address
 </longdesc>
-<shortdesc lang="en">VPC private IP</shortdesc>
+<shortdesc lang="en">VPC private IP Address</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="ip">
+<longdesc lang="en">
+Deprecated IP address param. Use the address param instead.
+</longdesc>
+<shortdesc lang="en"> Deprecated VPC private IP Address</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -119,14 +127,21 @@ Enable enhanced monitoring using AWS API calls to check route table entry
 </parameters>
 
 <actions>
-<action name="start" timeout="180s" />
-<action name="stop" timeout="180s" />
-<action name="monitor" depth="0" timeout="30s" interval="60s" />
-<action name="validate-all" timeout="5s" />
-<action name="meta-data" timeout="5s" />
+<action name="start" timeout="180" />
+<action name="stop" timeout="180" />
+<action name="monitor" depth="0" timeout="30" interval="60" />
+<action name="validate-all" timeout="5" />
+<action name="meta-data" timeout="5" />
 </actions>
 </resource-agent>
 END
+}
+
+ec2ip_set_ip_param_compat(){
+	# Include backward compatibility for the deprecated ip parameter
+	if [ -n "$OCF_RESKEY_ip" ]; then
+		OCF_RESKEY_address=${OCF_RESKEY_ip}
+	fi
 }
 
 ec2ip_validate() {
@@ -150,11 +165,11 @@ ec2ip_validate() {
 }
 
 ec2ip_monitor() {
-	if ocf_is_true ${OCF_RESKEY_monapi} || [ "$__OCF_ACTION" = "start" ]; then
+	if ocf_is_true ${OCF_RESKEY_monapi} || [ "$__OCF_ACTION" = "start" ] || ocf_is_probe; then
 		ocf_log info "monitor: check routing table (API call)"
 		cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 describe-route-tables --route-table-ids $OCF_RESKEY_routing_table"
 		ocf_log debug "executing command: $cmd"
-		ROUTE_TO_INSTANCE="$($cmd | grep $OCF_RESKEY_ip | awk '{ print $3 }')"
+		ROUTE_TO_INSTANCE="$($cmd | grep $OCF_RESKEY_address | awk '{ print $3 }')"
 		if [ -z "$ROUTE_TO_INSTANCE" ]; then
 			ROUTE_TO_INSTANCE="<unknown>"
 		fi
@@ -167,11 +182,11 @@ ec2ip_monitor() {
 		ocf_log debug "monitor: Enhanced Monitoring disabled - omitting API call"
 	fi
 
-	cmd="ping -W 1 -c 1 $OCF_RESKEY_ip"
+	cmd="ping -W 1 -c 1 -r $OCF_RESKEY_address"
 	ocf_log debug "executing command: $cmd"
 	$cmd > /dev/null
 	if [ "$?" -gt 0 ]; then
-		ocf_log warn "IP $OCF_RESKEY_ip not locally reachable via ping on this system"
+		ocf_log warn "IP $OCF_RESKEY_address not locally reachable via ping on this system"
 		return $OCF_NOT_RUNNING
 	fi
 
@@ -181,7 +196,7 @@ ec2ip_monitor() {
 
 
 ec2ip_drop() {
-	cmd="ip addr delete ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface"
+	cmd="ip addr delete ${OCF_RESKEY_address}/32 dev $OCF_RESKEY_interface"
 	ocf_log debug "executing command: $cmd"
 	$cmd
 	rc=$?
@@ -195,7 +210,7 @@ ec2ip_drop() {
 
 ec2ip_get_and_configure() {
 	# Adjusting the routing table
-	cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile ec2 replace-route --route-table-id $OCF_RESKEY_routing_table --destination-cidr-block ${OCF_RESKEY_ip}/32 --instance-id $EC2_INSTANCE_ID"
+	cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 replace-route --route-table-id $OCF_RESKEY_routing_table --destination-cidr-block ${OCF_RESKEY_address}/32 --instance-id $EC2_INSTANCE_ID"
 	ocf_log debug "executing command: $cmd"
 	$cmd
 	rc=$?
@@ -206,7 +221,7 @@ ec2ip_get_and_configure() {
 
 	# Reconfigure the local ip address
 	ec2ip_drop
-	ip addr add "${OCF_RESKEY_ip}/32" dev $OCF_RESKEY_interface
+	ip addr add "${OCF_RESKEY_address}/32" dev $OCF_RESKEY_interface
 	rc=$?
 	if [ $rc != 0 ]; then
 		ocf_log warn "command failed, rc: $rc"
@@ -217,11 +232,11 @@ ec2ip_get_and_configure() {
 }
 
 ec2ip_stop() {
-	ocf_log info "EC2: Bringing down IP address $OCF_RESKEY_ip"
+	ocf_log info "EC2: Bringing down IP address $OCF_RESKEY_address"
 
 	ec2ip_monitor
 	if [ $? = $OCF_NOT_RUNNING ]; then
-		ocf_log info "EC2: Address $OCF_RESKEY_ip already down"
+		ocf_log info "EC2: Address $OCF_RESKEY_address already down"
 		return $OCF_SUCCESS
 	fi
 
@@ -232,20 +247,20 @@ ec2ip_stop() {
 
 	ec2ip_monitor
 	if [ $? != $OCF_NOT_RUNNING ]; then
-		ocf_log error "EC2: Couldn't bring down IP address $OCF_RESKEY_ip on interface $OCF_RESKEY_interface."
+		ocf_log error "EC2: Couldn't bring down IP address $OCF_RESKEY_address on interface $OCF_RESKEY_interface."
 		return $OCF_ERR_GENERIC
 	fi
 
-	ocf_log info "EC2: Successfully brought down $OCF_RESKEY_ip"
+	ocf_log info "EC2: Successfully brought down $OCF_RESKEY_address"
 	return $OCF_SUCCESS
 }
 
 ec2ip_start() {
-	ocf_log info "EC2: Moving IP address $OCF_RESKEY_ip to this host by adjusting routing table $OCF_RESKEY_routing_table"
+	ocf_log info "EC2: Moving IP address $OCF_RESKEY_address to this host by adjusting routing table $OCF_RESKEY_routing_table"
 
 	ec2ip_monitor
 	if [ $? = $OCF_SUCCESS ]; then
-		ocf_log info "EC2: $OCF_RESKEY_ip already started"
+		ocf_log info "EC2: $OCF_RESKEY_address already started"
 		return $OCF_SUCCESS
 	fi
 
@@ -259,7 +274,7 @@ ec2ip_start() {
 
 	ec2ip_monitor
 	if [ $? != $OCF_SUCCESS ]; then
-		ocf_log error "EC2: IP address couldn't be configured on this host (IP: $OCF_RESKEY_ip, Interface: $OCF_RESKEY_interface)"
+		ocf_log error "EC2: IP address couldn't be configured on this host (IP: $OCF_RESKEY_address, Interface: $OCF_RESKEY_interface)"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -287,6 +302,8 @@ if ! ocf_is_root; then
 	ocf_log err "You must be root for $__OCF_ACTION operation."
 	exit $OCF_ERR_PERM
 fi
+
+ec2ip_set_ip_param_compat
 
 ec2ip_validate
 
