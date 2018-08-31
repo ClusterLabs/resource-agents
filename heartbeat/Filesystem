@@ -580,7 +580,7 @@ Filesystem_stop()
 #
 Filesystem_status()
 {
-	if list_mounts | grep -q " $MOUNTPOINT " >/dev/null 2>&1; then
+	if list_mounts | grep -q " $(readlink -f $MOUNTPOINT) " >/dev/null 2>&1; then
 		rc=$OCF_SUCCESS
 		msg="$MOUNTPOINT is mounted (running)"
 	else
