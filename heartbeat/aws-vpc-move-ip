@@ -93,6 +93,14 @@ VPC private IP address
 <content type="string" default="" />
 </parameter>
 
+<parameter name="address">
+<longdesc lang="en">
+Deprecated IP address param. Use the ip param instead.
+</longdesc>
+<shortdesc lang="en">Deprecated VPC private IP Address</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 <parameter name="routing_table" required="1">
 <longdesc lang="en">
 Name of the routing table, where the route for the IP address should be changed, i.e. rtb-...
@@ -127,6 +135,13 @@ Enable enhanced monitoring using AWS API calls to check route table entry
 </actions>
 </resource-agent>
 END
+}
+
+ec2ip_set_address_param_compat(){
+	# Include backward compatibility for the deprecated address parameter
+	if [ -z  "$OCF_RESKEY_ip" ] && [ -n "$OCF_RESKEY_address" ]; then
+		OCF_RESKEY_ip="$OCF_RESKEY_address"
+	fi
 }
 
 ec2ip_validate() {
@@ -287,6 +302,8 @@ if ! ocf_is_root; then
 	ocf_log err "You must be root for $__OCF_ACTION operation."
 	exit $OCF_ERR_PERM
 fi
+
+ec2ip_set_address_param_compat
 
 ec2ip_validate
 
