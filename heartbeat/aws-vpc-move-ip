@@ -150,7 +150,7 @@ ec2ip_validate() {
 }
 
 ec2ip_monitor() {
-	if ocf_is_true ${OCF_RESKEY_monapi} || [ "$__OCF_ACTION" = "start" ]; then
+	if ocf_is_true ${OCF_RESKEY_monapi} || [ "$__OCF_ACTION" = "start" ] || ocf_is_probe; then
 		ocf_log info "monitor: check routing table (API call)"
 		cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 describe-route-tables --route-table-ids $OCF_RESKEY_routing_table"
 		ocf_log debug "executing command: $cmd"
