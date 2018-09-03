@@ -1,4 +1,4 @@
-#!/bin/sh
+#!@BASH_SHELL@
 #
 #             OCF Resource Agent for managing CTDB
 #
@@ -134,8 +134,8 @@ For more information see http://linux-ha.org/wiki/CTDB_(resource_agent)
 
 <parameter name="ctdb_recovery_lock" unique="1" required="1">
 <longdesc lang="en">
-The location of a shared lock file, common across all nodes.
-This must be on shared storage, e.g.: /shared-fs/samba/ctdb.lock
+The location of a shared lock file or helper binary, common across all nodes.
+See CTDB documentation for details.
 </longdesc>
 <shortdesc lang="en">CTDB shared lock file</shortdesc>
 <content type="string" default="" />
@@ -392,6 +392,8 @@ enable_event_scripts() {
 	local event_dir
 	event_dir=$OCF_RESKEY_ctdb_config_dir/events.d
 
+	chmod u+x "$event_dir/00.ctdb"	# core database health check
+
 	if [ -f "${OCF_RESKEY_ctdb_config_dir}/public_addresses" ]; then
 		chmod u+x "$event_dir/10.interface"
 	else
@@ -563,17 +565,6 @@ ctdb_start() {
 	rv=$?
 	[ $rv -ne 0 ] && return $rv
 
-	# Die if databases are corrupted
-	persistent_db_dir="${OCF_RESKEY_ctdb_dbdir}/persistent"
-	mkdir -p $persistent_db_dir 2>/dev/null
-	for pdbase in $persistent_db_dir/*.tdb.[0-9]; do
-		[ -f "$pdbase" ] || break
-		/usr/bin/tdbdump "$pdbase" >/dev/null 2>/dev/null || {
-			ocf_exit_reason "Persistent database $pdbase is corrupted!  CTDB will not start."
-			return $OCF_ERR_GENERIC
-		}
-	done
-
 	# Add necessary configuration to smb.conf
 	init_smb_conf
 	if [ $? -ne 0 ]; then
@@ -737,9 +728,8 @@ ctdb_monitor() {
 
 
 ctdb_validate() {
-	# Required binaries (full path to tdbdump is intentional, as that's
-	# what's used in ctdb_start, which was lifted from the init script)
-	for binary in pkill /usr/bin/tdbdump; do
+	# Required binaries
+	for binary in pkill; do
 		check_binary $binary
 	done
 
@@ -767,13 +757,24 @@ ctdb_validate() {
 		return $OCF_ERR_CONFIGURED
 	fi
 
-	lock_dir=$(dirname "$OCF_RESKEY_ctdb_recovery_lock")
-	touch "$lock_dir/$$" 2>/dev/null
-	if [ $? != 0 ]; then
-		ocf_exit_reason "Directory for lock file '$OCF_RESKEY_ctdb_recovery_lock' does not exist, or is not writable."
-		return $OCF_ERR_ARGS
+	if [ "${OCF_RESKEY_ctdb_recovery_lock:0:1}" == '!' ]; then
+		# '!' prefix means recovery lock is handled via a helper binary
+		binary="${OCF_RESKEY_ctdb_recovery_lock:1}"
+		binary="${binary%% *}"	# trim any parameters
+		if [ -z "$binary" ]; then
+			ocf_exit_reason "ctdb_recovery_lock invalid helper"
+			return $OCF_ERR_CONFIGURED
+		fi
+		check_binary "${binary}"
+	else
+		lock_dir=$(dirname "$OCF_RESKEY_ctdb_recovery_lock")
+		touch "$lock_dir/$$" 2>/dev/null
+		if [ $? != 0 ]; then
+			ocf_exit_reason "Directory for lock file '$OCF_RESKEY_ctdb_recovery_lock' does not exist, or is not writable."
+			return $OCF_ERR_ARGS
+		fi
+		rm "$lock_dir/$$"
 	fi
-	rm "$lock_dir/$$"
 
 	return $OCF_SUCCESS
 }
