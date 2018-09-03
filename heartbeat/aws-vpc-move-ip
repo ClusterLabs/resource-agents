@@ -93,6 +93,14 @@ VPC private IP address
 <content type="string" default="" />
 </parameter>
 
+<parameter name="address">
+<longdesc lang="en">
+Deprecated IP address param. Use the ip param instead.
+</longdesc>
+<shortdesc lang="en">Deprecated VPC private IP Address</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 <parameter name="routing_table" required="1">
 <longdesc lang="en">
 Name of the routing table, where the route for the IP address should be changed, i.e. rtb-...
@@ -129,6 +137,13 @@ Enable enhanced monitoring using AWS API calls to check route table entry
 END
 }
 
+ec2ip_set_address_param_compat(){
+	# Include backward compatibility for the deprecated address parameter
+	if [ -z  "$OCF_RESKEY_ip" ] && [ -n "$OCF_RESKEY_address" ]; then
+		OCF_RESKEY_ip="$OCF_RESKEY_address"
+	fi
+}
+
 ec2ip_validate() {
 	for cmd in aws ip curl; do
 		check_binary "$cmd"
@@ -150,7 +165,7 @@ ec2ip_validate() {
 }
 
 ec2ip_monitor() {
-	if ocf_is_true ${OCF_RESKEY_monapi} || [ "$__OCF_ACTION" = "start" ]; then
+	if ocf_is_true ${OCF_RESKEY_monapi} || [ "$__OCF_ACTION" = "start" ] || ocf_is_probe; then
 		ocf_log info "monitor: check routing table (API call)"
 		cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 describe-route-tables --route-table-ids $OCF_RESKEY_routing_table"
 		ocf_log debug "executing command: $cmd"
@@ -195,7 +210,7 @@ ec2ip_drop() {
 
 ec2ip_get_and_configure() {
 	# Adjusting the routing table
-	cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile ec2 replace-route --route-table-id $OCF_RESKEY_routing_table --destination-cidr-block ${OCF_RESKEY_ip}/32 --instance-id $EC2_INSTANCE_ID"
+	cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 replace-route --route-table-id $OCF_RESKEY_routing_table --destination-cidr-block ${OCF_RESKEY_ip}/32 --instance-id $EC2_INSTANCE_ID"
 	ocf_log debug "executing command: $cmd"
 	$cmd
 	rc=$?
@@ -287,6 +302,8 @@ if ! ocf_is_root; then
 	ocf_log err "You must be root for $__OCF_ACTION operation."
 	exit $OCF_ERR_PERM
 fi
+
+ec2ip_set_address_param_compat
 
 ec2ip_validate
 
