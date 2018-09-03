@@ -278,7 +278,7 @@ determine_blockdevice() {
 	nfs4|nfs|smbfs|cifs|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|none)
 		: ;;
 	*)
-		DEVICE=`list_mounts | grep " $MOUNTPOINT " | cut -d' ' -f1`
+		DEVICE=`list_mounts | grep " $(readlink -f "$MOUNTPOINT" ) " | cut -d' ' -f1`
 		if [ -b "$DEVICE" ]; then
 			blockdevice=yes
 		fi
@@ -396,7 +396,7 @@ fstype_supported()
 Filesystem_start()
 {
 	# Check if there are any mounts mounted under the mountpoint
-	if list_mounts | grep -q -E " $MOUNTPOINT/\w+" >/dev/null 2>&1; then
+	if list_mounts | grep -q -E " $(readlink -f "$MOUNTPOINT" )/\w+" >/dev/null 2>&1; then
 		ocf_log err "There is one or more mounts mounted under $MOUNTPOINT."
 		return $OCF_ERR_CONFIGURED
 	fi
@@ -580,7 +580,7 @@ Filesystem_stop()
 #
 Filesystem_status()
 {
-	if list_mounts | grep -q " $(readlink -f $MOUNTPOINT) " >/dev/null 2>&1; then
+	if list_mounts | grep -q " $(readlink -f "$MOUNTPOINT" ) " >/dev/null 2>&1; then
 		rc=$OCF_SUCCESS
 		msg="$MOUNTPOINT is mounted (running)"
 	else
