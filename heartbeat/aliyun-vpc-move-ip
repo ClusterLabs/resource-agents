@@ -155,11 +155,11 @@ Valid Aliyun CLI profile name
 </parameter>
 </parameters>
 <actions>
-<action name="start" timeout="180" />
-<action name="stop" timeout="180" />
-<action name="monitor" depth="0" timeout="30" interval="30" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
+<action name="start" timeout="180s" />
+<action name="stop" timeout="180s" />
+<action name="monitor" depth="0" timeout="30s" interval="30s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
 </actions>
 </resource-agent>
 END

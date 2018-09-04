@@ -26,19 +26,19 @@
 #         /$sybase_home/$sybase_ase/install/RUN_$server_name
 #
 # (2) You can customize the interval value in the meta-data section if needed:
-#                <action name="start" timeout="300" />
-#                <action name="stop" timeout="300" />
+#                <action name="start" timeout="300s" />
+#                <action name="stop" timeout="300s" />
 #
 #                <!-- Checks to see if it''s mounted in the right place -->
-#                <action name="status"  interval="30" timeout="100" />
-#                <action name="monitor" interval="30" timeout="100" />
+#                <action name="status"  interval="30s" timeout="100s" />
+#                <action name="monitor" interval="30s" timeout="100s" />
 #
 #                <!--Checks to see if we can read from the mountpoint -->
-#                <action name="status" depth="10" timeout="100" interval="120" />
-#                <action name="monitor" depth="10" timeout="100" interval="120" />
+#                <action name="status" depth="10" timeout="100s" interval="120s" />
+#                <action name="monitor" depth="10" timeout="100s" interval="120s" />
 #
-#                <action name="meta-data" timeout="5" />
-#                <action name="validate-all" timeout="5" />
+#                <action name="meta-data" timeout="5s" />
+#                <action name="validate-all" timeout="5s" />
 #     The timeout value is not supported by Redhat in RHCS5.0.
 #
 
@@ -226,19 +226,19 @@ meta_data()
 	</parameters>
 
 	<actions>
-		<action name="start" timeout="300" />
-		<action name="stop" timeout="300" />
+		<action name="start" timeout="300s" />
+		<action name="stop" timeout="300s" />
 
 		<!-- Checks to see if it''s mounted in the right place -->
-		<action name="status"  interval="30" timeout="100" />
-		<action name="monitor" interval="30" timeout="100" />
+		<action name="status"  interval="30s" timeout="100s" />
+		<action name="monitor" interval="30s" timeout="100s" />
 
 		<!--Checks to see if we can read from the mountpoint -->
-		<action name="status" depth="10" timeout="100" interval="120" />
-		<action name="monitor" depth="10" timeout="100" interval="120" />
+		<action name="status" depth="10" timeout="100" interval="120s" />
+		<action name="monitor" depth="10" timeout="100" interval="120s" />
 
-		<action name="meta-data" timeout="5" />
-		<action name="validate-all" timeout="5" />
+		<action name="meta-data" timeout="5s" />
+		<action name="validate-all" timeout="5s" />
 	</actions>
 </resource-agent>
 EOT
