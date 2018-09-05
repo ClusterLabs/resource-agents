@@ -44,6 +44,7 @@ heartbeat/ocf-directories
 heartbeat/ocf-shellfuncs
 heartbeat/send_ua
 heartbeat/shellfuncs
+heartbeat/*.pyc
 include/agent_config.h
 include/config.h
 include/config.h.in

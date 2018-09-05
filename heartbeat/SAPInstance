@@ -225,7 +225,7 @@ The name of the SAP START profile. Specify this parameter, if you have changed t
 <action name="monitor" depth="0" timeout="60s" interval="119s" role="Master" />
 <action name="promote" timeout="320s" />
 <action name="demote" timeout="320s" />
-<action name="reload" timeout="320" />
+<action name="reload" timeout="320s" />
 <action name="validate-all" timeout="5s" />
 <action name="meta-data" timeout="5s" />
 <action name="methods" timeout="5s" />
