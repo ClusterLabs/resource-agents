@@ -70,6 +70,7 @@ tools/ocft/ocft
 *.upgrade.xml
 py-compile
 ylwrap
+__pycache__
 
 # BEAM Entries
 *.beam
