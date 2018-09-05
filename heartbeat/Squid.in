@@ -192,10 +192,17 @@ get_pids()
 	fi
 
 	# Seek by port
-	SQUID_PIDS[2]=$(
-		netstat -apn |
-		awk '/tcp.*:'$SQUID_PORT' .*LISTEN/ && $7~/^[1-9]/ {
-			sub("\\/.*", "", $7); print $7; exit}')
+	if have_binary netstat; then
+		SQUID_PIDS[2]=$(
+			netstat -apn |
+			awk '/tcp.*:'$SQUID_PORT' .*LISTEN/ && $7~/^[1-9]/ {
+				sub("\\/.*", "", $7); print $7; exit}')
+	else
+		SQUID_PIDS[2]=$(
+			ss -apn |
+			awk '/tcp.*LISTEN.*:'$SQUID_PORT'/ {
+				sub(".*pid=", "", $7); sub(",fd=.*", "", $7); print $7 }')
+	fi
 }
 
 are_all_pids_found()
