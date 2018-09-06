@@ -58,8 +58,10 @@
 
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
-  CMDSHOW="$IP2UTIL route show   to exact 0.0.0.0/0"
-CMDCHANGE="$IP2UTIL route change to "
+        CMDSHOW="$IP2UTIL route show               to exact 0.0.0.0/0"
+      CMDCHANGE="$IP2UTIL route change             to"
+  CMDSHOW_LOCAL="$IP2UTIL route show   table local to exact $OCF_RESKEY_ipaddress"
+CMDCHANGE_LOCAL="$IP2UTIL route change table local local"
 
 SYSTYPE="`uname -s`"
 
@@ -96,6 +98,16 @@ dotted quad notation  255.255.255.0).
 </longdesc>
 <shortdesc lang="en">Netmask</shortdesc>
 <content type="string" default=""/>
+</parameter>
+
+<parameter name="update_local_route">
+<longdesc lang="en">
+If set, the route to destination \`ipaddress\` in the local route table
+will be updated to use \`ipaddress\` as the preferred source IP
+address.
+</longdesc>
+<shortdesc lang="en">Update local route</shortdesc>
+<content type="boolean" default="false"/>
 </parameter>
 </parameters>
 
@@ -159,6 +171,14 @@ srca_read() {
 	return 2
 }
 
+srca_read_local() {
+	local ROUTE="`$CMDSHOW_LOCAL`" || errorexit "command '$CMDSHOW' failed"
+	local SRCIP=`echo $ROUTE | sed -n "s/$MATCHROUTE/\3/p"`
+	[ -z "$SRCIP" ] && return 1
+	[ $SRCIP = $1 ] && return 0
+	return 2
+}
+
 #
 #	Add (or change if it already exists) the preferred source address
 #	The exit code should conform to LSB exit codes.
@@ -177,7 +197,14 @@ srca_start() {
 
 		$CMDCHANGE $ROUTE_WO_SRC src $1 || \
 			errorexit "command '$CMDCHANGE $ROUTE_WO_SRC src $1' failed"
+
 		rc=$?
+
+		if ocf_is_true "$OCF_RESKEY_update_local_route"; then
+			$CMDCHANGE_LOCAL $1 dev $INTERFACE proto kernel scope host src $1 || \
+				errorexit "command '$CMDCHANGE_LOCAL $1 dev $INTERFACE proto kernel scope host src $1' failed"
+			rc=$?
+		fi
 	fi
 
 	return $rc
@@ -210,20 +237,48 @@ srca_stop() {
 	$CMDCHANGE $ROUTE_WO_SRC || \
 		errorexit "command '$CMDCHANGE $ROUTE_WO_SRC' failed"
 
-	return $?
+	rc=$?
+
+	if ocf_is_true "$OCF_RESKEY_update_local_route"; then
+		$CMDCHANGE_LOCAL $1 dev $INTERFACE proto kernel scope host src $PRIMARY_IP || \
+			errorexit "command '$CMDCHANGE_LOCAL $1 dev $INTERFACE proto kernel scope host src $PRIMARY_IP' failed"
+		rc=$?
+	fi
+
+	return $rc
 }
 
 srca_status() {
 	srca_read $1
 
 	case $? in
+		0)	;;
+
+		1)	echo "No preferred source address defined for default route"
+			return $OCF_NOT_RUNNING;;
+
+		2)	echo "Preferred source address has incorrect value for default route"
+			return $OCF_ERR_GENERIC;;
+
+		*)	echo "Unknown error for default route"
+			return $OCF_ERR_GENERIC;;
+	esac
+
+	if ocf_is_true "$OCF_RESKEY_update_local_route"; then
+		srca_read_local $1
+	fi
+
+	case $? in
 		0)	echo "OK"
 			return $OCF_SUCCESS;;
 
-		1)	echo "No preferred source address defined"
+		1)	echo "No preferred source address defined for local route"
 			return $OCF_NOT_RUNNING;;
 
-		2)	echo "Preferred source address has incorrect value"
+		2)	echo "Preferred source address has incorrect value for local route"
+			return $OCF_ERR_GENERIC;;
+
+		*)	echo "Unknown error for local route"
 			return $OCF_ERR_GENERIC;;
 	esac
 }
@@ -473,7 +528,8 @@ rc=$?
 }
 
 INTERFACE=`echo $findif_out | awk '{print $1}'`
-NETWORK=`ip route list dev $INTERFACE scope link proto kernel match $ipaddress|grep -o '^[^ ]*'`
+NETWORK=`$IP2UTIL route list dev $INTERFACE scope link proto kernel match $ipaddress | grep -o '^[^ ]*'`
+PRIMARY_IP=`$IP2UTIL -o -f inet addr show dev $INTERFACE primary | awk '{print $4}' | cut -d/ -f1`
 
 case $1 in
 	start)		srca_start $ipaddress
