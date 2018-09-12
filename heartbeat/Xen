@@ -275,16 +275,15 @@ set_util_attr() {
 
 	cval=$(crm_resource -Q -r $OCF_RESOURCE_INSTANCE -z -g $attr 2>/dev/null)
 	if [ $? -ne 0 ] && [ -z "$cval" ]; then
-		crm_resource -Q -r $OCF_RESOURCE_INSTANCE -z -g $attr 2>&1 | grep -e "not connected" > /dev/null 2>&1
-		if [ $? -eq 0 ]; then
-			ocf_log debug "Unable to set utilization attribute, cib is not available"
+		if crm_resource -Q -r $OCF_RESOURCE_INSTANCE -z -g $attr 2>&1 | grep -q "not connected"; then
+			ocf_log debug "Unable to get utilization attribute $attr: cib is not available"
 			return
 		fi
 	fi
 
 	if [ "$cval" != "$val" ]; then
-		outp=$(crm_resource -r $OCF_RESOURCE_INSTANCE -z -p $attr -v $val 2>&1) ||
-		ocf_log warn "crm_resource failed to set utilization attribute $attr: $outp"
+		outp=$(crm_resource -r $OCF_RESOURCE_INSTANCE -z -p $attr -v $val 2>&1) || \
+		ocf_log warn "Unable to set utilization attribute $attr: $outp"
 	fi
 }
 
