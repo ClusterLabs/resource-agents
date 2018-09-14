@@ -23,10 +23,10 @@ OCF_ERR_UNIMPLEMENTED = 3
 OCF_ERR_CONFIGURED = 6
 OCF_NOT_RUNNING = 7
 
-attr_globalPullState = "AzEvents_globalPullState"
-attr_lastDocVersion  = "AzEvents_lastDocVersion"
-attr_curNodeState = "AzEvents_curNodeState"
-attr_pendingEventIDs = "AzEvents_pendingEventIDs"
+attr_globalPullState = "azure-events_globalPullState"
+attr_lastDocVersion  = "azure-events_lastDocVersion"
+attr_curNodeState = "azure-events_curNodeState"
+attr_pendingEventIDs = "azure-events_pendingEventIDs"
 
 default_loglevel = logging.INFO
 default_relevantEventTypes = set(["Reboot", "Redeploy"])
@@ -329,8 +329,8 @@ class pcsHelper:
 		Get a list of all current operations for a given node (used to check if any resources are pending)
 		"""
 		# hsr3-db1:/home/tniek # crm_resource --list-operations -N hsr3-db0
-		# rsc_AzEvents    (ocf::heartbeat:AzEvents):      Started: rsc_AzEvents_start_0 (node=hsr3-db0, call=91, rc=0, last-rc-change=Fri Jun  8 22:37:46 2018, exec=115ms): complete
-		# rsc_AzEvents    (ocf::heartbeat:AzEvents):      Started: rsc_AzEvents_monitor_10000 (node=hsr3-db0, call=93, rc=0, last-rc-change=Fri Jun  8 22:37:47 2018, exec=197ms): complete
+		# rsc_azure-events    (ocf::heartbeat:azure-events):      Started: rsc_azure-events_start_0 (node=hsr3-db0, call=91, rc=0, last-rc-change=Fri Jun  8 22:37:46 2018, exec=115ms): complete
+		# rsc_azure-events    (ocf::heartbeat:azure-events):      Started: rsc_azure-events_monitor_10000 (node=hsr3-db0, call=93, rc=0, last-rc-change=Fri Jun  8 22:37:47 2018, exec=197ms): complete
 		# rsc_SAPHana_HN1_HDB03   (ocf::suse:SAPHana):    Master: rsc_SAPHana_HN1_HDB03_start_0 (node=hsr3-db0, call=-1, rc=193, last-rc-change=Fri Jun  8 22:37:46 2018, exec=0ms): pending
 		# rsc_SAPHanaTopology_HN1_HDB03   (ocf::suse:SAPHanaTopology):    Started: rsc_SAPHanaTopology_HN1_HDB03_start_0 (node=hsr3-db0, call=90, rc=0, last-rc-change=Fri Jun  8 22:37:46 2018, exec=3214ms): complete
 		logging.debug("listOperationsOnNode: begin; node = %s" % node)
@@ -715,7 +715,7 @@ class pcsNode:
 
 class raGlobalPullState(Enum):
 	"""
-	Pull state to avoid two AzEvents resource agents pulling from Azure Metadata Service API concurrently
+	Pull state to avoid two azure-events resource agents pulling from Azure Metadata Service API concurrently
 	"""
 	IDLE = 0
 	PULLING = 1
@@ -799,7 +799,7 @@ If any relevant events are found, it moves all Pacemaker resources
 away from the affected node to allow for a graceful shutdown.
 
 	Usage:
-		AzEvents <action> [eventTypes=<val>] [verbose=<val>]
+		azure-events <action> [eventTypes=<val>] [verbose=<val>]
 
 		action (required): Supported values: monitor, help, meta-data
 		eventTypes (optional): List of event types to be considered
@@ -810,9 +810,9 @@ away from the affected node to allow for a graceful shutdown.
 				Default = false
 
 	Deployment:
-		crm configure primitive rsc_AzEvents ocf:heartbeat:AzEvents \
+		crm configure primitive rsc_azure-events ocf:heartbeat:azure-events \
 			op monitor interval=10s
-		crm configure clone cln_AzEvents rsc_AzEvents
+		crm configure clone cln_azure-events rsc_azure-events
 
 For further information on Microsoft Azure Scheduled Events, please
 refer to the following documentation:
@@ -821,11 +821,11 @@ https://docs.microsoft.com/en-us/azure/virtual-machines/linux/scheduled-events""
 def metadata():
 	print("""<?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="AzEvents">
+<resource-agent name="azure-events">
 <version>%s</version>
 <shortdesc lang="en">Resource agent to handle Microsoft Azure Scheduled Events</shortdesc>
 <longdesc lang="en">
-The AzEvents resource agent is to be used nodes inside a Pacemaker cluster that run Microsoft Azure. It periodically checks if maintenance events (for example, reboots or redploys) are scheduled and takes preemptive action by moving all resources away from the affected node.
+The azure-events resource agent is to be used nodes inside a Pacemaker cluster that run Microsoft Azure. It periodically checks if maintenance events (for example, reboots or redploys) are scheduled and takes preemptive action by moving all resources away from the affected node.
 </longdesc>
 <parameters>
     <parameter name="eventTypes" unique="0" required="0">

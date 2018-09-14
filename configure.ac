@@ -947,7 +947,7 @@ rgmanager/Makefile						\
 		)
 
 dnl Files we output that need to be executable
-AC_CONFIG_FILES([heartbeat/AzEvents], [chmod +x heartbeat/AzEvents])
+AC_CONFIG_FILES([heartbeat/azure-events], [chmod +x heartbeat/azure-events])
 AC_CONFIG_FILES([heartbeat/AoEtarget], [chmod +x heartbeat/AoEtarget])
 AC_CONFIG_FILES([heartbeat/ManageRAID], [chmod +x heartbeat/ManageRAID])
 AC_CONFIG_FILES([heartbeat/ManageVE], [chmod +x heartbeat/ManageVE])

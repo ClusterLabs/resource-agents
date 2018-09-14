@@ -50,7 +50,8 @@ send_ua_SOURCES         = send_ua.c IPv6addr_utils.c
 IPv6addr_LDADD          = -lplumb $(LIBNETLIBS)
 send_ua_LDADD           = $(LIBNETLIBS)
 
-ocf_SCRIPTS	     =  AoEtarget		\
+ocf_SCRIPTS	     = azure-events		\ 
+			AoEtarget		\
 			AudibleAlarm		\
 			ClusterMon		\
 			CTDB			\
