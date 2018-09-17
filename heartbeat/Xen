@@ -290,11 +290,7 @@ set_util_attr() {
 Xen_Update_Utilization() {
 	local dom_status dom_cpu dom_mem
 
-	if ocf_is_true "$OCF_RESKEY_autoset_utilization_cpu" || \
-	   ocf_is_true "$OCF_RESKEY_autoset_utilization_hv_memory"
-	then
-		dom_status=$($xentool list ${DOMAIN_NAME} | awk 'NR==2 {print $4, $3}')
-	fi
+	dom_status=$($xentool list ${DOMAIN_NAME} | awk 'NR==2 {print $4, $3}')
 
 	if ocf_is_true "$OCF_RESKEY_autoset_utilization_cpu"; then
 		dom_cpu=${dom_status% *}
@@ -353,7 +349,11 @@ Xen_Monitor() {
 		ocf_log err "Xen domain $DOMAIN_NAME stopped"
 		return ${OCF_NOT_RUNNING}
 	fi
-	Xen_Update_Utilization
+	if ocf_is_true "$OCF_RESKEY_autoset_utilization_cpu" || \
+	   ocf_is_true "$OCF_RESKEY_autoset_utilization_hv_memory"
+	then
+		Xen_Update_Utilization
+	fi
 	if [ "X${OCF_RESKEY_monitor_scripts}" = "X" ]; then
 		return ${OCF_SUCCESS}
 	fi
