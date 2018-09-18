@@ -111,6 +111,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			fio			\
 			galera			\
 			garbd			\
+			gcp-pd-move		\
 			gcp-vpc-move-ip		\
 			gcp-vpc-move-vip	\
 			gcp-vpc-move-route	\
