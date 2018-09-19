@@ -431,7 +431,7 @@ AC_SUBST(HA_VARRUNDIR)
 
 # Expand $prefix
 eval HA_RSCTMPDIR="`eval echo ${HA_RSCTMPDIR}`"
-AC_DEFINE_UNQUOTED(HA_RSCTMPDIR,"$HA_RSCTMPDIR", Where Resouce agents keep state files)
+AC_DEFINE_UNQUOTED(HA_RSCTMPDIR,"$HA_RSCTMPDIR", Where Resource agents keep state files)
 AC_SUBST(HA_RSCTMPDIR)
 
 dnl Eventually move out of the heartbeat dir tree and create symlinks when needed
@@ -911,6 +911,7 @@ heartbeat/Makefile						\
    heartbeat/ocf-shellfuncs					\
    heartbeat/shellfuncs						\
 systemd/Makefile						\
+   systemd/resource-agents.conf					\
 tools/Makefile							\
    tools/ocf-tester						\
    tools/ocft/Makefile						\
