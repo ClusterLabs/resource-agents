@@ -234,8 +234,8 @@ meta_data()
 		<action name="monitor" interval="30s" timeout="100s" />
 
 		<!--Checks to see if we can read from the mountpoint -->
-		<action name="status" depth="10" timeout="100" interval="120s" />
-		<action name="monitor" depth="10" timeout="100" interval="120s" />
+		<action name="status" depth="10" timeout="100s" interval="120s" />
+		<action name="monitor" depth="10" timeout="100s" interval="120s" />
 
 		<action name="meta-data" timeout="5s" />
 		<action name="validate-all" timeout="5s" />
