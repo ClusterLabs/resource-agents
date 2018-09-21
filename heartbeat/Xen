@@ -43,8 +43,8 @@ END
 : ${OCF_RESKEY_shutdown_acpi=0}
 : ${OCF_RESKEY_allow_mem_management=0}
 : ${OCF_RESKEY_reserved_Dom0_memory=512}
-: ${OCF_RESKEY_autoset_utilization_cpu="true"}
-: ${OCF_RESKEY_autoset_utilization_hv_memory="true"}
+: ${OCF_RESKEY_autoset_utilization_cpu="false"}
+: ${OCF_RESKEY_autoset_utilization_hv_memory="false"}
 
 # prefer xl
 xentool=$(which xl 2> /dev/null || which xm)
@@ -163,18 +163,22 @@ for the dom0. The default minimum memory is 512MB.
 <longdesc lang="en">
 If set true, the agent will detect the number of domain's vCPUs from Xen, and put it
 into the CPU utilization of the resource when the monitor is executed.
+Before enabling make sure node utilization is also set (using NodeUtilization
+agent or manually) or the resource might not be able to start anywhere.
 </longdesc>
 <shortdesc lang="en">Enable auto-setting the CPU utilization of the resource</shortdesc>
-<content type="boolean" default="true" />
+<content type="boolean" default="false" />
 </parameter>
 
 <parameter name="autoset_utilization_hv_memory" unique="0" required="0">
 <longdesc lang="en">
 If set true, the agent will detect the number of memory from Xen, and put it
 into the hv_memory utilization of the resource when the monitor is executed.
+Before enabling make sure node utilization is also set (using NodeUtilization
+agent or manually) or the resource might not be able to start anywhere.
 </longdesc>
 <shortdesc lang="en">Enable auto-setting the hv_memory utilization of the resource</shortdesc>
-<content type="boolean" default="true" />
+<content type="boolean" default="false" />
 </parameter>
 
 <parameter name="monitor_scripts" unique="0" required="0">
