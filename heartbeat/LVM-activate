@@ -56,6 +56,7 @@ LV=${OCF_RESKEY_lvname}
 # 3: vg has system_id (new)
 # 4: vg has tagging (old)
 VG_access_mode=${OCF_RESKEY_vg_access_mode}
+VG_access_mode_num=0
 
 # Activate LV(s) with "shared" lock for cluster fs
 # or "exclusive" lock for local fs
@@ -176,7 +177,9 @@ END
 # 2: vg is clustered - clvmd (old)
 # 3: vg has system_id (new)
 # 4: vg has tagging (old)
-get_VG_access_mode() {
+
+get_VG_access_mode_num()
+{
 	local access_mode
 	local vg_locktype
 	local vg_clustered
@@ -415,11 +418,8 @@ tagging_check()
         return $OCF_SUCCESS
 }
 
-lvm_validate() {
-	local lv_count
-	local mode
-
-	# Parameters checking
+read_parameters()
+{
 	if [ -z "$VG" ]
 	then
 		ocf_exit_reason "You must identify the volume group name!"
@@ -435,22 +435,30 @@ lvm_validate() {
 	# Convert VG_access_mode from string to index
 	case ${VG_access_mode} in
 	lvmlockd)
-		VG_access_mode=1
+		VG_access_mode_num=1
 		;;
 	clvmd)
-		VG_access_mode=2
+		VG_access_mode_num=2
 		;;
 	system_id)
-		VG_access_mode=3
+		VG_access_mode_num=3
 		;;
 	tagging)
-		VG_access_mode=4
+		VG_access_mode_num=4
 		;;
 	*)
+		# dont exit with error-code here or nodes will get fenced on
+		# e.g. "pcs resource create"
 		ocf_exit_reason "You specified an invalid value for vg_access_mode: $VG_access_mode"
-		exit $OCF_ERR_CONFIGURED
 		;;
 	esac
+}
+
+lvm_validate() {
+	local lv_count
+	local mode
+
+	read_parameters
 
 	check_binary pgrep
 	# Every LVM command is just symlink to lvm binary
@@ -471,9 +479,9 @@ lvm_validate() {
 	# Get the access mode from VG metadata and check if it matches the input
 	# value. Skip to check "tagging" mode because there's no reliable way to
 	# automatically check if "tagging" mode is being used.
-	get_VG_access_mode
+	get_VG_access_mode_num
 	mode=$?
-	if [ $VG_access_mode -ne 4 ] && [ $mode -ne $VG_access_mode ]; then
+	if [ $VG_access_mode_num -ne 4 ] && [ $mode -ne $VG_access_mode_num ]; then
 		ocf_exit_reason "The specified vg_access_mode doesn't match the lock_type on VG metadata!"
 		exit $OCF_ERR_ARGS
 	fi
@@ -495,8 +503,8 @@ lvm_validate() {
 		fi
 	fi
 
-	# VG_access_mode specific checking goes here
-	case ${VG_access_mode} in
+	# VG_access_mode_num specific checking goes here
+	case ${VG_access_mode_num} in
 	1)
 		lvmlockd_check
 		;;
@@ -731,7 +739,7 @@ lvm_start() {
 	[ -z ${LV} ] && vol=${VG} || vol=${VG}/${LV}
 	ocf_log info "Activating ${vol}"
 
-	case ${VG_access_mode} in
+	case ${VG_access_mode_num} in
 	1)
 		lvmlockd_activate
 		;;
@@ -773,7 +781,7 @@ lvm_stop() {
 
 	ocf_log info "Deactivating ${vol}"
 
-	case ${VG_access_mode} in
+	case ${VG_access_mode_num} in
 	1)
 		lvmlockd_deactivate
 		;;
@@ -811,9 +819,11 @@ start)
 	lvm_start
 	;;
 stop)
+	read_parameters
 	lvm_stop
 	;;
 monitor)
+	lvm_validate
 	lvm_status
 	;;
 validate-all)
