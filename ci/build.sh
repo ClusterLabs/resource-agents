@@ -59,7 +59,8 @@ check_all_executables() {
 	while read -r script; do
 		file --mime "$script" | grep 'charset=binary' >/dev/null 2>&1 && continue
 		file --mime "$script" | grep 'text/x-python' >/dev/null 2>&1 && continue
-		file --mime "$script" | grep 'text/x-makefile' >/dev/null 2>&1 && continue
+		# upstream CI doesnt detect MIME-format correctly for Makefiles
+		[[ "$script" =~ .*/Makefile.in ]] && continue
 
 		if grep -qE "\<action.*(timeout|interval|delay)=\\\?\"[0-9]+\\\?\"" "$script"; then
 			fail "$script: \"s\"-suffix missing in timeout, interval or delay"
