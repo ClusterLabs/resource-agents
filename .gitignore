@@ -57,6 +57,7 @@ ldirectord/init.d/ldirectord
 ldirectord/init.d/ldirectord.debian
 ldirectord/init.d/ldirectord.debian.default
 ldirectord/systemd/ldirectord.service
+systemd/resource-agents.conf
 tools/findif
 tools/ocf-tester
 tools/send_arp
