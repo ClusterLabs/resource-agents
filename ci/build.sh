@@ -51,7 +51,7 @@ find_prunes() {
 }
 
 find_cmd() {
-	echo "find heartbeat -type f -and \( -perm /111 -or -name '*.sh' \) $(find_prunes)"
+	echo "find heartbeat -type f -and \( -perm /111 -or -name '*.sh' -or -name '*.c' -or -name '*.in' \) $(find_prunes)"
 }
 
 check_all_executables() {
@@ -59,6 +59,13 @@ check_all_executables() {
 	while read -r script; do
 		file --mime "$script" | grep 'charset=binary' >/dev/null 2>&1 && continue
 		file --mime "$script" | grep 'text/x-python' >/dev/null 2>&1 && continue
+		# upstream CI doesnt detect MIME-format correctly for Makefiles
+		[[ "$script" =~ .*/Makefile.in ]] && continue
+
+		if grep -qE "\<action.*(timeout|interval|delay)=\\\?\"[0-9]+\\\?\"" "$script"; then
+			fail "$script: \"s\"-suffix missing in timeout, interval or delay"
+		fi
+
 		head=$(head -n1 "$script")
 		[[ "$head" =~ .*ruby.* ]] && continue
 		[[ "$head" =~ .*zsh.* ]] && continue
@@ -67,6 +74,7 @@ check_all_executables() {
 		[[ "$script" =~ ^.*\.orig ]] && continue
 		[[ "$script" =~ ^ldirectord.in ]] && continue
 		check "$script"
+
 	done < <(eval "$(find_cmd)")
 	if [ $failed -gt 0 ]; then
 		echo "ci/build.sh: $failed failure(s) detected."
@@ -75,8 +83,11 @@ check_all_executables() {
 	exit 0
 }
 
-./autogen.sh
-./configure
-make check
-[ $? -eq 0 ] || failed=$((failed + 1))
+if [ "$1" != "check" ]; then
+	./autogen.sh
+	./configure
+	make check
+	[ $? -eq 0 ] || failed=$((failed + 1))
+fi
+
 check_all_executables

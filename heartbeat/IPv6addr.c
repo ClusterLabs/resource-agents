@@ -863,12 +863,12 @@ meta_data_addr6(void)
 	"    </parameter>\n"
 	"  </parameters>\n"
 	"  <actions>\n"
-	"    <action name=\"start\"   timeout=\"15\" />\n"
-	"    <action name=\"stop\"    timeout=\"15\" />\n"
-	"    <action name=\"status\"  timeout=\"15\" interval=\"15\" />\n"
-	"    <action name=\"monitor\" timeout=\"15\" interval=\"15\" />\n"
-	"    <action name=\"validate-all\"  timeout=\"5\" />\n"
-	"    <action name=\"meta-data\"  timeout=\"5\" />\n"
+	"    <action name=\"start\"   timeout=\"15s\" />\n"
+	"    <action name=\"stop\"    timeout=\"15s\" />\n"
+	"    <action name=\"status\"  timeout=\"15s\" interval=\"15s\" />\n"
+	"    <action name=\"monitor\" timeout=\"15s\" interval=\"15s\" />\n"
+	"    <action name=\"validate-all\"  timeout=\"5s\" />\n"
+	"    <action name=\"meta-data\"  timeout=\"5s\" />\n"
 	"  </actions>\n"
 	"</resource-agent>\n";
 	printf("%s\n",meta_data);
