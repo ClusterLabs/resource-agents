@@ -448,7 +448,7 @@ bind_tree ()
 unbind_tree ()
 {
 	local i=1
-	while `mount | grep -q " on $OCF_RESKEY_rpcpipefs_dir"` && [ "$i" -le 10 ]; do
+	while `mount | grep -q " on $OCF_RESKEY_rpcpipefs_dir "` && [ "$i" -le 10 ]; do
 		ocf_log info "Stop: umount ($i/10 attempts)"
 		umount -t rpc_pipefs $OCF_RESKEY_rpcpipefs_dir
 		sleep 1
@@ -615,7 +615,9 @@ nfsserver_start ()
 	prepare_directory
 	bind_tree
 
-	mount -t rpc_pipefs sunrpc $OCF_RESKEY_rpcpipefs_dir
+	if ! `mount | grep -q " on $OCF_RESKEY_rpcpipefs_dir "`; then
+		mount -t rpc_pipefs sunrpc $OCF_RESKEY_rpcpipefs_dir
+	fi
 
 	# remove the sm-notify pid so sm-notify will be allowed to run again without requiring a reboot.
 	rm -f /var/run/sm-notify.pid
