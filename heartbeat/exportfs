@@ -283,6 +283,15 @@ exportfs_monitor ()
 			;;
 	esac
 
+	# Get canonical name for hostnames
+	# getent ahosts returns the address for IP addresses, canonical name for
+	# hostnames, and nothing for other spec formats.
+	# Return first match only
+	canon_name=$(getent ahosts "$spec" | awk 'NF == 3 && $NF != "localhost" { print $NF; exit }')
+	if [ -n "$canon_name" ]; then
+		spec=$canon_name
+	fi
+
 	if forall is_exported "$spec"; then
 		if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
 			forall backup_rmtab
