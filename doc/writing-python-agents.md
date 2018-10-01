@@ -31,6 +31,7 @@ The following OCF constants are provided:
 * `HA_LOGFACILITY`
 * `HA_LOGFILE`
 * `HA_DEBUGLOG`
+* `OCF_ACTION` -- Set to `$__OCF_ACTION` if set, or to the first command line argument.
 
 ## Logger
 

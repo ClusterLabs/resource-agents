@@ -88,6 +88,10 @@ class SyslogLibHandler(logging.StreamHandler):
 
 OCF_RESOURCE_INSTANCE = env.get("OCF_RESOURCE_INSTANCE")
 
+OCF_ACTION = env.get("__OCF_ACTION")
+if OCF_ACTION is None and len(argv) == 2:
+	OCF_ACTION = argv[1]
+
 HA_DEBUG = env.get("HA_debug", 0)
 HA_DATEFMT = env.get("HA_DATEFMT", "%b %d %T ")
 HA_LOGFACILITY = env.get("HA_LOGFACILITY")
@@ -144,7 +148,7 @@ def ocf_exit_reason(msg):
 	Allows the OCF agent to provide a string describing
 	why the exit code was returned.
 	"""
-	cookie = os.environ.get("OCF_EXIT_REASON_PREFIX", "ocf-exit-reason:")
+	cookie = env.get("OCF_EXIT_REASON_PREFIX", "ocf-exit-reason:")
 	sys.stderr.write("{}{}\n".format(cookie, msg))
 	sys.stderr.flush()
 	logger.error(msg)
@@ -160,7 +164,7 @@ def have_binary(name):
 				not os.path.isdir(fn))
 	if _access_check(name):
 		return True
-	path = os.environ.get("PATH", os.defpath).split(os.pathsep)
+	path = env.get("PATH", os.defpath).split(os.pathsep)
 	seen = set()
 	for dir in path:
 		dir = os.path.normcase(dir)
@@ -187,15 +191,15 @@ def is_probe():
 	by Pacemaker to check the status of a possibly
 	not running resource.
 	"""
-	return (os.environ.get("__OCF_ACTION", "") == "monitor" and
-			os.environ.get("OCF_RESKEY_CRM_meta_interval", "") == "0")
+	return (OCF_ACTION == "monitor" and
+			env.get("OCF_RESKEY_CRM_meta_interval", "") == "0")
 
 
 def parameter(name, default=None):
 	"""
 	Extract the parameter value from the environment
 	"""
-	return os.environ.get("OCF_RESKEY_{}".format(name), default)
+	return env.get("OCF_RESKEY_{}".format(name), default)
 
 
 class Parameter(object):
@@ -341,20 +345,16 @@ def run(metadata, handlers):
 			rc = OCF_SUCCESS
 		return rc
 
-	if len(sys.argv) == 2:
-		action = sys.argv[1]
-	else:
-		action = os.environ.get("__OCF_ACTION")
-	if action is None:
+	if OCF_ACTION is None:
 		ocf_exit_reason("No action argument set")
 		sys.exit(OCF_ERR_UNIMPLEMENTED)
-	if action in ('meta-data', 'usage', 'methods'):
+	if OCF_ACTION in ('meta-data', 'usage', 'methods'):
 		sys.stdout.write(str(metadata) + "\n")
 		sys.exit(OCF_SUCCESS)
 
 	check_required_params()
-	if action in handlers:
-		rc = call_handler(handlers[action])
+	if OCF_ACTION in handlers:
+		rc = call_handler(handlers[OCF_ACTION])
 		sys.exit(rc)
 	sys.exit(OCF_ERR_UNIMPLEMENTED)
 
