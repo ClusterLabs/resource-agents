@@ -1,0 +1,89 @@
+# Resource Agent guide for Python
+
+## Introduction
+
+A simple library for authoring resource agents in Python is
+provided in the `ocf.py` library.
+
+Agents written in Python should be ideally compatible both with Python
+2.7+ and Python 3.3+.
+
+The library provides various helper constants and functions, a logging
+implementation as well as a run loop and metadata generation facility.
+
+## Constants
+
+The following OCF constants are provided:
+
+* `OCF_SUCCESS`
+* `OCF_ERR_GENERIC`
+* `OCF_ERR_ARGS`
+* `OCF_ERR_UNIMPLEMENTED`
+* `OCF_ERR_PERM`
+* `OCF_ERR_INSTALLED`
+* `OCF_ERR_CONFIGURED`
+* `OCF_NOT_RUNNING`
+* `OCF_RUNNING_MASTER`
+* `OCF_FAILED_MASTER`
+* `OCF_RESOURCE_INSTANCE`
+* `HA_DEBUG`
+* `HA_DATEFMT`
+* `HA_LOGFACILITY`
+* `HA_LOGFILE`
+* `HA_DEBUGLOG`
+
+## Logger
+
+The `logger` variable holds a Python standard log object with its
+formatter set to follow the OCF standard logging format.
+
+Example:
+
+``` python
+
+from ocf import logger
+
+logger.error("Something went terribly wrong.")
+
+```
+
+## Helper functions
+
+* `ocf_exit_reason`: Prints the exit error string to stderr.
+* `have_binary`: Returns True if the given binary is available.
+* `is_true`: Converts an OCF truth value to a Python boolean.
+* `parameter`: Looks up the matching `OCF_RESKEY_` environment variable.
+* `Metadata`: Class which helps to generate the XML metadata.
+* `run`: OCF run loop implementation.
+
+## Run loop and metadata example
+
+``` python
+OCF_FUNCTIONS_DIR="%s/lib/heartbeat" % os.environ.get("OCF_ROOT")
+sys.path.append(OCF_FUNCTIONS_DIR)
+import ocf
+
+def start_action(argument):
+    print("The start action receives the argument as a parameter: {}".format(argument))
+
+
+def main():
+    metadata = ocf.Metadata("example-agent",
+                            shortdesc="This is an example agent",
+                            longdesc="An example of how to " +
+                            "write an agent in Python using the ocf " +
+                            "Python library.")
+    metadata.parameter("argument",
+                       shortdesc="Example argument",
+                       longdesc="This argument is just an example.",
+                       content_type="string",
+                       default="foobar")
+    metadata.action("start", timeout=60)
+    ocf.run(metadata,
+            handlers={
+                "start": start_action
+            })
+
+if __name__ == "__main__":
+    main()
+```
