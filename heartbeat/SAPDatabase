@@ -91,6 +91,17 @@ The required minimum version of SAPHostAgent is:
 Release: 7.20
 Patch Number: 90
 or compile time after: Dec 17 2011
+
+A single HANA is managed as a primitive resource by the SAPDatabase RA. Therefor the parameter MONITOR_SERVICES has to match the output service names of the command "sapcontrol -nr \$InstNr -function GetProcessList".
+"\$InstNr" has to be replaced by the respective instance number.
+
+For an HANA database with SID "TST" and instance number "10", the resource configuration looks like:
+primitive rsc_SAPDatabase_TST_HDB10 ocf:heartbeat:SAPDatabase \\
+ params DBTYPE="HDB" SID="TST" \\
+ MONITOR_SERVICES="hdbindexserver|hdbnameserver" \\
+ op start interval="0" timeout="3600" \\
+ op monitor interval="120" timeout="700" \\
+ op stop interval="0" timeout="600"
 </longdesc>
 <shortdesc lang="en">Manages a SAP database instance as an HA resource.</shortdesc>
 <parameters>
@@ -147,9 +158,10 @@ Usually you can leave this empty. Then the default: /usr/sap/hostctrl/exe is use
   <content type="boolean" default="false"/>
  </parameter>
  <parameter name="MONITOR_SERVICES" unique="0" required="0">
-  <longdesc lang="en">Defines which services are monitored by the SAPDatabase resource agent, if STRICT_MONITORING is set to true. Service names must correspond with the output of the 'saphostctrl -function GetDatabaseStatus' command.</longdesc>
+  <longdesc lang="en">Defines which services are monitored by the SAPDatabase resource agent. Service names must correspond with the output of the 'saphostctrl -function GetDatabaseStatus' command.
+The default value is derived from the database type DBTYPE. For example, DBTYPE "ORA" sets MONITOR_SERVICES="Instance|Database|Listener".</longdesc>
   <shortdesc lang="en">Database services to monitor</shortdesc>
-  <content type="string" default="Instance|Database|Listener"/>
+  <content type="string" default=""/>
  </parameter>
  <parameter name="DIR_BOOTSTRAP" unique="0" required="0">
   <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
