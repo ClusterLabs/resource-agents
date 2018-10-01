@@ -24,10 +24,11 @@
 #  Prerequisites:
 #
 #  - preconfigured AWS CLI running environment (AccessKey, SecretAccessKey, etc.)
-#  - a reserved secondary private IP address for EC2 instances high availablity
+#  - a reserved secondary private IP address for EC2 instances high availability
 #  - IAM user role with the following permissions:
 #    * DescribeInstances
 #    * AssociateAddress
+#    * DescribeAddresses
 #    * DisassociateAddress
 #
 
