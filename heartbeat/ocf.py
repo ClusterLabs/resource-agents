@@ -266,6 +266,7 @@ class Metadata(object):
 		self.longdesc = longdesc
 		self.parameters = []
 		self.actions = []
+		self._handlers = {}
 
 	def add_parameter(self, name, shortdesc="", longdesc="", content_type="string", unique=False, required=False, default=None):
 		for param in self.parameters:
@@ -280,11 +281,13 @@ class Metadata(object):
 										 default=default))
 		return self
 
-	def add_action(self, name, timeout=None, interval=None, depth=None):
+	def add_action(self, name, timeout=None, interval=None, depth=None, handler=None):
 		self.actions.append(Action(name=name,
 								   timeout=timeout,
 								   interval=interval,
 								   depth=depth))
+		if handler is not None:
+			self._handlers[name] = handler
 		return self
 
 	def __str__(self):
@@ -312,8 +315,11 @@ class Metadata(object):
 		   parameters="".join(str(p) for p in self.parameters),
 		   actions="".join(str(a) for a in self.actions))
 
+	def run(self):
+		run(self)
 
-def run(metadata, handlers):
+
+def run(metadata, handlers=None):
 	"""
 	Main loop implementation for resource agents.
 	Does not return.
@@ -329,6 +335,9 @@ def run(metadata, handlers):
 	environment and pass to the handler.
 	"""
 	import inspect
+
+	metadata._handlers.update(handlers or {})
+	handlers = metadata._handlers
 
 	def check_required_params():
 		for p in metadata.parameters:
