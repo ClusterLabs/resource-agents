@@ -60,6 +60,9 @@ logger.error("Something went terribly wrong.")
 ## Run loop and metadata example
 
 ``` python
+import os
+import sys
+
 OCF_FUNCTIONS_DIR="%s/lib/heartbeat" % os.environ.get("OCF_ROOT")
 sys.path.append(OCF_FUNCTIONS_DIR)
 import ocf
