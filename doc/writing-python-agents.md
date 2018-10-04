@@ -54,7 +54,7 @@ logger.error("Something went terribly wrong.")
 * `have_binary`: Returns True if the given binary is available.
 * `is_true`: Converts an OCF truth value to a Python boolean.
 * `get_parameter`: Looks up the matching `OCF_RESKEY_` environment variable.
-* `Metadata`: Class which helps to generate the XML metadata.
+* `Agent`: Class which helps to generate the XML metadata.
 * `run`: OCF run loop implementation.
 
 ## Run loop and metadata example
@@ -72,21 +72,18 @@ def start_action(argument):
 
 
 def main():
-    metadata = ocf.Metadata("example-agent",
-                            shortdesc="This is an example agent",
-                            longdesc="An example of how to " +
-                            "write an agent in Python using the ocf " +
-                            "Python library.")
-    metadata.add_parameter("argument",
-                           shortdesc="Example argument",
-                           longdesc="This argument is just an example.",
-                           content_type="string",
-                           default="foobar")
-    metadata.add_action("start", timeout=60)
-    ocf.run(metadata,
-            handlers={
-                "start": start_action
-            })
+    agent = ocf.Agent("example-agent",
+                      shortdesc="This is an example agent",
+                      longdesc="An example of how to " +
+                      "write an agent in Python using the ocf " +
+                      "Python library.")
+    agent.add_parameter("argument",
+                        shortdesc="Example argument",
+                        longdesc="This argument is just an example.",
+                        content_type="string",
+                        default="foobar")
+    agent.add_action("start", timeout=60, handler=start_action)
+    agent.run()
 
 if __name__ == "__main__":
     main()
