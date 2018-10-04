@@ -195,7 +195,7 @@ def is_probe():
 			env.get("OCF_RESKEY_CRM_meta_interval", "") == "0")
 
 
-def parameter(name, default=None):
+def get_parameter(name, default=None):
 	"""
 	Extract the parameter value from the environment
 	"""
@@ -328,7 +328,7 @@ def run(metadata, handlers):
 
 	def check_required_params():
 		for p in metadata.parameters:
-			if p.required and parameter(p.name) is None:
+			if p.required and get_parameter(p.name) is None:
 				ocf_exit_reason("{}: Required parameter not set".format(p.name))
 				sys.exit(OCF_ERR_CONFIGURED)
 
@@ -342,7 +342,7 @@ def run(metadata, handlers):
 				if meta.name == paramname:
 					return meta.default
 			return None
-		arglist = [parameter(p, default_for_parameter(p)) for p in params]
+		arglist = [get_parameter(p, default_for_parameter(p)) for p in params]
 		rc = func(*arglist)
 		if rc is None:
 			rc = OCF_SUCCESS

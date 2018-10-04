@@ -53,7 +53,7 @@ logger.error("Something went terribly wrong.")
 * `ocf_exit_reason`: Prints the exit error string to stderr.
 * `have_binary`: Returns True if the given binary is available.
 * `is_true`: Converts an OCF truth value to a Python boolean.
-* `parameter`: Looks up the matching `OCF_RESKEY_` environment variable.
+* `get_parameter`: Looks up the matching `OCF_RESKEY_` environment variable.
 * `Metadata`: Class which helps to generate the XML metadata.
 * `run`: OCF run loop implementation.
 
