@@ -74,12 +74,12 @@ def main():
                             longdesc="An example of how to " +
                             "write an agent in Python using the ocf " +
                             "Python library.")
-    metadata.parameter("argument",
-                       shortdesc="Example argument",
-                       longdesc="This argument is just an example.",
-                       content_type="string",
-                       default="foobar")
-    metadata.action("start", timeout=60)
+    metadata.add_parameter("argument",
+                           shortdesc="Example argument",
+                           longdesc="This argument is just an example.",
+                           content_type="string",
+                           default="foobar")
+    metadata.add_action("start", timeout=60)
     ocf.run(metadata,
             handlers={
                 "start": start_action

@@ -263,7 +263,10 @@ class Metadata(object):
 		self.parameters = []
 		self.actions = []
 
-	def parameter(self, name, shortdesc="", longdesc="", content_type="string", unique=False, required=False, default=None):
+	def add_parameter(self, name, shortdesc="", longdesc="", content_type="string", unique=False, required=False, default=None):
+		for param in self.parameters:
+			if param.name == name:
+				raise ValueError("Parameter {} defined twice in metadata".format(name))
 		self.parameters.append(Parameter(name=name,
 										 shortdesc=shortdesc,
 										 longdesc=longdesc,
@@ -273,7 +276,7 @@ class Metadata(object):
 										 default=default))
 		return self
 
-	def action(self, name, timeout=None, interval=None, depth=None):
+	def add_action(self, name, timeout=None, interval=None, depth=None):
 		self.actions.append(Action(name=name,
 								   timeout=timeout,
 								   interval=interval,
@@ -387,8 +390,8 @@ longdesc
 
 		def test_params_actions(self):
 			m = Metadata("foo", shortdesc="shortdesc", longdesc="longdesc")
-			m.parameter("testparam")
-			m.action("start")
+			m.add_parameter("testparam")
+			m.add_action("start")
 			self.assertEqual(str(m.actions[0]), '<action name="start" />\n')
 
 	unittest.main()
