@@ -141,6 +141,8 @@ if HA_DEBUGLOG and HA_LOGFILE != HA_DEBUGLOG:
 logger = logging.LoggerAdapter(log, {'OCF_RESOURCE_INSTANCE': OCF_RESOURCE_INSTANCE})
 
 
+_exit_reason_set = False
+
 def ocf_exit_reason(msg):
 	"""
 	Print exit error string to stderr.
@@ -148,10 +150,12 @@ def ocf_exit_reason(msg):
 	Allows the OCF agent to provide a string describing
 	why the exit code was returned.
 	"""
+	global _exit_reason_set
 	cookie = env.get("OCF_EXIT_REASON_PREFIX", "ocf-exit-reason:")
 	sys.stderr.write("{}{}\n".format(cookie, msg))
 	sys.stderr.flush()
 	logger.error(msg)
+	_exit_reason_set = True
 
 
 def have_binary(name):
@@ -343,10 +347,17 @@ def run(metadata, handlers):
 					return meta.default
 			return None
 		arglist = [get_parameter(p, default_for_parameter(p)) for p in params]
-		rc = func(*arglist)
-		if rc is None:
-			rc = OCF_SUCCESS
-		return rc
+		try:
+			rc = func(*arglist)
+			if rc is None:
+				rc = OCF_SUCCESS
+			return rc
+		except Exception as err:
+			if not _exit_reason_set:
+				ocf_exit_reason(str(err))
+			else:
+				logger.error(str(err))
+			return OCF_ERR_GENERIC
 
 	if OCF_ACTION is None:
 		ocf_exit_reason("No action argument set")
