@@ -316,7 +316,7 @@ simple_status() {
 	fi
 
 	pid="$(<"$REDIS_PIDFILE")"
-	pidof "$REDIS_SERVER" | grep -q "\<$pid\>" || return $OCF_NOT_RUNNING
+	pidof $(basename "$REDIS_SERVER") | grep -q "\<$pid\>" || return $OCF_NOT_RUNNING
 
 	ocf_log debug "monitor: redis-server running under pid $pid"
 
@@ -465,7 +465,7 @@ redis_start() {
 			break
 		elif (( info[loading] == 1 )); then
 			sleep "${info[loading_eta_seconds]}"
-		elif pidof "$REDIS_SERVER" >/dev/null; then
+		elif pidof $(basename "$REDIS_SERVER") >/dev/null; then
 			# unknown error, but the process still exists.
 			# This check is mainly because redis daemonizes before it starts listening, causing `redis-cli` to fail
 			#   See https://github.com/antirez/redis/issues/2368
