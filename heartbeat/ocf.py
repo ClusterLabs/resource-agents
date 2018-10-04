@@ -359,6 +359,11 @@ def run(metadata, handlers):
 				logger.error(str(err))
 			return OCF_ERR_GENERIC
 
+	if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
+		sys.stdout.write("usage: %s {%s}\n\n" % (sys.argv[0], "|".join(sorted(handlers.keys()))) +
+		                 "Expects to have a fully populated OCF RA compliant environment set.\n")
+		sys.exit(OCF_SUCCESS)
+
 	if OCF_ACTION is None:
 		ocf_exit_reason("No action argument set")
 		sys.exit(OCF_ERR_UNIMPLEMENTED)
