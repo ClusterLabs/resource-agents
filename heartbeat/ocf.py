@@ -367,12 +367,14 @@ def run(agent, handlers=None):
 			params = inspect.signature(func).parameters.keys()
 		else:
 			params = inspect.getargspec(func).args
-		def default_for_parameter(paramname):
-			for meta in agent.parameters:
-				if meta.name == paramname:
-					return meta.default
-			return None
-		arglist = [get_parameter(p, default_for_parameter(p)) for p in params]
+		def value_for_parameter(param):
+			val = get_parameter(val)
+			if val is not None:
+				return val
+			for p in agent.parameters:
+				if p.name == param:
+					return p.default
+		arglist = [value_for_parameter(p) for p in params]
 		try:
 			rc = func(*arglist)
 			if rc is None:
