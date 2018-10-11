@@ -699,15 +699,6 @@ pgsql_promote() {
     touch $PGSQL_LOCK
     show_master_baseline
 
-    # create replication slots on master before promotion
-    if use_replication_slot; then
-        create_replication_slots
-        if [ $? -eq $OCF_ERR_GENERIC ]; then
-            ocf_exit_reason "PostgreSQL can't create replication_slot."
-            return $OCF_ERR_GENERIC
-        fi
-    fi
-
     if ocf_is_true ${OCF_RESKEY_restart_on_promote}; then
         ocf_log info "Restarting PostgreSQL instead of promote."
         #stop : this function returns $OCF_SUCCESS only.
@@ -745,6 +736,15 @@ pgsql_promote() {
             ocf_log debug "PostgreSQL still hasn't promoted yet. Waiting..."
         done
         ocf_log info "PostgreSQL is promoted."
+    fi
+
+    # create replication slots on master after promotion
+    if use_replication_slot; then
+	create_replication_slots
+	if [ $? -eq $OCF_ERR_GENERIC ]; then
+	    ocf_exit_reason "PostgreSQL can't create replication_slot."
+	    return $OCF_ERR_GENERIC
+	fi
     fi
 
     change_data_status "$NODENAME" "LATEST"
