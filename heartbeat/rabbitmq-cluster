@@ -178,10 +178,31 @@ remove_pid () {
 	rm -f ${RMQ_PID_FILE} > /dev/null 2>&1
 }
 
+rmq_app_running() {
+	if $RMQ_CTL eval 'application:which_applications().' | grep -q '{rabbit,'; then
+		ocf_log debug "RabbitMQ application is running"
+		return $OCF_SUCCESS
+	else
+		ocf_log debug "RabbitMQ application is stopped"
+		return $OCF_NOT_RUNNING
+	fi
+}
+
 rmq_monitor() {
 	local rc
 
 	if $RMQ_CTL eval 'rabbit_mnesia:cluster_status_from_mnesia().' | grep -q '^{ok'; then
+		pcs_running=$(rmq_join_list | wc -w)
+		ocf_log debug "Pacemaker thinks ${pcs_running} RabbitMQ nodes are running"
+		rmq_running=$($RMQ_CTL eval 'length(mnesia:system_info(running_db_nodes)).')
+		ocf_log debug "RabbitMQ thinks ${rmq_running} RabbitMQ nodes are running"
+
+		if [ $(( $rmq_running * 2 )) -lt $pcs_running ]; then
+			ocf_log info "RabbitMQ is a minority partition, failing monitor"
+			rmq_delete_nodename
+			return $OCF_ERR_GENERIC
+		fi
+
 		ocf_log debug "RabbitMQ server is running normally"
 		rmq_write_nodename
 
@@ -215,7 +236,7 @@ rmq_init_and_wait()
 		return $OCF_ERR_GENERIC
 	fi
 
-	rmq_monitor
+	rmq_app_running
 	return $?
 }
 
@@ -236,6 +257,7 @@ rmq_start_first()
 	if [ $rc -eq 0 ]; then
 		rc=$OCF_SUCCESS
 		ocf_log info "cluster bootstrapped"
+		rmq_write_nodename
 
 		if [ -n "$OCF_RESKEY_set_policy" ]; then
 			# do not quote set_policy, we are passing in arguments
@@ -492,7 +514,7 @@ rmq_stop() {
 		end.
 	"
 
-	rmq_monitor
+	rmq_app_running
 	if [ $? -eq $OCF_NOT_RUNNING ]; then
 		return $OCF_SUCCESS
 	fi
@@ -508,7 +530,7 @@ rmq_stop() {
 	#TODO add kill logic
 	stop_wait=1
 	while [ $stop_wait = 1 ]; do
-		rmq_monitor
+		rmq_app_running
 		rc=$?
 		if [ "$rc" -eq $OCF_NOT_RUNNING ]; then
 			stop_wait=0
