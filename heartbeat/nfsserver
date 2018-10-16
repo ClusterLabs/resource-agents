@@ -402,7 +402,6 @@ prepare_directory ()
 		return
 	fi
 
-	[ -d "$fp" ] || mkdir -p $fp
 	[ -d "$OCF_RESKEY_rpcpipefs_dir" ] || mkdir -p $OCF_RESKEY_rpcpipefs_dir
 	[ -d "$fp/v4recovery" ] || mkdir -p $fp/v4recovery
 
@@ -437,10 +436,21 @@ bind_tree ()
 		return
 	fi
 
+	[ -d "$fp" ] || mkdir -p $fp
+
 	if is_bound /var/lib/nfs; then
 		ocf_log debug "$fp is already bound to /var/lib/nfs"
 		return 0
 	fi
+
+	case $EXEC_MODE in
+	  [23]) if nfs_exec status var-lib-nfs-rpc_pipefs.mount > /dev/null 2>&1; then
+			ocf_log debug "/var/lib/nfs/rpc_pipefs already mounted. Unmounting in preparation to bind mount nfs dir"
+			systemctl stop var-lib-nfs-rpc_pipefs.mount
+		fi
+		;;
+	esac
+
 	mount --bind $fp /var/lib/nfs
 	[ $SELINUX_ENABLED -eq 0 ] && restorecon /var/lib/nfs
 }
@@ -612,8 +622,8 @@ nfsserver_start ()
 	fi
 
 	is_redhat_based && set_env_args
-	prepare_directory
 	bind_tree
+	prepare_directory
 
 	if ! `mount | grep -q " on $OCF_RESKEY_rpcpipefs_dir "`; then
 		mount -t rpc_pipefs sunrpc $OCF_RESKEY_rpcpipefs_dir
