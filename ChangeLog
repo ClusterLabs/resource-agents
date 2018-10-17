@@ -1,3 +1,72 @@
+* Wed Oct 17 2018 resource-agents contributors
+- release candidate 4.2.0 rc1
+- CI: fixes for bash path, strncpy in GCC 8 and missing docbook-style-xsl
+- CTDB: fix "ctdb_recovery_lock" validation
+- CTDB: fix version string comparison for versions containing text (e.g. beta or rc)
+- CTDB: fix incorrect DB corruption reports (ensure health check is run)
+- Filesystem: support symlink as mountpoint directory
+- IPaddr2: return OCF_ERR_GENERIC when failing due to IPv4 address collision
+- LVM-activate: fix for dashes in volume group and logical volume names
+- LVM-activate: read parameters for stop-action
+- LVM-activate: return OCF_ERR_CONFIGURED for incorrect vg_access_mode
+- LVM: added missing dash for activation parameters
+- README: added links and IRC info
+- SAPDatabase: add info to meta-data
+- SAPInstance: add monitored services for ENSA2 (bsc#1092384)
+- SAPInstance: implement reload action to avoid resource restarts after a non-unique parameter has been changed
+- SAPInstance: improve SAP instance profile detection
+- SAPInstance: improve stop-action logging
+- Squid: use ss if netstat is not available
+- VirtualDomain: add stateless support
+- VirtualDomain: correctly create logfile and set permissions
+- Xen: add utilization support for cpu and hv_memory
+- aliyun-vpc-move-ip: new RA
+- apache: retry PID check.
+- aws-vpc-move-ip: check routing table during monitor probe action
+- aws-vpc-move-ip: fix backward-compatibility
+- aws-vpc-move-ip: use ip utility to check address
+- awseip: fix allocation_id not found error
+- awseip: update required IAM role permissions
+- awsvip: get network-id from metadata
+- awsvip: improve secondary-private-ip query
+- configure: add Python path detection
+- exportfs: fix square bracket stripping in clientspec
+- findif: improve IPv6 NIC detection
+- findif: only match lines containing netmasks
+- galera: do not call ocf_attribute_target() for meta-data action
+- garbd: support netstat and ss
+- gcp-pd-move: new RA
+- gcp-vpc-move-ip: new RA
+- gcp-vpc-move-route: new RA (improved Python version of gcp-vpc-move-ip)
+- gcp-vpc-move-vip: new RA
+- iSCSITarget: support CHAP authentication for lio-t
+- ipsec: add tunnel fallback option
+- ldirectord: add manpage to systemd unit file
+- lvmlockd: add cmirrord support
+- mysql: remove obsolete DEBUG_LOG functionality (bsc#1021689)
+- nfsserver: mount based on rpcpipefs_dir parameter
+- nfsserver: run prepare_directory after bind_tree and stop var-lib-nfs-rpc_pipefs.mount
+- ocf-binaries: use SSH-path detected by configure
+- ocf.py: new Python library and dev guide
+- openstack-cinder-volume/openstack-floating-ip/openstack-info: new RA's
+- oracle: improve dbopen error
+- pgsql: create replication slots after promoting master
+- pgsql: dont change ownership of /dev/null
+- pgsql: support PostgreSQL 11 or later
+- podman: new RA
+- portblock: support ss and netstat (partial)
+- ra-dev-guide: update instructions for GitHub
+- rabbitmq-cluster: get cluster status from mnesia during monitor
+- rabbitmq-cluster: retry start when cluster join fails
+- redis: do not use absolute path in pidof calls
+- send_arp: dont use "-Wcast-align" due to false-positive fail on ARM.
+- sfex: fix errors with latest gcc
+- sg_persist: correctly pickup old keys
+- spec: improved path-based Requires
+- sybaseASE: new resource agent
+- syslog-ng: add Premium Edition 6 and 7 support
+- systemd-tmpfiles: configure path with --with-rsctmpdir
+
 * Mon Mar  5 2018 resource-agents contributors
 - stable release 4.1.1
 - VirtualDomain: properly migrate VMs on node shutdown (bsc#1074014)
