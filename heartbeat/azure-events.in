@@ -509,12 +509,9 @@ class pcsNode:
 		node = self.selfOrOtherNode(node)
 		logging.debug("putNodeStandby: begin; node = %s" % node)
 
-		pcsHelper._exec(
-				"crm",
-				["node",
-				"standby",
-				node]
-				)
+		# crm_attribute -t nodes -N <node> -n standby -v on --lifetime=forever
+		pcsHelper._exec("crm_attribute",
+				["-t", "nodes", "-N", node, "-n", "standby", "-v", "on", "--lifetime=forever"])
 
 		logging.debug("putNodeStandby: finished")
 		return
@@ -526,12 +523,9 @@ class pcsNode:
 		node = self.selfOrOtherNode(node)
 		logging.debug("putNodeOnline: begin; node = %s" % node)
 
-		pcsHelper._exec(
-				"crm",
-				["node",
-				"online",
-				node]
-				)
+		# crm_attribute -t nodes -N <node> -n standby -v off --lifetime=forever
+		pcsHelper._exec("crm_attribute",
+				["-t", "nodes", "-N", node, "-n", "standby", "-v", "off", "--lifetime=forever"])
 
 		logging.debug("putNodeOnline: finished")
 		return
