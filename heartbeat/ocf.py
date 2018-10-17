@@ -368,7 +368,7 @@ def run(agent, handlers=None):
 		else:
 			params = inspect.getargspec(func).args
 		def value_for_parameter(param):
-			val = get_parameter(val)
+			val = get_parameter(param)
 			if val is not None:
 				return val
 			for p in agent.parameters:
