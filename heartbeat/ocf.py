@@ -387,6 +387,14 @@ def run(agent, handlers=None):
 				logger.error(str(err))
 			return OCF_ERR_GENERIC
 
+	meta_data_action = False
+	for action in agent.actions:
+		if action.name == "meta-data":
+			meta_data_action = True
+			break
+	if not meta_data_action:
+		agent.add_action("meta-data", timeout=10)
+
 	if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
 		sys.stdout.write("usage: %s {%s}\n\n" % (sys.argv[0], "|".join(sorted(handlers.keys()))) +
 		                 "Expects to have a fully populated OCF RA compliant environment set.\n")
