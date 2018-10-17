@@ -55,7 +55,8 @@ metadata-IPv6addr.xml: ../../heartbeat/IPv6addr
 # 12126 on savannah.gnu.org. But, maybe it gets fixed soon, it was
 # first reported in 1995 and added to Savannah in in 2005...
 if BUILD_DOC
-man_MANS	       = ocf_heartbeat_AoEtarget.7 \
+man_MANS	       = ocf_heartbeat_azure-events.7 \
+                          ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_AudibleAlarm.7 \
                           ocf_heartbeat_ClusterMon.7 \
                           ocf_heartbeat_CTDB.7 \
