@@ -39,7 +39,7 @@ import os
 import sys
 import time
 
-OCF_FUNCTIONS_DIR="%s/lib/heartbeat" % os.environ.get("OCF_ROOT")
+OCF_FUNCTIONS_DIR = os.environ.get("OCF_FUNCTIONS_DIR", "%s/lib/heartbeat" % os.environ.get("OCF_ROOT"))
 sys.path.append(OCF_FUNCTIONS_DIR)
 
 from ocf import *

@@ -63,7 +63,7 @@ logger.error("Something went terribly wrong.")
 import os
 import sys
 
-OCF_FUNCTIONS_DIR="%s/lib/heartbeat" % os.environ.get("OCF_ROOT")
+OCF_FUNCTIONS_DIR = os.environ.get("OCF_FUNCTIONS_DIR", "%s/lib/heartbeat" % os.environ.get("OCF_ROOT"))
 sys.path.append(OCF_FUNCTIONS_DIR)
 import ocf
 
