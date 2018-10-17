@@ -368,7 +368,7 @@ def run(agent, handlers=None):
 		else:
 			params = inspect.getargspec(func).args
 		def value_for_parameter(param):
-			val = get_parameter(val)
+			val = get_parameter(param)
 			if val is not None:
 				return val
 			for p in agent.parameters:
@@ -386,6 +386,14 @@ def run(agent, handlers=None):
 			else:
 				logger.error(str(err))
 			return OCF_ERR_GENERIC
+
+	meta_data_action = False
+	for action in agent.actions:
+		if action.name == "meta-data":
+			meta_data_action = True
+			break
+	if not meta_data_action:
+		agent.add_action("meta-data", timeout=10)
 
 	if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
 		sys.stdout.write("usage: %s {%s}\n\n" % (sys.argv[0], "|".join(sorted(handlers.keys()))) +
