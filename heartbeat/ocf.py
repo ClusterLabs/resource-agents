@@ -250,7 +250,7 @@ class Action(object):
 	def to_xml(self):
 		def opt(s, name, var):
 			if var is not None:
-				if type(var) == int:
+				if type(var) == int and name in ("timeout", "interval"):
 					var = "{}s".format(var)
 				return s + ' {}="{}"'.format(name, var)
 			return s
