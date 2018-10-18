@@ -24,7 +24,9 @@ import ocf
 
 ##############################################################################
 
+
 VERSION = "0.10"
+USER_AGENT = "Pacemaker-ResourceAgent/%s %s" % (VERSION, ocf.distro())
 
 attr_globalPullState = "azure-events_globalPullState"
 attr_lastDocVersion  = "azure-events_lastDocVersion"
@@ -79,6 +81,7 @@ class azHelper:
 
 		req = urllib2.Request(url, postData)
 		req.add_header("Metadata", "true")
+		req.add_header("User-Agent", USER_AGENT)
 		resp = urllib2.urlopen(req)
 		data = resp.read()
 		ocf.logger.debug("_sendMetadataRequest: response = %s" % data)
