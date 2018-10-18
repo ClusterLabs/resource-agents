@@ -680,6 +680,7 @@ pgsql_start() {
 
 #pgsql_promote: Promote PostgreSQL
 pgsql_promote() {
+    local output
     local target
     local rc
 
@@ -687,6 +688,18 @@ pgsql_promote() {
         ocf_exit_reason "Not in a replication mode."
         return $OCF_ERR_CONFIGURED
     fi
+
+    output=`exec_sql "${CHECK_MS_SQL}"`
+    if [ $? -ne 0 ]; then
+        report_psql_error $rc $loglevel "Can't get PostgreSQL recovery status on promote."
+        return $OCF_ERR_GENERIC
+    fi
+
+    if [ "$output" = "f" ]; then
+        ocf_log info "PostgreSQL is alredy Master. Don't execute promote."
+        return $OCF_SUCCESS
+    fi
+
     rm -f ${XLOG_NOTE_FILE}.*
 
     for target in $NODE_LIST; do
