@@ -77,7 +77,7 @@ on the instance OS.
 Requirements :
 - IP forwarding must be enabled on all instances in order to be able to 
 terminate the route
-- The floating IP address must be choosen so that it is outside all existing
+- The floating IP address must be chosen so that it is outside all existing
 subnets in the VPC network
 - IAM permissions
 (see https://cloud.google.com/compute/docs/access/iam-permissions) : 
