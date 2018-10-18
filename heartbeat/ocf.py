@@ -206,6 +206,35 @@ def get_parameter(name, default=None):
 	return env.get("OCF_RESKEY_{}".format(name), default)
 
 
+def distro():
+	"""
+	Return name of distribution/platform.
+
+	If possible, returns "name/version", else
+	just "name".
+	"""
+	import subprocess
+	import platform
+	try:
+		ret = subprocess.check_output(["lsb_release", "-si"])
+		if type(ret) != str:
+			ret = ret.decode()
+		distro = ret.strip()
+		ret = subprocess.check_output(["lsb_release", "-sr"])
+		if type(ret) != str:
+			ret = ret.decode()
+		version = ret.strip()
+		return "{}/{}".format(distro, version)
+	except Exception:
+		if os.path.exists("/etc/debian_version"):
+			return "Debian"
+		if os.path.exists("/etc/SuSE-release"):
+			return "SUSE"
+		if os.path.exists("/etc/redhat-release"):
+			return "Redhat"
+	return platform.system()
+
+
 class Parameter(object):
 	def __init__(self, name, shortdesc, longdesc, content_type, unique, required, default):
 		self.name = name
