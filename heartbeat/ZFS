@@ -31,7 +31,7 @@ USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 #######################################################################
 
 meta_data() {
-        cat <<END
+	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="ZFS">
@@ -75,125 +75,125 @@ zpool import is given the -f option.
 </actions>
 </resource-agent>
 END
-        exit $OCF_SUCCESS
+	exit $OCF_SUCCESS
 }
 
 zpool_is_imported () {
-    zpool list -H "$OCF_RESKEY_pool" > /dev/null
+	zpool list -H "$OCF_RESKEY_pool" > /dev/null
 }
 
 # Forcibly imports a ZFS pool, mounting all of its auto-mounted filesystems
 # (as configured in the 'mountpoint' and 'canmount' properties)
 # If the pool is already imported, no operation is taken.
 zpool_import () {
-    if ! zpool_is_imported; then
-        ocf_log debug "${OCF_RESKEY_pool}:starting import"
+	if ! zpool_is_imported; then
+		ocf_log debug "${OCF_RESKEY_pool}:starting import"
 
-        # The meanings of the options to import are as follows:
-        #   -f : import even if the pool is marked as imported to another
-        #        system - the system may have failed and not exported it
-        #        cleanly.
-        #   -o cachefile=none : the import should be temporary, so do not
-        #        cache it persistently (across machine reboots). We want
-        #        the CRM to explicitly control imports of this pool.
+		# The meanings of the options to import are as follows:
+		#   -f : import even if the pool is marked as imported to another
+		#        system - the system may have failed and not exported it
+		#        cleanly.
+		#   -o cachefile=none : the import should be temporary, so do not
+		#        cache it persistently (across machine reboots). We want
+		#        the CRM to explicitly control imports of this pool.
 	if ocf_is_true "${OCF_RESKEY_importforce}"; then
-	    FORCE=-f
+		FORCE=-f
 	else
-	    FORCE=""
+		FORCE=""
 	fi
-        if zpool import $FORCE $OCF_RESKEY_importargs -o cachefile=none "$OCF_RESKEY_pool" ; then
-            ocf_log debug "${OCF_RESKEY_pool}:import successful"
-            return $OCF_SUCCESS
-        else
-            ocf_log debug "${OCF_RESKEY_pool}:import failed"
-            return $OCF_ERR_GENERIC
-        fi
-    fi
+		if zpool import $FORCE $OCF_RESKEY_importargs -o cachefile=none "$OCF_RESKEY_pool" ; then
+			ocf_log debug "${OCF_RESKEY_pool}:import successful"
+			return $OCF_SUCCESS
+		else
+			ocf_log debug "${OCF_RESKEY_pool}:import failed"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
 }
 
 # Forcibly exports a ZFS pool, unmounting all of its filesystems in the process
 # If the pool is not imported, no operation is taken.
 zpool_export () {
-    if zpool_is_imported; then
-        ocf_log debug "${OCF_RESKEY_pool}:starting export"
+	if zpool_is_imported; then
+		ocf_log debug "${OCF_RESKEY_pool}:starting export"
 
-        # -f : force the export, even if we have mounted filesystems
-        # Please note that this may fail with a "busy" error if there are
-        # other kernel subsystems accessing the pool (e.g. SCSI targets).
-        # Always make sure the pool export is last in your failover logic.
-        if zpool export -f "$OCF_RESKEY_pool" ; then
-            ocf_log debug "${OCF_RESKEY_pool}:export successful"
-            return $OCF_SUCCESS
-	else
-            ocf_log debug "${OCF_RESKEY_pool}:export failed"
-            return $OCF_ERR_GENERIC
+		# -f : force the export, even if we have mounted filesystems
+		# Please note that this may fail with a "busy" error if there are
+		# other kernel subsystems accessing the pool (e.g. SCSI targets).
+		# Always make sure the pool export is last in your failover logic.
+		if zpool export -f "$OCF_RESKEY_pool" ; then
+			ocf_log debug "${OCF_RESKEY_pool}:export successful"
+			return $OCF_SUCCESS
+        else
+			ocf_log debug "${OCF_RESKEY_pool}:export failed"
+			return $OCF_ERR_GENERIC
+        fi
 	fi
-    fi
 }
 
 # Monitors the health of a ZFS pool resource. Please note that this only
 # checks whether the pool is imported and functional, not whether it has
 # any degraded devices (use monitoring systems such as Zabbix for that).
 zpool_monitor () {
-    # If the pool is not imported, then we can't monitor its health
-    if ! zpool_is_imported; then
-        return $OCF_NOT_RUNNING
-    fi
+	# If the pool is not imported, then we can't monitor its health
+	if ! zpool_is_imported; then
+		return $OCF_NOT_RUNNING
+	fi
 
-    # Check the pool status
-    # Since version 0.7.10 status can be obtained without locks
-    # https://github.com/zfsonlinux/zfs/pull/7563
-    if [ -f /proc/spl/kstat/zfs/$OCF_RESKEY_pool/state ] ; then
-        HEALTH=$(</proc/spl/kstat/zfs/$OCF_RESKEY_pool/state)
-    else
-        HEALTH=$(zpool list -H -o health "$OCF_RESKEY_pool")
-    fi
+	# Check the pool status
+	# Since version 0.7.10 status can be obtained without locks
+	# https://github.com/zfsonlinux/zfs/pull/7563
+	if [ -f /proc/spl/kstat/zfs/$OCF_RESKEY_pool/state ] ; then
+		HEALTH=$(</proc/spl/kstat/zfs/$OCF_RESKEY_pool/state)
+	else
+		HEALTH=$(zpool list -H -o health "$OCF_RESKEY_pool")
+	fi
 
-    case "$HEALTH" in
-        ONLINE|DEGRADED) return $OCF_SUCCESS;;
-        FAULTED)         return $OCF_NOT_RUNNING;;
-        *)               return $OCF_ERR_GENERIC;;
-    esac
+	case "$HEALTH" in
+		ONLINE|DEGRADED) return $OCF_SUCCESS;;
+		FAULTED)         return $OCF_NOT_RUNNING;;
+		*)               return $OCF_ERR_GENERIC;;
+	esac
 }
 
 # Validates whether we can import a given ZFS pool
 zpool_validate () {
-    # Check that the 'zpool' command is known
-    if ! which zpool > /dev/null; then
-        return $OCF_ERR_INSTALLED
-    fi
+	# Check that the 'zpool' command is known
+	if ! which zpool > /dev/null; then
+		return $OCF_ERR_INSTALLED
+	fi
 
-    # If the pool is imported, then it is obviously valid
-    if zpool_is_imported; then
-        return $OCF_SUCCESS
-    fi
+	# If the pool is imported, then it is obviously valid
+	if zpool_is_imported; then
+		return $OCF_SUCCESS
+	fi
 
-    # Check that the pool can be imported
-    if zpool import $OCF_RESKEY_importargs | grep 'pool:' | grep "\\<$OCF_RESKEY_pool\\>" > /dev/null;
-    then
-        return $OCF_SUCCESS
-    else
-        return $OCF_ERR_CONFIGURED
-    fi
+	# Check that the pool can be imported
+	if zpool import $OCF_RESKEY_importargs | grep 'pool:' | grep "\\<$OCF_RESKEY_pool\\>" > /dev/null;
+	then
+		return $OCF_SUCCESS
+	else
+		return $OCF_ERR_CONFIGURED
+	fi
 }
 
 usage () {
-    echo "$USAGE" >&2
-    return $1
+	echo "$USAGE" >&2
+	return $1
 }
 
 if [ $# -ne 1 ]; then
-    usage $OCF_ERR_ARGS
+	usage $OCF_ERR_ARGS
 fi
 
 case $1 in
-    meta-data)		meta_data;;
-    start)		zpool_import;;
-    stop)		zpool_export;;
-    status|monitor)	zpool_monitor;;
-    validate-all)	zpool_validate;;
-    usage)		usage $OCF_SUCCESS;;
-    *)			usage $OCF_ERR_UNIMPLEMENTED;;
+	meta-data)      meta_data;;
+	start)          zpool_import;;
+	stop)           zpool_export;;
+	status|monitor) zpool_monitor;;
+	validate-all)   zpool_validate;;
+	usage)          usage $OCF_SUCCESS;;
+	*)              usage $OCF_ERR_UNIMPLEMENTED;;
 esac
 
 exit $?
