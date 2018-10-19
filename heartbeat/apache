@@ -131,7 +131,7 @@ ProcessRunning() {
 }
 silent_status() {
 	local pid
-	local rc=false
+	local rc=$OCF_ERR_GENERIC
 	local retries=0
 
 	# Set a retry when apache's Graceful restart is applied and the pid file can not be acquired.
@@ -146,7 +146,7 @@ silent_status() {
 			rc=$?
 			break
 		fi
-		
+
 		: No pid file
 		if [ $retries -le 0 ]; then
 			break
