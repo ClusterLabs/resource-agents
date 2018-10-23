@@ -14,6 +14,22 @@
 %global numcomm @numcomm@
 %global dirty @dirty@
 
+# Whether this platform defaults to using systemd as an init system
+# (needs to be evaluated prior to BuildRequires being enumerated and
+# installed as it's intended to conditionally select some of these, and
+# for that there are only few indicators with varying reliability:
+# - presence of systemd-defined macros (when building in a full-fledged
+#   environment, which is not the case with ordinary mock-based builds)
+# - systemd-aware rpm as manifested with the presence of particular
+#   macro (rpm itself will trivially always be present when building)
+# - existence of /usr/lib/os-release file, which is something heavily
+#   propagated by systemd project
+# - when not good enough, there's always a possibility to check
+#   particular distro-specific macros (incl. version comparison)
+%define systemd_native (%{?_unitdir:1}%{!?_unitdir:0}%{nil \
+  } || %{?__transaction_systemd_inhibit:1}%{!?__transaction_systemd_inhibit:0}%{nil \
+  } || %(test -f /usr/lib/os-release; test $? -ne 0; echo $?))
+
 #
 # Since this spec file supports multiple distributions, ensure we
 # use the correct group for each.
@@ -162,10 +178,10 @@ Requires:	perl-Net-IMAP-Simple-SSL
 Requires(post):	/sbin/chkconfig
 Requires(preun):/sbin/chkconfig
 %endif
-%if %{defined systemd_requires}
+%if %{systemd_native}
 BuildRequires:  systemd
-%{?systemd_requires}
 %endif
+%{?systemd_requires}
 
 %description -n ldirectord
 The Linux Director Daemon (ldirectord) was written by Jacob Rief.
