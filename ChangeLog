@@ -1,3 +1,12 @@
+* Wed Oct 24 2018 resource-agents contributors
+- stable release 4.2.0
+- apache: fix return value for silent_status
+- rabbitmq-cluster: fail monitor when node is in minority partition
+- ocf.py: only add s-suffix to timeout and interval
+- ZFS: check status without locks when possible
+- pgsql: fix to avoid failing on masters re-promote
+- azure-events: new RA
+
 * Wed Oct 17 2018 resource-agents contributors
 - release candidate 4.2.0 rc1
 - CI: fixes for bash path, strncpy in GCC 8 and missing docbook-style-xsl
