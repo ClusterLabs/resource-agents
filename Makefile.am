@@ -174,5 +174,13 @@ rpm: clean
 	$(MAKE) $(SPEC) $(TARFILES)
 	rpmbuild $(RPMBUILDOPTS) -ba $(SPEC)
 
+spellcheck: make/spellcheck-ignore
+if BUILD_LINUX_HA
+	$(MAKE) -C heartbeat $@
+endif
+if BUILD_RGMANAGER
+	: not implemented for RGManager-compat agents
+endif
+
 clean-generic:
 	rm -rf $(SPEC) $(TARFILES)

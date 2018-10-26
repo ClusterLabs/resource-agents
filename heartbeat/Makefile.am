@@ -200,3 +200,13 @@ check: $(ocf_SCRIPTS:=.check)
 
 %.check: %
 	OCF_ROOT=$(abs_srcdir) OCF_FUNCTIONS_DIR=$(abs_srcdir) ./$< meta-data | xmllint --path $(abs_srcdir) --noout --relaxng $(abs_srcdir)/metadata.rng -
+
+do_spellcheck = printf '[%s]\n' "$(agent)"; \
+                OCF_ROOT=$(abs_srcdir) OCF_FUNCTIONS_DIR=$(abs_srcdir) \
+                ./$(agent) meta-data 2>/dev/null \
+                | xsltproc $(top_srcdir)/make/extract_text.xsl - \
+                | aspell pipe list -d en_US --ignore-case \
+                  --home-dir=$(top_srcdir)/make -p spellcheck-ignore \
+                | sed -n 's|^&\([^:]*\):.*|\1|p';
+spellcheck:
+	@$(foreach agent,$(ocf_SCRIPTS), $(do_spellcheck))
