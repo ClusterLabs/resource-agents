@@ -289,7 +289,7 @@ for replication (in postgresql.conf and pg_hba.conf).
 
 "slave" means that RA only makes recovery.conf before starting
 to connect to primary which is running somewhere.
-It dosen't need master/slave setting.
+It doesn't need master/slave setting.
 It requires master_ip restore_command parameters.
 </longdesc>
 <shortdesc lang="en">rep_mode</shortdesc>
@@ -383,7 +383,7 @@ their slots, the slots names are "sample_node1" and "sample_node2".
 If the node name contains a upper case letter, hyphen and dot, those characters will be converted to a lower case letter or an underscore.
 For example, Node-1.example.com to node_1_example_com.
 
-pgsql RA doesn't monitor and delete the repliation slot.
+pgsql RA doesn't monitor and delete the replication slot.
 When the slave node has been disconnected in failure or the like, execute one of the following manually.
 Otherwise it may eventually cause a disk full because the master node will continue to accumulate the unsent WAL.
 1. recover and reconnect the slave node to the master node as soon as possible.

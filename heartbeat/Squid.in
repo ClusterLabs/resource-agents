@@ -140,13 +140,13 @@ It is similar about 'v'.
 
 <parameter name="debug_log" unique="0">
 <longdesc lang="en">
-This is an optional and omittable parameter.
+This is an optional parameter.
 This parameter specifies a destination file for debug logs
 and works only if this RA run in debug mode.  Refer to "debug_mode"
-about debug mode. If no value is given but it's requied, it's made by the
-following rules: "/var/log/" as a directory part, the basename of
-the configuration file given by "syslog_ng_conf" as a basename part,
-".log" as a suffix.
+about debug mode. If no value is given but is required, it's constructed
+according to the following rules: "/var/log/" as a directory part,
+the basename of the configuration file given by "syslog_ng_conf"
+as a basename part, ".log" as a suffix.
 </longdesc>
 <shortdesc lang="en">A destination of the debug log</shortdesc>
 <content type="string" default=""/>

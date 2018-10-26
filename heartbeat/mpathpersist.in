@@ -82,7 +82,7 @@ This resource agent manages SCSI persistent reservations on multipath devices.
 "mpathpersist" from multipath-tools is used, please see its documentation.
 Should be used as multistate (Master/Slave) resource
 Slave registers its node id ("crm_node -i") as reservation key ( --param-sark ) on each device in the params "devs" list.
-Master reservs all devices from params "devs" list with reservation "--prout-type" value from "reservation_type" parameter.
+Master reserves all devices from params "devs" list with reservation "--prout-type" value from "reservation_type" parameter.
 Please see man sg_persist(8) and mpathpersist(8) for reservation_type details.
 </longdesc>
 <shortdesc lang="en">Manages SCSI persistent reservations on multipath devices</shortdesc>
@@ -99,7 +99,7 @@ The name of the binary that manages the resource.
 <parameter name="devs" unique="0" required="1">
 <longdesc lang="en">
 Device list. Multiple devices can be listed with blank space as separator. 
-Shell wildcars are allowed.
+Shell wildcards are allowed.
 </longdesc>
 <shortdesc lang="en">device list</shortdesc>
 <content type="string"/>

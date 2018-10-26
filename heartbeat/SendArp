@@ -79,7 +79,7 @@ sendarp_meta_data() {
 This RA can be used _instead_ of the IPaddr2 or IPaddr RA to
 send gratuitous ARP for an IP address on a given interface, 
 without adding the address to that interface.  For example,
-if for some resaon you wanted to send gratuitous ARP for
+if for some reason you wanted to send gratuitous ARP for
 addresses managed by IPaddr2 or IPaddr on an additional
 interface.
 </longdesc>

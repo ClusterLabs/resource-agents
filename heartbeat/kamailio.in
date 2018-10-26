@@ -163,7 +163,7 @@ Parameters for a third Kamailio instance:
 
    In order to respond with a 200 OK response to the SIP OOPTION requests, 
    the kamailio.cfg file needs to contain following section:
-   Note: The following "kamailio.cfg" code sniplet is part of an XML section. 
+   Note: The following "kamailio.cfg" code snippet is part of an XML section.
          Therefore it contains two &amp; characters, which need to be replaced 
          with two ampersand characters within "kamailio.cfg":
 

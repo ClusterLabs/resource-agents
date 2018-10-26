@@ -149,7 +149,7 @@ name happens to be an FQDN (as opposed to an unqualified host name),
 insert the suffix immediately prior to the first period (.) in the FQDN.
 At the moment Qemu/KVM and Xen migration via a dedicated network is supported.
 
-Note: Be sure this composed host name is locally resolveable and the
+Note: Be sure this composed host name is locally resolvable and the
 associated IP is reachable through the favored network. This suffix will
 be added to the remoteuri and migrateuri parameters.
 
