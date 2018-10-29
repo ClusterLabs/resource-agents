@@ -61,7 +61,7 @@ cat <<END
 If the container is running "init" it will also perform an orderly shutdown.
 It is 'assumed' that the 'init' system will do an orderly shudown if presented with a 'kill -PWR' signal.
 On a 'sysvinit' this would require the container to have an inittab file containing "p0::powerfail:/sbin/init 0"
-I have absolutly no idea how this is done with 'upstart' or 'systemd', YMMV if your container is using one of them.</longdesc>
+I have absolutely no idea how this is done with 'upstart' or 'systemd', YMMV if your container is using one of them.</longdesc>
 <shortdesc lang="en">Manages LXC containers</shortdesc>
 
 <parameters>

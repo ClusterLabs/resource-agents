@@ -147,12 +147,12 @@ shutdown
 
 <parameter name="reuse" required="0" unique="0">
 <longdesc lang="en">
-Allow the container to be reused after stopping the container. By default
-containers are removed after stop. With the reuse option containers
-will persist after the container stops.
+Allow the container to be reused once it is stopped.  By default,
+containers get removed once they are stopped.  Enable this option
+to have the particular one persist when this happens.
 </longdesc>
 <shortdesc lang="en">reuse container</shortdesc>
-<content type="boolean"/>
+<content type="boolean" default="0"/>
 </parameter>
 
 <parameter name="query_docker_health" required="0" unique="0">

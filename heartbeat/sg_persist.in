@@ -74,7 +74,7 @@ This resource agent manages SCSI PERSISTENT RESERVATIONS.
 "sg_persist" from sg3_utils is used, please see its documentation.
 Should be used as multistate (Master/Slave) resource
 Slave registers its node id ("crm_node -i") as reservation key ( --param-rk ) on each device in the "devs" list.
-Master reservs all devices from "devs" list with reservation "--prout-type" value from "reservation_type" parameter.
+Master reserves all devices from "devs" list with reservation "--prout-type" value from "reservation_type" parameter.
 </longdesc>
 <shortdesc lang="en">Manages SCSI PERSISTENT RESERVATIONS</shortdesc>
 
@@ -90,7 +90,7 @@ The name of the binary that manages the resource.
 <parameter name="devs" unique="0" required="1">
 <longdesc lang="en">
 Device list. Multiple devices can be listed with blank space as separator. 
-Shell wildcars are allowed.
+Shell wildcards are allowed.
 </longdesc>
 <shortdesc lang="en">device list</shortdesc>
 <content type="string"/>
