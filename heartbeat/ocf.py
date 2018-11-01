@@ -267,11 +267,12 @@ class Parameter(object):
 
 
 class Action(object):
-	def __init__(self, name, timeout, interval, depth):
+	def __init__(self, name, timeout, interval, depth, role):
 		self.name = name
 		self.timeout = timeout
 		self.interval = interval
 		self.depth = depth
+		self.role = role
 
 	def __str__(self):
 		return self.to_xml()
@@ -287,6 +288,7 @@ class Action(object):
 		ret = opt(ret, "timeout", self.timeout)
 		ret = opt(ret, "interval", self.interval)
 		ret = opt(ret, "depth", self.depth)
+		ret = opt(ret, "role", self.role)
 		ret += " />\n"
 		return ret
 
@@ -324,11 +326,12 @@ class Agent(object):
 										 default=default))
 		return self
 
-	def add_action(self, name, timeout=None, interval=None, depth=None, handler=None):
+	def add_action(self, name, timeout=None, interval=None, depth=None, role=None, handler=None):
 		self.actions.append(Action(name=name,
 								   timeout=timeout,
 								   interval=interval,
-								   depth=depth))
+								   depth=depth,
+								   role=role))
 		if handler is not None:
 			self._handlers[name] = handler
 		return self
