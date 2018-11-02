@@ -191,7 +191,8 @@ rmq_app_running() {
 rmq_monitor() {
 	local rc
 
-	if $RMQ_CTL eval 'rabbit_mnesia:cluster_status_from_mnesia().' | grep -q '^{ok'; then
+	status=$($RMQ_CTL eval 'rabbit_mnesia:cluster_status_from_mnesia().' 2>&1)
+	if echo "${status}" | grep -q '^{ok'; then
 		pcs_running=$(rmq_join_list | wc -w)
 		ocf_log debug "Pacemaker thinks ${pcs_running} RabbitMQ nodes are running"
 		rmq_running=$($RMQ_CTL eval 'length(mnesia:system_info(running_db_nodes)).')
@@ -209,6 +210,7 @@ rmq_monitor() {
 		return $OCF_SUCCESS
 	else
 		ocf_log info "RabbitMQ server could not get cluster status from mnesia"
+		ocf_log debug "${status}"
 		rmq_delete_nodename
 		return $OCF_NOT_RUNNING
 	fi
