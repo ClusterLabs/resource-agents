@@ -188,6 +188,16 @@ rmq_app_running() {
 	fi
 }
 
+rmq_node_alive() {
+	if $RMQ_CTL eval 'ok.'; then
+		ocf_log debug "RabbitMQ node is alive"
+		return $OCF_SUCCESS
+	else
+		ocf_log debug "RabbitMQ node is down"
+		return $OCF_NOT_RUNNING
+	fi
+}
+
 rmq_monitor() {
 	local rc
 
@@ -514,7 +524,7 @@ rmq_stop() {
 		end.
 	"
 
-	rmq_app_running
+	rmq_node_alive
 	if [ $? -eq $OCF_NOT_RUNNING ]; then
 		return $OCF_SUCCESS
 	fi
