@@ -39,7 +39,7 @@ get_os_ver() {
 		VER=$(cat $_DEBIAN_VERSION_FILE)
 	elif [ -f $_REDHAT_RELEASE_FILE ]; then
 		OS=RedHat  # redhat or similar
-		VER= # here some complex sed script
+		VER=$(sed "s/.* release \([^ ]\+\).*/\1/" $_REDHAT_RELEASE_FILE)
 	else
 		OS=$(uname -s)
 		VER=$(uname -r)
