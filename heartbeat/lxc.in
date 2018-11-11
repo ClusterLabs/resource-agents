@@ -47,7 +47,7 @@ OCF_RESKEY_use_lxc_stop_default="false"
 
 : ${OCF_RESKEY_log=${OCF_RESKEY_log_default}}
 : ${OCF_RESKEY_use_screen=${OCF_RESKEY_use_screen_default}}
-: ${OCF_RESKEY_use_lxc-stop=${OCF_RESKEY_use_lxc_stop_default}}
+: ${OCF_RESKEY_use_lxc_stop=${OCF_RESKEY_use_lxc_stop_default}}
 
 # Set default TRANS_RES_STATE (temporary file to "flag" if resource was stated but not stopped)
 TRANS_RES_STATE="${HA_RSCTMP}/${OCF_RESOURCE_INSTANCE}.state"
