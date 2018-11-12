@@ -196,8 +196,17 @@ LXC_stop() {
 
 	if ! ocf_version_cmp "`lxc_version`" 1.0.0 ; then
 		# Use lxc-stop if we are newer than 1.0.0
+		timeout=$(( ($OCF_RESKEY_CRM_meta_timeout/1000) -5 ))
 		ocf_log info "Stopping Container ${OCF_RESKEY_container} using lxc-stop"
-		ocf_run lxc-stop --name "${OCF_RESKEY_container}" || exit $OCF_ERR_GENERIC
+		# lxc-stop will return failure even if it reached the timeout and sucessfully hard-stopped the 
+		# Container so we check below if the Container is really stopped instead of using || exit $OCF_ERR_GENERIC
+		ocf_run lxc-stop -n "${OCF_RESKEY_container}" -t ${timeout}
+		
+		LXC_status
+		if [ $? -eq $OCF_SUCCESS ]; then
+			# Try to manually hard-stop if the Container is still running
+			ocf_run lxc-stop -n "${OCF_RESKEY_container}" -k || exit $OCF_ERR_GENERIC
+		fi
 		
 	else
 		# Use kill -PWR
