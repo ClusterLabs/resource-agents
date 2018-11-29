@@ -215,7 +215,7 @@ monitor_cmd_exec()
 		out=$(docker exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
 		rc=$?
 	else
-		out=$(echo "$OCF_RESKEY_monitor_cmd" | nsenter --target $(docker inspect --format {{.State.Pid}} ${CONTAINER}) --mount --uts --ipc --net --pid 2>&1)
+		out=$(echo "$OCF_RESKEY_monitor_cmd" | nsenter --target $(docker inspect --type=container --format {{.State.Pid}} ${CONTAINER}) --mount --uts --ipc --net --pid 2>&1)
 		rc=$?
 	fi
 
@@ -236,7 +236,25 @@ monitor_cmd_exec()
 
 container_exists()
 {
-	docker inspect --format {{.State.Running}} $CONTAINER | egrep '(true|false)' >/dev/null 2>&1
+	local err
+
+	err=$(docker inspect --type=container $CONTAINER 2>&1 >/dev/null)
+
+	if [ $? -ne $OCF_SUCCESS ]; then
+		case $err in
+			*"No such container"*)
+				# Return failure instead of exiting if container does not exist
+				return 1
+				;;
+			*)
+				# Exit if error running command
+				ocf_exit_reason "$err"
+				exit $OCF_ERR_GENERIC
+				;;
+		esac
+	fi
+
+	return $OCF_SUCCESS
 }
 
 remove_container()
@@ -265,7 +283,7 @@ docker_simple_status()
 	fi
 
 	# retrieve the 'Running' attribute for the container
-	val=$(docker inspect --format {{.State.Running}} $CONTAINER 2>/dev/null)
+	val=$(docker inspect --type=container --format {{.State.Running}} $CONTAINER 2>/dev/null)
 	if [ $? -ne 0 ]; then
 		#not running as a result of container not being found
 		return $OCF_NOT_RUNNING
@@ -295,7 +313,7 @@ docker_health_status()
                 # if starting takes longer than monitor timeout then upstream will make this fail.
                 while
 
-                        val=$(docker inspect --format {{.State.Health.Status}} $CONTAINER 2>/dev/null)
+                        val=$(docker inspect --type=container --format {{.State.Health.Status}} $CONTAINER 2>/dev/null)
                         if [ $? -ne 0 ]; then
                                 #not healthy as a result of container not being found
                                 return $OCF_NOT_RUNNING
