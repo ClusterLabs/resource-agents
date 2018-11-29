@@ -167,7 +167,7 @@ ec2ip_validate() {
 ec2ip_monitor() {
 	if ocf_is_true ${OCF_RESKEY_monapi} || [ "$__OCF_ACTION" = "start" ] || ocf_is_probe; then
 		ocf_log info "monitor: check routing table (API call)"
-		cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 describe-route-tables --route-table-ids $OCF_RESKEY_routing_table --query RouteTables[*].Routes[?DestinationCidrBlock==\`$OCF_RESKEY_address/32\`].InstanceId"
+		cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 describe-route-tables --route-table-ids $OCF_RESKEY_routing_table --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].InstanceId"
 		ocf_log debug "executing command: $cmd"
 		ROUTE_TO_INSTANCE=$($cmd)
 		ocf_log debug "Overlay IP is currently routed to ${ROUTE_TO_INSTANCE}"
