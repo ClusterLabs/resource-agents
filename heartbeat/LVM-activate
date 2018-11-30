@@ -68,6 +68,9 @@ SYSTEM_ID=""
 # For tagging activation mode
 OUR_TAG=${OCF_RESKEY_tag:-pacemaker}
 
+# Is the VG distributed across all nodes in the cluster or only on the active node?
+VG_distributed_check=${OCF_RESKEY_vg_distributed_check}
+
 #######################################################################
 
 meta_data() {
@@ -148,6 +151,21 @@ The tag used for tagging activation mode.
 </longdesc>
 <shortdesc lang="en">The tag used for tagging activation mode</shortdesc>
 <content type="string" default="pacemaker" />
+</parameter>
+
+<parameter name="distributed_check" required="0">
+<longdesc lang="en">
+If your volume group is only ever active on one node (ceph RBD devices for
+example), checking for locks will fail on non-active nodes.  This is the
+previous behaviour so it is the default at "false".
+
+If your volume group is always distributed (iSCSI + FC configurations for example)
+across the nodes in the cluster, setting this enables checks to make sure the 
+volume group exists across the board and verify the locks are only enabled where 
+they should be. If you want this behaviour, set this to "true".
+</longdesc>
+<shortdesc lang="en">Check for volume group on non-active nodes?</shortdesc>
+<content type="boolean" default="false" />
 </parameter>
 
 </parameters>
@@ -823,7 +841,9 @@ stop)
 	lvm_stop
 	;;
 monitor)
-	lvm_validate
+	if [ ${VG_distributed_check} = 1 ]; then
+		lvm_validate
+	fi
 	lvm_status
 	;;
 validate-all)
