@@ -257,7 +257,7 @@ ha_log()
 
 ha_debug() {
 
-        if [ "x${HA_debug}" = "x0" ] ; then
+        if [ "x${HA_debug}" = "x0" ] || [ -z "${HA_debug}" ] ; then
                 return 0
         fi
 	if tty >/dev/null; then
