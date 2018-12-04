@@ -103,9 +103,9 @@ Deprecated IP address param. Use the ip param instead.
 
 <parameter name="routing_table" required="1">
 <longdesc lang="en">
-Name of the routing table, where the route for the IP address should be changed, i.e. rtb-...
+Name of the routing table(s), where the route for the IP address should be changed. If declaring multiple routing tables they should be separated by comma. Example: rtb-XXXXXXXX,rtb-YYYYYYYYY
 </longdesc>
-<shortdesc lang="en">routing table name</shortdesc>
+<shortdesc lang="en">routing table name(s)</shortdesc>
 <content type="string" default="" />
 </parameter>
 
