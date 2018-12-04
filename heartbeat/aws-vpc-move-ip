@@ -181,7 +181,7 @@ ec2ip_monitor() {
 				ocf_log warn "not routed to this instance ($EC2_INSTANCE_ID) but to instance $ROUTE_TO_INSTANCE on $rtb"
 				MON_RES="$MON_RES $rtb"
 			fi
-			sleep 0.5
+			sleep 1
 		done
 
 		if [ ! -z "$MON_RES" ]; then
@@ -228,7 +228,7 @@ ec2ip_get_and_configure() {
 			ocf_log warn "command failed, rc: $rc"
 			return $OCF_ERR_GENERIC
 		fi
-		sleep 0.5
+		sleep 1
 	done
 
 	# Reconfigure the local ip address
