@@ -165,20 +165,29 @@ ec2ip_validate() {
 }
 
 ec2ip_monitor() {
+        MON_RES=""
 	if ocf_is_true ${OCF_RESKEY_monapi} || [ "$__OCF_ACTION" = "start" ] || ocf_is_probe; then
-		ocf_log info "monitor: check routing table (API call)"
-		cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 describe-route-tables --route-table-ids $OCF_RESKEY_routing_table --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].InstanceId"
-		ocf_log debug "executing command: $cmd"
-		ROUTE_TO_INSTANCE=$($cmd)
-		ocf_log debug "Overlay IP is currently routed to ${ROUTE_TO_INSTANCE}"
-		if [ -z "$ROUTE_TO_INSTANCE" ]; then
-			ROUTE_TO_INSTANCE="<unknown>"
-		fi
+		for rtb in $(echo $OCF_RESKEY_routing_table | sed -e 's/,/ /g'); do
+			ocf_log info "monitor: check routing table (API call) - $rtb"
+			cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].InstanceId"
+			ocf_log debug "executing command: $cmd"
+			ROUTE_TO_INSTANCE="$($cmd)"
+			ocf_log debug "Overlay IP is currently routed to ${ROUTE_TO_INSTANCE}"
+			if [ -z "$ROUTE_TO_INSTANCE" ]; then
+				ROUTE_TO_INSTANCE="<unknown>"
+			fi
 
-		if [ "$EC2_INSTANCE_ID" != "$ROUTE_TO_INSTANCE" ];then 
-			ocf_log warn "not routed to this instance ($EC2_INSTANCE_ID) but to instance $ROUTE_TO_INSTANCE"
+			if [ "$EC2_INSTANCE_ID" != "$ROUTE_TO_INSTANCE" ]; then 
+				ocf_log warn "not routed to this instance ($EC2_INSTANCE_ID) but to instance $ROUTE_TO_INSTANCE on $rtb"
+				MON_RES="$MON_RES $rtb"
+			fi
+			sleep 0.5
+		done
+
+		if [ ! -z "$MON_RES" ]; then
 			return $OCF_NOT_RUNNING
 		fi
+
 	else
 		ocf_log debug "monitor: Enhanced Monitoring disabled - omitting API call"
 	fi
@@ -210,19 +219,23 @@ ec2ip_drop() {
 }
 
 ec2ip_get_and_configure() {
-	# Adjusting the routing table
-	cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 replace-route --route-table-id $OCF_RESKEY_routing_table --destination-cidr-block ${OCF_RESKEY_ip}/32 --instance-id $EC2_INSTANCE_ID"
-	ocf_log debug "executing command: $cmd"
-	$cmd
-	rc=$?
-	if [ "$rc" != 0 ]; then
-		ocf_log warn "command failed, rc: $rc"
-		return $OCF_ERR_GENERIC
-	fi
+	for rtb in $(echo $OCF_RESKEY_routing_table | sed -e 's/,/ /g'); do
+		cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --instance-id $EC2_INSTANCE_ID"
+		ocf_log debug "executing command: $cmd"
+		$cmd
+		rc=$?
+		if [ "$rc" != 0 ]; then
+			ocf_log warn "command failed, rc: $rc"
+			return $OCF_ERR_GENERIC
+		fi
+		sleep 0.5
+	done
 
 	# Reconfigure the local ip address
 	ec2ip_drop
-	ip addr add "${OCF_RESKEY_ip}/32" dev $OCF_RESKEY_interface
+	cmd="ip addr add ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface"
+	ocf_log debug "executing command: $cmd"
+	$cmd
 	rc=$?
 	if [ $rc != 0 ]; then
 		ocf_log warn "command failed, rc: $rc"
