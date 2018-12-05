@@ -184,6 +184,7 @@ rmq_app_running() {
 		return $OCF_SUCCESS
 	else
 		ocf_log debug "RabbitMQ application is stopped"
+		rmq_delete_nodename
 		return $OCF_NOT_RUNNING
 	fi
 }
@@ -194,6 +195,7 @@ rmq_node_alive() {
 		return $OCF_SUCCESS
 	else
 		ocf_log debug "RabbitMQ node is down"
+		rmq_delete_nodename
 		return $OCF_NOT_RUNNING
 	fi
 }
@@ -554,6 +556,7 @@ rmq_stop() {
 		sleep 1
 	done
 
+	rmq_delete_nodename
 	remove_pid
 	return $OCF_SUCCESS
 }
