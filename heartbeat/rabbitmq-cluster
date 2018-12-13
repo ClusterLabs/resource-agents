@@ -39,6 +39,7 @@ RMQ_TRY_RESTART_ERROR_CODE=126
 
 RMQ_SERVER=/usr/sbin/rabbitmq-server
 RMQ_CTL=/usr/sbin/rabbitmqctl
+RMQ_EVAL="${RMQ_CTL} eval -q"
 RMQ_DATA_DIR="/var/lib/rabbitmq/mnesia"
 RMQ_PID_DIR="/var/run/rabbitmq"
 RMQ_PID_FILE="/var/run/rabbitmq/rmq.pid"
@@ -179,7 +180,7 @@ remove_pid () {
 }
 
 rmq_app_running() {
-	if $RMQ_CTL eval 'application:which_applications().' | grep -q '{rabbit,'; then
+	if $RMQ_EVAL 'application:which_applications().' | grep -q '{rabbit,'; then
 		ocf_log debug "RabbitMQ application is running"
 		return $OCF_SUCCESS
 	else
@@ -190,7 +191,7 @@ rmq_app_running() {
 }
 
 rmq_node_alive() {
-	if $RMQ_CTL eval 'ok.'; then
+	if $RMQ_EVAL 'ok.'; then
 		ocf_log debug "RabbitMQ node is alive"
 		return $OCF_SUCCESS
 	else
@@ -203,11 +204,11 @@ rmq_node_alive() {
 rmq_monitor() {
 	local rc
 
-	status=$($RMQ_CTL eval 'rabbit_mnesia:cluster_status_from_mnesia().' 2>&1)
+	status=$($RMQ_EVAL 'rabbit_mnesia:cluster_status_from_mnesia().' 2>&1)
 	if echo "${status}" | grep -q '^{ok'; then
 		pcs_running=$(rmq_join_list | wc -w)
 		ocf_log debug "Pacemaker thinks ${pcs_running} RabbitMQ nodes are running"
-		rmq_running=$($RMQ_CTL eval 'length(mnesia:system_info(running_db_nodes)).')
+		rmq_running=$($RMQ_EVAL 'length(mnesia:system_info(running_db_nodes)).')
 		ocf_log debug "RabbitMQ thinks ${rmq_running} RabbitMQ nodes are running"
 
 		if [ $(( $rmq_running * 2 )) -lt $pcs_running ]; then
@@ -294,7 +295,7 @@ rmq_start_first()
 
 rmq_is_clustered()
 {
-    $RMQ_CTL eval 'rabbit_mnesia:is_clustered().' | grep -q true
+    $RMQ_EVAL 'rabbit_mnesia:is_clustered().' | grep -q true
 }
 
 rmq_join_existing()
@@ -432,7 +433,7 @@ rmq_try_start() {
 
 	# Restore users, user permissions, and policies (if any)
 	BaseDataDir=`dirname $RMQ_DATA_DIR`
-	$RMQ_CTL eval "
+	$RMQ_EVAL "
 		%% Run only if Mnesia is ready.
 		lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
 		begin
@@ -497,7 +498,7 @@ rmq_start() {
 rmq_stop() {
 	# Backup users, user permissions, and policies
 	BaseDataDir=`dirname $RMQ_DATA_DIR`
-	$RMQ_CTL eval "
+	$RMQ_EVAL "
 		%% Run only if Mnesia is still available.
 		lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
 		begin
