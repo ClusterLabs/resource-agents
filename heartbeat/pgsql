@@ -974,11 +974,19 @@ pgsql_real_monitor() {
         case "$output" in
             f)  ocf_log debug "PostgreSQL is running as a primary."
                 if [ "$OCF_RESKEY_monitor_sql" = "$OCF_RESKEY_monitor_sql_default" ]; then
+                    if ocf_is_probe; then
+                        # Set initial score for primary.
+                        exec_with_retry 0 $CRM_MASTER -v $PROMOTE_ME
+                    fi
                     return $OCF_RUNNING_MASTER
                 fi
                 ;;
 
             t)  ocf_log debug "PostgreSQL is running as a hot standby."
+                if ocf_is_probe; then
+                    # Set initial score for hot standby.
+                    exec_with_retry 0 $CRM_MASTER -v $CAN_NOT_PROMOTE
+                fi
                 return $OCF_SUCCESS;;
 
             *)  ocf_exit_reason "$CHECK_MS_SQL output is $output"
