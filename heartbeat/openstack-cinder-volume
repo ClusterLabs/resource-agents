@@ -27,6 +27,7 @@
 # Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
 #
 
+set -x
 
 #######################################################################
 # Initialization:
@@ -36,10 +37,12 @@
 
 # Defaults
 OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
+OCF_RESKEY_node_id_cache_file_default="/tmp/node_id"
 
 export attached_server_id=""
 
 : ${OCF_RESKEY_openstackcli=${OCF_RESKEY_openstackcli_default}}
+: ${OCF_RESKEY_node_id_cache_file=${OCF_RESKEY_node_id_cache_file_default}}
 
 #######################################################################
 
@@ -76,6 +79,15 @@ Path to command line tools for openstack.
 <content type="string" default="${OCF_RESKEY_openstackcli_default}" />
 </parameter>
 
+<parameters>
+<parameter name="node_id_cache_file">
+<longdesc lang="en">
+Path to Node ID cache file, used to avoid Openstack API calls.
+</longdesc>
+<shortdesc lang="en">Path to Node ID cache file</shortdesc>
+<content type="string" default="${OCF_RESKEY_node_id_cache_file_default}" />
+</parameter>
+
 <parameter name="openrc" required="1">
 <longdesc lang="en">
 Valid Openstack credentials as openrc file from api_access/openrc.
@@ -105,6 +117,52 @@ Cinder volume identifier to use to attach the bloc storage.
 END
 }
 
+_get_node_id() {
+	local crm_node
+	local node
+	local node_id
+	local result
+
+	crm_node=$(crm_node -n)
+
+	# Use local cache
+	if [ -f $OCF_RESKEY_node_id_cache_file ] ; then
+		node_id=$(cat $OCF_RESKEY_node_id_cache_file)
+		
+		if [ ! -z "$node_id" ] ; then
+			echo $node_id
+			return
+		fi
+	fi
+
+	# Query the attributes database
+	node_id=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_id -N $crm_node \
+		| tr ' ' '\n' \
+		| awk -F= '/value=/ {gsub("\"","");print $NF}')
+
+	if [ ! -z "$node_id" ] ; then
+		echo $node_id | awk '{print $1}'
+		echo $node_id | awk '{print $1}' > $OCF_RESKEY_node_id_cache_file
+		return
+	fi
+
+	# Use the API
+	node=$(crm_node -n | awk -F. '{print $1}')
+
+	result=$($OCF_RESKEY_openstackcli server list \
+		--format value --column ID --column Name \
+		| grep $node)
+
+	if [ $? -eq 0 ] ; then
+		echo $result | awk '{print $1}'
+		echo $result | awk '{print $1}' > $OCF_RESKEY_node_id_cache_file
+		return
+	fi
+
+	ocf_exit_reason "openstack_id attribute must be set for node $crm_node"
+	return $OCF_ERR_CONFIGURED
+}
+
 osvol_validate() {
 	local node_id
 	local crm_node
@@ -115,10 +173,10 @@ osvol_validate() {
 	
 	crm_node=$(crm_node -n)
 
-	node_id=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_id -N $crm_node \
-		| tr ' ' '\n' \
-		| awk -F= '/value=/ {gsub("\"","");print $NF}')
-	
+	. $OCF_RESKEY_openrc
+
+	node_id=$(_get_node_id)
+
 	if [ -z "$node_id" ] ; then
 		ocf_exit_reason "openstack_id attribute must be set for node $crm_node"
 		return $OCF_ERR_CONFIGURED
@@ -133,8 +191,6 @@ osvol_validate() {
 		ocf_exit_reason "openrc file not found"
 		return $OCF_ERR_CONFIGURED
 	fi
-
-	. $OCF_RESKEY_openrc
 
 	if ! $OCF_RESKEY_openstackcli volume list|grep -q $OCF_RESKEY_volume_id ; then
 		ocf_exit_reason "Volume $OCF_RESKEY_volume_id not found"
@@ -165,9 +221,7 @@ osvol_monitor() {
 		export attached_server_id=$(echo $result|head -n1|awk -F "'" '{print $4}')
 		ocf_log info "$OCF_RESKEY_volume_id is attached to instance $attached_server_id"
 
-		node_id=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_id -N $crm_node \
-			| tr ' ' '\n' \
-			| awk -F= '/value=/ {gsub("\"","");print $NF}')
+		node_id=$(_get_node_id)
 
 		if [ "$node_id" != "$attached_server_id" ] ; then
 			return $OCF_NOT_RUNNING
@@ -179,7 +233,6 @@ osvol_monitor() {
 
 osvol_stop() {
 	local node_id
-	local crm_node
 
 	osvol_monitor
 	if [ $? = $OCF_NOT_RUNNING ]; then
@@ -187,11 +240,7 @@ osvol_stop() {
 		return $OCF_SUCCESS
 	fi
 
-	crm_node=$(crm_node -n)
-
-	node_id=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_id -N $crm_node \
-		| tr ' ' '\n' \
-		| awk -F= '/value=/ {gsub("\"","");print $NF}')
+	node_id=$(_get_node_id)
 
 	if ! $OCF_RESKEY_openstackcli server remove volume $node_id $OCF_RESKEY_volume_id ; then
 		ocf_log error "Couldn't remove volume $OCF_RESKEY_volume_id from instance $node_id"
@@ -204,7 +253,6 @@ osvol_stop() {
 
 osvol_start() {
 	local node_id
-	local crm_node
 
 	osvol_monitor
 	if [ $? = $OCF_SUCCESS ]; then
@@ -220,11 +268,8 @@ osvol_start() {
 	fi
 
 	export $attached_server_id=""
-	crm_node=$(crm_node -n)
 	
-	node_id=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_id -N $crm_node \
-		| tr ' ' '\n' \
-		| awk -F= '/value=/ {gsub("\"","");print $NF}')
+	node_id=$(_get_node_id)
 
 	$OCF_RESKEY_openstackcli server add volume $node_id $OCF_RESKEY_volume_id
 	if [ $? != $OCF_SUCCESS ]; then
