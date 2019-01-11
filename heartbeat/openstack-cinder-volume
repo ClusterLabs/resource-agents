@@ -27,8 +27,6 @@
 # Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
 #
 
-set -x
-
 #######################################################################
 # Initialization:
 
@@ -119,6 +117,15 @@ Cinder volume identifier to use to attach the bloc storage.
 END
 }
 
+#
+# This is used to get the node ID from different sources:
+# 1. Is the local file written?
+# 2. Is openstack_id available as a node attribute?
+# 3. Can we get it from the API?
+#
+# When the ID is retrieved, the local cache file is written.
+# This prevents the agent to call the API each time the agent is used.
+#
 _get_node_id() {
 	local crm_node
 	local node
@@ -127,7 +134,9 @@ _get_node_id() {
 
 	crm_node=$(crm_node -n)
 
+	#
 	# Use local cache
+	#
 	if [ -f $OCF_RESKEY_node_id_cache_file ] ; then
 		node_id=$(cat $OCF_RESKEY_node_id_cache_file)
 		
@@ -137,7 +146,9 @@ _get_node_id() {
 		fi
 	fi
 
+	#
 	# Query the attributes database
+	#
 	node_id=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_id -N $crm_node \
 		| tr ' ' '\n' \
 		| awk -F= '/value=/ {gsub("\"","");print $NF}')
@@ -148,7 +159,9 @@ _get_node_id() {
 		return
 	fi
 
+	#
 	# Use the API
+	#
 	node=$(crm_node -n | awk -F. '{print $1}')
 
 	result=$($OCF_RESKEY_openstackcli server list \
@@ -167,14 +180,11 @@ _get_node_id() {
 
 osvol_validate() {
 	local node_id
-	local crm_node
 
 	check_binary "$OCF_RESKEY_openstackcli"
 	check_binary "awk"
 	check_binary "tr"
 	
-	crm_node=$(crm_node -n)
-
 	. $OCF_RESKEY_openrc
 
 	node_id=$(_get_node_id)
@@ -205,16 +215,15 @@ osvol_validate() {
 osvol_monitor() {
 	local result
 	local node_id
-	local crm_node
 
+	#
 	# Is the volue attached?
+	#
 	result=$($OCF_RESKEY_openstackcli volume show \
 		--column status \
 		--column attachments \
 		--format value \
 		$OCF_RESKEY_volume_id)
-
-	crm_node=$(crm_node -n)
 
 	if [[ "$result" =~ "available" ]] ; then
 		ocf_log warn "$OCF_RESKEY_volume_id is not attached to any instance"
@@ -223,6 +232,7 @@ osvol_monitor() {
 		export attached_server_id=$(echo $result|head -n1|awk -F "'" '{print $4}')
 		ocf_log info "$OCF_RESKEY_volume_id is attached to instance $attached_server_id"
 
+		# Compare node_id and the id of the node the volume is attached to
 		node_id=$(_get_node_id)
 
 		if [ "$node_id" != "$attached_server_id" ] ; then
@@ -236,6 +246,9 @@ osvol_monitor() {
 osvol_stop() {
 	local node_id
 
+	#
+	# Is the volume already attached?
+	#
 	osvol_monitor
 	if [ $? = $OCF_NOT_RUNNING ]; then
 		ocf_log info "Volume $OCF_RESKEY_volume_id already available"
@@ -244,6 +257,9 @@ osvol_stop() {
 
 	node_id=$(_get_node_id)
 
+	#
+	# Unmout the volume
+	#
 	if ! $OCF_RESKEY_openstackcli server remove volume $node_id $OCF_RESKEY_volume_id ; then
 		ocf_log error "Couldn't remove volume $OCF_RESKEY_volume_id from instance $node_id"
 		return $OCF_ERR_GENERIC
@@ -256,12 +272,19 @@ osvol_stop() {
 osvol_start() {
 	local node_id
 
+	#
+	# Is the volume already attached?
+	#
 	osvol_monitor
 	if [ $? = $OCF_SUCCESS ]; then
 		ocf_log info "$OCF_RESKEY_volume_id already attached"
 		return $OCF_SUCCESS
 	fi
 
+	#
+	# Unmout it from another node
+	# TODO: make it optional in case multi-attachment is allowed by Cinder
+	#
 	if [ ! -z $attached_server_id ] ; then
 		if ! $OCF_RESKEY_openstackcli server remove volume $attached_server_id $OCF_RESKEY_volume_id ; then
 			ocf_log error "Couldn't remove volume $OCF_RESKEY_volume_id from instance $attached_server_id"
@@ -273,6 +296,9 @@ osvol_start() {
 	
 	node_id=$(_get_node_id)
 
+	#
+	# Attach the volume
+	#
 	$OCF_RESKEY_openstackcli server add volume $node_id $OCF_RESKEY_volume_id
 	if [ $? != $OCF_SUCCESS ]; then
 		ocf_log error "Couldn't add volume $OCF_RESKEY_volume_id to instance $node_id"
