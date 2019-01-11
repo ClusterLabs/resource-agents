@@ -79,10 +79,12 @@ Path to command line tools for openstack.
 <content type="string" default="${OCF_RESKEY_openstackcli_default}" />
 </parameter>
 
-<parameters>
 <parameter name="node_id_cache_file">
 <longdesc lang="en">
-Path to Node ID cache file, used to avoid Openstack API calls.
+Path to Node ID cache file, used to avoid Openstack API calls:
+1. Is the local file written?
+2. Is openstack_id available as a node attribute?
+3. Can we get it from the API?
 </longdesc>
 <shortdesc lang="en">Path to Node ID cache file</shortdesc>
 <content type="string" default="${OCF_RESKEY_node_id_cache_file_default}" />
