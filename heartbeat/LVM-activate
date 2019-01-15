@@ -102,7 +102,7 @@ because some DLM lockspaces might be in use and cannot be closed automatically.
 <shortdesc lang="en">This agent activates/deactivates logical volumes.</shortdesc>
 
 <parameters>
-<parameter name="vgname" unique="1" required="1">
+<parameter name="vgname" unique="0" required="1">
 <longdesc lang="en">
 The volume group name.
 </longdesc>
