@@ -634,7 +634,7 @@ lvmlockd_deactivate() {
 	fi
 
 	OUT=$(lvs --noheadings -S lv_active=active ${VG} 2>/dev/null)
-	[[ -n "$OUT" ]] && return $OCF_SUCCESS
+	[ -n "$OUT" ] && return $OCF_SUCCESS
 
 	# Close the lockspace of this VG if there is no active LV
 	ocf_run vgchange --lockstop ${VG}
@@ -772,7 +772,7 @@ lvm_start() {
 lvm_stop() {
 	local vol
 
-	[[ -z ${LV} ]] && vol=${VG} || vol=${VG}/${LV}
+	[ -z ${LV} ] && vol=${VG} || vol=${VG}/${LV}
 
 	if ! lvm_status ; then
 		ocf_log info "${vol}: has already been deactivated."
