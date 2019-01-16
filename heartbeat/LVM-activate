@@ -538,21 +538,34 @@ lvm_validate() {
 # To activate LV(s) with different "activation mode" parameters
 do_activate() {
 	local activate_opt=$1
+	local out rc try param
 
 	# Only activate the specific LV if it's given
 	if [ -n "$LV" ]; then
-		ocf_run lvchange $activate_opt ${VG}/${LV}
-		if [ $? -ne $OCF_SUCCESS ]; then
-			return $OCF_ERR_GENERIC
-		fi
+		param="$activate_opt ${VG}/${LV}"
 	else
-		ocf_run lvchange $activate_opt ${VG}
-		if [ $? -ne $OCF_SUCCESS ]; then
-			return $OCF_ERR_GENERIC
-		fi
+		param="$activate_opt ${VG}"
 	fi
 
-	return $OCF_SUCCESS
+	for try in 1 2 3 4 5; do
+		out=$(lvchange $param 2>&1)
+		if [ $? -eq $OCF_SUCCESS ]; then
+			[ "$out" ] && ocf_log info "$out"
+			return $OCF_SUCCESS
+		fi
+
+		# Retry if lock start not finished
+		if [ "${out%lock start in progress*}" != "$out" ] && [ $try -lt 5 ]; then
+			ocf_log warn "$out"
+			sleep 1
+			ocf_log warn "Retrying: lvchange $param"
+		else
+			ocf_log err "$out"
+			break
+		fi
+	done
+
+	return $OCF_ERR_GENERIC
 }
 
 lvmlockd_activate() {
