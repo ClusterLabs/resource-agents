@@ -230,63 +230,63 @@ check_tags()
 {
 	local owner=$(vgs -o tags --noheadings ${VG} | tr -d '[:blank:]')
 
-        if [ -z "$owner" ]; then
-                # No-one owns this VG yet
-                return 1
-        fi
+	if [ -z "$owner" ]; then
+		# No-one owns this VG yet
+		return 1
+	fi
 
-        if [ "$OUR_TAG" = "$owner" ]; then
-                # yep, this is ours
-                return 0
-        fi
+	if [ "$OUR_TAG" = "$owner" ]; then
+		# yep, this is ours
+		return 0
+	fi
 
-        # some other tag is set on this vg
-        return 2
+	# some other tag is set on this vg
+	return 2
 }
 
 strip_tags()
 {
-        local tag
+	local tag
 
 	for tag in $(vgs --noheadings -o tags $OCF_RESKEY_volgrpname | sed s/","/" "/g); do
-                ocf_log info "Stripping tag, $tag"
+		ocf_log info "Stripping tag, $tag"
 
-                # LVM version 2.02.98 allows changing tags if PARTIAL
-                vgchange --deltag "$tag" ${VG}
-        done
+		# LVM version 2.02.98 allows changing tags if PARTIAL
+		vgchange --deltag "$tag" ${VG}
+	done
 
 	if [ ! -z $(vgs -o tags --noheadings ${VG} | tr -d '[:blank:]') ]; then
-                ocf_exit_reason "Failed to remove ownership tags from ${VG}"
-                exit $OCF_ERR_GENERIC
-        fi
+		ocf_exit_reason "Failed to remove ownership tags from ${VG}"
+		exit $OCF_ERR_GENERIC
+	fi
 
-        return $OCF_SUCCESS
+	return $OCF_SUCCESS
 }
 
 set_tags()
 {
-        case check_tags in
-        0)
-                # we already own it.
-                return $OCF_SUCCESS
-                ;;
-        2)
-                # other tags are set, strip them before setting
-                if ! strip_tags; then
-                        return $OCF_ERR_GENERIC
-                fi
-                ;;
-        *)
-                : ;;
-        esac
+	case check_tags in
+	0)
+		# we already own it.
+		return $OCF_SUCCESS
+		;;
+	2)
+		# other tags are set, strip them before setting
+		if ! strip_tags; then
+			return $OCF_ERR_GENERIC
+		fi
+		;;
+	*)
+		: ;;
+	esac
 
-        if ! vgchange --addtag $OUR_TAG ${VG} ; then
-                ocf_log err "Failed to add ownership tag to ${VG}"
-                return $OCF_ERR_GENERIC
-        fi
+	if ! vgchange --addtag $OUR_TAG ${VG} ; then
+		ocf_log err "Failed to add ownership tag to ${VG}"
+		return $OCF_ERR_GENERIC
+	fi
 
-        ocf_log info "New tag \"${OUR_TAG}\" added to ${VG}"
-        return $OCF_SUCCESS
+	ocf_log info "New tag \"${OUR_TAG}\" added to ${VG}"
+	return $OCF_SUCCESS
 }
 
 # Parameters:
@@ -402,24 +402,24 @@ systemid_check()
 # Verify tags setup
 tagging_check()
 {
-        # The volume_list must be initialized to something in order to
-        # guarantee our tag will be filtered on startup
-        if ! lvm dumpconfig activation/volume_list; then
-                ocf_log err  "LVM: Improper setup detected"
-                ocf_exit_reason "The volume_list filter must be initialized in lvm.conf for exclusive          activation without clvmd"
+	# The volume_list must be initialized to something in order to
+	# guarantee our tag will be filtered on startup
+	if ! lvm dumpconfig activation/volume_list; then
+		ocf_log err  "LVM: Improper setup detected"
+		ocf_exit_reason "The volume_list filter must be initialized in lvm.conf for exclusive activation without clvmd"
 		exit $OCF_ERR_CONFIGURED
-        fi
+	fi
 
-        # Our tag must _NOT_ be in the volume_list.  This agent
-        # overrides the volume_list during activation using the
-        # special tag reserved for cluster activation
-        if lvm dumpconfig activation/volume_list | grep -e "\"@${OUR_TAG}\"" -e "\"${VG}\"";  then
-                ocf_log err "LVM:  Improper setup detected"
-                ocf_exit_reason "The volume_list in lvm.conf must not contain the cluster tag, \"${OUR_TAG}\",   or volume group, ${VG}"
+	# Our tag must _NOT_ be in the volume_list.  This agent
+	# overrides the volume_list during activation using the
+	# special tag reserved for cluster activation
+	if lvm dumpconfig activation/volume_list | grep -e "\"@${OUR_TAG}\"" -e "\"${VG}\"";  then
+		ocf_log err "LVM:  Improper setup detected"
+		ocf_exit_reason "The volume_list in lvm.conf must not contain the cluster tag, \"${OUR_TAG}\", or volume group, ${VG}"
 		exit $OCF_ERR_CONFIGURED
-        fi
+	fi
 
-        return $OCF_SUCCESS
+	return $OCF_SUCCESS
 }
 
 read_parameters()
