@@ -323,6 +323,10 @@ lvmlockd_check()
 
 	# Good: lvmlockd is running, and clvmd is not running
 	if ! pgrep lvmlockd >/dev/null 2>&1 ; then
+		if ocf_is_probe; then
+			exit $OCF_NOT_RUNNING
+		fi
+
 		ocf_exit_reason "lvmlockd daemon is not running!"
 		exit $OCF_ERR_CONFIGURED
 	fi
