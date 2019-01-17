@@ -73,6 +73,8 @@ OCF_RESKEY_xlog_check_count_default="3"
 OCF_RESKEY_crm_attr_timeout_default="5"
 OCF_RESKEY_stop_escalate_in_slave_default=90
 OCF_RESKEY_replication_slot_name_default=""
+OCF_RESKEY_replication_interface_default="eth0"
+OCF_RESKEY_replication_multiple_slaves_default="false"
 
 : ${OCF_RESKEY_pgctl=${OCF_RESKEY_pgctl_default}}
 : ${OCF_RESKEY_psql=${OCF_RESKEY_psql_default}}
@@ -107,6 +109,8 @@ OCF_RESKEY_replication_slot_name_default=""
 : ${OCF_RESKEY_crm_attr_timeout=${OCF_RESKEY_crm_attr_timeout_default}}
 : ${OCF_RESKEY_stop_escalate_in_slave=${OCF_RESKEY_stop_escalate_in_slave_default}}
 : ${OCF_RESKEY_replication_slot_name=${OCF_RESKEY_replication_slot_name_default}}
+: ${OCF_RESKEY_replication_multiple_slaves=${OCF_RESKEY_replication_multiple_slaves_default}}
+: ${OCF_RESKEY_replication_interface=${OCF_RESKEY_replication_interface_default}}
 
 usage() {
     cat <<EOF
@@ -392,6 +396,28 @@ $ select pg_drop_replication_slot('replication_slot_name');
 </longdesc>
 <shortdesc lang="en">replication_slot_name</shortdesc>
 <content type="string" default="${OCF_RESKEY_replication_slot_name_default}" />
+</parameter>
+
+<parameter name="replication_multiple_slaves" unique="0" required="0">
+<longdesc lang="en">
+Should we be able to connect other slave servers that are not part of this
+clusters. To set the replication interface please set replication_interface.
+</longdesc>
+<shortdesc lang="en">replication_multiple_slaves</shortdesc>
+<content type="string" default="${OCF_RESKEY_replication_multiple_slaves_default}" />
+</parameter>
+
+<parameter name="replication_interface" unique="0" required="0">
+<longdesc lang="en">
+Set this option if you have multiple interfaces and the replication is
+running through your private network for instance. The interface is used in the
+autodetection of the ip address of the current node.
+
+This is needed so that you can support multiple streaming replications from the master
+when you have only 2 servers in the corosync/pacemaker cluster.
+</longdesc>
+<shortdesc lang="en">replication_interface</shortdesc>
+<content type="string" default="${OCF_RESKEY_replication_interface_default}" />
 </parameter>
 
 <parameter name="tmpdir" unique="0" required="0">
@@ -1833,6 +1859,11 @@ pgsql_validate_all() {
         return $OCF_ERR_INSTALLED
     fi
 
+	if ! check_binary2 "$IP2UTIL"; then
+		ocf_log info "iproute2 is not installed. Returning $OCF_ERR_INSTALLED"
+		return $OCF_ERR_INSTALLED
+	fi
+
     check_config "$OCF_RESKEY_config"
     check_config_rc=$?
     [ $check_config_rc -eq 2 ] && return $OCF_ERR_INSTALLED
@@ -1915,14 +1946,44 @@ pgsql_validate_all() {
         else
             CHECK_XLOG_LOC_SQL="select pg_last_xlog_replay_location(),pg_last_xlog_receive_location()"
         fi
-        CHECK_REPLICATION_STATE_SQL="select application_name,upper(state),upper(sync_state) from pg_stat_replication"
+
+        NODE_LIST=`echo $OCF_RESKEY_node_list | tr '[A-Z]' '[a-z]'`
+
+        if ocf_is_true "$OCF_RESKEY_replication_multiple_slaves"; then
+            ocf_log info "Enabling multiple slaves functionality as replication_multiple_slaves is defined. Interface is: $OCF_RESKEY_replication_interface"
+
+            current_node_ip=$($IP2UTIL addr show $OCF_RESKEY_replication_interface | awk '/inet / {print $2}' | cut -d '/' -f 1 | head -n 1)
+            ocf_log info "Updating current node ip on $NODENAME : $current_node_ip"
+            exec_with_retry 0 $CRM_ATTR_REBOOT -N "$NODENAME" -n "node_ip_address" -v "$current_node_ip"
+
+
+            for node in ${NODE_LIST}; do
+                ocf_log info "Checking node $node"
+                if [ "$node" = "$NODENAME" ]; then
+                    ocf_log info "Checking node $node - This is me"
+                    continue
+                fi
+                output=`$CRM_ATTR_REBOOT -N "$node" -n "node_ip_address" -G -q 2>/dev/null`
+                if [ $? -ne 0 ]; then
+                    ocf_log warn "Can't get $node ip address."
+                    continue
+                else
+                    ocf_log info "$node ip address : $output"
+                    other_node_ip="$output"
+                fi
+            done
+
+            CHECK_REPLICATION_STATE_SQL="select application_name,upper(state),upper(sync_state) from pg_stat_replication where client_addr = '$other_node_ip';"
+        else
+            ocf_log info "Not enabling multiple slaves functionality as replication_multiple_slaves is not defined"
+            CHECK_REPLICATION_STATE_SQL="select application_name,upper(state),upper(sync_state) from pg_stat_replication;"
+        fi
 
         PGSQL_STATUS_ATTR="${RESOURCE_NAME}-status"
         PGSQL_DATA_STATUS_ATTR="${RESOURCE_NAME}-data-status"
         PGSQL_XLOG_LOC_NAME="${RESOURCE_NAME}-xlog-loc"
         PGSQL_MASTER_BASELINE="${RESOURCE_NAME}-master-baseline"
 
-        NODE_LIST=`echo $OCF_RESKEY_node_list | tr '[A-Z]' '[a-z]'`
         RE_CONTROL_SLAVE="false"
 
         if ! ocf_is_ms; then
