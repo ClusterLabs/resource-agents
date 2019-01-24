@@ -50,8 +50,7 @@ send_ua_SOURCES         = send_ua.c IPv6addr_utils.c
 IPv6addr_LDADD          = -lplumb $(LIBNETLIBS)
 send_ua_LDADD           = $(LIBNETLIBS)
 
-ocf_SCRIPTS	     = azure-events		\ 
-			AoEtarget		\
+ocf_SCRIPTS	      = AoEtarget		\
 			AudibleAlarm		\
 			ClusterMon		\
 			CTDB			\
@@ -112,10 +111,7 @@ ocf_SCRIPTS	     = azure-events		\
 			fio			\
 			galera			\
 			garbd			\
-			gcp-pd-move		\
 			gcp-vpc-move-ip		\
-			gcp-vpc-move-vip	\
-			gcp-vpc-move-route	\
 			iSCSILogicalUnit	\
 			iSCSITarget		\
 			ids			\
@@ -172,6 +168,22 @@ ocf_SCRIPTS	     = azure-events		\
 			vmware			\
 			vsftpd			\
 			zabbixserver
+
+if BUILD_AZURE_EVENTS
+ocf_SCRIPTS	     += azure-events
+endif
+
+if BUILD_GCP_PD_MOVE
+ocf_SCRIPTS	     += gcp-pd-move
+endif
+
+if BUILD_GCP_VPC_MOVE_ROUTE
+ocf_SCRIPTS	     += gcp-vpc-move-route
+endif
+
+if BUILD_GCP_VPC_MOVE_VIP
+ocf_SCRIPTS	     += gcp-vpc-move-vip
+endif
 
 ocfcommondir		= $(OCF_LIB_DIR_PREFIX)/heartbeat
 ocfcommon_DATA		= ocf-shellfuncs 	\
