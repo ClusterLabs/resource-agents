@@ -55,8 +55,7 @@ metadata-IPv6addr.xml: ../../heartbeat/IPv6addr
 # 12126 on savannah.gnu.org. But, maybe it gets fixed soon, it was
 # first reported in 1995 and added to Savannah in in 2005...
 if BUILD_DOC
-man_MANS	       = ocf_heartbeat_azure-events.7 \
-                          ocf_heartbeat_AoEtarget.7 \
+man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_AudibleAlarm.7 \
                           ocf_heartbeat_ClusterMon.7 \
                           ocf_heartbeat_CTDB.7 \
@@ -116,10 +115,7 @@ man_MANS	       = ocf_heartbeat_azure-events.7 \
                           ocf_heartbeat_fio.7 \
                           ocf_heartbeat_galera.7 \
                           ocf_heartbeat_garbd.7 \
-                          ocf_heartbeat_gcp-pd-move.7 \
                           ocf_heartbeat_gcp-vpc-move-ip.7 \
-                          ocf_heartbeat_gcp-vpc-move-vip.7 \
-                          ocf_heartbeat_gcp-vpc-move-route.7 \
                           ocf_heartbeat_iSCSILogicalUnit.7 \
                           ocf_heartbeat_iSCSITarget.7 \
                           ocf_heartbeat_iface-bridge.7 \
@@ -180,6 +176,22 @@ man_MANS	       = ocf_heartbeat_azure-events.7 \
 
 if USE_IPV6ADDR_AGENT
 man_MANS           	+= ocf_heartbeat_IPv6addr.7
+endif
+
+if BUILD_AZURE_EVENTS
+man_MANS           	+= ocf_heartbeat_azure-events.7
+endif
+
+if BUILD_GCP_PD_MOVE
+man_MANS           	+= ocf_heartbeat_gcp-pd-move.7
+endif
+
+if BUILD_GCP_VPC_MOVE_ROUTE
+man_MANS           	+= ocf_heartbeat_gcp-vpc-move-route.7
+endif
+
+if BUILD_GCP_VPC_MOVE_VIP
+man_MANS           	+= ocf_heartbeat_gcp-vpc-move-vip.7
 endif
 
 xmlfiles		= $(man_MANS:.7=.xml)

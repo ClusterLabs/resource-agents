@@ -20,7 +20,6 @@ libtoolize
 ltmain.sh
 libtool
 make/stamp-h1
-m4
 make/clusterautoconfig.h*
 missing
 *.pc

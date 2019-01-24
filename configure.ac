@@ -30,6 +30,8 @@ CRM_DTD_VERSION="1.0"
 PKG_FEATURES=""
 
 AC_CONFIG_AUX_DIR(.)
+AC_CONFIG_MACRO_DIR([m4])
+
 AC_CANONICAL_HOST
 
 dnl Where #defines go (e.g. `AC_CHECK_HEADERS' below)
@@ -501,11 +503,45 @@ AC_SUBST(PING)
 AC_SUBST(RM)
 AC_SUBST(TEST)
 
+dnl Ensure PYTHON is an absolute path
+AC_PATH_PROG([PYTHON], [$PYTHON])
+
 AM_PATH_PYTHON
 if test -z "$PYTHON"; then
     echo "*** Essential program python not found" 1>&2
-    exit 1
 fi
+
+AC_PYTHON_MODULE(googleapiclient)
+AC_PYTHON_MODULE(pyroute2)
+
+BUILD_AZURE_EVENTS=1
+if test -z "$PYTHON"; then
+    BUILD_AZURE_EVENTS=0
+    AC_MSG_WARN("Not building azure-events")
+fi
+AM_CONDITIONAL(BUILD_AZURE_EVENTS, test $BUILD_AZURE_EVENTS -eq 1)
+
+BUILD_GCP_PD_MOVE=1
+if test -z "$PYTHON" || test "x${HAVE_PYMOD_GOOGLEAPICLIENT}" != xyes; then
+    BUILD_GCP_PD_MOVE=0
+    AC_MSG_WARN("Not building gcp-pd-move")
+fi
+AM_CONDITIONAL(BUILD_GCP_PD_MOVE, test $BUILD_GCP_PD_MOVE -eq 1)
+
+BUILD_GCP_VPC_MOVE_ROUTE=1
+if test -z "$PYTHON" || test "x${HAVE_PYMOD_GOOGLEAPICLIENT}" != xyes || \
+   test "x${HAVE_PYMOD_PYROUTE2}" != xyes; then
+    BUILD_GCP_VPC_MOVE_ROUTE=0
+    AC_MSG_WARN("Not building gcp-vpc-move-route")
+fi
+AM_CONDITIONAL(BUILD_GCP_VPC_MOVE_ROUTE, test $BUILD_GCP_VPC_MOVE_ROUTE -eq 1)
+
+BUILD_GCP_VPC_MOVE_VIP=1
+if test -z "$PYTHON" || test "x${HAVE_PYMOD_GOOGLEAPICLIENT}" != xyes; then
+    BUILD_GCP_VPC_MOVE_VIP=0
+    AC_MSG_WARN("Not building gcp-vpc-move-vip")
+fi
+AM_CONDITIONAL(BUILD_GCP_VPC_MOVE_VIP, test $BUILD_GCP_VPC_MOVE_VIP -eq 1)
 
 AC_PATH_PROGS(ROUTE, route)
 AC_DEFINE_UNQUOTED(ROUTE, "$ROUTE", path to route command)
