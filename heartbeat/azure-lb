@@ -33,7 +33,6 @@ lb_usage() {
     $0 manages service that answers Azure Load Balancer health probe requests as a OCF HA resource.
     The 'start' operation starts the instance.
     The 'stop' operation stops the instance.
-    The 'status' operation reports whether the instance is running
     The 'monitor' operation reports whether the instance seems to be working
     The 'validate-all' operation reports whether the parameters are valid
 END
