@@ -302,7 +302,9 @@ set_score()
 redis_client() {
 	ocf_log debug "redis_client: '$REDIS_CLIENT' -s '$REDIS_SOCKET' $*"
 	if [ -n "$clientpasswd" ]; then
-		"$REDIS_CLIENT" -s "$REDIS_SOCKET" -a "$clientpasswd" "$@" | sed 's/\r//'
+		# Starting with 4.0.10 there is a warning on stderr when using a pass
+		# Once we stop supporting versions < 5.0.0 we can add --no-auth-warning here
+		("$REDIS_CLIENT" -s "$REDIS_SOCKET" -a "$clientpasswd" "$@" 2>&1 >&3 3>&- | grep -v "Using a password" >&2 3>&-) 3>&1 | sed 's/\r//'
 	else
 		"$REDIS_CLIENT" -s "$REDIS_SOCKET" "$@" | sed 's/\r//'
 	fi
