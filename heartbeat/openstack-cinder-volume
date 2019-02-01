@@ -292,7 +292,7 @@ osvol_start() {
 		fi
 	fi
 
-	export $attached_server_id=""
+	export attached_server_id=""
 	
 	node_id=$(_get_node_id)
 
