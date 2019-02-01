@@ -225,7 +225,7 @@ osvol_monitor() {
 		--format value \
 		$OCF_RESKEY_volume_id)
 
-	if [[ "$result" =~ "available" ]] ; then
+	if echo "$result" | grep -q available ; then
 		ocf_log warn "$OCF_RESKEY_volume_id is not attached to any instance"
 		return $OCF_NOT_RUNNING
 	else
