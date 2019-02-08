@@ -72,6 +72,15 @@ is set to.
 <content type="boolean" default="true"/>
 </parameter>
 
+<parameter name="exclusive" unique="0" required="0">
+<longdesc lang="en">
+If set, only exclusive volume groups will be monitored.
+</longdesc>
+<shortdesc lang="en">Only monitor exclusive volume groups</shortdesc>
+<content type="boolean" default="false" />
+</parameter>
+
+
 </parameters>
 
 <actions>
@@ -215,7 +224,13 @@ clvmd_status()
 
 # NOTE: replace this with vgs, once display filter per attr is implemented.
 clustered_vgs() {
-	${LVM_VGDISPLAY} 2>/dev/null | awk 'BEGIN {RS="VG Name"} {if (/Clustered/) print $1;}'
+	if ! ocf_is_true "$OCF_RESKEY_exclusive"; then
+		${LVM_VGDISPLAY} 2>/dev/null | awk 'BEGIN {RS="VG Name"} {if (/Clustered/) print $1;}'
+	else
+		for vg in $(vgs --select "clustered=yes" -o name --noheadings); do
+			lvs --select lv_active=~'local.*exclusive' -o vg_name --noheadings $vg 2> /dev/null | awk '!seen[$1]++ {print $1}'
+		done
+	fi
 }
 
 wait_for_process()
@@ -374,7 +389,7 @@ clvmd_start()
 		return $?;
 	fi
 
-	# autoset locking type to clusted when lvmconf tool is available
+	# autoset locking type to clustered when lvmconf tool is available
 	if [ -x "$LVMCONF"  ]; then
 		$LVMCONF --enable-cluster > /dev/null 2>&1
 	fi
