@@ -36,11 +36,13 @@
 # Defaults
 OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
 OCF_RESKEY_node_id_cache_file_default="/tmp/node_id"
+OCF_RESKEY_volume_local_check_default="true"
 
 export attached_server_id=""
 
 : ${OCF_RESKEY_openstackcli=${OCF_RESKEY_openstackcli_default}}
 : ${OCF_RESKEY_node_id_cache_file=${OCF_RESKEY_node_id_cache_file_default}}
+: ${OCF_RESKEY_volume_local_check=${OCF_RESKEY_volume_local_check_default}}
 
 #######################################################################
 
@@ -86,6 +88,15 @@ Path to Node ID cache file, used to avoid Openstack API calls:
 </longdesc>
 <shortdesc lang="en">Path to Node ID cache file</shortdesc>
 <content type="string" default="${OCF_RESKEY_node_id_cache_file_default}" />
+</parameter>
+
+<parameter name="volume_local_check">
+<longdesc lang="en">
+This option allows the cluster to monitor the cinder volume presence without 
+calling the API.
+</longdesc>
+<shortdesc lang="en">Monitor cinder volume locally</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_volume_local_check_default}" />
 </parameter>
 
 <parameter name="openrc" required="1">
@@ -204,39 +215,50 @@ osvol_validate() {
 		return $OCF_ERR_CONFIGURED
 	fi
 
-	if ! $OCF_RESKEY_openstackcli volume list|grep -q $OCF_RESKEY_volume_id ; then
-		ocf_exit_reason "Volume $OCF_RESKEY_volume_id not found"
-		return $OCF_ERR_CONFIGURED
-	fi
-
 	return $OCF_SUCCESS
 }
 
 osvol_monitor() {
 	local result
 	local node_id
+	local short_volume_id
 
-	#
-	# Is the volue attached?
-	#
-	result=$($OCF_RESKEY_openstackcli volume show \
-		--column status \
-		--column attachments \
-		--format value \
-		$OCF_RESKEY_volume_id)
-
-	if echo "$result" | grep -q available ; then
-		ocf_log warn "$OCF_RESKEY_volume_id is not attached to any instance"
-		return $OCF_NOT_RUNNING
-	else
-		export attached_server_id=$(echo $result|head -n1|awk -F "'" '{print $4}')
-		ocf_log info "$OCF_RESKEY_volume_id is attached to instance $attached_server_id"
-
-		# Compare node_id and the id of the node the volume is attached to
-		node_id=$(_get_node_id)
-
-		if [ "$node_id" != "$attached_server_id" ] ; then
+	if ocf_is_true $OCF_RESKEY_volume_local_check ; then
+		#
+		# Is the volue attached?
+		# We check the local devices
+		#
+		short_volume_id=$(echo $OCF_RESKEY_volume_id | awk '{print substr($0, 0, 20)}')
+		if ls /dev/disk/by-id | grep -q $short_volume_id ; then
+			return $OCF_SUCCESS
+		else
+			ocf_log warn "$OCF_RESKEY_volume_id is not attached to instance $(_get_node_id)"
 			return $OCF_NOT_RUNNING
+		fi
+	else
+		#
+		# Is the volue attached?
+		# We use the API
+		#
+		result=$($OCF_RESKEY_openstackcli volume show \
+			--column status \
+			--column attachments \
+			--format value \
+			$OCF_RESKEY_volume_id)
+
+		if echo "$result" | grep -q available ; then
+			ocf_log warn "$OCF_RESKEY_volume_id is not attached to any instance"
+			return $OCF_NOT_RUNNING
+		else
+			export attached_server_id=$(echo $result|head -n1|awk -F "'" '{print $4}')
+			ocf_log info "$OCF_RESKEY_volume_id is attached to instance $attached_server_id"
+
+			# Compare node_id and the id of the node the volume is attached to
+			node_id=$(_get_node_id)
+
+			if [ "$node_id" != "$attached_server_id" ] ; then
+				return $OCF_NOT_RUNNING
+			fi
 		fi
 	fi
 
