@@ -288,6 +288,14 @@ What debug level to run at (0-10). Higher means more verbose.
 <content type="integer" default="2" />
 </parameter>
 
+<parameter name="ctdb_max_open_files" required="0">
+<longdesc lang="en">
+Maximum number of open files (for ulimit -n)
+</longdesc>
+<shortdesc lang="en">Max open files</shortdesc>
+<content type="integer" default="" />
+</parameter>
+
 <parameter name="smb_conf" unique="0" required="0">
 <longdesc lang="en">
 Path to default samba config file.  Only necessary if CTDB
@@ -610,6 +618,11 @@ ctdb_start() {
 	local start_as_disabled
 	start_as_disabled="--start-as-disabled"
 	ocf_is_true "$OCF_RESKEY_ctdb_start_as_disabled" || start_as_disabled=""
+
+	# set nofile ulimit for ctdbd process
+	if [ -n "$OCF_RESKEY_ctdb_max_open_files" ]; then
+		ulimit -n "$OCF_RESKEY_ctdb_max_open_files"
+	fi
 
 	# Start her up
 	"$OCF_RESKEY_ctdbd_binary" \
