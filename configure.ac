@@ -514,15 +514,17 @@ fi
 AC_PYTHON_MODULE(googleapiclient)
 AC_PYTHON_MODULE(pyroute2)
 
+AS_VERSION_COMPARE([$PYTHON_VERSION], [2.7], [BUILD_OCF_PY=0], [BUILD_OCF_PY=1], [BUILD_OCF_PY=1])
+
 BUILD_AZURE_EVENTS=1
-if test -z "$PYTHON"; then
+if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0; then
     BUILD_AZURE_EVENTS=0
     AC_MSG_WARN("Not building azure-events")
 fi
 AM_CONDITIONAL(BUILD_AZURE_EVENTS, test $BUILD_AZURE_EVENTS -eq 1)
 
 BUILD_GCP_PD_MOVE=1
-if test -z "$PYTHON" || test "x${HAVE_PYMOD_GOOGLEAPICLIENT}" != xyes; then
+if test -z "$PYTHON" || test "x${HAVE_PYMOD_GOOGLEAPICLIENT}" != xyes || test $BUILD_OCF_PY -eq 0; then
     BUILD_GCP_PD_MOVE=0
     AC_MSG_WARN("Not building gcp-pd-move")
 fi
@@ -530,14 +532,14 @@ AM_CONDITIONAL(BUILD_GCP_PD_MOVE, test $BUILD_GCP_PD_MOVE -eq 1)
 
 BUILD_GCP_VPC_MOVE_ROUTE=1
 if test -z "$PYTHON" || test "x${HAVE_PYMOD_GOOGLEAPICLIENT}" != xyes || \
-   test "x${HAVE_PYMOD_PYROUTE2}" != xyes; then
+   test "x${HAVE_PYMOD_PYROUTE2}" != xyes || test $BUILD_OCF_PY -eq 0; then
     BUILD_GCP_VPC_MOVE_ROUTE=0
     AC_MSG_WARN("Not building gcp-vpc-move-route")
 fi
 AM_CONDITIONAL(BUILD_GCP_VPC_MOVE_ROUTE, test $BUILD_GCP_VPC_MOVE_ROUTE -eq 1)
 
 BUILD_GCP_VPC_MOVE_VIP=1
-if test -z "$PYTHON" || test "x${HAVE_PYMOD_GOOGLEAPICLIENT}" != xyes; then
+if test -z "$PYTHON" || test "x${HAVE_PYMOD_GOOGLEAPICLIENT}" != xyes || test $BUILD_OCF_PY -eq 0; then
     BUILD_GCP_VPC_MOVE_VIP=0
     AC_MSG_WARN("Not building gcp-vpc-move-vip")
 fi
