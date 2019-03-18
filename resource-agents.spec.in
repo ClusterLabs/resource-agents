@@ -100,12 +100,13 @@ BuildRequires:  libxslt docbook_4 docbook-xsl-stylesheets
 Requires: /usr/bin/gawk
 Requires: /usr/bin/ps
 Requires: /usr/sbin/fuser /usr/bin/mount
+Requires: hostname
 %else
 Requires: /bin/gawk
 Requires: /bin/ps
 Requires: /sbin/fuser /bin/mount
+Requires: /bin/hostname
 %endif
-Requires: bash grep hostname sed
 Requires: /usr/bin/pkill /bin/netstat
 
 # Filesystem / fs.sh / netfs.sh
