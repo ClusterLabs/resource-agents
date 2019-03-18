@@ -96,12 +96,9 @@ for a squid instance managed by this RA.
 <content type="string" default=""/>
 </parameter>
 
-<parameter name="squid_pidfile" required="1" unique="1">
-<longdesc lang="en">
-This is a required parameter. This parameter specifies a process id file
-for a squid instance managed by this RA.
-</longdesc>
-<shortdesc lang="en">Pidfile</shortdesc>
+<parameter name="squid_pidfile" required="0" unique="1">
+<longdesc lang="en">Deprecated - do not use anymore</longdesc>
+<shortdesc lang="en">deprecated - do not use anymore</shortdesc>
 <content type="string" default=""/>
 </parameter>
 
@@ -175,8 +172,8 @@ get_pids()
 	# Seek by pattern
 	SQUID_PIDS[0]=$(pgrep -f "$PROCESS_PATTERN")
 
-	# Seek by pidfile
-	SQUID_PIDS[1]=$(awk '1{print $1}' $SQUID_PIDFILE 2>/dev/null)
+	# Seek by child process
+	SQUID_PIDS[1]=$(pgrep -P ${SQUID_PIDS[0]})
 
 	if [[ -n "${SQUID_PIDS[1]}" ]]; then
 		typeset exe
@@ -306,7 +303,6 @@ stop_squid()
 		while true; do
 			get_pids
 			if is_squid_dead; then
-				rm -f $SQUID_PIDFILE
 				return $OCF_SUCCESS
 			fi
 			(( lapse_sec = lapse_sec + 1 ))
@@ -326,7 +322,6 @@ stop_squid()
 		kill -KILL ${SQUID_PIDS[0]} ${SQUID_PIDS[2]}
 		sleep 1
 		if is_squid_dead; then
-			rm -f $SQUID_PIDFILE
 			return $OCF_SUCCESS
 		fi
 	done
@@ -386,12 +381,6 @@ if [[ -z "$SQUID_EXE" ]]; then
 fi
 if [[ ! -x "$SQUID_EXE" ]]; then
 	ocf_exit_reason "$SQUID_EXE is not found"
-	exit $OCF_ERR_CONFIGURED
-fi
-
-SQUID_PIDFILE="${OCF_RESKEY_squid_pidfile}"
-if [[ -z "$SQUID_PIDFILE" ]]; then
-	ocf_exit_reason "SQUID_PIDFILE is not defined"
 	exit $OCF_ERR_CONFIGURED
 fi
 
