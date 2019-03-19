@@ -229,7 +229,7 @@ osvol_monitor() {
 		# We check the local devices
 		#
 		short_volume_id=$(echo $OCF_RESKEY_volume_id | awk '{print substr($0, 0, 20)}')
-		if fdisk -l /dev/disk/by-id/$short_volume_id 2>&1 1>/dev/null ; then
+		if fdisk -l /dev/disk/by-id/virtio-$short_volume_id 2>&1 1>/dev/null ; then
 			return $OCF_SUCCESS
 		else
 			ocf_log warn "$OCF_RESKEY_volume_id is not attached to instance $(_get_node_id)"
