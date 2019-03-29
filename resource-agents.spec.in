@@ -107,6 +107,7 @@ Requires: /bin/ps
 Requires: /sbin/fuser /bin/mount
 Requires: /bin/hostname
 %endif
+Requires: bash grep sed
 Requires: /usr/bin/pkill /bin/netstat
 
 # Filesystem / fs.sh / netfs.sh
