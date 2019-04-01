@@ -329,6 +329,7 @@ lvmlockd_check()
 	# Good: lvmlockd is running, and clvmd is not running
 	if ! pgrep lvmlockd >/dev/null 2>&1 ; then
 		if ocf_is_probe; then
+			ocf_log info "initial probe: lvmlockd is not running yet."
 			exit $OCF_NOT_RUNNING
 		fi
 
@@ -479,6 +480,11 @@ lvm_validate() {
 		if [ $__OCF_ACTION = "stop" ]; then
 			ocf_log warn "VG [${VG}] cannot be accessed, stop action exits successfully."
 			exit $OCF_SUCCESS
+		fi
+
+		if ocf_is_probe; then
+			ocf_log info "initial probe: VG [${VG}] is not found on any block device yet."
+			exit $OCF_NOT_RUNNING
 		fi
 
 		ocf_exit_reason "Volume group[${VG}] doesn't exist, or not visible on this node!"
