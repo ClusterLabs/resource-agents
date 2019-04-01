@@ -707,7 +707,7 @@ tagging_deactivate() {
 # method:
 #
 # lv_count=$(vgs --foreign -o lv_count --noheadings ${VG} 2>/dev/null | tr -d '[:blank:]')
-# dm_count=$(dmsetup --noheadings info -c -S "vgname=${VG}" 2>/dev/null | grep -c "${VG}-")
+# dm_count=$(dmsetup --noheadings info -c -S "vg_name=${VG}" 2>/dev/null | grep -c "${VG}-")
 # test $lv_count -eq $dm_count
 #
 # It works, but we cannot afford to use LVM command in lvm_status. LVM command is expensive
@@ -730,9 +730,9 @@ lvm_status() {
 	if [ -n "${LV}" ]; then
 		# dmsetup ls? It cannot accept device name. It's
 		# too heavy to list all DM devices.
-		dm_count=$(dmsetup info --noheadings --noflush -c -S "vgname=${VG} && lvname=${LV}" | grep -c -v '^No devices found')
+		dm_count=$(dmsetup info --noheadings --noflush -c -S "vg_name=${VG} && lv_name=${LV}" | grep -c -v '^No devices found')
 	else
-		dm_count=$(dmsetup info --noheadings --noflush -c -S "vgname=${VG}" | grep -c -v '^No devices found')
+		dm_count=$(dmsetup info --noheadings --noflush -c -S "vg_name=${VG}" | grep -c -v '^No devices found')
 	fi
 
 	if [ $dm_count -eq 0 ]; then
