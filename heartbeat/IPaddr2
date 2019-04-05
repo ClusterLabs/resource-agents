@@ -368,6 +368,16 @@ Expects a value as specified in section 5.5.4 of RFC 4862.
 <content type="string" default="${OCF_RESKEY_preferred_lft_default}"/>
 </parameter>
 
+<parameter name="network_namespace">
+<longdesc lang="en">
+Specifies the network namespace to operate within.
+The namespace must already exist, and the interface to be used must be within
+the namespace.
+</longdesc>
+<shortdesc lang="en">Network namespace to use</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
 </parameters>
 <actions>
 <action name="start"   timeout="20s" />
@@ -1125,6 +1135,10 @@ set_send_arp_program() {
 ip_validate() {
     check_binary $IP2UTIL
     IP_CIP=
+
+    if [ -n "$OCF_RESKEY_network_namespace" ]; then
+        OCF_RESKEY_network_namespace= exec $IP2UTIL netns exec "$OCF_RESKEY_network_namespace" "$0" "$__OCF_ACTION"
+    fi
 
     ip_init
 
