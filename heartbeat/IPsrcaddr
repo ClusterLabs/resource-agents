@@ -172,11 +172,11 @@ srca_start() {
 		rc=$OCF_SUCCESS
 		ocf_log info "The ip route has been already set.($NETWORK, $INTERFACE, $ROUTE_WO_SRC)"
 	else
-		ip route replace $NETWORK dev $INTERFACE src $1 || \
-			errorexit "command 'ip route replace $NETWORK dev $INTERFACE src $1' failed"
-
 		$CMDCHANGE $ROUTE_WO_SRC src $1 || \
 			errorexit "command '$CMDCHANGE $ROUTE_WO_SRC src $1' failed"
+			
+		ip route replace $NETWORK dev $INTERFACE src $1 || \
+			errorexit "command 'ip route replace $NETWORK dev $INTERFACE src $1' failed"
 		rc=$?
 	fi
 
