@@ -106,7 +106,7 @@ def get_metadata(metadata_key, params=None, timeout=None):
   url = '%s?%s' % (metadata_url, params)
   request = urlrequest.Request(url, headers=METADATA_HEADERS)
   request_opener = urlrequest.build_opener(urlrequest.ProxyHandler({}))
-  return request_opener.open(request, timeout=timeout * 1.1).read()
+  return request_opener.open(request, timeout=timeout * 1.1).read().decode("utf-8")
 
 
 def get_instance(project, zone, instance):
@@ -162,7 +162,7 @@ def get_alias(project, zone, instance):
 
 def get_localhost_alias():
   net_iface = get_metadata('instance/network-interfaces', {'recursive': True})
-  net_iface = json.loads(net_iface.decode('utf-8'))
+  net_iface = json.loads(net_iface)
   try:
     return net_iface[0]['ipAliases'][0]
   except (KeyError, IndexError):
