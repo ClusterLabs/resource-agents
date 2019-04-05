@@ -276,7 +276,7 @@ rmq_start_first()
 
 		if [ -n "$OCF_RESKEY_set_policy" ]; then
 			# do not quote set_policy, we are passing in arguments
-			rmq_set_policy $OCF_RESKEY_set_policy > /dev/null 2>&1
+			rmq_set_policy $OCF_RESKEY_set_policy
 			if [ $? -ne 0 ]; then
 				ocf_log err "Failed to set policy: $OCF_RESKEY_set_policy"
 				rc=$OCF_ERR_GENERIC
