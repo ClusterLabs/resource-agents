@@ -22,6 +22,8 @@ MAINTAINERCLEANFILES	= Makefile.in aclocal.m4 configure DRF/config-h.in \
 			  DRF/stamp-h.in libtool.m4 ltdl.m4 libltdl.tar \
 			  compile config.guess config.sub depcomp
 
+ACLOCAL_AMFLAGS		= -I m4
+
 SPEC			= $(PACKAGE_NAME).spec
 
 TARFILES		= $(PACKAGE_NAME)-$(VERSION).tar.bz2 \
