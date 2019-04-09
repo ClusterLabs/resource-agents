@@ -501,7 +501,7 @@ iSCSILogicalUnit_stop() {
 		# gone. Log a warning and still push ahead.
 		
 		local backstore_type
-		if targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns/lun${OCF_RESKEY_lun} status | grep ' fileio/' >/dev/null; then
+		if targetcli /backstores/fileio/${OCF_RESOURCE_INSTANCE} status >/dev/null 2>&1 ; then
 			backstore_type=fileio
 		else
 			backstore_type=block
