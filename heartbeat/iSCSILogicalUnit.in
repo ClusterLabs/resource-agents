@@ -448,10 +448,6 @@ iSCSILogicalUnit_start() {
 }
 
 iSCSILogicalUnit_stop() {
-	iSCSILogicalUnit_monitor
-	if [ $? -eq $OCF_NOT_RUNNING ]; then
-		return $OCF_SUCCESS
-	fi
 
 	case $OCF_RESKEY_implementation in
 
