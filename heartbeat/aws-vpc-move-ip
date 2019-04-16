@@ -219,8 +219,28 @@ ec2ip_drop() {
 }
 
 ec2ip_get_and_configure() {
+	cmd="ip -br link show dev $OCF_RESKEY_interface | tr -s ' ' | cut -d' ' -f3"
+	ocf_log debug "executing command: $cmd"
+	MAC_ADDR="$(eval $cmd)"
+	rc=$?
+	if [ $rc != 0 ]; then
+		ocf_log warn "command failed, rc: $rc"
+		return $OCF_ERR_GENERIC
+	fi
+  ocf_log debug "MAC address associated with interface ${OCF_RESKEY_interface}: ${MAC_ADDR}"
+
+	cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 describe-instances --instance-ids $EC2_INSTANCE_ID --query 'Reservations[*].Instances[*].NetworkInterfaces[*].[NetworkInterfaceId,MacAddress]' | grep ${MAC_ADDR} | cut -f1"
+	ocf_log debug "executing command: $cmd"
+	EC2_NETWORK_INTERFACE_ID="$(eval $cmd)"
+	rc=$?
+	if [ $rc != 0 ]; then
+		ocf_log warn "command failed, rc: $rc"
+		return $OCF_ERR_GENERIC
+	fi
+  ocf_log debug "network interface id associated MAC address ${MAC_ADDR}: ${EC2_NETWORK_INTERFACE_ID}"
+
 	for rtb in $(echo $OCF_RESKEY_routing_table | sed -e 's/,/ /g'); do
-		cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --instance-id $EC2_INSTANCE_ID"
+		cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
 		ocf_log debug "executing command: $cmd"
 		$cmd
 		rc=$?
