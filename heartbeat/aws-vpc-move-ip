@@ -229,7 +229,7 @@ ec2ip_get_and_configure() {
 	fi
 	ocf_log debug "MAC address associated with interface ${OCF_RESKEY_interface}: ${MAC_ADDR}"
 
-	cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 describe-instances --instance-ids $EC2_INSTANCE_ID --query 'Reservations[*].Instances[*].NetworkInterfaces[*].[NetworkInterfaceId,MacAddress]' | grep ${MAC_ADDR} | cut -f1"
+	cmd="curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC_ADDR}/interface-id"
 	ocf_log debug "executing command: $cmd"
 	EC2_NETWORK_INTERFACE_ID="$(eval $cmd)"
 	rc=$?
