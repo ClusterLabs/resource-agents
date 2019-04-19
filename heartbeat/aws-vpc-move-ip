@@ -225,7 +225,6 @@ ec2ip_get_and_configure() {
 	else
 		cmd="ip -br link show dev ${OCF_RESKEY_interface} | tr -s ' ' | cut -d' ' -f3"
 	fi
-
 	ocf_log debug "executing command: $cmd"
 	MAC_ADDR="$(eval $cmd)"
 	rc=$?
