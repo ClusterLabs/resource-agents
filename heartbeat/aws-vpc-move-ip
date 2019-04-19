@@ -222,25 +222,18 @@ ec2ip_get_and_configure() {
 	MAC_FILE="/sys/class/net/${OCF_RESKEY_interface}/address"
 	if [ -f $MAC_FILE ]; then
 		cmd="cat ${MAC_FILE}"
-		ocf_log debug "executing command: $cmd"
-		MAC_ADDR="$(eval $cmd)"
-		rc=$?
-		if [ $rc != 0 ]; then
-			ocf_log warn "command failed, rc: $rc"
-			return $OCF_ERR_GENERIC
-		fi
-		ocf_log debug "MAC address associated with interface ${OCF_RESKEY_interface}: ${MAC_ADDR}"
 	else
 		cmd="ip -br link show dev ${OCF_RESKEY_interface} | tr -s ' ' | cut -d' ' -f3"
-		ocf_log debug "executing command: $cmd"
-		MAC_ADDR="$(eval $cmd)"
-		rc=$?
-		if [ $rc != 0 ]; then
-			ocf_log warn "command failed, rc: $rc"
-			return $OCF_ERR_GENERIC
-		fi
-		ocf_log debug "MAC address associated with interface ${OCF_RESKEY_interface}: ${MAC_ADDR}"
 	fi
+
+	ocf_log debug "executing command: $cmd"
+	MAC_ADDR="$(eval $cmd)"
+	rc=$?
+	if [ $rc != 0 ]; then
+		ocf_log warn "command failed, rc: $rc"
+		return $OCF_ERR_GENERIC
+	fi
+	ocf_log debug "MAC address associated with interface ${OCF_RESKEY_interface}: ${MAC_ADDR}"
 
 	cmd="curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC_ADDR}/interface-id"
 	ocf_log debug "executing command: $cmd"
