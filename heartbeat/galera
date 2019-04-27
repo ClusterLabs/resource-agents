@@ -564,10 +564,21 @@ detect_first_master()
 detect_safe_to_bootstrap()
 {
     local safe_to_bootstrap=""
+    local uuid=""
+    local seqno=""
 
     if [ -f ${OCF_RESKEY_datadir}/grastate.dat ]; then
         ocf_log info "attempting to read safe_to_bootstrap flag from ${OCF_RESKEY_datadir}/grastate.dat"
         safe_to_bootstrap=$(sed -n 's/^safe_to_bootstrap:\s*\(.*\)$/\1/p' < ${OCF_RESKEY_datadir}/grastate.dat)
+        uuid=$(sed -n 's/^uuid:\s*\(.*\)$/\1/p' < ${OCF_RESKEY_datadir}/grastate.dat)
+        seqno=$(sed -n 's/^seqno:\s*\(.*\)$/\1/p' < ${OCF_RESKEY_datadir}/grastate.dat)
+    fi
+
+    if [ -z "$uuid" ] || [ -z "$seqno" ] || \
+       [ "$uuid" = "00000000-0000-0000-0000-000000000000" ] || \
+       [ "$seqno" = "-1" ]; then
+        clear_safe_to_bootstrap
+        return
     fi
 
     if [ "$safe_to_bootstrap" = "1" ] || [ "$safe_to_bootstrap" = "0" ]; then
