@@ -278,7 +278,7 @@ determine_blockdevice() {
 	nfs4|nfs|smbfs|cifs|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|none)
 		: ;;
 	*)
-		DEVICE=`list_mounts | grep " $(readlink -f "$MOUNTPOINT" ) " | cut -d' ' -f1`
+		DEVICE=`list_mounts | grep " $CANONICALIZED_MOUNTPOINT " | cut -d' ' -f1`
 		if [ -b "$DEVICE" ]; then
 			blockdevice=yes
 		fi
@@ -396,7 +396,7 @@ fstype_supported()
 Filesystem_start()
 {
 	# Check if there are any mounts mounted under the mountpoint
-	if list_mounts | grep -q -E " $(readlink -f "$MOUNTPOINT" )/\w+" >/dev/null 2>&1; then
+	if list_mounts | grep -q -E " $CANONICALIZED_MOUNTPOINT/\w+" >/dev/null 2>&1; then
 		ocf_log err "There is one or more mounts mounted under $MOUNTPOINT."
 		return $OCF_ERR_CONFIGURED
 	fi
@@ -580,7 +580,7 @@ Filesystem_stop()
 #
 Filesystem_status()
 {
-	if list_mounts | grep -q " $(readlink -f "$MOUNTPOINT" ) " >/dev/null 2>&1; then
+	if list_mounts | grep -q " $CANONICALIZED_MOUNTPOINT " >/dev/null 2>&1; then
 		rc=$OCF_SUCCESS
 		msg="$MOUNTPOINT is mounted (running)"
 	else
@@ -804,6 +804,11 @@ if [ -z "$OCF_RESKEY_directory" ]; then
 else
 	MOUNTPOINT=$(echo $OCF_RESKEY_directory | sed 's/\/*$//')
 	: ${MOUNTPOINT:=/}
+	CANONICALIZED_MOUNTPOINT=$(readlink -f "$MOUNTPOINT")
+	if [ $? -ne 0 ]; then
+		ocf_exit_reason "Could not canonicalize $MOUNTPOINT because readlink failed"
+		exit $OCF_ERR_GENERIC
+	fi
 	# At this stage, $MOUNTPOINT does not contain trailing "/" unless it is "/"
 	# TODO: / mounted via Filesystem sounds dangerous. On stop, we'll
 	# kill the whole system. Is that a good idea?
