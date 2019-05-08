@@ -483,7 +483,7 @@ runasowner() {
             "-q")
                 quietrun="-q"
                 shift 1;;
-            "warn"|"err")
+            "info"|"warn"|"err")
                 loglevel="-$1"
                 shift 1;;
             *)
@@ -544,7 +544,9 @@ pgsql_real_start() {
     local postgres_options
     local rc
 
-    if pgsql_status; then
+    pgsql_real_monitor info
+    rc=$?
+    if [ $rc -eq $OCF_SUCCESS -o $rc -eq $OCF_RUNNING_MASTER ]; then
         ocf_log info "PostgreSQL is already running. PID=`cat $PIDFILE`"
         if is_replication; then
             return $OCF_ERR_GENERIC
