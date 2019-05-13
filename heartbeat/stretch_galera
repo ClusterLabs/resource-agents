@@ -1,0 +1,279 @@
+#!/bin/sh
+#
+# Copyright (c) 2014 David Vossel <davidvossel@gmail.com>
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+##
+# README.
+#
+# Extend the Galera resource agent to support joining into a galera cluster
+# that is managed by multiple pacemaker clusters.
+##
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_ROOT}/resource.d/heartbeat/galera sourceonly
+
+
+SSH_CMD="ssh -oConnectTimeout=5 -oStrictHostKeyChecking=no"
+
+# copy original meta_data to galera_meta_data
+eval "$(echo "galera_meta_data()"; declare -f meta_data | tail -n +2)"
+
+meta_data() {
+IFS='' read -r -d '' extraparams <<END
+<parameter name="remote_node_map" unique="0" required="0">
+<longdesc lang="en">
+A mapping of pacemaker node names to remote hosts.
+
+Allows pacemaker nodes in remote pacemaker clusters to be part of this
+Galera cluster:
+
+root@pacemakerhost/pcmk1:node.1.galera;root@pacemakerhost/pcmk2:node.2.galera
+
+</longdesc>
+<shortdesc lang="en">Pacemaker to Galera name mapping</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+END
+
+galera_meta_data "$extraparams"
+
+}
+
+is_initial_bootstrap()
+{
+    # look for the initial-bootstrap attribute, which is an optional attribute that
+    # can be set externally as the resource is first run, to indicate a subset of nodes
+    # that are sufficient to do an initial bootstrap, without needing the additional
+    # nodes to be available yet.  the flag is turned off as soon as this event proceeds.
+    local node=$(ocf_attribute_target $1)
+
+    # note there is no "-l reboot". because this value would have been set before the resource
+    # was run, reboot indicates it's only from the current run which means we'd never get it
+    local_crm_attribute $node --name "${INSTANCE_ATTR_NAME}-initial-bootstrap" --quiet 2>/dev/null
+}
+
+set_bootstrap_node()
+{
+    local node=$(ocf_attribute_target $1)
+
+    local_crm_attribute $node -l reboot --name "${INSTANCE_ATTR_NAME}-bootstrap" -v "true"
+
+}
+
+
+is_no_grastate()
+{
+    local node=$(ocf_attribute_target $1)
+    remote_crm_attribute $node -l reboot --name "${INSTANCE_ATTR_NAME}-no-grastate" --quiet 2>/dev/null
+}
+
+get_last_commit()
+{
+    local node=$(ocf_attribute_target $1)
+
+    if [ -z "$node" ]; then
+       ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" --quiet 2>/dev/null
+    else
+       remote_crm_attribute $node -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" --quiet 2>/dev/null
+    fi
+}
+
+get_safe_to_bootstrap()
+{
+    local node=$(ocf_attribute_target $1)
+
+    if [ -z "$node" ]; then
+        ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-safe-to-bootstrap" --quiet 2>/dev/null
+    else
+        remote_crm_attribute $node -l reboot --name "${INSTANCE_ATTR_NAME}-safe-to-bootstrap" --quiet 2>/dev/null
+    fi
+}
+
+all_bootstrap_candidates()
+{
+
+    local initial_bootstrap_nodes=""
+    local is_initial_boot
+    local all_nodes_pcmk=""
+
+    all_nodes=$(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' ')
+
+    ocf_log info "searching for initial bootstrap nodes in FQDN list: $all_nodes"
+    for gcomm_node in $all_nodes; do
+        local pcmk_node=$(galera_to_pcmk_name $gcomm_node)
+        if [ -z "$pcmk_node" ]; then
+            ocf_log err "Could not determine pacemaker node from galera name <${gcomm_node}>."
+            return
+        fi
+
+        all_nodes_pcmk="$all_nodes_pcmk $pcmk_node"
+
+        is_initial_boot=$(is_initial_bootstrap $pcmk_node)
+        ocf_log info "for node $pcmk_node, got initial boot flag value: $is_initial_boot"
+
+        if [ x"$is_initial_boot" != x ]; then
+            initial_bootstrap_nodes="$initial_bootstrap_nodes $pcmk_node"
+        fi
+
+    done
+
+    if [ x"$initial_bootstrap_nodes" != x ]; then
+        ocf_log info "found initial bootstrap nodes, returning FQDN list $initial_bootstrap_nodes"
+        echo "$initial_bootstrap_nodes"
+    else
+        ocf_log info "past looking at initial bootstrap nodes"
+        # return normal list of all nodes
+        echo "$all_nodes_pcmk"
+    fi
+
+}
+
+master_exists()
+{
+    if [ "$__OCF_ACTION" = "demote" ]; then
+        # We don't want to detect master instances during demote.
+        # 1. we could be detecting ourselves as being master, which is no longer the case.
+        # 2. we could be detecting other master instances that are in the process of shutting down.
+        # by not detecting other master instances in "demote" we are deferring this check
+        # to the next recurring monitor operation which will be much more accurate
+        return 1
+    fi
+    # determine if a master instance is already up and is healthy
+    crm_mon --as-xml | grep "resource.*id=\"${INSTANCE_ATTR_NAME}\".*role=\"Master\".*active=\"true\".*orphaned=\"false\".*failed=\"false\"" > /dev/null 2>&1
+
+    local master_exists_local=$?
+
+    if [ $master_exists_local -eq 0 ]; then
+        ocf_log info "Detected that a master exists for the local cluster"
+    fi
+
+    # if not, and we have remote nodes, check those also
+    if [ $master_exists_local -ne 0 ] && [ -n "$OCF_RESKEY_remote_node_map" ]; then
+        for remote_ssh in $(echo "$OCF_RESKEY_remote_node_map" | tr ';' '\n' | tr -d ' ' | sed 's/:/ /' | awk -F' ' '{print $2;}' | sort | uniq); do
+            $SSH_CMD $remote_ssh crm_mon --as-xml | grep "resource.*id=\"${INSTANCE_ATTR_NAME}\".*role=\"Master\".*active=\"true\".*orphaned=\"false\".*failed=\"false\"" > /dev/null 2>&1
+            if [ $? -eq 0 ]; then
+                ocf_log info "Detected that a master exists for the remote cluster $remote_ssh"
+                return $?
+            fi
+        done
+    fi
+
+    return $master_exists_local
+}
+
+clear_master_score()
+{
+    local node=$(ocf_attribute_target $1)
+    if [ -z "$node" ]; then
+        $CRM_MASTER -D
+    else
+        local_crm_master $node -D
+    fi
+}
+
+set_master_score()
+{
+    local node=$(ocf_attribute_target $1)
+
+    if [ -z "$node" ]; then
+        $CRM_MASTER -v 100
+    else
+        local_crm_master $node -v 100
+    fi
+}
+
+get_remote_node()
+{
+    local node=$1
+    if [ -z "$OCF_RESKEY_remote_node_map" ]; then
+        return
+    else
+        local retval=$(echo "$OCF_RESKEY_remote_node_map" | tr ';' '\n' | tr -d ' ' | sed 's/:/ /' | awk -F' ' '$1=="'"$node"'" {print $2;exit}')
+        if [ -z "$retval" ]; then
+            return
+        else
+            echo $retval
+        fi
+    fi
+}
+
+local_crm_master()
+{
+    local node=$1
+    shift
+
+    local remote_ssh=$(get_remote_node $node)
+
+    if [ -z "$remote_ssh" ]; then
+        $CRM_MASTER -N $node $@
+    fi
+
+    # if this is a remote node, don't set master; this will be set up
+    # from that pacemaker cluster.
+}
+
+local_crm_attribute()
+{
+    local node=$1
+    shift
+
+    local remote_ssh=$(get_remote_node $node)
+
+    if [ -z "$remote_ssh" ]; then
+        ${HA_SBIN_DIR}/crm_attribute -N $node $@
+    fi
+
+    # if this is a remote node, don't run any command
+
+}
+
+remote_crm_attribute()
+{
+    local node=$1
+    shift
+
+    local remote_ssh=$(get_remote_node $node)
+
+    if [ -z "$remote_ssh" ]; then
+        ${HA_SBIN_DIR}/crm_attribute -N $node $@
+    else
+        $SSH_CMD $remote_ssh ${HA_SBIN_DIR}/crm_attribute -N $node $@
+    fi
+}
+
+
+promote_everyone()
+{
+    # turn into a no-op
+    echo;
+}
+
+cmd_main $@
+
+
+# vi:sw=4:ts=4:et:

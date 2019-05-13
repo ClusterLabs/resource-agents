@@ -25,7 +25,7 @@
 
 ##
 # README.
-# 
+#
 # This agent only supports being configured as a multistate Master
 # resource.
 #
@@ -49,7 +49,7 @@
 # pcs resource create db galera enable_creation=true \
 # wsrep_cluster_address="gcomm://rhel7-auto1,rhel7-auto2,rhel7-auto3" meta master-max=3 --master
 #
-# By setting the 'enable_creation' option, the database will be automatically 
+# By setting the 'enable_creation' option, the database will be automatically
 # generated at startup. The meta attribute 'master-max=3' means that all 3
 # nodes listed in the wsrep_cluster_address list will be allowed to connect
 # to the galera cluster and perform replication.
@@ -57,7 +57,7 @@
 # NOTE: If you have more nodes in the pacemaker cluster then you wish
 # to have in the galera cluster, make sure to use location contraints to prevent
 # pacemaker from attempting to place a galera instance on a node that is
-# not in the 'wsrep_cluster_address" list. 
+# not in the 'wsrep_cluster_address" list.
 #
 ##
 
@@ -101,7 +101,9 @@ UEND
 }
 
 meta_data() {
-   cat <<END
+    extra_parameters="$1"
+
+    cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="galera">
@@ -249,6 +251,8 @@ Cluster check user password
 <content type="string" default="" />
 </parameter>
 
+${extra_parameters}
+
 </parameters>
 
 <actions>
@@ -331,7 +335,7 @@ get_last_commit()
 
     if [ -z "$node" ]; then
        ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" --quiet 2>/dev/null
-    else 
+    else
        ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" --quiet 2>/dev/null
     fi
 }
@@ -420,7 +424,7 @@ clear_master_score()
     local node=$(ocf_attribute_target $1)
     if [ -z "$node" ]; then
         $CRM_MASTER -D
-    else 
+    else
         $CRM_MASTER -D -N $node
     fi
 }
@@ -431,7 +435,7 @@ set_master_score()
 
     if [ -z "$node" ]; then
         $CRM_MASTER -v 100
-    else 
+    else
         $CRM_MASTER -N $node -v 100
     fi
 }
@@ -480,6 +484,23 @@ pcmk_to_galera_name()
 }
 
 
+all_bootstrap_candidates()
+{
+    local pcmk_nodes=""
+    all_nodes=$(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' ')
+
+    for node in $all_nodes; do
+        local pcmk_node=$(galera_to_pcmk_name $node)
+        if [ -z "$pcmk_node" ]; then
+            ocf_log err "Could not determine pacemaker node from galera name <${node}>."
+            return
+        fi
+
+        pcmk_nodes="$pcmk_nodes $pcmk_node"
+    done
+    echo "$pcmk_nodes"
+}
+
 detect_first_master()
 {
     local best_commit=0
@@ -492,24 +513,11 @@ detect_first_master()
     local best_node
     local safe_to_bootstrap
 
-    all_nodes=$(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' ')
-    best_node_gcomm=$(echo "$all_nodes" | sed 's/^.* \(.*\)$/\1/')
-    best_node=$(galera_to_pcmk_name $best_node_gcomm)
-    if [ -z "$best_node" ]; then
-        ocf_log err "Could not determine initial best node from galera name <${best_node_gcomm}>."
-        return
-    fi
+    all_nodes=$(all_bootstrap_candidates)
+    best_node=$(echo "$all_nodes" | sed 's/^.* \(.*\)$/\1/')
 
     # avoid selecting a recovered node as bootstrap if possible
     for node in $all_nodes; do
-        local pcmk_node=$(galera_to_pcmk_name $node)
-        if [ -z "$pcmk_node" ]; then
-            ocf_log err "Could not determine pacemaker node from galera name <${node}>."
-            return
-        else
-            node=$pcmk_node
-        fi
-
         if is_no_grastate $node; then
             nodes_recovered="$nodes_recovered $node"
         else
@@ -529,6 +537,8 @@ detect_first_master()
             # We don't need to wait for the other nodes to report state in this case
             missing_nodes=0
             break
+        else
+            ocf_log info "Node <${node}> is not marked as safe to bootstrap, continuing to look."
         fi
 
         last_commit=$(get_last_commit $node)
@@ -925,64 +935,70 @@ galera_validate()
     mysql_common_validate
 }
 
-case "$1" in
-  meta-data)    meta_data
-        exit $OCF_SUCCESS;;
-  usage|help)   usage
-        exit $OCF_SUCCESS;;
-esac
-
-galera_validate
-rc=$?
-LSB_STATUS_STOPPED=3
-if [ $rc -ne 0 ]; then
+cmd_main() {
     case "$1" in
-        stop) exit $OCF_SUCCESS;;
-        monitor) exit $OCF_NOT_RUNNING;;
-        status) exit $LSB_STATUS_STOPPED;;
-        *) exit $rc;;
+      meta-data)    meta_data
+            exit $OCF_SUCCESS;;
+      usage|help)   usage
+            exit $OCF_SUCCESS;;
     esac
-fi
 
-if [ -z "${OCF_RESKEY_check_passwd}" ]; then
+    galera_validate
+    rc=$?
+    LSB_STATUS_STOPPED=3
+    if [ $rc -ne 0 ]; then
+        case "$1" in
+            stop) exit $OCF_SUCCESS;;
+            monitor) exit $OCF_NOT_RUNNING;;
+            status) exit $LSB_STATUS_STOPPED;;
+            *) exit $rc;;
+        esac
+    fi
+
+    if [ -z "${OCF_RESKEY_check_passwd}" ]; then
+        # This value is automatically sourced from /etc/sysconfig/checkcluster if available
+        OCF_RESKEY_check_passwd=${MYSQL_PASSWORD}
+    fi
+    if [ -z "${OCF_RESKEY_check_user}" ]; then
+        # This value is automatically sourced from /etc/sysconfig/checkcluster if available
+        OCF_RESKEY_check_user=${MYSQL_USERNAME}
+    fi
+    : ${OCF_RESKEY_check_user="root"}
+
+    MYSQL_OPTIONS_CHECK="-nNE --user=${OCF_RESKEY_check_user}"
+    if [ -n "${OCF_RESKEY_check_passwd}" ]; then
+        MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK --password=${OCF_RESKEY_check_passwd}"
+    fi
+
     # This value is automatically sourced from /etc/sysconfig/checkcluster if available
-    OCF_RESKEY_check_passwd=${MYSQL_PASSWORD}
-fi
-if [ -z "${OCF_RESKEY_check_user}" ]; then
+    if [ -n "${MYSQL_HOST}" ]; then
+        MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK -h ${MYSQL_HOST}"
+    fi
+
     # This value is automatically sourced from /etc/sysconfig/checkcluster if available
-    OCF_RESKEY_check_user=${MYSQL_USERNAME}
+    if [ -n "${MYSQL_PORT}" ]; then
+        MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK -P ${MYSQL_PORT}"
+    fi
+
+    # What kind of method was invoked?
+    case "$1" in
+      start)    galera_start;;
+      stop)     galera_stop;;
+      status)   mysql_common_status err;;
+      monitor)  galera_monitor;;
+      promote)  galera_promote;;
+      demote)   galera_demote;;
+      validate-all) exit $OCF_SUCCESS;;
+
+     *)     usage
+            exit $OCF_ERR_UNIMPLEMENTED;;
+    esac
+}
+
+# run 'main' if we aren't "sourceonly"
+if [ $1 != "sourceonly" ]; then
+    cmd_main $@
 fi
-: ${OCF_RESKEY_check_user="root"}
 
-MYSQL_OPTIONS_CHECK="-nNE --user=${OCF_RESKEY_check_user}"
-if [ -n "${OCF_RESKEY_check_passwd}" ]; then
-    MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK --password=${OCF_RESKEY_check_passwd}"
-fi
-
-# This value is automatically sourced from /etc/sysconfig/checkcluster if available
-if [ -n "${MYSQL_HOST}" ]; then
-    MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK -h ${MYSQL_HOST}"
-fi
-
-# This value is automatically sourced from /etc/sysconfig/checkcluster if available
-if [ -n "${MYSQL_PORT}" ]; then
-    MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK -P ${MYSQL_PORT}"
-fi
-
-
-
-# What kind of method was invoked?
-case "$1" in
-  start)    galera_start;;
-  stop)     galera_stop;;
-  status)   mysql_common_status err;;
-  monitor)  galera_monitor;;
-  promote)  galera_promote;;
-  demote)   galera_demote;;
-  validate-all) exit $OCF_SUCCESS;;
-
- *)     usage
-        exit $OCF_ERR_UNIMPLEMENTED;;
-esac
 
 # vi:sw=4:ts=4:et:
