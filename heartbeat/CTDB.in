@@ -588,7 +588,7 @@ ctdb_start() {
 	local log_option
 	# --logging supported from v4.3.0 and --logfile / --syslog support 
 	# has been removed from newer versions
-	version=$(ctdb version | awk '{print $NF}' | sed "s/\.\?[[:alpha:]].*//")
+	version=$(ctdb version | awk '{print $NF}' | sed "s/[-\.]\?[[:alpha:]].*//")
 	ocf_version_cmp "$version" "4.2.14"
 	if [ "$?" -eq "2" ]; then
 		log_option="--logging=file:$OCF_RESKEY_ctdb_logfile"
