@@ -181,7 +181,6 @@ container to be considered healthy.
 <content type="boolean"/>
 </parameter>
 
-<parameters>
 <parameter name="daemon_pidfile" required="0" unique="0">
 <longdesc lang="en">
 The RA will report not running status on hosts where the docker daemon
