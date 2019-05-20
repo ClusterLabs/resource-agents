@@ -33,6 +33,11 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_daemon_pidfile_default="/var/run/docker.pid"
+: ${OCF_RESKEY_daemon_pidfile=${OCF_RESKEY_daemon_pidfile_default}}
+
 #######################################################################
 
 meta_data()
@@ -176,6 +181,15 @@ container to be considered healthy.
 <content type="boolean"/>
 </parameter>
 
+<parameter name="daemon_pidfile" required="0" unique="0">
+<longdesc lang="en">
+The RA will report not running status on hosts where the docker daemon
+is not running.
+</longdesc>
+<shortdesc lang="en">Name of the docker daemon pid file</shortdesc>
+<content type="string" default="${OCF_RESKEY_daemon_pidfile_default}"/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -276,6 +290,16 @@ remove_container()
 docker_simple_status()
 {
 	local val
+
+	if [ ! -x "$(command -v docker)" ]; then 
+		ocf_log err "docker is not installed on this host"
+		return $OCF_ERR_INSTALLED
+	fi
+
+	if [ ! -e "$OCF_RESKEY_daemon_pidfile" ]; then
+		ocf_log err "docker daemon is not running, pid file $OCF_RESKEY_daemon_pidfile not exists"
+		return $OCF_NOT_RUNNING
+	fi
 
 	container_exists
 	if [ $? -ne 0 ]; then
