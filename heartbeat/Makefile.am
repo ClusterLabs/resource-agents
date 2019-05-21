@@ -105,6 +105,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			dhcpd			\
 			dnsupdate		\
 			docker			\
+			dovecot			\
 			eDir88			\
 			ethmonitor		\
 			exportfs		\
