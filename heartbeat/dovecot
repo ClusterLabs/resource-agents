@@ -300,7 +300,6 @@ fi
 dovecot_validate_all
 ret=$?
 
-LSB_STATUS_STOPPED=3
 if [ $ret -ne $OCF_SUCCESS ]; then
     case $1 in
     stop)       exit $OCF_SUCCESS ;;
