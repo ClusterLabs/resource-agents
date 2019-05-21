@@ -29,11 +29,14 @@
 
 # Defaults
 OCF_RESKEY_binary_default="/usr/sbin/dovecot"
+OCF_RESKEY_config_file_default=""
+OCF_RESKEY_pid_file_default="/var/run/dovecot/master.pid"
+OCF_RESKEY_parameters_default=""
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
-: ${OCF_RESKEY_config_file=""}
-: ${OCF_RESKEY_pid_file=""}
-: ${OCF_RESKEY_parameters=""}
+: ${OCF_RESKEY_config_file=${OCF_RESKEY_config_file_default}}
+: ${OCF_RESKEY_pid_file=${OCF_RESKEY_pid_file_default}}
+: ${OCF_RESKEY_parameters=${OCF_RESKEY_parameters_default}}
 USAGE="Usage: $0 {start|stop|reload|monitor|validate-all|meta-data}";
 
 ##########################################################################
@@ -70,7 +73,7 @@ Full path to a Dovecot configuration file.
 For example, "/etc/dovecot/dovecot.conf".
 </longdesc>
 <shortdesc lang="en">Full path to configuration file</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_config_file_default}" />
 </parameter>
 
 <parameter name="pid_file" unique="1" required="0">
@@ -79,7 +82,7 @@ Full path to a Dovecot PID file.
 For example, "/var/run/dovecot/master.pid".
 </longdesc>
 <shortdesc lang="en">Full path to PID file</shortdesc>
-<content type="string" default="/var/run/dovecot/master.pid" />
+<content type="string" default="${OCF_RESKEY_pid_file_default}" />
 </parameter>
 
 <parameter name="parameters" unique="0" required="0">
@@ -88,7 +91,7 @@ The Dovecot daemon may be called with additional parameters.
 Specify any of them here.
 </longdesc>
 <shortdesc lang="en"></shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_parameters_default}" />
 </parameter>
 
 </parameters>
