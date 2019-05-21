@@ -71,11 +71,11 @@ Name of the service
 </parameters>
 
 <actions>
-<action name="start" timeout="60" />
-<action name="stop" timeout="60" />
-<action name="monitor" depth="0" timeout="30" interval="30"/>
-<action name="meta-data" timeout="5" />
-<action name="validate-all" timeout="5" />
+<action name="start" timeout="60s" />
+<action name="stop" timeout="60s" />
+<action name="monitor" depth="0" timeout="30s" interval="30s"/>
+<action name="meta-data" timeout="5s" />
+<action name="validate-all" timeout="5s" />
 </actions>
 </resource-agent>
 EOF
