@@ -27,7 +27,10 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
-: ${OCF_RESKEY_binary="/usr/sbin/dovecot"}
+# Defaults
+OCF_RESKEY_binary_default="/usr/sbin/dovecot"
+
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 : ${OCF_RESKEY_config_file=""}
 : ${OCF_RESKEY_pid_file=""}
 : ${OCF_RESKEY_parameters=""}
@@ -58,7 +61,7 @@ Full path to the Dovecot binary.
 For example, "/usr/sbin/dovecot".
 </longdesc>
 <shortdesc lang="en">Full path to Dovecot binary</shortdesc>
-<content type="string" default="/usr/sbin/dovecot" />
+<content type="string" default="${OCF_RESKEY_binary_default}" />
 </parameter>
 
 <parameter name="config_file" unique="1" required="0">
