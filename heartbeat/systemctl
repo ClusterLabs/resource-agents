@@ -1,0 +1,215 @@
+#!/bin/sh
+#
+# Resource Agent for managing a systemd service with systemctl.
+#
+# License: GNU General Public License (GPL)
+# (c) 2018 Bas Couwenberg <sebastic@xs4all.nl>
+
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#
+# Variables
+#
+
+OCF_RESKEY_systemctl_default="/bin/systemctl"
+
+: ${OCF_RESKEY_systemctl=${OCF_RESKEY_systemctl_default}}
+
+#
+# Usage
+#
+
+systemctl_usage() {
+    cat <<EOF
+Usage: $0 start|stop|monitor|meta-data|validate-all
+
+$0 manages a systemd service with systemctl as an HA resource.
+
+The 'start' operation starts the service with systemctl.
+The 'stop' operation stops the service with systemctl.
+The 'monitor' operation reports whether service is running.
+The 'meta-data' operation reports resource agent metadata.
+The 'validate-all' operation reports whether parameters are valid.
+EOF
+}
+
+#
+# Metadata
+#
+
+systemctl_meta_data() {
+    cat <<EOF
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="systemctl">
+<version>0.1</version>
+
+<longdesc lang="en">
+Resource script for a systemd service.
+It manages a systemd service with systemctl as an HA resource.
+</longdesc>
+<shortdesc lang="en">Manages a systemd service</shortdesc>
+
+<parameters>
+<parameter name="systemctl" unique="0" required="0">
+<longdesc lang="en">
+Path to the systemctl command.
+</longdesc>
+<shortdesc lang="en">systemctl</shortdesc>
+<content type="string" default="${OCF_RESKEY_systemctl_default}" />
+</parameter>
+
+<parameter name="service" unique="0" required="1">
+<longdesc lang="en">
+Name of the service
+</longdesc>
+<shortdesc lang="en">service</shortdesc>
+<content type="string" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="60" />
+<action name="stop" timeout="60" />
+<action name="monitor" depth="0" timeout="30" interval="30"/>
+<action name="meta-data" timeout="5" />
+<action name="validate-all" timeout="5" />
+</actions>
+</resource-agent>
+EOF
+}
+
+#
+# Validate
+#
+
+systemctl_validate_all() {
+    check_binary $OCF_RESKEY_systemctl
+
+    if [ -z "$OCF_RESKEY_service" ]; then
+        ocf_exit_reason "No service specified"
+        return $OCF_ERR_CONFIGURED
+    fi
+
+    $OCF_RESKEY_systemctl cat "$OCF_RESKEY_service" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        ocf_exit_reason "Service not found"
+        return $OCF_ERR_CONFIGURED
+    fi
+
+    return $OCF_SUCCESS
+}
+
+#
+# Monitor
+#
+
+systemctl_monitor() {
+    $OCF_RESKEY_systemctl is-active "$OCF_RESKEY_service" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        ocf_exit_reason "Service is not running"
+        return $OCF_NOT_RUNNING
+    fi
+
+    return $OCF_SUCCESS
+}
+
+#
+# Start
+#
+
+systemctl_start() {
+    # if resource is already running, bail out early
+    if systemctl_monitor; then
+        ocf_log info "Service is already running"
+        return $OCF_SUCCESS
+    fi
+
+    $OCF_RESKEY_systemctl start "$OCF_RESKEY_service" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        ocf_exit_reason "Service failed to start"
+        return $OCF_ERR_GENERIC
+    fi
+
+    while ! systemctl_monitor; do
+        ocf_log debug "Service has not started yet, waiting"
+        sleep 1
+    done
+
+    return $OCF_SUCCESS
+}
+
+#
+# Stop
+#
+
+systemctl_stop () {
+    systemctl_monitor
+    rc=$?
+    case "$rc" in
+        "$OCF_SUCCESS")
+            # Currently running. Normal, expected behavior.
+            ocf_log debug "Service is currently running"
+            ;;
+        "OCF_NOT_RUNNING")
+            # Currently not running. Nothing to do.
+            ocf_log info "Service is already stopped"
+            return $OCF_SUCCESS
+            ;;
+    esac
+
+    $OCF_RESKEY_systemctl stop "$OCF_RESKEY_service" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        ocf_log info "Service failed to stop, killing"
+        $OCF_RESKEY_systemctl kill "$OCF_RESKEY_service" > /dev/null 2>&1
+    fi
+
+    while systemctl_monitor; do
+        ocf_log debug "Service has not stopped yet, waiting"
+        sleep 1
+    done
+
+    return $OCF_SUCCESS
+}
+
+#
+# Main
+#
+
+if [ $# != 1 ]; then
+    systemctl_usage
+    exit $OCF_ERR_ARGS
+fi
+
+# Make sure meta-data and usage always succeed
+case $__OCF_ACTION in
+    meta-data)      systemctl_meta_data
+                    exit $OCF_SUCCESS
+                    ;;
+    usage|help)     systemctl_usage
+                    exit $OCF_SUCCESS
+                    ;;
+esac
+
+# Anything other than meta-data and usage must pass validation
+systemctl_validate_all || exit $?
+
+# Translate each action into the appropriate function call
+case $__OCF_ACTION in
+    start)          systemctl_start
+                    ;;
+    stop)           systemctl_stop
+                    ;;
+    status|monitor) systemctl_monitor
+                    ;;
+    validate-all)   ;;
+    *)              systemctl_usage
+                    exit $OCF_ERR_UNIMPLEMENTED
+                    ;;
+esac
+rc=$?
+
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION returned $rc"
+exit $rc

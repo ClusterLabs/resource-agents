@@ -167,6 +167,7 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_mpathpersist.7 \
                           ocf_heartbeat_symlink.7 \
                           ocf_heartbeat_syslog-ng.7 \
+                          ocf_heartbeat_systemctl.7 \
                           ocf_heartbeat_tomcat.7 \
                           ocf_heartbeat_varnish.7 \
                           ocf_heartbeat_vdo-vol.7 \
