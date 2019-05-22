@@ -37,6 +37,16 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_instance_default=""
+OCF_RESKEY_admin_default=""
+OCF_RESKEY_dbpartitionnum_default="0"
+
+: ${OCF_RESKEY_instance=${OCF_RESKEY_instance_default}}
+: ${OCF_RESKEY_admin=${OCF_RESKEY_admin_default}}
+: ${OCF_RESKEY_dbpartitionnum=${OCF_RESKEY_dbpartitionnum_default}}
+
 #######################################################################
 
 
@@ -82,7 +92,7 @@ For further information and examples consult http://www.linux-ha.org/wiki/db2_(r
 The instance of the database(s).
 </longdesc>
 <shortdesc lang="en">instance</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_instance_default}" />
 </parameter>
 <parameter name="dblist" unique="0" required="0">
 <longdesc lang="en">
@@ -97,14 +107,14 @@ Defaults to all databases in the instance. Specify one db for HADR mode.
 DEPRECATED: The admin user of the instance.
 </longdesc>
 <shortdesc lang="en">DEPRECATED: admin</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_admin_default}" />
 </parameter>
 <parameter name="dbpartitionnum" unique="0" required="0">
 <longdesc lang="en">
 The number of the partition (DBPARTITIONNUM) to be managed.
 </longdesc>
 <shortdesc lang="en">database partition number (DBPARTITIONNUM)</shortdesc>
-<content type="string" default="0" />
+<content type="string" default="${OCF_RESKEY_dbpartitionnum_default}" />
 </parameter>
 </parameters>
 
