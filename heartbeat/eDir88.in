@@ -43,6 +43,22 @@
 test -f /opt/novell/eDirectory/bin/ndspath &&
 	. /opt/novell/eDirectory/bin/ndspath 2>/dev/null >/dev/null
 
+# Parameter defaults
+
+OCF_RESKEY_eDir_config_file_default="/etc/opt/novell/eDirectory/conf/nds.conf"
+OCF_RESKEY_eDir_monitor_ldap_default="0"
+OCF_RESKEY_eDir_monitor_idm_default="0"
+OCF_RESKEY_eDir_jvm_initial_heap_default=""
+OCF_RESKEY_eDir_jvm_max_heap_default=""
+OCF_RESKEY_eDir_jvm_options_default=""
+
+: ${OCF_RESKEY_eDir_config_file=${OCF_RESKEY_eDir_config_file_default}}
+: ${OCF_RESKEY_eDir_monitor_ldap=${OCF_RESKEY_eDir_monitor_ldap_default}}
+: ${OCF_RESKEY_eDir_monitor_idm=${OCF_RESKEY_eDir_monitor_idm_default}}
+: ${OCF_RESKEY_eDir_jvm_initial_heap=${OCF_RESKEY_eDir_jvm_initial_heap_default}}
+: ${OCF_RESKEY_eDir_jvm_max_heap=${OCF_RESKEY_eDir_jvm_max_heap_default}}
+: ${OCF_RESKEY_eDir_jvm_options=${OCF_RESKEY_eDir_jvm_options_default}}
+
 #######################################################################
 
 usage() {
@@ -98,42 +114,42 @@ to be available.
 Path to configuration file for eDirectory instance.
 </longdesc>
 <shortdesc lang="en">eDir config file</shortdesc>
-<content type="string" default="/etc/opt/novell/eDirectory/conf/nds.conf" />
+<content type="string" default="${OCF_RESKEY_eDir_config_file_default}" />
 </parameter>
 <parameter name="eDir_monitor_ldap" required="0">
 <longdesc lang="en">
 Should we monitor if LDAP is running for the eDirectory instance?
 </longdesc>
 <shortdesc lang="en">eDir monitor ldap</shortdesc>
-<content type="boolean" default="0" />
+<content type="boolean" default="${OCF_RESKEY_eDir_monitor_ldap_default}" />
 </parameter>
 <parameter name="eDir_monitor_idm" required="0">
 <longdesc lang="en">
 Should we monitor if IDM is running for the eDirectory instance?
 </longdesc>
 <shortdesc lang="en">eDir monitor IDM</shortdesc>
-<content type="boolean" default="0" />
+<content type="boolean" default="${OCF_RESKEY_eDir_monitor_idm_default}" />
 </parameter>
 <parameter name="eDir_jvm_initial_heap" required="0">
 <longdesc lang="en">
 Value for the DHOST_INITIAL_HEAP java environment variable. If unset, java defaults will be used.
 </longdesc>
 <shortdesc lang="en">DHOST_INITIAL_HEAP value</shortdesc>
-<content type="integer" default="" />
+<content type="integer" default="${OCF_RESKEY_eDir_jvm_initial_heap_default}" />
 </parameter>
 <parameter name="eDir_jvm_max_heap" required="0">
 <longdesc lang="en">
 Value for the DHOST_MAX_HEAP java environment variable. If unset, java defaults will be used.
 </longdesc>
 <shortdesc lang="en">DHOST_MAX_HEAP value</shortdesc>
-<content type="integer" default="" />
+<content type="integer" default="${OCF_RESKEY_eDir_jvm_max_heap_default}" />
 </parameter>
 <parameter name="eDir_jvm_options" required="0">
 <longdesc lang="en">
 Value for the DHOST_OPTIONS java environment variable. If unset, original values will be used.
 </longdesc>
 <shortdesc lang="en">DHOST_OPTIONS value</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_eDir_jvm_options_default}" />
 </parameter>
 </parameters>
 
