@@ -40,6 +40,20 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_device_default=""
+OCF_RESKEY_index_default="1"
+OCF_RESKEY_collision_timeout_default="1"
+OCF_RESKEY_monitor_interval_default="10"
+OCF_RESKEY_lock_timeout_default="100"
+
+: ${OCF_RESKEY_device=${OCF_RESKEY_device_default}}
+: ${OCF_RESKEY_index=${OCF_RESKEY_index_default}}
+: ${OCF_RESKEY_collision_timeout=${OCF_RESKEY_collision_timeout_default}}
+: ${OCF_RESKEY_monitor_interval=${OCF_RESKEY_monitor_interval_default}}
+: ${OCF_RESKEY_lock_timeout=${OCF_RESKEY_lock_timeout_default}}
+
 #######################################################################
 
 SFEX_DAEMON=${HA_BIN}/sfex_daemon
@@ -67,32 +81,32 @@ Resource script for SF-EX. It manages a shared storage medium exclusively .
 Block device path that stores exclusive control data.
 </longdesc>
 <shortdesc lang="en">block device</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_device_default}" />
 </parameter>
 <parameter name="index" unique="0" required="0">
 <longdesc lang="en">
 Location in block device where exclusive control data is stored. 1 or more is specified. Default is 1.
 </longdesc>
 <shortdesc lang="en">index</shortdesc>
-<content type="integer" default="1" />
+<content type="integer" default="${OCF_RESKEY_index_default}" />
 </parameter>
 <parameter name="collision_timeout" unique="0" required="0">
 <longdesc lang="en">
 Waiting time when a collision of lock acquisition is detected. Default is 1 second.
 </longdesc>
 <shortdesc lang="en">waiting time for lock acquisition</shortdesc>
-<content type="integer" default="1" />
+<content type="integer" default="${OCF_RESKEY_collision_timeout_default}" />
 </parameter>
 <parameter name="monitor_interval" unique="0" required="0">
 <longdesc lang="en">
-Monitor interval(sec). Default is 10 seconds
+Monitor interval(sec). Default is ${OCF_RESKEY_monitor_interval_default} seconds
 </longdesc>
 <shortdesc lang="en">monitor interval</shortdesc>
-<content type="integer" default="10" />
+<content type="integer" default="${OCF_RESKEY_monitor_interval_default}" />
 </parameter>
 <parameter name="lock_timeout" unique="0" required="0">
 <longdesc lang="en">
-Valid term of lock(sec). Default is 100 seconds.
+Valid term of lock(sec). Default is ${OCF_RESKEY_lock_timeout_default} seconds.
 The lock_timeout is calculated by the following formula.
 
   lock_timeout = monitor_interval + "The expiration time of the lock"
@@ -106,7 +120,7 @@ The lock timeout have an impact on start action timeout because start action tim
 The "safety margin" is decided within the range of about 10-20 seconds(It depends on your system requirement).
 </longdesc>
 <shortdesc lang="en">Valid term of lock</shortdesc>
-<content type="integer" default="100" />
+<content type="integer" default="${OCF_RESKEY_lock_timeout_default}" />
 </parameter>
 </parameters>
 
@@ -256,10 +270,10 @@ esac
 
 # check parameters
 DEVICE=$OCF_RESKEY_device
-INDEX=${OCF_RESKEY_index:-1}
-COLLISION_TIMEOUT=${OCF_RESKEY_collision_timeout:-1}
-LOCK_TIMEOUT=${OCF_RESKEY_lock_timeout:-100}
-MONITOR_INTERVAL=${OCF_RESKEY_monitor_interval:-10}
+INDEX=${OCF_RESKEY_index}
+COLLISION_TIMEOUT=${OCF_RESKEY_collision_timeout}
+LOCK_TIMEOUT=${OCF_RESKEY_lock_timeout}
+MONITOR_INTERVAL=${OCF_RESKEY_monitor_interval}
 
 sfex_validate () {
 if [ -z "$DEVICE" ]; then
