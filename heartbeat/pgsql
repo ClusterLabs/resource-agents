@@ -53,6 +53,7 @@ OCF_RESKEY_start_opt_default=""
 OCF_RESKEY_ctl_opt_default=""
 OCF_RESKEY_pgdb_default=template1
 OCF_RESKEY_logfile_default=/dev/null
+OCF_RESKEY_socketdir_default=""
 OCF_RESKEY_stop_escalate_default=90
 OCF_RESKEY_monitor_user_default=""
 OCF_RESKEY_monitor_password_default=""
@@ -86,6 +87,7 @@ OCF_RESKEY_replication_slot_name_default=""
 : ${OCF_RESKEY_ctl_opt=${OCF_RESKEY_ctl_opt_default}}
 : ${OCF_RESKEY_pgdb=${OCF_RESKEY_pgdb_default}}
 : ${OCF_RESKEY_logfile=${OCF_RESKEY_logfile_default}}
+: ${OCF_RESKEY_socketdir=${OCF_RESKEY_socketdir_default}}
 : ${OCF_RESKEY_stop_escalate=${OCF_RESKEY_stop_escalate_default}}
 : ${OCF_RESKEY_monitor_user=${OCF_RESKEY_monitor_user_default}}
 : ${OCF_RESKEY_monitor_password=${OCF_RESKEY_monitor_password_default}}
@@ -268,7 +270,7 @@ Unix socket directory for PostgreSQL.
 If you use PostgreSQL 9.3 or higher and define unix_socket_directories in the postgresql.conf, then you must set socketdir to determine which directory is used for psql command.
 </longdesc>
 <shortdesc lang="en">socketdir</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_socketdir_default}" />
 </parameter>
 
 <parameter name="stop_escalate" unique="0" required="0">
