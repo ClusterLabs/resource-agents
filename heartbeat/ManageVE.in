@@ -43,6 +43,13 @@
 ###
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Parameter defaults
+
+OCF_RESKEY_veid_default=""
+
+: ${OCF_RESKEY_veid=${OCF_RESKEY_veid_default}}
+
 ###
 
 # required utilities
@@ -82,7 +89,7 @@ meta_data()
         OpenVZ ID of virtual environment (see output of vzlist -a for all assigned IDs)
       </longdesc>
       <shortdesc lang="en">OpenVZ ID of VE</shortdesc>
-      <content type="integer" default="" />
+      <content type="integer" default="${OCF_RESKEY_veid_default}" />
     </parameter>
   </parameters>
 
