@@ -34,6 +34,12 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_reuse_default="0"
+
+: ${OCF_RESKEY_reuse=${OCF_RESKEY_reuse_default}}
+
 #######################################################################
 
 meta_data()
@@ -153,7 +159,7 @@ containers get removed once they are stopped.  Enable this option
 to have the particular one persist when this happens.
 </longdesc>
 <shortdesc lang="en">reuse container</shortdesc>
-<content type="boolean" default="0"/>
+<content type="boolean" default="${OCF_RESKEY_reuse_default}"/>
 </parameter>
 </parameters>
 
