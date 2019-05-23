@@ -29,6 +29,18 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_volgrpname_default=""
+OCF_RESKEY_exclusive_default="false"
+OCF_RESKEY_tag_default="pacemaker"
+OCF_RESKEY_partial_activation_default="false"
+
+: ${OCF_RESKEY_volgrpname=${OCF_RESKEY_volgrpname_default}}
+: ${OCF_RESKEY_exclusive=${OCF_RESKEY_exclusive_default}}
+: ${OCF_RESKEY_tag=${OCF_RESKEY_tag_default}}
+: ${OCF_RESKEY_partial_activation=${OCF_RESKEY_partial_activation_default}}
+
 #######################################################################
 
 
@@ -70,7 +82,7 @@ as an HA resource.
 The name of volume group.
 </longdesc>
 <shortdesc lang="en">Volume group name</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_volgrpname_default}" />
 </parameter>
 <parameter name="exclusive" unique="0" required="0">
 <longdesc lang="en">
@@ -82,7 +94,7 @@ filter. When the tag option is in use, the volume_list in lvm.con must be initia
 can be as simple as setting 'volume_list = []' depending on your setup.
 </longdesc>
 <shortdesc lang="en">Exclusive activation</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_exclusive_default}" />
 </parameter>
 
 <parameter name="tag" unique="0" required="0">
@@ -90,7 +102,7 @@ can be as simple as setting 'volume_list = []' depending on your setup.
 If "exclusive" is set on a non clustered volume group, this overrides the tag to be used.
 </longdesc>
 <shortdesc lang="en">Exclusive activation tag</shortdesc>
-<content type="string" default="pacemaker" />
+<content type="string" default="${OCF_RESKEY_tag_default}" />
 </parameter>
 
 <parameter name="partial_activation" unique="0" required="0">
@@ -100,7 +112,7 @@ physical volumes missing. It helps to set to true when using mirrored
 logical volumes.
 </longdesc>
 <shortdesc lang="en">Activate VG partially when missing PVs</shortdesc>
-<content type="string" default="false" />
+<content type="string" default="${OCF_RESKEY_partial_activation_default}" />
 </parameter>
 
 </parameters>
