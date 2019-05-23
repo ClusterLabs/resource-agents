@@ -29,6 +29,14 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_scsi_default=""
+OCF_RESKEY_ignore_deprecation_default="false"
+
+: ${OCF_RESKEY_scsi=${OCF_RESKEY_scsi_default}}
+: ${OCF_RESKEY_ignore_deprecation=${OCF_RESKEY_ignore_deprecation_default}}
+
 #######################################################################
 
 zeropat="[ 0]0"
@@ -126,7 +134,7 @@ kernel SCSI hot-plug subsystem (deprecated)</shortdesc>
 The SCSI instance to be managed.
 </longdesc>
 <shortdesc lang="en">SCSI instance</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_scsi_default}" />
 </parameter>
 
 <parameter name="ignore_deprecation">
@@ -134,7 +142,7 @@ The SCSI instance to be managed.
 If set to true, suppresses the deprecation warning for this agent.
 </longdesc>
 <shortdesc lang="en">Suppress deprecation warning</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_ignore_deprecation_default}" />
 </parameter>
 
 </parameters>
