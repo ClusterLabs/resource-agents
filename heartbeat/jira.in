@@ -36,6 +36,16 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_statusurl_default="http://localhost:8080/status"
+OCF_RESKEY_java_home_default="/usr/lib/jvm/jre"
+OCF_RESKEY_jira_user_default="jira"
+
+: ${OCF_RESKEY_statusurl=${OCF_RESKEY_statusurl_default}}
+: ${OCF_RESKEY_java_home=${OCF_RESKEY_java_home_default}}
+: ${OCF_RESKEY_jira_user=${OCF_RESKEY_jira_user_default}}
+
 # Usage
 jira_usage() {
   cat <<_EOF
@@ -201,7 +211,7 @@ OCF Resource Agent to manage JIRA software
       Status URL for JIRA monitoring
       </longdesc>
       <shortdesc lang="en">JIRA status url</shortdesc>
-      <content type="string" default="http://localhost:8080/status"/>
+      <content type="string" default="${OCF_RESKEY_statusurl_default}"/>
     </parameter>
     
     <parameter name="java_home" unique="0" required="0">
@@ -209,7 +219,7 @@ OCF Resource Agent to manage JIRA software
       Java Home in the Linux instance
       </longdesc>
       <shortdesc lang="en">Java Home</shortdesc>
-      <content type="string" default="/usr/lib/jvm/jre"/>
+      <content type="string" default="${OCF_RESKEY_java_home_default}"/>
     </parameter>
 
 
@@ -226,7 +236,7 @@ OCF Resource Agent to manage JIRA software
       User to run Jira software with 
       </longdesc>
       <shortdesc lang="en">Jira user</shortdesc>
-      <content type="string" default="jira"/>
+      <content type="string" default="${OCF_RESKEY_jira_user_default}"/>
     </parameter>
 
   </parameters>
@@ -245,10 +255,10 @@ EOF
 # Execution
 
 # Set vars from defined OCF env vars
-statusurl=${OCF_RESKEY_statusurl-http://localhost:8080/status}
-java_home=${OCF_RESKEY_java_home-/usr/lib/jvm/jre}
+statusurl=${OCF_RESKEY_statusurl-${OCF_RESKEY_statusurl_default}}
+java_home=${OCF_RESKEY_java_home-${OCF_RESKEY_java_home_default}}
 jira_installation=${OCF_RESKEY_jira_installation}
-jira_user=${OCF_RESKEY_jira_user-jira}
+jira_user=${OCF_RESKEY_jira_user-${OCF_RESKEY_jira_user_default}}
 
 # Export JAVA_HOME env variable
 export JAVA_HOME=${OCF_RESKEY_java_home}
