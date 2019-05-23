@@ -36,8 +36,15 @@
 
 # Defaults
 
+OCF_RESKEY_tunnel_default=""
+OCF_RESKEY_vip_default=""
 OCF_RESKEY_confdir_default="/etc/ipsec.d/"
+OCF_RESKEY_fallbacktunnel_default=""
+
+: ${OCF_RESKEY_tunnel=${OCF_RESKEY_tunnel_default}}
+: ${OCF_RESKEY_vip=${OCF_RESKEY_vip_default}}
 : ${OCF_RESKEY_confdir=${OCF_RESKEY_confdir_default}}
+: ${OCF_RESKEY_fallbacktunnel=${OCF_RESKEY_fallbacktunnel_default}}
 
 meta_data() {
 	cat <<END
@@ -59,14 +66,14 @@ setting up or down a specific tunnel.
 The name of the tunnel to be monitored.
 </longdesc>
 <shortdesc lang="en">Tunnel name</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_tunnel_default}" />
 </parameter>
 <parameter name="vip" unique="1" required="1">
 <longdesc lang="en">
 Virtual IP address that the tunnel is using.
 </longdesc>
 <shortdesc lang="en">VIP</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_vip_default}" />
 </parameter>
 <parameter name="confdir">
 <longdesc lang="en">
@@ -80,7 +87,7 @@ The directory where the IPSEC tunnel configurations can be found.
 The name of the tunnel to fall back to when the main tunnel is put down.
 </longdesc>
 <shortdesc lang="en">Tunnel name to fall back to</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_fallbacktunnel_default}" />
 </parameter>
 </parameters>
 
