@@ -28,11 +28,20 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
-: ${OCF_RESKEY_script="/sbin/pure-config.pl"}
+# Parameter defaults
+
+OCF_RESKEY_script_default="/sbin/pure-config.pl"
+OCF_RESKEY_conffile_default="/etc/pure-ftpd/pure-ftpd.conf"
+OCF_RESKEY_daemon_type_default=""
+OCF_RESKEY_pidfile_default="${HA_RSCTMP}/pure-ftpd-${OCF_RESOURCE_INSTANCE}.pid"
+
+: ${OCF_RESKEY_script=${OCF_RESKEY_script_default}}
+: ${OCF_RESKEY_conffile=${OCF_RESKEY_conffile_default}}
+: ${OCF_RESKEY_daemon_type=${OCF_RESKEY_daemon_type_default}}
+: ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
+
 script_basename=`basename $OCF_RESKEY_script`
-: ${OCF_RESKEY_conffile="/etc/pure-ftpd/pure-ftpd.conf"}
-: ${OCF_RESKEY_daemon_type=""}
-: ${OCF_RESKEY_pidfile="${HA_RSCTMP}/pure-ftpd-${OCF_RESOURCE_INSTANCE}.pid"}
+
 USAGE="Usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
 ##########################################################################
@@ -60,7 +69,7 @@ The full path to the Pure-FTPd startup script.
 For example, "/sbin/pure-config.pl"
 </longdesc>
 <shortdesc lang="en">Script name with full path</shortdesc>
-<content type="string" default="/sbin/pure-config.pl" />
+<content type="string" default="${OCF_RESKEY_script_default}" />
 </parameter>
 
 <parameter name="conffile" unique="1" required="0">
@@ -69,7 +78,7 @@ The Pure-FTPd configuration file name with full path.
 For example, "/etc/pure-ftpd/pure-ftpd.conf"
 </longdesc>
 <shortdesc lang="en">Configuration file name with full path</shortdesc>
-<content type="string" default="/etc/pure-ftpd/pure-ftpd.conf" />
+<content type="string" default="${OCF_RESKEY_conffile_default}" />
 </parameter>
 
 <parameter name="daemon_type" unique="1" required="0">
@@ -79,13 +88,13 @@ Valid options are "" for pure-ftpd, "mysql" for pure-ftpd-mysql,
 "postgresql" for pure-ftpd-postgresql and "ldap" for pure-ftpd-ldap
 </longdesc>
 <shortdesc lang="en">Configuration file name with full path</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_daemon_type_default}" />
 </parameter>
 
 <parameter name="pidfile" unique="0">
 <longdesc lang="en">PID file</longdesc>
 <shortdesc lang="en">PID file</shortdesc>
-<content type="string" default="${HA_RSCTMP}/pure-ftpd-${OCF_RESOURCE_INSTANCE}.pid" />
+<content type="string" default="${OCF_RESKEY_pidfile_default}" />
 </parameter>
 
 </parameters>
