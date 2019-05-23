@@ -60,9 +60,15 @@ oracle_usage() {
 }
 
 # Defaults
+OCF_RESKEY_sid_default=""
+OCF_RESKEY_home_default=""
+OCF_RESKEY_user_default=""
 OCF_RESKEY_monuser_default="OCFMON"
 OCF_RESKEY_monpassword_default="OCFMON"
 OCF_RESKEY_monprofile_default="OCFMONPROFILE"
+OCF_RESKEY_ipcrm_default="instance"
+OCF_RESKEY_clear_backupmode_default="false"
+OCF_RESKEY_shutdown_method_default="checkpoint/abort"
 
 oracle_meta_data() {
 	cat <<END
@@ -84,7 +90,7 @@ as an HA resource.
 The Oracle SID (aka ORACLE_SID).
 </longdesc>
 <shortdesc lang="en">sid</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_sid_default}" />
 </parameter>
 
 <parameter name="home" unique="0">
@@ -94,7 +100,7 @@ If not specified, then the SID along with its home should be listed in
 /etc/oratab.
 </longdesc>
 <shortdesc lang="en">home</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_home_default}" />
 </parameter>
 
 <parameter name="user" unique="0">
@@ -105,7 +111,7 @@ file \$ORACLE_HOME/dbs/*\${ORACLE_SID}.ora.
 If this does not work for you, just set it explicitely.
 </longdesc>
 <shortdesc lang="en">user</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_user_default}" />
 </parameter>
 
 <parameter name="monuser" unique="0">
@@ -183,7 +189,7 @@ runs as separate user.
 Please report any problems. Suggestions/fixes welcome.
 </longdesc>
 <shortdesc lang="en">ipcrm</shortdesc>
-<content type="string" default="instance" />
+<content type="string" default="${OCF_RESKEY_ipcrm_default}" />
 </parameter>
 
 <parameter name="clear_backupmode" unique="0" required="0">
@@ -191,7 +197,7 @@ Please report any problems. Suggestions/fixes welcome.
 The clear of the backup mode of ORACLE.
 </longdesc>
 <shortdesc lang="en">clear_backupmode</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_clear_backupmode_default}" />
 </parameter>
 
 <parameter name="shutdown_method" unique="0" required="0">
@@ -212,7 +218,7 @@ If you still think that there's even better way to shutdown an
 Oracle instance we are willing to listen.
 </longdesc>
 <shortdesc lang="en">shutdown_method</shortdesc>
-<content type="string" default="checkpoint/abort" />
+<content type="string" default="${OCF_RESKEY_shutdown_method_default}" />
 </parameter>
 
 </parameters>
@@ -576,9 +582,9 @@ ora_cleanup() {
 oracle_getconfig() {
 	ora_common_getconfig "$OCF_RESKEY_sid" "$OCF_RESKEY_home" "$OCF_RESKEY_user"
 
-	clear_backupmode=${OCF_RESKEY_clear_backupmode:-"false"}
-	shutdown_method=${OCF_RESKEY_shutdown_method:-"checkpoint/abort"}
-	IPCRM=${OCF_RESKEY_ipcrm:-"instance"}
+	clear_backupmode=${OCF_RESKEY_clear_backupmode:-${OCF_RESKEY_clear_backupmode_default}}
+	shutdown_method=${OCF_RESKEY_shutdown_method:-${OCF_RESKEY_shutdown_method_default}}
+	IPCRM=${OCF_RESKEY_ipcrm:-${OCF_RESKEY_ipcrm_default}}
 }
 
 #
