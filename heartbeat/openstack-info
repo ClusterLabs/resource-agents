@@ -33,9 +33,16 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
+OCF_RESKEY_pidfile_default="$HA_RSCTMP/OSInfo-${OCF_RESOURCE_HOSTNAME}"
+OCF_RESKEY_delay_default="0"
+OCF_RESKEY_clone_default="0"
 OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
 
 : ${OCF_RESKEY_openstackcli=${OCF_RESKEY_openstackcli_default}}
+: ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
+: ${OCF_RESKEY_delay=${OCF_RESKEY_delay_default}}
+: ${OCF_RESKEY_clone=${OCF_RESKEY_clone_default}}
+
 #######################################################################
 
 meta_data() {
@@ -62,12 +69,12 @@ The layout of openstack_ports is a comma-separated list of tuples "subnet_id:por
 <parameter name="pidfile" unique="0">
 <longdesc lang="en">PID file</longdesc>
 <shortdesc lang="en">PID file</shortdesc>
-<content type="string" default="$OCF_RESKEY_pidfile" />
+<content type="string" default="${OCF_RESKEY_pidfile_default}" />
 </parameter>
 <parameter name="delay" unique="0">
 <longdesc lang="en">Interval to allow values to stabilize</longdesc>
 <shortdesc lang="en">Dampening Delay</shortdesc>
-<content type="string" default="0" />
+<content type="string" default="${OCF_RESKEY_delay_default}" />
 </parameter>
 
 <parameter name="openrc" required="1">
@@ -231,8 +238,6 @@ if [ $# -ne 1 ]; then
 	exit $OCF_ERR_ARGS
 fi
 
-: ${OCF_RESKEY_pidfile:="$HA_RSCTMP/OSInfo-${OCF_RESOURCE_HOSTNAME}"}
-: ${OCF_RESKEY_clone:="0"}
 if [ x != x${OCF_RESKEY_delay} ]; then
 	OCF_RESKEY_delay="-d ${OCF_RESKEY_delay}"
 fi
