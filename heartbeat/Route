@@ -32,8 +32,16 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Default values
+OCF_RESKEY_device_default=""
+OCF_RESKEY_gateway_default=""
+OCF_RESKEY_source_default=""
+OCF_RESKEY_table_default=""
 OCF_RESKEY_family_default="detect"
 
+: ${OCF_RESKEY_device=${OCF_RESKEY_device_default}}
+: ${OCF_RESKEY_gateway=${OCF_RESKEY_gateway_default}}
+: ${OCF_RESKEY_source=${OCF_RESKEY_source_default}}
+: ${OCF_RESKEY_table=${OCF_RESKEY_table_default}}
 : ${OCF_RESKEY_family=${OCF_RESKEY_family_default}}
 
 #######################################################################
@@ -97,7 +105,7 @@ the system default route.
 The outgoing network device to use for this route.
 </longdesc>
 <shortdesc lang="en">Outgoing network device</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_device_default}" />
 </parameter>
 
 <parameter name="gateway" unique="0">
@@ -105,7 +113,7 @@ The outgoing network device to use for this route.
 The gateway IP address to use for this route.
 </longdesc>
 <shortdesc lang="en">Gateway IP address</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_gateway_default}" />
 </parameter>
 
 <parameter name="source" unique="0">
@@ -113,7 +121,7 @@ The gateway IP address to use for this route.
 The source IP address to be configured for the route.
 </longdesc>
 <shortdesc lang="en">Source IP address</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_source_default}" />
 </parameter>
 
 <parameter name="table" unique="0">
@@ -121,7 +129,7 @@ The source IP address to be configured for the route.
 The routing table to be configured for the route.
 </longdesc>
 <shortdesc lang="en">Routing table</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_table_default}" />
 </parameter>
 
 <parameter name="family" unique="0">
