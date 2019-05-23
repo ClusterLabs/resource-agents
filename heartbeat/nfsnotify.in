@@ -30,6 +30,14 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 . ${OCF_FUNCTIONS_DIR}/ocf-directories
 
+# Parameter defaults
+
+OCF_RESKEY_source_host_default=""
+OCF_RESKEY_notify_args_default="false"
+
+: ${OCF_RESKEY_source_host=${OCF_RESKEY_source_host_default}}
+: ${OCF_RESKEY_notify_args=${OCF_RESKEY_notify_args_default}}
+
 #######################################################################
 
 sbindir=$HA_SBIN_DIR
@@ -67,7 +75,7 @@ to access the nfs service.  This will be used to set the source address and
 mon_name of the SN_NOTIFY reboot notifications.
 </longdesc>
 <shortdesc lang="en">source IP addresses</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_source_host_default}" />
 </parameter>
 
 <parameter name="notify_args" unique="0" required="0">
@@ -80,7 +88,7 @@ set with this option will be used in addition to the previous default
 arguments.
 </longdesc>
 <shortdesc lang="en">sm-notify arguments</shortdesc>
-<content type="string" default="false" />
+<content type="string" default="${OCF_RESKEY_notify_args_default}" />
 </parameter>
 
 </parameters>
