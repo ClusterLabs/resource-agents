@@ -173,7 +173,9 @@ get_pids()
 	SQUID_PIDS[0]=$(pgrep -f "$PROCESS_PATTERN")
 
 	# Seek by child process
-	SQUID_PIDS[1]=$(pgrep -P ${SQUID_PIDS[0]})
+	if [[ -n "${SQUID_PIDS[0]}" ]]; then
+		SQUID_PIDS[1]=$(pgrep -P ${SQUID_PIDS[0]})
+	fi
 
 	if [[ -n "${SQUID_PIDS[1]}" ]]; then
 		typeset exe
