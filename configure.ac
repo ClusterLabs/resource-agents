@@ -30,6 +30,8 @@ CRM_DTD_VERSION="1.0"
 PKG_FEATURES=""
 
 AC_CONFIG_AUX_DIR(.)
+AC_CONFIG_MACRO_DIR([m4])
+
 AC_CANONICAL_HOST
 
 dnl Where #defines go (e.g. `AC_CHECK_HEADERS' below)
@@ -431,7 +433,7 @@ AC_SUBST(HA_VARRUNDIR)
 
 # Expand $prefix
 eval HA_RSCTMPDIR="`eval echo ${HA_RSCTMPDIR}`"
-AC_DEFINE_UNQUOTED(HA_RSCTMPDIR,"$HA_RSCTMPDIR", Where Resouce agents keep state files)
+AC_DEFINE_UNQUOTED(HA_RSCTMPDIR,"$HA_RSCTMPDIR", Where Resource agents keep state files)
 AC_SUBST(HA_RSCTMPDIR)
 
 dnl Eventually move out of the heartbeat dir tree and create symlinks when needed
@@ -501,11 +503,47 @@ AC_SUBST(PING)
 AC_SUBST(RM)
 AC_SUBST(TEST)
 
+dnl Ensure PYTHON is an absolute path
+AC_PATH_PROG([PYTHON], [$PYTHON])
+
 AM_PATH_PYTHON
 if test -z "$PYTHON"; then
     echo "*** Essential program python not found" 1>&2
-    exit 1
 fi
+
+AC_PYTHON_MODULE(googleapiclient)
+AC_PYTHON_MODULE(pyroute2)
+
+AS_VERSION_COMPARE([$PYTHON_VERSION], [2.7], [BUILD_OCF_PY=0], [BUILD_OCF_PY=1], [BUILD_OCF_PY=1])
+
+BUILD_AZURE_EVENTS=1
+if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0; then
+    BUILD_AZURE_EVENTS=0
+    AC_MSG_WARN("Not building azure-events")
+fi
+AM_CONDITIONAL(BUILD_AZURE_EVENTS, test $BUILD_AZURE_EVENTS -eq 1)
+
+BUILD_GCP_PD_MOVE=1
+if test -z "$PYTHON" || test "x${HAVE_PYMOD_GOOGLEAPICLIENT}" != xyes || test $BUILD_OCF_PY -eq 0; then
+    BUILD_GCP_PD_MOVE=0
+    AC_MSG_WARN("Not building gcp-pd-move")
+fi
+AM_CONDITIONAL(BUILD_GCP_PD_MOVE, test $BUILD_GCP_PD_MOVE -eq 1)
+
+BUILD_GCP_VPC_MOVE_ROUTE=1
+if test -z "$PYTHON" || test "x${HAVE_PYMOD_GOOGLEAPICLIENT}" != xyes || \
+   test "x${HAVE_PYMOD_PYROUTE2}" != xyes || test $BUILD_OCF_PY -eq 0; then
+    BUILD_GCP_VPC_MOVE_ROUTE=0
+    AC_MSG_WARN("Not building gcp-vpc-move-route")
+fi
+AM_CONDITIONAL(BUILD_GCP_VPC_MOVE_ROUTE, test $BUILD_GCP_VPC_MOVE_ROUTE -eq 1)
+
+BUILD_GCP_VPC_MOVE_VIP=1
+if test -z "$PYTHON" || test "x${HAVE_PYMOD_GOOGLEAPICLIENT}" != xyes || test $BUILD_OCF_PY -eq 0; then
+    BUILD_GCP_VPC_MOVE_VIP=0
+    AC_MSG_WARN("Not building gcp-vpc-move-vip")
+fi
+AM_CONDITIONAL(BUILD_GCP_VPC_MOVE_VIP, test $BUILD_GCP_VPC_MOVE_VIP -eq 1)
 
 AC_PATH_PROGS(ROUTE, route)
 AC_DEFINE_UNQUOTED(ROUTE, "$ROUTE", path to route command)
@@ -911,6 +949,7 @@ heartbeat/Makefile						\
    heartbeat/ocf-shellfuncs					\
    heartbeat/shellfuncs						\
 systemd/Makefile						\
+   systemd/resource-agents.conf					\
 tools/Makefile							\
    tools/ocf-tester						\
    tools/ocft/Makefile						\
@@ -947,6 +986,7 @@ rgmanager/Makefile						\
 		)
 
 dnl Files we output that need to be executable
+AC_CONFIG_FILES([heartbeat/azure-events], [chmod +x heartbeat/azure-events])
 AC_CONFIG_FILES([heartbeat/AoEtarget], [chmod +x heartbeat/AoEtarget])
 AC_CONFIG_FILES([heartbeat/ManageRAID], [chmod +x heartbeat/ManageRAID])
 AC_CONFIG_FILES([heartbeat/ManageVE], [chmod +x heartbeat/ManageVE])
@@ -958,6 +998,7 @@ AC_CONFIG_FILES([heartbeat/conntrackd], [chmod +x heartbeat/conntrackd])
 AC_CONFIG_FILES([heartbeat/dnsupdate], [chmod +x heartbeat/dnsupdate])
 AC_CONFIG_FILES([heartbeat/eDir88], [chmod +x heartbeat/eDir88])
 AC_CONFIG_FILES([heartbeat/fio], [chmod +x heartbeat/fio])
+AC_CONFIG_FILES([heartbeat/gcp-pd-move], [chmod +x heartbeat/gcp-pd-move])
 AC_CONFIG_FILES([heartbeat/gcp-vpc-move-ip], [chmod +x heartbeat/gcp-vpc-move-ip])
 AC_CONFIG_FILES([heartbeat/gcp-vpc-move-vip], [chmod +x heartbeat/gcp-vpc-move-vip])
 AC_CONFIG_FILES([heartbeat/gcp-vpc-move-route], [chmod +x heartbeat/gcp-vpc-move-route])
@@ -978,6 +1019,7 @@ AC_CONFIG_FILES([heartbeat/slapd], [chmod +x heartbeat/slapd])
 AC_CONFIG_FILES([heartbeat/sybaseASE], [chmod +x heartbeat/sybaseASE])
 AC_CONFIG_FILES([heartbeat/syslog-ng], [chmod +x heartbeat/syslog-ng])
 AC_CONFIG_FILES([heartbeat/vsftpd], [chmod +x heartbeat/vsftpd])
+AC_CONFIG_FILES([heartbeat/CTDB], [chmod +x heartbeat/CTDB])
 AC_CONFIG_FILES([rgmanager/src/resources/ASEHAagent.sh], [chmod +x rgmanager/src/resources/ASEHAagent.sh])
 AC_CONFIG_FILES([rgmanager/src/resources/apache.sh], [chmod +x rgmanager/src/resources/apache.sh])
 AC_CONFIG_FILES([rgmanager/src/resources/bind-mount.sh], [chmod +x rgmanager/src/resources/bind-mount.sh])

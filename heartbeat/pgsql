@@ -289,7 +289,7 @@ for replication (in postgresql.conf and pg_hba.conf).
 
 "slave" means that RA only makes recovery.conf before starting
 to connect to primary which is running somewhere.
-It dosen't need master/slave setting.
+It doesn't need master/slave setting.
 It requires master_ip restore_command parameters.
 </longdesc>
 <shortdesc lang="en">rep_mode</shortdesc>
@@ -383,7 +383,7 @@ their slots, the slots names are "sample_node1" and "sample_node2".
 If the node name contains a upper case letter, hyphen and dot, those characters will be converted to a lower case letter or an underscore.
 For example, Node-1.example.com to node_1_example_com.
 
-pgsql RA doesn't monitor and delete the repliation slot.
+pgsql RA doesn't monitor and delete the replication slot.
 When the slave node has been disconnected in failure or the like, execute one of the following manually.
 Otherwise it may eventually cause a disk full because the master node will continue to accumulate the unsent WAL.
 1. recover and reconnect the slave node to the master node as soon as possible.
@@ -680,6 +680,7 @@ pgsql_start() {
 
 #pgsql_promote: Promote PostgreSQL
 pgsql_promote() {
+    local output
     local target
     local rc
 
@@ -687,6 +688,18 @@ pgsql_promote() {
         ocf_exit_reason "Not in a replication mode."
         return $OCF_ERR_CONFIGURED
     fi
+
+    output=`exec_sql "${CHECK_MS_SQL}"`
+    if [ $? -ne 0 ]; then
+        report_psql_error $rc $loglevel "Can't get PostgreSQL recovery status on promote."
+        return $OCF_ERR_GENERIC
+    fi
+
+    if [ "$output" = "f" ]; then
+        ocf_log info "PostgreSQL is alredy Master. Don't execute promote."
+        return $OCF_SUCCESS
+    fi
+
     rm -f ${XLOG_NOTE_FILE}.*
 
     for target in $NODE_LIST; do
@@ -698,15 +711,6 @@ pgsql_promote() {
     ocf_log info "Creating $PGSQL_LOCK."
     touch $PGSQL_LOCK
     show_master_baseline
-
-    # create replication slots on master before promotion
-    if use_replication_slot; then
-        create_replication_slots
-        if [ $? -eq $OCF_ERR_GENERIC ]; then
-            ocf_exit_reason "PostgreSQL can't create replication_slot."
-            return $OCF_ERR_GENERIC
-        fi
-    fi
 
     if ocf_is_true ${OCF_RESKEY_restart_on_promote}; then
         ocf_log info "Restarting PostgreSQL instead of promote."
@@ -745,6 +749,15 @@ pgsql_promote() {
             ocf_log debug "PostgreSQL still hasn't promoted yet. Waiting..."
         done
         ocf_log info "PostgreSQL is promoted."
+    fi
+
+    # create replication slots on master after promotion
+    if use_replication_slot; then
+	create_replication_slots
+	if [ $? -eq $OCF_ERR_GENERIC ]; then
+	    ocf_exit_reason "PostgreSQL can't create replication_slot."
+	    return $OCF_ERR_GENERIC
+	fi
     fi
 
     change_data_status "$NODENAME" "LATEST"
@@ -1976,7 +1989,7 @@ pgsql_validate_all() {
 #
 
 check_log_file() {
-    if [ ! -f "$1" ]
+    if [ ! -e "$1" ]
     then
         touch $1 > /dev/null 2>&1
         chown $OCF_RESKEY_pgdba:`getent passwd $OCF_RESKEY_pgdba | cut -d ":" -f 4` $1

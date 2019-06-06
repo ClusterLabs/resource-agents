@@ -147,7 +147,7 @@ lvm_init() {
 	if [ -n "$OCF_RESKEY_tag" ]; then
 		OUR_TAG=$OCF_RESKEY_tag
 	fi
-	vgchange_activate_options="aly --config activation{volume_list=[\"@${OUR_TAG}\"]}"
+	vgchange_activate_options="-aly --config activation{volume_list=[\"@${OUR_TAG}\"]}"
 	vgchange_deactivate_options="-aln"
 }
 

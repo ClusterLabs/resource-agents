@@ -74,7 +74,7 @@ This resource agent manages SCSI PERSISTENT RESERVATIONS.
 "sg_persist" from sg3_utils is used, please see its documentation.
 Should be used as multistate (Master/Slave) resource
 Slave registers its node id ("crm_node -i") as reservation key ( --param-rk ) on each device in the "devs" list.
-Master reservs all devices from "devs" list with reservation "--prout-type" value from "reservation_type" parameter.
+Master reserves all devices from "devs" list with reservation "--prout-type" value from "reservation_type" parameter.
 </longdesc>
 <shortdesc lang="en">Manages SCSI PERSISTENT RESERVATIONS</shortdesc>
 
@@ -90,7 +90,7 @@ The name of the binary that manages the resource.
 <parameter name="devs" unique="0" required="1">
 <longdesc lang="en">
 Device list. Multiple devices can be listed with blank space as separator. 
-Shell wildcars are allowed.
+Shell wildcards are allowed.
 </longdesc>
 <shortdesc lang="en">device list</shortdesc>
 <content type="string"/>
@@ -495,14 +495,26 @@ sg_persist_action_monitor() {
 
     if [ ${#REGISTERED_DEVS[*]} -eq 0 ]; then
         ocf_log debug "$RESOURCE monitor: no registrations"
+        if [ -n "$ACT_MASTER_SCORE" ]; then
+            ocf_run $MASTER_SCORE_ATTRIBUTE --delete
+            ocf_run $PENDING_ATTRIBUTE --delete
+        fi
         return $OCF_NOT_RUNNING
     fi
 
     if [ ${#RESERVED_DEVS[*]} -eq ${#WORKING_DEVS[*]} ]; then 
+        if [ -z "$ACT_MASTER_SCORE" ]; then
+            ocf_run $MASTER_SCORE_ATTRIBUTE --update=$MASTER_SCORE
+            ocf_run $PENDING_ATTRIBUTE --update=""
+        fi
         return $OCF_RUNNING_MASTER
     fi
 
     if [ ${#REGISTERED_DEVS[*]} -eq ${#WORKING_DEVS[*]} ]; then 
+        if [ -z "$ACT_MASTER_SCORE" ]; then
+            ocf_run $MASTER_SCORE_ATTRIBUTE --update=$MASTER_SCORE
+            ocf_run $PENDING_ATTRIBUTE --update=""
+        fi
         if [ $RESERVATION_TYPE -eq 7 ] || [ $RESERVATION_TYPE -eq 8 ]; then
             if [ ${#DEVS_WITH_RESERVATION[*]} -gt 0 ]; then
                 return $OCF_RUNNING_MASTER

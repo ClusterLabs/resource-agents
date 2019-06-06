@@ -263,6 +263,17 @@ garbd_status()
     fi
 }
 
+_port_by_pid()
+{
+    local pid
+    pid="$1"
+    if have_binary "netstat"; then
+        netstat -tnp 2>/dev/null | grep -s -q "ESTABLISHED.*${pid}/"
+    else
+        ss -Htnp 2>/dev/null | grep -s -q "^ESTAB.*pid=${pid}"
+    fi
+}
+
 garbd_monitor()
 {
     local rc
@@ -289,7 +300,7 @@ garbd_monitor()
     # garbd will always be connected to the right partition
     if [ $rc -eq $OCF_SUCCESS ]; then
         pid=`cat $OCF_RESKEY_pid 2> /dev/null `
-        netstat -tnp 2>/dev/null | grep -s -q "ESTABLISHED.*${pid}/"
+        _port_by_pid $pid
         if [ $? -ne 0 ]; then
             ocf_log $loglevel "garbd disconnected from cluster \"${OCF_RESKEY_wsrep_cluster_name}\""
             rc=$OCF_ERR_GENERIC
@@ -334,8 +345,10 @@ garbd_validate()
     fi
 
     if ! have_binary "netstat"; then
-        ocf_exit_reason "Setup problem: couldn't find command: netstat"
-        return $OCF_ERR_INSTALLED;
+        if ! have_binary "ss"; then
+            ocf_exit_reason "Setup problem: couldn't find command: netstat or ss"
+            return $OCF_ERR_INSTALLED;
+        fi
     fi
 
     if [ -z "$OCF_RESKEY_wsrep_cluster_address" ]; then

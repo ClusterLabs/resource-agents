@@ -1,8 +1,9 @@
 #!/bin/sh
 #
 #
-#	Dummy OCF RA. Does nothing but wait a few seconds, can be
-#	configured to fail occassionally.
+#	Dummy OCF RA. Does nothing except track its own state.
+#	Use it only as a testing tool or example for how to write
+#	a resource agent.
 #
 # Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Bree
 #                    All Rights Reserved.

@@ -345,7 +345,7 @@ db_backup_mode() {
 	echo "select 'COUNT'||count(*) from v\$backup where status='ACTIVE';"
 }
 is_clear_backupmode_set(){
-	[ x"${clear_backupmode}" = x"true" ]
+	ocf_is_true "${clear_backupmode}"
 }
 is_instance_in_backup_mode() {
 	local count
@@ -645,11 +645,15 @@ oracle_start() {
 
 	# check/create the monitor profile
 	if ! check_mon_profile; then
+		# dbopen was failed if there is any $output
+		[ -n "$output" ] && ocf_exit_reason "oracle $ORACLE_SID can not be opened: $output"
 		return $OCF_ERR_GENERIC
 	fi
 
 	# check/create the monitor user
 	if ! check_mon_user; then
+		# dbopen was failed if there is any $output
+		[ -n "$output" ] && ocf_exit_reason "oracle $ORACLE_SID can not be opened: $output"
 		return $OCF_ERR_GENERIC
 	fi
 

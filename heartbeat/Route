@@ -124,7 +124,7 @@ The routing table to be configured for the route.
 <content type="string" default="" />
 </parameter>
 
-<parameter name="family" unique="0" required="1">
+<parameter name="family" unique="0">
 <longdesc lang="en">
 The address family to be used for the route
 ip4      IP version 4
@@ -132,7 +132,7 @@ ip6      IP version 6
 detect   Detect from 'destination' address.
 </longdesc>
 <shortdesc lang="en">Address Family</shortdesc>
-<content type="string" default="${OCF_RESKEY_family}" />
+<content type="string" default="${OCF_RESKEY_family_default}" />
 </parameter>
 
 </parameters>

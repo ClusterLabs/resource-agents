@@ -123,7 +123,7 @@ ecs_ip_metadata() {
 Resource Agent to move IP addresses within a VPC of the Aliyun Webservices ECS
 by changing an entry in an specific routing table
 </longdesc>
-<shortdesc lang="en">Move IP within a APC of the Aliyun ECS</shortdesc>
+<shortdesc lang="en">Move IP within a VPC of the Aliyun ECS</shortdesc>
 <parameters>
 <parameter name="address" required="1">
 <longdesc lang="en">
@@ -134,32 +134,34 @@ VPC private IP address
 </parameter>
 <parameter name="routing_table" required="1">
 <longdesc lang="en">
-Name of the routing table, where the route for the IP address should be changed, i.e. rtb-...
+Name of the routing table, where the route for the IP address should be changed, i.e. vtb-...
 </longdesc>
 <shortdesc lang="en">routing table name</shortdesc>
 <content type="string" default="" />
 </parameter>
 <parameter name="interface" required="1">
 <longdesc lang="en">
-Name of the network interfacen, i.e. eth0
+Name of the network interface, i.e. eth0
 </longdesc>
 <shortdesc lang="en">network interface name</shortdesc>
 <content type="string" default="eth0" />
 </parameter>
 <parameter name="profile" required="0">
 <longdesc lang="en">
-Valid Aliyun CLI profile name
+Valid Aliyun CLI profile name (see 'aliyuncli configure').
+
+See https://www.alibabacloud.com/help/doc-detail/43039.htm?spm=a2c63.p38356.b99.16.38a914abRZtOU3 for more information about aliyuncli.
 </longdesc>
 <shortdesc lang="en">profile name</shortdesc>
 <content type="string" default="default" />
 </parameter>
 </parameters>
 <actions>
-<action name="start" timeout="180" />
-<action name="stop" timeout="180" />
-<action name="monitor" depth="0" timeout="30" interval="30" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
+<action name="start" timeout="180s" />
+<action name="stop" timeout="180s" />
+<action name="monitor" depth="0" timeout="30s" interval="30s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
 </actions>
 </resource-agent>
 END

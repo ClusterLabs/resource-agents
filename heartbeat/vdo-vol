@@ -1,0 +1,234 @@
+#!/bin/sh
+#
+#  License:      GNU General Public License (GPL)
+#  (c) 2018 O. Albrigtsen
+#           and Linux-HA contributors
+#
+# -----------------------------------------------------------------------------
+#      O C F    R E S O U R C E    S C R I P T   S P E C I F I C A T I O N
+# -----------------------------------------------------------------------------
+#
+# NAME
+#       vdo-vol : OCF resource agent script for VDO (Virtual Data Optimizer)
+#
+
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_volume_default=""
+
+: ${OCF_RESKEY_volume=${OCF_RESKEY_volume_default}}
+
+
+vdo_usage() {
+  cat <<END
+    usage: $0 (start|stop|validate-all|meta-data|help|usage|monitor)
+    $0 manages VDO (Virtual Data Optimizer) volume(s) as an OCF HA resource.
+    The 'start' operation starts the instance.
+    The 'stop' operation stops the instance.
+    The 'status' operation reports whether the instance is running
+    The 'monitor' operation reports whether the instance seems to be working
+    The 'validate-all' operation reports whether the parameters are valid
+END
+}
+
+vdo_meta_data() {
+        cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="vdo-vol">
+<version>0.75</version>
+
+<longdesc lang="en">
+OCF Resource script for VDO (Virtual Data Optimizer) volume(s). It manages VDO volume(s) as a HA resource.
+
+The configuration file needs to be synced to all nodes, and the systemd vdo service must be disabled when
+using this agent.
+</longdesc>
+<shortdesc lang="en">VDO resource agent</shortdesc>
+
+<parameters>
+
+<parameter name="config">
+    <longdesc lang="en">Configuration file</longdesc>
+    <shortdesc lang="en">Config file</shortdesc>
+    <content type="string" default="${OCF_RESKEY_config_default}" />
+</parameter>
+
+<parameter name="volume">
+    <longdesc lang="en">VDO Volume (leave empty for all)</longdesc>
+    <shortdesc lang="en">Volume (empty for all)</shortdesc>
+    <content type="string" default="${OCF_RESKEY_volume_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="60s" />
+<action name="stop" timeout="20s" />
+<action name="status" timeout="20s" />
+<action name="monitor" depth="0" timeout="20s" interval="10s" start-delay="10s" />
+<action name="validate-all" timeout="20s" />
+<action name="meta-data" timeout="20s" />
+</actions>
+</resource-agent>
+END
+}
+
+
+rebuild() {
+		ocf_log warn "${OCF_RESKEY_volume} is in $MODE mode, starting in rebuild mode"
+
+		vdo stop $OPTIONS
+
+		while vdo_monitor skiprocheck; do
+			sleep 1
+		done
+
+		vdo start $OPTIONS --forceRebuild
+
+		while ! vdo_monitor; do
+			sleep 1
+		done
+
+		return $?
+}
+
+vdo_start() {
+	# if resource is already running,no need to continue code after this.
+	if vdo_monitor; then
+		ocf_log info "VDO volume(s): ${OCF_RESKEY_volume} is already active"
+		return $OCF_SUCCESS
+	fi
+
+	vdo activate $OPTIONS
+	vdo start $OPTIONS
+
+	while ! vdo_monitor skiprocheck; do
+		sleep 1
+	done
+
+	MODE=$(vdostats --verbose ${OCF_RESKEY_volume} | grep "operating mode" | awk '{print $NF}')
+	if [ $(echo "$MODE" | grep -v "normal" | wc -l) -gt 0 ]; then
+		rebuild
+	fi
+
+	if [ $? -eq $OCF_SUCCESS ]; then
+		ocf_log info "VDO volume(s): ${OCF_RESKEY_volume} activated"
+		return ${OCF_SUCCESS}
+	fi
+
+	return $?
+}
+
+vdo_stop() {
+	vdo_monitor skiprocheck
+	if [ $? -ne $OCF_SUCCESS ]; then
+		# Currently not running. Nothing to do.
+		ocf_log info "VDO volume(s): ${OCF_RESKEY_volume} already deactivated"
+
+		return $OCF_SUCCESS
+	fi
+
+	vdo stop $OPTIONS
+	vdo deactivate $OPTIONS
+
+	# Wait for process to stop
+	while vdo_monitor skiprocheck; do
+		sleep 1
+	done
+
+	return $OCF_SUCCESS
+}
+
+vdo_monitor(){
+	status=$(vdo status $OPTIONS 2>&1)
+	MODE=$(vdostats --verbose ${OCF_RESKEY_volume} | grep "operating mode" | awk '{print $NF}')
+
+	case "$status" in
+		*"Device mapper status: not available"*)
+			return $OCF_NOT_RUNNING
+			;;
+		*"Device mapper status: "*online*)
+			if [ "$MODE" = "read-only" ] && [ "$1" != "skiprocheck" ]; then
+				ocf_log err "VDO volume(s): ${OCF_RESKEY_volume} is in $MODE mode."
+				return $OCF_ERR_GENERIC
+			else
+				return $OCF_SUCCESS
+			fi
+			;;
+		*)
+			ocf_log err "VDO volume(s): ${OCF_RESKEY_volume} failed\n$status"
+			return $OCF_ERR_GENERIC;;
+	esac
+}
+
+vdo_validate_all(){
+	check_binary "vdo"
+
+	if systemctl is-enabled vdo > /dev/null 2>&1; then
+		ocf_exit_reason "systemd service vdo needs to be disabled"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	if [ -n "${OCF_RESKEY_config}" ] && [ ! -f "${OCF_RESKEY_config}" ]; then
+		ocf_exit_reason "Configuration file: ${OCF_RESKEY_config} not found"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+
+# **************************** MAIN SCRIPT ************************************
+
+# Make sure meta-data and usage always succeed
+case $__OCF_ACTION in
+	meta-data)
+		vdo_meta_data
+		exit $OCF_SUCCESS
+		;;
+	usage|help)
+		vdo_usage
+		exit $OCF_SUCCESS
+		;;
+esac
+
+# This OCF agent script need to be run as root user.
+if ! ocf_is_root; then
+        echo  "$0 agent script need to be run as root user."
+        ocf_log debug "$0 agent script need to be run as root user."
+        exit $OCF_ERR_GENERIC
+fi
+
+if [ -z "${OCF_RESKEY_volume}" ]; then
+	OPTIONS="-a"
+else
+	OPTIONS="-n ${OCF_RESKEY_volume}"
+fi
+
+if [ -n "${OCF_RESKEY_config}" ]; then
+	OPTIONS="$OPTIONS -f ${OCF_RESKEY_config}"
+fi
+
+# Translate each action into the appropriate function call
+case $__OCF_ACTION in
+	start)
+		vdo_validate_all
+		vdo_start;;
+	stop)
+		vdo_stop;;
+	status|monitor)
+		vdo_monitor;;
+	validate-all)
+		;;
+	*)
+		vdo_usage
+                exit $OCF_ERR_UNIMPLEMENTED;;
+esac
+
+exit $?
+
+# End of this script

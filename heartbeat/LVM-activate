@@ -56,6 +56,7 @@ LV=${OCF_RESKEY_lvname}
 # 3: vg has system_id (new)
 # 4: vg has tagging (old)
 VG_access_mode=${OCF_RESKEY_vg_access_mode}
+VG_access_mode_num=0
 
 # Activate LV(s) with "shared" lock for cluster fs
 # or "exclusive" lock for local fs
@@ -101,7 +102,7 @@ because some DLM lockspaces might be in use and cannot be closed automatically.
 <shortdesc lang="en">This agent activates/deactivates logical volumes.</shortdesc>
 
 <parameters>
-<parameter name="vgname" unique="1" required="1">
+<parameter name="vgname" unique="0" required="1">
 <longdesc lang="en">
 The volume group name.
 </longdesc>
@@ -176,7 +177,9 @@ END
 # 2: vg is clustered - clvmd (old)
 # 3: vg has system_id (new)
 # 4: vg has tagging (old)
-get_VG_access_mode() {
+
+get_VG_access_mode_num()
+{
 	local access_mode
 	local vg_locktype
 	local vg_clustered
@@ -227,63 +230,63 @@ check_tags()
 {
 	local owner=$(vgs -o tags --noheadings ${VG} | tr -d '[:blank:]')
 
-        if [ -z "$owner" ]; then
-                # No-one owns this VG yet
-                return 1
-        fi
+	if [ -z "$owner" ]; then
+		# No-one owns this VG yet
+		return 1
+	fi
 
-        if [ "$OUR_TAG" = "$owner" ]; then
-                # yep, this is ours
-                return 0
-        fi
+	if [ "$OUR_TAG" = "$owner" ]; then
+		# yep, this is ours
+		return 0
+	fi
 
-        # some other tag is set on this vg
-        return 2
+	# some other tag is set on this vg
+	return 2
 }
 
 strip_tags()
 {
-        local tag
+	local tag
 
 	for tag in $(vgs --noheadings -o tags $OCF_RESKEY_volgrpname | sed s/","/" "/g); do
-                ocf_log info "Stripping tag, $tag"
+		ocf_log info "Stripping tag, $tag"
 
-                # LVM version 2.02.98 allows changing tags if PARTIAL
-                vgchange --deltag "$tag" ${VG}
-        done
+		# LVM version 2.02.98 allows changing tags if PARTIAL
+		vgchange --deltag "$tag" ${VG}
+	done
 
 	if [ ! -z $(vgs -o tags --noheadings ${VG} | tr -d '[:blank:]') ]; then
-                ocf_exit_reason "Failed to remove ownership tags from ${VG}"
-                exit $OCF_ERR_GENERIC
-        fi
+		ocf_exit_reason "Failed to remove ownership tags from ${VG}"
+		exit $OCF_ERR_GENERIC
+	fi
 
-        return $OCF_SUCCESS
+	return $OCF_SUCCESS
 }
 
 set_tags()
 {
-        case check_tags in
-        0)
-                # we already own it.
-                return $OCF_SUCCESS
-                ;;
-        2)
-                # other tags are set, strip them before setting
-                if ! strip_tags; then
-                        return $OCF_ERR_GENERIC
-                fi
-                ;;
-        *)
-                : ;;
-        esac
+	case check_tags in
+	0)
+		# we already own it.
+		return $OCF_SUCCESS
+		;;
+	2)
+		# other tags are set, strip them before setting
+		if ! strip_tags; then
+			return $OCF_ERR_GENERIC
+		fi
+		;;
+	*)
+		: ;;
+	esac
 
-        if ! vgchange --addtag $OUR_TAG ${VG} ; then
-                ocf_log err "Failed to add ownership tag to ${VG}"
-                return $OCF_ERR_GENERIC
-        fi
+	if ! vgchange --addtag $OUR_TAG ${VG} ; then
+		ocf_log err "Failed to add ownership tag to ${VG}"
+		return $OCF_ERR_GENERIC
+	fi
 
-        ocf_log info "New tag \"${OUR_TAG}\" added to ${VG}"
-        return $OCF_SUCCESS
+	ocf_log info "New tag \"${OUR_TAG}\" added to ${VG}"
+	return $OCF_SUCCESS
 }
 
 # Parameters:
@@ -308,7 +311,12 @@ config_verify()
 lvmlockd_check()
 {
 	config_verify "global/use_lvmlockd" "1"
-	config_verify "global/locking_type" "1"
+
+	# locking_type was removed from config in v2.03
+	ocf_version_cmp "$(lvmconfig --version | awk '/LVM ver/ {sub(/\(.*/, "", $3); print $3}')" "2.03"
+	if [ "$?" -eq 0 ]; then
+		config_verify "global/locking_type" "1"
+	fi
 
 	# We recommend to activate one LV at a time so that this specific volume
 	# binds to a proper filesystem to protect the data
@@ -320,6 +328,11 @@ lvmlockd_check()
 
 	# Good: lvmlockd is running, and clvmd is not running
 	if ! pgrep lvmlockd >/dev/null 2>&1 ; then
+		if ocf_is_probe; then
+			ocf_log info "initial probe: lvmlockd is not running yet."
+			exit $OCF_NOT_RUNNING
+		fi
+
 		ocf_exit_reason "lvmlockd daemon is not running!"
 		exit $OCF_ERR_CONFIGURED
 	fi
@@ -395,31 +408,28 @@ systemid_check()
 # Verify tags setup
 tagging_check()
 {
-        # The volume_list must be initialized to something in order to
-        # guarantee our tag will be filtered on startup
-        if ! lvm dumpconfig activation/volume_list; then
-                ocf_log err  "LVM: Improper setup detected"
-                ocf_exit_reason "The volume_list filter must be initialized in lvm.conf for exclusive          activation without clvmd"
+	# The volume_list must be initialized to something in order to
+	# guarantee our tag will be filtered on startup
+	if ! lvm dumpconfig activation/volume_list; then
+		ocf_log err  "LVM: Improper setup detected"
+		ocf_exit_reason "The volume_list filter must be initialized in lvm.conf for exclusive activation without clvmd"
 		exit $OCF_ERR_CONFIGURED
-        fi
+	fi
 
-        # Our tag must _NOT_ be in the volume_list.  This agent
-        # overrides the volume_list during activation using the
-        # special tag reserved for cluster activation
-        if lvm dumpconfig activation/volume_list | grep -e "\"@${OUR_TAG}\"" -e "\"${VG}\"";  then
-                ocf_log err "LVM:  Improper setup detected"
-                ocf_exit_reason "The volume_list in lvm.conf must not contain the cluster tag, \"${OUR_TAG}\",   or volume group, ${VG}"
+	# Our tag must _NOT_ be in the volume_list.  This agent
+	# overrides the volume_list during activation using the
+	# special tag reserved for cluster activation
+	if lvm dumpconfig activation/volume_list | grep -e "\"@${OUR_TAG}\"" -e "\"${VG}\"";  then
+		ocf_log err "LVM:  Improper setup detected"
+		ocf_exit_reason "The volume_list in lvm.conf must not contain the cluster tag, \"${OUR_TAG}\", or volume group, ${VG}"
 		exit $OCF_ERR_CONFIGURED
-        fi
+	fi
 
-        return $OCF_SUCCESS
+	return $OCF_SUCCESS
 }
 
-lvm_validate() {
-	local lv_count
-	local mode
-
-	# Parameters checking
+read_parameters()
+{
 	if [ -z "$VG" ]
 	then
 		ocf_exit_reason "You must identify the volume group name!"
@@ -435,22 +445,30 @@ lvm_validate() {
 	# Convert VG_access_mode from string to index
 	case ${VG_access_mode} in
 	lvmlockd)
-		VG_access_mode=1
+		VG_access_mode_num=1
 		;;
 	clvmd)
-		VG_access_mode=2
+		VG_access_mode_num=2
 		;;
 	system_id)
-		VG_access_mode=3
+		VG_access_mode_num=3
 		;;
 	tagging)
-		VG_access_mode=4
+		VG_access_mode_num=4
 		;;
 	*)
+		# dont exit with error-code here or nodes will get fenced on
+		# e.g. "pcs resource create"
 		ocf_exit_reason "You specified an invalid value for vg_access_mode: $VG_access_mode"
-		exit $OCF_ERR_ARGS
 		;;
 	esac
+}
+
+lvm_validate() {
+	local lv_count
+	local mode
+
+	read_parameters
 
 	check_binary pgrep
 	# Every LVM command is just symlink to lvm binary
@@ -464,6 +482,11 @@ lvm_validate() {
 			exit $OCF_SUCCESS
 		fi
 
+		if ocf_is_probe; then
+			ocf_log info "initial probe: VG [${VG}] is not found on any block device yet."
+			exit $OCF_NOT_RUNNING
+		fi
+
 		ocf_exit_reason "Volume group[${VG}] doesn't exist, or not visible on this node!"
 		exit $OCF_ERR_CONFIGURED
 	fi
@@ -471,9 +494,9 @@ lvm_validate() {
 	# Get the access mode from VG metadata and check if it matches the input
 	# value. Skip to check "tagging" mode because there's no reliable way to
 	# automatically check if "tagging" mode is being used.
-	get_VG_access_mode
+	get_VG_access_mode_num
 	mode=$?
-	if [ $VG_access_mode -ne 4 ] && [ $mode -ne $VG_access_mode ]; then
+	if [ $VG_access_mode_num -ne 4 ] && [ $mode -ne $VG_access_mode_num ]; then
 		ocf_exit_reason "The specified vg_access_mode doesn't match the lock_type on VG metadata!"
 		exit $OCF_ERR_ARGS
 	fi
@@ -495,8 +518,8 @@ lvm_validate() {
 		fi
 	fi
 
-	# VG_access_mode specific checking goes here
-	case ${VG_access_mode} in
+	# VG_access_mode_num specific checking goes here
+	case ${VG_access_mode_num} in
 	1)
 		lvmlockd_check
 		;;
@@ -626,7 +649,7 @@ lvmlockd_deactivate() {
 	fi
 
 	OUT=$(lvs --noheadings -S lv_active=active ${VG} 2>/dev/null)
-	[[ -n "$OUT" ]] && return $OCF_SUCCESS
+	[ -n "$OUT" ] && return $OCF_SUCCESS
 
 	# Close the lockspace of this VG if there is no active LV
 	ocf_run vgchange --lockstop ${VG}
@@ -684,7 +707,7 @@ tagging_deactivate() {
 # method:
 #
 # lv_count=$(vgs --foreign -o lv_count --noheadings ${VG} 2>/dev/null | tr -d '[:blank:]')
-# dm_count=$(dmsetup --noheadings info -c -S "vgname=${VG}" 2>/dev/null | grep -c "${VG}-")
+# dm_count=$(dmsetup --noheadings info -c -S "vg_name=${VG}" 2>/dev/null | grep -c "${VG}-")
 # test $lv_count -eq $dm_count
 #
 # It works, but we cannot afford to use LVM command in lvm_status. LVM command is expensive
@@ -707,9 +730,9 @@ lvm_status() {
 	if [ -n "${LV}" ]; then
 		# dmsetup ls? It cannot accept device name. It's
 		# too heavy to list all DM devices.
-		dm_count=$(dmsetup info --noheadings --noflush -c -S "vgname=${VG} && lvname=${LV}" |  wc -l )
+		dm_count=$(dmsetup info --noheadings --noflush -c -S "vg_name=${VG} && lv_name=${LV}" | grep -c -v '^No devices found')
 	else
-		dm_count=$(dmsetup info --noheadings --noflush -c -S "vgname=${VG}" 2>/dev/null | wc -l )
+		dm_count=$(dmsetup info --noheadings --noflush -c -S "vg_name=${VG}" | grep -c -v '^No devices found')
 	fi
 
 	if [ $dm_count -eq 0 ]; then
@@ -731,7 +754,7 @@ lvm_start() {
 	[ -z ${LV} ] && vol=${VG} || vol=${VG}/${LV}
 	ocf_log info "Activating ${vol}"
 
-	case ${VG_access_mode} in
+	case ${VG_access_mode_num} in
 	1)
 		lvmlockd_activate
 		;;
@@ -764,17 +787,16 @@ lvm_start() {
 lvm_stop() {
 	local vol
 
-	[[ -z ${LV} ]] && vol=${VG} || vol=${VG}/${LV}
+	[ -z ${LV} ] && vol=${VG} || vol=${VG}/${LV}
 
 	if ! lvm_status ; then
 		ocf_log info "${vol}: has already been deactivated."
 		return $OCF_SUCCESS
 	fi
 
-	lvm_validate
 	ocf_log info "Deactivating ${vol}"
 
-	case ${VG_access_mode} in
+	case ${VG_access_mode_num} in
 	1)
 		lvmlockd_deactivate
 		;;
@@ -788,8 +810,8 @@ lvm_stop() {
 		tagging_deactivate
 		;;
 	*)
-		ocf_exit_reason "VG [${VG}] is not properly configured in cluster. It's unsafe!"
-		exit $OCF_ERR_CONFIGURED
+		ocf_log err "VG [${VG}] is not properly configured in cluster. It's unsafe!"
+		exit $OCF_SUCCESS
 		;;
 	esac
 
@@ -812,9 +834,11 @@ start)
 	lvm_start
 	;;
 stop)
+	read_parameters
 	lvm_stop
 	;;
 monitor)
+	lvm_validate
 	lvm_status
 	;;
 validate-all)

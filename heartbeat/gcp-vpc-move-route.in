@@ -39,6 +39,11 @@ import os
 import sys
 import time
 
+OCF_FUNCTIONS_DIR = os.environ.get("OCF_FUNCTIONS_DIR", "%s/lib/heartbeat" % os.environ.get("OCF_ROOT"))
+sys.path.append(OCF_FUNCTIONS_DIR)
+
+from ocf import *
+
 try:
   import googleapiclient.discovery
   import pyroute2
@@ -55,12 +60,6 @@ else:
   import urllib2 as urlrequest
 
 
-OCF_SUCCESS = 0
-OCF_ERR_GENERIC = 1
-OCF_ERR_UNIMPLEMENTED = 3
-OCF_ERR_PERM = 4
-OCF_ERR_CONFIGURED = 6
-OCF_NOT_RUNNING = 7
 GCP_API_URL_PREFIX = 'https://www.googleapis.com/compute/v1'
 METADATA_SERVER = 'http://metadata.google.internal/computeMetadata/v1/'
 METADATA_HEADERS = {'Metadata-Flavor': 'Google'}
@@ -76,7 +75,7 @@ on the instance OS.
 Requirements :
 - IP forwarding must be enabled on all instances in order to be able to
 terminate the route
-- The floating IP address must be choosen so that it is outside all existing
+- The floating IP address must be chosen so that it is outside all existing
 subnets in the VPC network
 - IAM permissions
 (see https://cloud.google.com/compute/docs/access/iam-permissions) :
@@ -194,23 +193,23 @@ def get_metadata(metadata_key, params=None, timeout=None):
   url = '%s?%s' % (metadata_url, params)
   request = urlrequest.Request(url, headers=METADATA_HEADERS)
   request_opener = urlrequest.build_opener(urlrequest.ProxyHandler({}))
-  return request_opener.open(request, timeout=timeout * 1.1).read()
+  return request_opener.open(request, timeout=timeout * 1.1).read().decode("utf-8")
 
 
 def validate(ctx):
   if os.geteuid() != 0:
-    logging.error('You must run this agent as root')
+    logger.error('You must run this agent as root')
     sys.exit(OCF_ERR_PERM)
 
   try:
     ctx.conn = googleapiclient.discovery.build('compute', 'v1')
   except Exception as e:
-    logging.error('Couldn\'t connect with google api: ' + str(e))
+    logger.error('Couldn\'t connect with google api: ' + str(e))
     sys.exit(OCF_ERR_CONFIGURED)
 
   ctx.ip = os.environ.get('OCF_RESKEY_ip')
   if not ctx.ip:
-    logging.error('Missing ip parameter')
+    logger.error('Missing ip parameter')
     sys.exit(OCF_ERR_CONFIGURED)
 
   try:
@@ -218,7 +217,7 @@ def validate(ctx):
     ctx.zone = get_metadata('instance/zone').split('/')[-1]
     ctx.project = get_metadata('project/project-id')
   except Exception as e:
-    logging.error(
+    logger.error(
         'Instance information not found. Is this a GCE instance ?: %s', str(e))
     sys.exit(OCF_ERR_CONFIGURED)
 
@@ -234,7 +233,7 @@ def validate(ctx):
   atexit.register(ctx.iproute.close)
   idxs = ctx.iproute.link_lookup(ifname=ctx.interface)
   if not idxs:
-    logging.error('Network interface not found')
+    logger.error('Network interface not found')
     sys.exit(OCF_ERR_CONFIGURED)
   ctx.iface_idx = idxs[0]
 
@@ -246,7 +245,7 @@ def check_conflicting_routes(ctx):
   response = request.execute()
   route_list = response.get('items', None)
   if route_list:
-    logging.error(
+    logger.error(
         'Conflicting unnmanaged routes for destination %s/32 in VPC %s found : %s',
         ctx.ip, ctx.vpc_network, str(route_list))
     sys.exit(OCF_ERR_CONFIGURED)
@@ -258,7 +257,7 @@ def route_release(ctx):
 
 
 def ip_monitor(ctx):
-  logging.info('IP monitor: checking local network configuration')
+  logger.info('IP monitor: checking local network configuration')
 
   def address_filter(addr):
     for attr in addr['attrs']:
@@ -271,12 +270,12 @@ def ip_monitor(ctx):
   route = ctx.iproute.get_addr(
       index=ctx.iface_idx, match=address_filter)
   if not route:
-    logging.warn(
+    logger.warning(
         'The floating IP %s is not locally configured on this instance (%s)',
         ctx.ip, ctx.instance)
     return OCF_NOT_RUNNING
 
-  logging.debug(
+  logger.debug(
       'The floating IP %s is correctly configured on this instance (%s)',
       ctx.ip, ctx.instance)
   return OCF_SUCCESS
@@ -287,7 +286,7 @@ def ip_release(ctx):
 
 
 def ip_and_route_start(ctx):
-  logging.info('Bringing up the floating IP %s', ctx.ip)
+  logger.info('Bringing up the floating IP %s', ctx.ip)
 
   # Add a new entry in the routing table
   # If the route entry exists and is pointing to another instance, take it over
@@ -322,7 +321,7 @@ def ip_and_route_start(ctx):
       request.execute()
     except googleapiclient.errors.HttpError as e:
       if e.resp.status == 404:
-        logging.error('VPC network not found')
+        logger.error('VPC network not found')
         sys.exit(OCF_ERR_CONFIGURED)
       else:
         raise
@@ -336,11 +335,11 @@ def ip_and_route_start(ctx):
 
   ctx.iproute.addr('add', index=ctx.iface_idx, address=ctx.ip, mask=32)
   ctx.iproute.link('set', index=ctx.iface_idx, state='up')
-  logging.info('Successfully brought up the floating IP %s', ctx.ip)
+  logger.info('Successfully brought up the floating IP %s', ctx.ip)
 
 
 def route_monitor(ctx):
-  logging.info('GCP route monitor: checking route table')
+  logger.info('GCP route monitor: checking route table')
 
   # Ensure that there is no route that we are not aware of that is also handling our IP
   check_conflicting_routes
@@ -360,39 +359,38 @@ def route_monitor(ctx):
   instance_url = '%s/projects/%s/zones/%s/instances/%s' % (
       GCP_API_URL_PREFIX, ctx.project, ctx.zone, ctx.instance)
   if routed_to_instance != instance_url:
-    logging.warn(
+    logger.warning(
         'The floating IP %s is not routed to this instance (%s) but to instance %s',
         ctx.ip, ctx.instance, routed_to_instance.split('/')[-1])
     return OCF_NOT_RUNNING
 
-  logging.debug(
+  logger.debug(
       'The floating IP %s is correctly routed to this instance (%s)',
       ctx.ip, ctx.instance)
   return OCF_SUCCESS
 
 
 def ip_and_route_stop(ctx):
-  logging.info('Bringing down the floating IP %s', ctx.ip)
+  logger.info('Bringing down the floating IP %s', ctx.ip)
 
   # Delete the route entry
   # If the route entry exists and is pointing to another instance, don't touch it
   if route_monitor(ctx) == OCF_NOT_RUNNING:
-    logging.info(
+    logger.info(
         'The floating IP %s is already not routed to this instance (%s)',
         ctx.ip, ctx.instance)
   else:
     route_release(ctx)
 
   if ip_monitor(ctx) == OCF_NOT_RUNNING:
-    logging.info('The floating IP %s is already down', ctx.ip)
+    logger.info('The floating IP %s is already down', ctx.ip)
   else:
     ip_release(ctx)
 
 
 def configure_logs(ctx):
   # Prepare logging
-  logging.basicConfig(
-      format='gcp:route - %(levelname)s - %(message)s', level=logging.INFO)
+  global logger
   logging.getLogger('googleapiclient').setLevel(logging.WARN)
   logging_env = os.environ.get('OCF_RESKEY_stackdriver_logging')
   if logging_env:
@@ -406,10 +404,10 @@ def configure_logs(ctx):
         handler.setLevel(logging.INFO)
         formatter = logging.Formatter('gcp:route "%(message)s"')
         handler.setFormatter(formatter)
-        root_logger = logging.getLogger()
-        root_logger.addHandler(handler)
+        log.addHandler(handler)
+        logger = logging.LoggerAdapter(log, {'OCF_RESOURCE_INSTANCE': OCF_RESOURCE_INSTANCE})
       except ImportError:
-        logging.error('Couldn\'t import google.cloud.logging, '
+        logger.error('Couldn\'t import google.cloud.logging, '
             'disabling Stackdriver-logging support')
 
 
@@ -434,7 +432,7 @@ def main():
   else:
     usage = 'usage: %s {start|stop|monitor|status|meta-data|validate-all}' % \
         os.path.basename(sys.argv[0])
-    logging.error(usage)
+    logger.error(usage)
     sys.exit(OCF_ERR_UNIMPLEMENTED)
 
 

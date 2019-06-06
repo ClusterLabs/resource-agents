@@ -131,14 +131,32 @@ ProcessRunning() {
 }
 silent_status() {
 	local pid
+	local rc=$OCF_ERR_GENERIC
+	local retries=0
 
-	pid=`get_pid`
-	if [ -n "$pid" ]; then
-		ProcessRunning $pid
-	else
-		: No pid file
-		false
+	# Set a retry when apache's Graceful restart is applied and the pid file can not be acquired.
+	if [ "$__OCF_ACTION" = "monitor" ] && ! ocf_is_probe; then
+		retries=5
 	fi
+
+	while true; do
+		pid=`get_pid`
+		if [ -n "$pid" ]; then
+			ProcessRunning $pid
+			rc=$?
+			break
+		fi
+
+		: No pid file
+		if [ $retries -le 0 ]; then
+			break
+		fi
+
+		sleep 1
+		retries=`expr $retries - 1`
+	done
+
+	return $rc
 }
 
 # May be useful to add other distros in future

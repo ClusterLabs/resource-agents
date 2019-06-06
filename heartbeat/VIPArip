@@ -60,7 +60,7 @@ The IPv4 address in different subnet, for example "192.168.1.1".
 <parameter name="nic" unique="0">
 <longdesc lang="en">
 The nic for broadcast the route information.
-The ripd uses this nic to broadcast the route informaton to others
+The ripd uses this nic to broadcast the route information to others
 </longdesc>
 <shortdesc lang="en">The nic for broadcast the route information</shortdesc>
 <content type="string" default="eth0"/>

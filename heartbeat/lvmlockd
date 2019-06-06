@@ -59,6 +59,14 @@ For more information, refer to manpage lvmlockd.8.
 <shortdesc lang="en">This agent manages the lvmlockd daemon</shortdesc>
 
 <parameters>
+<parameter name="with_cmirrord" unique="0" required="0">
+<longdesc lang="en">
+Start with cmirrord (cluster mirror log daemon).
+</longdesc>
+<shortdesc lang="en">activate cmirrord</shortdesc>
+<content type="boolean" default="false" />
+</parameter>
+
 <parameter name="pidfile" unique="0">
 <longdesc lang="en">pid file</longdesc>
 <shortdesc lang="en">pid file</shortdesc>
@@ -102,6 +110,7 @@ END
 : ${OCF_RESKEY_pidfile:="/run/lvmlockd.pid"}
 
 LOCKD="lvmlockd"
+CMIRRORD="cmirrord"
 # 0.5s sleep each count
 TIMEOUT_COUNT=20
 
@@ -138,6 +147,21 @@ silent_status()
 
 	if [ -n "$pid" ] ; then
 		daemon_is_running "$pid"
+		rc=$?
+		mirror_rc=$rc
+
+		if ocf_is_true $OCF_RESKEY_with_cmirrord; then
+			pid=$(pgrep $CMIRRORD | head -n1)
+			daemon_is_running "$pid"
+			mirror_rc=$?
+		fi
+
+		# If these ever don't match, return error to force recovery
+		if [ $mirror_rc -ne $rc ]; then
+			return $OCF_ERR_GENERIC
+		fi
+
+		return $rc
 	else
 		# No pid file
 		false
@@ -199,6 +223,16 @@ lvmlockd_start() {
 		return $OCF_SUCCESS
 	fi
 
+	if ocf_is_true $OCF_RESKEY_with_cmirrord; then
+		ocf_log info "starting ${CMIRRORD}..."
+		$CMIRRORD
+		rc=$?
+		if [ $rc -ne $OCF_SUCCESS ] ; then
+			ocf_exit_reason "Failed to start ${CMIRRORD}, exit code: $rc"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
 	if [ ! -z "$OCF_RESKEY_socket_path" ] ; then
 		extras="$extras -s ${OCF_RESKEY_socket_path}"
 	fi
@@ -252,10 +286,11 @@ wait_lockspaces_close()
 
 kill_stop()
 {
-	local pid=$1
+	local proc=$1
+	local pid=$2
 	local retries=0
 
-	ocf_log info "Killing ${LOCKD} (pid=$pid)"
+	ocf_log info "Killing $proc (pid=$pid)"
 	while
 		daemon_is_running $pid && [ $retries -lt "$TIMEOUT_COUNT" ]
 	do
@@ -292,9 +327,15 @@ lvmlockd_stop() {
 	wait_lockspaces_close
 
 	pid=$(get_pid)
-	kill_stop $pid
+	kill_stop $LOCKD $pid
+
+	if ocf_is_true $OCF_RESKEY_with_cmirrord; then
+		pid=$(pgrep $CMIRRORD)
+		kill_stop $CMIRRORD $pid
+	fi
+
 	if silent_status ; then
-		ocf_exit_reason "Failed to stop, ${LOCKD}[$pid] still running."
+		ocf_exit_reason "Failed to stop, ${LOCKD} or ${CMIRRORD} still running."
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -316,6 +357,10 @@ lvmlockd_validate() {
 	check_binary dlm_tool
 	check_binary pgrep
 	check_binary lvmlockctl
+
+	if ocf_is_true $OCF_RESKEY_with_cmirrord; then
+		check_binary $CMIRRORD
+	fi
 
 	return $OCF_SUCCESS
 }

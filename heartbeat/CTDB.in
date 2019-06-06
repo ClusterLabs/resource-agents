@@ -1,4 +1,4 @@
-#!/bin/sh
+#!@BASH_SHELL@
 #
 #             OCF Resource Agent for managing CTDB
 #
@@ -134,8 +134,8 @@ For more information see http://linux-ha.org/wiki/CTDB_(resource_agent)
 
 <parameter name="ctdb_recovery_lock" unique="1" required="1">
 <longdesc lang="en">
-The location of a shared lock file, common across all nodes.
-This must be on shared storage, e.g.: /shared-fs/samba/ctdb.lock
+The location of a shared lock file or helper binary, common across all nodes.
+See CTDB documentation for details.
 </longdesc>
 <shortdesc lang="en">CTDB shared lock file</shortdesc>
 <content type="string" default="" />
@@ -288,6 +288,14 @@ What debug level to run at (0-10). Higher means more verbose.
 <content type="integer" default="2" />
 </parameter>
 
+<parameter name="ctdb_max_open_files" required="0">
+<longdesc lang="en">
+Maximum number of open files (for ulimit -n)
+</longdesc>
+<shortdesc lang="en">Max open files</shortdesc>
+<content type="integer" default="" />
+</parameter>
+
 <parameter name="smb_conf" unique="0" required="0">
 <longdesc lang="en">
 Path to default samba config file.  Only necessary if CTDB
@@ -391,6 +399,8 @@ invoke_ctdb() {
 enable_event_scripts() {
 	local event_dir
 	event_dir=$OCF_RESKEY_ctdb_config_dir/events.d
+
+	chmod u+x "$event_dir/00.ctdb"	# core database health check
 
 	if [ -f "${OCF_RESKEY_ctdb_config_dir}/public_addresses" ]; then
 		chmod u+x "$event_dir/10.interface"
@@ -563,17 +573,6 @@ ctdb_start() {
 	rv=$?
 	[ $rv -ne 0 ] && return $rv
 
-	# Die if databases are corrupted
-	persistent_db_dir="${OCF_RESKEY_ctdb_dbdir}/persistent"
-	mkdir -p $persistent_db_dir 2>/dev/null
-	for pdbase in $persistent_db_dir/*.tdb.[0-9]; do
-		[ -f "$pdbase" ] || break
-		/usr/bin/tdbdump "$pdbase" >/dev/null 2>/dev/null || {
-			ocf_exit_reason "Persistent database $pdbase is corrupted!  CTDB will not start."
-			return $OCF_ERR_GENERIC
-		}
-	done
-
 	# Add necessary configuration to smb.conf
 	init_smb_conf
 	if [ $? -ne 0 ]; then
@@ -589,7 +588,7 @@ ctdb_start() {
 	local log_option
 	# --logging supported from v4.3.0 and --logfile / --syslog support 
 	# has been removed from newer versions
-	version=$(ctdb version | awk '{print $NF}')
+	version=$(ctdb version | awk '{print $NF}' | sed "s/[-\.]\?[[:alpha:]].*//")
 	ocf_version_cmp "$version" "4.2.14"
 	if [ "$?" -eq "2" ]; then
 		log_option="--logging=file:$OCF_RESKEY_ctdb_logfile"
@@ -619,6 +618,11 @@ ctdb_start() {
 	local start_as_disabled
 	start_as_disabled="--start-as-disabled"
 	ocf_is_true "$OCF_RESKEY_ctdb_start_as_disabled" || start_as_disabled=""
+
+	# set nofile ulimit for ctdbd process
+	if [ -n "$OCF_RESKEY_ctdb_max_open_files" ]; then
+		ulimit -n "$OCF_RESKEY_ctdb_max_open_files"
+	fi
 
 	# Start her up
 	"$OCF_RESKEY_ctdbd_binary" \
@@ -737,9 +741,8 @@ ctdb_monitor() {
 
 
 ctdb_validate() {
-	# Required binaries (full path to tdbdump is intentional, as that's
-	# what's used in ctdb_start, which was lifted from the init script)
-	for binary in pkill /usr/bin/tdbdump; do
+	# Required binaries
+	for binary in pkill; do
 		check_binary $binary
 	done
 
@@ -767,13 +770,24 @@ ctdb_validate() {
 		return $OCF_ERR_CONFIGURED
 	fi
 
-	lock_dir=$(dirname "$OCF_RESKEY_ctdb_recovery_lock")
-	touch "$lock_dir/$$" 2>/dev/null
-	if [ $? != 0 ]; then
-		ocf_exit_reason "Directory for lock file '$OCF_RESKEY_ctdb_recovery_lock' does not exist, or is not writable."
-		return $OCF_ERR_ARGS
+	if [ "${OCF_RESKEY_ctdb_recovery_lock:0:1}" == '!' ]; then
+		# '!' prefix means recovery lock is handled via a helper binary
+		binary="${OCF_RESKEY_ctdb_recovery_lock:1}"
+		binary="${binary%% *}"	# trim any parameters
+		if [ -z "$binary" ]; then
+			ocf_exit_reason "ctdb_recovery_lock invalid helper"
+			return $OCF_ERR_CONFIGURED
+		fi
+		check_binary "${binary}"
+	else
+		lock_dir=$(dirname "$OCF_RESKEY_ctdb_recovery_lock")
+		touch "$lock_dir/$$" 2>/dev/null
+		if [ $? != 0 ]; then
+			ocf_exit_reason "Directory for lock file '$OCF_RESKEY_ctdb_recovery_lock' does not exist, or is not writable."
+			return $OCF_ERR_ARGS
+		fi
+		rm "$lock_dir/$$"
 	fi
-	rm "$lock_dir/$$"
 
 	return $OCF_SUCCESS
 }

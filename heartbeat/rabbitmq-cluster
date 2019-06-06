@@ -31,8 +31,15 @@
 
 #######################################################################
 
+# This arbitrary value here is used by the rmq_start action to
+# signify that the resource agent must retry the start process
+# It might potentially conflict with OCF assigned error code
+# in the future.
+RMQ_TRY_RESTART_ERROR_CODE=126
+
 RMQ_SERVER=/usr/sbin/rabbitmq-server
 RMQ_CTL=/usr/sbin/rabbitmqctl
+RMQ_EVAL="${RMQ_CTL} eval -q"
 RMQ_DATA_DIR="/var/lib/rabbitmq/mnesia"
 RMQ_PID_DIR="/var/run/rabbitmq"
 RMQ_PID_FILE="/var/run/rabbitmq/rmq.pid"
@@ -172,29 +179,54 @@ remove_pid () {
 	rm -f ${RMQ_PID_FILE} > /dev/null 2>&1
 }
 
+rmq_app_running() {
+	if $RMQ_EVAL 'application:which_applications().' | grep -q '{rabbit,'; then
+		ocf_log debug "RabbitMQ application is running"
+		return $OCF_SUCCESS
+	else
+		ocf_log debug "RabbitMQ application is stopped"
+		rmq_delete_nodename
+		return $OCF_NOT_RUNNING
+	fi
+}
+
+rmq_node_alive() {
+	if $RMQ_EVAL 'ok.'; then
+		ocf_log debug "RabbitMQ node is alive"
+		return $OCF_SUCCESS
+	else
+		ocf_log debug "RabbitMQ node is down"
+		rmq_delete_nodename
+		return $OCF_NOT_RUNNING
+	fi
+}
+
 rmq_monitor() {
 	local rc
 
-	$RMQ_CTL cluster_status > /dev/null 2>&1
-	rc=$?
-	case "$rc" in
-	0)
+	status=$($RMQ_EVAL 'rabbit_mnesia:cluster_status_from_mnesia().' 2>&1)
+	if echo "${status}" | grep -q '^{ok'; then
+		pcs_running=$(rmq_join_list | wc -w)
+		ocf_log debug "Pacemaker thinks ${pcs_running} RabbitMQ nodes are running"
+		rmq_running=$($RMQ_EVAL 'length(mnesia:system_info(running_db_nodes)).')
+		ocf_log debug "RabbitMQ thinks ${rmq_running} RabbitMQ nodes are running"
+
+		if [ $(( $rmq_running * 2 )) -lt $pcs_running ]; then
+			ocf_log info "RabbitMQ is a minority partition, failing monitor"
+			rmq_delete_nodename
+			return $OCF_ERR_GENERIC
+		fi
+
 		ocf_log debug "RabbitMQ server is running normally"
 		rmq_write_nodename
-		
+
 		return $OCF_SUCCESS
-	;;
-	2|68|69|70|75|78)
-		ocf_log info "RabbitMQ server is not running"
+	else
+		ocf_log info "RabbitMQ server could not get cluster status from mnesia"
+		ocf_log debug "${status}"
 		rmq_delete_nodename
 		return $OCF_NOT_RUNNING
-	;;
-	*)
-		ocf_log err "Unexpected return code from '$RMQ_CTL cluster_status' exit code: $rc"
-		rmq_delete_nodename
-		return $OCF_ERR_GENERIC
-	;;
-	esac
+	fi
 }
 
 rmq_init_and_wait()
@@ -219,7 +251,7 @@ rmq_init_and_wait()
 		return $OCF_ERR_GENERIC
 	fi
 
-	rmq_monitor
+	rmq_app_running
 	return $?
 }
 
@@ -240,10 +272,11 @@ rmq_start_first()
 	if [ $rc -eq 0 ]; then
 		rc=$OCF_SUCCESS
 		ocf_log info "cluster bootstrapped"
+		rmq_write_nodename
 
 		if [ -n "$OCF_RESKEY_set_policy" ]; then
 			# do not quote set_policy, we are passing in arguments
-			rmq_set_policy $OCF_RESKEY_set_policy > /dev/null 2>&1
+			rmq_set_policy $OCF_RESKEY_set_policy
 			if [ $? -ne 0 ]; then
 				ocf_log err "Failed to set policy: $OCF_RESKEY_set_policy"
 				rc=$OCF_ERR_GENERIC
@@ -262,7 +295,7 @@ rmq_start_first()
 
 rmq_is_clustered()
 {
-    $RMQ_CTL eval 'rabbit_mnesia:is_clustered().' | grep -q true
+    $RMQ_EVAL 'rabbit_mnesia:is_clustered().' | grep -q true
 }
 
 rmq_join_existing()
@@ -356,7 +389,7 @@ rmq_notify() {
 	return $OCF_SUCCESS
 }
 
-rmq_start() {
+rmq_try_start() {
 	local join_list=""
 	local rc
 
@@ -386,13 +419,21 @@ rmq_start() {
 	rc=$?
 
 	if [ $rc -ne 0 ]; then
-		ocf_log info "node failed to join even after reseting local data. Check SELINUX policy"
-		return $OCF_ERR_GENERIC
+		# we could not join the rabbitmq cluster from any of the running nodes
+		# this might be due to a unexpected reset of those nodes. Give ourself
+		# a chance to start by retrying the entire start sequence.
+
+		ocf_log warn "Failed to join the RabbitMQ cluster from nodes ${join_list}. Stopping local unclustered rabbitmq"
+		rmq_stop
+
+		ocf_log warn "Re-detect available rabbitmq nodes and try to start again"
+		# return an unused OCF value to signify a "retry" condition
+		return $RMQ_TRY_RESTART_ERROR_CODE
 	fi
 
 	# Restore users, user permissions, and policies (if any)
 	BaseDataDir=`dirname $RMQ_DATA_DIR`
-	$RMQ_CTL eval "
+	$RMQ_EVAL "
 		%% Run only if Mnesia is ready.
 		lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
 		begin
@@ -445,10 +486,19 @@ rmq_start() {
 	return $OCF_SUCCESS
 }
 
+rmq_start() {
+	local rc=$RMQ_TRY_RESTART_ERROR_CODE
+	while [ $rc -eq $RMQ_TRY_RESTART_ERROR_CODE ]; do
+		rmq_try_start
+		rc=$?
+	done
+	return $rc
+}
+
 rmq_stop() {
 	# Backup users, user permissions, and policies
 	BaseDataDir=`dirname $RMQ_DATA_DIR`
-	$RMQ_CTL eval "
+	$RMQ_EVAL "
 		%% Run only if Mnesia is still available.
 		lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
 		begin
@@ -479,7 +529,7 @@ rmq_stop() {
 		end.
 	"
 
-	rmq_monitor
+	rmq_node_alive
 	if [ $? -eq $OCF_NOT_RUNNING ]; then
 		return $OCF_SUCCESS
 	fi
@@ -495,7 +545,7 @@ rmq_stop() {
 	#TODO add kill logic
 	stop_wait=1
 	while [ $stop_wait = 1 ]; do
-		rmq_monitor
+		rmq_app_running
 		rc=$?
 		if [ "$rc" -eq $OCF_NOT_RUNNING ]; then
 			stop_wait=0
@@ -507,6 +557,7 @@ rmq_stop() {
 		sleep 1
 	done
 
+	rmq_delete_nodename
 	remove_pid
 	return $OCF_SUCCESS
 }

@@ -278,6 +278,12 @@ tickle_local()
 	[ -z "$OCF_RESKEY_tickle_dir" ] && return
 	f=$OCF_RESKEY_tickle_dir/$OCF_RESKEY_ip
 	[ -r $f ] || return
+
+	checkcmd="netstat -tn"
+	if ! have_binary "netstat"; then
+		checkcmd="ss -Htn"
+	fi
+
 	# swap "local" and "remote" address,
 	# so we tickle ourselves.
 	# We set up a REJECT with tcp-reset before we do so, so we get rid of
@@ -286,11 +292,11 @@ tickle_local()
 	# the way if we switch-over and then switch-back in quick succession.
 	local i
 	awk '{ print $2, $1; }' $f | $TICKLETCP
-	netstat -tn | grep -Fw $OCF_RESKEY_ip || return
+	$checkcmd | grep -Fw $OCF_RESKEY_ip || return
 	for i in 0.1 0.5 1 2 4 ; do
 		sleep $i
 		awk '{ print $2, $1; }' $f | $TICKLETCP
-		netstat -tn | grep -Fw $OCF_RESKEY_ip || break
+		$checkcmd | grep -Fw $OCF_RESKEY_ip || break
 	done
 }
 

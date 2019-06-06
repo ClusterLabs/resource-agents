@@ -82,6 +82,13 @@ elif [ -f "/etc/default/clustercheck" ]; then
 fi
 
 #######################################################################
+# Defaults:
+
+OCF_RESKEY_check_passwd_use_empty_default=0
+
+: ${OCF_RESKEY_check_passwd_use_empty=${OCF_RESKEY_check_passwd_use_empty_default}}
+
+#######################################################################
 
 usage() {
   cat <<UEND
@@ -243,10 +250,21 @@ Cluster check user.
 
 <parameter name="check_passwd" unique="0" required="0">
 <longdesc lang="en">
-Cluster check user password
+Cluster check user password. Empty passwords are ignored unless
+the parameter "check_passwd_use_empty" is set to 1.
 </longdesc>
 <shortdesc lang="en">check password</shortdesc>
 <content type="string" default="" />
+</parameter>
+
+<parameter name="check_passwd_use_empty" unique="0" required="0">
+<longdesc lang="en">
+Use an empty "check_passwd" password. If this parameter is set to 1,
+"check_passwd" will be ignored and an empty password is used
+when calling the "mysql" client binary.
+</longdesc>
+<shortdesc lang="en">check password use empty</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_check_passwd_use_empty_default}"/>
 </parameter>
 
 </parameters>
@@ -411,7 +429,7 @@ master_exists()
         return 1
     fi
     # determine if a master instance is already up and is healthy
-    crm_mon --as-xml | grep "resource.*id=\"${INSTANCE_ATTR_NAME}\".*role=\"Master\".*active=\"true\".*orphaned=\"false\".*failed=\"false\"" > /dev/null 2>&1
+    ${HA_SBIN_DIR}/crm_mon --as-xml | grep "resource.*id=\"${INSTANCE_ATTR_NAME}\".*role=\"Master\".*active=\"true\".*orphaned=\"false\".*failed=\"false\"" > /dev/null 2>&1
     return $?
 }
 
@@ -564,10 +582,21 @@ detect_first_master()
 detect_safe_to_bootstrap()
 {
     local safe_to_bootstrap=""
+    local uuid=""
+    local seqno=""
 
     if [ -f ${OCF_RESKEY_datadir}/grastate.dat ]; then
         ocf_log info "attempting to read safe_to_bootstrap flag from ${OCF_RESKEY_datadir}/grastate.dat"
         safe_to_bootstrap=$(sed -n 's/^safe_to_bootstrap:\s*\(.*\)$/\1/p' < ${OCF_RESKEY_datadir}/grastate.dat)
+        uuid=$(sed -n 's/^uuid:\s*\(.*\)$/\1/p' < ${OCF_RESKEY_datadir}/grastate.dat)
+        seqno=$(sed -n 's/^seqno:\s*\(.*\)$/\1/p' < ${OCF_RESKEY_datadir}/grastate.dat)
+    fi
+
+    if [ -z "$uuid" ] || [ -z "$seqno" ] || \
+       [ "$uuid" = "00000000-0000-0000-0000-000000000000" ] || \
+       [ "$seqno" = "-1" ]; then
+        clear_safe_to_bootstrap
+        return
     fi
 
     if [ "$safe_to_bootstrap" = "1" ] || [ "$safe_to_bootstrap" = "0" ]; then
@@ -675,6 +704,7 @@ galera_promote()
             # bootstrapping anyways
             if [ "$(get_safe_to_bootstrap)" = "0" ]; then
                 sed -ie 's/^\(safe_to_bootstrap:\) 0/\1 1/' ${OCF_RESKEY_datadir}/grastate.dat
+                ocf_log info "safe_to_bootstrap in ${OCF_RESKEY_datadir}/grastate.dat set to 1 on node ${NODENAME}"
             fi
             ocf_log info "Node <${NODENAME}> is bootstrapping the cluster"
             extra_opts="--wsrep-cluster-address=gcomm://"
@@ -944,7 +974,10 @@ fi
 : ${OCF_RESKEY_check_user="root"}
 
 MYSQL_OPTIONS_CHECK="-nNE --user=${OCF_RESKEY_check_user}"
-if [ -n "${OCF_RESKEY_check_passwd}" ]; then
+
+if ocf_is_true "${OCF_RESKEY_check_passwd_use_empty}"; then
+    MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK --password=''"
+elif [ -n "${OCF_RESKEY_check_passwd}" ]; then
     MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK --password=${OCF_RESKEY_check_passwd}"
 fi
 

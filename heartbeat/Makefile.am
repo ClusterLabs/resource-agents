@@ -50,7 +50,7 @@ send_ua_SOURCES         = send_ua.c IPv6addr_utils.c
 IPv6addr_LDADD          = -lplumb $(LIBNETLIBS)
 send_ua_LDADD           = $(LIBNETLIBS)
 
-ocf_SCRIPTS	     =  AoEtarget		\
+ocf_SCRIPTS	      = AoEtarget		\
 			AudibleAlarm		\
 			ClusterMon		\
 			CTDB			\
@@ -105,6 +105,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			dhcpd			\
 			dnsupdate		\
 			docker			\
+			dovecot			\
 			eDir88			\
 			ethmonitor		\
 			exportfs		\
@@ -112,8 +113,6 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			galera			\
 			garbd			\
 			gcp-vpc-move-ip		\
-			gcp-vpc-move-vip	\
-			gcp-vpc-move-route	\
 			iSCSILogicalUnit	\
 			iSCSITarget		\
 			ids			\
@@ -146,6 +145,7 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			pgagent			\
 			pgsql			\
 			pingd			\
+			podman			\
 			portblock		\
 			postfix			\
 			pound			\
@@ -165,9 +165,26 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			syslog-ng		\
 			tomcat			\
 			varnish			\
+			vdo-vol			\
 			vmware			\
 			vsftpd			\
 			zabbixserver
+
+if BUILD_AZURE_EVENTS
+ocf_SCRIPTS	     += azure-events
+endif
+
+if BUILD_GCP_PD_MOVE
+ocf_SCRIPTS	     += gcp-pd-move
+endif
+
+if BUILD_GCP_VPC_MOVE_ROUTE
+ocf_SCRIPTS	     += gcp-vpc-move-route
+endif
+
+if BUILD_GCP_VPC_MOVE_VIP
+ocf_SCRIPTS	     += gcp-vpc-move-vip
+endif
 
 ocfcommondir		= $(OCF_LIB_DIR_PREFIX)/heartbeat
 ocfcommon_DATA		= ocf-shellfuncs 	\
@@ -186,7 +203,8 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  ora-common.sh		\
 			  mysql-common.sh	\
 			  nfsserver-redhat.sh	\
-			  findif.sh
+			  findif.sh		\
+			  ocf.py
 
 # Legacy locations
 hbdir			= $(sysconfdir)/ha.d
@@ -196,3 +214,13 @@ check: $(ocf_SCRIPTS:=.check)
 
 %.check: %
 	OCF_ROOT=$(abs_srcdir) OCF_FUNCTIONS_DIR=$(abs_srcdir) ./$< meta-data | xmllint --path $(abs_srcdir) --noout --relaxng $(abs_srcdir)/metadata.rng -
+
+do_spellcheck = printf '[%s]\n' "$(agent)"; \
+                OCF_ROOT=$(abs_srcdir) OCF_FUNCTIONS_DIR=$(abs_srcdir) \
+                ./$(agent) meta-data 2>/dev/null \
+                | xsltproc $(top_srcdir)/make/extract_text.xsl - \
+                | aspell pipe list -d en_US --ignore-case \
+                  --home-dir=$(top_srcdir)/make -p spellcheck-ignore \
+                | sed -n 's|^&\([^:]*\):.*|\1|p';
+spellcheck:
+	@$(foreach agent,$(ocf_SCRIPTS), $(do_spellcheck))
