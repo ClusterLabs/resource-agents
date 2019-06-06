@@ -235,7 +235,9 @@ osvol_monitor() {
 		else
 			fdisk_command="fdisk"
 		fi
-		if $fdisk_command /dev/disk/by-id/virtio-$short_volume_id 2>&1 1>/dev/null ; then
+
+		$fdisk_command /dev/disk/by-id/virtio-$short_volume_id 1>/dev/null 2>&1
+		if [ $? -eq 0 ] ; then
 			return $OCF_SUCCESS
 		else
 			ocf_log warn "$OCF_RESKEY_volume_id is not attached to instance $(_get_node_id)"
