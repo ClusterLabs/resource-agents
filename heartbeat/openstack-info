@@ -115,6 +115,10 @@ OSInfoStats() {
 		--format value --column ID --column Name \
 		| grep $node)
 
+	if [ $? -ne 0 ] ; then
+		ocf_exit_reason "cannot find $node in instances list"
+		exit $OCF_ERR_GENERIC
+	fi
 	node_id=$(echo $result|awk '{print $1}')
 
 	# Nova data: flavor, AZ…
@@ -148,14 +152,26 @@ OSInfoStats() {
 			value="$value,$p"
 		fi
 	done
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_ports -v $value
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_ports -v "$value"
 
 	if [ ! -z "$OS_REGION_NAME" ] ; then
-		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_region -v $OS_REGION_NAME
+		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_region -v "$OS_REGION_NAME"
 	fi
 
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_tenant_name -v $OS_TENANT_NAME
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_tenant_id -v $OS_TENANT_ID
+	if [ ! -z "$OS_TENANT_ID" ] ; then
+		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_tenant_id -v "$OS_TENANT_ID"
+
+		if [ ! -z "$OS_TENANT_NAME" ] ; then
+			${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_tenant_name -v "$OS_TENANT_NAME"
+		fi
+	else
+		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_project_id -v "$OS_PROJECT_ID"
+
+		if [ ! -z "$OS_PROJECT_NAME" ] ; then
+			${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_project_name -v "$OS_PROJECT_NAME"
+		fi
+	fi
+
 }
 
 OSInfo_usage() {
@@ -181,6 +197,8 @@ OSInfo_stop() {
 	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_region
 	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_tenant_id
 	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_tenant_name
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_project_id
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_project_name
 	exit $OCF_SUCCESS
 }
 
