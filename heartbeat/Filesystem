@@ -255,16 +255,26 @@ is_bind_mount() {
 }
 list_mounts() {
 	local inpf=""
+	local mount_list=""
+	local check_list="x"
+
 	if [ -e "/proc/mounts" ] && ! is_bind_mount; then
 		inpf=/proc/mounts
 	elif [ -f "/etc/mtab" -a -r "/etc/mtab" ]; then
 		inpf=/etc/mtab
 	fi
-	if [ "$inpf" ]; then
-		cut -d' ' -f1,2,3 < $inpf
-	else
-		$MOUNT | cut -d' ' -f1,3,5
-	fi
+
+	# Make sure that the mount list has not been changed while reading.
+	while [ "$mount_list" != "$check_list" ]; do
+		check_list=$mount_list
+		if [ "$inpf" ]; then
+			mount_list=$(cut -d' ' -f1,2,3 < $inpf)
+		else
+			mount_list=$($MOUNT | cut -d' ' -f1,3,5)
+		fi
+	done
+
+	echo "$mount_list"
 }
 
 determine_blockdevice() {
