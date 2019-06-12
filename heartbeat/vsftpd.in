@@ -165,7 +165,7 @@ vsftpd_start()
 		*)
 			rm -f "$PIDFILE" > /dev/null 2>&1
 			ocf_exit_reason "Error encountered detecting pid of vsftpd."
-			exit OCF_ERR_GENERIC
+			exit $OCF_ERR_GENERIC
 			;;
 	esac
 
