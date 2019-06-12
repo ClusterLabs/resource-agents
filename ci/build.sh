@@ -10,7 +10,8 @@ failed=0
 # SC2039: In POSIX sh, 'local' is undefined.
 # SC2086: Double quote to prevent globbing and word splitting.
 # SC2154: var is referenced but not assigned.
-ignored_errors="SC1090,SC2039,SC2154"
+# SC1087: Use braces when expanding arrays.
+ignored_errors="SC1090,SC2039,SC2154,SC1087"
 
 success() {
 	printf "\r\033[2K  [ \033[00;32mOK\033[0m ] Checking %s...\n" "$1"
@@ -70,6 +71,7 @@ check_all_executables() {
 		[[ "$head" =~ .*ruby.* ]] && continue
 		[[ "$head" =~ .*zsh.* ]] && continue
 		[[ "$head" =~ ^#compdef.* ]] && continue
+		[[ "$head" =~ .*@BASH_SHELL@.* ]] && continue
 		[[ "$script" =~ ^.*\.c ]] && continue
 		[[ "$script" =~ ^.*\.orig ]] && continue
 		[[ "$script" =~ ^ldirectord.in ]] && continue
