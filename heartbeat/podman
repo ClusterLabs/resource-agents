@@ -255,15 +255,10 @@ podman_simple_status()
 
 podman_monitor()
 {
-	local rc=0
-
-	podman_simple_status
-	rc=$?
-
-	if [ $rc -ne 0 ]; then
-		return $rc
+	if [ -z "$OCF_RESKEY_monitor_cmd" ]; then
+		podman_simple_status
+		return $?
 	fi
-
 	monitor_cmd_exec
 }
 
