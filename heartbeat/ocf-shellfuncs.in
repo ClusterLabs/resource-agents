@@ -101,7 +101,7 @@ ocf_is_decimal() {
 
 ocf_is_true() {
 	case "$1" in
-	yes|true|1|YES|TRUE|ja|on|ON) true ;;
+	yes|true|1|YES|TRUE|True|ja|on|ON) true ;;
 	*)	false ;;
 	esac
 }
