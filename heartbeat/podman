@@ -238,11 +238,6 @@ podman_simple_status()
 {
 	local val
 
-	container_exists
-	if [ $? -ne 0 ]; then
-		return $OCF_NOT_RUNNING
-	fi
-
 	# retrieve the 'Running' attribute for the container
 	val=$(podman inspect --format {{.State.Running}} $CONTAINER 2>/dev/null)
 	if [ $? -ne 0 ]; then
