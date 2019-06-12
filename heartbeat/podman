@@ -190,14 +190,8 @@ monitor_cmd_exec()
 		return $rc
 	fi
 
-	if podman exec --help >/dev/null 2>&1; then
-		out=$(podman exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
-		rc=$?
-	else
-		out=$(echo "$OCF_RESKEY_monitor_cmd" | nsenter --target $(podman inspect --format {{.State.Pid}} ${CONTAINER}) --mount --uts --ipc --net --pid 2>&1)
-		rc=$?
-	fi
-
+	out=$(podman exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
+	rc=$?
 	if [ $rc -eq 127 ]; then
 		ocf_log err "monitor cmd failed (rc=$rc), output: $out"
 		ocf_exit_reason "monitor_cmd, ${OCF_RESKEY_monitor_cmd} , not found within container."
