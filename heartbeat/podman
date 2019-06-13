@@ -190,14 +190,8 @@ monitor_cmd_exec()
 		return $rc
 	fi
 
-	if podman exec --help >/dev/null 2>&1; then
-		out=$(podman exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
-		rc=$?
-	else
-		out=$(echo "$OCF_RESKEY_monitor_cmd" | nsenter --target $(podman inspect --format {{.State.Pid}} ${CONTAINER}) --mount --uts --ipc --net --pid 2>&1)
-		rc=$?
-	fi
-
+	out=$(podman exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
+	rc=$?
 	if [ $rc -eq 127 ]; then
 		ocf_log err "monitor cmd failed (rc=$rc), output: $out"
 		ocf_exit_reason "monitor_cmd, ${OCF_RESKEY_monitor_cmd} , not found within container."
@@ -238,11 +232,6 @@ podman_simple_status()
 {
 	local val
 
-	container_exists
-	if [ $? -ne 0 ]; then
-		return $OCF_NOT_RUNNING
-	fi
-
 	# retrieve the 'Running' attribute for the container
 	val=$(podman inspect --format {{.State.Running}} $CONTAINER 2>/dev/null)
 	if [ $? -ne 0 ]; then
@@ -260,15 +249,10 @@ podman_simple_status()
 
 podman_monitor()
 {
-	local rc=0
-
-	podman_simple_status
-	rc=$?
-
-	if [ $rc -ne 0 ]; then
-		return $rc
+	if [ -z "$OCF_RESKEY_monitor_cmd" ]; then
+		podman_simple_status
+		return $?
 	fi
-
 	monitor_cmd_exec
 }
 
