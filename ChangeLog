@@ -1,3 +1,59 @@
+* Fri Jun 14 2019 resource-agents contributors
+- release candidate 4.3.0 rc1
+- Build: improve to be able to build and install on RHEL 6
+- CTDB: add ctdb_max_open_files parameter
+- CTDB: fix version string with vendor trailer comparison
+- Filesystem: Fix missing mount point due to corrupted mount list
+- Filesystem: fix umount not executed in the event of a disk failure
+- IPaddr2: add network namespace support
+- IPsrcaddr: make proto optional to fix regression when used without NetworkManager
+- LVM-activate: align dmsetup report command to standard
+- LVM-activate: dont count "No devices" as device in dm_count
+- LVM-activate: dont fail initial probe
+- LVM-activate: make vgname not uniqe
+- LVM-activate: only check locking_type when LVM < v2.03
+- LVM-activate: return OCF_NOT_RUNNING on initial probe
+- LVM: return $OCF_ERR_GENERIC when start fails
+- Maint: introduce optional spellchecking for {short,long}desc (make spellcheck)
+- Route: make family parameter optional
+- SAPDatabase: metadata: add HANA usage example and improved the Monitor Services defaults documentation
+- Squid: fix PID file issue w/newer Squid versions
+- aws-vpc-move-ip: add support for multiple network interfaces
+- aws-vpc-move-ip: add support for multiple routing tables
+- aws-vpc-move-ip: get NETWORK_INTERFACE_ID from metadata instead of using awscli
+- aws-vpc-move-ip: improve MAC address detection
+- aws-vpc-move-ip: use --query to avoid possible race condition w/old grep implementation
+- azure-events: fix implicit bytes conversion that breaks Python 3
+- clvm: support exclusive mode
+- configure: add Python library detection
+- dhcpd: keep SELinux context when copying to chroot
+- docker: fail gracefully when command not found
+- docker: use --type=container to avoid matches from other types
+- dovecot: new RA
+- ethmonitor: check if interface exists by link
+- galera: Allow empty password for "check_passwd" parameter
+- galera: Log message when changing content of grastate.dat file
+- galera: ignore safe_to_bootstrap in grastate.dat in some cases
+- gcp-vpc-move-route/gcp-vpc-move-vip: fix Python 3 encoding issue
+- lxc: add support for lxc-stop
+- named: add host_options parameter
+- ocf-distro: add regex for RedHat version
+- ocf.py: add support for role argument to actions
+- ocf: do not log at debug log level when HA_debug is unset (e.g. w/Pacemaker remote)
+- openstack*: add support for re-attaching volumes, v3 API
+- pgsql: enhance checks in pgsql_real_start to prevent incorrect status
+- pgsql: set initial score for primary and hot standby in probe
+- podman: avoid double call to podman inspect
+- ra-dev-guide: correct notify action documentation
+- rabbitmq-cluster: always use quiet flag for eval calls
+- rabbitmq-cluster: debug log detailed output when mnesia query fails
+- rabbitmq-cluster: ensure node attributes are removed
+- rabbitmq-cluster: fix regression in rmq_stop
+- redis: Filter warning from stderr when calling 'redis-cli -a'
+- tomcat: use systemd on RHEL when catalina.sh is unavailable
+- vdo-vol: new RA
+- vsftpd: fix missing $ on invalid exit code detected by CI
+
 * Wed Oct 24 2018 resource-agents contributors
 - stable release 4.2.0
 - apache: fix return value for silent_status
