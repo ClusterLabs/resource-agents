@@ -99,7 +99,7 @@ class azHelper:
 		ocf.logger.debug("getInstanceInfo: begin")
 
 		jsondata = azHelper._sendMetadataRequest(azHelper.instance_api)
-		ocf.logger.info("getInstanceInfo: json = %s" % jsondata)
+		ocf.logger.debug("getInstanceInfo: json = %s" % jsondata)
 
 		ocf.logger.debug("getInstanceInfo: finished, returning {}".format(jsondata["compute"]))
 		return attrDict(jsondata["compute"])
@@ -112,7 +112,7 @@ class azHelper:
 		ocf.logger.debug("pullScheduledEvents: begin")
 
 		jsondata = azHelper._sendMetadataRequest(azHelper.events_api)
-		ocf.logger.info("pullScheduledEvents: json = %s" % jsondata)
+		ocf.logger.debug("pullScheduledEvents: json = %s" % jsondata)
 
 		ocf.logger.debug("pullScheduledEvents: finished")
 		return attrDict(jsondata)
@@ -569,7 +569,7 @@ class Node:
 		ocf.logger.debug("handleRemoteEvents: begin; hostName = %s, events = %s" % (self.hostName, str(azEvents)))
 
 		if len(azEvents) == 0:
-			ocf.logger.info("handleRemoteEvents: no remote events to handle")
+			ocf.logger.debug("handleRemoteEvents: no remote events to handle")
 			ocf.logger.debug("handleRemoteEvents: finished")
 			return
 		eventIDsForNode = {}
@@ -672,7 +672,7 @@ class Node:
 						ocf.logger.info("handleLocalEvents: cannot handle azEvents %s (only node available) -> set state ON_HOLD" % str(azEventIDs))
 						self.setState(ON_HOLD)
 				else:
-					ocf.logger.info("handleLocalEvents: no local azEvents to handle")
+					ocf.logger.debug("handleLocalEvents: no local azEvents to handle")
 			if curState == STOPPING:
 				if clusterHelper.noPendingResourcesOnNode(self.hostName):
 					ocf.logger.info("handleLocalEvents: all local resources are started properly -> put node standby")
@@ -720,21 +720,21 @@ class raAzEvents:
 			# get current document version
 			curDocVersion  = events.DocumentIncarnation
 			lastDocVersion = self.node.getAttr(attr_lastDocVersion)
-			ocf.logger.info("monitor: lastDocVersion = %s; curDocVersion = %s" % (lastDocVersion, curDocVersion))
+			ocf.logger.debug("monitor: lastDocVersion = %s; curDocVersion = %s" % (lastDocVersion, curDocVersion))
 
 			# split events local/remote
 			(localEvents, remoteEvents) = self.node.separateEvents(events.Events)
 
 			# ensure local events are only executing once
 			if curDocVersion != lastDocVersion:
-				ocf.logger.info("monitor: curDocVersion has not been handled yet")
+				ocf.logger.debug("monitor: curDocVersion has not been handled yet")
 				# handleLocalEvents() returns True if mayUpdateDocVersion is True;
 				# this is only the case if we can ensure there are no pending events
 				if self.node.handleLocalEvents(localEvents):
 					ocf.logger.info("monitor: handleLocalEvents completed successfully -> update curDocVersion")
 					self.node.setAttr(attr_lastDocVersion, curDocVersion)
 				else:
-					ocf.logger.info("monitor: handleLocalEvents still waiting -> keep curDocVersion")
+					ocf.logger.debug("monitor: handleLocalEvents still waiting -> keep curDocVersion")
 			else:
 				ocf.logger.info("monitor: already handled curDocVersion, skip")
 
