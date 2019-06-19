@@ -258,6 +258,14 @@ r53_monitor() {
 }
 
 _update_record() {
+	#
+	# This function is the one that will actually execute Route53's API call
+	# and configure the DNS record using the correct API calls and parameters
+	#
+	# It creates a temporary JSON file under /tmp with the required API payload
+	#
+	# Failures in this function are critical and will cause the agent to fail
+	#
 	update_action="$1"
 	IPADDRESS="$2"
 	ocf_log info "Updating Route53 $OCF_RESKEY_hostedzoneid with $IPADDRESS for $OCF_RESKEY_fullname"
@@ -286,8 +294,7 @@ _update_record() {
 		  ]
 	}
 	EOF
-	cmd="aws --profile ${OCF_RESKEY_profile} route53 change-resource-record-sets --hosted-zone-id ${OCF_RESKEY_hostedzoneid} \
-	  --change-batch file://${ROUTE53RECORD} "
+	cmd="aws --profile ${OCF_RESKEY_profile} route53 change-resource-record-sets --hosted-zone-id ${OCF_RESKEY_hostedzoneid} --change-batch file://${ROUTE53RECORD} "
 	ocf_log debug "Executing command: $cmd"
 	CHANGEID=$($cmd | grep CHANGEINFO |	 /usr/bin/awk -F'\t' '{ print $3 }' )
 	ocf_log debug "Change id: ${CHANGEID}"
