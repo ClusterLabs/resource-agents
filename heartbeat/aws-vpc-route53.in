@@ -322,6 +322,9 @@ r53_stop() {
 }
 
 r53_start() {
+	#
+	# Start agent and config DNS in Route53
+	#
 	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
 	_update_record "UPSERT" "$IPADDRESS"
 	return $OCF_SUCCESS
