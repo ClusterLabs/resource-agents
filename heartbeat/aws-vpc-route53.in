@@ -217,7 +217,7 @@ r53_monitor() {
 		ARECORD="$($cmd | grep RESOURCERECORDS | /usr/bin/awk '{ print $2 }')"
 	else
 		#
-		cmd="dig +retries=5 +time=6 +short $OCF_RESKEY_fullname 2>/dev/null"
+		cmd="dig +retries=3 +time=5 +short $OCF_RESKEY_fullname 2>/dev/null"
 		ocf_log debug "executing monitoring command : $cmd"
 		ARECORD="$($cmd)"
 		rc=$?
