@@ -317,7 +317,7 @@ r53_stop() {
 	# the start and monitor functions will take care of changing the DNS record
 	# if the agent starts in a different cluster node
 	#
-	ocf_log info "Bringing down Route53 agent. (Will NOT remove ARECORD)"
+	ocf_log info "Bringing down Route53 agent. (Will NOT remove Route53 DNS record)"
 	return $OCF_SUCCESS
 }
 
