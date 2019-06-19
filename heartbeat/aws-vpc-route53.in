@@ -208,7 +208,7 @@ r53_monitor() {
 	r53_validate
 	ocf_log debug "Checking Route53 record sets"
 	#
-	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
+	IPADDRESS="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
 	#
 	if [ "$__OCF_ACTION" = "start" ] || ocf_is_probe ; then
 		#
@@ -325,7 +325,7 @@ r53_start() {
 	#
 	# Start agent and config DNS in Route53
 	#
-	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
+	IPADDRESS="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
 	_update_record "UPSERT" "$IPADDRESS"
 	return $OCF_SUCCESS
 }
