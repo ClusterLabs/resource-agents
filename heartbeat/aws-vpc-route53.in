@@ -190,17 +190,68 @@ r53_validate() {
 }
 
 r53_monitor() {
+	#
+	# For every start action the agent  will call Route53 API to check for DNS record
+	# otherwise it will try to get results directly bu querying the DNS using "dig".
+	# Due to complexity in some DNS architectures "dig" can fail, and if this happens
+	# the monitor will fallback to the Route53 API call.
+	#
+	# There will be no failure, failover or restart of the agent if the monitor operation fails
+	# hence we only return $OCF_SUCESS in this function
+	#
+	# In case of the monitor operation detects a wrong or non-existent Route53 DNS entry
+	# it will try to fix the existing one, or create it again
+	#
+	#
+	ARECORD=""
+	IPREGEX="^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$"
 	r53_validate
 	ocf_log debug "Checking Route53 record sets"
+	#
 	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
-	ARECORD="$(aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query "ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']" | grep RESOURCERECORDS | /usr/bin/awk '{ print $2 }' )"
-	ocf_log debug "Found IP address: $ARECORD ."
-	if [ "${ARECORD}" == "${IPADDRESS}" ]; then
-		ocf_log debug "ARECORD $ARECORD found"
+	#
+	if [ "$__OCF_ACTION" = "start" ] || ocf_is_probe ; then
+		#
+		cmd="aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']"
+		ocf_log debug "Route53 Agent Starting or probing - executing monitoring API call: $cmd"
+		ARECORD="$($cmd | grep RESOURCERECORDS | /usr/bin/awk '{ print $2 }')"
+	else
+		#
+		cmd="dig +retries=5 +time=6 +short $OCF_RESKEY_fullname 2>/dev/null"
+		ocf_log debug "executing monitoring command : $cmd"
+		ARECORD="$($cmd)"
+		rc=$?
+		ocf_log debug "dig return code: $rc"
+		#
+		if  [[ ! $ARECORD =~ $IPREGEX ]] || [ $rc -ne 0 ]; then
+			ocf_log info "Fallback to Route53 API query due to DNS resolution failure"
+			cmd="aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']"
+			ocf_log debug "executing monitoring API call: $cmd"
+			CLIRES="$($cmd 2>&1)"
+			rc=$?
+			ocf_log debug "awscli return code: $rc"
+			if [ $rc -ne 0 ]; then
+				ocf_log info "Route53 API returned an error: $CLIRES"
+				ocf_log info "Monitor skipping cluster action due to API call error"
+				return $OCF_SUCCESS
+			fi
+			ARECORD=$(echo $CLIRES | grep RESOURCERECORDS | /usr/bin/awk '{ print $5 }')
+		fi
+		#
+	fi
+	ocf_log debug "Route53 DNS record pointing $OCF_RESKEY_fullname to IP address $ARECORD"
+	#
+	if [ "$ARECORD" == "$IPADDRESS" ]; then
+		ocf_log debug "Route53 DNS record $ARECORD found"
+		return $OCF_SUCCESS
+	elif [[ $ARECORD =~ $IPREGEX ]] && [ "$ARECORD" != "$IPADDRESS" ]; then
+		ocf_log info "Route53 DNS record points to a different host, setting DNS record on Route53 to this host"
+		_update_record "UPSERT" "$IPADDRESS"
 		return $OCF_SUCCESS
 	else
-		ocf_log debug "No ARECORD found"
-		return $OCF_NOT_RUNNING
+		ocf_log info "No Route53 DNS record found, setting DNS record on Route53 to this host"
+		_update_record "UPSERT" "$IPADDRESS"
+		return $OCF_SUCCESS
 	fi
 
 	return $OCF_SUCCESS
