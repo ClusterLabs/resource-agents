@@ -325,6 +325,7 @@ r53_start() {
 	#
 	# Start agent and config DNS in Route53
 	#
+	ocf_log info "Starting Route53 DNS update...."
 	IPADDRESS="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
 	_update_record "UPSERT" "$IPADDRESS"
 	return $OCF_SUCCESS
