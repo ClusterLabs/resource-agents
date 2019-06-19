@@ -152,7 +152,7 @@ output has to be "text".
 END
 }
 
-ec2ip_validate() {
+r53_validate() {
 	ocf_log debug "function: validate"
 
 	# Full name
@@ -183,8 +183,8 @@ ec2ip_validate() {
 	return $OCF_SUCCESS
 }
 
-ec2ip_monitor() {
-	ec2ip_validate
+r53_monitor() {
+	r53_validate
 	ocf_log debug "Checking Route53 record sets"
 	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
 	ARECORD="$(aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query "ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']" | grep RESOURCERECORDS | /usr/bin/awk '{ print $2 }' )"
@@ -246,7 +246,7 @@ _update_record() {
 	done
 }
 
-ec2ip_stop() {
+r53_stop() {
 	ocf_log info "Bringing down Route53 agent. (Will remove ARECORD)"
 	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
 	ARECORD="$(aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query "ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']" | grep RESOURCERECORDS | /usr/bin/awk '{ print $2 }' )"
@@ -266,7 +266,7 @@ ec2ip_stop() {
 	return $OCF_SUCCESS
 }
 
-ec2ip_start() {
+r53_start() {
 	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
 	_update_record "UPSERT" "$IPADDRESS"
 	return $OCF_SUCCESS
@@ -284,16 +284,16 @@ case $__OCF_ACTION in
 		exit $OCF_SUCCESS
 		;;
 	monitor)
-		ec2ip_monitor
+		r53_monitor
 		;;
 	stop)
-		ec2ip_stop
+		r53_stop
 		;;
 	validate-all)
-		ec2ip_validate
+		r53_validate
 		;;
 	start)
-		ec2ip_start
+		r53_start
 		;;
 	*)
 		usage
