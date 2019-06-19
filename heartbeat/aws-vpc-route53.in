@@ -181,9 +181,9 @@ r53_validate() {
 	ocf_log debug "ok"
 
 	if [ -n "$OCF_RESKEY_profile" ]; then
-		AWS_PROFILE_OPT="--profile $OCF_RESKEY_profile"
+		AWS_PROFILE_OPT="--profile $OCF_RESKEY_profile --cli-connect-timeout 10"
 	else
-		AWS_PROFILE_OPT="--profile default"
+		AWS_PROFILE_OPT="--profile default --cli-connect-timeout 10"
 	fi
 
 	return $OCF_SUCCESS
