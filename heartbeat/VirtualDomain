@@ -20,8 +20,8 @@
 OCF_RESKEY_migration_downtime_default=0
 OCF_RESKEY_migration_speed_default=0
 OCF_RESKEY_force_stop_default=0
-OCF_RESKEY_autoset_utilization_cpu_default="true"
-OCF_RESKEY_autoset_utilization_hv_memory_default="true"
+OCF_RESKEY_update_cpu_default="false"
+OCF_RESKEY_update_hv_memory_default="false"
 OCF_RESKEY_migrateport_default=$(( 49152 + $(ocf_maybe_random) % 64 ))
 OCF_RESKEY_CRM_meta_timeout_default=90000
 OCF_RESKEY_save_config_on_stop_default=false
@@ -33,8 +33,8 @@ OCF_RESKEY_copyindirs_default=""
 : ${OCF_RESKEY_migration_downtime=${OCF_RESKEY_migration_downtime_default}}
 : ${OCF_RESKEY_migration_speed=${OCF_RESKEY_migration_speed_default}}
 : ${OCF_RESKEY_force_stop=${OCF_RESKEY_force_stop_default}}
-: ${OCF_RESKEY_autoset_utilization_cpu=${OCF_RESKEY_autoset_utilization_cpu_default}}
-: ${OCF_RESKEY_autoset_utilization_hv_memory=${OCF_RESKEY_autoset_utilization_hv_memory_default}}
+: ${OCF_RESKEY_update_cpu=${OCF_RESKEY_update_cpu_default}}
+: ${OCF_RESKEY_update_hv_memory=${OCF_RESKEY_update_hv_memory_default}}
 : ${OCF_RESKEY_migrateport=${OCF_RESKEY_migrateport_default}}
 : ${OCF_RESKEY_CRM_meta_timeout=${OCF_RESKEY_CRM_meta_timeout_default}}
 : ${OCF_RESKEY_save_config_on_stop=${OCF_RESKEY_save_config_on_stop_default}}
@@ -203,22 +203,22 @@ Be sure to set the timeout of these operations to accommodate this delay.
 <content type="string" default="" />
 </parameter>
 
-<parameter name="autoset_utilization_cpu" unique="0" required="0">
+<parameter name="update_cpu" unique="0" required="0">
 <longdesc lang="en">
 If set true, the agent will detect the number of domainU's vCPUs from virsh, and put it
 into the CPU utilization of the resource when the monitor is executed.
 </longdesc>
 <shortdesc lang="en">Enable auto-setting the CPU utilization of the resource</shortdesc>
-<content type="boolean" default="true" />
+<content type="boolean" default="false" />
 </parameter>
 
-<parameter name="autoset_utilization_hv_memory" unique="0" required="0">
+<parameter name="update_hv_memory" unique="0" required="0">
 <longdesc lang="en">
 If set true, the agent will detect the number of *Max memory* from virsh, and put it
 into the hv_memory utilization of the resource when the monitor is executed.
 </longdesc>
 <shortdesc lang="en">Enable auto-setting the hv_memory utilization of the resource</shortdesc>
-<content type="boolean" default="true" />
+<content type="boolean" default="false" />
 </parameter>
 
 <parameter name="migrateport" unique="0" required="0">
@@ -357,11 +357,11 @@ set_util_attr() {
 update_utilization() {
 	local dom_cpu dom_mem
 
-	if ocf_is_true "$OCF_RESKEY_autoset_utilization_cpu"; then
+	if ocf_is_true "$OCF_RESKEY_update_cpu"; then
 	   dom_cpu=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} 2>/dev/null | awk '/CPU\(s\)/{print $2}')
 	   test -n "$dom_cpu" && set_util_attr cpu $dom_cpu
 	fi
-	if ocf_is_true "$OCF_RESKEY_autoset_utilization_hv_memory"; then
+	if ocf_is_true "$OCF_RESKEY_update_hv_memory"; then
 	   dom_mem=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} 2>/dev/null | awk '/Max memory/{printf("%d", $3/1024)}')
 	   test -n "$dom_mem" && set_util_attr hv_memory "$dom_mem"
 	fi
