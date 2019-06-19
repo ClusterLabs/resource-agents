@@ -311,22 +311,13 @@ _update_record() {
 }
 
 r53_stop() {
-	ocf_log info "Bringing down Route53 agent. (Will remove ARECORD)"
-	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
-	ARECORD="$(aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query "ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']" | grep RESOURCERECORDS | /usr/bin/awk '{ print $2 }' )"
-	ocf_log debug "Found IP address: $ARECORD ."
-	if [ "${ARECORD}" != "${IPADDRESS}" ]; then
-		ocf_log debug "No ARECORD found"
-		return $OCF_SUCCESS
-	else
-		# determine IP address
-		IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
-		# Patch file
-		ocf_log debug "Deleting IP address to ${IPADDRESS}"
-		return $OCF_SUCCESS
-	fi
-
-	_update_record "DELETE" "$IPADDRESS"
+	#
+	# Stop operation doesn't perform any API call or try to remove the DNS record
+	# this mostly because this is not necessarily mandatory or desired
+	# the start and monitor functions will take care of changing the DNS record
+	# if the agent starts in a different cluster node
+	#
+	ocf_log info "Bringing down Route53 agent. (Will NOT remove ARECORD)"
 	return $OCF_SUCCESS
 }
 
