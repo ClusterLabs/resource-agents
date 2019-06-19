@@ -155,6 +155,12 @@ END
 r53_validate() {
 	ocf_log debug "function: validate"
 
+	# Check for required binaries
+	ocf_log debug "Checking for required binaries"
+	for command in curl dig; do
+		check_binary "$command"
+	done
+
 	# Full name
 	[[ -z "$OCF_RESKEY_fullname" ]] && ocf_log error "Full name parameter not set $OCF_RESKEY_fullname!" && exit $OCF_ERR_CONFIGURED
 
