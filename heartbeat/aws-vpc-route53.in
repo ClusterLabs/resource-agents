@@ -274,19 +274,19 @@ _update_record() {
 		ocf_exit_reason "Failed to create temporary file for record update"
 		exit $OCF_ERR_GENERIC
 	fi
-	cat >>"${ROUTE53RECORD}" <<-EOF
+	cat >>"$ROUTE53RECORD" <<-EOF
 	{
 		  "Comment": "Update record to reflect new IP address for a system ",
 		  "Changes": [
 			  {
-				  "Action": "${update_action}",
+				  "Action": "$update_action",
 				  "ResourceRecordSet": {
-					  "Name": "${OCF_RESKEY_fullname}",
+					  "Name": "$OCF_RESKEY_fullname",
 					  "Type": "A",
-					  "TTL": ${OCF_RESKEY_ttl},
+					  "TTL": $OCF_RESKEY_ttl,
 					  "ResourceRecords": [
 						  {
-							  "Value": "${IPADDRESS}"
+							  "Value": "$IPADDRESS"
 						  }
 					  ]
 				  }
@@ -294,19 +294,19 @@ _update_record() {
 		  ]
 	}
 	EOF
-	cmd="aws --profile ${OCF_RESKEY_profile} route53 change-resource-record-sets --hosted-zone-id ${OCF_RESKEY_hostedzoneid} --change-batch file://${ROUTE53RECORD} "
+	cmd="aws --profile $OCF_RESKEY_profile route53 change-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --change-batch file://$ROUTE53RECORD "
 	ocf_log debug "Executing command: $cmd"
 	CHANGEID=$($cmd | grep CHANGEINFO |	 /usr/bin/awk -F'\t' '{ print $3 }' )
-	ocf_log debug "Change id: ${CHANGEID}"
-	rmtempfile ${ROUTE53RECORD}
+	ocf_log debug "Change id: $CHANGEID"
+	rmtempfile $ROUTE53RECORD
 	CHANGEID=$(echo $CHANGEID |cut -d'/' -f 3 |cut -d'"' -f 1 )
-	ocf_log debug "Change id: ${CHANGEID}"
+	ocf_log debug "Change id: $CHANGEID"
 	STATUS="PENDING"
 	MYSECONDS=2
 	while [ "$STATUS" = 'PENDING' ]; do
-		sleep	${MYSECONDS}
-		STATUS="$(aws --profile ${OCF_RESKEY_profile} route53 get-change --id $CHANGEID | grep CHANGEINFO |  /usr/bin/awk -F'\t' '{ print $4 }' |cut -d'"' -f 2 )"
-		ocf_log debug "Waited for ${MYSECONDS} seconds and checked execution of Route 53 update status: ${STATUS} "
+		sleep	$MYSECONDS
+		STATUS="$(aws --profile $OCF_RESKEY_profile route53 get-change --id $CHANGEID | grep CHANGEINFO |  /usr/bin/awk -F'\t' '{ print $4 }' |cut -d'"' -f 2 )"
+		ocf_log debug "Waited for $MYSECONDS seconds and checked execution of Route 53 update status: $STATUS "
 	done
 }
 
