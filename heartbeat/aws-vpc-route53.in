@@ -152,8 +152,14 @@ output has to be "text".
 END
 }
 
-ec2ip_validate() {
+r53_validate() {
 	ocf_log debug "function: validate"
+
+	# Check for required binaries
+	ocf_log debug "Checking for required binaries"
+	for command in curl dig; do
+		check_binary "$command"
+	done
 
 	# Full name
 	[[ -z "$OCF_RESKEY_fullname" ]] && ocf_log error "Full name parameter not set $OCF_RESKEY_fullname!" && exit $OCF_ERR_CONFIGURED
@@ -175,32 +181,91 @@ ec2ip_validate() {
 	ocf_log debug "ok"
 
 	if [ -n "$OCF_RESKEY_profile" ]; then
-		AWS_PROFILE_OPT="--profile $OCF_RESKEY_profile"
+		AWS_PROFILE_OPT="--profile $OCF_RESKEY_profile --cli-connect-timeout 10"
 	else
-		AWS_PROFILE_OPT="--profile default"
+		AWS_PROFILE_OPT="--profile default --cli-connect-timeout 10"
 	fi
 
 	return $OCF_SUCCESS
 }
 
-ec2ip_monitor() {
-	ec2ip_validate
+r53_monitor() {
+	#
+	# For every start action the agent  will call Route53 API to check for DNS record
+	# otherwise it will try to get results directly bu querying the DNS using "dig".
+	# Due to complexity in some DNS architectures "dig" can fail, and if this happens
+	# the monitor will fallback to the Route53 API call.
+	#
+	# There will be no failure, failover or restart of the agent if the monitor operation fails
+	# hence we only return $OCF_SUCESS in this function
+	#
+	# In case of the monitor operation detects a wrong or non-existent Route53 DNS entry
+	# it will try to fix the existing one, or create it again
+	#
+	#
+	ARECORD=""
+	IPREGEX="^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$"
+	r53_validate
 	ocf_log debug "Checking Route53 record sets"
-	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
-	ARECORD="$(aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query "ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']" | grep RESOURCERECORDS | /usr/bin/awk '{ print $2 }' )"
-	ocf_log debug "Found IP address: $ARECORD ."
-	if [ "${ARECORD}" == "${IPADDRESS}" ]; then
-		ocf_log debug "ARECORD $ARECORD found"
+	#
+	IPADDRESS="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
+	#
+	if [ "$__OCF_ACTION" = "start" ] || ocf_is_probe ; then
+		#
+		cmd="aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']"
+		ocf_log debug "Route53 Agent Starting or probing - executing monitoring API call: $cmd"
+		ARECORD="$($cmd | grep RESOURCERECORDS | awk '{ print $2 }')"
+	else
+		#
+		cmd="dig +retries=3 +time=5 +short $OCF_RESKEY_fullname 2>/dev/null"
+		ocf_log debug "executing monitoring command : $cmd"
+		ARECORD="$($cmd)"
+		rc=$?
+		ocf_log debug "dig return code: $rc"
+		#
+		if  [[ ! $ARECORD =~ $IPREGEX ]] || [ $rc -ne 0 ]; then
+			ocf_log info "Fallback to Route53 API query due to DNS resolution failure"
+			cmd="aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']"
+			ocf_log debug "executing monitoring API call: $cmd"
+			CLIRES="$($cmd 2>&1)"
+			rc=$?
+			ocf_log debug "awscli return code: $rc"
+			if [ $rc -ne 0 ]; then
+				ocf_log info "Route53 API returned an error: $CLIRES"
+				ocf_log info "Monitor skipping cluster action due to API call error"
+				return $OCF_SUCCESS
+			fi
+			ARECORD=$(echo $CLIRES | grep RESOURCERECORDS | awk '{ print $5 }')
+		fi
+		#
+	fi
+	ocf_log debug "Route53 DNS record pointing $OCF_RESKEY_fullname to IP address $ARECORD"
+	#
+	if [ "$ARECORD" == "$IPADDRESS" ]; then
+		ocf_log debug "Route53 DNS record $ARECORD found"
+		return $OCF_SUCCESS
+	elif [[ $ARECORD =~ $IPREGEX ]] && [ "$ARECORD" != "$IPADDRESS" ]; then
+		ocf_log info "Route53 DNS record points to a different host, setting DNS record on Route53 to this host"
+		_update_record "UPSERT" "$IPADDRESS"
 		return $OCF_SUCCESS
 	else
-		ocf_log debug "No ARECORD found"
-		return $OCF_NOT_RUNNING
+		ocf_log info "No Route53 DNS record found, setting DNS record on Route53 to this host"
+		_update_record "UPSERT" "$IPADDRESS"
+		return $OCF_SUCCESS
 	fi
 
 	return $OCF_SUCCESS
 }
 
 _update_record() {
+	#
+	# This function is the one that will actually execute Route53's API call
+	# and configure the DNS record using the correct API calls and parameters
+	#
+	# It creates a temporary JSON file under /tmp with the required API payload
+	#
+	# Failures in this function are critical and will cause the agent to fail
+	#
 	update_action="$1"
 	IPADDRESS="$2"
 	ocf_log info "Updating Route53 $OCF_RESKEY_hostedzoneid with $IPADDRESS for $OCF_RESKEY_fullname"
@@ -209,19 +274,19 @@ _update_record() {
 		ocf_exit_reason "Failed to create temporary file for record update"
 		exit $OCF_ERR_GENERIC
 	fi
-	cat >>"${ROUTE53RECORD}" <<-EOF
+	cat >>"$ROUTE53RECORD" <<-EOF
 	{
 		  "Comment": "Update record to reflect new IP address for a system ",
 		  "Changes": [
 			  {
-				  "Action": "${update_action}",
+				  "Action": "$update_action",
 				  "ResourceRecordSet": {
-					  "Name": "${OCF_RESKEY_fullname}",
+					  "Name": "$OCF_RESKEY_fullname",
 					  "Type": "A",
-					  "TTL": ${OCF_RESKEY_ttl},
+					  "TTL": $OCF_RESKEY_ttl,
 					  "ResourceRecords": [
 						  {
-							  "Value": "${IPADDRESS}"
+							  "Value": "$IPADDRESS"
 						  }
 					  ]
 				  }
@@ -229,45 +294,39 @@ _update_record() {
 		  ]
 	}
 	EOF
-	cmd="aws --profile ${OCF_RESKEY_profile} route53 change-resource-record-sets --hosted-zone-id ${OCF_RESKEY_hostedzoneid} \
-	  --change-batch file://${ROUTE53RECORD} "
+	cmd="aws --profile $OCF_RESKEY_profile route53 change-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --change-batch file://$ROUTE53RECORD "
 	ocf_log debug "Executing command: $cmd"
-	CHANGEID=$($cmd | grep CHANGEINFO |	 /usr/bin/awk -F'\t' '{ print $3 }' )
-	ocf_log debug "Change id: ${CHANGEID}"
-	rmtempfile ${ROUTE53RECORD}
-	CHANGEID=$(echo $CHANGEID |cut -d'/' -f 3 |cut -d'"' -f 1 )
-	ocf_log debug "Change id: ${CHANGEID}"
+	CHANGEID=$($cmd | grep CHANGEINFO | awk -F'\t' '{ print $3 }' )
+	ocf_log debug "Change id: $CHANGEID"
+	rmtempfile $ROUTE53RECORD
+	CHANGEID=$(echo $CHANGEID | cut -d'/' -f 3 | cut -d'"' -f 1 )
+	ocf_log debug "Change id: $CHANGEID"
 	STATUS="PENDING"
-	MYSECONDS=2
+	MYSECONDS=8
 	while [ "$STATUS" = 'PENDING' ]; do
-		sleep	${MYSECONDS}
-		STATUS="$(aws --profile ${OCF_RESKEY_profile} route53 get-change --id $CHANGEID | grep CHANGEINFO |  /usr/bin/awk -F'\t' '{ print $4 }' |cut -d'"' -f 2 )"
-		ocf_log debug "Waited for ${MYSECONDS} seconds and checked execution of Route 53 update status: ${STATUS} "
+		sleep $MYSECONDS
+		STATUS="$(aws --profile $OCF_RESKEY_profile route53 get-change --id $CHANGEID | grep CHANGEINFO | awk -F'\t' '{ print $4 }' |cut -d'"' -f 2 )"
+		ocf_log debug "Waited for $MYSECONDS seconds and checked execution of Route 53 update status: $STATUS "
 	done
 }
 
-ec2ip_stop() {
-	ocf_log info "Bringing down Route53 agent. (Will remove ARECORD)"
-	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
-	ARECORD="$(aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query "ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']" | grep RESOURCERECORDS | /usr/bin/awk '{ print $2 }' )"
-	ocf_log debug "Found IP address: $ARECORD ."
-	if [ "${ARECORD}" != "${IPADDRESS}" ]; then
-		ocf_log debug "No ARECORD found"
-		return $OCF_SUCCESS
-	else
-		# determine IP address
-		IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
-		# Patch file
-		ocf_log debug "Deleting IP address to ${IPADDRESS}"
-		return $OCF_SUCCESS
-	fi
-
-	_update_record "DELETE" "$IPADDRESS"
+r53_stop() {
+	#
+	# Stop operation doesn't perform any API call or try to remove the DNS record
+	# this mostly because this is not necessarily mandatory or desired
+	# the start and monitor functions will take care of changing the DNS record
+	# if the agent starts in a different cluster node
+	#
+	ocf_log info "Bringing down Route53 agent. (Will NOT remove Route53 DNS record)"
 	return $OCF_SUCCESS
 }
 
-ec2ip_start() {
-	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
+r53_start() {
+	#
+	# Start agent and config DNS in Route53
+	#
+	ocf_log info "Starting Route53 DNS update...."
+	IPADDRESS="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
 	_update_record "UPSERT" "$IPADDRESS"
 	return $OCF_SUCCESS
 }
@@ -284,16 +343,16 @@ case $__OCF_ACTION in
 		exit $OCF_SUCCESS
 		;;
 	monitor)
-		ec2ip_monitor
+		r53_monitor
 		;;
 	stop)
-		ec2ip_stop
+		r53_stop
 		;;
 	validate-all)
-		ec2ip_validate
+		r53_validate
 		;;
 	start)
-		ec2ip_start
+		r53_start
 		;;
 	*)
 		usage
