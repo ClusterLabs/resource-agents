@@ -251,7 +251,7 @@ ec2ip_stop() {
 	IPADDRESS="$(ec2metadata aws ip | grep local-ipv4 | /usr/bin/awk '{ print $2 }')"
 	ARECORD="$(aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query "ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']" | grep RESOURCERECORDS | /usr/bin/awk '{ print $2 }' )"
 	ocf_log debug "Found IP address: $ARECORD ."
-	if [ ${ARECORD} != ${IPADDRESS} ]; then
+	if [ "${ARECORD}" != "${IPADDRESS}" ]; then
 		ocf_log debug "No ARECORD found"
 		return $OCF_SUCCESS
 	else
