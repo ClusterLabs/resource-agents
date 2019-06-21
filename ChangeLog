@@ -1,3 +1,7 @@
+* Fri Jun 21 2019 resource-agents contributors
+- stable release 4.3.0
+- Filesystem: remove removed notify-action from metadata
+
 * Fri Jun 14 2019 resource-agents contributors
 - release candidate 4.3.0 rc1
 - Build: improve to be able to build and install on RHEL 6
