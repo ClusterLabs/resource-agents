@@ -336,6 +336,24 @@ bind_kernel_check() {
 	[ $? -ne 0 ] &&
 		ocf_log warn "kernel `uname -r` cannot handle read only bind mounts"
 }
+
+bind_rootfs_check() {
+        local SOURCE
+        local TARGET
+        local ROOTFS
+
+        SOURCE=$1
+        TARGET=$(df --output=target $SOURCE | tail -n 1)
+
+        ROOTFS=$(list_mounts | grep -w rootfs | cut -d' ' -f 2)
+
+        if [ "${TARGET}" = "${ROOTFS}" ]; then
+                return 1
+        else
+                return 0
+        fi
+}
+
 bind_mount() {
 	if is_bind_mount && [ "$options" != "-o bind" ]
 	then
@@ -497,6 +515,11 @@ get_pids()
 	local dir=$1
 	local procs
 	local mmap_procs
+
+        if is_bind_mount && ocf_is_true "$FORCE_UNMOUNT" && ! bind_rootfs_check "$DEVICE"; then
+                ocf_log debug "Change force_umount from '$FORCE_UNMOUNT' to 'safe'"
+                FORCE_UNMOUNT=safe
+        fi
 
 	if ocf_is_true  "$FORCE_UNMOUNT"; then
 		if [ "X${HOSTOS}" = "XOpenBSD" ];then
