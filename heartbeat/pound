@@ -32,15 +32,19 @@
 OCF_RESKEY_name_default=${OCF_RESOURCE_INSTANCE}
 : ${OCF_RESKEY_name=${OCF_RESKEY_name_default}}
 
+OCF_RESKEY_config_default=""
 OCF_RESKEY_binary_default=pound
 OCF_RESKEY_ctl_binary_default=poundctl
 OCF_RESKEY_pid_default=/var/run/pound_${OCF_RESKEY_name}.pid
 OCF_RESKEY_socket_path_default=/var/lib/pound/pound.cfg
+OCF_RESKEY_maxfiles_default=""
 
+: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 : ${OCF_RESKEY_ctl_binary=${OCF_RESKEY_ctl_binary_default}}
 : ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
 : ${OCF_RESKEY_socket_path=${OCF_RESKEY_socket_path_default}}
+: ${OCF_RESKEY_maxfiles=${OCF_RESKEY_maxfiles_default}}
 
 meta_data() {
 	cat <<END
@@ -62,7 +66,7 @@ The Pound configuration file that Pound should manage, for example
 "/etc/pound.cfg".
 </longdesc>
 <shortdesc lang="en">Pound configuration file</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_config_default}" />
 </parameter>
 
 <parameter name="name" unique="1">
@@ -119,7 +123,7 @@ Determines how many files pound is allowed to open at
 a time. Helps to fix the 'Too many open files' error message.
 </longdesc>
 <shortdesc lang="en">Allowed number of open files.</shortdesc>
-<content type="integer" default="" />
+<content type="integer" default="${OCF_RESKEY_maxfiles_default}" />
 </parameter>
 
 </parameters>

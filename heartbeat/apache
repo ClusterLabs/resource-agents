@@ -47,6 +47,12 @@
 . ${OCF_FUNCTIONS_DIR}/http-mon.sh
 HA_VARRUNDIR=${HA_VARRUN}
 
+# Parameter defaults
+
+OCF_RESKEY_httpd_default="/usr/sbin/httpd"
+OCF_RESKEY_envfiles_default="/etc/apache2/envvars"
+OCF_RESKEY_use_ipv6_default="false"
+
 #######################################################################
 #
 #	Configuration options - usually you don't need to change these
@@ -490,7 +496,7 @@ resource agent parameters.
 The full pathname of the httpd binary (optional).
 </longdesc>
 <shortdesc lang="en">httpd binary path</shortdesc>
-<content type="string" default="/usr/sbin/httpd" />
+<content type="string" default="${OCF_RESKEY_httpd_default}" />
 </parameter>
 
 <parameter name="port" >
@@ -595,7 +601,7 @@ If you want to prevent script from reading the default file, set
 this parameter to empty string.
 </longdesc>
 <shortdesc lang="en">environment settings files</shortdesc>
-<content type="string" default="/etc/apache2/envvars"/>
+<content type="string" default="${OCF_RESKEY_envfiles_default}"/>
 </parameter>
 
 <parameter name="use_ipv6">
@@ -604,7 +610,7 @@ We will try to detect if the URL (for monitor) is IPv6, but if
 that doesn't work set this to true to enforce IPv6.
 </longdesc>
 <shortdesc lang="en">use ipv6 with http clients</shortdesc>
-<content type="boolean" default="false"/>
+<content type="boolean" default="${OCF_RESKEY_use_ipv6_default}"/>
 </parameter>
 
 </parameters>
@@ -697,7 +703,7 @@ apache_getconfig() {
 	TESTREGEX10=${OCF_RESKEY_testregex10}
 	TESTCONFFILE="$OCF_RESKEY_testconffile"
 	TESTNAME="$OCF_RESKEY_testname"
-	: ${OCF_RESKEY_envfiles="/etc/apache2/envvars"}
+	: ${OCF_RESKEY_envfiles=${OCF_RESKEY_envfiles_default}}
 	source_envfiles $OCF_RESKEY_envfiles
 
 	if [ "X$HTTPD" = X -o ! -f "$HTTPD" -o ! -x "$HTTPD" ]; then

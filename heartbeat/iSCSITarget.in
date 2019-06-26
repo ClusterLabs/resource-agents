@@ -48,6 +48,9 @@ fi
 OCF_RESKEY_portals_default="0.0.0.0:3260"
 : ${OCF_RESKEY_portals=${OCF_RESKEY_portals_default}}
 
+OCF_RESKEY_allowed_initiators_default=""
+: ${OCF_RESKEY_allowed_initiators=${OCF_RESKEY_allowed_initiators_default}}
+
 # Lockfile, used for selecting a target ID
 LOCKFILE=${HA_RSCTMP}/iSCSITarget-${OCF_RESKEY_implementation}.lock
 
@@ -126,7 +129,7 @@ not set, access to this target will be allowed from any initiator.
 </longdesc>
 <shortdesc lang="en">List of iSCSI initiators allowed to connect
 to this target</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_allowed_initiators_default}"/>
 </parameter>
 
 <parameter name="incoming_username" required="0" unique="1">

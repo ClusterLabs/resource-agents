@@ -81,6 +81,18 @@ elif [ -f "/etc/default/clustercheck" ]; then
     . /etc/default/clustercheck
 fi
 
+# Parameter defaults
+
+OCF_RESKEY_wsrep_cluster_address_default=""
+OCF_RESKEY_cluster_host_map_default=""
+OCF_RESKEY_check_user_default="root"
+OCF_RESKEY_check_passwd_default=""
+
+: ${OCF_RESKEY_wsrep_cluster_address=${OCF_RESKEY_wsrep_cluster_address_default}}
+: ${OCF_RESKEY_cluster_host_map=${OCF_RESKEY_cluster_host_map_default}}
+: ${OCF_RESKEY_check_user=${OCF_RESKEY_check_user_default}}
+: ${OCF_RESKEY_check_passwd=${OCF_RESKEY_check_passwd_default}}
+
 #######################################################################
 # Defaults:
 
@@ -221,7 +233,7 @@ pacemaker node names. If both names need to differ, you must provide a
 mapping in option cluster_host_map.
 </longdesc>
 <shortdesc lang="en">Galera cluster address</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_wsrep_cluster_address_default}"/>
 </parameter>
 
 <parameter name="cluster_host_map" unique="0" required="0">
@@ -237,7 +249,7 @@ where the galera resource started on node pcmk1 would be named
 node.1.galera in the wsrep_cluster_address
 </longdesc>
 <shortdesc lang="en">Pacemaker to Galera name mapping</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_cluster_host_map_default}"/>
 </parameter>
 
 <parameter name="check_user" unique="0" required="0">
@@ -245,7 +257,7 @@ node.1.galera in the wsrep_cluster_address
 Cluster check user.
 </longdesc>
 <shortdesc lang="en">MySQL test user</shortdesc>
-<content type="string" default="root" />
+<content type="string" default="${OCF_RESKEY_check_user_default}" />
 </parameter>
 
 <parameter name="check_passwd" unique="0" required="0">
@@ -254,7 +266,7 @@ Cluster check user password. Empty passwords are ignored unless
 the parameter "check_passwd_use_empty" is set to 1.
 </longdesc>
 <shortdesc lang="en">check password</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_check_passwd_default}" />
 </parameter>
 
 <parameter name="check_passwd_use_empty" unique="0" required="0">

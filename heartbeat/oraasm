@@ -18,8 +18,12 @@
 
 # Defaults
 OCF_RESKEY_user_default="grid"
+OCF_RESKEY_diskgroup_default=""
+OCF_RESKEY_home_default=""
 
 : ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
+: ${OCF_RESKEY_diskgroup=${OCF_RESKEY_diskgroup_default}}
+: ${OCF_RESKEY_home=${OCF_RESKEY_home_default}}
 
 
 oraasm_usage() {
@@ -58,13 +62,13 @@ The name of the Oracle Disk Group.
 If not specified, then the Disk Group along with its home should be listed in /etc/oratab.
     </longdesc>
     <shortdesc lang="en">Oracle Disk Group</shortdesc>
-    <content type="string" default="" />
+    <content type="string" default="${OCF_RESKEY_diskgroup_default}" />
 </parameter>
 
 <parameter name="home" unique="0">
 <longdesc lang="en">The Oracle Grid home directory</longdesc>
 <shortdesc lang="en">home</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_home_default}" />
 </parameter>
 
 </parameters>

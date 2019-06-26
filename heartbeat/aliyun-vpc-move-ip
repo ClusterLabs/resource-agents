@@ -9,6 +9,19 @@
 # Initialization:
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Parameter defaults
+
+OCF_RESKEY_address_default=""
+OCF_RESKEY_routing_table_default=""
+OCF_RESKEY_interface_default="eth0"
+OCF_RESKEY_profile_default="default"
+
+: ${OCF_RESKEY_address=${OCF_RESKEY_address_default}}
+: ${OCF_RESKEY_routing_table=${OCF_RESKEY_routing_table_default}}
+: ${OCF_RESKEY_interface=${OCF_RESKEY_interface_default}}
+: ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
+
 #######################################################################
 
 # aliyuncli doesnt work without HOME parameter
@@ -130,21 +143,21 @@ by changing an entry in an specific routing table
 VPC private IP address
 </longdesc>
 <shortdesc lang="en">vpc ip</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_address_default}" />
 </parameter>
 <parameter name="routing_table" required="1">
 <longdesc lang="en">
 Name of the routing table, where the route for the IP address should be changed, i.e. vtb-...
 </longdesc>
 <shortdesc lang="en">routing table name</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_routing_table_default}" />
 </parameter>
 <parameter name="interface" required="1">
 <longdesc lang="en">
 Name of the network interface, i.e. eth0
 </longdesc>
 <shortdesc lang="en">network interface name</shortdesc>
-<content type="string" default="eth0" />
+<content type="string" default="${OCF_RESKEY_interface_default}" />
 </parameter>
 <parameter name="profile" required="0">
 <longdesc lang="en">
@@ -153,7 +166,7 @@ Valid Aliyun CLI profile name (see 'aliyuncli configure').
 See https://www.alibabacloud.com/help/doc-detail/43039.htm?spm=a2c63.p38356.b99.16.38a914abRZtOU3 for more information about aliyuncli.
 </longdesc>
 <shortdesc lang="en">profile name</shortdesc>
-<content type="string" default="default" />
+<content type="string" default="${OCF_RESKEY_profile_default}" />
 </parameter>
 </parameters>
 <actions>

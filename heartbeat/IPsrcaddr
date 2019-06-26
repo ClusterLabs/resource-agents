@@ -54,9 +54,14 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
+OCF_RESKEY_ipaddress_default=""
+OCF_RESKEY_cidr_netmask_default=""
 OCF_RESKEY_proto_default=""
 
+: ${OCF_RESKEY_ipaddress=${OCF_RESKEY_ipaddress_default}}
+: ${OCF_RESKEY_cidr_netmask=${OCF_RESKEY_cidr_netmask_default}}
 : ${OCF_RESKEY_proto=${OCF_RESKEY_proto_default}}
+
 #######################################################################
 
 [ -z "$OCF_RESKEY_proto" ] && PROTO="" || PROTO="proto $OCF_RESKEY_proto"
@@ -91,7 +96,7 @@ modification.
 The IP address. 
 </longdesc>
 <shortdesc lang="en">IP address</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_ipaddress_default}" />
 </parameter>
 
 <parameter name="cidr_netmask">
@@ -100,7 +105,7 @@ The netmask for the interface in CIDR format. (ie, 24), or in
 dotted quad notation  255.255.255.0).
 </longdesc>
 <shortdesc lang="en">Netmask</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_cidr_netmask_default}"/>
 </parameter>
 
 <parameter name="proto">
@@ -108,7 +113,7 @@ dotted quad notation  255.255.255.0).
 Proto to match when finding network. E.g. "kernel".
 </longdesc>
 <shortdesc lang="en">Proto</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_proto_default}" />
 </parameter>
 </parameters>
 

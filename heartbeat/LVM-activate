@@ -42,6 +42,20 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_vgname_default=""
+OCF_RESKEY_lvname_default=""
+OCF_RESKEY_vg_access_mode_default=""
+OCF_RESKEY_activation_mode_default="exclusive"
+OCF_RESKEY_tag_default="pacemaker"
+
+: ${OCF_RESKEY_vgname=${OCF_RESKEY_vgname_default}}
+: ${OCF_RESKEY_lvname=${OCF_RESKEY_lvname_default}}
+: ${OCF_RESKEY_vg_access_mode=${OCF_RESKEY_vg_access_mode_default}}
+: ${OCF_RESKEY_activation_mode=${OCF_RESKEY_activation_mode_default}}
+: ${OCF_RESKEY_tag=${OCF_RESKEY_tag_default}}
+
 # If LV is given, only activate this named LV; otherwise, activate all
 # LVs in the named VG.
 VG=${OCF_RESKEY_vgname}
@@ -60,13 +74,13 @@ VG_access_mode_num=0
 
 # Activate LV(s) with "shared" lock for cluster fs
 # or "exclusive" lock for local fs
-LV_activation_mode=${OCF_RESKEY_activation_mode:-exclusive}
+LV_activation_mode=${OCF_RESKEY_activation_mode}
 
 # For system ID feature
 SYSTEM_ID=""
 
 # For tagging activation mode
-OUR_TAG=${OCF_RESKEY_tag:-pacemaker}
+OUR_TAG=${OCF_RESKEY_tag}
 
 #######################################################################
 
@@ -107,7 +121,7 @@ because some DLM lockspaces might be in use and cannot be closed automatically.
 The volume group name.
 </longdesc>
 <shortdesc lang="en">The volume group name</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_vgname_default}" />
 </parameter>
 
 <parameter name="lvname" unique="0" required="0">
@@ -115,7 +129,7 @@ The volume group name.
 If set, only the specified LV will be activated.
 </longdesc>
 <shortdesc lang="en">Only activate the given LV</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_lvname_default}" />
 </parameter>
 
 <parameter name="vg_access_mode" unique="0" required="1">
@@ -125,7 +139,7 @@ cluster environment. Optional solutions are: lvmlockd, clvmd, system_id and
 tagging.
 </longdesc>
 <shortdesc lang="en">The VG access mode</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_vg_access_mode_default}" />
 </parameter>
 
 <parameter name="activation_mode" unique="0" required="0">
@@ -139,7 +153,7 @@ This option only has effect on "lvmlockd"/"clvmd" vg_access_mode. For "system_id
 and "tagging", they always mean exclusive activation.
 </longdesc>
 <shortdesc lang="en">Logical volume activation mode</shortdesc>
-<content type="string" default="exclusive" />
+<content type="string" default="${OCF_RESKEY_activation_mode_default}" />
 </parameter>
 
 <parameter name="tag" unique="0" required="0">
@@ -147,7 +161,7 @@ and "tagging", they always mean exclusive activation.
 The tag used for tagging activation mode.
 </longdesc>
 <shortdesc lang="en">The tag used for tagging activation mode</shortdesc>
-<content type="string" default="pacemaker" />
+<content type="string" default="${OCF_RESKEY_tag_default}" />
 </parameter>
 
 </parameters>

@@ -69,29 +69,49 @@
 . ${OCF_FUNCTIONS_DIR}/findif.sh
 
 # Defaults
+OCF_RESKEY_ip_default=""
+OCF_RESKEY_cidr_netmask_default=""
+OCF_RESKEY_broadcast_default=""
+OCF_RESKEY_iflabel_default=""
+OCF_RESKEY_cidr_netmask_default=""
 OCF_RESKEY_lvs_support_default=false
 OCF_RESKEY_lvs_ipv6_addrlabel_default=false
 OCF_RESKEY_lvs_ipv6_addrlabel_value_default=99
 OCF_RESKEY_clusterip_hash_default="sourceip-sourceport"
+OCF_RESKEY_mac_default=""
 OCF_RESKEY_unique_clone_address_default=false
 OCF_RESKEY_arp_interval_default=200
 OCF_RESKEY_arp_count_default=5
 OCF_RESKEY_arp_count_refresh_default=0
 OCF_RESKEY_arp_bg_default=true
+OCF_RESKEY_arp_sender_default=""
+OCF_RESKEY_send_arp_opts_default=""
+OCF_RESKEY_flush_routes_default="false"
 OCF_RESKEY_run_arping_default=false
 OCF_RESKEY_preferred_lft_default="forever"
+OCF_RESKEY_network_namespace_default=""
 
+: ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
+: ${OCF_RESKEY_cidr_netmask=${OCF_RESKEY_cidr_netmask_default}}
+: ${OCF_RESKEY_broadcast=${OCF_RESKEY_broadcast_default}}
+: ${OCF_RESKEY_iflabel=${OCF_RESKEY_iflabel_default}}
 : ${OCF_RESKEY_lvs_support=${OCF_RESKEY_lvs_support_default}}
 : ${OCF_RESKEY_lvs_ipv6_addrlabel=${OCF_RESKEY_lvs_ipv6_addrlabel_default}}
 : ${OCF_RESKEY_lvs_ipv6_addrlabel_value=${OCF_RESKEY_lvs_ipv6_addrlabel_value_default}}
 : ${OCF_RESKEY_clusterip_hash=${OCF_RESKEY_clusterip_hash_default}}
+: ${OCF_RESKEY_mac=${OCF_RESKEY_mac_default}}
 : ${OCF_RESKEY_unique_clone_address=${OCF_RESKEY_unique_clone_address_default}}
 : ${OCF_RESKEY_arp_interval=${OCF_RESKEY_arp_interval_default}}
 : ${OCF_RESKEY_arp_count=${OCF_RESKEY_arp_count_default}}
 : ${OCF_RESKEY_arp_count_refresh=${OCF_RESKEY_arp_count_refresh_default}}
 : ${OCF_RESKEY_arp_bg=${OCF_RESKEY_arp_bg_default}}
+: ${OCF_RESKEY_arp_sender=${OCF_RESKEY_arp_sender_default}}
+: ${OCF_RESKEY_send_arp_opts=${OCF_RESKEY_send_arp_opts_default}}
+: ${OCF_RESKEY_flush_routes=${OCF_RESKEY_flush_routes_default}}
 : ${OCF_RESKEY_run_arping=${OCF_RESKEY_run_arping_default}}
 : ${OCF_RESKEY_preferred_lft=${OCF_RESKEY_preferred_lft_default}}
+: ${OCF_RESKEY_network_namespace=${OCF_RESKEY_network_namespace_default}}
+
 #######################################################################
 
 SENDARP=$HA_BIN/send_arp
@@ -133,7 +153,7 @@ example IPv4 "192.168.1.1".
 example IPv6 "2001:db8:DC28:0:0:FC57:D4C8:1FFF".
 </longdesc>
 <shortdesc lang="en">IPv4 or IPv6 address</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_ip_default}" />
 </parameter>
 <parameter name="nic" unique="0">
 <longdesc lang="en">
@@ -168,7 +188,7 @@ If unspecified, the script will also try to determine this from the
 routing table.
 </longdesc>
 <shortdesc lang="en">CIDR netmask</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_cidr_netmask_default}"/>
 </parameter>
 
 <parameter name="broadcast">
@@ -179,7 +199,7 @@ case, the broadcast address is derived by setting/resetting the host
 bits of the interface prefix.
 </longdesc>
 <shortdesc lang="en">Broadcast address</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_broadcast_default}"/>
 </parameter>
 
 <parameter name="iflabel">
@@ -194,7 +214,7 @@ A label can be specified in nic parameter but it is deprecated.
 If a label is specified in nic name, this parameter has no effect.
 </longdesc>
 <shortdesc lang="en">Interface label</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_iflabel_default}"/>
 </parameter>
 
 <parameter name="lvs_support">
@@ -247,7 +267,7 @@ the Cluster IP Alias. Leave empty to chose automatically.
 
 </longdesc>
 <shortdesc lang="en">Cluster IP MAC address</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_mac_default}"/>
 </parameter>
 
 <parameter name="clusterip_hash">
@@ -315,7 +335,7 @@ The program to send ARP packets with on start. Available options are:
  - libnet_arping: use another variant of arping based on libnet
 </longdesc>
 <shortdesc lang="en">ARP sender</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_arp_sender_default}"/>
 </parameter>
 
 <parameter name="send_arp_opts">
@@ -327,7 +347,7 @@ A typical use case is specifying '-A' for iputils_arping to use
 ARP REPLY instead of ARP REQUEST as Gratuitous ARPs.
 </longdesc>
 <shortdesc lang="en">Options for ARP sender</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_send_arp_opts_default}"/>
 </parameter>
 
 <parameter name="flush_routes">
@@ -346,7 +366,7 @@ order to immediately disable said shortcut when the
 IP address goes away.
 </longdesc>
 <shortdesc lang="en">Flush kernel routing table on stop</shortdesc>
-<content type="boolean" default="false"/>
+<content type="boolean" default="${OCF_RESKEY_flush_routes_default}"/>
 </parameter>
 
 <parameter name="run_arping">
@@ -375,7 +395,7 @@ The namespace must already exist, and the interface to be used must be within
 the namespace.
 </longdesc>
 <shortdesc lang="en">Network namespace to use</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_network_namespace_default}"/>
 </parameter>
 
 </parameters>

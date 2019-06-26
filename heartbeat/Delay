@@ -28,6 +28,16 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_startdelay_default="20"
+OCF_RESKEY_stopdelay_default="30"
+OCF_RESKEY_mondelay_default="30"
+
+: ${OCF_RESKEY_startdelay=${OCF_RESKEY_startdelay_default}}
+: ${OCF_RESKEY_stopdelay=${OCF_RESKEY_stopdelay_default}}
+: ${OCF_RESKEY_mondelay=${OCF_RESKEY_mondelay_default}}
+
 #######################################################################
 
 usage() {
@@ -55,7 +65,7 @@ This script is a test resource for introducing delay.
 How long in seconds to delay on start operation.
 </longdesc>
 <shortdesc lang="en">Start delay</shortdesc>
-<content type="integer" default="20" />
+<content type="integer" default="${OCF_RESKEY_startdelay_default}" />
 </parameter>
 
 <parameter name="stopdelay" unique="0"  required="0">
@@ -64,7 +74,7 @@ How long in seconds to delay on stop operation.
 Defaults to "startdelay" if unspecified.
 </longdesc>
 <shortdesc lang="en">Stop delay</shortdesc>
-<content type="integer" default="30" />
+<content type="integer" default="${OCF_RESKEY_stopdelay_default}" />
 </parameter>
 
 <parameter name="mondelay" unique="0"  required="0">
@@ -73,7 +83,7 @@ How long in seconds to delay on monitor operation.
 Defaults to "startdelay" if unspecified.
 </longdesc>
 <shortdesc lang="en">Monitor delay</shortdesc>
-<content type="integer" default="30" />
+<content type="integer" default="${OCF_RESKEY_mondelay_default}" />
 </parameter>
 </parameters>
 
@@ -194,10 +204,6 @@ if [ $# -ne 1 ]; then
   usage
   exit $OCF_ERR_ARGS
 fi
-
-: ${OCF_RESKEY_startdelay=20}
-: ${OCF_RESKEY_stopdelay=$OCF_RESKEY_startdelay}
-: ${OCF_RESKEY_mondelay=$OCF_RESKEY_startdelay}
 
 case $1 in
   meta-data)		meta_data

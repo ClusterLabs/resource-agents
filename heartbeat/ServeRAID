@@ -68,6 +68,14 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_serveraid_default=""
+OCF_RESKEY_mergegroup_default=""
+
+: ${OCF_RESKEY_serveraid=${OCF_RESKEY_serveraid_default}}
+: ${OCF_RESKEY_mergegroup=${OCF_RESKEY_mergegroup_default}}
+
 #######################################################################
 
 srsuccess=0
@@ -123,7 +131,7 @@ Resource script for ServeRAID. It enables/disables shared ServeRAID merge groups
 The adapter number of the ServeRAID adapter.
 </longdesc>
 <shortdesc lang="en">serveraid</shortdesc>
-<content type="integer" default="" />
+<content type="integer" default="${OCF_RESKEY_serveraid_default}" />
 </parameter>
 
 <parameter name="mergegroup" unique="0" required="1">
@@ -131,7 +139,7 @@ The adapter number of the ServeRAID adapter.
 The logical drive under consideration. 
 </longdesc>
 <shortdesc lang="en">mergegroup</shortdesc>
-<content type="integer" default="" />
+<content type="integer" default="${OCF_RESKEY_mergegroup_default}" />
 </parameter>
 </parameters>
 

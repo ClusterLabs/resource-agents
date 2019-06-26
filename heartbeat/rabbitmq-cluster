@@ -29,6 +29,12 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_set_policy_default=""
+
+: ${OCF_RESKEY_set_policy=${OCF_RESKEY_set_policy_default}}
+
 #######################################################################
 
 # This arbitrary value here is used by the rmq_start action to
@@ -77,7 +83,7 @@ Only on pacemaker *or* pacemaker-remote nodes exclusively.
 Policy string to pass to 'rabbitmqctl set_policy' right after bootstrapping the first rabbitmq instance.
 </longdesc>
 <shortdesc lang="en">rabbitmqctl set_policy args</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_set_policy_default}" />
 </parameter>
 
 </parameters>

@@ -34,6 +34,14 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_state_default="${HA_RSCTMP}/Dummy-${OCF_RESOURCE_INSTANCE}.state"
+OCF_RESKEY_fake_default="dummy"
+
+: ${OCF_RESKEY_state=${OCF_RESKEY_state_default}}
+: ${OCF_RESKEY_fake=${OCF_RESKEY_fake_default}}
+
 #######################################################################
 
 meta_data() {
@@ -63,7 +71,7 @@ but moderate. The minimum timeouts should never be below 10 seconds.
 Location to store the resource state in.
 </longdesc>
 <shortdesc lang="en">State file</shortdesc>
-<content type="string" default="${HA_RSCTMP}/Dummy-${OCF_RESOURCE_INSTANCE}.state" />
+<content type="string" default="${OCF_RESKEY_state_default}" />
 </parameter>
 
 <parameter name="fake" unique="0">
@@ -71,7 +79,7 @@ Location to store the resource state in.
 Fake attribute that can be changed to cause a reload
 </longdesc>
 <shortdesc lang="en">Fake attribute that can be changed to cause a reload</shortdesc>
-<content type="string" default="dummy" />
+<content type="string" default="${OCF_RESKEY_fake_default}" />
 </parameter>
 
 </parameters>
@@ -148,9 +156,6 @@ dummy_validate() {
 
     return $OCF_SUCCESS
 }
-
-: ${OCF_RESKEY_state=${HA_RSCTMP}/Dummy-${OCF_RESOURCE_INSTANCE}.state}
-: ${OCF_RESKEY_fake="dummy"}
 
 case $__OCF_ACTION in
 meta-data)	meta_data

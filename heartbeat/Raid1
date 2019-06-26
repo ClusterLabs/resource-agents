@@ -39,6 +39,22 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_raidconf_default=""
+OCF_RESKEY_raiddev_default=""
+OCF_RESKEY_homehost_default=""
+OCF_RESKEY_force_stop_default="true"
+OCF_RESKEY_udev_default="true"
+OCF_RESKEY_force_clones_default="false"
+
+: ${OCF_RESKEY_raidconf=${OCF_RESKEY_raidconf_default}}
+: ${OCF_RESKEY_raiddev=${OCF_RESKEY_raiddev_default}}
+: ${OCF_RESKEY_homehost=${OCF_RESKEY_homehost_default}}
+: ${OCF_RESKEY_force_stop=${OCF_RESKEY_force_stop_default}}
+: ${OCF_RESKEY_udev=${OCF_RESKEY_udev_default}}
+: ${OCF_RESKEY_force_clones=${OCF_RESKEY_force_clones_default}}
+
 #######################################################################
 
 usage() {
@@ -69,7 +85,7 @@ information.
 The RAID configuration file, e.g. /etc/mdadm.conf.
 </longdesc>
 <shortdesc lang="en">RAID config file</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_raidconf_default}" />
 </parameter>
 
 <parameter name="raiddev" unique="0" required="1">
@@ -78,7 +94,7 @@ One or more block devices to use, space separated. Alternatively,
 set to "auto" to manage all devices specified in raidconf.
 </longdesc>
 <shortdesc lang="en">block device</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_raiddev_default}" />
 </parameter>
 
 <parameter name="homehost" unique="0" required="0">
@@ -90,7 +106,7 @@ value, so they are not accidentally auto-assembled by nodes not
 supposed to own them.
 </longdesc>
 <shortdesc lang="en">Homehost for mdadm</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_homehost_default}" />
 </parameter>
 
 <parameter name="force_stop" unique="0" required="0">
@@ -105,7 +121,7 @@ parameter to false. Note that in that case the stop operation
 will fail and the node will be fenced.
 </longdesc>
 <shortdesc lang="en">force stop processes using the array</shortdesc>
-<content type="boolean" default="true" />
+<content type="boolean" default="${OCF_RESKEY_force_stop_default}" />
 </parameter>
 
 <parameter name="udev" unique="0" required="0">
@@ -115,7 +131,7 @@ normally loaded host this should happen quickly, but you may be
 unlucky. If you are not using udev set this to "no".
 </longdesc>
 <shortdesc lang="en">udev</shortdesc>
-<content type="boolean" default="true" />
+<content type="boolean" default="${OCF_RESKEY_udev_default}" />
 </parameter>
 
 <parameter name="force_clones">
@@ -129,7 +145,7 @@ all nodes, but is in fact distinct.
 Only set this to "true" if you know what you are doing!
 </longdesc>
 <shortdesc lang="en">force ability to run as a clone</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_force_clones_default}" />
 </parameter>
 
 </parameters>
@@ -472,8 +488,8 @@ esac
 
 RAIDCONF="$OCF_RESKEY_raidconf"
 MDDEV="$OCF_RESKEY_raiddev"
-FORCESTOP="${OCF_RESKEY_force_stop:-1}"
-WAIT_FOR_UDEV="${OCF_RESKEY_udev:-1}"
+FORCESTOP="${OCF_RESKEY_force_stop}"
+WAIT_FOR_UDEV="${OCF_RESKEY_udev}"
 
 if [ -z "$RAIDCONF" ] ; then
 	ocf_exit_reason "Please set OCF_RESKEY_raidconf!"

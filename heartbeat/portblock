@@ -23,11 +23,21 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
+OCF_RESKEY_protocol_default=""
+OCF_RESKEY_portno_default=""
+OCF_RESKEY_action_default=""
 OCF_RESKEY_ip_default="0.0.0.0/0"
 OCF_RESKEY_reset_local_on_unblock_stop_default="false"
+OCF_RESKEY_tickle_dir_default=""
+OCF_RESKEY_sync_script_default=""
 
+: ${OCF_RESKEY_protocol=${OCF_RESKEY_protocol_default}}
+: ${OCF_RESKEY_portno=${OCF_RESKEY_portno_default}}
+: ${OCF_RESKEY_action=${OCF_RESKEY_action_default}}
 : ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
 : ${OCF_RESKEY_reset_local_on_unblock_stop=${OCF_RESKEY_reset_local_on_unblock_stop_default}}
+: ${OCF_RESKEY_tickle_dir=${OCF_RESKEY_tickle_dir_default}}
+: ${OCF_RESKEY_sync_script=${OCF_RESKEY_sync_script_default}}
 #######################################################################
 CMD=`basename $0`
 TICKLETCP=$HA_BIN/tickle_tcp
@@ -141,7 +151,7 @@ hasn't yet seen widespread use.
 The protocol used to be blocked/unblocked.
 </longdesc>
 <shortdesc lang="en">protocol</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_protocol_default}" />
 </parameter>
 
 <parameter name="portno" unique="0" required="1">
@@ -149,7 +159,7 @@ The protocol used to be blocked/unblocked.
 The port number used to be blocked/unblocked.
 </longdesc>
 <shortdesc lang="en">portno</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_portno_default}" />
 </parameter>
 
 <parameter name="action" unique="0" required="1">
@@ -157,7 +167,7 @@ The port number used to be blocked/unblocked.
 The action (block/unblock) to be done on the protocol::portno.
 </longdesc>
 <shortdesc lang="en">action</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_action_default}" />
 </parameter>
 
 <parameter name="reset_local_on_unblock_stop" unique="0" required="0">
@@ -194,7 +204,7 @@ The shared or local directory (_must_ be absolute path) which
 stores the established TCP connections.
 </longdesc>
 <shortdesc lang="en">Tickle directory</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_tickle_dir_default}" />
 </parameter>
 
 <parameter name="sync_script" unique="0" required="0">
@@ -205,7 +215,7 @@ csync2 (default), some wrapper of rsync, or whatever. It takes the
 file name as a single argument. For csync2, set it to "csync2 -xv".
 </longdesc>
 <shortdesc lang="en">Connection state file synchronization script</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_sync_script_default}" />
 </parameter>
 </parameters>
 

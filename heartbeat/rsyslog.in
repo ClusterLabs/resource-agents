@@ -38,6 +38,16 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_configfile_default=""
+OCF_RESKEY_rsyslog_binary_default="/sbin/rsyslogd"
+OCF_RESKEY_start_opts_default=""
+
+: ${OCF_RESKEY_configfile=${OCF_RESKEY_configfile_default}}
+: ${OCF_RESKEY_rsyslog_binary=${OCF_RESKEY_rsyslog_binary_default}}
+: ${OCF_RESKEY_start_opts=${OCF_RESKEY_start_opts_default}}
+
 usage() 
 {
 	cat <<-!
@@ -80,7 +90,7 @@ This parameter specifies a configuration file
 for a rsyslog instance managed by this RA.
 </longdesc>
 <shortdesc lang="en">Configuration file</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_configfile_default}"/>
 </parameter>
 
 <parameter name="rsyslog_binary" unique="0">
@@ -88,7 +98,7 @@ for a rsyslog instance managed by this RA.
 This parameter specifies rsyslog's executable file.
 </longdesc>
 <shortdesc lang="en">rsyslog executable</shortdesc>
-<content type="string" default="/sbin/rsyslogd"/>
+<content type="string" default="${OCF_RESKEY_rsyslog_binary_default}"/>
 </parameter>
 
 <parameter name="start_opts" unique="0">
@@ -98,7 +108,7 @@ rsyslog instance managed by this RA. When no value is given, no startup
 options is used. Don't use option '-F'. It causes a stuck of a start action.
 </longdesc>
 <shortdesc lang="en">Start options</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_start_opts_default}"/>
 </parameter>
 
 </parameters>
@@ -209,7 +219,7 @@ if [[ ! -f "$CONFIGFILE" ]]; then
 	exit $OCF_ERR_CONFIGURED
 fi
 
-RSYSLOG_EXE="${OCF_RESKEY_rsyslog_binary-/sbin/rsyslogd}"
+RSYSLOG_EXE="${OCF_RESKEY_rsyslog_binary}"
 if [[ ! -x "$RSYSLOG_EXE" ]]; then
 	ocf_log err "Invalid value:rsyslog_binary:$RSYSLOG_EXE"
 	exit $OCF_ERR_CONFIGURED

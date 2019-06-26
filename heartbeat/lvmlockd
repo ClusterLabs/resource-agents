@@ -32,6 +32,20 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_with_cmirrord_default="false"
+OCF_RESKEY_pidfile_default="/run/lvmlockd.pid"
+OCF_RESKEY_socket_path_default="/run/lvm/lvmlockd.socket"
+OCF_RESKEY_syslog_priority_default="warning"
+OCF_RESKEY_adopt_default="1"
+
+: ${OCF_RESKEY_with_cmirrord=${OCF_RESKEY_with_cmirrord_default}}
+: ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
+: ${OCF_RESKEY_socket_path=${OCF_RESKEY_socket_path_default}}
+: ${OCF_RESKEY_syslog_priority=${OCF_RESKEY_syslog_priority_default}}
+: ${OCF_RESKEY_adopt=${OCF_RESKEY_adopt_default}}
+
 #######################################################################
 
 meta_data() {
@@ -64,25 +78,25 @@ For more information, refer to manpage lvmlockd.8.
 Start with cmirrord (cluster mirror log daemon).
 </longdesc>
 <shortdesc lang="en">activate cmirrord</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_with_cmirrord_default}" />
 </parameter>
 
 <parameter name="pidfile" unique="0">
 <longdesc lang="en">pid file</longdesc>
 <shortdesc lang="en">pid file</shortdesc>
-<content type="string" default="/run/lvmlockd.pid"/>
+<content type="string" default="${OCF_RESKEY_pidfile_default}"/>
 </parameter>
 
 <parameter name="socket_path" unique="0">
 <longdesc lang="en">Set the socket path to listen on.</longdesc>
 <shortdesc lang="en">socket path</shortdesc>
-<content type="string" default="/run/lvm/lvmlockd.socket"/>
+<content type="string" default="${OCF_RESKEY_socket_path_default}"/>
 </parameter>
 
 <parameter name="syslog_priority" unique="0">
 <longdesc lang="en">Write log messages from this level up to syslog.</longdesc>
 <shortdesc lang="en">syslog priority</shortdesc>
-<content type="string" default="warning"/>
+<content type="string" default="${OCF_RESKEY_syslog_priority_default}"/>
 </parameter>
 
 <parameter name="adopt" unique="0">
@@ -90,7 +104,7 @@ Start with cmirrord (cluster mirror log daemon).
 Adopt locks from a previous instance of lvmlockd.
 </longdesc>
 <shortdesc lang="en">Adopt locks from a previous instance of lvmlockd</shortdesc>
-<content type="integer" default="1"/>
+<content type="integer" default="${OCF_RESKEY_adopt_default}"/>
 </parameter>
 </parameters>
 
@@ -106,8 +120,6 @@ END
 }
 
 #######################################################################
-
-: ${OCF_RESKEY_pidfile:="/run/lvmlockd.pid"}
 
 LOCKD="lvmlockd"
 CMIRRORD="cmirrord"

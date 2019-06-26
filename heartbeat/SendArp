@@ -50,6 +50,16 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_ip_default=""
+OCF_RESKEY_nic_default=""
+OCF_RESKEY_background_default="true"
+
+: ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
+: ${OCF_RESKEY_nic=${OCF_RESKEY_nic_default}}
+: ${OCF_RESKEY_background=${OCF_RESKEY_background_default}}
+
 SENDARP=$HA_BIN/send_arp
 SENDARPPIDDIR=${HA_RSCTMP}
 
@@ -57,7 +67,7 @@ BASEIP="$OCF_RESKEY_ip"
 INTERFACE="$OCF_RESKEY_nic"
 RESIDUAL=""
 SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$BASEIP"
-BACKGROUND=${OCF_RESKEY_background:-"yes"}
+BACKGROUND=${OCF_RESKEY_background}
 
 # Set default values
 
@@ -91,7 +101,7 @@ interface.
 The IP address for sending ARP packet.
 </longdesc>
 <shortdesc lang="en">IP address</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_ip_default}" />
 </parameter>
 
 <parameter name="nic" unique="0" required="1">
@@ -99,7 +109,7 @@ The IP address for sending ARP packet.
 The NIC for sending ARP packet.
 </longdesc>
 <shortdesc lang="en">NIC</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_nic_default}" />
 </parameter>
 
 <parameter name="background" unique="0" required="0">
@@ -108,7 +118,7 @@ Send ARPs in background. Set to false if you want to test if
 sending ARPs succeeded.
 </longdesc>
 <shortdesc lang="en">Send ARPs in background</shortdesc>
-<content type="boolean" default="true" />
+<content type="boolean" default="${OCF_RESKEY_background_default}" />
 </parameter>
 
 </parameters>
