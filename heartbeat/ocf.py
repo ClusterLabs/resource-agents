@@ -301,7 +301,7 @@ class Agent(object):
 	and actions for the agent. Then call run() to
 	start the agent main loop.
 
-	See doc/writing-python-agents.md for an example
+	See doc/dev-guides/writing-python-agents.md for an example
 	of how to use it.
 	"""
 
