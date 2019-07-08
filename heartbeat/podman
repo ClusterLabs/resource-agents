@@ -129,9 +129,6 @@ the health of the container. This command must return 0 to indicate that
 the container is healthy. A non-zero return code will indicate that the
 container has failed and should be recovered.
 
-If 'podman exec' is supported, it is used to execute the command. If not,
-nsenter is used.
-
 Note: Using this method for monitoring processes inside a container
 is not recommended, as containerd tries to track processes running
 inside the container and does not deal well with many short-lived
@@ -192,17 +189,13 @@ monitor_cmd_exec()
 	local rc=$OCF_SUCCESS
 	local out
 
-	if [ -z "$OCF_RESKEY_monitor_cmd" ]; then
-		return $rc
-	fi
-
 	out=$(podman exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
 	rc=$?
-	if [ $rc -eq 127 ]; then
-		ocf_log err "monitor cmd failed (rc=$rc), output: $out"
-		ocf_exit_reason "monitor_cmd, ${OCF_RESKEY_monitor_cmd} , not found within container."
-		# there is no recovering from this, exit immediately
-		exit $OCF_ERR_ARGS
+	# 125: no container with name or ID ${CONTAINER} found
+	# 126: container state improper (not running)
+	# 127: any other error
+	if [ $rc -eq 125 ] || [ $rc -eq 126 ]; then
+		rc=$OCF_NOT_RUNNING
 	elif [ $rc -ne 0 ]; then
 		ocf_exit_reason "monitor cmd failed (rc=$rc), output: $out"
 		rc=$OCF_ERR_GENERIC
@@ -215,7 +208,16 @@ monitor_cmd_exec()
 
 container_exists()
 {
-	podman inspect --format {{.State.Running}} $CONTAINER | egrep '(true|false)' >/dev/null 2>&1
+	local rc
+	local out
+
+	out=$(podman exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
+	rc=$?
+	# 125: no container with name or ID ${CONTAINER} found
+	if [ $rc -ne 125 ]; then
+		return 0
+	fi
+	return 1
 }
 
 remove_container()
@@ -236,30 +238,30 @@ remove_container()
 
 podman_simple_status()
 {
-	local val
+	local rc
 
-	# retrieve the 'Running' attribute for the container
-	val=$(podman inspect --format {{.State.Running}} $CONTAINER 2>/dev/null)
-	if [ $? -ne 0 ]; then
-		#not running as a result of container not being found
-		return $OCF_NOT_RUNNING
+	# simple status is implemented via podman exec
+	# everything besides success is considered "not running"
+	monitor_cmd_exec
+	rc=$?
+	if [ $rc -ne $OCF_SUCCESS ]; then
+		rc=$OCF_NOT_RUNNING;
 	fi
-
-	if ocf_is_true "$val"; then
-		# container exists and is running
-		return $OCF_SUCCESS
-	fi
-
-	return $OCF_NOT_RUNNING
+	return $rc
 }
 
 podman_monitor()
 {
-	if [ -z "$OCF_RESKEY_monitor_cmd" ]; then
-		podman_simple_status
-		return $?
-	fi
+	# We rely on running podman exec to monitor the container
+	# state because that command seems to be less prone to
+	# performance issue under IO load.
+	#
+	# For probes to work, we expect cmd_exec to be able to report
+	# when a container is not running. Here, we're not interested
+	# in distinguishing whether it's stopped or non existing
+	# (there's function container_exists for that)
 	monitor_cmd_exec
+	return $?
 }
 
 podman_create_mounts() {
@@ -416,14 +418,6 @@ podman_validate()
 		exit $OCF_ERR_CONFIGURED
 	fi
 
-	if [ -n "$OCF_RESKEY_monitor_cmd" ]; then
-		podman exec --help >/dev/null 2>&1
-		if [ ! $? ]; then
-			ocf_log info "checking for nsenter, which is required when 'monitor_cmd' is specified"
-			check_binary nsenter
-		fi
-	fi
-
 	image_exists
 	if [ $? -ne 0 ]; then
 		ocf_exit_reason "base image, ${OCF_RESKEY_image}, could not be found."
@@ -456,6 +450,11 @@ else
 fi
 
 CONTAINER=$OCF_RESKEY_name
+
+# Note: we currently monitor podman containers by with the "podman exec"
+# command, so make sure that invocation is always valid by enforcing the
+# exec command to be non-empty
+: ${OCF_RESKEY_monitor_cmd:=/bin/true}
 
 case $__OCF_ACTION in
 meta-data) meta_data
