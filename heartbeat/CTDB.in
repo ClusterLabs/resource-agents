@@ -242,6 +242,7 @@ If the amount of free memory drops below this value the node will
 become unhealthy and ctdb and all managed services will be shutdown.
 Once this occurs, the administrator needs to find the reason for the
 OOM situation, rectify it and restart ctdb with "service ctdb start".
+With CTDB 4.4.0 and later this parameter is ignored.
 </longdesc>
 <shortdesc lang="en">Minimum amount of free memory (MB)</shortdesc>
 <content type="integer" default="${OCF_RESKEY_ctdb_monitor_free_memory_default}" />
@@ -600,8 +601,10 @@ cleanup_smb_conf() {
 	mv "$OCF_RESKEY_smb_conf.$$" "$OCF_RESKEY_smb_conf"
 }
 
-append_ctdb_sysconfig() {
-	[ -n "$2" ] && echo "$1=$2" >> "$CTDB_SYSCONFIG"
+append_conf() {
+	local file_path="$1"
+	shift
+	[ -n "$2" ] && echo "$1=$2" >> "$file_path"
 }
 
 generate_ctdb_config() {
@@ -644,6 +647,25 @@ cat >$ctdb_config <<EOF
 EOF
 }
 
+generate_event_script_options() {
+	local script_options="$OCF_RESKEY_ctdb_config_dir/script.options"
+
+	# Backup existing config if we're not already using an auto-generated one
+	grep -qa '# CTDB-RA: Auto-generated' $script_options || cp -p $script_options ${script_options}.ctdb-ra-orig
+	if [ $? -ne 0 ]; then
+		ocf_log warn "Unable to backup $script_options to ${script_options}.ctdb-ra-orig"
+	fi
+
+cat >$script_options <<EOF
+# CTDB-RA: Auto-generated
+CTDB_SAMBA_SKIP_SHARE_CHECK=$(ocf_is_true "$OCF_RESKEY_ctdb_samba_skip_share_check" && echo 'yes' || echo 'no')
+EOF
+
+	append_conf "$script_options" CTDB_SERVICE_SMB $OCF_RESKEY_ctdb_service_smb
+	append_conf "$script_options" CTDB_SERVICE_NMB $OCF_RESKEY_ctdb_service_nmb
+	append_conf "$script_options" CTDB_SERVICE_WINBIND $OCF_RESKEY_ctdb_service_winbind
+}
+
 # Generate a new, minimal CTDB config file that's just enough
 # to get CTDB running as configured by the RA parameters.
 generate_ctdb_sysconfig() {
@@ -671,9 +693,9 @@ CTDB_SAMBA_SKIP_SHARE_CHECK=$(ocf_is_true "$OCF_RESKEY_ctdb_samba_skip_share_che
 CTDB_MANAGES_SAMBA=$(ocf_is_true "$OCF_RESKEY_ctdb_manages_samba" && echo 'yes' || echo 'no')
 CTDB_MANAGES_WINBIND=$(ocf_is_true "$OCF_RESKEY_ctdb_manages_winbind" && echo 'yes' || echo 'no')
 EOF
-	append_ctdb_sysconfig CTDB_SERVICE_SMB $OCF_RESKEY_ctdb_service_smb
-	append_ctdb_sysconfig CTDB_SERVICE_NMB $OCF_RESKEY_ctdb_service_nmb
-	append_ctdb_sysconfig CTDB_SERVICE_WINBIND $OCF_RESKEY_ctdb_service_winbind
+	append_conf "$CTDB_SYSCONFIG" CTDB_SERVICE_SMB $OCF_RESKEY_ctdb_service_smb
+	append_conf "$CTDB_SYSCONFIG" CTDB_SERVICE_NMB $OCF_RESKEY_ctdb_service_nmb
+	append_conf "$CTDB_SYSCONFIG" CTDB_SERVICE_WINBIND $OCF_RESKEY_ctdb_service_winbind
 }
 
 
@@ -768,6 +790,9 @@ ctdb_start() {
 	else
 		# 4.9+ moves all ctdbd parameters to ctdb.conf
 		generate_ctdb_config
+
+		# 4.9+ event script options are in script.options
+		generate_event_script_options
 
 		# 4.9+ event scripts can be enabled with ctdb directly, which
 		# performs a symlink
