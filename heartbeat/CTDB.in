@@ -925,11 +925,6 @@ ctdb_validate() {
 		check_binary $binary
 	done
 
-	if [ -z "$CTDB_SYSCONFIG" ]; then
-		ocf_exit_reason "Can't find CTDB config file (expecting /etc/sysconfig/ctdb, /etc/default/ctdb or similar)"
-		return $OCF_ERR_INSTALLED
-	fi
-
 	if ocf_is_true "$OCF_RESKEY_ctdb_manages_samba" && [ ! -f "$OCF_RESKEY_smb_conf" ]; then
 		ocf_exit_reason "Samba config file '$OCF_RESKEY_smb_conf' does not exist."
 		return $OCF_ERR_INSTALLED
