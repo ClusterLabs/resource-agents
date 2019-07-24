@@ -197,6 +197,19 @@ validate_default_suse_config() {
 			ocf_run -q /usr/sbin/start_apache2 -t || return 1
 		fi
 	fi
+
+	# mod_status: some existing users might don't want to use mod_status, check if present in configuration
+	if [ "$CONFIGFILE" = "$DEFAULT_SUSECONFIG" ] && \
+		grep -Eq '^Include[[:space:]]+/etc/apache2/mod_status.conf' "$CONFIGFILE"
+	then
+	        # load module only if module exists
+		apache_mod_status="/usr/lib64/apache2-prefork/mod_status.so"
+		if [ -f $apache_mod_status ]; then
+			LOAD_STATUS_MODULE="LoadModule status_module $apache_mod_status"
+        		# append to apache options the module so we can load it for suse only systems. 
+			HTTPDOPTS="$HTTPDOPTS -C $LOAD_STATUS_MODULE"
+        	fi
+	fi
 	return 0
 }
 
