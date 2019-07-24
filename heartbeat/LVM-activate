@@ -852,7 +852,6 @@ stop)
 	lvm_stop
 	;;
 monitor)
-	lvm_validate
 	lvm_status
 	;;
 validate-all)
