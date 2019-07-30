@@ -148,7 +148,7 @@ zpool_monitor () {
 	# Since version 0.7.10 status can be obtained without locks
 	# https://github.com/zfsonlinux/zfs/pull/7563
 	if [ -f /proc/spl/kstat/zfs/$OCF_RESKEY_pool/state ] ; then
-		HEALTH=$(</proc/spl/kstat/zfs/$OCF_RESKEY_pool/state)
+		HEALTH=$(cat /proc/spl/kstat/zfs/$OCF_RESKEY_pool/state)
 	else
 		HEALTH=$(zpool list -H -o health "$OCF_RESKEY_pool")
 	fi
