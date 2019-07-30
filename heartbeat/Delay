@@ -167,7 +167,7 @@ Delay_Stop() {
 
 Are_Valid_Numbers() {
   for i in "$@"; do
-	echo $i |grep -v [^0-9.] |grep -q -v [.].*[.]
+	echo $i |grep -v "[^0-9.]" |grep -q -v "[.].*[.]"
 	if test $? -ne 0; then
 	  return $OCF_ERR_ARGS
 	fi
