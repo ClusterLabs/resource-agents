@@ -420,8 +420,8 @@ iSCSILogicalUnit_start() {
 
 		if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
 			for initiator in ${OCF_RESKEY_allowed_initiators}; do
-				ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls create ${initiator} add_mapped_luns=False || exit $OCF_ERR_GENERIC
-				ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/${initiator} create ${OCF_RESKEY_lun} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+				[ -d "/sys/kernel/config/target/iscsi/${OCF_RESKEY_target_iqn}/tpgt_1/acls" ] || ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls create ${initiator} add_mapped_luns=False || exit $OCF_ERR_GENERIC
+				[ -d "/sys/kernel/config/target/iscsi/${OCF_RESKEY_target_iqn}/tpgt_1/acls/${initiator}" ] || ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/acls/${initiator} create ${OCF_RESKEY_lun} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
 			done
 		fi
 
