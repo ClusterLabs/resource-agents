@@ -158,6 +158,16 @@ to have the particular one persist when this happens.
 <shortdesc lang="en">reuse container</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_reuse_default}"/>
 </parameter>
+
+<parameter name="drop_in_dependency" required="0" unique="0">
+<longdesc lang="en">
+Use transient drop-in files to add extra dependencies to the systemd
+scopes associated to the container. During reboot, this prevents systemd
+to stop the container before pacemaker.
+</longdesc>
+<shortdesc lang="en">drop-in dependency</shortdesc>
+<content type="boolean"/>
+</parameter>
 </parameters>
 
 <actions>
@@ -273,8 +283,57 @@ podman_create_mounts() {
 	IFS="$oldIFS"
 }
 
+podman_container_id()
+{
+	# Retrieve the container ID by doing a "podman ps" rather than
+	# a "podman inspect", because the latter has performance issues
+	# under IO load.
+	# We could have run "podman start $CONTAINER" to get the ID back
+	# but if the container is stopped, the command will return a
+	# name instead of a container ID. This would break us.
+	podman ps --no-trunc --format '{{.ID}} {{.Names}}' | grep -F -w -m1 "$CONTAINER" | cut -d' ' -f1
+}
+
+
+create_transient_drop_in_dependency()
+{
+	local cid=$1
+	local rc=$OCF_SUCCESS
+
+	if [ -z "$cid" ]; then
+		ocf_log error "Container ID not found for \"$CONTAINER\". Not creating drop-in dependency"
+		return $OCF_ERR_GENERIC
+	fi
+
+	ocf_log info "Creating drop-in dependency for \"$CONTAINER\" ($cid)"
+	for scope in "libpod-$cid.scope.d" "libpod-conmon-$cid.scope.d"; do
+		if [ $rc -eq $OCF_SUCCESS ] && [ ! -d /run/systemd/transient/"$scope" ]; then
+			mkdir -p /run/systemd/transient/"$scope" && \
+			echo -e "[Unit]\nBefore=pacemaker.service" > /run/systemd/transient/"$scope"/dep.conf && \
+			chmod ago+r /run/systemd/transient/"$scope" /run/systemd/transient/"$scope"/dep.conf
+			rc=$?
+		fi
+	done
+
+	if [ $rc -ne $OCF_SUCCESS ]; then
+		ocf_log error "Could not create drop-in dependency for \"$CONTAINER\" ($cid)"
+	else
+		systemctl daemon-reload
+		rc=$?
+		if [ $rc -ne $OCF_SUCCESS ]; then
+			ocf_log error "Could not refresh service definition after creating drop-in for \"$CONTAINER\""
+		fi
+	fi
+
+	return $rc
+}
+
+
 podman_start()
 {
+	local cid
+	local rc
+
 	podman_create_mounts
 	local run_opts="-d --name=${CONTAINER}"
 	# check to see if the container has already started
@@ -306,8 +365,17 @@ podman_start()
 		ocf_log info "running container $CONTAINER for the first time"
 		ocf_run podman run $run_opts $OCF_RESKEY_image $OCF_RESKEY_run_cmd
 	fi
+	rc=$?
 
-	if [ $? -ne 0 ]; then
+	# if the container was stopped or didn't exist before, systemd
+	# removed the libpod* scopes. So always try to recreate the drop-ins
+	if [ $rc -eq 0 ] && ocf_is_true "$OCF_RESKEY_drop_in_dependency"; then
+		cid=$(podman_container_id)
+		create_transient_drop_in_dependency "$cid"
+		rc=$?
+	fi
+
+	if [ $rc -ne 0 ]; then
 		ocf_exit_reason "podman failed to launch container"
 		return $OCF_ERR_GENERIC
 	fi
@@ -353,6 +421,8 @@ podman_stop()
 	else
 		ocf_log debug "waiting $timeout second[s] before killing container"
 		ocf_run podman stop -t=$timeout $CONTAINER
+		# on stop, systemd will automatically delete any transient
+		# drop-in conf that has been created earlier
 	fi
 
 	if [ $? -ne 0 ]; then
@@ -455,6 +525,16 @@ CONTAINER=$OCF_RESKEY_name
 # command, so make sure that invocation is always valid by enforcing the
 # exec command to be non-empty
 : ${OCF_RESKEY_monitor_cmd:=/bin/true}
+
+# When OCF_RESKEY_drop_in_dependency is not populated, we
+# look at another file-based way of enabling the option.
+# Otherwise, consider it disabled.
+if [ -z "$OCF_RESKEY_drop_in_dependency" ]; then
+	if [ -f "/etc/sysconfig/podman_drop_in" ] || \
+	   [ -f "/etc/default/podman_drop_in" ]; then
+		OCF_RESKEY_drop_in_dependency=yes
+	fi
+fi
 
 case $__OCF_ACTION in
 meta-data) meta_data
