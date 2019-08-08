@@ -624,8 +624,7 @@ detect_last_commit()
     local recover_args="--defaults-file=$OCF_RESKEY_config \
                         --pid-file=$OCF_RESKEY_pid \
                         --socket=$OCF_RESKEY_socket \
-                        --datadir=$OCF_RESKEY_datadir \
-                        --user=$OCF_RESKEY_user"
+                        --datadir=$OCF_RESKEY_datadir"
     local recovery_file_regex='s/.*WSREP\:.*position\s*recovery.*--log_error='\''\([^'\'']*\)'\''.*/\1/p'
     local recovered_position_regex='s/.*WSREP\:\s*[R|r]ecovered\s*position.*\:\(.*\)\s*$/\1/p'
 
@@ -654,7 +653,8 @@ detect_last_commit()
 
         ocf_log info "now attempting to detect last commit version using 'mysqld_safe --wsrep-recover'"
 
-        ${OCF_RESKEY_binary} $recover_args --wsrep-recover --log-error=$tmp 2>/dev/null
+        $SU - $OCF_RESKEY_user -s /bin/sh -c \
+        "${OCF_RESKEY_binary} $recover_args --wsrep-recover --log-error=$tmp 2>/dev/null"
 
         last_commit="$(cat $tmp | sed -n $recovered_position_regex | tail -1)"
         if [ -z "$last_commit" ]; then
@@ -670,8 +670,9 @@ detect_last_commit()
                     # we can only rollback the transaction, but that's OK
                     # since the DB will get resynchronized anyway
                     ocf_log warn "local node <${NODENAME}> was not shutdown properly. Rollback stuck transaction with --tc-heuristic-recover"
-                    ${OCF_RESKEY_binary} $recover_args --wsrep-recover \
-                                         --tc-heuristic-recover=rollback --log-error=$tmp 2>/dev/null
+                    $SU - $OCF_RESKEY_user -s /bin/sh -c \
+                    "${OCF_RESKEY_binary} $recover_args --wsrep-recover \
+                                         --tc-heuristic-recover=rollback --log-error=$tmp 2>/dev/null"
 
                     last_commit="$(cat $tmp | sed -n $recovered_position_regex | tail -1)"
                     if [ ! -z "$last_commit" ]; then
