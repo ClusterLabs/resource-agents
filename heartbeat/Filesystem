@@ -858,10 +858,14 @@ if [ -z "$OCF_RESKEY_directory" ]; then
 else
 	MOUNTPOINT=$(echo $OCF_RESKEY_directory | sed 's/\/*$//')
 	: ${MOUNTPOINT:=/}
-	CANONICALIZED_MOUNTPOINT=$(readlink -f "$MOUNTPOINT")
-	if [ $? -ne 0 ]; then
-		ocf_exit_reason "Could not canonicalize $MOUNTPOINT because readlink failed"
-		exit $OCF_ERR_GENERIC
+	if [ -e "$MOUNTPOINT" ] ; then
+		CANONICALIZED_MOUNTPOINT=$(readlink -f "$MOUNTPOINT")
+		if [ $? -ne 0 ]; then
+			ocf_exit_reason "Could not canonicalize $MOUNTPOINT because readlink failed"
+			exit $OCF_ERR_GENERIC
+		fi
+	else
+		CANONICALIZED_MOUNTPOINT="$MOUNTPOINT"
 	fi
 	# At this stage, $MOUNTPOINT does not contain trailing "/" unless it is "/"
 	# TODO: / mounted via Filesystem sounds dangerous. On stop, we'll
