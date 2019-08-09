@@ -422,11 +422,11 @@ check_slave() {
             ocf_exit_reason "MySQL instance configured for replication, but replication has failed."
             ocf_log err "See $tmpfile for details"
 
-            # Just pull the reader VIP away, killing MySQL here would be pretty evil
-            # on a loaded server
+            # Just pull the reader VIP away and report the error. Even though killing MySQL evil on 
+            # a loaded server, having a split database is worse!
 
             set_reader_attr 0
-            exit $OCF_SUCCESS
+            exit $OCF_ERR_GENERIC
 
         fi
 
