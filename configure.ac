@@ -579,6 +579,12 @@ if test x"${XSLTPROC}" != x""; then
     if test x"${STYLESHEET_PREFIX}" = x""; then
         DIRS=$(find "${datadir}" -name $(basename $(dirname ${DOCBOOK_XSL_PATH})) \
                -type d | LC_ALL=C sort)
+        if test x"${DIRS}" = x""; then
+            # when datadir is not standard OS path, we cannot find docbook.xsl
+            # use standard OS path as backup
+            DIRS=$(find "/usr/share" -name $(basename $(dirname ${DOCBOOK_XSL_PATH})) \
+                   -type d | LC_ALL=C sort)
+        fi
         XSLT=$(basename ${DOCBOOK_XSL_PATH})
         for d in ${DIRS}; do
             if test -f "${d}/${XSLT}"; then
