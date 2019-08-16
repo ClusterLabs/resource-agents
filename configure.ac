@@ -74,6 +74,11 @@ AS_IF([test "x$with_systemdsystemunitdir" = "xyes" -o "x$with_systemdsystemunitd
                 [AC_MSG_ERROR([systemd support requested but pkg-config unable to query systemd package])])
           with_systemdsystemunitdir=no],
          [with_systemdsystemunitdir="$def_systemdsystemunitdir"])])
+if test "x$with_systemdsystemunitdir" != "xno" && \
+   test "x${prefix}" != "xNONE" && \
+   test "x${prefix}" != "x/usr"; then
+       with_systemdsystemunitdir="${prefix}/$with_systemdsystemunitdir"
+fi
 AS_IF([test "x$with_systemdsystemunitdir" != "xno"],
       [AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])])
 AM_CONDITIONAL([HAVE_SYSTEMD], [test "x$with_systemdsystemunitdir" != "xno"])
@@ -81,6 +86,11 @@ AM_CONDITIONAL([HAVE_SYSTEMD], [test "x$with_systemdsystemunitdir" != "xno"])
 AC_ARG_WITH([systemdtmpfilesdir],
      AS_HELP_STRING([--with-systemdtmpfilesdir=DIR], [Directory for systemd tmp files]),
      [], [with_systemdtmpfilesdir=$($PKGCONFIG --variable=tmpfilesdir systemd)])
+     if test "x$with_systemdtmpfilesdir" != xno && \
+        test "x${prefix}" != "xNONE" && \
+        test "x${prefix}" != "x/usr"; then
+            with_systemdtmpfilesdir="${prefix}/$with_systemdtmpfilesdir"
+     fi
      if test "x$with_systemdtmpfilesdir" != xno; then
          AC_SUBST([systemdtmpfilesdir], [$with_systemdtmpfilesdir])
      fi
@@ -579,6 +589,12 @@ if test x"${XSLTPROC}" != x""; then
     if test x"${STYLESHEET_PREFIX}" = x""; then
         DIRS=$(find "${datadir}" -name $(basename $(dirname ${DOCBOOK_XSL_PATH})) \
                -type d | LC_ALL=C sort)
+        if test x"${DIRS}" = x""; then
+            # when datadir is not standard OS path, we cannot find docbook.xsl
+            # use standard OS path as backup
+            DIRS=$(find "/usr/share" -name $(basename $(dirname ${DOCBOOK_XSL_PATH})) \
+                   -type d | LC_ALL=C sort)
+        fi
         XSLT=$(basename ${DOCBOOK_XSL_PATH})
         for d in ${DIRS}; do
             if test -f "${d}/${XSLT}"; then
