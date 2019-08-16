@@ -77,10 +77,12 @@ BuildRequires: libxslt glib2-devel
 BuildRequires: which
 
 %if 0%{?fedora} || 0%{?centos_ver} || 0%{?rhel}
-BuildRequires: cluster-glue-libs-devel
 BuildRequires: docbook-style-xsl docbook-dtds
 %if 0%{?rhel} == 0
 BuildRequires: libnet-devel
+%endif
+%if 0%{?suse_version}
+BuildRequires: cluster-glue-libs-devel
 %endif
 %endif
 
@@ -319,8 +321,6 @@ rm -rf %{buildroot}
 
 %{_sbindir}/ocf-tester
 %{_sbindir}/ocft
-%{_sbindir}/sfex_init
-%{_sbindir}/sfex_stat
 
 %{_includedir}/heartbeat
 
@@ -328,7 +328,6 @@ rm -rf %{buildroot}
 
 %{_mandir}/man7/*.7*
 %{_mandir}/man8/ocf-tester.8*
-%{_mandir}/man8/sfex_init.8*
 
 # For compatability with pre-existing agents
 %dir %{_sysconfdir}/ha.d
