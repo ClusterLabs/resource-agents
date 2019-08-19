@@ -542,7 +542,7 @@ check_slave() {
 
 set_master() {
     local new_master master_log_file master_log_pos
-    local master_params
+    local master_params master_ssl_params
 
     new_master=`$CRM_ATTR_REPL_INFO --query  -q | cut -d'|' -f1`
 
@@ -570,7 +570,7 @@ set_master() {
     # name of the new master host. The master must either be unchanged
     # from the last master the slave replicated from, or freshly
     # reset with RESET MASTER.
-    if [ -n "$OCF_RESKEY_replication_master_ssl_ca" -a -n "$OCF_RESKEY_replication_master_ssl_cert" -a -n "$OCF_RESKEY_replication_master_ssl_key" ]; then
+    if [ -n "$OCF_RESKEY_replication_master_ssl_ca" ] && [ -n "$OCF_RESKEY_replication_master_ssl_cert" ] && [ -n "$OCF_RESKEY_replication_master_ssl_key" ]; then
         master_ssl_params=", MASTER_SSL=1, \
                 MASTER_SSL_CA='$OCF_RESKEY_replication_master_ssl_ca', \
                 MASTER_SSL_CERT='$OCF_RESKEY_replication_master_ssl_cert', \
