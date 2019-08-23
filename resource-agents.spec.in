@@ -81,17 +81,10 @@ BuildRequires: docbook-style-xsl docbook-dtds
 %if 0%{?rhel} == 0
 BuildRequires: libnet-devel
 %endif
-%if 0%{?suse_version}
-BuildRequires: cluster-glue-libs-devel
-%endif
 %endif
 
 %if 0%{?suse_version}
-%if 0%{?suse_version} >= 1140
-BuildRequires:  libnet1
-%else
-BuildRequires:  libnet
-%endif
+BuildRequires:  libnet-devel
 BuildRequires:  libglue-devel
 BuildRequires:  libxslt docbook_4 docbook-xsl-stylesheets
 %endif
