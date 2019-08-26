@@ -59,10 +59,6 @@ ora_common_getconfig() {
 
 ora_common_validate_all() {
 	#	Let's make sure a few important things are set...
-	if [ x = "x$ORACLE_HOME" ]; then
-		ocf_log info "ORACLE_HOME not set"
-		return $OCF_ERR_INSTALLED
-	fi
 	if [ x = "x$ORACLE_OWNER" ]; then
 		ocf_log info "ORACLE_OWNER not set"
 		return $OCF_ERR_INSTALLED
