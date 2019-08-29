@@ -450,10 +450,11 @@ docker_stop()
 {
 	local timeout=60
 	docker_simple_status
-	if [ $? -eq $OCF_NOT_RUNNING ]; then
+	ret=$?
+	if [ $ret -eq $OCF_NOT_RUNNING ]; then
 		remove_container
 		return $OCF_SUCCESS
-        elif [ $? -eq $OCF_ERR_GENERIC ]; then
+        elif [ $ret -eq $OCF_ERR_GENERIC ]; then
                return $OCF_ERR_GENERIC
 	fi
 
