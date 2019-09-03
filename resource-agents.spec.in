@@ -58,13 +58,13 @@ BuildRequires: libxslt glib2-devel
 BuildRequires: systemd
 BuildRequires: which
 
-%if 0%{?fedora} || 0%{?centos_version} > 7 || 0%{?rhel} > 7 || 0%{?suse_version}
+%if 0%{?fedora} || 0%{?centos} > 7 || 0%{?rhel} > 7 || 0%{?suse_version}
 BuildRequires: python3-devel
 %else
 BuildRequires: python-devel
 %endif
 
-%if 0%{?fedora} || 0%{?centos_version} || 0%{?rhel}
+%if 0%{?fedora} || 0%{?centos} || 0%{?rhel}
 BuildRequires: docbook-style-xsl docbook-dtds
 %if 0%{?rhel} == 0
 BuildRequires: libnet-devel
@@ -118,12 +118,12 @@ service managers.
 %package -n ldirectord
 License:	GPLv2+
 Summary:	A Monitoring Daemon for Maintaining High Availability Resources
-%if 0%{?fedora} || 0%{?centos_version} || 0%{?rhel}
+%if 0%{?fedora} || 0%{?centos} || 0%{?rhel}
 %else
 %endif
 Obsoletes:	heartbeat-ldirectord <= %{version}
 Provides:	heartbeat-ldirectord = %{version}
-%if 0%{?fedora} > 18 || 0%{?centos_version} > 6 || 0%{?rhel} > 6
+%if 0%{?fedora} > 18 || 0%{?centos} > 6 || 0%{?rhel} > 6
 BuildRequires: perl-podlators
 %endif
 Requires:       %{SSLeay} perl-libwww-perl perl-MailTools
@@ -151,7 +151,7 @@ See 'ldirectord -h' and linux-ha/doc/ldirectord for more information.
 %endif
 
 %prep
-%if 0%{?suse_version} == 0 && 0%{?fedora} == 0 && 0%{?centos_version} == 0 && 0%{?rhel} == 0
+%if 0%{?suse_version} == 0 && 0%{?fedora} == 0 && 0%{?centos} == 0 && 0%{?rhel} == 0
 %{error:Unable to determine the distribution/version. This is generally caused by missing /etc/rpm/macros.dist. Please install the correct build packages or define the required macros manually.}
 exit 1
 %endif
@@ -162,7 +162,7 @@ if [ ! -f configure ]; then
 	./autogen.sh
 fi
 
-%if 0%{?fedora} >= 11 || 0%{?centos_version} > 5 || 0%{?rhel} > 5
+%if 0%{?fedora} >= 11 || 0%{?centos} > 5 || 0%{?rhel} > 5
 CFLAGS="$(echo '%{optflags}')"
 %global conf_opt_fatal "--enable-fatal-warnings=no"
 %else
@@ -183,7 +183,7 @@ CFLAGS="${CFLAGS} ${RPM_OPT_FLAGS}"
 export CFLAGS
 
 %configure \
-%if 0%{?fedora} || 0%{?centos_version} > 7 || 0%{?rhel} > 7 || 0%{?suse_version}
+%if 0%{?fedora} || 0%{?centos} > 7 || 0%{?rhel} > 7 || 0%{?suse_version}
 	PYTHON="%{__python3}" \
 %endif
 	%{conf_opt_fatal} \
