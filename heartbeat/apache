@@ -204,7 +204,7 @@ validate_default_suse_config() {
 	then
 	        # load module only if module exists
 		apache_mod_status="/usr/lib64/apache2-prefork/mod_status.so"
-		if [ -f $apache_mod_status ]; then
+		if [ -e $apache_mod_status ]; then
 			LOAD_STATUS_MODULE="LoadModule status_module $apache_mod_status"
         		# append to apache options the module so we can load it for suse only systems. 
 			HTTPDOPTS="$HTTPDOPTS -C $LOAD_STATUS_MODULE"
