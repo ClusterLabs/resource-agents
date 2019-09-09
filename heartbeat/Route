@@ -249,18 +249,18 @@ route_validate() {
     if [ "${OCF_RESKEY_CRM_meta_clone}" ]; then
 	if [ "${OCF_RESKEY_CRM_meta_clone_node_max}" != 1 ]; then
 	    ocf_exit_reason "Misconfigured clone parameters. Must set meta attribute \"clone_node_max\" to 1, got ${OCF_RESKEY_CRM_meta_clone_node_max}."
-	    return $OCF_ERR_ARGS
+	    return $OCF_ERR_CONFIGURED
 	fi
     fi
     # Did we get a destination?
     if [ -z "${OCF_RESKEY_destination}" ]; then
 	ocf_exit_reason "Missing required parameter \"destination\"."
-	return $OCF_ERR_ARGS
+	return $OCF_ERR_CONFIGURED
     fi
     # Did we get either a device or a gateway address?
     if [ -z "${OCF_RESKEY_device}" -a -z "${OCF_RESKEY_gateway}" ]; then
 	ocf_exit_reason "Must specify either \"device\", or \"gateway\", or both."
-	return $OCF_ERR_ARGS
+	return $OCF_ERR_CONFIGURED
     fi
     # If a device has been configured, is it available on this system?
     if [ -n "${OCF_RESKEY_device}" ]; then
