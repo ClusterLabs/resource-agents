@@ -233,24 +233,25 @@ set_exec_mode()
 		return 0
 	fi
 
-	##
-	# Attempt systemd (with nfs-lock.service).
-	##
 	if which systemctl > /dev/null 2>&1; then
-		if systemctl list-unit-files | grep nfs-server > /dev/null && systemctl list-unit-files | grep nfs-lock > /dev/null; then
-			EXEC_MODE=2
-			# when using systemd, the nfs-lock service file handles nfsv3 locking daemons for us.
-			return 0
-		fi
-	fi
+		if systemctl list-unit-files 'nfs-*' | grep nfs-server > /dev/null; then
 
-	##
-	# Attempt systemd (with rpc-statd.service).
-	##
-	if which systemctl > /dev/null 2>&1; then
-		if systemctl list-unit-files | grep nfs-server > /dev/null && systemctl list-unit-files | grep rpc-statd > /dev/null; then
-			EXEC_MODE=3
-			return 0
+			##
+			# Attempt systemd (with nfs-lock.service).
+			##
+			if systemctl list-unit-files 'nfs-*' | grep nfs-lock > /dev/null; then
+				EXEC_MODE=2
+				# when using systemd, the nfs-lock service file handles nfsv3 locking daemons for us.
+				return 0
+			fi
+
+			##
+			# Attempt systemd (with rpc-statd.service).
+			##
+			if systemctl list-unit-files 'rpc-*' | grep rpc-statd > /dev/null; then
+				EXEC_MODE=3
+				return 0
+			fi
 		fi
 	fi
 
@@ -272,12 +273,12 @@ nfs_exec()
 		2) if ! echo $svc | grep -q "\."; then
 			svc="${svc}.service"
 		   fi
-		   systemctl $cmd $svc
+		   systemctl -n0 $cmd $svc
 		   ;;
 		3) if ! echo $svc | grep -q "\."; then
 			svc="${svc}.service"
 		   fi
-		   systemctl $cmd $svc
+		   systemctl -n0 $cmd $svc
 		   ;;
 	esac
 }
