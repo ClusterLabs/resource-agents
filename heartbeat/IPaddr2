@@ -478,7 +478,7 @@ ip_init() {
 	else
 		FAMILY=inet6
 		# address sanitization defined in RFC5952
-		SANITIZED_IP=$($IP2UTIL route get $OCF_RESKEY_ip | awk '$1~/:/ {print $1}  $2~/:/ {print $2}')
+		SANITIZED_IP=$($IP2UTIL route get $OCF_RESKEY_ip 2> /dev/null | awk '$1~/:/ {print $1}  $2~/:/ {print $2}')
                 if [ -n "$SANITIZED_IP" ]; then
                     OCF_RESKEY_ip="$SANITIZED_IP"
                 fi
