@@ -477,6 +477,12 @@ ip_init() {
 		fi
 	else
 		FAMILY=inet6
+		# address sanitization defined in RFC5952
+		SANITIZED_IP=$($IP2UTIL route get $OCF_RESKEY_ip | awk '$1~/:/ {print $1}  $2~/:/ {print $2}')
+                if [ -n "$SANITIZED_IP" ]; then
+                    OCF_RESKEY_ip="$SANITIZED_IP"
+                fi
+
 		if ocf_is_true $OCF_RESKEY_lvs_support ;then
 			ocf_exit_reason "The IPv6 does not support lvs_support"
 			exit $OCF_ERR_CONFIGURED
