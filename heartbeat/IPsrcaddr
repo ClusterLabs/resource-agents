@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	Description:	IPsrcaddr - Preferred source address modification
+#	Description:	IPsrcaddr - Preferred source(/dest) address modification
 #
 #	Author:			John Sutton <john@scl.co.uk>
 #	Support:		users@clusterlabs.org
@@ -11,7 +11,7 @@
 #
 #	This script manages the preferred source address associated with
 #	packets which originate on the localhost and are routed through the
-#	default route.  By default, i.e. without the use of this script or
+#	matching route.  By default, i.e. without the use of this script or
 #	similar, these packets will carry the IP of the primary i.e. the
 #	non-aliased interface.  This can be a nuisance if you need to ensure
 #	that such packets carry the same IP irrespective of which host in
@@ -27,7 +27,7 @@
 #
 #	NOTES:
 #
-#	1) There must be one and not more than 1 default route!  Mainly because
+#	1) There must be one and not more than 1 matching route!  Mainly because
 #	I can't see why you should have more than one.  And if there is more
 #	than one, we would have to box clever to find out which one is to be
 #	modified, or we would have to pass its identity as an argument.
@@ -56,19 +56,23 @@
 # Defaults
 OCF_RESKEY_ipaddress_default=""
 OCF_RESKEY_cidr_netmask_default=""
+OCF_RESKEY_destination_default="0.0.0.0/0"
 OCF_RESKEY_proto_default=""
+OCF_RESKEY_table_default=""
 
 : ${OCF_RESKEY_ipaddress=${OCF_RESKEY_ipaddress_default}}
 : ${OCF_RESKEY_cidr_netmask=${OCF_RESKEY_cidr_netmask_default}}
+: ${OCF_RESKEY_destination=${OCF_RESKEY_destination_default}}
 : ${OCF_RESKEY_proto=${OCF_RESKEY_proto_default}}
-
+: ${OCF_RESKEY_table=${OCF_RESKEY_table_default}}
 #######################################################################
 
 [ -z "$OCF_RESKEY_proto" ] && PROTO="" || PROTO="proto $OCF_RESKEY_proto"
+[ -z "$OCF_RESKEY_table" ] && TABLE="" || TABLE="table $OCF_RESKEY_table"
 
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
-  CMDSHOW="$IP2UTIL route show   to exact 0.0.0.0/0"
+  CMDSHOW="$IP2UTIL route show   $TABLE to exact $OCF_RESKEY_destination"
 CMDCHANGE="$IP2UTIL route change to "
 
 SYSTYPE="`uname -s`"
@@ -108,12 +112,30 @@ dotted quad notation  255.255.255.0).
 <content type="string" default="${OCF_RESKEY_cidr_netmask_default}"/>
 </parameter>
 
+<parameter name="destination">
+<longdesc lang="en">
+The destination IP/subnet for the route (default: $OCF_RESKEY_destination_default)
+</longdesc>
+<shortdesc lang="en">Destination IP/subnet</shortdesc>
+<content type="string" default="${OCF_RESKEY_destination_default}" />
+</parameter>
+
 <parameter name="proto">
 <longdesc lang="en">
 Proto to match when finding network. E.g. "kernel".
 </longdesc>
 <shortdesc lang="en">Proto</shortdesc>
 <content type="string" default="${OCF_RESKEY_proto_default}" />
+</parameter>
+
+<parameter name="table">
+<longdesc lang="en">
+Table to modify. E.g. "local".
+
+The table has to have a route matching the "destination" parameter.
+</longdesc>
+<shortdesc lang="en">Table</shortdesc>
+<content type="string" default="${OCF_RESKEY_table_default}" />
 </parameter>
 </parameters>
 
@@ -156,21 +178,22 @@ FINDIF=$HA_BIN/findif
 export OCF_RESKEY_ip=$OCF_RESKEY_ipaddress
 
 srca_read() {
-	# Capture the default route - doublequotes prevent word splitting...
-	DEFROUTE="`$CMDSHOW`" || errorexit "command '$CMDSHOW' failed"
+	# Capture matching route - doublequotes prevent word splitting...
+	ROUTE="`$CMDSHOW`" || errorexit "command '$CMDSHOW' failed"
 
-	# ... so we can make sure there is only 1 default route
-	[ 1 -eq `echo "$DEFROUTE" | wc -l` ] || \
-		errorexit "more than 1 default route exists"
+	# ... so we can make sure there is only 1 matching route
+	[ 1 -eq `echo "$ROUTE" | wc -l` ] || \
+		errorexit "more than 1 matching route exists"
 
-	# But there might still be no default route
-	[ -z "$DEFROUTE" ] && errorexit "no default route exists"
+	# But there might still be no matching route
+	[ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] && [ -z "$ROUTE" ] && \
+		 ! ocf_is_probe && errorexit "no matching route exists"
 
 	# Sed out the source ip address if it exists
-	SRCIP=`echo $DEFROUTE | sed -n "s/$MATCHROUTE/\3/p"`
+	SRCIP=`echo $ROUTE | sed -n "s/$MATCHROUTE/\3/p"`
 
 	# and what remains after stripping out the source ip address clause
-	ROUTE_WO_SRC=`echo $DEFROUTE | sed "s/$MATCHROUTE/\1\5/"`
+	ROUTE_WO_SRC=`echo $ROUTE | sed "s/$MATCHROUTE/\1\5/"`
 
 	[ -z "$SRCIP" ] && return 1
 	[ $SRCIP = $1 ] && return 0
@@ -190,11 +213,13 @@ srca_start() {
 		rc=$OCF_SUCCESS
 		ocf_log info "The ip route has been already set.($NETWORK, $INTERFACE, $ROUTE_WO_SRC)"
 	else
-		$IP2UTIL route replace $NETWORK dev $INTERFACE src $1 || \
-			errorexit "command 'ip route replace $NETWORK dev $INTERFACE src $1' failed"
+		$IP2UTIL route replace $TABLE $NETWORK dev $INTERFACE src $1 || \
+			errorexit "command 'ip route replace $TABLE $NETWORK dev $INTERFACE src $1' failed"
 
-		$CMDCHANGE $ROUTE_WO_SRC src $1 || \
-			errorexit "command '$CMDCHANGE $ROUTE_WO_SRC src $1' failed"
+		if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] ;then
+			$CMDCHANGE $ROUTE_WO_SRC src $1 || \
+				errorexit "command '$CMDCHANGE $ROUTE_WO_SRC src $1' failed"
+		fi
 		rc=$?
 	fi
 
@@ -206,7 +231,7 @@ srca_start() {
 #	If one exists but it's not the same as the one specified, that's
 #	an error.  Maybe that's the wrong behaviour because if this fails
 #	then when IPaddr releases the associated interface (if there is one)
-#	your default route will also get dropped ;-(
+#	your matching route will also get dropped ;-(
 #	The exit code should conform to LSB exit codes.
 #
 
@@ -222,11 +247,13 @@ srca_stop() {
 	  
 	[ $rc = 2 ] && errorexit "The address you specified to stop does not match the preferred source address"
 
-	$IP2UTIL route replace $NETWORK dev $INTERFACE || \
-		errorexit "command 'ip route replace $NETWORK dev $INTERFACE' failed"
+	$IP2UTIL route replace $TABLE $NETWORK dev $INTERFACE || \
+		errorexit "command 'ip route replace $TABLE $NETWORK dev $INTERFACE' failed"
 
-	$CMDCHANGE $ROUTE_WO_SRC || \
-		errorexit "command '$CMDCHANGE $ROUTE_WO_SRC' failed"
+	if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] ;then
+		$CMDCHANGE $ROUTE_WO_SRC || \
+			errorexit "command '$CMDCHANGE $ROUTE_WO_SRC' failed"
+	fi
 
 	return $?
 }
@@ -411,6 +438,10 @@ srca_validate_all() {
 		return $OCF_ERR_CONFIGURED
 	fi
 
+	if ! echo "$OCF_RESKEY_destination" | grep -q "/"; then
+		return $OCF_ERR_CONFIGURED
+	fi
+
 
 	if ! [ "x$SYSTYPE" = "xLinux" ]; then
 		# checks after this point are only relevant for linux.
@@ -491,7 +522,11 @@ rc=$?
 }
 
 INTERFACE=`echo $findif_out | awk '{print $1}'`
-NETWORK=`$IP2UTIL route list dev $INTERFACE scope link $PROTO match $ipaddress|grep -m 1 -o '^[^ ]*'`
+if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] ;then
+	NETWORK=`$IP2UTIL route list dev $INTERFACE scope link $PROTO match $ipaddress|grep -m 1 -o '^[^ ]*'`
+else
+	NETWORK="$OCF_RESKEY_destination"
+fi
 
 case $1 in
 	start)		srca_start $ipaddress
