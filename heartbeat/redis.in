@@ -241,43 +241,28 @@ CLI_HAVE_AUTH_WARNING=0
 CLI_HAVE_ARG_NO_AUTH_WARNING=0
 CLI_HAVE_ENV_AUTH=0
 
-cmp_redis_version()
-{
-
-        if [ "$1" == "$2" ]; then
-                return 1
-        elif [ $(echo -e "$1\n$2" | sort -V | head -1) == "$1" ]; then
-                return 0
-        else
-                return 2
-        fi
-}
-
 redis_cli_features()
 {
 
-        CLI_VER=$(redis-cli --version | tr " " "\n" | tail -1)
+        CLI_VER=$("$REDIS_CLIENT" -v | awk '{print $NF}')
         # Starting with 4.0.10 there is a warning on stderr when using a pass
         # Starting with 5.0.0 there is an argument to silence the warning: --no-auth-warning
         # Starting with 5.0.3 there is an option to use REDISCLI_AUTH evironment variable for password, no warning in this case
 
-        cmp_redis_version $CLI_VER 5.0.3
+        ocf_version_cmp $CLI_VER 5.0.3
         res=$?
-        echo 5.0.3: $res
         if [[ res -ge 1 ]]; then
                 CLI_HAVE_ENV_AUTH=1
         fi
 
-        cmp_redis_version $CLI_VER 5.0.0
+        ocf_version_cmp $CLI_VER 5.0.0
         res=$?
-        echo 5.0.0: $res
         if [[ res -ge 1 ]]; then
                 CLI_HAVE_ARG_NO_AUTH_WARNING=1
         fi
 
-        cmp_redis_version $CLI_VER 4.0.10
+        ocf_version_cmp $CLI_VER 4.0.10
         res=$?
-        echo 4.0.10: $res
         if [[ res -ge 1 ]]; then
                 CLI_HAVE_AUTH_WARNING=1
         fi
@@ -364,7 +349,7 @@ redis_client() {
 		if [[ CLI_HAVE_ENV_AUTH -eq 1 ]]; then
 			REDISCLI_AUTH=$clientpasswd "$REDIS_CLIENT" -s "$REDIS_SOCKET" "$@" | sed 's/\r//'
 		elif [[ CLI_HAVE_ARG_NO_AUTH_WARNING -eq 1 ]]; then
-			"$REDIS_CLIENT" -s "$REDIS_SOCKET" -a "$clientpasswd" "$@" --no-auth-warning | sed 's/\r//'
+			"$REDIS_CLIENT" -s "$REDIS_SOCKET" --no-auth-warning -a "$clientpasswd" "$@" | sed 's/\r//'
 		elif [[ CLI_HAVE_AUTH_WARNING -eq 1 ]]; then
 			("$REDIS_CLIENT" -s "$REDIS_SOCKET" -a "$clientpasswd" "$@" 2>&1 >&3 3>&- | grep -v "Using a password" >&2 3>&-) 3>&1 | sed 's/\r//'
 		else
