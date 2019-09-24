@@ -242,7 +242,7 @@ master_is_active()
 {
 	if [ -z "$MASTER_ACTIVE_CACHED" ]; then
 		# determine if a master instance is already up and is healthy
-		crm_mon --as-xml | grep "resource.*id=\"${OCF_RESOURCE_INSTANCE}\".*role=\"Master\".*active=\"true\".*orphaned=\"false\".*failed=\"false\"" > /dev/null 2>&1
+		crm_mon --as-xml | grep "resource.*id=\"${OCF_RESOURCE_INSTANCE}\".* role=\"Master\".* active=\"true\".* orphaned=\"false\".* failed=\"false\"" > /dev/null 2>&1
 		MASTER_ACTIVE=$?
 		MASTER_ACTIVE_CACHED="true"
 	fi
