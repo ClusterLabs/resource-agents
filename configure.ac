@@ -21,7 +21,7 @@ dnl     checks for system services
 
 AC_INIT([resource-agents], 
 	m4_esyscmd([make/git-version-gen .tarball-version]),
-	[to_be_defined@foobar.org])
+	[developers@clusterlabs.org])
 
 AC_USE_SYSTEM_EXTENSIONS
 
