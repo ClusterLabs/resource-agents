@@ -213,7 +213,7 @@ r53_monitor() {
 	if [ "$__OCF_ACTION" = "start" ] || ocf_is_probe ; then
 		#
 		cmd="aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']"
-		ocf_log debug "Route53 Agent Starting or probing - executing monitoring API call: $cmd"
+		ocf_log info "Route53 Agent Starting or probing - executing monitoring API call: $cmd"
 		ARECORD="$($cmd | grep RESOURCERECORDS | awk '{ print $2 }')"
 		if ocf_is_probe; then
 			#
@@ -227,7 +227,7 @@ r53_monitor() {
 	else
 		#
 		cmd="dig +retries=3 +time=5 +short $OCF_RESKEY_fullname 2>/dev/null"
-		ocf_log debug "executing monitoring command : $cmd"
+		ocf_log info "executing monitoring command : $cmd"
 		ARECORD="$($cmd)"
 		rc=$?
 		ocf_log debug "dig return code: $rc"
@@ -248,10 +248,10 @@ r53_monitor() {
 		fi
 		#
 	fi
-	ocf_log debug "Route53 DNS record pointing $OCF_RESKEY_fullname to IP address $ARECORD"
+	ocf_log info "Route53 DNS record pointing $OCF_RESKEY_fullname to IP address $ARECORD"
 	#
 	if [ "$ARECORD" == "$IPADDRESS" ]; then
-		ocf_log debug "Route53 DNS record $ARECORD found"
+		ocf_log info "Route53 DNS record $ARECORD found"
 		return $OCF_SUCCESS
 	elif [[ $ARECORD =~ $IPREGEX ]] && [ "$ARECORD" != "$IPADDRESS" ]; then
 		ocf_log info "Route53 DNS record points to a different host, setting DNS record on Route53 to this host"
