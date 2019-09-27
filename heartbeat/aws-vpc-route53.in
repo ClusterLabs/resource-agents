@@ -302,7 +302,7 @@ _update_record() {
 	CHANGEID=$(echo $CHANGEID | cut -d'/' -f 3 | cut -d'"' -f 1 )
 	ocf_log debug "Change id: $CHANGEID"
 	STATUS="PENDING"
-	MYSECONDS=8
+	MYSECONDS=20
 	while [ "$STATUS" = 'PENDING' ]; do
 		sleep $MYSECONDS
 		STATUS="$(aws --profile $OCF_RESKEY_profile route53 get-change --id $CHANGEID | grep CHANGEINFO | awk -F'\t' '{ print $4 }' |cut -d'"' -f 2 )"
