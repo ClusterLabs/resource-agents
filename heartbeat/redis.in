@@ -237,6 +237,36 @@ CRM_ATTR_REPL_INFO="${HA_SBIN_DIR}/crm_attribute --type crm_config --name ${INST
 MASTER_HOST=""
 MASTER_ACTIVE_CACHED=""
 MASTER_ACTIVE=""
+CLI_HAVE_AUTH_WARNING=0
+CLI_HAVE_ARG_NO_AUTH_WARNING=0
+CLI_HAVE_ENV_AUTH=0
+
+redis_cli_features()
+{
+
+        CLI_VER=$("$REDIS_CLIENT" -v | awk '{print $NF}')
+        # Starting with 4.0.10 there is a warning on stderr when using a pass
+        # Starting with 5.0.0 there is an argument to silence the warning: --no-auth-warning
+        # Starting with 5.0.3 there is an option to use REDISCLI_AUTH evironment variable for password, no warning in this case
+
+        ocf_version_cmp $CLI_VER 5.0.3
+        res=$?
+        if [[ res -ge 1 ]]; then
+                CLI_HAVE_ENV_AUTH=1
+        fi
+
+        ocf_version_cmp $CLI_VER 5.0.0
+        res=$?
+        if [[ res -ge 1 ]]; then
+                CLI_HAVE_ARG_NO_AUTH_WARNING=1
+        fi
+
+        ocf_version_cmp $CLI_VER 4.0.10
+        res=$?
+        if [[ res -ge 1 ]]; then
+                CLI_HAVE_AUTH_WARNING=1
+        fi
+}
 
 master_is_active()
 {
@@ -315,9 +345,16 @@ set_score()
 redis_client() {
 	ocf_log debug "redis_client: '$REDIS_CLIENT' -s '$REDIS_SOCKET' $*"
 	if [ -n "$clientpasswd" ]; then
-		# Starting with 4.0.10 there is a warning on stderr when using a pass
-		# Once we stop supporting versions < 5.0.0 we can add --no-auth-warning here
-		("$REDIS_CLIENT" -s "$REDIS_SOCKET" -a "$clientpasswd" "$@" 2>&1 >&3 3>&- | grep -v "Using a password" >&2 3>&-) 3>&1 | sed 's/\r//'
+		# Consider redis-cli features to choose optimal password passing method and warning filtering workaround
+		if [[ CLI_HAVE_ENV_AUTH -eq 1 ]]; then
+			REDISCLI_AUTH=$clientpasswd "$REDIS_CLIENT" -s "$REDIS_SOCKET" "$@" | sed 's/\r//'
+		elif [[ CLI_HAVE_ARG_NO_AUTH_WARNING -eq 1 ]]; then
+			"$REDIS_CLIENT" -s "$REDIS_SOCKET" --no-auth-warning -a "$clientpasswd" "$@" | sed 's/\r//'
+		elif [[ CLI_HAVE_AUTH_WARNING -eq 1 ]]; then
+			("$REDIS_CLIENT" -s "$REDIS_SOCKET" -a "$clientpasswd" "$@" 2>&1 >&3 3>&- | grep -v "Using a password" >&2 3>&-) 3>&1 | sed 's/\r//'
+		else
+			"$REDIS_CLIENT" -s "$REDIS_SOCKET" -a "$clientpasswd" "$@" | sed 's/\r//'
+		fi
 	else
 		"$REDIS_CLIENT" -s "$REDIS_SOCKET" "$@" | sed 's/\r//'
 	fi
@@ -685,6 +722,8 @@ fi
 if [ -r "$REDIS_CONFIG" ]; then
 	clientpasswd="$(sed -n -e  's/^\s*requirepass\s*\(.*\)\s*$/\1/p' < $REDIS_CONFIG | tail -n 1)"
 fi
+
+redis_cli_features
 
 ocf_log debug "action=${1:-$__OCF_ACTION} notify_type=${OCF_RESKEY_CRM_meta_notify_type} notify_operation=${OCF_RESKEY_CRM_meta_notify_operation} master_host=${OCF_RESKEY_CRM_meta_notify_master_uname} slave_host=${OCF_RESKEY_CRM_meta_notify_slave_uname} promote_host=${OCF_RESKEY_CRM_meta_notify_promote_uname} demote_host=${OCF_RESKEY_CRM_meta_notify_demote_uname}; params: bin=${OCF_RESKEY_bin} client_bin=${OCF_RESKEY_client_bin} config=${OCF_RESKEY_config} user=${OCF_RESKEY_user} rundir=${OCF_RESKEY_rundir} port=${OCF_RESKEY_port}"
 
