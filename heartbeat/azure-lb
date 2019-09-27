@@ -15,10 +15,15 @@
 # Initialization:
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
-
+. ${OCF_FUNCTIONS_DIR}/ocf-distro
 # Defaults
 OCF_RESKEY_nc_default="/usr/bin/nc"
 OCF_RESKEY_port_default="61000"
+
+# On SLES we use socat
+if [ $( get_release_id ) = "SUSE" ]; then
+	OCF_RESKEY_nc_default="/usr/bin/socat"
+fi
 
 : ${OCF_RESKEY_nc=${OCF_RESKEY_nc_default}}
 : ${OCF_RESKEY_port=${OCF_RESKEY_port_default}}
@@ -100,6 +105,10 @@ lb_monitor() {
 
 lb_start() {
 	cmd="$OCF_RESKEY_nc -l -k $OCF_RESKEY_port"
+	if [ $( basename $OCF_RESKEY_nc ) = 'socat' ]; then
+		#socat has different parameters
+		cmd="$OCF_RESKEY_nc -U TCP-LISTEN:$OCF_RESKEY_port,backlog=10,fork,reuseaddr /dev/null"
+	fi
 	if ! lb_monitor; then
 		ocf_log debug "Starting $process: $cmd"
 		# Execute the command as created above
