@@ -215,6 +215,15 @@ r53_monitor() {
 		cmd="aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']"
 		ocf_log debug "Route53 Agent Starting or probing - executing monitoring API call: $cmd"
 		ARECORD="$($cmd | grep RESOURCERECORDS | awk '{ print $2 }')"
+		if ocf_is_probe; then
+			#
+			# Prevent R53 record change during probe
+			#
+			if [[ $ARECORD =~ $IPREGEX ]] && [ "$ARECORD" != "$IPADDRESS" ]; then
+				ocf_log debug "Route53 DNS record $ARECORD found at probing, disregarding"
+				return $OCF_NOT_RUNNING
+			fi
+		fi
 	else
 		#
 		cmd="dig +retries=3 +time=5 +short $OCF_RESKEY_fullname 2>/dev/null"
@@ -327,7 +336,7 @@ r53_start() {
 	#
 	ocf_log info "Starting Route53 DNS update...."
 	IPADDRESS="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
-	_update_record "UPSERT" "$IPADDRESS"
+	r53_monitor
 	return $OCF_SUCCESS
 }
 
