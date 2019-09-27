@@ -17,12 +17,13 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 . ${OCF_FUNCTIONS_DIR}/ocf-distro
 # Defaults
-OCF_RESKEY_nc_default="/usr/bin/nc"
 OCF_RESKEY_port_default="61000"
 
 # On SLES we use socat
 if [ -e /usr/bin/socat ]; then
 	OCF_RESKEY_nc_default="/usr/bin/socat"
+else
+	OCF_RESKEY_nc_default="/usr/bin/nc"
 fi
 
 : ${OCF_RESKEY_nc=${OCF_RESKEY_nc_default}}
