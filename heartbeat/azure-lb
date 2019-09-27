@@ -21,7 +21,7 @@ OCF_RESKEY_nc_default="/usr/bin/nc"
 OCF_RESKEY_port_default="61000"
 
 # On SLES we use socat
-if [ $( get_release_id ) = "SUSE" ]; then
+if [ -e /usr/bin/socat ]; then
 	OCF_RESKEY_nc_default="/usr/bin/socat"
 fi
 
@@ -58,9 +58,11 @@ Resource agent to answer Azure Load Balancer health probe requests
 
 <parameter name="nc">
 <longdesc lang="en">
-The full name of the nc binary.
+The full name of the used binary. This can be path to nc or socat.
+The default is the installed tool. 
+If both are installed nc is the default.
 </longdesc>
-<shortdesc lang="en">Full path name of the nc binary</shortdesc>
+<shortdesc lang="en">Full path name of the used binary</shortdesc>
 <content type="string" default="${OCF_RESKEY_nc_default}"/>
 </parameter>
 
