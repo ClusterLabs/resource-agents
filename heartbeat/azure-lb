@@ -15,16 +15,9 @@
 # Initialization:
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
-. ${OCF_FUNCTIONS_DIR}/ocf-distro
 # Defaults
 OCF_RESKEY_port_default="61000"
-
-# On SLES we use socat
-if [ -e /usr/bin/socat ]; then
-	OCF_RESKEY_nc_default="/usr/bin/socat"
-else
-	OCF_RESKEY_nc_default="/usr/bin/nc"
-fi
+OCF_RESKEY_nc_default="/usr/bin/nc"
 
 : ${OCF_RESKEY_nc=${OCF_RESKEY_nc_default}}
 : ${OCF_RESKEY_port=${OCF_RESKEY_port_default}}
@@ -59,11 +52,11 @@ Resource agent to answer Azure Load Balancer health probe requests
 
 <parameter name="nc">
 <longdesc lang="en">
-The full name of the used binary. This can be path to nc or socat.
-The default is the installed tool. 
-If both are installed nc is the default.
+The full path of the used binary. This can be nc or socat path.
+The default is /usr/bin/nc. 
+If you need /usr/bin/socat this parameter should be set.
 </longdesc>
-<shortdesc lang="en">Full path name of the used binary</shortdesc>
+<shortdesc lang="en">Full path of the used binary (nc or socat are allowed)</shortdesc>
 <content type="string" default="${OCF_RESKEY_nc_default}"/>
 </parameter>
 
