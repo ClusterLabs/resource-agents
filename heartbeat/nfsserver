@@ -234,12 +234,12 @@ set_exec_mode()
 	fi
 
 	if which systemctl > /dev/null 2>&1; then
-		if systemctl list-unit-files 'nfs-*' | grep nfs-server > /dev/null; then
+		if systemctl --no-legend list-unit-files 'nfs-*' | grep nfs-server > /dev/null; then
 
 			##
 			# Attempt systemd (with nfs-lock.service).
 			##
-			if systemctl list-unit-files 'nfs-*' | grep nfs-lock > /dev/null; then
+			if systemctl --no-legend list-unit-files 'nfs-*' | grep nfs-lock > /dev/null; then
 				EXEC_MODE=2
 				# when using systemd, the nfs-lock service file handles nfsv3 locking daemons for us.
 				return 0
@@ -248,7 +248,7 @@ set_exec_mode()
 			##
 			# Attempt systemd (with rpc-statd.service).
 			##
-			if systemctl list-unit-files 'rpc-*' | grep rpc-statd > /dev/null; then
+			if systemctl --no-legend list-unit-files 'rpc-*' | grep rpc-statd > /dev/null; then
 				EXEC_MODE=3
 				return 0
 			fi
