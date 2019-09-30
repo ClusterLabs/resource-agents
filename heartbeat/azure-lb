@@ -15,7 +15,6 @@
 # Initialization:
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
-
 # Defaults
 OCF_RESKEY_port_default="61000"
 OCF_RESKEY_nc_default="/usr/bin/nc"
