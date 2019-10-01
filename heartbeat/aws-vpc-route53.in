@@ -213,12 +213,31 @@ r53_monitor() {
 	if [ "$__OCF_ACTION" = "start" ] || ocf_is_probe ; then
 		#
 		cmd="aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']"
-		ocf_log debug "Route53 Agent Starting or probing - executing monitoring API call: $cmd"
-		ARECORD="$($cmd | grep RESOURCERECORDS | awk '{ print $2 }')"
+		ocf_log info "Route53 Agent Starting or probing - executing monitoring API call: $cmd"
+		CLIRES="$($cmd 2>&1)"
+		rc=$?
+		ocf_log debug "awscli returned code: $rc"
+		if [ $rc -ne 0 ]; then
+			CLIRES=$(echo $CLIRES | grep -v '^$')
+			ocf_log warn "Route53 API returned an error: $CLIRES"
+			ocf_log warn "Skipping cluster action due to API call error"
+			return $OCF_ERR_GENERIC
+		fi
+		ARECORD=$(echo $CLIRES | grep RESOURCERECORDS | awk '{ print $5 }')
+		#
+		if ocf_is_probe; then
+			#
+			# Prevent R53 record change during probe
+			#
+			if [[ $ARECORD =~ $IPREGEX ]] && [ "$ARECORD" != "$IPADDRESS" ]; then
+				ocf_log debug "Route53 DNS record $ARECORD found at probing, disregarding"
+				return $OCF_NOT_RUNNING
+			fi
+		fi
 	else
 		#
 		cmd="dig +retries=3 +time=5 +short $OCF_RESKEY_fullname 2>/dev/null"
-		ocf_log debug "executing monitoring command : $cmd"
+		ocf_log info "executing monitoring command : $cmd"
 		ARECORD="$($cmd)"
 		rc=$?
 		ocf_log debug "dig return code: $rc"
@@ -231,18 +250,19 @@ r53_monitor() {
 			rc=$?
 			ocf_log debug "awscli return code: $rc"
 			if [ $rc -ne 0 ]; then
-				ocf_log info "Route53 API returned an error: $CLIRES"
-				ocf_log info "Monitor skipping cluster action due to API call error"
+				CLIRES=$(echo $CLIRES | grep -v '^$')
+				ocf_log warn "Route53 API returned an error: $CLIRES"
+				ocf_log warn "Monitor skipping cluster action due to API call error"
 				return $OCF_SUCCESS
 			fi
 			ARECORD=$(echo $CLIRES | grep RESOURCERECORDS | awk '{ print $5 }')
 		fi
 		#
 	fi
-	ocf_log debug "Route53 DNS record pointing $OCF_RESKEY_fullname to IP address $ARECORD"
+	ocf_log info "Route53 DNS record pointing $OCF_RESKEY_fullname to IP address $ARECORD"
 	#
 	if [ "$ARECORD" == "$IPADDRESS" ]; then
-		ocf_log debug "Route53 DNS record $ARECORD found"
+		ocf_log info "Route53 DNS record $ARECORD found"
 		return $OCF_SUCCESS
 	elif [[ $ARECORD =~ $IPREGEX ]] && [ "$ARECORD" != "$IPADDRESS" ]; then
 		ocf_log info "Route53 DNS record points to a different host, setting DNS record on Route53 to this host"
@@ -296,13 +316,22 @@ _update_record() {
 	EOF
 	cmd="aws --profile $OCF_RESKEY_profile route53 change-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --change-batch file://$ROUTE53RECORD "
 	ocf_log debug "Executing command: $cmd"
-	CHANGEID=$($cmd | grep CHANGEINFO | awk -F'\t' '{ print $3 }' )
+	CLIRES="$($cmd 2>&1)"
+	rc=$?
+	ocf_log debug "awscli returned code: $rc"
+	if [ $rc -ne 0 ]; then
+		CLIRES=$(echo $CLIRES | grep -v '^$')
+		ocf_log warn "Route53 API returned an error: $CLIRES"
+		ocf_log warn "Skipping cluster action due to API call error"
+		return $OCF_ERR_GENERIC
+	fi
+	CHANGEID=$(echo $CLIRES | awk '{ print $12 }')
 	ocf_log debug "Change id: $CHANGEID"
 	rmtempfile $ROUTE53RECORD
 	CHANGEID=$(echo $CHANGEID | cut -d'/' -f 3 | cut -d'"' -f 1 )
 	ocf_log debug "Change id: $CHANGEID"
 	STATUS="PENDING"
-	MYSECONDS=8
+	MYSECONDS=20
 	while [ "$STATUS" = 'PENDING' ]; do
 		sleep $MYSECONDS
 		STATUS="$(aws --profile $OCF_RESKEY_profile route53 get-change --id $CHANGEID | grep CHANGEINFO | awk -F'\t' '{ print $4 }' |cut -d'"' -f 2 )"
@@ -327,7 +356,11 @@ r53_start() {
 	#
 	ocf_log info "Starting Route53 DNS update...."
 	IPADDRESS="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
-	_update_record "UPSERT" "$IPADDRESS"
+	r53_monitor
+	if [ $? != $OCF_SUCCESS ]; then
+		ocf_log info "Could not start agent - check configurations"
+		return $OCF_ERR_GENERIC
+	fi
 	return $OCF_SUCCESS
 }
 
