@@ -219,8 +219,8 @@ r53_monitor() {
 		ocf_log debug "awscli returned code: $rc"
 		if [ $rc -ne 0 ]; then
 			CLIRES=$(echo $CLIRES | grep -v '^$')
-			ocf_log info "Route53 API returned an error: $CLIRES"
-			ocf_log info "Skipping cluster action due to API call error"
+			ocf_log warn "Route53 API returned an error: $CLIRES"
+			ocf_log warn "Skipping cluster action due to API call error"
 			return $OCF_ERR_GENERIC
 		fi
 		ARECORD=$(echo $CLIRES | grep RESOURCERECORDS | awk '{ print $5 }')
@@ -251,8 +251,8 @@ r53_monitor() {
 			ocf_log debug "awscli return code: $rc"
 			if [ $rc -ne 0 ]; then
 				CLIRES=$(echo $CLIRES | grep -v '^$')
-				ocf_log info "Route53 API returned an error: $CLIRES"
-				ocf_log info "Monitor skipping cluster action due to API call error"
+				ocf_log warn "Route53 API returned an error: $CLIRES"
+				ocf_log warn "Monitor skipping cluster action due to API call error"
 				return $OCF_SUCCESS
 			fi
 			ARECORD=$(echo $CLIRES | grep RESOURCERECORDS | awk '{ print $5 }')
@@ -321,8 +321,8 @@ _update_record() {
 	ocf_log debug "awscli returned code: $rc"
 	if [ $rc -ne 0 ]; then
 		CLIRES=$(echo $CLIRES | grep -v '^$')
-		ocf_log info "Route53 API returned an error: $CLIRES"
-		ocf_log info "Skipping cluster action due to API call error"
+		ocf_log warn "Route53 API returned an error: $CLIRES"
+		ocf_log warn "Skipping cluster action due to API call error"
 		return $OCF_ERR_GENERIC
 	fi
 	CHANGEID=$(echo $CLIRES | awk '{ print $12 }')
