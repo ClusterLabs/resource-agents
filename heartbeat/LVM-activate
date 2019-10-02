@@ -489,6 +489,11 @@ lvm_validate() {
 	check_binary lvm
 	check_binary dmsetup
 
+	# This is necessary when using system ID to update lvm hints,
+	# or in older versions of lvm, this is necessary to update the
+	# lvmetad cache.
+	pvscan --cache
+
 	if ! vgs --foreign ${VG} >/dev/null 2>&1 ; then
 		# stop action exits successfully if the VG cannot be accessed...
 		if [ $__OCF_ACTION = "stop" ]; then
@@ -627,7 +632,6 @@ clvmd_activate() {
 systemid_activate() {
 	local cur_systemid
 
-	pvscan --cache
 	cur_systemid=$(vgs --foreign --noheadings -o systemid ${VG} | tr -d '[:blank:]')
 
 	# Put our system ID on the VG
