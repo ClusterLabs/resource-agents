@@ -105,7 +105,7 @@ correctly.
 <parameter name="stackdriver_logging" unique="1" required="0">
 <longdesc lang="en">Use stackdriver_logging output to global resource (yes, true, enabled)</longdesc>
 <shortdesc lang="en">Use stackdriver_logging</shortdesc>
-<content type="string" default="yes" />
+<content type="string" default="no" />
 </parameter>
 </parameters>
 <actions>
