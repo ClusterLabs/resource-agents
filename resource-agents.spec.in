@@ -98,6 +98,9 @@ Requires: /usr/sbin/lvm
 # nfsserver / netfs.sh
 Requires: /usr/sbin/rpc.nfsd /sbin/rpc.statd /usr/sbin/rpc.mountd
 
+# ocf-distro
+Requires: lsb-release
+
 # rgmanager
 %if %{with rgmanager}
 # ip.sh
