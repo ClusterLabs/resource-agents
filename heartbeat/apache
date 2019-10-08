@@ -190,10 +190,10 @@ validate_default_suse_config() {
 	then
 		[ -x "/usr/sbin/a2enmod" ] && ocf_run -q /usr/sbin/a2enmod status
 		# init script style, for crusty old SUSE
-		if [ -e "/etc/init.d/apache2" ]; then
+		if [ -x "/etc/init.d/apache2" ]; then
 			ocf_run -q /etc/init.d/apache2 configtest || return 1
 		# systemd style, for shiny new SUSE
-		elif [ -e "/usr/sbin/start_apache2" ]; then
+		elif [ -x "/usr/sbin/start_apache2" ]; then
 			ocf_run -q /usr/sbin/start_apache2 -t || return 1
 		fi
 	fi
