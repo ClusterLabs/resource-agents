@@ -49,12 +49,14 @@ OCF_RESKEY_lvname_default=""
 OCF_RESKEY_vg_access_mode_default=""
 OCF_RESKEY_activation_mode_default="exclusive"
 OCF_RESKEY_tag_default="pacemaker"
+OCF_RESKEY_partial_activation_default="false"
 
 : ${OCF_RESKEY_vgname=${OCF_RESKEY_vgname_default}}
 : ${OCF_RESKEY_lvname=${OCF_RESKEY_lvname_default}}
 : ${OCF_RESKEY_vg_access_mode=${OCF_RESKEY_vg_access_mode_default}}
 : ${OCF_RESKEY_activation_mode=${OCF_RESKEY_activation_mode_default}}
 : ${OCF_RESKEY_tag=${OCF_RESKEY_tag_default}}
+: ${OCF_RESKEY_partial_activation=${OCF_RESKEY_partial_activation_default}}
 
 # If LV is given, only activate this named LV; otherwise, activate all
 # LVs in the named VG.
@@ -162,6 +164,16 @@ The tag used for tagging activation mode.
 </longdesc>
 <shortdesc lang="en">The tag used for tagging activation mode</shortdesc>
 <content type="string" default="${OCF_RESKEY_tag_default}" />
+</parameter>
+
+<parameter name="partial_activation" unique="0" required="0">
+<longdesc lang="en">
+If set, the volume group will be activated partially even with some
+physical volumes missing. It helps to set to true when using mirrored
+logical volumes.
+</longdesc>
+<shortdesc lang="en">Activate VG partially when missing PVs</shortdesc>
+<content type="string" default="${OCF_RESKEY_partial_activation_default}" />
 </parameter>
 
 </parameters>
@@ -510,6 +522,25 @@ lvm_validate() {
 		exit $OCF_ERR_CONFIGURED
 	fi
 
+	# Inconsistency might be due to missing physical volumes, which doesn't
+	# automatically mean we should fail.  If partial_activation=true then
+	# we should let start try to handle it, or if no PVs are listed as
+	# "unknown device" then another node may have marked a device missing
+	# where we have access to all of them and can start without issue.
+	case $(vgs -o attr --noheadings $VG | tr -d ' ') in
+	???p??*)
+		if ! ocf_is_true "$OCF_RESKEY_partial_activation" ; then
+			# We are missing devices and cannot activate partially
+			ocf_exit_reason "Volume group [$VG] has devices missing.  Consider partial_activation=true to attempt to activate partially"
+			exit $OCF_ERR_GENERIC
+		else
+			# We are missing devices but are allowed to activate partially.
+			# Assume that caused the vgck failure and carry on
+			ocf_log warn "Volume group inconsistency detected with missing device(s) and partial_activation enabled.  Proceeding with requested action."
+		fi
+		;;
+	esac
+
 	# Get the access mode from VG metadata and check if it matches the input
 	# value. Skip to check "tagging" mode because there's no reliable way to
 	# automatically check if "tagging" mode is being used.
@@ -568,6 +599,10 @@ lvm_validate() {
 # To activate LV(s) with different "activation mode" parameters
 do_activate() {
 	local activate_opt=$1
+
+	if ocf_is_true "$OCF_RESKEY_partial_activation" ; then
+		activate_opt="${activate_opt} --partial"
+	fi
 
 	# Only activate the specific LV if it's given
 	if [ -n "$LV" ]; then
