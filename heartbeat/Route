@@ -187,6 +187,8 @@ END
 }
 
 route_start() {
+    route_validate || exit $?
+
     route_status
     status=$?
     if [ $status -eq $OCF_SUCCESS ]; then
@@ -313,8 +315,6 @@ for binary in ip grep; do
     check_binary $binary
 done
 
-route_validate || exit $?
-
 case $OCF_RESKEY_family in
     ip4) addr_family="-4" ;;
     ip6) addr_family="-6" ;;
@@ -334,7 +334,7 @@ status|monitor)	route_status;;
 reload)		ocf_log info "Reloading..."
 	        route_start
 		;;
-validate-all)	;;
+validate-all)	route_validate;;
 *)		route_usage
 		exit $OCF_ERR_UNIMPLEMENTED
 		;;
