@@ -16,18 +16,35 @@ OCF_RESKEY_address_default=""
 OCF_RESKEY_routing_table_default=""
 OCF_RESKEY_interface_default="eth0"
 OCF_RESKEY_profile_default="default"
+OCF_RESKEY_endpoint_default="vpc.aliyuncs.com"
+OCF_RESKEY_aliyuncli_default="aliyuncli"
+
 
 : ${OCF_RESKEY_address=${OCF_RESKEY_address_default}}
 : ${OCF_RESKEY_routing_table=${OCF_RESKEY_routing_table_default}}
 : ${OCF_RESKEY_interface=${OCF_RESKEY_interface_default}}
 : ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
+: ${OCF_RESKEY_endpoint=${OCF_RESKEY_endpoint_default}}
+: ${OCF_RESKEY_aliyuncli=${OCF_RESKEY_aliyuncli_default}}
 
 #######################################################################
 
-# aliyuncli doesnt work without HOME parameter
+# aliyun cli doesnt work without HOME parameter
 export HOME="/root"
 
 USAGE="usage: $0 {start|stop|status|meta-data}";
+
+if [[ "${OCF_RESKEY_aliyuncli##*/}" == 'aliyuncli' ]]; then
+	OUTPUT="text"
+	EXECUTING='{ print $3 }'
+	IFS_=" "
+	ENDPOINT=""
+elif [[ "${OCF_RESKEY_aliyuncli##*/}" == 'aliyun' ]]; then
+	OUTPUT="table cols=InstanceId,DestinationCidrBlock rows=RouteTables.RouteTable[].RouteEntrys.RouteEntry[]"
+	EXECUTING='{ gsub (" ", "", $0); print $1 }'
+	IFS_="|"
+	ENDPOINT="--endpoint $OCF_RESKEY_endpoint"
+fi
 ###############################################################################
 
 
@@ -37,27 +54,37 @@ USAGE="usage: $0 {start|stop|status|meta-data}";
 #
 ###############################################################################
 
+request_create_route_entry() {
+	cmd="${OCF_RESKEY_aliyuncli} vpc CreateRouteEntry --RouteTableId $OCF_RESKEY_routing_table --DestinationCidrBlock ${OCF_RESKEY_address}/32 --NextHopId $ECS_INSTANCE_ID --NextHopType Instance ${ENDPOINT}"
+	ocf_log debug "executing command: $cmd"
+	$cmd
+}
 
+request_delete_route_entry() {
+	cmd="${OCF_RESKEY_aliyuncli} vpc DeleteRouteEntry --RouteTableId $OCF_RESKEY_routing_table --DestinationCidrBlock ${OCF_RESKEY_address}/32 --NextHopId $ROUTE_TO_INSTANCE ${ENDPOINT}"
+	ocf_log debug "executing command: $cmd"
+	$cmd
+}
+
+request_describe_route_tables() {
+	cmd="${OCF_RESKEY_aliyuncli} vpc DescribeRouteTables --RouteTableId $OCF_RESKEY_routing_table --output ${OUTPUT} ${ENDPOINT}"
+	ocf_log debug "executing command: $cmd"
+	ROUTE_TO_INSTANCE=$($cmd |grep $OCF_RESKEY_address | awk -F "${IFS_}" "${EXECUTING}")
+}
 
 ip_get_and_configure() {
 	ocf_log debug "function: ip_get_and_configure"
 
-	ROUTE_TO_INSTANCE="$($cmd |grep $OCF_RESKEY_address | awk '{ print $3 }')"
-
+	request_describe_route_tables
 	if [ "$ECS_INSTANCE_ID" != "$ROUTE_TO_INSTANCE" ]; then
 		if [ -n "$ROUTE_TO_INSTANCE" ]; then
 			ip_drop
 		fi
-
-		cmd="aliyuncli vpc CreateRouteEntry --RouteTableId $OCF_RESKEY_routing_table --DestinationCidrBlock ${OCF_RESKEY_address}/32 --NextHopId $ECS_INSTANCE_ID --NextHopType Instance --output text"
-		ocf_log debug "executing command: $cmd"
-		$cmd
+		request_create_route_entry
 		rc=$?
 		while [ $rc -ne 0 ]; do
 			sleep 1
-			cmd="aliyuncli vpc CreateRouteEntry --RouteTableId $OCF_RESKEY_routing_table --DestinationCidrBlock ${OCF_RESKEY_address}/32 --NextHopId $ECS_INSTANCE_ID --NextHopType Instance --output text"
-			ocf_log debug "executing command: $cmd"
-			$cmd
+			request_create_route_entry
 			rc=$?
 		done
 		wait_for_started
@@ -87,10 +114,7 @@ ip_drop() {
 		ocf_log err "command failed, rc $rc"
 		return $OCF_ERR_GENERIC
 	fi
-
-	cmd="aliyuncli vpc DeleteRouteEntry --RouteTableId $OCF_RESKEY_routing_table --DestinationCidrBlock ${OCF_RESKEY_address}/32 --NextHopId $ROUTE_TO_INSTANCE --output text"
-	ocf_log debug "executing command: $cmd"
-	$cmd
+	request_delete_route_entry
 	if [ $? -ne 0 ]; then
 		ocf_log err "command failed, rc: $rc"
 		return $OCF_ERR_GENERIC
@@ -103,26 +127,18 @@ ip_drop() {
 }
 
 wait_for_started() {
-	cmd="aliyuncli vpc DescribeRouteTables --RouteTableId $OCF_RESKEY_routing_table --output text"
-	ocf_log debug "executing command: $cmd"
-	ROUTE_TO_INSTANCE="$($cmd | grep $OCF_RESKEY_address | awk '{ print $3 }')"
-
+	request_describe_route_tables
 	while [ "$ECS_INSTANCE_ID" != "$ROUTE_TO_INSTANCE" ]; do
 		sleep 3
-		cmd="aliyuncli vpc DescribeRouteTables --RouteTableId $OCF_RESKEY_routing_table --output text"
-		ocf_log debug "executing command: $cmd"
-		ROUTE_TO_INSTANCE="$($cmd | grep $OCF_RESKEY_address | awk '{ print $3 }')"
+		request_describe_route_tables
 	done
 }
 
 wait_for_deleted() {
-	ROUTE_TO_INSTANCE="$($cmd |grep $OCF_RESKEY_address | awk '{ print $3 }')"
-
+	request_describe_route_tables
 	 while [ ! -z "$ROUTE_TO_INSTANCE" ]; do
 		sleep 1
-		cmd="aliyuncli vpc DescribeRouteTables --RouteTableId $OCF_RESKEY_routing_table --output text"
-		ocf_log debug "executing command: $cmd"
-		ROUTE_TO_INSTANCE="$($cmd |grep $OCF_RESKEY_address | awk '{ print $3 }')"
+		request_describe_route_tables
 	 done
 }
 
@@ -137,7 +153,16 @@ Resource Agent to move IP addresses within a VPC of the Aliyun Webservices ECS
 by changing an entry in an specific routing table
 </longdesc>
 <shortdesc lang="en">Move IP within a VPC of the Aliyun ECS</shortdesc>
+
 <parameters>
+<parameter name="aliyuncli" required="0">
+<longdesc lang="en">
+Path to command line tools for Aliyun
+</longdesc>
+<shortdesc lang="en">Path to Aliyun CLI tools</shortdesc>
+<content type="string" default="${OCF_RESKEY_aliyuncli_default}" />
+</parameter>
+
 <parameter name="address" required="1">
 <longdesc lang="en">
 VPC private IP address
@@ -145,6 +170,7 @@ VPC private IP address
 <shortdesc lang="en">vpc ip</shortdesc>
 <content type="string" default="${OCF_RESKEY_address_default}" />
 </parameter>
+
 <parameter name="routing_table" required="1">
 <longdesc lang="en">
 Name of the routing table, where the route for the IP address should be changed, i.e. vtb-...
@@ -152,6 +178,7 @@ Name of the routing table, where the route for the IP address should be changed,
 <shortdesc lang="en">routing table name</shortdesc>
 <content type="string" default="${OCF_RESKEY_routing_table_default}" />
 </parameter>
+
 <parameter name="interface" required="1">
 <longdesc lang="en">
 Name of the network interface, i.e. eth0
@@ -159,16 +186,25 @@ Name of the network interface, i.e. eth0
 <shortdesc lang="en">network interface name</shortdesc>
 <content type="string" default="${OCF_RESKEY_interface_default}" />
 </parameter>
+
+<parameter name="endpoint" required="0">
+<longdesc lang="en">
+An endpoint is the service entry of an Alibaba Cloud service, i.e. vpc.cn-beijing.aliyuncs.com
+</longdesc>
+<shortdesc lang="en">service endpoint</shortdesc>
+<content type="string" default="${OCF_RESKEY_endpoint_default}" />
+</parameter>
+
 <parameter name="profile" required="0">
 <longdesc lang="en">
-Valid Aliyun CLI profile name (see 'aliyuncli configure').
-
-See https://www.alibabacloud.com/help/doc-detail/43039.htm?spm=a2c63.p38356.b99.16.38a914abRZtOU3 for more information about aliyuncli.
+Valid Aliyun CLI profile name (see 'aliyun cli configure').
+See https://www.alibabacloud.com/help/zh/product/29991.htm for more information about aliyun cli.
 </longdesc>
 <shortdesc lang="en">profile name</shortdesc>
 <content type="string" default="${OCF_RESKEY_profile_default}" />
 </parameter>
 </parameters>
+
 <actions>
 <action name="start" timeout="180s" />
 <action name="stop" timeout="180s" />
@@ -263,10 +299,7 @@ ecs_ip_stop() {
 
 ecs_ip_monitor() {
 	ocf_log debug "function: ecsip_monitor: check routing table"
-	cmd="aliyuncli vpc DescribeRouteTables --RouteTableId $OCF_RESKEY_routing_table --output text"
-	ocf_log debug "executing command: $cmd"
-
-	ROUTE_TO_INSTANCE="$($cmd |grep $OCF_RESKEY_address | awk '{ print $3 }')"
+	request_describe_route_tables
 
 	if [ "$ECS_INSTANCE_ID" != "$ROUTE_TO_INSTANCE" ]; then
 		ocf_log debug "not routed to this instance ($ECS_INSTANCE_ID) but to instance $ROUTE_TO_INSTANCE"
