@@ -1,3 +1,39 @@
+* Wed Oct 16 2019 resource-agents contributors
+- release candidate 4.4.0 rc1
+- All RA: Use _default variables for all parameters
+- Build: improvements and fixes to make "make rpm" work on all archs in CI
+- CTDB: add support for v4.9+
+- Delay: protect grep regex argument from shell globbing
+- Filesystem: don't call readlink on path if it doesnt exist
+- Filesystem: fix to avoid killing all root user processeswhen bind mounting a directory on /
+- Filesystem: improve "/" check for bind mounts
+- IPaddr2: fix to work properly with unsanitized IPv6 addresses
+- IPsrcaddr: add destination and table parameters
+- LVM-activate: add partial-activation support
+- LVM-activate: fix monitor might hang due to lvm_validate, which was added by accident
+- LVM-activate: move pvscan --cache to validate
+- Route: dont fence node when parameters arent set
+- apache: check if SUSE binaries are executable
+- apache: fix to also detect mod_status.so when it is a symlink
+- apache: improve PidFile pattern to support multiple instances
+- apache: load status module on SUSE distros
+- aws-vpc-route53: improved API error handling and fix to avoid race-condition during probe
+- aws-vpc-route53: replace ec2metada with curl to fetch the IP address directly from EC2 metadata
+- azure-lb: add support for using socat instead of nc
+- docker: improve the check for the docker daemon being up
+- exportfs: doc clarification for clientspec format
+- gcp-pd-move: add stackdriver_logging parameter
+- iSCSILogicalUnit: only create acls if it doesnt exist
+- mysql/mariadb/galera: use runuser/su to avoid using SELinux DAC_OVERRIDE
+- mysql: add support for SSL replication
+- nfsserver: performance improvements for systemd enabled systems
+- ora-common: fix to fail when sid parameter is invalid
+- podman: generate drop-in dependencies for podman containers
+- podman: only use exec to manage container's lifecycle
+- rabbitmq-cluster: also restore users/perms/policies when starting in single node mode
+- redis: fix master_is_active() erroneously reporting there is master when there is not (fixes issue #1399)
+- redis: use optimal password passing method and warning filtering workaround
+
 * Fri Jun 21 2019 resource-agents contributors
 - stable release 4.3.0
 - Filesystem: remove removed notify-action from metadata
