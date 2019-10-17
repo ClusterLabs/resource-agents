@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+#
+#
+# OCF resource agent to register service in Consul catalog.
+#
+# Copyright (c) 2018 Mathieu Grzybek
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+CONSUL_API="http://localhost:8500/v1/agent"
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="consul-catalog">
+<version>1.0</version>
+
+<longdesc lang="en">
+OCF resource agent to register service in Consul catalog.
+</longdesc>
+<shortdesc lang="en">Registers and deregisters services in Consul catalog</shortdesc>
+
+<parameters>
+<parameter name="pidfile" unique="0">
+<longdesc lang="en">PID file</longdesc>
+<shortdesc lang="en">PID file</shortdesc>
+<content type="string" default="$OCF_RESKEY_pidfile" />
+</parameter>
+<parameter name="service_json_file" unique="0">
+<longdesc lang="en">Full path of JSON service file</longdesc>
+<shortdesc lang="en">Service JSON file</shortdesc>
+<content type="string" default="0s" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start"   timeout="20s" />
+<action name="stop"    timeout="20s" />
+<action name="monitor" timeout="20s" interval="60s"/>
+<action name="meta-data"  timeout="5s" />
+<action name="validate-all"  timeout="20s" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+ConsulCatalog_start() {
+	echo $OCF_RESKEY_clone > $OCF_RESKEY_pidfile
+	
+	result=$(curl -s --request PUT --data @$OCF_RESKEY_service_json_file $CONSUL_API/service/register)
+	if [ $? -eq 0 ] ; then
+		exit $OCF_SUCCESS
+	else
+		ocf_log warn "failed to register service: $result"
+	fi
+	
+	rm -f $OCF_RESKEY_pidfile
+	exit $OCF_ERR_GENERIC
+}
+
+ConsulCatalog_stop() {
+	local service_name
+
+	# Get service name from JSON file
+	service_name=$(cat $OCF_RESKEY_service_json_file | sed 's:Name:name:' | jq '.name' | sed 's:"::g')
+
+	result=$(curl -v --request PUT $CONSUL_API/service/deregister/$service_name 2>&1|grep "200 OK")
+	if [ $? -eq 0 ] ; then
+		exit $OCF_SUCCESS
+	else
+		ocf_log warn "failed to register service: $result"
+		return $OCF_ERR_GENERIC
+	fi
+
+	rm -f $OCF_RESKEY_pidfile
+	exit $OCF_SUCCESS
+}
+
+ConsulCatalog_monitor() {
+	local expression
+	local service_name
+	local result
+
+	if [ -f "$OCF_RESKEY_pidfile" ] ; then
+		# Get service name from JSON file
+		service_name=$(cat $OCF_RESKEY_service_json_file | sed 's:Name:name:' | jq '.name')
+		
+		# A match returns at least 3 lines
+		expression=".[$service_name]"
+		result=$(curl -s $CONSUL_API/services | jq $expression | wc -l)
+		
+		if [ $result -gt 3 ] ; then
+			exit $OCF_SUCCESS
+		fi
+	fi
+
+	exit $OCF_NOT_RUNNING
+}
+
+ConsulCatalog_validate() {
+	check_binary "curl"
+	if [ $? -ne 0 ] ; then
+		return $OCF_NOT_INSTALLED
+	fi
+
+	check_binary "jq"
+	if [ $? -ne 0 ] ; then
+		return $OCF_NOT_INSTALLED
+	fi
+
+	check_binary "sed"
+	if [ $? -ne 0 ] ; then
+		return $OCF_NOT_INSTALLED
+	fi
+	
+	check_binary "wc"
+	if [ $? -ne 0 ] ; then
+		return $OCF_NOT_INSTALLED
+	fi
+
+	test -z $OCF_RESKEY_service_json_file
+	if [ $? -eq 0 ] ; then
+		ocf_log warn "service_json_file parameter: $OCF_RESKEY_service_json_file is empty"
+		return $OCF_NOT_INSTALLED
+	fi
+	
+	test -f $OCF_RESKEY_service_json_file
+	if [ $? -ne 0 ] ; then
+		ocf_log warn "service_json_file parameter: $OCF_RESKEY_service_json_file not found $result"
+		return $OCF_NOT_INSTALLED
+	fi
+	
+	if ! cat $OCF_RESKEY_service_json_file | jq ; then
+		ocf_log warn "service_json_file parameter: $OCF_RESKEY_service_json_file is not a valid JSON file"
+		return $OCF_ERR_GENERIC
+	fi
+	
+	exit $OCF_SUCCESS
+}
+
+ConsulCatalog_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+: ${OCF_RESKEY_pidfile:="$HA_RSCTMP/ConsulCatalog-${OCF_RESOURCE_HOSTNAME}-$(echo $OCF_RESKEY_service_json_file | tr '/' '_')"}
+: ${OCF_RESKEY_clone:="0"}
+
+case $__OCF_ACTION in
+meta-data)	meta_data
+		exit $OCF_SUCCESS
+		;;
+start)		ConsulCatalog_start
+		;;
+stop)		ConsulCatalog_stop
+		;;
+monitor)	ConsulCatalog_monitor
+		;;
+validate-all)	ConsulCatalog_validate
+		;;
+usage|help)	ConsulCatalog_usage
+		exit $OCF_SUCCESS
+		;;
+*)		ConsulCatalog_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+
+exit $?
+
