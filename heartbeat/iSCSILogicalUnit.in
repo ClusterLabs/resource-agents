@@ -404,14 +404,22 @@ iSCSILogicalUnit_start() {
 	lio-t)
 		ocf_take_lock $TARGETLOCKFILE
 		ocf_release_lock_on_exit $TARGETLOCKFILE
-		iblock_attrib_path="/sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE}/attrib"
 		# For lio, we first have to create a target device, then
 		# add it to the Target Portal Group as an LU.
-		ocf_run targetcli /backstores/block create name=${OCF_RESOURCE_INSTANCE} dev=${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
-		if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
-			echo ${OCF_RESKEY_scsi_sn} > /sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE}/wwn/vpd_unit_serial
+		local backstore_type
+		if [ -b "${OCF_RESKEY_path}" ]; then
+			ocf_run targetcli /backstores/block create name=${OCF_RESOURCE_INSTANCE} dev=${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
+			backstore_type=block
+		else
+			ocf_run targetcli /backstores/fileio create name=${OCF_RESOURCE_INSTANCE} file_or_dev=${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
+			backstore_type=fileio
 		fi
-		ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns create /backstores/block/${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+		iblock_path=`ls -1d /sys/kernel/config/target/core/*/${OCF_RESOURCE_INSTANCE}`
+		iblock_attrib_path="$iblock_path/attrib"
+		if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
+			echo ${OCF_RESKEY_scsi_sn} > $iblock_path/wwn/vpd_unit_serial
+		fi
+		ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns create /backstores/$backstore_type/${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
 
 		if $(ip a | grep -q inet6); then
 			ocf_run -q targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/portals delete 0.0.0.0 3260
@@ -442,10 +450,6 @@ iSCSILogicalUnit_start() {
 }
 
 iSCSILogicalUnit_stop() {
-	iSCSILogicalUnit_monitor
-	if [ $? -eq $OCF_NOT_RUNNING ]; then
-		return $OCF_SUCCESS
-	fi
 
 	case $OCF_RESKEY_implementation in
 
@@ -493,6 +497,14 @@ iSCSILogicalUnit_stop() {
 		ocf_release_lock_on_exit $TARGETLOCKFILE
 		# "targetcli delete" will fail if the LUN is already
 		# gone. Log a warning and still push ahead.
+		
+		local backstore_type
+		if targetcli /backstores/fileio/${OCF_RESOURCE_INSTANCE} status >/dev/null 2>&1 ; then
+			backstore_type=fileio
+		else
+			backstore_type=block
+		fi
+		
 		ocf_run -warn targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns delete ${OCF_RESKEY_lun}
 		if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
 			for initiator in ${OCF_RESKEY_allowed_initiators}; do
@@ -506,7 +518,7 @@ iSCSILogicalUnit_stop() {
 		# delete the backstore, then something is seriously
 		# wrong and we need to fail the stop operation
 		# (potentially causing fencing)
-		ocf_run targetcli /backstores/block delete ${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
+		ocf_run targetcli /backstores/$backstore_type delete ${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
 		;;
 	esac
 
@@ -561,7 +573,7 @@ iSCSILogicalUnit_monitor() {
 		[ -e ${configfs_path} ] && [ `cat ${configfs_path}` = "${OCF_RESKEY_path}" ] && return $OCF_SUCCESS
 
 		# if we aren't activated, is a block device still left over?
-		block_configfs_path="/sys/kernel/config/target/core/iblock_*/${OCF_RESOURCE_INSTANCE}/udev_path"
+		block_configfs_path="/sys/kernel/config/target/core/{iblock,fileio}_*/${OCF_RESOURCE_INSTANCE}/udev_path"
 		[ -e ${block_configfs_path} ] && ocf_log warn "existing block without an active lun: ${block_configfs_path}"
 		[ -e ${block_configfs_path} ] && return $OCF_ERR_GENERIC
 		;;
