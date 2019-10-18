@@ -135,10 +135,10 @@ Host_Total_Memory() {
 
     xentool=$(which xl 2> /dev/null || which xm 2> /dev/null)
 
-    if [ -x $xentool ]; then
-        $xentool info | awk '/total_memory/{printf("%d\n",$3);exit(0)}'
+    if [ -x "$xentool" ]; then
+        "$xentool" info | awk '/total_memory/{printf("%d\n",$3);exit(0)}'
     else
-        ocf_log warn "Can only set hv_memory for Xen hypervisor"
+        ocf_log debug "Can only set hv_memory for Xen hypervisor"
         echo "0"
     fi
 }
