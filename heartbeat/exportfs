@@ -52,7 +52,7 @@ Note: it follows the format defined in "man exportfs". For example, in
 the use case to export the directory(-ies) for multiple subnets, please
 do config a dedicated primitive for each subnet CIDR ip address, 
 and do not attempt to use multiple CIDR ip addresses in a space
-seperated list, like in /etc/exports.
+separated list, like in /etc/exports.
 </longdesc>
 <shortdesc lang="en">
 Client ACL.
