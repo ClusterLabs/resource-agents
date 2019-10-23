@@ -239,8 +239,8 @@ mysql_common_start()
     --datadir=$OCF_RESKEY_datadir \
     --log-error=$OCF_RESKEY_log \
     $OCF_RESKEY_additional_parameters \
-    $mysql_extra_params >/dev/null 2>&1 &
-    pid=$!"
+    $mysql_extra_params >/dev/null 2>&1" &
+    pid=$!
 
     # Spin waiting for the server to come up.
     # Let the CRM/LRM time us out if required.
