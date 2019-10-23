@@ -1,3 +1,7 @@
+* Wed Oct 23 2019 resource-agents contributors
+- stable release 4.4.0
+- NodeUtilization: fix Xen detection and improve logging
+
 * Wed Oct 16 2019 resource-agents contributors
 - release candidate 4.4.0 rc1
 - All RA: Use _default variables for all parameters
