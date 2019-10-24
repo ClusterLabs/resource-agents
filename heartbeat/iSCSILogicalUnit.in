@@ -43,6 +43,9 @@ elif have_binary lio_node; then
 	OCF_RESKEY_implementation_default="lio"
 elif have_binary targetcli; then
 	OCF_RESKEY_implementation_default="lio-t"
+	# guess "block", validate may fix that to be iblock
+	# alternatively, we could make this a parameter as well
+	BACKSTORES_BLOCK="/backstores/block"
 fi
 : ${OCF_RESKEY_implementation=${OCF_RESKEY_implementation_default}}
 
@@ -407,11 +410,11 @@ iSCSILogicalUnit_start() {
 		iblock_attrib_path="/sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE}/attrib"
 		# For lio, we first have to create a target device, then
 		# add it to the Target Portal Group as an LU.
-		ocf_run targetcli /backstores/block create name=${OCF_RESOURCE_INSTANCE} dev=${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
+		ocf_run targetcli $BACKSTORES_BLOCK create name=${OCF_RESOURCE_INSTANCE} dev=${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
 		if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
 			echo ${OCF_RESKEY_scsi_sn} > /sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE}/wwn/vpd_unit_serial
 		fi
-		ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns create /backstores/block/${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+		ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns create $BACKSTORES_BLOCK/${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
 
 		if $(ip a | grep -q inet6); then
 			ocf_run -q targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/portals delete 0.0.0.0 3260
@@ -506,7 +509,7 @@ iSCSILogicalUnit_stop() {
 		# delete the backstore, then something is seriously
 		# wrong and we need to fail the stop operation
 		# (potentially causing fencing)
-		ocf_run targetcli /backstores/block delete ${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
+		ocf_run targetcli $BACKSTORES_BLOCK delete ${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
 		;;
 	esac
 
@@ -688,6 +691,15 @@ iSCSILogicalUnit_validate() {
 		;;
 	lio-t)
 		check_binary targetcli
+
+		if targetcli ls /backstores/block &> /dev/null ; then
+			BACKSTORES_BLOCK="/backstores/block"
+		elif targetcli ls /backstores/iblock &> /dev/null ; then
+			BACKSTORES_BLOCK="/backstores/iblock"
+		else
+			ocf_log err "targetcli: neither /backstores/block nor /backstores/iblock appears to be valid."
+			exit $OCF_ERR_INSTALLED
+		fi
 		;;
 	esac
 
