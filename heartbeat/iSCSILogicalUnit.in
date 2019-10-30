@@ -64,6 +64,10 @@ OCF_RESKEY_allowed_initiators_default=""
 # set 0 as a default value for lio iblock device number
 OCF_RESKEY_lio_iblock_default=0
 OCF_RESKEY_lio_iblock=${OCF_RESKEY_lio_iblock:-$OCF_RESKEY_lio_iblock_default}
+# Set LIO-T backend default as 'block'
+OCF_RESKEY_liot_bstype_default="block"
+OCF_RESKEY_liot_bstype="${OCF_RESKEY_liot_bstype}"
+: ${OCF_RESKEY_liot_bstype=${OCF_RESKEY_liot_bstype_default}}
 
 ## tgt specifics
 # tgt has "backing store type" and "backing store open flags",
@@ -71,6 +75,9 @@ OCF_RESKEY_lio_iblock=${OCF_RESKEY_lio_iblock:-$OCF_RESKEY_lio_iblock_default}
 #
 # suggestions how to make this generic accross all supported implementations?
 # how should they be named, how should they be mapped to implementation specifics?
+# # Conversation: Due to the phase out of most implementations other than lio-t
+# # I have decided to use specific implementation of tgt_bstype like key for
+# # lio-t.
 #
 # OCF_RESKEY_tgt_bstype
 # OCF_RESKEY_tgt_bsoflags
@@ -268,6 +275,18 @@ in /sys/kernel/config/target/core/.
 <content type="integer" default="${OCF_RESKEY_lio_iblock_default}"/>
 </parameter>
 
+<parameter name="liot_bstype" required="0" unique="0">
+<longdesc lang="en">
+LIO-T specific backing store type. If you want to use aio,
+set this to 'block'. If you want to use async IO, set this to 'fileio'.
+Async I/O works also with block devices, however - you need to understand
+the consequences. See targetcli(8). If using file backend, you need to create this file in
+advance.
+</longdesc>
+<shortdesc lang="en">LIO-T backing store type</shortdesc>
+<content type="string" default="${OCF_RESKEY_liot_bstype_default}"/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -407,15 +426,26 @@ iSCSILogicalUnit_start() {
 		iblock_attrib_path="/sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE}/attrib"
 		# For lio, we first have to create a target device, then
 		# add it to the Target Portal Group as an LU.
-		ocf_run targetcli /backstores/block create name=${OCF_RESOURCE_INSTANCE} dev=${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
+		# Handle differently 'block' and 'fileio'
+		if [ ${OCF_RESKEY_liot_bstype} == "block" ] 
+		then
+			ocf_run targetcli /backstores/${OCF_RESKEY_liot_bstype} create name=${OCF_RESOURCE_INSTANCE} dev=${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
+		elif [ ${OCF_RESKEY_liot_bstype} == "fileio" ] 
+		then
+			ocf_run targetcli /backstores/${OCF_RESKEY_liot_bstype} create ${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
+		fi
 		if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
 			echo ${OCF_RESKEY_scsi_sn} > /sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE}/wwn/vpd_unit_serial
 		fi
-		ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns create /backstores/block/${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
+		ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns create /backstores/${OCF_RESKEY_liot_bstype}/${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
 
 		if $(ip a | grep -q inet6); then
-			ocf_run -q targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/portals delete 0.0.0.0 3260
-			ocf_run -q targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/portals create ::0
+			# Solving the 0.0.0.0 conversion to IPv6 when using specific portal addresses
+			if $(ocf_run -q targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/portals | grep -q 0.0.0.0)
+			then
+				ocf_run -q targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/portals delete 0.0.0.0 3260
+				ocf_run -q targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/portals create ::0
+			fi
 		fi
 
 		if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
@@ -506,7 +536,7 @@ iSCSILogicalUnit_stop() {
 		# delete the backstore, then something is seriously
 		# wrong and we need to fail the stop operation
 		# (potentially causing fencing)
-		ocf_run targetcli /backstores/block delete ${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
+		ocf_run targetcli /backstores/${OCF_RESKEY_liot_bstype} delete ${OCF_RESOURCE_INSTANCE} || exit $OCF_ERR_GENERIC
 		;;
 	esac
 
@@ -645,13 +675,13 @@ iSCSILogicalUnit_validate() {
 	iet)
 		# IET does not support setting the vendor and product ID
 		# (it always uses "IET" and "VIRTUAL-DISK")
-		unsupported_params="vendor_id product_id allowed_initiators lio_iblock tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type emulate_tpu emulate_3pc emulate_caw"
+		unsupported_params="vendor_id product_id allowed_initiators lio_iblock tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type emulate_tpu emulate_3pc emulate_caw liot_bstype"
 		;;
 	tgt)
-		unsupported_params="allowed_initiators lio_iblock emulate_tpu emulate_3pc emulate_caw"
+		unsupported_params="allowed_initiators lio_iblock emulate_tpu emulate_3pc emulate_caw liot_bstype"
 		;;
 	lio)
-		unsupported_params="scsi_id vendor_id product_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type emulate_tpu emulate_3pc emulate_caw"
+		unsupported_params="scsi_id vendor_id product_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type emulate_tpu emulate_3pc emulate_caw liot_bstype"
 		;;
 	lio-t)
 		unsupported_params="scsi_id vendor_id product_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type lio_iblock"
