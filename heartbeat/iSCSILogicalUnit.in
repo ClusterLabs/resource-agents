@@ -428,7 +428,7 @@ iSCSILogicalUnit_start() {
 		# add it to the Target Portal Group as an LU.
 		# Handle differently 'block' and 'fileio'
 		if [ ${OCF_RESKEY_liot_bstype} == "block" ] 
-                then
+		then
 			ocf_run targetcli /backstores/${OCF_RESKEY_liot_bstype} create name=${OCF_RESOURCE_INSTANCE} dev=${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
 		elif [ ${OCF_RESKEY_liot_bstype} == "fileio" ] 
 		then
