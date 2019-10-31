@@ -69,7 +69,7 @@ SYSTEM_ID=""
 OUR_TAG=${OCF_RESKEY_tag:-pacemaker}
 
 # Is the VG distributed across all nodes in the cluster or only on the active node?
-VG_distributed_check=${OCF_RESKEY_vg_distributed_check}
+VG_distributed_check=${OCF_RESKEY_vg_distributed_check:-false}
 
 #######################################################################
 
@@ -841,7 +841,7 @@ stop)
 	lvm_stop
 	;;
 monitor)
-	if [ ${VG_distributed_check} = 1 ]; then
+	if [ "${VG_distributed_check}" = "true" ]; then
 		lvm_validate
 	fi
 	lvm_status
