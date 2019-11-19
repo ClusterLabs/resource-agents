@@ -150,7 +150,11 @@ is the resource name, truncated to 24 bytes.
 <parameter name="scsi_sn" required="0" unique="1">
 <longdesc lang="en">
 The SCSI serial number to be configured for this Logical Unit.
-The default is a hash of the resource name, truncated to 8 bytes.
+The default is a hash of the resource name, truncated to 8 bytes,
+meaning 26 hex characters.
+If you are using XenServer with multipath as iSCSI client, you 
+MUST make sure this value is set, or else XenServer multipath will
+not be able to access the LUN
 </longdesc>
 <shortdesc lang="en">SCSI serial number</shortdesc>
 <content type="string" default="${OCF_RESKEY_scsi_sn_default}"/>
@@ -429,10 +433,10 @@ iSCSILogicalUnit_start() {
 		# Handle differently 'block' and 'fileio'
 		if [ ${OCF_RESKEY_liot_bstype} == "block" ] 
 		then
-			ocf_run targetcli /backstores/${OCF_RESKEY_liot_bstype} create name=${OCF_RESOURCE_INSTANCE} dev=${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
+			ocf_run targetcli /backstores/${OCF_RESKEY_liot_bstype} create name=${OCF_RESOURCE_INSTANCE} dev=${OCF_RESKEY_path} $(test -n "$OCF_RESKEY_scsi_sn" && echo "wwn=${OCF_RESKEY_scsi_sn}") || exit $OCF_ERR_GENERIC
 		elif [ ${OCF_RESKEY_liot_bstype} == "fileio" ] 
 		then
-			ocf_run targetcli /backstores/${OCF_RESKEY_liot_bstype} create ${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
+			ocf_run targetcli /backstores/${OCF_RESKEY_liot_bstype} create ${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_path} $(test -n "$OCF_RESKEY_scsi_sn" && echo "wwn=${OCF_RESKEY_scsi_sn}") || exit $OCF_ERR_GENERIC
 		fi
 		if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
 			echo ${OCF_RESKEY_scsi_sn} > /sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE}/wwn/vpd_unit_serial
