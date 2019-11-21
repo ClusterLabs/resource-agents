@@ -82,7 +82,7 @@ The directory or directories to export.
 <content type="string" />
 </parameter>
 
-<parameter name="fsid" unique="1" required="1">
+<parameter name="fsid" unique="0" required="1">
 <longdesc lang="en">
 The fsid option to pass to exportfs. This can be a unique positive
 integer, a UUID (assuredly sans comma characters), or the special string

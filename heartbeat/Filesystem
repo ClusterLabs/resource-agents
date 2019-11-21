@@ -455,6 +455,14 @@ Filesystem_start()
 
 	if [ $blockdevice = "yes" ]; then
 		if [ "$DEVICE" != "/dev/null" -a ! -b "$DEVICE" ] ; then
+			# In the case a fresh filesystem is just created
+			# from another node on the shared storage, and
+			# is not visible yet. Then try partprobe to
+			# refresh /dev/disk/by-uuid/* up to date.
+			have_binary partprobe && partprobe >/dev/null 2>&1
+		fi
+
+		if [ "$DEVICE" != "/dev/null" -a ! -b "$DEVICE" ] ; then
 			ocf_exit_reason "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
 			exit $OCF_ERR_INSTALLED
 		fi

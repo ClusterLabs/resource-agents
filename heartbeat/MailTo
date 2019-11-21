@@ -67,7 +67,7 @@ a takeover occurs.
 The email address of sysadmin.
 </longdesc>
 <shortdesc lang="en">Email address</shortdesc>
-<content type="string" default="$[OCF_RESKEY_email_default]" />
+<content type="string" default="${OCF_RESKEY_email_default}" />
 </parameter>
 
 <parameter name="subject" unique="0">
