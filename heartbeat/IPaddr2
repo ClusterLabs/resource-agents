@@ -88,6 +88,7 @@ OCF_RESKEY_arp_sender_default=""
 OCF_RESKEY_send_arp_opts_default=""
 OCF_RESKEY_flush_routes_default="false"
 OCF_RESKEY_run_arping_default=false
+OCF_RESKEY_noprefixroute_default="false"
 OCF_RESKEY_preferred_lft_default="forever"
 OCF_RESKEY_network_namespace_default=""
 
@@ -109,6 +110,7 @@ OCF_RESKEY_network_namespace_default=""
 : ${OCF_RESKEY_send_arp_opts=${OCF_RESKEY_send_arp_opts_default}}
 : ${OCF_RESKEY_flush_routes=${OCF_RESKEY_flush_routes_default}}
 : ${OCF_RESKEY_run_arping=${OCF_RESKEY_run_arping_default}}
+: ${OCF_RESKEY_noprefixroute=${OCF_RESKEY_noprefixroute_default}}
 : ${OCF_RESKEY_preferred_lft=${OCF_RESKEY_preferred_lft_default}}
 : ${OCF_RESKEY_network_namespace=${OCF_RESKEY_network_namespace_default}}
 
@@ -377,6 +379,14 @@ Whether or not to run arping for IPv4 collision detection check.
 <content type="string" default="${OCF_RESKEY_run_arping_default}"/>
 </parameter>
 
+<parameter name="noprefixroute">
+<longdesc lang="en">
+Use noprefixroute flag (see 'man ip-address').
+</longdesc>
+<shortdesc lang="en">Use noprefixroute flag</shortdesc>
+<content type="string" default="${OCF_RESKEY_noprefixroute_default}"/>
+</parameter>
+
 <parameter name="preferred_lft">
 <longdesc lang="en">
 For IPv6, set the preferred lifetime of the IP address.
@@ -397,8 +407,8 @@ the namespace.
 <shortdesc lang="en">Network namespace to use</shortdesc>
 <content type="string" default="${OCF_RESKEY_network_namespace_default}"/>
 </parameter>
-
 </parameters>
+
 <actions>
 <action name="start"   timeout="20s" />
 <action name="stop"    timeout="20s" />
@@ -638,6 +648,11 @@ add_interface () {
 	if [ "$broadcast" != "none" ]; then
 		cmd="$IP2UTIL -f $FAMILY addr add $ipaddr/$netmask brd $broadcast dev $iface"
 		msg="Adding $FAMILY address $ipaddr/$netmask with broadcast address $broadcast to device $iface"
+	fi
+
+	if ocf_is_true "${OCF_RESKEY_noprefixroute}"; then
+		cmd="$cmd noprefixroute"
+		msg="${msg} (with noprefixroute)"
 	fi
 
 	if [ ! -z "$label" ]; then
