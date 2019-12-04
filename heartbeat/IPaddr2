@@ -123,6 +123,8 @@ VLDIR=$HA_RSCTMP
 SENDARPPIDDIR=$HA_RSCTMP
 CIP_lockfile=$HA_RSCTMP/IPaddr2-CIP-${OCF_RESKEY_ip}
 
+IPADDR2_CIP_IPTABLES=$IPTABLES
+
 #######################################################################
 
 meta_data() {
@@ -138,11 +140,21 @@ It can add an IP alias, or remove one.
 In addition, it can implement Cluster Alias IP functionality
 if invoked as a clone resource.
 
-If used as a clone, you should explicitly set clone-node-max &gt;= 2,
+If used as a clone, "shared address with a trivial, stateless
+(autonomous) load-balancing/mutual exclusion on ingress" mode gets
+applied (as opposed to "assume resource uniqueness" mode otherwise).
+For that, Linux firewall (kernel and userspace) is assumed, and since
+recent distributions are ambivalent in plain "iptables" command to
+particular back-end resolution, "iptables-legacy" (when present) gets
+prioritized so as to avoid incompatibilities (note that respective
+ipt_CLUSTERIP firewall extension in use here is, at the same time,
+marked deprecated, yet said "legacy" layer can make it workable,
+literally, to this day) with "netfilter" one (as in "iptables-nft").
+In that case, you should explicitly set clone-node-max &gt;= 2,
 and/or clone-max &lt; number of nodes. In case of node failure,
 clone instances need to be re-allocated on surviving nodes.
-This would not be possible if there is already an instance on those nodes,
-and clone-node-max=1 (which is the default).
+This would not be possible if there is already an instance
+on those nodes, and clone-node-max=1 (which is the default).
 </longdesc>
 
 <shortdesc lang="en">Manages virtual IPv4 and IPv6 addresses (Linux specific version)</shortdesc>
@@ -995,7 +1007,7 @@ ip_start() {
 	
 	if [ -n "$IP_CIP" ] && ([ $ip_status = "no" ] || [ $ip_status = "partial2" ]); then
 		$MODPROBE ip_conntrack
-		$IPTABLES -I INPUT -d $OCF_RESKEY_ip -i $NIC -j CLUSTERIP \
+		$IPADDR2_CIP_IPTABLES -I INPUT -d $OCF_RESKEY_ip -i $NIC -j CLUSTERIP \
 				--new \
 				--clustermac $IF_MAC \
 				--total-nodes $IP_INC_GLOBAL \
@@ -1089,7 +1101,7 @@ ip_stop() {
 			i=1
 			while [ $i -le $IP_INC_GLOBAL ]; do
 				ocf_log info $i
-				$IPTABLES -D INPUT -d $OCF_RESKEY_ip -i $NIC -j CLUSTERIP \
+				$IPADDR2_CIP_IPTABLES -D INPUT -d $OCF_RESKEY_ip -i $NIC -j CLUSTERIP \
 					--new \
 					--clustermac $IF_MAC \
 					--total-nodes $IP_INC_GLOBAL \
@@ -1186,8 +1198,11 @@ ip_validate() {
     set_send_arp_program
 
     if [ -n "$IP_CIP" ]; then
-	check_binary $IPTABLES
-	check_binary $MODPROBE
+        if have_binary "$IPTABLES_LEGACY"; then
+            IPADDR2_CIP_IPTABLES="$IPTABLES_LEGACY"
+        fi
+        check_binary "$IPADDR2_CIP_IPTABLES"
+        check_binary $MODPROBE
     fi
 
 # $BASEIP, $NETMASK, $NIC , $IP_INC_GLOBAL, and $BRDCAST have been checked within ip_init,
