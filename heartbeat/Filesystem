@@ -460,6 +460,10 @@ Filesystem_start()
 			# is not visible yet. Then try partprobe to
 			# refresh /dev/disk/by-uuid/* up to date.
 			have_binary partprobe && partprobe >/dev/null 2>&1
+			local timeout
+			timeout=${OCF_RESKEY_CRM_meta_timeout:="60000"}
+			timeout=$((timeout/1000))
+			have_binary udevadm && udevadm settle -t $timeout --exit-if-exists=$DEVICE
 		fi
 
 		if [ "$DEVICE" != "/dev/null" -a ! -b "$DEVICE" ] ; then
