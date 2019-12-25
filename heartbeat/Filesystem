@@ -431,6 +431,47 @@ fstype_supported()
 
 
 #
+# In the case a fresh filesystem is just created from another
+# node on the shared storage, and is not visible yet. Then try
+# partprobe to refresh /dev/disk/by-{label,uuid}/* up to date.
+#
+# DEVICE can be /dev/xxx, -U, -L 
+#
+trigger_udev_rules_if_needed()
+{
+	local refresh_flag="no"
+	local tmp
+	local timeout
+
+	if [ $blockdevice = "yes" ]; then
+		tmp="$DEVICE"
+		if [ "$DEVICE" != "/dev/null" -a ! -b "$DEVICE" ] ; then
+			refresh_flag="yes"
+		fi
+	else
+		tmp="`echo $DEVICE|awk '{$1=""; print substr($0,2)}'`"
+		case "$DEVICE" in 
+		-U*|--uuid*) 
+			tmp="/dev/disk/by-uuid/$tmp" 
+			;;
+		-L*|--label*)
+			tmp="/dev/disk/by-label/$tmp" 
+			;;
+		esac
+		[ ! -b "$tmp" ] && refresh_flag="yes"
+	fi
+
+	[ "$refresh_flag" = "no" ] && return
+
+	have_binary partprobe && partprobe >/dev/null 2>&1
+	timeout=${OCF_RESKEY_CRM_meta_timeout:="60000"}
+	timeout=$((timeout/1000))
+	have_binary udevadm && udevadm settle -t $timeout --exit-if-exists=$tmp
+
+	return $?
+}
+
+#
 # START: Start up the filesystem
 #
 Filesystem_start()
@@ -453,19 +494,9 @@ Filesystem_start()
 	# NOTE: Some filesystem types don't need this step...  Please modify
 	#       accordingly
 
-	if [ $blockdevice = "yes" ]; then
-		if [ "$DEVICE" != "/dev/null" -a ! -b "$DEVICE" ] ; then
-			# In the case a fresh filesystem is just created
-			# from another node on the shared storage, and
-			# is not visible yet. Then try partprobe to
-			# refresh /dev/disk/by-uuid/* up to date.
-			have_binary partprobe && partprobe >/dev/null 2>&1
-			local timeout
-			timeout=${OCF_RESKEY_CRM_meta_timeout:="60000"}
-			timeout=$((timeout/1000))
-			have_binary udevadm && udevadm settle -t $timeout --exit-if-exists=$DEVICE
-		fi
+	trigger_udev_rules_if_needed
 
+	if [ $blockdevice = "yes" ]; then
 		if [ "$DEVICE" != "/dev/null" -a ! -b "$DEVICE" ] ; then
 			ocf_exit_reason "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
 			exit $OCF_ERR_INSTALLED
