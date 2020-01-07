@@ -75,6 +75,10 @@ USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
   CMDSHOW="$IP2UTIL route show   $TABLE to exact $OCF_RESKEY_destination"
 CMDCHANGE="$IP2UTIL route change to "
 
+if [ "$OCF_RESKEY_table" = "local" ]; then
+	TABLE="$TABLE local"
+fi
+
 SYSTYPE="`uname -s`"
 
 usage() {
@@ -247,8 +251,14 @@ srca_stop() {
 	  
 	[ $rc = 2 ] && errorexit "The address you specified to stop does not match the preferred source address"
 
-	$IP2UTIL route replace $TABLE $NETWORK dev $INTERFACE || \
-		errorexit "command 'ip route replace $TABLE $NETWORK dev $INTERFACE' failed"
+	OPTS=""
+	if [ "$OCF_RESKEY_destination" != "0.0.0.0/0" ] ;then
+		PRIMARY_IP="$($IP2UTIL -4 -o addr show dev eth0 primary | awk '{split($4,a,"/");print a[1]}')"
+		OPTS="proto kernel scope host src $PRIMARY_IP"
+	fi
+
+	$IP2UTIL route replace $TABLE $NETWORK dev $INTERFACE $OPTS || \
+		errorexit "command 'ip route replace $TABLE $NETWORK dev $INTERFACE $OPTS' failed"
 
 	if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] ;then
 		$CMDCHANGE $ROUTE_WO_SRC || \
