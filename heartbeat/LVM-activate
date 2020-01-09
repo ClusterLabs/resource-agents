@@ -779,6 +779,7 @@ tagging_deactivate() {
 # This is AllBad but there isn't a better way that I'm aware of yet.
 lvm_status() {
 	local dm_count
+	local dm_name
 
 	if [ -n "${LV}" ]; then
 		# dmsetup ls? It cannot accept device name. It's
@@ -789,6 +790,15 @@ lvm_status() {
 	fi
 
 	if [ $dm_count -eq 0 ]; then
+		return $OCF_NOT_RUNNING
+	fi
+
+	# if there are many lv in vg dir, pick the first name
+	dm_name="/dev/${VG}/$(ls -1 /dev/${VG} | head -n 1)"
+
+	# read 1 byte to check the dev is alive
+	dd if=${dm_name} of=/dev/null bs=1 count=1 >/dev/null 2>&1
+	if [ $? -ne 0 ]; then
 		return $OCF_NOT_RUNNING
 	fi
 
