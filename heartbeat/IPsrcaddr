@@ -75,6 +75,10 @@ USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
   CMDSHOW="$IP2UTIL route show   $TABLE to exact $OCF_RESKEY_destination"
 CMDCHANGE="$IP2UTIL route change to "
 
+if [ "$OCF_RESKEY_destination" != "0.0.0.0/0" ]; then
+	CMDSHOW="$CMDSHOW src $OCF_RESKEY_ipaddress"
+fi
+
 if [ "$OCF_RESKEY_table" = "local" ]; then
 	TABLE="$TABLE local"
 fi
@@ -183,7 +187,7 @@ export OCF_RESKEY_ip=$OCF_RESKEY_ipaddress
 
 srca_read() {
 	# Capture matching route - doublequotes prevent word splitting...
-	ROUTE="`$CMDSHOW`" || errorexit "command '$CMDSHOW' failed"
+	ROUTE="`$CMDSHOW 2> /dev/null`" || errorexit "command '$CMDSHOW' failed"
 
 	# ... so we can make sure there is only 1 matching route
 	[ 1 -eq `echo "$ROUTE" | wc -l` ] || \
@@ -198,6 +202,11 @@ srca_read() {
 
 	# and what remains after stripping out the source ip address clause
 	ROUTE_WO_SRC=`echo $ROUTE | sed "s/$MATCHROUTE/\1\5/"`
+
+	# using "src <ip>" only returns output if there's a match
+	if [ "$OCF_RESKEY_destination" != "0.0.0.0/0" ]; then
+		[ -z "$ROUTE" ] && return 1 || return 0
+	fi
 
 	[ -z "$SRCIP" ] && return 1
 	[ $SRCIP = $1 ] && return 0
