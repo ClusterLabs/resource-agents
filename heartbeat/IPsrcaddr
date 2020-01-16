@@ -262,7 +262,7 @@ srca_stop() {
 
 	OPTS=""
 	if [ "$OCF_RESKEY_destination" != "0.0.0.0/0" ] ;then
-		PRIMARY_IP="$($IP2UTIL -4 -o addr show dev eth0 primary | awk '{split($4,a,"/");print a[1]}')"
+		PRIMARY_IP="$($IP2UTIL -4 -o addr show dev $INTERFACE primary | awk '{split($4,a,"/");print a[1]}')"
 		OPTS="proto kernel scope host src $PRIMARY_IP"
 	fi
 
