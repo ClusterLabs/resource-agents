@@ -114,6 +114,18 @@ clvm+LVM-activate. However, it is not possible to use both at the same time!
 if using the cluster to manage at least one of them.  If you manage some manually,
 the stop action of the lvmlockd agent may fail and the node may get fenced,
 because some DLM lockspaces might be in use and cannot be closed automatically.
+
+Option: OCF_CHECK_LEVEL
+
+The standard monitor operation of depth 0 checks if the VG or LV is valid.
+If you want deeper tests, set OCF_CHECK_LEVEL to 10:
+
+  10: read first 1 byte of the underlying device (raw read)
+
+If there are many underlying devs in VG, it will only read one of the devs.
+This is not perfect solution for detecting underlying devices livable.
+e.g. iscsi SAN IO timeout will return EIO, and it makes monitor failed.
+
 </longdesc>
 <shortdesc lang="en">This agent activates/deactivates logical volumes.</shortdesc>
 
@@ -779,6 +791,7 @@ tagging_deactivate() {
 # This is AllBad but there isn't a better way that I'm aware of yet.
 lvm_status() {
 	local dm_count
+	local dm_name
 
 	if [ -n "${LV}" ]; then
 		# dmsetup ls? It cannot accept device name. It's
@@ -792,7 +805,25 @@ lvm_status() {
 		return $OCF_NOT_RUNNING
 	fi
 
-	return $OCF_SUCCESS
+	if [ $OCF_CHECK_LEVEL -gt 0 ]; then
+		case "$OCF_CHECK_LEVEL" in
+			10)
+				# if there are many lv in vg dir, pick the first name
+				dm_name="/dev/${VG}/$(ls -1 /dev/${VG} | head -n 1)"
+
+				# read 1 byte to check the dev is alive
+				dd if=${dm_name} of=/dev/null bs=1 count=1 >/dev/null 2>&1
+				if [ $? -ne 0 ]; then
+					return $OCF_NOT_RUNNING
+				fi
+				return $OCF_SUCCESS
+				;;
+			*)
+				ocf_exit_reason "unsupported monitor level $OCF_CHECK_LEVEL"
+				rc=$OCF_ERR_CONFIGURED
+				;;
+		esac
+	fi
 }
 
 lvm_start() {
