@@ -698,15 +698,15 @@ redis_notify() {
 }
 
 redis_validate() {
-	if [[ -x "$REDIS_SERVER" ]]; then
+	if [[ ! -x "$REDIS_SERVER" ]]; then
 		ocf_log err "validate: $REDIS_SERVER does not exist or is not executable"
 		return $OCF_ERR_INSTALLED
 	fi
-	if [[ -x "$REDIS_CLIENT" ]]; then
+	if [[ ! -x "$REDIS_CLIENT" ]]; then
 		ocf_log err "validate: $REDIS_CLIENT does not exist or is not executable"
 		return $OCF_ERR_INSTALLED
 	fi
-	if [[ -f "$REDIS_CONFIG" ]]; then
+	if [[ ! -f "$REDIS_CONFIG" ]]; then
 		ocf_log err "validate: $REDIS_CONFIG does not exist"
 		return $OCF_ERR_CONFIGURED
 	fi
