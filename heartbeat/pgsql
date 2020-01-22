@@ -720,7 +720,11 @@ pgsql_promote() {
         ocf_log info "Restarting PostgreSQL instead of promote."
         #stop : this function returns $OCF_SUCCESS only.
         pgsql_real_stop slave
-        rm -f $RECOVERY_CONF
+        if "${USE_STANDBY_SIGNAL}"; then
+            rm -f ${OCF_RESKEY_pgdata}/standby.signal
+        else
+            rm -f $RECOVERY_CONF
+        fi
         pgsql_real_start
         rc=$?
         if [ $rc -ne $OCF_RUNNING_MASTER ]; then
