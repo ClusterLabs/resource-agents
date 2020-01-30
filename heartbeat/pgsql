@@ -700,7 +700,7 @@ pgsql_promote() {
     fi
 
     if [ "$output" = "f" ]; then
-        ocf_log info "PostgreSQL is alredy Master. Don't execute promote."
+        ocf_log info "PostgreSQL is already Master. Don't execute promote."
         return $OCF_SUCCESS
     fi
 
