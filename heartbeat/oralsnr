@@ -116,7 +116,7 @@ Defaults to LISTENER.
 <content type="string" default="${OCF_RESKEY_listener_default}" />
 </parameter>
 
-<parameter name="tns_admin" required="0" unique="1">
+<parameter name="tns_admin" required="0" unique="0">
 <longdesc lang="en">
 	Full path to the directory that contains the Oracle
 	listener tnsnames.ora configuration file.  The shell
