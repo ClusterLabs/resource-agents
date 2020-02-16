@@ -1496,6 +1496,9 @@ sub read_config
 				} elsif ($rcmd =~ /^persistent\s*=\s*(.*)/) {
 					$1 =~ /(\d+)/ or &config_error($line, "invalid persistent timeout");
 					$vsrv{persistent} = $1;
+				} elsif ($rcmd =~ /^schedflags\s*=\s*(.*)/) {
+					$1 =~ /(\S+)/ or &config_error($line, "invalid sched-flags");
+					$vsrv{schedflags} = $1;
 				} elsif ($rcmd =~ /^netmask\s*=\s*(.*)/) {
 					my $val = $1;
 					if ($vsrv{addressfamily} == AF_INET6) {
@@ -2285,6 +2288,9 @@ sub ld_setup
 		if (defined $$v{persistent}) {
 			$$v{flags} .= "-p $$v{persistent} ";
 			$$v{flags} .= "-M $$v{netmask} " if defined ($$v{netmask});
+		}
+		if (defined $$v{schedflags}) {
+			$$v{flags} .= "-b $$v{schedflags} ";
 		}
 		my $real = $$v{real};
 		for my $r (@$real) {

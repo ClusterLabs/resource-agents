@@ -552,6 +552,7 @@ rmq_stop() {
 
 	if [ $rc -ne 0 ]; then
 		ocf_log err "rabbitmq-server stop command failed: $RMQ_CTL stop, $rc"
+		rmq_delete_nodename
 		return $rc
 	fi
 
@@ -565,6 +566,7 @@ rmq_stop() {
 			break
 		elif [ "$rc" -ne $OCF_SUCCESS ]; then
 			ocf_log info "rabbitmq-server stop failed: $rc"
+			rmq_delete_nodename
 			exit $OCF_ERR_GENERIC
 		fi
 		sleep 1

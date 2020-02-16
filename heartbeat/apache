@@ -167,13 +167,16 @@ silent_status() {
 
 # May be useful to add other distros in future
 validate_default_config() {
-	if [ -e /etc/SuSE-release ]; then
-		validate_default_suse_config
-	elif [ -e /etc/debian_version ]; then
-		validate_default_debian_config
-	else
-		return 0
-	fi
+	case "$( get_release_id )" in
+                *SUSE)
+                        validate_default_suse_config
+                        ;;
+                Debian)
+                        validate_default_debian_config
+                        ;;
+                *)
+                        return 0
+        esac
 }
 
 # When using the default /etc/apache2/httpd.conf on SUSE, the file
@@ -206,8 +209,6 @@ validate_default_suse_config() {
 		apache_mod_status="/usr/lib64/apache2-prefork/mod_status.so"
 		if [ -e $apache_mod_status ]; then
 			LOAD_STATUS_MODULE="LoadModule status_module $apache_mod_status"
-        		# append to apache options the module so we can load it for suse only systems. 
-			HTTPDOPTS="$HTTPDOPTS -C $LOAD_STATUS_MODULE"
         	fi
 	fi
 	return 0
@@ -242,9 +243,17 @@ apache_start() {
 	validate_default_config || return $OCF_ERR_CONFIGURED
 
 	if [ -z $PIDFILE_DIRECTIVE ]; then
-		ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE
+		if [ -z "$LOAD_STATUS_MODULE" ]; then
+			ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE
+		else
+			ocf_run $HTTPD -C "$LOAD_STATUS_MODULE" $HTTPDOPTS $OPTIONS -f $CONFIGFILE
+		fi
 	else
-		ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE -c "PidFile $PidFile"
+		if [ -z "$LOAD_STATUS_MODULE" ]; then
+			ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE -c "PidFile $PidFile"
+		else
+			ocf_run $HTTPD $HTTPDOPTS -C "$LOAD_STATUS_MODULE" $OPTIONS -f $CONFIGFILE -c "PidFile $PidFile"
+		fi
 	fi
 
 	tries=0

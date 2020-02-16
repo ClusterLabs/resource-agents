@@ -17,7 +17,7 @@ OCF_RESKEY_routing_table_default=""
 OCF_RESKEY_interface_default="eth0"
 OCF_RESKEY_profile_default="default"
 OCF_RESKEY_endpoint_default="vpc.aliyuncs.com"
-OCF_RESKEY_aliyuncli_default="aliyuncli"
+OCF_RESKEY_aliyuncli_default="detect"
 
 
 : ${OCF_RESKEY_address=${OCF_RESKEY_address_default}}
@@ -33,6 +33,10 @@ OCF_RESKEY_aliyuncli_default="aliyuncli"
 export HOME="/root"
 
 USAGE="usage: $0 {start|stop|status|meta-data}";
+
+if [ "${OCF_RESKEY_aliyuncli}" = "detect" ]; then
+	OCF_RESKEY_aliyuncli="$(which aliyuncli 2> /dev/null || which aliyun 2> /dev/null)"
+fi
 
 if [[ "${OCF_RESKEY_aliyuncli##*/}" == 'aliyuncli' ]]; then
 	OUTPUT="text"
@@ -218,6 +222,11 @@ END
 
 ecs_ip_validate() {
 	ocf_log debug "function: validate"
+
+	if [ -z "${OCF_RESKEY_aliyuncli}" ]; then
+		ocf_exit_reason "unable to detect aliyuncli binary"
+		exit $OCF_ERR_INSTALLED
+	fi
 
 	# IP address
 	if [ -z "$OCF_RESKEY_address" ]; then
