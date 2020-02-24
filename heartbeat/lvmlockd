@@ -196,11 +196,11 @@ setup_lvm_config()
 	out=$(lvmconfig 'global/locking_type')
 	lock_type=$(echo "$out" | cut -d'=' -f2)
 
-	if [ "$use_lvmlockd" -ne 1 ] ; then
+	if [ "$use_lvmlockd" != 1 ] ; then
 		ocf_log info "setting \"use_lvmlockd=1\" in /etc/lvm/lvm.conf ..."
 		sed -i 's,^[[:blank:]]*use_lvmlockd[[:blank:]]*=.*,\ \ \ \ use_lvmlockd = 1,g' /etc/lvm/lvm.conf
 	fi
-	if [ "$lock_type" -ne 1 ] ; then
+	if [ "$lock_type" != 1 ] ; then
 		ocf_log info "setting \"locking_type=1\" in /etc/lvm/lvm.conf ..."
 		sed -i 's,^[[:blank:]]*locking_type[[:blank:]]*=.*,\ \ \ \ locking_type = 1,g' /etc/lvm/lvm.conf
 	fi
