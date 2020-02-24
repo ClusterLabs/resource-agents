@@ -17,10 +17,6 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
-# Defaults
-OCF_RESKEY_user_default="grid"
-
-: ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
 
 
 oraacfs_usage() {

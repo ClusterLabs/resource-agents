@@ -95,3 +95,12 @@ the command mentioned above that the diskgroup is mounted on this node, after 5 
 
 We do not perform any action when stop is called. Since it is managed by Oracle GI, and other tools might run on this ASM 
 Diskgroup. We just leave it be, assuming Oracle GI can handle its own resources.
+
+Part 4: Timing and timeouts
+---------------------------
+
+Agent start timeout defaults to 180 seconds, because Oracle GI takes some time to start and mount. 
+
+Agent monitor/status timeout defaults to 90 seconds. Normally - 'crsctl status res' command responds very fast, however, during
+cluster node unplanned failure, CRS takes a wile to recover and respond to query commands. During this time, we need to keep PCS
+working, and not responding in timeouts.

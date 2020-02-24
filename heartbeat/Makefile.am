@@ -139,6 +139,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			openstack-floating-ip   \
 			openstack-info          \
 			oraasm			\
+			oraasmdg		\
 			oracle			\
 			oralsnr			\
 			ovsmonitor		\
