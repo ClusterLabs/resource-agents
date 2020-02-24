@@ -1,0 +1,254 @@
+#!/bin/sh
+#
+#  License:      GNU General Public License (GPL)
+#  (c) 2020 Etzion Bar Noy
+#           and Linux-HA contributors
+#  Derived from oraacfs agent by O. Albrigtsen
+#
+# -----------------------------------------------------------------------------
+#      O C F    R E S O U R C E    S C R I P T   S P E C I F I C A T I O N
+# -----------------------------------------------------------------------------
+#
+# NAME
+#       oraacfs : OCF resource agent script for Oracle ASM Filesystem (ACFS)
+#
+
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_user_default="grid"
+
+: ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
+
+
+oraacfs_usage() {
+	cat <<END
+    usage: $0 (start|stop|validate-all|meta-data|help|usage|monitor)
+    $0 manages a Oracle ACFS through Oracle GI commands
+    The 'start' operation mounts ACFS, or waits for ACFS to become available
+    The 'stop' operation stops the ACFS
+    The 'status' operation reports whether the ACFS is active
+    The 'monitor' operation is similar to status
+    The 'validate-all' operation reports whether the parameters are valid
+END
+}
+
+oraacfs_meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="oraacfs">
+<version>0.75</version>
+
+<longdesc lang="en">OCF Resource script for Oracle ASM ACFS. It is based on existing Oracle GI cluster.</longdesc>
+<shortdesc lang="en">Oracle ACFS resource agent</shortdesc>
+
+<parameters>
+
+<parameter name="diskgroup" required="1">
+    <longdesc lang="en">
+The name of the parent Oracle Disk Group.
+    </longdesc>
+    <shortdesc lang="en">Oracle Disk Group</shortdesc>
+    <content type="string" default="" />
+</parameter>
+
+<parameter name="volname" required="1">
+    <longdesc lang="en">
+The name of the Oracle ADVM volume.
+    </longdesc>
+    <shortdesc lang="en">Oracle ADVM volume name</shortdesc>
+    <content type="string" default="" />
+</parameter>
+
+<parameter name="home" unique="0" required="1">
+<longdesc lang="en">The Oracle Grid home directory</longdesc>
+<shortdesc lang="en">home</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="180s" />
+<action name="stop" timeout="60s" />
+<action name="status" timeout="90s" />
+<action name="monitor" depth="0" timeout="90s" interval="10s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
+</actions>
+</resource-agent>
+END
+}
+
+oraacfs_methods() {
+	cat <<-!
+	start
+	stop
+	status
+	monitor
+	validate-all
+	methods
+	meta-data
+	usage
+	!
+}
+
+#oraacfs_getconfig() {
+#	[ x = "x$OCF_RESKEY_home" ] &&
+#		OCF_RESKEY_home=`awk -F: "/^+$OCF_RESKEY_diskgroup:/"'{print $2}' /etc/oratab`
+#	PATH="$OCF_RESKEY_home/bin:$PATH"
+#
+#	ORA_ENVF=`mktemp`
+#	cat << EOF > $ORA_ENVF
+#PATH="$OCF_RESKEY_home/bin:$PATH"
+#EOF
+#	chmod 644 $ORA_ENVF
+#	trap "rm -f $ORA_ENVF" EXIT
+#}
+
+oraacfs_getconfig() {
+	# Makes sure all executables are present where they should be
+	CRSCTL=${OCF_RESKEY_home}/bin/crsctl
+	SRVCTL=${OCF_RESKEY_home}/bin/srvctl
+	PATH=$PATH:${OCF_RESKEY_home}/bin
+	DG=${OCF_RESKEY_diskgroup}
+}
+
+acfs_identify_dev() {
+	VOL=`ls /dev/asm/${OCF_RESKEY_volname}*`
+	if [ `echo $VOL | wc -w` -ne 1 ] ; then
+		ocf_log info "Cannot identify ADVM device"
+		exit $OCF_ERR_GENERIC
+	fi
+}
+
+cluster_status() {
+	# Checks if the cluster is up at all
+	$CRSCTL status res -t > /dev/null 2>&1
+	return $?
+}
+
+diskgroup_status() {
+	$CRSCTL status res ora.${OCF_RESKEY_diskgroup}.dg | grep -q `hostname -s`
+	return $?
+}
+
+advm_status() {
+	$CRSCTL status res ora.${OCF_RESKEY_diskgroup}.$( echo ${OCF_RESKEY_volname} | tr [a-z] [A-Z]).advm | grep -q `hostname -s`
+	return $?
+}
+
+advm_start() {
+	$SRVCTL start volume -volume ${OCF_RESKEY_volname} -diskgroup ${OCF_RESKEY_diskgroup}
+	# We dont care about return value. We do not trust Oracle return values
+}
+
+acfs_mount() {
+	# Perform the actual resource call for GI. Will not work if ADVM is down
+	acfs_identify_dev
+	$SRVCTL start filesystem -d ${VOL} -node `hostname -s`
+	return $?
+}
+
+oraacfs_start() {
+	# if resource is already running, no need to continue code after this.
+
+	if ! cluster_status; then
+		ocf_log info "Oracle GI is down. Waiting for it to go up"
+		return $OCF_NOT_RUNNING
+	fi
+	ocf_log info "Oracle GI is up"
+	
+	# Cluster is now up. Is our ASM resource up?
+	# Check ASM diskgroup status
+	if ! diskgroup_status; then
+		ocf_log info "Oracle ASM Diskgroup is not up"
+		return $OCF_NOT_RUNNING
+	fi
+	ocf_log info "Oracle ASM Diskgroup is up"
+
+	if ! advm_status; then
+		ocf_log info "ADVM is not active. Attempting to start"
+		advm_start
+	fi
+
+	if ! advm_status; then
+		ocf_log info "ADVM is still inactive. Failing"
+		return $OCF_NOT_RUNNING
+	fi
+	ocf_log info "ADVM is running"
+	
+	if ! oraacfs_monitor; then
+		# ACFS is not mounted. Attempt to mount
+		ocf_log info "ACFS is not mounted. Attempting to mount"
+		acfs_mount
+	fi
+
+	if ! oraacfs_monitor; then
+		ocf_log info "Failed to mount ACFS"
+		return $OCF_NOT_RUNNING
+	fi
+
+	ocf_log info "ACFS is mounted"
+	return $OCF_SUCCESS
+}
+
+oraacfs_stop() {
+	oraacfs_monitor
+	if [ $? -ne $OCF_SUCCESS ]; then
+		# Currently not running. Nothing to do.
+		ocf_log info "Oracle ASM diskgroup is already stopped"
+
+		return $OCF_SUCCESS
+	fi
+
+	# As a rule - we let Oracle GI manage, as much as possible, the ASM diskgroups, so we avoid taking them down.
+	return $OCF_SUCCESS
+}
+
+oraacfs_monitor() {
+	$CRSCTL status res ora.$( echo ${OCF_RESKEY_diskgroup} | tr [A-Z] [a-z] ).$( echo ${OCF_RESKEY_volname} | tr [A-Z] [a-z] ).acfs | grep -q `hostname -s`
+	case "$?" in
+		0)
+			rc=$OCF_SUCCESS
+			;;
+		1)
+			rc=$OCF_NOT_RUNNING
+			ocf_log info "Oracle ASM diskgroup is not running on this host"
+			;;
+		*)
+			rc=$OCF_ERR_GENERIC
+			;;
+	esac
+	return $rc
+}
+
+oraacfs_status() {
+	rc=$(oraacfs_monitor)
+	return $rc
+}
+
+oraacfs_validate_all() {
+	if [ x = "x$OCF_RESKEY_home" ]; then
+		ocf_exit_reason "home not set"
+		return $OCF_ERR_CONFIGURED
+	fi
+	if [ x = "x$OCF_RESKEY_diskgroup" ]; then
+		ocf_exit_reason "Diskgroup not set"
+		return $OCF_ERR_CONFIGURED
+	fi
+	if [ x = "x$OCF_RESKEY_volname" ]; then
+		ocf_exit_reason "ADVM volume not set"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+}
+
+
+OCF_REQUIRED_PARAMS="diskgroup volname home"
+ocf_rarun $*
+
+# vim:tabstop=4:shiftwidth=4:textwidth=0:wrapmargin=0
