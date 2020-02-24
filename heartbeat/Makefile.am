@@ -140,6 +140,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			openstack-info          \
 			oraasm			\
 			oraasmdg		\
+			oraacfs			\
 			oracle			\
 			oralsnr			\
 			ovsmonitor		\
