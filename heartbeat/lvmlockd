@@ -190,19 +190,31 @@ setup_lvm_config()
 	# To use lvmlockd, ensure configure lvm.conf:
 	# locking_type = 1
 	# use_lvmlockd = 1
-	out=$(lvmconfig 'global/use_lvmlockd')
+	out=$(lvmconfig 'global/use_lvmlockd' 2> /dev/null)
 	use_lvmlockd=$(echo "$out" | cut -d'=' -f2)
 
-	out=$(lvmconfig 'global/locking_type')
+	out=$(lvmconfig 'global/locking_type' 2> /dev/null)
 	lock_type=$(echo "$out" | cut -d'=' -f2)
 
-	if [ "$use_lvmlockd" != 1 ] ; then
+	if [ -n "$use_lvmlockd" ] && [ "$use_lvmlockd" != 1 ] ; then
 		ocf_log info "setting \"use_lvmlockd=1\" in /etc/lvm/lvm.conf ..."
 		sed -i 's,^[[:blank:]]*use_lvmlockd[[:blank:]]*=.*,\ \ \ \ use_lvmlockd = 1,g' /etc/lvm/lvm.conf
 	fi
-	if [ "$lock_type" != 1 ] ; then
-		ocf_log info "setting \"locking_type=1\" in /etc/lvm/lvm.conf ..."
-		sed -i 's,^[[:blank:]]*locking_type[[:blank:]]*=.*,\ \ \ \ locking_type = 1,g' /etc/lvm/lvm.conf
+	if [ -n "$lock_type" ] ; then
+		# locking_type was removed from config in v2.03
+		ocf_version_cmp "$(lvmconfig --version | awk '/LVM ver/ {sub(/\(.*/, "", $3); print $3}')" "2.03"
+		case "$?" in
+			1|2)
+				ocf_log info "removing \"locking_type\" from /etc/lvm/lvm.conf ..."
+				sed -i '/^[[:blank:]]*locking_type[[:blank:]]*=.*/d' /etc/lvm/lvm.conf
+				;;
+			0)
+				if [ "$lock_type" != 1 ] ; then
+					ocf_log info "setting \"locking_type=1\" in /etc/lvm/lvm.conf ..."
+					sed -i 's,^[[:blank:]]*locking_type[[:blank:]]*=.*,\ \ \ \ locking_type = 1,g' /etc/lvm/lvm.conf
+				fi
+				;;
+		esac
 	fi
 
 	return $OCF_SUCCESS
