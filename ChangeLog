@@ -1,3 +1,29 @@
+* Fri Feb 28 2020 resource-agents contributors
+- release candidate 4.5.0 rc1
+- Filesystem: add trigger_udev_rules_if_need() for -U, -L, or /dev/xxx device
+- Filesystem: refresh UUID in the start phase
+- IPaddr2: add noprefixroute parameter
+- IPaddr2: add info to metadata that ipt_CLUSTERIP "iptables" extension is not "nft" backend compatible, and iptables-legacy support for distros that still support it
+- IPsrcaddr: replace local rule if using local table, and set src back to primary for device on stop
+- IPsrcaddr: fix failure during probe when using destination/table parameters
+- LVM-activate: add OCF_CHECK_LEVEL 10 check that can be enabled to verify vg or lv validity with an additional "read 1 byte" test in special cases like iSCSI SAN
+- MailTo: fix variable expansion
+- SAPInstance: clear the $DIR_EXECUTABLE variable so we catch the situation when we lose the directory with binaries after first sapinstance_init invokation
+- aliyun-vpc-move-ip: add support for both 'go' and 'python' versions of Aliyun CLI, and auto-detect which to use by default
+- apache: use get_release_id() to detect OS/distro, and fix LOAD_STATUS_MODULE issue
+- azure-lb set socat to default on SUSE distributions.
+- exportfs: allow multiple exports of same directory
+- iSCSILogicalUnit: add liot_bstype to handle block/fileio for targetcli, and change behavior of lio-t with portals which do not use 0.0.0.0
+- ldirectord: support sched-flags
+- lvmlockd: fix for LVM2 v2.03+ removing lvmetad
+- mysql-common: return correct rc during start-action
+- oralsnr: allow using the same tns_admin directory for different listeners
+- pgsql: Support for PostgreSQL 12
+- podman: improve the code for checking if an image exists
+- rabbitmq-cluster: ensure we delete nodename if stop action fails
+- redis: validate_all: fix file status tests
+- spec: add missing requirement (lsb-release)
+
 * Wed Oct 23 2019 resource-agents contributors
 - stable release 4.4.0
 - NodeUtilization: fix Xen detection and improve logging
