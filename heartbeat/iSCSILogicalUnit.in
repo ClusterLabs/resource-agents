@@ -66,7 +66,6 @@ OCF_RESKEY_lio_iblock_default=0
 OCF_RESKEY_lio_iblock=${OCF_RESKEY_lio_iblock:-$OCF_RESKEY_lio_iblock_default}
 # Set LIO-T backend default as 'block'
 OCF_RESKEY_liot_bstype_default="block"
-OCF_RESKEY_liot_bstype="${OCF_RESKEY_liot_bstype}"
 : ${OCF_RESKEY_liot_bstype=${OCF_RESKEY_liot_bstype_default}}
 
 ## tgt specifics
@@ -96,7 +95,7 @@ meta_data() {
 <version>0.9</version>
 
 <longdesc lang="en">
-Manages iSCSI Logical Unit. An iSCSI Logical unit is a subdivision of 
+Manages iSCSI Logical Unit. An iSCSI Logical unit is a subdivision of
 an SCSI Target, exported via a daemon that speaks the iSCSI protocol.
 </longdesc>
 <shortdesc lang="en">Manages iSCSI Logical Units (LUs)</shortdesc>
@@ -152,7 +151,7 @@ is the resource name, truncated to 24 bytes.
 The SCSI serial number to be configured for this Logical Unit.
 The default is a hash of the resource name, truncated to 8 bytes,
 meaning 26 hex characters.
-If you are using XenServer with multipath as iSCSI client, you 
+If you are using XenServer with multipath as iSCSI client, you
 MUST make sure this value is set, or else XenServer multipath will
 not be able to access the LUN
 </longdesc>
@@ -431,10 +430,10 @@ iSCSILogicalUnit_start() {
 		# For lio, we first have to create a target device, then
 		# add it to the Target Portal Group as an LU.
 		# Handle differently 'block' and 'fileio'
-		if [ ${OCF_RESKEY_liot_bstype} == "block" ] 
+		if [ "${OCF_RESKEY_liot_bstype}" = "block" ]
 		then
 			ocf_run targetcli /backstores/${OCF_RESKEY_liot_bstype} create name=${OCF_RESOURCE_INSTANCE} dev=${OCF_RESKEY_path} $(test -n "$OCF_RESKEY_scsi_sn" && echo "wwn=${OCF_RESKEY_scsi_sn}") || exit $OCF_ERR_GENERIC
-		elif [ ${OCF_RESKEY_liot_bstype} == "fileio" ] 
+		elif [ "${OCF_RESKEY_liot_bstype}" = "fileio" ]
 		then
 			ocf_run targetcli /backstores/${OCF_RESKEY_liot_bstype} create ${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_path} $(test -n "$OCF_RESKEY_scsi_sn" && echo "wwn=${OCF_RESKEY_scsi_sn}") || exit $OCF_ERR_GENERIC
 		fi
@@ -696,7 +695,7 @@ iSCSILogicalUnit_validate() {
 		envar=OCF_RESKEY_${var}
 		defvar=OCF_RESKEY_${var}_default
 		if [ -n "${!envar}" ]; then
-			if  [[ "${!envar}" != "${!defvar}" ]];then 
+			if [[ "${!envar}" != "${!defvar}" ]]; then
 				case "$__OCF_ACTION" in
 				start|validate-all)
 					ocf_log warn "Configuration parameter \"${var}\"" \
