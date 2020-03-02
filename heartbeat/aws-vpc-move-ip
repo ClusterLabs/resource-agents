@@ -145,6 +145,24 @@ Enable enhanced monitoring using AWS API calls to check route table entry
 END
 }
 
+
+execute_cmd_as_role(){
+	cmd=$1
+	role=$2
+	output="$(aws sts assume-role --role-arn $role --role-session-name AWSCLI-RouteTableUpdate --profile $OCF_RESKEY_profile --output=text)"
+	export AWS_ACCESS_KEY_ID="$(echo $output | awk -F" " '$4=="CREDENTIALS" {print $5}')"
+	export AWS_SECRET_ACCESS_KEY="$(echo $output | awk -F" " '$4=="CREDENTIALS" {print $7}')"
+	export AWS_SESSION_TOKEN="$(echo $output | awk -F" " '$4=="CREDENTIALS" {print $8}')"
+
+	#Execute command
+	ocf_log debug "Assumed Role ${role}"
+	ocf_log debug "$(aws sts get-caller-identity)"
+	ocf_log debug "executing command: $cmd"
+	response="$($cmd)"
+	unset output AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+	echo $response
+}
+
 ec2ip_set_address_param_compat(){
 	# Include backward compatibility for the deprecated address parameter
 	if [ -z  "$OCF_RESKEY_ip" ] && [ -n "$OCF_RESKEY_address" ]; then
@@ -177,9 +195,14 @@ ec2ip_monitor() {
 	if ocf_is_true ${OCF_RESKEY_monapi} || [ "$__OCF_ACTION" = "start" ] || ocf_is_probe; then
 		for rtb in $(echo $OCF_RESKEY_routing_table | sed -e 's/,/ /g'); do
 			ocf_log info "monitor: check routing table (API call) - $rtb"
-			cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].InstanceId"
-			ocf_log debug "executing command: $cmd"
-			ROUTE_TO_INSTANCE="$($cmd)"
+			if [[ -z "${OCF_RESKEY_routing_table_role}" ]]; then
+				cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].InstanceId"
+				ocf_log debug "executing command: $cmd"
+				ROUTE_TO_INSTANCE="$($cmd)"
+			else
+				cmd="$OCF_RESKEY_awscli --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].InstanceId"
+				ROUTE_TO_INSTANCE="$(execute_cmd_as_role "$cmd" $OCF_RESKEY_routing_table_role)"
+			fi
 			ocf_log debug "Overlay IP is currently routed to ${ROUTE_TO_INSTANCE}"
 			if [ -z "$ROUTE_TO_INSTANCE" ]; then
 				ROUTE_TO_INSTANCE="<unknown>"
@@ -253,9 +276,14 @@ ec2ip_get_and_configure() {
 	ocf_log debug "network interface id associated MAC address ${MAC_ADDR}: ${EC2_NETWORK_INTERFACE_ID}"
 
 	for rtb in $(echo $OCF_RESKEY_routing_table | sed -e 's/,/ /g'); do
-		cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
-		ocf_log debug "executing command: $cmd"
-		$cmd
+		if [[ -z "${OCF_RESKEY_routing_table_role}" ]]; then
+			cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
+			ocf_log debug "executing command: $cmd"
+			$cmd
+		else
+			cmd="$OCF_RESKEY_awscli --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
+			update_response="$(execute_cmd_as_role "$cmd" $OCF_RESKEY_routing_table_role)"
+		fi
 		rc=$?
 		if [ "$rc" != 0 ]; then
 			ocf_log warn "command failed, rc: $rc"
