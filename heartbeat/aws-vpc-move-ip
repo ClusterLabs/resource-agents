@@ -40,6 +40,7 @@ OCF_RESKEY_profile_default="default"
 OCF_RESKEY_ip_default=""
 OCF_RESKEY_address_default=""
 OCF_RESKEY_routing_table_default=""
+OCF_RESKEY_routing_table_role_default=""
 OCF_RESKEY_interface_default="eth0"
 OCF_RESKEY_monapi_default="false"
 
@@ -48,6 +49,7 @@ OCF_RESKEY_monapi_default="false"
 : ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
 : ${OCF_RESKEY_address=${OCF_RESKEY_address_default}}
 : ${OCF_RESKEY_routing_table=${OCF_RESKEY_routing_table_default}}
+: ${OCF_RESKEY_routing_table_role=${OCF_RESKEY_routing_table_role_default}}
 : ${OCF_RESKEY_interface=${OCF_RESKEY_interface_default}}
 : ${OCF_RESKEY_monapi=${OCF_RESKEY_monapi_default}}
 #######################################################################
@@ -115,6 +117,14 @@ Name of the routing table(s), where the route for the IP address should be chang
 </longdesc>
 <shortdesc lang="en">routing table name(s)</shortdesc>
 <content type="string" default="${OCF_RESKEY_routing_table_default}" />
+</parameter>
+
+<parameter name="routing_table_role" required="0">
+<longdesc lang="en">
+Role to use to query/update the route table
+</longdesc>
+<shortdesc lang="en">route table query/update role</shortdesc>
+<content type="string" default="${OCF_RESKEY_routing_table_role_default}" />
 </parameter>
 
 <parameter name="interface" required="1">
