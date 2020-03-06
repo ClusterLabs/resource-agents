@@ -1,3 +1,8 @@
+* Fri Mar  6 2020 resource-agents contributors
+- stable release 4.5.0
+- iSCSILogicalUnit: fix default value for OCF_RESKEY_liot_bstype
+- aws-vpc-move-ip: add parameter for role to use to query/update route table
+
 * Fri Feb 28 2020 resource-agents contributors
 - release candidate 4.5.0 rc1
 - Filesystem: add trigger_udev_rules_if_need() for -U, -L, or /dev/xxx device
