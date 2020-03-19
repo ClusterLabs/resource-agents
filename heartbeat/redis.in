@@ -723,6 +723,10 @@ if [ -r "$REDIS_CONFIG" ]; then
 	clientpasswd="$(sed -n -e  's/^\s*requirepass\s*\(.*\)\s*$/\1/p' < $REDIS_CONFIG | tail -n 1)"
 fi
 
+if [ "$__OCF_ACTION" = "start" ]; then
+	redis_validate || exit $?
+fi
+
 redis_cli_features
 
 ocf_log debug "action=${1:-$__OCF_ACTION} notify_type=${OCF_RESKEY_CRM_meta_notify_type} notify_operation=${OCF_RESKEY_CRM_meta_notify_operation} master_host=${OCF_RESKEY_CRM_meta_notify_master_uname} slave_host=${OCF_RESKEY_CRM_meta_notify_slave_uname} promote_host=${OCF_RESKEY_CRM_meta_notify_promote_uname} demote_host=${OCF_RESKEY_CRM_meta_notify_demote_uname}; params: bin=${OCF_RESKEY_bin} client_bin=${OCF_RESKEY_client_bin} config=${OCF_RESKEY_config} user=${OCF_RESKEY_user} rundir=${OCF_RESKEY_rundir} port=${OCF_RESKEY_port}"
