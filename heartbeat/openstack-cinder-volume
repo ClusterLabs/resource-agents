@@ -35,7 +35,7 @@
 
 # Defaults
 OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
-OCF_RESKEY_node_id_cache_file_default="/tmp/node_id"
+OCF_RESKEY_node_id_cache_file_default="${HA_RSCTMP}/node_id"
 OCF_RESKEY_volume_local_check_default="true"
 
 export attached_server_id=""
