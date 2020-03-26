@@ -122,7 +122,7 @@ end;
 select database_role, open_mode from v\$database;
 set heading off;
 set serveroutput off;
-spool /tmp/dgstatus.${ORACLE_SID};
+spool ${HA_RSCTMP}/dgstatus.${ORACLE_SID};
 select open_mode from v\$database;
 spool off;
 EOF
@@ -463,9 +463,9 @@ start_oracle() {
 		fi
 	done
 
-	if [ -n "$ORACLE_HOSTNAME" -a -s /tmp/dgstatus.${ORACLE_SID} ]; then
+	if [ -n "$ORACLE_HOSTNAME" -a -s ${HA_RSCTMP}/dgstatus.${ORACLE_SID} ]; then
         	# Start DB Console if vhost defined and database_role is READ WRITE
-		if cat /tmp/dgstatus.${ORACLE_SID} 2>/dev/null | grep "READ WRITE"; then
+		if cat ${HA_RSCTMP}/dgstatus.${ORACLE_SID} 2>/dev/null | grep "READ WRITE"; then
 			ocf_log info "Starting Oracle EM DB Console for $ORACLE_SID"
 			emctl start dbconsole
 			if [ $? -ne 0 ]; then
@@ -478,7 +478,7 @@ start_oracle() {
 				ocf_log info "Oracle EM DB Console startup for $ORACLE_SID succeeded"
 			fi
 		fi
-                rm -f /tmp/dgstatus.${ORACLE_SID}
+                rm -f ${HA_RSCTMP}/dgstatus.${ORACLE_SID}
 	fi
 
 	if [ -n "$LOCKFILE" ]; then
@@ -619,7 +619,7 @@ status_oracle() {
 # Data Guard Modification 1 - Debug Logging
 case $1 in
 stop | start | status | restart | recover | monitor )
-[ $(id -u) = 0 ] && exec > "/tmp/oradg_${ORACLE_SID}_$1.log" 2>&1
+[ $(id -u) = 0 ] && exec > "${HA_RSCTMP}/oradg_${ORACLE_SID}_$1.log" 2>&1
 set -x
 date
 echo $@

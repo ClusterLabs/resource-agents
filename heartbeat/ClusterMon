@@ -45,8 +45,8 @@
 OCF_RESKEY_user_default="root"
 OCF_RESKEY_update_default="15000"
 OCF_RESKEY_extra_options_default=""
-OCF_RESKEY_pidfile_default="/tmp/ClusterMon_${OCF_RESOURCE_INSTANCE}.pid"
-OCF_RESKEY_htmlfile_default="/tmp/ClusterMon_${OCF_RESOURCE_INSTANCE}.html"
+OCF_RESKEY_pidfile_default="${HA_RSCTMP}/ClusterMon_${OCF_RESOURCE_INSTANCE}.pid"
+OCF_RESKEY_htmlfile_default="${HA_RSCTMP}/ClusterMon_${OCF_RESOURCE_INSTANCE}.html"
 
 : ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
 : ${OCF_RESKEY_update=${OCF_RESKEY_update_default}}
