@@ -195,7 +195,7 @@ stop_db() {
 	fi
 
 	# If we see 'ORA-' or 'failure' in stdout, we're done.
-	if [[ "$startup_stdout" =~ "ORA-" ]] || [[ "$startup_stdout" =~ "failure" ]]; then
+	if [[ "$stop_stdout" =~ "ORA-" ]] || [[ "$stop_stdout" =~ "failure" ]]; then
 		ocf_log error "Stopping Oracle DB $ORACLE_SID failed, errors in stdout"
 		return 1
 	fi
