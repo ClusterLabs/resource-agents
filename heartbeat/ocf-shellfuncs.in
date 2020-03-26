@@ -557,7 +557,7 @@ ocf_is_probe() {
 # defined as a resource where the clone-max meta attribute is present,
 # and set to greater than zero.
 ocf_is_clone() {
-    [ ! -z "${OCF_RESKEY_CRM_meta_clone_max}" ] && [ "${OCF_RESKEY_CRM_meta_clone_max}" -gt 0 ]
+    [ ! -z "${OCF_RESKEY_CRM_meta_clone_max}" ]
 }
 
 # returns true if the resource is configured as a multistate
