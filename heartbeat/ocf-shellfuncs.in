@@ -554,8 +554,7 @@ ocf_is_probe() {
 }
 
 # returns true if the resource is configured as a clone. This is
-# defined as a resource where the clone-max meta attribute is present,
-# and set to greater than zero.
+# defined as a resource where the clone-max meta attribute is present.
 ocf_is_clone() {
     [ ! -z "${OCF_RESKEY_CRM_meta_clone_max}" ]
 }
