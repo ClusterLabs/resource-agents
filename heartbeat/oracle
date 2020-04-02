@@ -132,6 +132,8 @@ that the password for this user does not expire.
 <longdesc lang="en">
 Password for the monitoring user. Make sure
 that the password for this user does not expire.
+Need to explicitly set a password to a new monitor
+user for the security reason.
 </longdesc>
 <shortdesc lang="en">monpassword</shortdesc>
 <content type="string" default="$OCF_RESKEY_monpassword_default" />
@@ -440,6 +442,12 @@ check_mon_user() {
 			return 1
 		fi
 	fi
+
+	if [ -z "$OCF_RESKEY_monpassword" ]; then
+		ocf_exit_reason "Please explicitly set a password for $MONUSR oracle user"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
 	output=`dbasql mk_mon_user show_mon_user`
 	if echo "$output" | grep -iw "^$MONUSR" >/dev/null; then
 		return 0
