@@ -989,7 +989,7 @@ fi
 MYSQL_OPTIONS_CHECK="-nNE --user=${OCF_RESKEY_check_user}"
 
 if ocf_is_true "${OCF_RESKEY_check_passwd_use_empty}"; then
-    MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK --password=''"
+    MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK --password="
 elif [ -n "${OCF_RESKEY_check_passwd}" ]; then
     MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK --password=${OCF_RESKEY_check_passwd}"
 fi
