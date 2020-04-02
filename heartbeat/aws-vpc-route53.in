@@ -121,6 +121,15 @@ Note: The trailing dot is important to Route53!
 <shortdesc lang="en">Full service name</shortdesc>
 <content type="string" default="${OCF_RESKEY_fullname_default}" />
 </parameter>
+<parameter name="ip" required="0">
+<longdesc lang="en">
+IP (local (default), public or secondary private IP address (e.g. 10.0.0.1).
+
+A secondary private IP can be setup with the awsvip agent.
+</longdesc>
+<shortdesc lang="en">Type of IP or secondary private IP address (local, public or e.g. 10.0.0.1)</shortdesc>
+<content type="string" default="${OCF_RESKEY_ip_default}" />
+</parameter>
 <parameter name="ttl" required="0">
 <longdesc lang="en">
 Time to live for Route53 ARECORD
@@ -173,6 +182,15 @@ r53_validate() {
 	# Hosted Zone ID
 	[[ -z "$OCF_RESKEY_hostedzoneid" ]] && ocf_log error "Hosted Zone ID parameter not set $OCF_RESKEY_hostedzoneid!" && exit $OCF_ERR_CONFIGURED
 
+	# Type of IP/secondary IP address
+	case $OCF_RESKEY_ip in
+		local|public|*.*.*.*)
+			;;
+		*)
+			ocf_exit_reason "Invalid value for ip: ${OCF_RESKEY_ip}"
+			exit $OCF_ERR_CONFIGURED
+	esac
+
 	# profile
 	[[ -z "$OCF_RESKEY_profile" ]] && ocf_log error "AWS CLI profile not set $OCF_RESKEY_profile!" && exit $OCF_ERR_CONFIGURED
 
@@ -200,7 +218,7 @@ r53_start() {
 	# Start agent and config DNS in Route53
 	#
 	ocf_log info "Starting Route53 DNS update...."
-	IPADDRESS="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
+	_get_ip
 	r53_monitor
 	if [ $? != $OCF_SUCCESS ]; then
 		ocf_log info "Could not start agent - check configurations"
@@ -239,7 +257,7 @@ r53_monitor() {
 	r53_validate
 	ocf_log debug "Checking Route53 record sets"
 	#
-	IPADDRESS="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
+	_get_ip
 	#
 	if [ "$__OCF_ACTION" = "start" ] || ocf_is_probe ; then
 		#
@@ -306,6 +324,15 @@ r53_monitor() {
 	fi
 
 	return $OCF_SUCCESS
+}
+
+_get_ip() {
+	case $OCF_RESKEY_ip in
+		local|public)
+			IPADDRESS="$(curl -s http://169.254.169.254/latest/meta-data/${OCF_RESKEY_ip}-ipv4)";;
+		*.*.*.*)
+			IPADDRESS="${OCF_RESKEY_ip}";;
+	esac
 }
 
 _update_record() {
