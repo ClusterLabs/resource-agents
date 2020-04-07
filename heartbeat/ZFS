@@ -61,7 +61,7 @@ Arguments to zpool import, e.g. "-d /dev/disk/by-id".
 <shortdesc lang="en">Import arguments</shortdesc>
 <content type="string" default="${OCF_RESKEY_importargs_default}" />
 </parameter>
-<parameter name="importforce" unique="1" required="0">
+<parameter name="importforce" unique="0" required="0">
 <longdesc lang="en">
 zpool import is given the -f option.
 </longdesc>
