@@ -190,11 +190,7 @@ crypt_validate_all() {
 		ocf_exit_reason "Hash key file $key_file not accessible"
 		return $OCF_ERR_ARGS
 	fi
-	if ! ocf_is_true "$force_stop"  && "$force_stop" != "false" ]]; then
-		ocf_exit_reason "Bogus force_stop=\"$force_stop\" attribute"
-		return $OCF_ERR_CONFIGURED
-	fi
-	if "$force_stop" = "true" && ! have_binary lsof; then
+	if ocf_is_true "$force_stop" && ! have_binary lsof; then
 		ocf_exit_reason "Force stop requested, please install lsof(8)"
 		return $OCF_ERR_INSTALLED
 	fi
@@ -273,7 +269,7 @@ crypt_stop() {
 		crypt_monitor
 		rc=$?
 	fi
-	if [ $rc -ne $OCF_NOT_RUNNING ] && ocf_is_true $FORCESTOP; then
+	if [ $rc -ne $OCF_NOT_RUNNING ] && ocf_is_true $force_stop; then
 		stop_crypt_users
 		case $? in
 		2) rc=$OCF_SUCCESS;;
