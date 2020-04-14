@@ -202,7 +202,7 @@ def validate(ctx):
     sys.exit(OCF_ERR_PERM)
 
   try:
-    ctx.conn = googleapiclient.discovery.build('compute', 'v1')
+    ctx.conn = googleapiclient.discovery.build('compute', 'v1', cache_discovery=False)
   except Exception as e:
     logger.error('Couldn\'t connect with google api: ' + str(e))
     sys.exit(OCF_ERR_CONFIGURED)
