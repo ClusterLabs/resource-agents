@@ -43,8 +43,14 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+OCF_RESKEY_hostedzoneid_default=""
+OCF_RESKEY_fullname_default=""
+OCF_RESKEY_ip_default="local"
 OCF_RESKEY_ttl_default=10
 
+: ${OCF_RESKEY_hostedzoneid:=${OCF_RESKEY_hostedzoneid_default}}
+: ${OCF_RESKEY_fullname:=${OCF_RESKEY_fullname_default}}
+: ${OCF_RESKEY_ip:=${OCF_RESKEY_ip_default}}
 : ${OCF_RESKEY_ttl:=${OCF_RESKEY_ttl_default}}
 
 #######################################################################
@@ -104,7 +110,7 @@ Hosted zone ID of Route 53. This is the table of
 the Route 53 record.
 </longdesc>
 <shortdesc lang="en">AWS hosted zone ID</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_hostedzoneid_default}" />
 </parameter>
 <parameter name="fullname" required="1">
 <longdesc lang="en">
@@ -113,7 +119,16 @@ Example: service.cloud.example.corp.
 Note: The trailing dot is important to Route53!
 </longdesc>
 <shortdesc lang="en">Full service name</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_fullname_default}" />
+</parameter>
+<parameter name="ip" required="0">
+<longdesc lang="en">
+IP (local (default), public or secondary private IP address (e.g. 10.0.0.1).
+
+A secondary private IP can be setup with the awsvip agent.
+</longdesc>
+<shortdesc lang="en">Type of IP or secondary private IP address (local, public or e.g. 10.0.0.1)</shortdesc>
+<content type="string" default="${OCF_RESKEY_ip_default}" />
 </parameter>
 <parameter name="ttl" required="0">
 <longdesc lang="en">
@@ -167,6 +182,15 @@ r53_validate() {
 	# Hosted Zone ID
 	[[ -z "$OCF_RESKEY_hostedzoneid" ]] && ocf_log error "Hosted Zone ID parameter not set $OCF_RESKEY_hostedzoneid!" && exit $OCF_ERR_CONFIGURED
 
+	# Type of IP/secondary IP address
+	case $OCF_RESKEY_ip in
+		local|public|*.*.*.*)
+			;;
+		*)
+			ocf_exit_reason "Invalid value for ip: ${OCF_RESKEY_ip}"
+			exit $OCF_ERR_CONFIGURED
+	esac
+
 	# profile
 	[[ -z "$OCF_RESKEY_profile" ]] && ocf_log error "AWS CLI profile not set $OCF_RESKEY_profile!" && exit $OCF_ERR_CONFIGURED
 
@@ -189,6 +213,31 @@ r53_validate() {
 	return $OCF_SUCCESS
 }
 
+r53_start() {
+	#
+	# Start agent and config DNS in Route53
+	#
+	ocf_log info "Starting Route53 DNS update...."
+	_get_ip
+	r53_monitor
+	if [ $? != $OCF_SUCCESS ]; then
+		ocf_log info "Could not start agent - check configurations"
+		return $OCF_ERR_GENERIC
+	fi
+	return $OCF_SUCCESS
+}
+
+r53_stop() {
+	#
+	# Stop operation doesn't perform any API call or try to remove the DNS record
+	# this mostly because this is not necessarily mandatory or desired
+	# the start and monitor functions will take care of changing the DNS record
+	# if the agent starts in a different cluster node
+	#
+	ocf_log info "Bringing down Route53 agent. (Will NOT remove Route53 DNS record)"
+	return $OCF_SUCCESS
+}
+
 r53_monitor() {
 	#
 	# For every start action the agent  will call Route53 API to check for DNS record
@@ -208,7 +257,7 @@ r53_monitor() {
 	r53_validate
 	ocf_log debug "Checking Route53 record sets"
 	#
-	IPADDRESS="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
+	_get_ip
 	#
 	if [ "$__OCF_ACTION" = "start" ] || ocf_is_probe ; then
 		#
@@ -277,6 +326,15 @@ r53_monitor() {
 	return $OCF_SUCCESS
 }
 
+_get_ip() {
+	case $OCF_RESKEY_ip in
+		local|public)
+			IPADDRESS="$(curl -s http://169.254.169.254/latest/meta-data/${OCF_RESKEY_ip}-ipv4)";;
+		*.*.*.*)
+			IPADDRESS="${OCF_RESKEY_ip}";;
+	esac
+}
+
 _update_record() {
 	#
 	# This function is the one that will actually execute Route53's API call
@@ -339,31 +397,6 @@ _update_record() {
 	done
 }
 
-r53_stop() {
-	#
-	# Stop operation doesn't perform any API call or try to remove the DNS record
-	# this mostly because this is not necessarily mandatory or desired
-	# the start and monitor functions will take care of changing the DNS record
-	# if the agent starts in a different cluster node
-	#
-	ocf_log info "Bringing down Route53 agent. (Will NOT remove Route53 DNS record)"
-	return $OCF_SUCCESS
-}
-
-r53_start() {
-	#
-	# Start agent and config DNS in Route53
-	#
-	ocf_log info "Starting Route53 DNS update...."
-	IPADDRESS="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
-	r53_monitor
-	if [ $? != $OCF_SUCCESS ]; then
-		ocf_log info "Could not start agent - check configurations"
-		return $OCF_ERR_GENERIC
-	fi
-	return $OCF_SUCCESS
-}
-
 ###############################################################################
 
 case $__OCF_ACTION in
@@ -375,20 +408,23 @@ case $__OCF_ACTION in
 		metadata
 		exit $OCF_SUCCESS
 		;;
-	monitor)
-		r53_monitor
+	start)
+		r53_validate || exit $?
+		r53_start
 		;;
 	stop)
 		r53_stop
 		;;
+	monitor)
+		r53_monitor
+		;;
 	validate-all)
 		r53_validate
-		;;
-	start)
-		r53_start
 		;;
 	*)
 		usage
 		exit $OCF_ERR_UNIMPLEMENTED
 		;;
 esac
+
+exit $?
