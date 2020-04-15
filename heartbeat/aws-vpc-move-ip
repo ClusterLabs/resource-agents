@@ -256,6 +256,10 @@ ec2ip_drop() {
 		return $OCF_ERR_GENERIC
 	fi
 
+	# delete remaining route-entries if any
+	ip route show to exact ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface | xargs -r ip route delete
+	ip route show table local to exact ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface | xargs -r ip route delete
+
 	return $OCF_SUCCESS
 }
 
