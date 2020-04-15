@@ -128,6 +128,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			lxd-info		\
 			machine-info		\
 			mariadb			\
+			mdraid			\
 			minio			\
 			mysql			\
 			mysql-proxy		\
