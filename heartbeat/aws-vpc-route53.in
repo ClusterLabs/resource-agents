@@ -37,6 +37,7 @@
 #
 # Mar. 15, 2017, vers 1.0.2
 
+
 #######################################################################
 # Initialization:
 
@@ -57,8 +58,12 @@ OCF_RESKEY_ttl_default=10
 : ${OCF_RESKEY_fullname:=${OCF_RESKEY_fullname_default}}
 : ${OCF_RESKEY_ip:=${OCF_RESKEY_ip_default}}
 : ${OCF_RESKEY_ttl:=${OCF_RESKEY_ttl_default}}
-
 #######################################################################
+
+
+AWS_PROFILE_OPT="--profile $OCF_RESKEY_profile --cli-connect-timeout 10"
+#######################################################################
+
 
 usage() {
 	cat <<-EOT
@@ -421,11 +426,6 @@ case $__OCF_ACTION in
 		metadata
 		exit $OCF_SUCCESS
 		;;
-esac
-
-AWS_PROFILE_OPT="--profile $OCF_RESKEY_profile --cli-connect-timeout 10"
-
-case $__OCF_ACTION in
 	start)
 		r53_validate || exit $?
 		r53_start
