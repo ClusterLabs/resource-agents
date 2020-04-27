@@ -223,8 +223,6 @@ r53_validate() {
 	fi
 	ocf_log debug "ok"
 
-	AWS_PROFILE_OPT="--profile $OCF_RESKEY_profile --cli-connect-timeout 10"
-
 	return $OCF_SUCCESS
 }
 
@@ -423,6 +421,11 @@ case $__OCF_ACTION in
 		metadata
 		exit $OCF_SUCCESS
 		;;
+esac
+
+AWS_PROFILE_OPT="--profile $OCF_RESKEY_profile --cli-connect-timeout 10"
+
+case $__OCF_ACTION in
 	start)
 		r53_validate || exit $?
 		r53_start
