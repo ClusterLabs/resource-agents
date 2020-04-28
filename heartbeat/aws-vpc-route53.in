@@ -37,23 +37,33 @@
 #
 # Mar. 15, 2017, vers 1.0.2
 
+
 #######################################################################
 # Initialization:
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Defaults
+OCF_RESKEY_awscli_default="/usr/bin/aws"
+OCF_RESKEY_profile_default="default"
 OCF_RESKEY_hostedzoneid_default=""
 OCF_RESKEY_fullname_default=""
 OCF_RESKEY_ip_default="local"
 OCF_RESKEY_ttl_default=10
 
+: ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
+: ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
 : ${OCF_RESKEY_hostedzoneid:=${OCF_RESKEY_hostedzoneid_default}}
 : ${OCF_RESKEY_fullname:=${OCF_RESKEY_fullname_default}}
 : ${OCF_RESKEY_ip:=${OCF_RESKEY_ip_default}}
 : ${OCF_RESKEY_ttl:=${OCF_RESKEY_ttl_default}}
-
 #######################################################################
+
+
+AWS_PROFILE_OPT="--profile $OCF_RESKEY_profile --cli-connect-timeout 10"
+#######################################################################
+
 
 usage() {
 	cat <<-EOT
@@ -103,41 +113,17 @@ primitive res_route53 ocf:heartbeat:aws-vpc-route53 \
 		meta target-role=Started
 </longdesc>
 <shortdesc lang="en">Update Route53 VPC record for AWS EC2</shortdesc>
-<parameters>
-<parameter name="hostedzoneid" required="1">
-<longdesc lang="en">
-Hosted zone ID of Route 53. This is the table of
-the Route 53 record.
-</longdesc>
-<shortdesc lang="en">AWS hosted zone ID</shortdesc>
-<content type="string" default="${OCF_RESKEY_hostedzoneid_default}" />
-</parameter>
-<parameter name="fullname" required="1">
-<longdesc lang="en">
-The full name of the service which will host the IP address.
-Example: service.cloud.example.corp.
-Note: The trailing dot is important to Route53!
-</longdesc>
-<shortdesc lang="en">Full service name</shortdesc>
-<content type="string" default="${OCF_RESKEY_fullname_default}" />
-</parameter>
-<parameter name="ip" required="0">
-<longdesc lang="en">
-IP (local (default), public or secondary private IP address (e.g. 10.0.0.1).
 
-A secondary private IP can be setup with the awsvip agent.
-</longdesc>
-<shortdesc lang="en">Type of IP or secondary private IP address (local, public or e.g. 10.0.0.1)</shortdesc>
-<content type="string" default="${OCF_RESKEY_ip_default}" />
-</parameter>
-<parameter name="ttl" required="0">
+<parameters>
+<parameter name="awscli">
 <longdesc lang="en">
-Time to live for Route53 ARECORD
+Path to command line tools for AWS
 </longdesc>
-<shortdesc lang="en">ARECORD TTL</shortdesc>
-<content type="string" default="${OCF_RESKEY_ttl_default}" />
+<shortdesc lang="en">Path to AWS CLI tools</shortdesc>
+<content type="string" default="${OCF_RESKEY_awscli_default}" />
 </parameter>
-<parameter name="profile" required="1">
+
+<parameter name="profile">
 <longdesc lang="en">
 The name of the AWS CLI profile of the root account. This
 profile will have to use the "text" format for CLI output.
@@ -153,9 +139,47 @@ configuration. The region has to be the current one. The
 output has to be "text".
 </longdesc>
 <shortdesc lang="en">AWS Profile Name</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_profile_default}" />
+</parameter>
+
+<parameter name="hostedzoneid" required="1">
+<longdesc lang="en">
+Hosted zone ID of Route 53. This is the table of
+the Route 53 record.
+</longdesc>
+<shortdesc lang="en">AWS hosted zone ID</shortdesc>
+<content type="string" default="${OCF_RESKEY_hostedzoneid_default}" />
+</parameter>
+
+<parameter name="fullname" required="1">
+<longdesc lang="en">
+The full name of the service which will host the IP address.
+Example: service.cloud.example.corp.
+Note: The trailing dot is important to Route53!
+</longdesc>
+<shortdesc lang="en">Full service name</shortdesc>
+<content type="string" default="${OCF_RESKEY_fullname_default}" />
+</parameter>
+
+<parameter name="ip" required="0">
+<longdesc lang="en">
+IP (local (default), public or secondary private IP address (e.g. 10.0.0.1).
+
+A secondary private IP can be setup with the awsvip agent.
+</longdesc>
+<shortdesc lang="en">Type of IP or secondary private IP address (local, public or e.g. 10.0.0.1)</shortdesc>
+<content type="string" default="${OCF_RESKEY_ip_default}" />
+</parameter>
+
+<parameter name="ttl" required="0">
+<longdesc lang="en">
+Time to live for Route53 ARECORD
+</longdesc>
+<shortdesc lang="en">ARECORD TTL</shortdesc>
+<content type="string" default="${OCF_RESKEY_ttl_default}" />
 </parameter>
 </parameters>
+
 <actions>
 <action name="start" timeout="180s" />
 <action name="stop" timeout="180s" />
@@ -198,17 +222,11 @@ r53_validate() {
 	[[ -z "$OCF_RESKEY_ttl" ]] && ocf_log error "TTL not set $OCF_RESKEY_ttl!" && exit $OCF_ERR_CONFIGURED
 
 	ocf_log debug "Testing aws command"
-	aws --version 2>&1
+	$OCF_RESKEY_awscli --version 2>&1
 	if [ "$?" -gt 0 ]; then
 		ocf_log error "Error while executing aws command as user root! Please check if AWS CLI tools (Python flavor) are properly installed and configured." && exit $OCF_ERR_INSTALLED
 	fi
 	ocf_log debug "ok"
-
-	if [ -n "$OCF_RESKEY_profile" ]; then
-		AWS_PROFILE_OPT="--profile $OCF_RESKEY_profile --cli-connect-timeout 10"
-	else
-		AWS_PROFILE_OPT="--profile default --cli-connect-timeout 10"
-	fi
 
 	return $OCF_SUCCESS
 }
@@ -261,7 +279,7 @@ r53_monitor() {
 	#
 	if [ "$__OCF_ACTION" = "start" ] || ocf_is_probe ; then
 		#
-		cmd="aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']"
+		cmd="$OCF_RESKEY_awscli $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']"
 		ocf_log info "Route53 Agent Starting or probing - executing monitoring API call: $cmd"
 		CLIRES="$($cmd 2>&1)"
 		rc=$?
@@ -293,7 +311,7 @@ r53_monitor() {
 		#
 		if  [[ ! $ARECORD =~ $IPREGEX ]] || [ $rc -ne 0 ]; then
 			ocf_log info "Fallback to Route53 API query due to DNS resolution failure"
-			cmd="aws $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']"
+			cmd="$OCF_RESKEY_awscli $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']"
 			ocf_log debug "executing monitoring API call: $cmd"
 			CLIRES="$($cmd 2>&1)"
 			rc=$?
@@ -372,7 +390,7 @@ _update_record() {
 		  ]
 	}
 	EOF
-	cmd="aws --profile $OCF_RESKEY_profile route53 change-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --change-batch file://$ROUTE53RECORD "
+	cmd="$OCF_RESKEY_awscli $AWS_PROFILE_OPT route53 change-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --change-batch file://$ROUTE53RECORD "
 	ocf_log debug "Executing command: $cmd"
 	CLIRES="$($cmd 2>&1)"
 	rc=$?
@@ -392,7 +410,7 @@ _update_record() {
 	MYSECONDS=20
 	while [ "$STATUS" = 'PENDING' ]; do
 		sleep $MYSECONDS
-		STATUS="$(aws --profile $OCF_RESKEY_profile route53 get-change --id $CHANGEID | grep CHANGEINFO | awk -F'\t' '{ print $4 }' |cut -d'"' -f 2 )"
+		STATUS="$($OCF_RESKEY_awscli $AWS_PROFILE_OPT route53 get-change --id $CHANGEID | grep CHANGEINFO | awk -F'\t' '{ print $4 }' |cut -d'"' -f 2 )"
 		ocf_log debug "Waited for $MYSECONDS seconds and checked execution of Route 53 update status: $STATUS "
 	done
 }
