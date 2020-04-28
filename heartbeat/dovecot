@@ -148,7 +148,7 @@ dovecot_start()
     ret=$?
 
     if [ $ret -ne 0 ]; then
-        ocf_exit_reason "Dovecot returned error: " $ret
+        ocf_exit_reason "Dovecot returned error: $ret"
         return $OCF_ERR_GENERIC
     fi
 
@@ -179,7 +179,7 @@ dovecot_stop()
     ret=$?
 
     if [ $ret -ne 0 ]; then
-        ocf_exit_reason "Dovecot returned an error while stopping: " $ret
+        ocf_exit_reason "Dovecot returned an error while stopping: $ret"
         return $OCF_ERR_GENERIC
     fi
 

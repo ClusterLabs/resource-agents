@@ -141,7 +141,7 @@ postfix_start()
     ret=$?
 
     if [ $ret -ne 0 ]; then
-        ocf_exit_reason "Postfix returned error: " $ret
+        ocf_exit_reason "Postfix returned error: $ret"
         return $OCF_ERR_GENERIC
     fi
 
@@ -172,7 +172,7 @@ postfix_stop()
     ret=$?
 
     if [ $ret -ne 0 ]; then
-        ocf_exit_reason "Postfix returned an error while stopping: " $ret
+        ocf_exit_reason "Postfix returned an error while stopping: $ret"
         return $OCF_ERR_GENERIC
     fi
 
@@ -307,7 +307,7 @@ postfix_validate_all()
         $binary $OPTIONS check >/dev/null 2>&1
         ret=$?
         if [ $ret -ne 0 ]; then
-            ocf_exit_reason "Postfix 'check' failed: " $ret
+            ocf_exit_reason "Postfix 'check' failed: $ret"
             return $OCF_ERR_GENERIC
         fi
     fi
