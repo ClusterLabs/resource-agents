@@ -1040,7 +1040,7 @@ pgsql_replication_monitor() {
 
     # I can't get master node name from $OCF_RESKEY_CRM_meta_notify_master_uname on monitor,
     # so I will get master node name using crm_mon -n
-    print_crm_mon | tr -d "\t" | tr -d " " | grep -q "^${RESOURCE_NAME}[(:].*[):].*Master"
+    print_crm_mon | tr -d "\t" | tr -d " " | grep -q -e "^${RESOURCE_NAME}[(:].*[):].*Master" -e "^\*${RESOURCE_NAME}[(:].*[):].*Master"
     if [ $? -ne 0 ] ; then
         # If I am Slave and Master is not exist
         ocf_log info "Master does not exist."
@@ -1815,11 +1815,11 @@ exec_with_retry() {
 }
 
 is_node_online() {
-    print_crm_mon | tr '[A-Z]' '[a-z]' | grep -e "^node $1 " -e "^node $1:" | grep -q -v "offline"
+    print_crm_mon | tr '[A-Z]' '[a-z]' | grep -e "^node $1 " -e "^node $1:" -e "\* node $1:" | grep -q -v "offline"
 }
 
 node_exist() {
-    print_crm_mon | tr '[A-Z]' '[a-z]' | grep -q "^node $1"
+    print_crm_mon | tr '[A-Z]' '[a-z]' | grep -q -e "^node $1" -e "\* node $1:"
 }
 
 check_binary2() {
