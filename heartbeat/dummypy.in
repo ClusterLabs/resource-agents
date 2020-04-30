@@ -2,9 +2,9 @@
 # - *- coding: utf- 8 - *-
 #
 #
-#	Dummy Python OCF RA. Does nothing except track its own state.
-#	Use it only as a testing tool or example for how to write
-#	a resource agent in python.
+# Dummy Python OCF RA. Does nothing except track its own state.
+# Use it only as a testing tool or example for how to write
+# a resource agent in python.
 #
 # Copyright (c) 2020 SUSE LLC, Pablo Bravo (pablo.bravo@suse.com)
 #                    All Rights Reserved.
@@ -31,22 +31,23 @@
 
 #######################################################################
 
-import atexit
-import logging
 import os
 import sys
-import time
 
-OCF_FUNCTIONS_DIR = os.environ.get("OCF_FUNCTIONS_DIR", "%s/lib/heartbeat" % os.environ.get("OCF_ROOT"))
+OCF_FUNCTIONS_DIR = os.environ.get(
+    "OCF_FUNCTIONS_DIR",
+    "%s/lib/heartbeat" % os.environ.get("OCF_ROOT"))
 sys.path.append(OCF_FUNCTIONS_DIR)
 
-import ocf
+import ocf  # noqa: E402
 
-OCF_RESKEY_state_default=f'{ocf.get_parameter("HA_RSCTMP")}/dummypy-{ocf.get_parameter("OCF_RESOURCE_INSTANCE")}.state'
-OCF_RESKEY_fake_default="dummy"
+PARAM_HA_RSCTMP = ocf.get_parameter("HA_RSCTMP")
+PARAM_INSTANCE = ocf.get_parameter("OCF_RESOURCE_INSTANCE")
+OCF_RESKEY_state_default = f'{PARAM_HA_RSCTMP}/dummypy-{PARAM_INSTANCE}.state'
+OCF_RESKEY_fake_default = "dummy"
 
-LONG_DESC='''This is a Dummy Resource Agent. It does absolutely nothing except 
-keep track of whether its running or not.
+LONG_DESC = '''This is a Dummy Resource Agent. It does absolutely nothing
+except keep track of whether its running or not.
 Its purpose in life is for testing and to serve as a template for RA writers.
 
 NB: Please pay attention to the timeouts specified in the actions
@@ -56,17 +57,20 @@ but they shouldn't/cannot cover _all_ possible resource
 instances. So, try to be neither overly generous nor too stingy,
 but moderate. The minimum timeouts should never be below 10 seconds.'''
 
-SHORT_DESC='Example stateless resource agent'
+SHORT_DESC = 'Example stateless resource agent'
+
 
 def touch(file_name):
     with open(file_name, 'a'):
         os.utime(file_name, None)
 
+
 def dummy_start(state, fake):
     rc = dummy_monitor(state, fake)
     if rc == ocf.OCF_SUCCESS:
-	    return ocf.OCF_SUCCESS
+        return ocf.OCF_SUCCESS
     touch(state)
+
 
 def dummy_stop(state, fake):
     rc = dummy_monitor(state, fake)
@@ -74,17 +78,19 @@ def dummy_stop(state, fake):
         os.remove(state)
     return ocf.OCF_SUCCESS
 
+
 def dummy_monitor(state, fake):
     try:
         if os.path.isfile(state):
             return ocf.OCF_SUCCESS
 
         if (not ocf.is_probe()) and (ocf.OCF_ACTION == "monitor"):
-	        ocf.ocf_exit_reason("No process state file found")
-        
+            ocf.ocf_exit_reason("No process state file found")
+
         return ocf.OCF_NOT_RUNNING
-    except:
+    except:  # noqa: E722
         return ocf.OCF_ERR_GENERIC
+
 
 def dummy_validate(state, fake):
     state_dir = os.path.dirname(state)
@@ -92,26 +98,35 @@ def dummy_validate(state, fake):
 
     try:
         touch(file_test)
-    except:
+    except:  # noqa: E722
         ocf.ocf_exit_reason(f'State file "{state}" is not writable')
         return ocf.OCF_ERR_ARGS
 
     os.remove(file_test)
     return ocf.OCF_SUCCESS
 
+
 def dummy_migrate_to(state, fake):
-    ocf.logger.info(f'Migrating {ocf.OCF_RESOURCE_INSTANCE} to {ocf.get_parameter("CRM_meta_migrate_target")}.')
+    INSTANCE = ocf.OCF_RESOURCE_INSTANCE
+    TARGET = ocf.get_parameter("CRM_meta_migrate_target")
+    ocf.logger.info(f'Migrating {INSTANCE} to {TARGET}.')
     dummy_stop(state, fake)
 
+
 def dummy_migrate_from(state, fake):
-    ocf.logger.info(f'Migrating {ocf.OCF_RESOURCE_INSTANCE} from {ocf.get_parameter("CRM_meta_migrate_source")}.')
+    INSTANCE = ocf.OCF_RESOURCE_INSTANCE
+    SOURCE = ocf.get_parameter("CRM_meta_migrate_source")
+    ocf.logger.info(f'Migrating {INSTANCE} from {SOURCE}.')
     dummy_start(state, fake)
+
 
 def dummy_reload(state, fake):
     ocf.logger.info(f'Reloading {ocf.OCF_RESOURCE_INSTANCE} ...')
 
+
 def dummy_validate_all(state, fake):
     dummy_validate(state, fake)
+
 
 def main():
     dummy_agent = ocf.Agent('dummy', SHORT_DESC, LONG_DESC)
@@ -136,13 +151,14 @@ def main():
 
     dummy_agent.add_action(name="start", timeout=20, handler=dummy_start)
     dummy_agent.add_action(name="stop", timeout=20, handler=dummy_stop)
-    dummy_agent.add_action(name="monitor", timeout=20, handler=dummy_monitor, interval=10, depth=0)
+    dummy_agent.add_action(name="monitor", timeout=20, handler=dummy_monitor, interval=10, depth=0)  # noqa: E501
     dummy_agent.add_action(name="reload", timeout=20, handler=dummy_reload)
-    dummy_agent.add_action(name="migrate_to", timeout=20, handler=dummy_migrate_to)
-    dummy_agent.add_action(name="migrate_from", timeout=20, handler=dummy_migrate_from)
-    dummy_agent.add_action(name="validate-all", timeout=20, handler=dummy_validate_all)
+    dummy_agent.add_action(name="migrate_to", timeout=20, handler=dummy_migrate_to)  # noqa: E501
+    dummy_agent.add_action(name="migrate_from", timeout=20, handler=dummy_migrate_from)  # noqa: E501
+    dummy_agent.add_action(name="validate-all", timeout=20, handler=dummy_validate_all)  # noqa: E501
 
     dummy_agent.run()
+
 
 if __name__ == "__main__":
     main()
