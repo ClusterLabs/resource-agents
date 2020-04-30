@@ -42,6 +42,9 @@ sys.path.append(OCF_FUNCTIONS_DIR)
 
 import ocf
 
+OCF_RESKEY_state_default=f'{ocf.get_parameter("HA_RSCTMP")}/dummypy-{ocf.get_parameter("OCF_RESOURCE_INSTANCE")}.state'
+OCF_RESKEY_fake_default="dummy"
+
 LONG_DESC='''This is a Dummy Resource Agent. It does absolutely nothing except 
 keep track of whether its running or not.
 Its purpose in life is for testing and to serve as a template for RA writers.
@@ -55,20 +58,20 @@ but moderate. The minimum timeouts should never be below 10 seconds.'''
 
 SHORT_DESC='Example stateless resource agent'
 
+def touch(file_name):
+    with open(file_name, 'a'):
+        os.utime(file_name, None)
 
 def dummy_start(state, fake):
     rc = dummy_monitor(state, fake)
     if rc == ocf.OCF_SUCCESS:
 	    return ocf.OCF_SUCCESS
-
-    with open(state, 'w'):
-        os.utime(state, None)
+    touch(state)
 
 def dummy_stop(state, fake):
     rc = dummy_monitor(state, fake)
     if rc == ocf.OCF_SUCCESS:
         os.remove(state)
-
     return ocf.OCF_SUCCESS
 
 def dummy_monitor(state, fake):
@@ -88,8 +91,7 @@ def dummy_validate(state, fake):
     file_test = f'{state_dir if state_dir != "" else "."}/$$'
 
     try:
-        with open(file_test, 'w'):
-            os.utime(file_test, None)
+        touch(file_test)
     except:
         ocf.ocf_exit_reason(f'State file "{state}" is not writable')
         return ocf.OCF_ERR_ARGS
