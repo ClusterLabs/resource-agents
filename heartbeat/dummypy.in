@@ -6,7 +6,7 @@
 #	Use it only as a testing tool or example for how to write
 #	a resource agent in python.
 #
-# Copyright (c) 2020 SUSE LINUX AG, Pablo Bravo
+# Copyright (c) 2020 SUSE LLC, Pablo Bravo (pablo.bravo@suse.com)
 #                    All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
