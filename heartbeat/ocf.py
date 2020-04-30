@@ -98,7 +98,6 @@ HA_LOGFACILITY = env.get("HA_LOGFACILITY")
 HA_LOGFILE = env.get("HA_LOGFILE")
 HA_DEBUGLOG = env.get("HA_DEBUGLOG")
 
-logging.basicConfig()
 log = logging.getLogger(os.path.basename(argv[0]))
 log.setLevel(logging.DEBUG)
 
