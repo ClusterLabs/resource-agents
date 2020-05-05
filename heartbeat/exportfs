@@ -450,14 +450,28 @@ exportfs_validate_all ()
 	fi
 }
 
-# If someone puts a trailing slash at the end of the export directory,
-# this agent is going to fail in some unexpected ways due to how
-# export strings are matched.  The simplest solution here is to strip off
-# a trailing '/' in the directory before processing anything.
-newdir=$(echo "$OCF_RESKEY_directory" | sed -n -e 's/^\(.*\)\/$/\1/p')
-if [ -n "$newdir" ]; then
-	OCF_RESKEY_directory=$newdir
-fi
+for dir in $OCF_RESKEY_directory; do
+	# strip off trailing '/' from directory
+	dir=$(echo $dir | sed 's/\/*$//')
+	: ${dir:=/}
+	if [ -e "$dir" ] ; then
+		canonicalized_dir=$(readlink -f "$dir")
+		if [ $? -ne 0 ]; then
+			if [ "$__OCF_ACTION" != "stop" ]; then
+				ocf_exit_reason "Could not canonicalize $dir because readlink failed"
+				exit $OCF_ERR_GENERIC
+			fi
+		fi
+	else
+		if [ "$__OCF_ACTION" != "stop" ]; then
+			ocf_exit_reason "$dir does not exist"
+			exit $OCF_ERR_CONFIGURED
+		fi
+	fi
+	directories+="$canonicalized_dir "
+done
+
+OCF_RESKEY_directory="${directories%% }"
 
 NUMDIRS=`echo "$OCF_RESKEY_directory" | wc -w`
 OCF_REQUIRED_PARAMS="directory fsid clientspec"
