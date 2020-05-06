@@ -294,6 +294,8 @@ rmq_monitor() {
 rmq_init_and_wait()
 {
 	local rc
+	local wait_timeout
+	local timeout_string
 
 	prepare_dir $RMQ_PID_DIR
 	prepare_dir $RMQ_LOG_DIR
@@ -305,11 +307,20 @@ rmq_init_and_wait()
 	setsid sh -c "$RMQ_SERVER > ${RMQ_LOG_DIR}/startup_log 2> ${RMQ_LOG_DIR}/startup_err" &
 
 	ocf_log info "Waiting for server to start"
-	$RMQ_CTL wait $RMQ_PID_FILE
+	# We want to give the wait command almost the full startup timeout we are given
+	# So we use the start operation timeout (in ms), convert it and subtract 5 seconds
+	# In the silly case that it is less than 10 seconds we just skip setting the timeout
+	wait_timeout=`expr $OCF_RESKEY_CRM_meta_timeout / 1000 - 5`
+	if [ $wait_timeout -gt 10 ]; then
+		timeout_string="--timeout ${wait_timeout}"
+	else
+		timeout_string=""
+	fi
+	$RMQ_CTL $timeout_string wait $RMQ_PID_FILE
 	rc=$?
 	if [ $rc -ne $OCF_SUCCESS ]; then
 		remove_pid
-		ocf_log info "rabbitmq-server start failed: $rc"
+		ocf_log info "rabbitmq-server start failed with a timeout of ($timeout_string): $rc"
 		return $OCF_ERR_GENERIC
 	fi
 
