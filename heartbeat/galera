@@ -491,7 +491,7 @@ greater_than_equal_long()
 
 galera_to_pcmk_name()
 {
-    local galera=$1
+    local galera=${1%:*}
     if [ -z "$OCF_RESKEY_cluster_host_map" ]; then
         echo $galera
     else
