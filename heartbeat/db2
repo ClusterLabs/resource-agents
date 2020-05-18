@@ -774,12 +774,17 @@ db2_promote() {
             ;;
 
             STANDBY/PEER/CONNECTED|Standby/Peer)
-            # must take over 
+            # must take over
             ;;
 
             STANDBY/*PEER/DISCONNECTED|Standby/DisconnectedPeer)
-            # must take over forced 
+            # must take over by force peer window only
             force="by force peer window only"
+            ;;
+
+            # must take over by force
+            STANDBY/REMOTE_CATCHUP_PENDING/DISCONNECTED)
+            force="by force"
             ;;
 
             *)
