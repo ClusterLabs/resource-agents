@@ -82,9 +82,19 @@ class azHelper:
 		req = urllib2.Request(url, postData)
 		req.add_header("Metadata", "true")
 		req.add_header("User-Agent", USER_AGENT)
-		resp = urllib2.urlopen(req)
-		data = resp.read()
-		ocf.logger.debug("_sendMetadataRequest: response = %s" % data)
+		try:
+			resp = urllib2.urlopen(req)
+		except URLError as e:
+			if hasattr(e, 'reason'):
+				ocf.logger.warning("Failed to reach the server: %s" % e.reason)
+				clusterHelper.setAttr(attr_globalPullState, "IDLE")
+			elif hasattr(e, 'code'):
+				ocf.logger.warning("The server couldn\'t fulfill the request. Error code: %s" % e.code)
+				clusterHelper.setAttr(attr_globalPullState, "IDLE")
+		else:
+			data = resp.read()
+			ocf.logger.debug("_sendMetadataRequest: response = %s" % data)
+
 		if data:
 			data = json.loads(data)
 
