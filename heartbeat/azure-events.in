@@ -86,10 +86,10 @@ class azHelper:
 			resp = urllib2.urlopen(req)
 		except URLError as e:
 			if hasattr(e, 'reason'):
-				print('We failed to reach a server. Reason: '), e.reason
+				ocf.logger.warning("Failed to reach the server: %s" % e.reason)
 				clusterHelper.setAttr(attr_globalPullState, "IDLE")
 			elif hasattr(e, 'code'):
-				print('The server couldn\'t fulfill the request. Error code: '), e.code
+				ocf.logger.warning("The server couldn\'t fulfill the request. Error code: %s" % e.code)
 				clusterHelper.setAttr(attr_globalPullState, "IDLE")
 		else:
 			data = resp.read()
