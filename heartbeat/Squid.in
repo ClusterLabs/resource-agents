@@ -24,6 +24,7 @@
 # OCF parameters:
 #   OCF_RESKEY_squid_exe    : Executable file
 #   OCF_RESKEY_squid_conf   : Configuration file
+#   OCF_RESKEY_squid_opts   : Start options 
 #   OCF_RESKEY_squid_pidfile: Process id file
 #   OCF_RESKEY_squid_port   : Port number
 #   OCF_RESKEY_debug_mode   : Debug mode
@@ -45,6 +46,7 @@
 
 OCF_RESKEY_squid_exe_default=""
 OCF_RESKEY_squid_conf_default=""
+OCF_RESKEY_squid_opts_default=""
 OCF_RESKEY_squid_pidfile_default=""
 OCF_RESKEY_squid_port_default=""
 OCF_RESKEY_squid_stop_timeout_default="10"
@@ -112,6 +114,14 @@ for a squid instance managed by this RA.
 </longdesc>
 <shortdesc lang="en">Configuration file</shortdesc>
 <content type="string" default="${OCF_RESKEY_squid_conf_default}"/>
+</parameter>
+
+<parameter name="squid_opts" required="0" unique="0">
+<longdesc lang="en">
+This is a optional parameter. This parameter specifies the start options.
+</longdesc>
+<shortdesc lang="en">Start options</shortdesc>
+<content type="string" default="${OCF_RESKEY_squid_opts_default}"/>
 </parameter>
 
 <parameter name="squid_pidfile" required="0" unique="1">
