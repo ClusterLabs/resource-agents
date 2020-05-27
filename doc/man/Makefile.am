@@ -109,6 +109,7 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_db2.7 \
                           ocf_heartbeat_dhcpd.7 \
                           ocf_heartbeat_docker.7 \
+                          ocf_heartbeat_docker-compose.7 \
                           ocf_heartbeat_dovecot.7 \
                           ocf_heartbeat_dnsupdate.7 \
                           ocf_heartbeat_eDir88.7 \
