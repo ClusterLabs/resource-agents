@@ -316,7 +316,7 @@ nfsserver_systemd_monitor()
 	fi
 
 	ocf_log debug "Status: nfs-mountd"
-	rpcinfo -t localhost 100005 > /dev/null 2>&1
+	ps axww | grep -q "[r]pc.mountd"
 	rc=$?
 	if [ "$rc" -ne "0" ]; then
 		ocf_exit_reason "nfs-mountd is not running"
@@ -683,7 +683,7 @@ nfsserver_start ()
 		  local i=1
 		  while : ; do
 			ocf_log info "Start: nfs-mountd i: $i"
-			rpcinfo -t localhost 100005 > /dev/null 2>&1
+			ps axww | grep -q "[r]pc.mountd"
 			rc=$?
 			if [ "$rc" -eq "0" ]; then
 				break;
@@ -800,7 +800,7 @@ nfsserver_stop ()
 
 		  nfs_exec stop nfs-mountd > /dev/null 2>&1
 		  ocf_log info "Stop: nfs-mountd"
-		  rpcinfo -t localhost 100005 > /dev/null 2>&1
+		  ps axww | grep -q "[r]pc.mountd"
 		  rc=$?
 		  if [ "$rc" -eq "0" ]; then
 			ocf_exit_reason "Failed to stop nfs-mountd"
