@@ -1,6 +1,6 @@
 #!/bin/sh
-# Version: 1.0
-# Date: 2020-05-27
+# Version: 1.0.1
+# Date: 2020-05-29
 #
 # Resource script for running docker-compose
 #
@@ -24,9 +24,9 @@
 #
 # OCF parameters:
 # OCF_RESKEY_binpath
-# OCF_RESKEY_dirpath (required)
+# OCF_RESKEY_dirpath
 # OCF_RESKEY_ymlfile
-# OCF_RESKEY_svcname (required)
+# OCF_RESKEY_svcname
 #
 ##########################################################################
 # Initialization:
@@ -34,6 +34,12 @@
 : ${OCF_ROOT:=/usr/lib/ocf}
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_binpath_default=/usr/bin/docker-compose
+OCF_RESKEY_ymlfile_default=docker-compose.yml
+: ${OCF_RESKEY_binpath=${OCF_RESKEY_binpath_default}}
+: ${OCF_RESKEY_ymlfile=${OCF_RESKEY_ymlfile_default}}
 
 USAGE="Usage: $0 {start|stop|status|monitor|validate-all|meta-data}"
 
@@ -50,7 +56,7 @@ cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="docker-compose">
-<version>1.0</version>
+<version>1.0.1</version>
 <longdesc lang="en">
 Manages docker services using docker-compose as an OCF resource in an High Availability setup.
 It relies on a well-tested docker compose YAML file which distributed on an identical location on all cluster nodes.
@@ -61,6 +67,7 @@ Caveat: 1. A YAML file (docker-compose.yml) and an optional Dockerfile
            before enabling this agent.
 </longdesc>
 <shortdesc lang="en">This script manages docker services using docker-compose.</shortdesc> 
+
 <parameters>
 
 <parameter name="binpath">
@@ -69,10 +76,10 @@ The docker-composer binary path.
 For example, "/usr/bin/docker-compose"
 </longdesc>
 <shortdesc lang="en">The docker-composer binary path</shortdesc>
-<content type="string" default="/usr/bin/docker-compose"/>
+<content type="string" default="$OCF_RESKEY_binpath_default"/>
 </parameter>
 
-<parameter name="dirpath" required="true">
+<parameter name="dirpath" required="1">
 <longdesc lang="en">
 The directory contains docker compose yaml file.
 For example, "/data/docker"
@@ -87,10 +94,10 @@ The docker-compose yaml file.
 For example, "docker-compose.yml"
 </longdesc>
 <shortdesc lang="en">The docker compose yaml</shortdesc>
-<content type="string" default="docker-compose.yml"/>
+<content type="string" default="$OCF_RESKEY_ymlfile_default"/>
 </parameter>
 
-<parameter name="svcname" required="true">
+<parameter name="svcname" required="1">
 <longdesc lang="en">
 The docker service name.
 For example, "myservice"
@@ -113,26 +120,15 @@ END
 exit $OCF_SUCCESS
 }
 
-if [ -n "$OCF_RESKEY_binpath" ]; then
+if [ -r "$OCF_RESKEY_binpath" -x "$OCF_RESKEY_binpath" ]; then
 	COMMAND="$OCF_RESKEY_binpath"
 else
 	COMMAND=$(which docker-compose 2>/dev/null)
-	OCF_RESKEY_binpath=${COMMAND:=/usr/bin/docker-compose}
 fi
 
-if [ -n "$OCF_RESKEY_dirpath" ]; then
-	DIR="$OCF_RESKEY_dirpath"
-fi
-
-if [ -n "$OCF_RESKEY_ymlfile" ]; then
-	YML="$OCF_RESKEY_ymlfile"
-else
-	OCF_RESKEY_ymlfile=${YML:=docker-compose.yml}
-fi
-
-if [ -n "$OCF_RESKEY_svcname" ]; then
-	SVC="$OCF_RESKEY_svcname"
-fi
+DIR="$OCF_RESKEY_dirpath"
+YML="$OCF_RESKEY_ymlfile"
+SVC="$OCF_RESKEY_svcname"
 
 docker_kill()
 {
@@ -148,7 +144,7 @@ docker_kill()
 	fi
 }
 
-docker_status()
+docker-compose_status()
 {
 	# use docker-compose ps if YML found, otherwise try docker ps and kill containers
 	if [ -r "$DIR/$YML" ]; then
@@ -188,10 +184,10 @@ docker_status()
 	}
 }
 
-docker_start()
+docker-compose_start()
 {
-	docker_validate_all
-	docker_status &> /dev/null
+	docker-compose_validate_all
+	docker-compose_status &> /dev/null
 	retVal=$?
 	# return success if docker service is running
 	[ $retVal -eq $OCF_SUCCESS ] && exit $OCF_SUCCESS
@@ -206,11 +202,11 @@ docker_start()
 	exit $OCF_SUCCESS
 }
 
-docker_stop()
+docker-compose_stop()
 {
 	# use docker-compose down if YML found, otherwise try docker kill and rm
 	if [ -r "$DIR/$YML" ]; then
-		docker_validate_all
+		docker-compose_validate_all
 		cd $DIR
 		ocf_run $COMMAND down || {
 			ocf_log err "Error on shutting down docker service, try docker kill..."
@@ -230,12 +226,12 @@ docker_stop()
 	exit $OCF_SUCCESS
 }
 
-docker_monitor()
+docker-compose_monitor()
 {
-	docker_status
+	docker-compose_status
 }
 
-docker_validate_all()
+docker-compose_validate_all()
 {
 	if ! check_binary "$OCF_RESKEY_binpath"; then
 		ocf_log err "missing binary $OCF_RESKEY_binpath."
@@ -268,23 +264,23 @@ fi
 
 case $1 in
 	start)	
-		docker_start
+		docker-compose_start
 		;;
 
 	stop)	
-		docker_stop
+		docker-compose_stop
 		;;
 
 	status)	
-		docker_status
+		docker-compose_status
 		;;
 
 	monitor)
-		docker_monitor
+		docker-compose_monitor
 		;;
 
 	validate-all)
-		docker_validate_all
+		docker-compose_validate_all
 		;;
 
 	meta-data)
