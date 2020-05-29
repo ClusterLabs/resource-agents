@@ -1,5 +1,5 @@
-#!/bin/bash
-# Version: 1.0.2
+#!/bin/sh
+# Version: 1.0.3
 # Date: 2020-05-29
 #
 # Resource script for running docker-compose
@@ -56,7 +56,7 @@ cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="docker-compose">
-<version>1.0.2</version>
+<version>1.0.3</version>
 <longdesc lang="en">
 Manages docker services using docker-compose as an OCF resource in an High Availability setup.
 It relies on a well-tested docker compose YAML file which distributed on an identical location on all cluster nodes.
@@ -144,7 +144,7 @@ docker_kill()
 	fi
 }
 
-docker-compose_status()
+docker_compose_status()
 {
 	# use docker-compose ps if YML found, otherwise try docker ps and kill containers
 	if [ -r "$DIR/$YML" ]; then
@@ -184,10 +184,10 @@ docker-compose_status()
 	}
 }
 
-docker-compose_start()
+docker_compose_start()
 {
-	docker-compose_validate_all
-	docker-compose_status &> /dev/null
+	docker_compose_validate_all
+	docker_compose_status &> /dev/null
 	retVal=$?
 	# return success if docker service is running
 	[ $retVal -eq $OCF_SUCCESS ] && exit $OCF_SUCCESS
@@ -202,11 +202,11 @@ docker-compose_start()
 	exit $OCF_SUCCESS
 }
 
-docker-compose_stop()
+docker_compose_stop()
 {
 	# use docker-compose down if YML found, otherwise try docker kill and rm
 	if [ -r "$DIR/$YML" ]; then
-		docker-compose_validate_all
+		docker_compose_validate_all
 		cd $DIR
 		$COMMAND down || {
 			ocf_log err "Error on shutting down docker service, try docker kill..."
@@ -226,12 +226,12 @@ docker-compose_stop()
 	exit $OCF_SUCCESS
 }
 
-docker-compose_monitor()
+docker_compose_monitor()
 {
-	docker-compose_status
+	docker_compose_status
 }
 
-docker-compose_validate_all()
+docker_compose_validate_all()
 {
 	if ! check_binary "$OCF_RESKEY_binpath"; then
 		ocf_log err "missing binary $OCF_RESKEY_binpath."
@@ -264,23 +264,23 @@ fi
 
 case $1 in
 	start)	
-		docker-compose_start
+		docker_compose_start
 		;;
 
 	stop)	
-		docker-compose_stop
+		docker_compose_stop
 		;;
 
 	status)	
-		docker-compose_status
+		docker_compose_status
 		;;
 
 	monitor)
-		docker-compose_monitor
+		docker_compose_monitor
 		;;
 
 	validate-all)
-		docker-compose_validate_all
+		docker_compose_validate_all
 		;;
 
 	meta-data)
