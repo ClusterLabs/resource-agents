@@ -232,6 +232,9 @@ container_exists()
 
 remove_container()
 {
+	local rc
+	local execids
+
 	if ocf_is_true "$OCF_RESKEY_reuse"; then
 		# never remove the container if we have reuse enabled.
 		return 0
@@ -244,6 +247,19 @@ remove_container()
 	fi
 	ocf_log notice "Cleaning up inactive container, ${CONTAINER}."
 	ocf_run podman rm $CONTAINER
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		# due to a podman bug (rhbz#1841485), sometimes a stopped
+		# container can still be associated with Exec sessions, in
+		# which case the "podman rm" has to be forced
+		execids=$(podman inspect $CONTAINER --format '{{len .ExecIDs}}')
+		if [ "$execids" -ne "0" ]; then
+			ocf_log warn "Inactive container ${CONTAINER} has lingering exec sessions. Force-remove it."
+			ocf_run podman rm -f $CONTAINER
+			rc=$?
+		fi
+	fi
+	return $rc
 }
 
 podman_simple_status()
