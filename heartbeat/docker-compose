@@ -1,5 +1,5 @@
-#!/bin/sh
-# Version: 1.0.1
+#!/bin/bash
+# Version: 1.0.2
 # Date: 2020-05-29
 #
 # Resource script for running docker-compose
@@ -56,7 +56,7 @@ cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="docker-compose">
-<version>1.0.1</version>
+<version>1.0.2</version>
 <longdesc lang="en">
 Manages docker services using docker-compose as an OCF resource in an High Availability setup.
 It relies on a well-tested docker compose YAML file which distributed on an identical location on all cluster nodes.
@@ -120,7 +120,7 @@ END
 exit $OCF_SUCCESS
 }
 
-if [ -r "$OCF_RESKEY_binpath" -x "$OCF_RESKEY_binpath" ]; then
+if [ -r "$OCF_RESKEY_binpath" -a -x "$OCF_RESKEY_binpath" ]; then
 	COMMAND="$OCF_RESKEY_binpath"
 else
 	COMMAND=$(which docker-compose 2>/dev/null)
@@ -193,7 +193,7 @@ docker-compose_start()
 	[ $retVal -eq $OCF_SUCCESS ] && exit $OCF_SUCCESS
 
 	cd $DIR
-	ocf_run $COMMAND up -d || {
+	$COMMAND up -d || {
 		ocf_log err "Error. docker-compose returned error $?."
 		exit $OCF_ERR_GENERIC
 	}
@@ -208,7 +208,7 @@ docker-compose_stop()
 	if [ -r "$DIR/$YML" ]; then
 		docker-compose_validate_all
 		cd $DIR
-		ocf_run $COMMAND down || {
+		$COMMAND down || {
 			ocf_log err "Error on shutting down docker service, try docker kill..."
 			RUN_KILL=true
 		}
