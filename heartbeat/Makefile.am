@@ -106,6 +106,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			dhcpd			\
 			dnsupdate		\
 			docker			\
+			docker-compose		\
 			dovecot			\
 			eDir88			\
 			ethmonitor		\
