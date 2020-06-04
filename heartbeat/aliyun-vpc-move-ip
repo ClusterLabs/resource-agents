@@ -93,7 +93,7 @@ request_describe_route_tables() {
 	rc=$?
 	if [[ $rc -eq 0 ]]
 	then
-		ROUTE_TO_INSTANCE=$(echo "$res" |grep $OCF_RESKEY_address | awk -F "${IFS_}" "${EXECUTING}")
+		ROUTE_TO_INSTANCE=$(echo "$res" |grep "\s${OCF_RESKEY_address}/" | awk -F "${IFS_}" "${EXECUTING}")
 		ocf_log debug "ROUTE_TO_INSTANCE: $ROUTE_TO_INSTANCE"
 	else
 		ocf_log err "result: $res; cmd: $cmd; rc: $rc"
