@@ -61,19 +61,43 @@ fi
 request_create_route_entry() {
 	cmd="${OCF_RESKEY_aliyuncli} vpc CreateRouteEntry --RouteTableId $OCF_RESKEY_routing_table --DestinationCidrBlock ${OCF_RESKEY_address}/32 --NextHopId $ECS_INSTANCE_ID --NextHopType Instance ${ENDPOINT}"
 	ocf_log debug "executing command: $cmd"
-	$cmd
+	res=$($cmd  2>&1)
+	rc=$?
+	if [[ $rc -eq 0 ]]
+	then
+		ocf_log debug "result: $res; rc: $rc"
+	else
+		ocf_log err "result: $res; cmd: $cmd; rc: $rc"
+	fi
+	return $rc
 }
 
 request_delete_route_entry() {
 	cmd="${OCF_RESKEY_aliyuncli} vpc DeleteRouteEntry --RouteTableId $OCF_RESKEY_routing_table --DestinationCidrBlock ${OCF_RESKEY_address}/32 --NextHopId $ROUTE_TO_INSTANCE ${ENDPOINT}"
 	ocf_log debug "executing command: $cmd"
-	$cmd
+	res=$($cmd)
+	rc=$?
+	if [[ $rc -eq 0 ]]
+	then
+		ocf_log debug "result: $res; rc: $rc"
+	else
+		ocf_log err "result: $res; cmd: $cmd; rc: $rc"
+	fi
+	return $rc
 }
 
 request_describe_route_tables() {
 	cmd="${OCF_RESKEY_aliyuncli} vpc DescribeRouteTables --RouteTableId $OCF_RESKEY_routing_table --output ${OUTPUT} ${ENDPOINT}"
 	ocf_log debug "executing command: $cmd"
-	ROUTE_TO_INSTANCE=$($cmd |grep $OCF_RESKEY_address | awk -F "${IFS_}" "${EXECUTING}")
+	res=$($cmd)
+	rc=$?
+	if [[ $rc -eq 0 ]]
+	then
+		ROUTE_TO_INSTANCE=$(echo "$res" |grep "\s${OCF_RESKEY_address}/" | awk -F "${IFS_}" "${EXECUTING}")
+		ocf_log debug "ROUTE_TO_INSTANCE: $ROUTE_TO_INSTANCE"
+	else
+		ocf_log err "result: $res; cmd: $cmd; rc: $rc"
+	fi
 }
 
 ip_get_and_configure() {
@@ -112,14 +136,15 @@ ip_drop() {
 	ocf_log debug "function: ip_drop"
 	cmd="ip addr delete ${OCF_RESKEY_address}/32 dev $OCF_RESKEY_interface"
 	ocf_log debug "executing command: $cmd"
-	$cmd
+	res=$($cmd)
 	rc=$?
 	if [ $rc -ne 0 ] && [ $rc -ne 2 ]; then
-		ocf_log err "command failed, rc $rc"
+		ocf_log err "command failed, rc: $rc; cmd: $cmd; result: $res"
 		return $OCF_ERR_GENERIC
 	fi
 	request_delete_route_entry
-	if [ $? -ne 0 ]; then
+	rc=$?
+	if [ $rc -ne 0 ]; then
 		ocf_log err "command failed, rc: $rc"
 		return $OCF_ERR_GENERIC
 	fi
