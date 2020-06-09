@@ -463,10 +463,16 @@ for dir in $OCF_RESKEY_directory; do
 			fi
 		fi
 	else
-		if [ "$__OCF_ACTION" != "stop" ]; then
-			ocf_exit_reason "$dir does not exist"
-			exit $OCF_ERR_CONFIGURED
-		fi
+		case "$__OCF_ACTION" in
+			stop|monitor)
+				canonicalized_dir="$dir"
+				ocf_log debug "$dir does not exist"
+				;;
+			*)
+				ocf_exit_reason "$dir does not exist"
+				exit $OCF_ERR_CONFIGURED
+				;;
+		esac
 	fi
 	directories+="$canonicalized_dir "
 done
