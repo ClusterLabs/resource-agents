@@ -38,8 +38,8 @@ OCF_RESKEY_activate_vgs_default="true"
 OCF_RESKEY_exclusive_default="false"
 
 : ${OCF_RESKEY_with_cmirrord=${OCF_RESKEY_with_cmirrord_default}}
-: ${OCF_RESKEY_daemon_options=${OCF_RESKEY_with_cmirrord_default}}
-: ${OCF_RESKEY_activate_vgs=${OCF_RESKEY_with_cmirrord_default}}
+: ${OCF_RESKEY_daemon_options=${OCF_RESKEY_daemon_options_default}}
+: ${OCF_RESKEY_activate_vgs=${OCF_RESKEY_activate_vgs_default}}
 : ${OCF_RESKEY_exclusive=${OCF_RESKEY_exclusive_default}}
 
 #######################################################################
