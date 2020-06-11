@@ -1,3 +1,38 @@
+* Thu Jun 11 2020 resource-agents contributors
+- release candidate 4.6.0 rc1
+- crypt: new RA
+- mdraid: new RA
+- docker-compose: new RA
+- dummypy: new Dummy RA
+- Filesystem: add lustre as networked filesystem
+- Multiple RA: use secure tmp file location
+- Squid: added squid_opts parameter to metadata
+- ZFS: importforce should not be a unique parameter.
+- aliyun-vpc-move-ip: log output when failing and add debug logging
+- aws-vpc-move-ip/aws-vpc-route53: add awscli parameter for consistency with
+other AWS agents
+- aws-vpc-move-ip: delete remaining route entries
+- aws-vpc-route53: cleanup and improvements
+- aws-vpc-route53: add support for public and secondary private IPs
+- azure-events: handle exceptions in urlopen()
+- clvm: fix _default variables for daemon_options and activate_vgs
+- db2: HADR add STANDBY/REMOTE_CATCHUP_PENDING/DISCONNECTED to correctly promote standby node when master node disappears (e.g. via fencing)
+- exportfs: add symlink support
+- galera: fix value used for connecting with empty password.
+- gcp-pd-move: fixes and improvements
+- gcp-vpc-move-route/gcp-vpc-move-vip: disable google api cache discovery
+- nfsserver: fix NFSv4-only support
+- nfsserver: prevent error messages when /etc/sysconfig/nfs does not exist
+- ocf-shellfuncs: fix ocf_is_clone() (clone_max can be 0 with cloned resources)
+- ocf.py: eliminated logging.basicConfig(), which made all log data appear in
+stderr as well
+- oracle: increase security of monitor user in oracle
+- pgsql: support to crm_mon output for Pacemaker-2.0.3.
+- podman: make sure to remove containers with lingering exec sessions
+- rabbitmq-cluster: increase the rabbitmqctl wait timeout during start()
+- redis: run validate-action during start
+- tomcat: only create directory during start action
+
 * Fri Mar  6 2020 resource-agents contributors
 - stable release 4.5.0
 - iSCSILogicalUnit: fix default value for OCF_RESKEY_liot_bstype
