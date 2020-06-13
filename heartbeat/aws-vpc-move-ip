@@ -205,7 +205,7 @@ ec2ip_monitor() {
 	if ocf_is_true ${OCF_RESKEY_monapi} || [ "$__OCF_ACTION" = "start" ] || ocf_is_probe; then
 		for rtb in $(echo $OCF_RESKEY_routing_table | sed -e 's/,/ /g'); do
 			ocf_log info "monitor: check routing table (API call) - $rtb"
-			if [[ -z "${OCF_RESKEY_routing_table_role}" ]]; then
+			if [ -z "${OCF_RESKEY_routing_table_role}" ]; then
 				cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].InstanceId"
 				ocf_log debug "executing command: $cmd"
 				ROUTE_TO_INSTANCE="$($cmd)"
@@ -290,7 +290,7 @@ ec2ip_get_and_configure() {
 	ocf_log debug "network interface id associated MAC address ${MAC_ADDR}: ${EC2_NETWORK_INTERFACE_ID}"
 
 	for rtb in $(echo $OCF_RESKEY_routing_table | sed -e 's/,/ /g'); do
-		if [[ -z "${OCF_RESKEY_routing_table_role}" ]]; then
+		if [ -z "${OCF_RESKEY_routing_table_role}" ]; then
 			cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
 			ocf_log debug "executing command: $cmd"
 			$cmd
