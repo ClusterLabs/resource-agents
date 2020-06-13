@@ -457,7 +457,7 @@ checking will take place and no real or fallback servers will be activated.
 On means no checking will take place and real servers will always be
 activated. Default is I<negotiate>.
 
-B<service = >B<dns> | B<ftp> | B<http> | B<https> | B<http_proxy> | B<imap> | B<imaps> | B<ldap> | B<mysql> | B<nntp> | B<none> | B<oracle> | B<pgsql> | B<pop> | B<pops> | B<radius> | B<simpletcp> | B<sip> | B<smtp> | B<submission>
+B<service = >B<dns> | B<ftp> | B<http> | B<https> | B<http_proxy> | B<imap> | B<imaps> | B<ldap> | B<ldaps> | B<mysql> | B<nntp> | B<none> | B<oracle> | B<pgsql> | B<pop> | B<pops> | B<radius> | B<simpletcp> | B<sip> | B<smtp> | B<submission>
 
 The type of service to monitor when using checktype=negotiate. None denotes
 a service that will not be monitored.
@@ -490,6 +490,8 @@ Default:
 =item * Virtual server port is 443: https
 
 =item * Virtual server port is 587: submission
+
+=item * Virtual server port is 636 ldaps
 
 =item * Virtual server port is 993: imaps
 
@@ -1544,6 +1546,7 @@ sub read_config
 							  $1 eq "imap"	||
 							  $1 eq "imaps"	||
 							  $1 eq "ldap"	||
+							  $1 eq "ldaps"	||
 							  $1 eq "nntp"	||
 							  $1 eq "mysql"	||
 							  $1 eq "none"	||
@@ -1562,9 +1565,9 @@ sub read_config
 							     "http, https, " .
 							     "http_proxy, " .
 							     "imap, imaps, " .
-							     "ldap, nntp, "  .
-							     "mysql, none, " .
-							     "oracle, "      .
+							     "ldap, ldaps, " .
+							     "mysql, nntp, " .
+							     "none, oracle, " .
 							     "pop, pops, "   .
 							     "radius, "      .
 							     "pgsql, "       .
@@ -1866,6 +1869,7 @@ sub ld_port_to_service
 	if ($port eq 389)	{ return "ldap"; }
 	if ($port eq 443)	{ return "https"; }
 	if ($port eq 587)	{ return "submission"; }
+	if ($port eq 636)	{ return "ldaps"; }
 	if ($port eq 995)	{ return "pops"; }
 	if ($port eq 993)	{ return "imaps"; }
 	if ($port eq 1521)	{ return "oracle"; }
@@ -1897,6 +1901,7 @@ sub ld_service_to_port
 	if ($service eq "ldap")		{ return 389; }
 	if ($service eq "https")	{ return 443; }
 	if ($service eq "submission")	{ return 587; }
+	if ($service eq "ldaps")	{ return 636; }
 	if ($service eq "imaps")	{ return 993; }
 	if ($service eq "pops")		{ return 995; }
 	if ($service eq "oracle")	{ return 1521; }
@@ -2798,6 +2803,8 @@ sub _check_real
 			$$r{num_connects} = 0 if (check_ftp($v, $r) == $SERVICE_UP);
 		} elsif ($$v{service} eq "ldap") {
 			$$r{num_connects} = 0 if (check_ldap($v, $r) == $SERVICE_UP);
+		} elsif ($$v{service} eq "ldaps") {
+			$$r{num_connects} = 0 if (check_ldap($v, $r) == $SERVICE_UP);
 		} elsif ($$v{service} eq "nntp") {
 			$$r{num_connects} = 0 if (check_nntp($v, $r) == $SERVICE_UP);
 		} elsif ($$v{service} eq "dns") {
@@ -3105,8 +3112,9 @@ sub check_ldap
 
 	my $result;
 	my $recstr = $$r{receive};
+	my $scheme = $$v{service};
 
-	&ld_debug(2, "Checking LDAP server=$$r{server} port=$port");
+	&ld_debug(2, "Checking LDAP server=$$r{server} port=$port scheme=$scheme");
 	eval {
 		local $SIG{'__DIE__'} = "DEFAULT";
 		local $SIG{'ALRM'} = sub { die "Timeout Alarm" };
@@ -3114,7 +3122,7 @@ sub check_ldap
 		&ld_debug(2, "Starting Check");
 		alarm $$v{checktimeout};
 
-		my $ldap = Net::LDAP->new("$$r{server}", port => $port,
+		my $ldap = Net::LDAP->new("$$r{server}", port => $port, scheme => $scheme,
 					timeout => $$v{negotiatetimeout});
 		if(!$ldap) {
 		    service_set($v, $r, "down", {do_log => 1}, "Connection failed");

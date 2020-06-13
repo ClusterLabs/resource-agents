@@ -184,7 +184,7 @@ virtual=192.168.6.240:80
 #	#netmask=255.255.255.255
 #	protocol=tcp
 #	checktype=negotiate
-#	checkport=369
+#	checkport=389
 #	request="dc=upmc, dc=fr"
 #	receive="dc=upmc, dc=fr"
 #	#login="test"
