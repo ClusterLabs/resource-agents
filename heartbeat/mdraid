@@ -254,7 +254,7 @@ array_is_linear_or_raid0() {
 	for d in $devs
 	do
 		$MDADM -E $d 2>&1 | $EGREP -i "raid level : (raid0|linear)" >/dev/null 2>&1
-		[ $? -eq 0 ] && let c=c+1
+		[ $? -eq 0 ] && c=$((c+1))
 	done
 
 	[ $c -eq `echo $devs|wc -w` ] && return 0 || return 1
@@ -275,7 +275,7 @@ array_is_clustered_raid() {
 		do
 			$MDADM -E $d 2>&1 | grep -i "$s" >/dev/null 2>&1
 			if [ $? -eq 0 ]; then
-				let c=c+1
+				c=$((c+1))
 				break
 			fi
 		done
