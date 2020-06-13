@@ -133,8 +133,8 @@ SVC="$OCF_RESKEY_svcname"
 docker_kill()
 {
 	for i in $(docker ps --all | awk -e '$NF ~ /\<'"$SVC"'_.*_[0-9]+\>/ {print $1}'); do
-		docker kill $i &>/dev/null
-		docker rm $i &>/dev/null || RTV=false
+		docker kill $i >/dev/null 2>&1
+		docker rm $i >/dev/null 2>&1 || RTV=false
 	done
 	if [ "$RTV" = false ]; then
 		ocf_log err "failed to kill docker"
@@ -187,7 +187,7 @@ docker_compose_status()
 docker_compose_start()
 {
 	docker_compose_validate_all
-	docker_compose_status &> /dev/null
+	docker_compose_status >/dev/null 2>&1
 	retVal=$?
 	# return success if docker service is running
 	[ $retVal -eq $OCF_SUCCESS ] && exit $OCF_SUCCESS
