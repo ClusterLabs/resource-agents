@@ -50,7 +50,7 @@ The client specification allowing remote machines to mount the directory
 
 Note: it follows the format defined in "man exportfs". For example, in
 the use case to export the directory(-ies) for multiple subnets, please
-do config a dedicated primitive for each subnet CIDR ip address, 
+do config a dedicated primitive for each subnet CIDR ip address,
 and do not attempt to use multiple CIDR ip addresses in a space
 separated list, like in /etc/exports.
 </longdesc>
@@ -474,7 +474,7 @@ for dir in $OCF_RESKEY_directory; do
 				;;
 		esac
 	fi
-	directories+="$canonicalized_dir "
+	directories="$directories$canonicalized_dir "
 done
 
 OCF_RESKEY_directory="${directories%% }"
