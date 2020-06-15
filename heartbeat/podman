@@ -325,7 +325,7 @@ create_transient_drop_in_dependency()
 	for scope in "libpod-$cid.scope.d" "libpod-conmon-$cid.scope.d"; do
 		if [ $rc -eq $OCF_SUCCESS ] && [ ! -d /run/systemd/transient/"$scope" ]; then
 			mkdir -p /run/systemd/transient/"$scope" && \
-			echo -e "[Unit]\nBefore=pacemaker.service" > /run/systemd/transient/"$scope"/dep.conf && \
+			printf "[Unit]\nBefore=pacemaker.service" > /run/systemd/transient/"$scope"/dep.conf && \
 			chmod ago+r /run/systemd/transient/"$scope" /run/systemd/transient/"$scope"/dep.conf
 			rc=$?
 		fi
