@@ -292,7 +292,7 @@ crypt_stop() {
 # Action: MONITOR an encrypted resource
 #
 crypt_monitor() {
-	cryptsetup status $crypt_dev $disable_locks &>/dev/null
+	cryptsetup status $crypt_dev $disable_locks >/dev/null 2>&1
 	if [ $? -eq 0 ]; then
 		[ -L $crypt_dev_path ] && return $OCF_SUCCESS
 		return $OCF_ERR_GENERIC
