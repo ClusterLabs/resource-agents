@@ -78,7 +78,14 @@ OCF_RESKEY_force_unmount_default="true"
 : ${OCF_RESKEY_options=${OCF_RESKEY_options_default}}
 : ${OCF_RESKEY_statusfile_prefix=${OCF_RESKEY_statusfile_prefix_default}}
 : ${OCF_RESKEY_run_fsck=${OCF_RESKEY_run_fsck_default}}
-: ${OCF_RESKEY_fast_stop=${OCF_RESKEY_fast_stop_default}}
+if [ -z "${OCF_RESKEY_fast_stop}" ]; then
+	case "$OCF_RESKEY_fstype" in
+		gfs2)
+			OCF_RESKEY_fast_stop="no";;
+		*)
+			OCF_RESKEY_fast_stop=${OCF_RESKEY_fast_stop_default};;
+	esac
+fi
 : ${OCF_RESKEY_force_clones=${OCF_RESKEY_force_clones_default}}
 : ${OCF_RESKEY_force_unmount=${OCF_RESKEY_force_unmount_default}}
 
@@ -200,6 +207,8 @@ operation to finish quickly. If you cannot control the filesystem
 users easily and want to prevent the stop action from failing,
 then set this parameter to "no" and add an appropriate timeout
 for the stop operation.
+
+This defaults to "no" for GFS2 filesystems.
 </longdesc>
 <shortdesc lang="en">fast stop</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_fast_stop_default}" />
