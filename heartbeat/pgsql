@@ -1040,7 +1040,7 @@ pgsql_replication_monitor() {
 
     # I can't get master node name from $OCF_RESKEY_CRM_meta_notify_master_uname on monitor,
     # so I will get master node name using crm_mon -n
-    print_crm_mon | tr -d "\t" | tr -d " " | grep -q -e "^${RESOURCE_NAME}[(:].*[):].*Master" -e "^\*${RESOURCE_NAME}[(:].*[):].*Master"
+    print_crm_mon | grep -q -i -E "<resource id=\"${RESOURCE_NAME}\" .* role=\"(Promoted|Master)\""
     if [ $? -ne 0 ] ; then
         # If I am Slave and Master is not exist
         ocf_log info "Master does not exist."
@@ -1815,11 +1815,11 @@ exec_with_retry() {
 }
 
 is_node_online() {
-    print_crm_mon | tr '[A-Z]' '[a-z]' | grep -e "^node $1 " -e "^node $1:" -e "\* node $1:" | grep -q -v "offline"
+    print_crm_mon | grep -q -i "<node name=\"$1\" .* online=\"true\""
 }
 
 node_exist() {
-    print_crm_mon | tr '[A-Z]' '[a-z]' | grep -q -e "^node $1" -e "\* node $1:"
+    print_crm_mon | grep -q -i "<node name=\"$1\" .* online"
 }
 
 check_binary2() {
@@ -2118,7 +2118,14 @@ check_socket_dir() {
 
 print_crm_mon() {
     if [ -z "$CRM_MON_OUTPUT" ]; then
-        CRM_MON_OUTPUT=`exec_with_retry 0 crm_mon -n1`
+        ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.1.0"
+        res=$?
+        if [ -z "$OCF_RESKEY_crm_feature_set" ] || [ $res -eq 2 ]; then
+            XMLOPT="--output-as=xml"
+        else
+            XMLOPT="--as-xml"
+        fi
+        CRM_MON_OUTPUT=`exec_with_retry 0 crm_mon -1 $XMLOPT`
     fi
     printf "${CRM_MON_OUTPUT}\n"
 }

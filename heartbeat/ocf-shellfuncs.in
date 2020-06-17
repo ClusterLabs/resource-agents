@@ -563,7 +563,7 @@ ocf_is_clone() {
 # (master/slave) resource. This is defined as a resource where the
 # master-max meta attribute is present, and set to greater than zero.
 ocf_is_ms() {
-    [ ! -z "${OCF_RESKEY_CRM_meta_master_max}" ] && [ "${OCF_RESKEY_CRM_meta_master_max}" -gt 0 ]
+    [ "${OCF_RESKEY_CRM_meta_promotable}" = "true" ] || { [ ! -z "${OCF_RESKEY_CRM_meta_master_max}" ] && [ "${OCF_RESKEY_CRM_meta_master_max}" -gt 0 ]; }
 }
 
 # version check functions
