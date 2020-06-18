@@ -43,7 +43,7 @@ import ocf  # noqa: E402
 
 PARAM_HA_RSCTMP = ocf.get_parameter("HA_RSCTMP")
 PARAM_INSTANCE = ocf.get_parameter("OCF_RESOURCE_INSTANCE")
-OCF_RESKEY_state_default = f'{PARAM_HA_RSCTMP}/dummypy-{PARAM_INSTANCE}.state'
+OCF_RESKEY_state_default = '{}/dummypy-{}.state'.format(PARAM_HA_RSCTMP, PARAM_INSTANCE)
 OCF_RESKEY_fake_default = "dummy"
 
 LONG_DESC = '''This is a Dummy Resource Agent. It does absolutely nothing
@@ -94,12 +94,12 @@ def dummy_monitor(state, fake):
 
 def dummy_validate(state, fake):
     state_dir = os.path.dirname(state)
-    file_test = f'{state_dir if state_dir != "" else "."}/$$'
+    file_test = '{}/{}'.format(state_dir if state_dir != "" else ".", PARAM_INSTANCE)
 
     try:
         touch(file_test)
     except:  # noqa: E722
-        ocf.ocf_exit_reason(f'State file "{state}" is not writable')
+        ocf.ocf_exit_reason('State file "{}" is not writable'.format(state))
         return ocf.OCF_ERR_ARGS
 
     os.remove(file_test)
@@ -109,19 +109,19 @@ def dummy_validate(state, fake):
 def dummy_migrate_to(state, fake):
     INSTANCE = ocf.OCF_RESOURCE_INSTANCE
     TARGET = ocf.get_parameter("CRM_meta_migrate_target")
-    ocf.logger.info(f'Migrating {INSTANCE} to {TARGET}.')
+    ocf.logger.info('Migrating {} to {}.'.format(INSTANCE, TARGET))
     dummy_stop(state, fake)
 
 
 def dummy_migrate_from(state, fake):
     INSTANCE = ocf.OCF_RESOURCE_INSTANCE
     SOURCE = ocf.get_parameter("CRM_meta_migrate_source")
-    ocf.logger.info(f'Migrating {INSTANCE} from {SOURCE}.')
+    ocf.logger.info('Migrating {} from {}.'.format(INSTANCE, SOURCE))
     dummy_start(state, fake)
 
 
 def dummy_reload(state, fake):
-    ocf.logger.info(f'Reloading {ocf.OCF_RESOURCE_INSTANCE} ...')
+    ocf.logger.info('Reloading {} ...'.format(ocf.OCF_RESOURCE_INSTANCE))
 
 
 def dummy_validate_all(state, fake):
