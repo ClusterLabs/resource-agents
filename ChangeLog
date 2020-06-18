@@ -1,4 +1,9 @@
 * Thu Jun 18 2020 resource-agents contributors
+- stable release 4.6.1
+- dummypy: add agent to Makefiles/configure and change from f-strings to make it
+  compatible with Python < 3.6
+
+* Thu Jun 18 2020 resource-agents contributors
 - stable release 4.6.0
 - ocf_is_ms(): also check OCF_RESKEY_CRM_meta_promotable to make it work w/Pacemaker 2.x
 - pgsql: use XML output for better backward and forward compatibility, and "Promoted"
