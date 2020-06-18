@@ -1012,6 +1012,7 @@ AC_CONFIG_FILES([heartbeat/aws-vpc-route53], [chmod +x heartbeat/aws-vpc-route53
 AC_CONFIG_FILES([heartbeat/clvm], [chmod +x heartbeat/clvm])
 AC_CONFIG_FILES([heartbeat/conntrackd], [chmod +x heartbeat/conntrackd])
 AC_CONFIG_FILES([heartbeat/dnsupdate], [chmod +x heartbeat/dnsupdate])
+AC_CONFIG_FILES([heartbeat/dummypy], [chmod +x heartbeat/dummypy])
 AC_CONFIG_FILES([heartbeat/eDir88], [chmod +x heartbeat/eDir88])
 AC_CONFIG_FILES([heartbeat/fio], [chmod +x heartbeat/fio])
 AC_CONFIG_FILES([heartbeat/gcp-pd-move], [chmod +x heartbeat/gcp-pd-move])

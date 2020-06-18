@@ -105,6 +105,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			db2			\
 			dhcpd			\
 			dnsupdate		\
+			dummypy			\
 			docker			\
 			docker-compose		\
 			dovecot			\

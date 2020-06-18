@@ -112,6 +112,7 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_docker-compose.7 \
                           ocf_heartbeat_dovecot.7 \
                           ocf_heartbeat_dnsupdate.7 \
+                          ocf_heartbeat_dummypy.7 \
                           ocf_heartbeat_eDir88.7 \
                           ocf_heartbeat_ethmonitor.7 \
                           ocf_heartbeat_exportfs.7 \
