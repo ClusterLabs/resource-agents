@@ -129,7 +129,7 @@ def dummy_validate_all(state, fake):
 
 
 def main():
-    dummy_agent = ocf.Agent('dummy', SHORT_DESC, LONG_DESC)
+    dummy_agent = ocf.Agent('dummypy', SHORT_DESC, LONG_DESC)
 
     dummy_agent.add_parameter(
         name="state",
