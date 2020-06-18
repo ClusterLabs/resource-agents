@@ -1,3 +1,15 @@
+* Thu Jun 18 2020 resource-agents contributors
+- stable release 4.6.0
+- ocf_is_ms(): also check OCF_RESKEY_CRM_meta_promotable to make it work w/Pacemaker 2.x
+- pgsql: use XML output for better backward and forward compatibility, and "Promoted"
+  keyword to be ready for Pacemaker 2.1
+- ldirectord: add support for ldaps
+- Filesystem: set "fast_stop" default to "no" for GFS2 filesystems as they are
+  likely to use more than 6 seconds to stop
+- exportfs: fix ocft script failure
+- build: fix failing to run "ln -s" if link already exists
+- Multiple RA: fix bashisms
+
 * Thu Jun 11 2020 resource-agents contributors
 - release candidate 4.6.0 rc1
 - crypt: new RA
