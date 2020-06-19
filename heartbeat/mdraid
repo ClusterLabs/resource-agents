@@ -557,7 +557,7 @@ rc=$?
 [ "$1" = "validate-all" ] && return ${OCF_SUCCESS}
 
 # Required by start|stop|monitor processed below
-devs=(`list_devices_for_mddev`)
+devs="`list_devices_for_mddev`"
 if [ `echo $devs|wc -l` -eq 0 ]; then
 	ocf_exit_reason "No component device(s) found for MD RAID array $md_dev"
 	exit $OCF_ERR_GENERIC
