@@ -1,5 +1,5 @@
 #!/bin/sh
-# Version: 1.1.0
+# Version: 1.1.2
 # Date: 2020-06-24
 #
 # Resource script for running docker-compose
@@ -35,10 +35,7 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
-OCF_RESKEY_binpath_default=/usr/local/bin/docker-compose
-[ -e $OCF_RESKEY_binpath_default ] || OCF_RESKEY_binpath_default=/usr/bin/docker-compose
-[ -e $OCF_RESKEY_binpath_default ] || OCF_RESKEY_binpath_default=$(which docker-compose 2>/dev/null)
-
+OCF_RESKEY_binpath_default=/usr/bin/docker-compose
 OCF_RESKEY_ymlfile_default=docker-compose.yml
 : ${OCF_RESKEY_binpath=${OCF_RESKEY_binpath_default}}
 : ${OCF_RESKEY_ymlfile=${OCF_RESKEY_ymlfile_default}}
@@ -148,7 +145,7 @@ docker_compose_status()
 		STATEPOS=$(echo "$STAT_MSG" | head -n1 | egrep -o 'STATUS.*$' | wc -c)
 		OFFSET=$(($LNWTH-$STATEPOS+1))
 
-		if [ "$DKPS" ]; then
+		if [ -n "$DKPS" ]; then
 			PSNU=$(echo "$DKPS" | wc -l)
 		else
 			PSNU=0
