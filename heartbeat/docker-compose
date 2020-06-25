@@ -1,6 +1,6 @@
 #!/bin/sh
-# Version: 1.0.3
-# Date: 2020-05-29
+# Version: 1.1.2
+# Date: 2020-06-24
 #
 # Resource script for running docker-compose
 #
@@ -26,7 +26,6 @@
 # OCF_RESKEY_binpath
 # OCF_RESKEY_dirpath
 # OCF_RESKEY_ymlfile
-# OCF_RESKEY_svcname
 #
 ##########################################################################
 # Initialization:
@@ -97,15 +96,6 @@ For example, "docker-compose.yml"
 <content type="string" default="$OCF_RESKEY_ymlfile_default"/>
 </parameter>
 
-<parameter name="svcname" required="1">
-<longdesc lang="en">
-The docker service name.
-For example, "myservice"
-</longdesc>
-<shortdesc lang="en">The docker service name</shortdesc>
-<content type="string"/>
-</parameter>
-
 </parameters>
 
 <actions>
@@ -123,16 +113,16 @@ exit $OCF_SUCCESS
 if [ -r "$OCF_RESKEY_binpath" -a -x "$OCF_RESKEY_binpath" ]; then
 	COMMAND="$OCF_RESKEY_binpath"
 else
-	COMMAND=$(which docker-compose 2>/dev/null)
+	COMMAND="$OCF_RESKEY_binpath_default"
 fi
 
 DIR="$OCF_RESKEY_dirpath"
+PRE="$(echo ${DIR##*/} | tr A-Z a-z | sed 's/[^a-z0-9]//g')"
 YML="$OCF_RESKEY_ymlfile"
-SVC="$OCF_RESKEY_svcname"
 
 docker_kill()
 {
-	for i in $(docker ps --all | awk -e '$NF ~ /\<'"$SVC"'_.*_[0-9]+\>/ {print $1}'); do
+	for i in $(docker ps --all | awk -e '$NF ~ /\<'"${PRE}"'_.*_[0-9]+\>/ {print $1}'); do
 		docker kill $i >/dev/null 2>&1
 		docker rm $i >/dev/null 2>&1 || RTV=false
 	done
@@ -148,12 +138,19 @@ docker_compose_status()
 {
 	# use docker-compose ps if YML found, otherwise try docker ps and kill containers
 	if [ -r "$DIR/$YML" ]; then
-		STAT_MSG=$(cd $DIR ; $COMMAND ps)
-		LNWTH=$(echo "$STAT_MSG" | expand | head -n1 | wc -c)
-		STATEPOS=$(echo "$STAT_MSG" | expand | head -n1 | egrep -o 'State.*$' | wc -c)
+
+		DKPS=$(cd $DIR; $COMMAND ps -q)
+		STAT_MSG=$(docker ps --no-trunc | grep -E $(echo "$DKPS" | tr '\n' '|') | expand)
+		LNWTH=$(echo "$STAT_MSG" | head -n1 | wc -c)
+		STATEPOS=$(echo "$STAT_MSG" | head -n1 | egrep -o 'STATUS.*$' | wc -c)
 		OFFSET=$(($LNWTH-$STATEPOS+1))
-		PSNU=$(echo "$STAT_MSG" | grep "^${SVC}_" | wc -l)
-		UPNU=$(echo "$STAT_MSG" | grep "^${SVC}_" | expand | cut -c ${OFFSET}- | awk '{print $1}' | grep -w 'Up' | wc -l)
+
+		if [ -n "$DKPS" ]; then
+			PSNU=$(echo "$DKPS" | wc -l)
+		else
+			PSNU=0
+		fi
+		UPNU=$(echo "$STAT_MSG" | cut -c ${OFFSET}- | awk '{print $1}' | grep -w '^Up' | wc -l)
 		
 		if [ "${PSNU:-0}" -ne 0 ]; then
 			if [ ${UPNU:-0} -eq 0 ]; then
@@ -170,7 +167,7 @@ docker_compose_status()
 			RUN=false
 		fi
 	else
-		STAT_MSG=$(docker ps --all | awk -e '$NF ~ /\<'"$SVC"'_.*_[0-9]+\>/ {print $1}')
+		STAT_MSG=$(docker ps --all | awk -e '$NF ~ /\<'"$PRE"'_.*_[0-9]+\>/ {print $1}')
 		if [ -z "$STAT_MSG" ]; then
 			RUN=false
 		else
