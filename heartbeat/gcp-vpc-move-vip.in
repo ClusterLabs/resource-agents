@@ -22,7 +22,8 @@ import os
 import sys
 import time
 
-OCF_FUNCTIONS_DIR = os.environ.get("OCF_FUNCTIONS_DIR", "%s/lib/heartbeat" % os.environ.get("OCF_ROOT"))
+OCF_FUNCTIONS_DIR = os.environ.get("OCF_FUNCTIONS_DIR", "%s/lib/heartbeat"
+                                   % os.environ.get("OCF_ROOT"))
 sys.path.append(OCF_FUNCTIONS_DIR)
 
 from ocf import *
@@ -52,21 +53,21 @@ METADATA = \
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="gcp-vpc-move-vip">
   <version>1.0</version>
-  <longdesc lang="en">Floating IP Address on Google Cloud Platform - Using Alias IP address functionality to attach a secondary IP address to a running instance</longdesc>
-  <shortdesc lang="en">Floating IP Address on Google Cloud Platform</shortdesc>
+  <longdesc lang="en">Floating IP Address or Range on Google Cloud Platform - Using Alias IP address functionality to attach a secondary IP range to a running instance</longdesc>
+  <shortdesc lang="en">Floating IP Address or Range on Google Cloud Platform</shortdesc>
   <parameters>
     <parameter name="alias_ip" unique="1" required="1">
-      <longdesc lang="en">IP Address to be added including CIDR. E.g 192.168.0.1/32</longdesc>
-      <shortdesc lang="en">IP Address to be added including CIDR. E.g 192.168.0.1/32</shortdesc>
+      <longdesc lang="en">IP range to be added including CIDR netmask (e.g., 192.168.0.1/32)</longdesc>
+      <shortdesc lang="en">IP range to be added including CIDR netmask (e.g., 192.168.0.1/32)</shortdesc>
       <content type="string" default="" />
     </parameter>
-    <parameter name="alias_range_name" unique="1" required="0">
+    <parameter name="alias_range_name" unique="0" required="0">
       <longdesc lang="en">Subnet name for the Alias IP</longdesc>
       <shortdesc lang="en">Subnet name for the Alias IP</shortdesc>
       <content type="string" default="" />
     </parameter>
-    <parameter name="hostlist" unique="1" required="0">
-      <longdesc lang="en">List of hosts in the cluster</longdesc>
+    <parameter name="hostlist" unique="0" required="0">
+      <longdesc lang="en">List of hosts in the cluster, separated by spaces</longdesc>
       <shortdesc lang="en">Host list</shortdesc>
       <content type="string" default="" />
     </parameter>
@@ -106,7 +107,8 @@ def get_metadata(metadata_key, params=None, timeout=None):
   url = '%s?%s' % (metadata_url, params)
   request = urlrequest.Request(url, headers=METADATA_HEADERS)
   request_opener = urlrequest.build_opener(urlrequest.ProxyHandler({}))
-  return request_opener.open(request, timeout=timeout * 1.1).read().decode("utf-8")
+  return request_opener.open(
+      request, timeout=timeout * 1.1).read().decode("utf-8")
 
 
 def get_instance(project, zone, instance):
@@ -204,8 +206,8 @@ def gcp_alias_start(alias):
   my_zone = get_metadata('instance/zone').split('/')[-1]
   project = get_metadata('project/project-id')
 
-  # If I already have the IP, exit. If it has an alias IP that isn't the VIP,
-  # then remove it
+  # If I already have the IP, exit. If it has an alias IP that isn't the
+  # VIP, then remove it
   if my_alias == alias:
     logger.info(
         '%s already has %s attached. No action required' % (THIS_VM, alias))
@@ -241,11 +243,11 @@ def gcp_alias_start(alias):
     logger.info('Finished adding %s to %s' % (alias, THIS_VM))
   elif my_alias:
     logger.error(
-        'Failed to add IP. %s has an IP attached but it isn\'t %s' %
-        (THIS_VM, alias))
+        'Failed to add alias IP range. %s has alias IP ranges attached but'
+        + ' they don\'t include %s' % (THIS_VM, alias))
     sys.exit(OCF_ERR_GENERIC)
   else:
-    logger.error('Failed to add IP address %s to %s' % (alias, THIS_VM))
+    logger.error('Failed to add IP range %s to %s' % (alias, THIS_VM))
     sys.exit(OCF_ERR_GENERIC)
 
 
@@ -262,7 +264,7 @@ def gcp_alias_stop(alias):
 def gcp_alias_status(alias):
   my_alias = get_localhost_alias()
   if alias == my_alias:
-    logger.info('%s has the correct IP address attached' % THIS_VM)
+    logger.info('%s has the correct IP range attached' % THIS_VM)
   else:
     sys.exit(OCF_NOT_RUNNING)
 
@@ -274,7 +276,8 @@ def validate():
 
   # Populate global vars
   try:
-    CONN = googleapiclient.discovery.build('compute', 'v1', cache_discovery=False)
+    CONN = googleapiclient.discovery.build('compute', 'v1',
+                                           cache_discovery=False)
   except Exception as e:
     logger.error('Couldn\'t connect with google api: ' + str(e))
     sys.exit(OCF_ERR_CONFIGURED)
@@ -282,7 +285,8 @@ def validate():
   try:
     THIS_VM = get_metadata('instance/name')
   except Exception as e:
-    logger.error('Couldn\'t get instance name, is this running inside GCE?: ' + str(e))
+    logger.error('Couldn\'t get instance name, is this running inside GCE?: '
+                 + str(e))
     sys.exit(OCF_ERR_CONFIGURED)
 
   ALIAS = os.environ.get('OCF_RESKEY_alias_ip')
@@ -308,7 +312,8 @@ def configure_logs():
         formatter = logging.Formatter('gcp:alias "%(message)s"')
         handler.setFormatter(formatter)
         log.addHandler(handler)
-        logger = logging.LoggerAdapter(log, {'OCF_RESOURCE_INSTANCE': OCF_RESOURCE_INSTANCE})
+        logger = logging.LoggerAdapter(log, {'OCF_RESOURCE_INSTANCE':
+                                             OCF_RESOURCE_INSTANCE})
       except ImportError:
         logger.error('Couldn\'t import google.cloud.logging, '
             'disabling Stackdriver-logging support')
