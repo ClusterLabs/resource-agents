@@ -127,9 +127,9 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-Resource script for managing galara database.
+Resource script for managing galera database.
 </longdesc>
-<shortdesc lang="en">Manages a galara instance</shortdesc>
+<shortdesc lang="en">Manages a galera instance</shortdesc>
 <parameters>
 
 <parameter name="binary" unique="0" required="0">
