@@ -393,7 +393,13 @@ iSCSITarget_start() {
 				fi
 			done
 		else
-			ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute authentication=0 demo_mode_write_protect=0 generate_node_acls=1 cache_dynamic_acls=1 || exit $OCF_ERR_GENERIC
+			if [ -n "${OCF_RESKEY_incoming_username}" ]; then
+				ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute authentication=1 demo_mode_write_protect=0 generate_node_acls=1 cache_dynamic_acls=1 || exit $OCF_ERR_GENERIC
+				ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set auth userid=${OCF_RESKEY_incoming_username} || exit $OCF_ERR_GENERIC
+				ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set auth password=${OCF_RESKEY_incoming_password} || exit $OCF_ERR_GENERIC
+			else
+				ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute authentication=0 demo_mode_write_protect=0 generate_node_acls=1 cache_dynamic_acls=1 || exit $OCF_ERR_GENERIC
+			fi
 		fi
 		;;
 	esac
