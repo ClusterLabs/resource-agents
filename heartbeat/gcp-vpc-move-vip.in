@@ -22,7 +22,8 @@ import os
 import sys
 import time
 
-OCF_FUNCTIONS_DIR = os.environ.get("OCF_FUNCTIONS_DIR", "%s/lib/heartbeat" % os.environ.get("OCF_ROOT"))
+OCF_FUNCTIONS_DIR = os.environ.get("OCF_FUNCTIONS_DIR", "%s/lib/heartbeat"
+                                   % os.environ.get("OCF_ROOT"))
 sys.path.append(OCF_FUNCTIONS_DIR)
 
 from ocf import *
@@ -42,6 +43,10 @@ else:
   import urllib2 as urlrequest
 
 
+# Constants for alias add/remove modes
+ADD = 0
+REMOVE = 1
+
 CONN = None
 THIS_VM = None
 ALIAS = None
@@ -52,21 +57,21 @@ METADATA = \
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="gcp-vpc-move-vip">
   <version>1.0</version>
-  <longdesc lang="en">Floating IP Address on Google Cloud Platform - Using Alias IP address functionality to attach a secondary IP address to a running instance</longdesc>
-  <shortdesc lang="en">Floating IP Address on Google Cloud Platform</shortdesc>
+  <longdesc lang="en">Floating IP Address or Range on Google Cloud Platform - Using Alias IP address functionality to attach a secondary IP range to a running instance</longdesc>
+  <shortdesc lang="en">Floating IP Address or Range on Google Cloud Platform</shortdesc>
   <parameters>
     <parameter name="alias_ip" unique="1" required="1">
-      <longdesc lang="en">IP Address to be added including CIDR. E.g 192.168.0.1/32</longdesc>
-      <shortdesc lang="en">IP Address to be added including CIDR. E.g 192.168.0.1/32</shortdesc>
+      <longdesc lang="en">IP range to be added including CIDR netmask (e.g., 192.168.0.1/32)</longdesc>
+      <shortdesc lang="en">IP range to be added including CIDR netmask (e.g., 192.168.0.1/32)</shortdesc>
       <content type="string" default="" />
     </parameter>
-    <parameter name="alias_range_name" unique="1" required="0">
+    <parameter name="alias_range_name" unique="0" required="0">
       <longdesc lang="en">Subnet name for the Alias IP</longdesc>
       <shortdesc lang="en">Subnet name for the Alias IP</shortdesc>
       <content type="string" default="" />
     </parameter>
-    <parameter name="hostlist" unique="1" required="0">
-      <longdesc lang="en">List of hosts in the cluster</longdesc>
+    <parameter name="hostlist" unique="0" required="0">
+      <longdesc lang="en">List of hosts in the cluster, separated by spaces</longdesc>
       <shortdesc lang="en">Host list</shortdesc>
       <content type="string" default="" />
     </parameter>
@@ -106,7 +111,8 @@ def get_metadata(metadata_key, params=None, timeout=None):
   url = '%s?%s' % (metadata_url, params)
   request = urlrequest.Request(url, headers=METADATA_HEADERS)
   request_opener = urlrequest.build_opener(urlrequest.ProxyHandler({}))
-  return request_opener.open(request, timeout=timeout * 1.1).read().decode("utf-8")
+  return request_opener.open(
+      request, timeout=timeout * 1.1).read().decode("utf-8")
 
 
 def get_instance(project, zone, instance):
@@ -133,17 +139,21 @@ def wait_for_operation(project, zone, operation):
     time.sleep(1)
 
 
-def set_alias(project, zone, instance, alias, alias_range_name=None):
-  fingerprint = get_network_ifaces(project, zone, instance)[0]['fingerprint']
+def set_aliases(project, zone, instance, aliases, fingerprint):
+  """Sets the alias IP ranges for an instance.
+
+  Args:
+    project: string, the project in which the instance resides.
+    zone: string, the zone in which the instance resides.
+    instance: string, the name of the instance.
+    aliases: list, the list of dictionaries containing alias IP ranges
+      to be added to or removed from the instance.
+    fingerprint: string, the fingerprint of the network interface.
+  """
   body = {
-      'aliasIpRanges': [],
-      'fingerprint': fingerprint
+    'aliasIpRanges': aliases,
+    'fingerprint': fingerprint
   }
-  if alias:
-    obj = {'ipCidrRange': alias}
-    if alias_range_name:
-      obj['subnetworkRangeName'] = alias_range_name
-    body['aliasIpRanges'].append(obj)
 
   request = CONN.instances().updateNetworkInterface(
       instance=instance, networkInterface='nic0', project=project, zone=zone,
@@ -152,21 +162,75 @@ def set_alias(project, zone, instance, alias, alias_range_name=None):
   wait_for_operation(project, zone, operation)
 
 
-def get_alias(project, zone, instance):
-  iface = get_network_ifaces(project, zone, instance)
+def add_rm_alias(mode, project, zone, instance, alias, alias_range_name=None):
+  """Adds or removes an alias IP range for a GCE instance.
+
+  Args:
+    mode: int, a constant (ADD (0) or REMOVE (1)) indicating the
+      operation type.
+    project: string, the project in which the instance resides.
+    zone: string, the zone in which the instance resides.
+    instance: string, the name of the instance.
+    alias: string, the alias IP range to be added to or removed from
+      the instance.
+    alias_range_name: string, the subnet name for the alias IP range.
+
+  Returns:
+    True if the existing list of alias IP ranges was modified, or False
+    otherwise.
+  """
+  ifaces = get_network_ifaces(project, zone, instance)
+  fingerprint = ifaces[0]['fingerprint']
+
   try:
-    return iface[0]['aliasIpRanges'][0]['ipCidrRange']
+    old_aliases = ifaces[0]['aliasIpRanges']
   except KeyError:
-    return ''
+    old_aliases = []
+
+  new_aliases = [a for a in old_aliases if a['ipCidrRange'] != alias]
+
+  if alias:
+    if mode == ADD:
+      obj = {'ipCidrRange': alias}
+      if alias_range_name:
+        obj['subnetworkRangeName'] = alias_range_name
+      new_aliases.append(obj)
+    elif mode == REMOVE:
+      pass    # already removed during new_aliases build
+    else:
+      raise ValueError('Invalid value for mode: {}'.format(mode))
+
+  if (sorted(new_aliases) != sorted(old_aliases)):
+    set_aliases(project, zone, instance, new_aliases, fingerprint)
+    return True
+  else:
+    return False
 
 
-def get_localhost_alias():
+def add_alias(project, zone, instance, alias, alias_range_name=None):
+  return add_rm_alias(ADD, project, zone, instance, alias, alias_range_name)
+
+
+def remove_alias(project, zone, instance, alias):
+  return add_rm_alias(REMOVE, project, zone, instance, alias)
+
+
+def get_aliases(project, zone, instance):
+  ifaces = get_network_ifaces(project, zone, instance)
+  try:
+    aliases = ifaces[0]['aliasIpRanges']
+    return [a['ipCidrRange'] for a in aliases]
+  except KeyError:
+    return []
+
+
+def get_localhost_aliases():
   net_iface = get_metadata('instance/network-interfaces', {'recursive': True})
   net_iface = json.loads(net_iface)
   try:
-    return net_iface[0]['ipAliases'][0]
+    return net_iface[0]['ipAliases']
   except (KeyError, IndexError):
-    return ''
+    return []
 
 
 def get_zone(project, instance):
@@ -200,21 +264,17 @@ def get_instances_list(project, exclude):
 
 
 def gcp_alias_start(alias):
-  my_alias = get_localhost_alias()
+  my_aliases = get_localhost_aliases()
   my_zone = get_metadata('instance/zone').split('/')[-1]
   project = get_metadata('project/project-id')
 
-  # If I already have the IP, exit. If it has an alias IP that isn't the VIP,
-  # then remove it
-  if my_alias == alias:
+  if alias in my_aliases:
+    # TODO: Do we need to check alias_range_name?
     logger.info(
         '%s already has %s attached. No action required' % (THIS_VM, alias))
     sys.exit(OCF_SUCCESS)
-  elif my_alias:
-    logger.info('Removing %s from %s' % (my_alias, THIS_VM))
-    set_alias(project, my_zone, THIS_VM, '')
 
-  # Loops through all hosts & remove the alias IP from the host that has it
+  # If the alias is currently attached to another host, detach it.
   hostlist = os.environ.get('OCF_RESKEY_hostlist', '')
   if hostlist:
     hostlist = hostlist.replace(THIS_VM, '').split()
@@ -222,47 +282,53 @@ def gcp_alias_start(alias):
     hostlist = get_instances_list(project, THIS_VM)
   for host in hostlist:
     host_zone = get_zone(project, host)
-    host_alias = get_alias(project, host_zone, host)
-    if alias == host_alias:
+    host_aliases = get_aliases(project, host_zone, host)
+    if alias in host_aliases:
       logger.info(
-          '%s is attached to %s - Removing all alias IP addresses from %s' %
-          (alias, host, host))
-      set_alias(project, host_zone, host, '')
+          '%s is attached to %s - Removing %s from %s' %
+          (alias, host, alias, host))
+      remove_alias(project, host_zone, host, alias)
       break
 
-  # add alias IP to localhost
-  set_alias(
+  # Add alias IP range to localhost
+  add_alias(
       project, my_zone, THIS_VM, alias,
       os.environ.get('OCF_RESKEY_alias_range_name'))
 
-  # Check the IP has been added
-  my_alias = get_localhost_alias()
-  if alias == my_alias:
+  # Verify that the IP range has been added
+  my_aliases = get_localhost_aliases()
+  if alias in my_aliases:
     logger.info('Finished adding %s to %s' % (alias, THIS_VM))
-  elif my_alias:
-    logger.error(
-        'Failed to add IP. %s has an IP attached but it isn\'t %s' %
-        (THIS_VM, alias))
-    sys.exit(OCF_ERR_GENERIC)
   else:
-    logger.error('Failed to add IP address %s to %s' % (alias, THIS_VM))
+    if my_aliases:
+      logger.error(
+          'Failed to add alias IP range %s. %s has alias IP ranges attached but'
+          + ' they don\'t include %s' % (alias, THIS_VM, alias))
+    else:
+      logger.error(
+          'Failed to add IP range %s. %s has no alias IP ranges attached'
+           % (alias, THIS_VM))
     sys.exit(OCF_ERR_GENERIC)
 
 
 def gcp_alias_stop(alias):
-  my_alias = get_localhost_alias()
+  my_aliases = get_localhost_aliases()
   my_zone = get_metadata('instance/zone').split('/')[-1]
   project = get_metadata('project/project-id')
 
-  if my_alias == alias:
-    logger.info('Removing %s from %s' % (my_alias, THIS_VM))
-    set_alias(project, my_zone, THIS_VM, '')
+  if alias in my_aliases:
+    logger.info('Removing %s from %s' % (alias, THIS_VM))
+    remove_alias(project, my_zone, THIS_VM, alias)
+  else:
+    logger.info(
+        '%s is not attached to %s. No action required'
+        % (alias, THIS_VM))
 
 
 def gcp_alias_status(alias):
-  my_alias = get_localhost_alias()
-  if alias == my_alias:
-    logger.info('%s has the correct IP address attached' % THIS_VM)
+  my_aliases = get_localhost_aliases()
+  if alias in my_aliases:
+    logger.info('%s has the correct IP range attached' % THIS_VM)
   else:
     sys.exit(OCF_NOT_RUNNING)
 
@@ -274,7 +340,8 @@ def validate():
 
   # Populate global vars
   try:
-    CONN = googleapiclient.discovery.build('compute', 'v1', cache_discovery=False)
+    CONN = googleapiclient.discovery.build('compute', 'v1',
+                                           cache_discovery=False)
   except Exception as e:
     logger.error('Couldn\'t connect with google api: ' + str(e))
     sys.exit(OCF_ERR_CONFIGURED)
@@ -282,7 +349,8 @@ def validate():
   try:
     THIS_VM = get_metadata('instance/name')
   except Exception as e:
-    logger.error('Couldn\'t get instance name, is this running inside GCE?: ' + str(e))
+    logger.error('Couldn\'t get instance name, is this running inside GCE?: '
+                 + str(e))
     sys.exit(OCF_ERR_CONFIGURED)
 
   ALIAS = os.environ.get('OCF_RESKEY_alias_ip')
@@ -308,7 +376,8 @@ def configure_logs():
         formatter = logging.Formatter('gcp:alias "%(message)s"')
         handler.setFormatter(formatter)
         log.addHandler(handler)
-        logger = logging.LoggerAdapter(log, {'OCF_RESOURCE_INSTANCE': OCF_RESOURCE_INSTANCE})
+        logger = logging.LoggerAdapter(log, {'OCF_RESOURCE_INSTANCE':
+                                             OCF_RESOURCE_INSTANCE})
       except ImportError:
         logger.error('Couldn\'t import google.cloud.logging, '
             'disabling Stackdriver-logging support')
