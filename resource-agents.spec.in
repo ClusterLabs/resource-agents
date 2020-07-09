@@ -99,7 +99,7 @@ Requires: /usr/sbin/lvm
 Requires: /usr/sbin/rpc.nfsd /sbin/rpc.statd /usr/sbin/rpc.mountd
 
 # ocf-distro
-Requires: lsb-release
+Requires: /usr/bin/lsb_release
 
 # rgmanager
 %if %{with rgmanager}
