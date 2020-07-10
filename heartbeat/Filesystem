@@ -359,10 +359,10 @@ bind_kernel_check() {
 
 bind_root_mount_check() {
 	if [ "$(df -P "$1"  | awk 'END{print $6}')" = "/" ]; then
-                return 1
-        else
-                return 0
-        fi
+		return 1
+	else
+		return 0
+	fi
 }
 
 bind_mount() {
@@ -571,10 +571,10 @@ get_pids()
 	local procs
 	local mmap_procs
 
-        if is_bind_mount && ocf_is_true "$FORCE_UNMOUNT" && ! bind_root_mount_check "$DEVICE"; then
-                ocf_log debug "Change force_umount from '$FORCE_UNMOUNT' to 'safe'"
-                FORCE_UNMOUNT=safe
-        fi
+	if is_bind_mount && ocf_is_true "$FORCE_UNMOUNT" && ! bind_root_mount_check "$DEVICE"; then
+		ocf_log debug "Change force_umount from '$FORCE_UNMOUNT' to 'safe'"
+		FORCE_UNMOUNT=safe
+	fi
 
 	if ocf_is_true  "$FORCE_UNMOUNT"; then
 		if [ "X${HOSTOS}" = "XOpenBSD" ];then
