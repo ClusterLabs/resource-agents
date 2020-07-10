@@ -864,12 +864,10 @@ case $__OCF_ACTION in
 		exit $?
 		;;
 	stop)
-		verify_all || exit $OCF_ERR_GENERIC
 		ase_stop
 		exit $?
 		;;
 	status | monitor)
-		verify_all || exit $OCF_ERR_GENERIC
 		ase_status $OCF_CHECK_LEVEL
 		exit $?
 		;;
