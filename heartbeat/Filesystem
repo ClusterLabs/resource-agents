@@ -90,7 +90,7 @@ fi
 : ${OCF_RESKEY_force_unmount=${OCF_RESKEY_force_unmount_default}}
 
 # Variables used by multiple methods
-HOSTOS=`uname`
+HOSTOS=$(uname)
 TAB='	'
 
 # The status file is going to an extra directory, by default
@@ -100,7 +100,7 @@ prefix=${OCF_RESKEY_statusfile_prefix}
 suffix="${OCF_RESOURCE_INSTANCE}"
 [ "$OCF_RESKEY_CRM_meta_clone" ] &&
 	suffix="${suffix}_$OCF_RESKEY_CRM_meta_clone"
-suffix="${suffix}_`uname -n`"
+suffix="${suffix}_$(uname -n)"
 STATUSFILE="${OCF_RESKEY_directory}/$prefix$suffix"
 
 #######################################################################
@@ -329,7 +329,7 @@ determine_blockdevice() {
 		: ;;
 	*)
 		match_string="${TAB}${CANONICALIZED_MOUNTPOINT}${TAB}"
-		DEVICE=`list_mounts | grep "$match_string" | cut -d"$TAB" -f1`
+		DEVICE=$(list_mounts | grep "$match_string" | cut -d"$TAB" -f1)
 		if [ -b "$DEVICE" ]; then
 			blockdevice=yes
 		fi
@@ -354,7 +354,7 @@ bind_kernel_check() {
 			exit(1);
 	}'
 	[ $? -ne 0 ] &&
-		ocf_log warn "kernel `uname -r` cannot handle read only bind mounts"
+		ocf_log warn "kernel $(uname -r) cannot handle read only bind mounts"
 }
 
 bind_root_mount_check() {
@@ -369,7 +369,7 @@ bind_mount() {
 	if is_bind_mount && [ "$options" != "-o bind" ]
 	then
 		bind_kernel_check
-		bind_opts=`echo "$options" | sed 's/bind/remount/'`
+		bind_opts=$(echo "$options" | sed 's/bind/remount/')
 		$MOUNT $bind_opts "$MOUNTPOINT"
 	else
 		true # make sure to return OK
@@ -469,7 +469,7 @@ trigger_udev_rules_if_needed()
 			refresh_flag="yes"
 		fi
 	else
-		tmp="`echo $DEVICE|awk '{$1=""; print substr($0,2)}'`"
+		tmp="$(echo $DEVICE|awk '{$1=""; print substr($0,2)}')"
 		case "$DEVICE" in 
 		-U*|--uuid*) 
 			tmp="/dev/disk/by-uuid/$tmp" 
@@ -498,7 +498,7 @@ Filesystem_start()
 {
 	# Check if there are any mounts mounted under the mountpoint
 	match_string="${TAB}${CANONICALIZED_MOUNTPOINT}"
-	if list_mounts | grep -q -E "$match_string/\w+" >/dev/null 2>&1; then
+	if list_mounts | grep -E "$match_string/\w+" >/dev/null 2>&1; then
 		ocf_log err "There is one or more mounts mounted under $MOUNTPOINT."
 		return $OCF_ERR_CONFIGURED
 	fi
@@ -602,14 +602,14 @@ signal_processes() {
 		return
 	fi
 	for pid in $pids; do
-		ocf_log info "sending signal $sig to: `ps -f $pid | tail -1`"
+		ocf_log info "sending signal $sig to: $(ps -f $pid | tail -1)"
 		kill -s $sig $pid
 	done
 }
 try_umount() {
 	local SUB="$1"
 	$UMOUNT $umount_force "$SUB"
-	list_mounts | grep -q "${TAB}${SUB}${TAB}" >/dev/null 2>&1 || {
+	list_mounts | grep "${TAB}${SUB}${TAB}" >/dev/null 2>&1 || {
 		ocf_log info "unmounted $SUB successfully"
 		return $OCF_SUCCESS
 	}
@@ -693,7 +693,7 @@ Filesystem_stop()
 Filesystem_status()
 {
 	match_string="${TAB}${CANONICALIZED_MOUNTPOINT}${TAB}"
-	if list_mounts | grep -q "$match_string" >/dev/null 2>&1; then
+	if list_mounts | grep "$match_string" >/dev/null 2>&1; then
 		rc=$OCF_SUCCESS
 		msg="$MOUNTPOINT is mounted (running)"
 	else
@@ -728,7 +728,7 @@ Filesystem_monitor_10()
 		return $OCF_SUCCESS
 	fi
 	dd_opts="iflag=direct bs=4k count=1"
-	err_output=`dd if="$DEVICE" $dd_opts 2>&1 >/dev/null`
+	err_output=$(dd if="$DEVICE" $dd_opts 2>&1 >/dev/null)
 	if [ $? -ne 0 ]; then
 		ocf_exit_reason "Failed to read device $DEVICE"
 		ocf_log err "dd said: $err_output"
@@ -751,7 +751,7 @@ Filesystem_monitor_20()
 	fi
 	status_dir=$(dirname "$STATUSFILE")
 	[ -d "$status_dir" ] || mkdir -p "$status_dir"
-	err_output=`echo "${OCF_RESOURCE_INSTANCE}" | dd of="${STATUSFILE}" $dd_opts 2>&1`
+	err_output=$(echo "${OCF_RESOURCE_INSTANCE}" | dd of="${STATUSFILE}" $dd_opts 2>&1)
 	if [ $? -ne 0 ]; then
 		ocf_exit_reason "Failed to write status file ${STATUSFILE}"
 		ocf_log err "dd said: $err_output"
@@ -807,12 +807,13 @@ Filesystem_validate_all()
 	# NOTE: Without inserting the $FSTYPE module, this step may be imprecise
 	# TODO: This is Linux specific crap.
 	if [ ! -z "$FSTYPE" -a "$FSTYPE" != none ]; then
-		cut -f2 /proc/filesystems |grep -q "^${FSTYPE}$"
+		cut -f2 /proc/filesystems | grep "^${FSTYPE}$" >/dev/null 2>&1
 		if [ $? -ne 0 ]; then
-			modpath=/lib/modules/`uname -r`
+			modpath=/lib/modules/$(uname -r)
 			moddep=$modpath/modules.dep
 			# Do we have $FSTYPE in modules.dep?
-			cut -d' ' -f1 $moddep |grep -q "^$modpath.*$FSTYPE\.k\?o:$"
+			cut -d' ' -f1 $moddep \
+				| grep "^${modpath}.*${FSTYPE}\.k\?o:$" >/dev/null 2>&1
 			if [ $? -ne 0 ]; then
 				ocf_log info "It seems we do not have $FSTYPE support"
 			fi
@@ -846,7 +847,7 @@ set_blockdevice_var() {
 	nfs4|nfs|smbfs|cifs|none|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|lustre) return;;
 	esac
 
-	if `is_option "loop"`; then
+	if $(is_option "loop"); then
 		return
 	fi
 
