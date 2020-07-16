@@ -179,6 +179,8 @@ class clusterHelper:
 		ocf.logger.debug("_exec: cmd = %s" % " ".join(command))
 		try:
 			ret = subprocess.check_output(command)
+			if type(ret) != str:
+				ret = ret.decode()
 			ocf.logger.debug("_exec: return = %s" % ret)
 			return ret.rstrip()
 		except Exception as err:
@@ -232,7 +234,7 @@ class clusterHelper:
 
 		nodes = []
 		nodeList = clusterHelper._exec("crm_node", "--list")
-		for n in nodeList.decode().split("\n"):
+		for n in nodeList.split("\n"):
 			nodes.append(n.split()[1])
 		ocf.logger.debug("getAllNodes: finished; return %s" % str(nodes))
 
@@ -303,7 +305,7 @@ class clusterHelper:
 			ocf.logger.warning("transitionSummary: received unexpected transition summary: %s" % summary)
 			return False
 		summary = summary.split("Transition Summary:")[1]
-		ret = summary.decode().split("\n").pop(0)
+		ret = summary.split("\n").pop(0)
 
 		ocf.logger.debug("transitionSummary: finished; return = %s" % str(ret))
 		return ret
@@ -324,7 +326,7 @@ class clusterHelper:
 		if len(resources) == 0:
 			ret = []
 		else:
-			ret = resources.decode().split("\n")
+			ret = resources.split("\n")
 
 		ocf.logger.debug("listOperationsOnNode: finished; return = %s" % str(ret))
 		return ret
@@ -470,7 +472,7 @@ class Node:
 
 		eventIDStr = clusterHelper.getAttr(attr_pendingEventIDs, node=node)
 		if eventIDStr:
-			eventIDs = eventIDStr.decode().split(",")
+			eventIDs = eventIDStr.split(",")
 		else:
 			eventIDs = None
 
