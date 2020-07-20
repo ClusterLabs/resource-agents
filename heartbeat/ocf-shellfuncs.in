@@ -569,28 +569,9 @@ ocf_is_ms() {
 # version check functions
 # allow . and - to delimit version numbers
 # max version number is 999
-# letters and such are effectively ignored
 #
 ocf_is_ver() {
-	echo $1 | grep '^[0-9][0-9.-]*[0-9]$' >/dev/null 2>&1
-}
-ocf_ver2num() {
-	echo $1 | awk -F'[.-]' '
-	{for(i=1; i<=NF; i++) s=s*1000+$i; print s}
-	'
-}
-ocf_ver_level(){
-	echo $1 | awk -F'[.-]' '{print NF}'
-}
-ocf_ver_complete_level(){
-	local ver="$1"
-	local level="$2"
-	local i=0
-	while [ $i -lt $level ]; do
-		ver=${ver}.0
-		i=`expr $i + 1`
-	done
-	echo $ver
+	echo $1 | grep '^[0-9][0-9.-]*[0-9A-Za-z.\+-]*$' >/dev/null 2>&1
 }
 
 # usage: ocf_version_cmp VER1 VER2
@@ -606,21 +587,13 @@ ocf_version_cmp() {
 	ocf_is_ver "$2" || return 3
 	local v1=$1
 	local v2=$2
-	local v1_level=`ocf_ver_level $v1`
-	local v2_level=`ocf_ver_level $v2`
-	local level_diff
-	if [ $v1_level -lt $v2_level ]; then
-		level_diff=`expr $v2_level - $v1_level`
-		v1=`ocf_ver_complete_level $v1 $level_diff`
-	elif [ $v1_level -gt $v2_level ]; then
-		level_diff=`expr $v1_level - $v2_level`
-		v2=`ocf_ver_complete_level $v2 $level_diff`
-	fi
-	v1=`ocf_ver2num $v1`
-	v2=`ocf_ver2num $v2`
-	if [ $v1 -eq $v2 ]; then
+
+	sort_version="sort -t. -k 1,1n -k 2,2n -k 3,3n -k 4,4n"
+	older=$( (echo "$v1"; echo "$v2") | $sort_version | head -1 )
+
+	if [ "$v1" = "$v2" ]; then
 		return 1
-	elif [ $v1 -lt $v2 ]; then
+	elif [ "$v1" = "$older" ]; then
 		return 0
 	else
 		return 2 # -1 would look funny in shell ;-)
