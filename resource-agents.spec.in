@@ -87,7 +87,10 @@ Requires: /usr/sbin/fuser /bin/mount
 Requires: /sbin/fsck
 Requires: /usr/sbin/fsck.ext2 /usr/sbin/fsck.ext3 /usr/sbin/fsck.ext4
 Requires: /usr/sbin/fsck.xfs
-Requires: /sbin/mount.nfs /sbin/mount.nfs4 /usr/sbin/mount.cifs
+Requires: /sbin/mount.nfs /sbin/mount.nfs4
+%if 0%{?fedora} < 33 || (0%{?rhel} && 0%{?rhel} < 9) || (0%{?centos_version} && 0%{?centos_version} < 9) || 0%{?suse_version}
+Recommends: /usr/sbin/mount.cifs
+%endif
 
 # IPaddr2
 Requires: /sbin/ip
