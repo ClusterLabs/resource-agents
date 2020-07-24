@@ -87,11 +87,13 @@ OCF_RESKEY_wsrep_cluster_address_default=""
 OCF_RESKEY_cluster_host_map_default=""
 OCF_RESKEY_check_user_default="root"
 OCF_RESKEY_check_passwd_default=""
+OCF_RESKEY_two_node_mode_default="false"
 
 : ${OCF_RESKEY_wsrep_cluster_address=${OCF_RESKEY_wsrep_cluster_address_default}}
 : ${OCF_RESKEY_cluster_host_map=${OCF_RESKEY_cluster_host_map_default}}
 : ${OCF_RESKEY_check_user=${OCF_RESKEY_check_user_default}}
 : ${OCF_RESKEY_check_passwd=${OCF_RESKEY_check_passwd_default}}
+: ${OCF_RESKEY_two_node_mode=${OCF_RESKEY_two_node_mode_default}}
 
 #######################################################################
 # Defaults:
@@ -279,6 +281,16 @@ when calling the "mysql" client binary.
 <content type="boolean" default="${OCF_RESKEY_check_passwd_use_empty_default}"/>
 </parameter>
 
+<parameter name="two_node_mode" unique="0" required="0">
+<longdesc lang="en">
+If running in a 2-node pacemaker cluster, rely on pacemaker quorum
+to allow automatic recovery even when the other node is unreachable.
+Use it with caution! (and fencing)
+</longdesc>
+<shortdesc lang="en">Special recovery when running on a 2-node cluster</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_two_node_mode_default}"/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -430,6 +442,27 @@ is_readonly()
     return 0
 }
 
+is_two_node_mode_active()
+{
+    # crm_node or corosync-quorumtool cannot access various corosync
+    # flags when running inside a bundle, so only count the cluster
+    # members
+    ocf_is_true "$OCF_RESKEY_two_node_mode" && ${HA_SBIN_DIR}/crm_mon -1X | xmllint --xpath "count(//nodes/node[@type='member'])" - | grep -q -w 2
+}
+
+is_last_node_in_quorate_partition()
+{
+    # when a network split occurs in a 2-node cluster, pacemaker
+    # fences the other node and try to retain quorum. So until
+    # the fencing is resolved (and the status of the peer node
+    # is clean), we shouldn't consider ourself quorate.
+    local partition_members=$(${HA_SBIN_DIR}/crm_node -p | wc -w)
+    local quorate=$(${HA_SBIN_DIR}/crm_node -q)
+    local clean_members=$(${HA_SBIN_DIR}/crm_mon -1X | xmllint --xpath 'count(//nodes/node[@type="member" and @unclean="false"])' -)
+
+    [ "$partition_members" = 1 ] && [ "$quorate" = 1 ] && [ "$clean_members" = 2 ]
+}
+
 master_exists()
 {
     if [ "$__OCF_ACTION" = "demote" ]; then
@@ -548,7 +581,19 @@ detect_first_master()
     done
 
     for node in $nodes_recovered $nodes; do
+        # On clean shutdown, galera sets the last stopped node as 'safe to bootstrap',
+        # so use this hint when we can
         safe_to_bootstrap=$(get_safe_to_bootstrap $node)
+
+        # Special case for 2-node clusters: during a network split, rely on
+        # pacemaker's quorum to check whether we can restart galera
+        if [ "$safe_to_bootstrap" != "1" ] && [ "$node" = "$NODENAME" ] && is_two_node_mode_active; then
+            is_last_node_in_quorate_partition
+            if [ $? -eq 0 ]; then
+                ocf_log warn "Survived a split in a 2-node cluster, considering ourselves safe to bootstrap"
+                safe_to_bootstrap=1
+            fi
+        fi
 
         if [ "$safe_to_bootstrap" = "1" ]; then
             # Galera marked the node as safe to boostrap during shutdown. Let's just
