@@ -117,8 +117,12 @@ class azHelper:
 		jsondata = azHelper._sendMetadataRequest(azHelper.instance_api)
 		ocf.logger.debug("getInstanceInfo: json = %s" % jsondata)
 
-		ocf.logger.debug("getInstanceInfo: finished, returning {}".format(jsondata["compute"]))
-		return attrDict(jsondata["compute"])
+		if jsondata:
+			ocf.logger.debug("getInstanceInfo: finished, returning {}".format(jsondata["compute"]))
+			return attrDict(jsondata["compute"])
+		else:
+			ocf.ocf_exit_reason("getInstanceInfo: Unable to get instance info")
+			sys.exit(ocf.OCF_ERR_GENERIC)
 
 	@staticmethod
 	def pullScheduledEvents():
