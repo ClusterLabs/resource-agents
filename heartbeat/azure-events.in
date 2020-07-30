@@ -13,8 +13,10 @@ import subprocess
 import json
 try:
 		import urllib2
+		from urllib2 import URLError
 except ImportError:
 		import urllib.request as urllib2
+		from urllib.error import URLError
 import socket
 from collections import defaultdict
 
@@ -76,8 +78,12 @@ class azHelper:
 		Send a request to Azure's Azure Metadata Service API
 		"""
 		url = "%s/%s?api-version=%s" % (azHelper.metadata_host, endpoint, azHelper.api_version)
+		data = ""
 		ocf.logger.debug("_sendMetadataRequest: begin; endpoint = %s, postData = %s" % (endpoint, postData))
 		ocf.logger.debug("_sendMetadataRequest: url = %s" % url)
+
+		if postData and type(postData) != bytes:
+			postData = postData.encode()
 
 		req = urllib2.Request(url, postData)
 		req.add_header("Metadata", "true")
@@ -111,8 +117,12 @@ class azHelper:
 		jsondata = azHelper._sendMetadataRequest(azHelper.instance_api)
 		ocf.logger.debug("getInstanceInfo: json = %s" % jsondata)
 
-		ocf.logger.debug("getInstanceInfo: finished, returning {}".format(jsondata["compute"]))
-		return attrDict(jsondata["compute"])
+		if jsondata:
+			ocf.logger.debug("getInstanceInfo: finished, returning {}".format(jsondata["compute"]))
+			return attrDict(jsondata["compute"])
+		else:
+			ocf.ocf_exit_reason("getInstanceInfo: Unable to get instance info")
+			sys.exit(ocf.OCF_ERR_GENERIC)
 
 	@staticmethod
 	def pullScheduledEvents():
