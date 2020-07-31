@@ -276,6 +276,13 @@ master_is_active()
 		res=$?
 		if [ -z "$OCF_RESKEY_crm_feature_set" ] || [ $res -eq 2 ]; then
 			XMLOPT="--output-as=xml"
+			ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.2.0"
+			if [ $? -eq 1 ]; then
+				crm_mon -1 $XMLOPT >/dev/null 2>&1
+				if [ $? -ne 0 ]; then
+					XMLOPT="--as-xml"
+				fi
+			fi
 		else
 			XMLOPT="--as-xml"
 		fi
