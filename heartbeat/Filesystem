@@ -584,7 +584,7 @@ get_pids()
 		fi
 	elif [ "$FORCE_UNMOUNT" = "safe" ]; then
 		procs=$(find /proc/[0-9]*/ -type l -lname "${dir}/*" -or -lname "${dir}" 2>/dev/null | awk -F/ '{print $3}')
-		mmap_procs=$(grep " ${dir}" /proc/[0-9]*/maps | awk -F/ '{print $3}')
+		mmap_procs=$(grep " ${dir}/" /proc/[0-9]*/maps | awk -F/ '{print $3}')
 		printf "${procs}\n${mmap_procs}" | sort | uniq
 	fi
 }
