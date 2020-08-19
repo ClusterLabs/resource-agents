@@ -200,7 +200,8 @@ def add_rm_alias(mode, project, zone, instance, alias, alias_range_name=None):
     else:
       raise ValueError('Invalid value for mode: {}'.format(mode))
 
-  if (sorted(new_aliases) != sorted(old_aliases)):
+  if (sorted(new_aliases, key=lambda item: item.get('ipCidrRange'))
+      != sorted(old_aliases, key=lambda item: item.get('ipCidrRange'))):
     set_aliases(project, zone, instance, new_aliases, fingerprint)
     return True
   else:
