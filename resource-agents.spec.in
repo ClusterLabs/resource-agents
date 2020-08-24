@@ -88,7 +88,7 @@ Requires: /sbin/fsck
 Requires: /usr/sbin/fsck.ext2 /usr/sbin/fsck.ext3 /usr/sbin/fsck.ext4
 Requires: /usr/sbin/fsck.xfs
 Requires: /sbin/mount.nfs /sbin/mount.nfs4
-%if 0%{?fedora} < 33 || (0%{?rhel} && 0%{?rhel} < 9) || (0%{?centos_version} && 0%{?centos_version} < 9) || 0%{?suse_version}
+%if 0%{?fedora} < 33 || (0%{?rhel} && 0%{?rhel} < 9) || (0%{?centos} && 0%{?centos} < 9) || 0%{?suse_version}
 Recommends: /usr/sbin/mount.cifs
 %endif
 
@@ -134,8 +134,8 @@ BuildRequires: perl-podlators
 %endif
 Requires:       %{SSLeay} perl-libwww-perl perl-MailTools
 Requires:       ipvsadm logrotate
-%if 0%{?fedora_version}
-Requires:	perl-Net-IMAP-Simple-SSL
+%if 0%{?fedora}
+Requires:	perl-Net-IMAP-Simple-SSL perl-IO-Socket-INET6
 Requires(post):	/sbin/chkconfig
 Requires(preun):/sbin/chkconfig
 %endif
@@ -232,6 +232,7 @@ test -d %{buildroot}/sbin || mkdir %{buildroot}/sbin
 %files
 %doc AUTHORS COPYING COPYING.GPLv3 COPYING.LGPL ChangeLog
 %if %{with linuxha}
+%doc heartbeat/README.galera
 %doc doc/README.webapps
 %doc %{_datadir}/%{name}/ra-api-1.dtd
 %doc %{_datadir}/%{name}/metadata.rng
