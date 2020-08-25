@@ -89,7 +89,11 @@ Requires: /usr/sbin/fsck.ext2 /usr/sbin/fsck.ext3 /usr/sbin/fsck.ext4
 Requires: /usr/sbin/fsck.xfs
 Requires: /sbin/mount.nfs /sbin/mount.nfs4
 %if 0%{?fedora} < 33 || (0%{?rhel} && 0%{?rhel} < 9) || (0%{?centos} && 0%{?centos} < 9) || 0%{?suse_version}
+%if (0%{?rhel} && 0%{?rhel} < 8) || (0%{?centos} && 0%{?centos} < 8)
+Requires: /usr/sbin/mount.cifs
+%else
 Recommends: /usr/sbin/mount.cifs
+%endif
 %endif
 
 # IPaddr2
