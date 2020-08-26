@@ -44,6 +44,7 @@ OCF_RESKEY_routing_table_default=""
 OCF_RESKEY_routing_table_role_default=""
 OCF_RESKEY_interface_default="eth0"
 OCF_RESKEY_monapi_default="false"
+OCF_RESKEY_lookup_type_default="InstanceId"
 
 : ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
 : ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
@@ -54,6 +55,7 @@ OCF_RESKEY_monapi_default="false"
 : ${OCF_RESKEY_routing_table_role=${OCF_RESKEY_routing_table_role_default}}
 : ${OCF_RESKEY_interface=${OCF_RESKEY_interface_default}}
 : ${OCF_RESKEY_monapi=${OCF_RESKEY_monapi_default}}
+: ${OCF_RESKEY_lookup_type=${OCF_RESKEY_lookup_type_default}}
 
 [ -n "$OCF_RESKEY_region" ] && region_opt="--region $OCF_RESKEY_region"
 #######################################################################
@@ -154,6 +156,17 @@ Enable enhanced monitoring using AWS API calls to check route table entry
 <shortdesc lang="en">Enhanced Monitoring</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_monapi_default}" />
 </parameter>
+
+<parameter name="lookup_type" required="0">
+<longdesc lang="en">
+Name of resource type to lookup in route table.
+"InstanceId"         : EC2 instance ID. (default)
+"NetworkInterfaceId" : ENI ID. (useful in shared VPC setups).
+</longdesc>
+<shortdesc lang="en">lookup type for route table resource</shortdesc>
+<content type="string" default="${OCF_RESKEY_lookup_type_default}" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -187,7 +200,7 @@ execute_cmd_as_role(){
 
 ec2ip_set_address_param_compat(){
 	# Include backward compatibility for the deprecated address parameter
-	if [ -z  "$OCF_RESKEY_ip" ] && [ -n "$OCF_RESKEY_address" ]; then
+	if [ -z "$OCF_RESKEY_ip" ] && [ -n "$OCF_RESKEY_address" ]; then
 		OCF_RESKEY_ip="$OCF_RESKEY_address"
 	fi
 }
@@ -213,16 +226,24 @@ ec2ip_validate() {
 }
 
 ec2ip_monitor() {
-        MON_RES=""
+	MON_RES=""
+	if [ "${OCF_RESKEY_lookup_type}" = "NetworkInterfaceId" ]; then
+		EC2_ID="$(ec2ip_get_instance_eni)"
+		RESOURCE_TYPE="interface"
+	else
+		EC2_ID="$EC2_INSTANCE_ID"
+		RESOURCE_TYPE="instance"
+	fi
+
 	if ocf_is_true ${OCF_RESKEY_monapi} || [ "$__OCF_ACTION" = "start" ] || ocf_is_probe; then
 		for rtb in $(echo $OCF_RESKEY_routing_table | sed -e 's/,/ /g'); do
 			ocf_log info "monitor: check routing table (API call) - $rtb"
 			if [ -z "${OCF_RESKEY_routing_table_role}" ]; then
-				cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile $region_opt --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].InstanceId"
+				cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile $region_opt --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].$OCF_RESKEY_lookup_type"
 				ocf_log debug "executing command: $cmd"
 				ROUTE_TO_INSTANCE="$($cmd)"
 			else
-				cmd="$OCF_RESKEY_awscli --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].InstanceId"
+				cmd="$OCF_RESKEY_awscli --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].$OCF_RESKEY_lookup_type"
 				ROUTE_TO_INSTANCE="$(execute_cmd_as_role "$cmd" $OCF_RESKEY_routing_table_role)"
 			fi
 			ocf_log debug "Overlay IP is currently routed to ${ROUTE_TO_INSTANCE}"
@@ -230,8 +251,8 @@ ec2ip_monitor() {
 				ROUTE_TO_INSTANCE="<unknown>"
 			fi
 
-			if [ "$EC2_INSTANCE_ID" != "$ROUTE_TO_INSTANCE" ]; then 
-				ocf_log warn "not routed to this instance ($EC2_INSTANCE_ID) but to instance $ROUTE_TO_INSTANCE on $rtb"
+			if [ "$EC2_ID" != "$ROUTE_TO_INSTANCE" ]; then
+				ocf_log warn "not routed to this $RESOURCE_TYPE ($EC2_ID) but to $RESOURCE_TYPE $ROUTE_TO_INSTANCE on $rtb"
 				MON_RES="$MON_RES $rtb"
 			fi
 			sleep 1
@@ -275,7 +296,7 @@ ec2ip_drop() {
 	return $OCF_SUCCESS
 }
 
-ec2ip_get_and_configure() {
+ec2ip_get_instance_eni() {
 	MAC_FILE="/sys/class/net/${OCF_RESKEY_interface}/address"
 	if [ -f $MAC_FILE ]; then
 		cmd="cat ${MAC_FILE}"
@@ -300,7 +321,11 @@ ec2ip_get_and_configure() {
 		return $OCF_ERR_GENERIC
 	fi
 	ocf_log debug "network interface id associated MAC address ${MAC_ADDR}: ${EC2_NETWORK_INTERFACE_ID}"
+	echo $EC2_NETWORK_INTERFACE_ID
+}
 
+ec2ip_get_and_configure() {
+	EC2_NETWORK_INTERFACE_ID="$(ec2ip_get_instance_eni)"
 	for rtb in $(echo $OCF_RESKEY_routing_table | sed -e 's/,/ /g'); do
 		if [ -z "${OCF_RESKEY_routing_table_role}" ]; then
 			cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile $region_opt --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
@@ -417,7 +442,7 @@ case $__OCF_ACTION in
 		ec2ip_monitor;;
 	validate-all)
 		exit $?;;
-	*)	
+	*)
 		echo $USAGE
 		exit $OCF_ERR_UNIMPLEMENTED
 		;;
