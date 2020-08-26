@@ -604,11 +604,16 @@ detect_safe_to_bootstrap()
         seqno=$(sed -n 's/^seqno:\s*\(.*\)$/\1/p' < ${OCF_RESKEY_datadir}/grastate.dat)
     fi
 
-    if [ -z "$uuid" ] || [ -z "$seqno" ] || \
-       [ "$uuid" = "00000000-0000-0000-0000-000000000000" ] || \
-       [ "$seqno" = "-1" ]; then
+    if [ -z "$uuid" ] || \
+       [ "$uuid" = "00000000-0000-0000-0000-000000000000" ]; then
         clear_safe_to_bootstrap
         return
+    fi
+    if [ "$safe_to_bootstrap" = "1" ]; then
+        if [ -z "$seqno" ] || [ "$seqno" = "-1" ]; then
+            clear_safe_to_bootstrap
+            return
+        fi
     fi
 
     if [ "$safe_to_bootstrap" = "1" ] || [ "$safe_to_bootstrap" = "0" ]; then
