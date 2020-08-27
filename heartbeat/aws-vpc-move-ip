@@ -37,6 +37,7 @@
 # Defaults
 OCF_RESKEY_awscli_default="/usr/bin/aws"
 OCF_RESKEY_profile_default="default"
+OCF_RESKEY_region_default=""
 OCF_RESKEY_ip_default=""
 OCF_RESKEY_address_default=""
 OCF_RESKEY_routing_table_default=""
@@ -46,12 +47,15 @@ OCF_RESKEY_monapi_default="false"
 
 : ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
 : ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
+: ${OCF_RESKEY_region=${OCF_RESKEY_region_default}}
 : ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
 : ${OCF_RESKEY_address=${OCF_RESKEY_address_default}}
 : ${OCF_RESKEY_routing_table=${OCF_RESKEY_routing_table_default}}
 : ${OCF_RESKEY_routing_table_role=${OCF_RESKEY_routing_table_role_default}}
 : ${OCF_RESKEY_interface=${OCF_RESKEY_interface_default}}
 : ${OCF_RESKEY_monapi=${OCF_RESKEY_monapi_default}}
+
+[ -n "$OCF_RESKEY_region" ] && region_opt="--region $OCF_RESKEY_region"
 #######################################################################
 
 
@@ -93,6 +97,14 @@ Valid AWS CLI profile name (see ~/.aws/config and 'aws configure')
 </longdesc>
 <shortdesc lang="en">profile name</shortdesc>
 <content type="string" default="${OCF_RESKEY_profile_default}" />
+</parameter>
+
+<parameter name="region">
+<longdesc lang="en">
+Valid AWS region name (e.g., 'us-west-2')
+</longdesc>
+<shortdesc lang="en">region name</shortdesc>
+<content type="string" default="${OCF_RESKEY_region_default}" />
 </parameter>
 
 <parameter name="ip" required="1">
@@ -159,7 +171,7 @@ END
 execute_cmd_as_role(){
 	cmd=$1
 	role=$2
-	output="$($OCF_RESKEY_awscli sts assume-role --role-arn $role --role-session-name AWSCLI-RouteTableUpdate --profile $OCF_RESKEY_profile --output=text)"
+	output="$($OCF_RESKEY_awscli sts assume-role --role-arn $role --role-session-name AWSCLI-RouteTableUpdate --profile $OCF_RESKEY_profile $region_opt --output=text)"
 	export AWS_ACCESS_KEY_ID="$(echo $output | awk -F" " '$4=="CREDENTIALS" {print $5}')"
 	export AWS_SECRET_ACCESS_KEY="$(echo $output | awk -F" " '$4=="CREDENTIALS" {print $7}')"
 	export AWS_SESSION_TOKEN="$(echo $output | awk -F" " '$4=="CREDENTIALS" {print $8}')"
@@ -206,7 +218,7 @@ ec2ip_monitor() {
 		for rtb in $(echo $OCF_RESKEY_routing_table | sed -e 's/,/ /g'); do
 			ocf_log info "monitor: check routing table (API call) - $rtb"
 			if [ -z "${OCF_RESKEY_routing_table_role}" ]; then
-				cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].InstanceId"
+				cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile $region_opt --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].InstanceId"
 				ocf_log debug "executing command: $cmd"
 				ROUTE_TO_INSTANCE="$($cmd)"
 			else
@@ -291,7 +303,7 @@ ec2ip_get_and_configure() {
 
 	for rtb in $(echo $OCF_RESKEY_routing_table | sed -e 's/,/ /g'); do
 		if [ -z "${OCF_RESKEY_routing_table_role}" ]; then
-			cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
+			cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile $region_opt --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
 			ocf_log debug "executing command: $cmd"
 			$cmd
 		else
