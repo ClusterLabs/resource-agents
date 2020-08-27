@@ -270,7 +270,13 @@ ec2ip_monitor() {
 	ocf_log debug "executing command: $cmd"
 	RESULT=$($cmd | grep "$OCF_RESKEY_ip")
 	if [ -z "$RESULT" ]; then
-		ocf_log warn "IP $OCF_RESKEY_ip not assigned to running interface"
+		if [ "$__OCF_ACTION" = "monitor" ] && ! ocf_is_probe; then
+			level="error"
+		else
+			level="info"
+		fi
+
+		ocf_log "$level" "IP $OCF_RESKEY_ip not assigned to running interface"
 		return $OCF_NOT_RUNNING
 	fi
 
@@ -282,11 +288,22 @@ ec2ip_monitor() {
 ec2ip_drop() {
 	cmd="ip addr delete ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface"
 	ocf_log debug "executing command: $cmd"
-	$cmd
+	output=$($cmd 2>&1)
 	rc=$?
+
 	if [ "$rc" -gt 0 ]; then
-		ocf_log warn "command failed, rc $rc"
+		if [ "$__OCF_ACTION" = "start" ]; then
+			# expected to fail during start
+			level="debug"
+		else
+			level="warn"
+		fi
+
+		ocf_log "$level" "command failed, rc $rc"
+		ocf_log "$level" "output/error: $output"
 		return $OCF_ERR_GENERIC
+	else
+		ocf_log debug "output/error: $output"
 	fi
 
 	# delete remaining route-entries if any
