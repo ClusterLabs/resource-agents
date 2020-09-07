@@ -1,4 +1,4 @@
-#@BASH_SHELL@
+#!@BASH_SHELL@
 #
 #       OCF resource agent for Kamailio for pacemaker
 #
