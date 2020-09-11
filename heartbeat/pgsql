@@ -966,6 +966,9 @@ pgsql_real_monitor() {
     if ! pgsql_status
     then
         ocf_log info "PostgreSQL is down"
+        if [ "$__OCF_ACTION" = "monitor" ] && ! ocf_is_probe && [ -f $PGSQL_LOCK ]; then
+            ocf_exit_reason "My data may be inconsistent. You have to remove $PGSQL_LOCK file to force start."
+        fi
         return $OCF_NOT_RUNNING
     fi
 
