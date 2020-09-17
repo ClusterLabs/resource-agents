@@ -398,6 +398,7 @@ def run(agent, handlers=None):
 			params = inspect.signature(func).parameters.keys()
 		else:
 			params = inspect.getargspec(func).args
+			if 'self' in params: params.remove('self')
 		def value_for_parameter(param):
 			val = get_parameter(param)
 			if val is not None:
