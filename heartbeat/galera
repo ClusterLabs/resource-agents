@@ -727,9 +727,16 @@ galera_promote()
             ocf_log info "Node <${NODENAME}> is bootstrapping the cluster"
             extra_opts="--wsrep-cluster-address=gcomm://"
         else
-            ocf_exit_reason "Failure, Attempted to promote Master instance of $OCF_RESOURCE_INSTANCE before bootstrap node has been detected."
-            clear_last_commit
-            return $OCF_ERR_GENERIC
+            # We are being promoted without having the bootstrap
+            # attribute in the CIB, which means we are supposed to
+            # join a cluster; however if we end up here, there is no
+            # Master remaining right now, which means there is no
+            # cluster to join anymore. So force a demotion, and and
+            # let the RA decide later which node should be the next
+            # bootstrap node.
+            ocf_log warn "There is no running cluster to join, demoting ourself"
+            clear_master_score
+            return $OCF_SUCCESS
         fi
     fi
 
