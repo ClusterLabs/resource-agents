@@ -167,16 +167,13 @@ silent_status() {
 
 # May be useful to add other distros in future
 validate_default_config() {
-	case "$( get_release_id )" in
-                *SUSE)
-                        validate_default_suse_config
-                        ;;
-                Debian)
-                        validate_default_debian_config
-                        ;;
-                *)
-                        return 0
-        esac
+	if is_suse_based; then
+		validate_default_suse_config
+	elif is_debian_based; then
+		validate_default_debian_config
+	else
+		return 0
+	fi
 }
 
 # When using the default /etc/apache2/httpd.conf on SUSE, the file
