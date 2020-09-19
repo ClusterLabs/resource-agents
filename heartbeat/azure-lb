@@ -17,12 +17,12 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
-OCF_RESKEY_nc_default="/usr/bin/nc"
-case "$( get_release_id )" in
-	*SUSE)
-		OCF_RESKEY_nc_default="/usr/bin/socat"
-	;;
-esac
+if is_suse_based; then
+	OCF_RESKEY_nc_default="/usr/bin/socat"
+else
+	OCF_RESKEY_nc_default="/usr/bin/nc"
+fi
+
 OCF_RESKEY_port_default="61000"
 
 : ${OCF_RESKEY_nc=${OCF_RESKEY_nc_default}}
