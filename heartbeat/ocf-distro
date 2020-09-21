@@ -13,7 +13,6 @@ _USR_OS_RELEASE_FILE="/usr/lib/os-release"
 _DEBIAN_VERSION_FILE="/etc/debian_version"
 _REDHAT_RELEASE_FILE="/etc/redhat-release"
 _SUSE_RELEASE_FILE="/etc/SuSE-release"
-_RELEASE_FILES="/etc/*-release"
 
 _DEBIAN_BASED_DISTROS_RE="debian|ubuntu"
 _REDHAT_BASED_DISTROS_RE="red *hat|rhel|fedora|centos|scientific"
@@ -50,8 +49,8 @@ get_release_id() {
 			_os=suse
 		elif [ -e $_REDHAT_RELEASE_FILE ]; then
 			_os=redhat
-		else # FIXME not exactly the id here, but will do for our purpose
-			_os=$(cat $_RELEASE_FILES 2>/dev/null)
+		else
+			_os=$(uname -s)
 		fi
 	fi
 
