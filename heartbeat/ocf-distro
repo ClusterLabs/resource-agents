@@ -25,30 +25,35 @@ get_release_id() {
 	fi
 }
 
+get_os_version_id() {
+	if which lsb_release >/dev/null 2>&1; then
+		_ver=$(lsb_release -sr)
+	elif [ -f "$_DEBIAN_VERSION_FILE" ]; then
+		_ver=$(cat "$_DEBIAN_VERSION_FILE")
+	elif [ -f "$_REDHAT_RELEASE_FILE" ]; then
+		_ver=$(sed "s/.* release \([^ ]\+\).*/\1/" \
+			"$_REDHAT_RELEASE_FILE")
+	elif [ -f "$_SUSE_RELEASE_FILE" ]; then
+		_ver=$(awk '$1 == "VERSION" {print $3}' "$_SUSE_RELEASE_FILE")
+
+		_patchlevel=$(awk '$1 == "PATCHLEVEL" {print $3}' \
+				"$_SUSE_RELEASE_FILE")
+		[ -n "$_patchlevel" ] && _ver="${_ver}.${_patchlevel}"
+	else
+		_ver=$(uname -r)
+	fi
+
+	echo "$_ver"
+}
+
 is_redhat_based() {
 	get_release_id | egrep -qsi "$_REDHAT_BASED_DISTROS_RE"
 }
 
-# get_os_ver() is currently unused
+# Sets global variables OS and VER.
+# get_os_ver() is currently unused upstream; maintained for backwards
+# compatibility.
 get_os_ver() {
-	if which lsb_release >/dev/null 2>&1; then
-		OS=`lsb_release -si`
-		VER=`lsb_release -sr`
-	elif [ -f $_DEBIAN_VERSION_FILE ]; then
-		OS=Debian
-		VER=$(cat $_DEBIAN_VERSION_FILE)
-	elif [ -f $_REDHAT_RELEASE_FILE ]; then
-		OS=RedHat  # redhat or similar
-		VER=$(sed "s/.* release \([^ ]\+\).*/\1/" $_REDHAT_RELEASE_FILE)
-	elif [ -f $_SUSE_RELEASE_FILE ]; then
-		OS=SUSE
-		VER=$(awk '$1 == "VERSION" {print $3}' "$_SUSE_RELEASE_FILE")
-
-		_patchlevel=$(awk '$1 == "PATCHLEVEL" {print $3}' \
-				"$_SUSE_RELEASE_FILE")
-		[ -n "$_patchlevel" ] && VER="${VER}.${_patchlevel}"
-	else
-		OS=$(uname -s)
-		VER=$(uname -r)
-	fi
+	OS=$(get_release_id)
+	VER=$(get_os_version_id)
 }
