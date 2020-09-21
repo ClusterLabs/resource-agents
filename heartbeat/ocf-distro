@@ -10,7 +10,7 @@ _REDHAT_RELEASE_FILE="/etc/redhat-release"
 _SUSE_RELEASE_FILE="/etc/SuSE-release"
 _RELEASE_FILES="/etc/*-release"
 _DEBIAN_BASED_DISTROS_RE="debian|ubuntu"
-_REDHAT_BASED_DISTROS_RE="red *hat|fedora|centos|scientific linux"
+_REDHAT_BASED_DISTROS_RE="red *hat|fedora|centos|scientific"
 _SUSE_BASED_DISTROS_RE="sles|suse"
 
 get_release_id() {
