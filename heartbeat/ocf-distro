@@ -9,7 +9,9 @@ _DEBIAN_VERSION_FILE="/etc/debian_version"
 _REDHAT_RELEASE_FILE="/etc/redhat-release"
 _SUSE_RELEASE_FILE="/etc/SuSE-release"
 _RELEASE_FILES="/etc/*-release"
-_REDHAT_BASED_DISTROS_RE='red *hat|fedora|centos|scientific linux'
+_DEBIAN_BASED_DISTROS_RE="debian|ubuntu"
+_REDHAT_BASED_DISTROS_RE="red *hat|fedora|centos|scientific linux"
+_SUSE_BASED_DISTROS_RE="sles|suse"
 
 get_release_id() {
 	if which lsb_release >/dev/null 2>&1; then
@@ -46,8 +48,19 @@ get_os_version_id() {
 	echo "$_ver"
 }
 
+# Returns true if the OS is Debian-based, otherwise false
+is_debian_based() {
+	get_release_id | grep -Eqi "$_DEBIAN_BASED_DISTROS_RE"
+}
+
+# Returns true if the OS is Red Hat-based, otherwise false
 is_redhat_based() {
-	get_release_id | egrep -qsi "$_REDHAT_BASED_DISTROS_RE"
+	get_release_id | grep -Eqi "$_REDHAT_BASED_DISTROS_RE"
+}
+
+# Returns true if the OS is SUSE-based, otherwise false
+is_suse_based() {
+	get_release_id | grep -Eqi "$_SUSE_BASED_DISTROS_RE"
 }
 
 # Sets global variables OS and VER.
