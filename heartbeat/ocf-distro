@@ -40,6 +40,13 @@ get_os_ver() {
 	elif [ -f $_REDHAT_RELEASE_FILE ]; then
 		OS=RedHat  # redhat or similar
 		VER=$(sed "s/.* release \([^ ]\+\).*/\1/" $_REDHAT_RELEASE_FILE)
+	elif [ -f $_SUSE_RELEASE_FILE ]; then
+		OS=SUSE
+		VER=$(awk '$1 == "VERSION" {print $3}' "$_SUSE_RELEASE_FILE")
+
+		_patchlevel=$(awk '$1 == "PATCHLEVEL" {print $3}' \
+				"$_SUSE_RELEASE_FILE")
+		[ -n "$_patchlevel" ] && VER="${VER}.${_patchlevel}"
 	else
 		OS=$(uname -s)
 		VER=$(uname -r)
