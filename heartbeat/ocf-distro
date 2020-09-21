@@ -37,21 +37,24 @@ _get_os_from_os_release_file() {
 	echo "$_os"
 }
 
-get_release_id() {
-	_os=$(_get_os_from_os_release_file)
+# Gets OS release ID from lsb_release command or legacy *-release files
+_get_os_from_legacy_source() {
+	_os=""
 
-	if [ -z "$_os" ]; then
-		if which lsb_release >/dev/null 2>&1; then
-			_os=$(lsb_release -si)
-		elif [ -e $_DEBIAN_VERSION_FILE ]; then
-			_os=debian
-		elif [ -e $_SUSE_RELEASE_FILE ]; then
-			_os=$(head -1 "$_SUSE_RELEASE_FILE")
-		elif [ -e $_REDHAT_RELEASE_FILE ]; then
-			_os=$(head -1 "$_REDHAT_RELEASE_FILE")
-		else
-			_os=$(uname -s)
-		fi
+	if which lsb_release >/dev/null 2>&1; then
+		_os=$(lsb_release -si)
+
+	elif [ -f "$_DEBIAN_VERSION_FILE" ]; then
+		_os="debian"
+
+	elif [ -f "$_REDHAT_RELEASE_FILE" ]; then
+		_os=$(head -n 1 "$_REDHAT_RELEASE_FILE")
+
+	elif [ -f "$_SUSE_RELEASE_FILE" ]; then
+		_os=$(head -n 1 "$_SUSE_RELEASE_FILE")
+
+	else
+		_os=$(uname -s)
 	fi
 
 	# Convert to lowercase, isolate distro name, remove whitespace
@@ -85,6 +88,15 @@ get_release_id() {
 		_os="ubuntu"
 		;;
 	esac
+}
+
+# Prints OS release ID (i.e., distro name)
+get_release_id() {
+	_os=$(_get_os_from_os_release_file)
+
+	if [ -z "$_os" ]; then
+		_os=$(_get_os_from_legacy_source)
+	fi
 
 	echo "$_os"
 }
