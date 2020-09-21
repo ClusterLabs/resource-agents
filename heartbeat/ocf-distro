@@ -5,26 +5,57 @@
 # released RH specific stuff (/etc/sysconfig/nfs editing)
 # 
 
+# systemd-based systems should all have an os-release file.
+_ETC_OS_RELEASE_FILE="/etc/os-release"
+_USR_OS_RELEASE_FILE="/usr/lib/os-release"
+
+# Legacy distro-specific files
 _DEBIAN_VERSION_FILE="/etc/debian_version"
 _REDHAT_RELEASE_FILE="/etc/redhat-release"
 _SUSE_RELEASE_FILE="/etc/SuSE-release"
 _RELEASE_FILES="/etc/*-release"
+
 _DEBIAN_BASED_DISTROS_RE="debian|ubuntu"
-_REDHAT_BASED_DISTROS_RE="red *hat|fedora|centos|scientific"
+_REDHAT_BASED_DISTROS_RE="red *hat|rhel|fedora|centos|scientific"
 _SUSE_BASED_DISTROS_RE="sles|suse"
 
-get_release_id() {
-	if which lsb_release >/dev/null 2>&1; then
-		lsb_release -si
-	elif [ -e $_DEBIAN_VERSION_FILE ]; then
-		echo Debian
-	elif [ -e $_SUSE_RELEASE_FILE ]; then
-		echo SUSE
-	elif [ -e $_REDHAT_RELEASE_FILE ]; then
-		echo Redhat
-	else # FIXME not exactly the id here, but will do for our purpose
-		cat $_RELEASE_FILES 2>/dev/null
+
+# Gets OS release ID from os-release file.
+# $_ETC_OS_RELEASE_FILE takes precedence over $_USR_OS_RELEASE_FILE.
+_get_os_from_os_release_file() {
+	_os=""
+
+	if [ -f "$_ETC_OS_RELEASE_FILE" ]; then
+		_os=$(awk -F '=' '$1 == "ID" {print $2}' \
+			"$_ETC_OS_RELEASE_FILE" | tr -d \")
 	fi
+
+	if [ -z "$_os" ] && [ -f "$_USR_OS_RELEASE_FILE" ]; then
+		_os=$(awk -F '=' '$1 == "ID" {print $2}' \
+			"$_USR_OS_RELEASE_FILE" | tr -d \")
+	fi
+
+	echo "$_os"
+}
+
+get_release_id() {
+	_os=$(_get_os_from_os_release_file)
+
+	if [ -z "$_os" ]; then
+		if which lsb_release >/dev/null 2>&1; then
+			_os=$(lsb_release -si)
+		elif [ -e $_DEBIAN_VERSION_FILE ]; then
+			_os=debian
+		elif [ -e $_SUSE_RELEASE_FILE ]; then
+			_os=suse
+		elif [ -e $_REDHAT_RELEASE_FILE ]; then
+			_os=redhat
+		else # FIXME not exactly the id here, but will do for our purpose
+			_os=$(cat $_RELEASE_FILES 2>/dev/null)
+		fi
+	fi
+
+	echo "$_os"
 }
 
 get_os_version_id() {
