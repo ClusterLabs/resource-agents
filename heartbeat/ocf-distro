@@ -46,13 +46,45 @@ get_release_id() {
 		elif [ -e $_DEBIAN_VERSION_FILE ]; then
 			_os=debian
 		elif [ -e $_SUSE_RELEASE_FILE ]; then
-			_os=suse
+			_os=$(head -1 "$_SUSE_RELEASE_FILE")
 		elif [ -e $_REDHAT_RELEASE_FILE ]; then
-			_os=redhat
+			_os=$(head -1 "$_REDHAT_RELEASE_FILE")
 		else
 			_os=$(uname -s)
 		fi
 	fi
+
+	# Convert to lowercase, isolate distro name, remove whitespace
+	_os=$(echo "$_os" \
+		| tr "[:upper:]" "[:lower:]" \
+		| sed -e "s|\(gnu/\)*linux||" -e "s/server//" \
+			-e "s/release.*//" -e "s/[[:digit:]].*//" \
+			-e "s/[[:blank:]]//")
+
+	# Normalize known distros to os-release names
+	case "$_os" in
+	*centos*)
+		_os="centos"
+		;;
+	*debian*)
+		_os="debian"
+		;;
+	*fedora*)
+		_os="fedora"
+		;;
+	*redhat*|*scientific*)
+		_os="rhel"
+		;;
+	*opensuse*)
+		_os="opensuse"
+		;;
+	*suseenterprise*)
+		_os="sles"
+		;;
+	*ubuntu*)
+		_os="ubuntu"
+		;;
+	esac
 
 	echo "$_os"
 }
