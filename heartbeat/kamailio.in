@@ -43,9 +43,7 @@
 #  OCF_RESKEY_extra_options
 #  OCF_RESKEY_systemd
 #  OCF_RESKEY_register
-#  OCF_RESKEY_register_extension
-#  OCF_RESKEY_register_ext_pwd
-#  OCF_RESKEY_register_hostname
+#  OCF_RESKEY_register_array
 
 # Initialization:
 
@@ -69,9 +67,7 @@ RESKEY_kamgroup_default=""
 RESKEY_extra_options_default=""
 RESKEY_systemd_default=false
 RESKEY_register_default=false
-RESKEY_register_extension_default="100"
-RESKEY_register_ext_pwd_default=""
-RESKEY_register_hostname_default="127.0.0.1"
+RESKEY_register_array_default="127.0.0.1;100;test.domain.com;sip1234"
 
 #######################################################################
 : ${OCF_RESKEY_binary=${RESKEY_binary_default}}
@@ -88,10 +84,7 @@ RESKEY_register_hostname_default="127.0.0.1"
 : ${OCF_RESKEY_extra_options=${RESKEY_extra_options_default}}
 : ${OCF_RESKEY_systemd=${RESKEY_systemd_default}}
 : ${OCF_RESKEY_register=${RESKEY_register_default}}
-: ${OCF_RESKEY_register_extension=${RESKEY_register_extension_default}}
-: ${OCF_RESKEY_register_ext_pwd=${RESKEY_register_ext_pwd_default}}
-: ${OCF_RESKEY_register_hostname=${RESKEY_register_hostname_default}}
-
+: ${OCF_RESKEY_register_array=${RESKEY_register_array_default}}
 
 #######################################################################
 usage() {
@@ -317,35 +310,26 @@ Parameters for a third Kamailio instance:
    <longdesc lang="en">
     Monitor if kamailio can register an extension. In some cases, kamailio responds to options
     but is not possible to register an extension. Uses UDP to send the register message.
-    If enabled, use register_extension, register_hostname and register_ext_pwd (optional) to set
-    the register parameters.
+    If enabled, use register_array to set the register parameters.
    </longdesc>
    <shortdesc lang="en">enable extension register</shortdesc>
    <content type="string" default="${RESKEY_register_default}" />
   </parameter>
 
-  <parameter name="register_extension" unique="0" required="0">
+  <parameter name="register_array" unique="0" required="0">
    <longdesc lang="en">
-    The extension to use in the registration monitoring.
+    The extension parameters to use in the registration monitoring. It is possible to set multiple
+    extensions to test.
+    The extensions must be separated by a space (" "), each extension 
+    containing the following parameters, separated by a semicolon:
+        Socket IP: The kamailio interface to send the register to (Ex:127.0.0.1);
+        Extension: The extension;
+        Domain: The domain to register the extension;
+        Extension password: The password of the extension;
+    Ex: "127.0.0.1;1000;test.domain.com;sip1234 192.168.0.1;2000;test.domain.com;sip5678"
    </longdesc>
    <shortdesc lang="en">register extension</shortdesc>
-   <content type="string" default="${RESKEY_register_extension_default}" />
-  </parameter>
-
-  <parameter name="register_ext_pwd" unique="0" required="0">
-   <longdesc lang="en">
-    The extension's password to use in the registration monitoring.
-   </longdesc>
-   <shortdesc lang="en">register extension password</shortdesc>
-   <content type="string" default="${RESKEY_register_ext_pwd_default}" />
-  </parameter>
-
-  <parameter name="register_hostname" unique="0" required="0">
-   <longdesc lang="en">
-    Sip-uri hostname. Example: domain.example.com.
-   </longdesc>
-   <shortdesc lang="en">register hostname</shortdesc>
-   <content type="string" default="${RESKEY_register_hostname_default}" />
+   <content type="string" default="${RESKEY_register_array_default}" />
   </parameter>
 </parameters>
 
@@ -502,27 +486,6 @@ kamailio_get_pid() {
     return 1
 }
 
-kamailio_monitor_register() {
-    # Checks if it is possible to register an extension.
-
-    # bulid sipsak usrloc-mode string.
-    reg_forced_timeout="timeout 5"
-    reg_sipsak_opts="-U -d -x 1200"
-    reg_sip_uri="-s sip:${OCF_RESKEY_register_extension}@${OCF_RESKEY_register_hostname}"
-    [[ -z ${OCF_RESKEY_register_ext_pwd} ]] && reg_ext_pwd="" || reg_ext_pwd="-a ${OCF_RESKEY_register_ext_pwd}"
-
-    output=`${reg_forced_timeout} $OCF_RESKEY_sipsak ${reg_sipsak_opts} ${reg_sip_uri} ${reg_ext_pwd}>/dev/null 2>>$errorfile`
-    result=$?
-
-    error=`cat $errorfile`
-    rm -f $errorfile
-
-    if [ $result -ne 0 ]; then
-        ocf_log $not_running_log_level "Kamailio is running, but not functional as sipsak REGISTER ${OCF_RESKEY_proto} failed with $(kamailio_format_result $result "$output" "$error")"
-        return $OCF_ERR_GENERIC
-    fi
-}
-
 kamailio_status() {
     local not_running_log_level="warn"
     local errorfile error output
@@ -594,10 +557,36 @@ kamailio_status() {
         ocf_log $not_running_log_level "Kamailio is running, but not functional as sipsak OPTIONS ${OCF_RESKEY_proto} failed with $(kamailio_format_result $result "$output" "$error")"
         return $OCF_ERR_GENERIC
     fi
+    
+    # Checks if it is possible to register an extension.
+    if [ ${OCF_RESKEY_register} == true ]; then
+        # Iterate on the extensions array
+        for extension in ${OCF_RESKEY_register_array[@]}; do
+            # Split the extension parameters into an array:
+            # Ex: "127.0.0.1;100;test.domain.com;sip1234" -> ("127.0.0.1" "100" "test.domain.com" "sip1234")
+            IFS=';' read -ra EXTADDR <<< "$extension"
+            reg_hostname=${EXTADDR[0]}
+            reg_extension=${EXTADDR[1]}
+            reg_domain=${EXTADDR[2]}
+            [[ -z ${EXTADDR[3]} ]] && reg_password="" || reg_password="-a ${EXTADDR[3]}"
 
-	if [ ${OCF_RESKEY_register} == true ]; then
-		kamailio_monitor_register
-	fi
+            # Builds sipsak usrloc-mode string.
+            reg_forced_timeout="timeout 3"
+            reg_sipsak_opts="-U -d -x 5 -p $reg_hostname -H $reg_hostname"
+            reg_sip_uri="-s sip:$reg_extension@$reg_domain"
+            output=`${reg_forced_timeout} $OCF_RESKEY_sipsak ${reg_sipsak_opts} ${reg_sip_uri} ${reg_password}>/dev/null 2>>$errorfile`
+            result=$?
+
+            error=`cat $errorfile`
+            rm -f $errorfile
+            # If cannot register the extension, raise an OCF_ERR
+            if [ $result -ne 0 ]; then
+                ocf_log $not_running_log_level "Kamailio is running, but not functional as sipsak REGISTER ${OCF_RESKEY_proto} failed with $(kamailio_format_result $result "$output" "$error")"
+                return $OCF_ERR_GENERIC
+            fi
+        echo "RESULT: $result"
+        done
+    fi
 
     return $OCF_SUCCESS
 }
