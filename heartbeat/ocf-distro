@@ -19,23 +19,36 @@ _REDHAT_BASED_DISTROS_RE="red *hat|rhel|fedora|centos|scientific"
 _SUSE_BASED_DISTROS_RE="sles|suse"
 
 
-# Gets OS release ID from os-release file.
+# Gets OS release ID (i.e., distro) or version ID from os-release file.
 # $_ETC_OS_RELEASE_FILE takes precedence over $_USR_OS_RELEASE_FILE.
-_get_os_from_os_release_file() {
-	_os=""
+_get_val_from_os_release_file() {
+	_key=""
+	_value=""
 
-	if [ -f "$_ETC_OS_RELEASE_FILE" ]; then
-		_os=$(awk -F '=' '$1 == "ID" {print $2}' \
-			"$_ETC_OS_RELEASE_FILE" | tr -d \")
+	case "$1" in
+	id)
+		_key="ID"
+		;;
+	version_id)
+		_key="VERSION_ID"
+		;;
+	esac
+
+	if [ -n "$_key" ]; then
+		if [ -f "$_ETC_OS_RELEASE_FILE" ]; then
+			_value=$(awk -F "=" -v k="$_key" '$1 == k {print $2}' \
+					"$_ETC_OS_RELEASE_FILE" | tr -d \")
+		fi
+
+		if [ -z "$_value" ] && [ -f "$_USR_OS_RELEASE_FILE" ]; then
+			_value=$(awk -F "=" -v k="$_key" '$1 == k {print $2}' \
+					"$_USR_OS_RELEASE_FILE" | tr -d \")
+		fi
 	fi
 
-	if [ -z "$_os" ] && [ -f "$_USR_OS_RELEASE_FILE" ]; then
-		_os=$(awk -F '=' '$1 == "ID" {print $2}' \
-			"$_USR_OS_RELEASE_FILE" | tr -d \")
-	fi
-
-	echo "$_os"
+	echo "$_value"
 }
+
 
 # Gets OS release ID from lsb_release command or legacy *-release files
 _get_os_from_legacy_source() {
@@ -92,7 +105,7 @@ _get_os_from_legacy_source() {
 
 # Prints OS release ID (i.e., distro name)
 get_release_id() {
-	_os=$(_get_os_from_os_release_file)
+	_os=$(_get_val_from_os_release_file id)
 
 	if [ -z "$_os" ]; then
 		_os=$(_get_os_from_legacy_source)
@@ -101,22 +114,31 @@ get_release_id() {
 	echo "$_os"
 }
 
+# Prints OS version ID
 get_os_version_id() {
-	if which lsb_release >/dev/null 2>&1; then
-		_ver=$(lsb_release -sr)
-	elif [ -f "$_DEBIAN_VERSION_FILE" ]; then
-		_ver=$(cat "$_DEBIAN_VERSION_FILE")
-	elif [ -f "$_REDHAT_RELEASE_FILE" ]; then
-		_ver=$(sed "s/.* release \([^ ]\+\).*/\1/" \
-			"$_REDHAT_RELEASE_FILE")
-	elif [ -f "$_SUSE_RELEASE_FILE" ]; then
-		_ver=$(awk '$1 == "VERSION" {print $3}' "$_SUSE_RELEASE_FILE")
+	_ver=$(_get_val_from_os_release_file version_id)
 
-		_patchlevel=$(awk '$1 == "PATCHLEVEL" {print $3}' \
+	if [ -z "$_ver" ] || [ "$(get_release_id)" = "debian" ]; then
+		# Debian only includes major release in os-release.
+		# $_DEBIAN_VERSION_FILE has ${major}.${minor}.
+
+		if which lsb_release >/dev/null 2>&1; then
+			_ver=$(lsb_release -sr)
+		elif [ -f "$_DEBIAN_VERSION_FILE" ]; then
+			_ver=$(cat "$_DEBIAN_VERSION_FILE")
+		elif [ -f "$_REDHAT_RELEASE_FILE" ]; then
+			_ver=$(sed "s/.* release \([^ ]\+\).*/\1/" \
+				"$_REDHAT_RELEASE_FILE")
+		elif [ -f "$_SUSE_RELEASE_FILE" ]; then
+			_ver=$(awk '$1 == "VERSION" {print $3}' \
 				"$_SUSE_RELEASE_FILE")
-		[ -n "$_patchlevel" ] && _ver="${_ver}.${_patchlevel}"
-	else
-		_ver=$(uname -r)
+
+			_patchlevel=$(awk '$1 == "PATCHLEVEL" {print $3}' \
+					"$_SUSE_RELEASE_FILE")
+			[ -n "$_patchlevel" ] && _ver="${_ver}.${_patchlevel}"
+		else
+			_ver=$(uname -r)
+		fi
 	fi
 
 	# Discard everything in _ver except the version.
