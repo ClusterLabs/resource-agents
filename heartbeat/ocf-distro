@@ -103,6 +103,33 @@ _get_os_from_legacy_source() {
 	esac
 }
 
+# Gets OS version from lsb_release command or legacy *-release files
+_get_version_from_legacy_source() {
+	_ver=""
+
+	if which lsb_release >/dev/null 2>&1; then
+		_ver=$(lsb_release -sr)
+
+	elif [ -f "$_DEBIAN_VERSION_FILE" ]; then
+		_ver=$(cat "$_DEBIAN_VERSION_FILE")
+
+	elif [ -f "$_REDHAT_RELEASE_FILE" ]; then
+		_ver=$(head -1 "$_REDHAT_RELEASE_FILE")
+
+	elif [ -f "$_SUSE_RELEASE_FILE" ]; then
+		_ver=$(awk '$1 == "VERSION" {print $3}' "$_SUSE_RELEASE_FILE")
+		_patchlevel=$(awk '$1 == "PATCHLEVEL" {print $3}' \
+				"$_SUSE_RELEASE_FILE")
+
+		[ -n "$_patchlevel" ] && _ver="${_ver}.${_patchlevel}"
+
+	else
+		_ver=$(uname -r)
+	fi
+
+	echo "$_ver"
+}
+
 # Prints OS release ID (i.e., distro name)
 get_release_id() {
 	_os=$(_get_val_from_os_release_file id)
@@ -121,24 +148,7 @@ get_os_version_id() {
 	if [ -z "$_ver" ] || [ "$(get_release_id)" = "debian" ]; then
 		# Debian only includes major release in os-release.
 		# $_DEBIAN_VERSION_FILE has ${major}.${minor}.
-
-		if which lsb_release >/dev/null 2>&1; then
-			_ver=$(lsb_release -sr)
-		elif [ -f "$_DEBIAN_VERSION_FILE" ]; then
-			_ver=$(cat "$_DEBIAN_VERSION_FILE")
-		elif [ -f "$_REDHAT_RELEASE_FILE" ]; then
-			_ver=$(sed "s/.* release \([^ ]\+\).*/\1/" \
-				"$_REDHAT_RELEASE_FILE")
-		elif [ -f "$_SUSE_RELEASE_FILE" ]; then
-			_ver=$(awk '$1 == "VERSION" {print $3}' \
-				"$_SUSE_RELEASE_FILE")
-
-			_patchlevel=$(awk '$1 == "PATCHLEVEL" {print $3}' \
-					"$_SUSE_RELEASE_FILE")
-			[ -n "$_patchlevel" ] && _ver="${_ver}.${_patchlevel}"
-		else
-			_ver=$(uname -r)
-		fi
+		_ver=$(_get_version_from_legacy_source)
 	fi
 
 	# Discard everything in _ver except the version.
