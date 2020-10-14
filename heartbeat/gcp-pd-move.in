@@ -49,6 +49,7 @@ else:
 CONN = None
 PROJECT = None
 ZONE = None
+REGION = None
 LIST_DISK_ATTACHED_INSTANCES = None
 INSTANCE_NAME = None
 
@@ -148,6 +149,7 @@ def populate_vars():
   global INSTANCE_NAME
   global PROJECT
   global ZONE
+  global REGION
   global LIST_DISK_ATTACHED_INSTANCES
 
   # Populate global vars
@@ -175,6 +177,7 @@ def populate_vars():
   PROJECT = get_metadata('project/project-id')
   if PARAMETERS['disk_scope'] in ['detect', 'regional']:
     ZONE = get_metadata('instance/zone').split('/')[-1]
+    REGION = ZONE[:-2] 
   else:
     ZONE = PARAMETERS['disk_scope']
   LIST_DISK_ATTACHED_INSTANCES = get_disk_attached_instances(
@@ -255,7 +258,7 @@ def detach_disk(instance, disk_name):
 
   device_name = None
   for disk in response['disks']:
-    if disk_name in disk['source']:
+    if disk_name == re.sub('.*disks/',"",disk['source']):
       device_name = disk['deviceName']
       break
 
@@ -273,6 +276,9 @@ def detach_disk(instance, disk_name):
 
 def attach_disk(instance, disk_name):
   location = 'zones/%s' % ZONE
+  if PARAMETERS['disk_scope'] == 'regional':
+    location = 'regions/%s' % REGION
+
   prefix = 'https://www.googleapis.com/compute/v1'
   body = {
     'source': '%(prefix)s/projects/%(project)s/%(location)s/disks/%(disk)s' % {
