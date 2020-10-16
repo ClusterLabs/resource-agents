@@ -105,11 +105,14 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_azure-lb.7 \
                           ocf_heartbeat_clvm.7 \
                           ocf_heartbeat_conntrackd.7 \
+                          ocf_heartbeat_crypt.7 \
                           ocf_heartbeat_db2.7 \
                           ocf_heartbeat_dhcpd.7 \
                           ocf_heartbeat_docker.7 \
+                          ocf_heartbeat_docker-compose.7 \
                           ocf_heartbeat_dovecot.7 \
                           ocf_heartbeat_dnsupdate.7 \
+                          ocf_heartbeat_dummypy.7 \
                           ocf_heartbeat_eDir88.7 \
                           ocf_heartbeat_ethmonitor.7 \
                           ocf_heartbeat_exportfs.7 \
@@ -132,6 +135,7 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_lxd-info.7 \
                           ocf_heartbeat_machine-info.7 \
                           ocf_heartbeat_mariadb.7 \
+                          ocf_heartbeat_mdraid.7 \
                           ocf_heartbeat_minio.7 \
                           ocf_heartbeat_mysql.7 \
                           ocf_heartbeat_mysql-proxy.7 \

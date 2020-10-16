@@ -24,6 +24,7 @@
 # OCF parameters:
 #   OCF_RESKEY_squid_exe    : Executable file
 #   OCF_RESKEY_squid_conf   : Configuration file
+#   OCF_RESKEY_squid_opts   : Start options 
 #   OCF_RESKEY_squid_pidfile: Process id file
 #   OCF_RESKEY_squid_port   : Port number
 #   OCF_RESKEY_debug_mode   : Debug mode
@@ -40,6 +41,25 @@
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Parameter defaults
+
+OCF_RESKEY_squid_exe_default=""
+OCF_RESKEY_squid_conf_default=""
+OCF_RESKEY_squid_opts_default=""
+OCF_RESKEY_squid_pidfile_default=""
+OCF_RESKEY_squid_port_default=""
+OCF_RESKEY_squid_stop_timeout_default="10"
+OCF_RESKEY_debug_mode_default=""
+OCF_RESKEY_debug_log_default=""
+
+: ${OCF_RESKEY_squid_exe=${OCF_RESKEY_squid_exe_default}}
+: ${OCF_RESKEY_squid_conf=${OCF_RESKEY_squid_conf_default}}
+: ${OCF_RESKEY_squid_pidfile=${OCF_RESKEY_squid_pidfile_default}}
+: ${OCF_RESKEY_squid_port=${OCF_RESKEY_squid_port_default}}
+: ${OCF_RESKEY_squid_stop_timeout=${OCF_RESKEY_squid_stop_timeout_default}}
+: ${OCF_RESKEY_debug_mode=${OCF_RESKEY_debug_mode_default}}
+: ${OCF_RESKEY_debug_log=${OCF_RESKEY_debug_log_default}}
 
 usage() 
 {
@@ -84,7 +104,7 @@ This is a required parameter. This parameter specifies squid's
 executable file.
 </longdesc>
 <shortdesc lang="en">Executable file</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_squid_exe_default}"/>
 </parameter>
 
 <parameter name="squid_conf" required="1" unique="1">
@@ -93,13 +113,21 @@ This is a required parameter. This parameter specifies a configuration file
 for a squid instance managed by this RA.
 </longdesc>
 <shortdesc lang="en">Configuration file</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_squid_conf_default}"/>
+</parameter>
+
+<parameter name="squid_opts" required="0" unique="0">
+<longdesc lang="en">
+This is a optional parameter. This parameter specifies the start options.
+</longdesc>
+<shortdesc lang="en">Start options</shortdesc>
+<content type="string" default="${OCF_RESKEY_squid_opts_default}"/>
 </parameter>
 
 <parameter name="squid_pidfile" required="0" unique="1">
 <longdesc lang="en">Deprecated - do not use anymore</longdesc>
 <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_squid_pidfile_default}"/>
 </parameter>
 
 <parameter name="squid_port" required="1" unique="1">
@@ -109,7 +137,7 @@ for a squid instance managed by this RA. If multiple ports are used,
 you must specify only one of them.
 </longdesc>
 <shortdesc lang="en">Port number</shortdesc>
-<content type="integer" default=""/>
+<content type="integer" default="${OCF_RESKEY_squid_port_default}"/>
 </parameter>
 
 <parameter name="squid_stop_timeout" unique="0">
@@ -120,7 +148,7 @@ processes by sending signals and finally KILLing them.
 </longdesc>
 <shortdesc lang="en">how long to wait for squid shutdown to stop the
 instance before resorting to kill</shortdesc>
-<content type="integer" default="10"/>
+<content type="integer" default="${OCF_RESKEY_squid_stop_timeout_default}"/>
 </parameter>
 
 <parameter name="debug_mode" unique="0">
@@ -132,7 +160,7 @@ specified by "debug_log", and then the builtin shell option 'x' is turned on.
 It is similar about 'v'.
 </longdesc>
 <shortdesc lang="en">Debug mode</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_debug_mode_default}"/>
 </parameter>
 
 <parameter name="debug_log" unique="0">
@@ -146,7 +174,7 @@ the basename of the configuration file given by "syslog_ng_conf"
 as a basename part, ".log" as a suffix.
 </longdesc>
 <shortdesc lang="en">A destination of the debug log</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_debug_log_default}"/>
 </parameter>
 
 </parameters>

@@ -31,22 +31,35 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
-: ${OCF_RESKEY_bin:=/usr/bin/redis-server}
-: ${OCF_RESKEY_client_bin:=/usr/bin/redis-cli}
-: ${OCF_RESKEY_user:=redis}
-: ${OCF_RESKEY_rundir:=/var/run/redis}
-: ${OCF_RESKEY_pidfile_name:=redis-server.pid}
-: ${OCF_RESKEY_socket_name:=redis.sock}
-: ${OCF_RESKEY_port:=6379}
-: ${OCF_RESKEY_tunnel_host:=127.0.0.1}
+# Parameter defaults
 
-if [ -z "$OCF_RESKEY_config" ]; then
-	if [ -f "/etc/redis.conf" ]; then
-		OCF_RESKEY_config="/etc/redis.conf"
-	else
-		OCF_RESKEY_config="/etc/redis/redis.conf"
-	fi
+OCF_RESKEY_bin_default="/usr/bin/redis-server"
+OCF_RESKEY_client_bin_default="/usr/bin/redis-cli"
+if [ -f "/etc/redis.conf" ]; then
+	OCF_RESKEY_config_default="/etc/redis.conf"
+else
+	OCF_RESKEY_config_default="/etc/redis/redis.conf"
 fi
+OCF_RESKEY_user_default="redis"
+OCF_RESKEY_rundir_default="/var/run/redis"
+OCF_RESKEY_pidfile_name_default="redis-server.pid"
+OCF_RESKEY_socket_name_default="redis.sock"
+OCF_RESKEY_port_default="6379"
+OCF_RESKEY_tunnel_host_default="127.0.0.1"
+OCF_RESKEY_tunnel_port_map_default=""
+OCF_RESKEY_wait_last_known_master_default="false"
+
+: ${OCF_RESKEY_bin=${OCF_RESKEY_bin_default}}
+: ${OCF_RESKEY_client_bin=${OCF_RESKEY_client_bin_default}}
+: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
+: ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
+: ${OCF_RESKEY_rundir=${OCF_RESKEY_rundir_default}}
+: ${OCF_RESKEY_pidfile_name=${OCF_RESKEY_pidfile_name_default}}
+: ${OCF_RESKEY_socket_name=${OCF_RESKEY_socket_name_default}}
+: ${OCF_RESKEY_port=${OCF_RESKEY_port_default}}
+: ${OCF_RESKEY_tunnel_host=${OCF_RESKEY_tunnel_host_default}}
+: ${OCF_RESKEY_tunnel_port_map=${OCF_RESKEY_tunnel_port_map_default}}
+: ${OCF_RESKEY_wait_last_known_master=${OCF_RESKEY_wait_last_known_master_default}}
 
 CHECK_SLAVE_STATE=0
 
@@ -96,7 +109,7 @@ When taking the resource from 'unmanaged' to 'managed', the currently active mas
 Path to \`redis-server\`
 </longdesc>
 <shortdesc lang="en">Path to \`redis-server\`</shortdesc>
-<content type="string" default="${OCF_RESKEY_bin}" />
+<content type="string" default="${OCF_RESKEY_bin_default}" />
 </parameter>
 
 <parameter name="client_bin" unique="0" required="0">
@@ -104,7 +117,7 @@ Path to \`redis-server\`
 Path to \`redis-cli\`
 </longdesc>
 <shortdesc lang="en">Path to \`redis-cli\`</shortdesc>
-<content type="string" default="${OCF_RESKEY_client_bin}" />
+<content type="string" default="${OCF_RESKEY_client_bin_default}" />
 </parameter>
 
 <parameter name="config" unique="1" required="0">
@@ -112,7 +125,7 @@ Path to \`redis-cli\`
 Path to 'redis.conf'
 </longdesc>
 <shortdesc lang="en">Path to 'redis.conf'</shortdesc>
-<content type="string" default="${OCF_RESKEY_config}" />
+<content type="string" default="${OCF_RESKEY_config_default}" />
 </parameter>
 
 <parameter name="user" unique="0" required="0">
@@ -120,7 +133,7 @@ Path to 'redis.conf'
 User to run redis as
 </longdesc>
 <shortdesc lang="en">Redis user</shortdesc>
-<content type="string" default="${OCF_RESKEY_user}" />
+<content type="string" default="${OCF_RESKEY_user_default}" />
 </parameter>
 
 <parameter name="rundir" unique="1" required="0">
@@ -128,7 +141,7 @@ User to run redis as
 Directory to store socket and pid file in
 </longdesc>
 <shortdesc lang="en">Redis var/run dir</shortdesc>
-<content type="string" default="${OCF_RESKEY_rundir}"/>
+<content type="string" default="${OCF_RESKEY_rundir_default}"/>
 </parameter>
 
 <parameter name="pidfile_name" unique="0" required="0">
@@ -137,7 +150,7 @@ The filename to use for the pidfile. Will be created in the rundir.
 Should only be a basename, not a full path.
 </longdesc>
 <shortdesc lang="en">Redis pidfile name</shortdesc>
-<content type="string" default="${OCF_RESKEY_pidfile_name}"/>
+<content type="string" default="${OCF_RESKEY_pidfile_name_default}"/>
 </parameter>
 
 <parameter name="socket_name" unique="0" required="0">
@@ -146,7 +159,7 @@ The filename to use for the socket. Will be crated in the rundir.
 Should only be a basename, not a full path.
 </longdesc>
 <shortdesc lang="en">Redis socket name</shortdesc>
-<content type="string" default="${OCF_RESKEY_socket_name}"/>
+<content type="string" default="${OCF_RESKEY_socket_name_default}"/>
 </parameter>
 
 <parameter name="port" unique="0" required="0">
@@ -154,7 +167,7 @@ Should only be a basename, not a full path.
 Port for replication client to connect to on remote server
 </longdesc>
 <shortdesc lang="en">Replication port</shortdesc>
-<content type="string" default="${OCF_RESKEY_port}"/>
+<content type="string" default="${OCF_RESKEY_port_default}"/>
 </parameter>
 
 <parameter name="tunnel_host" unique="0" required="0">
@@ -168,7 +181,7 @@ Note that in order to enable replication traffic tunneling,
 parameter {tunnel_port_map} must be populated.
 </longdesc>
 <shortdesc lang="en">Tunnel host for replication traffic</shortdesc>
-<content type="string" default="${OCF_RESKEY_tunnel_host}"/>
+<content type="string" default="${OCF_RESKEY_tunnel_host_default}"/>
 </parameter>
 
 <parameter name="tunnel_port_map" unique="0" required="0">
@@ -187,7 +200,7 @@ where the redis resource started on node pcmk1-name would listen on
 port port-for-redis1
 </longdesc>
 <shortdesc lang="en">Mapping of Redis server name to redis port</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_tunnel_port_map_default}"/>
 </parameter>
 
 <parameter name="wait_last_known_master" unique="0" required="0">
@@ -198,7 +211,7 @@ promoted. This lessens the risk of data loss when persistent data
 is in use.
 </longdesc>
 <shortdesc lang="en">Wait for last known master</shortdesc>
-<content type="boolean" default="false"/>
+<content type="boolean" default="${OCF_RESKEY_wait_last_known_master_default}"/>
 </parameter>
 </parameters>
 
@@ -224,12 +237,42 @@ CRM_ATTR_REPL_INFO="${HA_SBIN_DIR}/crm_attribute --type crm_config --name ${INST
 MASTER_HOST=""
 MASTER_ACTIVE_CACHED=""
 MASTER_ACTIVE=""
+CLI_HAVE_AUTH_WARNING=0
+CLI_HAVE_ARG_NO_AUTH_WARNING=0
+CLI_HAVE_ENV_AUTH=0
+
+redis_cli_features()
+{
+
+        CLI_VER=$("$REDIS_CLIENT" -v | awk '{print $NF}')
+        # Starting with 4.0.10 there is a warning on stderr when using a pass
+        # Starting with 5.0.0 there is an argument to silence the warning: --no-auth-warning
+        # Starting with 5.0.3 there is an option to use REDISCLI_AUTH evironment variable for password, no warning in this case
+
+        ocf_version_cmp $CLI_VER 5.0.3
+        res=$?
+        if [[ res -ge 1 ]]; then
+                CLI_HAVE_ENV_AUTH=1
+        fi
+
+        ocf_version_cmp $CLI_VER 5.0.0
+        res=$?
+        if [[ res -ge 1 ]]; then
+                CLI_HAVE_ARG_NO_AUTH_WARNING=1
+        fi
+
+        ocf_version_cmp $CLI_VER 4.0.10
+        res=$?
+        if [[ res -ge 1 ]]; then
+                CLI_HAVE_AUTH_WARNING=1
+        fi
+}
 
 master_is_active()
 {
 	if [ -z "$MASTER_ACTIVE_CACHED" ]; then
 		# determine if a master instance is already up and is healthy
-		crm_mon --as-xml | grep "resource.*id=\"${OCF_RESOURCE_INSTANCE}\".*role=\"Master\".*active=\"true\".*orphaned=\"false\".*failed=\"false\"" > /dev/null 2>&1
+		crm_mon --as-xml | grep "resource.*id=\"${OCF_RESOURCE_INSTANCE}\".* role=\"Master\".* active=\"true\".* orphaned=\"false\".* failed=\"false\"" > /dev/null 2>&1
 		MASTER_ACTIVE=$?
 		MASTER_ACTIVE_CACHED="true"
 	fi
@@ -302,9 +345,16 @@ set_score()
 redis_client() {
 	ocf_log debug "redis_client: '$REDIS_CLIENT' -s '$REDIS_SOCKET' $*"
 	if [ -n "$clientpasswd" ]; then
-		# Starting with 4.0.10 there is a warning on stderr when using a pass
-		# Once we stop supporting versions < 5.0.0 we can add --no-auth-warning here
-		("$REDIS_CLIENT" -s "$REDIS_SOCKET" -a "$clientpasswd" "$@" 2>&1 >&3 3>&- | grep -v "Using a password" >&2 3>&-) 3>&1 | sed 's/\r//'
+		# Consider redis-cli features to choose optimal password passing method and warning filtering workaround
+		if [[ CLI_HAVE_ENV_AUTH -eq 1 ]]; then
+			REDISCLI_AUTH=$clientpasswd "$REDIS_CLIENT" -s "$REDIS_SOCKET" "$@" | sed 's/\r//'
+		elif [[ CLI_HAVE_ARG_NO_AUTH_WARNING -eq 1 ]]; then
+			"$REDIS_CLIENT" -s "$REDIS_SOCKET" --no-auth-warning -a "$clientpasswd" "$@" | sed 's/\r//'
+		elif [[ CLI_HAVE_AUTH_WARNING -eq 1 ]]; then
+			("$REDIS_CLIENT" -s "$REDIS_SOCKET" -a "$clientpasswd" "$@" 2>&1 >&3 3>&- | grep -v "Using a password" >&2 3>&-) 3>&1 | sed 's/\r//'
+		else
+			"$REDIS_CLIENT" -s "$REDIS_SOCKET" -a "$clientpasswd" "$@" | sed 's/\r//'
+		fi
 	else
 		"$REDIS_CLIENT" -s "$REDIS_SOCKET" "$@" | sed 's/\r//'
 	fi
@@ -648,15 +698,15 @@ redis_notify() {
 }
 
 redis_validate() {
-	if [[ -x "$REDIS_SERVER" ]]; then
+	if [[ ! -x "$REDIS_SERVER" ]]; then
 		ocf_log err "validate: $REDIS_SERVER does not exist or is not executable"
 		return $OCF_ERR_INSTALLED
 	fi
-	if [[ -x "$REDIS_CLIENT" ]]; then
+	if [[ ! -x "$REDIS_CLIENT" ]]; then
 		ocf_log err "validate: $REDIS_CLIENT does not exist or is not executable"
 		return $OCF_ERR_INSTALLED
 	fi
-	if [[ -f "$REDIS_CONFIG" ]]; then
+	if [[ ! -f "$REDIS_CONFIG" ]]; then
 		ocf_log err "validate: $REDIS_CONFIG does not exist"
 		return $OCF_ERR_CONFIGURED
 	fi
@@ -672,6 +722,12 @@ fi
 if [ -r "$REDIS_CONFIG" ]; then
 	clientpasswd="$(sed -n -e  's/^\s*requirepass\s*\(.*\)\s*$/\1/p' < $REDIS_CONFIG | tail -n 1)"
 fi
+
+if [ "$__OCF_ACTION" = "start" ]; then
+	redis_validate || exit $?
+fi
+
+redis_cli_features
 
 ocf_log debug "action=${1:-$__OCF_ACTION} notify_type=${OCF_RESKEY_CRM_meta_notify_type} notify_operation=${OCF_RESKEY_CRM_meta_notify_operation} master_host=${OCF_RESKEY_CRM_meta_notify_master_uname} slave_host=${OCF_RESKEY_CRM_meta_notify_slave_uname} promote_host=${OCF_RESKEY_CRM_meta_notify_promote_uname} demote_host=${OCF_RESKEY_CRM_meta_notify_demote_uname}; params: bin=${OCF_RESKEY_bin} client_bin=${OCF_RESKEY_client_bin} config=${OCF_RESKEY_config} user=${OCF_RESKEY_user} rundir=${OCF_RESKEY_rundir} port=${OCF_RESKEY_port}"
 

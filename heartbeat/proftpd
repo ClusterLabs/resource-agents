@@ -31,13 +31,23 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
-: ${OCF_RESKEY_binary="/usr/sbin/proftpd"}
-: ${OCF_RESKEY_conffile="/etc/proftpd.conf"}
-: ${OCF_RESKEY_pidfile="/var/run/proftpd.pid"}
-: ${OCF_RESKEY_curl_binary="/usr/bin/curl"}
-: ${OCF_RESKEY_curl_url="ftp://localhost/"}
-: ${OCF_RESKEY_test_user="test"}
-: ${OCF_RESKEY_test_pass=""}
+# Parameter defaults
+
+OCF_RESKEY_binary_default="/usr/sbin/proftpd"
+OCF_RESKEY_conffile_default="/etc/proftpd.conf"
+OCF_RESKEY_pidfile_default="/var/run/proftpd.pid"
+OCF_RESKEY_curl_binary_default="/usr/bin/curl"
+OCF_RESKEY_curl_url_default="ftp://localhost/"
+OCF_RESKEY_test_user_default="test"
+OCF_RESKEY_test_pass_default=""
+
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_conffile=${OCF_RESKEY_conffile_default}}
+: ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
+: ${OCF_RESKEY_curl_binary=${OCF_RESKEY_curl_binary_default}}
+: ${OCF_RESKEY_curl_url=${OCF_RESKEY_curl_url_default}}
+: ${OCF_RESKEY_test_user=${OCF_RESKEY_test_user_default}}
+: ${OCF_RESKEY_test_pass=${OCF_RESKEY_test_pass_default}}
 
 USAGE="Usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
@@ -63,7 +73,7 @@ This script manages Proftpd in an Active-Passive setup
 <parameter name="binary" unique="0" required="0">
 <longdesc lang="en">The Proftpd binary</longdesc>
 <shortdesc lang="en">The Proftpd binary</shortdesc>
-<content type="string" default="/usr/sbin/proftpd" />
+<content type="string" default="${OCF_RESKEY_binary_default}" />
 </parameter>
 
 <parameter name="conffile" unique="0" required="0">
@@ -72,37 +82,37 @@ The Proftpd configuration file name with full path.
 For example, "/etc/proftpd.conf"
 </longdesc>
 <shortdesc lang="en">Configuration file name with full path</shortdesc>
-<content type="string" default="/etc/proftpd.conf" />
+<content type="string" default="${OCF_RESKEY_conffile_default}" />
 </parameter>
 
 <parameter name="pidfile" unique="0" required="0">
 <longdesc lang="en">The Proftpd PID file. The location of the PID file is configured in the Proftpd configuration file.</longdesc>
 <shortdesc lang="en">PID file</shortdesc>
-<content type="string" default="/var/run/proftpd.pid" />
+<content type="string" default="${OCF_RESKEY_pidfile_default}" />
 </parameter>
 
 <parameter name="curl_binary" unique="0" required="0">
 <longdesc lang="en">The absolute path to the curl binary for monitoring with OCF_CHECK_LEVEL greater zero.</longdesc>
 <shortdesc lang="en">The absolute path to the curl binary</shortdesc>
-<content type="string" default="/usr/bin/curl" />
+<content type="string" default="${OCF_RESKEY_curl_binary_default}" />
 </parameter>
 
 <parameter name="curl_url" unique="0" required="0">
 <longdesc lang="en">The URL which is checked by curl with OCF_CHECK_LEVEL greater zero.</longdesc>
 <shortdesc lang="en">The URL which is checked by curl</shortdesc>
-<content type="string" default="ftp://localhost/" />
+<content type="string" default="${OCF_RESKEY_curl_url_default}" />
 </parameter>
 
 <parameter name="test_user" unique="0" required="0">
 <longdesc lang="en">The name of the ftp user for monitoring with OCF_CHECK_LEVEL greater zero.</longdesc>
 <shortdesc lang="en">The name of the ftp user</shortdesc>
-<content type="string" default="test" />
+<content type="string" default="${OCF_RESKEY_test_user_default}" />
 </parameter>
 
 <parameter name="test_pass" unique="0" required="0">
 <longdesc lang="en">The password of the ftp user for monitoring with OCF_CHECK_LEVEL greater zero.</longdesc>
 <shortdesc lang="en">The password of the ftp user</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_test_pass_default}" />
 </parameter>
 
 </parameters>

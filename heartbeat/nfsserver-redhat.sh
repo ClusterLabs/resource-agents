@@ -150,10 +150,12 @@ set_env_args()
 
 	# override local nfs config. preserve previous local config though.
 	if [ -s $tmpconfig ]; then
-		cat $NFS_SYSCONFIG | grep -q -e "$NFS_SYSCONFIG_AUTOGEN_TAG" > /dev/null 2>&1 
-		if [ $? -ne 0 ]; then
-			# backup local nfs config if it doesn't have our HA autogen tag in it.
-			mv -f $NFS_SYSCONFIG $NFS_SYSCONFIG_LOCAL_BACKUP
+		if [ -f "$NFS_SYSCONFIG" ]; then
+			cat $NFS_SYSCONFIG | grep -q -e "$NFS_SYSCONFIG_AUTOGEN_TAG" > /dev/null 2>&1
+			if [ $? -ne 0 ]; then
+				# backup local nfs config if it doesn't have our HA autogen tag in it.
+				mv -f $NFS_SYSCONFIG $NFS_SYSCONFIG_LOCAL_BACKUP
+			fi
 		fi
 
 		cat $tmpconfig | grep -q -e "$NFS_SYSCONFIG_AUTOGEN_TAG" > /dev/null 2>&1 

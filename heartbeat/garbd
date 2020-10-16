@@ -69,12 +69,18 @@ if [ "X${HOSTOS}" = "XOpenBSD" ];then
 else
     OCF_RESKEY_group_default="mysql"
 fi
+OCF_RESKEY_options_default=""
+OCF_RESKEY_wsrep_cluster_address_default=""
+OCF_RESKEY_wsrep_cluster_name_default=""
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 : ${OCF_RESKEY_log=${OCF_RESKEY_log_default}}
 : ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
 : ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
 : ${OCF_RESKEY_group=${OCF_RESKEY_group_default}}
+: ${OCF_RESKEY_options=${OCF_RESKEY_options_default}}
+: ${OCF_RESKEY_wsrep_cluster_address=${OCF_RESKEY_wsrep_cluster_address_default}}
+: ${OCF_RESKEY_wsrep_cluster_name=${OCF_RESKEY_wsrep_cluster_name_default}}
 
 usage() {
   cat <<UEND
@@ -149,7 +155,7 @@ The pidfile to be used for garbd.
 Additional parameters which are passed to garbd on startup.
 </longdesc>
 <shortdesc lang="en">Additional parameters to pass to garbd</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_options_default}"/>
 </parameter>
 
 <parameter name="wsrep_cluster_address" unique="0" required="1">
@@ -160,7 +166,7 @@ gcomm://node:port,node:port,node:port
 Unlike Galera servers, port is mandatory for garbd.
 </longdesc>
 <shortdesc lang="en">Galera cluster address</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_wsrep_cluster_address_default}"/>
 </parameter>
 
 <parameter name="wsrep_cluster_name" unique="0" required="1">
@@ -168,7 +174,7 @@ Unlike Galera servers, port is mandatory for garbd.
 The group name of the Galera cluster to connect to.
 </longdesc>
 <shortdesc lang="en">Galera cluster name</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_wsrep_cluster_name_default}"/>
 </parameter>
 
 </parameters>

@@ -32,6 +32,34 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_ip_default=""
+OCF_RESKEY_nic_default="eth0"
+OCF_RESKEY_cidr_netmask_default=""
+OCF_RESKEY_broadcast_default=""
+OCF_RESKEY_iflabel_default=""
+OCF_RESKEY_lvs_support_default="false"
+OCF_RESKEY_local_stop_script_default=""
+OCF_RESKEY_local_start_script_default=""
+OCF_RESKEY_ARP_INTERVAL_MS_default="500"
+OCF_RESKEY_ARP_REPEAT_default="10"
+OCF_RESKEY_ARP_BACKGROUND_default="yes"
+OCF_RESKEY_ARP_NETMASK_default="ffffffffffff"
+
+: ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
+: ${OCF_RESKEY_nic=${OCF_RESKEY_nic_default}}
+: ${OCF_RESKEY_cidr_netmask=${OCF_RESKEY_cidr_netmask_default}}
+: ${OCF_RESKEY_broadcast=${OCF_RESKEY_broadcast_default}}
+: ${OCF_RESKEY_iflabel=${OCF_RESKEY_iflabel_default}}
+: ${OCF_RESKEY_lvs_support=${OCF_RESKEY_lvs_support_default}}
+: ${OCF_RESKEY_local_stop_script=${OCF_RESKEY_local_stop_script_default}}
+: ${OCF_RESKEY_local_start_script=${OCF_RESKEY_local_start_script_default}}
+: ${OCF_RESKEY_ARP_INTERVAL_MS=${OCF_RESKEY_ARP_INTERVAL_MS_default}}
+: ${OCF_RESKEY_ARP_REPEAT=${OCF_RESKEY_ARP_REPEAT_default}}
+: ${OCF_RESKEY_ARP_BACKGROUND=${OCF_RESKEY_ARP_BACKGROUND_default}}
+: ${OCF_RESKEY_ARP_NETMASK=${OCF_RESKEY_ARP_NETMASK_default}}
+
 SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
 VLDIR=$HA_RSCTMP
@@ -76,7 +104,7 @@ The IPv4 address to be configured in dotted quad notation, for example
 "192.168.1.1".
 </longdesc>
 <shortdesc lang="en">IPv4 address</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_ip_default}" />
 </parameter>
 <parameter name="nic" unique="0">
 <longdesc lang="en">
@@ -101,7 +129,7 @@ sysctl -w net.ipv4.conf.all.promote_secondaries=1
 
 </longdesc>
 <shortdesc lang="en">Network interface</shortdesc>
-<content type="string" default="eth0"/>
+<content type="string" default="${OCF_RESKEY_nic_default}"/>
 </parameter>
 
 <parameter name="cidr_netmask">
@@ -113,7 +141,7 @@ If unspecified, the script will also try to determine this from the
 routing table.
 </longdesc>
 <shortdesc lang="en">Netmask</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_cidr_netmask_default}"/>
 </parameter>
 
 <parameter name="broadcast">
@@ -122,7 +150,7 @@ Broadcast address associated with the IP. If left empty, the script will
 determine this from the netmask.
 </longdesc>
 <shortdesc lang="en">Broadcast address</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_broadcast_default}"/>
 </parameter>
 
 <parameter name="iflabel">
@@ -130,7 +158,7 @@ determine this from the netmask.
 You can specify an additional label for your IP address here.
 </longdesc>
 <shortdesc lang="en">Interface label</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_iflabel_default}"/>
 </parameter>
 
 <parameter name="lvs_support">
@@ -141,7 +169,7 @@ local node to continue to service requests, but no longer advertise it
 on the network.
 </longdesc>
 <shortdesc lang="en">Enable support for LVS DR</shortdesc>
-<content type="boolean" default="false"/>
+<content type="boolean" default="${OCF_RESKEY_lvs_support_default}"/>
 </parameter>
 
 <parameter name="local_stop_script">
@@ -149,7 +177,7 @@ on the network.
 Script called when the IP is released
 </longdesc>
 <shortdesc lang="en">Script called when the IP is released</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_local_stop_script_default}"/>
 </parameter>
 
 <parameter name="local_start_script">
@@ -157,7 +185,7 @@ Script called when the IP is released
 Script called when the IP is added
 </longdesc>
 <shortdesc lang="en">Script called when the IP is added</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_local_start_script_default}"/>
 </parameter>
 
 <parameter name="ARP_INTERVAL_MS">
@@ -165,7 +193,7 @@ Script called when the IP is added
 milliseconds between ARPs
 </longdesc>
 <shortdesc lang="en">milliseconds between gratuitous ARPs</shortdesc>
-<content type="integer" default="500"/>
+<content type="integer" default="${OCF_RESKEY_ARP_INTERVAL_MS_default}"/>
 </parameter>
 
 <parameter name="ARP_REPEAT">
@@ -173,7 +201,7 @@ milliseconds between ARPs
 How many gratuitous ARPs to send out when bringing up a new address
 </longdesc>
 <shortdesc lang="en">repeat count</shortdesc>
-<content type="integer" default="10"/>
+<content type="integer" default="${OCF_RESKEY_ARP_REPEAT_default}"/>
 </parameter>
 
 <parameter name="ARP_BACKGROUND">
@@ -181,7 +209,7 @@ How many gratuitous ARPs to send out when bringing up a new address
 run in background (no longer any reason to do this)
 </longdesc>
 <shortdesc lang="en">run in background</shortdesc>
-<content type="boolean" default="yes"/>
+<content type="boolean" default="${OCF_RESKEY_ARP_BACKGROUND_default}"/>
 </parameter>
 
 <parameter name="ARP_NETMASK">
@@ -189,7 +217,7 @@ run in background (no longer any reason to do this)
 netmask for ARP - in nonstandard hexadecimal format.
 </longdesc>
 <shortdesc lang="en">netmask for ARP</shortdesc>
-<content type="string" default="ffffffffffff"/>
+<content type="string" default="${OCF_RESKEY_ARP_NETMASK_default}"/>
 </parameter>
 
 </parameters>
@@ -753,12 +781,6 @@ is_positive_integer() {
 }
 
 ip_validate_all() {
-    : ${OCF_RESKEY_ARP_BACKGROUND=yes}
-    : ${OCF_RESKEY_ARP_NETMASK=ffffffffffff}
-    : ${OCF_RESKEY_ARP_INTERVAL_MS=500}
-    : ${OCF_RESKEY_ARP_REPEAT=10}
-
-
     check_binary $AWK
     check_binary $IFCONFIG
     check_binary $ROUTE
@@ -776,7 +798,6 @@ ip_validate_all() {
 	return $OCF_ERR_ARGS
     fi
 
-    : ${OCF_RESKEY_lvs_support=0}
     if [ "$SYSTYPE" = "Linux" -o "$SYSTYPE" = "SunOS" ]; then
 	:
     else 
@@ -858,7 +879,6 @@ if [ $# -ne 1 ]; then
     usage $OCF_ERR_ARGS
 fi
 
-: ${OCF_RESKEY_lvs_support=0}
 # Normalize the value of lvs_support
 if [ "${OCF_RESKEY_lvs_support}" = "true" \
     -o "${OCF_RESKEY_lvs_support}" = "on" \

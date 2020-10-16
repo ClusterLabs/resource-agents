@@ -30,6 +30,30 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_xmfile_default="/etc/xen/vm/MyDomU"
+OCF_RESKEY_name_default=""
+OCF_RESKEY_shutdown_timeout_default=""
+OCF_RESKEY_shutdown_acpi_default="0"
+OCF_RESKEY_allow_mem_management_default="0"
+OCF_RESKEY_node_ip_attribute_default=""
+OCF_RESKEY_reserved_Dom0_memory_default="512"
+OCF_RESKEY_autoset_utilization_cpu_default="false"
+OCF_RESKEY_autoset_utilization_hv_memory_default="false"
+OCF_RESKEY_monitor_scripts_default=""
+
+: ${OCF_RESKEY_xmfile=${OCF_RESKEY_xmfile_default}}
+: ${OCF_RESKEY_name=${OCF_RESKEY_name_default}}
+: ${OCF_RESKEY_shutdown_timeout=${OCF_RESKEY_shutdown_timeout_default}}
+: ${OCF_RESKEY_shutdown_acpi=${OCF_RESKEY_shutdown_acpi_default}}
+: ${OCF_RESKEY_allow_mem_management=${OCF_RESKEY_allow_mem_management_default}}
+: ${OCF_RESKEY_node_ip_attribute=${OCF_RESKEY_node_ip_attribute_default}}
+: ${OCF_RESKEY_reserved_Dom0_memory=${OCF_RESKEY_reserved_Dom0_memory_default}}
+: ${OCF_RESKEY_autoset_utilization_cpu=${OCF_RESKEY_autoset_utilization_cpu_default}}
+: ${OCF_RESKEY_autoset_utilization_hv_memory=${OCF_RESKEY_autoset_utilization_hv_memory_default}}
+: ${OCF_RESKEY_monitor_scripts=${OCF_RESKEY_monitor_scripts_default}}
+
 #######################################################################
 
 usage() {
@@ -38,13 +62,6 @@ usage() {
 END
 }
 
-
-: ${OCF_RESKEY_xmfile=/etc/xen/vm/MyDomU}
-: ${OCF_RESKEY_shutdown_acpi=0}
-: ${OCF_RESKEY_allow_mem_management=0}
-: ${OCF_RESKEY_reserved_Dom0_memory=512}
-: ${OCF_RESKEY_autoset_utilization_cpu="false"}
-: ${OCF_RESKEY_autoset_utilization_hv_memory="false"}
 
 # prefer xl
 xentool=$(which xl 2> /dev/null || which xm)
@@ -88,14 +105,14 @@ Absolute path to the Xen control file,
 for this virtual machine.
 </longdesc>
 <shortdesc lang="en">Xen control file</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_xmfile_default}" />
 </parameter>
 <parameter name="name" unique="0" required="0">
 <longdesc lang="en">
 Name of the virtual machine.
 </longdesc>
 <shortdesc lang="en">Xen DomU name</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_name_default}" />
 </parameter>
 <parameter name="shutdown_timeout">
 <longdesc lang="en">
@@ -110,7 +127,7 @@ Setting this value to 0 forces an immediate destroy.
 
 </longdesc>
 <shortdesc lang="en">Shutdown escalation timeout</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_shutdown_timeout_default}" />
 </parameter>
 <parameter name="shutdown_acpi" unique="0" required="0">
 <longdesc lang="en">
@@ -119,7 +136,7 @@ Enable this to allow graceful shutdown for HVM domains
 without installed PV drivers.
 </longdesc>
 <shortdesc lang="en">Simulate power button event on shutdown</shortdesc>
-<content type="boolean" default="0" />
+<content type="boolean" default="${OCF_RESKEY_shutdown_acpi_default}" />
 </parameter>
 <parameter name="allow_mem_management" unique="0" required="0">
 <longdesc lang="en">
@@ -128,7 +145,7 @@ and stop actions used for Dom0 and the DomUs. The default is
 to not adjust memory dynamically.
 </longdesc>
 <shortdesc lang="en">Use dynamic memory management</shortdesc>
-<content type="boolean" default="0" />
+<content type="boolean" default="${OCF_RESKEY_allow_mem_management_default}" />
 </parameter>
 
 <parameter name="node_ip_attribute">
@@ -146,7 +163,7 @@ else the live migration will end up somewhere else, greatly confusing
 the cluster and causing havoc.
 </longdesc>
 <shortdesc lang="en">Node attribute containing target IP address</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_node_ip_attribute_default}" />
 </parameter>
 
 <parameter name="reserved_Dom0_memory" unique="0" required="0">
@@ -156,7 +173,7 @@ defines the minimum amount of memory to be reserved
 for the dom0. The default minimum memory is 512MB.
 </longdesc>
 <shortdesc lang="en">Minimum Dom0 memory</shortdesc>
-<content type="string" default="512" />
+<content type="string" default="${OCF_RESKEY_reserved_Dom0_memory_default}" />
 </parameter>
 
 <parameter name="autoset_utilization_cpu" unique="0" required="0">
@@ -167,7 +184,7 @@ Before enabling make sure node utilization is also set (using NodeUtilization
 agent or manually) or the resource might not be able to start anywhere.
 </longdesc>
 <shortdesc lang="en">Enable auto-setting the CPU utilization of the resource</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_autoset_utilization_cpu_default}" />
 </parameter>
 
 <parameter name="autoset_utilization_hv_memory" unique="0" required="0">
@@ -178,7 +195,7 @@ Before enabling make sure node utilization is also set (using NodeUtilization
 agent or manually) or the resource might not be able to start anywhere.
 </longdesc>
 <shortdesc lang="en">Enable auto-setting the hv_memory utilization of the resource</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_autoset_utilization_hv_memory_default}" />
 </parameter>
 
 <parameter name="monitor_scripts" unique="0" required="0">
@@ -187,7 +204,7 @@ To additionally monitor services within the unprivileged domain,
 add this parameter with a list of scripts to monitor.
 </longdesc>
 <shortdesc lang="en">list of space separated monitor scripts</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_monitor_scripts_default}" />
 </parameter>
 
 </parameters>

@@ -50,14 +50,23 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
-# set default values
-    : ${sg_persist_binary="sg_persist"}     # binary name for the resource
-    : ${devs=""}                            # device list
-    : ${required_devs_nof=1}                # number of required devices
-    : ${reservation_type=1}                 # reservation type
-    : ${master_score_base=0}                # master score base 
-    : ${master_score_dev_factor=100}        # device factor for master score
-    : ${master_score_delay=30}              # delay for master score
+# Parameter defaults
+
+OCF_RESKEY_binary_default="sg_persist"            # binary name for the resource
+OCF_RESKEY_devs_default=""                        # device list
+OCF_RESKEY_required_devs_nof_default="1"          # number of required devices
+OCF_RESKEY_reservation_type_default="1"           # reservation type
+OCF_RESKEY_master_score_base_default="0"          # master score base
+OCF_RESKEY_master_score_dev_factor_default="100"  # device factor for master score
+OCF_RESKEY_master_score_delay_default="30"        # delay for master score
+
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_devs=${OCF_RESKEY_devs_default}}
+: ${OCF_RESKEY_required_devs_nof=${OCF_RESKEY_required_devs_nof_default}}
+: ${OCF_RESKEY_reservation_type=${OCF_RESKEY_reservation_type_default}}
+: ${OCF_RESKEY_master_score_base=${OCF_RESKEY_master_score_base_default}}
+: ${OCF_RESKEY_master_score_dev_factor=${OCF_RESKEY_master_score_dev_factor_default}}
+: ${OCF_RESKEY_master_score_delay=${OCF_RESKEY_master_score_delay_default}}
 
 #######################################################################
 
@@ -84,7 +93,7 @@ Master reserves all devices from "devs" list with reservation "--prout-type" val
 The name of the binary that manages the resource.
 </longdesc>
 <shortdesc lang="en">the binary name of the resource</shortdesc>
-<content type="string" default="$sg_persist_binary"/>
+<content type="string" default="${OCF_RESKEY_binary_default}"/>
 </parameter>
 
 <parameter name="devs" unique="0" required="1">
@@ -107,7 +116,7 @@ resource actions "stop" and "demote" tries to remove reservations and registrati
 all working devices, but always return "\$OCF_SUCCESS"
 </longdesc>
 <shortdesc lang="en">minimum number of working devices</shortdesc>
-<content type="string" default="1"/>
+<content type="string" default="${OCF_RESKEY_required_devs_nof_default}"/>
 </parameter>
 
 <parameter name="reservation_type" unique="0" required="0">
@@ -115,7 +124,7 @@ all working devices, but always return "\$OCF_SUCCESS"
 reservation type 
 </longdesc>
 <shortdesc lang="en">reservation type</shortdesc>
-<content type="string" default="1" />
+<content type="string" default="${OCF_RESKEY_reservation_type_default}" />
 </parameter>
 
 <parameter name="master_score_base" unique="0" required="0">
@@ -126,7 +135,7 @@ master_score = \$master_score_base + \$master_score_dev_factor * \$working_devs
 if set to bigger value in sg_persist resource configuration on some node, this node will be "preferred" for master role. 
 </longdesc>
 <shortdesc lang="en">base master_score value</shortdesc>
-<content type="string" default="0" />
+<content type="string" default="${OCF_RESKEY_master_score_base_default}" />
 </parameter>
 
 <parameter name="master_score_dev_factor" unique="0" required="0">
@@ -137,7 +146,7 @@ so the node that sees more devices will be preferred for the "Master"-role
 Setting it to 0 will disable this behavior. 
 </longdesc>
 <shortdesc lang="en">working device factor in master_score calculation</shortdesc>
-<content type="string" default="100" />
+<content type="string" default="${OCF_RESKEY_master_score_dev_factor_default}" />
 </parameter>
 
 <parameter name="master_score_delay" unique="0" required="0">
@@ -149,7 +158,7 @@ this can work only if the master_score_delay is bigger then monitor interval on 
 Setting it to 0 will disable this behavior.
 </longdesc>
 <shortdesc lang="en">master_score decrease/increase delay time</shortdesc>
-<content type="string" default="30" />
+<content type="string" default="${OCF_RESKEY_master_score_delay_default}" />
 </parameter>
 </parameters>
 
@@ -177,7 +186,7 @@ sg_persist_init() {
         exit $OCF_ERR_PERM
     fi 
 
-    SG_PERSIST=${OCF_RESKEY_binary:-"$sg_persist_binary"}
+    SG_PERSIST=${OCF_RESKEY_binary}
     check_binary $SG_PERSIST
     
     ROLE=$OCF_RESKEY_CRM_meta_role
@@ -208,12 +217,12 @@ sg_persist_init() {
 
     ocf_log debug "$RESOURCE: NODE:$NODE, ROLE:$ROLE, NODE_ID DEC:$NODE_ID_DEC HEX:$NODE_ID_HEX"
 
-    DEVS=${OCF_RESKEY_devs:=$devs}
-    REQUIRED_DEVS_NOF=${OCF_RESKEY_required_devs_nof:=$required_devs_nof}
-    RESERVATION_TYPE=${OCF_RESKEY_reservation_type:=$reservation_type}
-    MASTER_SCORE_BASE=${OCF_RESKEY_master_score_base:=$master_score_base}
-    MASTER_SCORE_DEV_FACTOR=${OCF_RESKEY_master_score_dev_factor:=$master_score_dev_factor}
-    MASTER_SCORE_DELAY=${OCF_RESKEY_master_score_delay:=$master_score_delay}
+    DEVS=${OCF_RESKEY_devs}
+    REQUIRED_DEVS_NOF=${OCF_RESKEY_required_devs_nof}
+    RESERVATION_TYPE=${OCF_RESKEY_reservation_type}
+    MASTER_SCORE_BASE=${OCF_RESKEY_master_score_base}
+    MASTER_SCORE_DEV_FACTOR=${OCF_RESKEY_master_score_dev_factor}
+    MASTER_SCORE_DELAY=${OCF_RESKEY_master_score_delay}
 
     ocf_log debug "$RESOURCE: DEVS=$DEVS"
     ocf_log debug "$RESOURCE: REQUIRED_DEVS_NOF=$REQUIRED_DEVS_NOF"

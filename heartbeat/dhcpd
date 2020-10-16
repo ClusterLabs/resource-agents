@@ -337,12 +337,12 @@ dhcpd_initialize_chroot() {
     done | sort -u`
     for i in $cplibs ; do
 	if [ -s "$i" ]; then
-	    cp -pL "$i" "${OCF_RESKEY_chrooted_path}/$libdir/" ||
+	    cp -aL "$i" "${OCF_RESKEY_chrooted_path}/$libdir/" ||
 		{ ocf_exit_reason "could not copy $i to chroot jail"; return $OCF_ERR_GENERIC; }
 	fi
     done
 
-   return $OCF_SUCCESS
+    return $OCF_SUCCESS
 }
 
 # Initialize a non-chroot environment

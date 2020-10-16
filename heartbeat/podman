@@ -34,6 +34,12 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_reuse_default="0"
+
+: ${OCF_RESKEY_reuse=${OCF_RESKEY_reuse_default}}
+
 #######################################################################
 
 meta_data()
@@ -123,9 +129,6 @@ the health of the container. This command must return 0 to indicate that
 the container is healthy. A non-zero return code will indicate that the
 container has failed and should be recovered.
 
-If 'podman exec' is supported, it is used to execute the command. If not,
-nsenter is used.
-
 Note: Using this method for monitoring processes inside a container
 is not recommended, as containerd tries to track processes running
 inside the container and does not deal well with many short-lived
@@ -153,7 +156,17 @@ containers get removed once they are stopped.  Enable this option
 to have the particular one persist when this happens.
 </longdesc>
 <shortdesc lang="en">reuse container</shortdesc>
-<content type="boolean" default="0"/>
+<content type="boolean" default="${OCF_RESKEY_reuse_default}"/>
+</parameter>
+
+<parameter name="drop_in_dependency" required="0" unique="0">
+<longdesc lang="en">
+Use transient drop-in files to add extra dependencies to the systemd
+scopes associated to the container. During reboot, this prevents systemd
+to stop the container before pacemaker.
+</longdesc>
+<shortdesc lang="en">drop-in dependency</shortdesc>
+<content type="boolean"/>
 </parameter>
 </parameters>
 
@@ -186,23 +199,13 @@ monitor_cmd_exec()
 	local rc=$OCF_SUCCESS
 	local out
 
-	if [ -z "$OCF_RESKEY_monitor_cmd" ]; then
-		return $rc
-	fi
-
-	if podman exec --help >/dev/null 2>&1; then
-		out=$(podman exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
-		rc=$?
-	else
-		out=$(echo "$OCF_RESKEY_monitor_cmd" | nsenter --target $(podman inspect --format {{.State.Pid}} ${CONTAINER}) --mount --uts --ipc --net --pid 2>&1)
-		rc=$?
-	fi
-
-	if [ $rc -eq 127 ]; then
-		ocf_log err "monitor cmd failed (rc=$rc), output: $out"
-		ocf_exit_reason "monitor_cmd, ${OCF_RESKEY_monitor_cmd} , not found within container."
-		# there is no recovering from this, exit immediately
-		exit $OCF_ERR_ARGS
+	out=$(podman exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
+	rc=$?
+	# 125: no container with name or ID ${CONTAINER} found
+	# 126: container state improper (not running)
+	# 127: any other error
+	if [ $rc -eq 125 ] || [ $rc -eq 126 ]; then
+		rc=$OCF_NOT_RUNNING
 	elif [ $rc -ne 0 ]; then
 		ocf_exit_reason "monitor cmd failed (rc=$rc), output: $out"
 		rc=$OCF_ERR_GENERIC
@@ -215,11 +218,23 @@ monitor_cmd_exec()
 
 container_exists()
 {
-	podman inspect --format {{.State.Running}} $CONTAINER | egrep '(true|false)' >/dev/null 2>&1
+	local rc
+	local out
+
+	out=$(podman exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
+	rc=$?
+	# 125: no container with name or ID ${CONTAINER} found
+	if [ $rc -ne 125 ]; then
+		return 0
+	fi
+	return 1
 }
 
 remove_container()
 {
+	local rc
+	local execids
+
 	if ocf_is_true "$OCF_RESKEY_reuse"; then
 		# never remove the container if we have reuse enabled.
 		return 0
@@ -232,44 +247,47 @@ remove_container()
 	fi
 	ocf_log notice "Cleaning up inactive container, ${CONTAINER}."
 	ocf_run podman rm $CONTAINER
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		# due to a podman bug (rhbz#1841485), sometimes a stopped
+		# container can still be associated with Exec sessions, in
+		# which case the "podman rm" has to be forced
+		execids=$(podman inspect $CONTAINER --format '{{len .ExecIDs}}')
+		if [ "$execids" -ne "0" ]; then
+			ocf_log warn "Inactive container ${CONTAINER} has lingering exec sessions. Force-remove it."
+			ocf_run podman rm -f $CONTAINER
+			rc=$?
+		fi
+	fi
+	return $rc
 }
 
 podman_simple_status()
 {
-	local val
+	local rc
 
-	container_exists
-	if [ $? -ne 0 ]; then
-		return $OCF_NOT_RUNNING
+	# simple status is implemented via podman exec
+	# everything besides success is considered "not running"
+	monitor_cmd_exec
+	rc=$?
+	if [ $rc -ne $OCF_SUCCESS ]; then
+		rc=$OCF_NOT_RUNNING;
 	fi
-
-	# retrieve the 'Running' attribute for the container
-	val=$(podman inspect --format {{.State.Running}} $CONTAINER 2>/dev/null)
-	if [ $? -ne 0 ]; then
-		#not running as a result of container not being found
-		return $OCF_NOT_RUNNING
-	fi
-
-	if ocf_is_true "$val"; then
-		# container exists and is running
-		return $OCF_SUCCESS
-	fi
-
-	return $OCF_NOT_RUNNING
+	return $rc
 }
 
 podman_monitor()
 {
-	local rc=0
-
-	podman_simple_status
-	rc=$?
-
-	if [ $rc -ne 0 ]; then
-		return $rc
-	fi
-
+	# We rely on running podman exec to monitor the container
+	# state because that command seems to be less prone to
+	# performance issue under IO load.
+	#
+	# For probes to work, we expect cmd_exec to be able to report
+	# when a container is not running. Here, we're not interested
+	# in distinguishing whether it's stopped or non existing
+	# (there's function container_exists for that)
 	monitor_cmd_exec
+	return $?
 }
 
 podman_create_mounts() {
@@ -281,8 +299,57 @@ podman_create_mounts() {
 	IFS="$oldIFS"
 }
 
+podman_container_id()
+{
+	# Retrieve the container ID by doing a "podman ps" rather than
+	# a "podman inspect", because the latter has performance issues
+	# under IO load.
+	# We could have run "podman start $CONTAINER" to get the ID back
+	# but if the container is stopped, the command will return a
+	# name instead of a container ID. This would break us.
+	podman ps --no-trunc --format '{{.ID}} {{.Names}}' | grep -F -w -m1 "$CONTAINER" | cut -d' ' -f1
+}
+
+
+create_transient_drop_in_dependency()
+{
+	local cid=$1
+	local rc=$OCF_SUCCESS
+
+	if [ -z "$cid" ]; then
+		ocf_log error "Container ID not found for \"$CONTAINER\". Not creating drop-in dependency"
+		return $OCF_ERR_GENERIC
+	fi
+
+	ocf_log info "Creating drop-in dependency for \"$CONTAINER\" ($cid)"
+	for scope in "libpod-$cid.scope.d" "libpod-conmon-$cid.scope.d"; do
+		if [ $rc -eq $OCF_SUCCESS ] && [ ! -d /run/systemd/transient/"$scope" ]; then
+			mkdir -p /run/systemd/transient/"$scope" && \
+			printf "[Unit]\nBefore=pacemaker.service" > /run/systemd/transient/"$scope"/dep.conf && \
+			chmod ago+r /run/systemd/transient/"$scope" /run/systemd/transient/"$scope"/dep.conf
+			rc=$?
+		fi
+	done
+
+	if [ $rc -ne $OCF_SUCCESS ]; then
+		ocf_log error "Could not create drop-in dependency for \"$CONTAINER\" ($cid)"
+	else
+		systemctl daemon-reload
+		rc=$?
+		if [ $rc -ne $OCF_SUCCESS ]; then
+			ocf_log error "Could not refresh service definition after creating drop-in for \"$CONTAINER\""
+		fi
+	fi
+
+	return $rc
+}
+
+
 podman_start()
 {
+	local cid
+	local rc
+
 	podman_create_mounts
 	local run_opts="-d --name=${CONTAINER}"
 	# check to see if the container has already started
@@ -314,8 +381,17 @@ podman_start()
 		ocf_log info "running container $CONTAINER for the first time"
 		ocf_run podman run $run_opts $OCF_RESKEY_image $OCF_RESKEY_run_cmd
 	fi
+	rc=$?
 
-	if [ $? -ne 0 ]; then
+	# if the container was stopped or didn't exist before, systemd
+	# removed the libpod* scopes. So always try to recreate the drop-ins
+	if [ $rc -eq 0 ] && ocf_is_true "$OCF_RESKEY_drop_in_dependency"; then
+		cid=$(podman_container_id)
+		create_transient_drop_in_dependency "$cid"
+		rc=$?
+	fi
+
+	if [ $rc -ne 0 ]; then
 		ocf_exit_reason "podman failed to launch container"
 		return $OCF_ERR_GENERIC
 	fi
@@ -361,6 +437,8 @@ podman_stop()
 	else
 		ocf_log debug "waiting $timeout second[s] before killing container"
 		ocf_run podman stop -t=$timeout $CONTAINER
+		# on stop, systemd will automatically delete any transient
+		# drop-in conf that has been created earlier
 	fi
 
 	if [ $? -ne 0 ]; then
@@ -379,31 +457,7 @@ podman_stop()
 
 image_exists()
 {
-	# if no tag was specified, use default "latest"
-	local COLON_FOUND=0
-	local SLASH_FOUND=0
-	local SERVER_NAME=""
-	local IMAGE_NAME="${OCF_RESKEY_image}"
-	local IMAGE_TAG="latest"
-
-	SLASH_FOUND="$(echo "${OCF_RESKEY_image}" | grep -o '/' | grep -c .)"
-
-	if [ ${SLASH_FOUND} -ge 1 ]; then
-		SERVER_NAME="$(echo ${IMAGE_NAME} | cut -d / -f 1-${SLASH_FOUND})"
-		IMAGE_NAME="$(echo ${IMAGE_NAME} | awk -F'/' '{print $NF}')"
-	fi
-
-	COLON_FOUND="$(echo "${IMAGE_NAME}" | grep -o ':' | grep -c .)"
-	if [ ${COLON_FOUND} -ge 1 ]; then
-		IMAGE_TAG="$(echo ${IMAGE_NAME} | awk -F':' '{print $NF}')"
-		IMAGE_NAME="$(echo ${IMAGE_NAME} | cut -d : -f 1-${COLON_FOUND})"
-	fi
-
-	# IMAGE_NAME might be following formats:
-	# - image
-	# - repository:port/image
-	# - docker.io/image (some distro will display "docker.io/" as prefix)
-	podman images | awk '{print $1 ":" $2}' | egrep -q -s "^(docker.io\/|${SERVER_NAME}\/)?${IMAGE_NAME}:${IMAGE_TAG}\$"
+	podman image exists "${OCF_RESKEY_image}"
 	if [ $? -eq 0 ]; then
 		# image found
 		return 0
@@ -424,14 +478,6 @@ podman_validate()
 	if [ -z "$OCF_RESKEY_image" ]; then
 		ocf_exit_reason "'image' option is required"
 		exit $OCF_ERR_CONFIGURED
-	fi
-
-	if [ -n "$OCF_RESKEY_monitor_cmd" ]; then
-		podman exec --help >/dev/null 2>&1
-		if [ ! $? ]; then
-			ocf_log info "checking for nsenter, which is required when 'monitor_cmd' is specified"
-			check_binary nsenter
-		fi
 	fi
 
 	image_exists
@@ -466,6 +512,21 @@ else
 fi
 
 CONTAINER=$OCF_RESKEY_name
+
+# Note: we currently monitor podman containers by with the "podman exec"
+# command, so make sure that invocation is always valid by enforcing the
+# exec command to be non-empty
+: ${OCF_RESKEY_monitor_cmd:=/bin/true}
+
+# When OCF_RESKEY_drop_in_dependency is not populated, we
+# look at another file-based way of enabling the option.
+# Otherwise, consider it disabled.
+if [ -z "$OCF_RESKEY_drop_in_dependency" ]; then
+	if [ -f "/etc/sysconfig/podman_drop_in" ] || \
+	   [ -f "/etc/default/podman_drop_in" ]; then
+		OCF_RESKEY_drop_in_dependency=yes
+	fi
+fi
 
 case $__OCF_ACTION in
 meta-data) meta_data

@@ -13,8 +13,10 @@ import subprocess
 import json
 try:
 		import urllib2
+		from urllib2 import URLError
 except ImportError:
 		import urllib.request as urllib2
+		from urllib.error import URLError
 import socket
 from collections import defaultdict
 
@@ -76,15 +78,29 @@ class azHelper:
 		Send a request to Azure's Azure Metadata Service API
 		"""
 		url = "%s/%s?api-version=%s" % (azHelper.metadata_host, endpoint, azHelper.api_version)
+		data = ""
 		ocf.logger.debug("_sendMetadataRequest: begin; endpoint = %s, postData = %s" % (endpoint, postData))
 		ocf.logger.debug("_sendMetadataRequest: url = %s" % url)
+
+		if postData and type(postData) != bytes:
+			postData = postData.encode()
 
 		req = urllib2.Request(url, postData)
 		req.add_header("Metadata", "true")
 		req.add_header("User-Agent", USER_AGENT)
-		resp = urllib2.urlopen(req)
-		data = resp.read()
-		ocf.logger.debug("_sendMetadataRequest: response = %s" % data)
+		try:
+			resp = urllib2.urlopen(req)
+		except URLError as e:
+			if hasattr(e, 'reason'):
+				ocf.logger.warning("Failed to reach the server: %s" % e.reason)
+				clusterHelper.setAttr(attr_globalPullState, "IDLE")
+			elif hasattr(e, 'code'):
+				ocf.logger.warning("The server couldn\'t fulfill the request. Error code: %s" % e.code)
+				clusterHelper.setAttr(attr_globalPullState, "IDLE")
+		else:
+			data = resp.read()
+			ocf.logger.debug("_sendMetadataRequest: response = %s" % data)
+
 		if data:
 			data = json.loads(data)
 
@@ -99,10 +115,14 @@ class azHelper:
 		ocf.logger.debug("getInstanceInfo: begin")
 
 		jsondata = azHelper._sendMetadataRequest(azHelper.instance_api)
-		ocf.logger.info("getInstanceInfo: json = %s" % jsondata)
+		ocf.logger.debug("getInstanceInfo: json = %s" % jsondata)
 
-		ocf.logger.debug("getInstanceInfo: finished, returning {}".format(jsondata["compute"]))
-		return attrDict(jsondata["compute"])
+		if jsondata:
+			ocf.logger.debug("getInstanceInfo: finished, returning {}".format(jsondata["compute"]))
+			return attrDict(jsondata["compute"])
+		else:
+			ocf.ocf_exit_reason("getInstanceInfo: Unable to get instance info")
+			sys.exit(ocf.OCF_ERR_GENERIC)
 
 	@staticmethod
 	def pullScheduledEvents():
@@ -112,7 +132,7 @@ class azHelper:
 		ocf.logger.debug("pullScheduledEvents: begin")
 
 		jsondata = azHelper._sendMetadataRequest(azHelper.events_api)
-		ocf.logger.info("pullScheduledEvents: json = %s" % jsondata)
+		ocf.logger.debug("pullScheduledEvents: json = %s" % jsondata)
 
 		ocf.logger.debug("pullScheduledEvents: finished")
 		return attrDict(jsondata)
@@ -169,6 +189,8 @@ class clusterHelper:
 		ocf.logger.debug("_exec: cmd = %s" % " ".join(command))
 		try:
 			ret = subprocess.check_output(command)
+			if type(ret) != str:
+				ret = ret.decode()
 			ocf.logger.debug("_exec: return = %s" % ret)
 			return ret.rstrip()
 		except Exception as err:
@@ -222,7 +244,7 @@ class clusterHelper:
 
 		nodes = []
 		nodeList = clusterHelper._exec("crm_node", "--list")
-		for n in nodeList.decode().split("\n"):
+		for n in nodeList.split("\n"):
 			nodes.append(n.split()[1])
 		ocf.logger.debug("getAllNodes: finished; return %s" % str(nodes))
 
@@ -293,7 +315,7 @@ class clusterHelper:
 			ocf.logger.warning("transitionSummary: received unexpected transition summary: %s" % summary)
 			return False
 		summary = summary.split("Transition Summary:")[1]
-		ret = summary.decode().split("\n").pop(0)
+		ret = summary.split("\n").pop(0)
 
 		ocf.logger.debug("transitionSummary: finished; return = %s" % str(ret))
 		return ret
@@ -314,7 +336,7 @@ class clusterHelper:
 		if len(resources) == 0:
 			ret = []
 		else:
-			ret = resources.decode().split("\n")
+			ret = resources.split("\n")
 
 		ocf.logger.debug("listOperationsOnNode: finished; return = %s" % str(ret))
 		return ret
@@ -460,7 +482,7 @@ class Node:
 
 		eventIDStr = clusterHelper.getAttr(attr_pendingEventIDs, node=node)
 		if eventIDStr:
-			eventIDs = eventIDStr.decode().split(",")
+			eventIDs = eventIDStr.split(",")
 		else:
 			eventIDs = None
 
@@ -569,7 +591,7 @@ class Node:
 		ocf.logger.debug("handleRemoteEvents: begin; hostName = %s, events = %s" % (self.hostName, str(azEvents)))
 
 		if len(azEvents) == 0:
-			ocf.logger.info("handleRemoteEvents: no remote events to handle")
+			ocf.logger.debug("handleRemoteEvents: no remote events to handle")
 			ocf.logger.debug("handleRemoteEvents: finished")
 			return
 		eventIDsForNode = {}
@@ -672,7 +694,7 @@ class Node:
 						ocf.logger.info("handleLocalEvents: cannot handle azEvents %s (only node available) -> set state ON_HOLD" % str(azEventIDs))
 						self.setState(ON_HOLD)
 				else:
-					ocf.logger.info("handleLocalEvents: no local azEvents to handle")
+					ocf.logger.debug("handleLocalEvents: no local azEvents to handle")
 			if curState == STOPPING:
 				if clusterHelper.noPendingResourcesOnNode(self.hostName):
 					ocf.logger.info("handleLocalEvents: all local resources are started properly -> put node standby")
@@ -720,21 +742,21 @@ class raAzEvents:
 			# get current document version
 			curDocVersion  = events.DocumentIncarnation
 			lastDocVersion = self.node.getAttr(attr_lastDocVersion)
-			ocf.logger.info("monitor: lastDocVersion = %s; curDocVersion = %s" % (lastDocVersion, curDocVersion))
+			ocf.logger.debug("monitor: lastDocVersion = %s; curDocVersion = %s" % (lastDocVersion, curDocVersion))
 
 			# split events local/remote
 			(localEvents, remoteEvents) = self.node.separateEvents(events.Events)
 
 			# ensure local events are only executing once
 			if curDocVersion != lastDocVersion:
-				ocf.logger.info("monitor: curDocVersion has not been handled yet")
+				ocf.logger.debug("monitor: curDocVersion has not been handled yet")
 				# handleLocalEvents() returns True if mayUpdateDocVersion is True;
 				# this is only the case if we can ensure there are no pending events
 				if self.node.handleLocalEvents(localEvents):
 					ocf.logger.info("monitor: handleLocalEvents completed successfully -> update curDocVersion")
 					self.node.setAttr(attr_lastDocVersion, curDocVersion)
 				else:
-					ocf.logger.info("monitor: handleLocalEvents still waiting -> keep curDocVersion")
+					ocf.logger.debug("monitor: handleLocalEvents still waiting -> keep curDocVersion")
 			else:
 				ocf.logger.info("monitor: already handled curDocVersion, skip")
 

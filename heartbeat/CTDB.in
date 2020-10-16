@@ -85,29 +85,67 @@ if [ ! -d "$var_prefix" ] && [ -d "/var/run" ]; then
 	var_prefix="/var/run"
 fi
 
-: ${OCF_RESKEY_ctdb_manages_samba:=no}
-: ${OCF_RESKEY_ctdb_manages_winbind:=no}
-: ${OCF_RESKEY_ctdb_service_smb:=""}
-: ${OCF_RESKEY_ctdb_service_nmb:=""}
-: ${OCF_RESKEY_ctdb_service_winbind:=""}
-: ${OCF_RESKEY_ctdb_samba_skip_share_check:=yes}
-: ${OCF_RESKEY_ctdb_monitor_free_memory:=100}
-: ${OCF_RESKEY_ctdb_start_as_disabled:=no}
+# Parameter defaults
 
-: ${OCF_RESKEY_ctdb_config_dir:=/etc/ctdb}
-: ${OCF_RESKEY_ctdb_binary:=/usr/bin/ctdb}
-: ${OCF_RESKEY_ctdbd_binary:=/usr/sbin/ctdbd}
-: ${OCF_RESKEY_ctdb_dbdir:=${var_prefix}}
-: ${OCF_RESKEY_ctdb_logfile:=/var/log/ctdb/log.ctdb}
-: ${OCF_RESKEY_ctdb_rundir:=${run_prefix}/ctdb}
-: ${OCF_RESKEY_ctdb_socket:=${OCF_RESKEY_ctdb_rundir}/ctdbd.socket}
-: ${OCF_RESKEY_ctdb_debuglevel:=2}
+OCF_RESKEY_ctdb_recovery_lock_default=""
+OCF_RESKEY_ctdb_manages_samba_default="no"
+OCF_RESKEY_ctdb_manages_winbind_default="no"
+OCF_RESKEY_ctdb_service_smb_default=""
+OCF_RESKEY_ctdb_service_nmb_default=""
+OCF_RESKEY_ctdb_service_winbind_default=""
+OCF_RESKEY_ctdb_samba_skip_share_check_default="yes"
+OCF_RESKEY_ctdb_monitor_free_memory_default="100"
+OCF_RESKEY_ctdb_start_as_disabled_default="no"
 
-: ${OCF_RESKEY_smb_conf:=/etc/samba/smb.conf}
-: ${OCF_RESKEY_smb_passdb_backend:=tdbsam}
-: ${OCF_RESKEY_smb_idmap_backend:=tdb2}
+: ${OCF_RESKEY_ctdb_recovery_lock=${OCF_RESKEY_ctdb_recovery_lock_default}}
+: ${OCF_RESKEY_ctdb_manages_samba=${OCF_RESKEY_ctdb_manages_samba_default}}
+: ${OCF_RESKEY_ctdb_manages_winbind=${OCF_RESKEY_ctdb_manages_winbind_default}}
+: ${OCF_RESKEY_ctdb_service_smb=${OCF_RESKEY_ctdb_service_smb_default}}
+: ${OCF_RESKEY_ctdb_service_nmb=${OCF_RESKEY_ctdb_service_nmb_default}}
+: ${OCF_RESKEY_ctdb_service_winbind=${OCF_RESKEY_ctdb_service_winbind_default}}
+: ${OCF_RESKEY_ctdb_samba_skip_share_check=${OCF_RESKEY_ctdb_samba_skip_share_check_default}}
+: ${OCF_RESKEY_ctdb_monitor_free_memory=${OCF_RESKEY_ctdb_monitor_free_memory_default}}
+: ${OCF_RESKEY_ctdb_start_as_disabled=${OCF_RESKEY_ctdb_start_as_disabled_default}}
+
+OCF_RESKEY_ctdb_config_dir_default="/etc/ctdb"
+OCF_RESKEY_ctdb_binary_default="/usr/bin/ctdb"
+OCF_RESKEY_ctdbd_binary_default="/usr/sbin/ctdbd"
+OCF_RESKEY_ctdb_dbdir_default="${var_prefix}"
+OCF_RESKEY_ctdb_logfile_default="/var/log/ctdb/log.ctdb"
+OCF_RESKEY_ctdb_rundir_default="${run_prefix}/ctdb"
+
+: ${OCF_RESKEY_ctdb_config_dir=${OCF_RESKEY_ctdb_config_dir_default}}
+: ${OCF_RESKEY_ctdb_binary=${OCF_RESKEY_ctdb_binary_default}}
+: ${OCF_RESKEY_ctdbd_binary=${OCF_RESKEY_ctdbd_binary_default}}
+: ${OCF_RESKEY_ctdb_dbdir=${OCF_RESKEY_ctdb_dbdir_default}}
+: ${OCF_RESKEY_ctdb_logfile=${OCF_RESKEY_ctdb_logfile_default}}
+: ${OCF_RESKEY_ctdb_rundir=${OCF_RESKEY_ctdb_rundir_default}}
+
+OCF_RESKEY_ctdb_socket_default="${OCF_RESKEY_ctdb_rundir}/ctdbd.socket"
+OCF_RESKEY_ctdb_debuglevel_default="2"
+OCF_RESKEY_ctdb_max_open_files_default=""
+
+: ${OCF_RESKEY_ctdb_socket=${OCF_RESKEY_ctdb_socket_default}}
+: ${OCF_RESKEY_ctdb_debuglevel=${OCF_RESKEY_ctdb_debuglevel_default}}
+: ${OCF_RESKEY_ctdb_max_open_files=${OCF_RESKEY_ctdb_max_open_files_default}}
+
+OCF_RESKEY_smb_conf_default="/etc/samba/smb.conf"
+OCF_RESKEY_smb_private_dir_default=""
+OCF_RESKEY_smb_passdb_backend_default="tdbsam"
+OCF_RESKEY_smb_idmap_backend_default="tdb2"
+OCF_RESKEY_smb_fileid_algorithm_default=""
+
+: ${OCF_RESKEY_smb_conf=${OCF_RESKEY_smb_conf_default}}
+: ${OCF_RESKEY_smb_private_dir=${OCF_RESKEY_smb_private_dir_default}}
+: ${OCF_RESKEY_smb_passdb_backend=${OCF_RESKEY_smb_passdb_backend_default}}
+: ${OCF_RESKEY_smb_idmap_backend=${OCF_RESKEY_smb_idmap_backend_default}}
+: ${OCF_RESKEY_smb_fileid_algorithm=${OCF_RESKEY_smb_fileid_algorithm_default}}
 
 #######################################################################
+
+ctdb_version() {
+	$OCF_RESKEY_ctdb_binary version | awk '{print $NF}' | sed "s/[-\.]\?[[:alpha:]].*//"
+}
 
 meta_data() {
 	cat <<END
@@ -138,7 +176,7 @@ The location of a shared lock file or helper binary, common across all nodes.
 See CTDB documentation for details.
 </longdesc>
 <shortdesc lang="en">CTDB shared lock file</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_ctdb_recovery_lock_default}" />
 </parameter>
 
 <parameter name="ctdb_manages_samba" unique="0" required="0">
@@ -148,7 +186,7 @@ This will be deprecated in future, in favor of configuring a
 separate Samba resource.
 </longdesc>
 <shortdesc lang="en">Should CTDB manage Samba?</shortdesc>
-<content type="boolean" default="no" />
+<content type="boolean" default="${OCF_RESKEY_ctdb_manages_samba_default}" />
 </parameter>
 
 <parameter name="ctdb_manages_winbind" unique="0" required="0">
@@ -158,7 +196,7 @@ This will be deprecated in future, in favor of configuring a
 separate Winbind resource.
 </longdesc>
 <shortdesc lang="en">Should CTDB manage Winbind?</shortdesc>
-<content type="boolean" default="no" />
+<content type="boolean" default="${OCF_RESKEY_ctdb_manages_winbind_default}" />
 </parameter>
 
 <parameter name="ctdb_service_smb" unique="0" required="0">
@@ -167,7 +205,7 @@ Name of smb init script.  Only necessary if CTDB is managing
 Samba directly.  Will usually be auto-detected.
 </longdesc>
 <shortdesc lang="en">Name of smb init script</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_ctdb_service_smb_default}" />
 </parameter>
 
 <parameter name="ctdb_service_nmb" unique="0" required="0">
@@ -176,7 +214,7 @@ Name of nmb init script.  Only necessary if CTDB is managing
 Samba directly.  Will usually be auto-detected.
 </longdesc>
 <shortdesc lang="en">Name of nmb init script</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_ctdb_service_nmb_default}" />
 </parameter>
 
 <parameter name="ctdb_service_winbind" unique="0" required="0">
@@ -185,7 +223,7 @@ Name of winbind init script.  Only necessary if CTDB is managing
 Winbind directly.  Will usually be auto-detected.
 </longdesc>
 <shortdesc lang="en">Name of winbind init script</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_ctdb_service_winbind_default}" />
 </parameter>
 
 <parameter name="ctdb_samba_skip_share_check" unique="0" required="0">
@@ -195,7 +233,7 @@ of them are available during each monitoring interval.  In that case
 this check can be disabled.
 </longdesc>
 <shortdesc lang="en">Skip share check during monitor?</shortdesc>
-<content type="boolean" default="yes" />
+<content type="boolean" default="${OCF_RESKEY_ctdb_samba_skip_share_check_default}" />
 </parameter>
 
 <parameter name="ctdb_monitor_free_memory" unique="0" required="0">
@@ -204,9 +242,10 @@ If the amount of free memory drops below this value the node will
 become unhealthy and ctdb and all managed services will be shutdown.
 Once this occurs, the administrator needs to find the reason for the
 OOM situation, rectify it and restart ctdb with "service ctdb start".
+With CTDB 4.4.0 and later this parameter is ignored.
 </longdesc>
 <shortdesc lang="en">Minimum amount of free memory (MB)</shortdesc>
-<content type="integer" default="100" />
+<content type="integer" default="${OCF_RESKEY_ctdb_monitor_free_memory_default}" />
 </parameter>
 
 <parameter name="ctdb_start_as_disabled" unique="0" required="0">
@@ -215,17 +254,17 @@ When set to yes, the CTDB node will start in DISABLED mode and not
 host any public ip addresses.
 </longdesc>
 <shortdesc lang="en">Start CTDB disabled?</shortdesc>
-<content type="boolean" default="no" />
+<content type="boolean" default="${OCF_RESKEY_ctdb_start_as_disabled_default}" />
 </parameter>
 
 <parameter name="ctdb_config_dir" unique="0" required="0">
 <longdesc lang="en">
 The directory containing various CTDB configuration files.
 The "nodes" and "notify.sh" scripts are expected to be
-in this directory, as is the "events.d" subdirectory.
+in this directory.
 </longdesc>
 <shortdesc lang="en">CTDB config file directory</shortdesc>
-<content type="string" default="/etc/ctdb" />
+<content type="string" default="${OCF_RESKEY_ctdb_config_dir_default}" />
 </parameter>
 
 <parameter name="ctdb_binary" unique="0" required="0">
@@ -233,7 +272,7 @@ in this directory, as is the "events.d" subdirectory.
 Full path to the CTDB binary.
 </longdesc>
 <shortdesc lang="en">CTDB binary path</shortdesc>
-<content type="string" default="/usr/bin/ctdb" />
+<content type="string" default="${OCF_RESKEY_ctdb_binary_default}" />
 </parameter>
 
 <parameter name="ctdbd_binary" unique="0" required="0">
@@ -241,16 +280,18 @@ Full path to the CTDB binary.
 Full path to the CTDB cluster daemon binary.
 </longdesc>
 <shortdesc lang="en">CTDB Daemon binary path</shortdesc>
-<content type="string" default="/usr/sbin/ctdbd" />
+<content type="string" default="${OCF_RESKEY_ctdbd_binary_default}" />
 </parameter>
 
 <parameter name="ctdb_socket" unique="1" required="0">
 <longdesc lang="en">
 Full path to the domain socket that ctdbd will create, used for
 local clients to attach and communicate with the ctdb daemon.
+With CTDB 4.9.0 and later the socket path is hardcoded at build
+time, so this parameter is ignored.
 </longdesc>
-<shortdesc lang="en">CTDB socket location</shortdesc>
-<content type="string" default="${OCF_RESKEY_ctdb_socket}" />
+<shortdesc lang="en">CTDB socket location (ignored with CTDB 4.9+)</shortdesc>
+<content type="string" default="${OCF_RESKEY_ctdb_socket_default}" />
 </parameter>
 
 <parameter name="ctdb_dbdir" unique="1" required="0">
@@ -259,7 +300,7 @@ The directory to put the local CTDB database files in.
 Persistent database files will be put in ctdb_dbdir/persistent.
 </longdesc>
 <shortdesc lang="en">CTDB database directory</shortdesc>
-<content type="string" default="${OCF_RESKEY_ctdb_dbdir}" />
+<content type="string" default="${OCF_RESKEY_ctdb_dbdir_default}" />
 </parameter>
 
 <parameter name="ctdb_logfile" unique="0" required="0">
@@ -268,7 +309,7 @@ Full path to log file. To log to syslog instead, use the
 value "syslog".
 </longdesc>
 <shortdesc lang="en">CTDB log file location</shortdesc>
-<content type="string" default="/var/log/ctdb/log.ctdb" />
+<content type="string" default="${OCF_RESKEY_ctdb_logfile_default}" />
 </parameter>
 
 <parameter name="ctdb_rundir" unique="0" required="0">
@@ -277,7 +318,7 @@ Full path to ctdb runtime directory, used for storage of socket
 lock state.
 </longdesc>
 <shortdesc lang="en">CTDB runtime directory location</shortdesc>
-<content type="string" default="${OCF_RESKEY_ctdb_rundir}" />
+<content type="string" default="${OCF_RESKEY_ctdb_rundir_default}" />
 </parameter>
 
 <parameter name="ctdb_debuglevel" unique="0" required="0">
@@ -285,7 +326,7 @@ lock state.
 What debug level to run at (0-10). Higher means more verbose.
 </longdesc>
 <shortdesc lang="en">CTDB debug level</shortdesc>
-<content type="integer" default="2" />
+<content type="integer" default="${OCF_RESKEY_ctdb_debuglevel_default}" />
 </parameter>
 
 <parameter name="ctdb_max_open_files" required="0">
@@ -293,7 +334,7 @@ What debug level to run at (0-10). Higher means more verbose.
 Maximum number of open files (for ulimit -n)
 </longdesc>
 <shortdesc lang="en">Max open files</shortdesc>
-<content type="integer" default="" />
+<content type="integer" default="${OCF_RESKEY_ctdb_max_open_files_default}" />
 </parameter>
 
 <parameter name="smb_conf" unique="0" required="0">
@@ -302,7 +343,7 @@ Path to default samba config file.  Only necessary if CTDB
 is managing Samba.
 </longdesc>
 <shortdesc lang="en">Path to smb.conf</shortdesc>
-<content type="string" default="/etc/samba/smb.conf" />
+<content type="string" default="${OCF_RESKEY_smb_conf_default}" />
 </parameter>
 
 <parameter name="smb_private_dir" unique="1" required="0">
@@ -314,7 +355,7 @@ be set for current versions of CTDB, and only remains in the RA
 for backwards compatibility.
 </longdesc>
 <shortdesc lang="en">Samba private dir (deprecated)</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_smb_private_dir_default}" />
 </parameter>
 
 <parameter name="smb_passdb_backend" unique="0" required="0">
@@ -323,7 +364,7 @@ Which backend to use for storing user and possibly group
 information.  Only necessary if CTDB is managing Samba.
 </longdesc>
 <shortdesc lang="en">Samba passdb backend</shortdesc>
-<content type="string" default="tdbsam" />
+<content type="string" default="${OCF_RESKEY_smb_passdb_backend_default}" />
 </parameter>
 
 <parameter name="smb_idmap_backend" unique="0" required="0">
@@ -332,7 +373,7 @@ Which backend to use for SID/uid/gid mapping.  Only necessary
 if CTDB is managing Samba.
 </longdesc>
 <shortdesc lang="en">Samba idmap backend</shortdesc>
-<content type="string" default="tdb2" />
+<content type="string" default="${OCF_RESKEY_smb_idmap_backend_default}" />
 </parameter>
 
 <parameter name="smb_fileid_algorithm" unique="0" required="0">
@@ -343,7 +384,7 @@ for OCFS2, this should be set to "fsid".  Only necessary if
 CTDB is managing Samba.
 </longdesc>
 <shortdesc lang="en">Samba VFS fileid algorithm</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_smb_fileid_algorithm_default}" />
 </parameter>
 
 </parameters>
@@ -387,16 +428,28 @@ invoke_ctdb() {
 		timeout=$((OCF_RESKEY_CRM_meta_timeout/1000))
 		timelimit=$((OCF_RESKEY_CRM_meta_timeout/1000))
 	fi
-	$OCF_RESKEY_ctdb_binary --socket="$OCF_RESKEY_ctdb_socket" \
-		-t $timeout -T $timelimit \
-		"$@"
+
+	local vers=$(ctdb_version)
+	ocf_version_cmp "$vers" "4.9.0"
+
+	# if version < 4.9.0 specify '--socket' otherwise it's
+	# a compiled option
+	if [ "$?" -eq "0" ]; then
+		$OCF_RESKEY_ctdb_binary --socket="$OCF_RESKEY_ctdb_socket" \
+			-t $timeout -T $timelimit \
+			"$@"
+	else
+		$OCF_RESKEY_ctdb_binary \
+			-t $timeout -T $timelimit \
+			"$@"
+	fi
 }
 
 # Enable any event scripts that are explicitly required.
 # Any others will ultimately be invoked or not based on how they ship
 # with CTDB, but will generally have no effect, beacuase the relevant
 # CTDB_MANAGES_* options won't be set in /etc/sysconfig/ctdb.
-enable_event_scripts() {
+enable_event_scripts_chmod() {
 	local event_dir
 	event_dir=$OCF_RESKEY_ctdb_config_dir/events.d
 
@@ -417,6 +470,36 @@ enable_event_scripts() {
 		chmod u+x "$event_dir/50.samba"
 	else
 		chmod a-x "$event_dir/50.samba"
+	fi
+}
+
+enable_event_scripts_symlink() {
+	# event scripts are symlinked once enabled, with the link source in...
+	mkdir -p "$OCF_RESKEY_ctdb_config_dir/events/legacy" 2>/dev/null
+
+	invoke_ctdb event script enable legacy 00.ctdb
+
+	if [ -f "${OCF_RESKEY_ctdb_config_dir}/public_addresses" ]; then
+		invoke_ctdb event script enable legacy 10.interface
+	else
+		invoke_ctdb event script disable legacy 10.interface
+	fi
+	if [ -f "${OCF_RESKEY_ctdb_config_dir}/static-routes" ]; then
+		invoke_ctdb event script enable legacy 11.routing
+	else
+		invoke_ctdb event script disable legacy 11.routing
+	fi
+
+	if ocf_is_true "$OCF_RESKEY_ctdb_manages_winbind"; then
+		invoke_ctdb event script enable legacy 49.winbind
+	else
+		invoke_ctdb event script disable legacy 49.winbind
+	fi
+
+	if ocf_is_true "$OCF_RESKEY_ctdb_manages_samba"; then
+		invoke_ctdb event script enable legacy 50.samba
+	else
+		invoke_ctdb event script disable legacy 50.samba
 	fi
 }
 
@@ -518,8 +601,69 @@ cleanup_smb_conf() {
 	mv "$OCF_RESKEY_smb_conf.$$" "$OCF_RESKEY_smb_conf"
 }
 
-append_ctdb_sysconfig() {
-	[ -n "$2" ] && echo "$1=$2" >> "$CTDB_SYSCONFIG"
+append_conf() {
+	local file_path="$1"
+	shift
+	[ -n "$2" ] && echo "$1=$2" >> "$file_path"
+}
+
+generate_ctdb_config() {
+	local ctdb_config="$OCF_RESKEY_ctdb_config_dir/ctdb.conf"
+
+	# Backup existing config if we're not already using an auto-generated one
+	grep -qa '# CTDB-RA: Auto-generated' $ctdb_config || cp -p $ctdb_config ${ctdb_config}.ctdb-ra-orig
+	if [ $? -ne 0 ]; then
+		ocf_log warn "Unable to backup $ctdb_config to ${ctdb_config}.ctdb-ra-orig"
+	fi
+
+	local log_option="file:$OCF_RESKEY_ctdb_logfile"
+	if [ "$OCF_RESKEY_ctdb_logfile" = "syslog" ]; then
+		log_option="syslog"
+	fi
+
+	local start_as_disabled="false"
+	ocf_is_true "$OCF_RESKEY_ctdb_start_as_disabled" && start_as_disabled="true"
+
+	local dbdir_volatile="$OCF_RESKEY_ctdb_dbdir/volatile"
+	[ -d "$dbdir_volatile" ] || mkdir -p "$dbdir_volatile" 2>/dev/null
+	local dbdir_persistent="$OCF_RESKEY_ctdb_dbdir/persistent"
+	[ -d "$dbdir_persistent" ] || mkdir -p "$dbdir_persistent" 2>/dev/null
+	local dbdir_state="$OCF_RESKEY_ctdb_dbdir/state"
+	[ -d "$dbdir_state" ] || mkdir -p "$dbdir_state" 2>/dev/null
+
+cat >$ctdb_config <<EOF
+# CTDB-RA: Auto-generated
+[logging]
+	location = $log_option
+	log level = $OCF_RESKEY_ctdb_debuglevel
+[cluster]
+	recovery lock = $OCF_RESKEY_ctdb_recovery_lock
+[database]
+	volatile database directory = $dbdir_volatile
+	persistent database directory = $dbdir_persistent
+	state database directory = $dbdir_state
+[legacy]
+	start as disabled = $start_as_disabled
+EOF
+}
+
+generate_event_script_options() {
+	local script_options="$OCF_RESKEY_ctdb_config_dir/script.options"
+
+	# Backup existing config if we're not already using an auto-generated one
+	grep -qa '# CTDB-RA: Auto-generated' $script_options || cp -p $script_options ${script_options}.ctdb-ra-orig
+	if [ $? -ne 0 ]; then
+		ocf_log warn "Unable to backup $script_options to ${script_options}.ctdb-ra-orig"
+	fi
+
+cat >$script_options <<EOF
+# CTDB-RA: Auto-generated
+CTDB_SAMBA_SKIP_SHARE_CHECK=$(ocf_is_true "$OCF_RESKEY_ctdb_samba_skip_share_check" && echo 'yes' || echo 'no')
+EOF
+
+	append_conf "$script_options" CTDB_SERVICE_SMB $OCF_RESKEY_ctdb_service_smb
+	append_conf "$script_options" CTDB_SERVICE_NMB $OCF_RESKEY_ctdb_service_nmb
+	append_conf "$script_options" CTDB_SERVICE_WINBIND $OCF_RESKEY_ctdb_service_winbind
 }
 
 # Generate a new, minimal CTDB config file that's just enough
@@ -549,9 +693,61 @@ CTDB_SAMBA_SKIP_SHARE_CHECK=$(ocf_is_true "$OCF_RESKEY_ctdb_samba_skip_share_che
 CTDB_MANAGES_SAMBA=$(ocf_is_true "$OCF_RESKEY_ctdb_manages_samba" && echo 'yes' || echo 'no')
 CTDB_MANAGES_WINBIND=$(ocf_is_true "$OCF_RESKEY_ctdb_manages_winbind" && echo 'yes' || echo 'no')
 EOF
-	append_ctdb_sysconfig CTDB_SERVICE_SMB $OCF_RESKEY_ctdb_service_smb
-	append_ctdb_sysconfig CTDB_SERVICE_NMB $OCF_RESKEY_ctdb_service_nmb
-	append_ctdb_sysconfig CTDB_SERVICE_WINBIND $OCF_RESKEY_ctdb_service_winbind
+	append_conf "$CTDB_SYSCONFIG" CTDB_SERVICE_SMB $OCF_RESKEY_ctdb_service_smb
+	append_conf "$CTDB_SYSCONFIG" CTDB_SERVICE_NMB $OCF_RESKEY_ctdb_service_nmb
+	append_conf "$CTDB_SYSCONFIG" CTDB_SERVICE_WINBIND $OCF_RESKEY_ctdb_service_winbind
+}
+
+
+invoke_ctdbd() {
+	local vers="$1"
+
+	ocf_version_cmp "$vers" "4.9.0"
+	if [ "$?" -ne "0" ]; then
+		# With 4.9+, all ctdbd binary parameters are provided as
+		# config settings
+		$OCF_RESKEY_ctdbd_binary
+		return
+	fi
+
+	# Use logfile by default, or syslog if asked for
+	local log_option
+	# --logging supported from v4.3.0 and --logfile / --syslog support
+	# has been removed from newer versions
+	ocf_version_cmp "$vers" "4.2.14"
+	if [ "$?" -eq "2" ]; then
+		log_option="--logging=file:$OCF_RESKEY_ctdb_logfile"
+		if [ "$OCF_RESKEY_ctdb_logfile" = "syslog" ]; then
+			log_option="--logging=syslog"
+		fi
+	else
+		log_option="--logfile=$OCF_RESKEY_ctdb_logfile"
+		if [ "$OCF_RESKEY_ctdb_logfile" = "syslog" ]; then
+			log_option="--syslog"
+		fi
+	fi
+
+	# public addresses file (should not be present, but need to set for correctness if it is)
+	local pub_addr_option
+	pub_addr_option=""
+	[ -f "${OCF_RESKEY_ctdb_config_dir}/public_addresses" ] && \
+		pub_addr_option="--public-addresses=${OCF_RESKEY_ctdb_config_dir}/public_addresses"
+	# start as disabled
+	local start_as_disabled
+	start_as_disabled="--start-as-disabled"
+	ocf_is_true "$OCF_RESKEY_ctdb_start_as_disabled" || start_as_disabled=""
+
+	$OCF_RESKEY_ctdbd_binary \
+		--reclock="$OCF_RESKEY_ctdb_recovery_lock" \
+		--nlist="$OCF_RESKEY_ctdb_config_dir/nodes" \
+		--socket="$OCF_RESKEY_ctdb_socket" \
+		--dbdir="$OCF_RESKEY_ctdb_dbdir" \
+		--dbdir-persistent="$OCF_RESKEY_ctdb_dbdir/persistent" \
+		--event-script-dir="$OCF_RESKEY_ctdb_config_dir/events.d" \
+		--notification-script="$OCF_RESKEY_ctdb_config_dir/notify.sh" \
+		--transport=tcp \
+		$start_as_disabled $log_option $pub_addr_option \
+		-d "$OCF_RESKEY_ctdb_debuglevel"
 }
 
 
@@ -580,27 +776,29 @@ ctdb_start() {
 		return $OCF_ERR_GENERIC
 	fi
 
-	# Generate new CTDB sysconfig
-	generate_ctdb_sysconfig
-	enable_event_scripts
+	local version=$(ctdb_version)
 
-	# Use logfile by default, or syslog if asked for
-	local log_option
-	# --logging supported from v4.3.0 and --logfile / --syslog support 
-	# has been removed from newer versions
-	version=$(ctdb version | awk '{print $NF}' | sed "s/[-\.]\?[[:alpha:]].*//")
-	ocf_version_cmp "$version" "4.2.14"
-	if [ "$?" -eq "2" ]; then
-		log_option="--logging=file:$OCF_RESKEY_ctdb_logfile"
-		if [ "$OCF_RESKEY_ctdb_logfile" = "syslog" ]; then
-			log_option="--logging=syslog"
-		fi
+	ocf_version_cmp "$version" "4.9.0"
+	if [ "$?" -eq "0" ]; then
+		# prior to 4.9, ctdbd parameters are in sysconfig or passed as
+		# binary arguments
+		generate_ctdb_sysconfig
+
+		# prior to 4.9, event script enablement without a running
+		# ctdbd is done by chmoding the scripts directly
+		enable_event_scripts_chmod
 	else
-		log_option="--logfile=$OCF_RESKEY_ctdb_logfile"
-		if [ "$OCF_RESKEY_ctdb_logfile" = "syslog" ]; then
-			log_option="--syslog"
-		fi
+		# 4.9+ moves all ctdbd parameters to ctdb.conf
+		generate_ctdb_config
+
+		# 4.9+ event script options are in script.options
+		generate_event_script_options
+
+		# 4.9+ event scripts can be enabled with ctdb directly, which
+		# performs a symlink
+		enable_event_scripts_symlink
 	fi
+
 	if [ ! -d "$(dirname $OCF_RESKEY_ctdb_logfile)" ]; then
 		# ensure the logfile's directory exists, otherwise ctdb will fail to start
 		mkdir -p $(dirname $OCF_RESKEY_ctdb_logfile)
@@ -609,33 +807,14 @@ ctdb_start() {
 	# ensure ctdb's rundir exists, otherwise it will fail to start
 	mkdir -p $OCF_RESKEY_ctdb_rundir 2>/dev/null
 
-	# public addresses file (should not be present, but need to set for correctness if it is)
-	local pub_addr_option
-	pub_addr_option=""
-	[ -f "${OCF_RESKEY_ctdb_config_dir}/public_addresses" ] && \
-		pub_addr_option="--public-addresses=${OCF_RESKEY_ctdb_config_dir}/public_addresses"
-	# start as disabled
-	local start_as_disabled
-	start_as_disabled="--start-as-disabled"
-	ocf_is_true "$OCF_RESKEY_ctdb_start_as_disabled" || start_as_disabled=""
-
 	# set nofile ulimit for ctdbd process
 	if [ -n "$OCF_RESKEY_ctdb_max_open_files" ]; then
 		ulimit -n "$OCF_RESKEY_ctdb_max_open_files"
 	fi
 
 	# Start her up
-	"$OCF_RESKEY_ctdbd_binary" \
-		--reclock="$OCF_RESKEY_ctdb_recovery_lock" \
-		--nlist="$OCF_RESKEY_ctdb_config_dir/nodes" \
-		--socket="$OCF_RESKEY_ctdb_socket" \
-		--dbdir="$OCF_RESKEY_ctdb_dbdir" \
-		--dbdir-persistent="$OCF_RESKEY_ctdb_dbdir/persistent" \
-		--event-script-dir="$OCF_RESKEY_ctdb_config_dir/events.d" \
-		--notification-script="$OCF_RESKEY_ctdb_config_dir/notify.sh" \
-		--transport=tcp \
-		$start_as_disabled $log_option $pub_addr_option \
-		-d "$OCF_RESKEY_ctdb_debuglevel"
+	invoke_ctdbd "$version"
+
 	if [ $? -ne 0 ]; then
 		# cleanup smb.conf
 		cleanup_smb_conf
@@ -654,7 +833,7 @@ ctdb_start() {
 			if [ $? -ne 0 ]; then
 				# CTDB will be running, kill it before returning
 				ctdb_stop
-				ocf_exit_reason "Can't invoke $OCF_RESKEY_ctdb_binary --socket=$OCF_RESKEY_ctdb_socket status"
+				ocf_exit_reason "Can't invoke $OCF_RESKEY_ctdb_binary status"
 				return $OCF_ERR_GENERIC
 			fi
 			if ! echo "$status" | grep -qs 'UNHEALTHY (THIS'; then
@@ -691,7 +870,7 @@ ctdb_stop() {
 		[ $count -gt 10 ] && {
 			ocf_log info "killing ctdbd "
 			pkill -9 -f "$OCF_RESKEY_ctdbd_binary"
-			pkill -9 -f "${OCF_RESKEY_ctdb_config_dir}/events.d/"
+			pkill -9 -f "${OCF_RESKEY_ctdb_config_dir}/events"
 		}
 	done
 
@@ -745,11 +924,6 @@ ctdb_validate() {
 	for binary in pkill; do
 		check_binary $binary
 	done
-
-	if [ -z "$CTDB_SYSCONFIG" ]; then
-		ocf_exit_reason "Can't find CTDB config file (expecting /etc/sysconfig/ctdb, /etc/default/ctdb or similar)"
-		return $OCF_ERR_INSTALLED
-	fi
 
 	if ocf_is_true "$OCF_RESKEY_ctdb_manages_samba" && [ ! -f "$OCF_RESKEY_smb_conf" ]; then
 		ocf_exit_reason "Samba config file '$OCF_RESKEY_smb_conf' does not exist."

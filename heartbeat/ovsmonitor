@@ -46,6 +46,26 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_bond_default=""
+OCF_RESKEY_bridge_default=""
+OCF_RESKEY_name_default=""
+OCF_RESKEY_multiplier_default="1"
+OCF_RESKEY_repeat_count_default="5"
+OCF_RESKEY_repeat_interval_default="10"
+OCF_RESKEY_pktcnt_timeout_default="5"
+OCF_RESKEY_link_status_only_default="false"
+
+: ${OCF_RESKEY_bond=${OCF_RESKEY_bond_default}}
+: ${OCF_RESKEY_bridge=${OCF_RESKEY_bridge_default}}
+: ${OCF_RESKEY_name=${OCF_RESKEY_name_default}}
+: ${OCF_RESKEY_multiplier=${OCF_RESKEY_multiplier_default}}
+: ${OCF_RESKEY_repeat_count=${OCF_RESKEY_repeat_count_default}}
+: ${OCF_RESKEY_repeat_interval=${OCF_RESKEY_repeat_interval_default}}
+: ${OCF_RESKEY_pktcnt_timeout=${OCF_RESKEY_pktcnt_timeout_default}}
+: ${OCF_RESKEY_link_status_only=${OCF_RESKEY_link_status_only_default}}
+
 #######################################################################
 
 meta_data() {
@@ -87,7 +107,7 @@ The ethmonitor works in 3 different modes to test the bond vitality.
 The name of the network bond which should be monitored (e.g. bond-public).
 </longdesc>
 <shortdesc lang="en">Bond bond name</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_bond_default}"/>
 </parameter>
 
 <parameter name="bridge" unique="1" required="1">
@@ -95,15 +115,15 @@ The name of the network bond which should be monitored (e.g. bond-public).
 The name of the ovs bridge that contains the bridge.
 </longdesc>
 <shortdesc lang="en">ovs bridge</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_bridge_default}"/>
 </parameter>
 
 <parameter name="name" unique="1">
 <longdesc lang="en">
-The name of the CIB attribute to set. This is the name to be used in the constraints. Defaults to "ethmonitor-'bond_name'".
+The name of the CIB attribute to set. This is the name to be used in the constraints. Defaults to "ovsmonitor-'bond_name'".
 </longdesc>
 <shortdesc lang="en">Attribute name</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_name_default}"/>
 </parameter>
 
 <parameter name="multiplier" unique="0" >
@@ -111,7 +131,7 @@ The name of the CIB attribute to set. This is the name to be used in the constra
 Multiplier for the value of the CIB attriobute specified in parameter name.
 </longdesc>
 <shortdesc lang="en">Multiplier for result variable</shortdesc>
-<content type="integer" default="1"/>
+<content type="integer" default="${OCF_RESKEY_multiplier_default}"/>
 </parameter>
 
 <parameter name="repeat_count">
@@ -119,7 +139,7 @@ Multiplier for the value of the CIB attriobute specified in parameter name.
 Specify how often the bond will be monitored, before the status is set to failed. You need to set the timeout of the monitoring operation to at least repeat_count * repeat_interval
 </longdesc>
 <shortdesc lang="en">Monitor repeat count</shortdesc>
-<content type="integer" default="5"/>
+<content type="integer" default="${OCF_RESKEY_repeat_count_default}"/>
 </parameter>
 
 <parameter name="repeat_interval">
@@ -127,7 +147,7 @@ Specify how often the bond will be monitored, before the status is set to failed
 Specify how long to wait in seconds between the repeat_counts.
 </longdesc>
 <shortdesc lang="en">Monitor repeat interval in seconds</shortdesc>
-<content type="integer" default="10"/>
+<content type="integer" default="${OCF_RESKEY_repeat_interval_default}"/>
 </parameter>
 
 <parameter name="pktcnt_timeout">
@@ -135,7 +155,7 @@ Specify how long to wait in seconds between the repeat_counts.
 Timeout for the RX packet counter. Stop listening for packet counter changes after the given number of seconds.
 </longdesc>
 <shortdesc lang="en">packet counter timeout</shortdesc>
-<content type="integer" default="5"/>
+<content type="integer" default="${OCF_RESKEY_pktcnt_timeout_default}"/>
 </parameter>
 
 <parameter name="link_status_only">
@@ -143,7 +163,7 @@ Timeout for the RX packet counter. Stop listening for packet counter changes aft
 Only report success based on link status. Do not perform RX counter related connectivity tests.
 </longdesc>
 <shortdesc lang="en">link status check only</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_link_status_only_default}" />
 </parameter>
 
 </parameters>
@@ -211,7 +231,6 @@ if_init() {
 		exit $OCF_ERR_CONFIGURED;
 	fi
 
-	: ${OCF_RESKEY_multiplier:="1"}
 	if ! ocf_is_decimal "$OCF_RESKEY_multiplier"; then
 		ocf_exit_reason "Invalid OCF_RESKEY_multiplier [$OCF_RESKEY_multiplier]"
 		exit $OCF_ERR_CONFIGURED
@@ -219,17 +238,16 @@ if_init() {
 
 	ATTRNAME=${OCF_RESKEY_name:-"ovsmonitor-$BOND"}
 
-	REP_COUNT=${OCF_RESKEY_repeat_count:-5}
+	REP_COUNT=${OCF_RESKEY_repeat_count}
 	if ! ocf_is_decimal "$REP_COUNT" -o [ $REP_COUNT -lt 1 ]; then
 		ocf_exit_reason "Invalid OCF_RESKEY_repeat_count [$REP_COUNT]"
 		exit $OCF_ERR_CONFIGURED
 	fi
-	REP_INTERVAL_S=${OCF_RESKEY_repeat_interval:-10}
+	REP_INTERVAL_S=${OCF_RESKEY_repeat_interval}
 	if ! ocf_is_decimal "$REP_INTERVAL_S"; then
 		ocf_exit_reason "Invalid OCF_RESKEY_repeat_interval [$REP_INTERVAL_S]"
 		exit $OCF_ERR_CONFIGURED
 	fi
-	: ${OCF_RESKEY_pktcnt_timeout:="5"}
 	if ! ocf_is_decimal "$OCF_RESKEY_pktcnt_timeout"; then
 		ocf_exit_reason "Invalid OCF_RESKEY_pktcnt_timeout [$OCF_RESKEY_pktcnt_timeout]"
 		exit $OCF_ERR_CONFIGURED

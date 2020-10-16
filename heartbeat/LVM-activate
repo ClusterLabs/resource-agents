@@ -42,6 +42,22 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_vgname_default=""
+OCF_RESKEY_lvname_default=""
+OCF_RESKEY_vg_access_mode_default=""
+OCF_RESKEY_activation_mode_default="exclusive"
+OCF_RESKEY_tag_default="pacemaker"
+OCF_RESKEY_partial_activation_default="false"
+
+: ${OCF_RESKEY_vgname=${OCF_RESKEY_vgname_default}}
+: ${OCF_RESKEY_lvname=${OCF_RESKEY_lvname_default}}
+: ${OCF_RESKEY_vg_access_mode=${OCF_RESKEY_vg_access_mode_default}}
+: ${OCF_RESKEY_activation_mode=${OCF_RESKEY_activation_mode_default}}
+: ${OCF_RESKEY_tag=${OCF_RESKEY_tag_default}}
+: ${OCF_RESKEY_partial_activation=${OCF_RESKEY_partial_activation_default}}
+
 # If LV is given, only activate this named LV; otherwise, activate all
 # LVs in the named VG.
 VG=${OCF_RESKEY_vgname}
@@ -60,13 +76,13 @@ VG_access_mode_num=0
 
 # Activate LV(s) with "shared" lock for cluster fs
 # or "exclusive" lock for local fs
-LV_activation_mode=${OCF_RESKEY_activation_mode:-exclusive}
+LV_activation_mode=${OCF_RESKEY_activation_mode}
 
 # For system ID feature
 SYSTEM_ID=""
 
 # For tagging activation mode
-OUR_TAG=${OCF_RESKEY_tag:-pacemaker}
+OUR_TAG=${OCF_RESKEY_tag}
 
 #######################################################################
 
@@ -98,6 +114,18 @@ clvm+LVM-activate. However, it is not possible to use both at the same time!
 if using the cluster to manage at least one of them.  If you manage some manually,
 the stop action of the lvmlockd agent may fail and the node may get fenced,
 because some DLM lockspaces might be in use and cannot be closed automatically.
+
+Option: OCF_CHECK_LEVEL
+
+The standard monitor operation of depth 0 checks if the VG or LV is valid.
+If you want deeper tests, set OCF_CHECK_LEVEL to 10:
+
+  10: read first 1 byte of the underlying device (raw read)
+
+If there are many underlying devs in VG, it will only read one of the devs.
+This is not perfect solution for detecting underlying devices livable.
+e.g. iscsi SAN IO timeout will return EIO, and it makes monitor failed.
+
 </longdesc>
 <shortdesc lang="en">This agent activates/deactivates logical volumes.</shortdesc>
 
@@ -107,7 +135,7 @@ because some DLM lockspaces might be in use and cannot be closed automatically.
 The volume group name.
 </longdesc>
 <shortdesc lang="en">The volume group name</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_vgname_default}" />
 </parameter>
 
 <parameter name="lvname" unique="0" required="0">
@@ -115,7 +143,7 @@ The volume group name.
 If set, only the specified LV will be activated.
 </longdesc>
 <shortdesc lang="en">Only activate the given LV</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_lvname_default}" />
 </parameter>
 
 <parameter name="vg_access_mode" unique="0" required="1">
@@ -125,7 +153,7 @@ cluster environment. Optional solutions are: lvmlockd, clvmd, system_id and
 tagging.
 </longdesc>
 <shortdesc lang="en">The VG access mode</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_vg_access_mode_default}" />
 </parameter>
 
 <parameter name="activation_mode" unique="0" required="0">
@@ -139,7 +167,7 @@ This option only has effect on "lvmlockd"/"clvmd" vg_access_mode. For "system_id
 and "tagging", they always mean exclusive activation.
 </longdesc>
 <shortdesc lang="en">Logical volume activation mode</shortdesc>
-<content type="string" default="exclusive" />
+<content type="string" default="${OCF_RESKEY_activation_mode_default}" />
 </parameter>
 
 <parameter name="tag" unique="0" required="0">
@@ -147,7 +175,17 @@ and "tagging", they always mean exclusive activation.
 The tag used for tagging activation mode.
 </longdesc>
 <shortdesc lang="en">The tag used for tagging activation mode</shortdesc>
-<content type="string" default="pacemaker" />
+<content type="string" default="${OCF_RESKEY_tag_default}" />
+</parameter>
+
+<parameter name="partial_activation" unique="0" required="0">
+<longdesc lang="en">
+If set, the volume group will be activated partially even with some
+physical volumes missing. It helps to set to true when using mirrored
+logical volumes.
+</longdesc>
+<shortdesc lang="en">Activate VG partially when missing PVs</shortdesc>
+<content type="string" default="${OCF_RESKEY_partial_activation_default}" />
 </parameter>
 
 </parameters>
@@ -475,6 +513,11 @@ lvm_validate() {
 	check_binary lvm
 	check_binary dmsetup
 
+	# This is necessary when using system ID to update lvm hints,
+	# or in older versions of lvm, this is necessary to update the
+	# lvmetad cache.
+	pvscan --cache
+
 	if ! vgs --foreign ${VG} >/dev/null 2>&1 ; then
 		# stop action exits successfully if the VG cannot be accessed...
 		if [ $__OCF_ACTION = "stop" ]; then
@@ -490,6 +533,25 @@ lvm_validate() {
 		ocf_exit_reason "Volume group[${VG}] doesn't exist, or not visible on this node!"
 		exit $OCF_ERR_CONFIGURED
 	fi
+
+	# Inconsistency might be due to missing physical volumes, which doesn't
+	# automatically mean we should fail.  If partial_activation=true then
+	# we should let start try to handle it, or if no PVs are listed as
+	# "unknown device" then another node may have marked a device missing
+	# where we have access to all of them and can start without issue.
+	case $(vgs -o attr --noheadings $VG | tr -d ' ') in
+	???p??*)
+		if ! ocf_is_true "$OCF_RESKEY_partial_activation" ; then
+			# We are missing devices and cannot activate partially
+			ocf_exit_reason "Volume group [$VG] has devices missing.  Consider partial_activation=true to attempt to activate partially"
+			exit $OCF_ERR_GENERIC
+		else
+			# We are missing devices but are allowed to activate partially.
+			# Assume that caused the vgck failure and carry on
+			ocf_log warn "Volume group inconsistency detected with missing device(s) and partial_activation enabled.  Proceeding with requested action."
+		fi
+		;;
+	esac
 
 	# Get the access mode from VG metadata and check if it matches the input
 	# value. Skip to check "tagging" mode because there's no reliable way to
@@ -549,6 +611,10 @@ lvm_validate() {
 # To activate LV(s) with different "activation mode" parameters
 do_activate() {
 	local activate_opt=$1
+
+	if ocf_is_true "$OCF_RESKEY_partial_activation" ; then
+		activate_opt="${activate_opt} --partial"
+	fi
 
 	# Only activate the specific LV if it's given
 	if [ -n "$LV" ]; then
@@ -613,7 +679,6 @@ clvmd_activate() {
 systemid_activate() {
 	local cur_systemid
 
-	pvscan --cache
 	cur_systemid=$(vgs --foreign --noheadings -o systemid ${VG} | tr -d '[:blank:]')
 
 	# Put our system ID on the VG
@@ -726,6 +791,7 @@ tagging_deactivate() {
 # This is AllBad but there isn't a better way that I'm aware of yet.
 lvm_status() {
 	local dm_count
+	local dm_name
 
 	if [ -n "${LV}" ]; then
 		# dmsetup ls? It cannot accept device name. It's
@@ -739,7 +805,25 @@ lvm_status() {
 		return $OCF_NOT_RUNNING
 	fi
 
-	return $OCF_SUCCESS
+	if [ $OCF_CHECK_LEVEL -gt 0 ]; then
+		case "$OCF_CHECK_LEVEL" in
+			10)
+				# if there are many lv in vg dir, pick the first name
+				dm_name="/dev/${VG}/$(ls -1 /dev/${VG} | head -n 1)"
+
+				# read 1 byte to check the dev is alive
+				dd if=${dm_name} of=/dev/null bs=1 count=1 >/dev/null 2>&1
+				if [ $? -ne 0 ]; then
+					return $OCF_NOT_RUNNING
+				fi
+				return $OCF_SUCCESS
+				;;
+			*)
+				ocf_exit_reason "unsupported monitor level $OCF_CHECK_LEVEL"
+				rc=$OCF_ERR_CONFIGURED
+				;;
+		esac
+	fi
 }
 
 lvm_start() {
@@ -838,7 +922,6 @@ stop)
 	lvm_stop
 	;;
 monitor)
-	lvm_validate
 	lvm_status
 	;;
 validate-all)

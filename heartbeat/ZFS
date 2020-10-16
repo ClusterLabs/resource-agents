@@ -22,8 +22,12 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
+OCF_RESKEY_pool_default=""
+OCF_RESKEY_importargs_default=""
 OCF_RESKEY_importforce_default=true
 
+: ${OCF_RESKEY_pool=${OCF_RESKEY_pool_default}}
+: ${OCF_RESKEY_importargs=${OCF_RESKEY_importargs_default}}
 : ${OCF_RESKEY_importforce=${OCF_RESKEY_importforce_default}}
 
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
@@ -48,16 +52,16 @@ It can import a ZFS pool or export it
 The name of the ZFS pool to manage, e.g. "tank".
 </longdesc>
 <shortdesc lang="en">ZFS pool name</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_pool_default}" />
 </parameter>
 <parameter name="importargs" unique="0" required="0">
 <longdesc lang="en">
 Arguments to zpool import, e.g. "-d /dev/disk/by-id".
 </longdesc>
 <shortdesc lang="en">Import arguments</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_importargs_default}" />
 </parameter>
-<parameter name="importforce" unique="1" required="0">
+<parameter name="importforce" unique="0" required="0">
 <longdesc lang="en">
 zpool import is given the -f option.
 </longdesc>
@@ -144,7 +148,7 @@ zpool_monitor () {
 	# Since version 0.7.10 status can be obtained without locks
 	# https://github.com/zfsonlinux/zfs/pull/7563
 	if [ -f /proc/spl/kstat/zfs/$OCF_RESKEY_pool/state ] ; then
-		HEALTH=$(</proc/spl/kstat/zfs/$OCF_RESKEY_pool/state)
+		HEALTH=$(cat /proc/spl/kstat/zfs/$OCF_RESKEY_pool/state)
 	else
 		HEALTH=$(zpool list -H -o health "$OCF_RESKEY_pool")
 	fi

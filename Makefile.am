@@ -59,14 +59,14 @@ EXTRA_DIST		= autogen.sh .version make/release.mk \
 install-exec-local:
 if BUILD_LINUX_HA
 	$(INSTALL) -d -m 1755 $(DESTDIR)$(HA_RSCTMPDIR)
-	$(LN_S) ../../lib/heartbeat/ocf-binaries $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-binaries
-	$(LN_S) ../../lib/heartbeat/ocf-directories $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-directories
-	$(LN_S) ../../lib/heartbeat/ocf-returncodes $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-returncodes
-	$(LN_S) ../../lib/heartbeat/ocf-shellfuncs $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-shellfuncs
+	$(LN_S) -f ../../lib/heartbeat/ocf-binaries $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-binaries
+	$(LN_S) -f ../../lib/heartbeat/ocf-directories $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-directories
+	$(LN_S) -f ../../lib/heartbeat/ocf-returncodes $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-returncodes
+	$(LN_S) -f ../../lib/heartbeat/ocf-shellfuncs $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-shellfuncs
 endif
 if BUILD_RGMANAGER
 if BUILD_LINUX_HA
-	$(LN_S) ${CLUSTERDATA} $(DESTDIR)${OCF_RA_DIR_PREFIX}/redhat
+	$(LN_S) -n -f ${CLUSTERDATA} $(DESTDIR)${OCF_RA_DIR_PREFIX}/redhat
 endif
 	$(INSTALL) -d $(DESTDIR)/$(LOGDIR)
 endif

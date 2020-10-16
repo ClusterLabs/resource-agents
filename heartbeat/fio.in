@@ -31,6 +31,12 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_args_default=""
+
+: ${OCF_RESKEY_args=${OCF_RESKEY_args_default}}
+
 #######################################################################
 
 meta_data() {
@@ -54,7 +60,7 @@ Arguments to the fio client. Minimally, this should be a (list of) job
 descriptions to run.
 </longdesc>
 <shortdesc lang="en">fio arguments</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_args_default}" />
 </parameter>
 
 </parameters>

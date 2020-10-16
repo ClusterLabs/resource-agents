@@ -29,6 +29,12 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_set_policy_default=""
+
+: ${OCF_RESKEY_set_policy=${OCF_RESKEY_set_policy_default}}
+
 #######################################################################
 
 # This arbitrary value here is used by the rmq_start action to
@@ -77,7 +83,7 @@ Only on pacemaker *or* pacemaker-remote nodes exclusively.
 Policy string to pass to 'rabbitmqctl set_policy' right after bootstrapping the first rabbitmq instance.
 </longdesc>
 <shortdesc lang="en">rabbitmqctl set_policy args</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_set_policy_default}" />
 </parameter>
 
 </parameters>
@@ -106,6 +112,62 @@ END
 rmq_wipe_data()
 {
 	rm -rf $RMQ_DATA_DIR > /dev/null 2>&1 
+}
+
+rmq_restore_users_perms_policies()
+{
+	# Restore users, user permissions, and policies (if any)
+	BaseDataDir=`dirname $RMQ_DATA_DIR`
+	$RMQ_EVAL "
+		%% Run only if Mnesia is ready.
+		lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
+		begin
+			Restore = fun(Table, PostprocessFun, Filename) ->
+				case file:consult(Filename) of
+					{error, _} ->
+						ok;
+					{ok, [Result]} ->
+						lists:foreach(fun(X) -> mnesia:dirty_write(Table, PostprocessFun(X)) end, Result),
+						file:delete(Filename)
+				end
+			end,
+
+			%% Restore users
+
+			Upgrade = fun
+				({internal_user, A, B, C}) -> {internal_user, A, B, C, rabbit_password_hashing_md5};
+				({internal_user, A, B, C, D}) -> {internal_user, A, B, C, D}
+			end,
+
+			Downgrade = fun
+				({internal_user, A, B, C}) -> {internal_user, A, B, C};
+				({internal_user, A, B, C, rabbit_password_hashing_md5}) -> {internal_user, A, B, C};
+				%% Incompatible scheme, so we will loose user's password ('B' value) during conversion.
+				%% Unfortunately, this case will require manual intervention - user have to run:
+				%%    rabbitmqctl change_password <A> <somenewpassword>
+				({internal_user, A, B, C, _}) -> {internal_user, A, B, C}
+			end,
+
+			%% Check db scheme first
+			[WildPattern] = ets:select(mnesia_gvar, [ { {{rabbit_user, wild_pattern}, '\\\$1'}, [], ['\\\$1'] } ]),
+			case WildPattern of
+				%% Version < 3.6.0
+				{internal_user,'_','_','_'} ->
+					Restore(rabbit_user, Downgrade, \"$BaseDataDir/users.erl\");
+				%% Version >= 3.6.0
+				{internal_user,'_','_','_','_'} ->
+					Restore(rabbit_user, Upgrade, \"$BaseDataDir/users.erl\")
+			end,
+
+			NoOp = fun(X) -> X end,
+
+			%% Restore user permissions
+			Restore(rabbit_user_permission, NoOp, \"$BaseDataDir/users_perms.erl\"),
+
+			%% Restore policies
+			Restore(rabbit_runtime_parameters, NoOp, \"$BaseDataDir/policies.erl\")
+		end.
+	"
 }
 
 rmq_local_node()
@@ -232,6 +294,8 @@ rmq_monitor() {
 rmq_init_and_wait()
 {
 	local rc
+	local wait_timeout
+	local timeout_string
 
 	prepare_dir $RMQ_PID_DIR
 	prepare_dir $RMQ_LOG_DIR
@@ -243,11 +307,20 @@ rmq_init_and_wait()
 	setsid sh -c "$RMQ_SERVER > ${RMQ_LOG_DIR}/startup_log 2> ${RMQ_LOG_DIR}/startup_err" &
 
 	ocf_log info "Waiting for server to start"
-	$RMQ_CTL wait $RMQ_PID_FILE
+	# We want to give the wait command almost the full startup timeout we are given
+	# So we use the start operation timeout (in ms), convert it and subtract 5 seconds
+	# In the silly case that it is less than 10 seconds we just skip setting the timeout
+	wait_timeout=`expr $OCF_RESKEY_CRM_meta_timeout / 1000 - 5`
+	if [ $wait_timeout -gt 10 ]; then
+		timeout_string="--timeout ${wait_timeout}"
+	else
+		timeout_string=""
+	fi
+	$RMQ_CTL $timeout_string wait $RMQ_PID_FILE
 	rc=$?
 	if [ $rc -ne $OCF_SUCCESS ]; then
 		remove_pid
-		ocf_log info "rabbitmq-server start failed: $rc"
+		ocf_log info "rabbitmq-server start failed with a timeout of ($timeout_string): $rc"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -405,6 +478,7 @@ rmq_try_start() {
 	if [ -z "$join_list" ]; then
 		rmq_start_first
 		rc=$?
+		rmq_restore_users_perms_policies
 		return $rc
 	fi
 
@@ -431,58 +505,8 @@ rmq_try_start() {
 		return $RMQ_TRY_RESTART_ERROR_CODE
 	fi
 
-	# Restore users, user permissions, and policies (if any)
-	BaseDataDir=`dirname $RMQ_DATA_DIR`
-	$RMQ_EVAL "
-		%% Run only if Mnesia is ready.
-		lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
-		begin
-			Restore = fun(Table, PostprocessFun, Filename) ->
-				case file:consult(Filename) of
-					{error, _} ->
-						ok;
-					{ok, [Result]} ->
-						lists:foreach(fun(X) -> mnesia:dirty_write(Table, PostprocessFun(X)) end, Result),
-						file:delete(Filename)
-				end
-			end,
+	rmq_restore_users_perms_policies
 
-			%% Restore users
-
-			Upgrade = fun
-				({internal_user, A, B, C}) -> {internal_user, A, B, C, rabbit_password_hashing_md5};
-				({internal_user, A, B, C, D}) -> {internal_user, A, B, C, D}
-			end,
-
-			Downgrade = fun
-				({internal_user, A, B, C}) -> {internal_user, A, B, C};
-				({internal_user, A, B, C, rabbit_password_hashing_md5}) -> {internal_user, A, B, C};
-				%% Incompatible scheme, so we will loose user's password ('B' value) during conversion.
-				%% Unfortunately, this case will require manual intervention - user have to run:
-				%%    rabbitmqctl change_password <A> <somenewpassword>
-				({internal_user, A, B, C, _}) -> {internal_user, A, B, C}
-			end,
-
-			%% Check db scheme first
-			[WildPattern] = ets:select(mnesia_gvar, [ { {{rabbit_user, wild_pattern}, '\\\$1'}, [], ['\\\$1'] } ]),
-			case WildPattern of
-				%% Version < 3.6.0
-				{internal_user,'_','_','_'} ->
-					Restore(rabbit_user, Downgrade, \"$BaseDataDir/users.erl\");
-				%% Version >= 3.6.0
-				{internal_user,'_','_','_','_'} ->
-					Restore(rabbit_user, Upgrade, \"$BaseDataDir/users.erl\")
-			end,
-
-			NoOp = fun(X) -> X end,
-
-			%% Restore user permissions
-			Restore(rabbit_user_permission, NoOp, \"$BaseDataDir/users_perms.erl\"),
-
-			%% Restore policies
-			Restore(rabbit_runtime_parameters, NoOp, \"$BaseDataDir/policies.erl\")
-		end.
-	"
 	return $OCF_SUCCESS
 }
 
@@ -539,6 +563,7 @@ rmq_stop() {
 
 	if [ $rc -ne 0 ]; then
 		ocf_log err "rabbitmq-server stop command failed: $RMQ_CTL stop, $rc"
+		rmq_delete_nodename
 		return $rc
 	fi
 
@@ -552,6 +577,7 @@ rmq_stop() {
 			break
 		elif [ "$rc" -ne $OCF_SUCCESS ]; then
 			ocf_log info "rabbitmq-server stop failed: $rc"
+			rmq_delete_nodename
 			exit $OCF_ERR_GENERIC
 		fi
 		sleep 1

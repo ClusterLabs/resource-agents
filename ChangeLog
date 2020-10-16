@@ -1,3 +1,186 @@
+* Thu Jun 18 2020 resource-agents contributors
+- stable release 4.6.1
+- dummypy: add agent to Makefiles/configure and change from f-strings to make it
+  compatible with Python < 3.6
+
+* Thu Jun 18 2020 resource-agents contributors
+- stable release 4.6.0
+- ocf_is_ms(): also check OCF_RESKEY_CRM_meta_promotable to make it work w/Pacemaker 2.x
+- pgsql: use XML output for better backward and forward compatibility, and "Promoted"
+  keyword to be ready for Pacemaker 2.1
+- ldirectord: add support for ldaps
+- Filesystem: set "fast_stop" default to "no" for GFS2 filesystems as they are
+  likely to use more than 6 seconds to stop
+- exportfs: fix ocft script failure
+- build: fix failing to run "ln -s" if link already exists
+- Multiple RA: fix bashisms
+
+* Thu Jun 11 2020 resource-agents contributors
+- release candidate 4.6.0 rc1
+- crypt: new RA
+- mdraid: new RA
+- docker-compose: new RA
+- dummypy: new Dummy RA
+- Filesystem: add lustre as networked filesystem
+- Multiple RA: use secure tmp file location
+- Squid: added squid_opts parameter to metadata
+- ZFS: importforce should not be a unique parameter.
+- aliyun-vpc-move-ip: log output when failing and add debug logging
+- aws-vpc-move-ip/aws-vpc-route53: add awscli parameter for consistency with
+other AWS agents
+- aws-vpc-move-ip: delete remaining route entries
+- aws-vpc-route53: cleanup and improvements
+- aws-vpc-route53: add support for public and secondary private IPs
+- azure-events: handle exceptions in urlopen()
+- clvm: fix _default variables for daemon_options and activate_vgs
+- db2: HADR add STANDBY/REMOTE_CATCHUP_PENDING/DISCONNECTED to correctly promote standby node when master node disappears (e.g. via fencing)
+- exportfs: add symlink support
+- galera: fix value used for connecting with empty password.
+- gcp-pd-move: fixes and improvements
+- gcp-vpc-move-route/gcp-vpc-move-vip: disable google api cache discovery
+- nfsserver: fix NFSv4-only support
+- nfsserver: prevent error messages when /etc/sysconfig/nfs does not exist
+- ocf-shellfuncs: fix ocf_is_clone() (clone_max can be 0 with cloned resources)
+- ocf.py: eliminated logging.basicConfig(), which made all log data appear in
+stderr as well
+- oracle: increase security of monitor user in oracle
+- pgsql: support to crm_mon output for Pacemaker-2.0.3.
+- podman: make sure to remove containers with lingering exec sessions
+- rabbitmq-cluster: increase the rabbitmqctl wait timeout during start()
+- redis: run validate-action during start
+- tomcat: only create directory during start action
+
+* Fri Mar  6 2020 resource-agents contributors
+- stable release 4.5.0
+- iSCSILogicalUnit: fix default value for OCF_RESKEY_liot_bstype
+- aws-vpc-move-ip: add parameter for role to use to query/update route table
+
+* Fri Feb 28 2020 resource-agents contributors
+- release candidate 4.5.0 rc1
+- Filesystem: add trigger_udev_rules_if_need() for -U, -L, or /dev/xxx device
+- Filesystem: refresh UUID in the start phase
+- IPaddr2: add noprefixroute parameter
+- IPaddr2: add info to metadata that ipt_CLUSTERIP "iptables" extension is not "nft" backend compatible, and iptables-legacy support for distros that still support it
+- IPsrcaddr: replace local rule if using local table, and set src back to primary for device on stop
+- IPsrcaddr: fix failure during probe when using destination/table parameters
+- LVM-activate: add OCF_CHECK_LEVEL 10 check that can be enabled to verify vg or lv validity with an additional "read 1 byte" test in special cases like iSCSI SAN
+- MailTo: fix variable expansion
+- SAPInstance: clear the $DIR_EXECUTABLE variable so we catch the situation when we lose the directory with binaries after first sapinstance_init invokation
+- aliyun-vpc-move-ip: add support for both 'go' and 'python' versions of Aliyun CLI, and auto-detect which to use by default
+- apache: use get_release_id() to detect OS/distro, and fix LOAD_STATUS_MODULE issue
+- azure-lb set socat to default on SUSE distributions.
+- exportfs: allow multiple exports of same directory
+- iSCSILogicalUnit: add liot_bstype to handle block/fileio for targetcli, and change behavior of lio-t with portals which do not use 0.0.0.0
+- ldirectord: support sched-flags
+- lvmlockd: fix for LVM2 v2.03+ removing lvmetad
+- mysql-common: return correct rc during start-action
+- oralsnr: allow using the same tns_admin directory for different listeners
+- pgsql: Support for PostgreSQL 12
+- podman: improve the code for checking if an image exists
+- rabbitmq-cluster: ensure we delete nodename if stop action fails
+- redis: validate_all: fix file status tests
+- spec: add missing requirement (lsb-release)
+
+* Wed Oct 23 2019 resource-agents contributors
+- stable release 4.4.0
+- NodeUtilization: fix Xen detection and improve logging
+
+* Wed Oct 16 2019 resource-agents contributors
+- release candidate 4.4.0 rc1
+- All RA: Use _default variables for all parameters
+- Build: improvements and fixes to make "make rpm" work on all archs in CI
+- CTDB: add support for v4.9+
+- Delay: protect grep regex argument from shell globbing
+- Filesystem: don't call readlink on path if it doesnt exist
+- Filesystem: fix to avoid killing all root user processeswhen bind mounting a directory on /
+- Filesystem: improve "/" check for bind mounts
+- IPaddr2: fix to work properly with unsanitized IPv6 addresses
+- IPsrcaddr: add destination and table parameters
+- LVM-activate: add partial-activation support
+- LVM-activate: fix monitor might hang due to lvm_validate, which was added by accident
+- LVM-activate: move pvscan --cache to validate
+- Route: dont fence node when parameters arent set
+- apache: check if SUSE binaries are executable
+- apache: fix to also detect mod_status.so when it is a symlink
+- apache: improve PidFile pattern to support multiple instances
+- apache: load status module on SUSE distros
+- aws-vpc-route53: improved API error handling and fix to avoid race-condition during probe
+- aws-vpc-route53: replace ec2metada with curl to fetch the IP address directly from EC2 metadata
+- azure-lb: add support for using socat instead of nc
+- docker: improve the check for the docker daemon being up
+- exportfs: doc clarification for clientspec format
+- gcp-pd-move: add stackdriver_logging parameter
+- iSCSILogicalUnit: only create acls if it doesnt exist
+- mysql/mariadb/galera: use runuser/su to avoid using SELinux DAC_OVERRIDE
+- mysql: add support for SSL replication
+- nfsserver: performance improvements for systemd enabled systems
+- ora-common: fix to fail when sid parameter is invalid
+- podman: generate drop-in dependencies for podman containers
+- podman: only use exec to manage container's lifecycle
+- rabbitmq-cluster: also restore users/perms/policies when starting in single node mode
+- redis: fix master_is_active() erroneously reporting there is master when there is not (fixes issue #1399)
+- redis: use optimal password passing method and warning filtering workaround
+
+* Fri Jun 21 2019 resource-agents contributors
+- stable release 4.3.0
+- Filesystem: remove removed notify-action from metadata
+
+* Fri Jun 14 2019 resource-agents contributors
+- release candidate 4.3.0 rc1
+- Build: improve to be able to build and install on RHEL 6
+- CTDB: add ctdb_max_open_files parameter
+- CTDB: fix version string with vendor trailer comparison
+- Filesystem: Fix missing mount point due to corrupted mount list
+- Filesystem: fix umount not executed in the event of a disk failure
+- IPaddr2: add network namespace support
+- IPsrcaddr: make proto optional to fix regression when used without NetworkManager
+- LVM-activate: align dmsetup report command to standard
+- LVM-activate: dont count "No devices" as device in dm_count
+- LVM-activate: dont fail initial probe
+- LVM-activate: make vgname not uniqe
+- LVM-activate: only check locking_type when LVM < v2.03
+- LVM-activate: return OCF_NOT_RUNNING on initial probe
+- LVM: return $OCF_ERR_GENERIC when start fails
+- Maint: introduce optional spellchecking for {short,long}desc (make spellcheck)
+- Route: make family parameter optional
+- SAPDatabase: metadata: add HANA usage example and improved the Monitor Services defaults documentation
+- Squid: fix PID file issue w/newer Squid versions
+- aws-vpc-move-ip: add support for multiple network interfaces
+- aws-vpc-move-ip: add support for multiple routing tables
+- aws-vpc-move-ip: get NETWORK_INTERFACE_ID from metadata instead of using awscli
+- aws-vpc-move-ip: improve MAC address detection
+- aws-vpc-move-ip: use --query to avoid possible race condition w/old grep implementation
+- azure-events: fix implicit bytes conversion that breaks Python 3
+- clvm: support exclusive mode
+- configure: add Python library detection
+- dhcpd: keep SELinux context when copying to chroot
+- docker: fail gracefully when command not found
+- docker: use --type=container to avoid matches from other types
+- dovecot: new RA
+- ethmonitor: check if interface exists by link
+- galera: Allow empty password for "check_passwd" parameter
+- galera: Log message when changing content of grastate.dat file
+- galera: ignore safe_to_bootstrap in grastate.dat in some cases
+- gcp-vpc-move-route/gcp-vpc-move-vip: fix Python 3 encoding issue
+- lxc: add support for lxc-stop
+- named: add host_options parameter
+- ocf-distro: add regex for RedHat version
+- ocf.py: add support for role argument to actions
+- ocf: do not log at debug log level when HA_debug is unset (e.g. w/Pacemaker remote)
+- openstack*: add support for re-attaching volumes, v3 API
+- pgsql: enhance checks in pgsql_real_start to prevent incorrect status
+- pgsql: set initial score for primary and hot standby in probe
+- podman: avoid double call to podman inspect
+- ra-dev-guide: correct notify action documentation
+- rabbitmq-cluster: always use quiet flag for eval calls
+- rabbitmq-cluster: debug log detailed output when mnesia query fails
+- rabbitmq-cluster: ensure node attributes are removed
+- rabbitmq-cluster: fix regression in rmq_stop
+- redis: Filter warning from stderr when calling 'redis-cli -a'
+- tomcat: use systemd on RHEL when catalina.sh is unavailable
+- vdo-vol: new RA
+- vsftpd: fix missing $ on invalid exit code detected by CI
+
 * Wed Oct 24 2018 resource-agents contributors
 - stable release 4.2.0
 - apache: fix return value for silent_status

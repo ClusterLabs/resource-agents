@@ -21,7 +21,7 @@ MAINTAINERCLEANFILES = Makefile.in
 
 EXTRA_DIST		= $(ocf_SCRIPTS) $(ocfcommon_DATA) \
 			  $(common_DATA) $(hb_DATA) $(dtd_DATA) \
-			  README
+			  README README.galera
 
 AM_CPPFLAGS		= -I$(top_srcdir)/include -I$(top_srcdir)/linux-ha
 
@@ -101,10 +101,13 @@ ocf_SCRIPTS	      = AoEtarget		\
 			azure-lb		\
 			clvm			\
 			conntrackd		\
+			crypt			\
 			db2			\
 			dhcpd			\
 			dnsupdate		\
+			dummypy			\
 			docker			\
+			docker-compose		\
 			dovecot			\
 			eDir88			\
 			ethmonitor		\
@@ -127,6 +130,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			lxd-info		\
 			machine-info		\
 			mariadb			\
+			mdraid			\
 			minio			\
 			mysql			\
 			mysql-proxy		\

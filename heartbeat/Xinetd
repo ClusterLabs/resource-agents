@@ -23,6 +23,12 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_service_default=""
+
+: ${OCF_RESKEY_service=${OCF_RESKEY_service_default}}
+
 service=$OCF_RESKEY_service
 SVCDEF=/etc/xinetd.d/$service
 
@@ -58,7 +64,7 @@ enable some internal service such as echo.
 The name of the service managed by xinetd. 
 </longdesc>
 <shortdesc lang="en">service name</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_service_default}" />
 </parameter>
 </parameters>
 

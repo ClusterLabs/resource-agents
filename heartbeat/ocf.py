@@ -98,7 +98,6 @@ HA_LOGFACILITY = env.get("HA_LOGFACILITY")
 HA_LOGFILE = env.get("HA_LOGFILE")
 HA_DEBUGLOG = env.get("HA_DEBUGLOG")
 
-logging.basicConfig()
 log = logging.getLogger(os.path.basename(argv[0]))
 log.setLevel(logging.DEBUG)
 
@@ -301,7 +300,7 @@ class Agent(object):
 	and actions for the agent. Then call run() to
 	start the agent main loop.
 
-	See doc/writing-python-agents.md for an example
+	See doc/dev-guides/writing-python-agents.md for an example
 	of how to use it.
 	"""
 
@@ -399,6 +398,7 @@ def run(agent, handlers=None):
 			params = inspect.signature(func).parameters.keys()
 		else:
 			params = inspect.getargspec(func).args
+			if 'self' in params: params.remove('self')
 		def value_for_parameter(param):
 			val = get_parameter(param)
 			if val is not None:

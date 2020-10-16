@@ -81,6 +81,18 @@ elif [ -f "/etc/default/clustercheck" ]; then
     . /etc/default/clustercheck
 fi
 
+# Parameter defaults
+
+OCF_RESKEY_wsrep_cluster_address_default=""
+OCF_RESKEY_cluster_host_map_default=""
+OCF_RESKEY_check_user_default="root"
+OCF_RESKEY_check_passwd_default=""
+
+: ${OCF_RESKEY_wsrep_cluster_address=${OCF_RESKEY_wsrep_cluster_address_default}}
+: ${OCF_RESKEY_cluster_host_map=${OCF_RESKEY_cluster_host_map_default}}
+: ${OCF_RESKEY_check_user=${OCF_RESKEY_check_user_default}}
+: ${OCF_RESKEY_check_passwd=${OCF_RESKEY_check_passwd_default}}
+
 #######################################################################
 # Defaults:
 
@@ -115,9 +127,9 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-Resource script for managing galara database.
+Resource script for managing galera database.
 </longdesc>
-<shortdesc lang="en">Manages a galara instance</shortdesc>
+<shortdesc lang="en">Manages a galera instance</shortdesc>
 <parameters>
 
 <parameter name="binary" unique="0" required="0">
@@ -221,7 +233,7 @@ pacemaker node names. If both names need to differ, you must provide a
 mapping in option cluster_host_map.
 </longdesc>
 <shortdesc lang="en">Galera cluster address</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_wsrep_cluster_address_default}"/>
 </parameter>
 
 <parameter name="cluster_host_map" unique="0" required="0">
@@ -237,7 +249,7 @@ where the galera resource started on node pcmk1 would be named
 node.1.galera in the wsrep_cluster_address
 </longdesc>
 <shortdesc lang="en">Pacemaker to Galera name mapping</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_cluster_host_map_default}"/>
 </parameter>
 
 <parameter name="check_user" unique="0" required="0">
@@ -245,7 +257,7 @@ node.1.galera in the wsrep_cluster_address
 Cluster check user.
 </longdesc>
 <shortdesc lang="en">MySQL test user</shortdesc>
-<content type="string" default="root" />
+<content type="string" default="${OCF_RESKEY_check_user_default}" />
 </parameter>
 
 <parameter name="check_passwd" unique="0" required="0">
@@ -254,7 +266,7 @@ Cluster check user password. Empty passwords are ignored unless
 the parameter "check_passwd_use_empty" is set to 1.
 </longdesc>
 <shortdesc lang="en">check password</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_check_passwd_default}" />
 </parameter>
 
 <parameter name="check_passwd_use_empty" unique="0" required="0">
@@ -592,11 +604,16 @@ detect_safe_to_bootstrap()
         seqno=$(sed -n 's/^seqno:\s*\(.*\)$/\1/p' < ${OCF_RESKEY_datadir}/grastate.dat)
     fi
 
-    if [ -z "$uuid" ] || [ -z "$seqno" ] || \
-       [ "$uuid" = "00000000-0000-0000-0000-000000000000" ] || \
-       [ "$seqno" = "-1" ]; then
+    if [ -z "$uuid" ] || \
+       [ "$uuid" = "00000000-0000-0000-0000-000000000000" ]; then
         clear_safe_to_bootstrap
         return
+    fi
+    if [ "$safe_to_bootstrap" = "1" ]; then
+        if [ -z "$seqno" ] || [ "$seqno" = "-1" ]; then
+            clear_safe_to_bootstrap
+            return
+        fi
     fi
 
     if [ "$safe_to_bootstrap" = "1" ] || [ "$safe_to_bootstrap" = "0" ]; then
@@ -612,8 +629,7 @@ detect_last_commit()
     local recover_args="--defaults-file=$OCF_RESKEY_config \
                         --pid-file=$OCF_RESKEY_pid \
                         --socket=$OCF_RESKEY_socket \
-                        --datadir=$OCF_RESKEY_datadir \
-                        --user=$OCF_RESKEY_user"
+                        --datadir=$OCF_RESKEY_datadir"
     local recovery_file_regex='s/.*WSREP\:.*position\s*recovery.*--log_error='\''\([^'\'']*\)'\''.*/\1/p'
     local recovered_position_regex='s/.*WSREP\:\s*[R|r]ecovered\s*position.*\:\(.*\)\s*$/\1/p'
 
@@ -642,7 +658,8 @@ detect_last_commit()
 
         ocf_log info "now attempting to detect last commit version using 'mysqld_safe --wsrep-recover'"
 
-        ${OCF_RESKEY_binary} $recover_args --wsrep-recover --log-error=$tmp 2>/dev/null
+        $SU - $OCF_RESKEY_user -s /bin/sh -c \
+        "${OCF_RESKEY_binary} $recover_args --wsrep-recover --log-error=$tmp 2>/dev/null"
 
         last_commit="$(cat $tmp | sed -n $recovered_position_regex | tail -1)"
         if [ -z "$last_commit" ]; then
@@ -658,8 +675,9 @@ detect_last_commit()
                     # we can only rollback the transaction, but that's OK
                     # since the DB will get resynchronized anyway
                     ocf_log warn "local node <${NODENAME}> was not shutdown properly. Rollback stuck transaction with --tc-heuristic-recover"
-                    ${OCF_RESKEY_binary} $recover_args --wsrep-recover \
-                                         --tc-heuristic-recover=rollback --log-error=$tmp 2>/dev/null
+                    $SU - $OCF_RESKEY_user -s /bin/sh -c \
+                    "${OCF_RESKEY_binary} $recover_args --wsrep-recover \
+                                         --tc-heuristic-recover=rollback --log-error=$tmp 2>/dev/null"
 
                     last_commit="$(cat $tmp | sed -n $recovered_position_regex | tail -1)"
                     if [ ! -z "$last_commit" ]; then
@@ -709,9 +727,16 @@ galera_promote()
             ocf_log info "Node <${NODENAME}> is bootstrapping the cluster"
             extra_opts="--wsrep-cluster-address=gcomm://"
         else
-            ocf_exit_reason "Failure, Attempted to promote Master instance of $OCF_RESOURCE_INSTANCE before bootstrap node has been detected."
-            clear_last_commit
-            return $OCF_ERR_GENERIC
+            # We are being promoted without having the bootstrap
+            # attribute in the CIB, which means we are supposed to
+            # join a cluster; however if we end up here, there is no
+            # Master remaining right now, which means there is no
+            # cluster to join anymore. So force a demotion, and and
+            # let the RA decide later which node should be the next
+            # bootstrap node.
+            ocf_log warn "There is no running cluster to join, demoting ourself"
+            clear_master_score
+            return $OCF_SUCCESS
         fi
     fi
 
@@ -976,7 +1001,7 @@ fi
 MYSQL_OPTIONS_CHECK="-nNE --user=${OCF_RESKEY_check_user}"
 
 if ocf_is_true "${OCF_RESKEY_check_passwd_use_empty}"; then
-    MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK --password=''"
+    MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK --password="
 elif [ -n "${OCF_RESKEY_check_passwd}" ]; then
     MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK --password=${OCF_RESKEY_check_passwd}"
 fi

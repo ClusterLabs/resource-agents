@@ -10,6 +10,27 @@
 #######################################################################
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Parameter defaults
+
+OCF_RESKEY_hostname_default=""
+OCF_RESKEY_ip_default=""
+OCF_RESKEY_ttl_default="300"
+OCF_RESKEY_keyfile_default=""
+OCF_RESKEY_server_default=""
+OCF_RESKEY_serverport_default="53"
+OCF_RESKEY_nsupdate_opts_default=""
+OCF_RESKEY_unregister_on_stop_default="false"
+
+: ${OCF_RESKEY_hostname=${OCF_RESKEY_hostname_default}}
+: ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
+: ${OCF_RESKEY_ttl=${OCF_RESKEY_ttl_default}}
+: ${OCF_RESKEY_keyfile=${OCF_RESKEY_keyfile_default}}
+: ${OCF_RESKEY_server=${OCF_RESKEY_server_default}}
+: ${OCF_RESKEY_serverport=${OCF_RESKEY_serverport_default}}
+: ${OCF_RESKEY_nsupdate_opts=${OCF_RESKEY_nsupdate_opts_default}}
+: ${OCF_RESKEY_unregister_on_stop=${OCF_RESKEY_unregister_on_stop_default}}
+
 #######################################################################
 
 # TODO:
@@ -41,7 +62,7 @@ This resource agent manages IP take-over via dynamic DNS updates.
 The hostname whose IP address will need to be updated.
 </longdesc>
 <shortdesc lang="en">Hostname to update</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_hostname_default}" />
 </parameter>
 
 <parameter name="ip" unique="0" required="1">
@@ -49,7 +70,7 @@ The hostname whose IP address will need to be updated.
 IP address to set.
 </longdesc>
 <shortdesc lang="en">IP address to set</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_ip_default}" />
 </parameter>
 
 <parameter name="ttl" unique="0" required="0">
@@ -62,7 +83,7 @@ server load.
 If using booth, the ticket timeout is a good start.
 </longdesc>
 <shortdesc lang="en">TTL for the DNS record</shortdesc>
-<content type="integer" default="300" />
+<content type="integer" default="${OCF_RESKEY_ttl_default}" />
 </parameter>
 
 <parameter name="keyfile" unique="0" required="0">
@@ -72,7 +93,7 @@ the DNS record. Please see the nsupdate man page for
 the exact syntax.
 </longdesc>
 <shortdesc lang="en">nsupdate key file</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_keyfile_default}" />
 </parameter>
 
 <parameter name="server" unique="0" required="0">
@@ -82,7 +103,7 @@ server is provided, this defaults to the master server
 for the correct zone.
 </longdesc>
 <shortdesc lang="en">DNS server to contact</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_server_default}" />
 </parameter>
 
 <parameter name="serverport" unique="0" required="0">
@@ -93,7 +114,7 @@ Note: due to a limitation in the nsupdate command, this option will only
 take effect if you also specify the DNS server!
 </longdesc>
 <shortdesc lang="en">Port number on the DNS server</shortdesc>
-<content type="integer" default="53" />
+<content type="integer" default="${OCF_RESKEY_serverport_default}" />
 </parameter>
 
 <parameter name="nsupdate_opts" unique="0" required="0">
@@ -101,7 +122,7 @@ take effect if you also specify the DNS server!
 Additional options to be passed to nsupdate.
 </longdesc>
 <shortdesc lang="en">Additional nsupdate options</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_nsupdate_opts_default}" />
 </parameter>
 
 <parameter name="unregister_on_stop" unique="0" required="0">
@@ -111,7 +132,7 @@ for normal operation, since the site taking over the IP address will
 delete all previous records.
 </longdesc>
 <shortdesc lang="en">Remove A record on stop</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_unregister_on_stop_default}" />
 </parameter>
 
 </parameters>

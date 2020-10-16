@@ -48,6 +48,7 @@ main(int argc, char* argv[])
 	char*		cp;
 	char*		prov_ifname = NULL;
 	struct in6_addr	addr6;
+	struct sigaction act;
 
 	/* Check binary name */
 	if (argc < 4) {
@@ -71,8 +72,13 @@ main(int argc, char* argv[])
 	}
 
 	/* set termination signal */
-	siginterrupt(SIGTERM, 1);
-	signal(SIGTERM, byebye);
+	memset(&act, 0, sizeof(struct sigaction));
+	act.sa_flags &= ~SA_RESTART; /* redundant - to stress syscalls should fail */
+	act.sa_handler = byebye;
+	if ((sigemptyset(&act.sa_mask) < 0) || (sigaction(SIGTERM, &act, NULL) < 0)) {
+		printf("ERROR: Could not set handler for signal: %s", strerror(errno));
+		return OCF_ERR_GENERIC;
+	}
 
 	ipv6addr = argv[optind];
 

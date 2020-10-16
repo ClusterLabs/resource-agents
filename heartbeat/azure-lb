@@ -18,6 +18,11 @@
 
 # Defaults
 OCF_RESKEY_nc_default="/usr/bin/nc"
+case "$( get_release_id )" in
+	*SUSE)
+		OCF_RESKEY_nc_default="/usr/bin/socat"
+	;;
+esac
 OCF_RESKEY_port_default="61000"
 
 : ${OCF_RESKEY_nc=${OCF_RESKEY_nc_default}}
@@ -53,9 +58,10 @@ Resource agent to answer Azure Load Balancer health probe requests
 
 <parameter name="nc">
 <longdesc lang="en">
-The full name of the nc binary.
+The full path of the used binary. This can be nc or socat path.
+The default is /usr/bin/nc and /usr/bin/socat for SUSE distributions.
 </longdesc>
-<shortdesc lang="en">Full path name of the nc binary</shortdesc>
+<shortdesc lang="en">Full path of the used binary (nc or socat are allowed)</shortdesc>
 <content type="string" default="${OCF_RESKEY_nc_default}"/>
 </parameter>
 
@@ -100,10 +106,15 @@ lb_monitor() {
 
 lb_start() {
 	cmd="$OCF_RESKEY_nc -l -k $OCF_RESKEY_port"
+	if [ $( basename $OCF_RESKEY_nc ) = 'socat' ]; then
+		#socat has different parameters
+		cmd="$OCF_RESKEY_nc -U TCP-LISTEN:$OCF_RESKEY_port,backlog=10,fork,reuseaddr /dev/null"
+	fi
 	if ! lb_monitor; then
 		ocf_log debug "Starting $process: $cmd"
 		# Execute the command as created above
-		eval "$cmd & echo \$!" > $pidfile
+		$cmd &
+		echo $! > $pidfile
 		if lb_monitor; then
 			ocf_log debug "$process: $cmd started successfully, calling monitor"
 			lb_monitor

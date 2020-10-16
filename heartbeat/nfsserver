@@ -192,7 +192,7 @@ fi
 which restorecon > /dev/null 2>&1 && selinuxenabled
 SELINUX_ENABLED=$?
 if [ $SELINUX_ENABLED -eq 0 ]; then
-	export SELINUX_LABEL="$(ls -ldZ $STATD_PATH | cut -f4 -d' ')"
+	export SELINUX_LABEL="$(ls -dZ $STATD_PATH | grep -o '\S\+:\S\+:\S\+')"
 fi
 
 ##
@@ -233,24 +233,25 @@ set_exec_mode()
 		return 0
 	fi
 
-	##
-	# Attempt systemd (with nfs-lock.service).
-	##
 	if which systemctl > /dev/null 2>&1; then
-		if systemctl list-unit-files | grep nfs-server > /dev/null && systemctl list-unit-files | grep nfs-lock > /dev/null; then
-			EXEC_MODE=2
-			# when using systemd, the nfs-lock service file handles nfsv3 locking daemons for us.
-			return 0
-		fi
-	fi
+		if systemctl --no-legend list-unit-files 'nfs-*' | grep nfs-server > /dev/null; then
 
-	##
-	# Attempt systemd (with rpc-statd.service).
-	##
-	if which systemctl > /dev/null 2>&1; then
-		if systemctl list-unit-files | grep nfs-server > /dev/null && systemctl list-unit-files | grep rpc-statd > /dev/null; then
-			EXEC_MODE=3
-			return 0
+			##
+			# Attempt systemd (with nfs-lock.service).
+			##
+			if systemctl --no-legend list-unit-files 'nfs-*' | grep nfs-lock > /dev/null; then
+				EXEC_MODE=2
+				# when using systemd, the nfs-lock service file handles nfsv3 locking daemons for us.
+				return 0
+			fi
+
+			##
+			# Attempt systemd (with rpc-statd.service).
+			##
+			if systemctl --no-legend list-unit-files 'rpc-*' | grep rpc-statd > /dev/null; then
+				EXEC_MODE=3
+				return 0
+			fi
 		fi
 	fi
 
@@ -272,12 +273,12 @@ nfs_exec()
 		2) if ! echo $svc | grep -q "\."; then
 			svc="${svc}.service"
 		   fi
-		   systemctl $cmd $svc
+		   systemctl -n0 $cmd $svc
 		   ;;
 		3) if ! echo $svc | grep -q "\."; then
 			svc="${svc}.service"
 		   fi
-		   systemctl $cmd $svc
+		   systemctl -n0 $cmd $svc
 		   ;;
 	esac
 }
@@ -315,7 +316,7 @@ nfsserver_systemd_monitor()
 	fi
 
 	ocf_log debug "Status: nfs-mountd"
-	rpcinfo -t localhost 100005 > /dev/null 2>&1
+	ps axww | grep -q "[r]pc.mountd"
 	rc=$?
 	if [ "$rc" -ne "0" ]; then
 		ocf_exit_reason "nfs-mountd is not running"
@@ -682,7 +683,7 @@ nfsserver_start ()
 		  local i=1
 		  while : ; do
 			ocf_log info "Start: nfs-mountd i: $i"
-			rpcinfo -t localhost 100005 > /dev/null 2>&1
+			ps axww | grep -q "[r]pc.mountd"
 			rc=$?
 			if [ "$rc" -eq "0" ]; then
 				break;
@@ -799,11 +800,25 @@ nfsserver_stop ()
 
 		  nfs_exec stop nfs-mountd > /dev/null 2>&1
 		  ocf_log info "Stop: nfs-mountd"
-		  rpcinfo -t localhost 100005 > /dev/null 2>&1
+		  ps axww | grep -q "[r]pc.mountd"
 		  rc=$?
 		  if [ "$rc" -eq "0" ]; then
 			ocf_exit_reason "Failed to stop nfs-mountd"
 			return $OCF_ERR_GENERIC
+		  fi
+
+		  if systemctl --no-legend list-unit-files "nfsdcld*" | grep -q nfsdcld; then
+		  	nfs_exec stop nfsdcld > /dev/null 2>&1
+		  	ocf_log info "Stop: nfsdcld"
+		  	fn=`mktemp`
+		  	nfs_exec status nfsdcld > $fn 2>&1
+		  	rc=$?
+		  	ocf_log debug "$(cat $fn)"
+		  	rm -f $fn
+		  	if [ "$rc" -eq "0" ]; then
+		  		ocf_exit_reason "Failed to stop nfsdcld"
+		  		return $OCF_ERR_GENERIC
+		  	fi
 		  fi
 	esac
 

@@ -30,6 +30,18 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 . ${OCF_FUNCTIONS_DIR}/ocf-directories
 
+# Parameter defaults
+
+OCF_RESKEY_with_cmirrord_default="false"
+OCF_RESKEY_daemon_options_default="-d0"
+OCF_RESKEY_activate_vgs_default="true"
+OCF_RESKEY_exclusive_default="false"
+
+: ${OCF_RESKEY_with_cmirrord=${OCF_RESKEY_with_cmirrord_default}}
+: ${OCF_RESKEY_daemon_options=${OCF_RESKEY_daemon_options_default}}
+: ${OCF_RESKEY_activate_vgs=${OCF_RESKEY_activate_vgs_default}}
+: ${OCF_RESKEY_exclusive=${OCF_RESKEY_exclusive_default}}
+
 #######################################################################
 
 meta_data() {
@@ -50,7 +62,7 @@ This agent manages the clvmd daemon.
 Start with cmirrord (cluster mirror log daemon).
 </longdesc>
 <shortdesc lang="en">activate cmirrord</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_with_cmirrord_default}" />
 </parameter>
 
 <parameter name="daemon_options" unique="0">
@@ -58,7 +70,7 @@ Start with cmirrord (cluster mirror log daemon).
 Options to clvmd. Refer to clvmd.8 for detailed descriptions.
 </longdesc>
 <shortdesc lang="en">Daemon Options</shortdesc>
-<content type="string" default="-d0"/>
+<content type="string" default="${OCF_RESKEY_daemon_options_default}"/>
 </parameter>
 
 <parameter name="activate_vgs" unique="0">
@@ -69,7 +81,7 @@ deactivated before the clvmd stops regardless of what this option
 is set to.
 </longdesc>
 <shortdesc lang="en">Activate volume groups</shortdesc>
-<content type="boolean" default="true"/>
+<content type="boolean" default="${OCF_RESKEY_activate_vgs_default}"/>
 </parameter>
 
 <parameter name="exclusive" unique="0" required="0">
@@ -77,7 +89,7 @@ is set to.
 If set, only exclusive volume groups will be monitored.
 </longdesc>
 <shortdesc lang="en">Only monitor exclusive volume groups</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_exclusive_default}" />
 </parameter>
 
 
@@ -95,9 +107,6 @@ END
 }
 
 #######################################################################
-
-: ${OCF_RESKEY_daemon_options:="-d0"}
-: ${OCF_RESKEY_activate_vgs:="true"}
 
 sbindir=$HA_SBIN_DIR
 if [ -z $sbindir ]; then

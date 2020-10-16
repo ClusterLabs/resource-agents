@@ -48,6 +48,9 @@ fi
 OCF_RESKEY_portals_default="0.0.0.0:3260"
 : ${OCF_RESKEY_portals=${OCF_RESKEY_portals_default}}
 
+OCF_RESKEY_allowed_initiators_default=""
+: ${OCF_RESKEY_allowed_initiators=${OCF_RESKEY_allowed_initiators_default}}
+
 # Lockfile, used for selecting a target ID
 LOCKFILE=${HA_RSCTMP}/iSCSITarget-${OCF_RESKEY_implementation}.lock
 
@@ -126,7 +129,7 @@ not set, access to this target will be allowed from any initiator.
 </longdesc>
 <shortdesc lang="en">List of iSCSI initiators allowed to connect
 to this target</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_allowed_initiators_default}"/>
 </parameter>
 
 <parameter name="incoming_username" required="0" unique="1">
@@ -390,7 +393,13 @@ iSCSITarget_start() {
 				fi
 			done
 		else
-			ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute authentication=0 demo_mode_write_protect=0 generate_node_acls=1 cache_dynamic_acls=1 || exit $OCF_ERR_GENERIC
+			if [ -n "${OCF_RESKEY_incoming_username}" ]; then
+				ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute authentication=1 demo_mode_write_protect=0 generate_node_acls=1 cache_dynamic_acls=1 || exit $OCF_ERR_GENERIC
+				ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set auth userid=${OCF_RESKEY_incoming_username} || exit $OCF_ERR_GENERIC
+				ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set auth password=${OCF_RESKEY_incoming_password} || exit $OCF_ERR_GENERIC
+			else
+				ocf_run targetcli /iscsi/${OCF_RESKEY_iqn}/tpg1/ set attribute authentication=0 demo_mode_write_protect=0 generate_node_acls=1 cache_dynamic_acls=1 || exit $OCF_ERR_GENERIC
+			fi
 		fi
 		;;
 	esac

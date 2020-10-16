@@ -33,9 +33,16 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
+OCF_RESKEY_pidfile_default="$HA_RSCTMP/OSInfo-${OCF_RESOURCE_HOSTNAME}"
+OCF_RESKEY_delay_default="0"
+OCF_RESKEY_clone_default="0"
 OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
 
 : ${OCF_RESKEY_openstackcli=${OCF_RESKEY_openstackcli_default}}
+: ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
+: ${OCF_RESKEY_delay=${OCF_RESKEY_delay_default}}
+: ${OCF_RESKEY_clone=${OCF_RESKEY_clone_default}}
+
 #######################################################################
 
 meta_data() {
@@ -62,12 +69,12 @@ The layout of openstack_ports is a comma-separated list of tuples "subnet_id:por
 <parameter name="pidfile" unique="0">
 <longdesc lang="en">PID file</longdesc>
 <shortdesc lang="en">PID file</shortdesc>
-<content type="string" default="$OCF_RESKEY_pidfile" />
+<content type="string" default="${OCF_RESKEY_pidfile_default}" />
 </parameter>
 <parameter name="delay" unique="0">
 <longdesc lang="en">Interval to allow values to stabilize</longdesc>
 <shortdesc lang="en">Dampening Delay</shortdesc>
-<content type="string" default="0" />
+<content type="string" default="${OCF_RESKEY_delay_default}" />
 </parameter>
 
 <parameter name="openrc" required="1">
@@ -115,6 +122,10 @@ OSInfoStats() {
 		--format value --column ID --column Name \
 		| grep $node)
 
+	if [ $? -ne 0 ] ; then
+		ocf_exit_reason "cannot find $node in instances list"
+		exit $OCF_ERR_GENERIC
+	fi
 	node_id=$(echo $result|awk '{print $1}')
 
 	# Nova data: flavor, AZ…
@@ -148,14 +159,26 @@ OSInfoStats() {
 			value="$value,$p"
 		fi
 	done
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_ports -v $value
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_ports -v "$value"
 
 	if [ ! -z "$OS_REGION_NAME" ] ; then
-		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_region -v $OS_REGION_NAME
+		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_region -v "$OS_REGION_NAME"
 	fi
 
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_tenant_name -v $OS_TENANT_NAME
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_tenant_id -v $OS_TENANT_ID
+	if [ ! -z "$OS_TENANT_ID" ] ; then
+		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_tenant_id -v "$OS_TENANT_ID"
+
+		if [ ! -z "$OS_TENANT_NAME" ] ; then
+			${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_tenant_name -v "$OS_TENANT_NAME"
+		fi
+	else
+		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_project_id -v "$OS_PROJECT_ID"
+
+		if [ ! -z "$OS_PROJECT_NAME" ] ; then
+			${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_project_name -v "$OS_PROJECT_NAME"
+		fi
+	fi
+
 }
 
 OSInfo_usage() {
@@ -181,6 +204,8 @@ OSInfo_stop() {
 	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_region
 	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_tenant_id
 	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_tenant_name
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_project_id
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_project_name
 	exit $OCF_SUCCESS
 }
 
@@ -213,8 +238,6 @@ if [ $# -ne 1 ]; then
 	exit $OCF_ERR_ARGS
 fi
 
-: ${OCF_RESKEY_pidfile:="$HA_RSCTMP/OSInfo-${OCF_RESOURCE_HOSTNAME}"}
-: ${OCF_RESKEY_clone:="0"}
 if [ x != x${OCF_RESKEY_delay} ]; then
 	OCF_RESKEY_delay="-d ${OCF_RESKEY_delay}"
 fi

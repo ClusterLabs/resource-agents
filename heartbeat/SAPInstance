@@ -43,6 +43,40 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_InstanceName_default=""
+OCF_RESKEY_DIR_EXECUTABLE_default=""
+OCF_RESKEY_DIR_PROFILE_default=""
+OCF_RESKEY_START_PROFILE_default=""
+OCF_RESKEY_START_WAITTIME_default="3600"
+OCF_RESKEY_AUTOMATIC_RECOVER_default="false"
+OCF_RESKEY_MONITOR_SERVICES_default="disp+work|msg_server|enserver|enrepserver|jcontrol|jstart|enq_server|enq_replicator"
+OCF_RESKEY_SHUTDOWN_METHOD_default="normal"
+OCF_RESKEY_ERS_InstanceName_default=""
+OCF_RESKEY_ERS_START_PROFILE_default=""
+OCF_RESKEY_PRE_START_USEREXIT_default=""
+OCF_RESKEY_POST_START_USEREXIT_default=""
+OCF_RESKEY_PRE_STOP_USEREXIT_default=""
+OCF_RESKEY_POST_STOP_USEREXIT_default=""
+OCF_RESKEY_IS_ERS_default="false"
+
+: ${OCF_RESKEY_InstanceName=${OCF_RESKEY_InstanceName_default}}
+: ${OCF_RESKEY_DIR_EXECUTABLE=${OCF_RESKEY_DIR_EXECUTABLE_default}}
+: ${OCF_RESKEY_DIR_PROFILE=${OCF_RESKEY_DIR_PROFILE_default}}
+: ${OCF_RESKEY_START_PROFILE=${OCF_RESKEY_START_PROFILE_default}}
+: ${OCF_RESKEY_START_WAITTIME=${OCF_RESKEY_START_WAITTIME_default}}
+: ${OCF_RESKEY_AUTOMATIC_RECOVER=${OCF_RESKEY_AUTOMATIC_RECOVER_default}}
+: ${OCF_RESKEY_MONITOR_SERVICES=${OCF_RESKEY_MONITOR_SERVICES_default}}
+: ${OCF_RESKEY_SHUTDOWN_METHOD=${OCF_RESKEY_SHUTDOWN_METHOD_default}}
+: ${OCF_RESKEY_ERS_InstanceName=${OCF_RESKEY_ERS_InstanceName_default}}
+: ${OCF_RESKEY_ERS_START_PROFILE=${OCF_RESKEY_ERS_START_PROFILE_default}}
+: ${OCF_RESKEY_PRE_START_USEREXIT=${OCF_RESKEY_PRE_START_USEREXIT_default}}
+: ${OCF_RESKEY_POST_START_USEREXIT=${OCF_RESKEY_POST_START_USEREXIT_default}}
+: ${OCF_RESKEY_PRE_STOP_USEREXIT=${OCF_RESKEY_PRE_STOP_USEREXIT_default}}
+: ${OCF_RESKEY_POST_STOP_USEREXIT=${OCF_RESKEY_POST_STOP_USEREXIT_default}}
+: ${OCF_RESKEY_IS_ERS=${OCF_RESKEY_IS_ERS_default}}
+
 #######################################################################
 
 SH=/bin/sh
@@ -101,22 +135,22 @@ The statuses RED and GRAY are reported as NOT_RUNNING to the cluster. Depending 
  <parameter name="InstanceName" unique="1" required="1">
   <longdesc lang="en">The full qualified SAP instance name. e.g. P01_DVEBMGS00_sapp01ci. Usually this is the name of the SAP instance profile.</longdesc>
   <shortdesc lang="en">Instance name: SID_INSTANCE_VIR-HOSTNAME</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_InstanceName_default}" />
  </parameter>
  <parameter name="DIR_EXECUTABLE" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find sapstartsrv and sapcontrol. Specify this parameter, if you have changed the SAP kernel directory location after the default SAP installation.</longdesc>
   <shortdesc lang="en">Path of sapstartsrv and sapcontrol</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_DIR_EXECUTABLE_default}" />
  </parameter>
  <parameter name="DIR_PROFILE" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find the SAP START profile. Specify this parameter, if you have changed the SAP profile directory location after the default SAP installation.</longdesc>
   <shortdesc lang="en">Path of start profile</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_DIR_PROFILE_default}" />
  </parameter>
  <parameter name="START_PROFILE" unique="1" required="0">
   <longdesc lang="en">The name of the SAP START profile. Specify this parameter, if you have changed the name of the SAP START profile after the default SAP installation. As SAP release 7.10 does not have a START profile anymore, you need to specify the Instance Profile than.</longdesc>
   <shortdesc lang="en">Start profile name</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_START_PROFILE_default}" />
  </parameter>
  <parameter name="START_WAITTIME" unique="0" required="0">
   <longdesc lang="en">After that time in seconds a monitor operation is executed by the resource agent. Does the monitor return SUCCESS, the start ishandled as SUCCESS. This is useful to resolve timing problems with e.g. the J2EE-Addin instance.Usually the resource agent waits until all services are started and the SAP Management Console reports a GREEN status. A double stack installation (ABAP + Java AddIn) consists of an ABAP dispatcher and a JAVA instance. Normally the start of the JAVA instance takes much longer than the start of the ABAP instance. For a JAVA Instance you may need to configure a much higher timeout for the start operation of the resource in Heartbeat. The disadvantage here is, that the discovery of a failed start by the cluster takes longer. Somebody might say: For me it is important, that the ABAP instance is up and running. A failure of the JAVA instance shall not cause a failover of the SAP instance.
@@ -125,12 +159,12 @@ Actually the SAP MC reports a YELLOW status, if the JAVA instance of a double st
 That is only useful for double stack systems.
   </longdesc>
   <shortdesc lang="en">Check the successful start after that time (do not wait for J2EE-Addin)</shortdesc>
-  <content type="string" default="3600" />
+  <content type="string" default="${OCF_RESKEY_START_WAITTIME_default}" />
  </parameter>
  <parameter name="AUTOMATIC_RECOVER" unique="0" required="0">
   <longdesc lang="en">The SAPInstance resource agent tries to recover a failed start attempt automatically one time. This is done by killing running instance processes, removing the kill.sap file and executing cleanipc. Sometimes a crashed SAP instance leaves some processes and/or shared memory segments behind. Setting this option to true will try to remove those leftovers during a start operation. That is to reduce manual work for the administrator.</longdesc>
   <shortdesc lang="en">Enable or disable automatic startup recovery</shortdesc>
-  <content type="boolean" default="false"/>
+  <content type="boolean" default="${OCF_RESKEY_AUTOMATIC_RECOVER_default}"/>
  </parameter>
  <parameter name="MONITOR_SERVICES" unique="0" required="0">
   <longdesc lang="en">Within a SAP instance there can be several services. Usually you will find the defined services in the START profile of the related instance (Attention: with SAP Release 7.10 the START profile content was moved to the instance profile). Not all of those services are worth to monitor by the cluster. For example you properly do not like to failover your SAP instance, if the central syslog collector daemon fails.
@@ -156,12 +190,12 @@ The default should fit most cases where you want to manage a SAP Instance from t
 You may specify multiple services separated by a | (pipe) sign in this parameter: disp+work|msg_server|enserver
   </longdesc>
   <shortdesc lang="en">Services to monitor</shortdesc>
-  <content type="string" default="disp+work|msg_server|enserver|enrepserver|jcontrol|jstart|enq_server|enq_replicator"/>
+  <content type="string" default="${OCF_RESKEY_MONITOR_SERVICES_default}"/>
  </parameter>
   <parameter name="SHUTDOWN_METHOD" unique="0" required="0">
   <longdesc lang="en">Usually a SAP Instance is stopped by the command 'sapcontrol -nr InstanceNr -function Stop'. SHUTDOWN_METHOD=KILL means to kill the SAP Instance using OS commands. SAP processes of the instance are terminated with 'kill -9', shared memory is deleted with 'cleanipc' and the 'kill.sap' file will be deleted. That method is much faster than the graceful stop, but the instance does not have the chance to say goodbye to other SAPinstances in the same system. USE AT YOUR OWN RISK !!</longdesc>
   <shortdesc lang="en">Shutdown graceful or kill a SAP instance by terminating the processes. (normal|KILL)</shortdesc>
-  <content type="string" default="normal"/>
+  <content type="string" default="${OCF_RESKEY_SHUTDOWN_METHOD_default}"/>
  </parameter>
  <parameter name="ERS_InstanceName" unique="1" required="0">
   <longdesc lang="en">Only used in a Master/Slave resource configuration:
@@ -175,7 +209,7 @@ master_node_max = 1
 master_max = 1
   </longdesc>
   <shortdesc lang="en">Enqueue replication instance name: SID_INSTANCE_VIR-HOSTNAME</shortdesc>
-  <content type="string" default=""/>
+  <content type="string" default="${OCF_RESKEY_ERS_InstanceName_default}"/>
  </parameter>
  <parameter name="ERS_START_PROFILE" unique="1" required="0">
   <longdesc lang="en">Only used in a Master/Slave resource configuration:
@@ -183,27 +217,27 @@ The parameter ERS_InstanceName must also be set in this configuration.
 The name of the SAP START profile. Specify this parameter, if you have changed the name of the SAP START profile after the default SAP installation. As SAP release 7.10 does not have a START profile anymore, you need to specify the Instance Profile than.
   </longdesc>
   <shortdesc lang="en">Enqueue replication start profile name</shortdesc>
-  <content type="string" default=""/>
+  <content type="string" default="${OCF_RESKEY_ERS_START_PROFILE_default}"/>
  </parameter>
  <parameter name="PRE_START_USEREXIT" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed before this resource gets started.</longdesc>
   <shortdesc lang="en">Path to a pre-start script</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_PRE_START_USEREXIT_default}" />
  </parameter>
  <parameter name="POST_START_USEREXIT" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed after this resource got started.</longdesc>
   <shortdesc lang="en">Path to a post-start script</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_POST_START_USEREXIT_default}" />
  </parameter>
  <parameter name="PRE_STOP_USEREXIT" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed before this resource gets stopped.</longdesc>
   <shortdesc lang="en">Path to a pre-start script</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_PRE_STOP_USEREXIT_default}" />
  </parameter>
  <parameter name="POST_STOP_USEREXIT" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed after this resource got stopped.</longdesc>
   <shortdesc lang="en">Path to a post-start script</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_POST_STOP_USEREXIT_default}" />
  </parameter>
  <parameter name="IS_ERS" unique="0" required="0">
   <longdesc lang="en">Only used for ASCS/ERS SAP Netweaver installations without implementing a master/slave resource to
@@ -212,7 +246,7 @@ The name of the SAP START profile. Specify this parameter, if you have changed t
     systems for NetWeaver less than 7.40, if you like to implement the NW-HA-CLU-740 scenario.
   </longdesc>
   <shortdesc lang="en">Mark SAPInstance as ERS instance</shortdesc>
-  <content type="boolean" default="false" />
+  <content type="boolean" default="${OCF_RESKEY_IS_ERS_default}" />
  </parameter>
 </parameters>
 
@@ -322,6 +356,8 @@ sapinstance_init() {
   InstanceNr=`echo "$InstanceName" | sed 's/.*\([0-9][0-9]\)$/\1/'`
   SAPVIRHOST=`echo "$myInstanceName" | cut -d_ -f3`
 
+  # make sure that we don't care the content of variable from previous run of sapinstance_init
+  DIR_EXECUTABLE=""
   # optional OCF parameters, we try to guess which directories are correct
   if  [ -z "$OCF_RESKEY_DIR_EXECUTABLE" ]
   then
@@ -382,12 +418,12 @@ sapinstance_init() {
 
   if [ -z "$OCF_RESKEY_START_WAITTIME" ]
   then
-    export OCF_RESKEY_START_WAITTIME=3600
+    export OCF_RESKEY_START_WAITTIME="${OCF_RESKEY_START_WAITTIME_default}"
   fi
 
   if [ -z "$OCF_RESKEY_MONITOR_SERVICES" ]
   then
-    export OCF_RESKEY_MONITOR_SERVICES="disp+work|msg_server|enserver|enrepserver|jcontrol|jstart|enq_server|enq_replicator"
+    export OCF_RESKEY_MONITOR_SERVICES="${OCF_RESKEY_MONITOR_SERVICES_default}"
   fi
 
   # as root user we need the library path to the SAP kernel to be able to call sapcontrol

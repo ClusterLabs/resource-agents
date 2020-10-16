@@ -26,6 +26,8 @@ export PATH
 : ${GREP:=grep}
 : ${IFCONFIG:=ifconfig}
 : ${IPTABLES:=iptables}
+## for cases that are known not to be serviceable with iptables-nft impl.
+: ${IPTABLES_LEGACY:=iptables-legacy}
 : ${IP2UTIL:=ip}
 : ${MDADM:=mdadm}
 : ${MODPROBE:=modprobe}

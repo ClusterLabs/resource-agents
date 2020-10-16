@@ -41,9 +41,13 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
+OCF_RESKEY_container_default=""
+OCF_RESKEY_config_default=""
 OCF_RESKEY_log_default="${HA_RSCTMP}/${OCF_RESOURCE_INSTANCE}.log"
 OCF_RESKEY_use_screen_default="false"
 
+: ${OCF_RESKEY_container=${OCF_RESKEY_container_default}}
+: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
 : ${OCF_RESKEY_log=${OCF_RESKEY_log_default}}
 : ${OCF_RESKEY_use_screen=${OCF_RESKEY_use_screen_default}}
 
@@ -67,13 +71,13 @@ On a 'sysvinit' this would require the container to have an inittab file contain
 <parameter name="container" required="1" unique="1">
 <longdesc lang="en">The unique name for this 'Container Instance' e.g. 'test1'.</longdesc>
 <shortdesc lang="en">Container Name</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_container_default}"/>
 </parameter>
 
 <parameter name="config" required="1" unique="0">
 <longdesc lang="en">Absolute path to the file holding the specific configuration for this container e.g. '/etc/lxc/test1/config'.</longdesc>
 <shortdesc lang="en">The LXC config file.</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_config_default}"/>
 </parameter>
 
 <parameter name="log" required="0" unique="0">

@@ -740,5 +740,5 @@ sidadm="`echo $SID | tr '[:upper:]' '[:lower:]'`adm"
 }
 
 # Set a tempfile and make sure to clean it up again
-TEMPFILE="/tmp/SAPDatabase.$$.tmp"
+TEMPFILE="${HA_RSCTMP}/SAPDatabase.$$.tmp"
 trap trap_handler INT TERM

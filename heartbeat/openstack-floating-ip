@@ -132,7 +132,7 @@ osflip_validate() {
 		return $OCF_ERR_CONFIGURED
 	fi
 
-	${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $HOSTNAME > /dev/null 2>&1
+	${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $(crm_node -n) > /dev/null 2>&1
 	if [ $? -ne 0 ] ; then
 		ocf_log warn "attr_updater failed to get openstack_ports attribute of node $OCF_RESOURCE_INSTANCE"
 		return $OCF_ERR_GENERIC
@@ -147,8 +147,10 @@ osflip_monitor() {
 	local node_port_ids
 	local port
 	local buffer
+	local crm_node
 
-	node_port_ids=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $HOSTNAME \
+	crm_node=$(crm_node -n)
+	node_port_ids=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $crm_node \
 		| awk -F= '{gsub("\"","");print $NF}' \
 		| tr ',' ' ' \
 		| awk -F: '{print $NF}')
@@ -162,13 +164,13 @@ osflip_monitor() {
 	for port in $node_port_ids ; do
 		if echo $result | grep -q $port ; then
 			floating_ip=$(echo $result | awk '/floating_ip_address/ {print $2}')
-			${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_floating_ip -v $floating_ip
+			${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_floating_ip -v $floating_ip
 
 			return $OCF_SUCCESS
 		fi
 	done
 
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_floating_ip
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_floating_ip
 	ocf_log warn "$OCF_RESKEY_ip_id is not attached to any fixed address"
 	return $OCF_NOT_RUNNING
 }
@@ -207,9 +209,13 @@ osflip_start() {
 	fi
 
 	# Get port_id from subnet_id
-	node_port_ids=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $HOSTNAME \
+	node_port_ids=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $(crm_node -n) \
 		| awk '{gsub("value=","") ; gsub("\"","") ; print $NF}')
-	node_port_id=$(echo $node_port_ids|tr ',' '\n'|awk -F: "/$OCF_RESKEY_subnet_id/ {print \$2}")
+
+	node_port_id=$(echo $node_port_ids \
+		| tr ',' '\n' \
+		| awk -F: "/$OCF_RESKEY_subnet_id/ {print \$2}")
+
 	ocf_log info "Moving IP address $OCF_RESKEY_ip_id to port ID $node_port_id"
 
 	$OCF_RESKEY_openstackcli floating ip set --port $node_port_id $OCF_RESKEY_ip_id

@@ -53,6 +53,13 @@
 ###
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Parameter defaults
+
+OCF_RESKEY_raidname_default=""
+
+: ${OCF_RESKEY_raidname=${OCF_RESKEY_raidname_default}}
+
 ###
 
 # required utilities
@@ -105,7 +112,7 @@ meta_data()
         Name (case sensitive) of RAID to manage. (preconfigured in /etc/conf.d/HB-ManageRAID)
       </longdesc>
       <shortdesc lang="en">RAID name</shortdesc>
-      <content type="string" default="" />
+      <content type="string" default="${OCF_RESKEY_raidname_default}" />
     </parameter>
   </parameters>
 

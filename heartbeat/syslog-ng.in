@@ -40,6 +40,28 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_configfile_default=""
+OCF_RESKEY_syslog_ng_binary_default="/sbin/syslog-ng"
+OCF_RESKEY_syslog_ng_ctl_default="/sbin/syslog-ng-ctl"
+OCF_RESKEY_qdisk_dir_default=""
+OCF_RESKEY_control_file_default=""
+OCF_RESKEY_persist_file_default=""
+OCF_RESKEY_pidfile_default=""
+OCF_RESKEY_start_opts_default=""
+OCF_RESKEY_kill_term_timeout_default="10"
+
+: ${OCF_RESKEY_configfile=${OCF_RESKEY_configfile_default}}
+: ${OCF_RESKEY_syslog_ng_binary=${OCF_RESKEY_syslog_ng_binary_default}}
+: ${OCF_RESKEY_syslog_ng_ctl=${OCF_RESKEY_syslog_ng_ctl_default}}
+: ${OCF_RESKEY_qdisk_dir=${OCF_RESKEY_qdisk_dir_default}}
+: ${OCF_RESKEY_control_file=${OCF_RESKEY_control_file_default}}
+: ${OCF_RESKEY_persist_file=${OCF_RESKEY_persist_file_default}}
+: ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
+: ${OCF_RESKEY_start_opts=${OCF_RESKEY_start_opts_default}}
+: ${OCF_RESKEY_kill_term_timeout=${OCF_RESKEY_kill_term_timeout_default}}
+
 usage() 
 {
 	cat <<-!
@@ -93,7 +115,7 @@ This parameter specifies a configuration file
 for a syslog-ng instance managed by this RA.
 </longdesc>
 <shortdesc lang="en">Configuration file</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_configfile_default}"/>
 </parameter>
 
 <parameter name="syslog_ng_binary" unique="0">
@@ -101,7 +123,7 @@ for a syslog-ng instance managed by this RA.
 This parameter specifies syslog-ng's executable file.
 </longdesc>
 <shortdesc lang="en">syslog-ng executable</shortdesc>
-<content type="string" default="/sbin/syslog-ng"/>
+<content type="string" default="${OCF_RESKEY_syslog_ng_binary_default}"/>
 </parameter>
 
 <parameter name="syslog_ng_ctl" unique="0">
@@ -109,7 +131,7 @@ This parameter specifies syslog-ng's executable file.
 This parameter specifies the path of the syslog-ng-ctl executable file.
 </longdesc>
 <shortdesc lang="en">syslog-ng-ctl executable</shortdesc>
-<content type="string" default="/sbin/syslog-ng-ctl"/>
+<content type="string" default="${OCF_RESKEY_syslog_ng_ctl_default}"/>
 </parameter>
 
 <parameter name="qdisk_dir" unique="0">
@@ -118,7 +140,7 @@ This parameter specifies the directory used for holding disk buffers of
 syslog-ng (only supported in Premium Edition 6).
 </longdesc>
 <shortdesc lang="en">disk buffer directory (PE6 only)</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_qdisk_dir_default}"/>
 </parameter>
 
 <parameter name="control_file" unique="0">
@@ -127,7 +149,7 @@ This parameter specifies the path, where syslog-ng would place its control
 socket, through which it can be controlled.
 </longdesc>
 <shortdesc lang="en">process control socket</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_control_file_default}"/>
 </parameter>
 
 <parameter name="persist_file" unique="0">
@@ -137,7 +159,7 @@ persistent information about the mapping of destinations and disk buffers,
 the internal state of sources, etc.
 </longdesc>
 <shortdesc lang="en">persist file path</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_persist_file_default}"/>
 </parameter>
 
 <parameter name="pidfile" unique="0">
@@ -145,7 +167,7 @@ the internal state of sources, etc.
 This parameter specifies the path where the pid file of syslog-ng resides.
 </longdesc>
 <shortdesc lang="en">pidfile path</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_pidfile_default}"/>
 </parameter>
 
 <parameter name="start_opts" unique="0">
@@ -155,7 +177,7 @@ syslog-ng instance managed by this RA. When no value is given, no startup
 options is used. Don't use option '-F'. It causes a stuck of a start action.
 </longdesc>
 <shortdesc lang="en">Start options</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_start_opts_default}"/>
 </parameter>
 
 <parameter name="kill_term_timeout" unique="0">
@@ -166,7 +188,7 @@ the specified seconds by this parameter.
 The default value is 10.
 </longdesc>
 <shortdesc lang="en">Number of seconds to await to confirm a normal stop method</shortdesc>
-<content type="integer" default="10"/>
+<content type="integer" default="${OCF_RESKEY_kill_term_timeout_default}"/>
 </parameter>
 
 </parameters>
@@ -299,18 +321,18 @@ fi
 SYSLOG_NG_NAME=${CONFIGFILE##*/}
 SYSLOG_NG_NAME=${SYSLOG_NG_NAME%.*}
 
-SYSLOG_NG_EXE="${OCF_RESKEY_syslog_ng_binary:-/sbin/syslog-ng}"
+SYSLOG_NG_EXE="${OCF_RESKEY_syslog_ng_binary}"
 if [[ ! -x "$SYSLOG_NG_EXE" ]]; then
 	ocf_log err "Invalid value:syslog_ng_binary:$SYSLOG_NG_EXE"
 	exit $OCF_ERR_CONFIGURED
 fi
 
-SYSLOG_NG_CTL="${OCF_RESKEY_syslog_ng_ctl:-/sbin/syslog-ng-ctl}"
+SYSLOG_NG_CTL="${OCF_RESKEY_syslog_ng_ctl}"
 
 # actually, the pidfile has no function; the status is checked by
 # testing for a running process only
 
-KILL_TERM_TIMEOUT="${OCF_RESKEY_kill_term_timeout-10}"
+KILL_TERM_TIMEOUT="${OCF_RESKEY_kill_term_timeout}"
 if ! ocf_is_decimal "$KILL_TERM_TIMEOUT"; then
 	ocf_log err "Invalid value:kill_term_timeout:$KILL_TERM_TIMEOUT"
 	exit $OCF_ERR_CONFIGURED

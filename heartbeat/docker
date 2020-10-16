@@ -35,8 +35,9 @@
 
 # Parameter defaults
 
-OCF_RESKEY_daemon_pidfile_default="/var/run/docker.pid"
-: ${OCF_RESKEY_daemon_pidfile=${OCF_RESKEY_daemon_pidfile_default}}
+OCF_RESKEY_reuse_default="0"
+
+: ${OCF_RESKEY_reuse=${OCF_RESKEY_reuse_default}}
 
 #######################################################################
 
@@ -157,7 +158,7 @@ containers get removed once they are stopped.  Enable this option
 to have the particular one persist when this happens.
 </longdesc>
 <shortdesc lang="en">reuse container</shortdesc>
-<content type="boolean" default="0"/>
+<content type="boolean" default="${OCF_RESKEY_reuse_default}"/>
 </parameter>
 
 <parameter name="query_docker_health" required="0" unique="0">
@@ -179,15 +180,6 @@ container to be considered healthy.
 </longdesc>
 <shortdesc lang="en">use healthcheck</shortdesc>
 <content type="boolean"/>
-</parameter>
-
-<parameter name="daemon_pidfile" required="0" unique="0">
-<longdesc lang="en">
-The RA will report not running status on hosts where the docker daemon
-is not running.
-</longdesc>
-<shortdesc lang="en">Name of the docker daemon pid file</shortdesc>
-<content type="string" default="${OCF_RESKEY_daemon_pidfile_default}"/>
 </parameter>
 
 </parameters>
@@ -296,9 +288,13 @@ docker_simple_status()
 		return $OCF_ERR_INSTALLED
 	fi
 
-	if [ ! -e "$OCF_RESKEY_daemon_pidfile" ]; then
-		ocf_log err "docker daemon is not running, pid file $OCF_RESKEY_daemon_pidfile not exists"
-		return $OCF_NOT_RUNNING
+
+	# let's first check if the daemon is up and running.
+	VERSION_OUT=$(docker version)
+	version_ret=$?
+	if [ $version_ret -eq 1 ]; then
+		ocf_exit_reason "Docker service is in error state while checking for ${CONTAINER}, based on image, ${OCF_RESKEY_image}: ${VERSION_OUT}"
+		return $OCF_ERR_GENERIC
 	fi
 
 	container_exists
@@ -454,9 +450,12 @@ docker_stop()
 {
 	local timeout=60
 	docker_simple_status
-	if [ $? -eq  $OCF_NOT_RUNNING ]; then
+	ret=$?
+	if [ $ret -eq $OCF_NOT_RUNNING ]; then
 		remove_container
 		return $OCF_SUCCESS
+        elif [ $ret -eq $OCF_ERR_GENERIC ]; then
+               return $OCF_ERR_GENERIC
 	fi
 
 	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
