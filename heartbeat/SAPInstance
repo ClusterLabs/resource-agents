@@ -32,6 +32,7 @@
 #	OCF_RESKEY_PRE_STOP_USEREXIT	(optional, lists a script which can be executed before the resource is stopped)
 #	OCF_RESKEY_POST_STOP_USEREXIT	(optional, lists a script which can be executed after the resource is stopped)
 #	OCF_RESKEY_IS_ERS               (needed for ENQ/REPL NW 740)
+#       OCF_RESKEY_LWP		        (optional but needed for simple mount structure) TODO: To find a better name ;-)
 #
 #  TODO: - Option to shutdown sapstartsrv for non-active instances -> that means: do probes only with OS tools (sapinstance_status)
 #        - Option for better standalone enqueue server monitoring, using ensmon (test enque-deque)
@@ -60,6 +61,7 @@ OCF_RESKEY_POST_START_USEREXIT_default=""
 OCF_RESKEY_PRE_STOP_USEREXIT_default=""
 OCF_RESKEY_POST_STOP_USEREXIT_default=""
 OCF_RESKEY_IS_ERS_default="false"
+OCF_RESKEY_LWP_default="false"
 
 : ${OCF_RESKEY_InstanceName=${OCF_RESKEY_InstanceName_default}}
 : ${OCF_RESKEY_DIR_EXECUTABLE=${OCF_RESKEY_DIR_EXECUTABLE_default}}
@@ -76,6 +78,7 @@ OCF_RESKEY_IS_ERS_default="false"
 : ${OCF_RESKEY_PRE_STOP_USEREXIT=${OCF_RESKEY_PRE_STOP_USEREXIT_default}}
 : ${OCF_RESKEY_POST_STOP_USEREXIT=${OCF_RESKEY_POST_STOP_USEREXIT_default}}
 : ${OCF_RESKEY_IS_ERS=${OCF_RESKEY_IS_ERS_default}}
+: ${OCF_RESKEY_IS_LWP=${OCF_RESKEY_IS_LWP_default}}
 
 #######################################################################
 
@@ -710,8 +713,19 @@ sapinstance_monitor() {
   local MONLOG=$1
   local rc
 
-  check_sapstartsrv
-  rc=$?
+  if ocf_is_probe && ocf_is_true "$OCF_RESKEY_LWP"; then
+    # probe code for lightwigth-probe: # grep for sapstartsrv and maybe also for sapstart
+    # TODO: Do we need to improve this light-weight test?
+    if pgrep -f -l "sapstartsrv.*pf=.*${SID}_${InstanceName}_${SAPVIRHOST}"; then
+      rc="$OCF_SUCCESS"
+    else
+      rc="$OCF_NOT_RUNNING"
+    fi
+  else
+    # standard probe and monitoring code
+    check_sapstartsrv
+    rc=$?
+  fi
 
   if [ $rc -eq $OCF_SUCCESS ]
   then
