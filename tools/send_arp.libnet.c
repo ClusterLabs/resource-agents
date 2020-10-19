@@ -108,7 +108,7 @@ int create_pid_directory(const char *piddirectory);
 #endif
 
 
-/* 
+/*
  * For use logd, should keep identical with the same const variables defined
  * in heartbeat.h.
  */
@@ -142,6 +142,7 @@ main(int argc, char *argv[])
 	int	flag;
 	char    pidfilenamebuf[64];
 	char    *pidfilename = NULL;
+	struct sigaction act;
 
 #ifdef HAVE_LIBNET_1_0_API
 	LTYPE*	l;
@@ -150,8 +151,13 @@ main(int argc, char *argv[])
 	LTYPE *request, *reply;
 #endif
 
-	CL_SIGNAL(SIGTERM, byebye);
-	CL_SIGINTERRUPT(SIGTERM, 1);
+	memset(&act, 0, sizeof(struct sigaction));
+	act.sa_flags &= ~SA_RESTART; /* redundant - to stress syscalls should fail */
+	act.sa_handler = byebye;
+	if ((sigemptyset(&act.sa_mask) < 0) || (sigaction(SIGTERM, &act, NULL) < 0)) {
+		cl_log(LOG_ERR, "Could not set handler for signal: %s", strerror(errno));
+		return 1;
+	}
 
         cl_log_set_entity(SENDARPNAME);
         cl_log_enable_stderr(TRUE);
