@@ -32,7 +32,7 @@
 #	OCF_RESKEY_PRE_STOP_USEREXIT	(optional, lists a script which can be executed before the resource is stopped)
 #	OCF_RESKEY_POST_STOP_USEREXIT	(optional, lists a script which can be executed after the resource is stopped)
 #	OCF_RESKEY_IS_ERS               (needed for ENQ/REPL NW 740)
-#       OCF_RESKEY_LWP		        (optional but needed for simple mount structure) TODO: To find a better name ;-)
+#   OCF_RESKEY_MINIMAL_PROBE		(optional but needed for simple mount structure architecure)
 #
 #  TODO: - Option to shutdown sapstartsrv for non-active instances -> that means: do probes only with OS tools (sapinstance_status)
 #        - Option for better standalone enqueue server monitoring, using ensmon (test enque-deque)
@@ -61,7 +61,7 @@ OCF_RESKEY_POST_START_USEREXIT_default=""
 OCF_RESKEY_PRE_STOP_USEREXIT_default=""
 OCF_RESKEY_POST_STOP_USEREXIT_default=""
 OCF_RESKEY_IS_ERS_default="false"
-OCF_RESKEY_LWP_default="false"
+OCF_RESKEY_MINIMAL_PROBE_default="false"
 
 : ${OCF_RESKEY_InstanceName=${OCF_RESKEY_InstanceName_default}}
 : ${OCF_RESKEY_DIR_EXECUTABLE=${OCF_RESKEY_DIR_EXECUTABLE_default}}
@@ -78,7 +78,7 @@ OCF_RESKEY_LWP_default="false"
 : ${OCF_RESKEY_PRE_STOP_USEREXIT=${OCF_RESKEY_PRE_STOP_USEREXIT_default}}
 : ${OCF_RESKEY_POST_STOP_USEREXIT=${OCF_RESKEY_POST_STOP_USEREXIT_default}}
 : ${OCF_RESKEY_IS_ERS=${OCF_RESKEY_IS_ERS_default}}
-: ${OCF_RESKEY_IS_LWP=${OCF_RESKEY_IS_LWP_default}}
+: ${OCF_RESKEY_IS_MINIMAL_PROBE=${OCF_RESKEY_IS_MINIMAL_PROBE_default}}
 
 #######################################################################
 
@@ -250,6 +250,14 @@ The name of the SAP START profile. Specify this parameter, if you have changed t
   </longdesc>
   <shortdesc lang="en">Mark SAPInstance as ERS instance</shortdesc>
   <content type="boolean" default="${OCF_RESKEY_IS_ERS_default}" />
+ </parameter>
+ <parameter name="MINIMAL_PROBE" unique="0" required="0">
+ <shortdesc lang="en">Switch probe action from full to minimal check</shortdesc>
+ <longdesc lang="en">Setting MINIMAL_PROBE=true forces the resource agent to do only minimal check during a probe. This is needed for special
+ file system setups. The MINIMAL_PROBE=true is only supported, if requested either by your vendor's support or if described in an architecture document
+ from your HA vendor.
+ </longdesc>
+ <content type="boolean" default="${OCF_RESKEY_MINIMAL_PROBE_default}" />
  </parameter>
 </parameters>
 
@@ -713,10 +721,12 @@ sapinstance_monitor() {
   local MONLOG=$1
   local rc
 
-  if ocf_is_probe && ocf_is_true "$OCF_RESKEY_LWP"; then
-    # probe code for lightwigth-probe: # grep for sapstartsrv and maybe also for sapstart
-    # TODO: Do we need to improve this light-weight test?
-    if pgrep -f -l "sapstartsrv.*pf=.*${SID}_${InstanceName}_${SAPVIRHOST}"; then
+  if ocf_is_probe && ocf_is_true "$OCF_RESKEY_MINIMAL_PROBE"; then
+    # code for minimal probe: # grep for sapstartsrv and maybe also for sapstart
+    # TODO: Do we need to improve this minimal test?
+    if pgrep -f -l "sapstartsrv .*pf=.*${SID}_${InstanceName}_${SAPVIRHOST}"; then
+      rc="$OCF_SUCCESS"
+    elif pgrep -f -l "sapstart .*pf=.*${SID}_${InstanceName}_${SAPVIRHOST}"; then
       rc="$OCF_SUCCESS"
     else
       rc="$OCF_NOT_RUNNING"
