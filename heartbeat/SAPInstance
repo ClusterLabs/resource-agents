@@ -17,21 +17,21 @@
 #      See usage() function below for more details...
 #
 # OCF instance parameters:
-#	OCF_RESKEY_InstanceName
-#	OCF_RESKEY_DIR_EXECUTABLE   (optional, well known directories will be searched by default)
-#	OCF_RESKEY_DIR_PROFILE      (optional, well known directories will be searched by default)
-#	OCF_RESKEY_START_PROFILE    (optional, well known directories will be searched by default)
-#	OCF_RESKEY_START_WAITTIME   (optional, to solve timing problems during J2EE-Addin start)
-#	OCF_RESKEY_AUTOMATIC_RECOVER    (optional, automatic startup recovery using cleanipc, default is false)
-#	OCF_RESKEY_MONITOR_SERVICES     (optional, default is to monitor critical services only)
-#	OCF_RESKEY_SHUTDOWN_METHOD      (optional, defaults to NORMAL, KILL: terminate the SAP instance with OS commands - faster, at your own risk)
-#	OCF_RESKEY_ERS_InstanceName     (optional, InstanceName of the ERS instance in a Master/Slave configuration)
-#	OCF_RESKEY_ERS_START_PROFILE    (optional, START_PROFILE of the ERS instance in a Master/Slave configuration)
-#	OCF_RESKEY_PRE_START_USEREXIT	(optional, lists a script which can be executed before the resource is started)
-#	OCF_RESKEY_POST_START_USEREXIT	(optional, lists a script which can be executed after the resource is started)
-#	OCF_RESKEY_PRE_STOP_USEREXIT	(optional, lists a script which can be executed before the resource is stopped)
-#	OCF_RESKEY_POST_STOP_USEREXIT	(optional, lists a script which can be executed after the resource is stopped)
-#	OCF_RESKEY_IS_ERS               (needed for ENQ/REPL NW 740)
+#   OCF_RESKEY_InstanceName
+#   OCF_RESKEY_DIR_EXECUTABLE   (optional, well known directories will be searched by default)
+#   OCF_RESKEY_DIR_PROFILE      (optional, well known directories will be searched by default)
+#   OCF_RESKEY_START_PROFILE    (optional, well known directories will be searched by default)
+#   OCF_RESKEY_START_WAITTIME   (optional, to solve timing problems during J2EE-Addin start)
+#   OCF_RESKEY_AUTOMATIC_RECOVER    (optional, automatic startup recovery using cleanipc, default is false)
+#   OCF_RESKEY_MONITOR_SERVICES     (optional, default is to monitor critical services only)
+#   OCF_RESKEY_SHUTDOWN_METHOD      (optional, defaults to NORMAL, KILL: terminate the SAP instance with OS commands - faster, at your own risk)
+#   OCF_RESKEY_ERS_InstanceName     (optional, InstanceName of the ERS instance in a Master/Slave configuration)
+#   OCF_RESKEY_ERS_START_PROFILE    (optional, START_PROFILE of the ERS instance in a Master/Slave configuration)
+#   OCF_RESKEY_PRE_START_USEREXIT	(optional, lists a script which can be executed before the resource is started)
+#   OCF_RESKEY_POST_START_USEREXIT	(optional, lists a script which can be executed after the resource is started)
+#   OCF_RESKEY_PRE_STOP_USEREXIT	(optional, lists a script which can be executed before the resource is stopped)
+#   OCF_RESKEY_POST_STOP_USEREXIT	(optional, lists a script which can be executed after the resource is stopped)
+#   OCF_RESKEY_IS_ERS               (needed for ENQ/REPL NW 740)
 #   OCF_RESKEY_MINIMAL_PROBE		(optional but needed for simple mount structure architecure)
 #
 #  TODO: - Option to shutdown sapstartsrv for non-active instances -> that means: do probes only with OS tools (sapinstance_status)
