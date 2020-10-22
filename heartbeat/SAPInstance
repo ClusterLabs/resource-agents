@@ -252,11 +252,11 @@ The name of the SAP START profile. Specify this parameter, if you have changed t
   <content type="boolean" default="${OCF_RESKEY_IS_ERS_default}" />
  </parameter>
  <parameter name="MINIMAL_PROBE" unique="0" required="0">
- <shortdesc lang="en">Switch probe action from full to minimal check</shortdesc>
  <longdesc lang="en">Setting MINIMAL_PROBE=true forces the resource agent to do only minimal check during a probe. This is needed for special
  file system setups. The MINIMAL_PROBE=true is only supported, if requested either by your vendor's support or if described in an architecture document
  from your HA vendor.
  </longdesc>
+ <shortdesc lang="en">Switch probe action from full to minimal check</shortdesc>
  <content type="boolean" default="${OCF_RESKEY_MINIMAL_PROBE_default}" />
  </parameter>
 </parameters>
