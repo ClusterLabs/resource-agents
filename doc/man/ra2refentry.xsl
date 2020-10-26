@@ -612,7 +612,14 @@
     <xsl:choose>
       <xsl:when test="name() = 'name'"><!-- suppress --></xsl:when>
       <xsl:otherwise>
-        <xsl:value-of select="name()"/>
+        <xsl:choose>
+          <xsl:when test="name() != 'depth'">
+          <xsl:value-of select="name()"/>
+          </xsl:when>
+          <xsl:otherwise>
+            <xsl:text>OCF_CHECK_LEVEL</xsl:text>
+          </xsl:otherwise>
+        </xsl:choose>
         <xsl:text>="</xsl:text>
         <xsl:value-of select="current()"/>
         <xsl:text>" </xsl:text>
