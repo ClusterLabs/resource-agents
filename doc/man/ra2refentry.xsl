@@ -556,7 +556,7 @@
      <!-- Insert a master/slave set definition if the resource
       agent supports promotion and demotion -->
       <xsl:if test="actions/action/@name = 'promote' and actions/action/@name = 'demote'">
-          <xsl:text>--master</xsl:text>
+          <xsl:text>promotable</xsl:text>
       </xsl:if>
       </programlisting>
 
