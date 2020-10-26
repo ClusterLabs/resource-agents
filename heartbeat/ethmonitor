@@ -230,8 +230,8 @@ is_interface() {
 	#
 	# List interfaces but exclude FreeS/WAN ipsecN virtual interfaces
 	#
-	local iface=`$IP2UTIL -o -f link addr show | grep " $1:" \
-		| cut -d ' ' -f2 | tr -d ':' | sort -u | grep -v '^ipsec[0-9][0-9]*$'`
+	local iface=`$IP2UTIL -o -f link addr show | grep -e " $1[:@]" \
+		| cut -d ' ' -f2 | tr -d ':' | cut -d '@' -f1 | sort -u | grep -v '^ipsec[0-9][0-9]*$'`
 		[ "$iface" != "" ]
 }
 
