@@ -587,8 +587,8 @@ detect_first_master()
     fi
 
     ocf_log info "Promoting $best_node to be our bootstrap node"
-    set_master_score $best_node
     set_bootstrap_node $best_node
+    set_master_score $best_node
 }
 
 detect_safe_to_bootstrap()
