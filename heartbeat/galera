@@ -441,7 +441,21 @@ master_exists()
         return 1
     fi
     # determine if a master instance is already up and is healthy
-    ${HA_SBIN_DIR}/crm_mon --as-xml | grep "resource.*id=\"${INSTANCE_ATTR_NAME}\".*role=\"Master\".*active=\"true\".*orphaned=\"false\".*failed=\"false\"" > /dev/null 2>&1
+    ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.1.0"
+    res=$?
+    if [ -z "$OCF_RESKEY_crm_feature_set" ] || [ $res -eq 2 ]; then
+        XMLOPT="--output-as=xml"
+        ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.2.0"
+        if [ $? -eq 1 ]; then
+            crm_mon -1 $XMLOPT >/dev/null 2>&1
+            if [ $? -ne 0 ]; then
+                XMLOPT="--as-xml"
+            fi
+        fi
+    else
+        XMLOPT="--as-xml"
+    fi
+    ${HA_SBIN_DIR}/crm_mon -1 $XMLOPT | grep -q -i -E "resource.*id=\"${INSTANCE_ATTR_NAME}\".*role=\"(Promoted|Master)\".*active=\"true\".*orphaned=\"false\".*failed=\"false\""
     return $?
 }
 
