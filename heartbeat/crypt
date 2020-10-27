@@ -251,7 +251,7 @@ crypt_start() {
 	else
 		rc=$OCF_ERR_GERNERIC
 	fi
-	[ $rc -ne $OCF_SUCCESS ] ocf_exit_reason "Failed to start encrypted device \"$crypt_dev\""
+	[ $rc -ne $OCF_SUCCESS ] && ocf_exit_reason "Failed to start encrypted device \"$crypt_dev\""
 
 	return $rc
 }
