@@ -85,7 +85,7 @@ fi
 
 OCF_RESKEY_wsrep_cluster_address_default=""
 OCF_RESKEY_cluster_host_map_default=""
-OCF_RESKEY_check_user_default="root"
+OCF_RESKEY_check_user_default=""
 OCF_RESKEY_check_passwd_default=""
 
 : ${OCF_RESKEY_wsrep_cluster_address=${OCF_RESKEY_wsrep_cluster_address_default}}
