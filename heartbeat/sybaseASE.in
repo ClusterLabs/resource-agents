@@ -115,6 +115,13 @@ fi
 interfaces_file_default="${OCF_RESKEY_sybase_home}/interfaces"
 : ${OCF_RESKEY_interfaces_file=${interfaces_file_default}}
 
+if [ $__OCF_ACTION != "meta-data" ]; then
+	logfile_default="$OCF_RESKEY_sybase_home/$OCF_RESKEY_sybase_ase/install/$OCF_RESKEY_server_name.log"
+else
+	logfile_default="detect"
+fi
+: ${OCF_RESKEY_logfile=${logfile_default}}
+
 export LD_POINTER_GUARD=0
 
 #######################################################################################
@@ -122,7 +129,7 @@ export LD_POINTER_GUARD=0
 #######################################################################################
 declare login_string=""
 declare RUNSERVER_SCRIPT=$OCF_RESKEY_sybase_home/$OCF_RESKEY_sybase_ase/install/RUN_$OCF_RESKEY_server_name
-declare CONSOLE_LOG=$OCF_RESKEY_sybase_home/$OCF_RESKEY_sybase_ase/install/$OCF_RESKEY_server_name.log
+declare CONSOLE_LOG="$OCF_RESKEY_logfile"
 
 ##################################################################################################
 # This function will be called by Pacemaker to get the meta data of resource agent "sybaseASE".  #
@@ -221,6 +228,16 @@ meta_data()
 				Sybase user
 			</shortdesc>
 			<content type="string"/>
+		</parameter>
+
+		<parameter name="logfile">
+			<longdesc lang="en">
+				Logfile
+			</longdesc>
+			<shortdesc lang="en">
+				Logfile
+			</shortdesc>
+			<content type="string" default="$logfile_default" />
 		</parameter>
 
 	</parameters>
