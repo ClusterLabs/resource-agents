@@ -50,6 +50,16 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_ip_default=""
+OCF_RESKEY_nic_default=""
+OCF_RESKEY_background_default="true"
+
+: ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
+: ${OCF_RESKEY_nic=${OCF_RESKEY_nic_default}}
+: ${OCF_RESKEY_background=${OCF_RESKEY_background_default}}
+
 SENDARP=$HA_BIN/send_arp
 SENDARPPIDDIR=${HA_RSCTMP}
 
@@ -57,7 +67,7 @@ BASEIP="$OCF_RESKEY_ip"
 INTERFACE="$OCF_RESKEY_nic"
 RESIDUAL=""
 SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$BASEIP"
-BACKGROUND=${OCF_RESKEY_background:-"yes"}
+BACKGROUND=${OCF_RESKEY_background}
 
 # Set default values
 
@@ -79,7 +89,7 @@ sendarp_meta_data() {
 This RA can be used _instead_ of the IPaddr2 or IPaddr RA to
 send gratuitous ARP for an IP address on a given interface, 
 without adding the address to that interface.  For example,
-if for some resaon you wanted to send gratuitous ARP for
+if for some reason you wanted to send gratuitous ARP for
 addresses managed by IPaddr2 or IPaddr on an additional
 interface.
 </longdesc>
@@ -91,7 +101,7 @@ interface.
 The IP address for sending ARP packet.
 </longdesc>
 <shortdesc lang="en">IP address</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_ip_default}" />
 </parameter>
 
 <parameter name="nic" unique="0" required="1">
@@ -99,7 +109,7 @@ The IP address for sending ARP packet.
 The NIC for sending ARP packet.
 </longdesc>
 <shortdesc lang="en">NIC</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_nic_default}" />
 </parameter>
 
 <parameter name="background" unique="0" required="0">
@@ -108,7 +118,7 @@ Send ARPs in background. Set to false if you want to test if
 sending ARPs succeeded.
 </longdesc>
 <shortdesc lang="en">Send ARPs in background</shortdesc>
-<content type="boolean" default="true" />
+<content type="boolean" default="${OCF_RESKEY_background_default}" />
 </parameter>
 
 </parameters>
@@ -116,8 +126,8 @@ sending ARPs succeeded.
 <actions>
 <action name="start"   timeout="20s" />
 <action name="stop"    timeout="20s" />
-<action name="monitor" depth="0"  timeout="20" interval="10" />
-<action name="meta-data"  timeout="5" />
+<action name="monitor" depth="0"  timeout="20s" interval="10s" />
+<action name="meta-data"  timeout="5s" />
 <action name="validate-all"  timeout="20s" />
 </actions>
 </resource-agent>

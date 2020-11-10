@@ -30,6 +30,13 @@
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Parameter defaults
+
+OCF_RESKEY_state_default="${HA_RSCTMP}/Stateful-${OCF_RESOURCE_INSTANCE}.state"
+
+: ${OCF_RESKEY_state=${OCF_RESKEY_state_default}}
+
 CRM_MASTER="${HA_SBIN_DIR}/crm_master -l reboot"
 
 #######################################################################
@@ -42,7 +49,7 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-This is an example resource agent that impliments two states
+This is an example resource agent that implements two states
 </longdesc>
 <shortdesc lang="en">Example stateful resource agent</shortdesc>
 
@@ -53,7 +60,7 @@ This is an example resource agent that impliments two states
 Location to store the resource state in
 </longdesc>
 <shortdesc lang="en">State file</shortdesc>
-<content type="string" default="${HA_RSCTMP}/Stateful-{OCF_RESOURCE_INSTANCE}.state" />
+<content type="string" default="${OCF_RESKEY_state_default}" />
 </parameter>
 
 </parameters>
@@ -63,8 +70,8 @@ Location to store the resource state in
 <action name="stop"    timeout="20s" />
 <action name="promote"    timeout="20s" />
 <action name="demote"    timeout="20s" />
-<action name="monitor" depth="0"  timeout="20" interval="10"/>
-<action name="meta-data"  timeout="5" />
+<action name="monitor" depth="0"  timeout="20s" interval="10s"/>
+<action name="meta-data"  timeout="5s" />
 <action name="validate-all"  timeout="20s" />
 </actions>
 </resource-agent>
@@ -171,8 +178,6 @@ stateful_monitor() {
 stateful_validate() {
 	exit $OCF_SUCCESS
 }
-
-: ${OCF_RESKEY_state=${HA_RSCTMP}/Stateful-${OCF_RESOURCE_INSTANCE}.state}
 
 case $__OCF_ACTION in
 meta-data)	meta_data;;

@@ -215,9 +215,9 @@ findif()
   fi
   if [ -n "$nic" ] ; then
     # NIC supports more than two.
-    set -- $(ip -o -f $family route list match $match $scope | grep "dev $nic " | awk 'BEGIN{best=0} { mask=$1; sub(".*/", "", mask); if( int(mask)>=best ) { best=int(mask); best_ln=$0; } } END{print best_ln}')
+    set -- $(ip -o -f $family route list match $match $scope | grep "dev $nic " | awk 'BEGIN{best=0} /\// { mask=$1; sub(".*/", "", mask); if( int(mask)>=best ) { best=int(mask); best_ln=$0; } } END{print best_ln}')
   else
-    set -- $(ip -o -f $family route list match $match $scope | awk 'BEGIN{best=0} { mask=$1; sub(".*/", "", mask); if( int(mask)>=best ) { best=int(mask); best_ln=$0; } } END{print best_ln}')
+    set -- $(ip -o -f $family route list match $match $scope | awk 'BEGIN{best=0} /\// { mask=$1; sub(".*/", "", mask); if( int(mask)>=best ) { best=int(mask); best_ln=$0; } } END{print best_ln}')
   fi
   if [ $# = 0 ] ; then
     case $OCF_RESKEY_ip in
@@ -233,6 +233,8 @@ findif()
     fi
     case $1 in
     */*) : OK ;;
+    # "ip route" doesnt show netmask for IPv6 /128
+    *:*:*) : OK ;;
     *)
       ocf_log err "Unable to find cidr_netmask."
       return $OCF_ERR_GENERIC ;;
@@ -248,7 +250,7 @@ findif()
       fi
     fi
   else
-    if [ -z "$OCF_RESKEY_nic" -a "$netmask" != "${1#*/}" ] ; then
+    if [ -z "$OCF_RESKEY_nic" ] && [ -z "$OCF_RESKEY_cidr_netmask" ] && [ "$netmask" != "${1#*/}" ] ; then
       ocf_log err "Unable to find nic, or netmask mismatch."
       return $OCF_ERR_GENERIC
     fi

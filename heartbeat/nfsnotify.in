@@ -1,0 +1,323 @@
+#!@BASH_SHELL@
+#
+# Copyright (c) 2014 David Vossel <davidvossel@gmail.com>
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+. ${OCF_FUNCTIONS_DIR}/ocf-directories
+
+# Parameter defaults
+
+OCF_RESKEY_source_host_default=""
+OCF_RESKEY_notify_args_default="false"
+
+: ${OCF_RESKEY_source_host=${OCF_RESKEY_source_host_default}}
+: ${OCF_RESKEY_notify_args=${OCF_RESKEY_notify_args_default}}
+
+#######################################################################
+
+sbindir=$HA_SBIN_DIR
+if [ -z "$sbindir" ]; then
+	sbindir=/usr/sbin
+fi
+
+SELINUX_ENABLED=-1
+
+NFSNOTIFY_TMP_DIR="${HA_RSCTMP}/nfsnotify_${OCF_RESOURCE_INSTANCE}/"
+HA_STATD_PIDFILE="$NFSNOTIFY_TMP_DIR/rpc.statd_${OCF_RESOURCE_INSTANCE}.pid"
+HA_STATD_PIDFILE_PREV="$NFSNOTIFY_TMP_DIR/rpc.statd_${OCF_RESOURCE_INSTANCE}.pid.prev"
+STATD_PATH="/var/lib/nfs/statd"
+SM_NOTIFY_BINARY="${sbindir}/sm-notify"
+IS_RENOTIFY=0
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="nfsnotify">
+<version>1.0</version>
+
+<longdesc lang="en">
+This agent sends NFSv3 reboot notifications to clients which informs clients to reclaim locks.
+</longdesc>
+<shortdesc lang="en">sm-notify reboot notifications</shortdesc>
+
+<parameters>
+
+<parameter name="source_host" unique="0" required="0">
+<longdesc lang="en">
+Comma separated list of floating IP addresses or host names that clients use
+to access the nfs service.  This will be used to set the source address and
+mon_name of the SN_NOTIFY reboot notifications.
+</longdesc>
+<shortdesc lang="en">source IP addresses</shortdesc>
+<content type="string" default="${OCF_RESKEY_source_host_default}" />
+</parameter>
+
+<parameter name="notify_args" unique="0" required="0">
+<longdesc lang="en">
+Additional arguments to send to the sm-notify command. By default
+this agent will always set sm-notify's '-f' option.  When the
+source_host option is set, the '-v' option will be used automatically
+to set the proper source address. Any additional sm-notify arguments
+set with this option will be used in addition to the previous default
+arguments.
+</longdesc>
+<shortdesc lang="en">sm-notify arguments</shortdesc>
+<content type="string" default="${OCF_RESKEY_notify_args_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="90s" />
+<action name="stop"         timeout="90s" />
+<action name="monitor"      timeout="90s" interval="30s" depth="0" />
+<action name="reload"       timeout="90s" />
+<action name="meta-data"    timeout="10s" />
+<action name="validate-all"   timeout="20s" />
+</actions>
+</resource-agent>
+END
+}
+
+v3notify_usage()
+{
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+v3notify_validate()
+{
+	# check_binary will exit with OCF_ERR_INSTALLED when binary is missing
+	check_binary "$SM_NOTIFY_BINARY"
+	check_binary "pgrep"
+	check_binary "killall"
+
+	return $OCF_SUCCESS
+}
+
+killall_smnotify()
+{
+	# killall sm-notify 
+	killall -TERM $SM_NOTIFY_BINARY > /dev/null 2>&1
+	if [ $? -eq 0 ]; then
+		# it is useful to know if sm-notify processes were actually left around
+		# or not during the stop/start operation. Whether this condition is true
+		# or false does not indicate a failure. It does indicate that 
+		# there are probably some unresponsive nfs clients out there that are keeping
+		# the sm-notify processes retrying.
+		ocf_log info "previous sm-notify processes terminated before $__OCF_ACTION action."
+	fi
+}
+
+v3notify_stop()
+{
+	killall_smnotify
+
+	rm -f $HA_STATD_PIDFILE_PREV > /dev/null 2>&1
+	mv $HA_STATD_PIDFILE $HA_STATD_PIDFILE_PREV > /dev/null 2>&1
+
+	return $OCF_SUCCESS
+}
+
+check_statd_pidfile()
+{
+	local binary="rpc.statd"
+	local pidfile="$HA_STATD_PIDFILE"
+
+	ocf_log debug "Checking status for ${binary}."
+	if [ -e "$pidfile" ]; then
+		cat /proc/$(cat $pidfile)/cmdline 2>/dev/null | grep -a "${binary}" > /dev/null 2>&1
+		if [ $? -eq 0 ]; then
+			return $OCF_SUCCESS
+		fi
+
+		ocf_exit_reason "$(cat $pidfile) for $binary is no longer running, sm-notify needs to re-notify clients"
+		return $OCF_ERR_GENERIC
+	fi
+
+	# if we don't have a pid file for rpc.statd, we have not yet sent the notifications
+	return $OCF_NOT_RUNNING
+}
+
+write_statd_pid()
+{
+	local binary="rpc.statd"
+	local pidfile="$HA_STATD_PIDFILE"
+	local pid
+
+	pid=$(pgrep ${binary})
+	case $? in
+		0)
+			ocf_log info "PID file (pid:${pid} at $pidfile) created for ${binary}."
+			mkdir -p $(dirname $pidfile)
+			echo "$pid" > $pidfile
+			return $OCF_SUCCESS;;
+		1)
+			rm -f "$pidfile" > /dev/null 2>&1 
+			ocf_log info "$binary is not running"
+			return $OCF_NOT_RUNNING;;
+		*)
+			rm -f "$pidfile" > /dev/null 2>&1 
+		  	ocf_exit_reason "Error encountered detecting pid status of $binary"
+			return $OCF_ERR_GENERIC;;
+	esac
+}
+
+copy_statd()
+{
+	local src=$1
+	local dest=$2
+
+	if ! [ -d "$dest" ]; then
+		mkdir -p "$dest"
+	fi
+
+	cp -rpfn $src/sm $src/sm.bak $src/state $dest > /dev/null 2>&1
+
+	# make sure folder ownership and selinux lables stay consistent
+	[ -n "`id -u rpcuser`" -a "`id -g rpcuser`" ] && chown rpcuser.rpcuser "$dest"
+	[ $SELINUX_ENABLED -eq 0 ] && chcon -R "$SELINUX_LABEL" "$dest"
+}
+
+v3notify_start()
+{
+	local rc=$OCF_SUCCESS
+	local cur_statd
+	local statd_backup
+	local is_renotify=0
+
+	# monitor, see if we need to notify or not
+	v3notify_monitor
+	if [ $? -eq 0 ]; then
+		return $OCF_SUCCESS
+	fi
+
+	# kill off any other sm-notify processes that might already be running.
+	killall_smnotify
+
+	# record the pid of rpc.statd. if this pid ever changes, we have to re-notify
+	write_statd_pid
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		return $rc
+	fi
+
+	# if the last time we ran nfs-notify, it was with the same statd process,
+	# consider this a re-notification. During re-notifications we do not let the
+	# sm-notify binary have access to the real statd directory.
+	if [ "$(cat $HA_STATD_PIDFILE)" = "$(cat $HA_STATD_PIDFILE_PREV 2>/dev/null)" ]; then
+		ocf_log info "Renotifying clients"
+		is_renotify=1
+	fi
+
+	statd_backup="$STATD_PATH/nfsnotify.bu"
+	copy_statd "$STATD_PATH" "$statd_backup"
+
+	if [ -z "$OCF_RESKEY_source_host" ]; then
+		if [ "$is_renotify" -eq 0 ]; then
+			cur_statd="$STATD_PATH"
+		else 
+			cur_statd="$statd_backup"
+		fi
+		ocf_log info "sending notifications on default source address."
+		$SM_NOTIFY_BINARY -f $OCF_RESKEY_notify_args -P $cur_statd
+		if [ $? -ne 0 ]; then
+			ocf_exit_reason "sm-notify execution failed, view syslog for more information"
+			return $OCF_ERR_GENERIC
+		fi
+		
+		return $OCF_SUCCESS
+	fi
+
+	# do sm-notify for each ip
+	for ip in `echo ${OCF_RESKEY_source_host} | sed 's/,/ /g'`; do
+
+		# have the first sm-notify use the actual statd directory so the
+		# notify list can be managed properly.
+		if [ "$is_renotify" -eq 0 ]; then
+			cur_statd="$STATD_PATH"
+			# everything after the first notify we are considering a renotification
+			# which means we don't use the real statd directory. 
+			is_renotify=1
+		else 
+			# use our copied statd directory for the remaining ip addresses
+			cur_statd="$STATD_PATH/nfsnotify_${OCF_RESOURCE_INSTANCE}_${ip}"
+			copy_statd "$statd_backup" "$cur_statd"
+		fi
+
+		ocf_log info "sending notifications with source address $ip"
+		$SM_NOTIFY_BINARY -f $OCF_RESKEY_notify_args -v $ip -P "$cur_statd"
+		if [ $? -ne 0 ]; then
+			ocf_exit_reason "sm-notify with source host set to [ $ip ] failed. view syslog for more information"
+			return $OCF_ERR_GENERIC
+		fi
+	done
+
+	return $OCF_SUCCESS
+}
+
+v3notify_monitor()
+{
+	# verify rpc.statd is up, and that the rpc.statd pid is the same one we
+	# found during the start. otherwise rpc.statd recovered and we need to notify
+	# again.
+	check_statd_pidfile
+}
+
+case $__OCF_ACTION in
+	meta-data)   meta_data
+		exit $OCF_SUCCESS;;
+	usage|help)    v3notify_usage
+		exit $OCF_SUCCESS;;
+	*)
+		;;
+esac
+
+which restorecon > /dev/null 2>&1 && selinuxenabled
+SELINUX_ENABLED=$?
+if [ $SELINUX_ENABLED -eq 0 ]; then
+	export SELINUX_LABEL="$(ls -dZ $STATD_PATH | grep -o '\S\+:\S\+:\S\+')"
+fi
+
+case $__OCF_ACTION in
+	start)         v3notify_start;;
+	stop)          v3notify_stop;;
+	monitor)       v3notify_monitor;;
+	validate-all)  v3notify_validate;;
+	*)             v3notify_usage
+	               exit $OCF_ERR_UNIMPLEMENTED;;
+esac
+
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
+

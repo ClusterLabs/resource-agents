@@ -116,7 +116,7 @@ vlan_meta_data() {
       <shortdesc lang="en">
         Name of the VLAN.
       </shortdesc>
-      <content type="string" default="vlan_interface.vlan.id" />
+      <content type="string" default="${OCF_RESKEY_vlan_name_default}" />
     </parameter>
 
     <parameter name="vlan_reorder_hdr" unique="0">
@@ -156,7 +156,7 @@ vlan_meta_data() {
     <parameter name="vlan_loose_binding" unique="0">
       <longdesc lang="en">
         Enable or disable VLAN loose bind. By default the VLAN interface
-        admin status (UP/DOWN) follows the underneath inteface status.
+        admin status (UP/DOWN) follows the underneath interface status.
         Enabling loose bind allows the VLAN to disconnect from the
         interface status. Be very careful that enabling loose binding
         could invalidate this agent monitor operations.

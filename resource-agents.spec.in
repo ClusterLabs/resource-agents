@@ -14,10 +14,21 @@
 %global numcomm @numcomm@
 %global dirty @dirty@
 
-# 
-# Since this spec file supports multiple distributions, ensure we
-# use the correct group for each.
-#
+# Whether this platform defaults to using systemd as an init system
+# (needs to be evaluated prior to BuildRequires being enumerated and
+# installed as it's intended to conditionally select some of these, and
+# for that there are only few indicators with varying reliability:
+# - presence of systemd-defined macros (when building in a full-fledged
+#   environment, which is not the case with ordinary mock-based builds)
+# - systemd-aware rpm as manifested with the presence of particular
+#   macro (rpm itself will trivially always be present when building)
+# - existence of /usr/lib/os-release file, which is something heavily
+#   propagated by systemd project
+# - when not good enough, there's always a possibility to check
+#   particular distro-specific macros (incl. version comparison)
+%define systemd_native (%{?_unitdir:1}%{!?_unitdir:0}%{nil \
+  } || %{?__transaction_systemd_inhibit:1}%{!?__transaction_systemd_inhibit:0}%{nil \
+  } || %(test -f /usr/lib/os-release; test $? -ne 0; echo $?))
 
 # SSLeay (required by ldirectord)
 %if 0%{?suse_version}
@@ -30,74 +41,72 @@
 %bcond_@rgmanager@ rgmanager
 %bcond_@linux-ha@ linuxha
 
-# build with HA_BIN compatibility for the existing Heartbeat stack
-%bcond_@compat-habindir@ compat_habindir
-%if %{with compat_habindir}
-%global _libexecdir %{_libdir}
-%endif
-
 Name:		resource-agents
 Summary:	Open Source HA Reusable Cluster Resource Scripts
 Version:	@version@
 Release:	@specver@%{?rcver:%{rcver}}%{?numcomm:.%{numcomm}}%{?alphatag:.%{alphatag}}%{?dirty:.%{dirty}}%{?dist}
 License:	GPLv2+ and LGPLv2+
 URL:		https://github.com/ClusterLabs/resource-agents
-%if 0%{?fedora} || 0%{?centos_version} || 0%{?rhel}
-Group:		System Environment/Base
-%else
-Group:		Productivity/Clustering/HA
-%endif
 Source0:	%{name}-%{version}%{?rcver:%{rcver}}%{?numcomm:.%{numcomm}}%{?alphatag:-%{alphatag}}%{?dirty:-%{dirty}}.tar.bz2
 Obsoletes:	heartbeat-resources <= %{version}
 Provides:	heartbeat-resources = %{version}
 
-## Setup/build bits
-BuildRoot: %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
-
 # Build dependencies
-BuildRequires: automake autoconf pkgconfig
-BuildRequires: perl python-devel
+BuildRequires: automake autoconf pkgconfig gcc
+BuildRequires: perl
 BuildRequires: libxslt glib2-devel
+BuildRequires: systemd
 BuildRequires: which
 
-%if 0%{?fedora} || 0%{?centos_version} || 0%{?rhel}
-BuildRequires: cluster-glue-libs-devel
+%if 0%{?fedora} || 0%{?centos} > 7 || 0%{?rhel} > 7 || 0%{?suse_version}
+BuildRequires: python3-devel
+%else
+BuildRequires: python-devel
+%endif
+
+%if 0%{?fedora} || 0%{?centos} || 0%{?rhel}
 BuildRequires: docbook-style-xsl docbook-dtds
 %if 0%{?rhel} == 0
 BuildRequires: libnet-devel
 %endif
 %endif
 
-%if 0%{?suse_version}  
-%if 0%{?suse_version} >= 1140
-BuildRequires:  libnet1
-%else
-BuildRequires:  libnet
-%endif
+%if 0%{?suse_version}
+BuildRequires:  libnet-devel
 BuildRequires:  libglue-devel
 BuildRequires:  libxslt docbook_4 docbook-xsl-stylesheets
 %endif
 
 ## Runtime deps
 # system tools shared by several agents
-Requires: /bin/bash /bin/grep /bin/sed /bin/gawk
-Requires: /bin/ps /usr/bin/pkill /bin/hostname /bin/netstat
-Requires: /sbin/fuser /bin/mount
+Requires: /bin/bash /usr/bin/grep /bin/sed /bin/gawk
+Requires: /bin/ps /usr/bin/pkill /usr/bin/hostname /usr/bin/netstat
+Requires: /usr/sbin/fuser /bin/mount
 
 # Filesystem / fs.sh / netfs.sh
 Requires: /sbin/fsck
-Requires: /sbin/fsck.ext2 /sbin/fsck.ext3 /sbin/fsck.ext4
-Requires: /sbin/fsck.xfs
-Requires: /sbin/mount.nfs /sbin/mount.nfs4 /sbin/mount.cifs
+Requires: /usr/sbin/fsck.ext2 /usr/sbin/fsck.ext3 /usr/sbin/fsck.ext4
+Requires: /usr/sbin/fsck.xfs
+Requires: /sbin/mount.nfs /sbin/mount.nfs4
+%if 0%{?fedora} < 33 || (0%{?rhel} && 0%{?rhel} < 9) || (0%{?centos} && 0%{?centos} < 9) || 0%{?suse_version}
+%if (0%{?rhel} && 0%{?rhel} < 8) || (0%{?centos} && 0%{?centos} < 8)
+Requires: /usr/sbin/mount.cifs
+%else
+Recommends: /usr/sbin/mount.cifs
+%endif
+%endif
 
 # IPaddr2
 Requires: /sbin/ip
 
 # LVM / lvm.sh
-Requires: /sbin/lvm
+Requires: /usr/sbin/lvm
 
 # nfsserver / netfs.sh
 Requires: /usr/sbin/rpc.nfsd /sbin/rpc.statd /usr/sbin/rpc.mountd
+
+# ocf-distro
+Requires: /usr/bin/lsb_release
 
 # rgmanager
 %if %{with rgmanager}
@@ -105,8 +114,8 @@ Requires: /usr/sbin/rpc.nfsd /sbin/rpc.statd /usr/sbin/rpc.mountd
 Requires: /usr/sbin/ethtool
 Requires: /sbin/rdisc /usr/sbin/arping /bin/ping /bin/ping6
 
-#nfsexport.sh
-Requires: /sbin/findfs 
+# nfsexport.sh
+Requires: /sbin/findfs
 Requires: /sbin/quotaon /sbin/quotacheck
 %endif
 
@@ -119,27 +128,25 @@ service managers.
 %package -n ldirectord
 License:	GPLv2+
 Summary:	A Monitoring Daemon for Maintaining High Availability Resources
-%if 0%{?fedora} || 0%{?centos_version} || 0%{?rhel}
-Group:		System Environment/Daemons
+%if 0%{?fedora} || 0%{?centos} || 0%{?rhel}
 %else
-Group:		Productivity/Clustering/HA
 %endif
 Obsoletes:	heartbeat-ldirectord <= %{version}
 Provides:	heartbeat-ldirectord = %{version}
-%if 0%{?fedora} > 18 || 0%{?centos_version} > 6 || 0%{?rhel} > 6
+%if 0%{?fedora} > 18 || 0%{?centos} > 6 || 0%{?rhel} > 6
 BuildRequires: perl-podlators
 %endif
 Requires:       %{SSLeay} perl-libwww-perl perl-MailTools
 Requires:       ipvsadm logrotate
-%if 0%{?fedora_version}
-Requires:	perl-Net-IMAP-Simple-SSL
+%if 0%{?fedora}
+Requires:	perl-Net-IMAP-Simple-SSL perl-IO-Socket-INET6
 Requires(post):	/sbin/chkconfig
 Requires(preun):/sbin/chkconfig
 %endif
-%if %{defined systemd_requires}
+%if %{systemd_native}
 BuildRequires:  systemd
-%{?systemd_requires}
 %endif
+%{?systemd_requires}
 
 %description -n ldirectord
 The Linux Director Daemon (ldirectord) was written by Jacob Rief.
@@ -154,7 +161,7 @@ See 'ldirectord -h' and linux-ha/doc/ldirectord for more information.
 %endif
 
 %prep
-%if 0%{?suse_version} == 0 && 0%{?fedora} == 0 && 0%{?centos_version} == 0 && 0%{?rhel} == 0
+%if 0%{?suse_version} == 0 && 0%{?fedora} == 0 && 0%{?centos} == 0 && 0%{?rhel} == 0
 %{error:Unable to determine the distribution/version. This is generally caused by missing /etc/rpm/macros.dist. Please install the correct build packages or define the required macros manually.}
 exit 1
 %endif
@@ -165,7 +172,7 @@ if [ ! -f configure ]; then
 	./autogen.sh
 fi
 
-%if 0%{?fedora} >= 11 || 0%{?centos_version} > 5 || 0%{?rhel} > 5
+%if 0%{?fedora} >= 11 || 0%{?centos} > 5 || 0%{?rhel} > 5
 CFLAGS="$(echo '%{optflags}')"
 %global conf_opt_fatal "--enable-fatal-warnings=no"
 %else
@@ -186,10 +193,16 @@ CFLAGS="${CFLAGS} ${RPM_OPT_FLAGS}"
 export CFLAGS
 
 %configure \
-	%{?conf_opt_rsctmpdir:%conf_opt_rsctmpdir} \
+%if 0%{?fedora} || 0%{?centos} > 7 || 0%{?rhel} > 7 || 0%{?suse_version}
+	PYTHON="%{__python3}" \
+%endif
 	%{conf_opt_fatal} \
 %if %{defined _unitdir}
     --with-systemdsystemunitdir=%{_unitdir} \
+%endif
+%if %{defined _tmpfilesdir}
+    --with-systemdtmpfilesdir=%{_tmpfilesdir} \
+    --with-rsctmpdir=/run/resource-agents \
 %endif
 	--with-pkg-name=%{name} \
 	--with-ras-set=%{rasset}
@@ -215,22 +228,15 @@ rm -rf %{buildroot}/usr/share/doc/resource-agents
 test -d %{buildroot}/sbin || mkdir %{buildroot}/sbin
 (
   cd %{buildroot}/sbin
-%if %{defined _unitdir}
-  ln -s /usr/sbin/service rcldirectord
-%else
   ln -sf /%{_sysconfdir}/init.d/ldirectord rcldirectord
-%endif
 ) || true
 %endif
 %endif
 
-%clean
-rm -rf %{buildroot}
-
 %files
-%defattr(-,root,root)
 %doc AUTHORS COPYING COPYING.GPLv3 COPYING.LGPL ChangeLog
 %if %{with linuxha}
+%doc heartbeat/README.galera
 %doc doc/README.webapps
 %doc %{_datadir}/%{name}/ra-api-1.dtd
 %doc %{_datadir}/%{name}/metadata.rng
@@ -242,43 +248,53 @@ rm -rf %{buildroot}
 %endif
 
 %if %{with linuxha}
-%dir /usr/lib/ocf
-%dir /usr/lib/ocf/resource.d
-%dir /usr/lib/ocf/lib
+%dir %{_usr}/lib/ocf
+%dir %{_usr}/lib/ocf/resource.d
+%dir %{_usr}/lib/ocf/lib
 
-/usr/lib/ocf/lib/heartbeat
+%{_usr}/lib/ocf/lib/heartbeat
 
-/usr/lib/ocf/resource.d/heartbeat
+%{_usr}/lib/ocf/resource.d/heartbeat
 %if %{with rgmanager}
-/usr/lib/ocf/resource.d/redhat
+%{_usr}/lib/ocf/resource.d/redhat
 %endif
 
 %if %{defined _unitdir}
 %{_unitdir}/resource-agents-deps.target
+%endif
+%if %{defined _tmpfilesdir}
+%{_tmpfilesdir}/%{name}.conf
 %endif
 
 %dir %{_datadir}/%{name}
 %dir %{_datadir}/%{name}/ocft
 %{_datadir}/%{name}/ocft/configs
 %{_datadir}/%{name}/ocft/caselib
-%{_datadir}/%{name}/ocft/helpers.sh
-%{_datadir}/%{name}/ocft/runocft
-%{_datadir}/%{name}/ocft/runocft.prereq
 %{_datadir}/%{name}/ocft/README
 %{_datadir}/%{name}/ocft/README.zh_CN
+%{_datadir}/%{name}/ocft/helpers.sh
+%exclude %{_datadir}/%{name}/ocft/runocft
+%exclude %{_datadir}/%{name}/ocft/runocft.prereq
 
 %{_sbindir}/ocf-tester
 %{_sbindir}/ocft
-%{_sbindir}/sfex_init
-%{_sbindir}/sfex_stat
+%if 0%{?suse_version}
+%{_sbindir}/sfex_*
+%endif
 
 %{_includedir}/heartbeat
 
+%if %{defined _tmpfilesdir}
+%dir %attr (1755, root, root)	/run/resource-agents
+%else
 %dir %attr (1755, root, root)	%{_var}/run/resource-agents
+%endif
 
 %{_mandir}/man7/*.7*
 %{_mandir}/man8/ocf-tester.8*
+%if 0%{?suse_version}
 %{_mandir}/man8/sfex_init.8*
+%endif
 
 # For compatability with pre-existing agents
 %dir %{_sysconfdir}/ha.d
@@ -286,50 +302,41 @@ rm -rf %{buildroot}
 
 %{_libexecdir}/heartbeat
 
-%post -n resource-agents
-if [ $1 = 2 ]; then
- if [ -d %{_var}/run/heartbeat/rsctmp ]; then
-  cp -fpr %{_var}/run/heartbeat/rsctmp/* %{_var}/run/resource-agents/ 1>/dev/null 2>&1
-  rm -fr %{_var}/run/heartbeat/rsctmp
- fi
-fi
 %if %{with rgmanager}
+%post -n resource-agents
 ccs_update_schema > /dev/null 2>&1 ||:
 %endif
 
 %if 0%{?suse_version}
 %preun -n ldirectord
-%if %{defined _unitdir}
-%service_del_preun ldirectord.service
-%else
 %stop_on_removal ldirectord
-%endif
 %postun -n ldirectord
-%if %{defined _unitdir}
-%service_del_postun ldirectord.service
-%else
 %insserv_cleanup
-%endif
-%post -n ldirectord
-%if %{defined _unitdir}
-%service_add_post ldirectord.service
-%endif
-%pre -n ldirectord
-%if %{defined _unitdir}
-%service_add_pre ldirectord.service
-%endif
 %endif
 
 %if 0%{?fedora}
 %preun -n ldirectord
+%if %{defined _unitdir}
+%systemd_preun ldirectord.service
+%else
 /sbin/chkconfig --del ldirectord
-%postun -n ldirectord -p /sbin/ldconfig
+%endif
+%postun -n ldirectord
+/sbin/ldconfig
+%if %{defined _unitdir}
+%systemd_postun_with_restart ldirectord.service
+%endif
 %post -n ldirectord
+%if %{defined _unitdir}
+%systemd_post ldirectord.service
+%else
 /sbin/chkconfig --add ldirectord
 %endif
+%endif
+%endif
 
+%if %{with linuxha}
 %files -n ldirectord
-%defattr(-,root,root)
 %{_sbindir}/ldirectord
 %doc ldirectord/ldirectord.cf COPYING
 %{_mandir}/man8/ldirectord.8*
@@ -340,6 +347,7 @@ ccs_update_schema > /dev/null 2>&1 ||:
 %if %{defined _unitdir}
 %{_unitdir}/ldirectord.service
 %exclude %{_sysconfdir}/init.d/ldirectord
+%exclude %{_sysconfdir}/rc.d/init.d/ldirectord
 %else
 %{_sysconfdir}/init.d/ldirectord
 %endif
@@ -347,7 +355,7 @@ ccs_update_schema > /dev/null 2>&1 ||:
 /sbin/rcldirectord
 %endif
 %if 0%{?fedora}
-/usr/lib/ocf/resource.d/heartbeat/ldirectord
+%{_usr}/lib/ocf/resource.d/heartbeat/ldirectord
 %endif
 %endif
 

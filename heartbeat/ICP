@@ -30,6 +30,14 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_driveid_default=""
+OCF_RESKEY_device_default=""
+
+: ${OCF_RESKEY_driveid=${OCF_RESKEY_driveid_default}}
+: ${OCF_RESKEY_device=${OCF_RESKEY_device_default}}
+
 #######################################################################
 
 #
@@ -73,7 +81,7 @@ HA resource.
 The ICP cluster drive ID.
 </longdesc>
 <shortdesc lang="en">ICP cluster drive ID</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_driveid_default}" />
 </parameter>
 
 <parameter name="device" unique="0" required="1">
@@ -81,17 +89,17 @@ The ICP cluster drive ID.
 The device name.
 </longdesc>
 <shortdesc lang="en">device</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_device_default}" />
 </parameter>
 </parameters>
 
 <actions>
-<action name="start" timeout="20" />
-<action name="stop" timeout="20" />
-<action name="status" depth="0" timeout="20" interval="10" />
-<action name="monitor" depth="0" timeout="20" interval="10" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
+<action name="start" timeout="20s" />
+<action name="stop" timeout="20s" />
+<action name="status" depth="0" timeout="20s" interval="10s" />
+<action name="monitor" depth="0" timeout="20s" interval="10s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
 </actions>
 </resource-agent>
 END

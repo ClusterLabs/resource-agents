@@ -7,7 +7,7 @@ CONFIG
         HangTimeout 20
 
 VARIABLE
-	DRBDCONF=/tmp/ocft_drbd_tmp.conf
+	DRBDCONF=${HA_RSCTMP}/ocft_drbd_tmp.conf
 
         # should be this machine's hostname/ip, please modify it by yourself.
 	NAME_1=HOSTNAME1

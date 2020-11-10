@@ -86,11 +86,11 @@ Note, when master/slave replication is in use, the resource must
 be setup to use notifications. Set 'notify=true' in the metadata
 attributes when defining a MySQL master/slave instance.
 
-While managing replication, the default behavior is to use uname -n 
-values in the change master to command.  Other IPs can be specified 
+While managing replication, the default behavior is to use uname -n
+values in the change master to command.  Other IPs can be specified
 manually by adding a node attribute \${INSTANCE_ATTR_NAME}_mysql_master_IP
-giving the IP to use for replication.  For example, if the mysql primitive 
-you are using is p_mysql, the attribute to set will be 
+giving the IP to use for replication.  For example, if the mysql primitive
+you are using is p_mysql, the attribute to set will be
 p_mysql_mysql_master_IP.
 </longdesc>
 <shortdesc lang="en">Manages a MySQL database instance</shortdesc>
@@ -239,6 +239,30 @@ The port on which the Master MySQL instance is listening.
 <content type="string" default="${OCF_RESKEY_replication_port_default}" />
 </parameter>
 
+<parameter name="replication_master_ssl_ca" unique="0" required="0">
+<longdesc lang="en">
+The SSL CA certificate to be used for replication over SSL.
+</longdesc>
+<shortdesc lang="en">MySQL replication SSL CA certificate</shortdesc>
+<content type="string" default="${OCF_RESKEY_replication_master_ssl_ca_default}" />
+</parameter>
+
+<parameter name="replication_master_ssl_cert" unique="0" required="0">
+<longdesc lang="en">
+The SSL CA certificate to be used for replication over SSL.
+</longdesc>
+<shortdesc lang="en">MySQL replication SSL certificate</shortdesc>
+<content type="string" default="${OCF_RESKEY_replication_master_ssl_cert_default}" />
+</parameter>
+
+<parameter name="replication_master_ssl_key" unique="0" required="0">
+<longdesc lang="en">
+The SSL certificate key to be used for replication over SSL.
+</longdesc>
+<shortdesc lang="en">MySQL replication SSL certificate key</shortdesc>
+<content type="string" default="${OCF_RESKEY_replication_master_ssl_key_default}" />
+</parameter>
+
 <parameter name="max_slave_lag" unique="0" required="0">
 <longdesc lang="en">
 The maximum number of seconds a replication slave is allowed to lag
@@ -284,17 +308,17 @@ whether a node is usable for clients to read from.</shortdesc>
 </parameters>
 
 <actions>
-<action name="start" timeout="120" />
-<action name="stop" timeout="120" />
-<action name="status" timeout="60" />
-<action name="monitor" depth="0" timeout="30" interval="20" />
-<action name="monitor" role="Master" depth="0" timeout="30" interval="10" />
-<action name="monitor" role="Slave" depth="0" timeout="30" interval="30" />
-<action name="promote" timeout="120" />
-<action name="demote" timeout="120" />
-<action name="notify" timeout="90" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
+<action name="start" timeout="120s" />
+<action name="stop" timeout="120s" />
+<action name="status" timeout="60s" />
+<action name="monitor" depth="0" timeout="30s" interval="20s" />
+<action name="monitor" role="Master" depth="0" timeout="30s" interval="10s" />
+<action name="monitor" role="Slave" depth="0" timeout="30s" interval="30s" />
+<action name="promote" timeout="120s" />
+<action name="demote" timeout="120s" />
+<action name="notify" timeout="90s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
 </actions>
 </resource-agent>
 END
@@ -344,14 +368,14 @@ is_slave() {
     if ! ocf_is_ms || ! get_read_only; then
         return 1
     fi
-   
+
     get_slave_info
     rc=$?
     rm -f $tmpfile
 
     if [ $rc -eq 0 ]; then
        # show slave status is not empty
-       # Is there a master_log_file defined?  (master_log_file is deleted 
+       # Is there a master_log_file defined?  (master_log_file is deleted
        # by reset slave
        if [ "$master_log_file" ]; then
           return 0
@@ -363,7 +387,7 @@ is_slave() {
        # replication slave
        return 1
     fi
-    
+
 }
 
 parse_slave_info() {
@@ -374,7 +398,7 @@ parse_slave_info() {
 get_slave_info() {
     # Warning: this sets $tmpfile and LEAVE this file! You must delete it after use!
     local mysql_options
-            
+
     if [ "$master_log_file" -a "$master_host" ]; then
         # variables are already defined, get_slave_info has been run before
         return $OCF_SUCCESS
@@ -518,7 +542,7 @@ check_slave() {
 
 set_master() {
     local new_master master_log_file master_log_pos
-    local master_params
+    local master_params master_ssl_params
 
     new_master=`$CRM_ATTR_REPL_INFO --query  -q | cut -d'|' -f1`
 
@@ -544,14 +568,20 @@ set_master() {
     # Informs the MySQL server of the master to replicate
     # from. Accepts one mandatory argument which must contain the host
     # name of the new master host. The master must either be unchanged
-    # from the laste master the slave replicated from, or freshly
+    # from the last master the slave replicated from, or freshly
     # reset with RESET MASTER.
+    if [ -n "$OCF_RESKEY_replication_master_ssl_ca" ] && [ -n "$OCF_RESKEY_replication_master_ssl_cert" ] && [ -n "$OCF_RESKEY_replication_master_ssl_key" ]; then
+        master_ssl_params=", MASTER_SSL=1, \
+                MASTER_SSL_CA='$OCF_RESKEY_replication_master_ssl_ca', \
+                MASTER_SSL_CERT='$OCF_RESKEY_replication_master_ssl_cert', \
+                MASTER_SSL_KEY='$OCF_RESKEY_replication_master_ssl_key'"
+    fi
 
     ocf_run $MYSQL $MYSQL_OPTIONS_REPL \
         -e "CHANGE MASTER TO MASTER_HOST='$new_master', \
         MASTER_PORT=$OCF_RESKEY_replication_port, \
         MASTER_USER='$OCF_RESKEY_replication_user', \
-        MASTER_PASSWORD='$OCF_RESKEY_replication_passwd' $master_params"
+        MASTER_PASSWORD='$OCF_RESKEY_replication_passwd' $master_params $master_ssl_params"
     rm -f $tmpfile
 }
 
@@ -693,7 +723,7 @@ get_master_status() {
 # crm_attribute command looks like this:
 # scope=nodes  name=IP value=10.2.2.161
 # If the ${INSTANCE_ATTR_NAME}_MYSQL_MASTER_IP node attribute is not defined, fallback is to uname -n
-# The ${INSTANCE_ATTR_NAME}_MYSQL_MASTER_IP is the IP address that will be used for the 
+# The ${INSTANCE_ATTR_NAME}_MYSQL_MASTER_IP is the IP address that will be used for the
 # change master to command.
 get_local_ip() {
    local IP
@@ -717,7 +747,7 @@ mysql_monitor() {
     if ocf_is_probe; then
         status_loglevel="info"
     fi
- 
+
     mysql_common_status $status_loglevel
     rc=$?
 
@@ -992,28 +1022,6 @@ mysql_notify() {
 }
 
 #######################################################################
-
-
-##########################################################################
-# If DEBUG_LOG is set, make this resource agent easy to debug: set up the
-# debug log and direct all output to it.  Otherwise, redirect to /dev/null.
-# The log directory must be a directory owned by root, with permissions 0700,
-# and the log must be writable and not a symlink.
-##########################################################################
-DEBUG_LOG="/tmp/mysql.ocf.ra.debug/log"
-if [ "${DEBUG_LOG}" -a -w "${DEBUG_LOG}" -a ! -L "${DEBUG_LOG}" ]; then
-    DEBUG_LOG_DIR="${DEBUG_LOG%/*}"
-    if [ -d "${DEBUG_LOG_DIR}" ]; then
-        exec 9>>"$DEBUG_LOG"
-        exec 2>&9
-        date >&9
-        echo "$*" >&9
-        env | grep OCF_ | sort >&9
-        set -x
-    else
-        exec 9>/dev/null
-    fi
-fi
 
 case "$1" in
   meta-data)    meta_data

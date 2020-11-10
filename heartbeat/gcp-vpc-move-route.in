@@ -1,0 +1,440 @@
+#!@PYTHON@ -tt
+# - *- coding: utf- 8 - *-
+#
+#
+# OCF resource agent to move an IP address within a VPC in GCP
+#
+# License: GNU General Public License (GPL)
+# Copyright (c) 2018 Hervé Werner (MFG Labs)
+# Copyright 2018 Google Inc.
+# Based on code from Markus Guertler (aws-vpc-move-ip)
+# All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+
+#######################################################################
+
+import atexit
+import logging
+import os
+import sys
+import time
+
+OCF_FUNCTIONS_DIR = os.environ.get("OCF_FUNCTIONS_DIR", "%s/lib/heartbeat" % os.environ.get("OCF_ROOT"))
+sys.path.append(OCF_FUNCTIONS_DIR)
+
+from ocf import *
+
+try:
+  import googleapiclient.discovery
+  import pyroute2
+except ImportError:
+  pass
+
+if sys.version_info >= (3, 0):
+  # Python 3 imports.
+  import urllib.parse as urlparse
+  import urllib.request as urlrequest
+else:
+  # Python 2 imports.
+  import urllib as urlparse
+  import urllib2 as urlrequest
+
+
+GCP_API_URL_PREFIX = 'https://www.googleapis.com/compute/v1'
+METADATA_SERVER = 'http://metadata.google.internal/computeMetadata/v1/'
+METADATA_HEADERS = {'Metadata-Flavor': 'Google'}
+METADATA = \
+'''<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="gcp-vpc-move-route">
+<version>1.0</version>
+<longdesc lang="en">
+Resource Agent that can move a floating IP addresse within a GCP VPC by changing an
+entry in the routing table. This agent also configures the floating IP locally
+on the instance OS.
+Requirements :
+- IP forwarding must be enabled on all instances in order to be able to
+terminate the route
+- The floating IP address must be chosen so that it is outside all existing
+subnets in the VPC network
+- IAM permissions
+(see https://cloud.google.com/compute/docs/access/iam-permissions) :
+1) compute.routes.delete, compute.routes.get and compute.routes.update on the
+route
+2) compute.networks.updatePolicy on the network (to add a new route)
+3) compute.networks.get on the network (to check the VPC network existence)
+4) compute.routes.list on the project (to check conflicting routes)
+</longdesc>
+<shortdesc lang="en">Move IP within a GCP VPC</shortdesc>
+
+<parameters>
+
+<parameter name="ip" unique="1" required="1">
+<longdesc lang="en">
+Floating IP address. Note that this IP must be chosen outside of all existing
+subnet ranges
+</longdesc>
+<shortdesc lang="en">Floating IP</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="vpc_network" required="1">
+<longdesc lang="en">
+Name of the VPC network
+</longdesc>
+<shortdesc lang="en">VPC network</shortdesc>
+<content type="string" default="default" />
+</parameter>
+
+<parameter name="interface">
+<longdesc lang="en">
+Name of the network interface
+</longdesc>
+<shortdesc lang="en">Network interface name</shortdesc>
+<content type="string" default="eth0" />
+</parameter>
+
+<parameter name="route_name" unique="1">
+<longdesc lang="en">
+Route name
+</longdesc>
+<shortdesc lang="en">Route name</shortdesc>
+<content type="string" default="ra-%s" />
+</parameter>
+
+<parameter name="stackdriver_logging" unique="0" required="0">
+<longdesc lang="en">If enabled (set to true), IP failover logs will be posted to stackdriver logging</longdesc>
+<shortdesc lang="en">Stackdriver-logging support</shortdesc>
+<content type="boolean" default="" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="180s" />
+<action name="stop" timeout="180s" />
+<action name="monitor" depth="0" timeout="30s" interval="60s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
+</actions>
+</resource-agent>
+''' % os.path.basename(sys.argv[0])
+
+
+class Context(object):
+  __slots__ = 'conn', 'iface_idx', 'instance', 'instance_url', 'interface', \
+      'ip', 'iproute', 'project', 'route_name', 'vpc_network', \
+      'vpc_network_url', 'zone'
+
+
+def wait_for_operation(ctx, response):
+  """Blocks until operation completes.
+  Code from GitHub's GoogleCloudPlatform/python-docs-samples
+
+  Args:
+    response: dict, a request's response
+  """
+  def _OperationGetter(response):
+    operation = response[u'name']
+    if response.get(u'zone'):
+      return ctx.conn.zoneOperations().get(
+          project=ctx.project, zone=ctx.zone, operation=operation)
+    else:
+      return ctx.conn.globalOperations().get(
+          project=ctx.project, operation=operation)
+
+  while True:
+    result = _OperationGetter(response).execute()
+
+    if result['status'] == 'DONE':
+      if 'error' in result:
+        raise Exception(result['error'])
+      return result
+
+    time.sleep(1)
+
+
+def get_metadata(metadata_key, params=None, timeout=None):
+  """Performs a GET request with the metadata headers.
+
+  Args:
+    metadata_key: string, the metadata to perform a GET request on.
+    params: dictionary, the query parameters in the GET request.
+    timeout: int, timeout in seconds for metadata requests.
+
+  Returns:
+    HTTP response from the GET request.
+
+  Raises:
+    urlerror.HTTPError: raises when the GET request fails.
+  """
+  timeout = timeout or 60
+  metadata_url = os.path.join(METADATA_SERVER, metadata_key)
+  params = urlparse.urlencode(params or {})
+  url = '%s?%s' % (metadata_url, params)
+  request = urlrequest.Request(url, headers=METADATA_HEADERS)
+  request_opener = urlrequest.build_opener(urlrequest.ProxyHandler({}))
+  return request_opener.open(request, timeout=timeout * 1.1).read().decode("utf-8")
+
+
+def validate(ctx):
+  if os.geteuid() != 0:
+    logger.error('You must run this agent as root')
+    sys.exit(OCF_ERR_PERM)
+
+  try:
+    ctx.conn = googleapiclient.discovery.build('compute', 'v1', cache_discovery=False)
+  except Exception as e:
+    logger.error('Couldn\'t connect with google api: ' + str(e))
+    sys.exit(OCF_ERR_CONFIGURED)
+
+  ctx.ip = os.environ.get('OCF_RESKEY_ip')
+  if not ctx.ip:
+    logger.error('Missing ip parameter')
+    sys.exit(OCF_ERR_CONFIGURED)
+
+  try:
+    ctx.instance = get_metadata('instance/name')
+    ctx.zone = get_metadata('instance/zone').split('/')[-1]
+    ctx.project = get_metadata('project/project-id')
+  except Exception as e:
+    logger.error(
+        'Instance information not found. Is this a GCE instance ?: %s', str(e))
+    sys.exit(OCF_ERR_CONFIGURED)
+
+  ctx.instance_url = '%s/projects/%s/zones/%s/instances/%s' % (
+      GCP_API_URL_PREFIX, ctx.project, ctx.zone, ctx.instance)
+  ctx.vpc_network = os.environ.get('OCF_RESKEY_vpc_network', 'default')
+  ctx.vpc_network_url = '%s/projects/%s/global/networks/%s' % (
+      GCP_API_URL_PREFIX, ctx.project, ctx.vpc_network)
+  ctx.interface = os.environ.get('OCF_RESKEY_interface', 'eth0')
+  ctx.route_name = os.environ.get(
+      'OCF_RESKEY_route_name', 'ra-%s' % os.path.basename(sys.argv[0]))
+  ctx.iproute = pyroute2.IPRoute()
+  atexit.register(ctx.iproute.close)
+  idxs = ctx.iproute.link_lookup(ifname=ctx.interface)
+  if not idxs:
+    logger.error('Network interface not found')
+    sys.exit(OCF_ERR_CONFIGURED)
+  ctx.iface_idx = idxs[0]
+
+
+def check_conflicting_routes(ctx):
+  fl = '(destRange = "%s*") AND (network = "%s") AND (name != "%s")' % (
+      ctx.ip, ctx.vpc_network_url, ctx.route_name)
+  request = ctx.conn.routes().list(project=ctx.project, filter=fl)
+  response = request.execute()
+  route_list = response.get('items', None)
+  if route_list:
+    logger.error(
+        'Conflicting unnmanaged routes for destination %s/32 in VPC %s found : %s',
+        ctx.ip, ctx.vpc_network, str(route_list))
+    sys.exit(OCF_ERR_CONFIGURED)
+
+
+def route_release(ctx):
+  request = ctx.conn.routes().delete(project=ctx.project, route=ctx.route_name)
+  wait_for_operation(ctx, request.execute())
+
+
+def ip_monitor(ctx):
+  logger.info('IP monitor: checking local network configuration')
+
+  def address_filter(addr):
+    for attr in addr['attrs']:
+      if attr[0] == 'IFA_LOCAL':
+        if attr[1] == ctx.ip:
+          return True
+        else:
+          return False
+
+  route = ctx.iproute.get_addr(
+      index=ctx.iface_idx, match=address_filter)
+  if not route:
+    logger.warning(
+        'The floating IP %s is not locally configured on this instance (%s)',
+        ctx.ip, ctx.instance)
+    return OCF_NOT_RUNNING
+
+  logger.debug(
+      'The floating IP %s is correctly configured on this instance (%s)',
+      ctx.ip, ctx.instance)
+  return OCF_SUCCESS
+
+
+def ip_release(ctx):
+  ctx.iproute.addr('del', index=ctx.iface_idx, address=ctx.ip, mask=32)
+
+
+def ip_and_route_start(ctx):
+  logger.info('Bringing up the floating IP %s', ctx.ip)
+
+  # Add a new entry in the routing table
+  # If the route entry exists and is pointing to another instance, take it over
+
+  # Ensure that there is no route that we are not aware of that is also handling our IP
+  check_conflicting_routes(ctx)
+
+  # There is no replace API, We need to first delete the existing route if any
+  try:
+    request = ctx.conn.routes().get(project=ctx.project, route=ctx.route_name)
+    request.execute()
+  # TODO: check specific exception for 404
+  except googleapiclient.errors.HttpError as e:
+    if e.resp.status != 404:
+      raise
+  else:
+      route_release(ctx)
+
+  route_body = {
+      'name': ctx.route_name,
+      'network': ctx.vpc_network_url,
+      'destRange': '%s/32' % ctx.ip,
+      'nextHopInstance': ctx.instance_url,
+  }
+  try:
+    request = ctx.conn.routes().insert(project=ctx.project, body=route_body)
+    wait_for_operation(ctx, request.execute())
+  except googleapiclient.errors.HttpError:
+    try:
+      request = ctx.conn.networks().get(
+          project=ctx.project, network=ctx.vpc_network)
+      request.execute()
+    except googleapiclient.errors.HttpError as e:
+      if e.resp.status == 404:
+        logger.error('VPC network not found')
+        sys.exit(OCF_ERR_CONFIGURED)
+      else:
+        raise
+    else:
+      raise
+
+  # Configure the IP address locally
+  # We need to release the IP first
+  if ip_monitor(ctx) == OCF_SUCCESS:
+    ip_release(ctx)
+
+  ctx.iproute.addr('add', index=ctx.iface_idx, address=ctx.ip, mask=32)
+  ctx.iproute.link('set', index=ctx.iface_idx, state='up')
+  logger.info('Successfully brought up the floating IP %s', ctx.ip)
+
+
+def route_monitor(ctx):
+  logger.info('GCP route monitor: checking route table')
+
+  # Ensure that there is no route that we are not aware of that is also handling our IP
+  check_conflicting_routes
+
+  try:
+    request = ctx.conn.routes().get(project=ctx.project, route=ctx.route_name)
+    response = request.execute()
+  except googleapiclient.errors.HttpError as e:
+    if 'Insufficient Permission' in e.content:
+      return OCF_ERR_PERM
+    elif e.resp.status == 404:
+      return OCF_NOT_RUNNING
+    else:
+      raise
+
+  routed_to_instance = response.get('nextHopInstance', '<unknown>')
+  instance_url = '%s/projects/%s/zones/%s/instances/%s' % (
+      GCP_API_URL_PREFIX, ctx.project, ctx.zone, ctx.instance)
+  if routed_to_instance != instance_url:
+    logger.warning(
+        'The floating IP %s is not routed to this instance (%s) but to instance %s',
+        ctx.ip, ctx.instance, routed_to_instance.split('/')[-1])
+    return OCF_NOT_RUNNING
+
+  logger.debug(
+      'The floating IP %s is correctly routed to this instance (%s)',
+      ctx.ip, ctx.instance)
+  return OCF_SUCCESS
+
+
+def ip_and_route_stop(ctx):
+  logger.info('Bringing down the floating IP %s', ctx.ip)
+
+  # Delete the route entry
+  # If the route entry exists and is pointing to another instance, don't touch it
+  if route_monitor(ctx) == OCF_NOT_RUNNING:
+    logger.info(
+        'The floating IP %s is already not routed to this instance (%s)',
+        ctx.ip, ctx.instance)
+  else:
+    route_release(ctx)
+
+  if ip_monitor(ctx) == OCF_NOT_RUNNING:
+    logger.info('The floating IP %s is already down', ctx.ip)
+  else:
+    ip_release(ctx)
+
+
+def configure_logs(ctx):
+  # Prepare logging
+  global logger
+  logging.getLogger('googleapiclient').setLevel(logging.WARN)
+  logging_env = os.environ.get('OCF_RESKEY_stackdriver_logging')
+  if logging_env:
+    logging_env = logging_env.lower()
+    if any(x in logging_env for x in ['yes', 'true', 'enabled']):
+      try:
+        import google.cloud.logging.handlers
+        client = google.cloud.logging.Client()
+        handler = google.cloud.logging.handlers.CloudLoggingHandler(
+            client, name=ctx.instance)
+        handler.setLevel(logging.INFO)
+        formatter = logging.Formatter('gcp:route "%(message)s"')
+        handler.setFormatter(formatter)
+        log.addHandler(handler)
+        logger = logging.LoggerAdapter(log, {'OCF_RESOURCE_INSTANCE': OCF_RESOURCE_INSTANCE})
+      except ImportError:
+        logger.error('Couldn\'t import google.cloud.logging, '
+            'disabling Stackdriver-logging support')
+
+
+def main():
+  if 'meta-data' in sys.argv[1]:
+    print(METADATA)
+    return
+
+  ctx = Context()
+
+  validate(ctx)
+  if 'validate-all' in sys.argv[1]:
+    return
+
+  configure_logs(ctx)
+  if 'start' in sys.argv[1]:
+    ip_and_route_start(ctx)
+  elif 'stop' in sys.argv[1]:
+    ip_and_route_stop(ctx)
+  elif 'status' in sys.argv[1] or 'monitor' in sys.argv[1]:
+    sys.exit(ip_monitor(ctx))
+  else:
+    usage = 'usage: %s {start|stop|monitor|status|meta-data|validate-all}' % \
+        os.path.basename(sys.argv[0])
+    logger.error(usage)
+    sys.exit(OCF_ERR_UNIMPLEMENTED)
+
+
+if __name__ == "__main__":
+  main()

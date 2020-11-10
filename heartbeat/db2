@@ -37,6 +37,16 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_instance_default=""
+OCF_RESKEY_admin_default=""
+OCF_RESKEY_dbpartitionnum_default="0"
+
+: ${OCF_RESKEY_instance=${OCF_RESKEY_instance_default}}
+: ${OCF_RESKEY_admin=${OCF_RESKEY_admin_default}}
+: ${OCF_RESKEY_dbpartitionnum=${OCF_RESKEY_dbpartitionnum_default}}
+
 #######################################################################
 
 
@@ -82,7 +92,7 @@ For further information and examples consult http://www.linux-ha.org/wiki/db2_(r
 The instance of the database(s).
 </longdesc>
 <shortdesc lang="en">instance</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_instance_default}" />
 </parameter>
 <parameter name="dblist" unique="0" required="0">
 <longdesc lang="en">
@@ -97,27 +107,27 @@ Defaults to all databases in the instance. Specify one db for HADR mode.
 DEPRECATED: The admin user of the instance.
 </longdesc>
 <shortdesc lang="en">DEPRECATED: admin</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_admin_default}" />
 </parameter>
 <parameter name="dbpartitionnum" unique="0" required="0">
 <longdesc lang="en">
-The number of the partion (DBPARTITIONNUM) to be managed.
+The number of the partition (DBPARTITIONNUM) to be managed.
 </longdesc>
 <shortdesc lang="en">database partition number (DBPARTITIONNUM)</shortdesc>
-<content type="string" default="0" />
+<content type="string" default="${OCF_RESKEY_dbpartitionnum_default}" />
 </parameter>
 </parameters>
 
 <actions>
-<action name="start" timeout="120"/>
-<action name="stop" timeout="120"/>
-<action name="promote" timeout="120"/>
-<action name="demote" timeout="120"/>
-<action name="notify" timeout="10"/>
-<action name="monitor" depth="0" timeout="60" interval="20"/>
-<action name="monitor" depth="0" timeout="60" role="Master" interval="22"/>
-<action name="validate-all" timeout="5"/>
-<action name="meta-data" timeout="5"/>
+<action name="start" timeout="120s"/>
+<action name="stop" timeout="120s"/>
+<action name="promote" timeout="120s"/>
+<action name="demote" timeout="120s"/>
+<action name="notify" timeout="10s"/>
+<action name="monitor" depth="0" timeout="60s" interval="20s"/>
+<action name="monitor" depth="0" timeout="60s" role="Master" interval="22s"/>
+<action name="validate-all" timeout="5s"/>
+<action name="meta-data" timeout="5s"/>
 </actions>
 </resource-agent>
 END
@@ -272,7 +282,7 @@ db2_fal_attrib() {
         ;;
 
         get)
-        crm_attribute -t nodes -l reboot -n $attr -G -Q 2>&1
+        crm_attribute -t nodes -l reboot -n $attr -G --quiet 2>&1
         rc=$?
         if [ $rc != 0 ]
         then
@@ -584,7 +594,7 @@ db2_stop() {
 
     if [ $must_kill -eq 1 ]
     then
-        # db2nkill kills *all* partions on the node
+        # db2nkill kills *all* partitions on the node
         if [ -x $db2bin/db2nkill ]
         then
             logasdb2 $db2bin/db2nkill $db2node
@@ -617,7 +627,7 @@ db2_instance_status() {
     if [ $pscount -ge 4 ]; then
         return $OCF_SUCCESS;
     elif [ $pscount -ge 1 ]; then
-        return $OCF_GENERIC_ERR
+        return $OCF_ERR_GENERIC
     fi
     return $OCF_NOT_RUNNING
 }
@@ -714,7 +724,7 @@ db2_monitor() {
             ocf_is_ms && master_score -v 10000 -l reboot
             ;;
 
-            STANDBY/PEER/*|Standby/*Peer)
+            STANDBY/*PEER/*|Standby/*Peer)
             master_score -v 8000 -l reboot
             ;;
 
@@ -764,12 +774,17 @@ db2_promote() {
             ;;
 
             STANDBY/PEER/CONNECTED|Standby/Peer)
-            # must take over 
+            # must take over
             ;;
 
-            STANDBY/PEER/DISCONNECTED|Standby/DisconnectedPeer)
-            # must take over forced 
+            STANDBY/*PEER/DISCONNECTED|Standby/DisconnectedPeer)
+            # must take over by force peer window only
             force="by force peer window only"
+            ;;
+
+            # must take over by force
+            STANDBY/REMOTE_CATCHUP_PENDING/DISCONNECTED)
+            force="by force"
             ;;
 
             *)

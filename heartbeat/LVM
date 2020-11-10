@@ -29,6 +29,18 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_volgrpname_default=""
+OCF_RESKEY_exclusive_default="false"
+OCF_RESKEY_tag_default="pacemaker"
+OCF_RESKEY_partial_activation_default="false"
+
+: ${OCF_RESKEY_volgrpname=${OCF_RESKEY_volgrpname_default}}
+: ${OCF_RESKEY_exclusive=${OCF_RESKEY_exclusive_default}}
+: ${OCF_RESKEY_tag=${OCF_RESKEY_tag_default}}
+: ${OCF_RESKEY_partial_activation=${OCF_RESKEY_partial_activation_default}}
+
 #######################################################################
 
 
@@ -51,9 +63,6 @@ usage() {
 EOF
 }
 
-# default for "tag"
-OUR_TAG="pacemaker"
-
 meta_data() {
 	cat <<EOF
 <?xml version="1.0"?>
@@ -73,7 +82,7 @@ as an HA resource.
 The name of volume group.
 </longdesc>
 <shortdesc lang="en">Volume group name</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_volgrpname_default}" />
 </parameter>
 <parameter name="exclusive" unique="0" required="0">
 <longdesc lang="en">
@@ -85,7 +94,7 @@ filter. When the tag option is in use, the volume_list in lvm.con must be initia
 can be as simple as setting 'volume_list = []' depending on your setup.
 </longdesc>
 <shortdesc lang="en">Exclusive activation</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_exclusive_default}" />
 </parameter>
 
 <parameter name="tag" unique="0" required="0">
@@ -93,7 +102,7 @@ can be as simple as setting 'volume_list = []' depending on your setup.
 If "exclusive" is set on a non clustered volume group, this overrides the tag to be used.
 </longdesc>
 <shortdesc lang="en">Exclusive activation tag</shortdesc>
-<content type="string" default="$OUR_TAG" />
+<content type="string" default="${OCF_RESKEY_tag_default}" />
 </parameter>
 
 <parameter name="partial_activation" unique="0" required="0">
@@ -103,19 +112,19 @@ physical volumes missing. It helps to set to true when using mirrored
 logical volumes.
 </longdesc>
 <shortdesc lang="en">Activate VG partially when missing PVs</shortdesc>
-<content type="string" default="false" />
+<content type="string" default="${OCF_RESKEY_partial_activation_default}" />
 </parameter>
 
 </parameters>
 
 <actions>
-<action name="start" timeout="30" />
-<action name="stop" timeout="30" />
-<action name="status" timeout="30" />
-<action name="monitor" depth="0" timeout="30" interval="10" />
-<action name="methods" timeout="5" />
-<action name="meta-data" timeout="5" />
-<action name="validate-all" timeout="5" />
+<action name="start" timeout="30s" />
+<action name="stop" timeout="30s" />
+<action name="status" timeout="30s" />
+<action name="monitor" depth="0" timeout="30s" interval="10s" />
+<action name="methods" timeout="5s" />
+<action name="meta-data" timeout="5s" />
+<action name="validate-all" timeout="5s" />
 </actions>
 </resource-agent>
 EOF
@@ -138,158 +147,29 @@ EOF
 }
 
 ##
-# returns mode
 #
-# 0 = normal (non-exclusive) local activation
-# 1 = tagged-exclusive activation
-# 2 = clvm-exclusive activation
+# plain = normal (non-exclusive) local activation
+# tag = tagged-exclusive activation
+# clvm = clvm-exclusive activation
+#
+# the mode specific implementation is in lvm-$mode.sh
 ##
-VG_MODE=
-get_vg_mode()
-{
-	if [ -n "$VG_MODE" ]; then
-		echo "$VG_MODE"
-		return
-	fi
 
-	VG_MODE=0
+set_lvm_mode() {
+	local mode
+
 	if ocf_is_true "$OCF_RESKEY_exclusive"; then
 		case $(vgs -o attr --noheadings $OCF_RESKEY_volgrpname | tr -d ' ') in
 		?????c*)
-			VG_MODE=2 ;;
+			mode="clvm" ;;
 		*)
-			VG_MODE=1 ;;
+			mode="tag" ;;
 		esac
+	else
+		mode="plain"
 	fi
 
-	echo "$VG_MODE"
-}
-
-##
-# Verify tags setup
-##
-verify_tags_environment()
-{
-	##
-	# The volume_list must be initialized to something in order to
-	# guarantee our tag will be filtered on startup
-	##
-	if ! lvm dumpconfig activation/volume_list; then
-		ocf_log err  "LVM: Improper setup detected"
-		ocf_exit_reason "The volume_list filter must be initialized in lvm.conf for exclusive activation without clvmd"
-		return $OCF_ERR_GENERIC
-	fi
-
-	##
-	# Our tag must _NOT_ be in the volume_list.  This agent
-	# overrides the volume_list during activation using the
-	# special tag reserved for cluster activation
-	##
-	if lvm dumpconfig activation/volume_list | grep -e "\"@$OUR_TAG\"" -e "\"${OCF_RESKEY_volgrpname}\""; then
-		ocf_log err "LVM:  Improper setup detected"
-		ocf_exit_reason "The volume_list in lvm.conf must not contain the cluster tag, \"$OUR_TAG\", or volume group, $OCF_RESKEY_volgrpname"
-		return $OCF_ERR_GENERIC
-	fi
-
-	return $OCF_SUCCESS
-}
-
-check_initrd_warning()
-{
-	# First check to see if there is an initrd img we can safely
-	# compare timestamps agaist.  If not, don't even bother with
-	# this check.  This is known to work in rhel/fedora distros
-	ls "/boot/*$(uname -r)*.img" > /dev/null 2>&1
-	if [ $? -ne 0 ]; then
-		return
-	fi
-
-	##
-	# Now check to see if the initrd has been updated.
-	# If not, the machine could boot and activate the VG outside
-	# the control of pacemaker
-	##
-	if [ "$(find /boot -name *.img -newer /etc/lvm/lvm.conf)" = "" ]; then
-		ocf_log warn "LVM:  Improper setup detected"
-		ocf_log warn "* initrd image needs to be newer than lvm.conf"
-
-		# While dangerous if not done the first time, there are many
-		# cases where we don't simply want to fail here.  Instead,
-		# keep warning until the user remakes the initrd - or has
-		# it done for them by upgrading the kernel.
-		#
-		# initrd can be updated using this command.
-		# dracut -H -f /boot/initramfs-$(uname -r).img $(uname -r)
-		#
-	fi
-}
-
-##
-# does this vg have our tag
-##
-check_tags()
-{
-	local owner=`vgs -o tags --noheadings $OCF_RESKEY_volgrpname | tr -d ' '`
-
-	if [ -z "$owner" ]; then
-		# No-one owns this VG yet
-		return 1
-	fi
-
-	if [ "$OUR_TAG" = "$owner" ]; then
-		# yep, this is ours
-		return 0
-	fi
-
-	# some other tag is set on this vg
-	return 2
-}
-
-strip_tags()
-{
-	local i
-
-	for i in `vgs --noheadings -o tags $OCF_RESKEY_volgrpname | sed s/","/" "/g`; do
-		ocf_log info "Stripping tag, $i"
-
-		# LVM version 2.02.98 allows changing tags if PARTIAL
-		vgchange --deltag $i $OCF_RESKEY_volgrpname
-	done
-
-	if [ ! -z `vgs -o tags --noheadings $OCF_RESKEY_volgrpname | tr -d ' '` ]; then
-		ocf_exit_reason "Failed to remove ownership tags from $OCF_RESKEY_volgrpname"
-		return $OCF_ERR_GENERIC
-	fi
-
-	return $OCF_SUCCESS
-}
-
-set_tags()
-{
-	check_tags
-	case $? in
-	0)
-		# we already own it.
-		return $OCF_SUCCESS
-		;;
-	2)
-		# other tags are set, strip them before setting
-		if ! strip_tags; then
-			return $OCF_ERR_GENERIC
-		fi
-		;;
-	*)
-		: ;;
-	esac
-
-	vgchange --addtag $OUR_TAG $OCF_RESKEY_volgrpname
-	if [ $? -ne 0 ]; then
-		ocf_exit_reason "Failed to add ownership tag to $OCF_RESKEY_volgrpname"
-		return $OCF_ERR_GENERIC
-	fi
-
-	ocf_log info "New tag \"$OUR_TAG\" added to $OCF_RESKEY_volgrpname"
-	return $OCF_SUCCESS
+	. ${OCF_FUNCTIONS_DIR}/lvm-${mode}.sh
 }
 
 #
@@ -323,25 +203,8 @@ LVM_status() {
 		ocf_log $loglevel "LVM Volume $1 is not available (stopped)"
 		rc=$OCF_NOT_RUNNING
 	else
-		case $(get_vg_mode) in
-		1) # exclusive with tagging.
-			# If vg is running, make sure the correct tag is present. Otherwise we
-			# can not guarantee exclusive activation.
-			if ! check_tags; then
-				ocf_exit_reason "WARNING: $OCF_RESKEY_volgrpname is active without the cluster tag, \"$OUR_TAG\""
-				rc=$OCF_ERR_GENERIC
-			fi
-
-			# make sure the environment for tags activation is still valid
-			if ! verify_tags_environment; then
-				rc=$OCF_ERR_GENERIC
-			fi
-			# let the user know if their initrd is older than lvm.conf.
-			check_initrd_warning
-			;;
-		*)
-			: ;;
-		esac
+		lvm_status
+		rc=$?
 	fi
 
 	if [ "X${2}" = "X" ]; then
@@ -358,67 +221,15 @@ LVM_status() {
 	return $rc
 }
 
-get_activate_options()
-{
-	local options="-a"
-
-	case $(get_vg_mode) in
-	0) options="${options}ly";;
-	1) options="${options}y --config activation{volume_list=[\"@${OUR_TAG}\"]}";;
-	2) options="${options}ey";;
-	esac
-
-	if ocf_is_true "$OCF_RESKEY_partial_activation" ; then
-		options="${options} --partial"
-	fi
-
-	# for clones (clustered volume groups), we'll also have to force
-	# monitoring, even if disabled in lvm.conf.
-	if ocf_is_clone; then
-		options="$options --monitor y"
-	fi
-	
-	echo $options
-}
-
-##
-# Attempt to deactivate vg cluster wide and then start the vg exclusively
-##
-retry_exclusive_start()
-{
-	local vgchange_options="$(get_activate_options)"
-
-	# Deactivate each LV in the group one by one cluster wide
-	set -- $(lvs -o name,attr --noheadings $OCF_RESKEY_volgrpname 2> /dev/null)
-	while [ $# -ge 2 ]; do
-		case $2 in
-		????ao*)
-			# open LVs cannot be deactivated.
-			return $OCF_ERR_GENERIC;;
-		*)
-			if ! lvchange -an $OCF_RESKEY_volgrpname/$1; then
-				ocf_exit_reason "Unable to perform required deactivation of $OCF_RESKEY_volgrpname/$1 before starting"
-				return $OCF_ERR_GENERIC
-			fi
-			;;
-		esac
-		shift 2
-	done
-
-	ocf_run vgchange $vgchange_options $OCF_RESKEY_volgrpname
-}
-
 #
 #	Enable LVM volume
 #
 LVM_start() {
-	local vgchange_options="$(get_activate_options)"
 	local vg=$1
-	local clvmd=0
 
 	# systemd drop-in to stop process before storage services during
 	# shutdown/reboot
-	if ps -p 1 | grep -q systemd ; then
+	if systemd_is_running ; then
 		systemd_drop_in "99-LVM" "After" "blk-availability.service"
 	fi
 
@@ -427,43 +238,19 @@ LVM_start() {
 	if [ "$LVM_MAJOR" -eq "1" ]; then
 		ocf_run vgscan $vg
 	else
-		ocf_run vgscan --cache
+		ocf_run vgscan
 	fi
 
-	case $(get_vg_mode) in
-	2)
-		clvmd=1
-		;;
-	1)
-		if ! set_tags; then
-			return $OCF_ERR_GENERIC
-		fi
-		;;
-	*)
-		: ;;
-	esac
-
-	if ! ocf_run vgchange $vgchange_options $vg; then
-		if [ $clvmd -eq 0 ]; then
-			return $OCF_ERR_GENERIC
-		fi
-
-		# Failure to exclusively activate cluster vg.:
-		# This could be caused by a remotely active LV, Attempt
-		# to disable volume group cluster wide and try again.
-		# Allow for some settling
-		sleep 5
-		if ! retry_exclusive_start; then
-			return $OCF_ERR_GENERIC
-		fi
-	fi
+	lvm_pre_activate || exit
+	ocf_run vgchange $vgchange_activate_options $vg
+	lvm_post_activate $?
 
 	if LVM_status $vg; then
 		: OK Volume $vg activated just fine!
 		return $OCF_SUCCESS 
 	else
 		ocf_exit_reason "LVM: $vg did not activate correctly"
-		return $OCF_NOT_RUNNING
+		return $OCF_ERR_GENERIC
 	fi
 }
 
@@ -472,7 +259,6 @@ LVM_start() {
 #
 LVM_stop() {
 	local res=$OCF_ERR_GENERIC
-	local vgchange_options="-aln"
 	local vg=$1
 
 	if ! vgs $vg > /dev/null 2>&1; then
@@ -482,13 +268,11 @@ LVM_stop() {
 
 	ocf_log info "Deactivating volume group $vg"
 
-	case $(get_vg_mode) in
-		1) vgchange_options="-an" ;;
-	esac
+	lvm_pre_deactivate || exit
 
 	for i in $(seq 10)
 	do
-		ocf_run vgchange $vgchange_options $vg
+		ocf_run vgchange $vgchange_deactivate_options $vg
 		res=$?
 		if LVM_status $vg; then
 			ocf_exit_reason "LVM: $vg did not stop correctly"
@@ -506,16 +290,7 @@ LVM_stop() {
 		which udevadm > /dev/null 2>&1 && udevadm settle --timeout=5
 	done
 
-	case $(get_vg_mode) in
-	1)
-		if [ $res -eq 0 ]; then
-			strip_tags
-			res=$?
-		fi
-		;;
-	esac
-
-	return $res
+	lvm_post_deactivate $res
 }
 
 #
@@ -595,46 +370,12 @@ LVM_validate_all() {
 		fi
 	fi
 
-	##
-	# If exclusive activation is not enabled, then
-	# further checking of proper setup is not necessary
-	##
-	if ! ocf_is_true "$OCF_RESKEY_exclusive"; then
-		return $OCF_SUCCESS;
-	fi
-
-	##
-	# Having cloned lvm resources with exclusive vg activation makes no sense at all.
-	##
-	if ocf_is_clone; then
+	if ocf_is_clone && ocf_is_true "$OCF_RESKEY_exclusive"; then
 		ocf_exit_reason "cloned lvm resources can not be activated exclusively"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
-	##
-	# Make sure the cluster attribute is set and clvmd is up when exclusive
-	# activation is enabled. Otherwise we can't exclusively activate the volume group.
-	##
-	case $(get_vg_mode) in
-	1)  # exclusive activation using tags
-		if ! verify_tags_environment; then
-			exit $OCF_ERR_GENERIC
-		fi
-		;;
-	2)  # exclusive activation with clvmd
-		##
-		# verify is clvmd running
-		##
-		if ! ps -C clvmd > /dev/null 2>&1; then
-			ocf_exit_reason "$OCF_RESKEY_volgrpname has the cluster attribute set, but 'clvmd' is not running"
-			exit $OCF_ERR_GENERIC
-		fi
-		;;
-	*)
-		: ;;
-	esac
-
-	return $OCF_SUCCESS
+	lvm_validate_all
 }
 
 #
@@ -698,8 +439,10 @@ LVM_MAJOR="${LVM_VERSION%%.*}"
 VOLUME=$OCF_RESKEY_volgrpname
 OP_METHOD=$1
 
-if [ -n "$OCF_RESKEY_tag" ]; then
-	OUR_TAG=$OCF_RESKEY_tag
+set_lvm_mode
+lvm_init
+if ocf_is_true "$OCF_RESKEY_partial_activation" ; then
+	vgchange_activate_options="${vgchange_activate_options} --partial"
 fi
 
 # What kind of method was invoked?

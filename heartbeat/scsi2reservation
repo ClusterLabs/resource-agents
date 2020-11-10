@@ -9,9 +9,15 @@ else
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 fi
 
-: ${OCF_RESKEY_scsi_reserve="/usr/sbin/scsi_reserve"}
-: ${OCF_RESKEY_sharedisk="/dev/sdb"}
-: ${OCF_RESKEY_start_loop=10}
+# Parameter defaults
+
+OCF_RESKEY_scsi_reserve_default="/usr/sbin/scsi_reserve"
+OCF_RESKEY_sharedisk_default="/dev/sdb"
+OCF_RESKEY_start_loop_default="10"
+
+: ${OCF_RESKEY_scsi_reserve=${OCF_RESKEY_scsi_reserve_default}}
+: ${OCF_RESKEY_sharedisk=${OCF_RESKEY_sharedisk_default}}
+: ${OCF_RESKEY_start_loop=${OCF_RESKEY_start_loop_default}}
 
 scsi2reserve_meta_data() {
 	cat <<END
@@ -38,7 +44,7 @@ The scsi_reserve is a command from scsires package.
 It helps one to issue SCSI-2 reservation on SCSI devices.
 </longdesc>
 <shortdesc lang="en">Manages exclusive access to shared storage media thrugh SCSI-2 reservations</shortdesc>
-<content type="string" default="/usr/sbin/scsi_reserve" />
+<content type="string" default="${OCF_RESKEY_scsi_reserve_default}" />
 </parameter>
 
 
@@ -49,7 +55,7 @@ The shared disk that can be reserved.
 <shortdesc lang="en">
 Shared disk.
 </shortdesc>
-<content type="string" default="/dev/sdb" />
+<content type="string" default="${OCF_RESKEY_sharedisk_default}" />
 </parameter>
 
 <parameter name="start_loop" unique="0" required="0">
@@ -59,18 +65,18 @@ We are going to try several times before giving up. Start_loop indicates how man
 <shortdesc lang="en">
 Times to re-try before giving up.
 </shortdesc>
-<content type="string" default="10" />
+<content type="string" default="${OCF_RESKEY_start_loop_default}" />
 </parameter>
 
 
 </parameters>
 
 <actions>
-<action name="start"   timeout="300" />
-<action name="stop"    timeout="100" />
-<action name="monitor" depth="0"  timeout="20" interval="20" />
-<action name="meta-data"  timeout="5" />
-<action name="validate-all"  timeout="30" />
+<action name="start"   timeout="300s" />
+<action name="stop"    timeout="100s" />
+<action name="monitor" depth="0"  timeout="20s" interval="20s" />
+<action name="meta-data"  timeout="5s" />
+<action name="validate-all"  timeout="30s" />
 </actions>
 </resource-agent>
 END

@@ -178,12 +178,12 @@ If unset, the agent does no SIP URI monitoring.
 </parameters>
 
 <actions>
-<action name="start" timeout="20" />
-<action name="stop" timeout="20" />
-<action name="status" timeout="20" />
-<action name="monitor" timeout="30" interval="20" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
+<action name="start" timeout="20s" />
+<action name="stop" timeout="20s" />
+<action name="status" timeout="20s" />
+<action name="monitor" timeout="30s" interval="20s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
 </actions>
 </resource-agent>
 END

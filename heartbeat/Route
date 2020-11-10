@@ -31,6 +31,19 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Default values
+OCF_RESKEY_device_default=""
+OCF_RESKEY_gateway_default=""
+OCF_RESKEY_source_default=""
+OCF_RESKEY_table_default=""
+OCF_RESKEY_family_default="detect"
+
+: ${OCF_RESKEY_device=${OCF_RESKEY_device_default}}
+: ${OCF_RESKEY_gateway=${OCF_RESKEY_gateway_default}}
+: ${OCF_RESKEY_source=${OCF_RESKEY_source_default}}
+: ${OCF_RESKEY_table=${OCF_RESKEY_table_default}}
+: ${OCF_RESKEY_family=${OCF_RESKEY_family_default}}
+
 #######################################################################
 
 meta_data() {
@@ -92,7 +105,7 @@ the system default route.
 The outgoing network device to use for this route.
 </longdesc>
 <shortdesc lang="en">Outgoing network device</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_device_default}" />
 </parameter>
 
 <parameter name="gateway" unique="0">
@@ -100,7 +113,7 @@ The outgoing network device to use for this route.
 The gateway IP address to use for this route.
 </longdesc>
 <shortdesc lang="en">Gateway IP address</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_gateway_default}" />
 </parameter>
 
 <parameter name="source" unique="0">
@@ -108,7 +121,7 @@ The gateway IP address to use for this route.
 The source IP address to be configured for the route.
 </longdesc>
 <shortdesc lang="en">Source IP address</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_source_default}" />
 </parameter>
 
 <parameter name="table" unique="0">
@@ -116,19 +129,30 @@ The source IP address to be configured for the route.
 The routing table to be configured for the route.
 </longdesc>
 <shortdesc lang="en">Routing table</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_table_default}" />
+</parameter>
+
+<parameter name="family" unique="0">
+<longdesc lang="en">
+The address family to be used for the route
+ip4      IP version 4
+ip6      IP version 6
+detect   Detect from 'destination' address.
+</longdesc>
+<shortdesc lang="en">Address Family</shortdesc>
+<content type="string" default="${OCF_RESKEY_family_default}" />
 </parameter>
 
 </parameters>
 
 <actions>
-<action name="start"        timeout="20" />
-<action name="stop"         timeout="20" />
-<action name="monitor"      timeout="20" interval="10" 
+<action name="start"        timeout="20s" />
+<action name="stop"         timeout="20s" />
+<action name="monitor"      timeout="20s" interval="10s" 
                             depth="0"/>
-<action name="reload"       timeout="20" />
-<action name="meta-data"    timeout="5" />
-<action name="validate-all" timeout="20" />
+<action name="reload"       timeout="20s" />
+<action name="meta-data"    timeout="5s" />
+<action name="validate-all" timeout="20s" />
 </actions>
 </resource-agent>
 END
@@ -163,6 +187,8 @@ END
 }
 
 route_start() {
+    route_validate || exit $?
+
     route_status
     status=$?
     if [ $status -eq $OCF_SUCCESS ]; then
@@ -225,18 +251,18 @@ route_validate() {
     if [ "${OCF_RESKEY_CRM_meta_clone}" ]; then
 	if [ "${OCF_RESKEY_CRM_meta_clone_node_max}" != 1 ]; then
 	    ocf_exit_reason "Misconfigured clone parameters. Must set meta attribute \"clone_node_max\" to 1, got ${OCF_RESKEY_CRM_meta_clone_node_max}."
-	    return $OCF_ERR_ARGS
+	    return $OCF_ERR_CONFIGURED
 	fi
     fi
     # Did we get a destination?
     if [ -z "${OCF_RESKEY_destination}" ]; then
 	ocf_exit_reason "Missing required parameter \"destination\"."
-	return $OCF_ERR_ARGS
+	return $OCF_ERR_CONFIGURED
     fi
     # Did we get either a device or a gateway address?
     if [ -z "${OCF_RESKEY_device}" -a -z "${OCF_RESKEY_gateway}" ]; then
-	ocf_exit_reason "Must specifiy either \"device\", or \"gateway\", or both."
-	return $OCF_ERR_ARGS
+	ocf_exit_reason "Must specify either \"device\", or \"gateway\", or both."
+	return $OCF_ERR_CONFIGURED
     fi
     # If a device has been configured, is it available on this system?
     if [ -n "${OCF_RESKEY_device}" ]; then
@@ -289,11 +315,16 @@ for binary in ip grep; do
     check_binary $binary
 done
 
-route_validate || exit $?
-
-case $OCF_RESKEY_destination in
-*:*) addr_family="-6" ;;
-  *) addr_family="-4" ;;
+case $OCF_RESKEY_family in
+    ip4) addr_family="-4" ;;
+    ip6) addr_family="-6" ;;
+    detect)
+        case $OCF_RESKEY_destination in
+            *:*)     addr_family="-6" ;;
+            *.*)     addr_family="-4" ;;
+              *) ocf_exit_reason "Address family detection requires a numeric destination address." ;;
+        esac ;;
+    *) ocf_exit_reason "Address family '${OCF_RESKEY_family}' not recognized." ;;
 esac
 
 case $__OCF_ACTION in
@@ -303,7 +334,7 @@ status|monitor)	route_status;;
 reload)		ocf_log info "Reloading..."
 	        route_start
 		;;
-validate-all)	;;
+validate-all)	route_validate;;
 *)		route_usage
 		exit $OCF_ERR_UNIMPLEMENTED
 		;;

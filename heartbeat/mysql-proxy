@@ -57,24 +57,46 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
-: ${OCF_RESKEY_binary="/usr/sbin/mysql-proxy"}
-: ${OCF_RESKEY_client_binary="mysql"}
-: ${OCF_RESKEY_defaults_file=""}
-: ${OCF_RESKEY_proxy_backend_addresses="127.0.0.1:3306"}
-: ${OCF_RESKEY_proxy_read_only_backend_addresses=""}
-: ${OCF_RESKEY_proxy_address=":4040"}
-: ${OCF_RESKEY_log_level=""}
-: ${OCF_RESKEY_keepalive=""}
-: ${OCF_RESKEY_plugins=""}
-: ${OCF_RESKEY_admin_address="127.0.0.1:4041"}
-: ${OCF_RESKEY_admin_username=""}
-: ${OCF_RESKEY_admin_password=""}
-: ${OCF_RESKEY_admin_lua_script=""}
-: ${OCF_RESKEY_test_table="mysql.user"}
-: ${OCF_RESKEY_test_user=""}
-: ${OCF_RESKEY_test_passwd=""}
-: ${OCF_RESKEY_parameters=""}
-: ${OCF_RESKEY_pidfile="${HA_RSCTMP}/mysql-proxy-${OCF_RESOURCE_INSTANCE}.pid"}
+# Parameter defaults
+
+OCF_RESKEY_binary_default="/usr/sbin/mysql-proxy"
+OCF_RESKEY_client_binary_default="mysql"
+OCF_RESKEY_defaults_file_default=""
+OCF_RESKEY_proxy_backend_addresses_default="127.0.0.1:3306"
+OCF_RESKEY_proxy_read_only_backend_addresses_default=""
+OCF_RESKEY_proxy_address_default=":4040"
+OCF_RESKEY_log_level_default=""
+OCF_RESKEY_keepalive_default=""
+OCF_RESKEY_plugins_default=""
+OCF_RESKEY_admin_address_default="127.0.0.1:4041"
+OCF_RESKEY_admin_username_default=""
+OCF_RESKEY_admin_password_default=""
+OCF_RESKEY_admin_lua_script_default=""
+OCF_RESKEY_test_table_default="mysql.user"
+OCF_RESKEY_test_user_default=""
+OCF_RESKEY_test_passwd_default=""
+OCF_RESKEY_parameters_default=""
+OCF_RESKEY_pidfile_default="${HA_RSCTMP}/mysql-proxy-${OCF_RESOURCE_INSTANCE}.pid"
+
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_client_binary=${OCF_RESKEY_client_binary_default}}
+: ${OCF_RESKEY_defaults_file=${OCF_RESKEY_defaults_file_default}}
+: ${OCF_RESKEY_proxy_backend_addresses=${OCF_RESKEY_proxy_backend_addresses_default}}
+: ${OCF_RESKEY_proxy_read_only_backend_addresses=${OCF_RESKEY_proxy_read_only_backend_addresses_default}}
+: ${OCF_RESKEY_proxy_address=${OCF_RESKEY_proxy_address_default}}
+: ${OCF_RESKEY_log_level=${OCF_RESKEY_log_level_default}}
+: ${OCF_RESKEY_keepalive=${OCF_RESKEY_keepalive_default}}
+: ${OCF_RESKEY_plugins=${OCF_RESKEY_plugins_default}}
+: ${OCF_RESKEY_admin_address=${OCF_RESKEY_admin_address_default}}
+: ${OCF_RESKEY_admin_username=${OCF_RESKEY_admin_username_default}}
+: ${OCF_RESKEY_admin_password=${OCF_RESKEY_admin_password_default}}
+: ${OCF_RESKEY_admin_lua_script=${OCF_RESKEY_admin_lua_script_default}}
+: ${OCF_RESKEY_test_table=${OCF_RESKEY_test_table_default}}
+: ${OCF_RESKEY_test_user=${OCF_RESKEY_test_user_default}}
+: ${OCF_RESKEY_test_passwd=${OCF_RESKEY_test_passwd_default}}
+: ${OCF_RESKEY_parameters=${OCF_RESKEY_parameters_default}}
+: ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
+
 USAGE="Usage: $0 {start|stop|reload|status|monitor|validate-all|meta-data}"
 
 ##########################################################################
@@ -110,7 +132,7 @@ Full path to the MySQL Proxy binary.
 For example, "/usr/sbin/mysql-proxy".
 </longdesc>
 <shortdesc lang="en">Full path to MySQL Proxy binary</shortdesc>
-<content type="string" default="/usr/sbin/mysql-proxy" />
+<content type="string" default="${OCF_RESKEY_binary_default}" />
 </parameter>
 
 <parameter name="client_binary" unique="0" required="0">
@@ -118,7 +140,7 @@ For example, "/usr/sbin/mysql-proxy".
 Location of the MySQL client binary.
 </longdesc>
 <shortdesc lang="en">MySQL client binary</shortdesc>
-<content type="string" default="mysql" />
+<content type="string" default="${OCF_RESKEY_client_binary_default}" />
 </parameter>
 
 <parameter name="defaults_file" unique="0" required="0">
@@ -127,7 +149,7 @@ Full path to a MySQL Proxy configuration file.
 For example, "/etc/mysql-proxy.conf".
 </longdesc>
 <shortdesc lang="en">Full path to configuration file</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_defaults_file_default}" />
 </parameter>
 
 <parameter name="proxy_backend_addresses" unique="0" required="0">
@@ -135,7 +157,7 @@ For example, "/etc/mysql-proxy.conf".
 Address:port of the remote back-end servers (default: 127.0.0.1:3306).
 </longdesc>
 <shortdesc lang="en">MySQL Proxy back-end servers</shortdesc>
-<content type="string" default="127.0.0.1:3306" />
+<content type="string" default="${OCF_RESKEY_proxy_backend_addresses_default}" />
 </parameter>
 
 <parameter name="proxy_read_only_backend_addresses" unique="0" required="0">
@@ -143,7 +165,7 @@ Address:port of the remote back-end servers (default: 127.0.0.1:3306).
 Address:port of the remote (read only) slave-server (default: ).
 </longdesc>
 <shortdesc lang="en">MySql Proxy read only back-end servers</shortdesc>
-<content type="string" default="127.0.0.1:3306" />
+<content type="string" default="${OCF_RESKEY_proxy_read_only_backend_addresses_default}" />
 </parameter>
 
 <parameter name="proxy_address" unique="0" required="0">
@@ -152,7 +174,7 @@ Listening address:port of the proxy server (default: :4040).
 You can also specify a socket like "/tmp/mysql-proxy.sock".
 </longdesc>
 <shortdesc lang="en">MySQL Proxy listening address</shortdesc>
-<content type="string" default=":4040" />
+<content type="string" default="${OCF_RESKEY_proxy_address_default}" />
 </parameter>
 
 <parameter name="log_level" unique="0" required="0">
@@ -161,7 +183,7 @@ Log all messages of level (error|warning|info|message|debug|) or higher.
 An empty value disables logging.
 </longdesc>
 <shortdesc lang="en">MySQL Proxy log level.</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_log_level_default}" />
 </parameter>
 
 <parameter name="keepalive" unique="0" required="0">
@@ -170,7 +192,7 @@ Try to restart the proxy if it crashed (default: ).
 Valid values: true or false. An empty value equals "false".
 </longdesc>
 <shortdesc lang="en">Use keepalive option</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_keepalive_default}" />
 </parameter>
 
 <parameter name="plugins" unique="0" required="0">
@@ -179,7 +201,7 @@ Whitespace separated list of plugins to load (default: ).
 Note: The admin plugin will be auto-loaded in case you specify an admin_* parameter.
 </longdesc>
 <shortdesc lang="en">MySQL Proxy plugins</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_plugins_default}" />
 </parameter>
 
 <parameter name="admin_address" unique="0" required="0">
@@ -188,7 +210,7 @@ Listening address:port of the admin plugin (default: 127.0.0.1:4041).
 Note: The admin plugin will be auto-loaded in case you specify an admin_* parameter.
 </longdesc>
 <shortdesc lang="en">MySQL Proxy admin plugin listening address</shortdesc>
-<content type="string" default="127.0.0.1:4041" />
+<content type="string" default="${OCF_RESKEY_admin_address_default}" />
 </parameter>
 
 <parameter name="admin_username" unique="0" required="0">
@@ -198,7 +220,7 @@ Required since MySQL Proxy 0.8.1, if the admin plugin is loaded.
 Note: The admin plugin will be auto-loaded in case you specify an admin_* parameter.
 </longdesc>
 <shortdesc lang="en">MySQL Proxy admin plugin username</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_admin_username_default}" />
 </parameter>
 
 <parameter name="admin_password" unique="0" required="0">
@@ -208,7 +230,7 @@ Required since MySQL Proxy 0.8.1, if the admin plugin is loaded.
 Note: The admin plugin will be auto-loaded in case you specify an admin_* parameter.
 </longdesc>
 <shortdesc lang="en">MySQL Proxy admin plugin password</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_admin_password_default}" />
 </parameter>
 
 <parameter name="admin_lua_script" unique="0" required="0">
@@ -218,7 +240,7 @@ Required since MySQL Proxy 0.8.1, if the admin plugin is loaded.
 Note: The admin plugin will be auto-loaded in case you specify an admin_* parameter.
 </longdesc>
 <shortdesc lang="en">MySQL Proxy admin plugin lua script</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_admin_lua_script_default}" />
 </parameter>
 
 <parameter name="test_table" unique="0" required="0">
@@ -226,7 +248,7 @@ Note: The admin plugin will be auto-loaded in case you specify an admin_* parame
 Table to be tested in monitor statement (in database.table notation)
 </longdesc>
 <shortdesc lang="en">MySQL test table</shortdesc>
-<content type="string" default="mysql.user" />
+<content type="string" default="${OCF_RESKEY_test_table_default}" />
 </parameter>
 
 <parameter name="test_user" unique="0" required="0">
@@ -234,7 +256,7 @@ Table to be tested in monitor statement (in database.table notation)
 MySQL test user
 </longdesc>
 <shortdesc lang="en">MySQL test user</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_test_user_default}" />
 </parameter>
 
 <parameter name="test_passwd" unique="0" required="0">
@@ -242,7 +264,7 @@ MySQL test user
 MySQL test user password
 </longdesc>
 <shortdesc lang="en">MySQL test user password</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_test_passwd_default}" />
 </parameter>
 
 <parameter name="parameters" unique="0" required="0">
@@ -251,13 +273,13 @@ The MySQL Proxy daemon may be called with additional parameters.
 Specify any of them here.
 </longdesc>
 <shortdesc lang="en">MySQL Proxy additional parameters</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_parameters_default}" />
 </parameter>
 
 <parameter name="pidfile" unique="1" required="0">
 <longdesc lang="en">PID file</longdesc>
 <shortdesc lang="en">PID file</shortdesc>
-<content type="string" default="${HA_RSCTMP}/mysql-proxy-${OCF_RESOURCE_INSTANCE}.pid" />
+<content type="string" default="${OCF_RESKEY_pidfile_default}" />
 </parameter>
 
 </parameters>

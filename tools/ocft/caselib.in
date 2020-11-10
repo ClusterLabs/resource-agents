@@ -93,7 +93,7 @@ agent_run()
 
   aroot=${__OCFT__MYROOT:-$__OCFT__AGENT_ROOT}
 
-  setsid $aroot/$agent $cmd >/tmp/.ocft_runlog 2>&1 &
+  setsid $aroot/$agent $cmd >${HA_RSCTMP}/.ocft_runlog 2>&1 &
   pid=$!
 
   i=0
@@ -111,7 +111,7 @@ agent_run()
     kill -SIGKILL -$pid >/dev/null 2>&1
     echo -n "${__OCFT__showhost}ERROR: The agent was hanging, killed it, "
     echo "maybe you damaged the agent or system's environment, see details below:"
-    cat /tmp/.ocft_runlog
+    cat ${HA_RSCTMP}/.ocft_runlog
     echo
     quit 1
   fi
@@ -173,8 +173,8 @@ backbash_start()
     fi
   fi
 
-  ssh root@$host '/bin/bash 2>&1
-                  sed "s/00/001/g" /tmp/.backbash-log
+  ssh root@$host '@BASH_SHELL@ 2>&1
+                  sed "s/00/001/g" ${HA_RSCTMP}/.backbash-log
                   echo 000
                   echo 1' >$__OCFT__CASES_DIR/${host}_r <$__OCFT__CASES_DIR/${host}_w &
 
@@ -203,8 +203,8 @@ EOF
   cat >&$wfd
   cat >&$wfd <<EOF
 
-} >&/tmp/.backbash-log
-sed 's/00/001/g' /tmp/.backbash-log
+} >&${HA_RSCTMP}/.backbash-log
+sed 's/00/001/g' ${HA_RSCTMP}/.backbash-log
 echo 000
 echo 0
 EOF

@@ -1,0 +1,374 @@
+#!@BASH_SHELL@
+#
+#
+# OCF resource agent to move an IP address within a VPC in GCP
+#
+# License: GNU General Public License (GPL)
+# Copyright (c) 2018 Hervé Werner (MFG Labs)
+# Based on code from Markus Guertler (aws-vpc-move-ip)
+# All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_gcloud_default="/usr/bin/gcloud"
+OCF_RESKEY_configuration_default="default"
+OCF_RESKEY_vpc_network_default="default"
+OCF_RESKEY_interface_default="eth0"
+OCF_RESKEY_route_name_default="ra-${__SCRIPT_NAME}"
+
+: ${OCF_RESKEY_gcloud=${OCF_RESKEY_gcloud_default}}
+: ${OCF_RESKEY_configuration=${OCF_RESKEY_configuration_default}}
+: ${OCF_RESKEY_vpc_network=${OCF_RESKEY_vpc_network_default}}
+: ${OCF_RESKEY_interface=${OCF_RESKEY_interface_default}}
+: ${OCF_RESKEY_route_name=${OCF_RESKEY_route_name_default}}
+
+gcp_api_url_prefix="https://www.googleapis.com/compute/v1"
+gcloud="${OCF_RESKEY_gcloud} --quiet --configuration=${OCF_RESKEY_configuration}"
+
+#######################################################################
+
+USAGE="usage: $0 {start|stop|monitor|status|meta-data|validate-all}";
+###############################################################################
+
+
+###############################################################################
+#
+# Functions
+#
+###############################################################################
+
+
+metadata() {
+cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="gcp-vpc-move-ip">
+<version>1.0</version>
+<longdesc lang="en">
+Resource Agent that can move a floating IP addresse within a GCP VPC by changing an 
+entry in the routing table. This agent also configures the floating IP locally
+on the instance OS.
+Requirements :
+- IP forwarding must be enabled on all instances in order to be able to 
+terminate the route
+- The floating IP address must be chosen so that it is outside all existing
+subnets in the VPC network
+- IAM permissions
+(see https://cloud.google.com/compute/docs/access/iam-permissions) : 
+1) compute.routes.delete, compute.routes.get and compute.routes.update on the 
+route
+2) compute.networks.updatePolicy on the network (to add a new route)
+3) compute.networks.get on the network (to check the VPC network existence)
+4) compute.routes.list on the project (to check conflicting routes)
+</longdesc>
+<shortdesc lang="en">Move IP within a GCP VPC</shortdesc>
+
+<parameters>
+<parameter name="gcloud">
+<longdesc lang="en">
+Path to command line tools for GCP
+</longdesc>
+<shortdesc lang="en">Path to the gcloud tool</shortdesc>
+<content type="string" default="${OCF_RESKEY_gcloud_default}" />
+</parameter>
+
+<parameter name="configuration">
+<longdesc lang="en">
+Named configuration for gcloud
+</longdesc>
+<shortdesc lang="en">Named gcloud configuration</shortdesc>
+<content type="string" default="${OCF_RESKEY_configuration_default}" />
+</parameter>
+
+<parameter name="ip" unique="1" required="1">
+<longdesc lang="en">
+Floating IP address. Note that this IP must be chosen outside of all existing 
+subnet ranges
+</longdesc>
+<shortdesc lang="en">Floating IP</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="vpc_network" required="1">
+<longdesc lang="en">
+Name of the VPC network
+</longdesc>
+<shortdesc lang="en">VPC network</shortdesc>
+<content type="string" default="${OCF_RESKEY_vpc_network_default}" />
+</parameter>
+
+<parameter name="interface">
+<longdesc lang="en">
+Name of the network interface
+</longdesc>
+<shortdesc lang="en">Network interface name</shortdesc>
+<content type="string" default="${OCF_RESKEY_interface_default}" />
+</parameter>
+
+<parameter name="route_name" unique="1">
+<longdesc lang="en">
+Route name
+</longdesc>
+<shortdesc lang="en">Route name</shortdesc>
+<content type="string" default="${OCF_RESKEY_route_name_default}" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="180s" />
+<action name="stop" timeout="180s" />
+<action name="monitor" depth="0" timeout="30s" interval="60s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
+</actions>
+</resource-agent>
+END
+}
+
+validate() {
+  if ! ocf_is_root; then
+    ocf_exit_reason "You must run this agent as root"
+    exit $OCF_ERR_PERM
+  fi
+
+  for cmd in ${OCF_RESKEY_gcloud} ip curl; do
+    check_binary "$cmd"
+  done
+
+  if [ -z "${OCF_RESKEY_ip}" ]; then
+    ocf_exit_reason "Missing mandatory parameter"
+    exit $OCF_ERR_CONFIGURED
+  fi
+
+  GCE_INSTANCE_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/name")
+  GCE_INSTANCE_ZONE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/zone" | awk -F '/' '{ print $NF }')
+  GCE_INSTANCE_PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id")
+
+  if [ -z "${GCE_INSTANCE_NAME}" -o -z "${GCE_INSTANCE_ZONE}" -o -z "${GCE_INSTANCE_PROJECT}" ]; then
+    ocf_exit_reason "Instance information not found. Is this a GCE instance ?"
+    exit $OCF_ERR_GENERIC
+  fi
+
+  if ! ${OCF_RESKEY_gcloud} config configurations describe ${OCF_RESKEY_configuration} &>/dev/null; then
+    ocf_exit_reason "Gcloud configuration not found"
+    exit $OCF_ERR_CONFIGURED
+  fi
+
+  if ! ip link show ${OCF_RESKEY_interface} &> /dev/null; then
+    ocf_exit_reason "Network interface not found"
+    exit $OCF_ERR_CONFIGURED
+  fi
+
+  return $OCF_SUCCESS
+}
+
+check_conflicting_routes() {
+  cmd="${gcloud} compute routes list \
+              --filter='destRange:${OCF_RESKEY_ip} AND \
+                        network=(${gcp_api_url_prefix}/projects/${GCE_INSTANCE_PROJECT}/global/networks/${OCF_RESKEY_vpc_network}) AND \
+                        NOT name=${OCF_RESKEY_route_name}' \
+              --format='value[terminator=\" \"](name)'"
+  ocf_log debug "Executing command: $(echo $cmd)"
+  route_list=$(eval ${cmd})
+  if [ $? -ne 0 ]; then
+    exit $OCF_ERR_GENERIC
+  fi
+  if [ -n "${route_list}" ]; then
+    ocf_exit_reason "Conflicting unnmanaged routes for destination ${OCF_RESKEY_ip}/32 in VPC ${OCF_RESKEY_vpc_network} found : ${route_list}"
+    exit $OCF_ERR_CONFIGURED
+  fi
+  return $OCF_SUCCESS
+}
+
+route_monitor() {
+  ocf_log info "GCP route monitor: checking route table"
+
+  # Ensure that there is no route that we are not aware of that is also handling our IP
+  check_conflicting_routes
+
+  cmd="${gcloud} compute routes describe ${OCF_RESKEY_route_name} --format='get(nextHopInstance)'"
+  ocf_log debug "Executing command: $cmd"
+  # Also redirect stderr as we parse the output to use an appropriate exit code
+  routed_to_instance=$(eval $cmd 2>&1)
+  if [ $? -ne 0 ]; then
+    if echo $routed_to_instance | grep -qi "Insufficient Permission" ; then
+      ocf_exit_reason "Insufficient permissions to get route information"
+      exit $OCF_ERR_PERM 
+    elif echo $routed_to_instance | grep -qi "Could not fetch resource"; then
+      ocf_log debug "The route ${OCF_RESKEY_route_name} doesn't exist"
+      return $OCF_NOT_RUNNING
+    else
+      ocf_exit_reason "Error : ${routed_to_instance}"
+      exit $OCF_ERR_GENERIC
+    fi
+  fi
+  if [ -z "${routed_to_instance}" ]; then
+    routed_to_instance="<unknown>"
+  fi
+
+  if [ "${routed_to_instance}" != "${gcp_api_url_prefix}/projects/${GCE_INSTANCE_PROJECT}/zones/${GCE_INSTANCE_ZONE}/instances/${GCE_INSTANCE_NAME}" ]; then
+    ocf_log warn "The floating IP ${OCF_RESKEY_ip} is not routed to this instance (${GCE_INSTANCE_NAME}) but to instance ${routed_to_instance##*/}"
+    return $OCF_NOT_RUNNING
+  fi
+
+  ocf_log debug "The floating IP ${OCF_RESKEY_ip} is correctly routed to this instance (${GCE_INSTANCE_NAME})"
+  return $OCF_SUCCESS
+}
+
+ip_monitor() {
+  ocf_log info "IP monitor: checking local network configuration"
+
+  cmd="ip address show dev ${OCF_RESKEY_interface} to ${OCF_RESKEY_ip}/32"
+  ocf_log debug "Executing command: $cmd"
+  if [ -z "$($cmd)" ]; then
+    ocf_log warn "The floating IP ${OCF_RESKEY_ip} is not locally configured on this instance (${GCE_INSTANCE_NAME})"
+    return $OCF_NOT_RUNNING
+  fi
+
+  ocf_log debug "The floating IP ${OCF_RESKEY_ip} is correctly configured on this instance (${GCE_INSTANCE_NAME})"
+  return $OCF_SUCCESS
+}
+
+ip_release() {
+  cmd="ip address delete ${OCF_RESKEY_ip}/32 dev ${OCF_RESKEY_interface}"
+  ocf_log debug "Executing command: $cmd"
+  ocf_run $cmd || return $OCF_ERR_GENERIC
+  return $OCF_SUCCESS
+}
+
+route_release() {
+  cmd="${gcloud} compute routes delete ${OCF_RESKEY_route_name}"
+  ocf_log debug "Executing command: $cmd"
+  ocf_run $cmd || return $OCF_ERR_GENERIC
+  return $OCF_SUCCESS
+}
+
+ip_and_route_start() {
+  ocf_log info "Bringing up the floating IP ${OCF_RESKEY_ip}"
+
+  # Add a new entry in the routing table
+  # If the route entry exists and is pointing to another instance, take it over
+
+  # Ensure that there is no route that we are not aware of that is also handling our IP
+  check_conflicting_routes
+
+  # There is no replace API, We need to first delete the existing route if any
+  if ${gcloud} compute routes describe ${OCF_RESKEY_route_name} &>/dev/null; then
+    route_release
+  fi
+
+  cmd="${gcloud} compute routes create ${OCF_RESKEY_route_name} \
+    --network=${OCF_RESKEY_vpc_network}  --destination-range=${OCF_RESKEY_ip}/32 \
+    --next-hop-instance-zone=${GCE_INSTANCE_ZONE}  --next-hop-instance=${GCE_INSTANCE_NAME}"
+  ocf_log debug "Executing command: $(echo $cmd)"
+  ocf_run $cmd
+
+  if [ $? -ne $OCF_SUCCESS ]; then
+    if ! ${gcloud} compute networks describe ${OCF_RESKEY_vpc_network} &>/dev/null; then
+      ocf_exit_reason "VPC network not found"
+      exit $OCF_ERR_CONFIGURED
+    else
+      return $OCF_ERR_GENERIC
+    fi
+  fi
+
+  # Configure the IP address locally
+  # We need to release the IP first
+  ip_monitor &>/dev/null
+  if [ $? -eq $OCF_SUCCESS ]; then
+    ip_release
+  fi
+
+  cmd="ip address add ${OCF_RESKEY_ip}/32 dev ${OCF_RESKEY_interface}"
+  ocf_log debug "Executing command: $cmd"
+  ocf_run $cmd || return $OCF_ERR_GENERIC
+
+  cmd="ip link set ${OCF_RESKEY_interface} up"
+  ocf_log debug "Executing command: $cmd"
+  ocf_run $cmd || return $OCF_ERR_GENERIC
+
+  ocf_log info "Successfully brought up the floating IP ${OCF_RESKEY_ip}"
+  return $OCF_SUCCESS
+}
+
+ip_and_route_stop() {
+  ocf_log info "Bringing down the floating IP ${OCF_RESKEY_ip}"
+
+  # Delete the route entry
+  # If the route entry exists and is pointing to another instance, don't touch it
+  route_monitor &>/dev/null
+  if [ $? -eq $OCF_NOT_RUNNING ]; then
+    ocf_log info "The floating IP ${OCF_RESKEY_ip} is already not routed to this instance (${GCE_INSTANCE_NAME})"
+  else
+    route_release
+  fi
+
+  # Delete the local IP address
+  ip_monitor &>/dev/null
+  if [ $? -eq $OCF_NOT_RUNNING ]; then
+    ocf_log info "The floating IP ${OCF_RESKEY_ip} is already down"
+  else
+    ip_release
+  fi
+
+  ocf_log info "Successfully brought down the floating IP ${OCF_RESKEY_ip}"
+  return $OCF_SUCCESS
+}
+
+
+###############################################################################
+#
+# MAIN
+#
+###############################################################################
+
+ocf_log warn "gcp-vpc-move-ip is deprecated, prefer to use gcp-vpc-move-route instead"
+
+case $__OCF_ACTION in
+  meta-data)  metadata
+              exit $OCF_SUCCESS
+              ;;
+  usage|help) echo $USAGE
+              exit $OCF_SUCCESS
+              ;;
+esac
+
+validate || exit $?
+
+case $__OCF_ACTION in
+  start)          ip_and_route_start;;
+  stop)           ip_and_route_stop;;
+  monitor|status) route_monitor || exit $?
+                  ip_monitor || exit $?
+                  ;;
+  validate-all)   ;;
+  *)              echo $USAGE
+                  exit $OCF_ERR_UNIMPLEMENTED
+                  ;;
+esac

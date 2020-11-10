@@ -1,11 +1,12 @@
 [Unit]
 Description=Monitor and administer real servers in a LVS cluster of load balanced virtual servers
+Documentation=man:ldirectord(8)
 
 [Service]
 ExecStart=@sbindir@/ldirectord start
 ExecStartPost=/usr/bin/touch /var/lock/subsys/ldirectord
 ExecStop=@sbindir@/ldirectord stop
-ExecStopPost=/usr/bin/rm -f /var/lock/subsys/ldirectord
+ExecStopPost=@RM@ -f /var/lock/subsys/ldirectord
 ExecReload=@sbindir@/ldirectord reload
 PIDFile=/var/run/ldirectord.ldirectord.pid
 Type=forking

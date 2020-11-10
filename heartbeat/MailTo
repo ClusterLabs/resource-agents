@@ -30,6 +30,14 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_email_default=""
+OCF_RESKEY_subject_default="Resource Group"
+
+: ${OCF_RESKEY_email=${OCF_RESKEY_email_default}}
+: ${OCF_RESKEY_subject=${OCF_RESKEY_subject_default}}
+
 #######################################################################
 
 ARGS="$0 $*"
@@ -59,7 +67,7 @@ a takeover occurs.
 The email address of sysadmin.
 </longdesc>
 <shortdesc lang="en">Email address</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_email_default}" />
 </parameter>
 
 <parameter name="subject" unique="0">
@@ -67,17 +75,17 @@ The email address of sysadmin.
 The subject of the email.
 </longdesc>
 <shortdesc lang="en">Subject</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_subject_default}" />
 </parameter>
 </parameters>
 
 <actions>
-<action name="start" timeout="10" />
-<action name="stop" timeout="10" />
-<action name="status" depth="0" timeout="10" interval="10" />
-<action name="monitor" depth="0" timeout="10" interval="10" />
-<action name="meta-data" timeout="5" />
-<action name="validate-all" timeout="5" />
+<action name="start" timeout="10s" />
+<action name="stop" timeout="10s" />
+<action name="status" depth="0" timeout="10s" interval="10s" />
+<action name="monitor" depth="0" timeout="10s" interval="10s" />
+<action name="meta-data" timeout="5s" />
+<action name="validate-all" timeout="5s" />
 </actions>
 </resource-agent>
 END
@@ -96,7 +104,7 @@ EOF
 SubjectLine() {
   case $1 in
     ??*)	echo "$@";;
-    *)		echo "Resource Group";;
+    *)		echo "${OCF_RESKEY_subject_default}";;
   esac
 }
 

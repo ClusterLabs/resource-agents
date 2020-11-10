@@ -31,6 +31,18 @@ ZEBRA=/usr/sbin/zebra
 RIPD=/usr/sbin/ripd
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
+# Parameter defaults
+
+OCF_RESKEY_ip_default=""
+OCF_RESKEY_nic_default="eth0"
+OCF_RESKEY_zebra_binary_default="${ZEBRA}"
+OCF_RESKEY_ripd_binary_default="${RIPD}"
+
+: ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
+: ${OCF_RESKEY_nic=${OCF_RESKEY_nic_default}}
+: ${OCF_RESKEY_zebra_binary=${OCF_RESKEY_zebra_binary_default}}
+: ${OCF_RESKEY_ripd_binary=${OCF_RESKEY_ripd_binary_default}}
+
 #######################################################################
 
 meta_data() {
@@ -54,16 +66,16 @@ It can add an IP alias, or remove one.
 The IPv4 address in different subnet, for example "192.168.1.1".
 </longdesc>
 <shortdesc lang="en">The IP address in different subnet</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_ip_default}" />
 </parameter>
 
 <parameter name="nic" unique="0">
 <longdesc lang="en">
 The nic for broadcast the route information.
-The ripd uses this nic to broadcast the route informaton to others
+The ripd uses this nic to broadcast the route information to others
 </longdesc>
 <shortdesc lang="en">The nic for broadcast the route information</shortdesc>
-<content type="string" default="eth0"/>
+<content type="string" default="${OCF_RESKEY_nic_default}"/>
 </parameter>
 
 <parameter name="zebra_binary" unique="0">
@@ -71,7 +83,7 @@ The ripd uses this nic to broadcast the route informaton to others
 Absolute path to the zebra binary.
 </longdesc>
 <shortdesc lang="en">zebra binary</shortdesc>
-<content type="string" default="$ZEBRA"/>
+<content type="string" default="${OCF_RESKEY_zebra_binary_default}"/>
 </parameter>
 
 <parameter name="ripd_binary" unique="0">
@@ -79,7 +91,7 @@ Absolute path to the zebra binary.
 Absolute path to the ripd binary.
 </longdesc>
 <shortdesc lang="en">ripd binary</shortdesc>
-<content type="string" default="$RIPD"/>
+<content type="string" default="${OCF_RESKEY_ripd_binary_default}"/>
 </parameter>
 
 </parameters>
@@ -202,8 +214,8 @@ start_rip_ip() {
 
 	if [ x"$OCF_RESKEY_nic" = x ]
 	then
-		echo OCF_RESKEY_nic is null, set to eth0
-		OCF_RESKEY_nic="eth0"
+		echo OCF_RESKEY_nic is null, set to ${OCF_RESKEY_nic_default}
+		OCF_RESKEY_nic="${OCF_RESKEY_nic_default}"
 	fi
 	
 	status_rip_ip

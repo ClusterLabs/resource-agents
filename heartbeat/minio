@@ -1,0 +1,289 @@
+#!/bin/sh
+#
+# Resource script for Minio
+#
+# Description:  Manages Minio as an OCF resource in
+#               an Active-Passive High Availability setup.
+#
+# Author:       Ricardo Branco <tsmgeek@gmail.com> : Initial script for minio server
+# License:      GNU General Public License (GPL)
+#
+#
+#       usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+#
+#       The "start" arg starts Minio.
+#
+#       The "stop" arg stops it.
+#
+# OCF parameters:
+#  OCF_RESKEY_binary
+#  OCF_RESKEY_conffile
+#  OCF_RESKEY_pidfile
+#  OCF_RESKEY_address
+#  OCF_RESKEY_volumnpaths
+#
+##########################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_binary_default="/opt/minio/minio-server"
+OCF_RESKEY_confdir_default="/etc/minio"
+OCF_RESKEY_pidfile_default="/var/run/minio.pid"
+OCF_RESKEY_address_default=":9000"
+OCF_RESKEY_volumepaths_default="/home/shared"
+
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_confdir=${OCF_RESKEY_confdir_default}}
+: ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
+: ${OCF_RESKEY_address=${OCF_RESKEY_address_default}}
+: ${OCF_RESKEY_volumepaths=${OCF_RESKEY_volumepaths_default}}
+
+USAGE="Usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
+
+##########################################################################
+
+usage() {
+        echo $USAGE >&2
+}
+
+meta_data() {
+        cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="minio">
+<version>1.0</version>
+<longdesc lang="en">
+This script manages Minio in an Active-Passive setup
+</longdesc>
+<shortdesc lang="en">OCF Resource Agent compliant Minio server script.</shortdesc>
+
+
+<parameters>
+
+<parameter name="binary">
+<longdesc lang="en">The Minio server binary</longdesc>
+<shortdesc lang="en">The Minio server binary</shortdesc>
+<content type="string" default="${OCF_RESKEY_binary_default}" />
+</parameter>
+
+<parameter name="confdir">
+<longdesc lang="en">
+The Minio configuration directory path.
+For example, "/etc/minio"
+</longdesc>
+<shortdesc lang="en">Configuration directory path</shortdesc>
+<content type="string" default="${OCF_RESKEY_confdir_default}" />
+</parameter>
+
+<parameter name="pidfile">
+<longdesc lang="en">The Minio PID file. The location of the PID file.</longdesc>
+<shortdesc lang="en">PID file</shortdesc>
+<content type="string" default="${OCF_RESKEY_pidfile_default}" />
+</parameter>
+
+<parameter name="address">
+<longdesc lang="en">Address to bind minio to.</longdesc>
+<shortdesc lang="en">Bind address</shortdesc>
+<content type="string" default="${OCF_RESKEY_address_default}" />
+</parameter>
+
+<parameter name="volumepaths">
+<longdesc lang="en">The storage volumes for minio to use.</longdesc>
+<shortdesc lang="en">Storage Volumes</shortdesc>
+<content type="string" default="${OCF_RESKEY_volumepaths_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"   timeout="20s" />
+<action name="stop"    timeout="20s" />
+<action name="monitor" depth="0"  timeout="20s" interval="60s" />
+<action name="validate-all"  timeout="2s" />
+<action name="meta-data"  timeout="5s" />
+</actions>
+
+</resource-agent>
+END
+        exit $OCF_SUCCESS
+}
+
+isRunning()
+{
+        kill -0 "$1" > /dev/null 2>&1
+}
+
+minio_status()
+{
+        if [ -f "$OCF_RESKEY_pidfile" ]
+        then
+        # Minio is probably running
+                PID=`head -n 1 $OCF_RESKEY_pidfile`
+                if [ ! -z "$PID" ] ; then
+                        isRunning "$PID" && `ps -p $PID | grep minio-server > /dev/null 2>&1`
+                        return $?
+                fi
+        fi
+
+        # Minio is not running
+        return $OCF_NOT_RUNNING;
+}
+
+minio_start()
+{
+        # make a few checks and start Minio
+        if ocf_is_root ; then : ; else
+                ocf_log err "You must be root"
+                exit $OCF_ERR_PERM
+        fi
+
+        # if Minio is running return success
+        if minio_status ; then
+                ocf_log info "Minio server is running already"
+                exit $OCF_SUCCESS
+        fi
+
+        # starting Minio
+        cmd="su - root -c \"nohup ${OCF_RESKEY_binary} server --quiet --config-dir ${OCF_RESKEY_confdir} --address ${OCF_RESKEY_address} ${OCF_RESKEY_volumepaths} >/dev/null &\"'echo \$!' "
+
+        ocf_log debug "Starting minio: $cmd"
+
+        eval $cmd > ${OCF_RESKEY_pidfile}
+
+        if [ "$?" -ne 0 ]; then
+                ocf_log err "Minio returned error" $?
+                exit $OCF_ERR_GENERIC
+        fi
+
+        exit $OCF_SUCCESS
+}
+
+
+minio_stop()
+{
+        if minio_status ; then
+                PID=`head -n 1 $OCF_RESKEY_pidfile`
+                if [ ! -z "$PID" ]; then
+                        ocf_log info "Killing Minio PID $PID"
+                        kill $PID > /dev/null 2>&1
+                        if [ "$?" -eq 0 ]; then
+                                TRIES=0
+                                while isRunning "$PID" && [ "$TRIES" -lt 30 ]
+                                do
+                                        sleep 1
+                                        ocf_log info "Minio PID $PID is still running"
+                                        TRIES=`expr $TRIES + 1`
+                                done
+                                isRunning "$PID"
+                                RET=$?
+                                if [ "$RET" -eq 0 ]; then
+                                        ocf_log info "Killing Minio PID $PID with SIGKILL"
+                                        kill -9 $PID > /dev/null 2>&1
+                                        while isRunning "$PID"
+                                        do
+                                                sleep 1
+                                                ocf_log info "Minio PID $PID is still running"
+                                        done
+                                fi
+                        else
+                                ocf_log err "Killing Minio PID $PID FAILED"
+                                exit $OCF_ERR_GENERIC
+                        fi
+                fi
+        fi
+
+        exit $OCF_SUCCESS
+}
+
+minio_monitor()
+{
+        minio_status
+        RET=$?
+
+        if [ "$RET" -eq 0 ]; then
+                PID=`head -n 1 $OCF_RESKEY_pidfile`
+                ocf_log debug "Minio monitor on PID $PID succeeded"
+                return $OCF_SUCCESS
+        else
+                ocf_log debug "Minio monitor on PID $PID failed"
+                return $OCF_NOT_RUNNING
+        fi
+}
+
+minio_validate_all()
+{
+
+        # check that the minio binary exists
+        if [ ! -x "$OCF_RESKEY_binary" ]; then
+                ocf_log err "Minio server binary $OCF_RESKEY_binary does not exist"
+                exit $OCF_ERR_INSTALLED
+        fi
+
+        # check that the Minioconfig file exists
+        if [ ! -d "$OCF_RESKEY_confdir" ]; then
+                ocf_log err "Minio config dir $OCF_RESKEY_confdir does not exist"
+                exit $OCF_ERR_CONFIGURED
+        fi
+
+}
+
+#
+# Main
+#
+
+if [ $# -ne 1 ]
+then
+  usage
+  exit $OCF_ERR_ARGS
+fi
+
+case $1 in
+    start)
+        minio_validate_all
+        minio_start
+        ;;
+
+    stop)
+        minio_stop
+        ;;
+
+    status)
+        if minio_status; then
+            ocf_log info "Minio is running"
+            exit $OCF_SUCCESS
+        else
+            ocf_log info "Minio is stopped"
+            exit $OCF_NOT_RUNNING
+        fi
+        ;;
+
+    monitor)
+        minio_monitor
+        ;;
+
+    validate-all)
+        minio_validate_all
+        exit $OCF_SUCCESS
+        ;;
+
+    meta-data|metadata|meta_data)
+        meta_data
+        ;;
+
+    usage)
+        usage
+        exit $OCF_SUCCESS
+        ;;
+
+    *)
+        usage
+        ocf_log err "$0 was called with unsupported args: $*"
+        exit $OCF_ERR_UNIMPLEMENTED
+        ;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc

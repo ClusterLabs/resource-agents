@@ -1,4 +1,4 @@
-#!/bin/bash
+#!@BASH_SHELL@
 
 # Copyright (c) 2010-2013 Novell Inc, John Shi
 #           All Rights Reserved.
@@ -279,7 +279,7 @@ parse_cfg()
           echo "    - case ${i}: ${branch[0]}"
           sh="$CASES_DIR/${i}_${agent}.sh"
           cat >$sh <<EOF
-#!/bin/bash
+#!@BASH_SHELL@
 
 # Agent:   $cfg_agent
 # Summary: ${branch[0]}
@@ -527,7 +527,7 @@ EOF
 
     if [ -r "$CASES_DIR/${agent}_setup" ]; then
       cat >$CASES_DIR/setup_${agent}.sh <<EOF
-#!/bin/bash
+#!@BASH_SHELL@
 
 # Agent:   $cfg_agent
 # Summary: SETUP before test
@@ -578,7 +578,7 @@ EOF
 
     if [ -r "$CASES_DIR/${agent}_cleanup" ]; then
       cat >$CASES_DIR/cleanup_${agent}.sh <<EOF
-#!/bin/bash
+#!@BASH_SHELL@
 
 # Agent:   $cfg_agent
 # Summary: CLEANUP after test

@@ -50,6 +50,22 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_binfile_default=""
+OCF_RESKEY_workdir_default=""
+OCF_RESKEY_pidfile_default="${HA_VARRUN}/anything_${OCF_RESOURCE_INSTANCE}.pid"
+OCF_RESKEY_logfile_default="/dev/null"
+OCF_RESKEY_user_default="root"
+OCF_RESKEY_stop_timeout_default=""
+
+: ${OCF_RESKEY_binfile=${OCF_RESKEY_binfile_default}}
+: ${OCF_RESKEY_workdir=${OCF_RESKEY_workdir_default}}
+: ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
+: ${OCF_RESKEY_logfile=${OCF_RESKEY_logfile_default}}
+: ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
+: ${OCF_RESKEY_stop_timeout=${OCF_RESKEY_stop_timeout_default}}
+
 getpid() {
         grep -o '[0-9]*' $1
 }
@@ -233,7 +249,7 @@ This is a generic OCF RA to manage almost anything.
 The full name of the binary to be executed. This is expected to keep running with the same pid and not just do something and exit.
 </longdesc>
 <shortdesc lang="en">Full path name of the binary to be executed</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_binfile_default}"/>
 </parameter>
 <parameter name="cmdline_options" required="0">
 <longdesc lang="en">
@@ -247,21 +263,21 @@ Command line options to pass to the binary
 The path from where the binfile will be executed.
 </longdesc>
 <shortdesc lang="en">Full path name of the work directory</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_workdir_default}"/>
 </parameter>
 <parameter name="pidfile">
 <longdesc lang="en">
 File to read/write the PID from/to.
 </longdesc>
 <shortdesc lang="en">File to write STDOUT to</shortdesc>
-<content type="string" default="${HA_VARRUN}/anything_${process}.pid"/>
+<content type="string" default="${OCF_RESKEY_pidfile_default}"/>
 </parameter>
 <parameter name="logfile" required="0">
 <longdesc lang="en">
 File to write STDOUT to
 </longdesc>
 <shortdesc lang="en">File to write STDOUT to</shortdesc>
-<content type="string" default="/dev/null" />
+<content type="string" default="${OCF_RESKEY_logfile_default}" />
 </parameter>
 <parameter name="errlogfile" required="0">
 <longdesc lang="en">
@@ -275,7 +291,7 @@ File to write STDERR to
 User to run the command as
 </longdesc>
 <shortdesc lang="en">User to run the command as</shortdesc>
-<content type="string" default="root"/>
+<content type="string" default="${OCF_RESKEY_user_default}"/>
 </parameter>
 <parameter name="monitor_hook">
 <longdesc lang="en">
@@ -290,15 +306,15 @@ In the stop operation: Seconds to wait for kill -TERM to succeed
 before sending kill -SIGKILL. Defaults to 2/3 of the stop operation timeout.
 </longdesc>
 <shortdesc lang="en">Seconds to wait after having sent SIGTERM before sending SIGKILL in stop operation</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_stop_timeout_default}"/>
 </parameter>
 </parameters>
 <actions>
 <action name="start"   timeout="20s" />
 <action name="stop"    timeout="20s" />
-<action name="monitor" depth="0"  timeout="20s" interval="10" />
-<action name="meta-data"  timeout="5" />
-<action name="validate-all"  timeout="5" />
+<action name="monitor" depth="0"  timeout="20s" interval="10s" />
+<action name="meta-data"  timeout="5s" />
+<action name="validate-all"  timeout="5s" />
 </actions>
 </resource-agent>
 END

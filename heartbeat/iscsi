@@ -143,13 +143,13 @@ attribute appropriately.
 </parameters>
 
 <actions>
-<action name="start" timeout="120" />
-<action name="stop" timeout="120" />
-<action name="status" timeout="30" />
-<action name="monitor" depth="0" timeout="30" interval="120" />
-<action name="validate-all" timeout="5" />
-<action name="methods" timeout="5" />
-<action name="meta-data" timeout="5" />
+<action name="start" timeout="120s" />
+<action name="stop" timeout="120s" />
+<action name="status" timeout="30s" />
+<action name="monitor" depth="0" timeout="30s" interval="120s" />
+<action name="validate-all" timeout="5s" />
+<action name="methods" timeout="5s" />
+<action name="meta-data" timeout="5s" />
 </actions>
 </resource-agent>
 EOF

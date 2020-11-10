@@ -21,7 +21,7 @@ MAINTAINERCLEANFILES = Makefile.in
 
 EXTRA_DIST		= $(ocf_SCRIPTS) $(ocfcommon_DATA) \
 			  $(common_DATA) $(hb_DATA) $(dtd_DATA) \
-			  README
+			  README README.galera
 
 AM_CPPFLAGS		= -I$(top_srcdir)/include -I$(top_srcdir)/linux-ha
 
@@ -50,7 +50,7 @@ send_ua_SOURCES         = send_ua.c IPv6addr_utils.c
 IPv6addr_LDADD          = -lplumb $(LIBNETLIBS)
 send_ua_LDADD           = $(LIBNETLIBS)
 
-ocf_SCRIPTS	     =  AoEtarget		\
+ocf_SCRIPTS	      = AoEtarget		\
 			AudibleAlarm		\
 			ClusterMon		\
 			CTDB			\
@@ -65,10 +65,12 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			IPsrcaddr		\
 			LVM			\
 			LinuxSCSI		\
+			lvmlockd		\
+			LVM-activate		\
 			MailTo			\
 			ManageRAID		\
 			ManageVE		\
-			NodeUtilization	\
+			NodeUtilization		\
 			Pure-FTPd		\
 			Raid1			\
 			Route			\
@@ -87,32 +89,49 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			WinPopup		\
 			Xen			\
 			Xinetd			\
+			ZFS			\
+			aliyun-vpc-move-ip	\
 			anything		\
 			apache			\
 			asterisk		\
+			aws-vpc-move-ip		\
+			aws-vpc-route53		\
 			awseip			\
 			awsvip			\
+			azure-lb		\
 			clvm			\
 			conntrackd		\
+			crypt			\
 			db2			\
 			dhcpd			\
 			dnsupdate		\
+			dummypy			\
 			docker			\
+			docker-compose		\
+			dovecot			\
 			eDir88			\
 			ethmonitor		\
 			exportfs		\
 			fio			\
 			galera			\
 			garbd			\
+			gcp-vpc-move-ip		\
 			iSCSILogicalUnit	\
 			iSCSITarget		\
 			ids			\
 			iface-bridge		\
 			iface-vlan		\
+			ipsec			\
 			iscsi			\
 			jboss			\
+			jira			\
 			kamailio		\
 			lxc			\
+			lxd-info		\
+			machine-info		\
+			mariadb			\
+			mdraid			\
+			minio			\
 			mysql			\
 			mysql-proxy		\
 			nagios			\
@@ -120,47 +139,76 @@ ocf_SCRIPTS	     =  AoEtarget		\
 			nfsnotify		\
 			nfsserver		\
 			nginx			\
+			openstack-cinder-volume \
+			openstack-floating-ip   \
+			openstack-info          \
 			oraasm			\
 			oracle			\
 			oralsnr			\
+			ovsmonitor		\
 			pgagent			\
 			pgsql			\
 			pingd			\
+			podman			\
 			portblock		\
 			postfix			\
 			pound			\
 			proftpd			\
 			rabbitmq-cluster	\
 			redis			\
+			rkt			\
 			rsyncd			\
 			rsyslog			\
 			scsi2reservation	\
 			sfex			\
 			sg_persist              \
+			mpathpersist		\
 			slapd			\
+			sybaseASE		\
 			symlink			\
 			syslog-ng		\
 			tomcat			\
 			varnish			\
+			vdo-vol			\
 			vmware			\
 			vsftpd			\
 			zabbixserver
+
+if BUILD_AZURE_EVENTS
+ocf_SCRIPTS	     += azure-events
+endif
+
+if BUILD_GCP_PD_MOVE
+ocf_SCRIPTS	     += gcp-pd-move
+endif
+
+if BUILD_GCP_VPC_MOVE_ROUTE
+ocf_SCRIPTS	     += gcp-vpc-move-route
+endif
+
+if BUILD_GCP_VPC_MOVE_VIP
+ocf_SCRIPTS	     += gcp-vpc-move-vip
+endif
 
 ocfcommondir		= $(OCF_LIB_DIR_PREFIX)/heartbeat
 ocfcommon_DATA		= ocf-shellfuncs 	\
 			  ocf-binaries	 	\
 			  ocf-directories 	\
 			  ocf-returncodes 	\
- 			  ocf-rarun		\
- 			  ocf-distro		\
+			  ocf-rarun		\
+			  ocf-distro		\
 			  apache-conf.sh 	\
-			  http-mon.sh    	\
+			  http-mon.sh		\
 			  sapdb-nosha.sh	\
 			  sapdb.sh		\
+			  lvm-clvm.sh		\
+			  lvm-plain.sh		\
+			  lvm-tag.sh		\
 			  ora-common.sh		\
 			  mysql-common.sh	\
 			  nfsserver-redhat.sh	\
-			  findif.sh
+			  findif.sh		\
+			  ocf.py
 
 # Legacy locations
 hbdir			= $(sysconfdir)/ha.d
@@ -170,3 +218,13 @@ check: $(ocf_SCRIPTS:=.check)
 
 %.check: %
 	OCF_ROOT=$(abs_srcdir) OCF_FUNCTIONS_DIR=$(abs_srcdir) ./$< meta-data | xmllint --path $(abs_srcdir) --noout --relaxng $(abs_srcdir)/metadata.rng -
+
+do_spellcheck = printf '[%s]\n' "$(agent)"; \
+                OCF_ROOT=$(abs_srcdir) OCF_FUNCTIONS_DIR=$(abs_srcdir) \
+                ./$(agent) meta-data 2>/dev/null \
+                | xsltproc $(top_srcdir)/make/extract_text.xsl - \
+                | aspell pipe list -d en_US --ignore-case \
+                  --home-dir=$(top_srcdir)/make -p spellcheck-ignore \
+                | sed -n 's|^&\([^:]*\):.*|\1|p';
+spellcheck:
+	@$(foreach agent,$(ocf_SCRIPTS), $(do_spellcheck))

@@ -25,7 +25,11 @@
 #   OCF_RESKEY_backend_type
 #   OCF_RESKEY_backend_size
 #   OCF_RESKEY_backend_file
-#   OCF_RESKEY_worker_threads
+#   OCF_RESKEY_thread_pools
+#   OCF_RESKEY_thread_pool_min
+#   OCF_RESKEY_thread_pool_max
+#   OCF_RESKEY_thread_pool_timeout
+#   OCF_RESKEY_secret
 #
 #######################################################################
 # Initialization:
@@ -39,6 +43,7 @@
 OCF_RESKEY_name_default=${OCF_RESOURCE_INSTANCE}
 : ${OCF_RESKEY_name=${OCF_RESKEY_name_default}}
 
+OCF_RESKEY_config_default=""
 OCF_RESKEY_binary_default=varnishd
 OCF_RESKEY_client_binary_default=varnishadm
 OCF_RESKEY_pid_default=/var/run/varnishd_${OCF_RESKEY_name}.pid
@@ -49,10 +54,15 @@ OCF_RESKEY_varnish_group_default=varnish
 OCF_RESKEY_backend_type_default=malloc
 OCF_RESKEY_backend_size_default=1G
 OCF_RESKEY_backend_file_default=/var/lib/varnish/${OCF_RESKEY_name}.bin
-OCF_RESKEY_worker_threads_default=100,3000,120
+OCF_RESKEY_thread_pools_default=2
+OCF_RESKEY_thread_pool_min_default=100
+OCF_RESKEY_thread_pool_max_default=3000
+OCF_RESKEY_thread_pool_timeout_default=120
 OCF_RESKEY_maxfiles_default=131072
 OCF_RESKEY_max_locked_memory_default=82000
+OCF_RESKEY_secret_default=/etc/varnish/secret
 
+: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 : ${OCF_RESKEY_client_binary=${OCF_RESKEY_client_binary_default}}
 : ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
@@ -63,10 +73,13 @@ OCF_RESKEY_max_locked_memory_default=82000
 : ${OCF_RESKEY_backend_type=${OCF_RESKEY_backend_type_default}}
 : ${OCF_RESKEY_backend_size=${OCF_RESKEY_backend_size_default}}
 : ${OCF_RESKEY_backend_file=${OCF_RESKEY_backend_file_default}}
-: ${OCF_RESKEY_worker_threads=${OCF_RESKEY_worker_threads_default}}
+: ${OCF_RESKEY_thread_pools=${OCF_RESKEY_thread_pools_default}}
+: ${OCF_RESKEY_thread_pool_min=${OCF_RESKEY_thread_pool_min_default}}
+: ${OCF_RESKEY_thread_pool_max=${OCF_RESKEY_thread_pool_max_default}}
+: ${OCF_RESKEY_thread_pool_timeout=${OCF_RESKEY_thread_pool_timeout_default}}
 : ${OCF_RESKEY_maxfiles=${OCF_RESKEY_maxfiles_default}}
 : ${OCF_RESKEY_max_locked_memory=${OCF_RESKEY_max_locked_memory_default}}
-
+: ${OCF_RESKEY_secret=${OCF_RESKEY_secret_default}}
 
 meta_data() {
 	cat <<END
@@ -91,7 +104,7 @@ The VCL configuration file that Varnish should manage, for example
 "/etc/varnish/default.vcl".
 </longdesc>
 <shortdesc lang="en">VCL file</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_config_default}" />
 </parameter>
 
 <parameter name="name" unique="1">
@@ -184,16 +197,41 @@ For example /var/lib/varnish/mybackend.bin
 <content type="string" default="${OCF_RESKEY_backend_file_default}" />
 </parameter>
 
-<parameter name="worker_threads">
+<parameter name="threads_pools">
+<longdesc lang="en">
+Number of worker thread pools.
+Each pool has the minimum, maximum and timeout values configured in the
+thread_pool_min, thread_pool_max and thread_pool_timeout parameters
+</longdesc>
+<shortdesc lang="en">Worker thread pools</shortdesc>
+<content type="string" default="${OCF_RESKEY_thread_pools_default}" />
+</parameter>
+
+<parameter name="thread_pool_min">
 <longdesc lang="en">
 Start  at  least  min but no more than max worker 
-threads with the specified idle timeout.
-
-Syntax: min[,max[,timeout]]
-For example: 100,3000,120
+threads with the specified idle timeout in each pool.
 </longdesc>
-<shortdesc lang="en">Worker threads</shortdesc>
-<content type="string" default="${OCF_RESKEY_worker_threads_default}" />
+<shortdesc lang="en">Minimum worker threads</shortdesc>
+<content type="string" default="${OCF_RESKEY_thread_pool_min_default}" />
+</parameter>
+
+<parameter name="thread_pool_max">
+<longdesc lang="en">
+Start  at  least  min but no more than max worker 
+threads with the specified idle timeout in each pool.
+</longdesc>
+<shortdesc lang="en">Maximum worker threads</shortdesc>
+<content type="string" default="${OCF_RESKEY_thread_pool_max_default}" />
+</parameter>
+
+<parameter name="thread_pool_timeout">
+<longdesc lang="en">
+Start  at  least  min but no more than max worker 
+threads with the specified idle timeout in each pool.
+</longdesc>
+<shortdesc lang="en">Worker threads timeout</shortdesc>
+<content type="string" default="${OCF_RESKEY_thread_pool_timeout_default}" />
 </parameter>
 
 <parameter name="client_binary">
@@ -221,15 +259,23 @@ Locked shared memory limit (for ulimit -l)
 <content type="string" default="${OCF_RESKEY_max_locked_memory_default}" />
 </parameter>
 
+<parameter name="secret">
+<longdesc lang="en">
+Path to a file containing a secret used for authorizing access to the management port.
+</longdesc>
+<shortdesc lang="en">Path of the secret file</shortdesc>
+<content type="string" default="${OCF_RESKEY_secret_default}" />
+</parameter>
+
 </parameters>
 
 <actions>
-<action name="start"        timeout="20" />
-<action name="stop"         timeout="20" />
-<action name="monitor"      timeout="20" interval="10" depth="0" />
-<action name="status"       timeout="20" />
-<action name="meta-data"    timeout="5" />
-<action name="validate-all"   timeout="20" />
+<action name="start"        timeout="20s" />
+<action name="stop"         timeout="20s" />
+<action name="monitor"      timeout="20s" interval="10s" depth="0" />
+<action name="status"       timeout="20s" />
+<action name="meta-data"    timeout="5s" />
+<action name="validate-all"   timeout="20s" />
 </actions>
 </resource-agent>
 END
@@ -264,7 +310,7 @@ varnish_status() {
             ocf_log info "Varnish is running"
             # check if the child process is started and varnish is
             # reporting child status as ok
-            ocf_run $OCF_RESKEY_client_binary -T $OCF_RESKEY_mgmt_address status
+            ocf_run $OCF_RESKEY_client_binary -T $OCF_RESKEY_mgmt_address -S $OCF_RESKEY_secret status
             v_rc=$?
             if [ "$v_rc" -eq 0 ]; then
                 ocf_log info "Varnish child reported running"
@@ -334,8 +380,12 @@ varnish_start() {
         -t $OCF_RESKEY_ttl \
         -u $OCF_RESKEY_varnish_user \
         -g $OCF_RESKEY_varnish_group \
-        -w $OCF_RESKEY_worker_threads \
+        -p thread_pools=$OCF_RESKEY_thread_pools \
+        -p thread_pool_min=$OCF_RESKEY_thread_pool_min \
+        -p thread_pool_max=$OCF_RESKEY_thread_pool_max \
+        -p thread_pool_timeout=$OCF_RESKEY_thread_pool_timeout \
         -s $OCF_RESKEY_backend_type,$backend_options \
+        -S $OCF_RESKEY_secret \
         -n $OCF_RESKEY_name
     rc=$?
     if [ $rc -ne 0 ]; then

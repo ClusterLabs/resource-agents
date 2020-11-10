@@ -72,10 +72,11 @@ ocf_is_root() {
 }
 
 ocf_maybe_random() {
-	local rnd="$RANDOM"
-	# Something sane-ish in case a shell doesn't support $RANDOM
-	[ -n "$rnd" ] || rnd=$$
-	echo $rnd
+	if test -c /dev/urandom; then
+		od -An -N4 -tu4 /dev/urandom | tr -d '[:space:]'
+	else
+		awk -v pid=$$ 'BEGIN{srand(pid); print rand()}' | sed 's/^.*[.]//'
+	fi
 }
 
 # Portability comments:
@@ -100,7 +101,7 @@ ocf_is_decimal() {
 
 ocf_is_true() {
 	case "$1" in
-	yes|true|1|YES|TRUE|ja|on|ON) true ;;
+	yes|true|1|YES|TRUE|True|ja|on|ON) true ;;
 	*)	false ;;
 	esac
 }
@@ -256,7 +257,7 @@ ha_log()
 
 ha_debug() {
 
-        if [ "x${HA_debug}" = "x0" ] ; then
+        if [ "x${HA_debug}" = "x0" ] || [ -z "${HA_debug}" ] ; then
                 return 0
         fi
 	if tty >/dev/null; then
@@ -433,7 +434,7 @@ ocf_run() {
 
 	output=`"$@" 2>&1`
 	rc=$?
-	output=`echo "$output" | tr -s ' \t\r\n' ' '`
+	[ -n "$output" ] && output="$(echo "$output" | tr -s ' \t\r\n' ' ')"
 	if [ $rc -eq 0 ]; then 
 	    if [ "$verbose" -a ! -z "$output" ]; then
 		ocf_log info "$output"
@@ -456,7 +457,7 @@ ocf_pidfile_status() {
 	return 2
     fi
     pid=`cat $pidfile`
-    kill -0 $pid 2>&1 > /dev/null
+    kill -0 $pid > /dev/null 2>&1
     if [ $? = 0 ]; then
 	return 0
     fi
@@ -465,24 +466,85 @@ ocf_pidfile_status() {
     return 1
 }
 
-ocf_take_lock() {
-    local lockfile=$1
-    local rnd=$(ocf_maybe_random)
+# mkdir(1) based locking
+# first the directory is created with the name given as $1
+# then a file named "pid" is created within that directory with
+# the process PID
+# stale locks are handled carefully, the inode of a directory
+# needs to match before and after test if the process is running
+# empty directories are also handled appropriately
+# we relax (sleep) occasionally to allow for other processes to
+# finish managing the lock in case they are in the middle of the
+# business
 
-    sleep 0.$rnd
-    while 
-	ocf_pidfile_status $lockfile
-    do
-	ocf_log info "Sleeping until $lockfile is released..."
-	sleep 0.$rnd
-    done
-    echo $$ > $lockfile
+relax() { sleep 0.5; }
+ocf_get_stale_pid() {
+	local piddir pid dir_inode
+
+	piddir="$1"
+	[ -z "$piddir" ] && return 2
+	dir_inode="`ls -di $piddir 2>/dev/null`"
+	[ -z "$dir_inode" ] && return 1
+	pid=`cat $piddir/pid 2>/dev/null`
+	if [ -z "$pid" ]; then
+		# empty directory?
+		relax
+		if [ "$dir_inode" = "`ls -di $piddir 2>/dev/null`" ]; then
+			echo $dir_inode
+		else
+			return 1
+		fi
+	elif kill -0 $pid >/dev/null 2>&1; then
+		return 1
+	elif relax && [ -e "$piddir/pid" ] && [ "$dir_inode" = "`ls -di $piddir 2>/dev/null`" ]; then
+		echo $pid
+	else
+		return 1
+	fi
 }
 
+# There is a race when the following two functions to manage the
+# lock file (mk and rm) are invoked in parallel by different
+# instances. It is up to the caller to reduce probability of that
+# taking place (see ocf_take_lock() below).
+
+ocf_mk_pid() {
+	mkdir $1 2>/dev/null && echo $$ > $1/pid
+}
+ocf_rm_pid() {
+	rm -f $1/pid
+	rmdir $1 2>/dev/null
+}
+
+# Testing and subsequently removing a stale lock (containing the
+# process pid) is inherently difficult to do in such a way as to
+# prevent a race between creating a pid file and removing it and
+# its directory. We reduce the probability of that happening by
+# checking if the stale lock persists over a random period of
+# time.
+
+ocf_take_lock() {
+	local lockdir=$1
+	local rnd
+	local stale_pid
+
+	# we don't want it too short, so strip leading zeros
+	rnd=$(ocf_maybe_random | sed 's/^0*//')
+	stale_pid=`ocf_get_stale_pid $lockdir`
+	if [ -n "$stale_pid" ]; then
+		sleep 0.$rnd
+		# remove "stale pid" only if it persists
+		[ "$stale_pid" = "`ocf_get_stale_pid $lockdir`" ] &&
+			ocf_rm_pid $lockdir
+	fi
+	while ! ocf_mk_pid $lockdir; do
+		ocf_log info "Sleeping until $lockdir is released..."
+		sleep 0.$rnd
+	done
+}
 
 ocf_release_lock_on_exit() {
-    local lockfile=$1
-    trap "rm -f $lockfile" EXIT
+	trap "ocf_rm_pid $1" EXIT
 }
 
 # returns true if the CRM is currently running a probe. A probe is
@@ -492,44 +554,24 @@ ocf_is_probe() {
 }
 
 # returns true if the resource is configured as a clone. This is
-# defined as a resource where the clone-max meta attribute is present,
-# and set to greater than zero.
+# defined as a resource where the clone-max meta attribute is present.
 ocf_is_clone() {
-    [ ! -z "${OCF_RESKEY_CRM_meta_clone_max}" ] && [ "${OCF_RESKEY_CRM_meta_clone_max}" -gt 0 ]
+    [ ! -z "${OCF_RESKEY_CRM_meta_clone_max}" ]
 }
 
 # returns true if the resource is configured as a multistate
 # (master/slave) resource. This is defined as a resource where the
 # master-max meta attribute is present, and set to greater than zero.
 ocf_is_ms() {
-    [ ! -z "${OCF_RESKEY_CRM_meta_master_max}" ] && [ "${OCF_RESKEY_CRM_meta_master_max}" -gt 0 ]
+    [ "${OCF_RESKEY_CRM_meta_promotable}" = "true" ] || { [ ! -z "${OCF_RESKEY_CRM_meta_master_max}" ] && [ "${OCF_RESKEY_CRM_meta_master_max}" -gt 0 ]; }
 }
 
 # version check functions
 # allow . and - to delimit version numbers
 # max version number is 999
-# letters and such are effectively ignored
 #
 ocf_is_ver() {
-	echo $1 | grep '^[0-9][0-9.-]*[0-9]$' >/dev/null 2>&1
-}
-ocf_ver2num() {
-	echo $1 | awk -F'[.-]' '
-	{for(i=1; i<=NF; i++) s=s*1000+$i; print s}
-	'
-}
-ocf_ver_level(){
-	echo $1 | awk -F'[.-]' '{print NF}'
-}
-ocf_ver_complete_level(){
-	local ver="$1"
-	local level="$2"
-	local i=0
-	while [ $i -lt $level ]; do
-		ver=${ver}.0
-		i=`expr $i + 1`
-	done
-	echo $ver
+	echo $1 | grep '^[0-9][0-9.-]*[0-9A-Za-z.\+-]*$' >/dev/null 2>&1
 }
 
 # usage: ocf_version_cmp VER1 VER2
@@ -545,21 +587,13 @@ ocf_version_cmp() {
 	ocf_is_ver "$2" || return 3
 	local v1=$1
 	local v2=$2
-	local v1_level=`ocf_ver_level $v1`
-	local v2_level=`ocf_ver_level $v2`
-	local level_diff
-	if [ $v1_level -lt $v2_level ]; then
-		level_diff=`expr $v2_level - $v1_level`
-		v1=`ocf_ver_complete_level $v1 $level_diff`
-	elif [ $v1_level -gt $v2_level ]; then
-		level_diff=`expr $v1_level - $v2_level`
-		v2=`ocf_ver_complete_level $v2 $level_diff`
-	fi
-	v1=`ocf_ver2num $v1`
-	v2=`ocf_ver2num $v2`
-	if [ $v1 -eq $v2 ]; then
+
+	sort_version="sort -t. -k 1,1n -k 2,2n -k 3,3n -k 4,4n"
+	older=$( (echo "$v1"; echo "$v2") | $sort_version | head -1 )
+
+	if [ "$v1" = "$v2" ]; then
 		return 1
-	elif [ $v1 -lt $v2 ]; then
+	elif [ "$v1" = "$older" ]; then
 		return 0
 	else
 		return 2 # -1 would look funny in shell ;-)
@@ -606,19 +640,33 @@ dirname()
 	return 0
 }
 
+# usage: systemd_is_running
+# returns:
+#    0  PID 1 is systemd
+#    1  otherwise
+systemd_is_running()
+{
+	[ "$(cat /proc/1/comm 2>/dev/null)" = "systemd" ]
+}
+
 # usage: systemd_drop_in <name> <After|Before> <dependency.service>
 systemd_drop_in()
 {
+	local conf_file
 	if [ $# -ne 3 ]; then
           ocf_log err "Incorrect number of arguments [$#] for systemd_drop_in."
         fi
 
 	systemdrundir="/run/systemd/system/resource-agents-deps.target.d"
-	mkdir "$systemdrundir"
-	cat > "$systemdrundir/$1.conf" <<EOF
+	mkdir -p "$systemdrundir"
+	conf_file="$systemdrundir/$1.conf"
+	cat >"$conf_file" <<EOF
 [Unit]
 $2=$3
 EOF
+	# The information is accessible through systemd API and systemd would
+	# complain about improper permissions.
+	chmod o+r "$conf_file"
 	systemctl daemon-reload
 }
 
@@ -685,7 +733,7 @@ maketempfile()
 {
 	if [ $# = 1 -a "$1" = "-d" ]; then
 		mktemp -d
-		return -0
+		return 0
 	elif [ $# != 0 ]; then
 		return 1
 	fi
@@ -925,6 +973,48 @@ ocf_start_trace() {
 }
 ocf_stop_trace() {
 	set +x
+}
+
+# Helper functions to map from nodename/bundle-name and physical hostname
+# list_index_for_word "node0 node1 node2 node3 node4 node5" node4 --> 5
+# list_word_at_index "NA host1 host2 host3 host4 host5" 3      --> host2
+
+# list_index_for_word "node1 node2 node3 node4 node5" node7 --> ""
+# list_word_at_index "host1 host2 host3 host4 host5" 8      --> ""
+
+# attribute_target node1                                    --> host1
+list_index_for_word() {
+	echo $1 | tr ' ' '\n' | awk -v x="$2" '$0~x {print NR}'
+}
+
+list_word_at_index() {
+	echo $1 | tr ' ' '\n' | awk -v n="$2" 'n == NR'
+}
+
+ocf_attribute_target() {
+	if [ x$1 = x ]; then
+		if [ x$OCF_RESKEY_CRM_meta_container_attribute_target = xhost -a x$OCF_RESKEY_CRM_meta_physical_host != x ]; then
+			echo $OCF_RESKEY_CRM_meta_physical_host
+		else
+			if [ x$OCF_RESKEY_CRM_meta_on_node != x ]; then
+				echo $OCF_RESKEY_CRM_meta_on_node
+			else
+				ocf_local_nodename
+			fi
+		fi
+		return
+	elif [ x"$OCF_RESKEY_CRM_meta_notify_all_uname" != x ]; then
+		index=$(list_index_for_word "$OCF_RESKEY_CRM_meta_notify_all_uname" $1)
+		mapping=""
+		if [ x$index != x ]; then
+			mapping=$(list_word_at_index "$OCF_RESKEY_CRM_meta_notify_all_hosts" $index)
+		fi
+		if [ x$mapping != x -a x$mapping != xNA ]; then
+			echo $mapping
+			return
+		fi
+	fi
+	echo $1
 }
 
 __ocf_set_defaults "$@"

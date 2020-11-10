@@ -144,7 +144,7 @@ GetParams() {
 		*)
 			# If the PidFile is not set in the config, set
 			# a default location.
-			PidFile=$HA_VARRUNDIR/${httpd_basename}.pid
+			PidFile=$HA_VARRUNDIR/${httpd_basename}-${OCF_RESOURCE_INSTANCE}.pid
 			# Force the daemon to use this location by using
 			# the -c option, which adds the PidFile directive
 			# as if it was in the configuration file to begin with.

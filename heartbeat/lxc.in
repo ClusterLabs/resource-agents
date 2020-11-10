@@ -1,0 +1,358 @@
+#!@BASH_SHELL@
+# Should now conform to guidelines:
+# https://github.com/ClusterLabs/resource-agents/blob/master/doc/dev-guides/ra-dev-guide.asc
+#
+#	LXC (Linux Containers) OCF RA.
+#	Used to cluster enable the start, stop and monitoring of a LXC container.
+#
+# Copyright (c) 2011 AkurIT.com.au, Darren Thompson
+#                    All Rights Reserved.
+#
+# Without limiting the rights of the original copyright holders
+# This resource is licensed under GPL version 2
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+
+# OCF instance parameters
+#       OCF_RESKEY_container
+#       OCF_RESKEY_config
+#       OCF_RESKEY_log
+#	OCF_RESKEY_use_screen
+
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_container_default=""
+OCF_RESKEY_config_default=""
+OCF_RESKEY_log_default="${HA_RSCTMP}/${OCF_RESOURCE_INSTANCE}.log"
+OCF_RESKEY_use_screen_default="false"
+
+: ${OCF_RESKEY_container=${OCF_RESKEY_container_default}}
+: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
+: ${OCF_RESKEY_log=${OCF_RESKEY_log_default}}
+: ${OCF_RESKEY_use_screen=${OCF_RESKEY_use_screen_default}}
+
+# Set default TRANS_RES_STATE (temporary file to "flag" if resource was stated but not stopped)
+TRANS_RES_STATE="${HA_RSCTMP}/${OCF_RESOURCE_INSTANCE}.state"
+
+meta_data() {
+cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="lxc">
+<version>0.1</version>
+<longdesc lang="en">Allows LXC containers to be managed by the cluster.
+Notes for lxc Versions before 1.0.0, where the Container is stopped using kill -PWR instead of lxc-stop:
+It is 'assumed' that the 'init' system will do an orderly shudown if presented with a 'kill -PWR' signal.
+On a 'sysvinit' this would require the container to have an inittab file containing "p0::powerfail:/sbin/init 0"
+</longdesc>
+<shortdesc lang="en">Manages LXC containers</shortdesc>
+
+<parameters>
+<parameter name="container" required="1" unique="1">
+<longdesc lang="en">The unique name for this 'Container Instance' e.g. 'test1'.</longdesc>
+<shortdesc lang="en">Container Name</shortdesc>
+<content type="string" default="${OCF_RESKEY_container_default}"/>
+</parameter>
+
+<parameter name="config" required="1" unique="0">
+<longdesc lang="en">Absolute path to the file holding the specific configuration for this container e.g. '/etc/lxc/test1/config'.</longdesc>
+<shortdesc lang="en">The LXC config file.</shortdesc>
+<content type="string" default="${OCF_RESKEY_config_default}"/>
+</parameter>
+
+<parameter name="log" required="0" unique="0">
+<longdesc lang="en">Absolute path to the container log file</longdesc>
+<shortdesc lang="en">Container log file</shortdesc>
+<content type="string" default="${OCF_RESKEY_log_default}"/>
+</parameter>
+
+<parameter name="use_screen" required="0" unique="0">
+<longdesc lang="en">Provides the option of capturing the 'root console' from the container and showing it on a separate screen. 
+To see the screen output run 'screen -r {container name}'
+The default value is set to 'false', change to 'true' to activate this option</longdesc>
+<shortdesc lang="en">Use 'screen' for container 'root console' output</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_use_screen_default}"/>
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="10s" />
+<action name="stop"         timeout="30s" />
+<action name="monitor"      timeout="20s" interval="60s" depth="0"/>
+<action name="validate-all" timeout="20s" />
+<action name="meta-data"    timeout="5s" />
+</actions>
+</resource-agent>
+END
+}
+
+
+LXC_usage() {
+	cat <<END
+	usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+	Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+lxc_version() {
+  if have_binary lxc-version ; then
+    lxc-version | cut -d' ' -f 3
+  else # since LXC 1.0.0 all commands knows about --version
+    lxc-info --version
+  fi
+}
+
+cgroup_mounted() {
+# test cgroup_mounted, mount if required
+	# Various possible overrides to cgroup mount point.
+	# If kernel supplies cgroup mount point, prefer it.
+	CGROUP_MOUNT_POINT=/var/run/lxc/cgroup
+	CGROUP_MOUNT_NAME=lxc
+	CGROUP_MOUNTED=false
+	[[ -d /sys/fs/cgroup ]] && CGROUP_MOUNT_POINT=/sys/fs/cgroup CGROUP_MOUNT_NAME=cgroup
+	# If cgroup already mounted, use it no matter where it is.
+	# If multiple cgroup mounts, prefer the one named lxc if any.
+	eval `awk 'BEGIN{P="";N=""}END{print("cgmp="P" cgmn="N)}($3=="cgroup"){N=$1;P=$2;if($1="lxc")exit}' /proc/mounts`
+	[[ "$cgmn" && "$cgmp" && -d "$cgmp" ]] && CGROUP_MOUNT_POINT=$cgmp CGROUP_MOUNT_NAME=$cgmn CGROUP_MOUNTED=true
+	$CGROUP_MOUNTED || {
+		[[ -d $CGROUP_MOUNT_POINT ]] || ocf_run mkdir -p $CGROUP_MOUNT_POINT
+		ocf_run mount -t cgroup $CGROUP_MOUNT_NAME $CGROUP_MOUNT_POINT
+	}
+	echo 1 >${CGROUP_MOUNT_POINT}/notify_on_release
+	return 0
+}
+
+LXC_start() {
+	# put this here as it's so long it gets messy later!!!
+	if ocf_is_true $OCF_RESKEY_use_screen; then
+		STARTCMD="screen -dmS ${OCF_RESKEY_container} lxc-start -f ${OCF_RESKEY_config} -n ${OCF_RESKEY_container} -o ${OCF_RESKEY_log}"
+	else
+		STARTCMD="lxc-start -f ${OCF_RESKEY_config} -n ${OCF_RESKEY_container} -o ${OCF_RESKEY_log} -d"
+	fi
+
+	LXC_status
+	if [ $? -eq $OCF_SUCCESS ]; then
+		ocf_log debug "Resource $OCF_RESOURCE_INSTANCE is already running"
+		ocf_run touch "${TRANS_RES_STATE}" || exit $OCF_ERR_GENERIC
+		return $OCF_SUCCESS
+	fi
+
+	cgroup_mounted
+	if [ $? -ne 0 ]; then
+		ocf_log err "Unable to find cgroup mount"
+		exit $OCF_ERR_GENERIC
+	fi
+
+	ocf_log info "Starting" ${OCF_RESKEY_container}
+	ocf_run ${STARTCMD} || exit $OCF_ERR_GENERIC
+
+	# Spin on status, wait for the cluster manager to time us out if
+	# we fail
+	while ! LXC_status; do
+		ocf_log info "Container ${OCF_RESKEY_container} has not started, waiting"
+		sleep 1
+	done
+
+	ocf_run touch "${TRANS_RES_STATE}" || exit $OCF_ERR_GENERIC
+	return $OCF_SUCCESS
+}
+
+
+
+LXC_stop() {
+	
+	LXC_status
+	if [ $? -eq $OCF_NOT_RUNNING ]; then
+		ocf_log debug "Resource $OCF_RESOURCE_INSTANCE is already stopped"
+		ocf_run rm -f $TRANS_RES_STATE
+		return $OCF_SUCCESS
+	fi
+
+	cgroup_mounted
+	if [ $? -ne 0 ]; then
+		ocf_log err "Unable to find cgroup mount"
+		exit $OCF_ERR_GENERIC
+	fi
+
+	if ! ocf_version_cmp "`lxc_version`" 1.0.0 ; then
+		# Use lxc-stop if we are newer than 1.0.0
+		timeout=$(( ($OCF_RESKEY_CRM_meta_timeout/1000) -5 ))
+		ocf_log info "Stopping Container ${OCF_RESKEY_container} using lxc-stop"
+		# lxc-stop will return failure even if it reached the timeout and sucessfully hard-stopped the 
+		# Container so we check below if the Container is really stopped instead of using || exit $OCF_ERR_GENERIC
+		ocf_run lxc-stop -n "${OCF_RESKEY_container}" -t ${timeout}
+		
+		LXC_status
+		if [ $? -eq $OCF_SUCCESS ]; then
+			# Try to manually hard-stop if the Container is still running
+			ocf_run lxc-stop -n "${OCF_RESKEY_container}" -k || exit $OCF_ERR_GENERIC
+		fi
+		
+	else
+		# Use kill -PWR
+		# If the container is running "init" and is able to perform and orderly shutdown, then it should be done.
+		# It is 'assumed' that the 'init' system will do an orderly shudown if presented with a 'kill -PWR' signal.
+		# On a 'sysvinit' this would require the container to have an inittab file containing "p0::powerfail:/sbin/init 0"
+		local shutdown_timeout
+		local now
+		declare -i PID=0
+		declare CMD=
+
+		# This should work for traditional 'sysvinit' and 'upstart'
+		lxc-ps --name "${OCF_RESKEY_container}" -- -C init -o pid,comm |while read CN PID CMD ;do
+			[ $PID -gt 1 ] || continue
+			[ "$CMD" = "init" ] || continue
+			ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_container} "as it was found to be using \"sysV init\" or \"upstart\""
+			kill -PWR $PID
+		done
+		# This should work for containers using 'systemd' instead of 'init'
+		lxc-ps --name "${OCF_RESKEY_container}" -- -C systemd -o pid,comm |while read CN PID CMD ;do
+			[ $PID -gt 1 ] || continue
+			[ "$CMD" = "systemd" ] || continue
+			ocf_log info "Sending \"OS shut down\" instruction to" ${OCF_RESKEY_container} "as it was found to be using \"systemd\""
+			kill -PWR $PID
+		done
+		
+		# The "shutdown_timeout" we use here is the operation
+		# timeout specified in the CIB, minus 5 seconds
+		now=$(date +%s)
+		shutdown_timeout=$(( $now + ($OCF_RESKEY_CRM_meta_timeout/1000) -5 ))
+		# Loop on status until we reach $shutdown_timeout
+		while [ $now -lt $shutdown_timeout ]; do
+			LXC_status
+			status=$?
+			case $status in
+			"$OCF_NOT_RUNNING")
+				ocf_run rm -f $TRANS_RES_STATE
+				return $OCF_SUCCESS
+				;;
+			"$OCF_SUCCESS")
+				# Container is still running, keep waiting (until
+				# shutdown_timeout expires)
+				sleep 1
+				;;
+			*)
+				# Something went wrong. Bail out and
+				# resort to forced stop (destroy).
+				break;
+			esac
+			now=$(date +%s)
+		done
+
+		# If the container is still running, it will be stopped now. regardless of state!
+		ocf_run lxc-stop -n ${OCF_RESKEY_container} || exit $OCF_ERR_GENERIC
+	fi
+	
+	ocf_log info "Container" ${OCF_RESKEY_container} "stopped"
+	ocf_run rm -f $TRANS_RES_STATE
+
+	return $OCF_SUCCESS
+}
+
+LXC_status() {
+	# run lxc-info with -s option for LXC-0.7.5 or later
+	local lxc_info_opt="-s"
+	ocf_version_cmp "`lxc_version`" 0.7.5 && lxc_info_opt=""
+	S=`lxc-info $lxc_info_opt -n ${OCF_RESKEY_container}`
+	ocf_log debug "State of ${OCF_RESKEY_container}: $S"
+	if [[ "${S##* }" = "RUNNING" ]] ; then 
+		return $OCF_SUCCESS
+	fi
+	return $OCF_NOT_RUNNING
+}
+
+LXC_monitor() {
+	LXC_status && return $OCF_SUCCESS
+	if [ -f $TRANS_RES_STATE ]; then
+		ocf_log err "${OCF_RESKEY_container} is not running, but state file ${TRANS_RES_STATE} exists."
+		exit $OCF_ERR_GENERIC
+	fi
+	return $OCF_NOT_RUNNING
+}
+
+
+LXC_validate() {
+	# Quick check that all required attributes are set
+	if [ -z "${OCF_RESKEY_container}" ]; then
+		ocf_log err "LXC container name not set!"
+		exit $OCF_ERR_CONFIGURED
+	fi
+	if [ -z "${OCF_RESKEY_config}" ]; then
+		ocf_log err "LXC configuration filename name not set!"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	# Tests that apply only to non-probes
+	if ! ocf_is_probe; then
+		if ! [ -f "${OCF_RESKEY_config}" ]; then
+			ocf_log err "LXC configuration file \"${OCF_RESKEY_config}\" missing or not found!"
+			exit $OCF_ERR_INSTALLED
+		fi
+
+		if ocf_is_true $OCF_RESKEY_use_screen; then
+			check_binary screen
+		fi
+
+	    check_binary lxc-start
+	    check_binary lxc-stop
+	    if ocf_version_cmp "`lxc_version`" 1.0.0 ; then
+	        check_binary lxc-ps
+	    fi
+	    check_binary lxc-info
+	fi
+	return $OCF_SUCCESS
+}
+
+if [ $# -ne 1 ]; then
+  LXC_usage
+  exit $OCF_ERR_ARGS
+fi
+
+case $__OCF_ACTION in
+    meta-data)	meta_data
+	exit $OCF_SUCCESS
+	;;
+    usage|help)	LXC_usage
+	exit $OCF_SUCCESS
+	;;
+esac
+
+# Everything except usage and meta-data must pass the validate test
+LXC_validate
+
+case $__OCF_ACTION in
+start)		LXC_start;;
+stop)		LXC_stop;;
+status)	LXC_status;;
+monitor)	LXC_monitor;;
+validate-all)	;;
+*)		LXC_usage
+		ocf_log err "$0 was called with unsupported arguments: $*"
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc

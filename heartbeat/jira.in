@@ -1,0 +1,291 @@
+#!@BASH_SHELL@
+# 
+####################################################################
+# Description: OCF Resource Agent to manage JIRA software.
+# Author     : Saleh A. (saleh.abbas.saber@gmail.com)
+#
+# License    : WTFPL 2
+#
+#        DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE 
+#                    Version 2, December 2004 
+#
+# Copyright (C) 2004 Sam Hocevar <sam@hocevar.net> 
+#
+# Everyone is permitted to copy and distribute verbatim or modified 
+# copies of this license document, and changing it is allowed as long 
+# as the name is changed. 
+#
+#            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE 
+#   TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION 
+#
+#  0. You just DO WHAT THE FUCK YOU WANT TO.
+# 
+####################################################################
+# Parameters:  
+# OCF_RESKEY_statusurl         : Status URL to monitor JIRA 
+#               (default: http://localhost:8080/status)
+# OCF_RESKEY_java_home         : Java Home
+#               (default: /usr/lib/jvm/jre)
+# OCF_RESKEY_jira_installation : Jira installtion directory
+# OCF_RESKEY_jira_user         : User running Jira software
+#               (by default: jira)
+####################################################################
+
+# Initialization
+# Source ocf-shellfuncs
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Parameter defaults
+
+OCF_RESKEY_statusurl_default="http://localhost:8080/status"
+OCF_RESKEY_java_home_default="/usr/lib/jvm/jre"
+OCF_RESKEY_jira_user_default="jira"
+
+: ${OCF_RESKEY_statusurl=${OCF_RESKEY_statusurl_default}}
+: ${OCF_RESKEY_java_home=${OCF_RESKEY_java_home_default}}
+: ${OCF_RESKEY_jira_user=${OCF_RESKEY_jira_user_default}}
+
+# Usage
+jira_usage() {
+  cat <<_EOF
+Usage: $0 action
+
+Supported Actions:
+    start       : start jira
+    stop        : stop jira 
+    monitor     : show jira status 
+    meta-data   : show the meta-data
+    validate-all: validate the RA configuration
+_EOF
+}
+
+# Start
+jira_start() {
+    # exit immediately if configuration is not valid
+    jira_validate_all || exit $?
+
+    # if resource is already running, bail out early
+    if jira_monitor; then
+        ocf_log info "Resource is already running"
+        return $OCF_SUCCESS
+    fi
+
+    # Starting Jira
+    waittime=300
+    su -m $jira_user -c "$jira_installation/bin/startup.sh &> /dev/null"
+    while [[ $waittime -gt 0 ]]; do
+      if $(curl --connect-timeout 1 --max-time 3 -s ${statusurl} | grep '{"state":"RUNNING"}' > /dev/null); then
+        waittime=0
+      else
+        sleep 1
+        waittime=$(($waittime - 1))
+      fi
+    done
+
+    # Verify jira is running
+    jira_monitor
+    rc=$?
+
+    return $?
+}
+
+# Stop
+jira_stop() {
+    local rc
+
+    # exit immediately if configuration is not valid
+    jira_validate_all || exit $?
+
+    jira_monitor
+    rc=$?
+    case "$rc" in
+        "$OCF_SUCCESS")
+            # Currently running. Normal, expected behavior.
+            ocf_log debug "Resource is currently running"
+            ;;
+        "$OCF_NOT_RUNNING")
+            # Currently not running. Nothing to do.
+            ocf_log info "Resource is already stopped"
+            return $OCF_SUCCESS
+            ;;
+    esac
+
+    # Stopping Jira
+    waittime=300
+    su -m $jira_user -c "$jira_installation/bin/shutdown.sh &> /dev/null"
+    while [[ $waittime -gt 0 ]]; do
+      if $(kill -0 $(cat ${jira_installation}/work/catalina.pid 2> /dev/null) 2> /dev/null) ; then
+        sleep 1
+        waittime=$(($waittime - 1))
+      else
+        waittime=0
+      fi
+    done
+
+    # Stop JIRA forcely if it failed
+    if $(kill -0 $(cat ${jira_installation}/work/catalina.pid 2> /dev/null) 2> /dev/null) ; then
+      kill -9 $(cat ${jira_installation}/work/catalina.pid)
+      sleep 1
+    fi
+
+    # Verify jira is stopped
+    jira_monitor
+    rc=$?
+
+    return $rc
+
+}
+
+# Monitor
+jira_monitor() {
+    local rc
+
+    # exit immediately if configuration is not valid
+    jira_validate_all || exit $?
+
+    if $(kill -0 $(cat ${jira_installation}/work/catalina.pid 2> /dev/null) 2> /dev/null) ; then
+      # Is jira working
+      if $(curl --connect-timeout 1 --max-time 3 -s ${statusurl} | grep '{"state":"RUNNING"}' > /dev/null) ; then
+        rc=0
+      else
+        # Jira has a problem
+        rc=2
+      fi 
+    else
+      # Tomcat is stopped (and Jira)
+      rc=1
+    fi
+
+    case "$rc" in
+        0)
+            rc=$OCF_SUCCESS
+            ocf_log debug "Resource is running"
+            ;;
+        1)
+            rc=$OCF_NOT_RUNNING
+            ocf_log debug "Resource is not running"
+            ;;
+        *)
+            ocf_log err "Resource has failed"
+            exit $OCF_ERR_GENERIC
+    esac
+
+    return $rc
+}
+
+# Validat All
+jira_validate_all() {
+
+    # Check if java is installed
+    if ! [ -d $OCF_RESKEY_java_home ]; then
+      ocf_log err "$OCF_RESKEY_java_home does not exist. \
+      Please ensure that Java is installed and configured correctly"
+      exit $OCF_ERR_INSTALLED
+    fi
+
+    # Check if JIRA installation directory exists 
+    if ! [ -d $OCF_RESKEY_jira_installation ]; then
+      ocf_log err "$OCF_RESKEY_jira_installation does not exist."
+      exit $OCF_ERR_INSTALLED
+    fi
+
+    return $OCF_SUCCESS
+}
+
+# Meta-data
+jira_meta_data(){
+    cat <<EOF
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="jira">
+  <version>0.1</version>
+  <longdesc lang="en">
+OCF Resource Agent to manage JIRA software
+  </longdesc>
+  <shortdesc lang="en">JIRA OCF RA</shortdesc>
+  <parameters>
+    
+    <parameter name="statusurl" unique="0" required="0">
+      <longdesc lang="en">
+      Status URL for JIRA monitoring
+      </longdesc>
+      <shortdesc lang="en">JIRA status url</shortdesc>
+      <content type="string" default="${OCF_RESKEY_statusurl_default}"/>
+    </parameter>
+    
+    <parameter name="java_home" unique="0" required="0">
+      <longdesc lang="en">
+      Java Home in the Linux instance
+      </longdesc>
+      <shortdesc lang="en">Java Home</shortdesc>
+      <content type="string" default="${OCF_RESKEY_java_home_default}"/>
+    </parameter>
+
+
+    <parameter name="jira_installation" unique="0" required="1">
+      <longdesc lang="en">
+      JIRA installation directory (binaries, ... etc)
+      </longdesc>
+      <shortdesc lang="en">JIRA installation directory</shortdesc>
+      <content type="string"/>
+    </parameter>
+
+    <parameter name="jira_user" unique="0" required="0">
+      <longdesc lang="en">
+      User to run Jira software with 
+      </longdesc>
+      <shortdesc lang="en">Jira user</shortdesc>
+      <content type="string" default="${OCF_RESKEY_jira_user_default}"/>
+    </parameter>
+
+  </parameters>
+  <actions>
+    <action name="start"        timeout="300s" />
+    <action name="stop"         timeout="300s" />
+    <action name="monitor"      timeout="30s"
+                                interval="10s" depth="0" />
+    <action name="meta-data"    timeout="5s" />
+    <action name="validate-all"   timeout="20s" />
+  </actions>
+</resource-agent>
+EOF
+}
+
+# Execution
+
+# Set vars from defined OCF env vars
+statusurl=${OCF_RESKEY_statusurl-${OCF_RESKEY_statusurl_default}}
+java_home=${OCF_RESKEY_java_home-${OCF_RESKEY_java_home_default}}
+jira_installation=${OCF_RESKEY_jira_installation}
+jira_user=${OCF_RESKEY_jira_user-${OCF_RESKEY_jira_user_default}}
+
+# Export JAVA_HOME env variable
+export JAVA_HOME=${OCF_RESKEY_java_home}
+
+# Make sure meta-data and usage always succeed
+case $__OCF_ACTION in
+meta-data)      jira_meta_data
+                exit $OCF_SUCCESS
+                ;;
+usage|help)     jira_usage
+                exit $OCF_SUCCESS
+                ;;
+esac
+
+# Anything other than meta-data and usage must pass validation
+jira_validate_all || exit $?
+
+# Translate each action into the appropriate function call
+case $__OCF_ACTION in
+start)          jira_start;;
+stop)           jira_stop;;
+status|monitor) jira_monitor;;
+validate-all)   ;;
+*)              jira_usage
+                exit $OCF_ERR_UNIMPLEMENTED
+                ;;
+esac
+rc=$?
+
+exit $rc

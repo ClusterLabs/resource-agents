@@ -60,7 +60,7 @@ static void acquire_lock(void)
 	/* The lock acquisition is possible because it was not updated. */
 	ldata.status = SFEX_STATUS_LOCK;
 	ldata.count = SFEX_NEXT_COUNT(ldata.count);
-	strncpy((char*)(ldata.nodename), nodename, sizeof(ldata.nodename));
+	strncpy((char*)(ldata.nodename), nodename, sizeof(ldata.nodename) - 1);
 	if (write_lockdata(&cdata, &ldata, lock_index) == -1) {
 		cl_log(LOG_ERR, "write_lockdata failed\n");
 		exit(EXIT_FAILURE);
@@ -100,8 +100,8 @@ static void acquire_lock(void)
 static void error_todo (void)
 {
 	if (fork() == 0) {
-		cl_log(LOG_INFO, "Execute \"crm_resource -F -r %s -H %s\" command\n", rsc_id, nodename);
-		execl("/usr/sbin/crm_resource", "crm_resource", "-F", "-r", rsc_id, "-H", nodename, NULL);
+		cl_log(LOG_INFO, "Execute \"crm_resource -F -r %s --node %s\" command\n", rsc_id, nodename);
+		execl("/usr/sbin/crm_resource", "crm_resource", "-F", "-r", rsc_id, "--node", nodename, NULL);
 	} else {
 		exit(EXIT_FAILURE);
 	}
@@ -112,7 +112,7 @@ static void failure_todo(void)
 #ifdef SFEX_TESTING	
 	exit(EXIT_FAILURE);
 #else
-	/*execl("/usr/sbin/crm_resource", "crm_resource", "-F", "-r", rsc_id, "-H", nodename, NULL); */
+	/*execl("/usr/sbin/crm_resource", "crm_resource", "-F", "-r", rsc_id, "--node", nodename, NULL); */
 	int ret;
 
 	cl_log(LOG_INFO, "Force reboot node %s\n", nodename);

@@ -40,6 +40,46 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_SID_default=""
+OCF_RESKEY_DIR_EXECUTABLE_default="/usr/sap/hostctrl/exe"
+OCF_RESKEY_DBTYPE_default=""
+OCF_RESKEY_DBINSTANCE_default=""
+OCF_RESKEY_DBOSUSER_default=""
+OCF_RESKEY_NETSERVICENAME_default=""
+OCF_RESKEY_DBJ2EE_ONLY_default=""
+OCF_RESKEY_JAVA_HOME_default=""
+OCF_RESKEY_STRICT_MONITORING_default="false"
+OCF_RESKEY_AUTOMATIC_RECOVER_default="false"
+OCF_RESKEY_MONITOR_SERVICES_default=""
+OCF_RESKEY_DIR_BOOTSTRAP_default=""
+OCF_RESKEY_DIR_SECSTORE_default=""
+OCF_RESKEY_DB_JARS_default=""
+OCF_RESKEY_PRE_START_USEREXIT_default=""
+OCF_RESKEY_POST_START_USEREXIT_default=""
+OCF_RESKEY_PRE_STOP_USEREXIT_default=""
+OCF_RESKEY_POST_STOP_USEREXIT_default=""
+
+: ${OCF_RESKEY_SID=${OCF_RESKEY_SID_default}}
+: ${OCF_RESKEY_DIR_EXECUTABLE=${OCF_RESKEY_DIR_EXECUTABLE_default}}
+: ${OCF_RESKEY_DBTYPE=${OCF_RESKEY_DBTYPE_default}}
+: ${OCF_RESKEY_DBINSTANCE=${OCF_RESKEY_DBINSTANCE_default}}
+: ${OCF_RESKEY_DBOSUSER=${OCF_RESKEY_DBOSUSER_default}}
+: ${OCF_RESKEY_NETSERVICENAME=${OCF_RESKEY_NETSERVICENAME_default}}
+: ${OCF_RESKEY_DBJ2EE_ONLY=${OCF_RESKEY_DBJ2EE_ONLY_default}}
+: ${OCF_RESKEY_JAVA_HOME=${OCF_RESKEY_JAVA_HOME_default}}
+: ${OCF_RESKEY_STRICT_MONITORING=${OCF_RESKEY_STRICT_MONITORING_default}}
+: ${OCF_RESKEY_AUTOMATIC_RECOVER=${OCF_RESKEY_AUTOMATIC_RECOVER_default}}
+: ${OCF_RESKEY_MONITOR_SERVICES=${OCF_RESKEY_MONITOR_SERVICES_default}}
+: ${OCF_RESKEY_DIR_BOOTSTRAP=${OCF_RESKEY_DIR_BOOTSTRAP_default}}
+: ${OCF_RESKEY_DIR_SECSTORE=${OCF_RESKEY_DIR_SECSTORE_default}}
+: ${OCF_RESKEY_DB_JARS=${OCF_RESKEY_DB_JARS_default}}
+: ${OCF_RESKEY_PRE_START_USEREXIT=${OCF_RESKEY_PRE_START_USEREXIT_default}}
+: ${OCF_RESKEY_POST_START_USEREXIT=${OCF_RESKEY_POST_START_USEREXIT_default}}
+: ${OCF_RESKEY_PRE_STOP_USEREXIT=${OCF_RESKEY_PRE_STOP_USEREXIT_default}}
+: ${OCF_RESKEY_POST_STOP_USEREXIT=${OCF_RESKEY_POST_STOP_USEREXIT_default}}
+
 #######################################################################
 
 SH=/bin/sh
@@ -91,111 +131,133 @@ The required minimum version of SAPHostAgent is:
 Release: 7.20
 Patch Number: 90
 or compile time after: Dec 17 2011
+
+To exemplify the usage, for a HANA database with SID "TST" and instance number "10", the resource configuration using crmsh syntax looks like:
+
+primitive rsc_SAPDatabase_TST_HDB10 ocf:heartbeat:SAPDatabase \\
+ params DBTYPE="HDB" SID="TST" \\
+ op start interval="0" timeout="3600" \\
+ op monitor interval="120" timeout="700" \\
+ op stop interval="0" timeout="600"
+
+Make sure to tune the operations timeout values accordingly with your chosen Database and available infrastructure.
+
+Note that the same configuration can be achieved using any other CLI tool for cluster configuration available, like pcs or cibadmin. 
 </longdesc>
 <shortdesc lang="en">Manages a SAP database instance as an HA resource.</shortdesc>
 <parameters>
  <parameter name="SID" unique="1" required="1">
   <longdesc lang="en">The unique database system identifier. e.g. P01</longdesc>
   <shortdesc lang="en">Database system ID</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_SID_default}" />
  </parameter>
  <parameter name="DIR_EXECUTABLE" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find saphostexec and saphostctrl.
-Usually you can leave this empty. Then the default: /usr/sap/hostctrl/exe is used.
+Usually you can leave this empty. Then the default: ${OCF_RESKEY_DIR_EXECUTABLE_default} is used.
   </longdesc>
   <shortdesc lang="en">path of saphostexec and saphostctrl</shortdesc>
-  <content type="string" default="/usr/sap/hostctrl/exe" />
+  <content type="string" default="${OCF_RESKEY_DIR_EXECUTABLE_default}" />
  </parameter>
  <parameter name="DBTYPE" unique="0" required="1">
   <longdesc lang="en">The name of the database vendor you use. Set either: ADA, DB6, ORA, SYB, HDB</longdesc>
   <shortdesc lang="en">database vendor</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_DBTYPE_default}" />
  </parameter>
  <parameter name="DBINSTANCE" unique="1" required="0">
   <longdesc lang="en">Must be used for special database implementations, when database instance name is not equal to the SID (e.g. Oracle DataGuard)</longdesc>
   <shortdesc lang="en">Database instance name, if not equal to SID</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_DBINSTANCE_default}" />
  </parameter>
  <parameter name="DBOSUSER" unique="1" required="0">
   <longdesc lang="en">The parameter can be set, if the database processes on operating system level are not executed with the default user of the used database type. Defaults: ADA=taken from /etc/opt/sdb, DB6=db2SID, ORA=oraSID and oracle, SYB=sybSID, HDB=SIDadm</longdesc>
   <shortdesc lang="en">the Linux user that owns the database processes on operating system level</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_DBOSUSER_default}" />
  </parameter>
  <parameter name="NETSERVICENAME" unique="0" required="0">
   <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
   <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_NETSERVICENAME_default}" />
  </parameter>
  <parameter name="DBJ2EE_ONLY" unique="0" required="0">
   <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
   <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
-  <content type="boolean" default=""/>
+  <content type="boolean" default="${OCF_RESKEY_DBJ2EE_ONLY_default}"/>
  </parameter>
  <parameter name="JAVA_HOME" unique="0" required="0">
   <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
   <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
-  <content type="string" default=""/>
+  <content type="string" default="${OCF_RESKEY_JAVA_HOME_default}"/>
  </parameter>
  <parameter name="STRICT_MONITORING" unique="0" required="0">
   <longdesc lang="en">This controls how the resource agent monitors the database. If set to true, it will use 'saphostctrl -function GetDatabaseStatus' to test the database state. If set to false, only operating system processes are monitored.</longdesc>
   <shortdesc lang="en">Activates application level monitoring</shortdesc>
-  <content type="boolean" default="false"/>
+  <content type="boolean" default="${OCF_RESKEY_STRICT_MONITORING_default}"/>
  </parameter>
  <parameter name="AUTOMATIC_RECOVER" unique="0" required="0">
   <longdesc lang="en">If you set this to true, 'saphostctrl -function StartDatabase' will always be called with the '-force' option.</longdesc>
   <shortdesc lang="en">Enable or disable automatic startup recovery</shortdesc>
-  <content type="boolean" default="false"/>
+  <content type="boolean" default="${OCF_RESKEY_AUTOMATIC_RECOVER_default}"/>
  </parameter>
  <parameter name="MONITOR_SERVICES" unique="0" required="0">
-  <longdesc lang="en">Defines which services are monitored by the SAPDatabase resource agent, if STRICT_MONITORING is set to true. Service names must correspond with the output of the 'saphostctrl -function GetDatabaseStatus' command.</longdesc>
+  <longdesc lang="en">Defines which services are monitored by the SAPDatabase resource agent. Service names must correspond with the output of the 'saphostctrl -function GetDatabaseStatus' command.
+The default MONITOR_SERVICES value is derived from the database type DBTYPE. For reference:
+
+- DBTYPE "ORA" sets MONITOR_SERVICES="Instance|Database|Listener";
+- DBTYPE "HDB" sets MONITOR_SERVICES="hdbindexserver|hdbnameserver";
+- DBTYPE "ADA" sets MONITOR_SERVICES="Database";
+- DBTYPE "DB6" sets MONITOR_SERVICES="{SID}|{db2sid}";
+- DBTYPE "SYB" sets MONITOR_SERVICES="Server".
+
+This parameter should be set ONLY if is needed to monitor different services than the ones listed above.
+</longdesc>
   <shortdesc lang="en">Database services to monitor</shortdesc>
-  <content type="string" default="Instance|Database|Listener"/>
+  <content type="string" default="${OCF_RESKEY_MONITOR_SERVICES_default}"/>
  </parameter>
  <parameter name="DIR_BOOTSTRAP" unique="0" required="0">
   <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
   <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_DIR_BOOTSTRAP_default}" />
  </parameter>
  <parameter name="DIR_SECSTORE" unique="0" required="0">
   <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
   <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_DIR_SECSTORE_default}" />
  </parameter>
  <parameter name="DB_JARS" unique="0" required="0">
   <longdesc lang="en">Deprecated - do not use anymore. This parameter will be deleted in one of the next releases.</longdesc>
   <shortdesc lang="en">deprecated - do not use anymore</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_DB_JARS_default}" />
  </parameter>
  <parameter name="PRE_START_USEREXIT" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed before this resource gets started.</longdesc>
   <shortdesc lang="en">path to a pre-start script</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_PRE_START_USEREXIT_default}" />
  </parameter>
  <parameter name="POST_START_USEREXIT" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed after this resource got started.</longdesc>
   <shortdesc lang="en">path to a post-start script</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_POST_START_USEREXIT_default}" />
  </parameter>
  <parameter name="PRE_STOP_USEREXIT" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed before this resource gets stopped.</longdesc>
   <shortdesc lang="en">path to a pre-start script</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_PRE_STOP_USEREXIT_default}" />
  </parameter>
  <parameter name="POST_STOP_USEREXIT" unique="0" required="0">
   <longdesc lang="en">The full qualified path where to find a script or program which should be executed after this resource got stopped.</longdesc>
   <shortdesc lang="en">path to a post-start script</shortdesc>
-  <content type="string" default="" />
+  <content type="string" default="${OCF_RESKEY_POST_STOP_USEREXIT_default}" />
  </parameter>
 </parameters>
 
 <actions>
-<action name="start" timeout="1800" />
-<action name="stop" timeout="1800" />
-<action name="status" timeout="60" />
-<action name="monitor" depth="0" timeout="60" interval="120" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
-<action name="methods" timeout="5" />
+<action name="start" timeout="1800s" />
+<action name="stop" timeout="1800s" />
+<action name="status" timeout="60s" />
+<action name="monitor" depth="0" timeout="60s" interval="120s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
+<action name="methods" timeout="5s" />
 </actions>
 </resource-agent>
 END
@@ -251,8 +313,6 @@ sapuserexit() {
 # saphostctrl_installed
 #
 saphostctrl_installed() {
-  OCF_RESKEY_DIR_EXECUTABLE_default="/usr/sap/hostctrl/exe"
-  : ${OCF_RESKEY_DIR_EXECUTABLE=${OCF_RESKEY_DIR_EXECUTABLE_default}}
   SAPHOSTCTRL="${OCF_RESKEY_DIR_EXECUTABLE}/saphostctrl"
   SAPHOSTEXEC="${OCF_RESKEY_DIR_EXECUTABLE}/saphostexec"
   SAPHOSTSRV="${OCF_RESKEY_DIR_EXECUTABLE}/sapstartsrv"

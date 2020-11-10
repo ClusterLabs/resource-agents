@@ -26,6 +26,7 @@ OCF_RESKEY_named_rootdir_default=""
 OCF_RESKEY_named_options_default=""
 OCF_RESKEY_named_keytab_file_default=""
 OCF_RESKEY_rndc_options_default=""
+OCF_RESKEY_host_options_default=""
 OCF_RESKEY_monitor_request_default="localhost"
 OCF_RESKEY_monitor_response_default="127.0.0.1"
 OCF_RESKEY_monitor_ip_default="127.0.0.1"
@@ -40,6 +41,7 @@ OCF_RESKEY_monitor_ip_default="127.0.0.1"
 : ${OCF_RESKEY_named_options=${OCF_RESKEY_named_options_default}}
 : ${OCF_RESKEY_named_keytab_file=${OCF_RESKEY_named_keytab_file_default}}
 : ${OCF_RESKEY_rndc_options=${OCF_RESKEY_rndc_options_default}}
+: ${OCF_RESKEY_host_options=${OCF_RESKEY_host_options_default}}
 : ${OCF_RESKEY_monitor_request=${OCF_RESKEY_monitor_request_default}}
 : ${OCF_RESKEY_monitor_response=${OCF_RESKEY_monitor_response_default}}
 : ${OCF_RESKEY_monitor_ip=${OCF_RESKEY_monitor_ip_default}}
@@ -154,6 +156,14 @@ Options for rndc process if any.
 <content type="string" default="${OCF_RESKEY_rndc_options_default}" />
 </parameter>
 
+<parameter name="host_options" unique="0" required="0">
+<longdesc lang="en">
+Options for host process if any.
+</longdesc>
+<shortdesc lang="en">host_options</shortdesc>
+<content type="string" default="${OCF_RESKEY_host_options_default}" />
+</parameter>
+
 <parameter name="monitor_request" unique="0" required="0">
 <longdesc lang="en">
 Request that shall be sent to named for monitoring. Usually an A record in DNS.
@@ -180,14 +190,14 @@ IP Address where named listens.
 </parameters>
 
 <actions>
-<action name="start" timeout="60" />
-<action name="stop" timeout="60" />
-<action name="reload" timeout="60" />
-<action name="status" timeout="10" />
-<action name="monitor" depth="0" timeout="30" interval="30"/>
-<action name="meta-data" timeout="5" />
-<action name="validate-all" timeout="5" />
-<action name="methods" timeout="5" />
+<action name="start" timeout="60s" />
+<action name="stop" timeout="60s" />
+<action name="reload" timeout="60s" />
+<action name="status" timeout="10s" />
+<action name="monitor" depth="0" timeout="30s" interval="30s"/>
+<action name="meta-data" timeout="5s" />
+<action name="validate-all" timeout="5s" />
+<action name="methods" timeout="5s" />
 </actions>
 </resource-agent>
 
@@ -318,7 +328,7 @@ named_monitor() {
         return $OCF_NOT_RUNNING
     fi
    
-    output=`$OCF_RESKEY_host $OCF_RESKEY_monitor_request $OCF_RESKEY_monitor_ip`
+    output=`$OCF_RESKEY_host $OCF_RESKEY_host_options $OCF_RESKEY_monitor_request $OCF_RESKEY_monitor_ip`
 
     if [ $? -ne 0 ] || ! echo $output | grep -q '.* has .*address '"$OCF_RESKEY_monitor_response" 
     then

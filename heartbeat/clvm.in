@@ -1,0 +1,457 @@
+#!@BASH_SHELL@
+#
+# Copyright (c) 2014 David Vossel <davidvossel@gmail.com>
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+. ${OCF_FUNCTIONS_DIR}/ocf-directories
+
+# Parameter defaults
+
+OCF_RESKEY_with_cmirrord_default="false"
+OCF_RESKEY_daemon_options_default="-d0"
+OCF_RESKEY_activate_vgs_default="true"
+OCF_RESKEY_exclusive_default="false"
+
+: ${OCF_RESKEY_with_cmirrord=${OCF_RESKEY_with_cmirrord_default}}
+: ${OCF_RESKEY_daemon_options=${OCF_RESKEY_daemon_options_default}}
+: ${OCF_RESKEY_activate_vgs=${OCF_RESKEY_activate_vgs_default}}
+: ${OCF_RESKEY_exclusive=${OCF_RESKEY_exclusive_default}}
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="clvm">
+<version>1.0</version>
+
+<longdesc lang="en">
+This agent manages the clvmd daemon.
+</longdesc>
+<shortdesc lang="en">clvmd</shortdesc>
+
+<parameters>
+<parameter name="with_cmirrord" unique="0" required="0">
+<longdesc lang="en">
+Start with cmirrord (cluster mirror log daemon).
+</longdesc>
+<shortdesc lang="en">activate cmirrord</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_with_cmirrord_default}" />
+</parameter>
+
+<parameter name="daemon_options" unique="0">
+<longdesc lang="en">
+Options to clvmd. Refer to clvmd.8 for detailed descriptions.
+</longdesc>
+<shortdesc lang="en">Daemon Options</shortdesc>
+<content type="string" default="${OCF_RESKEY_daemon_options_default}"/>
+</parameter>
+
+<parameter name="activate_vgs" unique="0">
+<longdesc lang="en">
+Whether or not to activate all cluster volume groups after starting
+the clvmd or not. Note that clustered volume groups will always be
+deactivated before the clvmd stops regardless of what this option
+is set to.
+</longdesc>
+<shortdesc lang="en">Activate volume groups</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_activate_vgs_default}"/>
+</parameter>
+
+<parameter name="exclusive" unique="0" required="0">
+<longdesc lang="en">
+If set, only exclusive volume groups will be monitored.
+</longdesc>
+<shortdesc lang="en">Only monitor exclusive volume groups</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_exclusive_default}" />
+</parameter>
+
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="90s" />
+<action name="stop"         timeout="90s" />
+<action name="monitor"      timeout="90s" interval="30s" depth="0" />
+<action name="meta-data"    timeout="10s" />
+<action name="validate-all"   timeout="20s" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+sbindir=$HA_SBIN_DIR
+if [ -z $sbindir ]; then
+	sbindir=/usr/sbin
+fi
+DAEMON="clvmd"
+CMIRROR="cmirrord"
+DAEMON_PATH="${sbindir}/clvmd"
+CMIRROR_PATH="${sbindir}/cmirrord"
+LVMCONF="${sbindir}/lvmconf"
+LOCK_FILE="/var/lock/subsys/$DAEMON"
+
+# attempt to detect where the vg tools are located
+# for some reason this isn't consistent with sbindir
+# in some distros.
+vgtoolsdir=$(dirname $(which vgchange 2> /dev/null) 2> /dev/null)
+if [ -z "$vgtoolsdir" ]; then
+       vgtoolsdir="$sbindir"
+fi
+
+LVM_VGCHANGE=${vgtoolsdir}/vgchange
+LVM_VGDISPLAY=${vgtoolsdir}/vgdisplay
+LVM_VGSCAN=${vgtoolsdir}/vgscan
+
+# Leaving this in for legacy. We do not want to advertize
+# the abilty to set options in the systconfig exists, we want
+# to expand the OCF style options as necessary instead.
+[ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
+[ -f /etc/sysconfig/$DAEMON ] && . /etc/sysconfig/$DAEMON
+
+CLVMD_TIMEOUT="90"
+if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+	CLVMD_TIMEOUT=$(($OCF_RESKEY_CRM_meta_timeout/1000))
+fi
+
+clvmd_usage()
+{
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+clvmd_validate()
+{
+	# check_binary will exit with OCF_ERR_INSTALLED
+	# when binary is missing
+	check_binary "pgrep"
+	check_binary $DAEMON_PATH
+	if ocf_is_true $OCF_RESKEY_with_cmirrord; then
+		check_binary $CMIRROR_PATH
+	fi
+
+	if [ "$__OCF_ACTION" != "monitor" ]; then
+		check_binary "killall"
+		check_binary $LVM_VGCHANGE
+		check_binary $LVM_VGDISPLAY
+		check_binary $LVM_VGSCAN
+	fi
+
+	# Future validation checks here.
+	return $OCF_SUCCESS
+}
+
+check_process()
+{
+	local binary=$1
+	local pidfile="${HA_RSCTMP}/${binary}-${OCF_RESOURCE_INSTANCE}.pid"
+	local pid
+
+	ocf_log debug "Checking status for ${binary}."
+	if [ -e "$pidfile" ]; then
+		cat /proc/$(cat $pidfile)/cmdline 2>/dev/null | grep -a "${binary}" > /dev/null 2>&1
+		if [ $? -eq 0 ];then
+			# shortcut without requiring pgrep to search through all procs
+			return $OCF_SUCCESS
+		fi
+	fi
+
+	pid=$(pgrep ${binary})
+	case $? in
+		0)
+			ocf_log info "PID file (pid:${pid} at $pidfile) created for ${binary}."
+			echo "$pid" > $pidfile
+			return $OCF_SUCCESS;;
+		1)
+			rm -f "$pidfile" > /dev/null 2>&1 
+			ocf_log info "$binary is not running"
+			return $OCF_NOT_RUNNING;;
+		*)
+			rm -f "$pidfile" > /dev/null 2>&1 
+			ocf_exit_reason "Error encountered detecting pid status of $binary"
+			return $OCF_ERR_GENERIC;;
+	esac
+}
+
+clvmd_status()
+{
+	local rc
+	local mirror_rc
+	clvmd_validate
+	if [ $? -ne $OCF_SUCCESS ]; then
+		ocf_exit_reason "Unable to monitor, Environment validation failed."
+		return $?
+	fi
+
+	check_process $DAEMON
+	rc=$?
+	mirror_rc=$rc
+
+	if ocf_is_true $OCF_RESKEY_with_cmirrord; then
+		check_process $CMIRROR
+		mirror_rc=$?
+	fi
+
+	# If these ever don't match, return error to force recovery
+	if [ $mirror_rc -ne $rc ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $rc
+}
+
+# NOTE: replace this with vgs, once display filter per attr is implemented.
+clustered_vgs() {
+	if ! ocf_is_true "$OCF_RESKEY_exclusive"; then
+		${LVM_VGDISPLAY} 2>/dev/null | awk 'BEGIN {RS="VG Name"} {if (/Clustered/) print $1;}'
+	else
+		for vg in $(vgs --select "clustered=yes" -o name --noheadings); do
+			lvs --select lv_active=~'local.*exclusive' -o vg_name --noheadings $vg 2> /dev/null | awk '!seen[$1]++ {print $1}'
+		done
+	fi
+}
+
+wait_for_process()
+{
+	local binary=$1
+	local timeout=$2
+	local count=0
+
+	ocf_log info "Waiting for $binary to exit"
+	while [ $count -le $timeout ]; do
+		check_process $binary
+		if [ $? -eq $OCF_NOT_RUNNING ]; then
+			ocf_log info "$binary terminated"
+			return $OCF_SUCCESS
+		fi
+		sleep 1
+		count=$((count+1))
+	done
+
+	return $OCF_ERR_GENERIC
+}
+
+time_left()
+{
+	local end=$1
+	local default=$2
+	local now=$SECONDS
+	local result=0
+
+	result=$(( $end - $now ))
+	if [ $result -lt $default ]; then
+		return $default
+	fi
+	return $result
+}
+
+clvmd_stop()
+{
+	local LVM_VGS
+	local rc=$OCF_SUCCESS
+	local end=$(( $SECONDS + $CLVMD_TIMEOUT ))
+
+	clvmd_status
+	if [ $? -eq $OCF_NOT_RUNNING ]; then
+		return $OCF_SUCCESS
+	fi
+
+	check_process $DAEMON
+	if [ $? -ne $OCF_NOT_RUNNING ]; then
+		LVM_VGS="$(clustered_vgs)"
+
+		if [ -n "$LVM_VGS" ]; then
+			ocf_log info "Deactivating clustered VG(s):" 
+			ocf_run ${LVM_VGCHANGE} -anl $LVM_VGS
+			if [ $? -ne 0 ]; then
+				ocf_exit_reason "Failed to deactivate volume groups, cluster vglist = $LVM_VGS" 
+				return $OCF_ERR_GENERIC
+			fi
+		fi
+
+		ocf_log info "Signaling $DAEMON to exit"
+		killall -TERM $DAEMON
+		if [ $? != 0 ]; then
+			ocf_exit_reason "Failed to signal -TERM to $DAEMON"
+			return $OCF_ERR_GENERIC
+		fi
+
+		wait_for_process $DAEMON $CLVMD_TIMEOUT
+		rc=$?
+		if [ $rc -ne $OCF_SUCCESS ]; then
+			ocf_exit_reason "$DAEMON failed to exit"
+			return $rc
+		fi
+
+		rm -f $LOCK_FILE
+	fi
+
+	check_process $CMIRROR
+	if [ $? -ne $OCF_NOT_RUNNING ] && ocf_is_true $OCF_RESKEY_with_cmirrord; then
+		local timeout
+		ocf_log info "Signaling $CMIRROR to exit"
+		killall -INT $CMIRROR
+
+		time_left $end 10; timeout=$?
+		wait_for_process $CMIRROR $timeout
+		rc=$?
+		if [ $rc -ne $OCF_SUCCESS ]; then
+			killall -KILL $CMIRROR
+			time_left $end 10; timeout=$?
+			wait_for_process $CMIRROR $(time_left $end 10)
+			rc=$?
+		fi
+	fi
+
+	return $rc
+}
+
+start_process()
+{
+	local binary_path=$1
+	local opts=$2
+
+	check_process "$(basename $binary_path)"
+	if [ $? -ne $OCF_SUCCESS ]; then
+		ocf_log info "Starting $binary_path: "
+		ocf_run $binary_path $opts
+		rc=$?
+		if [ $rc -ne 0 ]; then
+			ocf_exit_reason "Failed to launch $binary_path, exit code $rc"
+			exit $OCF_ERR_GENERIC
+		fi
+	fi
+
+	return $OCF_SUCCESS
+}
+
+clvmd_activate_all()
+{
+
+	if ! ocf_is_true "$OCF_RESKEY_activate_vgs"; then
+		ocf_log info "skipping vg activation, activate_vgs is set to $OCF_RESKEY_activate_vgs"
+		return $OCF_SUCCESS
+	fi
+	# Activate all volume groups by leaving the
+	# "volume group name" parameter empty
+	ocf_run ${LVM_VGCHANGE} -aay
+	if [ $? -ne 0 ]; then
+		ocf_log info "Failed to activate VG(s):"
+		clvmd_stop
+		return $OCF_ERR_GENERIC
+	fi
+	return $OCF_SUCCESS
+}
+
+clvmd_start()
+{
+	local rc=0
+	local CLVMDOPTS="-T${CLVMD_TIMEOUT} $OCF_RESKEY_daemon_options"
+
+	clvmd_validate
+	if [ $? -ne $OCF_SUCCESS ]; then
+		ocf_exit_reason "Unable to start, Environment validation failed."
+		return $?
+	fi
+
+	# systemd drop-in to stop process before storage services during
+	# shutdown/reboot
+	if systemd_is_running ; then
+		systemd_drop_in "99-clvmd" "After" "blk-availability.service"
+	fi
+
+	clvmd_status
+	if [ $? -eq $OCF_SUCCESS ]; then
+		ocf_log debug "$DAEMON already started"
+		clvmd_activate_all
+		return $?;
+	fi
+
+	# autoset locking type to clustered when lvmconf tool is available
+	if [ -x "$LVMCONF"  ]; then
+		$LVMCONF --enable-cluster > /dev/null 2>&1
+	fi
+
+	# if either of these fail, script will exit OCF_ERR_GENERIC
+	if ocf_is_true $OCF_RESKEY_with_cmirrord; then
+		start_process $CMIRROR_PATH
+	fi
+	start_process $DAEMON_PATH "$CLVMDOPTS"
+
+	# Refresh local cache.
+	#
+	# It's possible that new PVs were added to this, or other VGs
+	# while this node was down. So we run vgscan here to avoid
+	# any potential "Missing UUID" messages with subsequent
+	# LVM commands.
+
+	# The following step would be better and more informative to the user:
+	# 'action "Refreshing VG(s) local cache:" ${LVM_VGSCAN}'
+	# but it could show warnings such as:
+	# 'clvmd not running on node x-y-z  Unable to obtain global lock.'
+	# and the action would be shown as FAILED when in reality it didn't.
+	# Ideally vgscan should have a startup mode that would not print
+	# unnecessary warnings.
+
+	${LVM_VGSCAN} > /dev/null 2>&1
+	touch $LOCK_FILE
+
+	clvmd_activate_all
+
+	clvmd_status
+	return $?
+}
+
+case $__OCF_ACTION in
+	meta-data)   meta_data
+		exit $OCF_SUCCESS;;
+
+	start)         clvmd_start;;
+
+	stop)          clvmd_stop;;
+
+	monitor)       clvmd_status;;
+
+	validate-all)  clvmd_validate;;
+
+	usage|help)    clvmd_usage;;
+
+	*)             clvmd_usage
+	               exit $OCF_ERR_UNIMPLEMENTED;;
+esac
+
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
+

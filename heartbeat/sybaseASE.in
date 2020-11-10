@@ -1,0 +1,905 @@
+#!@BASH_SHELL@
+#
+# Sybase Availability Agent for Red Hat Cluster v15.0.2
+# Copyright (C) - 2007
+# Sybase, Inc. All rights reserved.
+#
+# Sybase Availability Agent for Red Hat Cluster v15.0.2 is licensed
+# under the GNU General Public License Version 2.
+#
+# Author(s):
+#    Jian-ping Hui <jphui@sybase.com>
+#
+# Description: Service script for starting/stopping/monitoring \
+#              Sybase Adaptive Server on: \
+#                            Red Hat Enterprise Linux 7 ES \
+#                            Red Hat Enterprise Linux 7 AS
+#
+# NOTES:
+#
+# (1) Before running this script, we assume that user has installed
+#     Sybase ASE 15.0.2 or higher version on the machine. Please
+#     customize your configuration in /etc/cluster/cluster.conf according
+#     to your actual environment. We assume the following files exist before
+#     you start the service:
+#         /$sybase_home/SYBASE.sh
+#         /$sybase_home/$sybase_ase/install/RUN_$server_name
+#
+# (2) You can customize the interval value in the meta-data section if needed:
+#                <action name="start" timeout="300s" />
+#                <action name="stop" timeout="300s" />
+#
+#                <!-- Checks to see if it''s mounted in the right place -->
+#                <action name="status"  interval="30s" timeout="100s" />
+#                <action name="monitor" interval="30s" timeout="100s" />
+#
+#                <!--Checks to see if we can read from the mountpoint -->
+#                <action name="status" depth="10" timeout="100s" interval="120s" />
+#                <action name="monitor" depth="10" timeout="100s" interval="120s" />
+#
+#                <action name="meta-data" timeout="5s" />
+#                <action name="validate-all" timeout="5s" />
+#     The timeout value is not supported by Redhat in RHCS5.0.
+#
+
+#######################################################################
+# Initialization:
+
+if [ -f /etc/init.d/functions ]; then
+	. /etc/init.d/functions
+fi
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+
+# Default timeouts when we aren't using the rgmanager wrapper
+if ! ocf_is_true "$OCF_RESKEY_is_rgmanager_wrapper"; then
+	if [ -z "$OCF_RESKEY_CRM_meta_timeout" ]; then
+		case $1 in
+			start|stop) OCF_RESKEY_CRM_meta_timeout=300000 ;;
+			*) OCF_RESKEY_CRM_meta_timeout=100000 ;;
+		esac
+	fi
+	default_timeout=$(((${OCF_RESKEY_CRM_meta_timeout}/1000) - 5))
+	default_force_stop_timeout=$(((${OCF_RESKEY_CRM_meta_timeout}/1000) - 5))
+	: ${OCF_RESKEY_shutdown_timeout=${default_force_stop_timeout}}
+	: ${OCF_RESKEY_deep_probe_timeout=${default_timeout}}
+	: ${OCF_RESKEY_start_timeout=${default_timeout}}
+fi
+
+sybase_user_default="sybase"
+sybase_home_default="detect"
+ase_default="detect"
+ocs_default="detect"
+
+: ${OCF_RESKEY_sybase_user=${sybase_user_default}}
+: ${OCF_RESKEY_sybase_ase=${ase_default}}
+: ${OCF_RESKEY_sybase_ocs=${ocs_default}}
+: ${OCF_RESKEY_sybase_home=${sybase_home_default}}
+
+if [ "$__OCF_ACTION" != "meta-data" ]; then
+	if [ "$OCF_RESKEY_sybase_home" = "detect" ]; then
+		if [ -d "/opt/sap" ]; then
+			OCF_RESKEY_sybase_home="/opt/sap"
+		elif [ -d "/opt/sybase" ]; then
+			OCF_RESKEY_sybase_home="/opt/sybase"
+		else
+			ocf_log err "sybaseASE: Unable to detect 'sybase_home'."
+			exit $OCF_ERR_ARGS
+		fi
+	fi
+
+	sybase_env="$OCF_RESKEY_sybase_home/SYBASE.env"
+
+	if [ "$OCF_RESKEY_sybase_ase" = "detect" ]; then
+		if [ -f "$sybase_env" ]; then
+			OCF_RESKEY_sybase_ase=$(grep "SYBASE_ASE" "$sybase_env" | cut -d= -f2)
+		else
+			ocf_log err "sybaseASE: Unable to detect 'sybase_ase'."
+			exit $OCF_ERR_ARGS
+		fi
+	fi
+
+	if [ "$OCF_RESKEY_sybase_ocs" = "detect" ]; then
+		if [ -f "$sybase_env" ]; then
+			OCF_RESKEY_sybase_ocs=$(grep "SYBASE_OCS" "$sybase_env" | cut -d= -f2)
+		else
+			ocf_log err "sybaseASE: Unable to detect 'sybase_ocs'."
+			exit $OCF_ERR_ARGS
+		fi
+	fi
+fi
+
+
+interfaces_file_default="${OCF_RESKEY_sybase_home}/interfaces"
+: ${OCF_RESKEY_interfaces_file=${interfaces_file_default}}
+
+if [ $__OCF_ACTION != "meta-data" ]; then
+	logfile_default="$OCF_RESKEY_sybase_home/$OCF_RESKEY_sybase_ase/install/$OCF_RESKEY_server_name.log"
+else
+	logfile_default="detect"
+fi
+: ${OCF_RESKEY_logfile=${logfile_default}}
+
+export LD_POINTER_GUARD=0
+
+#######################################################################################
+# Declare some variables we will use in the script.                                   #
+#######################################################################################
+declare login_string=""
+declare RUNSERVER_SCRIPT=$OCF_RESKEY_sybase_home/$OCF_RESKEY_sybase_ase/install/RUN_$OCF_RESKEY_server_name
+declare CONSOLE_LOG="$OCF_RESKEY_logfile"
+
+##################################################################################################
+# This function will be called by Pacemaker to get the meta data of resource agent "sybaseASE".  #
+##################################################################################################
+meta_data()
+{
+	cat <<EOT
+<?xml version="1.0" ?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="sybaseASE" >
+	<version>1.0</version>
+
+	<longdesc lang="en">
+		Sybase ASE Failover Instance
+	</longdesc>
+	<shortdesc lang="en">
+		Sybase ASE Failover Instance
+	</shortdesc>
+
+	<parameters>
+		<parameter name="sybase_home">
+			<longdesc lang="en">
+				The home directory of sybase products
+			</longdesc>
+			<shortdesc lang="en">
+				SYBASE home directory
+			</shortdesc>
+			<content type="string" default="${sybase_home_default}"/>
+		</parameter>
+
+		<parameter name="sybase_ase">
+			<longdesc lang="en">
+				The directory name under sybase_home where ASE products are installed
+			</longdesc>
+			<shortdesc lang="en">
+				SYBASE_ASE directory name
+			</shortdesc>
+			<content type="string" default="$ase_default" />
+		</parameter>
+
+		<parameter name="sybase_ocs">
+			<longdesc lang="en">
+				The directory name under sybase_home where OCS products are installed, i.e. ASE-15_0
+			</longdesc>
+			<shortdesc lang="en">
+				SYBASE_OCS directory name
+			</shortdesc>
+			<content type="string" default="${ocs_default}" />
+		</parameter>
+
+		<parameter name="server_name" unique="1" required="1">
+			<longdesc lang="en">
+				The ASE server name which is configured for the HA service
+			</longdesc>
+			<shortdesc lang="en">
+				ASE server name
+			</shortdesc>
+			<content type="string" />
+		</parameter>
+
+		<parameter name="interfaces_file">
+			<longdesc lang="en">
+				The full path of interfaces file which is used to start/access the ASE server
+			</longdesc>
+			<shortdesc lang="en">
+				Interfaces file
+			</shortdesc>
+			<content type="string" default="$interfaces_file_default"/>
+		</parameter>
+
+		<parameter name="sybase_user">
+			<longdesc lang="en">
+				The user who can run ASE server
+			</longdesc>
+			<shortdesc lang="en">
+				Sybase user
+			</shortdesc>
+			<content type="string" default="$sybase_user_default" />
+		</parameter>
+
+		<parameter name="db_user" required="1">
+			<longdesc lang="en">
+				The database user required to login to isql.
+			</longdesc>
+			<shortdesc lang="en">
+				Sybase user
+			</shortdesc>
+			<content type="string"/>
+		</parameter>
+
+		<parameter name="db_passwd">
+			<longdesc lang="en">
+				The database user's password required to login to isql.
+			</longdesc>
+			<shortdesc lang="en">
+				Sybase user
+			</shortdesc>
+			<content type="string"/>
+		</parameter>
+
+		<parameter name="logfile">
+			<longdesc lang="en">
+				Logfile
+			</longdesc>
+			<shortdesc lang="en">
+				Logfile
+			</shortdesc>
+			<content type="string" default="$logfile_default" />
+		</parameter>
+
+	</parameters>
+
+	<actions>
+		<action name="start" timeout="300s" />
+		<action name="stop" timeout="300s" />
+
+		<!-- Checks to see if it''s mounted in the right place -->
+		<action name="status"  interval="30s" timeout="100s" />
+		<action name="monitor" interval="30s" timeout="100s" />
+
+		<!--Checks to see if we can read from the mountpoint -->
+		<action name="status" depth="10" timeout="100s" interval="120s" />
+		<action name="monitor" depth="10" timeout="100s" interval="120s" />
+
+		<action name="meta-data" timeout="5s" />
+		<action name="validate-all" timeout="5s" />
+	</actions>
+</resource-agent>
+EOT
+}
+
+ase_engine0_process()
+{
+	sed -n -e '/engine 0/s/^.*os pid \([0-9]*\).*online$/\1/p' $CONSOLE_LOG
+}
+
+ase_engine0_thread()
+{
+	sed -n -e 's/.*Thread.*LWP \([0-9]*\).*online as engine 0.*/\1/p' $CONSOLE_LOG
+}
+
+ase_engine_threadpool_pid()
+{
+	sed -n -e 's/.*Adaptive Server is running as process id \([0-9]*\).*/\1/p' $CONSOLE_LOG
+}
+
+ase_all_pids()
+{
+	local PIDS=$(sed -n -e '/engine /s/^.*os pid \([0-9]*\).*online$/\1/p' $CONSOLE_LOG)
+	if [ -z "$PIDS" ]; then
+		#engines are running in a threadpool
+		PIDS=$(ase_engine_threadpool_pid)
+	fi
+	echo $PIDS
+}
+
+##################################################################################################
+# Function Name: verify_all                                                                      #
+# Parameter: None                                                                                #
+# Return value:                                                                                  #
+#             0               SUCCESS                                                            #
+#             OCF_ERR_ARGS    Parameters are invalid                                             #
+# Description: Do some validation on the user-configurable stuff at the beginning of the script. #
+##################################################################################################
+verify_all()
+{
+	ocf_log debug "sybaseASE: Start 'verify_all'"
+
+	check_binary "ksh"
+
+	# Check if the parameter 'sybase_home' is set.
+	if [[ -z "$OCF_RESKEY_sybase_home" ]]
+	then
+		ocf_log err "sybaseASE: The parameter 'sybase_home' is not set."
+		return $OCF_ERR_ARGS
+	fi
+
+	# Check if the parameter 'sybase_home' is a valid path.
+	if [[ ! -d $OCF_RESKEY_sybase_home ]]
+	then
+		ocf_log err "sybaseASE: The sybase_home '$OCF_RESKEY_sybase_home' doesn't exist."
+		return $OCF_ERR_ARGS
+	fi
+
+	# Check if the script file SYBASE.sh exists
+	if [[ ! -f $OCF_RESKEY_sybase_home/SYBASE.sh ]]
+	then
+		ocf_log err "sybaseASE: The file $OCF_RESKEY_sybase_home/SYBASE.sh is required to run this script. Failed to run the script."
+		return $OCF_ERR_ARGS
+	fi
+
+	# Check if the parameter 'sybase_ase' is set.
+	if [[ -z "$OCF_RESKEY_sybase_ase" ]]
+	then
+		ocf_log err "sybaseASE: The parameter 'sybase_ase' is not set."
+		return $OCF_ERR_ARGS
+	fi
+
+	# Check if the directory /$OCF_RESKEY_sybase_home/$OCF_RESKEY_sybase_ase exists.
+	if [[ ! -d $OCF_RESKEY_sybase_home/$OCF_RESKEY_sybase_ase ]]
+	then
+		ocf_log err "sybaseASE: The directory '$OCF_RESKEY_sybase_home/$OCF_RESKEY_sybase_ase' doesn't exist."
+		return $OCF_ERR_ARGS
+	fi
+
+	# Check if the parameter 'sybase_ocs' is set.
+	if [[ -z "$OCF_RESKEY_sybase_ocs" ]]
+	then
+		ocf_log err "sybaseASE: The parameter 'sybase_ocs' is not set."
+		return $OCF_ERR_ARGS
+	fi
+
+	# Check if the directory /$OCF_RESKEY_sybase_home/$OCF_RESKEY_sybase_ocs exists.
+	if [[ ! -d $OCF_RESKEY_sybase_home/$OCF_RESKEY_sybase_ocs ]]
+	then
+		ocf_log err "sybaseASE: The directory '$OCF_RESKEY_sybase_home/$OCF_RESKEY_sybase_ocs' doesn't exist."
+		return $OCF_ERR_ARGS
+	fi
+
+	# Check if the parameter 'server_name' is set.
+	if [[ -z "$OCF_RESKEY_server_name" ]]
+	then
+		ocf_log err "sybaseASE: The parameter 'server_name' is not set."
+		return $OCF_ERR_ARGS
+	fi
+
+	# Check if the Run_server file exists.
+	if [[ ! -f $RUNSERVER_SCRIPT ]]
+	then
+		ocf_log err "sybaseASE: The file $RUNSERVER_SCRIPT doesn't exist. The sybase directory may be incorrect."
+		return $OCF_ERR_ARGS
+	fi
+
+	# Check if the user 'sybase_user' exist
+	id -u $OCF_RESKEY_sybase_user
+	if [[ $? != 0 ]]
+	then
+		ocf_log err "sybaseASE: The user '$OCF_RESKEY_sybase_user' doesn't exist in the system."
+		return $OCF_ERR_ARGS
+	fi
+
+	# Check if the parameter 'interfaces_file' is set
+	if [[ -z "$OCF_RESKEY_interfaces_file" ]]
+	then
+		ocf_log err "sybaseASE: The parameter 'interfaces_file' is not set."
+		return $OCF_ERR_ARGS
+	fi
+
+	# Check if the file 'interfaces_file' exists
+	if [[ ! -f $OCF_RESKEY_interfaces_file ]]
+	then
+		ocf_log err "sybaseASE: The interfaces file '$OCF_RESKEY_interfaces_file' doesn't exist."
+		return $OCF_ERR_ARGS
+	fi
+
+	# Check if the parameter 'db_user' is set
+	if [[ -z "$OCF_RESKEY_db_user" ]]
+	then
+		ocf_log err "sybaseASE: The parameter 'db_user' is not set."
+		return $OCF_ERR_ARGS
+	fi
+
+	# Check if the parameter 'shutdown_timeout' is a valid value
+	if [[ $OCF_RESKEY_shutdown_timeout -eq 0 ]]
+	then
+		ocf_log err "sybaseASE: The parameter 'shutdown_timeout' is not set. Its value cannot be zero."
+		return $OCF_ERR_ARGS
+	fi
+
+	# Check if the parameter 'start_timeout' is a valid value
+	if [[ $OCF_RESKEY_start_timeout -eq 0 ]]
+	then
+		ocf_log err "sybaseASE: The parameter 'start_timeout' is not set. Its value cannot be zero."
+		return $OCF_ERR_ARGS
+	fi
+
+	# Check if the parameter 'deep_probe_timeout' is a valid value
+	if [[ $OCF_RESKEY_deep_probe_timeout -eq 0 ]]
+	then
+		ocf_log err "sybaseASE: The parameter 'deep_probe_timeout' is not set. Its value cannot be zero."
+		return $OCF_ERR_ARGS
+	fi
+
+	ocf_log debug "sybaseASE: End 'verify_all' successfully."
+
+	return $OCF_SUCCESS
+}
+
+set_login_string()
+{
+	tmpstring=""
+	login_sting=""
+
+	login_string="-U$OCF_RESKEY_db_user -P$OCF_RESKEY_db_passwd"
+	return 0
+}
+
+##############################################################################################
+# Function name: ase_start                                                                   #
+# Parameter: None                                                                            #
+# Return value:                                                                              #
+#             0  SUCCESS                                                                     #
+#             1  FAIL                                                                        #
+# Description: This function is used to start the ASE server in primary or secondary server. #
+##############################################################################################
+ase_start()
+{
+	ocf_log debug "sybaseASE: Start 'ase_start'"
+
+	# Check if the server is running. If yes, return SUCCESS directly. Otherwise, continue the start work.
+	ase_is_running
+	if [[ $? = 0 ]]
+	then
+		# The server is running.
+		ocf_log info "sybaseASE: Server is running. Start is success."
+		return $OCF_SUCCESS
+	fi
+
+	# The server is not running. We need to start it.
+	# If the log file existed, delete it.
+	if [[ -f $CONSOLE_LOG ]]
+	then
+		rm -f $CONSOLE_LOG
+	fi
+
+	ocf_log debug "sybaseASE: Starting '$OCF_RESKEY_server_name'..."
+
+	# Run runserver script to start the server. Since this script will be run by root and ASE server
+	# needs to be run by another user, we need to change the user to sybase_user first. Then, run
+	# the script to start the server.
+	su $OCF_RESKEY_sybase_user -c ksh << EOF
+		# set required SYBASE environment by running SYBASE.sh.
+		. $OCF_RESKEY_sybase_home/SYBASE.sh
+		# Run the RUNSERVER_SCRIPT to start the server.
+                . $RUNSERVER_SCRIPT > $CONSOLE_LOG 2>&1 &
+EOF
+
+	# Monitor every 1 seconds if the server has
+	# recovered, until RECOVERY_TIMEOUT.
+	t=0
+	while [[ $t -le $OCF_RESKEY_start_timeout ]]
+	do
+		grep -s "Recovery complete." $CONSOLE_LOG > /dev/null 2>&1
+		if [[ $? != 0 ]]
+		then
+			# The server has not completed the recovery. We need to continue to monitor the recovery
+			# process.
+			t=`expr $t + 1`
+		else
+			# The server has completed the recovery.
+			ocf_log info "sybaseASE: ASE server '$OCF_RESKEY_server_name' started successfully."
+			break
+		fi
+		sleep 1
+	done
+
+	# If $t is larger than start_timeout, it means the ASE server cannot start in given time. Otherwise, it
+	# means the ASE server has started successfully.
+	if [[ $t -gt $OCF_RESKEY_start_timeout ]]
+	then
+		# The server cannot start in specified time. We think the start is failed.
+		ocf_log err "sybaseASE: Failed to start ASE server '$OCF_RESKEY_server_name'. Please check the server error log $CONSOLE_LOG for possible problems."
+		return $OCF_ERR_GENERIC
+	fi
+
+	ase_is_running
+	if [ $? -ne 0 ]; then
+		ocf_log err "sybaseASE: ase_start could not detect database initialized properly."
+
+		return $OCF_ERR_GENERIC
+	fi
+	ocf_log debug "sybaseASE: End 'ase_start' successfully."
+	return $OCF_SUCCESS
+}
+
+#############################################################################################
+# Function name: ase_stop                                                                   #
+# Parameter: None                                                                           #
+# Return value:                                                                             #
+#             0  SUCCESS                                                                    #
+#             1  FAIL                                                                       #
+# Description: This function is used to stop the ASE server in primary or secondary server. #
+#############################################################################################
+ase_stop()
+{
+	ocf_log debug "sybaseASE: Start 'ase_stop'"
+
+	# Check if the ASE server is still running.
+	ase_is_running
+	if [[ $? != 0 ]]
+	then
+		# The ASE server is not running. We need not to shutdown it.
+		ocf_log info "sybaseASE: The dataserver $OCF_RESKEY_server_name is not running."
+		return $OCF_SUCCESS
+	fi
+
+	set_login_string
+
+	# Just in case things are hung, start a process that will wait for the
+	# timeout period, then kill any remaining porcesses.  We'll need to
+	# monitor this process (set -m), so we can terminate it later if it is
+	# not needed.
+	set -m
+	kill_ase $OCF_RESKEY_shutdown_timeout &
+	KILL_PID=$!     # If successful, we will also terminate watchdog process
+
+	# Run "shutdown with nowait" from isql command line to shutdown the server
+	su $OCF_RESKEY_sybase_user -c ksh << EOF
+		# set required SYBASE environment by running SYBASE.sh.
+		. $OCF_RESKEY_sybase_home/SYBASE.sh
+		# Run "shutdown with nowait" to shutdown the server immediately.
+		(echo "use master" ; echo go ; echo "shutdown with nowait"; echo go) | \
+		\$SYBASE/\$SYBASE_OCS/bin/isql $login_string -S$OCF_RESKEY_server_name -I$OCF_RESKEY_interfaces_file  &
+EOF
+
+	sleep 5
+
+	# Check if the server has been shut down successfully
+	t=0
+	while [[ $t -lt $OCF_RESKEY_shutdown_timeout ]]
+	do
+		# Search "ueshutdown: exiting" in the server log. If found, it means the server has been shut down.
+		# Otherwise, we need to wait.
+		tail $CONSOLE_LOG | grep "ueshutdown: exiting" > /dev/null 2>&1
+		if [[ $? != 0 ]]
+		then
+			# The shutdown is still in processing. Wait...
+			sleep 2
+			t=`expr $t+2`
+		else
+			# The shutdown is success.
+			ocf_log info "sybaseASE: ASE server '$OCF_RESKEY_server_name' shutdown with isql successfully."
+			break
+		fi
+	done
+
+	# If $t is larger than shutdown_timeout, it means the ASE server cannot be shut down in given time. We need
+	# to wait for the background kill process to kill the OS processes directly.
+	if  [[ $t -ge $OCF_RESKEY_shutdown_timeout ]]
+	then
+		ocf_log err "sybaseASE: Shutdown of '$OCF_RESKEY_server_name' from isql failed.  Server is either down or unreachable."
+	fi
+
+	# Here, the ASE server has been shut down by isql command or killed by background process. We need to do
+	# further check to make sure all processes have gone away before saying shutdown is complete. This stops the
+	# other node from starting up the package before it has been stopped and the file system has been unmounted.
+
+	# Get all processes ids from log file
+	declare -a ENGINE_ALL=$(ase_all_pids)
+
+	typeset -i num_procs=${#ENGINE_ALL[@]}
+
+	# We cannot find any process id from log file. It may be because the log file is corrupted or be deleted.
+	# In this case, we determine the shutdown is failed.
+	if [[ ${#ENGINE_ALL[@]} -lt 1 ]]
+	then
+		ocf_log err "sybaseASE: Unable to find the process id from $CONSOLE_LOG."
+		ocf_log err "sybaseASE: Stop ASE server failed."
+		return $OCF_ERR_GENERIC
+	fi
+
+	# Monitor the system processes to make sure all ASE related processes have gone away.
+	while true
+	do
+		# To every engine process, search it in system processes list. If it is not in the
+		# list, it means this process has gone away. Otherwise, we need to wait for it is
+		# killed by background process.
+		for i in "${ENGINE_ALL[@]}"
+		do
+			ps -fu $OCF_RESKEY_sybase_user | awk '{print $2}' | grep $i | grep -v grep
+			if [[ $? != 0 ]]
+			then
+				ocf_log debug "sybaseASE: $i process has stopped."
+				c=0
+				while (( c < $num_procs ))
+				do
+					if [[ ${ENGINE_ALL[$c]} = $i ]]
+					then
+						unset ENGINE_ALL[$c]
+						c=$num_procs
+					fi
+					(( c = c + 1 ))
+				done
+			fi
+		done
+
+		# To here, all processes should have gone away.
+		if [[ ${#ENGINE_ALL[@]} -lt 1 ]]
+		then
+			#
+			# Looks like shutdown was successful, so kill the
+			# script to kill any hung processes, which we started earlier.
+			# Check to see if the script is still running.  If jobs
+			# returns that the script is done, then we don't need to kill
+			# it.
+			#
+			job=$(jobs | grep -v Done)
+			if [[ ${job} != "" ]]
+			then
+				ocf_log debug "sybaseASE: Killing the kill_ase script."
+
+				kill -15 $KILL_PID > /dev/null 2>&1
+			fi
+			break
+	        fi
+		sleep 5
+	done
+
+	ocf_log debug "sybaseASE: End 'ase_stop'."
+
+	return $OCF_SUCCESS
+}
+
+####################################################################################
+# Function name: ase_is_running                                                    #
+# Parameter: None                                                                  #
+# Return value:                                                                    #
+#             0   ASE server is running                                            #
+#             1   ASE server is not running or there are errors                    #
+# Description: This function is used to check if the ASE server is still running . #
+####################################################################################
+ase_is_running()
+{
+	local PID
+	local THREAD
+	# If the error log doesn't exist, we can say there is no ASE is running.
+	if [[ ! -f $CONSOLE_LOG ]]
+	then
+		ocf_log debug "could not find console log $CONSOLE_LOG"
+		return $OCF_NOT_RUNNING
+	fi
+
+	# The error log file exists. Check if the engine 0 is alive.
+	PID=$(ase_engine0_process)
+	if [ -n "$PID" ]; then
+		kill -s 0 $PID > /dev/null 2>&1
+		if [ $? -eq 0 ]; then
+			# The engine 0 is running.
+			ocf_log debug "Found engine 0 pid $PID to be running"
+			return $OCF_SUCCESS
+		fi
+		# The engine 0 is not running.
+		return $OCF_NOT_RUNNING
+	fi
+
+	PID=$(ase_engine_threadpool_pid)
+	THREAD=$(ase_engine0_thread)
+	if [ -n "$PID" ] && [ -n "$THREAD" ]; then
+		ps -AL | grep -q "${PID}[[:space:]]*${THREAD} "
+		if [ $? -eq 0 ]; then
+			# engine 0 thread is running
+			ocf_log debug "Found engine 0 thread $THREAD in pid $PID to be running"
+			return $OCF_SUCCESS
+		fi
+		# The engine 0 is not running.
+		return $OCF_NOT_RUNNING
+	fi
+	return $OCF_ERR_GENERIC
+}
+
+####################################################################################
+# Function name: kill_ase                                                          #
+# Parameter:                                                                       #
+#             DELAY  The seconds to wait before killing the ASE processes. 0 means #
+#                    kill the ASE processes immediately.                           #
+# Return value: None                                                               #
+#             1   ASE server is not running or there are errors                    #
+# Description: This function is used to check if the ASE server is still running . #
+####################################################################################
+kill_ase()
+{
+	ocf_log debug "sybaseASE: Start 'kill_ase'."
+
+	DELAY=$1
+
+	# Wait for sometime before sending a kill signal.
+	t=0
+        while [[ $t -lt $DELAY ]]
+        do
+     		sleep 1
+		t=`expr $t+1`
+        done
+
+	# Get the process ids from log file
+	declare -a ENGINE_ALL=$(ase_all_pids)
+
+	# If there is no process id found in the log file, we need not to continue.
+	if [[ ${#ENGINE_ALL[@]} -lt 1 ]]
+	then
+		ocf_log err "sybaseASE: Unable to find the process id from $CONSOLE_LOG."
+		return $OCF_ERR_GENERIC
+	fi
+
+	# Kill the datasever process(es)
+	for pid in "${ENGINE_ALL[@]}"
+	do
+		kill -9 $pid > /dev/null 2>&1
+		if [[ $? != 0 ]]
+		then
+			ocf_log info "sybaseASE: kill_ase function did NOT find process $pid running."
+		else
+			ocf_log info "sybaseASE: kill_ase function did find process $pid running.  Sent SIGTERM."
+		fi
+	done
+
+	ocf_log debug "sybaseASE: End 'kill_ase'."
+	return $OCF_SUCCESS
+}
+
+#####################################################################################
+# Function name: ase_status                                                         #
+# Parameter:                                                                        #
+#             0   Level 0 probe. In this level, we just check if engine 0 is alive  #
+#             10  Level 10 probe. In this level, we need to probe if the ASE server #
+#                 still has response.                                               #
+# Return value:                                                                     #
+#             0   The server is still alive                                         #
+#             1   The server is down                                                #
+# Description: This function is used to check if the ASE server is still running.   #
+#####################################################################################
+ase_status()
+{
+	local rc
+	ocf_log debug "sybaseASE: Start 'ase_status'."
+
+	# Step 1: Check if the engine 0 is alive
+	ase_is_running
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		# ASE is down. Return fail to Pacemaker to trigger the failover process.
+		ocf_log err "sybaseASE: ASE server is down."
+		return $rc
+	fi
+
+	# ASE process is still alive.
+	# Step2: If this is level 10 probe, We need to check if the ASE server still has response.
+	if [[ $1 -gt 0 ]]
+	then
+		ocf_log debug "sybaseASE: Need to run deep probe."
+		# Run deep probe
+		deep_probe
+		if [[ $? = 1 ]]
+		then
+			# Deep probe failed. This means the server has been down.
+			ocf_log err "sybaseASE: Deep probe found the ASE server is down."
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
+	ocf_log debug "sybaseASE: End 'ase_status'."
+
+	return $OCF_SUCCESS
+}
+
+####################################################################################
+# Function name: deep_probe                                                        #
+# Parameter: None                                                                  #
+# Return value:                                                                    #
+#             0   ASE server is alive                                              #
+#             1   ASE server is down                                               #
+# Description: This function is used to run deep probe to make sure the ASE server #
+#              still has response.                                                 #
+####################################################################################
+deep_probe()
+{
+	declare -i rv
+
+	ocf_log debug "sybaseASE: Start 'deep_probe'."
+
+	# Declare two temporary files which will be used in this probe.
+	tmpfile1="$(mktemp /tmp/sybaseASE.1.XXXXXX)"
+	tmpfile2="$(mktemp /tmp/sybaseASE.2.XXXXXX)"
+
+	set_login_string
+
+	rm -f $tmpfile1
+	rm -f $tmpfile2
+
+	# The login file is correct. We have gotten the login account and password from it.
+	# Run isql command in background.
+	su $OCF_RESKEY_sybase_user -c ksh << EOF
+		# set required SYBASE environment by running SYBASE.sh.
+		. $OCF_RESKEY_sybase_home/SYBASE.sh
+		# Run a very simple SQL statement to make sure the server is still ok. The output will be put to
+		# tmpfile1.
+		(echo "select 1"; echo "go") |
+		\$SYBASE/\$SYBASE_OCS/bin/isql $login_string -S$OCF_RESKEY_server_name -I$OCF_RESKEY_interfaces_file -t $OCF_RESKEY_deep_probe_timeout -e -o$tmpfile1 &
+		# Record the isql command process id to temporary file. If the isql is hung, we need this process id
+                # to kill the hung process.
+		echo \$! > $tmpfile2
+EOF
+
+	declare -i t=0
+
+	# Monitor the output file tmpfile1.
+	while [[ $t -lt $OCF_RESKEY_deep_probe_timeout ]]
+	do
+		# If the SQL statement is executed successfully, we will get the following output:
+		# 1> select 1
+		#
+		# -----------
+		#           1
+		#
+		# (1 row affected)
+		# So, we determine if the execution is success by searching the keyword "(1 row affected)".
+		grep "(1 row affected)" $tmpfile1
+		if [[ $? = 0 ]]
+		then
+			ocf_log debug "sybaseASE: Deep probe sucess."
+			break
+		else
+			sleep 1
+			t=`expr $t+1`
+		fi
+	done
+
+	# If $t is larger than deep_probe_timeout, it means the isql command line cannot finish in given time.
+	# This means the deep probe failed. We need to kill the isql process manually.
+	if [[ $t -ge $OCF_RESKEY_deep_probe_timeout ]]
+	then
+		ocf_log err "sybaseASE: Deep probe fail. The dataserver has no response."
+
+		# Read the process id of isql process from tmpfile2
+		pid=`cat $tmpfile2 | awk '{print $1}'`
+
+		rm -f $tmpfile1
+		rm -f $tmpfile2
+
+		# Kill the isql process directly.
+		kill -9 $pid
+		return 1
+	fi
+
+	rm -f $tmpfile1
+	rm -f $tmpfile2
+
+	ocf_log debug "sybaseASE: End 'deep_probe'."
+
+	return 0
+}
+
+#############################
+# Do some real work here... #
+#############################
+case $__OCF_ACTION in
+	start)
+		verify_all || exit $OCF_ERR_GENERIC
+		ase_start
+		exit $?
+		;;
+	stop)
+		ase_stop
+		exit $?
+		;;
+	status | monitor)
+		ase_status $OCF_CHECK_LEVEL
+		exit $?
+		;;
+	meta-data)
+		meta_data
+		exit $OCF_SUCCESS
+		;;
+	validate-all)
+		verify_all
+		exit $?
+		;;
+	*)
+		echo "Usage: $SCRIPT {start|stop|monitor|status|validate-all|meta-data}"
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+exit 0
+

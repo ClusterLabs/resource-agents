@@ -341,12 +341,12 @@ Resource script for Jboss. It manages a Jboss instance as an HA resource.
 
 <parameter name="jboss_version" unique="0" required="0">
 <longdesc lang="en">
-The version of JBoss. Default is 5.
+The version of JBoss. Default is ${OCF_RESKEY_jboss_version_default}.
 The usage of JBoss was greatly changed as of JBoss 6.
 Specify "6" when you use JBoss 6.
 </longdesc>
 <shortdesc lang="en">The version of JBoss</shortdesc>
-<content type="integer" default="5" />
+<content type="integer" default="${OCF_RESKEY_jboss_version_default}" />
 </parameter>
 
 <parameter name="resource_name" unique="1" required="0">
@@ -363,7 +363,7 @@ instance.
 A destination of the log of jboss run and shutdown script.
 </longdesc>
 <shortdesc lang="en">jboss log path</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_console_default}" />
 </parameter>
 
 <parameter name="shutdown_timeout" unique="0" required="0">
@@ -375,7 +375,7 @@ timeout for the stop operation to a value bigger than the sum of
 the timeout parameters. See also kill_timeout.
 </longdesc>
 <shortdesc lang="en">shutdown timeout</shortdesc>
-<content type="integer" default="5" />
+<content type="integer" default="${OCF_RESKEY_shutdown_timeout_default}" />
 </parameter>
 
 <parameter name="kill_timeout" unique="0" required="0">
@@ -386,7 +386,7 @@ this timeout expires, if the process is still live, we use the
 KILL signal. See also shutdown_timeout.
 </longdesc>
 <shortdesc lang="en">stop by signal timeout</shortdesc>
-<content type="integer" default="10" />
+<content type="integer" default="${OCF_RESKEY_kill_timeout_default}" />
 </parameter>
 
 <parameter name="user" unique="0" required="0">
@@ -394,7 +394,7 @@ KILL signal. See also shutdown_timeout.
 A user name to start a JBoss.
 </longdesc>
 <shortdesc lang="en">A user name to start a resource.</shortdesc>
-<content type="string" default="root"/>
+<content type="string" default="${OCF_RESKEY_user_default}"/>
 </parameter>
 
 <parameter name="statusurl" unique="0" required="0">
@@ -419,7 +419,7 @@ JAVA_HOME. If it is not set, then define this parameter.
 Java options.
 </longdesc>
 <shortdesc lang="en">Java options.</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_java_opts_default}"/>
 </parameter>
 
 <parameter name="jboss_home" unique="0" required="1">
@@ -427,7 +427,7 @@ Java options.
 Home directory of Jboss.
 </longdesc>
 <shortdesc lang="en">Home directory of Jboss.</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_jboss_home_default}"/>
 </parameter>
 
 <parameter name="jboss_base_dir" unique="0" required="0">
@@ -467,7 +467,7 @@ Start options to start Jboss with, defaults are from the Jboss-Doku.
 Stop options to stop Jboss with.
 </longdesc>
 <shortdesc lang="en">options for jboss shutdown.sh</shortdesc>
-<content type="string" default="-s 127.0.0.1:1099" />
+<content type="string" default="${OCF_RESKEY_shutdown_opts_default}" />
 </parameter>
 
 <parameter name="rotate_consolelog" unique="0">
@@ -475,7 +475,7 @@ Stop options to stop Jboss with.
 Rotate console log flag.
 </longdesc>
 <shortdesc lang="en">Rotate console log flag</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_rotate_consolelog_default}" />
 </parameter>
 
 <parameter name="rotate_value" unique="0">
@@ -483,7 +483,7 @@ Rotate console log flag.
 Console log rotation value (default is 86400 seconds).
 </longdesc>
 <shortdesc lang="en">Console log rotation value (default is 86400 seconds)</shortdesc>
-<content type="integer" default="86400" />
+<content type="integer" default="${OCF_RESKEY_rotate_value_default}" />
 </parameter>
 
 <parameter name="rotate_logsuffix" unique="0">
@@ -491,7 +491,7 @@ Console log rotation value (default is 86400 seconds).
 Rotate console log suffix.
 </longdesc>
 <shortdesc lang="en">Rotate console log suffix</shortdesc>
-<content type="integer" default=".%F" />
+<content type="integer" default="${OCF_RESKEY_rotate_logsuffix_default}" />
 </parameter>
 
 </parameters>
@@ -502,7 +502,7 @@ Rotate console log suffix.
 <action name="status" timeout="30s" />
 <action name="monitor" depth="0" timeout="30s" interval="10s" />
 <action name="meta-data" timeout="5s" />
-<action name="validate-all"  timeout="5"/>
+<action name="validate-all"  timeout="5s"/>
 </actions>
 </resource-agent>
 END
@@ -543,8 +543,22 @@ validate_all_jboss()
     return $OCF_SUCCESS
 }
 
+# Parameter defaults
+
+OCF_RESKEY_jboss_version_default="5"
+OCF_RESKEY_console_default="/var/log/${OCF_RESOURCE_INSTANCE}.log"
+OCF_RESKEY_shutdown_timeout_default="5"
+OCF_RESKEY_kill_timeout_default="10"
+OCF_RESKEY_user_default="root"
+OCF_RESKEY_java_opts_default=""
+OCF_RESKEY_jboss_home_default=""
+OCF_RESKEY_shutdown_opts_default="-s 127.0.0.1:1099"
+OCF_RESKEY_rotate_consolelog_default="false"
+OCF_RESKEY_rotate_value_default="86400"
+OCF_RESKEY_rotate_logsuffix_default=".%F"
+
 COMMAND=$1
-JBOSS_VERSION="${OCF_RESKEY_jboss_version-5}"
+JBOSS_VERSION="${OCF_RESKEY_jboss_version-${OCF_RESKEY_jboss_version_default}}"
 if ! ocf_is_decimal $JBOSS_VERSION; then
     ocf_log err "Invalid parameter value: jboss_version [$JBOSS_VERSION]"
     return $OCF_ERR_ARGS
@@ -565,16 +579,16 @@ else
 fi
 RESOURCE_NAME="${OCF_RESKEY_resource_name-${OCF_RESOURCE_INSTANCE}}"
 CONSOLE="${OCF_RESKEY_console-/var/log/${RESOURCE_NAME}.log}"
-SHUTDOWN_TIMEOUT="${OCF_RESKEY_shutdown_timeout-5}"
-KILL_TIMEOUT="${OCF_RESKEY_kill_timeout-10}"
-JBOSS_USER="${OCF_RESKEY_user-root}"
+SHUTDOWN_TIMEOUT="${OCF_RESKEY_shutdown_timeout-${OCF_RESKEY_shutdown_timeout_default}}"
+KILL_TIMEOUT="${OCF_RESKEY_kill_timeout-${OCF_RESKEY_kill_timeout_default}}"
+JBOSS_USER="${OCF_RESKEY_user-${OCF_RESKEY_user_default}}"
 STATUSURL="${OCF_RESKEY_statusurl-${OCF_RESKEY_statusurl_default}}"
 PSTRING="${OCF_RESKEY_pstring-${OCF_RESKEY_pstring_default}}"
 RUN_OPTS="${OCF_RESKEY_run_opts-${OCF_RESKEY_run_opts_default}}"
-SHUTDOWN_OPTS="${OCF_RESKEY_shutdown_opts--s 127.0.0.1:1099}"
-ROTATELOG_FLG="${OCF_RESKEY_rotate_consolelog-false}"
-ROTATEVALUE="${OCF_RESKEY_rotate_value-86400}"
-ROTATELOG_SUFFIX="${OCF_RESKEY_rotate_logsuffix-.%F}"
+SHUTDOWN_OPTS="${OCF_RESKEY_shutdown_opts-${OCF_RESKEY_shutdown_opts_default}}"
+ROTATELOG_FLG="${OCF_RESKEY_rotate_consolelog-${OCF_RESKEY_rotate_consolelog_default}}"
+ROTATEVALUE="${OCF_RESKEY_rotate_value-${OCF_RESKEY_rotate_value_default}}"
+ROTATELOG_SUFFIX="${OCF_RESKEY_rotate_logsuffix-${OCF_RESKEY_rotate_logsuffix_default}}"
 
 if [ $# -ne 1 ]; then
     usage

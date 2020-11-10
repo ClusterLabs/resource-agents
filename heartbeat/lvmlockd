@@ -1,0 +1,423 @@
+#!/bin/sh
+#
+#
+#	lvmlockd OCF Resource Agent
+#
+# Copyright (c) 2017 SUSE LINUX, Eric Ren
+#			All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.	Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Parameter defaults
+
+OCF_RESKEY_with_cmirrord_default="false"
+OCF_RESKEY_pidfile_default="/run/lvmlockd.pid"
+OCF_RESKEY_socket_path_default="/run/lvm/lvmlockd.socket"
+OCF_RESKEY_syslog_priority_default="warning"
+OCF_RESKEY_adopt_default="1"
+
+: ${OCF_RESKEY_with_cmirrord=${OCF_RESKEY_with_cmirrord_default}}
+: ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
+: ${OCF_RESKEY_socket_path=${OCF_RESKEY_socket_path_default}}
+: ${OCF_RESKEY_syslog_priority=${OCF_RESKEY_syslog_priority_default}}
+: ${OCF_RESKEY_adopt=${OCF_RESKEY_adopt_default}}
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="lvmlockd">
+<version>1.0</version>
+
+<longdesc lang="en">
+This agent manages the lvmlockd daemon. "lvmlockd" is like "clvmd". Both
+are used by LVM commands to coordinate access to shared storage, but with
+different design and implementations. "lvmlockd" can use two lock managers:
+dlm and sanlock. This agent only supports "dlm + lvmlockd". If dlm (or corosync)
+are already being used by other cluster software, you are advised to select
+dlm, then configure "controld" resource agent for dlm and this agent for "lvmlockd".
+Otherwise, consider sanlock for "lvmlockd" if dlm/corosync is not required.
+
+Using lvmlockd requires the settings in LVM configuration file (/etc/lvm/lvm.conf):
+"locking_type = 1" and "use_lvmlockd = 1". This RA will change the settings
+respectively if needed.
+
+For more information, refer to manpage lvmlockd.8.
+</longdesc>
+<shortdesc lang="en">This agent manages the lvmlockd daemon</shortdesc>
+
+<parameters>
+<parameter name="with_cmirrord" unique="0" required="0">
+<longdesc lang="en">
+Start with cmirrord (cluster mirror log daemon).
+</longdesc>
+<shortdesc lang="en">activate cmirrord</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_with_cmirrord_default}" />
+</parameter>
+
+<parameter name="pidfile" unique="0">
+<longdesc lang="en">pid file</longdesc>
+<shortdesc lang="en">pid file</shortdesc>
+<content type="string" default="${OCF_RESKEY_pidfile_default}"/>
+</parameter>
+
+<parameter name="socket_path" unique="0">
+<longdesc lang="en">Set the socket path to listen on.</longdesc>
+<shortdesc lang="en">socket path</shortdesc>
+<content type="string" default="${OCF_RESKEY_socket_path_default}"/>
+</parameter>
+
+<parameter name="syslog_priority" unique="0">
+<longdesc lang="en">Write log messages from this level up to syslog.</longdesc>
+<shortdesc lang="en">syslog priority</shortdesc>
+<content type="string" default="${OCF_RESKEY_syslog_priority_default}"/>
+</parameter>
+
+<parameter name="adopt" unique="0">
+<longdesc lang="en">
+Adopt locks from a previous instance of lvmlockd.
+</longdesc>
+<shortdesc lang="en">Adopt locks from a previous instance of lvmlockd</shortdesc>
+<content type="integer" default="${OCF_RESKEY_adopt_default}"/>
+</parameter>
+</parameters>
+
+<actions>
+<action name="start"		timeout="90s" />
+<action name="stop"		timeout="90s" />
+<action name="monitor"		timeout="90s" interval="30s" depth="0" />
+<action name="meta-data"	timeout="10s" />
+<action name="validate-all"	timeout="20s" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+LOCKD="lvmlockd"
+CMIRRORD="cmirrord"
+# 0.5s sleep each count
+TIMEOUT_COUNT=20
+
+usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+END
+}
+
+get_pid()
+{
+	if [ -f ${OCF_RESKEY_pidfile} ] ; then
+		cat ${OCF_RESKEY_pidfile}
+	else
+		false
+	fi
+}
+
+daemon_is_running()
+{
+	local pid=$1
+
+	# Use /proc if it exists there
+	if [ -d /proc ] && [ -d /proc/1 ] ; then
+		[ -d /proc/"$pid" ]
+	else
+		kill -s 0 "$pid" >/dev/null 2>&1
+	fi
+}
+
+silent_status()
+{
+	local pid=$(get_pid)
+
+	if [ -n "$pid" ] ; then
+		daemon_is_running "$pid"
+		rc=$?
+		mirror_rc=$rc
+
+		if ocf_is_true $OCF_RESKEY_with_cmirrord; then
+			pid=$(pgrep $CMIRRORD | head -n1)
+			daemon_is_running "$pid"
+			mirror_rc=$?
+		fi
+
+		# If these ever don't match, return error to force recovery
+		if [ $mirror_rc -ne $rc ]; then
+			return $OCF_ERR_GENERIC
+		fi
+
+		return $rc
+	else
+		# No pid file
+		false
+	fi
+}
+
+# change /etc/lvm/lvm.conf to use lvmlockd
+setup_lvm_config()
+{
+	local out=""
+	local use_lvmlockd=""
+	local lock_type=""
+
+	# To use lvmlockd, ensure configure lvm.conf:
+	# locking_type = 1
+	# use_lvmlockd = 1
+	out=$(lvmconfig 'global/use_lvmlockd' 2> /dev/null)
+	use_lvmlockd=$(echo "$out" | cut -d'=' -f2)
+
+	out=$(lvmconfig 'global/locking_type' 2> /dev/null)
+	lock_type=$(echo "$out" | cut -d'=' -f2)
+
+	if [ -n "$use_lvmlockd" ] && [ "$use_lvmlockd" != 1 ] ; then
+		ocf_log info "setting \"use_lvmlockd=1\" in /etc/lvm/lvm.conf ..."
+		sed -i 's,^[[:blank:]]*use_lvmlockd[[:blank:]]*=.*,\ \ \ \ use_lvmlockd = 1,g' /etc/lvm/lvm.conf
+	fi
+	if [ -n "$lock_type" ] ; then
+		# locking_type was removed from config in v2.03
+		ocf_version_cmp "$(lvmconfig --version | awk '/LVM ver/ {sub(/\(.*/, "", $3); print $3}')" "2.03"
+		case "$?" in
+			1|2)
+				ocf_log info "removing \"locking_type\" from /etc/lvm/lvm.conf ..."
+				sed -i '/^[[:blank:]]*locking_type[[:blank:]]*=.*/d' /etc/lvm/lvm.conf
+				;;
+			0)
+				if [ "$lock_type" != 1 ] ; then
+					ocf_log info "setting \"locking_type=1\" in /etc/lvm/lvm.conf ..."
+					sed -i 's,^[[:blank:]]*locking_type[[:blank:]]*=.*,\ \ \ \ locking_type = 1,g' /etc/lvm/lvm.conf
+				fi
+				;;
+		esac
+	fi
+
+	return $OCF_SUCCESS
+}
+
+check_dlm_controld()
+{
+	local pid=""
+
+	# dlm daemon should have only one instance, but for safe...
+	pid=$(pgrep dlm_controld | head -n1)
+	if ! daemon_is_running $pid ; then
+		ocf_exit_reason "DLM is not running. Is it configured?"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+lvmlockd_start() {
+	local extras=""
+
+	setup_lvm_config
+
+	ocf_log info "checking if DLM is started first..."
+	check_dlm_controld
+
+	if silent_status ; then
+		ocf_log info "${LOCKD} already started (pid=$(get_pid))"
+		return $OCF_SUCCESS
+	fi
+
+	if ocf_is_true $OCF_RESKEY_with_cmirrord; then
+		ocf_log info "starting ${CMIRRORD}..."
+		$CMIRRORD
+		rc=$?
+		if [ $rc -ne $OCF_SUCCESS ] ; then
+			ocf_exit_reason "Failed to start ${CMIRRORD}, exit code: $rc"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
+	if [ ! -z "$OCF_RESKEY_socket_path" ] ; then
+		extras="$extras -s ${OCF_RESKEY_socket_path}"
+	fi
+	if [ ! -z "$OCF_RESKEY_syslog_priority" ] ; then
+		extras="$extras -S ${OCF_RESKEY_syslog_priority}"
+	fi
+	if [ ! -z "$OCF_RESKEY_adopt" ] ; then
+		extras="$extras -A ${OCF_RESKEY_adopt}"
+	else
+		# Inside lvmlockd daemon, this option defaults to 0. But, we
+		# want it defaults to 1 for resource agent. When RA monitor pulls
+		# this daemon up, we expect it to adopt locks from a previous
+		# instance of lvmlockd.
+		extras="$extras -A 1"
+	fi
+	# This client only support "dlm" lock manager
+	extras="$extras -g dlm"
+
+	ocf_log info "starting ${LOCKD}..."
+	ocf_run ${LOCKD} -p ${OCF_RESKEY_pidfile} $extras
+	rc=$?
+	if [ $rc -ne $OCF_SUCCESS ] ; then
+		ocf_exit_reason "Failed to start ${LOCKD}, exit code: $rc"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+# Each shared VG has its own lockspace. Besides, lvm_global lockspace
+# is for global use, and it should be the last one to close. It should
+# be enough to only check on lvm_global.
+wait_lockspaces_close()
+{
+	local retries=0
+
+	ocf_log info "Waiting for all lockspaces to be closed"
+	while [ $retries -lt "$TIMEOUT_COUNT" ]
+	do
+		if ! dlm_tool ls lvm_global | grep -Eqs "^name[[:space:]]+lvm_global" ; then
+			return $OCF_SUCCESS
+		fi
+
+		sleep 0.5
+		retries=$((retries + 1))
+	done
+
+	ocf_exit_reason "Failed to close all lockspaces clearly"
+	exit $OCF_ERR_GENERIC
+}
+
+kill_stop()
+{
+	local proc=$1
+	local pid=$2
+	local retries=0
+
+	ocf_log info "Killing $proc (pid=$pid)"
+	while
+		daemon_is_running $pid && [ $retries -lt "$TIMEOUT_COUNT" ]
+	do
+		if [ $retries -ne 0 ] ; then
+			# don't sleep on the first try
+			sleep 0.5
+		fi
+		kill -s TERM $pid >/dev/null 2>&1
+		retries=$((retries + 1))
+	done
+
+}
+
+lvmlockd_stop() {
+	local pid=""
+
+	if ! silent_status ; then
+		ocf_log info "${LOCKD} is not running"
+		return $OCF_SUCCESS
+	fi
+
+	if [ -n "$(dlm_tool ls)" ]; then
+		# We are going to stop lvmlockd, at this moment, we hope all shared VG have
+		# been deactivated, otherwise we are in trouble: the stop action will fail!
+		ocf_log info "stop the lockspaces of shared VG(s)..."
+		ocf_run lvmlockctl --stop-lockspaces
+		rc=$?
+		if [ $rc -ne $OCF_SUCCESS ] ; then
+			ocf_exit_reason "Failed to close lockspace, exit code: $rc"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
+	wait_lockspaces_close
+
+	pid=$(get_pid)
+	kill_stop $LOCKD $pid
+
+	if ocf_is_true $OCF_RESKEY_with_cmirrord; then
+		pid=$(pgrep $CMIRRORD)
+		kill_stop $CMIRRORD $pid
+	fi
+
+	if silent_status ; then
+		ocf_exit_reason "Failed to stop, ${LOCKD} or ${CMIRRORD} still running."
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+lvmlockd_monitor() {
+	if silent_status ; then
+		return $OCF_SUCCESS
+	fi
+
+	ocf_log info "${LOCKD} not running"
+	return $OCF_NOT_RUNNING
+}
+
+lvmlockd_validate() {
+	check_binary ${LOCKD}
+	check_binary lvm
+	check_binary dlm_tool
+	check_binary pgrep
+	check_binary lvmlockctl
+
+	if ocf_is_true $OCF_RESKEY_with_cmirrord; then
+		check_binary $CMIRRORD
+	fi
+
+	return $OCF_SUCCESS
+}
+
+
+# Make sure meta-data and usage always succeed
+case $__OCF_ACTION in
+meta-data)		meta_data
+			exit $OCF_SUCCESS
+			;;
+usage|help)		usage
+			exit $OCF_SUCCESS
+			;;
+esac
+
+# Anything other than meta-data and usage must pass validation
+lvmlockd_validate || exit $?
+
+# Translate each action into the appropriate function call
+case $__OCF_ACTION in
+start)			lvmlockd_start
+			;;
+stop)			lvmlockd_stop
+			;;
+monitor)		lvmlockd_monitor
+			;;
+validate-all)		lvmlockd_validate
+			;;
+*)			usage
+			exit $OCF_ERR_UNIMPLEMENTED
+			;;
+esac
+rc=$?
+
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc

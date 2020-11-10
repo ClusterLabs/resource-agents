@@ -1,0 +1,156 @@
+#!@BASH_SHELL@
+#
+#
+#	LXD Registration Service OCF Resource Agent
+#	It records (in the CIB) various attributes of a node
+#
+# Copyright (c) 2017 Mathieu Grzybek
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Parameter defaults
+
+OCF_RESKEY_pidfile_default="$HA_RSCTMP/LXDInfo-${OCF_RESOURCE_INSTANCE}"
+OCF_RESKEY_delay_default="0s"
+OCF_RESKEY_clone_default="0"
+
+: ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
+: ${OCF_RESKEY_delay=${OCF_RESKEY_delay_default}}
+: ${OCF_RESKEY_clone=${OCF_RESKEY_clone_default}}
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="lxd-info">
+<version>1.0</version>
+
+<longdesc lang="en">
+This is a LXD Registration Service Resource Agent.
+It records (in the CIB) attributes about the number of running LXD containers
+running on the node.
+Sample output:
+   lxd_containers:   5
+</longdesc>
+<shortdesc lang="en">Records various node attributes in the CIB</shortdesc>
+
+<parameters>
+<parameter name="pidfile" unique="0">
+<longdesc lang="en">PID file</longdesc>
+<shortdesc lang="en">PID file</shortdesc>
+<content type="string" default="${OCF_RESKEY_pidfile_default}" />
+</parameter>
+<parameter name="delay" unique="0">
+<longdesc lang="en">Interval to allow values to stabilize</longdesc>
+<shortdesc lang="en">Dampening Delay</shortdesc>
+<content type="string" default="${OCF_RESKEY_delay_default}" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start"   timeout="20s" />
+<action name="stop"    timeout="20s" />
+<action name="monitor" timeout="20s" interval="60s"/>
+<action name="meta-data"  timeout="5s" />
+<action name="validate-all"  timeout="20s" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+LXDInfoStats() {
+	value=$(lxc list|grep -ci RUNNING)
+	echo -e "lxd_containers:\t$value"
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n lxd_containers -v $value
+}
+
+LXDInfo_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+LXDInfo_start() {
+	echo $OCF_RESKEY_clone > $OCF_RESKEY_pidfile
+	LXDInfoStats
+	exit $OCF_SUCCESS
+}
+
+LXDInfo_stop() {
+	rm -f $OCF_RESKEY_pidfile
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n lxd_containers
+	exit $OCF_SUCCESS
+}
+
+LXDInfo_monitor() {
+	if [ -f "$OCF_RESKEY_pidfile" ] ; then
+		LXDInfoStats
+		exit $OCF_RUNNING
+	fi
+	exit $OCF_NOT_RUNNING
+}
+
+LXDInfo_validate() {
+	return $OCF_SUCCESS
+}
+
+if [ $# -ne 1 ]; then
+    LXDInfo_usage
+    exit $OCF_ERR_ARGS
+fi
+
+if [ x != x${OCF_RESKEY_delay} ]; then
+	OCF_RESKEY_delay="-d ${OCF_RESKEY_delay}"
+fi
+
+case $__OCF_ACTION in
+meta-data)	meta_data
+		exit $OCF_SUCCESS
+		;;
+start)		LXDInfo_start
+		;;
+stop)		LXDInfo_stop
+		;;
+monitor)	LXDInfo_monitor
+		;;
+validate-all)	LXDInfo_validate
+		;;
+usage|help)	LXDInfo_usage
+		exit $OCF_SUCCESS
+		;;
+*)		LXDInfo_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+
+exit $?

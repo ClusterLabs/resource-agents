@@ -29,15 +29,30 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_set_policy_default=""
+
+: ${OCF_RESKEY_set_policy=${OCF_RESKEY_set_policy_default}}
+
 #######################################################################
+
+# This arbitrary value here is used by the rmq_start action to
+# signify that the resource agent must retry the start process
+# It might potentially conflict with OCF assigned error code
+# in the future.
+RMQ_TRY_RESTART_ERROR_CODE=126
 
 RMQ_SERVER=/usr/sbin/rabbitmq-server
 RMQ_CTL=/usr/sbin/rabbitmqctl
+RMQ_EVAL="${RMQ_CTL} eval -q"
 RMQ_DATA_DIR="/var/lib/rabbitmq/mnesia"
 RMQ_PID_DIR="/var/run/rabbitmq"
 RMQ_PID_FILE="/var/run/rabbitmq/rmq.pid"
 RMQ_LOG_DIR="/var/log/rabbitmq"
-NODENAME=$(ocf_local_nodename)
+if [ "$__OCF_ACTION" != "meta-data" ]; then
+	NODENAME=$(ocf_attribute_target)
+fi
 
 # this attr represents the current active local rmq node name.
 # when rmq stops or the node is fenced, this attr disappears
@@ -68,17 +83,17 @@ Only on pacemaker *or* pacemaker-remote nodes exclusively.
 Policy string to pass to 'rabbitmqctl set_policy' right after bootstrapping the first rabbitmq instance.
 </longdesc>
 <shortdesc lang="en">rabbitmqctl set_policy args</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_set_policy_default}" />
 </parameter>
 
 </parameters>
 
 <actions>
-<action name="start"        timeout="100" />
-<action name="stop"         timeout="90" />
-<action name="monitor"      timeout="40" interval="10" depth="0" />
-<action name="meta-data"    timeout="10" />
-<action name="validate-all"   timeout="20" />
+<action name="start"        timeout="100s" />
+<action name="stop"         timeout="90s" />
+<action name="monitor"      timeout="40s" interval="10s" depth="0" />
+<action name="meta-data"    timeout="10s" />
+<action name="validate-all"   timeout="20s" />
 </actions>
 </resource-agent>
 END
@@ -99,10 +114,66 @@ rmq_wipe_data()
 	rm -rf $RMQ_DATA_DIR > /dev/null 2>&1 
 }
 
+rmq_restore_users_perms_policies()
+{
+	# Restore users, user permissions, and policies (if any)
+	BaseDataDir=`dirname $RMQ_DATA_DIR`
+	$RMQ_EVAL "
+		%% Run only if Mnesia is ready.
+		lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
+		begin
+			Restore = fun(Table, PostprocessFun, Filename) ->
+				case file:consult(Filename) of
+					{error, _} ->
+						ok;
+					{ok, [Result]} ->
+						lists:foreach(fun(X) -> mnesia:dirty_write(Table, PostprocessFun(X)) end, Result),
+						file:delete(Filename)
+				end
+			end,
+
+			%% Restore users
+
+			Upgrade = fun
+				({internal_user, A, B, C}) -> {internal_user, A, B, C, rabbit_password_hashing_md5};
+				({internal_user, A, B, C, D}) -> {internal_user, A, B, C, D}
+			end,
+
+			Downgrade = fun
+				({internal_user, A, B, C}) -> {internal_user, A, B, C};
+				({internal_user, A, B, C, rabbit_password_hashing_md5}) -> {internal_user, A, B, C};
+				%% Incompatible scheme, so we will loose user's password ('B' value) during conversion.
+				%% Unfortunately, this case will require manual intervention - user have to run:
+				%%    rabbitmqctl change_password <A> <somenewpassword>
+				({internal_user, A, B, C, _}) -> {internal_user, A, B, C}
+			end,
+
+			%% Check db scheme first
+			[WildPattern] = ets:select(mnesia_gvar, [ { {{rabbit_user, wild_pattern}, '\\\$1'}, [], ['\\\$1'] } ]),
+			case WildPattern of
+				%% Version < 3.6.0
+				{internal_user,'_','_','_'} ->
+					Restore(rabbit_user, Downgrade, \"$BaseDataDir/users.erl\");
+				%% Version >= 3.6.0
+				{internal_user,'_','_','_','_'} ->
+					Restore(rabbit_user, Upgrade, \"$BaseDataDir/users.erl\")
+			end,
+
+			NoOp = fun(X) -> X end,
+
+			%% Restore user permissions
+			Restore(rabbit_user_permission, NoOp, \"$BaseDataDir/users_perms.erl\"),
+
+			%% Restore policies
+			Restore(rabbit_runtime_parameters, NoOp, \"$BaseDataDir/policies.erl\")
+		end.
+	"
+}
+
 rmq_local_node()
 {
 
-	local node_name=$(rabbitmqctl status 2>&1 | sed -n -e "s/^.*[S|s]tatus of node \(.*\)\s.*$/\1/p" | tr -d "'")
+	local node_name=$($RMQ_CTL status 2>&1 | sed -n -e "s/^.*[S|s]tatus of node \(.*\)\s.*$/\1/p" | tr -d "'")
 
 	if [ -z "$node_name" ]; then
 		node_name=$(cat /etc/rabbitmq/rabbitmq-env.conf 2>/dev/null | grep "\s*RABBITMQ_NODENAME=" | awk -F= '{print $2}')
@@ -170,34 +241,61 @@ remove_pid () {
 	rm -f ${RMQ_PID_FILE} > /dev/null 2>&1
 }
 
+rmq_app_running() {
+	if $RMQ_EVAL 'application:which_applications().' | grep -q '{rabbit,'; then
+		ocf_log debug "RabbitMQ application is running"
+		return $OCF_SUCCESS
+	else
+		ocf_log debug "RabbitMQ application is stopped"
+		rmq_delete_nodename
+		return $OCF_NOT_RUNNING
+	fi
+}
+
+rmq_node_alive() {
+	if $RMQ_EVAL 'ok.'; then
+		ocf_log debug "RabbitMQ node is alive"
+		return $OCF_SUCCESS
+	else
+		ocf_log debug "RabbitMQ node is down"
+		rmq_delete_nodename
+		return $OCF_NOT_RUNNING
+	fi
+}
+
 rmq_monitor() {
 	local rc
 
-	$RMQ_CTL cluster_status > /dev/null 2>&1
-	rc=$?
-	case "$rc" in
-	0)
+	status=$($RMQ_EVAL 'rabbit_mnesia:cluster_status_from_mnesia().' 2>&1)
+	if echo "${status}" | grep -q '^{ok'; then
+		pcs_running=$(rmq_join_list | wc -w)
+		ocf_log debug "Pacemaker thinks ${pcs_running} RabbitMQ nodes are running"
+		rmq_running=$($RMQ_EVAL 'length(mnesia:system_info(running_db_nodes)).')
+		ocf_log debug "RabbitMQ thinks ${rmq_running} RabbitMQ nodes are running"
+
+		if [ $(( $rmq_running * 2 )) -lt $pcs_running ]; then
+			ocf_log info "RabbitMQ is a minority partition, failing monitor"
+			rmq_delete_nodename
+			return $OCF_ERR_GENERIC
+		fi
+
 		ocf_log debug "RabbitMQ server is running normally"
 		rmq_write_nodename
-		
+
 		return $OCF_SUCCESS
-	;;
-	2|68|69|70|75|78)
-		ocf_log info "RabbitMQ server is not running"
+	else
+		ocf_log info "RabbitMQ server could not get cluster status from mnesia"
+		ocf_log debug "${status}"
 		rmq_delete_nodename
 		return $OCF_NOT_RUNNING
-	;;
-	*)
-		ocf_log err "Unexpected return code from '$RMQ_CTL cluster_status' exit code: $rc"
-		rmq_delete_nodename
-		return $OCF_ERR_GENERIC
-	;;
-	esac
+	fi
 }
 
 rmq_init_and_wait()
 {
 	local rc
+	local wait_timeout
+	local timeout_string
 
 	prepare_dir $RMQ_PID_DIR
 	prepare_dir $RMQ_LOG_DIR
@@ -209,15 +307,24 @@ rmq_init_and_wait()
 	setsid sh -c "$RMQ_SERVER > ${RMQ_LOG_DIR}/startup_log 2> ${RMQ_LOG_DIR}/startup_err" &
 
 	ocf_log info "Waiting for server to start"
-	$RMQ_CTL wait $RMQ_PID_FILE
+	# We want to give the wait command almost the full startup timeout we are given
+	# So we use the start operation timeout (in ms), convert it and subtract 5 seconds
+	# In the silly case that it is less than 10 seconds we just skip setting the timeout
+	wait_timeout=`expr $OCF_RESKEY_CRM_meta_timeout / 1000 - 5`
+	if [ $wait_timeout -gt 10 ]; then
+		timeout_string="--timeout ${wait_timeout}"
+	else
+		timeout_string=""
+	fi
+	$RMQ_CTL $timeout_string wait $RMQ_PID_FILE
 	rc=$?
 	if [ $rc -ne $OCF_SUCCESS ]; then
 		remove_pid
-		ocf_log info "rabbitmq-server start failed: $rc"
+		ocf_log info "rabbitmq-server start failed with a timeout of ($timeout_string): $rc"
 		return $OCF_ERR_GENERIC
 	fi
 
-	rmq_monitor
+	rmq_app_running
 	return $?
 }
 
@@ -238,10 +345,11 @@ rmq_start_first()
 	if [ $rc -eq 0 ]; then
 		rc=$OCF_SUCCESS
 		ocf_log info "cluster bootstrapped"
+		rmq_write_nodename
 
 		if [ -n "$OCF_RESKEY_set_policy" ]; then
 			# do not quote set_policy, we are passing in arguments
-			rmq_set_policy $OCF_RESKEY_set_policy > /dev/null 2>&1
+			rmq_set_policy $OCF_RESKEY_set_policy
 			if [ $? -ne 0 ]; then
 				ocf_log err "Failed to set policy: $OCF_RESKEY_set_policy"
 				rc=$OCF_ERR_GENERIC
@@ -260,7 +368,7 @@ rmq_start_first()
 
 rmq_is_clustered()
 {
-    $RMQ_CTL eval 'rabbit_mnesia:is_clustered().' | grep -q true
+    $RMQ_EVAL 'rabbit_mnesia:is_clustered().' | grep -q true
 }
 
 rmq_join_existing()
@@ -310,7 +418,7 @@ rmq_forget_cluster_node_remotely() {
 
 	ocf_log info "Forgetting $node_to_forget via nodes [ $(echo $running_cluster_nodes | tr '\n' ' ') ]."
 	for running_cluster_node in $running_cluster_nodes; do
-		rabbitmqctl -n $running_cluster_node forget_cluster_node $node_to_forget
+		$RMQ_CTL -n $running_cluster_node forget_cluster_node $node_to_forget
 		if [ $? = 0 ]; then
 			ocf_log info "Succeeded forgetting $node_to_forget via $running_cluster_node."
 			return
@@ -340,7 +448,7 @@ rmq_notify() {
 
 	# forget each stopped rmq instance in the provided pcmk node in the list.
 	for node in $(echo "$node_list"); do
-		local rmq_node="$(${HA_SBIN_DIR}/crm_attribute -N $node -l forever --query --name $RMQ_CRM_ATTR_COOKIE_LAST_KNOWN -q)"
+		local rmq_node="$(${HA_SBIN_DIR}/crm_attribute -N $(ocf_attribute_target $node) -l forever --query --name $RMQ_CRM_ATTR_COOKIE_LAST_KNOWN -q)"
 		if [ -z "$rmq_node" ]; then
 			ocf_log warn "Unable to map pcmk node $node to a known rmq node."
 			continue	
@@ -354,7 +462,7 @@ rmq_notify() {
 	return $OCF_SUCCESS
 }
 
-rmq_start() {
+rmq_try_start() {
 	local join_list=""
 	local rc
 
@@ -370,6 +478,7 @@ rmq_start() {
 	if [ -z "$join_list" ]; then
 		rmq_start_first
 		rc=$?
+		rmq_restore_users_perms_policies
 		return $rc
 	fi
 
@@ -384,69 +493,36 @@ rmq_start() {
 	rc=$?
 
 	if [ $rc -ne 0 ]; then
-		ocf_log info "node failed to join even after reseting local data. Check SELINUX policy"
-		return $OCF_ERR_GENERIC
+		# we could not join the rabbitmq cluster from any of the running nodes
+		# this might be due to a unexpected reset of those nodes. Give ourself
+		# a chance to start by retrying the entire start sequence.
+
+		ocf_log warn "Failed to join the RabbitMQ cluster from nodes ${join_list}. Stopping local unclustered rabbitmq"
+		rmq_stop
+
+		ocf_log warn "Re-detect available rabbitmq nodes and try to start again"
+		# return an unused OCF value to signify a "retry" condition
+		return $RMQ_TRY_RESTART_ERROR_CODE
 	fi
 
-	# Restore users, user permissions, and policies (if any)
-	BaseDataDir=`dirname $RMQ_DATA_DIR`
-	rabbitmqctl eval "
-		%% Run only if Mnesia is ready.
-		lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
-		begin
-			Restore = fun(Table, PostprocessFun, Filename) ->
-				case file:consult(Filename) of
-					{error, _} ->
-						ok;
-					{ok, [Result]} ->
-						lists:foreach(fun(X) -> mnesia:dirty_write(Table, PostprocessFun(X)) end, Result),
-						file:delete(Filename)
-				end
-			end,
+	rmq_restore_users_perms_policies
 
-			%% Restore users
-
-			Upgrade = fun
-				({internal_user, A, B, C}) -> {internal_user, A, B, C, rabbit_password_hashing_md5};
-				({internal_user, A, B, C, D}) -> {internal_user, A, B, C, D}
-			end,
-
-			Downgrade = fun
-				({internal_user, A, B, C}) -> {internal_user, A, B, C};
-				({internal_user, A, B, C, rabbit_password_hashing_md5}) -> {internal_user, A, B, C};
-				%% Incompatible scheme, so we will loose user's password ('B' value) during conversion.
-				%% Unfortunately, this case will require manual intervention - user have to run:
-				%%    rabbitmqctl change_password <A> <somenewpassword>
-				({internal_user, A, B, C, _}) -> {internal_user, A, B, C}
-			end,
-
-			%% Check db scheme first
-			[WildPattern] = ets:select(mnesia_gvar, [ { {{rabbit_user, wild_pattern}, '\\\$1'}, [], ['\\\$1'] } ]),
-			case WildPattern of
-				%% Version < 3.6.0
-				{internal_user,'_','_','_'} ->
-					Restore(rabbit_user, Downgrade, \"$BaseDataDir/users.erl\");
-				%% Version >= 3.6.0
-				{internal_user,'_','_','_','_'} ->
-					Restore(rabbit_user, Upgrade, \"$BaseDataDir/users.erl\")
-			end,
-
-			NoOp = fun(X) -> X end,
-
-			%% Restore user permissions
-			Restore(rabbit_user_permission, NoOp, \"$BaseDataDir/users_perms.erl\"),
-
-			%% Restore policies
-			Restore(rabbit_runtime_parameters, NoOp, \"$BaseDataDir/policies.erl\")
-		end.
-	"
 	return $OCF_SUCCESS
+}
+
+rmq_start() {
+	local rc=$RMQ_TRY_RESTART_ERROR_CODE
+	while [ $rc -eq $RMQ_TRY_RESTART_ERROR_CODE ]; do
+		rmq_try_start
+		rc=$?
+	done
+	return $rc
 }
 
 rmq_stop() {
 	# Backup users, user permissions, and policies
 	BaseDataDir=`dirname $RMQ_DATA_DIR`
-	rabbitmqctl eval "
+	$RMQ_EVAL "
 		%% Run only if Mnesia is still available.
 		lists:any(fun({mnesia,_,_}) -> true; ({_,_,_}) -> false end, application:which_applications()) andalso
 		begin
@@ -477,7 +553,7 @@ rmq_stop() {
 		end.
 	"
 
-	rmq_monitor
+	rmq_node_alive
 	if [ $? -eq $OCF_NOT_RUNNING ]; then
 		return $OCF_SUCCESS
 	fi
@@ -487,24 +563,27 @@ rmq_stop() {
 
 	if [ $rc -ne 0 ]; then
 		ocf_log err "rabbitmq-server stop command failed: $RMQ_CTL stop, $rc"
+		rmq_delete_nodename
 		return $rc
 	fi
 
 	#TODO add kill logic
 	stop_wait=1
 	while [ $stop_wait = 1 ]; do
-		rmq_monitor
+		rmq_app_running
 		rc=$?
 		if [ "$rc" -eq $OCF_NOT_RUNNING ]; then
 			stop_wait=0
 			break
 		elif [ "$rc" -ne $OCF_SUCCESS ]; then
 			ocf_log info "rabbitmq-server stop failed: $rc"
+			rmq_delete_nodename
 			exit $OCF_ERR_GENERIC
 		fi
 		sleep 1
 	done
 
+	rmq_delete_nodename
 	remove_pid
 	return $OCF_SUCCESS
 }

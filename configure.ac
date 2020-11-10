@@ -21,7 +21,7 @@ dnl     checks for system services
 
 AC_INIT([resource-agents], 
 	m4_esyscmd([make/git-version-gen .tarball-version]),
-	[to_be_defined@foobar.org])
+	[developers@clusterlabs.org])
 
 AC_USE_SYSTEM_EXTENSIONS
 
@@ -30,6 +30,8 @@ CRM_DTD_VERSION="1.0"
 PKG_FEATURES=""
 
 AC_CONFIG_AUX_DIR(.)
+AC_CONFIG_MACRO_DIR([m4])
+
 AC_CANONICAL_HOST
 
 dnl Where #defines go (e.g. `AC_CHECK_HEADERS' below)
@@ -72,9 +74,27 @@ AS_IF([test "x$with_systemdsystemunitdir" = "xyes" -o "x$with_systemdsystemunitd
                 [AC_MSG_ERROR([systemd support requested but pkg-config unable to query systemd package])])
           with_systemdsystemunitdir=no],
          [with_systemdsystemunitdir="$def_systemdsystemunitdir"])])
+if test "x$with_systemdsystemunitdir" != "xno" && \
+   test "x${prefix}" != "xNONE" && \
+   test "x${prefix}" != "x/usr"; then
+       with_systemdsystemunitdir="${prefix}/$with_systemdsystemunitdir"
+fi
 AS_IF([test "x$with_systemdsystemunitdir" != "xno"],
       [AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])])
 AM_CONDITIONAL([HAVE_SYSTEMD], [test "x$with_systemdsystemunitdir" != "xno"])
+
+AC_ARG_WITH([systemdtmpfilesdir],
+     AS_HELP_STRING([--with-systemdtmpfilesdir=DIR], [Directory for systemd tmp files]),
+     [], [with_systemdtmpfilesdir=$($PKGCONFIG --variable=tmpfilesdir systemd)])
+     if test "x$with_systemdtmpfilesdir" != xno && \
+        test "x${prefix}" != "xNONE" && \
+        test "x${prefix}" != "x/usr"; then
+            with_systemdtmpfilesdir="${prefix}/$with_systemdtmpfilesdir"
+     fi
+     if test "x$with_systemdtmpfilesdir" != xno; then
+         AC_SUBST([systemdtmpfilesdir], [$with_systemdtmpfilesdir])
+     fi
+AM_CONDITIONAL(HAVE_SYSTEMD, [test -n "$with_systemdtmpfilesdir" -a "x$with_systemdtmpfilesdir" != xno ])
 
 dnl 
 dnl AM_INIT_AUTOMAKE([1.11.1 foreign dist-bzip2 dist-xz])
@@ -423,7 +443,7 @@ AC_SUBST(HA_VARRUNDIR)
 
 # Expand $prefix
 eval HA_RSCTMPDIR="`eval echo ${HA_RSCTMPDIR}`"
-AC_DEFINE_UNQUOTED(HA_RSCTMPDIR,"$HA_RSCTMPDIR", Where Resouce agents keep state files)
+AC_DEFINE_UNQUOTED(HA_RSCTMPDIR,"$HA_RSCTMPDIR", Where Resource agents keep state files)
 AC_SUBST(HA_RSCTMPDIR)
 
 dnl Eventually move out of the heartbeat dir tree and create symlinks when needed
@@ -462,8 +482,18 @@ dnl ===============================================
 PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin"
 export PATH
 
-AM_PATH_PYTHON
 AC_CHECK_PROGS(MAKE, gmake make)
+AC_PATH_PROGS(BASH_SHELL, bash)
+if test x"${BASH_SHELL}" = x""; then
+   AC_MSG_ERROR(You need bash installed in order to build ${PACKAGE})
+fi
+AC_PATH_PROGS(XSLTPROC, xsltproc)
+AM_CONDITIONAL(BUILD_DOC, test "x$XSLTPROC" != "x" )
+if test "x$XSLTPROC" = "x"; then
+   AC_MSG_WARN([xsltproc not installed, unable to (re-)build manual pages])
+fi
+AC_SUBST(XSLTPROC)
+AC_PATH_PROGS(XMLCATALOG, xmlcatalog)
 AC_PATH_PROGS(SSH, ssh, /usr/bin/ssh)
 AC_PATH_PROGS(SCP, scp, /usr/bin/scp)
 AC_PATH_PROGS(TAR, tar)
@@ -473,12 +503,57 @@ AC_PATH_PROGS(PING, ping, /bin/ping)
 AC_PATH_PROGS(IFCONFIG, ifconfig, /sbin/ifconfig)
 AC_PATH_PROGS(MAILCMD, mailx mail, mail)
 AC_PATH_PROGS(EGREP, egrep)
+AC_PATH_PROGS(RM, rm)
 
+AC_SUBST(BASH_SHELL)
 AC_SUBST(MAILCMD)
 AC_SUBST(EGREP)
 AC_SUBST(SHELL)
 AC_SUBST(PING)
+AC_SUBST(RM)
 AC_SUBST(TEST)
+
+dnl Ensure PYTHON is an absolute path
+AC_PATH_PROG([PYTHON], [$PYTHON])
+
+AM_PATH_PYTHON
+if test -z "$PYTHON"; then
+    echo "*** Essential program python not found" 1>&2
+fi
+
+AC_PYTHON_MODULE(googleapiclient)
+AC_PYTHON_MODULE(pyroute2)
+
+AS_VERSION_COMPARE([$PYTHON_VERSION], [2.7], [BUILD_OCF_PY=0], [BUILD_OCF_PY=1], [BUILD_OCF_PY=1])
+
+BUILD_AZURE_EVENTS=1
+if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0; then
+    BUILD_AZURE_EVENTS=0
+    AC_MSG_WARN("Not building azure-events")
+fi
+AM_CONDITIONAL(BUILD_AZURE_EVENTS, test $BUILD_AZURE_EVENTS -eq 1)
+
+BUILD_GCP_PD_MOVE=1
+if test -z "$PYTHON" || test "x${HAVE_PYMOD_GOOGLEAPICLIENT}" != xyes || test $BUILD_OCF_PY -eq 0; then
+    BUILD_GCP_PD_MOVE=0
+    AC_MSG_WARN("Not building gcp-pd-move")
+fi
+AM_CONDITIONAL(BUILD_GCP_PD_MOVE, test $BUILD_GCP_PD_MOVE -eq 1)
+
+BUILD_GCP_VPC_MOVE_ROUTE=1
+if test -z "$PYTHON" || test "x${HAVE_PYMOD_GOOGLEAPICLIENT}" != xyes || \
+   test "x${HAVE_PYMOD_PYROUTE2}" != xyes || test $BUILD_OCF_PY -eq 0; then
+    BUILD_GCP_VPC_MOVE_ROUTE=0
+    AC_MSG_WARN("Not building gcp-vpc-move-route")
+fi
+AM_CONDITIONAL(BUILD_GCP_VPC_MOVE_ROUTE, test $BUILD_GCP_VPC_MOVE_ROUTE -eq 1)
+
+BUILD_GCP_VPC_MOVE_VIP=1
+if test -z "$PYTHON" || test "x${HAVE_PYMOD_GOOGLEAPICLIENT}" != xyes || test $BUILD_OCF_PY -eq 0; then
+    BUILD_GCP_VPC_MOVE_VIP=0
+    AC_MSG_WARN("Not building gcp-vpc-move-vip")
+fi
+AM_CONDITIONAL(BUILD_GCP_VPC_MOVE_VIP, test $BUILD_GCP_VPC_MOVE_VIP -eq 1)
 
 AC_PATH_PROGS(ROUTE, route)
 AC_DEFINE_UNQUOTED(ROUTE, "$ROUTE", path to route command)
@@ -501,6 +576,39 @@ AC_SUBST(IFCONFIG_A_OPT)
 if test x"${MAKE}" = x""; then
    AC_MSG_ERROR(You need (g)make installed in order to build ${PACKAGE})
 fi
+
+STYLESHEET_PREFIX=""
+if test x"${XSLTPROC}" != x""; then
+    AC_MSG_CHECKING(docbook to manpage transform)
+    # first try to figure out correct template using xmlcatalog query,
+    # resort to extensive (semi-deterministic) file search if that fails
+    DOCBOOK_XSL_URI='http://docbook.sourceforge.net/release/xsl/current'
+    DOCBOOK_XSL_PATH='manpages/docbook.xsl'
+    STYLESHEET_PREFIX=$(${XMLCATALOG} "" ${DOCBOOK_XSL_URI} \
+                   | sed -n 's|^file://||p;q')
+    if test x"${STYLESHEET_PREFIX}" = x""; then
+        DIRS=$(find "${datadir}" -name $(basename $(dirname ${DOCBOOK_XSL_PATH})) \
+               -type d | LC_ALL=C sort)
+        if test x"${DIRS}" = x""; then
+            # when datadir is not standard OS path, we cannot find docbook.xsl
+            # use standard OS path as backup
+            DIRS=$(find "/usr/share" -name $(basename $(dirname ${DOCBOOK_XSL_PATH})) \
+                   -type d | LC_ALL=C sort)
+        fi
+        XSLT=$(basename ${DOCBOOK_XSL_PATH})
+        for d in ${DIRS}; do
+            if test -f "${d}/${XSLT}"; then
+                 STYLESHEET_PREFIX=$(echo "${d}" | sed 's/\/manpages//')
+                 break
+            fi
+        done
+    fi
+    if test x"${STYLESHEET_PREFIX}" = x""; then
+        AC_MSG_ERROR(You need docbook-style-xsl installed in order to build ${PACKAGE})
+    fi
+fi
+AC_MSG_RESULT($STYLESHEET_PREFIX)
+AC_SUBST(STYLESHEET_PREFIX)
 
 dnl ===============================================
 dnl Libraries
@@ -581,13 +689,6 @@ AC_SUBST(POWEROFF_CMD)
 AC_SUBST(POWEROFF_OPTIONS)
 AC_DEFINE_UNQUOTED(POWEROFF_CMD, "$POWEROFF_CMD", path to the poweroff command)
 AC_DEFINE_UNQUOTED(POWEROFF_OPTIONS, "$POWEROFF_OPTIONS", poweroff options)
-
-AC_PATH_PROGS(XSLTPROC, xsltproc)
-AM_CONDITIONAL(BUILD_DOC, test "x$XSLTPROC" != "x" )
-if test "x$XSLTPROC" = "x"; then
-   AC_MSG_WARN([xsltproc not installed, unable to (re-)build manual pages])
-fi
-AC_SUBST(XSLTPROC)
 
 AC_PATH_PROGS(POD2MAN, pod2man)
 AM_CONDITIONAL(BUILD_POD_DOC, test "x$POD2MAN" != "x" )
@@ -768,7 +869,6 @@ else
 		-Wall
 		-Wbad-function-cast 
 		-Wcast-qual 
-		-Wcast-align 
 		-Wdeclaration-after-statement
 		-Wendif-labels
 		-Wfloat-equal
@@ -865,6 +965,7 @@ heartbeat/Makefile						\
    heartbeat/ocf-shellfuncs					\
    heartbeat/shellfuncs						\
 systemd/Makefile						\
+   systemd/resource-agents.conf					\
 tools/Makefile							\
    tools/ocf-tester						\
    tools/ocft/Makefile						\
@@ -888,8 +989,82 @@ doc/Makefile							\
 rgmanager/Makefile						\
 	rgmanager/src/Makefile					\
 	rgmanager/src/resources/Makefile			\
+		rgmanager/src/resources/ocf-shellfuncs		\
+		rgmanager/src/resources/svclib_nfslock		\
+		rgmanager/src/resources/lvm_by_lv.sh		\
+		rgmanager/src/resources/lvm_by_vg.sh		\
 	rgmanager/src/resources/utils/Makefile			\
+		rgmanager/src/resources/utils/fs-lib.sh		\
+		rgmanager/src/resources/utils/messages.sh	\
+		rgmanager/src/resources/utils/config-utils.sh	\
+		rgmanager/src/resources/utils/member_util.sh	\
+		rgmanager/src/resources/utils/ra-skelet.sh	\
 		)
+
+dnl Files we output that need to be executable
+AC_CONFIG_FILES([heartbeat/azure-events], [chmod +x heartbeat/azure-events])
+AC_CONFIG_FILES([heartbeat/AoEtarget], [chmod +x heartbeat/AoEtarget])
+AC_CONFIG_FILES([heartbeat/ManageRAID], [chmod +x heartbeat/ManageRAID])
+AC_CONFIG_FILES([heartbeat/ManageVE], [chmod +x heartbeat/ManageVE])
+AC_CONFIG_FILES([heartbeat/Squid], [chmod +x heartbeat/Squid])
+AC_CONFIG_FILES([heartbeat/SysInfo], [chmod +x heartbeat/SysInfo])
+AC_CONFIG_FILES([heartbeat/aws-vpc-route53], [chmod +x heartbeat/aws-vpc-route53])
+AC_CONFIG_FILES([heartbeat/clvm], [chmod +x heartbeat/clvm])
+AC_CONFIG_FILES([heartbeat/conntrackd], [chmod +x heartbeat/conntrackd])
+AC_CONFIG_FILES([heartbeat/dnsupdate], [chmod +x heartbeat/dnsupdate])
+AC_CONFIG_FILES([heartbeat/dummypy], [chmod +x heartbeat/dummypy])
+AC_CONFIG_FILES([heartbeat/eDir88], [chmod +x heartbeat/eDir88])
+AC_CONFIG_FILES([heartbeat/fio], [chmod +x heartbeat/fio])
+AC_CONFIG_FILES([heartbeat/gcp-pd-move], [chmod +x heartbeat/gcp-pd-move])
+AC_CONFIG_FILES([heartbeat/gcp-vpc-move-ip], [chmod +x heartbeat/gcp-vpc-move-ip])
+AC_CONFIG_FILES([heartbeat/gcp-vpc-move-vip], [chmod +x heartbeat/gcp-vpc-move-vip])
+AC_CONFIG_FILES([heartbeat/gcp-vpc-move-route], [chmod +x heartbeat/gcp-vpc-move-route])
+AC_CONFIG_FILES([heartbeat/iSCSILogicalUnit], [chmod +x heartbeat/iSCSILogicalUnit])
+AC_CONFIG_FILES([heartbeat/iSCSITarget], [chmod +x heartbeat/iSCSITarget])
+AC_CONFIG_FILES([heartbeat/jira], [chmod +x heartbeat/jira])
+AC_CONFIG_FILES([heartbeat/kamailio], [chmod +x heartbeat/kamailio])
+AC_CONFIG_FILES([heartbeat/lxc], [chmod +x heartbeat/lxc])
+AC_CONFIG_FILES([heartbeat/lxd-info], [chmod +x heartbeat/lxd-info])
+AC_CONFIG_FILES([heartbeat/machine-info], [chmod +x heartbeat/machine-info])
+AC_CONFIG_FILES([heartbeat/mariadb], [chmod +x heartbeat/mariadb])
+AC_CONFIG_FILES([heartbeat/mpathpersist], [chmod +x heartbeat/mpathpersist])
+AC_CONFIG_FILES([heartbeat/nfsnotify], [chmod +x heartbeat/nfsnotify])
+AC_CONFIG_FILES([heartbeat/redis], [chmod +x heartbeat/redis])
+AC_CONFIG_FILES([heartbeat/rsyslog], [chmod +x heartbeat/rsyslog])
+AC_CONFIG_FILES([heartbeat/sg_persist], [chmod +x heartbeat/sg_persist])
+AC_CONFIG_FILES([heartbeat/slapd], [chmod +x heartbeat/slapd])
+AC_CONFIG_FILES([heartbeat/sybaseASE], [chmod +x heartbeat/sybaseASE])
+AC_CONFIG_FILES([heartbeat/syslog-ng], [chmod +x heartbeat/syslog-ng])
+AC_CONFIG_FILES([heartbeat/vsftpd], [chmod +x heartbeat/vsftpd])
+AC_CONFIG_FILES([heartbeat/CTDB], [chmod +x heartbeat/CTDB])
+AC_CONFIG_FILES([rgmanager/src/resources/ASEHAagent.sh], [chmod +x rgmanager/src/resources/ASEHAagent.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/apache.sh], [chmod +x rgmanager/src/resources/apache.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/bind-mount.sh], [chmod +x rgmanager/src/resources/bind-mount.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/clusterfs.sh], [chmod +x rgmanager/src/resources/clusterfs.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/db2.sh], [chmod +x rgmanager/src/resources/db2.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/drbd.sh], [chmod +x rgmanager/src/resources/drbd.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/fs.sh], [chmod +x rgmanager/src/resources/fs.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/ip.sh], [chmod +x rgmanager/src/resources/ip.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/lvm.sh], [chmod +x rgmanager/src/resources/lvm.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/mysql.sh], [chmod +x rgmanager/src/resources/mysql.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/named.sh], [chmod +x rgmanager/src/resources/named.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/netfs.sh], [chmod +x rgmanager/src/resources/netfs.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/nfsclient.sh], [chmod +x rgmanager/src/resources/nfsclient.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/nfsexport.sh], [chmod +x rgmanager/src/resources/nfsexport.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/nfsserver.sh], [chmod +x rgmanager/src/resources/nfsserver.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/openldap.sh], [chmod +x rgmanager/src/resources/openldap.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/oracledb.sh], [chmod +x rgmanager/src/resources/oracledb.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/oradg.sh], [chmod +x rgmanager/src/resources/oradg.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/orainstance.sh], [chmod +x rgmanager/src/resources/orainstance.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/oralistener.sh], [chmod +x rgmanager/src/resources/oralistener.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/postgres-8.sh], [chmod +x rgmanager/src/resources/postgres-8.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/samba.sh], [chmod +x rgmanager/src/resources/samba.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/script.sh], [chmod +x rgmanager/src/resources/script.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/service.sh], [chmod +x rgmanager/src/resources/service.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/smb.sh], [chmod +x rgmanager/src/resources/smb.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/tomcat-5.sh], [chmod +x rgmanager/src/resources/tomcat-5.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/tomcat-6.sh], [chmod +x rgmanager/src/resources/tomcat-6.sh])
+AC_CONFIG_FILES([rgmanager/src/resources/vm.sh], [chmod +x rgmanager/src/resources/vm.sh])
 
 dnl Now process the entire list of files added by previous 
 dnl  calls to AC_CONFIG_FILES()

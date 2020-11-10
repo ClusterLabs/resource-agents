@@ -60,9 +60,15 @@ oracle_usage() {
 }
 
 # Defaults
+OCF_RESKEY_sid_default=""
+OCF_RESKEY_home_default=""
+OCF_RESKEY_user_default=""
 OCF_RESKEY_monuser_default="OCFMON"
 OCF_RESKEY_monpassword_default="OCFMON"
 OCF_RESKEY_monprofile_default="OCFMONPROFILE"
+OCF_RESKEY_ipcrm_default="instance"
+OCF_RESKEY_clear_backupmode_default="false"
+OCF_RESKEY_shutdown_method_default="checkpoint/abort"
 
 oracle_meta_data() {
 	cat <<END
@@ -84,7 +90,7 @@ as an HA resource.
 The Oracle SID (aka ORACLE_SID).
 </longdesc>
 <shortdesc lang="en">sid</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_sid_default}" />
 </parameter>
 
 <parameter name="home" unique="0">
@@ -94,7 +100,7 @@ If not specified, then the SID along with its home should be listed in
 /etc/oratab.
 </longdesc>
 <shortdesc lang="en">home</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_home_default}" />
 </parameter>
 
 <parameter name="user" unique="0">
@@ -105,7 +111,7 @@ file \$ORACLE_HOME/dbs/*\${ORACLE_SID}.ora.
 If this does not work for you, just set it explicitely.
 </longdesc>
 <shortdesc lang="en">user</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_user_default}" />
 </parameter>
 
 <parameter name="monuser" unique="0">
@@ -126,6 +132,8 @@ that the password for this user does not expire.
 <longdesc lang="en">
 Password for the monitoring user. Make sure
 that the password for this user does not expire.
+Need to explicitly set a password to a new monitor
+user for the security reason.
 </longdesc>
 <shortdesc lang="en">monpassword</shortdesc>
 <content type="string" default="$OCF_RESKEY_monpassword_default" />
@@ -183,7 +191,7 @@ runs as separate user.
 Please report any problems. Suggestions/fixes welcome.
 </longdesc>
 <shortdesc lang="en">ipcrm</shortdesc>
-<content type="string" default="instance" />
+<content type="string" default="${OCF_RESKEY_ipcrm_default}" />
 </parameter>
 
 <parameter name="clear_backupmode" unique="0" required="0">
@@ -191,7 +199,7 @@ Please report any problems. Suggestions/fixes welcome.
 The clear of the backup mode of ORACLE.
 </longdesc>
 <shortdesc lang="en">clear_backupmode</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_clear_backupmode_default}" />
 </parameter>
 
 <parameter name="shutdown_method" unique="0" required="0">
@@ -212,19 +220,19 @@ If you still think that there's even better way to shutdown an
 Oracle instance we are willing to listen.
 </longdesc>
 <shortdesc lang="en">shutdown_method</shortdesc>
-<content type="string" default="checkpoint/abort" />
+<content type="string" default="${OCF_RESKEY_shutdown_method_default}" />
 </parameter>
 
 </parameters>
 
 <actions>
-<action name="start" timeout="120" />
-<action name="stop" timeout="120" />
-<action name="status" timeout="5" />
-<action name="monitor" depth="0" timeout="30" interval="120" />
-<action name="validate-all" timeout="5" />
-<action name="methods" timeout="5" />
-<action name="meta-data" timeout="5" />
+<action name="start" timeout="120s" />
+<action name="stop" timeout="120s" />
+<action name="status" timeout="5s" />
+<action name="monitor" depth="0" timeout="30s" interval="120s" />
+<action name="validate-all" timeout="5s" />
+<action name="methods" timeout="5s" />
+<action name="meta-data" timeout="5s" />
 </actions>
 </resource-agent>
 END
@@ -345,7 +353,7 @@ db_backup_mode() {
 	echo "select 'COUNT'||count(*) from v\$backup where status='ACTIVE';"
 }
 is_clear_backupmode_set(){
-	[ x"${clear_backupmode}" = x"true" ]
+	ocf_is_true "${clear_backupmode}"
 }
 is_instance_in_backup_mode() {
 	local count
@@ -388,7 +396,7 @@ show_mon_user_profile() {
 	echo "select PROFILE from dba_users where USERNAME='$MONUSR';"
 }
 set_mon_user_profile() {
-	echo "alter user "$MONUSR" profile '$MONPROFILE';"
+	echo "alter user "$MONUSR" profile "$MONPROFILE";"
 }
 reset_mon_user_password() {
 	echo "alter user "$MONUSR" identified by "$MONPWD";"
@@ -434,6 +442,12 @@ check_mon_user() {
 			return 1
 		fi
 	fi
+
+	if [ -z "$OCF_RESKEY_monpassword" ]; then
+		ocf_exit_reason "Please explicitly set a password for $MONUSR oracle user"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
 	output=`dbasql mk_mon_user show_mon_user`
 	if echo "$output" | grep -iw "^$MONUSR" >/dev/null; then
 		return 0
@@ -546,6 +560,7 @@ is_proc_running() {
 instance_live() {
 	local status=`monsql_one dbstat`
 	[ "$status" = OPEN ] && return 0
+	ocf_log warn "Unable to login as \"$MONUSR\", using \"sysdba\" user instead"
 	status=`dbasql_one dbstat`
 	if [ "$status" = OPEN ]; then
 		return 0
@@ -575,9 +590,9 @@ ora_cleanup() {
 oracle_getconfig() {
 	ora_common_getconfig "$OCF_RESKEY_sid" "$OCF_RESKEY_home" "$OCF_RESKEY_user"
 
-	clear_backupmode=${OCF_RESKEY_clear_backupmode:-"false"}
-	shutdown_method=${OCF_RESKEY_shutdown_method:-"checkpoint/abort"}
-	IPCRM=${OCF_RESKEY_ipcrm:-"instance"}
+	clear_backupmode=${OCF_RESKEY_clear_backupmode:-${OCF_RESKEY_clear_backupmode_default}}
+	shutdown_method=${OCF_RESKEY_shutdown_method:-${OCF_RESKEY_shutdown_method_default}}
+	IPCRM=${OCF_RESKEY_ipcrm:-${OCF_RESKEY_ipcrm_default}}
 }
 
 #
@@ -644,11 +659,15 @@ oracle_start() {
 
 	# check/create the monitor profile
 	if ! check_mon_profile; then
+		# dbopen was failed if there is any $output
+		[ -n "$output" ] && ocf_exit_reason "oracle $ORACLE_SID can not be opened: $output"
 		return $OCF_ERR_GENERIC
 	fi
 
 	# check/create the monitor user
 	if ! check_mon_user; then
+		# dbopen was failed if there is any $output
+		[ -n "$output" ] && ocf_exit_reason "oracle $ORACLE_SID can not be opened: $output"
 		return $OCF_ERR_GENERIC
 	fi
 

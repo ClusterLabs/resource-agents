@@ -49,6 +49,30 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_interface_default=""
+OCF_RESKEY_name_default=""
+OCF_RESKEY_multiplier_default="1"
+OCF_RESKEY_repeat_count_default="5"
+OCF_RESKEY_repeat_interval_default="10"
+OCF_RESKEY_pktcnt_timeout_default="5"
+OCF_RESKEY_arping_count_default="1"
+OCF_RESKEY_arping_timeout_default="1"
+OCF_RESKEY_arping_cache_entries_default="5"
+OCF_RESKEY_link_status_only_default="false"
+
+: ${OCF_RESKEY_interface=${OCF_RESKEY_interface_default}}
+: ${OCF_RESKEY_name=${OCF_RESKEY_name_default}}
+: ${OCF_RESKEY_multiplier=${OCF_RESKEY_multiplier_default}}
+: ${OCF_RESKEY_repeat_count=${OCF_RESKEY_repeat_count_default}}
+: ${OCF_RESKEY_repeat_interval=${OCF_RESKEY_repeat_interval_default}}
+: ${OCF_RESKEY_pktcnt_timeout=${OCF_RESKEY_pktcnt_timeout_default}}
+: ${OCF_RESKEY_arping_count=${OCF_RESKEY_arping_count_default}}
+: ${OCF_RESKEY_arping_timeout=${OCF_RESKEY_arping_timeout_default}}
+: ${OCF_RESKEY_arping_cache_entries=${OCF_RESKEY_arping_cache_entries_default}}
+: ${OCF_RESKEY_link_status_only=${OCF_RESKEY_link_status_only_default}}
+
 #######################################################################
 
 meta_data() {
@@ -64,7 +88,7 @@ Monitor the vitality of a local network interface.
 You may set up this RA as a clone resource to monitor the network interfaces on different nodes, with the same interface name.
 This is not related to the IP address or the network on which a interface is configured.
 You may use this RA to move resources away from a node, which has a faulty interface or prevent moving resources to such a node.
-This gives you independend control of the resources, without involving cluster intercommunication. But it requires your nodes to have more than one network interface.
+This gives you independent control of the resources, without involving cluster intercommunication. But it requires your nodes to have more than one network interface.
 
 The resource configuration requires a monitor operation, because the monitor does the main part of the work.
 In addition to the resource configuration, you need to configure some location constraints, based on a CIB attribute value.
@@ -91,7 +115,7 @@ The ethmonitor works in 3 different modes to test the interface vitality.
 The name of the network interface which should be monitored (e.g. eth0).
 </longdesc>
 <shortdesc lang="en">Network interface name</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_interface_default}"/>
 </parameter>
 
 <parameter name="name" unique="1">
@@ -99,7 +123,7 @@ The name of the network interface which should be monitored (e.g. eth0).
 The name of the CIB attribute to set.  This is the name to be used in the constraints. Defaults to "ethmonitor-'interface_name'".
 </longdesc>
 <shortdesc lang="en">Attribute name</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_name_default}"/>
 </parameter>
 
 <parameter name="multiplier" unique="0" >
@@ -107,7 +131,7 @@ The name of the CIB attribute to set.  This is the name to be used in the constr
 Multiplier for the value of the CIB attriobute specified in parameter name. 
 </longdesc>
 <shortdesc lang="en">Multiplier for result variable</shortdesc>
-<content type="integer" default="1"/>
+<content type="integer" default="${OCF_RESKEY_multiplier_default}"/>
 </parameter>
 
 <parameter name="repeat_count">
@@ -115,7 +139,7 @@ Multiplier for the value of the CIB attriobute specified in parameter name.
 Specify how often the interface will be monitored, before the status is set to failed. You need to set the timeout of the monitoring operation to at least repeat_count * repeat_interval
 </longdesc>
 <shortdesc lang="en">Monitor repeat count</shortdesc>
-<content type="integer" default="5"/>
+<content type="integer" default="${OCF_RESKEY_repeat_count_default}"/>
 </parameter>
 
 <parameter name="repeat_interval">
@@ -123,7 +147,7 @@ Specify how often the interface will be monitored, before the status is set to f
 Specify how long to wait in seconds between the repeat_counts.
 </longdesc>
 <shortdesc lang="en">Monitor repeat interval in seconds</shortdesc>
-<content type="integer" default="10"/>
+<content type="integer" default="${OCF_RESKEY_repeat_interval_default}"/>
 </parameter>
 
 <parameter name="pktcnt_timeout">
@@ -131,7 +155,7 @@ Specify how long to wait in seconds between the repeat_counts.
 Timeout for the RX packet counter. Stop listening for packet counter changes after the given number of seconds.
 </longdesc>
 <shortdesc lang="en">packet counter timeout</shortdesc>
-<content type="integer" default="5"/>
+<content type="integer" default="${OCF_RESKEY_pktcnt_timeout_default}"/>
 </parameter>
 
 <parameter name="arping_count">
@@ -140,7 +164,7 @@ Number of ARP REQUEST packets to send for every IP.
 Usually one ARP REQUEST (arping) is send
 </longdesc>
 <shortdesc lang="en">Number of arpings per IP</shortdesc>
-<content type="integer" default="1"/>
+<content type="integer" default="${OCF_RESKEY_arping_count_default}"/>
 </parameter>
 
 <parameter name="arping_timeout">
@@ -149,7 +173,7 @@ Time in seconds to wait for ARP REQUESTs (all packets of arping_count).
 This is to limit the time for arp requests, to be able to send requests to more than one node, without running in the monitor operation timeout.
 </longdesc>
 <shortdesc lang="en">Timeout for arpings per IP</shortdesc>
-<content type="integer" default="1"/>
+<content type="integer" default="${OCF_RESKEY_arping_timeout_default}"/>
 </parameter>
 
 <parameter name="arping_cache_entries">
@@ -157,7 +181,7 @@ This is to limit the time for arp requests, to be able to send requests to more 
 Maximum number of IPs from ARP cache list to check for ARP REQUEST (arping) answers. Newest entries are tried first.
 </longdesc>
 <shortdesc lang="en">Number of ARP cache entries to try</shortdesc>
-<content type="integer" default="5"/>
+<content type="integer" default="${OCF_RESKEY_arping_cache_entries_default}"/>
 </parameter>
 
 <parameter name="infiniband_device">
@@ -181,7 +205,7 @@ For infiniband devices, this is the port to monitor.
 Only report success based on link status. Do not perform RX counter or arping related connectivity tests.
 </longdesc>
 <shortdesc lang="en">link status check only</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_link_status_only_default}" />
 </parameter>
 
 </parameters>
@@ -206,8 +230,8 @@ is_interface() {
 	#
 	# List interfaces but exclude FreeS/WAN ipsecN virtual interfaces
 	#
-	local iface=`$IP2UTIL -o -f inet addr show | grep " $1 " \
-		| cut -d ' ' -f2 | sort -u | grep -v '^ipsec[0-9][0-9]*$'`
+	local iface=`$IP2UTIL -o -f link addr show | grep -e " $1[:@]" \
+		| cut -d ' ' -f2 | tr -d ':' | cut -d '@' -f1 | sort -u | grep -v '^ipsec[0-9][0-9]*$'`
 		[ "$iface" != "" ]
 }
 
@@ -219,7 +243,10 @@ infiniband_status()
 		device="${OCF_RESKEY_infiniband_device}:${OCF_RESKEY_infiniband_port}"
 	fi
 	
-	ibstatus ${device} | grep -q ACTIVE 
+	case "${OCF_RESKEY_infiniband_device}" in
+		*ib*|*mlx*) ibstatus ${device} | grep -q ACTIVE ;;
+		*hfi*) opainfo | grep -q Active ;;
+	esac
 }
 
 if_init() {
@@ -251,7 +278,6 @@ if_init() {
 		esac
 	fi
 
-	: ${OCF_RESKEY_multiplier:="1"}
 	if ! ocf_is_decimal "$OCF_RESKEY_multiplier"; then
 		ocf_exit_reason "Invalid OCF_RESKEY_multiplier [$OCF_RESKEY_multiplier]"
 		exit $OCF_ERR_CONFIGURED
@@ -269,30 +295,29 @@ if_init() {
 		ocf_exit_reason "Invalid OCF_RESKEY_repeat_interval [$REP_INTERVAL_S]"
 		exit $OCF_ERR_CONFIGURED
 	fi
-	: ${OCF_RESKEY_pktcnt_timeout:="5"}
 	if ! ocf_is_decimal "$OCF_RESKEY_pktcnt_timeout"; then
 		ocf_exit_reason "Invalid OCF_RESKEY_pktcnt_timeout [$OCF_RESKEY_pktcnt_timeout]"
 		exit $OCF_ERR_CONFIGURED
 	fi
-	: ${OCF_RESKEY_arping_count:="1"}
 	if ! ocf_is_decimal "$OCF_RESKEY_arping_count"; then
 		ocf_exit_reason "Invalid OCF_RESKEY_arping_count [$OCF_RESKEY_arping_count]"
 		exit $OCF_ERR_CONFIGURED
 	fi
-	: ${OCF_RESKEY_arping_timeout:="1"}
 	if ! ocf_is_decimal "$OCF_RESKEY_arping_timeout"; then
 		ocf_exit_reason "Invalid OCF_RESKEY_arping_timeout [$OCF_RESKEY_arping_count]"
 		exit $OCF_ERR_CONFIGURED
 	fi
-	: ${OCF_RESKEY_arping_cache_entries:="5"}
 	if ! ocf_is_decimal "$OCF_RESKEY_arping_cache_entries"; then
 		ocf_exit_reason "Invalid OCF_RESKEY_arping_cache_entries [$OCF_RESKEY_arping_cache_entries]"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
 	if [ -n "$OCF_RESKEY_infiniband_device" ]; then
-		#ibstatus is required if an infiniband_device is provided
-		check_binary ibstatus
+		#ibstatus or opainfo is required if an infiniband_device is provided
+		case "${OCF_RESKEY_infiniband_device}" in
+			*ib*|*mlx*) check_binary ibstatus ;;
+			*hfi*) check_binary opainfo ;;
+		esac
 	fi
 	return $OCF_SUCCESS
 }

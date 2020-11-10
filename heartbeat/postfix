@@ -30,9 +30,16 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
-: ${OCF_RESKEY_binary="/usr/sbin/postfix"}
-: ${OCF_RESKEY_config_dir=""}
-: ${OCF_RESKEY_parameters=""}
+# Parameter defaults
+
+OCF_RESKEY_binary_default="/usr/sbin/postfix"
+OCF_RESKEY_config_dir_default=""
+OCF_RESKEY_parameters_default=""
+
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_config_dir=${OCF_RESKEY_config_dir_default}}
+: ${OCF_RESKEY_parameters=${OCF_RESKEY_parameters_default}}
+
 USAGE="Usage: $0 {start|stop|reload|monitor|validate-all|meta-data}";
 
 ##########################################################################
@@ -60,7 +67,7 @@ Full path to the Postfix binary.
 For example, "/usr/sbin/postfix".
 </longdesc>
 <shortdesc lang="en">Full path to Postfix binary</shortdesc>
-<content type="string" default="/usr/sbin/postfix" />
+<content type="string" default="${OCF_RESKEY_binary_default}" />
 </parameter>
 
 <parameter name="config_dir" unique="1" required="0">
@@ -69,7 +76,7 @@ Full path to a Postfix configuration directory.
 For example, "/etc/postfix".
 </longdesc>
 <shortdesc lang="en">Full path to configuration directory</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_config_dir_default}" />
 </parameter>
 
 <parameter name="parameters" unique="0" required="0">
@@ -78,7 +85,7 @@ The Postfix daemon may be called with additional parameters.
 Specify any of them here.
 </longdesc>
 <shortdesc lang="en"></shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_parameters_default}" />
 </parameter>
 
 </parameters>
@@ -134,7 +141,7 @@ postfix_start()
     ret=$?
 
     if [ $ret -ne 0 ]; then
-        ocf_exit_reason "Postfix returned error: " $ret
+        ocf_exit_reason "Postfix returned error: $ret"
         return $OCF_ERR_GENERIC
     fi
 
@@ -165,7 +172,7 @@ postfix_stop()
     ret=$?
 
     if [ $ret -ne 0 ]; then
-        ocf_exit_reason "Postfix returned an error while stopping: " $ret
+        ocf_exit_reason "Postfix returned an error while stopping: $ret"
         return $OCF_ERR_GENERIC
     fi
 
@@ -300,7 +307,7 @@ postfix_validate_all()
         $binary $OPTIONS check >/dev/null 2>&1
         ret=$?
         if [ $ret -ne 0 ]; then
-            ocf_exit_reason "Postfix 'check' failed: " $ret
+            ocf_exit_reason "Postfix 'check' failed: $ret"
             return $OCF_ERR_GENERIC
         fi
     fi

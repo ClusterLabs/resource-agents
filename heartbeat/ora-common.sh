@@ -26,8 +26,14 @@ ora_common_getconfig() {
 	TNS_ADMIN=$4
 
 	# get ORACLE_HOME from /etc/oratab if not set
-	[ x = "x$ORACLE_HOME" ] &&
+	if [ x = "x$ORACLE_HOME" ];then
 		ORACLE_HOME=`awk -F: "/^$ORACLE_SID:/"'{print $2}' /etc/oratab`
+		if [ -f /etc/oratab ]; then
+			if  [ x = "x$ORACLE_HOME" ];then
+				handle_invalid_env $OCF_ERR_CONFIGURED "ORACLE_HOME could not be obtained from /etc/oratab. Please check the sid parameter."
+			fi
+		fi
+	fi
 
 	# there a better way to find out ORACLE_OWNER?
 	[ x = "x$ORACLE_OWNER" ] &&
@@ -53,10 +59,6 @@ ora_common_getconfig() {
 
 ora_common_validate_all() {
 	#	Let's make sure a few important things are set...
-	if [ x = "x$ORACLE_HOME" ]; then
-		ocf_log info "ORACLE_HOME not set"
-		return $OCF_ERR_INSTALLED
-	fi
 	if [ x = "x$ORACLE_OWNER" ]; then
 		ocf_log info "ORACLE_OWNER not set"
 		return $OCF_ERR_INSTALLED

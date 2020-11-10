@@ -311,7 +311,7 @@ stop_tomcat()
 	echo "`date "+%Y/%m/%d %T"`: stop  ###########################" >> "$TOMCAT_CONSOLE"
 
 	if [ "$TOMCAT_START_SCRIPT" = "$CATALINA_HOME/bin/catalina.sh" ]; then
-		TOMCAT_STOP_OPTS="$STOP_TIMEOUT --force"
+		TOMCAT_STOP_OPTS="$STOP_TIMEOUT -force"
 	fi
 	stop_time=$(date +%s)
 	attemptTomcatCommand stop $TOMCAT_STOP_OPTS
@@ -356,7 +356,7 @@ The name of the resource, added as a Java parameter in JAVA_OPTS:
 process is still running and must be unique.
 </longdesc>
 <shortdesc lang="en">The name of the resource</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_tomcat_name_default}" />
 </parameter>
 
 <parameter name="script_log" unique="1">
@@ -364,7 +364,7 @@ process is still running and must be unique.
 Log file, used during start and stop operations.
 </longdesc>
 <shortdesc lang="en">Log file</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_script_log_default}" />
 </parameter>
 
 <parameter name="tomcat_stop_timeout" unique="0">
@@ -372,7 +372,7 @@ Log file, used during start and stop operations.
 Time-out for stop operation. DEPRECATED
 </longdesc>
 <shortdesc lang="en">Time-out for the stop operation. DEPRECATED</shortdesc>
-<content type="integer" default="" />
+<content type="integer" default="${OCF_RESKEY_tomcat_stop_timeout_default}" />
 </parameter>
 
 <parameter name="tomcat_suspend_trialcount" unique="0">
@@ -381,7 +381,7 @@ Maximum number of times to retry stop operation before suspending
 and killing Tomcat. DEPRECATED. Does not retry.
 </longdesc>
 <shortdesc lang="en">Max retry count for stop operation. DEPRECATED</shortdesc>
-<content type="integer" default="" />
+<content type="integer" default="${OCF_RESKEY_tomcat_suspend_trialcount_default}" />
 </parameter>
 
 <parameter name="tomcat_user" unique="0">
@@ -389,7 +389,7 @@ and killing Tomcat. DEPRECATED. Does not retry.
 The user who starts Tomcat.
 </longdesc>
 <shortdesc lang="en">The user who starts Tomcat</shortdesc>
-<content type="string" default="root" />
+<content type="string" default="${OCF_RESKEY_tomcat_user_default}" />
 </parameter>
 
 <parameter name="statusurl" unique="0">
@@ -397,7 +397,7 @@ The user who starts Tomcat.
 URL for state confirmation.
 </longdesc>
 <shortdesc lang="en">URL for state confirmation</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_statusurl_default}" />
 </parameter>
 
 <parameter name="max_stop_time" unique="0">
@@ -410,7 +410,7 @@ When it is over this value, it stops a process in kill commands.
 This parameter is only effective on Tomcat 6 or later.
 </longdesc>
 <shortdesc lang="en">The max time it should take for proper shutdown.</shortdesc>
-<content type="integer" default="" />
+<content type="integer" default="${OCF_RESKEY_max_stop_time_default}" />
 </parameter>
 
 <parameter name="java_home" unique="0" required="1">
@@ -418,7 +418,7 @@ This parameter is only effective on Tomcat 6 or later.
 Home directory of Java.
 </longdesc>
 <shortdesc lang="en">Home directory of Java</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_java_home_default}" />
 </parameter>
 
 <parameter name="java_opts" unique="0">
@@ -426,7 +426,7 @@ Home directory of Java.
 Java JVM options used on start and stop.
 </longdesc>
 <shortdesc lang="en">Java options parsed to JVM, used on start and stop.</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_java_opts_default}" />
 </parameter>
 
 <parameter name="catalina_home" unique="0" required="1">
@@ -434,7 +434,7 @@ Java JVM options used on start and stop.
 Home directory of Tomcat.
 </longdesc>
 <shortdesc lang="en">Home directory of Tomcat</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_catalina_home_default}" />
 </parameter>
 
 <parameter name="catalina_base" unique="1">
@@ -442,7 +442,7 @@ Home directory of Tomcat.
 Instance directory of Tomcat
 </longdesc>
 <shortdesc lang="en">Instance directory of Tomcat, defaults to catalina_home</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_catalina_base_default}" />
 </parameter>
 
 <parameter name="catalina_out" unique="1">
@@ -450,7 +450,7 @@ Instance directory of Tomcat
 Log file name of Tomcat
 </longdesc>
 <shortdesc lang="en">Log file name of Tomcat, defaults to catalina_base/logs/catalina.out</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_catalina_out_default}" />
 </parameter>
 
 <parameter name="catalina_pid" unique="1">
@@ -458,7 +458,7 @@ Log file name of Tomcat
 A PID file name for Tomcat.
 </longdesc>
 <shortdesc lang="en">A PID file name for Tomcat</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_catalina_pid_default}" />
 </parameter>
 
 <parameter name="force_systemd" unique="0" required="0">
@@ -466,7 +466,7 @@ A PID file name for Tomcat.
 Force use of systemd when available.
 </longdesc>
 <shortdesc lang="en">Force use of systemd when available</shortdesc>
-<content type="string" default="$OCF_RESKEY_force_systemd_default" />
+<content type="string" default="${OCF_RESKEY_force_systemd_default}" />
 </parameter>
 
 <parameter name="tomcat_start_script" unique="0" required="0">
@@ -474,7 +474,7 @@ Force use of systemd when available.
 Absolute path to the custom tomcat start script to use.
 </longdesc>
 <shortdesc lang="en">Tomcat start script location</shortdesc>
-<content type="string" default="$TOMCAT_START_SCRIPT" />
+<content type="string" default="${OCF_RESKEY_tomcat_start_script_default}" />
 </parameter>
 
 <parameter name="tomcat_start_opts" unique="0">
@@ -482,7 +482,7 @@ Absolute path to the custom tomcat start script to use.
 Tomcat start options.
 </longdesc>
 <shortdesc lang="en">Tomcat start options</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_tomcat_start_opts_default}" />
 </parameter>
 
 <parameter name="catalina_opts" unique="0">
@@ -490,7 +490,7 @@ Tomcat start options.
 Catalina options, for the start operation only.
 </longdesc>
 <shortdesc lang="en">Catalina options</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_catalina_opts_default}" />
 </parameter>
 
 <parameter name="catalina_tmpdir" unique="1">
@@ -498,7 +498,7 @@ Catalina options, for the start operation only.
 Temporary directory of Tomcat
 </longdesc>
 <shortdesc lang="en">Temporary directory of Tomcat, defaults to none</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_catalina_tmpdir_default}" />
 </parameter>
 
 <parameter name="catalina_rotate_log" unique="0">
@@ -506,7 +506,7 @@ Temporary directory of Tomcat
 Rotate catalina.out flag.
 </longdesc>
 <shortdesc lang="en">Rotate catalina.out flag</shortdesc>
-<content type="boolean" default="NO" />
+<content type="boolean" default="${OCF_RESKEY_catalina_rotate_log_default}" />
 </parameter>
 
 <parameter name="catalina_rotatetime" unique="0">
@@ -514,7 +514,7 @@ Rotate catalina.out flag.
 catalina.out rotation interval (seconds).
 </longdesc>
 <shortdesc lang="en">catalina.out rotation interval (seconds)</shortdesc>
-<content type="integer" default="" />
+<content type="integer" default="${OCF_RESKEY_catalina_rotatetime_default}" />
 </parameter>
 
 <parameter name="java_endorsed_dirs" unique="1">
@@ -522,7 +522,7 @@ catalina.out rotation interval (seconds).
 Java_endorsed_dirs of tomcat
 </longdesc>
 <shortdesc lang="en">Java_endorsed_dirs of Tomcat, defaults to none</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_java_endorsed_dirs_default}" />
 </parameter>
 
 <parameter name="logging_config" unique="1">
@@ -530,7 +530,7 @@ Java_endorsed_dirs of tomcat
 Logging_config of tomcat
 </longdesc>
 <shortdesc lang="en">Logging_config of Tomcat, defaults to none</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_logging_config_default}" />
 </parameter>
 
 <parameter name="logging_manager" unique="1">
@@ -538,7 +538,7 @@ Logging_config of tomcat
 Logging_manager of tomcat
 </longdesc>
 <shortdesc lang="en">Logging_manager of Tomcat, defaults to none.</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_logging_manager_default}" />
 </parameter>
 
 </parameters>
@@ -546,10 +546,10 @@ Logging_manager of tomcat
 <actions>
 <action name="start" timeout="60s" />
 <action name="stop" timeout="120s" />
-<action name="status" timeout="60" />
+<action name="status" timeout="60s" />
 <action name="monitor" depth="0" timeout="30s" interval="10s" />
 <action name="meta-data" timeout="5s" />
-<action name="validate-all"  timeout="5"/>
+<action name="validate-all"  timeout="5s"/>
 </actions>
 </resource-agent>
 END
@@ -608,21 +608,94 @@ memorize_pid()
 ### tomcat RA environment variables
 #
 
+# Parameter defaults
+
+OCF_RESKEY_tomcat_name_default="tomcat"
+OCF_RESKEY_catalina_home_default=""
+OCF_RESKEY_catalina_base_default=""
+
+: ${OCF_RESKEY_tomcat_name=${OCF_RESKEY_tomcat_name_default}}
+: ${OCF_RESKEY_catalina_home=${OCF_RESKEY_catalina_home_default}}
+: ${OCF_RESKEY_catalina_base=${OCF_RESKEY_catalina_base_default}}
+
+# Only default to true for RedHat systems without catalina.sh
+if [ -e "${OCF_RESKEY_catalina_home}/bin/catalina.sh" ] || ! is_redhat_based; then
+	OCF_RESKEY_force_systemd_default=0
+else
+	OCF_RESKEY_force_systemd_default=1
+fi
+
+: ${OCF_RESKEY_force_systemd=${OCF_RESKEY_force_systemd_default}}
+
+if [ -z "${OCF_RESKEY_tomcat_start_script}" ]; then
+	if ocf_is_true $OCF_RESKEY_force_systemd && \
+	     systemd_is_running; then
+		SYSTEMD=1
+	elif [ -e "${OCF_RESKEY_catalina_home}/bin/catalina.sh" ]; then
+		TOMCAT_START_SCRIPT="${OCF_RESKEY_catalina_home}/bin/catalina.sh"
+	elif [ -e "/usr/sbin/tomcat" ]; then
+		REDIRECT_DEFAULT_CONFIG=1
+		TOMCAT_START_SCRIPT="/usr/sbin/tomcat"
+	elif [ -e "/usr/sbin/tomcat6" ]; then
+		REDIRECT_DEFAULT_CONFIG=1
+		TOMCAT_START_SCRIPT="/usr/sbin/tomcat6"
+	fi
+fi
+
+OCF_RESKEY_script_log_default="/var/log/${OCF_RESKEY_tomcat_name}.log"
+OCF_RESKEY_tomcat_stop_timeout_default=""
+OCF_RESKEY_tomcat_suspend_trialcount_default=""
+OCF_RESKEY_tomcat_user_default="root"
+OCF_RESKEY_statusurl_default="http://127.0.0.1:8080"
+OCF_RESKEY_max_stop_time_default=""
+OCF_RESKEY_java_home_default=""
+OCF_RESKEY_java_opts_default=""
+OCF_RESKEY_catalina_out_default="${OCF_RESKEY_catalina_base-${OCF_RESKEY_catalina_home}}/logs/catalina.out"
+OCF_RESKEY_catalina_pid_default=""
+OCF_RESKEY_tomcat_start_script_default="${TOMCAT_START_SCRIPT}"
+OCF_RESKEY_tomcat_start_opts_default=""
+OCF_RESKEY_catalina_opts_default=""
+OCF_RESKEY_catalina_tmpdir_default=""
+OCF_RESKEY_catalina_rotate_log_default="NO"
+OCF_RESKEY_catalina_rotatetime_default="86400"
+OCF_RESKEY_java_endorsed_dirs_default=""
+OCF_RESKEY_logging_config_default=""
+OCF_RESKEY_logging_manager_default=""
+
+: ${OCF_RESKEY_script_log=${OCF_RESKEY_script_log_default}}
+: ${OCF_RESKEY_tomcat_stop_timeout=${OCF_RESKEY_tomcat_stop_timeout_default}}
+: ${OCF_RESKEY_tomcat_suspend_trialcount=${OCF_RESKEY_tomcat_suspend_trialcount_default}}
+: ${OCF_RESKEY_tomcat_user=${OCF_RESKEY_tomcat_user_default}}
+: ${OCF_RESKEY_statusurl=${OCF_RESKEY_statusurl_default}}
+: ${OCF_RESKEY_max_stop_time=${OCF_RESKEY_max_stop_time_default}}
+: ${OCF_RESKEY_java_home=${OCF_RESKEY_java_home_default}}
+: ${OCF_RESKEY_java_opts=${OCF_RESKEY_java_opts_default}}
+: ${OCF_RESKEY_catalina_out=${OCF_RESKEY_catalina_out_default}}
+: ${OCF_RESKEY_catalina_pid=${OCF_RESKEY_catalina_pid_default}}
+: ${OCF_RESKEY_tomcat_start_script=${OCF_RESKEY_tomcat_start_script_default}}
+: ${OCF_RESKEY_tomcat_start_opts=${OCF_RESKEY_tomcat_start_opts_default}}
+: ${OCF_RESKEY_catalina_opts=${OCF_RESKEY_catalina_opts_default}}
+: ${OCF_RESKEY_catalina_tmpdir=${OCF_RESKEY_catalina_tmpdir_default}}
+: ${OCF_RESKEY_catalina_rotate_log=${OCF_RESKEY_catalina_rotate_log_default}}
+: ${OCF_RESKEY_catalina_rotatetime=${OCF_RESKEY_catalina_rotatetime_default}}
+: ${OCF_RESKEY_java_endorsed_dirs=${OCF_RESKEY_java_endorsed_dirs_default}}
+: ${OCF_RESKEY_logging_config=${OCF_RESKEY_logging_config_default}}
+: ${OCF_RESKEY_logging_manager=${OCF_RESKEY_logging_manager_default}}
+
 COMMAND=$1
-TOMCAT_NAME="${OCF_RESKEY_tomcat_name-tomcat}"
-TOMCAT_CONSOLE="${OCF_RESKEY_script_log-/var/log/$TOMCAT_NAME.log}"
-RESOURCE_TOMCAT_USER="${OCF_RESKEY_tomcat_user-root}"
-RESOURCE_STATUSURL="${OCF_RESKEY_statusurl-http://127.0.0.1:8080}"
-OCF_RESKEY_force_systemd_default=0
+TOMCAT_NAME="${OCF_RESKEY_tomcat_name}"
+TOMCAT_CONSOLE="${OCF_RESKEY_script_log}"
+RESOURCE_TOMCAT_USER="${OCF_RESKEY_tomcat_user}"
+RESOURCE_STATUSURL="${OCF_RESKEY_statusurl}"
 
 JAVA_HOME="${OCF_RESKEY_java_home}"
 JAVA_OPTS="${OCF_RESKEY_java_opts}"
 CATALINA_HOME="${OCF_RESKEY_catalina_home}"
 CATALINA_BASE="${OCF_RESKEY_catalina_base-${OCF_RESKEY_catalina_home}}"
-CATALINA_OUT="${OCF_RESKEY_catalina_out-$CATALINA_BASE/logs/catalina.out}"
+CATALINA_OUT="${OCF_RESKEY_catalina_out}"
 
 CATALINA_PID=$OCF_RESKEY_catalina_pid
-if [ -z "$CATALINA_PID" ]; then
+if [ -z "$CATALINA_PID" ] && [ "$__OCF_ACTION" = "start" ]; then
 	mkdir -p "${HA_RSCTMP}/${TOMCAT_NAME}_tomcatstate/"
 	if [ "${RESOURCE_TOMCAT_USER}" != "root" ]; then
 		chown ${RESOURCE_TOMCAT_USER} "${HA_RSCTMP}/${TOMCAT_NAME}_tomcatstate/"
@@ -632,31 +705,15 @@ fi
 
 MAX_STOP_TIME="${OCF_RESKEY_max_stop_time}"
 
-: ${OCF_RESKEY_force_systemd=${OCF_RESKEY_force_systemd_default}}
 TOMCAT_START_OPTS="${OCF_RESKEY_tomcat_start_opts}"
 TOMCAT_START_SCRIPT="${OCF_RESKEY_tomcat_start_script}"
 CATALINA_OPTS="-Dname=$TOMCAT_NAME ${OCF_RESKEY_catalina_opts}"
 CATALINA_TMPDIR="${OCF_RESKEY_catalina_tmpdir}"
-CATALINA_ROTATE_LOG="${OCF_RESKEY_catalina_rotate_log-NO}"
-CATALINA_ROTATETIME="${OCF_RESKEY_catalina_rotatetime-86400}"
+CATALINA_ROTATE_LOG="${OCF_RESKEY_catalina_rotate_log}"
+CATALINA_ROTATETIME="${OCF_RESKEY_catalina_rotatetime}"
 JAVA_ENDORSED_DIRS="${OCF_RESKEY_java_endorsed_dirs}"
 LOGGING_CONFIG="${OCF_RESKEY_logging_config}"
 LOGGING_MANAGER="${OCF_RESKEY_logging_manager}"
-
-if [ -z "${TOMCAT_START_SCRIPT}" ]; then
-	if ocf_is_true $OCF_RESKEY_force_systemd && \
-	     ps -p 1 | grep -q systemd; then
-		SYSTEMD=1
-	elif [ -e "$CATALINA_HOME/bin/catalina.sh" ]; then
-		TOMCAT_START_SCRIPT="$CATALINA_HOME/bin/catalina.sh"
-	elif [ -e "/usr/sbin/tomcat" ]; then
-		REDIRECT_DEFAULT_CONFIG=1
-		TOMCAT_START_SCRIPT="/usr/sbin/tomcat"
-	elif [ -e "/usr/sbin/tomcat6" ]; then
-		REDIRECT_DEFAULT_CONFIG=1
-		TOMCAT_START_SCRIPT="/usr/sbin/tomcat6"
-	fi
-fi
 
 LSB_STATUS_STOPPED=3
 if [ $# -ne 1 ]; then

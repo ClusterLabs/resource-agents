@@ -33,6 +33,28 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_pidfile_default="$HA_RSCTMP/pingd-${OCF_RESOURCE_INSTANCE}"
+OCF_RESKEY_user_default="root"
+OCF_RESKEY_dampen_default="1s"
+OCF_RESKEY_set_default=""
+OCF_RESKEY_name_default="pingd"
+OCF_RESKEY_section_default=""
+OCF_RESKEY_multiplier_default=""
+OCF_RESKEY_host_list_default=""
+OCF_RESKEY_ignore_deprecation_default="false"
+
+: ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
+: ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
+: ${OCF_RESKEY_dampen=${OCF_RESKEY_dampen_default}}
+: ${OCF_RESKEY_set=${OCF_RESKEY_set_default}}
+: ${OCF_RESKEY_name=${OCF_RESKEY_name_default}}
+: ${OCF_RESKEY_section=${OCF_RESKEY_section_default}}
+: ${OCF_RESKEY_multiplier=${OCF_RESKEY_multiplier_default}}
+: ${OCF_RESKEY_host_list=${OCF_RESKEY_host_list_default}}
+: ${OCF_RESKEY_ignore_deprecation=${OCF_RESKEY_ignore_deprecation_default}}
+
 #######################################################################
 
 meta_data() {
@@ -57,7 +79,7 @@ IP addresses ("ping nodes") (deprecated)</shortdesc>
 <parameter name="pidfile" unique="0">
 <longdesc lang="en">PID file</longdesc>
 <shortdesc lang="en">PID file</shortdesc>
-<content type="string" default="$HA_RSCTMP/pingd-${OCF_RESOURCE_INSTANCE}" />
+<content type="string" default="${OCF_RESKEY_pidfile_default}" />
 </parameter>
 
 
@@ -66,7 +88,7 @@ IP addresses ("ping nodes") (deprecated)</shortdesc>
 The user we want to run pingd as
 </longdesc>
 <shortdesc lang="en">The user we want to run pingd as</shortdesc>
-<content type="string" default="root" />
+<content type="string" default="${OCF_RESKEY_user_default}" />
 </parameter>
 
 <parameter name="dampen" unique="0">
@@ -74,7 +96,7 @@ The user we want to run pingd as
 The time to wait (dampening) further changes occur
 </longdesc>
 <shortdesc lang="en">Dampening interval</shortdesc>
-<content type="integer" default="1s"/>
+<content type="integer" default="${OCF_RESKEY_dampen_default=}"/>
 </parameter>
 
 <parameter name="set" unique="0">
@@ -82,7 +104,7 @@ The time to wait (dampening) further changes occur
 The name of the instance_attributes set to place the value in.  Rarely needs to be specified.
 </longdesc>
 <shortdesc lang="en">Set name</shortdesc>
-<content type="integer" default=""/>
+<content type="integer" default="${OCF_RESKEY_set_default}"/>
 </parameter>
 
 <parameter name="name" unique="0">
@@ -90,7 +112,7 @@ The name of the instance_attributes set to place the value in.  Rarely needs to 
 The name of the attributes to set.  This is the name to be used in the constraints.
 </longdesc>
 <shortdesc lang="en">Attribute name</shortdesc>
-<content type="integer" default="${OCF_RESOURCE_INSTANCE}"/>
+<content type="integer" default="${OCF_RESKEY_name_default}"/>
 </parameter>
 
 <parameter name="section" unique="0">
@@ -98,7 +120,7 @@ The name of the attributes to set.  This is the name to be used in the constrain
 The section place the value in.  Rarely needs to be specified.
 </longdesc>
 <shortdesc lang="en">Section name</shortdesc>
-<content type="integer" default=""/>
+<content type="integer" default="${OCF_RESKEY_section_default}"/>
 </parameter>
 
 <parameter name="multiplier" unique="0">
@@ -106,7 +128,7 @@ The section place the value in.  Rarely needs to be specified.
 The number by which to multiply the number of connected ping nodes by
 </longdesc>
 <shortdesc lang="en">Value multiplier</shortdesc>
-<content type="integer" default=""/>
+<content type="integer" default="${OCF_RESKEY_multiplier_default}"/>
 </parameter>
 
 <parameter name="host_list" unique="0">
@@ -114,7 +136,7 @@ The number by which to multiply the number of connected ping nodes by
 The list of ping nodes to count.  Defaults to all configured ping nodes.  Rarely needs to be specified.
 </longdesc>
 <shortdesc lang="en">Host list</shortdesc>
-<content type="integer" default=""/>
+<content type="integer" default="${OCF_RESKEY_host_list_default}"/>
 </parameter>
 
 <parameter name="ignore_deprecation">
@@ -122,7 +144,7 @@ The list of ping nodes to count.  Defaults to all configured ping nodes.  Rarely
 If set to true, suppresses the deprecation warning for this agent.
 </longdesc>
 <shortdesc lang="en">Suppress deprecation warning</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_ignore_deprecation_default}" />
 </parameter>
 
 </parameters>
@@ -130,8 +152,8 @@ If set to true, suppresses the deprecation warning for this agent.
 <actions>
 <action name="start"   timeout="20s" />
 <action name="stop"    timeout="20s" />
-<action name="monitor" depth="0"  timeout="20s" interval="10" />
-<action name="meta-data"  timeout="5" />
+<action name="monitor" depth="0"  timeout="20s" interval="10s" />
+<action name="meta-data"  timeout="5s" />
 <action name="validate-all"  timeout="20s" />
 </actions>
 </resource-agent>
@@ -245,10 +267,6 @@ if [ $# -ne 1 ]; then
     pingd_usage
     exit $OCF_ERR_ARGS
 fi
-
-: ${OCF_RESKEY_pidfile:="$HA_RSCTMP/pingd-${OCF_RESOURCE_INSTANCE}"}
-: ${OCF_RESKEY_name:="pingd"}
-: ${OCF_RESKEY_dampen:="1s"}
 
 if [ "$__OCF_ACTION" = "meta-data" ]; then
     meta_data

@@ -26,6 +26,8 @@ export PATH
 : ${GREP:=grep}
 : ${IFCONFIG:=ifconfig}
 : ${IPTABLES:=iptables}
+## for cases that are known not to be serviceable with iptables-nft impl.
+: ${IPTABLES_LEGACY:=iptables-legacy}
 : ${IP2UTIL:=ip}
 : ${MDADM:=mdadm}
 : ${MODPROBE:=modprobe}
@@ -33,7 +35,6 @@ export PATH
 : ${MSGFMT:=msgfmt}
 : ${NETSTAT:=netstat}
 : ${PERL:=perl}
-: ${PYTHON:=python}
 : ${RAIDSTART:=raidstart}
 : ${RAIDSTOP:=raidstop}
 : ${ROUTE:=route}
@@ -44,7 +45,7 @@ export PATH
 : ${WHOAMI:=whoami}
 : ${STRINGSCMD:=strings}
 : ${SCP:=scp}
-: ${SSH:=ssh}
+: ${SSH:=@SSH@}
 : ${SWIG:=swig}
 : ${GZIP_PROG:=gzip}
 : ${TAR:=tar}

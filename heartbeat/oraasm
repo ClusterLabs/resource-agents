@@ -18,8 +18,12 @@
 
 # Defaults
 OCF_RESKEY_user_default="grid"
+OCF_RESKEY_diskgroup_default=""
+OCF_RESKEY_home_default=""
 
 : ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
+: ${OCF_RESKEY_diskgroup=${OCF_RESKEY_diskgroup_default}}
+: ${OCF_RESKEY_home=${OCF_RESKEY_home_default}}
 
 
 oraasm_usage() {
@@ -58,24 +62,24 @@ The name of the Oracle Disk Group.
 If not specified, then the Disk Group along with its home should be listed in /etc/oratab.
     </longdesc>
     <shortdesc lang="en">Oracle Disk Group</shortdesc>
-    <content type="string" default="" />
+    <content type="string" default="${OCF_RESKEY_diskgroup_default}" />
 </parameter>
 
 <parameter name="home" unique="0">
 <longdesc lang="en">The Oracle Grid home directory</longdesc>
 <shortdesc lang="en">home</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_home_default}" />
 </parameter>
 
 </parameters>
 
 <actions>
-<action name="start" timeout="60" />
-<action name="stop" timeout="60" />
-<action name="status" timeout="30" />
-<action name="monitor" depth="0" timeout="30" interval="10" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
+<action name="start" timeout="60s" />
+<action name="stop" timeout="60s" />
+<action name="status" timeout="30s" />
+<action name="monitor" depth="0" timeout="30s" interval="10s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
 </actions>
 </resource-agent>
 END

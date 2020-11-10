@@ -426,7 +426,7 @@ read_lockdata (const sfex_controldata * cdata, sfex_lockdata * ldata,
     return -1;
   }
   ldata->count = atoi ((char *) (block->count));
-  strncpy ((char *) (ldata->nodename), (const char *) (block->nodename), sizeof(block->nodename));
+  strncpy ((char *) (ldata->nodename), (const char *) (block->nodename), sizeof(ldata->nodename));
 
 #ifdef SFEX_DEBUG
   cl_log(LOG_INFO, "status: %c\n", ldata->status);

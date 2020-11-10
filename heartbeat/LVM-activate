@@ -1,0 +1,944 @@
+#!/bin/sh
+#
+#
+# Copyright (c) 2017 SUSE LINUX, Eric Ren
+#			All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.	Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+# LVM-activate OCF Resource Agent:
+#
+# Logical volume manager (LVM) provides new features for cluster enviroment:
+# lvmlockd and system ID, which aims to replace clvmd and tagged-exclusive
+# activation. Accordingly, we have created a new resource agent named "lvmlockd"
+# to manage lvmlockd daemon. In addition, this new resource agent "LVM-activate"
+# is created to take care of LVM activation/deactivation work. This agent supports
+# the new features: lvmlockd and system ID, and also supports the old features:
+# clvmd and lvm tag.
+#
+# Thanks David Teigland! He is the author of these LVM features, giving valuable
+# idea/feedback about this resource agent.
+############################################################################
+
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Parameter defaults
+
+OCF_RESKEY_vgname_default=""
+OCF_RESKEY_lvname_default=""
+OCF_RESKEY_vg_access_mode_default=""
+OCF_RESKEY_activation_mode_default="exclusive"
+OCF_RESKEY_tag_default="pacemaker"
+OCF_RESKEY_partial_activation_default="false"
+
+: ${OCF_RESKEY_vgname=${OCF_RESKEY_vgname_default}}
+: ${OCF_RESKEY_lvname=${OCF_RESKEY_lvname_default}}
+: ${OCF_RESKEY_vg_access_mode=${OCF_RESKEY_vg_access_mode_default}}
+: ${OCF_RESKEY_activation_mode=${OCF_RESKEY_activation_mode_default}}
+: ${OCF_RESKEY_tag=${OCF_RESKEY_tag_default}}
+: ${OCF_RESKEY_partial_activation=${OCF_RESKEY_partial_activation_default}}
+
+# If LV is given, only activate this named LV; otherwise, activate all
+# LVs in the named VG.
+VG=${OCF_RESKEY_vgname}
+LV=${OCF_RESKEY_lvname}
+
+# How LVM controls access to the VG:
+#
+# 0: place-holder for any incorrect cases; To be safe, we enforce the VG
+#    must use any of the following protection methods in cluster environment.
+# 1: vg is shared - lvmlockd (new)
+# 2: vg is clustered - clvmd (old)
+# 3: vg has system_id (new)
+# 4: vg has tagging (old)
+VG_access_mode=${OCF_RESKEY_vg_access_mode}
+VG_access_mode_num=0
+
+# Activate LV(s) with "shared" lock for cluster fs
+# or "exclusive" lock for local fs
+LV_activation_mode=${OCF_RESKEY_activation_mode}
+
+# For system ID feature
+SYSTEM_ID=""
+
+# For tagging activation mode
+OUR_TAG=${OCF_RESKEY_tag}
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+
+
+<resource-agent name="LVM-activate">
+<version>1.0</version>
+
+<longdesc lang="en">
+This agent manages LVM activation/deactivation work for a given volume group.
+
+It supports the following modes, controlled by the vg_access_mode parameter:
+
+* lvmlockd
+* system_id
+* clvmd
+* tagging
+
+Notes:
+
+1. There are two possible configuration combinations: lvmlockd+LVM-activate and
+clvm+LVM-activate. However, it is not possible to use both at the same time!
+
+2. Put all "lvmlockd"/"clvmd" volume groups into auto management by the agent
+if using the cluster to manage at least one of them.  If you manage some manually,
+the stop action of the lvmlockd agent may fail and the node may get fenced,
+because some DLM lockspaces might be in use and cannot be closed automatically.
+
+Option: OCF_CHECK_LEVEL
+
+The standard monitor operation of depth 0 checks if the VG or LV is valid.
+If you want deeper tests, set OCF_CHECK_LEVEL to 10:
+
+  10: read first 1 byte of the underlying device (raw read)
+
+If there are many underlying devs in VG, it will only read one of the devs.
+This is not perfect solution for detecting underlying devices livable.
+e.g. iscsi SAN IO timeout will return EIO, and it makes monitor failed.
+
+</longdesc>
+<shortdesc lang="en">This agent activates/deactivates logical volumes.</shortdesc>
+
+<parameters>
+<parameter name="vgname" unique="0" required="1">
+<longdesc lang="en">
+The volume group name.
+</longdesc>
+<shortdesc lang="en">The volume group name</shortdesc>
+<content type="string" default="${OCF_RESKEY_vgname_default}" />
+</parameter>
+
+<parameter name="lvname" unique="0" required="0">
+<longdesc lang="en">
+If set, only the specified LV will be activated.
+</longdesc>
+<shortdesc lang="en">Only activate the given LV</shortdesc>
+<content type="string" default="${OCF_RESKEY_lvname_default}" />
+</parameter>
+
+<parameter name="vg_access_mode" unique="0" required="1">
+<longdesc lang="en">
+This option decides which solution will be used to protect the volume group in
+cluster environment. Optional solutions are: lvmlockd, clvmd, system_id and
+tagging.
+</longdesc>
+<shortdesc lang="en">The VG access mode</shortdesc>
+<content type="string" default="${OCF_RESKEY_vg_access_mode_default}" />
+</parameter>
+
+<parameter name="activation_mode" unique="0" required="0">
+<longdesc lang="en">
+The activation mode decides the visibility of logical volumes in the cluster. There
+are two different modes: "shared" for cluster filesystem and "exclusive" for local
+filesystem. With "shared", an LV can be activated concurrently from multiple nodes.
+With "exclusive", an LV can be activated by one node at a time.
+
+This option only has effect on "lvmlockd"/"clvmd" vg_access_mode. For "system_id"
+and "tagging", they always mean exclusive activation.
+</longdesc>
+<shortdesc lang="en">Logical volume activation mode</shortdesc>
+<content type="string" default="${OCF_RESKEY_activation_mode_default}" />
+</parameter>
+
+<parameter name="tag" unique="0" required="0">
+<longdesc lang="en">
+The tag used for tagging activation mode.
+</longdesc>
+<shortdesc lang="en">The tag used for tagging activation mode</shortdesc>
+<content type="string" default="${OCF_RESKEY_tag_default}" />
+</parameter>
+
+<parameter name="partial_activation" unique="0" required="0">
+<longdesc lang="en">
+If set, the volume group will be activated partially even with some
+physical volumes missing. It helps to set to true when using mirrored
+logical volumes.
+</longdesc>
+<shortdesc lang="en">Activate VG partially when missing PVs</shortdesc>
+<content type="string" default="${OCF_RESKEY_partial_activation_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"		timeout="90s" />
+<action name="stop"		timeout="90s" />
+<action name="monitor"		timeout="90s" interval="30s" depth="0" />
+<action name="meta-data"	timeout="10s" />
+<action name="validate-all"	timeout="20s" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+END
+}
+
+# VG access modes:
+# 0: unsafe to activate LV without proper protection in cluster
+# 1: vg is shared - lvmlockd (new)
+# 2: vg is clustered - clvmd (old)
+# 3: vg has system_id (new)
+# 4: vg has tagging (old)
+
+get_VG_access_mode_num()
+{
+	local access_mode
+	local vg_locktype
+	local vg_clustered
+	local vg_systemid
+	local vg_tags
+
+	# Use -o reporting fields to get multiple bits of info from a single command
+	kvs=$(vgs --foreign --nolocking --noheadings --nameprefixes \
+		--rows --config report/compact_output=0 \
+		-o name,clustered,lock_type,systemid,tags ${VG} 2>/dev/null | tr -d \')
+	export ${kvs}
+	vg_locktype=${LVM2_VG_LOCK_TYPE}
+	vg_clustered=${LVM2_VG_CLUSTERED}
+	vg_systemid=${LVM2_VG_SYSTEMID}
+	vg_tags=${LVM2_VG_TAGS}
+
+	# We know this VG is using lvmlockd if the lock type is dlm.
+	if [ "$vg_locktype" = "dlm" ]; then
+		access_mode=1
+	elif [ "$vg_clustered" = "clustered" ]; then
+		access_mode=2
+	elif [ -n "$vg_systemid" ]; then
+		SYSTEM_ID=$(lvm systemid 2>/dev/null | cut -d':' -f2 | tr -d '[:blank:]')
+		access_mode=3
+	elif [ -n "$vg_tags" ]; then
+		# TODO:
+		# We don't have reliable way to test if tagging activation is used.
+		access_mode=4
+	else
+		access_mode=0
+	fi
+
+	return $access_mode
+}
+
+# TODO: All tagging activation code is almost copied from LVM RA!!!
+# But, the old LVM RA just uses the ordinary tags, not the "hosttag" feature
+# which may be a better method for active-inactive cluster scenario.
+#
+# We have two choice:
+# 1. Continue to use the LVM way, which may work well on old system.
+# 2. Change to use the real hosttag feature, but it looks very same
+# to systemID.
+# Anyway, we can easily change this if anyone requests with good reasons.
+
+# does this vg have our tag
+check_tags()
+{
+	local owner=$(vgs -o tags --noheadings ${VG} | tr -d '[:blank:]')
+
+	if [ -z "$owner" ]; then
+		# No-one owns this VG yet
+		return 1
+	fi
+
+	if [ "$OUR_TAG" = "$owner" ]; then
+		# yep, this is ours
+		return 0
+	fi
+
+	# some other tag is set on this vg
+	return 2
+}
+
+strip_tags()
+{
+	local tag
+
+	for tag in $(vgs --noheadings -o tags $OCF_RESKEY_volgrpname | sed s/","/" "/g); do
+		ocf_log info "Stripping tag, $tag"
+
+		# LVM version 2.02.98 allows changing tags if PARTIAL
+		vgchange --deltag "$tag" ${VG}
+	done
+
+	if [ ! -z $(vgs -o tags --noheadings ${VG} | tr -d '[:blank:]') ]; then
+		ocf_exit_reason "Failed to remove ownership tags from ${VG}"
+		exit $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+set_tags()
+{
+	case check_tags in
+	0)
+		# we already own it.
+		return $OCF_SUCCESS
+		;;
+	2)
+		# other tags are set, strip them before setting
+		if ! strip_tags; then
+			return $OCF_ERR_GENERIC
+		fi
+		;;
+	*)
+		: ;;
+	esac
+
+	if ! vgchange --addtag $OUR_TAG ${VG} ; then
+		ocf_log err "Failed to add ownership tag to ${VG}"
+		return $OCF_ERR_GENERIC
+	fi
+
+	ocf_log info "New tag \"${OUR_TAG}\" added to ${VG}"
+	return $OCF_SUCCESS
+}
+
+# Parameters:
+# 1st: config item name
+# 2nd: expected config item value
+config_verify()
+{
+	local name=$1
+	local expect=$2
+	local real=""
+
+	real=$(lvmconfig "$name" | cut -d'=' -f2)
+	if [ "$real" != "$expect" ]; then
+		ocf_exit_reason "config item $name: expect=$expect but real=$real"
+		exit $OCF_ERR_CONFIGURED
+
+	fi
+
+	return $OCF_SUCCESS
+}
+
+lvmlockd_check()
+{
+	config_verify "global/use_lvmlockd" "1"
+
+	# locking_type was removed from config in v2.03
+	ocf_version_cmp "$(lvmconfig --version | awk '/LVM ver/ {sub(/\(.*/, "", $3); print $3}')" "2.03"
+	if [ "$?" -eq 0 ]; then
+		config_verify "global/locking_type" "1"
+	fi
+
+	# We recommend to activate one LV at a time so that this specific volume
+	# binds to a proper filesystem to protect the data
+	# TODO:
+	# Will this warn message be too noisy?
+	if [ -z "$LV" ]; then
+		ocf_log warn "You are recommended to activate one LV at a time or use exclusive activation mode."
+	fi
+
+	# Good: lvmlockd is running, and clvmd is not running
+	if ! pgrep lvmlockd >/dev/null 2>&1 ; then
+		if ocf_is_probe; then
+			ocf_log info "initial probe: lvmlockd is not running yet."
+			exit $OCF_NOT_RUNNING
+		fi
+
+		ocf_exit_reason "lvmlockd daemon is not running!"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	if pgrep clvmd >/dev/null 2>&1 ; then
+		ocf_exit_reason "clvmd daemon is running unexpectedly."
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+clvmd_check()
+{
+	config_verify "global/use_lvmetad" "0"
+	config_verify "global/use_lvmlockd" "0"
+	config_verify "global/locking_type" "3"
+
+	# TODO:
+	# David asked a question: does lvchange -aey works well enough with clvmd?
+	#
+	# Corey said: I think it does work well enough. We do a fair amount of exclusive
+	# activation clvm testing, and my experience is you'll get the LV activated on
+	# the node you ran the command on. But, I think the specific scenario and issue
+	# that surprised us all was when the LV was *already* exclusively active on say
+	# nodeA, and nodeB then attempts to also exclusively activate it as well. Instead
+	# of failing, the activation succeeds even though nodeB activation didn't occur.
+	# This is documented in the following bug:
+	#	https://bugzilla.redhat.com/show_bug.cgi?id=1191724#c8
+	# Technically, you're not guaranteed to have it activated on the node you run
+	# the cmd on, but again, that's not been my experience.
+	#
+	# Eric: Put the interesting discussion here so that we can be more careful on this.
+
+	# Good: clvmd is running, and lvmlockd is not running
+	if ! pgrep clvmd >/dev/null 2>&1 ; then
+		ocf_exit_reason "clvmd daemon is not running!"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	if pgrep lvmetad >/dev/null 2>&1 ; then
+		ocf_exit_reason "Please stop lvmetad daemon when clvmd is running."
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	if pgrep lvmlockd >/dev/null 2>&1 ; then
+		ocf_exit_reason "lvmlockd daemon is running unexpectedly."
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+systemid_check()
+{
+	local source
+
+	# system_id_source is set in lvm.conf
+	source=$(lvmconfig 'global/system_id_source' 2>/dev/null | cut -d"=" -f2)
+	if [ "$source" = "" ] || [ "$source" = "none" ]; then
+		ocf_exit_reason "system_id_source in lvm.conf is not set correctly!"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	if [ -z ${SYSTEM_ID} ]; then
+		ocf_exit_reason "local/system_id is not set!"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+# Verify tags setup
+tagging_check()
+{
+	# The volume_list must be initialized to something in order to
+	# guarantee our tag will be filtered on startup
+	if ! lvm dumpconfig activation/volume_list; then
+		ocf_log err  "LVM: Improper setup detected"
+		ocf_exit_reason "The volume_list filter must be initialized in lvm.conf for exclusive activation without clvmd"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	# Our tag must _NOT_ be in the volume_list.  This agent
+	# overrides the volume_list during activation using the
+	# special tag reserved for cluster activation
+	if lvm dumpconfig activation/volume_list | grep -e "\"@${OUR_TAG}\"" -e "\"${VG}\"";  then
+		ocf_log err "LVM:  Improper setup detected"
+		ocf_exit_reason "The volume_list in lvm.conf must not contain the cluster tag, \"${OUR_TAG}\", or volume group, ${VG}"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+read_parameters()
+{
+	if [ -z "$VG" ]
+	then
+		ocf_exit_reason "You must identify the volume group name!"
+		exit $OCF_ERR_ARGS
+	fi
+
+	if [ "$LV_activation_mode" != "shared" ] && [ "$LV_activation_mode" != "exclusive" ]
+	then
+		ocf_exit_reason "Invalid value for activation_mode: $LV_activation_mode"
+		exit $OCF_ERR_ARGS
+	fi
+
+	# Convert VG_access_mode from string to index
+	case ${VG_access_mode} in
+	lvmlockd)
+		VG_access_mode_num=1
+		;;
+	clvmd)
+		VG_access_mode_num=2
+		;;
+	system_id)
+		VG_access_mode_num=3
+		;;
+	tagging)
+		VG_access_mode_num=4
+		;;
+	*)
+		# dont exit with error-code here or nodes will get fenced on
+		# e.g. "pcs resource create"
+		ocf_exit_reason "You specified an invalid value for vg_access_mode: $VG_access_mode"
+		;;
+	esac
+}
+
+lvm_validate() {
+	local lv_count
+	local mode
+
+	read_parameters
+
+	check_binary pgrep
+	# Every LVM command is just symlink to lvm binary
+	check_binary lvm
+	check_binary dmsetup
+
+	# This is necessary when using system ID to update lvm hints,
+	# or in older versions of lvm, this is necessary to update the
+	# lvmetad cache.
+	pvscan --cache
+
+	if ! vgs --foreign ${VG} >/dev/null 2>&1 ; then
+		# stop action exits successfully if the VG cannot be accessed...
+		if [ $__OCF_ACTION = "stop" ]; then
+			ocf_log warn "VG [${VG}] cannot be accessed, stop action exits successfully."
+			exit $OCF_SUCCESS
+		fi
+
+		if ocf_is_probe; then
+			ocf_log info "initial probe: VG [${VG}] is not found on any block device yet."
+			exit $OCF_NOT_RUNNING
+		fi
+
+		ocf_exit_reason "Volume group[${VG}] doesn't exist, or not visible on this node!"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	# Inconsistency might be due to missing physical volumes, which doesn't
+	# automatically mean we should fail.  If partial_activation=true then
+	# we should let start try to handle it, or if no PVs are listed as
+	# "unknown device" then another node may have marked a device missing
+	# where we have access to all of them and can start without issue.
+	case $(vgs -o attr --noheadings $VG | tr -d ' ') in
+	???p??*)
+		if ! ocf_is_true "$OCF_RESKEY_partial_activation" ; then
+			# We are missing devices and cannot activate partially
+			ocf_exit_reason "Volume group [$VG] has devices missing.  Consider partial_activation=true to attempt to activate partially"
+			exit $OCF_ERR_GENERIC
+		else
+			# We are missing devices but are allowed to activate partially.
+			# Assume that caused the vgck failure and carry on
+			ocf_log warn "Volume group inconsistency detected with missing device(s) and partial_activation enabled.  Proceeding with requested action."
+		fi
+		;;
+	esac
+
+	# Get the access mode from VG metadata and check if it matches the input
+	# value. Skip to check "tagging" mode because there's no reliable way to
+	# automatically check if "tagging" mode is being used.
+	get_VG_access_mode_num
+	mode=$?
+	if [ $VG_access_mode_num -ne 4 ] && [ $mode -ne $VG_access_mode_num ]; then
+		ocf_exit_reason "The specified vg_access_mode doesn't match the lock_type on VG metadata!"
+		exit $OCF_ERR_ARGS
+	fi
+
+	# Nothing to do if the VG has no logical volume
+	lv_count=$(vgs --foreign -o lv_count --noheadings ${VG} 2>/dev/null)
+	if [ $lv_count -lt 1 ]; then
+		ocf_exit_reason "Volume group [$VG] doesn't contain any logical volume!"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	# Check if the given $LV is in the $VG
+	if [ -n "$LV" ]; then
+		OUT=$(lvs --foreign --noheadings ${VG}/${LV} 2>&1)
+		if [ $? -ne 0 ]; then
+			ocf_log err "lvs: ${OUT}"
+			ocf_exit_reason "LV ($LV) is not in the given VG ($VG)."
+			exit $OCF_ERR_ARGS
+		fi
+	fi
+
+	# VG_access_mode_num specific checking goes here
+	case ${VG_access_mode_num} in
+	1)
+		lvmlockd_check
+		;;
+	2)
+		clvmd_check
+		;;
+	3)
+		systemid_check
+		;;
+
+	4)
+		tagging_check
+		;;
+	*)
+		ocf_exit_reason "Incorrect VG access mode detected!"
+		exit $OCF_ERR_CONFIGURED
+	esac
+
+	if [ $? -ne $OCF_SUCCESS ]; then
+		ocf_exit_reason "Improper configuration issue is detected!"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+# To activate LV(s) with different "activation mode" parameters
+do_activate() {
+	local activate_opt=$1
+
+	if ocf_is_true "$OCF_RESKEY_partial_activation" ; then
+		activate_opt="${activate_opt} --partial"
+	fi
+
+	# Only activate the specific LV if it's given
+	if [ -n "$LV" ]; then
+		ocf_run lvchange $activate_opt ${VG}/${LV}
+		if [ $? -ne $OCF_SUCCESS ]; then
+			return $OCF_ERR_GENERIC
+		fi
+	else
+		ocf_run lvchange $activate_opt ${VG}
+		if [ $? -ne $OCF_SUCCESS ]; then
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
+	return $OCF_SUCCESS
+}
+
+lvmlockd_activate() {
+	# activation opt
+	local activate_opt
+
+	if [ "$LV_activation_mode" = "shared" ]; then
+		activate_opt="-asy"
+	else
+		activate_opt="-aey"
+	fi
+
+	# lvmlockd requires shared VGs to be started before they're used
+	ocf_run vgchange --lockstart ${VG}
+	rc=$?
+	if [ $rc -ne $OCF_SUCCESS ]; then
+		ocf_log err "Failed to start shared VG(s), exit code: $rc"
+		return $OCF_ERR_GENERIC
+	fi
+
+	do_activate "$activate_opt"
+	if [ $? -ne $OCF_SUCCESS ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+# clvmd must be running to activate clustered VG
+clvmd_activate() {
+	local activate_opt
+
+	if [ "$LV_activation_mode" = "shared" ]; then
+		activate_opt="-asy"
+	else
+		activate_opt="-aey"
+	fi
+
+	do_activate "$activate_opt"
+	if [ $? -ne $OCF_SUCCESS ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+systemid_activate() {
+	local cur_systemid
+
+	cur_systemid=$(vgs --foreign --noheadings -o systemid ${VG} | tr -d '[:blank:]')
+
+	# Put our system ID on the VG
+	vgchange -y --config "local/extra_system_ids=[\"${cur_systemid}\"]" \
+		--systemid ${SYSTEM_ID} ${VG}
+
+	do_activate "-ay"
+	if [ $? -ne $OCF_SUCCESS ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+tagging_activate() {
+	if ! set_tags ; then
+		ocf_log err "Failed to set tags on ${VG}."
+		return $OCF_ERR_GENERIC
+	fi
+
+	do_activate "-ay --config activation{volume_list=[\"@${OUR_TAG}\"]}"
+	if [ $? -ne $OCF_SUCCESS ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+lvmlockd_deactivate() {
+	do_activate "-an"
+	if [ $? -ne $OCF_SUCCESS ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	OUT=$(lvs --noheadings -S lv_active=active ${VG} 2>/dev/null)
+	[ -n "$OUT" ] && return $OCF_SUCCESS
+
+	# Close the lockspace of this VG if there is no active LV
+	ocf_run vgchange --lockstop ${VG}
+	rc=$?
+	if [ $rc -ne $OCF_SUCCESS ]; then
+		ocf_log err "Failed to close the shared VG lockspace, exit code: $rc"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+clvmd_deactivate() {
+	do_activate "-an"
+	if [ $? -ne $OCF_SUCCESS ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+systemid_deactivate() {
+	do_activate "-an"
+	if [ $? -ne $OCF_SUCCESS ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+tagging_deactivate() {
+	do_activate "-an --config activation{volume_list=[\"@${OUR_TAG}\"]}"
+	if [ $? -ne $OCF_SUCCESS ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	if ! strip_tags ; then
+		ocf_log err "Failed to remove tags on ${VG}."
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+# TODO:
+# How can we accurately check if LVs in the given VG are all active?
+#
+# David:
+# If we wanted to check that all LVs in the VG are active, then we would
+# probably need to use the lvs/lv_live_table command here since dmsetup
+# won't know about inactive LVs that should be active.
+#
+# Eric:
+# But, lvs/lv_live_table command doesn't work well now. I tried the following
+# method:
+#
+# lv_count=$(vgs --foreign -o lv_count --noheadings ${VG} 2>/dev/null | tr -d '[:blank:]')
+# dm_count=$(dmsetup --noheadings info -c -S "vg_name=${VG}" 2>/dev/null | grep -c "${VG}-")
+# test $lv_count -eq $dm_count
+#
+# It works, but we cannot afford to use LVM command in lvm_status. LVM command is expensive
+# because it may potencially scan all disks on the system, update the metadata even using
+# lvs/vgs when the metadata is somehow inconsistent.
+#
+# So, we have to make compromise that the VG is assumably active if any LV of the VG is active.
+#
+# Paul:
+# VGS + LVS with "-" in their name get mangled with double dashes in dmsetup.
+# Switching to wc and just counting lines while depending on the vgname + lvname filter
+# in dmsetup gets around the issue with dmsetup reporting correctly but grep failing.
+#
+# Logic for both test cases and dmsetup calls changed so they match too.
+#
+# This is AllBad but there isn't a better way that I'm aware of yet.
+lvm_status() {
+	local dm_count
+	local dm_name
+
+	if [ -n "${LV}" ]; then
+		# dmsetup ls? It cannot accept device name. It's
+		# too heavy to list all DM devices.
+		dm_count=$(dmsetup info --noheadings --noflush -c -S "vg_name=${VG} && lv_name=${LV}" | grep -c -v '^No devices found')
+	else
+		dm_count=$(dmsetup info --noheadings --noflush -c -S "vg_name=${VG}" | grep -c -v '^No devices found')
+	fi
+
+	if [ $dm_count -eq 0 ]; then
+		return $OCF_NOT_RUNNING
+	fi
+
+	if [ $OCF_CHECK_LEVEL -gt 0 ]; then
+		case "$OCF_CHECK_LEVEL" in
+			10)
+				# if there are many lv in vg dir, pick the first name
+				dm_name="/dev/${VG}/$(ls -1 /dev/${VG} | head -n 1)"
+
+				# read 1 byte to check the dev is alive
+				dd if=${dm_name} of=/dev/null bs=1 count=1 >/dev/null 2>&1
+				if [ $? -ne 0 ]; then
+					return $OCF_NOT_RUNNING
+				fi
+				return $OCF_SUCCESS
+				;;
+			*)
+				ocf_exit_reason "unsupported monitor level $OCF_CHECK_LEVEL"
+				rc=$OCF_ERR_CONFIGURED
+				;;
+		esac
+	fi
+}
+
+lvm_start() {
+	local rc
+	local vol
+
+	if lvm_status ; then
+		ocf_log info "${vol}: is already active."
+		return $OCF_SUCCESS
+	fi
+
+	[ -z ${LV} ] && vol=${VG} || vol=${VG}/${LV}
+	ocf_log info "Activating ${vol}"
+
+	case ${VG_access_mode_num} in
+	1)
+		lvmlockd_activate
+		;;
+	2)
+		clvmd_activate
+		;;
+	3)
+		systemid_activate
+		;;
+	4)
+		tagging_activate
+		;;
+	*)
+		ocf_exit_reason "VG [${VG}] is not properly configured in cluster. It's unsafe!"
+		exit $OCF_ERR_CONFIGURED
+		;;
+	esac
+
+	rc=$?
+	if lvm_status ; then
+		ocf_log info "${vol}: activated successfully."
+		return $OCF_SUCCESS
+	else
+		ocf_exit_reason "${vol}: failed to activate."
+		return $rc
+	fi
+}
+
+# Deactivate LVM volume(s)
+lvm_stop() {
+	local vol
+
+	[ -z ${LV} ] && vol=${VG} || vol=${VG}/${LV}
+
+	if ! lvm_status ; then
+		ocf_log info "${vol}: has already been deactivated."
+		return $OCF_SUCCESS
+	fi
+
+	ocf_log info "Deactivating ${vol}"
+
+	case ${VG_access_mode_num} in
+	1)
+		lvmlockd_deactivate
+		;;
+	2)
+		clvmd_deactivate
+		;;
+	3)
+		systemid_deactivate
+		;;
+	4)
+		tagging_deactivate
+		;;
+	*)
+		ocf_log err "VG [${VG}] is not properly configured in cluster. It's unsafe!"
+		exit $OCF_SUCCESS
+		;;
+	esac
+
+	if ! lvm_status ; then
+		ocf_log info "${vol}: deactivated successfully."
+		return $OCF_SUCCESS
+	else
+		ocf_exit_reason "${vol}: failed to deactivate."
+		return $OCF_ERR_GENERIC
+	fi
+}
+
+#
+# MAIN
+#
+
+case $__OCF_ACTION in
+start)
+	lvm_validate
+	lvm_start
+	;;
+stop)
+	read_parameters
+	lvm_stop
+	;;
+monitor)
+	lvm_status
+	;;
+validate-all)
+	lvm_validate
+	;;
+meta-data)
+	meta_data
+	;;
+usage|help)
+	usage
+	;;
+*)
+	usage
+	exit $OCF_ERR_UNIMPLEMENTED
+	;;
+esac
+rc=$?
+
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc

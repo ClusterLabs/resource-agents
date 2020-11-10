@@ -1,0 +1,265 @@
+#!/bin/sh
+#
+#
+# OCF resource agent to set attributes from Openstack instance details.
+# It records (in the CIB) various attributes of a node
+#
+# Copyright (c) 2018 Mathieu Grzybek
+#          All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like. Any license provided herein, whether implied or
+# otherwise, applies only to this software file. Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_pidfile_default="$HA_RSCTMP/OSInfo-${OCF_RESOURCE_HOSTNAME}"
+OCF_RESKEY_delay_default="0"
+OCF_RESKEY_clone_default="0"
+OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
+
+: ${OCF_RESKEY_openstackcli=${OCF_RESKEY_openstackcli_default}}
+: ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
+: ${OCF_RESKEY_delay=${OCF_RESKEY_delay_default}}
+: ${OCF_RESKEY_clone=${OCF_RESKEY_clone_default}}
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="openstack-info">
+<version>1.0</version>
+
+<longdesc lang="en">
+OCF resource agent to set attributes from Openstack instance details.
+It records (in the CIB) various attributes of a node.
+Sample output:
+	openstack_az      : nova
+	openstack_flavor  : c1.small
+	openstack_id      : 60ac4343-5828-49b1-8aac-7c69b1417f31
+	openstack_ports   : 7960d889-9750-4160-bf41-c69a41ad72d9:96530d18-57a3-4718-af32-30f2a74c22a2,b0e55a06-bd75-468d-8baa-22cfeb65799f:a55ae917-8016-4b1e-8ffa-04311b9dc7d6
+
+The layout of openstack_ports is a comma-separated list of tuples "subnet_id:port_id".
+</longdesc>
+<shortdesc lang="en">Records various node attributes in the CIB</shortdesc>
+
+<parameters>
+<parameter name="pidfile" unique="0">
+<longdesc lang="en">PID file</longdesc>
+<shortdesc lang="en">PID file</shortdesc>
+<content type="string" default="${OCF_RESKEY_pidfile_default}" />
+</parameter>
+<parameter name="delay" unique="0">
+<longdesc lang="en">Interval to allow values to stabilize</longdesc>
+<shortdesc lang="en">Dampening Delay</shortdesc>
+<content type="string" default="${OCF_RESKEY_delay_default}" />
+</parameter>
+
+<parameter name="openrc" required="1">
+<longdesc lang="en">
+Valid Openstack credentials as openrc file from api_access/openrc.
+</longdesc>
+<shortdesc lang="en">openrc file</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="openstackcli">
+<longdesc lang="en">
+Path to command line tools for openstack.
+</longdesc>
+<shortdesc lang="en">Path to Openstack CLI tool</shortdesc>
+<content type="string" default="${OCF_RESKEY_openstackcli_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"  timeout="20s" />
+<action name="stop" timeout="20s" />
+<action name="monitor" timeout="20s" interval="60s"/>
+<action name="meta-data" timeout="5s" />
+<action name="validate-all" timeout="20s" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+OSInfoStats() {
+	local result
+	local value
+	local node
+	local node_id
+
+	. $OCF_RESKEY_openrc
+
+	node=$(crm_node -n|awk -F. '{print $1}')
+
+	result=$($OCF_RESKEY_openstackcli server list \
+		--format value --column ID --column Name \
+		| grep $node)
+
+	if [ $? -ne 0 ] ; then
+		ocf_exit_reason "cannot find $node in instances list"
+		exit $OCF_ERR_GENERIC
+	fi
+	node_id=$(echo $result|awk '{print $1}')
+
+	# Nova data: flavor, AZ…
+	result=$($OCF_RESKEY_openstackcli server show \
+		--format value \
+		--column flavor \
+		--column OS-EXT-AZ:availability_zone \
+		$node_id | tr '\n' ' ')
+
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_id -v $node_id
+
+	value=$(echo $result|awk '{print $2}')
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_flavor -v $value
+
+	value=$(echo $result|awk '{print $1}')
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_az -v $value
+
+	# Network data: ports
+	result=$($OCF_RESKEY_openstackcli port list \
+		--format value \
+		--column device_id \
+		--column id \
+		--column "Fixed IP Addresses" \
+		| awk "/^$node_id/ {gsub(\"subnet_id='\",\"\");gsub(\"'\",\"\");print \$NF\":\"\$2}" | tr '\n' ' ')
+
+	value=""
+	for p in $result ; do
+		if [ -z "$value" ] ; then
+			value="$p"
+		else
+			value="$value,$p"
+		fi
+	done
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_ports -v "$value"
+
+	if [ ! -z "$OS_REGION_NAME" ] ; then
+		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_region -v "$OS_REGION_NAME"
+	fi
+
+	if [ ! -z "$OS_TENANT_ID" ] ; then
+		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_tenant_id -v "$OS_TENANT_ID"
+
+		if [ ! -z "$OS_TENANT_NAME" ] ; then
+			${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_tenant_name -v "$OS_TENANT_NAME"
+		fi
+	else
+		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_project_id -v "$OS_PROJECT_ID"
+
+		if [ ! -z "$OS_PROJECT_NAME" ] ; then
+			${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_project_name -v "$OS_PROJECT_NAME"
+		fi
+	fi
+
+}
+
+OSInfo_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+OSInfo_start() {
+	echo $OCF_RESKEY_clone > $OCF_RESKEY_pidfile
+	OSInfoStats
+	exit $OCF_SUCCESS
+}
+
+OSInfo_stop() {
+	rm -f $OCF_RESKEY_pidfile
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_id
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_flavor
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_az
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_ports
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_region
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_tenant_id
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_tenant_name
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_project_id
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_project_name
+	exit $OCF_SUCCESS
+}
+
+OSInfo_monitor() {
+	if [ -f "$OCF_RESKEY_pidfile" ] ; then
+		OSInfoStats
+		exit $OCF_RUNNING
+	fi
+	exit $OCF_NOT_RUNNING
+}
+
+OSInfo_validate() {
+	check_binary "$OCF_RESKEY_openstackcli"
+
+	if [ -z "$OCF_RESKEY_openrc" ]; then
+		ocf_exit_reason "openrc parameter not set"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	if [ ! -f "$OCF_RESKEY_openrc" ] ; then
+		ocf_exit_reason "openrc file not found"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+if [ $# -ne 1 ]; then
+	OSInfo_usage
+	exit $OCF_ERR_ARGS
+fi
+
+if [ x != x${OCF_RESKEY_delay} ]; then
+	OCF_RESKEY_delay="-d ${OCF_RESKEY_delay}"
+fi
+
+case $__OCF_ACTION in
+meta-data)	meta_data
+		exit $OCF_SUCCESS
+		;;
+start)		OSInfo_start
+		;;
+stop)		OSInfo_stop
+		;;
+monitor)	OSInfo_monitor
+		;;
+validate-all)	OSInfo_validate
+		;;
+usage|help)	OSInfo_usage
+		exit $OCF_SUCCESS
+		;;
+*)		OSInfo_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+
+exit $?

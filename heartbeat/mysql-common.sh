@@ -2,6 +2,13 @@
 
 #######################################################################
 
+# Use runuser if available for SELinux.
+if [ -x /sbin/runuser ]; then
+	SU=runuser
+else
+	SU=su
+fi
+
 # Attempt to detect a default binary
 OCF_RESKEY_binary_default=$(which mysqld_safe 2> /dev/null)
 if [ "$OCF_RESKEY_binary_default" = "" ]; then
@@ -42,6 +49,9 @@ OCF_RESKEY_additional_parameters_default=""
 OCF_RESKEY_replication_user_default="root"
 OCF_RESKEY_replication_passwd_default=""
 OCF_RESKEY_replication_port_default="3306"
+OCF_RESKEY_replication_master_ssl_ca_default=""
+OCF_RESKEY_replication_master_ssl_cert_default=""
+OCF_RESKEY_replication_master_ssl_key_default=""
 OCF_RESKEY_max_slave_lag_default="3600"
 OCF_RESKEY_evict_outdated_slaves_default="false"
 OCF_RESKEY_reader_attribute_default="readable"
@@ -71,6 +81,9 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 : ${OCF_RESKEY_replication_user=${OCF_RESKEY_replication_user_default}}
 : ${OCF_RESKEY_replication_passwd=${OCF_RESKEY_replication_passwd_default}}
 : ${OCF_RESKEY_replication_port=${OCF_RESKEY_replication_port_default}}
+: ${OCF_RESKEY_replication_master_ssl_ca=${OCF_RESKEY_replication_master_ssl_ca_default}}
+: ${OCF_RESKEY_replication_master_ssl_cert=${OCF_RESKEY_replication_master_ssl_cert_default}}
+: ${OCF_RESKEY_replication_master_ssl_key=${OCF_RESKEY_replication_master_ssl_key_default}}
 
 : ${OCF_RESKEY_max_slave_lag=${OCF_RESKEY_max_slave_lag_default}}
 : ${OCF_RESKEY_evict_outdated_slaves=${OCF_RESKEY_evict_outdated_slaves_default}}
@@ -207,7 +220,7 @@ mysql_common_prepare_dirs()
     # already existed, check whether it is writable by the configured
     # user
     for dir in $pid_dir $socket_dir; do
-        if ! su -s /bin/sh - $OCF_RESKEY_user -c "test -w $dir"; then
+        if ! $SU -s /bin/sh - $OCF_RESKEY_user -c "test -w $dir"; then
             ocf_exit_reason "Directory $dir is not writable by $OCF_RESKEY_user"
             exit $OCF_ERR_PERM;
         fi
@@ -219,13 +232,14 @@ mysql_common_start()
     local mysql_extra_params="$1"
     local pid
 
-    ${OCF_RESKEY_binary} --defaults-file=$OCF_RESKEY_config \
+    $SU - $OCF_RESKEY_user -s /bin/sh -c \
+    "${OCF_RESKEY_binary} --defaults-file=$OCF_RESKEY_config \
     --pid-file=$OCF_RESKEY_pid \
     --socket=$OCF_RESKEY_socket \
     --datadir=$OCF_RESKEY_datadir \
     --log-error=$OCF_RESKEY_log \
-    --user=$OCF_RESKEY_user $OCF_RESKEY_additional_parameters \
-    $mysql_extra_params >/dev/null 2>&1 &
+    $OCF_RESKEY_additional_parameters \
+    $mysql_extra_params >/dev/null 2>&1" &
     pid=$!
 
     # Spin waiting for the server to come up.

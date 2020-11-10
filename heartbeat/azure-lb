@@ -1,0 +1,223 @@
+#!/bin/sh
+#
+
+#  License:      GNU General Public License (GPL)
+#  (c) 2017 O. Albrigtsen
+#           and Linux-HA contributors
+#
+# -----------------------------------------------------------------------------
+#      O C F    R E S O U R C E    S C R I P T   S P E C I F I C A T I O N
+# -----------------------------------------------------------------------------
+#
+# NAME
+#       azure-lb : OCF resource agent script for Azure Load Balancer
+#
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_nc_default="/usr/bin/nc"
+case "$( get_release_id )" in
+	*SUSE)
+		OCF_RESKEY_nc_default="/usr/bin/socat"
+	;;
+esac
+OCF_RESKEY_port_default="61000"
+
+: ${OCF_RESKEY_nc=${OCF_RESKEY_nc_default}}
+: ${OCF_RESKEY_port=${OCF_RESKEY_port_default}}
+
+process="$OCF_RESOURCE_INSTANCE"
+pidfile="/var/run/$OCF_RESOURCE_INSTANCE.pid"
+
+
+lb_usage() {
+	cat <<END
+    usage: $0 (start|stop|validate-all|meta-data|help|usage|monitor)
+    $0 manages service that answers Azure Load Balancer health probe requests as a OCF HA resource.
+    The 'start' operation starts the instance.
+    The 'stop' operation stops the instance.
+    The 'monitor' operation reports whether the instance seems to be working
+    The 'validate-all' operation reports whether the parameters are valid
+END
+}
+
+lb_metadata() {
+cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="azure-lb">
+<version>1.0</version>
+<longdesc lang="en">
+Resource agent to answer Azure Load Balancer health probe requests
+</longdesc>
+<shortdesc lang="en">Answers Azure Load Balancer health probe requests</shortdesc>
+
+<parameters>
+
+<parameter name="nc">
+<longdesc lang="en">
+The full path of the used binary. This can be nc or socat path.
+The default is /usr/bin/nc and /usr/bin/socat for SUSE distributions.
+</longdesc>
+<shortdesc lang="en">Full path of the used binary (nc or socat are allowed)</shortdesc>
+<content type="string" default="${OCF_RESKEY_nc_default}"/>
+</parameter>
+
+<parameter name="port">
+<longdesc lang="en">
+Port to listen to.
+</longdesc>
+<shortdesc lang="en">Listen to port</shortdesc>
+<content type="string" default="${OCF_RESKEY_port_default}"/>
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"   timeout="20s" />
+<action name="stop"    timeout="20s" />
+<action name="monitor" depth="0"  timeout="20s" interval="10s" />
+<action name="meta-data"  timeout="5s" />
+<action name="validate-all"  timeout="5s" />
+</actions>
+</resource-agent>
+END
+exit 0
+}
+
+getpid() {
+        grep -o '[0-9]*' $1
+}
+
+lb_monitor() {
+	if test -f "$pidfile"; then
+		if pid=`getpid $pidfile` && [ "$pid" ] && kill -s 0 $pid; then
+			return $OCF_SUCCESS
+		else
+			# pidfile w/o process means the process died
+			return $OCF_ERR_GENERIC
+		fi
+	else
+		return $OCF_NOT_RUNNING
+	fi
+}
+
+lb_start() {
+	cmd="$OCF_RESKEY_nc -l -k $OCF_RESKEY_port"
+	if [ $( basename $OCF_RESKEY_nc ) = 'socat' ]; then
+		#socat has different parameters
+		cmd="$OCF_RESKEY_nc -U TCP-LISTEN:$OCF_RESKEY_port,backlog=10,fork,reuseaddr /dev/null"
+	fi
+	if ! lb_monitor; then
+		ocf_log debug "Starting $process: $cmd"
+		# Execute the command as created above
+		$cmd &
+		echo $! > $pidfile
+		if lb_monitor; then
+			ocf_log debug "$process: $cmd started successfully, calling monitor"
+			lb_monitor
+			return $?
+		else 
+			ocf_log err "$process: $cmd could not be started"
+			return $OCF_ERR_GENERIC
+		fi
+	else
+		# If already running, consider start successful
+		ocf_log debug "$process: $cmd is already running"
+		return $OCF_SUCCESS
+	fi
+}
+
+lb_stop() {
+	local rc=$OCF_SUCCESS
+
+        if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+                # Allow 2/3 of the action timeout for the orderly shutdown
+                # (The origin unit is ms, hence the conversion)
+                stop_timeout=$((OCF_RESKEY_CRM_meta_timeout/1500))
+        else
+                stop_timeout=10
+        fi
+
+	if lb_monitor; then
+                pid=`getpid $pidfile`
+                kill $pid
+
+                i=0
+                while [ $i -lt $stop_timeout ]; do
+                        if ! lb_monitor; then
+                        	rm -f $pidfile
+                                return $OCF_SUCCESS
+                        fi
+                        sleep 1 
+                        i=$((i+1))
+                done
+
+                ocf_log warn "Stop with SIGTERM failed/timed out, now sending SIGKILL."
+                kill -s 9 $pid
+                while :; do
+                        if ! lb_monitor; then
+                                ocf_log warn "SIGKILL did the job."
+                                rc=$OCF_SUCCESS
+                                break
+                        fi
+                        ocf_log info "The job still hasn't stopped yet. Waiting..."
+                        sleep 1
+                done
+	fi
+	rm -f $pidfile 
+	return $rc
+}
+
+lb_validate() {
+	check_binary "$OCF_RESKEY_nc"
+
+	if ! ocf_is_decimal "$OCF_RESKEY_port"; then
+		ocf_exit_reason "$OCF_RESKEY_port is not a valid port"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+###############################################################################
+#
+# MAIN
+#
+###############################################################################
+
+case $__OCF_ACTION in
+	meta-data)
+		lb_metadata
+		exit $OCF_SUCCESS
+		;;
+	usage|help)
+		lb_usage
+		exit $OCF_SUCCESS
+		;;
+esac
+
+if ! ocf_is_root; then
+	ocf_log err "You must be root for $__OCF_ACTION operation."
+	exit $OCF_ERR_PERM
+fi
+
+case $__OCF_ACTION in
+	start)
+		lb_validate 
+		lb_start;;
+	stop)
+		lb_stop;;
+	monitor)
+		lb_monitor;;
+	validate-all)
+		lb_validate;;
+	*)	
+		echo $USAGE
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+
+exit $?

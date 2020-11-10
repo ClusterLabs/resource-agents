@@ -134,6 +134,43 @@ static socklen_t sll_len(size_t halen)
 
 #define SLL_LEN(hln)		sll_len(hln)
 
+#if 1 /* hb_mode: always print hb_mode usage in this binary */
+static char print_usage[]={
+"send_arp: sends out custom ARP packet.\n"
+"  usage: send_arp [-i repeatinterval-ms] [-r repeatcount] [-p pidfile] \\\n"
+"              device src_ip_addr src_hw_addr broadcast_ip_addr netmask\n"
+"\n"
+"  where:\n"
+"    repeatinterval-ms: ignored\n"
+"\n"
+"    repeatcount: how many ARP packets to send.\n"
+"\n"
+"    pidfile: pid file to use\n"
+"\n"
+"    device: network interface to use\n"
+"\n"
+"    src_ip_addr: source ip address\n"
+"\n"
+"    src_hw_addr: only \"auto\" is supported.\n"
+"                 If other specified, it will exit without sending any ARP packets.\n"
+"\n"
+"    broadcast_ip_addr: ignored\n"
+"\n"
+"    netmask: ignored\n"
+"\n"
+"  Notes: Other options of iputils-arping may be accepted but it's not\n"
+"         intended to be supported in this binary.\n"
+"\n"
+};
+
+void usage(void)
+{
+	fprintf(stderr, "%s\n", print_usage);
+	exit(2);
+}
+
+#else /* hb_mode */
+
 void usage(void)
 {
 	fprintf(stderr,
@@ -157,6 +194,7 @@ void usage(void)
 		);
 	exit(2);
 }
+#endif /* hb_mode */
 
 static void set_signal(int signo, void (*handler)(void))
 {
@@ -1113,6 +1151,11 @@ main(int argc, char **argv)
 	    unsolicited = 1;
 	    device.name = argv[optind];
 	    target = argv[optind+1];
+            if (strcmp(argv[optind+2], "auto")) {
+		fprintf(stderr, "send_arp.linux: Gratuitous ARPs are not sent in the Cluster IP configuration\n");
+                /* return success to suppress an error log by the RA */
+		exit(0);
+            }
 
 	} else {
 	    argc -= optind;

@@ -4,7 +4,7 @@
 #    Manage Elastic IP with Pacemaker
 #
 #
-# Copyright 2016 guessi <guessi@gmail.com>
+# Copyright 2016-2018 guessi <guessi@gmail.com>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,10 +24,11 @@
 #  Prerequisites:
 #
 #  - preconfigured AWS CLI running environment (AccessKey, SecretAccessKey, etc.)
-#  - a reserved secondary private IP address for EC2 instances high availablity
+#  - a reserved secondary private IP address for EC2 instances high availability
 #  - IAM user role with the following permissions:
 #    * DescribeInstances
 #    * AssociateAddress
+#    * DescribeAddresses
 #    * DisassociateAddress
 #
 
@@ -42,10 +43,12 @@
 #
 # Defaults
 #
-OCF_RESKEY_awscli_default="/usr/bin/awscli"
-OCF_RESKEY_api_delay_default="1"
+OCF_RESKEY_awscli_default="/usr/bin/aws"
+OCF_RESKEY_profile_default="default"
+OCF_RESKEY_api_delay_default="3"
 
 : ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
+: ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
 : ${OCF_RESKEY_api_delay=${OCF_RESKEY_api_delay_default}}
 
 meta_data() {
@@ -56,9 +59,15 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-description
+Resource Agent for Amazon AWS Elastic IP Addresses.
+
+It manages AWS Elastic IP Addresses with awscli.
+
+Credentials needs to be setup by running "aws configure".
+
+See https://aws.amazon.com/cli/ for more information about awscli.
 </longdesc>
-<shortdesc lang="en"></shortdesc>
+<shortdesc lang="en">Amazon AWS Elastic IP Address Resource Agent</shortdesc>
 
 <parameters>
 
@@ -70,6 +79,14 @@ command line tools for aws services
 <content type="string" default="${OCF_RESKEY_awscli_default}" />
 </parameter>
 
+<parameter name="profile">
+<longdesc lang="en">
+Valid AWS CLI profile name (see ~/.aws/config and 'aws configure')
+</longdesc>
+<shortdesc lang="en">profile name</shortdesc>
+<content type="string" default="${OCF_RESKEY_profile_default}" />
+</parameter>
+
 <parameter name="elastic_ip" unique="1" required="1">
 <longdesc lang="en">
 reserved elastic ip for ec2 instance
@@ -78,7 +95,7 @@ reserved elastic ip for ec2 instance
 <content type="string" default="" />
 </parameter>
 
-<parameter name="allocation_id" unique="1" required="0">
+<parameter name="allocation_id" unique="1" required="1">
 <longdesc lang="en">
 reserved allocation id for ec2 instance
 </longdesc>
@@ -105,15 +122,14 @@ a short delay between API calls, to avoid sending API too quick
 </parameters>
 
 <actions>
-<action name="start"        timeout="10" />
-<action name="stop"         timeout="10" />
-<action name="monitor"      timeout="10" interval="20" depth="0" />
-<action name="reload"       timeout="10" />
-<action name="migrate_to"   timeout="10" />
-<action name="migrate_from" timeout="10" />
-<action name="meta-data"    timeout="5" />
-<action name="validate"     timeout="10" />
-<action name="validate-all" timeout="10" />
+<action name="start"        timeout="30s" />
+<action name="stop"         timeout="30s" />
+<action name="monitor"      timeout="30s" interval="20s" depth="0" />
+<action name="migrate_to"   timeout="30s" />
+<action name="migrate_from" timeout="30s" />
+<action name="meta-data"    timeout="5s" />
+<action name="validate"     timeout="10s" />
+<action name="validate-all" timeout="10s" />
 </actions>
 </resource-agent>
 END
@@ -132,17 +148,24 @@ END
 awseip_start() {
     awseip_monitor && return $OCF_SUCCESS
 
-    if [ -n "${ALLOCATION_ID}" ] && [ -n "${PRIVATE_IP_ADDRESS}" ]; then
-        $AWSCLI ec2 associate-address  \
-            --instance-id ${INSTANCE_ID} \
+    if [ -n "${PRIVATE_IP_ADDRESS}" ]; then
+        NETWORK_INTERFACES_MACS="$(curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/)"
+        for MAC in ${NETWORK_INTERFACES_MACS}; do
+            curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC}/local-ipv4s |
+                grep -q "^${PRIVATE_IP_ADDRESS}$"
+            if [ $? -eq 0 ]; then
+                NETWORK_ID="$(curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC}/interface-id)"
+            fi
+        done
+        $AWSCLI --profile $OCF_RESKEY_profile ec2 associate-address  \
             --network-interface-id ${NETWORK_ID} \
             --allocation-id ${ALLOCATION_ID} \
             --private-ip-address ${PRIVATE_IP_ADDRESS}
         RET=$?
     else
-        $AWSCLI ec2 associate-address  \
+        $AWSCLI --profile $OCF_RESKEY_profile ec2 associate-address  \
             --instance-id ${INSTANCE_ID} \
-            --public-ip ${ELASTIC_IP}
+            --allocation-id ${ALLOCATION_ID}
         RET=$?
     fi
 
@@ -153,15 +176,24 @@ awseip_start() {
         return $OCF_NOT_RUNNING
     fi
 
-    ocf_log info "elastic_ip have been successfully bring up (${ELASTIC_IP})"
+    ocf_log info "elastic_ip has been successfully brought up (${ELASTIC_IP})"
     return $OCF_SUCCESS
 }
 
 awseip_stop() {
     awseip_monitor || return $OCF_SUCCESS
 
-    $AWSCLI ec2 disassociate-address  \
-        --public-ip ${ELASTIC_IP}
+    ASSOCIATION_ID=$($AWSCLI --profile $OCF_RESKEY_profile --output json ec2 describe-addresses \
+                         --allocation-id ${ALLOCATION_ID} | grep -m 1 "AssociationId" | awk -F'"' '{print$4}')
+
+    if [ -z "${ASSOCIATION_ID}" ]; then
+        ocf_log info "ASSOCIATION_ID not found while stopping AWS Elastic IP"
+        return $OCF_NOT_RUNNING
+    fi
+
+    $AWSCLI --profile ${OCF_RESKEY_profile} \
+        ec2 disassociate-address \
+        --association-id ${ASSOCIATION_ID}
     RET=$?
 
     # delay to avoid sending request too fast
@@ -171,12 +203,12 @@ awseip_stop() {
         return $OCF_NOT_RUNNING
     fi
 
-    ocf_log info "elastic_ip have been successfully bring down (${ELASTIC_IP})"
+    ocf_log info "elastic_ip has been successfully brought down (${ELASTIC_IP})"
     return $OCF_SUCCESS
 }
 
 awseip_monitor() {
-    $AWSCLI ec2 describe-instances --instance-id "${INSTANCE_ID}" | grep -q "${ELASTIC_IP}"
+    $AWSCLI --profile $OCF_RESKEY_profile ec2 describe-instances --instance-id "${INSTANCE_ID}" | grep -q "${ELASTIC_IP}"
     RET=$?
 
     if [ $RET -ne 0 ]; then
@@ -188,9 +220,14 @@ awseip_monitor() {
 awseip_validate() {
     check_binary ${AWSCLI}
 
+    if [ -z "$OCF_RESKEY_profile" ]; then
+        ocf_exit_reason "profile parameter not set"
+        return $OCF_ERR_CONFIGURED
+    fi
+
     if [ -z "${INSTANCE_ID}" ]; then
-        ocf_log info "instant_id could not been found, is this EC2 instance?"
-        return $OCF_GENERIC
+        ocf_exit_reason "instance_id not found. Is this a EC2 instance?"
+        return $OCF_ERR_GENERIC
     fi
 
     return $OCF_SUCCESS
@@ -203,16 +240,15 @@ case $__OCF_ACTION in
         ;;
 esac 
 
-: ${OCF_RESKEY_awscli="/usr/bin/aws"}
 AWSCLI="${OCF_RESKEY_awscli}"
 ELASTIC_IP="${OCF_RESKEY_elastic_ip}"
 ALLOCATION_ID="${OCF_RESKEY_allocation_id}"
 PRIVATE_IP_ADDRESS="${OCF_RESKEY_private_ip_address}"
 INSTANCE_ID="$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"
-NETWORK_ID="$($AWSCLI ec2 describe-instances --instance-id ${INSTANCE_ID} | grep -m 1 'eni' | awk -F'"' '{print$4}')"
 
 case $__OCF_ACTION in
     start)
+        awseip_validate
         awseip_start
         ;;
     stop)

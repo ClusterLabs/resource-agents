@@ -1,0 +1,333 @@
+#!/bin/sh
+#
+#	crypt/LUKS OCF RA. Manages cryptsetup devices.
+#
+# Copyright (c) 2020 Red Hat GmbH, Heinz Mauelshagen
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Parameter defaults
+OCF_RESKEY_encrypted_dev_default=""
+OCF_RESKEY_crypt_dev_default=""
+OCF_RESKEY_key_file_default=""
+OCF_RESKEY_crypt_type_default=""
+OCF_RESKEY_force_stop_default="false"
+
+: ${OCF_RESKEY_encrypted_dev=${OCF_RESKEY_encrypted_dev_default}}
+: ${OCF_RESKEY_crypt_dev=${OCF_RESKEY_crypt_dev_default}}
+: ${OCF_RESKEY_key_file=${OCF_RESKEY_key_file_default}}
+: ${OCF_RESKEY_crypt_type=${OCF_RESKEY_crypt_type_default}}
+: ${OCF_RESKEY_force_stop=${OCF_RESKEY_force_stop_default}}
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="crypt">
+<version>1.0</version>
+
+<longdesc lang="en">
+This is a LUKS/crypt Resource Agent managing encrypted devices via cryptsetup(8).
+The agent imposes limitations on device types supported: luks, luks[1..N].
+</longdesc>
+<shortdesc lang="en">LUKS/crypt resource agent</shortdesc>
+
+<parameters>
+
+<parameter name="encrypted_dev" unique="1" required="1">
+<longdesc lang="en">
+Encrypted backing device, which should be defined by UUID,
+36 characters including '-'s as reported by blkid(8).
+
+Although it can be defined as a block device path (e.g. /dev/sdh),
+the UUID should be preferred over the block device path to allow for the
+unique discovery of the crypt backing device given the volatile nature of
+/dev entries (e.g. /dev/sdh on one node may be /dev/sdg on another).
+
+Only define as block device path if you know what you are doing.
+</longdesc>
+<shortdesc lang="en">Encrypted device</shortdesc>
+<content type="string" default="${OCF_RESKEY_encrypted_dev_default}" />
+</parameter>
+
+<parameter name="crypt_dev" unique="1" required="1">
+<longdesc lang="en">
+Encrypted device name, no path.  I.e. the one given in "cryptsetup open name ...".
+The resulting block device path is /dev/mapper/name.
+</longdesc>
+<shortdesc lang="en">Encrypted device</shortdesc>
+<content type="string" default="${OCF_RESKEY_crypt_dev_default}" />
+</parameter>
+
+<parameter name="key_file" unique="1" required="1">
+<longdesc lang="en">
+Key file path containing the encryption passphrase
+(aka key; see cryptsetup(8)).  For LUKS, the passphrase as of the key_file
+parameter is used to decrypt a randomly selected key when the device was created.
+</longdesc>
+<shortdesc lang="en">Key file</shortdesc>
+<content type="string" default="${OCF_RESKEY_key_file_default}" />
+</parameter>
+
+<parameter name="crypt_type" unique="1" required="1">
+<longdesc lang="en">
+Encryption (device) type (e.g. "luks" or "luks2").
+
+This parameter affirms the encryption format as of the crypt metadata
+thus allowing for safety measures when starting the encrypted resource.
+</longdesc>
+<shortdesc lang="en">Encryption type</shortdesc>
+<content type="string" default="${OCF_RESKEY_crypt_type_default}" />
+</parameter>
+
+<parameter name="force_stop" unique="0" required="0">
+<longdesc lang="en">
+If processes or kernel threads are using the crypt device, it cannot
+be stopped. We will try to stop processes, first by sending TERM and
+then, if that doesn't help in $PROC_CLEANUP_TIME seconds, using KILL.
+The lsof(8) program is required to get the list of array users.
+Of course, the kernel threads cannot be stopped this way.
+If the processes are critical for data integrity, then set this
+parameter to false. Note that in that case the stop operation
+will fail and the node will be fenced.
+</longdesc>
+<shortdesc lang="en">force stop processes using the crpyt device</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_force_stop_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="20s" />
+<action name="stop"         timeout="20s" />
+<action name="monitor"      timeout="20s" interval="10s" depth="0" />
+<action name="meta-data"    timeout="5s" />
+<action name="validate-all" timeout="10s" />
+</actions>
+</resource-agent>
+END
+}
+
+# Disable cryptsetup auto-recovery if cloned.
+disable_locks=""
+ocf_is_clone && disable_locks="--disable-locks"
+
+crypt_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|usage|meta-data|validate-all}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+encrypted_dev="${OCF_RESKEY_encrypted_dev}"
+crypt_dev="${OCF_RESKEY_crypt_dev}"
+crypt_dev_path="/dev/mapper/$crypt_dev"
+key_file="${OCF_RESKEY_key_file}"
+crypt_type="${OCF_RESKEY_crypt_type}"
+force_stop="${OCF_RESKEY_force_stop}"
+
+crypt_validate_all() {
+	if ! have_binary cryptsetup; then
+		ocf_exit_reason "Please install cryptsetup(8)"
+		return $OCF_ERR_INSTALLED
+	fi
+	if [ -z "$encrypted_dev" ]; then
+		ocf_exit_reason "Undefined OCF_RESKEY_encrypted_dev"
+		return $OCF_ERR_CONFIGURED
+	fi
+	if [ -n "$encrypted_dev" ]; then
+		case "$encrypted_dev" in
+		*-*-*-*) if [ `echo "$encrypted_dev" | wc -c` -ne 37 ]; then
+				ocf_exit_reason "Bogus encrypted device UUID \"$encrypted_dev\""
+				return $OCF_ERR_ARGS
+			 fi
+			 encrypted_dev=/dev/disk/by-uuid/"$encrypted_dev";;
+		*)	 case "$encrypted_dev" in
+			 /dev/*) ;;
+			 *)	ocf_exit_reason "Bogus encrypted device path"
+				return $OCF_ERR_ARGS;;
+			 esac
+		esac
+	fi
+	if [ ! -b "$encrypted_dev" ]; then
+		ocf_exit_reason "Encrypted device $encrypted_dev not accessible"
+		return $OCF_ERR_ARGS
+	fi
+	echo "$crypt_dev" | grep "/" >/dev/null
+	if [ $? -eq 0 ] &&  [ -z "$crypt_dev" ]; then
+		ocf_exit_reason "Crypt device \"$crypt_dev\" name has to at least 1 character long and without path"
+		return $OCF_ERR_ARGS
+	fi
+	if [ ! -r "$key_file" ]; then
+		ocf_exit_reason "Hash key file $key_file not accessible"
+		return $OCF_ERR_ARGS
+	fi
+	if ocf_is_true "$force_stop" && ! have_binary lsof; then
+		ocf_exit_reason "Force stop requested, please install lsof(8)"
+		return $OCF_ERR_INSTALLED
+	fi
+	cryptsetup isLuks $encrypted_dev 2>/dev/null
+	if [ $? -ne 0 ]; then
+		ocf_exit_reason "$encrypted_dev is not a Luks formatted device"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+get_users_pids() {
+	ocf_log debug "running lsof to list \"$crypt_dev\" users..."
+	ocf_run -warn 'lsof $crypt_dev_path | tail -n +2 | awk "{print $2}" | sort -u'
+}
+
+stop_crypt_users() {
+	local pids=`get_users_pids`
+
+	if [ -z "$pids" ]; then
+		ocf_log warn "lsof reported no users holding arrays"
+		return 2
+	fi
+
+	ocf_stop_processes TERM $PROC_CLEANUP_TIME $pids
+}
+
+show_users() {
+	local dm_dev
+
+	ocf_log info "running lsof to list \"$crypt_dev\" users..."
+	ocf_run -warn lsof $crypt_dev_path
+
+	dm_dev=$(basename $(realpath $crypt_dev_path))
+	if [ -d /sys/block/$dm_dev/holders ]; then
+		ocf_log debug "ls -l /sys/block/$dm_dev/holders"
+		ocf_run -warn ls -l /sys/block/$dm_dev/holders
+	fi
+}
+
+crypt_stop_one() {
+	cryptsetup close $crypt_dev $disable_locks
+}
+
+#######################################################################
+#
+# Action: START an encrypted resource
+#
+crypt_start() {
+	local rc
+
+	cryptsetup open $encrypted_dev $crypt_dev --type $crypt_type $disable_locks --key-file=$key_file
+	rc=$?
+	if [ $rc -eq 0 ];then
+		crypt_monitor
+		rc=$?
+	else
+		rc=$OCF_ERR_GERNERIC
+	fi
+	[ $rc -ne $OCF_SUCCESS ] && ocf_exit_reason "Failed to start encrypted device \"$crypt_dev\""
+
+	return $rc
+}
+
+#
+# Action: STOP an encrypted resource
+#
+crypt_stop() {
+	local rc
+
+	crypt_monitor
+	rc=$?
+	if [ $rc -ne $OCF_NOT_RUNNING ]; then
+		crypt_stop_one
+		crypt_monitor
+		rc=$?
+	fi
+	if [ $rc -ne $OCF_NOT_RUNNING ] && ocf_is_true $force_stop; then
+		stop_crypt_users
+		case $? in
+		2) rc=$OCF_SUCCESS;;
+		*) crypt_stop_one
+		   crypt_monitor
+		   rc=$?;;
+		esac
+	fi
+	if [ $rc -ne $OCF_NOT_RUNNING ]; then
+		ocf_log warn "Couldn't stop crypt device \"$crypt_dev\" (rc=$rc)"
+		show_users
+		ocf_exit_reason "Failed to stop crypt device \"$crypt_dev\"!"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+#
+# Action: MONITOR an encrypted resource
+#
+crypt_monitor() {
+	cryptsetup status $crypt_dev $disable_locks >/dev/null 2>&1
+	if [ $? -eq 0 ]; then
+		[ -L $crypt_dev_path ] && return $OCF_SUCCESS
+		return $OCF_ERR_GENERIC
+	fi
+
+        [ "$__OCF_ACTION" = "monitor" ] && ! ocf_is_probe && ocf_exit_reason "Crypt resource not running"
+	return $OCF_NOT_RUNNING
+}
+
+# Check for stange argument count.
+if [ $# -ne 1 ]; then
+	usage
+	exit $OCF_ERR_ARGS
+fi
+
+case "$__OCF_ACTION" in
+meta-data)	meta_data
+		exit $OCF_SUCCESS;;
+usage|help)	crypt_usage
+		exit $OCF_SUCCESS;;
+esac
+
+# XME: remove once pacemaker is fixed and calls this action
+crypt_validate_all
+rc=$?
+[ $rc -ne $OCF_SUCCESS ] && exit $rc
+
+case "$__OCF_ACTION" in
+start)		crypt_start; rc=$?;;
+stop)		crypt_stop; rc=$?;;
+monitor)	crypt_monitor; rc=$?;;
+validate-all)	rc=$OCF_SUCCESS;; # crypt_validate_all would have errored out above already.
+*)		crypt_usage
+		exit $OCF_ERR_UNIMPLEMENTED;;
+esac
+
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc

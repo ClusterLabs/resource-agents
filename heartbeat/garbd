@@ -69,12 +69,18 @@ if [ "X${HOSTOS}" = "XOpenBSD" ];then
 else
     OCF_RESKEY_group_default="mysql"
 fi
+OCF_RESKEY_options_default=""
+OCF_RESKEY_wsrep_cluster_address_default=""
+OCF_RESKEY_wsrep_cluster_name_default=""
 
 : ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
 : ${OCF_RESKEY_log=${OCF_RESKEY_log_default}}
 : ${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}
 : ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
 : ${OCF_RESKEY_group=${OCF_RESKEY_group_default}}
+: ${OCF_RESKEY_options=${OCF_RESKEY_options_default}}
+: ${OCF_RESKEY_wsrep_cluster_address=${OCF_RESKEY_wsrep_cluster_address_default}}
+: ${OCF_RESKEY_wsrep_cluster_name=${OCF_RESKEY_wsrep_cluster_name_default}}
 
 usage() {
   cat <<UEND
@@ -149,7 +155,7 @@ The pidfile to be used for garbd.
 Additional parameters which are passed to garbd on startup.
 </longdesc>
 <shortdesc lang="en">Additional parameters to pass to garbd</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_options_default}"/>
 </parameter>
 
 <parameter name="wsrep_cluster_address" unique="0" required="1">
@@ -160,7 +166,7 @@ gcomm://node:port,node:port,node:port
 Unlike Galera servers, port is mandatory for garbd.
 </longdesc>
 <shortdesc lang="en">Galera cluster address</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_wsrep_cluster_address_default}"/>
 </parameter>
 
 <parameter name="wsrep_cluster_name" unique="0" required="1">
@@ -168,17 +174,17 @@ Unlike Galera servers, port is mandatory for garbd.
 The group name of the Galera cluster to connect to.
 </longdesc>
 <shortdesc lang="en">Galera cluster name</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_wsrep_cluster_name_default}"/>
 </parameter>
 
 </parameters>
 
 <actions>
-<action name="start" timeout="20" />
-<action name="stop" timeout="20" />
-<action name="monitor" depth="0" timeout="20" interval="20" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
+<action name="start" timeout="20s" />
+<action name="stop" timeout="20s" />
+<action name="monitor" depth="0" timeout="20s" interval="20s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
 </actions>
 </resource-agent>
 END
@@ -263,6 +269,17 @@ garbd_status()
     fi
 }
 
+_port_by_pid()
+{
+    local pid
+    pid="$1"
+    if have_binary "netstat"; then
+        netstat -tnp 2>/dev/null | grep -s -q "ESTABLISHED.*${pid}/"
+    else
+        ss -Htnp 2>/dev/null | grep -s -q "^ESTAB.*pid=${pid}"
+    fi
+}
+
 garbd_monitor()
 {
     local rc
@@ -289,7 +306,7 @@ garbd_monitor()
     # garbd will always be connected to the right partition
     if [ $rc -eq $OCF_SUCCESS ]; then
         pid=`cat $OCF_RESKEY_pid 2> /dev/null `
-        netstat -tnp 2>/dev/null | grep -s -q "ESTABLISHED.*${pid}/"
+        _port_by_pid $pid
         if [ $? -ne 0 ]; then
             ocf_log $loglevel "garbd disconnected from cluster \"${OCF_RESKEY_wsrep_cluster_name}\""
             rc=$OCF_ERR_GENERIC
@@ -334,8 +351,10 @@ garbd_validate()
     fi
 
     if ! have_binary "netstat"; then
-        ocf_exit_reason "Setup problem: couldn't find command: netstat"
-        return $OCF_ERR_INSTALLED;
+        if ! have_binary "ss"; then
+            ocf_exit_reason "Setup problem: couldn't find command: netstat or ss"
+            return $OCF_ERR_INSTALLED;
+        fi
     fi
 
     if [ -z "$OCF_RESKEY_wsrep_cluster_address" ]; then

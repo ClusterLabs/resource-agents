@@ -69,7 +69,7 @@ static char print_usage[]={
 "  where:\n"
 "    repeatinterval-ms: timing, in milliseconds of sending arp packets\n"
 "      For each ARP announcement requested, a pair of ARP packets is sent,\n"
-"      an ARP request, and an ARP reply. This is becuse some systems\n"
+"      an ARP request, and an ARP reply. This is because some systems\n"
 "      ignore one or the other, and this combination gives the greatest\n"
 "      chance of success.\n"
 "\n"
@@ -81,7 +81,7 @@ static char print_usage[]={
 "\n"
 "    pidfile: pid file to use\n"
 "\n"
-"    device: netowrk interace to use\n"
+"    device: network interface to use\n"
 "\n"
 "    src_ip_addr: source ip address\n"
 "\n"
@@ -108,7 +108,7 @@ int create_pid_directory(const char *piddirectory);
 #endif
 
 
-/* 
+/*
  * For use logd, should keep identical with the same const variables defined
  * in heartbeat.h.
  */
@@ -142,6 +142,7 @@ main(int argc, char *argv[])
 	int	flag;
 	char    pidfilenamebuf[64];
 	char    *pidfilename = NULL;
+	struct sigaction act;
 
 #ifdef HAVE_LIBNET_1_0_API
 	LTYPE*	l;
@@ -150,8 +151,13 @@ main(int argc, char *argv[])
 	LTYPE *request, *reply;
 #endif
 
-	CL_SIGNAL(SIGTERM, byebye);
-	CL_SIGINTERRUPT(SIGTERM, 1);
+	memset(&act, 0, sizeof(struct sigaction));
+	act.sa_flags &= ~SA_RESTART; /* redundant - to stress syscalls should fail */
+	act.sa_handler = byebye;
+	if ((sigemptyset(&act.sa_mask) < 0) || (sigaction(SIGTERM, &act, NULL) < 0)) {
+		cl_log(LOG_ERR, "Could not set handler for signal: %s", strerror(errno));
+		return 1;
+	}
 
         cl_log_set_entity(SENDARPNAME);
         cl_log_enable_stderr(TRUE);
@@ -720,7 +726,7 @@ write_pid_file(const char *pidfilename)
 		}
 
 		if (kill(pid, SIGKILL) < 0 && errno != ESRCH) {
-			cl_log(LOG_INFO, "Error killing old proccess [%lu] "
+			cl_log(LOG_INFO, "Error killing old process [%lu] "
 	 				"from pid-file [%s]: %s", pid,
 					pidfilename, strerror(errno));
 			return -1;

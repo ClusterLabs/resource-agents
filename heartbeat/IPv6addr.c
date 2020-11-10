@@ -187,6 +187,7 @@ main(int argc, char* argv[])
 	char*		prov_ifname = NULL;
 	int		prefix_len = -1;
 	struct in6_addr	addr6;
+	struct sigaction act;
 
 	/* Check the count of parameters first */
 	if (argc < 2) {
@@ -195,8 +196,13 @@ main(int argc, char* argv[])
 	}
 
 	/* set termination signal */
-	siginterrupt(SIGTERM, 1);
-	signal(SIGTERM, byebye);
+	memset(&act, 0, sizeof(struct sigaction));
+	act.sa_flags &= ~SA_RESTART; /* redundant - to stress syscalls should fail */
+	act.sa_handler = byebye;
+	if ((sigemptyset(&act.sa_mask) < 0) || (sigaction(SIGTERM, &act, NULL) < 0)) {
+		cl_log(LOG_ERR, "Could not set handler for signal: %s", strerror(errno));
+		return OCF_ERR_GENERIC;
+	}
 
 	/* open system log */
 	cl_log_set_entity(APP_NAME);
@@ -790,7 +796,7 @@ write_pid_file(const char *pid_file)
 		}
 
 		if (kill(pid, SIGKILL) < 0 && errno != ESRCH) {
-			cl_log(LOG_INFO, "Error killing old proccess [%lu] "
+			cl_log(LOG_INFO, "Error killing old process [%lu] "
 	 				"from pid-file [%s]: %s", pid,
 					pid_file, strerror(errno));
 			return -1;
@@ -863,12 +869,12 @@ meta_data_addr6(void)
 	"    </parameter>\n"
 	"  </parameters>\n"
 	"  <actions>\n"
-	"    <action name=\"start\"   timeout=\"15\" />\n"
-	"    <action name=\"stop\"    timeout=\"15\" />\n"
-	"    <action name=\"status\"  timeout=\"15\" interval=\"15\" />\n"
-	"    <action name=\"monitor\" timeout=\"15\" interval=\"15\" />\n"
-	"    <action name=\"validate-all\"  timeout=\"5\" />\n"
-	"    <action name=\"meta-data\"  timeout=\"5\" />\n"
+	"    <action name=\"start\"   timeout=\"15s\" />\n"
+	"    <action name=\"stop\"    timeout=\"15s\" />\n"
+	"    <action name=\"status\"  timeout=\"15s\" interval=\"15s\" />\n"
+	"    <action name=\"monitor\" timeout=\"15s\" interval=\"15s\" />\n"
+	"    <action name=\"validate-all\"  timeout=\"5s\" />\n"
+	"    <action name=\"meta-data\"  timeout=\"5s\" />\n"
 	"  </actions>\n"
 	"</resource-agent>\n";
 	printf("%s\n",meta_data);

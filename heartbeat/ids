@@ -67,6 +67,19 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_informixdir_default=""
+OCF_RESKEY_informixserver_default=""
+OCF_RESKEY_onconfig_default=""
+OCF_RESKEY_dbname_default="sysmaster"
+OCF_RESKEY_sqltestquery_default="SELECT COUNT(*) FROM systables;"
+
+: ${OCF_RESKEY_informixdir=${OCF_RESKEY_informixdir_default}}
+: ${OCF_RESKEY_informixserver=${OCF_RESKEY_informixserver_default}}
+: ${OCF_RESKEY_onconfig=${OCF_RESKEY_onconfig_default}}
+: ${OCF_RESKEY_dbname=${OCF_RESKEY_dbname_default}}
+: ${OCF_RESKEY_sqltestquery=${OCF_RESKEY_sqltestquery_default}}
 
 #
 # Function that displays the usage of this script.
@@ -137,7 +150,7 @@ If this parameter is unspecified the script will try to get the value from the s
 <shortdesc lang="en">
 INFORMIXDIR environment variable
 </shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_informixdir_default}" />
 </parameter>
 
 <parameter name="informixserver" required="0">
@@ -149,7 +162,7 @@ If this parameter is unspecified the script will try to get the value from the s
 <shortdesc lang="en">
 INFORMIXSERVER environment variable
 </shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_informixserver_default}" />
 </parameter>
 
 <parameter name="onconfig" required="0">
@@ -162,7 +175,7 @@ If this parameter is unspecified the script will try to get the value from the s
 <shortdesc lang="en">
 ONCONFIG environment variable
 </shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_onconfig_default}" />
 </parameter>
 
 <parameter name="dbname" required="0">
@@ -173,7 +186,7 @@ If this parameter is unspecified the script will use the 'sysmaster' database as
 <shortdesc lang="en">
 database to use for monitoring, defaults to 'sysmaster'
 </shortdesc>
-<content type="string" default="sysmaster" />
+<content type="string" default="${OCF_RESKEY_dbname_default}" />
 </parameter>
 
 <parameter name="sqltestquery" required="0">
@@ -185,21 +198,21 @@ If this parameter is unspecified the script will use 'SELECT COUNT(*) FROM systa
 <shortdesc lang="en">
 SQL test query to use for monitoring, defaults to 'SELECT COUNT(*) FROM systables;'
 </shortdesc>
-<content type="string" default="SELECT COUNT(*) FROM systables;" />
+<content type="string" default="${OCF_RESKEY_sqltestquery_default}" />
 </parameter>
 
 </parameters>
 
 
 <actions>
-<action name="start" timeout="120" />
-<action name="stop" timeout="120" />
-<action name="status" timeout="60" />
-<action name="monitor" depth="0" timeout="30" interval="10" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
-<action name="methods" timeout="5" />
-<action name="usage" timeout="5" />
+<action name="start" timeout="120s" />
+<action name="stop" timeout="120s" />
+<action name="status" timeout="60s" />
+<action name="monitor" depth="0" timeout="30s" interval="10s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
+<action name="methods" timeout="5s" />
+<action name="usage" timeout="5s" />
 </actions>
 
 
@@ -399,8 +412,8 @@ ids_validate() {
 		rc=$OCF_SUCCESS
 	else
 		ids_log info "ids_validate: dbname is invalid: $OCF_RESKEY_dbname"
-		ids_log info "ids_validate: using 'sysmaster' as default..."
-		OCF_RESKEY_dbname="sysmaster"
+		ids_log info "ids_validate: using '${OCF_RESKEY_dbname_default}' as default..."
+		OCF_RESKEY_dbname="${OCF_RESKEY_dbname_default}"
 		export OCF_RESKEY_dbname
 		rc=$OCF_SUCCESS
 	fi
@@ -412,8 +425,8 @@ ids_validate() {
 		rc=$OCF_SUCCESS
 	else
 		ids_log info "ids_validate: sqltestquery is invalid: $OCF_RESKEY_sqltestquery"
-		ids_log info "ids_validate: using 'SELECT COUNT(*) FROM systables;' as default..."
-        OCF_RESKEY_sqltestquery="SELECT COUNT(*) FROM systables;"
+		ids_log info "ids_validate: using '${OCF_RESKEY_sqltestquery_default}' as default..."
+        OCF_RESKEY_sqltestquery="${OCF_RESKEY_sqltestquery_default}"
         export OCF_RESKEY_sqltestquery
         rc=$OCF_SUCCESS
 	fi

@@ -30,6 +30,30 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_xmfile_default="/etc/xen/vm/MyDomU"
+OCF_RESKEY_name_default=""
+OCF_RESKEY_shutdown_timeout_default=""
+OCF_RESKEY_shutdown_acpi_default="0"
+OCF_RESKEY_allow_mem_management_default="0"
+OCF_RESKEY_node_ip_attribute_default=""
+OCF_RESKEY_reserved_Dom0_memory_default="512"
+OCF_RESKEY_autoset_utilization_cpu_default="false"
+OCF_RESKEY_autoset_utilization_hv_memory_default="false"
+OCF_RESKEY_monitor_scripts_default=""
+
+: ${OCF_RESKEY_xmfile=${OCF_RESKEY_xmfile_default}}
+: ${OCF_RESKEY_name=${OCF_RESKEY_name_default}}
+: ${OCF_RESKEY_shutdown_timeout=${OCF_RESKEY_shutdown_timeout_default}}
+: ${OCF_RESKEY_shutdown_acpi=${OCF_RESKEY_shutdown_acpi_default}}
+: ${OCF_RESKEY_allow_mem_management=${OCF_RESKEY_allow_mem_management_default}}
+: ${OCF_RESKEY_node_ip_attribute=${OCF_RESKEY_node_ip_attribute_default}}
+: ${OCF_RESKEY_reserved_Dom0_memory=${OCF_RESKEY_reserved_Dom0_memory_default}}
+: ${OCF_RESKEY_autoset_utilization_cpu=${OCF_RESKEY_autoset_utilization_cpu_default}}
+: ${OCF_RESKEY_autoset_utilization_hv_memory=${OCF_RESKEY_autoset_utilization_hv_memory_default}}
+: ${OCF_RESKEY_monitor_scripts=${OCF_RESKEY_monitor_scripts_default}}
+
 #######################################################################
 
 usage() {
@@ -38,11 +62,6 @@ usage() {
 END
 }
 
-
-: ${OCF_RESKEY_xmfile=/etc/xen/vm/MyDomU}
-: ${OCF_RESKEY_shutdown_acpi=0}
-: ${OCF_RESKEY_allow_mem_management=0}
-: ${OCF_RESKEY_reserved_Dom0_memory=512}
 
 # prefer xl
 xentool=$(which xl 2> /dev/null || which xm)
@@ -86,14 +105,14 @@ Absolute path to the Xen control file,
 for this virtual machine.
 </longdesc>
 <shortdesc lang="en">Xen control file</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_xmfile_default}" />
 </parameter>
 <parameter name="name" unique="0" required="0">
 <longdesc lang="en">
 Name of the virtual machine.
 </longdesc>
 <shortdesc lang="en">Xen DomU name</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_name_default}" />
 </parameter>
 <parameter name="shutdown_timeout">
 <longdesc lang="en">
@@ -108,7 +127,7 @@ Setting this value to 0 forces an immediate destroy.
 
 </longdesc>
 <shortdesc lang="en">Shutdown escalation timeout</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_shutdown_timeout_default}" />
 </parameter>
 <parameter name="shutdown_acpi" unique="0" required="0">
 <longdesc lang="en">
@@ -117,7 +136,7 @@ Enable this to allow graceful shutdown for HVM domains
 without installed PV drivers.
 </longdesc>
 <shortdesc lang="en">Simulate power button event on shutdown</shortdesc>
-<content type="boolean" default="0" />
+<content type="boolean" default="${OCF_RESKEY_shutdown_acpi_default}" />
 </parameter>
 <parameter name="allow_mem_management" unique="0" required="0">
 <longdesc lang="en">
@@ -126,7 +145,7 @@ and stop actions used for Dom0 and the DomUs. The default is
 to not adjust memory dynamically.
 </longdesc>
 <shortdesc lang="en">Use dynamic memory management</shortdesc>
-<content type="boolean" default="0" />
+<content type="boolean" default="${OCF_RESKEY_allow_mem_management_default}" />
 </parameter>
 
 <parameter name="node_ip_attribute">
@@ -144,7 +163,7 @@ else the live migration will end up somewhere else, greatly confusing
 the cluster and causing havoc.
 </longdesc>
 <shortdesc lang="en">Node attribute containing target IP address</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_node_ip_attribute_default}" />
 </parameter>
 
 <parameter name="reserved_Dom0_memory" unique="0" required="0">
@@ -154,27 +173,50 @@ defines the minimum amount of memory to be reserved
 for the dom0. The default minimum memory is 512MB.
 </longdesc>
 <shortdesc lang="en">Minimum Dom0 memory</shortdesc>
-<content type="string" default="512" />
+<content type="string" default="${OCF_RESKEY_reserved_Dom0_memory_default}" />
 </parameter>
+
+<parameter name="autoset_utilization_cpu" unique="0" required="0">
+<longdesc lang="en">
+If set true, the agent will detect the number of domain's vCPUs from Xen, and put it
+into the CPU utilization of the resource when the monitor is executed.
+Before enabling make sure node utilization is also set (using NodeUtilization
+agent or manually) or the resource might not be able to start anywhere.
+</longdesc>
+<shortdesc lang="en">Enable auto-setting the CPU utilization of the resource</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_autoset_utilization_cpu_default}" />
+</parameter>
+
+<parameter name="autoset_utilization_hv_memory" unique="0" required="0">
+<longdesc lang="en">
+If set true, the agent will detect the number of memory from Xen, and put it
+into the hv_memory utilization of the resource when the monitor is executed.
+Before enabling make sure node utilization is also set (using NodeUtilization
+agent or manually) or the resource might not be able to start anywhere.
+</longdesc>
+<shortdesc lang="en">Enable auto-setting the hv_memory utilization of the resource</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_autoset_utilization_hv_memory_default}" />
+</parameter>
+
 <parameter name="monitor_scripts" unique="0" required="0">
 <longdesc lang="en">
 To additionally monitor services within the unprivileged domain,
 add this parameter with a list of scripts to monitor.
 </longdesc>
 <shortdesc lang="en">list of space separated monitor scripts</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_monitor_scripts_default}" />
 </parameter>
 
 </parameters>
 
 <actions>
-<action name="start" timeout="60" />
-<action name="stop" timeout="40" />
-<action name="migrate_from" timeout="120" />
-<action name="migrate_to" timeout="120" />
-<action name="monitor" depth="0" timeout="30" interval="10" />
-<action name="meta-data" timeout="5" />
-<action name="validate-all" timeout="5" />
+<action name="start" timeout="60s" />
+<action name="stop" timeout="40s" />
+<action name="migrate_from" timeout="120s" />
+<action name="migrate_to" timeout="120s" />
+<action name="monitor" depth="0" timeout="30s" interval="10s" />
+<action name="meta-data" timeout="5s" />
+<action name="validate-all" timeout="5s" />
 </actions>
 </resource-agent>
 END
@@ -248,6 +290,40 @@ Xen_Status_with_Retry() {
 	return $rc
 }
 
+set_util_attr() {
+	local attr=$1 val=$2
+	local cval outp
+
+	cval=$(crm_resource -Q -r $OCF_RESOURCE_INSTANCE -z -g $attr 2>/dev/null)
+	if [ $? -ne 0 ] && [ -z "$cval" ]; then
+		if crm_resource -Q -r $OCF_RESOURCE_INSTANCE -z -g $attr 2>&1 | grep -q "not connected"; then
+			ocf_log debug "Unable to get utilization attribute $attr: cib is not available"
+			return
+		fi
+	fi
+
+	if [ "$cval" != "$val" ]; then
+		outp=$(crm_resource -r $OCF_RESOURCE_INSTANCE -z -p $attr -v $val 2>&1) || \
+		ocf_log warn "Unable to set utilization attribute $attr: $outp"
+	fi
+}
+
+Xen_Update_Utilization() {
+	local dom_status dom_cpu dom_mem
+
+	dom_status=$($xentool list ${DOMAIN_NAME} | awk 'NR==2 {print $4, $3}')
+
+	if ocf_is_true "$OCF_RESKEY_autoset_utilization_cpu"; then
+		dom_cpu=${dom_status% *}
+		test -n "$dom_cpu" && set_util_attr cpu $dom_cpu
+	fi
+
+	if ocf_is_true "$OCF_RESKEY_autoset_utilization_hv_memory"; then
+		dom_mem=${dom_status#* }
+		test -n "$dom_mem" && set_util_attr hv_memory "$dom_mem"
+	fi
+}
+
 Xen_Adjust_Memory() {
 	if ocf_is_true "${OCF_RESKEY_allow_mem_management}"; then
 		CNTNEW=$1
@@ -293,6 +369,11 @@ Xen_Monitor() {
 		ocf_is_probe ||
 		ocf_log err "Xen domain $DOMAIN_NAME stopped"
 		return ${OCF_NOT_RUNNING}
+	fi
+	if ocf_is_true "$OCF_RESKEY_autoset_utilization_cpu" || \
+	   ocf_is_true "$OCF_RESKEY_autoset_utilization_hv_memory"
+	then
+		Xen_Update_Utilization
 	fi
 	if [ "X${OCF_RESKEY_monitor_scripts}" = "X" ]; then
 		return ${OCF_SUCCESS}
@@ -434,7 +515,7 @@ Xen_Migrate_To() {
 		ocf_log info "$DOMAIN_NAME: Starting $xentool migrate to $target_node"
 
 		if [ -n "$target_attr" ]; then
-			nodevalue=`crm_attribute --type nodes --node-uname $target_node --attr-name $target_attr --get-value -q`
+			nodevalue=`crm_attribute --type nodes --node $target_node -n $target_attr -G -q`
 			if [ -n "${nodevalue}" -a "${nodevalue}" != "(null)" ]; then
 				target_addr="$nodevalue"
 				ocf_log info "$DOMAIN_NAME: $target_node is using address $target_addr"

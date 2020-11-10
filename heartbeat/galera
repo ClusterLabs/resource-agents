@@ -66,7 +66,11 @@
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
-. ${OCF_FUNCTIONS_DIR}/mysql-common.sh
+
+if [ "$__OCF_ACTION" != "meta-data" ]; then
+    . ${OCF_FUNCTIONS_DIR}/mysql-common.sh
+    NODENAME=$(ocf_attribute_target)
+fi
 
 # It is common for some galera instances to store
 # check user that can be used to query status
@@ -76,6 +80,27 @@ if [ -f "/etc/sysconfig/clustercheck" ]; then
 elif [ -f "/etc/default/clustercheck" ]; then
     . /etc/default/clustercheck
 fi
+
+# Parameter defaults
+
+OCF_RESKEY_wsrep_cluster_address_default=""
+OCF_RESKEY_cluster_host_map_default=""
+OCF_RESKEY_check_user_default=""
+OCF_RESKEY_check_passwd_default=""
+OCF_RESKEY_two_node_mode_default="false"
+
+: ${OCF_RESKEY_wsrep_cluster_address=${OCF_RESKEY_wsrep_cluster_address_default}}
+: ${OCF_RESKEY_cluster_host_map=${OCF_RESKEY_cluster_host_map_default}}
+: ${OCF_RESKEY_check_user=${OCF_RESKEY_check_user_default}}
+: ${OCF_RESKEY_check_passwd=${OCF_RESKEY_check_passwd_default}}
+: ${OCF_RESKEY_two_node_mode=${OCF_RESKEY_two_node_mode_default}}
+
+#######################################################################
+# Defaults:
+
+OCF_RESKEY_check_passwd_use_empty_default=0
+
+: ${OCF_RESKEY_check_passwd_use_empty=${OCF_RESKEY_check_passwd_use_empty_default}}
 
 #######################################################################
 
@@ -104,9 +129,9 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-Resource script for managing galara database.
+Resource script for managing galera database.
 </longdesc>
-<shortdesc lang="en">Manages a galara instance</shortdesc>
+<shortdesc lang="en">Manages a galera instance</shortdesc>
 <parameters>
 
 <parameter name="binary" unique="0" required="0">
@@ -210,7 +235,7 @@ pacemaker node names. If both names need to differ, you must provide a
 mapping in option cluster_host_map.
 </longdesc>
 <shortdesc lang="en">Galera cluster address</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_wsrep_cluster_address_default}"/>
 </parameter>
 
 <parameter name="cluster_host_map" unique="0" required="0">
@@ -226,7 +251,7 @@ where the galera resource started on node pcmk1 would be named
 node.1.galera in the wsrep_cluster_address
 </longdesc>
 <shortdesc lang="en">Pacemaker to Galera name mapping</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_cluster_host_map_default}"/>
 </parameter>
 
 <parameter name="check_user" unique="0" required="0">
@@ -234,30 +259,51 @@ node.1.galera in the wsrep_cluster_address
 Cluster check user.
 </longdesc>
 <shortdesc lang="en">MySQL test user</shortdesc>
-<content type="string" default="root" />
+<content type="string" default="${OCF_RESKEY_check_user_default}" />
 </parameter>
 
 <parameter name="check_passwd" unique="0" required="0">
 <longdesc lang="en">
-Cluster check user password
+Cluster check user password. Empty passwords are ignored unless
+the parameter "check_passwd_use_empty" is set to 1.
 </longdesc>
 <shortdesc lang="en">check password</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_check_passwd_default}" />
+</parameter>
+
+<parameter name="check_passwd_use_empty" unique="0" required="0">
+<longdesc lang="en">
+Use an empty "check_passwd" password. If this parameter is set to 1,
+"check_passwd" will be ignored and an empty password is used
+when calling the "mysql" client binary.
+</longdesc>
+<shortdesc lang="en">check password use empty</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_check_passwd_use_empty_default}"/>
+</parameter>
+
+<parameter name="two_node_mode" unique="0" required="0">
+<longdesc lang="en">
+If running in a 2-node pacemaker cluster, rely on pacemaker quorum
+to allow automatic recovery even when the other node is unreachable.
+Use it with caution! (and fencing)
+</longdesc>
+<shortdesc lang="en">Special recovery when running on a 2-node cluster</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_two_node_mode_default}"/>
 </parameter>
 
 </parameters>
 
 <actions>
-<action name="start" timeout="120" />
-<action name="stop" timeout="120" />
-<action name="status" timeout="60" />
-<action name="monitor" depth="0" timeout="30" interval="20" />
-<action name="monitor" role="Master" depth="0" timeout="30" interval="10" />
-<action name="monitor" role="Slave" depth="0" timeout="30" interval="30" />
-<action name="promote" timeout="300" />
-<action name="demote" timeout="120" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
+<action name="start" timeout="120s" />
+<action name="stop" timeout="120s" />
+<action name="status" timeout="60s" />
+<action name="monitor" depth="0" timeout="30s" interval="20s" />
+<action name="monitor" role="Master" depth="0" timeout="30s" interval="10s" />
+<action name="monitor" role="Slave" depth="0" timeout="30s" interval="30s" />
+<action name="promote" timeout="300s" />
+<action name="demote" timeout="120s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
 </actions>
 </resource-agent>
 END
@@ -279,7 +325,7 @@ get_status_variable()
 
 set_bootstrap_node()
 {
-    local node=$1
+    local node=$(ocf_attribute_target $1)
 
     ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-bootstrap" -v "true"
 }
@@ -291,7 +337,7 @@ clear_bootstrap_node()
 
 is_bootstrap()
 {
-    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-bootstrap" -Q 2>/dev/null
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-bootstrap" --quiet 2>/dev/null
 
 }
 
@@ -307,8 +353,8 @@ clear_no_grastate()
 
 is_no_grastate()
 {
-    local node=$1
-    ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-no-grastate" -Q 2>/dev/null
+    local node=$(ocf_attribute_target $1)
+    ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-no-grastate" --quiet 2>/dev/null
 }
 
 clear_last_commit()
@@ -323,12 +369,33 @@ set_last_commit()
 
 get_last_commit()
 {
-    local node=$1
+    local node=$(ocf_attribute_target $1)
 
     if [ -z "$node" ]; then
-       ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" -Q 2>/dev/null
+       ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" --quiet 2>/dev/null
     else 
-       ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" -Q 2>/dev/null
+       ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-last-committed" --quiet 2>/dev/null
+    fi
+}
+
+clear_safe_to_bootstrap()
+{
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-safe-to-bootstrap" -D
+}
+
+set_safe_to_bootstrap()
+{
+    ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-safe-to-bootstrap" -v $1
+}
+
+get_safe_to_bootstrap()
+{
+    local node=$(ocf_attribute_target $1)
+
+    if [ -z "$node" ]; then
+        ${HA_SBIN_DIR}/crm_attribute -N $NODENAME -l reboot --name "${INSTANCE_ATTR_NAME}-safe-to-bootstrap" --quiet 2>/dev/null
+    else
+        ${HA_SBIN_DIR}/crm_attribute -N $node -l reboot --name "${INSTANCE_ATTR_NAME}-safe-to-bootstrap" --quiet 2>/dev/null
     fi
 }
 
@@ -375,6 +442,27 @@ is_readonly()
     return 0
 }
 
+is_two_node_mode_active()
+{
+    # crm_node or corosync-quorumtool cannot access various corosync
+    # flags when running inside a bundle, so only count the cluster
+    # members
+    ocf_is_true "$OCF_RESKEY_two_node_mode" && ${HA_SBIN_DIR}/crm_mon -1X | xmllint --xpath "count(//nodes/node[@type='member'])" - | grep -q -w 2
+}
+
+is_last_node_in_quorate_partition()
+{
+    # when a network split occurs in a 2-node cluster, pacemaker
+    # fences the other node and try to retain quorum. So until
+    # the fencing is resolved (and the status of the peer node
+    # is clean), we shouldn't consider ourself quorate.
+    local partition_members=$(${HA_SBIN_DIR}/crm_node -p | wc -w)
+    local quorate=$(${HA_SBIN_DIR}/crm_node -q)
+    local clean_members=$(${HA_SBIN_DIR}/crm_mon -1X | xmllint --xpath 'count(//nodes/node[@type="member" and @unclean="false"])' -)
+
+    [ "$partition_members" = 1 ] && [ "$quorate" = 1 ] && [ "$clean_members" = 2 ]
+}
+
 master_exists()
 {
     if [ "$__OCF_ACTION" = "demote" ]; then
@@ -386,13 +474,27 @@ master_exists()
         return 1
     fi
     # determine if a master instance is already up and is healthy
-    crm_mon --as-xml | grep "resource.*id=\"${OCF_RESOURCE_INSTANCE}\".*role=\"Master\".*active=\"true\".*orphaned=\"false\".*failed=\"false\"" > /dev/null 2>&1
+    ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.1.0"
+    res=$?
+    if [ -z "$OCF_RESKEY_crm_feature_set" ] || [ $res -eq 2 ]; then
+        XMLOPT="--output-as=xml"
+        ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.2.0"
+        if [ $? -eq 1 ]; then
+            crm_mon -1 $XMLOPT >/dev/null 2>&1
+            if [ $? -ne 0 ]; then
+                XMLOPT="--as-xml"
+            fi
+        fi
+    else
+        XMLOPT="--as-xml"
+    fi
+    ${HA_SBIN_DIR}/crm_mon -1 $XMLOPT | grep -q -i -E "resource.*id=\"${INSTANCE_ATTR_NAME}\".*role=\"(Promoted|Master)\".*active=\"true\".*orphaned=\"false\".*failed=\"false\""
     return $?
 }
 
 clear_master_score()
 {
-    local node=$1
+    local node=$(ocf_attribute_target $1)
     if [ -z "$node" ]; then
         $CRM_MASTER -D
     else 
@@ -402,7 +504,7 @@ clear_master_score()
 
 set_master_score()
 {
-    local node=$1
+    local node=$(ocf_attribute_target $1)
 
     if [ -z "$node" ]; then
         $CRM_MASTER -v 100
@@ -465,6 +567,7 @@ detect_first_master()
     local all_nodes
     local best_node_gcomm
     local best_node
+    local safe_to_bootstrap
 
     all_nodes=$(echo "$OCF_RESKEY_wsrep_cluster_address" | sed 's/gcomm:\/\///g' | tr -d ' ' | tr -s ',' ' ')
     best_node_gcomm=$(echo "$all_nodes" | sed 's/^.* \(.*\)$/\1/')
@@ -492,6 +595,31 @@ detect_first_master()
     done
 
     for node in $nodes_recovered $nodes; do
+        # On clean shutdown, galera sets the last stopped node as 'safe to bootstrap',
+        # so use this hint when we can
+        safe_to_bootstrap=$(get_safe_to_bootstrap $node)
+
+        # Special case for 2-node clusters: during a network split, rely on
+        # pacemaker's quorum to check whether we can restart galera
+        if [ "$safe_to_bootstrap" != "1" ] && [ "$node" = "$NODENAME" ] && is_two_node_mode_active; then
+            is_last_node_in_quorate_partition
+            if [ $? -eq 0 ]; then
+                ocf_log warn "Survived a split in a 2-node cluster, considering ourselves safe to bootstrap"
+                safe_to_bootstrap=1
+            fi
+        fi
+
+        if [ "$safe_to_bootstrap" = "1" ]; then
+            # Galera marked the node as safe to boostrap during shutdown. Let's just
+            # pick it as our bootstrap node.
+            ocf_log info "Node <${node}> is marked as safe to bootstrap."
+            best_node=$node
+
+            # We don't need to wait for the other nodes to report state in this case
+            missing_nodes=0
+            break
+        fi
+
         last_commit=$(get_last_commit $node)
 
         if [ -z "$last_commit" ]; then
@@ -507,7 +635,7 @@ detect_first_master()
 
         greater_than_equal_long "$last_commit" "$best_commit"
         if [ $? -eq 0 ]; then
-            best_node=$node
+            best_node=$(ocf_attribute_target $node)
             best_commit=$last_commit
         fi
 
@@ -518,8 +646,40 @@ detect_first_master()
     fi
 
     ocf_log info "Promoting $best_node to be our bootstrap node"
-    set_master_score $best_node
     set_bootstrap_node $best_node
+    set_master_score $best_node
+}
+
+detect_safe_to_bootstrap()
+{
+    local safe_to_bootstrap=""
+    local uuid=""
+    local seqno=""
+
+    if [ -f ${OCF_RESKEY_datadir}/grastate.dat ]; then
+        ocf_log info "attempting to read safe_to_bootstrap flag from ${OCF_RESKEY_datadir}/grastate.dat"
+        safe_to_bootstrap=$(sed -n 's/^safe_to_bootstrap:\s*\(.*\)$/\1/p' < ${OCF_RESKEY_datadir}/grastate.dat)
+        uuid=$(sed -n 's/^uuid:\s*\(.*\)$/\1/p' < ${OCF_RESKEY_datadir}/grastate.dat)
+        seqno=$(sed -n 's/^seqno:\s*\(.*\)$/\1/p' < ${OCF_RESKEY_datadir}/grastate.dat)
+    fi
+
+    if [ -z "$uuid" ] || \
+       [ "$uuid" = "00000000-0000-0000-0000-000000000000" ]; then
+        clear_safe_to_bootstrap
+        return
+    fi
+    if [ "$safe_to_bootstrap" = "1" ]; then
+        if [ -z "$seqno" ] || [ "$seqno" = "-1" ]; then
+            clear_safe_to_bootstrap
+            return
+        fi
+    fi
+
+    if [ "$safe_to_bootstrap" = "1" ] || [ "$safe_to_bootstrap" = "0" ]; then
+        set_safe_to_bootstrap $safe_to_bootstrap
+    else
+        clear_safe_to_bootstrap
+    fi
 }
 
 detect_last_commit()
@@ -528,10 +688,20 @@ detect_last_commit()
     local recover_args="--defaults-file=$OCF_RESKEY_config \
                         --pid-file=$OCF_RESKEY_pid \
                         --socket=$OCF_RESKEY_socket \
-                        --datadir=$OCF_RESKEY_datadir \
-                        --user=$OCF_RESKEY_user"
+                        --datadir=$OCF_RESKEY_datadir"
     local recovery_file_regex='s/.*WSREP\:.*position\s*recovery.*--log_error='\''\([^'\'']*\)'\''.*/\1/p'
     local recovered_position_regex='s/.*WSREP\:\s*[R|r]ecovered\s*position.*\:\(.*\)\s*$/\1/p'
+
+    # codership/galera#354
+    # Some ungraceful shutdowns can leave an empty gvwstate.dat on
+    # disk. This will prevent galera to join the cluster if it is
+    # configured to attempt PC recovery. Removing that file makes the
+    # node fall back to the normal, unoptimized joining process.
+    if [ -f ${OCF_RESKEY_datadir}/gvwstate.dat ] && \
+       [ ! -s ${OCF_RESKEY_datadir}/gvwstate.dat ]; then
+        ocf_log warn "empty ${OCF_RESKEY_datadir}/gvwstate.dat detected, removing it to prevent PC recovery failure at next restart"
+        rm -f ${OCF_RESKEY_datadir}/gvwstate.dat
+    fi
 
     ocf_log info "attempting to detect last commit version by reading ${OCF_RESKEY_datadir}/grastate.dat"
     last_commit="$(cat ${OCF_RESKEY_datadir}/grastate.dat | sed -n 's/^seqno.\s*\(.*\)\s*$/\1/p')"
@@ -547,7 +717,8 @@ detect_last_commit()
 
         ocf_log info "now attempting to detect last commit version using 'mysqld_safe --wsrep-recover'"
 
-        ${OCF_RESKEY_binary} $recover_args --wsrep-recover --log-error=$tmp 2>/dev/null
+        $SU - $OCF_RESKEY_user -s /bin/sh -c \
+        "${OCF_RESKEY_binary} $recover_args --wsrep-recover --log-error=$tmp 2>/dev/null"
 
         last_commit="$(cat $tmp | sed -n $recovered_position_regex | tail -1)"
         if [ -z "$last_commit" ]; then
@@ -563,8 +734,9 @@ detect_last_commit()
                     # we can only rollback the transaction, but that's OK
                     # since the DB will get resynchronized anyway
                     ocf_log warn "local node <${NODENAME}> was not shutdown properly. Rollback stuck transaction with --tc-heuristic-recover"
-                    ${OCF_RESKEY_binary} $recover_args --wsrep-recover \
-                                         --tc-heuristic-recover=rollback --log-error=$tmp 2>/dev/null
+                    $SU - $OCF_RESKEY_user -s /bin/sh -c \
+                    "${OCF_RESKEY_binary} $recover_args --wsrep-recover \
+                                         --tc-heuristic-recover=rollback --log-error=$tmp 2>/dev/null"
 
                     last_commit="$(cat $tmp | sed -n $recovered_position_regex | tail -1)"
                     if [ ! -z "$last_commit" ]; then
@@ -596,7 +768,7 @@ galera_promote()
     local rc
     local extra_opts
     local bootstrap
-    
+    local safe_to_bootstrap
     master_exists
     if [ $? -eq 0 ]; then
         # join without bootstrapping
@@ -605,12 +777,25 @@ galera_promote()
         bootstrap=$(is_bootstrap)
 
         if ocf_is_true $bootstrap; then
+            # The best node for bootstrapping wasn't cleanly shutdown. Allow
+            # bootstrapping anyways
+            if [ "$(get_safe_to_bootstrap)" = "0" ]; then
+                sed -ie 's/^\(safe_to_bootstrap:\) 0/\1 1/' ${OCF_RESKEY_datadir}/grastate.dat
+                ocf_log info "safe_to_bootstrap in ${OCF_RESKEY_datadir}/grastate.dat set to 1 on node ${NODENAME}"
+            fi
             ocf_log info "Node <${NODENAME}> is bootstrapping the cluster"
             extra_opts="--wsrep-cluster-address=gcomm://"
         else
-            ocf_exit_reason "Failure, Attempted to promote Master instance of $OCF_RESOURCE_INSTANCE before bootstrap node has been detected."
-            clear_last_commit
-            return $OCF_ERR_GENERIC
+            # We are being promoted without having the bootstrap
+            # attribute in the CIB, which means we are supposed to
+            # join a cluster; however if we end up here, there is no
+            # Master remaining right now, which means there is no
+            # cluster to join anymore. So force a demotion, and and
+            # let the RA decide later which node should be the next
+            # bootstrap node.
+            ocf_log warn "There is no running cluster to join, demoting ourself"
+            clear_master_score
+            return $OCF_SUCCESS
         fi
     fi
 
@@ -621,12 +806,14 @@ galera_promote()
             clear_bootstrap_node
             ocf_log info "boostrap node already up, promoting the rest of the galera instances."
         fi
+        clear_safe_to_bootstrap
         clear_last_commit
         return $OCF_SUCCESS
     fi
 
-    # last commit is no longer relevant once promoted
+    # last commit/safe_to_bootstrap flag are no longer relevant once promoted
     clear_last_commit
+    clear_safe_to_bootstrap
 
     mysql_common_prepare_dirs
     mysql_common_start "$extra_opts"
@@ -687,6 +874,7 @@ galera_demote()
     clear_bootstrap_node
     clear_last_commit
     clear_no_grastate
+    clear_safe_to_bootstrap
 
     # Clear master score here rather than letting pacemaker do so once
     # demote finishes. This way a promote cannot take place right
@@ -696,6 +884,7 @@ galera_demote()
     clear_master_score
 
     # record last commit for next promotion
+    detect_safe_to_bootstrap
     detect_last_commit
     rc=$?
     return $rc
@@ -726,6 +915,7 @@ galera_start()
 
     mysql_common_prepare_dirs
 
+    detect_safe_to_bootstrap
     detect_last_commit
     rc=$?
     if [ $rc -ne $OCF_SUCCESS ]; then
@@ -815,6 +1005,7 @@ galera_stop()
     mysql_common_stop
     rc=$1
 
+    clear_safe_to_bootstrap
     clear_last_commit
     clear_master_score
     clear_bootstrap_node
@@ -867,7 +1058,10 @@ fi
 : ${OCF_RESKEY_check_user="root"}
 
 MYSQL_OPTIONS_CHECK="-nNE --user=${OCF_RESKEY_check_user}"
-if [ -n "${OCF_RESKEY_check_passwd}" ]; then
+
+if ocf_is_true "${OCF_RESKEY_check_passwd_use_empty}"; then
+    MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK --password="
+elif [ -n "${OCF_RESKEY_check_passwd}" ]; then
     MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK --password=${OCF_RESKEY_check_passwd}"
 fi
 

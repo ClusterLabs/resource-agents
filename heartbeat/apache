@@ -47,6 +47,12 @@
 . ${OCF_FUNCTIONS_DIR}/http-mon.sh
 HA_VARRUNDIR=${HA_VARRUN}
 
+# Parameter defaults
+
+OCF_RESKEY_httpd_default="/usr/sbin/httpd"
+OCF_RESKEY_envfiles_default="/etc/apache2/envvars"
+OCF_RESKEY_use_ipv6_default="false"
+
 #######################################################################
 #
 #	Configuration options - usually you don't need to change these
@@ -131,25 +137,46 @@ ProcessRunning() {
 }
 silent_status() {
 	local pid
+	local rc=$OCF_ERR_GENERIC
+	local retries=0
 
-	pid=`get_pid`
-	if [ -n "$pid" ]; then
-		ProcessRunning $pid
-	else
-		: No pid file
-		false
+	# Set a retry when apache's Graceful restart is applied and the pid file can not be acquired.
+	if [ "$__OCF_ACTION" = "monitor" ] && ! ocf_is_probe; then
+		retries=5
 	fi
+
+	while true; do
+		pid=`get_pid`
+		if [ -n "$pid" ]; then
+			ProcessRunning $pid
+			rc=$?
+			break
+		fi
+
+		: No pid file
+		if [ $retries -le 0 ]; then
+			break
+		fi
+
+		sleep 1
+		retries=`expr $retries - 1`
+	done
+
+	return $rc
 }
 
 # May be useful to add other distros in future
 validate_default_config() {
-	if [ -e /etc/SuSE-release ]; then
-		validate_default_suse_config
-	elif [ -e /etc/debian_version ]; then
-		validate_default_debian_config
-	else
-		return 0
-	fi
+	case "$( get_release_id )" in
+                *SUSE)
+                        validate_default_suse_config
+                        ;;
+                Debian)
+                        validate_default_debian_config
+                        ;;
+                *)
+                        return 0
+        esac
 }
 
 # When using the default /etc/apache2/httpd.conf on SUSE, the file
@@ -166,12 +193,23 @@ validate_default_suse_config() {
 	then
 		[ -x "/usr/sbin/a2enmod" ] && ocf_run -q /usr/sbin/a2enmod status
 		# init script style, for crusty old SUSE
-		if [ -e "/etc/init.d/apache2" ]; then
+		if [ -x "/etc/init.d/apache2" ]; then
 			ocf_run -q /etc/init.d/apache2 configtest || return 1
 		# systemd style, for shiny new SUSE
-		elif [ -e "/usr/sbin/start_apache2" ]; then
+		elif [ -x "/usr/sbin/start_apache2" ]; then
 			ocf_run -q /usr/sbin/start_apache2 -t || return 1
 		fi
+	fi
+
+	# mod_status: some existing users might don't want to use mod_status, check if present in configuration
+	if [ "$CONFIGFILE" = "$DEFAULT_SUSECONFIG" ] && \
+		grep -Eq '^Include[[:space:]]+/etc/apache2/mod_status.conf' "$CONFIGFILE"
+	then
+	        # load module only if module exists
+		apache_mod_status="/usr/lib64/apache2-prefork/mod_status.so"
+		if [ -e $apache_mod_status ]; then
+			LOAD_STATUS_MODULE="LoadModule status_module $apache_mod_status"
+        	fi
 	fi
 	return 0
 }
@@ -205,9 +243,17 @@ apache_start() {
 	validate_default_config || return $OCF_ERR_CONFIGURED
 
 	if [ -z $PIDFILE_DIRECTIVE ]; then
-		ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE
+		if [ -z "$LOAD_STATUS_MODULE" ]; then
+			ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE
+		else
+			ocf_run $HTTPD -C "$LOAD_STATUS_MODULE" $HTTPDOPTS $OPTIONS -f $CONFIGFILE
+		fi
 	else
-		ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE -c "PidFile $PidFile"
+		if [ -z "$LOAD_STATUS_MODULE" ]; then
+			ocf_run $HTTPD $HTTPDOPTS $OPTIONS -f $CONFIGFILE -c "PidFile $PidFile"
+		else
+			ocf_run $HTTPD $HTTPDOPTS -C "$LOAD_STATUS_MODULE" $OPTIONS -f $CONFIGFILE -c "PidFile $PidFile"
+		fi
 	fi
 
 	tries=0
@@ -278,17 +324,19 @@ kill_stop()
 	local pid=$1
 
 	ocf_log info "Killing apache PID $pid"
-	while
-		ProcessRunning $pid &&
-		[ $tries -lt 10 ]
-	do
-		if [ $tries -ne 0 ]; then
-			# don't sleep on the first try
-			sleep 1
-		fi
-		kill $pid >/dev/null 
-		tries=`expr $tries + 1`
-	done
+	if ProcessRunning $pid; then
+		kill $pid >/dev/null
+		while
+			[ $tries -lt 10 ]
+		do
+			if ProcessRunning $pid; then
+				tries=`expr $tries + 1`
+				sleep 1
+			else
+				break
+			fi
+		done
+	fi
 }
 
 apache_stop() {
@@ -305,18 +353,19 @@ apache_stop() {
 	graceful_stop $pid
 	if [ $? -ne 0 ]; then
 		kill_stop $pid
+	fi
 
-		if ProcessRunning $pid; then
-			ocf_exit_reason "$CMD still running ($pid). Killing pid failed."
-			ret=$OCF_ERR_GENERIC
-		fi
+	signal_children
+
+	if ProcessRunning $pid; then
+		ocf_exit_reason "$CMD still running ($pid). Killing pid failed."
+		ret=$OCF_ERR_GENERIC
 	fi
 
 	if [ $ret -eq 0 ]; then
 		ocf_log info "$CMD stopped."
 	fi
 
-	signal_children
 	return $ret
 }
 
@@ -469,7 +518,7 @@ resource agent parameters.
 The full pathname of the httpd binary (optional).
 </longdesc>
 <shortdesc lang="en">httpd binary path</shortdesc>
-<content type="string" default="/usr/sbin/httpd" />
+<content type="string" default="${OCF_RESKEY_httpd_default}" />
 </parameter>
 
 <parameter name="port" >
@@ -574,7 +623,7 @@ If you want to prevent script from reading the default file, set
 this parameter to empty string.
 </longdesc>
 <shortdesc lang="en">environment settings files</shortdesc>
-<content type="string" default="/etc/apache2/envvars"/>
+<content type="string" default="${OCF_RESKEY_envfiles_default}"/>
 </parameter>
 
 <parameter name="use_ipv6">
@@ -583,7 +632,7 @@ We will try to detect if the URL (for monitor) is IPv6, but if
 that doesn't work set this to true to enforce IPv6.
 </longdesc>
 <shortdesc lang="en">use ipv6 with http clients</shortdesc>
-<content type="boolean" default="false"/>
+<content type="boolean" default="${OCF_RESKEY_use_ipv6_default}"/>
 </parameter>
 
 </parameters>
@@ -592,9 +641,9 @@ that doesn't work set this to true to enforce IPv6.
 <action name="start"   timeout="40s" />
 <action name="stop"    timeout="60s" />
 <action name="status"  timeout="30s" />
-<action name="monitor" depth="0"  timeout="20s" interval="10" />
-<action name="meta-data"  timeout="5" />
-<action name="validate-all"  timeout="5" />
+<action name="monitor" depth="0"  timeout="20s" interval="10s" />
+<action name="meta-data"  timeout="5s" />
+<action name="validate-all"  timeout="5s" />
 </actions>
 </resource-agent>
 END
@@ -676,7 +725,7 @@ apache_getconfig() {
 	TESTREGEX10=${OCF_RESKEY_testregex10}
 	TESTCONFFILE="$OCF_RESKEY_testconffile"
 	TESTNAME="$OCF_RESKEY_testname"
-	: ${OCF_RESKEY_envfiles="/etc/apache2/envvars"}
+	: ${OCF_RESKEY_envfiles=${OCF_RESKEY_envfiles_default}}
 	source_envfiles $OCF_RESKEY_envfiles
 
 	if [ "X$HTTPD" = X -o ! -f "$HTTPD" -o ! -x "$HTTPD" ]; then

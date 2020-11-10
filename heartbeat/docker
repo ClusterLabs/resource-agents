@@ -33,6 +33,12 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_reuse_default="0"
+
+: ${OCF_RESKEY_reuse=${OCF_RESKEY_reuse_default}}
+
 #######################################################################
 
 meta_data()
@@ -99,7 +105,7 @@ provided in the 'name' argument of this agent.
 
 <parameter name="run_cmd" required="0" unique="0">
 <longdesc lang="en">
-Specifiy a command to launch within the container once
+Specify a command to launch within the container once
 it has initialized.
 </longdesc>
 <shortdesc lang="en">run command</shortdesc>
@@ -117,7 +123,7 @@ The agent will ensure they exist by running 'mkdir -p'
 
 <parameter name="monitor_cmd" required="0" unique="0">
 <longdesc lang="en">
-Specifiy the full path of a command to launch within the container to check
+Specify the full path of a command to launch within the container to check
 the health of the container. This command must return 0 to indicate that
 the container is healthy. A non-zero return code will indicate that the
 container has failed and should be recovered.
@@ -147,22 +153,43 @@ shutdown
 
 <parameter name="reuse" required="0" unique="0">
 <longdesc lang="en">
-Allow the container to be reused after stopping the container. By default
-containers are removed after stop. With the reuse option containers
-will persist after the container stops.
+Allow the container to be reused once it is stopped.  By default,
+containers get removed once they are stopped.  Enable this option
+to have the particular one persist when this happens.
 </longdesc>
 <shortdesc lang="en">reuse container</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_reuse_default}"/>
+</parameter>
+
+<parameter name="query_docker_health" required="0" unique="0">
+<longdesc lang="en">
+Query the builtin healthcheck of docker (v1.12+) to determine health of the
+container. If left empty or set to false it will not be used.
+
+The healthcheck itself has to be configured within docker, e.g. via
+HEALTHCHECK in Dockerfile. This option just queries in what condition
+docker considers the container to be and lets ocf do its thing accordingly.
+
+Note that the time a container is in "starting" state counts against the
+monitor timeout.
+
+This is an additional check besides the standard check for the container
+to be running, and the optional monitor_cmd check. It doesn't disable or
+override them, so all of them (if used) have to come back healthy for the
+container to be considered healthy.
+</longdesc>
+<shortdesc lang="en">use healthcheck</shortdesc>
 <content type="boolean"/>
 </parameter>
 
 </parameters>
 
 <actions>
-<action name="start"        timeout="90" />
-<action name="stop"         timeout="90" />
-<action name="monitor"      timeout="30" interval="30" depth="0" />
-<action name="meta-data"    timeout="5" />
-<action name="validate-all"   timeout="30" />
+<action name="start"        timeout="90s" />
+<action name="stop"         timeout="90s" />
+<action name="monitor"      timeout="30s" interval="30s" depth="0" />
+<action name="meta-data"    timeout="5s" />
+<action name="validate-all"   timeout="30s" />
 </actions>
 </resource-agent>
 END
@@ -194,7 +221,7 @@ monitor_cmd_exec()
 		out=$(docker exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
 		rc=$?
 	else
-		out=$(echo "$OCF_RESKEY_monitor_cmd" | nsenter --target $(docker inspect --format {{.State.Pid}} ${CONTAINER}) --mount --uts --ipc --net --pid 2>&1)
+		out=$(echo "$OCF_RESKEY_monitor_cmd" | nsenter --target $(docker inspect --type=container --format {{.State.Pid}} ${CONTAINER}) --mount --uts --ipc --net --pid 2>&1)
 		rc=$?
 	fi
 
@@ -215,7 +242,25 @@ monitor_cmd_exec()
 
 container_exists()
 {
-	docker inspect --format {{.State.Running}} $CONTAINER | egrep '(true|false)' >/dev/null 2>&1
+	local err
+
+	err=$(docker inspect --type=container $CONTAINER 2>&1 >/dev/null)
+
+	if [ $? -ne $OCF_SUCCESS ]; then
+		case $err in
+			*"No such container"*)
+				# Return failure instead of exiting if container does not exist
+				return 1
+				;;
+			*)
+				# Exit if error running command
+				ocf_exit_reason "$err"
+				exit $OCF_ERR_GENERIC
+				;;
+		esac
+	fi
+
+	return $OCF_SUCCESS
 }
 
 remove_container()
@@ -238,13 +283,27 @@ docker_simple_status()
 {
 	local val
 
+	if [ ! -x "$(command -v docker)" ]; then 
+		ocf_log err "docker is not installed on this host"
+		return $OCF_ERR_INSTALLED
+	fi
+
+
+	# let's first check if the daemon is up and running.
+	VERSION_OUT=$(docker version)
+	version_ret=$?
+	if [ $version_ret -eq 1 ]; then
+		ocf_exit_reason "Docker service is in error state while checking for ${CONTAINER}, based on image, ${OCF_RESKEY_image}: ${VERSION_OUT}"
+		return $OCF_ERR_GENERIC
+	fi
+
 	container_exists
 	if [ $? -ne 0 ]; then
 		return $OCF_NOT_RUNNING
 	fi
 
 	# retrieve the 'Running' attribute for the container
-	val=$(docker inspect --format {{.State.Running}} $CONTAINER 2>/dev/null)
+	val=$(docker inspect --type=container --format {{.State.Running}} $CONTAINER 2>/dev/null)
 	if [ $? -ne 0 ]; then
 		#not running as a result of container not being found
 		return $OCF_NOT_RUNNING
@@ -258,11 +317,58 @@ docker_simple_status()
 	return $OCF_NOT_RUNNING
 }
 
+docker_health_status()
+{
+
+	if ocf_is_true "$OCF_RESKEY_query_docker_health"; then
+                local val
+
+                container_exists
+                if [ $? -ne 0 ]; then
+                        return $OCF_NOT_RUNNING
+                fi
+
+                # retrieve the 'Health' attribute for the container
+                # This is a bash-style do-while loop to wait until instance is started.
+                # if starting takes longer than monitor timeout then upstream will make this fail.
+                while
+
+                        val=$(docker inspect --type=container --format {{.State.Health.Status}} $CONTAINER 2>/dev/null)
+                        if [ $? -ne 0 ]; then
+                                #not healthy as a result of container not being found
+                                return $OCF_NOT_RUNNING
+                        fi
+                        test "$val" = "starting"
+                do
+
+                        sleep 1
+                done
+
+                if [ "$val" = "healthy" ]; then
+                        # container exists and is healthy
+                        return $OCF_SUCCESS
+                fi
+
+                return $OCF_NOT_RUNNING
+	fi
+
+	return 0
+}
+
+
+
 docker_monitor()
 {
 	local rc=0
 
 	docker_simple_status
+	rc=$?
+
+	if [ $rc -ne 0 ]; then
+		return $rc
+	fi
+
+	docker_health_status
 	rc=$?
 
 	if [ $rc -ne 0 ]; then
@@ -344,9 +450,12 @@ docker_stop()
 {
 	local timeout=60
 	docker_simple_status
-	if [ $? -eq  $OCF_NOT_RUNNING ]; then
+	ret=$?
+	if [ $ret -eq $OCF_NOT_RUNNING ]; then
 		remove_container
 		return $OCF_SUCCESS
+        elif [ $ret -eq $OCF_ERR_GENERIC ]; then
+               return $OCF_ERR_GENERIC
 	fi
 
 	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then

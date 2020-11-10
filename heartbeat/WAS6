@@ -107,13 +107,13 @@ The WAS profile name.
 </parameters>
 
 <actions>
-<action name="start" timeout="300" />
-<action name="stop" timeout="300" />
-<action name="status" depth="0" timeout="30" interval="10" />
-<action name="monitor" depth="0" timeout="30" interval="10" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
-<action name="methods" timeout="5" />
+<action name="start" timeout="300s" />
+<action name="stop" timeout="300s" />
+<action name="status" depth="0" timeout="30s" interval="10s" />
+<action name="monitor" depth="0" timeout="30s" interval="10s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
+<action name="methods" timeout="5s" />
 </actions>
 </resource-agent>
 END

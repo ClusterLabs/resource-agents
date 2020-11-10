@@ -1,0 +1,586 @@
+#!/bin/sh
+#
+# The podman HA resource agent creates and launches a podman container
+# based off a supplied podman image. Containers managed by this agent
+# are both created and removed upon the agent's start and stop actions.
+#
+# Copyright (c) 2014 David Vossel <davidvossel@gmail.com>
+#                    Michele Baldessari <michele@acksyn.org>
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Parameter defaults
+
+OCF_RESKEY_reuse_default="0"
+
+: ${OCF_RESKEY_reuse=${OCF_RESKEY_reuse_default}}
+
+#######################################################################
+
+meta_data()
+{
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="podman">
+<version>1.0</version>
+
+<longdesc lang="en">
+The podman HA resource agent creates and launches a podman container
+based off a supplied podman image. Containers managed by this agent
+are both created and removed upon the agent's start and stop actions.
+</longdesc>
+<shortdesc lang="en">Podman container resource agent.</shortdesc>
+
+<parameters>
+<parameter name="image" required="1" unique="0">
+<longdesc lang="en">
+The podman image to base this container off of.
+</longdesc>
+<shortdesc lang="en">podman image</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="name" required="0" unique="0">
+<longdesc lang="en">
+The name to give the created container. By default this will
+be that resource's instance name.
+</longdesc>
+<shortdesc lang="en">podman container name</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="allow_pull" unique="0">
+<longdesc lang="en">
+Allow the image to be pulled from the configured podman registry when
+the image does not exist locally. NOTE, this can drastically increase
+the time required to start the container if the image repository is
+pulled over the network.
+</longdesc>
+<shortdesc lang="en">Allow pulling non-local images</shortdesc>
+<content type="boolean"/>
+</parameter>
+
+<parameter name="run_opts" required="0" unique="0">
+<longdesc lang="en">
+Add options to be appended to the 'podman run' command which is used
+when creating the container during the start action. This option allows
+users to do things such as setting a custom entry point and injecting
+environment variables into the newly created container. Note the '-d'
+option is supplied regardless of this value to force containers to run
+in the background.
+
+NOTE: Do not explicitly specify the --name argument in the run_opts. This
+agent will set --name using either the resource's instance or the name
+provided in the 'name' argument of this agent.
+
+</longdesc>
+<shortdesc lang="en">run options</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="run_cmd" required="0" unique="0">
+<longdesc lang="en">
+Specify a command to launch within the container once
+it has initialized.
+</longdesc>
+<shortdesc lang="en">run command</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="mount_points" required="0" unique="0">
+<longdesc lang="en">
+A comma separated list of directories that the container is expecting to use.
+The agent will ensure they exist by running 'mkdir -p'
+</longdesc>
+<shortdesc lang="en">Required mount points</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="monitor_cmd" required="0" unique="0">
+<longdesc lang="en">
+Specify the full path of a command to launch within the container to check
+the health of the container. This command must return 0 to indicate that
+the container is healthy. A non-zero return code will indicate that the
+container has failed and should be recovered.
+
+Note: Using this method for monitoring processes inside a container
+is not recommended, as containerd tries to track processes running
+inside the container and does not deal well with many short-lived
+processes being spawned. Ensure that your container monitors its
+own processes and terminates on fatal error rather than invoking
+a command from the outside.
+</longdesc>
+<shortdesc lang="en">monitor command</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="force_kill" required="0" unique="0">
+<longdesc lang="en">
+Kill a container immediately rather than waiting for it to gracefully
+shutdown
+</longdesc>
+<shortdesc lang="en">force kill</shortdesc>
+<content type="boolean"/>
+</parameter>
+
+<parameter name="reuse" required="0" unique="0">
+<longdesc lang="en">
+Allow the container to be reused once it is stopped.  By default,
+containers get removed once they are stopped.  Enable this option
+to have the particular one persist when this happens.
+</longdesc>
+<shortdesc lang="en">reuse container</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_reuse_default}"/>
+</parameter>
+
+<parameter name="drop_in_dependency" required="0" unique="0">
+<longdesc lang="en">
+Use transient drop-in files to add extra dependencies to the systemd
+scopes associated to the container. During reboot, this prevents systemd
+to stop the container before pacemaker.
+</longdesc>
+<shortdesc lang="en">drop-in dependency</shortdesc>
+<content type="boolean"/>
+</parameter>
+</parameters>
+
+<actions>
+<action name="start"        timeout="90s" />
+<action name="stop"         timeout="90s" />
+<action name="monitor"      timeout="30s" interval="30s" depth="0" />
+<action name="meta-data"    timeout="5s" />
+<action name="validate-all"   timeout="30s" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+REQUIRE_IMAGE_PULL=0
+
+podman_usage()
+{
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+
+monitor_cmd_exec()
+{
+	local rc=$OCF_SUCCESS
+	local out
+
+	out=$(podman exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
+	rc=$?
+	# 125: no container with name or ID ${CONTAINER} found
+	# 126: container state improper (not running)
+	# 127: any other error
+	if [ $rc -eq 125 ] || [ $rc -eq 126 ]; then
+		rc=$OCF_NOT_RUNNING
+	elif [ $rc -ne 0 ]; then
+		ocf_exit_reason "monitor cmd failed (rc=$rc), output: $out"
+		rc=$OCF_ERR_GENERIC
+	else
+		ocf_log debug "monitor cmd passed: exit code = $rc"
+	fi
+
+	return $rc
+}
+
+container_exists()
+{
+	local rc
+	local out
+
+	out=$(podman exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
+	rc=$?
+	# 125: no container with name or ID ${CONTAINER} found
+	if [ $rc -ne 125 ]; then
+		return 0
+	fi
+	return 1
+}
+
+remove_container()
+{
+	local rc
+	local execids
+
+	if ocf_is_true "$OCF_RESKEY_reuse"; then
+		# never remove the container if we have reuse enabled.
+		return 0
+	fi
+
+	container_exists
+	if [ $? -ne 0 ]; then
+		# don't attempt to remove a container that doesn't exist
+		return 0
+	fi
+	ocf_log notice "Cleaning up inactive container, ${CONTAINER}."
+	ocf_run podman rm $CONTAINER
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		# due to a podman bug (rhbz#1841485), sometimes a stopped
+		# container can still be associated with Exec sessions, in
+		# which case the "podman rm" has to be forced
+		execids=$(podman inspect $CONTAINER --format '{{len .ExecIDs}}')
+		if [ "$execids" -ne "0" ]; then
+			ocf_log warn "Inactive container ${CONTAINER} has lingering exec sessions. Force-remove it."
+			ocf_run podman rm -f $CONTAINER
+			rc=$?
+		fi
+	fi
+	return $rc
+}
+
+podman_simple_status()
+{
+	local rc
+
+	# simple status is implemented via podman exec
+	# everything besides success is considered "not running"
+	monitor_cmd_exec
+	rc=$?
+	if [ $rc -ne $OCF_SUCCESS ]; then
+		rc=$OCF_NOT_RUNNING;
+	fi
+	return $rc
+}
+
+podman_monitor()
+{
+	# We rely on running podman exec to monitor the container
+	# state because that command seems to be less prone to
+	# performance issue under IO load.
+	#
+	# For probes to work, we expect cmd_exec to be able to report
+	# when a container is not running. Here, we're not interested
+	# in distinguishing whether it's stopped or non existing
+	# (there's function container_exists for that)
+	monitor_cmd_exec
+	return $?
+}
+
+podman_create_mounts() {
+	oldIFS="$IFS"
+	IFS=","
+	for directory in $OCF_RESKEY_mount_points; do
+		mkdir -p "$directory"
+	done
+	IFS="$oldIFS"
+}
+
+podman_container_id()
+{
+	# Retrieve the container ID by doing a "podman ps" rather than
+	# a "podman inspect", because the latter has performance issues
+	# under IO load.
+	# We could have run "podman start $CONTAINER" to get the ID back
+	# but if the container is stopped, the command will return a
+	# name instead of a container ID. This would break us.
+	podman ps --no-trunc --format '{{.ID}} {{.Names}}' | grep -F -w -m1 "$CONTAINER" | cut -d' ' -f1
+}
+
+
+create_transient_drop_in_dependency()
+{
+	local cid=$1
+	local rc=$OCF_SUCCESS
+
+	if [ -z "$cid" ]; then
+		ocf_log error "Container ID not found for \"$CONTAINER\". Not creating drop-in dependency"
+		return $OCF_ERR_GENERIC
+	fi
+
+	ocf_log info "Creating drop-in dependency for \"$CONTAINER\" ($cid)"
+	for scope in "libpod-$cid.scope.d" "libpod-conmon-$cid.scope.d"; do
+		if [ $rc -eq $OCF_SUCCESS ] && [ ! -d /run/systemd/transient/"$scope" ]; then
+			mkdir -p /run/systemd/transient/"$scope" && \
+			printf "[Unit]\nBefore=pacemaker.service" > /run/systemd/transient/"$scope"/dep.conf && \
+			chmod ago+r /run/systemd/transient/"$scope" /run/systemd/transient/"$scope"/dep.conf
+			rc=$?
+		fi
+	done
+
+	if [ $rc -ne $OCF_SUCCESS ]; then
+		ocf_log error "Could not create drop-in dependency for \"$CONTAINER\" ($cid)"
+	else
+		systemctl daemon-reload
+		rc=$?
+		if [ $rc -ne $OCF_SUCCESS ]; then
+			ocf_log error "Could not refresh service definition after creating drop-in for \"$CONTAINER\""
+		fi
+	fi
+
+	return $rc
+}
+
+
+run_new_container()
+{
+	local opts=$1
+	local image=$2
+	local cmd=$3
+	local rc
+	
+	ocf_log info "running container $CONTAINER for the first time"
+	ocf_run podman run $opts $image $cmd
+	rc=$?
+	if [ $rc -eq 125 ]; then
+		# If an internal podman error occurred, it might be because
+		# the internal storage layer still references an old container
+		# with the same name, even though podman itself thinks there
+		# is no such container. If so, purge the storage layer to try
+		# to clean the corruption and try again.
+		ocf_log warn "Internal podman error while creating new container $CONTAINER. Retrying."
+		ocf_run podman rm --storage $CONTAINER
+		ocf_run podman run $opts $image $cmd
+		rc=$?
+	fi
+	
+	return $rc
+}
+
+
+podman_start()
+{
+	local cid
+	local rc
+
+	podman_create_mounts
+	local run_opts="-d --name=${CONTAINER}"
+	# check to see if the container has already started
+	podman_simple_status
+	if [ $? -eq $OCF_SUCCESS ]; then
+		return $OCF_SUCCESS
+	fi
+
+	if [ -n "$OCF_RESKEY_run_opts" ]; then
+		run_opts="$run_opts $OCF_RESKEY_run_opts"
+	fi
+
+	if [ $REQUIRE_IMAGE_PULL -eq 1 ]; then
+		ocf_log notice "Beginning pull of image, ${OCF_RESKEY_image}"
+		podman pull "${OCF_RESKEY_image}"
+		if [ $? -ne 0 ]; then
+			ocf_exit_reason "failed to pull image ${OCF_RESKEY_image}"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
+	if ocf_is_true "$OCF_RESKEY_reuse" && container_exists; then
+		ocf_log info "starting existing container $CONTAINER."
+		ocf_run podman start $CONTAINER
+	else
+		# make sure any previous container matching our container name is cleaned up first.
+		# we already know at this point it wouldn't be running
+		remove_container
+		run_new_container "$run_opts" $OCF_RESKEY_image "$OCF_RESKEY_run_cmd"
+	fi
+	rc=$?
+
+	# if the container was stopped or didn't exist before, systemd
+	# removed the libpod* scopes. So always try to recreate the drop-ins
+	if [ $rc -eq 0 ] && ocf_is_true "$OCF_RESKEY_drop_in_dependency"; then
+		cid=$(podman_container_id)
+		create_transient_drop_in_dependency "$cid"
+		rc=$?
+	fi
+
+	if [ $rc -ne 0 ]; then
+		ocf_exit_reason "podman failed to launch container"
+		return $OCF_ERR_GENERIC
+	fi
+
+
+	# wait for monitor to pass before declaring that the container is started
+	while true; do
+		podman_simple_status
+		if [ $? -ne $OCF_SUCCESS ]; then
+			ocf_exit_reason "Newly created podman container exited after start"
+			return $OCF_ERR_GENERIC
+		fi
+
+		monitor_cmd_exec
+		if [ $? -eq $OCF_SUCCESS ]; then
+			ocf_log notice "Container $CONTAINER  started successfully"
+			return $OCF_SUCCESS
+		fi
+
+		ocf_exit_reason "waiting on monitor_cmd to pass after start"
+		sleep 1
+	done
+}
+
+podman_stop()
+{
+	local timeout=60
+	local rc
+	podman_simple_status
+	if [ $? -eq  $OCF_NOT_RUNNING ]; then
+		remove_container
+		return $OCF_SUCCESS
+	fi
+
+	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+		timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000) -10 ))
+		if [ $timeout -lt 10 ]; then
+			timeout=10
+		fi
+	fi
+
+	if ocf_is_true "$OCF_RESKEY_force_kill"; then
+		ocf_run podman kill $CONTAINER
+		rc=$?
+	else
+		ocf_log debug "waiting $timeout second[s] before killing container"
+		ocf_run podman stop -t=$timeout $CONTAINER
+		rc=$?
+		# on stop, systemd will automatically delete any transient
+		# drop-in conf that has been created earlier
+	fi
+
+	if [ $rc -ne 0 ]; then
+		# If the stop failed, it could be because the controlling conmon
+		# process died unexpectedly. If so, a generic error code is returned
+		# but the associated container exit code is -1. If that's the case,
+		# assume there's no failure and continue with the rm as usual.
+		if [ $rc -eq 125 ] && \
+		   podman inspect --format '{{.State.Status}}:{{.State.ExitCode}}' $CONTAINER | grep -wq "stopped:-1"; then
+			ocf_log warn "Container ${CONTAINER} had an unexpected stop outcome. Trying to remove it anyway."
+		else
+			ocf_exit_reason "Failed to stop container, ${CONTAINER}, based on image, ${OCF_RESKEY_image}."
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
+	remove_container
+	if [ $? -ne 0 ]; then
+		ocf_exit_reason "Failed to remove stopped container, ${CONTAINER}, based on image, ${OCF_RESKEY_image}."
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+image_exists()
+{
+	podman image exists "${OCF_RESKEY_image}"
+	if [ $? -eq 0 ]; then
+		# image found
+		return 0
+	fi
+
+	if ocf_is_true "$OCF_RESKEY_allow_pull"; then
+		REQUIRE_IMAGE_PULL=1
+		ocf_log notice "Image (${OCF_RESKEY_image}) does not exist locally but will be pulled during start"
+		return 0
+	fi
+	# image not found.
+	return 1
+}
+
+podman_validate()
+{
+	check_binary podman
+	if [ -z "$OCF_RESKEY_image" ]; then
+		ocf_exit_reason "'image' option is required"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	image_exists
+	if [ $? -ne 0 ]; then
+		ocf_exit_reason "base image, ${OCF_RESKEY_image}, could not be found."
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+# TODO :
+# When a user starts plural clones in a node in globally-unique, a user cannot appoint plural name parameters.
+# When a user appoints reuse, the resource agent cannot connect plural clones with a container.
+
+if ocf_is_true "$OCF_RESKEY_CRM_meta_globally_unique"; then
+	if [ -n "$OCF_RESKEY_name" ]; then
+		if [ -n "$OCF_RESKEY_CRM_meta_clone_node_max" ] && [ "$OCF_RESKEY_CRM_meta_clone_node_max" -ne 1 ]
+		then
+			ocf_exit_reason "Cannot make plural clones from the same name parameter."
+			exit $OCF_ERR_CONFIGURED
+		fi
+		if [ -n "$OCF_RESKEY_CRM_meta_master_node_max" ] && [ "$OCF_RESKEY_CRM_meta_master_node_max" -ne 1 ]
+		then
+			ocf_exit_reason "Cannot make plural master from the same name parameter."
+			exit $OCF_ERR_CONFIGURED
+		fi
+	fi
+	: ${OCF_RESKEY_name=`echo ${OCF_RESOURCE_INSTANCE} | tr ':' '-'`}
+else
+	: ${OCF_RESKEY_name=${OCF_RESOURCE_INSTANCE}}
+fi
+
+CONTAINER=$OCF_RESKEY_name
+
+# Note: we currently monitor podman containers by with the "podman exec"
+# command, so make sure that invocation is always valid by enforcing the
+# exec command to be non-empty
+: ${OCF_RESKEY_monitor_cmd:=/bin/true}
+
+# When OCF_RESKEY_drop_in_dependency is not populated, we
+# look at another file-based way of enabling the option.
+# Otherwise, consider it disabled.
+if [ -z "$OCF_RESKEY_drop_in_dependency" ]; then
+	if [ -f "/etc/sysconfig/podman_drop_in" ] || \
+	   [ -f "/etc/default/podman_drop_in" ]; then
+		OCF_RESKEY_drop_in_dependency=yes
+	fi
+fi
+
+case $__OCF_ACTION in
+meta-data) meta_data
+		exit $OCF_SUCCESS;;
+start)
+	podman_validate
+	podman_start;;
+stop)		podman_stop;;
+monitor)	podman_monitor;;
+validate-all)	podman_validate;;
+usage|help)	podman_usage
+		exit $OCF_SUCCESS
+		;;
+*)		podman_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc

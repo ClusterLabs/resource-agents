@@ -32,6 +32,18 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 . ${OCF_FUNCTIONS_DIR}/ora-common.sh
 
+# Parameter defaults
+
+OCF_RESKEY_sid_default=""
+OCF_RESKEY_home_default=""
+OCF_RESKEY_user_default=""
+OCF_RESKEY_listener_default="LISTENER"
+
+: ${OCF_RESKEY_sid=${OCF_RESKEY_sid_default}}
+: ${OCF_RESKEY_home=${OCF_RESKEY_home_default}}
+: ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
+: ${OCF_RESKEY_listener=${OCF_RESKEY_listener_default}}
+
 #######################################################################
 
 SH=/bin/sh
@@ -75,7 +87,7 @@ The Oracle SID (aka ORACLE_SID). Necessary for the monitor op,
 i.e. to do tnsping SID.
 </longdesc>
 <shortdesc lang="en">sid</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_sid_default}" />
 </parameter>
 
 <parameter name="home" unique="0">
@@ -84,7 +96,7 @@ The Oracle home directory (aka ORACLE_HOME).
 If not specified, then the SID should be listed in /etc/oratab.
 </longdesc>
 <shortdesc lang="en">home</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_home_default}" />
 </parameter>
 
 <parameter name="user" unique="0">
@@ -92,7 +104,7 @@ If not specified, then the SID should be listed in /etc/oratab.
 Run the listener as this user.
 </longdesc>
 <shortdesc lang="en">user</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_user_default}" />
 </parameter>
 
 <parameter name="listener" unique="1">
@@ -101,10 +113,10 @@ Listener instance to be started (as defined in listener.ora).
 Defaults to LISTENER.
 </longdesc>
 <shortdesc lang="en">listener</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_listener_default}" />
 </parameter>
 
-<parameter name="tns_admin" required="0" unique="1">
+<parameter name="tns_admin" required="0" unique="0">
 <longdesc lang="en">
 	Full path to the directory that contains the Oracle
 	listener tnsnames.ora configuration file.  The shell
@@ -119,13 +131,13 @@ Defaults to LISTENER.
 </parameters>
 
 <actions>
-<action name="start" timeout="120" />
-<action name="stop" timeout="120" />
-<action name="status" timeout="60" />
-<action name="monitor" depth="0" timeout="30" interval="10" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
-<action name="methods" timeout="5" />
+<action name="start" timeout="120s" />
+<action name="stop" timeout="120s" />
+<action name="status" timeout="60s" />
+<action name="monitor" depth="0" timeout="30s" interval="10s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
+<action name="methods" timeout="5s" />
 </actions>
 </resource-agent>
 END
@@ -258,7 +270,7 @@ oralsnr_status() {
 
 oralsnr_getconfig() {
 	ora_common_getconfig "$OCF_RESKEY_sid" "$OCF_RESKEY_home" "$OCF_RESKEY_user" "$OCF_RESKEY_tns_admin"
-	listener=${OCF_RESKEY_listener:-"LISTENER"}
+	listener=${OCF_RESKEY_listener}
 }
 
 oralsnr_validate_all() {

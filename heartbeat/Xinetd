@@ -23,6 +23,12 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_service_default=""
+
+: ${OCF_RESKEY_service=${OCF_RESKEY_service_default}}
+
 service=$OCF_RESKEY_service
 SVCDEF=/etc/xinetd.d/$service
 
@@ -58,7 +64,7 @@ enable some internal service such as echo.
 The name of the service managed by xinetd. 
 </longdesc>
 <shortdesc lang="en">service name</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_service_default}" />
 </parameter>
 </parameters>
 
@@ -66,10 +72,10 @@ The name of the service managed by xinetd.
 <action name="start" timeout="20s" />
 <action name="stop" timeout="20s" />
 <action name="restart" timeout="20s" />
-<action name="status" depth="0" timeout="10" interval="10" />
-<action name="monitor" depth="0" timeout="10" interval="10" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
+<action name="status" depth="0" timeout="10s" interval="10s" />
+<action name="monitor" depth="0" timeout="10s" interval="10s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
 </actions>
 </resource-agent>
 END

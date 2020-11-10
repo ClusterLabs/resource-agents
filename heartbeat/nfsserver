@@ -140,11 +140,11 @@ is_redhat_based && nfsserver_redhat_meta_data
 </parameters>
 
 <actions>
-<action name="start"   timeout="40" />
+<action name="start"   timeout="40s" />
 <action name="stop"    timeout="20s" />
-<action name="monitor" depth="0"  timeout="20s" interval="10" />
-<action name="meta-data"  timeout="5" />
-<action name="validate-all"  timeout="30" />
+<action name="monitor" depth="0"  timeout="20s" interval="10s" />
+<action name="meta-data"  timeout="5s" />
+<action name="validate-all"  timeout="30s" />
 </actions>
 </resource-agent>
 END
@@ -177,14 +177,8 @@ esac
 fp="$OCF_RESKEY_nfs_shared_infodir"
 : ${OCF_RESKEY_nfs_notify_cmd="$DEFAULT_NOTIFY_CMD"}
 : ${OCF_RESKEY_nfs_notify_foreground="$DEFAULT_NOTIFY_FOREGROUND"}
-
-if [ -z ${OCF_RESKEY_rpcpipefs_dir} ]; then
-	rpcpipefs_make_dir=$fp/rpc_pipefs
-	rpcpipefs_umount_dir=${DEFAULT_RPCPIPEFS_DIR}
-else
-	rpcpipefs_make_dir=${OCF_RESKEY_rpcpipefs_dir}
-	rpcpipefs_umount_dir=${OCF_RESKEY_rpcpipefs_dir}
-fi
+: ${OCF_RESKEY_rpcpipefs_dir="$DEFAULT_RPCPIPEFS_DIR"}
+OCF_RESKEY_rpcpipefs_dir=${OCF_RESKEY_rpcpipefs_dir%/}
 
 # Use statd folder if it exists
 if [ -d "/var/lib/nfs/statd" ]; then
@@ -198,7 +192,7 @@ fi
 which restorecon > /dev/null 2>&1 && selinuxenabled
 SELINUX_ENABLED=$?
 if [ $SELINUX_ENABLED -eq 0 ]; then
-	export SELINUX_LABEL="$(ls -ldZ $STATD_PATH | cut -f4 -d' ')"
+	export SELINUX_LABEL="$(ls -dZ $STATD_PATH | grep -o '\S\+:\S\+:\S\+')"
 fi
 
 ##
@@ -239,24 +233,25 @@ set_exec_mode()
 		return 0
 	fi
 
-	##
-	# Attempt systemd (with nfs-lock.service).
-	##
 	if which systemctl > /dev/null 2>&1; then
-		if systemctl list-unit-files | grep nfs-server > /dev/null && systemctl list-unit-files | grep nfs-lock > /dev/null; then
-			EXEC_MODE=2
-			# when using systemd, the nfs-lock service file handles nfsv3 locking daemons for us.
-			return 0
-		fi
-	fi
+		if systemctl --no-legend list-unit-files 'nfs-*' | grep nfs-server > /dev/null; then
 
-	##
-	# Attempt systemd (with rpc-statd.service).
-	##
-	if which systemctl > /dev/null 2>&1; then
-		if systemctl list-unit-files | grep nfs-server > /dev/null && systemctl list-unit-files | grep rpc-statd > /dev/null; then
-			EXEC_MODE=3
-			return 0
+			##
+			# Attempt systemd (with nfs-lock.service).
+			##
+			if systemctl --no-legend list-unit-files 'nfs-*' | grep nfs-lock > /dev/null; then
+				EXEC_MODE=2
+				# when using systemd, the nfs-lock service file handles nfsv3 locking daemons for us.
+				return 0
+			fi
+
+			##
+			# Attempt systemd (with rpc-statd.service).
+			##
+			if systemctl --no-legend list-unit-files 'rpc-*' | grep rpc-statd > /dev/null; then
+				EXEC_MODE=3
+				return 0
+			fi
 		fi
 	fi
 
@@ -278,12 +273,12 @@ nfs_exec()
 		2) if ! echo $svc | grep -q "\."; then
 			svc="${svc}.service"
 		   fi
-		   systemctl $cmd $svc
+		   systemctl -n0 $cmd $svc
 		   ;;
 		3) if ! echo $svc | grep -q "\."; then
 			svc="${svc}.service"
 		   fi
-		   systemctl $cmd $svc
+		   systemctl -n0 $cmd $svc
 		   ;;
 	esac
 }
@@ -321,7 +316,7 @@ nfsserver_systemd_monitor()
 	fi
 
 	ocf_log debug "Status: nfs-mountd"
-	rpcinfo -t localhost 100005 > /dev/null 2>&1
+	ps axww | grep -q "[r]pc.mountd"
 	rc=$?
 	if [ "$rc" -ne "0" ]; then
 		ocf_exit_reason "nfs-mountd is not running"
@@ -408,8 +403,7 @@ prepare_directory ()
 		return
 	fi
 
-	[ -d "$fp" ] || mkdir -p $fp
-	[ -d "$rpcpipefs_make_dir" ] || mkdir -p $rpcpipefs_make_dir
+	[ -d "$OCF_RESKEY_rpcpipefs_dir" ] || mkdir -p $OCF_RESKEY_rpcpipefs_dir
 	[ -d "$fp/v4recovery" ] || mkdir -p $fp/v4recovery
 
 	[ -d "$fp/$STATD_DIR" ] || mkdir -p "$fp/$STATD_DIR"
@@ -443,19 +437,34 @@ bind_tree ()
 		return
 	fi
 
+	[ -d "$fp" ] || mkdir -p $fp
+
 	if is_bound /var/lib/nfs; then
 		ocf_log debug "$fp is already bound to /var/lib/nfs"
 		return 0
 	fi
+
+	case $EXEC_MODE in
+	  [23]) if nfs_exec status var-lib-nfs-rpc_pipefs.mount > /dev/null 2>&1; then
+			ocf_log debug "/var/lib/nfs/rpc_pipefs already mounted. Unmounting in preparation to bind mount nfs dir"
+			systemctl stop var-lib-nfs-rpc_pipefs.mount
+		fi
+		;;
+	esac
+
 	mount --bind $fp /var/lib/nfs
 	[ $SELINUX_ENABLED -eq 0 ] && restorecon /var/lib/nfs
 }
 
 unbind_tree ()
 {
-	if `mount | grep -q " on $rpcpipefs_umount_dir"`; then
-		umount -t rpc_pipefs $rpcpipefs_umount_dir
-	fi
+	local i=1
+	while `mount | grep -q " on $OCF_RESKEY_rpcpipefs_dir "` && [ "$i" -le 10 ]; do
+		ocf_log info "Stop: umount ($i/10 attempts)"
+		umount -t rpc_pipefs $OCF_RESKEY_rpcpipefs_dir
+		sleep 1
+		i=$((i + 1))
+	done
 	if is_bound /var/lib/nfs; then
 		umount /var/lib/nfs
 	fi
@@ -614,8 +623,12 @@ nfsserver_start ()
 	fi
 
 	is_redhat_based && set_env_args
-	prepare_directory
 	bind_tree
+	prepare_directory
+
+	if ! `mount | grep -q " on $OCF_RESKEY_rpcpipefs_dir "`; then
+		mount -t rpc_pipefs sunrpc $OCF_RESKEY_rpcpipefs_dir
+	fi
 
 	# remove the sm-notify pid so sm-notify will be allowed to run again without requiring a reboot.
 	rm -f /var/run/sm-notify.pid
@@ -670,7 +683,7 @@ nfsserver_start ()
 		  local i=1
 		  while : ; do
 			ocf_log info "Start: nfs-mountd i: $i"
-			rpcinfo -t localhost 100005 > /dev/null 2>&1
+			ps axww | grep -q "[r]pc.mountd"
 			rc=$?
 			if [ "$rc" -eq "0" ]; then
 				break;
@@ -759,10 +772,10 @@ nfsserver_stop ()
 	case $EXEC_MODE in
             [23]) ocf_log info "Stop: threads"
 		  tfn="/proc/fs/nfsd/threads"
-		  if [ -f "$tfn" ] && [ "$(cat $tfn)" -gt "0" ]; then
-			ocf_exit_reason "NFS server failed to stop: /proc/fs/nfsd/threads"
-			return $OCF_ERR_GENERIC
-		  fi
+		  while [ -f "$tfn" ] && [ "$(cat $tfn)" -gt "0" ]; do
+			ocf_log err "NFS server failed to stop: /proc/fs/nfsd/threads"
+			sleep 1
+		  done
 
 		  nfs_exec stop rpc-statd > /dev/null 2>&1
 		  ocf_log info "Stop: rpc-statd"
@@ -787,11 +800,25 @@ nfsserver_stop ()
 
 		  nfs_exec stop nfs-mountd > /dev/null 2>&1
 		  ocf_log info "Stop: nfs-mountd"
-		  rpcinfo -t localhost 100005 > /dev/null 2>&1
+		  ps axww | grep -q "[r]pc.mountd"
 		  rc=$?
 		  if [ "$rc" -eq "0" ]; then
 			ocf_exit_reason "Failed to stop nfs-mountd"
 			return $OCF_ERR_GENERIC
+		  fi
+
+		  if systemctl --no-legend list-unit-files "nfsdcld*" | grep -q nfsdcld; then
+		  	nfs_exec stop nfsdcld > /dev/null 2>&1
+		  	ocf_log info "Stop: nfsdcld"
+		  	fn=`mktemp`
+		  	nfs_exec status nfsdcld > $fn 2>&1
+		  	rc=$?
+		  	ocf_log debug "$(cat $fn)"
+		  	rm -f $fn
+		  	if [ "$rc" -eq "0" ]; then
+		  		ocf_exit_reason "Failed to stop nfsdcld"
+		  		return $OCF_ERR_GENERIC
+		  	fi
 		  fi
 	esac
 

@@ -68,6 +68,14 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_serveraid_default=""
+OCF_RESKEY_mergegroup_default=""
+
+: ${OCF_RESKEY_serveraid=${OCF_RESKEY_serveraid_default}}
+: ${OCF_RESKEY_mergegroup=${OCF_RESKEY_mergegroup_default}}
+
 #######################################################################
 
 srsuccess=0
@@ -123,7 +131,7 @@ Resource script for ServeRAID. It enables/disables shared ServeRAID merge groups
 The adapter number of the ServeRAID adapter.
 </longdesc>
 <shortdesc lang="en">serveraid</shortdesc>
-<content type="integer" default="" />
+<content type="integer" default="${OCF_RESKEY_serveraid_default}" />
 </parameter>
 
 <parameter name="mergegroup" unique="0" required="1">
@@ -131,18 +139,18 @@ The adapter number of the ServeRAID adapter.
 The logical drive under consideration. 
 </longdesc>
 <shortdesc lang="en">mergegroup</shortdesc>
-<content type="integer" default="" />
+<content type="integer" default="${OCF_RESKEY_mergegroup_default}" />
 </parameter>
 </parameters>
 
 <actions>
-<action name="start" timeout="40" />
-<action name="stop" timeout="40" />
-<action name="status" depth="0" timeout="20" interval="10" />
-<action name="monitor" depth="0" timeout="20" interval="10" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
-<action name="methods" timeout="5" />
+<action name="start" timeout="40s" />
+<action name="stop" timeout="40s" />
+<action name="status" depth="0" timeout="20s" interval="10s" />
+<action name="monitor" depth="0" timeout="20s" interval="10s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
+<action name="methods" timeout="5s" />
 </actions>
 </resource-agent>
 END

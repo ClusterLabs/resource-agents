@@ -33,6 +33,18 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_config_default="/etc/sphinx/sphinx.conf"
+OCF_RESKEY_searchd_default="/usr/local/bin/searchd"
+OCF_RESKEY_search_default="/usr/local/bin/search"
+OCF_RESKEY_testQuery_default="Heartbeat_Monitor_Query_Match_string"
+
+: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
+: ${OCF_RESKEY_searchd=${OCF_RESKEY_searchd_default}}
+: ${OCF_RESKEY_search=${OCF_RESKEY_search_default}}
+: ${OCF_RESKEY_testQuery=${OCF_RESKEY_testQuery_default}}
+
 #######################################################################
 
 meta_data() {
@@ -54,7 +66,7 @@ This is a searchd Resource Agent. It manages the Sphinx Search Daemon.
 searchd configuration file
 </longdesc>
 <shortdesc lang="en">Configuration file</shortdesc>
-<content type="string" default="/etc/sphinx/sphinx.conf" />
+<content type="string" default="${OCF_RESKEY_config_default}" />
 </parameter>
 
 <parameter name="searchd" required="0" unique="0">
@@ -62,7 +74,7 @@ searchd configuration file
 searchd binary
 </longdesc>
 <shortdesc lang="en">searchd binary</shortdesc>
-<content type="string" default="/usr/local/bin/searchd" />
+<content type="string" default="${OCF_RESKEY_searchd_default}" />
 </parameter>
 
 <parameter name="search" required="0" unique="0">
@@ -70,7 +82,7 @@ searchd binary
 Search binary for functional testing in the monitor action.
 </longdesc>
 <shortdesc lang="en">search binary</shortdesc>
-<content type="string" default="/usr/local/bin/search" />
+<content type="string" default="${OCF_RESKEY_search_default}" />
 </parameter>
 
 <parameter name="testQuery" required="0" unique="0">
@@ -81,7 +93,7 @@ The purpose is merely to test whether the search daemon is
 is able to query its indices and respond properly. 
 </longdesc>
 <shortdesc lang="en">test query</shortdesc>
-<content type="string" default="Heartbeat_Monitor_Query_Match_string" />
+<content type="string" default="${OCF_RESKEY_testQuery_default}" />
 </parameter>
 
 </parameters>
@@ -89,8 +101,8 @@ is able to query its indices and respond properly.
 <actions>
 <action name="start"        timeout="20s" />
 <action name="stop"         timeout="20s" />
-<action name="monitor"      timeout="20" interval="10" depth="0" />
-<action name="meta-data"    timeout="5" />
+<action name="monitor"      timeout="20s" interval="10s" depth="0" />
+<action name="meta-data"    timeout="5s" />
 <action name="validate-all"   timeout="20s" />
 </actions>
 </resource-agent>
@@ -196,11 +208,6 @@ searchd_validate() {
 
     return $OCF_SUCCESS
 }
-
-: ${OCF_RESKEY_config=/etc/sphinx/sphinx.conf} 
-: ${OCF_RESKEY_search=/usr/local/bin/search}
-: ${OCF_RESKEY_searchd=/usr/local/bin/searchd}
-: ${OCF_RESKEY_testQuery=Heartbeat_Monitor_Query_Match_string} 
 
 case $__OCF_ACTION in
 meta-data)	meta_data

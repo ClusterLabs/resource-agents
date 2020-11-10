@@ -1,8 +1,9 @@
 #!/bin/sh
 #
 #
-#	Dummy OCF RA. Does nothing but wait a few seconds, can be
-#	configured to fail occassionally.
+#	Dummy OCF RA. Does nothing except track its own state.
+#	Use it only as a testing tool or example for how to write
+#	a resource agent.
 #
 # Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Bree
 #                    All Rights Reserved.
@@ -33,6 +34,14 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_state_default="${HA_RSCTMP}/Dummy-${OCF_RESOURCE_INSTANCE}.state"
+OCF_RESKEY_fake_default="dummy"
+
+: ${OCF_RESKEY_state=${OCF_RESKEY_state_default}}
+: ${OCF_RESKEY_fake=${OCF_RESKEY_fake_default}}
+
 #######################################################################
 
 meta_data() {
@@ -62,7 +71,7 @@ but moderate. The minimum timeouts should never be below 10 seconds.
 Location to store the resource state in.
 </longdesc>
 <shortdesc lang="en">State file</shortdesc>
-<content type="string" default="${HA_RSCTMP}/Dummy-${OCF_RESOURCE_INSTANCE}.state" />
+<content type="string" default="${OCF_RESKEY_state_default}" />
 </parameter>
 
 <parameter name="fake" unique="0">
@@ -70,20 +79,20 @@ Location to store the resource state in.
 Fake attribute that can be changed to cause a reload
 </longdesc>
 <shortdesc lang="en">Fake attribute that can be changed to cause a reload</shortdesc>
-<content type="string" default="dummy" />
+<content type="string" default="${OCF_RESKEY_fake_default}" />
 </parameter>
 
 </parameters>
 
 <actions>
-<action name="start"        timeout="20" />
-<action name="stop"         timeout="20" />
-<action name="monitor"      timeout="20" interval="10" depth="0" />
-<action name="reload"       timeout="20" />
-<action name="migrate_to"   timeout="20" />
-<action name="migrate_from" timeout="20" />
-<action name="meta-data"    timeout="5" />
-<action name="validate-all"   timeout="20" />
+<action name="start"        timeout="20s" />
+<action name="stop"         timeout="20s" />
+<action name="monitor"      timeout="20s" interval="10s" depth="0" />
+<action name="reload"       timeout="20s" />
+<action name="migrate_to"   timeout="20s" />
+<action name="migrate_from" timeout="20s" />
+<action name="meta-data"    timeout="5s" />
+<action name="validate-all"   timeout="20s" />
 </actions>
 </resource-agent>
 END
@@ -147,9 +156,6 @@ dummy_validate() {
 
     return $OCF_SUCCESS
 }
-
-: ${OCF_RESKEY_state=${HA_RSCTMP}/Dummy-${OCF_RESOURCE_INSTANCE}.state}
-: ${OCF_RESKEY_fake="dummy"}
 
 case $__OCF_ACTION in
 meta-data)	meta_data

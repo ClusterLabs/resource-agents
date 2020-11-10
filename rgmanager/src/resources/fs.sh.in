@@ -1,4 +1,4 @@
-#!/bin/bash
+#!@BASH_SHELL@
 
 #
 # File system (normal) mount/umount/fsck/etc. agent

@@ -28,6 +28,16 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_binpath_default="rsync"
+OCF_RESKEY_conffile_default="/etc/rsyncd.conf"
+OCF_RESKEY_bwlimit_default=""
+
+: ${OCF_RESKEY_binpath=${OCF_RESKEY_binpath_default}}
+: ${OCF_RESKEY_conffile=${OCF_RESKEY_conffile_default}}
+: ${OCF_RESKEY_bwlimit=${OCF_RESKEY_bwlimit_default}}
+
 USAGE="Usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
 ##########################################################################
@@ -57,7 +67,7 @@ The rsync binary path.
 For example, "/usr/bin/rsync"
 </longdesc>
 <shortdesc lang="en">Full path to the rsync binary</shortdesc>
-<content type="string" default="rsync"/>
+<content type="string" default="${OCF_RESKEY_binpath_default}"/>
 </parameter>
 
 <parameter name="conffile">
@@ -66,7 +76,7 @@ The rsync daemon configuration file name with full path.
 For example, "/etc/rsyncd.conf"
 </longdesc>
 <shortdesc lang="en">Configuration file name with full path</shortdesc>
-<content type="string" default="/etc/rsyncd.conf" />
+<content type="string" default="${OCF_RESKEY_conffile_default}" />
 </parameter>
 
 <parameter name="bwlimit">
@@ -82,7 +92,7 @@ is an average transfer rate equaling the  specified
 limit. A value of zero specifies no limit.
 </longdesc>
 <shortdesc lang="en">limit I/O bandwidth, KBytes per second</shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_bwlimit_default}"/>
 </parameter>
 
 </parameters>

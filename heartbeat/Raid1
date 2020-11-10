@@ -39,6 +39,22 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_raidconf_default=""
+OCF_RESKEY_raiddev_default=""
+OCF_RESKEY_homehost_default=""
+OCF_RESKEY_force_stop_default="true"
+OCF_RESKEY_udev_default="true"
+OCF_RESKEY_force_clones_default="false"
+
+: ${OCF_RESKEY_raidconf=${OCF_RESKEY_raidconf_default}}
+: ${OCF_RESKEY_raiddev=${OCF_RESKEY_raiddev_default}}
+: ${OCF_RESKEY_homehost=${OCF_RESKEY_homehost_default}}
+: ${OCF_RESKEY_force_stop=${OCF_RESKEY_force_stop_default}}
+: ${OCF_RESKEY_udev=${OCF_RESKEY_udev_default}}
+: ${OCF_RESKEY_force_clones=${OCF_RESKEY_force_clones_default}}
+
 #######################################################################
 
 usage() {
@@ -69,7 +85,7 @@ information.
 The RAID configuration file, e.g. /etc/mdadm.conf.
 </longdesc>
 <shortdesc lang="en">RAID config file</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_raidconf_default}" />
 </parameter>
 
 <parameter name="raiddev" unique="0" required="1">
@@ -78,7 +94,7 @@ One or more block devices to use, space separated. Alternatively,
 set to "auto" to manage all devices specified in raidconf.
 </longdesc>
 <shortdesc lang="en">block device</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_raiddev_default}" />
 </parameter>
 
 <parameter name="homehost" unique="0" required="0">
@@ -86,11 +102,11 @@ set to "auto" to manage all devices specified in raidconf.
 The value for the homehost directive; this is an mdadm feature to
 protect RAIDs against being activated by accident. It is recommended to
 create RAIDs managed by the cluster with "homehost" set to a special
-value, so they are not accidentially auto-assembled by nodes not
+value, so they are not accidentally auto-assembled by nodes not
 supposed to own them.
 </longdesc>
 <shortdesc lang="en">Homehost for mdadm</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_homehost_default}" />
 </parameter>
 
 <parameter name="force_stop" unique="0" required="0">
@@ -105,7 +121,7 @@ parameter to false. Note that in that case the stop operation
 will fail and the node will be fenced.
 </longdesc>
 <shortdesc lang="en">force stop processes using the array</shortdesc>
-<content type="boolean" default="true" />
+<content type="boolean" default="${OCF_RESKEY_force_stop_default}" />
 </parameter>
 
 <parameter name="udev" unique="0" required="0">
@@ -115,7 +131,7 @@ normally loaded host this should happen quickly, but you may be
 unlucky. If you are not using udev set this to "no".
 </longdesc>
 <shortdesc lang="en">udev</shortdesc>
-<content type="boolean" default="true" />
+<content type="boolean" default="${OCF_RESKEY_udev_default}" />
 </parameter>
 
 <parameter name="force_clones">
@@ -129,7 +145,7 @@ all nodes, but is in fact distinct.
 Only set this to "true" if you know what you are doing!
 </longdesc>
 <shortdesc lang="en">force ability to run as a clone</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_force_clones_default}" />
 </parameter>
 
 </parameters>
@@ -137,10 +153,10 @@ Only set this to "true" if you know what you are doing!
 <actions>
 <action name="start" timeout="20s" />
 <action name="stop" timeout="20s" />
-<action name="status" depth="0" timeout="20s" interval="10" />
-<action name="monitor" depth="0" timeout="20s" interval="10" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
+<action name="status" depth="0" timeout="20s" interval="10s" />
+<action name="monitor" depth="0" timeout="20s" interval="10s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
 </actions>
 </resource-agent>
 END
@@ -246,7 +262,7 @@ mknod_raid1_stop() {
 	rm -f $tmp_block_file
 	ocf_log info "block device file $1 missing, creating one in order to stop the array"
 	mknod $tmp_block_file b 9 $n
-	$MDADM --stop $tmp_block_file --config=$RAIDCONF --wait-clean -W
+	$MDADM --stop $tmp_block_file --config=$RAIDCONF
 	rc=$?
 	rm -f $tmp_block_file
 	return $rc
@@ -254,12 +270,12 @@ mknod_raid1_stop() {
 raid1_stop_one() {
 	ocf_log info "Stopping array $1"
 	if [ -b "$1" ]; then
-		$MDADM --stop $1 --config=$RAIDCONF --wait-clean -W &&
+		$MDADM --stop $1 --config=$RAIDCONF &&
 			return
 	else
 		# newer mdadm releases can stop arrays when given the
 		# basename; try that first
-		$MDADM --stop `basename $1` --config=$RAIDCONF --wait-clean -W &&
+		$MDADM --stop `basename $1` --config=$RAIDCONF &&
 			return
 		# otherwise create a block device file
 		mknod_raid1_stop $1
@@ -353,16 +369,22 @@ raid1_stop() {
 #
 raid1_monitor_one() {
 	local mddev=$1
-	local md=`echo $mddev | sed 's,/dev/,,'`
+	local md=
 	local rc
 	local TRY_READD=0
 	local pbsize
 	# check if the md device exists first
 	# but not if we are in the stop operation
 	# device existence is important only for the running arrays
-	if [ "$__OCF_ACTION" != "stop" -a ! -b $mddev ]; then
-		ocf_log info "$mddev is not a block device"
-		return $OCF_NOT_RUNNING
+	if [ "$__OCF_ACTION" != "stop" ]; then
+		if [ -h "$mddev" ]; then
+			md=$(ls $mddev -l | awk -F'/' '{print $NF}')
+		elif [ -b "$mddev" ]; then
+			md=$(echo $mddev | sed 's,/dev/,,')
+		else
+			ocf_log info "$mddev is not a block device"
+			return $OCF_NOT_RUNNING
+		fi
 	fi
 	if ! grep -e "^$md[ \t:]" /proc/mdstat >/dev/null ; then
 		ocf_log info "$md not found in /proc/mdstat"
@@ -378,8 +400,16 @@ raid1_monitor_one() {
 		2)	ocf_exit_reason "$mddev has failed."
 			return $OCF_ERR_GENERIC
 			;;
-		4)	ocf_exit_reason "mdadm failed on $mddev."
-			return $OCF_ERR_GENERIC
+		4)
+			if [ "$__OCF_ACTION" = "stop" ] ; then
+				# There may be a transient invalid device after
+				# we stop MD due to uevent processing, the
+				# original device is stopped though.
+				return $OCF_NOT_RUNNING
+			else
+				ocf_exit_reason "mdadm failed on $mddev."
+				return $OCF_ERR_GENERIC
+			fi
 			;;
 		*)	ocf_exit_reason "mdadm returned an unknown result ($rc)."
 			return $OCF_ERR_GENERIC
@@ -458,8 +488,8 @@ esac
 
 RAIDCONF="$OCF_RESKEY_raidconf"
 MDDEV="$OCF_RESKEY_raiddev"
-FORCESTOP="${OCF_RESKEY_force_stop:-1}"
-WAIT_FOR_UDEV="${OCF_RESKEY_udev:-1}"
+FORCESTOP="${OCF_RESKEY_force_stop}"
+WAIT_FOR_UDEV="${OCF_RESKEY_udev}"
 
 if [ -z "$RAIDCONF" ] ; then
 	ocf_exit_reason "Please set OCF_RESKEY_raidconf!"

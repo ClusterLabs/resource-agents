@@ -23,11 +23,21 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
+OCF_RESKEY_protocol_default=""
+OCF_RESKEY_portno_default=""
+OCF_RESKEY_action_default=""
 OCF_RESKEY_ip_default="0.0.0.0/0"
 OCF_RESKEY_reset_local_on_unblock_stop_default="false"
+OCF_RESKEY_tickle_dir_default=""
+OCF_RESKEY_sync_script_default=""
 
+: ${OCF_RESKEY_protocol=${OCF_RESKEY_protocol_default}}
+: ${OCF_RESKEY_portno=${OCF_RESKEY_portno_default}}
+: ${OCF_RESKEY_action=${OCF_RESKEY_action_default}}
 : ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
 : ${OCF_RESKEY_reset_local_on_unblock_stop=${OCF_RESKEY_reset_local_on_unblock_stop_default}}
+: ${OCF_RESKEY_tickle_dir=${OCF_RESKEY_tickle_dir_default}}
+: ${OCF_RESKEY_sync_script=${OCF_RESKEY_sync_script_default}}
 #######################################################################
 CMD=`basename $0`
 TICKLETCP=$HA_BIN/tickle_tcp
@@ -141,7 +151,7 @@ hasn't yet seen widespread use.
 The protocol used to be blocked/unblocked.
 </longdesc>
 <shortdesc lang="en">protocol</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_protocol_default}" />
 </parameter>
 
 <parameter name="portno" unique="0" required="1">
@@ -149,7 +159,7 @@ The protocol used to be blocked/unblocked.
 The port number used to be blocked/unblocked.
 </longdesc>
 <shortdesc lang="en">portno</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_portno_default}" />
 </parameter>
 
 <parameter name="action" unique="0" required="1">
@@ -157,7 +167,7 @@ The port number used to be blocked/unblocked.
 The action (block/unblock) to be done on the protocol::portno.
 </longdesc>
 <shortdesc lang="en">action</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_action_default}" />
 </parameter>
 
 <parameter name="reset_local_on_unblock_stop" unique="0" required="0">
@@ -165,7 +175,7 @@ The action (block/unblock) to be done on the protocol::portno.
 If for some reason the long lived server side TCP sessions won't be cleaned up
 by a reconfiguration/flush/stop of whatever services this portblock protects,
 they would linger in the connection table, even after the IP is gone
-and services have been switched over to an other node.
+and services have been switched over to another node.
 
 An example would be the default NFS kernel server.
 
@@ -194,7 +204,7 @@ The shared or local directory (_must_ be absolute path) which
 stores the established TCP connections.
 </longdesc>
 <shortdesc lang="en">Tickle directory</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_tickle_dir_default}" />
 </parameter>
 
 <parameter name="sync_script" unique="0" required="0">
@@ -205,17 +215,17 @@ csync2 (default), some wrapper of rsync, or whatever. It takes the
 file name as a single argument. For csync2, set it to "csync2 -xv".
 </longdesc>
 <shortdesc lang="en">Connection state file synchronization script</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_sync_script_default}" />
 </parameter>
 </parameters>
 
 <actions>
-<action name="start" timeout="20" />
-<action name="stop" timeout="20" />
-<action name="status" depth="0" timeout="10" interval="10" />
-<action name="monitor" depth="0" timeout="10" interval="10" />
-<action name="meta-data" timeout="5" />
-<action name="validate-all" timeout="5" />
+<action name="start" timeout="20s" />
+<action name="stop" timeout="20s" />
+<action name="status" depth="0" timeout="10s" interval="10s" />
+<action name="monitor" depth="0" timeout="10s" interval="10s" />
+<action name="meta-data" timeout="5s" />
+<action name="validate-all" timeout="5s" />
 </actions>
 </resource-agent>
 END
@@ -253,7 +263,7 @@ save_tcp_connections()
 		netstat -tn |awk -F '[:[:space:]]+' '
 			$8 == "ESTABLISHED" && $4 == "'$OCF_RESKEY_ip'" \
 			{printf "%s:%s\t%s:%s\n", $4,$5, $6,$7}' |
-			dd of="$statefile".new conv=fsync && 
+			dd of="$statefile".new conv=fsync status=none &&
 			mv "$statefile".new "$statefile"
 	else
 		netstat -tn |awk -F '[:[:space:]]+' '
@@ -278,6 +288,12 @@ tickle_local()
 	[ -z "$OCF_RESKEY_tickle_dir" ] && return
 	f=$OCF_RESKEY_tickle_dir/$OCF_RESKEY_ip
 	[ -r $f ] || return
+
+	checkcmd="netstat -tn"
+	if ! have_binary "netstat"; then
+		checkcmd="ss -Htn"
+	fi
+
 	# swap "local" and "remote" address,
 	# so we tickle ourselves.
 	# We set up a REJECT with tcp-reset before we do so, so we get rid of
@@ -286,11 +302,11 @@ tickle_local()
 	# the way if we switch-over and then switch-back in quick succession.
 	local i
 	awk '{ print $2, $1; }' $f | $TICKLETCP
-	netstat -tn | grep -Fw $OCF_RESKEY_ip || return
+	$checkcmd | grep -Fw $OCF_RESKEY_ip || return
 	for i in 0.1 0.5 1 2 4 ; do
 		sleep $i
 		awk '{ print $2, $1; }' $f | $TICKLETCP
-		netstat -tn | grep -Fw $OCF_RESKEY_ip || break
+		$checkcmd | grep -Fw $OCF_RESKEY_ip || break
 	done
 }
 

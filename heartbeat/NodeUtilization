@@ -32,6 +32,26 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_pidfile_default="$HA_VARRUN/NodeUtilization-${OCF_RESOURCE_INSTANCE}"
+OCF_RESKEY_dynamic_default="true"
+OCF_RESKEY_utilization_cpu_default="true"
+OCF_RESKEY_utilization_cpu_reservation_default="1"
+OCF_RESKEY_utilization_host_memory_default="true"
+OCF_RESKEY_utilization_host_memory_reservation_default="512"
+OCF_RESKEY_utilization_hv_memory_default="true"
+OCF_RESKEY_utilization_hv_memory_reservation_default="512"
+
+: ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
+: ${OCF_RESKEY_dynamic=${OCF_RESKEY_dynamic_default}}
+: ${OCF_RESKEY_utilization_cpu=${OCF_RESKEY_utilization_cpu_default}}
+: ${OCF_RESKEY_utilization_cpu_reservation=${OCF_RESKEY_utilization_cpu_reservation_default}}
+: ${OCF_RESKEY_utilization_host_memory=${OCF_RESKEY_utilization_host_memory_default}}
+: ${OCF_RESKEY_utilization_host_memory_reservation=${OCF_RESKEY_utilization_host_memory_reservation_default}}
+: ${OCF_RESKEY_utilization_hv_memory=${OCF_RESKEY_utilization_hv_memory_default}}
+: ${OCF_RESKEY_utilization_hv_memory_reservation=${OCF_RESKEY_utilization_hv_memory_reservation_default}}
+
 #######################################################################
 
 NodeUtilization_meta_data() {
@@ -59,52 +79,52 @@ parameters and the system values when running the monitor action.
 If not set, the parameters will be set once when the resource instance starts.
 </longdesc>
 <shortdesc lang="en">Dynamically update parameters in monitor</shortdesc>
-<content type="boolean" default="true" />
+<content type="boolean" default="${OCF_RESKEY_dynamic_default}" />
 </parameter>
 
 <parameter name="utilization_cpu" unique="0" required="0">
 <longdesc lang="en">Enable setting node CPU utilization limit.</longdesc>
 <shortdesc lang="en">Set node CPU utilization limit.</shortdesc>
-<content type="boolean" default="true" />
+<content type="boolean" default="${OCF_RESKEY_utilization_cpu_default}" />
 </parameter>
 
 <parameter name="utilization_cpu_reservation" unique="0" required="0">
 <longdesc lang="en">Subtract this value when setting the CPU utilization parameter.</longdesc>
 <shortdesc lang="en">CPU reservation.</shortdesc>
-<content type="integer" default="1" />
+<content type="integer" default="${OCF_RESKEY_utilization_cpu_reservation_default}" />
 </parameter>
 
 <parameter name="utilization_host_memory" unique="0" required="0">
 <longdesc lang="en">Enable setting available host memory.</longdesc>
 <shortdesc lang="en">Set available host memory.</shortdesc>
-<content type="boolean" default="true" />
+<content type="boolean" default="${OCF_RESKEY_utilization_host_memory_default}" />
 </parameter>
 
 <parameter name="utilization_host_memory_reservation" unique="0" required="0">
 <longdesc lang="en">Subtract this value when setting host memory utilization, in MB.</longdesc>
 <shortdesc lang="en">Host memory reservation, in MB.</shortdesc>
-<content type="integer" default="512" />
+<content type="integer" default="${OCF_RESKEY_utilization_host_memory_reservation_default}" />
 </parameter>
 
 <parameter name="utilization_hv_memory" unique="0" required="0">
 <longdesc lang="en">Enable setting available hypervisor memory.</longdesc>
 <shortdesc lang="en">Set available hypervisor memory.</shortdesc>
-<content type="boolean" default="true" />
+<content type="boolean" default="${OCF_RESKEY_utilization_hv_memory_default}" />
 </parameter>
 
 <parameter name="utilization_hv_memory_reservation" unique="0" required="0">
 <longdesc lang="en">Subtract this value when setting hypervisor memory utilization, in MB.</longdesc>
 <shortdesc lang="en">Hypervisor memory reservation, in MB.</shortdesc>
-<content type="integer" default="512" />
+<content type="integer" default="${OCF_RESKEY_utilization_hv_memory_reservation_default}" />
 </parameter>
 </parameters>
 
 <actions>
-<action name="start"   timeout="90" />
-<action name="stop"    timeout="100" />
+<action name="start"   timeout="90s" />
+<action name="stop"    timeout="100s" />
 <action name="monitor" timeout="20s" interval="60s"/>
-<action name="meta-data"  timeout="5" />
-<action name="validate-all"  timeout="30" />
+<action name="meta-data"  timeout="5s" />
+<action name="validate-all"  timeout="30s" />
 </actions>
 </resource-agent>
 END
@@ -115,10 +135,10 @@ Host_Total_Memory() {
 
     xentool=$(which xl 2> /dev/null || which xm 2> /dev/null)
 
-    if [ -x $xentool ]; then
-        $xentool info | awk '/total_memory/{printf("%d\n",$3);exit(0)}'
+    if [ -x "$xentool" ]; then
+        "$xentool" info | awk '/total_memory/{printf("%d\n",$3);exit(0)}'
     else
-        ocf_log warn "Can only set hv_memory for Xen hypervisor"
+        ocf_log debug "Can only set hv_memory for Xen hypervisor"
         echo "0"
     fi
 }
@@ -129,10 +149,10 @@ set_utilization() {
 
     if ocf_is_true "$OCF_RESKEY_utilization_cpu"; then
         sys_cpu=$(( $(grep -c processor /proc/cpuinfo) - $OCF_RESKEY_utilization_cpu_reservation ))
-        uti_cpu=$(crm_attribute -Q -t nodes -U "$host_name" -z -n cpu 2>/dev/null)
+        uti_cpu=$(crm_attribute --quiet -t nodes --node "$host_name" -z -n cpu 2>/dev/null)
 
         if [ "$sys_cpu" != "$uti_cpu" ]; then
-            if ! crm_attribute -t nodes -U "$host_name" -z -n cpu -v $sys_cpu; then
+            if ! crm_attribute -t nodes --node "$host_name" -z -n cpu -v $sys_cpu; then
                 ocf_log err "Failed to set the cpu utilization attribute for $host_name using crm_attribute."
                 return 1
             fi
@@ -141,10 +161,10 @@ set_utilization() {
 
     if ocf_is_true "$OCF_RESKEY_utilization_host_memory"; then
         sys_mem=$(( $(awk '/MemTotal/{printf("%d\n",$2/1024);exit(0)}' /proc/meminfo) - $OCF_RESKEY_utilization_host_memory_reservation ))
-        uti_mem=$(crm_attribute -Q -t nodes -U "$host_name" -z -n host_memory 2>/dev/null)
+        uti_mem=$(crm_attribute --quiet -t nodes --node "$host_name" -z -n host_memory 2>/dev/null)
 
         if [ "$sys_mem" != "$uti_mem" ]; then
-            if ! crm_attribute -t nodes -U "$host_name" -z -n host_memory -v $sys_mem; then
+            if ! crm_attribute -t nodes --node "$host_name" -z -n host_memory -v $sys_mem; then
                 ocf_log err "Failed to set the host_memory utilization attribute for $host_name using crm_attribute."
                 return 1
             fi
@@ -153,12 +173,12 @@ set_utilization() {
 
     if ocf_is_true "$OCF_RESKEY_utilization_hv_memory"; then
         hv_mem=$(( $(Host_Total_Memory) - OCF_RESKEY_utilization_hv_memory_reservation ))
-        uti_mem=$(crm_attribute -Q -t nodes -U "$host_name" -z -n hv_memory 2>/dev/null)
+        uti_mem=$(crm_attribute --quiet -t nodes --node "$host_name" -z -n hv_memory 2>/dev/null)
 
         [ $hv_mem -lt 0 ] && hv_mem=0
 
         if [ "$hv_mem" != "$uti_mem" ]; then
-            if ! crm_attribute -t nodes -U "$host_name" -z -n hv_memory -v $hv_mem; then
+            if ! crm_attribute -t nodes --node "$host_name" -z -n hv_memory -v $hv_mem; then
                 ocf_log err "Failed to set the hv_memory utilization attribute for $host_name using crm_attribute."
                 return 1
             fi
@@ -211,15 +231,6 @@ NodeUtilization_validate() {
 }
 
 statefile=$OCF_RESOURCE_TYPE.$(echo $OCF_RESOURCE_INSTANCE | sed -e 's/^.*://')
-
-: ${OCF_RESKEY_pidfile:="$HA_VARRUN/NodeUtilization-${OCF_RESOURCE_INSTANCE}"}
-: ${OCF_RESKEY_dynamic:="true"}
-: ${OCF_RESKEY_utilization_cpu:="true"}
-: ${OCF_RESKEY_utilization_cpu_reservation="1"}
-: ${OCF_RESKEY_utilization_hv_memory:="true"}
-: ${OCF_RESKEY_utilization_hv_memory_reservation="512"}
-: ${OCF_RESKEY_utilization_host_memory:="true"}
-: ${OCF_RESKEY_utilization_host_memory_reservation="512"}
 
 OCF_REQUIRED_PARAMS=""
 OCF_REQUIRED_BINARIES=""

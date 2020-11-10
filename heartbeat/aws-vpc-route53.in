@@ -1,0 +1,448 @@
+#!@BASH_SHELL@
+#
+#   Copyright 2017 Amazon.com, Inc. and its affiliates. All Rights Reserved.
+#   Licensed under the MIT License.
+#
+#  Copyright 2017 Amazon.com, Inc. and its affiliates
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy of
+# this software and associated documentation files (the "Software"), to deal in
+# the Software without restriction, including without limitation the rights to
+# use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+# of the Software, and to permit persons to whom the Software is furnished to do
+# so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+
+#
+#
+#
+# OCF resource agent to move an IP address within a VPC in the AWS
+# Written by Stefan Schneider , Martin Tegmeier (AWS)
+# Based on code of Markus Guertler#
+#
+#
+# OCF resource agent to move an IP address within a VPC in the AWS
+# Written by Stefan Schneider (AWS) , Martin Tegmeier (AWS)
+# Based on code of Markus Guertler (SUSE)
+#
+# Mar. 15, 2017, vers 1.0.2
+
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_awscli_default="/usr/bin/aws"
+OCF_RESKEY_profile_default="default"
+OCF_RESKEY_hostedzoneid_default=""
+OCF_RESKEY_fullname_default=""
+OCF_RESKEY_ip_default="local"
+OCF_RESKEY_ttl_default=10
+
+: ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
+: ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
+: ${OCF_RESKEY_hostedzoneid:=${OCF_RESKEY_hostedzoneid_default}}
+: ${OCF_RESKEY_fullname:=${OCF_RESKEY_fullname_default}}
+: ${OCF_RESKEY_ip:=${OCF_RESKEY_ip_default}}
+: ${OCF_RESKEY_ttl:=${OCF_RESKEY_ttl_default}}
+#######################################################################
+
+
+AWS_PROFILE_OPT="--profile $OCF_RESKEY_profile --cli-connect-timeout 10"
+#######################################################################
+
+
+usage() {
+	cat <<-EOT
+	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+	EOT
+}
+
+metadata() {
+cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="aws-vpc-route53">
+<version>1.0</version>
+<longdesc lang="en">
+Update Route53 record of Amazon Webservices EC2 by updating an entry in a
+hosted zone ID table.
+
+AWS instances will require policies which allow them to update Route53 ARecords:
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "Stmt1471878724000",
+			"Effect": "Allow",
+			"Action": [
+				"route53:ChangeResourceRecordSets",
+				"route53:GetChange",
+				"route53:ListResourceRecordSets",
+			],
+			"Resource": [
+				"*"
+			]
+		}
+	]
+}
+
+Example Cluster Configuration:
+
+Use a configuration in "crm configure edit" which looks as follows. Replace
+hostedzoneid, fullname and profile with the appropriate values:
+
+primitive res_route53 ocf:heartbeat:aws-vpc-route53 \
+		params hostedzoneid=EX4MPL3EX4MPL3 fullname=service.cloud.example.corp. profile=cluster \
+		op start interval=0 timeout=180 \
+		op stop interval=0 timeout=180 \
+		op monitor interval=300 timeout=180 \
+		meta target-role=Started
+</longdesc>
+<shortdesc lang="en">Update Route53 VPC record for AWS EC2</shortdesc>
+
+<parameters>
+<parameter name="awscli">
+<longdesc lang="en">
+Path to command line tools for AWS
+</longdesc>
+<shortdesc lang="en">Path to AWS CLI tools</shortdesc>
+<content type="string" default="${OCF_RESKEY_awscli_default}" />
+</parameter>
+
+<parameter name="profile">
+<longdesc lang="en">
+The name of the AWS CLI profile of the root account. This
+profile will have to use the "text" format for CLI output.
+The file /root/.aws/config should have an entry which looks
+like:
+
+  [profile cluster]
+	region = us-east-1
+	output = text
+
+"cluster" is the name which has to be used in the cluster
+configuration. The region has to be the current one. The
+output has to be "text".
+</longdesc>
+<shortdesc lang="en">AWS Profile Name</shortdesc>
+<content type="string" default="${OCF_RESKEY_profile_default}" />
+</parameter>
+
+<parameter name="hostedzoneid" required="1">
+<longdesc lang="en">
+Hosted zone ID of Route 53. This is the table of
+the Route 53 record.
+</longdesc>
+<shortdesc lang="en">AWS hosted zone ID</shortdesc>
+<content type="string" default="${OCF_RESKEY_hostedzoneid_default}" />
+</parameter>
+
+<parameter name="fullname" required="1">
+<longdesc lang="en">
+The full name of the service which will host the IP address.
+Example: service.cloud.example.corp.
+Note: The trailing dot is important to Route53!
+</longdesc>
+<shortdesc lang="en">Full service name</shortdesc>
+<content type="string" default="${OCF_RESKEY_fullname_default}" />
+</parameter>
+
+<parameter name="ip" required="0">
+<longdesc lang="en">
+IP (local (default), public or secondary private IP address (e.g. 10.0.0.1).
+
+A secondary private IP can be setup with the awsvip agent.
+</longdesc>
+<shortdesc lang="en">Type of IP or secondary private IP address (local, public or e.g. 10.0.0.1)</shortdesc>
+<content type="string" default="${OCF_RESKEY_ip_default}" />
+</parameter>
+
+<parameter name="ttl" required="0">
+<longdesc lang="en">
+Time to live for Route53 ARECORD
+</longdesc>
+<shortdesc lang="en">ARECORD TTL</shortdesc>
+<content type="string" default="${OCF_RESKEY_ttl_default}" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="180s" />
+<action name="stop" timeout="180s" />
+<action name="monitor" depth="0" timeout="180s" interval="300s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
+</actions>
+</resource-agent>
+END
+}
+
+r53_validate() {
+	ocf_log debug "function: validate"
+
+	# Check for required binaries
+	ocf_log debug "Checking for required binaries"
+	for command in curl dig; do
+		check_binary "$command"
+	done
+
+	# Full name
+	[[ -z "$OCF_RESKEY_fullname" ]] && ocf_log error "Full name parameter not set $OCF_RESKEY_fullname!" && exit $OCF_ERR_CONFIGURED
+
+	# Hosted Zone ID
+	[[ -z "$OCF_RESKEY_hostedzoneid" ]] && ocf_log error "Hosted Zone ID parameter not set $OCF_RESKEY_hostedzoneid!" && exit $OCF_ERR_CONFIGURED
+
+	# Type of IP/secondary IP address
+	case $OCF_RESKEY_ip in
+		local|public|*.*.*.*)
+			;;
+		*)
+			ocf_exit_reason "Invalid value for ip: ${OCF_RESKEY_ip}"
+			exit $OCF_ERR_CONFIGURED
+	esac
+
+	# profile
+	[[ -z "$OCF_RESKEY_profile" ]] && ocf_log error "AWS CLI profile not set $OCF_RESKEY_profile!" && exit $OCF_ERR_CONFIGURED
+
+	# TTL
+	[[ -z "$OCF_RESKEY_ttl" ]] && ocf_log error "TTL not set $OCF_RESKEY_ttl!" && exit $OCF_ERR_CONFIGURED
+
+	ocf_log debug "Testing aws command"
+	$OCF_RESKEY_awscli --version 2>&1
+	if [ "$?" -gt 0 ]; then
+		ocf_log error "Error while executing aws command as user root! Please check if AWS CLI tools (Python flavor) are properly installed and configured." && exit $OCF_ERR_INSTALLED
+	fi
+	ocf_log debug "ok"
+
+	return $OCF_SUCCESS
+}
+
+r53_start() {
+	#
+	# Start agent and config DNS in Route53
+	#
+	ocf_log info "Starting Route53 DNS update...."
+	_get_ip
+	r53_monitor
+	if [ $? != $OCF_SUCCESS ]; then
+		ocf_log info "Could not start agent - check configurations"
+		return $OCF_ERR_GENERIC
+	fi
+	return $OCF_SUCCESS
+}
+
+r53_stop() {
+	#
+	# Stop operation doesn't perform any API call or try to remove the DNS record
+	# this mostly because this is not necessarily mandatory or desired
+	# the start and monitor functions will take care of changing the DNS record
+	# if the agent starts in a different cluster node
+	#
+	ocf_log info "Bringing down Route53 agent. (Will NOT remove Route53 DNS record)"
+	return $OCF_SUCCESS
+}
+
+r53_monitor() {
+	#
+	# For every start action the agent  will call Route53 API to check for DNS record
+	# otherwise it will try to get results directly bu querying the DNS using "dig".
+	# Due to complexity in some DNS architectures "dig" can fail, and if this happens
+	# the monitor will fallback to the Route53 API call.
+	#
+	# There will be no failure, failover or restart of the agent if the monitor operation fails
+	# hence we only return $OCF_SUCESS in this function
+	#
+	# In case of the monitor operation detects a wrong or non-existent Route53 DNS entry
+	# it will try to fix the existing one, or create it again
+	#
+	#
+	ARECORD=""
+	IPREGEX="^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$"
+	r53_validate
+	ocf_log debug "Checking Route53 record sets"
+	#
+	_get_ip
+	#
+	if [ "$__OCF_ACTION" = "start" ] || ocf_is_probe ; then
+		#
+		cmd="$OCF_RESKEY_awscli $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']"
+		ocf_log info "Route53 Agent Starting or probing - executing monitoring API call: $cmd"
+		CLIRES="$($cmd 2>&1)"
+		rc=$?
+		ocf_log debug "awscli returned code: $rc"
+		if [ $rc -ne 0 ]; then
+			CLIRES=$(echo $CLIRES | grep -v '^$')
+			ocf_log warn "Route53 API returned an error: $CLIRES"
+			ocf_log warn "Skipping cluster action due to API call error"
+			return $OCF_ERR_GENERIC
+		fi
+		ARECORD=$(echo $CLIRES | grep RESOURCERECORDS | awk '{ print $5 }')
+		#
+		if ocf_is_probe; then
+			#
+			# Prevent R53 record change during probe
+			#
+			if [[ $ARECORD =~ $IPREGEX ]] && [ "$ARECORD" != "$IPADDRESS" ]; then
+				ocf_log debug "Route53 DNS record $ARECORD found at probing, disregarding"
+				return $OCF_NOT_RUNNING
+			fi
+		fi
+	else
+		#
+		cmd="dig +retries=3 +time=5 +short $OCF_RESKEY_fullname 2>/dev/null"
+		ocf_log info "executing monitoring command : $cmd"
+		ARECORD="$($cmd)"
+		rc=$?
+		ocf_log debug "dig return code: $rc"
+		#
+		if  [[ ! $ARECORD =~ $IPREGEX ]] || [ $rc -ne 0 ]; then
+			ocf_log info "Fallback to Route53 API query due to DNS resolution failure"
+			cmd="$OCF_RESKEY_awscli $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']"
+			ocf_log debug "executing monitoring API call: $cmd"
+			CLIRES="$($cmd 2>&1)"
+			rc=$?
+			ocf_log debug "awscli return code: $rc"
+			if [ $rc -ne 0 ]; then
+				CLIRES=$(echo $CLIRES | grep -v '^$')
+				ocf_log warn "Route53 API returned an error: $CLIRES"
+				ocf_log warn "Monitor skipping cluster action due to API call error"
+				return $OCF_SUCCESS
+			fi
+			ARECORD=$(echo $CLIRES | grep RESOURCERECORDS | awk '{ print $5 }')
+		fi
+		#
+	fi
+	ocf_log info "Route53 DNS record pointing $OCF_RESKEY_fullname to IP address $ARECORD"
+	#
+	if [ "$ARECORD" == "$IPADDRESS" ]; then
+		ocf_log info "Route53 DNS record $ARECORD found"
+		return $OCF_SUCCESS
+	elif [[ $ARECORD =~ $IPREGEX ]] && [ "$ARECORD" != "$IPADDRESS" ]; then
+		ocf_log info "Route53 DNS record points to a different host, setting DNS record on Route53 to this host"
+		_update_record "UPSERT" "$IPADDRESS"
+		return $OCF_SUCCESS
+	else
+		ocf_log info "No Route53 DNS record found, setting DNS record on Route53 to this host"
+		_update_record "UPSERT" "$IPADDRESS"
+		return $OCF_SUCCESS
+	fi
+
+	return $OCF_SUCCESS
+}
+
+_get_ip() {
+	case $OCF_RESKEY_ip in
+		local|public)
+			IPADDRESS="$(curl -s http://169.254.169.254/latest/meta-data/${OCF_RESKEY_ip}-ipv4)";;
+		*.*.*.*)
+			IPADDRESS="${OCF_RESKEY_ip}";;
+	esac
+}
+
+_update_record() {
+	#
+	# This function is the one that will actually execute Route53's API call
+	# and configure the DNS record using the correct API calls and parameters
+	#
+	# It creates a temporary JSON file under /tmp with the required API payload
+	#
+	# Failures in this function are critical and will cause the agent to fail
+	#
+	update_action="$1"
+	IPADDRESS="$2"
+	ocf_log info "Updating Route53 $OCF_RESKEY_hostedzoneid with $IPADDRESS for $OCF_RESKEY_fullname"
+	ROUTE53RECORD="$(maketempfile)"
+	if [ $? -ne 0 ] || [ -z "$ROUTE53RECORD" ]; then
+		ocf_exit_reason "Failed to create temporary file for record update"
+		exit $OCF_ERR_GENERIC
+	fi
+	cat >>"$ROUTE53RECORD" <<-EOF
+	{
+		  "Comment": "Update record to reflect new IP address for a system ",
+		  "Changes": [
+			  {
+				  "Action": "$update_action",
+				  "ResourceRecordSet": {
+					  "Name": "$OCF_RESKEY_fullname",
+					  "Type": "A",
+					  "TTL": $OCF_RESKEY_ttl,
+					  "ResourceRecords": [
+						  {
+							  "Value": "$IPADDRESS"
+						  }
+					  ]
+				  }
+			  }
+		  ]
+	}
+	EOF
+	cmd="$OCF_RESKEY_awscli $AWS_PROFILE_OPT route53 change-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --change-batch file://$ROUTE53RECORD "
+	ocf_log debug "Executing command: $cmd"
+	CLIRES="$($cmd 2>&1)"
+	rc=$?
+	ocf_log debug "awscli returned code: $rc"
+	if [ $rc -ne 0 ]; then
+		CLIRES=$(echo $CLIRES | grep -v '^$')
+		ocf_log warn "Route53 API returned an error: $CLIRES"
+		ocf_log warn "Skipping cluster action due to API call error"
+		return $OCF_ERR_GENERIC
+	fi
+	CHANGEID=$(echo $CLIRES | awk '{ print $12 }')
+	ocf_log debug "Change id: $CHANGEID"
+	rmtempfile $ROUTE53RECORD
+	CHANGEID=$(echo $CHANGEID | cut -d'/' -f 3 | cut -d'"' -f 1 )
+	ocf_log debug "Change id: $CHANGEID"
+	STATUS="PENDING"
+	MYSECONDS=20
+	while [ "$STATUS" = 'PENDING' ]; do
+		sleep $MYSECONDS
+		STATUS="$($OCF_RESKEY_awscli $AWS_PROFILE_OPT route53 get-change --id $CHANGEID | grep CHANGEINFO | awk -F'\t' '{ print $4 }' |cut -d'"' -f 2 )"
+		ocf_log debug "Waited for $MYSECONDS seconds and checked execution of Route 53 update status: $STATUS "
+	done
+}
+
+###############################################################################
+
+case $__OCF_ACTION in
+	usage|help)
+		usage
+		exit $OCF_SUCCESS
+		;;
+	meta-data)
+		metadata
+		exit $OCF_SUCCESS
+		;;
+	start)
+		r53_validate || exit $?
+		r53_start
+		;;
+	stop)
+		r53_stop
+		;;
+	monitor)
+		r53_monitor
+		;;
+	validate-all)
+		r53_validate
+		;;
+	*)
+		usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+
+exit $?

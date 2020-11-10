@@ -28,6 +28,16 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_startdelay_default="20"
+OCF_RESKEY_stopdelay_default="30"
+OCF_RESKEY_mondelay_default="30"
+
+: ${OCF_RESKEY_startdelay=${OCF_RESKEY_startdelay_default}}
+: ${OCF_RESKEY_stopdelay=${OCF_RESKEY_stopdelay_default}}
+: ${OCF_RESKEY_mondelay=${OCF_RESKEY_mondelay_default}}
+
 #######################################################################
 
 usage() {
@@ -55,7 +65,7 @@ This script is a test resource for introducing delay.
 How long in seconds to delay on start operation.
 </longdesc>
 <shortdesc lang="en">Start delay</shortdesc>
-<content type="integer" default="20" />
+<content type="integer" default="${OCF_RESKEY_startdelay_default}" />
 </parameter>
 
 <parameter name="stopdelay" unique="0"  required="0">
@@ -64,7 +74,7 @@ How long in seconds to delay on stop operation.
 Defaults to "startdelay" if unspecified.
 </longdesc>
 <shortdesc lang="en">Stop delay</shortdesc>
-<content type="integer" default="30" />
+<content type="integer" default="${OCF_RESKEY_stopdelay_default}" />
 </parameter>
 
 <parameter name="mondelay" unique="0"  required="0">
@@ -73,17 +83,17 @@ How long in seconds to delay on monitor operation.
 Defaults to "startdelay" if unspecified.
 </longdesc>
 <shortdesc lang="en">Monitor delay</shortdesc>
-<content type="integer" default="30" />
+<content type="integer" default="${OCF_RESKEY_mondelay_default}" />
 </parameter>
 </parameters>
 
 <actions>
-<action name="start" timeout="30" />
-<action name="stop" timeout="30" />
-<action name="status" depth="0" timeout="30" interval="10" />
-<action name="monitor" depth="0" timeout="30" interval="10" />
-<action name="meta-data" timeout="5" />
-<action name="validate-all" timeout="5" />
+<action name="start" timeout="30s" />
+<action name="stop" timeout="30s" />
+<action name="status" depth="0" timeout="30s" interval="10s" />
+<action name="monitor" depth="0" timeout="30s" interval="10s" />
+<action name="meta-data" timeout="5s" />
+<action name="validate-all" timeout="5s" />
 </actions>
 </resource-agent>
 END
@@ -157,7 +167,7 @@ Delay_Stop() {
 
 Are_Valid_Numbers() {
   for i in "$@"; do
-	echo $i |grep -v [^0-9.] |grep -q -v [.].*[.]
+	echo $i |grep -v "[^0-9.]" |grep -q -v "[.].*[.]"
 	if test $? -ne 0; then
 	  return $OCF_ERR_ARGS
 	fi
@@ -194,10 +204,6 @@ if [ $# -ne 1 ]; then
   usage
   exit $OCF_ERR_ARGS
 fi
-
-: ${OCF_RESKEY_startdelay=20}
-: ${OCF_RESKEY_stopdelay=$OCF_RESKEY_startdelay}
-: ${OCF_RESKEY_mondelay=$OCF_RESKEY_startdelay}
 
 case $1 in
   meta-data)		meta_data

@@ -274,7 +274,8 @@ SearchUsingRouteCmd (char *address, struct in_addr *in
 			cp = strtok(NULL, ":");
 			if (cp) {
 				cp++;
-				strncpy(mask, cp, sizeof(mask));
+				strncpy(mask, cp, sizeof(mask) - 1);
+				*(mask + sizeof(mask) - 1) = '\0';
 				done++;
 			}
 		}
@@ -285,7 +286,8 @@ SearchUsingRouteCmd (char *address, struct in_addr *in
 			cp = strtok(NULL, ":");
 			if (cp) {
 				cp++;
-				strncpy(interface, cp, sizeof(interface));
+				strncpy(interface, cp, sizeof(interface) - 1);
+				*(interface + sizeof(interface) - 1) = '\0';
 				done++;
 			}
 		}
@@ -422,7 +424,8 @@ ValidateIFName(const char *ifname, struct ifreq *ifr)
  		return -2;
  	}
  
-	strncpy(ifr->ifr_name, ifname, IFNAMSIZ);
+	strncpy(ifr->ifr_name, ifname, IFNAMSIZ - 1);
+	*(ifr->ifr_name + sizeof(ifr->ifr_name) - 1) = '\0';
 
 	/* Contain a ":"?  Probably an error, but treat as warning at present */
 	if ((colonptr = strchr(ifname, ':')) != NULL) {
@@ -639,7 +642,7 @@ main(int argc, char ** argv) {
 			usage(OCF_ERR_CONFIGURED);
 			/* not reached */
 		}
-		strncpy(best_if, if_specified, sizeof(best_if));
+		strncpy(best_if, if_specified, sizeof(best_if) - 1);
 		*(best_if + sizeof(best_if) - 1) = '\0';
 	}else{
 		SearchRoute **sr = search_mechs;

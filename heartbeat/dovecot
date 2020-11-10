@@ -1,0 +1,338 @@
+#!/bin/sh
+#
+# Resource script for Dovecot
+#
+# Description:  Manages Dovecot as an OCF resource in
+#               an high-availability setup.
+#
+# Author:       Raoul Bhatia <r.bhatia@ipax.at> : Original Author
+# License:      GNU General Public License (GPL)
+#
+#
+#       usage: $0 {start|stop|reload|monitor|validate-all|meta-data}
+#
+#       The "start" arg starts a Dovecot instance
+#
+#       The "stop" arg stops it.
+#
+# OCF parameters:
+#  OCF_RESKEY_binary
+#  OCF_RESKEY_config_file
+#  OCF_RESKEY_parameters
+#
+##########################################################################
+
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_binary_default="/usr/sbin/dovecot"
+OCF_RESKEY_config_file_default=""
+OCF_RESKEY_pid_file_default="/var/run/dovecot/master.pid"
+OCF_RESKEY_parameters_default=""
+
+: ${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}
+: ${OCF_RESKEY_config_file=${OCF_RESKEY_config_file_default}}
+: ${OCF_RESKEY_pid_file=${OCF_RESKEY_pid_file_default}}
+: ${OCF_RESKEY_parameters=${OCF_RESKEY_parameters_default}}
+USAGE="Usage: $0 {start|stop|reload|monitor|validate-all|meta-data}";
+
+##########################################################################
+
+usage() {
+    echo $USAGE >&2
+}
+
+meta_data() {
+        cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="dovecot">
+<version>0.1</version>
+<longdesc lang="en">
+This script manages Dovecot as an OCF resource in a high-availability setup.
+</longdesc>
+<shortdesc lang="en">Manages a highly available Dovecot IMAP/POP3 server instance</shortdesc>
+
+<parameters>
+
+<parameter name="binary" unique="0" required="0">
+<longdesc lang="en">
+Full path to the Dovecot binary.
+For example, "/usr/sbin/dovecot".
+</longdesc>
+<shortdesc lang="en">Full path to Dovecot binary</shortdesc>
+<content type="string" default="${OCF_RESKEY_binary_default}" />
+</parameter>
+
+<parameter name="config_file" unique="1" required="0">
+<longdesc lang="en">
+Full path to a Dovecot configuration file.
+For example, "/etc/dovecot/dovecot.conf".
+</longdesc>
+<shortdesc lang="en">Full path to configuration file</shortdesc>
+<content type="string" default="${OCF_RESKEY_config_file_default}" />
+</parameter>
+
+<parameter name="pid_file" unique="1" required="0">
+<longdesc lang="en">
+Full path to a Dovecot PID file.
+For example, "/var/run/dovecot/master.pid".
+</longdesc>
+<shortdesc lang="en">Full path to PID file</shortdesc>
+<content type="string" default="${OCF_RESKEY_pid_file_default}" />
+</parameter>
+
+<parameter name="parameters" unique="0" required="0">
+<longdesc lang="en">
+The Dovecot daemon may be called with additional parameters.
+Specify any of them here.
+</longdesc>
+<shortdesc lang="en"></shortdesc>
+<content type="string" default="${OCF_RESKEY_parameters_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"   timeout="20s" />
+<action name="stop"    timeout="20s" />
+<action name="reload"  timeout="20s" />
+<action name="monitor" depth="0"  timeout="20s" interval="60s" />
+<action name="validate-all"  timeout="20s" />
+<action name="meta-data"  timeout="5s" />
+</actions>
+</resource-agent>
+END
+}
+
+dovecot_running() {
+    local loglevel
+    loglevel=${1:-err}
+
+    # run `dovecot process status` if available
+    if ocf_is_true $status_support; then
+        $binary $OPTION_CONFIG_DIR process status 2>&1
+        ret=$?
+        if [ $ret -ne 0 ]; then
+            ocf_log $loglevel "Dovecot status: " $ret
+        fi
+        return $ret
+    fi
+
+    # manually check Dovecot's pid
+
+    PIDFILE=$OCF_RESKEY_pid_file
+    if [ -f $PIDFILE ]; then
+         PID=`head -n 1 $PIDFILE`
+         kill -s 0 $PID >/dev/null 2>&1 && [ `ps -p $PID | grep dovecot | wc -l` -eq 1 ]
+         return $?
+    fi
+
+    # Dovecot is not running
+    false
+}
+
+dovecot_start()
+{
+    # if Dovecot is running return success
+    if dovecot_running info; then
+        ocf_log info "Dovecot already running."
+        return $OCF_SUCCESS
+    fi
+
+    # start Dovecot
+    $binary $OPTIONS >/dev/null 2>&1
+    ret=$?
+
+    if [ $ret -ne 0 ]; then
+        ocf_exit_reason "Dovecot returned error: $ret"
+        return $OCF_ERR_GENERIC
+    fi
+
+    # grant some time for startup/forking the sub processes
+    # and loop initial monitoring until success or timeout
+    while true; do
+        sleep 1
+        # break if dovecot is up and running; log failure otherwise
+        dovecot_running info && break
+        ocf_log info "Dovecot failed initial monitor action: " $ret
+    done
+
+    ocf_log info "Dovecot started."
+    return $OCF_SUCCESS
+}
+
+
+dovecot_stop()
+{
+    # if Dovecot is not running return success
+    if ! dovecot_running info; then
+        ocf_log info "Dovecot already stopped."
+        return $OCF_SUCCESS
+    fi
+
+    # stop Dovecot
+    $binary $OPTIONS stop >/dev/null 2>&1
+    ret=$?
+
+    if [ $ret -ne 0 ]; then
+        ocf_exit_reason "Dovecot returned an error while stopping: $ret"
+        return $OCF_ERR_GENERIC
+    fi
+
+    # grant some time for shutdown and recheck 5 times
+    for i in 1 2 3 4 5; do
+        if dovecot_running info; then
+            sleep 1
+        else
+            break
+        fi
+    done
+
+    # dovecot stop did not succeed
+    if dovecot_running; then
+        ocf_exit_reason "Dovecot failed to stop."
+        return $OCF_ERR_GENERIC
+    fi
+
+    ocf_log info "Dovecot stopped."
+    return $OCF_SUCCESS
+}
+
+dovecot_reload()
+{
+    if dovecot_running; then
+        ocf_log info "Reloading Dovecot."
+        $binary $OPTIONS reload
+    fi
+}
+
+dovecot_monitor()
+{
+    local status_loglevel="err"
+
+    # Set loglevel to info during probe
+    if ocf_is_probe; then
+        status_loglevel="info"
+    fi
+
+    if dovecot_running $status_loglevel; then
+        return $OCF_SUCCESS
+    fi
+
+    return $OCF_NOT_RUNNING
+}
+
+dovecot_validate_all()
+{
+    # check that the Dovecot binaries exist and can be executed
+    check_binary "$binary"
+
+    # check config_file parameter
+    if [ "x$config_file" != "x" ]; then
+        if [ ! -f "$config_file" ]; then
+            if ocf_is_probe; then
+                ocf_log info "Dovecot configuration file '$config_file' not readable during probe."
+            else
+                ocf_exit_reason "Dovecot configuration file '$config_file' does not exist or is not readable."
+                return $OCF_ERR_INSTALLED
+            fi
+        fi
+    fi
+
+    return $OCF_SUCCESS
+}
+
+#
+# Main
+#
+
+if [ $# -ne 1 ]; then
+    usage
+    exit $OCF_ERR_ARGS
+fi
+
+binary=$OCF_RESKEY_binary
+config_file=$OCF_RESKEY_config_file
+parameters=$OCF_RESKEY_parameters
+
+
+# handle parameters
+case $1 in
+    meta-data)  meta_data
+                exit $OCF_SUCCESS
+                ;;
+
+    usage|help) usage
+                exit $OCF_SUCCESS
+                ;;
+esac
+
+# build Dovecot options string *outside* to access from each method
+OPTIONS=''
+OPTION_CONFIG_FILE=''
+
+# check if the Dovecot config_file exist
+if [ "x$config_dir" != "x" ]; then
+    # remove all trailing slashes
+    config_file=`echo $config_file | sed 's/\/*$//'`
+
+    # set OPTIONS if config_file is still set
+    # save OPTION_CONFIG_FILE seperatly
+    if [ "x$config_file" != "x" ]; then
+        OPTION_CONFIG_FILE="-c $config_file"
+        OPTIONS=$OPTION_CONFIG_FILE
+   fi
+fi
+
+# add all additional parameters to options string
+if [ "x$parameters" != "x" ]; then
+    OPTIONS="$OPTIONS $parameters"
+fi
+
+# check Dovecot status support
+status_support=false
+process_status=`$binary help 2> /dev/null | grep -q -e "process.*status"`
+ret=$?
+
+if [ $ret -eq 0 ]; then
+    status_support=true
+fi
+
+
+dovecot_validate_all
+ret=$?
+
+if [ $ret -ne $OCF_SUCCESS ]; then
+    case $1 in
+    stop)       exit $OCF_SUCCESS ;;
+    *)          exit $ret;;
+    esac
+fi
+
+case $1 in
+    monitor)    dovecot_monitor
+                exit $?
+                ;;
+    start)      dovecot_start
+                exit $?
+                ;;
+
+    stop)       dovecot_stop
+                exit $?
+                ;;
+
+    reload)     dovecot_reload
+                exit $?
+                ;;
+
+    validate-all)   exit $OCF_SUCCESS
+                    ;;
+
+    *)          usage
+                exit $OCF_ERR_UNIMPLEMENTED
+                ;;
+esac

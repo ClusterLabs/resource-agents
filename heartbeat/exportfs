@@ -47,6 +47,12 @@ Manages NFS exports
 <longdesc lang="en">
 The client specification allowing remote machines to mount the directory
 (or directories) over NFS.
+
+Note: it follows the format defined in "man exportfs". For example, in
+the use case to export the directory(-ies) for multiple subnets, please
+do config a dedicated primitive for each subnet CIDR ip address,
+and do not attempt to use multiple CIDR ip addresses in a space
+separated list, like in /etc/exports.
 </longdesc>
 <shortdesc lang="en">
 Client ACL.
@@ -76,7 +82,7 @@ The directory or directories to export.
 <content type="string" />
 </parameter>
 
-<parameter name="fsid" unique="1" required="1">
+<parameter name="fsid" unique="0" required="1">
 <longdesc lang="en">
 The fsid option to pass to exportfs. This can be a unique positive
 integer, a UUID (assuredly sans comma characters), or the special string
@@ -152,11 +158,11 @@ Location of the rmtab backup, relative to directory.
 </parameters>
 
 <actions>
-<action name="start"   timeout="40" />
-<action name="stop"    timeout="120" />
-<action name="monitor" depth="0"  timeout="20" interval="10" />
-<action name="meta-data"  timeout="5" />
-<action name="validate-all"  timeout="30" />
+<action name="start"   timeout="40s" />
+<action name="stop"    timeout="120s" />
+<action name="monitor" depth="0"  timeout="20s" interval="10s" />
+<action name="meta-data"  timeout="5s" />
+<action name="validate-all"  timeout="30s" />
 </actions>
 </resource-agent>
 END
@@ -272,7 +278,17 @@ exportfs_monitor ()
 		return $OCF_NOT_RUNNING
 	fi
 
-	spec="$(echo "$OCF_RESKEY_clientspec" | sed -e 's/^\[*//' -e 's/\]*$//')"
+	# IPv6 addresses and networks are encased in brackets that need
+	# to be removed
+	case "$OCF_RESKEY_clientspec" in
+		*:*:*)
+			spec="$(echo "$OCF_RESKEY_clientspec" | tr -d '[]')"
+			;;
+		*)
+			spec="$OCF_RESKEY_clientspec"
+			;;
+	esac
+
 	if forall is_exported "$spec"; then
 		if [ ${OCF_RESKEY_rmtab_backup} != "none" ]; then
 			forall backup_rmtab
@@ -434,14 +450,34 @@ exportfs_validate_all ()
 	fi
 }
 
-# If someone puts a trailing slash at the end of the export directory,
-# this agent is going to fail in some unexpected ways due to how
-# export strings are matched.  The simplest solution here is to strip off
-# a trailing '/' in the directory before processing anything.
-newdir=$(echo "$OCF_RESKEY_directory" | sed -n -e 's/^\(.*\)\/$/\1/p')
-if [ -n "$newdir" ]; then
-	OCF_RESKEY_directory=$newdir
-fi
+for dir in $OCF_RESKEY_directory; do
+	# strip off trailing '/' from directory
+	dir=$(echo $dir | sed 's/\/*$//')
+	: ${dir:=/}
+	if [ -e "$dir" ] ; then
+		canonicalized_dir=$(readlink -f "$dir")
+		if [ $? -ne 0 ]; then
+			if [ "$__OCF_ACTION" != "stop" ]; then
+				ocf_exit_reason "Could not canonicalize $dir because readlink failed"
+				exit $OCF_ERR_GENERIC
+			fi
+		fi
+	else
+		case "$__OCF_ACTION" in
+			stop|monitor)
+				canonicalized_dir="$dir"
+				ocf_log debug "$dir does not exist"
+				;;
+			*)
+				ocf_exit_reason "$dir does not exist"
+				exit $OCF_ERR_CONFIGURED
+				;;
+		esac
+	fi
+	directories="$directories$canonicalized_dir "
+done
+
+OCF_RESKEY_directory="${directories%% }"
 
 NUMDIRS=`echo "$OCF_RESKEY_directory" | wc -w`
 OCF_REQUIRED_PARAMS="directory fsid clientspec"

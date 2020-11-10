@@ -50,6 +50,15 @@
 
 : ${OCF_FUNCTIONS_DIR=$OCF_ROOT/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Parameter defaults
+
+OCF_RESKEY_httpd_default="/usr/sbin/httpd"
+OCF_RESKEY_status10regex_default="Reading: [0-9]+ Writing: [0-9]+ Waiting: [0-9]+"
+
+: ${OCF_RESKEY_httpd=${OCF_RESKEY_httpd_default}}
+: ${OCF_RESKEY_status10regex=${OCF_RESKEY_status10regex_default}}
+
 HA_VARRUNDIR=${HA_VARRUN}
 
 #######################################################################
@@ -676,7 +685,7 @@ resource agent parameters.
 The full pathname of the httpd binary (optional).
 </longdesc>
 <shortdesc lang="en">httpd binary path</shortdesc>
-<content type="string" default="/usr/sbin/httpd" />
+<content type="string" default="${OCF_RESKEY_httpd_default}" />
 </parameter>
 
 <parameter name="port" >
@@ -713,7 +722,7 @@ Regular expression to match in the output of status10url.
 Case insensitive.
 </longdesc>
 <shortdesc lang="en">monitor regular expression</shortdesc>
-<content type="string" default="Reading: [0-9]+ Writing: [0-9]+ Waiting: [0-9]+"/>
+<content type="string" default="${OCF_RESKEY_status10regex_default}"/>
 </parameter>
 
 <parameter name="testclient">
@@ -793,8 +802,8 @@ Extra options to apply when starting nginx.
 <action name="monitor" timeout="30s" depth="10" interval="30s" />
 <action name="monitor" timeout="45s" depth="20" />
 <action name="monitor" timeout="60s" depth="30" />
-<action name="meta-data"  timeout="5" />
-<action name="validate-all"  timeout="5" />
+<action name="meta-data"  timeout="5s" />
+<action name="validate-all"  timeout="5s" />
 </actions>
 </resource-agent>
 END
@@ -858,7 +867,7 @@ then
   CONFIGFILE="$OCF_RESKEY_configfile"
   OPTIONS="$OCF_RESKEY_options"
   CLIENT=${OCF_RESKEY_client}
-  TESTREGEX=${OCF_RESKEY_status10regex:-'Reading: [0-9]+ Writing: [0-9]+ Waiting: [0-9]+'}
+  TESTREGEX="${OCF_RESKEY_status10regex}"
   TESTURL="$OCF_RESKEY_test20url"
   TESTREGEX20=${OCF_RESKEY_test20regex}
   TESTCONFFILE="$OCF_RESKEY_test20conffile"

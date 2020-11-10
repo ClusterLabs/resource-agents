@@ -1,0 +1,378 @@
+#!/bin/sh
+#
+# OCF resource agent to move an IP address within a VPC in the Aliyun
+# Based on code of Markus Guertler (GitHub AWS-VPC-move-IP)
+# Based on code of Adam Gandelman (GitHub ec2-resource-agents/elasticip)
+#
+
+#######################################################################
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Parameter defaults
+
+OCF_RESKEY_address_default=""
+OCF_RESKEY_routing_table_default=""
+OCF_RESKEY_interface_default="eth0"
+OCF_RESKEY_profile_default="default"
+OCF_RESKEY_endpoint_default="vpc.aliyuncs.com"
+OCF_RESKEY_aliyuncli_default="detect"
+
+
+: ${OCF_RESKEY_address=${OCF_RESKEY_address_default}}
+: ${OCF_RESKEY_routing_table=${OCF_RESKEY_routing_table_default}}
+: ${OCF_RESKEY_interface=${OCF_RESKEY_interface_default}}
+: ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
+: ${OCF_RESKEY_endpoint=${OCF_RESKEY_endpoint_default}}
+: ${OCF_RESKEY_aliyuncli=${OCF_RESKEY_aliyuncli_default}}
+
+#######################################################################
+
+# aliyun cli doesnt work without HOME parameter
+export HOME="/root"
+
+USAGE="usage: $0 {start|stop|status|meta-data}";
+
+if [ "${OCF_RESKEY_aliyuncli}" = "detect" ]; then
+	OCF_RESKEY_aliyuncli="$(which aliyuncli 2> /dev/null || which aliyun 2> /dev/null)"
+fi
+
+if [ "${OCF_RESKEY_aliyuncli##*/}" = 'aliyuncli' ]; then
+	OUTPUT="text"
+	EXECUTING='{ print $3 }'
+	IFS_=" "
+	ENDPOINT=""
+elif [ "${OCF_RESKEY_aliyuncli##*/}" = 'aliyun' ]; then
+	OUTPUT="table cols=InstanceId,DestinationCidrBlock rows=RouteTables.RouteTable[].RouteEntrys.RouteEntry[]"
+	EXECUTING='{ gsub (" ", "", $0); print $1 }'
+	IFS_="|"
+	ENDPOINT="--endpoint $OCF_RESKEY_endpoint"
+fi
+###############################################################################
+
+
+###############################################################################
+#
+# Functions
+#
+###############################################################################
+
+request_create_route_entry() {
+	cmd="${OCF_RESKEY_aliyuncli} vpc CreateRouteEntry --RouteTableId $OCF_RESKEY_routing_table --DestinationCidrBlock ${OCF_RESKEY_address}/32 --NextHopId $ECS_INSTANCE_ID --NextHopType Instance ${ENDPOINT}"
+	ocf_log debug "executing command: $cmd"
+	res=$($cmd  2>&1)
+	rc=$?
+	if [ $rc -eq 0 ]
+	then
+		ocf_log debug "result: $res; rc: $rc"
+	else
+		ocf_log err "result: $res; cmd: $cmd; rc: $rc"
+	fi
+	return $rc
+}
+
+request_delete_route_entry() {
+	cmd="${OCF_RESKEY_aliyuncli} vpc DeleteRouteEntry --RouteTableId $OCF_RESKEY_routing_table --DestinationCidrBlock ${OCF_RESKEY_address}/32 --NextHopId $ROUTE_TO_INSTANCE ${ENDPOINT}"
+	ocf_log debug "executing command: $cmd"
+	res=$($cmd)
+	rc=$?
+	if [ $rc -eq 0 ]
+	then
+		ocf_log debug "result: $res; rc: $rc"
+	else
+		ocf_log err "result: $res; cmd: $cmd; rc: $rc"
+	fi
+	return $rc
+}
+
+request_describe_route_tables() {
+	cmd="${OCF_RESKEY_aliyuncli} vpc DescribeRouteTables --RouteTableId $OCF_RESKEY_routing_table --output ${OUTPUT} ${ENDPOINT}"
+	ocf_log debug "executing command: $cmd"
+	res=$($cmd)
+	rc=$?
+	if [ $rc -eq 0 ]
+	then
+		ROUTE_TO_INSTANCE=$(echo "$res" |grep "\s${OCF_RESKEY_address}/" | awk -F "${IFS_}" "${EXECUTING}")
+		ocf_log debug "ROUTE_TO_INSTANCE: $ROUTE_TO_INSTANCE"
+	else
+		ocf_log err "result: $res; cmd: $cmd; rc: $rc"
+	fi
+}
+
+ip_get_and_configure() {
+	ocf_log debug "function: ip_get_and_configure"
+
+	request_describe_route_tables
+	if [ "$ECS_INSTANCE_ID" != "$ROUTE_TO_INSTANCE" ]; then
+		if [ -n "$ROUTE_TO_INSTANCE" ]; then
+			ip_drop
+		fi
+		request_create_route_entry
+		rc=$?
+		while [ $rc -ne 0 ]; do
+			sleep 1
+			request_create_route_entry
+			rc=$?
+		done
+		wait_for_started
+	fi
+
+
+	# Reconfigure the local ip address
+	ip addr add "${OCF_RESKEY_address}/32" dev $OCF_RESKEY_interface
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log err "command failed, rc: $rc"
+		return $OCF_ERR_GENERIC
+	fi
+
+	ocf_log debug "IP added"
+
+	return $OCF_SUCCESS
+}
+
+ip_drop() {
+	ocf_log debug "function: ip_drop"
+	cmd="ip addr delete ${OCF_RESKEY_address}/32 dev $OCF_RESKEY_interface"
+	ocf_log debug "executing command: $cmd"
+	res=$($cmd)
+	rc=$?
+	if [ $rc -ne 0 ] && [ $rc -ne 2 ]; then
+		ocf_log err "command failed, rc: $rc; cmd: $cmd; result: $res"
+		return $OCF_ERR_GENERIC
+	fi
+	request_delete_route_entry
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log err "command failed, rc: $rc"
+		return $OCF_ERR_GENERIC
+	fi
+	wait_for_deleted
+
+	ocf_log debug "IP dropped"
+
+	return $OCF_SUCCESS
+}
+
+wait_for_started() {
+	request_describe_route_tables
+	while [ "$ECS_INSTANCE_ID" != "$ROUTE_TO_INSTANCE" ]; do
+		sleep 3
+		request_describe_route_tables
+	done
+}
+
+wait_for_deleted() {
+	request_describe_route_tables
+	 while [ ! -z "$ROUTE_TO_INSTANCE" ]; do
+		sleep 1
+		request_describe_route_tables
+	 done
+}
+
+ecs_ip_metadata() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="aliyun-vpc-move-ip">
+<version>2.0</version>
+<longdesc lang="en">
+Resource Agent to move IP addresses within a VPC of the Aliyun Webservices ECS
+by changing an entry in an specific routing table
+</longdesc>
+<shortdesc lang="en">Move IP within a VPC of the Aliyun ECS</shortdesc>
+
+<parameters>
+<parameter name="aliyuncli" required="0">
+<longdesc lang="en">
+Path to command line tools for Aliyun
+</longdesc>
+<shortdesc lang="en">Path to Aliyun CLI tools</shortdesc>
+<content type="string" default="${OCF_RESKEY_aliyuncli_default}" />
+</parameter>
+
+<parameter name="address" required="1">
+<longdesc lang="en">
+VPC private IP address
+</longdesc>
+<shortdesc lang="en">vpc ip</shortdesc>
+<content type="string" default="${OCF_RESKEY_address_default}" />
+</parameter>
+
+<parameter name="routing_table" required="1">
+<longdesc lang="en">
+Name of the routing table, where the route for the IP address should be changed, i.e. vtb-...
+</longdesc>
+<shortdesc lang="en">routing table name</shortdesc>
+<content type="string" default="${OCF_RESKEY_routing_table_default}" />
+</parameter>
+
+<parameter name="interface" required="1">
+<longdesc lang="en">
+Name of the network interface, i.e. eth0
+</longdesc>
+<shortdesc lang="en">network interface name</shortdesc>
+<content type="string" default="${OCF_RESKEY_interface_default}" />
+</parameter>
+
+<parameter name="endpoint" required="0">
+<longdesc lang="en">
+An endpoint is the service entry of an Alibaba Cloud service, i.e. vpc.cn-beijing.aliyuncs.com
+</longdesc>
+<shortdesc lang="en">service endpoint</shortdesc>
+<content type="string" default="${OCF_RESKEY_endpoint_default}" />
+</parameter>
+
+<parameter name="profile" required="0">
+<longdesc lang="en">
+Valid Aliyun CLI profile name (see 'aliyun cli configure').
+See https://www.alibabacloud.com/help/zh/product/29991.htm for more information about aliyun cli.
+</longdesc>
+<shortdesc lang="en">profile name</shortdesc>
+<content type="string" default="${OCF_RESKEY_profile_default}" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="180s" />
+<action name="stop" timeout="180s" />
+<action name="monitor" depth="0" timeout="30s" interval="30s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
+</actions>
+</resource-agent>
+END
+}
+
+ecs_ip_validate() {
+	ocf_log debug "function: validate"
+
+	if [ -z "${OCF_RESKEY_aliyuncli}" ]; then
+		ocf_exit_reason "unable to detect aliyuncli binary"
+		exit $OCF_ERR_INSTALLED
+	fi
+
+	# IP address
+	if [ -z "$OCF_RESKEY_address" ]; then
+		ocf_log err "IP address parameter not set $OCF_RESKEY_ADDRESS!"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	# Network Interface
+	if [ -z "$OCF_RESKEY_interface" ]; then
+		ocf_log err "Network interface parameter not set $OCF_RESKEY_INTERFACE!"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	# Routing Table
+	if [ -z "$OCF_RESKEY_routing_table" ]; then
+		ocf_log err "Routing table parameter not set $OCF_RESKEY_ROUTING_TABLE!"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	if [ -z "${ECS_INSTANCE_ID}" ]; then
+		ocf_exit_reason "Instance ID not found. Is this a ECS instance?"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+ecs_ip_start() {
+	ocf_log info "ECS: Moving IP address $OCF_RESKEY_address to this host by adjusting routing table $OCF_RESKEY_routing_table"
+
+	ecs_ip_monitor
+	if [ $? = $OCF_SUCCESS ]; then
+		ocf_log info "ECS: $OCF_RESKEY_address already started"
+		return $OCF_SUCCESS
+	fi
+
+	ocf_log info "ECS: Adjusting routing table and locally configuring IP address"
+	ip_get_and_configure
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log err "Received $rc from 'aliyun cli'"
+		return $OCF_ERR_GENERIC
+	fi
+
+	ecs_ip_monitor
+	rc=$?
+	if [ $rc -ne $OCF_SUCCESS ]; then
+		ocf_log err "IP address couldn't be configured on this host (IP: $OCF_RESKEY_address, Interface: $OCF_RESKEY_interface)"
+		return $rc
+	fi
+
+	return $OCF_SUCCESS
+}
+
+ecs_ip_stop() {
+	ocf_log info "ECS: Bringing down IP address $OCF_RESKEY_address"
+
+	ecs_ip_monitor
+	if [ $? = $OCF_NOT_RUNNING ]; then
+		ocf_log info "ECS: Address $OCF_RESKEY_address already down"
+		return $OCF_SUCCESS
+	fi
+
+	ip_drop
+	if [ $? -ne $OCF_SUCCESS ]; then
+		ocf_log err "ECS: Couldn't drop IP address $OCF_RESKEY_address on interface $OCF_RESKEY_interface."
+		return $OCF_ERR_GENERIC
+	fi
+
+	ecs_ip_monitor
+	if [ $? = $OCF_NOT_RUNNING ]; then
+		ocf_log info "ECS: Successfully brought down $OCF_RESKEY_address"
+		return $OCF_SUCCESS
+	fi
+
+	ocf_log err "ECS: Couldn't bring down IP address $OCF_RESKEY_address on interface $OCF_RESKEY_interface."
+	return $OCF_ERR_GENERIC
+}
+
+ecs_ip_monitor() {
+	ocf_log debug "function: ecsip_monitor: check routing table"
+	request_describe_route_tables
+
+	if [ "$ECS_INSTANCE_ID" != "$ROUTE_TO_INSTANCE" ]; then
+		ocf_log debug "not routed to this instance ($ECS_INSTANCE_ID) but to instance $ROUTE_TO_INSTANCE"
+		return $OCF_NOT_RUNNING
+	fi
+
+	cmd="ping -W 1 -c 1 $OCF_RESKEY_address"
+	ocf_log debug "executing command: $cmd"
+	$cmd > /dev/null
+	if [ $? -ne 0 ]; then
+		ocf_log debug "IP $OCF_RESKEY_address not locally reachable via ping on this system"
+		return $OCF_NOT_RUNNING
+	fi
+	ocf_log debug "routed in VPC and locally reachable"
+	return $OCF_SUCCESS
+}
+
+
+###############################################################################
+#
+# MAIN
+#
+###############################################################################
+
+case $__OCF_ACTION in
+	meta-data) ecs_ip_metadata
+		   exit $OCF_SUCCESS;;
+	validate-all) ecs_ip_validate;;
+esac
+
+ECS_INSTANCE_ID="$(curl -s http://100.100.100.200/latest/meta-data/instance-id)"
+
+case $__OCF_ACTION in
+	start)
+		ecs_ip_validate
+		ecs_ip_start;;
+	stop)
+		ecs_ip_stop;;
+	monitor)
+		ecs_ip_monitor;;
+	*)	exit $OCF_ERR_UNIMPLEMENTED;;
+esac

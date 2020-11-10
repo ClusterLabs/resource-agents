@@ -22,6 +22,8 @@ MAINTAINERCLEANFILES	= Makefile.in aclocal.m4 configure DRF/config-h.in \
 			  DRF/stamp-h.in libtool.m4 ltdl.m4 libltdl.tar \
 			  compile config.guess config.sub depcomp
 
+ACLOCAL_AMFLAGS		= -I m4
+
 SPEC			= $(PACKAGE_NAME).spec
 
 TARFILES		= $(PACKAGE_NAME)-$(VERSION).tar.bz2 \
@@ -57,14 +59,14 @@ EXTRA_DIST		= autogen.sh .version make/release.mk \
 install-exec-local:
 if BUILD_LINUX_HA
 	$(INSTALL) -d -m 1755 $(DESTDIR)$(HA_RSCTMPDIR)
-	$(LN_S) ../../lib/heartbeat/ocf-binaries $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-binaries
-	$(LN_S) ../../lib/heartbeat/ocf-directories $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-directories
-	$(LN_S) ../../lib/heartbeat/ocf-returncodes $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-returncodes
-	$(LN_S) ../../lib/heartbeat/ocf-shellfuncs $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-shellfuncs
+	$(LN_S) -f ../../lib/heartbeat/ocf-binaries $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-binaries
+	$(LN_S) -f ../../lib/heartbeat/ocf-directories $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-directories
+	$(LN_S) -f ../../lib/heartbeat/ocf-returncodes $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-returncodes
+	$(LN_S) -f ../../lib/heartbeat/ocf-shellfuncs $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/.ocf-shellfuncs
 endif
 if BUILD_RGMANAGER
 if BUILD_LINUX_HA
-	$(LN_S) ${CLUSTERDATA} $(DESTDIR)${OCF_RA_DIR_PREFIX}/redhat
+	$(LN_S) -n -f ${CLUSTERDATA} $(DESTDIR)${OCF_RA_DIR_PREFIX}/redhat
 endif
 	$(INSTALL) -d $(DESTDIR)/$(LOGDIR)
 endif
@@ -173,6 +175,14 @@ srpm: clean
 rpm: clean
 	$(MAKE) $(SPEC) $(TARFILES)
 	rpmbuild $(RPMBUILDOPTS) -ba $(SPEC)
+
+spellcheck: make/spellcheck-ignore
+if BUILD_LINUX_HA
+	$(MAKE) -C heartbeat $@
+endif
+if BUILD_RGMANAGER
+	: not implemented for RGManager-compat agents
+endif
 
 clean-generic:
 	rm -rf $(SPEC) $(TARFILES)

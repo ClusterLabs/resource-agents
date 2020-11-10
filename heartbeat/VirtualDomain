@@ -17,25 +17,43 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
+OCF_RESKEY_config_default=""
+OCF_RESKEY_migration_transport_default=""
 OCF_RESKEY_migration_downtime_default=0
 OCF_RESKEY_migration_speed_default=0
+OCF_RESKEY_migration_network_suffix_default=""
 OCF_RESKEY_force_stop_default=0
+OCF_RESKEY_monitor_scripts_default=""
 OCF_RESKEY_autoset_utilization_cpu_default="true"
 OCF_RESKEY_autoset_utilization_hv_memory_default="true"
 OCF_RESKEY_migrateport_default=$(( 49152 + $(ocf_maybe_random) % 64 ))
 OCF_RESKEY_CRM_meta_timeout_default=90000
 OCF_RESKEY_save_config_on_stop_default=false
 OCF_RESKEY_sync_config_on_stop_default=false
+OCF_RESKEY_snapshot_default=""
+OCF_RESKEY_backingfile_default=""
+OCF_RESKEY_stateless_default="false"
+OCF_RESKEY_copyindirs_default=""
+OCF_RESKEY_shutdown_mode_default=""
 
+: ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
+: ${OCF_RESKEY_migration_transport=${OCF_RESKEY_migration_transport_default}}
 : ${OCF_RESKEY_migration_downtime=${OCF_RESKEY_migration_downtime_default}}
 : ${OCF_RESKEY_migration_speed=${OCF_RESKEY_migration_speed_default}}
+: ${OCF_RESKEY_migration_network_suffix=${OCF_RESKEY_migration_network_suffix_default}}
 : ${OCF_RESKEY_force_stop=${OCF_RESKEY_force_stop_default}}
+: ${OCF_RESKEY_monitor_scripts=${OCF_RESKEY_monitor_scripts_default}}
 : ${OCF_RESKEY_autoset_utilization_cpu=${OCF_RESKEY_autoset_utilization_cpu_default}}
 : ${OCF_RESKEY_autoset_utilization_hv_memory=${OCF_RESKEY_autoset_utilization_hv_memory_default}}
 : ${OCF_RESKEY_migrateport=${OCF_RESKEY_migrateport_default}}
 : ${OCF_RESKEY_CRM_meta_timeout=${OCF_RESKEY_CRM_meta_timeout_default}}
 : ${OCF_RESKEY_save_config_on_stop=${OCF_RESKEY_save_config_on_stop_default}}
 : ${OCF_RESKEY_sync_config_on_stop=${OCF_RESKEY_sync_config_on_stop_default}}
+: ${OCF_RESKEY_snapshot=${OCF_RESKEY_snapshot_default}}
+: ${OCF_RESKEY_backingfile=${OCF_RESKEY_backingfile_default}}
+: ${OCF_RESKEY_stateless=${OCF_RESKEY_stateless_default}}
+: ${OCF_RESKEY_copyindirs=${OCF_RESKEY_copyindirs_default}}
+: ${OCF_RESKEY_shutdown_mode=${OCF_RESKEY_shutdown_mode_default}}
 
 if ocf_is_true ${OCF_RESKEY_sync_config_on_stop}; then
 	OCF_RESKEY_save_config_on_stop="true"
@@ -72,7 +90,7 @@ Absolute path to the libvirt configuration file,
 for this virtual domain.
 </longdesc>
 <shortdesc lang="en">Virtual domain configuration file</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_config_default}" />
 </parameter>
 
 <parameter name="hypervisor" unique="0" required="0">
@@ -105,7 +123,18 @@ transports available. If this parameter is omitted, the resource will
 use libvirt's default transport to connect to the remote hypervisor.
 </longdesc>
 <shortdesc lang="en">Remote hypervisor transport</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_migration_transport_default}" />
+</parameter>
+
+<parameter name="migration_user" unique="0" required="0">
+<longdesc lang="en">
+The username will be used in the remote libvirt remoteuri/migrateuri. No user will be
+given (which means root) in the username if omitted
+
+If remoteuri is set, migration_user will be ignored.
+</longdesc>
+<shortdesc lang="en">Remote username for the remoteuri</shortdesc>
+<content type="string" />
 </parameter>
 
 <parameter name="migration_downtime" unique="0" required="0">
@@ -132,13 +161,30 @@ name happens to be an FQDN (as opposed to an unqualified host name),
 insert the suffix immediately prior to the first period (.) in the FQDN.
 At the moment Qemu/KVM and Xen migration via a dedicated network is supported.
 
-Note: Be sure this composed host name is locally resolveable and the
-associated IP is reachable through the favored network.
+Note: Be sure this composed host name is locally resolvable and the
+associated IP is reachable through the favored network. This suffix will
+be added to the remoteuri and migrateuri parameters.
 
 See also the migrate_options parameter below.
 </longdesc>
 <shortdesc lang="en">Migration network host name suffix</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_migration_network_suffix_default}" />
+</parameter>
+
+<parameter name="migrateuri" unique="0" required="0">
+<longdesc lang="en">
+You can also specify here if the calculated migrate URI is unsuitable for your
+environment.
+
+If migrateuri is set then migration_network_suffix, migrateport and
+--migrateuri in migrate_options are effectively ignored. Use "%n" as the
+placeholder for the target node name.
+
+Please refer to the libvirt documentation for details on guest
+migration.
+</longdesc>
+<shortdesc lang="en">Custom migrateuri for migration state transfer</shortdesc>
+<content type="string" />
 </parameter>
 
 <parameter name="migrate_options" unique="0" required="0">
@@ -166,7 +212,7 @@ will complete only when all monitor scripts have completed successfully.
 Be sure to set the timeout of these operations to accommodate this delay.
 </longdesc>
 <shortdesc lang="en">space-separated list of monitor scripts</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_monitor_scripts_default}" />
 </parameter>
 
 <parameter name="autoset_utilization_cpu" unique="0" required="0">
@@ -175,7 +221,7 @@ If set true, the agent will detect the number of domainU's vCPUs from virsh, and
 into the CPU utilization of the resource when the monitor is executed.
 </longdesc>
 <shortdesc lang="en">Enable auto-setting the CPU utilization of the resource</shortdesc>
-<content type="boolean" default="true" />
+<content type="boolean" default="${OCF_RESKEY_autoset_utilization_cpu_default}" />
 </parameter>
 
 <parameter name="autoset_utilization_hv_memory" unique="0" required="0">
@@ -184,7 +230,7 @@ If set true, the agent will detect the number of *Max memory* from virsh, and pu
 into the hv_memory utilization of the resource when the monitor is executed.
 </longdesc>
 <shortdesc lang="en">Enable auto-setting the hv_memory utilization of the resource</shortdesc>
-<content type="boolean" default="true" />
+<content type="boolean" default="${OCF_RESKEY_autoset_utilization_hv_memory_default}" />
 </parameter>
 
 <parameter name="migrateport" unique="0" required="0">
@@ -193,6 +239,20 @@ This port will be used in the qemu migrateuri. If unset, the port will be a rand
 </longdesc>
 <shortdesc lang="en">Port for migrateuri</shortdesc>
 <content type="integer" />
+</parameter>
+
+<parameter name="remoteuri" unique="0" required="0">
+<longdesc lang="en">
+Use this URI as virsh connection URI to commuicate with a remote hypervisor.
+
+If remoteuri is set then migration_user and migration_network_suffix are
+effectively ignored. Use "%n" as the placeholder for the target node name.
+
+Please refer to the libvirt documentation for details on guest
+migration.
+</longdesc>
+<shortdesc lang="en">Custom remoteuri to communicate with a remote hypervisor</shortdesc>
+<content type="string" />
 </parameter>
 
 <parameter name="save_config_on_stop" unique="0" required="0">
@@ -226,20 +286,62 @@ is incompatible with the 'force_stop' option.
 <shortdesc lang="en">
 Restore state on start/stop
 </shortdesc>
-<content type="string" default=""/>
+<content type="string" default="${OCF_RESKEY_snapshot_default}"/>
+</parameter>
+
+<parameter name="backingfile" unique="0" required="0">
+<longdesc lang="en">
+When the VM is used in Copy-On-Write mode, this is the backing file to use (with its full path).
+The VMs image will be created based on this backing file.
+This backing file will never be changed during the life of the VM.
+</longdesc>
+<shortdesc lang="en">If the VM is wanted to work with Copy-On-Write mode, this is the backing file to use (with its full path)</shortdesc>
+<content type="string" default="${OCF_RESKEY_backingfile_default}" />
+</parameter>
+
+<parameter name="stateless" unique="0" required="0">
+<longdesc lang="en">
+If set to true and backingfile is defined, the start of the VM will systematically create a new qcow2 based on
+the backing file, therefore the VM will always be stateless.  If set to false, the start of the VM will use the
+COW (&lt;vmname&gt;.qcow2) file if it exists, otherwise the first start will create a new qcow2 based on the backing
+file given as backingfile.
+</longdesc>
+<shortdesc lang="en">If set to true, the (&lt;vmname&gt;.qcow2) file will be re-created at each start, based on the backing file (if defined)</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_stateless_default}" />
+</parameter>
+
+<parameter name="copyindirs" unique="0" required="0">
+<longdesc lang="en">
+List of directories for the virt-copy-in before booting the VM. Used only in stateless mode.
+</longdesc>
+<shortdesc lang="en">List of directories for the virt-copy-in before booting the VM stateless mode.</shortdesc>
+<content type="string" default="${OCF_RESKEY_copyindirs_default}" />
+</parameter>
+
+<parameter name="shutdown_mode">
+<longdesc lang="en">
+virsh shutdown method to use. Please verify that it is supported by your virsh toolsed with 'virsh help shutdown'
+When this parameter is set --mode shutdown_mode is passed as an additional argument to the 'virsh shutdown' command.
+One can use this option in case default acpi method does not work. Verify that this mode is supported
+by your VM.  By default --mode is not passed.
+</longdesc>
+<shortdesc lang="en">
+Instruct virsh to use specific shutdown mode
+</shortdesc>
+<content type="string" default="${OCF_RESKEY_shutdown_mode_default}"/>
 </parameter>
 
 </parameters>
 
 <actions>
-<action name="start" timeout="90" />
-<action name="stop" timeout="90" />
-<action name="status" depth="0" timeout="30" interval="10" />
-<action name="monitor" depth="0" timeout="30" interval="10" />
-<action name="migrate_from" timeout="60" />
-<action name="migrate_to" timeout="120" />
-<action name="meta-data" timeout="5" />
-<action name="validate-all" timeout="5" />
+<action name="start" timeout="90s" />
+<action name="stop" timeout="90s" />
+<action name="status" depth="0" timeout="30s" interval="10s" />
+<action name="monitor" depth="0" timeout="30s" interval="10s" />
+<action name="migrate_from" timeout="60s" />
+<action name="migrate_to" timeout="120s" />
+<action name="meta-data" timeout="5s" />
+<action name="validate-all" timeout="5s" />
 </actions>
 </resource-agent>
 EOF
@@ -463,6 +565,14 @@ VirtualDomain_start() {
 		return $OCF_SUCCESS
 	fi
 
+	# systemd drop-in to stop domain before libvirtd terminates services
+	# during shutdown/reboot
+	if systemd_is_running ; then
+		systemd_drop_in "99-VirtualDomain-libvirt" "After" "libvirtd.service"
+		systemd_drop_in "99-VirtualDomain-machines" "Wants" "virt-guest-shutdown.target"
+		systemctl start virt-guest-shutdown.target
+	fi
+
 	snapshotimage="$OCF_RESKEY_snapshot/${DOMAIN_NAME}.state"
 	if [ -n "$OCF_RESKEY_snapshot" -a -f "$snapshotimage" ]; then
 		virsh restore $snapshotimage
@@ -482,11 +592,49 @@ VirtualDomain_start() {
 	# is restored to an 'undefined' state before creating.
 	verify_undefined
 
-	virsh $VIRSH_OPTIONS create ${OCF_RESKEY_config}
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_exit_reason "Failed to start virtual domain ${DOMAIN_NAME}."
-		return $OCF_ERR_GENERIC
+	if [ -z "${OCF_RESKEY_backingfile}" ]; then
+		virsh $VIRSH_OPTIONS create ${OCF_RESKEY_config}
+		if [ $? -ne 0 ]; then
+			ocf_exit_reason "Failed to start virtual domain ${DOMAIN_NAME}."
+			return $OCF_ERR_GENERIC
+		fi
+	else
+		if ocf_is_true "${OCF_RESKEY_stateless}" || [ ! -s "${OCF_RESKEY_config%%.*}.qcow2" ]; then
+			# Create the Stateless image
+			dirconfig=`dirname ${OCF_RESKEY_config}`
+			qemu-img create -f qcow2 -b ${OCF_RESKEY_backingfile} ${OCF_RESKEY_config%%.*}.qcow2
+			if [ $? -ne 0 ]; then
+				ocf_exit_reason "Failed qemu-img create ${DOMAIN_NAME} with backing file ${OCF_RESKEY_backingfile}."
+				return $OCF_ERR_GENERIC
+			fi
+
+			virsh define ${OCF_RESKEY_config}
+			if [ $? -ne 0 ]; then
+				ocf_exit_reason "Failed to define virtual domain ${DOMAIN_NAME}."
+				return $OCF_ERR_GENERIC
+			fi
+
+			if [ -n "${OCF_RESKEY_copyindirs}" ]; then
+				# Inject copyindirs directories and files
+				virt-copy-in -d ${DOMAIN_NAME}  ${OCF_RESKEY_copyindirs}  /
+				if [ $? -ne 0 ]; then
+					ocf_exit_reason "Failed on virt-copy-in command ${DOMAIN_NAME}."
+					return $OCF_ERR_GENERIC
+				fi
+			fi
+		else
+			virsh define ${OCF_RESKEY_config}
+			if [ $? -ne 0 ]; then
+				ocf_exit_reason "Failed to define virtual domain ${DOMAIN_NAME}."
+				return $OCF_ERR_GENERIC
+			fi
+		fi
+
+		virsh $VIRSH_OPTIONS start ${DOMAIN_NAME}
+		if [ $? -ne 0 ]; then
+			ocf_exit_reason "Failed to start virtual domain ${DOMAIN_NAME}."
+			return $OCF_ERR_GENERIC
+		fi
 	fi
 
 	while ! VirtualDomain_monitor; do
@@ -590,7 +738,10 @@ VirtualDomain_stop() {
 			# issue the shutdown if save state didn't shutdown for us
 			if [ $needshutdown -eq 1 ]; then
 				# Issue a graceful shutdown request
-				virsh $VIRSH_OPTIONS shutdown ${DOMAIN_NAME}
+				if [ -n "${OCF_RESKEY_CRM_shutdown_mode}" ]; then
+					shutdown_opts="--mode ${OCF_RESKEY_CRM_shutdown_mode}"
+				fi
+				virsh $VIRSH_OPTIONS shutdown ${DOMAIN_NAME} $shutdown_opts
 			fi
 
 			# The "shutdown_timeout" we use here is the operation
@@ -677,22 +828,52 @@ VirtualDomain_migrate_to() {
 		# Find out the remote hypervisor to connect to. That is, turn
 		# something like "qemu://foo:9999/system" into
 		# "qemu+tcp://bar:9999/system"
-		if [ -n "${OCF_RESKEY_migration_transport}" ]; then
-			transport_suffix="+${OCF_RESKEY_migration_transport}"
+
+		if [ -n "${OCF_RESKEY_remoteuri}" ]; then
+			remoteuri=`echo "${OCF_RESKEY_remoteuri}" |
+				sed "s/%n/$target_node/g"`
+		else
+			if [ -n "${OCF_RESKEY_migration_transport}" ]; then
+				transport_suffix="+${OCF_RESKEY_migration_transport}"
+			fi
+
+			# append user defined suffix if virsh target should differ from cluster node name
+			if [ -n "${OCF_RESKEY_migration_network_suffix}" ]; then
+				# Hostname might be a FQDN
+				target_node=$(echo ${target_node} | sed -e "s,^\([^.]\+\),\1${OCF_RESKEY_migration_network_suffix},")
+			fi
+
+			# a remote user has been defined to connect to target_node
+			if echo ${OCF_RESKEY_migration_user} | grep -q "^[a-z][-a-z0-9]*$" ; then
+				target_node="${OCF_RESKEY_migration_user}@${target_node}"
+			fi
+
+			# Scared of that sed expression? So am I. :-)
+			remoteuri=$(echo ${OCF_RESKEY_hypervisor} | sed -e "s,\(.*\)://[^/:]*\(:\?[0-9]*\)/\(.*\),\1${transport_suffix}://${target_node}\2/\3,")
 		fi
 
 		# User defined migrateuri or do we make one?
 		migrate_opts="$OCF_RESKEY_migrate_options"
-		if echo "$migrate_opts" | fgrep -qs -- "--migrateuri="; then
+
+		# migration_uri is directly set
+		if [ -n "${OCF_RESKEY_migrateuri}" ]; then
+			migrateuri=`echo "${OCF_RESKEY_migrateuri}" |
+				sed "s/%n/$target_node/g"`
+
+		# extract migrationuri from options
+		elif echo "$migrate_opts" | fgrep -qs -- "--migrateuri="; then
 			migrateuri=`echo "$migrate_opts" |
 				sed "s/.*--migrateuri=\([^ ]*\).*/\1/;s/%n/$target_node/g"`
-			migrate_opts=`echo "$migrate_opts" |
-				sed "s/\(.*\)--migrateuri=[^ ]*\(.*\)/\1\2/"`
+
+		# auto generate
 		else
 			migrateuri=`mk_migrateuri`
 		fi
-		# Scared of that sed expression? So am I. :-)
-		remoteuri=$(echo ${OCF_RESKEY_hypervisor} | sed -e "s,\(.*\)://[^/:]*\(:\?[0-9]*\)/\(.*\),\1${transport_suffix}://${target_node}\2/\3,")
+
+		# remove --migrateuri from migration_opts
+		migrate_opts=`echo "$migrate_opts" |
+			sed "s/\(.*\)--migrateuri=[^ ]*\(.*\)/\1\2/"`
+
 
 		# save config if needed
 		if ocf_is_true "$OCF_RESKEY_save_config_on_stop"; then
@@ -736,6 +917,14 @@ VirtualDomain_migrate_to() {
 }
 
 VirtualDomain_migrate_from() {
+	# systemd drop-in to stop domain before libvirtd terminates services
+	# during shutdown/reboot
+	if systemd_is_running ; then
+		systemd_drop_in "99-VirtualDomain-libvirt" "After" "libvirtd.service"
+		systemd_drop_in "99-VirtualDomain-machines" "Wants" "virt-guest-shutdown.target"
+		systemctl start virt-guest-shutdown.target
+	fi
+
 	while ! VirtualDomain_monitor; do
 		sleep 1
 	done
@@ -820,6 +1009,11 @@ VirtualDomain_validate_all() {
 	# Check if migration_downtime is a decimal value
 	if ! ocf_is_decimal ${OCF_RESKEY_migration_downtime}; then
 		ocf_exit_reason "migration_downtime has to be a decimal value"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	if ocf_is_true "${OCF_RESKEY_stateless}" && [ -z "${OCF_RESKEY_backingfile}" ]; then
+		ocf_exit_reason "Stateless functionality can't be achieved without a backing file."
 		return $OCF_ERR_CONFIGURED
 	fi
 }

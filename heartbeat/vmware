@@ -24,7 +24,7 @@
 #  * vmware-server 2.0 installed and autostarted on all nodes
 #  * vmdk files must be in the same directory of the vmx file
 #  * vmx filenames must be unique, even if stored in different directories
-#  * Default_Action_Timeout stock value (20 sec) isn't enough if you are
+#  * The default value of operation timeout (20 sec) isn't enough if you are
 #    dealing with many virtual machines: raise it to something around 600 secs
 #    or use operation attributes with the proposed values
 #  * Moving a vm among nodes will cause its mac address to change: if you need
@@ -337,10 +337,10 @@ vmware-vim-cmd executable path
 </parameters>
 
 <actions>
-<action name="start"        timeout="600" />
-<action name="stop"         timeout="600" />
-<action name="monitor"      timeout="30" interval="300" depth="0"/>
-<action name="meta-data"    timeout="5" />
+<action name="start"        timeout="600s" />
+<action name="stop"         timeout="600s" />
+<action name="monitor"      timeout="30s" interval="300s" depth="0"/>
+<action name="meta-data"    timeout="5s" />
 </actions>
 </resource-agent>
 END

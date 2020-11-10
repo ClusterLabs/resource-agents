@@ -24,6 +24,12 @@ WINPOPUPFILE=${HA_VARRUN}/WinPopup
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Parameter defaults
+
+OCF_RESKEY_hostfile_default="hosts"
+
+: ${OCF_RESKEY_hostfile=${OCF_RESKEY_hostfile_default}}
+
 #######################################################################
 
 us=`uname -n`
@@ -51,17 +57,17 @@ sysadmin's workstation whenever a takeover occurs.
 The file containing the hosts to send WinPopup messages to.
 </longdesc>
 <shortdesc lang="en">Host file</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_hostfile_default}" />
 </parameter>
 </parameters>
 
 <actions>
-<action name="start" timeout="30" />
-<action name="stop" timeout="30" />
-<action name="status" depth="0" timeout="10" interval="10" />
-<action name="monitor" depth="0" timeout="10" interval="10" />
-<action name="validate-all" timeout="5" />
-<action name="meta-data" timeout="5" />
+<action name="start" timeout="30s" />
+<action name="stop" timeout="30s" />
+<action name="status" depth="0" timeout="10s" interval="10s" />
+<action name="monitor" depth="0" timeout="10s" interval="10s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
 </actions>
 </resource-agent>
 END
@@ -197,7 +203,7 @@ then
 fi
 
 # See how the environment virables were set.
-hostfile=${OCF_RESKEY_hostfile:-hosts}
+hostfile=${OCF_RESKEY_hostfile}
 
 case "$1" in
   meta-data)
