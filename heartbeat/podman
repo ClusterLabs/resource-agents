@@ -419,6 +419,7 @@ podman_start()
 podman_stop()
 {
 	local timeout=60
+	local rc
 	podman_simple_status
 	if [ $? -eq  $OCF_NOT_RUNNING ]; then
 		remove_container
@@ -434,16 +435,27 @@ podman_stop()
 
 	if ocf_is_true "$OCF_RESKEY_force_kill"; then
 		ocf_run podman kill $CONTAINER
+		rc=$?
 	else
 		ocf_log debug "waiting $timeout second[s] before killing container"
 		ocf_run podman stop -t=$timeout $CONTAINER
+		rc=$?
 		# on stop, systemd will automatically delete any transient
 		# drop-in conf that has been created earlier
 	fi
 
-	if [ $? -ne 0 ]; then
-		ocf_exit_reason "Failed to stop container, ${CONTAINER}, based on image, ${OCF_RESKEY_image}."
-		return $OCF_ERR_GENERIC
+	if [ $rc -ne 0 ]; then
+		# If the stop failed, it could be because the controlling conmon
+		# process died unexpectedly. If so, a generic error code is returned
+		# but the associated container exit code is -1. If that's the case,
+		# assume there's no failure and continue with the rm as usual.
+		if [ $rc -eq 125 ] && \
+		   podman inspect --format '{{.State.Status}}:{{.State.ExitCode}}' $CONTAINER | grep -wq "stopped:-1"; then
+			ocf_log warn "Container ${CONTAINER} had an unexpected stop outcome. Trying to remove it anyway."
+		else
+			ocf_exit_reason "Failed to stop container, ${CONTAINER}, based on image, ${OCF_RESKEY_image}."
+			return $OCF_ERR_GENERIC
+		fi
 	fi
 
 	remove_container
