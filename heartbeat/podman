@@ -345,6 +345,32 @@ create_transient_drop_in_dependency()
 }
 
 
+run_new_container()
+{
+	local opts=$1
+	local image=$2
+	local cmd=$3
+	local rc
+	
+	ocf_log info "running container $CONTAINER for the first time"
+	ocf_run podman run $opts $image $cmd
+	rc=$?
+	if [ $rc -eq 125 ]; then
+		# If an internal podman error occurred, it might be because
+		# the internal storage layer still references an old container
+		# with the same name, even though podman itself thinks there
+		# is no such container. If so, purge the storage layer to try
+		# to clean the corruption and try again.
+		ocf_log warn "Internal podman error while creating new container $CONTAINER. Retrying."
+		ocf_run podman rm --storage $CONTAINER
+		ocf_run podman run $opts $image $cmd
+		rc=$?
+	fi
+	
+	return $rc
+}
+
+
 podman_start()
 {
 	local cid
@@ -378,8 +404,7 @@ podman_start()
 		# make sure any previous container matching our container name is cleaned up first.
 		# we already know at this point it wouldn't be running
 		remove_container
-		ocf_log info "running container $CONTAINER for the first time"
-		ocf_run podman run $run_opts $OCF_RESKEY_image $OCF_RESKEY_run_cmd
+		run_new_container "$run_opts" $OCF_RESKEY_image "$OCF_RESKEY_run_cmd"
 	fi
 	rc=$?
 
