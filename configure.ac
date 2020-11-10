@@ -223,9 +223,9 @@ AC_ARG_ENABLE([libnet],
 BUILD_RGMANAGER=0
 BUILD_LINUX_HA=0
 
-RASSET=all
+RASSET=linux-ha
 AC_ARG_WITH(ras-set,
-    [  --with-ras-set=SET     build/install only linux-ha or rgmanager resource-agents [default: all]],
+    [  --with-ras-set=SET     build/install only linux-ha, rgmanager or all resource-agents [default: linux-ha]],
     [ RASSET="$withval" ])
 
 if test x$RASSET = xyes || test x$RASSET = xall ; then
