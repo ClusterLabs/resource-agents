@@ -51,10 +51,13 @@ else
 COMPAT_HABINDIR = with
 endif
 
+pkgconfigdir = $(datadir)/pkgconfig
+pkgconfig_DATA = $(PACKAGE_NAME).pc
+
 EXTRA_DIST		= autogen.sh .version make/release.mk \
 			  make/git-version-gen make/gitlog-to-changelog \
 			  AUTHORS COPYING COPYING.GPLv3 COPYING.LGPL ChangeLog \
-			  $(SPEC).in
+			  $(pkgconfig_DATA).in $(SPEC).in
 
 install-exec-local:
 if BUILD_LINUX_HA
@@ -185,4 +188,4 @@ if BUILD_RGMANAGER
 endif
 
 clean-generic:
-	rm -rf $(SPEC) $(TARFILES)
+	rm -rf $(SPEC) $(TARFILES) $(PACKAGE_NAME)-$(VERSION) *.rpm

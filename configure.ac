@@ -913,6 +913,7 @@ AC_SUBST(MAKE)
 
 dnl The Makefiles and shell scripts we output
 AC_CONFIG_FILES(Makefile				        \
+resource-agents.pc						\
 include/Makefile						\
 heartbeat/Makefile						\
    heartbeat/ocf-binaries					\

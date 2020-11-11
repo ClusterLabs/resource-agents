@@ -29,8 +29,9 @@ missing
 *.la
 *.lo
 *.loT
-rgmanager/src/resources/fs.sh
-rgmanager/src/resources/oracledb.sh
+rgmanager/src/resources/*
+!rgmanager/src/resources/*.in
+rgmanager/src/resources/Makefile.in
 rgmanager/src/resources/utils/config-utils.sh
 resource-agents-*
 .version
