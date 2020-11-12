@@ -20,5 +20,6 @@
 MAINTAINERCLEANFILES    = Makefile.in
 
 if HAVE_SYSTEMD
-systemdsystemunit_DATA = ldirectord.service
+systemdsystemunitdir	= $(SYSTEMD_UNIT_DIR)
+systemdsystemunit_DATA	= ldirectord.service
 endif

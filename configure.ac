@@ -27,8 +27,6 @@ AC_USE_SYSTEM_EXTENSIONS
 
 CRM_DTD_VERSION="1.0"
 
-PKG_FEATURES=""
-
 AC_CONFIG_AUX_DIR(.)
 AC_CONFIG_MACRO_DIR([m4])
 
@@ -58,43 +56,24 @@ AC_ARG_WITH(pkg-name,
     [  --with-pkg-name=name     Override package name (if you're a packager needing to pretend) ],
     [ PACKAGE_NAME="$withval" ])
 
-AC_PATH_PROGS(PKGCONFIG, pkg-config)
-if test x"${PKGCONFIG}" = x""; then
-   AC_MSG_ERROR(You need pkgconfig installed in order to build ${PACKAGE})
+# ordering is important, PKG_PROG_PKG_CONFIG is to be invoked before any other PKG_* related stuff
+PKG_PROG_PKG_CONFIG(0.18)
+
+# PKG_CHECK_MODULES will fail if systemd is not found by default, so make sure
+# we set the proper vars and deal with it
+PKG_CHECK_MODULES([systemd], [systemd], [HAS_SYSTEMD=yes], [HAS_SYSTEMD=no])
+if test "x$HAS_SYSTEMD" == "xyes"; then
+	PKG_CHECK_VAR([SYSTEMD_UNIT_DIR], [systemd], [systemdsystemunitdir])
+	if test "x$SYSTEMD_UNIT_DIR" == "x"; then
+		AC_MSG_ERROR([Unable to detect systemd unit dir automatically])
+	fi
+
+	PKG_CHECK_VAR([SYSTEMD_TMPFILES_DIR], [systemd], [tmpfilesdir])
+	if test "x$SYSTEMD_TMPFILES_DIR" == "x"; then
+		AC_MSG_ERROR([Unable to detect systemd tmpfiles directory automatically])
+	fi
 fi
-
-AC_ARG_WITH([systemdsystemunitdir],
-     [AS_HELP_STRING([--with-systemdsystemunitdir=DIR], [Directory for systemd service files])],,
-     [with_systemdsystemunitdir=auto])
-AS_IF([test "x$with_systemdsystemunitdir" = "xyes" -o "x$with_systemdsystemunitdir" = "xauto"], [
-     def_systemdsystemunitdir=$($PKGCONFIG --variable=systemdsystemunitdir systemd)
-
-     AS_IF([test "x$def_systemdsystemunitdir" = "x"],
-         [AS_IF([test "x$with_systemdsystemunitdir" = "xyes"],
-                [AC_MSG_ERROR([systemd support requested but pkg-config unable to query systemd package])])
-          with_systemdsystemunitdir=no],
-         [with_systemdsystemunitdir="$def_systemdsystemunitdir"])])
-if test "x$with_systemdsystemunitdir" != "xno" && \
-   test "x${prefix}" != "xNONE" && \
-   test "x${prefix}" != "x/usr"; then
-       with_systemdsystemunitdir="${prefix}/$with_systemdsystemunitdir"
-fi
-AS_IF([test "x$with_systemdsystemunitdir" != "xno"],
-      [AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])])
-AM_CONDITIONAL([HAVE_SYSTEMD], [test "x$with_systemdsystemunitdir" != "xno"])
-
-AC_ARG_WITH([systemdtmpfilesdir],
-     AS_HELP_STRING([--with-systemdtmpfilesdir=DIR], [Directory for systemd tmp files]),
-     [], [with_systemdtmpfilesdir=$($PKGCONFIG --variable=tmpfilesdir systemd)])
-     if test "x$with_systemdtmpfilesdir" != xno && \
-        test "x${prefix}" != "xNONE" && \
-        test "x${prefix}" != "x/usr"; then
-            with_systemdtmpfilesdir="${prefix}/$with_systemdtmpfilesdir"
-     fi
-     if test "x$with_systemdtmpfilesdir" != xno; then
-         AC_SUBST([systemdtmpfilesdir], [$with_systemdtmpfilesdir])
-     fi
-AM_CONDITIONAL(HAVE_SYSTEMD, [test -n "$with_systemdtmpfilesdir" -a "x$with_systemdtmpfilesdir" != xno ])
+AM_CONDITIONAL(HAVE_SYSTEMD, [test "x$HAS_SYSTEMD" == xyes ])
 
 dnl 
 dnl AM_INIT_AUTOMAKE([1.11.1 foreign dist-bzip2 dist-xz])
@@ -223,9 +202,9 @@ AC_ARG_ENABLE([libnet],
 BUILD_RGMANAGER=0
 BUILD_LINUX_HA=0
 
-RASSET=all
+RASSET=linux-ha
 AC_ARG_WITH(ras-set,
-    [  --with-ras-set=SET     build/install only linux-ha or rgmanager resource-agents [default: all]],
+    [  --with-ras-set=SET     build/install only linux-ha, rgmanager or all resource-agents [default: linux-ha]],
     [ RASSET="$withval" ])
 
 if test x$RASSET = xyes || test x$RASSET = xall ; then
@@ -622,33 +601,9 @@ else
         GPKGNAME="glib-2.0"
 fi
 
-if 
-   $PKGCONFIG --exists $GPKGNAME
-then
-	GLIBCONFIG="$PKGCONFIG $GPKGNAME"
-else
-	set -x
-        echo PKG_CONFIG_PATH=$PKG_CONFIG_PATH
-	$PKGCONFIG --exists $GPKGNAME; echo $?
-	$PKGCONFIG --cflags $GPKGNAME; echo $?
-	$PKGCONFIG $GPKGNAME; echo $?
-	set +x
-        
-	AC_MSG_ERROR(You need glib2-devel installed in order to build ${PACKAGE})
-fi
-AC_MSG_RESULT(using $GLIBCONFIG)
-
-if test "X$GLIBCONFIG" != X; then
-	AC_MSG_CHECKING(for special glib includes: )
-	GLIBHEAD=`$GLIBCONFIG --cflags`
-	AC_MSG_RESULT($GLIBHEAD)
-	CPPFLAGS="$CPPFLAGS $GLIBHEAD"
-
-	AC_MSG_CHECKING(for glib library flags)
-	GLIBLIB=`$GLIBCONFIG --libs`
-	AC_MSG_RESULT($GLIBLIB)
-	LIBS="$LIBS $GLIBLIB"
-fi
+PKG_CHECK_MODULES([GLIB], [$GPKGNAME])
+CPPFLAGS="$CPPFLAGS $GLIB_CFLAGS"
+LIBS="$LIBS $GLIB_LIBS"
 
 dnl ========================================================================
 dnl Headers
@@ -958,6 +913,7 @@ AC_SUBST(MAKE)
 
 dnl The Makefiles and shell scripts we output
 AC_CONFIG_FILES(Makefile				        \
+resource-agents.pc						\
 include/Makefile						\
 heartbeat/Makefile						\
    heartbeat/ocf-binaries					\
@@ -1078,7 +1034,6 @@ AC_MSG_RESULT([])
 AC_MSG_RESULT([$PACKAGE configuration:])
 AC_MSG_RESULT([  Version                  = ${VERSION}])
 AC_MSG_RESULT([  Build Version            = $Format:%H$])
-AC_MSG_RESULT([  Features                 =${PKG_FEATURES}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([  Prefix                   = ${prefix}])
 AC_MSG_RESULT([  Executables              = ${sbindir}])
@@ -1093,6 +1048,7 @@ AC_MSG_RESULT([  HA_BIN directory prefix  = ${libexecdir}])
 AC_MSG_RESULT([  RA state files           = ${HA_RSCTMPDIR}])
 AC_MSG_RESULT([  AIS Plugins              = ${LCRSODIR}])
 AC_MSG_RESULT([])
+AC_MSG_RESULT([  CPPFLAGS                 = ${CPPFLAGS}])
 AC_MSG_RESULT([  CFLAGS                   = ${CFLAGS}])
 AC_MSG_RESULT([  Libraries                = ${LIBS}])
 AC_MSG_RESULT([  Stack Libraries          = ${CLUSTERLIBS}])
