@@ -215,7 +215,8 @@ ec2ip_validate() {
 		return $OCF_ERR_CONFIGURED
 	fi
 
-	EC2_INSTANCE_ID="$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"
+	TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+	EC2_INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id -H "X-aws-ec2-metadata-token: $TOKEN")
 
 	if [ -z "${EC2_INSTANCE_ID}" ]; then
 		ocf_exit_reason "Instance ID not found. Is this a EC2 instance?"
@@ -329,7 +330,7 @@ ec2ip_get_instance_eni() {
 	fi
 	ocf_log debug "MAC address associated with interface ${OCF_RESKEY_interface}: ${MAC_ADDR}"
 
-	cmd="curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC_ADDR}/interface-id"
+	cmd="curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC_ADDR}/interface-id -H \"X-aws-ec2-metadata-token: $TOKEN\""
 	ocf_log debug "executing command: $cmd"
 	EC2_NETWORK_INTERFACE_ID="$(eval $cmd)"
 	rc=$?
