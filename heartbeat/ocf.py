@@ -195,7 +195,8 @@ def is_probe():
 	not running resource.
 	"""
 	return (OCF_ACTION == "monitor" and
-			env.get("OCF_RESKEY_CRM_meta_interval", "") == "0")
+			( env.get("OCF_RESKEY_CRM_meta_interval", "") == "0" or
+			  env.get("OCF_RESKEY_CRM_meta_interval", "") == "" ))
 
 
 def get_parameter(name, default=None):
