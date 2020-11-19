@@ -346,6 +346,15 @@ asterisk_start() {
     fi
 
     for dir in $ASTRUNDIR $ASTLOGDIR $ASTLOGDIR/cdr-csv $ASTLOGDIR/cdr-custom; do
+	# Check if directories are writable and fix them if they aren't
+        if  ! su -s /bin/sh - $OCF_RESKEY_user -c "test -w $dir" ; then
+            ocf_log warn "Directory $dir is not writable by $OCF_RESKEY_user, attempting to fix."
+			mkdir -p $dir
+			chown $OCF_RESKEY_user: $dir
+		fi
+    done
+	
+    for dir in $ASTRUNDIR $ASTLOGDIR $ASTLOGDIR/cdr-csv $ASTLOGDIR/cdr-custom; do
         if [ ! -d "$dir" ]; then
             ocf_run install -d -o $OCF_RESKEY_user -g $OCF_RESKEY_group $dir \
                 || exit $OCF_ERR_GENERIC
