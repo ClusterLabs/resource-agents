@@ -1,0 +1,8 @@
+ocfdir = @OCF_RA_DIR@
+ra_api_dtd = @datadir@/@PACKAGE_NAME@/ra-api-1.dtd
+ra_tmp_dir = @HA_RSCTMPDIR@
+
+Name: @PACKAGE_NAME@
+Description: resource agents for use with Pacemaker
+URL: https://github.com/ClusterLabs/resource-agents/
+Version: @PACKAGE_VERSION@

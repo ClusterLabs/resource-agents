@@ -259,6 +259,8 @@ test -d %{buildroot}/sbin || mkdir %{buildroot}/sbin
 %{_usr}/lib/ocf/resource.d/redhat
 %endif
 
+%{_datadir}/pkgconfig/%{name}.pc
+
 %if %{defined _unitdir}
 %{_unitdir}/resource-agents-deps.target
 %endif
