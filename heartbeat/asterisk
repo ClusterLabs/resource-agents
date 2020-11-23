@@ -344,7 +344,7 @@ asterisk_start() {
     if [ "$astcanary_pid" ]; then
       for i in $astcanary_pid; do ocf_run kill -s KILL $astcanary_pid; done
     fi
-	
+
     for dir in $ASTRUNDIR $ASTLOGDIR $ASTLOGDIR/cdr-csv $ASTLOGDIR/cdr-custom; do
         if [ ! -d "$dir" ]; then
             ocf_run install -d -o $OCF_RESKEY_user -g $OCF_RESKEY_group $dir \
