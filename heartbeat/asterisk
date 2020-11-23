@@ -344,15 +344,6 @@ asterisk_start() {
     if [ "$astcanary_pid" ]; then
       for i in $astcanary_pid; do ocf_run kill -s KILL $astcanary_pid; done
     fi
-
-    for dir in $ASTRUNDIR $ASTLOGDIR $ASTLOGDIR/cdr-csv $ASTLOGDIR/cdr-custom; do
-	# Check if directories are writable and fix them if they aren't
-        if  ! su -s /bin/sh - $OCF_RESKEY_user -c "test -w $dir" ; then
-            ocf_log warn "Directory $dir is not writable by $OCF_RESKEY_user, attempting to fix."
-			mkdir -p $dir
-			chown $OCF_RESKEY_user: $dir
-		fi
-    done
 	
     for dir in $ASTRUNDIR $ASTLOGDIR $ASTLOGDIR/cdr-csv $ASTLOGDIR/cdr-custom; do
         if [ ! -d "$dir" ]; then
@@ -363,8 +354,9 @@ asterisk_start() {
         # already existed, check whether it is writable by the configured
         # user
         if ! su -s /bin/sh - $OCF_RESKEY_user -c "test -w $dir"; then
-            ocf_log err "Directory $dir is not writable by $OCF_RESKEY_user"
-            exit $OCF_ERR_PERM
+            ocf_log warn "Directory $dir is not writable by $OCF_RESKEY_user, attempting chown"
+            ocf_run chown $OCF_RESKEY_user:$OCF_RESKEY_group $dir \
+                || exit $OCF_ERR_PERM
         fi
     done
 
