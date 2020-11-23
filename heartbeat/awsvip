@@ -206,9 +206,10 @@ esac
 
 AWSCLI="${OCF_RESKEY_awscli}"
 SECONDARY_PRIVATE_IP="${OCF_RESKEY_secondary_private_ip}"
-INSTANCE_ID="$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"
-MAC_ADDRESS="$(curl -s http://169.254.169.254/latest/meta-data/mac)"
-NETWORK_ID="$(curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC_ADDRESS}/interface-id)"
+TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id -H "X-aws-ec2-metadata-token: $TOKEN")
+MAC_ADDRESS=$(curl -s http://169.254.169.254/latest/meta-data/mac -H "X-aws-ec2-metadata-token: $TOKEN")
+NETWORK_ID=$(curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC_ADDRESS}/interface-id -H "X-aws-ec2-metadata-token: $TOKEN")
 
 case $__OCF_ACTION in
     start)
