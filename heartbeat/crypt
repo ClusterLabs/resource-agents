@@ -86,7 +86,7 @@ The resulting block device path is /dev/mapper/name.
 <content type="string" default="${OCF_RESKEY_crypt_dev_default}" />
 </parameter>
 
-<parameter name="key_file" unique="1" required="1">
+<parameter name="key_file" unique="0" required="1">
 <longdesc lang="en">
 Key file path containing the encryption passphrase
 (aka key; see cryptsetup(8)).  For LUKS, the passphrase as of the key_file
@@ -96,7 +96,7 @@ parameter is used to decrypt a randomly selected key when the device was created
 <content type="string" default="${OCF_RESKEY_key_file_default}" />
 </parameter>
 
-<parameter name="crypt_type" unique="1" required="1">
+<parameter name="crypt_type" unique="0" required="1">
 <longdesc lang="en">
 Encryption (device) type (e.g. "luks" or "luks2").
 
