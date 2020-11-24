@@ -354,8 +354,9 @@ asterisk_start() {
         # already existed, check whether it is writable by the configured
         # user
         if ! su -s /bin/sh - $OCF_RESKEY_user -c "test -w $dir"; then
-            ocf_log err "Directory $dir is not writable by $OCF_RESKEY_user"
-            exit $OCF_ERR_PERM
+            ocf_log warn "Directory $dir is not writable by $OCF_RESKEY_user, attempting chown"
+            ocf_run chown $OCF_RESKEY_user:$OCF_RESKEY_group $dir \
+                || exit $OCF_ERR_PERM
         fi
     done
 
