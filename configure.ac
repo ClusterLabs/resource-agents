@@ -56,25 +56,6 @@ AC_ARG_WITH(pkg-name,
     [  --with-pkg-name=name     Override package name (if you're a packager needing to pretend) ],
     [ PACKAGE_NAME="$withval" ])
 
-# ordering is important, PKG_PROG_PKG_CONFIG is to be invoked before any other PKG_* related stuff
-PKG_PROG_PKG_CONFIG(0.18)
-
-# PKG_CHECK_MODULES will fail if systemd is not found by default, so make sure
-# we set the proper vars and deal with it
-PKG_CHECK_MODULES([systemd], [systemd], [HAS_SYSTEMD=yes], [HAS_SYSTEMD=no])
-if test "x$HAS_SYSTEMD" == "xyes"; then
-	PKG_CHECK_VAR([SYSTEMD_UNIT_DIR], [systemd], [systemdsystemunitdir])
-	if test "x$SYSTEMD_UNIT_DIR" == "x"; then
-		AC_MSG_ERROR([Unable to detect systemd unit dir automatically])
-	fi
-
-	PKG_CHECK_VAR([SYSTEMD_TMPFILES_DIR], [systemd], [tmpfilesdir])
-	if test "x$SYSTEMD_TMPFILES_DIR" == "x"; then
-		AC_MSG_ERROR([Unable to detect systemd tmpfiles directory automatically])
-	fi
-fi
-AM_CONDITIONAL(HAVE_SYSTEMD, [test "x$HAS_SYSTEMD" == xyes ])
-
 dnl 
 dnl AM_INIT_AUTOMAKE([1.11.1 foreign dist-bzip2 dist-xz])
 dnl
@@ -160,6 +141,35 @@ case $prefix in
 	fi
 	;;
 esac
+
+# ordering is important, PKG_PROG_PKG_CONFIG is to be invoked before any other PKG_* related stuff
+PKG_PROG_PKG_CONFIG(0.18)
+
+# PKG_CHECK_MODULES will fail if systemd is not found by default, so make sure
+# we set the proper vars and deal with it
+PKG_CHECK_MODULES([systemd], [systemd], [HAS_SYSTEMD=yes], [HAS_SYSTEMD=no])
+if test "x$HAS_SYSTEMD" == "xyes"; then
+	PKG_CHECK_VAR([SYSTEMD_UNIT_DIR], [systemd], [systemdsystemunitdir])
+	if test "x$SYSTEMD_UNIT_DIR" == "x"; then
+		AC_MSG_ERROR([Unable to detect systemd unit dir automatically])
+	fi
+
+	PKG_CHECK_VAR([SYSTEMD_TMPFILES_DIR], [systemd], [tmpfilesdir])
+	if test "x$SYSTEMD_TMPFILES_DIR" == "x"; then
+		AC_MSG_ERROR([Unable to detect systemd tmpfiles directory automatically])
+	fi
+
+	# sanitize systed vars when using non standard prefix
+	if test "$prefix" != "/usr"; then
+		SYSTEMD_UNIT_DIR="$prefix/$SYSTEMD_UNIT_DIR"
+		AC_SUBST([SYSTEMD_UNIT_DIR])
+		SYSTEMD_TMPFILES_DIR="$prefix/$SYSTEMD_TMPFILES_DIR"
+		AC_SUBST([SYSTEMD_TMPFILES_DIR])
+	fi
+
+fi
+AM_CONDITIONAL(HAVE_SYSTEMD, [test "x$HAS_SYSTEMD" == xyes ])
+
 
 dnl ===============================================
 dnl Configure Options
