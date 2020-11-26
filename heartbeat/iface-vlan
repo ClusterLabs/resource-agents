@@ -89,7 +89,7 @@ vlan_meta_data() {
   </shortdesc>
 
   <parameters>
-    <parameter name="vlan_interface" unique="1" required="1">
+    <parameter name="vlan_interface" unique="0" required="1">
       <longdesc lang="en">
         Define the interface where VLAN should be attached.
       </longdesc>
@@ -99,7 +99,7 @@ vlan_meta_data() {
       <content type="string"/>
     </parameter>
 
-    <parameter name="vlan_id" unique="1" required="1">
+    <parameter name="vlan_id" unique="0" required="1">
       <longdesc lang="en">
         Define the VLAN ID. It has to be a value between 0 and 4094.
       </longdesc>
