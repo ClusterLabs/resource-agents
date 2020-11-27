@@ -177,7 +177,7 @@ crypt_validate_all() {
 			 esac
 		esac
 	fi
-	if [ ! -b "$encrypted_dev" ]; then
+	if [ ! -b "$encrypted_dev" ] && [ ! -L "$encrypted_dev" ]; then
 		ocf_exit_reason "Encrypted device $encrypted_dev not accessible"
 		return $OCF_ERR_ARGS
 	fi
