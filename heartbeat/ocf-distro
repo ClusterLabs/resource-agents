@@ -3,45 +3,211 @@
 # 
 # Currently needed for the nfsserver RA which has some already
 # released RH specific stuff (/etc/sysconfig/nfs editing)
+#
+# These functions are intended to be POSIX-compliant for portability.
 # 
 
+# systemd-based systems should all have an os-release file.
+_ETC_OS_RELEASE_FILE="/etc/os-release"
+_USR_OS_RELEASE_FILE="/usr/lib/os-release"
+
+# Legacy distro-specific files
 _DEBIAN_VERSION_FILE="/etc/debian_version"
 _REDHAT_RELEASE_FILE="/etc/redhat-release"
 _SUSE_RELEASE_FILE="/etc/SuSE-release"
-_RELEASE_FILES="/etc/*-release"
-_REDHAT_BASED_DISTROS_RE='red *hat|fedora|centos|scientific linux'
 
-get_release_id() {
-	if which lsb_release >/dev/null 2>&1; then
-		lsb_release -si
-	elif [ -e $_DEBIAN_VERSION_FILE ]; then
-		echo Debian
-	elif [ -e $_SUSE_RELEASE_FILE ]; then
-		echo SUSE
-	elif [ -e $_REDHAT_RELEASE_FILE ]; then
-		echo Redhat
-	else # FIXME not exactly the id here, but will do for our purpose
-		cat $_RELEASE_FILES 2>/dev/null
+_DEBIAN_BASED_DISTROS_RE="debian|ubuntu"
+_REDHAT_BASED_DISTROS_RE="red *hat|rhel|fedora|centos|scientific"
+_SUSE_BASED_DISTROS_RE="sles|suse"
+
+
+# Converts OS release ID to a standard form regardless of source.
+_process_os_release_id() {
+	_os="$1"
+
+	# Convert to lowercase, isolate distro name, remove whitespace
+	_os=$(echo "$_os" \
+		| tr "[:upper:]" "[:lower:]" \
+		| sed -e "s|\(gnu/\)*linux||" -e "s/server//" \
+			-e "s/release.*//" -e "s/[[:digit:]].*//" \
+			-e "s/[[:blank:]]//")
+
+	# Normalize known distros to os-release names
+	case "$_os" in
+	*centos*)
+		_os="centos"
+		;;
+	*debian*)
+		_os="debian"
+		;;
+	*fedora*)
+		_os="fedora"
+		;;
+	*redhat*|*rhel*|*scientific*)
+		_os="rhel"
+		;;
+	*opensuse*)
+		_os="opensuse"
+		;;
+	*suseenterprise*)
+		_os="sles"
+		;;
+	*ubuntu*)
+		_os="ubuntu"
+		;;
+	esac
+
+	echo "$_os"
+}
+
+# Converts OS version ID to a form that ocf_version_cmp() can handle.
+# Strips any garbage.
+_process_os_version_id() {
+	_ver="$1"
+
+	# Discard everything except the version.
+	# Use ocf_version_cmp() format if present, or bare integer
+	# otherwise.
+	# Append ".0" for integers so that ocf_version_cmp() doesn't
+	# fail.
+	_ver_cmp_fmt="[[:digit:]][[:digit:].-]*[[:digit:]]"
+	_ver=$(echo "$_ver" \
+		| sed -n -e "s/[^[:digit:]]*\(${_ver_cmp_fmt}\).*/\1/p" \
+			-e "s/[^[:digit:]]*\([[:digit:]]*\).*/\1.0/p" \
+		| head -n 1)
+
+	echo "$_ver"
+}
+
+# Gets OS release ID (i.e., distro) or version ID from os-release file.
+# $_ETC_OS_RELEASE_FILE takes precedence over $_USR_OS_RELEASE_FILE.
+_get_val_from_os_release_file() {
+	_key=""
+	_value=""
+	_func=""
+
+	case "$1" in
+	id)
+		_key="ID"
+		_func="_process_os_release_id"
+		;;
+	version_id)
+		_key="VERSION_ID"
+		_func="_process_os_version_id"
+		;;
+	esac
+
+	if [ -n "$_key" ]; then
+		if [ -f "$_ETC_OS_RELEASE_FILE" ]; then
+			_value=$(awk -F "=" -v k="$_key" '$1 == k {print $2}' \
+					"$_ETC_OS_RELEASE_FILE" | tr -d \")
+		fi
+
+		if [ -z "$_value" ] && [ -f "$_USR_OS_RELEASE_FILE" ]; then
+			_value=$(awk -F "=" -v k="$_key" '$1 == k {print $2}' \
+					"$_USR_OS_RELEASE_FILE" | tr -d \")
+		fi
 	fi
+
+	# Ensure the value is in the correct format
+	[ -n "$_func" ] && _value=$("$_func" "$_value")
+
+	echo "$_value"
 }
 
-is_redhat_based() {
-	get_release_id | egrep -qsi "$_REDHAT_BASED_DISTROS_RE"
-}
+# Gets OS release ID from lsb_release command or legacy *-release files
+_get_os_from_legacy_source() {
+	_os=""
 
-# get_os_ver() is currently unused
-get_os_ver() {
 	if which lsb_release >/dev/null 2>&1; then
-		OS=`lsb_release -si`
-		VER=`lsb_release -sr`
-	elif [ -f $_DEBIAN_VERSION_FILE ]; then
-		OS=Debian
-		VER=$(cat $_DEBIAN_VERSION_FILE)
-	elif [ -f $_REDHAT_RELEASE_FILE ]; then
-		OS=RedHat  # redhat or similar
-		VER=$(sed "s/.* release \([^ ]\+\).*/\1/" $_REDHAT_RELEASE_FILE)
+		_os=$(lsb_release -si)
+
+	elif [ -f "$_DEBIAN_VERSION_FILE" ]; then
+		_os="debian"
+
+	elif [ -f "$_REDHAT_RELEASE_FILE" ]; then
+		_os=$(head -n 1 "$_REDHAT_RELEASE_FILE")
+
+	elif [ -f "$_SUSE_RELEASE_FILE" ]; then
+		_os=$(head -n 1 "$_SUSE_RELEASE_FILE")
+
 	else
-		OS=$(uname -s)
-		VER=$(uname -r)
+		_os=$(uname -s)
 	fi
+
+	_process_os_release_id "$_os"
+}
+
+# Gets OS version from lsb_release command or legacy *-release files
+_get_version_from_legacy_source() {
+	_ver=""
+
+	if which lsb_release >/dev/null 2>&1; then
+		_ver=$(lsb_release -sr)
+
+	elif [ -f "$_DEBIAN_VERSION_FILE" ]; then
+		_ver=$(cat "$_DEBIAN_VERSION_FILE")
+
+	elif [ -f "$_REDHAT_RELEASE_FILE" ]; then
+		_ver=$(head -1 "$_REDHAT_RELEASE_FILE")
+
+	elif [ -f "$_SUSE_RELEASE_FILE" ]; then
+		_ver=$(awk '$1 == "VERSION" {print $3}' "$_SUSE_RELEASE_FILE")
+		_patchlevel=$(awk '$1 == "PATCHLEVEL" {print $3}' \
+				"$_SUSE_RELEASE_FILE")
+
+		[ -n "$_patchlevel" ] && _ver="${_ver}.${_patchlevel}"
+
+	else
+		_ver=$(uname -r)
+	fi
+
+	_process_os_version_id "$_ver"
+}
+
+# Prints OS release ID (i.e., distro name)
+get_release_id() {
+	_os=$(_get_val_from_os_release_file id)
+
+	if [ -z "$_os" ]; then
+		_os=$(_get_os_from_legacy_source)
+	fi
+
+	echo "$_os"
+}
+
+# Prints OS version ID
+get_os_version_id() {
+	_ver=$(_get_val_from_os_release_file version_id)
+
+	if [ -z "$_ver" ] || [ "$(get_release_id)" = "debian" ]; then
+		# Debian only includes major release in os-release.
+		# $_DEBIAN_VERSION_FILE has ${major}.${minor}.
+		_ver=$(_get_version_from_legacy_source)
+	fi
+
+	echo "$_ver"
+}
+
+# Returns true if the OS is Debian-based, otherwise false
+is_debian_based() {
+	get_release_id | grep -Eqi "$_DEBIAN_BASED_DISTROS_RE"
+}
+
+# Returns true if the OS is Red Hat-based, otherwise false
+is_redhat_based() {
+	get_release_id | grep -Eqi "$_REDHAT_BASED_DISTROS_RE"
+}
+
+# Returns true if the OS is SUSE-based, otherwise false
+is_suse_based() {
+	get_release_id | grep -Eqi "$_SUSE_BASED_DISTROS_RE"
+}
+
+# Sets global variables OS and VER.
+# get_os_ver() is currently unused upstream; maintained for backwards
+# compatibility.
+get_os_ver() {
+	OS=$(get_release_id)
+	VER=$(get_os_version_id)
 }
