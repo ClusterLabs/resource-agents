@@ -1,4 +1,4 @@
-ocfdir = @OCF_RA_DIR@
+ocfrootdir = @OCF_ROOT_DIR@
 ra_api_dtd = @datadir@/@PACKAGE_NAME@/ra-api-1.dtd
 ra_tmp_dir = @HA_RSCTMPDIR@
 
