@@ -64,19 +64,9 @@ _process_os_release_id() {
 # Strips any garbage.
 _process_os_version_id() {
 	_ver="$1"
+	_fmt="[[:digit:]][[:digit:].-]*[[:alnum:].\+-]*"
 
-	# Discard everything except the version.
-	# Use ocf_version_cmp() format if present, or bare integer
-	# otherwise.
-	# Append ".0" for integers so that ocf_version_cmp() doesn't
-	# fail.
-	_ver_cmp_fmt="[[:digit:]][[:digit:].-]*[[:digit:]]"
-	_ver=$(echo "$_ver" \
-		| sed -n -e "s/[^[:digit:]]*\(${_ver_cmp_fmt}\).*/\1/p" \
-			-e "s/[^[:digit:]]*\([[:digit:]]*\).*/\1.0/p" \
-		| head -n 1)
-
-	echo "$_ver"
+	echo "$_ver" | sed -e "s/[^[:digit:]]*\(${_fmt}\).*/\1/"
 }
 
 # Gets OS release ID (i.e., distro) or version ID from os-release file.
