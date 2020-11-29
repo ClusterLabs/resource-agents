@@ -830,6 +830,28 @@ lvm_start() {
 	local rc
 	local vol
 
+        if systemd_is_running ; then
+        	# Create drop-in to deactivate VG before stopping
+		# storage services during shutdown/reboot.
+		after=$(systemctl show resource-agents-deps.target.d \
+			--property=After | cut -d'=' -f2)
+
+		case "$after" in
+			*" blk-availability.service "*)
+				;;
+			*)
+				systemd_drop_in "99-LVM-activate" "After" \
+					"blk-availability.service"
+				;;
+		esac
+
+		# If blk-availability isn't started, the "After="
+		# directive has no effect.
+		if ! systemctl is-active blk-availability.service ; then
+			systemctl start blk-availability.service
+		fi
+        fi
+
 	if lvm_status ; then
 		ocf_log info "${vol}: is already active."
 		return $OCF_SUCCESS
