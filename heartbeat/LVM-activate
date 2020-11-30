@@ -781,25 +781,27 @@ lvm_status() {
 		return $OCF_NOT_RUNNING
 	fi
 
-	if [ $OCF_CHECK_LEVEL -gt 0 ]; then
-		case "$OCF_CHECK_LEVEL" in
-			10)
-				# if there are many lv in vg dir, pick the first name
-				dm_name="/dev/${VG}/$(ls -1 /dev/${VG} | head -n 1)"
+	case "$OCF_CHECK_LEVEL" in
+		0)
+			;;
+		10)
+			# if there are many lv in vg dir, pick the first name
+			dm_name="/dev/${VG}/$(ls -1 /dev/${VG} | head -n 1)"
 
-				# read 1 byte to check the dev is alive
-				dd if=${dm_name} of=/dev/null bs=1 count=1 >/dev/null 2>&1
-				if [ $? -ne 0 ]; then
-					return $OCF_NOT_RUNNING
-				fi
+			# read 1 byte to check the dev is alive
+			dd if=${dm_name} of=/dev/null bs=1 count=1 >/dev/null \
+				2>&1
+			if [ $? -ne 0 ]; then
+				return $OCF_NOT_RUNNING
+			else
 				return $OCF_SUCCESS
-				;;
-			*)
-				ocf_exit_reason "unsupported monitor level $OCF_CHECK_LEVEL"
-				rc=$OCF_ERR_CONFIGURED
-				;;
-		esac
-	fi
+			fi
+			;;
+		*)
+			ocf_exit_reason "unsupported monitor level $OCF_CHECK_LEVEL"
+			return $OCF_ERR_CONFIGURED
+			;;
+	esac
 }
 
 lvm_start() {
