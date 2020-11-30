@@ -16,10 +16,6 @@ _DEBIAN_VERSION_FILE="/etc/debian_version"
 _REDHAT_RELEASE_FILE="/etc/redhat-release"
 _SUSE_RELEASE_FILE="/etc/SuSE-release"
 
-_DEBIAN_BASED_DISTROS_RE="debian|ubuntu"
-_REDHAT_BASED_DISTROS_RE="red *hat|rhel|fedora|centos|scientific"
-_SUSE_BASED_DISTROS_RE="sles|suse"
-
 
 # Converts OS release ID to a standard form regardless of source.
 _process_os_release_id() {
@@ -64,19 +60,9 @@ _process_os_release_id() {
 # Strips any garbage.
 _process_os_version_id() {
 	_ver="$1"
+	_fmt="[[:digit:]][[:digit:].-]*[[:alnum:].\+-]*"
 
-	# Discard everything except the version.
-	# Use ocf_version_cmp() format if present, or bare integer
-	# otherwise.
-	# Append ".0" for integers so that ocf_version_cmp() doesn't
-	# fail.
-	_ver_cmp_fmt="[[:digit:]][[:digit:].-]*[[:digit:]]"
-	_ver=$(echo "$_ver" \
-		| sed -n -e "s/[^[:digit:]]*\(${_ver_cmp_fmt}\).*/\1/p" \
-			-e "s/[^[:digit:]]*\([[:digit:]]*\).*/\1.0/p" \
-		| head -n 1)
-
-	echo "$_ver"
+	echo "$_ver" | sed -e "s/[^[:digit:]]*\(${_fmt}\).*/\1/"
 }
 
 # Gets OS release ID (i.e., distro) or version ID from os-release file.
@@ -191,17 +177,18 @@ get_os_version_id() {
 
 # Returns true if the OS is Debian-based, otherwise false
 is_debian_based() {
-	get_release_id | grep -Eqi "$_DEBIAN_BASED_DISTROS_RE"
+	get_release_id | grep -i -e "debian" -e "ubuntu" >/dev/null 2>&1
 }
 
 # Returns true if the OS is Red Hat-based, otherwise false
 is_redhat_based() {
-	get_release_id | grep -Eqi "$_REDHAT_BASED_DISTROS_RE"
+	get_release_id | grep -i -e "centos" -e "fedora" -e "redhat" -e "rhel" \
+		-e "scientific" >/dev/null 2>&1
 }
 
 # Returns true if the OS is SUSE-based, otherwise false
 is_suse_based() {
-	get_release_id | grep -Eqi "$_SUSE_BASED_DISTROS_RE"
+	get_release_id | grep -i -e "sles" -e "suse" >/dev/null 2>&1
 }
 
 # Sets global variables OS and VER.
