@@ -218,12 +218,6 @@ END
 
 get_VG_access_mode_num()
 {
-	local access_mode
-	local vg_locktype
-	local vg_clustered
-	local vg_systemid
-	local vg_tags
-
 	# Use -o reporting fields to get multiple bits of info from a single command
 	kvs=$(vgs --foreign --nolocking --noheadings --nameprefixes \
 		--rows --config report/compact_output=0 \
@@ -266,7 +260,7 @@ get_VG_access_mode_num()
 # does this vg have our tag
 check_tags()
 {
-	local owner=$(vgs -o tags --noheadings ${VG} | tr -d '[:blank:]')
+	owner=$(vgs -o tags --noheadings ${VG} | tr -d '[:blank:]')
 
 	if [ -z "$owner" ]; then
 		# No-one owns this VG yet
@@ -284,8 +278,6 @@ check_tags()
 
 strip_tags()
 {
-	local tag
-
 	for tag in $(vgs --noheadings -o tags $OCF_RESKEY_volgrpname | sed s/","/" "/g); do
 		ocf_log info "Stripping tag, $tag"
 
@@ -332,9 +324,8 @@ set_tags()
 # 2nd: expected config item value
 config_verify()
 {
-	local name=$1
-	local expect=$2
-	local real=""
+	name=$1
+	expect=$2
 
 	real=$(lvmconfig "$name" | cut -d'=' -f2)
 	if [ "$real" != "$expect" ]; then
@@ -426,8 +417,6 @@ clvmd_check()
 
 systemid_check()
 {
-	local source
-
 	# system_id_source is set in lvm.conf
 	source=$(lvmconfig 'global/system_id_source' 2>/dev/null | cut -d"=" -f2)
 	if [ "$source" = "" ] || [ "$source" = "none" ]; then
@@ -503,9 +492,6 @@ read_parameters()
 }
 
 lvm_validate() {
-	local lv_count
-	local mode
-
 	read_parameters
 
 	check_binary pgrep
@@ -610,20 +596,20 @@ lvm_validate() {
 
 # To activate LV(s) with different "activation mode" parameters
 do_activate() {
-	local activate_opt=$1
+	do_activate_opt=$1
 
 	if ocf_is_true "$OCF_RESKEY_partial_activation" ; then
-		activate_opt="${activate_opt} --partial"
+		do_activate_opt="${do_activate_opt} --partial"
 	fi
 
 	# Only activate the specific LV if it's given
 	if [ -n "$LV" ]; then
-		ocf_run lvchange $activate_opt ${VG}/${LV}
+		ocf_run lvchange $do_activate_opt ${VG}/${LV}
 		if [ $? -ne $OCF_SUCCESS ]; then
 			return $OCF_ERR_GENERIC
 		fi
 	else
-		ocf_run lvchange $activate_opt ${VG}
+		ocf_run lvchange $do_activate_opt ${VG}
 		if [ $? -ne $OCF_SUCCESS ]; then
 			return $OCF_ERR_GENERIC
 		fi
@@ -633,9 +619,6 @@ do_activate() {
 }
 
 lvmlockd_activate() {
-	# activation opt
-	local activate_opt
-
 	if [ "$LV_activation_mode" = "shared" ]; then
 		activate_opt="-asy"
 	else
@@ -660,8 +643,6 @@ lvmlockd_activate() {
 
 # clvmd must be running to activate clustered VG
 clvmd_activate() {
-	local activate_opt
-
 	if [ "$LV_activation_mode" = "shared" ]; then
 		activate_opt="-asy"
 	else
@@ -677,8 +658,6 @@ clvmd_activate() {
 }
 
 systemid_activate() {
-	local cur_systemid
-
 	cur_systemid=$(vgs --foreign --noheadings -o systemid ${VG} | tr -d '[:blank:]')
 
 	# Put our system ID on the VG
@@ -790,9 +769,6 @@ tagging_deactivate() {
 #
 # This is AllBad but there isn't a better way that I'm aware of yet.
 lvm_status() {
-	local dm_count
-	local dm_name
-
 	if [ -n "${LV}" ]; then
 		# dmsetup ls? It cannot accept device name. It's
 		# too heavy to list all DM devices.
@@ -805,30 +781,51 @@ lvm_status() {
 		return $OCF_NOT_RUNNING
 	fi
 
-	if [ $OCF_CHECK_LEVEL -gt 0 ]; then
-		case "$OCF_CHECK_LEVEL" in
-			10)
-				# if there are many lv in vg dir, pick the first name
-				dm_name="/dev/${VG}/$(ls -1 /dev/${VG} | head -n 1)"
+	case "$OCF_CHECK_LEVEL" in
+		0)
+			;;
+		10)
+			# if there are many lv in vg dir, pick the first name
+			dm_name="/dev/${VG}/$(ls -1 /dev/${VG} | head -n 1)"
 
-				# read 1 byte to check the dev is alive
-				dd if=${dm_name} of=/dev/null bs=1 count=1 >/dev/null 2>&1
-				if [ $? -ne 0 ]; then
-					return $OCF_NOT_RUNNING
-				fi
+			# read 1 byte to check the dev is alive
+			dd if=${dm_name} of=/dev/null bs=1 count=1 >/dev/null \
+				2>&1
+			if [ $? -ne 0 ]; then
+				return $OCF_NOT_RUNNING
+			else
 				return $OCF_SUCCESS
-				;;
-			*)
-				ocf_exit_reason "unsupported monitor level $OCF_CHECK_LEVEL"
-				rc=$OCF_ERR_CONFIGURED
-				;;
-		esac
-	fi
+			fi
+			;;
+		*)
+			ocf_exit_reason "unsupported monitor level $OCF_CHECK_LEVEL"
+			return $OCF_ERR_CONFIGURED
+			;;
+	esac
 }
 
 lvm_start() {
-	local rc
-	local vol
+        if systemd_is_running ; then
+        	# Create drop-in to deactivate VG before stopping
+		# storage services during shutdown/reboot.
+		after=$(systemctl show resource-agents-deps.target.d \
+			--property=After | cut -d'=' -f2)
+
+		case "$after" in
+			*" blk-availability.service "*)
+				;;
+			*)
+				systemd_drop_in "99-LVM-activate" "After" \
+					"blk-availability.service"
+				;;
+		esac
+
+		# If blk-availability isn't started, the "After="
+		# directive has no effect.
+		if ! systemctl is-active blk-availability.service ; then
+			systemctl start blk-availability.service
+		fi
+        fi
 
 	if lvm_status ; then
 		ocf_log info "${vol}: is already active."
@@ -869,8 +866,6 @@ lvm_start() {
 
 # Deactivate LVM volume(s)
 lvm_stop() {
-	local vol
-
 	[ -z ${LV} ] && vol=${VG} || vol=${VG}/${LV}
 
 	if ! lvm_status ; then
