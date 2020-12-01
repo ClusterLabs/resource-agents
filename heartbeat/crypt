@@ -177,6 +177,13 @@ crypt_validate_all() {
 			 esac
 		esac
 	fi
+
+	# return early for probes where device might not be available yet
+	# e.g. LVM exclusive volumes
+	if ocf_is_probe; then
+		return $OCF_SUCCESS
+	fi
+
 	if [ ! -b "$encrypted_dev" ] && [ ! -L "$encrypted_dev" ]; then
 		ocf_exit_reason "Encrypted device $encrypted_dev not accessible"
 		return $OCF_ERR_ARGS
@@ -294,11 +301,13 @@ crypt_stop() {
 crypt_monitor() {
 	cryptsetup status $crypt_dev $disable_locks >/dev/null 2>&1
 	if [ $? -eq 0 ]; then
-		[ -L $crypt_dev_path ] && return $OCF_SUCCESS
+		if [ -b "$encrypted_dev" ] || [ -L $crypt_dev_path ]; then
+			return $OCF_SUCCESS
+		fi
 		return $OCF_ERR_GENERIC
 	fi
 
-        [ "$__OCF_ACTION" = "monitor" ] && ! ocf_is_probe && ocf_exit_reason "Crypt resource not running"
+	[ "$__OCF_ACTION" = "monitor" ] && ! ocf_is_probe && ocf_exit_reason "Crypt resource not running"
 	return $OCF_NOT_RUNNING
 }
 
