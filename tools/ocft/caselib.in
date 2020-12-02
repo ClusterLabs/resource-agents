@@ -89,7 +89,7 @@ agent_run()
   set_ocf_env $agent
 
   export OCF_RESKEY_CRM_meta_timeout
-  : ${OCF_RESKEY_CRM_meta_timeout:=$timeout}
+  : ${OCF_RESKEY_CRM_meta_timeout:=$((timeout*1000))}
 
   aroot=${__OCFT__MYROOT:-$__OCFT__AGENT_ROOT}
 
