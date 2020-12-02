@@ -1,3 +1,67 @@
+* Wed Dec  2 2020 resource-agents contributors
+- release candidate 4.7.0 rc1
+- Build: fix systemd paths when using non standard prefix
+- Configure: default to build heartbeat agents only
+- Configure: use pkg-config to detect systemd-paths to make CI able to define them the same way for all CL-projects
+- CI: add pkg-config file
+- AWS agents: add support for IMDSv2
+- Filesystem: Default fast_stop to no for RHEL 9+ and for other distros
+- Filesystem: POSIX-compliant syntax for portability
+- Filesystem: make mmap search not match partial matches
+- Filesystem: support whitespace in device or directory name
+- LVM-activate: use systemd drop-in to stop before blk-availability.service
+- SAPInstance: introduce MINIMAL_PROBE resource parameter (#1564)
+- asterisk: chown directory if not writable by user (#1583)
+- aws-vpc-move-ip: add "region" parameter
+- aws-vpc-move-ip: added optional eni lookup (defaults to instance id)
+- aws-vpc-move-ip: don't warn for expected scenarios
+- aws-vpc-move-ip: use "region" parameter for all commands
+- azure-events: import URLError and encode postData when necessary
+- azure-events: only decode() when exec() output not of type str
+- azure-events: report error if jsondata not received
+- azure-lb: don't redirect nc listener output to pidfile
+- crypt: allow encrypted_dev to be symlink to support using devices in /dev/disk/... or by UUID
+- crypt: avoid failing for LVM exclusive volumes by not running full sanity check during probes
+- crypt: fix missing && to set exit_reason
+- crypt: make key_file and crypt_type parameters not unique
+- docker-compose: use "docker ps" to improve status accuracy (#1523)
+- ethmonitor: make regex also match vlan interfaces
+- galera/redis: support RHEL 8.1 pacemaker
+- galera/redis: use --output-as for crm_mon w/newer Pacemaker, and prepare for Promoted role
+- galera: fix automatic recovery when a cluster was not gracefully stopped
+- galera: fix check_user configuration with clustercheck
+- galera: recover after network split in a 2-node cluster
+- galera: recover from joining a non existing cluster
+- galera: set bootstrap attribute before promote
+- gcp-pd-move: fixes to not match partial disk_name and make regional PD's work
+- gcp-vpc-move-vip: add support for multiple alias IP ranges on one node
+- gcp-vpc-move-vip: fix sort for list of dicts in Python3
+- gcp-vpc-move-vip: improve metadata and log messages
+- iSCSILogicalUnit: lio-t: add pscsi LIO-T backing store
+- iSCSITarget: add support for LIO-T incoming CHAP auth for TPG
+- iface-vlan: vlan_{interface,id} does not have to be unique
+- kamailio: use correct pkill parameters
+- man: use OCF_CHECK_LEVEL for depth parameters in pcs examples
+- man: use promotable keyword in manpage examples
+- mdraid: fix bashism
+- nfsnotify/nfsserver: fix SELinux issue due to newer ls versions giving additional output
+- nfsserver: stop nfsdcld if present during stop-action
+- ocf-distro: improve robustness and specificity (#1558)
+- ocf.py: fix problem when OCF_RESKEY_CRM_meta_interval is not set
+- ocf.py: fix usage for py2 when self param is involved
+- ocf_version_cmp(): enable comparing versions containing git hashes and more
+- pgsql: support RHEL 8.1 pacemaker
+- podman: recover from killed conmon side process
+- podman: recover from podman's storage being out of sync
+- send_arp (libnet): use sigaction() instead of deprecated siginterrupt()
+- send_ua/IPv6addr: use sigaction() instead of deprecated siginterrupt()
+- spec: fix lsb_release dependency
+- spec: ldirectord: added perl-IO-Socket-INET6 dependency on Fedora
+- spec: make Samba/CIFS dependency weak for Fedora 32 and RHEL/CentOS 8 and remove the dependency for later Fedora/RHEL/CentOS versions
+- spec: dont use Recommends for RHEL/CentOS 7 or older (where it's not supported)
+- sybaseASE: add logfile parameter
+- sybaseASE: run verify_all() for start operation only
+
 * Thu Jun 18 2020 resource-agents contributors
 - stable release 4.6.1
 - dummypy: add agent to Makefiles/configure and change from f-strings to make it
