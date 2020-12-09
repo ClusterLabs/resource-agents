@@ -1,3 +1,13 @@
+* Wed Dec  9 2020 resource-agents contributors
+- stable release 4.7.0
+- ocf-shellfuncs: make ocf_is_bash4() detect Bash v4 or greater (which it was supposed to according to the comments)
+- ocft: fix OCF_RESKEY_CRM_meta_timeout
+- crypt: avoid failing for LVM exclusive volumes by not running full sanity check during probes
+- LVM-activate: use systemd drop-in to stop before blk-availability.service
+- ocf-distro: improve robustness and specificity (#1558)
+- crypt: allow encrypted_dev to be symlink to support using devices in /dev/disk/... or by UUID
+- iface-vlan: vlan_{interface,id} do not have to be unique.
+
 * Wed Dec  2 2020 resource-agents contributors
 - release candidate 4.7.0 rc1
 - Build: fix systemd paths when using non standard prefix
