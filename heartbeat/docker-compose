@@ -1,6 +1,7 @@
 #!/bin/sh
-# Version: 1.1.2
-# Date: 2020-06-24
+
+# Version: 1.1.1
+# Date: 2020-12-11
 #
 # Resource script for running docker-compose
 #
@@ -140,7 +141,8 @@ docker_compose_status()
 	if [ -r "$DIR/$YML" ]; then
 
 		DKPS=$(cd $DIR; $COMMAND ps -q)
-		STAT_MSG=$(docker ps --no-trunc | grep -E $(echo "$DKPS" | tr '\n' '|') | expand)
+		STAT_MSG=$(docker ps --no-trunc | expand)
+		PSTAT_MSG=$(docker ps --no-trunc | grep -E $(echo "$DKPS" | tr '\n' '|' | sed 's/|$//') | expand)
 		LNWTH=$(echo "$STAT_MSG" | head -n1 | wc -c)
 		STATEPOS=$(echo "$STAT_MSG" | head -n1 | egrep -o 'STATUS.*$' | wc -c)
 		OFFSET=$(($LNWTH-$STATEPOS+1))
@@ -150,7 +152,7 @@ docker_compose_status()
 		else
 			PSNU=0
 		fi
-		UPNU=$(echo "$STAT_MSG" | cut -c ${OFFSET}- | awk '{print $1}' | grep -w '^Up' | wc -l)
+		UPNU=$(echo "$PSTAT_MSG" | cut -c ${OFFSET}- | awk '{print $1}' | grep -w '^Up' | wc -l)
 		
 		if [ "${PSNU:-0}" -ne 0 ]; then
 			if [ ${UPNU:-0} -eq 0 ]; then
