@@ -219,7 +219,7 @@ mysql_common_prepare_dirs()
     # Regardless of whether we just created the directory or it
     # already existed, check whether it is writable by the configured
     # user
-    for dir in $pid_dir $socket_dir; do
+    for dir in $pid_dir $socket_dir $OCF_RESKEY_datadir; do
         if ! $SU -s /bin/sh - $OCF_RESKEY_user -c "test -w $dir"; then
             ocf_exit_reason "Directory $dir is not writable by $OCF_RESKEY_user"
             exit $OCF_ERR_PERM;
