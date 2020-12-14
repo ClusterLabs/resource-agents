@@ -505,6 +505,9 @@ lvm_validate() {
 
 	if ! vgs --foreign ${VG} >/dev/null 2>&1 ; then
 		# stop action exits successfully if the VG cannot be accessed...
+		#
+		# TODO: Consider removing. validate() is not called for
+		# stop and probe operations.
 		if [ $__OCF_ACTION = "stop" ]; then
 			ocf_log warn "VG [${VG}] cannot be accessed, stop action exits successfully."
 			exit $OCF_SUCCESS
@@ -526,6 +529,8 @@ lvm_validate() {
 	# we should let start try to handle it, or if no PVs are listed as
 	# "unknown device" then another node may have marked a device missing
 	# where we have access to all of them and can start without issue.
+	#
+	# TODO: Consider not checking entire VG when an LV is specified.
 	case $(vgs -o attr --noheadings $VG | tr -d ' ') in
 	???p??*)
 		if ! ocf_is_true "$OCF_RESKEY_partial_activation" ; then
@@ -738,8 +743,35 @@ tagging_deactivate() {
 	return $OCF_SUCCESS
 }
 
-# TODO:
-# How can we accurately check if LVs in the given VG are all active?
+# Gets a list of device-mapper devices corresponding to $VG/$LV or to
+# $VG.
+get_dm_devs() {
+	vg_arg="$1"
+	lv_arg="$2"
+
+	if [ -n "$lv_arg" ]; then
+		select="vg_name=$vg_arg && lv_name=$lv_arg"
+	else
+		select="vg_name=$vg_arg"
+	fi
+
+	dmsetup info --noheadings --noflush -c -S "$select" \
+		| grep -v "^No devices found" \
+		| cut -d":" -f1
+}
+
+# Gets a list of device-mapper dependencies corresponding to the
+# specified device.
+get_dm_dependencies() {
+	dmsetup deps -o blkdevname "$1" \
+		| sed -e "s/.*:[[:blank:]]*\(.*\)/\1/" -e "s/, /,/g" \
+		| tr " " "\n"
+}
+
+# Checks status of managed LV or VG.
+#
+# The conversation below explains the original rationale for taking a
+# roundabout approach.
 #
 # David:
 # If we wanted to check that all LVs in the VG are active, then we would
@@ -769,23 +801,62 @@ tagging_deactivate() {
 #
 # This is AllBad but there isn't a better way that I'm aware of yet.
 lvm_status() {
-	if [ -n "${LV}" ]; then
-		# dmsetup ls? It cannot accept device name. It's
-		# too heavy to list all DM devices.
-		dm_count=$(dmsetup info --noheadings --noflush -c -S "vg_name=${VG} && lv_name=${LV}" | grep -c -v '^No devices found')
-	else
-		dm_count=$(dmsetup info --noheadings --noflush -c -S "vg_name=${VG}" | grep -c -v '^No devices found')
-	fi
+	[ -n "$LV" ] && status_vol="$VG/$LV" || status_vol="$VG"
 
-	if [ $dm_count -eq 0 ]; then
-		return $OCF_NOT_RUNNING
-	fi
+	# First ensure that there are dm mappings for the managed
+	# VG or LV.
+	dev_list=$(get_dm_devs "$VG" "$LV")
+	[ -z "$dev_list" ] && return $OCF_NOT_RUNNING
 
-	case "$OCF_CHECK_LEVEL" in
+	# Make sure the PVs are still present. If a PV is (or was)
+	# missing, `dmsetup deps -o blkdevname` lists it as
+	# ($major, $minor) instead of using a "real" device name like
+	# "sdd". So we check for commas.
+	# We still have to recover the resource even if the PV has
+	# returned, since I/O to it continues to fail.
+	#
+	# The start operation validates PVs before lvm_status() is
+	# called and thus should not need special handling.
+	#
+	# A probe should return success or hit the OCF_NOT_RUNNING above
+	# unless there's a more serious issue.
+	#
+	# TODO: Decide how this should behave when
+	# partial_activation=true, since missing PVs are allowed. What
+	# PVs do we need to check, if any? What are the criteria for
+	# success or failure? This is tricky because we can end up in a
+	# state where the VG is totally missing in `vgs` output but the
+	# monitor passes, or a state where the monitor fails due to
+	# missing dm deps even though the VG exists in `vgs` output.
+	#
+	if ! ocf_is_true "$OCF_RESKEY_partial_activation"; then
+		# All PVs must be present for $VG/$LV if lvname is set,
+		# or for $VG otherwise.
+		#
+		# TODO: Should we require all PVs to be present for the
+		# entire VG, even if lvname is set? That would better
+		# match the current partial_activation (PA) logic: if PA
+		# is unset, then all PVs in the VG must be present at
+		# resource start/validation time. On the other hand,
+		# there's no clear reason to require PVs that the LV
+		# doesn't need. PA logic may need adjustment.
+		for dev in $dev_list; do
+			if get_dm_dependencies "$dev" \
+					| grep "," >/dev/null 2>&1; then
+				msg="One or more PVs missing for $status_vol"
+				ocf_log err "$msg"
+
+				return $OCF_ERR_GENERIC
+			fi
+		done
+
+		# Found all PVs. Test I/O if appropriate.
+		case "$OCF_CHECK_LEVEL" in
 		0)
 			;;
 		10)
 			# if there are many lv in vg dir, pick the first name
+			# TODO: Use the LV if it's configured.
 			dm_name="/dev/${VG}/$(ls -1 /dev/${VG} | head -n 1)"
 
 			# Read from the device to check whether it's alive.
@@ -793,18 +864,20 @@ lvm_status() {
 					iflag=direct >/dev/null 2>&1; then
 				return $OCF_ERR_GENERIC
 			fi
-			return $OCF_SUCCESS
 			;;
 		*)
-			ocf_exit_reason "unsupported monitor level $OCF_CHECK_LEVEL"
+			msg="unsupported monitor level $OCF_CHECK_LEVEL"
+			ocf_exit_reason "$msg"
 			return $OCF_ERR_CONFIGURED
 			;;
-	esac
+		esac
+	fi
+	return $OCF_SUCCESS
 }
 
 lvm_start() {
-        if systemd_is_running ; then
-        	# Create drop-in to deactivate VG before stopping
+	if systemd_is_running ; then
+		# Create drop-in to deactivate VG before stopping
 		# storage services during shutdown/reboot.
 		after=$(systemctl show resource-agents-deps.target.d \
 			--property=After | cut -d'=' -f2)
@@ -823,14 +896,15 @@ lvm_start() {
 		if ! systemctl is-active blk-availability.service ; then
 			systemctl start blk-availability.service
 		fi
-        fi
+	fi
+
+	[ -z ${LV} ] && vol=${VG} || vol=${VG}/${LV}
 
 	if lvm_status ; then
 		ocf_log info "${vol}: is already active."
 		return $OCF_SUCCESS
 	fi
 
-	[ -z ${LV} ] && vol=${VG} || vol=${VG}/${LV}
 	ocf_log info "Activating ${vol}"
 
 	case ${VG_access_mode_num} in
@@ -866,12 +940,22 @@ lvm_start() {
 lvm_stop() {
 	[ -z ${LV} ] && vol=${VG} || vol=${VG}/${LV}
 
-	if ! lvm_status ; then
-		ocf_log info "${vol}: has already been deactivated."
-		return $OCF_SUCCESS
-	fi
+	lvm_status
 
-	ocf_log info "Deactivating ${vol}"
+	case "$?" in
+	"$OCF_NOT_RUNNING")
+		ocf_log info "$vol: has already been deactivated."
+		return $OCF_SUCCESS
+		;;
+	"$OCF_SUCCESS")
+		ocf_log info "Deactivating $vol."
+		;;
+	*)
+		msg="$vol: Unexpected error. Deactivating any remaining volumes"
+		msg="$msg and removing device-mapper entries."
+		ocf_log warn "$msg"
+		;;
+	esac
 
 	case ${VG_access_mode_num} in
 	1)
@@ -892,13 +976,36 @@ lvm_stop() {
 		;;
 	esac
 
-	if ! lvm_status ; then
-		ocf_log info "${vol}: deactivated successfully."
+	lvm_status
+
+	case "$?" in
+	"$OCF_NOT_RUNNING")
+		ocf_log info "$vol: deactivated successfully"
 		return $OCF_SUCCESS
-	else
-		ocf_exit_reason "${vol}: failed to deactivate."
+		;;
+	"$OCF_ERR_GENERIC")
+		# PVs are missing.
+		# There may still be device mappings present.
+		for i in $(get_dm_devs "$VG" "$LV"); do
+			dmsetup remove $i
+		done
+
+		if [ -z $(get_dm_devs "$VG" "$LV") ]; then
+			ocf_log info "$vol: Removed dm entries successfully."
+			return $OCF_SUCCESS
+		else
+			ocf_log err "$vol: Failed to remove dm entries."
+			return $OCF_ERR_GENERIC
+		fi
+		;;
+	"$OCF_SUCCESS")
+		ocf_exit_reason "$vol: failed to deactivate."
 		return $OCF_ERR_GENERIC
-	fi
+		;;
+	esac
+
+	ocf_exit_reason "Unexpected error in lvm_stop function."
+	return $OCF_ERR_GENERIC
 }
 
 #
