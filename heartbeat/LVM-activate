@@ -855,9 +855,13 @@ lvm_status() {
 		0)
 			;;
 		10)
-			# if there are many lv in vg dir, pick the first name
-			# TODO: Use the LV if it's configured.
-			dm_name="/dev/${VG}/$(ls -1 /dev/${VG} | head -n 1)"
+			if [ -n "$LV" ]; then
+				dm_name="/dev/$VG/$LV"
+			else
+				# If there are many LVs in the VG dir,
+				# pick the first one.
+				dm_name="/dev/$VG/$(ls -1 /dev/$VG | head -n 1)"
+			fi
 
 			# Read from the device to check whether it's alive.
 			if ! dd if="$1" of=/dev/null bs=4096 count=1 \
@@ -872,6 +876,7 @@ lvm_status() {
 			;;
 		esac
 	fi
+
 	return $OCF_SUCCESS
 }
 
