@@ -63,6 +63,9 @@ OCF_RESKEY_partial_activation_default="false"
 VG=${OCF_RESKEY_vgname}
 LV=${OCF_RESKEY_lvname}
 
+# Alias for convenient use in log messages
+[ -n "$LV" ] && VOL="$VG/$LV" || VOL="$VG"
+
 # How LVM controls access to the VG:
 #
 # 0: place-holder for any incorrect cases; To be safe, we enforce the VG
@@ -768,7 +771,8 @@ get_dm_dependencies() {
 		| tr " " "\n"
 }
 
-# Checks status of managed LV or VG.
+# Checks whether there is still a device-mapper mapping for the managed
+# volume and whether all required PVs are present.
 #
 # The conversation below explains the original rationale for taking a
 # roundabout approach.
@@ -801,8 +805,6 @@ get_dm_dependencies() {
 #
 # This is AllBad but there isn't a better way that I'm aware of yet.
 lvm_status() {
-	[ -n "$LV" ] && status_vol="$VG/$LV" || status_vol="$VG"
-
 	# First ensure that there are dm mappings for the managed
 	# VG or LV.
 	dev_list=$(get_dm_devs "$VG" "$LV")
@@ -843,9 +845,7 @@ lvm_status() {
 		for dev in $dev_list; do
 			if get_dm_dependencies "$dev" \
 					| grep "," >/dev/null 2>&1; then
-				msg="One or more PVs missing for $status_vol"
-				ocf_log err "$msg"
-
+				ocf_log err "One or more PVs missing for $VOL"
 				return $OCF_ERR_GENERIC
 			fi
 		done
@@ -903,14 +903,12 @@ lvm_start() {
 		fi
 	fi
 
-	[ -z ${LV} ] && vol=${VG} || vol=${VG}/${LV}
-
 	if lvm_status ; then
-		ocf_log info "${vol}: is already active."
+		ocf_log info "$VOL: is already active."
 		return $OCF_SUCCESS
 	fi
 
-	ocf_log info "Activating ${vol}"
+	ocf_log info "Activating $VOL"
 
 	case ${VG_access_mode_num} in
 	1)
@@ -933,30 +931,28 @@ lvm_start() {
 
 	rc=$?
 	if lvm_status ; then
-		ocf_log info "${vol}: activated successfully."
+		ocf_log info "$VOL: activated successfully."
 		return $OCF_SUCCESS
 	else
-		ocf_exit_reason "${vol}: failed to activate."
+		ocf_exit_reason "$VOL: failed to activate."
 		return $rc
 	fi
 }
 
 # Deactivate LVM volume(s)
 lvm_stop() {
-	[ -z ${LV} ] && vol=${VG} || vol=${VG}/${LV}
-
 	lvm_status
 
 	case "$?" in
 	"$OCF_NOT_RUNNING")
-		ocf_log info "$vol: has already been deactivated."
+		ocf_log info "$VOL: has already been deactivated."
 		return $OCF_SUCCESS
 		;;
 	"$OCF_SUCCESS")
-		ocf_log info "Deactivating $vol."
+		ocf_log info "Deactivating $VOL."
 		;;
 	*)
-		msg="$vol: Unexpected error. Deactivating any remaining volumes"
+		msg="$VOL: Unexpected error. Deactivating any remaining volumes"
 		msg="$msg and removing device-mapper entries."
 		ocf_log warn "$msg"
 		;;
@@ -985,7 +981,7 @@ lvm_stop() {
 
 	case "$?" in
 	"$OCF_NOT_RUNNING")
-		ocf_log info "$vol: deactivated successfully"
+		ocf_log info "$VOL: deactivated successfully"
 		return $OCF_SUCCESS
 		;;
 	"$OCF_ERR_GENERIC")
@@ -996,10 +992,10 @@ lvm_stop() {
 		done
 
 		if [ -z $(get_dm_devs "$VG" "$LV") ]; then
-			ocf_log info "$vol: Removed dm entries successfully."
+			ocf_log info "$VOL: Removed dm entries successfully."
 			return $OCF_SUCCESS
 		else
-			ocf_log err "$vol: Failed to remove dm entries."
+			ocf_log err "$VOL: Failed to remove dm entries."
 			return $OCF_ERR_GENERIC
 		fi
 		;;
