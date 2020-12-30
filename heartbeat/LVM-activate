@@ -595,8 +595,10 @@ lvm_validate() {
 }
 
 # To activate LV(s) with different "activation mode" parameters
+# Note: the LV "ACTIVATION_SKIP" flag is practical useful in the cluster
+# to avoid the auto-activation race condition.
 do_activate() {
-	do_activate_opt=$1
+	do_activate_opt="--ignoreactivationskip $1"
 
 	if ocf_is_true "$OCF_RESKEY_partial_activation" ; then
 		do_activate_opt="${do_activate_opt} --partial"
