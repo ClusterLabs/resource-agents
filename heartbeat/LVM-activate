@@ -123,7 +123,7 @@ Option: OCF_CHECK_LEVEL
 The standard monitor operation of depth 0 checks if the VG or LV is valid.
 If you want deeper tests, set OCF_CHECK_LEVEL to 10:
 
-  10: read first 4096 bytes of the underlying device (raw read)
+  10: read first 4096 bytes of one random managed LV (raw read)
 
 If there are many underlying devs in VG, it will only read one of the devs.
 This is not perfect solution for detecting underlying devices livable.
@@ -771,6 +771,18 @@ get_dm_dependencies() {
 		| tr " " "\n"
 }
 
+# Gets a random file from a directory in a POSIX-compliant manner.
+# Techniques like shuf and $RANDOM are not portable.
+# Caller should ensure that the directory exists.
+# Assumes that filenames do not contain whitespace (a reasonable
+# assumption for this agent).
+get_random_file() {
+	find "$1" -maxdepth 1 -mindepth 1 \
+		| awk 'BEGIN { srand() } \
+			{ files[NR-1] = $0 } \
+			END { print files[int(rand() * NR)] }'
+}
+
 # Checks whether there is still a device-mapper mapping for the managed
 # volume and whether all required PVs are present.
 #
@@ -856,16 +868,16 @@ lvm_status() {
 			;;
 		10)
 			if [ -n "$LV" ]; then
-				dm_name="/dev/$VG/$LV"
+				dev="/dev/$VG/$LV"
 			else
-				# If there are many LVs in the VG dir,
-				# pick the first one.
-				dm_name="/dev/$VG/$(ls -1 /dev/$VG | head -n 1)"
+				# Check a random LV
+				dev=$(get_random_file "/dev/$VG")
 			fi
 
 			# Read from the device to check whether it's alive.
 			if ! dd if="$1" of=/dev/null bs=4096 count=1 \
 					iflag=direct >/dev/null 2>&1; then
+				ocf_log err "$VOL: Read failed."
 				return $OCF_ERR_GENERIC
 			fi
 			;;
