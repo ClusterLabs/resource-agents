@@ -120,7 +120,7 @@ Option: OCF_CHECK_LEVEL
 The standard monitor operation of depth 0 checks if the VG or LV is valid.
 If you want deeper tests, set OCF_CHECK_LEVEL to 10:
 
-  10: read first 1 byte of the underlying device (raw read)
+  10: read first 4096 bytes of the underlying device (raw read)
 
 If there are many underlying devs in VG, it will only read one of the devs.
 This is not perfect solution for detecting underlying devices livable.
@@ -788,10 +788,9 @@ lvm_status() {
 			# if there are many lv in vg dir, pick the first name
 			dm_name="/dev/${VG}/$(ls -1 /dev/${VG} | head -n 1)"
 
-			# read 1 byte to check the dev is alive
-			dd if=${dm_name} of=/dev/null bs=1 count=1 >/dev/null \
-				2>&1
-			if [ $? -ne 0 ]; then
+			# Read from the device to check whether it's alive.
+			if ! dd if="$1" of=/dev/null bs=4096 count=1 \
+					iflag=direct >/dev/null 2>&1; then
 				return $OCF_ERR_GENERIC
 			fi
 			return $OCF_SUCCESS
