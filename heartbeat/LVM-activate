@@ -120,14 +120,19 @@ because some DLM lockspaces might be in use and cannot be closed automatically.
 
 Option: OCF_CHECK_LEVEL
 
-The standard monitor operation of depth 0 checks if the VG or LV is valid.
-If you want deeper tests, set OCF_CHECK_LEVEL to 10:
+The standard monitor operation (OCF_CHECK_LEVEL=0) checks if the VG or
+LV has a device-mapper mapping. For deeper tests, set OCF_CHECK_LEVEL as
+follows for the monitor operation:
 
   10: read first 4096 bytes of one random managed LV (raw read)
+  20: read first 4096 bytes of all managed LVs (raw read)
 
-If there are many underlying devs in VG, it will only read one of the devs.
-This is not perfect solution for detecting underlying devices livable.
-e.g. iscsi SAN IO timeout will return EIO, and it makes monitor failed.
+It is obviously not safe to perform a write test.
+
+These tests can provide additional confirmation that the underlying
+devices are live/accessible. This is not a perfect solution. For
+example, if an LV is spread across multiple PVs, the test may only read
+from one PV.
 
 </longdesc>
 <shortdesc lang="en">This agent activates/deactivates logical volumes.</shortdesc>
@@ -863,10 +868,14 @@ lvm_status() {
 		done
 
 		# Found all PVs. Test I/O if appropriate.
+		# TODO: Consider reading directly from PVs as determined
+		# by `dmsetup deps -o blkdevname`, instead of from
+		# dev/$VG/$LV files.
 		case "$OCF_CHECK_LEVEL" in
 		0)
 			;;
 		10)
+			# Attempts to read from one managed LV.
 			if [ -n "$LV" ]; then
 				dev="/dev/$VG/$LV"
 			else
@@ -880,6 +889,26 @@ lvm_status() {
 				ocf_log err "$VOL: Read failed."
 				return $OCF_ERR_GENERIC
 			fi
+			;;
+		20)
+			# Attempts to read from all managed LVs.
+			# When lvname is specified, this behaves the
+			# same as OCF_CHECK_LEVEL=10.
+			if [ -n "$LV" ]; then
+				dev_list="/dev/$VG/$LV"
+			else
+				dev_list=$(find "/dev/$VG" -maxdepth 1 \
+					-mindepth 1)
+			fi
+
+			for dev in $dev_list; do
+				if ! dd if="$1" of=/dev/null bs=4096 count=1 \
+						iflag=direct >/dev/null 2>&1;
+				then
+					ocf_log err "$VOL: Read failed."
+					return $OCF_ERR_GENERIC
+				fi
+			done
 			;;
 		*)
 			msg="unsupported monitor level $OCF_CHECK_LEVEL"
