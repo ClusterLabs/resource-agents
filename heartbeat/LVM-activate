@@ -286,7 +286,7 @@ check_tags()
 
 strip_tags()
 {
-	for tag in $(vgs --noheadings -o tags $OCF_RESKEY_volgrpname | sed s/","/" "/g); do
+	for tag in $(vgs --noheadings -o tags "$VG" | sed s/","/" "/g); do
 		ocf_log info "Stripping tag, $tag"
 
 		# LVM version 2.02.98 allows changing tags if PARTIAL
