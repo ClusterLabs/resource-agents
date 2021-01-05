@@ -606,11 +606,25 @@ do_activate() {
 
 	# Only activate the specific LV if it's given
 	if [ -n "$LV" ]; then
+		lv_attr_10=$(lvs --foreign --noheadings -olv_attr $VG/$LV|awk '{print $1}'|cut -c10)
+		if ! [ "$lv_attr_10" = "k" ]; then
+			ocf_log info "set ACTIVATION_SKIP flag to /dev/$VG/$LV"
+			ocf_run lvchange -ky $VG/$LV || return $OCF_ERR_GENERIC
+		fi
+
 		ocf_run lvchange $do_activate_opt ${VG}/${LV}
 		if [ $? -ne $OCF_SUCCESS ]; then
 			return $OCF_ERR_GENERIC
 		fi
 	else
+		lv_attr_10=$(lvs --foreign --noheadings -olv_attr $VG 2>/dev/null|awk '{print $1}'|cut -c10)
+		count_k=$(echo $lv_attr_10|sed 's/[^k]//g' | awk '{ print length }')
+		lv_count=$(vgs --foreign -o lv_count --noheadings ${VG} 2>/dev/null|awk '{print $1}')
+		if ! [ "$count_k" = "$lv_count" ]; then
+			ocf_log info "set ACTIVATION_SKIP flag to all LV(s) under /dev/$VG/"
+			ocf_run lvchange -ky $VG || return $OCF_ERR_GENERIC
+		fi
+
 		ocf_run lvchange $do_activate_opt ${VG}
 		if [ $? -ne $OCF_SUCCESS ]; then
 			return $OCF_ERR_GENERIC
