@@ -410,7 +410,7 @@ Default: disabled
 The following commands must follow a B<virtual> entry and must be indented
 with a minimum of 4 spaces or one tab.
 
-B<real => I<ip_address|hostname[-E<gt>ip_address|hostname][:portnumber|servicename>] B<gate> | B<masq> | B<ipip> [I<weight>] [B<">I<request>B<", ">I<receive>B<">]
+B<real => I<ip_address|hostname[-E<gt>ip_address|hostname][:portnumber|servicename>] B<gate> | B<masq> | B<ipip> [I<weight>] [B<">I<request>B<", ">I<receive>B<">] [ "<l:l-threshold>" ] [ "<u:u-threshold>" ]
 
 Defines a real service by IP-address (or hostname) and port (or
 servicename). If the port is omitted then a 0 will be used, this is
@@ -420,12 +420,14 @@ given, in which case each IPv4 address in the range will be treated as a real
 server using the given port. The second argument defines the forwarding
 method, must be B<gate>, B<ipip> or B<masq>.  The third argument is
 optional and defines the weight for that real server. If omitted then a
-weight of 1 will be used. The last two arguments are also optional. They
+weight of 1 will be used. The next two arguments are also optional. They
 define a request-receive pair to be used to check if a server is alive.
 They override the request-receive pair in the virtual server section. These
 two strings must be quoted. If the request string starts with I<http://...>
 the IP-address and port of the real server is overridden, otherwise the
 IP-address and port of the real server is used.
+The last two optionals arguments set lower and upper connnection thresholds 
+for real servers using -y and -x ipvsadm argument.
 
 =head2
 For TCP and UDP (non fwmark) virtual services, unless the forwarding method
@@ -2117,7 +2119,7 @@ sub add_real_server_range
 #      ip: IP address of real server
 #      port: Port of real server
 #      flags: Flags for real server. Should be of the form
-#             gate|masq|ipip [<weight>] [">I<request>", "<receive>"]
+#             gate|masq|ipip [<weight>] [">I<request>", "<receive>" ] [ "<l:l-threshold>" ] [ "<u:u-threshold>" ]
 # post: real server is added to virtual server
 # return: none
 #         Debugging message will be reported and programme will exit
@@ -2156,6 +2158,17 @@ sub add_real_server
 		}
 		$new_rsrv->{"receive"} = $2;
 		$flags = $3;
+	}
+	#threshold 
+	#"<l:l-threshold>"
+	if(defined($flags) and $flags =~ /\s+l:(\d+)(.*)/) {
+		$new_rsrv->{"l-threshold"} = $1;
+		$flags = $2;
+	}
+	#"<u:u-threshold>"
+	if(defined($flags) and $flags =~ /\s+u:(\d+)(.*)/) {
+		$new_rsrv->{"u-threshold"} = $1;
+		$flags = $2;
 	}
 
 	if (defined($flags) and $flags =~/\S/) {
@@ -2231,6 +2244,7 @@ sub parse_fallback
 	}
 
 	return({"server"=>$server, "port"=>$port, "forward"=>$fwd,
+		"l-threshold"=>0,"u-threshold"=>0,
 		"weight"=>1});
 }
 
@@ -2511,8 +2525,75 @@ sub ld_read_ipvsadm
 	}
 	close($fh);
 
+	ld_read_ipvsadm_thresholds(\%oldsrv);
 	return(\%oldsrv);
 }
+
+# Parses the output of "ipvsadm -L -n --thresholds" and adds thresholds value to
+# real servers in the structure is being returned from ld_read_ipvsadm (merely derived from it)
+# this is needed because ipvsadm -Ln --thresholds replace Forward column
+# {
+#   (vip_address:vport|fwmark) protocol => {
+#     "scheduler" => scheduler,
+#     "persistent" => timeout,     # May be omitted
+#     "netmask" => netmask,        # May be omitted
+#     "real" => {
+#       rip_address:rport => {
+#         "forward" => forwarding_mechanism,
+#         "weight"  => weight
+#         "l-threshold"  => l-threshold
+#         "u-threshold"  => u-threshold
+#       },
+#       ...
+#     }
+#   },
+#   ...
+# }
+
+sub ld_read_ipvsadm_thresholds
+{
+	my ($oldsrv) = @_;
+        my $real_service;
+        my $buf = [];
+        my $fh;
+        my $line;
+
+	unless(open($fh, "$IPVSADM -L -n --thresholds 2>&1|")){
+		&ld_exit(1, "Could not run $IPVSADM -L -n: $!");
+	}
+	# Skip the first three lines
+	$line = ld_readline($fh, $buf);
+	$line = ld_readline($fh, $buf);
+	$line = ld_readline($fh, $buf);
+	while (1) {
+		$line = ld_readline($fh, $buf);
+		if (not defined $line) {
+			last;
+		}
+		#here we just want to know the real service
+		if ($line =~ /^(\w+)\s+(\d+\.\d+\.\d+\.\d+\:\d+|\[[0-9A-Fa-f:]+\]:\d+|\d+)( IPv6)?\s+(\w+)\s+persistent\s+(\d+)\s+mask\s+(.*)/) {
+			$real_service = &gen_real_service_str($2, $1, $3);
+		} elsif ($line =~ /^(\w+)\s+(\d+\.\d+\.\d+\.\d+\:\d+|\[[0-9A-Fa-f:]+\]:\d+|\d+)( IPv6)?\s+(\w+)\s+persistent\s+(\d+)/) {
+			$real_service = &gen_real_service_str($2, $1, $3);
+		} elsif ($line =~ /^(\w+)\s+(\d+\.\d+\.\d+\.\d+\:\d+|\[[0-9A-Fa-f:]+\]:\d+|\d+)( IPv6)?\s+(\w+)/) {
+			$real_service = &gen_real_service_str($2, $1, $3);
+		} elsif ($line =~ /^  ->\s+(\d+\.\d+\.\d+\.\d+\:\d+|\[[0-9A-Fa-f:]+\]:\d+)\s+(\d+)\s+(\d+)\s+(\d+)/) {
+			if (not defined( $real_service)) {
+				&ld_debug(2, "Real server read from ipvsadm " .
+					  "doesn't seem to be inside a " .
+					  "virtual service: \"$line\"\n");
+				next;
+			}
+			$oldsrv->{"$real_service"}->{"real"}->{"$1"}->{"u-threshold"}=$2;
+			$oldsrv->{"$real_service"}->{"real"}->{"$1"}->{"l-threshold"}=$3;
+		} else {
+			&ld_debug(2, "Unknown line read from ipvsadm: " .
+				  "\"$line\"\n");
+			next;
+		}
+	}
+}
+#threshold
 
 sub gen_real_service_str
 {
@@ -4009,8 +4090,10 @@ sub _remove_service
 # return: none
 sub _restore_service
 {
-	my ($v, $rservice, $rforw, $rwght, $tag) = (@_);
+	my ($v, $rservice, $rforw, $rwght, $tag, $lthreshold, $uthreshold) = (@_);
 
+	$lthreshold=0 unless (defined $lthreshold);
+	$uthreshold=0 unless (defined $uthreshold);
 	my $oldsrv;
 	my $ov;
 	my $or;
@@ -4018,7 +4101,8 @@ sub _restore_service
 	my $log_args;
 
 	$ipvsadm_args = "$$v{proto} " . &get_virtual_option($v)
-			. " -r $rservice $rforw -w $rwght";
+			. " -x $uthreshold -y $lthreshold"  #threshold
+			. " -r $rservice $rforw -w $rwght"; 
 	$log_args = "$tag server: $rservice "
 		    . "(" #. scalar(%{$v->{real_status}})
 		    .  &get_virtual($v) . ")";
@@ -4032,6 +4116,8 @@ sub _restore_service
 	}
 	if(defined($or)){
 		unless($or->{"weight"} eq $rwght and
+			$or->{"u-threshold"} eq $uthreshold and #threshold
+			$or->{"l-threshold"} eq $lthreshold and #threshold
 			get_forward_flag($or->{"forward"}) eq $rforw){
 			&system_wrapper("$IPVSADM -e $ipvsadm_args");
 			&ld_log("Restored $log_args (Weight set to $rwght)");
@@ -4156,7 +4242,8 @@ sub _service_up
 	}
 
 	&_restore_service($v, $r->{server} . ":" . $r->{port},
-			  $r->{forw}, $r->{weight}, "real");
+			  $r->{forw}, $r->{weight}, "real",
+			  $r->{'l-threshold'},$r->{'u-threshold'} ); #threshold
 	&fallback_off($v);
 }
 
