@@ -339,9 +339,17 @@ start)
 stop)
 	verify_all || exit $OCF_ERR_ARGS
 
-	ocf_log info "Removing export: ${OCF_RESKEY_target}:${OCF_RESKEY_path}"
-	exportfs -u "${OCF_RESKEY_target}:${OCF_RESKEY_path}"
+	$0 status
 	rv=$?
+	if [ $rv -eq 0 ]; then
+	    ocf_log info "Removing export: ${OCF_RESKEY_target}:${OCF_RESKEY_path}"
+	    exportfs -u "${OCF_RESKEY_target}:${OCF_RESKEY_path}"
+	    rv=$?
+	else
+	    # If status check fails then there is no matching nfs export for
+	    # this resource.
+	    rv=0
+	fi
 	;;
 
 status|monitor)
