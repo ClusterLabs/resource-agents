@@ -103,10 +103,10 @@ anything_start() {
 		if [ -n "$logfile" -a -n "$errlogfile" ]
 		then
 			# We have logfile and errlogfile, so redirect STDOUT und STDERR to different files
-			cmd="su - $user -c \"cd $workdir; nohup $binfile $cmdline_options >> $logfile 2>> $errlogfile & \"'echo \$!' "
+			cmd="su $user -c \"cd $workdir; nohup $binfile $cmdline_options >> $logfile 2>> $errlogfile & \"'echo \$!' "
 		else
 			# We only have logfile so redirect STDOUT and STDERR to the same file
-			cmd="su - $user -c \"cd $workdir; nohup $binfile $cmdline_options >> $logfile 2>&1 & \"'echo \$!' "
+			cmd="su $user -c \"cd $workdir; nohup $binfile $cmdline_options >> $logfile 2>&1 & \"'echo \$!' "
 		fi
 		ocf_log debug "Starting $process: $cmd"
 		# Execute the command as created above
@@ -206,7 +206,7 @@ user="$OCF_RESKEY_user"
 [ -z "$user" ] && user=root
 
 anything_validate() {
-	if ! su - $user -c "test -x $binfile"
+	if ! su $user -c "test -x $binfile"
 	then
 		ocf_log err "binfile $binfile does not exist or is not executable by $user."
 		exit $OCF_ERR_INSTALLED
