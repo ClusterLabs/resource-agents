@@ -58,6 +58,7 @@ OCF_RESKEY_pidfile_default="${HA_VARRUN}/anything_${OCF_RESOURCE_INSTANCE}.pid"
 OCF_RESKEY_logfile_default="/dev/null"
 OCF_RESKEY_user_default="root"
 OCF_RESKEY_stop_timeout_default=""
+OCF_RESKEY_use_environment_default="yes"
 
 : ${OCF_RESKEY_binfile=${OCF_RESKEY_binfile_default}}
 : ${OCF_RESKEY_workdir=${OCF_RESKEY_workdir_default}}
@@ -65,6 +66,7 @@ OCF_RESKEY_stop_timeout_default=""
 : ${OCF_RESKEY_logfile=${OCF_RESKEY_logfile_default}}
 : ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
 : ${OCF_RESKEY_stop_timeout=${OCF_RESKEY_stop_timeout_default}}
+: ${OCF_RESKEY_use_environment=${OCF_RESKEY_use_environment_default}}
 
 getpid() {
         grep -o '[0-9]*' $1
@@ -103,10 +105,10 @@ anything_start() {
 		if [ -n "$logfile" -a -n "$errlogfile" ]
 		then
 			# We have logfile and errlogfile, so redirect STDOUT und STDERR to different files
-			cmd="su - $user -c \"cd $workdir; nohup $binfile $cmdline_options >> $logfile 2>> $errlogfile & \"'echo \$!' "
+			cmd="$cmd $user -c \"cd $workdir; nohup $binfile $cmdline_options >> $logfile 2>> $errlogfile & \"'echo \$!' "
 		else
 			# We only have logfile so redirect STDOUT and STDERR to the same file
-			cmd="su - $user -c \"cd $workdir; nohup $binfile $cmdline_options >> $logfile 2>&1 & \"'echo \$!' "
+			cmd="$cmd $user -c \"cd $workdir; nohup $binfile $cmdline_options >> $logfile 2>&1 & \"'echo \$!' "
 		fi
 		ocf_log debug "Starting $process: $cmd"
 		# Execute the command as created above
@@ -206,7 +208,7 @@ user="$OCF_RESKEY_user"
 [ -z "$user" ] && user=root
 
 anything_validate() {
-	if ! su - $user -c "test -x $binfile"
+	if ! eval "$cmd $user -c \"test -x $binfile\""
 	then
 		ocf_log err "binfile $binfile does not exist or is not executable by $user."
 		exit $OCF_ERR_INSTALLED
@@ -308,6 +310,13 @@ before sending kill -SIGKILL. Defaults to 2/3 of the stop operation timeout.
 <shortdesc lang="en">Seconds to wait after having sent SIGTERM before sending SIGKILL in stop operation</shortdesc>
 <content type="string" default="${OCF_RESKEY_stop_timeout_default}"/>
 </parameter>
+<parameter name="use_environment">
+<longdesc lang="en">
+Start the command with the user environment.
+</longdesc>
+<shortdesc lang="en">Start the command with the user environment.</shortdesc>
+<content type="string" default="${OCF_RESKEY_use_environment_default}"/>
+</parameter>
 </parameters>
 <actions>
 <action name="start"   timeout="20s" />
@@ -320,6 +329,12 @@ before sending kill -SIGKILL. Defaults to 2/3 of the stop operation timeout.
 END
 exit 0
 }
+
+if [ "$use_environment" = "yes" ]; then
+	cmd="su -"
+else
+	cmd="su"
+fi
 
 case "$1" in
 	meta-data|metadata|meta_data)
