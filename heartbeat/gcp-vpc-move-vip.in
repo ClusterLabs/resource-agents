@@ -75,6 +75,16 @@ METADATA = \
       <shortdesc lang="en">Host list</shortdesc>
       <content type="string" default="" />
     </parameter>
+    <parameter name="project" unique="0" required="0">
+      <longdesc lang="en">
+        Project ID of the instance. It can be useful to set this
+        attribute if the instance is in a shared service project.
+        Otherwise, the agent should be able to determine the project ID
+        automatically.
+      </longdesc>
+      <shortdesc lang="en">Project ID</shortdesc>
+      <content type="string" default="default" />
+    </parameter>
     <parameter name="stackdriver_logging" unique="0" required="0">
       <longdesc lang="en">If enabled (set to true), IP failover logs will be posted to stackdriver logging</longdesc>
       <shortdesc lang="en">Stackdriver-logging support</shortdesc>
@@ -267,7 +277,8 @@ def get_instances_list(project, exclude):
 def gcp_alias_start(alias):
   my_aliases = get_localhost_aliases()
   my_zone = get_metadata('instance/zone').split('/')[-1]
-  project = get_metadata('project/project-id')
+  project = os.environ.get(
+        'OCF_RESKEY_project', get_metadata('project/project-id'))
 
   if alias in my_aliases:
     # TODO: Do we need to check alias_range_name?
@@ -315,7 +326,8 @@ def gcp_alias_start(alias):
 def gcp_alias_stop(alias):
   my_aliases = get_localhost_aliases()
   my_zone = get_metadata('instance/zone').split('/')[-1]
-  project = get_metadata('project/project-id')
+  project = os.environ.get(
+        'OCF_RESKEY_project', get_metadata('project/project-id'))
 
   if alias in my_aliases:
     logger.info('Removing %s from %s' % (alias, THIS_VM))

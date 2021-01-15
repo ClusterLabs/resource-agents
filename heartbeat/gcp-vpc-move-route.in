@@ -106,6 +106,16 @@ Name of the VPC network
 <content type="string" default="default" />
 </parameter>
 
+<parameter name="project">
+<longdesc lang="en">
+Project ID of the instance. It can be useful to set this attribute if
+the instance is in a shared service project. Otherwise, the agent should
+be able to determine the project ID automatically.
+</longdesc>
+<shortdesc lang="en">Project ID</shortdesc>
+<content type="string" default="default" />
+</parameter>
+
 <parameter name="interface">
 <longdesc lang="en">
 Name of the network interface
@@ -215,7 +225,8 @@ def validate(ctx):
   try:
     ctx.instance = get_metadata('instance/name')
     ctx.zone = get_metadata('instance/zone').split('/')[-1]
-    ctx.project = get_metadata('project/project-id')
+    ctx.project = os.environ.get(
+        'OCF_RESKEY_project', get_metadata('project/project-id'))
   except Exception as e:
     logger.error(
         'Instance information not found. Is this a GCE instance ?: %s', str(e))
