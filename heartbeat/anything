@@ -110,7 +110,7 @@ anything_start() {
 		fi
 		ocf_log debug "Starting $process: $cmd"
 		# Execute the command as created above
-		eval $cmd > $pidfile
+		eval $cmd | tail -n 1 > $pidfile
 		if anything_status
 		then
 			ocf_log debug "$process: $cmd started successfully, calling monitor"
