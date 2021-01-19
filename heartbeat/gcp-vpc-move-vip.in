@@ -263,8 +263,14 @@ def get_instances_list(project, exclude):
   hostlist = []
   request = CONN.instances().aggregatedList(project=project)
   while request is not None:
-    response = request.execute()
-    zones = response.get('items', {})
+    try:
+      response = request.execute()
+      zones = response.get('items', {})
+    except googleapiclient.errors.HttpError as e:
+      if e.resp.status == 404:
+        logger.debug('get_instances_list(): no instances found')
+        return ''
+
     for zone in zones.values():
       for inst in zone.get('instances', []):
         if inst['name'] != exclude:
@@ -303,9 +309,13 @@ def gcp_alias_start(alias):
       break
 
   # Add alias IP range to localhost
-  add_alias(
-      project, my_zone, THIS_VM, alias,
-      os.environ.get('OCF_RESKEY_alias_range_name'))
+  try:
+    add_alias(
+        project, my_zone, THIS_VM, alias,
+        os.environ.get('OCF_RESKEY_alias_range_name'))
+  except googleapiclient.errors.HttpError as e:
+    if e.resp.status == 404:
+      sys.exit(OCF_ERR_CONFIGURED)
 
   # Verify that the IP range has been added
   my_aliases = get_localhost_aliases()
