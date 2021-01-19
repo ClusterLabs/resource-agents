@@ -252,8 +252,19 @@ def validate(ctx):
 def check_conflicting_routes(ctx):
   fl = '(destRange = "%s*") AND (network = "%s") AND (name != "%s")' % (
       ctx.ip, ctx.vpc_network_url, ctx.route_name)
-  request = ctx.conn.routes().list(project=ctx.project, filter=fl)
-  response = request.execute()
+  try:
+    request = ctx.conn.routes().list(project=ctx.project, filter=fl)
+    response = request.execute()
+  except googleapiclient.errors.HttpError as e:
+    if e.resp.status == 404:
+      logger.error('VPC network not found')
+      if 'stop' in sys.argv[1]:
+        sys.exit(OCF_SUCCESS)
+      else:
+        sys.exit(OCF_ERR_CONFIGURED)
+    else:
+      raise
+
   route_list = response.get('items', None)
   if route_list:
     logger.error(
@@ -353,16 +364,16 @@ def route_monitor(ctx):
   logger.info('GCP route monitor: checking route table')
 
   # Ensure that there is no route that we are not aware of that is also handling our IP
-  check_conflicting_routes
+  check_conflicting_routes(ctx)
 
   try:
     request = ctx.conn.routes().get(project=ctx.project, route=ctx.route_name)
     response = request.execute()
   except googleapiclient.errors.HttpError as e:
-    if 'Insufficient Permission' in e.content:
-      return OCF_ERR_PERM
-    elif e.resp.status == 404:
+    if e.resp.status == 404:
       return OCF_NOT_RUNNING
+    elif 'Insufficient Permission' in e.content:
+      return OCF_ERR_PERM
     else:
       raise
 
