@@ -465,9 +465,20 @@ unbind_tree ()
 		sleep 1
 		i=$((i + 1))
 	done
-	if is_bound /var/lib/nfs; then
-		umount /var/lib/nfs
+
+	if mount | grep -q " on $OCF_RESKEY_rpcpipefs_dir "; then
+		ocf_log err "Failed to unmount $OCF_RESKEY_rpcpipefs_dir"
+		return $OCF_ERR_GENERIC
 	fi
+
+	if is_bound /var/lib/nfs; then
+		if ! umount /var/lib/nfs; then
+			ocf_log err "Failed to unmount /var/lib/nfs"
+			return $OCF_ERR_GENERIC
+		fi
+	fi
+
+	return $OCF_SUCCESS
 }
 
 binary_status()
@@ -836,8 +847,14 @@ nfsserver_stop ()
 	esac
 
 	unbind_tree
-	ocf_log info "NFS server stopped"
-	return 0
+	rc=$?
+	if [ "$rc" -ne $OCF_SUCCESS ]; then
+		ocf_exit_reason "Failed to unmount a bind mount"
+	else
+		ocf_log info "NFS server stopped"
+	fi
+
+	return $rc
 }
 
 nfsserver_validate ()
