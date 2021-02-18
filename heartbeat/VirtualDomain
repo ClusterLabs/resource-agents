@@ -421,14 +421,14 @@ pid_status()
 	case "$emulator" in
 		qemu-kvm|qemu-dm|qemu-system-*)
 			rc=$OCF_NOT_RUNNING
-			ps awx | grep -E "[q]emu-(kvm|dm|system).*-name $DOMAIN_NAME " > /dev/null 2>&1
+			ps awx | grep -E "[q]emu-(kvm|dm|system).*-name ($DOMAIN_NAME|[^ ]*guest=$DOMAIN_NAME(,[^ ]*)?) " > /dev/null 2>&1
 			if [ $? -eq 0 ]; then
 				rc=$OCF_SUCCESS
 			fi
 			;;
 		libvirt_lxc)
 			rc=$OCF_NOT_RUNNING
-			ps awx | grep -E "[l]ibvirt_lxc.*-name $DOMAIN_NAME " > /dev/null 2>&1
+			ps awx | grep -E "[l]ibvirt_lxc.*-name ($DOMAIN_NAME|[^ ]*guest=$DOMAIN_NAME(,[^ ]*)?) " > /dev/null 2>&1
 			if [ $? -eq 0 ]; then
 				rc=$OCF_SUCCESS
 			fi
