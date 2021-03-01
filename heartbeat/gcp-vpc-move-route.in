@@ -98,7 +98,7 @@ subnet ranges
 <content type="string" />
 </parameter>
 
-<parameter name="vpc_network" required="1">
+<parameter name="vpc_network" required="0">
 <longdesc lang="en">
 Name of the VPC network
 </longdesc>
