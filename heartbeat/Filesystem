@@ -68,21 +68,21 @@ OCF_RESKEY_fstype_default=""
 OCF_RESKEY_options_default=""
 OCF_RESKEY_statusfile_prefix_default="${DFLT_STATUSDIR}"
 OCF_RESKEY_run_fsck_default="auto"
-
 OCF_RESKEY_fast_stop_default="no"
+OCF_RESKEY_force_clones_default="false"
+OCF_RESKEY_force_unmount_default="true"
 
-# yes for RHEL/CentOS versions less than 9, otherwise no
+# RHEL9+ specific defaults
 if is_redhat_based; then
 	get_os_ver
 	ocf_version_cmp "$VER" "9.0" 2>/dev/null
 
 	if [ "$?" -eq 0 ]; then
 		OCF_RESKEY_fast_stop_default="yes"
+		OCF_RESKEY_force_unmount_default="safe"
 	fi
 fi
 
-OCF_RESKEY_force_clones_default="false"
-OCF_RESKEY_force_unmount_default="true"
 
 : ${OCF_RESKEY_device=${OCF_RESKEY_device_default}}
 : ${OCF_RESKEY_directory=${OCF_RESKEY_directory_default}}
