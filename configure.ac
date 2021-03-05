@@ -413,9 +413,7 @@ dnl Variables needed for substitution
 
 AC_CHECK_HEADERS(heartbeat/glue_config.h)
 
-if test "$ac_cv_header_heartbeat_glue_config_h" = "yes"; then
-  OCF_ROOT_DIR=`extract_header_define heartbeat/glue_config.h OCF_ROOT_DIR`
-else
+if test "$ac_cv_header_heartbeat_glue_config_h" != "yes"; then
   enable_libnet=no
 fi
 
