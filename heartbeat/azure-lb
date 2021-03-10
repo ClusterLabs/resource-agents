@@ -119,7 +119,7 @@ lb_start() {
 	if ! lb_monitor; then
 		ocf_log debug "Starting $process: $cmd"
 		# Execute the command as created above
-		$cmd &
+		$cmd >/dev/null 2>&1 &
 		echo $! > $pidfile
 		if lb_monitor; then
 			ocf_log debug "$process: $cmd started successfully, calling monitor"
