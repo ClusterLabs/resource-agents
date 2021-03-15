@@ -72,15 +72,19 @@ OCF_RESKEY_fast_stop_default="no"
 OCF_RESKEY_force_clones_default="false"
 OCF_RESKEY_force_unmount_default="true"
 
-# RHEL9+ specific defaults
+# RHEL specific defaults
 if is_redhat_based; then
 	get_os_ver
 	ocf_version_cmp "$VER" "9.0" 2>/dev/null
 
-	if [ "$?" -eq 0 ]; then
-		OCF_RESKEY_fast_stop_default="yes"
-		OCF_RESKEY_force_unmount_default="safe"
-	fi
+	case "$?" in
+		# RHEL >= 9
+		1|2)
+			OCF_RESKEY_force_unmount_default="safe";;
+		# RHEL < 9 and fallback if ocf_version_cmp() fails
+		*)
+			OCF_RESKEY_fast_stop_default="yes";;
+	esac
 fi
 
 
