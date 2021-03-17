@@ -172,7 +172,7 @@ awsvip_monitor() {
             --instance-id "${INSTANCE_ID}" \
             --query 'Reservations[].Instances[].NetworkInterfaces[].PrivateIpAddresses[].PrivateIpAddress[]' \
             --output text | \
-            grep -q "${SECONDARY_PRIVATE_IP}"
+            grep -qE "(^|\s)${SECONDARY_PRIVATE_IP}(\s|$)"
     RET=$?
 
     if [ $RET -ne 0 ]; then
