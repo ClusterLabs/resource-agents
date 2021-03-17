@@ -1,3 +1,23 @@
+* Wed Mar 17 2021 resource-agents contributors
+- release candidate 4.8.0 rc1
+- Filesystem: change force_unmount default to safe for RHEL9+
+- Route: return OCF_NOT_RUNNING status if iface doesn't exist.
+- VirtualDomain: fix pid_status() on EL8 (and other distros with newer versions of qemu) (#1614)
+- anything: only write PID to pidfile (when sh prints message(s))
+- azure-lb: redirect stdout and stderr to /dev/null to avoid nc dying with EPIPE error
+- configure: dont use OCF_ROOT_DIR from glue.h
+- docker-compose: use -f $YML in all calls to avoid issues when not using default YML file
+- gcp-vpc-move-route, gcp-vpc-move-vip: add project ID parameter
+- gcp-vpc-move-route: fix stop-action when route stopped, and fix check_conflicting_routes()
+- gcp-vpc-move-route: make "vpc_network" optional
+- gcp-vpc-move-vip: correctly return error when no instances are returned
+- ldirectord: added real servers threshold settings
+- mysql-common: check datadir permissions
+- nfsclient: fix stop-action when export not present
+- nfsserver: error-check unbind_tree
+- pgsql: make wal receiver check compatible with PostgreSQL >= 11
+- spec: add BuildRequires for google lib
+
 * Wed Dec  9 2020 resource-agents contributors
 - stable release 4.7.0
 - ocf-shellfuncs: make ocf_is_bash4() detect Bash v4 or greater (which it was supposed to according to the comments)
