@@ -244,7 +244,7 @@ AWSCLI="${OCF_RESKEY_awscli}"
 ELASTIC_IP="${OCF_RESKEY_elastic_ip}"
 ALLOCATION_ID="${OCF_RESKEY_allocation_id}"
 PRIVATE_IP_ADDRESS="${OCF_RESKEY_private_ip_address}"
-TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+TOKEN=$(curl -sX PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id -H "X-aws-ec2-metadata-token: $TOKEN")
 
 case $__OCF_ACTION in
