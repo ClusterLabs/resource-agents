@@ -347,7 +347,7 @@ r53_monitor() {
 _get_ip() {
 	case $OCF_RESKEY_ip in
 		local|public)
-			TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+			TOKEN=$(curl -sX PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 			IPADDRESS=$(curl -s http://169.254.169.254/latest/meta-data/${OCF_RESKEY_ip}-ipv4 -H "X-aws-ec2-metadata-token: $TOKEN");;
 		*.*.*.*)
 			IPADDRESS="${OCF_RESKEY_ip}";;
