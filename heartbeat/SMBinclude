@@ -427,6 +427,7 @@ usage: $0 {start|stop|status|monitor|validate-all|meta-data}
 
 Expects to have a fully populated OCF RA-compliant environment set.
 END
+	return $OCF_SUCCESS
 }
 
 smbinclude_start() {
@@ -458,12 +459,15 @@ smbinclude_state() {
         RES=$(smbcontrol smbd ping > /dev/null 2>&1)
         if [ $? -eq 0 ];then
                 if [ $(testparm -s 2>/dev/null| egrep -c \\[$OCF_RESKEY_share\\]) -eq 1 ];then
-                        echo "ok"
+                        ocf_log info "Samba share $OCF_RESKEY_share is active"
+			return $OCF_SUCCESS
                 else
-                        echo "nok"
+                        ocf_log info "Samba share $OCF_RESKEY_share is not active"
+			return $OCF_NOT_RUNNING
                 fi
         else
-                 echo "nok"
+                 ocf_log info "Samba share $OCF_RESKEY_share is not active"
+		 return $OCF_NOT_RUNNING
         fi
 }
 
@@ -473,7 +477,6 @@ case $__OCF_ACTION in
 meta-data)      meta_data
                 ;;
 usage|help)     smbinclude_usage
-                exit $OCF_SUCCESS
                 ;;
 esac
 
@@ -483,21 +486,15 @@ start)          smbinclude_start
                 ;;
 stop)           smbinclude_stop
                 ;;
-status)         smbinclude_status=`smbinclude_state`
-                if [ $smbinclude_status = "ok" ]; then
-                        echo "running"
-                        exit $OCF_SUCCESS
-                else
-                        echo "stopped"
-                        exit $OCF_NOT_RUNNING
-                fi
+status)         smbinclude_state
                 ;;
 monitor)        smbinclude_monitor
                 ;;
 validate-all)   ;;
 *)              smbinclude_usage
-                exit $OCF_ERR_UNIMPLEMENTED
+	        exit $OCF_ERR_UNIMPLEMENTED
                 ;;
 esac
+exit $?
 # vi:sw=4:ts=8:
 
