@@ -47,8 +47,7 @@
 #         OCF_RESKEY_valid_users
 #         OCF_RESKEY_force_user
 #         OCF_RESKEY_force_group
-#         OCF_RESKEY_extraopt1
-#         OCF_RESKEY_extraopt2
+#         OCF_RESKEY_extraopt
 #         OCF_RESKEY_extraopt_list
 #
 #######################################################################
@@ -283,6 +282,7 @@ This is useful for sharing files by ensuring that all access to files on service
 <parameter name="extraopt" unique="0" required="0">
 <longdesc lang="en">
 This option can be used to define an additional key = value pair.
+In this parameter also a semicolon could be placed.
 Need to set e.g somthinspecial = value
 </longdesc>
 <shortdesc lang="en">additional key value pair</shortdesc>
@@ -292,10 +292,10 @@ Need to set e.g somthinspecial = value
 <parameter name="extraopt_list" unique="0" required="0">
 <longdesc lang="en">
 This option can be used to define multiple additional key = value pairs.
-Define the list of element semcolon separated.
-e.g somthinspecial = value;one more = value2
+Define the list of element semicolon separated.
+e.g somethingspecial = value;one more = value2
 </longdesc>
-<shortdesc lang="en">additional key value pairs as list</shortdesc>
+<shortdesc lang="en">additional key value pairs as semicolon separated list</shortdesc>
 <content type="string" default="${OCF_RESKEY_extraopt_list_default}" />
 </parameter>
 
