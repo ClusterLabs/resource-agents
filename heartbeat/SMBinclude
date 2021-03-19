@@ -49,7 +49,7 @@
 #         OCF_RESKEY_force_group
 #         OCF_RESKEY_extraopt1
 #         OCF_RESKEY_extraopt2
-#         OCF_RESKEY_extraopt3
+#         OCF_RESKEY_extraopt_list
 #
 #######################################################################
 
@@ -108,9 +108,8 @@ OCF_RESKEY_printable_default=""
 OCF_RESKEY_valid_users_default=""
 OCF_RESKEY_force_user_default=""
 OCF_RESKEY_force_group_default=""
-OCF_RESKEY_extraopt1_default=""
-OCF_RESKEY_extraopt2_default=""
-OCF_RESKEY_extraopt3_default=""
+OCF_RESKEY_extraopt_default=""
+OCF_RESKEY_extraopt_list_default=""
 
 
 : ${OCF_RESKEY_outfile=${OCF_RESKEY_outfile_default}}
@@ -129,9 +128,8 @@ OCF_RESKEY_extraopt3_default=""
 : ${OCF_RESKEY_valid_users=${OCF_RESKEY_valid_users_default}}
 : ${OCF_RESKEY_force_user=${OCF_RESKEY_force_user_default}}
 : ${OCF_RESKEY_force_group=${OCF_RESKEY_force_group_default}}
-: ${OCF_RESKEY_extraopt1=${OCF_RESKEY_extraopt1_default}}
-: ${OCF_RESKEY_extraopt2=${OCF_RESKEY_extraopt2_default}}
-: ${OCF_RESKEY_extraopt3=${OCF_RESKEY_extraopt3_default}}
+: ${OCF_RESKEY_extraopt=${OCF_RESKEY_extraopt_default}}
+: ${OCF_RESKEY_extraopt_list=${OCF_RESKEY_extraopt_list_default}}
 
 #######################################################################
 
@@ -282,31 +280,23 @@ This is useful for sharing files by ensuring that all access to files on service
 <content type="string" default="${OCF_RESKEY_force_group_default}" />
 </parameter>
 
-<parameter name="extraopt1" unique="0" required="0">
+<parameter name="extraopt" unique="0" required="0">
 <longdesc lang="en">
 This option can be used to define an additional key = value pair.
 Need to set e.g somthinspecial = value
 </longdesc>
-<shortdesc lang="en">additional key value pair 1</shortdesc>
-<content type="string" default="${OCF_RESKEY_extraopt1_default}" />
+<shortdesc lang="en">additional key value pair</shortdesc>
+<content type="string" default="${OCF_RESKEY_extraopt_default}" />
 </parameter>
 
-<parameter name="extraopt2" unique="0" required="0">
+<parameter name="extraopt_list" unique="0" required="0">
 <longdesc lang="en">
-This option can be used to define an additional key = value pair.
-Need to set e.g somthinspecial = value
+This option can be used to define multiple additional key = value pairs.
+Define the list of element semcolon separated.
+e.g somthinspecial = value;one more = value2
 </longdesc>
-<shortdesc lang="en">additional key value pair 2</shortdesc>
-<content type="string" default="${OCF_RESKEY_extraopt2_default}" />
-</parameter>
-
-<parameter name="extraopt3" unique="0" required="0">
-<longdesc lang="en">
-This option can be used to define an additional key = value pair.
-Need to set e.g somthinspecial = value
-</longdesc>
-<shortdesc lang="en">additional key value pair 3</shortdesc>
-<content type="string" default="${OCF_RESKEY_extraopt3_default}" />
+<shortdesc lang="en">additional key value pairs as list</shortdesc>
+<content type="string" default="${OCF_RESKEY_extraopt_list_default}" />
 </parameter>
 
 <parameter name="outfile" unique="1" required="1">
@@ -384,10 +374,13 @@ smbinclude_create() {
         if [ ! -z "$OCF_RESKEY_valid_users" ];then    echo "        valid users = $OCF_RESKEY_valid_users" >> $OCF_RESKEY_outfile; fi
         if [ ! -z "$OCF_RESKEY_force_user" ];then     echo "        force user = $OCF_RESKEY_force_user" >> $OCF_RESKEY_outfile; fi
         if [ ! -z "$OCF_RESKEY_force_group" ];then    echo "        force group = $OCF_RESKEY_force_group" >> $OCF_RESKEY_outfile; fi
-        if [ ! -z "$OCF_RESKEY_extraopt1" ];then      echo "        $OCF_RESKEY_extraopt1" >> $OCF_RESKEY_outfile; fi
-        if [ ! -z "$OCF_RESKEY_extraopt2" ];then      echo "        $OCF_RESKEY_extraopt2" >> $OCF_RESKEY_outfile; fi
-        if [ ! -z "$OCF_RESKEY_extraopt3" ];then      echo "        $OCF_RESKEY_extraopt3" >> $OCF_RESKEY_outfile; fi
-
+        if [ ! -z "$OCF_RESKEY_extraopt" ];then       echo "        $OCF_RESKEY_extraopt" >> $OCF_RESKEY_outfile; fi
+	if [ ! -z "$OCF_RESKEY_extraopt_list" ];then
+            IFS=';' read -r -a array <<< "$OCF_RESKEY_extraopt_list"
+            for i in "${array[@]}";do
+                echo "        $i" >> $OCF_RESKEY_outfile;
+            done
+	fi
         smbinclude_addinclude
 }
 
