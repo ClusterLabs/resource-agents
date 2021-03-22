@@ -1,4 +1,4 @@
-#!/bin/sh
+#!@BASH_SHELL@
 #
 # Copyright (c) 2014 David Vossel <davidvossel@gmail.com>
 #                    All Rights Reserved.
@@ -447,7 +447,7 @@ is_two_node_mode_active()
     # crm_node or corosync-quorumtool cannot access various corosync
     # flags when running inside a bundle, so only count the cluster
     # members
-    ocf_is_true "$OCF_RESKEY_two_node_mode" && ${HA_SBIN_DIR}/crm_mon -1X | xmllint --xpath "count(//nodes/node[@type='member'])" - | grep -q -w 2
+    ocf_is_true "$OCF_RESKEY_two_node_mode" && crm_mon_no_validation -1X | xmllint --xpath "count(//nodes/node[@type='member'])" - | grep -q -w 2
 }
 
 is_last_node_in_quorate_partition()
@@ -458,7 +458,7 @@ is_last_node_in_quorate_partition()
     # is clean), we shouldn't consider ourself quorate.
     local partition_members=$(${HA_SBIN_DIR}/crm_node -p | wc -w)
     local quorate=$(${HA_SBIN_DIR}/crm_node -q)
-    local clean_members=$(${HA_SBIN_DIR}/crm_mon -1X | xmllint --xpath 'count(//nodes/node[@type="member" and @unclean="false"])' -)
+    local clean_members=$(crm_mon_no_validation -1X | xmllint --xpath 'count(//nodes/node[@type="member" and @unclean="false"])' -)
 
     [ "$partition_members" = 1 ] && [ "$quorate" = 1 ] && [ "$clean_members" = 2 ]
 }
@@ -480,7 +480,7 @@ master_exists()
         XMLOPT="--output-as=xml"
         ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.2.0"
         if [ $? -eq 1 ]; then
-            crm_mon -1 $XMLOPT >/dev/null 2>&1
+            crm_mon_no_validation -1 $XMLOPT >/dev/null 2>&1
             if [ $? -ne 0 ]; then
                 XMLOPT="--as-xml"
             fi
@@ -488,7 +488,7 @@ master_exists()
     else
         XMLOPT="--as-xml"
     fi
-    ${HA_SBIN_DIR}/crm_mon -1 $XMLOPT | grep -q -i -E "resource.*id=\"${INSTANCE_ATTR_NAME}\".*role=\"(Promoted|Master)\".*active=\"true\".*orphaned=\"false\".*failed=\"false\""
+    crm_mon_no_validation -1 $XMLOPT | grep -q -i -E "resource.*id=\"${INSTANCE_ATTR_NAME}\".*role=\"(Promoted|Master)\".*active=\"true\".*orphaned=\"false\".*failed=\"false\""
     return $?
 }
 

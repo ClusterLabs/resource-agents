@@ -41,6 +41,8 @@
 unset LC_ALL; export LC_ALL
 unset LANGUAGE; export LANGUAGE
 
+: ${HA_SBIN_DIR:=@sbindir@}
+
 __SCRIPT_NAME=`basename $0`
 
 if [ -z "$OCF_ROOT" ]; then
@@ -668,6 +670,20 @@ EOF
 	# complain about improper permissions.
 	chmod o+r "$conf_file"
 	systemctl daemon-reload
+}
+
+# usage: crm_mon_no_validation args...
+# run crm_mon without any cib schema validation
+# This is useful when an agent runs in a bundle to avoid potential
+# schema validation errors when host and bundle are not perfectly aligned
+# To be used, your shell must support on process substitution (e.g. bash)
+# returns:
+#    <crm_mon error codes>
+crm_mon_no_validation()
+{
+	# The subshell prevents parsing error with incompatible shells
+	"$SHELL" -c "CIB_file=<(${HA_SBIN_DIR}/cibadmin -Q | sed 's/validate-with=\"[^\"]*\"/validate-with=\"none\"/') \
+	${HA_SBIN_DIR}/crm_mon \$*" -- $*
 }
 
 #
