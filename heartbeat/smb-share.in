@@ -1,4 +1,4 @@
-#!/bin/bash
+#!@BASH_SHELL@
 #
 #       OCF Resource Agent for create samba config snippets.
 #
@@ -93,7 +93,7 @@
 
 OCF_RESKEY_outfile_default=""
 OCF_RESKEY_includesfile_default="/etc/samba/conf.d/pacemaker-includes.conf"
-OCF_RESKEY_confd_default="/etc/samba/conf.d/"
+OCF_RESKEY_confd_default="/etc/samba/conf.d"
 OCF_RESKEY_share_default=""
 OCF_RESKEY_path_default=""
 OCF_RESKEY_hosts_allow_default=""
@@ -343,7 +343,7 @@ END
         exit $OCF_SUCCESS
 }
 
-smb-share_addinclude() {
+smb_share_addinclude() {
         if [ ! -e ${OCF_RESKEY_includesfile} ];then
             echo '[global]' >  ${OCF_RESKEY_includesfile}
         fi
@@ -352,12 +352,12 @@ smb-share_addinclude() {
         fi
 }
 
-smb-share_delinclude() {
+smb_share_delinclude() {
         ESCAPED=$(echo $OCF_RESKEY_outfile|sed 's,/,\\/,g')
         sed -i /include.=.$ESCAPED/d  ${OCF_RESKEY_includesfile}
 }
 
-smb-share_create() {
+smb_share_create() {
 
         echo "[${OCF_RESKEY_share}]" >  $OCF_RESKEY_outfile
         if [ ! -z "$OCF_RESKEY_path" ];then           echo "        path = $OCF_RESKEY_path" >> $OCF_RESKEY_outfile; fi
@@ -379,18 +379,18 @@ smb-share_create() {
                 echo "        $i" >> $OCF_RESKEY_outfile;
             done
         fi
-        smb-share_addinclude
+        smb_share_addinclude
 }
 
-smb-share_delete() {
+smb_share_delete() {
         if [ -e $OCF_RESKEY_outfile ];then
             rm -f $OCF_RESKEY_outfile 2>/dev/null
-            smb-share_delinclude
+            smb_share_delinclude
             exit $OCF_SUCCESS
         fi
 }
 
-smb-share_reloadconfig() {
+smb_share_reloadconfig() {
         smbcontrol smbd reload-config 2>/dev/null
         if [ $? -eq 0 ];then
             exit $OCF_SUCCESS
@@ -400,10 +400,10 @@ smb-share_reloadconfig() {
         fi
 }
 
-smb-share_checktmpmount() {
+smb_share_checktmpmount() {
 
         ISMOUNT=$(grep $OCF_RESKEY_confd /proc/mounts|grep -c tmpfs)
-        if [ $ISMOUNT -ne 1 ];then
+        if [ $ISMOUNT -eq 0 ];then
             ocf_log err "The directoy /etc/samba/conf.d need to be a tmpfs mount"
             exit $OCF_ERR_CONFIGURED
         fi
@@ -412,7 +412,7 @@ smb-share_checktmpmount() {
 
 ######################################################################
 
-smb-share_usage() {
+smb_share_usage() {
         cat <<END
 usage: $0 {start|stop|status|monitor|validate-all|meta-data}
 
@@ -421,18 +421,18 @@ END
         return $OCF_SUCCESS
 }
 
-smb-share_start() {
-        smb-share_create
-        smb-share_reloadconfig
+smb_share_start() {
+        smb_share_create
+        smb_share_reloadconfig
 }
 
-smb-share_stop() {
+smb_share_stop() {
         smbcontrol smbd close-share $OCF_RESKEY_share > /dev/null 2>&1
-        smb-share_delete
-        smb-share_reloadconfig
+        smb_share_delete
+        smb_share_reloadconfig
 }
 
-smb-share_monitor() {
+smb_share_monitor() {
         RES=$(smbcontrol smbd ping > /dev/null 2>&1)
         if [ $? -eq 0 ];then
             if [ $(testparm -s 2>/dev/null| egrep -c \\[$OCF_RESKEY_share\\]) -eq 1 ];then
@@ -445,8 +445,8 @@ smb-share_monitor() {
         fi
 }
 
-smb-share_state() {
-        smb-share_checktmpmount
+smb_share_state() {
+        smb_share_checktmpmount
         RES=$(smbcontrol smbd ping > /dev/null 2>&1)
         if [ $? -eq 0 ];then
             if [ $(testparm -s 2>/dev/null| egrep -c \\[$OCF_RESKEY_share\\]) -eq 1 ];then
@@ -462,27 +462,31 @@ smb-share_state() {
         fi
 }
 
+smb_share_validate() {
+        return $OCF_SUCCESS
+}
 
 
 case $__OCF_ACTION in
 meta-data)      meta_data
                 ;;
-usage|help)     smb-share_usage
+usage|help)     smb_share_usage
                 ;;
 esac
 
 
 case $__OCF_ACTION in
-start)          smb-share_start
+start)          smb_share_start
                 ;;
-stop)           smb-share_stop
+stop)           smb_share_stop
                 ;;
-status)         smb-share_state
+status)         smb_share_state
                 ;;
-monitor)        smb-share_monitor
+monitor)        smb_share_monitor
                 ;;
-validate-all)   ;;
-*)              smb-share_usage
+validate-all)   smb_share_validate
+                ;;
+*)              smb_share_usage
                 exit $OCF_ERR_UNIMPLEMENTED
                 ;;
 esac
