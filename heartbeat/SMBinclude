@@ -375,30 +375,30 @@ smbinclude_create() {
         if [ ! -z "$OCF_RESKEY_force_user" ];then     echo "        force user = $OCF_RESKEY_force_user" >> $OCF_RESKEY_outfile; fi
         if [ ! -z "$OCF_RESKEY_force_group" ];then    echo "        force group = $OCF_RESKEY_force_group" >> $OCF_RESKEY_outfile; fi
         if [ ! -z "$OCF_RESKEY_extraopt" ];then       echo "        $OCF_RESKEY_extraopt" >> $OCF_RESKEY_outfile; fi
-	if [ ! -z "$OCF_RESKEY_extraopt_list" ];then
+        if [ ! -z "$OCF_RESKEY_extraopt_list" ];then
             IFS=';' read -r -a array <<< "$OCF_RESKEY_extraopt_list"
             for i in "${array[@]}";do
                 echo "        $i" >> $OCF_RESKEY_outfile;
             done
-	fi
+        fi
         smbinclude_addinclude
 }
 
 smbinclude_delete() {
         if [ -e $OCF_RESKEY_outfile ];then
-                rm -f $OCF_RESKEY_outfile 2>/dev/null
-                smbinclude_delinclude
-                exit $OCF_SUCCESS
+            rm -f $OCF_RESKEY_outfile 2>/dev/null
+            smbinclude_delinclude
+            exit $OCF_SUCCESS
         fi
 }
 
 smbinclude_reloadconfig() {
         smbcontrol smbd reload-config 2>/dev/null
         if [ $? -eq 0 ];then
-                exit $OCF_SUCCESS
+            exit $OCF_SUCCESS
         else
-                ocf_log err "Seems you have an error in your samba configuration"
-                exit $OCF_ERR_CONFIGURED
+            ocf_log err "Seems you have an error in your samba configuration"
+            exit $OCF_ERR_CONFIGURED
         fi
 }
 
@@ -406,8 +406,8 @@ smbinclude_checktmpmount() {
 
         ISMOUNT=$(grep $OCF_RESKEY_confd /proc/mounts|grep -c tmpfs)
         if [ $ISMOUNT -ne 1 ];then
-                ocf_log err "The directoy /etc/samba/conf.d need to be a tmpfs mount"
-                exit $OCF_ERR_CONFIGURED
+            ocf_log err "The directoy /etc/samba/conf.d need to be a tmpfs mount"
+            exit $OCF_ERR_CONFIGURED
         fi
 }
 
@@ -420,7 +420,7 @@ usage: $0 {start|stop|status|monitor|validate-all|meta-data}
 
 Expects to have a fully populated OCF RA-compliant environment set.
 END
-	return $OCF_SUCCESS
+        return $OCF_SUCCESS
 }
 
 smbinclude_start() {
@@ -437,13 +437,13 @@ smbinclude_stop() {
 smbinclude_monitor() {
         RES=$(smbcontrol smbd ping > /dev/null 2>&1)
         if [ $? -eq 0 ];then
-                if [ $(testparm -s 2>/dev/null| egrep -c \\[$OCF_RESKEY_share\\]) -eq 1 ];then
-                        return $OCF_SUCCESS
-                else
-                        return $OCF_NOT_RUNNING
-                fi
-        else
+            if [ $(testparm -s 2>/dev/null| egrep -c \\[$OCF_RESKEY_share\\]) -eq 1 ];then
+                return $OCF_SUCCESS
+            else
                 return $OCF_NOT_RUNNING
+            fi
+        else
+            return $OCF_NOT_RUNNING
         fi
 }
 
@@ -451,16 +451,16 @@ smbinclude_state() {
         smbinclude_checktmpmount
         RES=$(smbcontrol smbd ping > /dev/null 2>&1)
         if [ $? -eq 0 ];then
-                if [ $(testparm -s 2>/dev/null| egrep -c \\[$OCF_RESKEY_share\\]) -eq 1 ];then
-                        ocf_log info "Samba share $OCF_RESKEY_share is active"
-			return $OCF_SUCCESS
-                else
-                        ocf_log info "Samba share $OCF_RESKEY_share is not active"
-			return $OCF_NOT_RUNNING
-                fi
+            if [ $(testparm -s 2>/dev/null| egrep -c \\[$OCF_RESKEY_share\\]) -eq 1 ];then
+                ocf_log info "Samba share $OCF_RESKEY_share is active"
+                return $OCF_SUCCESS
+            else
+                ocf_log info "Samba share $OCF_RESKEY_share is not active"
+                return $OCF_NOT_RUNNING
+            fi
         else
-                 ocf_log info "Samba share $OCF_RESKEY_share is not active"
-		 return $OCF_NOT_RUNNING
+            ocf_log info "Samba share $OCF_RESKEY_share is not active"
+            return $OCF_NOT_RUNNING
         fi
 }
 
@@ -485,9 +485,8 @@ monitor)        smbinclude_monitor
                 ;;
 validate-all)   ;;
 *)              smbinclude_usage
-	        exit $OCF_ERR_UNIMPLEMENTED
+                exit $OCF_ERR_UNIMPLEMENTED
                 ;;
 esac
 exit $?
 # vi:sw=4:ts=8:
-
