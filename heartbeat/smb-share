@@ -138,9 +138,9 @@ meta_data() {
         cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="SMBinclude">
-<version>1.0</version>
-<longdesc lang="en">
+<resource-agent name="smb-share">
+    <version>1.0</version>
+    <longdesc lang="en">
 This RA is used to control samba shares on the fly.
 For adding and removing samba shares no restart of the samba daemon 
 is needed. This is the equivalent of the exportfs RA which is used
@@ -164,202 +164,200 @@ Every share created by this RA will create a new file located in:
      /etc/samba/conf.d/
 
 This directory also can be changed by setting the RA parameter confd.
-</longdesc>
-<shortdesc lang="en">Manages samba shares on the fly</shortdesc>
+    </longdesc>
+    <shortdesc lang="en">Manages samba shares on the fly</shortdesc>
 
-<parameters>
+    <parameters>
 
-<parameter name="share" unique="1" required="1">
-<longdesc lang="en">
-Set the name of a windows share which should be added to Samba
-example name "myshare" resulting in [myshare].
-</longdesc>
-<shortdesc lang="en">sharename</shortdesc>
-<content type="string" default="${OCF_RESKEY_share_default}" />
-</parameter>
+        <parameter name="share" unique="1" required="1">
+            <longdesc lang="en">
+            Set the name of a windows share which should be added to Samba
+            example name "myshare" resulting in [myshare].
+            </longdesc>
+            <shortdesc lang="en">sharename</shortdesc>
+            <content type="string" default="${OCF_RESKEY_share_default}" />
+        </parameter>
 
-<parameter name="path" unique="1" required="0">
-<longdesc lang="en">
-Set the path to share for cifs clients.
-example path "/srv/data/myshare".
-</longdesc>
-<shortdesc lang="en">path to share</shortdesc>
-<content type="string" default="${OCF_RESKEY_path_default}" />
-</parameter>
+        <parameter name="path" unique="1" required="0">
+            <longdesc lang="en">
+            Set the path to share for cifs clients.
+            example path "/srv/data/myshare".
+            </longdesc>
+            <shortdesc lang="en">path to share</shortdesc>
+            <content type="string" default="${OCF_RESKEY_path_default}" />
+        </parameter>
 
-<parameter name="hosts_allow" unique="0" required="0">
-<longdesc lang="en">
-This parameter is a comma, space, or tab delimited set of hosts which are permitted to access a service.
-</longdesc>
-<shortdesc lang="en">hosts allow parameter</shortdesc>
-<content type="string" default="${OCF_RESKEY_hosts_allow_default}" />
-</parameter>
+        <parameter name="hosts_allow" unique="0" required="0">
+            <longdesc lang="en">
+            This parameter is a comma, space, or tab delimited set of hosts which are permitted to access a service.
+            </longdesc>
+            <shortdesc lang="en">hosts allow parameter</shortdesc>
+            <content type="string" default="${OCF_RESKEY_hosts_allow_default}" />
+        </parameter>
 
-<parameter name="browseable" unique="0" required="0">
-<longdesc lang="en">
-This controls whether this share is seen in the list of available shares in a net view and in the browse list.
-</longdesc>
-<shortdesc lang="en">browseable parameter</shortdesc>
-<content type="string" default="${OCF_RESKEY_browseable_default}" />
-</parameter>
+        <parameter name="browseable" unique="0" required="0">
+            <longdesc lang="en">
+            This controls whether this share is seen in the list of available shares in a net view and in the browse list.
+            </longdesc>
+            <shortdesc lang="en">browseable parameter</shortdesc>
+            <content type="string" default="${OCF_RESKEY_browseable_default}" />
+        </parameter>
 
-<parameter name="writeable" unique="0" required="0">
-<longdesc lang="en">
-Inverted synonym for read only.
-</longdesc>
-<shortdesc lang="en">writeable parameter</shortdesc>
-<content type="string" default="${OCF_RESKEY_writeable_default}" />
-</parameter>
-
-<parameter name="read_only" unique="0" required="0">
-<longdesc lang="en">
-This option can be used to turn the writing backends tdb, tdb2, and ldap into read only mode. 
-This can be useful e.g. in cases where a pre-filled database exists that should not be extended automatically.
-</longdesc>
-<shortdesc lang="en">read only parameter</shortdesc>
-<content type="string" default="${OCF_RESKEY_read_only_default}" />
-</parameter>
-
-<parameter name="guest_ok" unique="0" required="0">
-<longdesc lang="en">
-If this parameter is yes for a service, then no password is required to connect to the service. Privileges will be those of the guest account.
-</longdesc>
-<shortdesc lang="en">guest ok parameter</shortdesc>
-<content type="string" default="${OCF_RESKEY_guest_ok_default}" />
-</parameter>
-
-<parameter name="directory_mask" unique="0" required="0">
-<longdesc lang="en">
-This parameter is the octal modes which are used when converting DOS modes to UNIX modes when creating UNIX directories.
-</longdesc>
-<shortdesc lang="en">directory mask parameter</shortdesc>
-<content type="string" default="${OCF_RESKEY_directory_mask_default}" />
-</parameter>
-
-<parameter name="create_mask" unique="0" required="0">
-<longdesc lang="en">
-When a file is created, the necessary permissions are calculated according to the mapping from DOS modes to UNIX permissions,
-and the resulting UNIX mode is then bit-wise ANDed with this parameter. This parameter may be thought of as a bit-wise MASK for the UNIX modes of a file. 
-</longdesc>
-<shortdesc lang="en">create mask parameter</shortdesc>
-<content type="string" default="${OCF_RESKEY_create_mask_default}" />
-</parameter>
-
-<parameter name="printable" unique="0" required="0">
-<longdesc lang="en">
-If this parameter is yes, then clients may open, write to and submit spool files on the directory specified for the service.
-</longdesc>
-<shortdesc lang="en">printable parameter</shortdesc>
-<content type="string" default="${OCF_RESKEY_printable_default}" />
-</parameter>
-
-<parameter name="valid_users" unique="0" required="0">
-<longdesc lang="en">
-This is a list of users that should be allowed to login to this service. Names starting with @, + and & are interpreted 
-using the same rules as described in the invalid users parameter.
-</longdesc>
-<shortdesc lang="en">valid users parameter</shortdesc>
-<content type="string" default="${OCF_RESKEY_valid_users_default}" />
-</parameter>
-
-<parameter name="force_user" unique="0" required="0">
-<longdesc lang="en">
-This specifies a UNIX user name that will be assigned as the default user for all users connecting to this service. This is useful for sharing files.
-</longdesc>
-<shortdesc lang="en">force user parameter</shortdesc>
-<content type="string" default="${OCF_RESKEY_force_user_default}" />
-</parameter>
-
-<parameter name="force_group" unique="0" required="0">
-<longdesc lang="en">
-This specifies a UNIX group name that will be assigned as the default primary group for all users connecting to this service.
-This is useful for sharing files by ensuring that all access to files on service will use the named group for their permissions checking.
-</longdesc>
-<shortdesc lang="en">force group parameter</shortdesc>
-<content type="string" default="${OCF_RESKEY_force_group_default}" />
-</parameter>
-
-<parameter name="extraopt" unique="0" required="0">
-<longdesc lang="en">
-This option can be used to define an additional key = value pair.
-In this parameter also a semicolon could be placed.
-Need to set e.g somthinspecial = value
-</longdesc>
-<shortdesc lang="en">additional key value pair</shortdesc>
-<content type="string" default="${OCF_RESKEY_extraopt_default}" />
-</parameter>
-
-<parameter name="extraopt_list" unique="0" required="0">
-<longdesc lang="en">
-This option can be used to define multiple additional key = value pairs.
-Define the list of element semicolon separated.
-e.g somethingspecial = value;one more = value2
-</longdesc>
-<shortdesc lang="en">additional key value pairs as semicolon separated list</shortdesc>
-<content type="string" default="${OCF_RESKEY_extraopt_list_default}" />
-</parameter>
-
-<parameter name="outfile" unique="1" required="1">
-<longdesc lang="en">
-Set the path and filename where the snipped should be written.
-example "/etc/samba/conf.d/myshare.inc".
-</longdesc>
-<shortdesc lang="en">outputfile</shortdesc>
-<content type="string" default="${OCF_RESKEY_outfile_default}" />
-</parameter>
-
-<parameter name="confd" unique="0" required="0">
-<longdesc lang="en">
-Set the path where the includes will be written. This folder have to be a tmpfs mount
-This defaults to "/etc/samba/conf.d".
-</longdesc>
-<shortdesc lang="en">confd directory</shortdesc>
-<content type="string" default="${OCF_RESKEY_confd_default}" />
-</parameter>
-
-<parameter name="includesfile" unique="1" required="0">
-<longdesc lang="en">
-Set the path and filename in which the include should be placed.
-example includesfile "/etc/samba/conf.d/pacemaker-includes.conf".
-This option manages the include= parameter within this file
-</longdesc>
-<shortdesc lang="en">includesfile for smb.conf</shortdesc>
-<content type="string" default="${OCF_RESKEY_includesfile_default}" />
-</parameter>
-
-
-
-</parameters>
-
-<actions>
-<action name="start" timeout="20s" />
-<action name="stop" timeout="20s" />
-<action name="status" depth="0" timeout="20s" interval="10s" />
-<action name="monitor" depth="0" timeout="20s" interval="10s" />
-<action name="meta-data"  timeout="5s" />
-<action name="validate-all" timeout="20s" />
-</actions>
+        <parameter name="writeable" unique="0" required="0">
+            <longdesc lang="en">
+            Inverted synonym for read only.
+            </longdesc>
+            <shortdesc lang="en">writeable parameter</shortdesc>
+            <content type="string" default="${OCF_RESKEY_writeable_default}" />
+        </parameter>
+        
+        <parameter name="read_only" unique="0" required="0">
+            <longdesc lang="en">
+            This option can be used to turn the writing backends tdb, tdb2, and ldap into read only mode. 
+            This can be useful e.g. in cases where a pre-filled database exists that should not be extended automatically.
+            </longdesc>
+            <shortdesc lang="en">read only parameter</shortdesc>
+            <content type="string" default="${OCF_RESKEY_read_only_default}" />
+        </parameter>
+        
+        <parameter name="guest_ok" unique="0" required="0">
+            <longdesc lang="en">
+            If this parameter is yes for a service, then no password is required to connect to the service. Privileges will be those of the guest account.
+            </longdesc>
+            <shortdesc lang="en">guest ok parameter</shortdesc>
+            <content type="string" default="${OCF_RESKEY_guest_ok_default}" />
+        </parameter>
+        
+        <parameter name="directory_mask" unique="0" required="0">
+            <longdesc lang="en">
+            This parameter is the octal modes which are used when converting DOS modes to UNIX modes when creating UNIX directories.
+            </longdesc>
+            <shortdesc lang="en">directory mask parameter</shortdesc>
+            <content type="string" default="${OCF_RESKEY_directory_mask_default}" />
+        </parameter>
+        
+        <parameter name="create_mask" unique="0" required="0">
+            <longdesc lang="en">
+            When a file is created, the necessary permissions are calculated according to the mapping from DOS modes to UNIX permissions,
+            and the resulting UNIX mode is then bit-wise ANDed with this parameter. This parameter may be thought of as a bit-wise MASK for the UNIX modes of a file. 
+            </longdesc>
+            <shortdesc lang="en">create mask parameter</shortdesc>
+            <content type="string" default="${OCF_RESKEY_create_mask_default}" />
+        </parameter>
+        
+        <parameter name="printable" unique="0" required="0">
+            <longdesc lang="en">
+            If this parameter is yes, then clients may open, write to and submit spool files on the directory specified for the service.
+            </longdesc>
+            <shortdesc lang="en">printable parameter</shortdesc>
+            <content type="string" default="${OCF_RESKEY_printable_default}" />
+        </parameter>
+        
+        <parameter name="valid_users" unique="0" required="0">
+            <longdesc lang="en">
+            This is a list of users that should be allowed to login to this service. Names starting with @, + and & are interpreted 
+            using the same rules as described in the invalid users parameter.
+            </longdesc>
+            <shortdesc lang="en">valid users parameter</shortdesc>
+            <content type="string" default="${OCF_RESKEY_valid_users_default}" />
+        </parameter>
+        
+        <parameter name="force_user" unique="0" required="0">
+            <longdesc lang="en">
+            This specifies a UNIX user name that will be assigned as the default user for all users connecting to this service. This is useful for sharing files.
+            </longdesc>
+            <shortdesc lang="en">force user parameter</shortdesc>
+            <content type="string" default="${OCF_RESKEY_force_user_default}" />
+        </parameter>
+        
+        <parameter name="force_group" unique="0" required="0">
+            <longdesc lang="en">
+            This specifies a UNIX group name that will be assigned as the default primary group for all users connecting to this service.
+            This is useful for sharing files by ensuring that all access to files on service will use the named group for their permissions checking.
+            </longdesc>
+            <shortdesc lang="en">force group parameter</shortdesc>
+            <content type="string" default="${OCF_RESKEY_force_group_default}" />
+        </parameter>
+        
+        <parameter name="extraopt" unique="0" required="0">
+            <longdesc lang="en">
+            This option can be used to define an additional key = value pair.
+            In this parameter also a semicolon could be placed.
+            Need to set e.g somthinspecial = value
+            </longdesc>
+            <shortdesc lang="en">additional key value pair</shortdesc>
+            <content type="string" default="${OCF_RESKEY_extraopt_default}" />
+        </parameter>
+        
+        <parameter name="extraopt_list" unique="0" required="0">
+            <longdesc lang="en">
+            This option can be used to define multiple additional key = value pairs.
+            Define the list of element semicolon separated.
+            e.g somethingspecial = value;one more = value2
+            </longdesc>
+            <shortdesc lang="en">additional key value pairs as semicolon separated list</shortdesc>
+            <content type="string" default="${OCF_RESKEY_extraopt_list_default}" />
+        </parameter>
+        
+        <parameter name="outfile" unique="1" required="1">
+            <longdesc lang="en">
+            Set the path and filename where the snipped should be written.
+            example "/etc/samba/conf.d/myshare.inc".
+            </longdesc>
+            <shortdesc lang="en">outputfile</shortdesc>
+            <content type="string" default="${OCF_RESKEY_outfile_default}" />
+        </parameter>
+        
+        <parameter name="confd" unique="0" required="0">
+            <longdesc lang="en">
+            Set the path where the includes will be written. This folder have to be a tmpfs mount
+            This defaults to "/etc/samba/conf.d".
+            </longdesc>
+            <shortdesc lang="en">confd directory</shortdesc>
+            <content type="string" default="${OCF_RESKEY_confd_default}" />
+        </parameter>
+        
+        <parameter name="includesfile" unique="1" required="0">
+            <longdesc lang="en">
+            Set the path and filename in which the include should be placed.
+            example includesfile "/etc/samba/conf.d/pacemaker-includes.conf".
+            This option manages the include= parameter within this file
+            </longdesc>
+            <shortdesc lang="en">includesfile for smb.conf</shortdesc>
+            <content type="string" default="${OCF_RESKEY_includesfile_default}" />
+        </parameter>
+        
+    </parameters>
+    
+    <actions>
+        <action name="start" timeout="20s" />
+        <action name="stop" timeout="20s" />
+        <action name="status" depth="0" timeout="20s" interval="10s" />
+        <action name="monitor" depth="0" timeout="20s" interval="10s" />
+        <action name="meta-data"  timeout="5s" />
+        <action name="validate-all" timeout="20s" />
+    </actions>
 </resource-agent>
 END
 
         exit $OCF_SUCCESS
 }
 
-smbinclude_addinclude() {
+smb-share_addinclude() {
         if [ ! -e ${OCF_RESKEY_includesfile} ];then
-                echo '[global]' >  ${OCF_RESKEY_includesfile}
+            echo '[global]' >  ${OCF_RESKEY_includesfile}
         fi
         if [ $(grep -c "include = $OCF_RESKEY_outfile" ${OCF_RESKEY_includesfile}) -eq 0 ];then
-                echo "include = $OCF_RESKEY_outfile" >> ${OCF_RESKEY_includesfile}
+            echo "include = $OCF_RESKEY_outfile" >> ${OCF_RESKEY_includesfile}
         fi
 }
 
-smbinclude_delinclude() {
+smb-share_delinclude() {
         ESCAPED=$(echo $OCF_RESKEY_outfile|sed 's,/,\\/,g')
         sed -i /include.=.$ESCAPED/d  ${OCF_RESKEY_includesfile}
 }
 
-smbinclude_create() {
+smb-share_create() {
 
         echo "[${OCF_RESKEY_share}]" >  $OCF_RESKEY_outfile
         if [ ! -z "$OCF_RESKEY_path" ];then           echo "        path = $OCF_RESKEY_path" >> $OCF_RESKEY_outfile; fi
@@ -381,18 +379,18 @@ smbinclude_create() {
                 echo "        $i" >> $OCF_RESKEY_outfile;
             done
         fi
-        smbinclude_addinclude
+        smb-share_addinclude
 }
 
-smbinclude_delete() {
+smb-share_delete() {
         if [ -e $OCF_RESKEY_outfile ];then
             rm -f $OCF_RESKEY_outfile 2>/dev/null
-            smbinclude_delinclude
+            smb-share_delinclude
             exit $OCF_SUCCESS
         fi
 }
 
-smbinclude_reloadconfig() {
+smb-share_reloadconfig() {
         smbcontrol smbd reload-config 2>/dev/null
         if [ $? -eq 0 ];then
             exit $OCF_SUCCESS
@@ -402,7 +400,7 @@ smbinclude_reloadconfig() {
         fi
 }
 
-smbinclude_checktmpmount() {
+smb-share_checktmpmount() {
 
         ISMOUNT=$(grep $OCF_RESKEY_confd /proc/mounts|grep -c tmpfs)
         if [ $ISMOUNT -ne 1 ];then
@@ -414,7 +412,7 @@ smbinclude_checktmpmount() {
 
 ######################################################################
 
-smbinclude_usage() {
+smb-share_usage() {
         cat <<END
 usage: $0 {start|stop|status|monitor|validate-all|meta-data}
 
@@ -423,18 +421,18 @@ END
         return $OCF_SUCCESS
 }
 
-smbinclude_start() {
-        smbinclude_create
-        smbinclude_reloadconfig
+smb-share_start() {
+        smb-share_create
+        smb-share_reloadconfig
 }
 
-smbinclude_stop() {
+smb-share_stop() {
         smbcontrol smbd close-share $OCF_RESKEY_share > /dev/null 2>&1
-        smbinclude_delete
-        smbinclude_reloadconfig
+        smb-share_delete
+        smb-share_reloadconfig
 }
 
-smbinclude_monitor() {
+smb-share_monitor() {
         RES=$(smbcontrol smbd ping > /dev/null 2>&1)
         if [ $? -eq 0 ];then
             if [ $(testparm -s 2>/dev/null| egrep -c \\[$OCF_RESKEY_share\\]) -eq 1 ];then
@@ -447,8 +445,8 @@ smbinclude_monitor() {
         fi
 }
 
-smbinclude_state() {
-        smbinclude_checktmpmount
+smb-share_state() {
+        smb-share_checktmpmount
         RES=$(smbcontrol smbd ping > /dev/null 2>&1)
         if [ $? -eq 0 ];then
             if [ $(testparm -s 2>/dev/null| egrep -c \\[$OCF_RESKEY_share\\]) -eq 1 ];then
@@ -469,22 +467,22 @@ smbinclude_state() {
 case $__OCF_ACTION in
 meta-data)      meta_data
                 ;;
-usage|help)     smbinclude_usage
+usage|help)     smb-share_usage
                 ;;
 esac
 
 
 case $__OCF_ACTION in
-start)          smbinclude_start
+start)          smb-share_start
                 ;;
-stop)           smbinclude_stop
+stop)           smb-share_stop
                 ;;
-status)         smbinclude_state
+status)         smb-share_state
                 ;;
-monitor)        smbinclude_monitor
+monitor)        smb-share_monitor
                 ;;
 validate-all)   ;;
-*)              smbinclude_usage
+*)              smb-share_usage
                 exit $OCF_ERR_UNIMPLEMENTED
                 ;;
 esac
