@@ -167,6 +167,7 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_scsi2reservation.7 \
                           ocf_heartbeat_sfex.7 \
                           ocf_heartbeat_slapd.7 \
+                          ocf_heartbeat_smb-share.7 \
                           ocf_heartbeat_sybaseASE.7 \
                           ocf_heartbeat_sg_persist.7 \
                           ocf_heartbeat_mpathpersist.7 \
