@@ -317,7 +317,7 @@ This directory also can be changed by setting the RA parameter confd.
             <content type="string" default="${OCF_RESKEY_confd_default}" />
         </parameter>
         
-        <parameter name="includesfile" unique="1" required="0">
+        <parameter name="includesfile" unique="0" required="0">
             <longdesc lang="en">
             Set the path and filename in which the include should be placed.
             example includesfile "/etc/samba/conf.d/pacemaker-includes.conf".
