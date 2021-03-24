@@ -1,3 +1,11 @@
+* Wed Mar 24 2021 resource-agents contributors
+- stable release 4.8.0
+- awsvip: dont partially match similar IPs during monitor-action
+- aws agents: dont spam log files when getting token
+- galera/rabbitmq-cluster/redis: run crm_mon without performing validation
+  to solve pcmk version mismatch issues between host and container(s)
+- podman: return OCF_NOT_RUNNING when monitor cmd fails (not running)
+
 * Wed Mar 17 2021 resource-agents contributors
 - release candidate 4.8.0 rc1
 - Filesystem: change force_unmount default to safe for RHEL9+
