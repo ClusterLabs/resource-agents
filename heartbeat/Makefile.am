@@ -164,6 +164,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			sg_persist              \
 			mpathpersist		\
 			slapd			\
+			smb-share		\
 			sybaseASE		\
 			symlink			\
 			syslog-ng		\

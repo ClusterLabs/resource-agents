@@ -255,7 +255,7 @@ This directory also can be changed by setting the RA parameter confd.
         
         <parameter name="valid_users" unique="0" required="0">
             <longdesc lang="en">
-            This is a list of users that should be allowed to login to this service. Names starting with @, + and & are interpreted 
+            This is a list of users that should be allowed to login to this service. Names starting with @, + and &amp; are interpreted
             using the same rules as described in the invalid users parameter.
             </longdesc>
             <shortdesc lang="en">valid users parameter</shortdesc>
