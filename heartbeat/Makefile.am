@@ -168,6 +168,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			sybaseASE		\
 			symlink			\
 			syslog-ng		\
+			systemctl		\
 			tomcat			\
 			varnish			\
 			vdo-vol			\
