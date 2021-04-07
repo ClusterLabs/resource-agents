@@ -259,7 +259,7 @@ r53_stop() {
 r53_monitor() {
 	#
 	# For every start action the agent  will call Route53 API to check for DNS record
-	# otherwise it will try to get results directly bu querying the DNS using "dig".
+	# otherwise it will try to get results directly by querying the DNS using "dig".
 	# Due to complexity in some DNS architectures "dig" can fail, and if this happens
 	# the monitor will fallback to the Route53 API call.
 	#
