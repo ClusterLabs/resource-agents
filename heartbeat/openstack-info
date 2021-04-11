@@ -36,9 +36,13 @@
 OCF_RESKEY_pidfile_default="$HA_RSCTMP/OSInfo-${OCF_RESOURCE_HOSTNAME}"
 OCF_RESKEY_delay_default="0"
 OCF_RESKEY_clone_default="0"
+OCF_RESKEY_curlcli_default="/usr/bin/curl"
 OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
+OCF_RESKEY_pythoncli_default="/usr/libexec/platform-python"
 
+: ${OCF_RESKEY_curlcli=${OCF_RESKEY_curlcli_default}}
 : ${OCF_RESKEY_openstackcli=${OCF_RESKEY_openstackcli_default}}
+: ${OCF_RESKEY_pythoncli=${OCF_RESKEY_pythoncli_default}}
 : ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
 : ${OCF_RESKEY_delay=${OCF_RESKEY_delay_default}}
 : ${OCF_RESKEY_clone=${OCF_RESKEY_clone_default}}
@@ -85,12 +89,28 @@ Valid Openstack credentials as openrc file from api_access/openrc.
 <content type="string" />
 </parameter>
 
+<parameter name="curlcli">
+<longdesc lang="en">
+Path to command line cURL binary.
+</longdesc>
+<shortdesc lang="en">Path to cURL binary</shortdesc>
+<content type="string" default="${OCF_RESKEY_curlcli_default}" />
+</parameter>
+
 <parameter name="openstackcli">
 <longdesc lang="en">
 Path to command line tools for openstack.
 </longdesc>
 <shortdesc lang="en">Path to Openstack CLI tool</shortdesc>
 <content type="string" default="${OCF_RESKEY_openstackcli_default}" />
+</parameter>
+
+<parameter name="pythoncli">
+<longdesc lang="en">
+Path to command line Python interpreter.
+</longdesc>
+<shortdesc lang="en">Path to Python interpreter</shortdesc>
+<content type="string" default="${OCF_RESKEY_pythoncli_default}" />
 </parameter>
 
 </parameters>
@@ -116,49 +136,51 @@ OSInfoStats() {
 
 	. $OCF_RESKEY_openrc
 
-	node=$(crm_node -n|awk -F. '{print $1}')
-
-	result=$($OCF_RESKEY_openstackcli server list \
-		--format value --column ID --column Name \
-		| grep $node)
+	# Nova data: server ID
+	node_id=$($OCF_RESKEY_curlcli \
+		-s http://169.254.169.254/openstack/latest/meta_data.json |
+		$OCF_RESKEY_pythoncli -m json.tool |
+		grep -P '\"uuid\": \".*\",$' |
+		grep -P -o '[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}')
 
 	if [ $? -ne 0 ] ; then
-		ocf_exit_reason "cannot find $node in instances list"
+		ocf_exit_reason "Cannot find server ID"
 		exit $OCF_ERR_GENERIC
 	fi
-	node_id=$(echo $result|awk '{print $1}')
 
-	# Nova data: flavor, AZ…
-	result=$($OCF_RESKEY_openstackcli server show \
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_id -v "$node_id"
+
+	# Nova data: flavor
+	value=$($OCF_RESKEY_openstackcli server show \
 		--format value \
 		--column flavor \
+		$node_id)
+
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_flavor -v "$value"
+
+	# Nova data: availability zone
+	value=$($OCF_RESKEY_openstackcli server show \
+		--format value \
 		--column OS-EXT-AZ:availability_zone \
-		$node_id | tr '\n' ' ')
+		$node_id)
 
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_id -v $node_id
-
-	value=$(echo $result|awk '{print $2}')
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_flavor -v $value
-
-	value=$(echo $result|awk '{print $1}')
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_az -v $value
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_az -v "$value"
 
 	# Network data: ports
-	result=$($OCF_RESKEY_openstackcli port list \
-		--format value \
-		--column device_id \
-		--column id \
-		--column "Fixed IP Addresses" \
-		| awk "/^$node_id/ {gsub(\"subnet_id='\",\"\");gsub(\"'\",\"\");print \$NF\":\"\$2}" | tr '\n' ' ')
-
 	value=""
-	for p in $result ; do
-		if [ -z "$value" ] ; then
-			value="$p"
-		else
-			value="$value,$p"
-		fi
+	for port_id in $($OCF_RESKEY_openstackcli port list \
+		--format value \
+		--column id \
+		--server $node_id); do
+		subnet_id=$($OCF_RESKEY_openstackcli port show \
+			--format json \
+			--column fixed_ips \
+			${port_id} | grep -P '\"subnet_id\": \".*\",$' |
+			grep -P -o '[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}')
+		value+="${subnet_id}:${port_id},"
 	done
+	value=$(echo ${value} | sed -e 's/,$//g')
+
 	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_ports -v "$value"
 
 	if [ ! -z "$OS_REGION_NAME" ] ; then
@@ -218,7 +240,9 @@ OSInfo_monitor() {
 }
 
 OSInfo_validate() {
+	check_binary "$OCF_RESKEY_curlcli"
 	check_binary "$OCF_RESKEY_openstackcli"
+	check_binary "$OCF_RESKEY_pythoncli"
 
 	if [ -z "$OCF_RESKEY_openrc" ]; then
 		ocf_exit_reason "openrc parameter not set"
