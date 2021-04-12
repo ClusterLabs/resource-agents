@@ -1,0 +1,227 @@
+#!/bin/sh
+#
+#  License:      GNU General Public License (GPL)
+#  (c) 2020 Etzion Bar Noy
+#           and Linux-HA contributors
+#  Derived from oraasm agent by O. Albrigtsen
+#
+# -----------------------------------------------------------------------------
+#      O C F    R E S O U R C E    S C R I P T   S P E C I F I C A T I O N
+# -----------------------------------------------------------------------------
+#
+# NAME
+#       oraasmdg : OCF resource agent script for Oracle ASM
+#
+
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_user_default="grid"
+
+: ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
+
+
+oraasmdg_usage() {
+	cat <<END
+    usage: $0 (start|stop|validate-all|meta-data|help|usage|monitor)
+    $0 manages a Oracle ASM Disk Group through Oracle GI commands
+    The 'start' operation starts the diskgroup, or waits for the ASM DG to become available
+    The 'stop' operation stops the ASM diskgroup
+    The 'status' operation reports whether the ASM diskgroup is active
+    The 'monitor' operation is similar to status
+    The 'validate-all' operation reports whether the parameters are valid
+END
+}
+
+oraasmdg_meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="oraasmdg">
+<version>0.75</version>
+
+<longdesc lang="en">OCF Resource script for Oracle ASM DiskGroup. It is based on existing Oracle GI cluster.</longdesc>
+<shortdesc lang="en">Oracle ASM DiskGroup resource agent</shortdesc>
+
+<parameters>
+
+<parameter name="user">
+    <longdesc lang="en">Oracle Grid user</longdesc>
+    <shortdesc lang="en">Oracle Grid user</shortdesc>
+    <content type="string" default="${OCF_RESKEY_user_default}" />
+</parameter>
+
+<parameter name="diskgroup" required="1">
+    <longdesc lang="en">
+The name of the Oracle Disk Group.
+If not specified, then the Disk Group along with its home should be listed in /etc/oratab.
+    </longdesc>
+    <shortdesc lang="en">Oracle Disk Group</shortdesc>
+    <content type="string" default="" />
+</parameter>
+
+<parameter name="home" unique="0" required="1">
+<longdesc lang="en">The Oracle Grid home directory</longdesc>
+<shortdesc lang="en">home</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="180s" />
+<action name="stop" timeout="60s" />
+<action name="status" timeout="30s" />
+<action name="monitor" depth="0" timeout="30s" interval="10s" />
+<action name="validate-all" timeout="5s" />
+<action name="meta-data" timeout="5s" />
+</actions>
+</resource-agent>
+END
+}
+
+oraasmdg_methods() {
+	cat <<-!
+	start
+	stop
+	status
+	monitor
+	validate-all
+	methods
+	meta-data
+	usage
+	!
+}
+
+#oraasm_getconfig() {
+#	[ x = "x$OCF_RESKEY_home" ] &&
+#		OCF_RESKEY_home=`awk -F: "/^+$OCF_RESKEY_diskgroup:/"'{print $2}' /etc/oratab`
+#	PATH="$OCF_RESKEY_home/bin:$PATH"
+#
+#	ORA_ENVF=`mktemp`
+#	cat << EOF > $ORA_ENVF
+#PATH="$OCF_RESKEY_home/bin:$PATH"
+#EOF
+#	chmod 644 $ORA_ENVF
+#	trap "rm -f $ORA_ENVF" EXIT
+#}
+
+oraasmdg_getconfig() {
+	# Makes sure all executables are present where they should be
+	CRSCTL=${OCF_RESKEY_home}/bin/crsctl
+	SRVCTL=${OCF_RESKEY_home}/bin/srvctl
+	PATH=$PATH:${OCF_RESKEY_home}/bin
+	DG=${OCF_RESKEY_diskgroup}
+}
+
+cluster_status() {
+	# Checks if the cluster is up at all
+	$CRSCTL status res -t > /dev/null 2>&1
+	return $?
+}
+
+diskgroup_status() {
+	COUNTER=10
+	while ! oraasmdg_monitor ; do
+		sleep 5
+		let COUNTER--
+		if [[ $COUNTER -eq 0 ]]; then
+			break
+		fi
+	done
+	oraasmdg_monitor
+	return $?
+}
+
+diskgroup_mount_cluster() {
+	# Perform the actual resource call for GI
+	su - ${OCF_RESKEY_user} -c "$SRVCTL start diskgroup -diskgroup ${OCF_RESKEY_diskgroup} -node `hostname -s`"
+	return $?
+}
+
+oraasmdg_start() {
+	# if resource is already running, no need to continue code after this.
+
+	if ! cluster_status; then
+		ocf_log info "Oracle GI is down. Waiting for it to go up"
+		while ! cluster_status; do
+			sleep 1
+		done
+	fi
+	ocf_log info "Oracle GI is up"
+	# Cluster is now up. Is our ASM resource up?
+	# Check ASM diskgroup status
+	if diskgroup_status; then
+		# Diskgroup is active on this node, so we return success
+		return $OCF_SUCCESS
+	fi
+
+	# Diskgroup is not active on this node. We might want to actually try to start it
+	if ! diskgroup_mount_cluster; then
+		# We have a problem where the start command cannot run. We need to stop now
+		return $OCF_ERR_GENERIC
+	fi
+	# Let ASM settle
+	sleep 5
+	if diskgroup_status; then
+		# Diskgroup is active on this node, so we return success
+		return $OCF_SUCCESS
+	else
+		return $OCF_ERR_GENERIC
+	fi
+}
+
+oraasmdg_stop() {
+	oraasmdg_monitor
+	if [ $? -ne $OCF_SUCCESS ]; then
+		# Currently not running. Nothing to do.
+		ocf_log info "Oracle ASM diskgroup is already stopped"
+
+		return $OCF_SUCCESS
+	fi
+
+	# As a rule - we let Oracle GI manage, as much as possible, the ASM diskgroups, so we avoid taking them down.
+	return $OCF_SUCCESS
+}
+
+oraasmdg_monitor() {
+	$CRSCTL status res ora.${OCF_RESKEY_diskgroup}.dg | grep -q `hostname -s`
+	case "$?" in
+		0)
+			rc=$OCF_SUCCESS
+			;;
+		1)
+			rc=$OCF_NOT_RUNNING
+			ocf_log info "Oracle ASM diskgroup is not running on this host"
+			;;
+		*)
+			rc=$OCF_ERR_GENERIC
+			;;
+	esac
+	return $rc
+}
+
+oraasmdg_status() {
+	rc=$(oraasmdg_monitor)
+	return $rc
+}
+
+oraasmdg_validate_all() {
+	if [ x = "x$OCF_RESKEY_home" ]; then
+		ocf_exit_reason "home not set"
+		return $OCF_ERR_CONFIGURED
+	fi
+	if [ x = "x$OCF_RESKEY_diskgroup" ]; then
+		ocf_exit_reason "Diskgroup not set"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+}
+
+
+OCF_REQUIRED_PARAMS="user diskgroup home"
+ocf_rarun $*
+
+# vim:tabstop=4:shiftwidth=4:textwidth=0:wrapmargin=0
