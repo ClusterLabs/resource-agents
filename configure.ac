@@ -509,6 +509,7 @@ if test -z "$PYTHON"; then
 fi
 
 AC_PYTHON_MODULE(googleapiclient)
+AC_PYTHON_MODULE(json)
 AC_PYTHON_MODULE(pyroute2)
 
 AS_VERSION_COMPARE([$PYTHON_VERSION], [2.7], [BUILD_OCF_PY=0], [BUILD_OCF_PY=1], [BUILD_OCF_PY=1])
@@ -994,6 +995,7 @@ AC_CONFIG_FILES([heartbeat/machine-info], [chmod +x heartbeat/machine-info])
 AC_CONFIG_FILES([heartbeat/mariadb], [chmod +x heartbeat/mariadb])
 AC_CONFIG_FILES([heartbeat/mpathpersist], [chmod +x heartbeat/mpathpersist])
 AC_CONFIG_FILES([heartbeat/nfsnotify], [chmod +x heartbeat/nfsnotify])
+AC_CONFIG_FILES([heartbeat/openstack-info], [chmod +x heartbeat/openstack-info])
 AC_CONFIG_FILES([heartbeat/rabbitmq-cluster], [chmod +x heartbeat/rabbitmq-cluster])
 AC_CONFIG_FILES([heartbeat/redis], [chmod +x heartbeat/redis])
 AC_CONFIG_FILES([heartbeat/rsyslog], [chmod +x heartbeat/rsyslog])
