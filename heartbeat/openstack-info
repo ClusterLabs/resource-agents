@@ -246,7 +246,8 @@ case $__OCF_ACTION in
 meta-data)	meta_data
 		exit $OCF_SUCCESS
 		;;
-start)		OSInfo_start
+start)		OSInfo_validate
+		OSInfo_start
 		;;
 stop)		OSInfo_stop
 		;;
@@ -261,5 +262,3 @@ usage|help)	OSInfo_usage
 		exit $OCF_ERR_UNIMPLEMENTED
 		;;
 esac
-
-exit $?
