@@ -35,6 +35,7 @@ OCF_RESKEY_backingfile_default=""
 OCF_RESKEY_stateless_default="false"
 OCF_RESKEY_copyindirs_default=""
 OCF_RESKEY_shutdown_mode_default=""
+OCF_RESKEY_start_resources_default="false"
 
 : ${OCF_RESKEY_config=${OCF_RESKEY_config_default}}
 : ${OCF_RESKEY_migration_transport=${OCF_RESKEY_migration_transport_default}}
@@ -54,6 +55,7 @@ OCF_RESKEY_shutdown_mode_default=""
 : ${OCF_RESKEY_stateless=${OCF_RESKEY_stateless_default}}
 : ${OCF_RESKEY_copyindirs=${OCF_RESKEY_copyindirs_default}}
 : ${OCF_RESKEY_shutdown_mode=${OCF_RESKEY_shutdown_mode_default}}
+: ${OCF_RESKEY_start_resources=${OCF_RESKEY_start_resources_default}}
 
 if ocf_is_true ${OCF_RESKEY_sync_config_on_stop}; then
 	OCF_RESKEY_save_config_on_stop="true"
@@ -331,6 +333,16 @@ Instruct virsh to use specific shutdown mode
 <content type="string" default="${OCF_RESKEY_shutdown_mode_default}"/>
 </parameter>
 
+<parameter name="start_resources">
+<longdesc lang="en">
+Start the virtual storage pools and networks used by the virtual machine before starting it or before live migrating it.
+</longdesc>
+<shortdesc lang="en">
+Ensure the needed virtual storage pools and networks are started
+</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_start_resources_default}"/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -557,6 +569,36 @@ verify_undefined() {
 	fi
 }
 
+start_resources() {
+	local virsh_opts="--connect=$1 --quiet"
+	local pool_state net_state
+	for pool in `sed -n "s/^.*pool=['\"]\([^'\"]\+\)['\"].*\$/\1/gp" ${OCF_RESKEY_config} | sort | uniq`; do
+			pool_state=`LANG=C virsh ${virsh_opts} pool-info ${pool} | sed -n 's/^State: \+\(.*\)$/\1/gp'`
+			if [ "$pool_state" != "running" ]; then
+					virsh ${virsh_opts} pool-start $pool
+					if [ $? -ne 0 ]; then
+							ocf_exit_reason "Failed to start required virtual storage pool ${pool}."
+							return $OCF_ERR_GENERIC
+					fi
+			else
+					virsh ${virsh_opts} pool-refresh $pool
+			fi
+	done
+
+	for net in `sed -n "s/^.*network=['\"]\([^'\"]\+\)['\"].*\$/\1/gp" ${OCF_RESKEY_config} | sort | uniq`; do
+			net_state=`LANG=C virsh ${virsh_opts} net-info ${net} | sed -n 's/^Active: \+\(.*\)$/\1/gp'`
+			if [ "$net_state" != "yes" ]; then
+					virsh ${virsh_opts} net-start $net
+					if [ $? -ne 0 ]; then
+							ocf_exit_reason "Failed to start required virtual network ${net}."
+							return $OCF_ERR_GENERIC
+					fi
+			fi
+	done
+
+	return $OCF_SUCCESS
+}
+
 VirtualDomain_start() {
 	local snapshotimage
 
@@ -591,6 +633,14 @@ VirtualDomain_start() {
 	# outside of this agent, we have to ensure that the domain
 	# is restored to an 'undefined' state before creating.
 	verify_undefined
+
+	if ocf_is_true "${OCF_RESKEY_start_resources}"; then
+		start_resources ${OCF_RESKEY_hypervisor}
+		rc=$?
+		if [ $rc -eq $OCF_ERR_GENERIC ]; then
+			return $rc
+		fi
+	fi
 
 	if [ -z "${OCF_RESKEY_backingfile}" ]; then
 		virsh $VIRSH_OPTIONS create ${OCF_RESKEY_config}
@@ -878,6 +928,14 @@ VirtualDomain_migrate_to() {
 		# save config if needed
 		if ocf_is_true "$OCF_RESKEY_save_config_on_stop"; then
 			save_config
+		fi
+
+		if ocf_is_true "${OCF_RESKEY_start_resources}"; then
+			start_resources $remoteuri
+			rc=$?
+			if [ $rc -eq $OCF_ERR_GENERIC ]; then
+				return $rc
+			fi
 		fi
 
 		# Live migration speed limit
