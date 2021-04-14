@@ -767,7 +767,7 @@ db2_promote() {
             return $OCF_SUCCESS
             ;;
 
-            PRIMARY/PEER/*|PRIMARY/REMOTE_CATCHUP/*|Primary/Peer)
+            PRIMARY/PEER/*|PRIMARY/REMOTE_CATCHUP/*|PRIMARY/REMOTE_CATCHUP_PENDING/CONNECTED|Primary/Peer)
             # nothing to do, only update pacemaker's view
             echo MASTER > $STATE_FILE
             return $OCF_SUCCESS
