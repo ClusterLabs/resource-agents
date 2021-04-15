@@ -278,7 +278,6 @@ stop)		OSInfo_stop
 monitor)	OSInfo_monitor
 		;;
 validate-all)	OSInfo_validate
-		exit $?
 		;;
 usage|help)	OSInfo_usage
 		exit $OCF_SUCCESS
@@ -287,3 +286,5 @@ usage|help)	OSInfo_usage
 		exit $OCF_ERR_UNIMPLEMENTED
 		;;
 esac
+
+exit $?
