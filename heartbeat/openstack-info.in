@@ -270,7 +270,7 @@ case $__OCF_ACTION in
 meta-data)	meta_data
 		exit $OCF_SUCCESS
 		;;
-start)		OSInfo_validate
+start)		OSInfo_validate || exit $?
 		OSInfo_start
 		;;
 stop)		OSInfo_stop
@@ -278,6 +278,7 @@ stop)		OSInfo_stop
 monitor)	OSInfo_monitor
 		;;
 validate-all)	OSInfo_validate
+		exit $?
 		;;
 usage|help)	OSInfo_usage
 		exit $OCF_SUCCESS
