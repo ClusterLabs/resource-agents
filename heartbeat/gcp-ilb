@@ -1,6 +1,6 @@
 #!/bin/sh
 # ---------------------------------------------------------------------
-# # Copyright 2020 Google Inc. 
+# # Copyright 2021 Google Inc. 
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ pidfile="/var/run/$OCF_RESOURCE_INSTANCE.pid"
 #Validate command for logging
 if $OCF_RESKEY_log_enable = "true"; then
     if  type $OCF_RESKEY_log_cmd > /dev/null 2>&1; then
-	    logging_cmd="$OCF_RESKEY_log_cmd $OCF_RESKEY_log_params"
+	logging_cmd="$OCF_RESKEY_log_cmd $OCF_RESKEY_log_params"
         ocf_log debug "Logging command is: \'$logging_cmd\' "
     else 
         $OCF_RESKEY_log_enable = "false"
@@ -155,13 +155,13 @@ log() {
 	lvl=$1
 	msg=$2
 	ocf_log $lvl "$0 - $process - $pid: $msg"
-	if [[ "${OCF_RESKEY_log_enable}" = "true" ]] ; then
+	if ocf_is_true "${OCF_RESKEY_log_enable}" ; then
 	    ( ${OCF_RESKEY_log_cmd} ${OCF_RESKEY_log_params} "L $lvl: $msg" ${OCF_RESKEY_log_end_params} )
 	fi
 }
 
 getpid() {
-	if ! [[ -f "$pidfile" ]] ; then
+	if ! [ -f "$pidfile" ] ; then
 		return 
 	fi
 	
@@ -184,12 +184,12 @@ ilb_monitor() {
 	pid=`getpid`
 	log debug "pid is $pid"
 	
-	if  [[ -z "$pid" ]] ; then
+	if  [ -z "$pid" ] ; then
 		return $OCF_NOT_RUNNING
 	fi
 	
-	if [[ -n "$pid" ]] && kill -s 0 $pid ; then
-        log debug "Process is currently running"
+	if [ -n "$pid" ] && kill -s 0 $pid ; then
+        	log debug "Process is currently running"
 		return $OCF_SUCCESS
 	else 
 		log warn "The process is not running but has a pidfile. Removing file"
@@ -216,7 +216,7 @@ ilb_start() {
 	( ${cmd}  ) &   pid="$!" 
 	disown
 
-	if [[ -n "$pid" ]] ; then
+	if [ -n "$pid" ] ; then
 		log debug "$pid is started"
 		echo "$pid" > $pidfile
 		return $OCF_SUCCESS
@@ -234,7 +234,7 @@ ilb_stop() {
 		return $OCF_SUCCESS
 	fi
 
-	if [[ -n "$OCF_RESKEY_CRM_meta_timeout" ]]; then
+	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
 		# Allow 2/3 of the action timeout for the orderly shutdown
 		# (The origin unit is ms, hence the conversion)
 		stop_timeout=$((OCF_RESKEY_CRM_meta_timeout/1500))
@@ -280,7 +280,7 @@ ilb_stop() {
 
 ilb_validate() {
 	check_binary "$OCF_RESKEY_cat"
-    check_binary "$OCF_RESKEY_log_cmd"
+    	check_binary "$OCF_RESKEY_log_cmd"
 
 	if ! ocf_is_decimal "$OCF_RESKEY_port"; then
 		ocf_exit_reason "$OCF_RESKEY_port is not a valid port"
