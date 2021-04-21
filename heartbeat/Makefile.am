@@ -142,6 +142,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			openstack-cinder-volume \
 			openstack-floating-ip   \
 			openstack-info          \
+			openstack-virtual-ip    \
 			oraasm			\
 			oracle			\
 			oralsnr			\

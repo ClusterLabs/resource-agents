@@ -147,6 +147,7 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_openstack-info.7 \
                           ocf_heartbeat_openstack-cinder-volume.7 \
                           ocf_heartbeat_openstack-floating-ip.7 \
+                          ocf_heartbeat_openstack-virtual-ip.7 \
                           ocf_heartbeat_oraasm.7 \
                           ocf_heartbeat_oracle.7 \
                           ocf_heartbeat_oralsnr.7 \
