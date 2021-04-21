@@ -147,10 +147,8 @@ osflip_monitor() {
 	local node_port_ids
 	local port
 	local buffer
-	local crm_node
 
-	crm_node=$(crm_node -n)
-	node_port_ids=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $crm_node \
+	node_port_ids=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $(crm_node -n) \
 		| awk -F= '{gsub("\"","");print $NF}' \
 		| tr ',' ' ' \
 		| awk -F: '{print $NF}')
@@ -194,7 +192,7 @@ osflip_stop() {
 		return $OCF_ERR_GENERIC
 	fi
 
-	ocf_log info "Successfully brought unset $OCF_RESKEY_ip_id"
+	ocf_log info "Successfully brought down $OCF_RESKEY_ip_id"
 	return $OCF_SUCCESS
 }
 
@@ -230,6 +228,7 @@ osflip_start() {
 		return $OCF_ERR_GENERIC
 	fi
 
+	ocf_log info "Successfully brought up $OCF_RESKEY_ip_id"
 	return $OCF_SUCCESS
 }
 
@@ -255,19 +254,23 @@ if ! ocf_is_root; then
 	exit $OCF_ERR_PERM
 fi
 
-osflip_validate
-
 case $__OCF_ACTION in
 	start)
+		osflip_validate || exit $?
 		osflip_start;;
 	stop)
+		osflip_validate || exit $?
 		osflip_stop;;
 	monitor)
+		osflip_validate || exit $?
 		osflip_monitor;;
 	validate-all)
-		exit $?;;
+		osflip_validate
+		;;
 	*)
 		echo $USAGE
 		exit $OCF_ERR_UNIMPLEMENTED
 		;;
 esac
+
+exit $?
