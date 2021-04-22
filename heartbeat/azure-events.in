@@ -70,7 +70,7 @@ class azHelper:
 	metadata_host = "http://169.254.169.254/metadata"
 	instance_api  = "instance"
 	events_api    = "scheduledevents"
-	api_version   = "2017-08-01"
+	api_version   = "2019-08-01"
 
 	@staticmethod
 	def _sendMetadataRequest(endpoint, postData=None):
