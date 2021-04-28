@@ -161,7 +161,7 @@ log() {
 	msg=$2
 	ocf_log $lvl "$0 - $process - $pid: $msg"
 	if ocf_is_true "${OCF_RESKEY_log_enable}" ; then
-	    ( ${OCF_RESKEY_log_cmd} ${OCF_RESKEY_log_params} "L $lvl: $msg" ${OCF_RESKEY_log_end_params} )
+		( ${OCF_RESKEY_log_cmd} ${OCF_RESKEY_log_params} "L $lvl: $msg" ${OCF_RESKEY_log_end_params} )
 	fi
 }
 
