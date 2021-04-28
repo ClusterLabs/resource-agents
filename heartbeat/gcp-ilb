@@ -1,0 +1,343 @@
+#!/bin/sh
+# ---------------------------------------------------------------------
+# # Copyright 2021 Google Inc. 
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# Authors: Fatima Silveira, Lucia Subatin
+# ---------------------------------------------------------------------
+# Description:	Wrapper to respond to probe requests from health 
+# check agents in Google Cloud Platform. Nothing is specific to Google 
+# Cloud.
+# ---------------------------------------------------------------------
+
+
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_cat_default="socat"
+OCF_RESKEY_port_default="60000"
+OCF_RESKEY_log_enable_default="false"
+OCF_RESKEY_log_cmd_default="gcloud"
+OCF_RESKEY_log_params_default="logging write GCPILB"
+OCF_RESKEY_log_end_params_default=""
+
+
+if  type "socat" > /dev/null 2>&1; then
+	OCF_RESKEY_cat_default="socat"
+else 
+	OCF_RESKEY_cat_default="nc"
+fi;
+
+
+: ${OCF_RESKEY_cat=${OCF_RESKEY_cat_default}}
+: ${OCF_RESKEY_port=${OCF_RESKEY_port_default}}
+: ${OCF_RESKEY_log_enable=${OCF_RESKEY_log_enable_default}}
+: ${OCF_RESKEY_log_cmd=${OCF_RESKEY_log_cmd_default}}
+: ${OCF_RESKEY_log_params=${OCF_RESKEY_log_params_default}}
+: ${OCF_RESKEY_log_end_params=${OCF_RESKEY_log_end_params_default}}
+
+
+process="$OCF_RESOURCE_INSTANCE"
+pidfile="/var/run/$OCF_RESOURCE_INSTANCE.pid"
+
+
+#Validate command for logging
+if $OCF_RESKEY_log_enable = "true"; then
+    if  type $OCF_RESKEY_log_cmd > /dev/null 2>&1; then
+	logging_cmd="$OCF_RESKEY_log_cmd $OCF_RESKEY_log_params"
+	ocf_log debug "Logging command is: \'$logging_cmd\' "
+    else 
+	$OCF_RESKEY_log_enable = "false"
+	ocf_log err "\'$logging_cmd\' is invalid. External logging disabled."
+		
+    fi;
+fi
+
+
+#######################################################################
+ilb_metadata() {
+cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="gcp-lb">
+<version>1.0</version>
+<longdesc lang="en">
+    Resource Agent that wraps /usr/bin/nc or /usr/bin/socat to reply to health checks in Google Cloud.
+    See https://cloud.google.com/load-balancing/docs/health-checks for more information.
+</longdesc>
+
+<shortdesc lang="en">Replies to health checks from Google Cloud</shortdesc>
+
+<parameters>
+    <parameter name="port">
+        <longdesc lang="en">
+            Listening port for health-check probes. Default: ${OCF_RESKEY_port_default}
+        </longdesc>
+        <shortdesc lang="en">Listening port (def ${OCF_RESKEY_port_default}) </shortdesc>
+        <content type="string" default="${OCF_RESKEY_port_default}" />
+    </parameter>
+
+    <parameter name="cat">
+        <longdesc lang="en">
+            Location of netcat (default: /usr/bin/nc ) or socat (default: /usr/bin/socat ). If present, is used /usr/bin/socat. 
+            The recommended binary is socat, present in the following minimum versions if the package resource-agents:
+            - SLES 12 SP4/SP5: resource-agents-4.3.018.a7fb5035-3.30.1.
+            - SLES 15/15 SP1: resource-agents-4.3.0184.6ee15eb2-4.13.1. 
+        </longdesc>
+        <shortdesc lang="en">Path to nc / socat </shortdesc>
+        <content type="string" default="${OCF_RESKEY_cat_default}" />
+    </parameter>
+    <parameter name="log_enable">
+        <longdesc lang="en">
+            Logging with an external application is enabled (accepts "true" or "false").  The defaults are configured to call "gcloud logging" (see: https://cloud.google.com/sdk/gcloud/reference/logging).
+        </longdesc>
+        <shortdesc lang="en">Log enabled </shortdesc>
+        <content type="string" default="${OCF_RESKEY_log_enable_default}" />
+    </parameter>
+    <parameter name="log_cmd">
+        <longdesc lang="en">
+           External logging command. The defaults are configured to call "gcloud logging" (see: https://cloud.google.com/sdk/gcloud/reference/logging). 
+           This parameter should only have the binary that can be validated (e.g., gcloud). The rest of the command is formed with the additional parameters 
+           and the message being logged as follows:
+           - log_cmd + log_params + "The message being logged" + log_end_params
+           
+           Using the gcloud command for Stackdriver logging, the parameters would be:
+           - log_cmd = gcloud
+           - log_params = logging write GCPILB
+           - "This is a message being sent by the app"
+           - log_end_params =  (nothing in this case, this is reserved for use with other tools)
+           Which would result in this valid command (where GCPILB is the name of the log):
+           gcloud logging write GCPILB "This is a message being sent by the app"
+
+           NOTE: Only the binary is validated for existence and no further checks are performed. The assumption is that only administrators with root access can configure this tool.
+        </longdesc>
+        <shortdesc lang="en">External log command </shortdesc>
+        <content type="string" default="${OCF_RESKEY_log_cmd_default}" />
+    </parameter>
+    <parameter name="log_params">
+        <longdesc lang="en">
+           Additional input for the logging application. See explanation for log_cmd
+        </longdesc>
+        <shortdesc lang="en">Additional input 1 </shortdesc>
+        <content type="string" default="${OCF_RESKEY_log_params_default}" />
+    </parameter>
+    <parameter name="log_end_params">
+        <longdesc lang="en">
+           Additional input for the logging application. Placed after the message being logged.
+        </longdesc>
+        <shortdesc lang="en">Additional input 1 </shortdesc>
+        <content type="string" default="${OCF_RESKEY_log_end_params_default}" />
+    </parameter>
+
+</parameters>
+
+<actions>
+    <action name="start"        timeout="10s" />
+    <action name="stop"         timeout="30s" />
+    <action name="monitor"      depth="0" timeout="30s" interval="30s" />
+    <action name="validate-all" timeout="5s" />
+    <action name="meta-data"    timeout="5s" />
+</actions>
+</resource-agent>
+END
+exit 0
+}
+
+#######################################################################
+
+log() {
+	lvl=$1
+	msg=$2
+	ocf_log $lvl "$0 - $process - $pid: $msg"
+	if ocf_is_true "${OCF_RESKEY_log_enable}" ; then
+		( ${OCF_RESKEY_log_cmd} ${OCF_RESKEY_log_params} "L $lvl: $msg" ${OCF_RESKEY_log_end_params} )
+	fi
+}
+
+getpid() {
+	if ! [ -f "$pidfile" ] ; then
+		return 
+	fi
+	
+	cat $pidfile
+}
+
+ilb_usage() {
+    cat <<END
+usage: $0 {start|stop|monitor|status|meta-data|validate-all}
+
+Agent wrapping socat or nc to reply to health probes.
+END
+}
+
+
+
+
+ilb_monitor() {
+	
+	pid=`getpid`
+	log debug "pid is $pid"
+	
+	if  [ -z "$pid" ] ; then
+		return $OCF_NOT_RUNNING
+	fi
+	
+	if [ -n "$pid" ] && kill -s 0 $pid ; then
+        	log debug "Process is currently running"
+		return $OCF_SUCCESS
+	else 
+		log warn "The process is not running but has a pidfile. Removing file"
+		rm -f $pidfile
+		return $OCF_NOT_RUNNING
+	fi
+
+}
+
+ilb_start() {
+	
+	if ilb_monitor; then
+		log debug "Process is already running"
+		return $OCF_SUCCESS
+	fi
+	
+	cmd="$OCF_RESKEY_cat -U TCP-LISTEN:$OCF_RESKEY_port,backlog=10,fork,reuseaddr /dev/null"
+
+	if [ $( basename $OCF_RESKEY_cat ) = 'nc' ]; then
+		cmd="$OCF_RESKEY_cat -l -k $OCF_RESKEY_port"
+	fi
+	
+	log debug "Starting with \'$cmd\'"
+	( ${cmd}  ) &   pid="$!" 
+	disown
+
+	if [ -n "$pid" ] ; then
+		log debug "$pid is started"
+		echo "$pid" > $pidfile
+		return $OCF_SUCCESS
+	else
+		log err "\'$cmd\' could not be started"
+		return $OCF_ERR_GENERIC
+	fi
+
+} 
+
+ilb_stop() {
+	
+	if ! ilb_monitor; then
+		rm -f $pidfile
+		return $OCF_SUCCESS
+	fi
+
+	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+		# Allow 2/3 of the action timeout for the orderly shutdown
+		# (The origin unit is ms, hence the conversion)
+		stop_timeout=$((OCF_RESKEY_CRM_meta_timeout/1500))
+	else
+		stop_timeout=10
+	fi
+
+
+	pid=`getpid`
+	kill $pid
+
+	i=0
+	while [ $i -lt $stop_timeout ]; do
+		if ! ilb_monitor; then
+			rm -f $pidfile
+			return $OCF_SUCCESS
+		fi
+		sleep 1 
+		i=$((i+1))
+	done
+
+	log warn "Stop with SIGTERM failed/timed out, now sending SIGKILL."
+
+	i=0
+	while [ $i -lt $stop_timeout ]; do
+
+		kill -s 9 $pid
+
+		if ! ilb_monitor; then
+			log warn "SIGKILL did the job."
+			rm -f $pidfile
+			return $OCF_SUCCESS
+		fi
+		log info "The job still hasn't stopped yet. Re-trying SIGKILL..."
+		sleep 2
+		i=$((i+2))
+	done
+
+	log err "The cat has more than 9 lives and could not be terminated."
+	return $OCF_ERR_GENERIC
+	
+}
+
+ilb_validate() {
+	check_binary "$OCF_RESKEY_cat"
+	check_binary "$OCF_RESKEY_log_cmd"
+
+	if ! ocf_is_decimal "$OCF_RESKEY_port"; then
+		ocf_exit_reason "$OCF_RESKEY_port is not a valid port"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
+}
+
+###############################################################################
+#
+# MAIN
+#
+###############################################################################
+
+case $__OCF_ACTION in
+	meta-data)
+		ilb_metadata
+		exit $OCF_SUCCESS
+		;;
+	usage|help)
+		ilb_usage
+		exit $OCF_SUCCESS
+		;;
+esac
+
+if ! ocf_is_root; then
+	log err "You must be root for $__OCF_ACTION operation."
+	exit $OCF_ERR_PERM
+fi
+
+case $__OCF_ACTION in
+	start)
+		ilb_validate 
+		ilb_start
+		;;
+	stop)
+		ilb_stop
+		;;
+	monitor)
+		ilb_monitor
+		;;
+	validate-all)
+		ilb_validate
+		;;
+	*)	
+		ilb_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+
+rc=$?
+log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION returned $rc"
+
+exit $rc
