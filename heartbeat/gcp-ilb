@@ -27,10 +27,10 @@
 # Defaults
 OCF_RESKEY_cat_default="socat"
 OCF_RESKEY_port_default="60000"
-OCF_RESKEY_log_enable="false"
-OCF_RESKEY_log_cmd="gcloud"
-OCF_RESKEY_log_params="logging write GCPILB"
-OCF_RESKEY_log_end_params=""
+OCF_RESKEY_log_enable_default="false"
+OCF_RESKEY_log_cmd_default="gcloud"
+OCF_RESKEY_log_params_default="logging write GCPILB"
+OCF_RESKEY_log_end_params_default=""
 
 
 if  type "socat" > /dev/null 2>&1; then
@@ -42,6 +42,11 @@ fi;
 
 : ${OCF_RESKEY_cat=${OCF_RESKEY_cat_default}}
 : ${OCF_RESKEY_port=${OCF_RESKEY_port_default}}
+: ${OCF_RESKEY_log_enable=${OCF_RESKEY_log_enable_default}}
+: ${OCF_RESKEY_log_cmd=${OCF_RESKEY_log_cmd_default}}
+: ${OCF_RESKEY_log_params=${OCF_RESKEY_log_params_default}}
+: ${OCF_RESKEY_log_end_params=${OCF_RESKEY_log_end_params_default}}
+
 
 process="$OCF_RESOURCE_INSTANCE"
 pidfile="/var/run/$OCF_RESOURCE_INSTANCE.pid"
@@ -51,7 +56,7 @@ pidfile="/var/run/$OCF_RESOURCE_INSTANCE.pid"
 if $OCF_RESKEY_log_enable = "true"; then
     if  type $OCF_RESKEY_log_cmd > /dev/null 2>&1; then
 	logging_cmd="$OCF_RESKEY_log_cmd $OCF_RESKEY_log_params"
-	ocf_log debug "Logging command is: \'$logging_cmd\' "
+        ocf_log debug "Logging command is: \'$logging_cmd\' "
     else 
         $OCF_RESKEY_log_enable = "false"
         ocf_log err "\'$logging_cmd\' is invalid. External logging disabled."
@@ -98,7 +103,7 @@ cat <<END
             Logging with an external application is enabled (accepts "true" or "false").  The defaults are configured to call "gcloud logging" (see: https://cloud.google.com/sdk/gcloud/reference/logging).
         </longdesc>
         <shortdesc lang="en">Log enabled </shortdesc>
-        <content type="string" default="false" />
+        <content type="string" default="${OCF_RESKEY_log_enable_default}" />
     </parameter>
     <parameter name="log_cmd">
         <longdesc lang="en">
@@ -118,21 +123,21 @@ cat <<END
            NOTE: Only the binary is validated for existence and no further checks are performed. The assumption is that only administrators with root access can configure this tool.
         </longdesc>
         <shortdesc lang="en">External log command </shortdesc>
-        <content type="string" default="gcloud" />
+        <content type="string" default="${OCF_RESKEY_log_cmd_default}" />
     </parameter>
     <parameter name="log_params">
         <longdesc lang="en">
            Additional input for the logging application. See explanation for log_cmd
         </longdesc>
         <shortdesc lang="en">Additional input 1 </shortdesc>
-        <content type="string" default="logging write GCPILB" />
+        <content type="string" default="${OCF_RESKEY_log_params_default}" />
     </parameter>
     <parameter name="log_end_params">
         <longdesc lang="en">
            Additional input for the logging application. Placed after the message being logged.
         </longdesc>
         <shortdesc lang="en">Additional input 1 </shortdesc>
-        <content type="string" default="" />
+        <content type="string" default="${OCF_RESKEY_log_end_params_default}" />
     </parameter>
 
 </parameters>
@@ -280,7 +285,7 @@ ilb_stop() {
 
 ilb_validate() {
 	check_binary "$OCF_RESKEY_cat"
-    	check_binary "$OCF_RESKEY_log_cmd"
+	check_binary "$OCF_RESKEY_log_cmd"
 
 	if ! ocf_is_decimal "$OCF_RESKEY_port"; then
 		ocf_exit_reason "$OCF_RESKEY_port is not a valid port"
