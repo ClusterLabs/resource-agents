@@ -50,6 +50,8 @@ REMOVE = 1
 CONN = None
 THIS_VM = None
 ALIAS = None
+MAX_RETRIES = 3
+RETRY_BACKOFF_SECS = 1
 METADATA_SERVER = 'http://metadata.google.internal/computeMetadata/v1/'
 METADATA_HEADERS = {'Metadata-Flavor': 'Google'}
 METADATA = \
@@ -111,18 +113,37 @@ def get_metadata(metadata_key, params=None, timeout=None):
 
   Returns:
     HTTP response from the GET request.
-
-  Raises:
-    urlerror.HTTPError: raises when the GET request fails.
   """
-  timeout = timeout or 60
-  metadata_url = os.path.join(METADATA_SERVER, metadata_key)
-  params = urlparse.urlencode(params or {})
-  url = '%s?%s' % (metadata_url, params)
-  request = urlrequest.Request(url, headers=METADATA_HEADERS)
-  request_opener = urlrequest.build_opener(urlrequest.ProxyHandler({}))
-  return request_opener.open(
-      request, timeout=timeout * 1.1).read().decode("utf-8")
+  for i in range(MAX_RETRIES):
+    try:
+      timeout = timeout or 60
+      metadata_url = os.path.join(METADATA_SERVER, metadata_key)
+      params = urlparse.urlencode(params or {})
+      url = '%s?%s' % (metadata_url, params)
+      request = urlrequest.Request(url, headers=METADATA_HEADERS)
+      request_opener = urlrequest.build_opener(urlrequest.ProxyHandler({}))
+      return request_opener.open(
+          request, timeout=timeout * 1.1).read().decode("utf-8")
+    except Exception as e:
+      logger.error('Couldn\'t get instance name, is this running inside GCE?: '
+                   + str(e))
+      time.sleep(RETRY_BACKOFF_SECS * (i + 1))
+
+  # If the retries are exhausted we exit with a generic error.
+  sys.exit(OCF_ERR_GENERIC)
+
+
+def create_api_connection():
+  for i in range(MAX_RETRIES):
+    try:
+      return googleapiclient.discovery.build('compute', 'v1',
+                                             cache_discovery=False)
+    except Exception as e:
+      logger.error('Couldn\'t connect with google api: ' + str(e))
+      time.sleep(RETRY_BACKOFF_SECS * (i + 1))
+
+  # If the retries are exhausted we exit with a generic error.
+  sys.exit(OCF_ERR_GENERIC)
 
 
 def get_instance(project, zone, instance):
@@ -358,24 +379,11 @@ def gcp_alias_status(alias):
 
 def validate():
   global ALIAS
-  global CONN
   global THIS_VM
+  global CONN
 
-  # Populate global vars
-  try:
-    CONN = googleapiclient.discovery.build('compute', 'v1',
-                                           cache_discovery=False)
-  except Exception as e:
-    logger.error('Couldn\'t connect with google api: ' + str(e))
-    sys.exit(OCF_ERR_CONFIGURED)
-
-  try:
-    THIS_VM = get_metadata('instance/name')
-  except Exception as e:
-    logger.error('Couldn\'t get instance name, is this running inside GCE?: '
-                 + str(e))
-    sys.exit(OCF_ERR_CONFIGURED)
-
+  CONN = create_api_connection()
+  THIS_VM = get_metadata('instance/name')
   ALIAS = os.environ.get('OCF_RESKEY_alias_ip')
   if not ALIAS:
     logger.error('Missing alias_ip parameter')
