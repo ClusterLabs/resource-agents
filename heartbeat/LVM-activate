@@ -115,6 +115,9 @@ if using the cluster to manage at least one of them.  If you manage some manuall
 the stop action of the lvmlockd agent may fail and the node may get fenced,
 because some DLM lockspaces might be in use and cannot be closed automatically.
 
+3. The autoactivation property of volume group will be disabled when vg_access_mode
+is set to system_id.
+
 Option: OCF_CHECK_LEVEL
 
 The standard monitor operation of depth 0 checks if the VG or LV is valid.
@@ -658,11 +661,20 @@ clvmd_activate() {
 }
 
 systemid_activate() {
+	set_autoactivation=0
 	cur_systemid=$(vgs --foreign --noheadings -o systemid ${VG} | tr -d '[:blank:]')
 
 	# Put our system ID on the VG
 	vgchange -y --config "local/extra_system_ids=[\"${cur_systemid}\"]" \
 		--systemid ${SYSTEM_ID} ${VG}
+	vgchange --help | grep '\--setautoactivation' >/dev/null 2>&1 && set_autoactivation=1
+
+	if [ $set_autoactivation -ne 0 ]; then
+		if vgs -o autoactivation ${VG} | grep enabled >/dev/null 2>&1 ; then
+			ocf_log info "disable the autoactivation property of ${VG}"
+			ocf_run vgchange --setautoactivation n ${VG}
+		fi
+	fi
 
 	do_activate "-ay"
 	if [ $? -ne $OCF_SUCCESS ]; then
