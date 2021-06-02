@@ -71,7 +71,6 @@ USAGE="usage: $0 {start|stop|status|meta-data}";
 #
 ###############################################################################
 
-
 metadata() {
 cat <<END
 <?xml version="1.0"?>
@@ -83,6 +82,7 @@ Resource Agent to move IP addresses within a VPC of the Amazon Webservices EC2
 by changing an entry in an specific routing table
 </longdesc>
 <shortdesc lang="en">Move IP within a VPC of the AWS EC2</shortdesc>
+
 <parameters>
 <parameter name="awscli">
 <longdesc lang="en">
@@ -91,6 +91,7 @@ Path to command line tools for AWS
 <shortdesc lang="en">Path to AWS CLI tools</shortdesc>
 <content type="string" default="${OCF_RESKEY_awscli_default}" />
 </parameter>
+
 <parameter name="profile">
 <longdesc lang="en">
 Valid AWS CLI profile name (see ~/.aws/config and 'aws configure')
@@ -98,6 +99,7 @@ Valid AWS CLI profile name (see ~/.aws/config and 'aws configure')
 <shortdesc lang="en">profile name</shortdesc>
 <content type="string" default="${OCF_RESKEY_profile_default}" />
 </parameter>
+
 <parameter name="region">
 <longdesc lang="en">
 Valid AWS region name (e.g., 'us-west-2')
@@ -105,6 +107,7 @@ Valid AWS region name (e.g., 'us-west-2')
 <shortdesc lang="en">region name</shortdesc>
 <content type="string" default="${OCF_RESKEY_region_default}" />
 </parameter>
+
 <parameter name="ip" required="1">
 <longdesc lang="en">
 VPC private IP address
@@ -112,6 +115,7 @@ VPC private IP address
 <shortdesc lang="en">VPC private IP</shortdesc>
 <content type="string" default="${OCF_RESKEY_ip_default}" />
 </parameter>
+
 <parameter name="address">
 <longdesc lang="en">
 Deprecated IP address param. Use the ip param instead.
@@ -119,6 +123,7 @@ Deprecated IP address param. Use the ip param instead.
 <shortdesc lang="en">Deprecated VPC private IP Address</shortdesc>
 <content type="string" default="${OCF_RESKEY_address_default}" />
 </parameter>
+
 <parameter name="routing_table" required="1">
 <longdesc lang="en">
 Name of the routing table(s), where the route for the IP address should be changed. If declaring multiple routing tables they should be separated by comma. Example: rtb-XXXXXXXX,rtb-YYYYYYYYY
@@ -126,6 +131,7 @@ Name of the routing table(s), where the route for the IP address should be chang
 <shortdesc lang="en">routing table name(s)</shortdesc>
 <content type="string" default="${OCF_RESKEY_routing_table_default}" />
 </parameter>
+
 <parameter name="routing_table_role" required="0">
 <longdesc lang="en">
 Role to use to query/update the route table
@@ -133,6 +139,7 @@ Role to use to query/update the route table
 <shortdesc lang="en">route table query/update role</shortdesc>
 <content type="string" default="${OCF_RESKEY_routing_table_role_default}" />
 </parameter>
+
 <parameter name="interface" required="1">
 <longdesc lang="en">
 Name of the network interface, i.e. eth0
@@ -140,6 +147,7 @@ Name of the network interface, i.e. eth0
 <shortdesc lang="en">network interface name</shortdesc>
 <content type="string" default="${OCF_RESKEY_interface_default}" />
 </parameter>
+
 <parameter name="monapi">
 <longdesc lang="en">
 Enable enhanced monitoring using AWS API calls to check route table entry
@@ -147,6 +155,7 @@ Enable enhanced monitoring using AWS API calls to check route table entry
 <shortdesc lang="en">Enhanced Monitoring</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_monapi_default}" />
 </parameter>
+
 <parameter name="lookup_type" required="0">
 <longdesc lang="en">
 Name of resource type to lookup in route table.
@@ -156,7 +165,9 @@ Name of resource type to lookup in route table.
 <shortdesc lang="en">lookup type for route table resource</shortdesc>
 <content type="string" default="${OCF_RESKEY_lookup_type_default}" />
 </parameter>
+
 </parameters>
+
 <actions>
 <action name="start" timeout="180s" />
 <action name="stop" timeout="180s" />
@@ -167,7 +178,6 @@ Name of resource type to lookup in route table.
 </resource-agent>
 END
 }
-
 
 execute_cmd_as_role(){
 	cmd=$1
