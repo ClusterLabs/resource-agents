@@ -37,12 +37,14 @@ OCF_RESKEY_crypt_dev_default=""
 OCF_RESKEY_key_file_default=""
 OCF_RESKEY_crypt_type_default=""
 OCF_RESKEY_force_stop_default="false"
+OCF_RESKEY_use_clevis_default="false"
 
 : ${OCF_RESKEY_encrypted_dev=${OCF_RESKEY_encrypted_dev_default}}
 : ${OCF_RESKEY_crypt_dev=${OCF_RESKEY_crypt_dev_default}}
 : ${OCF_RESKEY_key_file=${OCF_RESKEY_key_file_default}}
 : ${OCF_RESKEY_crypt_type=${OCF_RESKEY_crypt_type_default}}
 : ${OCF_RESKEY_force_stop=${OCF_RESKEY_force_stop_default}}
+: ${OCF_RESKEY_use_clevis=${OCF_RESKEY_use_clevis_default}}
 
 #######################################################################
 
@@ -122,6 +124,16 @@ will fail and the node will be fenced.
 <content type="boolean" default="${OCF_RESKEY_force_stop_default}" />
 </parameter>
 
+<parameter name="use_clevis" unique="0" required="0">
+<longdesc lang="en">
+If LUKS volume is set up to unlock automatically using Tang/Clevis,
+then set this parameter to "true".  This has the side-effect of ignoring
+the "key_file", "disable_locks" and "crypt_type" parameters.
+</longdesc>
+<shortdesc lang="en">use clevis tools to unlock volume</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_use_clevis_default}" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -153,10 +165,15 @@ crypt_dev_path="/dev/mapper/$crypt_dev"
 key_file="${OCF_RESKEY_key_file}"
 crypt_type="${OCF_RESKEY_crypt_type}"
 force_stop="${OCF_RESKEY_force_stop}"
+use_clevis="${OCF_RESKEY_use_clevis}"
 
 crypt_validate_all() {
 	if ! have_binary cryptsetup; then
 		ocf_exit_reason "Please install cryptsetup(8)"
+		return $OCF_ERR_INSTALLED
+	fi
+	if ocf_is_true "$use_clevis" && ! have_binary clevis ; then
+		ocf_exit_reason "Please install clevis tools"
 		return $OCF_ERR_INSTALLED
 	fi
 	if [ -z "$encrypted_dev" ]; then
@@ -250,8 +267,13 @@ crypt_stop_one() {
 crypt_start() {
 	local rc
 
-	cryptsetup open $encrypted_dev $crypt_dev --type $crypt_type $disable_locks --key-file=$key_file
-	rc=$?
+	if ocf_is_true "$use_clevis"; then
+		clevis luks unlock -d $encrypted_dev -n $crypt_dev
+		rc=$?
+	else
+ 		cryptsetup open $encrypted_dev $crypt_dev --type $crypt_type $disable_locks --key-file=$key_file
+ 		rc=$?
+	fi
 	if [ $rc -eq 0 ];then
 		crypt_monitor
 		rc=$?
