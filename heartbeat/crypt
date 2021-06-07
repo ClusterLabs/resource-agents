@@ -227,6 +227,19 @@ crypt_validate_all() {
 	return $OCF_SUCCESS
 }
 
+
+detect_clevis() {
+	if ! have_binary clevis; then
+		use_clevis="false" #We can't use clevis, if we don't have it installed
+	elif ! ocf_is_true "$use_clevis"; then #if not already specified by user to use clevis
+		#Try to detect whether clevis is available
+		if clevis luks list -d $encrypted_dev | grep -q '^[[:digit:]]\+:'; then
+			use_clevis="true" #if grep finds output that matches, we have clevis, therefore use it
+		fi
+	fi
+}
+
+
 get_users_pids() {
 	ocf_log debug "running lsof to list \"$crypt_dev\" users..."
 	ocf_run -warn 'lsof $crypt_dev_path | tail -n +2 | awk "{print $2}" | sort -u'
@@ -266,7 +279,8 @@ crypt_stop_one() {
 #
 crypt_start() {
 	local rc
-
+	detect_clevis
+	
 	if ocf_is_true "$use_clevis"; then
 		clevis luks unlock -d $encrypted_dev -n $crypt_dev
 		rc=$?
