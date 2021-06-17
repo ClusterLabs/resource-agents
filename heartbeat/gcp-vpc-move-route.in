@@ -47,6 +47,10 @@ from ocf import *
 try:
   import googleapiclient.discovery
   import pyroute2
+  try:
+    from google.oauth2.service_account import Credentials as ServiceAccountCredentials
+  except ImportError:
+    from oauth2client.service_account import ServiceAccountCredentials
 except ImportError:
   pass
 
@@ -132,6 +136,12 @@ Route name
 <content type="string" default="ra-%s" />
 </parameter>
 
+<parameter name="serviceaccount">
+<longdesc lang="en">Path to Service account JSON file</longdesc>
+<shortdesc lang="en">Service account JSONfile</shortdesc>
+<content type="string" default="" />
+</parameter>
+
 <parameter name="stackdriver_logging" unique="0" required="0">
 <longdesc lang="en">If enabled (set to true), IP failover logs will be posted to stackdriver logging</longdesc>
 <shortdesc lang="en">Stackdriver-logging support</shortdesc>
@@ -212,7 +222,25 @@ def validate(ctx):
     sys.exit(OCF_ERR_PERM)
 
   try:
-    ctx.conn = googleapiclient.discovery.build('compute', 'v1', cache_discovery=False)
+    serviceaccount = os.environ.get("OCF_RESKEY_serviceaccount")
+    if not serviceaccount:
+      try:
+        from googleapiclient import _auth
+        credentials = _auth.default_credentials();
+      except:
+        credentials = GoogleCredentials.get_application_default()
+      logging.debug("using application default credentials")
+    else:
+      scope = ['https://www.googleapis.com/auth/cloud-platform']
+      logging.debug("using credentials from service account")
+      try:
+        credentials = ServiceAccountCredentials.from_service_account_file(filename=serviceaccount, scopes=scope)
+      except AttributeError:
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(serviceaccount, scope)
+      except Exception as e:
+        logging.error(str(e))
+        sys.exit(OCF_ERR_GENERIC)
+    ctx.conn = googleapiclient.discovery.build('compute', 'v1', credentials=credentials, cache_discovery=False)
   except Exception as e:
     logger.error('Couldn\'t connect with google api: ' + str(e))
     sys.exit(OCF_ERR_CONFIGURED)
