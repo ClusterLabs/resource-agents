@@ -419,13 +419,10 @@ CTDB_SYSCONFIG_BACKUP=${CTDB_SYSCONFIG}.ctdb-ra-orig
 
 invoke_ctdb() {
 	# CTDB's defaults are:
-	local timeout
 	local timelimit
-	timeout=3
 	timelimit=120
 	# ...but we override with the timeout for the current op:
 	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
-		timeout=$((OCF_RESKEY_CRM_meta_timeout/1000))
 		timelimit=$((OCF_RESKEY_CRM_meta_timeout/1000))
 	fi
 
@@ -436,11 +433,11 @@ invoke_ctdb() {
 	# a compiled option
 	if [ "$?" -eq "0" ]; then
 		$OCF_RESKEY_ctdb_binary --socket="$OCF_RESKEY_ctdb_socket" \
-			-t $timeout -T $timelimit \
+			-T $timelimit \
 			"$@"
 	else
 		$OCF_RESKEY_ctdb_binary \
-			-t $timeout -T $timelimit \
+			-T $timelimit \
 			"$@"
 	fi
 }
