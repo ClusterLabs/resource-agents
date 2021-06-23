@@ -464,7 +464,6 @@ check_systemd_integration() {
             rc=1
         fi
     fi
-    echo "check_systemd_integration returns $rc"
     return "$rc"
 }
 
