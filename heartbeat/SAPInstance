@@ -369,7 +369,7 @@ sapinstance_init() {
 
   # make sure that we don't care the content of variable from previous run of sapinstance_init
   DIR_EXECUTABLE=""
-  SYSTEMCTL="/usr/bin/systemctl"
+  SYSTEMCTL="systemctl"
   # optional OCF parameters, we try to guess which directories are correct
   if  [ -z "$OCF_RESKEY_DIR_EXECUTABLE" ]
   then
