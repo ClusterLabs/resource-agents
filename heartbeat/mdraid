@@ -67,6 +67,14 @@ It uses mdadm(8) to start, stop, and monitor the MD devices.
 Supported clustered (i.e., clonable active-active) arrays are linear,
 raid0, and clustered raid1/raid10 (i.e. mdadm(8) created with
 --bitmap=clustered).
+
+Option: OCF_CHECK_LEVEL
+
+The standard monitor operation of depth 0 checks if the cluster array
+is valid. If you want more action, set OCF_CHECK_LEVEL greate than 0:
+
+  >0: Attempting recovery sequence to re-add devices on MD RAID array
+
 </longdesc>
 <shortdesc lang="en">Manages Linux software RAID (MD) devices on shared
 storage</shortdesc>
@@ -273,7 +281,7 @@ array_is_clustered_raid() {
 	do
 		for s in $strs
 		do
-			$MDADM -E $d 2>&1 | grep -i "$s" >/dev/null 2>&1
+			$MDADM -E $d 2>&1 | $EGREP -i "$s" >/dev/null 2>&1
 			if [ $? -eq 0 ]; then
 				c=$((c+1))
 				break
@@ -286,7 +294,7 @@ array_is_clustered_raid() {
 
 # Check for all clustered types (linear, raid0, and clustered raid1/raid10).
 is_clustered_raid() {
-	array_is_clustered_raid || array_is_linear_or_raid0
+	array_is_clustered_raid || ! array_is_linear_or_raid0
 }
 
 md_assemble() {
