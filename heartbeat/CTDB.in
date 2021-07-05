@@ -113,6 +113,7 @@ OCF_RESKEY_ctdbd_binary_default="/usr/sbin/ctdbd"
 OCF_RESKEY_ctdb_dbdir_default="${var_prefix}"
 OCF_RESKEY_ctdb_logfile_default="/var/log/ctdb/log.ctdb"
 OCF_RESKEY_ctdb_rundir_default="${run_prefix}/ctdb"
+OCF_RESKEY_ctdb_timeout_default="10"
 
 : ${OCF_RESKEY_ctdb_config_dir=${OCF_RESKEY_ctdb_config_dir_default}}
 : ${OCF_RESKEY_ctdb_binary=${OCF_RESKEY_ctdb_binary_default}}
@@ -120,6 +121,7 @@ OCF_RESKEY_ctdb_rundir_default="${run_prefix}/ctdb"
 : ${OCF_RESKEY_ctdb_dbdir=${OCF_RESKEY_ctdb_dbdir_default}}
 : ${OCF_RESKEY_ctdb_logfile=${OCF_RESKEY_ctdb_logfile_default}}
 : ${OCF_RESKEY_ctdb_rundir=${OCF_RESKEY_ctdb_rundir_default}}
+: ${OCF_RESKEY_ctdb_timeout=${OCF_RESKEY_ctdb_timeout_default}}
 
 OCF_RESKEY_ctdb_socket_default="${OCF_RESKEY_ctdb_rundir}/ctdbd.socket"
 OCF_RESKEY_ctdb_debuglevel_default="2"
@@ -321,6 +323,14 @@ lock state.
 <content type="string" default="${OCF_RESKEY_ctdb_rundir_default}" />
 </parameter>
 
+<parameter name="ctdb_timeout" unique="1" required="0">
+<longdesc lang="en">
+Indicates that ctdb should wait up to TIMEOUT seconds for a response to most commands sent to the CTDB daemon.
+</longdesc>
+<shortdesc lang="en">CTDB timeout in seconds</shortdesc>
+<content type="integer" default="${OCF_RESKEY_ctdb_timeout_default}" />
+</parameter>
+
 <parameter name="ctdb_debuglevel" unique="0" required="0">
 <longdesc lang="en">
 What debug level to run at (0-10). Higher means more verbose.
@@ -419,13 +429,10 @@ CTDB_SYSCONFIG_BACKUP=${CTDB_SYSCONFIG}.ctdb-ra-orig
 
 invoke_ctdb() {
 	# CTDB's defaults are:
-	local timeout
 	local timelimit
-	timeout=3
 	timelimit=120
 	# ...but we override with the timeout for the current op:
 	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
-		timeout=$((OCF_RESKEY_CRM_meta_timeout/1000))
 		timelimit=$((OCF_RESKEY_CRM_meta_timeout/1000))
 	fi
 
@@ -436,11 +443,11 @@ invoke_ctdb() {
 	# a compiled option
 	if [ "$?" -eq "0" ]; then
 		$OCF_RESKEY_ctdb_binary --socket="$OCF_RESKEY_ctdb_socket" \
-			-t $timeout -T $timelimit \
+			-t ${OCF_RESKEY_ctdb_timeout} -T $timelimit \
 			"$@"
 	else
 		$OCF_RESKEY_ctdb_binary \
-			-t $timeout -T $timelimit \
+			-t ${OCF_RESKEY_ctdb_timeout} -T $timelimit \
 			"$@"
 	fi
 }
