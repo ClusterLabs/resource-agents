@@ -30,6 +30,10 @@ from ocf import *
 
 try:
   import googleapiclient.discovery
+  try:
+    from google.oauth2.service_account import Credentials as ServiceAccountCredentials
+  except ImportError:
+    from oauth2client.service_account import ServiceAccountCredentials
 except ImportError:
   pass
 
@@ -50,6 +54,8 @@ REMOVE = 1
 CONN = None
 THIS_VM = None
 ALIAS = None
+MAX_RETRIES = 3
+RETRY_BACKOFF_SECS = 1
 METADATA_SERVER = 'http://metadata.google.internal/computeMetadata/v1/'
 METADATA_HEADERS = {'Metadata-Flavor': 'Google'}
 METADATA = \
@@ -73,6 +79,21 @@ METADATA = \
     <parameter name="hostlist" unique="0" required="0">
       <longdesc lang="en">List of hosts in the cluster, separated by spaces</longdesc>
       <shortdesc lang="en">Host list</shortdesc>
+      <content type="string" default="" />
+    </parameter>
+    <parameter name="project" unique="0" required="0">
+      <longdesc lang="en">
+        Project ID of the instance. It can be useful to set this
+        attribute if the instance is in a shared service project.
+        Otherwise, the agent should be able to determine the project ID
+        automatically.
+      </longdesc>
+      <shortdesc lang="en">Project ID</shortdesc>
+      <content type="string" default="default" />
+    </parameter>
+    <parameter name="serviceaccount">
+      <longdesc lang="en">Path to Service account JSON file</longdesc>
+      <shortdesc lang="en">Service account JSONfile</shortdesc>
       <content type="string" default="" />
     </parameter>
     <parameter name="stackdriver_logging" unique="0" required="0">
@@ -101,18 +122,56 @@ def get_metadata(metadata_key, params=None, timeout=None):
 
   Returns:
     HTTP response from the GET request.
-
-  Raises:
-    urlerror.HTTPError: raises when the GET request fails.
   """
-  timeout = timeout or 60
-  metadata_url = os.path.join(METADATA_SERVER, metadata_key)
-  params = urlparse.urlencode(params or {})
-  url = '%s?%s' % (metadata_url, params)
-  request = urlrequest.Request(url, headers=METADATA_HEADERS)
-  request_opener = urlrequest.build_opener(urlrequest.ProxyHandler({}))
-  return request_opener.open(
-      request, timeout=timeout * 1.1).read().decode("utf-8")
+  for i in range(MAX_RETRIES):
+    try:
+      timeout = timeout or 60
+      metadata_url = os.path.join(METADATA_SERVER, metadata_key)
+      params = urlparse.urlencode(params or {})
+      url = '%s?%s' % (metadata_url, params)
+      request = urlrequest.Request(url, headers=METADATA_HEADERS)
+      request_opener = urlrequest.build_opener(urlrequest.ProxyHandler({}))
+      return request_opener.open(
+          request, timeout=timeout * 1.1).read().decode("utf-8")
+    except Exception as e:
+      logger.error('Couldn\'t get instance name, is this running inside GCE?: '
+                   + str(e))
+      time.sleep(RETRY_BACKOFF_SECS * (i + 1))
+
+  # If the retries are exhausted we exit with a generic error.
+  sys.exit(OCF_ERR_GENERIC)
+
+
+def create_api_connection():
+  for i in range(MAX_RETRIES):
+    try:
+      serviceaccount = os.environ.get("OCF_RESKEY_serviceaccount")
+      if not serviceaccount:
+        try:
+          from googleapiclient import _auth
+          credentials = _auth.default_credentials();
+        except:
+          credentials = GoogleCredentials.get_application_default()
+          logging.debug("using application default credentials")
+      else:
+        scope = ['https://www.googleapis.com/auth/cloud-platform']
+        logging.debug("using credentials from service account")
+        try:
+          credentials = ServiceAccountCredentials.from_service_account_file(filename=serviceaccount, scopes=scope)
+        except AttributeError:
+          credentials = ServiceAccountCredentials.from_json_keyfile_name(serviceaccount, scope)
+        except Exception as e:
+          logging.error(str(e))
+          sys.exit(OCF_ERR_GENERIC)
+      return googleapiclient.discovery.build('compute', 'v1',
+                                             credentials=credentials,
+                                             cache_discovery=False)
+    except Exception as e:
+      logger.error('Couldn\'t connect with google api: ' + str(e))
+      time.sleep(RETRY_BACKOFF_SECS * (i + 1))
+
+  # If the retries are exhausted we exit with a generic error.
+  sys.exit(OCF_ERR_GENERIC)
 
 
 def get_instance(project, zone, instance):
@@ -253,8 +312,14 @@ def get_instances_list(project, exclude):
   hostlist = []
   request = CONN.instances().aggregatedList(project=project)
   while request is not None:
-    response = request.execute()
-    zones = response.get('items', {})
+    try:
+      response = request.execute()
+      zones = response.get('items', {})
+    except googleapiclient.errors.HttpError as e:
+      if e.resp.status == 404:
+        logger.debug('get_instances_list(): no instances found')
+        return ''
+
     for zone in zones.values():
       for inst in zone.get('instances', []):
         if inst['name'] != exclude:
@@ -267,7 +332,8 @@ def get_instances_list(project, exclude):
 def gcp_alias_start(alias):
   my_aliases = get_localhost_aliases()
   my_zone = get_metadata('instance/zone').split('/')[-1]
-  project = get_metadata('project/project-id')
+  project = os.environ.get(
+        'OCF_RESKEY_project', get_metadata('project/project-id'))
 
   if alias in my_aliases:
     # TODO: Do we need to check alias_range_name?
@@ -292,9 +358,13 @@ def gcp_alias_start(alias):
       break
 
   # Add alias IP range to localhost
-  add_alias(
-      project, my_zone, THIS_VM, alias,
-      os.environ.get('OCF_RESKEY_alias_range_name'))
+  try:
+    add_alias(
+        project, my_zone, THIS_VM, alias,
+        os.environ.get('OCF_RESKEY_alias_range_name'))
+  except googleapiclient.errors.HttpError as e:
+    if e.resp.status == 404:
+      sys.exit(OCF_ERR_CONFIGURED)
 
   # Verify that the IP range has been added
   my_aliases = get_localhost_aliases()
@@ -315,7 +385,8 @@ def gcp_alias_start(alias):
 def gcp_alias_stop(alias):
   my_aliases = get_localhost_aliases()
   my_zone = get_metadata('instance/zone').split('/')[-1]
-  project = get_metadata('project/project-id')
+  project = os.environ.get(
+        'OCF_RESKEY_project', get_metadata('project/project-id'))
 
   if alias in my_aliases:
     logger.info('Removing %s from %s' % (alias, THIS_VM))
@@ -336,24 +407,11 @@ def gcp_alias_status(alias):
 
 def validate():
   global ALIAS
-  global CONN
   global THIS_VM
+  global CONN
 
-  # Populate global vars
-  try:
-    CONN = googleapiclient.discovery.build('compute', 'v1',
-                                           cache_discovery=False)
-  except Exception as e:
-    logger.error('Couldn\'t connect with google api: ' + str(e))
-    sys.exit(OCF_ERR_CONFIGURED)
-
-  try:
-    THIS_VM = get_metadata('instance/name')
-  except Exception as e:
-    logger.error('Couldn\'t get instance name, is this running inside GCE?: '
-                 + str(e))
-    sys.exit(OCF_ERR_CONFIGURED)
-
+  CONN = create_api_connection()
+  THIS_VM = get_metadata('instance/name')
   ALIAS = os.environ.get('OCF_RESKEY_alias_ip')
   if not ALIAS:
     logger.error('Missing alias_ip parameter')

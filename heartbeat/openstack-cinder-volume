@@ -27,6 +27,7 @@
 # Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
 #
 
+
 #######################################################################
 # Initialization:
 
@@ -35,13 +36,9 @@
 
 # Defaults
 OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
-OCF_RESKEY_node_id_cache_file_default="${HA_RSCTMP}/node_id"
 OCF_RESKEY_volume_local_check_default="true"
 
-export attached_server_id=""
-
 : ${OCF_RESKEY_openstackcli=${OCF_RESKEY_openstackcli_default}}
-: ${OCF_RESKEY_node_id_cache_file=${OCF_RESKEY_node_id_cache_file_default}}
 : ${OCF_RESKEY_volume_local_check=${OCF_RESKEY_volume_local_check_default}}
 
 #######################################################################
@@ -77,17 +74,6 @@ Path to command line tools for openstack.
 </longdesc>
 <shortdesc lang="en">Path to Openstack CLI tool</shortdesc>
 <content type="string" default="${OCF_RESKEY_openstackcli_default}" />
-</parameter>
-
-<parameter name="node_id_cache_file">
-<longdesc lang="en">
-Path to Node ID cache file, used to avoid Openstack API calls:
-1. Is the local file written?
-2. Is openstack_id available as a node attribute?
-3. Can we get it from the API?
-</longdesc>
-<shortdesc lang="en">Path to Node ID cache file</shortdesc>
-<content type="string" default="${OCF_RESKEY_node_id_cache_file_default}" />
 </parameter>
 
 <parameter name="volume_local_check">
@@ -128,83 +114,19 @@ Cinder volume identifier to use to attach the bloc storage.
 END
 }
 
-#
-# This is used to get the node ID from different sources:
-# 1. Is the local file written?
-# 2. Is openstack_id available as a node attribute?
-# 3. Can we get it from the API?
-#
-# When the ID is retrieved, the local cache file is written.
-# This prevents the agent to call the API each time the agent is used.
-#
 _get_node_id() {
-	local crm_node
-	local node
-	local node_id
-	local result
+	node_id=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_id -N $(crm_node -n) |
+		awk -F= '{gsub("\"","");print $NF}')
 
-	crm_node=$(crm_node -n)
-
-	#
-	# Use local cache
-	#
-	if [ -f $OCF_RESKEY_node_id_cache_file ] ; then
-		node_id=$(cat $OCF_RESKEY_node_id_cache_file)
-		
-		if [ ! -z "$node_id" ] ; then
-			echo $node_id
-			return
-		fi
+	if ! echo $node_id|grep -P "^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$"; then
+		ocf_exit_reason "openstack_id attribute must be set for node $crm_node"
+		exit $OCF_ERR_CONFIGURED
 	fi
-
-	#
-	# Query the attributes database
-	#
-	node_id=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_id -N $crm_node \
-		| tr ' ' '\n' \
-		| awk -F= '/value=/ {gsub("\"","");print $NF}')
-
-	if [ ! -z "$node_id" ] ; then
-		echo $node_id | awk '{print $1}'
-		echo $node_id | awk '{print $1}' > $OCF_RESKEY_node_id_cache_file
-		return
-	fi
-
-	#
-	# Use the API
-	#
-	node=$(crm_node -n | awk -F. '{print $1}')
-
-	result=$($OCF_RESKEY_openstackcli server list \
-		--format value --column ID --column Name \
-		| grep $node)
-
-	if [ $? -eq 0 ] ; then
-		echo $result | awk '{print $1}'
-		echo $result | awk '{print $1}' > $OCF_RESKEY_node_id_cache_file
-		return
-	fi
-
-	ocf_exit_reason "openstack_id attribute must be set for node $crm_node"
-	return $OCF_ERR_CONFIGURED
 }
 
 osvol_validate() {
-	local node_id
-
 	check_binary "$OCF_RESKEY_openstackcli"
-	check_binary "awk"
-	check_binary "tr"
 	
-	. $OCF_RESKEY_openrc
-
-	node_id=$(_get_node_id)
-
-	if [ -z "$node_id" ] ; then
-		ocf_exit_reason "openstack_id attribute must be set for node $crm_node"
-		return $OCF_ERR_CONFIGURED
-	fi
-
 	if [ -z "$OCF_RESKEY_openrc" ]; then
 		ocf_exit_reason "openrc parameter not set"
 		return $OCF_ERR_CONFIGURED
@@ -215,6 +137,19 @@ osvol_validate() {
 		return $OCF_ERR_CONFIGURED
 	fi
 
+	. $OCF_RESKEY_openrc
+
+	if ! $OCF_RESKEY_openstackcli volume list|grep -q $OCF_RESKEY_volume_id ; then
+		ocf_exit_reason "volume-id $OCF_RESKEY_volume_id not found"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	${HA_SBIN_DIR}/attrd_updater --query -n openstack_id -N $(crm_node -n) > /dev/null 2>&1
+	if [ $? -ne 0 ] ; then
+		ocf_log warn "attr_updater failed to get openstack_id attribute of node $OCF_RESOURCE_INSTANCE"
+		return $OCF_ERR_GENERIC
+	fi
+
 	return $OCF_SUCCESS
 }
 
@@ -222,7 +157,8 @@ osvol_monitor() {
 	local result
 	local node_id
 	local short_volume_id
-	local fdisk_command
+
+	node_id=$(_get_node_id)
 
 	if ocf_is_true $OCF_RESKEY_volume_local_check ; then
 		#
@@ -230,43 +166,38 @@ osvol_monitor() {
 		# We check the local devices
 		#
 		short_volume_id=$(echo $OCF_RESKEY_volume_id | awk '{print substr($0, 0, 20)}')
-		if uname | grep -q Linux ; then
-			fdisk_command="fdisk -l"
-		else
-			fdisk_command="fdisk"
-		fi
-
-		$fdisk_command /dev/disk/by-id/virtio-$short_volume_id 1>/dev/null 2>&1
-		if [ $? -eq 0 ] ; then
+		if lsblk /dev/disk/by-id/virtio-$short_volume_id 1>/dev/null 2>&1; then
 			return $OCF_SUCCESS
 		else
-			ocf_log warn "$OCF_RESKEY_volume_id is not attached to instance $(_get_node_id)"
+			ocf_log warn "$OCF_RESKEY_volume_id is not attached to instance $node_id"
 			return $OCF_NOT_RUNNING
 		fi
+	fi
+
+	#
+	# Is the volue attached?
+	# We use the API
+	#
+	result=$($OCF_RESKEY_openstackcli volume show \
+		--column status \
+		--column attachments \
+		--format value \
+		$OCF_RESKEY_volume_id)
+
+	if echo "$result" | grep -q available ; then
+		ocf_log warn "$OCF_RESKEY_volume_id is not attached to any instance"
+		return $OCF_NOT_RUNNING
 	else
-		#
-		# Is the volue attached?
-		# We use the API
-		#
-		result=$($OCF_RESKEY_openstackcli volume show \
-			--column status \
-			--column attachments \
-			--format value \
-			$OCF_RESKEY_volume_id)
+		export attached_server_id=$(echo $result|head -n1|
+			grep -P -o "'server_id': '[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}'"|
+			grep -P -o "[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}")
+		ocf_log info "$OCF_RESKEY_volume_id is attached to instance $attached_server_id"
 
-		if echo "$result" | grep -q available ; then
-			ocf_log warn "$OCF_RESKEY_volume_id is not attached to any instance"
+		# Compare node_id and the id of the node the volume is attached to
+
+		if [ "$node_id" != "$attached_server_id" ] ; then
+			ocf_log warn "$OCF_RESKEY_volume_id is not attached to this instance"
 			return $OCF_NOT_RUNNING
-		else
-			export attached_server_id=$(echo $result|head -n1|awk -F "'" '{print $4}')
-			ocf_log info "$OCF_RESKEY_volume_id is attached to instance $attached_server_id"
-
-			# Compare node_id and the id of the node the volume is attached to
-			node_id=$(_get_node_id)
-
-			if [ "$node_id" != "$attached_server_id" ] ; then
-				return $OCF_NOT_RUNNING
-			fi
 		fi
 	fi
 
@@ -288,7 +219,7 @@ osvol_stop() {
 	node_id=$(_get_node_id)
 
 	#
-	# Unmout the volume
+	# Detach the volume
 	#
 	if ! $OCF_RESKEY_openstackcli server remove volume $node_id $OCF_RESKEY_volume_id ; then
 		ocf_log error "Couldn't remove volume $OCF_RESKEY_volume_id from instance $node_id"
@@ -312,7 +243,7 @@ osvol_start() {
 	fi
 
 	#
-	# Unmout it from another node
+	# Detach it from another node
 	# TODO: make it optional in case multi-attachment is allowed by Cinder
 	#
 	if [ ! -z $attached_server_id ] ; then
@@ -360,19 +291,23 @@ if ! ocf_is_root; then
 	exit $OCF_ERR_PERM
 fi
 
-osvol_validate
-
 case $__OCF_ACTION in
 	start)
+		osvol_validate || exit $?
 		osvol_start;;
 	stop)
+		osvol_validate || exit $?
 		osvol_stop;;
 	monitor|status)
+		osvol_validate || exit $?
 		osvol_monitor;;
 	validate-all)
-		exit $?;;
+		osvol_validate
+		;;
 	*)
 		echo $USAGE
 		exit $OCF_ERR_UNIMPLEMENTED
 		;;
 esac
+
+exit $?

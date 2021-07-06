@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 #
-# OCF resource agent to move a floating address in an Openstack tenant.
+# OCF resource agent to move a virtual address in an Openstack tenant.
 #
 # Copyright (c) 2018 Mathieu GRZYBEK
 # Based on code of Markus Guertler
@@ -57,14 +57,15 @@ metadata() {
 cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="openstack-floating-ip">
+<resource-agent name="openstack-virtual-ip">
 <version>2.0</version>
 <longdesc lang="en">
-Resource Agent to move a floating IP address from an instance to another one.
+Resource Agent to move a virtual IP address from an instance to another one
+by adding an allowed-address pair associated with an instance port.
 It relies on attributes given by openstack-info resource agent (openstack_ports, openstack_id attributes).
-The attribute called "openstack_floating_ip" is updated.
+The attribute called "openstack_virtual_ip" is updated.
 </longdesc>
-<shortdesc lang="en">Move a floating IP</shortdesc>
+<shortdesc lang="en">Move a virtual IP</shortdesc>
 
 <parameters>
 <parameter name="openstackcli">
@@ -83,11 +84,11 @@ Valid Openstack credentials as openrc file from api_access/openrc.
 <content type="string" />
 </parameter>
 
-<parameter name="ip_id" required="1">
+<parameter name="ip" required="1">
 <longdesc lang="en">
-Floating IP Identifier.
+Virtual IP Address.
 </longdesc>
-<shortdesc lang="en">IP ID</shortdesc>
+<shortdesc lang="en">IP Address</shortdesc>
 <content type="string" />
 </parameter>
 
@@ -112,7 +113,19 @@ Subnet Identifier to use to attach the address.
 END
 }
 
-osflip_validate() {
+osvip_port_id() {
+	# Get port_id from subnet_id
+	node_port_ids=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $(crm_node -n) \
+		| awk '{gsub("value=","") ; gsub("\"","") ; print $NF}')
+
+	node_port_id=$(echo $node_port_ids \
+		| tr ',' '\n' \
+		| awk -F: "/$OCF_RESKEY_subnet_id/ {print \$2}")
+
+	echo ${node_port_id}
+}
+
+osvip_validate() {
 	check_binary "$OCF_RESKEY_openstackcli"
 
 	if [ -z "$OCF_RESKEY_openrc" ]; then
@@ -127,11 +140,6 @@ osflip_validate() {
 
 	. $OCF_RESKEY_openrc
 
-	if ! $OCF_RESKEY_openstackcli floating ip list|grep -q $OCF_RESKEY_ip_id ; then
-		ocf_exit_reason "ip-id $OCF_RESKEY_ip_id not found"
-		return $OCF_ERR_CONFIGURED
-	fi
-
 	${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $(crm_node -n) > /dev/null 2>&1
 	if [ $? -ne 0 ] ; then
 		ocf_log warn "attr_updater failed to get openstack_ports attribute of node $OCF_RESOURCE_INSTANCE"
@@ -141,94 +149,90 @@ osflip_validate() {
 	return $OCF_SUCCESS
 }
 
-osflip_monitor() {
+osvip_monitor() {
 	local result
-	local floating_ip
-	local node_port_ids
-	local port
-	local buffer
 
-	node_port_ids=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $(crm_node -n) \
-		| awk -F= '{gsub("\"","");print $NF}' \
-		| tr ',' ' ' \
-		| awk -F: '{print $NF}')
+	node_port_id=$(osvip_port_id)
 
-	# Is the IP active and attached?
-	result=$($OCF_RESKEY_openstackcli floating ip show \
-		--column port_id --column floating_ip_address \
-		--format yaml \
-		$OCF_RESKEY_ip_id)
+	result=$($OCF_RESKEY_openstackcli port show \
+		--format value \
+		--column allowed_address_pairs \
+		${node_port_id})
+	if echo $result | grep -q $OCF_RESKEY_ip ; then
+		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_virtual_ip -v $OCF_RESKEY_ip
 
-	for port in $node_port_ids ; do
-		if echo $result | grep -q $port ; then
-			floating_ip=$(echo $result | awk '/floating_ip_address/ {print $2}')
-			${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_floating_ip -v $floating_ip
+		return $OCF_SUCCESS
+	fi
 
-			return $OCF_SUCCESS
-		fi
-	done
-
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_floating_ip
-	ocf_log warn "$OCF_RESKEY_ip_id is not attached to any fixed address"
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_virtual_ip
+	ocf_log warn "$OCF_RESKEY_ip is not attached to any fixed address"
 	return $OCF_NOT_RUNNING
 }
 
-osflip_stop() {
-	ocf_log info "Bringing down IP address $OCF_RESKEY_ip_id"
+osvip_stop() {
+	node_port_id=$(osvip_port_id)
 
-	osflip_monitor
+	ocf_log info "Bringing down IP address $OCF_RESKEY_ip"
+
+	osvip_monitor
 	if [ $? = $OCF_NOT_RUNNING ]; then
-		ocf_log info "Address $OCF_RESKEY_ip_id already down"
+		ocf_log info "Address $OCF_RESKEY_ip already down"
 		return $OCF_SUCCESS
 	fi
 
-	if ! $OCF_RESKEY_openstackcli floating ip unset --port $OCF_RESKEY_ip_id ; then
+	mac_address=$($OCF_RESKEY_openstackcli port show \
+		--format value \
+		--column mac_address \
+		$node_port_id)
+	echo ${mac_address} | grep -q -P "^([0-9a-f]{2}:){5}[0-9a-f]{2}$"
+	if [ $? -ne 0 ]; then
+		ocf_log error "MAC address '${mac_address}' is not valid."
 		return $OCF_ERR_GENERIC
 	fi
 
-	osflip_monitor
+	if ! $OCF_RESKEY_openstackcli port unset \
+		--allowed-address \
+		ip-address=$OCF_RESKEY_ip,mac-address=${mac_address} \
+		$node_port_id; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	osvip_monitor
 	if [ $? != $OCF_NOT_RUNNING ]; then
-		ocf_log error "Couldn't unset IP address $OCF_RESKEY_ip_id."
+		ocf_log error "Couldn't unset IP address $OCF_RESKEY_ip."
 		return $OCF_ERR_GENERIC
 	fi
 
-	ocf_log info "Successfully brought down $OCF_RESKEY_ip_id"
+	ocf_log info "Successfully brought down $OCF_RESKEY_ip"
 	return $OCF_SUCCESS
 }
 
-osflip_start() {
-	local node_port_id
-	local node_port_ids
+osvip_start() {
+	node_port_id=$(osvip_port_id)
 
-	osflip_monitor
+	osvip_monitor
 	if [ $? = $OCF_SUCCESS ]; then
-		ocf_log info "$OCF_RESKEY_ip_id already started"
+		ocf_log info "$OCF_RESKEY_ip already started"
 		return $OCF_SUCCESS
 	fi
 
-	# Get port_id from subnet_id
-	node_port_ids=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $(crm_node -n) \
-		| awk '{gsub("value=","") ; gsub("\"","") ; print $NF}')
+	ocf_log info "Moving IP address $OCF_RESKEY_ip to port ID $node_port_id"
 
-	node_port_id=$(echo $node_port_ids \
-		| tr ',' '\n' \
-		| awk -F: "/$OCF_RESKEY_subnet_id/ {print \$2}")
-
-	ocf_log info "Moving IP address $OCF_RESKEY_ip_id to port ID $node_port_id"
-
-	$OCF_RESKEY_openstackcli floating ip set --port $node_port_id $OCF_RESKEY_ip_id
+	$OCF_RESKEY_openstackcli port set \
+		--allowed-address ip-address=$OCF_RESKEY_ip \
+		$node_port_id
 	if [ $? != $OCF_SUCCESS ]; then
-		ocf_log error "$OCF_RESKEY_ip_id Cannot be set to port $node_port_id"
+		ocf_log error "$OCF_RESKEY_ip Cannot be set to port $node_port_id"
 		return $OCF_ERR_GENERIC
 	fi
 
-	osflip_monitor
+	osvip_monitor
 	if [ $? != $OCF_SUCCESS ]; then
-		ocf_log error "$OCF_RESKEY_ip_id Cannot be set to port $node_port_id"
+		ocf_log error "$OCF_RESKEY_ip Cannot be set to port $node_port_id"
 		return $OCF_ERR_GENERIC
 	fi
 
-	ocf_log info "Successfully brought up $OCF_RESKEY_ip_id"
+	ocf_log info "Successfully brought up $OCF_RESKEY_ip"
 	return $OCF_SUCCESS
 }
 
@@ -256,16 +260,16 @@ fi
 
 case $__OCF_ACTION in
 	start)
-		osflip_validate || exit $?
-		osflip_start;;
+		osvip_validate || exit $?
+		osvip_start;;
 	stop)
-		osflip_validate || exit $?
-		osflip_stop;;
+		osvip_validate || exit $?
+		osvip_stop;;
 	monitor)
-		osflip_validate || exit $?
-		osflip_monitor;;
+		osvip_validate || exit $?
+		osvip_monitor;;
 	validate-all)
-		osflip_validate
+		osvip_validate
 		;;
 	*)
 		echo $USAGE

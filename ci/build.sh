@@ -68,13 +68,13 @@ check_all_executables() {
 		fi
 
 		head=$(head -n1 "$script")
+		[[ "$head" =~ .*python.* ]] && continue
 		[[ "$head" =~ .*ruby.* ]] && continue
 		[[ "$head" =~ .*zsh.* ]] && continue
 		[[ "$head" =~ ^#compdef.* ]] && continue
-		[[ "$head" =~ .*@BASH_SHELL@.* ]] && continue
 		[[ "$script" =~ ^.*\.c ]] && continue
+		[[ "$script" =~ ^.*\.in ]] && continue
 		[[ "$script" =~ ^.*\.orig ]] && continue
-		[[ "$script" =~ ^ldirectord.in ]] && continue
 		check "$script"
 
 	done < <(eval "$(find_cmd)")

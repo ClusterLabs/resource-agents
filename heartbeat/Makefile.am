@@ -142,6 +142,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			openstack-cinder-volume \
 			openstack-floating-ip   \
 			openstack-info          \
+			openstack-virtual-ip    \
 			oraasm			\
 			oracle			\
 			oralsnr			\
@@ -164,6 +165,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			sg_persist              \
 			mpathpersist		\
 			slapd			\
+			smb-share		\
 			sybaseASE		\
 			symlink			\
 			syslog-ng		\

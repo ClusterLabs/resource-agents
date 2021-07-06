@@ -47,6 +47,10 @@ from ocf import *
 try:
   import googleapiclient.discovery
   import pyroute2
+  try:
+    from google.oauth2.service_account import Credentials as ServiceAccountCredentials
+  except ImportError:
+    from oauth2client.service_account import ServiceAccountCredentials
 except ImportError:
   pass
 
@@ -98,11 +102,21 @@ subnet ranges
 <content type="string" />
 </parameter>
 
-<parameter name="vpc_network" required="1">
+<parameter name="vpc_network" required="0">
 <longdesc lang="en">
 Name of the VPC network
 </longdesc>
 <shortdesc lang="en">VPC network</shortdesc>
+<content type="string" default="default" />
+</parameter>
+
+<parameter name="project">
+<longdesc lang="en">
+Project ID of the instance. It can be useful to set this attribute if
+the instance is in a shared service project. Otherwise, the agent should
+be able to determine the project ID automatically.
+</longdesc>
+<shortdesc lang="en">Project ID</shortdesc>
 <content type="string" default="default" />
 </parameter>
 
@@ -120,6 +134,12 @@ Route name
 </longdesc>
 <shortdesc lang="en">Route name</shortdesc>
 <content type="string" default="ra-%s" />
+</parameter>
+
+<parameter name="serviceaccount">
+<longdesc lang="en">Path to Service account JSON file</longdesc>
+<shortdesc lang="en">Service account JSONfile</shortdesc>
+<content type="string" default="" />
 </parameter>
 
 <parameter name="stackdriver_logging" unique="0" required="0">
@@ -202,7 +222,25 @@ def validate(ctx):
     sys.exit(OCF_ERR_PERM)
 
   try:
-    ctx.conn = googleapiclient.discovery.build('compute', 'v1', cache_discovery=False)
+    serviceaccount = os.environ.get("OCF_RESKEY_serviceaccount")
+    if not serviceaccount:
+      try:
+        from googleapiclient import _auth
+        credentials = _auth.default_credentials();
+      except:
+        credentials = GoogleCredentials.get_application_default()
+      logging.debug("using application default credentials")
+    else:
+      scope = ['https://www.googleapis.com/auth/cloud-platform']
+      logging.debug("using credentials from service account")
+      try:
+        credentials = ServiceAccountCredentials.from_service_account_file(filename=serviceaccount, scopes=scope)
+      except AttributeError:
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(serviceaccount, scope)
+      except Exception as e:
+        logging.error(str(e))
+        sys.exit(OCF_ERR_GENERIC)
+    ctx.conn = googleapiclient.discovery.build('compute', 'v1', credentials=credentials, cache_discovery=False)
   except Exception as e:
     logger.error('Couldn\'t connect with google api: ' + str(e))
     sys.exit(OCF_ERR_CONFIGURED)
@@ -215,7 +253,8 @@ def validate(ctx):
   try:
     ctx.instance = get_metadata('instance/name')
     ctx.zone = get_metadata('instance/zone').split('/')[-1]
-    ctx.project = get_metadata('project/project-id')
+    ctx.project = os.environ.get(
+        'OCF_RESKEY_project', get_metadata('project/project-id'))
   except Exception as e:
     logger.error(
         'Instance information not found. Is this a GCE instance ?: %s', str(e))
@@ -241,8 +280,19 @@ def validate(ctx):
 def check_conflicting_routes(ctx):
   fl = '(destRange = "%s*") AND (network = "%s") AND (name != "%s")' % (
       ctx.ip, ctx.vpc_network_url, ctx.route_name)
-  request = ctx.conn.routes().list(project=ctx.project, filter=fl)
-  response = request.execute()
+  try:
+    request = ctx.conn.routes().list(project=ctx.project, filter=fl)
+    response = request.execute()
+  except googleapiclient.errors.HttpError as e:
+    if e.resp.status == 404:
+      logger.error('VPC network not found')
+      if 'stop' in sys.argv[1]:
+        sys.exit(OCF_SUCCESS)
+      else:
+        sys.exit(OCF_ERR_CONFIGURED)
+    else:
+      raise
+
   route_list = response.get('items', None)
   if route_list:
     logger.error(
@@ -342,16 +392,16 @@ def route_monitor(ctx):
   logger.info('GCP route monitor: checking route table')
 
   # Ensure that there is no route that we are not aware of that is also handling our IP
-  check_conflicting_routes
+  check_conflicting_routes(ctx)
 
   try:
     request = ctx.conn.routes().get(project=ctx.project, route=ctx.route_name)
     response = request.execute()
   except googleapiclient.errors.HttpError as e:
-    if 'Insufficient Permission' in e.content:
-      return OCF_ERR_PERM
-    elif e.resp.status == 404:
+    if e.resp.status == 404:
       return OCF_NOT_RUNNING
+    elif 'Insufficient Permission' in e.content:
+      return OCF_ERR_PERM
     else:
       raise
 

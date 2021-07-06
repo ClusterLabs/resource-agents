@@ -369,6 +369,7 @@ sapinstance_init() {
 
   # make sure that we don't care the content of variable from previous run of sapinstance_init
   DIR_EXECUTABLE=""
+  SYSTEMCTL="systemctl"
   # optional OCF parameters, we try to guess which directories are correct
   if  [ -z "$OCF_RESKEY_DIR_EXECUTABLE" ]
   then
@@ -446,6 +447,25 @@ sapinstance_init() {
   return $OCF_SUCCESS
 }
 
+#
+# check_systemd_integration : Check, if SAP instance is controlled by systemd unit file SAP<SID>_<InstanceNr>.service
+#                             rc == 0 : sap instance is controlled by the unit file (file at least exists)
+#                             rc == 1 : sap instance is NOT controlled by the unit file (file does not exist)
+#
+check_systemd_integration() {
+    local systemd_unit_name="SAP${SID}_${InstanceNr}"
+    local rc=1
+
+    if [ -x "$SYSTEMCTL" ]; then
+        if $SYSTEMCTL list-unit-files | \
+            awk '$1 == service { found=1 } END { if (! found) {exit 1}}' service="${systemd_unit_name}.service"; then
+            rc=0
+        else
+            rc=1
+        fi
+    fi
+    return "$rc"
+}
 
 #
 # check_sapstartsrv : Before using sapcontrol we make sure that the sapstartsrv is running for the correct instance.
@@ -458,76 +478,92 @@ check_sapstartsrv() {
   local chkrc=$OCF_SUCCESS
   local output=""
 
-  if [ ! -S /tmp/.sapstream5${InstanceNr}13 ]; then
-    ocf_log warn "sapstartsrv is not running for instance $SID-$InstanceName (no UDS), it will be started now"
-    restart=1
-  else
-    output=`$SAPCONTROL -nr $InstanceNr -function ParameterValue INSTANCE_NAME -format script`
-    if [ $? -eq 0 ]
-    then
-      runninginst=`echo "$output" | grep '^0 : ' | cut -d' ' -f3`
-      if [ "$runninginst" != "$InstanceName" ]
-      then
-        ocf_log warn "sapstartsrv is running for instance $runninginst, that service will be killed"
+  # check for sapstartsrv/systemd integration
+
+  if check_systemd_integration; then
+    # do it the systemd way
+    local systemd_unit_name="SAP${SID}_${InstanceNr}"
+
+    if $SYSTEMCTL  status "$systemd_unit_name" 1>/dev/null 2>/dev/null; then
+       ocf_log info "systemd service $systemd_unit_name is active"
+    else
+       ocf_log warn "systemd service $systemd_unit_name is not active, it will be started using systemd"
+       $SYSTEMCTL start "$systemd_unit_name" 1>/dev/null 2>/dev/null
+       # use start, because restart does also stop sap instance
+    fi
+
+    return 0
+  else # otherwise continue with old code...
+      if [ ! -S /tmp/.sapstream5${InstanceNr}13 ]; then
+        ocf_log warn "sapstartsrv is not running for instance $SID-$InstanceName (no UDS), it will be started now"
         restart=1
       else
-        output=`$SAPCONTROL -nr $InstanceNr -function AccessCheck Start`
-        if [ $? -ne 0 ]; then
-          ocf_log warn "FAILED : sapcontrol -nr $InstanceNr -function AccessCheck Start (`ls -ld1 /tmp/.sapstream5${InstanceNr}13`)"
-          ocf_log warn "sapstartsrv will be restarted to try to solve this situation, otherwise please check sapstsartsrv setup (SAP Note 927637)"
+        output=`$SAPCONTROL -nr $InstanceNr -function ParameterValue INSTANCE_NAME -format script`
+        if [ $? -eq 0 ]
+        then
+          runninginst=`echo "$output" | grep '^0 : ' | cut -d' ' -f3`
+          if [ "$runninginst" != "$InstanceName" ]
+          then
+            ocf_log warn "sapstartsrv is running for instance $runninginst, that service will be killed"
+            restart=1
+          else
+            output=`$SAPCONTROL -nr $InstanceNr -function AccessCheck Start`
+            if [ $? -ne 0 ]; then
+              ocf_log warn "FAILED : sapcontrol -nr $InstanceNr -function AccessCheck Start (`ls -ld1 /tmp/.sapstream5${InstanceNr}13`)"
+              ocf_log warn "sapstartsrv will be restarted to try to solve this situation, otherwise please check sapstsartsrv setup (SAP Note 927637)"
+              restart=1
+            fi
+          fi
+        else
+          ocf_log warn "sapstartsrv is not running for instance $SID-$InstanceName, it will be started now"
           restart=1
         fi
       fi
-    else
-      ocf_log warn "sapstartsrv is not running for instance $SID-$InstanceName, it will be started now"
-      restart=1
-    fi
+
+      if [ -z "$runninginst" ]; then runninginst=$InstanceName; fi
+
+      if [ $restart -eq 1 ]
+      then
+        if [ -d /usr/sap/$SID/SYS/profile/ ]
+        then
+          DIR_PROFILE="/usr/sap/$SID/SYS/profile"
+        else
+          abnormal_end "Expected /usr/sap/$SID/SYS/profile/ to be a directory, please set DIR_PROFILE parameter!"
+        fi
+
+        [ ! -r $SAPSTARTPROFILE ] && abnormal_end "Expected $SAPSTARTPROFILE to be the instance START profile, please set START_PROFILE parameter!"
+
+        pkill -9 -f "sapstartsrv.*$runninginst"
+
+        # removing the unix domain socket files as they might have wrong permissions
+        # or ownership - they will be recreated by sapstartsrv during next start
+        rm -f /tmp/.sapstream5${InstanceNr}13
+        rm -f /tmp/.sapstream5${InstanceNr}14
+
+        $SAPSTARTSRV pf=$SAPSTARTPROFILE -D -u $sidadm
+
+        # now make sure the daemon has been started and is able to respond
+        local srvrc=1
+        while [ $srvrc -eq 1 -a `pgrep -f "sapstartsrv.*$runninginst" | wc -l` -gt 0 ]
+        do
+          sleep 1
+          $SAPCONTROL -nr $InstanceNr -function GetProcessList > /dev/null 2>&1
+          srvrc=$?
+        done
+
+        if [ $srvrc -ne 1 ]
+        then
+          ocf_log info "sapstartsrv for instance $SID-$InstanceName was restarted !"
+          chkrc=$OCF_SUCCESS
+        else
+          ocf_log error "sapstartsrv for instance $SID-$InstanceName could not be started!"
+          chkrc=$OCF_ERR_GENERIC
+          ocf_is_probe && chkrc=$OCF_NOT_RUNNING
+        fi
+      fi
+
+      return $chkrc
   fi
-
-  if [ -z "$runninginst" ]; then runninginst=$InstanceName; fi
-
-  if [ $restart -eq 1 ]
-  then
-
-    if [ -d /usr/sap/$SID/SYS/profile/ ]
-    then
-      DIR_PROFILE="/usr/sap/$SID/SYS/profile"
-    else
-      abnormal_end "Expected /usr/sap/$SID/SYS/profile/ to be a directory, please set DIR_PROFILE parameter!"
-    fi
-
-    [ ! -r $SAPSTARTPROFILE ] && abnormal_end "Expected $SAPSTARTPROFILE to be the instance START profile, please set START_PROFILE parameter!"
-
-    pkill -9 -f "sapstartsrv.*$runninginst"
-
-    # removing the unix domain socket files as they might have wrong permissions
-    # or ownership - they will be recreated by sapstartsrv during next start
-    rm -f /tmp/.sapstream5${InstanceNr}13
-    rm -f /tmp/.sapstream5${InstanceNr}14
-
-    $SAPSTARTSRV pf=$SAPSTARTPROFILE -D -u $sidadm
-
-    # now make sure the daemon has been started and is able to respond
-    local srvrc=1
-    while [ $srvrc -eq 1 -a `pgrep -f "sapstartsrv.*$runninginst" | wc -l` -gt 0 ]
-    do
-      sleep 1
-      $SAPCONTROL -nr $InstanceNr -function GetProcessList > /dev/null 2>&1
-      srvrc=$?
-    done
-
-    if [ $srvrc -ne 1 ]
-    then
-      ocf_log info "sapstartsrv for instance $SID-$InstanceName was restarted !"
-      chkrc=$OCF_SUCCESS
-    else
-      ocf_log error "sapstartsrv for instance $SID-$InstanceName could not be started!"
-      chkrc=$OCF_ERR_GENERIC
-      ocf_is_probe && chkrc=$OCF_NOT_RUNNING
-    fi
-  fi
-
-  return $chkrc
 }
 
 

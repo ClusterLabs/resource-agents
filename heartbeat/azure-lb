@@ -93,12 +93,18 @@ getpid() {
 
 lb_monitor() {
 	if test -f "$pidfile"; then
-		if pid=`getpid $pidfile` && [ "$pid" ] && kill -s 0 $pid; then
-			return $OCF_SUCCESS
-		else
-			# pidfile w/o process means the process died
-			return $OCF_ERR_GENERIC
+		[ "$__OCF_ACTION" = "stop" ] && level="debug" || level="err"
+
+		if pid=$(getpid "$pidfile") && [ -n "$pid" ]; then
+			output=$(kill -s 0 "$pid" 2>&1)
+			mon_rc=$?
+
+			[ -n "$output" ] && ocf_log "$level" "$output"
+			[ "$mon_rc" -eq 0 ] && return $OCF_SUCCESS
 		fi
+
+		# pidfile w/o process means the process died
+		return $OCF_ERR_GENERIC
 	else
 		return $OCF_NOT_RUNNING
 	fi
@@ -113,7 +119,7 @@ lb_start() {
 	if ! lb_monitor; then
 		ocf_log debug "Starting $process: $cmd"
 		# Execute the command as created above
-		$cmd &
+		$cmd >/dev/null 2>&1 &
 		echo $! > $pidfile
 		if lb_monitor; then
 			ocf_log debug "$process: $cmd started successfully, calling monitor"
@@ -131,7 +137,7 @@ lb_start() {
 }
 
 lb_stop() {
-	local rc=$OCF_SUCCESS
+	stop_rc=$OCF_SUCCESS
 
         if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
                 # Allow 2/3 of the action timeout for the orderly shutdown
@@ -160,7 +166,7 @@ lb_stop() {
                 while :; do
                         if ! lb_monitor; then
                                 ocf_log warn "SIGKILL did the job."
-                                rc=$OCF_SUCCESS
+                                stop_rc=$OCF_SUCCESS
                                 break
                         fi
                         ocf_log info "The job still hasn't stopped yet. Waiting..."
@@ -168,7 +174,7 @@ lb_stop() {
                 done
 	fi
 	rm -f $pidfile 
-	return $rc
+	return $stop_rc
 }
 
 lb_validate() {

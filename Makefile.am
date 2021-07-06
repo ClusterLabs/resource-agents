@@ -54,7 +54,7 @@ endif
 pkgconfigdir = $(datadir)/pkgconfig
 pkgconfig_DATA = $(PACKAGE_NAME).pc
 
-EXTRA_DIST		= autogen.sh .version make/release.mk \
+EXTRA_DIST		= autogen.sh .version ci make/release.mk \
 			  make/git-version-gen make/gitlog-to-changelog \
 			  AUTHORS COPYING COPYING.GPLv3 COPYING.LGPL ChangeLog \
 			  $(pkgconfig_DATA).in $(SPEC).in
@@ -178,6 +178,9 @@ srpm: clean
 rpm: clean
 	$(MAKE) $(SPEC) $(TARFILES)
 	rpmbuild $(RPMBUILDOPTS) -ba $(SPEC)
+
+check-local:
+	$(top_srcdir)/ci/build.sh check
 
 spellcheck: make/spellcheck-ignore
 if BUILD_LINUX_HA

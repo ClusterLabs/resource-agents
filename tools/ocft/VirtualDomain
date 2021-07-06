@@ -1,5 +1,5 @@
 # VirtualDomain
-# by dejan@suse.de on 
+# by dejan@suse.de on
 # Tue Jul  8 12:48:03 CEST 2014
 
 CONFIG
@@ -16,6 +16,7 @@ CASE-BLOCK required_args
 	Env OCF_RESKEY_config=$OCFT_config
 
 CASE-BLOCK unset_utilization
+	Env OCF_RESKEY_autoset_utilization_host_memory=false
 	Env OCF_RESKEY_autoset_utilization_hv_memory=false
 	Env OCF_RESKEY_autoset_utilization_cpu=false
 

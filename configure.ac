@@ -413,9 +413,7 @@ dnl Variables needed for substitution
 
 AC_CHECK_HEADERS(heartbeat/glue_config.h)
 
-if test "$ac_cv_header_heartbeat_glue_config_h" = "yes"; then
-  OCF_ROOT_DIR=`extract_header_define heartbeat/glue_config.h OCF_ROOT_DIR`
-else
+if test "$ac_cv_header_heartbeat_glue_config_h" != "yes"; then
   enable_libnet=no
 fi
 
@@ -511,6 +509,7 @@ if test -z "$PYTHON"; then
 fi
 
 AC_PYTHON_MODULE(googleapiclient)
+AC_PYTHON_MODULE(json)
 AC_PYTHON_MODULE(pyroute2)
 
 AS_VERSION_COMPARE([$PYTHON_VERSION], [2.7], [BUILD_OCF_PY=0], [BUILD_OCF_PY=1], [BUILD_OCF_PY=1])
@@ -581,7 +580,7 @@ if test x"${XSLTPROC}" != x""; then
         if test x"${DIRS}" = x""; then
             # when datadir is not standard OS path, we cannot find docbook.xsl
             # use standard OS path as backup
-            DIRS=$(find "/usr/share" -name $(basename $(dirname ${DOCBOOK_XSL_PATH})) \
+            DIRS=$(find "/usr/share" "/usr/local/share" -name $(basename $(dirname ${DOCBOOK_XSL_PATH})) \
                    -type d | LC_ALL=C sort)
         fi
         XSLT=$(basename ${DOCBOOK_XSL_PATH})
@@ -981,6 +980,7 @@ AC_CONFIG_FILES([heartbeat/dnsupdate], [chmod +x heartbeat/dnsupdate])
 AC_CONFIG_FILES([heartbeat/dummypy], [chmod +x heartbeat/dummypy])
 AC_CONFIG_FILES([heartbeat/eDir88], [chmod +x heartbeat/eDir88])
 AC_CONFIG_FILES([heartbeat/fio], [chmod +x heartbeat/fio])
+AC_CONFIG_FILES([heartbeat/galera], [chmod +x heartbeat/galera])
 AC_CONFIG_FILES([heartbeat/gcp-pd-move], [chmod +x heartbeat/gcp-pd-move])
 AC_CONFIG_FILES([heartbeat/gcp-vpc-move-ip], [chmod +x heartbeat/gcp-vpc-move-ip])
 AC_CONFIG_FILES([heartbeat/gcp-vpc-move-vip], [chmod +x heartbeat/gcp-vpc-move-vip])
@@ -995,8 +995,11 @@ AC_CONFIG_FILES([heartbeat/machine-info], [chmod +x heartbeat/machine-info])
 AC_CONFIG_FILES([heartbeat/mariadb], [chmod +x heartbeat/mariadb])
 AC_CONFIG_FILES([heartbeat/mpathpersist], [chmod +x heartbeat/mpathpersist])
 AC_CONFIG_FILES([heartbeat/nfsnotify], [chmod +x heartbeat/nfsnotify])
+AC_CONFIG_FILES([heartbeat/openstack-info], [chmod +x heartbeat/openstack-info])
+AC_CONFIG_FILES([heartbeat/rabbitmq-cluster], [chmod +x heartbeat/rabbitmq-cluster])
 AC_CONFIG_FILES([heartbeat/redis], [chmod +x heartbeat/redis])
 AC_CONFIG_FILES([heartbeat/rsyslog], [chmod +x heartbeat/rsyslog])
+AC_CONFIG_FILES([heartbeat/smb-share], [chmod +x heartbeat/smb-share])
 AC_CONFIG_FILES([heartbeat/sg_persist], [chmod +x heartbeat/sg_persist])
 AC_CONFIG_FILES([heartbeat/slapd], [chmod +x heartbeat/slapd])
 AC_CONFIG_FILES([heartbeat/sybaseASE], [chmod +x heartbeat/sybaseASE])

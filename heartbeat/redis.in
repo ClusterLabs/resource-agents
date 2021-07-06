@@ -278,7 +278,7 @@ master_is_active()
 			XMLOPT="--output-as=xml"
 			ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.2.0"
 			if [ $? -eq 1 ]; then
-				crm_mon -1 $XMLOPT >/dev/null 2>&1
+				crm_mon_no_validation -1 $XMLOPT >/dev/null 2>&1
 				if [ $? -ne 0 ]; then
 					XMLOPT="--as-xml"
 				fi
@@ -286,7 +286,7 @@ master_is_active()
 		else
 			XMLOPT="--as-xml"
 		fi
-		crm_mon -1 $XMLOPT | grep -q -i -E "resource.*id=\"${OCF_RESOURCE_INSTANCE}\".* role=\"(Promoted|Master)\".* active=\"true\".* orphaned=\"false\".* failed=\"false\""
+		crm_mon_no_validation -1 $XMLOPT | grep -q -i -E "resource.*id=\"${OCF_RESOURCE_INSTANCE}\".* role=\"(Promoted|Master)\".* active=\"true\".* orphaned=\"false\".* failed=\"false\""
 		MASTER_ACTIVE=$?
 		MASTER_ACTIVE_CACHED="true"
 	fi
