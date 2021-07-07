@@ -70,6 +70,9 @@ findif_SOURCES		= findif.c
 if BUILD_TICKLE
 halib_PROGRAMS		+= tickle_tcp
 tickle_tcp_SOURCES	= tickle_tcp.c
+
+# Enable C99 for tickle_tcp and turn off a C89-style check that conflicts with C99 code
+tickle_tcp.o: CFLAGS+=-std=c99 -Wno-declaration-after-statement
 endif
 
 .PHONY: install-exec-hook
