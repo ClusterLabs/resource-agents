@@ -144,6 +144,9 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_nfsnotify.7 \
                           ocf_heartbeat_nfsserver.7 \
                           ocf_heartbeat_nginx.7 \
+                          ocf_heartbeat_nvmet-subsystem.7 \
+                          ocf_heartbeat_nvmet-namespace.7 \
+                          ocf_heartbeat_nvmet-port.7 \
                           ocf_heartbeat_openstack-info.7 \
                           ocf_heartbeat_openstack-cinder-volume.7 \
                           ocf_heartbeat_openstack-floating-ip.7 \

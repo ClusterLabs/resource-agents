@@ -1,0 +1,238 @@
+#!/bin/sh
+#
+#
+#     NVMe-oF (rdma, tcp, fc) OCF RA. Exports and manages NVMe targets.
+#
+#   (c) 2021 LINBIT HA-Solutions GmbH, written by Philipp Reisner
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+OCF_RESKEY_port_id_default="0"
+: ${OCF_RESKEY_port_id=${OCF_RESKEY_port_id_default}}
+
+OCF_RESKEY_type_default="tcp"
+: ${OCF_RESKEY_type=${OCF_RESKEY_type_default}}
+
+OCF_RESKEY_addr_fam_default="ipv4"
+: ${OCF_RESKEY_addr_fam=${OCF_RESKEY_addr_fam_default}}
+
+OCF_RESKEY_svcid_default="4420"
+: ${OCF_RESKEY_svcid=${OCF_RESKEY_svcid_default}}
+#######################################################################
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="nvmet-port">
+<version>0.9</version>
+
+<longdesc lang="en">
+Manages NVMe-oF ports. An NVMe-oF port is part of an NVMe-oF target.
+A port must be created after the subsystem. It exposes one or multiple
+subsystem(s) including the enclosed namespace(s) to the network.
+</longdesc>
+<shortdesc lang="en">NVMe-oF target export agent</shortdesc>
+
+<parameters>
+
+<parameter name="port_id" required="0" unique="1">
+<longdesc lang="en">
+The NVMe port number is a 16 bit number.
+</longdesc>
+<shortdesc lang="en">NVMe port</shortdesc>
+<content type="integer" default="${OCF_RESKEY_port_id_default}"/>
+</parameter>
+
+<parameter name="type" required="0" unique="0">
+<longdesc lang="en">
+The NVMe transport type. Might be one of 'tcp', 'rdma', 'fc' or 'loop'.
+</longdesc>
+<shortdesc lang="en">tcp or rdma</shortdesc>
+<content type="string" default="${OCF_RESKEY_type_default}"/>
+</parameter>
+
+<parameter name="addr_fam" required="0" unique="0">
+<longdesc lang="en">
+The address family of the address. Mibht be 'ipv4', 'ipv6' or 'fc'.
+</longdesc>
+<shortdesc lang="en">ipv4 or ipv6</shortdesc>
+<content type="string" default="${OCF_RESKEY_addr_fam_default}"/>
+</parameter>
+
+<parameter name="svcid" required="0" unique="0">
+<longdesc lang="en">
+The transport service identifier, is the TCP/IP port number of the
+equivalent in the RDMA world.
+</longdesc>
+<shortdesc lang="en">IP/RDMA port number</shortdesc>
+<content type="integer" default="${OCF_RESKEY_svcid_default}"/>
+</parameter>
+
+<parameter name="addr" required="1" unique="0">
+<longdesc lang="en">
+The transport address, is the TCP/IP address this targets binds to
+or the equivalent in the RDMA world.
+</longdesc>
+<shortdesc lang="en">IP/RDMA/FC address</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="nqns" required="1" unique="0">
+<longdesc lang="en">
+A space-separated list of NQNs that should be exported through
+this NVMe-oF-Target port. This list needs to have at least one entry.
+</longdesc>
+<shortdesc lang="en">list of NQNs</shortdesc>
+<content type="string"/>
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"		timeout="10s" />
+<action name="stop"		 timeout="10s" />
+<action name="status"	   timeout="10s" interval="10s" depth="0" />
+<action name="monitor"	  timeout="10s" interval="10s" depth="0" />
+<action name="meta-data"	timeout="5s" />
+<action name="validate-all"   timeout="10s" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+nvmet_port_usage() {
+	cat <<END
+usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+nvmet_port_start() {
+	nvmet_port_monitor
+	if [ $? =  $OCF_SUCCESS ]; then
+		return $OCF_SUCCESS
+	fi
+
+	mkdir ${portdir}
+	echo ${OCF_RESKEY_addr} > ${portdir}/addr_traddr
+	echo ${OCF_RESKEY_type} > ${portdir}/addr_trtype
+	echo ${OCF_RESKEY_svcid} > ${portdir}/addr_trsvcid
+	echo ${OCF_RESKEY_addr_fam} > ${portdir}/addr_adrfam
+
+	for subsystem in ${OCF_RESKEY_nqns}; do
+		ln -s /sys/kernel/config/nvmet/subsystems/${subsystem} \
+		   ${portdir}/subsystems/${subsystem}
+	done
+
+	nvmet_port_monitor
+}
+
+nvmet_port_stop() {
+	nvmet_port_monitor
+	if [ $? -eq $OCF_NOT_RUNNING ]; then
+		return $OCF_SUCCESS
+	fi
+
+	for subsystem in ${OCF_RESKEY_nqns}; do
+		rm ${portdir}/subsystems/${subsystem}
+	done
+
+	rmdir ${portdir}
+
+	return $OCF_SUCCESS
+}
+
+nvmet_port_monitor() {
+	[ -d ${portdir} ] || return $OCF_NOT_RUNNING
+	return $OCF_SUCCESS
+}
+
+nvmet_port_validate() {
+	case "${OCF_RESKEY_type}" in
+		tcp|rdma|fc)
+			;;
+		*)
+			ocf_log err "type must be tcp, rdma, or fc. OCF_RESKEY_type was set to $OCF_RESKEY_type"
+			exit $OCF_ERR_ARGS
+			;;
+	esac
+
+	case "${OCF_RESKEY_addr_fam}" in
+		ipv4|ipv6|fc)
+			;;
+		*)
+			ocf_log err "addr_fam must be ipv4, ipv6, or fc. OCF_RESKEY_addr_fam was set to $OCF_RESKEY_addr_fam"
+			exit $OCF_ERR_ARGS
+			;;
+	esac
+
+	if [ -z "${OCF_RESKEY_nqns}" ]; then
+		ocf_log err "subsystems may not be empty. OCF_RESKEY_nqns was set to $OCF_RESKEY_nqns"
+		exit $OCF_ERR_ARGS
+	fi
+
+	if [ ! -d /sys/kernel/config/nvmet ]; then
+		ocf_log err "/sys/kernel/config/nvmet does not exist -- Load the nvmet.ko linux kernel module."
+		exit $OCF_ERR_INSTALLED
+	fi
+	portdir=/sys/kernel/config/nvmet/ports/${OCF_RESKEY_port_id}
+
+	return $OCF_SUCCESS
+}
+
+
+case $1 in
+  meta-data)
+	meta_data
+	exit $OCF_SUCCESS
+	;;
+  usage|help)
+	nvmet_port_usage
+	exit $OCF_SUCCESS
+	;;
+esac
+
+# Everything except usage and meta-data must pass the validate test
+nvmet_port_validate
+
+case $__OCF_ACTION in
+start)		nvmet_port_start;;
+stop)		nvmet_port_stop;;
+monitor|status)	nvmet_port_monitor;;
+reload)		ocf_log info "Reloading..."
+			nvmet_port_start
+		;;
+validate-all)	;;
+*)		nvmet_port_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
