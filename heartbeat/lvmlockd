@@ -34,13 +34,11 @@
 
 # Parameter defaults
 
-OCF_RESKEY_with_cmirrord_default="false"
 OCF_RESKEY_pidfile_default="/run/lvmlockd.pid"
 OCF_RESKEY_socket_path_default="/run/lvm/lvmlockd.socket"
 OCF_RESKEY_syslog_priority_default="warning"
 OCF_RESKEY_adopt_default="1"
 
-: ${OCF_RESKEY_with_cmirrord=${OCF_RESKEY_with_cmirrord_default}}
 : ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
 : ${OCF_RESKEY_socket_path=${OCF_RESKEY_socket_path_default}}
 : ${OCF_RESKEY_syslog_priority=${OCF_RESKEY_syslog_priority_default}}
@@ -73,14 +71,6 @@ For more information, refer to manpage lvmlockd.8.
 <shortdesc lang="en">This agent manages the lvmlockd daemon</shortdesc>
 
 <parameters>
-<parameter name="with_cmirrord" unique="0" required="0">
-<longdesc lang="en">
-Start with cmirrord (cluster mirror log daemon).
-</longdesc>
-<shortdesc lang="en">activate cmirrord</shortdesc>
-<content type="boolean" default="${OCF_RESKEY_with_cmirrord_default}" />
-</parameter>
-
 <parameter name="pidfile" unique="0">
 <longdesc lang="en">pid file</longdesc>
 <shortdesc lang="en">pid file</shortdesc>
@@ -122,7 +112,6 @@ END
 #######################################################################
 
 LOCKD="lvmlockd"
-CMIRRORD="cmirrord"
 # 0.5s sleep each count
 TIMEOUT_COUNT=20
 
@@ -161,12 +150,6 @@ silent_status()
 		daemon_is_running "$pid"
 		rc=$?
 		mirror_rc=$rc
-
-		if ocf_is_true $OCF_RESKEY_with_cmirrord; then
-			pid=$(pgrep $CMIRRORD | head -n1)
-			daemon_is_running "$pid"
-			mirror_rc=$?
-		fi
 
 		# If these ever don't match, return error to force recovery
 		if [ $mirror_rc -ne $rc ]; then
@@ -245,16 +228,6 @@ lvmlockd_start() {
 	if silent_status ; then
 		ocf_log info "${LOCKD} already started (pid=$(get_pid))"
 		return $OCF_SUCCESS
-	fi
-
-	if ocf_is_true $OCF_RESKEY_with_cmirrord; then
-		ocf_log info "starting ${CMIRRORD}..."
-		$CMIRRORD
-		rc=$?
-		if [ $rc -ne $OCF_SUCCESS ] ; then
-			ocf_exit_reason "Failed to start ${CMIRRORD}, exit code: $rc"
-			return $OCF_ERR_GENERIC
-		fi
 	fi
 
 	if [ ! -z "$OCF_RESKEY_socket_path" ] ; then
@@ -353,13 +326,8 @@ lvmlockd_stop() {
 	pid=$(get_pid)
 	kill_stop $LOCKD $pid
 
-	if ocf_is_true $OCF_RESKEY_with_cmirrord; then
-		pid=$(pgrep $CMIRRORD)
-		kill_stop $CMIRRORD $pid
-	fi
-
 	if silent_status ; then
-		ocf_exit_reason "Failed to stop, ${LOCKD} or ${CMIRRORD} still running."
+		ocf_exit_reason "Failed to stop, ${LOCKD} still running."
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -381,10 +349,6 @@ lvmlockd_validate() {
 	check_binary dlm_tool
 	check_binary pgrep
 	check_binary lvmlockctl
-
-	if ocf_is_true $OCF_RESKEY_with_cmirrord; then
-		check_binary $CMIRRORD
-	fi
 
 	return $OCF_SUCCESS
 }
