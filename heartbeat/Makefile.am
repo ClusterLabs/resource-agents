@@ -115,6 +115,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			fio			\
 			galera			\
 			garbd			\
+			gcp-ilb			\
 			gcp-vpc-move-ip		\
 			iSCSILogicalUnit	\
 			iSCSITarget		\
