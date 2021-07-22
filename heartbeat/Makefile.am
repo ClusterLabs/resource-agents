@@ -140,6 +140,9 @@ ocf_SCRIPTS	      = AoEtarget		\
 			nfsnotify		\
 			nfsserver		\
 			nginx			\
+			nvmet-subsystem		\
+			nvmet-namespace		\
+			nvmet-port		\
 			openstack-cinder-volume \
 			openstack-floating-ip   \
 			openstack-info          \
