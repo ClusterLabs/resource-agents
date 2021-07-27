@@ -56,7 +56,7 @@ A subsystem must be created first, before namespace(s) and port(s).
 <longdesc lang="en">
 The NVMe Qualified Name (NQN) is used to identify the remote NVMe
 storage target. It is similar to an iSCSI Qualified Name
-(IQN). While it is a free from string follow the conversion:
+(IQN). While it is a free-form string, you should follow the convention:
 nqn.2014-08.com.vendor:nvme:nvm-subsystem-sn-12345
 </longdesc>
 <shortdesc lang="en">NVMe Qualified Name</shortdesc>
