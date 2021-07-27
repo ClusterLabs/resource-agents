@@ -68,7 +68,7 @@ The NVMe port number is a 16 bit number.
 
 <parameter name="type" required="0" unique="0">
 <longdesc lang="en">
-The NVMe transport type. Might be one of 'tcp', 'rdma', 'fc' or 'loop'.
+The NVMe transport type. Should be one of 'tcp', 'rdma', 'fc' or 'loop'.
 </longdesc>
 <shortdesc lang="en">tcp or rdma</shortdesc>
 <content type="string" default="${OCF_RESKEY_type_default}"/>
@@ -76,7 +76,7 @@ The NVMe transport type. Might be one of 'tcp', 'rdma', 'fc' or 'loop'.
 
 <parameter name="addr_fam" required="0" unique="0">
 <longdesc lang="en">
-The address family of the address. Mibht be 'ipv4', 'ipv6' or 'fc'.
+The address family of the address. Should be 'ipv4', 'ipv6' or 'fc'.
 </longdesc>
 <shortdesc lang="en">ipv4 or ipv6</shortdesc>
 <content type="string" default="${OCF_RESKEY_addr_fam_default}"/>
@@ -84,8 +84,8 @@ The address family of the address. Mibht be 'ipv4', 'ipv6' or 'fc'.
 
 <parameter name="svcid" required="0" unique="0">
 <longdesc lang="en">
-The transport service identifier, is the TCP/IP port number of the
-equivalent in the RDMA world.
+The transport service identifier. The TCP/IP port number this target binds to,
+or its RDMA protocol equivalent.
 </longdesc>
 <shortdesc lang="en">IP/RDMA port number</shortdesc>
 <content type="integer" default="${OCF_RESKEY_svcid_default}"/>
@@ -93,8 +93,8 @@ equivalent in the RDMA world.
 
 <parameter name="addr" required="1" unique="0">
 <longdesc lang="en">
-The transport address, is the TCP/IP address this targets binds to
-or the equivalent in the RDMA world.
+The transport address. The TCP/IP address this targets binds to,
+or its RDMA protocol equivalent.
 </longdesc>
 <shortdesc lang="en">IP/RDMA/FC address</shortdesc>
 <content type="string"/>

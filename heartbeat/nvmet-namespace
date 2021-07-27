@@ -56,7 +56,7 @@ the LUN of an iSCSI target.
 <longdesc lang="en">
 The NVMe Qualified Name (NQN) is used to identify the remote NVMe
 storage target. It is similar to an iSCSI Qualified Name
-(IQN). While it is a free from string follow the conversion:
+(IQN). While it is a free-form string, you should follow the convention:
 nqn.2014-08.com.vendor:nvme:nvm-subsystem-sn-12345
 You need to refer here to the NQN of an NVMe Subsystem your created
 with the NVMeSubsystem resource agent.
@@ -76,7 +76,7 @@ The NVMe namespace id (number).
 <parameter name="backing_path" required="1" unique="0">
 <longdesc lang="en">
 The full path to the block device or file that should be exposed through this
-namesapce.
+namespace.
 </longdesc>
 <shortdesc lang="en">block device full path</shortdesc>
 <content type="string"/>
@@ -85,7 +85,7 @@ namesapce.
 <parameter name="uuid" required="1" unique="1">
 <longdesc lang="en">
 The UUID that should be exposed by NVMe. Create it using uuidgen. This is
-necessary that the initiators accept the Namespace from the new server
+necessary for the initiators to accept the namespace from the new server
 after failover.
 </longdesc>
 <shortdesc lang="en">UUID</shortdesc>
