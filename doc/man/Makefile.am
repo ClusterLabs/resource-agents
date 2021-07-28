@@ -138,6 +138,7 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_mariadb.7 \
                           ocf_heartbeat_mdraid.7 \
                           ocf_heartbeat_minio.7 \
+                          ocf_heartbeat_mpathpersist.7 \
                           ocf_heartbeat_mysql.7 \
                           ocf_heartbeat_mysql-proxy.7 \
                           ocf_heartbeat_nagios.7 \
@@ -175,7 +176,7 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_smb-share.7 \
                           ocf_heartbeat_sybaseASE.7 \
                           ocf_heartbeat_sg_persist.7 \
-                          ocf_heartbeat_mpathpersist.7 \
+                          ocf_heartbeat_storage-mon.7 \
                           ocf_heartbeat_symlink.7 \
                           ocf_heartbeat_syslog-ng.7 \
                           ocf_heartbeat_tomcat.7 \
