@@ -1,0 +1,263 @@
+#!@BASH_SHELL@
+#
+# Copyright (C) 2021 Red Hat, Inc.  All rights reserved.
+#
+# Authors: Christine Caulfield <ccaulfie@redhat.com>
+#          Fabio M. Di Nitto <fdinitto@redhat.com>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#
+# Checks storage I/O status of all given drives and writes the #health-storage
+# status into the CIB
+# Implementation is heavily based on ocf:pacemaker:HealtSMART
+#
+# It sends a single block on IO to a radom location on the device and reports any errors returned.
+# If the IO hangs, that will also be returned. (bear in mind tha tmay also hang the C app in some
+# instances).
+#
+# It's worth making a note in the RA description that the smartmon RA is also recommended (this
+# does not replace it), and that Pacemaker health checking should be configued.
+#
+# https://clusterlabs.org/pacemaker/doc/2.1/Pacemaker_Explained/singlehtml/index.html#tracking-node-health
+
+#######################################################################
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#
+STORAGEMON=$HA_BIN/storage_mon
+ATTRDUP=/usr/sbin/attrd_updater
+
+OCF_RESKEY_CRM_meta_interval_default="0"
+OCF_RESKEY_io_timeout_default="10"
+OCF_RESKEY_inject_errors_default=""
+OCF_RESKEY_state_file_default="${HA_RSCTMP%%/}/storage-mon-${OCF_RESOURCE_INSTANCE}.state"
+
+# Explicitly list all environment variables used, to make static analysis happy
+: ${OCF_RESKEY_CRM_meta_interval:=${OCF_RESKEY_CRM_meta_interval_default}}
+: ${OCF_RESKEY_drives:=""}
+: ${OCF_RESKEY_io_timeout:=${OCF_RESKEY_io_timeout_default}}
+: ${OCF_RESKEY_inject_errors:=${OCF_RESKEY_inject_errors_default}}
+: ${OCF_RESKEY_state_file:=${OCF_RESKEY_state_file_default}}
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="storage-mon">
+<version>1.0</version>
+
+<longdesc lang="en">
+System health agent that checks the storage I/O status of the given drives and
+updates the #health-storage attribute. Usage is highly recommended in combination
+with storage-mon monitoring agent. The agent currently support a maximum of 25
+devices per instance.
+</longdesc>
+<shortdesc lang="en">storage I/O health status</shortdesc>
+
+<parameters>
+
+<parameter name="state_file" unique="1">
+<longdesc lang="en">
+Location to store the resource state in.
+</longdesc>
+<shortdesc lang="en">State file</shortdesc>
+<content type="string" default="${OCF_RESKEY_state_file_default}" />
+</parameter>
+
+<parameter name="drives" unique="1" required="1">
+<longdesc lang="en">
+The drive(s) to check as a SPACE separated list. Enter the full path to the device, e.g. "/dev/sda".
+</longdesc>
+<shortdesc lang="en">Drives to check</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="io_timeout" unique="0">
+<longdesc lang="en">
+Specify disk I/O timeout in seconds. Minimum 1, recommeded 10 (default).
+</longdesc>
+<shortdesc lang="en">Disk I/O timeout</shortdesc>
+<content type="integer" default="${OCF_RESKEY_io_timeout_default}" />
+</parameter>
+
+<parameter name="inject_errors" unique="0">
+<longdesc lang="en">
+Used only for testing! Specify % of I/O errors to simulate drives failures.
+</longdesc>
+<shortdesc lang="en">Specify % of I/O errors to simulate drives failures</shortdesc>
+<content type="integer" default="${OCF_RESKEY_inject_errors_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="10s" />
+<action name="stop"         timeout="120s" />
+<action name="monitor"      timeout="120s" interval="30s" start-delay="0s" />
+<action name="meta-data"    timeout="5s" />
+<action name="validate-all" timeout="10s" />
+</actions>
+</resource-agent>
+END
+	return $OCF_SUCCESS
+}
+
+#######################################################################
+
+storage-mon_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+	return $1
+}
+
+storage-mon_init() {
+	#Test for presence of storage_mon helper
+	if [ ! -x "$STORAGEMON" ] ; then
+		ocf_log err "${STORAGEMON} not installed."
+		exit $OCF_ERR_INSTALLED
+	fi
+
+	i=0
+	for DRIVE in ${OCF_RESKEY_drives}; do
+		if [ ! -e "$DRIVE" ] ; then
+			ocf_log err "${DRIVE} not found on the system"
+			exit $OCF_ERR_INSTALLED
+		fi
+		i=$((i + 1))
+	done
+
+	if [ "$i" -gt "25" ]; then
+		ocf_log err "Too many drives ($i) configured for this agent. Max 25."
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	if [ "${OCF_RESKEY_io_timeout}" -lt "1" ]; then
+		ocf_log err "Minimum timeout is 1. Recommended 10 (default)."
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	if [ -n "${OCF_RESKEY_inject_errors}" ]; then
+		if [ "${OCF_RESKEY_inject_errors}" -lt "1" ] || [ "${OCF_RESKEY_inject_errors}" -gt "100" ]; then
+			ocf_log err "Inject errors % has to be a value between 1 and 100."
+			exit $OCF_ERR_CONFIGURED
+		fi
+	fi
+}
+
+storage-mon_validate() {
+	storage-mon_init
+
+	# Is the state directory writable?
+	state_dir=$(dirname "$OCF_RESKEY_state_file")
+	touch "$state_dir/$$"
+	if [ $? -ne 0 ]; then
+		return $OCF_ERR_CONFIGURED
+	fi
+	rm "$state_dir/$$"
+
+	return $OCF_SUCCESS
+}
+
+storage-mon_monitor() {
+	storage-mon_init
+
+	# Monitor _MUST!_ differentiate correctly between running
+	# (SUCCESS), failed (ERROR) or _cleanly_ stopped (NOT RUNNING).
+	# That is THREE states, not just yes/no.
+
+	if [ ! -f "${OCF_RESKEY_state_file}" ]; then
+		return $OCF_NOT_RUNNING
+	fi
+
+	# generate command line
+	cmdline=""
+	for DRIVE in ${OCF_RESKEY_drives}; do
+		cmdline="$cmdline --device $DRIVE --score 1"
+	done
+	cmdline="$cmdline --timeout ${OCF_RESKEY_io_timeout}"
+	if [ -n "${OCF_RESKEY_inject_errors}" ]; then
+		cmdline="$cmdline --inject-errors-percent ${OCF_RESKEY_inject_errors}"
+	fi
+	$STORAGEMON $cmdline
+	if [ $? -ne 0 ]; then
+		status="red"
+	else
+		status="green"
+	fi
+
+	"$ATTRDUP" -n "#health-${OCF_RESOURCE_INSTANCE}" -U "$status" -d "5s"
+	return $OCF_SUCCESS
+}
+
+storage-mon_start() {
+	storage-mon_monitor
+	if [ $? -eq $OCF_SUCCESS ]; then
+		return $OCF_SUCCESS
+	fi
+	touch "${OCF_RESKEY_state_file}"
+}
+
+storage-mon_stop() {
+	storage-mon_monitor
+	if [ $? -eq $OCF_SUCCESS ]; then
+		rm "${OCF_RESKEY_state_file}"
+	fi
+	return $OCF_SUCCESS
+}
+
+storage-mon_validate() {
+	storage-mon_init
+
+	# Is the state directory writable?
+	state_dir=$(dirname "${OCF_RESKEY_state_file}")
+	touch "$state_dir/$$"
+	if [ $? -ne 0 ]; then
+		return $OCF_ERR_CONFIGURED
+	fi
+	rm "$state_dir/$$"
+
+	return $OCF_SUCCESS
+}
+
+case "$__OCF_ACTION" in
+	start)		storage-mon_start;;
+	stop)		storage-mon_stop;;
+	monitor)	storage-mon_monitor;;
+	validate-all)	storage-mon_validate;;
+	meta-data)	meta_data;;
+	usage|help)	storage-mon_usage $OCF_SUCCESS;;
+	*)		storage-mon_usage $OCF_ERR_UNIMPLEMENTED;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
+# vim: set filetype=sh:

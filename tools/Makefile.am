@@ -29,7 +29,8 @@ EXTRA_DIST		= ocf-tester.8 sfex_init.8
 
 sbin_PROGRAMS		= 
 sbin_SCRIPTS		= ocf-tester
-halib_PROGRAMS		= findif
+halib_PROGRAMS		= findif \
+			  storage_mon
 
 man8_MANS		= ocf-tester.8
 
@@ -66,6 +67,8 @@ sfex_stat_CFLAGS	= -D_GNU_SOURCE
 sfex_stat_LDADD		= $(GLIBLIB) -lplumb -lplumbgpl
 
 findif_SOURCES		= findif.c
+
+storage_mon_SOURCES	= storage_mon.c
 
 if BUILD_TICKLE
 halib_PROGRAMS		+= tickle_tcp
