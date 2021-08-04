@@ -235,3 +235,6 @@ do_spellcheck = printf '[%s]\n' "$(agent)"; \
                 | sed -n 's|^&\([^:]*\):.*|\1|p';
 spellcheck:
 	@$(foreach agent,$(ocf_SCRIPTS), $(do_spellcheck))
+
+clean-local:
+	rm -rf __pycache__ *.pyc
