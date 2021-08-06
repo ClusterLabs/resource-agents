@@ -37,15 +37,37 @@ XSLTPROC_MANPAGES_OPTIONS ?= $(XSLTPROC_OPTIONS)
 XSLTPROC_HTML_OPTIONS 	?= $(XSLTPROC_OPTIONS)
 XSLTPROC_FO_OPTIONS 	?= $(XSLTPROC_OPTIONS)
 
-radir			= $(top_srcdir)/heartbeat
+radir			= $(abs_top_builddir)/heartbeat
+
+# required for out-of-tree build
+symlinkstargets		= \
+			  ocf-distro ocf.py ocf-rarun ocf-returncodes \
+			  findif.sh apache-conf.sh http-mon.sh mysql-common.sh \
+			  nfsserver-redhat.sh ora-common.sh
+
+preptree:
+	for i in $(symlinkstargets); do \
+		if [ ! -f $(radir)/$$i ]; then \
+			rm -rf $(radir)/$$i; \
+			ln -sf $(abs_top_srcdir)/heartbeat/$$i $(radir)/$$i; \
+		fi; \
+	done
+
+$(radir)/%: $(abs_top_srcdir)/heartbeat/%
+	if [ ! -f $@ ]; then \
+		ln -sf $< $@; \
+	fi
 
 # OCF_ROOT=. is necessary due to a sanity check in ocf-shellfuncs
 # (which tests whether $OCF_ROOT points to a directory
-metadata-%.xml: $(radir)/%
+metadata-%.xml: $(radir)/% preptree
 	OCF_ROOT=. OCF_FUNCTIONS_DIR=$(radir) $< meta-data > $@
 
-metadata-IPv6addr.xml: ../../heartbeat/IPv6addr
+metadata-IPv6addr.xml:  $(radir)/IPv6addr
 	OCF_ROOT=. OCF_FUNCTIONS_DIR=$(radir) $< meta-data > $@
+
+clean-local:
+	find $(radir) -type l -exec rm -rf {} \;
 
 # Please note: we can't name the man pages
 # ocf:heartbeat:<name>. Believe me, I've tried. It looks like it
