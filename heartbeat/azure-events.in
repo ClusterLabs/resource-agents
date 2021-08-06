@@ -34,6 +34,7 @@ attr_globalPullState = "azure-events_globalPullState"
 attr_lastDocVersion  = "azure-events_lastDocVersion"
 attr_curNodeState = "azure-events_curNodeState"
 attr_pendingEventIDs = "azure-events_pendingEventIDs"
+attr_healthstate = "#health-azure"
 
 default_loglevel = ocf.logging.INFO
 default_relevantEventTypes = set(["Reboot", "Redeploy"])
@@ -509,13 +510,32 @@ class Node:
 		ocf.logger.debug("putNodeStandby: begin; node = %s" % node)
 
 		clusterHelper._exec("crm_attribute",
-							"-t", "nodes",
-							"-N", node,
-							"-n", "standby",
-							"-v", "on",
+							"--node", node,
+							"--name", attr_healthstate,
+							"--update", "-1000000",
 							"--lifetime=forever")
 
 		ocf.logger.debug("putNodeStandby: finished")
+
+	def isNodeInStandby(self, node=None):
+		"""
+		check if node is in standby
+		"""
+		node = self.selfOrOtherNode(node)
+		ocf.logger.debug("isNodeInStandby: begin; node = %s" % node)
+		isInStandy = False
+
+		healthAttributeStr = clusterHelper.getAttr(attr_healthstate, node)
+		if healthAttributeStr is not None:
+			try:
+				healthAttribute = int(healthAttributeStr)
+				isInStandy = healthAttribute < 0
+			except ValueError:
+				# Handle the exception
+				ocf.logger.warn("Health attribute %s on node %s cannot be converted to an integer value" % (healthAttributeStr, node))
+		
+		ocf.logger.debug("isNodeInStandby: finished - result %s" % isInStandy)
+		return isInStandy
 
 	def putNodeOnline(self, node=None):
 		"""
@@ -525,10 +545,9 @@ class Node:
 		ocf.logger.debug("putNodeOnline: begin; node = %s" % node)
 
 		clusterHelper._exec("crm_attribute",
-							"-t", "nodes",
-							"-N", node,
-							"-n", "standby",
-							"-v", "off",
+							"--node", node,
+							"--name", "#health-azure",
+							"--update", "0",
 							"--lifetime=forever")
 
 		ocf.logger.debug("putNodeOnline: finished")
@@ -552,160 +571,6 @@ class Node:
 		ocf.logger.debug("separateEvents: finished; localEvents = %s, remoteEvents = %s" % (str(localEvents), str(remoteEvents)))
 		return (localEvents, remoteEvents)
 
-	def removeOrphanedEvents(self, azEvents):
-		"""
-		Remove remote events that are already finished
-		"""
-		ocf.logger.debug("removeOrphanedEvents: begin; azEvents = %s" % str(azEvents))
-
-		azEventIDs = set()
-		for e in azEvents:
-			azEventIDs.add(e.EventId)
-		# for all nodes except self ...
-		for n in clusterHelper.getAllNodes():
-			if n == self.hostName:
-				continue
-			curState = self.getState(node=n)
-			# ... that still show in an event or shutting down resources ...
-			if curState in (STOPPING, IN_EVENT):
-				ocf.logger.info("removeOrphanedEvents: node %s has state %s" % (n, curState))
-				clusterEventIDs = self.getEventIDs(node=n)
-				stillActive = False
-				# ... but don't have any more events running according to Azure, ...
-				for p in clusterEventIDs:
-					if p in azEventIDs:
-						ocf.logger.info("removeOrphanedEvents: (at least) event %s on node %s has not yet finished" % (str(p), n))
-						stillActive = True
-						break
-				if not stillActive:
-					# ... put them back online.
-					ocf.logger.info("removeOrphanedEvents: clusterEvents %s on node %s are not in azEvents %s -> bring node back online" % (str(clusterEventIDs), n, str(azEventIDs)))
-					self.putNodeOnline(node=n)
-
-		ocf.logger.debug("removeOrphanedEvents: finished")
-
-	def handleRemoteEvents(self, azEvents):
-		"""
-		Handle a list of events (as provided by Azure Metadata Service) for other nodes
-		"""
-		ocf.logger.debug("handleRemoteEvents: begin; hostName = %s, events = %s" % (self.hostName, str(azEvents)))
-
-		if len(azEvents) == 0:
-			ocf.logger.debug("handleRemoteEvents: no remote events to handle")
-			ocf.logger.debug("handleRemoteEvents: finished")
-			return
-		eventIDsForNode = {}
-
-		# iterate through all current events as per Azure
-		for e in azEvents:
-			ocf.logger.info("handleRemoteEvents: handling remote event %s (%s; nodes = %s)" % (e.EventId, e.EventType, str(e.Resources)))
-			# before we can force an event to start, we need to ensure all nodes involved have stopped their resources
-			if e.EventStatus == "Scheduled":
-				allNodesStopped = True
-				for azName in e.Resources:
-					hostName = clusterHelper.getHostNameFromAzName(azName)
-					state = self.getState(node=hostName)
-					if state == STOPPING:
-						# the only way we can continue is when node state is STOPPING, but all resources have been stopped
-						if not clusterHelper.allResourcesStoppedOnNode(hostName):
-							ocf.logger.info("handleRemoteEvents: (at least) node %s has still resources running -> wait" % hostName)
-							allNodesStopped = False
-							break
-					elif state in (AVAILABLE, IN_EVENT, ON_HOLD):
-						ocf.logger.info("handleRemoteEvents: node %s is still %s -> remote event needs to be picked up locally" % (hostName, nodeStateToString(state)))
-						allNodesStopped = False
-						break
-				if allNodesStopped:
-					ocf.logger.info("handleRemoteEvents: nodes %s are stopped -> add remote event %s to force list" % (str(e.Resources), e.EventId))
-					for n in e.Resources:
-						hostName = clusterHelper.getHostNameFromAzName(n)
-						if hostName in eventIDsForNode:
-							eventIDsForNode[hostName].append(e.EventId)
-						else:
-							eventIDsForNode[hostName] = [e.EventId]
-			elif e.EventStatus == "Started":
-				ocf.logger.info("handleRemoteEvents: remote event already started")
-
-		# force the start of all events whose nodes are ready (i.e. have no more resources running)
-		if len(eventIDsForNode.keys()) > 0:
-			eventIDsToForce = set([item for sublist in eventIDsForNode.values() for item in sublist])
-			ocf.logger.info("handleRemoteEvents: set nodes %s to IN_EVENT; force remote events %s" % (str(eventIDsForNode.keys()), str(eventIDsToForce)))
-			for node, eventId in eventIDsForNode.items():
-				self.updateNodeStateAndEvents(IN_EVENT, eventId, node=node)
-			azHelper.forceEvents(eventIDsToForce)
-
-		ocf.logger.debug("handleRemoteEvents: finished")
-
-	def handleLocalEvents(self, azEvents):
-		"""
-		Handle a list of own events (as provided by Azure Metadata Service)
-		"""
-		ocf.logger.debug("handleLocalEvents: begin; hostName = %s, azEvents = %s" % (self.hostName, str(azEvents)))
-
-		azEventIDs = set()
-		for e in azEvents:
-			azEventIDs.add(e.EventId)
-
-		curState = self.getState()
-		clusterEventIDs = self.getEventIDs()
-		mayUpdateDocVersion = False
-		ocf.logger.info("handleLocalEvents: current state = %s; pending local clusterEvents = %s" % (nodeStateToString(curState), str(clusterEventIDs)))
-
-		# check if there are currently/still events set for the node
-		if clusterEventIDs:
-			# there are pending events set, so our state must be STOPPING or IN_EVENT
-			i = 0; touchedEventIDs = False
-			while i < len(clusterEventIDs):
-				# clean up pending events that are already finished according to AZ
-				if clusterEventIDs[i] not in azEventIDs:
-					ocf.logger.info("handleLocalEvents: remove finished local clusterEvent %s" % (clusterEventIDs[i]))
-					clusterEventIDs.pop(i)
-					touchedEventIDs = True
-				else:
-					i += 1
-			if len(clusterEventIDs) > 0:
-				# there are still pending events (either because we're still stopping, or because the event is still in place)
-				# either way, we need to wait
-				if touchedEventIDs:
-					ocf.logger.info("handleLocalEvents: added new local clusterEvent %s" % str(clusterEventIDs))
-					self.setEventIDs(clusterEventIDs)
-				else:
-					ocf.logger.info("handleLocalEvents: no local clusterEvents were updated")
-			else:
-				# there are no more pending events left after cleanup
-				if clusterHelper.noPendingResourcesOnNode(self.hostName):
-					# and no pending resources on the node -> set it back online
-					ocf.logger.info("handleLocalEvents: all local events finished -> clean up, put node online and AVAILABLE")
-					curState = self.updateNodeStateAndEvents(AVAILABLE, None)
-					self.putNodeOnline()
-					clusterHelper.removeHoldFromNodes()
-					# repeat handleLocalEvents() since we changed status to AVAILABLE
-				else:
-					ocf.logger.info("handleLocalEvents: all local events finished, but some resources have not completed startup yet -> wait")
-		else:
-			# there are no pending events set for us (yet)
-			if curState == AVAILABLE:
-				if len(azEventIDs) > 0:
-					if clusterHelper.otherNodesAvailable(self):
-						ocf.logger.info("handleLocalEvents: can handle local events %s -> set state STOPPING" % (str(azEventIDs)))
-						# this will also set mayUpdateDocVersion = True
-						curState = self.updateNodeStateAndEvents(STOPPING, azEventIDs)
-					else:
-						ocf.logger.info("handleLocalEvents: cannot handle azEvents %s (only node available) -> set state ON_HOLD" % str(azEventIDs))
-						self.setState(ON_HOLD)
-				else:
-					ocf.logger.debug("handleLocalEvents: no local azEvents to handle")
-			if curState == STOPPING:
-				if clusterHelper.noPendingResourcesOnNode(self.hostName):
-					ocf.logger.info("handleLocalEvents: all local resources are started properly -> put node standby")
-					self.putNodeStandby()
-					mayUpdateDocVersion = True
-				else:
-					ocf.logger.info("handleLocalEvents: some local resources are not clean yet -> wait")
-
-		ocf.logger.debug("handleLocalEvents: finished; mayUpdateDocVersion = %s" % str(mayUpdateDocVersion))
-		return mayUpdateDocVersion
-
 ##############################################################################
 
 class raAzEvents:
@@ -718,52 +583,123 @@ class raAzEvents:
 
 	def monitor(self):
 		ocf.logger.debug("monitor: begin")
+		
+		events = azHelper.pullScheduledEvents()
 
-		pullFailedAttemps = 0
-		while True:
-			# check if another node is pulling at the same time;
-			# this should only be a concern for the first pull, as setting up Scheduled Events may take up to 2 minutes.
-			if clusterHelper.getAttr(attr_globalPullState) == "PULLING":
-				pullFailedAttemps += 1
-				if pullFailedAttemps == global_pullMaxAttempts:
-					ocf.logger.warning("monitor: exceeded maximum number of attempts (%d) to pull events" % global_pullMaxAttempts)
-					ocf.logger.debug("monitor: finished")
-					return ocf.OCF_SUCCESS
+		# get current document version
+		curDocVersion  = events.DocumentIncarnation
+		lastDocVersion = self.node.getAttr(attr_lastDocVersion)
+		ocf.logger.debug("monitor: lastDocVersion = %s; curDocVersion = %s" % (lastDocVersion, curDocVersion))
+
+		# split events local/remote
+		(localEvents, remoteEvents) = self.node.separateEvents(events.Events)
+
+		# ensure local events are only executing once
+		if curDocVersion == lastDocVersion:
+			ocf.logger.info("monitor: already handled curDocVersion, skip")
+			return ocf.OCF_SUCCESS
+
+		localAzEventIDs = set()
+		for e in localEvents:
+			localAzEventIDs.add(e.EventId)
+
+		curState = self.node.getState()
+		clusterEventIDs = self.node.getEventIDs()
+
+		ocf.logger.debug("monitor: curDocVersion has not been handled yet")
+		
+		if clusterEventIDs:
+			# there are pending events set, so our state must be STOPPING or IN_EVENT
+			i = 0; touchedEventIDs = False
+			while i < len(clusterEventIDs):
+				# clean up pending events that are already finished according to AZ
+				if clusterEventIDs[i] not in localAzEventIDs:
+					ocf.logger.info("monitor: remove finished local clusterEvent %s" % (clusterEventIDs[i]))
+					clusterEventIDs.pop(i)
+					touchedEventIDs = True
 				else:
-					ocf.logger.info("monitor: another node is pulling; retry in %d seconds" % global_pullDelaySecs)
-					time.sleep(global_pullDelaySecs)
-					continue
-
-			# we can pull safely from Azure Metadata Service
-			clusterHelper.setAttr(attr_globalPullState, "PULLING")
-			events = azHelper.pullScheduledEvents()
-			clusterHelper.setAttr(attr_globalPullState, "IDLE")
-
-			# get current document version
-			curDocVersion  = events.DocumentIncarnation
-			lastDocVersion = self.node.getAttr(attr_lastDocVersion)
-			ocf.logger.debug("monitor: lastDocVersion = %s; curDocVersion = %s" % (lastDocVersion, curDocVersion))
-
-			# split events local/remote
-			(localEvents, remoteEvents) = self.node.separateEvents(events.Events)
-
-			# ensure local events are only executing once
-			if curDocVersion != lastDocVersion:
-				ocf.logger.debug("monitor: curDocVersion has not been handled yet")
-				# handleLocalEvents() returns True if mayUpdateDocVersion is True;
-				# this is only the case if we can ensure there are no pending events
-				if self.node.handleLocalEvents(localEvents):
-					ocf.logger.info("monitor: handleLocalEvents completed successfully -> update curDocVersion")
-					self.node.setAttr(attr_lastDocVersion, curDocVersion)
+					i += 1
+			if len(clusterEventIDs) > 0:
+				# there are still pending events (either because we're still stopping, or because the event is still in place)
+				# either way, we need to wait
+				if touchedEventIDs:
+					ocf.logger.info("monitor: added new local clusterEvent %s" % str(clusterEventIDs))
+					self.node.setEventIDs(clusterEventIDs)
 				else:
-					ocf.logger.debug("monitor: handleLocalEvents still waiting -> keep curDocVersion")
+					ocf.logger.info("monitor: no local clusterEvents were updated")
 			else:
-				ocf.logger.info("monitor: already handled curDocVersion, skip")
+				# there are no more pending events left after cleanup
+				if clusterHelper.noPendingResourcesOnNode(self.node.hostName):
+					# and no pending resources on the node -> set it back online
+					ocf.logger.info("monitor: all local events finished -> clean up, put node online and AVAILABLE")
+					curState = self.node.updateNodeStateAndEvents(AVAILABLE, None)
+					self.node.putNodeOnline()
+					clusterHelper.removeHoldFromNodes()
+					# If Azure Scheduled Events are not used for 24 hours (e.g. because the cluster was asleep), it will be disabled for a VM.
+					# When the cluster wakes up and starts using it again, the DocumentIncarnation is reset.
+					# We need to remove it during cleanup, otherwise azure-events will not process the event after wakeup
+					self.node.setAttr(attr_lastDocVersion, None)
+				else:
+					ocf.logger.info("monitor: all local events finished, but some resources have not completed startup yet -> wait")
+		else:
+			if curState == AVAILABLE:
+				if len(localAzEventIDs) > 0:
+					if clusterHelper.otherNodesAvailable(self.node):
+						ocf.logger.info("monitor: can handle local events %s -> set state STOPPING" % (str(localAzEventIDs)))
+						curState = self.node.updateNodeStateAndEvents(STOPPING, localAzEventIDs)
+					else:
+						ocf.logger.info("monitor: cannot handle azEvents %s (only node available) -> set state ON_HOLD" % str(localAzEventIDs))
+						self.node.setState(ON_HOLD)
+				else:
+					ocf.logger.debug("monitor: no local azEvents to handle")
 
-			# remove orphaned remote events and then handle the remaining remote events
-			self.node.removeOrphanedEvents(remoteEvents)
-			self.node.handleRemoteEvents(remoteEvents)
-			break
+		if curState == STOPPING:
+			eventIDsForNode = {}
+			if clusterHelper.noPendingResourcesOnNode(self.node.hostName):
+				if not self.node.isNodeInStandby():
+					ocf.logger.info("monitor: all local resources are started properly -> put node standby and exit")
+					self.node.putNodeStandby()
+					return ocf.OCF_SUCCESS
+
+				for e in localEvents:
+					ocf.logger.info("monitor: handling remote event %s (%s; nodes = %s)" % (e.EventId, e.EventType, str(e.Resources)))
+					# before we can force an event to start, we need to ensure all nodes involved have stopped their resources
+					if e.EventStatus == "Scheduled":
+						allNodesStopped = True
+						for azName in e.Resources:
+							hostName = clusterHelper.getHostNameFromAzName(azName)
+							state = self.node.getState(node=hostName)
+							if state == STOPPING:
+								# the only way we can continue is when node state is STOPPING, but all resources have been stopped
+								if not clusterHelper.allResourcesStoppedOnNode(hostName):
+									ocf.logger.info("monitor: (at least) node %s has still resources running -> wait" % hostName)
+									allNodesStopped = False
+									break
+							elif state in (AVAILABLE, IN_EVENT, ON_HOLD):
+								ocf.logger.info("monitor: node %s is still %s -> remote event needs to be picked up locally" % (hostName, nodeStateToString(state)))
+								allNodesStopped = False
+								break
+						if allNodesStopped:
+							ocf.logger.info("monitor: nodes %s are stopped -> add remote event %s to force list" % (str(e.Resources), e.EventId))
+							for n in e.Resources:
+								hostName = clusterHelper.getHostNameFromAzName(n)
+								if hostName in eventIDsForNode:
+									eventIDsForNode[hostName].append(e.EventId)
+								else:
+									eventIDsForNode[hostName] = [e.EventId]
+					elif e.EventStatus == "Started":
+						ocf.logger.info("monitor: remote event already started")
+
+				# force the start of all events whose nodes are ready (i.e. have no more resources running)
+				if len(eventIDsForNode.keys()) > 0:
+					eventIDsToForce = set([item for sublist in eventIDsForNode.values() for item in sublist])
+					ocf.logger.info("monitor: set nodes %s to IN_EVENT; force remote events %s" % (str(eventIDsForNode.keys()), str(eventIDsToForce)))
+					for node, eventId in eventIDsForNode.items():
+						self.node.updateNodeStateAndEvents(IN_EVENT, eventId, node=node)
+					azHelper.forceEvents(eventIDsToForce)
+					self.node.setAttr(attr_lastDocVersion, curDocVersion)
+			else:
+				ocf.logger.info("monitor: some local resources are not clean yet -> wait")
 
 		ocf.logger.debug("monitor: finished")
 		return ocf.OCF_SUCCESS
