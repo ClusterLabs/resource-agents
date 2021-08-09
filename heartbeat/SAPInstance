@@ -456,7 +456,7 @@ check_systemd_integration() {
     local systemd_unit_name="SAP${SID}_${InstanceNr}"
     local rc=1
 
-    if [ -x "$SYSTEMCTL" ]; then
+    if which "$SYSTEMCTL" 1>/dev/null 2>/dev/null; then
         if $SYSTEMCTL list-unit-files | \
             awk '$1 == service { found=1 } END { if (! found) {exit 1}}' service="${systemd_unit_name}.service"; then
             rc=0
