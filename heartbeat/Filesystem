@@ -493,6 +493,9 @@ trigger_udev_rules_if_needed()
 		-L*|--label*)
 			tmp="/dev/disk/by-label/$tmp" 
 			;;
+		*)
+			# bind mount?
+			return ;;
 		esac
 		[ ! -b "$tmp" ] && refresh_flag="yes"
 	fi
