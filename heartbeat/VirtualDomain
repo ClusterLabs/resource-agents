@@ -869,7 +869,7 @@ mk_migrateuri() {
 				echo "tcp:${migrate_target}:${OCF_RESKEY_migrateport}"
 				;;
 			xen)
-				echo "xenmigr://${migrate_target}"
+				echo "${migrate_target}"
 				;;
 			*)
 				ocf_log warn "$DOMAIN_NAME: Migration via dedicated network currently not supported for ${hypervisor}."
