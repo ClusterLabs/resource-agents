@@ -67,6 +67,14 @@ It uses mdadm(8) to start, stop, and monitor the MD devices.
 Supported clustered (i.e., clonable active-active) arrays are linear,
 raid0, and clustered raid1/raid10 (i.e. mdadm(8) created with
 --bitmap=clustered).
+
+Option: OCF_CHECK_LEVEL
+
+When OCF_CHECK_LEVEL is set to any number greater than 0, the standard
+monitor operation (including probe) will check the array and attempt
+recovery sequence to re-add devices if any failed device exists. By
+default, OCF_CHECK_LEVEL is unset, and this is disabled.
+
 </longdesc>
 <shortdesc lang="en">Manages Linux software RAID (MD) devices on shared
 storage</shortdesc>

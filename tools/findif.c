@@ -292,7 +292,7 @@ SearchUsingRouteCmd (char *address, struct in_addr *in
 			}
 		}
 	}
-	fclose(routefd);
+	pclose(routefd);
 
 	/*
 	 * Check to see if mask isn't available.  It may not be

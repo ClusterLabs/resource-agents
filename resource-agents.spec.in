@@ -138,9 +138,6 @@ service managers.
 %package -n ldirectord
 License:	GPLv2+
 Summary:	A Monitoring Daemon for Maintaining High Availability Resources
-%if 0%{?fedora} || 0%{?centos} || 0%{?rhel}
-%else
-%endif
 Obsoletes:	heartbeat-ldirectord <= %{version}
 Provides:	heartbeat-ldirectord = %{version}
 %if 0%{?fedora} > 18 || 0%{?centos} > 6 || 0%{?rhel} > 6
@@ -150,8 +147,10 @@ Requires:       %{SSLeay} perl-libwww-perl perl-MailTools
 Requires:       ipvsadm logrotate
 %if 0%{?fedora}
 Requires:	perl-Net-IMAP-Simple-SSL perl-IO-Socket-INET6
-Requires(post):	/sbin/chkconfig
-Requires(preun):/sbin/chkconfig
+%endif
+%if 0%{?fedora} < 34
+Requires(post):  /sbin/chkconfig
+Requires(preun): /sbin/chkconfig
 %endif
 %if %{systemd_native}
 BuildRequires:  systemd
