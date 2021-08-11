@@ -49,6 +49,7 @@ OCF_RESKEY_additional_parameters_default=""
 OCF_RESKEY_replication_user_default="root"
 OCF_RESKEY_replication_passwd_default=""
 OCF_RESKEY_replication_port_default="3306"
+OCF_RESKEY_replication_require_ssl_default="false"
 OCF_RESKEY_replication_master_ssl_ca_default=""
 OCF_RESKEY_replication_master_ssl_cert_default=""
 OCF_RESKEY_replication_master_ssl_key_default=""
@@ -81,6 +82,7 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 : ${OCF_RESKEY_replication_user=${OCF_RESKEY_replication_user_default}}
 : ${OCF_RESKEY_replication_passwd=${OCF_RESKEY_replication_passwd_default}}
 : ${OCF_RESKEY_replication_port=${OCF_RESKEY_replication_port_default}}
+: ${OCF_RESKEY_replication_require_ssl=${OCF_RESKEY_replication_require_ssl_default}}
 : ${OCF_RESKEY_replication_master_ssl_ca=${OCF_RESKEY_replication_master_ssl_ca_default}}
 : ${OCF_RESKEY_replication_master_ssl_cert=${OCF_RESKEY_replication_master_ssl_cert_default}}
 : ${OCF_RESKEY_replication_master_ssl_key=${OCF_RESKEY_replication_master_ssl_key_default}}
@@ -94,8 +96,12 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 # Convenience variables
 
 MYSQL=$OCF_RESKEY_client_binary
+if [ "$OCF_RESKEY_replication_require_ssl" = "true" ]
+then
+  MYSQL_OPTIONS_LOCAL_SSL_OPTIONS="--ssl"
+fi
 MYSQL_OPTIONS_LOCAL="-S $OCF_RESKEY_socket"
-MYSQL_OPTIONS_REPL="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_replication_user --password=$OCF_RESKEY_replication_passwd"
+MYSQL_OPTIONS_REPL="$MYSQL_OPTIONS_LOCAL_SSL_OPTIONS $MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_replication_user --password=$OCF_RESKEY_replication_passwd"
 MYSQL_OPTIONS_TEST="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
 MYSQL_TOO_MANY_CONN_ERR=1040
 
@@ -219,7 +225,7 @@ mysql_common_prepare_dirs()
     # Regardless of whether we just created the directory or it
     # already existed, check whether it is writable by the configured
     # user
-    for dir in $pid_dir $socket_dir $OCF_RESKEY_datadir; do
+    for dir in $pid_dir $socket_dir; do
         if ! $SU -s /bin/sh - $OCF_RESKEY_user -c "test -w $dir"; then
             ocf_exit_reason "Directory $dir is not writable by $OCF_RESKEY_user"
             exit $OCF_ERR_PERM;
@@ -239,8 +245,8 @@ mysql_common_start()
     --datadir=$OCF_RESKEY_datadir \
     --log-error=$OCF_RESKEY_log \
     $OCF_RESKEY_additional_parameters \
-    $mysql_extra_params >/dev/null 2>&1" &
-    pid=$!
+    $mysql_extra_params >/dev/null 2>&1 &
+    pid=$!"
 
     # Spin waiting for the server to come up.
     # Let the CRM/LRM time us out if required.
