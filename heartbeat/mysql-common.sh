@@ -49,6 +49,7 @@ OCF_RESKEY_additional_parameters_default=""
 OCF_RESKEY_replication_user_default="root"
 OCF_RESKEY_replication_passwd_default=""
 OCF_RESKEY_replication_port_default="3306"
+OCF_RESKEY_replication_require_ssl_default="false"
 OCF_RESKEY_replication_master_ssl_ca_default=""
 OCF_RESKEY_replication_master_ssl_cert_default=""
 OCF_RESKEY_replication_master_ssl_key_default=""
@@ -81,6 +82,7 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 : ${OCF_RESKEY_replication_user=${OCF_RESKEY_replication_user_default}}
 : ${OCF_RESKEY_replication_passwd=${OCF_RESKEY_replication_passwd_default}}
 : ${OCF_RESKEY_replication_port=${OCF_RESKEY_replication_port_default}}
+: ${OCF_RESKEY_replication_require_ssl=${OCF_RESKEY_replication_require_ssl_default}}
 : ${OCF_RESKEY_replication_master_ssl_ca=${OCF_RESKEY_replication_master_ssl_ca_default}}
 : ${OCF_RESKEY_replication_master_ssl_cert=${OCF_RESKEY_replication_master_ssl_cert_default}}
 : ${OCF_RESKEY_replication_master_ssl_key=${OCF_RESKEY_replication_master_ssl_key_default}}
@@ -94,8 +96,13 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 # Convenience variables
 
 MYSQL=$OCF_RESKEY_client_binary
+if ocf_is_true "$OCF_RESKEY_replication_require_ssl"; then
+  MYSQL_OPTIONS_LOCAL_SSL_OPTIONS="--ssl"
+else
+  MYSQL_OPTIONS_LOCAL_SSL_OPTIONS=""
+fi
 MYSQL_OPTIONS_LOCAL="-S $OCF_RESKEY_socket"
-MYSQL_OPTIONS_REPL="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_replication_user --password=$OCF_RESKEY_replication_passwd"
+MYSQL_OPTIONS_REPL="$MYSQL_OPTIONS_LOCAL_SSL_OPTIONS $MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_replication_user --password=$OCF_RESKEY_replication_passwd"
 MYSQL_OPTIONS_TEST="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
 MYSQL_TOO_MANY_CONN_ERR=1040
 
