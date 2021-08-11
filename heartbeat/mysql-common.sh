@@ -225,7 +225,7 @@ mysql_common_prepare_dirs()
     # Regardless of whether we just created the directory or it
     # already existed, check whether it is writable by the configured
     # user
-    for dir in $pid_dir $socket_dir; do
+    for dir in $pid_dir $socket_dir $OCF_RESKEY_datadir; do
         if ! $SU -s /bin/sh - $OCF_RESKEY_user -c "test -w $dir"; then
             ocf_exit_reason "Directory $dir is not writable by $OCF_RESKEY_user"
             exit $OCF_ERR_PERM;
@@ -245,8 +245,8 @@ mysql_common_start()
     --datadir=$OCF_RESKEY_datadir \
     --log-error=$OCF_RESKEY_log \
     $OCF_RESKEY_additional_parameters \
-    $mysql_extra_params >/dev/null 2>&1 &
-    pid=$!"
+    $mysql_extra_params >/dev/null 2>&1" &
+    pid=$!
 
     # Spin waiting for the server to come up.
     # Let the CRM/LRM time us out if required.
