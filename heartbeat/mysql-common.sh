@@ -98,6 +98,8 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 MYSQL=$OCF_RESKEY_client_binary
 if ocf_is_true "$OCF_RESKEY_replication_require_ssl"; then
   MYSQL_OPTIONS_LOCAL_SSL_OPTIONS="--ssl"
+else
+  MYSQL_OPTIONS_LOCAL_SSL_OPTIONS=""
 fi
 MYSQL_OPTIONS_LOCAL="-S $OCF_RESKEY_socket"
 MYSQL_OPTIONS_REPL="$MYSQL_OPTIONS_LOCAL_SSL_OPTIONS $MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_replication_user --password=$OCF_RESKEY_replication_passwd"
