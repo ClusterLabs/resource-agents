@@ -1,3 +1,43 @@
+* Thu Aug 12 2021 resource-agents contributors
+- release candidate 4.9.0 rc1
+- CTDB: replace timeout override with ctdb_timeout parameter (#1661)
+- Filesystem: do not call partprobe for bind mounts
+- LVM-activate: disable VG autoactivation in system_id access_mode
+- LVM-activate: fix drop-in check to avoid re-creating drop-in file when it already exists
+- SAPInstance: Fix for issue #1680 - SAPInstance fails to detect systemd integration (#1681)
+- SAPInstance: add systemd compatability (#1662)
+- VirtualDomain: add code to set the host_memory value for Utilization (#1649)
+- VirtualDomain: add start_resources parameter that ensures needed virtual
+  storage pools and networks are up and refreshed when enabled
+- VirtualDomain: drop prefix xenmigr from migrate uri
+- azure-events: update api_version
+- build: fix out-of-tree build for man pages
+- configure: add /usr/local/share to fallback path to be scanned for docbook path
+- configure: test for json and remove hardcoded #! in openstack-info
+- db2: add PRIMARY/REMOTE_CATCHUP_PENDING/CONNECTED status to promote-check
+- dummy: add missing action to dummy_usage function
+- findif: popen requires pclose and not fclose (#1664)
+- gcp-ilb: add to Makefiles
+- gcp-ilb: new resource agent to respond to health checks (#1541)
+- gcp-vpc-move-route: add serviceaccount JSON file support
+- gcp-vpc-move-vip.in: add retry to avoid failing on first failed request
+- gcp-vpc-move-vip: add serviceaccount JSON file support
+- iSCSILogicalUnit: lio-t: support setting product_id
+- lvmlockd: remove cmirrord support as it's incompatible with lvmlockd
+- mdraid: add option description for OCF_CHECK_LEVEL
+- mysql: add support for local SSL connection (#1682)
+- nvmet-subsystem/nvmet-namespace/nvmet-port: new resource agents for NVMe-oF-Target
+- ocf-shellfuncs: Remove a bashism in
+- openstack-cinder-volume: CLI output parsing fixes, fetch of node ID consistency, monitor action simplification, and return error when validate fails
+- openstack-floating-ip: return error when validate fails and small log message fixes.
+- openstack-info: run validate in start action. (#1639)
+- openstack-info: updates due to API output format changes and attempt to future-proof parsing of the output.
+- openstack-virtual-ip: new resource agent for virtual IP support in OpenStack.
+- podman: workaround race during container creation
+- smb-share: new resource agent to manage Samba shares on the fly. (#1628)
+- spec: remove chkconfig dependency for Fedora < 34
+- storage-mon: new resource agent (#1675)
+
 * Wed Mar 24 2021 resource-agents contributors
 - stable release 4.8.0
 - awsvip: dont partially match similar IPs during monitor-action
