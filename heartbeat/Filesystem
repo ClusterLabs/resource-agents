@@ -249,7 +249,7 @@ Only set this to "true" if you know what you are doing!
 This option allows specifying how to handle processes that are
 currently accessing the mount directory.
 
-"true"  : Default value, kill processes accessing mount point
+"true"  : Kill processes accessing mount point
 "safe"  : Kill processes accessing mount point using methods that
           avoid functions that could potentially block during process
           detection 
