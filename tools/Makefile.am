@@ -31,6 +31,7 @@ sbin_PROGRAMS		=
 sbin_SCRIPTS		= ocf-tester
 halib_PROGRAMS		= findif \
 			  storage_mon
+halib_SCRIPTS		=
 
 man8_MANS		= ocf-tester.8
 
@@ -50,6 +51,10 @@ else
 if SENDARP_LINUX
 halib_PROGRAMS		+= send_arp
 send_arp_SOURCES	= send_arp.linux.c
+endif
+
+if NFSCONVERT
+halib_SCRIPTS		+= nfsconvert
 endif
 
 endif

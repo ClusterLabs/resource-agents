@@ -787,11 +787,15 @@ case $host_os in
      *Linux*|*linux*) sendarp_linux=1;;
 esac
 
+redhat_based=0
+AC_CHECK_FILE(/etc/redhat-release, [redhat_based=1])
+
 AC_SUBST(LIBNETLIBS)
 AC_SUBST(LIBNETDEFINES)
 
 AM_CONDITIONAL(SENDARP_LINUX, test $sendarp_linux = 1 )
 AM_CONDITIONAL(USE_LIBNET, test "x$libnet_version" != "xnone" )
+AM_CONDITIONAL(NFSCONVERT, test $redhat_based = 1 )
 
 dnl ************************************************************************
 dnl * Check for netinet/icmp6.h to enable the IPv6addr resource agent
@@ -932,6 +936,7 @@ heartbeat/Makefile						\
 systemd/Makefile						\
    systemd/resource-agents.conf					\
 tools/Makefile							\
+   tools/nfsconvert						\
    tools/ocf-tester						\
    tools/ocft/Makefile						\
    tools/ocft/ocft						\
