@@ -1,3 +1,7 @@
+* Thu Aug 19 2021 resource-agents contributors
+- stable release 4.9.0
+- Filesystem: force_unmount: remove "Default value" to avoid confusion on RHEL9+ where default value is safe
+
 * Thu Aug 12 2021 resource-agents contributors
 - release candidate 4.9.0 rc1
 - CTDB: replace timeout override with ctdb_timeout parameter (#1661)
