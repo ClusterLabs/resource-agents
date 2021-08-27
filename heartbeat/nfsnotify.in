@@ -33,7 +33,7 @@
 # Parameter defaults
 
 OCF_RESKEY_source_host_default=""
-OCF_RESKEY_notify_args_default="false"
+OCF_RESKEY_notify_args_default=""
 
 : ${OCF_RESKEY_source_host=${OCF_RESKEY_source_host_default}}
 : ${OCF_RESKEY_notify_args=${OCF_RESKEY_notify_args_default}}
