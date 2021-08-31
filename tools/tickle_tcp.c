@@ -41,7 +41,6 @@ typedef union {
 	struct sockaddr_in6 ip6;
 } sock_addr;
 
-uint32_t uint16_checksum(uint16_t *data, size_t n);
 void set_nonblocking(int fd);
 void set_close_on_exec(int fd);
 static int parse_ipv4(const char *s, unsigned port, struct sockaddr_in *sin);
@@ -53,7 +52,7 @@ int send_tickle_ack(const sock_addr *dst,
 		    uint32_t seq, uint32_t ack, int rst);
 static void usage(void);
 
-uint32_t uint16_checksum(uint16_t *data, size_t n)
+static uint32_t uint16_checksum(uint16_t *data, size_t n)
 {
 	uint32_t sum=0;
 	while (n >= 2) {
@@ -91,6 +90,8 @@ static uint16_t tcp_checksum6(uint16_t *data, size_t n, struct ip6_hdr *ip6)
 	uint32_t phdr[2];
 	uint32_t sum = 0;
 	uint16_t sum2;
+
+	memset(phdr, 0, sizeof(phdr));
 
 	sum += uint16_checksum((uint16_t *)(void *)&ip6->ip6_src, 16);
 	sum += uint16_checksum((uint16_t *)(void *)&ip6->ip6_dst, 16);
