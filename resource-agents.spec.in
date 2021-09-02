@@ -207,10 +207,10 @@ export CFLAGS
 %endif
 	%{conf_opt_fatal} \
 %if %{defined _unitdir}
-    --with-systemdsystemunitdir=%{_unitdir} \
+    SYSTEMD_UNIT_DIR=%{_unitdir} \
 %endif
 %if %{defined _tmpfilesdir}
-    --with-systemdtmpfilesdir=%{_tmpfilesdir} \
+    SYSTEMD_TMPFILES_DIR=%{_tmpfilesdir} \
     --with-rsctmpdir=/run/resource-agents \
 %endif
 	--with-pkg-name=%{name} \
