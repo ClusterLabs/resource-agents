@@ -255,21 +255,43 @@ chain_isactive()
   $IPTABLES $wait -n -L INPUT | grep "$PAT" >/dev/null
 }
 
+# netstat -tn and ss -Htn, split on whitespace and colon,
+# look very similar:
+#  tcp    0  0  10.43.55.1  675  10.43.9.8  2049  ESTABLISHED
+#  ESTAB  0  0  10.43.55.1  675  10.43.9.8  2049
+# so we can write one awk script for both
+get_established_tcp_connections()
+{
+	local columns
+	if [ -z "$1" ] ; then
+		columns='$4,$5, $6,$7'
+	else
+		# swap local and remote for "tickle_local"
+		columns='$6,$7, $4,$5'
+	fi
+	$ss_or_netstat | awk -F '[:[:space:]]+' '
+		( $8 == "ESTABLISHED" || $1 == "ESTAB" ) && $4 == "'$OCF_RESKEY_ip'" \
+		{printf "%s:%s\t%s:%s\n", '"$columns"'}'
+}
+
 save_tcp_connections()
 {
 	[ -z "$OCF_RESKEY_tickle_dir" ] && return
 	statefile=$OCF_RESKEY_tickle_dir/$OCF_RESKEY_ip
+	# If we have _no_ sync script, we probably have a shared
+	# (or replicated) directory, and need to fsync, or we might
+	# end up with the just truncated file after failover, exactly
+	# when we need it.
+	#
+	# If we _do_ have a sync script, it is not that important whether
+	# the local state file is fsync'ed or not, the sync script is
+	# responsible to "atomically" communicate the state to the peer(s).
 	if [ -z "$OCF_RESKEY_sync_script" ]; then
-		netstat -tn |awk -F '[:[:space:]]+' '
-			$8 == "ESTABLISHED" && $4 == "'$OCF_RESKEY_ip'" \
-			{printf "%s:%s\t%s:%s\n", $4,$5, $6,$7}' |
-			dd of="$statefile".new conv=fsync status=none &&
-			mv "$statefile".new "$statefile"
+		get_established_tcp_connections |
+		dd of="$statefile".new conv=fsync status=none &&
+		mv "$statefile".new "$statefile"
 	else
-		netstat -tn |awk -F '[:[:space:]]+' '
-			$8 == "ESTABLISHED" && $4 == "'$OCF_RESKEY_ip'" \
-			{printf "%s:%s\t%s:%s\n", $4,$5, $6,$7}' \
-			> $statefile
+		get_established_tcp_connections > $statefile
 		$OCF_RESKEY_sync_script $statefile > /dev/null 2>&1 &
 	fi
 }
@@ -289,11 +311,6 @@ tickle_local()
 	f=$OCF_RESKEY_tickle_dir/$OCF_RESKEY_ip
 	[ -r $f ] || return
 
-	checkcmd="netstat -tn"
-	if ! have_binary "netstat"; then
-		checkcmd="ss -Htn"
-	fi
-
 	# swap "local" and "remote" address,
 	# so we tickle ourselves.
 	# We set up a REJECT with tcp-reset before we do so, so we get rid of
@@ -302,11 +319,13 @@ tickle_local()
 	# the way if we switch-over and then switch-back in quick succession.
 	local i
 	awk '{ print $2, $1; }' $f | $TICKLETCP
-	$checkcmd | grep -Fw $OCF_RESKEY_ip || return
+	$ss_or_netstat | grep -Fw $OCF_RESKEY_ip || return
 	for i in 0.1 0.5 1 2 4 ; do
 		sleep $i
-		awk '{ print $2, $1; }' $f | $TICKLETCP
-		$checkcmd | grep -Fw $OCF_RESKEY_ip || break
+		# now kill what is currently in the list,
+		# not what was recorded during last monitor
+		get_established_tcp_connections swap | $TICKLETCP
+		$ss_or_netstat | grep -Fw $OCF_RESKEY_ip || break
 	done
 }
 
@@ -556,6 +575,20 @@ portno=$OCF_RESKEY_portno
 action=$OCF_RESKEY_action
 ip=$OCF_RESKEY_ip
 reset_local_on_unblock_stop=$OCF_RESKEY_reset_local_on_unblock_stop
+
+
+# If "tickle" is enabled, we need to record the list of currently established
+# connections during monitor.  Use ss where available, and netstat otherwise.
+if [ -n "$OCF_RESKEY_tickle_dir" ] ; then
+	if have_binary ss ; then
+		ss_or_netstat="ss -Htn"
+	elif have_binary netstat ; then
+		ss_or_netstat="netstat -tn"
+	else
+		ocf_log err "Neither ss nor netstat found, but needed to record estblished connections."
+		exit $OCF_ERR_INSTALLED
+	fi
+fi
 
 case $1 in
   start)	
