@@ -75,7 +75,7 @@ meta_data() {
 <longdesc lang="en">
 System health agent that checks the storage I/O status of the given drives and
 updates the #health-storage attribute. Usage is highly recommended in combination
-with storage-mon monitoring agent. The agent currently support a maximum of 25
+with the HealthSMART monitoring agent. The agent currently support a maximum of 25
 devices per instance.
 </longdesc>
 <shortdesc lang="en">storage I/O health status</shortdesc>
