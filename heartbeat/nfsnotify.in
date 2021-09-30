@@ -204,7 +204,14 @@ copy_statd()
 	cp -rpfn $src/sm $src/sm.bak $src/state $dest > /dev/null 2>&1
 
 	# make sure folder ownership and selinux lables stay consistent
-	[ -n "`id -u rpcuser`" -a "`id -g rpcuser`" ] && chown rpcuser.rpcuser "$dest"
+	# When using nfsnotify resources on the debian system, the statd user replaces the rpcuser user 
+	local rpcuser_exist=`grep rpcuser /etc/passwd` 
+	if  [ -z "$rpcuser_exist" ];then 
+		[ -n "`id -u statd`" ] && [ -n "`id -g statd`" ] && chown statd "$dest" 
+	else 
+		[ -n "`id -u rpcuser`" ] && [ -n "`id -g rpcuser`" ] && chown rpcuser.rpcuser "$dest" 
+	fi
+
 	[ $SELINUX_ENABLED -eq 0 ] && chcon -R "$SELINUX_LABEL" "$dest"
 }
 
