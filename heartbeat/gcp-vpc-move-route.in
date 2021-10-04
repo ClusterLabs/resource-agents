@@ -243,7 +243,7 @@ def validate(ctx):
     ctx.conn = googleapiclient.discovery.build('compute', 'v1', credentials=credentials, cache_discovery=False)
   except Exception as e:
     logger.error('Couldn\'t connect with google api: ' + str(e))
-    sys.exit(OCF_ERR_CONFIGURED)
+    sys.exit(OCF_ERR_GENERIC)
 
   ctx.ip = os.environ.get('OCF_RESKEY_ip')
   if not ctx.ip:
@@ -258,7 +258,7 @@ def validate(ctx):
   except Exception as e:
     logger.error(
         'Instance information not found. Is this a GCE instance ?: %s', str(e))
-    sys.exit(OCF_ERR_CONFIGURED)
+    sys.exit(OCF_ERR_GENERIC)
 
   ctx.instance_url = '%s/projects/%s/zones/%s/instances/%s' % (
       GCP_API_URL_PREFIX, ctx.project, ctx.zone, ctx.instance)
@@ -273,7 +273,7 @@ def validate(ctx):
   idxs = ctx.iproute.link_lookup(ifname=ctx.interface)
   if not idxs:
     logger.error('Network interface not found')
-    sys.exit(OCF_ERR_CONFIGURED)
+    sys.exit(OCF_ERR_GENERIC)
   ctx.iface_idx = idxs[0]
 
 
