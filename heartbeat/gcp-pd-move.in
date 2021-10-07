@@ -157,7 +157,7 @@ def populate_vars():
     CONN = googleapiclient.discovery.build('compute', 'v1')
   except Exception as e:
     logger.error('Couldn\'t connect with google api: ' + str(e))
-    sys.exit(ocf.OCF_ERR_CONFIGURED)
+    sys.exit(ocf.OCF_ERR_GENERIC)
 
   for param in PARAMETERS:
     value = os.environ.get('OCF_RESKEY_%s' % param, PARAMETERS[param])
@@ -172,7 +172,7 @@ def populate_vars():
   except Exception as e:
     logger.error(
         'Couldn\'t get instance name, is this running inside GCE?: ' + str(e))
-    sys.exit(ocf.OCF_ERR_CONFIGURED)
+    sys.exit(ocf.OCF_ERR_GENERIC)
 
   PROJECT = get_metadata('project/project-id')
   if PARAMETERS['disk_scope'] in ['detect', 'regional']:

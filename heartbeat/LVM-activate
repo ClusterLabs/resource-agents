@@ -820,17 +820,14 @@ lvm_start() {
         if systemd_is_running ; then
         	# Create drop-in to deactivate VG before stopping
 		# storage services during shutdown/reboot.
-		after=$(systemctl show resource-agents-deps.target.d \
-			--property=After | cut -d'=' -f2)
+		systemctl show resource-agents-deps.target \
+			--property=After | cut -d'=' -f2 | \
+			grep -qE "(^|\s)blk-availability.service(\s|$)"
 
-		case "$after" in
-			*" blk-availability.service "*)
-				;;
-			*)
-				systemd_drop_in "99-LVM-activate" "After" \
+		if [ "$?" -ne 0 ]; then
+			systemd_drop_in "99-LVM-activate" "After" \
 					"blk-availability.service"
-				;;
-		esac
+		fi
 
 		# If blk-availability isn't started, the "After="
 		# directive has no effect.

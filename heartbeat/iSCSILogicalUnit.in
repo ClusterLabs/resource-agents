@@ -447,6 +447,10 @@ iSCSILogicalUnit_start() {
 		if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
 			echo ${OCF_RESKEY_scsi_sn} > /sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE}/wwn/vpd_unit_serial
 		fi
+		if [ -n "${OCF_RESKEY_product_id}" ]; then
+			echo "${OCF_RESKEY_product_id}" > /sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE}/wwn/product_id
+		fi
+
 		ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns create /backstores/${OCF_RESKEY_liot_bstype}/${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
 
 		if $(ip a | grep -q inet6); then
@@ -694,7 +698,7 @@ iSCSILogicalUnit_validate() {
 		unsupported_params="scsi_id vendor_id product_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type emulate_tpu emulate_3pc emulate_caw liot_bstype"
 		;;
 	lio-t)
-		unsupported_params="scsi_id vendor_id product_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type lio_iblock"
+		unsupported_params="scsi_id vendor_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type lio_iblock"
 		;;
 	esac
 

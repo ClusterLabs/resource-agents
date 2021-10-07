@@ -239,6 +239,15 @@ The port on which the Master MySQL instance is listening.
 <content type="string" default="${OCF_RESKEY_replication_port_default}" />
 </parameter>
 
+<parameter name="replication_require_ssl" unique="0" required="0">
+<longdesc lang="en">
+Enables SSL connection to local MySQL service for replication user.
+i.e. if REQUIRE SSL for replication user in MySQL set, this should be set to "true".
+</longdesc>
+<shortdesc lang="en">MySQL replication require ssl</shortdesc>
+<content type="string" default="${OCF_RESKEY_replication_require_ssl_default}" />
+</parameter>
+
 <parameter name="replication_master_ssl_ca" unique="0" required="0">
 <longdesc lang="en">
 The SSL CA certificate to be used for replication over SSL.

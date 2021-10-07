@@ -787,11 +787,15 @@ case $host_os in
      *Linux*|*linux*) sendarp_linux=1;;
 esac
 
+redhat_based=0
+AC_CHECK_FILE(/etc/redhat-release, [redhat_based=1])
+
 AC_SUBST(LIBNETLIBS)
 AC_SUBST(LIBNETDEFINES)
 
 AM_CONDITIONAL(SENDARP_LINUX, test $sendarp_linux = 1 )
 AM_CONDITIONAL(USE_LIBNET, test "x$libnet_version" != "xnone" )
+AM_CONDITIONAL(NFSCONVERT, test $redhat_based = 1 )
 
 dnl ************************************************************************
 dnl * Check for netinet/icmp6.h to enable the IPv6addr resource agent
@@ -932,6 +936,7 @@ heartbeat/Makefile						\
 systemd/Makefile						\
    systemd/resource-agents.conf					\
 tools/Makefile							\
+   tools/nfsconvert						\
    tools/ocf-tester						\
    tools/ocft/Makefile						\
    tools/ocft/ocft						\
@@ -1002,6 +1007,7 @@ AC_CONFIG_FILES([heartbeat/rsyslog], [chmod +x heartbeat/rsyslog])
 AC_CONFIG_FILES([heartbeat/smb-share], [chmod +x heartbeat/smb-share])
 AC_CONFIG_FILES([heartbeat/sg_persist], [chmod +x heartbeat/sg_persist])
 AC_CONFIG_FILES([heartbeat/slapd], [chmod +x heartbeat/slapd])
+AC_CONFIG_FILES([heartbeat/storage-mon], [chmod +x heartbeat/storage-mon])
 AC_CONFIG_FILES([heartbeat/sybaseASE], [chmod +x heartbeat/sybaseASE])
 AC_CONFIG_FILES([heartbeat/syslog-ng], [chmod +x heartbeat/syslog-ng])
 AC_CONFIG_FILES([heartbeat/vsftpd], [chmod +x heartbeat/vsftpd])

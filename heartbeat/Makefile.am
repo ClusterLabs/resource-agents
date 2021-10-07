@@ -32,22 +32,22 @@ ocfdir		        = $(OCF_RA_DIR_PREFIX)/heartbeat
 dtddir			= $(datadir)/$(PACKAGE_NAME)
 dtd_DATA		= ra-api-1.dtd metadata.rng
 
+ocf_PROGRAMS		=
+
 if USE_IPV6ADDR_AGENT
-ocf_PROGRAMS           = IPv6addr
-else
-ocf_PROGRAMS           =
+ocf_PROGRAMS		+= IPv6addr
 endif
 
+halib_PROGRAMS		=
+
 if IPV6ADDR_COMPATIBLE
-halib_PROGRAMS         = send_ua
-else
-halib_PROGRAMS         =
+halib_PROGRAMS		+= send_ua
 endif
 
 IPv6addr_SOURCES        = IPv6addr.c IPv6addr_utils.c
-send_ua_SOURCES         = send_ua.c IPv6addr_utils.c
-
 IPv6addr_LDADD          = -lplumb $(LIBNETLIBS)
+
+send_ua_SOURCES         = send_ua.c IPv6addr_utils.c
 send_ua_LDADD           = $(LIBNETLIBS)
 
 ocf_SCRIPTS	      = AoEtarget		\
@@ -115,6 +115,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			fio			\
 			galera			\
 			garbd			\
+			gcp-ilb			\
 			gcp-vpc-move-ip		\
 			iSCSILogicalUnit	\
 			iSCSITarget		\
@@ -139,6 +140,9 @@ ocf_SCRIPTS	      = AoEtarget		\
 			nfsnotify		\
 			nfsserver		\
 			nginx			\
+			nvmet-subsystem		\
+			nvmet-namespace		\
+			nvmet-port		\
 			openstack-cinder-volume \
 			openstack-floating-ip   \
 			openstack-info          \
@@ -166,6 +170,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			mpathpersist		\
 			slapd			\
 			smb-share		\
+			storage-mon		\
 			sybaseASE		\
 			symlink			\
 			syslog-ng		\
@@ -230,3 +235,6 @@ do_spellcheck = printf '[%s]\n' "$(agent)"; \
                 | sed -n 's|^&\([^:]*\):.*|\1|p';
 spellcheck:
 	@$(foreach agent,$(ocf_SCRIPTS), $(do_spellcheck))
+
+clean-local:
+	rm -rf __pycache__ *.pyc

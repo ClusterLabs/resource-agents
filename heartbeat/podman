@@ -358,8 +358,18 @@ run_new_container()
 	local rc
 	
 	ocf_log info "running container $CONTAINER for the first time"
-	ocf_run podman run $opts $image $cmd
+	out=$(podman run $opts $image $cmd 2>&1)
 	rc=$?
+
+	if [ -n "$out" ]; then
+		out="$(echo "$out" | tr -s ' \t\r\n' ' ')"
+		if [ $rc -eq 0 ]; then
+			ocf_log info "$out"
+		else
+			ocf_log err "$out"
+		fi
+	fi
+
 	if [ $rc -eq 125 ]; then
 		# If an internal podman error occurred, it might be because
 		# the internal storage layer still references an old container
@@ -370,6 +380,24 @@ run_new_container()
 		ocf_run podman rm --storage $CONTAINER
 		ocf_run podman run $opts $image $cmd
 		rc=$?
+	elif [ $rc -eq 127 ]; then
+		# rhbz#1972209: podman 3.0.x seems to be hit by a race
+		# where the cgroup is not yet set up properly when the OCI
+		# runtime configures the container. If that happens, recreate
+		# the container as long as we get the same error code or
+		# until start timeout preempts us.
+		while [ $rc -eq 127 ] && (echo "$out" | grep -q "cgroup.*scope not found") ; do
+			ocf_log warn "Internal podman error while assigning cgroup. Retrying."
+			# Arbitrary sleep to prevent consuming all CPU while looping
+			sleep 1
+			podman rm -f "$CONTAINER"
+			out=$(podman run $opts $image $cmd 2>&1)
+			rc=$?
+		done
+		# Log the created container ID if it succeeded
+		if  [ $rc -eq 0 ]; then
+			ocf_log info "$out"
+		fi
 	fi
 	
 	return $rc
@@ -422,7 +450,7 @@ podman_start()
 	fi
 
 	if [ $rc -ne 0 ]; then
-		ocf_exit_reason "podman failed to launch container"
+		ocf_exit_reason "podman failed to launch container (rc: $rc)"
 		return $OCF_ERR_GENERIC
 	fi
 

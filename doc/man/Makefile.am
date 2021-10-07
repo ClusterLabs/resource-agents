@@ -37,15 +37,37 @@ XSLTPROC_MANPAGES_OPTIONS ?= $(XSLTPROC_OPTIONS)
 XSLTPROC_HTML_OPTIONS 	?= $(XSLTPROC_OPTIONS)
 XSLTPROC_FO_OPTIONS 	?= $(XSLTPROC_OPTIONS)
 
-radir			= $(top_srcdir)/heartbeat
+radir			= $(abs_top_builddir)/heartbeat
+
+# required for out-of-tree build
+symlinkstargets		= \
+			  ocf-distro ocf.py ocf-rarun ocf-returncodes \
+			  findif.sh apache-conf.sh http-mon.sh mysql-common.sh \
+			  nfsserver-redhat.sh ora-common.sh
+
+preptree:
+	for i in $(symlinkstargets); do \
+		if [ ! -f $(radir)/$$i ]; then \
+			rm -rf $(radir)/$$i; \
+			ln -sf $(abs_top_srcdir)/heartbeat/$$i $(radir)/$$i; \
+		fi; \
+	done
+
+$(radir)/%: $(abs_top_srcdir)/heartbeat/%
+	if [ ! -f $@ ]; then \
+		ln -sf $< $@; \
+	fi
 
 # OCF_ROOT=. is necessary due to a sanity check in ocf-shellfuncs
 # (which tests whether $OCF_ROOT points to a directory
-metadata-%.xml: $(radir)/%
+metadata-%.xml: $(radir)/% preptree
 	OCF_ROOT=. OCF_FUNCTIONS_DIR=$(radir) $< meta-data > $@
 
-metadata-IPv6addr.xml: ../../heartbeat/IPv6addr
+metadata-IPv6addr.xml:  $(radir)/IPv6addr
 	OCF_ROOT=. OCF_FUNCTIONS_DIR=$(radir) $< meta-data > $@
+
+clean-local:
+	find $(radir) -type l -exec rm -rf {} \;
 
 # Please note: we can't name the man pages
 # ocf:heartbeat:<name>. Believe me, I've tried. It looks like it
@@ -119,6 +141,7 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_fio.7 \
                           ocf_heartbeat_galera.7 \
                           ocf_heartbeat_garbd.7 \
+                          ocf_heartbeat_gcp-ilb.7 \
                           ocf_heartbeat_gcp-vpc-move-ip.7 \
                           ocf_heartbeat_iSCSILogicalUnit.7 \
                           ocf_heartbeat_iSCSITarget.7 \
@@ -137,6 +160,7 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_mariadb.7 \
                           ocf_heartbeat_mdraid.7 \
                           ocf_heartbeat_minio.7 \
+                          ocf_heartbeat_mpathpersist.7 \
                           ocf_heartbeat_mysql.7 \
                           ocf_heartbeat_mysql-proxy.7 \
                           ocf_heartbeat_nagios.7 \
@@ -144,6 +168,9 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_nfsnotify.7 \
                           ocf_heartbeat_nfsserver.7 \
                           ocf_heartbeat_nginx.7 \
+                          ocf_heartbeat_nvmet-subsystem.7 \
+                          ocf_heartbeat_nvmet-namespace.7 \
+                          ocf_heartbeat_nvmet-port.7 \
                           ocf_heartbeat_openstack-info.7 \
                           ocf_heartbeat_openstack-cinder-volume.7 \
                           ocf_heartbeat_openstack-floating-ip.7 \
@@ -171,7 +198,7 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_smb-share.7 \
                           ocf_heartbeat_sybaseASE.7 \
                           ocf_heartbeat_sg_persist.7 \
-                          ocf_heartbeat_mpathpersist.7 \
+                          ocf_heartbeat_storage-mon.7 \
                           ocf_heartbeat_symlink.7 \
                           ocf_heartbeat_syslog-ng.7 \
                           ocf_heartbeat_tomcat.7 \
