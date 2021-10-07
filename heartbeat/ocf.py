@@ -305,10 +305,12 @@ class Agent(object):
 	of how to use it.
 	"""
 
-	def __init__(self, name, shortdesc, longdesc):
+	def __init__(self, name, shortdesc, longdesc, version=1.0, ocf_version=1.0):
 		self.name = name
 		self.shortdesc = shortdesc
 		self.longdesc = longdesc
+		self.version = version
+		self.ocf_version = ocf_version
 		self.parameters = []
 		self.actions = []
 		self._handlers = {}
@@ -342,8 +344,8 @@ class Agent(object):
 	def to_xml(self):
 		return """<?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="{name}">
-<version>1.0</version>
+<resource-agent name="{name}" version="{version}">
+<version>{ocf_version}</version>
 <longdesc lang="en">
 {longdesc}
 </longdesc>
@@ -359,6 +361,8 @@ class Agent(object):
 
 </resource-agent>
 """.format(name=self.name,
+		   version = self.version,
+		   ocf_version = self.ocf_version,
 		   longdesc=self.longdesc,
 		   shortdesc=self.shortdesc,
 		   parameters="".join(p.to_xml() for p in self.parameters),
