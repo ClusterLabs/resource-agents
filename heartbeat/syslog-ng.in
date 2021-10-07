@@ -88,7 +88,7 @@ metadata_syslog_ng()
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="syslog-ng">
+<resource-agent name="syslog-ng" version="1.0">
 <version>1.0</version>
 
 <longdesc lang="en">

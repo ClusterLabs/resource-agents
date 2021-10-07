@@ -91,7 +91,7 @@ redis_meta_data() {
 	cat <<EOI
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="redis">
+<resource-agent name="redis" version="1.0">
 <version>1.0</version>
 
 <longdesc lang="en">

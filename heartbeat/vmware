@@ -311,8 +311,8 @@ meta_data() {
   cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="vmware">
-<version>0.2</version>
+<resource-agent name="vmware" version="0.2">
+<version>1.0</version>
 <longdesc lang="en">
 OCF compliant script to control vmware server 2.0 virtual machines.
 </longdesc>

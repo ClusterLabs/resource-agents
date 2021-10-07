@@ -110,8 +110,8 @@ sapinstance_meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="SAPInstance">
-<version>2.14</version>
+<resource-agent name="SAPInstance" version="2.14">
+<version>1.0</version>
 
 <longdesc lang="en">
 Usually a SAP system consists of one database and at least one or more SAP instances (sometimes called application servers). One SAP Instance is defined by having exactly one instance profile. The instance profiles can usually be found in the directory /sapmnt/SID/profile. Each instance must be configured as it's own resource in the cluster configuration.

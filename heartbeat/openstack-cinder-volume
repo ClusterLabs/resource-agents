@@ -59,8 +59,8 @@ metadata() {
 cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="openstack-cinder-volume">
-<version>2.0</version>
+<resource-agent name="openstack-cinder-volume" version="2.0">
+<version>1.0</version>
 <longdesc lang="en">
 Resource Agent to attach a cinder volume to an instance.
 It relies on attributes given by openstack-info resource agent (openstack_id attribute).

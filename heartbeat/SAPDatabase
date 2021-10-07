@@ -109,8 +109,8 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="SAPDatabase">
-<version>2.14</version>
+<resource-agent name="SAPDatabase" version="2.14">
+<version>1.0</version>
 
 <longdesc lang="en">
 Resource script for SAP databases. It manages a SAP database of any type as an HA resource.

@@ -58,8 +58,8 @@ meta_data() {
 cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="lxc">
-<version>0.1</version>
+<resource-agent name="lxc" version="0.1">
+<version>1.0</version>
 <longdesc lang="en">Allows LXC containers to be managed by the cluster.
 Notes for lxc Versions before 1.0.0, where the Container is stopped using kill -PWR instead of lxc-stop:
 It is 'assumed' that the 'init' system will do an orderly shudown if presented with a 'kill -PWR' signal.

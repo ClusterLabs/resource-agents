@@ -132,7 +132,7 @@ meta_data() {
     cat <<EOF
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="pgsql">
+<resource-agent name="pgsql" version="1.0">
 <version>1.0</version>
 
 <longdesc lang="en">

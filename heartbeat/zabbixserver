@@ -55,8 +55,8 @@ zabbixserver_meta_data() {
     cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="zabbixserver">
-<version>0.0.1</version>
+<resource-agent name="zabbixserver" version="0.0.1">
+<version>1.0</version>
 
 <longdesc lang="en">
 This is a Zabbix server Resource Agent for zabbix_server monitoring

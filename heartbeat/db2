@@ -58,7 +58,7 @@ db2_meta_data() {
 cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="db2">
+<resource-agent name="db2" version="1.0">
 <version>1.0</version>
 <longdesc lang="en">
 Resource Agent that manages an IBM DB2 LUW databases in Standard role as primitive or in HADR roles in master/slave configuration. Multiple partitions are supported.

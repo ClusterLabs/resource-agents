@@ -57,8 +57,8 @@ metadata() {
 cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="openstack-virtual-ip">
-<version>2.0</version>
+<resource-agent name="openstack-virtual-ip" version="2.0">
+<version>1.0</version>
 <longdesc lang="en">
 Resource Agent to move a virtual IP address from an instance to another one
 by adding an allowed-address pair associated with an instance port.

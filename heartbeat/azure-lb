@@ -47,7 +47,7 @@ lb_metadata() {
 cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="azure-lb">
+<resource-agent name="azure-lb" version="1.0">
 <version>1.0</version>
 <longdesc lang="en">
 Resource agent to answer Azure Load Balancer health probe requests
