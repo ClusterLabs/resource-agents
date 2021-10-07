@@ -61,7 +61,7 @@ METADATA_HEADERS = {'Metadata-Flavor': 'Google'}
 METADATA = \
 '''<?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="gcp-vpc-move-vip">
+<resource-agent name="gcp-vpc-move-vip" version="1.0">
   <version>1.0</version>
   <longdesc lang="en">Floating IP Address or Range on Google Cloud Platform - Using Alias IP address functionality to attach a secondary IP range to a running instance</longdesc>
   <shortdesc lang="en">Floating IP Address or Range on Google Cloud Platform</shortdesc>

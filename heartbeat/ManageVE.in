@@ -73,8 +73,8 @@ meta_data()
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="ManageVE">
-  <version>1.00.4</version>
+<resource-agent name="ManageVE" version="1.00.4">
+  <version>1.0</version>
 
   <longdesc lang="en">
     This OCF compliant resource agent manages OpenVZ VEs and thus requires

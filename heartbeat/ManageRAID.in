@@ -96,8 +96,8 @@ meta_data()
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="ManageRAID">
-  <version>1.00.2</version>
+<resource-agent name="ManageRAID" version="1.00.2">
+  <version>1.0</version>
 
   <longdesc lang="en">
     Manages starting, stopping and monitoring of RAID devices which

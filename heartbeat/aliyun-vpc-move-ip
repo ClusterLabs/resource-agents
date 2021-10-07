@@ -175,8 +175,8 @@ ecs_ip_metadata() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="aliyun-vpc-move-ip">
-<version>2.0</version>
+<resource-agent name="aliyun-vpc-move-ip" version="2.0">
+<version>1.0</version>
 <longdesc lang="en">
 Resource Agent to move IP addresses within a VPC of the Aliyun Webservices ECS
 by changing an entry in an specific routing table

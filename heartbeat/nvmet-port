@@ -46,8 +46,8 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="nvmet-port">
-<version>0.9</version>
+<resource-agent name="nvmet-port" version="0.9">
+<version>1.0</version>
 
 <longdesc lang="en">
 Manages NVMe-oF ports. An NVMe-oF port is part of an NVMe-oF target.

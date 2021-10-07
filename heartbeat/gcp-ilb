@@ -70,7 +70,7 @@ ilb_metadata() {
 cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="gcp-ilb">
+<resource-agent name="gcp-ilb" version="1.0">
 <version>1.0</version>
 <longdesc lang="en">
     Resource Agent that wraps /usr/bin/nc or /usr/bin/socat to reply to health checks in Google Cloud.

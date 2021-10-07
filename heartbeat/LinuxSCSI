@@ -113,7 +113,7 @@ meta_data() {
 	cat <<EOF
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="LinuxSCSI">
+<resource-agent name="LinuxSCSI" version="1.0">
 <version>1.0</version>
 
 <longdesc lang="en">

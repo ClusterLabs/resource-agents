@@ -54,8 +54,8 @@ meta_data()
 cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="docker-compose">
-<version>1.0.3</version>
+<resource-agent name="docker-compose" version="1.0.3">
+<version>1.0</version>
 <longdesc lang="en">
 Manages docker services using docker-compose as an OCF resource in an High Availability setup.
 It relies on a well-tested docker compose YAML file which distributed on an identical location on all cluster nodes.

@@ -53,7 +53,7 @@ meta_data() {
         cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="minio">
+<resource-agent name="minio" version="1.0">
 <version>1.0</version>
 <longdesc lang="en">
 This script manages Minio in an Active-Passive setup

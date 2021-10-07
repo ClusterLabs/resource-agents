@@ -75,7 +75,7 @@ metadata() {
 cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="aws-vpc-route53">
+<resource-agent name="aws-vpc-route53" version="1.0">
 <version>1.0</version>
 <longdesc lang="en">
 Update Route53 record of Amazon Webservices EC2 by updating an entry in a

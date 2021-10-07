@@ -109,8 +109,8 @@ meta_data() {
         cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="mysql-proxy">
-<version>0.1</version>
+<resource-agent name="mysql-proxy" version="0.1">
+<version>1.0</version>
 <longdesc lang="en">
 This script manages MySQL Proxy as an OCF resource in a high-availability setup.
 
