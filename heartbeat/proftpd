@@ -61,7 +61,7 @@ meta_data() {
         cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="proftpd">
+<resource-agent name="proftpd" version="1.0">
 <version>1.0</version>
 <longdesc lang="en">
 This script manages Proftpd in an Active-Passive setup

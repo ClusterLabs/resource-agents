@@ -79,7 +79,7 @@ meta_data() {
         cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="pgagent">
+<resource-agent name="pgagent" version="1.0">
 <version>1.0</version>
 <longdesc lang="en">This is a pgagent Resource Agent.</longdesc>
 <shortdesc lang="en">Controls pgagent</shortdesc>

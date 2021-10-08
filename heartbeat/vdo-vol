@@ -38,8 +38,8 @@ vdo_meta_data() {
         cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="vdo-vol">
-<version>0.75</version>
+<resource-agent name="vdo-vol" version="0.75">
+<version>1.0</version>
 
 <longdesc lang="en">
 OCF Resource script for VDO (Virtual Data Optimizer) volume(s). It manages VDO volume(s) as a HA resource.

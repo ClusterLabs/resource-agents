@@ -91,8 +91,8 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="iSCSILogicalUnit">
-<version>0.9</version>
+<resource-agent name="iSCSILogicalUnit" version="0.9">
+<version>1.0</version>
 
 <longdesc lang="en">
 Manages iSCSI Logical Unit. An iSCSI Logical unit is a subdivision of

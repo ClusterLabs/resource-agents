@@ -81,7 +81,7 @@ eDir_meta_data() {
 cat <<-EOFB
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="eDir88">
+<resource-agent name="eDir88" version="1.0">
 <version>1.0</version>
 
 <longdesc lang="en">

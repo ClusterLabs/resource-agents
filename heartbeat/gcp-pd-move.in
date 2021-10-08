@@ -68,7 +68,7 @@ METADATA_SERVER = 'http://metadata.google.internal/computeMetadata/v1/'
 METADATA_HEADERS = {'Metadata-Flavor': 'Google'}
 METADATA = '''<?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="gcp-pd-move">
+<resource-agent name="gcp-pd-move" version="1.0">
 <version>1.0</version>
 <longdesc lang="en">
 Resource Agent that can attach or detach a regional/zonal disk on current GCP

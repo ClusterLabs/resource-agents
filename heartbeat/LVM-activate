@@ -92,7 +92,7 @@ meta_data() {
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 
 
-<resource-agent name="LVM-activate">
+<resource-agent name="LVM-activate" version="1.0">
 <version>1.0</version>
 
 <longdesc lang="en">

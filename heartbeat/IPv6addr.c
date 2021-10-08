@@ -835,7 +835,7 @@ meta_data_addr6(void)
 	const char* meta_data=
 	"<?xml version=\"1.0\"?>\n"
 	"<!DOCTYPE resource-agent SYSTEM \"ra-api-1.dtd\">\n"
-	"<resource-agent name=\"IPv6addr\">\n"
+	"<resource-agent name=\"IPv6addr\" version=\"1.0\">\n"
 	"  <version>1.0</version>\n"
 	"  <longdesc lang=\"en\">\n"
 	"   This script manages IPv6 alias IPv6 addresses,It can add an IP6\n"

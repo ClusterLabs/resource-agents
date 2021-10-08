@@ -89,8 +89,8 @@ meta_data()
   cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="slapd">
-<version>0.1</version>
+<resource-agent name="slapd" version="0.1">
+<version>1.0</version>
 
 <longdesc lang="en">
 Resource script for Stand-alone LDAP Daemon (slapd). It manages a slapd instance as an OCF resource.

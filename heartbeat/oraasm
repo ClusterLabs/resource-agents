@@ -42,8 +42,8 @@ oraasm_meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="oraasm">
-<version>0.75</version>
+<resource-agent name="oraasm" version="0.75">
+<version>1.0</version>
 
 <longdesc lang="en">OCF Resource script for Oracle ASM. It uses the ohasd init-script to manage a Oracle ASM Disk Group as a HA resource.</longdesc>
 <shortdesc lang="en">Oracle ASM resource agent</shortdesc>
