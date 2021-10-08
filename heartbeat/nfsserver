@@ -12,7 +12,7 @@
 # did the unshare for gssd and idmapd as well, even though it seems unclear why.
 # Let's start with just the nfs-server, and add others if/when we have clear
 # indication they need it.
-#NFSD_RELATED_SYSTEMD_SERVICE_FOR_UNSHARE_UTS_NAMESPACE="nfs-idmapd.service nfs-mountd.service nfs-server.service nfsdcld.service rpc-gssd.service rpc-statd.service rpcbind.service"
+#NFSD_RELATED_SYSTEMD_SERVICE_FOR_UNSHARE_UTS_NAMESPACE="nfs-idmapd.service nfs-mountd.service nfs-server.service nfsdcld.service rpc-gssd.service rpc-statd.service rpc-statd-notify.service rpcbind.service"
 NFSD_RELATED_SYSTEMD_SERVICE_FOR_UNSHARE_UTS_NAMESPACE="nfs-server.service"
 SYSTEMD_ENVIRONMENT_FILE_NFS_SERVER_SCOPE=/run/sysconfig/nfs-server-scope
 SYSTEMD_UNSHARE_UTS_DROPIN=51-resource-agents-unshare-uts.conf
