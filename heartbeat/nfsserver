@@ -717,7 +717,7 @@ ___
 remove_unshare_uts_dropins ()
 {
 	local services
-	services=$(systemctl list-unit-files --no-legend $NFSD_RELATED_SYSTEMD_SERVICE_FOR_UNSHARE_UTS_NAMESPACE)
+	services=$(systemctl list-unit-files --no-legend $NFSD_RELATED_SYSTEMD_SERVICE_FOR_UNSHARE_UTS_NAMESPACE | cut -d ' ' -f1)
 
 	local svc dir dropin do_reload=false
 	for svc in $services ; do
