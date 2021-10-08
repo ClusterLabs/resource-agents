@@ -687,6 +687,8 @@ inject_unshare_uts_name_into_systemd_units ()
 	services=$(systemctl list-unit-files --no-legend $NFSD_RELATED_SYSTEMD_SERVICE_FOR_UNSHARE_UTS_NAMESPACE | cut -d ' ' -f1)
 
 	local svc dir dropin edited_exec_start do_reload=false
+	local old_umask=$(umask)
+	umask 0022
 	for svc in $services ; do
 		dir=/run/systemd/system/$svc.d
 		dropin=$dir/$SYSTEMD_UNSHARE_UTS_DROPIN
@@ -710,6 +712,7 @@ ___
 
 	mkdir -p "${SYSTEMD_ENVIRONMENT_FILE_NFS_SERVER_SCOPE%/*}"
 	echo "NFS_SERVER_SCOPE=$OCF_RESKEY_nfs_server_scope" > "$SYSTEMD_ENVIRONMENT_FILE_NFS_SERVER_SCOPE"
+	umask $old_umask
 
 	$do_reload && systemctl daemon-reload
 }
