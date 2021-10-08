@@ -745,13 +745,20 @@ nfsserver_start ()
 	is_redhat_based && set_env_args
 	bind_tree
 	prepare_directory
-	case $EXEC_MODE in [23])
+
+	# Debian (and other systems) may provide "init scripts",
+	# which will only redirect back to systemd.
+	# If we just unshare --uts the init script invocation,
+	# the uts namespace is useless in that case.
+	# If systemd is running, mangle the nfs-server.service unit,
+	# independent of the "EXEC_MODE" we detected.
+	if $systemd_is_running ; then
 		if [ -z "$OCF_RESKEY_nfs_server_scope" ] ; then
 			remove_unshare_uts_dropins
 		else
 			inject_unshare_uts_name_into_systemd_units
-		fi ;;
-	esac
+		fi
+	fi
 
 	if ! `mount | grep -q " on $OCF_RESKEY_rpcpipefs_dir "`; then
 		mount -t rpc_pipefs sunrpc $OCF_RESKEY_rpcpipefs_dir
@@ -970,7 +977,9 @@ nfsserver_stop ()
 		ocf_log info "NFS server stopped"
 	fi
 
-	case $EXEC_MODE in [23]) remove_unshare_uts_dropins;; esac
+	if $systemd_is_running; then
+		remove_unshare_uts_dropins
+	fi
 
 	return $rc
 }
@@ -1008,6 +1017,7 @@ nfsserver_validate ()
 }
 
 nfsserver_validate
+systemd_is_running && systemd_is_running=true || systemd_is_running=false
 
 case $__OCF_ACTION in
 	start)      nfsserver_start
