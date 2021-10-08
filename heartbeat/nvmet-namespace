@@ -41,8 +41,8 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="nvmet-namespace">
-<version>0.9</version>
+<resource-agent name="nvmet-namespace" version="0.9">
+<version>1.0</version>
 
 <longdesc lang="en">
 Manages NVMe-oF namespaces. An NVMe-oF namespace is part of an NVMe-oF target.

@@ -339,7 +339,7 @@ metadata_tomcat()
     cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="tomcat">
+<resource-agent name="tomcat" version="1.0">
 <version>1.0</version>
 
 <longdesc lang="en">

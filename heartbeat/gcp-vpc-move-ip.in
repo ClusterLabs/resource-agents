@@ -68,7 +68,7 @@ metadata() {
 cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="gcp-vpc-move-ip">
+<resource-agent name="gcp-vpc-move-ip" version="1.0">
 <version>1.0</version>
 <longdesc lang="en">
 Resource Agent that can move a floating IP addresse within a GCP VPC by changing an 

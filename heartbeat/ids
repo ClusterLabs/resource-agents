@@ -129,7 +129,7 @@ ids_meta_data() {
     cat <<-!
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="ids">
+<resource-agent name="ids" version="1.0">
 <version>1.0</version>
 
 
