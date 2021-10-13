@@ -5,6 +5,18 @@
 # by hxinwei@gmail.com
 # License: GNU General Public License v2 (GPLv2) and later
 
+
+# I don't know for certain whether all services actuall _need_ this,
+# I know that at least nfs-server needs it.
+# The rgmanager resource agent in rgmanager/src/resources/nfsserver.sh.in
+# did the unshare for gssd and idmapd as well, even though it seems unclear why.
+# Let's start with just the nfs-server, and add others if/when we have clear
+# indication they need it.
+#NFSD_RELATED_SYSTEMD_SERVICE_FOR_UNSHARE_UTS_NAMESPACE="nfs-idmapd.service nfs-mountd.service nfs-server.service nfsdcld.service rpc-gssd.service rpc-statd.service rpc-statd-notify.service rpcbind.service"
+NFSD_RELATED_SYSTEMD_SERVICE_FOR_UNSHARE_UTS_NAMESPACE="nfs-server.service"
+SYSTEMD_ENVIRONMENT_FILE_NFS_SERVER_SCOPE=/run/sysconfig/nfs-server-scope
+SYSTEMD_UNSHARE_UTS_DROPIN=51-resource-agents-unshare-uts.conf
+
 if [ -n "$OCF_DEBUG_LIBRARY" ]; then
     . $OCF_DEBUG_LIBRARY
 else
@@ -97,6 +109,31 @@ causes sm-notify to continue sending notifications to unresponsive peers until i
 Specifies the length of sm-notify retry time (minutes).
 </shortdesc>
 <content type="integer" default="" />
+</parameter>
+
+<parameter name="nfs_server_scope" unique="0" required="0">
+<longdesc lang="en">
+RFC8881, 8.4.2.1 State Reclaim:
+
+If the server scope is different, the client should not attempt to
+reclaim locks. In this situation, no lock reclaim is possible.
+Any attempt to re-obtain the locks with non-reclaim operations is
+problematic since there is no guarantee that the existing
+filehandles will be recognized by the new server, or that if
+recognized, they denote the same objects. It is best to treat the
+locks as having been revoked by the reconfiguration event.
+
+For lock reclaim to even be attempted, we have to define and set the same
+server scope for NFSD on all cluster nodes in the NFS failover cluster.
+
+This agent won't "guess" a suitable server scope name for you, you need to
+explicitly specify this. But without it, NFSv4 lock reclaim after failover
+won't work properly.  Suggested value: the failover "service IP".
+</longdesc>
+<shortdesc lang="en">
+RFC8881 NFS server scope for (lock) state reclaim after failover.
+</shortdesc>
+<content type="string"/>
 </parameter>
 
 <parameter name="nfs_ip" unique="0" required="0">
@@ -269,7 +306,11 @@ nfs_exec()
 	set_exec_mode
 
 	case $EXEC_MODE in 
-		1) ${OCF_RESKEY_nfs_init_script} $cmd;;
+		1) if [ -z "$OCF_RESKEY_nfs_server_scope" ] ; then
+			${OCF_RESKEY_nfs_init_script} $cmd
+		   else
+			unshare -u /bin/sh -c "hostname ${OCF_RESKEY_nfs_server_scope}; exec ${OCF_RESKEY_nfs_init_script} $cmd"
+		   fi ;;
 		2) if ! echo $svc | grep -q "\."; then
 			svc="${svc}.service"
 		   fi
@@ -623,6 +664,77 @@ notify_locks()
 	fi
 }
 
+# Problem: https://github.com/ClusterLabs/resource-agents/issues/1644
+# RFC8881, 8.4.2.1 State Reclaim:
+#
+# | If the server scope is different, the client should not attempt to
+# | reclaim locks. In this situation, no lock reclaim is possible.
+# | Any attempt to re-obtain the locks with non-reclaim operations is
+# | problematic since there is no guarantee that the existing
+# | filehandles will be recognized by the new server, or that if
+# | recognized, they denote the same objects. It is best to treat the
+# | locks as having been revoked by the reconfiguration event.
+#
+# That's why for lock reclaim to even be attempted, we have to define and set
+# the same server scope for NFSD on all cluster nodes in the NFS failover
+# cluster. And in linux, that is done by setting the uts nodename for the
+# command that starts the nfsd kernel threads.
+#
+inject_unshare_uts_name_into_systemd_units ()
+{
+	local END_TAG="# END OF DROP-IN FOR NFS SERVER SCOPE"
+	local services
+	services=$(systemctl list-unit-files --no-legend $NFSD_RELATED_SYSTEMD_SERVICE_FOR_UNSHARE_UTS_NAMESPACE | cut -d ' ' -f1)
+
+	local svc dir dropin edited_exec_start do_reload=false
+	local old_umask=$(umask)
+	umask 0022
+	for svc in $services ; do
+		dir=/run/systemd/system/$svc.d
+		dropin=$dir/$SYSTEMD_UNSHARE_UTS_DROPIN
+		grep -sqF "$END_TAG" "$dropin" && continue
+
+		test -d "$dir" || mkdir -p "$dir"
+		test -e "$dropin" && rm -f "$dropin"
+
+		edited_exec_start=$(systemctl cat $svc | sed -ne "s#^ExecStart=\\([-+:!@]*\\)\\(.*\\)#ExecStart=\\1/usr/bin/unshare --uts /bin/sh -c 'hostname \${NFS_SERVER_SCOPE}; exec \"\$@\"' -- \\2#p")
+		cat > "$dropin" <<___
+[Service]
+EnvironmentFile=$SYSTEMD_ENVIRONMENT_FILE_NFS_SERVER_SCOPE
+# reset list of exec start, then re-populate with unshared uts namespace
+ExecStart=
+$edited_exec_start
+$END_TAG
+___
+		do_reload=true
+		ocf_log debug "injected unshare --uts into $dropin"
+	done
+
+	mkdir -p "${SYSTEMD_ENVIRONMENT_FILE_NFS_SERVER_SCOPE%/*}"
+	echo "NFS_SERVER_SCOPE=$OCF_RESKEY_nfs_server_scope" > "$SYSTEMD_ENVIRONMENT_FILE_NFS_SERVER_SCOPE"
+	umask $old_umask
+
+	$do_reload && systemctl daemon-reload
+}
+
+remove_unshare_uts_dropins ()
+{
+	local services
+	services=$(systemctl list-unit-files --no-legend $NFSD_RELATED_SYSTEMD_SERVICE_FOR_UNSHARE_UTS_NAMESPACE | cut -d ' ' -f1)
+
+	local svc dir dropin do_reload=false
+	for svc in $services ; do
+		dir=/run/systemd/system/$svc.d
+		dropin=$dir/$SYSTEMD_UNSHARE_UTS_DROPIN
+		test -e "$dropin" || continue
+		rm -f "$dropin"
+		do_reload=true
+		ocf_log debug "removed unshare --uts from $svc"
+	done
+	rm -f "${SYSTEMD_ENVIRONMENT_FILE_NFS_SERVER_SCOPE}"
+	$do_reload && systemctl daemon-reload
+}
+
 nfsserver_start ()
 {
 	local rc;
@@ -636,6 +748,20 @@ nfsserver_start ()
 	is_redhat_based && set_env_args
 	bind_tree
 	prepare_directory
+
+	# Debian (and other systems) may provide "init scripts",
+	# which will only redirect back to systemd.
+	# If we just unshare --uts the init script invocation,
+	# the uts namespace is useless in that case.
+	# If systemd is running, mangle the nfs-server.service unit,
+	# independent of the "EXEC_MODE" we detected.
+	if $systemd_is_running ; then
+		if [ -z "$OCF_RESKEY_nfs_server_scope" ] ; then
+			remove_unshare_uts_dropins
+		else
+			inject_unshare_uts_name_into_systemd_units
+		fi
+	fi
 
 	if ! `mount | grep -q " on $OCF_RESKEY_rpcpipefs_dir "`; then
 		mount -t rpc_pipefs sunrpc $OCF_RESKEY_rpcpipefs_dir
@@ -854,6 +980,10 @@ nfsserver_stop ()
 		ocf_log info "NFS server stopped"
 	fi
 
+	if $systemd_is_running; then
+		remove_unshare_uts_dropins
+	fi
+
 	return $rc
 }
 
@@ -890,6 +1020,7 @@ nfsserver_validate ()
 }
 
 nfsserver_validate
+systemd_is_running && systemd_is_running=true || systemd_is_running=false
 
 case $__OCF_ACTION in
 	start)      nfsserver_start
