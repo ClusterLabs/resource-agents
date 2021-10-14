@@ -27,6 +27,9 @@ OCF_RESKEY_monitor_scripts_default=""
 OCF_RESKEY_autoset_utilization_cpu_default="true"
 OCF_RESKEY_autoset_utilization_host_memory_default="true"
 OCF_RESKEY_autoset_utilization_hv_memory_default="true"
+OCF_RESKEY_unset_utilization_cpu_default="false"
+OCF_RESKEY_unset_utilization_host_memory_default="false"
+OCF_RESKEY_unset_utilization_hv_memory_default="false"
 OCF_RESKEY_migrateport_default=$(( 49152 + $(ocf_maybe_random) % 64 ))
 OCF_RESKEY_CRM_meta_timeout_default=90000
 OCF_RESKEY_save_config_on_stop_default=false
@@ -48,6 +51,9 @@ OCF_RESKEY_start_resources_default="false"
 : ${OCF_RESKEY_autoset_utilization_cpu=${OCF_RESKEY_autoset_utilization_cpu_default}}
 : ${OCF_RESKEY_autoset_utilization_host_memory=${OCF_RESKEY_autoset_utilization_host_memory_default}}
 : ${OCF_RESKEY_autoset_utilization_hv_memory=${OCF_RESKEY_autoset_utilization_hv_memory_default}}
+: ${OCF_RESKEY_unset_utilization_cpu=${OCF_RESKEY_unset_utilization_cpu_default}}
+: ${OCF_RESKEY_unset_utilization_host_memory=${OCF_RESKEY_unset_utilization_host_memory_default}}
+: ${OCF_RESKEY_unset_utilization_hv_memory=${OCF_RESKEY_unset_utilization_hv_memory_default}}
 : ${OCF_RESKEY_migrateport=${OCF_RESKEY_migrateport_default}}
 : ${OCF_RESKEY_CRM_meta_timeout=${OCF_RESKEY_CRM_meta_timeout_default}}
 : ${OCF_RESKEY_save_config_on_stop=${OCF_RESKEY_save_config_on_stop_default}}
@@ -246,6 +252,33 @@ into the hv_memory utilization of the resource when the monitor is executed.
 <content type="boolean" default="${OCF_RESKEY_autoset_utilization_hv_memory_default}" />
 </parameter>
 
+<parameter name="unset_utilization_cpu" unique="0" required="0">
+<longdesc lang="en">
+If set true then the agent will remove the cpu utilization resource when the monitor
+is executed.
+</longdesc>
+<shortdesc lang="en">Enable auto-removing the CPU utilization of the resource</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_unset_utilization_cpu_default}" />
+</parameter>
+
+<parameter name="unset_utilization_host_memory" unique="0" required="0">
+<longdesc lang="en">
+If set true then the agent will remove the host_memory utilization resource when the monitor
+is executed.
+</longdesc>
+<shortdesc lang="en">Enable auto-removing the host_memory utilization of the resource</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_unset_utilization_host_memory_default}" />
+</parameter>
+
+<parameter name="unset_utilization_hv_memory" unique="0" required="0">
+<longdesc lang="en">
+If set true then the agent will remove the hv_memory utilization resource when the monitor
+is executed.
+</longdesc>
+<shortdesc lang="en">Enable auto-removing the hv_memory utilization of the resource</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_unset_utilization_hv_memory_default}" />
+</parameter>
+
 <parameter name="migrateport" unique="0" required="0">
 <longdesc lang="en">
 This port will be used in the qemu migrateuri. If unset, the port will be a random highport.
@@ -389,20 +422,36 @@ set_util_attr() {
 	fi
 }
 
+unset_util_attr() {
+	local attr=$1
+	local cval outp
+
+	outp=$(crm_resource --resource=$OCF_RESOURCE_INSTANCE --utilization --delete-parameter=$attr 2>&1) ||
+	ocf_log warn "crm_resource failed to unset utilization attribute $attr: $outp"
+}
+
 update_utilization() {
 	local dom_cpu dom_mem
 
 	if ocf_is_true "$OCF_RESKEY_autoset_utilization_cpu"; then
-	   dom_cpu=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} 2>/dev/null | awk '/CPU\(s\)/{print $2}')
-	   test -n "$dom_cpu" && set_util_attr cpu $dom_cpu
+		dom_cpu=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} 2>/dev/null | awk '/CPU\(s\)/{print $2}')
+		test -n "$dom_cpu" && set_util_attr cpu $dom_cpu
+	elif ocf_is_true "$OCF_RESKEY_unset_utilization_cpu"; then
+		unset_util_attr cpu
 	fi
+
 	if ocf_is_true "$OCF_RESKEY_autoset_utilization_host_memory"; then
-	   dom_mem=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} 2>/dev/null | awk '/Max memory/{printf("%d", $3/1024)}')
-	   test -n "$dom_mem" && set_util_attr host_memory "$dom_mem"
+		dom_mem=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} 2>/dev/null | awk '/Max memory/{printf("%d", $3/1024)}')
+		test -n "$dom_mem" && set_util_attr host_memory "$dom_mem"
+	elif ocf_is_true "$OCF_RESKEY_unset_utilization_host_memory"; then
+		unset_util_attr host_memory
 	fi
+
 	if ocf_is_true "$OCF_RESKEY_autoset_utilization_hv_memory"; then
-	   dom_mem=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} 2>/dev/null | awk '/Max memory/{printf("%d", $3/1024)}')
-	   test -n "$dom_mem" && set_util_attr hv_memory "$dom_mem"
+		dom_mem=$(LANG=C virsh $VIRSH_OPTIONS dominfo ${DOMAIN_NAME} 2>/dev/null | awk '/Max memory/{printf("%d", $3/1024)}')
+		test -n "$dom_mem" && set_util_attr hv_memory "$dom_mem"
+	elif ocf_is_true "$OCF_RESKEY_unset_utilization_hv_memory"; then
+		unset_util_attr hv_memory
 	fi
 }
 
