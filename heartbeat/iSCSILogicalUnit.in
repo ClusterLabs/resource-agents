@@ -428,7 +428,7 @@ iSCSILogicalUnit_start() {
 	lio-t)
 		ocf_take_lock $TARGETLOCKFILE
 		ocf_release_lock_on_exit $TARGETLOCKFILE
-		iblock_attrib_path="/sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE}/attrib"
+		iblock_attrib_path="/sys/kernel/config/target/core/iblock_*/${OCF_RESOURCE_INSTANCE}/attrib"
 		# For lio, we first have to create a target device, then
 		# add it to the Target Portal Group as an LU.
 		# Handle differently 'block', 'fileio' and 'pscsi'
@@ -445,10 +445,10 @@ iSCSILogicalUnit_start() {
 			ocf_run targetcli /backstores/${OCF_RESKEY_liot_bstype} create ${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
 		fi
 		if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
-			echo ${OCF_RESKEY_scsi_sn} > /sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE}/wwn/vpd_unit_serial
+			echo ${OCF_RESKEY_scsi_sn} > /sys/kernel/config/target/core/iblock_*/${OCF_RESOURCE_INSTANCE}/wwn/vpd_unit_serial
 		fi
 		if [ -n "${OCF_RESKEY_product_id}" ]; then
-			echo "${OCF_RESKEY_product_id}" > /sys/kernel/config/target/core/iblock_${OCF_RESKEY_lio_iblock}/${OCF_RESOURCE_INSTANCE}/wwn/product_id
+			echo "${OCF_RESKEY_product_id}" > /sys/kernel/config/target/core/iblock_*/${OCF_RESOURCE_INSTANCE}/wwn/product_id
 		fi
 
 		ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns create /backstores/${OCF_RESKEY_liot_bstype}/${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
