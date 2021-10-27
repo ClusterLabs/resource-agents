@@ -1,3 +1,22 @@
+* Wed Oct 27 2021 resource-agents contributors
+- release candidate 4.10.0 rc1
+- VirtualDomain: added the ability to unset utilization variables (#1703)
+- all agents: specify agent and OCF versions corrently in metadata
+- configure: use new SYSTEMD_ parameters
+- gcp-pd-move/gcp-vpc-move-route: dont fail failed resources instantly (caused by OCF_ERR_CONFIGURED)
+- iSCSILogicalUnit: do not use lio_iblock with lio-t
+- metadata.rng: update to support resource agent version according to the OCF standard
+- nfsnotify: fix default value for "notify_args"
+- nfsnotify: fix rpcuser error when resource start on debian (#1696)
+- nfsserver: fix NFSv4 lock failover: set NFS Server Scope (#1688)
+- ocf.py: add agent and OCF version parameters (both defaults to 1.0)
+- portblock: use ss when available, netstat is "obsolete"
+- ra-dev-guide: update agent/OCF version info (#1699)
+- storage-mon: update metadata to suggest usage in combination with HealthSMART agent
+- symlink: fix symlink vs target realpath comparison (#1691)
+- tickle_tcp: fix build issue on opensuse 15.3
+- tools: add nfsconvert for RHEL-based distros
+
 * Thu Aug 19 2021 resource-agents contributors
 - stable release 4.9.0
 - Filesystem: force_unmount: remove "Default value" to avoid confusion on RHEL9+ where default value is safe
