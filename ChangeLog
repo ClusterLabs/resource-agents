@@ -1,3 +1,6 @@
+* Wed Nov  3 2021 resource-agents contributors
+- stable release 4.10.0
+
 * Wed Oct 27 2021 resource-agents contributors
 - release candidate 4.10.0 rc1
 - VirtualDomain: added the ability to unset utilization variables (#1703)
