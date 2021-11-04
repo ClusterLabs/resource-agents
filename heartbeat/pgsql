@@ -868,7 +868,7 @@ pgsql_real_stop() {
     # Remove postmaster.pid if it exists
     rm -f $PIDFILE
 
-    if  [ "$1" = "master" -a "$OCF_RESKEY_CRM_meta_notify_slave_uname" = " " ]; then
+    if  [ "$1" = "master" ]; then
         ocf_log info "Removing $PGSQL_LOCK."
         rm -f $PGSQL_LOCK
     fi
