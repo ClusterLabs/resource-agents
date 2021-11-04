@@ -160,6 +160,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			pound			\
 			proftpd			\
 			rabbitmq-cluster	\
+			rabbitmq-server-ha	\
 			redis			\
 			rkt			\
 			rsyncd			\
