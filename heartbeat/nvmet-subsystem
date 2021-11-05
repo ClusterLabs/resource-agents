@@ -123,7 +123,7 @@ nvmet_subsystem_start() {
 	else
 		local hosts_dir=/sys/kernel/config/nvmet/hosts
 		echo 0 > ${subsys}/attr_allow_any_host
-		for hostnqn in "${OCF_RESKEY_allowed_initiators}"; do
+		for hostnqn in ${OCF_RESKEY_allowed_initiators}; do
 			mkdir -p ${hosts_dir}/${hostnqn}
 			ln -s ${hosts_dir}/${hostnqn} ${subsys}/allowed_hosts
 		done
