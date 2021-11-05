@@ -371,7 +371,7 @@ validate_all_squid()
 	return $OCF_SUCCESS
 }
 
-: === Debug ${0##*/} $1 ===
+: "=== Debug ${0##*/} $1 ==="
 
 if [[ "$1" = "meta-data" ]]; then
 	metadata_squid
