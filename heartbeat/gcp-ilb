@@ -53,12 +53,12 @@ pidfile="/var/run/$OCF_RESOURCE_INSTANCE.pid"
 
 
 #Validate command for logging
-if $OCF_RESKEY_log_enable = "true"; then
+if [ $OCF_RESKEY_log_enable = "true" ]; then
     if  type $OCF_RESKEY_log_cmd > /dev/null 2>&1; then
 	logging_cmd="$OCF_RESKEY_log_cmd $OCF_RESKEY_log_params"
 	ocf_log debug "Logging command is: \'$logging_cmd\' "
     else 
-	$OCF_RESKEY_log_enable = "false"
+	OCF_RESKEY_log_enable="false"
 	ocf_log err "\'$logging_cmd\' is invalid. External logging disabled."
 		
     fi;
