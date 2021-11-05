@@ -180,7 +180,9 @@ rpm: clean
 	rpmbuild $(RPMBUILDOPTS) -ba $(SPEC)
 
 check-local:
+if CI_CHECKS
 	$(top_srcdir)/ci/build.sh check
+endif
 
 spellcheck: make/spellcheck-ignore
 if BUILD_LINUX_HA

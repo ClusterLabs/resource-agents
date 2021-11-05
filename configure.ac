@@ -470,6 +470,8 @@ PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin"
 export PATH
 
 AC_CHECK_PROGS(MAKE, gmake make)
+AC_CHECK_PROGS(SHELLCHECK, shellcheck)
+AM_CONDITIONAL(CI_CHECKS, test "x$SHELLCHECK" != "x" )
 AC_PATH_PROGS(BASH_SHELL, bash)
 if test x"${BASH_SHELL}" = x""; then
    AC_MSG_ERROR(You need bash installed in order to build ${PACKAGE})
