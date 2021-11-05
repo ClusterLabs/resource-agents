@@ -797,6 +797,12 @@ AM_CONDITIONAL(SENDARP_LINUX, test $sendarp_linux = 1 )
 AM_CONDITIONAL(USE_LIBNET, test "x$libnet_version" != "xnone" )
 AM_CONDITIONAL(NFSCONVERT, test $redhat_based = 1 )
 
+ci_checks=0
+AC_CHECK_FILE(/etc/debian_version, [ci_checks=1])
+AC_CHECK_FILE(/etc/fedora-release, [ci_checks=1])
+
+AM_CONDITIONAL(CI_CHECKS, test $ci_checks = 1 )
+
 dnl ************************************************************************
 dnl * Check for netinet/icmp6.h to enable the IPv6addr resource agent
 AC_CHECK_HEADERS(netinet/icmp6.h,[],[],[#include <sys/types.h>])
