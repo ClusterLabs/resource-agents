@@ -37,7 +37,7 @@ if  type "socat" > /dev/null 2>&1; then
 	OCF_RESKEY_cat_default="socat"
 else 
 	OCF_RESKEY_cat_default="nc"
-fi;
+fi
 
 
 : ${OCF_RESKEY_cat=${OCF_RESKEY_cat_default}}
@@ -53,7 +53,7 @@ pidfile="/var/run/$OCF_RESOURCE_INSTANCE.pid"
 
 
 #Validate command for logging
-if [ $OCF_RESKEY_log_enable = "true" ]; then
+if ocf_is_true "$OCF_RESKEY_log_enable"; then
     if  type $OCF_RESKEY_log_cmd > /dev/null 2>&1; then
 	logging_cmd="$OCF_RESKEY_log_cmd $OCF_RESKEY_log_params"
 	ocf_log debug "Logging command is: \'$logging_cmd\' "
@@ -61,7 +61,7 @@ if [ $OCF_RESKEY_log_enable = "true" ]; then
 	OCF_RESKEY_log_enable="false"
 	ocf_log err "\'$logging_cmd\' is invalid. External logging disabled."
 		
-    fi;
+    fi
 fi
 
 
@@ -285,7 +285,8 @@ ilb_stop() {
 
 ilb_validate() {
 	check_binary "$OCF_RESKEY_cat"
-	check_binary "$OCF_RESKEY_log_cmd"
+
+	ocf_is_true "$OCF_RESKEY_log_enable" && check_binary "$OCF_RESKEY_log_cmd"
 
 	if ! ocf_is_decimal "$OCF_RESKEY_port"; then
 		ocf_exit_reason "$OCF_RESKEY_port is not a valid port"
