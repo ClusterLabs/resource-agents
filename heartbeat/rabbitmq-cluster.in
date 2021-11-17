@@ -488,7 +488,11 @@ rmq_try_start() {
 
 	rmq_stop
 	rmq_wipe_data
-	rmq_forget_cluster_node_remotely "$join_list" "$local_rmq_node"
+	if [ -z "$local_rmq_node" ]; then
+		ocf_log warn "Unable to forget the cluster node because local node name cannot be detected"
+	else
+		rmq_forget_cluster_node_remotely "$join_list" "$local_rmq_node"
+	fi
 	rmq_join_existing "$join_list"
 	rc=$?
 
