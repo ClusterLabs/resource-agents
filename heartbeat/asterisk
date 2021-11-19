@@ -306,13 +306,25 @@ asterisk_monitor() {
     #   simply no answer (timeout).
     #   This can also happen if sipsak is run too early after asterisk
     #   start.
-    if [ -n "$OCF_RESKEY_monitor_sipuri" ]; then
-        ocf_run sipsak -s "$OCF_RESKEY_monitor_sipuri"
+   
+    #To avoid the case where the sipsak check runs before the sip starts at the start action
+    SIPCHECK=`sipsak -s $OCF_RESKEY_monitor_sipuri`
+    if [ -n "$OCF_RESKEY_monitor_sipuri" ]; then   
+        ocf_run $SIPCHECK
         rc=$?
-        case "$rc" in
-          1|2) return $OCF_ERR_GENERIC;;
-          3)   return $OCF_NOT_RUNNING;;
-        esac
+        if [ "$__OCF_ACTION" = "start" ]; then
+          while [ $rc -ne 0 ]; do
+            ocf_log info "Starting ast, waiting for SIP ok"
+            sleep 1
+            ocf_run $SIPCHECK
+            rc=$?
+          done
+        else
+          case "$rc" in
+            1|2) return $OCF_ERR_GENERIC;;
+            3)   return $OCF_NOT_RUNNING;;
+          esac
+        fi
     fi
 
     ocf_log debug "Asterisk PBX monitor succeeded"
