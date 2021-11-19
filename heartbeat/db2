@@ -274,7 +274,7 @@ db2_fal_attrib() {
         while read id node member
         do
             [ "$member" = member -a "$node" != "$me" ] || continue
-            crm_attribute -t nodes -l reboot --node=$node -n $attr -v "$3"
+            crm_attribute -l forever --node=$node -n $attr -v "$3"
             rc=$?
             ocf_log info "DB2 instance $instance($db2node/$db: setting attrib for FAL to $FIRST_ACTIVE_LOG @ $node"
             [ $rc != 0 ] && break
@@ -282,7 +282,7 @@ db2_fal_attrib() {
         ;;
 
         get)
-        crm_attribute -t nodes -l reboot -n $attr -G --quiet 2>&1
+        crm_attribute -l forever -n $attr -G --quiet 2>&1
         rc=$?
         if [ $rc != 0 ]
         then
