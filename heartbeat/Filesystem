@@ -359,6 +359,27 @@ list_submounts() {
 	list_mounts | grep "${TAB}${1}/" | cut -d"$TAB" -f2 | sort -r
 }
 
+# Lists all bind mounts of a given file system,
+# excluding the path itself.
+list_bindmounts() {
+	if is_bind_mount; then
+		# skip bind mount
+		# we should not umount the original file system via a bind mount
+		return
+	fi
+
+	match_string="${TAB}${1}${TAB}"
+	if list_mounts | grep "$match_string" >/dev/null 2>&1; then
+		mount_disk=$(list_mounts | grep "$match_string" | cut -d"$TAB" -f1)
+	else
+		return
+	fi
+
+	if [ -b "$mount_disk" ]; then
+		list_mounts | grep "$mount_disk" | grep -v "$match_string" | cut -d"$TAB" -f2 | sort -r
+	fi
+}
+
 # kernels < 2.6.26 can't handle bind remounts
 bind_kernel_check() {
 	echo "$options" | grep -w ro >/dev/null 2>&1 ||
@@ -696,6 +717,7 @@ Filesystem_stop()
 			fi
 		done <<-EOF
 			$(list_submounts "$CANONICALIZED_MOUNTPOINT"; \
+				list_bindmounts "$CANONICALIZED_MOUNTPOINT"; \
 				echo $CANONICALIZED_MOUNTPOINT)
 			EOF
 	fi
