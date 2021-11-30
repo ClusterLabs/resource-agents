@@ -175,13 +175,13 @@ is_testconf_sane() {
 	if
           [ "x$test_regex" = x -o "x$test_url" = x ]
         then
-	  ocf_log err "test regular expression or test url empty"
+	  ocf_exit_reason "test regular expression or test url empty"
 	  return 1
 	fi
 	if
           [ "x$test_user$test_password" != x -a \( "x$test_user" = x -o "x$test_password" = x \) ]
         then
-	  ocf_log err "bad user authentication for extended test"
+	  ocf_exit_reason "bad user authentication for extended test"
 	  return 1
 	fi
 	return 0
@@ -213,7 +213,7 @@ readtestconf() {
 		"match") test_regex="$value" ;;
 		"end") break ;;
 		"#"*|"") ;;
-		*) ocf_log err "$lcnt: $key: unknown keyword"; return 1 ;;
+		*) ocf_exit_reason "$lcnt: $key: unknown keyword"; return 1 ;;
       esac
     else
       [ "$key" = "test" ] &&
@@ -548,7 +548,7 @@ monitor_nginx_external() {
   if
     [ -z "$EXTMONITOR" ]
   then
-    ocf_log err "$External level 30 Monitor Command not configured."
+    ocf_exit_reason "$External level 30 Monitor Command not configured."
     return $OCF_ERR_CONFIGURED
   fi
   extbase=`echo $EXTMONITOR | sed 's% .*%%'`
@@ -560,7 +560,7 @@ monitor_nginx_external() {
   then
     : OK - $extbase seems to be there...
   else
-    ocf_log err "$External monitor command [$extbase] is not installed."
+    ocf_exit_reason "$External monitor command [$extbase] is not installed."
     return $OCF_ERR_CONFIGURED
   fi
   if
@@ -568,7 +568,7 @@ monitor_nginx_external() {
   then
     : OK - $extbase succeeded
   else
-    ocf_log err "$extbase reported failure [rc=$?]"
+    ocf_exit_reason "$extbase reported failure [rc=$?]"
     return $OCF_NOT_RUNNING
   fi
   return $OCF_SUCCESS
@@ -594,12 +594,12 @@ monitor_nginx_basic() {
   if
     [ -z "$STATUSURL" ]
   then
-    ocf_log err "status10url parameter empty"
+    ocf_exit_reason "status10url parameter empty"
     return $OCF_ERR_CONFIGURED
   elif
     [ -z "$ourhttpclient" ]
   then
-    ocf_log err "could not find a http client; make sure that either wget or curl is available"
+    ocf_exit_reason "could not find a http client; make sure that either wget or curl is available"
 	return $OCF_ERR_CONFIGURED
   fi
   ${ourhttpclient}_func "$STATUSURL" | grep -Ei "$TESTREGEX" > /dev/null
@@ -818,7 +818,7 @@ validate_all_nginx() {
   then
     : OK
   else
-    ocf_log err "Port number $PORT is invalid!"
+    ocf_exit_reason "Port number $PORT is invalid!"
     exit $OCF_ERR_ARGS
   fi
 
@@ -829,21 +829,21 @@ validate_all_nginx() {
   else
     case $STATUSURL in
       http://*/*) ;;
-      *) ocf_log err "Invalid STATUSURL $STATUSURL"
+      *) ocf_exit_reason "Invalid STATUSURL $STATUSURL"
          exit $OCF_ERR_ARGS ;;
     esac
   fi
   if
     [ ! -x $NGINXD ]
   then
-    ocf_log err "NGINXD $NGINXD not found or is not an executable!"
+    ocf_exit_reason "NGINXD $NGINXD not found or is not an executable!"
     exit $OCF_ERR_ARGS
   fi
   if
     [ ! -f $CONFIGFILE ]
   then
     # We are sure to succeed here, since we have parsed $CONFIGFILE before getting here
-    ocf_log err "Configuration file $CONFIGFILE not found!"
+    ocf_exit_reason "Configuration file $CONFIGFILE not found!"
     exit $OCF_ERR_CONFIGURED
   fi
   if
@@ -851,7 +851,7 @@ validate_all_nginx() {
   then
     : Cool $NGINXD likes $CONFIGFILE
   else
-    ocf_log err "$NGINXD $OPTIONS -t -c $CONFIGFILE reported a configuration error."
+    ocf_exit_reason "$NGINXD $OPTIONS -t -c $CONFIGFILE reported a configuration error."
     return $OCF_ERR_CONFIGURED
   fi
   return $OCF_SUCCESS
@@ -901,7 +901,7 @@ then
             status)	exit $LSB_STATUS_STOPPED;;
   	    meta-data)	metadata_nginx;;
     esac
-    ocf_log err "nginx binary not found! Please verify you've installed it"
+    ocf_exit_reason "nginx binary not found! Please verify you've installed it"
     exit $OCF_ERR_INSTALLED
   fi
   # Let the user know that the $NGINXD used is the one (s)he specified via $OCF_RESKEY_httpd
@@ -940,7 +940,7 @@ if
 then
   : OK
 else
-  ocf_log err "Cannot parse config file [$CONFIGFILE]"
+  ocf_exit_reason "Cannot parse config file [$CONFIGFILE]"
   exit $OCF_ERR_CONFIGURED
 fi
 
