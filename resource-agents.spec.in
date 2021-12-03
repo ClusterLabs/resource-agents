@@ -91,13 +91,26 @@ BuildRequires:  libxslt docbook_4 docbook-xsl-stylesheets
 # system tools shared by several agents
 Requires: /bin/bash /usr/bin/grep /bin/sed /bin/gawk
 Requires: /bin/ps /usr/bin/pkill /usr/bin/hostname /usr/bin/netstat
-Requires: /usr/sbin/fuser /bin/mount
+Requires: /bin/mount
+%if 0%{?suse_version}
+Requires: /usr/bin/fuser
+%else
+Requires: /usr/sbin/fuser
+%endif
 
 # Filesystem / fs.sh / netfs.sh
+%if 0%{?suse_version}
+Requires: /usr/sbin/fsck
+%else
 Requires: /sbin/fsck
+%endif
 Requires: /usr/sbin/fsck.ext2 /usr/sbin/fsck.ext3 /usr/sbin/fsck.ext4
 Requires: /usr/sbin/fsck.xfs
+%if 0%{?suse_version}
+Requires: /usr/sbin/mount.nfs /usr/sbin/mount.nfs4
+%else
 Requires: /sbin/mount.nfs /sbin/mount.nfs4
+%endif
 %if 0%{?fedora} < 33 || (0%{?rhel} && 0%{?rhel} < 9) || (0%{?centos} && 0%{?centos} < 9) || 0%{?suse_version}
 %if (0%{?rhel} && 0%{?rhel} < 8) || (0%{?centos} && 0%{?centos} < 8)
 Requires: /usr/sbin/mount.cifs
@@ -113,7 +126,12 @@ Requires: /sbin/ip
 Requires: /usr/sbin/lvm
 
 # nfsserver / netfs.sh
-Requires: /usr/sbin/rpc.nfsd /sbin/rpc.statd /usr/sbin/rpc.mountd
+%if 0%{?suse_version}
+Requires: /usr/sbin/rpc.statd
+%else
+Requires: /sbin/rpc.statd
+%endif
+Requires: /usr/sbin/rpc.nfsd /usr/sbin/rpc.mountd
 
 # ocf-distro
 Requires: /usr/bin/lsb_release
