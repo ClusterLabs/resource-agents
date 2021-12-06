@@ -308,7 +308,7 @@ asterisk_monitor() {
     #   start.
    
     #To avoid the case where the sipsak check runs before the sip starts at the start action
-    SIPCHECK=`sipsak -s $OCF_RESKEY_monitor_sipuri`
+    SIPCHECK="sipsak -s $OCF_RESKEY_monitor_sipuri"
     if [ -n "$OCF_RESKEY_monitor_sipuri" ]; then   
         ocf_run $SIPCHECK
         rc=$?
