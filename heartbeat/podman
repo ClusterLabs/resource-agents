@@ -251,7 +251,7 @@ remove_container()
 		return 0
 	fi
 	ocf_log notice "Cleaning up inactive container, ${CONTAINER}."
-	ocf_run podman rm $CONTAINER
+	ocf_run podman rm -v $CONTAINER
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		# due to a podman bug (rhbz#1841485), sometimes a stopped
