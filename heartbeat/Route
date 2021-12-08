@@ -227,15 +227,6 @@ route_stop() {
 }
 
 route_status() {
-    if [ -n "${OCF_RESKEY_device}" ]; then
-	# Must check if device exists or is gone.
-	# If device is gone, route is also unconfigured.
-	ip link show dev ${OCF_RESKEY_device} >/dev/null 2>&1
-	if [ $? -ne 0 ]; then
-	    # Assume device does not exist, and short-circuit here.
-	    return $OCF_NOT_RUNNING
-	fi
-    fi
     show_output="$(ip $addr_family route show $(create_route_spec) 2>/dev/null)"
     if [ $? -eq 0 ]; then
 	if [ -n "$show_output" ]; then
@@ -251,7 +242,11 @@ route_status() {
     else
 	# "ip route show" returned an error code. Assume something
 	# went wrong.
-	return $OCF_ERR_GENERIC
+	if ocf_is_probe; then
+	    return $OCF_NOT_RUNNING
+	else
+	    return $OCF_ERR_GENERIC
+	fi
     fi
 }
 
