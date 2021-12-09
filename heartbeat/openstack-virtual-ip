@@ -36,8 +36,10 @@
 
 # Defaults
 OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
+OCF_RESKEY_insecure_default="false"
 
 : ${OCF_RESKEY_openstackcli=${OCF_RESKEY_openstackcli_default}}
+: ${OCF_RESKEY_insecure=${OCF_RESKEY_insecure_default}}
 
 #######################################################################
 
@@ -100,6 +102,14 @@ Subnet Identifier to use to attach the address.
 <content type="string" />
 </parameter>
 
+<parameter name="insecure">
+<longdesc lang="en">
+Allow insecure connections
+</longdesc>
+<shortdesc lang="en">Allow insecure connections</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_insecure_default}" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -112,6 +122,10 @@ Subnet Identifier to use to attach the address.
 </resource-agent>
 END
 }
+
+if [ "${OCF_RESKEY_insecure}" = true ]; then
+	OCF_RESKEY_openstackcli="${OCF_RESKEY_openstackcli} --insecure"
+fi
 
 osvip_port_id() {
 	# Get port_id from subnet_id

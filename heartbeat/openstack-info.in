@@ -39,6 +39,7 @@ OCF_RESKEY_clone_default="0"
 OCF_RESKEY_curlcli_default="/usr/bin/curl"
 OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
 OCF_RESKEY_pythoncli_default="@PYTHON@"
+OCF_RESKEY_insecure_default="false"
 
 : ${OCF_RESKEY_curlcli=${OCF_RESKEY_curlcli_default}}
 : ${OCF_RESKEY_openstackcli=${OCF_RESKEY_openstackcli_default}}
@@ -46,6 +47,7 @@ OCF_RESKEY_pythoncli_default="@PYTHON@"
 : ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
 : ${OCF_RESKEY_delay=${OCF_RESKEY_delay_default}}
 : ${OCF_RESKEY_clone=${OCF_RESKEY_clone_default}}
+: ${OCF_RESKEY_insecure=${OCF_RESKEY_insecure_default}}
 
 #######################################################################
 
@@ -113,6 +115,14 @@ Path to command line Python interpreter.
 <content type="string" default="${OCF_RESKEY_pythoncli_default}" />
 </parameter>
 
+<parameter name="insecure">
+<longdesc lang="en">
+Allow insecure connections
+</longdesc>
+<shortdesc lang="en">Allow insecure connections</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_insecure_default}" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -127,6 +137,10 @@ END
 }
 
 #######################################################################
+
+if [ "${OCF_RESKEY_insecure}" = true ]; then
+	OCF_RESKEY_openstackcli="${OCF_RESKEY_openstackcli} --insecure"
+fi
 
 OSInfoStats() {
 	local result
