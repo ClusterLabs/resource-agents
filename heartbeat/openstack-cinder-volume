@@ -37,9 +37,11 @@
 # Defaults
 OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
 OCF_RESKEY_volume_local_check_default="true"
+OCF_RESKEY_insecure_default="false"
 
 : ${OCF_RESKEY_openstackcli=${OCF_RESKEY_openstackcli_default}}
 : ${OCF_RESKEY_volume_local_check=${OCF_RESKEY_volume_local_check_default}}
+: ${OCF_RESKEY_insecure=${OCF_RESKEY_insecure_default}}
 
 #######################################################################
 
@@ -101,6 +103,14 @@ Cinder volume identifier to use to attach the bloc storage.
 <content type="string" />
 </parameter>
 
+<parameter name="insecure">
+<longdesc lang="en">
+Allow insecure connections
+</longdesc>
+<shortdesc lang="en">Allow insecure connections</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_insecure_default}" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -113,6 +123,10 @@ Cinder volume identifier to use to attach the bloc storage.
 </resource-agent>
 END
 }
+
+if [ "${OCF_RESKEY_insecure}" = true ]; then
+	OCF_RESKEY_openstackcli="${OCF_RESKEY_openstackcli} --insecure"
+fi
 
 _get_node_id() {
 	node_id=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_id -N $(crm_node -n) |
