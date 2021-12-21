@@ -314,7 +314,7 @@ set_tags()
 	esac
 
 	if ! vgchange --addtag $OUR_TAG ${VG} ; then
-		ocf_log err "Failed to add ownership tag to ${VG}"
+		ocf_exit_reason "Failed to add ownership tag to ${VG}"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -441,7 +441,7 @@ tagging_check()
 	# The volume_list must be initialized to something in order to
 	# guarantee our tag will be filtered on startup
 	if ! lvm dumpconfig activation/volume_list; then
-		ocf_log err  "LVM: Improper setup detected"
+		ocf_exit_reason  "LVM: Improper setup detected"
 		ocf_exit_reason "The volume_list filter must be initialized in lvm.conf for exclusive activation without clvmd"
 		exit $OCF_ERR_CONFIGURED
 	fi
@@ -450,7 +450,7 @@ tagging_check()
 	# overrides the volume_list during activation using the
 	# special tag reserved for cluster activation
 	if lvm dumpconfig activation/volume_list | grep -e "\"@${OUR_TAG}\"" -e "\"${VG}\"";  then
-		ocf_log err "LVM:  Improper setup detected"
+		ocf_exit_reason "LVM:  Improper setup detected"
 		ocf_exit_reason "The volume_list in lvm.conf must not contain the cluster tag, \"${OUR_TAG}\", or volume group, ${VG}"
 		exit $OCF_ERR_CONFIGURED
 	fi
@@ -563,7 +563,7 @@ lvm_validate() {
 	if [ -n "$LV" ]; then
 		OUT=$(lvs --foreign --noheadings ${VG}/${LV} 2>&1)
 		if [ $? -ne 0 ]; then
-			ocf_log err "lvs: ${OUT}"
+			ocf_exit_reason "lvs: ${OUT}"
 			ocf_exit_reason "LV ($LV) is not in the given VG ($VG)."
 			exit $OCF_ERR_ARGS
 		fi
@@ -632,7 +632,7 @@ lvmlockd_activate() {
 	ocf_run vgchange --lockstart ${VG}
 	rc=$?
 	if [ $rc -ne $OCF_SUCCESS ]; then
-		ocf_log err "Failed to start shared VG(s), exit code: $rc"
+		ocf_exit_reason "Failed to start shared VG(s), exit code: $rc"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -686,7 +686,7 @@ systemid_activate() {
 
 tagging_activate() {
 	if ! set_tags ; then
-		ocf_log err "Failed to set tags on ${VG}."
+		ocf_exit_reason "Failed to set tags on ${VG}."
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -711,7 +711,7 @@ lvmlockd_deactivate() {
 	ocf_run vgchange --lockstop ${VG}
 	rc=$?
 	if [ $rc -ne $OCF_SUCCESS ]; then
-		ocf_log err "Failed to close the shared VG lockspace, exit code: $rc"
+		ocf_exit_reason "Failed to close the shared VG lockspace, exit code: $rc"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -743,7 +743,7 @@ tagging_deactivate() {
 	fi
 
 	if ! strip_tags ; then
-		ocf_log err "Failed to remove tags on ${VG}."
+		ocf_exit_reason "Failed to remove tags on ${VG}."
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -898,7 +898,7 @@ lvm_stop() {
 		tagging_deactivate
 		;;
 	*)
-		ocf_log err "VG [${VG}] is not properly configured in cluster. It's unsafe!"
+		ocf_exit_reason "VG [${VG}] is not properly configured in cluster. It's unsafe!"
 		exit $OCF_SUCCESS
 		;;
 	esac
