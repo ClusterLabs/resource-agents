@@ -855,7 +855,8 @@ else
 		-Wpointer-arith 
 		-Wstrict-prototypes
 		-Wunsigned-char
-		-Wwrite-strings"
+		-Wwrite-strings
+		-Wno-maybe-uninitialized"
 
 # Additional warnings it might be nice to enable one day
 #		-Wshadow
