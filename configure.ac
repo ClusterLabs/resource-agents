@@ -206,7 +206,7 @@ AC_ARG_WITH(rsctmpdir,
     [ HA_RSCTMPDIR="$withval" ])
 
 AC_ARG_ENABLE([libnet],
- [  --enable-libnet 	Use libnet for ARP based funcationality, [default=try]], 
+ [  --enable-libnet 	Use libnet for ARP based functionality, [default=try]], 
  [enable_libnet="$enableval"], [enable_libnet=try])
 
 BUILD_RGMANAGER=0
