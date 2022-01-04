@@ -441,7 +441,7 @@ tagging_check()
 	# The volume_list must be initialized to something in order to
 	# guarantee our tag will be filtered on startup
 	if ! lvm dumpconfig activation/volume_list; then
-		ocf_exit_reason  "LVM: Improper setup detected"
+		ocf_log_err  "LVM: Improper setup detected"
 		ocf_exit_reason "The volume_list filter must be initialized in lvm.conf for exclusive activation without clvmd"
 		exit $OCF_ERR_CONFIGURED
 	fi
@@ -450,7 +450,7 @@ tagging_check()
 	# overrides the volume_list during activation using the
 	# special tag reserved for cluster activation
 	if lvm dumpconfig activation/volume_list | grep -e "\"@${OUR_TAG}\"" -e "\"${VG}\"";  then
-		ocf_exit_reason "LVM:  Improper setup detected"
+		ocf_log_err "LVM:  Improper setup detected"
 		ocf_exit_reason "The volume_list in lvm.conf must not contain the cluster tag, \"${OUR_TAG}\", or volume group, ${VG}"
 		exit $OCF_ERR_CONFIGURED
 	fi
@@ -563,7 +563,7 @@ lvm_validate() {
 	if [ -n "$LV" ]; then
 		OUT=$(lvs --foreign --noheadings ${VG}/${LV} 2>&1)
 		if [ $? -ne 0 ]; then
-			ocf_exit_reason "lvs: ${OUT}"
+			ocf_log_err "lvs: ${OUT}"
 			ocf_exit_reason "LV ($LV) is not in the given VG ($VG)."
 			exit $OCF_ERR_ARGS
 		fi
