@@ -43,7 +43,7 @@ radir			= $(abs_top_builddir)/heartbeat
 symlinkstargets		= \
 			  ocf-distro ocf.py ocf-rarun ocf-returncodes \
 			  findif.sh apache-conf.sh http-mon.sh mysql-common.sh \
-			  nfsserver-redhat.sh ora-common.sh
+			  nfsserver-redhat.sh openstack-common.sh ora-common.sh
 
 preptree:
 	for i in $(symlinkstargets); do \

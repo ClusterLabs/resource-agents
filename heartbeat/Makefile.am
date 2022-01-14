@@ -212,6 +212,7 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  lvm-clvm.sh		\
 			  lvm-plain.sh		\
 			  lvm-tag.sh		\
+			  openstack-common.sh	\
 			  ora-common.sh		\
 			  mysql-common.sh	\
 			  nfsserver-redhat.sh	\

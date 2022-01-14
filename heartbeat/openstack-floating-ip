@@ -34,12 +34,9 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
-# Defaults
-OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
-OCF_RESKEY_insecure_default="false"
+. ${OCF_FUNCTIONS_DIR}/openstack-common.sh
 
-: ${OCF_RESKEY_openstackcli=${OCF_RESKEY_openstackcli_default}}
-: ${OCF_RESKEY_insecure=${OCF_RESKEY_insecure_default}}
+# Defaults
 
 #######################################################################
 
@@ -69,22 +66,11 @@ The attribute called "openstack_floating_ip" is updated.
 <shortdesc lang="en">Move a floating IP</shortdesc>
 
 <parameters>
-<parameter name="openstackcli">
-<longdesc lang="en">
-Path to command line tools for openstack.
-</longdesc>
-<shortdesc lang="en">Path to Openstack CLI tool</shortdesc>
-<content type="string" default="${OCF_RESKEY_openstackcli_default}" />
-</parameter>
+END
 
-<parameter name="openrc" required="1">
-<longdesc lang="en">
-Valid Openstack credentials as openrc file from api_access/openrc.
-</longdesc>
-<shortdesc lang="en">openrc file</shortdesc>
-<content type="string" />
-</parameter>
+common_meta_data
 
+cat <<END
 <parameter name="ip_id" required="1">
 <longdesc lang="en">
 Floating IP Identifier.
@@ -101,14 +87,6 @@ Subnet Identifier to use to attach the address.
 <content type="string" />
 </parameter>
 
-<parameter name="insecure">
-<longdesc lang="en">
-Allow insecure connections
-</longdesc>
-<shortdesc lang="en">Allow insecure connections</shortdesc>
-<content type="boolean" default="${OCF_RESKEY_insecure_default}" />
-</parameter>
-
 </parameters>
 
 <actions>
@@ -122,24 +100,10 @@ Allow insecure connections
 END
 }
 
-if [ "${OCF_RESKEY_insecure}" = true ]; then
-	OCF_RESKEY_openstackcli="${OCF_RESKEY_openstackcli} --insecure"
-fi
-
 osflip_validate() {
 	check_binary "$OCF_RESKEY_openstackcli"
 
-	if [ -z "$OCF_RESKEY_openrc" ]; then
-		ocf_exit_reason "openrc parameter not set"
-		return $OCF_ERR_CONFIGURED
-	fi
-
-	if [ ! -f "$OCF_RESKEY_openrc" ] ; then
-		ocf_exit_reason "openrc file not found"
-		return $OCF_ERR_CONFIGURED
-	fi
-
-	. $OCF_RESKEY_openrc
+	get_config
 
 	if ! $OCF_RESKEY_openstackcli floating ip list|grep -q $OCF_RESKEY_ip_id ; then
 		ocf_exit_reason "ip-id $OCF_RESKEY_ip_id not found"
