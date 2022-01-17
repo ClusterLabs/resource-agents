@@ -32,22 +32,20 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+. ${OCF_FUNCTIONS_DIR}/openstack-common.sh
+
 # Defaults
 OCF_RESKEY_pidfile_default="$HA_RSCTMP/OSInfo-${OCF_RESOURCE_HOSTNAME}"
 OCF_RESKEY_delay_default="0"
 OCF_RESKEY_clone_default="0"
 OCF_RESKEY_curlcli_default="/usr/bin/curl"
-OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
 OCF_RESKEY_pythoncli_default="@PYTHON@"
-OCF_RESKEY_insecure_default="false"
 
 : ${OCF_RESKEY_curlcli=${OCF_RESKEY_curlcli_default}}
-: ${OCF_RESKEY_openstackcli=${OCF_RESKEY_openstackcli_default}}
 : ${OCF_RESKEY_pythoncli=${OCF_RESKEY_pythoncli_default}}
 : ${OCF_RESKEY_pidfile=${OCF_RESKEY_pidfile_default}}
 : ${OCF_RESKEY_delay=${OCF_RESKEY_delay_default}}
 : ${OCF_RESKEY_clone=${OCF_RESKEY_clone_default}}
-: ${OCF_RESKEY_insecure=${OCF_RESKEY_insecure_default}}
 
 #######################################################################
 
@@ -72,23 +70,21 @@ The layout of openstack_ports is a comma-separated list of tuples "subnet_id:por
 <shortdesc lang="en">Records various node attributes in the CIB</shortdesc>
 
 <parameters>
+END
+
+common_meta_data
+
+	cat <<END
 <parameter name="pidfile" unique="0">
 <longdesc lang="en">PID file</longdesc>
 <shortdesc lang="en">PID file</shortdesc>
 <content type="string" default="${OCF_RESKEY_pidfile_default}" />
 </parameter>
+
 <parameter name="delay" unique="0">
 <longdesc lang="en">Interval to allow values to stabilize</longdesc>
 <shortdesc lang="en">Dampening Delay</shortdesc>
 <content type="string" default="${OCF_RESKEY_delay_default}" />
-</parameter>
-
-<parameter name="openrc" required="1">
-<longdesc lang="en">
-Valid Openstack credentials as openrc file from api_access/openrc.
-</longdesc>
-<shortdesc lang="en">openrc file</shortdesc>
-<content type="string" />
 </parameter>
 
 <parameter name="curlcli">
@@ -99,28 +95,12 @@ Path to command line cURL binary.
 <content type="string" default="${OCF_RESKEY_curlcli_default}" />
 </parameter>
 
-<parameter name="openstackcli">
-<longdesc lang="en">
-Path to command line tools for openstack.
-</longdesc>
-<shortdesc lang="en">Path to Openstack CLI tool</shortdesc>
-<content type="string" default="${OCF_RESKEY_openstackcli_default}" />
-</parameter>
-
 <parameter name="pythoncli">
 <longdesc lang="en">
 Path to command line Python interpreter.
 </longdesc>
 <shortdesc lang="en">Path to Python interpreter</shortdesc>
 <content type="string" default="${OCF_RESKEY_pythoncli_default}" />
-</parameter>
-
-<parameter name="insecure">
-<longdesc lang="en">
-Allow insecure connections
-</longdesc>
-<shortdesc lang="en">Allow insecure connections</shortdesc>
-<content type="boolean" default="${OCF_RESKEY_insecure_default}" />
 </parameter>
 
 </parameters>
@@ -138,17 +118,13 @@ END
 
 #######################################################################
 
-if [ "${OCF_RESKEY_insecure}" = true ]; then
-	OCF_RESKEY_openstackcli="${OCF_RESKEY_openstackcli} --insecure"
-fi
-
 OSInfoStats() {
 	local result
 	local value
 	local node
 	local node_id
 
-	. $OCF_RESKEY_openrc
+	get_config
 
 	# Nova data: server ID
 	node_id=$($OCF_RESKEY_curlcli \
@@ -257,16 +233,6 @@ OSInfo_validate() {
 	check_binary "$OCF_RESKEY_curlcli"
 	check_binary "$OCF_RESKEY_openstackcli"
 	check_binary "$OCF_RESKEY_pythoncli"
-
-	if [ -z "$OCF_RESKEY_openrc" ]; then
-		ocf_exit_reason "openrc parameter not set"
-		return $OCF_ERR_CONFIGURED
-	fi
-
-	if [ ! -f "$OCF_RESKEY_openrc" ] ; then
-		ocf_exit_reason "openrc file not found"
-		return $OCF_ERR_CONFIGURED
-	fi
 
 	return $OCF_SUCCESS
 }

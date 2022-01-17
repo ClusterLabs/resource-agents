@@ -34,14 +34,12 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
-# Defaults
-OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
-OCF_RESKEY_volume_local_check_default="true"
-OCF_RESKEY_insecure_default="false"
+. ${OCF_FUNCTIONS_DIR}/openstack-common.sh
 
-: ${OCF_RESKEY_openstackcli=${OCF_RESKEY_openstackcli_default}}
+# Defaults
+OCF_RESKEY_volume_local_check_default="true"
+
 : ${OCF_RESKEY_volume_local_check=${OCF_RESKEY_volume_local_check_default}}
-: ${OCF_RESKEY_insecure=${OCF_RESKEY_insecure_default}}
 
 #######################################################################
 
@@ -70,14 +68,11 @@ It relies on attributes given by openstack-info resource agent (openstack_id att
 <shortdesc lang="en">Attach a cinder volume</shortdesc>
 
 <parameters>
-<parameter name="openstackcli">
-<longdesc lang="en">
-Path to command line tools for openstack.
-</longdesc>
-<shortdesc lang="en">Path to Openstack CLI tool</shortdesc>
-<content type="string" default="${OCF_RESKEY_openstackcli_default}" />
-</parameter>
+END
 
+common_meta_data
+
+cat <<END
 <parameter name="volume_local_check">
 <longdesc lang="en">
 This option allows the cluster to monitor the cinder volume presence without 
@@ -87,30 +82,13 @@ calling the API.
 <content type="boolean" default="${OCF_RESKEY_volume_local_check_default}" />
 </parameter>
 
-<parameter name="openrc" required="1">
-<longdesc lang="en">
-Valid Openstack credentials as openrc file from api_access/openrc.
-</longdesc>
-<shortdesc lang="en">openrc file</shortdesc>
-<content type="string" />
-</parameter>
-
 <parameter name="volume_id" required="1">
 <longdesc lang="en">
-Cinder volume identifier to use to attach the bloc storage.
+Cinder volume identifier to use to attach the block storage.
 </longdesc>
 <shortdesc lang="en">Volume ID</shortdesc>
 <content type="string" />
 </parameter>
-
-<parameter name="insecure">
-<longdesc lang="en">
-Allow insecure connections
-</longdesc>
-<shortdesc lang="en">Allow insecure connections</shortdesc>
-<content type="boolean" default="${OCF_RESKEY_insecure_default}" />
-</parameter>
-
 </parameters>
 
 <actions>
@@ -123,10 +101,6 @@ Allow insecure connections
 </resource-agent>
 END
 }
-
-if [ "${OCF_RESKEY_insecure}" = true ]; then
-	OCF_RESKEY_openstackcli="${OCF_RESKEY_openstackcli} --insecure"
-fi
 
 _get_node_id() {
 	node_id=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_id -N $(crm_node -n) |
@@ -141,17 +115,7 @@ _get_node_id() {
 osvol_validate() {
 	check_binary "$OCF_RESKEY_openstackcli"
 	
-	if [ -z "$OCF_RESKEY_openrc" ]; then
-		ocf_exit_reason "openrc parameter not set"
-		return $OCF_ERR_CONFIGURED
-	fi
-
-	if [ ! -f "$OCF_RESKEY_openrc" ] ; then
-		ocf_exit_reason "openrc file not found"
-		return $OCF_ERR_CONFIGURED
-	fi
-
-	. $OCF_RESKEY_openrc
+	get_config
 
 	if ! $OCF_RESKEY_openstackcli volume list|grep -q $OCF_RESKEY_volume_id ; then
 		ocf_exit_reason "volume-id $OCF_RESKEY_volume_id not found"

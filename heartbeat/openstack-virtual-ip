@@ -34,12 +34,9 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
-# Defaults
-OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
-OCF_RESKEY_insecure_default="false"
+. ${OCF_FUNCTIONS_DIR}/openstack-common.sh
 
-: ${OCF_RESKEY_openstackcli=${OCF_RESKEY_openstackcli_default}}
-: ${OCF_RESKEY_insecure=${OCF_RESKEY_insecure_default}}
+# Defaults
 
 #######################################################################
 
@@ -70,22 +67,11 @@ The attribute called "openstack_virtual_ip" is updated.
 <shortdesc lang="en">Move a virtual IP</shortdesc>
 
 <parameters>
-<parameter name="openstackcli">
-<longdesc lang="en">
-Path to command line tools for openstack.
-</longdesc>
-<shortdesc lang="en">Path to Openstack CLI tool</shortdesc>
-<content type="string" default="${OCF_RESKEY_openstackcli_default}" />
-</parameter>
+END
 
-<parameter name="openrc" required="1">
-<longdesc lang="en">
-Valid Openstack credentials as openrc file from api_access/openrc.
-</longdesc>
-<shortdesc lang="en">openrc file</shortdesc>
-<content type="string" />
-</parameter>
+common_meta_data
 
+cat <<END
 <parameter name="ip" required="1">
 <longdesc lang="en">
 Virtual IP Address.
@@ -102,14 +88,6 @@ Subnet Identifier to use to attach the address.
 <content type="string" />
 </parameter>
 
-<parameter name="insecure">
-<longdesc lang="en">
-Allow insecure connections
-</longdesc>
-<shortdesc lang="en">Allow insecure connections</shortdesc>
-<content type="boolean" default="${OCF_RESKEY_insecure_default}" />
-</parameter>
-
 </parameters>
 
 <actions>
@@ -122,10 +100,6 @@ Allow insecure connections
 </resource-agent>
 END
 }
-
-if [ "${OCF_RESKEY_insecure}" = true ]; then
-	OCF_RESKEY_openstackcli="${OCF_RESKEY_openstackcli} --insecure"
-fi
 
 osvip_port_id() {
 	# Get port_id from subnet_id
@@ -142,17 +116,7 @@ osvip_port_id() {
 osvip_validate() {
 	check_binary "$OCF_RESKEY_openstackcli"
 
-	if [ -z "$OCF_RESKEY_openrc" ]; then
-		ocf_exit_reason "openrc parameter not set"
-		return $OCF_ERR_CONFIGURED
-	fi
-
-	if [ ! -f "$OCF_RESKEY_openrc" ] ; then
-		ocf_exit_reason "openrc file not found"
-		return $OCF_ERR_CONFIGURED
-	fi
-
-	. $OCF_RESKEY_openrc
+	get_config
 
 	${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $(crm_node -n) > /dev/null 2>&1
 	if [ $? -ne 0 ] ; then
