@@ -1,8 +1,6 @@
-OCF_RESKEY_clouds_yaml_default="$HOME/.config/openstack/clouds.yaml"
 OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
 OCF_RESKEY_insecure_default="false"
 
-: ${OCF_RESKEY_clouds_yaml=${OCF_RESKEY_clouds_yaml_default}}
 : ${OCF_RESKEY_openstackcli=${OCF_RESKEY_openstackcli_default}}
 : ${OCF_RESKEY_insecure=${OCF_RESKEY_insecure_default}}
 
@@ -13,17 +11,9 @@ fi
 common_meta_data() {
 	cat <<END
 
-<parameter name="clouds_yaml" required="0">
-<longdesc lang="en">
-Openstack clouds.yaml config file.
-</longdesc>
-<shortdesc lang="en">clouds.yaml config file</shortdesc>
-<content type="string" default="${OCF_RESKEY_clouds_yaml_default}" />
-</parameter>
-
 <parameter name="cloud" required="0">
 <longdesc lang="en">
-Openstack cloud (from ~/.config/openstack/clouds.yaml).
+Openstack cloud (from ~/.config/openstack/clouds.yaml or /etc/openstack/clouds.yaml).
 </longdesc>
 <shortdesc lang="en">Cloud from clouds.yaml</shortdesc>
 <content type="string" />
@@ -104,15 +94,15 @@ END
 }
 
 get_config() {
-	if [ -n "$OCF_RESKEY_clouds_yaml" ]; then
-		 if [ ! -f "$OCF_RESKEY_clouds_yaml" ]; then
-			ocf_exit_reason "$OCF_RESKEY_clouds_yaml does not exist"
+	if [ -n "$OCF_RESKEY_cloud" ]; then
+		clouds_yaml="$HOME/.config/openstack/clouds.yaml"
+		if [ ! -f "$clouds_yaml" ]; then
+			clouds_yaml="/etc/openstack/clouds.yaml"
+		fi
+		if [ ! -f "$clouds_yaml" ]; then
+			ocf_exit_reason "~/.config/openstack/clouds.yaml and /etc/openstack/clouds.yaml does not exist"
 			return $OCF_ERR_CONFIGURED
-		 fi
-		 if [ -z "$OCF_RESKEY_cloud" ]; then
-			ocf_exit_reason "cloud: $OCF_RESKEY_cloud not found in $OCF_RESKEY_clouds_yaml"
-			return $OCF_ERR_CONFIGURED
-		 fi
+		fi
 		OCF_RESKEY_openstackcli="${OCF_RESKEY_openstackcli} --os-cloud $OCF_RESKEY_cloud"
 	elif [ -n "$OCF_RESKEY_openrc" ]; then
 		if [ ! -f "$OCF_RESKEY_openrc" ]; then
