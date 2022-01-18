@@ -95,45 +95,46 @@ END
 
 get_config() {
 	if [ -n "$OCF_RESKEY_cloud" ]; then
-		clouds_yaml="$HOME/.config/openstack/clouds.yaml"
+		TILDE=$(echo ~)
+		clouds_yaml="$TILDE/.config/openstack/clouds.yaml"
 		if [ ! -f "$clouds_yaml" ]; then
 			clouds_yaml="/etc/openstack/clouds.yaml"
 		fi
 		if [ ! -f "$clouds_yaml" ]; then
 			ocf_exit_reason "~/.config/openstack/clouds.yaml and /etc/openstack/clouds.yaml does not exist"
-			return $OCF_ERR_CONFIGURED
+			exit $OCF_ERR_CONFIGURED
 		fi
 		OCF_RESKEY_openstackcli="${OCF_RESKEY_openstackcli} --os-cloud $OCF_RESKEY_cloud"
 	elif [ -n "$OCF_RESKEY_openrc" ]; then
 		if [ ! -f "$OCF_RESKEY_openrc" ]; then
 			ocf_exit_reason "$OCF_RESKEY_openrc does not exist"
-			return $OCF_ERR_CONFIGURED
+			exit $OCF_ERR_CONFIGURED
 		fi
 		. $OCF_RESKEY_openrc
 	else
 		if [ -z "$OCF_RESKEY_auth_url" ]; then
 			ocf_exit_reason "auth_url not set"
-			return $OCF_ERR_CONFIGURED
+			exit $OCF_ERR_CONFIGURED
 		fi
 		if [ -z "$OCF_RESKEY_username" ]; then
 			ocf_exit_reason "username not set"
-			return $OCF_ERR_CONFIGURED
+			exit $OCF_ERR_CONFIGURED
 		fi
 		if [ -z "$OCF_RESKEY_password" ]; then
 			ocf_exit_reason "password not set"
-			return $OCF_ERR_CONFIGURED
+			exit $OCF_ERR_CONFIGURED
 		fi
 		if [ -z "$OCF_RESKEY_project_name" ]; then
 			ocf_exit_reason "project_name not set"
-			return $OCF_ERR_CONFIGURED
+			exit $OCF_ERR_CONFIGURED
 		fi
 		if [ -z "$OCF_RESKEY_user_domain_name" ]; then
 			ocf_exit_reason "user_domain_name not set"
-			return $OCF_ERR_CONFIGURED
+			exit $OCF_ERR_CONFIGURED
 		fi
 		if [ -z "$OCF_RESKEY_project_domain_name" ]; then
 			ocf_exit_reason " not set"
-			return $OCF_ERR_CONFIGURED
+			exit $OCF_ERR_CONFIGURED
 		fi
 
 		OCF_RESKEY_openstackcli="${OCF_RESKEY_openstackcli} --os-auth-url $OCF_RESKEY_auth_url"
