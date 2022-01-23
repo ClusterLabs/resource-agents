@@ -108,7 +108,7 @@ Path to command line Python interpreter.
 <actions>
 <action name="start"  timeout="180s" />
 <action name="stop" timeout="180s" />
-<action name="monitor" timeout="30s" interval="60s"/>
+<action name="monitor" timeout="180s" interval="60s"/>
 <action name="meta-data" timeout="5s" />
 <action name="validate-all" timeout="20s" />
 </actions>

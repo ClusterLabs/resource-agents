@@ -94,7 +94,7 @@ Cinder volume identifier to use to attach the block storage.
 <actions>
 <action name="start" timeout="180s" />
 <action name="stop" timeout="180s" />
-<action name="monitor" depth="0" timeout="30s" interval="60s" />
+<action name="monitor" depth="0" timeout="180s" interval="60s" />
 <action name="validate-all" timeout="5s" />
 <action name="meta-data" timeout="5s" />
 </actions>
