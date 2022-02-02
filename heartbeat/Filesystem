@@ -341,7 +341,7 @@ determine_blockdevice() {
 	# Get the current real device name, if possible.
 	# (specified devname could be -L or -U...)
 	case "$FSTYPE" in
-	nfs4|nfs|smbfs|cifs|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|none|lustre)
+	nfs4|nfs|efs|smbfs|cifs|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|none|lustre)
 		: ;;
 	*)
 		match_string="${TAB}${CANONICALIZED_MOUNTPOINT}${TAB}"
@@ -423,7 +423,7 @@ is_fsck_needed() {
 		no)    false;;
 		""|auto)
 		case "$FSTYPE" in
-			ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs4|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs)
+			ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs4|nfs|efs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs)
 			false;;
 			*)
 			true;;
@@ -450,9 +450,11 @@ fstype_supported()
 		return $OCF_SUCCESS
 	fi
 
-	# support fuse-filesystems (e.g. GlusterFS)
+	# support fuse-filesystems (e.g. GlusterFS) and Amazon Elastic File
+	# System (EFS)
 	case "$FSTYPE" in
 		fuse.*|glusterfs|rozofs) support="fuse";;
+		efs) support="nfs4";;
 	esac
 
 	if [ "$support" != "$FSTYPE" ]; then
@@ -701,7 +703,7 @@ Filesystem_stop()
 
 		# For networked filesystems, there's merit in trying -f:
 		case "$FSTYPE" in
-		nfs4|nfs|cifs|smbfs) umount_force="-f" ;;
+		nfs4|nfs|efs|cifs|smbfs) umount_force="-f" ;;
 		esac
 
 		# Umount all sub-filesystems mounted under $MOUNTPOINT/ too.
@@ -892,7 +894,7 @@ set_blockdevice_var() {
 
 	# these are definitely not block devices
 	case "$FSTYPE" in
-	nfs4|nfs|smbfs|cifs|none|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|lustre) return;;
+	nfs4|nfs|efs|smbfs|cifs|none|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|lustre) return;;
 	esac
 
 	if $(is_option "loop"); then
@@ -1013,7 +1015,7 @@ is_option "ro" &&
 	CLUSTERSAFE=2
 
 case "$FSTYPE" in
-nfs4|nfs|smbfs|cifs|none|gfs2|glusterfs|ceph|ocfs2|overlay|overlayfs|tmpfs|cvfs|lustre)
+nfs4|nfs|efs|smbfs|cifs|none|gfs2|glusterfs|ceph|ocfs2|overlay|overlayfs|tmpfs|cvfs|lustre)
 	CLUSTERSAFE=1 # this is kind of safe too
 	;;
 # add here CLUSTERSAFE=0 for all filesystems which are not
