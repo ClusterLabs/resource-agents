@@ -455,6 +455,10 @@ fstype_supported()
 		fuse.*|glusterfs|rozofs) support="fuse";;
 	esac
 
+	if [ "$support" != "$FSTYPE" ]; then
+		ocf_log info "Checking support for $FSTYPE as \"$support\""
+	fi
+
 	grep -w "$support"'$' /proc/filesystems >/dev/null
 	if [ $? -eq 0 ]; then
 		# found the fs type
@@ -465,7 +469,7 @@ fstype_supported()
 	# check the if the filesystem support exists again.
 	$MODPROBE $support >/dev/null
 	if [ $? -ne 0 ]; then
-		ocf_exit_reason "Couldn't find filesystem $FSTYPE in /proc/filesystems and failed to load kernel module"
+		ocf_exit_reason "Couldn't find filesystem $support in /proc/filesystems and failed to load kernel module"
 		return $OCF_ERR_INSTALLED
 	fi
 
@@ -478,11 +482,11 @@ fstype_supported()
 			# yes. found the filesystem after doing the modprobe
 			return $OCF_SUCCESS
 		fi
-		ocf_log debug "Unable to find support for $FSTYPE in /proc/filesystems after modprobe, trying again"
+		ocf_log debug "Unable to find support for $support in /proc/filesystems after modprobe, trying again"
 		sleep 1
 	done
 
-	ocf_exit_reason "Couldn't find filesystem $FSTYPE in /proc/filesystems"
+	ocf_exit_reason "Couldn't find filesystem $support in /proc/filesystems"
 	return $OCF_ERR_INSTALLED
 }
 
@@ -837,6 +841,9 @@ Filesystem_monitor()
 #	VALIDATE_ALL: Are the instance parameters valid?
 #	FIXME!!  The only part that's useful is the return code.
 #	This code always returns $OCF_SUCCESS (!)
+#	FIXME!! Needs some tuning to match fstype_supported() (e.g., for
+#	fuse). Can we just call fstype_supported() with a flag like
+#	"no_modprobe" instead?
 #
 Filesystem_validate_all()
 {
