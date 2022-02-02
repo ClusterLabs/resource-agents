@@ -440,7 +440,7 @@ fstype_supported()
 	local support="$FSTYPE"
 	local rc
 
-	if [ "X${HOSTOS}" != "XOpenBSD" ];then
+	if [ "X${HOSTOS}" = "XOpenBSD" ];then
 		# skip checking /proc/filesystems for obsd
 		return $OCF_SUCCESS
 	fi
