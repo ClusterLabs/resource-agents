@@ -629,7 +629,7 @@ master_score() {
 # Return either FQDN or shortname, depends on the OCF_RESKEY_use_fqdn.
 get_hostname() {
     local os=$(uname -s)
-    if [ "${OCF_RESKEY_use_fqdn}" = 'false' ] ; then
+    if ! ocf_is_true "${OCF_RESKEY_use_fqdn}"; then
         if [ "$os" = "SunOS" ]; then
             echo "$(hostname | sed 's@\..*@@')"
         else
@@ -647,7 +647,7 @@ get_hostname() {
 # Strip the FQDN to the shortname, if OCF_RESKEY_use_fqdn was set;
 # Prepend prefix to the hostname
 process_fqdn() {
-    if [ "${OCF_RESKEY_use_fqdn}" = 'false' ] ; then
+    if ! ocf_is_true "${OCF_RESKEY_use_fqdn}"; then
         echo "${OCF_RESKEY_fqdn_prefix}$1" | awk -F. '{print $1}'
     else
         echo "${OCF_RESKEY_fqdn_prefix}$1"
@@ -804,7 +804,7 @@ reset_mnesia() {
 block_client_access()
 {
     # When OCF_RESKEY_avoid_using_iptables is true iptables calls are noops
-    if [ "${OCF_RESKEY_avoid_using_iptables}" = 'true' ] ; then
+    if ocf_is_true "${OCF_RESKEY_avoid_using_iptables}"; then
         return $OCF_SUCCESS
     fi
     # do not add temporary RMQ blocking rule, if it is already exist
@@ -830,7 +830,7 @@ unblock_client_access()
         lhtext=$1
     fi
     # When OCF_RESKEY_avoid_using_iptables is true iptables calls are noops
-    if [ "${OCF_RESKEY_avoid_using_iptables}" = 'true' ] ; then
+    if ocf_is_true "${OCF_RESKEY_avoid_using_iptables}"; then
         return
     fi
     # remove all temporary RMQ blocking rules, if there are more than one exist
@@ -1535,7 +1535,7 @@ wait_sync() {
     local queues
     local opt_arg=""
 
-    if [ "$OCF_RESKEY_rmq_feature_local_list_queues" = "true" ]; then
+    if ocf_is_true "$OCF_RESKEY_rmq_feature_local_list_queues"; then
         opt_arg="--local"
     fi
 
@@ -1928,7 +1928,7 @@ action_monitor() {
     local rc=$OCF_ERR_GENERIC
     local LH="${LL} monitor:"
     ocf_log debug "${LH} action start."
-    if [ "${OCF_RESKEY_debug}" = 'true' ] ; then
+    if ocf_is_true "${OCF_RESKEY_debug}"; then
         d=`date '+%Y%m%d %H:%M:%S'`
         echo $d >> /tmp/rmq-monitor.log
         env >> /tmp/rmq-monitor.log
@@ -1948,7 +1948,7 @@ action_start() {
     local LH="${LL} start:"
     local nowtime
 
-    if [ "${OCF_RESKEY_debug}" = 'true' ] ; then
+    if ocf_is_true "${OCF_RESKEY_debug}"; then
         d=`date '+%Y%m%d %H:%M:%S'`
         echo $d >> /tmp/rmq-start.log
         env >> /tmp/rmq-start.log
@@ -1994,7 +1994,7 @@ action_stop() {
     local rc=$OCF_ERR_GENERIC
     local LH="${LL} stop:"
 
-    if [ "${OCF_RESKEY_debug}" = 'true' ] ; then
+    if ocf_is_true "${OCF_RESKEY_debug}"; then
         d=$(date '+%Y%m%d %H:%M:%S')
         echo $d >> /tmp/rmq-stop.log
         env >> /tmp/rmq-stop.log
@@ -2170,7 +2170,7 @@ action_notify() {
     local LH="${LL} notify:"
     local nodelist
 
-    if [ "${OCF_RESKEY_debug}" = 'true' ] ; then
+    if ocf_is_true "${OCF_RESKEY_debug}"; then
         d=`date '+%Y%m%d %H:%M:%S'`
         echo $d >> /tmp/rmq-notify.log
         env >> /tmp/rmq-notify.log
@@ -2311,7 +2311,7 @@ action_promote() {
     local rc=$OCF_ERR_GENERIC
     local LH="${LL} promote:"
 
-    if [ "${OCF_RESKEY_debug}" = 'true' ] ; then
+    if ocf_is_true "${OCF_RESKEY_debug}"; then
         d=$(date '+%Y%m%d %H:%M:%S')
         echo $d >> /tmp/rmq-promote.log
         env >> /tmp/rmq-promote.log
