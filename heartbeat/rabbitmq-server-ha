@@ -702,6 +702,7 @@ rabbit_node_name() {
 rmq_setup_env() {
     local H
     local dir
+    local name
     H="$(get_hostname)"
     export RABBITMQ_NODENAME=$(rabbit_node_name $H)
     if [ "$OCF_RESKEY_node_port" != "$OCF_RESKEY_node_port_default" ]; then
@@ -709,7 +710,12 @@ rmq_setup_env() {
     fi
     export RABBITMQ_PID_FILE=$OCF_RESKEY_pid_file
     MNESIA_FILES="${OCF_RESKEY_mnesia_base}/$(rabbit_node_name $H)"
-    export RABBITMQ_SERVER_START_ARGS="${RABBITMQ_SERVER_START_ARGS} -mnesia dir \"${MNESIA_FILES}\" -sname $(rabbit_node_name $H)"
+    if ! ocf_is_true "${OCF_RESKEY_use_fqdn}"; then
+      name="-sname"
+    else
+      name="-name"
+    fi
+    export RABBITMQ_SERVER_START_ARGS="${RABBITMQ_SERVER_START_ARGS} -mnesia dir \"${MNESIA_FILES}\" ${name} $(rabbit_node_name $H)"
     RMQ_START_TIME="${MNESIA_FILES}/ocf_server_start_time.txt"
     MASTER_FLAG_FILE="${MNESIA_FILES}/ocf_master_for_${OCF_RESOURCE_INSTANCE}"
     THIS_PCMK_NODE=$(ocf_attribute_target)
