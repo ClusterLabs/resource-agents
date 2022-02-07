@@ -185,7 +185,7 @@ parseinst() {
 	#channel=error
 	#target=error
 	#lun=error
-	ocf_log err "Invalid SCSI instance $1"
+	ocf_exit_reason "Invalid SCSI instance $1"
 	exit $OCF_ERR_ARGS
   esac
   host=`echo "$1" | cut -d: -f1`
@@ -206,7 +206,7 @@ scsi_start() {
   then
     return $OCF_SUCCESS
   else
-    ocf_log err "SCSI device $1 not active!"
+    ocf_exit_reason "SCSI device $1 not active!"
     return $OCF_ERR_GENERIC
   fi
 }
@@ -222,7 +222,7 @@ scsi_stop() {
   if
     scsi_status "$1"
   then
-    ocf_log err "SCSI device $1 still active!"
+    ocf_exit_resaon "SCSI device $1 still active!"
     return $OCF_ERR_GENERIC
   else
     return $OCF_SUCCESS
@@ -259,7 +259,7 @@ scsi_validate_all() {
 if
   ( [ $# -ne 1 ] )
 then
-  ocf_log err "Parameter number error."
+  ocf_exit_reason "Parameter number error."
   usage
   exit $OCF_ERR_GENERIC
 fi
@@ -290,7 +290,7 @@ ocf_deprecated
 if
   [ -z "$OCF_RESKEY_scsi" ]
 then
-  ocf_log err "You have to set a valid scsi id at least!"
+  ocf_exit_reason  "You have to set a valid scsi id at least!"
 #  usage
   exit $OCF_ERR_GENERIC
 fi
