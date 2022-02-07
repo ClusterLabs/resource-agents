@@ -341,7 +341,7 @@ determine_blockdevice() {
 	# Get the current real device name, if possible.
 	# (specified devname could be -L or -U...)
 	case "$FSTYPE" in
-	nfs4|nfs|smbfs|cifs|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|none|lustre)
+	nfs4|nfs|efs|smbfs|cifs|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|none|lustre)
 		: ;;
 	*)
 		match_string="${TAB}${CANONICALIZED_MOUNTPOINT}${TAB}"
@@ -423,7 +423,7 @@ is_fsck_needed() {
 		no)    false;;
 		""|auto)
 		case "$FSTYPE" in
-			ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs4|nfs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs)
+			ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs4|nfs|efs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs)
 			false;;
 			*)
 			true;;
@@ -440,7 +440,7 @@ fstype_supported()
 	local support="$FSTYPE"
 	local rc
 
-	if [ "X${HOSTOS}" != "XOpenBSD" ];then
+	if [ "X${HOSTOS}" = "XOpenBSD" ];then
 		# skip checking /proc/filesystems for obsd
 		return $OCF_SUCCESS
 	fi
@@ -450,10 +450,16 @@ fstype_supported()
 		return $OCF_SUCCESS
 	fi
 
-	# support fuse-filesystems (e.g. GlusterFS)
+	# support fuse-filesystems (e.g. GlusterFS) and Amazon Elastic File
+	# System (EFS)
 	case "$FSTYPE" in
 		fuse.*|glusterfs|rozofs) support="fuse";;
+		efs) support="nfs4";;
 	esac
+
+	if [ "$support" != "$FSTYPE" ]; then
+		ocf_log info "Checking support for $FSTYPE as \"$support\""
+	fi
 
 	grep -w "$support"'$' /proc/filesystems >/dev/null
 	if [ $? -eq 0 ]; then
@@ -465,7 +471,7 @@ fstype_supported()
 	# check the if the filesystem support exists again.
 	$MODPROBE $support >/dev/null
 	if [ $? -ne 0 ]; then
-		ocf_exit_reason "Couldn't find filesystem $FSTYPE in /proc/filesystems and failed to load kernel module"
+		ocf_exit_reason "Couldn't find filesystem $support in /proc/filesystems and failed to load kernel module"
 		return $OCF_ERR_INSTALLED
 	fi
 
@@ -478,11 +484,11 @@ fstype_supported()
 			# yes. found the filesystem after doing the modprobe
 			return $OCF_SUCCESS
 		fi
-		ocf_log debug "Unable to find support for $FSTYPE in /proc/filesystems after modprobe, trying again"
+		ocf_log debug "Unable to find support for $support in /proc/filesystems after modprobe, trying again"
 		sleep 1
 	done
 
-	ocf_exit_reason "Couldn't find filesystem $FSTYPE in /proc/filesystems"
+	ocf_exit_reason "Couldn't find filesystem $support in /proc/filesystems"
 	return $OCF_ERR_INSTALLED
 }
 
@@ -697,7 +703,7 @@ Filesystem_stop()
 
 		# For networked filesystems, there's merit in trying -f:
 		case "$FSTYPE" in
-		nfs4|nfs|cifs|smbfs) umount_force="-f" ;;
+		nfs4|nfs|efs|cifs|smbfs) umount_force="-f" ;;
 		esac
 
 		# Umount all sub-filesystems mounted under $MOUNTPOINT/ too.
@@ -837,6 +843,9 @@ Filesystem_monitor()
 #	VALIDATE_ALL: Are the instance parameters valid?
 #	FIXME!!  The only part that's useful is the return code.
 #	This code always returns $OCF_SUCCESS (!)
+#	FIXME!! Needs some tuning to match fstype_supported() (e.g., for
+#	fuse). Can we just call fstype_supported() with a flag like
+#	"no_modprobe" instead?
 #
 Filesystem_validate_all()
 {
@@ -885,7 +894,7 @@ set_blockdevice_var() {
 
 	# these are definitely not block devices
 	case "$FSTYPE" in
-	nfs4|nfs|smbfs|cifs|none|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|lustre) return;;
+	nfs4|nfs|efs|smbfs|cifs|none|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|lustre) return;;
 	esac
 
 	if $(is_option "loop"); then
@@ -1006,7 +1015,7 @@ is_option "ro" &&
 	CLUSTERSAFE=2
 
 case "$FSTYPE" in
-nfs4|nfs|smbfs|cifs|none|gfs2|glusterfs|ceph|ocfs2|overlay|overlayfs|tmpfs|cvfs|lustre)
+nfs4|nfs|efs|smbfs|cifs|none|gfs2|glusterfs|ceph|ocfs2|overlay|overlayfs|tmpfs|cvfs|lustre)
 	CLUSTERSAFE=1 # this is kind of safe too
 	;;
 # add here CLUSTERSAFE=0 for all filesystems which are not
