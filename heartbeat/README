@@ -24,7 +24,9 @@ language, use the appropriate extension.
 RA tracing
 
 RA tracing may be turned on by setting OCF_TRACE_RA. The trace
-output will be saved to OCF_TRACE_FILE, if set, or by default to
+output will be saved to OCF_TRACE_FILE, if set. If not,
+then the trace would be saved to the OCF_RESKEY_trace_dir.
+If it's also not defined, the log will be saved by default to
 
   $HA_VARLIB/trace_ra/<type>/<id>.<action>.<timestamp>
 

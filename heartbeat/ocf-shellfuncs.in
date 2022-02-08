@@ -962,7 +962,7 @@ ocf_default_trace_dest() {
 	if [ -n "$OCF_RESOURCE_TYPE" -a \
 			-n "$OCF_RESOURCE_INSTANCE" -a -n "$__OCF_ACTION" ]; then
 		local ts=`date +%F.%T`
-		__OCF_TRC_DEST=$HA_VARLIB/trace_ra/${OCF_RESOURCE_TYPE}/${OCF_RESOURCE_INSTANCE}.${__OCF_ACTION}.$ts
+		__OCF_TRC_DEST=${OCF_RESKEY_trace_dir}/${OCF_RESOURCE_TYPE}/${OCF_RESOURCE_INSTANCE}.${__OCF_ACTION}.$ts
 		__OCF_TRC_MANAGE="1"
 	fi
 }
@@ -1039,6 +1039,7 @@ ocf_attribute_target() {
 __ocf_set_defaults "$@"
 
 : ${OCF_TRACE_RA:=$OCF_RESKEY_trace_ra}
+: ${OCF_RESKEY_trace_dir:="$HA_VARLIB/trace_ra"}
 ocf_is_true "$OCF_TRACE_RA" && ocf_start_trace
 
 # pacemaker sets HA_use_logd, some others use HA_LOGD :/
