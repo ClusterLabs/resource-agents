@@ -99,6 +99,12 @@ meta_data() {
 <longdesc lang="en">
 Resource script for IPsrcaddr. It manages the preferred source address
 modification. 
+
+Note: DHCP should not be enabled for the interface serving the preferred
+source address. Enabling DHCP may result in unexpected behavior, such as
+the automatic addition of duplicate or conflicting routes. This may
+cause the IPsrcaddr resource to fail, or it may produce undesired
+behavior while the resource continues to run.
 </longdesc>
 <shortdesc lang="en">Manages the preferred source address for outgoing IP packets</shortdesc>
 
