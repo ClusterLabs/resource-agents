@@ -549,6 +549,20 @@ rc=$?
 INTERFACE=`echo $findif_out | awk '{print $1}'`
 if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] ;then
 	NETWORK=`$IP2UTIL route list dev $INTERFACE scope link $PROTO match $ipaddress|grep -m 1 -o '^[^ ]*'`
+
+    if [ -z "$NETWORK" ]; then
+        err_str="command '$IP2UTIL route list dev $INTERFACE scope link $PROTO"
+        err_str="$err_str match $ipaddress' failed to find a matching route"
+
+        if [ "$__OCF_ACTION" = "start" ]; then
+            ocf_exit_reason "$err_str"
+            exit $OCF_ERR_ARGS
+        elif ! ocf_is_probe; then
+            ocf_log warn "$err_str"
+        else
+            ocf_log debug "$err_str"
+        fi
+    fi
 else
 	NETWORK="$OCF_RESKEY_destination"
 fi
