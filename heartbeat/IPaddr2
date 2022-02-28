@@ -88,6 +88,7 @@ OCF_RESKEY_arp_sender_default=""
 OCF_RESKEY_send_arp_opts_default=""
 OCF_RESKEY_flush_routes_default="false"
 OCF_RESKEY_run_arping_default=false
+OCF_RESKEY_nodad_default=false
 OCF_RESKEY_noprefixroute_default="false"
 OCF_RESKEY_preferred_lft_default="forever"
 OCF_RESKEY_network_namespace_default=""
@@ -110,6 +111,7 @@ OCF_RESKEY_network_namespace_default=""
 : ${OCF_RESKEY_send_arp_opts=${OCF_RESKEY_send_arp_opts_default}}
 : ${OCF_RESKEY_flush_routes=${OCF_RESKEY_flush_routes_default}}
 : ${OCF_RESKEY_run_arping=${OCF_RESKEY_run_arping_default}}
+: ${OCF_RESKEY_nodad=${OCF_RESKEY_nodad_default}}
 : ${OCF_RESKEY_noprefixroute=${OCF_RESKEY_noprefixroute_default}}
 : ${OCF_RESKEY_preferred_lft=${OCF_RESKEY_preferred_lft_default}}
 : ${OCF_RESKEY_network_namespace=${OCF_RESKEY_network_namespace_default}}
@@ -391,6 +393,14 @@ Whether or not to run arping for IPv4 collision detection check.
 <content type="string" default="${OCF_RESKEY_run_arping_default}"/>
 </parameter>
 
+<parameter name="nodad">
+<longdesc lang="en">
+For IPv6, do not perform Duplicate Address Detection when adding the address.
+</longdesc>
+<shortdesc lang="en">Use nodad flag</shortdesc>
+<content type="string" default="${OCF_RESKEY_nodad_default}"/>
+</parameter>
+
 <parameter name="noprefixroute">
 <longdesc lang="en">
 Use noprefixroute flag (see 'man ip-address').
@@ -660,6 +670,11 @@ add_interface () {
 	if [ "$broadcast" != "none" ]; then
 		cmd="$IP2UTIL -f $FAMILY addr add $ipaddr/$netmask brd $broadcast dev $iface"
 		msg="Adding $FAMILY address $ipaddr/$netmask with broadcast address $broadcast to device $iface"
+	fi
+
+	if [ "$FAMILY" = "inet6" ] && ocf_is_true "${OCF_RESKEY_nodad}"; then
+		cmd="$cmd nodad"
+		msg="${msg} (with nodad)"
 	fi
 
 	if ocf_is_true "${OCF_RESKEY_noprefixroute}"; then
