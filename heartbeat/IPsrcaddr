@@ -52,6 +52,7 @@
 # Initialization:
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+. ${OCF_FUNCTIONS_DIR}/findif.sh
 
 # Defaults
 OCF_RESKEY_ipaddress_default=""
@@ -181,19 +182,21 @@ errorexit() {
 #
 #	where the src clause "src Y.Y.Y.Y" may or may not be present
 
-WS="[`echo -en ' \t'`]"
+WS="[[:blank:]]"
 OCTET="[0-9]\{1,3\}"
 IPADDR="\($OCTET\.\)\{3\}$OCTET"
 SRCCLAUSE="src$WS$WS*\($IPADDR\)"
 MATCHROUTE="\(.*${WS}\)\($SRCCLAUSE\)\($WS.*\|$\)"
-FINDIF=$HA_BIN/findif
+METRICCLAUSE=".*\(metric$WS[^ ]\+\)"
+PROTOCLAUSE=".*\(proto$WS[^ ]\+\)"
+FINDIF=findif
 
 # findif needs that to be set
 export OCF_RESKEY_ip=$OCF_RESKEY_ipaddress
 
 srca_read() {
 	# Capture matching route - doublequotes prevent word splitting...
-	ROUTE="`$CMDSHOW 2> /dev/null`" || errorexit "command '$CMDSHOW' failed"
+	ROUTE="`$CMDSHOW dev $INTERFACE 2> /dev/null`" || errorexit "command '$CMDSHOW' failed"
 
 	# ... so we can make sure there is only 1 matching route
 	[ 1 -eq `echo "$ROUTE" | wc -l` ] || \
@@ -201,7 +204,7 @@ srca_read() {
 
 	# But there might still be no matching route
 	[ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] && [ -z "$ROUTE" ] && \
-		 ! ocf_is_probe && errorexit "no matching route exists"
+		 ! ocf_is_probe && [ "$__OCF_ACTION" != stop ] && errorexit "no matching route exists"
 
 	# Sed out the source ip address if it exists
 	SRCIP=`echo $ROUTE | sed -n "s/$MATCHROUTE/\3/p"`
@@ -232,8 +235,8 @@ srca_start() {
 		rc=$OCF_SUCCESS
 		ocf_log info "The ip route has been already set.($NETWORK, $INTERFACE, $ROUTE_WO_SRC)"
 	else
-		$IP2UTIL route replace $TABLE $NETWORK dev $INTERFACE src $1 || \
-			errorexit "command 'ip route replace $TABLE $NETWORK dev $INTERFACE src $1' failed"
+		$IP2UTIL route replace $TABLE $NETWORK dev $INTERFACE $PROTO src $1 $METRIC || \
+			errorexit "command 'ip route replace $TABLE $NETWORK dev $INTERFACE $PROTO src $1 $METRIC' failed"
 
 		if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] ;then
 			$CMDCHANGE $ROUTE_WO_SRC src $1 || \
@@ -266,14 +269,11 @@ srca_stop() {
 	  
 	[ $rc = 2 ] && errorexit "The address you specified to stop does not match the preferred source address"
 
-	OPTS=""
-	if [ "$OCF_RESKEY_destination" != "0.0.0.0/0" ] ;then
-		PRIMARY_IP="$($IP2UTIL -4 -o addr show dev $INTERFACE primary | awk '{split($4,a,"/");print a[1]}')"
-		OPTS="proto kernel scope host src $PRIMARY_IP"
-	fi
+	PRIMARY_IP="$($IP2UTIL -4 -o addr show dev $INTERFACE primary | awk '{split($4,a,"/");print a[1]}')"
+	OPTS="proto kernel scope link src $PRIMARY_IP"
 
-	$IP2UTIL route replace $TABLE $NETWORK dev $INTERFACE $OPTS || \
-		errorexit "command 'ip route replace $TABLE $NETWORK dev $INTERFACE $OPTS' failed"
+	$IP2UTIL route replace $TABLE $NETWORK dev $INTERFACE $OPTS $METRIC || \
+		errorexit "command 'ip route replace $TABLE $NETWORK dev $INTERFACE $OPTS $METRIC' failed"
 
 	if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] ;then
 		$CMDCHANGE $ROUTE_WO_SRC || \
@@ -539,16 +539,19 @@ if [ $rc -ne $OCF_SUCCESS ]; then
 	esac
 fi
 
-findif_out=`$FINDIF -C`
+findif_out=`$FINDIF`
 rc=$?
 [ $rc -ne 0 ] && {
-	ocf_exit_reason "[$FINDIF -C] failed"
+	ocf_exit_reason "[$FINDIF] failed"
 	exit $rc
 }
 
 INTERFACE=`echo $findif_out | awk '{print $1}'`
+LISTROUTE=`$IP2UTIL route list dev $INTERFACE scope link $PROTO match $ipaddress`
+METRIC=`echo $LISTROUTE | sed -n "s/$METRICCLAUSE/\1/p"`
+[ -z "$PROTO" ] && PROTO=`echo $LISTROUTE | sed -n "s/$PROTOCLAUSE/\1/p"`
 if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] ;then
-	NETWORK=`$IP2UTIL route list dev $INTERFACE scope link $PROTO match $ipaddress|grep -m 1 -o '^[^ ]*'`
+	NETWORK=`echo $LISTROUTE | grep -m 1 -o '^[^ ]*'`
 
 	if [ -z "$NETWORK" ]; then
 		err_str="command '$IP2UTIL route list dev $INTERFACE scope link $PROTO"
