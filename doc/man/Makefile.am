@@ -127,6 +127,7 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_azure-lb.7 \
                           ocf_heartbeat_clvm.7 \
                           ocf_heartbeat_conntrackd.7 \
+                          ocf_heartbeat_corosync-qnetd.7 \
                           ocf_heartbeat_crypt.7 \
                           ocf_heartbeat_db2.7 \
                           ocf_heartbeat_dhcpd.7 \

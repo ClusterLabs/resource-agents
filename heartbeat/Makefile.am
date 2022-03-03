@@ -101,6 +101,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			azure-lb		\
 			clvm			\
 			conntrackd		\
+			corosync-qnetd		\
 			crypt			\
 			db2			\
 			dhcpd			\

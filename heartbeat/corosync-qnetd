@@ -1,0 +1,353 @@
+#!/bin/sh
+#
+# Copyright (C) 2022 Red Hat, Inc.  All rights reserved.
+#
+# Authors: Jan Friesse <jfriesse@redhat.com>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+# Initialization:
+: "${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}"
+. "${OCF_FUNCTIONS_DIR}/ocf-shellfuncs"
+
+# Use runuser if available for SELinux.
+if [ -x "/sbin/runuser" ]; then
+    SU="runuser"
+else
+    SU="su"
+fi
+
+# Attempt to detect a default binary
+OCF_RESKEY_binary_default=$(which corosync-qnetd 2> /dev/null)
+if [ "${OCF_RESKEY_binary_default}" = "" ]; then
+    OCF_RESKEY_binary_default="/usr/bin/corosync-qnetd"
+fi
+
+# Defaults
+OCF_RESKEY_qnetd_opts_default=""
+OCF_RESKEY_qnetd_tool_binary_default="/usr/bin/corosync-qnetd-tool"
+OCF_RESKEY_ip_default=""
+OCF_RESKEY_port_default=""
+OCF_RESKEY_nss_db_dir_default=""
+OCF_RESKEY_pid_default="/var/run/corosync-qnetd/corosync-qnetd-${OCF_RESOURCE_INSTANCE}.pid"
+OCF_RESKEY_ipc_sock_default="/var/run/corosync-qnetd/corosync-qnetd-${OCF_RESOURCE_INSTANCE}.sock"
+OCF_RESKEY_user_default="coroqnetd"
+OCF_RESKEY_group_default="${OCF_RESKEY_user_default}"
+
+: "${OCF_RESKEY_binary=${OCF_RESKEY_binary_default}}"
+: "${OCF_RESKEY_qnetd_opts=${OCF_RESKEY_qnetd_opts_default}}"
+: "${OCF_RESKEY_qnetd_tool_binary=${OCF_RESKEY_qnetd_tool_binary_default}}"
+: "${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}"
+: "${OCF_RESKEY_port=${OCF_RESKEY_port_default}}"
+: "${OCF_RESKEY_nss_db_dir=${OCF_RESKEY_nss_db_dir_default}}"
+: "${OCF_RESKEY_pid=${OCF_RESKEY_pid_default}}"
+: "${OCF_RESKEY_ipc_sock=${OCF_RESKEY_ipc_sock_default}}"
+: "${OCF_RESKEY_user=${OCF_RESKEY_user_default}}"
+: "${OCF_RESKEY_group=${OCF_RESKEY_group_default}}"
+
+corosync_qnetd_usage() {
+    cat <<END
+usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+corosync_qnetd_meta_data() {
+        cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="corosync-qnetd" version="1.0">
+<version>1.0</version>
+
+<longdesc lang="en">OCF Resource script for corosync-qnetd. It manages a corosync-qnetd
+instance as a HA resource. It is required to copy nss db directory (usually /etc/corosync/qnetd/nssdb)
+across all nodes (only once - after database is initialized).</longdesc>
+<shortdesc lang="en">Corosync QNet daemon resource agent</shortdesc>
+
+<parameters>
+
+<parameter name="binary">
+    <longdesc lang="en">Location of the corosync-qnetd binary</longdesc>
+    <shortdesc lang="en">corosync-qnetd binary</shortdesc>
+    <content type="string" default="${OCF_RESKEY_binary_default}" />
+</parameter>
+
+<parameter name="qnetd_opts">
+    <longdesc lang="en">
+        Additional options for corosync-qnetd binary. "-4" for example.
+    </longdesc>
+    <shortdesc lang="en">corosync-qnetd extra options</shortdesc>
+    <content type="string" default="${OCF_RESKEY_qnetd_opts_default}" />
+</parameter>
+
+<parameter name="qnetd_tool_binary">
+    <longdesc lang="en">
+        The absolute path to the corosync-qnetd-tool for monitoring with OCF_CHECK_LEVEL greater zero.
+    </longdesc>
+    <shortdesc lang="en">The absolute path to the corosync-qnetd-tool binary</shortdesc>
+    <content type="string" default="${OCF_RESKEY_qnetd_tool_binary_default}" />
+</parameter>
+
+<parameter name="ip">
+    <longdesc lang="en">
+        IP address to listen on. By default the daemon listens on all addresses (wildcard).
+    </longdesc>
+    <shortdesc lang="en">IP address to listen on</shortdesc>
+    <content type="string" default="${OCF_RESKEY_ip_default}" />
+</parameter>
+
+<parameter name="port">
+    <longdesc lang="en">
+        TCP port to listen on. Default port is 5403.
+    </longdesc>
+    <shortdesc lang="en">TCP port to listen on</shortdesc>
+    <content type="string" default="${OCF_RESKEY_port_default}" />
+</parameter>
+
+<parameter name="nss_db_dir">
+    <longdesc lang="en">
+        Location of the corosync-qnetd nss db directory (empty for default - usually /etc/corosync/qnetd/nssdb)
+    </longdesc>
+    <shortdesc lang="en">corosync-qnetd nss db directory</shortdesc>
+    <content type="string" default="${OCF_RESKEY_nss_db_dir_default}" />
+</parameter>
+
+<parameter name="pid">
+    <longdesc lang="en">
+        Location of the corosync-qnetd pid/lock
+    </longdesc>
+    <shortdesc lang="en">corosync-qnetd pid file</shortdesc>
+    <content type="string" default="${OCF_RESKEY_pid_default}" />
+</parameter>
+
+<parameter name="ipc_sock">
+    <longdesc lang="en">
+        Location of the corosync-qnetd ipc socket
+    </longdesc>
+    <shortdesc lang="en">corosync-qnetd ipc socket file</shortdesc>
+    <content type="string" default="${OCF_RESKEY_ipc_sock_default}" />
+</parameter>
+
+<parameter name="user">
+    <longdesc lang="en">User running corosync-qnetd</longdesc>
+    <shortdesc lang="en">corosync-qnetd user</shortdesc>
+    <content type="string" default="${OCF_RESKEY_user_default}" />
+</parameter>
+
+<parameter name="group">
+    <longdesc lang="en">Group running corosync-qnetd</longdesc>
+    <shortdesc lang="en">corosync-qnetd group</shortdesc>
+    <content type="string" default="${OCF_RESKEY_group_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="20s" />
+<action name="stop" timeout="20s" />
+<action name="status" timeout="20s" />
+<action name="monitor" depth="0" timeout="20s" interval="10s" start-delay="10s" />
+<action name="validate-all" timeout="20s" />
+<action name="meta-data" timeout="20s" />
+</actions>
+</resource-agent>
+END
+}
+
+corosync_qnetd_status() {
+    ocf_pidfile_status "${OCF_RESKEY_pid}" > /dev/null 2>&1
+    case "$?" in
+        0)
+            rc="$OCF_SUCCESS"
+            ;;
+        1|2)
+            rc="$OCF_NOT_RUNNING"
+            ;;
+        *)
+            rc="$OCF_ERR_GENERIC"
+            ;;
+    esac
+
+    return "$rc"
+}
+
+corosync_qnetd_start() {
+    corosync_qnetd_validate_all
+    rc="$?"
+
+    if [ "$rc" -ne 0 ]; then
+        return "$rc"
+    fi
+
+    # if resource is already running,no need to continue code after this.
+    if corosync_qnetd_status; then
+        ocf_log info "corosync-qnetd is already running"
+        return "${OCF_SUCCESS}"
+    fi
+
+    pid_dir=$(dirname "${OCF_RESKEY_pid}")
+    sock_dir=$(dirname "${OCF_RESKEY_ipc_sock}")
+
+    for d in "$pid_dir" "$sock_dir";do
+        if [ ! -d "$d" ];then
+            mkdir -p "$d"
+            chmod 0770 "$d"
+            chown "${OCF_RESKEY_user}:${OCF_RESKEY_group}" "$d"
+        fi
+    done
+
+    params="-S \"local_socket_file=${OCF_RESKEY_ipc_sock}\" -S \"lock_file=${OCF_RESKEY_pid}\""
+
+    if [ -n "${OCF_RESKEY_nss_db_dir}" ];then
+        params="$params -S \"nss_db_dir=${OCF_RESKEY_nss_db_dir}\""
+    fi
+
+    if [ -n "${OCF_RESKEY_ip}" ];then
+        params="$params -l \"${OCF_RESKEY_ip}\""
+    fi
+
+    if [ -n "${OCF_RESKEY_port}" ];then
+        params="$params -p \"${OCF_RESKEY_port}\""
+    fi
+
+    params="$params ${OCF_RESKEY_qnetd_opts}"
+
+    ocf_run "$SU" -s "/bin/sh" "${OCF_RESKEY_user}" -c "${OCF_RESKEY_binary} $params"
+
+    while :; do
+        corosync_qnetd_monitor "debug"
+        rc="$?"
+
+        if [ "$rc" -eq "${OCF_SUCCESS}" ]; then
+            break
+        fi
+        sleep 1
+
+        ocf_log debug "corosync-qnetd still hasn't started yet. Waiting..."
+    done
+
+    ocf_log info "corosync-qnetd started"
+    return "${OCF_SUCCESS}"
+}
+
+corosync_qnetd_stop() {
+    corosync_qnetd_status
+
+    if [ "$?" -ne "$OCF_SUCCESS" ]; then
+        # Currently not running. Nothing to do.
+        ocf_log info "corosync-qnetd is already stopped"
+
+        return "$OCF_SUCCESS"
+    fi
+
+    pid=$(cat "${OCF_RESKEY_pid}")
+    kill "$pid"
+
+    # Wait for process to stop
+    while corosync_qnetd_monitor "debug"; do
+        sleep 1
+    done
+
+    ocf_log info "corosync-qnetd stopped"
+    return "$OCF_SUCCESS"
+}
+
+corosync_qnetd_monitor() {
+    loglevel=${1:-err}
+
+    corosync_qnetd_status
+    rc="$?"
+
+    if [ "$rc" -ne "$OCF_SUCCESS" ];then
+        return "$rc"
+    fi
+
+    out=$("${OCF_RESKEY_qnetd_tool_binary}" -s -p "${OCF_RESKEY_ipc_sock}" 2>&1 >/dev/null)
+    rc="$?"
+
+    if [ "$rc" != 0 ];then
+        ocf_log "$loglevel" "$out"
+    fi
+
+    case "$rc" in
+        "0") rc="$OCF_SUCCESS" ;;
+        "3") rc="$OCF_NOT_RUNNING" ;;
+        *) rc="$OCF_ERR_GENERIC" ;;
+    esac
+
+    return "$rc"
+}
+
+corosync_qnetd_validate_all() {
+    check_binary "${OCF_RESKEY_binary}"
+
+    check_binary "${OCF_RESKEY_qnetd_tool_binary}"
+}
+
+
+# **************************** MAIN SCRIPT ************************************
+
+# Make sure meta-data and usage always succeed
+case "$__OCF_ACTION" in
+    meta-data)
+        corosync_qnetd_meta_data
+        exit "$OCF_SUCCESS"
+        ;;
+    usage|help)
+        corosync_qnetd_usage
+        exit "$OCF_SUCCESS"
+        ;;
+esac
+
+# This OCF agent script need to be run as root user.
+if ! ocf_is_root; then
+        echo "$0 agent script need to be run as root user."
+        ocf_log debug "$0 agent script need to be run as root user."
+        exit "$OCF_ERR_GENERIC"
+fi
+
+# Translate each action into the appropriate function call
+case "$__OCF_ACTION" in
+    start)
+        corosync_qnetd_start
+        ;;
+    stop)
+        corosync_qnetd_stop
+        ;;
+    status)
+        corosync_qnetd_status
+        ;;
+    monitor)
+        corosync_qnetd_monitor
+        ;;
+    validate-all)
+        corosync_qnetd_validate_all
+        ;;
+    *)
+        corosync_qnetd_usage
+        exit "$OCF_ERR_UNIMPLEMENTED"
+        ;;
+esac
+
+rc="$?"
+exit "$rc"
+# End of this script
