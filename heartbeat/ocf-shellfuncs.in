@@ -453,19 +453,19 @@ ocf_run() {
 }
 
 ocf_pidfile_status() {
-    local pid pidfile=$1
-    if [ ! -e $pidfile ]; then
-	# Not exists
-	return 2
-    fi
-    pid=`cat $pidfile`
-    kill -0 $pid > /dev/null 2>&1
-    if [ $? = 0 ]; then
-	return 0
-    fi
+	local pid pidfile="$1"
+	if [ ! -e "$pidfile" ]; then
+		# Not exists
+		return 2
+	fi
+	pid=$(cat "$pidfile")
+	kill -0 "$pid" > /dev/null 2>&1
+	if [ $? = 0 ]; then
+		return 0
+	fi
 
-    # Stale
-    return 1
+	# Stale
+	return 1
 }
 
 # mkdir(1) based locking
