@@ -157,6 +157,12 @@ and/or clone-max &lt; number of nodes. In case of node failure,
 clone instances need to be re-allocated on surviving nodes.
 This would not be possible if there is already an instance
 on those nodes, and clone-node-max=1 (which is the default).
+
+When the specified IP address gets assigned to a respective interface, the
+resource agent sends unsolicited ARP (Address Resolution Protocol, IPv4) or NA
+(Neighbor Advertisement, IPv6) packets to inform neighboring machines about the
+change. This functionality is controlled for both IPv4 and IPv6 by shared
+'arp_*' parameters.
 </longdesc>
 
 <shortdesc lang="en">Manages virtual IPv4 and IPv6 addresses (Linux specific version)</shortdesc>
@@ -306,28 +312,30 @@ a unique address to manage
 
 <parameter name="arp_interval">
 <longdesc lang="en">
-Specify the interval between unsolicited ARP packets in milliseconds.
+Specify the interval between unsolicited ARP (IPv4) or NA (IPv6) packets in
+milliseconds.
 
 This parameter is deprecated and used for the backward compatibility only.
 It is effective only for the send_arp binary which is built with libnet,
 and send_ua for IPv6. It has no effect for other arp_sender.
 </longdesc>
-<shortdesc lang="en">ARP packet interval in ms (deprecated)</shortdesc>
+<shortdesc lang="en">ARP/NA packet interval in ms (deprecated)</shortdesc>
 <content type="integer" default="${OCF_RESKEY_arp_interval_default}"/>
 </parameter>
 
 <parameter name="arp_count">
 <longdesc lang="en">
-Number of unsolicited ARP packets to send at resource initialization.
+Number of unsolicited ARP (IPv4) or NA (IPv6) packets to send at resource
+initialization.
 </longdesc>
-<shortdesc lang="en">ARP packet count sent during initialization</shortdesc>
+<shortdesc lang="en">ARP/NA packet count sent during initialization</shortdesc>
 <content type="integer" default="${OCF_RESKEY_arp_count_default}"/>
 </parameter>
 
 <parameter name="arp_count_refresh">
 <longdesc lang="en">
-Number of unsolicited ARP packets to send during resource monitoring. Doing
-so helps mitigate issues of stuck ARP caches resulting from split-brain
+For IPv4, number of unsolicited ARP packets to send during resource monitoring.
+Doing so helps mitigate issues of stuck ARP caches resulting from split-brain
 situations.
 </longdesc>
 <shortdesc lang="en">ARP packet count sent during monitoring</shortdesc>
@@ -345,7 +353,7 @@ The default is true for IPv4 and false for IPv6.
 
 <parameter name="arp_sender">
 <longdesc lang="en">
-The program to send ARP packets with on start. Available options are:
+For IPv4, the program to send ARP packets with on start. Available options are:
  - send_arp: default
  - ipoibarping: default for infiniband interfaces if ipoibarping is available
  - iputils_arping: use arping in iputils package
@@ -357,7 +365,7 @@ The program to send ARP packets with on start. Available options are:
 
 <parameter name="send_arp_opts">
 <longdesc lang="en">
-Extra options to pass to the arp_sender program.
+For IPv4, extra options to pass to the arp_sender program.
 Available options are vary depending on which arp_sender is used.
 
 A typical use case is specifying '-A' for iputils_arping to use
@@ -388,7 +396,7 @@ IP address goes away.
 
 <parameter name="run_arping">
 <longdesc lang="en">
-Whether or not to run arping for IPv4 collision detection check.
+For IPv4, whether or not to run arping for collision detection check.
 </longdesc>
 <shortdesc lang="en">Run arping for IPv4 collision detection check</shortdesc>
 <content type="string" default="${OCF_RESKEY_run_arping_default}"/>
