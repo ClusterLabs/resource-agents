@@ -83,7 +83,7 @@ OCF_RESKEY_unique_clone_address_default=false
 OCF_RESKEY_arp_interval_default=200
 OCF_RESKEY_arp_count_default=5
 OCF_RESKEY_arp_count_refresh_default=0
-OCF_RESKEY_arp_bg_default=true
+OCF_RESKEY_arp_bg_default=""
 OCF_RESKEY_arp_sender_default=""
 OCF_RESKEY_send_arp_opts_default=""
 OCF_RESKEY_flush_routes_default="false"
@@ -336,9 +336,10 @@ situations.
 
 <parameter name="arp_bg">
 <longdesc lang="en">
-Whether or not to send the ARP packets in the background.
+Whether or not to send the ARP (IPv4) or NA (IPv6) packets in the background.
+The default is true for IPv4 and false for IPv6.
 </longdesc>
-<shortdesc lang="en">ARP from background</shortdesc>
+<shortdesc lang="en">ARP/NA from background</shortdesc>
 <content type="string" default="${OCF_RESKEY_arp_bg_default}"/>
 </parameter>
 
@@ -507,6 +508,9 @@ ip_init() {
 			ocf_exit_reason "IPv4 does not support lvs_ipv6_addrlabel"
 			exit $OCF_ERR_CONFIGURED
 		fi
+		if [ -z "$OCF_RESKEY_arp_bg" ]; then
+			OCF_RESKEY_arp_bg=true
+		fi
 	else
 		FAMILY=inet6
 		# address sanitization defined in RFC5952
@@ -526,6 +530,9 @@ ip_init() {
 			    ocf_exit_reason "Invalid lvs_ipv6_addrlabel_value [$OCF_RESKEY_lvs_ipv6_addrlabel_value], should be positive integer"
 			    exit $OCF_ERR_CONFIGURED
 			fi
+		fi
+		if [ -z "$OCF_RESKEY_arp_bg" ]; then
+			OCF_RESKEY_arp_bg=false
 		fi
 	fi
 
@@ -893,6 +900,20 @@ run_arp_sender() {
 	fi
 }
 
+log_send_ua() {
+	local cmdline
+	local output
+	local rc
+
+	cmdline="$@"
+	output=$($cmdline 2>&1)
+	rc=$?
+	if [ $rc -ne 0 ] ; then
+		ocf_log err "Could not send ICMPv6 Unsolicited Neighbor Advertisements: rc=$rc"
+	fi
+	ocf_log info "$output"
+	return $rc
+}
 
 #
 # Run send_ua to note send ICMPv6 Unsolicited Neighbor Advertisements.
@@ -930,7 +951,11 @@ run_send_ua() {
 
 	ARGS="-i $OCF_RESKEY_arp_interval -c $OCF_RESKEY_arp_count $OCF_RESKEY_ip $NETMASK $NIC"
 	ocf_log info "$SENDUA $ARGS"
-	$SENDUA $ARGS || ocf_log err "Could not send ICMPv6 Unsolicited Neighbor Advertisements."
+	if ocf_is_true $OCF_RESKEY_arp_bg; then
+		log_send_ua $SENDUA $ARGS &
+	else
+		log_send_ua $SENDUA $ARGS
+	fi
 }
 
 # Do we already serve this IP address on the given $NIC?
