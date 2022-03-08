@@ -44,10 +44,14 @@
 #
 OCF_RESKEY_ocicli_default="/usr/local/bin/oci"
 OCF_RESKEY_api_delay_default="3"
+OCF_RESKEY_cidr_netmask_default="24"
+OCF_RESKEY_interface_alias_default="0"
 export OCI_CLI_AUTH=instance_principal
 
 : ${OCF_RESKEY_ocicli=${OCF_RESKEY_ocicli_default}}
 : ${OCF_RESKEY_api_delay=${OCF_RESKEY_api_delay_default}}
+: ${OCF_RESKEY_cidr_netmask=${OCF_RESKEY_cidr_netmask_default}}
+: ${OCF_RESKEY_interface_alias=${OCF_RESKEY_interface_alias_default}}
 
 meta_data() {
     cat <<END
@@ -92,6 +96,22 @@ reserved secondary private ip for compute instance
 <content type="string" default="" />
 </parameter>
 
+<parameter name="cidr_netmask" unique="0">
+<longdesc lang="en">
+netmask for the secondary_private_ip
+</longdesc>
+<shortdesc lang="en">netmask for the secondary_private_ip</shortdesc>
+<content type="integer" default="${OCF_RESKEY_cidr_netmask_default}" />
+</parameter>
+
+<parameter name="interface_alias" unique="0">
+<longdesc lang="en">
+numeric alias for the interface
+</longdesc>
+<shortdesc lang="en">numeric alias for the interface</shortdesc>
+<content type="integer" default="${OCF_RESKEY_interface_alias_default}" />
+</parameter>
+
 <parameter name="api_delay" unique="0">
 <longdesc lang="en">
 a short delay between API calls, to avoid sending API too quick
@@ -133,7 +153,7 @@ ocivip_start() {
         --unassign-if-already-assigned \
         --ip-address ${SECONDARY_PRIVATE_IP}
     RETOCI=$?
-    ip addr add ${SECONDARY_PRIVATE_IP}/24 dev ${PRIMARY_IFACE} label ${PRIMARY_IFACE}:0
+    ip addr add ${SECONDARY_PRIVATE_IP}/${CIDR_NETMASK} dev ${PRIMARY_IFACE} label ${PRIMARY_IFACE}:${INTERFACE_ALIAS}
     RETIP=$?
 
     # delay to avoid sending request too fast
@@ -153,7 +173,7 @@ ocivip_stop() {
     $OCICLI network vnic unassign-private-ip --vnic-id $VNIC_ID \
         --ip-address ${SECONDARY_PRIVATE_IP}
     RETOCI=$?
-    ip addr del ${SECONDARY_PRIVATE_IP}/24 dev ${PRIMARY_IFACE}:0
+    ip addr del ${SECONDARY_PRIVATE_IP}/${CIDR_NETMASK} dev ${PRIMARY_IFACE}:${INTERFACE_ALIAS}
     RETIP=$?
 
     # delay to avoid sending request too fast
@@ -198,6 +218,8 @@ esac
 
 OCICLI="${OCF_RESKEY_ocicli}"
 SECONDARY_PRIVATE_IP="${OCF_RESKEY_secondary_private_ip}"
+CIDR_NETMASK="${OCF_RESKEY_cidr_netmask}"
+INTERFACE_ALIAS="${OCF_RESKEY_interface_alias}"
 VNIC_ID="$(curl -s -H "Authorization: Bearer Oracle" -L http://169.254.169.254/opc/v2/vnics/ | jq -r '.[0].vnicId')"
 PRIMARY_IFACE=$(ip -4 route ls | grep default | grep -Po '(?<=dev )(\S+)')
 
