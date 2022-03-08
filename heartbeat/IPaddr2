@@ -651,7 +651,7 @@ delete_interface () {
 #        Add an interface
 #
 add_interface () {
-	local cmd msg ipaddr netmask broadcast iface label
+	local cmd msg extra_opts ipaddr netmask broadcast iface label
 
 	ipaddr="$1"
 	netmask="$2"
@@ -679,23 +679,24 @@ add_interface () {
 		msg="Adding $FAMILY address $ipaddr/$netmask with broadcast address $broadcast to device $iface"
 	fi
 
+	extra_opts=""
 	if [ "$FAMILY" = "inet6" ] && ocf_is_true "${OCF_RESKEY_nodad}"; then
-		cmd="$cmd nodad"
-		msg="${msg} (with nodad)"
+		extra_opts="$extra_opts nodad"
 	fi
 
 	if ocf_is_true "${OCF_RESKEY_noprefixroute}"; then
-		cmd="$cmd noprefixroute"
-		msg="${msg} (with noprefixroute)"
+		extra_opts="$extra_opts noprefixroute"
 	fi
 
 	if [ ! -z "$label" ]; then
-		cmd="$cmd label $label"
-		msg="${msg} (with label $label)"
+		extra_opts="$extra_opts label $label"
 	fi
 	if [ "$FAMILY" = "inet6" ] ;then
-		cmd="$cmd preferred_lft $OCF_RESKEY_preferred_lft"
-		msg="${msg} (with preferred_lft $OCF_RESKEY_preferred_lft)"
+		extra_opts="$extra_opts preferred_lft $OCF_RESKEY_preferred_lft"
+	fi
+	if [ -n "$extra_opts" ]; then
+		cmd="$cmd$extra_opts"
+		msg="$msg (with$extra_opts)"
 	fi
 
 	ocf_log info "$msg"
