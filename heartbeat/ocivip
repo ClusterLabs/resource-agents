@@ -24,6 +24,7 @@
 #  Prerequisites:
 #
 #  - OCI CLI installed (https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/climanualinst.htm) 
+#  - jq installed
 #  - dynamic group with a policy attacched
 #  - the policy must have this statement:
 #    allow dynamic-group <GROUP_NAME> to use virtual-network-family in compartment id <COMPARTMENT_ID>
@@ -61,6 +62,15 @@ Resource Agent for OCI Compute instance Secondary Private IP Addresses.
 It manages OCI Secondary Private IP Addresses for Compute instances with oci cli.
 
 See https://docs.oracle.com/en-us/iaas/Content/API/Concepts/cliconcepts.htm for more information about oci cli.
+
+Prerequisites:
+
+- OCI CLI installed (https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/climanualinst.htm)
+- jq installed
+- dynamic group with a policy attacched
+- the policy must have this statement: allow dynamic-group <GROUP_NAME> to use virtual-network-family in compartment id <COMPARTMENT_ID>
+- a reserved secondary private IP address for Compute Instances high availablity
+
 </longdesc>
 <shortdesc lang="en">OCI Secondary Private IP Address for Compute instances Resource Agent</shortdesc>
 
