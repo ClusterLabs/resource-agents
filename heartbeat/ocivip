@@ -200,7 +200,7 @@ PRIMARY_IFACE=$(ip -4 route ls | grep default | grep -Po '(?<=dev )(\S+)')
 
 case $__OCF_ACTION in
     start)
-        ocivip_validate
+        ocivip_validate || exit $?
         ocivip_start
         ;;
     stop)
