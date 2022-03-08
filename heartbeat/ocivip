@@ -132,13 +132,14 @@ ocivip_start() {
     $OCICLI network vnic assign-private-ip --vnic-id $VNIC_ID \
         --unassign-if-already-assigned \
         --ip-address ${SECONDARY_PRIVATE_IP}
+    RETOCI=$?
     ip addr add ${SECONDARY_PRIVATE_IP}/24 dev ${PRIMARY_IFACE} label ${PRIMARY_IFACE}:0
-    RET=$?
+    RETIP=$?
 
     # delay to avoid sending request too fast
     sleep ${OCF_RESKEY_api_delay}
 
-    if [ $RET -ne 0 ]; then
+    if [ $RETOCI -ne 0 ] || [ $RETIP -ne 0 ]; then
         return $OCF_NOT_RUNNING
     fi
 
@@ -151,13 +152,14 @@ ocivip_stop() {
 
     $OCICLI network vnic unassign-private-ip --vnic-id $VNIC_ID \
         --ip-address ${SECONDARY_PRIVATE_IP}
+    RETOCI=$?
     ip addr del ${SECONDARY_PRIVATE_IP}/24 dev ${PRIMARY_IFACE}:0
-    RET=$?
+    RETIP=$?
 
     # delay to avoid sending request too fast
     sleep ${OCF_RESKEY_api_delay}
 
-    if [ $RET -ne 0 ]; then
+    if [ $RETOCI -ne 0 ] || [ $RETIP -ne 0 ]; then
         return $OCF_NOT_RUNNING
     fi
 
@@ -167,10 +169,9 @@ ocivip_stop() {
 
 ocivip_monitor() {
     $OCICLI network private-ip list --vnic-id $VNIC_ID | grep -q "${SECONDARY_PRIVATE_IP}"
+    RETOCI=$?
 
-    RET=$?
-
-    if [ $RET -ne 0 ]; then
+    if [ $RETOCI -ne 0 ]; then
         return $OCF_NOT_RUNNING
     fi
     return $OCF_SUCCESS
