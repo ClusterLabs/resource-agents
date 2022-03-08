@@ -180,11 +180,6 @@ ocivip_validate() {
     check_binary ${OCICLI}
     check_binary jq
 
-    if [ -z "${INSTANCE_ID}" ]; then
-        ocf_exit_reason "instance_id not found. Is this a Compute instance?"
-        return $OCF_ERR_GENERIC
-    fi
-
     if [ -z "${VNIC_ID}" ]; then
         ocf_exit_reason "vnic_id not found. Is this a Compute instance?"
         return $OCF_ERR_GENERIC
@@ -202,12 +197,8 @@ esac
 
 OCICLI="${OCF_RESKEY_ocicli}"
 SECONDARY_PRIVATE_IP="${OCF_RESKEY_secondary_private_ip}"
-INSTANCE_ID="$(curl -s -H "Authorization: Bearer Oracle" -L http://169.254.169.254/opc/v2/instance | jq -r '.id')"
 VNIC_ID="$(curl -s -H "Authorization: Bearer Oracle" -L http://169.254.169.254/opc/v2/vnics/ | jq -r '.[0].vnicId')"
-COMPARTMENT_ID=$(curl -s -H "Authorization: Bearer Oracle" -L http://169.254.169.254/opc/v2/instance | jq -r '.compartmentId')
-AVAILABILITY_DOMAIN=$(curl -s -H "Authorization: Bearer Oracle" -L http://169.254.169.254/opc/v2/instance | jq -r '.availabilityDomain')
 PRIMARY_IFACE=$(ip -4 route ls | grep default | grep -Po '(?<=dev )(\S+)')
-
 
 case $__OCF_ACTION in
     start)
