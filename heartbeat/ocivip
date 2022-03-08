@@ -1,0 +1,263 @@
+#!/bin/sh
+#
+#
+# Manage Secondary Private IP in Oracle Cloud Infrastructure with Pacemaker
+#
+#
+# Copyright 2016-2018 Lorenzo Garuti <garuti.lorenzo@gmail.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+#
+
+#
+#  Prerequisites:
+#
+#  - OCI CLI installed (https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/climanualinst.htm) 
+#  - jq installed
+#  - dynamic group with a policy attacched
+#  - the policy must have this statement:
+#    allow dynamic-group <GROUP_NAME> to use virtual-network-family in compartment id <COMPARTMENT_ID>
+#  - a reserved secondary private IP address for Compute Instances high availablity
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+
+#
+# Defaults
+#
+OCF_RESKEY_ocicli_default="/usr/local/bin/oci"
+OCF_RESKEY_api_delay_default="3"
+OCF_RESKEY_cidr_netmask_default="24"
+OCF_RESKEY_interface_alias_default="0"
+export OCI_CLI_AUTH=instance_principal
+
+: ${OCF_RESKEY_ocicli=${OCF_RESKEY_ocicli_default}}
+: ${OCF_RESKEY_api_delay=${OCF_RESKEY_api_delay_default}}
+: ${OCF_RESKEY_cidr_netmask=${OCF_RESKEY_cidr_netmask_default}}
+: ${OCF_RESKEY_interface_alias=${OCF_RESKEY_interface_alias_default}}
+
+meta_data() {
+    cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="ocivip">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource Agent for OCI Compute instance Secondary Private IP Addresses.
+
+It manages OCI Secondary Private IP Addresses for Compute instances with oci cli.
+
+See https://docs.oracle.com/en-us/iaas/Content/API/Concepts/cliconcepts.htm for more information about oci cli.
+
+Prerequisites:
+
+- OCI CLI installed (https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/climanualinst.htm)
+- jq installed
+- dynamic group with a policy attacched
+- the policy must have this statement: allow dynamic-group GROUP_NAME to use virtual-network-family in compartment id COMPARTMENT_ID
+- a reserved secondary private IP address for Compute Instances high availablity
+
+</longdesc>
+<shortdesc lang="en">OCI Secondary Private IP Address for Compute instances Resource Agent</shortdesc>
+
+<parameters>
+
+<parameter name="ocicli" unique="0">
+<longdesc lang="en">
+OCI Command line interface (CLI) tools
+</longdesc>
+<shortdesc lang="en">OCI cli tools</shortdesc>
+<content type="string" default="${OCF_RESKEY_ocicli_default}" />
+</parameter>
+
+<parameter name="secondary_private_ip" unique="1" required="1">
+<longdesc lang="en">
+reserved secondary private ip for compute instance
+</longdesc>
+<shortdesc lang="en">reserved secondary private ip for compute instance</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="cidr_netmask" unique="0">
+<longdesc lang="en">
+netmask for the secondary_private_ip
+</longdesc>
+<shortdesc lang="en">netmask for the secondary_private_ip</shortdesc>
+<content type="integer" default="${OCF_RESKEY_cidr_netmask_default}" />
+</parameter>
+
+<parameter name="interface_alias" unique="0">
+<longdesc lang="en">
+numeric alias for the interface
+</longdesc>
+<shortdesc lang="en">numeric alias for the interface</shortdesc>
+<content type="integer" default="${OCF_RESKEY_interface_alias_default}" />
+</parameter>
+
+<parameter name="api_delay" unique="0">
+<longdesc lang="en">
+a short delay between API calls, to avoid sending API too quick
+</longdesc>
+<shortdesc lang="en">a short delay between API calls</shortdesc>
+<content type="integer" default="${OCF_RESKEY_api_delay_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="30s" />
+<action name="stop"         timeout="30s" />
+<action name="monitor"      timeout="30s" interval="20s" depth="0" />
+<action name="migrate_to"   timeout="30s" />
+<action name="migrate_from" timeout="30s" />
+<action name="meta-data"    timeout="5s" />
+<action name="validate"     timeout="10s" />
+<action name="validate-all" timeout="10s" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+ocivip_usage() {
+    cat <<END
+usage: $0 {start|stop|monitor|migrate_to|migrate_from|validate|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+ocivip_start() {
+    ocivip_monitor && return $OCF_SUCCESS
+
+    $OCICLI network vnic assign-private-ip --vnic-id $VNIC_ID \
+        --unassign-if-already-assigned \
+        --ip-address ${SECONDARY_PRIVATE_IP}
+    RETOCI=$?
+    ip addr add ${SECONDARY_PRIVATE_IP}/${CIDR_NETMASK} dev ${PRIMARY_IFACE} label ${PRIMARY_IFACE}:${INTERFACE_ALIAS}
+    RETIP=$?
+
+    # delay to avoid sending request too fast
+    sleep ${OCF_RESKEY_api_delay}
+
+    if [ $RETOCI -ne 0 ] || [ $RETIP -ne 0 ]; then
+        return $OCF_NOT_RUNNING
+    fi
+
+    ocf_log info "secondary_private_ip has been successfully brought up (${SECONDARY_PRIVATE_IP})"
+    return $OCF_SUCCESS
+}
+
+ocivip_stop() {
+    ocivip_monitor || return $OCF_SUCCESS
+
+    $OCICLI network vnic unassign-private-ip --vnic-id $VNIC_ID \
+        --ip-address ${SECONDARY_PRIVATE_IP}
+    RETOCI=$?
+    ip addr del ${SECONDARY_PRIVATE_IP}/${CIDR_NETMASK} dev ${PRIMARY_IFACE}:${INTERFACE_ALIAS}
+    RETIP=$?
+
+    # delay to avoid sending request too fast
+    sleep ${OCF_RESKEY_api_delay}
+
+    if [ $RETOCI -ne 0 ] || [ $RETIP -ne 0 ]; then
+        return $OCF_NOT_RUNNING
+    fi
+
+    ocf_log info "secondary_private_ip has been successfully brought down (${SECONDARY_PRIVATE_IP})"
+    return $OCF_SUCCESS
+}
+
+ocivip_monitor() {
+    $OCICLI network private-ip list --vnic-id $VNIC_ID | grep -q "${SECONDARY_PRIVATE_IP}"
+    RETOCI=$?
+
+    if [ $RETOCI -ne 0 ]; then
+        return $OCF_NOT_RUNNING
+    fi
+    return $OCF_SUCCESS
+}
+
+ocivip_validate() {
+    check_binary ${OCICLI}
+    check_binary jq
+
+    if [ -z "${VNIC_ID}" ]; then
+        ocf_exit_reason "vnic_id not found. Is this a Compute instance?"
+        return $OCF_ERR_GENERIC
+    fi
+
+    return $OCF_SUCCESS
+}
+
+case $__OCF_ACTION in
+    meta-data)
+        meta_data
+        exit $OCF_SUCCESS
+        ;;
+esac
+
+OCICLI="${OCF_RESKEY_ocicli}"
+SECONDARY_PRIVATE_IP="${OCF_RESKEY_secondary_private_ip}"
+CIDR_NETMASK="${OCF_RESKEY_cidr_netmask}"
+INTERFACE_ALIAS="${OCF_RESKEY_interface_alias}"
+VNIC_ID="$(curl -s -H "Authorization: Bearer Oracle" -L http://169.254.169.254/opc/v2/vnics/ | jq -r '.[0].vnicId')"
+PRIMARY_IFACE=$(ip -4 route ls | grep default | grep -Po '(?<=dev )(\S+)')
+
+case $__OCF_ACTION in
+    start)
+        ocivip_validate || exit $?
+        ocivip_start
+        ;;
+    stop)
+        ocivip_stop
+        ;;
+    monitor)
+        ocivip_monitor
+        ;;
+    migrate_to)
+        ocf_log info "Migrating ${OCF_RESOURCE_INSTANCE} to ${OCF_RESKEY_CRM_meta_migrate_target}."
+        ocivip_stop
+        ;;
+    migrate_from)
+        ocf_log info "Migrating ${OCF_RESOURCE_INSTANCE} from ${OCF_RESKEY_CRM_meta_migrate_source}."
+        ocivip_start
+        ;;
+    reload)
+        ocf_log info "Reloading ${OCF_RESOURCE_INSTANCE} ..."
+        ;;
+    validate|validate-all)
+        ocivip_validate
+        ;;
+    usage|help)
+        ocivip_usage
+        exit $OCF_SUCCESS
+        ;;
+    *)
+        ocivip_usage
+        exit $OCF_ERR_UNIMPLEMENTED
+        ;;
+esac
+
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc

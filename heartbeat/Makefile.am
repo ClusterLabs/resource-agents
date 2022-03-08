@@ -144,6 +144,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			nvmet-subsystem		\
 			nvmet-namespace		\
 			nvmet-port		\
+			ocivip \
 			openstack-cinder-volume \
 			openstack-floating-ip   \
 			openstack-info          \
