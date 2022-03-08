@@ -178,6 +178,7 @@ ocivip_monitor() {
 
 ocivip_validate() {
     check_binary ${OCICLI}
+    check_binary jq
 
     if [ -z "${INSTANCE_ID}" ]; then
         ocf_exit_reason "instance_id not found. Is this a Compute instance?"
