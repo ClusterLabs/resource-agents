@@ -790,7 +790,7 @@ lvm_status() {
 	fi
 
 	if [ $dm_count -eq 0 ]; then
-		return $OCF_NOT_RUNNING
+		return $OCF_ERR_GENERIC
 	fi
 
 	case "$OCF_CHECK_LEVEL" in
