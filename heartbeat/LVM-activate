@@ -791,9 +791,9 @@ lvm_status() {
 
 	if [ $dm_count -eq 0 ]; then
 		if ocf_is_probe ;then
-			return $OCF_NOT_RUNNING
-		else
 			return $OCF_ERR_GENERIC
+		else
+			return $OCF_NOT_RUNNING
 		fi
 	fi
 
