@@ -83,11 +83,12 @@ OCF_RESKEY_unique_clone_address_default=false
 OCF_RESKEY_arp_interval_default=200
 OCF_RESKEY_arp_count_default=5
 OCF_RESKEY_arp_count_refresh_default=0
-OCF_RESKEY_arp_bg_default=true
+OCF_RESKEY_arp_bg_default=""
 OCF_RESKEY_arp_sender_default=""
 OCF_RESKEY_send_arp_opts_default=""
 OCF_RESKEY_flush_routes_default="false"
 OCF_RESKEY_run_arping_default=false
+OCF_RESKEY_nodad_default=false
 OCF_RESKEY_noprefixroute_default="false"
 OCF_RESKEY_preferred_lft_default="forever"
 OCF_RESKEY_network_namespace_default=""
@@ -110,6 +111,7 @@ OCF_RESKEY_network_namespace_default=""
 : ${OCF_RESKEY_send_arp_opts=${OCF_RESKEY_send_arp_opts_default}}
 : ${OCF_RESKEY_flush_routes=${OCF_RESKEY_flush_routes_default}}
 : ${OCF_RESKEY_run_arping=${OCF_RESKEY_run_arping_default}}
+: ${OCF_RESKEY_nodad=${OCF_RESKEY_nodad_default}}
 : ${OCF_RESKEY_noprefixroute=${OCF_RESKEY_noprefixroute_default}}
 : ${OCF_RESKEY_preferred_lft=${OCF_RESKEY_preferred_lft_default}}
 : ${OCF_RESKEY_network_namespace=${OCF_RESKEY_network_namespace_default}}
@@ -155,6 +157,12 @@ and/or clone-max &lt; number of nodes. In case of node failure,
 clone instances need to be re-allocated on surviving nodes.
 This would not be possible if there is already an instance
 on those nodes, and clone-node-max=1 (which is the default).
+
+When the specified IP address gets assigned to a respective interface, the
+resource agent sends unsolicited ARP (Address Resolution Protocol, IPv4) or NA
+(Neighbor Advertisement, IPv6) packets to inform neighboring machines about the
+change. This functionality is controlled for both IPv4 and IPv6 by shared
+'arp_*' parameters.
 </longdesc>
 
 <shortdesc lang="en">Manages virtual IPv4 and IPv6 addresses (Linux specific version)</shortdesc>
@@ -304,28 +312,30 @@ a unique address to manage
 
 <parameter name="arp_interval">
 <longdesc lang="en">
-Specify the interval between unsolicited ARP packets in milliseconds.
+Specify the interval between unsolicited ARP (IPv4) or NA (IPv6) packets in
+milliseconds.
 
 This parameter is deprecated and used for the backward compatibility only.
 It is effective only for the send_arp binary which is built with libnet,
 and send_ua for IPv6. It has no effect for other arp_sender.
 </longdesc>
-<shortdesc lang="en">ARP packet interval in ms (deprecated)</shortdesc>
+<shortdesc lang="en">ARP/NA packet interval in ms (deprecated)</shortdesc>
 <content type="integer" default="${OCF_RESKEY_arp_interval_default}"/>
 </parameter>
 
 <parameter name="arp_count">
 <longdesc lang="en">
-Number of unsolicited ARP packets to send at resource initialization.
+Number of unsolicited ARP (IPv4) or NA (IPv6) packets to send at resource
+initialization.
 </longdesc>
-<shortdesc lang="en">ARP packet count sent during initialization</shortdesc>
+<shortdesc lang="en">ARP/NA packet count sent during initialization</shortdesc>
 <content type="integer" default="${OCF_RESKEY_arp_count_default}"/>
 </parameter>
 
 <parameter name="arp_count_refresh">
 <longdesc lang="en">
-Number of unsolicited ARP packets to send during resource monitoring. Doing
-so helps mitigate issues of stuck ARP caches resulting from split-brain
+For IPv4, number of unsolicited ARP packets to send during resource monitoring.
+Doing so helps mitigate issues of stuck ARP caches resulting from split-brain
 situations.
 </longdesc>
 <shortdesc lang="en">ARP packet count sent during monitoring</shortdesc>
@@ -334,15 +344,16 @@ situations.
 
 <parameter name="arp_bg">
 <longdesc lang="en">
-Whether or not to send the ARP packets in the background.
+Whether or not to send the ARP (IPv4) or NA (IPv6) packets in the background.
+The default is true for IPv4 and false for IPv6.
 </longdesc>
-<shortdesc lang="en">ARP from background</shortdesc>
+<shortdesc lang="en">ARP/NA from background</shortdesc>
 <content type="string" default="${OCF_RESKEY_arp_bg_default}"/>
 </parameter>
 
 <parameter name="arp_sender">
 <longdesc lang="en">
-The program to send ARP packets with on start. Available options are:
+For IPv4, the program to send ARP packets with on start. Available options are:
  - send_arp: default
  - ipoibarping: default for infiniband interfaces if ipoibarping is available
  - iputils_arping: use arping in iputils package
@@ -354,7 +365,7 @@ The program to send ARP packets with on start. Available options are:
 
 <parameter name="send_arp_opts">
 <longdesc lang="en">
-Extra options to pass to the arp_sender program.
+For IPv4, extra options to pass to the arp_sender program.
 Available options are vary depending on which arp_sender is used.
 
 A typical use case is specifying '-A' for iputils_arping to use
@@ -385,10 +396,18 @@ IP address goes away.
 
 <parameter name="run_arping">
 <longdesc lang="en">
-Whether or not to run arping for IPv4 collision detection check.
+For IPv4, whether or not to run arping for collision detection check.
 </longdesc>
 <shortdesc lang="en">Run arping for IPv4 collision detection check</shortdesc>
 <content type="string" default="${OCF_RESKEY_run_arping_default}"/>
+</parameter>
+
+<parameter name="nodad">
+<longdesc lang="en">
+For IPv6, do not perform Duplicate Address Detection when adding the address.
+</longdesc>
+<shortdesc lang="en">Use nodad flag</shortdesc>
+<content type="string" default="${OCF_RESKEY_nodad_default}"/>
 </parameter>
 
 <parameter name="noprefixroute">
@@ -497,6 +516,9 @@ ip_init() {
 			ocf_exit_reason "IPv4 does not support lvs_ipv6_addrlabel"
 			exit $OCF_ERR_CONFIGURED
 		fi
+		if [ -z "$OCF_RESKEY_arp_bg" ]; then
+			OCF_RESKEY_arp_bg=true
+		fi
 	else
 		FAMILY=inet6
 		# address sanitization defined in RFC5952
@@ -516,6 +538,9 @@ ip_init() {
 			    ocf_exit_reason "Invalid lvs_ipv6_addrlabel_value [$OCF_RESKEY_lvs_ipv6_addrlabel_value], should be positive integer"
 			    exit $OCF_ERR_CONFIGURED
 			fi
+		fi
+		if [ -z "$OCF_RESKEY_arp_bg" ]; then
+			OCF_RESKEY_arp_bg=false
 		fi
 	fi
 
@@ -634,7 +659,7 @@ delete_interface () {
 #        Add an interface
 #
 add_interface () {
-	local cmd msg ipaddr netmask broadcast iface label
+	local cmd msg extra_opts ipaddr netmask broadcast iface label
 
 	ipaddr="$1"
 	netmask="$2"
@@ -662,18 +687,24 @@ add_interface () {
 		msg="Adding $FAMILY address $ipaddr/$netmask with broadcast address $broadcast to device $iface"
 	fi
 
+	extra_opts=""
+	if [ "$FAMILY" = "inet6" ] && ocf_is_true "${OCF_RESKEY_nodad}"; then
+		extra_opts="$extra_opts nodad"
+	fi
+
 	if ocf_is_true "${OCF_RESKEY_noprefixroute}"; then
-		cmd="$cmd noprefixroute"
-		msg="${msg} (with noprefixroute)"
+		extra_opts="$extra_opts noprefixroute"
 	fi
 
 	if [ ! -z "$label" ]; then
-		cmd="$cmd label $label"
-		msg="${msg} (with label $label)"
+		extra_opts="$extra_opts label $label"
 	fi
 	if [ "$FAMILY" = "inet6" ] ;then
-		cmd="$cmd preferred_lft $OCF_RESKEY_preferred_lft"
-		msg="${msg} (with preferred_lft $OCF_RESKEY_preferred_lft)"
+		extra_opts="$extra_opts preferred_lft $OCF_RESKEY_preferred_lft"
+	fi
+	if [ -n "$extra_opts" ]; then
+		cmd="$cmd$extra_opts"
+		msg="$msg (with$extra_opts)"
 	fi
 
 	ocf_log info "$msg"
@@ -878,6 +909,20 @@ run_arp_sender() {
 	fi
 }
 
+log_send_ua() {
+	local cmdline
+	local output
+	local rc
+
+	cmdline="$@"
+	output=$($cmdline 2>&1)
+	rc=$?
+	if [ $rc -ne 0 ] ; then
+		ocf_log err "Could not send ICMPv6 Unsolicited Neighbor Advertisements: rc=$rc"
+	fi
+	ocf_log info "$output"
+	return $rc
+}
 
 #
 # Run send_ua to note send ICMPv6 Unsolicited Neighbor Advertisements.
@@ -915,7 +960,11 @@ run_send_ua() {
 
 	ARGS="-i $OCF_RESKEY_arp_interval -c $OCF_RESKEY_arp_count $OCF_RESKEY_ip $NETMASK $NIC"
 	ocf_log info "$SENDUA $ARGS"
-	$SENDUA $ARGS || ocf_log err "Could not send ICMPv6 Unsolicited Neighbor Advertisements."
+	if ocf_is_true $OCF_RESKEY_arp_bg; then
+		log_send_ua $SENDUA $ARGS &
+	else
+		log_send_ua $SENDUA $ARGS
+	fi
 }
 
 # Do we already serve this IP address on the given $NIC?
