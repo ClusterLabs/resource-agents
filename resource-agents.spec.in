@@ -111,7 +111,7 @@ Requires: /usr/sbin/mount.nfs /usr/sbin/mount.nfs4
 %else
 Requires: /sbin/mount.nfs /sbin/mount.nfs4
 %endif
-%if 0%{?fedora} < 33 || (0%{?rhel} && 0%{?rhel} < 9) || (0%{?centos} && 0%{?centos} < 9) || 0%{?suse_version}
+%if (0%{?fedora} && 0%{?fedora} < 33) || (0%{?rhel} && 0%{?rhel} < 9) || (0%{?centos} && 0%{?centos} < 9) || 0%{?suse_version}
 %if (0%{?rhel} && 0%{?rhel} < 8) || (0%{?centos} && 0%{?centos} < 8)
 Requires: /usr/sbin/mount.cifs
 %else
