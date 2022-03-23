@@ -150,10 +150,14 @@ ipsec_monitor() {
 
 	ipsec status | grep "$OCF_RESKEY_tunnel" | grep -q unoriented
 	state=$?
+
+	# TODO  I think we need also to check if output of ipsec status is empty!
+	#       Then the tunnel is not running.
+
 	if [ "$state" = "0" ]; then
 		ip addr show | grep -q "${OCF_RESKEY_vip}"
 		hosting_vip=$?
-		if [ "hosting_vip" = "0" ]; then
+		if [ "$hosting_vip" = "0" ]; then
 			ocf_log warn "${OCF_RESOURCE_INSTANCE} : tunnel ${OCF_RESKEY_tunnel} is unoriented"
 			return $OCF_ERR_GENERIC
 		else
