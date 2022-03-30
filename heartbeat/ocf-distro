@@ -30,6 +30,9 @@ _process_os_release_id() {
 
 	# Normalize known distros to os-release names
 	case "$_os" in
+	*alma*)
+		_os="almalinux"
+		;;
 	*centos*)
 		_os="centos"
 		;;
@@ -39,8 +42,14 @@ _process_os_release_id() {
 	*fedora*)
 		_os="fedora"
 		;;
+	*ol*)
+		_os="ol"
+		;;
 	*redhat*|*rhel*|*scientific*)
 		_os="rhel"
+		;;
+	*rocky*)
+		_os="rocky"
 		;;
 	*opensuse*)
 		_os="opensuse"
@@ -182,8 +191,8 @@ is_debian_based() {
 
 # Returns true if the OS is Red Hat-based, otherwise false
 is_redhat_based() {
-	get_release_id | grep -i -e "centos" -e "fedora" -e "redhat" -e "rhel" \
-		-e "scientific" >/dev/null 2>&1
+	get_release_id | grep -i -e "almalinux" -e "centos" -e "fedora" -e "ol" \
+		-e "redhat" -e "rhel" -e "rocky" -e "scientific" >/dev/null 2>&1
 }
 
 # Returns true if the OS is SUSE-based, otherwise false
