@@ -1,3 +1,41 @@
+* Wed Mar 30 2022 resource-agents contributors
+- release candidate 4.11.0 rc1
+- corosync-qnetd: new resource agent
+- ocivip: new resource agent
+- rabbitmq-server-ha: agent migration from RabbitMQ the project (#1698)
+- Filesystem: add support for Amazon EFS mount helper
+- Filesystem: fix OpenBSD check in fstype_supported()
+- Filesystem: unmount bind mounts before unmount file system
+- IPaddr2: allow to disable Duplicate Address Detection for IPv6
+- IPaddr2: allow to send IPv6 Neighbor Advertisements in background
+- IPsrcaddr: add warning about possible issues when used with DHCP
+- IPsrcaddr: fixes to use findif.sh to detect secondary interfaces
+- LVM-activate: change lvm_status return value from OCF_NOT_RUNNING to OCF_ERR_GENERIC to avoid fencing (#1753)
+- LVM-activate: replace error log messages with calls to ocf_exit_reason (#1730)
+- LinuxSCSI: replace error log messages with calls to ocf_exit_reason
+- Route: return OCF_NOT_RUNNING for probe action when interface or route doesnt exist
+- asterisk: fix sipsak check during start-action (#1715)
+- build: workaround gcc 12 warning
+- configure: only run ci/build.sh when shellcheck is present
+- db2: only warn when notify isnt set, and use ocf_local_nodename() to get node name
+- db2: use -l forever instead of -t nodes -l reboot, as they conflict with eachother
+- gcp-ilb: only check if log_cmd binary is available if log_enable is true
+- ipsec: add missing $ to make variable expand in check (#1755)
+- mysql-common: fix local SSL connection by using --ssl-mode=REQUIRED which is available on 5.7+ (--ssl is not available in 8.0)
+- nginx: replace error log messages with calls to ocf_exit_reason
+- nvmet-subsystem: fix allowed_initiators to avoid only running once (found by shellcheck)
+- ocf-distro: improve RHEL based distro detection (added AlmaLinux, Oracle Linux, and Rocky Linux)
+- ocf-shellfuncs: parametrise the log destination by OCF_RESKEY_trace_dir
+- ocf-shellfuncs: quote pid in ocf_pidfile_status
+- openstack-*: add insecure parameter
+- openstack-*: add support for multiple setup options (incl. clouds.yaml/openrc)
+- openstack-info: align op timeout with other openstack agents
+- podman: remove anonymous volumes during stop-action
+- rabbitmq-server-ha: Fix SERVER_START_ARGS sname/name use for FQDN
+- rabbitmq-server-ha: Revert "OCF RA: Do not start rabbitmq if notification of start is not about us" (#1713)
+- spec: fix Requires to allow install on opensuse
+- spec: fix mount.cifs if() for RHEL/CentOS 9+
+
 * Wed Nov  3 2021 resource-agents contributors
 - stable release 4.10.0
 
