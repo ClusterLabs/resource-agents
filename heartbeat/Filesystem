@@ -596,11 +596,11 @@ Filesystem_start()
 	flushbufs "$DEVICE"
 	# Mount the filesystem.
 	case "$FSTYPE" in
-		none) $MOUNT $options "$DEVICE" "$MOUNTPOINT" &&
+		none) $MOUNT $options $device_opt "$DEVICE" "$MOUNTPOINT" &&
 			bind_mount
 			;;
-		"") $MOUNT $options "$DEVICE" "$MOUNTPOINT" ;;
-		*) $MOUNT -t "$FSTYPE" $options "$DEVICE" "$MOUNTPOINT" ;;
+		"") $MOUNT $options $device_opt "$DEVICE" "$MOUNTPOINT" ;;
+		*) $MOUNT -t "$FSTYPE" $options $device_opt "$DEVICE" "$MOUNTPOINT" ;;
 	esac
 
 	if [ $? -ne 0 ]; then
@@ -902,7 +902,13 @@ set_blockdevice_var() {
 	fi
 
 	case "$DEVICE" in
-	-*) # Oh... An option to mount instead...  Typically -U or -L
+	--*) # Typically --uuid or --label
+		device_opt=$(echo $DEVICE | sed -E "s/([[:blank:]]|=).*//")
+		DEVICE=$(echo $DEVICE | sed -E "s/$device_opt([[:blank:]]*|=)//")
+		;;
+	-*)  # Oh... An option to mount instead...  Typically -U or -L
+		device_opt=$(echo $DEVICE | cut -c1-2)
+		DEVICE=$(echo $DEVICE | sed "s/$device_opt[[:blank:]]*//")
 		;;
 	/dev/null) # Special case for BSC
 		blockdevice=yes
