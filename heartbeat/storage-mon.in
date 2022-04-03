@@ -100,7 +100,7 @@ The drive(s) to check as a SPACE separated list. Enter the full path to the devi
 
 <parameter name="io_timeout" unique="0">
 <longdesc lang="en">
-Specify disk I/O timeout in seconds. Minimum 1, recommeded 10 (default).
+Specify disk I/O timeout in seconds. Minimum 1, recommended 10 (default).
 </longdesc>
 <shortdesc lang="en">Disk I/O timeout</shortdesc>
 <content type="integer" default="${OCF_RESKEY_io_timeout_default}" />

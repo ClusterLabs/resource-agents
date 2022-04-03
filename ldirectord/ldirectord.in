@@ -345,7 +345,7 @@ B<readdquiescent = >B<yes> | B<no>
 
 If I<yes>, then when real or failback servers are determined
 to be down, they are readded to the kernel's LVS table with weight 0 if
-they do not exist in the table. Setting the value to no, allows manually 
+they do not exist in the table. Setting the value to no, allows manually
 removing the realserver to manually disable all persistent connections.
 
 B<cleanstop = >B<yes> | B<no>
@@ -426,7 +426,7 @@ They override the request-receive pair in the virtual server section. These
 two strings must be quoted. If the request string starts with I<http://...>
 the IP-address and port of the real server is overridden, otherwise the
 IP-address and port of the real server is used.
-The last two optionals arguments set lower and upper connnection thresholds 
+The last two optionals arguments set lower and upper connection thresholds
 for real servers using -y and -x ipvsadm argument.
 
 =head2
@@ -2159,7 +2159,7 @@ sub add_real_server
 		$new_rsrv->{"receive"} = $2;
 		$flags = $3;
 	}
-	#threshold 
+	#threshold
 	#"<l:l-threshold>"
 	if(defined($flags) and $flags =~ /\s+l:(\d+)(.*)/) {
 		$new_rsrv->{"l-threshold"} = $1;
@@ -4102,7 +4102,7 @@ sub _restore_service
 
 	$ipvsadm_args = "$$v{proto} " . &get_virtual_option($v)
 			. " -x $uthreshold -y $lthreshold"  #threshold
-			. " -r $rservice $rforw -w $rwght"; 
+			. " -r $rservice $rforw -w $rwght";
 	$log_args = "$tag server: $rservice "
 		    . "(" #. scalar(%{$v->{real_status}})
 		    .  &get_virtual($v) . ")";
