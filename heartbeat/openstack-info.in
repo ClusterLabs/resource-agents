@@ -167,9 +167,9 @@ OSInfoStats() {
 			--column fixed_ips \
 			${port_id} | grep -P '\"subnet_id\": \".*\",$' |
 			grep -P -o '[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}')
-		value+="${subnet_id}:${port_id},"
+		value="${value}${subnet_id}:${port_id},"
 	done
-	value=$(echo ${value} | sed -e 's/,$//g')
+	value=${value%,}
 
 	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_ports -v "$value"
 
