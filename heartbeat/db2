@@ -407,7 +407,7 @@ db2_start() {
     # partition is explicitly specified, activate without
     # partition information. This allows db2 instances without
     # partition support to be managed. 
-    if [ -z "$OCF_RESKEY_dbpartitionnum" ] && ! [ -a "$db2sql/db2nodes.cfg" ]; then
+    if [ -z "$OCF_RESKEY_dbpartitionnum" ] && ! [ -e "$db2sql/db2nodes.cfg" ]; then
         start_opts=""
     fi
 
@@ -511,7 +511,7 @@ db2_stop_bg() {
 
     rc=$OCF_SUCCESS
 
-    if [ -z "$OCF_RESKEY_dbpartitionnum" ] && ! [ -a "$db2sql/db2nodes.cfg" ]; then
+    if [ -z "$OCF_RESKEY_dbpartitionnum" ] && ! [ -e "$db2sql/db2nodes.cfg" ]; then
         stop_opts=""
     fi
 
