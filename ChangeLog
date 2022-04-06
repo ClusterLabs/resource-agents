@@ -1,3 +1,8 @@
+* Wed Apr  6 2022 resource-agents contributors
+- stable release 4.11.0
+- Filesystem: fix logic for UUID/label devices with space between parameter and UUID/label
+- db2/openstack-info: fix bashisms
+
 * Wed Mar 30 2022 resource-agents contributors
 - release candidate 4.11.0 rc1
 - corosync-qnetd: new resource agent
