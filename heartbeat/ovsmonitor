@@ -437,6 +437,7 @@ if_validate() {
 	check_binary ovs-vsctl
 	check_binary ovs-appctl
 	check_binary ovs-ofctl
+	check_binary bc
 	if_init
 }
 

@@ -988,6 +988,10 @@ mysql_notify() {
     esac
 }
 
+mysql_validate() {
+    check_binary bc
+}
+
 #######################################################################
 
 
@@ -1049,7 +1053,7 @@ case "$1" in
   promote)  mysql_promote;;
   demote)   mysql_demote;;
   notify)   mysql_notify;;
-  validate-all) exit $OCF_SUCCESS;;
+  validate-all) mysql_validate;;
 
  *)     usage
         exit $OCF_ERR_UNIMPLEMENTED;;
