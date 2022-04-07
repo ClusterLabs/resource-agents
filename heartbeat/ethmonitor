@@ -545,6 +545,7 @@ if_start()
 if_validate() {
 	check_binary $IP2UTIL
 	check_binary arping
+	check_binary bc
 	if_init
 }
 
