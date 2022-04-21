@@ -376,6 +376,11 @@ run_new_container()
 		# with the same name, even though podman itself thinks there
 		# is no such container. If so, purge the storage layer to try
 		# to clean the corruption and try again.
+		if echo "$out" | grep -q "unknown.*flag"; then
+			ocf_exit_reason "$out"
+			return $rc
+		fi
+
 		ocf_log warn "Internal podman error while creating new container $CONTAINER. Retrying."
 		ocf_run podman rm --storage $CONTAINER
 		ocf_run podman run $opts $image $cmd
@@ -438,6 +443,10 @@ podman_start()
 		# we already know at this point it wouldn't be running
 		remove_container
 		run_new_container "$run_opts" $OCF_RESKEY_image "$OCF_RESKEY_run_cmd"
+		if [ $? -eq 125 ]; then
+			return $OCF_ERR_GENERIC
+		fi
+
 	fi
 	rc=$?
 
