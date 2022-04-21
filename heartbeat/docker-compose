@@ -1,6 +1,6 @@
 #!/bin/sh
-# Version: 1.1.2
-# Date: 2020-06-24
+# Version: 1.1.3
+# Date: 2021-09-24
 #
 # Resource script for running docker-compose
 #
@@ -35,7 +35,7 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
-OCF_RESKEY_binpath_default=/usr/bin/docker-compose
+OCF_RESKEY_binpath_default=/usr/local/bin/docker-compose
 OCF_RESKEY_ymlfile_default=docker-compose.yml
 : ${OCF_RESKEY_binpath=${OCF_RESKEY_binpath_default}}
 : ${OCF_RESKEY_ymlfile=${OCF_RESKEY_ymlfile_default}}
@@ -100,7 +100,7 @@ For example, "docker-compose.yml"
 
 <actions>
 <action name="start" timeout="240s"/>
-<action name="stop" timeout="20s"/>
+<action name="stop" timeout="60s"/>
 <action name="monitor" depth="0" timeout="10s" interval="60s" />
 <action name="validate-all" timeout="5s" />
 <action name="meta-data"  timeout="5s"/>
@@ -112,8 +112,15 @@ exit $OCF_SUCCESS
 
 if [ -r "$OCF_RESKEY_binpath" -a -x "$OCF_RESKEY_binpath" ]; then
 	COMMAND="$OCF_RESKEY_binpath"
-else
+elif [ -r "$OCF_RESKEY_binpath" -a -x "$OCF_RESKEY_binpath" ]; then
 	COMMAND="$OCF_RESKEY_binpath_default"
+else
+	COMMAND="$(which docker-compose)"
+fi
+
+if [ -z "$COMMAND" ]; then
+	ocf_log err "Error. Failed to determine the path of docker-compose"
+	exit $OCF_ERR_GENERIC
 fi
 
 DIR="$OCF_RESKEY_dirpath"
@@ -122,13 +129,17 @@ YML="$OCF_RESKEY_ymlfile"
 
 docker_kill()
 {
-	for i in $(docker ps --all | awk -e '$NF ~ /\<'"${PRE}"'_.*_[0-9]+\>/ {print $1}'); do
-		docker kill $i >/dev/null 2>&1
-		docker rm $i >/dev/null 2>&1 || RTV=false
-	done
-	if [ "$RTV" = false ]; then
-		ocf_log err "failed to kill docker"
-		return $OCF_ERR_GENERIC
+	if systemctl status docker |  grep -q 'Active: active (running)'; then
+		for i in $(docker ps --all | awk -e '$NF ~ /\<'"${PRE}"'[-_]/ {print $1}'); do
+			docker kill $i >/dev/null 2>&1
+			docker rm $i >/dev/null 2>&1 || RTV=false
+		done
+		if [ "$RTV" = false ]; then
+			ocf_log err "failed to kill docker"
+			return $OCF_ERR_GENERIC
+		else
+			RUN=false
+		fi
 	else
 		RUN=false
 	fi
@@ -136,11 +147,18 @@ docker_kill()
 
 docker_compose_status()
 {
+	# return if docker service is not running
+	systemctl status docker |  grep -q 'Active: active (running)' || {
+		ocf_log info "docker daemon is not running."
+		return $OCF_NOT_RUNNING
+	}
+
 	# use docker-compose ps if YML found, otherwise try docker ps and kill containers
 	if [ -r "$DIR/$YML" ]; then
 
 		DKPS=$(cd $DIR; $COMMAND -f $YML ps -q)
-		STAT_MSG=$(docker ps --no-trunc | grep -E $(echo "$DKPS" | tr '\n' '|') | expand)
+		STAT_MSG=$(docker ps --no-trunc | expand)
+		PSTAT_MSG=$(echo "$STAT_MSG" | grep -E $(echo "$DKPS" | tr '\n' '|' | sed 's/|$//') 2>/dev/null)
 		LNWTH=$(echo "$STAT_MSG" | head -n1 | wc -c)
 		STATEPOS=$(echo "$STAT_MSG" | head -n1 | egrep -o 'STATUS.*$' | wc -c)
 		OFFSET=$(($LNWTH-$STATEPOS+1))
@@ -150,7 +168,7 @@ docker_compose_status()
 		else
 			PSNU=0
 		fi
-		UPNU=$(echo "$STAT_MSG" | cut -c ${OFFSET}- | awk '{print $1}' | grep -w '^Up' | wc -l)
+		UPNU=$(echo "$PSTAT_MSG" | cut -c ${OFFSET}- | awk '{print $1}' | grep -w '^Up' | wc -l)
 		
 		if [ "${PSNU:-0}" -ne 0 ]; then
 			if [ ${UPNU:-0} -eq 0 ]; then
@@ -167,7 +185,7 @@ docker_compose_status()
 			RUN=false
 		fi
 	else
-		STAT_MSG=$(docker ps --all | awk -e '$NF ~ /\<'"$PRE"'_.*_[0-9]+\>/ {print $1}')
+		STAT_MSG=$(docker ps --all | awk -e '$NF ~ /\<'"${PRE}"'[-_]/ {print $1}')
 		if [ -z "$STAT_MSG" ]; then
 			RUN=false
 		else
@@ -183,12 +201,14 @@ docker_compose_status()
 
 docker_compose_start()
 {
+	sleep 5
 	docker_compose_validate_all
 	docker_compose_status >/dev/null 2>&1
 	retVal=$?
 	# return success if docker service is running
 	[ $retVal -eq $OCF_SUCCESS ] && exit $OCF_SUCCESS
 
+	sleep 10
 	cd $DIR
 	$COMMAND -f $YML up -d || {
 		ocf_log err "Error. docker-compose returned error $?."
