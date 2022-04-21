@@ -376,7 +376,7 @@ run_new_container()
 		# with the same name, even though podman itself thinks there
 		# is no such container. If so, purge the storage layer to try
 		# to clean the corruption and try again.
-                if [ -n $(echo "$out" | grep -q "unknown*flag") ]; then
+                if echo "$out" | grep -q "unknown.*flag"; then
                         ocf_exit_reason "$out"
                         return $rc
                 fi
