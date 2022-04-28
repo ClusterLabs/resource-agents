@@ -444,7 +444,7 @@ check_mon_user() {
 	fi
 
 	if [ -z "$OCF_RESKEY_monpassword" ]; then
-		ocf_exit_reason "Please explicitly set a password for $MONUSR oracle user"
+		ocf_exit_reason "Resource param 'monpassword' not set. Please configure monpassword for $MONUSR oracle user"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
