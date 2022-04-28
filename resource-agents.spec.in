@@ -133,9 +133,6 @@ Requires: /sbin/rpc.statd
 %endif
 Requires: /usr/sbin/rpc.nfsd /usr/sbin/rpc.mountd
 
-# ocf-distro
-Requires: /usr/bin/lsb_release
-
 # rgmanager
 %if %{with rgmanager}
 # ip.sh
