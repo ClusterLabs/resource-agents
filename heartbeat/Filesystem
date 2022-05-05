@@ -163,6 +163,8 @@ directory where the status file is to be placed.
 <parameter name="device" required="1">
 <longdesc lang="en">
 The name of block device for the filesystem, or -U, -L options for mount, or NFS mount specification.
+
+NOTE: On Linux /dev/disk/by-{uuid,label}/ are preferred to -U/-L.
 </longdesc>
 <shortdesc lang="en">block device</shortdesc>
 <content type="string" default="${OCF_RESKEY_device_default}" />
@@ -902,11 +904,11 @@ set_blockdevice_var() {
 	fi
 
 	case "$DEVICE" in
-	--*) # Typically --uuid or --label
-		device_opt=$(echo $DEVICE | sed -E "s/([[:blank:]]|=).*//")
+	--uuid=*|--uuid\ *|--label=*|--label\ *)
+		device_opt=$(echo $DEVICE | sed "s/\([[:blank:]]\|=\).*//")
 		DEVICE=$(echo $DEVICE | sed -E "s/$device_opt([[:blank:]]*|=)//")
 		;;
-	-*)  # Oh... An option to mount instead...  Typically -U or -L
+	-U*|-L*)  # short versions of --uuid/--label
 		device_opt=$(echo $DEVICE | cut -c1-2)
 		DEVICE=$(echo $DEVICE | sed "s/$device_opt[[:blank:]]*//")
 		;;
