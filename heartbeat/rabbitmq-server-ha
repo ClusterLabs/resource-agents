@@ -2416,14 +2416,14 @@ action_demote() {
 }
 #######################################################################
 
-rmq_setup_env
-
 case "$1" in
   meta-data)    meta_data
                 exit $OCF_SUCCESS;;
   usage|help)   usage
                 exit $OCF_SUCCESS;;
 esac
+
+rmq_setup_env
 
 # Anything except meta-data and help must pass validation
 action_validate || exit $?
