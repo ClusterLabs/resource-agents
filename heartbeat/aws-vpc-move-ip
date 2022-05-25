@@ -71,7 +71,6 @@ USAGE="usage: $0 {start|stop|status|meta-data}";
 #
 ###############################################################################
 
-
 metadata() {
 cat <<END
 <?xml version="1.0"?>
@@ -180,7 +179,6 @@ Name of resource type to lookup in route table.
 END
 }
 
-
 execute_cmd_as_role(){
 	cmd=$1
 	role=$2
@@ -240,11 +238,21 @@ ec2ip_monitor() {
 		for rtb in $(echo $OCF_RESKEY_routing_table | sed -e 's/,/ /g'); do
 			ocf_log info "monitor: check routing table (API call) - $rtb"
 			if [ -z "${OCF_RESKEY_routing_table_role}" ]; then
-				cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile $region_opt --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].$OCF_RESKEY_lookup_type"
+					if [[ "$OCF_RESKEY_ip" == *[:]* ]];
+						then #ipv6
+							cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile $region_opt --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationIpv6CidrBlock=='$OCF_RESKEY_ip/128'].$OCF_RESKEY_lookup_type"
+						else #ipv4
+							cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile $region_opt --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].$OCF_RESKEY_lookup_type"
+					fi
 				ocf_log debug "executing command: $cmd"
 				ROUTE_TO_INSTANCE="$($cmd)"
 			else
-				cmd="$OCF_RESKEY_awscli $region_opt --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].$OCF_RESKEY_lookup_type"
+					if [[ "$OCF_RESKEY_ip" == *[:]* ]];
+						then #ipv6
+							cmd="$OCF_RESKEY_awscli $region_opt --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationIpv6CidrBlock=='$OCF_RESKEY_ip/128'].$OCF_RESKEY_lookup_type"
+						else #ipv4
+							cmd="$OCF_RESKEY_awscli $region_opt --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].$OCF_RESKEY_lookup_type"
+					fi
 				ROUTE_TO_INSTANCE="$(execute_cmd_as_role "$cmd" $OCF_RESKEY_routing_table_role)"
 			fi
 			ocf_log debug "Overlay IP is currently routed to ${ROUTE_TO_INSTANCE}"
@@ -287,7 +295,12 @@ ec2ip_monitor() {
 
 
 ec2ip_drop() {
-	cmd="ip addr delete ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface"
+	if [[ "$OCF_RESKEY_ip" == *[:]* ]];
+ 		then
+			cmd="ip addr delete ${OCF_RESKEY_ip}/128 dev $OCF_RESKEY_interface"
+ 		else
+			cmd="ip addr delete ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface"
+	fi
 	ocf_log debug "executing command: $cmd"
 	output=$($cmd 2>&1)
 	rc=$?
@@ -308,8 +321,14 @@ ec2ip_drop() {
 	fi
 
 	# delete remaining route-entries if any
-	ip route show to exact ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface | xargs -r ip route delete
-	ip route show table local to exact ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface | xargs -r ip route delete
+	if [[ "$OCF_RESKEY_ip" == *[:]* ]];
+ 		then
+			ip route show to exact ${OCF_RESKEY_ip}/128 dev $OCF_RESKEY_interface | xargs -r ip route delete
+			ip route show table local to exact ${OCF_RESKEY_ip}/128 dev $OCF_RESKEY_interface | xargs -r ip route delete
+		else
+			ip route show to exact ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface | xargs -r ip route delete
+			ip route show table local to exact ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface | xargs -r ip route delete
+	fi
 
 	return $OCF_SUCCESS
 }
@@ -346,11 +365,21 @@ ec2ip_get_and_configure() {
 	EC2_NETWORK_INTERFACE_ID="$(ec2ip_get_instance_eni)"
 	for rtb in $(echo $OCF_RESKEY_routing_table | sed -e 's/,/ /g'); do
 		if [ -z "${OCF_RESKEY_routing_table_role}" ]; then
-			cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile $region_opt --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
+			if [[ "$OCF_RESKEY_ip" == *[:]* ]];
+				then
+					cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile $region_opt --output text ec2 replace-route --route-table-id $rtb --destination-ipv6-cidr-block ${OCF_RESKEY_ip}/128 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
+				else
+					cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile $region_opt --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
+			fi
 			ocf_log debug "executing command: $cmd"
 			$cmd
 		else
-			cmd="$OCF_RESKEY_awscli $region_opt --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
+			if [[ "$OCF_RESKEY_ip" == *[:]* ]];
+				then
+					cmd="$OCF_RESKEY_awscli $region_opt --output text ec2 replace-route --route-table-id $rtb --destination-ipv6-cidr-block ${OCF_RESKEY_ip}/128 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
+				else
+					cmd="$OCF_RESKEY_awscli $region_opt --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
+			fi
 			update_response="$(execute_cmd_as_role "$cmd" $OCF_RESKEY_routing_table_role)"
 		fi
 		rc=$?
@@ -363,7 +392,12 @@ ec2ip_get_and_configure() {
 
 	# Reconfigure the local ip address
 	ec2ip_drop
-	cmd="ip addr add ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface"
+	if [[ "$OCF_RESKEY_ip" == *[:]* ]];
+		then
+			cmd="ip addr add ${OCF_RESKEY_ip}/128 dev $OCF_RESKEY_interface"
+		else
+			cmd="ip addr add ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface"
+	fi
 	ocf_log debug "executing command: $cmd"
 	$cmd
 	rc=$?
