@@ -188,6 +188,10 @@ if BUILD_AZURE_EVENTS
 ocf_SCRIPTS	     += azure-events
 endif
 
+if BUILD_AZURE_EVENTS_AZ
+ocf_SCRIPTS	     += azure-events-az
+endif
+
 if BUILD_GCP_PD_MOVE
 ocf_SCRIPTS	     += gcp-pd-move
 endif

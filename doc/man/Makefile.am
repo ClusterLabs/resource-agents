@@ -219,6 +219,10 @@ if BUILD_AZURE_EVENTS
 man_MANS           	+= ocf_heartbeat_azure-events.7
 endif
 
+if BUILD_AZURE_EVENTS_AZ
+man_MANS           	+= ocf_heartbeat_azure-events-az.7
+endif
+
 if BUILD_GCP_PD_MOVE
 man_MANS           	+= ocf_heartbeat_gcp-pd-move.7
 endif
