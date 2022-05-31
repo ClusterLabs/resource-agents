@@ -43,6 +43,7 @@ OCF_RESKEY_address_default=""
 OCF_RESKEY_routing_table_default=""
 OCF_RESKEY_routing_table_role_default=""
 OCF_RESKEY_interface_default="eth0"
+OCF_RESKEY_iflabel_default=""
 OCF_RESKEY_monapi_default="false"
 OCF_RESKEY_lookup_type_default="InstanceId"
 
@@ -54,6 +55,7 @@ OCF_RESKEY_lookup_type_default="InstanceId"
 : ${OCF_RESKEY_routing_table=${OCF_RESKEY_routing_table_default}}
 : ${OCF_RESKEY_routing_table_role=${OCF_RESKEY_routing_table_role_default}}
 : ${OCF_RESKEY_interface=${OCF_RESKEY_interface_default}}
+: ${OCF_RESKEY_iflabel=${OCF_RESKEY_iflabel_default}}
 : ${OCF_RESKEY_monapi=${OCF_RESKEY_monapi_default}}
 : ${OCF_RESKEY_lookup_type=${OCF_RESKEY_lookup_type_default}}
 
@@ -149,6 +151,18 @@ Name of the network interface, i.e. eth0
 <content type="string" default="${OCF_RESKEY_interface_default}" />
 </parameter>
 
+<parameter name="iflabel">
+<longdesc lang="en">
+You can specify an additional label for your IP address here.
+This label is appended to your interface name.
+
+The kernel allows alphanumeric labels up to a maximum length of 15
+characters including the interface name and colon (e.g. eth0:foobar1234)
+</longdesc>
+<shortdesc lang="en">Interface label</shortdesc>
+<content type="string" default="${OCF_RESKEY_iflabel_default}"/>
+</parameter>
+
 <parameter name="monapi">
 <longdesc lang="en">
 Enable enhanced monitoring using AWS API calls to check route table entry
@@ -213,6 +227,14 @@ ec2ip_validate() {
 	if [ -z "$OCF_RESKEY_profile" ]; then
 		ocf_exit_reason "profile parameter not set"
 		return $OCF_ERR_CONFIGURED
+	fi
+
+	if [ -n "$OCF_RESKEY_iflabel" ]; then
+		label=${OCF_RESKEY_interface}:${OFC_RESKEY_iflabel}
+		if [ ${#label} -gt 15 ]; then
+			ocf_exit_reason "Interface label [$label] exceeds maximum character limit of 15"
+			exit $OCF_ERR_CONFIGURED
+		fi
 	fi
 
 	TOKEN=$(curl -sX PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
@@ -363,7 +385,13 @@ ec2ip_get_and_configure() {
 
 	# Reconfigure the local ip address
 	ec2ip_drop
-	cmd="ip addr add ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface"
+
+	extra_opts=""
+	if [ -n "$OCF_RESKEY_iflabel" ]; then
+		extra_opts="$extra_opts label $OCF_RESKEY_interface:$OCF_RESKEY_iflabel"
+	fi
+
+	cmd="ip addr add ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface $extra_opts"
 	ocf_log debug "executing command: $cmd"
 	$cmd
 	rc=$?
