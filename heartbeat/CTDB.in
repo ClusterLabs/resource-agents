@@ -652,6 +652,15 @@ cat >$ctdb_config <<EOF
 [legacy]
 	start as disabled = $start_as_disabled
 EOF
+
+	get_os_ver
+	case "$OS" in
+		rhel|centos)
+			[ ${VER%%.*} -gt 7 ] && cat >>$ctdb_config <<EOF
+	realtime scheduling = false
+			;;
+EOF
+	esac
 }
 
 generate_event_script_options() {
