@@ -138,19 +138,15 @@ docker_compose_status()
 {
 	# use docker-compose ps if YML found, otherwise try docker ps and kill containers
 	if [ -r "$DIR/$YML" ]; then
-
 		DKPS=$(cd $DIR; $COMMAND -f $YML ps -q)
-		STAT_MSG=$(docker ps --no-trunc | grep -E $(echo "$DKPS" | tr '\n' '|') | expand)
-		LNWTH=$(echo "$STAT_MSG" | head -n1 | wc -c)
-		STATEPOS=$(echo "$STAT_MSG" | head -n1 | egrep -o 'STATUS.*$' | wc -c)
-		OFFSET=$(($LNWTH-$STATEPOS+1))
 
-		if [ -n "$DKPS" ]; then
-			PSNU=$(echo "$DKPS" | wc -l)
-		else
-			PSNU=0
-		fi
-		UPNU=$(echo "$STAT_MSG" | cut -c ${OFFSET}- | awk '{print $1}' | grep -w '^Up' | wc -l)
+		# get number of all containers
+		[ -n "$DKPS" ] && PSNU=$(echo "$DKPS" | wc -l)
+		# get number of running containers
+		for UUID in $DKPS; do
+			UP=$(docker inspect --format='{{.State.Running}}' "$UUID")
+			[ "$UP" = "true" ] && UPNU=$((UPNU+1))
+		done
 		
 		if [ "${PSNU:-0}" -ne 0 ]; then
 			if [ ${UPNU:-0} -eq 0 ]; then
