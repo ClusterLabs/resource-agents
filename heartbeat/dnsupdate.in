@@ -14,7 +14,9 @@
 # Parameter defaults
 
 OCF_RESKEY_hostname_default=""
+OCF_RESKEY_type_default="A"
 OCF_RESKEY_ip_default=""
+OCF_RESKEY_cname_default=""
 OCF_RESKEY_ttl_default="300"
 OCF_RESKEY_keyfile_default=""
 OCF_RESKEY_server_default=""
@@ -23,6 +25,8 @@ OCF_RESKEY_nsupdate_opts_default=""
 OCF_RESKEY_unregister_on_stop_default="false"
 
 : ${OCF_RESKEY_hostname=${OCF_RESKEY_hostname_default}}
+: ${OCF_RESKEY_cname=${OCF_RESKEY_cname_default}}
+: ${OCF_RESKEY_type=${OCF_RESKEY_type_default}}
 : ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
 : ${OCF_RESKEY_ttl=${OCF_RESKEY_ttl_default}}
 : ${OCF_RESKEY_keyfile=${OCF_RESKEY_keyfile_default}}
@@ -34,7 +38,6 @@ OCF_RESKEY_unregister_on_stop_default="false"
 #######################################################################
 
 # TODO:
-# - Should setting CNAMEs be supported?
 # - Should multiple A records be supported?
 
 usage() {
@@ -59,18 +62,35 @@ This resource agent manages IP take-over via dynamic DNS updates.
 
 <parameter name="hostname" unique="1" required="1">
 <longdesc lang="en">
-The hostname whose IP address will need to be updated.
+Either the hostname whose IP address will need to be updated (in case of type=A)
+or alias whose hostname will need to be updated (in case of type=CNAME).
 </longdesc>
 <shortdesc lang="en">Hostname to update</shortdesc>
 <content type="string" default="${OCF_RESKEY_hostname_default}" />
 </parameter>
 
-<parameter name="ip" unique="0" required="1">
+<parameter name="type" unique="0" required="0">
+<longdesc lang="en">
+The type of DNS record that need to be updated (A or CNAME).
+</longdesc>
+<shortdesc lang="en">Type of DNS record</shortdesc>
+<content type="string" default="${OCF_RESKEY_type_default}" />
+</parameter>
+
+<parameter name="ip" unique="0" required="0">
 <longdesc lang="en">
 IP address to set.
 </longdesc>
 <shortdesc lang="en">IP address to set</shortdesc>
 <content type="string" default="${OCF_RESKEY_ip_default}" />
+</parameter>
+
+<parameter name="cname" unique="0" required="0">
+<longdesc lang="en">
+The CNAME whose hostname address will need to be updated.
+</longdesc>
+<shortdesc lang="en">CNAME to update</shortdesc>
+<content type="string" default="${OCF_RESKEY_cname_default}" />
 </parameter>
 
 <parameter name="ttl" unique="0" required="0">
@@ -150,13 +170,25 @@ END
 }
 
 dnsupdate_status() {
-	# The resource is considered active if the current IP
-	# address is returned as the only response.
-	local record=$(dig ${dig_opts} ${hostname}. A +short 2>/dev/null)
-	if [ "$record" = "$ip" ]; then
-		return $OCF_SUCCESS
-	fi
-	return $OCF_NOT_RUNNING
+	case $type in
+	A)
+		# The resource is considered active if the current IP
+		# address is returned as the only response.
+		local record=$(dig ${dig_opts} ${hostname}. A +short 2>/dev/null)
+		if [ "$record" = "$ip" ]; then
+			return $OCF_SUCCESS
+		fi
+		return $OCF_NOT_RUNNING
+		;;
+	CNAME)
+		local record=$(dig ${dig_opts} ${cname}. CNAME +short 2>/dev/null)
+		if [ "$record" = "${hostname}." ]; then
+			return $OCF_SUCCESS
+		fi
+		return $OCF_NOT_RUNNING
+		;;
+	esac
+
 }
 
 dnsupdate_monitor() {
@@ -168,21 +200,45 @@ dnsupdate_monitor() {
 }
 
 dnsupdate_start() {
-	if dnsupdate_status ; then
-		ocf_log info "$hostname already resolves to $ip"
-		return $OCF_SUCCESS
-	fi
+	case $type in
+	A)
+		if dnsupdate_status ; then
+			ocf_log info "$hostname already resolves to $ip"
+			return $OCF_SUCCESS
+		fi
+	
+		ocf_log info "Updating DNS records for $hostname"
+	
+		(
+		if [ -n "$dns_server" ]; then
+			echo "server ${dns_server} ${dns_serverport}"
+		fi
+		echo "update delete $hostname A"
+		echo "update add $hostname ${OCF_RESKEY_ttl} A $ip"
+		echo "send"
+		) | nsupdate ${nsupdate_opts}
+		;;
 
-	ocf_log info "Updating DNS records for $hostname"
+	CNAME)
+		if dnsupdate_status ; then
+			ocf_log info "$cname already is an alias to $hostname"
+			return $OCF_SUCCESS
+		fi
+		
+		ocf_log info "Updating DNS records for $cname"
+		
+		(
+		if [ -n "$dns_server" ]; then
+			echo "server ${dns_server} ${dns_serverport}"
+		fi
+		echo "update delete $cname CNAME"
+		echo "update add $cname ${OCF_RESKEY_ttl} CNAME $hostname"
+		echo "send"
+		) | nsupdate ${nsupdate_opts}
+	        ;;
 
-	(
-	if [ -n "$dns_server" ]; then
-		echo "server ${dns_server} ${dns_serverport}"
-	fi
-	echo "update delete $hostname A"
-	echo "update add $hostname ${OCF_RESKEY_ttl} A $ip"
-	echo "send"
-	) | nsupdate ${nsupdate_opts}
+	esac
+
 
 	dnsupdate_monitor
 
@@ -190,30 +246,53 @@ dnsupdate_start() {
 }
 
 dnsupdate_stop() {
-	if ocf_is_true "${OCF_RESKEY_unregister_on_stop}" && dnsupdate_status ; then
-		ocf_log info "Unregistering $hostname with $ip from DNS server"
-		(
-		if [ -n "$dns_server" ]; then
-			echo "server ${dns_server} ${dns_serverport}"
+	case $type in
+	A)
+		if ocf_is_true "${OCF_RESKEY_unregister_on_stop}" && dnsupdate_status ; then
+			ocf_log info "Unregistering $hostname with $ip from DNS server"
+			(
+			if [ -n "$dns_server" ]; then
+				echo "server ${dns_server} ${dns_serverport}"
+			fi
+			echo "update delete $hostname A $ip"
+			echo "send"
+			) | nsupdate ${nsupdate_opts}
+			
+			dnsupdate_monitor
+			if [ $? -ne $OCF_NOT_RUNNING ]; then
+				ocf_log warn "Unregistering failed!"
+			fi
 		fi
-		echo "update delete $hostname A $ip"
-		echo "send"
-		) | nsupdate ${nsupdate_opts}
-
-		dnsupdate_monitor
-		if [ $? -ne $OCF_NOT_RUNNING ]; then
-			ocf_log warn "Unregistering failed!"
-			# There's no point in invoking a stop failure
-			# here. If another site takes over the record,
-			# it'll delete all previous entries anyway.
+		return $OCF_SUCCESS
+		;;
+	CNAME)
+		if ocf_is_true "${OCF_RESKEY_unregister_on_stop}" && dnsupdate_status ; then
+			ocf_log info "Unregistering $cname with $hostname from DNS server"
+			(
+			if [ -n "$dns_server" ]; then
+				echo "server ${dns_server} ${dns_serverport}"
+			fi
+			echo "update delete $cname CNAME"
+			echo "send"
+			) | nsupdate ${nsupdate_opts}
+			
+			dnsupdate_monitor
+			if [ $? -ne $OCF_NOT_RUNNING ]; then
+				ocf_log warn "Unregistering failed!"
+			fi
 		fi
-	fi
-	return $OCF_SUCCESS
+		return $OCF_SUCCESS
+		;;
+	esac
 }
 
 dnsupdate_validate() {
 	hostname=${OCF_RESKEY_hostname}
 	ip=${OCF_RESKEY_ip}
+	#added support for CNAME
+	type=${OCF_RESKEY_type}
+	cname=${OCF_RESKEY_cname}
+	#
 	dig_opts=""
 	dns_server=${OCF_RESKEY_server}
 	: ${OCF_RESKEY_serverport:="53"}
@@ -229,10 +308,16 @@ dnsupdate_validate() {
 		ocf_log err "No hostname specified."
 		exit $OCF_ERR_CONFIGURED
 	fi
-	if [ -z "$ip" ]; then
+	if [ -z "$ip" ] && [ "$type" = "A" ]; then
 		ocf_log err "No IP specified."
 		exit $OCF_ERR_CONFIGURED
 	fi
+	#added support for CNAME
+	if [ -z "$type" ]; then
+		ocf_log err "No TYPE specified."
+		exit $OCF_ERR_CONFIGURED
+	fi
+	#
 	if ! ocf_is_decimal $OCF_RESKEY_ttl ; then
 		ocf_log err "ttl $OCF_RESKEY_ttl is not valid"
 		exit $OCF_ERR_CONFIGURED
@@ -293,5 +378,4 @@ validate-all)	# We've already run this
 		;;
 esac
 exit $?
-
 
