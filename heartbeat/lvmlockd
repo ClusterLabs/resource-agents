@@ -179,6 +179,11 @@ setup_lvm_config()
 	out=$(lvmconfig 'global/locking_type' 2> /dev/null)
 	lock_type=$(echo "$out" | cut -d'=' -f2)
 
+	if [ -z "$use_lvmlockd" ]; then
+		ocf_exit_reason "\"use_lvmlockd\" not set in /etc/lvm/lvm.conf ..."
+		exit $OCF_ERR_CONFIGURED
+	fi
+
 	if [ -n "$use_lvmlockd" ] && [ "$use_lvmlockd" != 1 ] ; then
 		ocf_log info "setting \"use_lvmlockd=1\" in /etc/lvm/lvm.conf ..."
 		sed -i 's,^[[:blank:]]*use_lvmlockd[[:blank:]]*=.*,\ \ \ \ use_lvmlockd = 1,g' /etc/lvm/lvm.conf
