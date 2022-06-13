@@ -26,31 +26,31 @@
 ##
 # README.
 # 
-# This agent only supports being configured as a multistate Master
+# This agent only supports being configured as a multistate Promoted
 # resource.
 #
-# Slave vs Master role:
+# Unpromoted vs Promoted role:
 #
-# During the 'Slave' role, galera instances are in read-only mode and
+# During the 'Unpromoted' role, galera instances are in read-only mode and
 # will not attempt to connect to the cluster. This role exists only as
 # a means to determine which galera instance is the most up-to-date. The
 # most up-to-date node will be used to bootstrap a galera cluster that
 # has no current members.
 #
-# The galera instances will only begin to be promoted to the Master role
+# The galera instances will only begin to be promoted to the Promoted role
 # once all the nodes in the 'wsrep_cluster_address' connection address
 # have entered read-only mode. At that point the node containing the
-# database that is most current will be promoted to Master. Once the first
-# Master instance bootstraps the galera cluster, the other nodes will be
-# promoted to Master as well.
+# database that is most current will be promoted to Promoted. Once the first
+# Promoted instance bootstraps the galera cluster, the other nodes will be
+# promoted to Promoted as well.
 #
 # Example: Create a galera cluster using nodes rhel7-node1 rhel7-node2 rhel7-node3
 #
 # pcs resource create db galera enable_creation=true \
-# wsrep_cluster_address="gcomm://rhel7-auto1,rhel7-auto2,rhel7-auto3" meta master-max=3 --master
+# wsrep_cluster_address="gcomm://rhel7-auto1,rhel7-auto2,rhel7-auto3" meta promoted-max=3 --promoted
 #
 # By setting the 'enable_creation' option, the database will be automatically 
-# generated at startup. The meta attribute 'master-max=3' means that all 3
+# generated at startup. The meta attribute 'promoted-max=3' means that all 3
 # nodes listed in the wsrep_cluster_address list will be allowed to connect
 # to the galera cluster and perform replication.
 #
@@ -114,8 +114,8 @@ The 'start' operation starts the database.
 The 'stop' operation stops the database.
 The 'status' operation reports whether the database is running
 The 'monitor' operation reports whether the database seems to be working
-The 'promote' operation makes this mysql server run as master
-The 'demote' operation makes this mysql server run as slave
+The 'promote' operation makes this mysql server run as promoted
+The 'demote' operation makes this mysql server run as unpromoted
 The 'validate-all' operation reports whether the parameters are valid
 
 UEND
@@ -298,8 +298,8 @@ Use it with caution! (and fencing)
 <action name="stop" timeout="120s" />
 <action name="status" timeout="60s" />
 <action name="monitor" depth="0" timeout="30s" interval="20s" />
-<action name="monitor" role="Master" depth="0" timeout="30s" interval="10s" />
-<action name="monitor" role="Slave" depth="0" timeout="30s" interval="30s" />
+<action name="monitor" role="Promoted" depth="0" timeout="30s" interval="10s" />
+<action name="monitor" role="Unpromoted" depth="0" timeout="30s" interval="30s" />
 <action name="promote" timeout="300s" />
 <action name="demote" timeout="120s" />
 <action name="validate-all" timeout="5s" />

@@ -119,7 +119,7 @@ the exact syntax.
 <parameter name="server" unique="0" required="0">
 <longdesc lang="en">
 Which DNS server to send these updates for. When no
-server is provided, this defaults to the master server
+server is provided, this defaults to the promoted server
 for the correct zone.
 </longdesc>
 <shortdesc lang="en">DNS server to contact</shortdesc>
