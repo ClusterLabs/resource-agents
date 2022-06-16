@@ -85,8 +85,8 @@
 
 <define name="role-values">
 	<choice>
-		<value>Master</value>
-		<value>Slave</value>
+		<value>Promoted</value>
+		<value>Unpromoted</value>
 	</choice>
 </define>
 
