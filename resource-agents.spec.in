@@ -83,7 +83,11 @@ BuildRequires: libnet-devel
 
 %if 0%{?suse_version}
 BuildRequires:  libnet-devel
+%if 0%{?suse_version} > 1500
+BuildRequires:  cluster-glue-devel
+%else
 BuildRequires:  libglue-devel
+%endif
 BuildRequires:  libxslt docbook_4 docbook-xsl-stylesheets
 %endif
 
