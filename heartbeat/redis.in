@@ -220,8 +220,8 @@ is in use.
 <action name="stop" timeout="120s" />
 <action name="status" timeout="60s" />
 <action name="monitor" depth="0" timeout="60s" interval="45s" />
-<action name="monitor" role="Master" depth="0" timeout="60s" interval="20s" />
-<action name="monitor" role="Slave" depth="0" timeout="60s" interval="60s" />
+<action name="monitor" role="Promoted" depth="0" timeout="60s" interval="20s" />
+<action name="monitor" role="Unpromoted" depth="0" timeout="60s" interval="60s" />
 <action name="promote" timeout="120s" />
 <action name="demote" timeout="120s" />
 <action name="notify" timeout="90s" />

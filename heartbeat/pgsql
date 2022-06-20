@@ -458,7 +458,7 @@ wal receiver is not running in the master and the attribute shows status as
 <action name="stop" timeout="120s" />
 <action name="status" timeout="60s" />
 <action name="monitor" depth="0" timeout="30s" interval="30s"/>
-<action name="monitor" depth="0" timeout="30s" interval="29s" role="Master" />
+<action name="monitor" depth="0" timeout="30s" interval="29s" role="Promoted" />
 <action name="promote" timeout="120s" />
 <action name="demote" timeout="120s" />
 <action name="notify"   timeout="90s" />

@@ -128,7 +128,7 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-Resource agent for RabbitMQ promotes a Master, then cluster nodes can join it
+Resource agent for RabbitMQ promotes a node, then cluster nodes can join it
 </longdesc>
 <shortdesc lang="en">Resource agent for RabbitMQ HA cluster</shortdesc>
 <parameters>
@@ -393,7 +393,7 @@ $EXTENDED_OCF_PARAMS
 <action name="stop" timeout="20s" />
 <action name="status" timeout="20s" />
 <action name="monitor" depth="0" timeout="30s" interval="5s" />
-<action name="monitor" depth="0" timeout="30s" interval="3s" role="Master"/>
+<action name="monitor" depth="0" timeout="30s" interval="3s" role="Promoted"/>
 <action name="promote" timeout="30s" />
 <action name="demote"  timeout="30s" />
 <action name="notify"   timeout="20s" />

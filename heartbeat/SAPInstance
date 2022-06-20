@@ -25,8 +25,8 @@
 #   OCF_RESKEY_AUTOMATIC_RECOVER    (optional, automatic startup recovery using cleanipc, default is false)
 #   OCF_RESKEY_MONITOR_SERVICES     (optional, default is to monitor critical services only)
 #   OCF_RESKEY_SHUTDOWN_METHOD      (optional, defaults to NORMAL, KILL: terminate the SAP instance with OS commands - faster, at your own risk)
-#   OCF_RESKEY_ERS_InstanceName     (optional, InstanceName of the ERS instance in a Master/Slave configuration)
-#   OCF_RESKEY_ERS_START_PROFILE    (optional, START_PROFILE of the ERS instance in a Master/Slave configuration)
+#   OCF_RESKEY_ERS_InstanceName     (optional, InstanceName of the ERS instance in a Promotable configuration)
+#   OCF_RESKEY_ERS_START_PROFILE    (optional, START_PROFILE of the ERS instance in a Promotable configuration)
 #   OCF_RESKEY_PRE_START_USEREXIT	(optional, lists a script which can be executed before the resource is started)
 #   OCF_RESKEY_POST_START_USEREXIT	(optional, lists a script which can be executed after the resource is started)
 #   OCF_RESKEY_PRE_STOP_USEREXIT	(optional, lists a script which can be executed before the resource is stopped)
@@ -92,11 +92,11 @@ sapinstance_usage() {
 
 	$0 manages a SAP Instance as an HA resource.
 
-	The 'start' operation starts the instance or the ERS instance in a Master/Slave configuration
+	The 'start' operation starts the instance or the ERS instance in a Promotable configuration
 	The 'stop' operation stops the instance
 	The 'status' operation reports whether the instance is running
 	The 'monitor' operation reports whether the instance seems to be working
-	The 'promote' operation starts the primary instance in a Master/Slave configuration
+	The 'promote' operation starts the primary instance in a Promotable configuration
 	The 'demote' operation stops the primary instance and starts the ERS instance
 	The 'reload' operation allows changed parameters (non-unique only) without restarting the service
 	The 'notify' operation always returns SUCCESS
@@ -201,11 +201,11 @@ You may specify multiple services separated by a | (pipe) sign in this parameter
   <content type="string" default="${OCF_RESKEY_SHUTDOWN_METHOD_default}"/>
  </parameter>
  <parameter name="ERS_InstanceName" unique="1" required="0">
-  <longdesc lang="en">Only used in a Master/Slave resource configuration:
+  <longdesc lang="en">Only used in a Promotable resource configuration:
 The full qualified SAP enqueue replication instance name. e.g. P01_ERS02_sapp01ers. Usually this is the name of the SAP instance profile.
-The enqueue replication instance must be installed, before you want to configure a master-slave cluster resource.
+The enqueue replication instance must be installed, before you want to configure a promotable cluster resource.
 
-The master-slave configuration in the cluster must use this properties:
+The promotable configuration in the cluster must use this properties:
 clone_max = 2
 clone_node_max = 1
 master_node_max = 1
@@ -215,7 +215,7 @@ master_max = 1
   <content type="string" default="${OCF_RESKEY_ERS_InstanceName_default}"/>
  </parameter>
  <parameter name="ERS_START_PROFILE" unique="1" required="0">
-  <longdesc lang="en">Only used in a Master/Slave resource configuration:
+  <longdesc lang="en">Only used in a Promotable resource configuration:
 The parameter ERS_InstanceName must also be set in this configuration.
 The name of the SAP START profile. Specify this parameter, if you have changed the name of the SAP START profile after the default SAP installation. As SAP release 7.10 does not have a START profile anymore, you need to specify the Instance Profile than.
   </longdesc>
@@ -243,7 +243,7 @@ The name of the SAP START profile. Specify this parameter, if you have changed t
   <content type="string" default="${OCF_RESKEY_POST_STOP_USEREXIT_default}" />
  </parameter>
  <parameter name="IS_ERS" unique="0" required="0">
-  <longdesc lang="en">Only used for ASCS/ERS SAP Netweaver installations without implementing a master/slave resource to
+  <longdesc lang="en">Only used for ASCS/ERS SAP Netweaver installations without implementing a promotable resource to
     allow the ASCS to 'find' the ERS running on another cluster node after a resource failure. This parameter should be set
     to true 'only' for the ERS instance for implementations following the SAP NetWeaver 7.40 HA certification (NW-HA-CLU-740). This includes also
     systems for NetWeaver less than 7.40, if you like to implement the NW-HA-CLU-740 scenario.
@@ -266,8 +266,8 @@ The name of the SAP START profile. Specify this parameter, if you have changed t
 <action name="stop" timeout="240s" />
 <action name="status" timeout="60s" />
 <action name="monitor" depth="0" timeout="60s" interval="120s" />
-<action name="monitor" depth="0" timeout="60s" interval="121s" role="Slave" />
-<action name="monitor" depth="0" timeout="60s" interval="119s" role="Master" />
+<action name="monitor" depth="0" timeout="60s" interval="121s" role="Unpromoted" />
+<action name="monitor" depth="0" timeout="60s" interval="119s" role="Promoted" />
 <action name="promote" timeout="320s" />
 <action name="demote" timeout="320s" />
 <action name="reload" timeout="320s" />

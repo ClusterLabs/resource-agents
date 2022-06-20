@@ -162,7 +162,7 @@ Address:port of the remote back-end servers (default: 127.0.0.1:3306).
 
 <parameter name="proxy_read_only_backend_addresses" unique="0" required="0">
 <longdesc lang="en">
-Address:port of the remote (read only) slave-server (default: ).
+Address:port of the remote (read only) unpromoted-server (default: ).
 </longdesc>
 <shortdesc lang="en">MySql Proxy read only back-end servers</shortdesc>
 <content type="string" default="${OCF_RESKEY_proxy_read_only_backend_addresses_default}" />

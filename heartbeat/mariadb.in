@@ -3,7 +3,7 @@
 #
 # MariaDB
 #
-# Description:  Manages a MariaDB Master/Slave database as Linux-HA resource
+# Description:  Manages a MariaDB Promotable database as Linux-HA resource
 #
 # Authors:  Alan Robertson:               DB2 Script
 #           Jakub Janczak:                rewrite as MySQL
@@ -61,8 +61,8 @@ The 'start' operation starts the database.
 The 'stop' operation stops the database.
 The 'status' operation reports whether the database is running
 The 'monitor' operation reports whether the database seems to be working
-The 'promote' operation makes this mysql server run as master
-The 'demote' operation makes this mysql server run as slave
+The 'promote' operation makes this mysql server run as promoted
+The 'demote' operation makes this mysql server run as unpromoted
 The 'validate-all' operation reports whether the parameters are valid
 
 UEND
@@ -78,20 +78,20 @@ meta_data() {
 <longdesc lang="en">
 Resource script for MariaDB.
 
-Manages a complete master/slave replication setup with GTID, for simpler
+Manages a complete promotable replication setup with GTID, for simpler
 uses look at the mysql resource agent which supports older replication
 forms which mysql and mariadb have in common.
 
 The resource must be setup to use notifications. Set 'notify=true' in the metadata
-attributes when defining a MariaDB master/slave instance.
+attributes when defining a MariaDB promotable instance.
 
-The default behavior is to use uname -n values in the change master to command.
+The default behavior is to use uname -n values in the change promoted to command.
 Other IPs can be specified manually by adding a node attribute
 \${INSTANCE_ATTR_NAME}_mysql_master_IP giving the IP to use for replication.
 For example, if the mariadb primitive you are using is p_mariadb, the
 attribute to set will be p_mariadb_mysql_master_IP.
 </longdesc>
-<shortdesc lang="en">Manages a MariaDB master/slave instance</shortdesc>
+<shortdesc lang="en">Manages a MariaDB promotable instance</shortdesc>
 <parameters>
 
 <parameter name="binary" unique="0" required="0">
@@ -154,7 +154,7 @@ The logfile to be used for mysqld.
 <longdesc lang="en">
 All node names of nodes that will execute mariadb.
 Please separate each node name with a space.
-This is required for the master selection to function.
+This is required for the promoted selection to function.
 </longdesc>
 <shortdesc lang="en">node list</shortdesc>
 <content type="string" default="${OCF_RESKEY_node_list_default}" />
@@ -220,11 +220,11 @@ Additional parameters which are passed to the mysqld on startup.
 <parameter name="replication_user" unique="0" required="0">
 <longdesc lang="en">
 MariaDB replication user. This user is used for starting and stopping
-MariaDB replication, for setting and resetting the master host, and for
+MariaDB replication, for setting and resetting the promoted host, and for
 setting and unsetting read-only mode. Because of that, this user must
 have SUPER, REPLICATION SLAVE, REPLICATION CLIENT, PROCESS and RELOAD
 privileges on all nodes within the cluster. Mandatory if you define a
-master-slave resource.
+promotable resource.
 </longdesc>
 <shortdesc lang="en">MariaDB replication user</shortdesc>
 <content type="string" default="${OCF_RESKEY_replication_user_default}" />
@@ -232,8 +232,8 @@ master-slave resource.
 
 <parameter name="replication_passwd" unique="0" required="0">
 <longdesc lang="en">
-MariaDB replication password. Used for replication client and slave.
-Mandatory if you define a master-slave resource.
+MariaDB replication password. Used for replication client and unpromoted.
+Mandatory if you define a promotable resource.
 </longdesc>
 <shortdesc lang="en">MariaDB replication user password</shortdesc>
 <content type="string" default="${OCF_RESKEY_replication_passwd_default}" />
@@ -241,7 +241,7 @@ Mandatory if you define a master-slave resource.
 
 <parameter name="replication_port" unique="0" required="0">
 <longdesc lang="en">
-The port on which the Master MariaDB instance is listening.
+The port on which the Promoted MariaDB instance is listening.
 </longdesc>
 <shortdesc lang="en">MariaDB replication port</shortdesc>
 <content type="string" default="${OCF_RESKEY_replication_port_default}" />
@@ -254,8 +254,8 @@ The port on which the Master MariaDB instance is listening.
 <action name="stop" timeout="120s" />
 <action name="status" timeout="60s" />
 <action name="monitor" depth="0" timeout="30s" interval="20s" />
-<action name="monitor" role="Master" depth="0" timeout="30s" interval="10s" />
-<action name="monitor" role="Slave" depth="0" timeout="30s" interval="30s" />
+<action name="monitor" role="Promoted" depth="0" timeout="30s" interval="10s" />
+<action name="monitor" role="Unpromoted" depth="0" timeout="30s" interval="30s" />
 <action name="promote" timeout="120s" />
 <action name="demote" timeout="120s" />
 <action name="notify" timeout="90s" />
