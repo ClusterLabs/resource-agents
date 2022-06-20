@@ -60,7 +60,12 @@ BuildRequires: systemd
 BuildRequires: which
 
 %if 0%{?fedora} || 0%{?centos} > 7 || 0%{?rhel} > 7 || 0%{?suse_version}
+# matches non-suse and suse <= 15
+%if 0%{?suse_version} <= 1500
 BuildRequires: python3-devel
+%else
+BuildRequires: python%{python3_version_nodots}-devel
+%endif
 %else
 BuildRequires: python-devel
 %endif
@@ -70,7 +75,11 @@ BuildRequires: python-devel
 BuildRequires: python3-google-api-client python3-pyroute2
 %endif
 %if 0%{?suse_version}
+%if 0%{?suse_version} > 1500
+BuildRequires: python%{python3_version_nodots}-google-api-python-client
+%else
 BuildRequires: python3-google-api-python-client
+%endif
 %endif
 %endif
 
