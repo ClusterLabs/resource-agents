@@ -73,6 +73,7 @@ OCF_RESKEY_ip_default=""
 OCF_RESKEY_cidr_netmask_default=""
 OCF_RESKEY_broadcast_default=""
 OCF_RESKEY_iflabel_default=""
+OCF_RESKEY_table_default=""
 OCF_RESKEY_cidr_netmask_default=""
 OCF_RESKEY_lvs_support_default=false
 OCF_RESKEY_lvs_ipv6_addrlabel_default=false
@@ -97,6 +98,7 @@ OCF_RESKEY_network_namespace_default=""
 : ${OCF_RESKEY_cidr_netmask=${OCF_RESKEY_cidr_netmask_default}}
 : ${OCF_RESKEY_broadcast=${OCF_RESKEY_broadcast_default}}
 : ${OCF_RESKEY_iflabel=${OCF_RESKEY_iflabel_default}}
+: ${OCF_RESKEY_table=${OCF_RESKEY_table_default}}
 : ${OCF_RESKEY_lvs_support=${OCF_RESKEY_lvs_support_default}}
 : ${OCF_RESKEY_lvs_ipv6_addrlabel=${OCF_RESKEY_lvs_ipv6_addrlabel_default}}
 : ${OCF_RESKEY_lvs_ipv6_addrlabel_value=${OCF_RESKEY_lvs_ipv6_addrlabel_value_default}}
@@ -237,6 +239,16 @@ If a label is specified in nic name, this parameter has no effect.
 </longdesc>
 <shortdesc lang="en">Interface label</shortdesc>
 <content type="string" default="${OCF_RESKEY_iflabel_default}"/>
+</parameter>
+
+<parameter name="table">
+<longdesc lang="en">
+Table to use to lookup which interface to use for the IP.
+
+This can be used for policy based routing. See man ip-rule(8).
+</longdesc>
+<shortdesc lang="en">Table</shortdesc>
+<content type="string" default="${OCF_RESKEY_table_default}" />
 </parameter>
 
 <parameter name="lvs_support">

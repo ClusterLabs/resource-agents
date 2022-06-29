@@ -32,7 +32,7 @@ prefixcheck() {
 getnetworkinfo()
 {
   local line netinfo
-  ip -o -f inet route list match $OCF_RESKEY_ip table local scope host | (while read line;
+  ip -o -f inet route list match $OCF_RESKEY_ip table "${OCF_RESKEY_table=local}" scope host | (while read line;
   do
     netinfo=`echo $line | awk '{print $2}'`
     case $netinfo in
