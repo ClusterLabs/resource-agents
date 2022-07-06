@@ -994,28 +994,6 @@ mysql_validate() {
 
 #######################################################################
 
-
-##########################################################################
-# If DEBUG_LOG is set, make this resource agent easy to debug: set up the
-# debug log and direct all output to it.  Otherwise, redirect to /dev/null.
-# The log directory must be a directory owned by root, with permissions 0700,
-# and the log must be writable and not a symlink.
-##########################################################################
-DEBUG_LOG="/tmp/mysql.ocf.ra.debug/log"
-if [ "${DEBUG_LOG}" -a -w "${DEBUG_LOG}" -a ! -L "${DEBUG_LOG}" ]; then
-    DEBUG_LOG_DIR="${DEBUG_LOG%/*}"
-    if [ -d "${DEBUG_LOG_DIR}" ]; then
-        exec 9>>"$DEBUG_LOG"
-        exec 2>&9
-        date >&9
-        echo "$*" >&9
-        env | grep OCF_ | sort >&9
-        set -x
-    else
-        exec 9>/dev/null
-    fi
-fi
-
 case "$1" in
   meta-data)    meta_data
         exit $OCF_SUCCESS;;
