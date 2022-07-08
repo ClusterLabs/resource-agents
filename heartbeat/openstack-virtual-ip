@@ -119,7 +119,7 @@ osvip_validate() {
 	get_config
 
 	${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $(crm_node -n) > /dev/null 2>&1
-	if [ $? -ne 0 ] ; then
+	if [ $? -ne 0 ] && ! ocf_is_probe; then
 		ocf_log warn "attr_updater failed to get openstack_ports attribute of node $OCF_RESOURCE_INSTANCE"
 		return $OCF_ERR_GENERIC
 	fi
@@ -136,7 +136,7 @@ osvip_monitor() {
 		--format value \
 		--column allowed_address_pairs \
 		${node_port_id})
-	if echo $result | grep -q $OCF_RESKEY_ip ; then
+	if echo $result | grep -q "$OCF_RESKEY_ip"; then
 		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_virtual_ip -v $OCF_RESKEY_ip
 
 		return $OCF_SUCCESS
