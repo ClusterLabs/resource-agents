@@ -138,7 +138,7 @@ osvol_monitor() {
 
 	node_id=$(_get_node_id)
 
-	if ocf_is_true $OCF_RESKEY_volume_local_check ; then
+	if [ "$__OCF_ACTION" = "monitor" ] && ocf_is_true $OCF_RESKEY_volume_local_check ; then
 		#
 		# Is the volue attached?
 		# We check the local devices

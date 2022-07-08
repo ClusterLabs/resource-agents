@@ -111,7 +111,7 @@ osflip_validate() {
 	fi
 
 	${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $(crm_node -n) > /dev/null 2>&1
-	if [ $? -ne 0 ] ; then
+	if [ $? -ne 0 ] && ! ocf_is_probe; then
 		ocf_log warn "attr_updater failed to get openstack_ports attribute of node $OCF_RESOURCE_INSTANCE"
 		return $OCF_ERR_GENERIC
 	fi
@@ -129,7 +129,7 @@ osflip_monitor() {
 	node_port_ids=$(${HA_SBIN_DIR}/attrd_updater --query -n openstack_ports -N $(crm_node -n) \
 		| awk -F= '{gsub("\"","");print $NF}' \
 		| tr ',' ' ' \
-		| awk -F: '{print $NF}')
+		| awk '{gsub("[^ ]*:", "");print}')
 
 	# Is the IP active and attached?
 	result=$($OCF_RESKEY_openstackcli floating ip show \
