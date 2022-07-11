@@ -119,9 +119,7 @@ END
 #######################################################################
 
 OSInfoStats() {
-	local result
 	local value
-	local node
 	local node_id
 
 	get_config
@@ -141,31 +139,33 @@ OSInfoStats() {
 	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_id -v "$node_id"
 
 	# Nova data: flavor
-	value=$($OCF_RESKEY_openstackcli server show \
+	value=$(run_openstackcli "server show \
 		--format value \
 		--column flavor \
-		$node_id)
+		$node_id")
 
 	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_flavor -v "$value"
 
 	# Nova data: availability zone
-	value=$($OCF_RESKEY_openstackcli server show \
+	value=$(run_openstackcli "server show \
 		--format value \
 		--column OS-EXT-AZ:availability_zone \
-		$node_id)
+		$node_id")
 
 	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_az -v "$value"
 
 	# Network data: ports
 	value=""
-	for port_id in $($OCF_RESKEY_openstackcli port list \
+	for port_id in $(run_openstackcli "port list \
 		--format value \
 		--column id \
-		--server $node_id); do
-		subnet_id=$($OCF_RESKEY_openstackcli port show \
+		--server $node_id"); do
+		subnet_result=$(run_openstackcli "port show \
 			--format json \
 			--column fixed_ips \
-			${port_id} | grep -P '\"subnet_id\": \".*\",$' |
+			${port_id}")
+		subnet_id=$(echo "$subnet_result" |
+			grep -P '\"subnet_id\": \".*\",$' |
 			grep -P -o '[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}')
 		value="${value}${subnet_id}:${port_id},"
 	done

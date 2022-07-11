@@ -101,11 +101,14 @@ END
 }
 
 osflip_validate() {
+	local result
+
 	check_binary "$OCF_RESKEY_openstackcli"
 
 	get_config
 
-	if ! $OCF_RESKEY_openstackcli floating ip list|grep -q $OCF_RESKEY_ip_id ; then
+	result=$(run_openstackcli "floating ip list")
+	if ! echo "$result" | grep -q $OCF_RESKEY_ip_id; then
 		ocf_exit_reason "ip-id $OCF_RESKEY_ip_id not found"
 		return $OCF_ERR_CONFIGURED
 	fi
@@ -132,14 +135,14 @@ osflip_monitor() {
 		| awk '{gsub("[^ ]*:", "");print}')
 
 	# Is the IP active and attached?
-	result=$($OCF_RESKEY_openstackcli floating ip show \
+	result=$(run_openstackcli "floating ip show \
 		--column port_id --column floating_ip_address \
 		--format yaml \
-		$OCF_RESKEY_ip_id)
+		$OCF_RESKEY_ip_id")
 
 	for port in $node_port_ids ; do
-		if echo $result | grep -q $port ; then
-			floating_ip=$(echo $result | awk '/floating_ip_address/ {print $2}')
+		if echo "$result" | grep -q $port ; then
+			floating_ip=$(echo "$result" | awk '/floating_ip_address/ {print $2}')
 			${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_floating_ip -v $floating_ip
 
 			return $OCF_SUCCESS
@@ -160,7 +163,7 @@ osflip_stop() {
 		return $OCF_SUCCESS
 	fi
 
-	if ! $OCF_RESKEY_openstackcli floating ip unset --port $OCF_RESKEY_ip_id ; then
+	if ! run_openstackcli "floating ip unset --port $OCF_RESKEY_ip_id"; then
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -194,7 +197,7 @@ osflip_start() {
 
 	ocf_log info "Moving IP address $OCF_RESKEY_ip_id to port ID $node_port_id"
 
-	$OCF_RESKEY_openstackcli floating ip set --port $node_port_id $OCF_RESKEY_ip_id
+	run_openstackcli "floating ip set --port $node_port_id $OCF_RESKEY_ip_id"
 	if [ $? != $OCF_SUCCESS ]; then
 		ocf_log error "$OCF_RESKEY_ip_id Cannot be set to port $node_port_id"
 		return $OCF_ERR_GENERIC
