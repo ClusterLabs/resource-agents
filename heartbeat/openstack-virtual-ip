@@ -132,11 +132,11 @@ osvip_monitor() {
 
 	node_port_id=$(osvip_port_id)
 
-	result=$($OCF_RESKEY_openstackcli port show \
+	result=$(run_openstackcli "port show \
 		--format value \
 		--column allowed_address_pairs \
-		${node_port_id})
-	if echo $result | grep -q "$OCF_RESKEY_ip"; then
+		${node_port_id}")
+	if echo "$result" | grep -q "$OCF_RESKEY_ip"; then
 		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_virtual_ip -v $OCF_RESKEY_ip
 
 		return $OCF_SUCCESS
@@ -158,20 +158,20 @@ osvip_stop() {
 		return $OCF_SUCCESS
 	fi
 
-	mac_address=$($OCF_RESKEY_openstackcli port show \
+	mac_address=$(run_openstackcli "port show \
 		--format value \
 		--column mac_address \
-		$node_port_id)
-	echo ${mac_address} | grep -q -P "^([0-9a-f]{2}:){5}[0-9a-f]{2}$"
+		$node_port_id")
+	echo "${mac_address}" | grep -q -P "^([0-9a-f]{2}:){5}[0-9a-f]{2}$"
 	if [ $? -ne 0 ]; then
 		ocf_log error "MAC address '${mac_address}' is not valid."
 		return $OCF_ERR_GENERIC
 	fi
 
-	if ! $OCF_RESKEY_openstackcli port unset \
+	if ! run_openstackcli "port unset \
 		--allowed-address \
 		ip-address=$OCF_RESKEY_ip,mac-address=${mac_address} \
-		$node_port_id; then
+		$node_port_id"; then
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -196,9 +196,9 @@ osvip_start() {
 
 	ocf_log info "Moving IP address $OCF_RESKEY_ip to port ID $node_port_id"
 
-	$OCF_RESKEY_openstackcli port set \
+	run_openstackcli "port set \
 		--allowed-address ip-address=$OCF_RESKEY_ip \
-		$node_port_id
+		$node_port_id"
 	if [ $? != $OCF_SUCCESS ]; then
 		ocf_log error "$OCF_RESKEY_ip Cannot be set to port $node_port_id"
 		return $OCF_ERR_GENERIC

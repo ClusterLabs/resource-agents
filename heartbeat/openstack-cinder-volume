@@ -113,11 +113,14 @@ _get_node_id() {
 }
 
 osvol_validate() {
+	local result
+
 	check_binary "$OCF_RESKEY_openstackcli"
 	
 	get_config
 
-	if ! $OCF_RESKEY_openstackcli volume list|grep -q $OCF_RESKEY_volume_id ; then
+	result=$(run_openstackcli "volume list")
+	if ! echo "$result" | grep -q $OCF_RESKEY_volume_id; then
 		ocf_exit_reason "volume-id $OCF_RESKEY_volume_id not found"
 		return $OCF_ERR_CONFIGURED
 	fi
@@ -156,17 +159,17 @@ osvol_monitor() {
 	# Is the volue attached?
 	# We use the API
 	#
-	result=$($OCF_RESKEY_openstackcli volume show \
+	result=$(run_openstackcli "volume show \
 		--column status \
 		--column attachments \
 		--format value \
-		$OCF_RESKEY_volume_id)
+		$OCF_RESKEY_volume_id")
 
-	if echo "$result" | grep -q available ; then
+	if echo "$result" | grep -q available; then
 		ocf_log warn "$OCF_RESKEY_volume_id is not attached to any instance"
 		return $OCF_NOT_RUNNING
 	else
-		export attached_server_id=$(echo $result|head -n1|
+		export attached_server_id=$(echo "$result"|head -n1|
 			grep -P -o "'server_id': '[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}'"|
 			grep -P -o "[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}")
 		ocf_log info "$OCF_RESKEY_volume_id is attached to instance $attached_server_id"
@@ -199,7 +202,7 @@ osvol_stop() {
 	#
 	# Detach the volume
 	#
-	if ! $OCF_RESKEY_openstackcli server remove volume $node_id $OCF_RESKEY_volume_id ; then
+	if ! run_openstackcli "server remove volume $node_id $OCF_RESKEY_volume_id"; then
 		ocf_log error "Couldn't remove volume $OCF_RESKEY_volume_id from instance $node_id"
 		return $OCF_ERR_GENERIC
 	fi
@@ -225,7 +228,7 @@ osvol_start() {
 	# TODO: make it optional in case multi-attachment is allowed by Cinder
 	#
 	if [ ! -z $attached_server_id ] ; then
-		if ! $OCF_RESKEY_openstackcli server remove volume $attached_server_id $OCF_RESKEY_volume_id ; then
+		if ! run_openstackcli "server remove volume $attached_server_id $OCF_RESKEY_volume_id"; then
 			ocf_log error "Couldn't remove volume $OCF_RESKEY_volume_id from instance $attached_server_id"
 			return $OCF_ERR_GENERIC
 		fi
@@ -238,7 +241,7 @@ osvol_start() {
 	#
 	# Attach the volume
 	#
-	$OCF_RESKEY_openstackcli server add volume $node_id $OCF_RESKEY_volume_id
+	run_openstackcli "server add volume $node_id $OCF_RESKEY_volume_id"
 	if [ $? != $OCF_SUCCESS ]; then
 		ocf_log error "Couldn't add volume $OCF_RESKEY_volume_id to instance $node_id"
 		return $OCF_ERR_GENERIC
