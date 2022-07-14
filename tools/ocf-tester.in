@@ -295,10 +295,10 @@ if [ $rc -eq 3 ]; then
 
 elif [ $rc -eq 8 ]; then
     test_command demote "Cleanup, demote"
-    assert $? 0 "Your agent was a master and could not be demoted" 1
+    assert $? 0 "Your agent was promoted and could not be demoted" 1
 
     test_command stop "Cleanup, stop"
-    assert $? 0 "Your agent was a master and could not be stopped" 1
+    assert $? 0 "Your agent was promoted and could not be stopped" 1
 
 elif [ $rc -ne 7 ]; then
     test_command stop
@@ -370,10 +370,10 @@ if [ $has_promote -eq 1 -a $has_demote -eq 1 ]; then
     assert $? 0 "Demote failed" 1
 
 elif [ $has_promote -eq 0 -a $has_demote -eq 0 ]; then
-    info "* Your agent does not support master/slave (optional)"
+    info "* Your agent does not support promotable clones (optional)"
 
 else
-    echo "* Your agent partially supports master/slave"
+    echo "* Your agent partially supports promotable clones"
     num_errors=`expr $num_errors + 1`
 fi
 
