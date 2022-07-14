@@ -1,6 +1,10 @@
+OCF_RESKEY_user_domain_name_default="Default"
+OCF_RESKEY_project_domain_name_default="Default"
 OCF_RESKEY_openstackcli_default="/usr/bin/openstack"
 OCF_RESKEY_insecure_default="false"
 
+: ${OCF_RESKEY_user_domain_name=${OCF_RESKEY_user_domain_name_default}}
+: ${OCF_RESKEY_project_domain_name=${OCF_RESKEY_project_domain_name_default}}
 : ${OCF_RESKEY_openstackcli=${OCF_RESKEY_openstackcli_default}}
 : ${OCF_RESKEY_insecure=${OCF_RESKEY_insecure_default}}
 
@@ -64,7 +68,7 @@ Keystone Project.
 Keystone User Domain Name.
 </longdesc>
 <shortdesc lang="en">Keystone User Domain Name</shortdesc>
-<content type="string" />
+<content type="string" default="${OCF_RESKEY_user_domain_name_default}" />
 </parameter>
 
 <parameter name="project_domain_name" required="0">
@@ -72,7 +76,7 @@ Keystone User Domain Name.
 Keystone Project Domain Name.
 </longdesc>
 <shortdesc lang="en">Keystone Project Domain Name</shortdesc>
-<content type="string" />
+<content type="string" default="${OCF_RESKEY_project_domain_name_default}" />
 </parameter>
 
 <parameter name="openstackcli">
@@ -133,7 +137,7 @@ get_config() {
 			exit $OCF_ERR_CONFIGURED
 		fi
 		if [ -z "$OCF_RESKEY_project_domain_name" ]; then
-			ocf_exit_reason " not set"
+			ocf_exit_reason "project_domain_name not set"
 			exit $OCF_ERR_CONFIGURED
 		fi
 
