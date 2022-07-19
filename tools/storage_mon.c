@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
 				}
 				break;
 			case 's':
-				if (device_count < MAX_DEVICES) {
+				if (score_count < MAX_DEVICES) {
 					int score = atoi(optarg);
 					if (score < 1 || score > 10) {
 						fprintf(stderr, "Score must be between 1 and 10 inclusive\n");
