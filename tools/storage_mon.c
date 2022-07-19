@@ -28,7 +28,7 @@ static void usage(char *name, FILE *f)
 	fprintf(f, "      --timeout <n>   max time to wait for a device test to come back. in seconds (default %d)\n", DEFAULT_TIMEOUT);
 	fprintf(f, "      --inject-errors-percent <n> Generate EIO errors <n>%% of the time (for testing only)\n");
 	fprintf(f, "      --verbose        emit extra output to stdout\n");
-	fprintf(f, "      --help           print this messages\n");
+	fprintf(f, "      --help           print this message\n");
 }
 
 /* Check one device */
@@ -178,9 +178,11 @@ int main(int argc, char *argv[])
 				break;
 			case 'h':
 				usage(argv[0], stdout);
+				return 0;
 				break;
 			default:
 				usage(argv[0], stderr);
+				return -1;
 				break;
 		}
 
