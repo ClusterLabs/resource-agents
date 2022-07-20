@@ -232,13 +232,13 @@ int main(int argc, char *argv[])
 
 				if (w == test_forks[i]) {
 					if (WIFEXITED(wstatus)) {
-						if (WEXITSTATUS(wstatus) == 0) {
-							finished_count++;
-							test_forks[i] = 0;
-						} else {
+						if (WEXITSTATUS(wstatus) != 0) {
 							syslog(LOG_ERR, "Error reading from device %s", devices[i]);
 							final_score += scores[i];
 						}
+
+						finished_count++;
+						test_forks[i] = 0;
 					}
 				}
 			}
