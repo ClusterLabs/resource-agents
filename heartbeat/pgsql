@@ -808,7 +808,7 @@ pgsql_real_stop() {
     local stop_escalate
 
     if ocf_is_true ${OCF_RESKEY_check_wal_receiver}; then
-        attrd_updater -n "$PGSQL_WAL_RECEIVER_STATUS_ATTR" -D -q
+        attrd_updater -n "$PGSQL_WAL_RECEIVER_STATUS_ATTR" -D
     fi
 
     if ! pgsql_status
@@ -937,16 +937,16 @@ pgsql_wal_receiver_status() {
     receiver_parent_pids=`ps -ef | tr -s " " | grep "[w]al\s*receiver" | cut -d " " -f 3`
 
     if echo "$receiver_parent_pids" | grep -q -w "$PID" ; then
-        attrd_updater -n "$PGSQL_WAL_RECEIVER_STATUS_ATTR" -v "normal" -q
+        attrd_updater -n "$PGSQL_WAL_RECEIVER_STATUS_ATTR" -v "normal"
         return 0
     fi
 
     if [ $pgsql_real_monitor_status -eq "$OCF_RUNNING_MASTER" ]; then
-        attrd_updater -n "$PGSQL_WAL_RECEIVER_STATUS_ATTR" -v "normal (master)" -q
+        attrd_updater -n "$PGSQL_WAL_RECEIVER_STATUS_ATTR" -v "normal (master)"
         return 0
     fi
 
-    attrd_updater -n "$PGSQL_WAL_RECEIVER_STATUS_ATTR" -v "ERROR" -q
+    attrd_updater -n "$PGSQL_WAL_RECEIVER_STATUS_ATTR" -v "ERROR"
     ocf_log warn "wal receiver process is not running"
     return 1
 }
