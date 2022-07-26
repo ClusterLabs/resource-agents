@@ -355,7 +355,7 @@ END
 
 set_cib_value() {
 	local score=`expr $1 \* $OCF_RESKEY_multiplier`
-	attrd_updater -n $ATTRNAME -v $score -q
+	attrd_updater -n $ATTRNAME -v $score
 	local rc=$?
 	case $rc in
 		0) ocf_log debug "attrd_updater: Updated $ATTRNAME = $score" ;;
