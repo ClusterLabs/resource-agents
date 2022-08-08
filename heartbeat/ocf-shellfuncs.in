@@ -672,6 +672,18 @@ EOF
 	systemctl daemon-reload
 }
 
+# move process to root cgroup if realtime scheduling is enabled
+ocf_move_to_root_cgroup_if_rt_enabled()
+{
+	if [ -e "/sys/fs/cgroup/cpu/cpu.rt_runtime_us" ]; then
+		echo $$ >> /sys/fs/cgroup/cpu/tasks
+
+		if [ "$?" -ne "0" ]; then
+			ocf_log warn "Unable to move PID $$ to the root cgroup"
+		fi
+	fi
+}
+
 # usage: crm_mon_no_validation args...
 # run crm_mon without any cib schema validation
 # This is useful when an agent runs in a bundle to avoid potential

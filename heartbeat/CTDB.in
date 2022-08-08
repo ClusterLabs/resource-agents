@@ -709,6 +709,8 @@ EOF
 invoke_ctdbd() {
 	local vers="$1"
 
+	ocf_move_to_root_cgroup_if_rt_enabled
+
 	ocf_version_cmp "$vers" "4.9.0"
 	if [ "$?" -ne "0" ]; then
 		# With 4.9+, all ctdbd binary parameters are provided as
