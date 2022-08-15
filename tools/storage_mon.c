@@ -38,7 +38,6 @@ static int open_device(const char *device, int verbose)
 	uint64_t devsize;
 	off_t seek_spot;
 
-#if defined(__linux__) || defined(__FreeBSD__)
 	device_fd = open(device, O_RDONLY|O_DIRECT);
 	if (device_fd >= 0) {
 		return device_fd;
@@ -46,7 +45,6 @@ static int open_device(const char *device, int verbose)
 		fprintf(stderr, "Failed to open %s: %s\n", device, strerror(errno));
 		return -1;
 	}
-#endif
 
 	device_fd = open(device, O_RDONLY);
 	if (device_fd < 0) {
@@ -100,7 +98,11 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 		exit(-1);
 	}
 
+#ifdef __FreeBSD__
+	ioctl(device_fd, DIOCGSECTORSIZE, &sec_size);
+#else
 	ioctl(device_fd, BLKSSZGET, &sec_size);
+#endif
 	if (sec_size == 0) {
 		fprintf(stderr, "Failed to stat %s: %s\n", device, strerror(errno));
 		goto error;
