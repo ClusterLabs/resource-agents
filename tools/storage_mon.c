@@ -31,38 +31,43 @@ static void usage(char *name, FILE *f)
 	fprintf(f, "      --help           print this message\n");
 }
 
-static int open_device(const char *device, int verbose)
+/* Check one device */
+static void *test_device(const char *device, int verbose, int inject_error_percent)
 {
+	uint64_t devsize;
+	int flags = O_RDONLY | O_DIRECT;
 	int device_fd;
 	int res;
-	uint64_t devsize;
 	off_t seek_spot;
 
-	device_fd = open(device, O_RDONLY|O_DIRECT);
-	if (device_fd >= 0) {
-		return device_fd;
-	} else if (errno != EINVAL) {
-		fprintf(stderr, "Failed to open %s: %s\n", device, strerror(errno));
-		return -1;
+	if (verbose) {
+		printf("Testing device %s\n", device);
 	}
 
-	device_fd = open(device, O_RDONLY);
+	device_fd = open(device, flags);
 	if (device_fd < 0) {
-		fprintf(stderr, "Failed to open %s: %s\n", device, strerror(errno));
-		return -1;
+		if (errno != EINVAL) {
+			fprintf(stderr, "Failed to open %s: %s\n", device, strerror(errno));
+			exit(-1);
+		}
+		flags &= ~O_DIRECT;
+		device_fd = open(device, flags);
+		if (device_fd < 0) {
+			fprintf(stderr, "Failed to open %s: %s\n", device, strerror(errno));
+			exit(-1);
+		}
 	}
 #ifdef __FreeBSD__
 	res = ioctl(device_fd, DIOCGMEDIASIZE, &devsize);
 #else
 	res = ioctl(device_fd, BLKGETSIZE64, &devsize);
 #endif
-	if (res != 0) {
+	if (res < 0) {
 		fprintf(stderr, "Failed to stat %s: %s\n", device, strerror(errno));
-		close(device_fd);
-		return -1;
+		goto error;
 	}
 	if (verbose) {
-		fprintf(stderr, "%s: size=%zu\n", device, devsize);
+		printf("%s: opened %s O_DIRECT, size=%zu\n", device, (flags & O_DIRECT)?"with":"without", devsize);
 	}
 
 	/* Don't fret about real randomness */
@@ -72,65 +77,58 @@ static int open_device(const char *device, int verbose)
 	res = lseek(device_fd, seek_spot, SEEK_SET);
 	if (res < 0) {
 		fprintf(stderr, "Failed to seek %s: %s\n", device, strerror(errno));
-		close(device_fd);
-		return -1;
+		goto error;
 	}
 	if (verbose) {
 		printf("%s: reading from pos %ld\n", device, seek_spot);
 	}
-	return device_fd;
-}
 
-/* Check one device */
-static void *test_device(const char *device, int verbose, int inject_error_percent)
-{
-	int device_fd;
-	int sec_size = 0;
-	int res;
-	void *buffer;
-
-	if (verbose) {
-		printf("Testing device %s\n", device);
-	}
-
-	device_fd = open_device(device, verbose);
-	if (device_fd < 0) {
-		exit(-1);
-	}
+	if (flags & O_DIRECT) {
+		int sec_size = 0;
+		void *buffer;
 
 #ifdef __FreeBSD__
-	ioctl(device_fd, DIOCGSECTORSIZE, &sec_size);
+		res = ioctl(device_fd, DIOCGSECTORSIZE, &sec_size);
 #else
-	ioctl(device_fd, BLKSSZGET, &sec_size);
+		res = ioctl(device_fd, BLKSSZGET, &sec_size);
 #endif
-	if (sec_size == 0) {
-		fprintf(stderr, "Failed to stat %s: %s\n", device, strerror(errno));
-		goto error;
-	}
+		if (res < 0) {
+			fprintf(stderr, "Failed to stat %s: %s\n", device, strerror(errno));
+			goto error;
+		}
 
-	if (posix_memalign(&buffer, sysconf(_SC_PAGESIZE), sec_size) != 0) {
-		fprintf(stderr, "Failed to allocate aligned memory: %s\n", strerror(errno));
-		goto error;
-	}
+		if (posix_memalign(&buffer, sysconf(_SC_PAGESIZE), sec_size) != 0) {
+			fprintf(stderr, "Failed to allocate aligned memory: %s\n", strerror(errno));
+			goto error;
+		}
+		res = read(device_fd, buffer, sec_size);
+		free(buffer);
+		if (res < 0) {
+			fprintf(stderr, "Failed to read %s: %s\n", device, strerror(errno));
+			goto error;
+		}
+		if (res < sec_size) {
+			fprintf(stderr, "Failed to read %d bytes from %s, got %d\n", sec_size, device, res);
+			goto error;
+		}
+	} else {
+		char buffer[512];
 
-	res = read(device_fd, buffer, sec_size);
-	free(buffer);
-	if (res < 0) {
-		fprintf(stderr, "Failed to read %s: %s\n", device, strerror(errno));
-		goto error;
-	}
-	if (res < sec_size) {
-		fprintf(stderr, "Failed to read %d bytes from %s, got %d\n", sec_size, device, res);
-		goto error;
+		res = read(device_fd, buffer, sizeof(buffer));
+		if (res < 0) {
+			fprintf(stderr, "Failed to read %s: %s\n", device, strerror(errno));
+			goto error;
+		}
+		if (res < (int)sizeof(buffer)) {
+			fprintf(stderr, "Failed to read %ld bytes from %s, got %d\n", sizeof(buffer), device, res);
+			goto error;
+		}
 	}
 
 	/* Fake an error */
-	if (inject_error_percent) {
-		srand(time(NULL) + getpid());
-		if ((rand() % 100) < inject_error_percent) {
-			fprintf(stderr, "People, please fasten your seatbelts, injecting errors!\n");
-			goto error;
-		}
+	if (inject_error_percent && ((rand() % 100) < inject_error_percent)) {
+		fprintf(stderr, "People, please fasten your seatbelts, injecting errors!\n");
+		goto error;
 	}
 	res = close(device_fd);
 	if (res != 0) {
