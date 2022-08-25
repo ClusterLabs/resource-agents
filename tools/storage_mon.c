@@ -63,7 +63,7 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 	res = ioctl(device_fd, BLKGETSIZE64, &devsize);
 #endif
 	if (res < 0) {
-		fprintf(stderr, "Failed to stat %s: %s\n", device, strerror(errno));
+		fprintf(stderr, "Failed to get device size for %s: %s\n", device, strerror(errno));
 		goto error;
 	}
 	if (verbose) {
@@ -93,7 +93,7 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 		res = ioctl(device_fd, BLKSSZGET, &sec_size);
 #endif
 		if (res < 0) {
-			fprintf(stderr, "Failed to stat %s: %s\n", device, strerror(errno));
+			fprintf(stderr, "Failed to get block device sector size for %s: %s\n", device, strerror(errno));
 			goto error;
 		}
 
