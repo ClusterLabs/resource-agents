@@ -49,7 +49,7 @@ usage() {
 
     echo "Tool for testing if a cluster resource is OCF compliant"
     echo ""
-    echo "Usage: ocf-tester [-LhvqdX] -n resource_name [-o name=value]* /full/path/to/resource/agent"
+    echo "Usage: ocf-tester [-hvqdX] -n resource_name [-o name=value]* /full/path/to/resource/agent"
     echo ""
     echo "Options:"
     echo "  -h       		This text"
