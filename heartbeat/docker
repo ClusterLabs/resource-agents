@@ -418,7 +418,7 @@ docker_start()
 		# we already know at this point it wouldn't be running
 		remove_container
 		ocf_log info "running container $CONTAINER for the first time"
-		ocf_run docker run $run_opts $OCF_RESKEY_image $OCF_RESKEY_run_cmd
+		ocf_run docker run $OCF_RESKEY_run_cmd $run_opts $OCF_RESKEY_image
 	fi
 
 	if [ $? -ne 0 ]; then

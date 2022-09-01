@@ -442,7 +442,7 @@ podman_start()
 		# make sure any previous container matching our container name is cleaned up first.
 		# we already know at this point it wouldn't be running
 		remove_container
-		run_new_container "$run_opts" $OCF_RESKEY_image "$OCF_RESKEY_run_cmd"
+		run_new_container "$OCF_RESKEY_run_cmd" "$run_opts" $OCF_RESKEY_image
 		if [ $? -eq 125 ]; then
 			return $OCF_ERR_GENERIC
 		fi
