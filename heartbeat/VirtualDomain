@@ -577,7 +577,7 @@ VirtualDomain_status() {
 					# During the stop operation, we want to bail out
 					# quickly, so as to be able to force-stop (destroy)
 					# the domain if necessary.
-					ocf_log error "Virtual domain $DOMAIN_NAME has no state during stop operation, bailing out."
+					ocf_exit_reason "Virtual domain $DOMAIN_NAME has no state during stop operation, bailing out."
 					return $OCF_ERR_GENERIC;
 				elif [ "$__OCF_ACTION" = "monitor" ]; then
 					pid_status
