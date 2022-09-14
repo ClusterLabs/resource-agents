@@ -500,10 +500,7 @@ IptablesValidateAll()
 		ocf_log err "Tickles are only useful with action=unblock!"
 		exit $OCF_ERR_CONFIGURED
 	fi
-	if [ ! -d "$OCF_RESKEY_tickle_dir" ]; then
-		ocf_log err "The tickle dir doesn't exist!"
-		exit $OCF_ERR_INSTALLED	  	
-	fi
+	mkdir -p $OCF_RESKEY_tickle_dir
   fi
 
   case $action in
@@ -592,6 +589,7 @@ fi
 
 case $1 in
   start)	
+			IptablesValidateAll
 			IptablesStart $protocol $portno $ip $action 
 			;;
 
