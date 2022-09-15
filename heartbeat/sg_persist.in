@@ -205,7 +205,6 @@ sg_persist_init() {
     NODE=${NODE% *}
     
     MASTER_SCORE_ATTRIBUTE="${HA_SBIN_DIR}/crm_attribute --lifetime=reboot --name=$MASTER_SCORE_VAR_NAME --node=$NODE"
-    CRM_MASTER="${HA_SBIN_DIR}/crm_master --lifetime=reboot"
     PENDING_ATTRIBUTE="${HA_SBIN_DIR}/crm_attribute --lifetime=reboot --name=$PENDING_VAR_NAME --node=$NODE"
 
     NODE_ID_HEX=$(printf '0x%x' $NODE_ID_DEC)

@@ -37,8 +37,6 @@ OCF_RESKEY_state_default="${HA_RSCTMP}/Stateful-${OCF_RESOURCE_INSTANCE}.state"
 
 : ${OCF_RESKEY_state=${OCF_RESKEY_state_default}}
 
-CRM_MASTER="${HA_SBIN_DIR}/crm_master -l reboot"
-
 #######################################################################
 
 meta_data() {
@@ -118,7 +116,7 @@ stateful_start() {
 	return $OCF_RUNNING_MASTER
     fi
     stateful_update slave
-    $CRM_MASTER -v 5
+    ocf_promotion_score -v 5
     return $OCF_SUCCESS
 }
 
@@ -129,7 +127,7 @@ stateful_demote() {
 	return $OCF_NOT_RUNNING
     fi
     stateful_update slave
-    $CRM_MASTER -v 5
+    ocf_promotion_score -v 5
     return $OCF_SUCCESS
 }
 
@@ -139,12 +137,12 @@ stateful_promote() {
 	return $OCF_NOT_RUNNING
     fi
     stateful_update master
-    $CRM_MASTER -v 10
+    ocf_promotion_score -v 10
     return $OCF_SUCCESS
 }
 
 stateful_stop() {
-    $CRM_MASTER -D
+    ocf_promotion_score -D
     stateful_check_state master
     if [ $? = 0 ]; then
        	# CRM Error - Should never happen

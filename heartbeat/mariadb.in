@@ -369,7 +369,7 @@ have_master_with_priority() {
     # a lack of priority indicates that we need to select a
     # new master.
     for node in $OCF_RESKEY_node_list; do
-        $CRM_MASTER -G -N $node >/dev/null 2>&1
+        ocf_promotion_score -G -N $node >/dev/null 2>&1
         rc=$?
         if [ $rc -eq 0 ]; then
             return 0
@@ -422,7 +422,7 @@ attempt_to_set_master() {
     # then set a master
     if [ $node_count -ge $expected_node_count ]; then
         ocf_log info "Promoting $master_candidate to master, highest gtid $highest_gtid, queried $node_count nodes."
-        $CRM_MASTER -v 100 -N $master_candidate
+        ocf_promotion_score -v 100 -N $master_candidate
     else
         ocf_log info "Not enough nodes ($node_count) contributed to select a master, need $expected_node_count nodes."
     fi
@@ -823,7 +823,7 @@ mysql_start() {
     # already promoted a master. So, we simply start in read only
     # mode and make sure our old score is invalidated.
     set_read_only on
-    $CRM_MASTER -D
+    ocf_promotion_score -D
 
     # Now, let's see whether there is a master. We might be a new
     # node that is just joining the cluster, and the CRM may have
@@ -860,7 +860,7 @@ mysql_start() {
 
 mysql_stop() {
     # clear preference for becoming master
-    $CRM_MASTER -D
+    ocf_promotion_score -D
 
     # Remove VIP capability
     set_reader_attr 0
@@ -906,7 +906,7 @@ mysql_demote() {
 
     # Return master preference to default, so the cluster manager gets
     # a chance to select a new master
-    $CRM_MASTER -D
+    ocf_promotion_score -D
 }
 
 mysql_notify() {

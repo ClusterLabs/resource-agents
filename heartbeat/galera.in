@@ -496,9 +496,9 @@ clear_master_score()
 {
     local node=$(ocf_attribute_target $1)
     if [ -z "$node" ]; then
-        $CRM_MASTER -D
+        ocf_promotion_score -D
     else 
-        $CRM_MASTER -D -N $node
+        ocf_promotion_score -D -N $node
     fi
 }
 
@@ -507,9 +507,9 @@ set_master_score()
     local node=$(ocf_attribute_target $1)
 
     if [ -z "$node" ]; then
-        $CRM_MASTER -v 100
+        ocf_promotion_score -v 100
     else 
-        $CRM_MASTER -N $node -v 100
+        ocf_promotion_score -N $node -v 100
     fi
 }
 
