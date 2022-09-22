@@ -50,6 +50,7 @@ OCF_RESKEY_vg_access_mode_default=""
 OCF_RESKEY_activation_mode_default="exclusive"
 OCF_RESKEY_tag_default="pacemaker"
 OCF_RESKEY_partial_activation_default="false"
+OCF_RESKEY_auto_drop_lock_default="true"
 
 : ${OCF_RESKEY_vgname=${OCF_RESKEY_vgname_default}}
 : ${OCF_RESKEY_lvname=${OCF_RESKEY_lvname_default}}
@@ -57,6 +58,7 @@ OCF_RESKEY_partial_activation_default="false"
 : ${OCF_RESKEY_activation_mode=${OCF_RESKEY_activation_mode_default}}
 : ${OCF_RESKEY_tag=${OCF_RESKEY_tag_default}}
 : ${OCF_RESKEY_partial_activation=${OCF_RESKEY_partial_activation_default}}
+: ${OCF_RESKEY_auto_drop_lock=${OCF_RESKEY_auto_drop_lock_default}}
 
 # If LV is given, only activate this named LV; otherwise, activate all
 # LVs in the named VG.
@@ -171,6 +173,18 @@ and "tagging", they always mean exclusive activation.
 </longdesc>
 <shortdesc lang="en">Logical volume activation mode</shortdesc>
 <content type="string" default="${OCF_RESKEY_activation_mode_default}" />
+</parameter>
+
+<parameter name="auto_drop_lock" unique="0" required="0">
+<longdesc lang="en">
+If set, the locks left in previous lockspace created when exclusively activating LV 
+will be dropped first before activating again. It could happen when the lvmlockd daemon 
+is killed manually and EX locks will become orphaned in the responding VG lockspace. Thus
+it'll report failure when cluster trying to bring up the LV resource again if we don't 
+drop the orphaned locks first.
+</longdesc>
+<shortdesc lang="en">drop locks left in previous lockspace</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_auto_drop_lock_default}" />
 </parameter>
 
 <parameter name="tag" unique="0" required="0">
@@ -628,6 +642,10 @@ lvmlockd_activate() {
 		activate_opt="-aey"
 	fi
 
+	# lvmlockd drop the locks first in case the lvmlockd is killed before
+	if [ ocf_is_true "$OCF_RESKEY_auto_drop_lock" ] && [ "$LV_activation_mode" != "shared" ]; then
+		ocf_run lvmlockctl -r ${VG}
+	fi
 	# lvmlockd requires shared VGs to be started before they're used
 	ocf_run vgchange --lockstart ${VG}
 	rc=$?
