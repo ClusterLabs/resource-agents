@@ -1048,6 +1048,16 @@ ocf_attribute_target() {
 	echo $1
 }
 
+ocf_promotion_score() {
+	ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.10.0"
+	res=$?
+	if [ $res -eq 2 ] || [ $res -eq 1 ] || ! have_binary "crm_master"; then
+		${HA_SBIN_DIR}/crm_attribute -p $@
+	else
+		${HA_SBIN_DIR}/crm_master -l reboot $@
+	fi
+}
+
 __ocf_set_defaults "$@"
 
 : ${OCF_TRACE_RA:=$OCF_RESKEY_trace_ra}

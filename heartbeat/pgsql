@@ -644,7 +644,7 @@ pgsql_replication_start() {
     # initializing for replication
     change_pgsql_status "$NODENAME" "STOP"
     delete_master_baseline
-    exec_with_retry 0 $CRM_MASTER -v $CAN_NOT_PROMOTE
+    exec_with_retry 0 ocf_promotion_score -v $CAN_NOT_PROMOTE
     rm -f ${XLOG_NOTE_FILE}.* $REP_MODE_CONF $RECOVERY_CONF
     if ! make_recovery_conf || ! delete_xlog_location || ! set_async_mode_all; then
         return $OCF_ERR_GENERIC
@@ -769,7 +769,7 @@ pgsql_promote() {
     fi
 
     change_data_status "$NODENAME" "LATEST"
-    exec_with_retry 0 $CRM_MASTER -v $PROMOTE_ME
+    exec_with_retry 0 ocf_promotion_score -v $PROMOTE_ME
     change_pgsql_status "$NODENAME" "PRI"
     return $OCF_SUCCESS
 }
@@ -783,7 +783,7 @@ pgsql_demote() {
         return $OCF_ERR_CONFIGURED
     fi
 
-    exec_with_retry 0 $CRM_MASTER -v $CAN_NOT_PROMOTE
+    exec_with_retry 0 ocf_promotion_score -v $CAN_NOT_PROMOTE
     delete_master_baseline
 
     if ! pgsql_status; then
@@ -878,7 +878,7 @@ pgsql_real_stop() {
 pgsql_replication_stop() {
     local rc
 
-    exec_with_retry 5 $CRM_MASTER -v $CAN_NOT_PROMOTE
+    exec_with_retry 5 ocf_promotion_score -v $CAN_NOT_PROMOTE
     delete_xlog_location
 
     if ! pgsql_status
@@ -984,7 +984,7 @@ pgsql_real_monitor() {
                 if [ "$OCF_RESKEY_monitor_sql" = "$OCF_RESKEY_monitor_sql_default" ]; then
                     if ocf_is_probe; then
                         # Set initial score for primary.
-                        exec_with_retry 0 $CRM_MASTER -v $PROMOTE_ME
+                        exec_with_retry 0 ocf_promotion_score -v $PROMOTE_ME
                     fi
                     return $OCF_RUNNING_MASTER
                 fi
@@ -993,7 +993,7 @@ pgsql_real_monitor() {
             t)  ocf_log debug "PostgreSQL is running as a hot standby."
                 if ocf_is_probe; then
                     # Set initial score for hot standby.
-                    exec_with_retry 0 $CRM_MASTER -v $CAN_NOT_PROMOTE
+                    exec_with_retry 0 ocf_promotion_score -v $CAN_NOT_PROMOTE
                 fi
                 return $OCF_SUCCESS;;
 
@@ -1337,7 +1337,7 @@ have_master_right() {
                     head -1 | cut -d " " -f 2`
         if [ "$newestXlog" = "$mylocation" ]; then
             ocf_log info "I have a master right."
-            exec_with_retry 5 $CRM_MASTER -v $PROMOTE_ME
+            exec_with_retry 5 ocf_promotion_score -v $PROMOTE_ME
             return 0
         fi
         change_data_status "$NODENAME" "DISCONNECT"
@@ -1942,7 +1942,6 @@ pgsql_validate_all() {
         PGSQL_LOCK=${OCF_RESKEY_tmpdir}/PGSQL.lock
         XLOG_NOTE_FILE=${OCF_RESKEY_tmpdir}/xlog_note
 
-        CRM_MASTER="${HA_SBIN_DIR}/crm_master -l reboot"
         CRM_ATTR_REBOOT="${HA_SBIN_DIR}/crm_attribute -l reboot"
         CRM_ATTR_FOREVER="${HA_SBIN_DIR}/crm_attribute -l forever"
         CRM_RESOURCE="${HA_SBIN_DIR}/crm_resource"
