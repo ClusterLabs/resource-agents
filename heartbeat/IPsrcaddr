@@ -188,7 +188,7 @@ IPADDR="\($OCTET\.\)\{3\}$OCTET"
 SRCCLAUSE="src$WS$WS*\($IPADDR\)"
 MATCHROUTE="\(.*${WS}\)\($SRCCLAUSE\)\($WS.*\|$\)"
 METRICCLAUSE=".*\(metric$WS[^ ]\+\)"
-PROTOCLAUSE=".*\(proto$WS[^ ]\+\)"
+PROTOCLAUSE=".*\(proto$WS[^ ]\+\).*"
 FINDIF=findif
 
 # findif needs that to be set
