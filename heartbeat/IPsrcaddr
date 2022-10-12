@@ -59,12 +59,14 @@ OCF_RESKEY_ipaddress_default=""
 OCF_RESKEY_cidr_netmask_default=""
 OCF_RESKEY_destination_default="0.0.0.0/0"
 OCF_RESKEY_proto_default=""
+OCF_RESKEY_metric_default=""
 OCF_RESKEY_table_default=""
 
 : ${OCF_RESKEY_ipaddress=${OCF_RESKEY_ipaddress_default}}
 : ${OCF_RESKEY_cidr_netmask=${OCF_RESKEY_cidr_netmask_default}}
 : ${OCF_RESKEY_destination=${OCF_RESKEY_destination_default}}
 : ${OCF_RESKEY_proto=${OCF_RESKEY_proto_default}}
+: ${OCF_RESKEY_metric=${OCF_RESKEY_metric_default}}
 : ${OCF_RESKEY_table=${OCF_RESKEY_table_default}}
 #######################################################################
 
@@ -141,6 +143,14 @@ Proto to match when finding network. E.g. "kernel".
 </longdesc>
 <shortdesc lang="en">Proto</shortdesc>
 <content type="string" default="${OCF_RESKEY_proto_default}" />
+</parameter>
+
+<parameter name="metric">
+<longdesc lang="en">
+Metric. Only needed if incorrect metric value is used.
+</longdesc>
+<shortdesc lang="en">Metric</shortdesc>
+<content type="string" default="${OCF_RESKEY_metric_default}" />
 </parameter>
 
 <parameter name="table">
@@ -548,8 +558,14 @@ rc=$?
 
 INTERFACE=`echo $findif_out | awk '{print $1}'`
 LISTROUTE=`$IP2UTIL route list dev $INTERFACE scope link $PROTO match $ipaddress`
-METRIC=`echo $LISTROUTE | sed -n "s/$METRICCLAUSE/\1/p"`
 [ -z "$PROTO" ] && PROTO=`echo $LISTROUTE | sed -n "s/$PROTOCLAUSE/\1/p"`
+if [ -n "$OCF_RESKEY_metric" ]; then
+	METRIC="metric $OCF_RESKEY_metric"
+elif [ -z "$TABLE" ] || [ "${TABLE#table }" = "main" ]; then
+	METRIC=`echo $LISTROUTE | sed -n "s/$METRICCLAUSE/\1/p"`
+else
+	METRIC=""
+fi
 if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] ;then
 	NETWORK=`echo $LISTROUTE | grep -m 1 -o '^[^ ]*'`
 
