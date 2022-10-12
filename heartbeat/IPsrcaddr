@@ -279,8 +279,14 @@ srca_stop() {
 	  
 	[ $rc = 2 ] && errorexit "The address you specified to stop does not match the preferred source address"
 
+	if [ -z "$TABLE" ] || [ "${TABLE#table }" = "main" ]; then
+		SCOPE="link"
+	else
+		SCOPE="host"
+	fi
+
 	PRIMARY_IP="$($IP2UTIL -4 -o addr show dev $INTERFACE primary | awk '{split($4,a,"/");print a[1]}')"
-	OPTS="proto kernel scope link src $PRIMARY_IP"
+	OPTS="proto kernel scope $SCOPE src $PRIMARY_IP"
 
 	$IP2UTIL route replace $TABLE $NETWORK dev $INTERFACE $OPTS $METRIC || \
 		errorexit "command 'ip route replace $TABLE $NETWORK dev $INTERFACE $OPTS $METRIC' failed"
