@@ -159,6 +159,10 @@ int main(int argc, char *argv[])
 	time_t start_time;
 	size_t i;
 	int final_score = 0;
+	char attrname[512] = "#health-";
+	const char *str;
+	pid_t pid;
+	int wstatus;
 	int opt, option_index;
 	int verbose = 0;
 	int inject_error_percent = 0;
@@ -252,23 +256,20 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	/* See if they have finished */
+	/* See if threads have finished until timeout */
 	clock_gettime(CLOCK_REALTIME, &ts);
 	start_time = ts.tv_sec;
 
 	while ((finished_count < device_count) && ((start_time + timeout) > ts.tv_sec)) {
 		for (i=0; i<device_count; i++) {
-			int wstatus;
-			pid_t w;
-
 			if (test_forks[i] > 0) {
-				w = waitpid(test_forks[i], &wstatus, WUNTRACED | WNOHANG | WCONTINUED);
-				if (w < 0) {
+				pid = waitpid(test_forks[i], &wstatus, WUNTRACED | WNOHANG | WCONTINUED);
+				if (pid < 0) {
 					fprintf(stderr, "waitpid on %s failed: %s\n", devices[i], strerror(errno));
 					return -1;
 				}
 
-				if (w == test_forks[i]) {
+				if (pid == test_forks[i]) {
 					if (WIFEXITED(wstatus)) {
 						if (WEXITSTATUS(wstatus) != 0) {
 							syslog(LOG_ERR, "Error reading from device %s", devices[i]);
@@ -296,8 +297,39 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (verbose) {
-		printf("Final score is %d\n", final_score);
+	/* Update node health attribute */
+	str = getenv("OCF_RESOURCE_INSTANCE");
+	if (str == NULL) {
+		str = "storage-mon";
 	}
-	return final_score;
+	strcat(attrname, str);
+	str = (final_score > 0) ? "red" : "green";
+	if (verbose) {
+		printf("Update attribute '%s' to '%s'\n", attrname, str);
+	}
+	pid = fork();
+	if (pid == 0) {
+		execl("/usr/sbin/attrd_updater", "attrd_updater", "-n", attrname, "-U", str, "-d", "5s", NULL);
+		syslog(LOG_ERR, "Failed to execute attrd_updater: %s", strerror(errno));
+		fprintf(stderr, "Failed to execute attrd_updater: %s\n", strerror(errno));
+		return -1;
+	} else if (pid < 0) {
+		syslog(LOG_ERR, "Error spawning fork for attrd_updater: %s", strerror(errno));
+		fprintf(stderr, "Error spawning fork for attrd_updater: %s\n", strerror(errno));
+		return -1;
+	}
+
+	/* See if threads have finished */
+	while (finished_count < device_count) {
+		for (i=0; i<device_count; i++) {
+			if (test_forks[i] > 0
+			    && waitpid(test_forks[i], &wstatus, WUNTRACED | WNOHANG | WCONTINUED) == test_forks[i]
+			    && WIFEXITED(wstatus)) {
+				finished_count++;
+				test_forks[i] = 0;
+			}
+		}
+		usleep(100000);
+	}
+	return 0;
 }

@@ -49,7 +49,6 @@
 
 #
 STORAGEMON=$HA_BIN/storage_mon
-ATTRDUP=/usr/sbin/attrd_updater
 
 OCF_RESKEY_CRM_meta_interval_default="0"
 OCF_RESKEY_io_timeout_default="10"
@@ -209,12 +208,8 @@ storage-mon_monitor() {
 	fi
 	$STORAGEMON $cmdline
 	if [ $? -ne 0 ]; then
-		status="red"
-	else
-		status="green"
+		return $OCF_ERR_GENERIC
 	fi
-
-	"$ATTRDUP" -n "#health-${OCF_RESOURCE_INSTANCE}" -U "$status" -d "5s"
 	return $OCF_SUCCESS
 }
 
