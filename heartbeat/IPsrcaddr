@@ -229,6 +229,7 @@ srca_read() {
 
 	[ -z "$SRCIP" ] && return 1
 	[ $SRCIP = $1 ] && return 0
+	[ "$__OCF_ACTION" = "monitor" ] || [ "$__OCF_ACTION" = "status" ] && [ "${ROUTE%% *}" = "default" ] && return 1
 	return 2
 }
 
@@ -292,8 +293,8 @@ srca_stop() {
 		errorexit "command 'ip route replace $TABLE $NETWORK dev $INTERFACE $OPTS $METRIC' failed"
 
 	if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] ;then
-		$CMDCHANGE $ROUTE_WO_SRC || \
-			errorexit "command '$CMDCHANGE $ROUTE_WO_SRC' failed"
+		$CMDCHANGE $ROUTE_WO_SRC src $PRIMARY_IP || \
+			errorexit "command '$CMDCHANGE $ROUTE_WO_SRC src $PRIMARY_IP' failed"
 	fi
 
 	return $?
