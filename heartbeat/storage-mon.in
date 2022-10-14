@@ -206,7 +206,7 @@ storage-mon_monitor() {
 	if [ -n "${OCF_RESKEY_inject_errors}" ]; then
 		cmdline="$cmdline --inject-errors-percent ${OCF_RESKEY_inject_errors}"
 	fi
-	$STORAGEMON $cmdline
+	(export HA_SBIN_DIR; $STORAGEMON $cmdline)
 	if [ $? -ne 0 ]; then
 		return $OCF_ERR_GENERIC
 	fi

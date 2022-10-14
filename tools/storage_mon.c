@@ -309,7 +309,13 @@ int main(int argc, char *argv[])
 	}
 	pid = fork();
 	if (pid == 0) {
-		execl("/usr/sbin/attrd_updater", "attrd_updater", "-n", attrname, "-U", str, "-d", "5s", NULL);
+		char path[128];
+		const char *dir = getenv("HA_SBIN_DIR");
+		if (dir == NULL) {
+			dir = "/usr/sbin";
+		}
+		sprintf(path, "%s/attrd_updater", dir);
+		execl(path, "attrd_updater", "-n", attrname, "-U", str, "-d", "5s", NULL);
 		syslog(LOG_ERR, "Failed to execute attrd_updater: %s", strerror(errno));
 		fprintf(stderr, "Failed to execute attrd_updater: %s\n", strerror(errno));
 		return -1;
