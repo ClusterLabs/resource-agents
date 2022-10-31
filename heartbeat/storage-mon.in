@@ -49,19 +49,20 @@
 
 #
 STORAGEMON=$HA_BIN/storage_mon
-ATTRDUP=/usr/sbin/attrd_updater
+PIDFILE=${HA_VARRUN}/storage-mon-${OCF_RESOURCE_INSTANCE}.pid
+ATTRNAME="#health-${OCF_RESOURCE_INSTANCE}"
 
 OCF_RESKEY_CRM_meta_interval_default="0"
 OCF_RESKEY_io_timeout_default="10"
+OCF_RESKEY_check_interval_default="30"
 OCF_RESKEY_inject_errors_default=""
-OCF_RESKEY_state_file_default="${HA_RSCTMP%%/}/storage-mon-${OCF_RESOURCE_INSTANCE}.state"
 
 # Explicitly list all environment variables used, to make static analysis happy
 : ${OCF_RESKEY_CRM_meta_interval:=${OCF_RESKEY_CRM_meta_interval_default}}
 : ${OCF_RESKEY_drives:=""}
 : ${OCF_RESKEY_io_timeout:=${OCF_RESKEY_io_timeout_default}}
+: ${OCF_RESKEY_check_interval:=${OCF_RESKEY_check_interval_default}}
 : ${OCF_RESKEY_inject_errors:=${OCF_RESKEY_inject_errors_default}}
-: ${OCF_RESKEY_state_file:=${OCF_RESKEY_state_file_default}}
 
 #######################################################################
 
@@ -82,14 +83,6 @@ devices per instance.
 
 <parameters>
 
-<parameter name="state_file" unique="1">
-<longdesc lang="en">
-Location to store the resource state in.
-</longdesc>
-<shortdesc lang="en">State file</shortdesc>
-<content type="string" default="${OCF_RESKEY_state_file_default}" />
-</parameter>
-
 <parameter name="drives" unique="1" required="1">
 <longdesc lang="en">
 The drive(s) to check as a SPACE separated list. Enter the full path to the device, e.g. "/dev/sda".
@@ -106,6 +99,14 @@ Specify disk I/O timeout in seconds. Minimum 1, recommended 10 (default).
 <content type="integer" default="${OCF_RESKEY_io_timeout_default}" />
 </parameter>
 
+<parameter name="check_interval" unique="0">
+<longdesc lang="en">
+Specify interval between I/O checks in seconds.
+</longdesc>
+<shortdesc lang="en">I/O check interval</shortdesc>
+<content type="integer" default="${OCF_RESKEY_check_interval_default}" />
+</parameter>
+
 <parameter name="inject_errors" unique="0">
 <longdesc lang="en">
 Used only for testing! Specify % of I/O errors to simulate drives failures.
@@ -119,7 +120,7 @@ Used only for testing! Specify % of I/O errors to simulate drives failures.
 <actions>
 <action name="start"        timeout="10s" />
 <action name="stop"         timeout="120s" />
-<action name="monitor"      timeout="120s" interval="30s" start-delay="0s" />
+<action name="monitor"      timeout="10s" interval="30s" start-delay="0s" />
 <action name="meta-data"    timeout="5s" />
 <action name="validate-all" timeout="10s" />
 </actions>
@@ -146,6 +147,11 @@ storage-mon_init() {
 		exit $OCF_ERR_INSTALLED
 	fi
 
+	if [ ! -x "${HA_SBIN_DIR}/attrd_updater" ] ; then
+		ocf_log err "${HA_SBIN_DIR}/attrd_updater not installed."
+		exit $OCF_ERR_INSTALLED
+	fi
+
 	i=0
 	for DRIVE in ${OCF_RESKEY_drives}; do
 		if [ ! -e "$DRIVE" ] ; then
@@ -161,7 +167,12 @@ storage-mon_init() {
 	fi
 
 	if [ "${OCF_RESKEY_io_timeout}" -lt "1" ]; then
-		ocf_log err "Minimum timeout is 1. Recommended 10 (default)."
+		ocf_log err "Minimum timeout is 1. Recommended ${OCF_RESKEY_io_timeout_default} (default)."
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	if [ "${OCF_RESKEY_check_interval}" -lt "1" ]; then
+		ocf_log err "Minimum interval to check is 1. default ${OCF_RESKEY_check_interval_default}."
 		exit $OCF_ERR_CONFIGURED
 	fi
 
@@ -173,79 +184,70 @@ storage-mon_init() {
 	fi
 }
 
-storage-mon_validate() {
+storage-mon_start() {
 	storage-mon_init
-
-	# Is the state directory writable?
-	state_dir=$(dirname "$OCF_RESKEY_state_file")
-	touch "$state_dir/$$"
-	if [ $? -ne 0 ]; then
-		return $OCF_ERR_CONFIGURED
-	fi
-	rm "$state_dir/$$"
-
-	return $OCF_SUCCESS
-}
-
-storage-mon_monitor() {
-	storage-mon_init
-
-	# Monitor _MUST!_ differentiate correctly between running
-	# (SUCCESS), failed (ERROR) or _cleanly_ stopped (NOT RUNNING).
-	# That is THREE states, not just yes/no.
-
-	if [ ! -f "${OCF_RESKEY_state_file}" ]; then
-		return $OCF_NOT_RUNNING
-	fi
 
 	# generate command line
 	cmdline=""
 	for DRIVE in ${OCF_RESKEY_drives}; do
 		cmdline="$cmdline --device $DRIVE --score 1"
 	done
-	cmdline="$cmdline --timeout ${OCF_RESKEY_io_timeout}"
+	cmdline="$cmdline --timeout ${OCF_RESKEY_io_timeout} --interval ${OCF_RESKEY_check_interval} --pidfile ${PIDFILE} --attrname ${ATTRNAME} --ha-sbin-dir ${HA_SBIN_DIR}"
 	if [ -n "${OCF_RESKEY_inject_errors}" ]; then
 		cmdline="$cmdline --inject-errors-percent ${OCF_RESKEY_inject_errors}"
 	fi
 	$STORAGEMON $cmdline
-	if [ $? -ne 0 ]; then
-		status="red"
-	else
-		status="green"
+	if [ "$?" -ne 0 ]; then
+		return $OCF_ERR_GENERIC
 	fi
-
-	"$ATTRDUP" -n "#health-${OCF_RESOURCE_INSTANCE}" -U "$status" -d "5s"
 	return $OCF_SUCCESS
 }
 
-storage-mon_start() {
-	storage-mon_monitor
-	if [ $? -eq $OCF_SUCCESS ]; then
-		return $OCF_SUCCESS
-	fi
-	touch "${OCF_RESKEY_state_file}"
+storage-mon_monitor() {
+	ocf_pidfile_status "${PIDFILE}" > /dev/null 2>&1
+	case "$?" in
+		0)	rc=$OCF_SUCCESS;;
+		1|2)	rc=$OCF_NOT_RUNNING;;
+		*)	rc=$OCF_ERR_GENERIC;;
+	esac
+
+	return "$rc"
 }
 
 storage-mon_stop() {
 	storage-mon_monitor
-	if [ $? -eq $OCF_SUCCESS ]; then
-		rm "${OCF_RESKEY_state_file}"
+	rc="$?"
+	case "$rc" in
+		$OCF_SUCCESS)
+			;;
+		$OCF_NOT_RUNNING)
+			return "$OCF_SUCCESS";;
+		*)
+			return "$rc";;
+	esac
+
+	kill -TERM $(cat "${PIDFILE}")
+	if [ "$?" -ne 0 ]; then
+		return $OCF_ERR_GENERIC
 	fi
-	return $OCF_SUCCESS
+	while true; do
+		storage-mon_monitor
+		rc="$?"
+		case "$rc" in
+			$OCF_SUCCESS)
+				;;
+			$OCF_NOT_RUNNING)
+				return "$OCF_SUCCESS";;
+			*)
+				return "$rc";;
+		esac
+		sleep 1
+	done
 }
 
 storage-mon_validate() {
 	storage-mon_init
-
-	# Is the state directory writable?
-	state_dir=$(dirname "${OCF_RESKEY_state_file}")
-	touch "$state_dir/$$"
-	if [ $? -ne 0 ]; then
-		return $OCF_ERR_CONFIGURED
-	fi
-	rm "$state_dir/$$"
-
-	return $OCF_SUCCESS
+	return "$OCF_SUCCESS"
 }
 
 case "$__OCF_ACTION" in
