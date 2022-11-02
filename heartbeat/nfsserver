@@ -79,6 +79,16 @@ Init script for nfsserver
 <content type="string" default="auto detected" />
 </parameter>
 
+<parameter name="nfsv4_only" unique="0" required="0">
+<longdesc lang="en">
+Run in NFSv4 only mode (rpc-statd and rpcbind services masked).
+</longdesc>
+<shortdesc lang="en">
+NFSv4 only mode.
+</shortdesc>
+<content type="boolean" default="false" />
+</parameter>
+
 <parameter name="nfs_no_notify" unique="0" required="0">
 <longdesc lang="en">
 Do not send reboot notifications to NFSv3 clients during server startup.
@@ -348,20 +358,22 @@ nfsserver_systemd_monitor()
 	local rc
 	local fn
 
-	ocf_log debug "Status: rpcbind"
-	rpcinfo > /dev/null 2>&1
-	rc=$?
-	if [ "$rc" -ne "0" ]; then
-		ocf_exit_reason "rpcbind is not running"
-		return $OCF_NOT_RUNNING
-	fi
+	if ! ocf_is_true "$OCF_RESKEY_nfsv4_only"; then
+		ocf_log debug "Status: rpcbind"
+		rpcinfo > /dev/null 2>&1
+		rc=$?
+		if [ "$rc" -ne "0" ]; then
+			ocf_exit_reason "rpcbind is not running"
+			return $OCF_NOT_RUNNING
+		fi
 
-	ocf_log debug "Status: nfs-mountd"
-	ps axww | grep -q "[r]pc.mountd"
-	rc=$?
-	if [ "$rc" -ne "0" ]; then
-		ocf_exit_reason "nfs-mountd is not running"
-		return $OCF_NOT_RUNNING
+		ocf_log debug "Status: nfs-mountd"
+		ps axww | grep -q "[r]pc.mountd"
+		rc=$?
+		if [ "$rc" -ne "0" ]; then
+			ocf_exit_reason "nfs-mountd is not running"
+			return $OCF_NOT_RUNNING
+		fi
 	fi
 
 	ocf_log debug "Status: nfs-idmapd"
@@ -375,12 +387,14 @@ nfsserver_systemd_monitor()
 		return $OCF_NOT_RUNNING
 	fi
 
-	ocf_log debug "Status: rpc-statd"
-	rpcinfo -t localhost 100024 > /dev/null 2>&1
-	rc=$?
-	if [ "$rc" -ne "0" ]; then
-		ocf_exit_reason "rpc-statd is not running"
-		return $OCF_NOT_RUNNING
+	if ! ocf_is_true "$OCF_RESKEY_nfsv4_only"; then
+		ocf_log debug "Status: rpc-statd"
+		rpcinfo -t localhost 100024 > /dev/null 2>&1
+		rc=$?
+		if [ "$rc" -ne "0" ]; then
+			ocf_exit_reason "rpc-statd is not running"
+			return $OCF_NOT_RUNNING
+		fi
 	fi
 
 	nfs_exec is-active nfs-server
@@ -424,7 +438,7 @@ nfsserver_monitor ()
 	if [ $rc -eq 0 ]; then
 		# don't report success if nfs servers are up
 		# without locking daemons.
-		v3locking_exec "status"
+		ocf_is_true "$OCF_RESKEY_nfsv4_only" || v3locking_exec "status"
 		rc=$?
 		if [ $rc -ne 0 ]; then
 			ocf_exit_reason "NFS server is up, but the locking daemons are down"
@@ -786,48 +800,54 @@ nfsserver_start ()
 
 	# systemd
 	case $EXEC_MODE in
-            [23]) nfs_exec start rpcbind
-		  local i=1
-		  while : ; do
-			ocf_log info "Start: rpcbind i: $i"
-			rpcinfo > /dev/null 2>&1
-			rc=$?
-			if [ "$rc" -eq "0" ]; then
-				break;
-			fi
-			sleep 1
-			i=$((i + 1))
-		  done
+            [23]) if ! ocf_is_true "$OCF_RESKEY_nfsv4_only"; then
+			nfs_exec start rpcbind
+			local i=1
+			while : ; do
+				ocf_log info "Start: rpcbind i: $i"
+				rpcinfo > /dev/null 2>&1
+				rc=$?
+				if [ "$rc" -eq "0" ]; then
+					break
+				fi
+				sleep 1
+				i=$((i + 1))
+			done
+		  fi
 		  ;;
 	esac
 
-	# check to see if we need to start rpc.statd
-	v3locking_exec "status"
-	if [ $? -ne $OCF_SUCCESS ]; then
-		v3locking_exec "start"
-		rc=$?
-		if [ $rc -ne 0 ]; then
-			ocf_exit_reason "Failed to start NFS server locking daemons"
-			return $rc
+	if ! ocf_is_true "$OCF_RESKEY_nfsv4_only"; then
+		# check to see if we need to start rpc.statd
+		v3locking_exec "status"
+		if [ $? -ne $OCF_SUCCESS ]; then
+			v3locking_exec "start"
+			rc=$?
+			if [ $rc -ne 0 ]; then
+				ocf_exit_reason "Failed to start NFS server locking daemons"
+				return $rc
+			fi
+		else
+			ocf_log info "rpc.statd already up"
 		fi
-	else
-		ocf_log info "rpc.statd already up"
 	fi
 
 	# systemd
 	case $EXEC_MODE in
-            [23]) nfs_exec start nfs-mountd
-		  local i=1
-		  while : ; do
-			ocf_log info "Start: nfs-mountd i: $i"
-			ps axww | grep -q "[r]pc.mountd"
-			rc=$?
-			if [ "$rc" -eq "0" ]; then
-				break;
-			fi
-			sleep 1
-			i=$((i + 1))
-		  done
+            [23]) if ! ocf_is_true "$OCF_RESKEY_nfsv4_only"; then
+			nfs_exec start nfs-mountd
+			local i=1
+			while : ; do
+				ocf_log info "Start: nfs-mountd i: $i"
+				ps axww | grep -q "[r]pc.mountd"
+				rc=$?
+				if [ "$rc" -eq "0" ]; then
+					break
+				fi
+				sleep 1
+				i=$((i + 1))
+			done
+		  fi
 
 		  nfs_exec start nfs-idmapd
 		  local i=1
@@ -839,24 +859,26 @@ nfsserver_start ()
 			ocf_log debug "$(cat $fn)"
 			rm -f $fn
 			if [ "$rc" -eq "0" ]; then
-				break;
+				break
 			fi
 			sleep 1
 			i=$((i + 1))
 		  done
 
-		  nfs_exec start rpc-statd
-		  local i=1
-		  while : ; do
-			ocf_log info "Start: rpc-statd i: $i"
-			rpcinfo -t localhost 100024 > /dev/null 2>&1
-			rc=$?
-			if [ "$rc" -eq "0" ]; then
-				break;
-			fi
-			sleep 1
-			i=$((i + 1))
-		  done
+		  if ! ocf_is_true "$OCF_RESKEY_nfsv4_only"; then
+			nfs_exec start rpc-statd
+			local i=1
+			while : ; do
+				ocf_log info "Start: rpc-statd i: $i"
+				rpcinfo -t localhost 100024 > /dev/null 2>&1
+				rc=$?
+				if [ "$rc" -eq "0" ]; then
+					break
+				fi
+				sleep 1
+				i=$((i + 1))
+			done
+		  fi
 	esac
 
 
@@ -914,13 +936,15 @@ nfsserver_stop ()
 			sleep 1
 		  done
 
-		  nfs_exec stop rpc-statd > /dev/null 2>&1
-		  ocf_log info "Stop: rpc-statd"
-		  rpcinfo -t localhost 100024 > /dev/null 2>&1
-		  rc=$?
-		  if [ "$rc" -eq "0" ]; then
-			ocf_exit_reason "Failed to stop rpc-statd"
-			return $OCF_ERR_GENERIC
+		  if ! ocf_is_true "$OCF_RESKEY_nfsv4_only"; then
+			nfs_exec stop rpc-statd > /dev/null 2>&1
+			ocf_log info "Stop: rpc-statd"
+			rpcinfo -t localhost 100024 > /dev/null 2>&1
+			rc=$?
+			if [ "$rc" -eq "0" ]; then
+				ocf_exit_reason "Failed to stop rpc-statd"
+				return $OCF_ERR_GENERIC
+			fi
 		  fi
 
 		  nfs_exec stop nfs-idmapd > /dev/null 2>&1
@@ -935,13 +959,15 @@ nfsserver_stop ()
 			return $OCF_ERR_GENERIC
 		  fi
 
-		  nfs_exec stop nfs-mountd > /dev/null 2>&1
-		  ocf_log info "Stop: nfs-mountd"
-		  ps axww | grep -q "[r]pc.mountd"
-		  rc=$?
-		  if [ "$rc" -eq "0" ]; then
-			ocf_exit_reason "Failed to stop nfs-mountd"
-			return $OCF_ERR_GENERIC
+		  if ! ocf_is_true "$OCF_RESKEY_nfsv4_only"; then
+			nfs_exec stop nfs-mountd > /dev/null 2>&1
+			ocf_log info "Stop: nfs-mountd"
+			ps axww | grep -q "[r]pc.mountd"
+			rc=$?
+			if [ "$rc" -eq "0" ]; then
+				ocf_exit_reason "Failed to stop nfs-mountd"
+				return $OCF_ERR_GENERIC
+			fi
 		  fi
 
 		  if systemctl --no-legend list-unit-files "nfsdcld*" | grep -q nfsdcld; then
@@ -960,10 +986,12 @@ nfsserver_stop ()
 	esac
 
 
-	v3locking_exec "stop"
-	if [ $? -ne 0 ]; then
-		ocf_exit_reason "Failed to stop NFS locking daemons"
-		rc=$OCF_ERR_GENERIC
+	if ! ocf_is_true "$OCF_RESKEY_nfsv4_only"; then
+		v3locking_exec "stop"
+		if [ $? -ne 0 ]; then
+			ocf_exit_reason "Failed to stop NFS locking daemons"
+			rc=$OCF_ERR_GENERIC
+		fi
 	fi
 
 	# systemd
