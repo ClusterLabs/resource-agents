@@ -97,7 +97,7 @@ macvlan_meta_data() {
       <content type="string"/>
     </parameter>
 
-    <parameter name="mode" unique="1">
+    <parameter name="mode" unique="0">
       <longdesc lang="en">
         Define the name of the MACVLAN mode (currently only bridge is supported).
       </longdesc>
@@ -107,7 +107,7 @@ macvlan_meta_data() {
       <content type="string" default="${OCF_RESKEY_mode_default}" />
     </parameter>
 
-    <parameter name="mac">
+    <parameter name="mac" unique="1">
      <longdesc lang="en">
       Set the interface MAC address explicitly.
      </longdesc>
@@ -158,13 +158,13 @@ macvlan_validate() {
 	check_binary $IP2UTIL
 
 	if [ -z "$OCF_RESKEY_device" ]; then
-		ocf_log err "Invalid OCF_RESKEY_device: value cannot be empty"
-		return 1
+		ocf_log err "Invalid device: value cannot be empty"
+		return $OCF_ERR_CONFIGURED
 	fi
 
 	if [ -z "$OCF_RESKEY_name" ]; then
-		ocf_log err "Invalid OCF_RESKEY_name: value cannot be empty"
-		return 1
+		ocf_log err "Invalid name: value cannot be empty"
+		return $OCF_ERR_CONFIGURED
 	fi
 
 	# the echo .. is the equivalent of strlen in bash
@@ -173,23 +173,23 @@ macvlan_validate() {
 	# needs to include 0 byte end string
 
 	if [ "${#OCF_RESKEY_name}" -gt 15 ]; then
-		ocf_log err "Invalid OCF_RESKEY_name: name is too long"
-		return 1
+		ocf_log err "Invalid name: name is too long"
+		return $OCF_ERR_CONFIGURED
 	fi
 
 	if [ ! -d "/sys/class/net" ]; then
 		ocf_log err "Unable to find sysfs network class in /sys"
-		return 1
+		return $OCF_ERR_GENERIC
 	fi
 
 	if [ ! -e "/sys/class/net/$OCF_RESKEY_device" ]; then
-		ocf_log err "Invalid OCF_RESKEY_device: $OCF_RESKEY_device does not exists"
-		return 1
+		ocf_log err "Invalid device: $OCF_RESKEY_device does not exists"
+		return $OCF_ERR_ARGS
 	fi
 
 	if [ "${OCF_RESKEY_mode}" != "bridge" ]; then
-		ocf_log err "Invalid OCF_RESKEY_mode: only bridge mode is currently supported (because other modes are not tested)"
-		return 1
+		ocf_log err "Invalid mode: only bridge mode is currently supported (because other modes are not tested)"
+		return $OCF_ERR_CONFIGURED
 	fi
 
 	return 0
@@ -205,7 +205,7 @@ macvlan_check() {
 			error="$(rm -f "$HA_RSCTMP/iface-macvlan.$OCF_RESKEY_name" 2>&1)"
 			if [ "$?" != "0" ]; then
 				ocf_log err "Unable to remove stale lock file for macvlan $OCF_RESKEY_name: $error"
-				return $OCF_ERR_GENERIC
+				return $OCF_ERR_INSTALLED
 			fi
 		fi
 		return $OCF_NOT_RUNNING
