@@ -87,7 +87,7 @@ macvlan_meta_data() {
       <content type="string"/>
     </parameter>
 
-    <parameter name="name" unique="0" required="1">
+    <parameter name="name" unique="1" required="1">
       <longdesc lang="en">
         Define the MACVLAN NAME. It has to be a valid interface name (max 15 characters).
       </longdesc>
