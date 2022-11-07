@@ -1,0 +1,363 @@
+#!/bin/sh
+#
+#       OCF Resource Agent compliant iface-macvlan script.
+#
+#       Implements network MACVLAN interface management
+#
+# Resource script for MACVLAN dervice from Fabio M. Di Nitto iface-vlan
+# script.
+#
+# Author: Ulrich Goettlich
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+#
+
+# TODO:
+#
+#	OCF parameters are as below
+#       OCF_RESKEY_device
+#       OCF_RESKEY_name
+#       OCF_RESKEY_mode
+#       OCF_RESKEY_mac
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+OCF_RESKEY_mode_default="bridge"
+
+: ${OCF_RESKEY_mode=${OCF_RESKEY_mode_default}}
+
+#######################################################################
+
+macvlan_usage() {
+	cat <<END
+usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+macvlan_meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="iface-macvlan" version="1.0">
+  <version>1.0</version>
+
+  <longdesc lang="en">
+    This resource manages MACVLAN network interfaces.
+    It can add, remove, configure MACVLANs.
+  </longdesc>
+
+  <shortdesc lang="en">
+    Manages MACVLAN network interfaces.
+  </shortdesc>
+
+  <parameters>
+    <parameter name="device" unique="0" required="1">
+      <longdesc lang="en">
+        Define the interface where MACVLAN should be attached.
+      </longdesc>
+      <shortdesc lang="en">
+        Network interface.
+      </shortdesc>
+      <content type="string"/>
+    </parameter>
+
+    <parameter name="name" unique="1" required="1">
+      <longdesc lang="en">
+        Define the MACVLAN NAME. It has to be a valid interface name (max 15 characters).
+      </longdesc>
+      <shortdesc lang="en">
+        Define the MACVLAN NAME.
+      </shortdesc>
+      <content type="string"/>
+    </parameter>
+
+    <parameter name="mode" unique="0">
+      <longdesc lang="en">
+        Define the name of the MACVLAN mode (currently only bridge is supported).
+      </longdesc>
+      <shortdesc lang="en">
+        Mode of the macvlan.
+      </shortdesc>
+      <content type="string" default="${OCF_RESKEY_mode_default}" />
+    </parameter>
+
+    <parameter name="mac" unique="1">
+     <longdesc lang="en">
+      Set the interface MAC address explicitly.
+     </longdesc>
+     <shortdesc lang="en">MAC address of the macvlan</shortdesc>
+     <content type="string" />
+</parameter>
+  </parameters>
+
+  <actions>
+    <action name="start"        timeout="30s" />
+    <action name="stop"         timeout="20s" />
+    <action name="status"       timeout="20s" depth="0" interval="10s" />
+    <action name="monitor"      timeout="20s" depth="0" interval="10s" />
+    <action name="meta-data"    timeout="5s" />
+    <action name="validate-all" timeout="20s" />
+  </actions>
+</resource-agent>
+END
+}
+
+# check if the interface is admin up/down
+
+iface_is_up() {
+	if ! $IP2UTIL -o link show $1 | \
+	    sed -e 's#.*<##g' -e 's#>.*##' -e 's#LOWER_UP##g' | \
+	    grep -q UP; then
+		return 1
+	fi
+	return 0
+}
+
+# check if the slaves have link layer up/down
+# see kernel network documentation on meaning of LOWER_UP flag
+# for more in depth explanation on how it works
+# NOTE: this check is not reliable in virt environment
+# since interfaces are always LOWER_UP. There is no way
+# from the guest to know if the host has disconnected somehow
+
+iface_lower_is_up() {
+	if ! $IP2UTIL -o link show $1 | \
+	    grep -q LOWER_UP; then
+		return 1
+	fi
+	return 0
+}
+
+macvlan_validate() {
+	check_binary $IP2UTIL
+
+	if [ -z "$OCF_RESKEY_device" ]; then
+		ocf_log err "Invalid device: value cannot be empty"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	if [ -z "$OCF_RESKEY_name" ]; then
+		ocf_log err "Invalid name: value cannot be empty"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	# the echo .. is the equivalent of strlen in bash
+	#
+	# /usr/include/linux/if.h:#define IFNAMSIZ        16
+	# needs to include 0 byte end string
+
+	if [ "${#OCF_RESKEY_name}" -gt 15 ]; then
+		ocf_log err "Invalid name: name is too long"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	if [ ! -d "/sys/class/net" ]; then
+		ocf_log err "Unable to find sysfs network class in /sys"
+		return $OCF_ERR_GENERIC
+	fi
+
+	if [ ! -e "/sys/class/net/$OCF_RESKEY_device" ]; then
+		ocf_log err "Invalid device: $OCF_RESKEY_device does not exists"
+		return $OCF_ERR_ARGS
+	fi
+
+	if [ "${OCF_RESKEY_mode}" != "bridge" ]; then
+		ocf_log err "Invalid mode: only bridge mode is currently supported (because other modes are not tested)"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	return 0
+}
+
+macvlan_check() {
+	if [ -e "/sys/class/net/$OCF_RESKEY_name" ]; then
+		if [ ! -e "$HA_RSCTMP/iface-macvlan.$OCF_RESKEY_name" ]; then
+			return $OCF_ERR_GENERIC
+		fi
+	else
+		if [ -e "$HA_RSCTMP/iface-macvlan.$OCF_RESKEY_name" ]; then
+			error="$(rm -f "$HA_RSCTMP/iface-macvlan.$OCF_RESKEY_name" 2>&1)"
+			if [ "$?" != "0" ]; then
+				ocf_log err "Unable to remove stale lock file for macvlan $OCF_RESKEY_name: $error"
+				return $OCF_ERR_INSTALLED
+			fi
+		fi
+		return $OCF_NOT_RUNNING
+	fi
+
+	if ! iface_is_up $OCF_RESKEY_name; then
+		ocf_log err "MACVLAN $OCF_RESKEY_name is administratively down"
+		return $OCF_ERR_GENERIC
+	fi
+
+	if ! iface_lower_is_up $OCF_RESKEY_name; then
+		ocf_log err "MACVLAN $OCF_RESKEY_name has no active link-layer"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+# we need a simpler stop version to clean after us if start fails
+# without involving any error checking
+# rolling back in case of failure is otherwise complex
+
+macvlan_force_stop() {
+	$IP2UTIL link delete "$OCF_RESKEY_name" >/dev/null 2>&1
+	rm -f "$HA_RSCTMP/iface-macvlan.$OCF_RESKEY_name" 2>&1
+}
+
+macvlan_start() {
+	# check if the macvlan already exists
+	macvlan_check
+	ret=$?
+	if [ "$ret" != "$OCF_NOT_RUNNING" ]; then
+		return $ret
+	fi
+
+	# create the MACVLAN
+        set_specific_mac=""
+        [ -n "${OCF_RESKEY_mac}" ] && set_specific_mac="address ${OCF_RESKEY_mac}"
+	error="$($IP2UTIL link add link "$OCF_RESKEY_device" ${set_specific_mac} name "$OCF_RESKEY_name" type macvlan mode "$OCF_RESKEY_mode" 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to create MACVLAN $OCF_RESKEY_name: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	# set the interface up
+	error="$($IP2UTIL link set dev "$OCF_RESKEY_device" up 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to set MACVLAN $OCF_RESKEY_device up: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	# set the macvlan up
+	error="$($IP2UTIL link set dev "$OCF_RESKEY_name" up 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to set MACVLAN $OCF_RESKEY_name up: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	error="$(touch "$HA_RSCTMP/iface-macvlan.$OCF_RESKEY_name" 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to create lock file for MACVLAN $OCF_RESKEY_name: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+macvlan_stop() {
+	macvlan_check
+	ret=$?
+	if [ "$ret" = "$OCF_NOT_RUNNING" ]; then
+		return $OCF_SUCCESS
+	fi
+	if [ "$ret" != "$OCF_SUCCESS" ]; then
+		return $ret
+	fi
+
+	# set macvlan down
+	error="$($IP2UTIL link set dev "$OCF_RESKEY_name" down 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to set MACVLAN $OCF_RESKEY_name down: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	# delete macvlan
+	error="$($IP2UTIL link delete "$OCF_RESKEY_name" 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to delete MACVLAN $OCF_RESKEY_name: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	error="$(rm -f "$HA_RSCTMP/iface-macvlan.$OCF_RESKEY_name" 2>&1)"
+	if [ "$?" != "0" ]; then
+		ocf_log err "Unable to remove lock file for MACVLAN $OCF_RESKEY_name: $error"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+case $__OCF_ACTION in
+	meta-data)
+		macvlan_meta_data
+		exit $OCF_SUCCESS
+	;;
+	usage|help)
+		macvlan_usage
+		exit $OCF_SUCCESS
+	;;
+esac
+
+if [ ! -d "$HA_RSCTMP" ]; then
+	ocf_log debug "$HA_RSCTMP not found, we are probably being executed manually"
+	mkdir -p "$HA_RSCTMP"
+fi
+
+if [ -n "$__OCF_ACTION" ] && ! macvlan_validate; then
+	exit $OCF_ERR_CONFIGURED
+fi
+
+case $__OCF_ACTION in
+	start|stop)
+		if ! ocf_is_root; then
+			ocf_log err "You must be root for $__OCF_ACTION operation."
+			exit $OCF_ERR_PERM
+		fi
+	;;
+esac
+
+case $__OCF_ACTION in
+	start)
+		macvlan_start
+		ret=$?
+		if [ "$ret" != "$OCF_SUCCESS" ]; then
+			macvlan_force_stop
+		fi
+		exit $ret
+	;;
+	stop)
+		macvlan_stop
+		exit $?
+	;;
+	status|monitor)
+		macvlan_check
+		exit $?
+	;;
+	validate-all)
+		# macvlan_validate above does the trick
+	;;
+	*)
+		macvlan_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+	;;
+esac
+# vi:sw=4:ts=8:
