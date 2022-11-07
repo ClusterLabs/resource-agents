@@ -122,6 +122,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			iSCSITarget		\
 			ids			\
 			iface-bridge		\
+			iface-macvlan		\
 			iface-vlan		\
 			ipsec			\
 			iscsi			\
