@@ -138,7 +138,7 @@ check_config() {
         if ocf_is_probe; then
             ocf_log info "Can't read configuration file $1 during probe"
         else
-            ocf_log err "Can't read configuration file $1"
+            ocf_exit_reason "Can't read configuration file $1"
             return 1
         fi
     fi
@@ -207,7 +207,7 @@ zabbixserver_start() {
 
     startserver
     if [ $? -ne 0 ]; then
-        ocf_log err "Can't start Zabbix server"
+        ocf_exit_reason "Can't start Zabbix server"
         return $OCF_ERR_GENERIC
     fi
 
@@ -244,14 +244,14 @@ zabbixserver_stop() {
 
     pid=`getpid $OCF_RESKEY_pid`
     if [ $? -ne 0 ]; then
-        ocf_log err "Can't find process PID"
+        ocf_exit_reason "Can't find process PID"
         return $OCF_ERR_GENERIC
     fi
 
     # kill the process
     ocf_run -q kill $pid
     if [ $? -ne 0 ]; then
-        ocf_log err "Can't stop process (PID $pid)"
+        ocf_exit_reason "Can't stop process (PID $pid)"
         return $OCF_ERR_GENERIC
     fi
 
