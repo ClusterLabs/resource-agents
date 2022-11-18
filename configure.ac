@@ -148,14 +148,14 @@ PKG_PROG_PKG_CONFIG(0.18)
 # PKG_CHECK_MODULES will fail if systemd is not found by default, so make sure
 # we set the proper vars and deal with it
 PKG_CHECK_MODULES([systemd], [systemd], [HAS_SYSTEMD=yes], [HAS_SYSTEMD=no])
-if test "x$HAS_SYSTEMD" == "xyes"; then
+if test "x$HAS_SYSTEMD" = "xyes"; then
 	PKG_CHECK_VAR([SYSTEMD_UNIT_DIR], [systemd], [systemdsystemunitdir])
-	if test "x$SYSTEMD_UNIT_DIR" == "x"; then
+	if test "x$SYSTEMD_UNIT_DIR" = "x"; then
 		AC_MSG_ERROR([Unable to detect systemd unit dir automatically])
 	fi
 
 	PKG_CHECK_VAR([SYSTEMD_TMPFILES_DIR], [systemd], [tmpfilesdir])
-	if test "x$SYSTEMD_TMPFILES_DIR" == "x"; then
+	if test "x$SYSTEMD_TMPFILES_DIR" = "x"; then
 		AC_MSG_ERROR([Unable to detect systemd tmpfiles directory automatically])
 	fi
 
@@ -168,7 +168,7 @@ if test "x$HAS_SYSTEMD" == "xyes"; then
 	fi
 
 fi
-AM_CONDITIONAL(HAVE_SYSTEMD, [test "x$HAS_SYSTEMD" == xyes ])
+AM_CONDITIONAL(HAVE_SYSTEMD, [test "x$HAS_SYSTEMD" = xyes ])
 
 
 dnl ===============================================
