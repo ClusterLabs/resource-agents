@@ -318,6 +318,10 @@ mysql_common_stop()
     if [ $? != $OCF_NOT_RUNNING ]; then
         ocf_log info "MySQL failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL..."
         /bin/kill -KILL $pid > /dev/null
+        mysql_common_status info $pid
+        if [ $? != $OCF_NOT_RUNNING ]; then
+            return $OCF_ERR_GENERIC
+        fi
     fi
 
     ocf_log info "MySQL stopped";
