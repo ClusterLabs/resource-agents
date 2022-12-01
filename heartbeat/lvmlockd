@@ -180,14 +180,23 @@ setup_lvm_config()
 	lock_type=$(echo "$out" | cut -d'=' -f2)
 
 	if [ -z "$use_lvmlockd" ]; then
-		ocf_exit_reason "\"use_lvmlockd\" not set in /etc/lvm/lvm.conf ..."
-		exit $OCF_ERR_CONFIGURED
-	fi
+		ocf_log info "adding \"use_lvmlockd=1\" to /etc/lvm/lvm.conf ..."
+		cat >> /etc/lvm/lvm.conf << EOF
 
-	if [ -n "$use_lvmlockd" ] && [ "$use_lvmlockd" != 1 ] ; then
+global {
+    use_lvmlockd = 1
+}
+EOF
+
+		if [ $? -ne 0 ]; then
+			ocf_exit_reason "unable to add \"use_lvmlockd=1\" to /etc/lvm/lvm.conf ..."
+			exit $OCF_ERR_CONFIGURED
+		fi
+	elif [ "$use_lvmlockd" != 1 ] ; then
 		ocf_log info "setting \"use_lvmlockd=1\" in /etc/lvm/lvm.conf ..."
 		sed -i 's,^[[:blank:]]*use_lvmlockd[[:blank:]]*=.*,\ \ \ \ use_lvmlockd = 1,g' /etc/lvm/lvm.conf
 	fi
+
 	if [ -n "$lock_type" ] ; then
 		# locking_type was removed from config in v2.03
 		ocf_version_cmp "$(lvmconfig --version | awk '/LVM ver/ {sub(/\(.*/, "", $3); print $3}')" "2.03"
