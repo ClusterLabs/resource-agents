@@ -830,7 +830,7 @@ sapinstance_status() {
   local pids
 
   [ ! -f "/usr/sap/$SID/$InstanceName/work/kill.sap" ] && return $OCF_NOT_RUNNING
-  pids=`grep '^kill -[0-9]' /usr/sap/$SID/$InstanceName/work/kill.sap | awk '{print $3}'`
+  pids=$(awk '$3 ~ "^[0-9]+$" { print $3 }' /usr/sap/$SID/$InstanceName/work/kill.sap)
   for pid in $pids
   do
     [ `pgrep -f -U $sidadm $InstanceName | grep -c $pid` -gt 0 ] && return $OCF_SUCCESS
