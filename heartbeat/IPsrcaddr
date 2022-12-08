@@ -510,11 +510,13 @@ srca_validate_all() {
 	fi
 
 #	We should serve this IP address of course
-	if ip_status "$ipaddress"; then
-	  :
-	else
-	  ocf_exit_reason "We are not serving [$ipaddress], hence can not make it a preferred source address"
-	  return $OCF_ERR_INSTALLED
+	if [ "$OCF_CHECK_LEVEL" -eq 10 ]; then
+		if ip_status "$ipaddress"; then
+			:
+		else
+			ocf_exit_reason "We are not serving [$ipaddress], hence can not make it a preferred source address"
+			return $OCF_ERR_INSTALLED
+		fi
 	fi
 	return $OCF_SUCCESS
 }
@@ -540,6 +542,7 @@ esac
 
 ipaddress="$OCF_RESKEY_ipaddress"
 
+[ "$__OCF_ACTION" != "validate-all" ] && OCF_CHECK_LEVEL=10
 srca_validate_all
 rc=$?
 if [ $rc -ne $OCF_SUCCESS ]; then
