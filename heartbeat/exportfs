@@ -218,7 +218,9 @@ backup_rmtab() {
 	local dir=$1
 	local rmtab_backup
 	rmtab_backup="$dir/${OCF_RESKEY_rmtab_backup}"
-	grep ":$dir:" /var/lib/nfs/rmtab > ${rmtab_backup}
+	if [ -r /var/lib/nfs/rmtab ]; then
+		grep ":$dir:" /var/lib/nfs/rmtab > ${rmtab_backup}
+	fi
 }
 
 restore_rmtab() {
