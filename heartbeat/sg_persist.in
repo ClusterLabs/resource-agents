@@ -643,10 +643,11 @@ sg_persist_action_notify() {
 }
 
 sg_persist_action_validate_all () {
-
-    if [ "$OCF_RESKEY_CRM_meta_master_max" != "1" ] && [ "$RESERVATION_TYPE"  != "7" ] && [ "$RESERVATION_TYPE" != "8" ]; then
-        ocf_log err "Master options misconfigured."
-        exit $OCF_ERR_CONFIGURED
+    if [ "$OCF_CHECK_LEVEL" -eq 10 ]; then
+        if [ "$OCF_RESKEY_CRM_meta_master_max" != "1" ] && [ "$RESERVATION_TYPE"  != "7" ] && [ "$RESERVATION_TYPE" != "8" ]; then
+            ocf_log err "Master options misconfigured."
+            exit $OCF_ERR_CONFIGURED
+        fi
     fi
 
     return $OCF_SUCCESS
@@ -672,6 +673,10 @@ case $ACTION in
     start|promote|monitor|stop|demote)
         ocf_log debug "$RESOURCE: starting action \"$ACTION\""
         sg_persist_init
+        if [ "$__OCF_ACTION" = "start" ]; then
+            OCF_CHECK_LEVEL=10
+            sg_persist_action_validate_all
+        fi
         sg_persist_action_$ACTION
         exit $?
         ;;

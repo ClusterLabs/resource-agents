@@ -1015,9 +1015,11 @@ galera_stop()
 
 galera_validate()
 {
-    if ! ocf_is_ms; then
-        ocf_exit_reason "Galera must be configured as a multistate Master/Slave resource."
-        return $OCF_ERR_CONFIGURED
+    if [ "$OCF_CHECK_LEVEL" -eq 10 ]; then
+        if ! ocf_is_ms; then
+            ocf_exit_reason "Galera must be configured as a multistate Master/Slave resource."
+            return $OCF_ERR_CONFIGURED
+        fi
     fi
 
     if [ -z "$OCF_RESKEY_wsrep_cluster_address" ]; then
@@ -1035,6 +1037,7 @@ case "$1" in
         exit $OCF_SUCCESS;;
 esac
 
+[ "$__OCF_ACTION" = "start" ] && OCF_CHECK_LEVEL=10
 galera_validate
 rc=$?
 LSB_STATUS_STOPPED=3
