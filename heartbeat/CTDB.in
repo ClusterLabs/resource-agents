@@ -940,7 +940,7 @@ ctdb_validate() {
 	fi
 
 	if [ -f "${OCF_RESKEY_ctdb_config_dir}/public_addresses" ]; then
-		ocf_log warn "CTDB file '${OCF_RESKEY_ctdb_config_dir}/public_addresses' exists - CTDB will try to manage IP failover!"
+		ocf_log info "CTDB file '${OCF_RESKEY_ctdb_config_dir}/public_addresses' exists - CTDB will try to manage IP failover!"
 	fi
 
 	if [ ! -f "$OCF_RESKEY_ctdb_config_dir/nodes" ]; then

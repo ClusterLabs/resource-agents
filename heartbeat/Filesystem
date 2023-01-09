@@ -851,10 +851,6 @@ Filesystem_monitor()
 #
 Filesystem_validate_all()
 {
-	if [ -n "$MOUNTPOINT" ] && [ ! -d "$MOUNTPOINT" ]; then
-		ocf_log warn "Mountpoint $MOUNTPOINT does not exist"
-	fi
-
 	# Check if the $FSTYPE is workable
 	# NOTE: Without inserting the $FSTYPE module, this step may be imprecise
 	# TODO: This is Linux specific crap.
