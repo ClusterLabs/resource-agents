@@ -301,6 +301,16 @@ exportfs_monitor ()
 	fi
 }
 
+testdir() {
+	if [ ! -d $1 ]; then
+		mkdir -p "$1"
+		if [ $? -ne 0 ]; then
+			ocf_exit_reason "Unable to create directory $1"
+			return 1
+		fi
+	fi
+	return 0
+}
 export_one() {
 	local dir=$1
 	local opts sep
@@ -331,6 +341,10 @@ export_one() {
 }
 exportfs_start ()
 {
+	if ! forall testdir; then
+		return $OCF_ERR_INSTALLED
+	fi
+
 	if exportfs_monitor; then
 		ocf_log debug "already exported"
 		return $OCF_SUCCESS
@@ -428,14 +442,6 @@ exportfs_stop ()
 	fi
 }
 
-testdir() {
-	if [ ! -d $1 ]; then
-		ocf_is_probe ||
-			ocf_log err "$1 does not exist or is not a directory"
-		return 1
-	fi
-	return 0
-}
 exportfs_validate_all ()
 {
 	if echo "$OCF_RESKEY_fsid" | grep -q -F ','; then
@@ -446,9 +452,6 @@ exportfs_validate_all ()
 			! ocf_is_decimal "$OCF_RESKEY_fsid"; then
 		ocf_exit_reason "use integer fsid when exporting multiple directories"
 		return $OCF_ERR_CONFIGURED
-	fi
-	if ! forall testdir; then
-		return $OCF_ERR_INSTALLED
 	fi
 }
 
@@ -466,7 +469,7 @@ for dir in $OCF_RESKEY_directory; do
 		fi
 	else
 		case "$__OCF_ACTION" in
-			stop|monitor)
+			stop|monitor|validate-all)
 				canonicalized_dir="$dir"
 				ocf_log debug "$dir does not exist"
 				;;
