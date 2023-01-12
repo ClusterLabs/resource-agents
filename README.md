@@ -18,4 +18,4 @@ in the OCF Resource Agent Developer's guide (link below).
 * [ClusterLabs website](http://www.clusterlabs.org/)
 * [OCF Resource Agent Developer's guide](https://github.com/ClusterLabs/resource-agents/blob/master/doc/dev-guides/ra-dev-guide.asc)
 * Mailing lists for [users](http://oss.clusterlabs.org/mailman/listinfo/users) and [developers](http://oss.clusterlabs.org/mailman/listinfo/developers)
-* #clusterlabs IRC channel on [freenode](http://freenode.net/)
+* #clusterlabs IRC channel on [Libera.Chat](https://libera.chat/)
