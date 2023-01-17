@@ -146,18 +146,87 @@ error:
 	exit(-1);
 }
 
+static int test_device_main(size_t device_count, char *devices[MAX_DEVICES], int scores[MAX_DEVICES], int verbose, int inject_error_percent, int timeout)
+{
+	pid_t test_forks[MAX_DEVICES];
+	size_t i;
+	struct timespec ts;
+	time_t start_time;
+	size_t finished_count = 0;
+	int final_score = 0;
+
+	memset(test_forks, 0, sizeof(test_forks));
+	for (i=0; i<device_count; i++) {
+		test_forks[i] = fork();
+		if (test_forks[i] < 0) {
+			fprintf(stderr, "Error spawning fork for %s: %s\n", devices[i], strerror(errno));
+			syslog(LOG_ERR, "Error spawning fork for %s: %s\n", devices[i], strerror(errno));
+			/* Just test the devices we have */
+			break;
+		}
+		/* child */
+		if (test_forks[i] == 0) {
+			test_device(devices[i], verbose, inject_error_percent);
+		}
+	}
+
+	/* See if they have finished */
+	clock_gettime(CLOCK_REALTIME, &ts);
+	start_time = ts.tv_sec;
+
+	while ((finished_count < device_count) && ((start_time + timeout) > ts.tv_sec)) {
+		for (i=0; i<device_count; i++) {
+			int wstatus;
+			pid_t w;
+
+			if (test_forks[i] > 0) {
+				w = waitpid(test_forks[i], &wstatus, WUNTRACED | WNOHANG | WCONTINUED);
+				if (w < 0) {
+					fprintf(stderr, "waitpid on %s failed: %s\n", devices[i], strerror(errno));
+					return -1;
+				}
+
+				if (w == test_forks[i]) {
+					if (WIFEXITED(wstatus)) {
+						if (WEXITSTATUS(wstatus) != 0) {
+							syslog(LOG_ERR, "Error reading from device %s", devices[i]);
+							final_score += scores[i];
+						}
+
+						finished_count++;
+						test_forks[i] = 0;
+					}
+				}
+			}
+		}
+
+		usleep(100000);
+
+		clock_gettime(CLOCK_REALTIME, &ts);
+	}
+
+	/* See which threads have not finished */
+	for (i=0; i<device_count; i++) {
+		if (test_forks[i] != 0) {
+			syslog(LOG_ERR, "Reading from device %s did not complete in %d seconds timeout", devices[i], timeout);
+			fprintf(stderr, "Thread for device %s did not complete in time\n", devices[i]);
+			final_score += scores[i];
+		}
+	}
+
+	if (verbose) {
+		printf("Final score is %d\n", final_score);
+	}
+	return final_score;
+}
+
 int main(int argc, char *argv[])
 {
 	char *devices[MAX_DEVICES];
 	int scores[MAX_DEVICES];
-	pid_t test_forks[MAX_DEVICES];
 	size_t device_count = 0;
 	size_t score_count = 0;
-	size_t finished_count = 0;
 	int timeout = DEFAULT_TIMEOUT;
-	struct timespec ts;
-	time_t start_time;
-	size_t i;
 	int final_score = 0;
 	int opt, option_index;
 	int verbose = 0;
@@ -237,67 +306,7 @@ int main(int argc, char *argv[])
 
 	openlog("storage_mon", 0, LOG_DAEMON);
 
-	memset(test_forks, 0, sizeof(test_forks));
-	for (i=0; i<device_count; i++) {
-		test_forks[i] = fork();
-		if (test_forks[i] < 0) {
-			fprintf(stderr, "Error spawning fork for %s: %s\n", devices[i], strerror(errno));
-			syslog(LOG_ERR, "Error spawning fork for %s: %s\n", devices[i], strerror(errno));
-			/* Just test the devices we have */
-			break;
-		}
-		/* child */
-		if (test_forks[i] == 0) {
-			test_device(devices[i], verbose, inject_error_percent);
-		}
-	}
 
-	/* See if they have finished */
-	clock_gettime(CLOCK_REALTIME, &ts);
-	start_time = ts.tv_sec;
-
-	while ((finished_count < device_count) && ((start_time + timeout) > ts.tv_sec)) {
-		for (i=0; i<device_count; i++) {
-			int wstatus;
-			pid_t w;
-
-			if (test_forks[i] > 0) {
-				w = waitpid(test_forks[i], &wstatus, WUNTRACED | WNOHANG | WCONTINUED);
-				if (w < 0) {
-					fprintf(stderr, "waitpid on %s failed: %s\n", devices[i], strerror(errno));
-					return -1;
-				}
-
-				if (w == test_forks[i]) {
-					if (WIFEXITED(wstatus)) {
-						if (WEXITSTATUS(wstatus) != 0) {
-							syslog(LOG_ERR, "Error reading from device %s", devices[i]);
-							final_score += scores[i];
-						}
-
-						finished_count++;
-						test_forks[i] = 0;
-					}
-				}
-			}
-		}
-
-		usleep(100000);
-
-		clock_gettime(CLOCK_REALTIME, &ts);
-	}
-
-	/* See which threads have not finished */
-	for (i=0; i<device_count; i++) {
-		if (test_forks[i] != 0) {
-			syslog(LOG_ERR, "Reading from device %s did not complete in %d seconds timeout", devices[i], timeout);
-			fprintf(stderr, "Thread for device %s did not complete in time\n", devices[i]);
-			final_score += scores[i];
-		}
-	}
-
-	if (verbose) {
-		printf("Final score is %d\n", final_score);
-	}
+	final_score = test_device_main(device_count, devices, scores, verbose, inject_error_percent, timeout);
 	return final_score;
 }
