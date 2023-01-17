@@ -16,9 +16,50 @@
 #ifdef __FreeBSD__
 #include <sys/disk.h>
 #endif
+#include <config.h>
+#include <glib.h>
+#include <libgen.h>
 
 #define MAX_DEVICES 25
 #define DEFAULT_TIMEOUT 10
+#define DEFAULT_INTERVAL 30
+#define DEFAULT_PIDFILE HA_VARRUNDIR "storage_mon.pid"
+#define DEFAULT_ATTRNAME "#health-storage_mon"
+
+#define DEFAULT_HA_SBIN_DIR "/usr/sbin"
+
+#define PRINT_STORAGE_MON_ERR(fmt, ...) if (!daemonize) { \
+					fprintf(stderr, fmt"\n", __VA_ARGS__); \
+				} else { \
+					syslog(LOG_ERR, fmt, __VA_ARGS__); \
+				}
+#define PRINT_STORAGE_MON_ERR_NOARGS(str) if (!daemonize) { \
+					fprintf(stderr, str"\n"); \
+				} else { \
+					syslog(LOG_ERR, str); \
+				}
+
+#define PRINT_STORAGE_MON_INFO(fmt, ...) if (!daemonize) { \
+					printf(fmt"\n", __VA_ARGS__); \
+				} else { \
+					syslog(LOG_INFO, fmt, __VA_ARGS__); \
+				}
+
+char *devices[MAX_DEVICES];
+int scores[MAX_DEVICES];
+size_t device_count = 0;
+int timeout = DEFAULT_TIMEOUT;
+int verbose = 0;
+int inject_error_percent = 0;
+const char *attrname = DEFAULT_ATTRNAME;
+const char *ha_sbin_dir = DEFAULT_HA_SBIN_DIR;
+gboolean daemonize = FALSE;
+
+GMainLoop *mainloop;
+guint timer;
+int shutting_down = FALSE;
+
+static int test_device_main(gpointer data);
 
 static void usage(char *name, FILE *f)
 {
@@ -27,6 +68,11 @@ static void usage(char *name, FILE *f)
 	fprintf(f, "      --score  <n>    score if device fails the test. Must match --device count\n");
 	fprintf(f, "      --timeout <n>   max time to wait for a device test to come back. in seconds (default %d)\n", DEFAULT_TIMEOUT);
 	fprintf(f, "      --inject-errors-percent <n> Generate EIO errors <n>%% of the time (for testing only)\n");
+	fprintf(f, "      --daemonize      test run in daemons.\n");      
+	fprintf(f, "      --interval <n>       interval to test. in seconds (default %d)(for daemonize only)\n", DEFAULT_INTERVAL);
+	fprintf(f, "      --pidfile <path>     file path to record pid (default %s)(for daemonize only)\n", DEFAULT_PIDFILE);
+	fprintf(f, "      --attrname <attr>    attribute name to update test result (default %s)(for daemonize only)\n", DEFAULT_ATTRNAME);
+	fprintf(f, "      --ha-sbin-dir <dir> directory where attrd_updater is located (default %s)(for daemonize only)\n", DEFAULT_HA_SBIN_DIR);
 	fprintf(f, "      --verbose        emit extra output to stdout\n");
 	fprintf(f, "      --help           print this message\n");
 }
@@ -47,13 +93,13 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 	device_fd = open(device, flags);
 	if (device_fd < 0) {
 		if (errno != EINVAL) {
-			fprintf(stderr, "Failed to open %s: %s\n", device, strerror(errno));
+			PRINT_STORAGE_MON_ERR("Failed to open %s: %s", device, strerror(errno));
 			exit(-1);
 		}
 		flags &= ~O_DIRECT;
 		device_fd = open(device, flags);
 		if (device_fd < 0) {
-			fprintf(stderr, "Failed to open %s: %s\n", device, strerror(errno));
+			PRINT_STORAGE_MON_ERR("Failed to open %s: %s", device, strerror(errno));
 			exit(-1);
 		}
 	}
@@ -63,11 +109,11 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 	res = ioctl(device_fd, BLKGETSIZE64, &devsize);
 #endif
 	if (res < 0) {
-		fprintf(stderr, "Failed to get device size for %s: %s\n", device, strerror(errno));
+		PRINT_STORAGE_MON_ERR("Failed to get device size for %s: %s", device, strerror(errno));
 		goto error;
 	}
 	if (verbose) {
-		printf("%s: opened %s O_DIRECT, size=%zu\n", device, (flags & O_DIRECT)?"with":"without", devsize);
+		PRINT_STORAGE_MON_INFO("%s: opened %s O_DIRECT, size=%zu", device, (flags & O_DIRECT)?"with":"without", devsize);
 	}
 
 	/* Don't fret about real randomness */
@@ -76,11 +122,11 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 	seek_spot = (rand() % (devsize-1024)) & 0xFFFFFFFFFFFFFE00;
 	res = lseek(device_fd, seek_spot, SEEK_SET);
 	if (res < 0) {
-		fprintf(stderr, "Failed to seek %s: %s\n", device, strerror(errno));
+		PRINT_STORAGE_MON_ERR("Failed to seek %s: %s", device, strerror(errno));
 		goto error;
 	}
 	if (verbose) {
-		printf("%s: reading from pos %ld\n", device, seek_spot);
+		PRINT_STORAGE_MON_INFO("%s: reading from pos %ld", device, seek_spot);
 	}
 
 	if (flags & O_DIRECT) {
@@ -93,22 +139,22 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 		res = ioctl(device_fd, BLKSSZGET, &sec_size);
 #endif
 		if (res < 0) {
-			fprintf(stderr, "Failed to get block device sector size for %s: %s\n", device, strerror(errno));
+			PRINT_STORAGE_MON_ERR("Failed to get block device sector size for %s: %s", device, strerror(errno));
 			goto error;
 		}
 
 		if (posix_memalign(&buffer, sysconf(_SC_PAGESIZE), sec_size) != 0) {
-			fprintf(stderr, "Failed to allocate aligned memory: %s\n", strerror(errno));
+			PRINT_STORAGE_MON_ERR("Failed to allocate aligned memory: %s", strerror(errno));
 			goto error;
 		}
 		res = read(device_fd, buffer, sec_size);
 		free(buffer);
 		if (res < 0) {
-			fprintf(stderr, "Failed to read %s: %s\n", device, strerror(errno));
+			PRINT_STORAGE_MON_ERR("Failed to read %s: %s", device, strerror(errno));
 			goto error;
 		}
 		if (res < sec_size) {
-			fprintf(stderr, "Failed to read %d bytes from %s, got %d\n", sec_size, device, res);
+			PRINT_STORAGE_MON_ERR("Failed to read %d bytes from %s, got %d", sec_size, device, res);
 			goto error;
 		}
 	} else {
@@ -116,28 +162,28 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 
 		res = read(device_fd, buffer, sizeof(buffer));
 		if (res < 0) {
-			fprintf(stderr, "Failed to read %s: %s\n", device, strerror(errno));
+			PRINT_STORAGE_MON_ERR("Failed to read %s: %s", device, strerror(errno));
 			goto error;
 		}
 		if (res < (int)sizeof(buffer)) {
-			fprintf(stderr, "Failed to read %ld bytes from %s, got %d\n", sizeof(buffer), device, res);
+			PRINT_STORAGE_MON_ERR("Failed to read %ld bytes from %s, got %d", sizeof(buffer), device, res);
 			goto error;
 		}
 	}
 
 	/* Fake an error */
 	if (inject_error_percent && ((rand() % 100) < inject_error_percent)) {
-		fprintf(stderr, "People, please fasten your seatbelts, injecting errors!\n");
+		PRINT_STORAGE_MON_ERR_NOARGS("People, please fasten your seatbelts, injecting errors!");
 		goto error;
 	}
 	res = close(device_fd);
 	if (res != 0) {
-		fprintf(stderr, "Failed to close %s: %s\n", device, strerror(errno));
+		PRINT_STORAGE_MON_ERR("Failed to close %s: %s", device, strerror(errno));
 		exit(-1);
 	}
 
 	if (verbose) {
-		printf("%s: done\n", device);
+		PRINT_STORAGE_MON_INFO("%s: done", device);
 	}
 	exit(0);
 
@@ -146,7 +192,76 @@ error:
 	exit(-1);
 }
 
-static int test_device_main(size_t device_count, char *devices[MAX_DEVICES], int scores[MAX_DEVICES], int verbose, int inject_error_percent, int timeout)
+static void daemon_shutdown(int nsig)
+{
+	shutting_down = TRUE;
+	g_source_remove(timer);
+	timer = g_timeout_add(0, test_device_main, NULL);
+}
+
+static void child_shutdown(int nsig)
+{
+	exit(1);
+}
+
+static int write_pid_file(const char *pidfile)
+{
+	char *pid;
+	char *dir, *str = NULL;
+	int fd = -1;
+	int rc = -1;
+	int i, len;
+
+	if (asprintf(&pid, "%jd", (intmax_t)getpid()) < 0) {
+		syslog(LOG_ERR, "Failed to allocate memory to store PID");
+		pid = NULL;
+		goto done;
+	}
+
+	str = strdup(pidfile);
+	if (str == NULL) {
+		syslog(LOG_ERR, "Failed to duplicate string ['%s']", pidfile);
+		goto done;
+	}
+	dir = dirname(str);
+	for (i = 1, len = strlen(dir); i < len; i++) {
+		if (dir[i] == '/') {
+			dir[i] = 0;
+			if ((mkdir(dir, 0640) < 0) && (errno != EEXIST)) {
+				syslog(LOG_ERR, "Failed to create directory %s: %s", dir, strerror(errno));
+				goto done;
+			}
+			dir[i] = '/';
+		}
+	}
+	if ((mkdir(dir, 0640) < 0) && (errno != EEXIST)) {
+		syslog(LOG_ERR, "Failed to create directory %s: %s", dir, strerror(errno));
+		goto done;
+	}
+
+	fd = open(pidfile, O_CREAT | O_WRONLY, 0640);
+	if (fd < 0) {
+		syslog(LOG_ERR, "Failed to open %s: %s", pidfile, strerror(errno));
+		goto done;
+	}
+
+	if (write(fd, pid, strlen(pid)) != strlen(pid)) {
+		syslog(LOG_ERR, "Failed to write '%s' to %s: %s", pid, pidfile, strerror(errno));
+		goto done;
+	}
+	close(fd);
+	rc = 0;
+done:
+	if (pid != NULL) {
+		free(pid);
+	}
+	if (str != NULL) {
+		free(str);
+	}
+	return rc;
+}
+
+static int test_device_main(gpointer data)
 {
 	pid_t test_forks[MAX_DEVICES];
 	size_t i;
@@ -154,6 +269,11 @@ static int test_device_main(size_t device_count, char *devices[MAX_DEVICES], int
 	time_t start_time;
 	size_t finished_count = 0;
 	int final_score = 0;
+
+
+	if (daemonize && shutting_down == TRUE) {
+		goto done;
+	}
 
 	memset(test_forks, 0, sizeof(test_forks));
 	for (i=0; i<device_count; i++) {
@@ -166,6 +286,9 @@ static int test_device_main(size_t device_count, char *devices[MAX_DEVICES], int
 		}
 		/* child */
 		if (test_forks[i] == 0) {
+			if (daemonize) {
+				signal(SIGTERM, &child_shutdown);
+			}
 			test_device(devices[i], verbose, inject_error_percent);
 		}
 	}
@@ -182,7 +305,7 @@ static int test_device_main(size_t device_count, char *devices[MAX_DEVICES], int
 			if (test_forks[i] > 0) {
 				w = waitpid(test_forks[i], &wstatus, WUNTRACED | WNOHANG | WCONTINUED);
 				if (w < 0) {
-					fprintf(stderr, "waitpid on %s failed: %s\n", devices[i], strerror(errno));
+					PRINT_STORAGE_MON_ERR("waitpid on %s failed: %s", devices[i], strerror(errno));
 					return -1;
 				}
 
@@ -213,34 +336,93 @@ static int test_device_main(size_t device_count, char *devices[MAX_DEVICES], int
 			final_score += scores[i];
 		}
 	}
+	if (!daemonize) {
+		if (verbose) {
+			printf("Final score is %d\n", final_score);
+		}
+		return final_score;
+	} else {
+		pid_t pid, wpid;
+		const char *value;
+		int wstatus;
+		/* Update node health attribute */
+		value = (final_score > 0) ? "red" : "green";
+		pid = fork();
+		if (pid == 0) {
+			char path[PATH_MAX];
+			snprintf(path, PATH_MAX, "%s/attrd_updater", ha_sbin_dir);
+			execl(path, "attrd_updater", "-n", attrname, "-U", value, "-d", "5s", NULL);
+			syslog(LOG_ERR, "Failed to execute %s: %s", path, strerror(errno));
+			exit(1);
+		} else if (pid < 0) {
+			syslog(LOG_ERR, "Error spawning fork for attrd_updater: %s", strerror(errno));
+			goto done;
+		}
+		wpid = waitpid(pid, &wstatus, 0);
+		if (wpid < 0) {
+			syslog(LOG_ERR, "failed to wait for attrd_updater: %s", strerror(errno));
+			goto done;
+		}
+		if (WIFEXITED(wstatus) && (WEXITSTATUS(wstatus) != 0)) {
+			syslog(LOG_ERR, "failed to update attribute (%s=%s): attrd_updater exited %d", attrname, value, WEXITSTATUS(wstatus));
+			goto done;
+		}
+		if (verbose) {
+			syslog(LOG_INFO, "Updated node health attribute: %s=%s", attrname, value);
+		}
 
-	if (verbose) {
-		printf("Final score is %d\n", final_score);
+		/* See if threads have finished */
+		while (finished_count < device_count) {
+			for (i=0; i<device_count; i++) {
+				if (test_forks[i] > 0
+				    && waitpid(test_forks[i], &wstatus, WUNTRACED | WNOHANG | WCONTINUED) == test_forks[i]
+				    && WIFEXITED(wstatus)) {
+					finished_count++;
+					test_forks[i] = 0;
+				}
+			}
+			usleep(100000);
+		}
+
+		if (shutting_down == TRUE) {
+			goto done;
+		}
+		if (data != NULL) {
+			g_source_remove(timer);
+			timer = g_timeout_add(*(int *)data * 1000, test_device_main, NULL);
+		}
+		return TRUE;
 	}
-	return final_score;
+
+
+done:
+	g_main_loop_quit(mainloop);
+	return FALSE;
 }
 
 int main(int argc, char *argv[])
 {
-	char *devices[MAX_DEVICES];
-	int scores[MAX_DEVICES];
-	size_t device_count = 0;
 	size_t score_count = 0;
-	int timeout = DEFAULT_TIMEOUT;
 	int final_score = 0;
 	int opt, option_index;
-	int verbose = 0;
-	int inject_error_percent = 0;
+	int interval = DEFAULT_INTERVAL;
+	const char *pidfile = DEFAULT_PIDFILE;
 	struct option long_options[] = {
 		{"timeout", required_argument, 0, 't' },
 		{"device",  required_argument, 0, 'd' },
 		{"score",   required_argument, 0, 's' },
 		{"inject-errors-percent",   required_argument, 0, 0 },
+		{"daemonize", no_argument, 0, 0 },
+		{"interval", required_argument, 0, 'i' },
+		{"pidfile", required_argument, 0, 'p' },
+		{"attrname", required_argument, 0, 'a' },
+		{"ha-sbin-dir", required_argument, 0, 0 },
 		{"verbose", no_argument, 0, 'v' },
 		{"help",    no_argument, 0,       'h' },
 		{0,         0,           0,        0  }
 	};
-	while ( (opt = getopt_long(argc, argv, "hvt:d:s:",
+
+	while ( (opt = getopt_long(argc, argv, "hvt:d:s:i:p:a:",
 				   long_options, &option_index)) != -1 ) {
 		switch (opt) {
 			case 0: /* Long-only options */
@@ -248,6 +430,16 @@ int main(int argc, char *argv[])
 					inject_error_percent = atoi(optarg);
 					if (inject_error_percent < 1 || inject_error_percent > 100) {
 						fprintf(stderr, "inject_error_percent should be between 1 and 100\n");
+						return -1;
+					}
+				}
+				if (strcmp(long_options[option_index].name, "daemonize") == 0) {
+					daemonize = TRUE;
+				}
+				if (strcmp(long_options[option_index].name, "ha-sbin-dir") == 0) {
+					ha_sbin_dir = strdup(optarg);
+					if (ha_sbin_dir == NULL) {
+						fprintf(stderr, "Failed to duplicate string ['%s']\n", optarg);
 						return -1;
 					}
 				}
@@ -287,6 +479,27 @@ int main(int argc, char *argv[])
 				usage(argv[0], stdout);
 				return 0;
 				break;
+			case 'i':
+				interval = atoi(optarg);
+				if (interval < 1) {
+					fprintf(stderr, "invalid interval %d. Min 1, default is %d\n", interval, DEFAULT_INTERVAL);
+					return -1;
+				}
+				break;
+			case 'p':
+				pidfile = strdup(optarg);
+				if (pidfile == NULL) {
+					fprintf(stderr, "Failed to duplicate string ['%s']\n", optarg);
+					return -1;
+				}
+				break;
+			case 'a':
+				attrname = strdup(optarg);
+				if (attrname == NULL) {
+					fprintf(stderr, "Failed to duplicate string ['%s']\n", optarg);
+					return -1;
+				}
+				break;
 			default:
 				usage(argv[0], stderr);
 				return -1;
@@ -306,7 +519,38 @@ int main(int argc, char *argv[])
 
 	openlog("storage_mon", 0, LOG_DAEMON);
 
+	if (!daemonize) {
+		final_score = test_device_main(NULL);
+	} else {
+		struct sigaction sa;
 
-	final_score = test_device_main(device_count, devices, scores, verbose, inject_error_percent, timeout);
+		if (daemon(0, 0) < 0) {
+			syslog(LOG_ERR, "Failed to daemonize: %s", strerror(errno));
+			return -1;
+		}
+
+		umask(S_IWGRP | S_IWOTH | S_IROTH);
+
+		memset(&sa, 0, sizeof(struct sigaction));
+		sa.sa_handler = daemon_shutdown;
+		sa.sa_flags = SA_RESTART;
+		if ((sigemptyset(&sa.sa_mask) < 0) || (sigaction(SIGTERM, &sa, NULL) < 0)) {
+			syslog(LOG_ERR, "Failed to set handler for signal: %s", strerror(errno));
+			return -1;
+		}
+
+		if (write_pid_file(pidfile) < 0) {
+			return -1;
+		}
+
+		mainloop = g_main_loop_new(NULL, FALSE);
+		timer = g_timeout_add(0, test_device_main, &interval);
+		g_main_loop_run(mainloop);
+		g_main_loop_unref(mainloop);
+
+		unlink(pidfile);
+
+		return 0;
+	}
 	return final_score;
 }
