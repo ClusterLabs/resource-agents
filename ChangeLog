@@ -1,3 +1,62 @@
+* Wed Jan 18 2023 resource-agents contributors
+- release candidate 4.12.0 rc1
+- azure-events-az: new resource agent (#1774)
+- iface-macvlan: new resource agent (#1815)
+- configure/spec: remove google-api-client BuildReq as the gcp-agents build fine without it
+- configure: fix bashisms
+- dev-guide: update default branch name
+- ocf-shellfuncs: add ocf_promotion_score() to use crm_attribute -p/crm_master depending on Pacemaker version
+- spec: remove redhat-lsb-core dependency (lsb_release)
+- spec: use cluster-glue-devel for opensuse > 15
+- all agents: update to promotable terms
+- CTDB: change public_addresses validate-all warning to info
+- CTDB: move process to root cgroup if realtime scheduling is enabled
+- Filesystem: improve logic for UUID/label and add note that /dev/disk/by-{uuid,label}/ are preferred on Linux
+- Filesystem: remove validate-all mountpoint warning as it is auto-created during start-action if it doesnt exist
+- IPsrcaddr: detect metric for main table only, and allow specifying metric if necessary
+- IPsrcaddr: fix PROTO regex
+- IPsrcaddr: fix monitor/status for default route not being equal to src IP before start, and change route src correctly in stop-action
+- IPsrcaddr: use scope host when using non-main tables
+- LVM-activate: use correct return codes to ensure correct action when failing
+- SAPInstance: be more resilient against broken kill.sap files (#1825)
+- VirtualDomain: replace error log messages with calls to ocf_exit_reason
+- WAS6: add missing ] to fix trap condition
+- aws-vpc-move-ip: allow to set the interface label
+- dnsupdate: add CNAME support (#1773)
+- docker-compose: fix number of containers/running containers logic
+- docker/podman/zabbixserver: replace error log messages with calls to ocf_exit_reason
+- ethmonitor/ovsmonitor/mariadb: check for bc binary
+- ethmonitor/ovsmonitor/pgsql: remove ignored attrd_updater "-q" parameter
+- exportfs: only grep in rmtab if it exists
+- galera/mariadb/mpathpersist/mysql/pgsql/sg_persist/Stateful: use ocf_promotion_score() to avoid issues with deprecated crm_master
+- galera/mpathpersist/sg_persist/IPsrcaddr: only check notify and promotable when OCF_CHECK_LEVEL=10
+- iSCSILogicalUnit: fix issue where resource was in stopped state when using allowed_initiators parameter (#1766)
+- lvmlockd: add "use_lvmlockd = 1" if it's commented out or missing
+- lvmlockd: fail when use_lvmlockd has not been set
+- mariadb: remove obsolete DEBUG_LOG functionality #1191
+- mysql-common: return error in stop-action if kill fails to stop the process, so the node can get fenced
+- mysql-proxy: update metadata to suggest secure location instead of /tmp/mysql-proxy.sock
+- nfsserver: add nfsv4_only parameter to make it run without rpc-statd/rpcbind services
+- ocf-tester: remove deprecated lrmd/lrmadmin code that hasnt worked since pre-pacemaker days
+- ocf-tester: use promotable terms
+- openstack-agents: set domain parameter's default to Default and fix missing parameter name in ocf_exit_reason
+- openstack-agents: warn when openstackcli is slow
+- openstack-cinder-volume: dont do volume_local_check during start/stop-action
+- openstack-floating-ip/openstack-virtual-ip: dont fail in validate() during probe-calls
+- openstack-floating-ip: fix awk only catching last id for node_port_ids
+- oracle: improve the error message if monpassword was not set. (#1767)
+- podman: add podman parameter error judgment (#1764)
+- portblock: implement blocking of outgoing ports
+- rabbitmq-server-ha: dont mkdir -p when getting meta-data or help
+- storage_mon: use the O_DIRECT flag in open() to eliminate cache effects
+- storage_mon: do random lseek even with O_DIRECT, etc
+- storage_mon: fix bug in checking of number of specified scores.
+- storage_mon: fix build-related issues
+- storage_mon: improve error messages when ioctl() fails
+- storage_mon: make -h exit just after printing help message (#1791)
+- storage_mon: fix bug in handling of child process exit
+- vdo-vol: dont fail probe action when the underlying device doesnt exist
+
 * Wed Apr  6 2022 resource-agents contributors
 - stable release 4.11.0
 - Filesystem: fix logic for UUID/label devices with space between parameter and UUID/label
