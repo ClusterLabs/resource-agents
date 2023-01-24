@@ -3,7 +3,7 @@
 # db2
 #
 # Resource agent that manages a DB2 LUW database in Standard role 
-# or HADR configuration in master/slave configuration.
+# or HADR configuration in promotable configuration.
 # Multi partition is supported as well.
 #
 # Copyright (c) 2011 Holger Teutsch <holger.teutsch@web.de>
@@ -61,7 +61,7 @@ cat <<END
 <resource-agent name="db2" version="1.0">
 <version>1.0</version>
 <longdesc lang="en">
-Resource Agent that manages an IBM DB2 LUW databases in Standard role as primitive or in HADR roles in master/slave configuration. Multiple partitions are supported.
+Resource Agent that manages an IBM DB2 LUW databases in Standard role as primitive or in HADR roles in promotable configuration. Multiple partitions are supported.
 
 Standard mode:
 
@@ -71,8 +71,8 @@ Configure each partition as a separate primitive resource.
 HADR mode:
 
 A single database in HADR configuration is made highly available by automating takeover operations.
-Configure a master / slave resource with notifications enabled and an
-additional monitoring operation with role "Master".
+Configure a promotable resource with notifications enabled and an
+additional monitoring operation with role "Promoted".
 
 In case of HADR be very deliberate in specifying intervals/timeouts. The detection of a failure including promote must complete within HADR_PEER_WINDOW.
 
@@ -84,7 +84,7 @@ In addition to honoring requirements for crash recovery etc. for your specific d
 
 For further information and examples consult http://www.linux-ha.org/wiki/db2_(resource_agent)
 </longdesc>
-<shortdesc lang="en">Resource Agent that manages an IBM DB2 LUW databases in Standard role as primitive or in HADR roles as master/slave configuration. Multiple partitions are supported.</shortdesc>
+<shortdesc lang="en">Resource Agent that manages an IBM DB2 LUW databases in Standard role as primitive or in HADR roles as promotable configuration. Multiple partitions are supported.</shortdesc>
 
 <parameters>
 <parameter name="instance" unique="1" required="1">
@@ -125,7 +125,7 @@ The number of the partition (DBPARTITIONNUM) to be managed.
 <action name="demote" timeout="120s"/>
 <action name="notify" timeout="10s"/>
 <action name="monitor" depth="0" timeout="60s" interval="20s"/>
-<action name="monitor" depth="0" timeout="60s" role="Master" interval="22s"/>
+<action name="monitor" depth="0" timeout="60s" role="Promoted" interval="22s"/>
 <action name="validate-all" timeout="5s"/>
 <action name="meta-data" timeout="5s"/>
 </actions>

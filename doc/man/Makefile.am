@@ -147,6 +147,7 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_iSCSILogicalUnit.7 \
                           ocf_heartbeat_iSCSITarget.7 \
                           ocf_heartbeat_iface-bridge.7 \
+                          ocf_heartbeat_iface-macvlan.7 \
                           ocf_heartbeat_iface-vlan.7 \
                           ocf_heartbeat_ipsec.7 \
                           ocf_heartbeat_ids.7 \
@@ -217,6 +218,10 @@ endif
 
 if BUILD_AZURE_EVENTS
 man_MANS           	+= ocf_heartbeat_azure-events.7
+endif
+
+if BUILD_AZURE_EVENTS_AZ
+man_MANS           	+= ocf_heartbeat_azure-events-az.7
 endif
 
 if BUILD_GCP_PD_MOVE

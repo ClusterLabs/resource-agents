@@ -25,6 +25,7 @@
 # Defaults
 OCF_RESKEY_protocol_default=""
 OCF_RESKEY_portno_default=""
+OCF_RESKEY_direction_default="in"
 OCF_RESKEY_action_default=""
 OCF_RESKEY_ip_default="0.0.0.0/0"
 OCF_RESKEY_reset_local_on_unblock_stop_default="false"
@@ -33,6 +34,7 @@ OCF_RESKEY_sync_script_default=""
 
 : ${OCF_RESKEY_protocol=${OCF_RESKEY_protocol_default}}
 : ${OCF_RESKEY_portno=${OCF_RESKEY_portno_default}}
+: ${OCF_RESKEY_direction=${OCF_RESKEY_direction_default}}
 : ${OCF_RESKEY_action=${OCF_RESKEY_action_default}}
 : ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
 : ${OCF_RESKEY_reset_local_on_unblock_stop=${OCF_RESKEY_reset_local_on_unblock_stop_default}}
@@ -217,6 +219,18 @@ file name as a single argument. For csync2, set it to "csync2 -xv".
 <shortdesc lang="en">Connection state file synchronization script</shortdesc>
 <content type="string" default="${OCF_RESKEY_sync_script_default}" />
 </parameter>
+
+<parameter name="direction" unique="0" required="0">
+<longdesc lang="en">
+Whether to block incoming or outgoing traffic. Can be either "in",
+"out", or "both".
+If "in" is used, the incoming ports are blocked on the INPUT chain.
+If "out" is used, the outgoing ports are blocked on the OUTPUT chain.
+If "both" is used, both the incoming and outgoing ports are blocked.
+</longdesc>
+<shortdesc lang="en">Whether to block incoming or outgoing traffic, or both</shortdesc>
+<content type="string" default="${OCF_RESKEY_direction_default}" />
+</parameter>
 </parameters>
 
 <actions>
@@ -240,19 +254,27 @@ END
 #	and disable us -- but we're still in some sense active...
 #
 
-#active_grep_pat {udp|tcp} portno,portno
+#active_grep_pat {udp|tcp} portno,portno ip {d|s}
+# d = look for destination ports
+# s = look for source ports
 active_grep_pat()
 {
   w="[ 	][ 	]*"
   any="0\\.0\\.0\\.0/0"
-  echo "^DROP${w}${1}${w}--${w}${any}${w}${3}${w}multiport${w}dports${w}${2}\>"
+  src=$any dst=$3
+  if [ "$4" = "s" ]; then
+    local src=$3
+    local dst=$any
+  fi
+  echo "^DROP${w}${1}${w}--${w}${src}${w}${dst}${w}multiport${w}${4}ports${w}${2}$"
 }
 
-#chain_isactive  {udp|tcp} portno,portno ip
+#chain_isactive  {udp|tcp} portno,portno ip chain
 chain_isactive()
 {
-  PAT=`active_grep_pat "$1" "$2" "$3"`
-  $IPTABLES $wait -n -L INPUT | grep "$PAT" >/dev/null
+  [ "$4" = "OUTPUT" ] && ds="s" || ds="d"
+  PAT=$(active_grep_pat "$1" "$2" "$3" "$ds")
+  $IPTABLES $wait -n -L "$4" | grep "$PAT" >/dev/null
 }
 
 # netstat -tn and ss -Htn, split on whitespace and colon,
@@ -331,112 +353,140 @@ tickle_local()
 
 SayActive()
 {
-  echo "$CMD DROP rule for INPUT chain [$*]  is running (OK)"
+  echo "$CMD DROP rule [$*]  is running (OK)"
 }
 
 SayConsideredActive()
 {
-  echo "$CMD DROP rule for INPUT chain [$*] considered to be running (OK)"
+  echo "$CMD DROP rule [$*] considered to be running (OK)"
 }
 
 SayInactive()
 {
-  echo "$CMD DROP rule for INPUT chain [$*] is inactive"
+  echo "$CMD DROP rule [$*] is inactive"
 }
 
-#IptablesStatus  {udp|tcp} portno,portno ip {block|unblock}
+#IptablesStatus  {udp|tcp} portno,portno ip {in|out|both} {block|unblock}
 IptablesStatus() {
-    local rc
-    rc=$OCF_ERR_GENERIC
-    activewords="$CMD $1 $2 is running (OK)"
-    if chain_isactive "$1" "$2" "$3"; then
-	case $4 in
-	    block)	
-		SayActive $*
-		rc=$OCF_SUCCESS
-		;;
-	    *)
- 		SayInactive $*
-		rc=$OCF_NOT_RUNNING
-		;;
-	esac
-    else
-	case $4 in
-	    block)
-		if ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" status; then
-		    SayConsideredActive $*
-		    rc=$OCF_SUCCESS
-		else
-		    SayInactive $*
-		    rc=$OCF_NOT_RUNNING
-		fi
-		;;
-	    
-	    *)
-		if ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" status; then
-			SayActive $*
-			#This is only run on real monitor events.
-			save_tcp_connections
-			rc=$OCF_SUCCESS
-		else
-			SayInactive $*
-			rc=$OCF_NOT_RUNNING
-		fi
-		;;
-	esac
-    fi      
-    
-    return $rc
-}
-
-#IptablesBLOCK  {udp|tcp} portno,portno ip
-IptablesBLOCK()
-{
-  local rc=0
-  local try_reset=false
-  if	[ "$1/$4/$__OCF_ACTION" = tcp/unblock/stop ] &&
-	ocf_is_true $reset_local_on_unblock_stop
-  then
-	try_reset=true
+  local rc
+  rc=$OCF_ERR_GENERIC
+  is_active=0
+  if [ "$4" = "in" ] || [ "$4" = "both" ]; then
+    chain_isactive "$1" "$2" "$3" INPUT
+    is_active=$?
   fi
-  if
-    chain_isactive "$1" "$2" "$3"
-  then
-    : OK -- chain already active
+  if [ "$4" = "out" ] || [ "$4" = "both" ]; then
+    chain_isactive "$1" "$2" "$3" OUTPUT
+    r=$?
+    [ $r -gt $is_active ] && is_active=$r
+  fi
+  if [ $is_active -eq 0 ]; then
+    case $5 in
+      block)
+        SayActive $*
+        rc=$OCF_SUCCESS
+        ;;
+      *)
+        SayInactive $*
+        rc=$OCF_NOT_RUNNING
+        ;;
+    esac
   else
-    if $try_reset ; then
-      $IPTABLES $wait -I OUTPUT -p "$1" -s "$3" -m multiport --sports "$2" -j REJECT --reject-with tcp-reset
-      tickle_local
-    fi
-    $IPTABLES $wait -I INPUT -p "$1" -d "$3" -m multiport --dports "$2" -j DROP
-    rc=$?
-    if $try_reset ; then
-      $IPTABLES $wait -D OUTPUT -p "$1" -s "$3" -m multiport --sports "$2" -j REJECT --reject-with tcp-reset
-    fi
+    case $5 in
+      block)
+        if ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" status; then
+          SayConsideredActive $*
+          rc=$OCF_SUCCESS
+        else
+          SayInactive $*
+          rc=$OCF_NOT_RUNNING
+        fi
+        ;;
+      *)
+        if ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" status; then
+          SayActive $*
+          #This is only run on real monitor events.
+          save_tcp_connections
+          rc=$OCF_SUCCESS
+        else
+          SayInactive $*
+          rc=$OCF_NOT_RUNNING
+        fi
+        ;;
+    esac
   fi
-
   return $rc
 }
 
-#IptablesUNBLOCK  {udp|tcp} portno,portno ip
+#DoIptables  {-I|-D} {udp|tcp} portno,portno ip chain
+DoIptables()
+{
+  op=$1 proto=$2 ports=$3 ip=$4 chain=$5
+  active=0; chain_isactive "$proto" "$ports" "$ip" "$chain" && active=1
+  want_active=0; [ "$op" = "-I" ] && want_active=1
+  echo "active: $active want_active: $want_active"
+  if [ $active -eq $want_active ] ; then
+    : Chain already in desired state
+  else
+    [ "$chain" = "OUTPUT" ] && ds="s" || ds="d"
+    $IPTABLES $wait "$op" "$chain" -p "$proto" -${ds} "$ip" -m multiport --${ds}ports "$ports" -j DROP
+  fi
+}
+
+#IptablesBLOCK  {udp|tcp} portno,portno ip {in|out|both} {block|unblock}
+IptablesBLOCK()
+{
+  local rc_in=0
+  local rc_out=0
+  if [ "$4" = "in" ] || [ "$4" = "both" ]; then
+    local try_reset=false
+    if	[ "$1/$5/$__OCF_ACTION" = tcp/unblock/stop ] &&
+    ocf_is_true $reset_local_on_unblock_stop
+    then
+      try_reset=true
+    fi
+    if
+      chain_isactive "$1" "$2" "$3" INPUT
+    then
+      : OK -- chain already active
+    else
+      if $try_reset ; then
+        $IPTABLES $wait -I OUTPUT -p "$1" -s "$3" -m multiport --sports "$2" -j REJECT --reject-with tcp-reset
+        tickle_local
+      fi
+      $IPTABLES $wait -I INPUT -p "$1" -d "$3" -m multiport --dports "$2" -j DROP
+      rc_in=$?
+      if $try_reset ; then
+        $IPTABLES $wait -D OUTPUT -p "$1" -s "$3" -m multiport --sports "$2" -j REJECT --reject-with tcp-reset
+      fi
+    fi
+  fi
+  if [ "$4" = "out" ] || [ "$4" = "both" ]; then
+    DoIptables -I "$1" "$2" "$3" OUTPUT
+    rc_out=$?
+  fi
+
+  [ $rc_in -gt $rc_out ] && return $rc_in || return $rc_out
+}
+
+#IptablesUNBLOCK  {udp|tcp} portno,portno ip {in|out|both}
 IptablesUNBLOCK()
 {
-  if
-    chain_isactive "$1" "$2" "$3"
-  then
-    $IPTABLES $wait -D INPUT -p "$1" -d "$3" -m multiport --dports "$2" -j DROP
-  else
-    : Chain Not active
+  if [ "$4" = "in" ] || [ "$4" = "both" ]; then
+    DoIptables -D "$1" "$2" "$3" INPUT
+  fi
+  if [ "$4" = "out" ] || [ "$4" = "both" ]; then
+    DoIptables -D "$1" "$2" "$3" OUTPUT
   fi
 
   return $?
 }
 
-#IptablesStart  {udp|tcp} portno,portno ip {block|unblock}
+#IptablesStart  {udp|tcp} portno,portno ip {in|out|both} {block|unblock}
 IptablesStart()
 {
   ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" start
-  case $4 in
+  case $5 in
     block)	IptablesBLOCK "$@";;
     unblock)
 		IptablesUNBLOCK "$@"
@@ -451,11 +501,11 @@ IptablesStart()
   return $?
 }
 
-#IptablesStop  {udp|tcp} portno,portno ip {block|unblock}
+#IptablesStop  {udp|tcp} portno,portno ip {in|out|both} {block|unblock}
 IptablesStop()
 {
   ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" stop
-  case $4 in
+  case $5 in
     block)	IptablesUNBLOCK "$@";;
     unblock)
 		save_tcp_connections
@@ -572,6 +622,7 @@ fi
 
 protocol=$OCF_RESKEY_protocol
 portno=$OCF_RESKEY_portno
+direction=$OCF_RESKEY_direction
 action=$OCF_RESKEY_action
 ip=$OCF_RESKEY_ip
 reset_local_on_unblock_stop=$OCF_RESKEY_reset_local_on_unblock_stop
@@ -592,15 +643,15 @@ fi
 
 case $1 in
   start)	
-			IptablesStart $protocol $portno $ip $action 
+			IptablesStart $protocol $portno $ip $direction $action
 			;;
 
   stop)		
-			IptablesStop $protocol $portno $ip $action
+			IptablesStop $protocol $portno $ip $direction $action
 			;;
 
   status|monitor)	
-			IptablesStatus $protocol $portno $ip $action
+			IptablesStatus $protocol $portno $ip $direction $action
 			;;
 
   validate-all)

@@ -106,7 +106,6 @@ MYSQL_OPTIONS_REPL="$MYSQL_OPTIONS_LOCAL_SSL_OPTIONS $MYSQL_OPTIONS_LOCAL --user
 MYSQL_OPTIONS_TEST="$MYSQL_OPTIONS_LOCAL --user=$OCF_RESKEY_test_user --password=$OCF_RESKEY_test_passwd"
 MYSQL_TOO_MANY_CONN_ERR=1040
 
-CRM_MASTER="${HA_SBIN_DIR}/crm_master -l reboot "
 NODENAME=$(ocf_local_nodename)
 CRM_ATTR="${HA_SBIN_DIR}/crm_attribute -N $NODENAME "
 INSTANCE_ATTR_NAME=`echo ${OCF_RESOURCE_INSTANCE}| awk -F : '{print $1}'`
@@ -319,6 +318,10 @@ mysql_common_stop()
     if [ $? != $OCF_NOT_RUNNING ]; then
         ocf_log info "MySQL failed to stop after ${shutdown_timeout}s using SIGTERM. Trying SIGKILL..."
         /bin/kill -KILL $pid > /dev/null
+        mysql_common_status info $pid
+        if [ $? != $OCF_NOT_RUNNING ]; then
+            return $OCF_ERR_GENERIC
+        fi
     fi
 
     ocf_log info "MySQL stopped";

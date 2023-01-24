@@ -322,7 +322,7 @@ create_transient_drop_in_dependency()
 	local rc=$OCF_SUCCESS
 
 	if [ -z "$cid" ]; then
-		ocf_log error "Container ID not found for \"$CONTAINER\". Not creating drop-in dependency"
+		ocf_exit_reason "Container ID not found for \"$CONTAINER\". Not creating drop-in dependency"
 		return $OCF_ERR_GENERIC
 	fi
 

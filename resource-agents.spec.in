@@ -67,10 +67,7 @@ BuildRequires: python-devel
 
 %ifarch x86_64
 %if 0%{?fedora} || 0%{?centos} > 7 || 0%{?rhel} > 7
-BuildRequires: python3-google-api-client python3-pyroute2
-%endif
-%if 0%{?suse_version}
-BuildRequires: python3-google-api-python-client
+BuildRequires: python3-pyroute2
 %endif
 %endif
 
@@ -83,7 +80,11 @@ BuildRequires: libnet-devel
 
 %if 0%{?suse_version}
 BuildRequires:  libnet-devel
+%if 0%{?suse_version} > 1500
+BuildRequires:  cluster-glue-devel
+%else
 BuildRequires:  libglue-devel
+%endif
 BuildRequires:  libxslt docbook_4 docbook-xsl-stylesheets
 %endif
 

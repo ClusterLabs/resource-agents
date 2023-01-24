@@ -168,8 +168,8 @@ Setting it to 0 will disable this behavior.
 <action name="demote"   timeout="30s" />
 <action name="notify"   timeout="30s" />
 <action name="stop"    timeout="30s" />
-<action name="monitor" depth="0"  timeout="20s" interval="29s" role="Slave" />
-<action name="monitor" depth="0"  timeout="20s" interval="60s" role="Master" />
+<action name="monitor" depth="0"  timeout="20s" interval="29s" role="Unpromoted" />
+<action name="monitor" depth="0"  timeout="20s" interval="60s" role="Promoted" />
 <action name="meta-data"  timeout="5s" />
 <action name="validate-all"  timeout="30s" />
 </actions>
@@ -205,7 +205,6 @@ sg_persist_init() {
     NODE=${NODE% *}
     
     MASTER_SCORE_ATTRIBUTE="${HA_SBIN_DIR}/crm_attribute --lifetime=reboot --name=$MASTER_SCORE_VAR_NAME --node=$NODE"
-    CRM_MASTER="${HA_SBIN_DIR}/crm_master --lifetime=reboot"
     PENDING_ATTRIBUTE="${HA_SBIN_DIR}/crm_attribute --lifetime=reboot --name=$PENDING_VAR_NAME --node=$NODE"
 
     NODE_ID_HEX=$(printf '0x%x' $NODE_ID_DEC)
@@ -644,10 +643,11 @@ sg_persist_action_notify() {
 }
 
 sg_persist_action_validate_all () {
-
-    if [ "$OCF_RESKEY_CRM_meta_master_max" != "1" ] && [ "$RESERVATION_TYPE"  != "7" ] && [ "$RESERVATION_TYPE" != "8" ]; then
-        ocf_log err "Master options misconfigured."
-        exit $OCF_ERR_CONFIGURED
+    if [ "$OCF_CHECK_LEVEL" -eq 10 ]; then
+        if [ "$OCF_RESKEY_CRM_meta_master_max" != "1" ] && [ "$RESERVATION_TYPE"  != "7" ] && [ "$RESERVATION_TYPE" != "8" ]; then
+            ocf_log err "Master options misconfigured."
+            exit $OCF_ERR_CONFIGURED
+        fi
     fi
 
     return $OCF_SUCCESS
@@ -673,6 +673,10 @@ case $ACTION in
     start|promote|monitor|stop|demote)
         ocf_log debug "$RESOURCE: starting action \"$ACTION\""
         sg_persist_init
+        if [ "$__OCF_ACTION" = "start" ]; then
+            OCF_CHECK_LEVEL=10
+            sg_persist_action_validate_all
+        fi
         sg_persist_action_$ACTION
         exit $?
         ;;

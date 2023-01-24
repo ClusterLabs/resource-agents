@@ -148,6 +148,12 @@ vdo_monitor(){
 	MODE=$(vdostats --verbose ${OCF_RESKEY_volume} | grep "operating mode" | awk '{print $NF}')
 
 	case "$status" in
+		*"ERROR - vdodumpconfig: Failed to make FileLayer from"*)
+			if ocf_is_probe; then
+			    return $OCF_NOT_RUNNING
+			fi
+			return $OCF_ERR_GENERIC
+			;;
 		*"Device mapper status: not available"*)
 			return $OCF_NOT_RUNNING
 			;;

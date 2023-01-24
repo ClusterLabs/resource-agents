@@ -211,7 +211,7 @@ bridge_meta_data() {
       <longdesc lang="en">
         Set the port cost. This is a dimensionless metric.
         A list of port/cost can be specified using the following
-        format: slave cost slave cost.
+        format: unpromoted cost unpromoted cost.
         Example: eth0 100 eth1 1000
       </longdesc>
       <shortdesc lang="en">
@@ -228,7 +228,7 @@ bridge_meta_data() {
         This metric is used in the designated port and root port
         selection algorithms.
         A list of port/priority can be specified using the following
-        format: slave cost slave cost.
+        format: unpromoted cost unpromoted cost.
         Example: eth0 10 eth1 60
       </longdesc>
       <shortdesc lang="en">
@@ -262,7 +262,7 @@ bridge_meta_data() {
         Enable or disable a port from the multicast router.
         Kernel enables all port by default.
         A list of port can be specified using the following
-        format: slave 0|1 slave 0|1.
+        format: unpromoted 0|1 unpromoted 0|1.
         Example: eth0 1 eth1 0
       </longdesc>
       <shortdesc lang="en">

@@ -284,7 +284,7 @@ docker_simple_status()
 	local val
 
 	if [ ! -x "$(command -v docker)" ]; then 
-		ocf_log err "docker is not installed on this host"
+		ocf_exit_reason "docker is not installed on this host"
 		return $OCF_ERR_INSTALLED
 	fi
 

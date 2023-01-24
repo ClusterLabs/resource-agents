@@ -295,7 +295,7 @@ WAS_report_status() {
 #       This is actually faster than WAS_status above...
 #
 WAS_monitor() {
-  trap '[ -z "$tmpfile" || rmtempfile "$tmpfile"' 0
+  trap '[ -z "$tmpfile" ] || rmtempfile "$tmpfile"' 0
   tmpfile=`maketempfile` || exit 1
   SnoopPort=`GetWASSnoopPort $1`
   output=`$WGET -nv -O$tmpfile  http://localhost:$SnoopPort/snoop 2>&1`

@@ -333,8 +333,7 @@ config_verify()
 	real=$(lvmconfig "$name" | cut -d'=' -f2)
 	if [ "$real" != "$expect" ]; then
 		ocf_exit_reason "config item $name: expect=$expect but real=$real"
-		exit $OCF_ERR_CONFIGURED
-
+		exit $OCF_ERR_ARGS
 	fi
 
 	return $OCF_SUCCESS
@@ -366,12 +365,12 @@ lvmlockd_check()
 		fi
 
 		ocf_exit_reason "lvmlockd daemon is not running!"
-		exit $OCF_ERR_CONFIGURED
+		exit $OCF_ERR_GENERIC
 	fi
 
 	if pgrep clvmd >/dev/null 2>&1 ; then
 		ocf_exit_reason "clvmd daemon is running unexpectedly."
-		exit $OCF_ERR_CONFIGURED
+		exit $OCF_ERR_GENERIC
 	fi
 
 	return $OCF_SUCCESS
@@ -402,17 +401,17 @@ clvmd_check()
 	# Good: clvmd is running, and lvmlockd is not running
 	if ! pgrep clvmd >/dev/null 2>&1 ; then
 		ocf_exit_reason "clvmd daemon is not running!"
-		exit $OCF_ERR_CONFIGURED
+		exit $OCF_ERR_GENERIC
 	fi
 
 	if pgrep lvmetad >/dev/null 2>&1 ; then
 		ocf_exit_reason "Please stop lvmetad daemon when clvmd is running."
-		exit $OCF_ERR_CONFIGURED
+		exit $OCF_ERR_GENERIC
 	fi
 
 	if pgrep lvmlockd >/dev/null 2>&1 ; then
 		ocf_exit_reason "lvmlockd daemon is running unexpectedly."
-		exit $OCF_ERR_CONFIGURED
+		exit $OCF_ERR_GENERIC
 	fi
 
 	return $OCF_SUCCESS
@@ -424,12 +423,12 @@ systemid_check()
 	source=$(lvmconfig 'global/system_id_source' 2>/dev/null | cut -d"=" -f2)
 	if [ "$source" = "" ] || [ "$source" = "none" ]; then
 		ocf_exit_reason "system_id_source in lvm.conf is not set correctly!"
-		exit $OCF_ERR_CONFIGURED
+		exit $OCF_ERR_ARGS
 	fi
 
 	if [ -z ${SYSTEM_ID} ]; then
 		ocf_exit_reason "local/system_id is not set!"
-		exit $OCF_ERR_CONFIGURED
+		exit $OCF_ERR_ARGS
 	fi
 
 	return $OCF_SUCCESS
@@ -441,18 +440,18 @@ tagging_check()
 	# The volume_list must be initialized to something in order to
 	# guarantee our tag will be filtered on startup
 	if ! lvm dumpconfig activation/volume_list; then
-		ocf_log err  "LVM: Improper setup detected"
+		ocf_log err "LVM: Improper setup detected"
 		ocf_exit_reason "The volume_list filter must be initialized in lvm.conf for exclusive activation without clvmd"
-		exit $OCF_ERR_CONFIGURED
+		exit $OCF_ERR_ARGS
 	fi
 
 	# Our tag must _NOT_ be in the volume_list.  This agent
 	# overrides the volume_list during activation using the
 	# special tag reserved for cluster activation
 	if lvm dumpconfig activation/volume_list | grep -e "\"@${OUR_TAG}\"" -e "\"${VG}\"";  then
-		ocf_log err "LVM:  Improper setup detected"
+		ocf_log err "LVM: Improper setup detected"
 		ocf_exit_reason "The volume_list in lvm.conf must not contain the cluster tag, \"${OUR_TAG}\", or volume group, ${VG}"
-		exit $OCF_ERR_CONFIGURED
+		exit $OCF_ERR_ARGS
 	fi
 
 	return $OCF_SUCCESS
@@ -463,13 +462,13 @@ read_parameters()
 	if [ -z "$VG" ]
 	then
 		ocf_exit_reason "You must identify the volume group name!"
-		exit $OCF_ERR_ARGS
+		exit $OCF_ERR_CONFIGURED
 	fi
 
 	if [ "$LV_activation_mode" != "shared" ] && [ "$LV_activation_mode" != "exclusive" ]
 	then
 		ocf_exit_reason "Invalid value for activation_mode: $LV_activation_mode"
-		exit $OCF_ERR_ARGS
+		exit $OCF_ERR_CONFIGURED
 	fi
 
 	# Convert VG_access_mode from string to index
@@ -519,8 +518,10 @@ lvm_validate() {
 			exit $OCF_NOT_RUNNING
 		fi
 
+		# Could be a transient error (e.g., iSCSI connection
+		# issue) so use OCF_ERR_GENERIC
 		ocf_exit_reason "Volume group[${VG}] doesn't exist, or not visible on this node!"
-		exit $OCF_ERR_CONFIGURED
+		exit $OCF_ERR_GENERIC
 	fi
 
 	# Inconsistency might be due to missing physical volumes, which doesn't
@@ -549,7 +550,7 @@ lvm_validate() {
 	mode=$?
 	if [ $VG_access_mode_num -ne 4 ] && [ $mode -ne $VG_access_mode_num ]; then
 		ocf_exit_reason "The specified vg_access_mode doesn't match the lock_type on VG metadata!"
-		exit $OCF_ERR_ARGS
+		exit $OCF_ERR_CONFIGURED
 	fi
 
 	# Nothing to do if the VG has no logical volume
@@ -561,11 +562,11 @@ lvm_validate() {
 
 	# Check if the given $LV is in the $VG
 	if [ -n "$LV" ]; then
-		OUT=$(lvs --foreign --noheadings ${VG}/${LV} 2>&1)
+		output=$(lvs --foreign --noheadings ${VG}/${LV} 2>&1)
 		if [ $? -ne 0 ]; then
-			ocf_log err "lvs: ${OUT}"
+			ocf_log err "lvs: ${output}"
 			ocf_exit_reason "LV ($LV) is not in the given VG ($VG)."
-			exit $OCF_ERR_ARGS
+			exit $OCF_ERR_CONFIGURED
 		fi
 	fi
 
@@ -580,7 +581,6 @@ lvm_validate() {
 	3)
 		systemid_check
 		;;
-
 	4)
 		tagging_check
 		;;
@@ -808,10 +808,9 @@ lvm_status() {
 			dd if=${dm_name} of=/dev/null bs=1 count=1 >/dev/null \
 				2>&1
 			if [ $? -ne 0 ]; then
-				return $OCF_NOT_RUNNING
-			else
-				return $OCF_SUCCESS
+				return $OCF_ERR_GENERIC
 			fi
+			return $OCF_SUCCESS
 			;;
 		*)
 			ocf_exit_reason "unsupported monitor level $OCF_CHECK_LEVEL"
