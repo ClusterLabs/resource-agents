@@ -326,9 +326,11 @@ db2_get_cfg() {
             /First active log file/ {printf "FIRST_ACTIVE_LOG='%s'\n", $NF;}
             /HADR_PEER_WINDOW/ {printf "HADR_PEER_WINDOW='%s'\n", $NF;}')
 
-
     # sets HADR_ROLE HADR_TIMEOUT HADR_PEER_WINDOW 
-    eval $hadr_vars
+    HADR_ROLE=$(echo "$output" | awk '/HADR database role/ {print $NF;}')
+    HADR_TIMEOUT=$(echo "$output" | awk '/HADR_TIMEOUT/ {print $NF;}')
+    FIRST_ACTIVE_LOG=$(echo "$output" | awk '/First active log file/ {print $NF;}')
+    HADR_PEER_WINDOW=$(echo "$output" | awk '/HADR_PEER_WINDOW/ {print $NF;}')
 
     # HADR_PEER_WINDOW comes with V9 and is checked later
     if [ -z "$HADR_ROLE" -o -z "$HADR_TIMEOUT" ]
