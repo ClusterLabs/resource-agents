@@ -1,3 +1,6 @@
+* Wed Jan 25 2023 resource-agents contributors
+- stable release 4.12.0
+
 * Wed Jan 18 2023 resource-agents contributors
 - release candidate 4.12.0 rc1
 - azure-events-az: new resource agent (#1774)
