@@ -155,13 +155,16 @@ Metric. Only needed if incorrect metric value is used.
 
 <parameter name="table">
 <longdesc lang="en">
-Table to modify. E.g. "local".
+Table to modify and use for interface lookup. E.g. "local".
 
 The table has to have a route matching the "destination" parameter.
+
+This can be used for policy based routing. See man ip-rule(8).
 </longdesc>
 <shortdesc lang="en">Table</shortdesc>
 <content type="string" default="${OCF_RESKEY_table_default}" />
 </parameter>
+
 </parameters>
 
 <actions>
