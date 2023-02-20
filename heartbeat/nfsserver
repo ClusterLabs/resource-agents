@@ -711,7 +711,9 @@ inject_unshare_uts_name_into_systemd_units ()
 		test -d "$dir" || mkdir -p "$dir"
 		test -e "$dropin" && rm -f "$dropin"
 
-		edited_exec_start=$(systemctl cat $svc | sed -ne "s#^ExecStart=\\([-+:!@]*\\)\\(.*\\)#ExecStart=\\1/usr/bin/unshare --uts /bin/sh -c 'hostname \${NFS_SERVER_SCOPE}; exec \"\$@\"' -- \\2#p")
+		# NOTE: additional ExecStart= might exist in the drop-in files, eg. openSUSE
+		edited_exec_start=$(systemctl cat $svc | sed -ne "s#^ExecStart=\\([-+:!@]*\\)\\(.\+\\)#ExecStart=\\1/usr/bin/unshare --uts /bin/sh -c 'hostname \${NFS_SERVER_SCOPE}; exec \"\$@\"' -- \\2#p" | tail -1)
+
 		cat > "$dropin" <<___
 [Service]
 EnvironmentFile=$SYSTEMD_ENVIRONMENT_FILE_NFS_SERVER_SCOPE
