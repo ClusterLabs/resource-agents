@@ -50,6 +50,8 @@ OCF_RESKEY_vg_access_mode_default=""
 OCF_RESKEY_activation_mode_default="exclusive"
 OCF_RESKEY_tag_default="pacemaker"
 OCF_RESKEY_partial_activation_default="false"
+OCF_RESKEY_degraded_activation_default="false"
+OCF_RESKEY_majority_pvs_default="false"
 
 : ${OCF_RESKEY_vgname=${OCF_RESKEY_vgname_default}}
 : ${OCF_RESKEY_lvname=${OCF_RESKEY_lvname_default}}
@@ -57,6 +59,8 @@ OCF_RESKEY_partial_activation_default="false"
 : ${OCF_RESKEY_activation_mode=${OCF_RESKEY_activation_mode_default}}
 : ${OCF_RESKEY_tag=${OCF_RESKEY_tag_default}}
 : ${OCF_RESKEY_partial_activation=${OCF_RESKEY_partial_activation_default}}
+: ${OCF_RESKEY_degraded_activation=${OCF_RESKEY_degraded_activation_default}}
+: ${OCF_RESKEY_majority_pvs=${OCF_RESKEY_majority_pvs_default}}
 
 # If LV is given, only activate this named LV; otherwise, activate all
 # LVs in the named VG.
@@ -189,6 +193,29 @@ logical volumes.
 </longdesc>
 <shortdesc lang="en">Activate VG partially when missing PVs</shortdesc>
 <content type="string" default="${OCF_RESKEY_partial_activation_default}" />
+</parameter>
+
+<parameter name="degraded_activation" unique="0" required="0">
+<longdesc lang="en">
+Activate RAID LVs using the "degraded" activation mode. This allows RAID
+LVs to be activated with missing PVs if all data can be provided with
+RAID redundancy. The RAID level determines the number of PVs that are
+required for degraded activation to succeed. If fewer PVs are available,
+then degraded activation will fail. Also enable majority_pvs.
+</longdesc>
+<shortdesc lang="en">Activate RAID LVs in degraded mode when missing PVs</shortdesc>
+<content type="string" default="${OCF_RESKEY_degraded_activation_default}" />
+</parameter>
+
+<parameter name="majority_pvs" unique="0" required="0">
+<longdesc lang="en">
+If set, the VG system ID can be reassigned to a new host if a majority
+of PVs in the VG are present. Otherwise, VG failover with system ID
+will fail when the VG is missing PVs. Also enable degraded_activation
+when RAID LVs are used.
+</longdesc>
+<shortdesc lang="en">Allow changing the system ID of a VG with a majority of PVs</shortdesc>
+<content type="string" default="${OCF_RESKEY_majority_pvs_default}" />
 </parameter>
 
 </parameters>
@@ -524,24 +551,27 @@ lvm_validate() {
 		exit $OCF_ERR_GENERIC
 	fi
 
-	# Inconsistency might be due to missing physical volumes, which doesn't
-	# automatically mean we should fail.  If partial_activation=true then
-	# we should let start try to handle it, or if no PVs are listed as
-	# "unknown device" then another node may have marked a device missing
-	# where we have access to all of them and can start without issue.
-	case $(vgs -o attr --noheadings $VG | tr -d ' ') in
-	???p??*)
-		if ! ocf_is_true "$OCF_RESKEY_partial_activation" ; then
-			# We are missing devices and cannot activate partially
-			ocf_exit_reason "Volume group [$VG] has devices missing.  Consider partial_activation=true to attempt to activate partially"
-			exit $OCF_ERR_GENERIC
+	vg_missing_pv_count=$(vgs -o missing_pv_count --noheadings ${VG} 2>/dev/null)
+
+	if [ $vg_missing_pv_count -gt 0 ]; then
+		ocf_log warn "Volume Group ${VG} is missing $vg_missing_pv_count PVs."
+
+		# Setting new system ID will succeed if over half of PVs remain.
+		# Don't try to calculate here if a majority is present,
+		# but leave this up to the vgchange command to determine.
+		if ocf_is_true "$OCF_RESKEY_majority_pvs" ; then
+			ocf_log warn "Attempting fail over with missing PVs (majority.)"
+
+		# Setting new system ID will fail, and behavior is undefined for
+		# other access modes.
+		elif ocf_is_true "$OCF_RESKEY_partial_activation" ; then
+			ocf_log warn "Attempting fail over with missing PVs (partial.)"
+
 		else
-			# We are missing devices but are allowed to activate partially.
-			# Assume that caused the vgck failure and carry on
-			ocf_log warn "Volume group inconsistency detected with missing device(s) and partial_activation enabled.  Proceeding with requested action."
+			ocf_exit_reason "Volume group [$VG] has devices missing.  Consider majority_pvs=true"
+			exit $OCF_ERR_GENERIC
 		fi
-		;;
-	esac
+	fi
 
 	# Get the access mode from VG metadata and check if it matches the input
 	# value. Skip to check "tagging" mode because there's no reliable way to
@@ -601,7 +631,18 @@ lvm_validate() {
 do_activate() {
 	do_activate_opt=$1
 
-	if ocf_is_true "$OCF_RESKEY_partial_activation" ; then
+	if ocf_is_true "$OCF_RESKEY_degraded_activation" ; then
+		# This will allow a RAID LV to be activated if sufficient
+		# devices are available to allow the LV to be usable
+		do_activate_opt="${do_activate_opt} --activationmode degraded"
+
+	elif ocf_is_true "$OCF_RESKEY_partial_activation" ; then
+		# This will allow a mirror LV to be activated if any
+		# devices are missing, but the activated LV may not be
+		# usable, so it is not recommended.  Also, other LV
+		# types without data redundancy will be activated
+		# when partial is set.
+		# RAID LVs and degraded_activation should be used instead.
 		do_activate_opt="${do_activate_opt} --partial"
 	fi
 
@@ -661,11 +702,16 @@ clvmd_activate() {
 }
 
 systemid_activate() {
+	majority_opt=""
 	set_autoactivation=0
 	cur_systemid=$(vgs --foreign --noheadings -o systemid ${VG} | tr -d '[:blank:]')
 
+	if ocf_is_true "$OCF_RESKEY_majority_pvs" ; then
+		vgchange --help | grep '\--majoritypvs' >/dev/null 2>&1 && majority_opt="--majoritypvs"
+	fi
+
 	# Put our system ID on the VG
-	vgchange -y --config "local/extra_system_ids=[\"${cur_systemid}\"]" \
+	vgchange -y $majority_opt --config "local/extra_system_ids=[\"${cur_systemid}\"]" \
 		--systemid ${SYSTEM_ID} ${VG}
 	vgchange --help | grep '\--setautoactivation' >/dev/null 2>&1 && set_autoactivation=1
 
