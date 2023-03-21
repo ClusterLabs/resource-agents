@@ -757,6 +757,10 @@ mysql_monitor() {
         status_loglevel="info"
     fi
 
+    if ocf_is_ms; then
+        OCF_CHECK_LEVEL=10
+    fi
+
     mysql_common_status $status_loglevel
     rc=$?
 
@@ -777,7 +781,13 @@ mysql_monitor() {
         return $rc
     fi
 
-    if [ $OCF_CHECK_LEVEL -gt 0 -a -n "$OCF_RESKEY_test_table" ]; then
+    if [ $OCF_CHECK_LEVEL -eq 10 ]; then
+        if [ -z "$OCF_RESKEY_test_table" ]; then
+            ocf_exit_reason "test_table not set"
+            return $OCF_ERR_CONFIGURED
+
+        fi
+
         # Check if this instance is configured as a slave, and if so
         # check slave status
         if is_slave; then
@@ -795,18 +805,16 @@ mysql_monitor() {
             ocf_exit_reason "Failed to select from $test_table";
             return $OCF_ERR_GENERIC;
         fi
-    else
-        # In case no exnteded tests are enabled and we are in master/slave mode _always_ set the master score to 1 if we reached this point
-        ocf_is_ms && ocf_promotion_score -v 1
     fi
 
     if ocf_is_ms && ! get_read_only; then
         ocf_log debug "MySQL monitor succeeded (master)";
         # Always set master score for the master
-        ocf_promotion_score -v 2
+        ocf_promotion_score -v $((${OCF_RESKEY_max_slave_lag}+1))
         return $OCF_RUNNING_MASTER
     else
         ocf_log debug "MySQL monitor succeeded";
+        ocf_is_ms && ocf_promotion_score -v 1
         return $OCF_SUCCESS
     fi
 }
@@ -873,7 +881,6 @@ mysql_start() {
         # preference set by the administrator. We choose a low
         # greater-than-zero preference.
         ocf_promotion_score -v 1
-
     fi
 
     # Initial monitor action
