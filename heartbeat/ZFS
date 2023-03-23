@@ -89,7 +89,7 @@ zpool_is_imported () {
         return `[ -d  /proc/spl/kstat/zfs/"${OCF_RESKEY_pool}" ]`
     else
         # If ZFS kstats do not exists, fallback to the standard check
-		return zpool list -H "$OCF_RESKEY_pool" > /dev/null
+		return `zpool list -H "$OCF_RESKEY_pool" > /dev/null`
 	fi
 }
 
