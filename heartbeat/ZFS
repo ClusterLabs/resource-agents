@@ -83,7 +83,16 @@ END
 }
 
 zpool_is_imported () {
-	zpool list -H "$OCF_RESKEY_pool" > /dev/null
+	# Check if ZFS kstats exists
+	if [ -d  /proc/spl/kstat/zfs/ ] ; then
+		# Check the existence of kstats for the pool. If the stats exists, the pool was imported.
+		[ -d  /proc/spl/kstat/zfs/"${OCF_RESKEY_pool}" ]
+		rc=$? 
+	else
+		# If ZFS kstats do not exists, fallback to the standard check
+		rc=$(zpool list -H "$OCF_RESKEY_pool" > /dev/null)
+	fi
+	return $rc
 }
 
 # Forcibly imports a ZFS pool, mounting all of its auto-mounted filesystems
