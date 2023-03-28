@@ -310,10 +310,10 @@ class clusterHelper:
 		summary = clusterHelper._exec("crm_simulate", "-Ls")
 		if not summary:
 			ocf.logger.warning("transitionSummary: could not load transition summary")
-			return False
+			return ""
 		if summary.find("Transition Summary:") < 0:
-			ocf.logger.warning("transitionSummary: received unexpected transition summary: %s" % summary)
-			return False
+			ocf.logger.debug("transitionSummary: no transactions: %s" % summary)
+			return ""
 		summary = summary.split("Transition Summary:")[1]
 		ret = summary.split("\n").pop(0)
 
