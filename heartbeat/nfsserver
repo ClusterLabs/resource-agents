@@ -455,7 +455,7 @@ nfsserver_monitor ()
 prepare_directory ()
 {
 	if [ -z "$fp" ]; then
-		return
+		fp="/var/lib/nfs"
 	fi
 
 	[ -d "$OCF_RESKEY_rpcpipefs_dir" ] || mkdir -p $OCF_RESKEY_rpcpipefs_dir
