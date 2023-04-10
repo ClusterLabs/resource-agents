@@ -82,7 +82,7 @@ The directory or directories to export.
 <content type="string" />
 </parameter>
 
-<parameter name="fsid" unique="0" required="1">
+<parameter name="fsid" unique="0" required="0">
 <longdesc lang="en">
 The fsid option to pass to exportfs. This can be a unique positive
 integer, a UUID (assuredly sans comma characters), or the special string
@@ -185,6 +185,8 @@ exportfs_methods() {
 
 reset_fsid() {
 	CURRENT_FSID=$OCF_RESKEY_fsid
+	[ -z "$CURRENT_FSID" ] && CURRENT_FSID=`echo "$OCF_RESKEY_options" | sed -n 's/.*fsid=\([^,]*\).*/\1/p'`
+	echo $CURRENT_FSID
 }
 bump_fsid() {
 	CURRENT_FSID=$((CURRENT_FSID+1))
@@ -322,7 +324,7 @@ export_one() {
 	if echo "$opts" | grep fsid >/dev/null; then
 		#replace fsid in options list
 		opts=`echo "$opts" | sed "s,fsid=[^,]*,fsid=$(get_fsid),g"`
-	else
+	elif [ -n "$OCF_RESKEY_fsid" ]; then
 		#tack the fsid option onto our options list.
 		opts="${opts}${sep}fsid=$(get_fsid)"
 	fi
@@ -448,8 +450,8 @@ exportfs_validate_all ()
 		ocf_exit_reason "$OCF_RESKEY_fsid cannot contain a comma"
 		return $OCF_ERR_CONFIGURED
 	fi
-	if [ $NUMDIRS -gt 1 ] &&
-			! ocf_is_decimal "$OCF_RESKEY_fsid"; then
+	if [ $NUMDIRS -gt 1 ] && [ -n "$(reset_fsid)" ] &&
+			! ocf_is_decimal "$(reset_fsid)"; then
 		ocf_exit_reason "use integer fsid when exporting multiple directories"
 		return $OCF_ERR_CONFIGURED
 	fi
@@ -485,6 +487,6 @@ done
 OCF_RESKEY_directory="${directories%% }"
 
 NUMDIRS=`echo "$OCF_RESKEY_directory" | wc -w`
-OCF_REQUIRED_PARAMS="directory fsid clientspec"
+OCF_REQUIRED_PARAMS="directory clientspec"
 OCF_REQUIRED_BINARIES="exportfs"
 ocf_rarun $*
