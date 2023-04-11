@@ -104,6 +104,7 @@
 #include <syslog.h>
 #include <signal.h>
 #include <errno.h>
+#include <poll.h>
 #include <clplumbing/cl_log.h>
 
 
@@ -606,6 +607,8 @@ is_addr6_available(struct in6_addr* addr6)
 	struct iovec			iov;
 	u_char				packet[MINPACKSIZE];
 	struct msghdr			msg;
+	int				i;
+	struct pollfd			pfd;
 
 	if ((icmp_sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6)) == -1) {
 		return -1;
@@ -644,12 +647,26 @@ is_addr6_available(struct in6_addr* addr6)
 	msg.msg_control = NULL;
 	msg.msg_controllen = 0;
 
-	ret = recvmsg(icmp_sock, &msg, MSG_DONTWAIT);
-	if (0 >= ret) {
-		return -1;
+	for (i = 0; i < 3; i++) {
+		pfd.fd = icmp_sock;
+		pfd.events = POLLIN;
+		pfd.revents = 0;
+		ret = poll(&pfd, 1, 10);
+
+		if (ret < 1)
+			continue;
+
+		ret = recvmsg(icmp_sock, &msg, MSG_DONTWAIT);
+		if (ret > 0)
+			return 0;
+		if (ret == 0)
+			break;
+
+		if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
+			break;
 	}
 	
-	return 0;
+	return -1;
 }
 
 static void usage(const char* self)
