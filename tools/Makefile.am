@@ -75,6 +75,7 @@ findif_SOURCES		= findif.c
 
 storage_mon_SOURCES	= storage_mon.c
 storage_mon_CFLAGS	= -D_GNU_SOURCE
+storage_mon_LDADD	= -lqb
 
 if BUILD_TICKLE
 halib_PROGRAMS		+= tickle_tcp
