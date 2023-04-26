@@ -317,7 +317,7 @@ class clusterHelper:
 		j=summary.find('Transition Summary:') + len('Transition Summary:')
 		l=summary.lower().find('executing cluster transition:')
 		summary = summary[j:l]
-		ret = summary.split("\n").pop(0)
+		ret = list(filter(str.strip, summary.split("\n")))
 
 		ocf.logger.debug("transitionSummary: finished; return = %s" % str(ret))
 		return ret
