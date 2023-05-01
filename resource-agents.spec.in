@@ -232,13 +232,7 @@ export CFLAGS
 	--with-pkg-name=%{name} \
 	--with-ras-set=%{rasset}
 
-%if %{defined jobs}
-JFLAGS="$(echo '-j%{jobs}')"
-%else
-JFLAGS="$(echo '%{_smp_mflags}')"
-%endif
-
-make $JFLAGS
+make %{_smp_mflags}
 
 %install
 rm -rf %{buildroot}
