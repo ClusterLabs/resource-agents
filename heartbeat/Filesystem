@@ -456,7 +456,7 @@ fstype_supported()
 	# System (EFS)
 	case "$FSTYPE" in
 		fuse.*|glusterfs|rozofs) support="fuse";;
-		efs) support="nfs4";;
+		efs) check_binary "mount.efs"; support="nfs4";;
 	esac
 
 	if [ "$support" != "$FSTYPE" ]; then
