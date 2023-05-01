@@ -298,7 +298,7 @@ class clusterHelper:
 		Get the current Pacemaker transition summary (used to check if all resources are stopped when putting a node standby)
 		"""
 		# <tniek> Is a global crm_simulate "too much"? Or would it be sufficient it there are no planned transitions for a particular node?
-		# # crm_simulate -Ls
+		# # crm_simulate -LS
 		# 	Transition Summary:
 		# 	 * Promote rsc_SAPHana_HN1_HDB03:0      (Slave -> Master hsr3-db1)
 		# 	 * Stop    rsc_SAPHana_HN1_HDB03:1      (hsr3-db0)
@@ -308,15 +308,16 @@ class clusterHelper:
 		# 	Transition Summary:
 		ocf.logger.debug("transitionSummary: begin")
 
-		summary = clusterHelper._exec("crm_simulate", "-Ls")
+		summary = clusterHelper._exec("crm_simulate", "-LS")
 		if not summary:
 			ocf.logger.warning("transitionSummary: could not load transition summary")
 			return ""
 		if summary.find("Transition Summary:") < 0:
 			ocf.logger.debug("transitionSummary: no transactions: %s" % summary)
 			return ""
-		summary = summary.split("Transition Summary:")[1]
-		ret = summary.split("\n").pop(0)
+		j=summary.find('Transition Summary:') + len('Transition Summary:')
+		l=summary.lower().find('executing cluster transition:')
+		ret = list(filter(str.strip, summary[j:l].split("\n")))
 
 		ocf.logger.debug("transitionSummary: finished; return = %s" % str(ret))
 		return ret
