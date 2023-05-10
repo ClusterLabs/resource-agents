@@ -69,6 +69,7 @@ OCF_RESKEY_options_default=""
 OCF_RESKEY_statusfile_prefix_default="${DFLT_STATUSDIR}"
 OCF_RESKEY_run_fsck_default="auto"
 OCF_RESKEY_fast_stop_default="no"
+OCF_RESKEY_signals_default="TERM KILL"
 OCF_RESKEY_force_clones_default="false"
 OCF_RESKEY_force_unmount_default="true"
 
@@ -231,6 +232,14 @@ This defaults to "no" for GFS2 filesystems.
 </longdesc>
 <shortdesc lang="en">fast stop</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_fast_stop_default}" />
+</parameter>
+
+<parameter name="signals">
+<longdesc lang="en">
+Signals to send processes during stop-action.
+</longdesc>
+<shortdesc lang="en">Signals to send processes during stop-action</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_signals_default}" />
 </parameter>
 
 <parameter name="force_clones">
@@ -665,8 +674,9 @@ try_umount() {
 }
 fs_stop() {
 	local SUB="$1" timeout=$2 sig cnt
-	for sig in TERM KILL; do
-		cnt=$((timeout/2)) # try half time with TERM
+	sigs=$(echo $OCF_RESKEY_signals | wc -w)
+	for sig in $OCF_RESKEY_signals; do
+		cnt=$((timeout/sigs))
 		while [ $cnt -gt 0 ]; do
 			try_umount "$SUB" &&
 				return $OCF_SUCCESS
