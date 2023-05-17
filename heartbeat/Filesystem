@@ -678,12 +678,12 @@ fs_stop() {
 	for sig in $OCF_RESKEY_signals; do
 		cnt=$((timeout/sigs))
 		while [ $cnt -gt 0 ]; do
+			signal_processes "$SUB" $sig
+			sleep 1
 			try_umount "$SUB" &&
 				return $OCF_SUCCESS
 			ocf_exit_reason "Couldn't unmount $SUB; trying cleanup with $sig"
-			signal_processes "$SUB" $sig
 			cnt=$((cnt-1))
-			sleep 1
 		done
 	done
 	return $OCF_ERR_GENERIC
