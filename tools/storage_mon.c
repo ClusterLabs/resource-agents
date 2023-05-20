@@ -67,7 +67,7 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 		goto error;
 	}
 	if (verbose) {
-		printf("%s: opened %s O_DIRECT, size=%zu\n", device, (flags & O_DIRECT)?"with":"without", devsize);
+		printf("%s: opened %s O_DIRECT, size=%llu\n", device, (flags & O_DIRECT)?"with":"without", devsize);
 	}
 
 	/* Don't fret about real randomness */
@@ -120,7 +120,7 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 			goto error;
 		}
 		if (res < (int)sizeof(buffer)) {
-			fprintf(stderr, "Failed to read %ld bytes from %s, got %d\n", sizeof(buffer), device, res);
+			fprintf(stderr, "Failed to read %zd bytes from %s, got %d\n", sizeof(buffer), device, res);
 			goto error;
 		}
 	}
