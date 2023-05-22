@@ -1021,6 +1021,7 @@ is_option "ro" &&
 case "$FSTYPE" in
 nfs4|nfs|efs|smbfs|cifs|none|gfs2|glusterfs|ceph|ocfs2|overlay|overlayfs|tmpfs|cvfs|lustre)
 	CLUSTERSAFE=1 # this is kind of safe too
+	systemd_drop_in "99-Filesystem-remote" "After" "remote-fs.target"
 	;;
 # add here CLUSTERSAFE=0 for all filesystems which are not
 # cluster aware and which, even if when mounted read-only,
@@ -1028,6 +1029,7 @@ nfs4|nfs|efs|smbfs|cifs|none|gfs2|glusterfs|ceph|ocfs2|overlay|overlayfs|tmpfs|c
 ext4|ext4dev|ext3|reiserfs|reiser4|xfs|jfs)
 	if ocf_is_true "$OCF_RESKEY_force_clones"; then
 		CLUSTERSAFE=2
+		systemd_drop_in "99-Filesystem-remote" "After" "remote-fs.target"
 	else
 		CLUSTERSAFE=0 # these are not allowed
 	fi
