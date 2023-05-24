@@ -311,7 +311,7 @@ storage-mon_start() {
 }
 
 storage-mon_stop() {
-	storage-mon_monitor pid_check_only
+	storage-mon_monitor
 	rc=$?
 
 	if [ -z "$OCF_RESKEY_daemonize" ]; then
