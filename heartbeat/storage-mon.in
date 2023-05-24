@@ -205,6 +205,25 @@ storage-mon_init() {
 	fi
 }
 
+storage-mon_update_attribute() {
+
+	while :
+	do
+		"$ATTRDUP" -n ${ATTRNAME} -U "$1" -d "5s"
+		rc=$?
+		if [ $rc -eq 0 ]; then
+			break
+		fi
+
+		ocf_log debug "${1} attribute by attrd_updater failed"
+		if [ "$1" = "red" ]; then
+			# If the attrd_updater fails with the red attribute, return an error to let pacemaker handle the failure immediately.
+			return $OCF_ERR_GENERIC
+		fi
+	done
+	return $OCF_SUCCESS
+}
+
 storage-mon_monitor() {
 	if [ -z "$OCF_RESKEY_daemonize" ]; then
 		storage-mon_init
@@ -233,8 +252,8 @@ storage-mon_monitor() {
 			status="green"
 		fi
 
-		"$ATTRDUP" -n ${ATTRNAME} -U "$status" -d "5s"
-		return $OCF_SUCCESS
+		storage-mon_update_attribute $status
+		return "$?"
 	else
 		ocf_pidfile_status "${PIDFILE}" > /dev/null 2>&1
 		case "$?" in
@@ -279,8 +298,8 @@ storage-mon_monitor() {
 			esac
 		done
 
-		"$ATTRDUP" -n ${ATTRNAME} -U "$status" -d "5s"
-		return $OCF_SUCCESS
+		storage-mon_update_attribute $status
+		return "$?"
 	fi	
 }
 
