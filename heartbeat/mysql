@@ -517,17 +517,6 @@ check_slave() {
 
                 exit $OCF_ERR_INSTALLED
             fi
-        elif ocf_is_ms; then
-            # Even if we're not set to evict lagging slaves, we can
-            # still use the seconds behind master value to set our
-            # master preference.
-            local master_pref
-            master_pref=$((${OCF_RESKEY_max_slave_lag}-${secs_behind}))
-            if [ $master_pref -lt 0 ]; then
-                # Sanitize a below-zero preference to just zero
-                master_pref=0
-            fi
-            ocf_promotion_score -v $master_pref
         fi
 
         # is the slave ok to have a VIP on it
