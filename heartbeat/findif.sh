@@ -32,7 +32,7 @@ prefixcheck() {
 getnetworkinfo()
 {
   local line netinfo
-  ip -o -f inet route list match $OCF_RESKEY_ip table "${OCF_RESKEY_table=local}" scope host | (while read line;
+  ip -o -f inet route list match $OCF_RESKEY_ip table "${OCF_RESKEY_table:=main}" scope host | (while read line;
   do
     netinfo=`echo $line | awk '{print $2}'`
     case $netinfo in
@@ -215,9 +215,9 @@ findif()
   fi
   if [ -n "$nic" ] ; then
     # NIC supports more than two.
-    set -- $(ip -o -f $family route list match $match $scope | grep "dev $nic " | awk 'BEGIN{best=0} /\// { mask=$1; sub(".*/", "", mask); if( int(mask)>=best ) { best=int(mask); best_ln=$0; } } END{print best_ln}')
+    set -- $(ip -o -f $family route list match $match $scope table "${OCF_RESKEY_table:=main}" | grep "dev $nic " | awk 'BEGIN{best=0} /\// { mask=$1; sub(".*/", "", mask); if( int(mask)>=best ) { best=int(mask); best_ln=$0; } } END{print best_ln}')
   else
-    set -- $(ip -o -f $family route list match $match $scope | awk 'BEGIN{best=0} /\// { mask=$1; sub(".*/", "", mask); if( int(mask)>=best ) { best=int(mask); best_ln=$0; } } END{print best_ln}')
+    set -- $(ip -o -f $family route list match $match $scope table "${OCF_RESKEY_table:=main}" | awk 'BEGIN{best=0} /\// { mask=$1; sub(".*/", "", mask); if( int(mask)>=best ) { best=int(mask); best_ln=$0; } } END{print best_ln}')
   fi
   if [ $# = 0 ] ; then
     case $OCF_RESKEY_ip in
