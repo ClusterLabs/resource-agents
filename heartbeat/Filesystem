@@ -71,6 +71,9 @@ OCF_RESKEY_run_fsck_default="auto"
 OCF_RESKEY_fast_stop_default="no"
 OCF_RESKEY_force_clones_default="false"
 OCF_RESKEY_force_unmount_default="true"
+OCF_RESKEY_term_signals_default="TERM"
+OCF_RESKEY_kill_signals_default="KILL"
+OCF_RESKEY_signal_delay_default="1"
 
 # RHEL specific defaults
 if is_redhat_based; then
@@ -104,6 +107,9 @@ if [ -z "${OCF_RESKEY_fast_stop}" ]; then
 fi
 : ${OCF_RESKEY_force_clones=${OCF_RESKEY_force_clones_default}}
 : ${OCF_RESKEY_force_unmount=${OCF_RESKEY_force_unmount_default}}
+: ${OCF_RESKEY_term_signals=${OCF_RESKEY_term_signals_default}}
+: ${OCF_RESKEY_kill_signals=${OCF_RESKEY_kill_signals_default}}
+: ${OCF_RESKEY_signal_delay=${OCF_RESKEY_signal_delay_default}}
 
 # Variables used by multiple methods
 HOSTOS=$(uname)
@@ -264,6 +270,30 @@ block if unresponsive nfs mounts are in use on the system.
 </longdesc>
 <shortdesc lang="en">Kill processes before unmount</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_force_unmount_default}" />
+</parameter>
+
+<parameter name="term_signals">
+<longdesc lang="en">
+Signals (names or numbers, whitespace separated) to send processes during graceful termination phase in stop-action.
+</longdesc>
+<shortdesc lang="en">Signals (names or numbers, whitespace separated) to send processes during graceful termination phase in stop-action</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_term_signals_default}" />
+</parameter>
+
+<parameter name="kill_signals">
+<longdesc lang="en">
+Signals (names or numbers, whitespace separated) to send processes during forceful killing phase in stop-action.
+</longdesc>
+<shortdesc lang="en">Signals (names or numbers, whitespace separated) to send processes during forceful killing phase in stop-action</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_kill_signals_default}" />
+</parameter>
+
+<parameter name="signal_delay">
+<longdesc lang="en">
+How many seconds to wait after sending term/kill signals to processes in stop-action.
+</longdesc>
+<shortdesc lang="en">How many seconds to wait after sending term/kill signals to processes in stop-action</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_kill_signal_delay}" />
 </parameter>
 
 </parameters>
@@ -663,19 +693,49 @@ try_umount() {
 	}
 	return $OCF_ERR_GENERIC
 }
-fs_stop() {
-	local SUB="$1" timeout=$2 sig cnt
-	for sig in TERM KILL; do
-		cnt=$((timeout/2)) # try half time with TERM
-		while [ $cnt -gt 0 ]; do
-			try_umount "$SUB" &&
-				return $OCF_SUCCESS
-			ocf_exit_reason "Couldn't unmount $SUB; trying cleanup with $sig"
+timeout_child() {
+	local pid="$1" timeout="$2" killer ret
+
+	# start job in the background that will KILL the given process after timeout expires
+	sleep $timeout && kill -s KILL $pid &
+	killer=$!
+
+	# block until the child process either exits on its own or gets killed by the above killer pipeline
+	wait $pid
+	ret=$?
+
+	# ret would be 127 + child exit code if the timeout expired
+	[ $ret -lt 128 ] && kill -s KILL $killer
+	return $ret
+}
+fs_stop_loop() {
+	local SUB="$1" signals="$2" sig
+	while true; do
+		for sig in $signals; do
 			signal_processes "$SUB" $sig
-			cnt=$((cnt-1))
-			sleep 1
 		done
+		sleep $OCF_RESKEY_signal_delay
+		try_umount "$SUB" && return $OCF_SUCCESS
 	done
+}
+fs_stop() {
+	local SUB="$1" timeout=$2 grace_time ret
+	grace_time=$((timeout/2))
+
+	# try gracefully terminating processes for up to half of the configured timeout
+	fs_stop_loop "$SUB" "$OCF_RESKEY_term_signals" &
+	timeout_child $! $grace_time
+	ret=$?
+	[ $ret -eq $OCF_SUCCESS ] && return $ret
+
+	# try killing them for the rest of the timeout
+	fs_stop_loop "$SUB" "$OCF_RESKEY_kill_signals" &
+	timeout_child $! $grace_time
+	ret=$?
+	[ $ret -eq $OCF_SUCCESS ] && return $ret
+
+	# timeout expired
+	ocf_exit_reason "Couldn't unmount $SUB within given timeout"
 	return $OCF_ERR_GENERIC
 }
 
