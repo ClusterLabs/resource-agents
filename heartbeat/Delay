@@ -71,7 +71,6 @@ How long in seconds to delay on start operation.
 <parameter name="stopdelay" unique="0"  required="0">
 <longdesc lang="en">
 How long in seconds to delay on stop operation.
-Defaults to "startdelay" if unspecified.
 </longdesc>
 <shortdesc lang="en">Stop delay</shortdesc>
 <content type="integer" default="${OCF_RESKEY_stopdelay_default}" />
@@ -80,7 +79,6 @@ Defaults to "startdelay" if unspecified.
 <parameter name="mondelay" unique="0"  required="0">
 <longdesc lang="en">
 How long in seconds to delay on monitor operation.
-Defaults to "startdelay" if unspecified.
 </longdesc>
 <shortdesc lang="en">Monitor delay</shortdesc>
 <content type="integer" default="${OCF_RESKEY_mondelay_default}" />
