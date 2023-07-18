@@ -355,8 +355,8 @@ list_mounts() {
 		else
 			# <device> on <mountpoint> type <fstype> ...
 			# Use tabs as field separators
-			match_string='\(.*\) on \(.*\) type \([^[:space:]]\)'
-			replace_string="\\1${TAB}\\3${TAB}\\5"
+			match_string='\(.*\) on \(.*\) type \([^[:space:]]\+\) .*'
+			replace_string="\\1${TAB}\\2${TAB}\\3"
 			mount_list=$($MOUNT | sed "s/$match_string/$replace_string/g")
 		fi
 	done
