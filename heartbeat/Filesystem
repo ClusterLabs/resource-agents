@@ -269,7 +269,7 @@ fuser cli tool. fuser is known to perform operations that can potentially
 block if unresponsive nfs mounts are in use on the system.
 </longdesc>
 <shortdesc lang="en">Kill processes before unmount</shortdesc>
-<content type="boolean" default="${OCF_RESKEY_force_unmount_default}" />
+<content type="string" default="${OCF_RESKEY_force_unmount_default}" />
 </parameter>
 
 <parameter name="term_signals">
@@ -277,7 +277,7 @@ block if unresponsive nfs mounts are in use on the system.
 Signals (names or numbers, whitespace separated) to send processes during graceful termination phase in stop-action.
 </longdesc>
 <shortdesc lang="en">Signals (names or numbers, whitespace separated) to send processes during graceful termination phase in stop-action</shortdesc>
-<content type="boolean" default="${OCF_RESKEY_term_signals_default}" />
+<content type="string" default="${OCF_RESKEY_term_signals_default}" />
 </parameter>
 
 <parameter name="kill_signals">
@@ -285,7 +285,7 @@ Signals (names or numbers, whitespace separated) to send processes during gracef
 Signals (names or numbers, whitespace separated) to send processes during forceful killing phase in stop-action.
 </longdesc>
 <shortdesc lang="en">Signals (names or numbers, whitespace separated) to send processes during forceful killing phase in stop-action</shortdesc>
-<content type="boolean" default="${OCF_RESKEY_kill_signals_default}" />
+<content type="string" default="${OCF_RESKEY_kill_signals_default}" />
 </parameter>
 
 <parameter name="signal_delay">
@@ -293,7 +293,7 @@ Signals (names or numbers, whitespace separated) to send processes during forcef
 How many seconds to wait after sending term/kill signals to processes in stop-action.
 </longdesc>
 <shortdesc lang="en">How many seconds to wait after sending term/kill signals to processes in stop-action</shortdesc>
-<content type="boolean" default="${OCF_RESKEY_kill_signal_delay}" />
+<content type="string" default="${OCF_RESKEY_kill_signal_delay}" />
 </parameter>
 
 </parameters>
