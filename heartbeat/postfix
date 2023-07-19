@@ -45,7 +45,7 @@ USAGE="Usage: $0 {start|stop|reload|monitor|validate-all|meta-data}";
 ##########################################################################
 
 # Check availability of the runuser command, otherwise use sudo
-if [ command -v runuser >/dev/null 2>&1 ]; then
+if [ -x /sbin/runuser ]; then
     SUDO=runuser
 else
     SUDO=sudo
