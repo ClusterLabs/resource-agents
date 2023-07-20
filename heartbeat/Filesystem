@@ -293,7 +293,7 @@ Signals (names or numbers, whitespace separated) to send processes during forcef
 How many seconds to wait after sending term/kill signals to processes in stop-action.
 </longdesc>
 <shortdesc lang="en">How many seconds to wait after sending term/kill signals to processes in stop-action</shortdesc>
-<content type="string" default="${OCF_RESKEY_kill_signal_delay}" />
+<content type="string" default="${OCF_RESKEY_signal_delay_default}" />
 </parameter>
 
 </parameters>
