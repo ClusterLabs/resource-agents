@@ -74,7 +74,8 @@ sfex_stat_LDADD		= $(GLIBLIB) -lplumb -lplumbgpl
 findif_SOURCES		= findif.c
 
 storage_mon_SOURCES	= storage_mon.c
-storage_mon_CFLAGS	= -D_GNU_SOURCE
+storage_mon_CFLAGS     = -D_GNU_SOURCE ${LIBQB_CFLAGS}
+storage_mon_LDADD      = ${LIBQB_LIBS}
 
 if BUILD_TICKLE
 halib_PROGRAMS		+= tickle_tcp
