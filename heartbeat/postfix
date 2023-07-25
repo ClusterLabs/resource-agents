@@ -297,7 +297,7 @@ postfix_validate_all()
         if ocf_is_true $status_support; then
             user=`postconf $OPTION_CONFIG_DIR -h mail_owner 2>/dev/null`
             for dir in $data_dir; do
-                if ! $SU -s /bin/sh -l $user -c "test -w $dir"; then
+                if ! $SU -s /bin/sh - $user -c "test -w $dir"; then
                     if ocf_is_probe; then
                         ocf_log info "Directory '$dir' is not writable by user '$user' during probe."
                     else
