@@ -44,6 +44,13 @@ USAGE="Usage: $0 {start|stop|reload|monitor|validate-all|meta-data}";
 
 ##########################################################################
 
+# Check availability of the runuser command, otherwise use su
+if [ -x /sbin/runuser ]; then
+    SU=runuser
+else
+    SU=su
+fi
+
 usage() {
     echo $USAGE >&2
 }
@@ -290,7 +297,7 @@ postfix_validate_all()
         if ocf_is_true $status_support; then
             user=`postconf $OPTION_CONFIG_DIR -h mail_owner 2>/dev/null`
             for dir in $data_dir; do
-                if ! su -s /bin/sh - $user -c "test -w $dir"; then
+                if ! $SU -s /bin/sh - $user -c "test -w $dir"; then
                     if ocf_is_probe; then
                         ocf_log info "Directory '$dir' is not writable by user '$user' during probe."
                     else
