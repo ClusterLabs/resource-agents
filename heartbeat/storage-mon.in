@@ -58,7 +58,7 @@ OCF_RESKEY_io_timeout_default="10"
 OCF_RESKEY_check_interval_default="30"
 OCF_RESKEY_inject_errors_default=""
 OCF_RESKEY_state_file_default="${HA_RSCTMP%%/}/storage-mon-${OCF_RESOURCE_INSTANCE}.state"
-OCF_RESKEY_daemonize_default=""
+OCF_RESKEY_daemonize_default="false"
 
 # Explicitly list all environment variables used, to make static analysis happy
 : ${OCF_RESKEY_CRM_meta_interval:=${OCF_RESKEY_CRM_meta_interval_default}}
@@ -133,7 +133,7 @@ Used only for testing! Specify % of I/O errors to simulate drives failures.
 Specifies to start storage-mon as a daemon and check for devices.
 </longdesc>
 <shortdesc lang="en">start storage-mon with daemon</shortdesc>
-<content type="string" default="" />
+<content type="boolean" default="${OCF_RESKEY_daemonize_default}" />
 </parameter>
 
 </parameters>
@@ -225,7 +225,7 @@ storage-mon_update_attribute() {
 }
 
 storage-mon_monitor() {
-	if [ -z "$OCF_RESKEY_daemonize" ]; then
+	if ! ocf_is_true "$OCF_RESKEY_daemonize"; then
 		storage-mon_init
 
 		# Monitor _MUST!_ differentiate correctly between running
@@ -304,7 +304,7 @@ storage-mon_monitor() {
 }
 
 storage-mon_start() {
-	if [ -z "$OCF_RESKEY_daemonize" ]; then
+	if ! ocf_is_true "$OCF_RESKEY_daemonize"; then
 		storage-mon_monitor
 		if [ $? -eq $OCF_SUCCESS ]; then
 			return $OCF_SUCCESS
@@ -317,7 +317,6 @@ storage-mon_start() {
 		for DRIVE in ${OCF_RESKEY_drives}; do
 			cmdline="$cmdline --device $DRIVE --score 1"
 		done
-		#cmdline="$cmdline --daemonize --timeout ${OCF_RESKEY_io_timeout} --interval ${OCF_RESKEY_check_interval} --pidfile ${PIDFILE} --attrname ${ATTRNAME} --ha-sbin-dir ${HA_SBIN_DIR}"
 		cmdline="$cmdline --daemonize --timeout ${OCF_RESKEY_io_timeout} --interval ${OCF_RESKEY_check_interval} --pidfile ${PIDFILE} --attrname ${ATTRNAME}"
 		if [ -n "${OCF_RESKEY_inject_errors}" ]; then
 			cmdline="$cmdline --inject-errors-percent ${OCF_RESKEY_inject_errors}"
@@ -333,7 +332,7 @@ storage-mon_stop() {
 	storage-mon_monitor
 	rc=$?
 
-	if [ -z "$OCF_RESKEY_daemonize" ]; then
+	if ! ocf_is_true "$OCF_RESKEY_daemonize"; then
 		if [ $rc -eq $OCF_SUCCESS ]; then
 			rm "${OCF_RESKEY_state_file}"
 		fi
@@ -372,7 +371,7 @@ storage-mon_stop() {
 storage-mon_validate() {
 	storage-mon_init
 
-	if [ -z "$OCF_RESKEY_daemonize" ]; then
+	if ! ocf_is_true "$OCF_RESKEY_daemonize"; then
 		# Is the state directory writable?
 		state_dir=$(dirname "${OCF_RESKEY_state_file}")
 		touch "$state_dir/$$"
