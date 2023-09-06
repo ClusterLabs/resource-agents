@@ -254,7 +254,7 @@ mysql_common_start()
     while [ $start_wait = 1 ]; do
         if ! ps $pid > /dev/null 2>&1; then
             wait $pid
-            ocf_exit_reason "MySQL server failed to start (pid=$pid) (rc=$?), please check your installation"
+            ocf_exit_reason "MySQL server failed to start (pid=$pid) (rc=$?), please check your installation, log message you can check $OCF_RESKEY_log"
             return $OCF_ERR_GENERIC
         fi
         mysql_common_status info
