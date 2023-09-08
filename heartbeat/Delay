@@ -115,8 +115,15 @@ Delay_Status() {
 
 Delay_Monitor() {
   Delay_Validate_All -q
+        ha_pseudo_resource Delay_${OCF_RESOURCE_INSTANCE} monitor
+  rc=$?
   sleep $OCF_RESKEY_mondelay
-  Delay_Status
+  if
+    [ $rc -ne 0 ]
+  then
+    return $OCF_ERR_PERM
+  fi
+  return $OCF_SUCCESS
 }
 
 Delay_Start() {
