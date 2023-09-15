@@ -41,6 +41,8 @@ elif have_binary lio_node; then
 	OCF_RESKEY_implementation_default="lio"
 elif have_binary targetcli; then
 	OCF_RESKEY_implementation_default="lio-t"
+elif have_binary scstadmin; then
+	OCF_RESKEY_implementation_default="scst"
 fi
 : ${OCF_RESKEY_implementation=${OCF_RESKEY_implementation_default}}
 
@@ -56,6 +58,9 @@ LOCKFILE=${HA_RSCTMP}/iSCSITarget-${OCF_RESKEY_implementation}.lock
 
 # targetcli: iSCSITarget and iSCSILogicalUnit must use the same lockfile
 TARGETLOCKFILE=${HA_RSCTMP}/targetcli.lock
+
+# Timeout for waiting for initiators to log out (only used in scst)
+INIT_LOGOUT_TIMEOUT=20
 #######################################################################
 
 meta_data() {
@@ -75,12 +80,12 @@ Units (LUs) exported via a daemon that speaks the iSCSI protocol.
 <parameter name="implementation" required="0" unique="0">
 <longdesc lang="en">
 The iSCSI target daemon implementation. Must be one of "iet", "tgt",
-"lio", or "lio-t".  If unspecified, an implementation is selected based on the
+"lio", "lio-t", or "scst".  If unspecified, an implementation is selected based on the
 availability of management utilities, with "iet" being tried first,
-then "tgt", then "lio", then "lio-t".
+then "tgt", then "lio", then "lio-t", then "scst".
 </longdesc>
 <shortdesc lang="en">Specifies the iSCSI target implementation
-("iet", "tgt", "lio", or "lio-t").</shortdesc>
+("iet", "tgt", "lio", "lio-t", or "scst").</shortdesc>
 <content type="string" default="${OCF_RESKEY_implementation_default}"/>
 </parameter>
 
@@ -402,6 +407,28 @@ iSCSITarget_start() {
 			fi
 		fi
 		;;
+	scst)
+		ocf_run scstadmin -add_target ${OCF_RESKEY_iqn} -driver iscsi
+
+		for portal in ${OCF_RESKEY_portals}; do
+			# scst only wants the IP address for some reason, so strip the port
+			portal_ip="${portal%%:*}"
+			ocf_run scstadmin -add_tgt_attr ${OCF_RESKEY_iqn} -driver iscsi -attributes "allowed_portal=${portal_ip}"
+		done
+		ocf_run scstadmin -add_group allowed -driver iscsi -target ${OCF_RESKEY_iqn}
+		if [ -n "${OCF_RESKEY_allowed_initiators}" ]; then
+			for initiator in ${OCF_RESKEY_allowed_initiators}; do
+				ocf_run scstadmin -add_init ${initiator} -group allowed -driver iscsi -target ${OCF_RESKEY_iqn}
+			done
+		fi
+
+		if [ "${OCF_RESKEY_incoming_username}" != "" ]; then
+			ocf_run scstadmin -add_tgt_attr ${OCF_RESKEY_iqn} -driver iscsi -attributes "IncomingUser ${OCF_RESKEY_incoming_username} ${OCF_RESKEY_incoming_password}"
+		fi
+
+		ocf_run scstadmin -enable_target ${OCF_RESKEY_iqn} -driver iscsi
+		echo 1 > /sys/kernel/scst_tgt/targets/iscsi/enabled
+		;;
 	esac
 
 	iSCSITarget_monitor
@@ -524,6 +551,24 @@ iSCSITarget_stop() {
 		ocf_release_lock_on_exit $TARGETLOCKFILE
 		ocf_run targetcli /iscsi delete ${OCF_RESKEY_iqn} || exit $OCF_ERR_GENERIC
 		;;
+	scst)
+		ocf_run scstadmin -disable_target ${OCF_RESKEY_iqn} -driver iscsi -force -noprompt
+		for i in $(find /sys/kernel/scst_tgt/targets/iscsi/${OCF_RESKEY_iqn}/ -name force_close); do
+			echo 1 > ${i}
+		done
+
+		timer=0
+		while ls -Ad /sys/kernel/scst_tgt/targets/iscsi/${OCF_RESKEY_iqn}/sessions/* > /dev/null 2>&1; do
+			if [ ${timer} -gt ${INIT_LOGOUT_TIMEOUT} ]; then
+				ocf_log warn "Some initiators still logged in after ${INIT_LOGOUT_TIMEOUT} seconds. Continuing."
+				break
+			fi
+			timer=$((timer + 1))
+			sleep 1
+		done
+
+		scstadmin -rem_target ${OCF_RESKEY_iqn} -driver iscsi -force -noprompt
+		;;
 	esac
 
 	return $OCF_SUCCESS
@@ -545,6 +590,11 @@ iSCSITarget_monitor() {
 		# if the target is there, but its TPG is not enabled, then
 		# we also consider it stopped
 		[ `cat /sys/kernel/config/target/iscsi/${OCF_RESKEY_iqn}/tpgt_1/enable` -eq 1 ] || return $OCF_NOT_RUNNING
+		return $OCF_SUCCESS
+		;;
+	scst)
+		[ -d /sys/kernel/scst_tgt/targets/iscsi/${OCF_RESKEY_iqn} ] || return $OCF_NOT_RUNNING
+		[ $(cat /sys/kernel/scst_tgt/targets/iscsi/${OCF_RESKEY_iqn}/enabled) -eq 1 ] || return $OCF_NOT_RUNNING
 		return $OCF_SUCCESS
 		;;
 	esac
@@ -574,7 +624,7 @@ iSCSITarget_validate() {
 
 	# Is the configured implementation supported?
 	case "$OCF_RESKEY_implementation" in
-	"iet"|"tgt"|"lio"|"lio-t")
+	"iet"|"tgt"|"lio"|"lio-t"|"scst")
 		;;
 	"")
 		# The user didn't specify an implementation, and we were
@@ -603,6 +653,9 @@ iSCSITarget_validate() {
 		;;
 	lio|lio-t)
 		unsupported_params="tid"
+		;;
+	scst)
+		unsupported_params="tid iser_portals"
 		;;
 	esac
 
@@ -637,6 +690,9 @@ iSCSITarget_validate() {
 	lio-t)
 		check_binary targetcli
 		;;
+	scst)
+		check_binary scstadmin
+		;;
 	esac
 
 	# Is the required kernel functionality available?
@@ -665,6 +721,12 @@ iSCSITarget_validate() {
 		;;
 	lio-t)
 		#targetcli loads the needed kernel modules
+		;;
+	scst)
+		if [ ! -d /sys/kernel/scst_tgt ]; then
+			ocf_log err "/sys/kernel/scst_tgt does not exist or is not a directory -- check if required modules are loaded."
+			exit $OCF_ERR_INSTALLED
+		fi
 		;;
 	esac
 	fi
