@@ -55,7 +55,7 @@ Provides:	heartbeat-resources = %{version}
 BuildRequires: make
 BuildRequires: automake autoconf pkgconfig gcc
 BuildRequires: perl
-BuildRequires: libxslt glib2-devel
+BuildRequires: libxslt glib2-devel libqb-devel
 BuildRequires: systemd
 BuildRequires: which
 

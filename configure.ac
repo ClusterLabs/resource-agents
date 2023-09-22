@@ -620,6 +620,7 @@ fi
 PKG_CHECK_MODULES([GLIB], [$GPKGNAME])
 CPPFLAGS="$CPPFLAGS $GLIB_CFLAGS"
 LIBS="$LIBS $GLIB_LIBS"
+PKG_CHECK_MODULES([LIBQB], "libqb")
 
 dnl ========================================================================
 dnl Headers

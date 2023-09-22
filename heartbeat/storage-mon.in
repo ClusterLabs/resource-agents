@@ -48,20 +48,26 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 #
-STORAGEMON=$HA_BIN/storage_mon
-ATTRDUP=/usr/sbin/attrd_updater
+STORAGEMON=${HA_BIN}/storage_mon
+ATTRDUP=${HA_SBIN_DIR}/attrd_updater
+PIDFILE=${HA_VARRUN}/storage-mon-${OCF_RESOURCE_INSTANCE}.pid
+ATTRNAME="#health-${OCF_RESOURCE_INSTANCE}"
 
 OCF_RESKEY_CRM_meta_interval_default="0"
 OCF_RESKEY_io_timeout_default="10"
+OCF_RESKEY_check_interval_default="30"
 OCF_RESKEY_inject_errors_default=""
 OCF_RESKEY_state_file_default="${HA_RSCTMP%%/}/storage-mon-${OCF_RESOURCE_INSTANCE}.state"
+OCF_RESKEY_daemonize_default="false"
 
 # Explicitly list all environment variables used, to make static analysis happy
 : ${OCF_RESKEY_CRM_meta_interval:=${OCF_RESKEY_CRM_meta_interval_default}}
 : ${OCF_RESKEY_drives:=""}
 : ${OCF_RESKEY_io_timeout:=${OCF_RESKEY_io_timeout_default}}
+: ${OCF_RESKEY_check_interval:=${OCF_RESKEY_check_interval_default}}
 : ${OCF_RESKEY_inject_errors:=${OCF_RESKEY_inject_errors_default}}
 : ${OCF_RESKEY_state_file:=${OCF_RESKEY_state_file_default}}
+: ${OCF_RESKEY_daemonize:=${OCF_RESKEY_daemonize_default}}
 
 #######################################################################
 
@@ -106,12 +112,28 @@ Specify disk I/O timeout in seconds. Minimum 1, recommended 10 (default).
 <content type="integer" default="${OCF_RESKEY_io_timeout_default}" />
 </parameter>
 
+<parameter name="check_interval" unique="0">
+<longdesc lang="en">
+Specify interval between I/O checks in seconds.(Only supported with the damonize option.)
+</longdesc>
+<shortdesc lang="en">I/O check interval</shortdesc>
+<content type="integer" default="${OCF_RESKEY_check_interval_default}" />
+</parameter>
+
 <parameter name="inject_errors" unique="0">
 <longdesc lang="en">
 Used only for testing! Specify % of I/O errors to simulate drives failures.
 </longdesc>
 <shortdesc lang="en">Specify % of I/O errors to simulate drives failures</shortdesc>
 <content type="integer" default="${OCF_RESKEY_inject_errors_default}" />
+</parameter>
+
+<parameter name="daemonize" unique="0">
+<longdesc lang="en">
+Specifies to start storage-mon as a daemon and check for devices.
+</longdesc>
+<shortdesc lang="en">start storage-mon with daemon</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_daemonize_default}" />
 </parameter>
 
 </parameters>
@@ -146,6 +168,11 @@ storage-mon_init() {
 		exit $OCF_ERR_INSTALLED
 	fi
 
+	if [ ! -x "$ATTRDUP" ] ; then
+		ocf_log err "${ATTRDUP} not installed."
+		exit $OCF_ERR_INSTALLED
+	fi
+
 	i=0
 	for DRIVE in ${OCF_RESKEY_drives}; do
 		if [ ! -e "$DRIVE" ] ; then
@@ -161,7 +188,12 @@ storage-mon_init() {
 	fi
 
 	if [ "${OCF_RESKEY_io_timeout}" -lt "1" ]; then
-		ocf_log err "Minimum timeout is 1. Recommended 10 (default)."
+		ocf_log err "Minimum timeout is 1. Recommended ${OCF_RESKEY_io_timeout_default} (default)."
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	if [ "${OCF_RESKEY_check_interval}" -lt "1" ]; then
+		ocf_log err "Minimum interval to check is 1. default ${OCF_RESKEY_check_interval_default}."
 		exit $OCF_ERR_CONFIGURED
 	fi
 
@@ -173,63 +205,165 @@ storage-mon_init() {
 	fi
 }
 
-storage-mon_validate() {
-	storage-mon_init
+storage-mon_update_attribute() {
 
-	# Is the state directory writable?
-	state_dir=$(dirname "$OCF_RESKEY_state_file")
-	touch "$state_dir/$$"
-	if [ $? -ne 0 ]; then
-		return $OCF_ERR_CONFIGURED
-	fi
-	rm "$state_dir/$$"
+	while :
+	do
+		"$ATTRDUP" -n ${ATTRNAME} -U "$1" -d "5s"
+		rc=$?
+		if [ $rc -eq 0 ]; then
+			break
+		fi
 
+		ocf_log debug "${1} attribute by attrd_updater failed"
+		if [ "$1" = "red" ]; then
+			# If the attrd_updater fails with the red attribute, return an error to let pacemaker handle the failure immediately.
+			return $OCF_ERR_GENERIC
+		fi
+	done
 	return $OCF_SUCCESS
 }
 
 storage-mon_monitor() {
-	storage-mon_init
+	if ! ocf_is_true "$OCF_RESKEY_daemonize"; then
+		storage-mon_init
 
-	# Monitor _MUST!_ differentiate correctly between running
-	# (SUCCESS), failed (ERROR) or _cleanly_ stopped (NOT RUNNING).
-	# That is THREE states, not just yes/no.
+		# Monitor _MUST!_ differentiate correctly between running
+		# (SUCCESS), failed (ERROR) or _cleanly_ stopped (NOT RUNNING).
+		# That is THREE states, not just yes/no.
 
-	if [ ! -f "${OCF_RESKEY_state_file}" ]; then
-		return $OCF_NOT_RUNNING
-	fi
+		if [ ! -f "${OCF_RESKEY_state_file}" ]; then
+			return $OCF_NOT_RUNNING
+		fi
 
-	# generate command line
-	cmdline=""
-	for DRIVE in ${OCF_RESKEY_drives}; do
-		cmdline="$cmdline --device $DRIVE --score 1"
-	done
-	cmdline="$cmdline --timeout ${OCF_RESKEY_io_timeout}"
-	if [ -n "${OCF_RESKEY_inject_errors}" ]; then
-		cmdline="$cmdline --inject-errors-percent ${OCF_RESKEY_inject_errors}"
-	fi
-	$STORAGEMON $cmdline
-	if [ $? -ne 0 ]; then
-		status="red"
+		# generate command line
+		cmdline=""
+		for DRIVE in ${OCF_RESKEY_drives}; do
+			cmdline="$cmdline --device $DRIVE --score 1"
+		done
+		cmdline="$cmdline --timeout ${OCF_RESKEY_io_timeout}"
+		if [ -n "${OCF_RESKEY_inject_errors}" ]; then
+			cmdline="$cmdline --inject-errors-percent ${OCF_RESKEY_inject_errors}"
+		fi
+		$STORAGEMON $cmdline
+		if [ $? -ne 0 ]; then
+			status="red"
+		else
+			status="green"
+		fi
+
+		storage-mon_update_attribute $status
+		return "$?"
 	else
-		status="green"
-	fi
+		ocf_pidfile_status "${PIDFILE}" > /dev/null 2>&1
+		case "$?" in
+			0)	rc=$OCF_SUCCESS;;
+			1|2)	rc=$OCF_NOT_RUNNING;;
+			*)	rc=$OCF_ERR_GENERIC;;
+		esac
 
-	"$ATTRDUP" -n "#health-${OCF_RESOURCE_INSTANCE}" -U "$status" -d "5s"
-	return $OCF_SUCCESS
+		if [ $rc -ne $OCF_SUCCESS ]; then
+			return "$rc"
+		fi
+		if [ "$1" = "pid_check_only" ]; then
+			return "$rc"
+		fi
+
+		# generate client command line
+		cmdline=""
+		cmdline="$cmdline --client --attrname ${ATTRNAME}"
+		while :
+		do
+			# 0			: Normal.
+			# greater than 0	: monitoring error.
+			# 255(-1)		: communication system error.
+			# 254(-2)		: Not all checks completed for first device in daemon mode.
+			$STORAGEMON $cmdline
+			rc=$?
+			case "$rc" in
+				254|255)
+					# If there is a communication error or the initial check of all devices has not been completed, 
+					# it will loop and try to reconnect.
+					# When everything ends with a communication error during monitor, a monitor timeout occurs.
+					ocf_log debug "client monitor error : $rc"
+					;;
+				0)
+					status="green"
+					break
+					;;
+				*)
+					status="red"
+					break
+					;;
+			esac
+		done
+
+		storage-mon_update_attribute $status
+		return "$?"
+	fi	
 }
 
 storage-mon_start() {
-	storage-mon_monitor
-	if [ $? -eq $OCF_SUCCESS ]; then
-		return $OCF_SUCCESS
+	if ! ocf_is_true "$OCF_RESKEY_daemonize"; then
+		storage-mon_monitor
+		if [ $? -eq $OCF_SUCCESS ]; then
+			return $OCF_SUCCESS
+		fi
+		touch "${OCF_RESKEY_state_file}"
+	else
+		storage-mon_init
+		# generate command line
+		cmdline=""
+		for DRIVE in ${OCF_RESKEY_drives}; do
+			cmdline="$cmdline --device $DRIVE --score 1"
+		done
+		cmdline="$cmdline --daemonize --timeout ${OCF_RESKEY_io_timeout} --interval ${OCF_RESKEY_check_interval} --pidfile ${PIDFILE} --attrname ${ATTRNAME}"
+		if [ -n "${OCF_RESKEY_inject_errors}" ]; then
+			cmdline="$cmdline --inject-errors-percent ${OCF_RESKEY_inject_errors}"
+		fi
+		$STORAGEMON $cmdline
+		if [ "$?" -ne 0 ]; then
+			return $OCF_ERR_GENERIC
+		fi
 	fi
-	touch "${OCF_RESKEY_state_file}"
 }
 
 storage-mon_stop() {
 	storage-mon_monitor
-	if [ $? -eq $OCF_SUCCESS ]; then
-		rm "${OCF_RESKEY_state_file}"
+	rc=$?
+
+	if ! ocf_is_true "$OCF_RESKEY_daemonize"; then
+		if [ $rc -eq $OCF_SUCCESS ]; then
+			rm "${OCF_RESKEY_state_file}"
+		fi
+	else
+		case "$rc" in
+			$OCF_SUCCESS)
+				;;
+			$OCF_NOT_RUNNING)
+				return "$OCF_SUCCESS";;
+			*)
+				return "$rc";;
+		esac
+
+		kill -TERM $(cat "${PIDFILE}")
+		if [ "$?" -ne 0 ]; then
+			return $OCF_ERR_GENERIC
+		fi
+
+		while true; do
+			storage-mon_monitor pid_check_only
+			rc="$?"
+			case "$rc" in
+				$OCF_SUCCESS)
+					;;
+				$OCF_NOT_RUNNING)
+					return "$OCF_SUCCESS";;
+				*)
+					return "$rc";;
+			esac
+			sleep 1
+		done
 	fi
 	return $OCF_SUCCESS
 }
@@ -237,13 +371,15 @@ storage-mon_stop() {
 storage-mon_validate() {
 	storage-mon_init
 
-	# Is the state directory writable?
-	state_dir=$(dirname "${OCF_RESKEY_state_file}")
-	touch "$state_dir/$$"
-	if [ $? -ne 0 ]; then
-		return $OCF_ERR_CONFIGURED
+	if ! ocf_is_true "$OCF_RESKEY_daemonize"; then
+		# Is the state directory writable?
+		state_dir=$(dirname "${OCF_RESKEY_state_file}")
+		touch "$state_dir/$$"
+		if [ $? -ne 0 ]; then
+			return $OCF_ERR_CONFIGURED
+		fi
+		rm "$state_dir/$$"
 	fi
-	rm "$state_dir/$$"
 
 	return $OCF_SUCCESS
 }
