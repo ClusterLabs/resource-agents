@@ -318,12 +318,7 @@ static int32_t sigchld_handler(int32_t sig, void *data)
 								daemon_check_first_all_devices = TRUE;
 							}
 						}
-#if 0
-						if (shutting_down == FALSE) {
-							finished_count++;
-							test_forks[index] = 0;
-						}
-#endif
+
 						finished_count++;
 						test_forks[index] = 0;
 					
@@ -521,7 +516,7 @@ static int test_device_main(gpointer data)
 				}
 			}
 		} else {
-			/* Rrun the child process timeout watch timer. */
+			/* Run the child process timeout watch timer. */
 			qb_loop_timer_add(storage_mon_poll_handle, QB_LOOP_MED, timeout * QB_TIME_NS_IN_SEC, NULL, child_timeout_handler, &expire_handle); 
 		}
 	}
