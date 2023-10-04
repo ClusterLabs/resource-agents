@@ -1,3 +1,33 @@
+* Wed Oct  4 2023 resource-agents contributors
+- release candidate 4.13.0 rc1
+- iSCSILogicalUnit/iSCSITarget: add support for scst
+- Delay: increase stop, status and monitor timeouts to 40s to avoid failing with default values
+- Delay: remove statement about defaulting to "startdelay" value if not specified
+- Filesystem: create systemd drop-in for network filesystems
+- Filesystem: fail if AWS efs-utils not installed when fstype=efs
+- Filesystem: improve stop-action and allow setting term/kill signals and signal_delay for large filesystems
+- Filesystem: list_mounts: fix mount command output parsing
+- IPaddr2/IPsrcaddr: add/modify table parameter to be able to find interface while using policy based routing
+- IPv6addr: expect ping/pong delay
+- LVM-activate: add degraded_activation and majority_pvs parameters to allow failover with missing PVs
+- ZFS: improve volume imported check for newer ZFS releases (#1853)
+- azure-events*: fix for no "Transition Summary" for Pacemaker 2.1+
+- db2: avoid eval with unsanitized values (#1838)
+- ethmonitor: dont log "Interface does not exist" for monitor-action
+- exportfs: make the "fsid=" parameter optional
+- exportfs: move testdir() to start-action to avoid failing during resource creation (validate-all) and make it create the directory if it doesnt exist
+- mysql-common: point to log file when start-action fails (#1887)
+- mysql: fix promotion_score bouncing between ~3600 and 1 on demoted nodes
+- mysql: promotable fixes to avoid nodes getting bounced around by setting -v 1/-v 2, and added OCF_CHECK_LEVEL=10 for promotable resources to be able to distinguish between promoted and not
+- nfsserver: fix "server scope" functionality to live with additional drop-in files
+- nfsserver: prepare the layout for the default /var/lib/nfs if nfs_shared_infodir isnt defined
+- ocf-shellfuncs: Explicitly specify $OCF_RESOURCE_INSTANCE in the -p parameter for compatibility
+- pgsql: dont run promotable and file checks that could be on shared storage during validate-all action
+- postfix: update permission check from su to runuser/su (#1880)
+- spec: Migrate to SPDX license
+- spec: remove JFLAGS logic and use %{_smp_mflags} like we do in other projects
+- storage-mon: add daemon/client mode.
+
 * Wed Jan 25 2023 resource-agents contributors
 - stable release 4.12.0
 
