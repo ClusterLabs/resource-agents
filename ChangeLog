@@ -1,3 +1,8 @@
+* Wed Oct 11 2023 resource-agents contributors
+- stable release 4.13.0
+- findif.sh: dont use table parameter as it returns no netmask (tested with
+  main/local/custom tables)
+
 * Wed Oct  4 2023 resource-agents contributors
 - release candidate 4.13.0 rc1
 - iSCSILogicalUnit/iSCSITarget: add support for scst
