@@ -221,7 +221,7 @@ SECONDARY_PRIVATE_IP="${OCF_RESKEY_secondary_private_ip}"
 CIDR_NETMASK="${OCF_RESKEY_cidr_netmask}"
 INTERFACE_ALIAS="${OCF_RESKEY_interface_alias}"
 VNIC_ID="$(curl -s -H "Authorization: Bearer Oracle" -L http://169.254.169.254/opc/v2/vnics/ | jq -r '.[0].vnicId')"
-PRIMARY_IFACE=$(ip -4 route ls | grep default | grep -Po '(?<=dev )(\S+)')
+PRIMARY_IFACE=$(ip -4 route ls | grep default | grep -Po '(?<=dev )(\S+)' | head -n1)
 
 case $__OCF_ACTION in
     start)
