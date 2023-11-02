@@ -29,10 +29,10 @@ prefixcheck() {
   fi
   return 0
 }
-getnetworkinfo()
+getloopbackinfo()
 {
   local line netinfo
-  ip -o -f inet route list match $OCF_RESKEY_ip scope host | (while read line;
+  ip -o -f inet route list match $OCF_RESKEY_ip table local scope host | (while read line;
   do
     netinfo=`echo $line | awk '{print $2}'`
     case $netinfo in
@@ -222,7 +222,7 @@ findif()
   if [ $# = 0 ] ; then
     case $OCF_RESKEY_ip in
     127.*)
-      set -- `getnetworkinfo`
+      set -- `getloopbackinfo`
       shift;;
     esac
   fi
