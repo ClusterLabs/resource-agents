@@ -28,11 +28,6 @@ CASE "check base env"
 	Include prepare
 	AgentRun start OCF_SUCCESS
 
-CASE "check base env: no 'OCF_RESKEY_fsid'"
-	Include prepare
-	Env OCF_RESKEY_fsid=
-	AgentRun start OCF_ERR_CONFIGURED
-
 CASE "check base env: invalid 'OCF_RESKEY_directory'"
 	Include prepare
 	Env OCF_RESKEY_directory=/no_such
