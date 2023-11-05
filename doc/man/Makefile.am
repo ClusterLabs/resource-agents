@@ -151,6 +151,8 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_iface-vlan.7 \
                           ocf_heartbeat_ipsec.7 \
                           ocf_heartbeat_ids.7 \
+                          ocf_heartbeat_imemst.7 \
+                          ocf_heartbeat_imeslv.7 \
                           ocf_heartbeat_iscsi.7 \
                           ocf_heartbeat_jboss.7 \
                           ocf_heartbeat_jira.7 \

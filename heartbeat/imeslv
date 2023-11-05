@@ -1,0 +1,747 @@
+#!/bin/bash
+##############################################################################
+#
+# COPYRIGHT (c) 2023 CSG SYSTEMS INTERNATIONAL, INC. AND/OR ITS AFFILIATES
+# (CSG). ALL RIGHTS RESERVED.
+#
+# THIS SOFTWARE AND RELATED INFORMATION IS CONFIDENTIAL AND PROPRIETARY TO CSG
+# AND MAY NOT BE DISCLOSED, COPIED, MODIFIED, OR OTHERWISE USED EXCEPT IN
+# ACCORDANCE WITH THE LICENSE AGREEMENT ENTERED INTO WITH CSG. THIS INFORMATION
+# IS PROTECTED BY INTERNATIONAL COPYRIGHT LAWS AND ANY UNAUTHORIZED USE THEREOF
+# MAY VIOLATE COPYRIGHT, TRADEMARK, AND OTHER LAWS. ANY UNAUTHORIZED USE OF THIS
+# SOFTWARE AND/OR INFORMATION WILL AUTOMATICALLY TERMINATE YOUR RIGHT TO USE
+# THIS SOFTWARE AND/OR INFORMATION.
+#
+##############################################################################
+#
+# FILE:		/src/dcs/tools/src/usr_lib_ocf_resource.d_heartbeat_imeslv.sh
+#
+# FUNCTION:	ImE Slave RH PCS Heartbeat Agent - Online/Offline/Status script.
+#
+# AUTHOR:	Everett Bennett Jr, CSGI
+#		(Last Edited by: $Author: dotev $)
+#
+# USAGE:	Invoked from RH PCS
+#
+# INPUTS:	n/a
+#
+##############################################################################
+#ident: /usr/lib/ocf/resource.d/heartbeat/imeslv
+##############################################################################
+#
+#log
+#       Add header, revision history, and SCR number	SCR 20231013-0001
+
+#log
+#
+##############################################################################
+###
+###  Used for 2-Node or Better RH PCS Cluster
+###
+# Notes:    On all nodes in the cluster, copy this file to /usr/lib/ocf/resource.d/heartbeat/imeslv .
+#
+#	cp -p ${CGI_ROOT}/tools/bin/usr_lib_ocf_resource.d_heartbeat_imeslv.sh /usr/lib/ocf/resource.d/heartbeat/imeslv
+#	chown root:0 /usr/lib/ocf/resource.d/heartbeat/imeslv
+#	chmod 755:/usr/lib/ocf/resource.d/heartbeat/imeslv
+#
+#
+# Shell script to start/stop CGI master daemons with RH PCS.
+#
+#######################################################################
+#######################################################################
+
+# Initialization:
+
+if [ -z "${OCF_ROOT}" ]; then
+	: ${OCF_ROOT=/usr/lib/ocf}
+fi
+
+: ${OCF_FUNCTIONS_DIR:=${OCF_ROOT}/lib/heartbeat}
+
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+. ${OCF_FUNCTIONS_DIR}/ocf-binaries
+. ${OCF_FUNCTIONS_DIR}/ocf-returncodes
+. ${OCF_FUNCTIONS_DIR}/ocf-directories
+. ${OCF_FUNCTIONS_DIR}/ocf-rarun
+. ${OCF_FUNCTIONS_DIR}/ocf-distro
+
+#######################################################################
+#
+# Defaults
+#
+export IMESLV_imever_default="10.0"
+export IMESLV_dcscf_default="/opt/dcs_10.0/files/cgi_products.sh.r8p2cl"
+export IMESLV_appst_default="/opt/dcs_10.0/files/cgi_appst_enable_disable.sh"
+export IMESLV_clname_default="r8p2cl"
+export IMESLV_cgiuser_default="cgi"
+export IMESLV_cgigrp_default="dev"
+export IMESLV_cgiuid_default="29886"
+export IMESLV_cgigid_default="257"
+export IMESLV_cgihome_default="/home/cgi"
+export IMESLV_cgimlog_default="20000000"
+export IMESLV_cgitaskmlog_default="50000000"
+export IMESLV_dbg_default="No"
+export IMESLV_debug_default="No"
+export IMESLV_api_delay_default="10"
+export IMESLV_statuscnt_default="5"
+export IMESLV_statusslp_default="12"
+export IMESLV_statustimeout_default="60"
+
+#######################################################################
+
+function meta_data
+{
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="imeslv" version="1.0">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource Agent for ImE Slave Service
+</longdesc>
+<shortdesc lang="en">Resource Agent for ImE Slave Service</shortdesc>
+
+<parameters>
+
+<parameter name="imever" unique="1" required="1">
+<longdesc lang="en">
+Valid IME Version
+</longdesc>
+<shortdesc lang="en">ImE Version</shortdesc>
+<content type="string" default="${IMESLV_imever_default}" />
+</parameter>
+
+<parameter name="clname" unique="1" required="1">
+<longdesc lang="en">
+Valid PCS Cluster Name
+</longdesc>
+<shortdesc lang="en">PCS Cluster Name</shortdesc>
+<content type="string" default="${IMESLV_clname_default}" />
+</parameter>
+
+<parameter name="dcscf" unique="1" required="1">
+<longdesc lang="en">
+ImE DCS_CONFIG_FILE
+</longdesc>
+<shortdesc lang="en">ImE dcscf</shortdesc>
+<content type="string" default="${IMESLV_dcscf_default}" />
+</parameter>
+
+<parameter name="appst" unique="1">
+<longdesc lang="en">
+ImE Actiive-Passive Script
+</longdesc>
+<shortdesc lang="en">ImE Active-Passive Script</shortdesc>
+<content type="string" default="${IMESLV_appst_default}" />
+</parameter>
+
+<parameter name="cgiuser" unique="1">
+<longdesc lang="en">
+ImE CGI User Name
+</longdesc>
+<shortdesc lang="en">ImE CGI User Name</shortdesc>
+<content type="string" default="${IMESLV_cgiuser_default}" />
+</parameter>
+
+<parameter name="cgigrp" unique="1">
+<longdesc lang="en">
+ImE CGI Group Name
+</longdesc>
+<shortdesc lang="en">ImE CGI Group Name</shortdesc>
+<content type="string" default="${IMESLV_cgigrp_default}" />
+</parameter>
+
+<parameter name="cgiuid" unique="1">
+<longdesc lang="en">
+ImE CGI UID
+</longdesc>
+<shortdesc lang="en">ImE CGI UID</shortdesc>
+<content type="string" default="${IMESLV_cgiuid_default}" />
+</parameter>
+
+<parameter name="cgigid" unique="1">
+<longdesc lang="en">
+ImE CGI GID
+</longdesc>
+<shortdesc lang="en">ImE CGI GID</shortdesc>
+<content type="string" default="${IMESLV_cgigid_default}" />
+</parameter>
+
+<parameter name="cgihome" unique="1">
+<longdesc lang="en">
+ImE CGI Home Directory
+</longdesc>
+<shortdesc lang="en">ImE CGI Home Directory</shortdesc>
+<content type="string" default="${IMESLV_cgihome_default}" />
+</parameter>
+
+<parameter name="cgimlog" unique="1">
+<longdesc lang="en">
+Size of cgi_mlog file : cgi_mlog -s ${IMESLV_cgimlog}
+</longdesc>
+<shortdesc lang="en">Size of cgi_mlog file</shortdesc>
+<content type="string" default="${IMESLV_cgimlog_default}" />
+</parameter>
+
+<parameter name="cgitaskmlog" unique="1">
+<longdesc lang="en">
+Size of Taskmanager mlog file.
+</longdesc>
+<shortdesc lang="en">Size of Taskmanager file</shortdesc>
+<content type="string" default="${IMESLV_cgitaskmlog_default}" />
+</parameter>
+
+<parameter name="dbg" unique="1">
+<longdesc lang="en">
+Execute functions.
+</longdesc>
+<shortdesc lang="en">Execute functions</shortdesc>
+<content type="string" default="${IMESLV_dbg_default}" />
+</parameter>
+
+<parameter name="debug" unique="1">
+<longdesc lang="en">
+Debug Option
+</longdesc>
+<shortdesc lang="en">Debug Option</shortdesc>
+<content type="string" default="${IMESLV_debug_default}" />
+</parameter>
+
+<parameter name="statuscnt" unique="1">
+<longdesc lang="en">
+Number of sleep intervals to perform cgi_status before failing.
+</longdesc>
+<shortdesc lang="en">Number of sleep intervals to perform cgi_status before failing.</shortdesc>
+<content type="string" default="${IMESLV_statuscnt_default}" />
+</parameter>
+
+<parameter name="api_delay" unique="1">
+<longdesc lang="en">
+Sleep delay added to start stop monitor.
+</longdesc>
+<shortdesc lang="en">Sleep delay added to start stop monitor.</shortdesc>
+<content type="string" default="${IMESLV_api_delay_default}" />
+</parameter>
+
+<parameter name="statusslp" unique="1">
+<longdesc lang="en">
+Number of seconds to sleep per interval for cgi_status check.
+</longdesc>
+<shortdesc lang="en">Number of seconds to sleep per interval for cgi_status check.</shortdesc>
+<content type="string" default="${IMESLV_statusslp_default}" />
+</parameter>
+
+<parameter name="statustimeout" unique="1">
+<longdesc lang="en">
+Number of seconds to exit a program. Useful for NFS situations.
+</longdesc>
+<shortdesc lang="en">Number of seconds to exit a program. Useful for NFS situtations.</shortdesc>
+<content type="string" default="${IMESLV_statustimeout_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="300s" />
+<action name="stop"         timeout="300s" />
+<action name="monitor"      timeout="90s" interval="90s" depth="0" />
+<action name="migrate_to"   timeout="300s" />
+<action name="migrate_from" timeout="300s" />
+<action name="meta-data"    timeout="5s" />
+<action name="validate"     timeout="30s" />
+<action name="validate-all" timeout="30s" />
+</actions>
+</resource-agent>
+END
+}
+
+function imeslv_usage
+{
+	cat <<ENDusage
+usage: $0 {start|stop|monitor|migrate_to|migrate_from|validate|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+
+#	cp -p ${CGI_ROOT}/tools/bin/usr_lib_ocf_resource.d_heartbeat_imeslv.sh /usr/lib/ocf/resource.d/heartbeat/imeslv
+
+#	chown root:0 /usr/lib/ocf/resource.d/heartbeat/imeslv
+
+#	chmod 755:/usr/lib/ocf/resource.d/heartbeat/imeslv
+
+### All options shown here:
+
+	pcs resource create --group imeslv imeslv100 imeslv imever=10.0 clname=r8p2cl dcscf=/opt/dcs_10.0/files/cgi_products.sh.R8P2CL appst=/opt/dcs_10.0/files/cgi_appst_enable_disable.sh cgiuser=cgi cgigrp=dev cgiuid=29886 cgigid=257 cgihome=/home/cgi cgimlog=20000000 cgitaskmlog=50000000 dbg=No debug=No api_delay=10 statuscnt=5 statusslp=12 statustimeout=60 op start timeout=300s op stop timeout=300s op monitor timeout=90s op migrate_from timeout=300s op migrate_to timeout=300s
+
+	pcs resource create --group imeslv imeslv100 imeslv imever=10.0 clname=r8p2cl dcscf=/opt/dcs_10.0/files/cgi_products.sh.R8P2CL
+
+	pcs resource meta imeslv100 failure-timeout=300s
+
+	pcs resource meta imeslv100 on-fail=ignore
+
+	pcs resource meta imeslv100 resource-stickiness=100
+
+	pcs resource meta imeslv100 migration-threshold=100
+ENDusage
+}
+
+function imeslv_dcscf
+{
+	ocf_log info "${0} : imeslv_dcscf : . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null"
+	# . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null
+	. ${DCS_CONFIG_FILE}
+
+	ocf_log info "${0} : imeslv_dcscf : ImELoG : ${ImELoG}"
+
+	if [ -f ${ImELoG} ]; then
+		ocf_log info "${0} : imeslv_dcscf : Found ImELoG : ${ImELoG}"
+	else
+		ocf_log info "${0} : imeslv_dcscf : /usr/bin/touch ${ImELoG}"
+		if [ "X${dbg}" == "XNo" ]; then
+			/usr/bin/touch ${ImELoG}
+		fi
+		ocf_log info "${0} : imeslv_dcscf : /usr/bin/chown ${IMESLV_cgiuser}:${IMESLV_cgigrp} ${ImELoG}"
+		if [ "X${dbg}" == "XNo" ]; then
+			/usr/bin/chown ${IMESLV_cgiuser}:${IMESLV_cgigrp} ${ImELoG}
+		fi
+		ocf_log info "${0} : imeslv_dcscf : /usr/bin/chmod 0644 ${ImELoG}"
+		if [ "X${dbg}" == "XNo" ]; then
+			/usr/bin/chmod 0644 ${ImELoG}
+		fi
+	fi
+}
+function imelog_stamp
+{
+	DATE_STAMP=`date '+%b %e %X'`
+	NAME_STAMP=`basename $0`
+	TIME_STAMP="$DATE_STAMP $NAME_STAMP"
+
+	ocf_log info "${0} : imeslv_stamp : ${1} : NAME_STAMP=${NAME_STAMP} DATE_STAMP=${DATE_STAMP} TIME_STAMP=${TIME_STAMP}"
+
+	ImELoG_Dir=`dirname ${ImELoG}`
+	if [ -d ${ImELoG_Dir} ]
+	then
+		if [ -f ${ImELoG} ]
+		then
+			ocf_log info "${0} : imelog_stamp :  found ${ImELoG}"
+		else
+			ocf_log info "${0} : imelog_stamp :  touch ${ImELoG}; chown ${IMESLV_cgiuser}:${IMESLV_cgigrp} ${ImELoG}; chmod 644 ${ImELoG}"
+			if [ "X${dbg}" == "XNo" ]; then
+				touch ${ImELoG}; chown ${IMESLV_cgiuser}:${IMESLV_cgigrp} ${ImELoG}; chmod 644 ${ImELoG}
+			fi
+		fi
+	else
+		ocf_log error "${0} : imelog_stamp : ImELoG_Dir = ${ImELoG_Dir} Not Found"
+		ocf_exit_reason "${ImELoG_Dir} Not Found"
+	fi
+	if [ -f ${ImELoG} ]
+	then
+		(
+			echo "####"
+			echo "${0} : imelog_stamp :  ${1} : NAME_STAMP=${NAME_STAMP} DATE_STAMP=${DATE_STAMP} TIME_STAMP=${TIME_STAMP}"
+			echo "####"
+		) 2>&1  >> ${ImELoG}
+	fi
+}
+function imeslv_start
+{
+	imeslv_dcscf
+
+	if [ -f /var/dcs_${IMESLV_imever}/db/dcs/cgi_status_freeze ]; then
+		ocf_log info "${0} : imeslv_start : /var/dcs_${IMESLV_imever}/db/dcs/cgi_status_freeze exists : return ${OCF_SUCCESS}"
+		return ${OCF_SUCCESS}
+	else
+		imelog_stamp imeslv_start
+
+		ocf_log info "${0} : imeslv_start : /bin/su ${IMESLV_cgiuser} -c \" . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null ; cgi_system_startup start\""
+		if [ "X${dbg}" == "XNo" ]; then
+			(
+				echo "####"
+				echo "/bin/su ${IMESLV_cgiuser} -c \" . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null ; cgi_system_startup start\""
+				echo "####"
+				/bin/su ${IMESLV_cgiuser} -c " . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null ; cgi_system_startup start"
+				echo "####"
+			) 2>&1  >> ${ImELoG}
+		fi
+
+		RET_START=$?
+		ocf_log info "${0} : imeslv_start : RET_START ${RET_START} ; /bin/sleep ${IMESLV_api_delay}"
+		if [ "X${dbg}" == "XNo" ]; then
+			/bin/sleep ${IMESLV_api_delay}
+		fi
+	fi
+
+	ocf_log info "${0} : imeslv_start : /bin/sleep ${IMESLV_api_delay}"
+	if [ "X${dbg}" == "XNo" ]; then
+		/bin/sleep ${IMESLV_api_delay}
+	fi
+
+	ocf_log info "${0} : imeslv_start : /bin/su ${IMESLV_cgiuser} -c \" . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null ; cgi_status --verbose\""
+	if [ "X${dbg}" == "XNo" ]; then
+		(
+			echo "####"
+			echo "/bin/su ${IMESLV_cgiuser} -c \" . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null ; cgi_status --verbose\""
+			echo "####"
+			/bin/su ${IMESLV_cgiuser} -c " . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null ; cgi_status --verbose"
+			echo "####"
+		) 2>&1  >> ${ImELoG}
+	fi
+
+	if [ "X${RET_START}" == "X${OCF_SUCCESS}" ]; then
+		ocf_log info "${0} : imeslv_start : RET_START ${RET_START} : return OCF_SUCCESS ${OCF_SUCCESS}"
+		ocf_log info "${0} : imeslv_start : imeslv has been successfully started"
+		return ${OCF_SUCCESS}
+	else
+		ocf_log error "${0} : imeslv_start : RET_START ${RET_START}: OCF_NOT_RUNNING ${OCF_NOT_RUNNING}"
+		return ${OCF_NOT_RUNNING}
+	fi
+}
+function imeslv_stop
+{
+	imeslv_dcscf
+
+	imelog_stamp imeslv_stop
+
+	if [ -f /var/dcs_${IMESLV_imever}/db/dcs/cgi_status_freeze ]; then
+		ocf_log info "${0} : imeslv_stop : /var/dcs_${IMESLV_imever}/db/dcs/cgi_status_freeze exists : return ${OCF_SUCCESS}"
+		return $OCF_SUCCESS
+	else
+		ocf_log info "${0} : imeslv_stop : /bin/su ${IMESLV_cgiuser} -c \" . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null ; cgi_system_startup stop\""
+		if [ "X${dbg}" == "XNo" ]; then
+			(
+				echo "####"
+				echo "/bin/su ${IMESLV_cgiuser} -c \" . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null ; cgi_system_startup stop\""
+				echo "####"
+				/bin/su ${IMESLV_cgiuser} -c " . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null ; cgi_system_startup stop"
+				echo "####"
+			) 2>&1  >> ${ImELoG}
+		fi
+
+		RET_STOP=$?
+		ocf_log info "${0} : imeslv_stop : RET_STOP ${RET_STOP}"
+	fi
+	# delay to avoid sending request too fast
+	ocf_log info "${0} : imeslv_stop : sleep ${IMESLV_api_delay}"
+	if [ "X${dbg}" == "XNo" ]; then
+		sleep ${IMESLV_api_delay}
+	fi
+
+	if [ "X${RET_STOP}" == "X0" ]
+	then
+		ocf_log info "${0} : imeslv_stop : imeslv has been successfully stopped : OCF_SUCCESS=${OCF_SUCCESS}"
+		return ${OCF_SUCCESS}
+	else
+		ocf_log error "${0} : imeslv_stop : RET_STOP=${RET_STOP} : OCF_NOT_RUNNING ${OCF_NOT_RUNNING}"
+		return ${OCF_NOT_RUNNING}
+	fi
+}
+
+function imeslv_monitor
+{
+	imeslv_dcscf
+
+	imelog_stamp imeslv_monitor
+
+       	if [ "X${IMESLV_debug}" = "XYes" ]
+       	then
+		ocf_log info "OCF_RESKEY_dcscf  = ${OCF_RESKEY_dcscf} IMESLV_dcscf_default = ${IMESLV_dcscf_default}"
+		ocf_log info "OCF_RESKEY_appst  = ${OCF_RESKEY_appst} IMESLV_appst_default = ${IMESLV_appst_default}"
+		ocf_log info "OCF_RESKEY_imever = ${OCF_RESKEY_imever} IMESLV_imever_default = ${IMESLV_imever_default}"
+		ocf_log info "OCF_RESKEY_clname = ${OCF_RESKEY_clname} IMESLV_clname_default = ${IMESLV_clname_default}"
+		ocf_log info "OCF_RESKEY_cgiuser = ${OCF_RESKEY_cgiuser} IMESLV_cgiuser_default = ${IMESLV_cgiuser_default}"
+		ocf_log info "OCF_RESKEY_cgigrp = ${OCF_RESKEY_cgigrp} IMESLV_cgigrp_default = ${IMESLV_cgigrp_default}"
+		ocf_log info "OCF_RESKEY_cgiuid = ${OCF_RESKEY_cgiuid} IMESLV_cgiuid_default = ${IMESLV_cgiuid_default}"
+		ocf_log info "OCF_RESKEY_cgihome = ${OCF_RESKEY_cgihome} IMESLV_cgihome_default = ${IMESLV_cgihome_default}"
+		ocf_log info "OCF_RESKEY_cgimlog = ${OCF_RESKEY_cgimlog} IMESLV_cgimlog_default = ${IMESLV_cgimlog_default}"
+		ocf_log info "OCF_RESKEY_cgitaskmlog = ${OCF_RESKEY_cgitaskmlog} IMESLV_cgitaskmlog_default = ${IMESLV_cgitaskmlog_default}"
+		ocf_log info "OCF_RESKEY_dbg = ${OCF_RESKEY_dbg} IMESLV_dbg_default = ${IMESLV_dbg_default}"
+		ocf_log info "OCF_RESKEY_debug = ${OCF_RESKEY_debug} IMESLV_debug_default = ${IMESLV_debug_default}"
+		ocf_log info "OCF_RESKEY_api_delay = ${OCF_RESKEY_api_delay} IMESLV_api_delay_default = ${IMESLV_api_delay_default}"
+		ocf_log info "OCF_RESKEY_statuscnt = ${OCF_RESKEY_statuscnt} IMESLV_statuscnt_default = ${IMESLV_statuscnt_default}"
+		ocf_log info "OCF_RESKEY_statusslp = ${OCF_RESKEY_statusslp} IMESLV_statusslp_default = ${IMESLV_statusslp_default}"
+		ocf_log info "OCF_RESKEY_statustimeout = ${OCF_RESKEY_statustimeout} IMESLV_statustimeout_default = ${IMESLV_statustimeout_default}"
+	fi
+
+	get_os_ver
+	ocf_log info "${0} : imeslv_monitor : get_os_ver : OS ${OS} : VER ${VER}"
+
+	if [ -f /var/dcs_${IMESLV_imever}/db/dcs/cgi_status_freeze ]; then
+		ocf_log info "${0} : imeslv_monitor : /var/dcs_${IMESLV_imever}/db/dcs/cgi_status_freeze exists"
+		if [ "X${IMESLV_debug}" = "XYes" ]; then
+			ocf_log info "${0} : imeslv_monitor : /usr/bin/pgrep -G ${IMESLV_cgigid} -U ${IMESLV_cgiuser} -fla"
+			if [ "X${dbg}" == "XNo" ]; then
+				/usr/bin/pgrep -G ${IMESLV_cgigid} -U ${IMESLV_cgiuser} -fla
+			fi
+		fi
+		return ${OCF_SUCCESS}
+	else
+        	if [ "X${IMESLV_debug}" = "XYes" ]
+        	then
+                	ocf_log info "${0} : imeslv_monitor : ${IMESLV_ODULPATH}/bin/perl -e \"alarm ${IMESLV_statustimeout}; exec @ARGV\" \"( . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null;/bin/su ${IMESLV_cgiuser} -c \\"cgi_status --verbose\\" )\""
+			if [ "X${dbg}" == "XNo" ]; then
+                		${IMESLV_ODULPATH}/bin/perl -e "alarm ${IMESLV_statustimeout}; exec @ARGV" "( . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null;/bin/su ${IMESLV_cgiuser} -c \"cgi_status --verbose\" )"
+			fi
+
+                	ocf_log info "${0} : imeslv_monitor : ${IMESLV_ODULPATH}/bin/perl -e \"alarm ${IMESLV_statustimeout}; exec @ARGV\" \"( . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null;/bin/su ${IMESLV_cgiuser} -c \\"cgi_status --monitor\\" )\""
+			if [ "X${dbg}" == "XNo" ]; then
+                		${IMESLV_ODULPATH}/bin/perl -e "alarm ${IMESLV_statustimeout}; exec @ARGV" "( . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null;/bin/su ${IMESLV_cgiuser} -c \"cgi_status --monitor\" )"
+			fi
+		fi
+
+               	ocf_log info "${0} : imeslv_monitor : ${IMESLV_ODULPATH}/bin/perl -e \"alarm ${IMESLV_statustimeout}; exec @ARGV\" \"( . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null;/bin/su ${IMESLV_cgiuser} -c \\"cgi_status --monitor\\" )\""
+		if [ "X${dbg}" == "XNo" ]; then
+			echo "####"
+                	echo "${IMESLV_ODULPATH}/bin/perl -e \"alarm ${IMESLV_statustimeout}; exec @ARGV\" \"( . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null;/bin/su ${IMESLV_cgiuser} -c \\"cgi_status --monitor\\" )\""
+			echo "####"
+                	${IMESLV_ODULPATH}/bin/perl -e "alarm ${IMESLV_statustimeout}; exec @ARGV" "( . ${DCS_CONFIG_FILE} 2>/dev/null 1>/dev/null;/bin/su ${IMESLV_cgiuser} -c \"cgi_status --monitor\" )"
+			echo "####"
+		fi
+                RET_MONITOR=${?}
+		ocf_log info "${0} : imeslv_monitor : RET_MONITOR=${RET_MONITOR}"
+
+                if [ ${RET_MONITOR} -gt 0 -a "X${IMESLV_debug}" = "XYes" ]
+                then
+                	# Double Check
+                        RET_MONITOR=0 # reset
+                        # If cgi_status fails, could be due to nfs.
+
+                	for imeslaveproc in /opt/dcs_${IMESLV_imever}/disk/bin/disk_mgmt_monitor \
+                        	/opt/dcs_${IMESLV_imever}/appst/bin/task_manager \
+                        	/opt/dcs_${IMESLV_imever}/dcs/bin/dcs_tape_rpc_serv \
+                        	"cgi_mlog -s ${IMESLV_cgimlog} -o /var/dcs_${IMESLV_imever}/mlog/disk_mgmt_monitor.log" \
+                        	"cgi_mlog -s ${IMESLV_cgitaskmlog} -o /var/dcs_${IMESLV_imever}/mlog/task_manager.log" \
+                        	"cgi_mlog -s ${IMESLV_cgimlog} -o /var/dcs_${IMESLV_imever}/mlog/dcs_tape_rpc_serv.log"
+                	do
+                        	/usr/bin/pgrep -G ${IMESLV_cgigid} -U ${IMESLV_cgiuser} -fla "^${imeslaveproc}" 2>/dev/null 1>/dev/null
+                        	PGRPSTAT1=${?}
+                        	if [ "X${PGRPSTAT1}" = "X0" ]
+                        	then
+                                	imedebuginfo "${imeslaveproc} found"
+                        	else
+                                	imedebuginfo "${imeslaveproc} not found"
+                                	RET_MONITOR=`expr ${RET_MONITOR} + 1`
+                        	fi
+                	done
+                fi
+		if [ "X${RET_MONITOR}" != "X0" ]
+		then
+			# If RETVAL is not good, X0, then list some debug info, etc.
+			/usr/bin/pgrep -G ${IMESLV_cgigid} -U ${IMESLV_cgiuser} -fla
+
+                        /usr/bin/ps -fu ${IMESLV_cgiuser}
+
+                        /usr/bin/ps -eaf
+		fi
+	fi
+	if [ "X${RET_MONITOR}" == "X0" ]; then
+		ocf_log info "${0} : imeslv_monitor : RET_MONITOR=${RET_MONITOR} : OCF_SUCCESS ${OCF_SUCCESS}"
+		return ${OCF_SUCCESS}
+	else
+		ocf_log info "${0} : imeslv_monitor : RET_MONITOR=${RET_MONITOR} : OCF_NOT_RUNNING ${OCF_NOT_RUNNING}"
+		return ${OCF_NOT_RUNNING}
+	fi
+}
+
+function imeslv_validate
+{
+	if [ -f ${IMESLV_dcscf} ]; then
+		ocf_log info "${0} : imeslv_validate : Found DCS_CONFIG_FILE : ${IMESLV_dcscf}"
+	else
+		ocf_log error "${0} : imeslv_validate : ${IMESLV_dcscf}"
+	fi
+
+	if [ -z "${IMESLV_dcscf}" ]; then
+		ocf_exit_reason "${0} : imeslv_validate : dcscf parameter not set"
+		return ${OCF_ERR_CONFIGURED}
+	fi
+	if [ -z "${IMESLV_imever}" ]; then
+		ocf_exit_reason "${0} : imeslv_validate : imever parameter not set"
+		return ${OCF_ERR_CONFIGURED}
+	fi
+	if [ -z "${IMESLV_clname}" ]; then
+		ocf_exit_reason "${0} : imeslv_validate : clname parameter not set"
+		return ${OCF_ERR_CONFIGURED}
+	fi
+
+	if [ -d /opt/dcs_${IMESLV_imever}/usr/local ]; then
+		export IMESLV_ODULPATH=/opt/dcs_${IMESLV_imever}/usr/local
+	elif [ -d /opt/dcs/usr/local ]; then
+		export IMESLV_ODULPATH=/opt/dcs/usr/local
+	else
+		ocf_exit_reason "${0} : imeslv_validate : IME ODULPATH Not Found"
+		return ${OCF_ERR_CONFIGURED}
+	fi
+
+	return ${OCF_SUCCESS}
+}
+
+if [ -z "${OCF_RESKEY_dcscf}" ]; then
+	export IMESLV_dcscf=${IMESLV_dcscf_default}
+	export DCS_CONFIG_FILE=${IMESLV_dcscf_default}
+else
+	export IMESLV_dcscf=${OCF_RESKEY_dcscf}
+	export DCS_CONFIG_FILE=${OCF_RESKEY_dcscf}
+fi
+
+if [ -z "${OCF_RESKEY_appst}" ]; then
+	export IMESLV_appst=${IMESLV_appst_default}
+else
+	export IMESLV_appst=${OCF_RESKEY_appst}
+fi
+
+if [ -z "${OCF_RESKEY_imever}" ]; then
+	export IMESLV_imever=${IMESLV_imever_default}
+	export ImELoG=/var/dcs_${IMESLV_imever_default}/mlog/cgi_rh_pcs_slv.log
+else
+	export IMESLV_imever=${OCF_RESKEY_imever}
+	export ImELoG=/var/dcs_${OCF_RESKEY_imever}/mlog/cgi_rh_pcs_slv.log
+fi
+
+export IMESLV_ODULPATH=unknown
+if [ -d /opt/dcs_${IMESLV_imever}/usr/local ]; then
+	export IMESLV_ODULPATH=/opt/dcs_${IMESLV_imever}/usr/local
+elif [ -d /opt/dcs/usr/local ]; then
+	export IMESLV_ODULPATH=/opt/dcs/usr/local
+fi
+
+if [ -z "${OCF_RESKEY_clname}" ]; then
+	export IMESLV_clname=${IMESLV_clname_default}
+else
+	export IMESLV_clname=${OCF_RESKEY_clname}
+fi
+
+if [ -z "${OCF_RESKEY_cgiuser}" ]; then
+	export IMESLV_cgiuser=${IMESLV_cgiuser_default}
+else
+	export IMESLV_cgiuser=${OCF_RESKEY_cgiuser}
+fi
+
+if [ -z "${OCF_RESKEY_cgigrp}" ]; then
+	export IMESLV_cgigrp=${IMESLV_cgigrp_default}
+else
+	export IMESLV_cgigrp=${OCF_RESKEY_cgigrp}
+fi
+
+if [ -z "${OCF_RESKEY_cgiuid}" ]; then
+	export IMESLV_cgiuid=${IMESLV_cgiuid_default}
+else
+	export IMESLV_cgiuid=${OCF_RESKEY_cgiuid}
+fi
+
+if [ -z "${OCF_RESKEY_cgigid}" ]; then
+	export IMESLV_cgigid=${IMESLV_cgigid_default}
+else
+	export IMESLV_cgigid=${OCF_RESKEY_cgigid}
+fi
+
+if [ -z "${OCF_RESKEY_cgihome}" ]; then
+	export IMESLV_cgihome=${IMESLV_cgihome_default}
+else
+	export IMESLV_cgihome=${OCF_RESKEY_cgihome}
+fi
+
+if [ -z "${OCF_RESKEY_cgimlog}" ]; then
+	export IMESLV_cgimlog=${IMESLV_cgimlog_default}
+else
+	export IMESLV_cgimlog=${OCF_RESKEY_cgimlog}
+fi
+
+if [ -z "${OCF_RESKEY_cgitaskmlog}" ]; then
+	export IMESLV_cgitaskmlog=${IMESLV_cgitaskmlog_default}
+else
+	export IMESLV_cgitaskmlog=${OCF_RESKEY_cgitaskmlog}
+fi
+
+if [ -z "${OCF_RESKEY_dbg}" ]; then
+	export IMESLV_dbg=${IMESLV_dbg_default}
+	export dbg=${IMESLV_dbg}
+else
+	export IMESLV_dbg=${OCF_RESKEY_dbg}
+	export dbg=${OCF_RESKEY_dbg}
+fi
+
+if [ -z "${OCF_RESKEY_debug}" ]; then
+	export IMESLV_debug=${IMESLV_debug_default}
+else
+	export IMESLV_debug=${OCF_RESKEY_debug}
+fi
+
+if [ -z "${OCF_RESKEY_api_delay}" ]; then
+	export IMESLV_api_delay=${IMESLV_api_delay_default}
+else
+	export IMESLV_api_delay=${OCF_RESKEY_api_delay}
+fi
+
+if [ -z "${OCF_RESKEY_statuscnt}" ]; then
+	export IMESLV_statuscnt=${IMESLV_statuscnt_default}
+else
+	export IMESLV_statuscnt=${OCF_RESKEY_statuscnt}
+fi
+
+if [ -z "${OCF_RESKEY_statusslp}" ]; then
+	export IMESLV_statusslp=${IMESLV_statusslp_default}
+else
+	export IMESLV_statusslp=${OCF_RESKEY_statusslp}
+fi
+
+if [ -z "${OCF_RESKEY_statustimeout}" ]; then
+	export IMESLV_statustimeout=${IMESLV_statustimeout_default}
+else
+	export IMESLV_statustimeout=${OCF_RESKEY_statustimeout}
+fi
+
+export __OCF_ACTION=${1}
+
+if [ ${#} -eq 2 ]
+then
+	export dbg=${2}
+fi
+
+ocf_log info "__OCF_ACTION : ${__OCF_ACTION}"
+ocf_log info "dbg : ${dbg}"
+
+case ${__OCF_ACTION} in
+	meta-data)
+		meta_data
+		exit ${OCF_SUCCESS}
+	;;
+esac
+
+case ${__OCF_ACTION} in
+	start)
+		imeslv_validate
+		imeslv_start
+	;;
+	stop)
+		imeslv_stop
+	;;
+	monitor)
+		imeslv_monitor
+	;;
+	migrate_to)
+		ocf_log info "${0} : migrate_to : Migrating ${OCF_RESOURCE_INSTANCE} to ${OCF_RESKEY_CRM_meta_migrate_target}."
+		imeslv_stop
+	    ;;
+	migrate_from)
+		ocf_log info "${0} : migrate_from : Migrating ${OCF_RESOURCE_INSTANCE} from ${OCF_RESKEY_CRM_meta_migrate_source}."
+		imeslv_start
+	;;
+	reload)
+		ocf_log info "${0} : reload : Reloading ${OCF_RESOURCE_INSTANCE} ..."
+	;;
+	validate|validate-all)
+		imeslv_validate
+	;;
+	usage|help)
+		imeslv_usage
+		exit ${OCF_SUCCESS}
+	;;
+	*)
+		imeslv_usage
+		exit ${OCF_ERR_UNIMPLEMENTED}
+	;;
+esac
+
+rc=$?
+ocf_log debug "${0} : ImESlV : ${OCF_RESOURCE_INSTANCE} ${__OCF_ACTION} : $rc"
+exit $rc
