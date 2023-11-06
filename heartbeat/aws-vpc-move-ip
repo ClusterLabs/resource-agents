@@ -36,6 +36,7 @@
 
 # Defaults
 OCF_RESKEY_awscli_default="/usr/bin/aws"
+OCF_RESKEY_auth_type_default="key"
 OCF_RESKEY_profile_default="default"
 OCF_RESKEY_region_default=""
 OCF_RESKEY_ip_default=""
@@ -48,6 +49,7 @@ OCF_RESKEY_monapi_default="false"
 OCF_RESKEY_lookup_type_default="InstanceId"
 
 : ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
+: ${OCF_RESKEY_auth_type=${OCF_RESKEY_auth_type_default}}
 : ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
 : ${OCF_RESKEY_region=${OCF_RESKEY_region_default}}
 : ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
@@ -58,8 +60,6 @@ OCF_RESKEY_lookup_type_default="InstanceId"
 : ${OCF_RESKEY_iflabel=${OCF_RESKEY_iflabel_default}}
 : ${OCF_RESKEY_monapi=${OCF_RESKEY_monapi_default}}
 : ${OCF_RESKEY_lookup_type=${OCF_RESKEY_lookup_type_default}}
-
-[ -n "$OCF_RESKEY_region" ] && region_opt="--region $OCF_RESKEY_region"
 #######################################################################
 
 
@@ -83,6 +83,10 @@ cat <<END
 <longdesc lang="en">
 Resource Agent to move IP addresses within a VPC of the Amazon Webservices EC2
 by changing an entry in an specific routing table
+
+Credentials needs to be setup by running "aws configure", or by using AWS Policies.
+
+See https://aws.amazon.com/cli/ for more information about awscli.
 </longdesc>
 <shortdesc lang="en">Move IP within a VPC of the AWS EC2</shortdesc>
 
@@ -93,6 +97,15 @@ Path to command line tools for AWS
 </longdesc>
 <shortdesc lang="en">Path to AWS CLI tools</shortdesc>
 <content type="string" default="${OCF_RESKEY_awscli_default}" />
+</parameter>
+
+<parameter name="auth_type">
+<longdesc lang="en">
+Authentication type "key" for AccessKey and SecretAccessKey set via "aws configure",
+or "role" to use AWS Policies.
+</longdesc>
+<shortdesc lang="en">Authentication type</shortdesc>
+<content type="string" default="${OCF_RESKEY_auth_type_default}" />
 </parameter>
 
 <parameter name="profile">
@@ -198,7 +211,7 @@ END
 execute_cmd_as_role(){
 	cmd=$1
 	role=$2
-	output="$($OCF_RESKEY_awscli sts assume-role --role-arn $role --role-session-name AWSCLI-RouteTableUpdate --profile $OCF_RESKEY_profile $region_opt --output=text)"
+	output="$($AWSCLI_CMD sts assume-role --role-arn $role --role-session-name AWSCLI-RouteTableUpdate --output=text)"
 	export AWS_ACCESS_KEY_ID="$(echo $output | awk -F" " '$4=="CREDENTIALS" {print $5}')"
 	export AWS_SECRET_ACCESS_KEY="$(echo $output | awk -F" " '$4=="CREDENTIALS" {print $7}')"
 	export AWS_SESSION_TOKEN="$(echo $output | awk -F" " '$4=="CREDENTIALS" {print $8}')"
@@ -220,11 +233,11 @@ ec2ip_set_address_param_compat(){
 }
 
 ec2ip_validate() {
-	for cmd in $OCF_RESKEY_awscli ip curl; do
+	for cmd in "$OCF_RESKEY_awscli" ip curl; do
 		check_binary "$cmd"
 	done
 
-	if [ -z "$OCF_RESKEY_profile" ]; then
+	if [ "x${OCF_RESKEY_auth_type}" = "xkey" ] && [ -z "$OCF_RESKEY_profile" ]; then
 		ocf_exit_reason "profile parameter not set"
 		return $OCF_ERR_CONFIGURED
 	fi
@@ -262,7 +275,7 @@ ec2ip_monitor() {
 		for rtb in $(echo $OCF_RESKEY_routing_table | sed -e 's/,/ /g'); do
 			ocf_log info "monitor: check routing table (API call) - $rtb"
 			if [ -z "${OCF_RESKEY_routing_table_role}" ]; then
-				cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile $region_opt --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].$OCF_RESKEY_lookup_type"
+				cmd="$AWSCLI_CMD --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].$OCF_RESKEY_lookup_type"
 				ocf_log debug "executing command: $cmd"
 				ROUTE_TO_INSTANCE="$($cmd)"
 			else
@@ -368,7 +381,7 @@ ec2ip_get_and_configure() {
 	EC2_NETWORK_INTERFACE_ID="$(ec2ip_get_instance_eni)"
 	for rtb in $(echo $OCF_RESKEY_routing_table | sed -e 's/,/ /g'); do
 		if [ -z "${OCF_RESKEY_routing_table_role}" ]; then
-			cmd="$OCF_RESKEY_awscli --profile $OCF_RESKEY_profile $region_opt --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
+			cmd="$AWSCLI_CMD --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
 			ocf_log debug "executing command: $cmd"
 			$cmd
 		else
@@ -473,6 +486,22 @@ esac
 if ! ocf_is_root; then
 	ocf_log err "You must be root for $__OCF_ACTION operation."
 	exit $OCF_ERR_PERM
+fi
+
+AWSCLI_CMD="${OCF_RESKEY_awscli}"
+if [ "x${OCF_RESKEY_auth_type}" = "xkey" ]; then
+	AWSCLI_CMD="$AWSCLI_CMD --profile ${OCF_RESKEY_profile}"
+elif [ "x${OCF_RESKEY_auth_type}" = "xrole" ]; then
+	if [ -z "${OCF_RESKEY_region}" ]; then
+		ocf_exit_reason "region needs to be set when using role-based authentication"
+		exit $OCF_ERR_CONFIGURED
+	fi
+else
+	ocf_exit_reason "Incorrect auth_type: ${OCF_RESKEY_auth_type}"
+	exit $OCF_ERR_CONFIGURED
+fi
+if [ -n "${OCF_RESKEY_region}" ]; then
+	AWSCLI_CMD="$AWSCLI_CMD --region ${OCF_RESKEY_region}"
 fi
 
 ec2ip_set_address_param_compat
