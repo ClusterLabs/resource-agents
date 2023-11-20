@@ -382,9 +382,11 @@ static int write_pid_file(const char *pidfile)
 		syslog(LOG_ERR, "Failed to write '%s' to %s: %s", pid, pidfile, strerror(errno));
 		goto done;
 	}
-	close(fd);
 	rc = 0;
 done:
+	if (fd != -1) {
+		close(fd);
+	}
 	if (pid != NULL) {
 		free(pid);
 	}
@@ -663,6 +665,7 @@ storage_mon_client(void)
 	snprintf(request.message, SMON_MAX_MSGSIZE, "%s", SMON_GET_RESULT_COMMAND);
 	request.hdr.id = 0;
 	request.hdr.size = sizeof(struct storage_mon_check_value_req);
+	response.hdr.id = 0;
 	rc = qb_ipcc_send(conn, &request, request.hdr.size);
 	if (rc < 0) {
 		syslog(LOG_ERR, "qb_ipcc_send error : %d\n", rc);
@@ -683,7 +686,11 @@ storage_mon_client(void)
 	/* greater than 0	: monitoring error. 		*/
 	/* -1			: communication system error.	*/
 	/* -2                   : Not all checks completed for first device in daemon mode. */ 
-	rc = atoi(response.message);
+	if (strnlen(response.message, 1)) {
+		rc = atoi(response.message);
+	} else {
+		rc = -1;
+	}
 
 	syslog(LOG_DEBUG, "daemon response[%d]: %s \n", response.hdr.id, response.message);
 
