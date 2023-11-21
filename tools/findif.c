@@ -669,7 +669,7 @@ main(int argc, char ** argv) {
 		}
 	}
 
-	if (netmaskbits) {
+	if (netmaskbits != NULL && *netmaskbits != EOS) {
 		best_netmask = netmask;
 	}else if (best_netmask == 0L) {
 		/*
