@@ -23,7 +23,8 @@
 #
 #  Prerequisites:
 #
-#  - preconfigured AWS CLI running environment (AccessKey, SecretAccessKey, etc.)
+#  - preconfigured AWS CLI running environment (AccessKey, SecretAccessKey, etc.) or
+#    (AWSRole) Setup up relevant AWS Policies to allow agent related functions to be executed.
 #  - a reserved secondary private IP address for EC2 instances high availablity
 #  - IAM user role with the following permissions:
 #    * DescribeInstances
@@ -43,11 +44,15 @@
 # Defaults
 #
 OCF_RESKEY_awscli_default="/usr/bin/aws"
+OCF_RESKEY_auth_type_default="key"
 OCF_RESKEY_profile_default="default"
+OCF_RESKEY_region_default=""
 OCF_RESKEY_api_delay_default="3"
 
 : ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
+: ${OCF_RESKEY_auth_type=${OCF_RESKEY_auth_type_default}}
 : ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
+: ${OCF_RESKEY_region=${OCF_RESKEY_region_default}}
 : ${OCF_RESKEY_api_delay=${OCF_RESKEY_api_delay_default}}
 
 meta_data() {
@@ -62,7 +67,7 @@ Resource Agent for Amazon AWS Secondary Private IP Addresses.
 
 It manages AWS Secondary Private IP Addresses with awscli.
 
-Credentials needs to be setup by running "aws configure".
+Credentials needs to be setup by running "aws configure", or by using AWS Policies.
 
 See https://aws.amazon.com/cli/ for more information about awscli.
 </longdesc>
@@ -76,6 +81,15 @@ command line tools for aws services
 </longdesc>
 <shortdesc lang="en">aws cli tools</shortdesc>
 <content type="string" default="${OCF_RESKEY_awscli_default}" />
+</parameter>
+
+<parameter name="auth_type">
+<longdesc lang="en">
+Authentication type "key" for AccessKey and SecretAccessKey set via "aws configure",
+or "role" to use AWS Policies.
+</longdesc>
+<shortdesc lang="en">Authentication type</shortdesc>
+<content type="string" default="${OCF_RESKEY_auth_type_default}" />
 </parameter>
 
 <parameter name="profile">
@@ -92,6 +106,14 @@ reserved secondary private ip for ec2 instance
 </longdesc>
 <shortdesc lang="en">reserved secondary private ip for ec2 instance</shortdesc>
 <content type="string" default="" />
+</parameter>
+
+<parameter name="region" required="0">
+<longdesc lang="en">
+Region for AWS resource (required for role-based authentication)
+</longdesc>
+<shortdesc lang="en">Region</shortdesc>
+<content type="string" default="${OCF_RESKEY_region_default}" />
 </parameter>
 
 <parameter name="api_delay" unique="0">
@@ -131,7 +153,7 @@ END
 awsvip_start() {
     awsvip_monitor && return $OCF_SUCCESS
 
-    $AWSCLI --profile $OCF_RESKEY_profile ec2 assign-private-ip-addresses \
+    $AWSCLI_CMD ec2 assign-private-ip-addresses \
         --network-interface-id ${NETWORK_ID} \
         --private-ip-addresses ${SECONDARY_PRIVATE_IP} \
         --allow-reassignment
@@ -151,7 +173,7 @@ awsvip_start() {
 awsvip_stop() {
     awsvip_monitor || return $OCF_SUCCESS
 
-    $AWSCLI --profile $OCF_RESKEY_profile ec2 unassign-private-ip-addresses \
+    $AWSCLI_CMD ec2 unassign-private-ip-addresses \
         --network-interface-id ${NETWORK_ID} \
         --private-ip-addresses ${SECONDARY_PRIVATE_IP}
     RET=$?
@@ -168,7 +190,7 @@ awsvip_stop() {
 }
 
 awsvip_monitor() {
-    $AWSCLI --profile ${OCF_RESKEY_profile} ec2 describe-instances \
+    $AWSCLI_CMD ec2 describe-instances \
             --instance-id "${INSTANCE_ID}" \
             --query 'Reservations[].Instances[].NetworkInterfaces[].PrivateIpAddresses[].PrivateIpAddress[]' \
             --output text | \
@@ -182,9 +204,9 @@ awsvip_monitor() {
 }
 
 awsvip_validate() {
-    check_binary ${AWSCLI}
+    check_binary "${OCF_RESKEY_awscli}"
 
-    if [ -z "$OCF_RESKEY_profile" ]; then
+    if [ "x${OCF_RESKEY_auth_type}" = "xkey" ] && [ -z "$OCF_RESKEY_profile" ]; then
         ocf_exit_reason "profile parameter not set"
         return $OCF_ERR_CONFIGURED
     fi
@@ -202,9 +224,27 @@ case $__OCF_ACTION in
         meta_data
         exit $OCF_SUCCESS
         ;;
+    usage|help)
+        awsvip_usage
+        exit $OCF_SUCCESS
+        ;;
 esac
 
-AWSCLI="${OCF_RESKEY_awscli}"
+AWSCLI_CMD="${OCF_RESKEY_awscli}"
+if [ "x${OCF_RESKEY_auth_type}" = "xkey" ]; then
+	AWSCLI_CMD="$AWSCLI_CMD --profile ${OCF_RESKEY_profile}"
+elif [ "x${OCF_RESKEY_auth_type}" = "xrole" ]; then
+	if [ -z "${OCF_RESKEY_region}" ]; then
+		ocf_exit_reason "region needs to be set when using role-based authentication"
+		exit $OCF_ERR_CONFIGURED
+	fi
+else
+	ocf_exit_reason "Incorrect auth_type: ${OCF_RESKEY_auth_type}"
+	exit $OCF_ERR_CONFIGURED
+fi
+if [ -n "${OCF_RESKEY_region}" ]; then
+	AWSCLI_CMD="$AWSCLI_CMD --region ${OCF_RESKEY_region}"
+fi
 SECONDARY_PRIVATE_IP="${OCF_RESKEY_secondary_private_ip}"
 TOKEN=$(curl -sX PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id -H "X-aws-ec2-metadata-token: $TOKEN")
@@ -235,10 +275,6 @@ case $__OCF_ACTION in
         ;;
     validate|validate-all)
         awsvip_validate
-        ;;
-    usage|help)
-        awsvip_usage
-        exit $OCF_SUCCESS
         ;;
     *)
         awsvip_usage

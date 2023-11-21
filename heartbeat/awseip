@@ -23,7 +23,8 @@
 #
 #  Prerequisites:
 #
-#  - preconfigured AWS CLI running environment (AccessKey, SecretAccessKey, etc.)
+#  - preconfigured AWS CLI running environment (AccessKey, SecretAccessKey, etc.) or
+#    (AWSRole) Setup up relevant AWS Policies to allow agent related functions to be executed.
 #  - a reserved secondary private IP address for EC2 instances high availability
 #  - IAM user role with the following permissions:
 #    * DescribeInstances
@@ -44,11 +45,15 @@
 # Defaults
 #
 OCF_RESKEY_awscli_default="/usr/bin/aws"
+OCF_RESKEY_auth_type_default="key"
 OCF_RESKEY_profile_default="default"
+OCF_RESKEY_region_default=""
 OCF_RESKEY_api_delay_default="3"
 
 : ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
+: ${OCF_RESKEY_auth_type=${OCF_RESKEY_auth_type_default}}
 : ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
+: ${OCF_RESKEY_region=${OCF_RESKEY_region_default}}
 : ${OCF_RESKEY_api_delay=${OCF_RESKEY_api_delay_default}}
 
 meta_data() {
@@ -63,7 +68,7 @@ Resource Agent for Amazon AWS Elastic IP Addresses.
 
 It manages AWS Elastic IP Addresses with awscli.
 
-Credentials needs to be setup by running "aws configure".
+Credentials needs to be setup by running "aws configure", or by using AWS Policies.
 
 See https://aws.amazon.com/cli/ for more information about awscli.
 </longdesc>
@@ -77,6 +82,15 @@ command line tools for aws services
 </longdesc>
 <shortdesc lang="en">aws cli tools</shortdesc>
 <content type="string" default="${OCF_RESKEY_awscli_default}" />
+</parameter>
+
+<parameter name="auth_type">
+<longdesc lang="en">
+Authentication type "key" for AccessKey and SecretAccessKey set via "aws configure",
+or "role" to use AWS Policies.
+</longdesc>
+<shortdesc lang="en">Authentication type</shortdesc>
+<content type="string" default="${OCF_RESKEY_auth_type_default}" />
 </parameter>
 
 <parameter name="profile">
@@ -109,6 +123,14 @@ predefined private ip address for ec2 instance
 </longdesc>
 <shortdesc lang="en">predefined private ip address for ec2 instance</shortdesc>
 <content type="string" default="" />
+</parameter>
+
+<parameter name="region" required="0">
+<longdesc lang="en">
+Region for AWS resource (required for role-based authentication)
+</longdesc>
+<shortdesc lang="en">Region</shortdesc>
+<content type="string" default="${OCF_RESKEY_region_default}" />
 </parameter>
 
 <parameter name="api_delay" unique="0">
@@ -157,13 +179,13 @@ awseip_start() {
                 NETWORK_ID=$(curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC}/interface-id -H "X-aws-ec2-metadata-token: $TOKEN")
             fi
         done
-        $AWSCLI --profile $OCF_RESKEY_profile ec2 associate-address  \
+        $AWSCLI_CMD ec2 associate-address  \
             --network-interface-id ${NETWORK_ID} \
             --allocation-id ${ALLOCATION_ID} \
             --private-ip-address ${PRIVATE_IP_ADDRESS}
         RET=$?
     else
-        $AWSCLI --profile $OCF_RESKEY_profile ec2 associate-address  \
+        $AWSCLI_CMD ec2 associate-address  \
             --instance-id ${INSTANCE_ID} \
             --allocation-id ${ALLOCATION_ID}
         RET=$?
@@ -183,7 +205,7 @@ awseip_start() {
 awseip_stop() {
     awseip_monitor || return $OCF_SUCCESS
 
-    ASSOCIATION_ID=$($AWSCLI --profile $OCF_RESKEY_profile --output json ec2 describe-addresses \
+    ASSOCIATION_ID=$($AWSCLI_CMD --output json ec2 describe-addresses \
                          --allocation-id ${ALLOCATION_ID} | grep -m 1 "AssociationId" | awk -F'"' '{print$4}')
 
     if [ -z "${ASSOCIATION_ID}" ]; then
@@ -191,9 +213,7 @@ awseip_stop() {
         return $OCF_NOT_RUNNING
     fi
 
-    $AWSCLI --profile ${OCF_RESKEY_profile} \
-        ec2 disassociate-address \
-        --association-id ${ASSOCIATION_ID}
+    $AWSCLI_CMD ec2 disassociate-address --association-id ${ASSOCIATION_ID}
     RET=$?
 
     # delay to avoid sending request too fast
@@ -208,7 +228,7 @@ awseip_stop() {
 }
 
 awseip_monitor() {
-    $AWSCLI --profile $OCF_RESKEY_profile ec2 describe-instances --instance-id "${INSTANCE_ID}" | grep -q "${ELASTIC_IP}"
+    $AWSCLI_CMD ec2 describe-instances --instance-id "${INSTANCE_ID}" | grep -q "${ELASTIC_IP}"
     RET=$?
 
     if [ $RET -ne 0 ]; then
@@ -218,9 +238,9 @@ awseip_monitor() {
 }
 
 awseip_validate() {
-    check_binary ${AWSCLI}
+    check_binary "${OCF_RESKEY_awscli}"
 
-    if [ -z "$OCF_RESKEY_profile" ]; then
+    if [ "x${OCF_RESKEY_auth_type}" = "xkey" ] && [ -z "$OCF_RESKEY_profile" ]; then
         ocf_exit_reason "profile parameter not set"
         return $OCF_ERR_CONFIGURED
     fi
@@ -238,9 +258,27 @@ case $__OCF_ACTION in
         meta_data
         exit $OCF_SUCCESS
         ;;
-esac 
+    usage|help)
+        awseip_usage
+        exit $OCF_SUCCESS
+        ;;
+esac
 
-AWSCLI="${OCF_RESKEY_awscli}"
+AWSCLI_CMD="${OCF_RESKEY_awscli}"
+if [ "x${OCF_RESKEY_auth_type}" = "xkey" ]; then
+	AWSCLI_CMD="$AWSCLI_CMD --profile ${OCF_RESKEY_profile}"
+elif [ "x${OCF_RESKEY_auth_type}" = "xrole" ]; then
+	if [ -z "${OCF_RESKEY_region}" ]; then
+		ocf_exit_reason "region needs to be set when using role-based authentication"
+		exit $OCF_ERR_CONFIGURED
+	fi
+else
+	ocf_exit_reason "Incorrect auth_type: ${OCF_RESKEY_auth_type}"
+	exit $OCF_ERR_CONFIGURED
+fi
+if [ -n "${OCF_RESKEY_region}" ]; then
+	AWSCLI_CMD="$AWSCLI_CMD --region ${OCF_RESKEY_region}"
+fi
 ELASTIC_IP="${OCF_RESKEY_elastic_ip}"
 ALLOCATION_ID="${OCF_RESKEY_allocation_id}"
 PRIVATE_IP_ADDRESS="${OCF_RESKEY_private_ip_address}"
@@ -271,10 +309,6 @@ case $__OCF_ACTION in
         ;;
     validate|validate-all)
         awseip_validate
-        ;;
-    usage|help)
-        awseip_usage
-        exit $OCF_SUCCESS
         ;;
     *)
         awseip_usage
