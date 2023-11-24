@@ -655,6 +655,7 @@ storage_mon_client(void)
 	int32_t rc;
 
 
+	memset(&response, 0, sizeof(response));
 	snprintf(ipcs_name, SMON_MAX_IPCSNAME, "storage_mon_%s", attrname);
 	conn = qb_ipcc_connect(ipcs_name, 0);
 	if (conn == NULL) {
