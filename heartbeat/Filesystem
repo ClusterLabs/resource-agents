@@ -704,8 +704,8 @@ timeout_child() {
 	wait $pid
 	ret=$?
 
-	# ret would be 127 + child exit code if the timeout expired
-	[ $ret -lt 128 ] && kill -s KILL $killer
+	# ret would be 128 + signal number if the timeout expired
+	[ $ret -lt 129 ] && kill -s KILL $killer
 	return $ret
 }
 fs_stop_loop() {
