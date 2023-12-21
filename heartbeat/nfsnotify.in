@@ -1,4 +1,4 @@
-#!@BASH_SHELL@
+#!/bin/bash
 #
 # Copyright (c) 2014 David Vossel <davidvossel@gmail.com>
 #                    All Rights Reserved.
