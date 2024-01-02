@@ -624,7 +624,7 @@ find_interface() {
 	# List interfaces but exclude FreeS/WAN ipsecN virtual interfaces
 	#
 	local iface="`$IP2UTIL -o -f $FAMILY addr show \
-		| grep "\ $ipaddr/$netmask" \
+		| grep " $ipaddr/$netmask" \
 		| cut -d ' ' -f2 \
 		| grep -v '^ipsec[0-9][0-9]*$'`"
 
