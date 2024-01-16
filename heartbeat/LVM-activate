@@ -448,6 +448,10 @@ systemid_check()
 {
 	# system_id_source is set in lvm.conf
 	source=$(lvmconfig 'global/system_id_source' 2>/dev/null | cut -d"=" -f2)
+
+	# Is volume_list set in lvm.conf
+	vol_list=$(lvmconfig 'activation/volume_list' 2>/dev/null | cut -d"=" -f2)
+
 	if [ "$source" = "" ] || [ "$source" = "none" ]; then
 		ocf_exit_reason "system_id_source in lvm.conf is not set correctly!"
 		exit $OCF_ERR_ARGS
@@ -455,6 +459,11 @@ systemid_check()
 
 	if [ -z ${SYSTEM_ID} ]; then
 		ocf_exit_reason "local/system_id is not set!"
+		exit $OCF_ERR_ARGS
+	fi
+
+	if [ -n "$source" ] && [ -n "$vol_list" ]; then
+		ocf_exit_reason "Both system_id_source & volume_list cannot be defined!"
 		exit $OCF_ERR_ARGS
 	fi
 
