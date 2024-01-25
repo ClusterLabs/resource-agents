@@ -704,7 +704,7 @@ timeout_child() {
 	wait $pid
 	ret=$?
 
-	# ret would be 127 + child exit code if the timeout expired
+	# ret would be 127 + child exit code if the timeout expired (see "man wait" for more info)
 	[ $ret -lt 128 ] && kill -s KILL $killer
 	return $ret
 }
