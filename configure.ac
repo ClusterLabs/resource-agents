@@ -186,7 +186,7 @@ AC_SUBST(PKGNAME)
 
 AC_ARG_ENABLE([ansi],
 [  --enable-ansi force GCC to compile to ANSI/ANSI standard for older compilers.
-     [default=yes]])
+     [default=no]])
 
 AC_ARG_ENABLE([fatal-warnings],
 [  --enable-fatal-warnings very pedantic and fatal warnings for gcc
