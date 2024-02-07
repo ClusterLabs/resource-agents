@@ -120,6 +120,30 @@ The IP address.
 <content type="string" default="${OCF_RESKEY_ipaddress_default}" />
 </parameter>
 
+<parameter name="nic" unique="0">
+<longdesc lang="en">
+The base network interface on which the IP address will be brought
+online.
+If left empty, the script will try and determine this from the
+routing table.
+
+Do NOT specify an alias interface in the form eth0:1 or anything here;
+rather, specify the base interface only.
+If you want a label, see the iflabel parameter.
+
+Prerequisite:
+
+There must be at least one static IP address, which is not managed by
+the cluster, assigned to the network interface.
+If you can not assign any static IP address on the interface,
+modify this kernel parameter:
+
+sysctl -w net.ipv4.conf.all.promote_secondaries=1 # (or per device)
+</longdesc>
+<shortdesc lang="en">Network interface</shortdesc>
+<content type="string"/>
+</parameter>
+
 <parameter name="cidr_netmask">
 <longdesc lang="en">
 The netmask for the interface in CIDR format. (ie, 24), or in
