@@ -995,6 +995,12 @@ if [ -n "${OCF_RESKEY_force_unmount}" ]; then
 fi
 
 DEVICE="$OCF_RESKEY_device"
+case "$DEVICE" in
+	[[:space:]]*|*[[:space:]])
+		ocf_exit_reason "device parameter does not accept leading or trailing whitespace characters"
+		exit $OCF_ERR_CONFIGURED
+		;;
+esac
 FSTYPE=$OCF_RESKEY_fstype
 if [ ! -z "$OCF_RESKEY_options" ]; then
 	options="-o $OCF_RESKEY_options"
@@ -1032,6 +1038,12 @@ if [ -z "$OCF_RESKEY_directory" ]; then
 else
 	MOUNTPOINT="$(echo "$OCF_RESKEY_directory" | sed 's/\/*$//')"
 	: ${MOUNTPOINT:=/}
+	case "$MOUNTPOINT" in
+		[[:space:]]*|*[[:space:]])
+			ocf_exit_reason "directory parameter does not accept leading or trailing whitespace characters"
+			exit $OCF_ERR_CONFIGURED
+			;;
+	esac
 	if [ -e "$MOUNTPOINT" ] ; then
 		CANONICALIZED_MOUNTPOINT="$(readlink -f "$MOUNTPOINT")"
 		if [ $? -ne 0 ]; then
