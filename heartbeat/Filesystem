@@ -711,11 +711,11 @@ timeout_child() {
 fs_stop_loop() {
 	local SUB="$1" signals="$2" sig
 	while true; do
+		try_umount "$SUB" && return $OCF_SUCCESS
 		for sig in $signals; do
 			signal_processes "$SUB" $sig
 		done
 		sleep $OCF_RESKEY_signal_delay
-		try_umount "$SUB" && return $OCF_SUCCESS
 	done
 }
 fs_stop() {
