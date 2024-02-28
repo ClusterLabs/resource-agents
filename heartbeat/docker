@@ -293,8 +293,8 @@ docker_simple_status()
 	VERSION_OUT=$(docker version)
 	version_ret=$?
 	if [ $version_ret -eq 1 ]; then
-		ocf_exit_reason "Docker service is in error state while checking for ${CONTAINER}, based on image, ${OCF_RESKEY_image}: ${VERSION_OUT}"
-		return $OCF_ERR_GENERIC
+		ocf_log err "Docker service is not running or in error state while checking for ${CONTAINER}, based on image, ${OCF_RESKEY_image}: ${VERSION_OUT}"
+		return $OCF_NOT_RUNNING
 	fi
 
 	container_exists
