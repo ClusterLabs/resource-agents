@@ -4,22 +4,9 @@
 # Support:      users@clusterlabs.org
 # License:      GNU General Public License (GPL)
 #
-#	This script is a test resource for introducing delay.
+#	This script is a resource for introducing a delay.
 #
-#	usage: $0  {start|stop|status|monitor|meta-data}
-#
-#	  OCF parameters are as below:
-#		OCF_RESKEY_startdelay
-#		OCF_RESKEY_stopdelay
-#		OCF_RESKEY_mondelay
-#
-#	
-#		OCF_RESKEY_startdelay defaults to 20 (seconds)
-#		OCF_RESKEY_stopdelay defaults to $OCF_RESKEY_startdelay
-#		OCF_RESKEY_mondelay defaults to $OCF_RESKEY_startdelay
-#
-#
-#	This is really a test resource script.
+#	usage: $0 {start|stop|status|monitor|meta-data}
 #
 
 #######################################################################
@@ -54,7 +41,7 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-This script is a test resource for introducing delay.
+This script is a resource for introducing a delay.
 </longdesc>
 <shortdesc lang="en">Waits for a defined timespan</shortdesc>
 
