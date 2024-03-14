@@ -707,7 +707,7 @@ VirtualDomain_start() {
 	fi
 
 	if [ -z "${OCF_RESKEY_backingfile}" ]; then
-		virsh $VIRSH_OPTIONS create ${OCF_RESKEY_config}
+		virsh define ${OCF_RESKEY_config} && virsh $VIRSH_OPTIONS start ${DOMAIN_NAME}
 		if [ $? -ne 0 ]; then
 			ocf_exit_reason "Failed to start virtual domain ${DOMAIN_NAME}."
 			return $OCF_ERR_GENERIC
