@@ -100,7 +100,7 @@ Requires: /usr/sbin/fuser
 %endif
 
 # Filesystem / fs.sh / netfs.sh
-%if 0%{?suse_version}
+%if 0%{?fedora} > 39 || 0%{?suse_version}
 Requires: /usr/sbin/fsck
 %else
 Requires: /sbin/fsck
@@ -141,8 +141,13 @@ Requires: /usr/sbin/ethtool
 Requires: /sbin/rdisc /usr/sbin/arping /bin/ping /bin/ping6
 
 # nfsexport.sh
+%if 0%{?fedora} > 39
+Requires: /usr/sbin/findfs
+Requires: /usr/sbin/quotaon /usr/sbin/quotacheck
+%else
 Requires: /sbin/findfs
 Requires: /sbin/quotaon /sbin/quotacheck
+%endif
 %endif
 
 %description
