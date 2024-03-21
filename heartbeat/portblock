@@ -266,7 +266,14 @@ active_grep_pat()
     local src=$3
     local dst=$any
   fi
-  echo "^DROP${w}${1}${w}--${w}${src}${w}${dst}${w}multiport${w}${4}ports${w}${2}$"
+  # iptables 1.8.9 briefly broke the output format, returning the
+  # numeric protocol value instead of a string. Support both variants.
+  if [ "$1" = "tcp" ]; then
+    local prot="(tcp|6)"
+  else
+    local prot="(udp|17)"
+  fi
+  echo "^DROP${w}${prot}${w}--${w}${src}${w}${dst}${w}multiport${w}${4}ports${w}${2}$"
 }
 
 #chain_isactive  {udp|tcp} portno,portno ip chain
@@ -274,7 +281,7 @@ chain_isactive()
 {
   [ "$4" = "OUTPUT" ] && ds="s" || ds="d"
   PAT=$(active_grep_pat "$1" "$2" "$3" "$ds")
-  $IPTABLES $wait -n -L "$4" | grep "$PAT" >/dev/null
+  $IPTABLES $wait -n -L "$4" | grep -qE "$PAT"
 }
 
 # netstat -tn and ss -Htn, split on whitespace and colon,
