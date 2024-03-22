@@ -822,6 +822,11 @@ galera_promote()
         return $rc
     fi
 
+    # At this point, the mysql pidfile is created on disk and the
+    # mysql server is reacheable via its UNIX socket. If we are a
+    # joiner, SST transfers (rsync) have finished, but an IST may
+    # still be requested or ongoing
+
     galera_monitor
     rc=$?
     if [ $rc != $OCF_SUCCESS -a $rc != $OCF_RUNNING_MASTER ]; then
@@ -832,12 +837,6 @@ galera_promote()
     is_readonly
     if [ $? -eq 0 ]; then
         ocf_exit_reason "Failure. Master instance started in read-only mode, check configuration."
-        return $OCF_ERR_GENERIC
-    fi
-
-    is_primary
-    if [ $? -ne 0 ]; then
-        ocf_exit_reason "Failure. Master instance started, but is not in Primary mode."
         return $OCF_ERR_GENERIC
     fi
 
@@ -991,8 +990,18 @@ galera_monitor()
         fi
         rc=$OCF_RUNNING_MASTER
     else
-        ocf_exit_reason "local node <${NODENAME}> is started, but not in primary mode. Unknown state."
-        rc=$OCF_ERR_GENERIC
+        # It seems that with recent galera (26.4+), a joiner that is
+        # connected to a Primary component and is preparing its IST
+        # request might still temporarily report its state as
+        # Non-Primary.  Do not fail in this case as the promote
+        # operation will loop until the IST finishes or the promote
+        # times out.
+        if [ "$__OCF_ACTION" = "promote" ] && ! ocf_is_true $(is_bootstrap); then
+                ocf_log info "local node <${NODENAME}> is receiving a State Transfer."
+        else
+            ocf_exit_reason "local node <${NODENAME}> is started, but not in primary mode. Unknown state."
+            rc=$OCF_ERR_GENERIC
+        fi
     fi
 
     return $rc
