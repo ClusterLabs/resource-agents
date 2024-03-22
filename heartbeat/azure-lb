@@ -114,7 +114,7 @@ lb_start() {
 	cmd="$OCF_RESKEY_nc -l -k $OCF_RESKEY_port"
 	if [ $( basename $OCF_RESKEY_nc ) = 'socat' ]; then
 		#socat has different parameters
-		cmd="$OCF_RESKEY_nc -U TCP-LISTEN:$OCF_RESKEY_port,backlog=10,fork,reuseaddr /dev/null"
+		cmd="$OCF_RESKEY_nc -U TCP6-LISTEN:$OCF_RESKEY_port,backlog=10,fork,reuseaddr /dev/null"
 	fi
 	if ! lb_monitor; then
 		ocf_log debug "Starting $process: $cmd"
