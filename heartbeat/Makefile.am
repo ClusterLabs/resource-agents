@@ -86,6 +86,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			VirtualDomain		\
 			WAS			\
 			WAS6			\
+			WAS8			\
 			WinPopup		\
 			Xen			\
 			Xinetd			\
