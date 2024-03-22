@@ -89,7 +89,7 @@ END
 LXDInfoStats() {
 	value=$(lxc list|grep -ci RUNNING)
 	echo -e "lxd_containers:\t$value"
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n lxd_containers -v $value
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n lxd_containers -v $value
 }
 
 LXDInfo_usage() {
@@ -108,7 +108,7 @@ LXDInfo_start() {
 
 LXDInfo_stop() {
 	rm -f $OCF_RESKEY_pidfile
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n lxd_containers
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n lxd_containers
 	exit $OCF_SUCCESS
 }
 

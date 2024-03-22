@@ -143,13 +143,13 @@ osflip_monitor() {
 	for port in $node_port_ids ; do
 		if echo "$result" | grep -q $port ; then
 			floating_ip=$(echo "$result" | awk '/floating_ip_address/ {print $2}')
-			${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_floating_ip -v $floating_ip
+			${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_floating_ip -v $floating_ip
 
 			return $OCF_SUCCESS
 		fi
 	done
 
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_floating_ip
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_floating_ip
 	ocf_log warn "$OCF_RESKEY_ip_id is not attached to any fixed address"
 	return $OCF_NOT_RUNNING
 }

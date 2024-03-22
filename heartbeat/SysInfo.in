@@ -119,7 +119,7 @@ UpdateStat() {
     name=$1; shift
     value="$*"
     echo -e "$name:\t$value"
-    ${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n $name -v "$value"
+    ${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n $name -v "$value"
 }
 
 SysInfoStats() {

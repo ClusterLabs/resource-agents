@@ -137,12 +137,12 @@ osvip_monitor() {
 		--column allowed_address_pairs \
 		${node_port_id}")
 	if echo "$result" | grep -q "$OCF_RESKEY_ip"; then
-		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n openstack_virtual_ip -v $OCF_RESKEY_ip
+		${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n openstack_virtual_ip -v $OCF_RESKEY_ip
 
 		return $OCF_SUCCESS
 	fi
 
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n openstack_virtual_ip
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n openstack_virtual_ip
 	ocf_log warn "$OCF_RESKEY_ip is not attached to any fixed address"
 	return $OCF_NOT_RUNNING
 }
