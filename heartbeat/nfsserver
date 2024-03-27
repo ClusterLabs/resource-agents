@@ -711,8 +711,17 @@ inject_unshare_uts_name_into_systemd_units ()
 		test -d "$dir" || mkdir -p "$dir"
 		test -e "$dropin" && rm -f "$dropin"
 
-		# NOTE: additional ExecStart= might exist in the drop-in files, eg. openSUSE
-		edited_exec_start=$(systemctl cat $svc | sed -ne "s#^ExecStart=\\([-+:!@]*\\)\\(.\+\\)#ExecStart=\\1/usr/bin/unshare --uts /bin/sh -c 'hostname \${NFS_SERVER_SCOPE}; exec \"\$@\"' -- \\2#p" | tail -1)
+		# NOTE: multiple ExecStart may exist,
+		# even additional `ExecStart=` to reset the list might exist in the drop-in files.
+		# We are interested in only the "currently relevant" set of ExecStart.
+		local unshare_uts_set_hostname='/usr/bin/unshare --uts /bin/sh -c '\''hostname ${NFS_SERVER_SCOPE}; exec "$@"'\'' -- '
+		edited_exec_start=$(systemctl cat $svc \
+			| sed -n \
+				-e '/^ExecStart=/ H;'				\
+				-e '/^ExecStart=[[:space:]]*$/ {s/.*//;h};'	\
+				-e '${g;s/^\n//;p}' \
+			| sed -e 's#^\(ExecStart=[-+:!@]*\)\(.\+\)#\1'"$unshare_uts_set_hostname"'\2#'
+		)
 
 		cat > "$dropin" <<___
 [Service]
