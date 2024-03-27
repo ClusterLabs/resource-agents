@@ -164,10 +164,12 @@ OSInfoStats() {
 			--format json \
 			--column fixed_ips \
 			${port_id}")
-		subnet_id=$(echo "$subnet_result" |
+		subnet_ids=$(echo "$subnet_result" |
 			grep -P '\"subnet_id\": \".*\",$' |
 			grep -P -o '[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}')
-		value="${value}${subnet_id}:${port_id},"
+		for subnet_id in $subnet_ids; do
+			value="${value}${subnet_id}:${port_id},"
+		done
 	done
 	value=${value%,}
 
