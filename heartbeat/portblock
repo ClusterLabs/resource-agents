@@ -328,7 +328,6 @@ save_tcp_connections()
 tickle_remote()
 {
 	[ -z "$OCF_RESKEY_tickle_dir" ] && return
-	echo 1 > /proc/sys/net/ipv4/tcp_tw_recycle
 	f=$OCF_RESKEY_tickle_dir/$OCF_RESKEY_ip
 	[ -r $f ] || return
 	$TICKLETCP -n 3 < $f
