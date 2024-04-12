@@ -215,9 +215,9 @@ findif()
   fi
   if [ -n "$nic" ] ; then
     # NIC supports more than two.
-    set -- $(ip -o -f $family route list match $match $scope | grep "dev $nic " | awk 'BEGIN{best=0} /\// { mask=$1; sub(".*/", "", mask); if( int(mask)>=best ) { best=int(mask); best_ln=$0; } } END{print best_ln}')
+    set -- $(ip -o -f $family route list match $match $scope | grep "dev $nic " | sed -e 's,^\([0-9.]\+\) ,\1/32 ,;s,^\([0-9a-f:]\+\) ,\1/128 ,' | sort -t/ -k2,2nr)
   else
-    set -- $(ip -o -f $family route list match $match $scope | awk 'BEGIN{best=0} /\// { mask=$1; sub(".*/", "", mask); if( int(mask)>=best ) { best=int(mask); best_ln=$0; } } END{print best_ln}')
+    set -- $(ip -o -f $family route list match $match $scope | sed -e 's,^\([0-9.]\+\) ,\1/32 ,;s,^\([0-9a-f:]\+\) ,\1/128 ,' | sort -t/ -k2,2nr)
   fi
   if [ $# = 0 ] ; then
     case $OCF_RESKEY_ip in
