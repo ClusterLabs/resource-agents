@@ -5,8 +5,7 @@
 A simple library for authoring resource agents in Python is
 provided in the `ocf.py` library.
 
-Agents written in Python should be ideally compatible both with Python
-2.7+ and Python 3.3+.
+Agents written in Python should be compatible with Python 3.6+.
 
 The library provides various helper constants and functions, a logging
 implementation as well as a run loop and metadata generation facility.
