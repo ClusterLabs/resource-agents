@@ -848,7 +848,7 @@ db2_notify() {
 
     # only interested in pre-start
     [  $OCF_RESKEY_CRM_meta_notify_type = pre \
-    -a $OCF_RESKEY_CRM_meta_notify_operation = start ] || return $OCF_SUCESS
+    -a $OCF_RESKEY_CRM_meta_notify_operation = start ] || return $OCF_SUCCESS
 
     # gets FIRST_ACTIVE_LOG
     db2_get_cfg $dblist || return $?
