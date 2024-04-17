@@ -1,3 +1,27 @@
+* Wed Apr 17 2024 resource-agents contributors
+- release candidate 4.14.0 rc1
+- all agents: remove -S state/status that are either ignored, or give an error message in newer versions of Pacemaker
+- configure: fix "C preprocessor "gcc -E" fails sanity check" error caused by autoconf 2.72
+- configure: prepare to not build with -ansi by default in the future
+- docs: writing-python-agents: update required Python version to 3.6+
+- spec: use /usr/sbin paths for Fedora 40+
+- LVM-activate: avoid false positive for VG activation (fail when system_id_source and volume_list are set)
+- aws-vpc-move-ip/aws-vpc-route53/awseip/awsvip: add auth_type parameter and AWS Policy based authentication type
+- azure-lb: support IPv6 with Azure load balancer when using socat
+- db2: fix OCF_SUCESS typo in db2_notify
+- docker: return OCF_NOT_RUNNING when Docker isn't running
+- findif.sh: fix corner cases
+- findif.sh: fix loopback handling
+- findif: check that netmaskbits != EOS in addition to != NULL in all cases
+- galera: allow joiner to report non-Primary during initial IST
+- nfsserver: fix "server scope" functionality for both potentially other dropins AND multiple ExecStart
+- ocivip: fix PRIMARY_IFACE variable when it returns two lines
+- openstack-info: ensure no newlines in openstack_ports
+- portblock: accept numeric protocol from iptables (to fix regression in iptables 1.8.9 that has shipped in some distros)
+- portblock: remove write to tcp_tw_recycle
+- storage_mon: fix file handler out of scope leak and uninitialized values
+- storage_mon: use memset() to fix "uninitialized value" covscan error, as qb_ipcc_recv() will always set a message
+
 * Wed Oct 11 2023 resource-agents contributors
 - stable release 4.13.0
 - findif.sh: dont use table parameter as it returns no netmask (tested with
