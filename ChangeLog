@@ -1,3 +1,7 @@
+* Wed Apr 24 2024 resource-agents contributors
+- stable release 4.14.0
+- doc: writing-python-agents: add description of is_probe() and distro()
+
 * Wed Apr 17 2024 resource-agents contributors
 - release candidate 4.14.0 rc1
 - all agents: remove -S state/status that are either ignored, or give an error message in newer versions of Pacemaker
