@@ -672,6 +672,40 @@ EOF
 	systemctl daemon-reload
 }
 
+# usage: curl_retry RETRIES SLEEP ARGS URL
+#
+# Use --show-error in ARGS to log HTTP error code
+#
+# returns:
+#    0  success
+# exit:
+#    1  fail
+curl_retry()
+{
+	local retries=$1 sleep=$2 opts=$3 url=$4
+	local tries=$(($retries + 1))
+	local args="--fail $opts $url"
+	local result rc
+
+	for try in $(seq $tries); do
+		ocf_log debug "curl $args try $try of $tries"
+		result=$(echo "$args" | xargs curl 2>&1)
+		rc=$?
+
+		ocf_log debug "result: $result"
+		[ $rc -eq 0 ] && break
+		sleep $sleep
+	done
+
+	if [ $rc -ne 0 ]; then
+		ocf_exit_reason "curl $args failed $tries tries"
+		exit $OCF_ERR_GENERIC
+	fi
+
+	echo "$result"
+	return $rc
+}
+
 # move process to root cgroup if realtime scheduling is enabled
 ocf_move_to_root_cgroup_if_rt_enabled()
 {

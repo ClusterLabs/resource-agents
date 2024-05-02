@@ -48,12 +48,16 @@ OCF_RESKEY_auth_type_default="key"
 OCF_RESKEY_profile_default="default"
 OCF_RESKEY_region_default=""
 OCF_RESKEY_api_delay_default="3"
+OCF_RESKEY_curl_retries_default="3"
+OCF_RESKEY_curl_sleep_default="1"
 
 : ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
 : ${OCF_RESKEY_auth_type=${OCF_RESKEY_auth_type_default}}
 : ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
 : ${OCF_RESKEY_region=${OCF_RESKEY_region_default}}
 : ${OCF_RESKEY_api_delay=${OCF_RESKEY_api_delay_default}}
+: ${OCF_RESKEY_curl_retries=${OCF_RESKEY_curl_retries_default}}
+: ${OCF_RESKEY_curl_sleep=${OCF_RESKEY_curl_sleep_default}}
 
 meta_data() {
     cat <<END
@@ -122,6 +126,22 @@ a short delay between API calls, to avoid sending API too quick
 </longdesc>
 <shortdesc lang="en">a short delay between API calls</shortdesc>
 <content type="integer" default="${OCF_RESKEY_api_delay_default}" />
+</parameter>
+
+<parameter name="curl_retries" unique="0">
+<longdesc lang="en">
+curl retries before failing
+</longdesc>
+<shortdesc lang="en">curl retries</shortdesc>
+<content type="integer" default="${OCF_RESKEY_curl_retries_default}" />
+</parameter>
+
+<parameter name="curl_sleep" unique="0">
+<longdesc lang="en">
+curl sleep between tries
+</longdesc>
+<shortdesc lang="en">curl sleep</shortdesc>
+<content type="integer" default="${OCF_RESKEY_curl_sleep_default}" />
 </parameter>
 
 </parameters>
@@ -246,10 +266,14 @@ if [ -n "${OCF_RESKEY_region}" ]; then
 	AWSCLI_CMD="$AWSCLI_CMD --region ${OCF_RESKEY_region}"
 fi
 SECONDARY_PRIVATE_IP="${OCF_RESKEY_secondary_private_ip}"
-TOKEN=$(curl -sX PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id -H "X-aws-ec2-metadata-token: $TOKEN")
-MAC_ADDRESS=$(curl -s http://169.254.169.254/latest/meta-data/mac -H "X-aws-ec2-metadata-token: $TOKEN")
-NETWORK_ID=$(curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC_ADDRESS}/interface-id -H "X-aws-ec2-metadata-token: $TOKEN")
+TOKEN=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep" "--show-error -sX PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600'" "http://169.254.169.254/latest/api/token")
+[ $? -ne 0 ] && exit $OCF_ERR_GENERIC
+INSTANCE_ID=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep" "--show-error -s -H 'X-aws-ec2-metadata-token: $TOKEN'" "http://169.254.169.254/latest/meta-data/instance-id")
+[ $? -ne 0 ] && exit $OCF_ERR_GENERIC
+MAC_ADDRESS=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep" "--show-error -s -H 'X-aws-ec2-metadata-token: $TOKEN'" "http://169.254.169.254/latest/meta-data/mac")
+[ $? -ne 0 ] && exit $OCF_ERR_GENERIC
+NETWORK_ID=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep" "--show-error -s -H 'X-aws-ec2-metadata-token: $TOKEN'" "http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC_ADDRESS}/interface-id")
+[ $? -ne 0 ] && exit $OCF_ERR_GENERIC
 
 case $__OCF_ACTION in
     start)
