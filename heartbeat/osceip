@@ -103,6 +103,24 @@ Region for osc resource (required for role-based authentication)
 <shortdesc lang="en">Region</shortdesc>
 <content type="string" default="${OCF_RESKEY_region_default}" />
 </parameter>
+
+<parameter name="curl_retries" unique="0">
+<longdesc lang="en">
+curl retries before failing
+</longdesc>
+<shortdesc lang="en">curl retries</shortdesc>
+<content type="integer" default="${OCF_RESKEY_curl_retries_default}" />
+</parameter>
+
+<parameter name="curl_sleep" unique="0">
+<longdesc lang="en">
+curl sleep between tries
+</longdesc>
+<shortdesc lang="en">curl sleep</shortdesc>
+<content type="integer" default="${OCF_RESKEY_curl_sleep_default}" />
+</parameter>
+
+
 </parameters>
 
 <actions>
@@ -129,8 +147,34 @@ Expects to have a fully populated OCF RA-compliant environment set.
 END
 }
 
+curl_retry()
+{
+	local retries=$1 sleep=$2 opts=$3 url=$4
+	local tries=$(($retries + 1))
+	local args="--fail $opts $url"
+	local result rc
+
+	for try in $(seq $tries); do
+		ocf_log debug "curl $args try $try of $tries"
+		result=$(echo "$args" | xargs curl 2>&1)
+		rc=$?
+
+		ocf_log debug "result: $result"
+		[ $rc -eq 0 ] && break
+		sleep $sleep
+	done
+
+	if [ $rc -ne 0 ]; then
+		ocf_exit_reason "curl $args failed $tries tries"
+		exit $OCF_ERR_GENERIC
+	fi
+
+	echo "$result"
+	return $rc
+}
+
 osceip_start() {
-    osceip_monitor || return $OCF_SUCCESS
+    osceip_monitor && return $OCF_SUCCESS
 
     $oscCLI_CMD api LinkPublicIp --profile "${OCF_RESKEY_profile}" --PublicIp "${ELASTIC_IP}" --VmId "${INSTANCE_ID}" --AllowRelink True
     RET=$?
@@ -145,7 +189,7 @@ osceip_start() {
 }
 
 osceip_stop() {
-    osceip_monitor && return $OCF_SUCCESS
+    osceip_monitor || return $OCF_SUCCESS
 
     $oscCLI_CMD api UnlinkPublicIp --profile "${OCF_RESKEY_profile}" --PublicIp "${ELASTIC_IP}"
     RET=$?
@@ -159,7 +203,7 @@ osceip_stop() {
 }
 
 osceip_monitor() {
-    $oscCLI_CMD api ReadPublicIps --profile "${OCF_RESKEY_profile}" --Filters '{"VmIds": ["'${INSTANCE_ID}'"],}' |grep LinkPublicIpId | awk -F'"' '{print$4}'
+    $oscCLI_CMD api ReadPublicIps --profile "${OCF_RESKEY_profile}" --Filters '{"VmIds": ["'${INSTANCE_ID}'"],}' |grep LinkPublicIpId
     RET=$?
 
     if [ $RET -ne 0 ]; then
@@ -195,7 +239,7 @@ if [ -n "${OCF_RESKEY_region}" ]; then
 	oscCLI_CMD="$oscCLI_CMD --region ${OCF_RESKEY_region}"
 fi
 ELASTIC_IP="${OCF_RESKEY_elastic_ip}"
-INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+INSTANCE_ID=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep"  "-s" "http://169.254.169.254/latest/meta-data/instance-id")
 
 case $__OCF_ACTION in
     start)
