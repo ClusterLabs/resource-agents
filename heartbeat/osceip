@@ -198,11 +198,10 @@ osceip_validate() {
         return $OCF_ERR_GENERIC
     fi
 
-    if [ -z "${ELASTIC_IP}"] ; then
+    if [ -z "${ELASTIC_IP}" ] ; then
         ocf_exit_reason "elastic_ip is a mandatory paramater. "
         return $OCF_ERR_CONFIGURED
     fi
-
 
     return $OCF_SUCCESS
 }
