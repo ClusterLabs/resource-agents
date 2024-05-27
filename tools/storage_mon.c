@@ -308,6 +308,8 @@ static int32_t sigchld_handler(int32_t sig, void *data)
 						/* so add the final_score from the exit code of the terminated child process. 	*/
 						if (qb_loop_timer_is_running(storage_mon_poll_handle, expire_handle)) { 
 							if (WEXITSTATUS(status) !=0) {
+								syslog(LOG_ERR, "Error reading from device %s", devices[index]);
+
 								final_score += scores[index];
 
 								/* Update response values immediately in preparation for inquiries from clients. */
@@ -403,6 +405,8 @@ static void child_timeout_handler(void *data)
 	if (is_child_runnning()) {
 		for (i=0; i<device_count; i++) {
 			if (test_forks[i] > 0) {
+				syslog(LOG_ERR, "Reading from device %s did not complete in %d seconds timeout", devices[i], timeout);
+
 				/* If timeout occurs before SIGCHLD, add child process failure score to final_score. */
 				final_score += scores[i];
 
