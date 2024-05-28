@@ -561,10 +561,11 @@ ip_init() {
 	if
 	  [ $rc -eq 0 ]
         then
-	    NICINFO=`echo "$NICINFO" | sed -e 's/netmask\ //;s/broadcast\ //'`
+	    NICINFO=`echo "$NICINFO" | sed -e 's/netmask\ //;s/broadcast\ //;s/metric\ //'`
 	    NIC=`echo "$NICINFO" | cut -d" " -f1`
 	    NETMASK=`echo "$NICINFO" | cut -d" " -f2`
 	    BRDCAST=`echo "$NICINFO" | cut -d" " -f3`
+	    METRIC=`echo "$NICINFO" | cut -d" " -f4`
 	else
 		# findif couldn't find the interface
 		if ocf_is_probe; then
@@ -659,13 +660,14 @@ delete_interface () {
 #        Add an interface
 #
 add_interface () {
-	local cmd msg extra_opts ipaddr netmask broadcast iface label
+	local cmd msg extra_opts ipaddr netmask broadcast iface label metric
 
 	ipaddr="$1"
 	netmask="$2"
 	broadcast="$3"
 	iface="$4"
 	label="$5"
+	metric="$6"
 
 	if [ "$FAMILY" = "inet" ] && ocf_is_true $OCF_RESKEY_run_arping &&
 	   check_binary arping; then
@@ -688,6 +690,9 @@ add_interface () {
 	fi
 
 	extra_opts=""
+	if [ "$FAMILY" = "inet6" ]; then
+		extra_opts="$extra_opts metric $metric"
+	fi
 	if [ "$FAMILY" = "inet6" ] && ocf_is_true "${OCF_RESKEY_nodad}"; then
 		extra_opts="$extra_opts nodad"
 	fi
@@ -1083,7 +1088,7 @@ ip_start() {
 			done
 		fi
 		
-		add_interface $OCF_RESKEY_ip $NETMASK ${BRDCAST:-none} $NIC $IFLABEL
+		add_interface "$OCF_RESKEY_ip" "$NETMASK" "${BRDCAST:-none}" "$NIC" "$IFLABEL" "$METRIC"
 		rc=$?
 
 		if [ $rc -ne $OCF_SUCCESS ]; then
