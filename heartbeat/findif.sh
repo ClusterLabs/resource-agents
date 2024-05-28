@@ -196,10 +196,13 @@ findif()
 {
   local match="$OCF_RESKEY_ip"
   local family
+  local proto
   local scope
   local nic="$OCF_RESKEY_nic"
   local netmask="$OCF_RESKEY_cidr_netmask"
   local brdcast="$OCF_RESKEY_broadcast"
+  local metric
+  local routematch
 
   echo $match | grep -qs ":"
   if [ $? = 0 ] ; then
@@ -215,10 +218,19 @@ findif()
   fi
   if [ -n "$nic" ] ; then
     # NIC supports more than two.
-    set -- $(ip -o -f $family route list match $match $scope | grep "dev $nic " | sed -e 's,^\([0-9.]\+\) ,\1/32 ,;s,^\([0-9a-f:]\+\) ,\1/128 ,' | sort -t/ -k2,2nr)
+    routematch=$(ip -o -f $family route list match $match $proto $scope | grep "dev $nic " | sed -e 's,^\([0-9.]\+\) ,\1/32 ,;s,^\([0-9a-f:]\+\) ,\1/128 ,' | sort -t/ -k2,2nr)
   else
-    set -- $(ip -o -f $family route list match $match $scope | sed -e 's,^\([0-9.]\+\) ,\1/32 ,;s,^\([0-9a-f:]\+\) ,\1/128 ,' | sort -t/ -k2,2nr)
+    routematch=$(ip -o -f $family route list match $match $proto $scope | sed -e 's,^\([0-9.]\+\) ,\1/32 ,;s,^\([0-9a-f:]\+\) ,\1/128 ,' | sort -t/ -k2,2nr)
   fi
+  if [ "$family" = "inet6" ]; then
+    routematch=$(echo "$routematch" | grep -v "^default")
+  fi
+
+  if [ $(echo "$routematch" | wc -l) -gt 1 ]; then
+    ocf_exit_reason "More than 1 routes match $match. Unable to decide which route to use."
+    return $OCF_ERR_GENERIC
+  fi
+  set -- $routematch
   if [ $# = 0 ] ; then
     case $OCF_RESKEY_ip in
     127.*)
@@ -255,6 +267,7 @@ findif()
       return $OCF_ERR_GENERIC
     fi
   fi
-  echo "$nic netmask $netmask broadcast $brdcast"
+  metric=$(echo "$@" | sed "s/.*metric[[:blank:]]\([^ ]\+\).*/\1/")
+  echo "$nic netmask $netmask broadcast $brdcast metric $metric"
   return $OCF_SUCCESS
 }
