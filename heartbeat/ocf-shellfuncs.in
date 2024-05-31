@@ -606,7 +606,7 @@ ocf_local_nodename() {
 	# use crm_node -n for pacemaker > 1.1.8
 	which pacemakerd > /dev/null 2>&1
 	if [ $? -eq 0 ]; then
-		local version=$(pacemakerd -$ | grep "Pacemaker .*" | awk '{ print $2 }')
+		local version=$(pacemakerd -$ | awk '/^Pacemaker /{ print $2 }')
 		version=$(echo $version | awk -F- '{ print $1 }')
 		ocf_version_cmp "$version" "1.1.8"
 		if [ $? -eq 2 ]; then
