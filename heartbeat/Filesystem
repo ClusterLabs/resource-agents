@@ -661,8 +661,10 @@ get_pids()
 	fi
 
 	if ocf_is_true  "$FORCE_UNMOUNT"; then
-		if [ "X${HOSTOS}" = "XOpenBSD" ];then
+		if [ "X${HOSTOS}" = "XOpenBSD" ]; then
 			fstat | grep $dir | awk '{print $3}'
+		elif [ "X${HOSTOS}" = "XFreeBSD" ]; then
+			$FUSER -c $dir 2>/dev/null
 		else
 			$FUSER -Mm $dir 2>/dev/null
 		fi
