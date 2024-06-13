@@ -162,7 +162,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			portblock		\
 			postfix			\
 			pound			\
-			powervs-subnet	\
+			powervs-subnet		\
 			proftpd			\
 			rabbitmq-cluster	\
 			rabbitmq-server-ha	\
