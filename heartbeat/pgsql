@@ -485,7 +485,7 @@ runasowner() {
             "-q")
                 quietrun="-q"
                 shift 1;;
-            "info"|"warn"|"err")
+            "info"|"warn"|"err"|"debug")
                 loglevel="-$1"
                 shift 1;;
             *)
@@ -920,7 +920,7 @@ pgsql_status() {
      if [ -f $PIDFILE ]
      then
          PID=`head -n 1 $PIDFILE`
-         runasowner "kill -s 0 $PID >/dev/null 2>&1"
+         runasowner -q debug "kill -s 0 $PID"
          return $?
      fi
 
