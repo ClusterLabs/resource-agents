@@ -45,7 +45,7 @@ sys.path.append(OCF_FUNCTIONS_DIR)
 try:
     import ocf
 except ImportError:
-    print("ImportError: ocf module import failed.", file=sys.stderr)
+    sys.stderr.write("ImportError: ocf module import failed.")
     sys.exit(5)
 
 
