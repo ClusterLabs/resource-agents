@@ -95,7 +95,7 @@ class nmcli:
                 )
         except subprocess.CalledProcessError as e:
             raise PowerCloudAPIError(
-                f"_nmcli_os_cmd: error executing nmcli: {e.stderr}",
+                "_nmcli_os_cmd: error executing nmcli: {}".format(e.stderr),
                 ocf.OCF_ERR_GENERIC,
             )
 
