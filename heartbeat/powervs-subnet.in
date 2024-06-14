@@ -76,7 +76,7 @@ class nmcli:
         Returns the output as a dictionary.
         """
 
-        ocf.logger.debug(f"_nmcli_os_cmd: args: {nmcli_args}")
+        ocf.logger.debug("_nmcli_os_cmd: args: {}".format(nmcli_args))
         output = None
         try:
             result = subprocess.run(
@@ -422,7 +422,7 @@ class PowerCloudAPI:
 
         if status == "SHUTOFF" or (status == "ACTIVE" and health == "OK"):
             ocf.logger.debug(
-                f"_instance_check_status: server_name: {server_name}, status: {status}, health: {health}"
+                f"_instance_check_status: OK server_name: {server_name}, status: {status}, health: {health}"
             )
         else:
             raise PowerCloudAPIError(
@@ -749,7 +749,7 @@ def start_action(
 
     res_options = locals()
 
-    ocf.logger.info(f"start_action: options: {res_options}")
+    ocf.logger.info("start_action: options: {}".format(res_options))
 
     # Detach and remove subnet in remote workspace
     remote_ws = PowerCloudAPI(**res_options, use_remote_workspace=True)
@@ -814,7 +814,7 @@ def stop_action(
 
     res_options = locals()
 
-    ocf.logger.info(f"stop_action: options: {res_options}")
+    ocf.logger.info("stop_action: options: {}".format(res_options))
 
     ws = PowerCloudAPI(**res_options)
 
@@ -847,7 +847,9 @@ def monitor_action(
     res_options = locals()
     is_probe = ocf.is_probe()
 
-    ocf.logger.debug(f"monitor_action: options: {res_options}, is_probe: {is_probe}")
+    ocf.logger.debug(
+        "monitor_action: options: {}, is_probe: {}".format(res_options, is_probe)
+    )
 
     gateway = nmcli.find_gateway(ip)
     if gateway and os_ping(gateway):
