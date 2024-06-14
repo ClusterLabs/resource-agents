@@ -95,7 +95,7 @@ class nmcli:
                 )
         except subprocess.CalledProcessError as e:
             raise PowerCloudAPIError(
-                "_nmcli_os_cmd: error executing nmcli: {}".format(e.stderr),
+                f"_nmcli_os_cmd: error executing nmcli: {e.stderr}",
                 ocf.OCF_ERR_GENERIC,
             )
 
@@ -142,9 +142,9 @@ class nmcli:
         """Find the network object whose attribute with the specified key matches the specified value."""
 
         ocf.logger.debug(
-            f"_nmcli_find: args: command: {command}, match_key: {match_key}, match_value: {match_value}"
+            f"_nmcli_find: args: command: {command}, key: {match_key}, value: {match_value}"
         )
-
+        
         nm_object = None
         for name in cls._nmcli_cmd(command=command, subcommand="show"):
             if not re.search(f"({cls.CONN_PREFIX})?{cls.DEV_PREFIX}", name):
@@ -173,8 +173,7 @@ class nmcli:
     def wait_for_nic(cls, mac, timeout=720):
         """Wait for a NIC with a given MAC address to become available."""
 
-        ocf.logger.debug(f"wait_for_nic: args: mac: {mac}, timeout: {timeout}")
-
+        ocf.logger.debug(f"wait_for_nic: args: mac: {mac}, timeout: {timeout} s")
         mac_address = mac.upper()
         retries = (timeout // cls._WAIT_FOR_NIC_SLEEP) - 1
 
@@ -426,7 +425,7 @@ class PowerCloudAPI:
             )
         else:
             raise PowerCloudAPIError(
-                f"_instance_check_status: invalid status: {server_name}, status: {status}, health: {health}",
+                f"_instance_check_status: FAIL server_name: {server_name}, status: {status}, health: {health}",
                 ocf.OCF_ERR_GENERIC,
             )
 
@@ -600,7 +599,7 @@ class PowerCloudAPI:
         else:
             if jumbo not in ("no", "false", "0", 0, "nein", "off", False):
                 raise PowerCloudAPIError(
-                    f"_validate_and_set_options: jumbo: {jumbo} does not match True or False.",
+                    f"_validate_and_set_options: option jumbo: {jumbo} does not match True or False.",
                     ocf.OCF_ERR_CONFIGURED,
                 )
             self.jumbo = False
@@ -627,14 +626,14 @@ class PowerCloudAPI:
                 self._proxy = {"https": f"{proxy}"}
             else:
                 raise PowerCloudAPIError(
-                    f"_validate_and_set_options: option proxy: {proxy} has an invalid format.",
+                    f"_validate_and_set_options: the option proxy: {proxy} has an invalid format.",
                     ocf.OCF_ERR_CONFIGURED,
                 )
 
         api_type = self._res_options["api_type"]
         if api_type not in ("public", "private"):
             raise PowerCloudAPIError(
-                f"_validate_and_set_options: api_type: {api_type} does not match public or private.",
+                f"_validate_and_set_options: option api_type: {api_type} does not match public or private.",
                 ocf.OCF_ERR_CONFIGURED,
             )
         # Set API endpoint url
@@ -649,7 +648,7 @@ class PowerCloudAPI:
         """Create and attach subnet in local workspace"""
 
         ocf.logger.debug(
-            f"subnet_add: options: ip: {self.ip}, cidr: {self.cidr}, subnet_name: {self.subnet_name}"
+            f"subnet_add: options: ip: {self.ip}, cidr: {self.cidr}, name: {self.subnet_name}"
         )
 
         if self.network_id:
@@ -658,17 +657,17 @@ class PowerCloudAPI:
             )
         else:
             ocf.logger.debug(
-                f"subnet_add: create subnet {self.subnet_name} with cidr: {self.cidr} and jumbo: {self.jumbo}"
+                f"subnet_add: create subnet name: {self.subnet_name} with cidr: {self.cidr} and jumbo: {self.jumbo}"
             )
             self._subnet_create()
 
         if self._instance_subnet_is_attached():
             ocf.logger.debug(
-                f"subnet_add: subnet id: {self.network_id} is already attached to instance id: {self.instance_id}"
+                f"subnet_add: subnet id {self.network_id} is already attached to instance id {self.instance_id}"
             )
         else:
             ocf.logger.debug(
-                f"subnet_add: attach subnet id: {self.network_id} to instance id: {self.instance_id} (IP address: {self.ip})"
+                f"subnet_add: attach subnet id: {self.network_id} to instance id: {self.instance_id} (IP address {self.ip})"
             )
             self._instance_subnet_attach()
 
@@ -697,7 +696,7 @@ class PowerCloudAPI:
             )
             if self._instance_subnet_is_attached():
                 ocf.logger.debug(
-                    f"subnet_remove: subnet id: {self.network_id} is attached to instance id: {self.instance_id}"
+                    f"subnet_remove: subnet id: {self.network_id} is attached to instance id {self.instance_id}"
                 )
                 port = self._instance_subnet_get()
                 mac = port["macAddress"]
@@ -749,12 +748,12 @@ def start_action(
 
     res_options = locals()
 
-    ocf.logger.info("start_action: options: {}".format(res_options))
+    ocf.logger.info(f"start_action: options: {res_options}")
 
     # Detach and remove subnet in remote workspace
     remote_ws = PowerCloudAPI(**res_options, use_remote_workspace=True)
     ocf.logger.debug(
-        f"start_action: remove subnet with cidr {remote_ws.cidr}: from remote workspace."
+        f"start_action: remove subnet from remote workspace: cidr: {remote_ws.cidr}"
     )
     remote_ws.subnet_remove()
 
@@ -786,7 +785,7 @@ def start_action(
     nmcli.connection.up(conn_name)
 
     if monitor_action(**res_options) != ocf.OCF_SUCCESS:
-        raise PowerCloudAPIError(f"start_action: start subnet {ws.subnet_name} failed")
+        raise PowerCloudAPIError(f"start_action: start subnet: {ws.subnet_name} failed")
 
     ocf.logger.info(
         f"start_action: finished, added connection {conn_name} for subnet {ws.subnet_name}"
@@ -814,8 +813,8 @@ def stop_action(
 
     res_options = locals()
 
-    ocf.logger.info("stop_action: options: {}".format(res_options))
-
+    ocf.logger.info(f"stop_action: options: {res_options}")
+     
     ws = PowerCloudAPI(**res_options)
 
     ws.subnet_remove()
@@ -847,24 +846,22 @@ def monitor_action(
     res_options = locals()
     is_probe = ocf.is_probe()
 
-    ocf.logger.debug(
-        "monitor_action: options: {}, is_probe: {}".format(res_options, is_probe)
-    )
-
+    ocf.logger.info(f"monitor_action: options: {res_options}, is_probe: {is_probe}")
+    
     gateway = nmcli.find_gateway(ip)
     if gateway and os_ping(gateway):
         if os_ping(ip):
             ocf.logger.debug(
-                f"monitor_action: ping to gateway: {gateway} and ip {ip} successful."
+                f"monitor_action: ping to gateway: {gateway} and ip: {ip} successful"
             )
             return ocf.OCF_SUCCESS
         else:
             raise PowerCloudAPIError(
-                f"monitor_action: ping to ip {ip} failed", ocf.OCF_ERR_GENERIC
+                f"monitor_action: ping to ip: {ip} failed", ocf.OCF_ERR_GENERIC
             )
 
     if not is_probe:
-        ocf.logger.error(f"monitor_action: ping to gateway {gateway} failed")
+        ocf.logger.error(f"monitor_action: ping to gateway: {gateway} failed")
 
     ws = PowerCloudAPI(**res_options)
 

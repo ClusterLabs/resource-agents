@@ -503,6 +503,12 @@ AC_SUBST(PING)
 AC_SUBST(RM)
 AC_SUBST(TEST)
 
+AM_PATH_PYTHON([3.6])
+if test -z "$PYTHON"; then
+    echo "*** Essential program python not found" 1>&2
+    exit 1
+fi
+
 dnl Ensure PYTHON is an absolute path
 AC_PATH_PROG([PYTHON], [$PYTHON])
 
@@ -514,7 +520,7 @@ fi
 AC_PYTHON_MODULE(json)
 AC_PYTHON_MODULE(pyroute2)
 
-AS_VERSION_COMPARE([$PYTHON_VERSION], [2.7], [BUILD_OCF_PY=0], [BUILD_OCF_PY=1], [BUILD_OCF_PY=1])
+AS_VERSION_COMPARE([$PYTHON_VERSION], [3.6], [BUILD_OCF_PY=0], [BUILD_OCF_PY=1], [BUILD_OCF_PY=1])
 
 BUILD_AZURE_EVENTS=1
 if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0; then
