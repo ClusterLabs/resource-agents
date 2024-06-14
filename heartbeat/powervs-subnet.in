@@ -144,7 +144,7 @@ class nmcli:
         ocf.logger.debug(
             f"_nmcli_find: args: command: {command}, key: {match_key}, value: {match_value}"
         )
-        
+
         nm_object = None
         for name in cls._nmcli_cmd(command=command, subcommand="show"):
             if not re.search(f"({cls.CONN_PREFIX})?{cls.DEV_PREFIX}", name):
@@ -814,7 +814,7 @@ def stop_action(
     res_options = locals()
 
     ocf.logger.info(f"stop_action: options: {res_options}")
-     
+
     ws = PowerCloudAPI(**res_options)
 
     ws.subnet_remove()
@@ -847,7 +847,7 @@ def monitor_action(
     is_probe = ocf.is_probe()
 
     ocf.logger.info(f"monitor_action: options: {res_options}, is_probe: {is_probe}")
-    
+
     gateway = nmcli.find_gateway(ip)
     if gateway and os_ping(gateway):
         if os_ping(ip):
