@@ -37,8 +37,9 @@ import requests.adapters
 import urllib3.util
 
 OCF_FUNCTIONS_DIR = os.environ.get(
-    "OCF_FUNCTIONS_DIR", f"{os.environ.get('OCF_ROOT')}/lib/heartbeat"
+    "OCF_FUNCTIONS_DIR", "%s/lib/heartbeat" % os.environ.get("OCF_ROOT")
 )
+
 sys.path.append(OCF_FUNCTIONS_DIR)
 
 try:
@@ -748,7 +749,7 @@ def start_action(
 
     res_options = locals()
 
-    ocf.logger.info(f"start_action: oprions: {res_options}")
+    ocf.logger.info(f"start_action: options: {res_options}")
 
     # Detach and remove subnet in remote workspace
     remote_ws = PowerCloudAPI(**res_options, use_remote_workspace=True)
