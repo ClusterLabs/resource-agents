@@ -60,6 +60,7 @@ OCF_RESKEY_cidr_netmask_default=""
 OCF_RESKEY_destination_default="0.0.0.0/0"
 OCF_RESKEY_proto_default=""
 OCF_RESKEY_metric_default=""
+OCF_RESKEY_pref_default=""
 OCF_RESKEY_table_default=""
 
 : ${OCF_RESKEY_ipaddress=${OCF_RESKEY_ipaddress_default}}
@@ -67,6 +68,7 @@ OCF_RESKEY_table_default=""
 : ${OCF_RESKEY_destination=${OCF_RESKEY_destination_default}}
 : ${OCF_RESKEY_proto=${OCF_RESKEY_proto_default}}
 : ${OCF_RESKEY_metric=${OCF_RESKEY_metric_default}}
+: ${OCF_RESKEY_pref=${OCF_RESKEY_pref_default}}
 : ${OCF_RESKEY_table=${OCF_RESKEY_table_default}}
 #######################################################################
 
@@ -75,10 +77,13 @@ OCF_RESKEY_table_default=""
 
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
-  CMDSHOW="$IP2UTIL route show   $TABLE to exact $OCF_RESKEY_destination"
-CMDCHANGE="$IP2UTIL route change to "
+echo "$OCF_RESKEY_ipaddress" | grep -q ":" && FAMILY="inet6" || FAMILY="inet"
+[ "$FAMILY" = "inet6" ] && [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] && OCF_RESKEY_destination="::/0"
 
-if [ "$OCF_RESKEY_destination" != "0.0.0.0/0" ]; then
+  CMDSHOW="$IP2UTIL -f $FAMILY route show   $TABLE to exact $OCF_RESKEY_destination"
+CMDCHANGE="$IP2UTIL -f $FAMILY route change to "
+
+if [ "$OCF_RESKEY_destination" != "0.0.0.0/0" ] && [ "$OCF_RESKEY_destination" != "::/0" ]; then
 	CMDSHOW="$CMDSHOW src $OCF_RESKEY_ipaddress"
 fi
 
@@ -153,6 +158,14 @@ Metric. Only needed if incorrect metric value is used.
 <content type="string" default="${OCF_RESKEY_metric_default}" />
 </parameter>
 
+<parameter name="pref">
+<longdesc lang="en">
+IPv6 route preference (low, medium or high). Only needed if incorrect pref value is used.
+</longdesc>
+<shortdesc lang="en">IPv6 route preference.</shortdesc>
+<content type="string" default="${OCF_RESKEY_pref_default}" />
+</parameter>
+
 <parameter name="table">
 <longdesc lang="en">
 Table to modify and use for interface lookup. E.g. "local".
@@ -196,12 +209,21 @@ errorexit() {
 #	where the src clause "src Y.Y.Y.Y" may or may not be present
 
 WS="[[:blank:]]"
-OCTET="[0-9]\{1,3\}"
-IPADDR="\($OCTET\.\)\{3\}$OCTET"
+case "$FAMILY" in
+	inet)
+		GROUP="[0-9]\{1,3\}"
+		IPADDR="\($GROUP\.\)\{3\}$GROUP"
+		;;
+	inet6)
+		GROUP="[0-9a-f]\{0,4\}"
+		IPADDR="\($GROUP\:\)\{0,\}$GROUP"
+		;;
+esac
 SRCCLAUSE="src$WS$WS*\($IPADDR\)"
-MATCHROUTE="\(.*${WS}\)\($SRCCLAUSE\)\($WS.*\|$\)"
-METRICCLAUSE=".*\(metric$WS[^ ]\+\)"
+MATCHROUTE="\(.*${WS}\)proto [^ ]\+\(.*${WS}\)\($SRCCLAUSE\)\($WS.*\|$\)"
+METRICCLAUSE=".*\(metric$WS[^ ]\+\).*"
 PROTOCLAUSE=".*\(proto$WS[^ ]\+\).*"
+PREFCLAUSE=".*\(pref$WS[^ ]\+\).*"
 FINDIF=findif
 
 # findif needs that to be set
@@ -216,17 +238,17 @@ srca_read() {
 		errorexit "more than 1 matching route exists"
 
 	# But there might still be no matching route
-	[ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] && [ -z "$ROUTE" ] && \
+	([ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] || [ "$OCF_RESKEY_destination" = "::/0" ]) && [ -z "$ROUTE" ] && \
 		 ! ocf_is_probe && [ "$__OCF_ACTION" != stop ] && errorexit "no matching route exists"
 
 	# Sed out the source ip address if it exists
-	SRCIP=`echo $ROUTE | sed -n "s/$MATCHROUTE/\3/p"`
+	SRCIP=`echo $ROUTE | sed -n "s/$MATCHROUTE/\4/p"`
 
 	# and what remains after stripping out the source ip address clause
-	ROUTE_WO_SRC=`echo $ROUTE | sed "s/$MATCHROUTE/\1\5/"`
+	ROUTE_WO_SRC=`echo $ROUTE | sed "s/$MATCHROUTE/\1\2\6/"`
 
 	# using "src <ip>" only returns output if there's a match
-	if [ "$OCF_RESKEY_destination" != "0.0.0.0/0" ]; then
+	if [ "$OCF_RESKEY_destination" != "0.0.0.0/0" ] && [ "$OCF_RESKEY_destination" != "::/0" ]; then
 		[ -z "$ROUTE" ] && return 1 || return 0
 	fi
 
@@ -249,12 +271,15 @@ srca_start() {
 		rc=$OCF_SUCCESS
 		ocf_log info "The ip route has been already set.($NETWORK, $INTERFACE, $ROUTE_WO_SRC)"
 	else
-		$IP2UTIL route replace $TABLE $NETWORK dev $INTERFACE $PROTO src $1 $METRIC || \
-			errorexit "command 'ip route replace $TABLE $NETWORK dev $INTERFACE $PROTO src $1 $METRIC' failed"
+		# NetworkManager manages routes with proto static/kernel
+		[ -z "$OCF_RESKEY_proto" ] && echo "$PROTO" | grep -q "proto \(kernel\|static\)" && PROTO="proto keepalived"
 
-		if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] ;then
-			$CMDCHANGE $ROUTE_WO_SRC src $1 || \
-				errorexit "command '$CMDCHANGE $ROUTE_WO_SRC src $1' failed"
+		$IP2UTIL route replace $TABLE $NETWORK dev $INTERFACE $PROTO src $1 $METRIC $PREF || \
+			errorexit "command 'ip route replace $TABLE $NETWORK dev $INTERFACE $PROTO src $1 $METRIC $PREF' failed"
+
+		if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] || [ "$OCF_RESKEY_destination" = "::/0" ]; then
+			$CMDCHANGE $ROUTE_WO_SRC $PROTO src $1 || \
+				errorexit "command '$CMDCHANGE $ROUTE_WO_SRC $PROTO src $1' failed"
 		fi
 		rc=$?
 	fi
@@ -290,14 +315,15 @@ srca_stop() {
 	fi
 
 	PRIMARY_IP="$($IP2UTIL -4 -o addr show dev $INTERFACE primary | awk '{split($4,a,"/");print a[1]}')"
-	OPTS="proto kernel scope $SCOPE src $PRIMARY_IP"
+	OPTS="proto kernel scope $SCOPE"
+	[ "$FAMILY" = "inet" ] && OPTS="$OPTS src $PRIMARY_IP"
 
-	$IP2UTIL route replace $TABLE $NETWORK dev $INTERFACE $OPTS $METRIC || \
-		errorexit "command 'ip route replace $TABLE $NETWORK dev $INTERFACE $OPTS $METRIC' failed"
+	$IP2UTIL route replace $TABLE $NETWORK dev $INTERFACE $OPTS $METRIC $PREF || \
+		errorexit "command 'ip route replace $TABLE $NETWORK dev $INTERFACE $OPTS $METRIC $PREF' failed"
 
-	if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] ;then
-		$CMDCHANGE $ROUTE_WO_SRC src $PRIMARY_IP || \
-			errorexit "command '$CMDCHANGE $ROUTE_WO_SRC src $PRIMARY_IP' failed"
+	if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] || [ "$OCF_RESKEY_destination" = "::/0" ]; then
+		$CMDCHANGE $ROUTE_WO_SRC proto static || \
+			errorexit "command '$CMDCHANGE $ROUTE_WO_SRC proto static' failed"
 	fi
 
 	return $?
@@ -330,7 +356,7 @@ CheckIP() {
   case $ip in
     *[!0-9.]*) #got invalid char
 	false;;
-    .*|*.) #begin or end by ".", which is invalid
+    .*|*.) #begin or end with ".", which is invalid
 	false;;
     *..*) #consecutive ".", which is invalid
 	false;;
@@ -354,6 +380,18 @@ CheckIP() {
 	false;;
   esac
   return $? # This return is unnecessary, this comment too :)
+}
+
+CheckIP6() {
+  ip="$1"
+  case $ip in
+    *[!0-9a-f:]*) #got invalid char
+	false;;
+    *:::*) # more than 2 consecutive ":", which is invalid
+	false;;
+    *::*::*) # more than 1 "::", which is invalid
+	false;;
+  esac
 }
 
 #
@@ -396,8 +434,7 @@ find_interface_solaris() {
 #       is an (aliased) interface name (e.g., "eth0" and "eth0:0").
 #
 find_interface_generic() {
-
-	local iface=`$IP2UTIL -o -f inet addr show | grep "\ $BASEIP" \
+	local iface=`$IP2UTIL -o -f $FAMILY addr show | grep "\ $BASEIP" \
             | cut -d ' ' -f2 | grep -v '^ipsec[0-9][0-9]*$'`
         if [ -z "$iface" ]; then
             return $OCF_ERR_GENERIC
@@ -502,7 +539,9 @@ srca_validate_all() {
 
 #	The IP address should be in good shape
 	if CheckIP "$ipaddress"; then
-	  : 
+	  :
+	elif CheckIP6 "$ipaddress"; then
+	  :
 	else
 	  ocf_exit_reason "Invalid IP address [$ipaddress]"
 	  return $OCF_ERR_CONFIGURED
@@ -570,21 +609,36 @@ rc=$?
 }
 
 INTERFACE=`echo $findif_out | awk '{print $1}'`
-LISTROUTE=`$IP2UTIL route list dev $INTERFACE scope link $PROTO match $ipaddress`
+case "$FAMILY" in
+	inet)
+		LISTCMD="$IP2UTIL -f $FAMILY route list dev $INTERFACE scope link $PROTO match $ipaddress"
+		;;
+	inet6)
+		LISTCMD="$IP2UTIL -f $FAMILY route list dev $INTERFACE $PROTO match $ipaddress"
+	;;
+esac
+LISTROUTE=`$LISTCMD`
+
 [ -z "$PROTO" ] && PROTO=`echo $LISTROUTE | sed -n "s/$PROTOCLAUSE/\1/p"`
 if [ -n "$OCF_RESKEY_metric" ]; then
 	METRIC="metric $OCF_RESKEY_metric"
-elif [ -z "$TABLE" ] || [ "${TABLE#table }" = "main" ]; then
+elif [ -z "$TABLE" ] || [ "${TABLE#table }" = "main" ] || [ "$FAMILY" = "inet6" ]; then
 	METRIC=`echo $LISTROUTE | sed -n "s/$METRICCLAUSE/\1/p"`
 else
 	METRIC=""
 fi
-if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] ;then
+if [ "$FAMILY" = "inet6" ]; then
+	if [ -z "$OCF_RESKEY_pref" ]; then
+		PREF=`echo $LISTROUTE | sed -n "s/$PREFCLAUSE/\1/p"`
+	else
+		PREF="pref $OCF_RESKEY_pref"
+	fi
+fi
+if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] || [ "$OCF_RESKEY_destination" = "::/0" ] ;then
 	NETWORK=`echo $LISTROUTE | grep -m 1 -o '^[^ ]*'`
 
 	if [ -z "$NETWORK" ]; then
-		err_str="command '$IP2UTIL route list dev $INTERFACE scope link $PROTO"
-		err_str="$err_str match $ipaddress' failed to find a matching route"
+		err_str="command '$LISTCMD' failed to find a matching route"
 
 		if [ "$__OCF_ACTION" = "start" ]; then
 			ocf_exit_reason "$err_str"
