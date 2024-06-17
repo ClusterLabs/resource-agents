@@ -1,0 +1,1058 @@
+#!@PYTHON@ -tt
+# ------------------------------------------------------------------------
+# Description:  Resource Agent to move a Power Virtual Server subnet
+#               and its IP address from one virtual server instance
+#               to another.
+#
+# Authors:      Edmund Haefele
+#               Walter Orb
+#
+# Copyright (c) 2024 International Business Machines, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ------------------------------------------------------------------------
+
+import ipaddress
+import json
+import os
+import re
+import socket
+import subprocess
+import sys
+import textwrap
+import time
+
+import requests
+import requests.adapters
+import urllib3.util
+
+OCF_FUNCTIONS_DIR = os.environ.get(
+    "OCF_FUNCTIONS_DIR", "%s/lib/heartbeat" % os.environ.get("OCF_ROOT")
+)
+
+sys.path.append(OCF_FUNCTIONS_DIR)
+
+try:
+    import ocf
+except ImportError:
+    sys.stderr.write("ImportError: ocf module import failed.")
+    sys.exit(5)
+
+
+class PowerCloudAPIError(Exception):
+    def __init__(self, message, exit_code):
+        ocf.ocf_exit_reason(message)
+        sys.exit(exit_code)
+
+
+class nmcli:
+    """A wrapper class to run nmcli system commands."""
+
+    NMCLI_SYSTEM_CMD = ["nmcli", "-t"]
+    CONN_PREFIX = "VIP_"
+    DEV_PREFIX = "env"
+    ROUTING_PRIO = 50
+    ROUTING_TABLE = 500
+    _WAIT_FOR_NIC_SLEEP = 3
+
+    def __init__(self):
+        """Class implements only classmethods or staticmethods, instantiation is not used."""
+        pass
+
+    @classmethod
+    def _nmcli_os_cmd(cls, nmcli_args):
+        """run os nmcli command with the specified arguments.
+
+        Returns the output as a dictionary.
+        """
+
+        ocf.logger.debug("_nmcli_os_cmd: args: {}".format(nmcli_args))
+        output = None
+        try:
+            result = subprocess.run(
+                cls.NMCLI_SYSTEM_CMD + nmcli_args,
+                capture_output=True,
+                text=True,
+                check=True,
+                env={"LANG": "C"},
+            )
+            if len(nmcli_args) == 1 or nmcli_args[0] == "-g" or nmcli_args[1] == "show":
+                # return output as dict
+                output = dict(
+                    item.split(":", 1)
+                    for item in result.stdout.rstrip().splitlines()
+                    if ":" in item
+                )
+        except subprocess.CalledProcessError as e:
+            raise PowerCloudAPIError(
+                f"_nmcli_os_cmd: error executing nmcli: {e.stderr}",
+                ocf.OCF_ERR_GENERIC,
+            )
+
+        return output
+
+    @classmethod
+    def _nmcli_cmd(cls, command, subcommand=None, name=None, **kwargs):
+        """Prepare arguments to call nmcli command."""
+
+        ocf.logger.debug(
+            f"_nmcli_cmd: args: command: {command}, subcommand: {subcommand}, name: {name}"
+        )
+        if command in ["connection", "device"]:
+            nmcli_args = [command]
+        else:
+            raise PowerCloudAPIError(
+                f"_nmcli_cmd: nmcli {command} not implemented",
+                ocf.OCF_ERR_GENERIC,
+            )
+        if name:
+            if subcommand in ("show", "delete", "down", "up"):
+                nmcli_args += [subcommand, name]
+            elif subcommand == "add":
+                nmcli_args += [subcommand, "type", "ethernet", "con-name", name]
+            else:
+                raise PowerCloudAPIError(
+                    f"_nmcli_cmd: nmcli {command} {subcommand} not implemented",
+                    ocf.OCF_ERR_GENERIC,
+                )
+        elif subcommand in ("add", "delete", "down", "up"):
+            raise PowerCloudAPIError(
+                f"_nmcli_cmd: name argument required for nmcli {command} {subcommand}",
+                ocf.OCF_ERR_GENERIC,
+            )
+
+        options = kwargs.get("options", {})
+        for k, v in options.items():
+            nmcli_args += [k, v]
+
+        return cls._nmcli_os_cmd(nmcli_args)
+
+    @classmethod
+    def _nmcli_find(cls, command, match_key, match_value):
+        """Find the network object whose attribute with the specified key matches the specified value."""
+
+        ocf.logger.debug(
+            f"_nmcli_find: args: command: {command}, key: {match_key}, value: {match_value}"
+        )
+
+        nm_object = None
+        for name in cls._nmcli_cmd(command=command, subcommand="show"):
+            if not re.search(f"({cls.CONN_PREFIX})?{cls.DEV_PREFIX}", name):
+                # check only connections or devices with device prefix in name
+                continue
+            obj_attrs = cls._nmcli_cmd(command=command, subcommand="show", name=name)
+            if re.search(match_value, obj_attrs.get(match_key, "")):
+                ocf.logger.debug(f"_nmcli_find: found match: name: {name}")
+                nm_object = obj_attrs
+                break
+
+        return nm_object
+
+    @classmethod
+    def cleanup(cls):
+        """Cleanup orphaned Network Manager connections."""
+
+        connections = cls._nmcli_os_cmd(["-g", "UUID,NAME,ACTIVE", "connection"])
+        for uuid in connections:
+            name, active = connections[uuid].split(":")
+            if active == "no" and name.startswith(f"{cls.CONN_PREFIX}{cls.DEV_PREFIX}"):
+                ocf.logger.debug(f"nmcli.cleanup: delete orphaned connection {name}")
+                nmcli.connection.delete(uuid)
+
+    @classmethod
+    def wait_for_nic(cls, mac, timeout=720):
+        """Wait for a NIC with a given MAC address to become available."""
+
+        ocf.logger.debug(f"wait_for_nic: args: mac: {mac}, timeout: {timeout} s")
+        mac_address = mac.upper()
+        retries = (timeout // cls._WAIT_FOR_NIC_SLEEP) - 1
+
+        for attempt in range(1, retries + 1):
+            try:
+                ocf.logger.debug(
+                    f"wait_for_nic: waiting for nic with mac address {mac_address} ..."
+                )
+                nm_object = cls._nmcli_find("device", "GENERAL.HWADDR", mac_address)
+                if nm_object:
+                    break
+            finally:
+                time.sleep(cls._WAIT_FOR_NIC_SLEEP)
+        else:  # no break
+            raise PowerCloudAPIError(
+                f"wait_for_nic: timeout while waiting for nic with MAC address {mac_address}",
+                ocf.OCF_ERR_GENERIC,
+            )
+
+        nic = nm_object.get("GENERAL.DEVICE")
+        wait_time = (attempt - 1) * cls._WAIT_FOR_NIC_SLEEP
+
+        ocf.logger.info(
+            f"wait_for_nic: found network device {nic} with MAC address {mac_address} after waiting {wait_time} seconds"
+        )
+
+        return nic
+
+    @classmethod
+    def find_gateway(cls, ip):
+        """Find the gateway address for a given IP."""
+
+        ocf.logger.debug(f"find_gateway: args: ip: {ip}")
+
+        gateway = None
+        ip_address = ip.split("/")[0]
+        dev = cls._nmcli_find("device", "IP4.ADDRESS[1]", ip_address)
+        if dev:
+            # Sample IP4.ROUTE[2]: dst = 0.0.0.0/0, nh = 10.10.10.101, mt = 102, table=200
+            # extract next hop (nh) value
+            ip4_route2 = dict(
+                item.split("=")
+                for item in dev["IP4.ROUTE[2]"].replace(" ", "").split(",")
+            )
+            gateway = ip4_route2.get("nh", None)
+
+        return gateway
+
+    class connection:
+        """Provides methods to run nmcli connection commands."""
+
+        @staticmethod
+        def show(name=None, **kwargs):
+            return nmcli._nmcli_cmd("connection", "show", name, **kwargs)
+
+        @staticmethod
+        def add(name, **kwargs):
+            return nmcli._nmcli_cmd("connection", "add", name, **kwargs)
+
+        @staticmethod
+        def delete(name, **kwargs):
+            return nmcli._nmcli_cmd("connection", "delete", name, **kwargs)
+
+        @staticmethod
+        def down(name, **kwargs):
+            return nmcli._nmcli_cmd("connection", "down", name, **kwargs)
+
+        @staticmethod
+        def up(name, **kwargs):
+            return nmcli._nmcli_cmd("connection", "up", name, **kwargs)
+
+        @staticmethod
+        def find(match_key, match_value):
+            return nmcli._nmcli_find("connection", match_key, match_value)
+
+    class device:
+        """Provides methods to run nmcli device commands."""
+
+        @staticmethod
+        def show(name=None, **kwargs):
+            return nmcli._nmcli_cmd("device", "show", name, **kwargs)
+
+        @staticmethod
+        def find(match_key, match_value):
+            return nmcli._nmcli_find("device", match_key, match_value)
+
+
+class PowerCloudAPI:
+    """Provides methods to manage Power Virtual Server resources through its REST API."""
+
+    _URL_IAM_GLOBAL = "https://iam.cloud.ibm.com/identity/token"
+    _URL_API_PUBLIC = "https://{}.power-iaas.cloud.ibm.com"
+    _URL_API_PRIVATE = "https://private.{}.power-iaas.cloud.ibm.com"
+    _URL_API_BASE = "/pcloud/v1/cloud-instances/{}"
+
+    _HTTP_MAX_RETRIES = 10
+    _HTTP_BACKOFF_FACTOR = 0.4
+    _HTTP_STATUS_FORCE_RETRIES = (403, 500, 502, 503, 504)
+    _HTTP_RETRY_ALLOWED_METHODS = frozenset({"GET", "POST", "DELETE"})
+
+    _START_TIME = time.time()
+    _RESOURCE_ACTION_TIMEOUT = int(
+        int(os.environ.get("OCF_RESKEY_CRM_meta_timeout", 7200000)) / 1000
+    )
+
+    def __init__(
+        self,
+        ip="",
+        cidr="",
+        subnet_name="",
+        api_key="",
+        api_type="",
+        region="",
+        crn_host_map="",
+        vsi_host_map="",
+        proxy="",
+        jumbo="",
+        use_remote_workspace=False,
+    ):
+        """Initialize class variables, including the API token, Cloud Resource Name (CRN), IBM Power Cloud API endpoint URL, and HTTP header."""
+
+        self._res_options = locals()
+
+        self._validate_and_set_options()
+        self._set_api_key()
+        self._set_token()
+        self._set_header()
+
+        self._instance_check_status()
+        self.network_id = self._subnet_search_by_cidr()
+
+    def _rest_create_session(self):
+        """Create a request session with a retry strategy."""
+
+        # Define the retry strategy
+        retry_strategy = urllib3.util.Retry(
+            total=self._HTTP_MAX_RETRIES,  # Maximum number of retries
+            status_forcelist=self._HTTP_STATUS_FORCE_RETRIES,  # HTTP status codes to retry on
+            allowed_methods=self._HTTP_RETRY_ALLOWED_METHODS,  # Allowed methods for retry operation
+            backoff_factor=self._HTTP_BACKOFF_FACTOR,  # Sleep for {backoff factor} * (2 ** ({number of previous retries}))
+        )
+
+        # Create an HTTP adapter with the retry strategy and mount it to session
+        adapter = requests.adapters.HTTPAdapter(max_retries=retry_strategy)
+
+        # Create a new session object
+        session = requests.Session()
+        session.mount("https://", adapter)
+
+        self._session = session
+
+        return session
+
+    def _rest_api_call(self, method, resource, **kwargs):
+        """Perform a REST call to the specified URL."""
+
+        url = self._url + self._base + resource
+        method = method.upper()
+        ocf.logger.debug(f"_rest_api_call: {method} {resource}")
+
+        session = self._session or self._rest_create_session()
+
+        r = session.request(
+            method, url, headers=self._header, proxies=self._proxy, **kwargs
+        )
+        if not r.ok:
+            raise PowerCloudAPIError(
+                f"_rest_api_call: {method} call {resource} to {url} failed with reason: {r.reason}, status code: {r.status_code}",
+                ocf.OCF_ERR_GENERIC,
+            )
+
+        return r.json()
+
+    def _set_api_key(self):
+        """Store an API key in a class variable.
+
+        api_key is a string.  If the first character of the string is @,
+        the rest of the string is assumed to be the name of a file containing the API key.
+        """
+
+        api_key = self._res_options["api_key"]
+        if api_key[0] == "@":
+            api_key_file = api_key[1:]
+            try:
+                with open(api_key_file, "r") as f:
+                    # read the API key from a file
+                    try:
+                        keys = json.loads(f.read())
+                        # data seems to be in json format
+                        # return the value of the item with the key 'apikey'
+                        api_key = keys.get("apikey", keys)
+                    except ValueError:
+                        # data is text, return as is
+                        api_key = f.read().strip()
+            except FileNotFoundError:
+                raise PowerCloudAPIError(
+                    f"_set_api_key: API key file '{api_key_file}' not found",
+                    ocf.OCF_ERR_ARGS,
+                )
+
+        self._api_key = api_key
+
+    def _set_token(self):
+        """Use the stored API key to obtain an IBM Cloud IAM access token."""
+
+        url = self._URL_IAM_GLOBAL
+
+        headers = {
+            "content-type": "application/x-www-form-urlencoded",
+            "accept": "application/json",
+        }
+        data = {
+            "grant_type": "urn:ibm:params:oauth:grant-type:apikey",
+            "apikey": f"{self._api_key}",
+        }
+        token_response = requests.post(
+            url, headers=headers, data=data, proxies=self._proxy
+        )
+        if token_response.status_code != 200:
+            raise PowerCloudAPIError(
+                f"_set_token: failed to obtain token from IBM Cloud IAM: {token_response.status_code}",
+                ocf.OCF_ERR_GENERIC,
+            )
+
+        self._token = json.loads(token_response.text)["access_token"]
+
+    def _set_header(self):
+        """Set the Cloud Resource Name (CRN), IBM Power Cloud API endpoint URL, and HTTP header."""
+
+        self._header = {
+            "Authorization": f"Bearer {self._token}",
+            "CRN": f"{self._crn}",
+            "Content-Type": "application/json",
+        }
+
+    def _instance_check_status(self):
+        """Check if instance exists in workspace and log the current status."""
+
+        resource = f"/pvm-instances/{self.instance_id}"
+        instance = self._rest_api_call("GET", resource)
+
+        server_name = instance["serverName"]
+        status = instance["status"]
+        health = instance["health"]["status"]
+
+        if status == "SHUTOFF" or (status == "ACTIVE" and health == "OK"):
+            ocf.logger.debug(
+                f"_instance_check_status: OK server_name: {server_name}, status: {status}, health: {health}"
+            )
+        else:
+            raise PowerCloudAPIError(
+                f"_instance_check_status: FAIL server_name: {server_name}, status: {status}, health: {health}",
+                ocf.OCF_ERR_GENERIC,
+            )
+
+    def _instance_subnet_is_attached(self):
+        """Check if a virtual server instance is connected to a specific subnet."""
+
+        for net in self._instance_subnet_list():
+            if self.network_id == net["networkID"]:
+                return True
+        return False
+
+    def _instance_subnet_get(self):
+        """Obtain information about a particular subnet connected to a virtual server instance."""
+
+        resource = f"/pvm-instances/{self.instance_id}/networks/{self.network_id}"
+        response = self._rest_api_call("GET", resource)
+        return response["networks"][0]
+
+    def _instance_subnet_list(self):
+        """List all subnets connected to a virtual server instance."""
+
+        resource = f"/pvm-instances/{self.instance_id}/networks"
+        response = self._rest_api_call("GET", resource)
+        return response["networks"]
+
+    def _instance_subnet_attach(self):
+        """Attach a subnet to a virtual server instance."""
+
+        data = (
+            f'{{"networkID":"{self.network_id}","ipAddress":"{self.ip}"}}'
+            if self.ip
+            else f'{{"networkID":"{self.network_id}"}}'
+        )
+
+        resource = f"/pvm-instances/{self.instance_id}/networks/"
+        _ = self._rest_api_call("POST", resource, data=data)
+
+    def _instance_subnet_detach(self):
+        """Detach a subnet from a virtual server instance."""
+
+        resource = f"/pvm-instances/{self.instance_id}/networks/{self.network_id}"
+        _ = self._rest_api_call("DELETE", resource)
+
+    def _subnet_create(self):
+        """Create a subnet in the workspace."""
+
+        data = (
+            f'{{"type":"vlan","cidr":"{self.cidr}","mtu":9000,"name":"{self.subnet_name}"}}'
+            if self.jumbo
+            else f'{{"type":"vlan","cidr":"{self.cidr}","name":"{self.subnet_name}"}}'
+        )
+        resource = "/networks"
+        response = self._rest_api_call("POST", resource, data=data)
+        self.network_id = response["networkID"]
+
+    def _subnet_delete(self):
+        """Delete a subnet in the workspace."""
+
+        resource = f"/networks/{self.network_id}"
+        _ = self._rest_api_call("DELETE", resource)
+
+    def _subnet_get(self, network_id):
+        """Get information about a specific subnet in the workspace."""
+
+        resource = f"/networks/{network_id}"
+        response = self._rest_api_call("GET", resource)
+        return response
+
+    def _subnet_list(self):
+        """List all subnets in the workspace."""
+
+        resource = "/networks/"
+        response = self._rest_api_call("GET", resource)
+        return response
+
+    def _subnet_search_by_cidr(self):
+        """Find the subnet for a given CIDR."""
+
+        for network in self._subnet_list()["networks"]:
+            network_id = network["networkID"]
+            if self.cidr == self._subnet_get(network_id)["cidr"]:
+                return network_id
+
+        return None
+
+    def _validate_and_set_options(self):
+        """Validate the options of the resource agent and derive class variables from the options."""
+
+        ip = self._res_options["ip"]
+        try:
+            validated_ip = ipaddress.ip_address(ip)
+        except ValueError:
+            raise PowerCloudAPIError(
+                f"_validate_and_set_options: {ip} is not a valid IP address.",
+                ocf.OCF_ERR_CONFIGURED,
+            )
+        self.ip = ip
+
+        cidr = self._res_options["cidr"]
+        try:
+            validated_cidr = ipaddress.ip_network(cidr)
+        except ValueError:
+            raise PowerCloudAPIError(
+                f"_validate_and_set_options: {cidr} is not a valid CIDR notation.",
+                ocf.OCF_ERR_CONFIGURED,
+            )
+        self.cidr = cidr
+
+        if validated_ip not in validated_cidr:
+            raise PowerCloudAPIError(
+                f"_validate_and_set_options: {ip} is not in {cidr} range.",
+                ocf.OCF_ERR_CONFIGURED,
+            )
+
+        subnet_name = self._res_options["subnet_name"]
+        self.subnet_name = subnet_name if subnet_name else self.cidr
+
+        crn_host_map = self._res_options["crn_host_map"]
+        try:
+            self._crn_host_map = dict(
+                item.split(":", 1) for item in crn_host_map.split(";")
+            )
+        except ValueError:
+            raise PowerCloudAPIError(
+                f"_validate_and_set_options: crn_host_map: {crn_host_map} has an invalid format.",
+                ocf.OCF_ERR_CONFIGURED,
+            )
+
+        self._hostname = os.uname().nodename
+        if self._res_options["use_remote_workspace"]:
+            self._nodename = [k for k in self._crn_host_map if k != self._hostname][0]
+        else:
+            self._nodename = self._hostname
+
+        if self._nodename not in self._crn_host_map:
+            raise PowerCloudAPIError(
+                f"_validate_and_set_options: {self._nodename} not found in crn_host_map: {crn_host_map}.",
+                ocf.OCF_ERR_ARGS,
+            )
+        self._crn = self._crn_host_map[self._nodename]
+
+        try:
+            self._cloud_instance_id = self._crn.split(":")[7]
+        except IndexError:
+            raise PowerCloudAPIError(
+                f"_validate_and_set_options: {self._crn} is not a valid CRN.",
+                ocf.OCF_ERR_CONFIGURED,
+            )
+
+        vsi_host_map = self._res_options["vsi_host_map"]
+        try:
+            self._vsi_host_map = dict(
+                item.split(":") for item in vsi_host_map.split(";")
+            )
+        except ValueError:
+            raise PowerCloudAPIError(
+                f"_validate_and_set_options: Option vsi_host_map: {vsi_host_map} has an invalid format.",
+                ocf.OCF_ERR_CONFIGURED,
+            )
+
+        if self._nodename not in self._vsi_host_map:
+            raise PowerCloudAPIError(
+                f"_validate_and_set_options: {self._nodename} not found in vsi_host_map: {vsi_host_map}.",
+                ocf.OCF_ERR_ARGS,
+            )
+        self.instance_id = self._vsi_host_map[self._nodename]
+
+        jumbo = self._res_options["jumbo"].lower()
+        if ocf.is_true(jumbo):
+            self.jumbo = True
+        else:
+            if jumbo not in ("no", "false", "0", 0, "nein", "off", False):
+                raise PowerCloudAPIError(
+                    f"_validate_and_set_options: option jumbo: {jumbo} does not match True or False.",
+                    ocf.OCF_ERR_CONFIGURED,
+                )
+            self.jumbo = False
+
+        # Check connect to proxy server
+        self._proxy = ""
+        proxy = self._res_options["proxy"]
+
+        if proxy:
+            # extract ip address and port
+            match = re.search(r"^https?://([^:]+):(\d+)$", proxy)
+            if match:
+                proxy_ip, proxy_port = match.group(1), match.group(2)
+
+                try:
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.settimeout(30)
+                        s.connect((proxy_ip, int(proxy_port)))
+                except socket.error:
+                    raise PowerCloudAPIError(
+                        f"_validate_and_set_options: cannot connect to port {proxy_port} at {proxy_ip}, check option proxy: {proxy}.",
+                        ocf.OCF_ERR_CONFIGURED,
+                    )
+                self._proxy = {"https": f"{proxy}"}
+            else:
+                raise PowerCloudAPIError(
+                    f"_validate_and_set_options: the option proxy: {proxy} has an invalid format.",
+                    ocf.OCF_ERR_CONFIGURED,
+                )
+
+        api_type = self._res_options["api_type"]
+        if api_type not in ("public", "private"):
+            raise PowerCloudAPIError(
+                f"_validate_and_set_options: option api_type: {api_type} does not match public or private.",
+                ocf.OCF_ERR_CONFIGURED,
+            )
+        # Set API endpoint url
+        url_api_fmt = (
+            self._URL_API_PRIVATE if api_type == "private" else self._URL_API_PUBLIC
+        )
+        self._url = url_api_fmt.format(self._res_options["region"])
+        self._base = self._URL_API_BASE.format(self._cloud_instance_id)
+        self._session = None
+
+    def subnet_add(self):
+        """Create and attach subnet in local workspace"""
+
+        ocf.logger.debug(
+            f"subnet_add: options: ip: {self.ip}, cidr: {self.cidr}, name: {self.subnet_name}"
+        )
+
+        if self.network_id:
+            ocf.logger.debug(
+                f"subnet_add: subnet cidr: {self.cidr} already exists with network id: {self.network_id}"
+            )
+        else:
+            ocf.logger.debug(
+                f"subnet_add: create subnet name: {self.subnet_name} with cidr: {self.cidr} and jumbo: {self.jumbo}"
+            )
+            self._subnet_create()
+
+        if self._instance_subnet_is_attached():
+            ocf.logger.debug(
+                f"subnet_add: subnet id {self.network_id} is already attached to instance id {self.instance_id}"
+            )
+        else:
+            ocf.logger.debug(
+                f"subnet_add: attach subnet id: {self.network_id} to instance id: {self.instance_id} (IP address {self.ip})"
+            )
+            self._instance_subnet_attach()
+
+        subnet = self._subnet_get(self.network_id)
+        gateway = subnet["gateway"]
+        port = self._instance_subnet_get()
+        mac = port["macAddress"]
+        ip_address = port["ipAddress"]
+        self.jumbo = subnet.get("mtu", "") == 9000
+
+        timeout = self._RESOURCE_ACTION_TIMEOUT - int(time.time() - self._START_TIME)
+        nic = nmcli.wait_for_nic(mac, timeout)
+
+        return nic, ip_address, mac, gateway
+
+    def subnet_remove(self):
+        """Detach and delete subnet in local or remote workspace"""
+
+        ocf.logger.debug(
+            f"subnet_remove: options: cidr: {self.cidr}, network id: {self.network_id}, instance id: {self.instance_id}"
+        )
+
+        if self.network_id:
+            ocf.logger.debug(
+                f"subnet_remove: subnet id: {self.network_id} with cidr: {self.cidr} exists"
+            )
+            if self._instance_subnet_is_attached():
+                ocf.logger.debug(
+                    f"subnet_remove: subnet id: {self.network_id} is attached to instance id {self.instance_id}"
+                )
+                port = self._instance_subnet_get()
+                mac = port["macAddress"]
+                dev = nmcli.device.find("GENERAL.HWADDR", mac.upper())
+
+                if dev:
+                    nm_object = nmcli.connection.find(
+                        "GENERAL.IP-IFACE", dev["GENERAL.DEVICE"]
+                    )
+                    if nm_object:
+                        conn_name = nm_object["connection.id"]
+                        ocf.logger.debug(
+                            f"stop_action: unconfigure network connection conn_name: {conn_name} with mac address {mac}"
+                        )
+                        nmcli.connection.down(conn_name)
+                        nmcli.connection.delete(conn_name)
+                ocf.logger.debug(
+                    f"subnet_remove: detach network id: {self.network_id} from instance id: {self.instance_id}"
+                )
+                self._instance_subnet_detach()
+            ocf.logger.debug(f"subnet_remove: delete network id: {self.network_id}")
+            self._subnet_delete()
+
+
+def os_ping(ip):
+    """Ping an IP address."""
+
+    command = ["ping", "-c", "1", ip]
+    response = subprocess.call(command)
+    return response == 0
+
+
+def start_action(
+    ip="",
+    cidr="",
+    subnet_name="",
+    api_key="",
+    api_type="",
+    region="",
+    crn_host_map="",
+    vsi_host_map="",
+    proxy="",
+    jumbo="",
+):
+    """start_action: assign the service ip.
+
+    Create a subnet in the workspace, connect it to the virtual server instance, and configure the NIC.
+    """
+
+    res_options = locals()
+
+    ocf.logger.info(f"start_action: options: {res_options}")
+
+    # Detach and remove subnet in remote workspace
+    remote_ws = PowerCloudAPI(**res_options, use_remote_workspace=True)
+    ocf.logger.debug(
+        f"start_action: remove subnet from remote workspace: cidr: {remote_ws.cidr}"
+    )
+    remote_ws.subnet_remove()
+
+    # Delete orphaned Network Manager connections
+    nmcli.cleanup()
+
+    # Create and attach subnet in local workspace
+    ws = PowerCloudAPI(**res_options)
+
+    nic, ip_address, mac, gateway = ws.subnet_add()
+
+    ocf.logger.debug(
+        f"start_action: add nmcli connection: nic: {nic}, ip: {ip_address}, mac: {mac}, gateway: {gateway}, jumbo: {ws.jumbo}"
+    )
+
+    conn_name = f"{nmcli.CONN_PREFIX}{nic}"
+    conn_options = {
+        "ifname": nic,
+        "autoconnect": "no",
+        "ipv4.method": "manual",
+        "ipv4.addresses": ip_address,
+        "ipv4.routes": f"0.0.0.0/0 {gateway} table={nmcli.ROUTING_TABLE}",
+        "ipv4.routing-rules": f"priority {nmcli.ROUTING_PRIO} from {ws.cidr} table {nmcli.ROUTING_TABLE}",
+    }
+    if ws.jumbo:
+        conn_options.update({"802-3-ethernet.mtu": "9000", "ethtool.feature-tso": "on"})
+
+    nmcli.connection.add(conn_name, options=conn_options)
+    nmcli.connection.up(conn_name)
+
+    if monitor_action(**res_options) != ocf.OCF_SUCCESS:
+        raise PowerCloudAPIError(f"start_action: start subnet: {ws.subnet_name} failed")
+
+    ocf.logger.info(
+        f"start_action: finished, added connection {conn_name} for subnet {ws.subnet_name}"
+    )
+
+    return ocf.OCF_SUCCESS
+
+
+def stop_action(
+    ip="",
+    cidr="",
+    subnet_name="",
+    api_key="",
+    api_type="",
+    region="",
+    crn_host_map="",
+    vsi_host_map="",
+    proxy="",
+    jumbo="",
+):
+    """stop_action: unassign the service ip.
+
+    Delete NIC, detach subnet from virtual server instance, and delete subnet.
+    """
+
+    res_options = locals()
+
+    ocf.logger.info(f"stop_action: options: {res_options}")
+
+    ws = PowerCloudAPI(**res_options)
+
+    ws.subnet_remove()
+
+    if monitor_action(**res_options) != ocf.OCF_NOT_RUNNING:
+        raise PowerCloudAPIError(f"stop_action: stop subnet {ws.subnet_name} failed")
+
+    ocf.logger.info(
+        f"stop_action: finished, deleted connection for subnet {ws.subnet_name}"
+    )
+
+    return ocf.OCF_SUCCESS
+
+
+def monitor_action(
+    ip="",
+    cidr="",
+    subnet_name="",
+    api_key="",
+    api_type="",
+    region="",
+    crn_host_map="",
+    vsi_host_map="",
+    proxy="",
+    jumbo="",
+):
+    """monitor_action: check if service ip and gateway are responding."""
+
+    res_options = locals()
+    is_probe = ocf.is_probe()
+
+    ocf.logger.info(f"monitor_action: options: {res_options}, is_probe: {is_probe}")
+
+    gateway = nmcli.find_gateway(ip)
+    if gateway and os_ping(gateway):
+        if os_ping(ip):
+            ocf.logger.debug(
+                f"monitor_action: ping to gateway: {gateway} and ip: {ip} successful"
+            )
+            return ocf.OCF_SUCCESS
+        else:
+            raise PowerCloudAPIError(
+                f"monitor_action: ping to ip: {ip} failed", ocf.OCF_ERR_GENERIC
+            )
+
+    if not is_probe:
+        ocf.logger.error(f"monitor_action: ping to gateway: {gateway} failed")
+
+    ws = PowerCloudAPI(**res_options)
+
+    ocf.logger.debug(f"monitor_action: instance id: {ws.instance_id}")
+
+    if not ws.network_id or is_probe:
+        return ocf.OCF_NOT_RUNNING
+
+    # monitor should never reach this code, exit with raise
+    raise PowerCloudAPIError(
+        f"monitor_action: unknown problem with subnet id: {ws.network_id}",
+        ocf.OCF_ERR_GENERIC,
+    )
+
+
+def validate_all_action(
+    ip="",
+    cidr="",
+    subnet_name="",
+    api_key="",
+    api_type="",
+    region="",
+    crn_host_map="",
+    vsi_host_map="",
+    proxy="",
+    jumbo="",
+):
+    """validate_all_action: Validate the resource agent parameters."""
+
+    res_options = locals()
+
+    # The class instantation validates the resource agent options and that the instance exists
+    try:
+        # Check instance in local workspace
+        _ = PowerCloudAPI(**res_options, use_remote_workspace=False)
+    except Exception:
+        ocf.logger.error(
+            "validate_all_action: failed to instantiate class in local workspace."
+        )
+        raise
+
+    try:
+        # Check instance in remote workspace
+        _ = PowerCloudAPI(**res_options, use_remote_workspace=True)
+    except Exception:
+        ocf.logger.error(
+            "validate_all_action: failed to instantiate class in remote workspace."
+        )
+        raise
+
+    return ocf.OCF_SUCCESS
+
+
+def main():
+    """Instantiate the resource agent."""
+
+    agent_description = textwrap.dedent("""\
+        Resource Agent to move a Power Virtual Server subnet and its IP address
+        from one virtual server instance to another.
+        The prerequisites for the use of this resource agent are as follows:
+
+        1. Red Hat Enterprise Linux 9.2 or higher:
+        Install with @server group to ensure that NetworkManager settings are correct.
+        Verify that the NetworkManager-config-server package is installed.
+
+        2. IBM Cloud API Key:
+        Create a service API key that is privileged for both Power Virtual Server 
+        workspaces. Save the service API key in a file and copy the file to both
+        cluster nodes. Use same filename and directory location on both cluster nodes.
+        Reference the path to the key file in the resource definition.
+
+        3. The hostname of the virtual server instances must be same as the name 
+        of the virtual server instances in the Power Virtual Server workspaces.
+
+        For comprehensive documentation on implementing high availability for
+        SAP applications on IBM Power Virtual Server, visit https://cloud.ibm.com/docs/sap?topic=sap-ha-overview.
+    """)
+
+    agent = ocf.Agent(
+        "powervs-subnet",
+        shortdesc="Manages moving a Power Virtual Server subnet",
+        longdesc=agent_description,
+        version=1.0,
+    )
+
+    agent.add_parameter(
+        "ip",
+        shortdesc="IP address",
+        longdesc=(
+            "IP address within the subnet. The IP address moves together with the subnet."
+        ),
+        content_type="string",
+        required=True,
+    )
+
+    agent.add_parameter(
+        "cidr",
+        shortdesc="CIDR",
+        longdesc="Classless Inter-Domain Routing (CIDR) of the subnet.",
+        content_type="string",
+        required=True,
+    )
+
+    agent.add_parameter(
+        "subnet_name",
+        shortdesc="Name of the subnet",
+        longdesc="Name of the subnet. If not specified, CIDR is used as name.",
+        content_type="string",
+        required=False,
+    )
+
+    agent.add_parameter(
+        "api_type",
+        shortdesc="API type",
+        longdesc="Connect to Power Virtual Server regional endpoints over a public or private network (public|private).",
+        content_type="string",
+        required=True,
+        default="private",
+    )
+
+    agent.add_parameter(
+        "region",
+        shortdesc="Power Virtual Server region",
+        longdesc=(
+            "Region that represents the geographic area where the instance is located. "
+            "The region is used to identify the Cloud API endpoint."
+        ),
+        content_type="string",
+        required=True,
+    )
+
+    agent.add_parameter(
+        "api_key",
+        shortdesc="API Key or @API_KEY_FILE_PATH",
+        longdesc=(
+            "API Key or @API_KEY_FILE_PATH for IBM Cloud access. "
+            "The API key content or the path of an API key file that is indicated by the @ symbol."
+        ),
+        content_type="string",
+        required=True,
+    )
+
+    agent.add_parameter(
+        "crn_host_map",
+        shortdesc="Mapping of hostnames to IBM Cloud CRN",
+        longdesc=(
+            "Map the hostname of the Power Virtual Server instance to the CRN of the Power Virtual Server workspaces hosting the instance. "
+            "Separate hostname and CRN with a colon ':', separate different hostname and CRN pairs with a semicolon ';'. "
+            "Example: hostname01:CRN-of-Instance01;hostname02:CRN-of-Instance02"
+        ),
+        content_type="string",
+        required=True,
+    )
+
+    agent.add_parameter(
+        "vsi_host_map",
+        shortdesc="Mapping of hostnames to PowerVS instance ids",
+        longdesc=(
+            "Map the hostname of the Power Virtual Server instance to its instance id. "
+            "Separate hostname and instance id with a colon ':', separate different hostname and instance id pairs with a semicolon ';'. "
+            "Example: hostname01:instance-id-01;hostname02:instance-id-02"
+        ),
+        content_type="string",
+        required=True,
+    )
+
+    agent.add_parameter(
+        "proxy",
+        shortdesc="Proxy",
+        longdesc="Proxy server to access IBM Cloud API endpoints.",
+        content_type="string",
+        required=False,
+    )
+
+    agent.add_parameter(
+        "jumbo",
+        shortdesc="Use Jumbo frames",
+        longdesc="Create a Power Virtual Server subnet with an MTU size of 9000 (true|false).",
+        content_type="string",
+        required=False,
+        default="false",
+    )
+
+    agent.add_action("start", timeout=900, handler=start_action)
+    agent.add_action("stop", timeout=450, handler=stop_action)
+    agent.add_action(
+        "monitor", depth=0, timeout=60, interval=60, handler=monitor_action
+    )
+    agent.add_action("validate-all", timeout=300, handler=validate_all_action)
+    agent.run()
+
+
+if __name__ == "__main__":
+    main()

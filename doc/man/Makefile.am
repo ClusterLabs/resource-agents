@@ -190,6 +190,7 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_portblock.7 \
                           ocf_heartbeat_postfix.7 \
                           ocf_heartbeat_pound.7 \
+                          ocf_heartbeat_powervs-subnet.7 \
                           ocf_heartbeat_proftpd.7 \
                           ocf_heartbeat_rabbitmq-cluster.7 \
                           ocf_heartbeat_rabbitmq-server-ha.7 \
