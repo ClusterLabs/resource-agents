@@ -485,7 +485,7 @@ runasowner() {
             "-q")
                 quietrun="-q"
                 shift 1;;
-            "info"|"warn"|"err")
+            "info"|"warn"|"err"|"debug")
                 loglevel="-$1"
                 shift 1;;
             *)
