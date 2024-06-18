@@ -21,7 +21,7 @@ if ocf_is_true "$OCF_RESKEY_use_ipv6" || echo "$STATUSURL" | grep -qs "::"; then
 	bind_address="::1"
 	curl_ipv6_opts="-g"
 fi
-WGETOPTS="-O- -q -L --no-proxy --bind-address=$bind_address"
+WGETOPTS="-O- -q --no-proxy --bind-address=$bind_address"
 CURLOPTS="-o - -Ss -L --interface lo $curl_ipv6_opts"
 
 request_url_header() {
@@ -58,6 +58,8 @@ curl_func() {
 	fi
 }
 wget_func() {
+	# -L not implemented in wget2
+	wget -V | grep -q "^GNU Wget2 " || WGETOPTS="$WGETOPTS -L"
 	auth=""
 	cl_opts="$WGETOPTS $test_httpclient_opts"
 	[ x != "x$test_user" ] &&
