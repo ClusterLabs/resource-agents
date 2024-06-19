@@ -426,8 +426,8 @@ ocf_run() {
 		"-q")
 		    verbose=""
 		    shift 1;;
-		"-info"|"-warn"|"-err")
-		    loglevel=`echo $1 | sed -e s/-//g`
+		"-info"|"-warn"|"-err"|"-debug")
+		    loglevel=${1#-}
 		    shift 1;;
 		*)
 		    ;;		
