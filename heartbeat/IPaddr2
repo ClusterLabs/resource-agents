@@ -690,7 +690,7 @@ add_interface () {
 	fi
 
 	extra_opts=""
-	if [ "$FAMILY" = "inet6" ]; then
+	if [ "$FAMILY" = "inet6" ] && [ -n "$metric" ]; then
 		extra_opts="$extra_opts metric $metric"
 	fi
 	if [ "$FAMILY" = "inet6" ] && ocf_is_true "${OCF_RESKEY_nodad}"; then
