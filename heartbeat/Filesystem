@@ -1037,6 +1037,7 @@ fi
 DEVICE="$OCF_RESKEY_device"
 case "$DEVICE" in
 	[[:space:]]*|*[[:space:]])
+		[ "$__OCF_ACTION" = "stop" ] && exit $OCF_SUCCESS
 		ocf_exit_reason "device parameter does not accept leading or trailing whitespace characters"
 		exit $OCF_ERR_CONFIGURED
 		;;
@@ -1080,6 +1081,7 @@ else
 	: ${MOUNTPOINT:=/}
 	case "$MOUNTPOINT" in
 		[[:space:]]*|*[[:space:]])
+			[ "$__OCF_ACTION" = "stop" ] && exit $OCF_SUCCESS
 			ocf_exit_reason "directory parameter does not accept leading or trailing whitespace characters"
 			exit $OCF_ERR_CONFIGURED
 			;;
