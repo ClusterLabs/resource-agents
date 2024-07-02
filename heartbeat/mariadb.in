@@ -255,7 +255,6 @@ The port on which the Promoted MariaDB instance is listening.
 <action name="status" timeout="60s" />
 <action name="monitor" depth="0" timeout="30s" interval="20s" />
 <action name="monitor" role="Promoted" depth="0" timeout="30s" interval="10s" />
-<action name="monitor" role="Unpromoted" depth="0" timeout="30s" interval="30s" />
 <action name="promote" timeout="120s" />
 <action name="demote" timeout="120s" />
 <action name="notify" timeout="90s" />
