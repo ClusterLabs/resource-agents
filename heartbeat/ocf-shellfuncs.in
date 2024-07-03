@@ -728,8 +728,14 @@ ocf_move_to_root_cgroup_if_rt_enabled()
 crm_mon_no_validation()
 {
 	# The subshell prevents parsing error with incompatible shells
-	"$SHELL" -c "CIB_file=<(${HA_SBIN_DIR}/cibadmin -Q | sed 's/validate-with=\"[^\"]*\"/validate-with=\"none\"/') \
-	${HA_SBIN_DIR}/crm_mon \$*" -- $*
+	ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.19.7"
+	if [ $res -eq 2 ] || [ $res -eq 1 ]; then
+		"$SHELL" -c "CIB_file=<(${HA_SBIN_DIR}/cibadmin -Q \
+			${HA_SBIN_DIR}/crm_mon \$*" -- $*
+	else
+		"$SHELL" -c "CIB_file=<(${HA_SBIN_DIR}/cibadmin -Q | sed 's/validate-with=\"[^\"]*\"/validate-with=\"none\"/') \
+			${HA_SBIN_DIR}/crm_mon \$*" -- $*
+	fi
 }
 
 #
