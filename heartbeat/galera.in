@@ -446,7 +446,7 @@ is_two_node_mode_active()
     # crm_node or corosync-quorumtool cannot access various corosync
     # flags when running inside a bundle, so only count the cluster
     # members
-    ocf_is_true "$OCF_RESKEY_two_node_mode" && crm_mon_no_validation -1X | xmllint --xpath "count(//nodes/node[@type='member'])" - | grep -q -w 2
+    ocf_is_true "$OCF_RESKEY_two_node_mode" && crm_mon_no_validation -1 $XMLOPT | xmllint --xpath "count(//nodes/node[@type='member'])" - | grep -q -w 2
 }
 
 is_last_node_in_quorate_partition()
@@ -457,7 +457,7 @@ is_last_node_in_quorate_partition()
     # is clean), we shouldn't consider ourself quorate.
     local partition_members=$(${HA_SBIN_DIR}/crm_node -p | wc -w)
     local quorate=$(${HA_SBIN_DIR}/crm_node -q)
-    local clean_members=$(crm_mon_no_validation -1X | xmllint --xpath 'count(//nodes/node[@type="member" and @unclean="false"])' -)
+    local clean_members=$(crm_mon_no_validation -1 $XMLOPT | xmllint --xpath 'count(//nodes/node[@type="member" and @unclean="false"])' -)
 
     [ "$partition_members" = 1 ] && [ "$quorate" = 1 ] && [ "$clean_members" = 2 ]
 }
@@ -473,20 +473,6 @@ master_exists()
         return 1
     fi
     # determine if a master instance is already up and is healthy
-    ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.1.0"
-    res=$?
-    if [ -z "$OCF_RESKEY_crm_feature_set" ] || [ $res -eq 2 ]; then
-        XMLOPT="--output-as=xml"
-        ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.2.0"
-        if [ $? -eq 1 ]; then
-            crm_mon_no_validation -1 $XMLOPT >/dev/null 2>&1
-            if [ $? -ne 0 ]; then
-                XMLOPT="--as-xml"
-            fi
-        fi
-    else
-        XMLOPT="--as-xml"
-    fi
     crm_mon_no_validation -1 $XMLOPT | grep -q -i -E "resource.*id=\"${INSTANCE_ATTR_NAME}\".*role=\"(Promoted|Master)\".*active=\"true\".*orphaned=\"false\".*failed=\"false\""
     return $?
 }
@@ -1086,6 +1072,20 @@ if [ -n "${MYSQL_PORT}" ]; then
     MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK -P ${MYSQL_PORT}"
 fi
 
+ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.1.0"
+res=$?
+if [ -z "$OCF_RESKEY_crm_feature_set" ] || [ $res -eq 2 ]; then
+    XMLOPT="--output-as=xml"
+    ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.2.0"
+    if [ $? -eq 1 ]; then
+        crm_mon_no_validation -1 $XMLOPT >/dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            XMLOPT="--as-xml"
+        fi
+    fi
+else
+    XMLOPT="--as-xml"
+fi
 
 
 # What kind of method was invoked?
