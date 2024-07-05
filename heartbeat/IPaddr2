@@ -75,7 +75,7 @@ OCF_RESKEY_broadcast_default=""
 OCF_RESKEY_iflabel_default=""
 OCF_RESKEY_cidr_netmask_default=""
 OCF_RESKEY_lvs_support_default=false
-OCF_RESKEY_lvs_ipv6_addrlabel_default=false
+OCF_RESKEY_lvs_ipv6_addrlabel_default=true
 OCF_RESKEY_lvs_ipv6_addrlabel_value_default=99
 OCF_RESKEY_clusterip_hash_default="sourceip-sourceport"
 OCF_RESKEY_mac_default=""
@@ -690,7 +690,7 @@ add_interface () {
 	fi
 
 	extra_opts=""
-	if [ "$FAMILY" = "inet6" ]; then
+	if [ "$FAMILY" = "inet6" ] && [ -n "$metric" ]; then
 		extra_opts="$extra_opts metric $metric"
 	fi
 	if [ "$FAMILY" = "inet6" ] && ocf_is_true "${OCF_RESKEY_nodad}"; then
