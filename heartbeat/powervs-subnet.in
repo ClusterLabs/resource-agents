@@ -160,7 +160,7 @@ class nmcli:
 
     @classmethod
     def cleanup(cls):
-        """Cleanup orphaned Network Manager connections."""
+        """Clean up orphaned Network Manager connections."""
 
         connections = cls._nmcli_os_cmd(["-g", "UUID,NAME,ACTIVE", "connection"])
         for uuid in connections:
@@ -271,7 +271,7 @@ class PowerCloudAPI:
 
     _HTTP_MAX_RETRIES = 10
     _HTTP_BACKOFF_FACTOR = 0.4
-    _HTTP_STATUS_FORCE_RETRIES = (403, 500, 502, 503, 504)
+    _HTTP_STATUS_FORCE_RETRIES = (500, 502, 503, 504)
     _HTTP_RETRY_ALLOWED_METHODS = frozenset({"GET", "POST", "DELETE"})
 
     _START_TIME = time.time()
@@ -424,10 +424,11 @@ class PowerCloudAPI:
                 f"_instance_check_status: OK server_name: {server_name}, status: {status}, health: {health}"
             )
         else:
-            raise PowerCloudAPIError(
-                f"_instance_check_status: FAIL server_name: {server_name}, status: {status}, health: {health}",
-                ocf.OCF_ERR_GENERIC,
-            )
+            if not (self._ocf_action == "monitor"):
+                raise PowerCloudAPIError(
+                    f"_instance_check_status: FAIL server_name: {server_name}, status: {status}, health: {health}",
+                    ocf.OCF_ERR_GENERIC,
+                )
 
     def _instance_subnet_is_attached(self):
         """Check if a virtual server instance is connected to a specific subnet."""
@@ -511,8 +512,34 @@ class PowerCloudAPI:
 
         return None
 
+    def _subnet_port_get_all(self):
+        """Obtain information about the ports for a specific subnet."""
+
+        resource = f"/networks/{self.network_id}/ports"
+        response = self._rest_api_call("GET", resource)
+        return response["ports"]
+
+    def _subnet_port_delete(self, port_id):
+        """Delete an orphaned port for a particular subnet."""
+
+        resource = f"/networks/{self.network_id}/ports/{port_id}"
+        _ = self._rest_api_call("DELETE", resource)
+
+    def _subnet_port_get_reserved(self):
+        """Check if a port is already reserved on the subnet for the IP address."""
+
+        for port in self._subnet_port_get_all():
+            if self.ip == port["ipAddress"]:
+                return port["portID"]
+
+        return None
+
     def _validate_and_set_options(self):
         """Validate the options of the resource agent and derive class variables from the options."""
+
+        self._ocf_action = os.environ.get("__OCF_ACTION")
+        if self._ocf_action is None and len(sys.argv) == 2:
+            self._ocf_action = sys.argv[1]
 
         ip = self._res_options["ip"]
         try:
@@ -717,6 +744,14 @@ class PowerCloudAPI:
                     f"subnet_remove: detach network id: {self.network_id} from instance id: {self.instance_id}"
                 )
                 self._instance_subnet_detach()
+
+            port_id = self._subnet_port_get_reserved()
+            if port_id:
+                ocf.logger.debug(
+                    f"subnet_remove: delete port port_id: {port_id} for subnet network id: {self.network_id}"
+                )
+                self._subnet_port_delete(port_id)
+
             ocf.logger.debug(f"subnet_remove: delete network id: {self.network_id}")
             self._subnet_delete()
 
@@ -846,7 +881,7 @@ def monitor_action(
     res_options = locals()
     is_probe = ocf.is_probe()
 
-    ocf.logger.info(f"monitor_action: options: {res_options}, is_probe: {is_probe}")
+    ocf.logger.debug(f"monitor_action: options: {res_options}, is_probe: {is_probe}")
 
     gateway = nmcli.find_gateway(ip)
     if gateway and os_ping(gateway):
@@ -928,12 +963,12 @@ def main():
         Verify that the NetworkManager-config-server package is installed.
 
         2. IBM Cloud API Key:
-        Create a service API key that is privileged for both Power Virtual Server 
+        Create a service API key that is privileged for both Power Virtual Server
         workspaces. Save the service API key in a file and copy the file to both
         cluster nodes. Use same filename and directory location on both cluster nodes.
         Reference the path to the key file in the resource definition.
 
-        3. The hostname of the virtual server instances must be same as the name 
+        3. The hostname of the virtual server instances must be same as the name
         of the virtual server instances in the Power Virtual Server workspaces.
 
         For comprehensive documentation on implementing high availability for
@@ -944,7 +979,7 @@ def main():
         "powervs-subnet",
         shortdesc="Manages moving a Power Virtual Server subnet",
         longdesc=agent_description,
-        version=1.0,
+        version=1.01,
     )
 
     agent.add_parameter(
