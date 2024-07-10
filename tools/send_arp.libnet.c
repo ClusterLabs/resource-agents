@@ -135,13 +135,13 @@ main(int argc, char *argv[])
 	char*	broadcast;
 	char*	netmask;
 	u_int32_t	ip;
-	u_char  src_mac[6];
+	u_char	src_mac[6];
 	int	repeatcount = 1;
 	int	j;
 	long	msinterval = 1000;
 	int	flag;
-	char    pidfilenamebuf[64];
-	char    *pidfilename = NULL;
+	char	*pidfilename = NULL;
+	int	pidflen;
 	struct sigaction act;
 
 #ifdef HAVE_LIBNET_1_0_API
@@ -201,13 +201,10 @@ main(int argc, char *argv[])
 	netmask   = argv[optind+4];
 
 	if (!pidfilename) {
-		if (snprintf(pidfilenamebuf, sizeof(pidfilenamebuf), "%s%s", 
-					PIDFILE_BASE, ipaddr) >= 
-				(int)sizeof(pidfilenamebuf)) {
-			cl_log(LOG_INFO, "Pid file truncated");
-			return EXIT_FAILURE;
-		}
-		pidfilename = pidfilenamebuf;
+		pidflen = strlen(PIDFILE_BASE) + strlen(ipaddr);
+		pidfilename = calloc(1, pidflen);
+		snprintf(pidfilename, pidflen, "%s%s",
+				PIDFILE_BASE, ipaddr);
 	}
 
 	if(write_pid_file(pidfilename) < 0) {
