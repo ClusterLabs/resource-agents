@@ -905,7 +905,7 @@ dnl System specific options
 	   enable_fatal_warnings=no
         fi
 
-	if test "x${enable_ansi}" != xno && cc_supports_flag -std=iso9899:199409 ; then
+	if test "x${enable_ansi}" = xyes && cc_supports_flag -std=iso9899:199409; then
 	  AC_MSG_NOTICE(Enabling ANSI Compatibility)
 	  CC_EXTRAS="$CC_EXTRAS -ansi -D_GNU_SOURCE -DANSI_ONLY"
 	fi
