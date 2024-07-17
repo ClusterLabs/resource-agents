@@ -162,7 +162,6 @@ ocf_SCRIPTS	      = AoEtarget		\
 			portblock		\
 			postfix			\
 			pound			\
-			powervs-subnet		\
 			proftpd			\
 			rabbitmq-cluster	\
 			rabbitmq-server-ha	\
@@ -205,6 +204,10 @@ endif
 
 if BUILD_GCP_VPC_MOVE_VIP
 ocf_SCRIPTS	     += gcp-vpc-move-vip
+endif
+
+if BUILD_POWERVS_SUBNET
+ocf_SCRIPTS	     += powervs-subnet
 endif
 
 ocfcommondir		= $(OCF_LIB_DIR_PREFIX)/heartbeat
