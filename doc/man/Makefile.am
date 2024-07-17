@@ -190,7 +190,6 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_portblock.7 \
                           ocf_heartbeat_postfix.7 \
                           ocf_heartbeat_pound.7 \
-                          ocf_heartbeat_powervs-subnet.7 \
                           ocf_heartbeat_proftpd.7 \
                           ocf_heartbeat_rabbitmq-cluster.7 \
                           ocf_heartbeat_rabbitmq-server-ha.7 \
@@ -236,6 +235,10 @@ endif
 
 if BUILD_GCP_VPC_MOVE_VIP
 man_MANS           	+= ocf_heartbeat_gcp-vpc-move-vip.7
+endif
+
+if BUILD_POWERVS_SUBNET
+man_MANS           	+= ocf_heartbeat_powervs-subnet.7
 endif
 
 xmlfiles		= $(man_MANS:.7=.xml)

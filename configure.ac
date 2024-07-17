@@ -519,6 +519,8 @@ fi
 
 AC_PYTHON_MODULE(json)
 AC_PYTHON_MODULE(pyroute2)
+AC_PYTHON_MODULE(requests)
+AC_PYTHON_MODULE(urllib3)
 
 AS_VERSION_COMPARE([$PYTHON_VERSION], [3.6], [BUILD_OCF_PY=0], [BUILD_OCF_PY=1], [BUILD_OCF_PY=1])
 
@@ -556,6 +558,13 @@ if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0; then
     AC_MSG_WARN("Not building gcp-vpc-move-vip")
 fi
 AM_CONDITIONAL(BUILD_GCP_VPC_MOVE_VIP, test $BUILD_GCP_VPC_MOVE_VIP -eq 1)
+
+BUILD_POWERVS_SUBNET=1
+if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0 || test "x${HAVE_PYMOD_REQUESTS}" != xyes || test "x${HAVE_PYMOD_URLLIB3}" != xyes; then
+    BUILD_POWERVS_SUBNET=0
+    AC_MSG_WARN("Not building powervs-subnet")
+fi
+AM_CONDITIONAL(BUILD_POWERVS_SUBNET, test $BUILD_POWERVS_SUBNET -eq 1)
 
 AC_PATH_PROGS(ROUTE, route)
 AC_DEFINE_UNQUOTED(ROUTE, "$ROUTE", path to route command)
