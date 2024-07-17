@@ -1,3 +1,33 @@
+* Wed Jul 17 2024 resource-agents contributors
+- release candidate 4.15.0 rc1
+- outscale: new resource agent (#1938)
+- powervs-subnet: new resource agent (#1948)
+- configure: fix enable_ansi check
+- ocf-shellfuncs: add curl_retry()
+- ocf-shellfuncs: dont use deprecated validate-with="none" in CIB
+- ocf-shellfuncs: fix version regex in ocf_local_nodename()
+- ocf-shellfuncs: ocf_run(): add debug level error logging
+- findif.sh: add metric for IPv6 support and fail when matching more than 1 route
+- AWS agents: use curl_retry() for metadata requests
+- Filesystem: fail when incorrect device mounted on mountpoint, and dont unmount the mountpoint in this case, or if mountpoint set to "/"
+- Filesystem: fail when leading or trailing whitespace is present in device or directory parameters
+- Filesystem: return success during stop-action when leading or trailing whitespace is present in device or directory parameters
+- Filesystem: silence "Expected /dev/... to exist" message for probe-action
+- Filesystem: use fuser -Mm (was -m) to avoid killing unrelated processes
+- Filesystem: use fuser -c on FreeBSD, as -m and -M are used for other functionality
+- IPaddr2: change default for lvs_ipv6_addrlabel to true to avoid last added IP becoming src IP
+- IPaddr2: use metric for IPv6
+- IPsrcaddr: add IPv6 support
+- apache/http-mon.sh: dont use -L for wget2 as it's not implemented yet
+- apache/http-mon.sh: prefer curl due to new wget2 issues, including not being able to resolve hostnames from /etc/hosts
+- azure-events-az: update to API versions, add retry functionality for metadata requests, update tests
+- azure-lb: fix issue where disabled IPv6 made it fail when using socat after adding IPv6 (#1939)
+- conntrackd/galera/rabbitmq-cluster: avoid deprecated tool options
+- galera/mariadb/mysql/redis: remove Unpromoted monitor-action, as it's covered by the regular monitor-action
+- pgsql: pgsql_status: silence expected "ERROR: command failed: runuser ..." messages
+- send_arp.libnet: use calloc() to avoid truncating pidfilename if it is more than 64 chars long
+- storage-mon: add logging to daemon mode.
+
 * Wed Apr 24 2024 resource-agents contributors
 - stable release 4.14.0
 - doc: writing-python-agents: add description of is_probe() and distro()
