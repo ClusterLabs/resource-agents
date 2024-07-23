@@ -107,7 +107,7 @@ Requires: /sbin/fsck
 %endif
 Requires: /usr/sbin/fsck.ext2 /usr/sbin/fsck.ext3 /usr/sbin/fsck.ext4
 Requires: /usr/sbin/fsck.xfs
-%if 0%{?suse_version}
+%if 0%{?fedora} > 40 || 0%{?suse_version}
 Requires: /usr/sbin/mount.nfs /usr/sbin/mount.nfs4
 %else
 Requires: /sbin/mount.nfs /sbin/mount.nfs4
@@ -127,7 +127,7 @@ Requires: /sbin/ip
 Requires: /usr/sbin/lvm
 
 # nfsserver / netfs.sh
-%if 0%{?suse_version}
+%if 0%{?fedora} > 40 || 0%{?suse_version}
 Requires: /usr/sbin/rpc.statd
 %else
 Requires: /sbin/rpc.statd
