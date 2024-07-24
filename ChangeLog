@@ -1,3 +1,8 @@
+* Wed Jul 24 2024 resource-agents contributors
+- stable release 4.15.0
+- build: dont build powervs-subnet if dependencies are missing
+- spec: use /usr/sbin paths for Fedora 41+
+
 * Wed Jul 17 2024 resource-agents contributors
 - release candidate 4.15.0 rc1
 - outscale: new resource agent (#1938)
