@@ -512,10 +512,6 @@ ip_init() {
 	echo $OCF_RESKEY_ip | grep -qs ":"
 	if [ $? -ne 0 ];then
 		FAMILY=inet
-		if ocf_is_true $OCF_RESKEY_lvs_ipv6_addrlabel ;then
-			ocf_exit_reason "IPv4 does not support lvs_ipv6_addrlabel"
-			exit $OCF_ERR_CONFIGURED
-		fi
 		if [ -z "$OCF_RESKEY_arp_bg" ]; then
 			OCF_RESKEY_arp_bg=true
 		fi
