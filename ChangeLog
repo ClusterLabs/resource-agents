@@ -1,3 +1,8 @@
+* Fri Jul 26 2024 resource-agents contributors
+- stable release 4.15.1
+- IPaddr2: dont fail with "IPv4 does not support lvs_ipv6_addrlabel"
+  error, as the parameter is not used in IPv4 scenarioes
+
 * Wed Jul 24 2024 resource-agents contributors
 - stable release 4.15.0
 - build: dont build powervs-subnet if dependencies are missing
