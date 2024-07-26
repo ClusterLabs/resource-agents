@@ -712,7 +712,7 @@ add_interface () {
 	ocf_run $cmd || return $OCF_ERR_GENERIC
 
 	msg="Bringing device $iface up"
-	cmd="$IP2UTIL link set $iface up"
+	cmd="$IP2UTIL link set dev $iface up"
 	ocf_log info "$msg"
 	ocf_run $cmd || return $OCF_ERR_GENERIC
 
