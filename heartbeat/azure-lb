@@ -86,9 +86,9 @@ default: Neither -4 nor -6 will be used. The default behavior of socat and nc wi
              If net.ipv6.bindv6only = 1 => Listen only on IPv4 addresses
 ipv4only: Listen only on IPv4 addresses.
 ipv6enable: Enable TCP6 support.
-         nc: Listen only on IPv6 adresses independent of net.ipv6.bindv6only
+         nc: Listen only on IPv6 addresses independent of net.ipv6.bindv6only
 	 socat: If net.ipv6.bindv6only = 0 => Listen on both IPv4 and IP6 addresses.
-                If net.ipv6.bindv6only = 1 => Listen only on IPv6 adresses.
+                If net.ipv6.bindv6only = 1 => Listen only on IPv6 addresses.
 </longdesc>
 <shortdesc lang="en">Usage of IPv4 and IPv6 addresses.</shortdesc>
 <content type="string" default="${OCF_RESKEY_listen_default}"/>
