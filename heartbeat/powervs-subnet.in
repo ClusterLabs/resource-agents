@@ -24,6 +24,7 @@
 
 import ipaddress
 import json
+import math
 import os
 import re
 import socket
@@ -175,8 +176,7 @@ class nmcli:
 
         ocf.logger.debug(f"wait_for_nic: args: mac: {mac}, timeout: {timeout} s")
         mac_address = mac.upper()
-        retries = (timeout // cls._WAIT_FOR_NIC_SLEEP) - 1
-
+        retries = math.ceil((timeout * 0.95) / cls._WAIT_FOR_NIC_SLEEP) - 1
         for attempt in range(1, retries + 1):
             try:
                 ocf.logger.debug(
@@ -363,8 +363,11 @@ class PowerCloudAPI:
                     try:
                         keys = json.loads(f.read())
                         # data seems to be in json format
-                        # return the value of the item with the key 'apikey'
-                        api_key = keys.get("apikey", keys)
+                        # return the value of the item with the key 'Apikey'
+                        # backward compatibility: In the past, the key name was 'apikey'
+                        api_key = keys.get("Apikey", "")
+                        if not api_key:
+                            api_key = keys.get("apikey", "")
                     except ValueError:
                         # data is text, return as is
                         api_key = f.read().strip()
@@ -979,7 +982,7 @@ def main():
         "powervs-subnet",
         shortdesc="Manages moving a Power Virtual Server subnet",
         longdesc=agent_description,
-        version=1.01,
+        version=1.02,
     )
 
     agent.add_parameter(
