@@ -218,9 +218,9 @@ findif()
   fi
   if [ -n "$nic" ] ; then
     # NIC supports more than two.
-    routematch=$(ip -o -f $family route list match $match $proto $scope | grep "dev $nic " | sed -e 's,^\([0-9.]\+\) ,\1/32 ,;s,^\([0-9a-f:]\+\) ,\1/128 ,' | sort -t/ -k2,2nr)
+    routematch=$(ip -o -f $family route list match $match $proto $scope | grep -v "^\(unreachable\|prohibit\|blackhole\)" | grep "dev $nic " | sed -e 's,^\([0-9.]\+\) ,\1/32 ,;s,^\([0-9a-f:]\+\) ,\1/128 ,' | sort -t/ -k2,2nr)
   else
-    routematch=$(ip -o -f $family route list match $match $proto $scope | sed -e 's,^\([0-9.]\+\) ,\1/32 ,;s,^\([0-9a-f:]\+\) ,\1/128 ,' | sort -t/ -k2,2nr)
+    routematch=$(ip -o -f $family route list match $match $proto $scope | grep -v "^\(unreachable\|prohibit\|blackhole\)" | sed -e 's,^\([0-9.]\+\) ,\1/32 ,;s,^\([0-9a-f:]\+\) ,\1/128 ,' | sort -t/ -k2,2nr)
   fi
   if [ "$family" = "inet6" ]; then
     routematch=$(echo "$routematch" | grep -v "^default")
