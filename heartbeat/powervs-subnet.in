@@ -1087,9 +1087,9 @@ def main():
         "route_table",
         shortdesc="route table ID",
         longdesc="ID of the route table for the interface. Default is 500.",
-        content_type="int",
+        content_type="string",
         required=False,
-        default=500,
+        default="500",
     )
 
 
