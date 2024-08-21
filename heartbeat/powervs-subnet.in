@@ -63,7 +63,7 @@ class nmcli:
     CONN_PREFIX = "VIP_"
     DEV_PREFIX = "env"
     ROUTING_PRIO = 50
-    ROUTING_TABLE = 500
+    ROUTING_TABLE = ocf.get_parameter("route_table", 500)
     _WAIT_FOR_NIC_SLEEP = 3
 
     def __init__(self):
@@ -804,7 +804,7 @@ def start_action(
     nic, ip_address, mac, gateway = ws.subnet_add()
 
     ocf.logger.debug(
-        f"start_action: add nmcli connection: nic: {nic}, ip: {ip_address}, mac: {mac}, gateway: {gateway}, jumbo: {ws.jumbo}"
+        f"start_action: add nmcli connection: nic: {nic}, ip: {ip_address}, mac: {mac}, gateway: {gateway}, jumbo: {ws.jumbo}, table {nmcli.ROUTING_TABLE}"
     )
 
     conn_name = f"{nmcli.CONN_PREFIX}{nic}"
@@ -931,7 +931,7 @@ def validate_all_action(
 
     res_options = locals()
 
-    # The class instantation validates the resource agent options and that the instance exists
+    # The class instantiation validates the resource agent options and that the instance exists
     try:
         # Check instance in local workspace
         _ = PowerCloudAPI(**res_options, use_remote_workspace=False)
@@ -982,7 +982,7 @@ def main():
         "powervs-subnet",
         shortdesc="Manages moving a Power Virtual Server subnet",
         longdesc=agent_description,
-        version=1.02,
+        version=1.03,
     )
 
     agent.add_parameter(
@@ -1082,6 +1082,16 @@ def main():
         required=False,
         default="false",
     )
+
+    agent.add_parameter(
+        "route_table",
+        shortdesc="route table ID",
+        longdesc="ID of the route table for the interface. Default is 500.",
+        content_type="string",
+        required=False,
+        default="500",
+    )
+
 
     agent.add_action("start", timeout=900, handler=start_action)
     agent.add_action("stop", timeout=450, handler=stop_action)
