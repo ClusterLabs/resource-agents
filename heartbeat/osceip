@@ -1,0 +1,260 @@
+#!/bin/sh
+#
+#
+#    Manage Outscale Elastic IP with Pacemaker
+#
+#
+# Copyright 2016-2018 guessi <guessi@gmail.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+#
+
+#
+#  Prerequisites:
+#
+#  - preconfigured OSC-CLI running environment (AccessKey, SecretAccessKey,
+#    etc.) to allow agent related functions to be executed.
+#  - a reserved secondary private IP address for vm instances high availability
+#  - IAM user role with the following permissions:
+#    * DescribeInstances
+#    * AssociateAddress
+#    * DescribeAddresses
+#    * DisassociateAddress
+#
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+
+#
+# Defaults
+#
+OCF_RESKEY_osccli_default="/usr/local/bin/osc-cli"
+OCF_RESKEY_profile_default="default"
+OCF_RESKEY_region_default=""
+OCF_RESKEY_curl_retries_default="3"
+OCF_RESKEY_curl_sleep_default="1"
+
+: ${OCF_RESKEY_osccli=${OCF_RESKEY_osccli_default}}
+: ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
+: ${OCF_RESKEY_region=${OCF_RESKEY_region_default}}
+: ${OCF_RESKEY_curl_retries=${OCF_RESKEY_curl_retries_default}}
+: ${OCF_RESKEY_curl_sleep=${OCF_RESKEY_curl_sleep_default}}
+
+meta_data() {
+    cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="osceip" version="1.0">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource Agent for Outscale Elastic IP Addresses.
+
+It manages Outscale Elastic IP Addresses with osc-cli.
+
+Credentials needs to be setup.
+
+See https://docs.outscale.com/en/userguide/Installing-and-Configuring-OSC-CLI.html for more information about osccli.
+</longdesc>
+<shortdesc lang="en">Outscale Elastic IP Address Resource Agent</shortdesc>
+
+<parameters>
+
+<parameter name="osccli" unique="0">
+<longdesc lang="en">
+command line tools for outscale services
+</longdesc>
+<shortdesc lang="en">OSC-CLI tools</shortdesc>
+<content type="string" default="${OCF_RESKEY_osccli_default}" />
+</parameter>
+
+<parameter name="profile">
+<longdesc lang="en">
+Valid OSC-CLI profile name (see ~/.osc/config and 'osc configure')
+</longdesc>
+<shortdesc lang="en">profile name</shortdesc>
+<content type="string" default="${OCF_RESKEY_profile_default}" />
+</parameter>
+
+<parameter name="elastic_ip" unique="1" required="1">
+<longdesc lang="en">
+reserved elastic ip for vm instance
+</longdesc>
+<shortdesc lang="en">reserved elastic ip for vm instance</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="region" required="0">
+<longdesc lang="en">
+Region for osc resource (required for role-based authentication)
+</longdesc>
+<shortdesc lang="en">Region</shortdesc>
+<content type="string" default="${OCF_RESKEY_region_default}" />
+</parameter>
+
+<parameter name="curl_retries" unique="0">
+<longdesc lang="en">
+curl retries before failing
+</longdesc>
+<shortdesc lang="en">curl retries</shortdesc>
+<content type="integer" default="${OCF_RESKEY_curl_retries_default}" />
+</parameter>
+
+<parameter name="curl_sleep" unique="0">
+<longdesc lang="en">
+curl sleep between tries
+</longdesc>
+<shortdesc lang="en">curl sleep</shortdesc>
+<content type="integer" default="${OCF_RESKEY_curl_sleep_default}" />
+</parameter>
+
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="30s" />
+<action name="stop"         timeout="30s" />
+<action name="monitor"      timeout="30s" interval="20s" depth="0" />
+<action name="migrate_to"   timeout="30s" />
+<action name="migrate_from" timeout="30s" />
+<action name="meta-data"    timeout="5s" />
+<action name="validate"     timeout="10s" />
+<action name="validate-all" timeout="10s" />
+</actions>
+</resource-agent>
+END
+}
+
+#######################################################################
+
+osceip_usage() {
+    cat <<END
+usage: $0 {start|stop|monitor|migrate_to|migrate_from|validate|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+osceip_start() {
+    osceip_monitor && return $OCF_SUCCESS
+
+    $oscCLI_CMD api LinkPublicIp --profile "${OCF_RESKEY_profile}" --PublicIp "${ELASTIC_IP}" --VmId "${INSTANCE_ID}" --AllowRelink True
+    RET=$?
+
+
+    if [ $RET -ne 0 ]; then
+        return $OCF_NOT_RUNNING
+    fi
+
+    ocf_log info "elastic_ip has been successfully brought up (${ELASTIC_IP})"
+    return $OCF_SUCCESS
+}
+
+osceip_stop() {
+    osceip_monitor || return $OCF_SUCCESS
+
+    $oscCLI_CMD api UnlinkPublicIp --profile "${OCF_RESKEY_profile}" --PublicIp "${ELASTIC_IP}"
+    RET=$?
+
+    if [ $RET -ne 0 ]; then
+        return $OCF_NOT_RUNNING
+    fi
+
+    ocf_log info "elastic_ip has been successfully brought down (${ELASTIC_IP})"
+    return $OCF_SUCCESS
+}
+
+osceip_monitor() {
+    $oscCLI_CMD api ReadPublicIps --profile "${OCF_RESKEY_profile}" --Filters '{"VmIds": ["'${INSTANCE_ID}'"],}' |grep LinkPublicIpId
+    RET=$?
+
+    if [ $RET -ne 0 ]; then
+        return $OCF_NOT_RUNNING
+    fi
+    return $OCF_SUCCESS
+}
+
+osceip_validate() {
+    check_binary "${OCF_RESKEY_osccli}"
+
+    if [ -z "${INSTANCE_ID}" ]; then
+        ocf_exit_reason "instance_id not found. Is this a vm instance?"
+        return $OCF_ERR_GENERIC
+    fi
+
+    if [ -z "${ELASTIC_IP}" ] ; then
+        ocf_exit_reason "elastic_ip is a mandatory paramater. "
+        return $OCF_ERR_CONFIGURED
+    fi
+
+    return $OCF_SUCCESS
+}
+
+case $__OCF_ACTION in
+    meta-data)
+        meta_data
+        exit $OCF_SUCCESS
+        ;;
+    usage|help)
+        osceip_usage
+        exit $OCF_SUCCESS
+        ;;
+esac
+
+oscCLI_CMD="${OCF_RESKEY_osccli}"
+if [ -n "${OCF_RESKEY_region}" ]; then
+	oscCLI_CMD="$oscCLI_CMD --region ${OCF_RESKEY_region}"
+fi
+ELASTIC_IP="${OCF_RESKEY_elastic_ip}"
+INSTANCE_ID=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep"  "-s" "http://169.254.169.254/latest/meta-data/instance-id")
+
+case $__OCF_ACTION in
+    start)
+        osceip_validate  || exit $?
+        osceip_start
+        ;;
+    stop)
+        osceip_stop
+        ;;
+    monitor)
+        osceip_monitor
+        ;;
+    migrate_to)
+        ocf_log info "Migrating ${OCF_RESOURCE_INSTANCE} to ${OCF_RESKEY_CRM_meta_migrate_target}."
+        osceip_stop
+        ;;
+    migrate_from)
+        ocf_log info "Migrating ${OCF_RESOURCE_INSTANCE} from ${OCF_RESKEY_CRM_meta_migrate_source}."
+        osceip_start
+        ;;
+    reload)
+        ocf_log info "Reloading ${OCF_RESOURCE_INSTANCE} ..."
+        ;;
+    validate|validate-all)
+        osceip_validate
+        ;;
+    *)
+        osceip_usage
+        exit $OCF_ERR_UNIMPLEMENTED
+        ;;
+esac
+
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc

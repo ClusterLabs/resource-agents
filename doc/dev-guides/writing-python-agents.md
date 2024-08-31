@@ -5,8 +5,7 @@
 A simple library for authoring resource agents in Python is
 provided in the `ocf.py` library.
 
-Agents written in Python should be ideally compatible both with Python
-2.7+ and Python 3.3+.
+Agents written in Python should be compatible with Python 3.6+.
 
 The library provides various helper constants and functions, a logging
 implementation as well as a run loop and metadata generation facility.
@@ -53,7 +52,11 @@ logger.error("Something went terribly wrong.")
 * `ocf_exit_reason`: Prints the exit error string to stderr.
 * `have_binary`: Returns True if the given binary is available.
 * `is_true`: Converts an OCF truth value to a Python boolean.
+* `is_probe`: Returns True when running a probe action. Used to return
+  OCF_NOT_RUNNING instead of error code that would cause unexpected actions
+  like fencing before starting the resource or when it is disabled.
 * `get_parameter`: Looks up the matching `OCF_RESKEY_` environment variable.
+* `distro`: Returns <Distro>/<Version> or <Distro> if version info is unavailable.
 * `Agent`: Class which helps to generate the XML metadata.
 * `run`: OCF run loop implementation.
 

@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
-# 
+#
 
 import sys, os, logging, syslog
 
@@ -42,19 +42,19 @@ OCF_NOT_RUNNING=7
 # OCF does not include the concept of master/slave resources so we
 #   need to extend it so we can discover a resource's complete state.
 #
-# OCF_RUNNING_MASTER:  
+# OCF_RUNNING_MASTER:
 #    The resource is in "master" mode and fully operational
 # OCF_FAILED_MASTER:
 #    The resource is in "master" mode but in a failed state
-# 
+#
 # The extra two values should only be used during a probe.
 #
 # Probes are used to discover resources that were started outside of
 #    the CRM and/or left behind if the LRM fails.
-# 
+#
 # They can be identified in RA scripts by checking for:
 #   [ "${__OCF_ACTION}" = "monitor" -a "${OCF_RESKEY_CRM_meta_interval}" = "0" ]
-# 
+#
 # Failed "slaves" should continue to use: OCF_ERR_GENERIC
 # Fully operational "slaves" should continue to use: OCF_SUCCESS
 #
@@ -451,15 +451,17 @@ def run(agent, handlers=None):
 	sys.exit(OCF_ERR_UNIMPLEMENTED)
 
 
+
 if __name__ == "__main__":
 	import unittest
+	import logging
 
 	class TestMetadata(unittest.TestCase):
 		def test_noparams_noactions(self):
 			m = Agent("foo", shortdesc="shortdesc", longdesc="longdesc")
 			self.assertEqual("""<?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="foo">
+<resource-agent name="foo" version="1.0">
 <version>1.0</version>
 <longdesc lang="en">
 longdesc
@@ -483,4 +485,40 @@ longdesc
 			m.add_action("start")
 			self.assertEqual(str(m.actions[0]), '<action name="start" />\n')
 
+		def test_retry_params_actions(self):
+			log= logging.getLogger( "test_retry_params_actions" )
+
+			m = Agent("foo", shortdesc="shortdesc", longdesc="longdesc")
+			m.add_parameter(
+				"retry_count",
+				shortdesc="Azure ims webservice retry count",
+				longdesc="Set to any number bigger than zero to enable retry count",
+				content_type="integer",
+				default="0")
+			m.add_parameter(
+				"retry_wait",
+				shortdesc="Configure a retry wait time",
+				longdesc="Set retry wait time in seconds",
+				content_type="integer",
+				default="20")
+			m.add_parameter(
+				"request_timeout",
+				shortdesc="Configure a request timeout",
+				longdesc="Set request timeout in seconds",
+				content_type="integer",
+				default="15")
+
+			m.add_action("start")
+
+			log.debug( "actions= %s", str(m.actions[0] ))
+			self.assertEqual(str(m.actions[0]), '<action name="start" />\n')
+
+			log.debug( "parameters= %s", str(m.parameters[0] ))
+			log.debug( "parameters= %s", str(m.parameters[1] ))
+			log.debug( "parameters= %s", str(m.parameters[2] ))
+			self.assertEqual(str(m.parameters[0]), '<parameter name="retry_count">\n<longdesc lang="en">Set to any number bigger than zero to enable retry count</longdesc>\n<shortdesc lang="en">Azure ims webservice retry count</shortdesc>\n<content type="integer" default="0" />\n</parameter>\n')
+			self.assertEqual(str(m.parameters[1]), '<parameter name="retry_wait">\n<longdesc lang="en">Set retry wait time in seconds</longdesc>\n<shortdesc lang="en">Configure a retry wait time</shortdesc>\n<content type="integer" default="20" />\n</parameter>\n')
+			self.assertEqual(str(m.parameters[2]), '<parameter name="request_timeout">\n<longdesc lang="en">Set request timeout in seconds</longdesc>\n<shortdesc lang="en">Configure a request timeout</shortdesc>\n<content type="integer" default="15" />\n</parameter>\n')
+
+	logging.basicConfig( stream=sys.stderr )
 	unittest.main()

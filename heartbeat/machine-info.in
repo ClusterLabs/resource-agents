@@ -90,7 +90,7 @@ END
 MachineInfoStats() {
 	value=$(machinectl|awk '/machines listed/ {print $1}')
 	echo -e "machines:\t$value"
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -S status -n machines -v $value
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -n machines -v $value
 }
 
 MachineInfo_usage() {
@@ -109,7 +109,7 @@ MachineInfo_start() {
 
 MachineInfo_stop() {
 	rm -f $OCF_RESKEY_pidfile
-	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -S state -n machines
+	${HA_SBIN_DIR}/attrd_updater ${OCF_RESKEY_delay} -D -n machines
 	exit $OCF_SUCCESS
 }
 

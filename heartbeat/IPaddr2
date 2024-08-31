@@ -75,7 +75,7 @@ OCF_RESKEY_broadcast_default=""
 OCF_RESKEY_iflabel_default=""
 OCF_RESKEY_cidr_netmask_default=""
 OCF_RESKEY_lvs_support_default=false
-OCF_RESKEY_lvs_ipv6_addrlabel_default=false
+OCF_RESKEY_lvs_ipv6_addrlabel_default=true
 OCF_RESKEY_lvs_ipv6_addrlabel_value_default=99
 OCF_RESKEY_clusterip_hash_default="sourceip-sourceport"
 OCF_RESKEY_mac_default=""
@@ -512,10 +512,6 @@ ip_init() {
 	echo $OCF_RESKEY_ip | grep -qs ":"
 	if [ $? -ne 0 ];then
 		FAMILY=inet
-		if ocf_is_true $OCF_RESKEY_lvs_ipv6_addrlabel ;then
-			ocf_exit_reason "IPv4 does not support lvs_ipv6_addrlabel"
-			exit $OCF_ERR_CONFIGURED
-		fi
 		if [ -z "$OCF_RESKEY_arp_bg" ]; then
 			OCF_RESKEY_arp_bg=true
 		fi
@@ -561,10 +557,11 @@ ip_init() {
 	if
 	  [ $rc -eq 0 ]
         then
-	    NICINFO=`echo "$NICINFO" | sed -e 's/netmask\ //;s/broadcast\ //'`
+	    NICINFO=`echo "$NICINFO" | sed -e 's/netmask\ //;s/broadcast\ //;s/metric\ //'`
 	    NIC=`echo "$NICINFO" | cut -d" " -f1`
 	    NETMASK=`echo "$NICINFO" | cut -d" " -f2`
 	    BRDCAST=`echo "$NICINFO" | cut -d" " -f3`
+	    METRIC=`echo "$NICINFO" | cut -d" " -f4`
 	else
 		# findif couldn't find the interface
 		if ocf_is_probe; then
@@ -659,13 +656,14 @@ delete_interface () {
 #        Add an interface
 #
 add_interface () {
-	local cmd msg extra_opts ipaddr netmask broadcast iface label
+	local cmd msg extra_opts ipaddr netmask broadcast iface label metric
 
 	ipaddr="$1"
 	netmask="$2"
 	broadcast="$3"
 	iface="$4"
 	label="$5"
+	metric="$6"
 
 	if [ "$FAMILY" = "inet" ] && ocf_is_true $OCF_RESKEY_run_arping &&
 	   check_binary arping; then
@@ -688,6 +686,9 @@ add_interface () {
 	fi
 
 	extra_opts=""
+	if [ "$FAMILY" = "inet6" ] && [ -n "$metric" ]; then
+		extra_opts="$extra_opts metric $metric"
+	fi
 	if [ "$FAMILY" = "inet6" ] && ocf_is_true "${OCF_RESKEY_nodad}"; then
 		extra_opts="$extra_opts nodad"
 	fi
@@ -711,7 +712,7 @@ add_interface () {
 	ocf_run $cmd || return $OCF_ERR_GENERIC
 
 	msg="Bringing device $iface up"
-	cmd="$IP2UTIL link set $iface up"
+	cmd="$IP2UTIL link set dev $iface up"
 	ocf_log info "$msg"
 	ocf_run $cmd || return $OCF_ERR_GENERIC
 
@@ -1083,7 +1084,7 @@ ip_start() {
 			done
 		fi
 		
-		add_interface $OCF_RESKEY_ip $NETMASK ${BRDCAST:-none} $NIC $IFLABEL
+		add_interface "$OCF_RESKEY_ip" "$NETMASK" "${BRDCAST:-none}" "$NIC" "$IFLABEL" "$METRIC"
 		rc=$?
 
 		if [ $rc -ne $OCF_SUCCESS ]; then

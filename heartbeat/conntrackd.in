@@ -109,7 +109,7 @@ conntrackd_is_master() {
 }
 
 conntrackd_set_master_score() {
-	${HA_SBIN_DIR}/crm_master -Q -l reboot -v $1
+	${HA_SBIN_DIR}/crm_master -q -l reboot -v $1
 }
 
 conntrackd_monitor() {

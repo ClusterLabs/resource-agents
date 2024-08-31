@@ -426,8 +426,8 @@ ocf_run() {
 		"-q")
 		    verbose=""
 		    shift 1;;
-		"-info"|"-warn"|"-err")
-		    loglevel=`echo $1 | sed -e s/-//g`
+		"-info"|"-warn"|"-err"|"-debug")
+		    loglevel=${1#-}
 		    shift 1;;
 		*)
 		    ;;		
@@ -606,7 +606,7 @@ ocf_local_nodename() {
 	# use crm_node -n for pacemaker > 1.1.8
 	which pacemakerd > /dev/null 2>&1
 	if [ $? -eq 0 ]; then
-		local version=$(pacemakerd -$ | grep "Pacemaker .*" | awk '{ print $2 }')
+		local version=$(pacemakerd -$ | awk '/^Pacemaker /{ print $2 }')
 		version=$(echo $version | awk -F- '{ print $1 }')
 		ocf_version_cmp "$version" "1.1.8"
 		if [ $? -eq 2 ]; then
@@ -672,6 +672,40 @@ EOF
 	systemctl daemon-reload
 }
 
+# usage: curl_retry RETRIES SLEEP ARGS URL
+#
+# Use --show-error in ARGS to log HTTP error code
+#
+# returns:
+#    0  success
+# exit:
+#    1  fail
+curl_retry()
+{
+	local retries=$1 sleep=$2 opts=$3 url=$4
+	local tries=$(($retries + 1))
+	local args="--fail $opts $url"
+	local result rc
+
+	for try in $(seq $tries); do
+		ocf_log debug "curl $args try $try of $tries"
+		result=$(echo "$args" | xargs curl 2>&1)
+		rc=$?
+
+		ocf_log debug "result: $result"
+		[ $rc -eq 0 ] && break
+		sleep $sleep
+	done
+
+	if [ $rc -ne 0 ]; then
+		ocf_exit_reason "curl $args failed $tries tries"
+		exit $OCF_ERR_GENERIC
+	fi
+
+	echo "$result"
+	return $rc
+}
+
 # move process to root cgroup if realtime scheduling is enabled
 ocf_move_to_root_cgroup_if_rt_enabled()
 {
@@ -694,8 +728,14 @@ ocf_move_to_root_cgroup_if_rt_enabled()
 crm_mon_no_validation()
 {
 	# The subshell prevents parsing error with incompatible shells
-	"$SHELL" -c "CIB_file=<(${HA_SBIN_DIR}/cibadmin -Q | sed 's/validate-with=\"[^\"]*\"/validate-with=\"none\"/') \
-	${HA_SBIN_DIR}/crm_mon \$*" -- $*
+	ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.19.7"
+	if [ $res -eq 2 ] || [ $res -eq 1 ]; then
+		"$SHELL" -c "CIB_file=<(${HA_SBIN_DIR}/cibadmin -Q \
+			${HA_SBIN_DIR}/crm_mon \$*" -- $*
+	else
+		"$SHELL" -c "CIB_file=<(${HA_SBIN_DIR}/cibadmin -Q | sed 's/validate-with=\"[^\"]*\"/validate-with=\"none\"/') \
+			${HA_SBIN_DIR}/crm_mon \$*" -- $*
+	fi
 }
 
 #

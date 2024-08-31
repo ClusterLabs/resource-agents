@@ -503,6 +503,12 @@ AC_SUBST(PING)
 AC_SUBST(RM)
 AC_SUBST(TEST)
 
+AM_PATH_PYTHON([3.6])
+if test -z "$PYTHON"; then
+    echo "*** Essential program python not found" 1>&2
+    exit 1
+fi
+
 dnl Ensure PYTHON is an absolute path
 AC_PATH_PROG([PYTHON], [$PYTHON])
 
@@ -513,8 +519,10 @@ fi
 
 AC_PYTHON_MODULE(json)
 AC_PYTHON_MODULE(pyroute2)
+AC_PYTHON_MODULE(requests)
+AC_PYTHON_MODULE(urllib3)
 
-AS_VERSION_COMPARE([$PYTHON_VERSION], [2.7], [BUILD_OCF_PY=0], [BUILD_OCF_PY=1], [BUILD_OCF_PY=1])
+AS_VERSION_COMPARE([$PYTHON_VERSION], [3.6], [BUILD_OCF_PY=0], [BUILD_OCF_PY=1], [BUILD_OCF_PY=1])
 
 BUILD_AZURE_EVENTS=1
 if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0; then
@@ -550,6 +558,13 @@ if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0; then
     AC_MSG_WARN("Not building gcp-vpc-move-vip")
 fi
 AM_CONDITIONAL(BUILD_GCP_VPC_MOVE_VIP, test $BUILD_GCP_VPC_MOVE_VIP -eq 1)
+
+BUILD_POWERVS_SUBNET=1
+if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0 || test "x${HAVE_PYMOD_REQUESTS}" != xyes || test "x${HAVE_PYMOD_URLLIB3}" != xyes; then
+    BUILD_POWERVS_SUBNET=0
+    AC_MSG_WARN("Not building powervs-subnet")
+fi
+AM_CONDITIONAL(BUILD_POWERVS_SUBNET, test $BUILD_POWERVS_SUBNET -eq 1)
 
 AC_PATH_PROGS(ROUTE, route)
 AC_DEFINE_UNQUOTED(ROUTE, "$ROUTE", path to route command)
@@ -899,7 +914,7 @@ dnl System specific options
 	   enable_fatal_warnings=no
         fi
 
-	if test "x${enable_ansi}" != xno && cc_supports_flag -std=iso9899:199409 ; then
+	if test "x${enable_ansi}" = xyes && cc_supports_flag -std=iso9899:199409; then
 	  AC_MSG_NOTICE(Enabling ANSI Compatibility)
 	  CC_EXTRAS="$CC_EXTRAS -ansi -D_GNU_SOURCE -DANSI_ONLY"
 	fi
@@ -1012,6 +1027,7 @@ AC_CONFIG_FILES([heartbeat/mariadb], [chmod +x heartbeat/mariadb])
 AC_CONFIG_FILES([heartbeat/mpathpersist], [chmod +x heartbeat/mpathpersist])
 AC_CONFIG_FILES([heartbeat/nfsnotify], [chmod +x heartbeat/nfsnotify])
 AC_CONFIG_FILES([heartbeat/openstack-info], [chmod +x heartbeat/openstack-info])
+AC_CONFIG_FILES([heartbeat/powervs-subnet], [chmod +x heartbeat/powervs-subnet])
 AC_CONFIG_FILES([heartbeat/rabbitmq-cluster], [chmod +x heartbeat/rabbitmq-cluster])
 AC_CONFIG_FILES([heartbeat/redis], [chmod +x heartbeat/redis])
 AC_CONFIG_FILES([heartbeat/rsyslog], [chmod +x heartbeat/rsyslog])

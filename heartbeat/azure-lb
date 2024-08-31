@@ -24,9 +24,13 @@ else
 fi
 
 OCF_RESKEY_port_default="61000"
+OCF_RESKEY_listen_default="default"
+
+[ "$(cat /sys/module/ipv6/parameters/disable)" = "1" ] && OCF_RESKEY_listen_default="ipv4only"
 
 : ${OCF_RESKEY_nc=${OCF_RESKEY_nc_default}}
 : ${OCF_RESKEY_port=${OCF_RESKEY_port_default}}
+: ${OCF_RESKEY_listen=${OCF_RESKEY_listen_default}}
 
 process="$OCF_RESOURCE_INSTANCE"
 pidfile="/var/run/$OCF_RESOURCE_INSTANCE.pid"
@@ -73,6 +77,25 @@ Port to listen to.
 <content type="string" default="${OCF_RESKEY_port_default}"/>
 </parameter>
 
+<parameter name="listen">
+<longdesc lang="en">
+This parameter can have following walues:
+default: Neither -4 nor -6 will be used. The default behavior of socat and nc will be used.
+         socat: Listen only on IPv4 addresses
+         nc: If net.ipv6.bindv6only = 0 => Listen on both IPv4 and IP6 addresses
+             If net.ipv6.bindv6only = 1 => Listen only on IPv4 addresses
+ipv4only: Listen only on IPv4 addresses.
+ipv6enable: Enable TCP6 support.
+         nc: Listen only on IPv6 addresses independent of net.ipv6.bindv6only
+	 socat: If net.ipv6.bindv6only = 0 => Listen on both IPv4 and IP6 addresses.
+                If net.ipv6.bindv6only = 1 => Listen only on IPv6 addresses.
+</longdesc>
+<shortdesc lang="en">Usage of IPv4 and IPv6 addresses.</shortdesc>
+<content type="string" default="${OCF_RESKEY_listen_default}"/>
+</parameter>
+
+
+
 </parameters>
 
 <actions>
@@ -111,10 +134,24 @@ lb_monitor() {
 }
 
 lb_start() {
-	cmd="$OCF_RESKEY_nc -l -k $OCF_RESKEY_port"
-	if [ $( basename $OCF_RESKEY_nc ) = 'socat' ]; then
-		#socat has different parameters
-		cmd="$OCF_RESKEY_nc -U TCP-LISTEN:$OCF_RESKEY_port,backlog=10,fork,reuseaddr /dev/null"
+	if [ "$( basename $OCF_RESKEY_nc )" = 'socat' ]; then
+		case "${OCF_RESKEY_listen,,}" in
+			ipv4only)
+				cmd="$OCF_RESKEY_nc -4 -U TCP4-LISTEN:$OCF_RESKEY_port,backlog=10,fork,reuseaddr /dev/null" ;;
+			ipv6enable)
+				cmd="$OCF_RESKEY_nc -U TCP6-LISTEN:$OCF_RESKEY_port,backlog=10,fork,reuseaddr /dev/null" ;;
+			*)
+				cmd="$OCF_RESKEY_nc -U TCP-LISTEN:$OCF_RESKEY_port,backlog=10,fork,reuseaddr /dev/null" ;;
+		esac
+	else
+		case "${OCF_RESKEY_listen,,}" in
+			ipv4only)
+				cmd="$OCF_RESKEY_nc -4 -l -k $OCF_RESKEY_port" ;;
+			ipv6enable)
+				cmd="$OCF_RESKEY_nc -6 -l -k $OCF_RESKEY_port" ;;
+			*)
+				cmd="$OCF_RESKEY_nc -l -k $OCF_RESKEY_port" ;;
+		esac
 	fi
 	if ! lb_monitor; then
 		ocf_log debug "Starting $process: $cmd"

@@ -299,7 +299,6 @@ Use it with caution! (and fencing)
 <action name="status" timeout="60s" />
 <action name="monitor" depth="0" timeout="30s" interval="20s" />
 <action name="monitor" role="Promoted" depth="0" timeout="30s" interval="10s" />
-<action name="monitor" role="Unpromoted" depth="0" timeout="30s" interval="30s" />
 <action name="promote" timeout="300s" />
 <action name="demote" timeout="120s" />
 <action name="validate-all" timeout="5s" />
@@ -447,7 +446,7 @@ is_two_node_mode_active()
     # crm_node or corosync-quorumtool cannot access various corosync
     # flags when running inside a bundle, so only count the cluster
     # members
-    ocf_is_true "$OCF_RESKEY_two_node_mode" && crm_mon_no_validation -1X | xmllint --xpath "count(//nodes/node[@type='member'])" - | grep -q -w 2
+    ocf_is_true "$OCF_RESKEY_two_node_mode" && crm_mon_no_validation -1 $XMLOPT | xmllint --xpath "count(//nodes/node[@type='member'])" - | grep -q -w 2
 }
 
 is_last_node_in_quorate_partition()
@@ -458,7 +457,7 @@ is_last_node_in_quorate_partition()
     # is clean), we shouldn't consider ourself quorate.
     local partition_members=$(${HA_SBIN_DIR}/crm_node -p | wc -w)
     local quorate=$(${HA_SBIN_DIR}/crm_node -q)
-    local clean_members=$(crm_mon_no_validation -1X | xmllint --xpath 'count(//nodes/node[@type="member" and @unclean="false"])' -)
+    local clean_members=$(crm_mon_no_validation -1 $XMLOPT | xmllint --xpath 'count(//nodes/node[@type="member" and @unclean="false"])' -)
 
     [ "$partition_members" = 1 ] && [ "$quorate" = 1 ] && [ "$clean_members" = 2 ]
 }
@@ -474,20 +473,6 @@ master_exists()
         return 1
     fi
     # determine if a master instance is already up and is healthy
-    ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.1.0"
-    res=$?
-    if [ -z "$OCF_RESKEY_crm_feature_set" ] || [ $res -eq 2 ]; then
-        XMLOPT="--output-as=xml"
-        ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.2.0"
-        if [ $? -eq 1 ]; then
-            crm_mon_no_validation -1 $XMLOPT >/dev/null 2>&1
-            if [ $? -ne 0 ]; then
-                XMLOPT="--as-xml"
-            fi
-        fi
-    else
-        XMLOPT="--as-xml"
-    fi
     crm_mon_no_validation -1 $XMLOPT | grep -q -i -E "resource.*id=\"${INSTANCE_ATTR_NAME}\".*role=\"(Promoted|Master)\".*active=\"true\".*orphaned=\"false\".*failed=\"false\""
     return $?
 }
@@ -822,6 +807,11 @@ galera_promote()
         return $rc
     fi
 
+    # At this point, the mysql pidfile is created on disk and the
+    # mysql server is reacheable via its UNIX socket. If we are a
+    # joiner, SST transfers (rsync) have finished, but an IST may
+    # still be requested or ongoing
+
     galera_monitor
     rc=$?
     if [ $rc != $OCF_SUCCESS -a $rc != $OCF_RUNNING_MASTER ]; then
@@ -832,12 +822,6 @@ galera_promote()
     is_readonly
     if [ $? -eq 0 ]; then
         ocf_exit_reason "Failure. Master instance started in read-only mode, check configuration."
-        return $OCF_ERR_GENERIC
-    fi
-
-    is_primary
-    if [ $? -ne 0 ]; then
-        ocf_exit_reason "Failure. Master instance started, but is not in Primary mode."
         return $OCF_ERR_GENERIC
     fi
 
@@ -991,8 +975,18 @@ galera_monitor()
         fi
         rc=$OCF_RUNNING_MASTER
     else
-        ocf_exit_reason "local node <${NODENAME}> is started, but not in primary mode. Unknown state."
-        rc=$OCF_ERR_GENERIC
+        # It seems that with recent galera (26.4+), a joiner that is
+        # connected to a Primary component and is preparing its IST
+        # request might still temporarily report its state as
+        # Non-Primary.  Do not fail in this case as the promote
+        # operation will loop until the IST finishes or the promote
+        # times out.
+        if [ "$__OCF_ACTION" = "promote" ] && ! ocf_is_true $(is_bootstrap); then
+                ocf_log info "local node <${NODENAME}> is receiving a State Transfer."
+        else
+            ocf_exit_reason "local node <${NODENAME}> is started, but not in primary mode. Unknown state."
+            rc=$OCF_ERR_GENERIC
+        fi
     fi
 
     return $rc
@@ -1078,6 +1072,20 @@ if [ -n "${MYSQL_PORT}" ]; then
     MYSQL_OPTIONS_CHECK="$MYSQL_OPTIONS_CHECK -P ${MYSQL_PORT}"
 fi
 
+ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.1.0"
+res=$?
+if [ -z "$OCF_RESKEY_crm_feature_set" ] || [ $res -eq 2 ]; then
+    XMLOPT="--output-as=xml"
+    ocf_version_cmp "$OCF_RESKEY_crm_feature_set" "3.2.0"
+    if [ $? -eq 1 ]; then
+        crm_mon_no_validation -1 $XMLOPT >/dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            XMLOPT="--as-xml"
+        fi
+    fi
+else
+    XMLOPT="--as-xml"
+fi
 
 
 # What kind of method was invoked?

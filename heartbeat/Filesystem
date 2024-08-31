@@ -582,10 +582,16 @@ Filesystem_start()
 	fi
 
 	# See if the device is already mounted.
-	if Filesystem_status >/dev/null 2>&1 ; then
-		ocf_log info "Filesystem $MOUNTPOINT is already mounted."
-		return $OCF_SUCCESS
-	fi
+	Filesystem_status
+	case "$?" in
+		$OCF_SUCCESS)
+			ocf_log info "Filesystem $MOUNTPOINT is already mounted."
+			return $OCF_SUCCESS
+			;;
+		$OCF_ERR_CONFIGURED)
+			return $OCF_ERR_CONFIGURED
+			;;
+	esac
 
 	fstype_supported || exit $OCF_ERR_INSTALLED
 
@@ -655,10 +661,12 @@ get_pids()
 	fi
 
 	if ocf_is_true  "$FORCE_UNMOUNT"; then
-		if [ "X${HOSTOS}" = "XOpenBSD" ];then
+		if [ "X${HOSTOS}" = "XOpenBSD" ]; then
 			fstat | grep $dir | awk '{print $3}'
+		elif [ "X${HOSTOS}" = "XFreeBSD" ]; then
+			$FUSER -c $dir 2>/dev/null
 		else
-			$FUSER -m $dir 2>/dev/null
+			$FUSER -Mm $dir 2>/dev/null
 		fi
 	elif [ "$FORCE_UNMOUNT" = "safe" ]; then
 		procs=$(find /proc/[0-9]*/ -type l -lname "${dir}/*" -or -lname "${dir}" 2>/dev/null | awk -F/ '{print $3}')
@@ -801,10 +809,42 @@ Filesystem_stop()
 #
 Filesystem_status()
 {
-	match_string="${TAB}${CANONICALIZED_MOUNTPOINT}${TAB}"
-	if list_mounts | grep "$match_string" >/dev/null 2>&1; then
-		rc=$OCF_SUCCESS
-		msg="$MOUNTPOINT is mounted (running)"
+	local match_string="${TAB}${CANONICALIZED_MOUNTPOINT}${TAB}"
+	local mounted_device=$(list_mounts | grep "$match_string" | awk '{print $1}')
+
+	if [ -n "$mounted_device" ]; then
+		if [ "X$blockdevice" = "Xyes" ]; then
+			if [ -e "$DEVICE" ] ; then
+				local canonicalized_device="$(readlink -f "$DEVICE")"
+				if [ $? -ne 0 ]; then
+					ocf_exit_reason "Could not canonicalize $DEVICE because readlink failed"
+					exit $OCF_ERR_GENERIC
+				fi
+			else
+				local canonicalized_device="$DEVICE"
+			fi
+			if [ -e "$mounted_device" ] ; then
+				local canonicalized_mounted_device="$(readlink -f "$mounted_device")"
+				if [ $? -ne 0 ]; then
+					ocf_exit_reason "Could not canonicalize $mounted_device because readlink failed"
+					exit $OCF_ERR_GENERIC
+				fi
+			else
+				local canonicalized_mounted_device="$mounted_device"
+			fi
+			if [ "$canonicalized_device" != "$canonicalized_mounted_device" ]; then
+				if ocf_is_probe || [ "$__OCF_ACTION" = "stop" ]; then
+					ocf_log debug "Another device ($mounted_device) is already mounted on $MOUNTPOINT"
+					rc=$OCF_NOT_RUNNING
+				else
+					ocf_exit_reason "Another device ($mounted_device) is already mounted on $MOUNTPOINT"
+					rc=$OCF_ERR_CONFIGURED
+				fi
+			fi
+		else
+			rc=$OCF_SUCCESS
+			msg="$MOUNTPOINT is mounted (running)"
+		fi
 	else
 		rc=$OCF_NOT_RUNNING
 		msg="$MOUNTPOINT is unmounted (stopped)"
@@ -972,7 +1012,7 @@ set_blockdevice_var() {
 		blockdevice=yes
 		;;
 	*)
-		if [ ! -b "$DEVICE"  -a ! -d "$DEVICE" -a "X$OP" != Xstart ] ; then
+		if [ ! -b "$DEVICE"  -a ! -d "$DEVICE" -a "X$OP" != Xstart ] && ! ocf_is_probe ; then
 			ocf_log warn "Couldn't find device [$DEVICE]. Expected /dev/??? to exist"
 		fi
 		if [ ! -d "$DEVICE" ]; then
@@ -995,6 +1035,13 @@ if [ -n "${OCF_RESKEY_force_unmount}" ]; then
 fi
 
 DEVICE="$OCF_RESKEY_device"
+case "$DEVICE" in
+	[[:space:]]*|*[[:space:]])
+		[ "$__OCF_ACTION" = "stop" ] && exit $OCF_SUCCESS
+		ocf_exit_reason "device parameter does not accept leading or trailing whitespace characters"
+		exit $OCF_ERR_CONFIGURED
+		;;
+esac
 FSTYPE=$OCF_RESKEY_fstype
 if [ ! -z "$OCF_RESKEY_options" ]; then
 	options="-o $OCF_RESKEY_options"
@@ -1032,6 +1079,13 @@ if [ -z "$OCF_RESKEY_directory" ]; then
 else
 	MOUNTPOINT="$(echo "$OCF_RESKEY_directory" | sed 's/\/*$//')"
 	: ${MOUNTPOINT:=/}
+	case "$MOUNTPOINT" in
+		[[:space:]]*|*[[:space:]])
+			[ "$__OCF_ACTION" = "stop" ] && exit $OCF_SUCCESS
+			ocf_exit_reason "directory parameter does not accept leading or trailing whitespace characters"
+			exit $OCF_ERR_CONFIGURED
+			;;
+	esac
 	if [ -e "$MOUNTPOINT" ] ; then
 		CANONICALIZED_MOUNTPOINT="$(readlink -f "$MOUNTPOINT")"
 		if [ $? -ne 0 ]; then
@@ -1041,9 +1095,18 @@ else
 	else
 		CANONICALIZED_MOUNTPOINT="$MOUNTPOINT"
 	fi
-	# At this stage, $MOUNTPOINT does not contain trailing "/" unless it is "/"
-	# TODO: / mounted via Filesystem sounds dangerous. On stop, we'll
-	# kill the whole system. Is that a good idea?
+
+	if echo "$CANONICALIZED_MOUNTPOINT" | grep -q "^\s*/\s*$"; then
+		if ocf_is_probe; then
+			ocf_log debug "/ cannot be managed in a cluster"
+			exit $OCF_NOT_RUNNING
+		elif [ "$__OCF_ACTION" = "start" ] || [ "$__OCF_ACTION" = "monitor" ] || [ "$__OCF_ACTION" = "status" ]; then
+			ocf_exit_reason "/ cannot be managed in a cluster"
+			exit $OCF_ERR_CONFIGURED
+		elif [ "$__OCF_ACTION" = "stop" ]; then
+			exit $OCF_SUCCESS
+		fi
+	fi
 fi
 
 # Check to make sure the utilites are found
@@ -1124,5 +1187,3 @@ case $OP in
 		;;
 	esac
 exit $?
-
-
