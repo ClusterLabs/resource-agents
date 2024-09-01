@@ -746,11 +746,73 @@ ip_status() {
     return $rc;
 }
 
+nic_monitor() {
+        grep -r bonding /etc/modprobe.d/ | grep "$NIC" | grep ^[^#]
+        if [ "$?" -eq 0 ];then
+                BB=`ls /etc/sysconfig/network-scripts/ifcfg-*`
+                bb_n=0
+                bb_m=0
+                for AA in $BB;do
+                        cat $AA | grep "$NIC" | grep "MASTER" | grep ^[^#]
+                        if [ "$?" -eq 0 ];then
+                                let bb_n=$bb_n+1
+                                NIC_n=`echo $AA |awk -F- '{print $3}'`
+                                ifconfig $NIC_n | grep "UP"
+                                rc=$?
+                                if [ "$rc" -ge 1 ];then
+                                        let bb_m=$bb_m+1
+                                else
+                                        nic_status=`ethtool "$NIC_n" | grep "Link detected" | awk -F": " '{print $2}'`
+                                        case "$nic_status" in
+                                                *no)
+                                                        let bb_m=$bb_m+1;;
+                                        esac
+                                fi
+                        fi
+                done
+                if [ "$bb_n" = "$bb_m" ];then
+                        return $OCF_ERR_GENERIC
+                else
+                        return $OCF_SUCCESS
+                fi
+
+        else
+                ifconfig $NIC | grep "UP"
+                rc=$?
+                if [ "$rc" -ge 1 ];then
+                        return $OCF_ERR_GENERIC
+                else
+                        nic_status=`ethtool "$NIC" | grep "Link detected" | awk -F": " '{print $2}'`
+                        case "$nic_status" in
+                        *yes)
+                                return $OCF_SUCCESS;;
+                        *no)
+                                return $OCF_ERR_GENERIC;;
+                        esac
+                fi
+        fi
+}
+
 #
 #	Determine if this IP address is really being served, or not.
 #	Note that we must distinguish if *we're* serving it locally...
 #
 ip_monitor() {
+	case "$OCF_CHECK_LEVEL" in
+                0)
+                        ;;
+                10)
+                        nic_monitor
+                        if [ $? -ne 0 ] ;
+                        then
+                                ocf_exit_reason $OCF_ERR_GENERIC
+                        fi
+                        ;;
+                *)
+                        ocf_exit_reason "unsupported monitor level $OCF_CHECK_LEVEL"
+            return $OCF_ERR_CONFIGURED
+                        ;;
+        esac
     ip_status_internal
     rc=$?
 
