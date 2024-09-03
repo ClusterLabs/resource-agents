@@ -278,8 +278,8 @@ srca_start() {
 			errorexit "command 'ip route replace $TABLE $NETWORK dev $INTERFACE $PROTO src $1 $METRIC $PREF' failed"
 
 		if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] || [ "$OCF_RESKEY_destination" = "::/0" ]; then
-			$CMDCHANGE $ROUTE_WO_SRC $PROTO src $1 || \
-				errorexit "command '$CMDCHANGE $ROUTE_WO_SRC $PROTO src $1' failed"
+			$CMDCHANGE $ROUTE_WO_SRC dev $INTERFACE $PROTO src $1 || \
+				errorexit "command '$CMDCHANGE $ROUTE_WO_SRC dev $INTERFACE $PROTO src $1' failed"
 		fi
 		rc=$?
 	fi
@@ -322,8 +322,8 @@ srca_stop() {
 		errorexit "command 'ip route replace $TABLE $NETWORK dev $INTERFACE $OPTS $METRIC $PREF' failed"
 
 	if [ "$OCF_RESKEY_destination" = "0.0.0.0/0" ] || [ "$OCF_RESKEY_destination" = "::/0" ]; then
-		$CMDCHANGE $ROUTE_WO_SRC proto static || \
-			errorexit "command '$CMDCHANGE $ROUTE_WO_SRC proto static' failed"
+		$CMDCHANGE $ROUTE_WO_SRC dev $INTERFACE proto static || \
+			errorexit "command '$CMDCHANGE $ROUTE_WO_SRC dev $INTERFACE proto static' failed"
 	fi
 
 	return $?
