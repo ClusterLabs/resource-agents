@@ -685,12 +685,13 @@ signal_processes() {
 	pids=$(get_pids "$dir")
 	if [ -z "$pids" ]; then
 		ocf_log info "No processes on $dir were signalled. force_unmount is set to '$FORCE_UNMOUNT'"
-		return
+		return 1
 	fi
 	for pid in $pids; do
 		ocf_log info "sending signal $sig to: $(ps -f $pid | tail -1)"
 		kill -s $sig $pid
 	done
+	return 0
 }
 try_umount() {
 	local SUB="$1"
@@ -717,12 +718,13 @@ timeout_child() {
 	return $ret
 }
 fs_stop_loop() {
-	local SUB="$1" signals="$2" sig
+	local SUB="$1" signals="$2" sig send_signal
 	while true; do
+		send_signal=false
 		for sig in $signals; do
-			signal_processes "$SUB" $sig
+			signal_processes "$SUB" $sig && send_signal=true
 		done
-		sleep $OCF_RESKEY_signal_delay
+		$send_signal && sleep $OCF_RESKEY_signal_delay
 		try_umount "$SUB" && return $OCF_SUCCESS
 	done
 }
