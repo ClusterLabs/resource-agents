@@ -265,6 +265,7 @@ class PowerCloudAPI:
     """Provides methods to manage Power Virtual Server resources through its REST API."""
 
     _URL_IAM_GLOBAL = "https://iam.cloud.ibm.com/identity/token"
+    _URL_IAM_PRIVATE = "https://private.iam.cloud.ibm.com/identity/token"
     _URL_API_PUBLIC = "https://{}.power-iaas.cloud.ibm.com"
     _URL_API_PRIVATE = "https://private.{}.power-iaas.cloud.ibm.com"
     _URL_API_BASE = "/pcloud/v1/cloud-instances/{}"
@@ -382,7 +383,7 @@ class PowerCloudAPI:
     def _set_token(self):
         """Use the stored API key to obtain an IBM Cloud IAM access token."""
 
-        url = self._URL_IAM_GLOBAL
+        url = self._URL_IAM
 
         headers = {
             "content-type": "application/x-www-form-urlencoded",
@@ -671,6 +672,9 @@ class PowerCloudAPI:
             self._URL_API_PRIVATE if api_type == "private" else self._URL_API_PUBLIC
         )
         self._url = url_api_fmt.format(self._res_options["region"])
+        self._URL_IAM = (
+            self._URL_IAM_PRIVATE if api_type == "private" else self._URL_IAM_GLOBAL
+        )
         self._base = self._URL_API_BASE.format(self._cloud_instance_id)
         self._session = None
 
@@ -965,14 +969,13 @@ def main():
         Install with @server group to ensure that NetworkManager settings are correct.
         Verify that the NetworkManager-config-server package is installed.
 
-        2. IBM Cloud API Key:
+        2. A two-node cluster that is distributed across two different Power Virtual Server workspaces in two data centers in a region.
+
+        3. IBM Cloud API Key:
         Create a service API key that is privileged for both Power Virtual Server
         workspaces. Save the service API key in a file and copy the file to both
         cluster nodes. Use same filename and directory location on both cluster nodes.
         Reference the path to the key file in the resource definition.
-
-        3. The hostname of the virtual server instances must be same as the name
-        of the virtual server instances in the Power Virtual Server workspaces.
 
         For comprehensive documentation on implementing high availability for
         SAP applications on IBM Power Virtual Server, visit https://cloud.ibm.com/docs/sap?topic=sap-ha-overview.
@@ -982,7 +985,7 @@ def main():
         "powervs-subnet",
         shortdesc="Manages moving a Power Virtual Server subnet",
         longdesc=agent_description,
-        version=1.03,
+        version=1.04,
     )
 
     agent.add_parameter(
