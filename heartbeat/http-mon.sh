@@ -76,7 +76,7 @@ userdefined() {
 # find a good http client
 #
 findhttpclient() {
-	# prefer wget (for historical reasons)
+	# prefer curl (see b2ca07d)
 	if [ "x$CLIENT" != x ] && which "$CLIENT" >/dev/null 2>&1; then
 		echo "$CLIENT"
 	elif which curl >/dev/null 2>&1; then
