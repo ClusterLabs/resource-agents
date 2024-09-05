@@ -22,7 +22,7 @@ if ocf_is_true "$OCF_RESKEY_use_ipv6" || echo "$STATUSURL" | grep -qs "::"; then
 	curl_ipv6_opts="-g"
 fi
 WGETOPTS="-O- -q --no-proxy --bind-address=$bind_address"
-CURLOPTS="-o - -Ss -L --interface lo $curl_ipv6_opts"
+CURLOPTS="-o - -Ss -L --noproxy '*' --interface $bind_address $curl_ipv6_opts"
 
 request_url_header() {
 	which curl >/dev/null 2>&1
@@ -76,7 +76,7 @@ userdefined() {
 # find a good http client
 #
 findhttpclient() {
-	# prefer wget (for historical reasons)
+	# prefer curl (see b2ca07d)
 	if [ "x$CLIENT" != x ] && which "$CLIENT" >/dev/null 2>&1; then
 		echo "$CLIENT"
 	elif which curl >/dev/null 2>&1; then
