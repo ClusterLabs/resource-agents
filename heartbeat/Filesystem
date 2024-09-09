@@ -694,8 +694,8 @@ signal_processes() {
 	return 0
 }
 try_umount() {
-	local SUB="$1"
-	$UMOUNT $umount_force "$SUB"
+	local force_arg="$1" SUB="$2"
+	$UMOUNT $force_arg "$SUB"
 	list_mounts | grep "${TAB}${SUB}${TAB}" >/dev/null 2>&1 || {
 		ocf_log info "unmounted $SUB successfully"
 		return $OCF_SUCCESS
@@ -718,14 +718,14 @@ timeout_child() {
 	return $ret
 }
 fs_stop_loop() {
-	local SUB="$1" signals="$2" sig send_signal
+	local force_arg="$1" SUB="$2" signals="$3" sig send_signal
 	while true; do
 		send_signal=false
 		for sig in $signals; do
 			signal_processes "$SUB" $sig && send_signal=true
 		done
 		$send_signal && sleep $OCF_RESKEY_signal_delay
-		try_umount "$SUB" && return $OCF_SUCCESS
+		try_umount "$force_arg" "$SUB" && return $OCF_SUCCESS
 	done
 }
 fs_stop() {
@@ -733,13 +733,13 @@ fs_stop() {
 	grace_time=$((timeout/2))
 
 	# try gracefully terminating processes for up to half of the configured timeout
-	fs_stop_loop "$SUB" "$OCF_RESKEY_term_signals" &
+	fs_stop_loop "" "$SUB" "$OCF_RESKEY_term_signals" &
 	timeout_child $! $grace_time
 	ret=$?
 	[ $ret -eq $OCF_SUCCESS ] && return $ret
 
 	# try killing them for the rest of the timeout
-	fs_stop_loop "$SUB" "$OCF_RESKEY_kill_signals" &
+	fs_stop_loop "$umount_force" "$SUB" "$OCF_RESKEY_kill_signals" &
 	timeout_child $! $grace_time
 	ret=$?
 	[ $ret -eq $OCF_SUCCESS ] && return $ret
