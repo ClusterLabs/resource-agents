@@ -254,6 +254,13 @@ remove_container()
 	ocf_run podman rm -v $CONTAINER
 	rc=$?
 	if [ $rc -ne 0 ]; then
+		if [ $rc -eq 2 ]; then
+			if podman inspect --format '{{.State.Status}}' $CONTAINER | grep -wq "stopping"; then
+				ocf_log err "Inactive container ${CONTAINER} is stuck in 'stopping' state. Force-remove it."
+				ocf_run podman rm -f $CONTAINER
+				rc=$?
+			fi
+		fi
 		# due to a podman bug (rhbz#1841485), sometimes a stopped
 		# container can still be associated with Exec sessions, in
 		# which case the "podman rm" has to be forced
@@ -517,8 +524,8 @@ podman_stop()
 		# but the associated container exit code is -1. If that's the case,
 		# assume there's no failure and continue with the rm as usual.
 		if [ $rc -eq 125 ] && \
-		   podman inspect --format '{{.State.Status}}:{{.State.ExitCode}}' $CONTAINER | grep -wq "stopped:-1"; then
-			ocf_log warn "Container ${CONTAINER} had an unexpected stop outcome. Trying to remove it anyway."
+			podman inspect --format '{{.State.Status}}:{{.State.ExitCode}}' $CONTAINER | grep -Eq '^(exited|stopped):-1$'; then
+			ocf_log err "Container ${CONTAINER} had an unexpected stop outcome. Trying to remove it anyway."
 		else
 			ocf_exit_reason "Failed to stop container, ${CONTAINER}, based on image, ${OCF_RESKEY_image}."
 			return $OCF_ERR_GENERIC
