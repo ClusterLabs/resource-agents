@@ -113,7 +113,13 @@ exit $OCF_SUCCESS
 if [ -r "$OCF_RESKEY_binpath" -a -x "$OCF_RESKEY_binpath" ]; then
 	COMMAND="$OCF_RESKEY_binpath"
 else
+	OCF_RESKEY_binpath="$OCF_RESKEY_binpath_default"
 	COMMAND="$OCF_RESKEY_binpath_default"
+fi
+
+if ! $COMMAND -v 2>&1 | grep -q "^docker-compose version 1\."; then
+	OCF_RESKEY_binpath="${OCF_RESKEY_binpath%%-compose}"
+	COMMAND="$OCF_RESKEY_binpath compose"
 fi
 
 DIR="$OCF_RESKEY_dirpath"
