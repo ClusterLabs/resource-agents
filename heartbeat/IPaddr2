@@ -72,8 +72,8 @@
 OCF_RESKEY_ip_default=""
 OCF_RESKEY_cidr_netmask_default=""
 OCF_RESKEY_broadcast_default=""
+OCF_RESKEY_proto_default=""
 OCF_RESKEY_iflabel_default=""
-OCF_RESKEY_cidr_netmask_default=""
 OCF_RESKEY_lvs_support_default=false
 OCF_RESKEY_lvs_ipv6_addrlabel_default=true
 OCF_RESKEY_lvs_ipv6_addrlabel_value_default=99
@@ -96,6 +96,7 @@ OCF_RESKEY_network_namespace_default=""
 : ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
 : ${OCF_RESKEY_cidr_netmask=${OCF_RESKEY_cidr_netmask_default}}
 : ${OCF_RESKEY_broadcast=${OCF_RESKEY_broadcast_default}}
+: ${OCF_RESKEY_proto=${OCF_RESKEY_proto_default}}
 : ${OCF_RESKEY_iflabel=${OCF_RESKEY_iflabel_default}}
 : ${OCF_RESKEY_lvs_support=${OCF_RESKEY_lvs_support_default}}
 : ${OCF_RESKEY_lvs_ipv6_addrlabel=${OCF_RESKEY_lvs_ipv6_addrlabel_default}}
@@ -117,6 +118,8 @@ OCF_RESKEY_network_namespace_default=""
 : ${OCF_RESKEY_network_namespace=${OCF_RESKEY_network_namespace_default}}
 
 #######################################################################
+
+[ -z "$OCF_RESKEY_proto" ] && proto="" || proto="proto $OCF_RESKEY_proto"
 
 SENDARP=$HA_BIN/send_arp
 SENDUA=$HA_BIN/send_ua
@@ -222,6 +225,14 @@ bits of the interface prefix.
 </longdesc>
 <shortdesc lang="en">Broadcast address</shortdesc>
 <content type="string" default="${OCF_RESKEY_broadcast_default}"/>
+</parameter>
+
+<parameter name="proto">
+<longdesc lang="en">
+Proto to match when finding network. E.g. "kernel".
+</longdesc>
+<shortdesc lang="en">Proto</shortdesc>
+<content type="string" default="${OCF_RESKEY_proto_default}" />
 </parameter>
 
 <parameter name="iflabel">
