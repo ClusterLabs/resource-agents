@@ -669,9 +669,26 @@ get_pids()
 			$FUSER -Mm $dir 2>/dev/null
 		fi
 	elif [ "$FORCE_UNMOUNT" = "safe" ]; then
-		procs=$(find /proc/[0-9]*/ -type l -lname "${dir}/*" -or -lname "${dir}" 2>/dev/null | awk -F/ '{print $3}')
-		mmap_procs=$(grep " ${dir}/" /proc/[0-9]*/maps | awk -F/ '{print $3}')
-		printf "${procs}\n${mmap_procs}" | sort | uniq
+		# Yes, in theory, ${dir} could contain "intersting" characters
+		# and would need to be quoted for glob (find) and regex (grep).
+		# Don't do that, then.
+
+		# Avoid /proc/[0-9]*, it may cause "Argument list too long".
+		# There are several ways to filter for /proc/<pid>
+		# -mindepth 1 -not -path "/proc/[0-9]*" -prune -o ...
+		# -path "/proc/[!0-9]*" -prune -o ...
+		# -path "/proc/[0-9]*" -a ...
+		# the latter seemd to be significantly faster for this one in my naive test.
+		procs=$(exec 2>/dev/null;
+			find /proc -path "/proc/[0-9]*" -type l \( -lname "${dir}/*" -o -lname "${dir}" \) -print |
+			awk -F/ '{print $3}' | uniq)
+
+		# This finds both /proc/<pid>/maps and /proc/<pid>/task/<tid>/maps;
+		# if you don't want the latter, add -maxdepth.
+		mmap_procs=$(exec 2>/dev/null;
+			find /proc -path "/proc/[0-9]*/maps" -print |
+			xargs -r grep -l " ${dir}/" | awk -F/ '{print $3}' | uniq)
+		printf "${procs}\n${mmap_procs}" | sort -u
 	fi
 }
 
