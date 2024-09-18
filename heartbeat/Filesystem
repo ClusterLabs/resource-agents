@@ -732,6 +732,11 @@ fs_stop() {
 	local SUB="$1" timeout=$2 grace_time ret
 	grace_time=$((timeout/2))
 
+	# Just walking /proc may take "a long time", even if we don't find any users of this FS.
+	# If dependencies are properly configured, umount should just work.
+	# Only if that fails, try to find and kill processes that still use it.
+	try_umount "" "$SUB" && return $OCF_SUCCESS
+
 	# try gracefully terminating processes for up to half of the configured timeout
 	fs_stop_loop "" "$SUB" "$OCF_RESKEY_term_signals" &
 	timeout_child $! $grace_time
