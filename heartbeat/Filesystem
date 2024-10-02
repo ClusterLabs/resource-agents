@@ -678,17 +678,26 @@ get_pids()
 		# -mindepth 1 -not -path "/proc/[0-9]*" -prune -o ...
 		# -path "/proc/[!0-9]*" -prune -o ...
 		# -path "/proc/[0-9]*" -a ...
-		# the latter seemd to be significantly faster for this one in my naive test.
-		procs=$(exec 2>/dev/null;
-			find /proc -path "/proc/[0-9]*" -type l \( -lname "${dir}/*" -o -lname "${dir}" \) -print |
-			awk -F/ '{print $3}' | uniq)
 
-		# This finds both /proc/<pid>/maps and /proc/<pid>/task/<tid>/maps;
-		# if you don't want the latter, add -maxdepth.
-		mmap_procs=$(exec 2>/dev/null;
-			find /proc -path "/proc/[0-9]*/maps" -print |
-			xargs -r grep -l " ${dir}/" | awk -F/ '{print $3}' | uniq)
-		printf "${procs}\n${mmap_procs}" | sort -u
+		# find can detect relevant symlinks directly using -lname,
+		# but we need to grep the content of maps files.
+		# With many processes, scanning proc may be costly already.
+		# Do that only once, feed the "maps" files to grep via fifo and
+		# xargs, and output the matching symlinks directly.
+		local D
+		D=$(mktemp -d "$HA_RSCTMP/Filesystem.get_pids.safe.XXXXXX")
+		mkfifo "$D/maps"
+		(
+		< "$D/maps" xargs -r grep -l " $dir/" | cut -d/ -f3 | uniq &
+		exec 3> "$D/maps"; # reference for find via /dev/fd/3
+		# both xargs and find now have an open fd,
+		# we can remove the tmpdir and fifo early
+		rm -rf "$D"
+		find /proc -path '/proc/[!0-9]*' -prune -o \
+			-type f -name maps -fprint /dev/fd/3 -o \
+			-type l \( -lname "$dir/*" -o -lname "$dir" \) -print |
+		cut -d/ -f3 | uniq
+		) 2>/dev/null | sort -u
 	fi
 }
 
