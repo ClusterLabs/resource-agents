@@ -196,7 +196,6 @@ findif()
 {
   local match="$OCF_RESKEY_ip"
   local family
-  local proto
   local scope
   local nic="$OCF_RESKEY_nic"
   local netmask="$OCF_RESKEY_cidr_netmask"
