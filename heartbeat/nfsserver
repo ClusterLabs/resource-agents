@@ -947,15 +947,13 @@ nfsserver_stop ()
 			sleep 1
 		  done
 
-		  if ! ocf_is_true "$OCF_RESKEY_nfsv4_only"; then
-			nfs_exec stop rpc-statd > /dev/null 2>&1
-			ocf_log info "Stop: rpc-statd"
-			rpcinfo -t localhost 100024 > /dev/null 2>&1
-			rc=$?
-			if [ "$rc" -eq "0" ]; then
-				ocf_exit_reason "Failed to stop rpc-statd"
-				return $OCF_ERR_GENERIC
-			fi
+		  nfs_exec stop rpc-statd > /dev/null 2>&1
+		  ocf_log info "Stop: rpc-statd"
+		  rpcinfo -t localhost 100024 > /dev/null 2>&1
+		  rc=$?
+		  if [ "$rc" -eq "0" ]; then
+		  	ocf_exit_reason "Failed to stop rpc-statd"
+		  	return $OCF_ERR_GENERIC
 		  fi
 
 		  nfs_exec stop nfs-idmapd > /dev/null 2>&1
