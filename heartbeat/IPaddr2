@@ -985,6 +985,7 @@ run_send_ua() {
 # ok = served (for CIP: + hash bucket)
 # partial = served and no hash bucket (CIP only)
 # partial2 = served and no CIP iptables rule
+# partial3 = served with no label
 # no = nothing
 #
 ip_served() {
@@ -1002,6 +1003,11 @@ ip_served() {
 
 	if [ -z "$IP_CIP" ]; then
 		for i in $cur_nic; do
+                        # check address label
+                        if [ ! -z $IFLABEL -a -z "`$IP2UTIL -o -f $FAMILY addr show $nic label $IFLABEL`" ]; then
+                           echo partial3
+                           return 0
+                        fi
 			# only mark as served when on the same interfaces as $NIC
 			[ "$i" = "$NIC" ] || continue
 			echo "ok"
