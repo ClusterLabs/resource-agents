@@ -662,14 +662,17 @@ systemd_drop_in()
 	systemdrundir="/run/systemd/system/resource-agents-deps.target.d"
 	mkdir -p "$systemdrundir"
 	conf_file="$systemdrundir/$1.conf"
-	cat >"$conf_file" <<EOF
-[Unit]
-$2=$3
-EOF
-	# The information is accessible through systemd API and systemd would
-	# complain about improper permissions.
-	chmod o+r "$conf_file"
-	systemctl daemon-reload
+	conf_line="$2=$3"
+	if ! { [ -f "$conf_file" ] && grep -q "^$conf_line$" "$conf_file" ; } ; then
+		cat > "$conf_file" <<-EOF
+			[Unit]
+			$conf_line
+			EOF
+		# The information is accessible through systemd API and systemd would
+		# complain about improper permissions.
+		chmod o+r "$conf_file"
+		systemctl daemon-reload
+	fi
 }
 
 # usage: curl_retry RETRIES SLEEP ARGS URL
