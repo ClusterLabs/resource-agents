@@ -1004,7 +1004,7 @@ ip_served() {
 	if [ -z "$IP_CIP" ]; then
 		for i in $cur_nic; do
                         # check address label
-                        if [ ! -z $IFLABEL -a -z "`$IP2UTIL -o -f $FAMILY addr show $nic label $IFLABEL`" ]; then
+                        if [ ! -z $IFLABEL ] && [ -z "$IP2UTIL -o -f $FAMILY addr show $nic label $IFLABEL" ]; then
                            echo partial3
                            return 0
                         fi
