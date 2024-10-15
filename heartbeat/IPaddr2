@@ -586,7 +586,7 @@ ip_init() {
 			exit $rc
 		fi
 	fi
-	
+
 	SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$OCF_RESKEY_ip"
 
 	if [ -n "$IFLABEL" ]; then
@@ -985,6 +985,7 @@ run_send_ua() {
 # ok = served (for CIP: + hash bucket)
 # partial = served and no hash bucket (CIP only)
 # partial2 = served and no CIP iptables rule
+# partial3 = served with no label
 # no = nothing
 #
 ip_served() {
@@ -1002,6 +1003,11 @@ ip_served() {
 
 	if [ -z "$IP_CIP" ]; then
 		for i in $cur_nic; do
+			# check address label
+			if [ -n "$IFLABEL" ] && [ -z "`$IP2UTIL -o -f $FAMILY addr show $nic label $IFLABEL`" ]; then
+				echo partial3
+				return 0
+			fi
 			# only mark as served when on the same interfaces as $NIC
 			[ "$i" = "$NIC" ] || continue
 			echo "ok"
@@ -1065,7 +1071,12 @@ ip_start() {
 	if [ "$ip_status" = "ok" ]; then
 		exit $OCF_SUCCESS
 	fi
-	
+
+	if [ "$ip_status" = "partial3" ]; then
+		ocf_exit_reason "IP $OCF_RESKEY_ip available, but label missing"
+		exit $OCF_ERR_GENERIC
+	fi
+
 	if [ -n "$IP_CIP" ] && ([ $ip_status = "no" ] || [ $ip_status = "partial2" ]); then
 		$MODPROBE ip_conntrack
 		$IPADDR2_CIP_IPTABLES -I INPUT -d $OCF_RESKEY_ip -i $NIC -j CLUSTERIP \
@@ -1083,7 +1094,7 @@ ip_start() {
 	if [ -n "$IP_CIP" ] && [ $ip_status = "partial" ]; then
 		echo "+$IP_INC_NO" >$IP_CIP_FILE
 	fi
-	
+
 	if [ "$ip_status" = "no" ]; then
 		if ocf_is_true ${OCF_RESKEY_lvs_support}; then
 			for i in `find_interface $OCF_RESKEY_ip 32`; do
@@ -1094,13 +1105,19 @@ ip_start() {
 				esac
 			done
 		fi
-		
+
 		add_interface "$OCF_RESKEY_ip" "$NETMASK" "${BRDCAST:-none}" "$NIC" "$IFLABEL" "$METRIC"
 		rc=$?
 
 		if [ $rc -ne $OCF_SUCCESS ]; then
 			ocf_exit_reason "Failed to add $OCF_RESKEY_ip"
 			exit $rc
+		fi
+
+		ip_status=`ip_served`
+		if [ "$ip_status" != "ok" ]; then
+			ocf_exit_reason "Failed to add $OCF_RESKEY_ip with error $ip_status"
+			exit $OCF_ERR_GENERIC
 		fi
 	fi
 
@@ -1134,7 +1151,7 @@ ip_stop() {
 	    ocf_take_lock $CIP_lockfile
 	    ocf_release_lock_on_exit $CIP_lockfile
 	fi
-	
+
 	if [ -f "$SENDARPPIDFILE" ] ; then
 		kill `cat "$SENDARPPIDFILE"`
 		if [ $? -ne 0 ]; then
@@ -1171,17 +1188,17 @@ ip_stop() {
 				i=`expr $i + 1`
 			done
 		else
-			ip_del_if="no"		
+			ip_del_if="no"
 		fi
 	fi
-	
+
 	if [ "$ip_del_if" = "yes" ]; then
 		delete_interface $OCF_RESKEY_ip $NIC $NETMASK
 		if [ $? -ne 0 ]; then
 			ocf_exit_reason "Unable to remove IP [${OCF_RESKEY_ip} from interface [ $NIC ]"
 			exit $OCF_ERR_GENERIC
 		fi
-	
+
 		if ocf_is_true ${OCF_RESKEY_lvs_support}; then
 			restore_loopback "$OCF_RESKEY_ip"
 		fi
@@ -1200,7 +1217,7 @@ ip_monitor() {
 		run_arp_sender refresh
 		return $OCF_SUCCESS
 		;;
-	partial|no|partial2)
+	no)
 		exit $OCF_NOT_RUNNING
 		;;
 	*)
