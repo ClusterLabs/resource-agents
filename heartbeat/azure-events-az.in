@@ -441,7 +441,7 @@ class Node:
 		self.raOwner  = ra
 		self.azInfo   = azHelper.getInstanceInfo()
 		self.azName   = self.azInfo.name
-		self.hostName = socket.gethostname()
+		self.hostName = clusterHelper._exec("crm_node", "-n")
 		self.setAttr("azName", self.azName)
 		clusterHelper.setAttr("hostName_%s" % self.azName, self.hostName)
 
