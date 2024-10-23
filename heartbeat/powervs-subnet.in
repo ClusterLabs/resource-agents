@@ -1019,7 +1019,7 @@ def main():
         shortdesc="API type",
         longdesc="Connect to Power Virtual Server regional endpoints over a public or private network (public|private).",
         content_type="string",
-        required=True,
+        required=False,
         default="private",
     )
 
