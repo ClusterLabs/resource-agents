@@ -2,7 +2,7 @@
 #
 # Support:      users@clusterlabs.org
 # License:      GNU General Public License (GPL)
-# 
+#
 # Filesystem
 #      Description: Manages a Filesystem on a shared storage medium.
 #  Original Author: Eric Z. Ayers (eric.ayers@compgen.com)
@@ -142,7 +142,7 @@ meta_data() {
 
 <longdesc lang="en">
 Resource script for Filesystem. It manages a Filesystem on a
-shared storage medium. 
+shared storage medium.
 
 The standard monitor operation of depth 0 (also known as probe)
 checks if the filesystem is mounted. If you want deeper tests,
@@ -260,7 +260,7 @@ currently accessing the mount directory.
 "true"  : Kill processes accessing mount point
 "safe"  : Kill processes accessing mount point using methods that
           avoid functions that could potentially block during process
-          detection 
+          detection
 "false" : Do not kill any processes.
 
 The 'safe' option uses shell logic to walk the /procs/ directory
@@ -373,7 +373,7 @@ determine_blockdevice() {
 	# Get the current real device name, if possible.
 	# (specified devname could be -L or -U...)
 	case "$FSTYPE" in
-	nfs4|nfs|efs|smbfs|cifs|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|none|lustre)
+	nfs4|nfs|aznfs|efs|smbfs|cifs|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|none|lustre)
 		: ;;
 	*)
 		match_string="${TAB}${CANONICALIZED_MOUNTPOINT}${TAB}"
@@ -455,7 +455,7 @@ is_fsck_needed() {
 		no)    false;;
 		""|auto)
 		case "$FSTYPE" in
-			ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs4|nfs|efs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs)
+			ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs4|nfs|aznfs|efs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs)
 			false;;
 			*)
 			true;;
@@ -478,7 +478,7 @@ fstype_supported()
 	fi
 
 	if [ -z "$FSTYPE" -o "$FSTYPE" = none ]; then
-		: No FSTYPE specified, rely on the system has the right file-system support already 
+		: No FSTYPE specified, rely on the system has the right file-system support already
 		return $OCF_SUCCESS
 	fi
 
@@ -487,6 +487,7 @@ fstype_supported()
 	case "$FSTYPE" in
 		fuse.*|glusterfs|rozofs) support="fuse";;
 		efs) check_binary "mount.efs"; support="nfs4";;
+		aznfs) check_binary "mount.aznfs"; support="nfs4";;
 	esac
 
 	if [ "$support" != "$FSTYPE" ]; then
@@ -530,7 +531,7 @@ fstype_supported()
 # node on the shared storage, and is not visible yet. Then try
 # partprobe to refresh /dev/disk/by-{label,uuid}/* up to date.
 #
-# DEVICE can be /dev/xxx, -U, -L 
+# DEVICE can be /dev/xxx, -U, -L
 #
 trigger_udev_rules_if_needed()
 {
@@ -545,12 +546,12 @@ trigger_udev_rules_if_needed()
 		fi
 	else
 		tmp="$(echo $DEVICE|awk '{$1=""; print substr($0,2)}')"
-		case "$DEVICE" in 
-		-U*|--uuid*) 
-			tmp="/dev/disk/by-uuid/$tmp" 
+		case "$DEVICE" in
+		-U*|--uuid*)
+			tmp="/dev/disk/by-uuid/$tmp"
 			;;
 		-L*|--label*)
-			tmp="/dev/disk/by-label/$tmp" 
+			tmp="/dev/disk/by-label/$tmp"
 			;;
 		*)
 			# bind mount?
@@ -595,7 +596,7 @@ Filesystem_start()
 
 	fstype_supported || exit $OCF_ERR_INSTALLED
 
-	# Check the filesystem & auto repair.  
+	# Check the filesystem & auto repair.
 	# NOTE: Some filesystem types don't need this step...  Please modify
 	#       accordingly
 
@@ -697,7 +698,7 @@ signal_processes() {
 	local sig=$2
 	local pids pid
 	# fuser returns a non-zero return code if none of the
-	# specified files is accessed or in case of a fatal 
+	# specified files is accessed or in case of a fatal
 	# error.
 	pids=$(get_pids "$dir")
 	if [ -z "$pids" ]; then
@@ -745,6 +746,7 @@ fs_stop_loop() {
 		try_umount "$force_arg" "$SUB" && return $OCF_SUCCESS
 	done
 }
+
 fs_stop() {
 	local SUB="$1" timeout=$2 grace_time ret
 	grace_time=$((timeout/2))
@@ -797,7 +799,7 @@ Filesystem_stop()
 
 		# For networked filesystems, there's merit in trying -f:
 		case "$FSTYPE" in
-		nfs4|nfs|efs|cifs|smbfs) umount_force="-f" ;;
+		nfs4|nfs|aznfs|efs|cifs|smbfs) umount_force="-f" ;;
 		esac
 
 		# Umount all sub-filesystems mounted under $MOUNTPOINT/ too.
@@ -942,6 +944,7 @@ Filesystem_monitor_20()
 	fi
 	return $OCF_SUCCESS
 }
+
 Filesystem_monitor()
 {
 	Filesystem_status
@@ -1016,7 +1019,7 @@ set_blockdevice_var() {
 
 	# these are definitely not block devices
 	case "$FSTYPE" in
-	nfs4|nfs|efs|smbfs|cifs|none|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|lustre) return;;
+	nfs4|nfs|aznfs|efs|smbfs|cifs|none|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|lustre) return;;
 	esac
 
 	if $(is_option "loop"); then
@@ -1098,7 +1101,7 @@ set_blockdevice_var
 if [ -z "$OCF_RESKEY_directory" ]; then
 	if [ X$OP = "Xstart" -o $blockdevice = "no" ]; then
 		ocf_exit_reason "Please specify the directory"
-		exit $OCF_ERR_CONFIGURED 
+		exit $OCF_ERR_CONFIGURED
 	fi
 else
 	MOUNTPOINT="$(echo "$OCF_RESKEY_directory" | sed 's/\/*$//')"
@@ -1166,7 +1169,7 @@ is_option "ro" &&
 	CLUSTERSAFE=2
 
 case "$FSTYPE" in
-nfs4|nfs|efs|smbfs|cifs|none|gfs2|glusterfs|ceph|ocfs2|overlay|overlayfs|tmpfs|cvfs|lustre)
+nfs4|nfs|aznfs|efs|smbfs|cifs|none|gfs2|glusterfs|ceph|ocfs2|overlay|overlayfs|tmpfs|cvfs|lustre)
 	CLUSTERSAFE=1 # this is kind of safe too
 	systemd_drop_in "99-Filesystem-remote" "After" "remote-fs.target"
 	;;
