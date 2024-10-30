@@ -1,3 +1,26 @@
+* Wed Oct 30 2024 resource-agents contributors
+- release candidate 4.16.0 rc1
+- ocf-shellfuncs: only create/update and reload systemd drop-in if needed
+- spec: drop BuildReq python3-pyroute2 for RHEL/CentOS
+- Filesystem: dont sleep during stop-action when there are no processes to kill
+- Filesystem: on stop, try umount directly, before scanning for users
+- Filesystem: only use $umount_force after sending kill_signals
+- Filesystem: stop/get_pids: improve logic to find processes
+- Filesystem: add azure aznfs filesystem support
+- IPaddr2: add proto-parameter to be able to match a specific route
+- IPaddr2: improve fail logic and check ip_status after adding IP
+- IPaddr2: use dev keyword when bringing up device
+- IPsrcaddr: specify dev for default route, as e.g. fe80:: routes can be present on multiple interfaces
+- apache/http-mon.sh: change curl opts to match wget
+- azure-events*: use node name from cluster instead of hostname to avoid failing if they're not the same
+- docker-compose: use "docker compose" when not using older docker-compose command
+- findif.sh: ignore unreachable, blackhole, and prohibit routes
+- nfsserver: also stop rpc-statd for nfsv4_only to avoid stop failing in some cases
+- podman: force-remove containers in stopping state if necessary (#1973)
+- powervs-subnet: add optional argument route_table (#1966)
+- powervs-subnet: modify gathering of Apikey, calculation of timeout
+- powervs-subnet: enable access via private endpoint for IBM IAM
+
 * Fri Jul 26 2024 resource-agents contributors
 - stable release 4.15.1
 - IPaddr2: dont fail with "IPv4 does not support lvs_ipv6_addrlabel"
