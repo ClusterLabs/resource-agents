@@ -1111,3 +1111,34 @@ ocf_is_true "$OCF_TRACE_RA" && ocf_start_trace
 if ocf_is_true "$HA_use_logd"; then
 	: ${HA_LOGD:=yes}
 fi
+
+# File to store the token and timestamp
+TOKEN_FILE="/tmp/.imds_token"
+TOKEN_LIFETIME=21600  # Token lifetime in seconds (6 hours)
+TOKEN_EXPIRY_THRESHOLD=3600  # Renew token if less than 60 minutes (1 hour) remaining
+
+# Function to fetch a new token
+fetch_new_token() {
+    TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: $TOKEN_LIFETIME")
+    echo "$TOKEN $(date +%s)" > "$TOKEN_FILE"
+    echo "$TOKEN"
+}
+
+# Function to retrieve or renew the token
+get_token() {
+    if [[ -f "$TOKEN_FILE" ]]; then
+        read -r STORED_TOKEN STORED_TIMESTAMP < "$TOKEN_FILE"
+        CURRENT_TIME=$(date +%s)
+        ELAPSED_TIME=$((CURRENT_TIME - STORED_TIMESTAMP))
+
+        if (( ELAPSED_TIME < (TOKEN_LIFETIME - TOKEN_EXPIRY_THRESHOLD) )); then
+            # Token is still valid
+            echo "$STORED_TOKEN"
+            return
+        fi
+    fi
+    # Fetch a new token if not valid
+    fetch_new_token
+}
+
+
