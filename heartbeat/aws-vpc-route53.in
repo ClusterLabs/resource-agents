@@ -43,6 +43,7 @@
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+. ${OCF_FUNCTIONS_DIR}/aws.sh
 
 # Defaults
 OCF_RESKEY_awscli_default="/usr/bin/aws"
@@ -377,7 +378,7 @@ r53_monitor() {
 _get_ip() {
 	case $OCF_RESKEY_ip in
 		local|public)
-			TOKEN=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep" "--show-error -sX PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600'" "http://169.254.169.254/latest/api/token")
+			TOKEN=$(get_token)
 			[ $? -ne 0 ] && exit $OCF_ERR_GENERIC
 			IPADDRESS=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep" "--show-error -s -H 'X-aws-ec2-metadata-token: $TOKEN'" "http://169.254.169.254/latest/meta-data/${OCF_RESKEY_ip}-ipv4")
 			[ $? -ne 0 ] && exit $OCF_ERR_GENERIC
