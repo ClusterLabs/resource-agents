@@ -17,7 +17,7 @@ OCF_RESKEY_curl_sleep_default="1"
 
 # Function to enable reusable IMDS token retrieval for efficient repeated access 
 # File to store the token and timestamp
-TOKEN_FILE="/tmp/.imds_token"
+TOKEN_FILE="${HA_RSCTMP}/.aws_imds_token"
 TOKEN_LIFETIME=21600  # Token lifetime in seconds (6 hours)
 TOKEN_EXPIRY_THRESHOLD=3600  # Renew token if less than 60 minutes (1 hour) remaining
 
@@ -35,7 +35,7 @@ get_token() {
         CURRENT_TIME=$(date +%s)
         ELAPSED_TIME=$((CURRENT_TIME - STORED_TIMESTAMP))
 
-        if (( ELAPSED_TIME < (TOKEN_LIFETIME - TOKEN_EXPIRY_THRESHOLD) )); then
+        if [ "$ELAPSED_TIME" -lt "$((TOKEN_LIFETIME - TOKEN_EXPIRY_THRESHOLD))" ]; then
             # Token is still valid
             echo "$STORED_TOKEN"
             return
