@@ -54,8 +54,6 @@ OCF_RESKEY_hostedzoneid_default=""
 OCF_RESKEY_fullname_default=""
 OCF_RESKEY_ip_default="local"
 OCF_RESKEY_ttl_default=10
-OCF_RESKEY_curl_retries_default="3"
-OCF_RESKEY_curl_sleep_default="1"
 
 : ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
 : ${OCF_RESKEY_auth_type=${OCF_RESKEY_auth_type_default}}
@@ -65,8 +63,6 @@ OCF_RESKEY_curl_sleep_default="1"
 : ${OCF_RESKEY_fullname:=${OCF_RESKEY_fullname_default}}
 : ${OCF_RESKEY_ip:=${OCF_RESKEY_ip_default}}
 : ${OCF_RESKEY_ttl:=${OCF_RESKEY_ttl_default}}
-: ${OCF_RESKEY_curl_retries=${OCF_RESKEY_curl_retries_default}}
-: ${OCF_RESKEY_curl_sleep=${OCF_RESKEY_curl_sleep_default}}
 
 usage() {
 	cat <<-EOT

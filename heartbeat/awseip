@@ -50,16 +50,12 @@ OCF_RESKEY_auth_type_default="key"
 OCF_RESKEY_profile_default="default"
 OCF_RESKEY_region_default=""
 OCF_RESKEY_api_delay_default="3"
-OCF_RESKEY_curl_retries_default="3"
-OCF_RESKEY_curl_sleep_default="1"
 
 : ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
 : ${OCF_RESKEY_auth_type=${OCF_RESKEY_auth_type_default}}
 : ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
 : ${OCF_RESKEY_region=${OCF_RESKEY_region_default}}
 : ${OCF_RESKEY_api_delay=${OCF_RESKEY_api_delay_default}}
-: ${OCF_RESKEY_curl_retries=${OCF_RESKEY_curl_retries_default}}
-: ${OCF_RESKEY_curl_sleep=${OCF_RESKEY_curl_sleep_default}}
 
 meta_data() {
     cat <<END
