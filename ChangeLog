@@ -1,3 +1,6 @@
+* Wed Nov  6 2024 resource-agents contributors
+- stable release 4.16.0
+
 * Wed Oct 30 2024 resource-agents contributors
 - release candidate 4.16.0 rc1
 - ocf-shellfuncs: only create/update and reload systemd drop-in if needed
