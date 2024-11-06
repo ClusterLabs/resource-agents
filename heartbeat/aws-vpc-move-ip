@@ -1,6 +1,5 @@
 #!/bin/sh
-#
-#
+
 # OCF resource agent to move an IP address within a VPC in the AWS
 #
 # Copyright (c) 2017 Markus Guertler (SUSE)
@@ -25,12 +24,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write the Free Software Foundation,
 # Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
-#
 
+###############################################################################
 
-#######################################################################
 # Initialization:
-
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
@@ -47,8 +44,8 @@ OCF_RESKEY_interface_default="eth0"
 OCF_RESKEY_iflabel_default=""
 OCF_RESKEY_monapi_default="false"
 OCF_RESKEY_lookup_type_default="InstanceId"
-OCF_RESKEY_curl_retries_default="3"
-OCF_RESKEY_curl_sleep_default="1"
+OCF_RESKEY_curl_retries_default="5"
+OCF_RESKEY_curl_sleep_default="3"
 
 : ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
 : ${OCF_RESKEY_auth_type=${OCF_RESKEY_auth_type_default}}
@@ -64,12 +61,14 @@ OCF_RESKEY_curl_sleep_default="1"
 : ${OCF_RESKEY_lookup_type=${OCF_RESKEY_lookup_type_default}}
 : ${OCF_RESKEY_curl_retries=${OCF_RESKEY_curl_retries_default}}
 : ${OCF_RESKEY_curl_sleep=${OCF_RESKEY_curl_sleep_default}}
-#######################################################################
 
-
-USAGE="usage: $0 {start|stop|status|meta-data}";
-###############################################################################
-
+MAC_FILE="/sys/class/net/${OCF_RESKEY_interface}/address"
+# Note: On nitro-based EC2 instances this can be used to get the EC2 instance ID.
+DMI_FILE="/sys/devices/virtual/dmi/id/board_asset_tag"
+# EC2 IMDS endpoints, IPv6 endpoint is only supported on nitro-based instances.
+EC2_IMDS_V4="169.254.169.254"
+EC2_IMDS_V6="[fd00:ec2::254]"
+EC2_IMDS_TOKEN_TTL="600"
 
 ###############################################################################
 #
@@ -77,6 +76,9 @@ USAGE="usage: $0 {start|stop|status|meta-data}";
 #
 ###############################################################################
 
+usgae() {
+  echo "usage: $(basename "$0") {start|stop|monitor|status|meta-data|validate-all}"
+}
 
 metadata() {
 cat <<END
@@ -213,7 +215,6 @@ curl sleep between tries
 <shortdesc lang="en">curl sleep</shortdesc>
 <content type="integer" default="${OCF_RESKEY_curl_sleep_default}" />
 </parameter>
-
 </parameters>
 
 <actions>
@@ -227,19 +228,22 @@ curl sleep between tries
 END
 }
 
-
-execute_cmd_as_role(){
+ec2ip_execute_cmd_as_role(){
 	cmd=$1
 	role=$2
+
 	output="$($AWSCLI_CMD sts assume-role --role-arn $role --role-session-name AWSCLI-RouteTableUpdate --output=text)"
-	export AWS_ACCESS_KEY_ID="$(echo $output | awk -F" " '$4=="CREDENTIALS" {print $5}')"
-	export AWS_SECRET_ACCESS_KEY="$(echo $output | awk -F" " '$4=="CREDENTIALS" {print $7}')"
-	export AWS_SESSION_TOKEN="$(echo $output | awk -F" " '$4=="CREDENTIALS" {print $8}')"
+
+	AWS_ACCESS_KEY_ID="$(echo $output | awk -F" " '$4=="CREDENTIALS" {print $5}')"
+	AWS_SECRET_ACCESS_KEY="$(echo $output | awk -F" " '$4=="CREDENTIALS" {print $7}')"
+	AWS_SESSION_TOKEN="$(echo $output | awk -F" " '$4=="CREDENTIALS" {print $8}')"
+  export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
 
 	#Execute command
-	ocf_log debug "Assumed Role ${role}"
+	ocf_log debug "Assumed IAM Role: ${role}"
 	ocf_log debug "$($OCF_RESKEY_awscli sts get-caller-identity)"
-	ocf_log debug "executing command: $cmd"
+	ocf_log debug "execute command: $cmd"
+
 	response="$($cmd)"
 	unset output AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
 	echo $response
@@ -253,30 +257,48 @@ ec2ip_set_address_param_compat(){
 }
 
 ec2ip_validate() {
-	for cmd in "$OCF_RESKEY_awscli" ip curl; do
-		check_binary "$cmd"
-	done
+    ocf_log debug "function: ec2ip_validate"
 
-	if [ "x${OCF_RESKEY_auth_type}" = "xkey" ] && [ -z "$OCF_RESKEY_profile" ]; then
-		ocf_exit_reason "profile parameter not set"
+    # check_binary will exit with OCF_ERR_INSTALLED when a binary is missing.
+    ocf_log debug "EC2: Check for required binaries."
+    for commands in "${OCF_RESKEY_awscli}" curl ip cat grep awk sed; do
+        check_binary "$commands"
+    done
+
+	if [ "${OCF_RESKEY_auth_type}" = "key" ] && [ -z "$OCF_RESKEY_profile" ]; then
+		ocf_exit_reason "Required 'profile' parameter not set."
 		return $OCF_ERR_CONFIGURED
 	fi
 
 	if [ -n "$OCF_RESKEY_iflabel" ]; then
-		label=${OCF_RESKEY_interface}:${OFC_RESKEY_iflabel}
+		label=${OCF_RESKEY_interface}:${OCF_RESKEY_iflabel}
 		if [ ${#label} -gt 15 ]; then
-			ocf_exit_reason "Interface label [$label] exceeds maximum character limit of 15"
+			ocf_exit_reason "Optional 'label' parameter exceeds 15 character limit: $label"
 			exit $OCF_ERR_CONFIGURED
 		fi
 	fi
 
-	TOKEN=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep" "--show-error -sX PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600'" "http://169.254.169.254/latest/api/token")
+  # Try to get the EC2 instance ID from DMI first before falling back to IMDS.
+  ocf_log debug "EC2: Attempt to get EC2 instance ID file."
+  if [ -r "$DMI_FILE" ] && [ -s "$DMI_FILE" ]; then
+    EC2_INSTANCE_ID="$(cat "$DMI_FILE")"
+    case "$EC2_INSTANCE_ID" in
+      i-0*) return "$OCF_SUCCESS" ;;
+    esac
+  fi
+
+  ocf_log debug "EC2: Unable to get EC2 Instnace ID from local file, fallback to the IMDS."
+
+  ocf_log debug "EC2: Attempt to get IMDSv2 session token from the IMDS."
+	TOKEN=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep" "--show-error -sX PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: $EC2_IMDS_TOKEN_TTL'" "http://$EC2_IMDS_V4/latest/api/token")
 	[ $? -ne 0 ] && exit $OCF_ERR_GENERIC
-	EC2_INSTANCE_ID=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep" "--show-error -s -H 'X-aws-ec2-metadata-token: $TOKEN'" "http://169.254.169.254/latest/meta-data/instance-id")
+
+  ocf_log debug "EC2: Attempt to get EC2 instance ID from the IMDS."
+	EC2_INSTANCE_ID=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep" "--show-error -s -H 'X-aws-ec2-metadata-token: $TOKEN'" "http://$EC2_IMDS_V4/latest/meta-data/instance-id")
 	[ $? -ne 0 ] && exit $OCF_ERR_GENERIC
 
 	if [ -z "${EC2_INSTANCE_ID}" ]; then
-		ocf_exit_reason "Instance ID not found. Is this a EC2 instance?"
+		ocf_exit_reason "Unable to get EC2 Instance ID."
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -284,7 +306,9 @@ ec2ip_validate() {
 }
 
 ec2ip_monitor() {
+
 	MON_RES=""
+
 	if [ "${OCF_RESKEY_lookup_type}" = "NetworkInterfaceId" ]; then
 		EC2_ID="$(ec2ip_get_instance_eni)"
 		RESOURCE_TYPE="interface"
@@ -293,18 +317,18 @@ ec2ip_monitor() {
 		RESOURCE_TYPE="instance"
 	fi
 
-	if ocf_is_true ${OCF_RESKEY_monapi} || [ "$__OCF_ACTION" = "start" ] || ocf_is_probe; then
+	if ocf_is_true "${OCF_RESKEY_monapi}" || [ "$__OCF_ACTION" = "start" ] || ocf_is_probe; then
 		for rtb in $(echo $OCF_RESKEY_routing_table | sed -e 's/,/ /g'); do
-			ocf_log info "monitor: check routing table (API call) - $rtb"
+			ocf_log info "Monitor: EC2 API call to check VPC route table $rtb."
 			if [ -z "${OCF_RESKEY_routing_table_role}" ]; then
 				cmd="$AWSCLI_CMD --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].$OCF_RESKEY_lookup_type"
-				ocf_log debug "executing command: $cmd"
+				ocf_log debug "execute command: $cmd"
 				ROUTE_TO_INSTANCE="$($cmd)"
 			else
-				cmd="$OCF_RESKEY_awscli $region_opt --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].$OCF_RESKEY_lookup_type"
-				ROUTE_TO_INSTANCE="$(execute_cmd_as_role "$cmd" $OCF_RESKEY_routing_table_role)"
+				cmd="$OCF_RESKEY_awscli --output text ec2 describe-route-tables --route-table-ids $rtb --query RouteTables[*].Routes[?DestinationCidrBlock=='$OCF_RESKEY_ip/32'].$OCF_RESKEY_lookup_type"
+				ROUTE_TO_INSTANCE="$(ec2ip_execute_cmd_as_role "$cmd" $OCF_RESKEY_routing_table_role)"
 			fi
-			ocf_log debug "Overlay IP is currently routed to ${ROUTE_TO_INSTANCE}"
+			ocf_log debug "Overlay IP routes to:${ROUTE_TO_INSTANCE}"
 			if [ -z "$ROUTE_TO_INSTANCE" ]; then
 				ROUTE_TO_INSTANCE="<unknown>"
 			fi
@@ -321,11 +345,11 @@ ec2ip_monitor() {
 		fi
 
 	else
-		ocf_log debug "monitor: Enhanced Monitoring disabled - omitting API call"
+		ocf_log debug "Monitor: Enhanced monitoring disabled. Skipping EC2 API calls."
 	fi
 
 	cmd="ip addr show to $OCF_RESKEY_ip up"
-	ocf_log debug "executing command: $cmd"
+	ocf_log debug "execute command: $cmd"
 	RESULT=$($cmd | grep "$OCF_RESKEY_ip")
 	if [ -z "$RESULT" ]; then
 		if [ "$__OCF_ACTION" = "monitor" ] && ! ocf_is_probe; then
@@ -334,34 +358,32 @@ ec2ip_monitor() {
 			level="info"
 		fi
 
-		ocf_log "$level" "IP $OCF_RESKEY_ip not assigned to running interface"
+		ocf_log "$level" "Overlay IP address $OCF_RESKEY_ip not configured on network interface."
 		return $OCF_NOT_RUNNING
 	fi
 
-	ocf_log debug "route in VPC and address assigned"
+	ocf_log debug "VPC route table contains route entry and overlay IP address configured on network interface."
 	return $OCF_SUCCESS
 }
 
-
 ec2ip_drop() {
 	cmd="ip addr delete ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface"
-	ocf_log debug "executing command: $cmd"
+	ocf_log debug "execute command: $cmd"
 	output=$($cmd 2>&1)
 	rc=$?
-
 	if [ "$rc" -gt 0 ]; then
 		if [ "$__OCF_ACTION" = "start" ]; then
-			# expected to fail during start
+			# Expected to fail during start
 			level="debug"
 		else
 			level="warn"
 		fi
 
-		ocf_log "$level" "command failed, rc $rc"
-		ocf_log "$level" "output/error: $output"
+		ocf_log "$level" "command failed. rc $rc"
+		ocf_log "$level" "stdout and stderr: $output"
 		return $OCF_ERR_GENERIC
 	else
-		ocf_log debug "output/error: $output"
+		ocf_log debug "stdout and stderr: $output"
 	fi
 
 	# delete remaining route-entries if any
@@ -372,42 +394,47 @@ ec2ip_drop() {
 }
 
 ec2ip_get_instance_eni() {
-	MAC_FILE="/sys/class/net/${OCF_RESKEY_interface}/address"
 	if [ -f $MAC_FILE ]; then
 		cmd="cat ${MAC_FILE}"
 	else
-		cmd="ip -br link show dev ${OCF_RESKEY_interface} | tr -s ' ' | cut -d' ' -f3"
+		cmd="ip link show ${OCF_RESKEY_interface} | awk '/ether/ {print \$2}'"
 	fi
-	ocf_log debug "executing command: $cmd"
+
+	ocf_log debug "execute command: $cmd"
 	MAC_ADDR="$(eval $cmd)"
 	rc=$?
 	if [ $rc != 0 ]; then
-		ocf_log warn "command failed, rc: $rc"
+		ocf_log warn "command failed. rc: $rc"
 		return $OCF_ERR_GENERIC
 	fi
-	ocf_log debug "MAC address associated with interface ${OCF_RESKEY_interface}: ${MAC_ADDR}"
+	ocf_log debug "MAC address ${MAC_ADDR} associated with network interface ${OCF_RESKEY_interface}."
 
-	cmd="curl_retry \"$OCF_RESKEY_curl_retries\" \"$OCF_RESKEY_curl_sleep\" \"--show-error -s -H 'X-aws-ec2-metadata-token: $TOKEN'\" \"http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC_ADDR}/interface-id\""
+	TOKEN=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep" "--show-error -sX PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: $EC2_IMDS_TOKEN_TTL'" "http://$EC2_IMDS_V4/latest/api/token")
+	[ $? -ne 0 ] && exit $OCF_ERR_GENERIC
+
+	cmd="curl_retry \"$OCF_RESKEY_curl_retries\" \"$OCF_RESKEY_curl_sleep\" \"--show-error -s -H 'X-aws-ec2-metadata-token: $TOKEN'\" \"http://$EC2_IMDS_V4/latest/meta-data/network/interfaces/macs/${MAC_ADDR}/interface-id\""
 	EC2_NETWORK_INTERFACE_ID="$(eval $cmd)"
 	[ $? -ne 0 ] && exit $OCF_ERR_GENERIC
-	ocf_log debug "network interface id associated MAC address ${MAC_ADDR}: ${EC2_NETWORK_INTERFACE_ID}"
+
+	ocf_log debug "ENI ${EC2_NETWORK_INTERFACE_ID} associated with MAC address ${MAC_ADDR}."
 	echo $EC2_NETWORK_INTERFACE_ID
 }
 
 ec2ip_get_and_configure() {
 	EC2_NETWORK_INTERFACE_ID="$(ec2ip_get_instance_eni)"
+
 	for rtb in $(echo $OCF_RESKEY_routing_table | sed -e 's/,/ /g'); do
 		if [ -z "${OCF_RESKEY_routing_table_role}" ]; then
 			cmd="$AWSCLI_CMD --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
 			ocf_log debug "executing command: $cmd"
 			$cmd
 		else
-			cmd="$OCF_RESKEY_awscli $region_opt --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
-			update_response="$(execute_cmd_as_role "$cmd" $OCF_RESKEY_routing_table_role)"
+			cmd="$OCF_RESKEY_awscli --output text ec2 replace-route --route-table-id $rtb --destination-cidr-block ${OCF_RESKEY_ip}/32 --network-interface-id $EC2_NETWORK_INTERFACE_ID"
+			"$(execute_cmd_as_role "$cmd" $OCF_RESKEY_routing_table_role)"
 		fi
 		rc=$?
 		if [ "$rc" != 0 ]; then
-			ocf_log warn "command failed, rc: $rc"
+			ocf_log warn "command failed. rc: $rc"
 			return $OCF_ERR_GENERIC
 		fi
 		sleep 1
@@ -417,16 +444,17 @@ ec2ip_get_and_configure() {
 	ec2ip_drop
 
 	extra_opts=""
+
 	if [ -n "$OCF_RESKEY_iflabel" ]; then
 		extra_opts="$extra_opts label $OCF_RESKEY_interface:$OCF_RESKEY_iflabel"
 	fi
 
 	cmd="ip addr add ${OCF_RESKEY_ip}/32 dev $OCF_RESKEY_interface $extra_opts"
-	ocf_log debug "executing command: $cmd"
+	ocf_log debug "execute command: $cmd"
 	$cmd
 	rc=$?
 	if [ $rc != 0 ]; then
-		ocf_log warn "command failed, rc: $rc"
+		ocf_log warn "command failed. rc: $rc"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -434,11 +462,11 @@ ec2ip_get_and_configure() {
 }
 
 ec2ip_stop() {
-	ocf_log info "EC2: Bringing down IP address $OCF_RESKEY_ip"
+	ocf_log info "EC2: Bring down overlay IP address $OCF_RESKEY_ip."
 
 	ec2ip_monitor
 	if [ $? = $OCF_NOT_RUNNING ]; then
-		ocf_log info "EC2: Address $OCF_RESKEY_ip already down"
+		ocf_log info "EC2: Overlay IP Address $OCF_RESKEY_ip already down."
 		return $OCF_SUCCESS
 	fi
 
@@ -449,34 +477,34 @@ ec2ip_stop() {
 
 	ec2ip_monitor
 	if [ $? != $OCF_NOT_RUNNING ]; then
-		ocf_log error "EC2: Couldn't bring down IP address $OCF_RESKEY_ip on interface $OCF_RESKEY_interface."
+		ocf_log error "EC2: Unable to bring down overlay IP address $OCF_RESKEY_ip on network interface $OCF_RESKEY_interface."
 		return $OCF_ERR_GENERIC
 	fi
 
-	ocf_log info "EC2: Successfully brought down $OCF_RESKEY_ip"
+	ocf_log info "EC2: Brought down overlay IP address $OCF_RESKEY_ip."
 	return $OCF_SUCCESS
 }
 
 ec2ip_start() {
-	ocf_log info "EC2: Moving IP address $OCF_RESKEY_ip to this host by adjusting routing table $OCF_RESKEY_routing_table"
+	ocf_log info "EC2: Update VPC route table $OCF_RESKEY_routing_table to route overlay IP address $OCF_RESKEY_ip to instance."
 
 	ec2ip_monitor
 	if [ $? = $OCF_SUCCESS ]; then
-		ocf_log info "EC2: $OCF_RESKEY_ip already started"
+		ocf_log info "EC2: Overlay IP address $OCF_RESKEY_ip already started."
 		return $OCF_SUCCESS
 	fi
 
-	ocf_log info "EC2: Adjusting routing table and locally configuring IP address"
+	ocf_log info "EC2: Update VPC route table $OCF_RESKEY_routing_table and configure overlay IP address $OCF_RESKEY_ip."
 	ec2ip_get_and_configure
 	rc=$?
 	if [ $rc != $OCF_SUCCESS ]; then
-		ocf_log error "Received $rc from 'aws'"
+		ocf_log error "command 'aws' failed. rc: $rc"
 		return $OCF_ERR_GENERIC
 	fi
 
 	ec2ip_monitor
 	if [ $? != $OCF_SUCCESS ]; then
-		ocf_log error "EC2: IP address couldn't be configured on this host (IP: $OCF_RESKEY_ip, Interface: $OCF_RESKEY_interface)"
+		ocf_log error "EC2: Unable to configure overlay IP address $OCF_RESKEY_ip on network interface $OCF_RESKEY_interface."
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -495,20 +523,21 @@ case $__OCF_ACTION in
 		exit $OCF_SUCCESS
 		;;
 	usage|help)
-		echo $USAGE
+		usage
 		exit $OCF_SUCCESS
 		;;
 esac
 
 if ! ocf_is_root; then
-	ocf_log err "You must be root for $__OCF_ACTION operation."
+	ocf_log err "Musst be root to perform $__OCF_ACTION operation."
 	exit $OCF_ERR_PERM
 fi
 
 AWSCLI_CMD="${OCF_RESKEY_awscli}"
-if [ "x${OCF_RESKEY_auth_type}" = "xkey" ]; then
+
+if [ "${OCF_RESKEY_auth_type}" = "key" ]; then
 	AWSCLI_CMD="$AWSCLI_CMD --profile ${OCF_RESKEY_profile}"
-elif [ "x${OCF_RESKEY_auth_type}" = "xrole" ]; then
+elif [ "${OCF_RESKEY_auth_type}" = "xrole" ]; then
 	if [ -z "${OCF_RESKEY_region}" ]; then
 		ocf_exit_reason "region needs to be set when using role-based authentication"
 		exit $OCF_ERR_CONFIGURED
@@ -535,7 +564,7 @@ case $__OCF_ACTION in
 	validate-all)
 		exit $?;;
 	*)
-		echo $USAGE
+		usage
 		exit $OCF_ERR_UNIMPLEMENTED
 		;;
 esac
