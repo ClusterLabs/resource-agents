@@ -1,0 +1,41 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+# EditorConfig helps developers define and maintain consistent
+# coding styles between different editors and IDEs.
+
+# This file is the top-most EditorConfig file
+root = true
+
+[*]
+# UTF-8 character set
+charset = utf-8
+# Use for spell checking
+spelling_language = en-US
+# Unix-style newlines
+end_of_line = lf
+# Soft tabs
+#indent_style = space
+# Two-space indentation
+#indent_size = 2
+# Trim trailing whitespace
+#trim_trailing_whitespace = true
+# Newline ending every file
+#insert_final_newline = true
+
+[heartbeat/aws-vpc-move-ip]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = true
+insert_final_newline = true
+max_line_length = 80
+# --language-variant
+shell_variant      = posix
+binary_next_line   = true
+# --case-indent
+switch_case_indent = true
+space_redirects    = true
+keep_padding       = true
+# --func-next-line
+function_next_line = true
