@@ -38,6 +38,7 @@
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+. ${OCF_FUNCTIONS_DIR}/aws.sh
 
 #######################################################################
 
@@ -49,16 +50,12 @@ OCF_RESKEY_auth_type_default="key"
 OCF_RESKEY_profile_default="default"
 OCF_RESKEY_region_default=""
 OCF_RESKEY_api_delay_default="3"
-OCF_RESKEY_curl_retries_default="3"
-OCF_RESKEY_curl_sleep_default="1"
 
 : ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
 : ${OCF_RESKEY_auth_type=${OCF_RESKEY_auth_type_default}}
 : ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
 : ${OCF_RESKEY_region=${OCF_RESKEY_region_default}}
 : ${OCF_RESKEY_api_delay=${OCF_RESKEY_api_delay_default}}
-: ${OCF_RESKEY_curl_retries=${OCF_RESKEY_curl_retries_default}}
-: ${OCF_RESKEY_curl_sleep=${OCF_RESKEY_curl_sleep_default}}
 
 meta_data() {
     cat <<END
@@ -306,7 +303,7 @@ fi
 ELASTIC_IP="${OCF_RESKEY_elastic_ip}"
 ALLOCATION_ID="${OCF_RESKEY_allocation_id}"
 PRIVATE_IP_ADDRESS="${OCF_RESKEY_private_ip_address}"
-TOKEN=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep" "--show-error -sX PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600'" "http://169.254.169.254/latest/api/token")
+TOKEN=$(get_token)
 [ $? -ne 0 ] && exit $OCF_ERR_GENERIC
 INSTANCE_ID=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep" "--show-error -s -H 'X-aws-ec2-metadata-token: $TOKEN'" "http://169.254.169.254/latest/meta-data/instance-id")
 [ $? -ne 0 ] && exit $OCF_ERR_GENERIC

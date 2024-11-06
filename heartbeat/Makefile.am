@@ -218,6 +218,7 @@ ocfcommon_DATA		= ocf-shellfuncs 	\
 			  ocf-rarun		\
 			  ocf-distro		\
 			  apache-conf.sh 	\
+			  aws.sh		\
 			  http-mon.sh		\
 			  sapdb-nosha.sh	\
 			  sapdb.sh		\

@@ -42,7 +42,7 @@ radir			= $(abs_top_builddir)/heartbeat
 # required for out-of-tree build
 symlinkstargets		= \
 			  ocf-distro ocf.py ocf-rarun ocf-returncodes \
-			  findif.sh apache-conf.sh http-mon.sh mysql-common.sh \
+			  findif.sh apache-conf.sh aws.sh http-mon.sh mysql-common.sh \
 			  nfsserver-redhat.sh openstack-common.sh ora-common.sh
 
 preptree:
