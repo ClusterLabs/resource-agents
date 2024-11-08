@@ -33,9 +33,6 @@
 #define DEFAULT_PIDFILE HA_VARRUNDIR "storage_mon.pid"
 #define DEFAULT_ATTRNAME "#health-storage_mon"
 #define SMON_GET_RESULT_COMMAND "get_check_value"
-#define SMON_RESULT_OK "green"
-#define SMON_RESULT_NG "red"
-#define SMON_RESULT_COMMAND_ERROR "unknown command"
 #define SMON_BUFF_1MEG 1048576
 #define SMON_MAX_IPCSNAME 256
 #define SMON_MAX_MSGSIZE 128
