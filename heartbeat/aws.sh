@@ -69,3 +69,24 @@ get_instance_id() {
     echo "$INSTANCE_ID"
     return "$OCF_SUCCESS"
 }
+
+get_interface_mac() {
+    local MAC_FILE MAC_ADDR rc
+    MAC_FILE="/sys/class/net/${OCF_RESKEY_interface}/address"
+    if [ -f "$MAC_FILE" ]; then
+        cmd="cat ${MAC_FILE}"
+    else
+        cmd="ip -br link show dev ${OCF_RESKEY_interface} | tr -s ' ' | cut -d' ' -f3"
+    fi
+    ocf_log debug "executing command: $cmd"
+    MAC_ADDR="$(eval $cmd)"
+    rc=$?
+    if [ $rc != 0 ]; then
+        ocf_log warn "command failed, rc: $rc"
+        return $OCF_ERR_GENERIC
+    fi
+    ocf_log debug "MAC address associated with interface ${OCF_RESKEY_interface}: ${MAC_ADDR}"
+
+    echo $MAC_ADDR
+    return $OCF_SUCCESS
+}
