@@ -49,12 +49,14 @@ OCF_RESKEY_auth_type_default="key"
 OCF_RESKEY_profile_default="default"
 OCF_RESKEY_region_default=""
 OCF_RESKEY_api_delay_default="3"
+OCF_RESKEY_interface_default=""
 
 : ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
 : ${OCF_RESKEY_auth_type=${OCF_RESKEY_auth_type_default}}
 : ${OCF_RESKEY_profile=${OCF_RESKEY_profile_default}}
 : ${OCF_RESKEY_region=${OCF_RESKEY_region_default}}
 : ${OCF_RESKEY_api_delay=${OCF_RESKEY_api_delay_default}}
+: ${OCF_RESKEY_interface=${OCF_RESKEY_interface_default}}
 
 meta_data() {
     cat <<END
@@ -123,6 +125,14 @@ a short delay between API calls, to avoid sending API too quick
 </longdesc>
 <shortdesc lang="en">a short delay between API calls</shortdesc>
 <content type="integer" default="${OCF_RESKEY_api_delay_default}" />
+</parameter>
+
+<parameter name="interface" required="0">
+<longdesc lang="en">
+Name of the network interface, i.e. eth0
+</longdesc>
+<shortdesc lang="en">network interface name</shortdesc>
+<content type="string" default="${OCF_RESKEY_interface_default}" />
 </parameter>
 
 <parameter name="curl_retries" unique="0">
@@ -207,16 +217,16 @@ awsvip_stop() {
 }
 
 awsvip_monitor() {
-    $AWSCLI_CMD ec2 describe-instances \
-            --instance-id "${INSTANCE_ID}" \
-            --query 'Reservations[].Instances[].NetworkInterfaces[].PrivateIpAddresses[].PrivateIpAddress[]' \
+    $AWSCLI_CMD ec2 describe-network-interfaces \
+            --network-interface-ids "${NETWORK_ID}" \
+            --query 'NetworkInterfaces[].PrivateIpAddresses[].PrivateIpAddress[]' \
             --output text | \
             grep -qE "(^|\s)${SECONDARY_PRIVATE_IP}(\s|$)"
-    RET=$?
-
-    if [ $RET -ne 0 ]; then
+    if [ $? -ne 0 ]; then
+        [ "$__OCF_ACTION" = "monitor" ] && ! ocf_is_probe && ocf_log error "IP $SECONDARY_PRIVATE_IP not assigned to interface ${NETWORK_ID}"
         return $OCF_NOT_RUNNING
     fi
+
     return $OCF_SUCCESS
 }
 
@@ -267,7 +277,7 @@ TOKEN=$(get_token)
 [ $? -ne 0 ] && exit $OCF_ERR_GENERIC
 INSTANCE_ID=$(get_instance_id)
 [ $? -ne 0 ] && exit $OCF_ERR_GENERIC
-MAC_ADDRESS=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep" "--show-error -s -H 'X-aws-ec2-metadata-token: $TOKEN'" "http://169.254.169.254/latest/meta-data/mac")
+MAC_ADDRESS=$(get_interface_mac)
 [ $? -ne 0 ] && exit $OCF_ERR_GENERIC
 NETWORK_ID=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep" "--show-error -s -H 'X-aws-ec2-metadata-token: $TOKEN'" "http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC_ADDRESS}/interface-id")
 [ $? -ne 0 ] && exit $OCF_ERR_GENERIC

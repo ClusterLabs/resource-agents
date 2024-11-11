@@ -73,7 +73,9 @@ get_instance_id() {
 get_interface_mac() {
     local MAC_FILE MAC_ADDR rc
     MAC_FILE="/sys/class/net/${OCF_RESKEY_interface}/address"
-    if [ -f "$MAC_FILE" ]; then
+    if [ -z "$OCF_RESKEY_interface" ]; then
+        cmd="curl_retry \"$OCF_RESKEY_curl_retries\" \"$OCF_RESKEY_curl_sleep\" \"--show-error -s -H 'X-aws-ec2-metadata-token: $TOKEN'\" \"http://169.254.169.254/latest/meta-data/mac\""
+    elif [ -f "$MAC_FILE" ]; then
         cmd="cat ${MAC_FILE}"
     else
         cmd="ip -br link show dev ${OCF_RESKEY_interface} | tr -s ' ' | cut -d' ' -f3"
