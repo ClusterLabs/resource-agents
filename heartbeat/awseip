@@ -305,7 +305,7 @@ ALLOCATION_ID="${OCF_RESKEY_allocation_id}"
 PRIVATE_IP_ADDRESS="${OCF_RESKEY_private_ip_address}"
 TOKEN=$(get_token)
 [ $? -ne 0 ] && exit $OCF_ERR_GENERIC
-INSTANCE_ID=$(curl_retry "$OCF_RESKEY_curl_retries" "$OCF_RESKEY_curl_sleep" "--show-error -s -H 'X-aws-ec2-metadata-token: $TOKEN'" "http://169.254.169.254/latest/meta-data/instance-id")
+INSTANCE_ID=$(get_instance_id)
 [ $? -ne 0 ] && exit $OCF_ERR_GENERIC
 
 case $__OCF_ACTION in
