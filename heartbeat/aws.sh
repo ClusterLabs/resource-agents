@@ -18,6 +18,7 @@ OCF_RESKEY_curl_sleep_default="3"
 # Function to enable reusable IMDS token retrieval for efficient repeated access 
 # File to store the token and timestamp
 TOKEN_FILE="${HA_RSCTMP}/.aws_imds_token"
+TOKEN_FUNC="fetch_new_token"  # Used by curl_retry() if saved token is invalid
 TOKEN_LIFETIME=21600  # Token lifetime in seconds (6 hours)
 TOKEN_EXPIRY_THRESHOLD=3600  # Renew token if less than 60 minutes (1 hour) remaining
 DMI_FILE="/sys/devices/virtual/dmi/id/board_asset_tag" # Only supported on nitro-based instances.
