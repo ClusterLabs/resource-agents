@@ -320,7 +320,14 @@ static int32_t sigchld_handler(int32_t sig, void *data)
 
 						finished_count++;
 						test_forks[index] = 0;
-					
+
+						/* Update the result value for the client response once all checks have completed. */
+						if (device_count == finished_count) { 
+							response_final_score = final_score;
+							if (!daemon_check_first_all_devices) {
+								daemon_check_first_all_devices = TRUE;
+							}
+						}
 					}
 				}
 			} else {
@@ -441,15 +448,7 @@ static int test_device_main(gpointer data)
 		if (is_child_runnning()) {
 			device_check = FALSE;
 		}
-		
-		if (device_count == finished_count && device_check) { 
-			/* Update the result value for the client response once all checks have completed. */
-			response_final_score = final_score;
 
-			if (!daemon_check_first_all_devices) {
-				daemon_check_first_all_devices = TRUE;
-			}
-		}
 	}
 
 	if (device_check) {

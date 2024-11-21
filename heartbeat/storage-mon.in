@@ -325,6 +325,17 @@ storage-mon_start() {
 		if [ "$?" -ne 0 ]; then
 			return $OCF_ERR_GENERIC
 		fi
+
+		#Wait until monitor confirms the startup pid according to the ocf resource specification.	
+		while true; do
+			storage-mon_monitor pid_check_only
+			rc="$?"
+			if [ $rc -eq $OCF_SUCCESS ]; then
+				break
+			fi
+			sleep 1
+			ocf_log debug "storage-mon daemon still hasn't started yet. Waiting..."
+		done
 	fi
 }
 
