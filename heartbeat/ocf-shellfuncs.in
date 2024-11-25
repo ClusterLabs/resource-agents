@@ -697,6 +697,15 @@ curl_retry()
 
 		ocf_log debug "result: $result"
 		[ $rc -eq 0 ] && break
+		if [ -n "$TOKEN" ] && [ -n "$TOKEN_FILE" ] && \
+		   [ -f "$TOKEN_FILE" ] && [ -n "$TOKEN_FUNC" ] && \
+		   echo "$result" | grep -q "The requested URL returned error: 401$"; then
+			local OLD_TOKEN="$TOKEN"
+			ocf_log err "Token invalid. Getting new token."
+			TOKEN=$($TOKEN_FUNC)
+			[ $? -ne 0 ] && exit $OCF_ERR_GENERIC
+			args=$(echo "$args" | sed "s/$OLD_TOKEN/$TOKEN/")
+		fi
 		sleep $sleep
 	done
 
