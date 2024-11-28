@@ -100,14 +100,14 @@ Requires: /usr/sbin/fuser
 %endif
 
 # Filesystem / fs.sh / netfs.sh
-%if 0%{?fedora} > 39 || 0%{?suse_version}
+%if 0%{?fedora} > 39 || 0%{?rhel} > 9 || 0%{?suse_version}
 Requires: /usr/sbin/fsck
 %else
 Requires: /sbin/fsck
 %endif
 Requires: /usr/sbin/fsck.ext2 /usr/sbin/fsck.ext3 /usr/sbin/fsck.ext4
 Requires: /usr/sbin/fsck.xfs
-%if 0%{?fedora} > 40 || 0%{?suse_version}
+%if 0%{?fedora} > 40 || 0%{?rhel} > 9 || 0%{?suse_version}
 Requires: /usr/sbin/mount.nfs /usr/sbin/mount.nfs4
 %else
 Requires: /sbin/mount.nfs /sbin/mount.nfs4
@@ -127,7 +127,7 @@ Requires: /sbin/ip
 Requires: /usr/sbin/lvm
 
 # nfsserver / netfs.sh
-%if 0%{?fedora} > 40 || 0%{?suse_version}
+%if 0%{?fedora} > 40 || 0%{?rhel} > 9 || 0%{?suse_version}
 Requires: /usr/sbin/rpc.statd
 %else
 Requires: /sbin/rpc.statd
@@ -141,7 +141,7 @@ Requires: /usr/sbin/ethtool
 Requires: /sbin/rdisc /usr/sbin/arping /bin/ping /bin/ping6
 
 # nfsexport.sh
-%if 0%{?fedora} > 39
+%if 0%{?fedora} > 39 || 0%{?rhel} > 9
 Requires: /usr/sbin/findfs
 Requires: /usr/sbin/quotaon /usr/sbin/quotacheck
 %else
