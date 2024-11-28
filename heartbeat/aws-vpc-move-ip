@@ -157,7 +157,7 @@ Role to use to query/update the route table
 <content type="string" default="${OCF_RESKEY_routing_table_role_default}" />
 </parameter>
 
-<parameter name="interface" required="1">
+<parameter name="interface" required="0">
 <longdesc lang="en">
 Name of the network interface, i.e. eth0
 </longdesc>
@@ -321,7 +321,7 @@ ec2ip_monitor() {
 		ocf_log debug "monitor: Enhanced Monitoring disabled - omitting API call"
 	fi
 
-	cmd="ip addr show to $OCF_RESKEY_ip up"
+	cmd="ip addr show dev $OCF_RESKEY_interface to $OCF_RESKEY_ip up"
 	ocf_log debug "executing command: $cmd"
 	RESULT=$($cmd | grep "$OCF_RESKEY_ip")
 	if [ -z "$RESULT" ]; then
@@ -331,7 +331,7 @@ ec2ip_monitor() {
 			level="info"
 		fi
 
-		ocf_log "$level" "IP $OCF_RESKEY_ip not assigned to running interface"
+		ocf_log "$level" "IP $OCF_RESKEY_ip not assigned to interface $OCF_RESKEY_interface"
 		return $OCF_NOT_RUNNING
 	fi
 
@@ -369,19 +369,7 @@ ec2ip_drop() {
 }
 
 ec2ip_get_instance_eni() {
-	MAC_FILE="/sys/class/net/${OCF_RESKEY_interface}/address"
-	if [ -f $MAC_FILE ]; then
-		cmd="cat ${MAC_FILE}"
-	else
-		cmd="ip -br link show dev ${OCF_RESKEY_interface} | tr -s ' ' | cut -d' ' -f3"
-	fi
-	ocf_log debug "executing command: $cmd"
-	MAC_ADDR="$(eval $cmd)"
-	rc=$?
-	if [ $rc != 0 ]; then
-		ocf_log warn "command failed, rc: $rc"
-		return $OCF_ERR_GENERIC
-	fi
+	MAC_ADDR=$(get_interface_mac)
 	ocf_log debug "MAC address associated with interface ${OCF_RESKEY_interface}: ${MAC_ADDR}"
 
 	cmd="curl_retry \"$OCF_RESKEY_curl_retries\" \"$OCF_RESKEY_curl_sleep\" \"--show-error -s -H 'X-aws-ec2-metadata-token: $TOKEN'\" \"http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC_ADDR}/interface-id\""
