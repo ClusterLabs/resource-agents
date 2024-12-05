@@ -141,17 +141,19 @@ osvol_monitor() {
 
 	node_id=$(_get_node_id)
 
-	if [ "$__OCF_ACTION" = "monitor" ] && ocf_is_true $OCF_RESKEY_volume_local_check ; then
-		#
-		# Is the volue attached?
-		# We check the local devices
-		#
-		short_volume_id=$(echo $OCF_RESKEY_volume_id | awk '{print substr($0, 0, 20)}')
-		if lsblk /dev/disk/by-id/virtio-$short_volume_id 1>/dev/null 2>&1; then
-			return $OCF_SUCCESS
-		else
-			ocf_log warn "$OCF_RESKEY_volume_id is not attached to instance $node_id"
-			return $OCF_NOT_RUNNING
+	if ocf_is_true $OCF_RESKEY_volume_local_check ; then
+		if [ "$__OCF_ACTION" = "monitor" ] || [ "$__OCF_ACTION" = "start" ] ; then
+			#
+			# Is the volue attached?
+			# We check the local devices
+			#
+			short_volume_id=$(echo $OCF_RESKEY_volume_id | awk '{print substr($0, 0, 20)}')
+			if lsblk /dev/disk/by-id/virtio-$short_volume_id 1>/dev/null 2>&1; then
+				return $OCF_SUCCESS
+			else
+				ocf_log warn "$OCF_RESKEY_volume_id is not attached to instance $node_id"
+				return $OCF_NOT_RUNNING
+			fi
 		fi
 	fi
 
@@ -246,6 +248,11 @@ osvol_start() {
 		ocf_log error "Couldn't add volume $OCF_RESKEY_volume_id to instance $node_id"
 		return $OCF_ERR_GENERIC
 	fi
+
+	while ! osvol_monitor; do
+		ocf_log info "Waiting for cinder volume $OCF_RESKEY_volume_id to appear on $node_id"
+		sleep 1
+	done
 
 	return $OCF_SUCCESS
 }
