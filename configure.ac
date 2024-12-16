@@ -573,8 +573,6 @@ if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0; then
 fi
 AM_CONDITIONAL(BUILD_IBMCLOUD_VPC_MOVE_ROUTE, test $BUILD_IBMCLOUD_VPC_MOVE_ROUTE -eq 1)
 
-
-
 AC_PATH_PROGS(ROUTE, route)
 AC_DEFINE_UNQUOTED(ROUTE, "$ROUTE", path to route command)
 
