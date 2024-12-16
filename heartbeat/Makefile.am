@@ -210,6 +210,10 @@ if BUILD_POWERVS_SUBNET
 ocf_SCRIPTS	     += powervs-subnet
 endif
 
+if BUILD_IBMCLOUD_VPC_MOVE_ROUTE
+ocf_SCRIPTS	     += ibmcloud-vpc-cr-vip
+endif
+
 ocfcommondir		= $(OCF_LIB_DIR_PREFIX)/heartbeat
 ocfcommon_DATA		= ocf-shellfuncs 	\
 			  ocf-binaries	 	\
