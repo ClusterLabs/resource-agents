@@ -191,7 +191,7 @@ def main():
     """)
 
     agent = ocf.Agent(
-        "ibmcloud-vpc-move-route",
+        "ibmcloud-vpc-cr-vip",
         shortdesc="Manages moving move a IBM Cloud VIP based on Custom Route",
         longdesc=agent_description
     )
