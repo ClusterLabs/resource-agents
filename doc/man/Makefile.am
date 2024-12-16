@@ -245,7 +245,6 @@ if BUILD_IBMCLOUD_VPC_MOVE_ROUTE
 man_MANS           	+= ocf_heartbeat_ibmcloud-vpc-cr-vip.7
 endif
 
-
 xmlfiles		= $(man_MANS:.7=.xml)
 
 %.1 %.5 %.7 %.8: %.xml
