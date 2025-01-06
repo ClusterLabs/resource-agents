@@ -1,8 +1,8 @@
 #!@PYTHON@ -tt
 # ------------------------------------------------------------------------
-# Description:  Resource Agent to move a Power Virtual Server subnet
-#               and its IP address from one virtual server instance
-#               to another.
+# Description: Resource Agent to move a IBM Cloud VIP based on Custom Route
+#              Nxet-hop Change from one virtual network interface (VNI) to
+#              the Second virtual network interface (VNI)
 #
 # Authors:      Eran Gampel
 #
@@ -79,10 +79,10 @@ def validate_all_action(
     """validate all paramters
 
     Args:
-        vpc_url (str, mandatory): vpc_url for teh region .
+        vpc_url (str, mandatory): vpc_url for the region.
         ext_ip_1 (str, mandatory): First Instance IP.
-        ext_ip_2 (str, mandatory): Secound Instance IP.
-        api_key (str, optional): IBM Cloud API acsess key. Defaults to "".
+        ext_ip_2 (str, mandatory): Second Instance IP.
+        api_key (str, optional): IBM Cloud API access key. Defaults to "".
 
     Returns:
         _type_: _description_
@@ -103,7 +103,7 @@ def stop_action(
     """Stop VIP
 
     Args:
-        vpc_url (str, mandatory): vpc_url for teh region .
+        vpc_url (str, mandatory): vpc_url for the region.
         ext_ip_1 (str, mandatory): First Instance IP.
         ext_ip_2 (str, mandatory): Secound Instance IP.
         api_key (str, optional): IBM Cloud API acsess key. Defaults to "".
@@ -111,7 +111,7 @@ def stop_action(
     Returns:
         _type_: _description_
     """
-    ocf.logger.info("stop_action:stoping")
+    ocf.logger.info("stop_action: stopping")
     res = monitor_action(vpc_url, ext_ip_1, ext_ip_2, api_key)
     if res == ocf.OCF_NOT_RUNNING:
         ocf.logger.info("Resource is already stopped")
@@ -137,8 +137,8 @@ def start_action(
         api_key (str, optional): IBM Cloud API acsess key. Defaults to "".
 
     Change custom route nexthop to point to this endpoint.
-    In case of a cross AZ Active Passive the route adveritise zone will
-    be chaged to teh new acrtive zone
+    In case of a cross AZ Active Passive the route advertize zone will
+    be changed to the new active zone
     """
     try:
         ibm_cloud_fail_over.fail_over_cr_vip("SET", vpc_url , ext_ip_1,
@@ -185,14 +185,11 @@ def main():
         2. Enable Instance Metadata enabled on the two nodes
         3. allow_ip_spoofing enabled on the Virtual network interface
         3. IBM Cloud API Key or Trused profile:
-
-
-
     """)
 
     agent = ocf.Agent(
-        "ibmcloud-vpc-cr-vip",
-        shortdesc="Manages moving move a IBM Cloud VIP based on Custom Route",
+        "ibm-cloud-vpc-cr-vip",
+        shortdesc="Manages moving an IBM Cloud VIP based on Custom Route",
         longdesc=agent_description
     )
 
@@ -215,8 +212,8 @@ def main():
 
     agent.add_parameter(
         "ext_ip_2",
-        shortdesc="Ip address for secound instance.",
-        longdesc="predefined private ip address for secound instance.",
+        shortdesc="Ip address for second instance.",
+        longdesc="predefined private ip address for second instance.",
         content_type="string",
         required=True,
     )
@@ -235,12 +232,12 @@ def main():
     )
 
 
-    agent.add_action("start", timeout=900, handler=start_action)
-    agent.add_action("stop", timeout=450, handler=stop_action)
+    agent.add_action("start", timeout=30, handler=start_action)
+    agent.add_action("stop", timeout=30, handler=stop_action)
     agent.add_action(
         "monitor", depth=0, timeout=60, interval=60, handler=monitor_action
     )
-    agent.add_action("validate-all", timeout=300, handler=validate_all_action)
+    agent.add_action("validate-all", timeout=30, handler=validate_all_action)
     agent.run()
 
 
