@@ -131,7 +131,7 @@ def start_action(
 ):
     """start_action: redirect  the service ip.
     Args:
-        vpc_url (str, mandatory): vpc_url for teh region .
+        vpc_url (str, mandatory): vpc_url for the region .
         ext_ip_1 (str, mandatory): First Instance IP.
         ext_ip_2 (str, mandatory): Secound Instance IP.
         api_key (str, optional): IBM Cloud API acsess key. Defaults to "".
