@@ -242,7 +242,7 @@ man_MANS           	+= ocf_heartbeat_powervs-subnet.7
 endif
 
 if BUILD_IBMCLOUD_VPC_MOVE_ROUTE
-man_MANS           	+= ocf_heartbeat_ibmcloud-vpc-cr-vip.7
+man_MANS           	+= ocf_heartbeat_ibm-cloud-vpc-cr-vip.7
 endif
 
 xmlfiles		= $(man_MANS:.7=.xml)

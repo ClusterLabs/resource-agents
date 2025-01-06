@@ -211,7 +211,7 @@ ocf_SCRIPTS	     += powervs-subnet
 endif
 
 if BUILD_IBMCLOUD_VPC_MOVE_ROUTE
-ocf_SCRIPTS	     += ibmcloud-vpc-cr-vip
+ocf_SCRIPTS	     += ibm-cloud-vpc-cr-vip
 endif
 
 ocfcommondir		= $(OCF_LIB_DIR_PREFIX)/heartbeat
