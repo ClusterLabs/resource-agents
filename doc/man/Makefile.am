@@ -241,7 +241,7 @@ if BUILD_POWERVS_SUBNET
 man_MANS           	+= ocf_heartbeat_powervs-subnet.7
 endif
 
-if BUILD_IBMCLOUD_VPC_MOVE_ROUTE
+if BUILD_IBM_CLOUD_VPC_MOVE_ROUTE
 man_MANS           	+= ocf_heartbeat_ibm-cloud-vpc-cr-vip.7
 endif
 

@@ -1,7 +1,7 @@
 #!@PYTHON@ -tt
 # ------------------------------------------------------------------------
 # Description: Resource Agent to move a IBM Cloud VIP based on Custom Route
-#              Nxet-hop Change from one virtual network interface (VNI) to
+#              Next-hop Change from one virtual network interface (VNI) to
 #              the Second virtual network interface (VNI)
 #
 # Authors:      Eran Gampel
@@ -105,8 +105,8 @@ def stop_action(
     Args:
         vpc_url (str, mandatory): vpc_url for the region.
         ext_ip_1 (str, mandatory): First Instance IP.
-        ext_ip_2 (str, mandatory): Secound Instance IP.
-        api_key (str, optional): IBM Cloud API acsess key. Defaults to "".
+        ext_ip_2 (str, mandatory): Second Instance IP.
+        api_key (str, optional): IBM Cloud API access key. Defaults to "".
 
     Returns:
         _type_: _description_
@@ -133,8 +133,8 @@ def start_action(
     Args:
         vpc_url (str, mandatory): vpc_url for the region .
         ext_ip_1 (str, mandatory): First Instance IP.
-        ext_ip_2 (str, mandatory): Secound Instance IP.
-        api_key (str, optional): IBM Cloud API acsess key. Defaults to "".
+        ext_ip_2 (str, mandatory): Second Instance IP.
+        api_key (str, optional): IBM Cloud API access key. Defaults to "".
 
     Change custom route nexthop to point to this endpoint.
     In case of a cross AZ Active Passive the route advertize zone will

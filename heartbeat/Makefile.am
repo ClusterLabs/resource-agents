@@ -210,7 +210,7 @@ if BUILD_POWERVS_SUBNET
 ocf_SCRIPTS	     += powervs-subnet
 endif
 
-if BUILD_IBMCLOUD_VPC_MOVE_ROUTE
+if BUILD_IBM_CLOUD_VPC_MOVE_ROUTE
 ocf_SCRIPTS	     += ibm-cloud-vpc-cr-vip
 endif
 
