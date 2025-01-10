@@ -142,9 +142,9 @@ osvol_monitor() {
 	node_id=$(_get_node_id)
 
 	if ocf_is_true $OCF_RESKEY_volume_local_check ; then
-		if [ "$__OCF_ACTION" = "monitor" ] || [ "$__OCF_ACTION" = "start" ] ; then
+		if [ "$__OCF_ACTION" = "monitor" ] || [ "$1" = "quick" ]; then
 			#
-			# Is the volue attached?
+			# Is the volume attached?
 			# We check the local devices
 			#
 			short_volume_id=$(echo $OCF_RESKEY_volume_id | awk '{print substr($0, 0, 20)}')
@@ -158,7 +158,7 @@ osvol_monitor() {
 	fi
 
 	#
-	# Is the volue attached?
+	# Is the volume attached?
 	# We use the API
 	#
 	result=$(run_openstackcli "volume show \
@@ -249,7 +249,7 @@ osvol_start() {
 		return $OCF_ERR_GENERIC
 	fi
 
-	while ! osvol_monitor; do
+	while ! osvol_monitor quick; do
 		ocf_log info "Waiting for cinder volume $OCF_RESKEY_volume_id to appear on $node_id"
 		sleep 1
 	done
