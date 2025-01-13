@@ -214,6 +214,10 @@ if BUILD_IBM_CLOUD_VPC_MOVE_ROUTE
 ocf_SCRIPTS	     += ibm-cloud-vpc-cr-vip
 endif
 
+if BUILD_IBM_CLOUD_VPC_MOVE_FIP
+ocf_SCRIPTS	     += ibm-cloud-vpc-move-fip
+endif
+
 ocfcommondir		= $(OCF_LIB_DIR_PREFIX)/heartbeat
 ocfcommon_DATA		= ocf-shellfuncs 	\
 			  ocf-binaries	 	\
