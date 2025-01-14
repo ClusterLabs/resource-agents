@@ -1,0 +1,245 @@
+#!@PYTHON@ -tt
+# ------------------------------------------------------------------------
+# Description: Resource Agent to move a IBM Cloud VIP based on Custom Route
+#              Next-hop Change from one virtual network interface (VNI) to
+#              the Second virtual network interface (VNI)
+#
+# Authors:      Eran Gampel
+#
+# Copyright (c) 2024 International Business Machines, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ------------------------------------------------------------------------
+import subprocess
+import ipaddress
+import os
+import sys
+import textwrap
+import time
+
+OCF_FUNCTIONS_DIR = os.environ.get(
+    "OCF_FUNCTIONS_DIR", "%s/lib/heartbeat" % os.environ.get("OCF_ROOT")
+)
+
+sys.path.append(OCF_FUNCTIONS_DIR)
+
+RETRY_COUNT = 1
+SLEEP_TIME  = 1
+
+try:
+    import ocf
+except ImportError:
+    sys.stderr.write("ImportError: ocf module import failed.")
+    sys.exit(5)
+
+try:
+    import ibm_cloud_fail_over
+except ImportError:
+     sys.stderr.write("ImportError: import ibm_cloud_fail_over module import failed.")
+     pass
+
+def os_ip(ip):
+    """Check if VSI own this IP address."""
+
+    command = ["ip", "a"]
+    response = subprocess.run(command, capture_output=True, text=True)
+    return ip in  response.stdout
+
+def ip_address_validator(ip):
+    """validate ip address string
+
+    Args:
+        ip (string): ip address
+
+    Returns:
+        bool: true if the strig is a valid ipv4 ip address
+    """
+    try:
+        ipaddress.ip_address(ip)
+        return True
+    except ValueError:
+        return False
+
+def validate_all_action(
+    vpc_url="",
+    ext_ip_1="",
+    ext_ip_2="",
+    api_key="",
+):
+    """validate all paramters
+
+    Args:
+        vpc_url (str, mandatory): vpc_url for the region.
+        ext_ip_1 (str, mandatory): First Instance IP.
+        ext_ip_2 (str, mandatory): Second Instance IP.
+        api_key (str, optional): IBM Cloud API access key. Defaults to "".
+
+    Returns:
+        _type_: _description_
+    """
+    if not ip_address_validator(ext_ip_1):
+      return ocf.OCF_ERR_CONFIGURED
+    if not ip_address_validator(ext_ip_2):
+      return ocf.OCF_ERR_CONFIGURED
+    ocf.logger.debug(f"validate_all_action: {vpc_url} {api_key}")
+    return ocf.OCF_SUCCESS
+
+def stop_action(
+    vpc_url="",
+    ext_ip_1="",
+    ext_ip_2="",
+    api_key="",
+):
+    """Stop VIP
+
+    Args:
+        vpc_url (str, mandatory): vpc_url for the region.
+        ext_ip_1 (str, mandatory): First Instance IP.
+        ext_ip_2 (str, mandatory): Second Instance IP.
+        api_key (str, optional): IBM Cloud API access key. Defaults to "".
+
+    Returns:
+        _type_: _description_
+    """
+    ocf.logger.info("stop_action: stopping")
+    res = monitor_action(vpc_url, ext_ip_1, ext_ip_2, api_key)
+    if res == ocf.OCF_NOT_RUNNING:
+        ocf.logger.info("Resource is already stopped")
+    if res == ocf.OCF_SUCCESS:
+        for i in range(0,RETRY_COUNT):
+            time.sleep(SLEEP_TIME)
+            res = monitor_action(vpc_url, ext_ip_1, ext_ip_2, api_key)
+            if res == ocf.OCF_NOT_RUNNING:
+                break
+    return ocf.OCF_SUCCESS
+
+def start_action(
+    vpc_url="",
+    ext_ip_1="",
+    ext_ip_2="",
+    api_key="",
+):
+    """start_action: redirect  the service ip.
+    Args:
+        vpc_url (str, mandatory): vpc_url for the region .
+        ext_ip_1 (str, mandatory): First Instance IP.
+        ext_ip_2 (str, mandatory): Second Instance IP.
+        api_key (str, optional): IBM Cloud API access key. Defaults to "".
+
+    Change custom route nexthop to point to this endpoint.
+    In case of a cross AZ Active Passive the route advertize zone will
+    be changed to the new active zone
+    """
+    try:
+        ibm_cloud_fail_over.fail_over_cr_vip("SET", vpc_url , ext_ip_1,
+		ext_ip_2, api_key)
+        active_ip = ibm_cloud_fail_over.fail_over_cr_vip("GET", vpc_url ,
+		ext_ip_1, ext_ip_2, api_key)
+        ocf.logger.info(f"start_action: active_ip: {active_ip}")
+    except Exception as e:
+        ocf.logger.error('Couldn\'t connect with IBM Cloud api: ' + str(e))
+        sys.exit(ocf.OCF_ERR_GENERIC)
+
+    return ocf.OCF_SUCCESS
+
+def monitor_action(
+    vpc_url="",
+    ext_ip_1="",
+    ext_ip_2="",
+    api_key="",
+):
+    """monitor_action: check if service ip and gateway are responding."""
+
+    ocf.logger.debug("monitor_action:")
+    try:
+        active_ip = ibm_cloud_fail_over.fail_over_cr_vip("GET", vpc_url , ext_ip_1,
+			ext_ip_2, api_key)
+        if ip_address_validator(active_ip):
+            if os_ip(active_ip):
+            	return ocf.OCF_SUCCESS
+        return ocf.OCF_NOT_RUNNING
+    except Exception as e:
+        ocf.logger.error('Couldn\'t connect with IBM Cloud api: ' + str(e))
+        sys.exit(ocf.OCF_ERR_GENERIC)
+
+
+def main():
+    """Instantiate the resource agent."""
+
+    agent_description = textwrap.dedent("""\
+        Resource Agent to move a IBM Cloud VIP based on Custom Route
+        from one virtual network interface (VNI) to another.
+        The prerequisites for the use of this resource agent are as follows:
+
+        1. A two-node (VSI or BM) cluster distributed in same Avilability zone or across.
+        2. Enable Instance Metadata enabled on the two nodes
+        3. allow_ip_spoofing enabled on the Virtual network interface
+        3. IBM Cloud API Key or Trused profile:
+    """)
+
+    agent = ocf.Agent(
+        "ibm-cloud-vpc-cr-vip",
+        shortdesc="Manages moving an IBM Cloud VIP based on Custom Route",
+        longdesc=agent_description
+    )
+
+
+    agent.add_parameter(
+        "vpc_url",
+        shortdesc="VPC_URL",
+        longdesc="IBM Cloud Public VPC URL for your region or a VPE URL for IBM Cloud VPC",
+        content_type="string",
+        required=True,
+    )
+
+    agent.add_parameter(
+        "ext_ip_1",
+        shortdesc="Ip address for first instance.",
+        longdesc="predefined private ip address for first instance.",
+        content_type="string",
+        required=True,
+    )
+
+    agent.add_parameter(
+        "ext_ip_2",
+        shortdesc="Ip address for second instance.",
+        longdesc="predefined private ip address for second instance.",
+        content_type="string",
+        required=True,
+    )
+
+
+    agent.add_parameter(
+        "api_key",
+        shortdesc="API Key or @API_KEY_FILE_PATH",
+        longdesc=(
+            "API Key or @API_KEY_FILE_PATH for IBM Cloud access. "
+            "The API key content or the path of an API key file that is indicated by the @ symbol."
+            "Not needed if trusted profile is used"
+        ),
+        content_type="string",
+        required=False,
+    )
+
+
+    agent.add_action("start", timeout=30, handler=start_action)
+    agent.add_action("stop", timeout=30, handler=stop_action)
+    agent.add_action(
+        "monitor", depth=0, timeout=60, interval=60, handler=monitor_action
+    )
+    agent.add_action("validate-all", timeout=30, handler=validate_all_action)
+    agent.run()
+
+
+if __name__ == "__main__":
+    main()

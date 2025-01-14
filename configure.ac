@@ -566,6 +566,13 @@ if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0 || test "x${HAVE_PYMOD_REQUESTS
 fi
 AM_CONDITIONAL(BUILD_POWERVS_SUBNET, test $BUILD_POWERVS_SUBNET -eq 1)
 
+BUILD_IBM_CLOUD_VPC_MOVE_ROUTE=1
+if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0; then
+    BUILD_IBM_CLOUD_VPC_MOVE_ROUTE=0
+    AC_MSG_WARN("Not building ibm-cloud-vpc-cr-vip")
+fi
+AM_CONDITIONAL(BUILD_IBM_CLOUD_VPC_MOVE_ROUTE, test $BUILD_IBM_CLOUD_VPC_MOVE_ROUTE -eq 1)
+
 AC_PATH_PROGS(ROUTE, route)
 AC_DEFINE_UNQUOTED(ROUTE, "$ROUTE", path to route command)
 
@@ -1016,6 +1023,7 @@ AC_CONFIG_FILES([heartbeat/gcp-pd-move], [chmod +x heartbeat/gcp-pd-move])
 AC_CONFIG_FILES([heartbeat/gcp-vpc-move-ip], [chmod +x heartbeat/gcp-vpc-move-ip])
 AC_CONFIG_FILES([heartbeat/gcp-vpc-move-vip], [chmod +x heartbeat/gcp-vpc-move-vip])
 AC_CONFIG_FILES([heartbeat/gcp-vpc-move-route], [chmod +x heartbeat/gcp-vpc-move-route])
+AC_CONFIG_FILES([heartbeat/ibm-cloud-vpc-cr-vip], [chmod +x heartbeat/ibm-cloud-vpc-cr-vip])
 AC_CONFIG_FILES([heartbeat/iSCSILogicalUnit], [chmod +x heartbeat/iSCSILogicalUnit])
 AC_CONFIG_FILES([heartbeat/iSCSITarget], [chmod +x heartbeat/iSCSITarget])
 AC_CONFIG_FILES([heartbeat/jira], [chmod +x heartbeat/jira])

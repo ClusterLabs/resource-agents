@@ -241,6 +241,10 @@ if BUILD_POWERVS_SUBNET
 man_MANS           	+= ocf_heartbeat_powervs-subnet.7
 endif
 
+if BUILD_IBM_CLOUD_VPC_MOVE_ROUTE
+man_MANS           	+= ocf_heartbeat_ibm-cloud-vpc-cr-vip.7
+endif
+
 xmlfiles		= $(man_MANS:.7=.xml)
 
 %.1 %.5 %.7 %.8: %.xml
