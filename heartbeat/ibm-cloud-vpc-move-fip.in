@@ -180,10 +180,10 @@ def main():
         interface (VNI) to another.
         The prerequisites for the use of this resource agent are as follows:
 
-        1. A two-node (VSI or BM) cluster distributed in same Avilability zone or across.
-        2. Enable Instance Metadata enabled on the two nodes
-        3. allow_ip_spoofing enabled on the Virtual network interface
-        3. IBM Cloud API Key or Trused profile:
+        1. A two-node (VSI or BM) cluster distributed in same Avilability Zone.
+        2. Enable Instance Metadata on the two nodes.
+        3. Use IBM Cloud API Key or Trused Profile.
+	4. Assign a Floating IP to one VNI.
     """)
 
     agent = ocf.Agent(
