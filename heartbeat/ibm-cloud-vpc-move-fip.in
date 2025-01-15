@@ -188,7 +188,7 @@ def main():
 
     agent = ocf.Agent(
         "ibm-cloud-vpc-move-fip",
-        shortdesc="Manages moving an IBM Cloud FIP IP",
+        shortdesc="Manages moving an IBM Cloud Public FIP IP",
         longdesc=agent_description
     )
 
@@ -229,7 +229,7 @@ def main():
         "api_key",
         shortdesc="API Key",
         longdesc=(
-            "API Key or @API_KEY_FILE_PATH for IBM Cloud Access. "
+            "API Key for IBM Cloud Access."
             "Not needed if Trusted Profile is used"
         ),
         content_type="string",
