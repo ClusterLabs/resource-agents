@@ -163,8 +163,8 @@ def monitor_action(
     try:
         active_fip_id , active_fip_ip = ibm_cloud_fail_over.fail_over_get_attached_fip()
         if active_fip_id == fip_id:
+            ocf.logger.debug("monitor_action: active fip ip:" + active_fip_ip)
             return ocf.OCF_SUCCESS
-        ocf.logger.debug("monitor_action: active fip ip:" + active_fip_ip)
         return ocf.OCF_NOT_RUNNING
     except Exception as e:
         ocf.logger.error('Couldn\'t connect with IBM Cloud api: ' + str(e))
