@@ -76,9 +76,9 @@ def validate_all_action(
 
     Args:
         vpc_url (str, mandatory): vpc_url for the region .
-        vni_id_1 (str, mandatory): First Instance IP.
-        vni_id_2 (str, mandatory): Second Instance IP.
-        api_key (str, optional): IBM Cloud API acsess key. Defaults to "".
+        vni_id_1 (str, mandatory): First VNI(Virtual Network Interface) ID.
+        vni_id_2 (str, mandatory): Second VNI(Virtual Network Interface) ID.
+        api_key (str, optional): IBM Cloud API Access key. Defaults to "".
 
     Returns:
         _type_: _description_
@@ -101,25 +101,24 @@ def stop_action(
 
     Args:
         vpc_url (str, mandatory): vpc_url for the region .
-        vni_id_1 (str, mandatory): First Instance IP.
-        vni_id_2 (str, mandatory): Second Instance IP.
-        api_key (str, optional): IBM Cloud API acsess key. Defaults to "".
+        vni_id_1 (str, mandatory): First VNI(Virtual Network Interface) ID.
+        vni_id_2 (str, mandatory): Second VNI(Virtual Network Interface) ID.
+        api_key (str, optional): IBM Cloud API Access key. Defaults to "".
 
     Returns:
         _type_: _description_
     """
-    ocf.logger.info("stop_action:stoping")
     res = monitor_action(vpc_url, vni_id_1, vni_id_2, api_key)
     if res == ocf.OCF_NOT_RUNNING:
         ocf.logger.info("Resource is already stopped")
         return ocf.OCF_SUCCESS
     try:
+        ocf.logger.info("stop_action:stoping")
         ibm_cloud_fail_over.fail_over_floating_ip_stop(vpc_url , vni_id_1,
 							vni_id_2, fip_id, api_key)
     except Exception as e:
-        ocf.logger.error('Couldn\'t connect with IBM Cloud api: ' + str(e))
+        ocf.logger.error('stop_action: Couldn\'t connect with IBM Cloud api: ' + str(e))
         sys.exit(ocf.OCF_ERR_GENERIC)
-
     return ocf.OCF_SUCCESS
 
 def start_action(
@@ -132,21 +131,24 @@ def start_action(
     """start_action: redirect  the service ip.
     Args:
         vpc_url (str, mandatory): vpc_url for the region .
-        vni_id_1 (str, mandatory): First Instance IP.
-        vni_id_2 (str, mandatory): Second Instance IP.
-        api_key (str, optional): IBM Cloud API acsess key. Defaults to "".
+        vni_id_1 (str, mandatory): First VNI(Virtual Network Interface) ID.
+        vni_id_2 (str, mandatory): Second VNI(Virtual Network Interface) ID.
+        api_key (str, optional): IBM Cloud API Access key. Defaults to "".
 
     Change custom route nexthop to point to this endpoint.
     In case of a cross AZ Active Passive the route adveritise zone will
     be chaged to the new acrtive zone
     """
     try:
-        ibm_cloud_fail_over.fail_over_floating_ip_start(vpc_url, vni_id_1,
-							vni_id_2, fip_id, api_key)
+        active_fip_id , active_fip_ip = ibm_cloud_fail_over.fail_over_floating_ip_start(vpc_url,
+                                                     vni_id_1, vni_id_2, fip_id, api_key)
     except Exception as e:
-        ocf.logger.error('Couldn\'t connect with IBM Cloud api: ' + str(e))
+        ocf.logger.error('start_action: Couldn\'t connect with IBM Cloud api: ' + str(e))
         sys.exit(ocf.OCF_ERR_GENERIC)
-
+    if active_fip_id != fip_id:
+        ocf.logger.error(f'start_action: fip_id: {fip_id} is not attached')
+        return ocf.OCF_ERR_GENERIC
+    ocf.logger.info("start_action: OCF_SUCCESS FIP IP: " + active_fip_ip + "is active")
     return ocf.OCF_SUCCESS
 
 def monitor_action(
@@ -226,11 +228,10 @@ def main():
 
     agent.add_parameter(
         "api_key",
-        shortdesc="API Key or @API_KEY_FILE_PATH",
+        shortdesc="API Key",
         longdesc=(
-            "API Key or @API_KEY_FILE_PATH for IBM Cloud access. "
-            "The API key content or the path of an API key file that is indicated by the @ symbol."
-            "Not needed if trusted profile is used"
+            "API Key or @API_KEY_FILE_PATH for IBM Cloud Access. "
+            "Not needed if Trusted Profile is used"
         ),
         content_type="string",
         required=False,
