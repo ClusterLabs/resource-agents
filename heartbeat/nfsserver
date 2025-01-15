@@ -978,20 +978,6 @@ nfsserver_stop ()
 				return $OCF_ERR_GENERIC
 			fi
 		  fi
-
-		  if systemctl --no-legend list-unit-files "nfsdcld*" | grep -q nfsdcld; then
-		  	nfs_exec stop nfsdcld > /dev/null 2>&1
-		  	ocf_log info "Stop: nfsdcld"
-		  	fn=`mktemp`
-		  	nfs_exec status nfsdcld > $fn 2>&1
-		  	rc=$?
-		  	ocf_log debug "$(cat $fn)"
-		  	rm -f $fn
-		  	if [ "$rc" -eq "0" ]; then
-		  		ocf_exit_reason "Failed to stop nfsdcld"
-		  		return $OCF_ERR_GENERIC
-		  	fi
-		  fi
 	esac
 
 
@@ -1007,6 +993,20 @@ nfsserver_stop ()
 	case $EXEC_MODE in
             [23]) nfs_exec stop rpc-gssd > /dev/null 2>&1
 		  ocf_log info "Stop: rpc-gssd"
+
+		  if systemctl --no-legend list-unit-files "nfsdcld*" | grep -q nfsdcld; then
+		  	nfs_exec stop nfsdcld > /dev/null 2>&1
+		  	ocf_log info "Stop: nfsdcld"
+		  	fn=`mktemp`
+		  	nfs_exec status nfsdcld > $fn 2>&1
+		  	rc=$?
+		  	ocf_log debug "$(cat $fn)"
+		  	rm -f $fn
+		  	if [ "$rc" -eq "0" ]; then
+		  		ocf_exit_reason "Failed to stop nfsdcld"
+		  		return $OCF_ERR_GENERIC
+		  	fi
+		  fi
 	esac
 
 	unbind_tree
