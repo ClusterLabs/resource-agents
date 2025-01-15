@@ -176,7 +176,7 @@ def main():
     """Instantiate the resource agent."""
 
     agent_description = textwrap.dedent("""\
-        Resource Agent to move a IBM Cloud Public Floating IP (FIP) from one virtual network
+        Resource Agent to move an IBM Cloud Public Floating IP (FIP) from one virtual network
         interface (VNI) to another.
         The prerequisites for the use of this resource agent are as follows:
 
