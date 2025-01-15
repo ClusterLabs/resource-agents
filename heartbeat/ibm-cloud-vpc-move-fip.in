@@ -148,7 +148,7 @@ def start_action(
     if active_fip_id != fip_id:
         ocf.logger.error(f'start_action: fip_id: {fip_id} is not attached')
         return ocf.OCF_ERR_GENERIC
-    ocf.logger.info("start_action: OCF_SUCCESS FIP IP: " + active_fip_ip + "is active")
+    ocf.logger.info(f'start_action: OCF_SUCCESS FIP IP: {active_fip_ip} is active')
     return ocf.OCF_SUCCESS
 
 def monitor_action(
@@ -159,13 +159,12 @@ def monitor_action(
     api_key="",
 ):
     """monitor_action: check if service ip and gateway are responding."""
-
-    ocf.logger.debug("monitor_action: url:" + vpc_url + "fip_id:" + fip_id +
-			"vni_id_1:" + vni_id_1 + "vni_id_2:" + vni_id_2)
+    ocf.logger.debug(f'monitor_action: url: {vpc_url} fip_id: {fip_id}' \
+                        f'{vni_id_1}  "vni_id_2:" {vni_id_2}')
     try:
         active_fip_id , active_fip_ip = ibm_cloud_fail_over.fail_over_get_attached_fip()
         if active_fip_id == fip_id:
-            ocf.logger.debug("monitor_action: active fip ip:" + active_fip_ip)
+            ocf.logger.debug(f'monitor_action: active fip ip: {active_fip_ip}')
             return ocf.OCF_SUCCESS
         return ocf.OCF_NOT_RUNNING
     except Exception as e:
