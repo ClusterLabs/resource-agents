@@ -41,7 +41,8 @@ except ImportError:
 try:
     import ibm_cloud_fail_over
 except ImportError:
-    sys.stderr.write("ImportError: import ibm_cloud_fail_over module import failed.")
+    ocf.logger.error("ImportError: import of ibm_cloud_fail_over module failed."   \
+                        "install using: pip install ibm_cloud_fail_over")
     pass
 
 def os_ip(ip):
@@ -162,7 +163,7 @@ def monitor_action(
     ocf.logger.debug(f'monitor_action: url: {vpc_url} fip_id: {fip_id}' \
                         f'{vni_id_1}  "vni_id_2:" {vni_id_2}')
     try:
-        active_fip_id , active_fip_ip = ibm_cloud_fail_over.fail_over_get_attached_fip()
+        active_fip_id , active_fip_ip = ibm_cloud_fail_over.fail_over_get_attached_fip(api_key)
         if active_fip_id == fip_id:
             ocf.logger.debug(f'monitor_action: active fip ip: {active_fip_ip}')
             return ocf.OCF_SUCCESS
@@ -180,9 +181,9 @@ def main():
         interface (VNI) to another.
         The prerequisites for the use of this resource agent are as follows:
 
-        1. A two-node (VSI or BM) cluster distributed in same Avilability Zone.
+        1. A two-node (VSI or BM) cluster distributed in same Availability Zone.
         2. Enable Instance Metadata on the two nodes.
-        3. Use IBM Cloud API Key or Trused Profile.
+        3. Use IBM Cloud API Key or Trusted Profile.
 	4. Assign a Floating IP to one VNI.
     """)
 
@@ -203,16 +204,16 @@ def main():
 
     agent.add_parameter(
         "vni_id_1",
-        shortdesc="IBM Cloud Virtual Network Interafce UUID for first instance",
-        longdesc="IBM Cloud Virtual Network Interafce UUID (VNI) for first instance.",
+        shortdesc="IBM Cloud Virtual Network Interface UUID for first instance",
+        longdesc="IBM Cloud Virtual Network Interface UUID (VNI) for first instance.",
         content_type="string",
         required=True,
     )
 
     agent.add_parameter(
         "vni_id_2",
-        shortdesc="IBM Cloud Virtual Network Interafce UUID for Second instance",
-        longdesc="IBM Cloud Virtual Network Interafce UUID (VNI) for Second instance.",
+        shortdesc="IBM Cloud Virtual Network Interface UUID for Second instance",
+        longdesc="IBM Cloud Virtual Network Interface UUID (VNI) for Second instance.",
         content_type="string",
         required=True,
     )
