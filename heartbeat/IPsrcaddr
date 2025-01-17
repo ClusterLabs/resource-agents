@@ -62,6 +62,7 @@ OCF_RESKEY_proto_default=""
 OCF_RESKEY_metric_default=""
 OCF_RESKEY_pref_default=""
 OCF_RESKEY_table_default=""
+OCF_RESKEY_skip_more_than_one_route_matches_check_default="false"
 
 : ${OCF_RESKEY_ipaddress=${OCF_RESKEY_ipaddress_default}}
 : ${OCF_RESKEY_cidr_netmask=${OCF_RESKEY_cidr_netmask_default}}
@@ -70,6 +71,7 @@ OCF_RESKEY_table_default=""
 : ${OCF_RESKEY_metric=${OCF_RESKEY_metric_default}}
 : ${OCF_RESKEY_pref=${OCF_RESKEY_pref_default}}
 : ${OCF_RESKEY_table=${OCF_RESKEY_table_default}}
+: ${OCF_RESKEY_skip_more_than_one_route_matches_check=${OCF_RESKEY_skip_more_than_one_route_matches_check_default}}
 #######################################################################
 
 [ -z "$OCF_RESKEY_proto" ] && PROTO="" || PROTO="proto $OCF_RESKEY_proto"
@@ -176,6 +178,16 @@ This can be used for policy based routing. See man ip-rule(8).
 </longdesc>
 <shortdesc lang="en">Table</shortdesc>
 <content type="string" default="${OCF_RESKEY_table_default}" />
+</parameter>
+
+<parameter name="skip_more_than_one_route_matches_check">
+<longdesc lang="en">
+Skip More than 1 route matches check.
+Might cause issues in some edge cases, and could result in unexpected changes
+in the routing table being ignored.
+</longdesc>
+<shortdesc lang="en">Skip "More than 1 routes match" check</shortdesc>
+<content type="string" default="${OCF_RESKEY_skip_more_than_one_route_matches_check_default}"/>
 </parameter>
 
 </parameters>

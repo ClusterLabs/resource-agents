@@ -225,7 +225,7 @@ findif()
     routematch=$(echo "$routematch" | grep -v "^default")
   fi
 
-  if [ $(echo "$routematch" | wc -l) -gt 1 ]; then
+  if ! ocf_is_true "$OCF_RESKEY_skip_more_than_one_route_matches_check" && [ $(echo "$routematch" | wc -l) -gt 1 ]; then
     ocf_exit_reason "More than 1 routes match $match. Unable to decide which route to use."
     return $OCF_ERR_GENERIC
   fi

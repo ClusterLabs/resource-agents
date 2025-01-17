@@ -92,6 +92,7 @@ OCF_RESKEY_nodad_default=false
 OCF_RESKEY_noprefixroute_default="false"
 OCF_RESKEY_preferred_lft_default="forever"
 OCF_RESKEY_network_namespace_default=""
+OCF_RESKEY_skip_more_than_one_route_matches_check_default="false"
 
 : ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
 : ${OCF_RESKEY_cidr_netmask=${OCF_RESKEY_cidr_netmask_default}}
@@ -116,6 +117,7 @@ OCF_RESKEY_network_namespace_default=""
 : ${OCF_RESKEY_noprefixroute=${OCF_RESKEY_noprefixroute_default}}
 : ${OCF_RESKEY_preferred_lft=${OCF_RESKEY_preferred_lft_default}}
 : ${OCF_RESKEY_network_namespace=${OCF_RESKEY_network_namespace_default}}
+: ${OCF_RESKEY_skip_more_than_one_route_matches_check=${OCF_RESKEY_skip_more_than_one_route_matches_check_default}}
 
 #######################################################################
 
@@ -448,6 +450,16 @@ the namespace.
 </longdesc>
 <shortdesc lang="en">Network namespace to use</shortdesc>
 <content type="string" default="${OCF_RESKEY_network_namespace_default}"/>
+</parameter>
+
+<parameter name="skip_more_than_one_route_matches_check">
+<longdesc lang="en">
+Skip More than 1 route matches check.
+Might cause issues in some edge cases, and could result in unexpected changes
+in the routing table being ignored.
+</longdesc>
+<shortdesc lang="en">Skip "More than 1 routes match" check</shortdesc>
+<content type="string" default="${OCF_RESKEY_skip_more_than_one_route_matches_check_default}"/>
 </parameter>
 </parameters>
 
