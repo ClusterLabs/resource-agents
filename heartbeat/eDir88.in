@@ -331,7 +331,7 @@ eDir_monitor() {
 
     # Monitor IDM first, as it will start before LDAP
     if [ $MONITOR_IDM -eq 1 ]; then
-        RET=$($NDSTRACE --config-file "$NDSCONF" -c modules | egrep -i '^vrdim.*Running' | awk '{print $1}')
+        RET=$($NDSTRACE --config-file "$NDSCONF" -c modules | $EGREP -i '^vrdim.*Running' | awk '{print $1}')
         if [ "$RET" !=  "vrdim" ]; then
             ocf_log err "eDirectory IDM engine isn't running ($NDSCONF)."
             return $OCF_ERR_GENERIC

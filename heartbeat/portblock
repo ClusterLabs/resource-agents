@@ -529,7 +529,7 @@ IptablesStop()
 CheckPort() {
 #	Examples of valid port: "1080", "1", "0080"
 #	Examples of invalid port: "1080bad", "0", "0000", ""
-  echo $1 |egrep -qx '[0-9]+(:[0-9]+)?(,[0-9]+(:[0-9]+)?)*'
+  echo $1 | $EGREP -qx '[0-9]+(:[0-9]+)?(,[0-9]+(:[0-9]+)?)*'
 }
 
 IptablesValidateAll()

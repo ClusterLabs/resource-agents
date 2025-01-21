@@ -227,7 +227,7 @@ WASPortInfo() {
     esac
     PortCount=`expr $PortCount + 1`
   done
-  netstat -ltnp  2>/dev/null| egrep -i "($pat) .*LISTEN" | sed 's%.*LISTEN *%%'
+  netstat -ltnp  2>/dev/null| $EGREP -i "($pat) .*LISTEN" | sed 's%.*LISTEN *%%'
 }
 
 #

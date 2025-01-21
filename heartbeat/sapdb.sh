@@ -238,7 +238,7 @@ sapdatabase_monitor() {
         esac
 
         SEARCH=`echo "$OCF_RESKEY_MONITOR_SERVICES" | sed 's/\+/\\\+/g' | sed 's/\./\\\./g'`
-        if [ `echo "$SERVICE" | egrep -c "$SEARCH"` -eq 1 ]
+        if [ `echo "$SERVICE" | $EGREP -c "$SEARCH"` -eq 1 ]
         then
             if [ $STATE -eq $OCF_NOT_RUNNING ]
             then
