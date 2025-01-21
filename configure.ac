@@ -575,7 +575,7 @@ fi
 AM_CONDITIONAL(BUILD_IBM_CLOUD_VPC_MOVE_ROUTE, test $BUILD_IBM_CLOUD_VPC_MOVE_ROUTE -eq 1)
 
 BUILD_IBM_CLOUD_VPC_MOVE_FIP=1
-if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0; then
+if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0 || test "x${HAVE_PYMOD_IBM_CLOUD_FAIL_OVER}" != xyes; then
     BUILD_IBM_CLOUD_VPC_MOVE_FIP=0
     AC_MSG_WARN("Not building ibm-cloud-vpc-move-fip")
 fi
