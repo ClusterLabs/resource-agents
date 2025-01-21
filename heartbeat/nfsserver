@@ -264,7 +264,7 @@ set_exec_mode()
 	##
 	# If the user defined an init script, It must exist for us to continue
 	##
-	if [ -n "$OCF_RESKEY_nfs_init_script" ]; then
+	if ! $systemd_is_running && [ -n "$OCF_RESKEY_nfs_init_script" ]; then
 		# check_binary will exit the process if init script does not exist
 		check_binary ${OCF_RESKEY_nfs_init_script}
 		EXEC_MODE=1
@@ -274,7 +274,7 @@ set_exec_mode()
 	##
 	# Check to see if the default init script exists, if so we'll use that.
 	##
-	if which $DEFAULT_INIT_SCRIPT > /dev/null 2>&1; then
+	if ! $systemd_is_running && which $DEFAULT_INIT_SCRIPT > /dev/null 2>&1; then
 		OCF_RESKEY_nfs_init_script=$DEFAULT_INIT_SCRIPT
 		EXEC_MODE=1
 		return 0
