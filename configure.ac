@@ -521,6 +521,7 @@ AC_PYTHON_MODULE(json)
 AC_PYTHON_MODULE(pyroute2)
 AC_PYTHON_MODULE(requests)
 AC_PYTHON_MODULE(urllib3)
+AC_PYTHON_MODULE(ibm_cloud_fail_over)
 
 AS_VERSION_COMPARE([$PYTHON_VERSION], [3.6], [BUILD_OCF_PY=0], [BUILD_OCF_PY=1], [BUILD_OCF_PY=1])
 
@@ -567,7 +568,7 @@ fi
 AM_CONDITIONAL(BUILD_POWERVS_SUBNET, test $BUILD_POWERVS_SUBNET -eq 1)
 
 BUILD_IBM_CLOUD_VPC_MOVE_ROUTE=1
-if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0; then
+if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0 || test "x${HAVE_PYMOD_IBM_CLOUD_FAIL_OVER}" != xyes; then
     BUILD_IBM_CLOUD_VPC_MOVE_ROUTE=0
     AC_MSG_WARN("Not building ibm-cloud-vpc-cr-vip")
 fi
