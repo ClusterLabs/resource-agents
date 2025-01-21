@@ -67,6 +67,7 @@ heartbeat/gcp-vpc-move-ip
 heartbeat/gcp-vpc-move-route
 heartbeat/gcp-vpc-move-vip
 heartbeat/ibm-cloud-vpc-cr-vip
+heartbeat/ibm-cloud-vpc-move-fip
 heartbeat/iSCSILogicalUnit
 heartbeat/iSCSITarget
 heartbeat/jira

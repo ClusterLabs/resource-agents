@@ -1,0 +1,249 @@
+#!@PYTHON@ -tt
+# ------------------------------------------------------------------------
+# Description:  Resource Agent to move an IBM Cloud  Floating IP (FIP)
+#		From one Virtual network Interface to another
+#
+# Authors:      Eran Gampel
+#
+# Copyright (c) 2025 International Business Machines, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ------------------------------------------------------------------------
+import subprocess
+import ipaddress
+import os
+import sys
+import textwrap
+
+OCF_FUNCTIONS_DIR = os.environ.get(
+    "OCF_FUNCTIONS_DIR", "%s/lib/heartbeat" % os.environ.get("OCF_ROOT")
+)
+
+sys.path.append(OCF_FUNCTIONS_DIR)
+
+
+try:
+    import ocf
+except ImportError:
+    sys.stderr.write("ImportError: ocf module import failed.")
+    sys.exit(5)
+
+try:
+    import ibm_cloud_fail_over
+except ImportError:
+    ocf.logger.error("ImportError: import of ibm_cloud_fail_over module failed."   \
+                        "install using: pip install ibm_cloud_fail_over")
+    pass
+
+def os_ip(ip):
+    """Check if VSI own this IP address."""
+
+    command = ["ip", "a"]
+    response = subprocess.run(command, capture_output=True, text=True, check=False)
+    return ip in  response.stdout
+
+def ip_address_validator(ip):
+    """validate ip address string
+
+    Args:
+        ip (string): ip address
+
+    Returns:
+        bool: true if the strig is a valid ipv4 ip address
+    """
+    try:
+        ipaddress.ip_address(ip)
+        return True
+    except ValueError:
+        return False
+
+def validate_all_action(
+    vpc_url="",
+    vni_id_1="",
+    vni_id_2="",
+    api_key="",
+):
+    """validate all paramters
+
+    Args:
+        vpc_url (str, mandatory): vpc_url for the region .
+        vni_id_1 (str, mandatory): First VNI(Virtual Network Interface) ID.
+        vni_id_2 (str, mandatory): Second VNI(Virtual Network Interface) ID.
+        api_key (str, optional): IBM Cloud API Access key. Defaults to "".
+
+    Returns:
+        _type_: _description_
+    """
+    if not ip_address_validator(vni_id_1):
+        return ocf.OCF_ERR_CONFIGURED
+    if not ip_address_validator(vni_id_2):
+        return ocf.OCF_ERR_CONFIGURED
+    ocf.logger.debug(f"validate_all_action: {vpc_url} {api_key}")
+    return ocf.OCF_SUCCESS
+
+def stop_action(
+    vpc_url="",
+    vni_id_1="",
+    vni_id_2="",
+    fip_id="",
+    api_key="",
+):
+    """Stop VIP
+
+    Args:
+        vpc_url (str, mandatory): vpc_url for the region .
+        vni_id_1 (str, mandatory): First VNI(Virtual Network Interface) ID.
+        vni_id_2 (str, mandatory): Second VNI(Virtual Network Interface) ID.
+        api_key (str, optional): IBM Cloud API Access key. Defaults to "".
+
+    Returns:
+        _type_: _description_
+    """
+    res = monitor_action(vpc_url, vni_id_1, vni_id_2, api_key)
+    if res == ocf.OCF_NOT_RUNNING:
+        ocf.logger.info("Resource is already stopped")
+        return ocf.OCF_SUCCESS
+    try:
+        ocf.logger.info("stop_action:stoping")
+        ibm_cloud_fail_over.fail_over_floating_ip_stop(vpc_url , vni_id_1,
+							vni_id_2, fip_id, api_key)
+    except Exception as e:
+        ocf.logger.error('stop_action: Couldn\'t connect with IBM Cloud api: ' + str(e))
+        sys.exit(ocf.OCF_ERR_GENERIC)
+    return ocf.OCF_SUCCESS
+
+def start_action(
+    vpc_url="",
+    vni_id_1="",
+    vni_id_2="",
+    fip_id="",
+    api_key="",
+):
+    """start_action: redirect  the service ip.
+    Args:
+        vpc_url (str, mandatory): vpc_url for the region .
+        vni_id_1 (str, mandatory): First VNI(Virtual Network Interface) ID.
+        vni_id_2 (str, mandatory): Second VNI(Virtual Network Interface) ID.
+        api_key (str, optional): IBM Cloud API Access key. Defaults to "".
+
+    Change custom route nexthop to point to this endpoint.
+    In case of a cross AZ Active Passive the route adveritise zone will
+    be chaged to the new acrtive zone
+    """
+    try:
+        active_fip_id , active_fip_ip = ibm_cloud_fail_over.fail_over_floating_ip_start(vpc_url,
+                                                     vni_id_1, vni_id_2, fip_id, api_key)
+    except Exception as e:
+        ocf.logger.error('start_action: Couldn\'t connect with IBM Cloud api: ' + str(e))
+        sys.exit(ocf.OCF_ERR_GENERIC)
+    if active_fip_id != fip_id:
+        ocf.logger.error(f'start_action: fip_id: {fip_id} is not attached')
+        return ocf.OCF_ERR_GENERIC
+    ocf.logger.info(f'start_action: OCF_SUCCESS FIP IP: {active_fip_ip} is active')
+    return ocf.OCF_SUCCESS
+
+def monitor_action(
+    vpc_url="",
+    vni_id_1="",
+    vni_id_2="",
+    fip_id="",
+    api_key="",
+):
+    """monitor_action: check if service ip and gateway are responding."""
+    ocf.logger.debug(f'monitor_action: url: {vpc_url} fip_id: {fip_id}' \
+                        f'{vni_id_1}  "vni_id_2:" {vni_id_2}')
+    try:
+        active_fip_id , active_fip_ip = ibm_cloud_fail_over.fail_over_get_attached_fip(api_key)
+        if active_fip_id == fip_id:
+            ocf.logger.debug(f'monitor_action: active fip ip: {active_fip_ip}')
+            return ocf.OCF_SUCCESS
+        return ocf.OCF_NOT_RUNNING
+    except Exception as e:
+        ocf.logger.error('Couldn\'t connect with IBM Cloud api: ' + str(e))
+        sys.exit(ocf.OCF_ERR_GENERIC)
+
+
+def main():
+    """Instantiate the resource agent."""
+
+    agent_description = textwrap.dedent("""\
+        Resource Agent to move an IBM Cloud Public Floating IP (FIP) from one virtual network
+        interface (VNI) to another.
+        The prerequisites for the use of this resource agent are as follows:
+
+        1. A two-node (VSI or BM) cluster distributed in same Availability Zone.
+        2. Enable Instance Metadata on the two nodes.
+        3. Use IBM Cloud API Key or Trusted Profile.
+	4. Assign a Floating IP to one VNI.
+    """)
+
+    agent = ocf.Agent(
+        "ibm-cloud-vpc-move-fip",
+        shortdesc="Manages moving an IBM Cloud Public FIP IP",
+        longdesc=agent_description
+    )
+
+
+    agent.add_parameter(
+        "vpc_url",
+        shortdesc="VPC_URL",
+        longdesc="IBM Cloud Public VPC URL for your region or a VPE URL for IBM Cloud VPC",
+        content_type="string",
+        required=True,
+    )
+
+    agent.add_parameter(
+        "vni_id_1",
+        shortdesc="IBM Cloud Virtual Network Interface UUID for first instance",
+        longdesc="IBM Cloud Virtual Network Interface UUID (VNI) for first instance.",
+        content_type="string",
+        required=True,
+    )
+
+    agent.add_parameter(
+        "vni_id_2",
+        shortdesc="IBM Cloud Virtual Network Interface UUID for Second instance",
+        longdesc="IBM Cloud Virtual Network Interface UUID (VNI) for Second instance.",
+        content_type="string",
+        required=True,
+    )
+
+    agent.add_parameter(
+        "fip_id",
+        shortdesc="IBM Cloud Floating IP (FIP) UUID to be used for internet (public) traffic",
+        longdesc="IBM Cloud Floating IP (FIP) UUID to be used for internet (public) traffic.",
+        content_type="string",
+        required=True,
+    )
+
+    agent.add_parameter(
+        "api_key",
+        shortdesc="API Key",
+        longdesc=(
+            "API Key for IBM Cloud Access."
+            "Not needed if Trusted Profile is used"
+        ),
+        content_type="string",
+        required=False,
+    )
+
+    agent.add_action("start", timeout=30, handler=start_action)
+    agent.add_action("stop", timeout=30, handler=stop_action)
+    agent.add_action(
+        "monitor", depth=0, timeout=60, interval=60, handler=monitor_action
+    )
+    agent.add_action("validate-all", timeout=60, handler=validate_all_action)
+    agent.run()
+
+if __name__ == "__main__":
+    main()
