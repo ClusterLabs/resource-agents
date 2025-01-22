@@ -273,7 +273,7 @@ esac
 declare -i veidtest1=$?
 
 # really a number?
-`echo "$OCF_RESKEY_veid" | egrep -q '^[[:digit:]]+$'`
+`echo "$OCF_RESKEY_veid" | $EGREP -q '^[[:digit:]]+$'`
 
 if [[ $veidtest1 != 1 || $? != 0 ]]; then
   ocf_log err "OCF_RESKEY_veid not set or not a number."

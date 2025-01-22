@@ -529,7 +529,7 @@ proc_stop()
         pid="none"
     else
         # check if provide just a number
-        echo "${pid_param}" | egrep -q '^[0-9]+$'
+        echo "${pid_param}" | $EGREP -q '^[0-9]+$'
         if [ $? -eq 0 ]; then
             pid="${pid_param}"
         elif [ -e "${pid_param}" ]; then # check if passed in a pid file

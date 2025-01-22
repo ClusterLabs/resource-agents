@@ -435,7 +435,7 @@ smb_share_stop() {
 smb_share_monitor() {
         RES=$(smbcontrol smbd ping > /dev/null 2>&1)
         if [ $? -eq 0 ];then
-            if [ $(testparm -s 2>/dev/null| egrep -c \\[$OCF_RESKEY_share\\]) -eq 1 ];then
+            if [ $(testparm -s 2>/dev/null| $EGREP -c \\[$OCF_RESKEY_share\\]) -eq 1 ];then
                 return $OCF_SUCCESS
             else
                 return $OCF_NOT_RUNNING
@@ -449,7 +449,7 @@ smb_share_state() {
         smb_share_checktmpmount
         RES=$(smbcontrol smbd ping > /dev/null 2>&1)
         if [ $? -eq 0 ];then
-            if [ $(testparm -s 2>/dev/null| egrep -c \\[$OCF_RESKEY_share\\]) -eq 1 ];then
+            if [ $(testparm -s 2>/dev/null| $EGREP -c \\[$OCF_RESKEY_share\\]) -eq 1 ];then
                 ocf_log info "Samba share $OCF_RESKEY_share is active"
                 return $OCF_SUCCESS
             else

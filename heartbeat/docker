@@ -512,7 +512,7 @@ image_exists()
 	# - image
 	# - repository:port/image
 	# - docker.io/image (some distro will display "docker.io/" as prefix)
-	docker images | awk '{print $1 ":" $2}' | egrep -q -s "^(docker.io\/|${SERVER_NAME}\/)?${IMAGE_NAME}:${IMAGE_TAG}\$"
+	docker images | awk '{print $1 ":" $2}' | $EGREP -q -s "^(docker.io\/|${SERVER_NAME}\/)?${IMAGE_NAME}:${IMAGE_TAG}\$"
 	if [ $? -eq 0 ]; then
 		# image found
 		return 0

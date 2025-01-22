@@ -572,7 +572,7 @@ mysqlproxy_validate_all()
     fi
 
     # check for valid log-level
-    echo $log_level | egrep -q "^(error|warning|info|message|debug|)$"
+    echo $log_level | $EGREP -q "^(error|warning|info|message|debug|)$"
     if [ $? -ne 0 ]; then
         ocf_log err "MySQL Proxy log level '$log_level' not in valid range error|warning|info|message|debug"
         return $OCF_ERR_CONFIGURED

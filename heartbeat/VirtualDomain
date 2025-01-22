@@ -975,7 +975,7 @@ VirtualDomain_migrate_to() {
 				sed "s/%n/$target_node/g"`
 
 		# extract migrationuri from options
-		elif echo "$migrate_opts" | fgrep -qs -- "--migrateuri="; then
+		elif echo "$migrate_opts" | $FGREP -qs -- "--migrateuri="; then
 			migrateuri=`echo "$migrate_opts" |
 				sed "s/.*--migrateuri=\([^ ]*\).*/\1/;s/%n/$target_node/g"`
 
@@ -1148,7 +1148,7 @@ VirtualDomain_getconfig() {
 	VIRSH_OPTIONS="--connect=${OCF_RESKEY_hypervisor} --quiet"
 
 	# Retrieve the domain name from the xml file.
-	DOMAIN_NAME=`egrep '[[:space:]]*<name>.*</name>[[:space:]]*$' ${OCF_RESKEY_config} 2>/dev/null | sed -e 's/[[:space:]]*<name>\(.*\)<\/name>[[:space:]]*$/\1/'`
+	DOMAIN_NAME=`$EGREP '[[:space:]]*<name>.*</name>[[:space:]]*$' ${OCF_RESKEY_config} 2>/dev/null | sed -e 's/[[:space:]]*<name>\(.*\)<\/name>[[:space:]]*$/\1/'`
 
 	EMULATOR_STATE="${HA_RSCTMP}/VirtualDomain-${DOMAIN_NAME}-emu.state"
 }
