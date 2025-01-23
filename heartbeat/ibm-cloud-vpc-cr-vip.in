@@ -45,8 +45,9 @@ except ImportError:
 try:
     import ibm_cloud_fail_over
 except ImportError:
-     sys.stderr.write("ImportError: import ibm_cloud_fail_over module import failed.")
-     pass
+    ocf.logger.error("ImportError: import of ibm_cloud_fail_over module failed."   \
+                        "install using: pip install ibm_cloud_fail_over")
+    pass
 
 def os_ip(ip):
     """Check if VSI own this IP address."""
@@ -88,9 +89,9 @@ def validate_all_action(
         _type_: _description_
     """
     if not ip_address_validator(ext_ip_1):
-      return ocf.OCF_ERR_CONFIGURED
+        return ocf.OCF_ERR_CONFIGURED
     if not ip_address_validator(ext_ip_2):
-      return ocf.OCF_ERR_CONFIGURED
+        return ocf.OCF_ERR_CONFIGURED
     ocf.logger.debug(f"validate_all_action: {vpc_url} {api_key}")
     return ocf.OCF_SUCCESS
 
