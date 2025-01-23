@@ -152,7 +152,7 @@ END
 
 #######################################################################
 
-storage-mon_usage() {
+storage_mon_usage() {
 	cat <<END
 usage: $0 {start|stop|monitor|validate-all|meta-data}
 
@@ -161,7 +161,7 @@ END
 	return $1
 }
 
-storage-mon_init() {
+storage_mon_init() {
 	#Test for presence of storage_mon helper
 	if [ ! -x "$STORAGEMON" ] ; then
 		ocf_log err "${STORAGEMON} not installed."
@@ -205,7 +205,7 @@ storage-mon_init() {
 	fi
 }
 
-storage-mon_update_attribute() {
+storage_mon_update_attribute() {
 
 	while :
 	do
@@ -224,9 +224,9 @@ storage-mon_update_attribute() {
 	return $OCF_SUCCESS
 }
 
-storage-mon_monitor() {
+storage_mon_monitor() {
 	if ! ocf_is_true "$OCF_RESKEY_daemonize"; then
-		storage-mon_init
+		storage_mon_init
 
 		# Monitor _MUST!_ differentiate correctly between running
 		# (SUCCESS), failed (ERROR) or _cleanly_ stopped (NOT RUNNING).
@@ -252,7 +252,7 @@ storage-mon_monitor() {
 			status="green"
 		fi
 
-		storage-mon_update_attribute $status
+		storage_mon_update_attribute $status
 		return "$?"
 	else
 		ocf_pidfile_status "${PIDFILE}" > /dev/null 2>&1
@@ -298,20 +298,20 @@ storage-mon_monitor() {
 			esac
 		done
 
-		storage-mon_update_attribute $status
+		storage_mon_update_attribute $status
 		return "$?"
 	fi	
 }
 
-storage-mon_start() {
+storage_mon_start() {
 	if ! ocf_is_true "$OCF_RESKEY_daemonize"; then
-		storage-mon_monitor
+		storage_mon_monitor
 		if [ $? -eq $OCF_SUCCESS ]; then
 			return $OCF_SUCCESS
 		fi
 		touch "${OCF_RESKEY_state_file}"
 	else
-		storage-mon_init
+		storage_mon_init
 		# generate command line
 		cmdline=""
 		for DRIVE in ${OCF_RESKEY_drives}; do
@@ -328,7 +328,7 @@ storage-mon_start() {
 
 		#Wait until monitor confirms the startup pid according to the ocf resource specification.	
 		while true; do
-			storage-mon_monitor pid_check_only
+			storage_mon_monitor pid_check_only
 			rc="$?"
 			if [ $rc -eq $OCF_SUCCESS ]; then
 				break
@@ -339,8 +339,8 @@ storage-mon_start() {
 	fi
 }
 
-storage-mon_stop() {
-	storage-mon_monitor
+storage_mon_stop() {
+	storage_mon_monitor
 	rc=$?
 
 	if ! ocf_is_true "$OCF_RESKEY_daemonize"; then
@@ -363,7 +363,7 @@ storage-mon_stop() {
 		fi
 
 		while true; do
-			storage-mon_monitor pid_check_only
+			storage_mon_monitor pid_check_only
 			rc="$?"
 			case "$rc" in
 				$OCF_SUCCESS)
@@ -379,8 +379,8 @@ storage-mon_stop() {
 	return $OCF_SUCCESS
 }
 
-storage-mon_validate() {
-	storage-mon_init
+storage_mon_validate() {
+	storage_mon_init
 
 	if ! ocf_is_true "$OCF_RESKEY_daemonize"; then
 		# Is the state directory writable?
@@ -396,13 +396,13 @@ storage-mon_validate() {
 }
 
 case "$__OCF_ACTION" in
-	start)		storage-mon_start;;
-	stop)		storage-mon_stop;;
-	monitor)	storage-mon_monitor;;
-	validate-all)	storage-mon_validate;;
+	start)		storage_mon_start;;
+	stop)		storage_mon_stop;;
+	monitor)	storage_mon_monitor;;
+	validate-all)	storage_mon_validate;;
 	meta-data)	meta_data;;
-	usage|help)	storage-mon_usage $OCF_SUCCESS;;
-	*)		storage-mon_usage $OCF_ERR_UNIMPLEMENTED;;
+	usage|help)	storage_mon_usage $OCF_SUCCESS;;
+	*)		storage_mon_usage $OCF_ERR_UNIMPLEMENTED;;
 esac
 rc=$?
 ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
