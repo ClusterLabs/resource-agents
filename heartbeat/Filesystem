@@ -1145,7 +1145,7 @@ check_binary $FSCK
 check_binary $MOUNT
 check_binary $UMOUNT
 
-if [ "$OP" != "monitor" ]; then
+if [ "$OP" != "monitor" ] && [ "$OP" != "validate-all" ]; then
 	ocf_log info "Running $OP for $DEVICE on $MOUNTPOINT"
 fi
 
