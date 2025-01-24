@@ -9,6 +9,7 @@ export PATH
 # Binaries and binary options for use in Resource Agents
 : ${AWK:=@AWK@}
 : ${EGREP:="@EGREP@"}
+: ${FGREP:="@FGREP@"}
 : ${IFCONFIG_A_OPT:="@IFCONFIG_A_OPT@"}
 : ${MAILCMD:=@MAILCMD@}
 : ${PING:=@PING@}
