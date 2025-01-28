@@ -313,6 +313,7 @@ storage_mon_start() {
 	else
 		storage_mon_monitor pid_check_only
 		if [ $? -eq $OCF_SUCCESS ]; then
+			ocf_log info "storage_mon is already running. PID=`cat $PIDFILE`"
 			return $OCF_SUCCESS
 		fi
 		storage_mon_init
