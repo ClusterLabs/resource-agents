@@ -618,7 +618,7 @@ if [ -z "$OCF_RESKEY_action" ]; then
 fi 
 
 # iptables v1.4.20+ is required to use -w (wait)
-version=$(iptables -V | awk -F ' v' '{print $NF}')
+version=$(iptables -V | grep -oE '[0-9]+[\.0-9]+')
 ocf_version_cmp "$version" "1.4.19.1"
 if [ "$?" -eq "2" ]; then
     wait="-w"
