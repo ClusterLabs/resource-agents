@@ -4,9 +4,7 @@ Documentation=man:ldirectord(8)
 
 [Service]
 ExecStart=@sbindir@/ldirectord start
-ExecStartPost=/usr/bin/touch /var/lock/subsys/ldirectord
 ExecStop=@sbindir@/ldirectord stop
-ExecStopPost=@RM@ -f /var/lock/subsys/ldirectord
 ExecReload=@sbindir@/ldirectord reload
 PIDFile=/var/run/ldirectord.ldirectord.pid
 Type=forking
