@@ -39,7 +39,7 @@
 
 # Parameter defaults
 
-OCF_RESKEY_image_default="quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:e213f49e8500d14652a0f4546fd43e11164cc9cc5d575a208634c268f150c3ea"
+OCF_RESKEY_image_default=$(jq -r '.spec.containers[] | select( .name=="etcdctl").image' /etc/kubernetes/manifests/etcd-pod.yaml)
 OCF_RESKEY_name_default="etcd"
 OCF_RESKEY_nic_default="br-ex"
 OCF_RESKEY_authfile_default="/run/resource-agents/pull-secret"
