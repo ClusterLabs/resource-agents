@@ -102,19 +102,6 @@ where the etcd container on n1 would have IP ip1
 <content type="string"/>
 </parameter>
 
-<parameter name="host_map" unique="0">
-<longdesc lang="en">
-A mapping of host to node names used for certificate file names.
-
-This takes the form of:
-host1:alt1;host2:alt2
-
-where the host1 would be alt1 for certificate files.
-</longdesc>
-<shortdesc lang="en">Pacemaker to etcd name mapping</shortdesc>
-<content type="string"/>
-</parameter>
-
 <parameter name="nic" unique="0">
 <longdesc lang="en">
 Network interface to lookup interface for host.
@@ -342,6 +329,498 @@ remove_container()
 	return $rc
 }
 
+get_node_ip() {
+	ip -brief addr show "$OCF_RESKEY_nic" | awk '{gsub("/.*", "", $3); print $3}'
+}
+
+prepare_env() {
+	local name ip standalone_node
+
+	NODEIP="$(get_node_ip)"
+
+	if is_force_new_cluster; then
+		ETCD_INITIAL_CLUSTER_STATE="new"
+		ALL_ETCD_ENDPOINTS="https://$NODEIP:2379"
+
+		ETCD_INITIAL_CLUSTER="$NODENAME=https://$NODEIP:2380"
+	else
+		for node in $(echo "$OCF_RESKEY_node_ip_map" | sed "s/\s//g;s/;/ /g"); do
+			name=$(echo "$node" | awk -F":" '{print $1}')
+			ip=$(echo "$node" | awk -F":" '{print $2}')
+			if [ -z "$name" ] || [ -z "$ip" ]; then
+				ocf_exit_reason "name or ip missing for 1 or more nodes"
+				exit $OCF_ERR_CONFIGURED
+			fi
+
+			crm_attribute --type nodes --node $name --name "ip" --update "$ip"
+			[ -z "$ALL_ETCD_ENDPOINTS" ] && ALL_ETCD_ENDPOINTS="https://$ip:2379" || ALL_ETCD_ENDPOINTS="$ALL_ETCD_ENDPOINTS,https://$ip:2379"
+			[ -z "$ETCD_INITIAL_CLUSTER" ] && ETCD_INITIAL_CLUSTER="$name=https://$ip:2380" || ETCD_INITIAL_CLUSTER="$ETCD_INITIAL_CLUSTER,$name=https://$ip:2380"
+		done
+	fi
+
+	ETCDCTL_API="3"
+	ETCD_CIPHER_SUITES="TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
+	ETCD_DATA_DIR="/var/lib/etcd"
+	ETCD_ELECTION_TIMEOUT="1000"
+	ETCD_ENABLE_PPROF="true"
+	ETCD_EXPERIMENTAL_MAX_LEARNERS="3"
+	ETCD_EXPERIMENTAL_WARNING_APPLY_DURATION=200ms
+	ETCD_EXPERIMENTAL_WATCH_PROGRESS_NOTIFY_INTERVAL=5s
+	ETCD_HEARTBEAT_INTERVAL="100"
+	ETCD_INITIAL_CLUSTER_STATE=${ETCD_INITIAL_CLUSTER_STATE:-"existing"}
+	ETCD_QUOTA_BACKEND_BYTES="8589934592"
+	ETCD_SOCKET_REUSE_ADDRESS="true"
+
+	SERVER_CACERT="/etc/kubernetes/static-pod-resources/etcd-certs/configmaps/etcd-all-bundles/server-ca-bundle.crt"
+	ETCD_PEER_CERT="/etc/kubernetes/static-pod-resources/etcd-certs/secrets/etcd-all-certs/etcd-peer-${NODENAME}.crt"
+	ETCD_PEER_KEY="/etc/kubernetes/static-pod-resources/etcd-certs/secrets/etcd-all-certs/etcd-peer-${NODENAME}.key"
+
+	LISTEN_CLIENT_URLS="0.0.0.0"
+	LISTEN_PEER_URLS="0.0.0.0"
+	LISTEN_METRICS_URLS="0.0.0.0"
+
+	if is_learner; then
+		LISTEN_CLIENT_URLS="$NODEIP"
+		LISTEN_PEER_URLS="$NODEIP"
+		LISTEN_METRICS_URLS="$NODEIP"
+	fi
+}
+
+archive_data_folder()
+{
+	# TODO: use etcd snapshots
+	local dest_dir_name="members-snapshot-$(date +%Y%M%d%H%M%S)"
+	local data_dir="/var/lib/etcd/member"
+	if [ ! -d $data_dir ]; then
+		ocf_log info "no data dir to backup"
+		return $OCF_SUCCESS
+	fi
+	ocf_log info "backing up $data_dir under $HA_RSCTMP/$dest_dir_name"
+	mv $data_dir $HA_RSCTMP/$dest_dir_name
+	sync
+}
+
+etcd_pod_container_exists() {
+	local count_matches
+	# Check whether the etcd pod exists on the same node (header line included)
+	count_matches=$(crictl pods --label app=etcd -q | xargs -I {} crictl ps --pod {} -o json | jq -r '.containers[].metadata | select ( .name == "etcd" ).name' | wc -l)
+	if [ "$count_matches" -eq 1 ]; then
+		# etcd pod found
+		return 0
+	fi
+	# etcd pod not found
+	return 1
+}
+
+cache_member_id_if_not_cached()
+{
+	cache_member_id
+	member_id=$(get_cached_member_id)
+	if [ -z "$member_id" ]; then
+		ocf_log info "caching member ID"
+		cache_member_id
+	else
+		ocf_log info "cached member id: $member_id"
+	fi
+}
+
+cache_member_id()
+{
+	if ! container_exists; then
+		# we need a running container to execute etcdctl.
+		return 0
+	fi
+
+	# TODO: use get_member_list_json instead
+	endpoint="https://$(get_node_ip):2379"
+	ID_DEC=$(podman exec ${CONTAINER} etcdctl member list --endpoints=$endpoint -w json | jq -r .header.member_id)
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log error "could not get member ID: error code $?"
+		return $rc
+	fi
+	if [ -z "$ID_DEC" ]; then
+		# the container is running, but the instance does not have its member ID yet.
+		return 0
+	fi
+
+	# etcdctl member commands need the HEX format of the member ID.
+	ID_HEX=$(printf "%x" $ID_DEC)
+	ocf_log info "cache member ID $ID_HEX in node: $NODENAME"
+	crm_attribute --type nodes --node $NODENAME --name "member_id" --update $ID_HEX
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log error "could not cache member ID: error code $rc"
+	fi
+	return $rc
+}
+
+clear_member_id()
+{
+	crm_attribute --type nodes --node $NODENAME --name "member_id" --delete
+}
+
+get_cached_member_id()
+{
+	ocf_log debug "get member ID from in node: $NODENAME"
+	crm_attribute --query --type nodes --node $NODENAME --name "member_id" | awk -F"value=" '{print $2}'
+}
+
+add_member_as_learner()
+{
+	local rc
+	local member_name=$1
+	local member_ip=$2
+
+	ocf_log info "add $member_name with $member_ip as learner"
+	out=$(podman exec ${CONTAINER} etcdctl --endpoints="https://$(get_node_ip):2379" member add $member_name --peer-urls=https://$member_ip:2380 --learner)
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log error "could not add $member_name as learner: error code $rc"
+		return $rc
+	fi
+	ocf_log info "$out"
+
+	set_learner_node $member_name
+	return $?
+}
+
+set_force_new_cluster()
+{
+	local rc
+	crm_attribute --name "force_new_cluster" --update "$NODENAME"
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log error "could not set force_new_cluster attribute to $NODENAME"
+	else
+		ocf_log info "$NODENAME set force_new_cluster attribute"
+	fi
+	return $rc
+}
+
+get_force_new_cluster()
+{
+	crm_attribute --query --name "force_new_cluster" | awk -F"value=" '{print $2}'
+}
+
+clear_force_new_cluster()
+{
+	local force_new_cluster_node=$(get_force_new_cluster)
+	if [ -z "$force_new_cluster_node" ]; then
+		ocf_log info "$NODENAME: force_new_cluster attribute not set"
+		return $OCF_SUCCESS
+	fi
+
+	# only the holder of "force_new_cluster" attribute can delete it
+	if [ "$NODENAME" = "$force_new_cluster_node" ]; then
+		crm_attribute --name "force_new_cluster" --delete
+		rc=$?
+		if [ $rc -ne 0 ]; then
+			ocf_log error "could not clear force_new_cluster attribute: error $rc"
+		else
+			ocf_log info "$NODENAME: force_new_cluster attribute cleared"
+		fi
+		return $rc
+	else
+		ocf_log info "$NODENAME does not hold force_new_cluster ($force_new_cluster_node has it)"
+		return $OCF_SUCCESS
+	fi
+}
+
+is_force_new_cluster()
+{
+	# Return 0 if 'force_new_cluster' is set and the value matches the current node name, 1 otherwise.
+	local value=$(get_force_new_cluster)
+	if [ -z "$value" ]; then
+		ocf_log info "force_new_cluster attribute is not set"
+		return 1
+	fi
+
+	if [ "$value" = "$NODENAME" ]; then
+		ocf_log info "$NODENAME has force_new_cluster set"
+		return 0
+	fi
+
+	ocf_log info "force_new_cluster attribute set on peer node $value"
+	return 1
+}
+
+is_standalone()
+{
+	local nodename=${1:-$NODENAME}
+	local standalone_node=$(get_standalone_node)
+	if [ -z "$standalone_node" ]; then
+		# TODO: change the log level to debug when the code is stable enough
+		ocf_log info "no node running standalone"
+		return 1
+	fi
+
+	if [ "$nodename" = "$standalone_node" ]; then
+		# TODO: change the log level to debug when the code is stable enough
+		ocf_log info "$nodename is set as standalone"
+		return 0
+	fi
+	# TODO: change the log level to debug when the code is stable enough
+	ocf_log info "$nodename is set as learner"
+	return 1
+
+}
+
+set_standalone_node()
+{
+	local rc
+
+	ocf_log info "add $NODENAME as standalone"
+	crm_attribute --name "standalone_node" --update $NODENAME
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log error "could not set standalone_node attribute to $NODENAME"
+	fi
+	return $rc
+}
+
+get_standalone_node()
+{
+	crm_attribute --query --name "standalone_node" | awk -F"value=" '{print $2}'
+}
+
+clear_standalone_node()
+{
+	if crm_attribute --name "standalone_node" --delete; then
+		ocf_log info "standalone_node property cleared"
+	fi
+}
+
+clear_standalone_and_learner_if_not_learners()
+{
+	local rc
+	local member_list_json=$1
+
+	standalone_node=$(get_standalone_node)
+	if [ -z $standalone_node ]; then
+		return $OCF_SUCCESS
+	fi
+
+	number_of_members=$(echo -n $member_list_json | jq -r ".members[].ID" | wc -l)
+	if [ $number_of_members -ne 2 ]; then
+		ocf_log info "could not clear standalone_node, nor learner_node properties: found $number_of_members members, need 2"
+		return $OCF_SUCCESS
+	fi
+
+	id=$(echo -n $member_list_json | jq -r ".members[] | select( .isLearner==true ).ID")
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log error "could not get isLearner field from member list: error code $rc"
+		return $rc
+	fi
+
+	if [ -z "$id" ]; then
+		clear_standalone_node
+		rc=$?
+		if [ $rc -ne 0 ]; then
+			ocf_og error "could not clear standalone_node attribute: error code $rc"
+			return $rc
+		fi
+	fi
+	if [ -z "$id" ]; then
+		clear_learner_node
+		rc=$?
+		if [ $rc -ne 0 ]; then
+			ocf_og error "could not clear learner_node attribute: error code $rc"
+			return $rc
+		fi
+	fi
+
+	return $rc
+}
+
+is_learner()
+{
+	# NOTE: do not use "learner_node" property for this.
+	# Return 0 if the 'standalone' attribute is set and matches the peer node name, 1 otherwise.
+	local standalone_node=$(get_standalone_node)
+	if [ -z "$standalone_node" ]; then
+		# TODO: change the log level to debug when the code is stable enough
+		ocf_log info "standalone attribute not set"
+		return 1
+	fi
+
+	if [ "$NODENAME" = "$standalone_node" ]; then
+		# TODO: change the log level to debug when the code is stable enough
+		ocf_log info "$NODENAME is not set as learner"
+		return 1
+	fi
+	# TODO: change the log level to debug when the code is stable enough
+	ocf_log info "$NODENAME is set as learner"
+	return 0
+}
+
+set_learner_node()
+{
+	local rc
+	local nodename=$1
+
+	crm_attribute --name "learner_node" --update $nodename
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log error "could not set learner_node attribute to $nodename"
+	fi
+	ocf_log info "$nodename set as learner"
+	return $rc
+}
+
+get_learner_node()
+{
+	crm_attribute --query --name "learner_node" | awk -F"value=" '{print $2}'
+}
+
+clear_learner_node()
+{
+	if crm_attribute --name "learner_node" --delete; then
+		ocf_log info "learner_node property cleared"
+	fi
+}
+
+get_peer_node_name() {
+	crm_node -l | awk '{print $2}' | grep -v $NODENAME
+}
+
+get_peer_ip() {
+	local peer_name=$(get_peer_node_name)
+	crm_attribute --query --name "ip" --node $peer_name | awk -F"value=" '{print $2}'
+}
+
+get_all_etcd_endpoints() {
+	for node in $(echo "$OCF_RESKEY_node_ip_map" | sed "s/\s//g;s/;/ /g"); do
+		name=$(echo "$node" | awk -F":" '{print $1}')
+		ip=$(echo "$node" | awk -F":" '{print $2}')
+		if [ -z "$name" ] || [ -z "$ip" ]; then
+			ocf_exit_reason "name or ip missing for 1 or more nodes"
+			exit $OCF_ERR_CONFIGURED
+		fi
+
+		[ -z "$ALL_ETCD_ENDPOINTS" ] && ALL_ETCD_ENDPOINTS="https://$ip:2379" || ALL_ETCD_ENDPOINTS="$ALL_ETCD_ENDPOINTS,https://$ip:2379"
+	done
+	echo $ALL_ETCD_ENDPOINTS
+}
+
+get_endpoint_status_json()
+{
+	# Get the status of all endpoints
+	local all_etcd_endpoints=$(get_all_etcd_endpoints)
+	podman exec ${CONTAINER} etcdctl endpoint status --endpoints=$all_etcd_endpoints -w json
+}
+
+get_member_list_json() {
+	# Get the list of members visible to the current node
+	local this_node_endpoint="https://$(get_node_ip):2379"
+	podman exec ${CONTAINER} etcdctl member list --endpoints=$this_node_endpoint -w json
+}
+
+check_peers()
+{
+	# Check peers endpoint status and locally accessible member list
+	local member_list_json
+
+	if ! container_exists; then
+		# we need a running container to execute etcdctl.
+		return $OCF_SUCCESS
+	fi
+
+	member_list_json=$(get_member_list_json)
+	rc=$?
+	ocf_log info "member list: $member_list_json"
+	if [ $rc -ne 0 ]; then
+		ocf_log info "podman failed to get member list: error code $rc"
+
+		endpoint_status_json=$(get_endpoint_status_json)
+		ocf_log info "endpoint status: $endpoint_status_json"
+
+		count_endpoints=$(echo -n $endpoint_status_json | jq -r ".[].Endpoint" | wc -l)
+		if [ $count_endpoints -eq 1 ]; then
+			ocf_log info "one endpoint only: checking status errors"
+			endpoint_status_errors=$(echo -n $endpoint_status_json | jq -r ".[0].Status.errors")
+			if echo "$endpoint_status_errors" | grep -q "no leader"; then
+				set_force_new_cluster
+				set_standalone_node
+				ocf_exit_reason "$NODENAME must force a new cluster"
+				return $OCF_ERR_GENERIC
+			fi
+			if [ "$endpoint_status_errors" != "null" ]; then
+				ocf_log error "unmanaged endpoint status error: $endpoint_status_errors"
+			fi
+		fi
+
+		return $OCF_SUCCESS
+	fi
+
+	# Example of .members[] instance fields in member list json format:
+	# NOTE that "name" is present in voting members only, while "isLearner" in learner members only
+	# and the value is always true (not a string) in that case.
+	# {
+	#   "ID": <member ID>,
+	#   "name": "<node hostname>",
+	#   "peerURLs": [
+	#       "https://<node IP>:2380"
+	#   ],
+	#   "clientURLs": [
+	#       "https://<node IP>:2379"
+	#   ]
+	# }
+	for node in $(echo "$OCF_RESKEY_node_ip_map" | sed "s/\s//g;s/;/ /g"); do
+		name=$(echo "$node" | awk -F":" '{print $1}')
+		# do not check itself
+		if [ "$name" == "$NODENAME" ]; then
+			continue
+		fi
+
+		# Check by IP instead of Name since "learner" members appear only in peerURLs, not by Name.
+		ip=$(echo "$node" | awk -F":" '{print $2}')
+		id=$(echo -n $member_list_json | jq -r ".members[] | select( .peerURLs | map(test(\"$ip\")) | any).ID")
+		if [ -z "$id" ]; then
+			ocf_log info "$name is not in the members list"
+			add_member_as_learner $name $ip
+			set_standalone_node
+		else
+			ocf_log debug "$name is in the members list by IP: $ip"
+			clear_standalone_and_learner_if_not_learners $member_list_json
+		fi
+	done
+	return $OCF_SUCCESS
+}
+
+cache_etcd_data() {
+	local rc ip revision cluster_id
+
+	container_exists
+	if [ $? -ne 0 ]; then
+		# we need a running container to execute etcdctl.
+		return $OCF_SUCCESS
+	fi
+
+	ip=$(get_node_ip)
+
+	revision=$(cat /var/lib/etcd/revision.json | jq -r ".raftIndex.\"https://$ip:2379\"")
+	ocf_log info "cache revision: $revision in node: $NODENAME"
+	crm_attribute --type nodes --node $NODENAME --name "revision" --update $revision
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log err "could not cache etcd revision: error code $rc"
+		return $rc
+	fi
+
+	cluster_id=$(cat /var/lib/etcd/revision.json | jq -r ".clusterId")
+	ocf_log info "cache cluster_id: $cluster_id in node: $NODENAME"
+	crm_attribute --type nodes --node $NODENAME --name "cluster_id" --update $cluster_id
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log err "could not cache etcd cluster Id: error code $rc"
+		return $rc
+	fi
+
+	return $OCF_SUCCESS
+}
+
 podman_simple_status()
 {
 	local rc
@@ -376,9 +855,7 @@ podman_monitor()
 	# monitor operation to fail.
 	# TODO: move this inside check_peers where we alredy query member list json
 	cache_member_id
-	check_peers
-	rc=$?
-	if [ $rc -ne $OCF_SUCCESS ]; then
+	if ! check_peers; then
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -500,90 +977,6 @@ run_new_container()
 	return $rc
 }
 
-get_hostname()
-{
-	# TODO: consider using ocf_local_nodename instead
-	local name=$(hostname)
-	if [ -z "$OCF_RESKEY_host_map" ]; then
-		echo $name
-	else
-		echo "$OCF_RESKEY_host_map" | tr ';' '\n' | tr -d ' ' | sed 's/:/ /' | awk -F' ' '$1=="'"$name"'" {print $2;exit}'
-	fi
-}
-
-get_node_ip() {
-	echo "$(ip -brief addr show $OCF_RESKEY_nic | awk '{gsub("/.*", "", $3); print $3}')"
-}
-
-prepare_env() {
-	local name ip standalone_node
-	local nodename=$(ocf_local_nodename)
-
-	THIS_NODE_HOSTNAME="$(get_hostname)"
-	THIS_NODE_IP="$(get_node_ip)"
-
-	if is_force_new_cluster; then
-		ETCD_INITIAL_CLUSTER_STATE="new"
-		ALL_ETCD_ENDPOINTS="https://$THIS_NODE_IP:2379"
-
-		# TODO: double check if it is always hostname, or use ocf_local_nodename instead
-		ETCD_INITIAL_CLUSTER="$THIS_NODE_HOSTNAME=https://$THIS_NODE_IP:2380"
-	else
-		for node in $(echo "$OCF_RESKEY_node_ip_map" | sed "s/\s//g;s/;/ /g"); do
-			name=$(echo "$node" | awk -F":" '{print $1}')
-			ip=$(echo "$node" | awk -F":" '{print $2}')
-			if [ -z "$name" ] || [ -z "$ip" ]; then
-				ocf_exit_reason "name or ip missing for 1 or more nodes"
-				exit $OCF_ERR_CONFIGURED
-			fi
-
-			crm_attribute --type nodes --node $name --name "ip" --update "$ip"
-			[ -z "$ALL_ETCD_ENDPOINTS" ] && ALL_ETCD_ENDPOINTS="https://$ip:2379" || ALL_ETCD_ENDPOINTS="$ALL_ETCD_ENDPOINTS,https://$ip:2379"
-			[ -z "$ETCD_INITIAL_CLUSTER" ] && ETCD_INITIAL_CLUSTER="$name=https://$ip:2380" || ETCD_INITIAL_CLUSTER="$ETCD_INITIAL_CLUSTER,$name=https://$ip:2380"
-		done
-	fi
-
-	ETCDCTL_API="3"
-	ETCD_CIPHER_SUITES="TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
-	ETCD_DATA_DIR="/var/lib/etcd"
-	ETCD_ELECTION_TIMEOUT="1000"
-	ETCD_ENABLE_PPROF="true"
-	ETCD_EXPERIMENTAL_MAX_LEARNERS="3"
-	ETCD_EXPERIMENTAL_WARNING_APPLY_DURATION=200ms
-	ETCD_EXPERIMENTAL_WATCH_PROGRESS_NOTIFY_INTERVAL=5s
-	ETCD_HEARTBEAT_INTERVAL="100"
-	ETCD_INITIAL_CLUSTER_STATE=${ETCD_INITIAL_CLUSTER_STATE:-"existing"}
-	ETCD_QUOTA_BACKEND_BYTES="8589934592"
-	ETCD_SOCKET_REUSE_ADDRESS="true"
-
-	SERVER_CACERT="/etc/kubernetes/static-pod-resources/etcd-certs/configmaps/etcd-all-bundles/server-ca-bundle.crt"
-	ETCD_PEER_CERT="/etc/kubernetes/static-pod-resources/etcd-certs/secrets/etcd-all-certs/etcd-peer-${THIS_NODE_HOSTNAME}.crt"
-	ETCD_PEER_KEY="/etc/kubernetes/static-pod-resources/etcd-certs/secrets/etcd-all-certs/etcd-peer-${THIS_NODE_HOSTNAME}.key"
-
-	LISTEN_CLIENT_URLS="0.0.0.0"
-	LISTEN_PEER_URLS="0.0.0.0"
-	LISTEN_METRICS_URLS="0.0.0.0"
-
-	if is_learner; then
-		LISTEN_CLIENT_URLS="$THIS_NODE_IP"
-		LISTEN_PEER_URLS="$THIS_NODE_IP"
-		LISTEN_METRICS_URLS="$THIS_NODE_IP"
-	fi
-}
-
-archive_data_folder()
-{
-	# TODO: use etcd snapshots
-	local dest_dir_name="members-snapshot-$(date +%Y%M%d%H%M%S)"
-	local data_dir="/var/lib/etcd/member"
-	if [ ! -d $data_dir ]; then
-		ocf_log info "no data dir to backup"
-		return $OCF_SUCCESS
-	fi
-	ocf_log info "backing up $data_dir under $HA_RSCTMP/$dest_dir_name"
-	mv $data_dir $HA_RSCTMP/$dest_dir_name
-	sync
-}
 
 podman_start()
 {
@@ -595,22 +988,21 @@ podman_start()
 
 	if is_standalone; then
 		if is_learner; then
-			ocf_exit_reason "$(ocf_local_nodename) set both as learner and standalone"
+			ocf_exit_reason "$NODENAME set both as learner and standalone"
 			return $OCF_ERR_CONFIGURED
 		fi
 	fi
 
 	# ensure the etcd pod is not running before starting the container
-	ocf_log info "Ensure etcd pod is not running (retries:$etcd_pod_poll_retries, interval:$etcd_pod_poll_interval_sec)"
+	ocf_log info "Ensure etcd pod is not running (retries: $etcd_pod_poll_retries, interval: $etcd_pod_poll_interval_sec)"
 	for try in $(seq $etcd_pod_poll_retries); do
-		etcd_pod_container_exists
-		if [ $? -eq 0 ]; then
-			ocf_log info "Etcd pod running: retry in $etcd_pod_poll_interval_sec seconds."
-			sleep $etcd_pod_poll_interval_sec
+		if ! etcd_pod_container_exists; then
+			break
 		fi
+		ocf_log info "Etcd pod running: retry in $etcd_pod_poll_interval_sec seconds."
+		sleep $etcd_pod_poll_interval_sec
 	done
-	etcd_pod_container_exists
-	if [ $? -eq 0 ]; then
+	if etcd_pod_container_exists; then
 		ocf_exit_reason "Etcd pod is still running after $etcd_pod_wait_timeout_sec seconds."
 		return $OCF_ERR_GENERIC
 	fi
@@ -625,15 +1017,14 @@ podman_start()
 
 	local peer_node=$(get_peer_node_name)
 	if is_standalone $peer_node; then
-		local nodename=$(ocf_local_nodename)
 		local wait_timeout_sec=$((2*60))
 		local poll_interval_sec=5
 		local retries=$(( wait_timeout_sec / poll_interval_sec ))
 
-		ocf_log info "wait for the leader node to add $nodename as learner (timeout: $wait_timeout_sec seconds)"
+		ocf_log info "wait for the leader node to add $NODENAME as learner (timeout: $wait_timeout_sec seconds)"
 		for try in $(seq $retries); do
 			learner_node=$(get_learner_node)
-			if [ "$nodename" != "$learner_node" ]; then
+			if [ "$NODENAME" != "$learner_node" ]; then
 				ocf_log info "$learner_node is not in the member list yet. Retry in $poll_interval_sec seconds."
 				sleep $poll_interval_sec
 				continue
@@ -641,8 +1032,8 @@ podman_start()
 			ocf_log info "learner node $learner_node in the member list"
 			break
 		done
-		if [ "$nodename" != "$(get_learner_node)" ]; then
-			ocf_log error "wait for $nodename to be in the member list timed out"
+		if [ "$NODENAME" != "$(get_learner_node)" ]; then
+			ocf_log error "wait for $NODENAME to be in the member list timed out"
 			return $OCF_ERR_GENERIC
 		fi
 	fi
@@ -665,7 +1056,7 @@ podman_start()
 		    --env ETCD_HEARTBEAT_INTERVAL=$ETCD_HEARTBEAT_INTERVAL \
 		    --env ETCD_INITIAL_CLUSTER=$ETCD_INITIAL_CLUSTER \
 		    --env ETCD_INITIAL_CLUSTER_STATE=$ETCD_INITIAL_CLUSTER_STATE \
-		    --env ETCD_NAME=$THIS_NODE_HOSTNAME \
+		    --env ETCD_NAME=$NODENAME \
 		    --env ETCD_QUOTA_BACKEND_BYTES=$ETCD_QUOTA_BACKEND_BYTES \
 		    --env ETCD_SOCKET_REUSE_ADDRESS=$ETCD_SOCKET_REUSE_ADDRESS \
 		    --env ETCDCTL_API=$ETCDCTL_API \
@@ -682,17 +1073,17 @@ podman_start()
 		    --log-level=info \
 		    --experimental-initial-corrupt-check=true \
 		    --snapshot-count=10000 \
-		    --initial-advertise-peer-urls=https://${THIS_NODE_IP}:2380 \
-		    --cert-file=/etc/kubernetes/static-pod-resources/etcd-certs/secrets/etcd-all-certs/etcd-serving-${THIS_NODE_HOSTNAME}.crt \
-		    --key-file=/etc/kubernetes/static-pod-resources/etcd-certs/secrets/etcd-all-certs/etcd-serving-${THIS_NODE_HOSTNAME}.key \
+		    --initial-advertise-peer-urls=https://${NODEIP}:2380 \
+		    --cert-file=/etc/kubernetes/static-pod-resources/etcd-certs/secrets/etcd-all-certs/etcd-serving-${NODENAME}.crt \
+		    --key-file=/etc/kubernetes/static-pod-resources/etcd-certs/secrets/etcd-all-certs/etcd-serving-${NODENAME}.key \
 		    --trusted-ca-file=$SERVER_CACERT \
 		    --client-cert-auth=true \
 		    --peer-cert-file=$ETCD_PEER_CERT \
 		    --peer-key-file=$ETCD_PEER_KEY \
 		    --peer-trusted-ca-file=$SERVER_CACERT \
 		    --peer-client-cert-auth=true \
-		    --advertise-client-urls=https://${THIS_NODE_IP}:2379 \
-		    --listen-client-urls=https://${LISTEN_CLIENT_URLS}:2379,unixs://${THIS_NODE_IP}:0 \
+		    --advertise-client-urls=https://${NODEIP}:2379 \
+		    --listen-client-urls=https://${LISTEN_CLIENT_URLS}:2379,unixs://${NODEIP}:0 \
 		    --listen-peer-urls=https://${LISTEN_PEER_URLS}:2380 \
 		    --metrics=extensive \
 		    --listen-metrics-urls=https://${LISTEN_METRICS_URLS}:9978"
@@ -715,7 +1106,7 @@ podman_start()
 			ocf_exit_reason "failed to pull image ${OCF_RESKEY_image}"
 			return $OCF_ERR_GENERIC
 		fi
-    else
+	else
 		ocf_log notice "Pull image not required, ${OCF_RESKEY_image}"
 	fi
 
@@ -757,14 +1148,13 @@ podman_start()
 		monitor_cmd_exec
 		if [ $? -eq $OCF_SUCCESS ]; then
 			ocf_log notice "Container $CONTAINER started successfully"
-			is_force_new_cluster
-			if [ $? -eq 0 ]; then
+			if is_force_new_cluster; then
 				clear_force_new_cluster
 
 				local peer_node_name=$(get_peer_node_name)
 				local peer_node_ip=$(get_peer_ip)
 
-				if [ -n "$peer_node_name" -a -n "$peer_node_ip" ]; then
+				if [ -n "$peer_node_name" ] && [ -n "$peer_node_ip" ]; then
 					add_member_as_learner $peer_node_name $peer_node_ip
 				else
 					ocf_log error "could not add peer as learner (peer node name: $peer_node_name, peer ip: $peer_node_ip)"
@@ -784,7 +1174,7 @@ podman_stop()
 	local rc
 	podman_simple_status
 	if [ $? -eq  $OCF_NOT_RUNNING ]; then
-		#remove_container
+		remove_container
 		ocf_log info "could not leave members list: etcd container not running"
 		return $OCF_SUCCESS
 	fi
@@ -869,6 +1259,7 @@ image_exists()
 podman_validate()
 {
 	check_binary curl
+	check_binary crictl
 	check_binary oc
 	check_binary podman
 
@@ -895,459 +1286,16 @@ podman_notify()
 {
 	if [ "${OCF_RESKEY_CRM_meta_notify_type}" = 'post' ] ; then
 		case "$OCF_RESKEY_CRM_meta_notify_operation" in
-			start)
-				ocf_log info "in start action"
+			start|stop)
+				ocf_log info "in $OCF_RESKEY_CRM_meta_notify_operation action"
 				ocf_log info "active: ${OCF_RESKEY_CRM_meta_notify_active_uname}"
-				ocf_log info "start: nodes:${OCF_RESKEY_CRM_meta_notify_start_uname}"
-				ocf_log info "start: resources:${OCF_RESKEY_CRM_meta_notify_start_resource}"
-				ocf_log info "stop: nodes:${OCF_RESKEY_CRM_meta_notify_stop_uname}"
-				ocf_log info "stop: resources:${OCF_RESKEY_CRM_meta_notify_stop_resource}"
-			;;
-			stop)
-				ocf_log info "in stop action"
-				ocf_log info "active: ${OCF_RESKEY_CRM_meta_notify_active_uname}"
-				ocf_log info "start: nodes:${OCF_RESKEY_CRM_meta_notify_start_uname}"
-				ocf_log info "start: resources:${OCF_RESKEY_CRM_meta_notify_start_resource}"
-				ocf_log info "stop: nodes:${OCF_RESKEY_CRM_meta_notify_stop_uname}"
-				ocf_log info "stop: resources:${OCF_RESKEY_CRM_meta_notify_stop_resource}"
-			;;
+				ocf_log info "start: nodes: ${OCF_RESKEY_CRM_meta_notify_start_uname}"
+				ocf_log info "start: resources: ${OCF_RESKEY_CRM_meta_notify_start_resource}"
+				ocf_log info "stop: nodes: ${OCF_RESKEY_CRM_meta_notify_stop_uname}"
+				ocf_log info "stop: resources: ${OCF_RESKEY_CRM_meta_notify_stop_resource}"
+				;;
 		esac
 	fi
-
-}
-
-etcd_pod_container_exists() {
-	local count_matches
-	# Check whether the etcd pod exists on the same node (header line included)
-	count_matches=$(crictl pods --label app=etcd -q | xargs -I {} crictl ps --pod {} -o json | jq -r '.containers[].metadata | select ( .name == "etcd" ).name' | wc -l)
-	if [ "$count_matches" -eq 1 ]; then
-		# etcd pod found
-		return 0
-	fi
-	# etcd pod not found
-	return 1
-}
-
-cache_member_id_if_not_cached()
-{
-	cache_member_id
-	member_id=$(get_cached_member_id)
-	if [ -z "$member_id" ]; then
-		ocf_log info "caching member ID"
-		cache_member_id
-	else
-		ocf_log info "cached member id: $member_id"
-	fi
-}
-
-cache_member_id()
-{
-	local nodename
-	container_exists
-	if [ $? -ne 0 ]; then
-		# we need a running container to execute etcdctl.
-		return 0
-	fi
-
-	# TODO: use get_member_list_json instead
-    endpoint="https://$(get_node_ip):2379"
-	ID_DEC=$(podman exec ${CONTAINER} etcdctl member list --endpoints=$endpoint -w json | jq -r .header.member_id)
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_log error "could not get member ID: error code $?"
-		return $rc
-	fi
-	if [ -z "$ID_DEC" ]; then
-		# the container is running, but the instance does not have its member ID yet.
-		return 0
-	fi
-
-	# etcdctl member commands need the HEX format of the member ID.
-	ID_HEX=$(printf "%x" $ID_DEC)
-	nodename=$(ocf_local_nodename)
-	ocf_log info "cache member ID $ID_HEX in node:$nodename"
-	crm_attribute --type nodes --node $nodename --name "member_id" --update $ID_HEX
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_log error "could not cache member ID: error code $rc"
-	fi
-	return $rc
-}
-
-clear_member_id()
-{
-	crm_attribute --type nodes --node $nodename --name "member_id" --delete
-}
-
-get_cached_member_id()
-{
-	local nodename=$(ocf_local_nodename)
-	ocf_log debug "get member ID from in node:$nodename"
-	crm_attribute --query --type nodes --node $nodename --name "member_id" | awk -F"value=" '{print $2}'
-}
-
-add_member_as_learner()
-{
-	local rc
-	local member_name=$1
-	local member_ip=$2
-
-	ocf_log info "add $member_name with $member_ip as learner"
-	out=$(podman exec ${CONTAINER} etcdctl --endpoints="https://$(get_node_ip):2379" member add $member_name --peer-urls=https://$member_ip:2380 --learner)
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_log error "could not add $member_name as learner: error code $rc"
-		return $rc
-	fi
-	ocf_log info "$out"
-
-	set_learner_node $member_name
-	return $?
-}
-
-set_force_new_cluster()
-{
-	local rc
-	local nodename=$(ocf_local_nodename)
-	crm_attribute --name "force_new_cluster" --update "$nodename"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_log error "could not set force_new_cluster attribute to $nodename"
-	else
-		ocf_log info "$nodename set force_new_cluster attribute"
-	fi
-	return $rc
-}
-
-get_force_new_cluster()
-{
-	crm_attribute --query --name "force_new_cluster" | awk -F"value=" '{print $2}'
-}
-
-clear_force_new_cluster()
-{
-	local force_new_cluster_node=$(get_force_new_cluster)
-	if [ -z "$force_new_cluster_node" ]; then
-		ocf_log info "$this_node: force_new_cluster attribute not set"
-		return $OCF_SUCCESS
-	fi
-
-	# only the holder of "force_new_cluster" attribute can delete it
-	local this_node=$(ocf_local_nodename)
-	if [ "$this_node" = "$force_new_cluster_node" ]; then
-		crm_attribute --name "force_new_cluster" --delete
-		rc=$?
-		if [ $rc -ne 0 ]; then
-			ocf_log error "could not clear force_new_cluster attribute: error $rc"
-		else
-			ocf_log info "$this_node: force_new_cluster attribute cleared"
-		fi
-		return $rc
-	else
-		ocf_log info "$this_node does not hold force_new_cluster ($force_new_cluster_node has it)"
-		return $OCF_SUCCESS
-	fi
-
-}
-
-is_force_new_cluster()
-{
-	# Return 0 if 'force_new_cluster' is set and the value matches the current node name, 1 otherwise.
-	local nodename=$(ocf_local_nodename)
-	local value=$(get_force_new_cluster)
-	if [ -z $value ]; then
-		ocf_log info "force_new_cluster attribute is not set"
-		return 1
-	fi
-
-	if [ $value = $nodename ]; then
-		ocf_log info "$nodename has force_new_cluster set"
-		return 0
-	fi
-
-	ocf_log info "force_new_cluster attribute set on peer node $value"
-	return 1
-}
-
-is_standalone()
-{
-	local nodename=${1:-$(ocf_local_nodename)}
-	local standalone_node=$(get_standalone_node)
-	if [ -z "$standalone_node" ]; then
-		# TODO: change the log level to debug when the code is stable enough
-		ocf_log info "no node running standalone"
-		return 1
-	fi
-
-	if [ "$nodename" = "$standalone_node" ]; then
-		# TODO: change the log level to debug when the code is stable enough
-		ocf_log info "$nodename is set as standalone"
-		return 0
-	fi
-	# TODO: change the log level to debug when the code is stable enough
-	ocf_log info "$nodename is set as learner"
-	return 1
-
-}
-
-set_standalone_node()
-{
-	local rc
-	local nodename=$(ocf_local_nodename)
-
-	ocf_log info "add $nodename as standalone"
-	crm_attribute --name "standalone_node" --update $nodename
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_log error "could not set standalone_node attribute to $nodename"
-	fi
-	return $rc
-}
-
-get_standalone_node()
-{
-	crm_attribute --query --name "standalone_node" | awk -F"value=" '{print $2}'
-}
-
-clear_standalone_node()
-{
-	if crm_attribute --name "standalone_node" --delete; then
-		ocf_log info "standalone_node property cleared"
-	fi
-}
-
-clear_standalone_and_learner_if_not_learners()
-{
-    local rc
-    local member_list_json=$1
-
-    standalone_node=$(get_standalone_node)
-    if [ -z $standalone_node ]; then
-        return $OCF_SUCCESS
-    fi
-
-    number_of_members=$(echo -n $member_list_json | jq -r ".members[].ID" | wc -l)
-    if [ $number_of_members -ne 2 ]; then
-        ocf_log info "could not clear standalone_node, nor learner_node properties: found $number_of_members members, need 2"
-        return $OCF_SUCCESS
-    fi
-
-    id=$(echo -n $member_list_json | jq -r ".members[] | select( .isLearner==true ).ID")
-    rc=$?
-    if [ $rc -ne 0 ]; then
-        ocf_log error "could not get isLearner field from member list: error code $rc"
-        return $rc
-    fi
-
-    if [ -z "$id" ]; then
-        clear_standalone_node
-        rc=$?
-        if [ $rc -ne 0 ]; then
-            ocf_og error "could not clear standalone_node attribute: error code $rc"
-			return $rc
-        fi
-    fi
-    if [ -z "$id" ]; then
-        clear_learner_node
-        rc=$?
-        if [ $rc -ne 0 ]; then
-            ocf_og error "could not clear learner_node attribute: error code $rc"
-			return $rc
-        fi
-    fi
-
-    return $rc
-}
-
-is_learner()
-{
-	# NOTE: do not use "learner_node" property for this.
-	# Return 0 if the 'standalone' attribute is set and matches the peer node name, 1 otherwise.
-	local standalone_node=$(get_standalone_node)
-	if [ -z "$standalone_node" ]; then
-		# TODO: change the log level to debug when the code is stable enough
-		ocf_log info "standalone attribute not set"
-		return 1
-	fi
-
-	local nodename=$(ocf_local_nodename)
-	if [ "$nodename" = "$standalone_node" ]; then
-		# TODO: change the log level to debug when the code is stable enough
-		ocf_log info "$nodename is not set as learner"
-		return 1
-	fi
-	# TODO: change the log level to debug when the code is stable enough
-	ocf_log info "$nodename is set as learner"
-	return 0
-}
-
-set_learner_node()
-{
-	local rc
-	local nodename=$1
-
-	crm_attribute --name "learner_node" --update $nodename
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_log error "could not set learner_node attribute to $nodename"
-	fi
-    ocf_log info "$nodename set as learner"
-	return $rc
-}
-
-get_learner_node()
-{
-	crm_attribute --query --name "learner_node" | awk -F"value=" '{print $2}'
-}
-
-clear_learner_node()
-{
-    if crm_attribute --name "learner_node" --delete; then
-        ocf_log info "learner_node property cleared"
-    fi
-}
-
-get_peer_node_name() {
-	crm_node -l | awk '{print $2}' | grep -v $(ocf_local_nodename)
-}
-
-get_peer_ip() {
-	local peer_name=$(get_peer_node_name)
-	crm_attribute --query --name "ip" --node $peer_name | awk -F"value=" '{print $2}'
-}
-
-get_all_etcd_endpoints() {
-	for node in $(echo "$OCF_RESKEY_node_ip_map" | sed "s/\s//g;s/;/ /g"); do
-		name=$(echo "$node" | awk -F":" '{print $1}')
-		ip=$(echo "$node" | awk -F":" '{print $2}')
-		if [ -z "$name" ] || [ -z "$ip" ]; then
-			ocf_exit_reason "name or ip missing for 1 or more nodes"
-			exit $OCF_ERR_CONFIGURED
-		fi
-
-		[ -z "$ALL_ETCD_ENDPOINTS" ] && ALL_ETCD_ENDPOINTS="https://$ip:2379" || ALL_ETCD_ENDPOINTS="$ALL_ETCD_ENDPOINTS,https://$ip:2379"
-	done
-	echo $ALL_ETCD_ENDPOINTS
-}
-
-get_endpoint_status_json()
-{
-	# Get the status of all endpoints
-	local all_etcd_endpoints=$(get_all_etcd_endpoints)
-	podman exec ${CONTAINER} etcdctl endpoint status --endpoints=$all_etcd_endpoints -w json
-}
-
-get_member_list_json() {
-	# Get the list of members visible to the current node
-	local this_node_endpoint="https://$(get_node_ip):2379"
-	podman exec ${CONTAINER} etcdctl member list --endpoints=$this_node_endpoint -w json
-}
-
-check_peers()
-{
-	# Check peers endpoint status and locally accessible member list
-	local member_list_json
-	local this_nodename=$(ocf_local_nodename)
-
-	container_exists
-	if [ $? -ne 0 ]; then
-		# we need a running container to execute etcdctl.
-		return $OCF_SUCCESS
-	fi
-
-	member_list_json=$(get_member_list_json)
-	rc=$?
-	ocf_log info "member list: $member_list_json"
-	if [ $rc -ne 0 ]; then
-		ocf_log info "podman failed to get member list: error code $rc"
-
-		endpoint_status_json=$(get_endpoint_status_json)
-		ocf_log info "endpoint status: $endpoint_status_json"
-
-		count_endpoints=$(echo -n $endpoint_status_json | jq -r ".[].Endpoint" | wc -l)
-		if [ $count_endpoints -eq 1 ]; then
-			ocf_log info "one endpoint only: checking status errors"
-			endpoint_status_errors=$(echo -n $endpoint_status_json | jq -r ".[0].Status.errors")
-			if echo "$endpoint_status_errors" | grep -q "no leader"; then
-				set_force_new_cluster
-				set_standalone_node
-				ocf_exit_reason "$this_nodename must force a new cluster"
-				return $OCF_ERR_GENERIC
-			fi
-			if [ "$endpoint_status_errors" != "null" ]; then
-				ocf_log error "unmanaged endpoint status error: $endpoint_status_errors"
-			fi
-		fi
-
-		return $OCF_SUCCESS
-	fi
-
-	# Example of .members[] instance fields in member list json format:
-	# NOTE that "name" is present in voting members only, while "isLearner" in learner members only
-	# and the value is always true (not a string) in that case.
-	# {
-#   "ID": <member ID>,
-	#   "name": "<node hostname>",
-	#   "peerURLs": [
-	#       "https://<node IP>:2380"
-	#   ],
-	#   "clientURLs": [
-	#       "https://<node IP>:2379"
-	#   ]
-	# }
-	for node in $(echo "$OCF_RESKEY_node_ip_map" | sed "s/\s//g;s/;/ /g"); do
-		name=$(echo "$node" | awk -F":" '{print $1}')
-		# do not check itself
-		if [ "$name" == "$this_nodename" ]; then
-			continue
-		fi
-
-		# Check by IP instead of Name since "learner" members appear only in peerURLs, not by Name.
-		ip=$(echo "$node" | awk -F":" '{print $2}')
-		id=$(echo -n $member_list_json | jq -r ".members[] | select( .peerURLs | map(test(\"$ip\")) | any).ID")
-		if [ -z "$id" ]; then
-			ocf_log info "$name is not in the members list"
-			add_member_as_learner $name $ip
-			set_standalone_node
-		else
-			ocf_log debug "$name is in the members list by IP:$ip"
-			clear_standalone_and_learner_if_not_learners $member_list_json
-		fi
-	done
-	return $OCF_SUCCESS
-}
-
-cache_etcd_data() {
-	local rc ip nodename revision cluster_id
-
-	container_exists
-	if [ $? -ne 0 ]; then
-		# we need a running container to execute etcdctl.
-		return $OCF_SUCCESS
-	fi
-
-	ip=$(get_node_ip)
-	nodename=$(ocf_local_nodename)
-
-	revision=$(cat /var/lib/etcd/revision.json | jq -r ".raftIndex.\"https://$ip:2379\"")
-	ocf_log info "cache revision:$revision in node:$nodename"
-	crm_attribute --type nodes --node $nodename --name "revision" --update $revision
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_log err "could not cache etcd revision: error code $rc"
-		return $?
-	fi
-
-	cluster_id=$(cat /var/lib/etcd/revision.json | jq -r ".clusterId")
-	ocf_log info "cache cluster_id:$cluster_id in node:$nodename"
-	crm_attribute --type nodes --node $nodename --name "cluster_id" --update $cluster_id
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_log err "could not cache etcd cluster Id: error code $rc"
-		return $?
-	fi
-
-	return $OCF_SUCCESS
 }
 
 # TODO :
@@ -1389,22 +1337,25 @@ if [ -z "$OCF_RESKEY_drop_in_dependency" ]; then
 	fi
 fi
 
+
 case $__OCF_ACTION in
 meta-data)	meta_data
 		exit $OCF_SUCCESS;;
-start)
-		podman_validate
-		podman_start;;
-stop)		podman_stop;;
-monitor)	podman_monitor;;
-promote)	podman_promote;;
-demote) 	podman_demote;;
-validate-all)	podman_validate;;
-notify)
-	podman_notify;;
 usage|help)	podman_usage
 		exit $OCF_SUCCESS
 		;;
+esac
+
+NODENAME=$(ocf_local_nodename)
+
+case $__OCF_ACTION in
+start)
+		podman_validate || exit $?
+		podman_start;;
+stop)		podman_stop;;
+monitor)	podman_monitor;;
+notify) 	podman_notify;;
+validate-all)	podman_validate;;
 *)		podman_usage
 		exit $OCF_ERR_UNIMPLEMENTED
 		;;
