@@ -359,17 +359,17 @@ tickle_local()
 
 SayActive()
 {
-  echo "$CMD DROP rule [$*]  is running (OK)"
+  ocf_log debug "$CMD DROP rule [$*]  is running (OK)"
 }
 
 SayConsideredActive()
 {
-  echo "$CMD DROP rule [$*] considered to be running (OK)"
+  ocf_log debug "$CMD DROP rule [$*] considered to be running (OK)"
 }
 
 SayInactive()
 {
-  echo "$CMD DROP rule [$*] is inactive"
+  ocf_log debug "$CMD DROP rule [$*] is inactive"
 }
 
 #IptablesStatus  {udp|tcp} portno,portno ip {in|out|both} {block|unblock}
@@ -430,7 +430,7 @@ DoIptables()
   op=$1 proto=$2 ports=$3 ip=$4 chain=$5
   active=0; chain_isactive "$proto" "$ports" "$ip" "$chain" && active=1
   want_active=0; [ "$op" = "-I" ] && want_active=1
-  echo "active: $active want_active: $want_active"
+  ocf_log debug "active: $active want_active: $want_active"
   if [ $active -eq $want_active ] ; then
     : Chain already in desired state
   else
