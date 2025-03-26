@@ -695,10 +695,12 @@ CATALINA_BASE="${OCF_RESKEY_catalina_base-${OCF_RESKEY_catalina_home}}"
 CATALINA_OUT="${OCF_RESKEY_catalina_out}"
 
 CATALINA_PID=$OCF_RESKEY_catalina_pid
-if [ -z "$CATALINA_PID" ] && [ "$__OCF_ACTION" = "start" ]; then
-	mkdir -p "${HA_RSCTMP}/${TOMCAT_NAME}_tomcatstate/"
-	if [ "${RESOURCE_TOMCAT_USER}" != "root" ]; then
-		chown ${RESOURCE_TOMCAT_USER} "${HA_RSCTMP}/${TOMCAT_NAME}_tomcatstate/"
+if [ -z "$CATALINA_PID" ]; then
+	if [ "$__OCF_ACTION" = "start" ]; then
+		mkdir -p "${HA_RSCTMP}/${TOMCAT_NAME}_tomcatstate/"
+		if [ "${RESOURCE_TOMCAT_USER}" != "root" ]; then
+			chown ${RESOURCE_TOMCAT_USER} "${HA_RSCTMP}/${TOMCAT_NAME}_tomcatstate/"
+		fi
 	fi
 	CATALINA_PID="${HA_RSCTMP}/${TOMCAT_NAME}_tomcatstate/catalina.pid"
 fi
