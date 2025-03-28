@@ -120,10 +120,6 @@ class azHelper:
 				successful = 1
 				break
 
-		# When no request was successful also with retry enabled, set the cluster to idle
-		if successful is None:
-			clusterHelper.setAttr(attr_globalPullState, "IDLE")
-
 		if data:
 			data = json.loads(data)
 
