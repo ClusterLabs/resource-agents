@@ -30,7 +30,6 @@ import ocf
 VERSION = "0.20"
 USER_AGENT = "Pacemaker-ResourceAgent/%s %s" % (VERSION, ocf.distro())
 
-attr_globalPullState = "azure-events-az_globalPullState"
 attr_lastDocVersion  = "azure-events-az_lastDocVersion"
 attr_curNodeState = "azure-events-az_curNodeState"
 attr_pendingEventIDs = "azure-events-az_pendingEventIDs"
