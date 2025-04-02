@@ -553,19 +553,19 @@ class Node:
 		"""
 		node = self.selfOrOtherNode(node)
 		ocf.logger.debug("isNodeInStandby: begin; node = %s" % node)
-		isInStandy = False
+		isInStandby = False
 
 		healthAttributeStr = clusterHelper.getAttr(attr_healthstate, node)
 		if healthAttributeStr is not None:
 			try:
 				healthAttribute = int(healthAttributeStr)
-				isInStandy = healthAttribute < 0
+				isInStandby = healthAttribute < 0
 			except ValueError:
 				# Handle the exception
 				ocf.logger.warn("Health attribute %s on node %s cannot be converted to an integer value" % (healthAttributeStr, node))
 
-		ocf.logger.debug("isNodeInStandby: finished - result %s" % isInStandy)
-		return isInStandy
+		ocf.logger.debug("isNodeInStandby: finished - result %s" % isInStandby)
+		return isInStandby
 
 	def putNodeOnline(self, node=None):
 		"""
