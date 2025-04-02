@@ -695,21 +695,21 @@ class raAzEvents:
 					ocf.logger.info("monitor: handling remote event %s (%s; nodes = %s)" % (e.EventId, e.EventType, str(e.Resources)))
 					# before we can force an event to start, we need to ensure all nodes involved have stopped their resources
 					if e.EventStatus == "Scheduled":
-						allNodesStopped = True
+						allResourcesNowStopped = True
 						for azName in e.Resources:
 							hostName = clusterHelper.getHostNameFromAzName(azName)
 							state = self.node.getState(node=hostName)
 							if state == STOPPING:
 								# the only way we can continue is when node state is STOPPING, but all resources have been stopped
 								if not clusterHelper.allResourcesStoppedOnNode(hostName):
-									ocf.logger.info("monitor: (at least) node %s has still resources running -> wait" % hostName)
-									allNodesStopped = False
+									ocf.logger.info("monitor: (at least) node %s still has resources running -> wait" % hostName)
+									allResourcesNowStopped = False
 									break
 							elif state in (AVAILABLE, IN_EVENT, ON_HOLD):
 								ocf.logger.info("monitor: node %s is still %s -> remote event needs to be picked up locally" % (hostName, nodeStateToString(state)))
-								allNodesStopped = False
+								allResourcesNowStopped = False
 								break
-						if allNodesStopped:
+						if allResourcesNowStopped:
 							ocf.logger.info("monitor: nodes %s are stopped -> add remote event %s to force list" % (str(e.Resources), e.EventId))
 							for n in e.Resources:
 								hostName = clusterHelper.getHostNameFromAzName(n)
