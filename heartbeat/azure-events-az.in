@@ -30,7 +30,6 @@ import ocf
 VERSION = "0.20"
 USER_AGENT = "Pacemaker-ResourceAgent/%s %s" % (VERSION, ocf.distro())
 
-attr_globalPullState = "azure-events-az_globalPullState"
 attr_lastDocVersion  = "azure-events-az_lastDocVersion"
 attr_curNodeState = "azure-events-az_curNodeState"
 attr_pendingEventIDs = "azure-events-az_pendingEventIDs"
@@ -119,10 +118,6 @@ class azHelper:
 				ocf.logger.debug("_sendMetadataRequest: response = %s" % data)
 				successful = 1
 				break
-
-		# When no request was successful also with retry enabled, set the cluster to idle
-		if successful is None:
-			clusterHelper.setAttr(attr_globalPullState, "IDLE")
 
 		if data:
 			data = json.loads(data)
