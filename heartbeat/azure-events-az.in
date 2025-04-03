@@ -571,7 +571,7 @@ class Node:
 
 		clusterHelper._exec("crm_attribute",
 							"--node", node,
-							"--name", "#health-azure",
+							"--name", attr_healthstate,
 							"--update", "0",
 							"--lifetime=forever")
 
