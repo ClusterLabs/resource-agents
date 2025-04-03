@@ -750,6 +750,7 @@ away from the affected node to allow for a graceful shutdown.
 
 	Deployment:
 		crm configure primitive rsc_azure-events-az ocf:heartbeat:azure-events-az \
+  			params eventTypes="Reboot,Redeploy" verbose=false retry_count=3 retry_wait=20 request_timeout=15 \
 			op monitor interval=10s
 		crm configure clone cln_azure-events-az rsc_azure-events-az
 
