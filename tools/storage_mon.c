@@ -118,7 +118,6 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 	int flags = O_RDONLY | O_DIRECT;
 	int device_fd;
 	int res;
-	off_t seek_spot;
 
 	if (verbose) {
 		printf("Testing device %s\n", device);
@@ -152,16 +151,6 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 
 	/* Don't fret about real randomness */
 	srand(time(NULL) + getpid());
-	/* Pick a random place on the device - sector aligned */
-	seek_spot = (rand() % (devsize-1024)) & 0xFFFFFFFFFFFFFE00;
-	res = lseek(device_fd, seek_spot, SEEK_SET);
-	if (res < 0) {
-		PRINT_STORAGE_MON_ERR("Failed to seek %s: %s", device, strerror(errno));
-		goto error;
-	}
-	if (verbose) {
-		PRINT_STORAGE_MON_INFO("%s: reading from pos %ld", device, seek_spot);
-	}
 
 	if (flags & O_DIRECT) {
 		int sec_size = 0;
@@ -192,7 +181,19 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 			goto error;
 		}
 	} else {
+		off_t seek_spot;
 		char buffer[512];
+
+		/* Pick a random place on the device - sector aligned */
+		seek_spot = (rand() % (devsize-1024)) & 0xFFFFFFFFFFFFFE00;
+		res = lseek(device_fd, seek_spot, SEEK_SET);
+		if (res < 0) {
+			PRINT_STORAGE_MON_ERR("Failed to seek %s: %s", device, strerror(errno));
+			goto error;
+		}
+		if (verbose) {
+			PRINT_STORAGE_MON_INFO("%s: reading from pos %ld", device, seek_spot);
+		}
 
 		res = read(device_fd, buffer, sizeof(buffer));
 		if (res < 0) {
