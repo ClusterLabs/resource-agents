@@ -37,12 +37,14 @@ OCF_RESKEY_crypt_dev_default=""
 OCF_RESKEY_key_file_default=""
 OCF_RESKEY_crypt_type_default=""
 OCF_RESKEY_force_stop_default="false"
+OCF_RESKEY_use_clevis_default="false"
 
 : ${OCF_RESKEY_encrypted_dev=${OCF_RESKEY_encrypted_dev_default}}
 : ${OCF_RESKEY_crypt_dev=${OCF_RESKEY_crypt_dev_default}}
 : ${OCF_RESKEY_key_file=${OCF_RESKEY_key_file_default}}
 : ${OCF_RESKEY_crypt_type=${OCF_RESKEY_crypt_type_default}}
 : ${OCF_RESKEY_force_stop=${OCF_RESKEY_force_stop_default}}
+: ${OCF_RESKEY_use_clevis=${OCF_RESKEY_use_clevis_default}}
 
 #######################################################################
 
@@ -86,7 +88,7 @@ The resulting block device path is /dev/mapper/name.
 <content type="string" default="${OCF_RESKEY_crypt_dev_default}" />
 </parameter>
 
-<parameter name="key_file" unique="0" required="1">
+<parameter name="key_file" unique="0" required="0">
 <longdesc lang="en">
 Key file path containing the encryption passphrase
 (aka key; see cryptsetup(8)).  For LUKS, the passphrase as of the key_file
@@ -96,7 +98,7 @@ parameter is used to decrypt a randomly selected key when the device was created
 <content type="string" default="${OCF_RESKEY_key_file_default}" />
 </parameter>
 
-<parameter name="crypt_type" unique="0" required="1">
+<parameter name="crypt_type" unique="0" required="0">
 <longdesc lang="en">
 Encryption (device) type (e.g. "luks" or "luks2").
 
@@ -122,6 +124,16 @@ will fail and the node will be fenced.
 <content type="boolean" default="${OCF_RESKEY_force_stop_default}" />
 </parameter>
 
+<parameter name="use_clevis" unique="0" required="0">
+<longdesc lang="en">
+If LUKS volume is set up to unlock automatically using Tang/Clevis,
+then set this parameter to "true".  This has the side-effect of ignoring
+the "key_file" and "crypt_type" parameters.
+</longdesc>
+<shortdesc lang="en">use clevis tools to unlock volume</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_use_clevis_default}" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -134,10 +146,6 @@ will fail and the node will be fenced.
 </resource-agent>
 END
 }
-
-# Disable cryptsetup auto-recovery if cloned.
-disable_locks=""
-ocf_is_clone && disable_locks="--disable-locks"
 
 crypt_usage() {
 	cat <<END
@@ -153,10 +161,19 @@ crypt_dev_path="/dev/mapper/$crypt_dev"
 key_file="${OCF_RESKEY_key_file}"
 crypt_type="${OCF_RESKEY_crypt_type}"
 force_stop="${OCF_RESKEY_force_stop}"
+use_clevis="${OCF_RESKEY_use_clevis}"
 
 crypt_validate_all() {
+	if ocf_is_clone; then
+		ocf_exit_reason "crypt cannot run as a cloned resource"
+		return $OCF_ERR_CONFIGURED
+	fi
 	if ! have_binary cryptsetup; then
 		ocf_exit_reason "Please install cryptsetup(8)"
+		return $OCF_ERR_INSTALLED
+	fi
+	if ocf_is_true "$use_clevis" && ! have_binary clevis ; then
+		ocf_exit_reason "Please install clevis tools"
 		return $OCF_ERR_INSTALLED
 	fi
 	if [ -z "$encrypted_dev" ]; then
@@ -167,35 +184,32 @@ crypt_validate_all() {
 		case "$encrypted_dev" in
 		*-*-*-*) if [ `echo "$encrypted_dev" | wc -c` -ne 37 ]; then
 				ocf_exit_reason "Bogus encrypted device UUID \"$encrypted_dev\""
-				return $OCF_ERR_ARGS
+				return $OCF_ERR_CONFIGURED
 			 fi
 			 encrypted_dev=/dev/disk/by-uuid/"$encrypted_dev";;
 		*)	 case "$encrypted_dev" in
 			 /dev/*) ;;
 			 *)	ocf_exit_reason "Bogus encrypted device path"
-				return $OCF_ERR_ARGS;;
+				return $OCF_ERR_CONFIGURED;;
 			 esac
 		esac
 	fi
-
-	# return early for probes where device might not be available yet
-	# e.g. LVM exclusive volumes
-	if ocf_is_probe; then
-		return $OCF_SUCCESS
-	fi
-
 	if [ ! -b "$encrypted_dev" ] && [ ! -L "$encrypted_dev" ]; then
 		ocf_exit_reason "Encrypted device $encrypted_dev not accessible"
-		return $OCF_ERR_ARGS
+		return $OCF_ERR_CONFIGURED
 	fi
 	echo "$crypt_dev" | grep "/" >/dev/null
 	if [ $? -eq 0 ] &&  [ -z "$crypt_dev" ]; then
 		ocf_exit_reason "Crypt device \"$crypt_dev\" name has to at least 1 character long and without path"
-		return $OCF_ERR_ARGS
+		return $OCF_ERR_CONFIGURED
 	fi
-	if [ ! -r "$key_file" ]; then
+	if ! ocf_is_true "$use_clevis" && [ ! -r "$key_file" ]; then
 		ocf_exit_reason "Hash key file $key_file not accessible"
-		return $OCF_ERR_ARGS
+		return $OCF_ERR_CONFIGURED
+	fi
+	if ! ocf_is_true "$use_clevis" && [ ! -r "$crypt_type" ]; then
+		ocf_exit_reason "crypt_type not set"
+		return $OCF_ERR_CONFIGURED
 	fi
 	if ocf_is_true "$force_stop" && ! have_binary lsof; then
 		ocf_exit_reason "Force stop requested, please install lsof(8)"
@@ -209,6 +223,19 @@ crypt_validate_all() {
 
 	return $OCF_SUCCESS
 }
+
+
+detect_clevis() {
+	if ! have_binary clevis; then
+		use_clevis="false" #We can't use clevis, if we don't have it installed
+	elif ! ocf_is_true "$use_clevis"; then #if not already specified by user to use clevis
+		#Try to detect whether clevis is available
+		if clevis luks list -d $encrypted_dev | grep -q '^[[:digit:]]\+:'; then
+			use_clevis="true" #if grep finds output that matches, we have clevis, therefore use it
+		fi
+	fi
+}
+
 
 get_users_pids() {
 	ocf_log debug "running lsof to list \"$crypt_dev\" users..."
@@ -240,7 +267,7 @@ show_users() {
 }
 
 crypt_stop_one() {
-	cryptsetup close $crypt_dev $disable_locks
+	cryptsetup close $crypt_dev
 }
 
 #######################################################################
@@ -248,15 +275,22 @@ crypt_stop_one() {
 # Action: START an encrypted resource
 #
 crypt_start() {
-	local rc
+	local out rc
+	detect_clevis
 
-	cryptsetup open $encrypted_dev $crypt_dev --type $crypt_type $disable_locks --key-file=$key_file
-	rc=$?
+	if ocf_is_true "$use_clevis"; then
+		out=$(clevis luks unlock -d $encrypted_dev -n $crypt_dev  2>&1)
+		rc=$?
+	else
+		out=$(cryptsetup open $encrypted_dev $crypt_dev --type $crypt_type --key-file=$key_file 2>&1)
+ 		rc=$?
+	fi
 	if [ $rc -eq 0 ];then
 		crypt_monitor
 		rc=$?
 	else
-		rc=$OCF_ERR_GERNERIC
+		ocf_exit_reason "Failed to start encrypted device \"$crypt_dev\": $out"
+		return $OCF_ERR_GENERIC
 	fi
 	[ $rc -ne $OCF_SUCCESS ] && ocf_exit_reason "Failed to start encrypted device \"$crypt_dev\""
 
@@ -279,7 +313,8 @@ crypt_stop() {
 	if [ $rc -ne $OCF_NOT_RUNNING ] && ocf_is_true $force_stop; then
 		stop_crypt_users
 		case $? in
-		2) rc=$OCF_SUCCESS;;
+		2) crypt_monitor
+		   rc=$?;;
 		*) crypt_stop_one
 		   crypt_monitor
 		   rc=$?;;
@@ -299,7 +334,7 @@ crypt_stop() {
 # Action: MONITOR an encrypted resource
 #
 crypt_monitor() {
-	cryptsetup status $crypt_dev $disable_locks >/dev/null 2>&1
+	cryptsetup status $crypt_dev >/dev/null 2>&1
 	if [ $? -eq 0 ]; then
 		if [ -b "$encrypted_dev" ] || [ -L $crypt_dev_path ]; then
 			return $OCF_SUCCESS
@@ -311,10 +346,10 @@ crypt_monitor() {
 	return $OCF_NOT_RUNNING
 }
 
-# Check for stange argument count.
+# Check for strange argument count.
 if [ $# -ne 1 ]; then
 	usage
-	exit $OCF_ERR_ARGS
+	exit $OCF_ERR_GENERIC
 fi
 
 case "$__OCF_ACTION" in
@@ -327,7 +362,13 @@ esac
 # XME: remove once pacemaker is fixed and calls this action
 crypt_validate_all
 rc=$?
-[ $rc -ne $OCF_SUCCESS ] && exit $rc
+if [ $rc -ne $OCF_SUCCESS ]; then
+	if ! ocf_is_probe && [ "$__OCF_ACTION" != "stop" ]; then
+		exit $rc
+	else
+		$OCF_NOT_RUNNING
+	fi
+fi
 
 case "$__OCF_ACTION" in
 start)		crypt_start; rc=$?;;
