@@ -187,6 +187,7 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_pgsql.7 \
                           ocf_heartbeat_pingd.7 \
                           ocf_heartbeat_podman.7 \
+                          ocf_heartbeat_podman-etcd.7 \
                           ocf_heartbeat_portblock.7 \
                           ocf_heartbeat_postfix.7 \
                           ocf_heartbeat_pound.7 \
