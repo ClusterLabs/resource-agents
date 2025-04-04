@@ -27,7 +27,7 @@ import ocf
 ##############################################################################
 
 
-VERSION = "0.20"
+VERSION = "0.21"
 USER_AGENT = "Pacemaker-ResourceAgent/%s %s" % (VERSION, ocf.distro())
 
 attr_lastDocVersion  = "azure-events-az_lastDocVersion"
