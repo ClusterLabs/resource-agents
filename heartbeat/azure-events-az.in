@@ -33,7 +33,7 @@ USER_AGENT = "Pacemaker-ResourceAgent/%s %s" % (VERSION, ocf.distro())
 attr_lastDocVersion  = "azure-events-az_lastDocVersion"
 attr_curNodeState = "azure-events-az_curNodeState"
 attr_pendingEventIDs = "azure-events-az_pendingEventIDs"
-attr_healthstate = "#health-azure"
+attr_healthstate = "health-azure"
 
 default_loglevel = ocf.logging.INFO
 default_relevantEventTypes = set(["Reboot", "Redeploy"])
