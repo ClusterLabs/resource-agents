@@ -92,6 +92,19 @@ OCF_RESKEY_nodad_default=false
 OCF_RESKEY_noprefixroute_default="false"
 OCF_RESKEY_preferred_lft_default="forever"
 OCF_RESKEY_network_namespace_default=""
+OCF_RESKEY_check_link_status_default="true"
+
+# RHEL specific defaults
+if is_redhat_based; then
+	get_os_ver
+	ocf_version_cmp "$VER" "10.1" 2>/dev/null
+
+	case "$?" in
+		# RHEL < 10.1
+		0)
+			OCF_RESKEY_check_link_status_default="false";;
+	esac
+fi
 
 : ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
 : ${OCF_RESKEY_cidr_netmask=${OCF_RESKEY_cidr_netmask_default}}
@@ -116,6 +129,7 @@ OCF_RESKEY_network_namespace_default=""
 : ${OCF_RESKEY_noprefixroute=${OCF_RESKEY_noprefixroute_default}}
 : ${OCF_RESKEY_preferred_lft=${OCF_RESKEY_preferred_lft_default}}
 : ${OCF_RESKEY_network_namespace=${OCF_RESKEY_network_namespace_default}}
+: ${OCF_RESKEY_check_link_status=${OCF_RESKEY_check_link_status_default}}
 
 #######################################################################
 
@@ -449,6 +463,14 @@ the namespace.
 <shortdesc lang="en">Network namespace to use</shortdesc>
 <content type="string" default="${OCF_RESKEY_network_namespace_default}"/>
 </parameter>
+
+<parameter name="check_link_status">
+<longdesc lang="en">
+Consider the resource failed if the interface has status DOWN or LOWERLAYERDOWN.
+</longdesc>
+<shortdesc lang="en">Consider the resource failed if the interface has status DOWN or LOWERLAYERDOWN</shortdesc>
+<content type="string" default="${OCF_RESKEY_check_link_status_default}"/>
+</parameter>
 </parameters>
 
 <actions>
@@ -581,6 +603,9 @@ ip_init() {
 		elif [ "$__OCF_ACTION" = stop ]; then
 			ocf_log warn "[$FINDIF] failed"
 			exit $OCF_SUCCESS
+		elif [ "$__OCF_ACTION" = start ]; then
+			ocf_exit_reason "[$FINDIF] failed"
+			exit $OCF_ERR_INSTALLED
 		else
 			ocf_exit_reason "[$FINDIF] failed"
 			exit $rc
@@ -1002,6 +1027,12 @@ ip_served() {
 		return 0
 	fi
 
+	if ocf_is_true "$OCF_RESKEY_check_link_status" && $IP2UTIL -f $FAMILY addr show $cur_nic | \
+	    grep -q "[[:space:]]\(DOWN\|LOWERLAYERDOWN\)[[:space:]]"; then
+		echo "down"
+		return 0
+	fi
+
 	if [ -z "$IP_CIP" ]; then
 		for i in $cur_nic; do
 			# check address label
@@ -1073,6 +1104,11 @@ ip_start() {
 		exit $OCF_SUCCESS
 	fi
 
+	if [ "$ip_status" = "down" ]; then
+		ocf_exit_reason "IP $OCF_RESKEY_ip available, but device has status $ip_status"
+		exit $OCF_ERR_INSTALLED
+	fi
+
 	if [ "$ip_status" = "partial3" ]; then
 		ocf_exit_reason "IP $OCF_RESKEY_ip available, but label missing"
 		exit $OCF_ERR_GENERIC
@@ -1096,7 +1132,7 @@ ip_start() {
 		echo "+$IP_INC_NO" >$IP_CIP_FILE
 	fi
 
-	if [ "$ip_status" = "no" ]; then
+	if [ "$ip_status" != "ok" ]; then
 		if ocf_is_true ${OCF_RESKEY_lvs_support}; then
 			for i in `find_interface $OCF_RESKEY_ip 32`; do
 				case $i in
@@ -1213,6 +1249,7 @@ ip_monitor() {
 	# interface health maybe via a daemon like FailSafe etc...
 
 	local ip_status=`ip_served`
+	ocf_log debug "monitor:  $ip_status"
 	case $ip_status in
 	ok)
 		run_arp_sender refresh
@@ -1220,6 +1257,9 @@ ip_monitor() {
 		;;
 	no)
 		exit $OCF_NOT_RUNNING
+		;;
+	down)
+		exit $OCF_ERR_INSTALLED
 		;;
 	*)
 		# Errors on this interface?
