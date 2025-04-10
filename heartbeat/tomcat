@@ -560,7 +560,7 @@ validate_all_tomcat()
 {
 	local port
 	local rc=$OCF_SUCCESS
-	ocf_log info "validate_all_tomcat[$TOMCAT_NAME]"
+	ocf_log debug "validate_all_tomcat[$TOMCAT_NAME]"
 
 	check_binary $WGET
 
