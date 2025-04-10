@@ -96,6 +96,8 @@ preferably be a clustered raid1 or raid10 array created
 with --bitmap=clustered, assuming its resource will
 be cloned (i.e., active-active access).
 
+One or more block devices to use, space separated. Alternatively,
+set to "auto" to manage all devices specified in mdadm_conf.
 Be sure to disable auto-assembly for the resource-managed arrays!
 </longdesc>
 <shortdesc lang="en">MD block device</shortdesc>
@@ -163,6 +165,36 @@ resource_is_cloned() {
 	[ -z "$OCF_RESKEY_CRM_meta_clone_max" ] && return 1 || return 0;
 }
 
+list_conf_arrays() {
+	test -f $mdadm_conf || {
+		ocf_exit_reason "$mdadm_conf gone missing!"
+		return $OCF_ERR_CONFIGURED
+	}
+	grep ^ARRAY $mdadm_conf | awk '{print $2}'
+}
+
+forall() {
+	local func=$1
+	local mddev rc=0
+
+	for mddev in $RAIDDEVS; do
+		# prepare md_dev and devs
+		md_dev="$mddev"
+
+		# Required by start|stop|monitor
+		devs="`list_devices_for_mddev`"
+		if [ `echo $devs|wc -l` -eq 0 ]; then
+			ocf_exit_reason "No component device(s) found for MD RAID array $md_dev"
+			return $OCF_ERR_CONFIGURED
+		fi
+
+		$func $mddev
+		rc=$(($rc | $?))
+	done
+
+	return $rc
+}
+
 raid_validate_all() {
 	if [ -z "$mdadm_conf" ] ; then
 		ocf_exit_reason "Please set OCF_RESKEY_mdadm_conf"
@@ -177,10 +209,18 @@ raid_validate_all() {
 		return $OCF_ERR_CONFIGURED
 	fi
 	case "$md_dev" in
-	/dev/*) ;;
-	*)	ocf_exit_reason "Bogus MD RAID array block device name (\"$md_dev\")"
-		return $OCF_ERR_ARGS;;
+	/dev/*)
+		RAIDDEVS="$md_dev";;
+	"auto")
+		RAIDDEVS="`list_conf_arrays`";;
+	*)
+		;;
 	esac
+
+	if [ -z "$RAIDDEVS" ] ; then
+		ocf_exit_reason "Bogus MD RAID array block device name(s) (\"$md_dev\")"
+		return $OCF_ERR_ARGS
+	fi
 	if ocf_is_true $wait_for_udev && ! have_binary udevadm && [ "$__OCF_ACTION" = "start" ]; then
 		ocf_exit_reason "either install udevadm or set udev to false"
 		return $OCF_ERR_INSTALLED
@@ -196,10 +236,6 @@ raid_validate_all() {
 	if ! have_binary blkid; then
 		ocf_exit_reason "Please install blkid(8). We need it to list MD array UUIDs!"
 		return $OCF_ERR_INSTALLED
-	fi
-	if [ `echo $md_dev|wc -w` -gt 1 ]; then
-		ocf_exit_reason "Only one MD array supported"
-		return $OCF_ERR_CONFIGURED
 	fi
 
 	return $OCF_SUCCESS
@@ -217,7 +253,7 @@ devs=""
 get_array_uuid_by_mddev() {
 	local array_uuid
 
-	array_uuid="`grep $md_dev $mdadm_conf`"
+	array_uuid="`grep $md_dev[[:space:]] $mdadm_conf`"
 	if [ -z "$array_uuid" ]
 	then
 		ocf_exit_reason "Entry for $MMDEV does not exist in $mdadm_conf!"
@@ -339,7 +375,7 @@ mknod_raid_stop() {
 }
 
 # Stop an MD array.
-raid_stop_one() {
+raid_stop_array() {
 	if [ -b "$1" ]; then
 		$MDADM --stop $1 --config="$mdadm_conf" && return
 	else
@@ -385,7 +421,7 @@ showusers() {
 #
 # Action: START up the MD RAID array.
 #
-raid_start() {
+raid_start_one() {
 	local rc
 
 	if resource_is_cloned && ! is_clustered_raid; then
@@ -397,7 +433,7 @@ raid_start() {
 		fi
 	fi
 
-	raid_monitor
+	raid_monitor_one
 	rc=$?
 	# md array already online, nothing to do.
 	[ $rc -eq $OCF_SUCCESS ] && return $rc
@@ -416,7 +452,7 @@ raid_start() {
 		return $OCF_ERR_GENERIC
 	fi
 
-	raid_monitor
+	raid_monitor_one
 	[ $? -eq $OCF_SUCCESS ] && return $OCF_SUCCESS
 
 	ocf_exit_reason "Couldn't start MD RAID array $md_dev (rc=$rc)"
@@ -424,23 +460,28 @@ raid_start() {
 	return $OCF_ERR_GENERIC
 }
 
+raid_start()
+{
+	forall raid_start_one
+}
+
 #
 # Action: STOP the MD RAID array
 #
-raid_stop() {
+raid_stop_one() {
 	local rc
 
 	# See if the MD device is already cleanly stopped:
-	raid_monitor
+	raid_monitor_one
 	[ $? -eq $OCF_NOT_RUNNING ] && return $OCF_SUCCESS
 
 	# Turn off raid
-	if ! raid_stop_one $md_dev; then
+	if ! raid_stop_array $md_dev; then
 		if ocf_is_true $force_stop; then
 			stop_raid_users
 			case $? in
 			2) false;;
-			*) raid_stop_one $md_dev;;
+			*) raid_stop_array $md_dev;;
 			esac
 		else
 			false
@@ -455,7 +496,7 @@ raid_stop() {
 		return $OCF_ERR_GENERIC
 	fi
 
-	raid_monitor
+	raid_monitor_one
 	rc=$?
 	[ $rc -eq $OCF_NOT_RUNNING ] && return $OCF_SUCCESS
 
@@ -463,10 +504,14 @@ raid_stop() {
 	return $OCF_ERR_GENERIC
 }
 
+raid_stop() {
+	forall raid_stop_one
+}
+
 #
 # Action: monitor the MD RAID array.
 #
-raid_monitor() {
+raid_monitor_one() {
 	local TRY_READD=0 md rc pbsize
 
 	# check if the md device exists first
@@ -537,6 +582,10 @@ raid_monitor() {
 	return $OCF_SUCCESS
 }
 
+raid_monitor() {
+	forall raid_monitor_one
+}
+
 if [ $# -ne 1 ]; then
 	usage
 	exit $OCF_ERR_ARGS
@@ -556,6 +605,7 @@ mdadm_conf="${OCF_RESKEY_mdadm_conf}"
 md_dev="${OCF_RESKEY_md_dev}"
 force_stop="${OCF_RESKEY_force_stop}"
 wait_for_udev="${OCF_RESKEY_wait_for_udev}"
+RAIDDEVS=""
 
 # Validate all parameters and check for mandatory binaries present
 raid_validate_all
@@ -563,13 +613,6 @@ rc=$?
 [ $rc -ne $OCF_SUCCESS ] && exit $rc
 # raid_validate_all already processed and result checked.
 [ "$1" = "validate-all" ] && return ${OCF_SUCCESS}
-
-# Required by start|stop|monitor processed below
-devs="`list_devices_for_mddev`"
-if [ `echo $devs|wc -l` -eq 0 ]; then
-	ocf_exit_reason "No component device(s) found for MD RAID array $md_dev"
-	exit $OCF_ERR_GENERIC
-fi
 
 case "$1" in
 start)		raid_start;;
