@@ -635,7 +635,7 @@ find_interface() {
 		| grep " $ipaddr/$netmask" \
 		| cut -d ' ' -f2 \
 		| grep -v '^ipsec[0-9][0-9]*$'`"
-        local iface_altname="`$IP2UTIL -f inet link show dev $iface | grep "altname" | sed 's/^[[:space:]]*//; s/altname //g' | tr '\n' ' '`"
+	local iface_altname="`$IP2UTIL -f inet link show dev $iface | grep "altname" | sed 's/^[[:space:]]*//; s/altname //g' | tr '\n' ' '`"
 
 	echo "$iface $iface_altname"
 	return 0
