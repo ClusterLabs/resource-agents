@@ -38,8 +38,8 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Parameter defaults
-
-OCF_RESKEY_image_default=$(jq -r '.spec.containers[] | select( .name=="etcdctl").image' /etc/kubernetes/manifests/etcd-pod.yaml)
+OCF_RESKEY_image_default="default"
+OCF_RESKEY_pod_manifest_default="/etc/kubernetes/static-pod-resources/etcd-certs/configmaps/external-etcd-pod/pod.yaml"
 OCF_RESKEY_name_default="etcd"
 OCF_RESKEY_nic_default="br-ex"
 OCF_RESKEY_authfile_default="/var/lib/kubelet/config.json"
@@ -47,6 +47,7 @@ OCF_RESKEY_allow_pull_default="1"
 OCF_RESKEY_reuse_default="0"
 
 : ${OCF_RESKEY_image=${OCF_RESKEY_image_default}}
+: ${OCF_RESKEY_pod_manifest=${OCF_RESKEY_pod_manifest_default}}
 : ${OCF_RESKEY_name=${OCF_RESKEY_name_default}}
 : ${OCF_RESKEY_nic=${OCF_RESKEY_nic_default}}
 : ${OCF_RESKEY_authfile=${OCF_RESKEY_authfile_default}}
@@ -72,6 +73,14 @@ stop actions.
 <shortdesc lang="en">Podman etcd container resource agent.</shortdesc>
 
 <parameters>
+<parameter name="pod_manifest" required="0" unique="0">
+<longdesc lang="en">
+The Pod manifest with the configuration for Etcd.
+</longdesc>
+<shortdesc lang="en">Etcd pod manifest</shortdesc>
+<content type="string" default="${OCF_RESKEY_pod_manifest_default}"/>
+</parameter>
+
 <parameter name="image" required="0" unique="0">
 <longdesc lang="en">
 The podman image to base this container off of.
@@ -333,17 +342,35 @@ get_node_ip() {
 	ip -brief addr show "$OCF_RESKEY_nic" | awk '{gsub("/.*", "", $3); print $3}'
 }
 
+get_env_from_manifest() {
+	local env_var_name="$1"
+	local env_var_value
+
+	if [ ! -f "$OCF_RESKEY_pod_manifest" ]; then
+		ocf_log error "external etcd pod manifest ($OCF_RESKEY_pod_manifest) not found"
+		return "$OCF_ERR_GENERIC"
+	fi
+
+	if ! env_var_value=$(jq -r ".spec.containers[].env[] | select( .name == \"$env_var_name\" ).value" "$OCF_RESKEY_pod_manifest"); then
+		return "$?"
+	fi
+
+	ocf_log debug "ETCD pod environment variable $env_var_name: $env_var_value"
+
+	echo "$env_var_value"
+}
+
 prepare_env() {
 	local name ip standalone_node
 
 	NODEIP="$(get_node_ip)"
 
 	if is_force_new_cluster; then
-		ETCD_INITIAL_CLUSTER_STATE="new"
 		ALL_ETCD_ENDPOINTS="https://$NODEIP:2379"
-
+		ETCD_INITIAL_CLUSTER_STATE="new"
 		ETCD_INITIAL_CLUSTER="$NODENAME=https://$NODEIP:2380"
 	else
+		ETCD_INITIAL_CLUSTER_STATE="existing"
 		for node in $(echo "$OCF_RESKEY_node_ip_map" | sed "s/\s//g;s/;/ /g"); do
 			name=$(echo "$node" | awk -F":" '{print $1}')
 			ip=$(echo "$node" | awk -F":" '{print $2}')
@@ -358,31 +385,30 @@ prepare_env() {
 		done
 	fi
 
-	ETCDCTL_API="3"
-	ETCD_CIPHER_SUITES="TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
-	ETCD_DATA_DIR="/var/lib/etcd"
-	ETCD_ELECTION_TIMEOUT="1000"
-	ETCD_ENABLE_PPROF="true"
-	ETCD_EXPERIMENTAL_MAX_LEARNERS="3"
-	ETCD_EXPERIMENTAL_WARNING_APPLY_DURATION=200ms
-	ETCD_EXPERIMENTAL_WATCH_PROGRESS_NOTIFY_INTERVAL=5s
-	ETCD_HEARTBEAT_INTERVAL="100"
-	ETCD_INITIAL_CLUSTER_STATE=${ETCD_INITIAL_CLUSTER_STATE:-"existing"}
-	ETCD_QUOTA_BACKEND_BYTES="8589934592"
-	ETCD_SOCKET_REUSE_ADDRESS="true"
+	ETCDCTL_API=$(get_env_from_manifest "ETCDCTL_API")
+	ETCD_CIPHER_SUITES=$(get_env_from_manifest "ETCD_CIPHER_SUITES")
+	ETCD_DATA_DIR=$(get_env_from_manifest "ETCD_DATA_DIR")
+	ETCD_ELECTION_TIMEOUT=$(get_env_from_manifest "ETCD_ELECTION_TIMEOUT")
+	ETCD_ENABLE_PPROF=$(get_env_from_manifest "ETCD_ENABLE_PPROF")
+	ETCD_EXPERIMENTAL_MAX_LEARNERS=$(get_env_from_manifest "ETCD_EXPERIMENTAL_MAX_LEARNERS")
+	ETCD_EXPERIMENTAL_WARNING_APPLY_DURATION=$(get_env_from_manifest "ETCD_EXPERIMENTAL_WARNING_APPLY_DURATION")
+	ETCD_EXPERIMENTAL_WATCH_PROGRESS_NOTIFY_INTERVAL=$(get_env_from_manifest "ETCD_EXPERIMENTAL_WATCH_PROGRESS_NOTIFY_INTERVAL")
+	ETCD_HEARTBEAT_INTERVAL=$(get_env_from_manifest "ETCD_HEARTBEAT_INTERVAL")
+	ETCD_QUOTA_BACKEND_BYTES=$(get_env_from_manifest "ETCD_QUOTA_BACKEND_BYTES")
+	ETCD_SOCKET_REUSE_ADDRESS=$(get_env_from_manifest "ETCD_SOCKET_REUSE_ADDRESS")
 
-	SERVER_CACERT="/etc/kubernetes/static-pod-resources/etcd-certs/configmaps/etcd-all-bundles/server-ca-bundle.crt"
-	ETCD_PEER_CERT="/etc/kubernetes/static-pod-resources/etcd-certs/secrets/etcd-all-certs/etcd-peer-${NODENAME}.crt"
-	ETCD_PEER_KEY="/etc/kubernetes/static-pod-resources/etcd-certs/secrets/etcd-all-certs/etcd-peer-${NODENAME}.key"
-
-	LISTEN_CLIENT_URLS="0.0.0.0"
-	LISTEN_PEER_URLS="0.0.0.0"
-	LISTEN_METRICS_URLS="0.0.0.0"
+	SERVER_CACERT=$(get_env_from_manifest "ETCDCTL_CACERT")
+	ETCD_PEER_CERT=$(get_env_from_manifest "ETCDCTL_CERT")
+	ETCD_PEER_KEY=$(get_env_from_manifest "ETCDCTL_KEY")
 
 	if is_learner; then
 		LISTEN_CLIENT_URLS="$NODEIP"
 		LISTEN_PEER_URLS="$NODEIP"
 		LISTEN_METRICS_URLS="$NODEIP"
+	else
+		LISTEN_CLIENT_URLS="0.0.0.0"
+		LISTEN_PEER_URLS="0.0.0.0"
+		LISTEN_METRICS_URLS="0.0.0.0"
 	fi
 }
 
@@ -1043,7 +1069,7 @@ podman_start()
 	# add etcd-specific opts
 	run_opts="$run_opts \
 		    --network=host \
-		    -v /etc/kubernetes:/etc/kubernetes \
+		    -v /etc/kubernetes/static-pod-resources/etcd-certs:/etc/kubernetes/static-pod-certs \
 		    -v /var/lib/etcd:/var/lib/etcd \
 		    --env ALL_ETCD_ENDPOINTS=$ALL_ETCD_ENDPOINTS \
 		    --env ETCD_CIPHER_SUITES=$ETCD_CIPHER_SUITES \
@@ -1074,8 +1100,8 @@ podman_start()
 		    --experimental-initial-corrupt-check=true \
 		    --snapshot-count=10000 \
 		    --initial-advertise-peer-urls=https://${NODEIP}:2380 \
-		    --cert-file=/etc/kubernetes/static-pod-resources/etcd-certs/secrets/etcd-all-certs/etcd-serving-${NODENAME}.crt \
-		    --key-file=/etc/kubernetes/static-pod-resources/etcd-certs/secrets/etcd-all-certs/etcd-serving-${NODENAME}.key \
+		    --cert-file=/etc/kubernetes/static-pod-certs/secrets/etcd-all-certs/etcd-serving-${NODENAME}.crt \
+		    --key-file=/etc/kubernetes/static-pod-certs/secrets/etcd-all-certs/etcd-serving-${NODENAME}.key \
 		    --trusted-ca-file=$SERVER_CACERT \
 		    --client-cert-auth=true \
 		    --peer-cert-file=$ETCD_PEER_CERT \
@@ -1097,6 +1123,15 @@ podman_start()
 
 	if is_learner; then
 		archive_data_folder
+	fi
+
+	if [ "$OCF_RESKEY_image" == "$OCF_RESKEY_image_default" ]; then
+		# no container image provided via input parameters. Read it from the pod manifest.
+		OCF_RESKEY_image=$(jq -r '.spec.containers[] | select( .name=="etcd").image' "$OCF_RESKEY_pod_manifest")
+		ocf_log info "using container image ($OCF_RESKEY_image) from Pod manifest ($OCF_RESKEY_pod_manifest)"
+	else
+		# use the container image provided as input parameter
+		ocf_log info "using container image ($OCF_RESKEY_image) via input parameters"
 	fi
 
 	if [ $REQUIRE_IMAGE_PULL -eq 1 ]; then
@@ -1241,6 +1276,11 @@ podman_stop()
 
 image_exists()
 {
+	if [ "$OCF_RESKEY_image" == "$OCF_RESKEY_image_default" ]; then
+		# the actual container image was not defined yet. Nor by
+		# the user via OCF_RESKEY, nor by reading the Pod manifest
+		return 0
+	fi
 	podman image exists "${OCF_RESKEY_image}"
 	if [ $? -eq 0 ]; then
 		# image found
@@ -1262,9 +1302,15 @@ podman_validate()
 	check_binary crictl
 	check_binary oc
 	check_binary podman
+	check_binary jq
 
 	if [ -z "$OCF_RESKEY_node_ip_map" ]; then
 		ocf_exit_reason "'node_ip_map' option is required"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	if [ -z "$OCF_RESKEY_pod_manifest" ]; then
+		ocf_exit_reason "'pod_manifest' option is required"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
