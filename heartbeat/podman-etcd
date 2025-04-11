@@ -42,7 +42,7 @@
 OCF_RESKEY_image_default=$(jq -r '.spec.containers[] | select( .name=="etcdctl").image' /etc/kubernetes/manifests/etcd-pod.yaml)
 OCF_RESKEY_name_default="etcd"
 OCF_RESKEY_nic_default="br-ex"
-OCF_RESKEY_authfile_default="/run/resource-agents/pull-secret"
+OCF_RESKEY_authfile_default="/var/lib/kubelet/config.json"
 OCF_RESKEY_allow_pull_default="1"
 OCF_RESKEY_reuse_default="0"
 
