@@ -338,6 +338,39 @@ remove_container()
 	return $rc
 }
 
+attribute_node_ip()
+{
+	local action="$1"
+	local attribute="node_ip"
+	local value
+
+	if ! value=$(ip -brief addr show "$OCF_RESKEY_nic" | awk '{gsub("/.*", "", $3); print $3}'); then
+		rc=$?
+		ocf_log error "could not get node ip: error $rc"
+		return "$rc"
+	fi
+
+	case "$action" in
+		get)
+			echo "$value"
+			;;
+		update)
+			if ! crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"; then
+				rc="$?"
+				ocf_log error "could not set $attribute to $value: error $rc"
+				return "$rc"
+			fi
+			;;
+		clear)
+			crm_attribute --name "$attribute" --delete
+			;;
+		*)
+			ocf_log error "unsupported $action for $attribute"
+			return $OCF_ERR_GENERIC
+			;;
+	esac
+}
+
 get_node_ip() {
 	ip -brief addr show "$OCF_RESKEY_nic" | awk '{gsub("/.*", "", $3); print $3}'
 }
@@ -363,7 +396,7 @@ get_env_from_manifest() {
 prepare_env() {
 	local name ip standalone_node
 
-	NODEIP="$(get_node_ip)"
+	NODEIP="$(attribute_node_ip get)"
 
 	if is_force_new_cluster; then
 		ALL_ETCD_ENDPOINTS="https://$NODEIP:2379"
@@ -379,7 +412,6 @@ prepare_env() {
 				exit $OCF_ERR_CONFIGURED
 			fi
 
-			crm_attribute --type nodes --node $name --name "ip" --update "$ip"
 			[ -z "$ALL_ETCD_ENDPOINTS" ] && ALL_ETCD_ENDPOINTS="https://$ip:2379" || ALL_ETCD_ENDPOINTS="$ALL_ETCD_ENDPOINTS,https://$ip:2379"
 			[ -z "$ETCD_INITIAL_CLUSTER" ] && ETCD_INITIAL_CLUSTER="$name=https://$ip:2380" || ETCD_INITIAL_CLUSTER="$ETCD_INITIAL_CLUSTER,$name=https://$ip:2380"
 		done
@@ -438,16 +470,75 @@ etcd_pod_container_exists() {
 	return 1
 }
 
-cache_member_id_if_not_cached()
+attribute_node_cluster_id()
 {
-	cache_member_id
-	member_id=$(get_cached_member_id)
-	if [ -z "$member_id" ]; then
-		ocf_log info "caching member ID"
-		cache_member_id
-	else
-		ocf_log info "cached member id: $member_id"
+	local action="$1"
+	local value
+	if ! value=$(jq -r ".clusterId" /var/lib/etcd/revision.json); then
+		rc=$?
+		ocf_log error "could not get cluster-id: $rc"
+		return "$rc"
 	fi
+
+	case "$action" in
+		get)
+			echo "$value"
+			;;
+		update)
+			ocf_log info "$NODENAME: update cluster-id: $value"
+			if ! crm_attribute --type nodes --node "$NODENAME" --name "cluster_id" --update "$value"; then
+				rc=$?
+				ocf_log err "could not update cluster-id: error code $rc"
+				return "$rc"
+			fi
+			;;
+		*)
+			ocf_log error "unsupported $action for attribute_node_cluster_id"
+			return $OCF_ERR_GENERIC
+			;;
+	esac
+}
+
+attribute_node_cluster_id_peer()
+{
+	local nodename=$(get_peer_node_name)
+	crm_attribute --query --type nodes --node "$nodename" --name "cluster_id" | awk -F"value=" '{print $2}'
+}
+
+attribute_node_revision()
+{
+	# TODO: change log levels to debug
+	local action="$1"
+	local value
+	if ! value=$(jq -r ".maxRaftIndex" /var/lib/etcd/revision.json); then
+		rc=$?
+		ocf_log error "could not get revision: $rc"
+		return "$rc"
+	fi
+
+	case "$action" in
+		get)
+			echo "$value"
+			;;
+		update)
+			ocf_log info "$NODENAME: update revision: $value"
+			if ! crm_attribute --type nodes --node "$NODENAME" --name "revision" --update "$value"; then
+				rc=$?
+				ocf_log err "could not update etcd revision: error code $rc"
+				return "$rc"
+			fi
+			;;
+		*)
+			ocf_log error "unsupported $action for attribute_node_revision"
+			return $OCF_ERR_GENERIC
+			;;
+	esac
+}
+
+attribute_node_revision_peer()
+{
+	local nodename=$(get_peer_node_name)
+	crm_attribute --query --type nodes --node "$nodename" --name "revision" | awk -F"value=" '{print $2}'
 }
 
 cache_member_id()
@@ -458,7 +549,7 @@ cache_member_id()
 	fi
 
 	# TODO: use get_member_list_json instead
-	endpoint="https://$(get_node_ip):2379"
+	endpoint="https://$(attribute_node_ip get):2379"
 	ID_DEC=$(podman exec ${CONTAINER} etcdctl member list --endpoints=$endpoint -w json | jq -r .header.member_id)
 	rc=$?
 	if [ $rc -ne 0 ]; then
@@ -472,8 +563,7 @@ cache_member_id()
 
 	# etcdctl member commands need the HEX format of the member ID.
 	ID_HEX=$(printf "%x" $ID_DEC)
-	ocf_log info "cache member ID $ID_HEX in node: $NODENAME"
-	crm_attribute --type nodes --node $NODENAME --name "member_id" --update $ID_HEX
+	crm_attribute --type nodes --node "$NODENAME" --name "member_id" --update "$ID_HEX"
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		ocf_log error "could not cache member ID: error code $rc"
@@ -498,8 +588,8 @@ add_member_as_learner()
 	local member_name=$1
 	local member_ip=$2
 
-	ocf_log info "add $member_name with $member_ip as learner"
-	out=$(podman exec ${CONTAINER} etcdctl --endpoints="https://$(get_node_ip):2379" member add $member_name --peer-urls=https://$member_ip:2380 --learner)
+	ocf_log info "add $member_name ($member_ip) to the member list as learner"
+	out=$(podman exec ${CONTAINER} etcdctl --endpoints="https://$(attribute_node_ip get):2379" member add $member_name --peer-urls=https://$member_ip:2380 --learner)
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		ocf_log error "could not add $member_name as learner: error code $rc"
@@ -507,26 +597,24 @@ add_member_as_learner()
 	fi
 	ocf_log info "$out"
 
-	set_learner_node $member_name
+	attribute_learner_node update "$member_name"
 	return $?
 }
 
 set_force_new_cluster()
 {
 	local rc
-	crm_attribute --name "force_new_cluster" --update "$NODENAME"
+	crm_attribute --lifetime reboot --node "$NODENAME" --name "force_new_cluster" --update "$NODENAME"
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		ocf_log error "could not set force_new_cluster attribute to $NODENAME"
-	else
-		ocf_log info "$NODENAME set force_new_cluster attribute"
 	fi
 	return $rc
 }
 
 get_force_new_cluster()
 {
-	crm_attribute --query --name "force_new_cluster" | awk -F"value=" '{print $2}'
+	crm_attribute --lifetime reboot --query --name "force_new_cluster" | awk -F"value=" '{print $2}'
 }
 
 clear_force_new_cluster()
@@ -539,7 +627,7 @@ clear_force_new_cluster()
 
 	# only the holder of "force_new_cluster" attribute can delete it
 	if [ "$NODENAME" = "$force_new_cluster_node" ]; then
-		crm_attribute --name "force_new_cluster" --delete
+		crm_attribute --lifetime reboot --name "force_new_cluster" --delete
 		rc=$?
 		if [ $rc -ne 0 ]; then
 			ocf_log error "could not clear force_new_cluster attribute: error $rc"
@@ -558,12 +646,12 @@ is_force_new_cluster()
 	# Return 0 if 'force_new_cluster' is set and the value matches the current node name, 1 otherwise.
 	local value=$(get_force_new_cluster)
 	if [ -z "$value" ]; then
-		ocf_log info "force_new_cluster attribute is not set"
+		ocf_log debug "force_new_cluster attribute is not set"
 		return 1
 	fi
 
 	if [ "$value" = "$NODENAME" ]; then
-		ocf_log info "$NODENAME has force_new_cluster set"
+		ocf_log debug "$NODENAME has force_new_cluster set"
 		return 0
 	fi
 
@@ -576,18 +664,15 @@ is_standalone()
 	local nodename=${1:-$NODENAME}
 	local standalone_node=$(get_standalone_node)
 	if [ -z "$standalone_node" ]; then
-		# TODO: change the log level to debug when the code is stable enough
-		ocf_log info "no node running standalone"
+		ocf_log debug "no node running standalone"
 		return 1
 	fi
 
 	if [ "$nodename" = "$standalone_node" ]; then
-		# TODO: change the log level to debug when the code is stable enough
-		ocf_log info "$nodename is set as standalone"
+		ocf_log debug "$nodename is set as standalone"
 		return 0
 	fi
-	# TODO: change the log level to debug when the code is stable enough
-	ocf_log info "$nodename is set as learner"
+	ocf_log debug "$nodename is set as learner"
 	return 1
 
 }
@@ -612,20 +697,13 @@ get_standalone_node()
 
 clear_standalone_node()
 {
-	if crm_attribute --name "standalone_node" --delete; then
-		ocf_log info "standalone_node property cleared"
-	fi
+	crm_attribute --name "standalone_node" --delete
 }
 
 clear_standalone_and_learner_if_not_learners()
 {
 	local rc
-	local member_list_json=$1
-
-	standalone_node=$(get_standalone_node)
-	if [ -z $standalone_node ]; then
-		return $OCF_SUCCESS
-	fi
+	local member_list_json="$1"
 
 	number_of_members=$(echo -n $member_list_json | jq -r ".members[].ID" | wc -l)
 	if [ $number_of_members -ne 2 ]; then
@@ -649,7 +727,7 @@ clear_standalone_and_learner_if_not_learners()
 		fi
 	fi
 	if [ -z "$id" ]; then
-		clear_learner_node
+		attribute_learner_node clear
 		rc=$?
 		if [ $rc -ne 0 ]; then
 			ocf_og error "could not clear learner_node attribute: error code $rc"
@@ -660,60 +738,48 @@ clear_standalone_and_learner_if_not_learners()
 	return $rc
 }
 
+attribute_learner_node()
+{
+	local action="$1"
+	local value="$2"
+	local attribute="learner_node"
+
+	case "$action" in
+		get)
+			crm_attribute --query --name "$attribute" | awk -F"value=" '{print $2}'
+			;;
+		update)
+			if ! crm_attribute --name "$attribute" --update "$value"; then
+				rc="$?"
+				ocf_log error "could not set $attribute to $value: error $rc"
+				return "$rc"
+			fi
+			;;
+		clear)
+			crm_attribute --name "$attribute" --delete
+			;;
+		*)
+			ocf_log error "unsupported $action for $attribute"
+			return $OCF_ERR_GENERIC
+			;;
+	esac
+}
+
 is_learner()
 {
-	# NOTE: do not use "learner_node" property for this.
-	# Return 0 if the 'standalone' attribute is set and matches the peer node name, 1 otherwise.
-	local standalone_node=$(get_standalone_node)
-	if [ -z "$standalone_node" ]; then
-		# TODO: change the log level to debug when the code is stable enough
-		ocf_log info "standalone attribute not set"
-		return 1
+	if [ "$NODENAME" == "$(attribute_learner_node get)" ]; then
+		return 0
 	fi
-
-	if [ "$NODENAME" = "$standalone_node" ]; then
-		# TODO: change the log level to debug when the code is stable enough
-		ocf_log info "$NODENAME is not set as learner"
-		return 1
-	fi
-	# TODO: change the log level to debug when the code is stable enough
-	ocf_log info "$NODENAME is set as learner"
-	return 0
-}
-
-set_learner_node()
-{
-	local rc
-	local nodename=$1
-
-	crm_attribute --name "learner_node" --update $nodename
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_log error "could not set learner_node attribute to $nodename"
-	fi
-	ocf_log info "$nodename set as learner"
-	return $rc
-}
-
-get_learner_node()
-{
-	crm_attribute --query --name "learner_node" | awk -F"value=" '{print $2}'
-}
-
-clear_learner_node()
-{
-	if crm_attribute --name "learner_node" --delete; then
-		ocf_log info "learner_node property cleared"
-	fi
+	return 1
 }
 
 get_peer_node_name() {
 	crm_node -l | awk '{print $2}' | grep -v $NODENAME
 }
 
-get_peer_ip() {
+get_peer_node_ip() {
 	local peer_name=$(get_peer_node_name)
-	crm_attribute --query --name "ip" --node $peer_name | awk -F"value=" '{print $2}'
+	crm_attribute --query --name "node_ip" --node "$peer_name" | awk -F"value=" '{print $2}'
 }
 
 get_all_etcd_endpoints() {
@@ -739,7 +805,7 @@ get_endpoint_status_json()
 
 get_member_list_json() {
 	# Get the list of members visible to the current node
-	local this_node_endpoint="https://$(get_node_ip):2379"
+	local this_node_endpoint="https://$(attribute_node_ip get):2379"
 	podman exec ${CONTAINER} etcdctl member list --endpoints=$this_node_endpoint -w json
 }
 
@@ -755,7 +821,7 @@ check_peers()
 
 	member_list_json=$(get_member_list_json)
 	rc=$?
-	ocf_log info "member list: $member_list_json"
+	ocf_log debug "member list: $member_list_json"
 	if [ $rc -ne 0 ]; then
 		ocf_log info "podman failed to get member list: error code $rc"
 
@@ -809,41 +875,9 @@ check_peers()
 			set_standalone_node
 		else
 			ocf_log debug "$name is in the members list by IP: $ip"
-			clear_standalone_and_learner_if_not_learners $member_list_json
+			clear_standalone_and_learner_if_not_learners "$member_list_json"
 		fi
 	done
-	return $OCF_SUCCESS
-}
-
-cache_etcd_data() {
-	local rc ip revision cluster_id
-
-	container_exists
-	if [ $? -ne 0 ]; then
-		# we need a running container to execute etcdctl.
-		return $OCF_SUCCESS
-	fi
-
-	ip=$(get_node_ip)
-
-	revision=$(cat /var/lib/etcd/revision.json | jq -r ".raftIndex.\"https://$ip:2379\"")
-	ocf_log info "cache revision: $revision in node: $NODENAME"
-	crm_attribute --type nodes --node $NODENAME --name "revision" --update $revision
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_log err "could not cache etcd revision: error code $rc"
-		return $rc
-	fi
-
-	cluster_id=$(cat /var/lib/etcd/revision.json | jq -r ".clusterId")
-	ocf_log info "cache cluster_id: $cluster_id in node: $NODENAME"
-	crm_attribute --type nodes --node $NODENAME --name "cluster_id" --update $cluster_id
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_log err "could not cache etcd cluster Id: error code $rc"
-		return $rc
-	fi
-
 	return $OCF_SUCCESS
 }
 
@@ -877,6 +911,10 @@ podman_monitor()
 		return $rc
 	fi
 
+	if is_learner; then
+		ocf_log info "$NODENAME is learner. Cannot get member id"
+		return "$OCF_SUCCESS"
+	fi
 	# Failing to cache data and check member list should not cause the
 	# monitor operation to fail.
 	# TODO: move this inside check_peers where we alredy query member list json
@@ -885,8 +923,8 @@ podman_monitor()
 		return $OCF_ERR_GENERIC
 	fi
 
-	# TODO: Etcd data comes from the disk, so if it is not available is a fatal failure
-	cache_etcd_data
+	# node revision comes from the disk, so if it is not available is a fatal failure
+	attribute_node_revision update
 	return $?
 }
 
@@ -1003,6 +1041,34 @@ run_new_container()
 	return $rc
 }
 
+compare_revision()
+{
+	# Compare local revision (from disk) against peer revision (from CIB).
+	# returns "older", "equal" or "newer"
+	local revision
+	local peer_node_name
+	local peer_revision
+
+	revision=$(attribute_node_revision get)
+	peer_revision=$(attribute_node_revision_peer)
+
+	if [ "$revision" == "" ] || [ "$revision" == "null" ] || [ "$peer_revision" == "" ] || [ "$peer_revision" == "null" ]; then
+		ocf_log error "could not compare revisions: $NODENAME local revision: $revision, peer revision: $peer_revision"
+		return "$OCF_ERR_GENERIC"
+	fi
+
+	if [ "$revision" -gt "$peer_revision" ]; then
+		ocf_log info "$NODENAME revision: $revision is newer than peer revision: $peer_revision"
+		echo "newer"
+	elif [ "$revision" -eq "$peer_revision" ]; then
+		ocf_log info "$NODENAME revision: $revision is equal to peer revision: $peer_revision"
+		echo "equal"
+	else
+		ocf_log info "$NODENAME revision: $revision is older than peer revision: $peer_revision"
+		echo "older"
+	fi
+	return "$OCF_SUCCESS"
+}
 
 podman_start()
 {
@@ -1011,26 +1077,101 @@ podman_start()
 	local etcd_pod_wait_timeout_sec=$((10 * 60))
 	local etcd_pod_poll_interval_sec=10
 	local etcd_pod_poll_retries=$((etcd_pod_wait_timeout_sec/etcd_pod_poll_interval_sec))
+	local pod_was_running=false
 
-	if is_standalone; then
-		if is_learner; then
-			ocf_exit_reason "$NODENAME set both as learner and standalone"
-			return $OCF_ERR_CONFIGURED
-		fi
-	fi
+	ocf_log notice "podman-etcd start"
+	attribute_node_ip update
+	attribute_node_cluster_id update
+	attribute_node_revision update
 
 	# ensure the etcd pod is not running before starting the container
-	ocf_log info "Ensure etcd pod is not running (retries: $etcd_pod_poll_retries, interval: $etcd_pod_poll_interval_sec)"
+	ocf_log info "ensure etcd pod is not running (retries: $etcd_pod_poll_retries, interval: $etcd_pod_poll_interval_sec)"
 	for try in $(seq $etcd_pod_poll_retries); do
 		if ! etcd_pod_container_exists; then
 			break
 		fi
-		ocf_log info "Etcd pod running: retry in $etcd_pod_poll_interval_sec seconds."
+		ocf_log info "etcd pod running: retry in $etcd_pod_poll_interval_sec seconds."
+		pod_was_running=true
 		sleep $etcd_pod_poll_interval_sec
 	done
 	if etcd_pod_container_exists; then
-		ocf_exit_reason "Etcd pod is still running after $etcd_pod_wait_timeout_sec seconds."
+		ocf_exit_reason "etcd pod is still running after $etcd_pod_wait_timeout_sec seconds."
 		return $OCF_ERR_GENERIC
+	fi
+
+	# force-new-cluster property is a runtime-scoped flag that instructs the agent to force a new cluster-of-1.
+	# Since this attribute is configured with a reboot-lifetime, it is automatically cleared when the machine reboots.
+	# If the agent detects during its start that this property is set, it indicates that the flag was explicitly set
+	# during the current node boot session, implying a deliberate request to recover the cluster.
+	if ocf_is_true "$pod_was_running"; then
+		ocf_log info "static pod was running: start normally"
+	else
+		if is_force_new_cluster; then
+			ocf_log notice "$NODENAME marked to force-new-cluster"
+		else
+			# When the local agent starts, we can infer the cluster state by counting
+			# how many agents are starting or already active:
+			# - 1 active agent: it's the peer (we are just starting)
+			# - 0 active agents, 1 starting: we are starting; the peer is not starting
+			# - 0 active agents, 2 starting: both agents are starting simultaneously
+			local active_resource_counts=$(echo "$OCF_RESKEY_CRM_meta_notify_active_resource" | wc -w)
+			case "$active_resource_counts" in
+			1)
+				if [ "$(attribute_learner_node get)" == "$(get_peer_node_name)" ]; then
+					ocf_log info "peer active but in learner mode: start normally"
+				else
+					ocf_log info "peer active already: joining as learner"
+					JOIN_AS_LEARNER=true
+				fi
+				;;
+			0)
+				# count how many agents are starting now
+				local start_resources_count=$(echo "$OCF_RESKEY_CRM_meta_notify_start_resource" | wc -w)
+				case "$start_resources_count" in
+				1)
+					ocf_log debug "peer not starting: compare revisions"
+					if ! result=$(compare_revision); then
+						ocf_log error "could not compare revisions: error $?"
+						return "$OCF_ERR_GENERIC"
+					elif [ "$result" != "older" ]; then
+						# If our revision is the same as or newer than the peer's last saved
+						# revision, and the peer agent isn't currently starting, we can
+						# restore e-quorum by forcing a new cluster.
+						set_force_new_cluster
+					else
+						ocf_log error "local revision is older and peer is not starting: can not start"
+						return "$OCF_ERR_GENERIC"
+					fi
+					;;
+				2)
+					ocf_log info "peer starting: compare revisions"
+					if ! result=$(compare_revision); then
+						ocf_log error "could not compare revisions: error $?"
+						return "$OCF_ERR_GENERIC"
+					elif [ "$result" == "newer" ]; then
+						set_force_new_cluster
+					elif [ "$result" == "older" ]; then
+						ocf_log info "$NODENAME shall join as learner"
+						JOIN_AS_LEARNER=true
+					else
+						if [ "$(attribute_node_cluster_id get)" == "$(attribute_node_cluster_id_peer)" ]; then
+							ocf_log info "same revision and cluster id: start normal"
+						else
+							ocf_exit_reason "same revision but different cluster id"
+							return "$OCF_ERR_GENERIC"
+						fi
+					fi
+					;;
+				*)
+					ocf_log error "Unexpected start resource count: $start_resources_count"
+					;;
+				esac
+				;;
+			*)
+				ocf_log error "Unexpected active resource count: $active_resources_count"
+				;;
+			esac
+		fi
 	fi
 
 	podman_create_mounts
@@ -1038,18 +1179,17 @@ podman_start()
 	# check to see if the container has already started
 	podman_simple_status
 	if [ $? -eq $OCF_SUCCESS ]; then
-		return $OCF_SUCCESS
+		return "$OCF_SUCCESS"
 	fi
 
-	local peer_node=$(get_peer_node_name)
-	if is_standalone $peer_node; then
-		local wait_timeout_sec=$((2*60))
+	if ocf_is_true "$JOIN_AS_LEARNER"; then
+		local wait_timeout_sec=$((10*60))
 		local poll_interval_sec=5
 		local retries=$(( wait_timeout_sec / poll_interval_sec ))
 
-		ocf_log info "wait for the leader node to add $NODENAME as learner (timeout: $wait_timeout_sec seconds)"
+		ocf_log info "ensure the leader node added $NODENAME as learner member before continuing (timeout: $wait_timeout_sec seconds)"
 		for try in $(seq $retries); do
-			learner_node=$(get_learner_node)
+			learner_node=$(attribute_learner_node get)
 			if [ "$NODENAME" != "$learner_node" ]; then
 				ocf_log info "$learner_node is not in the member list yet. Retry in $poll_interval_sec seconds."
 				sleep $poll_interval_sec
@@ -1058,10 +1198,12 @@ podman_start()
 			ocf_log info "learner node $learner_node in the member list"
 			break
 		done
-		if [ "$NODENAME" != "$(get_learner_node)" ]; then
+		if [ "$NODENAME" != "$(attribute_learner_node get)" ]; then
 			ocf_log error "wait for $NODENAME to be in the member list timed out"
-			return $OCF_ERR_GENERIC
+			return "$OCF_ERR_GENERIC"
 		fi
+
+		archive_data_folder
 	fi
 
 	prepare_env
@@ -1121,10 +1263,6 @@ podman_start()
 		OCF_RESKEY_run_cmd="$OCF_RESKEY_run_cmd --force-new-cluster"
 	fi
 
-	if is_learner; then
-		archive_data_folder
-	fi
-
 	if [ "$OCF_RESKEY_image" == "$OCF_RESKEY_image_default" ]; then
 		# no container image provided via input parameters. Read it from the pod manifest.
 		OCF_RESKEY_image=$(jq -r '.spec.containers[] | select( .name=="etcd").image' "$OCF_RESKEY_pod_manifest")
@@ -1177,6 +1315,7 @@ podman_start()
 		podman_simple_status
 		if [ $? -ne $OCF_SUCCESS ]; then
 			ocf_exit_reason "Newly created podman container exited after start"
+			ocf_run podman logs --tail 20 ${CONTAINER}
 			return $OCF_ERR_GENERIC
 		fi
 
@@ -1187,12 +1326,11 @@ podman_start()
 				clear_force_new_cluster
 
 				local peer_node_name=$(get_peer_node_name)
-				local peer_node_ip=$(get_peer_ip)
-
+				local peer_node_ip=$(get_peer_node_ip)
 				if [ -n "$peer_node_name" ] && [ -n "$peer_node_ip" ]; then
 					add_member_as_learner $peer_node_name $peer_node_ip
 				else
-					ocf_log error "could not add peer as learner (peer node name: $peer_node_name, peer ip: $peer_node_ip)"
+					ocf_log error "could not add peer as learner (peer node name: ${peer_node_name:-unknown}, peer ip: ${peer_node_ip:-unknown})"
 				fi
 			fi
 			return $OCF_SUCCESS
@@ -1223,7 +1361,7 @@ podman_stop()
 			ocf_log info "last member. Not leaving the member list"
 		else
 			ocf_log info "leaving members list as member with ID $member_id"
-			endpoint="https://$(get_node_ip):2379"
+			endpoint="https://$(attribute_node_ip get):2379"
 			ocf_run podman exec $CONTAINER etcdctl member remove $member_id --endpoints=$endpoint
 			rc=$?
 			if [ $? -ne 0 ]; then
@@ -1330,18 +1468,7 @@ podman_validate()
 
 podman_notify()
 {
-	if [ "${OCF_RESKEY_CRM_meta_notify_type}" = 'post' ] ; then
-		case "$OCF_RESKEY_CRM_meta_notify_operation" in
-			start|stop)
-				ocf_log info "in $OCF_RESKEY_CRM_meta_notify_operation action"
-				ocf_log info "active: ${OCF_RESKEY_CRM_meta_notify_active_uname}"
-				ocf_log info "start: nodes: ${OCF_RESKEY_CRM_meta_notify_start_uname}"
-				ocf_log info "start: resources: ${OCF_RESKEY_CRM_meta_notify_start_resource}"
-				ocf_log info "stop: nodes: ${OCF_RESKEY_CRM_meta_notify_stop_uname}"
-				ocf_log info "stop: resources: ${OCF_RESKEY_CRM_meta_notify_stop_resource}"
-				;;
-		esac
-	fi
+	ocf_log info "notify: type=${OCF_RESKEY_CRM_meta_notify_type}, operation=${OCF_RESKEY_CRM_meta_notify_operation}, nodes { active=[${OCF_RESKEY_CRM_meta_notify_active_uname}], start=[${OCF_RESKEY_CRM_meta_notify_start_uname}], stop=[${OCF_RESKEY_CRM_meta_notify_stop_uname}] }, resources { active=[${OCF_RESKEY_CRM_meta_notify_active_resource}], start =[${OCF_RESKEY_CRM_meta_notify_start_resource}], stop=[${OCF_RESKEY_CRM_meta_notify_stop_resource}] }"
 }
 
 # TODO :
@@ -1393,6 +1520,7 @@ usage|help)	podman_usage
 esac
 
 NODENAME=$(ocf_local_nodename)
+JOIN_AS_LEARNER=false
 
 case $__OCF_ACTION in
 start)
