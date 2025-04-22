@@ -1078,6 +1078,29 @@ compare_revision()
 	return "$OCF_SUCCESS"
 }
 
+ensure_pod_manifest_exists()
+{
+	local wait_timeout_sec=$((10 * 60))
+	local poll_interval_sec=5
+	local poll_retries=$((wait_timeout_sec/poll_interval_sec))
+
+	for try in $(seq "$poll_retries"); do
+		if [ -f "$OCF_RESKEY_pod_manifest" ]; then
+			ocf_log info "pod manifest ($OCF_RESKEY_pod_manifest) found"
+			break
+		fi
+		ocf_log debug "pod manifest ($OCF_RESKEY_pod_manifest) does not exist yet: retry in $poll_interval_sec seconds."
+		sleep "$poll_interval_sec"
+	done
+
+	if [ ! -f "$OCF_RESKEY_pod_manifest" ]; then
+		ocf_log error "pod manifest ($OCF_RESKEY_pod_manifest) still missing after $wait_timeout_sec seconds."
+		return "$OCF_ERR_CONFIGURED"
+	fi
+
+	return "$OCF_SUCCESS"
+}
+
 podman_start()
 {
 	local cid
@@ -1107,6 +1130,11 @@ podman_start()
 		return $OCF_ERR_GENERIC
 	fi
 
+	if ! ensure_pod_manifest_exists; then
+		ocf_exit_reason "could not find etcd pod manifest ($OCF_RESKEY_pod_manifest)"
+		return "$OCF_ERR_GENERIC"
+	fi
+
 	# force-new-cluster property is a runtime-scoped flag that instructs the agent to force a new cluster-of-1.
 	# Since this attribute is configured with a reboot-lifetime, it is automatically cleared when the machine reboots.
 	# If the agent detects during its start that this property is set, it indicates that the flag was explicitly set
@@ -1122,48 +1150,53 @@ podman_start()
 			# - 1 active agent: it's the peer (we are just starting)
 			# - 0 active agents, 1 starting: we are starting; the peer is not starting
 			# - 0 active agents, 2 starting: both agents are starting simultaneously
-			local active_resource_counts=$(echo "$OCF_RESKEY_CRM_meta_notify_active_resource" | wc -w)
-			case "$active_resource_counts" in
+			local active_resources_count
+			active_resources_count=$(echo "$OCF_RESKEY_CRM_meta_notify_active_resource" | wc -w)
+			case "$active_resources_count" in
 			1)
 				if [ "$(attribute_learner_node get)" == "$(get_peer_node_name)" ]; then
 					ocf_log info "peer active but in learner mode: start normally"
 				else
-					ocf_log info "peer active already: joining as learner"
+					ocf_log info "peer is active standalone: joining as learner"
 					JOIN_AS_LEARNER=true
 				fi
 				;;
 			0)
+				# we need to compare the revisions in any of the following branches
+				# so call the function only once here
+				if ! revision_compare_result=$(compare_revision); then
+					ocf_log error "could not compare revisions: error $?"
+					return "$OCF_ERR_GENERIC"
+				fi
+
 				# count how many agents are starting now
-				local start_resources_count=$(echo "$OCF_RESKEY_CRM_meta_notify_start_resource" | wc -w)
+				local start_resources_count
+				start_resources_count=$(echo "$OCF_RESKEY_CRM_meta_notify_start_resource" | wc -w)
+
 				case "$start_resources_count" in
 				1)
-					ocf_log debug "peer not starting: compare revisions"
-					if ! result=$(compare_revision); then
-						ocf_log error "could not compare revisions: error $?"
-						return "$OCF_ERR_GENERIC"
-					elif [ "$result" != "older" ]; then
+					ocf_log debug "peer not starting: ensure we can start a new cluster"
+					if [ "$revision_compare_result" != "older" ]; then
 						# If our revision is the same as or newer than the peer's last saved
 						# revision, and the peer agent isn't currently starting, we can
 						# restore e-quorum by forcing a new cluster.
 						set_force_new_cluster
 					else
-						ocf_log error "local revision is older and peer is not starting: can not start"
+						ocf_log error "local revision is older and peer is not starting: cannot start"
+						ocf_exit_reason "local revision is older and peer is not starting: cannot start"
 						return "$OCF_ERR_GENERIC"
 					fi
 					;;
 				2)
-					ocf_log info "peer starting: compare revisions"
-					if ! result=$(compare_revision); then
-						ocf_log error "could not compare revisions: error $?"
-						return "$OCF_ERR_GENERIC"
-					elif [ "$result" == "newer" ]; then
+					ocf_log info "peer starting"
+					if [ "$revision_compare_result" == "newer" ]; then
 						set_force_new_cluster
-					elif [ "$result" == "older" ]; then
+					elif [ "$revision_compare_result" == "older" ]; then
 						ocf_log info "$NODENAME shall join as learner"
 						JOIN_AS_LEARNER=true
 					else
 						if [ "$(attribute_node_cluster_id get)" == "$(attribute_node_cluster_id_peer)" ]; then
-							ocf_log info "same revision and cluster id: start normal"
+							ocf_log info "same cluster_id and revision: start normal"
 						else
 							ocf_exit_reason "same revision but different cluster id"
 							return "$OCF_ERR_GENERIC"
@@ -1172,11 +1205,15 @@ podman_start()
 					;;
 				*)
 					ocf_log error "Unexpected start resource count: $start_resources_count"
+					podman_notify
+					return "$OCF_ERR_GENERIC"
 					;;
 				esac
 				;;
 			*)
 				ocf_log error "Unexpected active resource count: $active_resources_count"
+				podman_notify
+				return "$OCF_ERR_GENERIC"
 				;;
 			esac
 		fi
