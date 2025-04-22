@@ -371,8 +371,10 @@ attribute_node_ip()
 	esac
 }
 
-get_node_ip() {
-	ip -brief addr show "$OCF_RESKEY_nic" | awk '{gsub("/.*", "", $3); print $3}'
+attribute_node_ip_peer() {
+	local peer_name
+	peer_name=$(get_peer_node_name)
+	crm_attribute --query --name "node_ip" --node "$peer_name" | awk -F"value=" '{print $2}'
 }
 
 get_env_from_manifest() {
@@ -507,12 +509,13 @@ attribute_node_cluster_id_peer()
 
 attribute_node_revision()
 {
-	# TODO: change log levels to debug
 	local action="$1"
 	local value
+	local attribute="revision"
+
 	if ! value=$(jq -r ".maxRaftIndex" /var/lib/etcd/revision.json); then
 		rc=$?
-		ocf_log error "could not get revision: $rc"
+		ocf_log error "could not get $attribute: $rc"
 		return "$rc"
 	fi
 
@@ -521,65 +524,75 @@ attribute_node_revision()
 			echo "$value"
 			;;
 		update)
-			ocf_log info "$NODENAME: update revision: $value"
-			if ! crm_attribute --type nodes --node "$NODENAME" --name "revision" --update "$value"; then
+			ocf_log info "$NODENAME: update $attribute: $value"
+			if ! crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"; then
 				rc=$?
-				ocf_log err "could not update etcd revision: error code $rc"
+				ocf_log err "could not update etcd $revision: error code $rc"
 				return "$rc"
 			fi
 			;;
 		*)
 			ocf_log error "unsupported $action for attribute_node_revision"
-			return $OCF_ERR_GENERIC
+			return "$OCF_ERR_GENERIC"
 			;;
 	esac
 }
 
 attribute_node_revision_peer()
 {
-	local nodename=$(get_peer_node_name)
+	local nodename
+	nodename=$(get_peer_node_name)
 	crm_attribute --query --type nodes --node "$nodename" --name "revision" | awk -F"value=" '{print $2}'
 }
 
-cache_member_id()
+attribute_node_member_id()
 {
+	local action="$1"
+	local attribute="member_id"
+
 	if ! container_exists; then
 		# we need a running container to execute etcdctl.
 		return 0
 	fi
 
-	# TODO: use get_member_list_json instead
-	endpoint="https://$(attribute_node_ip get):2379"
-	ID_DEC=$(podman exec ${CONTAINER} etcdctl member list --endpoints=$endpoint -w json | jq -r .header.member_id)
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_log error "could not get member ID: error code $?"
-		return $rc
-	fi
-	if [ -z "$ID_DEC" ]; then
-		# the container is running, but the instance does not have its member ID yet.
-		return 0
-	fi
+	case "$action" in
+		get)
+			# When we need this value at the agent startup we don't have a etcd
+			# container running, so we always get this value from CIB
+			crm_attribute --query --type nodes --node "$NODENAME" --name "$attribute" | awk -F"value=" '{print $2}'
+			;;
+		update)
+			local member_list_json
+			member_list_json=$(get_member_list_json)
+			ocf_log info "member list: $member_list_json"
+			if [ -z "$member_list_json" ] ; then
+				ocf_log error "could not get $attribute: could not get member list JSON"
+				return "$rc"
+			fi
 
-	# etcdctl member commands need the HEX format of the member ID.
-	ID_HEX=$(printf "%x" $ID_DEC)
-	crm_attribute --type nodes --node "$NODENAME" --name "member_id" --update "$ID_HEX"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_log error "could not cache member ID: error code $rc"
-	fi
-	return $rc
-}
+			local value
+			if ! value=$(echo -n "$member_list_json" | jq -r ".header.member_id"); then
+				rc=$?
+				ocf_log error "could not get $attribute from member list JSON: error $rc"
+				return "$rc"
+			fi
 
-clear_member_id()
-{
-	crm_attribute --type nodes --node $NODENAME --name "member_id" --delete
-}
-
-get_cached_member_id()
-{
-	ocf_log debug "get member ID from in node: $NODENAME"
-	crm_attribute --query --type nodes --node $NODENAME --name "member_id" | awk -F"value=" '{print $2}'
+			# JSON member_id is decimal, while etcdctl command needs the hex version
+			value=$(printf "%x" "$value")
+			if ! crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"; then
+				rc=$?
+				ocf_log err "could not update etcd $attribute: error code $rc"
+				return "$rc"
+			fi
+			;;
+		clear)
+			crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --delete
+			;;
+		*)
+			ocf_log error "unsupported $action for attribute_node_member_id"
+			return "$OCF_ERR_GENERIC"
+			;;
+	esac
 }
 
 add_member_as_learner()
@@ -777,11 +790,6 @@ get_peer_node_name() {
 	crm_node -l | awk '{print $2}' | grep -v $NODENAME
 }
 
-get_peer_node_ip() {
-	local peer_name=$(get_peer_node_name)
-	crm_attribute --query --name "node_ip" --node "$peer_name" | awk -F"value=" '{print $2}'
-}
-
 get_all_etcd_endpoints() {
 	for node in $(echo "$OCF_RESKEY_node_ip_map" | sed "s/\s//g;s/;/ /g"); do
 		name=$(echo "$node" | awk -F":" '{print $1}')
@@ -917,8 +925,8 @@ podman_monitor()
 	fi
 	# Failing to cache data and check member list should not cause the
 	# monitor operation to fail.
-	# TODO: move this inside check_peers where we alredy query member list json
-	cache_member_id
+	# TODO: move this inside check_peers where we already query member list json
+	attribute_node_member_id update
 	if ! check_peers; then
 		return $OCF_ERR_GENERIC
 	fi
@@ -989,7 +997,7 @@ run_new_container()
 	local image=$2
 	local cmd=$3
 	local rc
-	
+
 	ocf_log info "running container $CONTAINER for the first time"
 	out=$(podman run $opts $image $cmd 2>&1)
 	rc=$?
@@ -1037,7 +1045,7 @@ run_new_container()
 			ocf_log info "$out"
 		fi
 	fi
-	
+
 	return $rc
 }
 
@@ -1325,8 +1333,10 @@ podman_start()
 			if is_force_new_cluster; then
 				clear_force_new_cluster
 
-				local peer_node_name=$(get_peer_node_name)
-				local peer_node_ip=$(get_peer_node_ip)
+				local peer_node_name
+				local peer_node_ip
+				peer_node_name="$(get_peer_node_name)"
+				peer_node_ip="$(attribute_node_ip_peer)"
 				if [ -n "$peer_node_name" ] && [ -n "$peer_node_ip" ]; then
 					add_member_as_learner $peer_node_name $peer_node_ip
 				else
@@ -1352,9 +1362,11 @@ podman_stop()
 		return $OCF_SUCCESS
 	fi
 
-	member_id=$(get_cached_member_id)
-	if [ -z "$member_id" ]; then
-		ocf_log err "error leaving members list: could not get cached member ID"
+	attribute_node_revision update
+	attribute_node_cluster_id update
+
+	if ! member_id=$(attribute_node_member_id get); then
+		ocf_log err "error leaving members list: could not get member-id"
 	else
 		# TODO: is it worth/possible to check the current status instead than relying on cached attributes?
 		if is_standalone; then
@@ -1369,7 +1381,7 @@ podman_stop()
 			fi
 		fi
 	fi
-	clear_member_id
+	attribute_node_member_id clear
 
 	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
 		timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000) -10 ))
