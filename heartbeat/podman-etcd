@@ -309,29 +309,28 @@ remove_container()
 		return 0
 	fi
 
-	container_exists
-	if [ $? -ne 0 ]; then
+	if ! container_exists; then
 		# don't attempt to remove a container that doesn't exist
 		return 0
 	fi
 	ocf_log notice "Cleaning up inactive container, ${CONTAINER}."
-	ocf_run podman rm -v $CONTAINER
+	ocf_run podman rm -v "$CONTAINER"
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		if [ $rc -eq 2 ]; then
-			if podman inspect --format '{{.State.Status}}' $CONTAINER | grep -wq "stopping"; then
+			if podman inspect --format '{{.State.Status}}' "$CONTAINER" | grep -wq "stopping"; then
 				ocf_log err "Inactive container ${CONTAINER} is stuck in 'stopping' state. Force-remove it."
-				ocf_run podman rm -f $CONTAINER
+				ocf_run podman rm -f "$CONTAINER"
 				rc=$?
 			fi
 		fi
 		# due to a podman bug (rhbz#1841485), sometimes a stopped
 		# container can still be associated with Exec sessions, in
 		# which case the "podman rm" has to be forced
-		execids=$(podman inspect $CONTAINER --format '{{len .ExecIDs}}')
+		execids=$(podman inspect "$CONTAINER" --format '{{len .ExecIDs}}')
 		if [ "$execids" -ne "0" ]; then
 			ocf_log warn "Inactive container ${CONTAINER} has lingering exec sessions. Force-remove it."
-			ocf_run podman rm -f $CONTAINER
+			ocf_run podman rm -f "$CONTAINER"
 			rc=$?
 		fi
 	fi
@@ -449,14 +448,16 @@ prepare_env() {
 archive_data_folder()
 {
 	# TODO: use etcd snapshots
-	local dest_dir_name="members-snapshot-$(date +%Y%M%d%H%M%S)"
+	local dest_dir_name
 	local data_dir="/var/lib/etcd/member"
+
+	dest_dir_name="members-snapshot-$(date +%Y%M%d%H%M%S)"
 	if [ ! -d $data_dir ]; then
 		ocf_log info "no data dir to backup"
 		return $OCF_SUCCESS
 	fi
 	ocf_log info "backing up $data_dir under $HA_RSCTMP/$dest_dir_name"
-	mv $data_dir $HA_RSCTMP/$dest_dir_name
+	mv "$data_dir" "$HA_RSCTMP/$dest_dir_name"
 	sync
 }
 
@@ -478,7 +479,7 @@ attribute_node_cluster_id()
 	local value
 	if ! value=$(jq -r ".clusterId" /var/lib/etcd/revision.json); then
 		rc=$?
-		ocf_log error "could not get cluster-id: $rc"
+		ocf_log error "could not get cluster_id: $rc"
 		return "$rc"
 	fi
 
@@ -487,10 +488,9 @@ attribute_node_cluster_id()
 			echo "$value"
 			;;
 		update)
-			ocf_log info "$NODENAME: update cluster-id: $value"
 			if ! crm_attribute --type nodes --node "$NODENAME" --name "cluster_id" --update "$value"; then
 				rc=$?
-				ocf_log err "could not update cluster-id: error code $rc"
+				ocf_log err "could not update cluster_id: error code $rc"
 				return "$rc"
 			fi
 			;;
@@ -503,7 +503,9 @@ attribute_node_cluster_id()
 
 attribute_node_cluster_id_peer()
 {
-	local nodename=$(get_peer_node_name)
+	local nodename
+
+	nodename=$(get_peer_node_name)
 	crm_attribute --query --type nodes --node "$nodename" --name "cluster_id" | awk -F"value=" '{print $2}'
 }
 
@@ -524,7 +526,6 @@ attribute_node_revision()
 			echo "$value"
 			;;
 		update)
-			ocf_log info "$NODENAME: update $attribute: $value"
 			if ! crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"; then
 				rc=$?
 				ocf_log err "could not update etcd $revision: error code $rc"
@@ -602,7 +603,7 @@ add_member_as_learner()
 	local member_ip=$2
 
 	ocf_log info "add $member_name ($member_ip) to the member list as learner"
-	out=$(podman exec ${CONTAINER} etcdctl --endpoints="https://$(attribute_node_ip get):2379" member add $member_name --peer-urls=https://$member_ip:2380 --learner)
+	out=$(podman exec "${CONTAINER}" etcdctl --endpoints="https://$(attribute_node_ip get):2379" member add "$member_name" --peer-urls="https://$member_ip:2380" --learner)
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		ocf_log error "could not add $member_name as learner: error code $rc"
@@ -632,7 +633,9 @@ get_force_new_cluster()
 
 clear_force_new_cluster()
 {
-	local force_new_cluster_node=$(get_force_new_cluster)
+	local force_new_cluster_node
+
+	force_new_cluster_node=$(get_force_new_cluster)
 	if [ -z "$force_new_cluster_node" ]; then
 		ocf_log info "$NODENAME: force_new_cluster attribute not set"
 		return $OCF_SUCCESS
@@ -657,7 +660,9 @@ clear_force_new_cluster()
 is_force_new_cluster()
 {
 	# Return 0 if 'force_new_cluster' is set and the value matches the current node name, 1 otherwise.
-	local value=$(get_force_new_cluster)
+	local value
+
+	value=$(get_force_new_cluster)
 	if [ -z "$value" ]; then
 		ocf_log debug "force_new_cluster attribute is not set"
 		return 1
@@ -674,18 +679,19 @@ is_force_new_cluster()
 
 is_standalone()
 {
-	local nodename=${1:-$NODENAME}
-	local standalone_node=$(get_standalone_node)
+	local standalone_node
+
+	standalone_node=$(get_standalone_node)
 	if [ -z "$standalone_node" ]; then
 		ocf_log debug "no node running standalone"
 		return 1
 	fi
 
-	if [ "$nodename" = "$standalone_node" ]; then
-		ocf_log debug "$nodename is set as standalone"
+	if [ "$NODENAME" = "$standalone_node" ]; then
+		ocf_log debug "$NODENAME is set as standalone"
 		return 0
 	fi
-	ocf_log debug "$nodename is set as learner"
+	ocf_log debug "$NODENAME is set as learner"
 	return 1
 
 }
@@ -695,7 +701,7 @@ set_standalone_node()
 	local rc
 
 	ocf_log info "add $NODENAME as standalone"
-	crm_attribute --name "standalone_node" --update $NODENAME
+	crm_attribute --name "standalone_node" --update "$NODENAME"
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		ocf_log error "could not set standalone_node attribute to $NODENAME"
@@ -718,13 +724,13 @@ clear_standalone_and_learner_if_not_learners()
 	local rc
 	local member_list_json="$1"
 
-	number_of_members=$(echo -n $member_list_json | jq -r ".members[].ID" | wc -l)
-	if [ $number_of_members -ne 2 ]; then
+	number_of_members=$(printf  "%s" "$member_list_json" | jq -r ".members[].ID" | wc -l)
+	if [ "$number_of_members" -ne 2 ]; then
 		ocf_log info "could not clear standalone_node, nor learner_node properties: found $number_of_members members, need 2"
 		return $OCF_SUCCESS
 	fi
 
-	id=$(echo -n $member_list_json | jq -r ".members[] | select( .isLearner==true ).ID")
+	id=$(printf "%s" "$member_list_json" | jq -r ".members[] | select( .isLearner==true ).ID")
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		ocf_log error "could not get isLearner field from member list: error code $rc"
@@ -780,14 +786,14 @@ attribute_learner_node()
 
 is_learner()
 {
-	if [ "$NODENAME" == "$(attribute_learner_node get)" ]; then
+	if [ "$NODENAME" = "$(attribute_learner_node get)" ]; then
 		return 0
 	fi
 	return 1
 }
 
 get_peer_node_name() {
-	crm_node -l | awk '{print $2}' | grep -v $NODENAME
+	crm_node -l | awk '{print $2}' | grep -v "$NODENAME"
 }
 
 get_all_etcd_endpoints() {
@@ -801,20 +807,24 @@ get_all_etcd_endpoints() {
 
 		[ -z "$ALL_ETCD_ENDPOINTS" ] && ALL_ETCD_ENDPOINTS="https://$ip:2379" || ALL_ETCD_ENDPOINTS="$ALL_ETCD_ENDPOINTS,https://$ip:2379"
 	done
-	echo $ALL_ETCD_ENDPOINTS
+	echo "$ALL_ETCD_ENDPOINTS"
 }
 
 get_endpoint_status_json()
 {
 	# Get the status of all endpoints
-	local all_etcd_endpoints=$(get_all_etcd_endpoints)
-	podman exec ${CONTAINER} etcdctl endpoint status --endpoints=$all_etcd_endpoints -w json
+	local all_etcd_endpoints
+
+	all_etcd_endpoints=$(get_all_etcd_endpoints)
+	podman exec "${CONTAINER}" etcdctl endpoint status --endpoints="$all_etcd_endpoints" -w json
 }
 
 get_member_list_json() {
 	# Get the list of members visible to the current node
-	local this_node_endpoint="https://$(attribute_node_ip get):2379"
-	podman exec ${CONTAINER} etcdctl member list --endpoints=$this_node_endpoint -w json
+	local this_node_endpoint
+
+	this_node_endpoint="https://$(attribute_node_ip get):2379"
+	podman exec "${CONTAINER}" etcdctl member list --endpoints="$this_node_endpoint" -w json
 }
 
 check_peers()
@@ -836,10 +846,10 @@ check_peers()
 		endpoint_status_json=$(get_endpoint_status_json)
 		ocf_log info "endpoint status: $endpoint_status_json"
 
-		count_endpoints=$(echo -n $endpoint_status_json | jq -r ".[].Endpoint" | wc -l)
-		if [ $count_endpoints -eq 1 ]; then
+		count_endpoints=$(printf  "%s" "$endpoint_status_json" | jq -r ".[].Endpoint" | wc -l)
+		if [ "$count_endpoints" -eq 1 ]; then
 			ocf_log info "one endpoint only: checking status errors"
-			endpoint_status_errors=$(echo -n $endpoint_status_json | jq -r ".[0].Status.errors")
+			endpoint_status_errors=$(printf "%s" "$endpoint_status_json" | jq -r ".[0].Status.errors")
 			if echo "$endpoint_status_errors" | grep -q "no leader"; then
 				set_force_new_cluster
 				set_standalone_node
@@ -870,16 +880,16 @@ check_peers()
 	for node in $(echo "$OCF_RESKEY_node_ip_map" | sed "s/\s//g;s/;/ /g"); do
 		name=$(echo "$node" | awk -F":" '{print $1}')
 		# do not check itself
-		if [ "$name" == "$NODENAME" ]; then
+		if [ "$name" = "$NODENAME" ]; then
 			continue
 		fi
 
 		# Check by IP instead of Name since "learner" members appear only in peerURLs, not by Name.
 		ip=$(echo "$node" | awk -F":" '{print $2}')
-		id=$(echo -n $member_list_json | jq -r ".members[] | select( .peerURLs | map(test(\"$ip\")) | any).ID")
+		id=$(printf "%s" "$member_list_json" | jq -r ".members[] | select( .peerURLs | map(test(\"$ip\")) | any).ID")
 		if [ -z "$id" ]; then
 			ocf_log info "$name is not in the members list"
-			add_member_as_learner $name $ip
+			add_member_as_learner "$name" "$ip"
 			set_standalone_node
 		else
 			ocf_log debug "$name is in the members list by IP: $ip"
@@ -1023,7 +1033,7 @@ run_new_container()
 		fi
 
 		ocf_log warn "Internal podman error while creating new container $CONTAINER. Retrying."
-		ocf_run podman rm --storage $CONTAINER
+		ocf_run podman rm --storage "$CONTAINER"
 		ocf_run podman run $opts $image $cmd
 		rc=$?
 	elif [ $rc -eq 127 ]; then
@@ -1060,7 +1070,7 @@ compare_revision()
 	revision=$(attribute_node_revision get)
 	peer_revision=$(attribute_node_revision_peer)
 
-	if [ "$revision" == "" ] || [ "$revision" == "null" ] || [ "$peer_revision" == "" ] || [ "$peer_revision" == "null" ]; then
+	if [ "$revision" = "" ] || [ "$revision" = "null" ] || [ "$peer_revision" = "" ] || [ "$peer_revision" = "null" ]; then
 		ocf_log error "could not compare revisions: $NODENAME local revision: $revision, peer revision: $peer_revision"
 		return "$OCF_ERR_GENERIC"
 	fi
@@ -1154,7 +1164,7 @@ podman_start()
 			active_resources_count=$(echo "$OCF_RESKEY_CRM_meta_notify_active_resource" | wc -w)
 			case "$active_resources_count" in
 			1)
-				if [ "$(attribute_learner_node get)" == "$(get_peer_node_name)" ]; then
+				if [ "$(attribute_learner_node get)" = "$(get_peer_node_name)" ]; then
 					ocf_log info "peer active but in learner mode: start normally"
 				else
 					ocf_log info "peer is active standalone: joining as learner"
@@ -1189,13 +1199,13 @@ podman_start()
 					;;
 				2)
 					ocf_log info "peer starting"
-					if [ "$revision_compare_result" == "newer" ]; then
+					if [ "$revision_compare_result" = "newer" ]; then
 						set_force_new_cluster
-					elif [ "$revision_compare_result" == "older" ]; then
+					elif [ "$revision_compare_result" = "older" ]; then
 						ocf_log info "$NODENAME shall join as learner"
 						JOIN_AS_LEARNER=true
 					else
-						if [ "$(attribute_node_cluster_id get)" == "$(attribute_node_cluster_id_peer)" ]; then
+						if [ "$(attribute_node_cluster_id get)" = "$(attribute_node_cluster_id_peer)" ]; then
 							ocf_log info "same cluster_id and revision: start normal"
 						else
 							ocf_exit_reason "same revision but different cluster id"
@@ -1308,7 +1318,7 @@ podman_start()
 		OCF_RESKEY_run_cmd="$OCF_RESKEY_run_cmd --force-new-cluster"
 	fi
 
-	if [ "$OCF_RESKEY_image" == "$OCF_RESKEY_image_default" ]; then
+	if [ "$OCF_RESKEY_image" = "$OCF_RESKEY_image_default" ]; then
 		# no container image provided via input parameters. Read it from the pod manifest.
 		OCF_RESKEY_image=$(jq -r '.spec.containers[] | select( .name=="etcd").image' "$OCF_RESKEY_pod_manifest")
 		ocf_log info "using container image ($OCF_RESKEY_image) from Pod manifest ($OCF_RESKEY_pod_manifest)"
@@ -1319,8 +1329,7 @@ podman_start()
 
 	if [ $REQUIRE_IMAGE_PULL -eq 1 ]; then
 		ocf_log notice "Beginning pull of image, ${OCF_RESKEY_image}"
-		podman pull --authfile=$OCF_RESKEY_authfile "${OCF_RESKEY_image}"
-		if [ $? -ne 0 ]; then
+		if ! podman pull --authfile="$OCF_RESKEY_authfile" "${OCF_RESKEY_image}"; then
 			ocf_exit_reason "failed to pull image ${OCF_RESKEY_image}"
 			return $OCF_ERR_GENERIC
 		fi
@@ -1330,12 +1339,12 @@ podman_start()
 
 	if ocf_is_true "$OCF_RESKEY_reuse" && container_exists; then
 		ocf_log info "starting existing container $CONTAINER."
-		ocf_run podman start $CONTAINER
+		ocf_run podman start "$CONTAINER"
 	else
 		# make sure any previous container matching our container name is cleaned up first.
 		# we already know at this point it wouldn't be running
 		remove_container
-		run_new_container "$run_opts" $OCF_RESKEY_image "$OCF_RESKEY_run_cmd"
+		run_new_container "$run_opts" "$OCF_RESKEY_image" "$OCF_RESKEY_run_cmd"
 		if [ $? -eq 125 ]; then
 			return $OCF_ERR_GENERIC
 		fi
@@ -1360,7 +1369,7 @@ podman_start()
 		podman_simple_status
 		if [ $? -ne $OCF_SUCCESS ]; then
 			ocf_exit_reason "Newly created podman container exited after start"
-			ocf_run podman logs --tail 20 ${CONTAINER}
+			ocf_run podman logs --tail 20 "${CONTAINER}"
 			return $OCF_ERR_GENERIC
 		fi
 
@@ -1375,7 +1384,7 @@ podman_start()
 				peer_node_name="$(get_peer_node_name)"
 				peer_node_ip="$(attribute_node_ip_peer)"
 				if [ -n "$peer_node_name" ] && [ -n "$peer_node_ip" ]; then
-					add_member_as_learner $peer_node_name $peer_node_ip
+					add_member_as_learner "$peer_node_name" "$peer_node_ip"
 				else
 					ocf_log error "could not add peer as learner (peer node name: ${peer_node_name:-unknown}, peer ip: ${peer_node_ip:-unknown})"
 				fi
@@ -1411,9 +1420,8 @@ podman_stop()
 		else
 			ocf_log info "leaving members list as member with ID $member_id"
 			endpoint="https://$(attribute_node_ip get):2379"
-			ocf_run podman exec $CONTAINER etcdctl member remove $member_id --endpoints=$endpoint
-			rc=$?
-			if [ $? -ne 0 ]; then
+			if ! ocf_run podman exec "$CONTAINER" etcdctl member remove "$member_id" --endpoints="$endpoint"; then
+				rc=$?
 				ocf_log err "error leaving members list: error code $rc"
 			fi
 		fi
@@ -1421,18 +1429,18 @@ podman_stop()
 	attribute_node_member_id clear
 
 	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
-		timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000) -10 ))
+		timeout=$(((OCF_RESKEY_CRM_meta_timeout/1000) -10 ))
 		if [ $timeout -lt 10 ]; then
 			timeout=10
 		fi
 	fi
 
 	if ocf_is_true "$OCF_RESKEY_force_kill"; then
-		ocf_run podman kill $CONTAINER
+		ocf_run podman kill "$CONTAINER"
 		rc=$?
 	else
 		ocf_log debug "waiting $timeout second[s] before killing container"
-		ocf_run podman stop -t=$timeout $CONTAINER
+		ocf_run podman stop -t="$timeout" "$CONTAINER"
 		rc=$?
 		# on stop, systemd will automatically delete any transient
 		# drop-in conf that has been created earlier
@@ -1444,7 +1452,7 @@ podman_stop()
 		# but the associated container exit code is -1. If that's the case,
 		# assume there's no failure and continue with the rm as usual.
 		if [ $rc -eq 125 ] && \
-			podman inspect --format '{{.State.Status}}:{{.State.ExitCode}}' $CONTAINER | grep -Eq '^(exited|stopped):-1$'; then
+			podman inspect --format '{{.State.Status}}:{{.State.ExitCode}}' "$CONTAINER" | grep -Eq '^(exited|stopped):-1$'; then
 			ocf_log err "Container ${CONTAINER} had an unexpected stop outcome. Trying to remove it anyway."
 		else
 			ocf_exit_reason "Failed to stop container, ${CONTAINER}, based on image, ${OCF_RESKEY_image}."
@@ -1452,8 +1460,7 @@ podman_stop()
 		fi
 	fi
 
-	remove_container
-	if [ $? -ne 0 ]; then
+	if ! remove_container; then
 		ocf_exit_reason "Failed to remove stopped container, ${CONTAINER}, based on image, ${OCF_RESKEY_image}."
 		return $OCF_ERR_GENERIC
 	fi
@@ -1463,13 +1470,12 @@ podman_stop()
 
 image_exists()
 {
-	if [ "$OCF_RESKEY_image" == "$OCF_RESKEY_image_default" ]; then
+	if [ "$OCF_RESKEY_image" = "$OCF_RESKEY_image_default" ]; then
 		# the actual container image was not defined yet. Nor by
 		# the user via OCF_RESKEY, nor by reading the Pod manifest
 		return 0
 	fi
-	podman image exists "${OCF_RESKEY_image}"
-	if [ $? -eq 0 ]; then
+	if podman image exists "${OCF_RESKEY_image}"; then
 		# image found
 		return 0
 	fi
@@ -1506,8 +1512,7 @@ podman_validate()
 		exit $OCF_ERR_CONFIGURED
 	fi
 
-	image_exists
-	if [ $? -ne 0 ]; then
+	if ! image_exists; then
 		ocf_exit_reason "base image, ${OCF_RESKEY_image}, could not be found."
 		exit $OCF_ERR_CONFIGURED
 	fi
@@ -1537,7 +1542,7 @@ if ocf_is_true "$OCF_RESKEY_CRM_meta_globally_unique"; then
 			exit $OCF_ERR_CONFIGURED
 		fi
 	fi
-	: ${OCF_RESKEY_name=`echo ${OCF_RESOURCE_INSTANCE} | tr ':' '-'`}
+	: ${OCF_RESKEY_name=$(echo ${OCF_RESOURCE_INSTANCE} | tr ':' '-')}
 else
 	: ${OCF_RESKEY_name=${OCF_RESOURCE_INSTANCE}}
 fi
