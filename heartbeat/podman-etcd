@@ -345,7 +345,7 @@ attribute_node_ip()
 
 	if ! value=$(ip -brief addr show "$OCF_RESKEY_nic" | awk '{gsub("/.*", "", $3); print $3}'); then
 		rc=$?
-		ocf_log error "could not get node ip: error $rc"
+		ocf_log err "could not get node ip, error code: $rc"
 		return "$rc"
 	fi
 
@@ -356,7 +356,7 @@ attribute_node_ip()
 		update)
 			if ! crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"; then
 				rc="$?"
-				ocf_log error "could not set $attribute to $value: error $rc"
+				ocf_log err "could not set $attribute to $value, error code: $rc"
 				return "$rc"
 			fi
 			;;
@@ -364,7 +364,7 @@ attribute_node_ip()
 			crm_attribute --name "$attribute" --delete
 			;;
 		*)
-			ocf_log error "unsupported $action for $attribute"
+			ocf_log err "unsupported $action for $attribute"
 			return $OCF_ERR_GENERIC
 			;;
 	esac
@@ -381,7 +381,7 @@ get_env_from_manifest() {
 	local env_var_value
 
 	if [ ! -f "$OCF_RESKEY_pod_manifest" ]; then
-		ocf_log error "external etcd pod manifest ($OCF_RESKEY_pod_manifest) not found"
+		ocf_log err "external etcd pod manifest ($OCF_RESKEY_pod_manifest) not found"
 		return "$OCF_ERR_GENERIC"
 	fi
 
@@ -479,7 +479,7 @@ attribute_node_cluster_id()
 	local value
 	if ! value=$(jq -r ".clusterId" /var/lib/etcd/revision.json); then
 		rc=$?
-		ocf_log error "could not get cluster_id: $rc"
+		ocf_log err "could not get cluster_id, error code: $rc"
 		return "$rc"
 	fi
 
@@ -490,12 +490,12 @@ attribute_node_cluster_id()
 		update)
 			if ! crm_attribute --type nodes --node "$NODENAME" --name "cluster_id" --update "$value"; then
 				rc=$?
-				ocf_log err "could not update cluster_id: error code $rc"
+				ocf_log err "could not update cluster_id, error code: $rc"
 				return "$rc"
 			fi
 			;;
 		*)
-			ocf_log error "unsupported $action for attribute_node_cluster_id"
+			ocf_log err "unsupported $action for attribute_node_cluster_id"
 			return $OCF_ERR_GENERIC
 			;;
 	esac
@@ -517,7 +517,7 @@ attribute_node_revision()
 
 	if ! value=$(jq -r ".maxRaftIndex" /var/lib/etcd/revision.json); then
 		rc=$?
-		ocf_log error "could not get $attribute: $rc"
+		ocf_log err "could not get $attribute, error code: $rc"
 		return "$rc"
 	fi
 
@@ -528,12 +528,12 @@ attribute_node_revision()
 		update)
 			if ! crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"; then
 				rc=$?
-				ocf_log err "could not update etcd $revision: error code $rc"
+				ocf_log err "could not update etcd $revision, error code: $rc"
 				return "$rc"
 			fi
 			;;
 		*)
-			ocf_log error "unsupported $action for attribute_node_revision"
+			ocf_log err "unsupported $action for attribute_node_revision"
 			return "$OCF_ERR_GENERIC"
 			;;
 	esac
@@ -567,14 +567,14 @@ attribute_node_member_id()
 			member_list_json=$(get_member_list_json)
 			ocf_log info "member list: $member_list_json"
 			if [ -z "$member_list_json" ] ; then
-				ocf_log error "could not get $attribute: could not get member list JSON"
+				ocf_log err "could not get $attribute: could not get member list JSON"
 				return "$rc"
 			fi
 
 			local value
 			if ! value=$(echo -n "$member_list_json" | jq -r ".header.member_id"); then
 				rc=$?
-				ocf_log error "could not get $attribute from member list JSON: error $rc"
+				ocf_log err "could not get $attribute from member list JSON, error code: $rc"
 				return "$rc"
 			fi
 
@@ -582,7 +582,7 @@ attribute_node_member_id()
 			value=$(printf "%x" "$value")
 			if ! crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"; then
 				rc=$?
-				ocf_log err "could not update etcd $attribute: error code $rc"
+				ocf_log err "could not update etcd $attribute, error code: $rc"
 				return "$rc"
 			fi
 			;;
@@ -590,7 +590,7 @@ attribute_node_member_id()
 			crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --delete
 			;;
 		*)
-			ocf_log error "unsupported $action for attribute_node_member_id"
+			ocf_log err "unsupported $action for attribute_node_member_id"
 			return "$OCF_ERR_GENERIC"
 			;;
 	esac
@@ -606,7 +606,7 @@ add_member_as_learner()
 	out=$(podman exec "${CONTAINER}" etcdctl --endpoints="https://$(attribute_node_ip get):2379" member add "$member_name" --peer-urls="https://$member_ip:2380" --learner)
 	rc=$?
 	if [ $rc -ne 0 ]; then
-		ocf_log error "could not add $member_name as learner: error code $rc"
+		ocf_log err "could not add $member_name as learner, error code: $rc"
 		return $rc
 	fi
 	ocf_log info "$out"
@@ -621,7 +621,7 @@ set_force_new_cluster()
 	crm_attribute --lifetime reboot --node "$NODENAME" --name "force_new_cluster" --update "$NODENAME"
 	rc=$?
 	if [ $rc -ne 0 ]; then
-		ocf_log error "could not set force_new_cluster attribute to $NODENAME"
+		ocf_log err "could not set force_new_cluster attribute to $NODENAME"
 	fi
 	return $rc
 }
@@ -646,7 +646,7 @@ clear_force_new_cluster()
 		crm_attribute --lifetime reboot --name "force_new_cluster" --delete
 		rc=$?
 		if [ $rc -ne 0 ]; then
-			ocf_log error "could not clear force_new_cluster attribute: error $rc"
+			ocf_log err "could not clear force_new_cluster attribute, error code: $rc"
 		else
 			ocf_log info "$NODENAME: force_new_cluster attribute cleared"
 		fi
@@ -704,7 +704,7 @@ set_standalone_node()
 	crm_attribute --name "standalone_node" --update "$NODENAME"
 	rc=$?
 	if [ $rc -ne 0 ]; then
-		ocf_log error "could not set standalone_node attribute to $NODENAME"
+		ocf_log err "could not set standalone_node attribute to $NODENAME"
 	fi
 	return $rc
 }
@@ -733,7 +733,7 @@ clear_standalone_and_learner_if_not_learners()
 	id=$(printf "%s" "$member_list_json" | jq -r ".members[] | select( .isLearner==true ).ID")
 	rc=$?
 	if [ $rc -ne 0 ]; then
-		ocf_log error "could not get isLearner field from member list: error code $rc"
+		ocf_log err "could not get isLearner field from member list, error code: $rc"
 		return $rc
 	fi
 
@@ -741,7 +741,7 @@ clear_standalone_and_learner_if_not_learners()
 		clear_standalone_node
 		rc=$?
 		if [ $rc -ne 0 ]; then
-			ocf_og error "could not clear standalone_node attribute: error code $rc"
+			ocf_og error "could not clear standalone_node attribute, error code: $rc"
 			return $rc
 		fi
 	fi
@@ -749,7 +749,7 @@ clear_standalone_and_learner_if_not_learners()
 		attribute_learner_node clear
 		rc=$?
 		if [ $rc -ne 0 ]; then
-			ocf_og error "could not clear learner_node attribute: error code $rc"
+			ocf_og error "could not clear learner_node attribute, error code: $rc"
 			return $rc
 		fi
 	fi
@@ -770,7 +770,7 @@ attribute_learner_node()
 		update)
 			if ! crm_attribute --name "$attribute" --update "$value"; then
 				rc="$?"
-				ocf_log error "could not set $attribute to $value: error $rc"
+				ocf_log err "could not set $attribute to $value, error code: $rc"
 				return "$rc"
 			fi
 			;;
@@ -778,7 +778,7 @@ attribute_learner_node()
 			crm_attribute --name "$attribute" --delete
 			;;
 		*)
-			ocf_log error "unsupported $action for $attribute"
+			ocf_log err "unsupported $action for $attribute"
 			return $OCF_ERR_GENERIC
 			;;
 	esac
@@ -841,7 +841,7 @@ check_peers()
 	rc=$?
 	ocf_log debug "member list: $member_list_json"
 	if [ $rc -ne 0 ]; then
-		ocf_log info "podman failed to get member list: error code $rc"
+		ocf_log info "podman failed to get member list, error code: $rc"
 
 		endpoint_status_json=$(get_endpoint_status_json)
 		ocf_log info "endpoint status: $endpoint_status_json"
@@ -857,7 +857,7 @@ check_peers()
 				return $OCF_ERR_GENERIC
 			fi
 			if [ "$endpoint_status_errors" != "null" ]; then
-				ocf_log error "unmanaged endpoint status error: $endpoint_status_errors"
+				ocf_log err "unmanaged endpoint status error: $endpoint_status_errors"
 			fi
 		fi
 
@@ -988,12 +988,12 @@ create_transient_drop_in_dependency()
 	done
 
 	if [ $rc -ne $OCF_SUCCESS ]; then
-		ocf_log error "Could not create drop-in dependency for \"$CONTAINER\" ($cid)"
+		ocf_log err "Could not create drop-in dependency for \"$CONTAINER\" ($cid)"
 	else
 		systemctl daemon-reload
 		rc=$?
 		if [ $rc -ne $OCF_SUCCESS ]; then
-			ocf_log error "Could not refresh service definition after creating drop-in for \"$CONTAINER\""
+			ocf_log err "Could not refresh service definition after creating drop-in for \"$CONTAINER\""
 		fi
 	fi
 
@@ -1071,7 +1071,7 @@ compare_revision()
 	peer_revision=$(attribute_node_revision_peer)
 
 	if [ "$revision" = "" ] || [ "$revision" = "null" ] || [ "$peer_revision" = "" ] || [ "$peer_revision" = "null" ]; then
-		ocf_log error "could not compare revisions: $NODENAME local revision: $revision, peer revision: $peer_revision"
+		ocf_log err "could not compare revisions: $NODENAME local revision: $revision, peer revision: $peer_revision"
 		return "$OCF_ERR_GENERIC"
 	fi
 
@@ -1104,7 +1104,7 @@ ensure_pod_manifest_exists()
 	done
 
 	if [ ! -f "$OCF_RESKEY_pod_manifest" ]; then
-		ocf_log error "pod manifest ($OCF_RESKEY_pod_manifest) still missing after $wait_timeout_sec seconds."
+		ocf_log err "pod manifest ($OCF_RESKEY_pod_manifest) still missing after $wait_timeout_sec seconds."
 		return "$OCF_ERR_CONFIGURED"
 	fi
 
@@ -1175,7 +1175,7 @@ podman_start()
 				# we need to compare the revisions in any of the following branches
 				# so call the function only once here
 				if ! revision_compare_result=$(compare_revision); then
-					ocf_log error "could not compare revisions: error $?"
+					ocf_log err "could not compare revisions, error code: $?"
 					return "$OCF_ERR_GENERIC"
 				fi
 
@@ -1192,7 +1192,7 @@ podman_start()
 						# restore e-quorum by forcing a new cluster.
 						set_force_new_cluster
 					else
-						ocf_log error "local revision is older and peer is not starting: cannot start"
+						ocf_log err "local revision is older and peer is not starting: cannot start"
 						ocf_exit_reason "local revision is older and peer is not starting: cannot start"
 						return "$OCF_ERR_GENERIC"
 					fi
@@ -1214,14 +1214,14 @@ podman_start()
 					fi
 					;;
 				*)
-					ocf_log error "Unexpected start resource count: $start_resources_count"
+					ocf_log err "Unexpected start resource count: $start_resources_count"
 					podman_notify
 					return "$OCF_ERR_GENERIC"
 					;;
 				esac
 				;;
 			*)
-				ocf_log error "Unexpected active resource count: $active_resources_count"
+				ocf_log err "Unexpected active resource count: $active_resources_count"
 				podman_notify
 				return "$OCF_ERR_GENERIC"
 				;;
@@ -1254,7 +1254,7 @@ podman_start()
 			break
 		done
 		if [ "$NODENAME" != "$(attribute_learner_node get)" ]; then
-			ocf_log error "wait for $NODENAME to be in the member list timed out"
+			ocf_log err "wait for $NODENAME to be in the member list timed out"
 			return "$OCF_ERR_GENERIC"
 		fi
 
@@ -1360,7 +1360,7 @@ podman_start()
 	fi
 
 	if [ $rc -ne 0 ]; then
-		ocf_exit_reason "podman failed to launch container (rc: $rc)"
+		ocf_exit_reason "podman failed to launch container (error code: $rc)"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -1386,7 +1386,7 @@ podman_start()
 				if [ -n "$peer_node_name" ] && [ -n "$peer_node_ip" ]; then
 					add_member_as_learner "$peer_node_name" "$peer_node_ip"
 				else
-					ocf_log error "could not add peer as learner (peer node name: ${peer_node_name:-unknown}, peer ip: ${peer_node_ip:-unknown})"
+					ocf_log err "could not add peer as learner (peer node name: ${peer_node_name:-unknown}, peer ip: ${peer_node_ip:-unknown})"
 				fi
 			fi
 			return $OCF_SUCCESS
@@ -1422,7 +1422,7 @@ podman_stop()
 			endpoint="https://$(attribute_node_ip get):2379"
 			if ! ocf_run podman exec "$CONTAINER" etcdctl member remove "$member_id" --endpoints="$endpoint"; then
 				rc=$?
-				ocf_log err "error leaving members list: error code $rc"
+				ocf_log err "error leaving members list, error code: $rc"
 			fi
 		fi
 	fi
