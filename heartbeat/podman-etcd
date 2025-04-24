@@ -380,13 +380,17 @@ get_env_from_manifest() {
 	local env_var_name="$1"
 	local env_var_value
 
+	# The agent waits for the manifest to exist before starting, so the
+	# file should exist already, but this check is included for robustness.
 	if [ ! -f "$OCF_RESKEY_pod_manifest" ]; then
 		ocf_log err "external etcd pod manifest ($OCF_RESKEY_pod_manifest) not found"
-		return "$OCF_ERR_GENERIC"
+		exit "$OCF_ERR_INSTALLED"
 	fi
 
 	if ! env_var_value=$(jq -r ".spec.containers[].env[] | select( .name == \"$env_var_name\" ).value" "$OCF_RESKEY_pod_manifest"); then
-		return "$?"
+		rc=$?
+		ocf_log err "could not find environment variable $env_var_name in etcd pod manifest, error code: $rc"
+		exit "$OCF_ERR_INSTALLED"
 	fi
 
 	ocf_log debug "ETCD pod environment variable $env_var_name: $env_var_value"
