@@ -408,7 +408,7 @@ list_bindmounts() {
 	fi
 
 	if [ -b "$mount_disk" ]; then
-		list_mounts | grep "$mount_disk" | grep -v "$match_string" | cut -d"$TAB" -f2 | sort -r
+		list_mounts | grep -w "$mount_disk" | grep -v "$match_string" | cut -d"$TAB" -f2 | sort -r
 	fi
 }
 
