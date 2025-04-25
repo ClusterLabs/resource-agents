@@ -207,7 +207,7 @@ crypt_validate_all() {
 		ocf_exit_reason "Hash key file $key_file not accessible"
 		return $OCF_ERR_CONFIGURED
 	fi
-	if ! ocf_is_true "$use_clevis" && [ ! -r "$crypt_type" ]; then
+	if ! ocf_is_true "$use_clevis" && [ -z "$crypt_type" ]; then
 		ocf_exit_reason "crypt_type not set"
 		return $OCF_ERR_CONFIGURED
 	fi
@@ -348,7 +348,7 @@ crypt_monitor() {
 
 # Check for strange argument count.
 if [ $# -ne 1 ]; then
-	usage
+	crypt_usage
 	exit $OCF_ERR_GENERIC
 fi
 
