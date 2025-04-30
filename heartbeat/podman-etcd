@@ -236,8 +236,6 @@ to stop the container before pacemaker.
 <action name="start"        timeout="600s" />
 <action name="stop"         timeout="90s" />
 <action name="monitor"      timeout="25s" interval="30s" depth="0" />
-<action name="promote"      timeout="300s" />
-<action name="demote"       timeout="120s" />
 <action name="meta-data"    timeout="5s" />
 <action name="validate-all"   timeout="30s" />
 </actions>
@@ -251,7 +249,7 @@ REQUIRE_IMAGE_PULL=0
 podman_usage()
 {
 	cat <<END
-usage: $0 {start|stop|monitor|promote|demote|validate-all|meta-data}
+usage: $0 {start|stop|monitor|validate-all|meta-data}
 
 Expects to have a fully populated OCF RA-compliant environment set.
 END
