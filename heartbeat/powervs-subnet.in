@@ -378,8 +378,9 @@ class PowerCloudAPI:
                         api_key = keys.get("Apikey", "")
                         if not api_key:
                             api_key = keys.get("apikey", "")
+                    # data is text, return as is
                     except ValueError:
-                        # data is text, return as is
+                        f.seek(0)
                         api_key = f.read().strip()
             except FileNotFoundError:
                 raise PowerCloudAPIError(
