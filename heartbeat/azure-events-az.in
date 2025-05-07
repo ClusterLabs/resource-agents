@@ -724,7 +724,7 @@ class raAzEvents:
 					azHelper.forceEvents(eventIDsToForce)
 					self.node.setAttr(attr_lastDocVersion, curDocVersion)
 			else:
-				ocf.logger.info("monitor: some local resources are not clean yet -> wait")
+				ocf.logger.info("monitor: some local resources are not stopped yet -> wait")
 
 		ocf.logger.debug("monitor: finished")
 		return ocf.OCF_SUCCESS
