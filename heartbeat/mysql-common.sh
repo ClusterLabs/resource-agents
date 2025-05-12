@@ -97,7 +97,14 @@ MYSQL_BINDIR=`dirname ${OCF_RESKEY_binary}`
 
 MYSQL=$OCF_RESKEY_client_binary
 if ocf_is_true "$OCF_RESKEY_replication_require_ssl"; then
-  MYSQL_OPTIONS_LOCAL_SSL_OPTIONS="--ssl-mode=REQUIRED"
+  if [ "${OCF_RESOURCE_TYPE}" = "mariadb" ] ; then
+    MYSQL_OPTIONS_LOCAL_SSL_OPTIONS="--ssl"
+    if [ -n "${$OCF_RESKEY_replication_master_ssl_ca}" ] ; then
+        MYSQL_OPTIONS_LOCAL_SSL_OPTIONS="${MYSQL_OPTIONS_LOCAL_SSL_OPTIONS} --ssl-ca=${$OCF_RESKEY_replication_master_ssl_ca}"
+    fi
+  else
+    MYSQL_OPTIONS_LOCAL_SSL_OPTIONS="--ssl-mode=REQUIRED"
+  fi
 else
   MYSQL_OPTIONS_LOCAL_SSL_OPTIONS=""
 fi
