@@ -602,21 +602,21 @@ class Node:
 			ocf.logger.info("handleRemoteEvents: handling remote event %s (%s; nodes = %s)" % (e.EventId, e.EventType, str(e.Resources)))
 			# before we can force an event to start, we need to ensure all nodes involved have stopped their resources
 			if e.EventStatus == "Scheduled":
-				allNodesStopped = True
+				allResourcesNowStopped = True
 				for azName in e.Resources:
 					hostName = clusterHelper.getHostNameFromAzName(azName)
 					state = self.getState(node=hostName)
 					if state == STOPPING:
 						# the only way we can continue is when node state is STOPPING, but all resources have been stopped
 						if not clusterHelper.allResourcesStoppedOnNode(hostName):
-							ocf.logger.info("handleRemoteEvents: (at least) node %s has still resources running -> wait" % hostName)
-							allNodesStopped = False
+							ocf.logger.info("handleRemoteEvents: (at least) node %s still has resources running -> wait" % hostName)
+							allResourcesNowStopped = False
 							break
 					elif state in (AVAILABLE, IN_EVENT, ON_HOLD):
 						ocf.logger.info("handleRemoteEvents: node %s is still %s -> remote event needs to be picked up locally" % (hostName, nodeStateToString(state)))
-						allNodesStopped = False
+						allResourcesNowStopped = False
 						break
-				if allNodesStopped:
+				if allResourcesNowStopped:
 					ocf.logger.info("handleRemoteEvents: nodes %s are stopped -> add remote event %s to force list" % (str(e.Resources), e.EventId))
 					for n in e.Resources:
 						hostName = clusterHelper.getHostNameFromAzName(n)
@@ -698,11 +698,11 @@ class Node:
 					ocf.logger.debug("handleLocalEvents: no local azEvents to handle")
 			if curState == STOPPING:
 				if clusterHelper.noPendingResourcesOnNode(self.hostName):
-					ocf.logger.info("handleLocalEvents: all local resources are started properly -> put node standby")
+					ocf.logger.info("handleLocalEvents: all local resources are stopped -> put node standby")
 					self.putNodeStandby()
 					mayUpdateDocVersion = True
 				else:
-					ocf.logger.info("handleLocalEvents: some local resources are not clean yet -> wait")
+					ocf.logger.info("handleLocalEvents: some local resources are not stopped yet -> wait")
 
 		ocf.logger.debug("handleLocalEvents: finished; mayUpdateDocVersion = %s" % str(mayUpdateDocVersion))
 		return mayUpdateDocVersion
@@ -801,6 +801,7 @@ away from the affected node to allow for a graceful shutdown.
 
 	Deployment:
 		crm configure primitive rsc_azure-events ocf:heartbeat:azure-events \
+  			params eventTypes=Reboot,Redeploy verbose=false \
 			op monitor interval=10s
 		crm configure clone cln_azure-events rsc_azure-events
 
