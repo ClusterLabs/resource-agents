@@ -436,15 +436,9 @@ prepare_env() {
 	ETCD_PEER_CERT=$(get_env_from_manifest "ETCDCTL_CERT")
 	ETCD_PEER_KEY=$(get_env_from_manifest "ETCDCTL_KEY")
 
-	if is_learner; then
-		LISTEN_CLIENT_URLS="$NODEIP"
-		LISTEN_PEER_URLS="$NODEIP"
-		LISTEN_METRICS_URLS="$NODEIP"
-	else
-		LISTEN_CLIENT_URLS="0.0.0.0"
-		LISTEN_PEER_URLS="0.0.0.0"
-		LISTEN_METRICS_URLS="0.0.0.0"
-	fi
+	LISTEN_CLIENT_URLS="0.0.0.0"
+	LISTEN_PEER_URLS="0.0.0.0"
+	LISTEN_METRICS_URLS="0.0.0.0"
 }
 
 archive_data_folder()
