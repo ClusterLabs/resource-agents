@@ -749,10 +749,22 @@ If any relevant events are found, it moves all Pacemaker resources
 away from the affected node to allow for a graceful shutdown.
 
 	Deployment:
-		crm configure primitive rsc_azure-events-az ocf:heartbeat:azure-events-az \
+
+	Set property and location constraint:
+ 		crm configure property node-health-strategy=custom
+   		crm configure location loc_azure_health /'!health-.*'/ rule '#health-azure': defined '#uname'
+
+     	Set #health-azure attribute to 0 (healthy) for every node in the cluster (example of node1 only): 
+      		crm_attribute --node node1 --name '#health-azure' --update 0
+	
+ 	Configure the RA:
+		crm configure primitive health-azure-events ocf:heartbeat:azure-events-az \
   			params eventTypes="Reboot,Redeploy" verbose=false retry_count=3 retry_wait=20 request_timeout=15 \
-			op monitor interval=10s
-		crm configure clone cln_azure-events-az rsc_azure-events-az
+     			op start start-delay=60s \
+			op monitor interval=10s \
+   			meta failure-timeout=120s
+		crm configure clone health-azure-events-cln health-azure-events \
+  			meta allow-unhealthy-nodes=true
 
 For further information on Microsoft Azure Scheduled Events, please
 refer to the following documentation:
