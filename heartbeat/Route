@@ -35,12 +35,14 @@
 OCF_RESKEY_device_default=""
 OCF_RESKEY_gateway_default=""
 OCF_RESKEY_source_default=""
+OCF_RESKEY_metric_default=""
 OCF_RESKEY_table_default=""
 OCF_RESKEY_family_default="detect"
 
 : ${OCF_RESKEY_device=${OCF_RESKEY_device_default}}
 : ${OCF_RESKEY_gateway=${OCF_RESKEY_gateway_default}}
 : ${OCF_RESKEY_source=${OCF_RESKEY_source_default}}
+: ${OCF_RESKEY_metric=${OCF_RESKEY_metric_default}}
 : ${OCF_RESKEY_table=${OCF_RESKEY_table_default}}
 : ${OCF_RESKEY_family=${OCF_RESKEY_family_default}}
 
@@ -57,7 +59,8 @@ meta_data() {
 Enables and disables network routes.
 
 Supports host and net routes, routes via a gateway address,
-and routes using specific source addresses.
+routes using specific source addresses and having a specific
+routing metric (priority).
 
 This resource agent is useful if a node's routing table
 needs to be manipulated based on node role assignment.
@@ -124,6 +127,14 @@ The source IP address to be configured for the route.
 <content type="string" default="${OCF_RESKEY_source_default}" />
 </parameter>
 
+<parameter name="metric" unique="0">
+<longdesc lang="en">
+The routing metric to be configured for the route.
+</longdesc>
+<shortdesc lang="en">Routing metric</shortdesc>
+<content type="string" default="${OCF_RESKEY_metric_default}" />
+</parameter>
+
 <parameter name="table" unique="0">
 <longdesc lang="en">
 The routing table to be configured for the route.
@@ -171,6 +182,9 @@ create_route_spec() {
     fi
     if [ -n "${OCF_RESKEY_source}" ]; then
 	route_spec="${route_spec} src ${OCF_RESKEY_source}"
+    fi
+    if [ -n "${OCF_RESKEY_metric}" ]; then
+	route_spec="${route_spec} metric ${OCF_RESKEY_metric}"
     fi
     if [ -n "${OCF_RESKEY_table}" ]; then
 	route_spec="${route_spec} table ${OCF_RESKEY_table}"
