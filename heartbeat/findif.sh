@@ -217,18 +217,14 @@ findif()
   fi
   if [ -n "$nic" ] ; then
     # NIC supports more than two.
-    routematch=$(ip -o -f $family route list match $match $proto $scope | grep -v "^\(unreachable\|prohibit\|blackhole\)" | grep "dev $nic " | sed -e 's,^\([0-9.]\+\) ,\1/32 ,;s,^\([0-9a-f:]\+\) ,\1/128 ,' | sort -t/ -k2,2nr)
+    routematch=$(ip -o -f $family route list match $match $proto $scope | grep "dev $nic " | sed -e 's,^\([0-9.]\+\) ,\1/32 ,;s,^\([0-9a-f:]\+\) ,\1/128 ,' | sort -t/ -k2,2nr)
   else
-    routematch=$(ip -o -f $family route list match $match $proto $scope | grep -v "^\(unreachable\|prohibit\|blackhole\)" | sed -e 's,^\([0-9.]\+\) ,\1/32 ,;s,^\([0-9a-f:]\+\) ,\1/128 ,' | sort -t/ -k2,2nr)
-  fi
-  if [ "$family" = "inet6" ]; then
-    routematch=$(echo "$routematch" | grep -v "^default")
+    routematch=$(ip -o -f $family route list match $match $proto $scope | sed -e 's,^\([0-9.]\+\) ,\1/32 ,;s,^\([0-9a-f:]\+\) ,\1/128 ,' | sort -t/ -k2,2nr)
   fi
 
-  if [ $(echo "$routematch" | wc -l) -gt 1 ]; then
-    ocf_exit_reason "More than 1 routes match $match. Unable to decide which route to use."
-    return $OCF_ERR_GENERIC
-  fi
+  # ignore matches from unrelated tables, and sort by metric to get the route with the lowest metric
+  routematch=$(echo "$routematch" | awk '!/^(default|unreachable|prohibit|blackhole)/{match($0, /metric ([^ ]+)/, arr); print arr[1], $0}' | sort -k 1n -u | cut -d" " -f 2- | head -1)
+
   set -- $routematch
   if [ $# = 0 ] ; then
     case $OCF_RESKEY_ip in
