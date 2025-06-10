@@ -65,6 +65,8 @@ fi
 # to make sure that ocf_is_probe() always works
 : ${OCF_RESKEY_CRM_meta_interval=0}
 
+[ "${SHELL##*/}" = "nologin" ] && SHELL="$SH"
+
 ocf_is_root() {
 	if [ X`id -u` = X0 ]; then
 		true
