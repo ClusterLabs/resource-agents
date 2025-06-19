@@ -978,23 +978,6 @@ Filesystem_monitor()
 #
 Filesystem_validate_all()
 {
-	# Check if the $FSTYPE is workable
-	# NOTE: Without inserting the $FSTYPE module, this step may be imprecise
-	# TODO: This is Linux specific crap.
-	if [ ! -z "$FSTYPE" -a "$FSTYPE" != none ]; then
-		cut -f2 /proc/filesystems | grep "^${FSTYPE}$" >/dev/null 2>&1
-		if [ $? -ne 0 ]; then
-			modpath=/lib/modules/$(uname -r)
-			moddep=$modpath/modules.dep
-			# Do we have $FSTYPE in modules.dep?
-			cut -d' ' -f1 $moddep \
-				| grep "^${modpath}.*${FSTYPE}\.k\?o:$" >/dev/null 2>&1
-			if [ $? -ne 0 ]; then
-				ocf_log info "It seems we do not have $FSTYPE support"
-			fi
-		fi
-	fi
-
 	# If we are supposed to do monitoring with status files, then
 	# we need a utility to write in O_DIRECT mode.
 	if [ $OCF_CHECK_LEVEL -gt 0 ]; then
