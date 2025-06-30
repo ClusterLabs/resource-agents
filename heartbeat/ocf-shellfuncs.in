@@ -708,7 +708,9 @@ curl_retry()
 			[ $? -ne 0 ] && exit $OCF_ERR_GENERIC
 			args=$(echo "$args" | sed "s/$OLD_TOKEN/$TOKEN/")
 		fi
-		sleep $sleep
+		if [ $try -lt $tries ]; then  
+			sleep $sleep
+   		fi
 	done
 
 	if [ $rc -ne 0 ]; then
