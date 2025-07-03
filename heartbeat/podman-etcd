@@ -45,6 +45,7 @@ OCF_RESKEY_nic_default="br-ex"
 OCF_RESKEY_authfile_default="/var/lib/kubelet/config.json"
 OCF_RESKEY_allow_pull_default="1"
 OCF_RESKEY_reuse_default="0"
+OCF_RESKEY_oom_default="-997"
 
 : ${OCF_RESKEY_image=${OCF_RESKEY_image_default}}
 : ${OCF_RESKEY_pod_manifest=${OCF_RESKEY_pod_manifest_default}}
@@ -53,6 +54,7 @@ OCF_RESKEY_reuse_default="0"
 : ${OCF_RESKEY_authfile=${OCF_RESKEY_authfile_default}}
 : ${OCF_RESKEY_allow_pull=${OCF_RESKEY_allow_pull_default}}
 : ${OCF_RESKEY_reuse=${OCF_RESKEY_reuse_default}}
+: ${OCF_RESKEY_oom=${OCF_RESKEY_oom_default}}
 
 #######################################################################
 
@@ -229,6 +231,16 @@ to stop the container before pacemaker.
 </longdesc>
 <shortdesc lang="en">drop-in dependency</shortdesc>
 <content type="boolean"/>
+</parameter>
+
+<parameter name="oom" required="0" unique="0">
+<longdesc lang="en">
+Tune the host's Out-Of-Memory (OOM) preferences for containers (accepts values from -1000 to 1000).
+Default to same OOM score as system-node-critical
+https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/#node-out-of-memory-behavior
+</longdesc>
+<shortdesc lang="en">OOM for container</shortdesc>
+<content type="integer" default="${OCF_RESKEY_oom_default}"/>
 </parameter>
 </parameters>
 
@@ -1226,7 +1238,10 @@ podman_start()
 	fi
 
 	podman_create_mounts
-	local run_opts="-d --name=${CONTAINER}"
+	local run_opts="--detach --name=${CONTAINER}"
+
+	run_opts="$run_opts --oom-score-adj=${OCF_RESKEY_oom}"
+
 	# check to see if the container has already started
 	podman_simple_status
 	if [ $? -eq $OCF_SUCCESS ]; then
@@ -1510,6 +1525,11 @@ podman_validate()
 
 	if ! image_exists; then
 		ocf_exit_reason "base image, ${OCF_RESKEY_image}, could not be found."
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	if [ "$OCF_RESKEY_oom" -lt -1000 ] || [ "$OCF_RESKEY_oom" -gt 1000 ]; then
+		ocf_exit_reason "'oom' value ${OCF_RESKEY_oom} is out of range [-1000:1000]"
 		exit $OCF_ERR_CONFIGURED
 	fi
 
