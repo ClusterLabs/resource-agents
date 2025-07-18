@@ -1078,9 +1078,23 @@ compare_revision()
 	revision=$(attribute_node_revision get)
 	peer_revision=$(attribute_node_revision_peer)
 
-	if [ "$revision" = "" ] || [ "$revision" = "null" ] || [ "$peer_revision" = "" ] || [ "$peer_revision" = "null" ]; then
+	if [ "$revision" = "" ] || [ "$revision" = "null" ] && [ "$peer_revision" = "" ] || [ "$peer_revision" = "null" ]; then
 		ocf_log err "could not compare revisions: $NODENAME local revision: $revision, peer revision: $peer_revision"
 		return "$OCF_ERR_GENERIC"
+	fi
+
+	# When only the local revision exists, it can start normally. This ensures that it can start during node replacement events.
+	if [ "$peer_revision" = "" ] || [ "$peer_revision" = "null" ]; then
+		ocf_log info "only local revision exists: $NODENAME local revision: $revision, peer revision: $peer_revision"
+		echo "only_local"
+		return "$OCF_SUCCESS"
+	fi
+
+	# When only the peer revision exists, the local node must join as a learner. This ensures that it can start during node replacement events.
+	if [ "$revision" = "" ] || [ "$revision" = "null" ]; then
+		ocf_log info "only peer revision exists: $NODENAME local revision: $revision, peer revision: $peer_revision"
+		echo "only_peer"
+		return "$OCF_SUCCESS"
 	fi
 
 	if [ "$revision" -gt "$peer_revision" ]; then
@@ -1194,14 +1208,14 @@ podman_start()
 				case "$start_resources_count" in
 				1)
 					ocf_log debug "peer not starting: ensure we can start a new cluster"
-					if [ "$revision_compare_result" != "older" ]; then
+					if [ "$revision_compare_result" != "older" ] || [ "$revision_compare_result" != "only_peer" ]; then
 						# If our revision is the same as or newer than the peer's last saved
 						# revision, and the peer agent isn't currently starting, we can
 						# restore e-quorum by forcing a new cluster.
 						set_force_new_cluster
 					else
-						ocf_log err "local revision is older and peer is not starting: cannot start"
-						ocf_exit_reason "local revision is older and peer is not starting: cannot start"
+						ocf_log err "local revision is older or empty and peer is not starting: cannot start"
+						ocf_exit_reason "local revision is older or emptyand peer is not starting: cannot start"
 						return "$OCF_ERR_GENERIC"
 					fi
 					;;
@@ -1209,14 +1223,16 @@ podman_start()
 					ocf_log info "peer starting"
 					if [ "$revision_compare_result" = "newer" ]; then
 						set_force_new_cluster
-					elif [ "$revision_compare_result" = "older" ]; then
+					elif [ "$revision_compare_result" = "older" ] || [ "$revision_compare_result" = "only_peer" ]; then
 						ocf_log info "$NODENAME shall join as learner"
 						JOIN_AS_LEARNER=true
 					else
 						if [ "$(attribute_node_cluster_id get)" = "$(attribute_node_cluster_id_peer)" ]; then
 							ocf_log info "same cluster_id and revision: start normal"
+						else if [ "$revision_compare_result" = "only_local" ] && [ "$(attribute_node_cluster_id get)" != ""] && [ "$(attribute_node_cluster_id get)" != "null" ]; then
+							ocf_log info "only local revision exists: start normal"
 						else
-							ocf_exit_reason "same revision but different cluster id"
+							ocf_exit_reason "same revision but different cluster id; local cluster id: $(attribute_node_cluster_id get), peer cluster id: $(attribute_node_cluster_id_peer)"
 							return "$OCF_ERR_GENERIC"
 						fi
 					fi
