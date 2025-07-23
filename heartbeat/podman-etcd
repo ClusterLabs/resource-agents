@@ -56,6 +56,9 @@ OCF_RESKEY_oom_default="-997"
 : ${OCF_RESKEY_reuse=${OCF_RESKEY_reuse_default}}
 : ${OCF_RESKEY_oom=${OCF_RESKEY_oom_default}}
 
+OCF_RESKEY_pod_manifest_copy="/var/usrlocal/etc/pod.yaml"
+OCF_RESKEY_etcd_configuration_file="/var/lib/etcd/config.yaml"
+
 #######################################################################
 
 meta_data()
@@ -309,42 +312,53 @@ container_exists()
 	return 1
 }
 
-remove_container()
+# archive_current_container archives the current
+# podman etcd container and its configuration files.
+archive_current_container()
 {
-	local rc
-	local execids
-
-	if ocf_is_true "$OCF_RESKEY_reuse"; then
-		# never remove the container if we have reuse enabled.
-		return 0
-	fi
-
+	# don't attempt to archive a container that doesn't exist
 	if ! container_exists; then
-		# don't attempt to remove a container that doesn't exist
-		return 0
+		return
 	fi
-	ocf_log notice "Cleaning up inactive container, ${CONTAINER}."
-	ocf_run podman rm -v "$CONTAINER"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		if [ $rc -eq 2 ]; then
-			if podman inspect --format '{{.State.Status}}' "$CONTAINER" | grep -wq "stopping"; then
-				ocf_log err "Inactive container ${CONTAINER} is stuck in 'stopping' state. Force-remove it."
-				ocf_run podman rm -f "$CONTAINER"
-				rc=$?
-			fi
-		fi
-		# due to a podman bug (rhbz#1841485), sometimes a stopped
-		# container can still be associated with Exec sessions, in
-		# which case the "podman rm" has to be forced
-		execids=$(podman inspect "$CONTAINER" --format '{{len .ExecIDs}}')
-		if [ "$execids" -ne "0" ]; then
-			ocf_log warn "Inactive container ${CONTAINER} has lingering exec sessions. Force-remove it."
-			ocf_run podman rm -f "$CONTAINER"
-			rc=$?
+
+	# delete any container named "*-previous", or we won't be able to archive the current container.
+	if podman inspect "${CONTAINER}-previous" >/dev/null 2>&1; then
+		ocf_log info "removing old archived container '$CONTAINER-previous'"
+		if ! ocf_run podman rm --volumes --force "$CONTAINER-previous"; then
+			ocf_log warn "could not remove old archived container (podman rm failed, error code: $?). Won't be able to archive current container"
+			return
 		fi
 	fi
-	return $rc
+
+	ocf_log info "archiving '$CONTAINER' container as '$CONTAINER-previous' for debugging purpose"
+	if ! ocf_run podman rename "$CONTAINER" "$CONTAINER-previous"; then
+		ocf_log err "could not archive container '$CONTAINER', error code: $?"
+		return
+	fi
+
+	# archive corresponding etcd configuration files
+	local files_to_archive=""
+	for file in "$OCF_RESKEY_authfile_default" "$OCF_RESKEY_pod_manifest_copy" "$OCF_RESKEY_etcd_configuration_file"; do
+		if [ -f "$file" ]; then
+			files_to_archive="$files_to_archive $file"
+		else
+			ocf_log warn "file '$file' is missing and won't be archived"
+		fi
+	done
+
+	if [ -z "$files_to_archive" ]; then
+		ocf_log warn "could not find any file to archive."
+		return
+	fi
+
+	local etcd_configuration_file_archive=${OCF_RESKEY_etcd_configuration_file//".yaml"/"-previous.tar.gz"}
+	# NOTE: tar will override any existing archive as wanted
+	# shellcheck disable=SC2086
+	if ! ocf_run tar --create --verbose --gzip --file "$etcd_configuration_file_archive" $files_to_archive; then
+		ocf_log warn "container archived successfully, but configuration backup failed (error: $?). Container debugging available, but without matching configuration files"
+	else
+		ocf_log info "container configuration also archived in '$etcd_configuration_file_archive'"
+	fi
 }
 
 attribute_node_ip()
@@ -408,6 +422,48 @@ get_env_from_manifest() {
 	echo "$env_var_value"
 }
 
+# etcd configuration file expects duration to be expressed in nanoseconds
+convert_duration_in_nanoseconds() {
+	local duration=$1
+	local value unit nanoseconds
+
+	if [ -z "$duration" ]; then
+		ocf_log err "convert_duration_in_nanoseconds: no duration provided"
+		return 1
+	fi
+
+	if ! echo "$duration" | grep -qE '^[0-9]+[numµ]?s$'; then
+		ocf_log err "convert_duration_in_nanoseconds: invalid duration format \"$duration\". Expected format: <number><unit> where unit is one of s, ms, us, µs, ns"
+		return 1
+	fi
+
+	# Extract numeric value and unit from duration string
+	value=$(echo "$duration" | sed 's/[^0-9]*$//')
+	unit=$(echo "$duration" | sed 's/^[0-9]*//')
+
+	case "$unit" in
+		ns)
+			nanoseconds=$value
+			;;
+		us|µs)
+			nanoseconds=$((value * 1000))
+			;;
+		ms)
+			nanoseconds=$((value * 1000000))
+			;;
+		s)
+			nanoseconds=$((value * 1000000000))
+			;;
+		*)
+			# this should not happen as the input is already validated
+			ocf_log err "convert_duration_in_nanoseconds: unknown duration unit \"$unit\""
+			return 1
+			;;
+	esac
+
+	echo "$nanoseconds"
+}
+
 prepare_env() {
 	local name ip standalone_node
 
@@ -435,9 +491,14 @@ prepare_env() {
 	ETCDCTL_API=$(get_env_from_manifest "ETCDCTL_API")
 	ETCD_CIPHER_SUITES=$(get_env_from_manifest "ETCD_CIPHER_SUITES")
 	ETCD_DATA_DIR=$(get_env_from_manifest "ETCD_DATA_DIR")
+	if [ ! -d "$ETCD_DATA_DIR" ]; then
+		ocf_log err "could not find data-dir at path \"$ETCD_DATA_DIR\""
+		return $OCF_ERR_GENERIC
+	else
+		ocf_log info "using data-dir: $ETCD_DATA_DIR"
+	fi
 	ETCD_ELECTION_TIMEOUT=$(get_env_from_manifest "ETCD_ELECTION_TIMEOUT")
 	ETCD_ENABLE_PPROF=$(get_env_from_manifest "ETCD_ENABLE_PPROF")
-	ETCD_EXPERIMENTAL_MAX_LEARNERS=$(get_env_from_manifest "ETCD_EXPERIMENTAL_MAX_LEARNERS")
 	ETCD_EXPERIMENTAL_WARNING_APPLY_DURATION=$(get_env_from_manifest "ETCD_EXPERIMENTAL_WARNING_APPLY_DURATION")
 	ETCD_EXPERIMENTAL_WATCH_PROGRESS_NOTIFY_INTERVAL=$(get_env_from_manifest "ETCD_EXPERIMENTAL_WATCH_PROGRESS_NOTIFY_INTERVAL")
 	ETCD_HEARTBEAT_INTERVAL=$(get_env_from_manifest "ETCD_HEARTBEAT_INTERVAL")
@@ -451,6 +512,65 @@ prepare_env() {
 	LISTEN_CLIENT_URLS="0.0.0.0"
 	LISTEN_PEER_URLS="0.0.0.0"
 	LISTEN_METRICS_URLS="0.0.0.0"
+}
+
+
+generate_etcd_configuration() {
+	if is_force_new_cluster; then
+		# The embedded newline is required for correct YAML formatting.
+		FORCE_NEW_CLUSTER_CONFIG="force-new-cluster: true
+force-new-cluster-bump-amount: 1000000000"
+	else
+		FORCE_NEW_CLUSTER_CONFIG="force-new-cluster: false"
+	fi
+
+	cat > "$OCF_RESKEY_etcd_configuration_file" << EOF
+logger: zap
+log-level: info
+snapshot-count: 10000
+name: $NODENAME
+data-dir: $ETCD_DATA_DIR
+$FORCE_NEW_CLUSTER_CONFIG
+socket-reuse-address: $ETCD_SOCKET_REUSE_ADDRESS
+election-timeout: $ETCD_ELECTION_TIMEOUT
+enable-pprof: $ETCD_ENABLE_PPROF
+heartbeat-interval: $ETCD_HEARTBEAT_INTERVAL
+quota-backend-bytes: $ETCD_QUOTA_BACKEND_BYTES
+initial-advertise-peer-urls: "https://${NODEIP}:2380"
+listen-peer-urls: "https://${LISTEN_PEER_URLS}:2380"
+listen-client-urls: "https://${LISTEN_CLIENT_URLS}:2379,unixs://${NODEIP}:0"
+initial-cluster: $ETCD_INITIAL_CLUSTER
+initial-cluster-state: $ETCD_INITIAL_CLUSTER_STATE
+client-transport-security:
+  cert-file: /etc/kubernetes/static-pod-certs/secrets/etcd-all-certs/etcd-serving-${NODENAME}.crt
+  key-file: /etc/kubernetes/static-pod-certs/secrets/etcd-all-certs/etcd-serving-${NODENAME}.key
+  client-cert-auth: true
+  trusted-ca-file: $SERVER_CACERT
+peer-transport-security:
+  cert-file: $ETCD_PEER_CERT
+  key-file: $ETCD_PEER_KEY
+  client-cert-auth: true
+  trusted-ca-file: $SERVER_CACERT
+advertise-client-urls: "https://${NODEIP}:2379"
+listen-client-urls: "https://${LISTEN_CLIENT_URLS}:2379,unixs://${NODEIP}:0"
+listen-peer-urls: "https://${LISTEN_PEER_URLS}:2380"
+listen-metrics-urls: "https://${LISTEN_METRICS_URLS}:9978"
+metrics: extensive
+experimental-initial-corrupt-check: true
+experimental-max-learners: 1
+etcd-socket-reuse-address: $ETCD_SOCKET_REUSE_ADDRESS
+experimental-warning-apply-duration: $(convert_duration_in_nanoseconds "$ETCD_EXPERIMENTAL_WARNING_APPLY_DURATION")
+experimental-watch-progress-notify-interval: $(convert_duration_in_nanoseconds "$ETCD_EXPERIMENTAL_WATCH_PROGRESS_NOTIFY_INTERVAL")
+EOF
+
+	{
+		if [ -n "$ETCD_CIPHER_SUITES" ]; then
+			echo "cipher-suites:"
+			echo "$ETCD_CIPHER_SUITES" | tr ',' '\n' | while read -r cipher; do
+				echo "  - \"$cipher\""
+			done
+		fi
+	} >> "$OCF_RESKEY_etcd_configuration_file"
 }
 
 archive_data_folder()
@@ -1079,18 +1199,18 @@ compare_revision()
 	peer_revision=$(attribute_node_revision_peer)
 
 	if [ "$revision" = "" ] || [ "$revision" = "null" ] || [ "$peer_revision" = "" ] || [ "$peer_revision" = "null" ]; then
-		ocf_log err "could not compare revisions: $NODENAME local revision: $revision, peer revision: $peer_revision"
+		ocf_log err "could not compare revisions: '$NODENAME' local revision='$revision', peer revision='$peer_revision'"
 		return "$OCF_ERR_GENERIC"
 	fi
 
 	if [ "$revision" -gt "$peer_revision" ]; then
-		ocf_log info "$NODENAME revision: $revision is newer than peer revision: $peer_revision"
+		ocf_log info "$NODENAME revision: '$revision' is newer than peer revision: '$peer_revision'"
 		echo "newer"
 	elif [ "$revision" -eq "$peer_revision" ]; then
-		ocf_log info "$NODENAME revision: $revision is equal to peer revision: $peer_revision"
+		ocf_log info "$NODENAME revision: '$revision' is equal to peer revision: '$peer_revision'"
 		echo "equal"
 	else
-		ocf_log info "$NODENAME revision: $revision is older than peer revision: $peer_revision"
+		ocf_log info "$NODENAME revision: '$revision' is older than peer revision: '$peer_revision'"
 		echo "older"
 	fi
 	return "$OCF_SUCCESS"
@@ -1115,6 +1235,76 @@ ensure_pod_manifest_exists()
 		ocf_log err "pod manifest ($OCF_RESKEY_pod_manifest) still missing after $wait_timeout_sec seconds."
 		return "$OCF_ERR_CONFIGURED"
 	fi
+
+	return "$OCF_SUCCESS"
+}
+
+can_reuse_container() {
+	local cp_rc
+	local jq_filter
+	local diff_rc
+
+	# If the container does not exist it cannot be reused
+	if ! container_exists; then 
+		OCF_RESKEY_reuse=0
+		return "$OCF_SUCCESS"
+	fi
+
+	# If the manifest copy doesn't exist, we need a new container.
+	if [ ! -f "$OCF_RESKEY_pod_manifest_copy" ]; then
+		ocf_log info "a working copy of $OCF_RESKEY_pod_manifest was not found. A new etcd container will be created."
+		OCF_RESKEY_reuse=0
+		return "$OCF_SUCCESS"
+	fi
+
+	# Decide whether to reuse the existing container or create a new one based
+	# on etcd pod manifest changes explicitly ignoring the revision, as the content
+	# might be the same even if the revision number has changed.
+	# NOTE: the pod manifest contains some values referred to its REVISION that we want to ignore
+	jq_filter='del(.metadata.labels.revision) | .spec.containers[] |= ( .env |= map(select( .name != "ETCD_STATIC_POD_VERSION" ))) | .spec.volumes |= map( select( .name != "resource-dir" ))'
+
+	ocf_run diff -s <(jq "$jq_filter" "$OCF_RESKEY_pod_manifest") <(jq "$jq_filter" "$OCF_RESKEY_pod_manifest_copy")
+
+	diff_rc="$?"
+	case "$diff_rc" in
+		0)
+			ocf_log info "Reusing the existing etcd container"
+			OCF_RESKEY_reuse=1
+			;;
+		1)
+			ocf_log info "Etcd pod manifest changes detected: creating a new etcd container to apply the changes"
+			if ! ocf_run cp -p "$OCF_RESKEY_pod_manifest" "$OCF_RESKEY_pod_manifest_copy"; then
+				cp_rc="$?"
+				ocf_log err "Could not create a working copy of $OCF_RESKEY_pod_manifest, rc: $cp_rc"
+				return "$OCF_ERR_GENERIC"
+			fi
+			ocf_log info "A working copy of $OCF_RESKEY_pod_manifest was created"
+			OCF_RESKEY_reuse=0
+			;;
+		*)
+			ocf_log err "Could not check if etcd pod manifest has changed, diff rc: $diff_rc"
+			return "$OCF_ERR_GENERIC"
+			;;
+	esac
+
+	return "$OCF_SUCCESS"
+}
+
+ensure_pod_manifest_copy_exists() {
+	local cp_rc
+
+	if [ -f "$OCF_RESKEY_pod_manifest_copy" ]; then
+		return "$OCF_SUCCESS"
+	fi
+
+	# If the manifest copy doesn't exist, create it and ensure a new container.
+	if ! ocf_run cp -p "$OCF_RESKEY_pod_manifest" "$OCF_RESKEY_pod_manifest_copy"; then
+		cp_rc="$?"
+		ocf_log err "Could not create a working copy of $OCF_RESKEY_pod_manifest, rc: $cp_rc"
+		return "$OCF_ERR_GENERIC"
+	fi
+
+	ocf_log info "a new working copy of $OCF_RESKEY_pod_manifest was created"
 
 	return "$OCF_SUCCESS"
 }
@@ -1148,6 +1338,13 @@ podman_start()
 		return $OCF_ERR_GENERIC
 	fi
 
+	# check if the container has already started
+	podman_simple_status
+	if [ $? -eq $OCF_SUCCESS ]; then
+		ocf_log info "the '$CONTAINER' has already started. Nothing to do"
+		return "$OCF_SUCCESS"
+	fi
+
 	if ! ensure_pod_manifest_exists; then
 		ocf_exit_reason "could not find etcd pod manifest ($OCF_RESKEY_pod_manifest)"
 		return "$OCF_ERR_GENERIC"
@@ -1161,8 +1358,9 @@ podman_start()
 		ocf_log info "static pod was running: start normally"
 	else
 		if is_force_new_cluster; then
-			ocf_log notice "$NODENAME marked to force-new-cluster"
+			ocf_log notice "'$NODENAME' marked to force-new-cluster"
 		else
+			ocf_log info "'$NODENAME' is not marked to force-new-cluster"
 			# When the local agent starts, we can infer the cluster state by counting
 			# how many agents are starting or already active:
 			# - 1 active agent: it's the peer (we are just starting)
@@ -1170,6 +1368,7 @@ podman_start()
 			# - 0 active agents, 2 starting: both agents are starting simultaneously
 			local active_resources_count
 			active_resources_count=$(echo "$OCF_RESKEY_CRM_meta_notify_active_resource" | wc -w)
+			ocf_log info "found '$active_resources_count' active etcd resources (meta notify environment variable: '$OCF_RESKEY_CRM_meta_notify_active_resource')"
 			case "$active_resources_count" in
 			1)
 				if [ "$(attribute_learner_node get)" = "$(get_peer_node_name)" ]; then
@@ -1180,17 +1379,17 @@ podman_start()
 				fi
 				;;
 			0)
+				# count how many agents are starting now
+				local start_resources_count
+				start_resources_count=$(echo "$OCF_RESKEY_CRM_meta_notify_start_resource" | wc -w)
+				ocf_log info "found '$start_resources_count' starting etcd resources (meta notify environment variable: '$OCF_RESKEY_CRM_meta_notify_start_resource')"
+
 				# we need to compare the revisions in any of the following branches
 				# so call the function only once here
 				if ! revision_compare_result=$(compare_revision); then
 					ocf_log err "could not compare revisions, error code: $?"
 					return "$OCF_ERR_GENERIC"
 				fi
-
-				# count how many agents are starting now
-				local start_resources_count
-				start_resources_count=$(echo "$OCF_RESKEY_CRM_meta_notify_start_resource" | wc -w)
-
 				case "$start_resources_count" in
 				1)
 					ocf_log debug "peer not starting: ensure we can start a new cluster"
@@ -1206,6 +1405,7 @@ podman_start()
 					fi
 					;;
 				2)
+					# TODO: can we start "normally", regardless the revisions, if the container-id is the same on both nodes?
 					ocf_log info "peer starting"
 					if [ "$revision_compare_result" = "newer" ]; then
 						set_force_new_cluster
@@ -1238,7 +1438,7 @@ podman_start()
 	fi
 
 	podman_create_mounts
-	local run_opts="--detach --name=${CONTAINER}"
+	local run_opts="--detach --name=${CONTAINER} --replace"
 
 	run_opts="$run_opts --oom-score-adj=${OCF_RESKEY_oom}"
 
@@ -1272,61 +1472,59 @@ podman_start()
 		archive_data_folder
 	fi
 
-	prepare_env
+	ocf_log info "check for changes in etcd-pod.yaml to decide if the container should be reused or replaced"
+	if ! can_reuse_container ; then
+		rc="$?"
+		ocf_log err "could not determine etcd container reuse strategy, rc: $rc"
+		return "$rc"
+	fi
 
-	# add etcd-specific opts
+	# Archive current container and its configuration before creating
+	# new configuration files.
+	if ! ocf_is_true "$OCF_RESKEY_reuse"; then
+		# Log archive container failures but don't block, as the priority
+		# is ensuring the etcd container starts successfully.
+		archive_current_container
+	fi
+
+	if ! ensure_pod_manifest_copy_exists; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	if ! prepare_env; then
+		ocf_log err "Could not prepare environment for podman, error code: $?"
+		return $OCF_ERR_GENERIC
+	fi
+
+	if ! generate_etcd_configuration; then
+		ocf_log err "Could not generate etcd configuration, error code: $?"
+		return $OCF_ERR_GENERIC
+	fi
+
 	run_opts="$run_opts \
-		    --network=host \
-		    -v /etc/kubernetes/static-pod-resources/etcd-certs:/etc/kubernetes/static-pod-certs \
-		    -v /var/lib/etcd:/var/lib/etcd \
-		    --env ALL_ETCD_ENDPOINTS=$ALL_ETCD_ENDPOINTS \
-		    --env ETCD_CIPHER_SUITES=$ETCD_CIPHER_SUITES \
-		    --env ETCD_DATA_DIR=$ETCD_DATA_DIR \
-		    --env ETCD_ELECTION_TIMEOUT=$ETCD_ELECTION_TIMEOUT \
-		    --env ETCD_ENABLE_PPROF=$ETCD_ENABLE_PPROF \
-		    --env ETCD_EXPERIMENTAL_MAX_LEARNERS=$ETCD_EXPERIMENTAL_MAX_LEARNERS \
-		    --env ETCD_EXPERIMENTAL_WARNING_APPLY_DURATION=$ETCD_EXPERIMENTAL_WARNING_APPLY_DURATION \
-		    --env ETCD_EXPERIMENTAL_WATCH_PROGRESS_NOTIFY_INTERVAL=$ETCD_EXPERIMENTAL_WATCH_PROGRESS_NOTIFY_INTERVAL \
-		    --env ETCD_HEARTBEAT_INTERVAL=$ETCD_HEARTBEAT_INTERVAL \
-		    --env ETCD_INITIAL_CLUSTER=$ETCD_INITIAL_CLUSTER \
-		    --env ETCD_INITIAL_CLUSTER_STATE=$ETCD_INITIAL_CLUSTER_STATE \
-		    --env ETCD_NAME=$NODENAME \
-		    --env ETCD_QUOTA_BACKEND_BYTES=$ETCD_QUOTA_BACKEND_BYTES \
-		    --env ETCD_SOCKET_REUSE_ADDRESS=$ETCD_SOCKET_REUSE_ADDRESS \
-		    --env ETCDCTL_API=$ETCDCTL_API \
-		    --env ETCDCTL_CACERT=$SERVER_CACERT \
-		    --env ETCDCTL_CERT=$ETCD_PEER_CERT \
-		    --env ETCDCTL_KEY=$ETCD_PEER_KEY \
-		    --authfile=$OCF_RESKEY_authfile \
-		    --security-opt label=disable"
+			--network=host \
+			-v /etc/kubernetes/static-pod-resources/etcd-certs:/etc/kubernetes/static-pod-certs \
+			-v /var/lib/etcd:/var/lib/etcd \
+			--env ETCDCTL_API=$ETCDCTL_API \
+			--env ETCDCTL_CACERT=$SERVER_CACERT \
+			--env ETCDCTL_CERT=$ETCD_PEER_CERT \
+			--env ETCDCTL_KEY=$ETCD_PEER_KEY \
+			--authfile=$OCF_RESKEY_authfile \
+			--security-opt label=disable"
 	if [ -n "$OCF_RESKEY_run_opts" ]; then
 		run_opts="$run_opts $OCF_RESKEY_run_opts"
 	fi
 
-	OCF_RESKEY_run_cmd="$OCF_RESKEY_run_cmd --logger=zap \
-		    --log-level=info \
-		    --experimental-initial-corrupt-check=true \
-		    --snapshot-count=10000 \
-		    --initial-advertise-peer-urls=https://${NODEIP}:2380 \
-		    --cert-file=/etc/kubernetes/static-pod-certs/secrets/etcd-all-certs/etcd-serving-${NODENAME}.crt \
-		    --key-file=/etc/kubernetes/static-pod-certs/secrets/etcd-all-certs/etcd-serving-${NODENAME}.key \
-		    --trusted-ca-file=$SERVER_CACERT \
-		    --client-cert-auth=true \
-		    --peer-cert-file=$ETCD_PEER_CERT \
-		    --peer-key-file=$ETCD_PEER_KEY \
-		    --peer-trusted-ca-file=$SERVER_CACERT \
-		    --peer-client-cert-auth=true \
-		    --advertise-client-urls=https://${NODEIP}:2379 \
-		    --listen-client-urls=https://${LISTEN_CLIENT_URLS}:2379,unixs://${NODEIP}:0 \
-		    --listen-peer-urls=https://${LISTEN_PEER_URLS}:2380 \
-		    --metrics=extensive \
-		    --listen-metrics-urls=https://${LISTEN_METRICS_URLS}:9978"
-	if [ -n "$OCF_RESKEY_run_cmd_opts" ]; then
-		OCF_RESKEY_run_cmd="$OCF_RESKEY_run_cmd $OCF_RESKEY_run_cmd_opts"
+	if [ -f  "$OCF_RESKEY_etcd_configuration_file" ]; then
+		ocf_log info "using etcd configuration file: $OCF_RESKEY_etcd_configuration_file"
+	else
+		ocf_log err "could not find $OCF_RESKEY_etcd_configuration_file"
+		return "$OCF_ERR_GENERIC"
 	fi
 
-	if is_force_new_cluster; then
-		OCF_RESKEY_run_cmd="$OCF_RESKEY_run_cmd --force-new-cluster"
+	OCF_RESKEY_run_cmd="$OCF_RESKEY_run_cmd --config-file=$OCF_RESKEY_etcd_configuration_file"
+	if [ -n "$OCF_RESKEY_run_cmd_opts" ]; then
+		OCF_RESKEY_run_cmd="$OCF_RESKEY_run_cmd $OCF_RESKEY_run_cmd_opts"
 	fi
 
 	if [ "$OCF_RESKEY_image" = "$OCF_RESKEY_image_default" ]; then
@@ -1352,9 +1550,7 @@ podman_start()
 		ocf_log info "starting existing container $CONTAINER."
 		ocf_run podman start "$CONTAINER"
 	else
-		# make sure any previous container matching our container name is cleaned up first.
-		# we already know at this point it wouldn't be running
-		remove_container
+		ocf_log info "starting new container $CONTAINER."
 		run_new_container "$run_opts" "$OCF_RESKEY_image" "$OCF_RESKEY_run_cmd"
 		if [ $? -eq 125 ]; then
 			return $OCF_ERR_GENERIC
@@ -1414,7 +1610,6 @@ podman_stop()
 	local rc
 	podman_simple_status
 	if [ $? -eq  $OCF_NOT_RUNNING ]; then
-		remove_container
 		ocf_log info "could not leave members list: etcd container not running"
 		return $OCF_SUCCESS
 	fi
@@ -1450,7 +1645,7 @@ podman_stop()
 		ocf_run podman kill "$CONTAINER"
 		rc=$?
 	else
-		ocf_log debug "waiting $timeout second[s] before killing container"
+		ocf_log info "waiting $timeout second[s] before killing container"
 		ocf_run podman stop -t="$timeout" "$CONTAINER"
 		rc=$?
 		# on stop, systemd will automatically delete any transient
@@ -1469,11 +1664,6 @@ podman_stop()
 			ocf_exit_reason "Failed to stop container, ${CONTAINER}, based on image, ${OCF_RESKEY_image}."
 			return $OCF_ERR_GENERIC
 		fi
-	fi
-
-	if ! remove_container; then
-		ocf_exit_reason "Failed to remove stopped container, ${CONTAINER}, based on image, ${OCF_RESKEY_image}."
-		return $OCF_ERR_GENERIC
 	fi
 
 	return $OCF_SUCCESS
@@ -1507,6 +1697,7 @@ podman_validate()
 	check_binary oc
 	check_binary podman
 	check_binary jq
+	check_binary tar
 
 	if [ -z "$OCF_RESKEY_node_ip_map" ]; then
 		ocf_exit_reason "'node_ip_map' option is required"
