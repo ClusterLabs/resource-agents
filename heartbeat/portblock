@@ -86,8 +86,8 @@ usage()
 	NOTE: iptables is Linux-specific.
 
 	An additional feature in the portblock RA is the tickle ACK function
-	enabled by specifying the tickle_dir parameter. The tickle ACK 
-	triggers the clients to faster reconnect their TCP connections to the 
+	enabled by specifying the tickle_dir parameter. The tickle ACK
+	triggers the clients to faster reconnect their TCP connections to the
 	fail-overed server.
 
 	Please note that this feature is often used for the floating IP fail-
@@ -95,7 +95,7 @@ usage()
 	It doesn't support the cluster alias IP scenario.
 
 	When using the tickle ACK function, in addition to the normal usage
-	of portblock RA, the parameter tickle_dir must be specified in the 
+	of portblock RA, the parameter tickle_dir must be specified in the
 	action=unblock instance of the portblock resources.
 	For example, you may stack resources like below:
 		portblock action=block
@@ -103,18 +103,18 @@ usage()
 		portblock action=unblock tickle_dir=/tickle/state/dir
 
 	If you want to tickle all the TCP connections which connected to _one_
-	floating IP but different ports, no matter how many portblock resources 
-	you have defined, you should enable tickles for _one_ portblock 
+	floating IP but different ports, no matter how many portblock resources
+	you have defined, you should enable tickles for _one_ portblock
 	resource(action=unblock) only.
-	
-	The tickle_dir is a location which stores the established TCP 
-	connections. It can be a shared directory(which is cluster-visible to 
+
+	The tickle_dir is a location which stores the established TCP
+	connections. It can be a shared directory(which is cluster-visible to
 	all nodes) or a local directory.
 	If you use the shared directory, you needn't do any other things.
 	If you use the local directory, you must also specify the sync_script
 	paramater. We recommend you to use csync2 as the sync_script.
-	For example, if you use the local directory /tmp/tickle as tickle_dir, 
-	you could setup the csync2 as the csync2 documentation says and 
+	For example, if you use the local directory /tmp/tickle as tickle_dir,
+	you could setup the csync2 as the csync2 documentation says and
 	configure your /etc/csync2/csync2.cfg like:
 		group ticklegroup {
 		  host node1;
@@ -202,7 +202,7 @@ The IP address used to be blocked/unblocked.
 
 <parameter name="tickle_dir" unique="0" required="0">
 <longdesc lang="en">
-The shared or local directory (_must_ be absolute path) which 
+The shared or local directory (_must_ be absolute path) which
 stores the established TCP connections.
 </longdesc>
 <shortdesc lang="en">Tickle directory</shortdesc>
@@ -244,7 +244,6 @@ If "both" is used, both the incoming and outgoing ports are blocked.
 </resource-agent>
 END
 }
-
 
 #
 #	Because this is the normal usage, we consider "block"
@@ -592,25 +591,28 @@ then
 fi
 
 case $1 in
-  meta-data)		meta_data
-			exit $OCF_SUCCESS
-			;;
-
-  usage)		usage
-			exit $OCF_SUCCESS
-			;;
-  *)			;;
+  meta-data)
+    meta_data
+    exit $OCF_SUCCESS
+    ;;
+  usage)
+    usage
+    exit $OCF_SUCCESS
+    ;;
+  *)
+    ;;
 esac
 
+# Validate required parameters
 if [ -z "$OCF_RESKEY_protocol" ]; then
   ocf_log err "Please set OCF_RESKEY_protocol"
   exit $OCF_ERR_CONFIGURED
-fi 
+fi
 
 if [ -z "$OCF_RESKEY_portno" ]; then
   ocf_log err "Please set OCF_RESKEY_portno"
   exit $OCF_ERR_CONFIGURED
-fi 
+fi
 
 if [ -z "$OCF_RESKEY_action" ]; then
   ocf_log err "Please set OCF_RESKEY_action"
@@ -626,6 +628,7 @@ else
     wait=""
 fi
 
+# Set up variables
 protocol=$OCF_RESKEY_protocol
 portno=$OCF_RESKEY_portno
 direction=$OCF_RESKEY_direction
@@ -642,7 +645,7 @@ if [ -n "$OCF_RESKEY_tickle_dir" ] ; then
 	elif have_binary netstat ; then
 		ss_or_netstat="netstat -tn"
 	else
-		ocf_log err "Neither ss nor netstat found, but needed to record estblished connections."
+		ocf_log err "Neither ss nor netstat found, but needed to record established connections."
 		exit $OCF_ERR_INSTALLED
 	fi
 fi
@@ -664,9 +667,10 @@ case $1 in
 			IptablesValidateAll
 			;;
 
-  *)			usage
-			exit $OCF_ERR_UNIMPLEMENTED
-			;;
+  *)
+    usage
+    exit $OCF_ERR_UNIMPLEMENTED
+    ;;
 esac
 
 exit $?
