@@ -40,10 +40,12 @@
 # Parameter defaults
 
 OCF_RESKEY_instance_default=""
+OCF_RESKEY_skip_basic_sql_health_check_default="false"
 OCF_RESKEY_admin_default=""
 OCF_RESKEY_dbpartitionnum_default="0"
 
 : ${OCF_RESKEY_instance=${OCF_RESKEY_instance_default}}
+: ${OCF_RESKEY_skip_basic_sql_health_check=${OCF_RESKEY_skip_basic_sql_health_check_default}}
 : ${OCF_RESKEY_admin=${OCF_RESKEY_admin_default}}
 : ${OCF_RESKEY_dbpartitionnum=${OCF_RESKEY_dbpartitionnum_default}}
 
@@ -101,6 +103,15 @@ Defaults to all databases in the instance. Specify one db for HADR mode.
 </longdesc>
 <shortdesc lang="en">List of databases to be managed</shortdesc>
 <content type="string"/>
+</parameter>
+<parameter name="skip_basic_sql_health_check" unique="0" required="0">
+<longdesc lang="en">
+Skip basic health check SQL query.
+
+Only set to "true" to avoid issues during high load.
+</longdesc>
+<shortdesc lang="en">Skip basic health check SQL query</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_skip_basic_sql_health_check_default}" />
 </parameter>
 <parameter name="admin" unique="0" required="0">
 <longdesc lang="en">
@@ -695,31 +706,33 @@ db2_monitor() {
         # set master preference accordingly
         case "$hadr" in
             PRIMARY/*|Primary/*|Standard/*)
-            # perform  a basic health check
-            CMD="if db2 connect to $db;
-            then 
-                db2 select \* from sysibm.sysversions ; rc=\$?;
-                db2 terminate;
-            else
-                rc=\$?;
-            fi;
-            exit \$rc"
+            if ! ocf_is_true "$OCF_RESKEY_skip_basic_sql_health_check"; then
+                # perform  a basic health check
+                CMD="if db2 connect to $db;
+                then
+                    db2 select \* from sysibm.sysversions ; rc=\$?;
+                    db2 terminate;
+                else
+                    rc=\$?;
+                fi;
+                exit \$rc"
 
-            if ! output=$(runasdb2 $CMD)
-            then
-                case "$output" in
-                    SQL1776N*)
-                    # can't connect/select on standby, may be spurious turing takeover
-                    ;;
+                if ! output=$(runasdb2 $CMD)
+                then
+                    case "$output" in
+                        SQL1776N*)
+                        # can't connect/select on standby, may be spurious turing takeover
+                        ;;
 
-                    *)
-                    ocf_log err "DB2 database $instance($db2node)/$db is not working"
-                    ocf_log err "DB2 message: $output"
+                        *)
+                        ocf_log err "DB2 database $instance($db2node)/$db is not working"
+                        ocf_log err "DB2 message: $output"
 
-                    # dead primary, remove master score
-                    master_score -D -l reboot
-                    return $OCF_ERR_GENERIC
-                esac
+                        # dead primary, remove master score
+                        master_score -D -l reboot
+                        return $OCF_ERR_GENERIC
+                    esac
+                fi
             fi
 
             ocf_log debug "DB2 database $instance($db2node)/$db appears to be working"
