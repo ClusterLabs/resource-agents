@@ -678,7 +678,7 @@ bridge_start() {
 		mcrouter=0
 	fi
 	if [ -e "/sys/class/net/$OCF_RESKEY_bridge_name/bridge/multicast_router" ]; then
-		error="$(echo $mcrouter > /sys/class/net/$OCF_RESKEY_bridge_name/bridge/multicast_router 2>&1)"
+		error="$(echo $mcrouter 2>&1 >/sys/class/net/$OCF_RESKEY_bridge_name/bridge/multicast_router)"
 		if [ "$?" != "0" ]; then
 			ocf_log err "Unable to set OCF_RESKEY_multicast_router for bridge $OCF_RESKEY_bridge_name: $error"
 			return $OCF_ERR_GENERIC
@@ -694,7 +694,7 @@ bridge_start() {
 		mcsnooping=0
 	fi
 	if [ -e "/sys/class/net/$OCF_RESKEY_bridge_name/bridge/multicast_snooping" ]; then
-		error="$(echo $mcsnooping > /sys/class/net/$OCF_RESKEY_bridge_name/bridge/multicast_snooping 2>&1)"
+		error="$(echo $mcsnooping 2>&1 >/sys/class/net/$OCF_RESKEY_bridge_name/bridge/multicast_snooping)"
 		if [ "$?" != "0" ]; then
 			ocf_log err "Unable to set OCF_RESKEY_multicast_snooping for bridge $OCF_RESKEY_bridge_name: $error"
 			return $OCF_ERR_GENERIC
@@ -710,7 +710,7 @@ bridge_start() {
 		mcquerier=0
 	fi
 	if [ -e "/sys/class/net/$OCF_RESKEY_bridge_name/bridge/multicast_querier" ]; then
-		error="$(echo $mcquerier > /sys/class/net/$OCF_RESKEY_bridge_name/bridge/multicast_querier 2>&1)"
+		error="$(echo $mcquerier 2>&1 >/sys/class/net/$OCF_RESKEY_bridge_name/bridge/multicast_querier)"
 		if [ "$?" != "0" ]; then
 			ocf_log err "Unable to set OCF_RESKEY_multicast_querier for bridge $OCF_RESKEY_bridge_name: $error"
 			return $OCF_ERR_GENERIC
@@ -723,7 +723,7 @@ bridge_start() {
 	if [ -n "$OCF_RESKEY_multicast_port_router" ]; then
 		split_string $OCF_RESKEY_multicast_port_router | { while read iface mcport; do
 			if [ -e "/sys/class/net/$iface/brport/multicast_router" ]; then
-				error="$(echo $mcport > /sys/class/net/$iface/brport/multicast_router 2>&1)"
+				error="$(echo $mcport 2>&1 >/sys/class/net/$iface/brport/multicast_router)"
 				if [ "$?" != "0" ]; then
 					ocf_log err "Unable to set OCF_RESKEY_multicast_port_router $mcport for interface $iface on bridge $OCF_RESKEY_bridge_name : $error"
 					return $OCF_ERR_GENERIC

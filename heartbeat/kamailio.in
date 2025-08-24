@@ -477,20 +477,20 @@ kamailio_status() {
 
     errorfile=`mktemp`
     case ${OCF_RESKEY_proto} in
-    udp)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp>/dev/null 2>>$errorfile`
+    udp)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp 2>>$errorfile`
           result=$?
           ;;
-    tcp)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport tcp>/dev/null 2>>$errorfile`
+    tcp)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport tcp 2>>$errorfile`
           result=$?
           ;;
-    udptcp) output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport tcp>/dev/null 2>>$errorfile`
+    udptcp) output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport tcp 2>>$errorfile`
             result=$?
             if [ $result -eq 0 ]; then
-                output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp>/dev/null 2>>$errorfile`
+                output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp 2>>$errorfile`
                 result=$?
             fi
             ;;
-    *)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp>/dev/null 2>>$errorfile`
+    *)  output=`$OCF_RESKEY_sipsak -s sip:monitor@$OCF_RESKEY_monitoring_ip:${OCF_RESKEY_port} -H localhost --transport udp 2>>$errorfile`
         result=$?
         ;;
     esac
