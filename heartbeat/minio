@@ -123,7 +123,7 @@ minio_status()
         # Minio is probably running
                 PID=`head -n 1 $OCF_RESKEY_pidfile`
                 if [ ! -z "$PID" ] ; then
-                        isRunning "$PID" && `ps -p $PID | grep minio-server > /dev/null 2>&1`
+                        isRunning "$PID" && ps -p $PID | grep minio-server > /dev/null 2>&1
                         return $?
                 fi
         fi

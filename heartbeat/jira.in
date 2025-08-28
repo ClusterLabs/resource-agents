@@ -75,7 +75,7 @@ jira_start() {
     waittime=300
     su -m $jira_user -c "$jira_installation/bin/startup.sh &> /dev/null"
     while [[ $waittime -gt 0 ]]; do
-      if $(curl --connect-timeout 1 --max-time 3 -s ${statusurl} | grep '{"state":"RUNNING"}' > /dev/null); then
+      if curl --connect-timeout 1 --max-time 3 -s ${statusurl} | grep '{"state":"RUNNING"}' > /dev/null; then
         waittime=0
       else
         sleep 1
@@ -146,7 +146,7 @@ jira_monitor() {
 
     if $(kill -0 $(cat ${jira_installation}/work/catalina.pid 2> /dev/null) 2> /dev/null) ; then
       # Is jira working
-      if $(curl --connect-timeout 1 --max-time 3 -s ${statusurl} | grep '{"state":"RUNNING"}' > /dev/null) ; then
+      if curl --connect-timeout 1 --max-time 3 -s ${statusurl} | grep '{"state":"RUNNING"}' > /dev/null; then
         rc=0
       else
         # Jira has a problem
