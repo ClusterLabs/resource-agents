@@ -264,7 +264,7 @@ set_exec_mode()
 	##
 	# If the user defined an init script, It must exist for us to continue
 	##
-	if ! $systemd_is_running && [ -n "$OCF_RESKEY_nfs_init_script" ]; then
+	if [ $systemd_running -ne 0 ] && [ -n "$OCF_RESKEY_nfs_init_script" ]; then
 		# check_binary will exit the process if init script does not exist
 		check_binary ${OCF_RESKEY_nfs_init_script}
 		EXEC_MODE=1
@@ -274,7 +274,7 @@ set_exec_mode()
 	##
 	# Check to see if the default init script exists, if so we'll use that.
 	##
-	if ! $systemd_is_running && which $DEFAULT_INIT_SCRIPT > /dev/null 2>&1; then
+	if [ $systemd_running -ne 0 ] && which $DEFAULT_INIT_SCRIPT > /dev/null 2>&1; then
 		OCF_RESKEY_nfs_init_script=$DEFAULT_INIT_SCRIPT
 		EXEC_MODE=1
 		return 0
@@ -780,7 +780,7 @@ nfsserver_start ()
 	# the uts namespace is useless in that case.
 	# If systemd is running, mangle the nfs-server.service unit,
 	# independent of the "EXEC_MODE" we detected.
-	if $systemd_is_running ; then
+	if [ $systemd_running -eq 0 ]; then
 		if [ -z "$OCF_RESKEY_nfs_server_scope" ] ; then
 			remove_unshare_uts_dropins
 		else
@@ -789,7 +789,9 @@ nfsserver_start ()
 	fi
 
 	if ! `mount | grep -q " on $OCF_RESKEY_rpcpipefs_dir "`; then
-		mount -t rpc_pipefs sunrpc $OCF_RESKEY_rpcpipefs_dir
+		if [ $systemd_running -ne 0 ] || { [ $systemd_running -eq 0 ] && systemctl -q is-enabled var-lib-nfs-rpc_pipefs.mount ;}; then
+			mount -t rpc_pipefs sunrpc $OCF_RESKEY_rpcpipefs_dir
+		fi
 	fi
 
 	# remove the sm-notify pid so sm-notify will be allowed to run again without requiring a reboot.
@@ -1003,11 +1005,15 @@ nfsserver_stop ()
 		fi
 	fi
 
-	# systemd
-	case $EXEC_MODE in
-            [23]) nfs_exec stop rpc-gssd > /dev/null 2>&1
-		  ocf_log info "Stop: rpc-gssd"
-	esac
+
+	if mount | grep -q " on $OCF_RESKEY_rpcpipefs_dir "; then
+		# systemd
+		case $EXEC_MODE in
+			[23])
+				nfs_exec stop rpc-gssd > /dev/null 2>&1
+				ocf_log info "Stop: rpc-gssd"
+		esac
+	fi
 
 	unbind_tree
 	rc=$?
@@ -1017,7 +1023,7 @@ nfsserver_stop ()
 		ocf_log info "NFS server stopped"
 	fi
 
-	if $systemd_is_running; then
+	if [ $systemd_running -eq 0 ]; then
 		remove_unshare_uts_dropins
 	fi
 
@@ -1057,7 +1063,7 @@ nfsserver_validate ()
 }
 
 nfsserver_validate
-systemd_is_running && systemd_is_running=true || systemd_is_running=false
+systemd_is_running; systemd_running=$?
 
 case $__OCF_ACTION in
 	start)      nfsserver_start
