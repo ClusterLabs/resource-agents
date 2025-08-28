@@ -347,21 +347,41 @@ remove_container()
 	return $rc
 }
 
+# Correctly wraps an ipv6 in [] for url otherwise use return normal ipv4 address.
+ip_url() {
+	local ip_addr=$1
+	local value
+	if echo "$ip_addr" | grep -q ":" ; then
+		value="[$ip_addr]"
+	else
+		value="$ip_addr"
+	fi
+	echo "https://$value"
+}
+
 attribute_node_ip()
 {
 	local action="$1"
 	local attribute="node_ip"
-	local value
+	local ip_addr name
 
-	if ! value=$(ip -brief addr show "$OCF_RESKEY_nic" | awk '{gsub("/.*", "", $3); print $3}'); then
-		rc=$?
-		ocf_log err "could not get node ip, error code: $rc"
-		return "$rc"
+	for node in $(echo "$OCF_RESKEY_node_ip_map" | sed "s/\s//g;s/;/ /g"); do
+		name=$(echo "$node" | cut -d: -f1)
+		# ignore other nodes
+		if [ "$name" != "$NODENAME" ]; then
+			continue
+		fi
+		ip_addr=$(echo "$node" | cut -d: -f2-) # Grab everything after the first : this covers ipv4/ipv6
+	done
+
+	if [ -z "$ip_addr" ]; then
+		ocf_log err "ip address was empty when querying (getent ahosts) for hostname: $(hostname -f)"
+		return 1
 	fi
 
 	case "$action" in
 		get)
-			echo "$value"
+			echo "$ip_addr"
 			;;
 		update)
 			if ! crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"; then
@@ -409,26 +429,28 @@ get_env_from_manifest() {
 }
 
 prepare_env() {
-	local name ip standalone_node
+	local name ip ipurl standalone_node
 
 	NODEIP="$(attribute_node_ip get)"
+	NODEIPURL=$(ip_url $NODEIP)
 
 	if is_force_new_cluster; then
-		ALL_ETCD_ENDPOINTS="https://$NODEIP:2379"
+		ALL_ETCD_ENDPOINTS="$NODEIPURL:2379"
 		ETCD_INITIAL_CLUSTER_STATE="new"
-		ETCD_INITIAL_CLUSTER="$NODENAME=https://$NODEIP:2380"
+		ETCD_INITIAL_CLUSTER="$NODENAME=$NODEIPURL:2380"
 	else
 		ETCD_INITIAL_CLUSTER_STATE="existing"
 		for node in $(echo "$OCF_RESKEY_node_ip_map" | sed "s/\s//g;s/;/ /g"); do
-			name=$(echo "$node" | awk -F":" '{print $1}')
-			ip=$(echo "$node" | awk -F":" '{print $2}')
+            name=$(echo "$node" | cut -d: -f1)
+            ip=$(echo "$node" | cut -d: -f2-) # Grab everything after the first : this covers ipv4/ipv6
+			ipurl="$(ip_url $ip)"
 			if [ -z "$name" ] || [ -z "$ip" ]; then
 				ocf_exit_reason "name or ip missing for 1 or more nodes"
 				exit $OCF_ERR_CONFIGURED
 			fi
 
-			[ -z "$ALL_ETCD_ENDPOINTS" ] && ALL_ETCD_ENDPOINTS="https://$ip:2379" || ALL_ETCD_ENDPOINTS="$ALL_ETCD_ENDPOINTS,https://$ip:2379"
-			[ -z "$ETCD_INITIAL_CLUSTER" ] && ETCD_INITIAL_CLUSTER="$name=https://$ip:2380" || ETCD_INITIAL_CLUSTER="$ETCD_INITIAL_CLUSTER,$name=https://$ip:2380"
+			[ -z "$ALL_ETCD_ENDPOINTS" ] && ALL_ETCD_ENDPOINTS="$ipurl:2379" || ALL_ETCD_ENDPOINTS="$ALL_ETCD_ENDPOINTS,$ipurl:2379"
+			[ -z "$ETCD_INITIAL_CLUSTER" ] && ETCD_INITIAL_CLUSTER="$name=$ipurl:2380" || ETCD_INITIAL_CLUSTER="$ETCD_INITIAL_CLUSTER,$name=$ipurl:2380"
 		done
 	fi
 
@@ -609,9 +631,11 @@ add_member_as_learner()
 	local rc
 	local member_name=$1
 	local member_ip=$2
+	local endpoint_url=$(ip_url $(attribute_node_ip get))
+	local peer_url=$(ip_url $member_ip)
 
 	ocf_log info "add $member_name ($member_ip) to the member list as learner"
-	out=$(podman exec "${CONTAINER}" etcdctl --endpoints="https://$(attribute_node_ip get):2379" member add "$member_name" --peer-urls="https://$member_ip:2380" --learner)
+	out=$(podman exec "${CONTAINER}" etcdctl --endpoints="$endpoint_url:2379" member add "$member_name" --peer-urls="$peer_url:2380" --learner)
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		ocf_log err "could not add $member_name as learner, error code: $rc"
@@ -806,14 +830,15 @@ get_peer_node_name() {
 
 get_all_etcd_endpoints() {
 	for node in $(echo "$OCF_RESKEY_node_ip_map" | sed "s/\s//g;s/;/ /g"); do
-		name=$(echo "$node" | awk -F":" '{print $1}')
-		ip=$(echo "$node" | awk -F":" '{print $2}')
+        name=$(echo "$node" | cut -d: -f1)
+        ip=$(echo "$node" | cut -d: -f2-) # Grab everything after the first : this covers ipv4/ipv6
+		ipurl="$(ip_url $ip)"
 		if [ -z "$name" ] || [ -z "$ip" ]; then
 			ocf_exit_reason "name or ip missing for 1 or more nodes"
 			exit $OCF_ERR_CONFIGURED
 		fi
 
-		[ -z "$ALL_ETCD_ENDPOINTS" ] && ALL_ETCD_ENDPOINTS="https://$ip:2379" || ALL_ETCD_ENDPOINTS="$ALL_ETCD_ENDPOINTS,https://$ip:2379"
+		[ -z "$ALL_ETCD_ENDPOINTS" ] && ALL_ETCD_ENDPOINTS="$ipurl:2379" || ALL_ETCD_ENDPOINTS="$ALL_ETCD_ENDPOINTS,$ipurl:2379"
 	done
 	echo "$ALL_ETCD_ENDPOINTS"
 }
@@ -831,7 +856,7 @@ get_member_list_json() {
 	# Get the list of members visible to the current node
 	local this_node_endpoint
 
-	this_node_endpoint="https://$(attribute_node_ip get):2379"
+	this_node_endpoint="$(ip_url $(attribute_node_ip get)):2379"
 	podman exec "${CONTAINER}" etcdctl member list --endpoints="$this_node_endpoint" -w json
 }
 
@@ -886,14 +911,14 @@ check_peers()
 	#   ]
 	# }
 	for node in $(echo "$OCF_RESKEY_node_ip_map" | sed "s/\s//g;s/;/ /g"); do
-		name=$(echo "$node" | awk -F":" '{print $1}')
+		name=$(echo "$node" | cut -d: -f1)
 		# do not check itself
 		if [ "$name" = "$NODENAME" ]; then
 			continue
 		fi
 
 		# Check by IP instead of Name since "learner" members appear only in peerURLs, not by Name.
-		ip=$(echo "$node" | awk -F":" '{print $2}')
+		ip=$(echo "$node" | cut -d: -f2-) # Grab everything after the first : this covers ipv4/ipv6
 		id=$(printf "%s" "$member_list_json" | jq -r ".members[] | select( .peerURLs | map(test(\"$ip\")) | any).ID")
 		if [ -z "$id" ]; then
 			ocf_log info "$name is not in the members list"
@@ -1307,7 +1332,7 @@ podman_start()
 		    --log-level=info \
 		    --experimental-initial-corrupt-check=true \
 		    --snapshot-count=10000 \
-		    --initial-advertise-peer-urls=https://${NODEIP}:2380 \
+		    --initial-advertise-peer-urls=$NODEIPURL:2380 \
 		    --cert-file=/etc/kubernetes/static-pod-certs/secrets/etcd-all-certs/etcd-serving-${NODENAME}.crt \
 		    --key-file=/etc/kubernetes/static-pod-certs/secrets/etcd-all-certs/etcd-serving-${NODENAME}.key \
 		    --trusted-ca-file=$SERVER_CACERT \
@@ -1316,11 +1341,11 @@ podman_start()
 		    --peer-key-file=$ETCD_PEER_KEY \
 		    --peer-trusted-ca-file=$SERVER_CACERT \
 		    --peer-client-cert-auth=true \
-		    --advertise-client-urls=https://${NODEIP}:2379 \
-		    --listen-client-urls=https://${LISTEN_CLIENT_URLS}:2379,unixs://${NODEIP}:0 \
-		    --listen-peer-urls=https://${LISTEN_PEER_URLS}:2380 \
+		    --advertise-client-urls=$NODEIPURL:2379 \
+		    --listen-client-urls=$(ip_url ${LISTEN_CLIENT_URLS}):2379,unixs://${NODEIP}:0 \
+		    --listen-peer-urls=$(ip_url ${LISTEN_PEER_URLS}):2380 \
 		    --metrics=extensive \
-		    --listen-metrics-urls=https://${LISTEN_METRICS_URLS}:9978"
+		    --listen-metrics-urls=$(ip_url ${LISTEN_METRICS_URLS}):9978"
 	if [ -n "$OCF_RESKEY_run_cmd_opts" ]; then
 		OCF_RESKEY_run_cmd="$OCF_RESKEY_run_cmd $OCF_RESKEY_run_cmd_opts"
 	fi
@@ -1430,7 +1455,7 @@ podman_stop()
 			ocf_log info "last member. Not leaving the member list"
 		else
 			ocf_log info "leaving members list as member with ID $member_id"
-			endpoint="https://$(attribute_node_ip get):2379"
+			endpoint="$(ip_url $(attribute_node_ip get)):2379"
 			if ! ocf_run podman exec "$CONTAINER" etcdctl member remove "$member_id" --endpoints="$endpoint"; then
 				rc=$?
 				ocf_log err "error leaving members list, error code: $rc"
