@@ -352,11 +352,27 @@ attribute_node_ip()
 	local action="$1"
 	local attribute="node_ip"
 	local value
+	local ip_addr
 
-	if ! value=$(ip -brief addr show "$OCF_RESKEY_nic" | awk '{gsub("/.*", "", $3); print $3}'); then
+	# Get the first IP address from the ahosts database, this will get us a list of address
+	# with IPV6 being first, so we just need to grab the first element and exit, since we prefer
+	# IPV6 during DualStack deployments.
+	if ! ip_addr=$(getent ahosts $(hostname -f) | awk '{print $1; exit}'); then
 		rc=$?
 		ocf_log err "could not get node ip, error code: $rc"
 		return "$rc"
+	fi
+
+	if [ -z "$ip_addr" ]; then
+		ocf_log err "ip address was empty when querying (getent ahosts) for hostname: $(hostname -f)"
+		return 1
+	fi
+
+	# Check if the IP is IPv6 (contains a colon) and wrap it in brackets for URL usage.
+	if [ $ip_addr == *":"* ]; then
+		value="[$ip_addr]"
+	else
+		value="$ip_addr"
 	fi
 
 	case "$action" in
