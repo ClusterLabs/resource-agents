@@ -449,6 +449,32 @@ is_option() {
 	echo "$OCF_RESKEY_options" | grep -w "$1" >/dev/null 2>&1
 }
 
+is_selinux_enabled() {
+	local status
+
+	which getenforce > /dev/null 2>&1 || return
+	status="$(getenforce)"
+
+	case "$status" in
+		Permissive|Enforcing)
+			true;;
+		Disabled)
+			false;;
+		*)
+			false;;
+	esac
+}
+
+selinux_option_check() {
+	is_selinux_enabled || return 0
+
+	case "$FSTYPE" in
+		gfs2)
+			! is_option "context" &&
+				ocf_log warn "Mount GFS2 with selinux without 'context' option may cause small performance drop!";;
+	esac
+}
+
 is_fsck_needed() {
 	case $OCF_RESKEY_run_fsck in
 		force) true;;
@@ -1150,6 +1176,8 @@ esac
 CLUSTERSAFE=0
 is_option "ro" &&
 	CLUSTERSAFE=2
+
+selinux_option_check
 
 case "$FSTYPE" in
 nfs4|nfs|aznfs|efs|smbfs|cifs|none|gfs2|glusterfs|ceph|ocfs2|overlay|overlayfs|tmpfs|cvfs|lustre)
