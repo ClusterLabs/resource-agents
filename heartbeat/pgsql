@@ -1990,6 +1990,16 @@ validate_ocf_check_level_10() {
         fi
     fi
 
+    # For slave mode in PostgreSQL 12 and later, create the tmp directory to place recovery.conf.
+    ocf_version_cmp "$version" "12"
+    rc=$?
+    if [ $rc -eq 1 ]||[ $rc -eq 2 ]; then  # PosrgreSQL 12 or later.
+        if ! mkdir -p $OCF_RESKEY_tmpdir || ! chown $OCF_RESKEY_pgdba $OCF_RESKEY_tmpdir || ! chmod 700 $OCF_RESKEY_tmpdir; then
+            ocf_exit_reason "Can't create directory $OCF_RESKEY_tmpdir or it is not readable by $OCF_RESKEY_pgdba"
+            return $OCF_ERR_PERM
+        fi
+    fi
+
     if use_replication_slot; then
         ocf_version_cmp "$version" "9.4"
         rc=$?
