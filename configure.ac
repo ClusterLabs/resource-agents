@@ -560,6 +560,13 @@ if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0; then
 fi
 AM_CONDITIONAL(BUILD_GCP_VPC_MOVE_VIP, test $BUILD_GCP_VPC_MOVE_VIP -eq 1)
 
+BUILD_POWERVS_MOVE_IP=1
+if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0 || test "x${HAVE_PYMOD_REQUESTS}" != xyes || test "x${HAVE_PYMOD_URLLIB3}" != xyes; then
+    BUILD_POWERVS_MOVE_IP=0
+    AC_MSG_WARN("Not building powervs-move-ip")
+fi
+AM_CONDITIONAL(BUILD_POWERVS_MOVE_IP, test $BUILD_POWERVS_MOVE_IP -eq 1)
+
 BUILD_POWERVS_SUBNET=1
 if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0 || test "x${HAVE_PYMOD_REQUESTS}" != xyes || test "x${HAVE_PYMOD_URLLIB3}" != xyes; then
     BUILD_POWERVS_SUBNET=0
@@ -1044,6 +1051,7 @@ AC_CONFIG_FILES([heartbeat/mariadb], [chmod +x heartbeat/mariadb])
 AC_CONFIG_FILES([heartbeat/mpathpersist], [chmod +x heartbeat/mpathpersist])
 AC_CONFIG_FILES([heartbeat/nfsnotify], [chmod +x heartbeat/nfsnotify])
 AC_CONFIG_FILES([heartbeat/openstack-info], [chmod +x heartbeat/openstack-info])
+AC_CONFIG_FILES([heartbeat/powervs-move-ip], [chmod +x heartbeat/powervs-move-ip])
 AC_CONFIG_FILES([heartbeat/powervs-subnet], [chmod +x heartbeat/powervs-subnet])
 AC_CONFIG_FILES([heartbeat/rabbitmq-cluster], [chmod +x heartbeat/rabbitmq-cluster])
 AC_CONFIG_FILES([heartbeat/redis], [chmod +x heartbeat/redis])
