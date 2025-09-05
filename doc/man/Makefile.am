@@ -238,6 +238,10 @@ if BUILD_GCP_VPC_MOVE_VIP
 man_MANS           	+= ocf_heartbeat_gcp-vpc-move-vip.7
 endif
 
+if BUILD_POWERVS_MOVE_IP
+man_MANS           	+= ocf_heartbeat_powervs-move-ip.7
+endif
+
 if BUILD_POWERVS_SUBNET
 man_MANS           	+= ocf_heartbeat_powervs-subnet.7
 endif
