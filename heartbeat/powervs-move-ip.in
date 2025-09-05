@@ -932,7 +932,7 @@ def main():
         "powervs-move-ip",
         shortdesc="Manages Power Virtual Server overlay IP routes.",
         longdesc=agent_description,
-        version=0.90,
+        version=1.00,
     )
 
     agent.add_parameter(
