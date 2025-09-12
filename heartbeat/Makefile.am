@@ -207,6 +207,10 @@ if BUILD_GCP_VPC_MOVE_VIP
 ocf_SCRIPTS	     += gcp-vpc-move-vip
 endif
 
+if BUILD_POWERVS_MOVE_IP
+ocf_SCRIPTS	     += powervs-move-ip
+endif
+
 if BUILD_POWERVS_SUBNET
 ocf_SCRIPTS	     += powervs-subnet
 endif

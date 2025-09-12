@@ -79,6 +79,7 @@ heartbeat/mariadb
 heartbeat/mpathpersist
 heartbeat/nfsnotify
 heartbeat/openstack-info
+heartbeat/powervs-move-ip
 heartbeat/powervs-subnet
 heartbeat/rabbitmq-cluster
 heartbeat/redis
