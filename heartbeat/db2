@@ -40,10 +40,18 @@
 # Parameter defaults
 
 OCF_RESKEY_instance_default=""
+OCF_RESKEY_skip_basic_sql_health_check_default="false"
+OCF_RESKEY_monitor_retries_default="1"
+OCF_RESKEY_monitor_sleep_default="1"
+OCF_RESKEY_monitor_retry_all_errors_default="false"
 OCF_RESKEY_admin_default=""
 OCF_RESKEY_dbpartitionnum_default="0"
 
 : ${OCF_RESKEY_instance=${OCF_RESKEY_instance_default}}
+: ${OCF_RESKEY_skip_basic_sql_health_check=${OCF_RESKEY_skip_basic_sql_health_check_default}}
+: ${OCF_RESKEY_monitor_retries=${OCF_RESKEY_monitor_retries_default}}
+: ${OCF_RESKEY_monitor_sleep=${OCF_RESKEY_monitor_sleep_default}}
+: ${OCF_RESKEY_monitor_retry_all_errors=${OCF_RESKEY_monitor_retry_all_errors_default}}
 : ${OCF_RESKEY_admin=${OCF_RESKEY_admin_default}}
 : ${OCF_RESKEY_dbpartitionnum=${OCF_RESKEY_dbpartitionnum_default}}
 
@@ -101,6 +109,37 @@ Defaults to all databases in the instance. Specify one db for HADR mode.
 </longdesc>
 <shortdesc lang="en">List of databases to be managed</shortdesc>
 <content type="string"/>
+</parameter>
+<parameter name="skip_basic_sql_health_check" unique="0" required="0">
+<longdesc lang="en">
+Skip basic health check SQL query.
+
+Only set to "true" when the "monitor_retries" and "monitor_retry_all_errors" parameters arent
+enough to avoid issues under high load.
+</longdesc>
+<shortdesc lang="en">Skip basic health check SQL query</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_skip_basic_sql_health_check_default}" />
+</parameter>
+<parameter name="monitor_retries" unique="0" required="0">
+<longdesc lang="en">
+Monitor retries before failing.
+</longdesc>
+<shortdesc lang="en">Monitor retries</shortdesc>
+<content type="string" default="${OCF_RESKEY_monitor_retries_default}" />
+</parameter>
+<parameter name="monitor_retries_sleep" unique="0" required="0">
+<longdesc lang="en">
+Monitor sleep between tries.
+</longdesc>
+<shortdesc lang="en">Monitor sleep</shortdesc>
+<content type="string" default="${OCF_RESKEY_monitor_sleep_default}" />
+</parameter>
+<parameter name="monitor_retry_all_errors" unique="0" required="0">
+<longdesc lang="en">
+Set to true to retry monitor-action for all errors instead of the default "db2pd" race conditions.
+</longdesc>
+<shortdesc lang="en">Retry monitor for all errors</shortdesc>
+<content type="string" default="${OCF_RESKEY_monitor_retry_all_errors_default}" />
 </parameter>
 <parameter name="admin" unique="0" required="0">
 <longdesc lang="en">
@@ -655,6 +694,7 @@ db2_hadr_status() {
     local output
 
     output=$(runasdb2 db2pd -hadr -db $db)
+    ocf_log debug "db2_hadr_status: $output"
     if [ $? != 0 ]
     then
         echo "Down/Off"
@@ -665,7 +705,34 @@ db2_hadr_status() {
     awk '/^\s+HADR_(ROLE|STATE) =/ {printf $3"/"}
          /^\s+HADR_CONNECT_STATUS =/ {print $3; exit; }
          /^HADR is not active/ {print "Standard/Standalone"; exit; }
-         /^Role *State */ {getline; printf "%s/%s\n", $1, $2; exit; }'
+         /^Role *State */ {getline; printf "%s/%s\n", $1, $2; exit; }
+         /^Option -hadr requires -db <database> or -alldbs option and active database./ { exit 255 }
+         /^Another possibility of this failure is the Virtual Address Space Randomization is currently enabled on this system./ { exit 255 }
+         /^Changing data structure forced command termination./ { exit 255 }'
+}
+
+db2_monitor_retry() {
+    local tries=$(($OCF_RESKEY_monitor_retries + 1))
+
+    for try in $(seq $tries); do
+        ocf_log debug "monitor try $try of $tries"
+        db2_monitor
+        rc=$?
+        [ $rc -ne $OCF_SUCCESS ] && [ $rc -ne $OCF_RUNNING_MASTER ] && [ $rc -ne $OCF_NOT_RUNNING ] && ocf_log warn "Monitor failed with rc $rc."
+        if [ $rc -eq $OCF_SUCCESS ] || [ $rc -eq $OCF_RUNNING_MASTER ] || [ $rc -eq $OCF_NOT_RUNNING ] || { [ $rc -ne 255 ] && ! ocf_is_true "$OCF_RESKEY_monitor_retry_all_errors" ;} ;then
+            break
+        fi
+        [ $try -lt $tries ] && sleep $OCF_RESKEY_monitor_sleep
+    done
+
+    [ $rc -eq 255 ] && rc=$OCF_ERR_GENERIC
+
+    if [ $rc -ne $OCF_SUCCESS ] && [ $rc -ne $OCF_RUNNING_MASTER ]; then
+        # instance is dead remove master score
+        master_score -D -l reboot
+    fi
+
+    return $rc
 }
 
 #
@@ -679,9 +746,7 @@ db2_monitor() {
     db2_instance_status
     rc=$?
     if [ $rc -ne $OCF_SUCCESS ]; then
-        # instance is dead remove master score
-        master_score -D -l reboot
-        exit $rc
+        return $rc
     fi
 
     [ $db2node = 0 ] || return 0
@@ -689,37 +754,49 @@ db2_monitor() {
 
     for db in $dblist
     do
-        hadr=$(db2_hadr_status $db) || return $OCF_ERR_GENERIC
+        hadr=$(db2_hadr_status $db)
+        rc=$?
         ocf_log debug "Monitor: DB2 database $instance($db2node)/$db has HADR status $hadr"
+        if [ "$rc" -eq 255 ]; then
+            if [ "$__OCF_ACTION" = "monitor" ]; then
+                return $rc
+            else
+                return $OCF_ERR_GENERIC
+            fi
+        elif [ "$rc" -ne 0 ]; then
+            return $OCF_ERR_GENERIC
+        fi
 
         # set master preference accordingly
         case "$hadr" in
             PRIMARY/*|Primary/*|Standard/*)
-            # perform  a basic health check
-            CMD="if db2 connect to $db;
-            then 
-                db2 select \* from sysibm.sysversions ; rc=\$?;
-                db2 terminate;
-            else
-                rc=\$?;
-            fi;
-            exit \$rc"
+            if ! ocf_is_true "$OCF_RESKEY_skip_basic_sql_health_check"; then
+                # perform  a basic health check
+                CMD="if db2 connect to $db;
+                then
+                    db2 select \* from sysibm.sysversions ; rc=\$?;
+                    db2 terminate;
+                else
+                    rc=\$?;
+                fi;
+                exit \$rc"
 
-            if ! output=$(runasdb2 $CMD)
-            then
-                case "$output" in
-                    SQL1776N*)
-                    # can't connect/select on standby, may be spurious turing takeover
-                    ;;
+                if ! output=$(runasdb2 $CMD)
+                then
+                    case "$output" in
+                        SQL1776N*)
+                        # can't connect/select on standby, may be spurious turing takeover
+                        ;;
 
-                    *)
-                    ocf_log err "DB2 database $instance($db2node)/$db is not working"
-                    ocf_log err "DB2 message: $output"
+                        *)
+                        ocf_log err "DB2 database $instance($db2node)/$db is not working"
+                        ocf_log err "DB2 message: $output"
 
-                    # dead primary, remove master score
-                    master_score -D -l reboot
-                    return $OCF_ERR_GENERIC
-                esac
+                        # dead primary, remove master score
+                        master_score -D -l reboot
+                        return $OCF_ERR_GENERIC
+                    esac
+                fi
             fi
 
             ocf_log debug "DB2 database $instance($db2node)/$db appears to be working"
@@ -902,9 +979,9 @@ case "$__OCF_ACTION" in
     exit $?
     ;;
 
-    monitor)	
+    monitor)
     db2_validate
-    db2_monitor
+    db2_monitor_retry
     exit $?
     ;;
 
