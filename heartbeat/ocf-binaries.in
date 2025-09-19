@@ -26,6 +26,7 @@ export PATH
 : ${GETENT:=getent}
 : ${GREP:=grep}
 : ${IFCONFIG:=ifconfig}
+: ${NFTABLES:=nft}
 : ${IPTABLES:=iptables}
 ## for cases that are known not to be serviceable with iptables-nft impl.
 : ${IPTABLES_LEGACY:=iptables-legacy}

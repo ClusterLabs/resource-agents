@@ -1,9 +1,10 @@
 #!/bin/sh
 #
-# portblock: iptables temporary portblocking control 
+# portblock: iptables temporary portblocking control
 #
 # Author:	Sun Jiang Dong (initial version)
 #               Philipp Reisner (per-IP filtering)
+#               Sebastian Baszczyj (nftables code)
 #
 # License:	GNU General Public License (GPL)
 #
@@ -23,6 +24,7 @@
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
 # Defaults
+OCF_RESKEY_firewall_default="auto"
 OCF_RESKEY_protocol_default=""
 OCF_RESKEY_portno_default=""
 OCF_RESKEY_direction_default="in"
@@ -32,6 +34,7 @@ OCF_RESKEY_reset_local_on_unblock_stop_default="false"
 OCF_RESKEY_tickle_dir_default=""
 OCF_RESKEY_sync_script_default=""
 
+: ${OCF_RESKEY_firewall=${OCF_RESKEY_firewall_default}}
 : ${OCF_RESKEY_protocol=${OCF_RESKEY_protocol_default}}
 : ${OCF_RESKEY_portno=${OCF_RESKEY_portno_default}}
 : ${OCF_RESKEY_direction=${OCF_RESKEY_direction_default}}
@@ -43,13 +46,17 @@ OCF_RESKEY_sync_script_default=""
 #######################################################################
 CMD=`basename $0`
 TICKLETCP=$HA_BIN/tickle_tcp
+TABLE="portblock"
+# Promotion scores
+SCORE_UNPROMOTED=5
+SCORE_PROMOTED=10
 
 usage()
 {
 	cat <<END >&2
-	usage: $CMD {start|stop|status|monitor|meta-data|validate-all}
+	usage: $CMD {start|stop|promote|demote|status|monitor|meta-data|validate-all}
 
-	$CMD is used to temporarily block ports using iptables.
+	$CMD is used to temporarily block ports using nftables or iptables.
 
 	It can be used to blackhole a port before bringing
 	up an IP address, and enable it after a service is started.
@@ -86,8 +93,8 @@ usage()
 	NOTE: iptables is Linux-specific.
 
 	An additional feature in the portblock RA is the tickle ACK function
-	enabled by specifying the tickle_dir parameter. The tickle ACK 
-	triggers the clients to faster reconnect their TCP connections to the 
+	enabled by specifying the tickle_dir parameter. The tickle ACK
+	triggers the clients to faster reconnect their TCP connections to the
 	fail-overed server.
 
 	Please note that this feature is often used for the floating IP fail-
@@ -95,7 +102,7 @@ usage()
 	It doesn't support the cluster alias IP scenario.
 
 	When using the tickle ACK function, in addition to the normal usage
-	of portblock RA, the parameter tickle_dir must be specified in the 
+	of portblock RA, the parameter tickle_dir must be specified in the
 	action=unblock instance of the portblock resources.
 	For example, you may stack resources like below:
 		portblock action=block
@@ -103,18 +110,18 @@ usage()
 		portblock action=unblock tickle_dir=/tickle/state/dir
 
 	If you want to tickle all the TCP connections which connected to _one_
-	floating IP but different ports, no matter how many portblock resources 
-	you have defined, you should enable tickles for _one_ portblock 
+	floating IP but different ports, no matter how many portblock resources
+	you have defined, you should enable tickles for _one_ portblock
 	resource(action=unblock) only.
-	
-	The tickle_dir is a location which stores the established TCP 
-	connections. It can be a shared directory(which is cluster-visible to 
+
+	The tickle_dir is a location which stores the established TCP
+	connections. It can be a shared directory(which is cluster-visible to
 	all nodes) or a local directory.
 	If you use the shared directory, you needn't do any other things.
 	If you use the local directory, you must also specify the sync_script
 	paramater. We recommend you to use csync2 as the sync_script.
-	For example, if you use the local directory /tmp/tickle as tickle_dir, 
-	you could setup the csync2 as the csync2 documentation says and 
+	For example, if you use the local directory /tmp/tickle as tickle_dir,
+	you could setup the csync2 as the csync2 documentation says and
 	configure your /etc/csync2/csync2.cfg like:
 		group ticklegroup {
 		  host node1;
@@ -137,17 +144,29 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-Resource script for portblock. It is used to temporarily block ports 
-using iptables. In addition, it may allow for faster TCP reconnects
-for clients on failover. Use that if there are long lived TCP
-connections to an HA service. This feature is enabled by setting the
-tickle_dir parameter and only in concert with action set to unblock.
+Resource script for portblock. It is used to block ports using nftables
+or iptables. In addition, it may allow for faster TCP reconnects for
+clients on failover. Use that if there are long lived TCP connections
+to an HA service. This feature is enabled by setting the tickle_dir
+parameter and only in concert with action set to unblock.
 Note that the tickle ACK function is new as of version 3.0.2 and
 hasn't yet seen widespread use.
+
+In Promotable mode, the promote action unblocks the ports on the Promoted node
+and blocks the ports on the Unpromoted node(s) when action=block, and vice versa
+when action=unblock.
 </longdesc>
 <shortdesc lang="en">Block and unblocks access to TCP and UDP ports</shortdesc>
 
 <parameters>
+<parameter name="firewall" unique="0" required="0">
+<longdesc lang="en">
+Firewall to use, e.g. auto (default), nft, or iptables.
+</longdesc>
+<shortdesc lang="en">Firewall</shortdesc>
+<content type="string" default="${OCF_RESKEY_firewall_default}" />
+</parameter>
+
 <parameter name="protocol" unique="0" required="1">
 <longdesc lang="en">
 The protocol used to be blocked/unblocked.
@@ -167,6 +186,9 @@ The port number used to be blocked/unblocked.
 <parameter name="action" unique="0" required="1">
 <longdesc lang="en">
 The action (block/unblock) to be done on the protocol::portno.
+
+In Promotable mode it is the initial action for start/demote actions,
+and the promote action will change the state to the opposite.
 </longdesc>
 <shortdesc lang="en">action</shortdesc>
 <content type="string" default="${OCF_RESKEY_action_default}" />
@@ -202,7 +224,7 @@ The IP address used to be blocked/unblocked.
 
 <parameter name="tickle_dir" unique="0" required="0">
 <longdesc lang="en">
-The shared or local directory (_must_ be absolute path) which 
+The shared or local directory (_must_ be absolute path) which
 stores the established TCP connections.
 </longdesc>
 <shortdesc lang="en">Tickle directory</shortdesc>
@@ -236,6 +258,8 @@ If "both" is used, both the incoming and outgoing ports are blocked.
 <actions>
 <action name="start" timeout="20s" />
 <action name="stop" timeout="20s" />
+<action name="promote" timeout="10s"/>
+<action name="demote" timeout="10s"/>
 <action name="status" depth="0" timeout="10s" interval="10s" />
 <action name="monitor" depth="0" timeout="10s" interval="10s" />
 <action name="meta-data" timeout="5s" />
@@ -269,11 +293,17 @@ active_grep_pat()
   # iptables 1.8.9 briefly broke the output format, returning the
   # numeric protocol value instead of a string. Support both variants.
   if [ "$1" = "tcp" ]; then
-    local prot="(tcp|6)"
+    local prot="\(tcp\|6\)"
   else
-    local prot="(udp|17)"
+    local prot="\(udp\|17\)"
   fi
-  echo "^DROP${w}${prot}${w}--${w}${src}${w}${dst}${w}multiport${w}${4}ports${w}${2}$"
+  if [ "$FIREWALL" = "nft" ]; then
+    local ip
+    [ "$4" = "s" ] && ip=$src || ip=$dst
+    echo "^\s\+ip $4addr ${ip} $1 $4port $2 ct state { established, related, new } drop$"
+  else
+    echo "^DROP${w}${prot}${w}--${w}${src}${w}${dst}${w}multiport${w}${4}ports${w}${2}$"
+  fi
 }
 
 #chain_isactive  {udp|tcp} portno,portno ip chain
@@ -281,7 +311,11 @@ chain_isactive()
 {
   [ "$4" = "OUTPUT" ] && ds="s" || ds="d"
   PAT=$(active_grep_pat "$1" "$2" "$3" "$ds")
-  $IPTABLES $wait -n -L "$4" | grep -qE "$PAT"
+  if [ "$FIREWALL" = "nft" ]; then
+    $NFTABLES list chain inet $TABLE $4 2>&1 | grep -q "$PAT"
+  else
+    $IPTABLES $wait -n -L "$4" | grep -q "$PAT"
+  fi
 }
 
 # netstat -tn and ss -Htn, split on whitespace and colon,
@@ -372,8 +406,8 @@ SayInactive()
   ocf_log debug "$CMD DROP rule [$*] is inactive"
 }
 
-#IptablesStatus  {udp|tcp} portno,portno ip {in|out|both} {block|unblock}
-IptablesStatus() {
+#PortStatus  {udp|tcp} portno,portno ip {in|out|both} {block|unblock}
+PortStatus() {
   local rc
   rc=$OCF_ERR_GENERIC
   is_active=0
@@ -395,6 +429,17 @@ IptablesStatus() {
       *)
         SayInactive $*
         rc=$OCF_NOT_RUNNING
+        ;;
+    esac
+  elif ocf_is_ms; then
+    case $5 in
+      block)
+        SayInactive $*
+        rc=$OCF_NOT_RUNNING
+        ;;
+      *)
+        SayActive $*
+        rc=$OCF_SUCCESS
         ;;
     esac
   else
@@ -424,29 +469,56 @@ IptablesStatus() {
   return $rc
 }
 
-#DoIptables  {-I|-D} {udp|tcp} portno,portno ip chain
-DoIptables()
+#NftDelete chain proto {d|s} ip ports
+NftDelete()
+{
+        local chain=$1 proto=$2 ds=$3 ip=$(echo "$4" | sed "s#/#\\\/#") ports=$5
+        # Try both single port and multi-port patterns for handle search
+        local handles=$($NFTABLES -a list chain inet $TABLE $chain 2>/dev/null | awk "/\s+ip ${ds}addr $ip $proto ${ds}port $ports/"' {printf "%d ", $NF}')
+        for handle in $handles; do
+          ocf_log debug "NftDelete: Deleting $chain rule with handle $handle"
+          nft delete rule inet $TABLE $chain handle $handle || {
+            ocf_exit_reason "NftDelete: Failed to delete $chain handle $handle."
+            return $OCF_ERR_GENERIC
+          }
+        done
+}
+
+#DoPort  {-I|-D} {udp|tcp} portno,portno ip chain
+DoPort()
 {
   op=$1 proto=$2 ports=$3 ip=$4 chain=$5
   active=0; chain_isactive "$proto" "$ports" "$ip" "$chain" && active=1
-  want_active=0; [ "$op" = "-I" ] && want_active=1
+  want_active=0; { [ "$op" = "insert" ] || [ "$op" = "-I" ] && want_active=1; }
   ocf_log debug "active: $active want_active: $want_active"
   if [ $active -eq $want_active ] ; then
     : Chain already in desired state
   else
     [ "$chain" = "OUTPUT" ] && ds="s" || ds="d"
-    $IPTABLES $wait "$op" "$chain" -p "$proto" -${ds} "$ip" -m multiport --${ds}ports "$ports" -j DROP
+    case $FIREWALL in
+      nft)
+        if [ "$op" = "insert" ]; then
+          $NFTABLES $op rule inet $TABLE $chain ip ${ds}addr $ip $proto ${ds}port $ports ct state { established, related, new } drop
+        elif [ "$op" = "delete" ]; then
+          NftDelete "$chain" "$proto" "$ds" "$ip" "$ports"
+        fi
+        ;;
+      iptables)
+        $IPTABLES $wait "$op" "$chain" -p "$proto" -${ds} "$ip" -m multiport --${ds}ports "$ports" -j DROP
+        ;;
+    esac
   fi
 }
 
-#IptablesBLOCK  {udp|tcp} portno,portno ip {in|out|both} {block|unblock}
-IptablesBLOCK()
+#PortBLOCK  {udp|tcp} portno,portno ip {in|out|both} {block|unblock}
+PortBLOCK()
 {
   local rc_in=0
   local rc_out=0
+  [ "$FIREWALL" = "nft" ] && action="insert" || action="-I"
   if [ "$4" = "in" ] || [ "$4" = "both" ]; then
     local try_reset=false
-    if	[ "$1/$5/$__OCF_ACTION" = tcp/unblock/stop ] &&
+    if [ "$1/$5/$__OCF_ACTION" = tcp/unblock/stop ] &&
     ocf_is_true $reset_local_on_unblock_stop
     then
       try_reset=true
@@ -456,71 +528,166 @@ IptablesBLOCK()
     then
       : OK -- chain already active
     else
-      if $try_reset ; then
-        $IPTABLES $wait -I OUTPUT -p "$1" -s "$3" -m multiport --sports "$2" -j REJECT --reject-with tcp-reset
-        tickle_local
-      fi
-      $IPTABLES $wait -I INPUT -p "$1" -d "$3" -m multiport --dports "$2" -j DROP
-      rc_in=$?
-      if $try_reset ; then
-        $IPTABLES $wait -D OUTPUT -p "$1" -s "$3" -m multiport --sports "$2" -j REJECT --reject-with tcp-reset
+      if [ "$FIREWALL" = "nft" ]; then
+        if $try_reset ; then
+          $NFTABLES insert rule inet $TABLE OUTPUT ip saddr $3 $1 sport $2 ct state { established, related, new } reject with tcp reset
+          tickle_local
+        fi
+        $NFTABLES insert rule inet $TABLE INPUT ip daddr $3 $1 dport $2 ct state { established, related, new } drop
+        rc_in=$?
+        if $try_reset ; then
+          NftDelete "OUTPUT" "$1" "s" "$ports"
+        fi
+      else
+        if $try_reset ; then
+          $IPTABLES $wait -I OUTPUT -p "$1" -s "$3" -m multiport --sports "$2" -j REJECT --reject-with tcp-reset
+          tickle_local
+        fi
+        $IPTABLES $wait -I INPUT -p "$1" -d "$3" -m multiport --dports "$2" -j DROP
+        rc_in=$?
+        if $try_reset ; then
+          $IPTABLES $wait -D OUTPUT -p "$1" -s "$3" -m multiport --sports "$2" -j REJECT --reject-with tcp-reset
+        fi
       fi
     fi
   fi
   if [ "$4" = "out" ] || [ "$4" = "both" ]; then
-    DoIptables -I "$1" "$2" "$3" OUTPUT
+    DoPort "$action" "$1" "$2" "$3" OUTPUT
     rc_out=$?
   fi
 
   [ $rc_in -gt $rc_out ] && return $rc_in || return $rc_out
 }
 
-#IptablesUNBLOCK  {udp|tcp} portno,portno ip {in|out|both}
-IptablesUNBLOCK()
+#PortUNBLOCK  {udp|tcp} portno,portno ip {in|out|both}
+PortUNBLOCK()
 {
+  local action
+  [ "$FIREWALL" = "nft" ] && action="delete" || action="-D"
   if [ "$4" = "in" ] || [ "$4" = "both" ]; then
-    DoIptables -D "$1" "$2" "$3" INPUT
+    DoPort "$action" "$1" "$2" "$3" INPUT
   fi
   if [ "$4" = "out" ] || [ "$4" = "both" ]; then
-    DoIptables -D "$1" "$2" "$3" OUTPUT
+    DoPort "$action" "$1" "$2" "$3" OUTPUT
   fi
 
   return $?
 }
 
-#IptablesStart  {udp|tcp} portno,portno ip {in|out|both} {block|unblock}
-IptablesStart()
+#PortStart  {udp|tcp} portno,portno ip {in|out|both} {block|unblock}
+PortStart()
 {
   ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" start
+
+  if [ "$FIREWALL" = "nft" ]; then
+    $NFTABLES add table inet $TABLE || {
+      ocf_exit_reason "Failed to create nftables table $TABLE"
+      return $OCF_ERR_GENERIC
+    }
+    ocf_log debug "Created nftables table $TABLE"
+
+    $NFTABLES add chain inet $TABLE INPUT { type filter hook input priority 0\; } || {
+      ocf_exit_reason "Failed to create INPUT chain"
+      return $OCF_ERR_GENERIC
+    }
+    ocf_log debug "Created INPUT chain"
+
+    $NFTABLES add chain inet $TABLE OUTPUT { type filter hook output priority 0\; } || {
+      ocf_exit_reason "Failed to create OUTPUT chain"
+      return $OCF_ERR_GENERIC
+    }
+    ocf_log debug "Created OUTPUT chain"
+  fi
+
   case $5 in
-    block)	IptablesBLOCK "$@";;
+    block)	PortBLOCK "$@"
+		rc=$?
+		;;
     unblock)
-		IptablesUNBLOCK "$@"
+		PortUNBLOCK "$@"
 		rc=$?
 		tickle_remote
 		#ignore run_tickle_tcp exit code!
-		return $rc
 		;;
-    *)		usage; return 1;
+    *)		usage; return $OCF_ERR_CONFIGURED ;
   esac
 
+  ocf_is_ms && ocf_promotion_score -v $SCORE_UNPROMOTED -N $nodename
+
+  return $rc
+}
+
+#PortStop  {udp|tcp} portno,portno ip {in|out|both} {block|unblock}
+PortStop()
+{
+  ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" stop
+
+  case $5 in
+    block)	PortUNBLOCK "$@"
+		rc=$?
+		;;
+    unblock)
+		save_tcp_connections
+		PortBLOCK "$@"
+		rc=$?
+		;;
+    *)		usage; return $OCF_ERR_CONFIGURED ;;
+  esac
+
+  ocf_is_ms && ocf_promotion_score -D -N $nodename
+
+  return $rc
+}
+
+PortPromote() {
+  PortStatus "$@"
+  rc=$?
+  if [ $rc -eq $OCF_SUCCESS ] && [ $promotion_score -eq $SCORE_PROMOTED ]; then
+    ocf_log info "Promote: resource already promoted."
+    return $rc
+  elif [ $rc -ne $OCF_SUCCESS ] && [ $rc -ne $OCF_NOT_RUNNING ]; then
+    ocf_exit_reason "Promote: PortStatus failed with rc: $rc."
+    return $rc
+  fi
+  case $5 in
+    block)	PortBLOCK "$@"
+		rc=$?
+		;;
+    unblock)
+		PortUNBLOCK "$@"
+		rc=$?
+		tickle_remote
+		#ignore run_tickle_tcp exit code!
+		;;
+    *)		usage; return $OCF_ERR_CONFIGURED ;
+  esac
+  ocf_promotion_score -v $SCORE_PROMOTED -N $nodename
   return $?
 }
 
-#IptablesStop  {udp|tcp} portno,portno ip {in|out|both} {block|unblock}
-IptablesStop()
-{
-  ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" stop
+PortDemote() {
+  PortStatus "$@"
+  rc=$?
+  if [ $rc -eq $OCF_SUCCESS ] && [ $promotion_score -eq $SCORE_UNPROMOTED ]; then
+    ocf_log info "Demote: resource already demoted."
+    return $rc
+  elif [ $rc -ne $OCF_SUCCESS ] && [ $rc -ne $OCF_NOT_RUNNING ]; then
+    ocf_exit_reason "Demote: PortStatus failed with rc: $rc."
+    return $rc
+  fi
   case $5 in
-    block)	IptablesUNBLOCK "$@";;
-    unblock)
+    block)
 		save_tcp_connections
-		IptablesBLOCK "$@"
+		PortBLOCK "$@"
+		rc=$?
 		;;
-    *)		usage; return 1;;
+    unblock)	PortUNBLOCK "$@"
+		rc=$?
+		;;
+    *)		usage; return $OCF_ERR_CONFIGURED ;;
   esac
-
-  return $?
+  ocf_promotion_score -v $SCORE_UNPROMOTED -N $nodename
+  return $rc
 }
 
 #
@@ -532,9 +699,15 @@ CheckPort() {
   echo $1 | $EGREP -qx '[0-9]+(:[0-9]+)?(,[0-9]+(:[0-9]+)?)*'
 }
 
-IptablesValidateAll()
+PortValidateAll()
 {
-  check_binary $IPTABLES
+  case $FIREWALL in
+    nft)
+      check_binary $IPTABLES ;;
+    iptables)
+      check_binary $NFTABLES ;;
+  esac
+
   case $protocol in
     tcp|udp)
 	;;
@@ -558,17 +731,17 @@ IptablesValidateAll()
 	fi
 	if [ ! -d "$OCF_RESKEY_tickle_dir" ]; then
 		ocf_log err "The tickle dir doesn't exist!"
-		exit $OCF_ERR_INSTALLED	  	
+		exit $OCF_ERR_INSTALLED
 	fi
   fi
 
   case $action in
-    block|unblock)	
+    block|unblock)
 	;;
-    *)		
+    *)
 	ocf_log err "Invalid action $action!"
 	exit $OCF_ERR_CONFIGURED
-	;; 
+	;;
   esac
 
   if ocf_is_true $reset_local_on_unblock_stop; then
@@ -584,6 +757,20 @@ IptablesValidateAll()
   return $OCF_SUCCESS
 }
 
+# Detect firewall tool
+detect_firewall_tool() {
+    if have_binary nft; then
+        FIREWALL="nft"
+        ocf_log debug "Detected nftables"
+    elif have_binary iptables; then
+        FIREWALL="iptables"
+        ocf_log debug "Detected iptables"
+    else
+        ocf_exit_reason "No firewall tool available"
+        return $OCF_ERR_CONFIGURED
+    fi
+}
+
 if
   ( [ $# -ne 1 ] )
 then
@@ -591,7 +778,7 @@ then
   exit $OCF_ERR_ARGS
 fi
 
-case $1 in
+case $__OCF_ACTION in
   meta-data)		meta_data
 			exit $OCF_SUCCESS
 			;;
@@ -605,25 +792,16 @@ esac
 if [ -z "$OCF_RESKEY_protocol" ]; then
   ocf_log err "Please set OCF_RESKEY_protocol"
   exit $OCF_ERR_CONFIGURED
-fi 
+fi
 
 if [ -z "$OCF_RESKEY_portno" ]; then
   ocf_log err "Please set OCF_RESKEY_portno"
   exit $OCF_ERR_CONFIGURED
-fi 
+fi
 
 if [ -z "$OCF_RESKEY_action" ]; then
   ocf_log err "Please set OCF_RESKEY_action"
   exit $OCF_ERR_CONFIGURED
-fi 
-
-# iptables v1.4.20+ is required to use -w (wait)
-version=$(iptables -V | grep -oE '[0-9]+[\.0-9]+')
-ocf_version_cmp "$version" "1.4.19.1"
-if [ "$?" -eq "2" ]; then
-    wait="-w"
-else
-    wait=""
 fi
 
 protocol=$OCF_RESKEY_protocol
@@ -632,6 +810,7 @@ direction=$OCF_RESKEY_direction
 action=$OCF_RESKEY_action
 ip=$OCF_RESKEY_ip
 reset_local_on_unblock_stop=$OCF_RESKEY_reset_local_on_unblock_stop
+nodename=$(ocf_local_nodename)
 
 
 # If "tickle" is enabled, we need to record the list of currently established
@@ -647,21 +826,65 @@ if [ -n "$OCF_RESKEY_tickle_dir" ] ; then
 	fi
 fi
 
-case $1 in
-  start)	
-			IptablesStart $protocol $portno $ip $direction $action
+case $OCF_RESKEY_firewall in
+	auto)
+		detect_firewall_tool
+		;;
+	nft|iptables)
+		FIREWALL="$OCF_RESKEY_firewall"
+		;;
+	*)
+		ocf_exit_reason "Firewall '$OCF_RESKEY_firewall' not supported."
+		exit $OCF_ERR_CONFIGURED
+		;;
+esac
+
+if [ "$FIREWALL" = "nft" ]; then
+	echo "$portno" | grep -q "," && portno="{ $(echo $portno | sed 's/,/, /g') }"
+elif [ "$FIREWALL" = "iptables" ]; then
+	# iptables v1.4.20+ is required to use -w (wait)
+	version=$(iptables -V | grep -oE '[0-9]+[\.0-9]+')
+	ocf_version_cmp "$version" "1.4.19.1"
+	if [ "$?" -eq "2" ]; then
+		wait="-w"
+	else
+		wait=""
+	fi
+fi
+
+if ocf_is_ms; then
+  promotion_score=$(ocf_promotion_score -G -N $nodename -q 2> /dev/null)
+  if { [ "$__OCF_ACTION" = "monitor" ] && [ "$promotion_score" = "$SCORE_UNPROMOTED" ]; } || [ "$__OCF_ACTION" = "demote" ] || [ "$__OCF_ACTION" = "start" ]; then
+    case $action in
+      block) action="unblock" ;;
+      unblock) action="block" ;;
+    esac
+  fi
+fi
+
+case $__OCF_ACTION in
+  start)
+			PortStart "$protocol" "$portno" "$ip" "$direction" "$action"
 			;;
 
-  stop)		
-			IptablesStop $protocol $portno $ip $direction $action
+  stop)
+			PortStop "$protocol" "$portno" "$ip" "$direction" "$action"
 			;;
 
-  status|monitor)	
-			IptablesStatus $protocol $portno $ip $direction $action
+  promote)
+			PortPromote $protocol "$portno" "$ip" "$direction" "$action"
+			;;
+
+  demote)
+			PortDemote "$protocol" "$portno" "$ip" "$direction" "$action"
+			;;
+
+  status|monitor)
+			PortStatus "$protocol" "$portno" "$ip" "$direction" "$action"
 			;;
 
   validate-all)
-			IptablesValidateAll
+			PortValidateAll
 			;;
 
   *)			usage
