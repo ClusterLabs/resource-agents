@@ -794,54 +794,72 @@ set_force_new_cluster()
 	return $rc
 }
 
+# get_force_new_cluster returns a space-separated list of nodes that have the force_new_cluster attribute set.
+# Return values:
+# - Exit code 0 with non-empty output: One or more nodes have the force_new_cluster attribute set
+# - Exit code 0 with empty output: No nodes have the force_new_cluster attribute set
+# - Exit code 1 with empty output: Error occurred while querying the cluster nodes
 get_force_new_cluster()
 {
-	crm_attribute --lifetime reboot --query --name "force_new_cluster" | awk -F"value=" '{print $2}'
-}
+	local node nodes value
+	local holders=""
 
-clear_force_new_cluster()
-{
-	local force_new_cluster_node
-
-	force_new_cluster_node=$(get_force_new_cluster)
-	if [ -z "$force_new_cluster_node" ]; then
-		ocf_log info "$NODENAME: force_new_cluster attribute not set"
-		return $OCF_SUCCESS
+	if ! nodes=$(crm_node -l | awk '{print $2}'); then
+		ocf_log err "could not get force_new_cluster attribute, crm_node error code: $?"
+		return 1
 	fi
-
-	# only the holder of "force_new_cluster" attribute can delete it
-	if [ "$NODENAME" = "$force_new_cluster_node" ]; then
-		crm_attribute --lifetime reboot --name "force_new_cluster" --delete
-		rc=$?
-		if [ $rc -ne 0 ]; then
-			ocf_log err "could not clear force_new_cluster attribute, error code: $rc"
-		else
-			ocf_log info "$NODENAME: force_new_cluster attribute cleared"
-		fi
-		return $rc
-	else
-		ocf_log info "$NODENAME does not hold force_new_cluster ($force_new_cluster_node has it)"
-		return $OCF_SUCCESS
-	fi
-}
-
-is_force_new_cluster()
-{
-	# Return 0 if 'force_new_cluster' is set and the value matches the current node name, 1 otherwise.
-	local value
-
-	value=$(get_force_new_cluster)
-	if [ -z "$value" ]; then
-		ocf_log debug "force_new_cluster attribute is not set"
+	if [ -z "$nodes" ]; then
+		ocf_log err "could not get force_new_cluster attribute, the list of nodes is empty"
 		return 1
 	fi
 
-	if [ "$value" = "$NODENAME" ]; then
+	for node in $nodes; do
+		if ! value=$(crm_attribute --query --lifetime reboot --name "force_new_cluster" --node "$node" 2>/dev/null | awk -F'value=' '{print $2}' | tr -d "'"); then
+			ocf_log err "could not get force_new_cluster attribute, crm_attribut error code: $?"
+			return 1
+		fi
+		if [ -n "$value" ]; then
+			holders="$holders$node "
+		fi
+	done
+	echo "$holders"
+}
+
+
+clear_force_new_cluster()
+{
+	# only the holder of "force_new_cluster" attribute can delete it
+	if ! is_force_new_cluster; then
+		ocf_log info "force_new_cluster unset or not owned by $NODENAME"
+		return $OCF_SUCCESS
+	fi
+
+	if ! crm_attribute --delete --lifetime reboot --node "$NODENAME" --name "force_new_cluster"; then
+		ocf_log err "could not clear force_new_cluster attribute, error code: $?"
+		return $OCF_ERR_GENERIC
+	fi
+
+	ocf_log info "$NODENAME: force_new_cluster attribute cleared"
+	return $OCF_SUCCESS
+}
+
+
+is_force_new_cluster()
+{
+	# Return 0 if 'force_new_cluster' is set on the current node, 1 otherwise.
+	local fnc_holders
+
+	if ! fnc_holders=$(get_force_new_cluster); then
+		ocf_exit_reason "is_force_new_cluster: Failed to get force_new_cluster node holders"
+		exit $OCF_ERR_GENERIC
+	fi
+
+	if echo "$fnc_holders" | grep -q -w "$NODENAME"; then
 		ocf_log debug "$NODENAME has force_new_cluster set"
 		return 0
 	fi
 
-	ocf_log info "force_new_cluster attribute set on peer node $value"
+	ocf_log debug "force_new_cluster attribute is not set on $NODENAME"
 	return 1
 }
 
@@ -1415,17 +1433,34 @@ podman_start()
 		return "$OCF_ERR_GENERIC"
 	fi
 
-	# force-new-cluster property is a runtime-scoped flag that instructs the agent to force a new cluster-of-1.
-	# Since this attribute is configured with a reboot-lifetime, it is automatically cleared when the machine reboots.
-	# If the agent detects during its start that this property is set, it indicates that the flag was explicitly set
-	# during the current node boot session, implying a deliberate request to recover the cluster.
 	if ocf_is_true "$pod_was_running"; then
 		ocf_log info "static pod was running: start normally"
 	else
-		if is_force_new_cluster; then
-			ocf_log notice "'$NODENAME' marked to force-new-cluster"
+		local fnc_holders
+		if ! fnc_holders=$(get_force_new_cluster); then
+			ocf_exit_reason "Failed to get force_new_cluster node holders"
+			return "$OCF_ERR_GENERIC"
+		fi
+
+		local fnc_holder_count
+		fnc_holder_count=$(echo "$fnc_holders" | wc -w)
+		if [ "$fnc_holder_count" -gt 1 ]; then
+			ocf_exit_reason "force_new_cluster attribute is set on multiple nodes ($fnc_holders)"
+			return "$OCF_ERR_GENERIC"
+		fi
+
+		if [ "$fnc_holder_count" -eq 1 ]; then
+			if echo "$fnc_holders" | grep -q -w "$NODENAME"; then
+				# Attribute is set on the local node.
+				ocf_log notice "$NODENAME marked to force-new-cluster"
+				JOIN_AS_LEARNER=false
+			else
+				# Attribute is set on a peer node.
+				ocf_log info "$NODENAME shall join as learner because force_new_cluster is set on peer $fnc_holders"
+				JOIN_AS_LEARNER=true
+			fi
 		else
-			ocf_log info "'$NODENAME' is not marked to force-new-cluster"
+			ocf_log info "no node is marked to force-new-cluster"
 			# When the local agent starts, we can infer the cluster state by counting
 			# how many agents are starting or already active:
 			# - 1 active agent: it's the peer (we are just starting)
@@ -1522,7 +1557,7 @@ podman_start()
 		for try in $(seq $retries); do
 			learner_node=$(attribute_learner_node get)
 			if [ "$NODENAME" != "$learner_node" ]; then
-				ocf_log info "$learner_node is not in the member list yet. Retry in $poll_interval_sec seconds."
+				ocf_log info "$NODENAME is not in the member list yet. Retry in $poll_interval_sec seconds."
 				sleep $poll_interval_sec
 				continue
 			fi
@@ -1673,6 +1708,8 @@ podman_stop()
 {
 	local timeout=60
 	local rc
+
+	ocf_log notice "podman-etcd stop"
 	podman_simple_status
 	if [ $? -eq  $OCF_NOT_RUNNING ]; then
 		ocf_log info "could not leave members list: etcd container not running"
