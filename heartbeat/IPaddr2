@@ -93,6 +93,7 @@ OCF_RESKEY_noprefixroute_default="false"
 OCF_RESKEY_preferred_lft_default="forever"
 OCF_RESKEY_network_namespace_default=""
 OCF_RESKEY_check_link_status_default="true"
+OCF_RESKEY_kill_connections_on_stop_default="false"
 
 # RHEL specific defaults
 if is_redhat_based; then
@@ -130,6 +131,7 @@ fi
 : ${OCF_RESKEY_preferred_lft=${OCF_RESKEY_preferred_lft_default}}
 : ${OCF_RESKEY_network_namespace=${OCF_RESKEY_network_namespace_default}}
 : ${OCF_RESKEY_check_link_status=${OCF_RESKEY_check_link_status_default}}
+: ${OCF_RESKEY_kill_connections_on_stop=${OCF_RESKEY_kill_connections_on_stop_default}}
 
 #######################################################################
 
@@ -471,6 +473,14 @@ Consider the resource failed if the interface has status DOWN or LOWERLAYERDOWN.
 <shortdesc lang="en">Consider the resource failed if the interface has status DOWN or LOWERLAYERDOWN</shortdesc>
 <content type="string" default="${OCF_RESKEY_check_link_status_default}"/>
 </parameter>
+
+<parameter name="kill_connections_on_stop">
+<longdesc lang="en">
+Kill connections using 'ss -K src IP' before deleteing interface
+</longdesc>
+<shortdesc lang="en">Kill connections before remove ip</shortdesc>
+<content type="string" default="${OCF_RESKEY_kill_connections_on_stop_default}"/>
+</parameter>
 </parameters>
 
 <actions>
@@ -664,6 +674,37 @@ find_interface() {
 
 	echo "$iface $iface_altname"
 	return 0
+}
+
+#
+#        Kill dangling ip connections
+#
+kill_ip_connections() {
+	local ss_output=""
+	local ss_line=""
+	local ss_out_loglevel="info"
+
+	local ipaddr="$1"
+
+	check_binary ss
+
+	CMD="ss -Knp src $ipaddr"
+
+	ocf_log info "Calling $CMD"
+
+	ss_output=`$CMD 2>&1`
+	RC=$?
+
+	if [ $RC -ne 0 ]; then
+		ocf_log warn "Command $CMD failed (rc = ${THE_RC})"
+		ss_out_loglevel="error"
+	fi
+	[ -n "$ss_output" ] && echo "$ss_output" | while read ss_line;
+	do
+		ocf_log $ss_out_loglevel "$ss_line"
+	done
+
+	return $OCF_SUCCESS
 }
 
 #
@@ -1206,6 +1247,11 @@ ip_stop() {
 		exit $OCF_SUCCESS
 	fi
 
+	if ocf_is_true ${OCF_RESKEY_kill_connections_on_stop}; then
+		kill_ip_connections $OCF_RESKEY_ip
+	fi
+
+
 	if [ -n "$IP_CIP" ] && [ $ip_status != "partial2" ]; then
 		if [ $ip_status = "partial" ]; then
 			exit $OCF_SUCCESS
@@ -1239,6 +1285,9 @@ ip_stop() {
 		if ocf_is_true ${OCF_RESKEY_lvs_support}; then
 			restore_loopback "$OCF_RESKEY_ip"
 		fi
+	fi
+	if ocf_is_true ${OCF_RESKEY_kill_connections_on_stop}; then
+		kill_ip_connections $OCF_RESKEY_ip
 	fi
 
 	exit $OCF_SUCCESS
