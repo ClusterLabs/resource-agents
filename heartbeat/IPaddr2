@@ -696,7 +696,7 @@ kill_ip_connections() {
 		ocf_log error "$ss_output"
 	else
 		ocf_log info "$ss_output"
-        fi
+	fi
 
 	return $OCF_SUCCESS
 }
