@@ -641,11 +641,19 @@ etcd_pod_container_exists() {
 
 attribute_node_cluster_id()
 {
+	# Get or update local cluster_id from revision.json file.
+	# Fails if file is missing, or the cluster_id can not be parsed from it.
 	local action="$1"
 	local value
-	if ! value=$(jq -r ".clusterId" /var/lib/etcd/revision.json); then
+
+	if [ ! -f "$REV_JSON" ]; then
+		ocf_log warn "could not '$action' cluster_id: revision.json not found"
+		return $OCF_ERR_GENERIC
+	fi
+
+	if ! value=$(jq -r ".clusterId" "$REV_JSON"); then
 		rc=$?
-		ocf_log err "could not get cluster_id, error code: $rc"
+		ocf_log err "could not parse cluster_id, error code: $rc"
 		return "$rc"
 	fi
 
@@ -654,7 +662,7 @@ attribute_node_cluster_id()
 			echo "$value"
 			;;
 		update)
-			if ! crm_attribute --type nodes --node "$NODENAME" --name "cluster_id" --update "$value"; then
+			if ! crm_attribute --lifetime reboot --type nodes --node "$NODENAME" --name "cluster_id" --update "$value"; then
 				rc=$?
 				ocf_log err "could not update cluster_id, error code: $rc"
 				return "$rc"
@@ -670,20 +678,50 @@ attribute_node_cluster_id()
 attribute_node_cluster_id_peer()
 {
 	local nodename
+	local value
+	local retries=0
 
 	nodename=$(get_peer_node_name)
-	crm_attribute --query --type nodes --node "$nodename" --name "cluster_id" | awk -F"value=" '{print $2}'
+
+	while [ $retries -lt $CIB_MAX_RETRIES ]; do
+		if value=$(crm_attribute --query --lifetime reboot --type nodes --node "$nodename" --name "cluster_id" 2>/dev/null | awk -F"value=" '{print $2}'); then
+			if [ -n "$value" ] && [ "$value" != "null" ]; then
+				echo "$value"
+				return 0
+			fi
+		fi
+
+		retries=$((retries + 1))
+		if [ $retries -lt $CIB_MAX_RETRIES ]; then
+			ocf_log info "peer cluster_id not available yet, retrying in ${CIB_RETRY_DELAY}s (attempt $retries/$CIB_MAX_RETRIES)"
+			sleep $CIB_RETRY_DELAY
+		fi
+	done
+
+	ocf_log warn "peer cluster_id not available after $CIB_MAX_RETRIES retries"
+	return $OCF_ERR_GENERIC
 }
 
 attribute_node_revision()
 {
+	# Get or update local revision from revision.json file.
+	# Fails if file is missing, or the revision can not be parsed from it.
 	local action="$1"
 	local value
-	local attribute="revision"
 
-	if ! value=$(jq -r ".maxRaftIndex" /var/lib/etcd/revision.json); then
+	if [ "$action" != "get" ] && [ "$action" != "update" ]; then
+		ocf_log err "unsupported action: '$action' for attribute_node_revision"
+		return "$OCF_ERR_GENERIC"
+	fi
+
+	if [ ! -f "$REV_JSON" ]; then
+		ocf_log warn "could not '$action' revision: revision.json not found"
+		return $OCF_ERR_GENERIC
+	fi
+
+	if ! value=$(jq -r ".maxRaftIndex" "$REV_JSON"); then
 		rc=$?
-		ocf_log err "could not get $attribute, error code: $rc"
+		ocf_log err "could not parse maxRaftIndex from existing revision.json, error code: $rc"
 		return "$rc"
 	fi
 
@@ -692,15 +730,11 @@ attribute_node_revision()
 			echo "$value"
 			;;
 		update)
-			if ! crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"; then
+			if ! crm_attribute --lifetime reboot --type nodes --node "$NODENAME" --name "revision" --update "$value"; then
 				rc=$?
-				ocf_log err "could not update etcd $revision, error code: $rc"
+				ocf_log err "could not update etcd revision, error code: $rc"
 				return "$rc"
 			fi
-			;;
-		*)
-			ocf_log err "unsupported $action for attribute_node_revision"
-			return "$OCF_ERR_GENERIC"
 			;;
 	esac
 }
@@ -708,8 +742,28 @@ attribute_node_revision()
 attribute_node_revision_peer()
 {
 	local nodename
+	local value
+	local retries=0
+
 	nodename=$(get_peer_node_name)
-	crm_attribute --query --type nodes --node "$nodename" --name "revision" | awk -F"value=" '{print $2}'
+
+	while [ $retries -lt $CIB_MAX_RETRIES ]; do
+		if value=$(crm_attribute --query --lifetime reboot --type nodes --node "$nodename" --name "revision" 2>/dev/null | awk -F"value=" '{print $2}'); then
+			if [ -n "$value" ] && [ "$value" != "null" ]; then
+				echo "$value"
+				return 0
+			fi
+		fi
+
+		retries=$((retries + 1))
+		if [ $retries -lt $CIB_MAX_RETRIES ]; then
+			ocf_log info "peer revision not available yet, retrying in ${CIB_RETRY_DELAY}s (attempt $retries/$CIB_MAX_RETRIES)"
+			sleep $CIB_RETRY_DELAY
+		fi
+	done
+
+	ocf_log warn "peer revision not available after $CIB_MAX_RETRIES retries"
+	return $OCF_ERR_GENERIC
 }
 
 attribute_node_member_id()
@@ -1248,20 +1302,30 @@ run_new_container()
 
 compare_revision()
 {
-	# Compare local revision (from disk) against peer revision (from CIB).
-	# returns "older", "equal" or "newer"
+	# Compare local revision (from disk) against peer revision (from CIB), returning "older", "equal", or "newer" accordingly.
+	# If local revision is missing, but peer revision exists, returns "older" to allow starting as learner, assuming that
+	# the lack of local revision means the etcd member was a learner in the previous lifecycle.
+	# Fails otherwise.
 	local revision
 	local peer_node_name
 	local peer_revision
 
-	revision=$(attribute_node_revision get)
-	peer_revision=$(attribute_node_revision_peer)
-
-	if [ "$revision" = "" ] || [ "$revision" = "null" ] || [ "$peer_revision" = "" ] || [ "$peer_revision" = "null" ]; then
-		ocf_log err "could not compare revisions: '$NODENAME' local revision='$revision', peer revision='$peer_revision'"
+	if ! peer_revision=$(attribute_node_revision_peer); then
+		return "$OCF_ERR_GENERIC"
+	elif [ "$peer_revision" = "" ] || [ "$peer_revision" = "null" ]; then
+		ocf_log err "peer revision is empty or null"
 		return "$OCF_ERR_GENERIC"
 	fi
 
+	# Handle the scenario where only the local revision data is missing
+	revision=$(attribute_node_revision get)
+	if [ "$revision" = "" ] || [ "$revision" = "null" ]; then
+		ocf_log info "$NODENAME local revision missing but peer has valid revision '$peer_revision' - can start as learner"
+		echo "older"
+		return "$OCF_SUCCESS"
+	fi
+
+	# Normal revision comparison when both exist
 	if [ "$revision" -gt "$peer_revision" ]; then
 		ocf_log info "$NODENAME revision: '$revision' is newer than peer revision: '$peer_revision'"
 		echo "newer"
@@ -1325,7 +1389,7 @@ can_reuse_container() {
 
 
 	# If the container does not exist it cannot be reused
-	if ! container_exists; then 
+	if ! container_exists; then
 		OCF_RESKEY_reuse=0
 		return "$OCF_SUCCESS"
 	fi
@@ -1336,7 +1400,7 @@ can_reuse_container() {
 		OCF_RESKEY_reuse=0
 		return "$OCF_SUCCESS"
 	fi
-	
+
 	if ! filtered_original_pod_manifest=$(filter_pod_manifest "$OCF_RESKEY_pod_manifest"); then
 		return $OCF_ERR_GENERIC
 	fi
@@ -1505,7 +1569,8 @@ podman_start()
 					fi
 					;;
 				2)
-					# TODO: can we start "normally", regardless the revisions, if the container-id is the same on both nodes?
+					# TODO: Consider starting normally, regardless revision *IF* the cluster-id is the same.
+					# NOTE: cluster-id does not change during force-new-cluster (https://github.com/openshift/etcd/pull/339)
 					ocf_log info "peer starting"
 					if [ "$revision_compare_result" = "newer" ]; then
 						set_force_new_cluster
@@ -1513,7 +1578,16 @@ podman_start()
 						ocf_log info "$NODENAME shall join as learner"
 						JOIN_AS_LEARNER=true
 					else
-						if [ "$(attribute_node_cluster_id get)" = "$(attribute_node_cluster_id_peer)" ]; then
+						local local_cluster_id peer_cluster_id
+						if ! local_cluster_id=$(attribute_node_cluster_id get); then
+							return "$OCF_ERR_GENERIC"
+						fi
+
+						if ! peer_cluster_id=$(attribute_node_cluster_id_peer); then
+							return "$OCF_ERR_GENERIC"
+						fi
+
+						if [ "$local_cluster_id" = "$peer_cluster_id" ]; then
 							ocf_log info "same cluster_id and revision: start normal"
 						else
 							ocf_exit_reason "same revision but different cluster id"
@@ -1860,6 +1934,9 @@ CONTAINER=$OCF_RESKEY_name
 POD_MANIFEST_COPY="${OCF_RESKEY_config_location}/pod.yaml"
 ETCD_CONFIGURATION_FILE="${OCF_RESKEY_config_location}/config.yaml"
 ETCD_BACKUP_FILE="${OCF_RESKEY_backup_location}/config-previous.tar.gz"
+REV_JSON="/var/lib/etcd/revision.json"
+CIB_MAX_RETRIES=2
+CIB_RETRY_DELAY=2
 
 # Note: we currently monitor podman containers by with the "podman exec"
 # command, so make sure that invocation is always valid by enforcing the
