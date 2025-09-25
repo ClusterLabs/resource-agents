@@ -680,10 +680,7 @@ find_interface() {
 #        Kill dangling ip connections
 #
 kill_ip_connections() {
-	local ss_output
-
-	ipaddr="$1"
-
+	local ss_output ipaddr="$1"
 
 	check_binary ss
 
@@ -696,9 +693,9 @@ kill_ip_connections() {
 
 	if [ $rc -ne 0 ]; then
 		ocf_log warn "Command $cmd failed (rc = $rc)"
-		ocf_log error "ss_output"
-        else
-		ocf_log info "ss_output"
+		ocf_log error "$ss_output"
+	else
+		ocf_log info "$ss_output"
         fi
 
 	return $OCF_SUCCESS
