@@ -476,7 +476,7 @@ Consider the resource failed if the interface has status DOWN or LOWERLAYERDOWN.
 
 <parameter name="kill_connections_on_stop">
 <longdesc lang="en">
-Kill connections using 'ss -K src IP' before deleteing interface
+Kill connections using 'ss -K src IP' before and after deleting interface
 </longdesc>
 <shortdesc lang="en">Kill connections before remove ip</shortdesc>
 <content type="string" default="${OCF_RESKEY_kill_connections_on_stop_default}"/>
@@ -680,29 +680,26 @@ find_interface() {
 #        Kill dangling ip connections
 #
 kill_ip_connections() {
-	local ss_output=""
-	local ss_line=""
-	local ss_out_loglevel="info"
+	local ss_output
 
-	local ipaddr="$1"
+	ipaddr="$1"
+
 
 	check_binary ss
 
-	CMD="ss -Knp src $ipaddr"
+	cmd="ss -Knp src $ipaddr"
 
-	ocf_log info "Calling $CMD"
+	ocf_log info "Calling $cmd"
 
-	ss_output=`$CMD 2>&1`
-	RC=$?
+	ss_output=`$cmd 2>&1`
+	rc=$?
 
-	if [ $RC -ne 0 ]; then
-		ocf_log warn "Command $CMD failed (rc = ${THE_RC})"
-		ss_out_loglevel="error"
-	fi
-	[ -n "$ss_output" ] && echo "$ss_output" | while read ss_line;
-	do
-		ocf_log $ss_out_loglevel "$ss_line"
-	done
+	if [ $rc -ne 0 ]; then
+		ocf_log warn "Command $cmd failed (rc = $rc)"
+		ocf_log error "ss_output"
+        else
+		ocf_log info "ss_output"
+        fi
 
 	return $OCF_SUCCESS
 }
