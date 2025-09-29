@@ -53,7 +53,8 @@ cat <<END
 <resource-agent name="vsftpd" version="1.0">
 <version>1.0</version>
 <longdesc lang="en">
-This script manages vsftpd
+This script manages vsftpd.
+The parameter background in the vsftpd.conf must be set to yes and setproctitle_enable must be disabled. Otherwise the RA can not work.
 </longdesc>
 <shortdesc lang="en">Manages an vsftpd</shortdesc>
 
@@ -155,7 +156,7 @@ vsftpd_start()
 		exit $OCF_ERR_GENERIC
 	fi
 
-	PID=$( pgrep $OCF_RESKEY_binpath )
+	PID=$( pgrep -f $OCF_RESKEY_binpath )
 	case $? in
 		0)
 			ocf_log info "PID file (pid:${PID} at $PIDFILE) created for vsftpd."
