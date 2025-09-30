@@ -1014,42 +1014,35 @@ get_member_list_json() {
 	podman exec "${CONTAINER}" etcdctl member list --endpoints="$this_node_endpoint" -w json
 }
 
-check_peers()
+detect_cluster_leadership_loss()
 {
-	# Check peers endpoint status and locally accessible member list
-	local member_list_json
+	endpoint_status_json=$(get_endpoint_status_json)
+	ocf_log info "endpoint status: $endpoint_status_json"
 
-	if ! container_exists; then
-		# we need a running container to execute etcdctl.
-		return $OCF_SUCCESS
-	fi
-
-	member_list_json=$(get_member_list_json)
-	rc=$?
-	ocf_log debug "member list: $member_list_json"
-	if [ $rc -ne 0 ]; then
-		ocf_log info "podman failed to get member list, error code: $rc"
-
-		endpoint_status_json=$(get_endpoint_status_json)
-		ocf_log info "endpoint status: $endpoint_status_json"
-
-		count_endpoints=$(printf  "%s" "$endpoint_status_json" | jq -r ".[].Endpoint" | wc -l)
-		if [ "$count_endpoints" -eq 1 ]; then
-			ocf_log info "one endpoint only: checking status errors"
-			endpoint_status_errors=$(printf "%s" "$endpoint_status_json" | jq -r ".[0].Status.errors")
-			if echo "$endpoint_status_errors" | grep -q "no leader"; then
-				set_force_new_cluster
-				set_standalone_node
-				ocf_exit_reason "$NODENAME must force a new cluster"
-				return $OCF_ERR_GENERIC
-			fi
-			if [ "$endpoint_status_errors" != "null" ]; then
-				ocf_log err "unmanaged endpoint status error: $endpoint_status_errors"
-			fi
+	count_endpoints=$(printf  "%s" "$endpoint_status_json" | jq -r ".[].Endpoint" | wc -l)
+	if [ "$count_endpoints" -eq 1 ]; then
+		ocf_log info "one endpoint only: checking status errors"
+		endpoint_status_errors=$(printf "%s" "$endpoint_status_json" | jq -r ".[0].Status.errors")
+		if echo "$endpoint_status_errors" | grep -q "no leader"; then
+			set_force_new_cluster
+			set_standalone_node
+			ocf_exit_reason "$NODENAME must force a new cluster"
+			return $OCF_ERR_GENERIC
 		fi
-
-		return $OCF_SUCCESS
+		if [ "$endpoint_status_errors" != "null" ]; then
+			ocf_log err "unmanaged endpoint status error: $endpoint_status_errors"
+		fi
 	fi
+
+	return $OCF_SUCCESS
+}
+
+manage_peer_membership()
+{
+	# Read etcd member list to detect the status of the peer member.
+	# If the peer is missing from the member list, it will be added back as learner
+	# If the peer is back in the member list, we ensure that the related CIB attributes (standalone and learner_node) are reset
+	local member_list_json="$1"
 
 	# Example of .members[] instance fields in member list json format:
 	# NOTE that "name" is present in voting members only, while "isLearner" in learner members only
@@ -1083,6 +1076,25 @@ check_peers()
 			clear_standalone_and_learner_if_not_learners "$member_list_json"
 		fi
 	done
+}
+
+check_peer()
+{
+	# Check peers endpoint status and locally accessible member list
+	local member_list_json
+
+	# we need a running container to execute etcdctl.
+	if ! container_exists; then
+		return $OCF_SUCCESS
+	fi
+
+	if ! member_list_json=$(get_member_list_json); then
+		ocf_log info "podman failed to get member list, error code: $?"
+		detect_cluster_leadership_loss
+		return $?
+	fi
+
+	manage_peer_membership "$member_list_json"
 	return $OCF_SUCCESS
 }
 
@@ -1124,7 +1136,7 @@ podman_monitor()
 	# monitor operation to fail.
 	# TODO: move this inside check_peers where we already query member list json
 	attribute_node_member_id update
-	if ! check_peers; then
+	if ! check_peer; then
 		return $OCF_ERR_GENERIC
 	fi
 
