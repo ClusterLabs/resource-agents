@@ -712,6 +712,22 @@ attribute_node_revision_peer()
 	crm_attribute --query --type nodes --node "$nodename" --name "revision" | awk -F"value=" '{print $2}'
 }
 
+# Converts a decimal number to hexadecimal format with validation
+# Args: $1 - decimal number (test for non-negative integer too)
+# Returns: 0 on success, OCF_ERR_GENERIC on invalid input
+# Outputs: hexadecimal representation to stdout
+decimal_to_hex() {
+	local dec=$1
+
+	if ! echo "$dec" | grep -q "^[1-9][0-9]*$"; then
+		ocf_log err "Invalid member ID format: '$dec' (expected decimal number)"
+		return $OCF_ERR_GENERIC
+	fi
+
+	printf "%x" "$dec"
+	return $OCF_SUCCESS
+}
+
 attribute_node_member_id()
 {
 	local action="$1"
@@ -737,7 +753,7 @@ attribute_node_member_id()
 				return "$rc"
 			fi
 
-			local value
+			local value value_hex
 			if ! value=$(echo -n "$member_list_json" | jq -r ".header.member_id"); then
 				rc=$?
 				ocf_log err "could not get $attribute from member list JSON, error code: $rc"
@@ -745,8 +761,11 @@ attribute_node_member_id()
 			fi
 
 			# JSON member_id is decimal, while etcdctl command needs the hex version
-			value=$(printf "%x" "$value")
-			if ! crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"; then
+			if ! value_hex=$(decimal_to_hex "$value"); then
+				ocf_log err "could not convert decimal member_id '$value' to hex, error code: $?"
+				return $OCF_ERR_GENERIC
+			fi
+			if ! crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value_hex"; then
 				rc=$?
 				ocf_log err "could not update etcd $attribute, error code: $rc"
 				return "$rc"
@@ -905,42 +924,70 @@ clear_standalone_node()
 	crm_attribute --name "standalone_node" --delete
 }
 
-clear_standalone_and_learner_if_not_learners()
+
+# Promotes an etcd learner member to a voting member
+# Args: $1 - learner member ID in decimal format
+# Returns: OCF_SUCCESS (even on expected promotion failures), OCF_ERR_GENERIC on conversion errors
+# Note: Promotion failures are expected and logged as info (peer may not be up-to-date)
+promote_learner_member()
+{
+	local learner_member_id=$1
+
+	# JSON member_id is decimal, while etcdctl command needs the hex version
+	if ! learner_member_id_hex=$(decimal_to_hex "$learner_member_id"); then
+		ocf_log err "could not convert decimal member_id '$learner_member_id' to hex, error code: $?"
+		return $OCF_ERR_GENERIC
+	fi
+	if ! ocf_run podman exec "${CONTAINER}" etcdctl member promote "$learner_member_id_hex" 2>&1; then
+		# promotion is expected to fail if the peer is not yet up-to-date
+		ocf_log info "could not promote member $learner_member_id_hex, error code: $?"
+		return $OCF_SUCCESS
+	fi
+	ocf_log info "successfully promoted member '$learner_member_id_hex'"
+	return $OCF_SUCCESS
+}
+
+# Reconciles etcd cluster member states
+# Promotes learner members or clears standalone/learner attributes as needed
+# Args: $1 - member list JSON from etcdctl
+# Returns: OCF_SUCCESS on completion, OCF_ERR_GENERIC on errors
+# Note: Only operates when exactly 2 started members are present
+reconcile_member_state()
 {
 	local rc
 	local member_list_json="$1"
 
-	number_of_members=$(printf  "%s" "$member_list_json" | jq -r ".members[].ID" | wc -l)
-	if [ "$number_of_members" -ne 2 ]; then
-		ocf_log info "could not clear standalone_node, nor learner_node properties: found $number_of_members members, need 2"
+	# count only the started members, which have the ".name" JSON field
+	number_of_started_members=$(printf  "%s" "$member_list_json" | jq -r ".members[].name | select(. != null)" | wc -l)
+	if [ "$number_of_started_members" -ne 2 ]; then
+		ocf_log info "could not clear standalone_node, nor learner_node properties: found $number_of_started_members members, need 2"
 		return $OCF_SUCCESS
 	fi
 
-	id=$(printf "%s" "$member_list_json" | jq -r ".members[] | select( .isLearner==true ).ID")
+	learner_member_id=$(printf "%s" "$member_list_json" | jq -r ".members[] | select( .isLearner==true ).ID")
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		ocf_log err "could not get isLearner field from member list, error code: $rc"
 		return $rc
 	fi
 
-	if [ -z "$id" ]; then
-		clear_standalone_node
-		rc=$?
-		if [ $rc -ne 0 ]; then
-			ocf_og error "could not clear standalone_node attribute, error code: $rc"
-			return $rc
-		fi
+	if [ -n "$learner_member_id" ]; then
+		promote_learner_member "$learner_member_id"
+		return $?
 	fi
-	if [ -z "$id" ]; then
-		attribute_learner_node clear
-		rc=$?
-		if [ $rc -ne 0 ]; then
-			ocf_og error "could not clear learner_node attribute, error code: $rc"
-			return $rc
+
+	if [ -z "$learner_member_id" ]; then
+		if ! clear_standalone_node; then
+			ocf_log error "could not clear standalone_node attribute, error code: $?"
+			return $OCF_ERR_GENERIC
+		fi
+		if ! attribute_learner_node clear; then
+			ocf_log error "could not clear learner_node attribute, error code: $?"
+			return $OCF_ERR_GENERIC
 		fi
 	fi
 
-	return $rc
+	return $OCF_SUCCESS
 }
 
 attribute_learner_node()
@@ -1019,7 +1066,7 @@ detect_cluster_leadership_loss()
 	endpoint_status_json=$(get_endpoint_status_json)
 	ocf_log info "endpoint status: $endpoint_status_json"
 
-	count_endpoints=$(printf  "%s" "$endpoint_status_json" | jq -r ".[].Endpoint" | wc -l)
+	count_endpoints=$(printf "%s" "$endpoint_status_json" | jq -r ".[].Endpoint" | wc -l)
 	if [ "$count_endpoints" -eq 1 ]; then
 		ocf_log info "one endpoint only: checking status errors"
 		endpoint_status_errors=$(printf "%s" "$endpoint_status_json" | jq -r ".[0].Status.errors")
@@ -1037,11 +1084,14 @@ detect_cluster_leadership_loss()
 	return $OCF_SUCCESS
 }
 
+
+# Manages etcd peer membership by detecting and handling missing or rejoining peers
+# Adds missing peers as learners and reconciles member states when peers rejoin
+# Args: $1 - member list JSON from etcdctl
+# Returns: OCF_SUCCESS on completion, OCF_ERR_GENERIC on errors
+# Note: Iterates through all peer nodes to ensure proper cluster membership
 manage_peer_membership()
 {
-	# Read etcd member list to detect the status of the peer member.
-	# If the peer is missing from the member list, it will be added back as learner
-	# If the peer is back in the member list, we ensure that the related CIB attributes (standalone and learner_node) are reset
 	local member_list_json="$1"
 
 	# Example of .members[] instance fields in member list json format:
@@ -1066,14 +1116,14 @@ manage_peer_membership()
 
 		# Check by IP instead of Name since "learner" members appear only in peerURLs, not by Name.
 		ip=$(echo "$node" | cut -d: -f2-) # Grab everything after the first : this covers ipv4/ipv6
-		id=$(printf "%s" "$member_list_json" | jq -r ".members[] | select( .peerURLs | map(test(\"$ip\")) | any).ID")
-		if [ -z "$id" ]; then
+		peer_member_id=$(printf "%s" "$member_list_json" | jq -r ".members[] | select( .peerURLs | map(test(\"$ip\")) | any).ID")
+		if [ -z "$peer_member_id" ]; then
 			ocf_log info "$name is not in the members list"
 			add_member_as_learner "$name" "$ip"
 			set_standalone_node
 		else
 			ocf_log debug "$name is in the members list by IP: $ip"
-			clear_standalone_and_learner_if_not_learners "$member_list_json"
+			reconcile_member_state "$member_list_json"
 		fi
 	done
 }
