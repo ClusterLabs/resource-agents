@@ -152,11 +152,11 @@ parameter and only in concert with action set to unblock.
 Note that the tickle ACK function is new as of version 3.0.2 and
 hasn't yet seen widespread use.
 
-In Promotable mode, the promote action unblocks the ports on the Promoted node
-and blocks the ports on the Unpromoted node(s) when action=block, and vice versa
-when action=unblock.
+In Promotable mode, the promote action unblocks the port(s) on the Promoted node
+and blocks the port(s) on the Unpromoted node(s) when action=unblock, and vice versa
+when action=block.
 </longdesc>
-<shortdesc lang="en">Block and unblocks access to TCP and UDP ports</shortdesc>
+<shortdesc lang="en">Blocks and unblocks access to TCP and UDP ports</shortdesc>
 
 <parameters>
 <parameter name="firewall" unique="0" required="0">
@@ -187,8 +187,9 @@ The port number used to be blocked/unblocked.
 <longdesc lang="en">
 The action (block/unblock) to be done on the protocol::portno.
 
-In Promotable mode it is the initial action for start/demote actions,
-and the promote action will change the state to the opposite.
+In Promotable mode it is the action for the promote action,
+and the opposite action will be used for the start and demote
+actions.
 </longdesc>
 <shortdesc lang="en">action</shortdesc>
 <content type="string" default="${OCF_RESKEY_action_default}" />
@@ -872,7 +873,7 @@ case $__OCF_ACTION in
 			;;
 
   promote)
-			PortPromote $protocol "$portno" "$ip" "$direction" "$action"
+			PortPromote "$protocol" "$portno" "$ip" "$direction" "$action"
 			;;
 
   demote)
