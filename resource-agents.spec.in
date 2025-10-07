@@ -108,9 +108,13 @@ Requires: /sbin/fsck
 Requires: /usr/sbin/fsck.ext2 /usr/sbin/fsck.ext3 /usr/sbin/fsck.ext4
 Requires: /usr/sbin/fsck.xfs
 %if 0%{?fedora} > 40 || 0%{?rhel} > 9 || 0%{?suse_version}
-Requires: /usr/sbin/mount.nfs /usr/sbin/mount.nfs4
+Recommends: /usr/sbin/mount.nfs /usr/sbin/mount.nfs4
+%else
+%if 0%{?rhel} > 8
+Recommends: /sbin/mount.nfs /sbin/mount.nfs4
 %else
 Requires: /sbin/mount.nfs /sbin/mount.nfs4
+%endif
 %endif
 %if (0%{?fedora} && 0%{?fedora} < 33) || (0%{?rhel} && 0%{?rhel} < 9) || (0%{?centos} && 0%{?centos} < 9) || 0%{?suse_version}
 %if (0%{?rhel} && 0%{?rhel} < 8) || (0%{?centos} && 0%{?centos} < 8)
@@ -128,11 +132,19 @@ Requires: /usr/sbin/lvm
 
 # nfsserver / netfs.sh
 %if 0%{?fedora} > 40 || 0%{?rhel} > 9 || 0%{?suse_version}
-Requires: /usr/sbin/rpc.statd
+Recommends: /usr/sbin/rpc.statd
+%else
+%if 0%{?rhel} > 8
+Recommends: /sbin/rpc.statd
 %else
 Requires: /sbin/rpc.statd
 %endif
+%endif
+%if 0%{?fedora} > 40 || 0%{?rhel} > 8 || 0%{?suse_version}
+Recommends: /usr/sbin/rpc.nfsd /usr/sbin/rpc.mountd
+%else
 Requires: /usr/sbin/rpc.nfsd /usr/sbin/rpc.mountd
+%endif
 
 # rgmanager
 %if %{with rgmanager}
