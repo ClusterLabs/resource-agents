@@ -1029,6 +1029,48 @@ get_peer_node_name() {
 	crm_node -l | awk '{print $2}' | grep -v "$NODENAME"
 }
 
+# Calculate the count of truly active resources by excluding those being stopped.
+# According to Pacemaker documentation, during "Post-notification (stop) /
+# Pre-notification (start)" transitions, the true active resource count should be:
+#   Active resources = $OCF_RESKEY_CRM_meta_notify_active_resource
+#                      minus $OCF_RESKEY_CRM_meta_notify_stop_resource
+# This handles the case where a resource appears in both the active and stop lists
+# during rapid restart scenarios (e.g., process crash recovery).
+get_truly_active_resources_count() {
+	local active_list="$OCF_RESKEY_CRM_meta_notify_active_resource"
+	local stop_list="$OCF_RESKEY_CRM_meta_notify_stop_resource"
+	local truly_active=""
+
+	# If no active resources, return 0
+	if [ -z "$active_list" ]; then
+		echo "0"
+		return
+	fi
+
+	# If no resources being stopped, return count of active resources
+	if [ -z "$stop_list" ]; then
+		echo "$active_list" | wc -w
+		return
+	fi
+
+	# Filter out resources that are being stopped from the active list
+	for resource in $active_list; do
+		local is_stopping=0
+		for stop_resource in $stop_list; do
+			if [ "$resource" = "$stop_resource" ]; then
+				is_stopping=1
+				break
+			fi
+		done
+		if [ $is_stopping -eq 0 ]; then
+			truly_active="$truly_active $resource"
+		fi
+	done
+
+	# Count the truly active resources (trim leading space and count words)
+	echo "$truly_active" | wc -w
+}
+
 get_all_etcd_endpoints() {
 	for node in $(echo "$OCF_RESKEY_node_ip_map" | sed "s/\s//g;s/;/ /g"); do
         name=$(echo "$node" | cut -d: -f1)
@@ -1529,8 +1571,8 @@ podman_start()
 			# - 0 active agents, 1 starting: we are starting; the peer is not starting
 			# - 0 active agents, 2 starting: both agents are starting simultaneously
 			local active_resources_count
-			active_resources_count=$(echo "$OCF_RESKEY_CRM_meta_notify_active_resource" | wc -w)
-			ocf_log info "found '$active_resources_count' active etcd resources (meta notify environment variable: '$OCF_RESKEY_CRM_meta_notify_active_resource')"
+			active_resources_count=$(get_truly_active_resources_count)
+			ocf_log info "found '$active_resources_count' active etcd resources (active: '$OCF_RESKEY_CRM_meta_notify_active_resource', stop: '$OCF_RESKEY_CRM_meta_notify_stop_resource')"
 			case "$active_resources_count" in
 			1)
 				if [ "$(attribute_learner_node get)" = "$(get_peer_node_name)" ]; then
