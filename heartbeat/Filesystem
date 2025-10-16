@@ -694,19 +694,26 @@ get_pids()
 		#
 		# Or trust that fuser (above) learned something in the last 15 years
 		# and avoids blocking operations meanwhile?
-		procs=$(exec 2>/dev/null;
-			find /proc -mindepth 1 -maxdepth 3 \
-				-path "/proc/[0-9]*" \
-				-type l \( -lname "${dir}/*" -o -lname "${dir}" \) -print |
-			awk -F/ '{print $3}' | uniq)
+		(
+		# If you want to debug this, drop this redirection.
+		# But it producess too much "No such file" noise for kernel
+		# threads or due to races with exiting processes or closing fds.
+		exec 2>/dev/null;
+		find /proc -mindepth 1 -maxdepth 3 \
+			-path "/proc/[0-9]*" \
+			-type l \( -lname "${dir}/*" -o -lname "${dir}" \) -print |
+		awk -F/ '{print $3}' | uniq
 
-		# memory mappings are also per process, not per task.
-		# This finds only /proc/<pid>/maps, and not /proc/<pid>/task/<tid>/maps;
-		# if you also want the latter, drop -maxdepth.
-		mmap_procs=$(exec 2>/dev/null;
+		# If we have "map_files/", "find" above already found the
+		# relevant symlinks, and we don't need to grep "maps" below.
+		# Available since kernel 3.3, respectively 4.3.
+		test -d /proc/$$/map_files ||
+			# memory mappings are also per process, not per task.
+			# This finds only /proc/<pid>/maps, and not /proc/<pid>/task/<tid>/maps;
+			# if you also want the latter, drop -maxdepth.
 			find /proc -mindepth 2 -maxdepth 2 -path "/proc/[0-9]*/maps" -print |
-			xargs -r grep -l " ${dir}/" | awk -F/ '{print $3}' | uniq)
-		printf "${procs}\n${mmap_procs}" | sort -u
+			xargs -r grep -l " ${dir}/" | awk -F/ '{print $3}' | uniq
+		) | sort -u
 	fi
 }
 
