@@ -680,14 +680,31 @@ get_pids()
 		# -path "/proc/[!0-9]*" -prune -o ...
 		# -path "/proc/[0-9]*" -a ...
 		# the latter seemd to be significantly faster for this one in my naive test.
+
+		# root, cwd, exe, maps, fd: all per process, not per task ("thread").
+		# -maxdepth to avoid repeatedly scanning the same thing
+		# for all threads of a heavily threaded process.
+		#
+		# Adding -maxdepth reduced scanning from > 16 seconds to < 2 seconds
+		# on a mostly idle system that happened to run a few java processes.
+		#
+		# We can also add a dedicated helper in C do twhat is done below,
+		# which would reduce the scanning time by an
+		# additional factor of 10 again.
+		#
+		# Or trust that fuser (above) learned something in the last 15 years
+		# and avoids blocking operations meanwhile?
 		procs=$(exec 2>/dev/null;
-			find /proc -path "/proc/[0-9]*" -type l \( -lname "${dir}/*" -o -lname "${dir}" \) -print |
+			find /proc -mindepth 1 -maxdepth 3 \
+				-path "/proc/[0-9]*" \
+				-type l \( -lname "${dir}/*" -o -lname "${dir}" \) -print |
 			awk -F/ '{print $3}' | uniq)
 
-		# This finds both /proc/<pid>/maps and /proc/<pid>/task/<tid>/maps;
-		# if you don't want the latter, add -maxdepth.
+		# memory mappings are also per process, not per task.
+		# This finds only /proc/<pid>/maps, and not /proc/<pid>/task/<tid>/maps;
+		# if you also want the latter, drop -maxdepth.
 		mmap_procs=$(exec 2>/dev/null;
-			find /proc -path "/proc/[0-9]*/maps" -print |
+			find /proc -mindepth 2 -maxdepth 2 -path "/proc/[0-9]*/maps" -print |
 			xargs -r grep -l " ${dir}/" | awk -F/ '{print $3}' | uniq)
 		printf "${procs}\n${mmap_procs}" | sort -u
 	fi
