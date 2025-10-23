@@ -37,6 +37,13 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Use runuser if available for SELinux.
+if [ -x "/sbin/runuser" ]; then
+    SU="runuser"
+else
+    SU="su"
+fi
+
 # Parameter defaults
 
 OCF_RESKEY_instance_default=""
@@ -55,11 +62,12 @@ OCF_RESKEY_dbpartitionnum_default="0"
 : ${OCF_RESKEY_admin=${OCF_RESKEY_admin_default}}
 : ${OCF_RESKEY_dbpartitionnum=${OCF_RESKEY_dbpartitionnum_default}}
 
+POSIX_UNICODE_LOCALE="C.UTF-8"
 #######################################################################
 
 
 db2_usage() {
-    echo "db2 start|stop|monitor|promote|demote|notify|validate-all|meta-data"
+    echo "db2 start|stop|monitor|promote|demote|validate-all|meta-data"
 }
 
 db2_meta_data() {
@@ -162,7 +170,6 @@ The number of the partition (DBPARTITIONNUM) to be managed.
 <action name="stop" timeout="120s"/>
 <action name="promote" timeout="120s"/>
 <action name="demote" timeout="120s"/>
-<action name="notify" timeout="10s"/>
 <action name="monitor" depth="0" timeout="60s" interval="20s"/>
 <action name="monitor" depth="0" timeout="60s" role="Promoted" interval="22s"/>
 <action name="validate-all" timeout="5s"/>
@@ -273,7 +280,18 @@ master_score()
 # Run the given command as db2 instance user
 #
 runasdb2() {
-    su $instance -c ". $db2profile; $*"
+    $SU $instance -c ". $db2profile; $*"
+}
+
+#
+# Run the given command as db2 instance user using $SU
+# We run this function as opposed to runasdb2 whenever we have to issue commands
+# that leave processes running on the system, such as db2start
+# We do not want these processes to hog the resources as they were run with elevated privileges
+#
+runasdb2_session() {
+   # Override db2profile with unicode locale is required to maintain compatibility with unicode CODEPAGE
+   $SU "$instance" -c "ksh -c '. $db2profile; export LC_ALL="$POSIX_UNICODE_LOCALE"; export LANG="$POSIX_UNICODE_LOCALE"; $*'"
 }
 
 #
@@ -293,48 +311,6 @@ logasdb2() {
     return $rc
 }
 
-
-#
-# maintain the fal (first active log) attribute
-# db2_fal_attrib DB {set val|get}
-#
-db2_fal_attrib() {
-    local db=$1
-    local attr val rc id node member me
-
-    attr=db2hadr_${instance}_${db}_fal
-
-    case "$2" in
-        set)
-        me=$(ocf_local_nodename)
-
-        # loop over all member nodes and set attribute
-        crm_node -l |
-        while read id node member
-        do
-            [ "$member" = member -a "$node" != "$me" ] || continue
-            crm_attribute -l forever --node=$node -n $attr -v "$3"
-            rc=$?
-            ocf_log info "DB2 instance $instance($db2node/$db: setting attrib for FAL to $FIRST_ACTIVE_LOG @ $node"
-            [ $rc != 0 ] && break
-        done
-        ;;
-
-        get)
-        crm_attribute -l forever -n $attr -G --quiet 2>&1
-        rc=$?
-        if ! ocf_is_true "$OCF_RESKEY_CRM_meta_notify" && [ $rc != 0 ]
-        then
-            ocf_log warn "DB2 instance $instance($db2node/$db: can't retrieve attribute $attr, are you sure notifications are enabled ?"
-        fi
-        ;;
-
-        *)
-        exit $OCF_ERR_CONFIGURED
-    esac
-
-    return $rc
-}
 
 #
 # unfortunately a first connect after a crash may need several minutes
@@ -430,6 +406,42 @@ db2_check_config_compatibility() {
 }
 
 #
+# Start HADR as standby.
+#
+# Parameters
+#     1 - Calling function
+#     2 - Calling functions line number
+#
+# Return codes:
+#     0 - Start as standby successful
+#     1 - Start as standby failed
+#
+reintegrateAsStandby() {
+   db=$1
+   reint_attr="db2hadr-${inst1}_${inst2}_${db}_reint"
+   ocf_log info "$__OCF_ACTION: $LINENO: reintegrateAsStandby called by $2 at $3. Attempting to reintegrate $db as standby."
+   if output=$(runasdb2_session "db2 start hadr on db $db as standby"); then
+      rc=0
+      ocf_log info "$__OCF_ACTION: $LINENO: Db2 database $instance($db2node)/$db started/activated"
+   else
+      case $output in
+      SQL1777N*)
+         # SQL1777N: HADR is already started in given state.
+         ocf_log info "$__OCF_ACTION: $LINENO: $output"
+         rc=0
+         ;;
+
+      *)
+         rc=1
+         ocf_log err "$__OCF_ACTION: $LINENO: Unable to reintegrate Db2 database $instance($db2node)/$db. Please reintegrate manually: $output, return with rc=$rc"
+         ;;
+      esac
+   fi
+   crm_attribute -n "$reint_attr" -N "$local_host" -v "0" -l forever
+   return $rc
+}
+
+#
 # Start instance and DB.
 # Standard mode is through "db2 activate" in order to start in previous
 # mode (Standy/Primary).
@@ -478,6 +490,8 @@ db2_start() {
 
     for db in $dblist
     do
+        reint_attr="db2hadr-${inst1}_${inst2}_${db}_reint"
+
         # sets HADR_ROLE HADR_TIMEOUT HADR_PEER_WINDOW FIRST_ACTIVE_LOG
         db2_get_cfg $db || return $?
 
@@ -488,20 +502,13 @@ db2_start() {
 
         if [ $HADR_ROLE = PRIMARY ]
         then
-            local master_fal
-
-            # communicate our FAL to other nodes the might start concurrently
-            db2_fal_attrib $db set $FIRST_ACTIVE_LOG
-
-            # ignore false positive:
-            # error: Can't use > in [ ]. Escape it or use [[..]]. [SC2073]
-            # see https://github.com/koalaman/shellcheck/issues/691
-            # shellcheck disable=SC2073
-            if master_fal=$(db2_fal_attrib $db get) && [ "$master_fal" '>' $FIRST_ACTIVE_LOG ]
-            then
+            cib_value=$(crm_attribute -n "$reint_attr" -N "$local_host" -G | awk -v FS=' value=' '{print $2}')
+            ocf_log info "$__OCF_ACTION: $LINENO: CIB attribute $reint_attr is set to '$cib_value'"
+            if [ "$cib_value" = "1" ]; then
                 ocf_log info "DB2 database $instance($db2node)/$db is Primary and outdated, starting as secondary"
                 start_cmd="db2 start hadr on db $db as standby"
                 HADR_ROLE=STANDBY
+                standby_reintegration=1
             fi
         fi
 
@@ -511,27 +518,65 @@ db2_start() {
             [ $HADR_ROLE != STANDBY ] && db2_run_connect $db &
         else
             case $output in
-                SQL1490W*|SQL1494W*|SQL1497W*|SQL1777N*)
-                ocf_log info "DB2 database $instance($db2node)/$db already activated: $output"
+            SQL1490W* | SQL1494W* | SQL1497W* | SQL1777N*)
+                # SQL1490W  Activate database is successful, however, the database has already been activated on one or more nodes.
+                # SQL1494W  Activate database is successful, however, there is already a connection to the database.
+                # SQL1497W  Activate/Deactivate database was successful, however, an error occurred on some nodes.
+                # SQL1777N  HADR is already started.
+
+                ocf_log info "$__OCF_ACTION: $LINENO: $instance: $db2node: $db: The database is already activated: $output"
                 ;;
 
-                SQL1768N*"Reason code = \"7\""*)
-                ocf_log err "DB2 database $instance($db2node)/$db is a Primary and the Standby is down"
-                ocf_log err "Possible split brain ! Manual intervention required."
+            SQL1768N*"Reason code = \"7\""*)
+                rc="$OCF_ERR_GENERIC"
+
+                ocf_log err "$__OCF_ACTION: $LINENO: $instance: $db2node: $db: The database is a Primary and the Standby is down"
+                ocf_log err "Possible split brain! Manual intervention required."
                 ocf_log err "If this DB is outdated use \"db2 start hadr on db $db as standby\""
-                ocf_log err "If this DB is the surviving primary use \"db2 start hadr on db $db as primary by force\""
+                ocf_log err "If this DB is the surviving primary use \"db2 start hadr on db $db as primary by force\".  db2_start() exit with rc=$rc."
 
-                # might be the Standby is not yet there
-                # might be a timing problem because "First active log" is delayed
-                #    on the next start attempt we might succeed when FAL was advanced
-                # might be manual intervention is required
-                # ... so let pacemaker give it another try and we will succeed then
-                return $OCF_ERR_GENERIC
+                # let pacemaker give it another try and we will succeed then
+                return "$rc"
                 ;;
 
-                *)
-                ocf_log err "DB2 database $instance($db2node)/$db didn't start: $output"
-                return $OCF_ERR_GENERIC
+            SQL1776N*"Reason code = \"6\""*)
+                # SQL1776N  The command cannot be issued on an HADR database.
+                # Reason code 6:
+                #  This database is an old primary database. It cannot be started
+                #  because the standby has become the new primary through forced
+                #  takeover.
+
+                rc="$OCF_ERR_GENERIC"
+                ocf_log err "$__OCF_ACTION: $LINENO: Db2 database $instance($db2node)/$db didn't start: $output, return with rc=$rc"
+                ocf_log err "$__OCF_ACTION: $LINENO: This database is an old primary database. Trying start again as standby"
+
+                start_cmd="db2 start hadr on db $db as standby"
+                if output=$(runasdb2_session "$start_cmd"); then
+                    rc="$OCF_SUCCESS"
+                    ocf_log info "$__OCF_ACTION: $LINENO: Db2 database $instance($db2node)/$db started/activated"
+                else
+                    case $output in
+                    SQL1777N*)
+                        # SQL1777N: HADR is already started.
+                        ocf_log info "$__OCF_ACTION: $LINENO: $output"
+                        rc="$OCF_SUCCESS"
+                        ;;
+
+                    *)
+                        rc="$OCF_ERR_GENERIC"
+                        ocf_log err "$__OCF_ACTION: $LINENO: Unable to reintegrate Db2 database $instance($db2node)/$db. Please reintegrate manually: $output, return with rc=$rc"
+                        ;;
+                    esac
+                fi
+
+                return "$rc"
+                ;;
+
+            *)
+                rc="$OCF_ERR_GENERIC"
+                ocf_log err "$__OCF_ACTION: $LINENO: $instance: $db2node: $db: The database didn't start: $output, db2_start() exit with rc=$rc."
+                return "$rc"
+                ;;
             esac
         fi
     done
@@ -539,6 +584,15 @@ db2_start() {
     # come here with success
     # Even if we are a db2 Primary pacemaker requires start to end up in slave mode
     echo SLAVE > $STATE_FILE
+
+    # Unset primary failover attribute as host was successfully reintegrated as standby
+    if [ "$standby_reintegration" = "1" ]; then
+        for db in $dblist; do
+            reint_attr="db2hadr-${inst1}_${inst2}_${db}_reint"
+            crm_attribute -n "$reint_attr" -N "$local_host" -v "0" -l forever
+        done
+    fi
+
     return $OCF_SUCCESS
 }
 
@@ -737,7 +791,7 @@ db2_monitor_retry() {
 
 #
 # Monitor the db
-# And as side effect set crm_master / FAL attribute
+# And as side effect set crm_master
 #
 db2_monitor() {
     local CMD output hadr db
@@ -754,6 +808,22 @@ db2_monitor() {
 
     for db in $dblist
     do
+        reint_attr="db2hadr-${inst1}_${inst2}_${db}_reint"
+
+        #Check for the reintegration file, then set the flag if it exists and delete the file
+        if [ -e "/tmp/$reint_attr" ] && [ -n "$remote_host" ]; then
+            #The file exist, try to set the reintegration attribute
+            crm_attribute -n "$reint_attr" -N "$remote_host" -v "1" -l forever
+            cib_value=$(crm_attribute -n "$reint_attr" -N "$remote_host" -G | awk -v FS=' value=' '{print $2}')
+
+            if [ "$cib_value" = "1" ]; then
+                ocf_log info "$__OCF_ACTION: $LINENO: CIB attribute $reint_attr is set to '$cib_value', reintegration flag file will now be deleted."
+                rm -f "/tmp/$reint_attr"
+            else
+                ocf_log err "$__OCF_ACTION: $LINENO: $instance: $db2node: $db: The reintegration flag file exists, but its attribute failed to set."
+            fi
+        fi
+
         hadr=$(db2_hadr_status $db)
         rc=$?
         ocf_log debug "Monitor: DB2 database $instance($db2node)/$db has HADR status $hadr"
@@ -804,12 +874,48 @@ db2_monitor() {
             ;;
 
             STANDBY/*PEER/*|Standby/*Peer)
+            # If db is in standby peer, then it has already reintegrated.
+            # If the reintegrate flag is still set, remove it
+            cib_value=$(crm_attribute -n "$reint_attr" -N "$local_host" -G | awk -v FS=' value=' '{print $2}')
+            if [ "$cib_value" = "1" ]; then
+               ocf_log info "$__OCF_ACTION: $LINENO: Reintegrate flag detected for $db, but it has already reintegrated as standby. Removing reintegration flag."
+               crm_attribute -n "$reint_attr" -N "$local_host" -v "0" -l forever
+            fi
+
             master_score -v 8000 -l reboot
             ;;
 
             STANDBY/*|Standby/*)
             ocf_log warn "DB2 database $instance($db2node)/$db in status $hadr can never be promoted"
             master_score -D -l reboot
+            ;;
+
+            Down/Off)
+            # If db is a deactivated primary and it has a reintegration flag, then reintegrate as standby.
+            cib_value=$(crm_attribute -n "$reint_attr" -N "$local_host" -G | awk -v FS=' value=' '{print $2}')
+            if [ "$cib_value" = "1" ]; then
+                output=$(runasdb2 "db2 get db cfg for $db" | grep 'HADR database role' | awk '{print $5}')
+                if [ "PRIMARY" = "$output" ]; then
+                   ocf_log info "$__OCF_ACTION: $LINENO: $instance: $db2node: $db: Database is deactivated with Primary role and the reintegration flag is set. Role: $output, Reintegration flag: $reint_attr = $cib_value"
+                   # Reintegrate as the standby database.
+                   if reintegrateAsStandby "$db" 'db2_monitor' $LINENO; then
+                      ocf_log info "$__OCF_ACTION: $LINENO: $instance: $db2node: $db: The database reintegration succeeded."
+                      # Setting slave state here will cause rc to be OCF_SUCCESS below.
+                      ocf_log info "$__OCF_ACTION: $LINENO: $instance: $db2node: $db: Echoing SLAVE into $STATE_FILE"
+                      echo SLAVE >"$STATE_FILE"
+                      # Update master score to reflect standby state.
+                      master_score -v 8000 -l reboot
+                   else
+                      ocf_log err "$__OCF_ACTION: $LINENO: $instance: $db2node: $db: The database reintegration failed."
+                      return "$OCF_ERR_GENERIC"
+                   fi
+                fi
+            else
+                rc="$OCF_NOT_RUNNING"
+                ocf_log info "$__OCF_ACTION: $LINENO: $instance: $db2node: $db: The database has HADR status $hadr."
+                ocf_log info "$__OCF_ACTION: $LINENO: $instance: $db2node: $db: db2_monitor() exit with rc=$rc."
+                return "$rc"
+            fi
             ;;
 
             *)
@@ -875,8 +981,6 @@ db2_promote() {
             # update pacemaker's view
             echo MASTER > $STATE_FILE
 
-            # turn the log so we rapidly get a new FAL
-            logasdb2 "db2 archive log for db $db"
             return $OCF_SUCCESS
         fi
 
@@ -914,26 +1018,6 @@ db2_demote() {
     return $?
 }
 
-#
-# handle pre start notification
-# We record our first active log on the other nodes.
-# If two primaries come up after a crash they can safely determine who is
-# the outdated one.
-#
-db2_notify() {
-    local node
-
-    # only interested in pre-start
-    [  $OCF_RESKEY_CRM_meta_notify_type = pre \
-    -a $OCF_RESKEY_CRM_meta_notify_operation = start ] || return $OCF_SUCCESS
-
-    # gets FIRST_ACTIVE_LOG
-    db2_get_cfg $dblist || return $?
-
-    db2_fal_attrib $dblist set $FIRST_ACTIVE_LOG || return $OCF_ERR_GENERIC
-    exit $OCF_SUCCESS
-}
-
 ########
 # Main #
 ########
@@ -947,50 +1031,54 @@ case "$__OCF_ACTION" in
     db2_usage
     exit $OCF_SUCCESS
     ;;
+esac
 
+local_host=$(ocf_local_nodename)
+inst1=$(echo "$OCF_RESKEY_instance" | cut -d"," -f1)
+inst2=$(echo "$OCF_RESKEY_instance" | cut -d"," -f2)
+host1=$(crm_node -l | sort | awk '{print $2;}' | sed -n 1p)
+
+if [ "$host1" = "$local_host" ]; then
+   remote_host=$(crm_node -l | sort | awk '{print $2;}' | sed -n 2p)
+else
+   remote_host="$host1"
+fi
+
+db2_validate; validate_rc=$?
+
+case "$__OCF_ACTION" in
     start)
-    db2_validate
     db2_start || exit $?
     db2_monitor
-    exit $?
     ;;
 
     stop)
-    db2_validate
     db2_stop
-    exit $?
     ;;
 
     promote)
-    db2_validate
     db2_promote
-    exit $?
     ;;
 
     demote)
-    db2_validate
     db2_demote
-    exit $?
     ;;
 
     notify)
-    db2_validate
-    db2_notify
-    exit $?
+    ocf_log debug "notify-action has been DEPRECATED, and should be removed"
     ;;
 
     monitor)
-    db2_validate
     db2_monitor_retry
-    exit $?
     ;;
 
     validate-all)
-    db2_validate
-    exit $?
+    exit $validate_rc
     ;;
 
     *)
     db2_usage
     exit $OCF_ERR_UNIMPLEMENTED
 esac
+
+exit $?
