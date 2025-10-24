@@ -40,6 +40,7 @@
 # Parameter defaults
 OCF_RESKEY_image_default="default"
 OCF_RESKEY_pod_manifest_default="/etc/kubernetes/static-pod-resources/etcd-certs/configmaps/external-etcd-pod/pod.yaml"
+OCF_RESKEY_etcd_certs_dir_default="/etc/kubernetes/static-pod-resources/etcd-certs"
 OCF_RESKEY_name_default="etcd"
 OCF_RESKEY_nic_default="br-ex"
 OCF_RESKEY_authfile_default="/var/lib/kubelet/config.json"
@@ -51,6 +52,7 @@ OCF_RESKEY_backup_location_default="/var/lib/etcd"
 
 : ${OCF_RESKEY_image=${OCF_RESKEY_image_default}}
 : ${OCF_RESKEY_pod_manifest=${OCF_RESKEY_pod_manifest_default}}
+: ${OCF_RESKEY_etcd_certs_dir=${OCF_RESKEY_etcd_certs_dir_default}}
 : ${OCF_RESKEY_name=${OCF_RESKEY_name_default}}
 : ${OCF_RESKEY_nic=${OCF_RESKEY_nic_default}}
 : ${OCF_RESKEY_authfile=${OCF_RESKEY_authfile_default}}
@@ -86,6 +88,15 @@ The Pod manifest with the configuration for Etcd.
 </longdesc>
 <shortdesc lang="en">Etcd pod manifest</shortdesc>
 <content type="string" default="${OCF_RESKEY_pod_manifest_default}"/>
+</parameter>
+
+<parameter name="etcd_certs_dir" required="0" unique="0">
+<longdesc lang="en">
+The Etcd certificates directory mounted into the etcd container.
+The agent will monitor this directory for changes and restart the etcd container if the certificates have changed.
+</longdesc>
+<shortdesc lang="en">Etcd certificates directory</shortdesc>
+<content type="string" default="${OCF_RESKEY_etcd_certs_dir_default}"/>
 </parameter>
 
 <parameter name="image" required="0" unique="0">
@@ -289,6 +300,59 @@ Expects to have a fully populated OCF RA-compliant environment set.
 END
 }
 
+etcd_certificates_hash_manager()
+{
+	local action="$1"
+	local current_hash
+	local stored_hash
+
+	# If the certs directory doesn't exist, consider it unchanged
+	if [ ! -d "$OCF_RESKEY_etcd_certs_dir" ]; then
+		ocf_log warn "certificates directory $OCF_RESKEY_etcd_certs_dir does not exist, skipping certificate monitoring"
+		return $OCF_SUCCESS
+	fi
+
+	# Calculate hash of all certificate files, ignore key files to avoid accidental disclosure of sensitive information
+	# we only need to monitor the certificate files to detect changes.
+	if ! current_hash=$(find "$OCF_RESKEY_etcd_certs_dir" -type f \( -name "*.crt" \) -exec sha256sum {} \; | sort | sha256sum | cut -d' ' -f1); then
+		ocf_log err "failed to calculate certificate files hash"
+		return $OCF_ERR_GENERIC
+	fi
+
+	# If no stored hash exists, create one and return success
+	if [ ! -f "$ETCD_CERTS_HASH_FILE" ]; then
+		echo "$current_hash" > "$ETCD_CERTS_HASH_FILE"
+		ocf_log info "created initial certificate hash: $current_hash"
+		return $OCF_SUCCESS
+	fi
+
+	case "$action" in
+		"update")
+			if ! echo "$current_hash" > "$ETCD_CERTS_HASH_FILE"; then
+				ocf_log err "failed to update certificate hash file $ETCD_CERTS_HASH_FILE"
+			fi
+			ocf_log info "updated certificate hash: $current_hash"
+			;;
+		"check")
+			if ! stored_hash=$(cat "$ETCD_CERTS_HASH_FILE"); then
+				ocf_log err "failed to read stored certificate hash from $ETCD_CERTS_HASH_FILE"
+				# This should not happen but if for some reason we can not read the stored hash,
+				# use the current hash and log the error but allow etcd to run as long as possible.
+				stored_hash="$current_hash"
+			fi
+			if [ "$current_hash" != "$stored_hash" ]; then
+				ocf_exit_reason "$NODENAME etcd certificate files have changed (stored: $stored_hash, current: $current_hash)"
+				return $OCF_ERR_GENERIC
+			fi
+			;;
+		*)
+			ocf_log err "unsupported action: $action"
+			return $OCF_ERR_GENERIC
+			;;
+	esac
+
+	return $OCF_SUCCESS
+}
 
 monitor_cmd_exec()
 {
@@ -357,7 +421,7 @@ archive_current_container()
 
 	# archive corresponding etcd configuration files
 	local files_to_archive=""
-	for file in "$OCF_RESKEY_authfile" "$POD_MANIFEST_COPY" "$ETCD_CONFIGURATION_FILE"; do
+	for file in "$OCF_RESKEY_authfile" "$POD_MANIFEST_COPY" "$ETCD_CONFIGURATION_FILE" "$ETCD_CERTS_HASH_FILE"; do
 		if [ -f "$file" ]; then
 			files_to_archive="$files_to_archive $file"
 		else
@@ -1205,6 +1269,11 @@ podman_monitor()
 		return $rc
 	fi
 
+	# Check if certificate files have changed, if they have, etcd needs to be restarted
+	if ! etcd_certificates_hash_manager "check"; then
+		return $OCF_ERR_GENERIC
+	fi
+
 	if is_learner; then
 		ocf_log info "$NODENAME is learner. Cannot get member id"
 		return "$OCF_SUCCESS"
@@ -1507,6 +1576,14 @@ podman_start()
 	done
 	if etcd_pod_container_exists; then
 		ocf_exit_reason "etcd pod is still running after $etcd_pod_wait_timeout_sec seconds."
+		return $OCF_ERR_GENERIC
+	fi
+
+	# Update the certificate hash after the container has started successfully
+	# this is to ensure that the certificate hash is updated after a restart is initiated
+	# by a cert rotation event from the monitor command.
+	if ! etcd_certificates_hash_manager "update"; then
+		ocf_exit_reason "etcd certificate hash manager failed to update the certificate hash"
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -1915,6 +1992,13 @@ podman_validate()
 		exit $OCF_ERR_CONFIGURED
 	fi
 
+	if ! echo "validation test" > "$ETCD_CERTS_HASH_FILE" \
+		|| ! cat "$ETCD_CERTS_HASH_FILE" >/dev/null 2>&1 \
+		|| ! rm "$ETCD_CERTS_HASH_FILE"; then
+		ocf_exit_reason "cannot read/write to certificate hash file $ETCD_CERTS_HASH_FILE"
+		exit $OCF_ERR_GENERIC
+	fi
+
 	return $OCF_SUCCESS
 }
 
@@ -1952,6 +2036,7 @@ ETCD_BACKUP_FILE="${OCF_RESKEY_backup_location}/config-previous.tar.gz"
 ETCD_REVISION_JSON="/var/lib/etcd/revision.json"
 ETCD_REVISION_BUMP_PERCENTAGE=0.2
 ETCD_BUMP_REV_DEFAULT=1000000000
+ETCD_CERTS_HASH_FILE="${OCF_RESKEY_config_location}/certs.hash"
 
 # Note: we currently monitor podman containers by with the "podman exec"
 # command, so make sure that invocation is always valid by enforcing the
