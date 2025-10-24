@@ -278,7 +278,7 @@ The directory where the resource agent stores its backups.
 </parameters>
 
 <actions>
-<action name="start"        timeout="600s" />
+<action name="start"        timeout="300s" />
 <action name="stop"         timeout="90s" />
 <action name="monitor"      timeout="25s" interval="30s" depth="0" />
 <action name="meta-data"    timeout="5s" />
@@ -1093,6 +1093,48 @@ get_peer_node_name() {
 	crm_node -l | awk '{print $2}' | grep -v "$NODENAME"
 }
 
+# Calculate the count of truly active resources by excluding those being stopped.
+# According to Pacemaker documentation, during "Post-notification (stop) /
+# Pre-notification (start)" transitions, the true active resource count should be:
+#   Active resources = $OCF_RESKEY_CRM_meta_notify_active_resource
+#                      minus $OCF_RESKEY_CRM_meta_notify_stop_resource
+# This handles the case where a resource appears in both the active and stop lists
+# during rapid restart scenarios (e.g., process crash recovery).
+get_truly_active_resources_count() {
+	local active_list="$OCF_RESKEY_CRM_meta_notify_active_resource"
+	local stop_list="$OCF_RESKEY_CRM_meta_notify_stop_resource"
+	local truly_active=""
+
+	# If no active resources, return 0
+	if [ -z "$active_list" ]; then
+		echo "0"
+		return
+	fi
+
+	# If no resources being stopped, return count of active resources
+	if [ -z "$stop_list" ]; then
+		echo "$active_list" | wc -w
+		return
+	fi
+
+	# Filter out resources that are being stopped from the active list
+	for resource in $active_list; do
+		local is_stopping=0
+		for stop_resource in $stop_list; do
+			if [ "$resource" = "$stop_resource" ]; then
+				is_stopping=1
+				break
+			fi
+		done
+		if [ $is_stopping -eq 0 ]; then
+			truly_active="$truly_active $resource"
+		fi
+	done
+
+	# Count the truly active resources (trim leading space and count words)
+	echo "$truly_active" | wc -w
+}
+
 get_all_etcd_endpoints() {
 	for node in $(echo "$OCF_RESKEY_node_ip_map" | sed "s/\s//g;s/;/ /g"); do
         name=$(echo "$node" | cut -d: -f1)
@@ -1606,8 +1648,9 @@ podman_start()
 			# - 0 active agents, 1 starting: we are starting; the peer is not starting
 			# - 0 active agents, 2 starting: both agents are starting simultaneously
 			local active_resources_count
-			active_resources_count=$(echo "$OCF_RESKEY_CRM_meta_notify_active_resource" | wc -w)
-			ocf_log info "found '$active_resources_count' active etcd resources (meta notify environment variable: '$OCF_RESKEY_CRM_meta_notify_active_resource')"
+			active_resources_count=$(get_truly_active_resources_count)
+			ocf_log info "found '$active_resources_count' active etcd resources (active: '$OCF_RESKEY_CRM_meta_notify_active_resource', stop: '$OCF_RESKEY_CRM_meta_notify_stop_resource')"
+			ocf_log info "DEBUG: truly_active_count=$active_resources_count, raw_active='$OCF_RESKEY_CRM_meta_notify_active_resource', stop='$OCF_RESKEY_CRM_meta_notify_stop_resource'"
 			case "$active_resources_count" in
 			1)
 				if [ "$(attribute_learner_node get)" = "$(get_peer_node_name)" ]; then
@@ -1622,6 +1665,7 @@ podman_start()
 				local start_resources_count
 				start_resources_count=$(echo "$OCF_RESKEY_CRM_meta_notify_start_resource" | wc -w)
 				ocf_log info "found '$start_resources_count' starting etcd resources (meta notify environment variable: '$OCF_RESKEY_CRM_meta_notify_start_resource')"
+				ocf_log info "DEBUG: start_count=$start_resources_count, start='$OCF_RESKEY_CRM_meta_notify_start_resource'"
 
 				# we need to compare the revisions in any of the following branches
 				# so call the function only once here
@@ -1676,18 +1720,32 @@ podman_start()
 		fi
 	fi
 
-	podman_create_mounts
-	local run_opts="--detach --name=${CONTAINER} --replace"
-
-	run_opts="$run_opts --oom-score-adj=${OCF_RESKEY_oom}"
-
-	# check to see if the container has already started
-	podman_simple_status
-	if [ $? -eq $OCF_SUCCESS ]; then
-		return "$OCF_SUCCESS"
-	fi
-
+	# IMPORTANT: Check for force-new-cluster deadlock BEFORE checking container status
+	# If we check container status first and it's already running, we return early
+	# and never get to detect the deadlock condition
 	if ocf_is_true "$JOIN_AS_LEARNER"; then
+		# Check if peer needs to force-new-cluster first
+		# This prevents a deadlock where we wait for the peer to add us as learner,
+		# but the peer has lost quorum and needs to restart with force-new-cluster first.
+		# By failing fast here, we let Pacemaker recalculate and restart the peer first.
+		local peer_node=$(get_peer_node_name)
+
+		ocf_log info "checking if peer ($peer_node) needs force-new-cluster before joining as learner"
+		if ! fnc_holders=$(get_force_new_cluster); then
+			ocf_exit_reason "Failed to get force_new_cluster node holders while joining as learner"
+			return $OCF_ERR_GENERIC
+		fi
+
+		if echo "$fnc_holders" | grep -qw "$peer_node"; then
+			ocf_log warn "peer ($peer_node) needs to force-new-cluster but we are trying to join as learner"
+			ocf_log warn "this creates a deadlock: peer cannot add us until it restarts with force-new-cluster"
+			ocf_log warn "failing fast to allow Pacemaker to restart peer first"
+			ocf_exit_reason "Peer node ($peer_node) needs force-new-cluster, cannot join as learner. Pacemaker should restart peer first."
+			return $OCF_NOT_RUNNING
+		fi
+
+		ocf_log info "peer does not need force-new-cluster, proceeding to join as learner"
+
 		local wait_timeout_sec=$((10*60))
 		local poll_interval_sec=5
 		local retries=$(( wait_timeout_sec / poll_interval_sec ))
@@ -1709,6 +1767,17 @@ podman_start()
 		fi
 
 		archive_data_folder
+	fi
+
+	podman_create_mounts
+	local run_opts="--detach --name=${CONTAINER} --replace"
+
+	run_opts="$run_opts --oom-score-adj=${OCF_RESKEY_oom}"
+
+	# check to see if the container has already started
+	podman_simple_status
+	if [ $? -eq $OCF_SUCCESS ]; then
+		return $OCF_SUCCESS
 	fi
 
 	ocf_log info "check for changes in pod manifest to decide if the container should be reused or replaced"
