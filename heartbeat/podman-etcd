@@ -1042,13 +1042,15 @@ get_truly_active_resources_count() {
 	local truly_active=""
 
 	# If no active resources, return 0
-	if [ -z "$active_list" ]; then
+	# Use word count to handle whitespace-only values
+	if [ "$(echo "$active_list" | wc -w)" -eq 0 ]; then
 		echo "0"
 		return
 	fi
 
 	# If no resources being stopped, return count of active resources
-	if [ -z "$stop_list" ]; then
+	# Use word count to handle whitespace-only values
+	if [ "$(echo "$stop_list" | wc -w)" -eq 0 ]; then
 		echo "$active_list" | wc -w
 		return
 	fi
