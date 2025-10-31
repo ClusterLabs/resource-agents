@@ -50,11 +50,13 @@ RESOURCE_OPTIONS = (
     "use_token_cache",
     "monitor_api",
     "device",
+    "iflabel",
     "proxy",
 )
 IP_CMD = "/usr/sbin/ip"
+IFLABEL_MAX_LEN = 15  # Maximum character limit for interface labels
 REQUESTS_TIMEOUT = 5  # Timeout for requests calls
-HTTP_MAX_RETRIES = 3  # Maximum number of retries for HTTP requests
+HTTP_MAX_RETRIES = 4  # Maximum number of retries for HTTP requests
 HTTP_BACKOFF_FACTOR = 0.3  # Sleep (factor * (2^number of previous retries)) secs
 HTTP_STATUS_FORCE_RETRIES = (500, 502, 503, 504)  # HTTP status codes to retry on
 HTTP_RETRY_ALLOWED_METHODS = frozenset({"GET", "POST", "PUT", "DELETE"})
@@ -154,13 +156,13 @@ def ip_check_device(device):
     return False
 
 
-def ip_alias_add(ip, device):
+def ip_alias_add(ip, device, label=None):
     """Add an IP alias to the given device."""
     ip_cidr = f"{ip}/{CIDR_NETMASK}"
     ocf.logger.debug(
-        f"[ip_alias_add]: adding IP alias '{ip_cidr}' to interface '{device}'"
+        f"[ip_alias_add]: adding IP alias '{ip_cidr}' with label '{label}' to interface '{device}'"
     )
-    _ = ip_address_add(ip_cidr, device)
+    _ = ip_address_add(ip_cidr, device, label)
 
 
 def ip_alias_remove(ip):
@@ -522,6 +524,7 @@ class PowerCloudRoute(PowerCloudAPI):
         region="",
         route_host_map="",
         device="",
+        iflabel="",
         proxy="",
         monitor_api="",
         use_token_cache="",
@@ -543,6 +546,7 @@ class PowerCloudRoute(PowerCloudAPI):
         self.route_info = self._get_route_info()
         self.route_name = self.route_info["name"]
         self.device = self._get_device_name(device)
+        self.iflabel = self._make_iflabel(iflabel)
 
     def _get_ip_info(self, ip):
         """Validate the given IP address and return its standard form."""
@@ -588,7 +592,7 @@ class PowerCloudRoute(PowerCloudAPI):
         nodename = (
             hostname
             if not self._is_remote_route
-            else next((h for h in route_map if h != hostname), None)
+            else next((host for host in route_map if host != hostname), None)
         )
 
         if not nodename or nodename not in route_map:
@@ -645,6 +649,21 @@ class PowerCloudRoute(PowerCloudAPI):
             f"_get_device_name: network interface with next hop '{next_hop}' does not exist or is down",
             ocf.OCF_ERR_CONFIGURED,
         )
+
+    def _make_iflabel(self, label=None):
+        """Constructs an interface label in the format 'device:label' if both are provided."""
+        if not label or self._is_remote_route:
+            return None
+
+        iflabel = f"{self.device}:{label}"
+
+        if len(iflabel) > IFLABEL_MAX_LEN:
+            raise PowerCloudRouteError(
+                f"_make_iflabel: interface label '{iflabel}' exceeds limit of {IFLABEL_MAX_LEN} characters",
+                ocf.OCF_ERR_CONFIGURED,
+            )
+
+        return iflabel
 
     def _set_route_enabled(self, enabled: bool):
         """Enable or disable the PowerVS network route."""
@@ -706,6 +725,7 @@ def start_action(
     use_token_cache="",
     monitor_api="",
     device="",
+    iflabel="",
     proxy="",
 ):
     """Assign the service IP.
@@ -730,7 +750,7 @@ def start_action(
     local_route = create_route_instance(resource_options)
 
     # Add IP alias
-    ip_alias_add(ip, local_route.device)
+    ip_alias_add(ip, local_route.device, local_route.iflabel)
 
     # Enable local route
     ocf.logger.debug(f"[start_action]: enabling local route '{local_route.route_name}'")
@@ -758,6 +778,7 @@ def stop_action(
     use_token_cache="",
     monitor_api="",
     device="",
+    iflabel="",
     proxy="",
 ):
     """Remove the service IP.
@@ -810,6 +831,7 @@ def monitor_action(
     use_token_cache="",
     monitor_api="",
     device="",
+    iflabel="",
     proxy="",
 ):
     """Monitor the service IP.
@@ -829,15 +851,11 @@ def monitor_action(
     interface_name = ip_find_device(ip)
 
     if not use_extended_monitor:
-       if interface_name:
-            ocf.logger.debug(
-                f"[monitor_action]: IP alias '{ip}' is active'"
-            )
+        if interface_name:
+            ocf.logger.debug(f"[monitor_action]: IP alias '{ip}' is active'")
             return ocf.OCF_SUCCESS
-       else:
-            ocf.logger.debug(
-                f"[monitor_action]: IP alias '{ip}' is not active"
-            )
+        else:
+            ocf.logger.debug(f"[monitor_action]: IP alias '{ip}' is not active")
             return ocf.OCF_NOT_RUNNING
 
     remote_route = create_route_instance(
@@ -893,6 +911,7 @@ def validate_all_action(
     use_token_cache="",
     monitor_api="",
     device="",
+    iflabel="",
     proxy="",
 ):
     """Validate resource agent parameters.
@@ -914,12 +933,10 @@ def main():
         Resource Agent to move an IP address from one Power Virtual Server instance to another.
 
         Prerequisites:
-        1. Red Hat Enterprise Linux 9.4 or higher
-
-        2. Two-node cluster
+        1. Two-node cluster
            - Distributed across two PowerVS workspaces in separate data centers within the same region.
 
-        3. IBM Cloud API Key:
+        2. IBM Cloud API Key:
            - Create a service API key with privileges for both workspaces.
            - Save the key in a file and copy it to both cluster nodes using the same path and filename.
            - Reference the key file path in the resource definition.
@@ -932,7 +949,7 @@ def main():
         "powervs-move-ip",
         shortdesc="Manages Power Virtual Server overlay IP routes.",
         longdesc=agent_description,
-        version=1.00,
+        version=1.01,
     )
 
     agent.add_parameter(
@@ -1009,6 +1026,17 @@ def main():
         ),
         content_type="string",
         default="",
+        required=False,
+    )
+    agent.add_parameter(
+        "iflabel",
+        shortdesc="Network interface label",
+        longdesc=(
+            "A custom suffix for the IP address label. "
+            "It is appended to the interface name in the format device:label. "
+            "The full label must not exceed 15 characters. "
+        ),
+        content_type="string",
         required=False,
     )
     agent.add_parameter(
