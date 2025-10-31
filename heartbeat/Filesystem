@@ -361,8 +361,8 @@ list_mounts() {
 		fi
 	done
 
-	# Convert octal \040 to space characters
-	printf "$mount_list"
+	# Convert octal \040 to space characters and ignore Vormetric mounts
+	printf "$mount_list" | grep -v "secfs2$"
 }
 
 determine_blockdevice() {
