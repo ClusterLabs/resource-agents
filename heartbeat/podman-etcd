@@ -1253,21 +1253,121 @@ podman_simple_status()
 	return $rc
 }
 
-podman_monitor()
+# get_time_since_last_heartbeat returns the time in seconds since the heartbeat file was last updated.
+#
+# Returns: time in seconds since last heartbeat, or empty string if file doesn't exist
+get_time_since_last_heartbeat()
 {
+	local last_heartbeat
+
+	if [ ! -f "$CONTAINER_HEARTBEAT_FILE" ]; then
+		return
+	fi
+
+	last_heartbeat=$(cat "$CONTAINER_HEARTBEAT_FILE")
+	echo $(($(date +%s) - last_heartbeat))
+}
+
+# container_health_check performs comprehensive health monitoring for the container.
+# This function allows coordinated failure handling where the agent waits for
+# peer-initiated cluster recovery in case of container failure.
+#
+# Uses a state file to track container state:
+# - Container running: Update state file with current epoch, return "healthy"
+# - Container not running + no state file: Return "not-running" (never checked before)
+# - Container not running + state file: Failure detected, check force_new_cluster
+#   - If force_new_cluster set: Return "failed-restart-now"
+#   - Otherwise: Return "failed-wait-for-peer"
+#
+# Returns: healthy, not-running, failed-restart-now, failed-wait-for-peer
+
+container_health_check()
+{
+	local rc
+
 	# We rely on running podman exec to monitor the container
 	# state because that command seems to be less prone to
 	# performance issue under IO load.
 	#
 	# For probes to work, we expect cmd_exec to be able to report
-	# when a container is not running. Here, we're not interested
-	# in distinguishing whether it's stopped or non existing
-	# (there's function container_exists for that)
+	#   when a container is not running. Here, we're not interested
+	#   in distinguishing whether it's stopped or non existing
+	#   (there's function container_exists for that)
+	# For monitor, however, we still need to know if it has stopped
+	#   recently (i.e. a failure), or not (fresh start)
 	monitor_cmd_exec
 	rc=$?
-	if [ $rc -ne 0 ]; then
-		return $rc
+	if [ "$rc" -eq 0 ]; then
+		# Container is running - update state file with current epoch
+		local current_epoch
+		current_epoch=$(date +%s)
+		if ! echo "$current_epoch" > "$CONTAINER_HEARTBEAT_FILE"; then
+			ocf_log warn "Failed to update container heartbeat file, error code: $?"
+			# wait for peer to detect any real issue with the etcd cluster or wait for the
+			# next monitor interval
+			echo "failed-wait-for-peer"
+			return
+		fi
+		echo "healthy"
+		return
 	fi
+
+	# Check if state file exists (was container running on last check?)
+	if [ ! -f "$CONTAINER_HEARTBEAT_FILE" ]; then
+		# No state file - container was never checked before
+		ocf_log debug "Container ${CONTAINER} has no previous state"
+		echo "not-running"
+		# NOTE: this is where the probe is expected to exit, keeping the logic
+		# quick and less prone to performance issue under IO load.
+		return
+	fi
+
+	# State file exists - the container failed, check recovery status in this lifecycle
+	local time_since_heartbeat
+	time_since_heartbeat=$(get_time_since_last_heartbeat)
+	ocf_log err "Container ${CONTAINER} failed (last healthy: ${time_since_heartbeat}s ago)"
+
+	# Check if peer has set force_new_cluster for recovery
+	local fnc_holders
+	if ! fnc_holders=$(get_force_new_cluster); then
+		ocf_log err "Could not detect peer-initiated recovery. Checking again in the next monitor cycle"
+		echo "failed-wait-for-peer"
+		return
+	fi
+
+	if [ -n "$fnc_holders" ]; then
+		ocf_log debug "force_new_cluster detected (set by: $fnc_holders), triggering restart"
+		echo "failed-restart-now"
+		return
+	fi
+
+	echo "failed-wait-for-peer"
+}
+
+podman_monitor()
+{
+	local container_health_state
+
+	container_health_state=$(container_health_check)
+	case "$container_health_state" in
+		healthy)
+			# Continue with normal monitoring
+			;;
+		not-running)
+			return $OCF_NOT_RUNNING
+			;;
+		failed-restart-now)
+			return $OCF_ERR_GENERIC
+			;;
+		failed-wait-for-peer)
+			# Continue running, waiting for peer recovery
+			return $OCF_SUCCESS
+			;;
+		*)
+			ocf_log err "Unknown health state: $container_health_state"
+			return $OCF_ERR_GENERIC
+			;;
+	esac
 
 	# Check if certificate files have changed, if they have, etcd needs to be restarted
 	if ! etcd_certificates_hash_manager "check"; then
@@ -1560,6 +1660,12 @@ podman_start()
 	local pod_was_running=false
 
 	ocf_log notice "podman-etcd start"
+
+	# Clear container health check state file
+	if ! rm -f "$CONTAINER_HEARTBEAT_FILE"; then
+		ocf_log err "could not delete container health check state file"
+	fi
+
 	attribute_node_ip update
 	attribute_node_cluster_id update
 	attribute_node_revision update
@@ -1876,14 +1982,20 @@ podman_stop()
 	local rc
 
 	ocf_log notice "podman-etcd stop"
+
+	# Clear container health check state file
+	if ! rm -f "$CONTAINER_HEARTBEAT_FILE"; then
+		ocf_log err "could not delete container health check state file"
+	fi
+
+	attribute_node_revision update
+	attribute_node_cluster_id update
+
 	podman_simple_status
 	if [ $? -eq  $OCF_NOT_RUNNING ]; then
 		ocf_log info "could not leave members list: etcd container not running"
 		return $OCF_SUCCESS
 	fi
-
-	attribute_node_revision update
-	attribute_node_cluster_id update
 
 	if ! member_id=$(attribute_node_member_id get); then
 		ocf_log err "error leaving members list: could not get member-id"
@@ -2037,6 +2149,9 @@ ETCD_REVISION_JSON="/var/lib/etcd/revision.json"
 ETCD_REVISION_BUMP_PERCENTAGE=0.2
 ETCD_BUMP_REV_DEFAULT=1000000000
 ETCD_CERTS_HASH_FILE="${OCF_RESKEY_config_location}/certs.hash"
+# State file location: Uses HA_RSCTMP to ensure automatic cleanup on reboot.
+# This is intentional - reboots are controlled stops, not failures requiring detection.
+CONTAINER_HEARTBEAT_FILE=${HA_RSCTMP}/podman-container-last-running
 
 # Note: we currently monitor podman containers by with the "podman exec"
 # command, so make sure that invocation is always valid by enforcing the
