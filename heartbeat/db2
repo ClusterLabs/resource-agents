@@ -49,7 +49,7 @@ fi
 OCF_RESKEY_instance_default=""
 OCF_RESKEY_skip_basic_sql_health_check_default="false"
 OCF_RESKEY_monitor_retries_default="1"
-OCF_RESKEY_monitor_sleep_default="1"
+OCF_RESKEY_monitor_retries_sleep_default="1"
 OCF_RESKEY_monitor_retry_all_errors_default="false"
 OCF_RESKEY_admin_default=""
 OCF_RESKEY_dbpartitionnum_default="0"
@@ -57,7 +57,7 @@ OCF_RESKEY_dbpartitionnum_default="0"
 : ${OCF_RESKEY_instance=${OCF_RESKEY_instance_default}}
 : ${OCF_RESKEY_skip_basic_sql_health_check=${OCF_RESKEY_skip_basic_sql_health_check_default}}
 : ${OCF_RESKEY_monitor_retries=${OCF_RESKEY_monitor_retries_default}}
-: ${OCF_RESKEY_monitor_sleep=${OCF_RESKEY_monitor_sleep_default}}
+: ${OCF_RESKEY_monitor_retries_sleep=${OCF_RESKEY_monitor_retries_sleep_default}}
 : ${OCF_RESKEY_monitor_retry_all_errors=${OCF_RESKEY_monitor_retry_all_errors_default}}
 : ${OCF_RESKEY_admin=${OCF_RESKEY_admin_default}}
 : ${OCF_RESKEY_dbpartitionnum=${OCF_RESKEY_dbpartitionnum_default}}
@@ -140,7 +140,7 @@ Monitor retries before failing.
 Monitor sleep between tries.
 </longdesc>
 <shortdesc lang="en">Monitor sleep</shortdesc>
-<content type="string" default="${OCF_RESKEY_monitor_sleep_default}" />
+<content type="string" default="${OCF_RESKEY_monitor_retries_sleep_default}" />
 </parameter>
 <parameter name="monitor_retry_all_errors" unique="0" required="0">
 <longdesc lang="en">
@@ -776,7 +776,7 @@ db2_monitor_retry() {
         if [ $rc -eq $OCF_SUCCESS ] || [ $rc -eq $OCF_RUNNING_MASTER ] || [ $rc -eq $OCF_NOT_RUNNING ] || { [ $rc -ne 255 ] && ! ocf_is_true "$OCF_RESKEY_monitor_retry_all_errors" ;} ;then
             break
         fi
-        [ $try -lt $tries ] && sleep $OCF_RESKEY_monitor_sleep
+        [ $try -lt $tries ] && sleep $OCF_RESKEY_monitor_retries_sleep
     done
 
     [ $rc -eq 255 ] && rc=$OCF_ERR_GENERIC
