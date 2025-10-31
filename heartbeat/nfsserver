@@ -1062,8 +1062,8 @@ nfsserver_validate ()
 	return $OCF_SUCCESS
 }
 
-nfsserver_validate
 systemd_is_running; systemd_running=$?
+nfsserver_validate
 
 case $__OCF_ACTION in
 	start)      nfsserver_start
