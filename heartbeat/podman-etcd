@@ -880,7 +880,7 @@ add_member_as_learner()
 	local endpoint_url=$(ip_url $(attribute_node_ip get))
 	local peer_url=$(ip_url $member_ip)
 
-	ocf_log info "add $member_name ($member_ip, $endpoint_url) to the member list as learner"
+	ocf_log info "add $member_name ($member_ip) to the member list as learner"
 	out=$(podman exec "${CONTAINER}" etcdctl --endpoints="$endpoint_url:2379" member add "$member_name" --peer-urls="$peer_url:2380" --learner)
 	rc=$?
 	if [ $rc -ne 0 ]; then
