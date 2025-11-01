@@ -1064,7 +1064,7 @@ reconcile_member_state()
 
 	if [ -n "$learner_member_id" ]; then
 		if ! promote_learner_member "$learner_member_id"; then
-			return $?
+			return $OCF_ERR_GENERIC
 		fi
 		# promotion succeded: continue to clear standalone_node and learner_node
 	fi
@@ -1258,6 +1258,7 @@ manage_peer_membership()
 			set_standalone_node
 		else
 			ocf_log debug "$name is in the members list by IP: $ip"
+			# Errors from reconcile_member_state are logged internally. Ignoring them here prevents stopping a healthy voter agent; critical local failures are caught by detect_cluster_leadership_loss.
 			reconcile_member_state "$member_list_json"
 		fi
 	done
@@ -1374,7 +1375,7 @@ container_health_check()
 	# Could not execute monitor check command and state file exists - the container failed, check recovery status in this lifecycle
 	local time_since_heartbeat
 	time_since_heartbeat=$(get_time_since_last_heartbeat)
-	ocf_log err "Container ${CONTAINER} failed (last healthy: ${time_since_heartbeat}s ago)"
+	ocf_log err "Container ${CONTAINER} failed (last healthy: ${time_since_heartbeat}s ago, error code: $rc)"
 
 	# Check if peer has set force_new_cluster for recovery
 	local fnc_holders
@@ -1801,6 +1802,9 @@ podman_start()
 				fi
 				;;
 			0)
+				# No active resources: clear any stale learner_node attribute from previous failed session
+				ocf_log debug "clearing stale learner_node attribute (safe when active_resources_count=0)"
+				attribute_learner_node clear
 				# count how many agents are starting now
 				local start_resources_count
 				start_resources_count=$(echo "$OCF_RESKEY_CRM_meta_notify_start_resource" | wc -w)
@@ -2096,6 +2100,7 @@ podman_stop()
 		ocf_log err "could not delete container health check state file"
 	fi
 
+	attribute_learner_node clear
 	attribute_node_revision update
 	attribute_node_cluster_id update
 
