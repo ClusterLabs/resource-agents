@@ -1032,7 +1032,7 @@ promote_learner_member()
 	if ! ocf_run podman exec "${CONTAINER}" etcdctl member promote "$learner_member_id_hex" 2>&1; then
 		# promotion is expected to fail if the peer is not yet up-to-date
 		ocf_log info "could not promote member $learner_member_id_hex, error code: $?"
-		return $OCF_SUCCESS
+		return $OCF_ERR_GENERIC
 	fi
 	ocf_log info "successfully promoted member '$learner_member_id_hex'"
 	return $OCF_SUCCESS
@@ -1063,19 +1063,19 @@ reconcile_member_state()
 	fi
 
 	if [ -n "$learner_member_id" ]; then
-		promote_learner_member "$learner_member_id"
-		return $?
+		if ! promote_learner_member "$learner_member_id"; then
+			return $?
+		fi
+		# promotion succeded: continue to clear standalone_node and learner_node
 	fi
 
-	if [ -z "$learner_member_id" ]; then
-		if ! clear_standalone_node; then
-			ocf_log error "could not clear standalone_node attribute, error code: $?"
-			return $OCF_ERR_GENERIC
-		fi
-		if ! attribute_learner_node clear; then
-			ocf_log error "could not clear learner_node attribute, error code: $?"
-			return $OCF_ERR_GENERIC
-		fi
+	if ! clear_standalone_node; then
+		ocf_log error "could not clear standalone_node attribute, error code: $?"
+		return $OCF_ERR_GENERIC
+	fi
+	if ! attribute_learner_node clear; then
+		ocf_log error "could not clear learner_node attribute, error code: $?"
+		return $OCF_ERR_GENERIC
 	fi
 
 	return $OCF_SUCCESS
