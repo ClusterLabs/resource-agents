@@ -132,8 +132,7 @@ that the password for this user does not expire.
 <longdesc lang="en">
 Password for the monitoring user. Make sure
 that the password for this user does not expire.
-Need to explicitly set a password to a new monitor
-user for the security reason.
+Set to avoid using the agents default password for "monuser".
 </longdesc>
 <shortdesc lang="en">monpassword</shortdesc>
 <content type="string" default="$OCF_RESKEY_monpassword_default" />
