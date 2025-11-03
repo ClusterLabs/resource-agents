@@ -92,12 +92,16 @@ END
 }
 
 MailProgram() {
-	$MAILCMD -s "$1" "$email"  <<EOF
-        $Subject
- 
-        Command line was:
-        $ARGS
-EOF
+	local body="\
+$Subject
+
+Command line was:
+$ARGS"
+	if $MAILCMD -V | grep -q "^s-nail"; then
+		printf "$body" | $MAILCMD -s "$1" $(echo $email | sed "s/,\s*/ /g")
+	else
+		printf "$body" | $MAILCMD -s "$1" "$email"
+	fi
 	return $?
 }
 
