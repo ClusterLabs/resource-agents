@@ -1366,7 +1366,7 @@ container_health_check()
 		return
 	fi
 
-	# State file exists - the container failed, check recovery status in this lifecycle
+	# Could not execute monitor check command and state file exists - the container failed, check recovery status in this lifecycle
 	local time_since_heartbeat
 	time_since_heartbeat=$(get_time_since_last_heartbeat)
 	ocf_log err "Container ${CONTAINER} failed (last healthy: ${time_since_heartbeat}s ago)"
@@ -1379,8 +1379,9 @@ container_health_check()
 		return
 	fi
 
-	if [ -n "$fnc_holders" ]; then
-		ocf_log debug "force_new_cluster detected (set by: $fnc_holders), triggering restart"
+	local fnc_holder_count=$(echo "$fnc_holders" | wc -w)
+	if [ "$fnc_holder_count" -gt 0 ]; then
+		ocf_log info "force_new_cluster detected (set by: $fnc_holders), triggering restart"
 		echo "failed-restart-now"
 		return
 	fi
