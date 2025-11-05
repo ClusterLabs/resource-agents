@@ -251,7 +251,7 @@ nginxcat() {
 		close(cmd);
 	}
 	function listfiles(pattern, cmd,f) {
-		cmd="ls "pattern" 2>/dev/null";
+		cmd="ls "pattern;
 		while( ( cmd | getline f ) > 0 ) {
 			printfile(f);
 		}
@@ -271,7 +271,7 @@ nginxcat() {
 		return !system("test -d \""s"\"");
 	}
 	{ procline(); }
-	' $1 |
+	' $1 2> /dev/null |
   sed 's/#.*//;s/[[:blank:]]*$//;s/^[[:blank:]]*//' |
   grep -v '^$'
 }
@@ -800,8 +800,8 @@ Extra options to apply when starting nginx.
 <action name="status"  timeout="30s" />
 <action name="monitor" timeout="30s" depth="0" interval="10s" />
 <action name="monitor" timeout="30s" depth="10" interval="30s" />
-<action name="monitor" timeout="45s" depth="20" />
-<action name="monitor" timeout="60s" depth="30" />
+<action name="monitor" timeout="45s" depth="20" interval="60s" />
+<action name="monitor" timeout="60s" depth="30" interval="61s" />
 <action name="meta-data"  timeout="5s" />
 <action name="validate-all"  timeout="5s" />
 </actions>
@@ -847,11 +847,11 @@ validate_all_nginx() {
     exit $OCF_ERR_CONFIGURED
   fi
   if
-    ocf_run $NGINXD $OPTIONS -t -c $CONFIGFILE
+    ocf_run $NGINXD $OPTIONS -q -t -c $CONFIGFILE
   then
     : Cool $NGINXD likes $CONFIGFILE
   else
-    ocf_exit_reason "$NGINXD $OPTIONS -t -c $CONFIGFILE reported a configuration error."
+    ocf_exit_reason "$NGINXD $OPTIONS -q -t -c $CONFIGFILE reported a configuration error."
     return $OCF_ERR_CONFIGURED
   fi
   return $OCF_SUCCESS
@@ -908,7 +908,7 @@ then
   if
     [ ! -z "$OCF_RESKEY_httpd" ]
   then
-    ocf_log info "Using $NGINXD as nginx"
+    ocf_log debug "Using $NGINXD as nginx"
   fi
 fi
 
