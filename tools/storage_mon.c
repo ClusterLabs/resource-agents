@@ -167,7 +167,7 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 	/* Don't fret about real randomness */
 	srand(time(NULL) + getpid());
 	/* Pick a random place on the device - sector aligned */
-	seek_spot = (rand() % (devsize-1024)) & 0xFFFFFFFFFFFFFE00;
+	seek_spot = (rand() % (devsize-sec_size)) & ~(((off_t) sec_size)-1);
 	res = lseek(device_fd, seek_spot, SEEK_SET);
 	if (res < 0) {
 		PRINT_STORAGE_MON_ERR("Failed to seek %s: %s", device, strerror(errno));
