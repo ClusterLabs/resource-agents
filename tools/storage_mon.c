@@ -152,6 +152,18 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 		PRINT_STORAGE_MON_INFO("%s: opened %s O_DIRECT, size=%zu", device, (flags & O_DIRECT)?"with":"without", devsize);
 	}
 
+	if (flags & O_DIRECT) {
+#ifdef __FreeBSD__
+		res = ioctl(device_fd, DIOCGSECTORSIZE, &sec_size);
+#else
+		res = ioctl(device_fd, BLKSSZGET, &sec_size);
+#endif
+		if (res < 0) {
+			PRINT_STORAGE_MON_ERR("Failed to get block device sector size for %s: %s", device, strerror(errno));
+			goto error;
+		}
+	}
+
 	/* Don't fret about real randomness */
 	srand(time(NULL) + getpid());
 	/* Pick a random place on the device - sector aligned */
@@ -163,18 +175,6 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 	}
 	if (verbose) {
 		PRINT_STORAGE_MON_INFO("%s: reading from pos %ld", device, seek_spot);
-	}
-
-	if (flags & O_DIRECT) {
-#ifdef __FreeBSD__
-		res = ioctl(device_fd, DIOCGSECTORSIZE, &sec_size);
-#else
-		res = ioctl(device_fd, BLKSSZGET, &sec_size);
-#endif
-		if (res < 0) {
-			PRINT_STORAGE_MON_ERR("Failed to get block device sector size for %s: %s", device, strerror(errno));
-			goto error;
-		}
 	}
 
 	if (posix_memalign(&buffer, sysconf(_SC_PAGESIZE), sec_size) != 0) {
