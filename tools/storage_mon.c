@@ -119,6 +119,8 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 	int device_fd;
 	int res;
 	off_t seek_spot;
+	int sec_size = 512;
+	void *buffer;
 
 	if (verbose) {
 		printf("Testing device %s\n", device);
@@ -164,9 +166,6 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 	}
 
 	if (flags & O_DIRECT) {
-		int sec_size = 0;
-		void *buffer;
-
 #ifdef __FreeBSD__
 		res = ioctl(device_fd, DIOCGSECTORSIZE, &sec_size);
 #else
@@ -176,33 +175,21 @@ static void *test_device(const char *device, int verbose, int inject_error_perce
 			PRINT_STORAGE_MON_ERR("Failed to get block device sector size for %s: %s", device, strerror(errno));
 			goto error;
 		}
+	}
 
-		if (posix_memalign(&buffer, sysconf(_SC_PAGESIZE), sec_size) != 0) {
-			PRINT_STORAGE_MON_ERR("Failed to allocate aligned memory: %s", strerror(errno));
-			goto error;
-		}
-		res = read(device_fd, buffer, sec_size);
-		free(buffer);
-		if (res < 0) {
-			PRINT_STORAGE_MON_ERR("Failed to read %s: %s", device, strerror(errno));
-			goto error;
-		}
-		if (res < sec_size) {
-			PRINT_STORAGE_MON_ERR("Failed to read %d bytes from %s, got %d", sec_size, device, res);
-			goto error;
-		}
-	} else {
-		char buffer[512];
-
-		res = read(device_fd, buffer, sizeof(buffer));
-		if (res < 0) {
-			PRINT_STORAGE_MON_ERR("Failed to read %s: %s", device, strerror(errno));
-			goto error;
-		}
-		if (res < (int)sizeof(buffer)) {
-			PRINT_STORAGE_MON_ERR("Failed to read %ld bytes from %s, got %d", sizeof(buffer), device, res);
-			goto error;
-		}
+	if (posix_memalign(&buffer, sysconf(_SC_PAGESIZE), sec_size) != 0) {
+		PRINT_STORAGE_MON_ERR("Failed to allocate aligned memory: %s", strerror(errno));
+		goto error;
+	}
+	res = read(device_fd, buffer, sec_size);
+	free(buffer);
+	if (res < 0) {
+		PRINT_STORAGE_MON_ERR("Failed to read %s: %s", device, strerror(errno));
+		goto error;
+	}
+	if (res < sec_size) {
+		PRINT_STORAGE_MON_ERR("Failed to read %d bytes from %s, got %d", sec_size, device, res);
+		goto error;
 	}
 
 	/* Fake an error */
