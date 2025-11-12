@@ -1,3 +1,58 @@
+* Wed Nov 12 2025 resource-agents contributors
+- release candidate 4.17.0 rc1
+- ibm-cloud-vpc-cr-vip: new resource agent (#2002)
+- ibm-cloud-vpc-move-fip: new resource agent (#2008)
+- podman-etcd: new resource agent (#2023)
+- powervs-move-ip: new resource agent (#2072)
+- ocf-shellfuncs: add missing variable in crm_mon_no_validation()
+- ocf-shellfuncs: fixed syntax error in crm_mon_no_validation() added at a25f08cf98d784894df9c52960eff5ccef059393
+- ocf-shellfuncs: remove extra sleep from curl_retry (#2058)
+- ocf-shellfuncs: set SHELL to default shell if it's set to nologin
+- findif.sh: fix to avoid duplicate route issues
+- spec: make nfs-utils a weak dependency
+- spec: update Requires paths for RHEL10/CentOS 10
+- AWS agents: reuse IMDS token until it expires (issue #1990) (#1991)
+- All agents: fix shellcheck errors on output redirection [SC2328]
+- All agents: use detected grep -E/-F instead of egrep/fgrep when detected
+- Filesystem: dont report warnings when creating a Filesystem resource
+- Filesystem: fix to avoid getting the wrong block device when doing grep
+- Filesystem: remove validate-all fstype check, as there isnt a reliable and portable way to check
+- Filesystem: speed up get pids (#2084)
+- IPaddr2: add link status DOWN/LOWERLAYERDOWN check
+- IPaddr2: add support for network interfaces altname in the monitor operation (#2027)
+- MailTo: add s-nail support for multiple recipients
+- aws.sh/ocf-shellfuncs: add ability to refresh token if it's invalid
+- aws.sh: chmod 600 $TOKEN_FILE, add get_instance_id() with DMI support, and use get_instance_id() in AWS agents
+- awsvip: let user specify which interface to use, and make the parameter optional in aws-vpc-move-ip
+- azure-events-az: change variable name allNodesStopped to allResourcesNowStopped (#2030)
+- azure-events-az: update Deployment info section
+- azure-events: backport relevant changes from azure-events-az
+- crypt: add tang/clevis support and fix some issues
+- crypt: fix crypt_type check, and usage when action has not been specified
+- crypt: fixes to validate-action, and to avoid running as a cloned resource
+- db2: add "skip_basic_sql_health_check" parameter to avoid failing on systems with high load
+- db2: add "monitor_retries", "monitor_sleep", and "monitor_retry_all_errors" parameters to be able to avoid failing on first try
+- db2: use reintegration flag to avoid race condition on cluster reintegration, and removed FAL, as it's no longer needed
+- mariadb: add SSL/TLS-Support (#2045)
+- mdraid: add 'auto' and multiple devices support to parameter md_dev
+- nfsserver: add ability to set e.g. "pipefs-directory=/run/nfs/rpc_pipefs" in /etc/nfs.conf to avoid issues with non-clustered Kerberized mounts
+- nfsserver: dont use init-scripts if systemd is running
+- nginx: fix ls-redirection, mute non-errors in validate-all, and set unique intervals for monitor actions
+- openstack-cinder-volume: fix detach not working during start-action after #2000
+- openstack-cinder-volume: wait for volume to be available
+- oracle: improve monpassword description
+- portblock: add nftables and multi-state support
+- portblock: add Promoted monitor op, validate-all checks, and add "method" and "status_check" parameters
+- portblock: improve version detection of iptables
+- storage-mon: check if daemon is already running during start-action
+- storage-mon: replace dashes with underscores in functions
+- storage-mon: wait until monitor confirms the startup pid according to the OCF resource specification
+- storage_mon: fix handling of 4k block devices
+- storage_mon.c: remove unused macro variables (#1994)
+- tomcat: fix catalina_base and catalina_out parameter defaults
+- tomcat: fix CATALINA_PID not set issue
+- vsftpd: update longdesc to say setproctitle_enable and background must be set correctly (#2075)
+
 * Wed Nov  6 2024 resource-agents contributors
 - stable release 4.16.0
 
