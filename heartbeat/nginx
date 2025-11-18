@@ -850,6 +850,7 @@ validate_all_nginx() {
     ocf_run $NGINXD $OPTIONS -q -t -c $CONFIGFILE
   then
     : Cool $NGINXD likes $CONFIGFILE
+    which restorecon > /dev/null 2>&1 && selinuxenabled && restorecon "$PidFile"
   else
     ocf_exit_reason "$NGINXD $OPTIONS -q -t -c $CONFIGFILE reported a configuration error."
     return $OCF_ERR_CONFIGURED
