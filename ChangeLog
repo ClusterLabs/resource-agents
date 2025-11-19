@@ -1,3 +1,7 @@
+* Wed Nov 19 2025 resource-agents contributors
+- stable release 4.17.0
+- nginx: restore SELinux context for pid-file during validate-all action
+
 * Wed Nov 12 2025 resource-agents contributors
 - release candidate 4.17.0 rc1
 - ibm-cloud-vpc-cr-vip: new resource agent (#2002)
