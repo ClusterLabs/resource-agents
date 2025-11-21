@@ -884,7 +884,7 @@ add_member_as_learner()
 	out=$(podman exec "${CONTAINER}" etcdctl --endpoints="$endpoint_url:2379" member add "$member_name" --peer-urls="$peer_url:2380" --learner)
 	rc=$?
 	if [ $rc -ne 0 ]; then
-		ocf_log err "could not add $member_name as learner, error code: $rc"
+		ocf_log err "could not add $member_name as learner, error code $rc, etcdctl output: $out"
 		return $rc
 	fi
 	ocf_log info "$out"
