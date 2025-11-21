@@ -1859,12 +1859,6 @@ podman_start()
 
 	run_opts="$run_opts --oom-score-adj=${OCF_RESKEY_oom}"
 
-	# check to see if the container has already started
-	podman_simple_status
-	if [ $? -eq $OCF_SUCCESS ]; then
-		return "$OCF_SUCCESS"
-	fi
-
 	if ocf_is_true "$JOIN_AS_LEARNER"; then
 		local wait_timeout_sec=$((10*60))
 		local poll_interval_sec=5
