@@ -1341,6 +1341,11 @@ container_health_check()
 	#   recently (i.e. a failure), or not (fresh start)
 	monitor_cmd_exec
 	rc=$?
+	if [ "$rc" -ne 0 ]; then
+		ocf_log info "Container ${CONTAINER} not-running"
+		echo "not-running"
+		return
+	fi
 	if [ "$rc" -eq 0 ]; then
 		# Container is running - update state file with current epoch
 		local current_epoch
@@ -1639,7 +1644,7 @@ can_reuse_container() {
 		OCF_RESKEY_reuse=0
 		return "$OCF_SUCCESS"
 	fi
-	
+
 	if ! filtered_original_pod_manifest=$(filter_pod_manifest "$OCF_RESKEY_pod_manifest"); then
 		return $OCF_ERR_GENERIC
 	fi
@@ -1866,7 +1871,7 @@ podman_start()
 	fi
 
 	if ocf_is_true "$JOIN_AS_LEARNER"; then
-		local wait_timeout_sec=$((10*60))
+		local wait_timeout_sec=60
 		local poll_interval_sec=5
 		local retries=$(( wait_timeout_sec / poll_interval_sec ))
 
@@ -2021,6 +2026,64 @@ podman_start()
 	done
 }
 
+# leave_etcd_member_list removes the current node from the etcd member list during
+# shutdown to ensure clean cluster state.
+#
+# Skips removal if this is the standalone (last) node. When both nodes are stopping
+# concurrently, delays the second node to prevent simultaneous member removal that
+# could corrupt the etcd WAL.
+leave_etcd_member_list()
+{
+	if ! member_id=$(attribute_node_member_id get); then
+		ocf_log err "error leaving members list: could not get member-id"
+		return
+	fi
+
+	if is_standalone; then
+		ocf_log info "last member. Not leaving the member list"
+		return
+	fi
+
+	local stopping_resources_count
+	stopping_resources_count=$(echo "$OCF_RESKEY_CRM_meta_notify_stop_resource" | wc -w)
+	ocf_log info "found '$stopping_resources_count' stopping etcd resources (stop: '$OCF_RESKEY_CRM_meta_notify_stop_resource')"
+	if [ "$stopping_resources_count" -gt 1 ]; then
+		# Prevent WAL corruption by delaying the alphabetically second node's member
+		# removal when both nodes are stopping concurrently.
+		local delayed_node
+
+		node_names_sorted=$(echo "$OCF_RESKEY_node_ip_map" | sed 's/:[^;]*//g; s/;/ /g' | tr ' ' '\n' | sort  | tr '\n' ' ')
+		delayed_node="$(echo "$node_names_sorted" | cut -d' ' -f2)"
+
+		if [ -z "$delayed_node" ]; then
+			ocf_log warn "could not determine node to be delayed: not leaving the member list"
+			return
+		fi
+
+		if [ "$NODENAME" = "$delayed_node" ]; then
+			ocf_log info "delaying stop for ${DELAY_SECOND_NODE_LEAVE_SEC}s to prevent simultaneous etcd member removal"
+			sleep $DELAY_SECOND_NODE_LEAVE_SEC
+		fi
+	fi
+
+	# Ensure we're not the last active resource before leaving. The `standalone_node` property
+	# may not be set if stop was called before monitor check, or after the delayed node waited.
+	local active_resources_count
+	active_resources_count=$(get_truly_active_resources_count)
+	if [ "$active_resources_count" -lt 1 ]; then
+		ocf_log info "last member. Not leaving the member list"
+		return
+	fi
+
+	ocf_log info "leaving members list as member with ID $member_id"
+	local endpoint
+	endpoint="$(ip_url $(attribute_node_ip get)):2379"
+	if ! ocf_run podman exec "$CONTAINER" etcdctl member remove "$member_id" --endpoints="$endpoint"; then
+		rc=$?
+		ocf_log err "error leaving members list, error code: $rc"
+	fi
+}
+
 podman_stop()
 {
 	local timeout=60
@@ -2039,24 +2102,12 @@ podman_stop()
 	podman_simple_status
 	if [ $? -eq  $OCF_NOT_RUNNING ]; then
 		ocf_log info "could not leave members list: etcd container not running"
+		attribute_node_member_id clear
 		return $OCF_SUCCESS
 	fi
 
-	if ! member_id=$(attribute_node_member_id get); then
-		ocf_log err "error leaving members list: could not get member-id"
-	else
-		# TODO: is it worth/possible to check the current status instead than relying on cached attributes?
-		if is_standalone; then
-			ocf_log info "last member. Not leaving the member list"
-		else
-			ocf_log info "leaving members list as member with ID $member_id"
-			endpoint="$(ip_url $(attribute_node_ip get)):2379"
-			if ! ocf_run podman exec "$CONTAINER" etcdctl member remove "$member_id" --endpoints="$endpoint"; then
-				rc=$?
-				ocf_log err "error leaving members list, error code: $rc"
-			fi
-		fi
-	fi
+	leave_etcd_member_list
+	# clear node_member_id CIB attribute only after leaving the member list
 	attribute_node_member_id clear
 
 	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
@@ -2197,6 +2248,7 @@ ETCD_CERTS_HASH_FILE="${OCF_RESKEY_config_location}/certs.hash"
 # State file location: Uses HA_RSCTMP to ensure automatic cleanup on reboot.
 # This is intentional - reboots are controlled stops, not failures requiring detection.
 CONTAINER_HEARTBEAT_FILE=${HA_RSCTMP}/podman-container-last-running
+DELAY_SECOND_NODE_LEAVE_SEC=10
 
 # Note: we currently monitor podman containers by with the "podman exec"
 # command, so make sure that invocation is always valid by enforcing the
