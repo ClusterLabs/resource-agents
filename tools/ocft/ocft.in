@@ -482,7 +482,7 @@ else
     echo -en "\\033[31mFAILED\\033[0m. Agent returns unexpected value: '\$__OCFT__retstr'. "
   fi
   echo "See details below:"
-  cat /tmp/.ocft_runlog
+  cat "\${HA_RSCTMP}/.ocft_runlog"
   echo
   quit 1
 fi
