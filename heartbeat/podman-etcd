@@ -1341,11 +1341,6 @@ container_health_check()
 	#   recently (i.e. a failure), or not (fresh start)
 	monitor_cmd_exec
 	rc=$?
-	if [ "$rc" -ne 0 ]; then
-		ocf_log info "Container ${CONTAINER} not-running"
-		echo "not-running"
-		return
-	fi
 	if [ "$rc" -eq 0 ]; then
 		# Container is running - update state file with current epoch
 		local current_epoch
@@ -1644,7 +1639,6 @@ can_reuse_container() {
 		OCF_RESKEY_reuse=0
 		return "$OCF_SUCCESS"
 	fi
-
 	if ! filtered_original_pod_manifest=$(filter_pod_manifest "$OCF_RESKEY_pod_manifest"); then
 		return $OCF_ERR_GENERIC
 	fi
@@ -1871,7 +1865,7 @@ podman_start()
 	fi
 
 	if ocf_is_true "$JOIN_AS_LEARNER"; then
-		local wait_timeout_sec=60
+		local wait_timeout_sec=$((10*60))
 		local poll_interval_sec=5
 		local retries=$(( wait_timeout_sec / poll_interval_sec ))
 
