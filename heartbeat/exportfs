@@ -390,10 +390,10 @@ cleanup_export_cache() {
 	local contentfile=/proc/net/rpc/nfsd.export/content
 	local fsid_re
 	local i=1
-	fsid_re="fsid=(echo `forall get_fsid`|sed 's/ /|/g'),"
+	local fsid_all=`forall get_fsid`
+	fsid_re="fsid=(`echo $fsid_all | sed 's/ /|/g'`),"
 	while :; do
-		grep -E -q "$fsid_re" $contentfile ||
-			break
+		grep -E -q "$fsid_re" $contentfile || break
 		ocf_log info "Cleanup export cache ... (try $i)"
 		ocf_run exportfs -f
 		sleep 0.5
