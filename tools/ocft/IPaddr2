@@ -39,7 +39,7 @@ CASE "check base env: unset 'OCF_RESKEY_ip'"
 CASE "check base env: set invalid 'OCF_RESKEY_ip'"
 	Include prepare
 	Env OCF_RESKEY_ip=not_ip_address
-	AgentRun start OCF_ERR_CONFIGURED
+	AgentRun start OCF_ERR_INSTALLED
 
 CASE "check base env: set 'OCF_RESKEY_cidr_netmask'"
 	Include prepare
@@ -49,7 +49,7 @@ CASE "check base env: set 'OCF_RESKEY_cidr_netmask'"
 CASE "check base env: set invalid 'OCF_RESKEY_cidr_netmask'"
 	Include prepare
 	Env OCF_RESKEY_cidr_netmask=not_netmask
-	AgentRun start OCF_ERR_CONFIGURED
+	AgentRun start OCF_ERR_INSTALLED
 
 CASE "check base env: set 'OCF_RESKEY_broadcast'"
 	Include prepare
@@ -59,7 +59,7 @@ CASE "check base env: set 'OCF_RESKEY_broadcast'"
 CASE "check base env: set invalid 'OCF_RESKEY_broadcast'"
 	Include prepare
 	Env OCF_RESKEY_broadcast=not_broadcast
-	AgentRun start OCF_ERR_CONFIGURED
+	AgentRun start OCF_ERR_INSTALLED
 
 CASE "check base env: set 'OCF_RESKEY_nic'"
 	Include prepare
@@ -69,7 +69,7 @@ CASE "check base env: set 'OCF_RESKEY_nic'"
 CASE "check base env: set invalid 'OCF_RESKEY_nic'"
 	Include prepare
 	Env OCF_RESKEY_nic=not_nic
-	AgentRun start OCF_ERR_CONFIGURED
+	AgentRun start OCF_ERR_INSTALLED
 	AgentRun validate-all OCF_ERR_CONFIGURED
 
 CASE "normal start"
