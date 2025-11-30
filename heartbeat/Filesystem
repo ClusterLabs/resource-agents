@@ -1183,7 +1183,10 @@ is_option "ro" &&
 	CLUSTERSAFE=2
 
 case "$FSTYPE" in
-nfs4|nfs|aznfs|efs|smbfs|cifs|none|gfs2|glusterfs|ceph|ocfs2|overlay|overlayfs|tmpfs|cvfs|lustre)
+none|overlay|overlayfs|tmpfs)
+	CLUSTERSAFE=1 # this is kind of safe too
+	;;
+nfs4|nfs|aznfs|efs|smbfs|cifs|gfs2|glusterfs|ceph|ocfs2|cvfs|lustre)
 	CLUSTERSAFE=1 # this is kind of safe too
 	systemd_drop_in "99-Filesystem-remote" "After" "remote-fs.target"
 	;;
