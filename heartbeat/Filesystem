@@ -19,6 +19,12 @@
 #		OCF_RESKEY_run_fsck
 #		OCF_RESKEY_fast_stop
 #		OCF_RESKEY_force_clones
+#		OCF_RESKEY_force_unmount
+#		OCF_RESKEY_term_signals
+#		OCF_RESKEY_kill_signals
+#		OCF_RESKEY_signal_delay
+#	See also the ocf_heartbeat_Filesystem(7) man page.
+
 #
 #OCF_RESKEY_device    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
 #                       Or a -U or -L option for mount, or an NFS mount specification
@@ -91,12 +97,6 @@ if is_redhat_based; then
 fi
 
 
-: ${OCF_RESKEY_device=${OCF_RESKEY_device_default}}
-: ${OCF_RESKEY_directory=${OCF_RESKEY_directory_default}}
-: ${OCF_RESKEY_fstype=${OCF_RESKEY_fstype_default}}
-: ${OCF_RESKEY_options=${OCF_RESKEY_options_default}}
-: ${OCF_RESKEY_statusfile_prefix=${OCF_RESKEY_statusfile_prefix_default}}
-: ${OCF_RESKEY_run_fsck=${OCF_RESKEY_run_fsck_default}}
 if [ -z "${OCF_RESKEY_fast_stop}" ]; then
 	case "$OCF_RESKEY_fstype" in
 		gfs2)
@@ -105,11 +105,18 @@ if [ -z "${OCF_RESKEY_fast_stop}" ]; then
 			OCF_RESKEY_fast_stop=${OCF_RESKEY_fast_stop_default};;
 	esac
 fi
-: ${OCF_RESKEY_force_clones=${OCF_RESKEY_force_clones_default}}
-: ${OCF_RESKEY_force_unmount=${OCF_RESKEY_force_unmount_default}}
-: ${OCF_RESKEY_term_signals=${OCF_RESKEY_term_signals_default}}
-: ${OCF_RESKEY_kill_signals=${OCF_RESKEY_kill_signals_default}}
-: ${OCF_RESKEY_signal_delay=${OCF_RESKEY_signal_delay_default}}
+: "fast_stop        ::" ${OCF_RESKEY_fast_stop}
+: "device           ::" ${OCF_RESKEY_device=${OCF_RESKEY_device_default}}
+: "directory        ::" ${OCF_RESKEY_directory=${OCF_RESKEY_directory_default}}
+: "fstype           ::" ${OCF_RESKEY_fstype=${OCF_RESKEY_fstype_default}}
+: "options          ::" ${OCF_RESKEY_options=${OCF_RESKEY_options_default}}
+: "statusfile_prefix::" ${OCF_RESKEY_statusfile_prefix=${OCF_RESKEY_statusfile_prefix_default}}
+: "run_fsck         ::" ${OCF_RESKEY_run_fsck=${OCF_RESKEY_run_fsck_default}}
+: "force_clones     ::" ${OCF_RESKEY_force_clones=${OCF_RESKEY_force_clones_default}}
+: "force_umount     ::" ${OCF_RESKEY_force_unmount=${OCF_RESKEY_force_unmount_default}}
+: "term_signals     ::" ${OCF_RESKEY_term_signals=${OCF_RESKEY_term_signals_default}}
+: "kill_signals     ::" ${OCF_RESKEY_kill_signals=${OCF_RESKEY_kill_signals_default}}
+: "signal_delay     ::" ${OCF_RESKEY_signal_delay=${OCF_RESKEY_signal_delay_default}}
 
 # Variables used by multiple methods
 HOSTOS=$(uname)
