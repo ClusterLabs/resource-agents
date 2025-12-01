@@ -260,7 +260,7 @@ Only set this to "true" if you know what you are doing!
 </parameter>
 
 <parameter name="force_unmount">
-<longdesc lang="en">
+<longdesc lang="en"><![CDATA[
 This option allows specifying how to handle processes that are
 currently accessing the mount directory.
 
@@ -269,12 +269,25 @@ currently accessing the mount directory.
           avoid functions that could potentially block during process
           detection
 "false" : Do not kill any processes.
+"move"  : like "safe", but try to mount --move first
 
-The 'safe' option uses shell logic to walk the /procs/ directory
+The 'safe' option uses shell logic to walk the /proc/<pid>/ directories
 for pids using the mount point while the default option uses the
 fuser cli tool. fuser is known to perform operations that can potentially
 block if unresponsive nfs mounts are in use on the system.
-</longdesc>
+
+If new users of the file system are being spawned continuously by unmanaged 3rd
+party apps, we likely never win the race and the file system will be kept busy.
+Which may result in a timeout and stop failure, potentially escalating to
+hard-reset of this node via fencing.
+
+The 'move' option tries to move the mount point somewhere those "rogue apps"
+do not expect it, then proceed to kill current users and attempt to umount.
+
+For 'move' to work, you will have to make sure the mount point does not reside
+under a shared mount, for example by mount -o bind,private /mount /mount
+before mounting /mount/point.
+]]></longdesc>
 <shortdesc lang="en">Kill processes before unmount</shortdesc>
 <content type="string" default="${OCF_RESKEY_force_unmount_default}" />
 </parameter>
@@ -589,8 +602,21 @@ Filesystem_start()
 		return $OCF_ERR_CONFIGURED
 	fi
 
+	if $move_before_umount && test -d "$MOVED_CANONICALIZED_MOUNTPOINT"; then
+		CANONICALIZED_MOUNTPOINT=$MOVED_CANONICALIZED_MOUNTPOINT \
+		move_before_umount=false \
+		Filesystem_status
+		rc=$?
+		if [ $rc != $OCF_NOT_RUNNING ]; then
+			msg="move_before_umount=$move_before_umount and $MOVED_CANONICALIZED_MOUNTPOINT status is [$rc]"
+			rc=$OCF_ERR_GENERIC
+			ocf_exit_reason "$msg"
+			return $rc
+		fi
+	fi
+
 	# See if the device is already mounted.
-	Filesystem_status
+	move_before_umount=false Filesystem_status
 	case "$?" in
 		$OCF_SUCCESS)
 			ocf_log info "Filesystem $MOUNTPOINT is already mounted."
@@ -812,16 +838,34 @@ fs_stop() {
 	return $OCF_ERR_GENERIC
 }
 
+try_mount_move()
+{
+	test -d "$MOVED_CANONICALIZED_MOUNTPOINT" || mkdir "$MOVED_CANONICALIZED_MOUNTPOINT" || return
+	mount --move "$CANONICALIZED_MOUNTPOINT" "$MOVED_CANONICALIZED_MOUNTPOINT" || return
+	ocf_log info "Moved $MOUNTPOINT to $MOVED_CANONICALIZED_MOUNTPOINT"
+	return 0
+	# To test really bad timing of "action timeout":
+	# test -e /tmp/fail-after-move && rm -f /tmp/fail-after-move && kill -KILL $$
+}
+
 #
 # STOP: Unmount the filesystem
 #
 Filesystem_stop()
 {
 	# See if the device is currently mounted
-	Filesystem_status >/dev/null 2>&1
+	move_before_umount=false Filesystem_status >/dev/null 2>&1
 	if [ $? -eq $OCF_NOT_RUNNING ]; then
 		# Already unmounted, wonderful.
-		rc=$OCF_SUCCESS
+		# But did we also unmount the moved fs?
+		if $move_before_umount; then
+			CANONICALIZED_MOUNTPOINT=$MOVED_CANONICALIZED_MOUNTPOINT \
+			move_before_umount=false \
+			Filesystem_stop
+			return $?
+		else
+			rc=$OCF_SUCCESS
+		fi
 	else
 		# Wipe the status file, but continue with a warning if
 		# removal fails -- the file system might be read only
@@ -840,6 +884,13 @@ Filesystem_stop()
 		case "$FSTYPE" in
 		nfs4|nfs|aznfs|efs|cifs|smbfs) umount_force="-f" ;;
 		esac
+
+		if $move_before_umount && try_mount_move ; then
+			CANONICALIZED_MOUNTPOINT=$MOVED_CANONICALIZED_MOUNTPOINT \
+			move_before_umount=false \
+			Filesystem_stop
+			return $?
+		fi
 
 		# Umount all sub-filesystems mounted under $MOUNTPOINT/ too.
 		local timeout
@@ -874,6 +925,21 @@ Filesystem_stop()
 #
 Filesystem_status()
 {
+	if $move_before_umount && test -d $MOVED_CANONICALIZED_MOUNTPOINT; then
+		# Have to recurse once.
+		CANONICALIZED_MOUNTPOINT=$MOVED_CANONICALIZED_MOUNTPOINT \
+		move_before_umount=false \
+		OP= \
+		Filesystem_status
+		rc=$?
+		if [ $rc = $OCF_SUCCESS ]; then
+			rc=$OCF_ERR_GENERIC
+			msg="move_before_umount=$move_before_umount and something is mounted on $MOVED_CANONICALIZED_MOUNTPOINT"
+			ocf_exit_reason "$msg"
+			return $rc
+		fi
+	fi
+
 	local match_string="${TAB}${CANONICALIZED_MOUNTPOINT}${TAB}"
 	local mounted_device=$(list_mounts | grep "$match_string" | awk '{print $1}')
 
@@ -1097,6 +1163,11 @@ if [ ! -z "$OCF_RESKEY_options" ]; then
 fi
 FAST_STOP=${OCF_RESKEY_fast_stop:="yes"}
 
+case $FORCE_UNMOUNT in
+	move) move_before_umount=true; FORCE_UNMOUNT=safe ;;
+	*)    move_before_umount=false ;;
+esac
+
 OP=$1
 
 # These operations do not require instance parameters
@@ -1157,6 +1228,9 @@ else
 		fi
 	fi
 fi
+
+MOVED_CANONICALIZED_MOUNTPOINT=$(echo "$CANONICALIZED_MOUNTPOINT" | sed -e 's,/\([^/]\+\)$,/.\1,')
+
 
 # Check to make sure the utilites are found
 if [ "X${HOSTOS}" != "XOpenBSD" ];then
