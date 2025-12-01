@@ -767,13 +767,21 @@ timeout_child() {
 	return $ret
 }
 fs_stop_loop() {
-	local force_arg="$1" SUB="$2" signals="$3" sig send_signal
+	local force_arg="$1" SUB="$2" signals="$3" sig sent_signal
 	while true; do
-		send_signal=false
+		sent_signal=false
 		for sig in $signals; do
-			signal_processes "$SUB" $sig && send_signal=true
+			signal_processes "$SUB" $sig && sent_signal=true
 		done
-		$send_signal && sleep $OCF_RESKEY_signal_delay
+		if $sent_signal; then
+			# Try to umount immediately after signalling, to reduce
+			# the time window in which new users of the file system
+			# may be spawned.
+			try_umount "$force_arg" "$SUB" && return $OCF_SUCCESS
+			sleep $OCF_RESKEY_signal_delay
+		fi
+		# Try to umount after the signal_delay, maybe some processes
+		# needed a moment to "exit cleanly" after receiving SIGTERM.
 		try_umount "$force_arg" "$SUB" && return $OCF_SUCCESS
 	done
 }
