@@ -617,9 +617,13 @@ prepare_env() {
 	LISTEN_CLIENT_URLS="0.0.0.0"
 	LISTEN_PEER_URLS="0.0.0.0"
 	LISTEN_METRICS_URLS="0.0.0.0"
+
+	return $OCF_SUCCESS
 }
 
 compute_bump_revision() {
+	local rc
+
 	# Same logic used by cluster-etcd-operator quorum-restore-pod utility.
 	# see https://github.com/openshift/cluster-etcd-operator/blob/215998939f5223da916622c71fd07d17656faf6b/bindata/etcd/quorum-restore-pod.yaml#L26-L34
 	# set a default value: 1bn would be an etcd running at 1000 writes/s for about eleven days.
@@ -691,7 +695,13 @@ experimental-max-learners: 1
 experimental-warning-apply-duration: $(convert_duration_in_nanoseconds "$ETCD_EXPERIMENTAL_WARNING_APPLY_DURATION")
 experimental-watch-progress-notify-interval: $(convert_duration_in_nanoseconds "$ETCD_EXPERIMENTAL_WATCH_PROGRESS_NOTIFY_INTERVAL")
 EOF
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log err "could not create etcd configuration, 'cat' error code: $rc"
+		return $OCF_ERR_CONFIGURED
+	fi
 
+	# Append cipher suites from the env variable where the entries are comma separated.
 	{
 		if [ -n "$ETCD_CIPHER_SUITES" ]; then
 			echo "cipher-suites:"
@@ -700,6 +710,13 @@ EOF
 			done
 		fi
 	} >> "$ETCD_CONFIGURATION_FILE"
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		ocf_log err "could not append cipher suites to etcd configuration, error code: $rc"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	return $OCF_SUCCESS
 }
 
 archive_data_folder()
@@ -884,7 +901,7 @@ add_member_as_learner()
 	out=$(podman exec "${CONTAINER}" etcdctl --endpoints="$endpoint_url:2379" member add "$member_name" --peer-urls="$peer_url:2380" --learner)
 	rc=$?
 	if [ $rc -ne 0 ]; then
-		ocf_log err "could not add $member_name as learner, error code: $rc"
+		ocf_log err "could not add $member_name as learner, error code $rc, etcdctl output: $out"
 		return $rc
 	fi
 	ocf_log info "$out"
@@ -1763,7 +1780,7 @@ podman_start()
 		fnc_holder_count=$(echo "$fnc_holders" | wc -w)
 		if [ "$fnc_holder_count" -gt 1 ]; then
 			ocf_exit_reason "force_new_cluster attribute is set on multiple nodes ($fnc_holders)"
-			return "$OCF_ERR_GENERIC"
+			return "$OCF_ERR_CONFIGURED"
 		fi
 
 		if [ "$fnc_holder_count" -eq 1 ]; then
@@ -1837,7 +1854,7 @@ podman_start()
 							ocf_log info "same cluster_id and revision: start normal"
 						else
 							ocf_exit_reason "same revision but different cluster id"
-							return "$OCF_ERR_GENERIC"
+							return "$OCF_ERR_CONFIGURED"
 						fi
 					fi
 					;;
@@ -1861,12 +1878,6 @@ podman_start()
 	local run_opts="--detach --name=${CONTAINER} --replace"
 
 	run_opts="$run_opts --oom-score-adj=${OCF_RESKEY_oom}"
-
-	# check to see if the container has already started
-	podman_simple_status
-	if [ $? -eq $OCF_SUCCESS ]; then
-		return "$OCF_SUCCESS"
-	fi
 
 	if ocf_is_true "$JOIN_AS_LEARNER"; then
 		local wait_timeout_sec=$((10*60))
@@ -1894,9 +1905,8 @@ podman_start()
 
 	ocf_log info "check for changes in pod manifest to decide if the container should be reused or replaced"
 	if ! can_reuse_container ; then
-		rc="$?"
-		ocf_log err "could not determine etcd container reuse strategy, rc: $rc"
-		return "$rc"
+		ocf_log err "could not determine etcd container reuse strategy"
+		return $OCF_ERR_GENERIC
 	fi
 
 	# Archive current container and its configuration before creating
@@ -1912,13 +1922,13 @@ podman_start()
 	fi
 
 	if ! prepare_env; then
-		ocf_log err "Could not prepare environment for podman, error code: $?"
+		ocf_log err "Could not prepare environment for podman"
 		return $OCF_ERR_GENERIC
 	fi
 
 	if ! generate_etcd_configuration; then
-		ocf_log err "Could not generate etcd configuration, error code: $?"
-		return $OCF_ERR_GENERIC
+		ocf_log err "Could not generate etcd configuration"
+		return $OCF_ERR_CONFIGURED
 	fi
 
 	run_opts="$run_opts \
