@@ -478,6 +478,7 @@ PortStatus() {
       *)
         SayActive $*
         if [ "$__OCF_ACTION" = "monitor" ] && [ "$promotion_score" = "$SCORE_PROMOTED" ]; then
+          save_tcp_connections
           rc=$OCF_RUNNING_MASTER
         else
           rc=$OCF_SUCCESS
