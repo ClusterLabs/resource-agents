@@ -604,8 +604,8 @@ prepare_env() {
 	fi
 	ETCD_ELECTION_TIMEOUT=$(get_env_from_manifest "ETCD_ELECTION_TIMEOUT")
 	ETCD_ENABLE_PPROF=$(get_env_from_manifest "ETCD_ENABLE_PPROF")
-	ETCD_EXPERIMENTAL_WARNING_APPLY_DURATION=$(get_env_from_manifest "ETCD_EXPERIMENTAL_WARNING_APPLY_DURATION")
-	ETCD_EXPERIMENTAL_WATCH_PROGRESS_NOTIFY_INTERVAL=$(get_env_from_manifest "ETCD_EXPERIMENTAL_WATCH_PROGRESS_NOTIFY_INTERVAL")
+	ETCD_WARNING_APPLY_DURATION=$(get_env_from_manifest "ETCD_WARNING_APPLY_DURATION")
+	ETCD_WATCH_PROGRESS_NOTIFY_INTERVAL=$(get_env_from_manifest "ETCD_WATCH_PROGRESS_NOTIFY_INTERVAL")
 	ETCD_HEARTBEAT_INTERVAL=$(get_env_from_manifest "ETCD_HEARTBEAT_INTERVAL")
 	ETCD_QUOTA_BACKEND_BYTES=$(get_env_from_manifest "ETCD_QUOTA_BACKEND_BYTES")
 	ETCD_SOCKET_REUSE_ADDRESS=$(get_env_from_manifest "ETCD_SOCKET_REUSE_ADDRESS")
@@ -660,6 +660,7 @@ force-new-cluster-bump-amount: $BUMP_REV"
 
 	# the space indentation for client-transport-security and peer-transport-security
 	# is required for correct YAML formatting.
+	# TODO: replace flags deprecated in Etcd v3.6
 	cat > "$ETCD_CONFIGURATION_FILE" << EOF
 logger: zap
 log-level: info
@@ -692,8 +693,8 @@ listen-metrics-urls: "$(ip_url ${LISTEN_METRICS_URLS}):9978"
 metrics: extensive
 experimental-initial-corrupt-check: true
 experimental-max-learners: 1
-experimental-warning-apply-duration: $(convert_duration_in_nanoseconds "$ETCD_EXPERIMENTAL_WARNING_APPLY_DURATION")
-experimental-watch-progress-notify-interval: $(convert_duration_in_nanoseconds "$ETCD_EXPERIMENTAL_WATCH_PROGRESS_NOTIFY_INTERVAL")
+experimental-warning-apply-duration: $(convert_duration_in_nanoseconds "$ETCD_WARNING_APPLY_DURATION")
+experimental-watch-progress-notify-interval: $(convert_duration_in_nanoseconds "$ETCD_WATCH_PROGRESS_NOTIFY_INTERVAL")
 EOF
 	rc=$?
 	if [ $rc -ne 0 ]; then
