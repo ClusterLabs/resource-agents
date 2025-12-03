@@ -425,6 +425,10 @@ tickle_local()
 	done
 }
 
+# A long time ago, these messages needed to go to stdout,
+# "running" / "OK" being the trigger string
+# for heartbeat in haresources mode.
+# Now they are still useful for debugging.
 SayActive()
 {
   ocf_log debug "$CMD $method rule [$*] is running (OK)"
@@ -438,6 +442,11 @@ SayConsideredActive()
 SayInactive()
 {
   ocf_log debug "$CMD $method rule [$*] is inactive"
+}
+
+SayConsideredInactive()
+{
+  ocf_log debug "$CMD $method rule [$*] considered to be inactive"
 }
 
 #PortStatus  {udp|tcp} portno,portno ip {in|out|both} {block|unblock}
@@ -503,7 +512,8 @@ PortStatus() {
           save_tcp_connections
           rc=$OCF_SUCCESS
         else
-          SayInactive $*
+          # rule NOT present, action=unblock, unblock state file NOT present
+          SayConsideredInactive $*
           rc=$OCF_NOT_RUNNING
         fi
         ;;
