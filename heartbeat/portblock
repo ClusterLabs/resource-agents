@@ -30,23 +30,38 @@ OCF_RESKEY_portno_default=""
 OCF_RESKEY_direction_default="in"
 OCF_RESKEY_action_default=""
 OCF_RESKEY_method_default="drop"
-OCF_RESKEY_status_check_default="rule"
 OCF_RESKEY_ip_default="0.0.0.0/0"
 OCF_RESKEY_reset_local_on_unblock_stop_default="false"
 OCF_RESKEY_tickle_dir_default=""
 OCF_RESKEY_sync_script_default=""
 
-: ${OCF_RESKEY_firewall=${OCF_RESKEY_firewall_default}}
-: ${OCF_RESKEY_protocol=${OCF_RESKEY_protocol_default}}
-: ${OCF_RESKEY_portno=${OCF_RESKEY_portno_default}}
-: ${OCF_RESKEY_direction=${OCF_RESKEY_direction_default}}
-: ${OCF_RESKEY_action=${OCF_RESKEY_action_default}}
-: ${OCF_RESKEY_method=${OCF_RESKEY_method_default}}
-: ${OCF_RESKEY_status_check=${OCF_RESKEY_status_check_default}}
-: ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
-: ${OCF_RESKEY_reset_local_on_unblock_stop=${OCF_RESKEY_reset_local_on_unblock_stop_default}}
-: ${OCF_RESKEY_tickle_dir=${OCF_RESKEY_tickle_dir_default}}
-: ${OCF_RESKEY_sync_script=${OCF_RESKEY_sync_script_default}}
+# The typical idiom is:
+#   block start
+#   other services start
+#   unblock start
+# unblock removes the rule, monitor for block with stauts_check=rule
+# would result in an unexpected "not running" failure, and the whole
+# stack would continuously be restarted.
+# Not monitoring "action=block" instances only looks like a solution
+# until the next "probe" results in a restart of the whole stack for the
+# same reason.
+if [ "$OCF_RESKEY_action" = "block" ]; then
+	OCF_RESKEY_status_check_default="pseudo"
+else
+	OCF_RESKEY_status_check_default="rule"
+fi
+
+: "firewall                    ::" ${OCF_RESKEY_firewall=${OCF_RESKEY_firewall_default}}
+: "protocol                    ::" ${OCF_RESKEY_protocol=${OCF_RESKEY_protocol_default}}
+: "portno                      ::" ${OCF_RESKEY_portno=${OCF_RESKEY_portno_default}}
+: "direction                   ::" ${OCF_RESKEY_direction=${OCF_RESKEY_direction_default}}
+: "action                      ::" ${OCF_RESKEY_action=${OCF_RESKEY_action_default}}
+: "method                      ::" ${OCF_RESKEY_method=${OCF_RESKEY_method_default}}
+: "status_check                ::" ${OCF_RESKEY_status_check=${OCF_RESKEY_status_check_default}}
+: "ip                          ::" ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
+: "reset_local_on_unblock_stop ::" ${OCF_RESKEY_reset_local_on_unblock_stop=${OCF_RESKEY_reset_local_on_unblock_stop_default}}
+: "tickle_dir                  ::" ${OCF_RESKEY_tickle_dir=${OCF_RESKEY_tickle_dir_default}}
+: "sync_script                 ::" ${OCF_RESKEY_sync_script=${OCF_RESKEY_sync_script_default}}
 #######################################################################
 CMD=`basename $0`
 TICKLETCP=$HA_BIN/tickle_tcp
@@ -214,6 +229,8 @@ reject: Use REJECT rule w/conntrack to clear connections when blocking.
 Status check:
 rule: Check rule.
 pseudo: Check pseudo status when rule is absent.
+
+Default is "rule" for action=unblock and "pseudo" for action=block.
 </longdesc>
 <shortdesc lang="en">Status check</shortdesc>
 <content type="string" default="${OCF_RESKEY_status_check_default}" />
