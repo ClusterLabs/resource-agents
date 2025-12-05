@@ -696,11 +696,11 @@ get_pids()
 
 	if ocf_is_true  "$FORCE_UNMOUNT"; then
 		if [ "X${HOSTOS}" = "XOpenBSD" ]; then
-			fstat | grep $dir | awk '{print $3}'
+			fstat | grep "$dir" | awk '{print $3}'
 		elif [ "X${HOSTOS}" = "XFreeBSD" ]; then
-			$FUSER -c $dir 2>/dev/null
+			$FUSER -c "$dir" 2>/dev/null
 		else
-			$FUSER -Mm $dir 2>/dev/null
+			$FUSER -Mm "$dir" 2>/dev/null
 		fi
 	elif [ "$FORCE_UNMOUNT" = "safe" ]; then
 		# Yes, in theory, ${dir} could contain "intersting" characters
@@ -754,18 +754,36 @@ signal_processes() {
 	local dir=$1
 	local sig=$2
 	local pids pid
+	local nr_pids
+	local sed_script=""
 	# fuser returns a non-zero return code if none of the
 	# specified files is accessed or in case of a fatal
 	# error.
-	pids=$(get_pids "$dir")
-	if [ -z "$pids" ]; then
+	# We don't know whether we have one single line or mutiple lines.
+	# Canonicalize.
+	pids=$(get_pids "$dir" | tr -s ' \t\n' '\n')
+	nr_pids=$(echo "$pids" | grep -c "^.")
+
+	# for many pids, reporting and killing them indivitually just takes too long.
+	# may even be too many words for the shell!
+	#
+	# If the list of pids is too long for a single shell variable,
+	# fix your fork bomb workload, and get a better shell anyways.
+	#
+	if [ $nr_pids = 0 ]; then
 		ocf_log info "No processes on $dir were signalled. force_unmount is set to '$FORCE_UNMOUNT'"
 		return 1
+	elif [ $nr_pids -le 24 ]; then
+		for pid in $pids; do
+			ocf_log info "sending signal $sig to: $(ps -f $pid | tail -1)"
+			kill -s $sig $pid
+		done
+	else
+		echo "$pids" | xargs -r kill -s $sig
+		sed_script="11 s/^.*/... and more .../; 12,$(( $nr_pids - 10))d"
+		pids=$(echo "$pids" | sed -e "$sed_script" | tr '\n' ' ')
+		ocf_log info "sent signals $sig to ${nr_pids} processes [${pids}]"
 	fi
-	for pid in $pids; do
-		ocf_log info "sending signal $sig to: $(ps -f $pid | tail -1)"
-		kill -s $sig $pid
-	done
 	return 0
 }
 try_umount() {
