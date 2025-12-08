@@ -49,6 +49,7 @@ OCF_RESKEY_reuse_default="0"
 OCF_RESKEY_oom_default="-997"
 OCF_RESKEY_config_location_default="/var/lib/etcd"
 OCF_RESKEY_backup_location_default="/var/lib/etcd"
+OCF_RESKEY_max_backup_snapshots_default="3"
 
 : ${OCF_RESKEY_image=${OCF_RESKEY_image_default}}
 : ${OCF_RESKEY_pod_manifest=${OCF_RESKEY_pod_manifest_default}}
@@ -61,6 +62,7 @@ OCF_RESKEY_backup_location_default="/var/lib/etcd"
 : ${OCF_RESKEY_oom=${OCF_RESKEY_oom_default}}
 : ${OCF_RESKEY_config_location=${OCF_RESKEY_config_location_default}}
 : ${OCF_RESKEY_backup_location=${OCF_RESKEY_backup_location_default}}
+: ${OCF_RESKEY_max_backup_snapshots=${OCF_RESKEY_max_backup_snapshots_default}}
 
 
 #######################################################################
@@ -273,6 +275,17 @@ The directory where the resource agent stores its backups.
 </longdesc>
 <shortdesc lang="en">Resource agent backup directory</shortdesc>
 <content type="string" default="${OCF_RESKEY_backup_location_default}"/>
+</parameter>
+
+<parameter name="max_backup_snapshots" required="0" unique="0">
+<longdesc lang="en">
+Maximum number of etcd database snapshots to retain. When a new snapshot is created,
+older snapshots will be automatically removed to maintain this limit. This helps
+control storage usage while ensuring recent backups are available for recovery.
+Set max_backup_snapshots=0 to disable backups.
+</longdesc>
+<shortdesc lang="en">Maximum number of backup snapshots to retain</shortdesc>
+<content type="integer" default="${OCF_RESKEY_max_backup_snapshots_default}"/>
 </parameter>
 
 </parameters>
@@ -720,20 +733,190 @@ EOF
 	return $OCF_SUCCESS
 }
 
+# Remove etcd member directory to allow the node to rejoin the cluster as a learner.
+#
+# When a node rejoins an etcd cluster, it must start fresh as a learner to prevent
+# data inconsistencies. This function removes the member directory and syncs to disk.
+#
+# Returns:
+#   OCF_SUCCESS     - Member directory successfully removed
+#   OCF_ERR_GENERIC - Failed to remove member directory (critical error)
+wipe_data_folder_for_learner()
+{
+	ocf_log info "deleting etcd member directory ($ETCD_MEMBER_DIR) to enable learner rejoin"
+	if ! rm -rf "$ETCD_MEMBER_DIR"; then
+		ocf_log err "could not delete etcd member directory ($ETCD_MEMBER_DIR), error code: $?"
+		return $OCF_ERR_GENERIC
+	fi
+	sync
+	return $OCF_SUCCESS
+}
+
+
+# Calculate available disk space in bytes for a given directory.
+#
+# This function queries the filesystem and returns available space in bytes.
+# It converts df output (KB) to bytes for consistent size comparisons.
+#
+# Arguments:
+#   $1 - Target directory path to check
+#
+# Returns:
+#   OCF_SUCCESS     - Available space in bytes (via stdout)
+#   OCF_ERR_GENERIC - Failed to determine available space (error message via stdout)
+get_available_space_in_directory()
+{
+	local target_dir=$1
+	local available_space_kb
+	local available_space_bytes
+
+	available_space_kb=$(df -P "$target_dir" | awk 'NR==2 {print $4}' 2>&1)
+
+	# Validate output is numeric
+	if ! echo "$available_space_kb" | grep -q '^[0-9]\+$'; then
+		echo "df command failed or returned invalid value: $available_space_kb"
+		return $OCF_ERR_GENERIC
+	fi
+
+	available_space_bytes=$((available_space_kb*1024))
+	echo "$available_space_bytes"
+	return $OCF_SUCCESS
+}
+
+# Archive etcd database with backup and cleanup
+#
+# This function creates a backup copy of the etcd database, validates it, and
+# removes old backups according to the retention policy. Backups are optional
+# and can be disabled by setting max_backup_snapshots=0.
+#
+# Error handling strategy:
+#   All backup failures return OCF_SUCCESS to prevent blocking cluster recovery.
+#   Backups are beneficial but not critical for recovery operations.
+#
+# NOTE: This function cannot use etcdctl/etcdutl utilities because the etcd
+#       server is not running when this backup is performed.
 archive_data_folder()
 {
-	# TODO: use etcd snapshots
-	local dest_dir_name
-	local data_dir="/var/lib/etcd/member"
+	local backup_dir="$OCF_RESKEY_backup_location"
+	local etcd_db_path="$ETCD_MEMBER_DIR/snap/db"
 
-	dest_dir_name="members-snapshot-$(date +%Y%M%d%H%M%S)"
-	if [ ! -d $data_dir ]; then
-		ocf_log info "no data dir to backup"
+	if [ "$OCF_RESKEY_max_backup_snapshots" -eq 0 ]; then
+		ocf_log debug "etcd backup disabled (max_backup_snapshots=0)"
 		return $OCF_SUCCESS
 	fi
-	ocf_log info "backing up $data_dir under $HA_RSCTMP/$dest_dir_name"
-	mv "$data_dir" "$HA_RSCTMP/$dest_dir_name"
-	sync
+
+	# Check if the etcd database file exists
+	if [ ! -f "$etcd_db_path" ]; then
+		ocf_log warn "backup skipped: etcd database file not found at '$etcd_db_path'"
+		return $OCF_SUCCESS
+	fi
+
+	# Ensure backup directory exists
+	if [ ! -d "$backup_dir" ]; then
+		ocf_log debug "creating backup directory: '$backup_dir'"
+		if ! mkdir -p "$backup_dir"; then
+			ocf_log warn "backup skipped: failed to create backup directory '$backup_dir'"
+			return $OCF_SUCCESS
+		fi
+	fi
+
+	ocf_log debug "checking disk space: backup_dir=$backup_dir"
+	local available_space_bytes
+	if ! available_space_bytes=$(get_available_space_in_directory "$backup_dir"); then
+		ocf_log warn "backup skipped: could not compute available disk space in '$backup_dir', error msg: $available_space_bytes"
+		return $OCF_SUCCESS
+	fi
+
+	local required_space_bytes
+	required_space_bytes=$(stat -c %s "$etcd_db_path" 2>&1)
+	if ! echo "$required_space_bytes" | grep -q '^[0-9]\+$'; then
+		ocf_log warn "backup skipped: could not compute etcd database size at '$etcd_db_path', error msg: $required_space_bytes"
+		return $OCF_SUCCESS
+	fi
+
+	if [ "$required_space_bytes" -gt "$available_space_bytes" ]; then
+		ocf_log warn "backup skipped: insufficient disk space (required: ${required_space_bytes}B, available: ${available_space_bytes}B)"
+		return $OCF_SUCCESS
+	fi
+
+	# Generate timestamp and backup filename
+	local timestamp
+	timestamp=$(date +%Y%m%d-%H%M%S)
+
+	local backup_file
+	backup_file="$backup_dir/snapshot-$timestamp.db"
+
+	ocf_log info "creating etcd database backup: '$backup_file'"
+
+	# Create the backup by copying the database file (enable Copy-on-Write copy)
+	if ! cp --reflink=auto "$etcd_db_path" "$backup_file"; then
+		ocf_log warn "backup creation failed: could not copy '$etcd_db_path' to '$backup_file', error code: $?"
+		return $OCF_SUCCESS
+	fi
+
+	# Validate the backup file exists and has the expected size
+	if [ ! -f "$backup_file" ]; then
+		ocf_log warn "backup validation failed: snapshot file '$backup_file' does not exist"
+		return $OCF_SUCCESS
+	fi
+
+	local backup_size_bytes
+	backup_size_bytes=$(stat -c %s "$backup_file" 2>/dev/null || echo "0")
+	if [ "$backup_size_bytes" -ne "$required_space_bytes" ]; then
+		ocf_log warn "backup validation failed: size mismatch (expected: ${required_space_bytes}B, got: ${backup_size_bytes}B)"
+		rm -f "$backup_file"
+		return $OCF_SUCCESS
+	fi
+
+	ocf_log info "backup created successfully: $backup_file (${backup_size_bytes}B)"
+
+	# Cleanup old backups based on retention policy
+	cleanup_old_backups "$backup_dir"
+
+	return $OCF_SUCCESS
+}
+
+cleanup_old_backups()
+{
+	local backup_dir="$1"
+	local max_snapshots="$OCF_RESKEY_max_backup_snapshots"
+	local backup_count
+	local backups_to_remove
+	local old_backups
+
+	# Validate max_snapshots is a positive integer
+	if ! echo "$max_snapshots" | grep -q '^[1-9][0-9]*$'; then
+		ocf_log warn "invalid max_backup_snapshots value. Positive integer expected, got '$max_snapshots' instead, skipping cleanup"
+		return $OCF_SUCCESS
+	fi
+
+	# Count existing backup files
+	backup_count=$(find "$backup_dir" -maxdepth 1 -name "snapshot-*.db" -type f 2>/dev/null | wc -l)
+
+	if [ "$backup_count" -le "$max_snapshots" ]; then
+		ocf_log info "backup count ($backup_count) is within retention limit ($max_snapshots), no cleanup needed"
+		return $OCF_SUCCESS
+	fi
+
+	# Calculate how many backups to remove
+	backups_to_remove=$((backup_count - max_snapshots))
+	ocf_log info "removing $backups_to_remove old backup(s) to maintain retention limit of $max_snapshots"
+
+	# Find oldest backups sorted by modification time
+	# -t sorts by modification time, -r reverses (oldest first)
+	# -print0 and -0 handle filenames with spaces/special characters
+	old_backups=$(find "$backup_dir" -maxdepth 1 -name "snapshot-*.db" -type f -print0 2>/dev/null | \
+		xargs -0 -r ls -tr | \
+		head -n "$backups_to_remove")
+
+	if [ -n "$old_backups" ]; then
+		ocf_log info "removing old backups: $old_backups"
+		if ! echo "$old_backups" | xargs -r rm -f; then
+			ocf_log warn "failed to remove some old backups, error code: $?"
+		fi
+	fi
+
+	return $OCF_SUCCESS
 }
 
 etcd_pod_container_exists() {
@@ -1902,6 +2085,9 @@ podman_start()
 		fi
 
 		archive_data_folder
+		if ! wipe_data_folder_for_learner; then
+			return "$OCF_ERR_GENERIC"
+		fi
 	fi
 
 	ocf_log info "check for changes in pod manifest to decide if the container should be reused or replaced"
@@ -2251,6 +2437,7 @@ CONTAINER=$OCF_RESKEY_name
 POD_MANIFEST_COPY="${OCF_RESKEY_config_location}/pod.yaml"
 ETCD_CONFIGURATION_FILE="${OCF_RESKEY_config_location}/config.yaml"
 ETCD_BACKUP_FILE="${OCF_RESKEY_backup_location}/config-previous.tar.gz"
+ETCD_MEMBER_DIR="/var/lib/etcd/member"
 ETCD_REVISION_JSON="/var/lib/etcd/revision.json"
 ETCD_REVISION_BUMP_PERCENTAGE=0.2
 ETCD_BUMP_REV_DEFAULT=1000000000
