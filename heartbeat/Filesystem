@@ -753,7 +753,7 @@ get_pids()
 signal_processes() {
 	local dir=$1
 	local sig=$2
-	local pids pid
+	local pids pid pidcnt
 	# fuser returns a non-zero return code if none of the
 	# specified files is accessed or in case of a fatal
 	# error.
@@ -761,6 +761,12 @@ signal_processes() {
 	if [ -z "$pids" ]; then
 		ocf_log info "No processes on $dir were signalled. force_unmount is set to '$FORCE_UNMOUNT'"
 		return 1
+	fi
+	pidcnt=$(echo "$pids" | wc -w)
+	if [ $pidcnt -gt 10 ]; then
+		ocf_log info "$pidcnt processes found, signaling en masse"
+		echo "$pids" | xargs kill -s $sig
+		return
 	fi
 	for pid in $pids; do
 		ocf_log info "sending signal $sig to: $(ps -f $pid | tail -1)"
