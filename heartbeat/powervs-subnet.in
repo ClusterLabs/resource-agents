@@ -243,7 +243,16 @@ class nmcli:
 
         @staticmethod
         def up(name, **kwargs):
-            return nmcli._nmcli_cmd("connection", "up", name, **kwargs)
+            nmcli._nmcli_cmd("connection", "up", name, **kwargs)
+
+            for i in range(1, 10):
+                time.sleep(1)
+                status = nmcli._nmcli_cmd("connection", "show", name, **kwargs)
+                if len(status.get("IP4.ADDRESS[1]", "")) > 0:
+                    return ocf.OCF_SUCCESS
+                ocf.logger.warning(f"nmcli.connection.up: check {i} of 10: IP not yet available.")
+
+            return ocf.OCF_ERR_GENERIC
 
         @staticmethod
         def find(match_key, match_value):
@@ -824,7 +833,9 @@ def start_action(
         conn_options.update({"802-3-ethernet.mtu": "9000", "ethtool.feature-tso": "on"})
 
     nmcli.connection.add(conn_name, options=conn_options)
-    nmcli.connection.up(conn_name)
+    rc = nmcli.connection.up(conn_name)
+    if rc != ocf.OCF_SUCCESS:
+        return rc
 
     if monitor_action(**res_options) != ocf.OCF_SUCCESS:
         raise PowerCloudAPIError(f"start_action: start subnet: {ws.subnet_name} failed")
