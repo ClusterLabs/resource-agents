@@ -607,7 +607,7 @@ Filesystem_start()
 		move_before_umount=false \
 		Filesystem_status
 		rc=$?
-		if [ $rc != $OCF_NOT_RUNNING ]; then
+		if [ $rc -ne $OCF_NOT_RUNNING ]; then
 			msg="move_before_umount=$move_before_umount and $MOVED_CANONICALIZED_MOUNTPOINT status is [$rc]"
 			rc=$OCF_ERR_GENERIC
 			ocf_exit_reason "$msg"
@@ -770,7 +770,7 @@ signal_processes() {
 	# If the list of pids is too long for a single shell variable,
 	# fix your fork bomb workload, and get a better shell anyways.
 	#
-	if [ $nr_pids = 0 ]; then
+	if [ $nr_pids -eq 0 ]; then
 		ocf_log info "No processes on $dir were signalled. force_unmount is set to '$FORCE_UNMOUNT'"
 		return 1
 	elif [ $nr_pids -le 24 ]; then
@@ -950,7 +950,7 @@ Filesystem_status()
 		OP= \
 		Filesystem_status
 		rc=$?
-		if [ $rc = $OCF_SUCCESS ]; then
+		if [ $rc -eq $OCF_SUCCESS ]; then
 			rc=$OCF_ERR_GENERIC
 			msg="move_before_umount=$move_before_umount and something is mounted on $MOVED_CANONICALIZED_MOUNTPOINT"
 			ocf_exit_reason "$msg"
