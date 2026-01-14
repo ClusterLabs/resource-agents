@@ -417,7 +417,6 @@ int
 ValidateIFName(const char *ifname, struct ifreq *ifr) 
 {
  	int skfd = -1;
-	char *colonptr;
 
  	if ( (skfd = socket(PF_INET, SOCK_DGRAM, 0)) == -1 ) {
  		fprintf(stderr, "%s\n", strerror(errno));
@@ -428,7 +427,7 @@ ValidateIFName(const char *ifname, struct ifreq *ifr)
 	*(ifr->ifr_name + sizeof(ifr->ifr_name) - 1) = '\0';
 
 	/* Contain a ":"?  Probably an error, but treat as warning at present */
-	if ((colonptr = strchr(ifname, ':')) != NULL) {
+	if (strchr(ifname, ':') != NULL) {
 		fprintf(stderr, "%s: warning: name may be invalid\n",
 		  ifr->ifr_name);
 	}
