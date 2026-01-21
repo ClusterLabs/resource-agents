@@ -269,7 +269,29 @@ currently accessing the mount directory.
           avoid functions that could potentially block during process
           detection
 "false" : Do not kill any processes.
-"move"  : like "safe", but try to mount --move first
+
+You may add one or more comma separated modifiers
+"[no]move", "[no]xargs", "[no]ps".
+For example:
+
+"true,xargs,nops":
+	find processes using system tools,
+	then kill them "simultaneously" using "xargs kill",
+	do not bother to show process details.
+
+"safe,move,noxargs,ps":
+	move the mount first, then
+	find processes by walking /proc/ "manually", then
+	show process details and kill them individually in a loop.
+
+"safe,move,xargs,ps":
+	move the mount first, then
+	find processes by walking /proc/ "manually", then
+	use "xargs ps" to show process details before
+	using "xargs kill" to get rid of them.
+
+If you have modifiers that contradict each other, the last mentioned wins,
+"ps,nops" results in nops.
 
 The 'safe' option uses shell logic to walk the /proc/<pid>/ directories
 for pids using the mount point while the default option uses the
@@ -281,8 +303,9 @@ party apps, we likely never win the race and the file system will be kept busy.
 Which may result in a timeout and stop failure, potentially escalating to
 hard-reset of this node via fencing.
 
-The 'move' option tries to move the mount point somewhere those "rogue apps"
-do not expect it, then proceed to kill current users and attempt to umount.
+The 'move' option tries to "mount --move" the mount point somewhere those
+"rogue apps" do not expect it, then proceed to kill current users and attempt
+to umount.
 
 For 'move' to work, you will have to make sure the mount point does not reside
 under a shared mount, for example by mount -o bind,private /mount /mount
@@ -773,22 +796,41 @@ signal_processes() {
 	if [ $nr_pids -eq 0 ]; then
 		ocf_log info "No processes on $dir were signalled. force_unmount is set to '$FORCE_UNMOUNT'"
 		return 1
-	elif [ $nr_pids -le 24 ]; then
+	fi
+	if $do_xargs_kill; then
+		if $do_ps_f; then
+			# echo "$pids" | xargs -r kill -s STOP
+			echo "sending signal $sig to $nr_pids processes:"
+
+			# According to my man page, 'ps -f "$pid"' might be good enough,
+			# but needs rather specific formatting of that argument.
+			# And 'ps -f $pid' might produce too many words.
+			# Use xargs anyway.
+			echo "$pids" | xargs ps -f 2>&1
+		fi
+		echo "$pids" | xargs -r kill -s $sig 2>&1
+		if ! $do_ps_f; then
+			if [ $nr_pids -gt 24 ]; then
+				sed_script="11 s/^.*/... and more .../; 12,$(( $nr_pids - 10))d"
+				pids=$(echo "$pids" | sed -e "$sed_script" | tr '\n' ' ')
+			fi
+			echo "sent signal $sig to ${nr_pids} processes ["${pids}"]"
+		fi
+	else
 		for pid in $pids; do
-			ocf_log info "sending signal $sig to: $(ps -f $pid | tail -1)"
+			if $do_ps_f; then
+				echo "sending signal $sig to: $(ps -f $pid | tail -1)"
+			else
+				echo "sending signal $sig to $pid"
+			fi
 			kill -s $sig $pid
 		done
-	else
-		echo "$pids" | xargs -r kill -s $sig
-		sed_script="11 s/^.*/... and more .../; 12,$(( $nr_pids - 10))d"
-		pids=$(echo "$pids" | sed -e "$sed_script" | tr '\n' ' ')
-		ocf_log info "sent signals $sig to ${nr_pids} processes [${pids}]"
-	fi
+	fi | ocf_log_pipe info
 	return 0
 }
 try_umount() {
 	local force_arg="$1" SUB="$2"
-	$UMOUNT $force_arg "$SUB"
+	$UMOUNT $force_arg "$SUB" 2>&1 | ocf_log_pipe warn
 	list_mounts | grep "${TAB}${SUB}${TAB}" >/dev/null 2>&1 || {
 		ocf_log info "unmounted $SUB successfully"
 		return $OCF_SUCCESS
@@ -1162,10 +1204,6 @@ if [ $# -ne 1 ]; then
 fi
 
 # Check the OCF_RESKEY_ environment variables...
-FORCE_UNMOUNT="yes"
-if [ -n "${OCF_RESKEY_force_unmount}" ]; then
-	FORCE_UNMOUNT=$OCF_RESKEY_force_unmount
-fi
 
 DEVICE="$OCF_RESKEY_device"
 case "$DEVICE" in
@@ -1181,10 +1219,54 @@ if [ ! -z "$OCF_RESKEY_options" ]; then
 fi
 FAST_STOP=${OCF_RESKEY_fast_stop:="yes"}
 
-case $FORCE_UNMOUNT in
-	move) move_before_umount=true; FORCE_UNMOUNT=safe ;;
-	*)    move_before_umount=false ;;
-esac
+parse_force_unmount_modifiers()
+{
+	# keep previous "kill one by one" behavior as default for now
+	move_before_umount=''
+	do_xargs_kill=''
+	do_ps_f=''
+	force_unmount=''
+
+	local IFS=','
+	local m
+
+	set -- $OCF_RESKEY_force_unmount
+
+	for m ; do
+		case $m in
+		"") : ;; # silently ignore "*,,*" in the original value.
+		move) move_before_umount=true ;;
+		nomove) move_before_umount=false ;;
+		ps) do_ps_f=true ;;
+		nops) do_ps_f=false ;;
+		xargs) do_xargs_kill=true ;;
+		noxargs) do_xargs_kill=false ;;
+		# see ocf_is_true
+		yes|true|1|YES|TRUE|True|ja|on|ON|\
+		safe|\
+		false|no) force_unmount=$m ;;
+		*) ocf_log warn "force_unmount: unknown modifier $m ignored" ;;
+		esac
+	done
+
+	# not mentioned, or explicitly empty? "sane defaults"
+	if [ -z "$move_before_umount$do_xargs_kill$do_ps_f$force_unmount" ]; then
+		FORCE_UNMOUNT=false
+	else
+		FORCE_UNMOUNT=${force_unmount:-yes}
+	fi
+	: move : ${move_before_umount:=false}
+	if $move_before_umount; then
+		: xargs : ${do_xargs_kill:=true}
+		: ps : ${do_ps_f:=false}
+	else
+		: xargs : ${do_xargs_kill:=false}
+		: ps : ${do_ps_f:=true}
+	fi
+}
+
+parse_force_unmount_modifiers
+
 
 OP=$1
 

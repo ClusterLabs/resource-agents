@@ -348,6 +348,80 @@ ocf_log() {
 	fi
 }
 
+# ocf_log_pipe:
+#	similar to ocf_log, but read messages from stdin.
+#	Prefix each line with HA_LOGTAG and timestamp, and output
+#	to terminal / syslog / HA_LOGFILE / HA_DEBUGLOG / stderr
+#	as appropriate.
+# Arguments: loglevel (crit, err, warn, info)
+#
+# Linux + systemd specific: could use systemd-cat.
+# Could use logger with structured data and message-id and whatnot, if available.
+ocf_log_pipe()
+{
+	local loglevel=$1
+	local __OCF_PRIO
+
+	# test -p /dev/stdin || { ocf_log $loglevel "ocf_log_pipe: stdin should be pipe"; return 1; }
+	# ... don't do that, then ...
+
+	case "$loglevel" in
+	  crit)	__OCF_PRIO="CRIT";;
+	  err)	__OCF_PRIO="ERROR";;
+	  warn)	__OCF_PRIO="WARNING";;
+	  info)	__OCF_PRIO="INFO";;
+	  debug)__OCF_PRIO="DEBUG";;
+	  *)
+		# compare ocf_log, and __ha_log
+		__OCF_PRIO=`echo "$1"| tr '[a-z]' '[A-Z]'`
+		loglevel=notice
+		;;
+	esac
+
+	if [ "$loglevel" = debug ] ; then
+		if [ "$HA_debug" = 0 ] || [ -z "$HA_debug" ]; then
+			# Avoid sigpipe, drain to dev null.
+			cat > /dev/null
+			return
+		fi
+	fi
+
+	# ensure trailing blank in date format
+	case $HA_DATEFMT in *" ") :;; *) HA_DATEFMT="${HA_DATEFMT} ";; esac
+	export HA_LOGTAG HA_DATEFMT __OCF_PRIO
+
+	if test -t 2 ; then
+		awk '{ print strftime(ENVIRON["HA_DATEFMT"]) ENVIRON["HA_LOGTAG"] ": " ENVIRON["__OCF_PRIO"] ": " $0 }' >&2
+		return
+	fi
+
+	# should be already set, but just in case:
+	set_logtag
+
+	case $HA_LOGD/$loglevel in
+	yes/debug)	ha_logger -t "${HA_LOGTAG}" -D ha-debug && return ;;
+	yes/*)		ha_logger -t "${HA_LOGTAG}" && return ;;
+	esac
+
+	[ none = "$HA_LOGFACILITY" ] && HA_LOGFACILITY=""
+	if [ -n "$HA_LOGFACILITY" ]; then
+		sed -e "s/^/$__OCF_PRIO: /" \
+		| logger -t "$HA_LOGTAG" -p ${HA_LOGFACILITY}.${loglevel}
+	fi
+	if [ "$loglevel" != "debug" ] && [ -n "$HA_LOGFILE" ]; then
+		awk '{ print strftime(ENVIRON["HA_DATEFMT"]) ENVIRON["HA_LOGTAG"] ": " ENVIRON["__OCF_PRIO"] ": " $0 }' >> "$HA_LOGFILE"
+	fi
+	if [ -n "$HA_DEBUGLOG" ] && [ "$HA_LOGFILE" != "$HA_DEBUGLOG" ]; then
+		# I don't know why "logfile" is "{date}{tag}: ",
+		# and "debugfile" is "{tag}:\t{date}".
+		# But this is how ocf_log did it; behave the same.
+		awk '{ print ENVIRON["HA_LOGTAG"] "\t" strftime(ENVIRON["HA_DATEFMT"]) ENVIRON["__OCF_PRIO"] ": " $0 }' >> "$HA_DEBUGLOG"
+	fi
+	if [ -z "$HA_LOGFACILITY" ] && [ -z "$HA_LOGFILE" ] ; then
+		awk '{ print strftime(ENVIRON["HA_DATEFMT"]) ENVIRON["HA_LOGTAG"] ": " ENVIRON["__OCF_PRIO"] ": " $0 }' >&2
+	fi
+}
+
 #
 # ocf_exit_reason: print exit error string to stderr
 # Usage:           Allows the OCF script to provide a string
