@@ -310,9 +310,9 @@ class PowerCloudTokenManager:
                     return json.load(f)
                 finally:
                     fcntl.flock(f, fcntl.LOCK_UN)
-        except (json.JSONDecodeError, FileNotFoundError, PermissionError):
+        except (json.JSONDecodeError, FileNotFoundError, PermissionError) as e:
             ocf.logger.warning(
-                "[PowerCloudTokenManager] _read_cache: failed to read token cache read due to missing file or malformed JSON."
+                f"[PowerCloudTokenManager] _read_cache: failed to read token cache read due to missing file or malformed JSON: '{e}'"
             )
             return {}
 

@@ -837,8 +837,9 @@ def start_action(
     if rc != ocf.OCF_SUCCESS:
         return rc
 
-    if monitor_action(**res_options) != ocf.OCF_SUCCESS:
-        raise PowerCloudAPIError(f"start_action: start subnet: {ws.subnet_name} failed")
+    rc = monitor_action(**res_options)
+    if rc != ocf.OCF_SUCCESS:
+        raise PowerCloudAPIError(f"start_action: start subnet: {ws.subnet_name} failed", rc)
 
     ocf.logger.info(
         f"start_action: finished, added connection {conn_name} for subnet {ws.subnet_name}"
@@ -872,8 +873,9 @@ def stop_action(
 
     ws.subnet_remove()
 
-    if monitor_action(**res_options) != ocf.OCF_NOT_RUNNING:
-        raise PowerCloudAPIError(f"stop_action: stop subnet {ws.subnet_name} failed")
+    rc = monitor_action(**res_options)
+    if rc != ocf.OCF_NOT_RUNNING:
+        raise PowerCloudAPIError(f"stop_action: stop subnet {ws.subnet_name} failed", rc)
 
     ocf.logger.info(
         f"stop_action: finished, deleted connection for subnet {ws.subnet_name}"
