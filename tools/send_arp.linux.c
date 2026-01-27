@@ -32,7 +32,6 @@
 #include <linux/sockios.h>
 #include <sys/file.h>
 #include <sys/time.h>
-#include <sys/signal.h>
 #include <signal.h>
 #include <sys/ioctl.h>
 #include <net/if.h>

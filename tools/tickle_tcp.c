@@ -235,16 +235,21 @@ int send_tickle_ack(const sock_addr *dst,
 		ip4pkt.ip.daddr    = dst->ip.sin_addr.s_addr;
 		ip4pkt.ip.check    = 0;
 
-		ip4pkt.tcp.source  = src->ip.sin_port;
-		ip4pkt.tcp.dest    = dst->ip.sin_port;
-		ip4pkt.tcp.seq     = seq;
-		ip4pkt.tcp.ack_seq = ack;
-		ip4pkt.tcp.ack     = 1;
-		if (rst)
-			ip4pkt.tcp.rst = 1;
-		ip4pkt.tcp.doff    = sizeof(ip4pkt.tcp)/4;
-		ip4pkt.tcp.window   = htons(1234);
-		ip4pkt.tcp.check    = tcp_checksum((uint16_t *)&ip4pkt.tcp, sizeof(ip4pkt.tcp), &ip4pkt.ip);
+		// musl define only one of the two struct for tcphdr in
+		// /usr/include/netinet/tcp.h so we must use it to ensure compatibility
+		ip4pkt.tcp.th_sport = src->ip.sin_port;
+		ip4pkt.tcp.th_dport = dst->ip.sin_port;
+		ip4pkt.tcp.th_seq   = seq;
+		ip4pkt.tcp.th_ack   = ack;
+
+		ip4pkt.tcp.th_flags      = 0;
+		ip4pkt.tcp.th_flags     |= TH_ACK;
+		if (rst) {
+			ip4pkt.tcp.th_flags |= TH_RST;
+		}
+		ip4pkt.tcp.th_off   = sizeof(ip4pkt.tcp)/4;
+		ip4pkt.tcp.th_win   = htons(1234);
+		ip4pkt.tcp.th_sum   = tcp_checksum((uint16_t *)&ip4pkt.tcp, sizeof(ip4pkt.tcp), &ip4pkt.ip);
 
 		s = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
 		if (s == -1) {
@@ -280,16 +285,20 @@ int send_tickle_ack(const sock_addr *dst,
 		ip6pkt.ip6.ip6_src  = src->ip6.sin6_addr;
 		ip6pkt.ip6.ip6_dst  = dst->ip6.sin6_addr;
 
-		ip6pkt.tcp.source   = src->ip6.sin6_port;
-		ip6pkt.tcp.dest     = dst->ip6.sin6_port;
-		ip6pkt.tcp.seq      = seq;
-		ip6pkt.tcp.ack_seq  = ack;
-		ip6pkt.tcp.ack      = 1;
-		if (rst)
-			ip6pkt.tcp.rst      = 1;
-		ip6pkt.tcp.doff     = sizeof(ip6pkt.tcp)/4;
-		ip6pkt.tcp.window   = htons(1234);
-		ip6pkt.tcp.check    = tcp_checksum6((uint16_t *)&ip6pkt.tcp, sizeof(ip6pkt.tcp), &ip6pkt.ip6);
+		// musl define only one of the two struct for tcphdr in
+		// /usr/include/netinet/tcp.h so we must use it to ensure compatibility
+		ip6pkt.tcp.th_sport = src->ip6.sin6_port;
+		ip6pkt.tcp.th_dport = dst->ip6.sin6_port;
+		ip6pkt.tcp.th_seq   = seq;
+		ip6pkt.tcp.th_ack   = ack;
+		ip6pkt.tcp.th_flags      = 0;
+		ip6pkt.tcp.th_flags     |= TH_ACK;
+		if (rst) {
+			ip6pkt.tcp.th_flags |= TH_RST;
+		}
+		ip6pkt.tcp.th_off   = sizeof(ip6pkt.tcp)/4;
+		ip6pkt.tcp.th_win   = htons(1234);
+		ip6pkt.tcp.th_sum   = tcp_checksum6((uint16_t *)&ip6pkt.tcp, sizeof(ip6pkt.tcp), &ip6pkt.ip6);
 
 		s = socket(PF_INET6, SOCK_RAW, IPPROTO_RAW);
 		if (s == -1) {
