@@ -495,26 +495,35 @@ image_exists()
 	local IMAGE_NAME="${OCF_RESKEY_image}"
 	local IMAGE_TAG="latest"
 
+	# try to extract server name before tag, as it might also contain a colon (server:port/image:tag)
 	SLASH_FOUND="$(echo "${OCF_RESKEY_image}" | grep -o '/' | grep -c .)"
-
 	if [ ${SLASH_FOUND} -ge 1 ]; then
 		SERVER_NAME="$(echo ${IMAGE_NAME} | cut -d / -f 1-${SLASH_FOUND})"
 		IMAGE_NAME="$(echo ${IMAGE_NAME} | awk -F'/' '{print $NF}')"
 	fi
 
+	# extract image tag if specified
 	COLON_FOUND="$(echo "${IMAGE_NAME}" | grep -o ':' | grep -c .)"
 	if [ ${COLON_FOUND} -ge 1 ]; then
 		IMAGE_TAG="$(echo ${IMAGE_NAME} | awk -F':' '{print $NF}')"
 		IMAGE_NAME="$(echo ${IMAGE_NAME} | cut -d : -f 1-${COLON_FOUND})"
 	fi
 
-	# IMAGE_NAME might be following formats:
+	# Check for existence of image, which might be in following formats:
 	# - image
-	# - repository:port/image
+	# - server_name/image (as extracted above)
 	# - docker.io/image (some distro will display "docker.io/" as prefix)
-	docker images | awk '{print $1 ":" $2}' | $EGREP -q -s "^(docker.io\/|${SERVER_NAME}\/)?${IMAGE_NAME}:${IMAGE_TAG}\$"
-	if [ $? -eq 0 ]; then
+	docker image ls --quiet ${IMAGE_NAME}:${IMAGE_TAG} 2>&1 >/dev/null
+	if [ $? -eq $OCF_SUCCESS ]; then
 		# image found
+		return 0
+	fi
+	docker image ls --quiet ${SERVER_NAME}/${IMAGE_NAME}:${IMAGE_TAG} 2>&1 >/dev/null
+	if [ $? -eq $OCF_SUCCESS ]; then
+		return 0
+	fi
+	docker image ls --quiet docker.io/${IMAGE_NAME}:${IMAGE_TAG} 2>&1 >/dev/null
+	if [ $? -eq $OCF_SUCCESS ]; then
 		return 0
 	fi
 
@@ -523,6 +532,7 @@ image_exists()
 		ocf_log notice "Image (${OCF_RESKEY_image}) does not exist locally but will be pulled during start"
 		return 0
 	fi
+
 	# image not found.
 	return 1
 }
