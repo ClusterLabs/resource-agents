@@ -514,27 +514,27 @@ image_exists()
 	# - server_name/image (as extracted above)
 	# - docker.io/image (some distro will display "docker.io/" as prefix)
 	docker image ls --quiet ${IMAGE_NAME}:${IMAGE_TAG} 2>&1 >/dev/null
-	if [ $? -eq $OCF_SUCCESS ]; then
+	if [ $? -eq 0 ]; then
 		# image found
-		return 0
+		return $OCF_SUCCESS
 	fi
 	docker image ls --quiet ${SERVER_NAME}/${IMAGE_NAME}:${IMAGE_TAG} 2>&1 >/dev/null
-	if [ $? -eq $OCF_SUCCESS ]; then
-		return 0
+	if [ $? -eq 0 ]; then
+		return $OCF_SUCCESS
 	fi
 	docker image ls --quiet docker.io/${IMAGE_NAME}:${IMAGE_TAG} 2>&1 >/dev/null
-	if [ $? -eq $OCF_SUCCESS ]; then
-		return 0
+	if [ $? -eq 0 ]; then
+		return $OCF_SUCCESS
 	fi
 
 	if ocf_is_true "$OCF_RESKEY_allow_pull"; then
 		REQUIRE_IMAGE_PULL=1
 		ocf_log notice "Image (${OCF_RESKEY_image}) does not exist locally but will be pulled during start"
-		return 0
+		return $OCF_SUCCESS
 	fi
 
 	# image not found.
-	return 1
+	return $OCF_ERR_ARGS
 }
 
 docker_validate()
