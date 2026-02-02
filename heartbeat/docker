@@ -513,17 +513,9 @@ image_exists()
 	# - image
 	# - server_name/image (as extracted above)
 	# - docker.io/image (some distro will display "docker.io/" as prefix)
-	docker image ls --quiet ${IMAGE_NAME}:${IMAGE_TAG} 2>&1 >/dev/null
+	docker image ls --all --format '{{.Repository}}:{{.Tag}}' | $EGREP -q -s "^(docker.io\/|${SERVER_NAME}\/)?${IMAGE_NAME}:${IMAGE_TAG}\$"
 	if [ $? -eq 0 ]; then
 		# image found
-		return $OCF_SUCCESS
-	fi
-	docker image ls --quiet ${SERVER_NAME}/${IMAGE_NAME}:${IMAGE_TAG} 2>&1 >/dev/null
-	if [ $? -eq 0 ]; then
-		return $OCF_SUCCESS
-	fi
-	docker image ls --quiet docker.io/${IMAGE_NAME}:${IMAGE_TAG} 2>&1 >/dev/null
-	if [ $? -eq 0 ]; then
 		return $OCF_SUCCESS
 	fi
 
