@@ -761,9 +761,9 @@ PortValidateAll()
 {
   case $FIREWALL in
     nft)
-      check_binary $IPTABLES ;;
-    iptables)
       check_binary $NFTABLES ;;
+    iptables)
+      check_binary $IPTABLES ;;
   esac
 
   case $protocol in
