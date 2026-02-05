@@ -1082,7 +1082,7 @@ add_member_as_learner()
 	local peer_url=$(ip_url $member_ip)
 
 	ocf_log info "add $member_name ($member_ip) to the member list as learner"
-	out=$(podman exec "${CONTAINER}" etcdctl --endpoints="$endpoint_url:2379" member add "$member_name" --peer-urls="$peer_url:2380" --learner)
+	out=$(podman exec "${CONTAINER}" etcdctl --endpoints="$endpoint_url:2379" member add "$member_name" --peer-urls="$peer_url:2380" --learner 2>&1)
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		ocf_log err "could not add $member_name as learner, error code $rc, etcdctl output: $out"
@@ -1429,10 +1429,22 @@ detect_cluster_leadership_loss()
 manage_peer_membership()
 {
 	local member_list_json="$1"
+	local peer_ip_map_entry
+	local peer_member_name
+	local peer_member_ip
+	local peer_member_id
 
-	# Example of .members[] instance fields in member list json format:
-	# NOTE that "name" is present in voting members only, while "isLearner" in learner members only
-	# and the value is always true (not a string) in that case.
+	# Get peer node name and IP
+	peer_ip_map_entry=$(echo "$OCF_RESKEY_node_ip_map" | tr ';' '\n' | grep -vF "$NODENAME")
+	if [ -z "$peer_ip_map_entry" ]; then
+		ocf_exit_reason "manage_peer_membership: could not parse node_ip_map: '$OCF_RESKEY_node_ip_map'"
+		exit $OCF_ERR_CONFIGURED
+	fi
+	peer_member_name=$(echo "$peer_ip_map_entry" | cut -d: -f1)
+	peer_member_ip=$(echo "$peer_ip_map_entry" | cut -d: -f2-)
+
+	# Parsing the member list's json output to find a "learner" member.
+	# Example of .members[] instance fields in member list json format:	
 	# {
 	#   "ID": <member ID>,
 	#   "name": "<node hostname>",
@@ -1443,26 +1455,28 @@ manage_peer_membership()
 	#       "https://<node IP>:2379"
 	#   ]
 	# }
-	for node in $(echo "$OCF_RESKEY_node_ip_map" | sed "s/\s//g;s/;/ /g"); do
-		name=$(echo "$node" | cut -d: -f1)
-		# do not check itself
-		if [ "$name" = "$NODENAME" ]; then
-			continue
-		fi
+	# NOTE that the "name" field is present in voting members only, while "isLearner"
+	# field in learner members only and the value is always true (not a string) in that case.
+	peer_member_id=$(printf "%s" "$member_list_json" | jq -r ".members[] | select( .peerURLs | map(test(\"$peer_member_ip\")) | any).ID")
+	if [ -z "$peer_member_id" ]; then
+		ocf_log info "$peer_member_name is not in the members list"
+		add_member_as_learner "$peer_member_name" "$peer_member_ip"
+		set_standalone_node
+		return
+	fi
 
-		# Check by IP instead of Name since "learner" members appear only in peerURLs, not by Name.
-		ip=$(echo "$node" | cut -d: -f2-) # Grab everything after the first : this covers ipv4/ipv6
-		peer_member_id=$(printf "%s" "$member_list_json" | jq -r ".members[] | select( .peerURLs | map(test(\"$ip\")) | any).ID")
-		if [ -z "$peer_member_id" ]; then
-			ocf_log info "$name is not in the members list"
-			add_member_as_learner "$name" "$ip"
-			set_standalone_node
-		else
-			ocf_log debug "$name is in the members list by IP: $ip"
-			# Errors from reconcile_member_state are logged internally. Ignoring them here prevents stopping a healthy voter agent; critical local failures are caught by detect_cluster_leadership_loss.
-			reconcile_member_state "$member_list_json"
-		fi
-	done
+	# Ensure learner_node attribute is always set when we have a learner member
+	local learner_member_id=$(printf "%s" "$member_list_json" | jq -r ".members[] | select( .isLearner==true ).ID")
+	local current_learner_node=$(attribute_learner_node get)
+	if [ -n "$learner_member_id" ] && [ -z "$current_learner_node" ]; then
+		ocf_log debug "$peer_member_name found as learner in member list, but learner_node attribute was not set. Updating"
+		attribute_learner_node update "$peer_member_name"
+		return
+	fi
+
+	ocf_log debug "$peer_member_name is in the members list by IP: $peer_member_ip"
+	# Errors from reconcile_member_state are logged internally. Ignoring them here prevents stopping a healthy voter agent; critical local failures are caught by detect_cluster_leadership_loss.
+	reconcile_member_state "$member_list_json"
 }
 
 check_peer()
@@ -2209,6 +2223,7 @@ podman_start()
 				peer_node_ip="$(attribute_node_ip_peer)"
 				if [ -n "$peer_node_name" ] && [ -n "$peer_node_ip" ]; then
 					add_member_as_learner "$peer_node_name" "$peer_node_ip"
+					set_standalone_node
 				else
 					ocf_log err "could not add peer as learner (peer node name: ${peer_node_name:-unknown}, peer ip: ${peer_node_ip:-unknown})"
 				fi
