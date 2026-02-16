@@ -434,7 +434,7 @@ find_interface_solaris() {
 #       is an (aliased) interface name (e.g., "eth0" and "eth0:0").
 #
 find_interface_generic() {
-	local iface=`$IP2UTIL -o -f $FAMILY addr show | grep "\ $BASEIP" \
+	local iface=`$IP2UTIL -o -f $FAMILY addr show | grep " $BASEIP" \
             | cut -d ' ' -f2 | grep -v '^ipsec[0-9][0-9]*$'`
         if [ -z "$iface" ]; then
             return $OCF_ERR_GENERIC
