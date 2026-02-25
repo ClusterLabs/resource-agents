@@ -966,6 +966,9 @@ pgsql_real_monitor() {
     if ! pgsql_status
     then
         ocf_log info "PostgreSQL is down"
+        if [ "$__OCF_ACTION" = "monitor" ] && ! ocf_is_probe && [ -f $PGSQL_LOCK ]; then
+            ocf_exit_reason "My data may be inconsistent. You have to remove $PGSQL_LOCK file to force start."
+        fi
         return $OCF_NOT_RUNNING
     fi
 
@@ -1940,7 +1943,7 @@ validate_ocf_check_level_10() {
         else
             CHECK_XLOG_LOC_SQL="select pg_last_xlog_replay_location(),pg_last_xlog_receive_location()"
         fi
-        CHECK_REPLICATION_STATE_SQL="select application_name,upper(state),upper(sync_state) from pg_stat_replication"
+        CHECK_REPLICATION_STATE_SQL="select lower(application_name),upper(state),upper(sync_state) from pg_stat_replication"
 
         PGSQL_STATUS_ATTR="${RESOURCE_NAME}-status"
         PGSQL_DATA_STATUS_ATTR="${RESOURCE_NAME}-data-status"
