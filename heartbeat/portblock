@@ -30,11 +30,16 @@ OCF_RESKEY_portno_default=""
 OCF_RESKEY_direction_default="in"
 OCF_RESKEY_action_default=""
 OCF_RESKEY_method_default="drop"
-OCF_RESKEY_status_check_default="rule"
 OCF_RESKEY_ip_default="0.0.0.0/0"
 OCF_RESKEY_reset_local_on_unblock_stop_default="false"
 OCF_RESKEY_tickle_dir_default=""
 OCF_RESKEY_sync_script_default=""
+
+if ocf_is_ms; then
+  OCF_RESKEY_status_check_default="rule"
+else
+  OCF_RESKEY_status_check_default="pseudo"
+fi
 
 : ${OCF_RESKEY_firewall=${OCF_RESKEY_firewall_default}}
 : ${OCF_RESKEY_protocol=${OCF_RESKEY_protocol_default}}
@@ -425,6 +430,10 @@ tickle_local()
 	done
 }
 
+# A long time ago, these messages needed to go to stdout,
+# "running" / "OK" being the trigger string
+# for heartbeat in haresources mode.
+# Now they are still useful for debugging.
 SayActive()
 {
   ocf_log debug "$CMD $method rule [$*] is running (OK)"
@@ -438,6 +447,11 @@ SayConsideredActive()
 SayInactive()
 {
   ocf_log debug "$CMD $method rule [$*] is inactive"
+}
+
+SayConsideredInactive()
+{
+  ocf_log debug "$CMD $method rule [$*] considered to be inactive"
 }
 
 #PortStatus  {udp|tcp} portno,portno ip {in|out|both} {block|unblock}
@@ -465,8 +479,17 @@ PortStatus() {
         fi
         ;;
       *)
-        SayInactive $*
-        rc=$OCF_NOT_RUNNING
+        if [ "$OCF_RESKEY_status_check" != "rule" ] \
+        && test -e "$state_file" && test "$inverse_state_file" -nt "$state_file"; then
+          # rule present, action=unblock, unblock statefile present,
+          # block state file more recent.
+          # apparently an unusual setup: unblock first, block later
+          SayConsideredActive $*
+          rc=$OCF_SUCCESS
+        else
+          SayInactive $*
+          rc=$OCF_NOT_RUNNING
+        fi
         ;;
     esac
   elif [ "$OCF_RESKEY_status_check" = "rule" ]; then
@@ -478,6 +501,7 @@ PortStatus() {
       *)
         SayActive $*
         if [ "$__OCF_ACTION" = "monitor" ] && [ "$promotion_score" = "$SCORE_PROMOTED" ]; then
+          save_tcp_connections
           rc=$OCF_RUNNING_MASTER
         else
           rc=$OCF_SUCCESS
@@ -487,7 +511,10 @@ PortStatus() {
   else
     case $5 in
       block)
-        if ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" status; then
+        if test -e "$state_file" && test "$inverse_state_file" -nt "$state_file"; then
+          # rule NOT present, action=block, block state file present,
+          # unblock state file more recent.
+          # expected setup: block first, unblock later
           SayConsideredActive $*
           rc=$OCF_SUCCESS
         else
@@ -496,13 +523,15 @@ PortStatus() {
         fi
         ;;
       *)
-        if ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" status; then
+        if test -e "$state_file" ; then
+          # rule NOT present, action=unblock, unblock state file present
           SayActive $*
-          #This is only run on real monitor events.
+          # This is only run on real monitor events (state file present).
           save_tcp_connections
           rc=$OCF_SUCCESS
         else
-          SayInactive $*
+          # rule NOT present, action=unblock, unblock state file NOT present
+          SayConsideredInactive $*
           rc=$OCF_NOT_RUNNING
         fi
         ;;
@@ -635,7 +664,7 @@ PortUNBLOCK()
 #PortStart  {udp|tcp} portno,portno ip {in|out|both} {block|unblock}
 PortStart()
 {
-  ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" start
+  ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" start "$state_file"
 
   if [ "$FIREWALL" = "nft" ]; then
     $NFTABLES add table inet $TABLE || {
@@ -678,7 +707,7 @@ PortStart()
 #PortStop  {udp|tcp} portno,portno ip {in|out|both} {block|unblock}
 PortStop()
 {
-  ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" stop
+  ha_pseudo_resource "${OCF_RESOURCE_INSTANCE}" stop "$state_file"
 
   case $5 in
     block)	PortUNBLOCK "$@"
@@ -928,6 +957,33 @@ if ocf_is_ms; then
 fi
 
 PortValidateAll
+
+# State file name for ha_pseudo_resource
+#
+#  The expected usage of this agent is to pair a "block" with an "unblock",
+#  and order startup and configuration of some service between these.
+#
+#  The established idiom is to have two separate instances with inverse actions.
+#  To "reliably" report the status of "block" during a monitor action,
+#  it is not sufficient to check the existence of the blocking rule.
+#
+#  It is also insufficient to rely on the pseudo resource state file
+#  of this instance only.
+#
+#  To know our actual expectation, we need to check the state file of the
+#  "inverse" instance as well.
+#
+#  Because we don't know the OCF_RESOURCE_INSTANCE value of the other instance,
+#  we override the state file name for both instances to something derived from
+#  our parameters.
+#
+#  This should give use the same "global state" view as the "promotion score"
+#  does for the promotable clone variant of this agent.
+#
+[ "$action" = block ] && inverse_action=unblock || inverse_action=block
+state_file_base=$(echo "portblock_${protocol}_${portno}_${ip}_${direction}" | tr -c '0-9a-zA-Z._' _)
+state_file=${HA_RSCTMP}/${state_file_base}_${action}
+inverse_state_file=${HA_RSCTMP}/${state_file_base}_${inverse_action}
 
 case $__OCF_ACTION in
   start)
