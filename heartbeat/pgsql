@@ -531,7 +531,7 @@ exec_sql() {
     local rc
 
     output=`$SU $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
-                $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
+                $OCF_RESKEY_psql $psql_options \
                 -Atc \"$sql\""`
     rc=$?
 
