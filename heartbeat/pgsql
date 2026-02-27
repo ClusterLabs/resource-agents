@@ -582,6 +582,10 @@ pgsql_real_start() {
     check_stat_temp_directory
 
     if [ "$OCF_RESKEY_rep_mode" = "slave" ]; then
+        if ! mkdir -p $OCF_RESKEY_tmpdir || ! chown $OCF_RESKEY_pgdba $OCF_RESKEY_tmpdir || ! chmod 700 $OCF_RESKEY_tmpdir; then
+            ocf_exit_reason "Can't create directory $OCF_RESKEY_tmpdir or it is not readable by $OCF_RESKEY_pgdba"
+            return $OCF_ERR_PERM
+        fi
         rm -f $RECOVERY_CONF
         make_recovery_conf || return $OCF_ERR_GENERIC
     fi
