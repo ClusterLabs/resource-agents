@@ -606,7 +606,6 @@ prepare_env() {
 		done
 	fi
 
-	ETCDCTL_API=$(get_env_from_manifest "ETCDCTL_API")
 	ETCD_CIPHER_SUITES=$(get_env_from_manifest "ETCD_CIPHER_SUITES")
 	ETCD_DATA_DIR=$(get_env_from_manifest "ETCD_DATA_DIR")
 	if [ ! -d "$ETCD_DATA_DIR" ]; then
@@ -2136,7 +2135,6 @@ podman_start()
 			--network=host \
 			-v /etc/kubernetes/static-pod-resources/etcd-certs:/etc/kubernetes/static-pod-certs \
 			-v /var/lib/etcd:/var/lib/etcd \
-			--env ETCDCTL_API=$ETCDCTL_API \
 			--env ETCDCTL_CACERT=$SERVER_CACERT \
 			--env ETCDCTL_CERT=$ETCD_PEER_CERT \
 			--env ETCDCTL_KEY=$ETCD_PEER_KEY \
