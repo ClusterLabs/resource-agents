@@ -400,7 +400,6 @@ monitor_cmd_exec()
 		esac
 	done
 
-	ocf_exit_reason "monitor cmd failed after $max_attempts attempts (last rc=$rc), output: $out"
 	return $rc
 }
 
