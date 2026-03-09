@@ -371,26 +371,36 @@ monitor_cmd_exec()
 {
 	local rc=$OCF_SUCCESS
 	local out
+	local attempt
+	# 3 attempts × 8s = 24s worst case, fits within the 25s monitor timeout.
+	# The health check normally completes in <1s; the 8s per-attempt timeout
+	# is a safety net for when the container's process namespace is slow.
+	local max_attempts=3
+	local attempt_timeout=8
 
-	out=$(podman exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
-	rc=$?
-	# 125: no container with name or ID ${CONTAINER} found
-	# 126: container state improper (not running)
-	# 127: any other error
-	# 255: podman 2+: container not running
-	case "$rc" in
-		125|126|255)
-			rc=$OCF_NOT_RUNNING
-			;;
-		0)
-			ocf_log debug "monitor cmd passed: exit code = $rc"
-			;;
-		*)
-			ocf_exit_reason "monitor cmd failed (rc=$rc), output: $out"
-			rc=$OCF_ERR_GENERIC
-			;;
-	esac
+	for attempt in $(seq 1 $max_attempts); do
+		out=$(timeout $attempt_timeout podman exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
+		rc=$?
+		# 125: no container with name or ID ${CONTAINER} found
+		# 126: container state improper (not running)
+		# 127: any other error
+		# 255: podman 2+: container not running
+		case "$rc" in
+			125|126|255)
+				rc=$OCF_NOT_RUNNING
+				;;
+			0)
+				ocf_log debug "monitor cmd passed: exit code = $rc"
+				return $OCF_SUCCESS
+				;;
+			*)
+				ocf_log warn "monitor cmd failed (rc=$rc), output: $out"
+				rc=$OCF_ERR_GENERIC
+				;;
+		esac
+	done
 
+	ocf_exit_reason "monitor cmd failed after $max_attempts attempts (last rc=$rc), output: $out"
 	return $rc
 }
 
@@ -986,7 +996,7 @@ attribute_node_revision()
 		update)
 			if ! crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"; then
 				rc=$?
-				ocf_log err "could not update etcd $revision, error code: $rc"
+				ocf_log err "could not update etcd $attribute, error code: $rc"
 				return "$rc"
 			fi
 			;;
@@ -1038,11 +1048,11 @@ attribute_node_member_id()
 			;;
 		update)
 			local member_list_json
-			member_list_json=$(get_member_list_json)
+			member_list_json=$(get_member_list_json "$MONITOR_ETCDCTL_TIMEOUT")
 			ocf_log info "member list: $member_list_json"
 			if [ -z "$member_list_json" ] ; then
 				ocf_log err "could not get $attribute: could not get member list JSON"
-				return "$rc"
+				return $OCF_ERR_GENERIC
 			fi
 
 			local value value_hex
@@ -1383,23 +1393,25 @@ get_all_etcd_endpoints() {
 get_endpoint_status_json()
 {
 	# Get the status of all endpoints
+	local cmd_timeout="${1:-5s}"
 	local all_etcd_endpoints
 
 	all_etcd_endpoints=$(get_all_etcd_endpoints)
-	podman exec "${CONTAINER}" etcdctl endpoint status --endpoints="$all_etcd_endpoints" -w json
+	podman exec "${CONTAINER}" etcdctl endpoint status --command-timeout="$cmd_timeout" --endpoints="$all_etcd_endpoints" -w json
 }
 
 get_member_list_json() {
 	# Get the list of members visible to the current node
+	local cmd_timeout="${1:-5s}"
 	local this_node_endpoint
 
 	this_node_endpoint="$(ip_url $(attribute_node_ip get)):2379"
-	podman exec "${CONTAINER}" etcdctl member list --endpoints="$this_node_endpoint" -w json
+	podman exec "${CONTAINER}" etcdctl member list --command-timeout="$cmd_timeout" --endpoints="$this_node_endpoint" -w json
 }
 
 detect_cluster_leadership_loss()
 {
-	endpoint_status_json=$(get_endpoint_status_json)
+	endpoint_status_json=$(get_endpoint_status_json "$MONITOR_ETCDCTL_TIMEOUT")
 	ocf_log info "endpoint status: $endpoint_status_json"
 
 	count_endpoints=$(printf "%s" "$endpoint_status_json" | jq -r ".[].Endpoint" | wc -l)
@@ -1489,7 +1501,7 @@ check_peer()
 		return $OCF_SUCCESS
 	fi
 
-	if ! member_list_json=$(get_member_list_json); then
+	if ! member_list_json=$(get_member_list_json "$MONITOR_ETCDCTL_TIMEOUT"); then
 		ocf_log info "podman failed to get member list, error code: $?"
 		detect_cluster_leadership_loss
 		return $?
@@ -2288,8 +2300,9 @@ leave_etcd_member_list()
 	ocf_log info "leaving members list as member with ID $member_id"
 	local endpoint
 	endpoint="$(ip_url $(attribute_node_ip get)):2379"
-	if ! ocf_run podman exec "$CONTAINER" etcdctl member remove "$member_id" --endpoints="$endpoint"; then
-		rc=$?
+	ocf_run podman exec "$CONTAINER" etcdctl member remove "$member_id" --endpoints="$endpoint"
+	rc=$?
+	if [ $rc -ne 0 ]; then
 		ocf_log err "error leaving members list, error code: $rc"
 	fi
 }
@@ -2310,14 +2323,23 @@ podman_stop()
 	attribute_node_revision update
 	attribute_node_cluster_id update
 
-	podman_simple_status
-	if [ $? -eq  $OCF_NOT_RUNNING ]; then
+	# Use podman inspect instead of podman exec (podman_simple_status) to check
+	# container state. podman exec enters the container's process namespace and
+	# hangs when etcd is unresponsive — the typical scenario that triggers a stop.
+	local container_running
+	container_running=$(podman inspect --format '{{.State.Running}}' "$CONTAINER" 2>/dev/null)
+	if [ "$container_running" != "true" ]; then
 		ocf_log info "could not leave members list: etcd container not running"
 		attribute_node_member_id clear
 		return $OCF_SUCCESS
 	fi
 
-	leave_etcd_member_list
+	# Time-box the member list removal so it cannot consume the entire stop
+	# budget when etcd is unresponsive. 30s accommodates the etcdctl call
+	# plus the optional DELAY_SECOND_NODE_LEAVE_SEC (10s) sleep.
+	timeout 30 leave_etcd_member_list || \
+		ocf_log warn "could not leave member list within 30s, proceeding with stop"
+
 	# clear node_member_id CIB attribute only after leaving the member list
 	attribute_node_member_id clear
 
@@ -2461,6 +2483,9 @@ ETCD_CERTS_HASH_FILE="${OCF_RESKEY_config_location}/certs.hash"
 # This is intentional - reboots are controlled stops, not failures requiring detection.
 CONTAINER_HEARTBEAT_FILE=${HA_RSCTMP}/podman-container-last-running
 DELAY_SECOND_NODE_LEAVE_SEC=10
+# Shorter etcdctl command-timeout for monitor-path calls to prevent
+# consuming the 25s monitor budget. Non-monitor callers use the default 5s.
+MONITOR_ETCDCTL_TIMEOUT="3s"
 
 # Note: we currently monitor podman containers by with the "podman exec"
 # command, so make sure that invocation is always valid by enforcing the
