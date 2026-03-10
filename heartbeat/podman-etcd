@@ -2098,7 +2098,7 @@ podman_start()
 	run_opts="$run_opts --oom-score-adj=${OCF_RESKEY_oom}"
 
 	if ocf_is_true "$JOIN_AS_LEARNER"; then
-		local wait_timeout_sec=$((10*60))
+		local wait_timeout_sec=$((2*60))
 		local poll_interval_sec=5
 		local retries=$(( wait_timeout_sec / poll_interval_sec ))
 
