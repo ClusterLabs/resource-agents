@@ -2337,7 +2337,7 @@ podman_stop()
 	local container_running
 	container_running=$(podman inspect --format '{{.State.Running}}' "$CONTAINER" 2>/dev/null)
 	if [ "$container_running" != "true" ]; then
-		ocf_log info "could not leave members list: etcd container not running"
+		ocf_log info "could not leave members list: $CONTAINER container not running, running state: ${container_running}"
 		attribute_node_member_id clear
 		return $OCF_SUCCESS
 	fi
