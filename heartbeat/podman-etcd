@@ -1422,11 +1422,6 @@ detect_cluster_leadership_loss()
 	endpoint_status_json=$(get_endpoint_status_json)
 	ocf_log info "endpoint status: $endpoint_status_json"
 
-	if [ -z "$endpoint_status_json" ] || ! printf "%s" "$endpoint_status_json" | jq -e '.' >/dev/null 2>&1; then
-		ocf_log err "failed to retrieve endpoint status (podman exec may have failed): $endpoint_status_json"
-		return $OCF_ERR_GENERIC
-	fi
-
 	count_endpoints=$(printf "%s" "$endpoint_status_json" | jq -r ".[].Endpoint" | wc -l)
 	if [ "$count_endpoints" -eq 1 ]; then
 		ocf_log info "one endpoint only: checking status errors"
