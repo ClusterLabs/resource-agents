@@ -1072,6 +1072,49 @@ attribute_node_member_id()
 	esac
 }
 
+# remove an etcd member identified by its IP from the member list
+remove_etcd_member_by_ip()
+{
+	local rc
+	local out
+	local member_ip
+	local endpoint_url
+	local member_list_json
+	local stale_member_id
+	local stale_member_id_hex
+
+	member_ip=$1
+	member_list_json=$(get_member_list_json)
+	rc=$?
+	if [ "$rc" -ne 0 ] ; then
+		ocf_log err "could not remove etcd member. Failed to get member list, error code: $rc"
+		return $OCF_ERR_GENERIC
+	fi
+
+	stale_member_id=$(printf "%s" "$member_list_json" | jq -r ".members[] | select( .peerURLs | map(test(\"$member_ip\")) | any).ID")
+	if [ -z "$stale_member_id" ]; then
+		ocf_log err "could not remove etcd member. Failed to find member ID"
+		return $OCF_ERR_GENERIC
+	fi
+
+	# JSON member_id is decimal, while etcdctl command needs the hex version
+	if ! stale_member_id_hex=$(decimal_to_hex "$stale_member_id"); then
+		ocf_log err "could not remove etcd member. Failed to convert member_id '$stale_member_id' into hex format"
+		return $OCF_ERR_GENERIC
+	fi
+
+	endpoint_url=$(ip_url $(attribute_node_ip get))
+	out=$(podman exec "${CONTAINER}" etcdctl --endpoints="$endpoint_url:2379" member remove "$stale_member_id_hex" 2>&1)
+	rc=$?
+	if [ "$rc" -ne 0 ] ; then
+		ocf_log err "could not remove etcd member. etcdctl member remove command failed, error code: $rc, output: $out"
+		return $OCF_ERR_GENERIC
+	fi
+
+	ocf_log info "$out"
+	return $OCF_SUCCESS
+}
+
 add_member_as_learner()
 {
 	local rc
@@ -1079,18 +1122,36 @@ add_member_as_learner()
 	local member_ip=$2
 	local endpoint_url=$(ip_url $(attribute_node_ip get))
 	local peer_url=$(ip_url $member_ip)
+	local i
+	local max_retries
+	local out
 
-	ocf_log info "add $member_name ($member_ip) to the member list as learner"
-	out=$(podman exec "${CONTAINER}" etcdctl --endpoints="$endpoint_url:2379" member add "$member_name" --peer-urls="$peer_url:2380" --learner 2>&1)
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_log err "could not add $member_name as learner, error code $rc, etcdctl output: $out"
-		return $rc
-	fi
-	ocf_log info "$out"
+	i=0
+	max_retries=3
+	while [ "$i" -lt "$max_retries" ]; do
+		i=$((i + 1))
+		ocf_log info "adding $member_name ($member_ip) to the member list as learner (attempt $i of $max_retries)"
+		out=$(podman exec "${CONTAINER}" etcdctl --endpoints="$endpoint_url:2379" \
+				member add "$member_name" \
+				--peer-urls="$peer_url:2380" \
+				--learner 2>&1)
+		rc=$?
+		if [ "$rc" -eq 0 ]; then
+			ocf_log info "$out"
+			attribute_learner_node update "$member_name"
+			return $OCF_SUCCESS
+		fi
+		if echo "$out" | grep -q "Peer URLs already exists"; then
+			# etcd data might have stale membership data
+			ocf_log warn "could not add member: Peer URLs already exists"
+			remove_etcd_member_by_ip "$member_ip"
+		else
+			ocf_log warn "could not add member: $out"
+		fi
+	done
 
-	attribute_learner_node update "$member_name"
-	return $?
+	ocf_log err "could not add $member_name as learner, error code $rc, etcdctl output: $out"
+	return $OCF_ERR_GENERIC
 }
 
 set_force_new_cluster()
