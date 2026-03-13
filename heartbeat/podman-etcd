@@ -676,7 +676,7 @@ force-new-cluster-bump-amount: $BUMP_REV"
 	cat > "$ETCD_CONFIGURATION_FILE" << EOF
 logger: zap
 log-level: info
-snapshot-count: 10000
+snapshot-count: 100
 name: $NODENAME
 data-dir: $ETCD_DATA_DIR
 $FORCE_NEW_CLUSTER_CONFIG
