@@ -216,7 +216,7 @@ will be used.
 
 <parameter name="monitor_user" unique="0" required="0">
 <longdesc lang="en">
-PostgreSQL user that pgsql RA will user for monitor operations. If it's not set
+PostgreSQL user that pgsql RA will use for monitor operations. If it's not set
 pgdba user will be used.
 </longdesc>
 <shortdesc lang="en">monitor_user</shortdesc>
@@ -526,12 +526,13 @@ EOF
 
 # Execulte SQL and return the result.
 exec_sql() {
-    local sql="$1"
+    local user="$1"
+    local sql="$2"
     local output
     local rc
 
     output=`$SU $OCF_RESKEY_pgdba -c "cd $OCF_RESKEY_pgdata; \
-                $OCF_RESKEY_psql $psql_options -U $OCF_RESKEY_pgdba \
+                $OCF_RESKEY_psql $psql_options -U $user \
                 -Atc \"$sql\""`
     rc=$?
 
@@ -661,7 +662,7 @@ pgsql_replication_start() {
         return $OCF_ERR_GENERIC
     fi
 
-    synchronous_standby_names=$(exec_sql "${CHECK_SYNCHRONOUS_STANDBY_NAMES_SQL}")
+    synchronous_standby_names=$(exec_sql "$OCF_RESKEY_monitor_user" "${CHECK_SYNCHRONOUS_STANDBY_NAMES_SQL}")
     if [ -n "${synchronous_standby_names}" ]; then
         ocf_exit_reason "Invalid synchronous_standby_names is set in postgresql.conf."
         return $OCF_ERR_CONFIGURED
@@ -693,7 +694,7 @@ pgsql_promote() {
         return $OCF_ERR_CONFIGURED
     fi
 
-    output=`exec_sql "${CHECK_MS_SQL}"`
+    output=`exec_sql "$OCF_RESKEY_monitor_user" "${CHECK_MS_SQL}"`
     if [ $? -ne 0 ]; then
         report_psql_error $rc $loglevel "Can't get PostgreSQL recovery status on promote."
         return $OCF_ERR_GENERIC
@@ -971,7 +972,7 @@ pgsql_real_monitor() {
 
     if is_replication; then
         #Check replication state
-        output=`exec_sql "${CHECK_MS_SQL}"`
+        output=`exec_sql "$OCF_RESKEY_monitor_user" "${CHECK_MS_SQL}"`
         rc=$?
 
         if [ $rc -ne  0 ]; then
@@ -1003,7 +1004,7 @@ pgsql_real_monitor() {
     fi
 
     OCF_RESKEY_monitor_sql=`escape_string "$OCF_RESKEY_monitor_sql"`
-    runasowner -q $loglevel "$OCF_RESKEY_psql $psql_options \
+    runasowner -q $loglevel "$OCF_RESKEY_psql $psql_options -U "$OCF_RESKEY_monitor_user" \
                   -c '$OCF_RESKEY_monitor_sql'"
     rc=$?
     if [ $rc -ne  0 ]; then
@@ -1183,7 +1184,7 @@ control_slave_status() {
     local tmp_data_status
     local number_of_nodes
 
-    all_data_status=`exec_sql "${CHECK_REPLICATION_STATE_SQL}"`
+    all_data_status=`exec_sql "$OCF_RESKEY_monitor_user" "${CHECK_REPLICATION_STATE_SQL}"`
     rc=$?
 
     if [ $rc -eq 0 ]; then
@@ -1402,7 +1403,7 @@ create_replication_slot_name() {
 
 delete_replication_slot(){
     DELETE_REPLICATION_SLOT_sql="SELECT pg_drop_replication_slot('$1');"
-    output=`exec_sql "$DELETE_REPLICATION_SLOT_sql"`
+    output=`exec_sql "$OCF_RESKEY_pgdba" "$DELETE_REPLICATION_SLOT_sql"`
     return $?
 }
 
@@ -1452,7 +1453,7 @@ create_replication_slots() {
         fi
 
         CREATE_REPLICATION_SLOT_sql="SELECT pg_create_physical_replication_slot('$replication_slot_name');"
-        output=`exec_sql "$CREATE_REPLICATION_SLOT_sql"`
+        output=`exec_sql "$OCF_RESKEY_pgdba" "$CREATE_REPLICATION_SLOT_sql"`
         rc=$?
 
         if [ $rc -eq 0 ]; then
@@ -1472,7 +1473,7 @@ check_replication_slot(){
     local output
     local CHECK_REPLICATION_SLOT_sql="SELECT count(*) FROM pg_replication_slots WHERE slot_name = '$replication_slot_name'"
 
-    output=`exec_sql "$CHECK_REPLICATION_SLOT_sql"`
+    output=`exec_sql "$OCF_RESKEY_monitor_user" "$CHECK_REPLICATION_SLOT_sql"`
     echo "$output"
 }
 
@@ -1488,7 +1489,7 @@ get_my_location() {
     local log2
     local newer_location
 
-    output=`exec_sql "$CHECK_XLOG_LOC_SQL"`
+    output=`exec_sql "$OCF_RESKEY_monitor_user" "$CHECK_XLOG_LOC_SQL"`
     rc=$?
 
     if [ $rc -ne 0 ]; then
@@ -2018,11 +2019,6 @@ pgsql_validate_all() {
         return $OCF_ERR_INSTALLED;
     fi
 
-    if [ -n "$OCF_RESKEY_monitor_user" ] && [ -z "$OCF_RESKEY_monitor_password" ]; then
-        ocf_exit_reason "monitor password can't be empty"
-        return $OCF_ERR_CONFIGURED
-    fi
-
     if [ -z "$OCF_RESKEY_monitor_user" ] && [ -n "$OCF_RESKEY_monitor_password" ]; then
         ocf_exit_reason "monitor_user has to be set if monitor_password is set"
         return $OCF_ERR_CONFIGURED
@@ -2201,13 +2197,9 @@ then
 fi
 
 # make psql command options
-if [ -n "$OCF_RESKEY_monitor_user" ]; then
-    PGUSER=$OCF_RESKEY_monitor_user; export PGUSER
-    PGPASSWORD=$OCF_RESKEY_monitor_password; export PGPASSWORD
-    psql_options="-p $OCF_RESKEY_pgport $OCF_RESKEY_pgdb"
-else
-    psql_options="-p $OCF_RESKEY_pgport -U $OCF_RESKEY_pgdba $OCF_RESKEY_pgdb"
-fi
+[ -z "$OCF_RESKEY_monitor_user" ] && OCF_RESKEY_monitor_user="$OCF_RESKEY_pgdba"
+[ -n "$OCF_RESKEY_monitor_password" ] && export PGPASSWORD="$OCF_RESKEY_monitor_password"
+psql_options="-p $OCF_RESKEY_pgport $OCF_RESKEY_pgdb"
 
 if [ -n "$OCF_RESKEY_pghost" ]; then
     psql_options="$psql_options -h $OCF_RESKEY_pghost"
