@@ -1454,8 +1454,8 @@ manage_peer_membership()
 	#       "https://<node IP>:2379"
 	#   ]
 	# }
-	# NOTE that the "name" field is present in voting members only, while "isLearner"
-	# field in learner members only and the value is always true (not a string) in that case.
+	# NOTE: voting members have a "name" field but no "isLearner" field,
+	# while learner members have "isLearner": true (boolean) but no "name" field, so we search for peerURLs matching.
 	peer_member_id=$(printf "%s" "$member_list_json" | jq -r ".members[] | select( .peerURLs | map(test(\"$peer_member_ip\")) | any).ID")
 	if [ -z "$peer_member_id" ]; then
 		ocf_log info "$peer_member_name is not in the members list"
