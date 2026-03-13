@@ -2002,9 +2002,16 @@ podman_start()
 			ocf_log info "found '$active_resources_count' active etcd resources (active: '$OCF_RESKEY_CRM_meta_notify_active_resource', stop: '$OCF_RESKEY_CRM_meta_notify_stop_resource')"
 			case "$active_resources_count" in
 			1)
-				if [ "$(attribute_learner_node get)" = "$(get_peer_node_name)" ]; then
-					ocf_log info "peer active but in learner mode: start normally"
+				# is_standalone may return true here due to a restart: in the previous run,
+				# this agent was the sole voter and the peer had not yet joined the member
+				# list (learner_node unset). Since standalone_node was not cleared before
+				# the restart, start normally to recover the previous cluster state.
+				if is_standalone; then
+					ocf_log info "peer active but not a voter: start normally to recover"
+				elif [ "$(attribute_learner_node get)" = "$(get_peer_node_name)" ]; then
+					ocf_log info "peer active but in learner mode: start normally to recover"
 				else
+					# If (A) we must join the peer's new cluster
 					ocf_log info "peer is active standalone: joining as learner"
 					JOIN_AS_LEARNER=true
 				fi
