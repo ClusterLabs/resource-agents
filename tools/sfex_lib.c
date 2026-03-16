@@ -95,7 +95,7 @@ prepare_lock (const char *device)
 const char *
 get_progname (const char *argv0)
 {
-  char *p;
+  const char *p;
 
   p = strrchr (argv0, '/');
   if (p)
