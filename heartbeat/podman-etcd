@@ -989,8 +989,8 @@ attribute_node_revision()
 	value=$(jq -r ".maxRaftIndex" "$ETCD_REVISION_JSON")
 	rc=$?
 	if [ $rc -ne 0 ]; then
-		ocf_log err "could not get $attribute, error code: $rc"
-		return "$rc"
+		ocf_log err "could not get $attribute from revision JSON file '$ETCD_REVISION_JSON'"
+		return "$OCF_ERR_GENERIC"
 	fi
 
 	case "$action" in
