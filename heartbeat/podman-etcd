@@ -984,13 +984,11 @@ attribute_node_revision()
 	local action="$1"
 	local value
 	local attribute="revision"
-	local rc
 
-	value=$(jq -r ".maxRaftIndex" "$ETCD_REVISION_JSON")
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_log err "could not get $attribute from revision JSON file '$ETCD_REVISION_JSON'"
-		return "$OCF_ERR_GENERIC"
+	if ! value=$(jq -r ".maxRaftIndex" "$ETCD_REVISION_JSON"); then
+		rc=$?
+		ocf_log err "could not get $attribute, error code: $rc"
+		return "$rc"
 	fi
 
 	case "$action" in
@@ -1001,7 +999,7 @@ attribute_node_revision()
 			crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"
 			rc=$?
 			if [ $rc -ne 0 ]; then
-				ocf_log err "could not update etcd $attribute, error code: $rc"
+				ocf_log err "could not update etcd $attribute from revision JSON file '$ETCD_REVISION_JSON', error code: $rc"
 				return "$rc"
 			fi
 			;;
