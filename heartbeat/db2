@@ -955,6 +955,16 @@ db2_promote() {
             PRIMARY/PEER/*|PRIMARY/REMOTE_CATCHUP/*|PRIMARY/REMOTE_CATCHUP_PENDING/CONNECTED|Primary/Peer)
             # nothing to do, only update pacemaker's view
             echo MASTER > $STATE_FILE
+
+            if [ -n "$remote_host" ]; then
+                for db in $dblist
+                do
+                    reint_attr="db2hadr-${inst1}_${inst2}_${db}_reint"
+                    ocf_log debug "Promotion succeeded, setting $reint_attr = 1"
+                    crm_attribute -n "$reint_attr" -N "$remote_host" -v "1" -l forever
+                done
+            fi
+
             return $OCF_SUCCESS
             ;;
 
@@ -980,6 +990,15 @@ db2_promote() {
         then
             # update pacemaker's view
             echo MASTER > $STATE_FILE
+
+            if [ -n "$remote_host" ]; then
+                for db in $dblist
+                do
+                    reint_attr="db2hadr-${inst1}_${inst2}_${db}_reint"
+                    ocf_log debug "Promotion succeeded, setting $reint_attr = 1"
+                    crm_attribute -n "$reint_attr" -N "$remote_host" -v "1" -l forever
+                done
+            fi
 
             return $OCF_SUCCESS
         fi
