@@ -999,7 +999,7 @@ attribute_node_revision()
 			crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"
 			rc=$?
 			if [ $rc -ne 0 ]; then
-				ocf_log err "could not update etcd $attribute from revision JSON file '$ETCD_REVISION_JSON', error code: $rc"
+				ocf_log err "could not update etcd $attribute, error code: $rc"
 				return "$rc"
 			fi
 			;;
