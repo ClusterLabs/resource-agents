@@ -1029,7 +1029,11 @@ Filesystem_status()
 					rc=$OCF_NOT_RUNNING
 				else
 					ocf_exit_reason "Another device ($mounted_device) is already mounted on $MOUNTPOINT"
-					rc=$OCF_ERR_CONFIGURED
+					if [ "$__OCF_ACTION" = "monitor" ]; then
+						rc=$OCF_ERR_GENERIC
+					else
+						rc=$OCF_ERR_CONFIGURED
+					fi
 				fi
 			fi
 		else
