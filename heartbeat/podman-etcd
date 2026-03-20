@@ -1574,7 +1574,7 @@ check_peer()
 	fi
 
 	if ! member_list_json=$(get_member_list_json); then
-		ocf_log info "podman failed to get member list, error code: $?"
+		ocf_log info "podman failed to get member list"
 		detect_cluster_leadership_loss
 		return $?
 	fi
