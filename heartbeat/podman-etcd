@@ -387,7 +387,7 @@ monitor_cmd_exec()
 		# 255: podman 2+: container not running
 		case "$rc" in
 			125|126|255)
-				rc=$OCF_NOT_RUNNING
+				return $OCF_NOT_RUNNING
 				;;
 			0)
 				ocf_log debug "monitor cmd passed: exit code = $rc"
@@ -948,8 +948,10 @@ attribute_node_cluster_id()
 	value=$(jq -r ".clusterId" "$ETCD_REVISION_JSON")
 	rc=$?
 	if [ $rc -ne 0 ]; then
+		# Log the error but return success to avoid monitor failure if the file is not available yet. 
+		#This should not block cluster recovery.
 		ocf_log err "could not get cluster_id, error code: $rc"
-		return "$rc"
+		return $OCF_SUCCESS
 	fi
 
 	case "$action" in
@@ -960,8 +962,9 @@ attribute_node_cluster_id()
 			crm_attribute --type nodes --node "$NODENAME" --name "cluster_id" --update "$value"
 			rc=$?
 			if [ $rc -ne 0 ]; then
+			 	# Log the error but return success to avoid monitor failure if we can not update the attribute.
 				ocf_log err "could not update cluster_id, error code: $rc"
-				return "$rc"
+				return $OCF_SUCCESS
 			fi
 			;;
 		*)
@@ -999,8 +1002,9 @@ attribute_node_revision()
 			crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"
 			rc=$?
 			if [ $rc -ne 0 ]; then
+				# Log the error but return success to avoid monitor failure if we can not update the attribute.
 				ocf_log err "could not update etcd $attribute, error code: $rc"
-				return "$rc"
+				return $OCF_SUCCESS
 			fi
 			;;
 		*)
@@ -1062,8 +1066,9 @@ attribute_node_member_id()
 			value=$(echo -n "$member_list_json" | jq -r ".header.member_id")
 			rc=$?
 			if [ $rc -ne 0 ]; then
+				# Log the error but return success to avoid monitor failure if the file is not available yet.
 				ocf_log err "could not get $attribute from member list JSON, error code: $rc"
-				return "$rc"
+				return $OCF_SUCCESS
 			fi
 
 			# JSON member_id is decimal, while etcdctl command needs the hex version
@@ -1076,8 +1081,9 @@ attribute_node_member_id()
 			crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value_hex"
 			rc=$?
 			if [ $rc -ne 0 ]; then
+				# Log the error but return success to avoid monitor failure if we can not update the attribute.
 				ocf_log err "could not update etcd $attribute, error code: $rc"
-				return "$rc"
+				return $OCF_SUCCESS
 			fi
 			;;
 		clear)
@@ -1567,11 +1573,8 @@ check_peer()
 		return $OCF_SUCCESS
 	fi
 
-	local rc
-	member_list_json=$(get_member_list_json)
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		ocf_log info "podman failed to get member list, error code: $rc"
+	if ! member_list_json=$(get_member_list_json); then
+		ocf_log info "podman failed to get member list, error code: $?"
 		detect_cluster_leadership_loss
 		return $?
 	fi
