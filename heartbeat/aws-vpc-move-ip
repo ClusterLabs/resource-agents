@@ -48,6 +48,7 @@ OCF_RESKEY_interface_default="eth0"
 OCF_RESKEY_iflabel_default=""
 OCF_RESKEY_monapi_default="false"
 OCF_RESKEY_lookup_type_default="InstanceId"
+OCF_RESKEY_awscli_timeout_default=""
 
 : ${OCF_RESKEY_awscli=${OCF_RESKEY_awscli_default}}
 : ${OCF_RESKEY_auth_type=${OCF_RESKEY_auth_type_default}}
@@ -61,6 +62,7 @@ OCF_RESKEY_lookup_type_default="InstanceId"
 : ${OCF_RESKEY_iflabel=${OCF_RESKEY_iflabel_default}}
 : ${OCF_RESKEY_monapi=${OCF_RESKEY_monapi_default}}
 : ${OCF_RESKEY_lookup_type=${OCF_RESKEY_lookup_type_default}}
+: ${OCF_RESKEY_awscli_timeout=${OCF_RESKEY_awscli_timeout_default}}
 #######################################################################
 
 
@@ -208,6 +210,14 @@ curl retries before failing
 curl sleep between tries
 </longdesc>
 <shortdesc lang="en">curl sleep</shortdesc>
+<content type="integer" default="${OCF_RESKEY_curl_sleep_default}" />
+</parameter>
+
+<parameter name="awscli_timeout" unique="0">
+<longdesc lang="en">
+awscli cli-connect-timeout value
+</longdesc>
+<shortdesc lang="en">awscli cli-connect-timeout</shortdesc>
 <content type="integer" default="${OCF_RESKEY_curl_sleep_default}" />
 </parameter>
 
@@ -490,7 +500,11 @@ if ! ocf_is_root; then
 	exit $OCF_ERR_PERM
 fi
 
-AWSCLI_CMD="${OCF_RESKEY_awscli}"
+if [ -n "${OCF_RESKEY_awscli_timeout}" ]; then
+   AWSCLI_CMD="${OCF_RESKEY_awscli} --cli-connect-timeout ${OCF_RESKEY_awscli_timeout}"
+else
+   AWSCLI_CMD="${OCF_RESKEY_awscli}"
+fi
 if [ "x${OCF_RESKEY_auth_type}" = "xkey" ]; then
 	AWSCLI_CMD="$AWSCLI_CMD --profile ${OCF_RESKEY_profile}"
 elif [ "x${OCF_RESKEY_auth_type}" = "xrole" ]; then
