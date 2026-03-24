@@ -218,7 +218,7 @@ curl sleep between tries
 awscli cli-connect-timeout value
 </longdesc>
 <shortdesc lang="en">awscli cli-connect-timeout</shortdesc>
-<content type="integer" default="${OCF_RESKEY_curl_sleep_default}" />
+<content type="integer" default="${OCF_RESKEY_awscli_timeout_default}" />
 </parameter>
 
 </parameters>
