@@ -1,3 +1,41 @@
+* Wed Mar 25 2026 resource-agents contributors
+- release candidate 4.18.0 rc1
+- ocf-shellfunc: add ocf_log_pipe
+- ocft: fix failing tests in resource-agents v4.17.0
+- Filesystem: improve shell trace (set -x) output
+- Filesystem: modify the return code when a mismatch between mount state and configuration is detected in monitor operation
+- Filesystem: new force_unmount=move option
+- Filesystem: optionally report "xargs ps -f" even when killing many processes
+- Filesystem: signal many processes in parallel
+- Filesystem: dont create systemd drop-in file for tmpfs/overlayfs
+- Filesystem: try umount immediately after signals are sent
+- IPaddr2: made find_interface() output empty when no interface is found
+- IPsrcaddr: fix grep expression, so it doesnt log "stray \ before white space" with newer versions of grep
+- aws-vpc-move-ip: add awscli_timeout parameter
+- db2: set reintegration flag when promotion is successful
+- docker: improve image existence check (#2121)
+- exportfs: fix grep error on stop
+- findif.c: remove unused colonptr variable
+- pgsql: use monitor_user for monitor-calls and use .pgpass when monitor_password is not specified
+- podman-etcd: add -a option to crictl ps (#2112)
+- podman-etcd: enhance etcd data backup with snapshots and retention
+- podman-etcd: fix "Peer URLs already exists" in add_member_as_learner (#2136)
+- podman-etcd: fix learner node attribute not set after etcdctl failure
+- podman-etcd: fix to prevent learner from starting before cluster is ready (#2098)
+- podman-etcd: hardened monitor/stop actions
+- podman-etcd: improve error handling to support retry on start errors (#2105)
+- podman-etcd: preserve standalone voter identity during restart
+- podman-etcd: prevent last active member from leaving the etcd member list
+- podman-etcd: remove test code (#2103)
+- podman-etcd: removed unneeded ETCDCTL_API environment variable
+- podman-etcd: sync environment variables with Pod manifest
+- portblock: check correct binary during validate-all
+- portblock: monitor needs to also check state file of inverse action (#2108)
+- powervs-move-ip/powervs-subnet: fix error logging
+- powervs-subnet: wait until IP is activated before running monitor-check
+- send_arp.linux/tickle_tcp: better alpine compatibility (#2119)
+- sfex_lib: dont discard 'const' qualifier
+
 * Wed Nov 19 2025 resource-agents contributors
 - stable release 4.17.0
 - nginx: restore SELinux context for pid-file during validate-all action
