@@ -84,7 +84,7 @@ if [ "$__OCF_ACTION" != "meta-data" ]; then
 			OCF_RESKEY_sybase_home="/opt/sap"
 		elif [ -d "/opt/sybase" ]; then
 			OCF_RESKEY_sybase_home="/opt/sybase"
-		else
+		elif ! ocf_is_probe && [ "$__OCF_ACTION" != "stop" ]; then
 			ocf_log err "sybaseASE: Unable to detect 'sybase_home'."
 			exit $OCF_ERR_ARGS
 		fi
@@ -95,7 +95,7 @@ if [ "$__OCF_ACTION" != "meta-data" ]; then
 	if [ "$OCF_RESKEY_sybase_ase" = "detect" ]; then
 		if [ -f "$sybase_env" ]; then
 			OCF_RESKEY_sybase_ase=$(grep "SYBASE_ASE" "$sybase_env" | cut -d= -f2)
-		else
+		elif ! ocf_is_probe && [ "$__OCF_ACTION" != "stop" ]; then
 			ocf_log err "sybaseASE: Unable to detect 'sybase_ase'."
 			exit $OCF_ERR_ARGS
 		fi
@@ -104,7 +104,7 @@ if [ "$__OCF_ACTION" != "meta-data" ]; then
 	if [ "$OCF_RESKEY_sybase_ocs" = "detect" ]; then
 		if [ -f "$sybase_env" ]; then
 			OCF_RESKEY_sybase_ocs=$(grep "SYBASE_OCS" "$sybase_env" | cut -d= -f2)
-		else
+		elif ! ocf_is_probe && [ "$__OCF_ACTION" != "stop" ]; then
 			ocf_log err "sybaseASE: Unable to detect 'sybase_ocs'."
 			exit $OCF_ERR_ARGS
 		fi
@@ -516,6 +516,11 @@ EOF
 ase_stop()
 {
 	ocf_log debug "sybaseASE: Start 'ase_stop'"
+
+	if [ ! -d "$OCF_RESKEY_sybase_home" ]; then
+		ocf_log warn "Unable to detect 'sybase_home', or it does not exist"
+		return $OCF_SUCCESS
+	fi
 
 	# Check if the ASE server is still running.
 	ase_is_running
