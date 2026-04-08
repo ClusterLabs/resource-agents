@@ -1,0 +1,1714 @@
+#!@PYTHON@ -tt
+#
+#	Resource agent for aligning SAP application Azure VMs with HANA primary Azure VM
+#
+# 	License:	GNU General Public License (GPL)
+#	(c) 2026 	Microsoft Corp.
+# 
+
+import os
+import sys
+import time
+import subprocess
+import re
+import shlex
+import random
+from typing import Dict, List, Optional
+
+# 'requests' is required for Azure API calls, but not for Pacemaker's meta-data discovery.
+# Keep it optional so `crm configure ...` can succeed even if the package isn't installed yet.
+try:
+    import requests  # type: ignore
+except ImportError:  # pragma: no cover
+    requests = None
+
+# Pacemaker/OCF tooling does not always populate OCF_ROOT/OCF_FUNCTIONS_DIR when querying meta-data.
+# Fall back to common distro paths so the `ocf` Python helper can be imported reliably.
+_ocf_root = os.environ.get("OCF_ROOT") or "/usr/lib/ocf"
+OCF_FUNCTIONS_DIR = os.environ.get("OCF_FUNCTIONS_DIR") or os.path.join(_ocf_root, "lib", "heartbeat")
+
+if not os.path.isdir(OCF_FUNCTIONS_DIR):
+    for candidate in (
+        "/usr/lib/ocf/lib/heartbeat",
+        "/usr/lib64/ocf/lib/heartbeat",
+        "/usr/local/lib/ocf/lib/heartbeat",
+    ):
+        if os.path.isdir(candidate):
+            OCF_FUNCTIONS_DIR = candidate
+            break
+
+if OCF_FUNCTIONS_DIR not in sys.path:
+    sys.path.append(OCF_FUNCTIONS_DIR)
+try:
+    import ocf  # type: ignore
+except Exception:  # pragma: no cover
+    import logging as _py_logging
+    import xml.etree.ElementTree as _ET
+
+    class _OCFShim:
+        # OCF exit codes (subset)
+        OCF_SUCCESS = 0
+        OCF_ERR_GENERIC = 1
+        OCF_ERR_ARGS = 2
+        OCF_ERR_UNIMPLEMENTED = 3
+        OCF_ERR_PERM = 4
+        OCF_ERR_INSTALLED = 5
+        OCF_ERR_CONFIGURED = 6
+        OCF_NOT_RUNNING = 7
+
+        # Provide a 'logging' namespace similar to the external helper
+        logging = _py_logging
+
+        logger = _py_logging.getLogger("azure-sap-zone")
+        log = logger
+
+        @staticmethod
+        def get_parameter(name: str, default=None):
+            return os.environ.get(f"OCF_RESKEY_{name}", default)
+
+        @staticmethod
+        def is_true(val) -> bool:
+            if val is None:
+                return False
+            return str(val).strip().lower() in ("1", "true", "yes", "y", "on")
+
+        @staticmethod
+        def is_probe() -> bool:
+            # Pacemaker probe is monitor with interval=0
+            interval = os.environ.get("OCF_RESKEY_CRM_meta_interval", "")
+            return str(interval).strip() in ("0", "0s", "0ms")
+
+        @staticmethod
+        def ocf_exit_reason(message: str):
+            try:
+                sys.stderr.write(str(message) + "\n")
+            except Exception:
+                pass
+
+        class Agent:
+            def __init__(self, name: str, shortdesc: str = "", longdesc: str = ""):
+                self.name = name
+                self.shortdesc = shortdesc
+                self.longdesc = longdesc
+                self._parameters = []
+                self._actions = []
+
+            def add_parameter(self, name, shortdesc="", longdesc="", content_type="string", default=""):
+                self._parameters.append(
+                    {
+                        "name": name,
+                        "shortdesc": shortdesc,
+                        "longdesc": longdesc,
+                        "type": content_type,
+                        "default": "" if default is None else str(default),
+                    }
+                )
+
+            def add_action(self, name, timeout=0, interval=0, handler=None):
+                self._actions.append(
+                    {
+                        "name": name,
+                        "timeout": timeout,
+                        "interval": interval,
+                        "handler": handler,
+                    }
+                )
+
+            def _emit_metadata(self):
+                ra = _ET.Element(
+                    "resource-agent",
+                    {"name": self.name, "version": "1.0"},
+                )
+                _ET.SubElement(ra, "version").text = str(globals().get("VERSION", ""))
+                _ET.SubElement(ra, "shortdesc", {"lang": "en"}).text = self.shortdesc
+                _ET.SubElement(ra, "longdesc", {"lang": "en"}).text = self.longdesc
+
+                params_el = _ET.SubElement(ra, "parameters")
+                for p in self._parameters:
+                    p_el = _ET.SubElement(
+                        params_el,
+                        "parameter",
+                        {"name": p["name"], "unique": "0", "required": "0"},
+                    )
+                    _ET.SubElement(p_el, "shortdesc", {"lang": "en"}).text = p.get("shortdesc", "")
+                    _ET.SubElement(p_el, "longdesc", {"lang": "en"}).text = p.get("longdesc", "")
+                    _ET.SubElement(
+                        p_el,
+                        "content",
+                        {"type": p.get("type", "string"), "default": p.get("default", "")},
+                    )
+
+                actions_el = _ET.SubElement(ra, "actions")
+                for a in self._actions:
+                    attrs = {"name": a["name"]}
+                    if a.get("timeout"):
+                        attrs["timeout"] = str(a["timeout"])
+                    if a.get("interval"):
+                        attrs["interval"] = str(a["interval"])
+                    _ET.SubElement(actions_el, "action", attrs)
+
+                xml = _ET.tostring(ra, encoding="unicode")
+                sys.stdout.write("<?xml version=\"1.0\"?>\n")
+                sys.stdout.write("<!DOCTYPE resource-agent SYSTEM \"ra-api-1.dtd\">\n")
+                sys.stdout.write(xml)
+                sys.stdout.write("\n")
+
+            def run(self):
+                action = None
+                if len(sys.argv) > 1:
+                    action = sys.argv[1]
+                action = action or os.environ.get("__OCF_ACTION") or os.environ.get("OCF_ACTION")
+                action = (action or "monitor").strip()
+
+                if action in ("meta-data", "metadata"):
+                    self._emit_metadata()
+                    raise SystemExit(_OCFShim.OCF_SUCCESS)
+
+                handler = None
+                for a in self._actions:
+                    if a["name"] == action:
+                        handler = a.get("handler")
+                        break
+
+                if handler is None:
+                    _OCFShim.ocf_exit_reason(f"Unsupported action: {action}")
+                    raise SystemExit(_OCFShim.OCF_ERR_UNIMPLEMENTED)
+
+                if action == "validate-all":
+                    sid = _OCFShim.get_parameter("sid", "")
+                    soft_shutdown_timeout = _OCFShim.get_parameter("soft_shutdown_timeout", 600)
+                    try:
+                        soft_shutdown_timeout = int(soft_shutdown_timeout)
+                    except Exception:
+                        pass
+                    app_vm_names = _OCFShim.get_parameter("app_vm_names", "")
+                    client_id = _OCFShim.get_parameter("client_id", "")
+                    app_vm_name_pattern = _OCFShim.get_parameter("app_vm_name_pattern", "")
+                    hana_resource = _OCFShim.get_parameter("hana_resource", "")
+                    app_vm_zones = _OCFShim.get_parameter("app_vm_zones", "")
+                    hana_vm_zones = _OCFShim.get_parameter("hana_vm_zones", "")
+                    rc = handler(
+                        sid,
+                        soft_shutdown_timeout,
+                        app_vm_names,
+                        client_id,
+                        app_vm_name_pattern,
+                        hana_resource,
+                        app_vm_zones=app_vm_zones,
+                        hana_vm_zones=hana_vm_zones,
+                    )
+                else:
+                    rc = handler()
+
+                raise SystemExit(rc)
+
+    _py_logging.basicConfig(level=_py_logging.INFO)
+    ocf = _OCFShim
+
+
+def _is_probe_operation() -> bool:
+    """Detect a Pacemaker probe (monitor with interval=0) without relying on ocf helpers."""
+    ocf.logger.debug("_is_probe_operation: Started")
+    interval = os.environ.get("OCF_RESKEY_CRM_meta_interval", "")
+    is_probe = str(interval).strip() in ("0", "0s", "0ms")
+    ocf.logger.debug(f"_is_probe_operation: interval={interval!r}, is_probe={is_probe}")
+    ocf.logger.debug("_is_probe_operation: Finished")
+    return is_probe
+
+#####################################################
+VERSION = "1.9"
+default_loglevel = ocf.logging.INFO
+UUID_REGEX = re.compile(r'^[{]?[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}[}]?$')
+VM_NAME_REGEX = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$')
+ZONE_GROUP_REGEX = re.compile(r'^[A-Za-z0-9]+$')
+
+# Constants
+AZURE_API_REQUEST_TIMEOUT = 30
+COMMAND_EXECUTION_TIMEOUT_DEFAULT = 300
+COMMAND_EXECUTION_TIMEOUT_BUFFER = 300
+POLLING_INTERVAL_SECONDS = 5
+TOKEN_EXPIRY_BUFFER_SECONDS = 300  # Refresh token 5 minutes before expiry
+ACCEPTED_SAP_EXIT_CODES = [0, 3, 4]  # Exit codes considered successful for sapcontrol
+CRM_COMMAND_TIMEOUT_SECONDS = 10
+
+#####################################################
+"""
+Helper functions for Pacemaker cluster
+"""
+class ClusterHelper:
+    """Helper functions for Pacemaker control via crm."""
+
+    @staticmethod
+    def _getLocation(node):
+        """Helper function to retrieve local/global attributes."""
+        if node:
+            return ["--node", node]
+        return ["--type", "crm_config"]
+
+    @staticmethod
+    def _exec(command, *args):
+        """Helper function to execute a UNIX command."""
+        args = list(args)
+        ocf.logger.debug("_exec: begin; command = %s, args = %s" % (command, str(args)))
+
+        def flatten(*n):
+            return (
+                str(e)
+                for a in n
+                for e in (flatten(*a) if isinstance(a, (tuple, list)) else (str(a),))
+            )
+
+        cmd = list(flatten([command] + args))
+        ocf.logger.debug("_exec: cmd = %s" % " ".join(cmd))
+        try:
+            completed = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                universal_newlines=True,
+                timeout=CRM_COMMAND_TIMEOUT_SECONDS,
+            )
+            ret = completed.stdout or ""
+            ocf.logger.debug("_exec: return = %s" % ret)
+            return ret.rstrip()
+        except subprocess.TimeoutExpired:
+            ocf.logger.error(f"Command timed out after {CRM_COMMAND_TIMEOUT_SECONDS}s: {' '.join(cmd)}")
+            return None
+        except Exception as err:
+            ocf.logger.error(f"Failed to execute command: {err}")
+            return None
+
+    @staticmethod
+    def setAttr(key, value, node=None):
+        """Set the value of a specific global/local attribute in the Pacemaker cluster."""
+        ocf.logger.debug("setAttr: begin; key = %s, value = %s, node = %s" % (key, value, node))
+
+        def _is_empty(v) -> bool:
+            if v is None:
+                return True
+            s = str(v).strip()
+            return s == "" or s.lower() == "none"
+
+        if not _is_empty(value):
+            ret = ClusterHelper._exec(
+                "crm_attribute",
+                "--name",
+                key,
+                "--update",
+                value,
+                ClusterHelper._getLocation(node),
+            )
+        else:
+            ret = ClusterHelper._exec(
+                "crm_attribute",
+                "--name",
+                key,
+                "--delete",
+                ClusterHelper._getLocation(node),
+            )
+        ocf.logger.debug("setAttr: finished")
+        return ret is not None
+
+    @staticmethod
+    def getAttr(key, node=None):
+        """Retrieve a global/local attribute from the Pacemaker cluster."""
+        ocf.logger.debug("getAttr: begin; key = %s, node = %s" % (key, node))
+        val = ClusterHelper._exec(
+            "crm_attribute",
+            "--name",
+            key,
+            "--query",
+            "--quiet",
+            "--default",
+            "",
+            ClusterHelper._getLocation(node),
+        )
+        ocf.logger.debug("getAttr: finished")
+        if not val:
+            return None
+        return val if not val.isdigit() else int(val)
+
+    @staticmethod
+    def getStatusAttr(key, node=None):
+        """Retrieve a status attribute from the Pacemaker cluster."""
+        ocf.logger.debug("getStatusAttr: begin; key = %s, node = %s" % (key, node))
+        val = ClusterHelper._exec(
+            "crm_attribute",
+            ClusterHelper._getLocation(node),
+            "--type",
+            "status",
+            "--name",
+            key,
+            "--quiet",
+            "--default",
+            "",
+        )
+        ocf.logger.debug("getStatusAttr: finished")
+        if not val:
+            return None
+        return val if not val.isdigit() else int(val)
+
+"""
+Helper functions for Azure
+"""
+class AzureHelper:
+    VM_API_VERSION = '2024-07-01'
+    METADATA_API_VERSION = '2021-02-01'
+    TOKEN_API_VERSION = '2018-02-01'
+    METADATA_URL = 'http://169.254.169.254/metadata'
+    MANAGEMENT_URL = 'https://management.azure.com'
+    DEFAULT_HEADERS = {'Content-Type': 'application/json'}
+
+    @staticmethod
+    def invoke_api(node, url, method, headers=None, body=None, params=None):
+        if requests is None:
+            raise Exception(
+                "Python module 'requests' is required for Azure API calls. "
+                "Install it using your distro package (e.g. 'python3-requests') or 'pip3 install requests'."
+            )
+        if headers is None:
+            headers = AzureHelper.DEFAULT_HEADERS
+        ocf.logger.debug("invoke_azure_api: Started")
+        ocf.logger.debug(f"invoke_azure_api: url = {url}")
+        ocf.logger.debug(f"invoke_azure_api: method = {method}")
+        ocf.logger.debug(f"invoke_azure_api: body = {body}")
+        ocf.logger.debug(f"invoke_azure_api: params = {params}")
+        
+        success = False
+        last_error = None
+        for retry in range(node.retry_count + 1):
+            try:
+                response = requests.request(method, url, headers=headers, json=body, params=params, timeout=AZURE_API_REQUEST_TIMEOUT)
+                ocf.logger.debug(f"invoke_azure_api: response status = {response.status_code}")
+                if response.status_code in [200, 201, 202]:
+                    success = True
+                    break
+                elif response.status_code in [429, 500, 502, 503, 504]:  # Retry on these status codes
+                    last_error = f"Status code: {response.status_code}. Content: {response.text[:200]}"
+                    wait_time = node.retry_wait * (2 ** retry)  # Exponential backoff
+                    ocf.logger.debug(f"invoke_azure_api: retry {retry + 1}/{node.retry_count + 1}, waiting {wait_time}s")
+                    time.sleep(wait_time)
+                else:
+                    last_error = f"Status code: {response.status_code}. Content: {response.text[:200]}"
+                    break  # Don't retry on client errors
+            except requests.exceptions.RequestException as e:
+                last_error = f"Request exception: {str(e)}"
+                wait_time = node.retry_wait * (2 ** retry)
+                ocf.logger.debug(f"invoke_azure_api: retry {retry + 1}/{node.retry_count + 1} due to exception, waiting {wait_time}s")
+                time.sleep(wait_time)
+
+        if not success:
+            error_msg = f"Failed to execute API call after {node.retry_count + 1} attempts. Last error: {last_error}"
+            ocf.logger.error(error_msg)
+            raise Exception(error_msg)
+        
+        ocf.logger.debug("invoke_azure_api: Finished")
+        return response
+
+    @staticmethod
+    def get_access_token(node):
+        """
+        Get Azure access token using managed identity.
+        
+        Args:
+            node: Node object containing configuration
+            
+        Returns:
+            tuple: (access_token, expiry_time) where expiry_time is epoch timestamp
+            
+        Raises:
+            Exception: If token retrieval fails
+        """
+        ocf.logger.debug("get_access_token: Started")
+        url = f"{AzureHelper.METADATA_URL}/identity/oauth2/token"
+        params = {'api-version': AzureHelper.TOKEN_API_VERSION, 'resource': 'https://management.azure.com/'}
+        
+        # If client_id is provided, use user-assigned managed identity, otherwise use system-assigned
+        if node.client_id:
+            ocf.logger.debug("Using user-assigned managed identity")
+            params['client_id'] = node.client_id
+        else:
+            ocf.logger.debug("Using system-assigned managed identity")
+        
+        response = AzureHelper.invoke_api(node, url, 'get', {'Metadata': 'true'}, params=params)
+        token_data = response.json()
+        access_token = token_data['access_token']
+        expires_on = int(token_data.get('expires_on', time.time() + 3600))  # Default to 1 hour if not provided
+        ocf.logger.debug(f"get_access_token: Token expires at {expires_on}")
+        ocf.logger.debug("get_access_token: Finished")
+        return access_token, expires_on
+
+    @staticmethod
+    def get_instance_metadata(node):
+        ocf.logger.debug("get_instance_metadata: Started")
+        url = f"{AzureHelper.METADATA_URL}/instance"
+        params = {'api-version': AzureHelper.METADATA_API_VERSION}
+        response = AzureHelper.invoke_api(node, url, 'get', {'Metadata': 'true'}, params=params)
+        compute_metadata = response.json()['compute']
+        az_vm_name = compute_metadata['name'].strip()
+        subscription_id = compute_metadata['subscriptionId'].strip()
+        location = compute_metadata['location'].strip()
+        resource_group = compute_metadata['resourceGroupName'].strip()
+        zone = (compute_metadata.get('zone') or '').strip()
+        ocf.logger.debug(f"az_vm_name: {az_vm_name}, subscription_id: {subscription_id}, location: {location}, resource_group: {resource_group}, zone: {zone or 'None'}")
+        if not az_vm_name or not subscription_id or not location or not resource_group:
+            raise Exception("Failed to retrieve Azure metadata (az_vm_name, subscription_id, location, resource_group) from VM instance metadata API")
+        ocf.logger.debug("get_instance_metadata: Finished")
+        return az_vm_name, subscription_id, location, resource_group, zone
+    
+    @staticmethod
+    def list_vms(node):
+        ocf.logger.debug("list_vms: Started")
+        node.refresh_token_if_needed()
+        url = f"{AzureHelper.MANAGEMENT_URL}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines"
+        params = {'api-version': AzureHelper.VM_API_VERSION}
+        headers = {'Authorization': f'Bearer {node.access_token}', **AzureHelper.DEFAULT_HEADERS}
+        response = AzureHelper.invoke_api(node, url, 'get', headers=headers, params=params)
+        ocf.logger.debug("list_vms: Finished")
+        return response.json()
+
+    @staticmethod
+    def get_vm_status(node, vm_name):
+        ocf.logger.debug("get_vm_status: Started")
+        node.refresh_token_if_needed()
+        url = f"{AzureHelper.MANAGEMENT_URL}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}"
+        params = {'$expand': 'InstanceView', 'api-version': AzureHelper.VM_API_VERSION}
+        headers = {'Authorization': f'Bearer {node.access_token}', **AzureHelper.DEFAULT_HEADERS}
+        response = AzureHelper.invoke_api(node, url, 'get', headers=headers, params=params)
+        instance_view = response.json().get('properties', {}).get('instanceView', {})
+        statuses = instance_view.get('statuses', [])
+        
+        # Prefer stable power-state code (e.g. PowerState/running) over localized displayStatus
+        power_status = next((status for status in statuses if status.get('code', '').startswith('PowerState/')), None)
+        power_code = power_status.get('code') if power_status else None
+        if not power_code:
+            power_code = 'PowerState/unknown'
+        
+        ocf.logger.debug("get_vm_status: Finished")
+        return power_code
+    
+    @staticmethod
+    def start_vms(node, vm_names):
+        ocf.logger.debug("start_vms: Started")
+        node.refresh_token_if_needed()
+        responses = []
+        for vm_name in vm_names:
+            vm_status = AzureHelper.get_vm_status(node, vm_name)
+            if vm_status != 'PowerState/running':
+                ocf.logger.debug(f"Starting VM: {vm_name}")
+                url = f"{AzureHelper.MANAGEMENT_URL}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}/start"
+                params = {'api-version': AzureHelper.VM_API_VERSION}
+                headers = {'Authorization': f'Bearer {node.access_token}', **AzureHelper.DEFAULT_HEADERS}
+                responses.append(AzureHelper.invoke_api(node, url, 'post', headers=headers, params=params))
+            else:
+                ocf.logger.debug(f"VM: {vm_name} is already running")
+        ocf.logger.debug("start_vms: Finished")
+        return responses
+
+    @staticmethod
+    def stop_vms(node, vm_names):
+        ocf.logger.debug("stop_vms: Started")
+        node.refresh_token_if_needed()
+        responses = []
+        for vm_name in vm_names:
+            vm_status = AzureHelper.get_vm_status(node, vm_name)
+            if vm_status == 'PowerState/running':
+                ocf.logger.debug(f"Stopping VM: {vm_name}")
+                url = f"{AzureHelper.MANAGEMENT_URL}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}/powerOff"
+                params = {'api-version': AzureHelper.VM_API_VERSION}
+                headers = {'Authorization': f'Bearer {node.access_token}', **AzureHelper.DEFAULT_HEADERS}
+                responses.append(AzureHelper.invoke_api(node, url, 'post', headers=headers, params=params))
+            else:
+                ocf.logger.debug(f"VM: {vm_name} is not running")
+        ocf.logger.debug("stop_vms: Finished")
+        return responses
+    
+    @staticmethod
+    def deallocate_vms(node, vm_names):
+        ocf.logger.debug("deallocate_vms: Started")
+        node.refresh_token_if_needed()
+        responses = []
+        for vm_name in vm_names:
+            vm_status = AzureHelper.get_vm_status(node, vm_name)
+            if vm_status == 'PowerState/running':
+                ocf.logger.debug(f"Deallocating VM: {vm_name}")
+                url = f"{AzureHelper.MANAGEMENT_URL}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}/deallocate"
+                params = {'api-version': AzureHelper.VM_API_VERSION}
+                headers = {'Authorization': f'Bearer {node.access_token}', **AzureHelper.DEFAULT_HEADERS}
+                responses.append(AzureHelper.invoke_api(node, url, 'post', headers=headers, params=params))
+            else:
+                ocf.logger.debug(f"VM: {vm_name} is not running")
+        ocf.logger.debug("deallocate_vms: Finished")
+        return responses
+
+    @staticmethod
+    def run_command_on_linux_vms(node, vm_names, command, command_execution_timeout=COMMAND_EXECUTION_TIMEOUT_DEFAULT):
+        """
+        Execute a command on multiple Linux VMs using Azure Run Command.
+        
+        Args:
+            node: Node object with Azure configuration
+            vm_names: List of VM names or single VM name string
+            command: Shell command to execute
+            command_execution_timeout: Timeout in seconds for command execution
+            
+        Returns:
+            list: List of dictionaries with execution results for each VM
+            
+        Raises:
+            Exception: If command execution fails or times out
+        """
+        ocf.logger.debug("run_command_on_linux_vms: Started")
+
+        if not isinstance(vm_names, list):
+            vm_names = [vm_names]
+
+        # Refresh token if needed before making API calls
+        node.refresh_token_if_needed()
+
+        for vm_name in vm_names:
+            url = f"{AzureHelper.MANAGEMENT_URL}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}/runCommands/azure-sap-zone"
+            params = {'api-version': AzureHelper.VM_API_VERSION}
+            headers = {'Authorization': f'Bearer {node.access_token}', **AzureHelper.DEFAULT_HEADERS}
+            # Azure Run Command is represented as a child resource (runCommands/{name}). When we reuse the same
+            # runCommand name ("azure-sap-zone") and send an identical request body, the PUT can be treated as an
+            # idempotent update and may not trigger a fresh execution; subsequent GETs may return the previous
+            # instanceView/output. Varying timeoutInSeconds ensures the payload changes so a new execution is created.
+            body = {
+                "location": node.location,
+                "properties": {
+                    "source": {
+                        "script": command
+                    },
+                    "asyncExecution": True,
+                    "treatFailureAsDeploymentFailure": False,
+                    "timeoutInSeconds": random.randint(command_execution_timeout, (command_execution_timeout + 300))
+                }
+            }
+            ocf.logger.debug(f"run_command_on_linux_vms: url = {url}")
+            ocf.logger.debug(f"run_command_on_linux_vms: body = {body}")
+            response = AzureHelper.invoke_api(node, url, 'put', headers=headers, body=body, params=params)
+            ocf.logger.debug(f"run_command_on_linux_vms: response = {response}")
+
+        output = [{"vm_name": vm_name, "execution_state": "", "stdout": "", "stderr": ""} for vm_name in vm_names]
+
+        ocf.logger.debug("Waiting for operation to complete...")
+        start_time = time.time()
+        all_vms_completed = False
+        while not all_vms_completed:
+            node.refresh_token_if_needed()
+            all_vms_completed = True
+            pending_vms = []
+            for item in output:
+                vm_name = item['vm_name']
+                ocf.logger.debug(f"Checking status for vm: {vm_name}")
+                url = f"{AzureHelper.MANAGEMENT_URL}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}/runCommands/azure-sap-zone"
+                params = {'$expand': 'instanceView', 'api-version': AzureHelper.VM_API_VERSION}
+                headers = {'Authorization': f'Bearer {node.access_token}', **AzureHelper.DEFAULT_HEADERS}
+                status_response = AzureHelper.invoke_api(node, url, 'get', headers=headers, params=params)
+                instance_view = status_response.json()['properties']['instanceView']
+                execution_state = instance_view['executionState']
+                exit_code = instance_view['exitCode']
+                ocf.logger.debug(f"run_command_on_linux_vms: execution_state = {execution_state}")
+                ocf.logger.debug(f"run_command_on_linux_vms: exit_code = {exit_code}")
+                item['execution_state'] = execution_state
+                item['exit_code'] = exit_code
+                if execution_state in ['Pending', 'Running']:
+                    pending_vms.append(vm_name)
+                    all_vms_completed = False
+                else:
+                    stdout = instance_view['output']
+                    stderr = instance_view['error']
+                    item['stdout'] = stdout
+                    item['stderr'] = stderr
+                    ocf.logger.debug(f"run_command_on_linux_vms: stdout = {stdout}")
+                    ocf.logger.debug(f"run_command_on_linux_vms: stderr = {stderr}")
+            if time.time() - start_time > command_execution_timeout:
+                error_message = f"Command execution has not finished on vms {pending_vms} within the timeout period of {command_execution_timeout} seconds. Ensure that Azure Linux VM Agent is running on the VM"
+                ocf.logger.error(error_message)
+                raise Exception(error_message)
+            if not all_vms_completed:
+                ocf.logger.debug(f"Sleeping for {POLLING_INTERVAL_SECONDS} seconds before checking the status again...")
+                time.sleep(POLLING_INTERVAL_SECONDS)
+        
+        ocf.logger.debug(f"Note: Some commands, such as sapcontrol -function GetProcessList, return an execution_state of 'failed' even when the command is successful. In these cases, the exit codes will be {ACCEPTED_SAP_EXIT_CODES}. These exit codes should be ignored and considered as successful.")
+        failed_vms = [item for item in output if item.get('exit_code') not in ACCEPTED_SAP_EXIT_CODES]
+        if failed_vms:
+            error_details = [f"VM: {vm['vm_name']}, Exit Code: {vm['exit_code']}, Error: {vm.get('stderr', 'N/A')}" for vm in failed_vms]
+            raise Exception(f"Command execution failed for the following VMs: {'; '.join(error_details)}")
+        return output
+
+"""
+Helper functions for SAP
+"""
+class SAPHelper:
+    @staticmethod
+    def _validate_token(token: str, pattern: str, name: str):
+        ocf.logger.debug(f"_validate_token: Started (name={name})")
+        if not re.match(pattern, token):
+            raise ValueError(f"Invalid {name} format: {token}")
+        ocf.logger.debug(f"_validate_token: Finished (name={name})")
+        return token
+
+    @staticmethod
+    def _parse_function_and_args(function: str):
+        """Split a sapcontrol function string into (function_name, args).
+        We allow common sapcontrol functions that take numeric/word args (e.g. 'Stop 600').
+        """
+        ocf.logger.debug("_parse_function_and_args: Started")
+        if function is None:
+            raise ValueError("Function must be provided")
+        function = function.strip()
+        if not function:
+            raise ValueError("Function must be non-empty")
+        parts = function.split()
+        function_name = parts[0]
+        args = parts[1:]
+        SAPHelper._validate_token(function_name, r'^[a-zA-Z0-9_]+$', 'function name')
+        # Restrictive but practical: allow only safe characters in args
+        for arg in args:
+            SAPHelper._validate_token(arg, r'^[a-zA-Z0-9._:-]+$', 'function argument')
+        ocf.logger.debug(f"_parse_function_and_args: Finished (function_name={function_name}, argc={len(args)})")
+        return function_name, args
+
+    @staticmethod
+    def _su_sapcontrol_command(sidadm: str, instance: str, function_name: str, args: List[str]):
+        ocf.logger.debug("_su_sapcontrol_command: Started")
+        cmd_tokens = ["sapcontrol", "-nr", str(instance), "-function", function_name] + list(args)
+        cmd = " ".join(shlex.quote(t) for t in cmd_tokens)
+        # Use shlex.quote to safely pass the full command to su -c
+        ocf.logger.debug("_su_sapcontrol_command: Finished")
+        return f"su - {shlex.quote(sidadm)} -c {shlex.quote(cmd)}"
+
+    @staticmethod
+    def run_sapcontrol_function(node, vm_names, function, instance=None):
+        ocf.logger.debug("run_sapcontrol_function: Started")
+        
+        # Validate inputs to prevent command injection
+        SAPHelper._validate_token(node.sid, r'^[A-Za-z0-9_]+$', 'SID')
+        if instance is not None:
+            SAPHelper._validate_token(str(instance), r'^\d{2}$', 'instance number')
+        function_name, function_args = SAPHelper._parse_function_and_args(function)
+            
+        sidadm = f"{node.sid.lower()}adm"
+        ocf.logger.debug(f"sid: {node.sid}, sidadm: {sidadm}")
+        if instance:
+            command = SAPHelper._su_sapcontrol_command(sidadm, str(instance), function_name, function_args)
+        else:
+            command = f"""
+            instance_nr=$(grep -v '^#' /usr/sap/sapservices | grep -oP 'pf=.*?(D|SCS|ASCS|HDB|DVEBMGS)\\K[0-9]{{2}}' | sort -u);
+            if [ -z "$instance_nr" ]; then
+                instance_nr=$(ls /usr/sap/{node.sid} | grep -E '^(D|SCS|ASCS|HDB|DVEBMGS)[0-9]{{2}}$' | awk '{{print substr($0, length($0)-1)}}');
+            fi
+            if [ -z "$instance_nr" ]; then
+                echo "No instances found for SID {node.sid}"
+                exit 1
+            fi
+            for instance in ${{instance_nr}}; do 
+                su - {sidadm} -c "sapcontrol -nr ${{instance}} -function {function_name} {' '.join(function_args)}"
+            done
+            """
+        ocf.logger.debug(f"command: {command}")
+
+        try:
+            output = AzureHelper.run_command_on_linux_vms(node, vm_names, command)
+            ocf.logger.debug(f"run_sapcontrol_function: output: {output}")
+            if not output:
+                raise ValueError(f"No output received from sapcontrol function {function}")
+        except Exception as e:
+            ocf.logger.error(f"Error running sapcontrol function: {e}")
+            raise
+
+        ocf.logger.debug("run_sapcontrol_function: Finished")
+        return output
+
+    @staticmethod
+    def check_and_start_sap_instance(node, vm_names, instance=None):
+        ocf.logger.debug("check_and_start_sap_instance: Started")
+        
+        # Validate inputs
+        SAPHelper._validate_token(node.sid, r'^[A-Za-z0-9_]+$', 'SID')
+        if instance is not None:
+            SAPHelper._validate_token(str(instance), r'^\d{2}$', 'instance number')
+            
+        sidadm = f"{node.sid.lower()}adm"
+        ocf.logger.debug(f"sid: {node.sid}, sidadm: {sidadm}")
+        if instance:
+            command = f"""
+            inst="{str(instance)}"
+            soft_shutdown_state=$(su - {sidadm} -c "sapcontrol -nr ${{inst}} -function GetProcessList" | grep -i "Soft Shutdown")
+            if [ -n "$soft_shutdown_state" ]; then
+                su - {sidadm} -c "sapcontrol -nr ${{inst}} -function StopWait {int(node.soft_shutdown_timeout)} 2"
+                su - {sidadm} -c "sapcontrol -nr ${{inst}} -function Start"
+            else
+                su - {sidadm} -c "sapcontrol -nr ${{inst}} -function Start"
+            fi
+            """
+        else:
+            command = f"""
+            instance_nr=$(ls /usr/sap/{node.sid} | grep -E '^D[0-9]{{2}}$' | awk '{{print substr($0, length($0)-1)}}');
+            if [ -z "$instance_nr" ]; then
+                echo "No instances found for SID {node.sid}"
+                exit 1
+            fi
+            for instance in ${{instance_nr[@]}}; do 
+                soft_shutdown_state=$(su - {sidadm} -c "sapcontrol -nr ${{instance}} -function GetProcessList" | grep -i "Soft Shutdown")
+                if [ -n "$soft_shutdown_state" ]; then
+                    echo "Instance ${{instance}} is in soft shutdown state, stopping and starting the instance"
+                    su - {sidadm} -c "sapcontrol -nr ${{instance}} -function StopWait {int(node.soft_shutdown_timeout)} 2"
+                    su - {sidadm} -c "sapcontrol -nr ${{instance}} -function Start"
+                else
+                    echo "Instance ${{instance}} is not in soft shutdown state"
+                    echo "Attempting to set instance status to active"
+                    activate_status=$(su - {sidadm} -c "sapcontrol -nr ${{instance}} -function ABAPSetServerInactive active")
+                    if [[ ${{activate_status}} == *"OK"* ]]; then
+                        echo "Activating instance successful: ${{activate_status}}"
+                    else
+                        echo "Activating instance failed; attempting to start instance ${{instance}}"
+                        su - {sidadm} -c "sapcontrol -nr ${{instance}} -function Start"
+                    fi
+                fi
+            done
+            """
+        ocf.logger.debug(f"command: {command}")
+
+        try:
+            output = AzureHelper.run_command_on_linux_vms(node, vm_names, command)
+            ocf.logger.debug(f"check_and_start_sap_instance: output: {output}")
+            if not output:
+                raise ValueError(f"No output received from check_and_start_sap_instance")
+        except Exception as e:
+            ocf.logger.error(f"Error checking and starting SAP instance: {e}")
+            raise
+
+        ocf.logger.debug("check_and_start_sap_instance: Finished")
+        return output
+
+    
+    @staticmethod
+    # format SAPControl output in csv format to a list of dictionary objects
+    def format_sapcontrol_output(stdout):
+        ocf.logger.debug("format_sapcontrol_output: Started")
+        ocf.logger.debug(f"stdout: {stdout}")
+        stdout = stdout.split('\n')
+        # remove lines that don't have ',' - these are usually sapcontrol execution status, time etc.
+        stdout = [line for line in stdout if ',' in line]
+        keys = stdout[0].split(', ')
+        # remove the lines that are headers - if there are multiple lines of headers, then remove all of them
+        stdout = [line for line in stdout if line != stdout[0]]
+        values = [line.split(', ') for line in stdout]
+        data = [dict(zip(keys, value)) for value in values]
+        ocf.logger.debug(f"data: {data}")
+        ocf.logger.debug("format_sapcontrol_output: Finished")
+        return data
+
+    @staticmethod
+    def get_sap_procs(node, vm_names):
+        """
+        Get SAP process list from specified VMs.
+        
+        Args:
+            node: Node object with configuration
+            vm_names: List of VM names to query
+            
+        Returns:
+            list: List of SAP processes with status information
+            
+        Raises:
+            ValueError: If output is None or invalid
+        """
+        ocf.logger.debug("get_sap_procs: Started")
+        output = SAPHelper.run_sapcontrol_function(node, vm_names, 'GetProcessList')
+        
+        if not output:
+            raise ValueError("Failed to retrieve SAP process list - no output received")
+        
+        ocf.logger.debug(f"output: {output}")
+        all_sap_procs = []
+        for item in output:
+            if not item or 'stdout' not in item:
+                ocf.logger.warning(f"Skipping invalid output item: {item}")
+                continue
+            sap_procs = SAPHelper.format_sapcontrol_output(item['stdout'])
+            for process in sap_procs:
+                process['vm_name'] = item.get('vm_name', 'unknown')
+            all_sap_procs.extend(sap_procs)
+        ocf.logger.debug(f"get_sap_procs: all_sap_procs: {all_sap_procs}")
+        ocf.logger.debug("get_sap_procs: Finished")
+        return all_sap_procs
+    
+    @staticmethod
+    def verify_sap_procs(node, vm_names) -> bool:
+        """
+        Verify that SAP processes on VMs don't include critical system processes.
+        
+        Args:
+            node: Node object with configuration
+            vm_names: List of VM names to verify
+            
+        Returns:
+            bool: True if VMs are safe to manage, False if they contain critical processes
+        """
+        ocf.logger.debug("verify_sap_procs: Started")
+        
+        if not vm_names:
+            ocf.logger.warning("No VMs provided for verification")
+            ocf.logger.debug("verify_sap_procs: Finished (result=False; no_vms)")
+            return False
+        
+        try:
+            sap_procs = SAPHelper.get_sap_procs(node, vm_names)
+        except Exception as e:
+            ocf.logger.error(f"Failed to get SAP processes: {e}")
+            ocf.logger.debug("verify_sap_procs: Finished (result=False; get_sap_procs_failed)")
+            return False
+        
+        if not sap_procs:
+            ocf.logger.warning("No SAP processes found")
+            ocf.logger.debug("verify_sap_procs: Finished (result=False; no_processes)")
+            return False
+        
+        for process in sap_procs:
+            if 'name' not in process:
+                ocf.logger.warning(f"Process missing 'name' field: {process}")
+                continue
+            if re.match(r"msg_server|enq_server|enq_replicator|hdbdaemon", process['name'], re.IGNORECASE):
+                ocf.logger.warning(f"One or more servers in {vm_names} have MESSAGESERVER, ENQUE, or HDB processes running. Please provide correct app_vm_names")
+                ocf.logger.debug("verify_sap_procs: Finished (result=False; critical_process_found)")
+                return False
+        
+        ocf.logger.info(f"Servers in {vm_names} don't have MESSAGESERVER, ENQUE, or HDB processes running")
+        ocf.logger.debug("verify_sap_procs: Finished (result=True)")
+        return True
+
+
+"""
+Class to define the node object
+"""
+class Node:
+    def __init__(self, ra):
+        self.ra_owner = ra
+        
+        self.sid = ocf.get_parameter("sid", "")
+        self.hana_sid = ocf.get_parameter("hana_sid", self.sid)
+        self.hana_resource = ocf.get_parameter("hana_resource","")
+        # Optional logical grouping for non-zonal deployments (e.g. PPG).
+        # Preferred: provide a mapping of HANA VM name -> logical group label.
+        # Format: hanavm1:1,hanavm2:2
+        self.hana_vm_zones = ocf.get_parameter("hana_vm_zones", "")
+        self.hana_vm_zone_map = self._parse_hana_vm_zones(self.hana_vm_zones)
+        self.soft_shutdown_timeout = ocf.get_parameter("soft_shutdown_timeout", 600)
+        # Fix empty string split issue - only split if non-empty
+        app_vm_names_param = ocf.get_parameter("app_vm_names", "")
+        self.app_vm_names = [vm.strip() for vm in app_vm_names_param.split(',') if vm.strip()] if app_vm_names_param else []
+        self.app_vm_name_pattern = ocf.get_parameter("app_vm_name_pattern", "")
+        # Optional mapping of application VM name -> logical zone group
+        # Format: vm1:1,vm2:1,vm3:2
+        self.app_vm_zones = ocf.get_parameter("app_vm_zones", "")
+        self.app_vm_zone_map = self._parse_app_vm_zones(self.app_vm_zones)
+        # If app_vm_zones is provided but neither app_vm_names nor app_vm_name_pattern are provided,
+        # treat app_vm_zones as the authoritative source of application VM names.
+        if not self.app_vm_names and not self.app_vm_name_pattern and self.app_vm_zone_map:
+            self.app_vm_names = list(self.app_vm_zone_map.keys())
+        # NOTE: app_vm_zones is a supplemental mapping.
+        # - It can be used to provide a logical zone group for non-zonal/PPG VMs.
+        # - VM selection still primarily comes from app_vm_names (or app_vm_name_pattern when names are not provided).
+        # - The keys from app_vm_zones are merged into the effective VM list later.
+        self.retry_count = ocf.get_parameter("retry_count", 3)
+        self.retry_wait = ocf.get_parameter("retry_wait", 20)
+        self.client_id = ocf.get_parameter("client_id", "")
+        self.stop_vms = ocf.get_parameter("stop_vms", "false")
+        self.wait_before_stop_sap = ocf.get_parameter("wait_before_stop_sap", 300)
+        self.wait_time = ocf.get_parameter("wait_time", 600)
+        self.resource_group = ocf.get_parameter("resource_group", "")
+        self.hostname = subprocess.getoutput("hostname")
+        self.clone_state = ClusterHelper.getStatusAttr(f"hana_{self.hana_sid.lower()}_clone_state", self.hostname)
+        self.sync_state = ClusterHelper.getStatusAttr(f"hana_{self.hana_sid.lower()}_sync_state", self.hostname)
+        # Keep hana_score as string to match the original primary-detection logic
+        self.hana_score = str(ClusterHelper.getStatusAttr(f"master-{self.hana_resource}", self.hostname))
+        self.current_phase = ClusterHelper.getAttr(f"azure_sap_zone_current_phase", self.hostname)
+        self.phase_start_time = ClusterHelper.getAttr(f"azure_sap_zone_phase_start_time", self.hostname)
+        if not self.current_phase or self.current_phase in ['None', ''] or not self.phase_start_time or self.phase_start_time in ['None', '']:
+            self.set_phase('None')
+        
+        # get the resource group, subscription_id, location and vm name using Azure meta data api
+        self.az_vm_name, self.subscription_id, self.location, resource_group, self.azure_zone = AzureHelper.get_instance_metadata(self)
+
+        # Determine the effective "zone" used for alignment:
+        # - If hana_vm_zones is provided, use the mapping for *this* VM.
+        # - Else require azure_zone from metadata.
+        if self.hana_vm_zone_map:
+            if self.az_vm_name not in self.hana_vm_zone_map:
+                raise ValueError(
+                    f"hana_vm_zones is set but does not include this HANA VM '{self.az_vm_name}'. "
+                    "Provide an entry like 'hanavm1:1,hanavm2:2'."
+                )
+            configured_group = str(self.hana_vm_zone_map[self.az_vm_name])
+            if self.azure_zone and str(self.azure_zone) != configured_group:
+                raise ValueError(
+                    f"hana_vm_zones maps '{self.az_vm_name}' to '{configured_group}', but Azure metadata zone is '{self.azure_zone}'. "
+                    "Fix hana_vm_zones (or remove it to rely on Azure metadata zone)."
+                )
+            self.zone = configured_group
+        else:
+            if not self.azure_zone:
+                raise ValueError(
+                    "Azure metadata does not provide zone information for this VM. "
+                    "For non-zonal/PPG scenarios, set 'hana_vm_zones'."
+                )
+            self.zone = str(self.azure_zone)
+        # if resource_group is not provided as a paramter then get the resource group from the Azure meta data api
+        if not self.resource_group:
+            self.resource_group = resource_group
+        # Initialize token with expiry tracking
+        self.access_token, self.token_expiry = AzureHelper.get_access_token(self)
+
+    @staticmethod
+    def _parse_vm_zone_map(vm_zones: str, param_name: str) -> Dict[str, str]:
+        """Parse a mapping like: 'vm1:1,vm2:1,vm3:2'.
+
+        Returns dict of vm_name -> zone_group string.
+        """
+        ocf.logger.debug(f"_parse_vm_zone_map: Started ({param_name})")
+        if not vm_zones:
+            ocf.logger.debug(f"_parse_vm_zone_map: empty input ({param_name}); Finished")
+            return {}
+
+        mapping: Dict[str, str] = {}
+        entries = [e.strip() for e in vm_zones.split(',') if e.strip()]
+        ocf.logger.debug(f"_parse_vm_zone_map: {param_name} entries={len(entries)}")
+        for entry in entries:
+            if ':' not in entry:
+                raise ValueError(
+                    f"Invalid {param_name} entry '{entry}'. Expected format 'vm:group', e.g. 'sapapp01:1'."
+                )
+            vm_name, zone_group = [p.strip() for p in entry.split(':', 1)]
+            if not vm_name or not zone_group:
+                raise ValueError(f"Invalid {param_name} entry '{entry}'. VM name and group must be non-empty")
+            if not VM_NAME_REGEX.match(vm_name):
+                raise ValueError(f"Invalid VM name in {param_name}: '{vm_name}'")
+            if not ZONE_GROUP_REGEX.match(zone_group):
+                raise ValueError(
+                    f"Invalid group '{zone_group}' for VM '{vm_name}' in {param_name}. Use an alphanumeric logical group label (e.g. 1,2)."
+                )
+            if vm_name in mapping and mapping[vm_name] != zone_group:
+                raise ValueError(f"Duplicate VM '{vm_name}' in {param_name} with conflicting groups")
+            mapping[vm_name] = zone_group
+
+        ocf.logger.debug(f"_parse_vm_zone_map: Finished ({param_name}); mapped_vms={len(mapping)}")
+        return mapping
+
+    @staticmethod
+    def _parse_app_vm_zones(app_vm_zones: str) -> dict:
+        ocf.logger.debug("_parse_app_vm_zones: Started")
+        parsed = Node._parse_vm_zone_map(app_vm_zones, "app_vm_zones")
+        ocf.logger.debug(f"_parse_app_vm_zones: Finished (mapped_vms={len(parsed)})")
+        return parsed
+
+    @staticmethod
+    def _parse_hana_vm_zones(hana_vm_zones: str) -> dict:
+        ocf.logger.debug("_parse_hana_vm_zones: Started")
+        parsed = Node._parse_vm_zone_map(hana_vm_zones, "hana_vm_zones")
+        ocf.logger.debug(f"_parse_hana_vm_zones: Finished (mapped_vms={len(parsed)})")
+        return parsed
+    
+    def refresh_token_if_needed(self):
+        """
+        Refresh access token if it's close to expiry.
+        Token is refreshed if it will expire within TOKEN_EXPIRY_BUFFER_SECONDS.
+        """
+        ocf.logger.debug("refresh_token_if_needed: Started")
+        current_time = int(time.time())
+        if current_time + TOKEN_EXPIRY_BUFFER_SECONDS >= self.token_expiry:
+            ocf.logger.info(f"Access token expiring soon (expires at {self.token_expiry}), refreshing...")
+            self.access_token, self.token_expiry = AzureHelper.get_access_token(self)
+            ocf.logger.info(f"Access token refreshed, new expiry: {self.token_expiry}")
+            ocf.logger.debug("refresh_token_if_needed: Finished (refreshed=True)")
+            return
+
+        ocf.logger.debug("refresh_token_if_needed: Finished (refreshed=False)")
+
+    # function to set the current phase and phase start time
+    def set_phase(self, phase):
+        ocf.logger.debug(f"set_phase: Started (phase={phase})")
+        self.current_phase = phase
+        ClusterHelper.setAttr("azure_sap_zone_current_phase", self.current_phase, self.hostname)
+        self.phase_start_time = int(time.time())
+        ClusterHelper.setAttr("azure_sap_zone_phase_start_time", self.phase_start_time, self.hostname)
+        ocf.logger.debug(f"set_phase: Finished (phase={self.current_phase}, phase_start_time={self.phase_start_time})")
+
+    # function to check if the timeout is reached
+    def check_timeout(self, wait_time=None) -> bool:
+        ocf.logger.debug("check_timeout: Started")
+        if not wait_time:
+            wait_time = int(self.wait_time)
+        time_left = int(self.phase_start_time) + int(wait_time) - int(time.time())
+        ocf.logger.debug(f"time_left: {time_left}")
+        if time_left > 0:
+            ocf.logger.debug(f"{time_left} seconds wait time before taking next action or for phase timeout")
+            ocf.logger.debug("check_timeout: Finished (timed_out=False)")
+            return False
+        else:
+            ocf.logger.debug("Timeout reached.")
+            ocf.logger.debug("check_timeout: Finished (timed_out=True)")
+            return True
+    
+"""
+Main class to define the AzureSapZone resource agent
+"""
+class AzureSapZone:
+    def __init__(self):
+        self.node = Node(self)
+    
+    def start(self):    
+        ocf.logger.info("start: Started")
+        ocf.logger.debug("start: Debug trace enabled")
+
+        # Validate zone configuration on every start.
+        # If app_vm_zones is provided and Azure zones are available, enforce they match to prevent misconfiguration.
+        self.validate_zone_configuration_on_start()
+
+        self.node.set_phase('Started')
+        ocf.logger.info("start: Finished")
+        return ocf.OCF_SUCCESS
+
+    def validate_zone_configuration_on_start(self):
+        """Validate manual app VM zone grouping against Azure VM zone data (if Azure zone data exists).
+
+        This intentionally runs during start to fail fast on misconfiguration.
+        """
+        ocf.logger.debug("validate_zone_configuration_on_start: Started")
+        has_app_map = bool(getattr(self.node, 'app_vm_zone_map', None))
+        has_hana_map = bool(getattr(self.node, 'hana_vm_zone_map', None))
+        ocf.logger.debug(f"validate_zone_configuration_on_start: has_app_vm_zones={has_app_map}, has_hana_vm_zones={has_hana_map}")
+
+        if not has_app_map and not has_hana_map:
+            ocf.logger.debug("validate_zone_configuration_on_start: no mappings configured; Finished")
+            return
+
+        vms = AzureHelper.list_vms(self.node)
+        ocf.logger.debug(f"validate_zone_configuration_on_start: Azure returned {len(vms.get('value', []))} VMs")
+        azure_zones_by_vm: Dict[str, Optional[List[str]]] = {}
+        for vm in vms.get('value', []):
+            name = vm.get('name')
+            zones = vm.get('zones')
+            if not zones:
+                zones = None
+            azure_zones_by_vm[name] = zones
+        ocf.logger.debug(f"validate_zone_configuration_on_start: indexed_zones_for={len(azure_zones_by_vm)} VMs")
+
+        if getattr(self.node, 'hana_vm_zone_map', None):
+            ocf.logger.debug(f"validate_zone_configuration_on_start: validating hana_vm_zones for {len(self.node.hana_vm_zone_map)} VMs")
+            missing_hana = [vm for vm in self.node.hana_vm_zone_map.keys() if vm not in azure_zones_by_vm]
+            if missing_hana:
+                ocf.logger.error(f"validate_zone_configuration_on_start: missing hana_vm_zones VMs: {missing_hana}")
+                raise ValueError(
+                    f"The following VMs from hana_vm_zones were not found in Azure resource group '{self.node.resource_group}': {missing_hana}"
+                )
+
+            hana_mismatches = []
+            for vm_name, zone_group in self.node.hana_vm_zone_map.items():
+                zones = azure_zones_by_vm.get(vm_name)
+                if zones is None:
+                    continue  # Non-zonal VM: mapping is authoritative
+                azure_zone = str(zones[0]) if isinstance(zones, list) and zones else str(zones)
+                if str(zone_group) != azure_zone:
+                    hana_mismatches.append((vm_name, zone_group, azure_zone))
+
+            if hana_mismatches:
+                details = "; ".join([f"{vm} provided={zg} azure={az}" for vm, zg, az in hana_mismatches])
+                ocf.logger.error(f"validate_zone_configuration_on_start: hana_vm_zones mismatches: {details}")
+                raise ValueError(
+                    "hana_vm_zones does not match Azure VM zone metadata for one or more VMs. "
+                    f"Fix hana_vm_zones or remove it to rely on Azure zone metadata. Details: {details}"
+                )
+            ocf.logger.debug("validate_zone_configuration_on_start: hana_vm_zones validation passed")
+
+        if getattr(self.node, 'app_vm_zone_map', None):
+            ocf.logger.debug(f"validate_zone_configuration_on_start: validating app_vm_zones for {len(self.node.app_vm_zone_map)} VMs")
+            missing = [vm for vm in self.node.app_vm_zone_map.keys() if vm not in azure_zones_by_vm]
+            if missing:
+                ocf.logger.error(f"validate_zone_configuration_on_start: missing app_vm_zones VMs: {missing}")
+                raise ValueError(
+                    f"The following VMs from app_vm_zones were not found in Azure resource group '{self.node.resource_group}': {missing}"
+                )
+
+            mismatches = []
+            for vm_name, zone_group in self.node.app_vm_zone_map.items():
+                zones = azure_zones_by_vm.get(vm_name)
+                if zones is None:
+                    continue  # Non-zonal VM: mapping is authoritative
+                azure_zone = str(zones[0]) if isinstance(zones, list) and zones else str(zones)
+                if str(zone_group) != azure_zone:
+                    mismatches.append((vm_name, zone_group, azure_zone))
+
+            if mismatches:
+                details = "; ".join([f"{vm} provided={zg} azure={az}" for vm, zg, az in mismatches])
+                ocf.logger.error(f"validate_zone_configuration_on_start: app_vm_zones mismatches: {details}")
+                raise ValueError(
+                    "app_vm_zones does not match Azure VM zone metadata for one or more VMs. "
+                    f"Fix app_vm_zones or remove it to rely on Azure zone metadata. Details: {details}"
+                )
+            ocf.logger.debug("validate_zone_configuration_on_start: app_vm_zones validation passed")
+
+        ocf.logger.debug("validate_zone_configuration_on_start: Finished")
+    
+    def stop(self):    
+        ocf.logger.info("stop: Started")
+        ocf.logger.debug("stop: Debug trace enabled")
+        self.node.set_phase('None')
+        ocf.logger.info("stop: Finished")
+        return ocf.OCF_SUCCESS
+    
+    def monitor(self):
+        try:
+            ocf.logger.info("monitor: Started")
+            ocf.logger.debug("monitor: Debug trace enabled")
+            
+            if _is_probe_operation():
+                if not self.node.current_phase or self.node.current_phase in ['None', '']:
+                    return ocf.OCF_NOT_RUNNING
+                else:
+                     return ocf.OCF_SUCCESS
+            
+            self.log_node_details()
+            
+            # Primary detection: use hana_score as recommended by Pacemaker experts
+            if not self.node.clone_state or not self.node.hana_score:
+                ocf.logger.error("Failed to get HANA clone state or HANA score from cluster attributes")
+                return ocf.OCF_ERR_GENERIC
+
+            ocf.logger.debug(f"clone_state: {self.node.clone_state}, hana_score: {self.node.hana_score}")
+            if self.node.clone_state != "PROMOTED" or self.node.hana_score != "150":
+                self.handle_non_primary_node()
+                return ocf.OCF_SUCCESS
+            
+            # if the current phase is all_phases_completed then no action is required. This is avoid unnecessary calls to Azure ARM API
+            if self.node.current_phase == 'all_phases_completed':
+                ocf.logger.info("All phases have been executed successfully. No action required...")
+                return ocf.OCF_SUCCESS
+
+            self.execute_phases()
+
+        except Exception as e:
+            ocf.logger.error(f"Failed to execute monitor: {e}")
+            return ocf.OCF_ERR_GENERIC
+        
+        ocf.logger.info("monitor: Finished")
+        return ocf.OCF_SUCCESS
+
+    def log_node_details(self):
+        ocf.logger.debug("log_node_details: Started")
+        ocf.logger.debug(f"clone_state: {self.node.clone_state}")
+        ocf.logger.debug(f"sync_state: {getattr(self.node, 'sync_state', None)}")
+        ocf.logger.debug(f"hana_score: {self.node.hana_score}")
+        ocf.logger.debug(f"app_vm_names: {self.node.app_vm_names}")
+        ocf.logger.debug(f"hana_resource: {self.node.hana_resource}")
+        ocf.logger.debug(f"app_vm_name_pattern: {self.node.app_vm_name_pattern}")
+        ocf.logger.debug(f"soft_shutdown_timeout: {self.node.soft_shutdown_timeout}")
+        ocf.logger.debug(f"az_vm_name: {self.node.az_vm_name}")
+        ocf.logger.debug(f"resource_group: {self.node.resource_group}")
+        ocf.logger.debug(f"subscription_id: {self.node.subscription_id}")
+        ocf.logger.debug(f"zone: {self.node.zone}")
+        ocf.logger.debug(f"azure_zone: {getattr(self.node, 'azure_zone', None)}")
+        ocf.logger.debug(f"hana_vm_zones: {getattr(self.node, 'hana_vm_zones', None)}")
+        ocf.logger.debug(f"location: {self.node.location}")
+        ocf.logger.debug(f"client_id: {self.node.client_id}")
+        ocf.logger.debug(f"stop_vms: {self.node.stop_vms}")
+        ocf.logger.debug(f"wait_before_stop_sap: {self.node.wait_before_stop_sap}")
+        ocf.logger.debug(f"wait_time: {self.node.wait_time}")
+        ocf.logger.debug(f"phase_start_time: {self.node.phase_start_time}")
+        ocf.logger.debug(f"sid: {self.node.sid}")
+        ocf.logger.debug(f"hana_sid: {self.node.hana_sid}")
+        ocf.logger.debug(f"hostname: {self.node.hostname}")
+        ocf.logger.debug(f"current_phase: {self.node.current_phase}")
+        ocf.logger.debug(f"retry_count: {self.node.retry_count}")
+        ocf.logger.debug(f"retry_wait: {self.node.retry_wait}")
+        ocf.logger.debug("log_node_details: Finished")
+
+    def handle_non_primary_node(self):
+        ocf.logger.debug("handle_non_primary_node: Started")
+        ocf.logger.info("This is not the primary node or the node is not ready yet. No action required...")
+        self.node.current_phase = 'no_action_required'
+        ClusterHelper.setAttr("azure_sap_zone_current_phase", self.node.current_phase, self.node.hostname)
+        ocf.logger.debug("handle_non_primary_node: Finished")
+
+    def execute_phases(self):
+        ocf.logger.info("execute_phases: Started")
+        vms_dict = self.get_vms_dict()
+
+        db_vm_zone = [self.node.zone]
+        ocf.logger.debug(f"db_vm_zone: {db_vm_zone}")
+        same_zone_app_vmnames, diff_zone_app_vmnames = self.get_app_vmnames_by_zone(vms_dict, db_vm_zone)
+        ocf.logger.debug(f"same_zone_app_vmnames: {same_zone_app_vmnames}")
+        ocf.logger.debug(f"diff_zone_app_vmnames: {diff_zone_app_vmnames}")
+
+        if not same_zone_app_vmnames:
+            raise ValueError("No VMs found in the same zone as the DB VM")
+        if not diff_zone_app_vmnames:
+            ocf.logger.info("No VMs found in a different zone from the DB VM; nothing to stop/deallocate")
+
+        ocf.logger.debug("Removing VMs that are not in running status")
+        diff_zone_app_vmnames = [vm_name for vm_name in diff_zone_app_vmnames if AzureHelper.get_vm_status(self.node, vm_name) == 'PowerState/running']
+        ocf.logger.debug(f"diff_zone_app_vmnames in running status: {diff_zone_app_vmnames}")
+
+        if self.is_phase_uninitialized():
+            ocf.logger.debug("Phase is uninitialized. Checking app servers in running status")
+            available_app_vmnames = [vm_name for vm_name in self.node.app_vm_names if AzureHelper.get_vm_status(self.node, vm_name) == 'PowerState/running']
+            ocf.logger.debug(f"available_app_vmnames: {available_app_vmnames}")
+            ocf.logger.debug("Verifying that the available_app_vmnames don't have MESSAGESERVER, ENQUE, or HDB processes running")
+            if not self.verify_sap_procs_are_safe_to_stop(available_app_vmnames):
+                raise ValueError("One or more servers have MESSAGESERVER, ENQUE, or HDB processes running. Please provide correct app_vm_names")
+            self.node.set_phase('start_vms_in_same_zone')
+
+        phase_methods = {
+            'start_vms_in_same_zone': self.phase_start_vms_in_same_zone,
+            'wait_for_vms_in_same_zone_to_start': self.phase_wait_for_vms_in_same_zone_to_start,
+            'start_sap_in_same_zone': self.phase_start_sap_in_same_zone,
+            'wait_for_sap_in_same_zone_to_start': self.phase_wait_for_sap_in_same_zone_to_start,
+            'stop_sap_in_diff_zone': self.phase_stop_sap_in_diff_zone,
+            'wait_for_sap_in_diff_zone_to_stop': self.phase_wait_for_sap_in_diff_zone_to_stop,
+            'stop_vms_in_diff_zone': self.phase_stop_vms_in_diff_zone,
+        }
+
+        if self.node.current_phase in phase_methods:
+            phase_methods[self.node.current_phase](same_zone_app_vmnames, diff_zone_app_vmnames)
+        else:
+            ocf.logger.info("All phases have been executed successfully")
+            self.node.set_phase('all_phases_completed')
+        
+        ocf.logger.info("execute_phases: Finished")
+
+    def get_vms_dict(self):
+        ocf.logger.debug("get_vms_dict: Started")
+        vms = AzureHelper.list_vms(self.node)
+        ocf.logger.debug("get_vms_dict: Finished")
+        vms_dict = []
+        for vm in vms.get('value', []):
+            zones = vm.get('zones')
+            # Normalize zones: None if non-zonal, else list of strings
+            if not zones:
+                zones = None
+            vms_dict.append({'name': vm.get('name'), 'location': vm.get('location'), 'zones': zones})
+        ocf.logger.debug(f"vms_dict: {vms_dict}")
+        return vms_dict
+        
+    def get_app_vmnames_by_zone(self, vms_dict, db_vm_zone):
+        """
+        Categorize application VMs by their zone relative to the database VM zone.
+        
+        Args:
+            vms_dict: List of VM dictionaries with name, location, and zones
+            db_vm_zone: List containing the database VM's zone (e.g., ['1'])
+            
+        Returns:
+            tuple: (same_zone_vms, diff_zone_vms) lists of VM names
+        """
+        ocf.logger.debug("get_app_vmnames_by_zone: Started")
+        effective_vm_names: List[str] = list(self.node.app_vm_names) if self.node.app_vm_names else []
+
+        # If app_vm_names wasn't explicitly provided, allow pattern-based discovery.
+        if not effective_vm_names and self.node.app_vm_name_pattern:
+            ocf.logger.debug(
+                f"app_vm_names not provided. Fetching VMs matching pattern {self.node.app_vm_name_pattern}"
+            )
+            effective_vm_names = [
+                vm["name"] for vm in vms_dict if re.match(self.node.app_vm_name_pattern, vm["name"])
+            ]
+
+        # Always merge in any explicit VMs present in app_vm_zones.
+        # This enables mixed configurations: most VMs discovered via Azure (names/pattern),
+        # with a small subset of non-zonal VMs supplied via app_vm_zones.
+        if getattr(self.node, "app_vm_zone_map", None):
+            for vm_name in self.node.app_vm_zone_map.keys():
+                if vm_name not in effective_vm_names:
+                    effective_vm_names.append(vm_name)
+
+        self.node.app_vm_names = effective_vm_names
+        if not self.node.app_vm_names:
+            if self.node.app_vm_name_pattern:
+                ocf.logger.warning("No VMs found matching app_vm_name_pattern")
+            else:
+                ocf.logger.warning("No application VMs provided")
+            return [], []
+
+        # Normalize zone comparison - vm['zones'] can be a list or None
+        norm_db_zone = [str(z) for z in db_vm_zone] if db_vm_zone else None
+
+        # Build quick lookup for Azure zones from vms_dict
+        zones_by_name = {vm.get('name'): vm.get('zones') for vm in vms_dict}
+
+        same_zone = []
+        diff_zone = []
+        for vm_name in self.node.app_vm_names:
+            zones = zones_by_name.get(vm_name)
+            if zones is not None:
+                vm_zone_group = str(zones[0]) if isinstance(zones, list) and zones else str(zones)
+            else:
+                # Non-zonal VM: require manual mapping
+                if getattr(self.node, 'app_vm_zone_map', None) and vm_name in self.node.app_vm_zone_map:
+                    vm_zone_group = str(self.node.app_vm_zone_map[vm_name])
+                else:
+                    continue
+
+            if norm_db_zone and [vm_zone_group] == norm_db_zone:
+                same_zone.append(vm_name)
+            else:
+                diff_zone.append(vm_name)
+        
+        ocf.logger.debug("get_app_vmnames_by_zone: Finished")
+        return same_zone, diff_zone
+
+    def is_phase_uninitialized(self):
+        ocf.logger.debug("is_phase_uninitialized: Started")
+        result = self.node.current_phase == 'Started' or self.node.current_phase == 'no_action_required'
+        ocf.logger.debug(f"is_phase_uninitialized: Finished (result={result})")
+        return result
+
+    def verify_sap_procs_are_safe_to_stop(self, available_app_vmnames):
+        ocf.logger.debug("verify_sap_procs_are_safe_to_stop: Started")
+        ocf.logger.debug(f"available_app_vmnames: {available_app_vmnames}")
+        result = SAPHelper.verify_sap_procs(self.node, available_app_vmnames)
+        ocf.logger.debug(f"verify_sap_procs_are_safe_to_stop: Finished (result={result})")
+        return result
+
+    def phase_start_vms_in_same_zone(self, same_zone_app_vmnames, _):
+        ocf.logger.info(f"Executing phase: start_vms_in_same_zone")
+        ocf.logger.debug(f"phase_start_vms_in_same_zone: Started (vm_count={len(same_zone_app_vmnames)})")
+        AzureHelper.start_vms(self.node, same_zone_app_vmnames)
+        self.node.set_phase('wait_for_vms_in_same_zone_to_start')
+        ocf.logger.debug("phase_start_vms_in_same_zone: Finished")
+
+    def phase_wait_for_vms_in_same_zone_to_start(self, same_zone_app_vmnames, _):
+        ocf.logger.info(f"Executing phase: wait_for_vms_in_same_zone_to_start")
+        ocf.logger.debug(f"phase_wait_for_vms_in_same_zone_to_start: Started (vm_count={len(same_zone_app_vmnames)})")
+        if self.node.check_timeout():
+            raise ValueError("Timeout reached. One or more VMs are not started yet")
+        
+        if all(AzureHelper.get_vm_status(self.node, vm_name) == 'PowerState/running' for vm_name in same_zone_app_vmnames):
+            ocf.logger.info("All VMs are started")
+            self.node.set_phase('start_sap_in_same_zone')
+        else:
+            ocf.logger.info("One or more VMs are not started yet")
+        ocf.logger.debug("phase_wait_for_vms_in_same_zone_to_start: Finished")
+
+    def phase_start_sap_in_same_zone(self, same_zone_app_vmnames, _):
+        ocf.logger.info(f"Executing phase: start_sap_in_same_zone")
+        ocf.logger.info(f"Starting SAP on VMs: {same_zone_app_vmnames}")
+        ocf.logger.debug(f"phase_start_sap_in_same_zone: Started (vm_count={len(same_zone_app_vmnames)})")
+        SAPHelper.check_and_start_sap_instance(self.node, same_zone_app_vmnames)
+        self.node.set_phase('wait_for_sap_in_same_zone_to_start')
+        ocf.logger.debug("phase_start_sap_in_same_zone: Finished")
+
+    def phase_wait_for_sap_in_same_zone_to_start(self, same_zone_app_vmnames, _):
+        ocf.logger.info(f"Executing phase: wait_for_sap_in_same_zone_to_start")
+        ocf.logger.debug(f"phase_wait_for_sap_in_same_zone_to_start: Started (vm_count={len(same_zone_app_vmnames)})")
+        if self.node.check_timeout():
+            raise ValueError("Timeout reached. One or more SAP instances are not started yet")
+        
+        try:
+            sap_procs = SAPHelper.get_sap_procs(self.node, same_zone_app_vmnames)
+        except Exception as e:
+            ocf.logger.error(f"Failed to get SAP processes: {e}")
+            raise
+        
+        if not sap_procs:
+            ocf.logger.warning("No SAP processes found")
+            return
+        
+        if all('GREEN' in process.get('dispstatus', '') for process in sap_procs):
+            ocf.logger.info("All SAP instances are started")
+            self.node.set_phase('stop_sap_in_diff_zone')
+        else:
+            ocf.logger.info("One or more SAP instances are not started yet")
+        ocf.logger.debug("phase_wait_for_sap_in_same_zone_to_start: Finished")
+
+    def phase_stop_sap_in_diff_zone(self, _, diff_zone_app_vmnames):
+        ocf.logger.info(f"Executing phase: stop_sap_in_diff_zone")
+        ocf.logger.debug(f"phase_stop_sap_in_diff_zone: Started (vm_count={len(diff_zone_app_vmnames) if diff_zone_app_vmnames else 0})")
+        if diff_zone_app_vmnames:
+            if self.node.stop_vms == 'true':
+                if self.node.check_timeout(int(self.node.wait_before_stop_sap)):
+                    ocf.logger.info(f"Stopping SAP on VMs: {diff_zone_app_vmnames}")
+                    SAPHelper.run_sapcontrol_function(self.node, diff_zone_app_vmnames, f"Stop {self.node.soft_shutdown_timeout}")
+                    self.node.set_phase('wait_for_sap_in_diff_zone_to_stop')
+                else:
+                    ocf.logger.info(f"Waiting for {self.node.wait_before_stop_sap} seconds before stopping SAP on VMs: {diff_zone_app_vmnames}")
+            else:
+                ocf.logger.info(f"Setting SAP instances to passive mode on VMs: {diff_zone_app_vmnames}")
+                SAPHelper.run_sapcontrol_function(self.node, diff_zone_app_vmnames, f"ABAPSetServerInactive")
+                self.node.set_phase('all_phases_completed')
+        else:
+            ocf.logger.info("No active active VMs in different zone")
+            self.node.set_phase('all_phases_completed')
+        ocf.logger.debug("phase_stop_sap_in_diff_zone: Finished")
+
+    def phase_wait_for_sap_in_diff_zone_to_stop(self, _, diff_zone_app_vmnames):
+        ocf.logger.info(f"Executing phase: wait_for_sap_in_diff_zone_to_stop")
+        ocf.logger.debug(f"phase_wait_for_sap_in_diff_zone_to_stop: Started (vm_count={len(diff_zone_app_vmnames) if diff_zone_app_vmnames else 0})")
+        if self.node.check_timeout(int(self.node.wait_time) + int(self.node.soft_shutdown_timeout)):
+            raise ValueError("Timeout reached. One or more SAP instances are not stopped yet")
+
+        try:
+            sap_procs = SAPHelper.get_sap_procs(self.node, diff_zone_app_vmnames)
+        except Exception as e:
+            ocf.logger.error(f"Failed to get SAP processes: {e}")
+            raise
+        
+        if not sap_procs:
+            ocf.logger.warning("No SAP processes found, assuming stopped")
+            self.node.set_phase('stop_vms_in_diff_zone')
+            ocf.logger.debug("phase_wait_for_sap_in_diff_zone_to_stop: Finished (assumed_stopped=True)")
+            return
+        
+        if all('GRAY' in process.get('dispstatus', '') for process in sap_procs):
+            ocf.logger.info("All SAP instances are stopped")
+            self.node.set_phase('stop_vms_in_diff_zone')
+        else:
+            ocf.logger.info("One or more SAP instances are not stopped yet")
+        ocf.logger.debug("phase_wait_for_sap_in_diff_zone_to_stop: Finished")
+
+    def phase_stop_vms_in_diff_zone(self, _, diff_zone_app_vmnames):
+        ocf.logger.info(f"Executing phase: stop_vms_in_diff_zone")
+        ocf.logger.debug(f"phase_stop_vms_in_diff_zone: Started (vm_count={len(diff_zone_app_vmnames) if diff_zone_app_vmnames else 0})")
+        if diff_zone_app_vmnames:
+            ocf.logger.info(f"Stopping and deallocating VMs: {diff_zone_app_vmnames}")
+            AzureHelper.deallocate_vms(self.node, diff_zone_app_vmnames)
+        else:
+            ocf.logger.info("No VMs to stop in different zone")
+        
+        self.node.set_phase('all_phases_completed')
+        ocf.logger.info("All phases have been executed successfully")
+        ocf.logger.debug("phase_stop_vms_in_diff_zone: Finished")
+
+def setLoglevel(verbose):
+	# set up writing into syslog
+	loglevel = default_loglevel
+	if verbose:
+		loglevel = ocf.logging.DEBUG
+	ocf.log.setLevel(loglevel)
+
+def start_action():
+    ocf.logger.debug("start_action: Started")
+    ra = AzureSapZone()
+    rc = ra.start()
+    ocf.logger.debug(f"start_action: Finished (rc={rc})")
+    return rc
+
+def stop_action():
+    ocf.logger.debug("stop_action: Started")
+    ra = AzureSapZone()
+    rc = ra.stop()
+    ocf.logger.debug(f"stop_action: Finished (rc={rc})")
+    return rc
+
+def monitor_action():
+    ocf.logger.debug("monitor_action: Started")
+    ra = AzureSapZone()
+    rc = ra.monitor()
+    ocf.logger.debug(f"monitor_action: Finished (rc={rc})")
+    return rc
+
+def validate_action(sid, soft_shutdown_timeout, app_vm_names, client_id, app_vm_name_pattern, hana_resource, app_vm_zones=None, hana_vm_zones=None):
+    ocf.logger.debug("validate_action: Started")
+
+    validation_errors = []
+    
+    # Check for required parameters (client_id is now optional)
+    if not sid or soft_shutdown_timeout is None or not hana_resource:
+        validation_errors.append("Missing one or more required parameters: sid, soft_shutdown_timeout, and hana_resource")
+    
+    # make sure that sid is a valid SAP SID
+    if sid and not re.match(r'^[A-Z]{3,4}$', sid):
+        validation_errors.append("sid must be a valid SAP SID (3 or 4 uppercase letters)")
+
+    # validate that hana resource is a valid resource name
+    if hana_resource and not re.match(r'^[a-zA-Z0-9_-]+$', hana_resource):
+        validation_errors.append("hana_resource must be a valid resource name (alphanumeric characters, underscores, and hyphens only)")
+
+    # Either app_vm_zones OR app_vm_names OR app_vm_name_pattern must be provided
+    if not app_vm_zones and not app_vm_names and not app_vm_name_pattern:
+        validation_errors.append("Either app_vm_zones, app_vm_names, or app_vm_name_pattern must be provided")
+    
+    if not isinstance(soft_shutdown_timeout, int):
+        validation_errors.append("soft_shutdown_timeout must be an integer")
+    
+    # Check if client_id is a valid UUID (only if provided)
+    if client_id and not UUID_REGEX.match(client_id):
+        validation_errors.append("client_id must be a valid UUID when provided")
+
+    # Validate hana_vm_zones format if provided
+    if hana_vm_zones:
+        try:
+            Node._parse_hana_vm_zones(hana_vm_zones)
+        except Exception as e:
+            validation_errors.append(f"Invalid hana_vm_zones: {e}")
+
+    # Validate app_vm_zones format if provided
+    if app_vm_zones:
+        try:
+            Node._parse_app_vm_zones(app_vm_zones)
+        except Exception as e:
+            validation_errors.append(f"Invalid app_vm_zones: {e}")
+
+    if validation_errors:
+        ocf.ocf_exit_reason("; ".join(validation_errors))
+        return ocf.OCF_ERR_CONFIGURED
+    
+    ocf.logger.debug("validate_action: Finished")
+    return ocf.OCF_SUCCESS
+
+description = (
+    "Microsoft SAP Azure Zone Sync agent for SAP systems",
+    """This resource agent implements a monitor for aligning SAP application servers
+in the same Availability zone as the HANA database server to avoid network latency issues.
+
+    Application VM selection:
+        Provide at least one of: app_vm_names, app_vm_name_pattern, or app_vm_zones.
+        If app_vm_zones is provided but app_vm_names/app_vm_name_pattern are not, the agent
+        uses the VM names from app_vm_zones as the effective application VM list.
+    
+    Pre-requisites:
+        1. Either a user-assigned or system-assigned managed identity should be configured on both SAP HANA VMs and SAP application server VMs.
+        2. The managed identity should have VM contributor access on the SAP application server VMs.
+        3. SAP HANA VMs should have outbound access to call Azure API endpoints.
+
+    Example deployment for SLES:
+        Create the resource with the required parameters (using system-assigned managed identity):
+            sudo crm configure primitive azure-sap-zone azure-sap-zone \
+                meta failure-timeout=120s \
+                params sid=ML4 verbose=true app_vm_name_pattern=ml4app soft_shutdown_timeout=300 wait_time=600 stop_vms=false \
+                op start start-delay=60s interval=0s timeout=360s \
+                op monitor interval=10s timeout=360s \
+                op stop timeout=10s interval=0s
+
+        Non-zonal/PPG example (logical grouping; app VMs sourced from app_vm_zones):
+            sudo crm configure primitive azure-sap-zone azure-sap-zone \
+                meta failure-timeout=120s \
+                params sid=ML4 verbose=true hana_vm_zones="hanavm1:1,hanavm2:2" app_vm_zones="sapapp01:1,sapapp02:1,sapapp03:2,sapapp04:2" \
+                soft_shutdown_timeout=300 wait_time=600 stop_vms=false \
+                op start start-delay=60s interval=0s timeout=360s \
+                op monitor interval=10s timeout=360s \
+                op stop timeout=10s interval=0s
+        
+        Create a clone resource so that the resource runs on both nodes:
+            crm configure clone cln_azure-sap-zone azure-sap-zone \
+                meta clone-node-max=1 target-role=Started interleave=true
+    
+    Troubleshooting:
+        Set the verbose parameter to true.
+        Check pacemaker.log file: 
+            grep -i 'azure-sap-zone' /var/log/pacemaker/pacemaker.log
+            grep -iE 'azure-sap-zone.*(INFO|WARNING|ERROR):' /var/log/pacemaker/pacemaker.log | grep -v -iE "All phases|monitor: Started" 
+""")
+
+def main():
+    """
+    Main function to configure the azure-sap-zone agent with necessary parameters.
+    """
+    agent = ocf.Agent("azure-sap-zone", shortdesc=description[0], longdesc=description[1])
+    agent.add_parameter(
+        "sid",
+        shortdesc="Configure a sid",
+        longdesc="Set the SAP SID name",
+        content_type="string",
+        default="")
+    agent.add_parameter(
+        "hana_sid",
+        shortdesc="Configure a sid",
+        longdesc="Set the HANA SID name. You can leave this parameter blank if the SID is the same as the HANA SID",
+        content_type="string",
+        default="")
+    agent.add_parameter(
+        "hana_resource",
+        shortdesc="SAP HANA resource name",
+        longdesc="Set the HANA resource name that is used in the pacemaker cluster",
+        content_type="string",
+        default="")
+    agent.add_parameter(
+        "hana_vm_zones",
+        shortdesc="HANA VM logical zone mapping (optional)",
+        longdesc="Optional mapping of HANA VM name to a logical zone group label. Use this for non-zonal/PPG scenarios where Azure zone metadata is not available. Format: 'hanavm1:1,hanavm2:2'. If Azure VM zone metadata exists for those VMs, the agent will verify it matches this mapping on every start and fail if it does not.",
+        content_type="string",
+        default="")
+    agent.add_parameter(
+        "verbose",
+        shortdesc="Enable verbose agent logging",
+        longdesc="Set to true to enable verbose logging",
+        content_type="boolean",
+        default="false")
+    agent.add_parameter(
+        "soft_shutdown_timeout",
+        shortdesc="SAP instance soft shutdown timeout",
+        longdesc="Set time in seconds",
+        content_type="integer",
+        default="600")
+    agent.add_parameter(
+        "app_vm_names",
+        shortdesc="SAP application server VM names",
+        longdesc="A comma-separated list of SAP application server VM names. If set, only VMs in this list will be included in zone alignment. Optional when app_vm_zones is provided.",
+        content_type="string",
+        default="")
+    agent.add_parameter(
+        "app_vm_name_pattern",
+        shortdesc="Regex pattern for identifying SAP application server VM names",
+        longdesc="Regex pattern used to discover SAP application server VM names. If both app_vm_names and app_vm_name_pattern are provided then app_vm_names will be used. Optional when app_vm_zones is provided.",
+        content_type="string",
+        default="")
+    agent.add_parameter(
+        "app_vm_zones",
+        shortdesc="Application VM logical zone mapping (optional)",
+        longdesc="Optional mapping of SAP application server VM name to a logical zone group label. Use this for non-zonal/PPG scenarios where Azure zone metadata is not available. Format: 'vm1:1,vm2:1,vm3:2'. This mapping can be provided for all app VMs, or only for a subset (e.g., the VMs that have no Azure zone metadata). If app_vm_names and app_vm_name_pattern are not provided, the VM names from this mapping are used as the effective application VM list. If Azure VM zone metadata exists for the mapped VMs, the agent will verify it matches this mapping on every start and fail if it does not.",
+        content_type="string",
+        default="")
+    agent.add_parameter(
+        "resource_group",
+        shortdesc="Azure resource group for SAP application server VMs",
+        longdesc="You can leave this parameter blank if the SAP application server VMs are in the same resource group as the HANA VMs",
+        content_type="string",
+        default="")
+    agent.add_parameter(
+        "client_id",
+        shortdesc="User assigned managed identity client id (optional)",
+        longdesc="The client ID of the user-assigned managed identity. If not provided, system-assigned managed identity will be used. The managed identity should be assigned to both SAP HANA VMs and should have VM contributor access on the SAP application server VMs provided in the app_vm_names parameter",
+        content_type="string",
+        default="")
+    agent.add_parameter(
+        "wait_before_stop_sap",
+        shortdesc="Add a wait time before stopping SAP",
+        longdesc="Wait time in seconds before stopping SAP instances on VMs in different zone. This is to avoid SAP instance restarts if there is another failover",
+        content_type="integer",
+        default=300)
+    agent.add_parameter(
+        "wait_time",
+        shortdesc="Wait time for different phases to complete",
+        longdesc="Wait time in seconds for phases to complete. If this wait time exceeds then the resource agent will fail",
+        content_type="integer",
+        default=600)
+    agent.add_parameter(
+        "stop_vms",
+        shortdesc="Specifies whether to stop VMs in different zone",
+        longdesc="If set to True then the resource agent will soft shutdown the SAP instances and stop the VMs in a different zone. If set to False then the resource agent will set the instances in passive mode and not stop the VMs in the different zone",
+        content_type="boolean",
+        default="false")
+    agent.add_parameter(
+		"retry_count",
+		shortdesc="Azure api retry count",
+		longdesc="Set to any number greater than zero to enable retry count",
+		content_type="integer",
+		default="3")
+    agent.add_parameter(
+		"retry_wait",
+		shortdesc="Set a retry wait time",
+		longdesc="Set retry wait time in seconds",
+		content_type="integer",
+		default="20")
+    agent.add_action("start", timeout=10, handler=start_action)
+    agent.add_action("stop", timeout=10, handler=stop_action)
+    agent.add_action("validate-all", timeout=20, handler=validate_action)
+    agent.add_action("monitor", timeout=360, interval=300, handler=monitor_action)
+    setLoglevel(ocf.is_true(ocf.get_parameter("verbose", "false")))
+    agent.run()
+
+if __name__ == '__main__':
+    main()
