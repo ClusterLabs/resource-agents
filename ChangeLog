@@ -1,3 +1,6 @@
+* Wed Apr  8 2026 resource-agents contributors
+- stable release 4.18.0
+
 * Wed Mar 25 2026 resource-agents contributors
 - release candidate 4.18.0 rc1
 - ocf-shellfunc: add ocf_log_pipe
