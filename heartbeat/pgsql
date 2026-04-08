@@ -74,6 +74,7 @@ OCF_RESKEY_xlog_check_count_default="3"
 OCF_RESKEY_crm_attr_timeout_default="5"
 OCF_RESKEY_stop_escalate_in_slave_default=90
 OCF_RESKEY_replication_slot_name_default=""
+OCF_RESKEY_external_standby_node_list_default=""
 
 : ${OCF_RESKEY_pgctl=${OCF_RESKEY_pgctl_default}}
 : ${OCF_RESKEY_psql=${OCF_RESKEY_psql_default}}
@@ -109,6 +110,7 @@ OCF_RESKEY_replication_slot_name_default=""
 : ${OCF_RESKEY_crm_attr_timeout=${OCF_RESKEY_crm_attr_timeout_default}}
 : ${OCF_RESKEY_stop_escalate_in_slave=${OCF_RESKEY_stop_escalate_in_slave_default}}
 : ${OCF_RESKEY_replication_slot_name=${OCF_RESKEY_replication_slot_name_default}}
+: ${OCF_RESKEY_external_standby_node_list=${OCF_RESKEY_external_standby_node_list_default}}
 
 usage() {
     cat <<EOF
@@ -450,6 +452,18 @@ wal receiver is not running in the master and the attribute shows status as
 </longdesc>
 <shortdesc lang="en">check_wal_receiver</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_check_wal_receiver_default}" />
+</parameter>
+
+<parameter name="external_standby_node_list" unique="0" required="0">
+<longdesc lang="en">
+All node names of synchronous standby nodes that may connect from outside
+the Pacemaker cluster. Please separate each node name with a space.
+When set, the RA automatically manages synchronous_standby_names for both
+in-cluster and external standby nodes during monitor.
+This is optional for replication.
+</longdesc>
+<shortdesc lang="en">external standby node list</shortdesc>
+<content type="string" default="${OCF_RESKEY_external_standby_node_list_default}" />
 </parameter>
 </parameters>
 
@@ -1183,6 +1197,9 @@ control_slave_status() {
     local all_data_status
     local tmp_data_status
     local number_of_nodes
+    local target_list
+    local standby_node
+    local found
 
     all_data_status=`exec_sql "$OCF_RESKEY_monitor_user" "${CHECK_REPLICATION_STATE_SQL}"`
     rc=$?
@@ -1224,7 +1241,9 @@ control_slave_status() {
                 change_data_status "$target" "$data_status"
                 if [ "$OCF_RESKEY_rep_mode" = "sync" ]; then
                     change_master_score "$target" "$CAN_NOT_PROMOTE"
-                    set_sync_mode "$target"
+                    if [ -z "$OCF_RESKEY_external_standby_node_list" ]; then
+                        set_sync_mode "$target"
+                    fi
                 else
                     if [ $number_of_nodes -le 2 ]; then
                         change_master_score "$target" "$CAN_PROMOTE"
@@ -1243,20 +1262,51 @@ control_slave_status() {
             "DISCONNECT")
                 change_data_status "$target" "$data_status"
                 change_master_score "$target" "$CAN_NOT_PROMOTE"
-                if [ "$OCF_RESKEY_rep_mode" = "sync" ]; then
+                if [ "$OCF_RESKEY_rep_mode" = "sync" -a -z "$OCF_RESKEY_external_standby_node_list" ]; then
                     set_async_mode "$target"
                 fi
                 ;;
             *)
                 change_data_status "$target" "$data_status"
                 change_master_score "$target" "$CAN_NOT_PROMOTE"
-                if [ "$OCF_RESKEY_rep_mode" = "sync" ]; then
+                if [ "$OCF_RESKEY_rep_mode" = "sync" -a -z "$OCF_RESKEY_external_standby_node_list" ]; then
                     set_async_mode "$target"
                 fi
                 change_pgsql_status "$target" "HS:connected"
                 ;;
         esac
     done
+
+    if [ -n "$OCF_RESKEY_external_standby_node_list" ]; then
+        # Check whether nodes registered in the pg_stat_replication table should be managed by the resource agent.
+        for tmp_data_status in $all_data_status; do
+            found="false"
+            standby_node=`echo $tmp_data_status | cut -d "|" -f 1`
+            for target in $NODE_LIST; do
+                if [ "$standby_node" = "$target" ]; then
+                    found="true"
+                    break
+                fi
+            done
+            for target in $EXTERNAL_STANDBY_NODE_LIST; do
+                if [ "$standby_node" = "$target" ]; then
+                    found="true"
+                    break
+                fi
+            done
+            if [ "$found" = "false" ]; then
+                ocf_log debug "$standby_node is not a node to be synchronized."
+                continue
+            fi
+            if [ -n "$target_list" ]; then
+                target_list="$target_list $standby_node"
+            else
+                target_list="$standby_node"
+            fi
+        done
+        set_sync_mode "$target_list"
+    fi
+
     return 0
 }
 
@@ -1566,17 +1616,69 @@ set_async_mode() {
 }
 
 set_sync_mode() {
-    local sync_node_in_conf
+    local target_nodes=""
+    local target_count=0
+    local config_node_list
+    local sorted1
+    local sorted2
+    local found
 
-    sync_node_in_conf=`cat $REP_MODE_CONF | cut -d "'" -f 2`
-    if [ -n "$sync_node_in_conf" ]; then
-        ocf_log debug "$sync_node_in_conf is already sync mode."
+    # Check whether the current settings contain the term FIRST
+    cat $REP_MODE_CONF | cut -d "'" -f 2 | grep -q "^FIRST "
+    rc=$?
+    if [ $rc -eq 0 ]; then
+        # If the setting contains the term FIRST, retrieve the information from within the ()
+        config_node_list=`cat $REP_MODE_CONF | cut -d "(" -f 2 | cut -d ")" -f 1 | sed 's/[",]//g'`
     else
-        ocf_log info "Setup $1 into sync mode."
-        runasowner -q err "echo \"synchronous_standby_names = '\\\"$1\\\"'\" > \"$REP_MODE_CONF\""
-        [ "$RE_CONTROL_SLAVE" = "false" ] && RE_CONTROL_SLAVE="true"
-        exec_with_retry 0 reload_conf
+        # If the setting does not contain the term FIRST, retrieve information from within the ''
+        config_node_list=`cat $REP_MODE_CONF | cut -d "'" -f 2 | sed 's/[",]//g'`
     fi
+
+    sorted1=$(echo "$1" | tr ' ' '\n' | sort)
+    sorted2=$(echo "$config_node_list" | tr ' ' '\n' | sort)
+    if [ "$sorted1" = "$sorted2" ]; then
+       # If the content is the same as the current settings, do not update rep_mode.conf
+       ocf_log debug "The same settings already exist."
+       return 0
+    fi
+
+    for config_node in $config_node_list; do
+        found="false"
+        # Check whether the preconfigured node is included in the node to be configured.
+        for node in $1; do
+            if [ "$config_node" = "$node" ]; then
+                found="true"
+                break
+            fi
+        done
+        if [ "$found" = "false" ]; then
+            for external_node in $OCF_RESKEY_external_standby_node_list; do
+                # If the target node is outside the cluster, output a warning log.
+                if [ "$config_node" = "$external_node" ]; then
+                    ocf_log warn "The synchronous connection from ${config_node} was disconnected."
+                fi
+            done
+        fi
+    done
+
+    for node in $1; do
+        if [ $target_count -eq 0 ]; then
+            target_nodes="\\\"${node}\\\""
+        else
+            target_nodes="$target_nodes, \\\"${node}\\\""
+        fi
+        target_count=$(($target_count + 1))
+    done
+
+    ocf_log info "Setup $target_nodes into sync mode."
+    if [ $target_count -ge 2 ]; then
+        runasowner -q err "echo \"synchronous_standby_names = 'FIRST $target_count ($target_nodes)'\" > \"$REP_MODE_CONF\""
+    else
+        runasowner -q err "echo \"synchronous_standby_names = '$target_nodes'\" > \"$REP_MODE_CONF\""
+    fi
+
+    [ "$RE_CONTROL_SLAVE" = "false" ] && RE_CONTROL_SLAVE="true"
+    exec_with_retry 0 reload_conf
 }
 
 reload_conf() {
@@ -1950,6 +2052,10 @@ validate_ocf_check_level_10() {
 
         NODE_LIST=`echo $OCF_RESKEY_node_list | tr '[A-Z]' '[a-z]'`
         RE_CONTROL_SLAVE="false"
+
+        if [ -n "$OCF_RESKEY_external_standby_node_list" ]; then
+            EXTERNAL_STANDBY_NODE_LIST=`echo $OCF_RESKEY_external_standby_node_list | tr '[A-Z]' '[a-z]'`
+        fi
 
         if ! ocf_is_ms; then
             ocf_exit_reason "Replication(rep_mode=async or sync) requires Master/Slave configuration."
