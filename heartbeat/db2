@@ -597,44 +597,9 @@ db2_start() {
 }
 
 #
-# helper function to be spawned
-# so we can detect a hang of the db2stop command
-#
-db2_stop_bg() {
-    local rc output
-    local stop_opts="dbpartitionnum $db2node"
-
-    rc=$OCF_SUCCESS
-
-    if [ -z "$OCF_RESKEY_dbpartitionnum" ] && ! [ -e "$db2sql/db2nodes.cfg" ]; then
-        stop_opts=""
-    fi
-
-    if output=$(runasdb2 db2stop force $stop_opts)
-    then
-        ocf_log info "DB2 instance $instance($db2node) stopped: $output"
-    else
-        case $output in
-            *SQL1032N*)
-            #SQL1032N  No start database manager command was issued
-            ocf_log info "$output"
-            ;;
-
-            *)
-            ocf_log err "DB2 instance $instance($db2node) stop failed: $output"
-            rc=$OCF_ERR_GENERIC
-        esac
-    fi
-
-    return $rc
-}
-
-#
 # Stop the given db2 database instance
 #
 db2_stop() {
-    local stop_timeout grace_timeout stop_bg_pid i must_kill
-
     # remove master score
     master_score -D -l reboot
 
@@ -647,67 +612,24 @@ db2_stop() {
         return $OCF_SUCCESS
     fi
 
-    stop_timeout=${OCF_RESKEY_CRM_meta_timeout:-20000}
+    # db2nkill kills *all* partitions on the node
+    if [ -x $db2bin/db2nkill ]
+    then
+        logasdb2 $db2bin/db2nkill $db2node
+    elif [ -x $db2bin/db2_kill ]
+    then
+        logasdb2 $db2bin/db2_kill
+    fi
 
-    # grace_time is 4/5 (unit is ms)
-    grace_timeout=$((stop_timeout/1250))
-
-    # start db2stop in background as this may hang
-    db2_stop_bg &
-    stop_bg_pid=$!
-
-    # wait for grace_timeout
-    i=0
-    while [ $i -lt $grace_timeout ]
+    # loop forever (or lrmd kills us due to timeout) until the
+    # instance is dead
+    while ! db2_instance_dead
     do
-        kill -0 $stop_bg_pid 2>/dev/null || break;
+        ocf_log info "DB2 instance $instance($db2node): waiting for processes to exit"
         sleep 1
-        i=$((i+1))
     done
 
-    # collect exit status but don't hang
-    if kill -0 $stop_bg_pid 2>/dev/null
-    then
-        stoprc=1
-        kill -9 $stop_bg_pid 2>/dev/null
-    else
-        wait $stop_bg_pid
-        stoprc=$?
-    fi
-
-    must_kill=0
-
-    if [ $stoprc -ne 0 ]
-    then
-        ocf_log warn "DB2 instance $instance($db2node): db2stop failed, using db2nkill"
-        must_kill=1
-    elif ! db2_instance_dead
-    then
-        ocf_log warn "DB2 instance $instance($db2node): db2stop indicated success but there a still processes, using db2nkill"
-        must_kill=1
-    fi
-
-    if [ $must_kill -eq 1 ]
-    then
-        # db2nkill kills *all* partitions on the node
-        if [ -x $db2bin/db2nkill ]
-        then
-            logasdb2 $db2bin/db2nkill $db2node
-        elif [ -x $db2bin/db2_kill ]
-        then
-            logasdb2 $db2bin/db2_kill
-        fi
-
-        # loop forever (or lrmd kills us due to timeout) until the
-        # instance is dead
-        while ! db2_instance_dead
-        do
-            ocf_log info "DB2 instance $instance($db2node): waiting for processes to exit"
-            sleep 1
-        done
-
-        ocf_log info "DB2 instance $instance($db2node) is now dead"
-    fi
+    ocf_log info "DB2 instance $instance($db2node) is now dead"
 
     return $OCF_SUCCESS
 }
