@@ -193,11 +193,6 @@ anything_monitor() {
 	fi
 }
 
-anything_reload() {
-	ocf_trace_reload
-	return $OCF_SUCCESS
-}
-
 # FIXME: Attributes special meaning to the resource id
 process="$OCF_RESOURCE_INSTANCE"
 binfile="$OCF_RESKEY_binfile"
@@ -322,7 +317,7 @@ $HA_VARLIB/trace_ra/&lt;type&gt;/&lt;id&gt;.&lt;action&gt;.&lt;timestamp&gt;
 e.g. $HA_VARLIB/trace_ra/oracle/db.start.2012-11-27.08:37:08
 </longdesc>
 <shortdesc lang="en">Set to 1 to turn on resource agent tracing (expect large output)</shortdesc>
-<content type="integer"/>
+<content type="boolean"/>
 </parameter>
 </parameters>
 <actions>
@@ -352,7 +347,7 @@ case "$1" in
 		anything_monitor
 	;;
 	reload)
-		anything_reload
+		exit $OCF_SUCCESS
 	;;
 	validate-all)
 		anything_validate

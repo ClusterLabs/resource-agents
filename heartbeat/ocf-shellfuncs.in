@@ -1137,14 +1137,6 @@ ocf_stop_trace() {
 	set +x
 }
 
-ocf_trace_reload() {
-	if ocf_is_true "$OCF_RESKEY_trace_ra"; then
-		ocf_start_trace
-	else
-		ocf_stop_trace
-	fi
-}
-
 # Helper functions to map from nodename/bundle-name and physical hostname
 # list_index_for_word "node0 node1 node2 node3 node4 node5" node4 --> 5
 # list_word_at_index "NA host1 host2 host3 host4 host5" 3      --> host2

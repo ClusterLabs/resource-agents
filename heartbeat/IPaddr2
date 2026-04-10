@@ -480,7 +480,7 @@ $HA_VARLIB/trace_ra/&lt;type&gt;/&lt;id&gt;.&lt;action&gt;.&lt;timestamp&gt;
 e.g. $HA_VARLIB/trace_ra/oracle/db.start.2012-11-27.08:37:08
 </longdesc>
 <shortdesc lang="en">Set to 1 to turn on resource agent tracing (expect large output)</shortdesc>
-<content type="integer"/>
+<content type="boolean"/>
 </parameter>
 </parameters>
 
@@ -1281,11 +1281,6 @@ ip_monitor() {
 	esac
 }
 
-ip_reload() {
-	ocf_trace_reload
-	return $OCF_SUCCESS
-}
-
 # make sure that we have something to send ARPs with
 set_send_arp_program() {
     ARP_SENDER=send_arp
@@ -1437,7 +1432,7 @@ status)		ip_status=`ip_served`
 		;;
 monitor)	ip_monitor
 		;;
-reload)		ip_reload
+reload)		exit $OCF_SUCCESS
 		;;
 validate-all)	;;
 *)		ip_usage
