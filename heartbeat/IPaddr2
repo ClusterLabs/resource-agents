@@ -471,6 +471,17 @@ Consider the resource failed if the interface has status DOWN or LOWERLAYERDOWN.
 <shortdesc lang="en">Consider the resource failed if the interface has status DOWN or LOWERLAYERDOWN</shortdesc>
 <content type="string" default="${OCF_RESKEY_check_link_status_default}"/>
 </parameter>
+
+<parameter name="trace_ra">
+<longdesc lang="en">
+Set to 1 to turn on resource agent tracing (expect large output)
+The trace output will be saved to trace_file, if set, or by default to
+$HA_VARLIB/trace_ra/&lt;type&gt;/&lt;id&gt;.&lt;action&gt;.&lt;timestamp&gt;
+e.g. $HA_VARLIB/trace_ra/oracle/db.start.2012-11-27.08:37:08
+</longdesc>
+<shortdesc lang="en">Set to 1 to turn on resource agent tracing (expect large output)</shortdesc>
+<content type="integer"/>
+</parameter>
 </parameters>
 
 <actions>
@@ -478,6 +489,7 @@ Consider the resource failed if the interface has status DOWN or LOWERLAYERDOWN.
 <action name="stop"    timeout="20s" />
 <action name="status" depth="0"  timeout="20s" interval="10s" />
 <action name="monitor" depth="0"  timeout="20s" interval="10s" />
+<action name="reload"  timeout="20s" />
 <action name="meta-data"  timeout="5s" />
 <action name="validate-all"  timeout="20s" />
 </actions>
@@ -1269,6 +1281,11 @@ ip_monitor() {
 	esac
 }
 
+ip_reload() {
+	ocf_trace_reload
+	return $OCF_SUCCESS
+}
+
 # make sure that we have something to send ARPs with
 set_send_arp_program() {
     ARP_SENDER=send_arp
@@ -1419,6 +1436,8 @@ status)		ip_status=`ip_served`
 		fi
 		;;
 monitor)	ip_monitor
+		;;
+reload)		ip_reload
 		;;
 validate-all)	;;
 *)		ip_usage

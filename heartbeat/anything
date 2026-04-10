@@ -193,6 +193,11 @@ anything_monitor() {
 	fi
 }
 
+anything_reload() {
+	ocf_trace_reload
+	return $OCF_SUCCESS
+}
+
 # FIXME: Attributes special meaning to the resource id
 process="$OCF_RESOURCE_INSTANCE"
 binfile="$OCF_RESKEY_binfile"
@@ -308,11 +313,23 @@ before sending kill -SIGKILL. Defaults to 2/3 of the stop operation timeout.
 <shortdesc lang="en">Seconds to wait after having sent SIGTERM before sending SIGKILL in stop operation</shortdesc>
 <content type="string" default="${OCF_RESKEY_stop_timeout_default}"/>
 </parameter>
+
+<parameter name="trace_ra">
+<longdesc lang="en">
+Set to 1 to turn on resource agent tracing (expect large output)
+The trace output will be saved to trace_file, if set, or by default to
+$HA_VARLIB/trace_ra/&lt;type&gt;/&lt;id&gt;.&lt;action&gt;.&lt;timestamp&gt;
+e.g. $HA_VARLIB/trace_ra/oracle/db.start.2012-11-27.08:37:08
+</longdesc>
+<shortdesc lang="en">Set to 1 to turn on resource agent tracing (expect large output)</shortdesc>
+<content type="integer"/>
+</parameter>
 </parameters>
 <actions>
 <action name="start"   timeout="20s" />
 <action name="stop"    timeout="20s" />
 <action name="monitor" depth="0"  timeout="20s" interval="10s" />
+<action name="reload"  timeout="20s" />
 <action name="meta-data"  timeout="5s" />
 <action name="validate-all"  timeout="5s" />
 </actions>
@@ -333,6 +350,9 @@ case "$1" in
 	;;
 	monitor)
 		anything_monitor
+	;;
+	reload)
+		anything_reload
 	;;
 	validate-all)
 		anything_validate
