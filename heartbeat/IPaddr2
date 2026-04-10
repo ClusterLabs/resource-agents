@@ -147,6 +147,14 @@ IPADDR2_CIP_IPTABLES=$IPTABLES
 #######################################################################
 
 meta_data() {
+	local reloadable_attr=""
+	local reload_action=""
+	ocf_version_cmp "${OCF_RESKEY_crm_feature_set:-3.10.0}" "3.10.0"
+	local res=$?
+	if [ $res -eq 0 ] || [ $res -eq 2 ]; then
+		reloadable_attr=' reloadable="1"'
+		reload_action='<action name="reload" timeout="20s" />'
+	fi
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
@@ -472,7 +480,7 @@ Consider the resource failed if the interface has status DOWN or LOWERLAYERDOWN.
 <content type="string" default="${OCF_RESKEY_check_link_status_default}"/>
 </parameter>
 
-<parameter name="trace_ra">
+<parameter name="trace_ra"${reloadable_attr}>
 <longdesc lang="en">
 Set to 1 to turn on resource agent tracing (expect large output)
 The trace output will be saved to trace_file, if set, or by default to
@@ -489,7 +497,7 @@ e.g. $HA_VARLIB/trace_ra/oracle/db.start.2012-11-27.08:37:08
 <action name="stop"    timeout="20s" />
 <action name="status" depth="0"  timeout="20s" interval="10s" />
 <action name="monitor" depth="0"  timeout="20s" interval="10s" />
-<action name="reload"  timeout="20s" />
+${reload_action}
 <action name="meta-data"  timeout="5s" />
 <action name="validate-all"  timeout="20s" />
 </actions>
