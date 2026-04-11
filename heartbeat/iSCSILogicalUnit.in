@@ -460,7 +460,13 @@ iSCSILogicalUnit_start() {
 	lio-t)
 		ocf_take_lock $TARGETLOCKFILE
 		ocf_release_lock_on_exit $TARGETLOCKFILE
-		iblock_attrib_path="/sys/kernel/config/target/core/iblock_*/${OCF_RESOURCE_INSTANCE}/attrib"
+		# Map liot_bstype to the configfs core directory name
+		case "${OCF_RESKEY_liot_bstype}" in
+		block)  liot_configfs_core="iblock_*" ;;
+		fileio) liot_configfs_core="fileio_*" ;;
+		pscsi)  liot_configfs_core="pscsi_*" ;;
+		esac
+		liot_core_path="/sys/kernel/config/target/core/${liot_configfs_core}/${OCF_RESOURCE_INSTANCE}"
 		# For lio, we first have to create a target device, then
 		# add it to the Target Portal Group as an LU.
 		# Handle differently 'block', 'fileio' and 'pscsi'
@@ -477,13 +483,13 @@ iSCSILogicalUnit_start() {
 			ocf_run targetcli /backstores/${OCF_RESKEY_liot_bstype} create ${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
 		fi
 		if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
-			echo ${OCF_RESKEY_scsi_sn} > /sys/kernel/config/target/core/iblock_*/${OCF_RESOURCE_INSTANCE}/wwn/vpd_unit_serial
+			echo ${OCF_RESKEY_scsi_sn} > ${liot_core_path}/wwn/vpd_unit_serial
 		fi
 		if [ -n "${OCF_RESKEY_product_id}" ]; then
-			echo "${OCF_RESKEY_product_id}" > /sys/kernel/config/target/core/iblock_*/${OCF_RESOURCE_INSTANCE}/wwn/product_id
+			echo "${OCF_RESKEY_product_id}" > ${liot_core_path}/wwn/product_id
 		fi
 		if [ -n "${OCF_RESKEY_block_size}" ]; then
-			echo ${OCF_RESKEY_block_size} > ${iblock_attrib_path}/block_size || exit $OCF_ERR_GENERIC
+			echo ${OCF_RESKEY_block_size} > ${liot_core_path}/attrib/block_size || exit $OCF_ERR_GENERIC
 		fi
 
 		ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns create /backstores/${OCF_RESKEY_liot_bstype}/${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
@@ -509,13 +515,13 @@ iSCSILogicalUnit_start() {
 		fi
 
 		if [ -n "${OCF_RESKEY_emulate_tpu}" ]; then
-			echo ${OCF_RESKEY_emulate_tpu} > ${iblock_attrib_path}/emulate_tpu || exit $OCF_ERR_GENERIC
+			echo ${OCF_RESKEY_emulate_tpu} > ${liot_core_path}/attrib/emulate_tpu || exit $OCF_ERR_GENERIC
 		fi
 		if [ -n "${OCF_RESKEY_emulate_3pc}" ]; then
-			echo ${OCF_RESKEY_emulate_3pc} > ${iblock_attrib_path}/emulate_3pc || exit $OCF_ERR_GENERIC
+			echo ${OCF_RESKEY_emulate_3pc} > ${liot_core_path}/attrib/emulate_3pc || exit $OCF_ERR_GENERIC
 		fi
 		if [ -n "${OCF_RESKEY_emulate_caw}" ]; then
-			echo ${OCF_RESKEY_emulate_caw} > ${iblock_attrib_path}/emulate_caw || exit $OCF_ERR_GENERIC
+			echo ${OCF_RESKEY_emulate_caw} > ${liot_core_path}/attrib/emulate_caw || exit $OCF_ERR_GENERIC
 		fi
 		;;
 	scst)
@@ -668,9 +674,14 @@ iSCSILogicalUnit_monitor() {
 		configfs_path="/sys/kernel/config/target/iscsi/${OCF_RESKEY_target_iqn}/tpgt_1/lun/lun_${OCF_RESKEY_lun}/*/udev_path"
 		[ -e ${configfs_path} ] && [ `cat ${configfs_path}` = "${OCF_RESKEY_path}" ] && return $OCF_SUCCESS
 
-		# if we aren't activated, is a block device still left over?
-		block_configfs_path="/sys/kernel/config/target/core/iblock_*/${OCF_RESOURCE_INSTANCE}/udev_path"
-		[ -e ${block_configfs_path} ] && ocf_log warn "existing block without an active lun: ${block_configfs_path}"
+		# if we aren't activated, is a backstore still left over?
+		case "${OCF_RESKEY_liot_bstype}" in
+		block)  liot_configfs_core="iblock_*" ;;
+		fileio) liot_configfs_core="fileio_*" ;;
+		pscsi)  liot_configfs_core="pscsi_*" ;;
+		esac
+		block_configfs_path="/sys/kernel/config/target/core/${liot_configfs_core}/${OCF_RESOURCE_INSTANCE}/udev_path"
+		[ -e ${block_configfs_path} ] && ocf_log warn "existing backstore without an active lun: ${block_configfs_path}"
 		[ -e ${block_configfs_path} ] && return $OCF_ERR_GENERIC
 		;;
 	scst)
