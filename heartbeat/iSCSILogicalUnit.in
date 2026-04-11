@@ -193,6 +193,20 @@ Setting this integer to 1 will enable CAW IOCTL emulation.
 <content type="integer" />
 </parameter>
 
+<parameter name="emulate_write_cache" required="0" unique="0">
+<longdesc lang="en">
+Enable or disable write-back caching for this Logical Unit.
+Setting to 1 enables write-back caching (the default for fileio
+backstores). Setting to 0 disables it, enabling write-through mode.
+Write-through mode is recommended for HA configurations to ensure
+data is flushed to disk before the iSCSI write is acknowledged.
+Requires the lio-t implementation. For SCST, use the
+"scst_write_cache" parameter instead.
+</longdesc>
+<shortdesc lang="en">Write-back cache (0 or 1)</shortdesc>
+<content type="integer" />
+</parameter>
+
 <parameter name="vendor_id" required="0" unique="0">
 <longdesc lang="en">
 The SCSI vendor ID to be configured for this Logical Unit.
@@ -523,6 +537,9 @@ iSCSILogicalUnit_start() {
 		if [ -n "${OCF_RESKEY_emulate_caw}" ]; then
 			echo ${OCF_RESKEY_emulate_caw} > ${liot_core_path}/attrib/emulate_caw || exit $OCF_ERR_GENERIC
 		fi
+		if [ -n "${OCF_RESKEY_emulate_write_cache}" ]; then
+			echo ${OCF_RESKEY_emulate_write_cache} > ${liot_core_path}/attrib/emulate_write_cache || exit $OCF_ERR_GENERIC
+		fi
 		;;
 	scst)
 		local scst_attrs="filename=${OCF_RESKEY_path},nv_cache=0,write_through=1"
@@ -800,19 +817,19 @@ iSCSILogicalUnit_validate() {
 	iet)
 		# IET does not support setting the vendor and product ID
 		# (it always uses "IET" and "VIRTUAL-DISK")
-		unsupported_params="vendor_id product_id allowed_initiators lio_iblock tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type emulate_tpu emulate_3pc emulate_caw liot_bstype scst_bstype"
+		unsupported_params="vendor_id product_id allowed_initiators lio_iblock tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type emulate_tpu emulate_3pc emulate_caw emulate_write_cache liot_bstype scst_bstype"
 		;;
 	tgt)
-		unsupported_params="allowed_initiators lio_iblock emulate_tpu emulate_3pc emulate_caw liot_bstype scst_bstype"
+		unsupported_params="allowed_initiators lio_iblock emulate_tpu emulate_3pc emulate_caw emulate_write_cache liot_bstype scst_bstype"
 		;;
 	lio)
-		unsupported_params="scsi_id vendor_id product_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type emulate_tpu emulate_3pc emulate_caw liot_bstype scst_bstype"
+		unsupported_params="scsi_id vendor_id product_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type emulate_tpu emulate_3pc emulate_caw emulate_write_cache liot_bstype scst_bstype"
 		;;
 	lio-t)
 		unsupported_params="scsi_id vendor_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type lio_iblock scst_bstype"
 		;;
 	scst)
-		unsupported_params="scsi_id emulate_tpu emulate_3pc emulate_caw liot_bstype"
+		unsupported_params="scsi_id emulate_tpu emulate_3pc emulate_caw emulate_write_cache liot_bstype"
 		;;
 	esac
 
