@@ -71,6 +71,9 @@ OCF_RESKEY_liot_bstype_default="block"
 : ${OCF_RESKEY_liot_bstype=${OCF_RESKEY_liot_bstype_default}}
 OCF_RESKEY_block_size_default=""
 : ${OCF_RESKEY_block_size=${OCF_RESKEY_block_size_default}}
+# Set SCST backing store type default as 'vdisk_blockio'
+OCF_RESKEY_scst_bstype_default="vdisk_blockio"
+: ${OCF_RESKEY_scst_bstype=${OCF_RESKEY_scst_bstype_default}}
 
 ## tgt specifics
 # tgt has "backing store type" and "backing store open flags",
@@ -309,6 +312,18 @@ If unset, the kernel default (typically 512) is used.
 <content type="integer" default="${OCF_RESKEY_block_size_default}"/>
 </parameter>
 
+<parameter name="scst_bstype" required="0" unique="0">
+<longdesc lang="en">
+SCST device handler to use when creating the backstore.
+Use "vdisk_blockio" for direct I/O (the default) or
+"vdisk_fileio" for page cache backed I/O. The fileio handler
+is required when presenting smaller block sizes on 4K-native
+backing devices. Requires the scst implementation.
+</longdesc>
+<shortdesc lang="en">SCST device handler (vdisk_blockio or vdisk_fileio)</shortdesc>
+<content type="string" default="${OCF_RESKEY_scst_bstype_default}"/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -508,7 +523,7 @@ iSCSILogicalUnit_start() {
 		if [ -n "${OCF_RESKEY_block_size}" ]; then
 			scst_attrs="${scst_attrs},blocksize=${OCF_RESKEY_block_size}"
 		fi
-		ocf_run scstadmin -open_dev "${OCF_RESOURCE_INSTANCE}" -handler vdisk_blockio -attributes "${scst_attrs}"
+		ocf_run scstadmin -open_dev "${OCF_RESOURCE_INSTANCE}" -handler ${OCF_RESKEY_scst_bstype} -attributes "${scst_attrs}"
 		if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
 			ocf_run scstadmin -set_dev_attr "${OCF_RESOURCE_INSTANCE}" -attributes "usn=${OCF_RESKEY_scsi_sn}" -force -noprompt
 		fi
@@ -599,7 +614,7 @@ iSCSILogicalUnit_stop() {
 		;;
 	scst)
 		ocf_run -warn scstadmin -rem_lun ${OCF_RESKEY_lun} -driver iscsi -target "${OCF_RESKEY_target_iqn}" -force -noprompt
-		ocf_run scstadmin -close_dev "${OCF_RESOURCE_INSTANCE}" -handler vdisk_blockio -force -noprompt
+		ocf_run scstadmin -close_dev "${OCF_RESOURCE_INSTANCE}" -handler ${OCF_RESKEY_scst_bstype} -force -noprompt
 		;;
 	esac
 
@@ -678,6 +693,20 @@ iSCSILogicalUnit_validate() {
 		exit $OCF_ERR_CONFIGURED
 	fi
 	done
+
+	# Validate scst_bstype
+	case "${OCF_RESKEY_scst_bstype}" in
+	vdisk_blockio|vdisk_fileio)
+		;;
+	*)
+		ocf_exit_reason "Invalid scst_bstype ${OCF_RESKEY_scst_bstype} (must be vdisk_blockio or vdisk_fileio)"
+		exit $OCF_ERR_CONFIGURED
+		;;
+	esac
+	if [ "${OCF_RESKEY_scst_bstype}" != "${OCF_RESKEY_scst_bstype_default}" ] && [ "${OCF_RESKEY_implementation}" != "scst" ]; then
+		ocf_exit_reason "scst_bstype is only supported with the scst implementation"
+		exit $OCF_ERR_CONFIGURED
+	fi
 
 	# Validate block_size if set
 	if [ -n "${OCF_RESKEY_block_size}" ]; then
