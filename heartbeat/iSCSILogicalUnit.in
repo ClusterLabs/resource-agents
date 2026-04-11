@@ -789,19 +789,19 @@ iSCSILogicalUnit_validate() {
 	iet)
 		# IET does not support setting the vendor and product ID
 		# (it always uses "IET" and "VIRTUAL-DISK")
-		unsupported_params="vendor_id product_id allowed_initiators lio_iblock tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type emulate_tpu emulate_3pc emulate_caw liot_bstype"
+		unsupported_params="vendor_id product_id allowed_initiators lio_iblock tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type emulate_tpu emulate_3pc emulate_caw liot_bstype scst_bstype"
 		;;
 	tgt)
-		unsupported_params="allowed_initiators lio_iblock emulate_tpu emulate_3pc emulate_caw liot_bstype"
+		unsupported_params="allowed_initiators lio_iblock emulate_tpu emulate_3pc emulate_caw liot_bstype scst_bstype"
 		;;
 	lio)
-		unsupported_params="scsi_id vendor_id product_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type emulate_tpu emulate_3pc emulate_caw liot_bstype"
+		unsupported_params="scsi_id vendor_id product_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type emulate_tpu emulate_3pc emulate_caw liot_bstype scst_bstype"
 		;;
 	lio-t)
-		unsupported_params="scsi_id vendor_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type lio_iblock"
+		unsupported_params="scsi_id vendor_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type lio_iblock scst_bstype"
 		;;
 	scst)
-		unsupported_params="scsi_id emulate_tpu emulate_3pc emulate_caw"
+		unsupported_params="scsi_id emulate_tpu emulate_3pc emulate_caw liot_bstype"
 		;;
 	esac
 
