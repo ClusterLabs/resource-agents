@@ -20,11 +20,14 @@
 OCF_RESKEY_user_default="grid"
 OCF_RESKEY_diskgroup_default=""
 OCF_RESKEY_home_default=""
+OCF_RESKEY_monitor_resources_default="ora.asm"
+OCF_RESKEY_max_mon_time_default=20
 
 : ${OCF_RESKEY_user=${OCF_RESKEY_user_default}}
 : ${OCF_RESKEY_diskgroup=${OCF_RESKEY_diskgroup_default}}
 : ${OCF_RESKEY_home=${OCF_RESKEY_home_default}}
-
+: ${OCF_RESKEY_monitor_resources=${OCF_RESKEY_monitor_resources_default}}
+: ${OCF_RESKEY_max_mon_time=${OCF_RESKEY_max_mon_time_default}}
 
 oraasm_usage() {
 	cat <<END
@@ -71,6 +74,25 @@ If not specified, then the Disk Group along with its home should be listed in /e
 <content type="string" default="${OCF_RESKEY_home_default}" />
 </parameter>
 
+<parameter name="monitor_resources">
+    <longdesc lang="en">
+Comma separated name of the Oracle Local/Cluster Resources to be monitored
+    </longdesc>
+    <shortdesc lang="en">Oracle Resources to be monitored</shortdesc>
+<content type="string" default="${OCF_RESKEY_monitor_resources_default}" />
+</parameter>
+
+<parameter name="max_mon_time">
+    <longdesc lang="en">
+Number of seconds to wait for the defined Oracle sub-resource reaches ONLINE state.
+This number MUST be less than monitor and start operation timeout for the resource,
+but greater than the actual startup time of the slowest Oracle sub-resource listed
+in the 'monitor_resources' attribute
+    </longdesc>
+    <shortdesc lang="en">Maximum monitor timeout window</shortdesc>
+<content type="integer" default="${OCF_RESKEY_max_mon_time_default}" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -84,6 +106,8 @@ If not specified, then the Disk Group along with its home should be listed in /e
 </resource-agent>
 END
 }
+
+MAX_MON_TIME="${OCF_RESKEY_max_mon_time}"
 
 oraasm_methods() {
 	cat <<-!
@@ -110,6 +134,47 @@ EOF
 	chmod 644 $ORA_ENVF
 	trap "rm -f $ORA_ENVF" EXIT
 }
+
+validate_mon_timeout() {
+	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+		local RA_TIMEOUT=$((OCF_RESKEY_CRM_meta_timeout/1000))
+		if [ "$MAX_MON_TIME" -ge "$RA_TIMEOUT" ]; then
+			ocf_log warn "max_mon_time (${MAX_MON_TIME}s) must be strictly less than the cluster $__OCF_ACTION operation timeout (${RA_TIMEOUT}s) to prevent hard timeouts!"
+		fi
+	fi
+}
+
+oraasm_monitor_sub_resources() {
+	validate_mon_timeout
+	local resource_list=$(echo "${OCF_RESKEY_monitor_resources}" | sed 's/,/ /g')
+	local total_resources=$(echo "$resource_list" | wc -w)
+	local retries=0
+
+	while [ $retries -lt "$MAX_MON_TIME" ]; do
+		local online_count=0
+		for resource in $resource_list; do
+			RES_STATE=$(su - $OCF_RESKEY_user -c ". $ORA_ENVF; crsctl stat res $resource -t | awk -v res=\"$resource\" '\$0 ~ res {getline; if (\$1 ~ /^[0-9]+$/) { print \$2, \$3 } else { print \$1, \$2 }}'")
+			
+			if echo "$RES_STATE" | grep -q "ONLINE ONLINE"; then
+				ocf_log info "Current state of Oracle resource $resource : $RES_STATE"
+				online_count=$((online_count + 1))
+			else
+				ocf_log warn "Current state of Oracle resource $resource : $RES_STATE"
+			fi
+		done
+
+		if [ "$online_count" -eq "$total_resources" ]; then
+			return $OCF_SUCCESS
+		fi
+
+		# Not completely online yet, wait for 1sec and retry ...
+		sleep 1
+		retries=$((retries + 1))
+	done
+
+	return $OCF_ERR_GENERIC
+}
+
 
 oraasm_start() {
 	# if resource is already running, no need to continue code after this.
@@ -150,7 +215,13 @@ oraasm_monitor() {
 	su - $OCF_RESKEY_user -c ". $ORA_ENVF; crsctl check has | grep -q \"CRS-4638\""
 	case "$?" in
 		0)
-			rc=$OCF_SUCCESS
+			if [ "$__OCF_ACTION" = "stop" ]; then
+				# If stopping, we only care that ohasd is still alive.
+				return $OCF_SUCCESS
+			fi
+
+			oraasm_monitor_sub_resources
+			rc=$?
 			;;
 		1)
 			rc=$OCF_NOT_RUNNING
