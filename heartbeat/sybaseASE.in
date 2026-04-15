@@ -84,7 +84,7 @@ if [ "$__OCF_ACTION" != "meta-data" ]; then
 			OCF_RESKEY_sybase_home="/opt/sap"
 		elif [ -d "/opt/sybase" ]; then
 			OCF_RESKEY_sybase_home="/opt/sybase"
-		else
+		elif ! ocf_is_probe; then
 			ocf_log err "sybaseASE: Unable to detect 'sybase_home'."
 			exit $OCF_ERR_ARGS
 		fi
