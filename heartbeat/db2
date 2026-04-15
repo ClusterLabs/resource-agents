@@ -944,7 +944,7 @@ db2_promote() {
     for i in 1 2
     do
         hadr=$(db2_hadr_status $db) || return $OCF_ERR_GENERIC
-        ocf_log info "DB2 database $instance($db2node)/$db has HADR status $hadr and will be promoted"
+        ocf_log info "DB2 database $instance($db2node)/$db has HADR status $hadr"
 
         case "$hadr" in
             Standard/Standalone)
@@ -965,6 +965,7 @@ db2_promote() {
                 done
             fi
 
+            ocf_log info "DB2 database $instance($db2node)/$db is already promoted"
             return $OCF_SUCCESS
             ;;
 
@@ -975,11 +976,12 @@ db2_promote() {
             STANDBY/*PEER/DISCONNECTED|Standby/DisconnectedPeer)
             # must take over by force peer window only
             force="by force peer window only"
+            ocf_log info "DB2 database will be promoted using 'by force peer window only' option"
             ;;
 
-            # must take over by force
             STANDBY/REMOTE_CATCHUP_PENDING/DISCONNECTED)
-            force="by force"
+            ocf_exit_reason "Promoting database in $hadr state can result in data loss. Manual intervention required."
+            return $OCF_ERR_GENERIC
             ;;
 
             *)
