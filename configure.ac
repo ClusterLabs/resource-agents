@@ -539,6 +539,13 @@ if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0; then
 fi
 AM_CONDITIONAL(BUILD_AZURE_EVENTS_AZ, test $BUILD_AZURE_EVENTS_AZ -eq 1)
 
+BUILD_AZURE_SAP_ZONE=1
+if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0; then
+    BUILD_AZURE_SAP_ZONE=0
+    AC_MSG_WARN("Not building azure-sap-zone")
+fi
+AM_CONDITIONAL(BUILD_AZURE_SAP_ZONE, test $BUILD_AZURE_SAP_ZONE -eq 1)
+
 BUILD_GCP_PD_MOVE=1
 if test -z "$PYTHON" || test $BUILD_OCF_PY -eq 0; then
     BUILD_GCP_PD_MOVE=0
@@ -1021,6 +1028,7 @@ rgmanager/Makefile						\
 dnl Files we output that need to be executable
 AC_CONFIG_FILES([heartbeat/azure-events], [chmod +x heartbeat/azure-events])
 AC_CONFIG_FILES([heartbeat/azure-events-az], [chmod +x heartbeat/azure-events-az])
+AC_CONFIG_FILES([heartbeat/azure-sap-zone], [chmod +x heartbeat/azure-sap-zone])
 AC_CONFIG_FILES([heartbeat/AoEtarget], [chmod +x heartbeat/AoEtarget])
 AC_CONFIG_FILES([heartbeat/ManageRAID], [chmod +x heartbeat/ManageRAID])
 AC_CONFIG_FILES([heartbeat/ManageVE], [chmod +x heartbeat/ManageVE])

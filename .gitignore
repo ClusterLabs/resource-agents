@@ -55,6 +55,7 @@ heartbeat/SysInfo
 heartbeat/aws-vpc-route53
 heartbeat/azure-events
 heartbeat/azure-events-az
+heartbeat/azure-sap-zone
 heartbeat/clvm
 heartbeat/conntrackd
 heartbeat/dnsupdate
