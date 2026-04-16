@@ -22,198 +22,9 @@ try:
 except ImportError:  # pragma: no cover
     requests = None
 
-# Pacemaker/OCF tooling does not always populate OCF_ROOT/OCF_FUNCTIONS_DIR when querying meta-data.
-# Fall back to common distro paths so the `ocf` Python helper can be imported reliably.
-_ocf_root = os.environ.get("OCF_ROOT") or "/usr/lib/ocf"
-OCF_FUNCTIONS_DIR = os.environ.get("OCF_FUNCTIONS_DIR") or os.path.join(_ocf_root, "lib", "heartbeat")
-
-if not os.path.isdir(OCF_FUNCTIONS_DIR):
-    for candidate in (
-        "/usr/lib/ocf/lib/heartbeat",
-        "/usr/lib64/ocf/lib/heartbeat",
-        "/usr/local/lib/ocf/lib/heartbeat",
-    ):
-        if os.path.isdir(candidate):
-            OCF_FUNCTIONS_DIR = candidate
-            break
-
-if OCF_FUNCTIONS_DIR not in sys.path:
-    sys.path.append(OCF_FUNCTIONS_DIR)
-try:
-    import ocf  # type: ignore
-except Exception:  # pragma: no cover
-    import logging as _py_logging
-    import xml.etree.ElementTree as _ET
-
-    class _OCFShim:
-        # OCF exit codes (subset)
-        OCF_SUCCESS = 0
-        OCF_ERR_GENERIC = 1
-        OCF_ERR_ARGS = 2
-        OCF_ERR_UNIMPLEMENTED = 3
-        OCF_ERR_PERM = 4
-        OCF_ERR_INSTALLED = 5
-        OCF_ERR_CONFIGURED = 6
-        OCF_NOT_RUNNING = 7
-
-        # Provide a 'logging' namespace similar to the external helper
-        logging = _py_logging
-
-        logger = _py_logging.getLogger("azure-sap-zone")
-        log = logger
-
-        @staticmethod
-        def get_parameter(name: str, default=None):
-            return os.environ.get(f"OCF_RESKEY_{name}", default)
-
-        @staticmethod
-        def is_true(val) -> bool:
-            if val is None:
-                return False
-            return str(val).strip().lower() in ("1", "true", "yes", "y", "on")
-
-        @staticmethod
-        def is_probe() -> bool:
-            # Pacemaker probe is monitor with interval=0
-            interval = os.environ.get("OCF_RESKEY_CRM_meta_interval", "")
-            return str(interval).strip() in ("0", "0s", "0ms")
-
-        @staticmethod
-        def ocf_exit_reason(message: str):
-            try:
-                sys.stderr.write(str(message) + "\n")
-            except Exception:
-                pass
-
-        class Agent:
-            def __init__(self, name: str, shortdesc: str = "", longdesc: str = ""):
-                self.name = name
-                self.shortdesc = shortdesc
-                self.longdesc = longdesc
-                self._parameters = []
-                self._actions = []
-
-            def add_parameter(self, name, shortdesc="", longdesc="", content_type="string", default=""):
-                self._parameters.append(
-                    {
-                        "name": name,
-                        "shortdesc": shortdesc,
-                        "longdesc": longdesc,
-                        "type": content_type,
-                        "default": "" if default is None else str(default),
-                    }
-                )
-
-            def add_action(self, name, timeout=0, interval=0, handler=None):
-                self._actions.append(
-                    {
-                        "name": name,
-                        "timeout": timeout,
-                        "interval": interval,
-                        "handler": handler,
-                    }
-                )
-
-            def _emit_metadata(self):
-                ra = _ET.Element(
-                    "resource-agent",
-                    {"name": self.name, "version": "1.0"},
-                )
-                _ET.SubElement(ra, "version").text = str(globals().get("VERSION", ""))
-                _ET.SubElement(ra, "shortdesc", {"lang": "en"}).text = self.shortdesc
-                _ET.SubElement(ra, "longdesc", {"lang": "en"}).text = self.longdesc
-
-                params_el = _ET.SubElement(ra, "parameters")
-                for p in self._parameters:
-                    p_el = _ET.SubElement(
-                        params_el,
-                        "parameter",
-                        {"name": p["name"], "unique": "0", "required": "0"},
-                    )
-                    _ET.SubElement(p_el, "shortdesc", {"lang": "en"}).text = p.get("shortdesc", "")
-                    _ET.SubElement(p_el, "longdesc", {"lang": "en"}).text = p.get("longdesc", "")
-                    _ET.SubElement(
-                        p_el,
-                        "content",
-                        {"type": p.get("type", "string"), "default": p.get("default", "")},
-                    )
-
-                actions_el = _ET.SubElement(ra, "actions")
-                for a in self._actions:
-                    attrs = {"name": a["name"]}
-                    if a.get("timeout"):
-                        attrs["timeout"] = str(a["timeout"])
-                    if a.get("interval"):
-                        attrs["interval"] = str(a["interval"])
-                    _ET.SubElement(actions_el, "action", attrs)
-
-                xml = _ET.tostring(ra, encoding="unicode")
-                sys.stdout.write("<?xml version=\"1.0\"?>\n")
-                sys.stdout.write("<!DOCTYPE resource-agent SYSTEM \"ra-api-1.dtd\">\n")
-                sys.stdout.write(xml)
-                sys.stdout.write("\n")
-
-            def run(self):
-                action = None
-                if len(sys.argv) > 1:
-                    action = sys.argv[1]
-                action = action or os.environ.get("__OCF_ACTION") or os.environ.get("OCF_ACTION")
-                action = (action or "monitor").strip()
-
-                if action in ("meta-data", "metadata"):
-                    self._emit_metadata()
-                    raise SystemExit(_OCFShim.OCF_SUCCESS)
-
-                handler = None
-                for a in self._actions:
-                    if a["name"] == action:
-                        handler = a.get("handler")
-                        break
-
-                if handler is None:
-                    _OCFShim.ocf_exit_reason(f"Unsupported action: {action}")
-                    raise SystemExit(_OCFShim.OCF_ERR_UNIMPLEMENTED)
-
-                if action == "validate-all":
-                    sid = _OCFShim.get_parameter("sid", "")
-                    soft_shutdown_timeout = _OCFShim.get_parameter("soft_shutdown_timeout", 600)
-                    try:
-                        soft_shutdown_timeout = int(soft_shutdown_timeout)
-                    except Exception:
-                        pass
-                    app_vm_names = _OCFShim.get_parameter("app_vm_names", "")
-                    client_id = _OCFShim.get_parameter("client_id", "")
-                    app_vm_name_pattern = _OCFShim.get_parameter("app_vm_name_pattern", "")
-                    hana_resource = _OCFShim.get_parameter("hana_resource", "")
-                    app_vm_zones = _OCFShim.get_parameter("app_vm_zones", "")
-                    hana_vm_zones = _OCFShim.get_parameter("hana_vm_zones", "")
-                    rc = handler(
-                        sid,
-                        soft_shutdown_timeout,
-                        app_vm_names,
-                        client_id,
-                        app_vm_name_pattern,
-                        hana_resource,
-                        app_vm_zones=app_vm_zones,
-                        hana_vm_zones=hana_vm_zones,
-                    )
-                else:
-                    rc = handler()
-
-                raise SystemExit(rc)
-
-    _py_logging.basicConfig(level=_py_logging.INFO)
-    ocf = _OCFShim
-
-
-def _is_probe_operation() -> bool:
-    """Detect a Pacemaker probe (monitor with interval=0) without relying on ocf helpers."""
-    ocf.logger.debug("_is_probe_operation: Started")
-    interval = os.environ.get("OCF_RESKEY_CRM_meta_interval", "")
-    is_probe = str(interval).strip() in ("0", "0s", "0ms")
-    ocf.logger.debug(f"_is_probe_operation: interval={interval!r}, is_probe={is_probe}")
-    ocf.logger.debug("_is_probe_operation: Finished")
-    return is_probe
+OCF_FUNCTIONS_DIR = os.environ.get("OCF_FUNCTIONS_DIR", "%s/lib/heartbeat" % os.environ.get("OCF_ROOT"))
+sys.path.append(OCF_FUNCTIONS_DIR)
+import ocf
 
 #####################################################
 VERSION = "1.9"
@@ -1165,7 +976,7 @@ class AzureSapZone:
             ocf.logger.info("monitor: Started")
             ocf.logger.debug("monitor: Debug trace enabled")
             
-            if _is_probe_operation():
+            if ocf.is_probe():
                 if not self.node.current_phase or self.node.current_phase in ['None', '']:
                     return ocf.OCF_NOT_RUNNING
                 else:
@@ -1530,7 +1341,9 @@ def validate_action(sid, soft_shutdown_timeout, app_vm_names, client_id, app_vm_
     if not app_vm_zones and not app_vm_names and not app_vm_name_pattern:
         validation_errors.append("Either app_vm_zones, app_vm_names, or app_vm_name_pattern must be provided")
     
-    if not isinstance(soft_shutdown_timeout, int):
+    try:
+        int(soft_shutdown_timeout)
+    except (ValueError, TypeError):
         validation_errors.append("soft_shutdown_timeout must be an integer")
     
     # Check if client_id is a valid UUID (only if provided)
