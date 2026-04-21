@@ -572,12 +572,15 @@ class SAPHelper:
                     echo "Instance ${{instance}} is not in soft shutdown state"
                     echo "Attempting to set instance status to active"
                     activate_status=$(su - {sidadm} -c "sapcontrol -nr ${{instance}} -function ABAPSetServerInactive active")
-                    if [[ ${{activate_status}} == *"OK"* ]]; then
-                        echo "Activating instance successful: ${{activate_status}}"
-                    else
-                        echo "Activating instance failed; attempting to start instance ${{instance}}"
-                        su - {sidadm} -c "sapcontrol -nr ${{instance}} -function Start"
-                    fi
+                    case ${{activate_status}} in
+                        *OK*)
+                            echo "Activating instance successful: ${{activate_status}}"
+                            ;;
+                        *)
+                            echo "Activating instance failed; attempting to start instance ${{instance}}"
+                            su - {sidadm} -c "sapcontrol -nr ${{instance}} -function Start"
+                            ;;
+                    esac
                 fi
             done
             """
