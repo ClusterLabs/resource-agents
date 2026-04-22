@@ -932,7 +932,7 @@ etcd_pod_container_exists() {
 	local count_matches
 	# Check whether the etcd pod exists on the same node (including stopped/exited containers)
 	count_matches=$(crictl pods --label app=etcd -q | xargs -I {} crictl ps -a --pod {} -o json | jq -r '.containers[].metadata | select ( .name == "etcd" ).name' | wc -l)
-	if [ "$count_matches" -eq 1 ]; then
+	if [ "$count_matches" -ge 1 ]; then
 		# etcd pod found
 		return 0
 	fi
