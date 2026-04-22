@@ -49,6 +49,14 @@ fi
 : ${OCF_RESKEY_method=${OCF_RESKEY_method_default}}
 : ${OCF_RESKEY_status_check=${OCF_RESKEY_status_check_default}}
 : ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
+
+# IPv6 support: detect family from service IP and parameterise both backends.
+case "$OCF_RESKEY_ip" in
+  *:*) ip_family=ip6 ;;
+  *)   ip_family=ip  ;;
+esac
+IPTABLES=${ip_family}tables
+
 : ${OCF_RESKEY_reset_local_on_unblock_stop=${OCF_RESKEY_reset_local_on_unblock_stop_default}}
 : ${OCF_RESKEY_tickle_dir=${OCF_RESKEY_tickle_dir_default}}
 : ${OCF_RESKEY_sync_script=${OCF_RESKEY_sync_script_default}}
@@ -332,9 +340,9 @@ active_grep_pat()
     local ip
     [ "$4" = "s" ] && ip=$src || ip=$dst
     if [ "$method" = "DROP" ]; then
-      echo "^\s\+ip${w}$4addr${w}${ip}${w}$1${w}$4port${w}$2${w}ct${w}state${w}{${w}established,${w}related,${w}new${w}}${w}drop$"
+      echo "^\s\+${ip_family}${w}$4addr${w}${ip}${w}$1${w}$4port${w}$2${w}ct${w}state${w}{${w}established,${w}related,${w}new${w}}${w}drop$"
     else
-      echo "^\s\+ip${w}$4addr${w}${ip}${w}$1${w}$4port${w}$2${w}ct${w}state${w}{${w}established,${w}related,${w}new${w}}${w}reject${w}with${w}tcp${w}reset$"
+      echo "^\s\+${ip_family}${w}$4addr${w}${ip}${w}$1${w}$4port${w}$2${w}ct${w}state${w}{${w}established,${w}related,${w}new${w}}${w}reject${w}with${w}tcp${w}reset$"
     fi
   else
     if [ "$method" = "DROP" ]; then
@@ -545,7 +553,7 @@ NftDelete()
 {
         local chain=$1 proto=$2 ds=$3 ip=$(echo "$4" | sed "s#/#\\\/#") ports=$5
         # Try both single port and multi-port patterns for handle search
-        local handles=$($NFTABLES -a list chain inet $TABLE $chain 2>/dev/null | awk "/\s+ip ${ds}addr $ip $proto ${ds}port $ports/"' {printf "%d ", $NF}')
+        local handles=$($NFTABLES -a list chain inet $TABLE $chain 2>/dev/null | awk "/\s+${ip_family} ${ds}addr $ip $proto ${ds}port $ports/"' {printf "%d ", $NF}')
         for handle in $handles; do
           ocf_log debug "NftDelete: Deleting $chain rule with handle $handle"
           nft delete rule inet $TABLE $chain handle $handle || {
@@ -570,9 +578,9 @@ DoPort()
       nft)
         if [ "$op" = "insert" ]; then
           if [ "$method" = "DROP" ]; then
-            $NFTABLES $op rule inet $TABLE $chain ip ${ds}addr $ip $proto ${ds}port $ports ct state { established, related, new } drop
+            $NFTABLES $op rule inet $TABLE $chain ${ip_family} ${ds}addr $ip $proto ${ds}port $ports ct state { established, related, new } drop
           else
-            $NFTABLES $op rule inet $TABLE $chain ip ${ds}addr $ip $proto ${ds}port $ports ct state { established, related, new } reject with tcp reset
+            $NFTABLES $op rule inet $TABLE $chain ${ip_family} ${ds}addr $ip $proto ${ds}port $ports ct state { established, related, new } reject with tcp reset
           fi
         elif [ "$op" = "delete" ]; then
           NftDelete "$chain" "$proto" "$ds" "$ip" "$ports"
@@ -609,13 +617,13 @@ PortBLOCK()
     else
       if [ "$FIREWALL" = "nft" ]; then
         if $try_reset ; then
-          $NFTABLES insert rule inet $TABLE OUTPUT ip saddr $3 $1 sport $2 ct state { established, related, new } reject with tcp reset
+          $NFTABLES insert rule inet $TABLE OUTPUT ${ip_family} saddr $3 $1 sport $2 ct state { established, related, new } reject with tcp reset
           tickle_local
         fi
         if [ "$method" = "DROP" ]; then
-          $NFTABLES insert rule inet $TABLE INPUT ip daddr $3 $1 dport $2 ct state { established, related, new } drop
+          $NFTABLES insert rule inet $TABLE INPUT ${ip_family} daddr $3 $1 dport $2 ct state { established, related, new } drop
         else
-          $NFTABLES insert rule inet $TABLE INPUT ip daddr $3 $1 dport $2 ct state { established, related, new } reject with tcp reset
+          $NFTABLES insert rule inet $TABLE INPUT ${ip_family} daddr $3 $1 dport $2 ct state { established, related, new } reject with tcp reset
         fi
         rc_in=$?
         if $try_reset ; then
@@ -937,7 +945,7 @@ if [ "$FIREWALL" = "nft" ]; then
 	echo "$portno" | grep -q "," && portno="{ $(echo $portno | sed 's/,/, /g') }"
 elif [ "$FIREWALL" = "iptables" ]; then
 	# iptables v1.4.20+ is required to use -w (wait)
-	version=$(iptables -V | grep -oE '[0-9]+[\.0-9]+')
+	version=$($IPTABLES -V | grep -oE '[0-9]+[\.0-9]+')
 	ocf_version_cmp "$version" "1.4.19.1"
 	if [ "$?" -eq "2" ]; then
 		wait="-w"
