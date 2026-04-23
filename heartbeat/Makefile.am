@@ -195,6 +195,10 @@ if BUILD_AZURE_EVENTS_AZ
 ocf_SCRIPTS	     += azure-events-az
 endif
 
+if BUILD_AZURE_SAP_ZONE
+ocf_SCRIPTS	     += azure-sap-zone
+endif
+
 if BUILD_GCP_PD_MOVE
 ocf_SCRIPTS	     += gcp-pd-move
 endif
