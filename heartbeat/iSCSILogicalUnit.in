@@ -69,6 +69,11 @@ OCF_RESKEY_lio_iblock=${OCF_RESKEY_lio_iblock:-$OCF_RESKEY_lio_iblock_default}
 # Set LIO-T backend default as 'block'
 OCF_RESKEY_liot_bstype_default="block"
 : ${OCF_RESKEY_liot_bstype=${OCF_RESKEY_liot_bstype_default}}
+OCF_RESKEY_block_size_default=""
+: ${OCF_RESKEY_block_size=${OCF_RESKEY_block_size_default}}
+# Set SCST backing store type default as 'vdisk_blockio'
+OCF_RESKEY_scst_bstype_default="vdisk_blockio"
+: ${OCF_RESKEY_scst_bstype=${OCF_RESKEY_scst_bstype_default}}
 
 ## tgt specifics
 # tgt has "backing store type" and "backing store open flags",
@@ -188,6 +193,20 @@ Setting this integer to 1 will enable CAW IOCTL emulation.
 <content type="integer" />
 </parameter>
 
+<parameter name="emulate_write_cache" required="0" unique="0">
+<longdesc lang="en">
+Enable or disable write-back caching for this Logical Unit.
+Setting to 1 enables write-back caching (the default for fileio
+backstores). Setting to 0 disables it, enabling write-through mode.
+Write-through mode is recommended for HA configurations to ensure
+data is flushed to disk before the iSCSI write is acknowledged.
+Requires the lio-t implementation. For SCST, use the
+"scst_write_cache" parameter instead.
+</longdesc>
+<shortdesc lang="en">Write-back cache (0 or 1)</shortdesc>
+<content type="integer" />
+</parameter>
+
 <parameter name="vendor_id" required="0" unique="0">
 <longdesc lang="en">
 The SCSI vendor ID to be configured for this Logical Unit.
@@ -292,6 +311,31 @@ Do not use PSCSI unless you know exactly how it will be used.
 </longdesc>
 <shortdesc lang="en">LIO-T backing store type</shortdesc>
 <content type="string" default="${OCF_RESKEY_liot_bstype_default}"/>
+</parameter>
+
+<parameter name="block_size" required="0" unique="0">
+<longdesc lang="en">
+Override the block size presented to initiators for this
+Logical Unit. Accepted values are 512, 1024, 2048, or 4096.
+This sets the block_size attribute in the LIO kernel target
+(configfs) or the blocksize attribute in SCST.
+Requires the lio-t or scst implementation.
+If unset, the kernel default (typically 512) is used.
+</longdesc>
+<shortdesc lang="en">Block size (512, 1024, 2048, or 4096)</shortdesc>
+<content type="integer" default="${OCF_RESKEY_block_size_default}"/>
+</parameter>
+
+<parameter name="scst_bstype" required="0" unique="0">
+<longdesc lang="en">
+SCST device handler to use when creating the backstore.
+Use "vdisk_blockio" for direct I/O (the default) or
+"vdisk_fileio" for page cache backed I/O. The fileio handler
+is required when presenting smaller block sizes on 4K-native
+backing devices. Requires the scst implementation.
+</longdesc>
+<shortdesc lang="en">SCST device handler (vdisk_blockio or vdisk_fileio)</shortdesc>
+<content type="string" default="${OCF_RESKEY_scst_bstype_default}"/>
 </parameter>
 
 </parameters>
@@ -430,7 +474,13 @@ iSCSILogicalUnit_start() {
 	lio-t)
 		ocf_take_lock $TARGETLOCKFILE
 		ocf_release_lock_on_exit $TARGETLOCKFILE
-		iblock_attrib_path="/sys/kernel/config/target/core/iblock_*/${OCF_RESOURCE_INSTANCE}/attrib"
+		# Map liot_bstype to the configfs core directory name
+		case "${OCF_RESKEY_liot_bstype}" in
+		block)  liot_configfs_core="iblock_*" ;;
+		fileio) liot_configfs_core="fileio_*" ;;
+		pscsi)  liot_configfs_core="pscsi_*" ;;
+		esac
+		liot_core_path="/sys/kernel/config/target/core/${liot_configfs_core}/${OCF_RESOURCE_INSTANCE}"
 		# For lio, we first have to create a target device, then
 		# add it to the Target Portal Group as an LU.
 		# Handle differently 'block', 'fileio' and 'pscsi'
@@ -447,10 +497,13 @@ iSCSILogicalUnit_start() {
 			ocf_run targetcli /backstores/${OCF_RESKEY_liot_bstype} create ${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_path} || exit $OCF_ERR_GENERIC
 		fi
 		if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
-			echo ${OCF_RESKEY_scsi_sn} > /sys/kernel/config/target/core/iblock_*/${OCF_RESOURCE_INSTANCE}/wwn/vpd_unit_serial
+			echo ${OCF_RESKEY_scsi_sn} > ${liot_core_path}/wwn/vpd_unit_serial
 		fi
 		if [ -n "${OCF_RESKEY_product_id}" ]; then
-			echo "${OCF_RESKEY_product_id}" > /sys/kernel/config/target/core/iblock_*/${OCF_RESOURCE_INSTANCE}/wwn/product_id
+			echo "${OCF_RESKEY_product_id}" > ${liot_core_path}/wwn/product_id
+		fi
+		if [ -n "${OCF_RESKEY_block_size}" ]; then
+			echo ${OCF_RESKEY_block_size} > ${liot_core_path}/attrib/block_size || exit $OCF_ERR_GENERIC
 		fi
 
 		ocf_run targetcli /iscsi/${OCF_RESKEY_target_iqn}/tpg1/luns create /backstores/${OCF_RESKEY_liot_bstype}/${OCF_RESOURCE_INSTANCE} ${OCF_RESKEY_lun} || exit $OCF_ERR_GENERIC
@@ -476,17 +529,24 @@ iSCSILogicalUnit_start() {
 		fi
 
 		if [ -n "${OCF_RESKEY_emulate_tpu}" ]; then
-			echo ${OCF_RESKEY_emulate_tpu} > ${iblock_attrib_path}/emulate_tpu || exit $OCF_ERR_GENERIC
+			echo ${OCF_RESKEY_emulate_tpu} > ${liot_core_path}/attrib/emulate_tpu || exit $OCF_ERR_GENERIC
 		fi
 		if [ -n "${OCF_RESKEY_emulate_3pc}" ]; then
-			echo ${OCF_RESKEY_emulate_3pc} > ${iblock_attrib_path}/emulate_3pc || exit $OCF_ERR_GENERIC
+			echo ${OCF_RESKEY_emulate_3pc} > ${liot_core_path}/attrib/emulate_3pc || exit $OCF_ERR_GENERIC
 		fi
 		if [ -n "${OCF_RESKEY_emulate_caw}" ]; then
-			echo ${OCF_RESKEY_emulate_caw} > ${iblock_attrib_path}/emulate_caw || exit $OCF_ERR_GENERIC
+			echo ${OCF_RESKEY_emulate_caw} > ${liot_core_path}/attrib/emulate_caw || exit $OCF_ERR_GENERIC
+		fi
+		if [ -n "${OCF_RESKEY_emulate_write_cache}" ]; then
+			echo ${OCF_RESKEY_emulate_write_cache} > ${liot_core_path}/attrib/emulate_write_cache || exit $OCF_ERR_GENERIC
 		fi
 		;;
 	scst)
-		ocf_run scstadmin -open_dev "${OCF_RESOURCE_INSTANCE}" -handler vdisk_blockio -attributes "filename=${OCF_RESKEY_path},nv_cache=0,write_through=1"
+		local scst_attrs="filename=${OCF_RESKEY_path},nv_cache=0,write_through=1"
+		if [ -n "${OCF_RESKEY_block_size}" ]; then
+			scst_attrs="${scst_attrs},blocksize=${OCF_RESKEY_block_size}"
+		fi
+		ocf_run scstadmin -open_dev "${OCF_RESOURCE_INSTANCE}" -handler ${OCF_RESKEY_scst_bstype} -attributes "${scst_attrs}"
 		if [ -n "${OCF_RESKEY_scsi_sn}" ]; then
 			ocf_run scstadmin -set_dev_attr "${OCF_RESOURCE_INSTANCE}" -attributes "usn=${OCF_RESKEY_scsi_sn}" -force -noprompt
 		fi
@@ -577,7 +637,7 @@ iSCSILogicalUnit_stop() {
 		;;
 	scst)
 		ocf_run -warn scstadmin -rem_lun ${OCF_RESKEY_lun} -driver iscsi -target "${OCF_RESKEY_target_iqn}" -force -noprompt
-		ocf_run scstadmin -close_dev "${OCF_RESOURCE_INSTANCE}" -handler vdisk_blockio -force -noprompt
+		ocf_run scstadmin -close_dev "${OCF_RESOURCE_INSTANCE}" -handler ${OCF_RESKEY_scst_bstype} -force -noprompt
 		;;
 	esac
 
@@ -631,9 +691,14 @@ iSCSILogicalUnit_monitor() {
 		configfs_path="/sys/kernel/config/target/iscsi/${OCF_RESKEY_target_iqn}/tpgt_1/lun/lun_${OCF_RESKEY_lun}/*/udev_path"
 		[ -e ${configfs_path} ] && [ `cat ${configfs_path}` = "${OCF_RESKEY_path}" ] && return $OCF_SUCCESS
 
-		# if we aren't activated, is a block device still left over?
-		block_configfs_path="/sys/kernel/config/target/core/iblock_*/${OCF_RESOURCE_INSTANCE}/udev_path"
-		[ -e ${block_configfs_path} ] && ocf_log warn "existing block without an active lun: ${block_configfs_path}"
+		# if we aren't activated, is a backstore still left over?
+		case "${OCF_RESKEY_liot_bstype}" in
+		block)  liot_configfs_core="iblock_*" ;;
+		fileio) liot_configfs_core="fileio_*" ;;
+		pscsi)  liot_configfs_core="pscsi_*" ;;
+		esac
+		block_configfs_path="/sys/kernel/config/target/core/${liot_configfs_core}/${OCF_RESOURCE_INSTANCE}/udev_path"
+		[ -e ${block_configfs_path} ] && ocf_log warn "existing backstore without an active lun: ${block_configfs_path}"
 		[ -e ${block_configfs_path} ] && return $OCF_ERR_GENERIC
 		;;
 	scst)
@@ -656,6 +721,36 @@ iSCSILogicalUnit_validate() {
 		exit $OCF_ERR_CONFIGURED
 	fi
 	done
+
+	# Validate scst_bstype
+	case "${OCF_RESKEY_scst_bstype}" in
+	vdisk_blockio|vdisk_fileio)
+		;;
+	*)
+		ocf_exit_reason "Invalid scst_bstype ${OCF_RESKEY_scst_bstype} (must be vdisk_blockio or vdisk_fileio)"
+		exit $OCF_ERR_CONFIGURED
+		;;
+	esac
+	if [ "${OCF_RESKEY_scst_bstype}" != "${OCF_RESKEY_scst_bstype_default}" ] && [ "${OCF_RESKEY_implementation}" != "scst" ]; then
+		ocf_exit_reason "scst_bstype is only supported with the scst implementation"
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	# Validate block_size if set
+	if [ -n "${OCF_RESKEY_block_size}" ]; then
+		case "${OCF_RESKEY_block_size}" in
+		512|1024|2048|4096)
+			;;
+		*)
+			ocf_exit_reason "Invalid block_size ${OCF_RESKEY_block_size} (must be 512, 1024, 2048, or 4096)"
+			exit $OCF_ERR_CONFIGURED
+			;;
+		esac
+		if [ "${OCF_RESKEY_implementation}" != "lio-t" ] && [ "${OCF_RESKEY_implementation}" != "scst" ]; then
+			ocf_exit_reason "block_size is only supported with the lio-t or scst implementation"
+			exit $OCF_ERR_CONFIGURED
+		fi
+	fi
 
 	# Is the configured implementation supported?
 	case "$OCF_RESKEY_implementation" in
@@ -722,19 +817,19 @@ iSCSILogicalUnit_validate() {
 	iet)
 		# IET does not support setting the vendor and product ID
 		# (it always uses "IET" and "VIRTUAL-DISK")
-		unsupported_params="vendor_id product_id allowed_initiators lio_iblock tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type emulate_tpu emulate_3pc emulate_caw liot_bstype"
+		unsupported_params="vendor_id product_id allowed_initiators lio_iblock tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type emulate_tpu emulate_3pc emulate_caw emulate_write_cache liot_bstype scst_bstype"
 		;;
 	tgt)
-		unsupported_params="allowed_initiators lio_iblock emulate_tpu emulate_3pc emulate_caw liot_bstype"
+		unsupported_params="allowed_initiators lio_iblock emulate_tpu emulate_3pc emulate_caw emulate_write_cache liot_bstype scst_bstype"
 		;;
 	lio)
-		unsupported_params="scsi_id vendor_id product_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type emulate_tpu emulate_3pc emulate_caw liot_bstype"
+		unsupported_params="scsi_id vendor_id product_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type emulate_tpu emulate_3pc emulate_caw emulate_write_cache liot_bstype scst_bstype"
 		;;
 	lio-t)
-		unsupported_params="scsi_id vendor_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type lio_iblock"
+		unsupported_params="scsi_id vendor_id tgt_bstype tgt_bsoflags tgt_bsopts tgt_device_type lio_iblock scst_bstype"
 		;;
 	scst)
-		unsupported_params="scsi_id emulate_tpu emulate_3pc emulate_caw"
+		unsupported_params="scsi_id emulate_tpu emulate_3pc emulate_caw emulate_write_cache liot_bstype"
 		;;
 	esac
 
