@@ -932,12 +932,31 @@ etcd_pod_container_exists() {
 	local count_matches
 	# Check whether the etcd pod exists on the same node (including stopped/exited containers)
 	count_matches=$(crictl pods --label app=etcd -q | xargs -I {} crictl ps -a --pod {} -o json | jq -r '.containers[].metadata | select ( .name == "etcd" ).name' | wc -l)
-	if [ "$count_matches" -eq 1 ]; then
+	if [ "$count_matches" -ge 1 ]; then
 		# etcd pod found
 		return 0
 	fi
 	# etcd pod not found
 	return 1
+}
+
+wait_for_etcd_ports_release() {
+	local timeout=${1:-60}
+	local elapsed=0
+	if [ -z "$(ss -Htan '( sport = 2379 or sport = 2380 )')" ]; then
+		return 0
+	fi
+	ocf_log info "waiting for etcd ports 2379/2380 to be released (timeout: ${timeout}s)"
+	while [ -n "$(ss -Htan '( sport = 2379 or sport = 2380 )')" ]; do
+		if [ "$elapsed" -ge "$timeout" ]; then
+			ocf_log err "etcd ports still in use after ${timeout}s"
+			return 1
+		fi
+		sleep 1
+		elapsed=$((elapsed + 1))
+	done
+	ocf_log info "etcd ports released after ${elapsed}s"
+	return 0
 }
 
 attribute_node_cluster_id()
@@ -2265,6 +2284,11 @@ podman_start()
 		fi
 	else
 		ocf_log notice "Pull image not required, ${OCF_RESKEY_image}"
+	fi
+
+	if ! wait_for_etcd_ports_release 60; then
+		ocf_exit_reason "etcd ports 2379/2380 still bound — cannot start container"
+		return $OCF_ERR_GENERIC
 	fi
 
 	if ocf_is_true "$OCF_RESKEY_reuse" && container_exists; then
