@@ -1,0 +1,361 @@
+#!/bin/sh
+#
+# ocf:heartbeat:ganesha-nfs
+#
+# OCF Resource Agent for a single NFS-Ganesha server instance.
+#
+# Intended for HA NFS on top of replicated block storage (DRBD + LINSTOR).
+# Unlike ocf:heartbeat:nfsserver, this agent:
+#   - Does not touch /var/lib/nfs or the kernel NFS server.
+#   - Runs a single ganesha.nfsd process per instance.
+#   - Supports multiple EXPORT blocks via ganesha.conf (no need for
+#     ocf:heartbeat:exportfs).
+#   - Can run multiple instances per host by using distinct
+#     config_file / pid_file parameters.
+#
+# Assumes the Ganesha NFSv4 RecoveryDir is on the replicated
+# filesystem that this resource fails over with, so that client lock
+# recovery state migrates with the service.
+#
+# Author:  Yusuf Yildiz <yusuf@upforge.at>
+# License: GNU GPL v2 or later
+
+#######################################################################
+# Initialization
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+# Defaults
+
+OCF_RESKEY_config_file_default="/etc/ganesha/ganesha.conf"
+OCF_RESKEY_pid_file_default="/run/ganesha.pid"
+OCF_RESKEY_log_file_default="/var/log/ganesha/ganesha.log"
+OCF_RESKEY_log_level_default="NIV_EVENT"
+OCF_RESKEY_nfs_ip_default=""
+OCF_RESKEY_nfs_port_default="2049"
+OCF_RESKEY_start_timeout_default="30"
+
+: ${OCF_RESKEY_config_file=${OCF_RESKEY_config_file_default}}
+: ${OCF_RESKEY_pid_file=${OCF_RESKEY_pid_file_default}}
+: ${OCF_RESKEY_log_file=${OCF_RESKEY_log_file_default}}
+: ${OCF_RESKEY_log_level=${OCF_RESKEY_log_level_default}}
+: ${OCF_RESKEY_nfs_ip=${OCF_RESKEY_nfs_ip_default}}
+: ${OCF_RESKEY_nfs_port=${OCF_RESKEY_nfs_port_default}}
+: ${OCF_RESKEY_start_timeout=${OCF_RESKEY_start_timeout_default}}
+
+#######################################################################
+
+meta_data() {
+cat <<EOM
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="ganesha-nfs" version="0.1">
+<version>1.0</version>
+
+<longdesc lang="en">
+Manages a single NFS-Ganesha (ganesha.nfsd) server instance as a
+cluster resource. Designed for HA NFS on DRBD/LINSTOR-backed
+storage.
+
+The agent does not manage kernel NFS, /var/lib/nfs, rpcbind, or
+statd. It only starts and stops the ganesha.nfsd process and
+probes its readiness.
+
+Critical: the NFSv4 RecoveryDir configured in ganesha.conf must
+live on the replicated filesystem that this resource fails over
+with, otherwise clients will lose their locks on failover.
+
+To serve multiple exports, put multiple EXPORT {} blocks in the
+same ganesha.conf. Multiple co-located Ganesha instances are
+supported by giving each a unique config_file, pid_file, and
+listening IP.
+</longdesc>
+
+<shortdesc lang="en">Manages an NFS-Ganesha server instance</shortdesc>
+
+<parameters>
+
+<parameter name="config_file" unique="1" required="0">
+<longdesc lang="en">Path to the ganesha.conf file for this instance.</longdesc>
+<shortdesc lang="en">Ganesha configuration file</shortdesc>
+<content type="string" default="${OCF_RESKEY_config_file_default}" />
+</parameter>
+
+<parameter name="pid_file" unique="1" required="0">
+<longdesc lang="en">PID file. Must be unique across co-located instances.</longdesc>
+<shortdesc lang="en">PID file</shortdesc>
+<content type="string" default="${OCF_RESKEY_pid_file_default}" />
+</parameter>
+
+<parameter name="log_file" unique="0" required="0">
+<longdesc lang="en">Ganesha log file path.</longdesc>
+<shortdesc lang="en">Log file</shortdesc>
+<content type="string" default="${OCF_RESKEY_log_file_default}" />
+</parameter>
+
+<parameter name="log_level" unique="0" required="0">
+<longdesc lang="en">
+Ganesha log level (NIV_NULL, NIV_FATAL, NIV_MAJ, NIV_CRIT,
+NIV_WARN, NIV_EVENT, NIV_INFO, NIV_DEBUG, NIV_FULL_DEBUG).
+</longdesc>
+<shortdesc lang="en">Log level</shortdesc>
+<content type="string" default="${OCF_RESKEY_log_level_default}" />
+</parameter>
+
+<parameter name="nfs_ip" unique="1" required="0">
+<longdesc lang="en">
+Optional service IP (v4 or v6). If set, the monitor probes TCP
+${OCF_RESKEY_nfs_port_default} on this IP instead of any-interface.
+Useful for multi-instance setups where each Ganesha binds a
+different IP.
+</longdesc>
+<shortdesc lang="en">NFS service IP for readiness probe</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="nfs_port" unique="0" required="0">
+<longdesc lang="en">TCP port to probe on nfs_ip.</longdesc>
+<shortdesc lang="en">NFS port</shortdesc>
+<content type="integer" default="${OCF_RESKEY_nfs_port_default}" />
+</parameter>
+
+<parameter name="start_timeout" unique="0" required="0">
+<longdesc lang="en">
+Seconds to wait for Ganesha to become ready (PID file plus listening
+port). Default 30.
+</longdesc>
+<shortdesc lang="en">Start readiness timeout</shortdesc>
+<content type="integer" default="${OCF_RESKEY_start_timeout_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="60s" />
+<action name="stop"         timeout="60s" />
+<action name="monitor"      timeout="20s" interval="30s" />
+<action name="meta-data"    timeout="5s" />
+<action name="validate-all" timeout="20s" />
+</actions>
+
+</resource-agent>
+EOM
+}
+
+#######################################################################
+# Helpers
+
+ganesha_binary() {
+    if [ -x /usr/bin/ganesha.nfsd ]; then
+        echo /usr/bin/ganesha.nfsd
+    elif [ -x /usr/sbin/ganesha.nfsd ]; then
+        echo /usr/sbin/ganesha.nfsd
+    else
+        command -v ganesha.nfsd 2>/dev/null || echo ganesha.nfsd
+    fi
+}
+
+read_pid() {
+    [ -f "$OCF_RESKEY_pid_file" ] || return 1
+    local p
+    p=$(cat "$OCF_RESKEY_pid_file" 2>/dev/null)
+    case "$p" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    echo "$p"
+}
+
+is_running() {
+    local pid comm
+    pid=$(read_pid) || return 1
+    kill -0 "$pid" 2>/dev/null || return 1
+    # Verify the PID actually belongs to ganesha.nfsd (defence against PID reuse)
+    comm=$(cat /proc/"$pid"/comm 2>/dev/null)
+    [ "$comm" = "ganesha.nfsd" ]
+}
+
+port_listening() {
+    local ip="$OCF_RESKEY_nfs_ip"
+    local port="$OCF_RESKEY_nfs_port"
+
+    if ! have_binary ss; then
+        # Fallback: just verify some listener on the port via /proc
+        local hex
+        hex=$(printf '%04X' "$port")
+        grep -qE ":${hex} [0-9A-F]{8}:[0-9A-F]{4} 0A" /proc/net/tcp  2>/dev/null && return 0
+        grep -qE ":${hex} [0-9A-F]{32}:[0-9A-F]{4} 0A" /proc/net/tcp6 2>/dev/null && return 0
+        return 1
+    fi
+
+    if [ -n "$ip" ]; then
+        # Match either the specific IP or wildcard listeners (0.0.0.0 / ::)
+        ss -Hln -tnp "sport = :${port}" 2>/dev/null | \
+            awk -v ip="$ip" '
+                { addr=$4; sub(/:[^:]+$/,"",addr); gsub(/[\[\]]/,"",addr);
+                  if (addr==ip || addr=="0.0.0.0" || addr=="*" || addr=="::" || addr=="") { found=1 } }
+                END { exit(found?0:1) }'
+        return $?
+    fi
+
+    ss -Hln -tn "sport = :${port}" 2>/dev/null | grep -q .
+}
+
+ensure_dirs() {
+    local d
+    for d in "$(dirname "$OCF_RESKEY_pid_file")" "$(dirname "$OCF_RESKEY_log_file")"; do
+        [ -d "$d" ] || mkdir -p "$d"
+    done
+}
+
+#######################################################################
+# OCF actions
+
+ganesha_validate() {
+    if [ ! -f "$OCF_RESKEY_config_file" ]; then
+        ocf_exit_reason "Config file not found: $OCF_RESKEY_config_file"
+        return $OCF_ERR_INSTALLED
+    fi
+    local bin
+    bin=$(ganesha_binary)
+    if ! check_binary "$bin"; then
+        ocf_exit_reason "ganesha.nfsd binary not found"
+        return $OCF_ERR_INSTALLED
+    fi
+    case "$OCF_RESKEY_start_timeout" in
+        ''|*[!0-9]*) ocf_exit_reason "start_timeout must be a positive integer"; return $OCF_ERR_CONFIGURED ;;
+    esac
+    return $OCF_SUCCESS
+}
+
+ganesha_monitor() {
+    if is_running; then
+        if port_listening; then
+            return $OCF_SUCCESS
+        fi
+        ocf_log warn "Ganesha PID alive but not listening on ${OCF_RESKEY_nfs_ip:-*}:${OCF_RESKEY_nfs_port}"
+        return $OCF_ERR_GENERIC
+    fi
+    if [ -f "$OCF_RESKEY_pid_file" ]; then
+        ocf_log info "Removing stale PID file $OCF_RESKEY_pid_file"
+        rm -f "$OCF_RESKEY_pid_file"
+    fi
+    return $OCF_NOT_RUNNING
+}
+
+ganesha_start() {
+    ganesha_validate
+    rc=$?
+    [ $rc -ne $OCF_SUCCESS ] && return $rc
+
+    if is_running; then
+        if port_listening; then
+            ocf_log info "Ganesha already running and listening (PID $(read_pid))"
+            return $OCF_SUCCESS
+        fi
+        # PID alive but not listening — could be mid-startup. Wait briefly.
+        ocf_log info "Ganesha PID alive but not yet listening; waiting up to 10s"
+        local j=0
+        while [ $j -lt 10 ]; do
+            sleep 1
+            if port_listening; then
+                ocf_log info "Ganesha became ready"
+                return $OCF_SUCCESS
+            fi
+            j=$((j + 1))
+        done
+        # Still stuck. Don't try to spawn a second process; tear the sick one down first.
+        ocf_log warn "Existing Ganesha PID $(read_pid) not listening after 10s; stopping before retry"
+        ganesha_stop
+        [ $? -ne $OCF_SUCCESS ] && return $OCF_ERR_GENERIC
+    fi
+
+    ensure_dirs
+
+    local bin
+    bin=$(ganesha_binary)
+    ocf_log info "Starting Ganesha: $bin -f $OCF_RESKEY_config_file -p $OCF_RESKEY_pid_file"
+
+    "$bin" \
+        -f "$OCF_RESKEY_config_file" \
+        -p "$OCF_RESKEY_pid_file" \
+        -L "$OCF_RESKEY_log_file" \
+        -N "$OCF_RESKEY_log_level"
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        ocf_exit_reason "ganesha.nfsd exited with rc=$rc on start; see $OCF_RESKEY_log_file"
+        return $OCF_ERR_GENERIC
+    fi
+
+    local i=0
+    while [ $i -lt "$OCF_RESKEY_start_timeout" ]; do
+        if ganesha_monitor >/dev/null 2>&1; then
+            ocf_log info "Ganesha ready (PID $(read_pid))"
+            return $OCF_SUCCESS
+        fi
+        sleep 1
+        i=$((i + 1))
+    done
+
+    ocf_exit_reason "Ganesha did not become ready within ${OCF_RESKEY_start_timeout}s; see $OCF_RESKEY_log_file"
+    return $OCF_ERR_GENERIC
+}
+
+ganesha_stop() {
+    local pid
+    if ! is_running; then
+        [ -f "$OCF_RESKEY_pid_file" ] && rm -f "$OCF_RESKEY_pid_file"
+        return $OCF_SUCCESS
+    fi
+
+    pid=$(read_pid)
+    ocf_log info "Stopping Ganesha (PID $pid)"
+
+    # Honour the caller-provided timeout; leave a 5s buffer for SIGKILL phase
+    local tmo=${OCF_RESKEY_CRM_meta_timeout:-60000}
+    tmo=$(( (tmo / 1000) - 5 ))
+    [ $tmo -lt 10 ] && tmo=10
+
+    kill -TERM "$pid" 2>/dev/null
+
+    local i=0
+    while [ $i -lt $tmo ]; do
+        if ! kill -0 "$pid" 2>/dev/null; then
+            rm -f "$OCF_RESKEY_pid_file"
+            ocf_log info "Ganesha stopped cleanly"
+            return $OCF_SUCCESS
+        fi
+        sleep 1
+        i=$((i + 1))
+    done
+
+    ocf_log warn "Ganesha did not exit after ${tmo}s of SIGTERM; escalating to SIGKILL"
+    kill -KILL "$pid" 2>/dev/null
+    sleep 2
+    if kill -0 "$pid" 2>/dev/null; then
+        ocf_exit_reason "Failed to kill Ganesha PID $pid"
+        return $OCF_ERR_GENERIC
+    fi
+    rm -f "$OCF_RESKEY_pid_file"
+    return $OCF_SUCCESS
+}
+
+#######################################################################
+# Dispatch
+
+case "$__OCF_ACTION" in
+    meta-data)    meta_data; exit $OCF_SUCCESS ;;
+    start)        ganesha_start;    exit $? ;;
+    stop)         ganesha_stop;     exit $? ;;
+    monitor|status) ganesha_monitor; exit $? ;;
+    validate-all) ganesha_validate; exit $? ;;
+    usage|help)
+        echo "usage: $0 {start|stop|monitor|validate-all|meta-data}"
+        exit $OCF_SUCCESS
+        ;;
+    *)
+        echo "Unknown action: $__OCF_ACTION" >&2
+        exit $OCF_ERR_UNIMPLEMENTED
+        ;;
+esac

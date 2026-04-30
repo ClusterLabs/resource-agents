@@ -115,6 +115,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			exportfs		\
 			fio			\
 			galera			\
+			ganesha-nfs		\
 			garbd			\
 			gcp-ilb			\
 			gcp-vpc-move-ip		\
