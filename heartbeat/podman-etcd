@@ -1300,6 +1300,16 @@ clear_standalone_node()
 	crm_attribute --name "standalone_node" --delete
 }
 
+is_single_node()
+{
+	# Check if this is a single-node cluster by examining node_ip_map
+	# Returns 0 (true) if only one node is configured, 1 (false) otherwise
+	local peer_count
+
+	peer_count=$(echo "$OCF_RESKEY_node_ip_map" | tr ';' '\n' | grep -vF "$NODENAME" | wc -l)
+	[ "$peer_count" -eq 0 ]
+}
+
 
 # Promotes an etcd learner member to a voting member
 # Args: $1 - learner member ID in decimal format
@@ -1517,6 +1527,38 @@ manage_peer_membership()
 	local peer_member_name
 	local peer_member_ip
 	local peer_member_id
+
+	# Check if this is a single-node cluster
+	if is_single_node; then
+		# Single-node cluster - no peer to manage
+		ocf_log info "Single-node cluster detected (node_ip_map: '$OCF_RESKEY_node_ip_map')"
+
+		# Clean up any learners from the member list (could be left over from 2→1 transition)
+		local learner_member_id
+		learner_member_id=$(printf "%s" "$member_list_json" | jq -r ".members[] | select( .isLearner==true ).ID")
+		if [ -n "$learner_member_id" ]; then
+			ocf_log warn "Single-node cluster has learner member $learner_member_id - removing to ensure clean state"
+			local learner_member_id_hex
+			if learner_member_id_hex=$(decimal_to_hex "$learner_member_id"); then
+				local endpoint_url
+				endpoint_url=$(ip_url $(attribute_node_ip get))
+				if podman exec "${CONTAINER}" etcdctl --endpoints="$endpoint_url:2379" member remove "$learner_member_id_hex" 2>&1; then
+					ocf_log info "Successfully removed learner member $learner_member_id_hex"
+				else
+					ocf_log warn "Failed to remove learner member $learner_member_id_hex"
+				fi
+			else
+				ocf_log err "Could not convert learner member ID to hex: $learner_member_id"
+			fi
+		fi
+
+		# Ensure standalone_node is set (may have been cleared during 2-node operation)
+		if ! is_standalone; then
+			ocf_log info "Setting standalone_node for single-node cluster"
+			set_standalone_node
+		fi
+		return $OCF_SUCCESS
+	fi
 
 	# Get peer node name and IP
 	peer_ip_map_entry=$(echo "$OCF_RESKEY_node_ip_map" | tr ';' '\n' | grep -vF "$NODENAME")
@@ -2110,16 +2152,26 @@ podman_start()
 				start_resources_count=$(echo "$OCF_RESKEY_CRM_meta_notify_start_resource" | wc -w)
 				ocf_log info "found '$start_resources_count' starting etcd resources (meta notify environment variable: '$OCF_RESKEY_CRM_meta_notify_start_resource')"
 
-				# we need to compare the revisions in any of the following branches
-				# so call the function only once here
-				if ! revision_compare_result=$(compare_revision); then
-					ocf_log err "could not compare revisions, error code: $?"
-					return "$OCF_ERR_GENERIC"
+				# Single-node clusters can't compare revisions with a peer
+				if is_single_node; then
+					ocf_log info "Single-node cluster: starting normally without revision comparison"
+					# No need to set force_new_cluster or compare revisions
+				else
+					# we need to compare the revisions in any of the following branches
+					# so call the function only once here
+					if ! revision_compare_result=$(compare_revision); then
+						ocf_log err "could not compare revisions, error code: $?"
+						return "$OCF_ERR_GENERIC"
+					fi
 				fi
 				case "$start_resources_count" in
 				1)
 					ocf_log debug "peer not starting: ensure we can start a new cluster"
-					if [ "$revision_compare_result" != "older" ]; then
+					if is_single_node; then
+						# Single-node cluster: start normally without revision comparison
+						ocf_log info "Single-node cluster: starting normally"
+						set_standalone_node
+					elif [ "$revision_compare_result" != "older" ]; then
 						# If our revision is the same as or newer than the peer's last saved
 						# revision, and the peer agent isn't currently starting, we can
 						# restore e-quorum by forcing a new cluster.
@@ -2315,7 +2367,13 @@ podman_start()
 					add_member_as_learner "$peer_node_name" "$peer_node_ip"
 					set_standalone_node
 				else
-					ocf_log err "could not add peer as learner (peer node name: ${peer_node_name:-unknown}, peer ip: ${peer_node_ip:-unknown})"
+					# Check if this is a single-node cluster
+					if is_single_node; then
+						ocf_log info "Single-node cluster: setting standalone_node"
+						set_standalone_node
+					else
+						ocf_log err "could not add peer as learner (peer node name: ${peer_node_name:-unknown}, peer ip: ${peer_node_ip:-unknown})"
+					fi
 				fi
 			fi
 			return $OCF_SUCCESS
