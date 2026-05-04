@@ -141,6 +141,7 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_exportfs.7 \
                           ocf_heartbeat_fio.7 \
                           ocf_heartbeat_galera.7 \
+                          ocf_heartbeat_ganesha-nfs.7 \
                           ocf_heartbeat_garbd.7 \
                           ocf_heartbeat_gcp-ilb.7 \
                           ocf_heartbeat_gcp-vpc-move-ip.7 \

@@ -215,7 +215,7 @@ ensure_dirs() {
 ganesha_validate() {
     if [ ! -f "$OCF_RESKEY_config_file" ]; then
         ocf_exit_reason "Config file not found: $OCF_RESKEY_config_file"
-        return $OCF_ERR_INSTALLED
+        return $OCF_ERR_CONFIGURED
     fi
     local bin
     bin=$(ganesha_binary)
@@ -265,10 +265,9 @@ ganesha_start() {
             fi
             j=$((j + 1))
         done
-        # Still stuck. Don't try to spawn a second process; tear the sick one down first.
-        ocf_log warn "Existing Ganesha PID $(read_pid) not listening after 10s; stopping before retry"
-        ganesha_stop
-        [ $? -ne $OCF_SUCCESS ] && return $OCF_ERR_GENERIC
+        # Still stuck — return failure; Pacemaker will run the stop-action.
+        ocf_exit_reason "Existing Ganesha PID $(read_pid) not listening after 10s"
+        return $OCF_ERR_GENERIC
     fi
 
     ensure_dirs
@@ -312,10 +311,11 @@ ganesha_stop() {
     pid=$(read_pid)
     ocf_log info "Stopping Ganesha (PID $pid)"
 
-    # Honour the caller-provided timeout; leave a 5s buffer for SIGKILL phase
+    # Honour the caller-provided timeout; reserve 10s for SIGKILL escalation
+    # so this branch is actually reachable before Pacemaker times us out.
     local tmo=${OCF_RESKEY_CRM_meta_timeout:-60000}
-    tmo=$(( (tmo / 1000) - 5 ))
-    [ $tmo -lt 10 ] && tmo=10
+    tmo=$(( (tmo / 1000) - 10 ))
+    [ $tmo -lt 5 ] && tmo=5
 
     kill -TERM "$pid" 2>/dev/null
 
