@@ -466,14 +466,14 @@ prepare_directory ()
 	[ -d "$fp/$STATD_DIR/sm.ha" ] || mkdir -p "$fp/$STATD_DIR/sm.ha"
 	[ -d "$fp/$STATD_DIR/sm.bak" ] || mkdir -p "$fp/$STATD_DIR/sm.bak"
 	[ -n "`id -u rpcuser 2>/dev/null`" -a "`id -g rpcuser 2>/dev/null`" ] &&
-		chown -R rpcuser.rpcuser "$fp/$STATD_DIR"
+		chown -R rpcuser:rpcuser "$fp/$STATD_DIR"
 
 	[ -f "$fp/etab" ] || touch "$fp/etab"
 	[ -f "$fp/xtab" ] || touch "$fp/xtab"
 	[ -f "$fp/rmtab" ] || touch "$fp/rmtab"
 
 	dd if=/dev/urandom of=$fp/$STATD_DIR/state bs=1 count=4 >/dev/null 2>&1
-	[ -n "`id -u rpcuser 2>/dev/null`" -a "`id -g rpcuser 2>/dev/null`" ] && chown rpcuser.rpcuser "$fp/$STATD_DIR/state"
+	[ -n "`id -u rpcuser 2>/dev/null`" -a "`id -g rpcuser 2>/dev/null`" ] && chown rpcuser:rpcuser "$fp/$STATD_DIR/state"
 	[ $SELINUX_ENABLED -eq 0 ] && chcon -R "$SELINUX_LABEL" "$fp"
 }
 

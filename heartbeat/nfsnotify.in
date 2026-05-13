@@ -209,7 +209,7 @@ copy_statd()
 	if  [ -z "$rpcuser_exist" ];then 
 		[ -n "`id -u statd`" ] && [ -n "`id -g statd`" ] && chown statd "$dest" 
 	else 
-		[ -n "`id -u rpcuser`" ] && [ -n "`id -g rpcuser`" ] && chown rpcuser.rpcuser "$dest" 
+		[ -n "`id -u rpcuser`" ] && [ -n "`id -g rpcuser`" ] && chown rpcuser:rpcuser "$dest" 
 	fi
 
 	[ $SELINUX_ENABLED -eq 0 ] && chcon -R "$SELINUX_LABEL" "$dest"
