@@ -2640,7 +2640,21 @@ podman_validate()
 
 podman_notify()
 {
-	ocf_log info "notify: type=${OCF_RESKEY_CRM_meta_notify_type}, operation=${OCF_RESKEY_CRM_meta_notify_operation}, nodes { active=[${OCF_RESKEY_CRM_meta_notify_active_uname}], start=[${OCF_RESKEY_CRM_meta_notify_start_uname}], stop=[${OCF_RESKEY_CRM_meta_notify_stop_uname}] }, resources { active=[${OCF_RESKEY_CRM_meta_notify_active_resource}], start =[${OCF_RESKEY_CRM_meta_notify_start_resource}], stop=[${OCF_RESKEY_CRM_meta_notify_stop_resource}] }"
+	local notify_type="${OCF_RESKEY_CRM_meta_notify_type}"
+	local notify_operation="${OCF_RESKEY_CRM_meta_notify_operation}"
+
+	ocf_log info "notify: type=${notify_type}, operation=${notify_operation}, nodes { active=[${OCF_RESKEY_CRM_meta_notify_active_uname}], start=[${OCF_RESKEY_CRM_meta_notify_start_uname}], stop=[${OCF_RESKEY_CRM_meta_notify_stop_uname}] }, resources { active=[${OCF_RESKEY_CRM_meta_notify_active_resource}], start =[${OCF_RESKEY_CRM_meta_notify_start_resource}], stop=[${OCF_RESKEY_CRM_meta_notify_stop_resource}] }"
+
+	# Pacemaker suppresses the peer's monitor during an
+	# active start/notify cycle. Since monitor is the only path that calls
+	# add_member_as_learner (outside force_new_cluster), the joiner's
+	# podman_start poll loop deadlocks; it waits for learner_node, but
+	# no monitor runs to set it. pre_notify_start fires before start,
+	# so we add the learner here to break the deadlock
+	if [ "$notify_type" = "pre" ] && [ "$notify_operation" = "start" ]; then
+		ocf_log info "pre_notify_start: running peer membership check for ${OCF_RESKEY_CRM_meta_notify_start_uname}"
+		check_peer
+	fi
 }
 
 # TODO :
