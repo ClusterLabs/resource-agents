@@ -50,6 +50,7 @@ OCF_RESKEY_oom_default="-997"
 OCF_RESKEY_config_location_default="/var/lib/etcd"
 OCF_RESKEY_backup_location_default="/var/lib/etcd"
 OCF_RESKEY_max_backup_snapshots_default="3"
+OCF_RESKEY_kubeconfig_default="/etc/kubernetes/static-pod-resources/kube-apiserver-certs/secrets/node-kubeconfigs/localhost.kubeconfig"
 
 : ${OCF_RESKEY_image=${OCF_RESKEY_image_default}}
 : ${OCF_RESKEY_pod_manifest=${OCF_RESKEY_pod_manifest_default}}
@@ -63,6 +64,7 @@ OCF_RESKEY_max_backup_snapshots_default="3"
 : ${OCF_RESKEY_config_location=${OCF_RESKEY_config_location_default}}
 : ${OCF_RESKEY_backup_location=${OCF_RESKEY_backup_location_default}}
 : ${OCF_RESKEY_max_backup_snapshots=${OCF_RESKEY_max_backup_snapshots_default}}
+: ${OCF_RESKEY_kubeconfig=${OCF_RESKEY_kubeconfig_default}}
 
 
 #######################################################################
@@ -286,6 +288,17 @@ Set max_backup_snapshots=0 to disable backups.
 </longdesc>
 <shortdesc lang="en">Maximum number of backup snapshots to retain</shortdesc>
 <content type="integer" default="${OCF_RESKEY_max_backup_snapshots_default}"/>
+</parameter>
+
+<parameter name="kubeconfig" required="0" unique="0">
+<longdesc lang="en">
+Path to a kubeconfig file for querying Machine API objects. Used to detect
+whether a peer node's Machine is being deleted, preventing the resource agent
+from re-adding it as an etcd learner during Machine deletion flows.
+Supports both MAPI (machine.openshift.io) and CAPI (cluster.x-k8s.io) Machine resources.
+</longdesc>
+<shortdesc lang="en">Kubeconfig for Machine API queries</shortdesc>
+<content type="string" default="${OCF_RESKEY_kubeconfig_default}"/>
 </parameter>
 
 </parameters>
@@ -1524,6 +1537,59 @@ detect_cluster_leadership_loss()
 }
 
 
+# Checks whether the Machine object for a given node is being deleted.
+# Returns 0 (true) if the Machine has a deletionTimestamp set, 1 (false) otherwise.
+# Fails open: returns 1 on API errors to preserve current learner-addition behavior.
+is_peer_machine_deleting()
+{
+	local node_name="$1"
+	local out
+	local deletion_ts
+	local oc_rc
+	local item_count
+
+	# Try MAPI first (machine.openshift.io), fall back to CAPI (cluster.x-k8s.io)
+	out=$(timeout 5 oc --kubeconfig="$OCF_RESKEY_kubeconfig" get machines.machine.openshift.io \
+		-n openshift-machine-api -o json 2>&1)
+	oc_rc=$?
+
+	if [ $oc_rc -eq 0 ]; then
+		item_count=$(printf "%s" "$out" | jq '.items | length' 2>/dev/null)
+	fi
+
+	# MAPI CRD missing, namespace absent, or no Machine objects — try CAPI
+	if [ $oc_rc -ne 0 ] || [ "${item_count:-0}" -eq 0 ]; then
+		ocf_log info "MAPI returned no machines, trying CAPI for node $node_name"
+		out=$(timeout 5 oc --kubeconfig="$OCF_RESKEY_kubeconfig" get machines.cluster.x-k8s.io \
+			-n openshift-cluster-api -o json 2>&1)
+		oc_rc=$?
+		if [ $oc_rc -ne 0 ]; then
+			ocf_log warn "could not query Machine API (MAPI or CAPI) for node $node_name (fail-open): $out"
+			return 1
+		fi
+	fi
+
+	# Select the Machine object for the given node and extract its deletionTimestamp if present
+	local machine_count
+	machine_count=$(printf "%s" "$out" | jq -r --arg name "$node_name" \
+		'[.items[] | select(.status.nodeRef.name == $name)] | length' 2>/dev/null)
+
+	if [ "$machine_count" = "0" ] || [ -z "$machine_count" ]; then
+		ocf_log warn "No Machine object found for node $node_name (fail-open): nodeRef may not be populated yet"
+		return 1
+	fi
+
+	deletion_ts=$(printf "%s" "$out" | jq -r --arg name "$node_name" \
+		'.items[] | select(.status.nodeRef.name == $name) | .metadata.deletionTimestamp // empty')
+
+	if [ -n "$deletion_ts" ]; then
+		ocf_log info "Machine for node $node_name is being deleted (deletionTimestamp: $deletion_ts)"
+		return 0
+	fi
+
+	return 1
+}
+
 # Manages etcd peer membership by detecting and handling missing or rejoining peers
 # Adds missing peers as learners and reconciles member states when peers rejoin
 # Args: $1 - member list JSON from etcdctl
@@ -1561,9 +1627,22 @@ manage_peer_membership()
 	# NOTE: voting members have a "name" field but no "isLearner" field,
 	# while learner members have "isLearner": true (boolean) but no "name" field, so we search for peerURLs matching.
 	peer_member_id=$(printf "%s" "$member_list_json" | jq -r ".members[] | select( .peerURLs | map(test(\"$peer_member_ip\")) | any).ID")
+	
+	# During Machine deletion, CEO's MachineDeletionHooksController
+	# keeps the EtcdQuorumOperator preDrain hook as long as the peer IP appears in the etcd
+	# member list (learners included). If we add or keep a learner for a peer whose Machine
+	# is being deleted, CEO never clears the hook, MAO never drains, and the Machine hangs
+	# in Deleting. Two safeguards cover the race:
+	#   A (below): peer is not yet in the member list — skip adding it as a learner if machine is deleting
+	#   B (learner exists): a prior monitor cycle added the learner before the Machine
+	#     deletion started — remove it so CEO can clear the hook.
 	if [ -z "$peer_member_id" ]; then
 		ocf_log info "$peer_member_name is not in the members list"
-		add_member_as_learner "$peer_member_name" "$peer_member_ip"
+		if ! is_peer_machine_deleting "$peer_member_name"; then
+			add_member_as_learner "$peer_member_name" "$peer_member_ip"
+		else
+			ocf_log info "peer Machine is being deleted, skipping learner addition for $peer_member_name"
+		fi
 		set_standalone_node
 		return
 	fi
@@ -1571,10 +1650,24 @@ manage_peer_membership()
 	# Ensure learner_node attribute is always set when we have a learner member
 	local learner_member_id=$(printf "%s" "$member_list_json" | jq -r ".members[] | select( .isLearner==true ).ID")
 	local current_learner_node=$(attribute_learner_node get)
-	if [ -n "$learner_member_id" ] && [ -z "$current_learner_node" ]; then
-		ocf_log debug "$peer_member_name found as learner in member list, but learner_node attribute was not set. Updating"
-		attribute_learner_node update "$peer_member_name"
-		return
+
+	if [ -n "$learner_member_id" ]; then
+		# Clean up a learner added before the Machine deletion started
+		if is_peer_machine_deleting "$peer_member_name"; then
+			ocf_log info "peer Machine is being deleted, removing learner $peer_member_name from member list"
+			if remove_etcd_member_by_ip "$peer_member_ip"; then
+				attribute_learner_node clear
+				set_standalone_node
+			else
+				ocf_log err "failed to remove learner for deleting Machine $peer_member_name; will retry next monitor cycle"
+			fi
+			return
+		fi
+		if [ -z "$current_learner_node" ]; then
+			ocf_log debug "$peer_member_name found as learner in member list, but learner_node attribute was not set. Updating"
+			attribute_learner_node update "$peer_member_name"
+			return
+		fi
 	fi
 
 	ocf_log debug "$peer_member_name is in the members list by IP: $peer_member_ip"
@@ -2336,7 +2429,11 @@ podman_start()
 				peer_node_name="$(get_peer_node_name)"
 				peer_node_ip="$(attribute_node_ip_peer)"
 				if [ -n "$peer_node_name" ] && [ -n "$peer_node_ip" ]; then
-					add_member_as_learner "$peer_node_name" "$peer_node_ip"
+					if is_peer_machine_deleting "$peer_node_name"; then
+						ocf_log info "peer Machine is being deleted, skipping learner addition for $peer_node_name"
+					else
+						add_member_as_learner "$peer_node_name" "$peer_node_ip"
+					fi
 					set_standalone_node
 				else
 					ocf_log err "could not add peer as learner (peer node name: ${peer_node_name:-unknown}, peer ip: ${peer_node_ip:-unknown})"
