@@ -363,7 +363,11 @@ nfsserver_systemd_monitor()
 		rpcinfo > /dev/null 2>&1
 		rc=$?
 		if [ "$rc" -ne "0" ]; then
-			ocf_exit_reason "rpcbind is not running"
+			if ocf_is_probe  || [ "$__OCF_ACTION" = "start" ]; then
+				ocf_log info "rpcbind is not running"
+			else
+				ocf_exit_reason "rpcbind is not running"
+			fi
 			return $OCF_NOT_RUNNING
 		fi
 
@@ -371,7 +375,11 @@ nfsserver_systemd_monitor()
 		ps axww | grep -q "[r]pc.mountd"
 		rc=$?
 		if [ "$rc" -ne "0" ]; then
-			ocf_exit_reason "nfs-mountd is not running"
+			if ocf_is_probe  || [ "$__OCF_ACTION" = "start" ]; then
+				ocf_log info "nfs-mountd is not running"
+			else
+				ocf_exit_reason "nfs-mountd is not running"
+			fi
 			return $OCF_NOT_RUNNING
 		fi
 	fi
@@ -383,7 +391,11 @@ nfsserver_systemd_monitor()
 	ocf_log debug "$(cat $fn)"
 	rm -f $fn
 	if [ "$rc" -ne "0" ]; then
-		ocf_exit_reason "nfs-idmapd is not running"
+		if ocf_is_probe  || [ "$__OCF_ACTION" = "start" ]; then
+			ocf_log info "nfs-idmapd is not running"
+		else
+			ocf_exit_reason "nfs-idmapd is not running"
+		fi
 		return $OCF_NOT_RUNNING
 	fi
 
@@ -392,7 +404,11 @@ nfsserver_systemd_monitor()
 		rpcinfo -t localhost 100024 > /dev/null 2>&1
 		rc=$?
 		if [ "$rc" -ne "0" ]; then
-			ocf_exit_reason "rpc-statd is not running"
+			if ocf_is_probe  || [ "$__OCF_ACTION" = "start" ]; then
+				ocf_log info "rpc-statd is not running"
+			else
+				ocf_exit_reason "rpc-statd is not running"
+			fi
 			return $OCF_NOT_RUNNING
 		fi
 	fi
