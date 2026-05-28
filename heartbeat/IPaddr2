@@ -1028,7 +1028,7 @@ ip_served() {
 		return 0
 	fi
 
-	if ocf_is_true "$OCF_RESKEY_check_link_status" && $IP2UTIL -f $FAMILY addr show $cur_nic | \
+	if ocf_is_true "$OCF_RESKEY_check_link_status" && $IP2UTIL -f $FAMILY addr show dev $cur_nic | \
 	    grep -q "[[:space:]]\(DOWN\|LOWERLAYERDOWN\)[[:space:]]"; then
 		echo "down"
 		return 0
