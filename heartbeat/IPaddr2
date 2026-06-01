@@ -1256,11 +1256,8 @@ ip_monitor() {
 		run_arp_sender refresh
 		return $OCF_SUCCESS
 		;;
-	no)
+	no|down)
 		exit $OCF_NOT_RUNNING
-		;;
-	down)
-		exit $OCF_ERR_INSTALLED
 		;;
 	*)
 		# Errors on this interface?
