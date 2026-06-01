@@ -194,6 +194,7 @@ port_listening() {
         ss -Hln -tnp "sport = :${port}" 2>/dev/null | \
             awk -v ip="$ip" '
                 { addr=$4; sub(/:[^:]+$/,"",addr); gsub(/[\[\]]/,"",addr);
+                  sub(/^::ffff:/,"",addr);
                   if (addr==ip || addr=="0.0.0.0" || addr=="*" || addr=="::" || addr=="") { found=1 } }
                 END { exit(found?0:1) }'
         return $?
