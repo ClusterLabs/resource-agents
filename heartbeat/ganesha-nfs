@@ -2,20 +2,24 @@
 #
 # ocf:heartbeat:ganesha-nfs
 #
-# OCF Resource Agent for a single NFS-Ganesha server instance.
+# OCF Resource Agent for a single NFS-Ganesha (ganesha.nfsd) server instance,
+# for HA NFS on top of replicated block storage (DRBD + LINSTOR).
 #
-# Intended for HA NFS on top of replicated block storage (DRBD + LINSTOR).
-# Unlike ocf:heartbeat:nfsserver, this agent:
-#   - Does not touch /var/lib/nfs or the kernel NFS server.
-#   - Runs a single ganesha.nfsd process per instance.
-#   - Supports multiple EXPORT blocks via ganesha.conf (no need for
-#     ocf:heartbeat:exportfs).
-#   - Can run multiple instances per host by using distinct
-#     config_file / pid_file parameters.
+# The agent realises the export from its own parameters at runtime, the same way
+# ocf:heartbeat:exportfs programs the kernel export table: given export_path,
+# clients, etc. it renders an EPHEMERAL ganesha.conf under /run and starts
+# ganesha against it. Nothing authoritative is persisted; on failover the new
+# node re-renders from its parameters.
 #
-# Assumes the Ganesha NFSv4 RecoveryDir is on the replicated
-# filesystem that this resource fails over with, so that client lock
-# recovery state migrates with the service.
+# Modes:
+#   - Static    : if `config_file` points at an existing file and no
+#                 `export_path` is given, that file is used verbatim.
+#   - Generated : if `export_path` is set, the agent renders the config from its
+#                 parameters and starts ganesha with `ganesha.nfsd -f`.
+#
+# The agent does not manage kernel NFS, /var/lib/nfs, rpcbind, or statd. The
+# NFSv4 RecoveryDir must live on the replicated filesystem this resource fails
+# over with, so client lock state migrates on failover.
 #
 # Author:  Yusuf Yildiz <yusuf@upforge.at>
 # License: GNU GPL v2 or later
@@ -30,6 +34,7 @@
 # Defaults
 
 OCF_RESKEY_config_file_default="/etc/ganesha/ganesha.conf"
+OCF_RESKEY_runtime_dir_default="/run/ganesha"
 OCF_RESKEY_pid_file_default="/run/ganesha.pid"
 OCF_RESKEY_log_file_default="/var/log/ganesha/ganesha.log"
 OCF_RESKEY_log_level_default="NIV_EVENT"
@@ -37,7 +42,20 @@ OCF_RESKEY_nfs_ip_default=""
 OCF_RESKEY_nfs_port_default="2049"
 OCF_RESKEY_start_timeout_default="30"
 
+# --- generated-mode (export intent) ---
+OCF_RESKEY_export_path_default=""
+OCF_RESKEY_export_id_default="1"
+OCF_RESKEY_pseudo_default=""
+OCF_RESKEY_clients_default=""
+OCF_RESKEY_access_type_default="RW"
+OCF_RESKEY_squash_default="Root_Squash"
+OCF_RESKEY_sectype_default="sys"
+OCF_RESKEY_protocols_default="3,4"
+OCF_RESKEY_recovery_dir_default=""
+OCF_RESKEY_fsal_default="VFS"
+
 : ${OCF_RESKEY_config_file=${OCF_RESKEY_config_file_default}}
+: ${OCF_RESKEY_runtime_dir=${OCF_RESKEY_runtime_dir_default}}
 : ${OCF_RESKEY_pid_file=${OCF_RESKEY_pid_file_default}}
 : ${OCF_RESKEY_log_file=${OCF_RESKEY_log_file_default}}
 : ${OCF_RESKEY_log_level=${OCF_RESKEY_log_level_default}}
@@ -45,41 +63,221 @@ OCF_RESKEY_start_timeout_default="30"
 : ${OCF_RESKEY_nfs_port=${OCF_RESKEY_nfs_port_default}}
 : ${OCF_RESKEY_start_timeout=${OCF_RESKEY_start_timeout_default}}
 
+: ${OCF_RESKEY_export_path=${OCF_RESKEY_export_path_default}}
+: ${OCF_RESKEY_export_id=${OCF_RESKEY_export_id_default}}
+: ${OCF_RESKEY_pseudo=${OCF_RESKEY_pseudo_default}}
+: ${OCF_RESKEY_clients=${OCF_RESKEY_clients_default}}
+: ${OCF_RESKEY_access_type=${OCF_RESKEY_access_type_default}}
+: ${OCF_RESKEY_squash=${OCF_RESKEY_squash_default}}
+: ${OCF_RESKEY_sectype=${OCF_RESKEY_sectype_default}}
+: ${OCF_RESKEY_protocols=${OCF_RESKEY_protocols_default}}
+: ${OCF_RESKEY_recovery_dir=${OCF_RESKEY_recovery_dir_default}}
+: ${OCF_RESKEY_fsal=${OCF_RESKEY_fsal_default}}
+
 #######################################################################
+# Mode + path helpers
+
+# Generated mode iff an export_path was supplied.
+generated_mode() {
+    [ -n "$OCF_RESKEY_export_path" ]
+}
+
+# Path of the config ganesha is actually started against.
+#   generated mode -> per-instance ephemeral file under runtime_dir
+#   legacy mode    -> the operator-supplied config_file
+active_config_path() {
+    if generated_mode; then
+        echo "${OCF_RESKEY_runtime_dir}/${OCF_RESOURCE_INSTANCE:-ganesha}.conf"
+    else
+        echo "$OCF_RESKEY_config_file"
+    fi
+}
+
+# NFSv4 RecoveryDir — must live on the replicated FS so lock state migrates.
+# Default to a dir next to the export path if the operator didn't set one.
+recovery_dir() {
+    if [ -n "$OCF_RESKEY_recovery_dir" ]; then
+        echo "$OCF_RESKEY_recovery_dir"
+    else
+        echo "${OCF_RESKEY_export_path%/}/.nfs-ganesha-recovery"
+    fi
+}
+
+#######################################################################
+# Config rendering (generated mode)
+
+# Render the parts that genuinely cannot change at runtime: listener,
+# recovery dir, FSAL availability. Logging stays on the -L/-N CLI flags.
+render_base_config() {
+    local bind_addr="${OCF_RESKEY_nfs_ip:-::}"
+    cat <<EOF
+# Generated by ocf:heartbeat:ganesha-nfs for ${OCF_RESOURCE_INSTANCE:-ganesha}.
+# EPHEMERAL — regenerated on every start, not authoritative. Do not edit.
+NFS_Core_Param {
+    Bind_Addr = ${bind_addr};
+    NFS_Port = ${OCF_RESKEY_nfs_port};
+}
+
+NFSv4 {
+    RecoveryDir = $(recovery_dir);
+    Graceless = false;
+}
+EOF
+}
+
+# Render the single EXPORT {} block from the OCF parameters to stdout (it is
+# appended to the base config). Pseudo must be unique per export; a bare IPv6
+# address is accepted in Clients, but a /128 prefix or a quoted form is not.
+render_export_block() {
+    # DENY-DEFAULT policy (deliberate choice for HA storage):
+    #   EXPORT-level Access_Type = None means an unmatched client gets EACCES.
+    #   Access is granted ONLY to clients matched in the CLIENT whitelist.
+    #   This makes "accidentally world-readable export" structurally impossible.
+    local pseudo="${OCF_RESKEY_pseudo:-$OCF_RESKEY_export_path}"
+    cat <<EOF
+EXPORT {
+    Export_Id = ${OCF_RESKEY_export_id};
+    Path = ${OCF_RESKEY_export_path};
+    Pseudo = ${pseudo};
+    Access_Type = None;
+    Squash = ${OCF_RESKEY_squash};
+    SecType = ${OCF_RESKEY_sectype};
+    Protocols = ${OCF_RESKEY_protocols};
+    Transports = TCP;
+
+    FSAL {
+        Name = ${OCF_RESKEY_fsal};
+    }
+
+    CLIENT {
+        Clients = ${OCF_RESKEY_clients};
+        Access_Type = ${OCF_RESKEY_access_type};
+        Squash = ${OCF_RESKEY_squash};
+    }
+}
+EOF
+}
+
+render_config() {
+    render_base_config
+    echo
+    render_export_block
+}
+
+write_runtime_config() {
+    local path
+    path=$(active_config_path)
+    mkdir -p "$(dirname "$path")"
+    render_config > "$path" || return 1
+    ocf_log info "Rendered ephemeral Ganesha config at $path"
+    return 0
+}
+
+# Remove generated runtime artifacts (the ephemeral config).
+cleanup_generated() {
+    generated_mode || return 0
+    rm -f "$(active_config_path)"
+    return 0
+}
+
+#######################################################################
+# meta-data
 
 meta_data() {
 cat <<EOM
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="ganesha-nfs" version="0.1">
+<resource-agent name="ganesha-nfs" version="0.2">
 <version>1.0</version>
 
 <longdesc lang="en">
-Manages a single NFS-Ganesha (ganesha.nfsd) server instance as a
-cluster resource. Designed for HA NFS on DRBD/LINSTOR-backed
-storage.
+Manages a single NFS-Ganesha (ganesha.nfsd) server instance as a cluster
+resource, for HA NFS on DRBD/LINSTOR-backed storage.
 
-The agent does not manage kernel NFS, /var/lib/nfs, rpcbind, or
-statd. It only starts and stops the ganesha.nfsd process and
-probes its readiness.
+Two modes. If 'export_path' is set, the agent renders an ephemeral
+ganesha.conf under 'runtime_dir' from the OCF parameters and starts ganesha
+against it (the exportfs(8) model: runtime realisation, nothing persisted).
+If 'export_path' is empty and 'config_file' points at an existing file, that
+file is used verbatim (legacy/static mode).
 
-Critical: the NFSv4 RecoveryDir configured in ganesha.conf must
-live on the replicated filesystem that this resource fails over
-with, otherwise clients will lose their locks on failover.
+The agent does not manage kernel NFS, /var/lib/nfs, rpcbind, or statd.
 
-To serve multiple exports, put multiple EXPORT {} blocks in the
-same ganesha.conf. Multiple co-located Ganesha instances are
-supported by giving each a unique config_file, pid_file, and
-listening IP.
+Critical: the NFSv4 RecoveryDir must live on the replicated filesystem this
+resource fails over with, or clients lose their locks on failover.
 </longdesc>
-
 <shortdesc lang="en">Manages an NFS-Ganesha server instance</shortdesc>
 
 <parameters>
 
-<parameter name="config_file" unique="1" required="0">
-<longdesc lang="en">Path to the ganesha.conf file for this instance.</longdesc>
-<shortdesc lang="en">Ganesha configuration file</shortdesc>
+<parameter name="export_path" unique="0" required="0">
+<longdesc lang="en">Server-side directory to export, on the replicated FS. Setting this switches the agent into generated mode (it renders ganesha.conf from its parameters).</longdesc>
+<shortdesc lang="en">Exported directory (enables generated mode)</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="export_id" unique="0" required="0">
+<longdesc lang="en">NFS Export_Id (uint16, 1-65535). Must be unique and stable across the cluster; collision-free assignment is the caller's responsibility.</longdesc>
+<shortdesc lang="en">Export_Id</shortdesc>
+<content type="integer" default="${OCF_RESKEY_export_id_default}" />
+</parameter>
+
+<parameter name="pseudo" unique="0" required="0">
+<longdesc lang="en">NFSv4 pseudo path. Defaults to the export_path if unset.</longdesc>
+<shortdesc lang="en">NFSv4 pseudo path</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="clients" unique="0" required="0">
+<longdesc lang="en">Client spec for the CLIENT whitelist (e.g. "10.1.10.0/24", a bare IPv6 like fd00:10:1:10::3, or "*"). REQUIRED in generated mode (deny-default: no clients means nobody can mount). Use "*" explicitly to allow all reachable clients.</longdesc>
+<shortdesc lang="en">Allowed clients (required in generated mode)</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="access_type" unique="0" required="0">
+<longdesc lang="en">Access type granted to whitelisted clients: RW, RO, or None.</longdesc>
+<shortdesc lang="en">Access type</shortdesc>
+<content type="string" default="RW" />
+</parameter>
+
+<parameter name="squash" unique="0" required="0">
+<longdesc lang="en">UID/GID squashing: Root_Squash, No_Root_Squash, or All_Squash.</longdesc>
+<shortdesc lang="en">Squash policy</shortdesc>
+<content type="string" default="Root_Squash" />
+</parameter>
+
+<parameter name="sectype" unique="0" required="0">
+<longdesc lang="en">Security flavour: sys, krb5, krb5i, krb5p.</longdesc>
+<shortdesc lang="en">SecType</shortdesc>
+<content type="string" default="sys" />
+</parameter>
+
+<parameter name="protocols" unique="0" required="0">
+<longdesc lang="en">NFS protocol versions to offer, e.g. "3,4" or "4".</longdesc>
+<shortdesc lang="en">Protocols</shortdesc>
+<content type="string" default="3,4" />
+</parameter>
+
+<parameter name="fsal" unique="0" required="0">
+<longdesc lang="en">Ganesha FSAL name (VFS, GLUSTER, CEPH, ...).</longdesc>
+<shortdesc lang="en">FSAL</shortdesc>
+<content type="string" default="VFS" />
+</parameter>
+
+<parameter name="recovery_dir" unique="0" required="0">
+<longdesc lang="en">NFSv4 RecoveryDir. MUST be on the replicated FS. Defaults to a hidden dir under export_path.</longdesc>
+<shortdesc lang="en">NFSv4 RecoveryDir</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="runtime_dir" unique="0" required="0">
+<longdesc lang="en">Directory for the ephemeral generated config (tmpfs recommended).</longdesc>
+<shortdesc lang="en">Runtime config directory</shortdesc>
+<content type="string" default="${OCF_RESKEY_runtime_dir_default}" />
+</parameter>
+
+<parameter name="config_file" unique="0" required="0">
+<longdesc lang="en">Legacy mode only: path to a pre-existing ganesha.conf. Ignored when export_path is set.</longdesc>
+<shortdesc lang="en">Static configuration file (legacy mode)</shortdesc>
 <content type="string" default="${OCF_RESKEY_config_file_default}" />
 </parameter>
 
@@ -96,36 +294,25 @@ listening IP.
 </parameter>
 
 <parameter name="log_level" unique="0" required="0">
-<longdesc lang="en">
-Ganesha log level (NIV_NULL, NIV_FATAL, NIV_MAJ, NIV_CRIT,
-NIV_WARN, NIV_EVENT, NIV_INFO, NIV_DEBUG, NIV_FULL_DEBUG).
-</longdesc>
+<longdesc lang="en">Ganesha log level (NIV_EVENT, NIV_INFO, NIV_DEBUG, ...).</longdesc>
 <shortdesc lang="en">Log level</shortdesc>
 <content type="string" default="${OCF_RESKEY_log_level_default}" />
 </parameter>
 
-<parameter name="nfs_ip" unique="1" required="0">
-<longdesc lang="en">
-Optional service IP (v4 or v6). If set, the monitor probes TCP
-${OCF_RESKEY_nfs_port_default} on this IP instead of any-interface.
-Useful for multi-instance setups where each Ganesha binds a
-different IP.
-</longdesc>
-<shortdesc lang="en">NFS service IP for readiness probe</shortdesc>
+<parameter name="nfs_ip" unique="0" required="0">
+<longdesc lang="en">Service IP (v4 or v6) to bind and probe. Each co-located instance should use a distinct IP.</longdesc>
+<shortdesc lang="en">NFS service IP</shortdesc>
 <content type="string" default="" />
 </parameter>
 
 <parameter name="nfs_port" unique="0" required="0">
-<longdesc lang="en">TCP port to probe on nfs_ip.</longdesc>
+<longdesc lang="en">TCP port to bind/probe.</longdesc>
 <shortdesc lang="en">NFS port</shortdesc>
 <content type="integer" default="${OCF_RESKEY_nfs_port_default}" />
 </parameter>
 
 <parameter name="start_timeout" unique="0" required="0">
-<longdesc lang="en">
-Seconds to wait for Ganesha to become ready (PID file plus listening
-port). Default 30.
-</longdesc>
+<longdesc lang="en">Seconds to wait for readiness (PID + listening port).</longdesc>
 <shortdesc lang="en">Start readiness timeout</shortdesc>
 <content type="integer" default="${OCF_RESKEY_start_timeout_default}" />
 </parameter>
@@ -145,7 +332,7 @@ EOM
 }
 
 #######################################################################
-# Helpers
+# Helpers (process lifecycle)
 
 ganesha_binary() {
     if [ -x /usr/bin/ganesha.nfsd ]; then
@@ -171,7 +358,6 @@ is_running() {
     local pid comm
     pid=$(read_pid) || return 1
     kill -0 "$pid" 2>/dev/null || return 1
-    # Verify the PID actually belongs to ganesha.nfsd (defence against PID reuse)
     comm=$(cat /proc/"$pid"/comm 2>/dev/null)
     [ "$comm" = "ganesha.nfsd" ]
 }
@@ -181,7 +367,6 @@ port_listening() {
     local port="$OCF_RESKEY_nfs_port"
 
     if ! have_binary ss; then
-        # Fallback: just verify some listener on the port via /proc
         local hex
         hex=$(printf '%04X' "$port")
         grep -qE ":${hex} [0-9A-F]{8}:[0-9A-F]{4} 0A" /proc/net/tcp  2>/dev/null && return 0
@@ -190,11 +375,10 @@ port_listening() {
     fi
 
     if [ -n "$ip" ]; then
-        # Match either the specific IP or wildcard listeners (0.0.0.0 / ::)
         ss -Hln -tnp "sport = :${port}" 2>/dev/null | \
             awk -v ip="$ip" '
                 { addr=$4; sub(/:[^:]+$/,"",addr); gsub(/[\[\]]/,"",addr);
-                  sub(/^::ffff:/,"",addr);
+                  sub(/^::ffff:/,"",addr);   # normalise IPv4-mapped IPv6 (ganesha binds v4 this way)
                   if (addr==ip || addr=="0.0.0.0" || addr=="*" || addr=="::" || addr=="") { found=1 } }
                 END { exit(found?0:1) }'
         return $?
@@ -208,22 +392,45 @@ ensure_dirs() {
     for d in "$(dirname "$OCF_RESKEY_pid_file")" "$(dirname "$OCF_RESKEY_log_file")"; do
         [ -d "$d" ] || mkdir -p "$d"
     done
+    if generated_mode; then
+        [ -d "$(recovery_dir)" ] || mkdir -p "$(recovery_dir)"
+    fi
 }
 
 #######################################################################
 # OCF actions
 
 ganesha_validate() {
-    if [ ! -f "$OCF_RESKEY_config_file" ]; then
-        ocf_exit_reason "Config file not found: $OCF_RESKEY_config_file"
-        return $OCF_ERR_CONFIGURED
-    fi
     local bin
     bin=$(ganesha_binary)
     if ! check_binary "$bin"; then
         ocf_exit_reason "ganesha.nfsd binary not found"
         return $OCF_ERR_INSTALLED
     fi
+
+    if generated_mode; then
+        case "$OCF_RESKEY_export_id" in
+            ''|*[!0-9]*) ocf_exit_reason "export_id must be an integer"; return $OCF_ERR_CONFIGURED ;;
+        esac
+        if [ "$OCF_RESKEY_export_id" -lt 1 ] || [ "$OCF_RESKEY_export_id" -gt 65535 ]; then
+            ocf_exit_reason "export_id must be in 1..65535"; return $OCF_ERR_CONFIGURED
+        fi
+        case "$OCF_RESKEY_access_type" in
+            RW|RO|None) ;;
+            *) ocf_exit_reason "access_type must be RW, RO, or None"; return $OCF_ERR_CONFIGURED ;;
+        esac
+        if [ -z "$OCF_RESKEY_clients" ]; then
+            ocf_exit_reason "clients is required in generated mode (deny-default); set it explicitly, use \"*\" to allow all"
+            return $OCF_ERR_CONFIGURED
+        fi
+        # export_path existence is checked at start (FS may not be mounted yet at probe time).
+    else
+        if [ ! -f "$OCF_RESKEY_config_file" ]; then
+            ocf_exit_reason "Config file not found: $OCF_RESKEY_config_file (and no export_path set)"
+            return $OCF_ERR_INSTALLED
+        fi
+    fi
+
     case "$OCF_RESKEY_start_timeout" in
         ''|*[!0-9]*) ocf_exit_reason "start_timeout must be a positive integer"; return $OCF_ERR_CONFIGURED ;;
     esac
@@ -255,7 +462,6 @@ ganesha_start() {
             ocf_log info "Ganesha already running and listening (PID $(read_pid))"
             return $OCF_SUCCESS
         fi
-        # PID alive but not listening — could be mid-startup. Wait briefly.
         ocf_log info "Ganesha PID alive but not yet listening; waiting up to 10s"
         local j=0
         while [ $j -lt 10 ]; do
@@ -266,19 +472,31 @@ ganesha_start() {
             fi
             j=$((j + 1))
         done
-        # Still stuck — return failure; Pacemaker will run the stop-action.
-        ocf_exit_reason "Existing Ganesha PID $(read_pid) not listening after 10s"
-        return $OCF_ERR_GENERIC
+        ocf_log warn "Existing Ganesha PID $(read_pid) not listening after 10s; stopping before retry"
+        ganesha_stop
     fi
 
-    ensure_dirs
+    if generated_mode; then
+        if [ ! -d "$OCF_RESKEY_export_path" ]; then
+            ocf_exit_reason "export_path does not exist (is the replicated FS mounted?): $OCF_RESKEY_export_path"
+            return $OCF_ERR_GENERIC
+        fi
+        ensure_dirs
+        if ! write_runtime_config; then
+            ocf_exit_reason "Failed to render runtime config at $(active_config_path)"
+            return $OCF_ERR_GENERIC
+        fi
+    else
+        ensure_dirs
+    fi
 
-    local bin
+    local bin cfg
     bin=$(ganesha_binary)
-    ocf_log info "Starting Ganesha: $bin -f $OCF_RESKEY_config_file -p $OCF_RESKEY_pid_file"
+    cfg=$(active_config_path)
+    ocf_log info "Starting Ganesha: $bin -f $cfg -p $OCF_RESKEY_pid_file"
 
     "$bin" \
-        -f "$OCF_RESKEY_config_file" \
+        -f "$cfg" \
         -p "$OCF_RESKEY_pid_file" \
         -L "$OCF_RESKEY_log_file" \
         -N "$OCF_RESKEY_log_level"
@@ -288,35 +506,35 @@ ganesha_start() {
         return $OCF_ERR_GENERIC
     fi
 
-    local i=0
+    local i=0 ready=0
     while [ $i -lt "$OCF_RESKEY_start_timeout" ]; do
-        if ganesha_monitor >/dev/null 2>&1; then
-            ocf_log info "Ganesha ready (PID $(read_pid))"
-            return $OCF_SUCCESS
-        fi
+        if ganesha_monitor >/dev/null 2>&1; then ready=1; break; fi
         sleep 1
         i=$((i + 1))
     done
+    if [ $ready -ne 1 ]; then
+        ocf_exit_reason "Ganesha did not become ready within ${OCF_RESKEY_start_timeout}s; see $OCF_RESKEY_log_file"
+        return $OCF_ERR_GENERIC
+    fi
 
-    ocf_exit_reason "Ganesha did not become ready within ${OCF_RESKEY_start_timeout}s; see $OCF_RESKEY_log_file"
-    return $OCF_ERR_GENERIC
+    ocf_log info "Ganesha ready (PID $(read_pid))"
+    return $OCF_SUCCESS
 }
 
 ganesha_stop() {
     local pid
     if ! is_running; then
         [ -f "$OCF_RESKEY_pid_file" ] && rm -f "$OCF_RESKEY_pid_file"
+        cleanup_generated
         return $OCF_SUCCESS
     fi
 
     pid=$(read_pid)
     ocf_log info "Stopping Ganesha (PID $pid)"
 
-    # Honour the caller-provided timeout; reserve 10s for SIGKILL escalation
-    # so this branch is actually reachable before Pacemaker times us out.
     local tmo=${OCF_RESKEY_CRM_meta_timeout:-60000}
-    tmo=$(( (tmo / 1000) - 10 ))
-    [ $tmo -lt 5 ] && tmo=5
+    tmo=$(( (tmo / 1000) - 5 ))
+    [ $tmo -lt 10 ] && tmo=10
 
     kill -TERM "$pid" 2>/dev/null
 
@@ -324,6 +542,7 @@ ganesha_stop() {
     while [ $i -lt $tmo ]; do
         if ! kill -0 "$pid" 2>/dev/null; then
             rm -f "$OCF_RESKEY_pid_file"
+            cleanup_generated
             ocf_log info "Ganesha stopped cleanly"
             return $OCF_SUCCESS
         fi
@@ -339,6 +558,7 @@ ganesha_stop() {
         return $OCF_ERR_GENERIC
     fi
     rm -f "$OCF_RESKEY_pid_file"
+    generated_mode && rm -f "$(active_config_path)"
     return $OCF_SUCCESS
 }
 
