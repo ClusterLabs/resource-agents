@@ -15,7 +15,9 @@
 #   - Static    : if `config_file` points at an existing file and no
 #                 `export_path` is given, that file is used verbatim.
 #   - Generated : if `export_path` is set, the agent renders the config from its
-#                 parameters and starts ganesha with `ganesha.nfsd -f`.
+#                 parameters and starts ganesha with `ganesha.nfsd -f`. The
+#                 export_path/export_id/pseudo parameters accept ';'-separated
+#                 lists, so one process can serve several exports.
 #
 # The agent does not manage kernel NFS, /var/lib/nfs, rpcbind, or statd. The
 # NFSv4 RecoveryDir must live on the replicated filesystem this resource fails
@@ -93,13 +95,27 @@ active_config_path() {
     fi
 }
 
-# NFSv4 RecoveryDir — must live on the replicated FS so lock state migrates.
-# Default to a dir next to the export path if the operator didn't set one.
+# export_path / export_id / pseudo accept ';'-separated lists, zipped
+# positionally, so one ganesha process can serve several EXPORT blocks. These
+# helpers read field N (1-based, whitespace-trimmed) and count the fields.
+list_nth() {
+    printf '%s' "$1" | awk -F';' -v n="$2" \
+        '{ s=$n; sub(/^[ \t]+/,"",s); sub(/[ \t]+$/,"",s); print s }'
+}
+list_len() {
+    [ -n "$1" ] || { echo 0; return; }
+    printf '%s' "$1" | awk -F';' '{ print NF }'
+}
+
+# NFSv4 RecoveryDir — a server-wide singleton; it must live on the replicated FS
+# so lock state migrates. Default to a hidden dir under the first export path.
 recovery_dir() {
     if [ -n "$OCF_RESKEY_recovery_dir" ]; then
         echo "$OCF_RESKEY_recovery_dir"
     else
-        echo "${OCF_RESKEY_export_path%/}/.nfs-ganesha-recovery"
+        local first
+        first=$(list_nth "$OCF_RESKEY_export_path" 1)
+        echo "${first%/}/.nfs-ganesha-recovery"
     fi
 }
 
@@ -125,20 +141,28 @@ NFSv4 {
 EOF
 }
 
-# Render the single EXPORT {} block from the OCF parameters to stdout (it is
-# appended to the base config). Pseudo must be unique per export; a bare IPv6
-# address is accepted in Clients, but a /128 prefix or a quoted form is not.
+# Render one EXPORT {} block (for the export at 1-based list index $1) to
+# stdout. The per-export fields path/id/pseudo come from the ';'-separated
+# lists; everything else is shared. export_id defaults to the index and pseudo
+# defaults to the path. A bare IPv6 address is accepted in Clients, but a /128
+# prefix or a quoted form is not.
+#
+# DENY-DEFAULT policy (deliberate choice for HA storage): EXPORT-level
+# Access_Type = None means an unmatched client is refused (EACCES); access is
+# granted only inside the CLIENT whitelist, so an unlisted client cannot reach
+# the data and an accidentally world-readable export is impossible.
 render_export_block() {
-    # DENY-DEFAULT policy (deliberate choice for HA storage):
-    #   EXPORT-level Access_Type = None means an unmatched client gets EACCES.
-    #   Access is granted ONLY to clients matched in the CLIENT whitelist.
-    #   This makes "accidentally world-readable export" structurally impossible.
-    local pseudo="${OCF_RESKEY_pseudo:-$OCF_RESKEY_export_path}"
+    local idx="$1" epath eid epseudo
+    epath=$(list_nth "$OCF_RESKEY_export_path" "$idx")
+    eid=$(list_nth "$OCF_RESKEY_export_id" "$idx")
+    [ -n "$eid" ] || eid="$idx"
+    epseudo=$(list_nth "$OCF_RESKEY_pseudo" "$idx")
+    [ -n "$epseudo" ] || epseudo="$epath"
     cat <<EOF
 EXPORT {
-    Export_Id = ${OCF_RESKEY_export_id};
-    Path = ${OCF_RESKEY_export_path};
-    Pseudo = ${pseudo};
+    Export_Id = ${eid};
+    Path = ${epath};
+    Pseudo = ${epseudo};
     Access_Type = None;
     Squash = ${OCF_RESKEY_squash};
     SecType = ${OCF_RESKEY_sectype};
@@ -159,9 +183,15 @@ EOF
 }
 
 render_config() {
+    local n i
     render_base_config
-    echo
-    render_export_block
+    n=$(list_len "$OCF_RESKEY_export_path")
+    i=1
+    while [ "$i" -le "$n" ]; do
+        echo
+        render_export_block "$i"
+        i=$((i + 1))
+    done
 }
 
 write_runtime_config() {
@@ -200,6 +230,11 @@ against it (the exportfs(8) model: runtime realisation, nothing persisted).
 If 'export_path' is empty and 'config_file' points at an existing file, that
 file is used verbatim (legacy/static mode).
 
+A single ganesha process can serve several exports: 'export_path', 'export_id'
+and 'pseudo' accept ';'-separated lists, zipped positionally (one EXPORT block
+per entry). All exports share one service IP, one clients whitelist and the
+other scalar parameters.
+
 The agent does not manage kernel NFS, /var/lib/nfs, rpcbind, or statd.
 
 Critical: the NFSv4 RecoveryDir must live on the replicated filesystem this
@@ -210,20 +245,20 @@ resource fails over with, or clients lose their locks on failover.
 <parameters>
 
 <parameter name="export_path" unique="0" required="0">
-<longdesc lang="en">Server-side directory to export, on the replicated FS. Setting this switches the agent into generated mode (it renders ganesha.conf from its parameters).</longdesc>
-<shortdesc lang="en">Exported directory (enables generated mode)</shortdesc>
+<longdesc lang="en">Server-side directory to export, on the replicated FS. Setting this switches the agent into generated mode (it renders ganesha.conf from its parameters). May be a ';'-separated list to export several directories from one ganesha process.</longdesc>
+<shortdesc lang="en">Exported directory, or ';'-list (enables generated mode)</shortdesc>
 <content type="string" default="" />
 </parameter>
 
 <parameter name="export_id" unique="0" required="0">
-<longdesc lang="en">NFS Export_Id (uint16, 1-65535). Must be unique and stable across the cluster; collision-free assignment is the caller's responsibility.</longdesc>
-<shortdesc lang="en">Export_Id</shortdesc>
+<longdesc lang="en">NFS Export_Id (uint16, 1-65535), or a ';'-separated list parallel to export_path. Must be unique and stable per server; collision-free assignment is the caller's responsibility. Defaults to the export's 1-based position if omitted.</longdesc>
+<shortdesc lang="en">Export_Id, or ';'-list parallel to export_path</shortdesc>
 <content type="integer" default="${OCF_RESKEY_export_id_default}" />
 </parameter>
 
 <parameter name="pseudo" unique="0" required="0">
-<longdesc lang="en">NFSv4 pseudo path. Defaults to the export_path if unset.</longdesc>
-<shortdesc lang="en">NFSv4 pseudo path</shortdesc>
+<longdesc lang="en">NFSv4 pseudo path, or a ';'-separated list parallel to export_path. Each entry defaults to its export_path if unset; must be unique per export.</longdesc>
+<shortdesc lang="en">NFSv4 pseudo path, or ';'-list parallel to export_path</shortdesc>
 <content type="string" default="" />
 </parameter>
 
@@ -264,7 +299,7 @@ resource fails over with, or clients lose their locks on failover.
 </parameter>
 
 <parameter name="recovery_dir" unique="0" required="0">
-<longdesc lang="en">NFSv4 RecoveryDir. MUST be on the replicated FS. Defaults to a hidden dir under export_path.</longdesc>
+<longdesc lang="en">NFSv4 RecoveryDir (server-wide singleton). MUST be on the replicated FS. Defaults to a hidden dir under the first export_path.</longdesc>
 <shortdesc lang="en">NFSv4 RecoveryDir</shortdesc>
 <content type="string" default="" />
 </parameter>
@@ -409,12 +444,38 @@ ganesha_validate() {
     fi
 
     if generated_mode; then
-        case "$OCF_RESKEY_export_id" in
-            ''|*[!0-9]*) ocf_exit_reason "export_id must be an integer"; return $OCF_ERR_CONFIGURED ;;
-        esac
-        if [ "$OCF_RESKEY_export_id" -lt 1 ] || [ "$OCF_RESKEY_export_id" -gt 65535 ]; then
-            ocf_exit_reason "export_id must be in 1..65535"; return $OCF_ERR_CONFIGURED
+        local np ni npp i id
+        np=$(list_len "$OCF_RESKEY_export_path")
+
+        # export_id: optional ';'-list parallel to export_path; each a uint16.
+        if [ -n "$OCF_RESKEY_export_id" ]; then
+            ni=$(list_len "$OCF_RESKEY_export_id")
+            if [ "$ni" -ne "$np" ]; then
+                ocf_exit_reason "export_id list has $ni entries but export_path has $np"
+                return $OCF_ERR_CONFIGURED
+            fi
+            i=1
+            while [ "$i" -le "$ni" ]; do
+                id=$(list_nth "$OCF_RESKEY_export_id" "$i")
+                case "$id" in
+                    ''|*[!0-9]*) ocf_exit_reason "export_id entries must be integers"; return $OCF_ERR_CONFIGURED ;;
+                esac
+                if [ "$id" -lt 1 ] || [ "$id" -gt 65535 ]; then
+                    ocf_exit_reason "export_id entries must be in 1..65535"; return $OCF_ERR_CONFIGURED
+                fi
+                i=$((i + 1))
+            done
         fi
+
+        # pseudo: optional ';'-list, must match export_path length when set.
+        if [ -n "$OCF_RESKEY_pseudo" ]; then
+            npp=$(list_len "$OCF_RESKEY_pseudo")
+            if [ "$npp" -ne "$np" ]; then
+                ocf_exit_reason "pseudo list has $npp entries but export_path has $np"
+                return $OCF_ERR_CONFIGURED
+            fi
+        fi
+
         case "$OCF_RESKEY_access_type" in
             RW|RO|None) ;;
             *) ocf_exit_reason "access_type must be RW, RO, or None"; return $OCF_ERR_CONFIGURED ;;
@@ -477,10 +538,17 @@ ganesha_start() {
     fi
 
     if generated_mode; then
-        if [ ! -d "$OCF_RESKEY_export_path" ]; then
-            ocf_exit_reason "export_path does not exist (is the replicated FS mounted?): $OCF_RESKEY_export_path"
-            return $OCF_ERR_GENERIC
-        fi
+        local np i p
+        np=$(list_len "$OCF_RESKEY_export_path")
+        i=1
+        while [ "$i" -le "$np" ]; do
+            p=$(list_nth "$OCF_RESKEY_export_path" "$i")
+            if [ ! -d "$p" ]; then
+                ocf_exit_reason "export_path does not exist (is the replicated FS mounted?): $p"
+                return $OCF_ERR_GENERIC
+            fi
+            i=$((i + 1))
+        done
         ensure_dirs
         if ! write_runtime_config; then
             ocf_exit_reason "Failed to render runtime config at $(active_config_path)"
