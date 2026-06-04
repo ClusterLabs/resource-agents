@@ -6,9 +6,9 @@
 #   Tested on SuSE Linux Enterprise Server 10.
 #
 #   Should conform to the specification found at
-#    https://github.com/ClusterLabs/resource-agents/blob/master/doc/dev-guides/ra-dev-guide.asc
+#    https://github.com/ClusterLabs/resource-agents/blob/main/doc/dev-guides/ra-dev-guide.asc
 #   and
-#    https://github.com/ClusterLabs/OCF-spec/blob/master/ra/resource-agent-api.md
+#    https://github.com/ClusterLabs/OCF-spec/blob/main/ra/1.1/resource-agent-api.md
 #
 #   ToDo: Add parameter to start several instances of ldirectord
 #   with different config files.
