@@ -1826,9 +1826,13 @@ podman_monitor()
 			;;
 	esac
 
-	# Check if certificate files have changed, if they have, etcd needs to be restarted
+	# etcd 3.6+ hot-reloads TLS certificates on each new handshake.
+	# Update the stored hash so we don't re-detect the same change, but do NOT
+	# trigger a restart — if the new certs cause a real TLS failure,
+	# monitor_cmd_exec will catch it below.
 	if ! etcd_certificates_hash_manager "check"; then
-		return $OCF_ERR_GENERIC
+		ocf_log info "certificate files changed — updating hash (etcd hot-reloads TLS certs)"
+		etcd_certificates_hash_manager "update"
 	fi
 
 	if is_learner; then
