@@ -2210,9 +2210,7 @@ podman_start()
 				ocf_log info "fnc cleared after tiebreaker, proceeding as learner"
 				JOIN_AS_LEARNER=true
 			fi
-		fi
-
-		if [ "$fnc_holder_count" -eq 1 ]; then
+		elif [ "$fnc_holder_count" -eq 1 ]; then
 			if echo "$fnc_holders" | grep -q -w "$NODENAME"; then
 				# Attribute is set on the local node.
 				ocf_log notice "$NODENAME marked to force-new-cluster"
