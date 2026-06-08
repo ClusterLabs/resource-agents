@@ -426,7 +426,8 @@ nfsserver_systemd_monitor()
 			if [ $threads_num -gt 0 ]; then
 				return $OCF_SUCCESS
 			else
-				return 3
+				ocf_exit_reason "nfsd is not running"
+				return $OCF_ERR_UNIMPLEMENTED
 			fi
 		else
 			return $OCF_ERR_GENERIC
