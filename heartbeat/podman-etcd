@@ -2173,8 +2173,43 @@ podman_start()
 		local fnc_holder_count
 		fnc_holder_count=$(echo "$fnc_holders" | wc -w)
 		if [ "$fnc_holder_count" -gt 1 ]; then
-			ocf_exit_reason "force_new_cluster attribute is set on multiple nodes ($fnc_holders)"
-			return "$OCF_ERR_CONFIGURED"
+			ocf_log warn "force_new_cluster set on multiple nodes ($fnc_holders) — resolving with revision tiebreaker"
+			local tiebreaker_winner=""
+
+			if revision_compare_result=$(compare_revision); then
+				case "$revision_compare_result" in
+				newer)
+					tiebreaker_winner="$NODENAME"
+					;;
+				older)
+					tiebreaker_winner="peer"
+					;;
+				esac
+			fi
+
+			if [ -z "$tiebreaker_winner" ]; then
+				local node_names_sorted
+				node_names_sorted=$(echo "$OCF_RESKEY_node_ip_map" | sed 's/:[^;]*//g; s/;/ /g' | tr ' ' '\n' | sort | tr '\n' ' ')
+				local first_node
+				first_node=$(echo "$node_names_sorted" | cut -d' ' -f1)
+				if [ "$NODENAME" = "$first_node" ]; then
+					tiebreaker_winner="$NODENAME"
+					ocf_log notice "$NODENAME wins tiebreaker (alphabetical, revisions equal or unavailable)"
+				else
+					tiebreaker_winner="peer"
+					ocf_log notice "$NODENAME loses tiebreaker (alphabetical, revisions equal or unavailable)"
+				fi
+			fi
+
+			if [ "$tiebreaker_winner" = "$NODENAME" ]; then
+				ocf_log notice "$NODENAME wins tiebreaker — keeping force_new_cluster"
+				JOIN_AS_LEARNER=false
+			else
+				ocf_log notice "$NODENAME loses tiebreaker — clearing force_new_cluster, joining as learner"
+				clear_force_new_cluster
+				ocf_log info "fnc cleared after tiebreaker, proceeding as learner"
+				JOIN_AS_LEARNER=true
+			fi
 		fi
 
 		if [ "$fnc_holder_count" -eq 1 ]; then
