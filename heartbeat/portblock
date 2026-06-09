@@ -323,7 +323,10 @@ END
 active_grep_pat()
 {
   w="[ 	][ 	]*"
-  any="0\\.0\\.0\\.0/0"
+  case $ip_family in
+    ip6) any="::/0" ;;
+    *)   any="0\\.0\\.0\\.0/0" ;;
+  esac
   src=$any dst=$3
   if [ "$4" = "s" ]; then
     local src=$3
@@ -346,9 +349,9 @@ active_grep_pat()
     fi
   else
     if [ "$method" = "DROP" ]; then
-      echo "^DROP${w}${prot}${w}--${w}${src}${w}${dst}${w}multiport${w}${4}ports${w}${2}$"
+      echo "^DROP${w}${prot}${w}\(--${w}\)\?${src}${w}${dst}${w}multiport${w}${4}ports${w}${2}$"
     else
-      echo "^REJECT${w}${prot}${w}--${w}${src}${w}${dst}${w}multiport${w}${4}ports${w}${2}${w}ctstate${w}NEW,RELATED,ESTABLISHED${w}reject-with${w}tcp-reset$"
+      echo "^REJECT${w}${prot}${w}\(--${w}\)\?${src}${w}${dst}${w}multiport${w}${4}ports${w}${2}${w}ctstate${w}NEW,RELATED,ESTABLISHED${w}reject-with${w}tcp-reset$"
     fi
   fi
 }
