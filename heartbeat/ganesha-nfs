@@ -79,7 +79,7 @@ OCF_RESKEY_fsal_default="VFS"
 #######################################################################
 # Mode + path helpers
 
-# Generated mode iff an export_path was supplied.
+# Generated mode if and only if an export_path was supplied.
 generated_mode() {
     [ -n "$OCF_RESKEY_export_path" ]
 }
@@ -247,7 +247,7 @@ resource fails over with, or clients lose their locks on failover.
 <parameter name="export_path" unique="0" required="0">
 <longdesc lang="en">Server-side directory to export, on the replicated FS. Setting this switches the agent into generated mode (it renders ganesha.conf from its parameters). May be a ';'-separated list to export several directories from one ganesha process.</longdesc>
 <shortdesc lang="en">Exported directory, or ';'-list (enables generated mode)</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_export_path_default}" />
 </parameter>
 
 <parameter name="export_id" unique="0" required="0">
@@ -259,49 +259,49 @@ resource fails over with, or clients lose their locks on failover.
 <parameter name="pseudo" unique="0" required="0">
 <longdesc lang="en">NFSv4 pseudo path, or a ';'-separated list parallel to export_path. Each entry defaults to its export_path if unset; must be unique per export.</longdesc>
 <shortdesc lang="en">NFSv4 pseudo path, or ';'-list parallel to export_path</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_pseudo_default}" />
 </parameter>
 
 <parameter name="clients" unique="0" required="0">
 <longdesc lang="en">Client spec for the CLIENT whitelist (e.g. "10.1.10.0/24", a bare IPv6 like fd00:10:1:10::3, or "*"). REQUIRED in generated mode (deny-default: no clients means nobody can mount). Use "*" explicitly to allow all reachable clients.</longdesc>
 <shortdesc lang="en">Allowed clients (required in generated mode)</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_clients_default}" />
 </parameter>
 
 <parameter name="access_type" unique="0" required="0">
 <longdesc lang="en">Access type granted to whitelisted clients: RW, RO, or None.</longdesc>
 <shortdesc lang="en">Access type</shortdesc>
-<content type="string" default="RW" />
+<content type="string" default="${OCF_RESKEY_access_type_default}" />
 </parameter>
 
 <parameter name="squash" unique="0" required="0">
 <longdesc lang="en">UID/GID squashing: Root_Squash, No_Root_Squash, or All_Squash.</longdesc>
 <shortdesc lang="en">Squash policy</shortdesc>
-<content type="string" default="Root_Squash" />
+<content type="string" default="${OCF_RESKEY_squash_default}" />
 </parameter>
 
 <parameter name="sectype" unique="0" required="0">
 <longdesc lang="en">Security flavour: sys, krb5, krb5i, krb5p.</longdesc>
 <shortdesc lang="en">SecType</shortdesc>
-<content type="string" default="sys" />
+<content type="string" default="${OCF_RESKEY_sectype_default}" />
 </parameter>
 
 <parameter name="protocols" unique="0" required="0">
 <longdesc lang="en">NFS protocol versions to offer, e.g. "3,4" or "4".</longdesc>
 <shortdesc lang="en">Protocols</shortdesc>
-<content type="string" default="3,4" />
+<content type="string" default="${OCF_RESKEY_protocols_default}" />
 </parameter>
 
 <parameter name="fsal" unique="0" required="0">
 <longdesc lang="en">Ganesha FSAL name (VFS, GLUSTER, CEPH, ...).</longdesc>
 <shortdesc lang="en">FSAL</shortdesc>
-<content type="string" default="VFS" />
+<content type="string" default="${OCF_RESKEY_fsal_default}" />
 </parameter>
 
 <parameter name="recovery_dir" unique="0" required="0">
 <longdesc lang="en">NFSv4 RecoveryDir (server-wide singleton). MUST be on the replicated FS. Defaults to a hidden dir under the first export_path.</longdesc>
 <shortdesc lang="en">NFSv4 RecoveryDir</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_recovery_dir_default}" />
 </parameter>
 
 <parameter name="runtime_dir" unique="0" required="0">
@@ -337,7 +337,7 @@ resource fails over with, or clients lose their locks on failover.
 <parameter name="nfs_ip" unique="0" required="0">
 <longdesc lang="en">Service IP (v4 or v6) to bind and probe. Each co-located instance should use a distinct IP.</longdesc>
 <shortdesc lang="en">NFS service IP</shortdesc>
-<content type="string" default="" />
+<content type="string" default="${OCF_RESKEY_nfs_ip_default}" />
 </parameter>
 
 <parameter name="nfs_port" unique="0" required="0">
