@@ -1,6 +1,6 @@
 #!@BASH_SHELL@
 # Should now conform to guidelines:
-# https://github.com/ClusterLabs/resource-agents/blob/master/doc/dev-guides/ra-dev-guide.asc
+# https://github.com/ClusterLabs/resource-agents/blob/main/doc/dev-guides/ra-dev-guide.asc
 #
 #	LXC (Linux Containers) OCF RA.
 #	Used to cluster enable the start, stop and monitoring of a LXC container.
