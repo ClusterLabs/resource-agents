@@ -119,11 +119,10 @@ conntrackd_monitor() {
 	local conntrack_socket=$(awk '/^[ \t]*UNIX[ \t]*{/,/^[ \t]*}/ { if ($1 == "Path") { print $2 } }' $OCF_RESKEY_config)
 	[ -S "$conntrack_socket" ] && rc=$OCF_SUCCESS
 	if [ "$rc" -eq "$OCF_SUCCESS" ]; then
-		# conntrackd is running
+		# socket exists
 		# now see if it acceppts queries
 		if ! $OCF_RESKEY_binary -C $OCF_RESKEY_config -s > /dev/null 2>&1; then
-			rc=$OCF_ERR_GENERIC
-			ocf_exit_reason "conntrackd is running but not responding to queries"
+			return $OCF_NOT_RUNNING
 		fi
 		if conntrackd_is_master; then
 			rc=$OCF_RUNNING_MASTER
@@ -162,6 +161,14 @@ conntrackd_start() {
 			break
 			;;
 		$OCF_NOT_RUNNING)
+			# The socket is dead, so we can remove lockfile as well
+			local lockfile=$(awk '/^[ \t]*LockFile[ \t]*/ { print $2 }' $OCF_RESKEY_config)
+			if test -e "$lockfile"
+			then
+				ocf_log info "Removing stale lockfile $lockfile"
+				rm -f "$lockfile"
+			fi
+
 			ocf_log info "Starting conntrackd"
 			$OCF_RESKEY_binary -C $OCF_RESKEY_config -d
 			;;
