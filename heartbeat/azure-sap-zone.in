@@ -215,7 +215,7 @@ class AzureHelper:
             if azure_environment:
                 ocf.logger.warning("azure_management_endpoint is set; ignoring azure_environment")
             management_url = AzureHelper.normalize_management_url(azure_management_endpoint)
-            ocf.logger.info(f"Using Azure management endpoint from azure_management_endpoint: {management_url}")
+            ocf.logger.debug(f"Using Azure management endpoint from azure_management_endpoint: {management_url}")
             ocf.logger.debug("resolve_management_url: Finished (source=azure_management_endpoint)")
             return management_url, "custom"
 
@@ -226,7 +226,7 @@ class AzureHelper:
             requested_environment = AzureHelper.DEFAULT_AZURE_ENVIRONMENT
 
         management_url, resolved_environment = AzureHelper.get_management_url_for_environment(requested_environment)
-        ocf.logger.info(f"Using Azure environment '{resolved_environment}' with management endpoint {management_url}")
+        ocf.logger.debug(f"Using Azure environment '{resolved_environment}' with management endpoint {management_url}")
         ocf.logger.debug("resolve_management_url: Finished")
         return management_url, resolved_environment
 
@@ -1463,9 +1463,11 @@ def validate_action(sid, soft_shutdown_timeout, app_vm_names, client_id, app_vm_
     ocf.logger.debug("validate_action: Finished")
     return ocf.OCF_SUCCESS
 
+SUPPORTED_AZURE_ENVIRONMENTS = ", ".join(sorted(AzureHelper.CLOUD_MANAGEMENT_URLS.keys()))
+
 description = (
     "Microsoft SAP Azure Zone Sync agent for SAP systems",
-    """This resource agent implements a monitor for aligning SAP application servers
+    f"""This resource agent implements a monitor for aligning SAP application servers
 in the same Availability zone as the HANA database server to avoid network latency issues.
 
     Application VM selection:
@@ -1480,8 +1482,8 @@ in the same Availability zone as the HANA database server to avoid network laten
 
     Azure cloud environments:
         By default, the agent detects the Azure environment from instance metadata and uses the corresponding Azure
-        Resource Manager endpoint. Supported environments are AzurePublicCloud, AzureUSGovernmentCloud, and
-        AzureChinaCloud. Use azure_environment to override the detected environment, or azure_management_endpoint to
+        Resource Manager endpoint. Supported environments are {SUPPORTED_AZURE_ENVIRONMENTS}. Use azure_environment to
+        override the detected environment, or azure_management_endpoint to
         provide a custom Azure Resource Manager endpoint for other sovereign clouds.
 
     Example deployment for SLES:
@@ -1587,7 +1589,7 @@ def main():
     agent.add_parameter(
         "azure_environment",
         shortdesc="Azure cloud environment (optional)",
-        longdesc="Optional Azure cloud environment override. If unset, the agent detects the environment from Azure instance metadata. Supported values: AzurePublicCloud, AzureUSGovernmentCloud, AzureChinaCloud. For other sovereign clouds, set azure_management_endpoint.",
+        longdesc=f"Optional Azure cloud environment override. If unset, the agent detects the environment from Azure instance metadata. Supported values: {SUPPORTED_AZURE_ENVIRONMENTS}. For other sovereign clouds, set azure_management_endpoint.",
         content_type="string",
         default="")
     agent.add_parameter(
