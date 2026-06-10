@@ -135,7 +135,7 @@ NFS_Core_Param {
 }
 
 NFSv4 {
-    RecoveryDir = $(recovery_dir);
+    RecoveryRoot = $(recovery_dir);
     Graceless = false;
 }
 EOF
