@@ -56,6 +56,7 @@ OCF_RESKEY_anongid_default=""
 OCF_RESKEY_sectype_default="sys"
 OCF_RESKEY_protocols_default="3,4"
 OCF_RESKEY_recovery_dir_default=""
+OCF_RESKEY_server_scope_default=""
 OCF_RESKEY_fsal_default="VFS"
 
 : ${OCF_RESKEY_config_file=${OCF_RESKEY_config_file_default}}
@@ -78,6 +79,7 @@ OCF_RESKEY_fsal_default="VFS"
 : ${OCF_RESKEY_sectype=${OCF_RESKEY_sectype_default}}
 : ${OCF_RESKEY_protocols=${OCF_RESKEY_protocols_default}}
 : ${OCF_RESKEY_recovery_dir=${OCF_RESKEY_recovery_dir_default}}
+: ${OCF_RESKEY_server_scope=${OCF_RESKEY_server_scope_default}}
 : ${OCF_RESKEY_fsal=${OCF_RESKEY_fsal_default}}
 
 #######################################################################
@@ -141,8 +143,13 @@ NFS_Core_Param {
 NFSv4 {
     RecoveryRoot = $(recovery_dir);
     Graceless = false;
-}
 EOF
+    # Server_Scope must be identical on every node (RFC 8881): on failover the
+    # client compares scopes from EXCHANGE_ID, and a mismatch means "different
+    # server" — open/lock state is never reclaimed and I/O on open files hangs.
+    # Ganesha's default scope is the local hostname, which differs per node.
+    [ -n "$OCF_RESKEY_server_scope" ] && echo "    Server_Scope = ${OCF_RESKEY_server_scope};"
+    echo "}"
 }
 
 # Render one EXPORT {} block (for the export at 1-based list index $1) to
@@ -319,6 +326,12 @@ resource fails over with, or clients lose their locks on failover.
 <longdesc lang="en">Ganesha FSAL name (VFS, GLUSTER, CEPH, ...).</longdesc>
 <shortdesc lang="en">FSAL</shortdesc>
 <content type="string" default="${OCF_RESKEY_fsal_default}" />
+</parameter>
+
+<parameter name="server_scope" unique="0" required="0">
+<longdesc lang="en">NFSv4 Server_Scope (RFC 8881 server scope). MUST be set to the same value on all nodes that can run this resource, e.g. the service IP or a cluster name. Without it, ganesha derives the scope from the local hostname, so after a failover NFSv4.1+ clients see a different scope, refuse to reclaim their open/lock state, and I/O on files that were open hangs indefinitely. Note that setting or changing this value is itself a scope change: existing client state cannot be reclaimed across the reconfiguration.</longdesc>
+<shortdesc lang="en">NFSv4 server scope (must match on all nodes)</shortdesc>
+<content type="string" default="${OCF_RESKEY_server_scope_default}" />
 </parameter>
 
 <parameter name="recovery_dir" unique="0" required="0">
