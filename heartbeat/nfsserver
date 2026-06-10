@@ -370,18 +370,18 @@ nfsserver_systemd_monitor()
 			fi
 			return $OCF_NOT_RUNNING
 		fi
+	fi
 
-		ocf_log debug "Status: nfs-mountd"
-		ps axww | grep -q "[r]pc.mountd"
-		rc=$?
-		if [ "$rc" -ne "0" ]; then
-			if ocf_is_probe  || [ "$__OCF_ACTION" = "start" ]; then
-				ocf_log info "nfs-mountd is not running"
-			else
-				ocf_exit_reason "nfs-mountd is not running"
-			fi
-			return $OCF_NOT_RUNNING
+	ocf_log debug "Status: nfs-mountd"
+	ps axww | grep -q "[r]pc.mountd"
+	rc=$?
+	if [ "$rc" -ne "0" ]; then
+		if ocf_is_probe  || [ "$__OCF_ACTION" = "start" ]; then
+			ocf_log info "nfs-mountd is not running"
+		else
+			ocf_exit_reason "nfs-mountd is not running"
 		fi
+		return $OCF_NOT_RUNNING
 	fi
 
 	ocf_log debug "Status: nfs-idmapd"
