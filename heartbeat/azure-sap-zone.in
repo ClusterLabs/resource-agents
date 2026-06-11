@@ -197,10 +197,9 @@ class AzureHelper:
         if not azure_environment:
             azure_environment = AzureHelper.DEFAULT_AZURE_ENVIRONMENT
         if azure_environment not in AzureHelper.CLOUD_MANAGEMENT_URLS:
-            supported = ", ".join(sorted(AzureHelper.CLOUD_MANAGEMENT_URLS.keys()))
             raise ValueError(
                 f"Unsupported azure_environment '{azure_environment}'. "
-                f"Supported values: {supported}. For other clouds, set azure_management_endpoint."
+                f"Supported values: {SUPPORTED_AZURE_ENVIRONMENTS}. For other clouds, set azure_management_endpoint."
             )
         management_url = AzureHelper.CLOUD_MANAGEMENT_URLS[azure_environment]
         ocf.logger.debug(
