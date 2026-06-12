@@ -1212,7 +1212,13 @@ add_member_as_learner()
 
 set_force_new_cluster()
 {
-	local rc
+	local rc fnc_holders
+
+	if fnc_holders=$(get_force_new_cluster) && [ -n "$fnc_holders" ]; then
+		ocf_log err "cannot set force_new_cluster: already held by $fnc_holders"
+		return $OCF_ERR_GENERIC
+	fi
+
 	crm_attribute --lifetime reboot --node "$NODENAME" --name "force_new_cluster" --update "$NODENAME"
 	rc=$?
 	if [ $rc -ne 0 ]; then
@@ -2185,6 +2191,24 @@ podman_start()
 					tiebreaker_winner="peer"
 					;;
 				esac
+			else
+				local local_rev peer_rev
+				local_rev=$(attribute_node_revision get)
+				peer_rev=$(attribute_node_revision_peer)
+				local local_has_rev=true peer_has_rev=true
+				if [ "$local_rev" = "" ] || [ "$local_rev" = "null" ]; then
+					local_has_rev=false
+				fi
+				if [ "$peer_rev" = "" ] || [ "$peer_rev" = "null" ]; then
+					peer_has_rev=false
+				fi
+				if [ "$local_has_rev" = true ] && [ "$peer_has_rev" = false ]; then
+					tiebreaker_winner="$NODENAME"
+					ocf_log notice "$NODENAME wins tiebreaker (only node with revision: $local_rev)"
+				elif [ "$local_has_rev" = false ] && [ "$peer_has_rev" = true ]; then
+					tiebreaker_winner="peer"
+					ocf_log notice "$NODENAME loses tiebreaker (peer is only node with revision)"
+				fi
 			fi
 
 			if [ -z "$tiebreaker_winner" ]; then
@@ -2268,7 +2292,10 @@ podman_start()
 						# If our revision is the same as or newer than the peer's last saved
 						# revision, and the peer agent isn't currently starting, we can
 						# restore e-quorum by forcing a new cluster.
-						set_force_new_cluster
+						if ! set_force_new_cluster; then
+							ocf_log err "could not set force_new_cluster (peer may already hold it)"
+							return "$OCF_ERR_GENERIC"
+						fi
 					else
 						ocf_log err "local revision is older and peer is not starting: cannot start"
 						ocf_exit_reason "local revision is older and peer is not starting: cannot start"
@@ -2279,7 +2306,10 @@ podman_start()
 					# TODO: can we start "normally", regardless the revisions, if the container-id is the same on both nodes?
 					ocf_log info "peer starting"
 					if [ "$revision_compare_result" = "newer" ]; then
-						set_force_new_cluster
+						if ! set_force_new_cluster; then
+							ocf_log err "could not set force_new_cluster (peer may already hold it)"
+							return "$OCF_ERR_GENERIC"
+						fi
 					elif [ "$revision_compare_result" = "older" ]; then
 						ocf_log info "$NODENAME shall join as learner"
 						JOIN_AS_LEARNER=true
