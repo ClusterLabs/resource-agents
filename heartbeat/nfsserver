@@ -1012,16 +1012,18 @@ nfsserver_stop ()
 		  	fi
 		  fi
 
-		  nfs_exec stop fsidd > /dev/null 2>&1
-		  ocf_log info "Stop: fsidd"
-		  fn=`mktemp`
-		  nfs_exec status fsidd > $fn 2>&1
-		  rc=$?
-		  ocf_log debug "$(cat $fn)"
-		  rm -f $fn
-		  if [ "$rc" -eq "0" ]; then
-			ocf_exit_reason "Failed to stop fsidd"
-			return $OCF_ERR_GENERIC
+		  if systemctl --no-legend list-unit-files "fsidd.service" | grep -q fsidd.service; then
+		  	nfs_exec stop fsidd > /dev/null 2>&1
+		  	ocf_log info "Stop: fsidd"
+		  	fn=`mktemp`
+		  	nfs_exec status fsidd > $fn 2>&1
+		  	rc=$?
+		  	ocf_log debug "$(cat $fn)"
+		  	rm -f $fn
+		  	if [ "$rc" -eq "0" ]; then
+		  		ocf_exit_reason "Failed to stop fsidd"
+		  		return $OCF_ERR_GENERIC
+		  	fi
 		  fi
 	esac
 
