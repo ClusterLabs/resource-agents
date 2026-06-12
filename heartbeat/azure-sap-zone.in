@@ -14,6 +14,7 @@ import re
 import shlex
 import random
 from typing import Dict, List, Optional
+from urllib.parse import urlparse
 
 # 'requests' is required for Azure API calls, but not for Pacemaker's meta-data discovery.
 # Keep it optional so `crm configure ...` can succeed even if the package isn't installed yet.
@@ -167,8 +168,66 @@ class AzureHelper:
     METADATA_API_VERSION = '2021-02-01'
     TOKEN_API_VERSION = '2018-02-01'
     METADATA_URL = 'http://169.254.169.254/metadata'
-    MANAGEMENT_URL = 'https://management.azure.com'
+    DEFAULT_AZURE_ENVIRONMENT = 'AzurePublicCloud'
+    CLOUD_MANAGEMENT_URLS = {
+        'AzurePublicCloud': 'https://management.azure.com',
+        'AzureUSGovernmentCloud': 'https://management.usgovcloudapi.net',
+        'AzureChinaCloud': 'https://management.chinacloudapi.cn',
+    }
     DEFAULT_HEADERS = {'Content-Type': 'application/json'}
+
+    @staticmethod
+    def normalize_management_url(endpoint):
+        ocf.logger.debug("normalize_management_url: Started")
+        endpoint = (endpoint or "").strip()
+        if not endpoint:
+            raise ValueError("azure_management_endpoint must be non-empty when provided")
+        endpoint = endpoint.rstrip('/')
+        parsed = urlparse(endpoint)
+        if parsed.scheme != 'https' or not parsed.netloc or parsed.path or parsed.params or parsed.query or parsed.fragment:
+            raise ValueError("azure_management_endpoint must be an HTTPS URL without path, query, or fragment")
+        endpoint = f"https://{parsed.netloc.lower()}"
+        ocf.logger.debug(f"normalize_management_url: Finished (endpoint={endpoint})")
+        return endpoint
+
+    @staticmethod
+    def get_management_url_for_environment(azure_environment):
+        ocf.logger.debug("get_management_url_for_environment: Started")
+        azure_environment = (azure_environment or "").strip()
+        if not azure_environment:
+            azure_environment = AzureHelper.DEFAULT_AZURE_ENVIRONMENT
+        if azure_environment not in AzureHelper.CLOUD_MANAGEMENT_URLS:
+            raise ValueError(
+                f"Unsupported azure_environment '{azure_environment}'. "
+                f"Supported values: {SUPPORTED_AZURE_ENVIRONMENTS}. For other clouds, set azure_management_endpoint."
+            )
+        management_url = AzureHelper.CLOUD_MANAGEMENT_URLS[azure_environment]
+        ocf.logger.debug(
+            f"get_management_url_for_environment: Finished (azure_environment={azure_environment}, management_url={management_url})"
+        )
+        return management_url, azure_environment
+
+    @staticmethod
+    def resolve_management_url(azure_environment, azure_management_endpoint, detected_azure_environment):
+        ocf.logger.debug("resolve_management_url: Started")
+        if azure_management_endpoint:
+            if azure_environment:
+                ocf.logger.warning("azure_management_endpoint is set; ignoring azure_environment")
+            management_url = AzureHelper.normalize_management_url(azure_management_endpoint)
+            ocf.logger.debug(f"Using Azure management endpoint from azure_management_endpoint: {management_url}")
+            ocf.logger.debug("resolve_management_url: Finished (source=azure_management_endpoint)")
+            return management_url, "custom"
+
+        requested_environment = (azure_environment or "").strip()
+        if not requested_environment:
+            requested_environment = (detected_azure_environment or "").strip()
+        if not requested_environment:
+            requested_environment = AzureHelper.DEFAULT_AZURE_ENVIRONMENT
+
+        management_url, resolved_environment = AzureHelper.get_management_url_for_environment(requested_environment)
+        ocf.logger.debug(f"Using Azure environment '{resolved_environment}' with management endpoint {management_url}")
+        ocf.logger.debug("resolve_management_url: Finished")
+        return management_url, resolved_environment
 
     @staticmethod
     def invoke_api(node, url, method, headers=None, body=None, params=None):
@@ -232,7 +291,7 @@ class AzureHelper:
         """
         ocf.logger.debug("get_access_token: Started")
         url = f"{AzureHelper.METADATA_URL}/identity/oauth2/token"
-        params = {'api-version': AzureHelper.TOKEN_API_VERSION, 'resource': 'https://management.azure.com/'}
+        params = {'api-version': AzureHelper.TOKEN_API_VERSION, 'resource': f'{node.management_url}/'}
         
         # If client_id is provided, use user-assigned managed identity, otherwise use system-assigned
         if node.client_id:
@@ -261,17 +320,18 @@ class AzureHelper:
         location = compute_metadata['location'].strip()
         resource_group = compute_metadata['resourceGroupName'].strip()
         zone = (compute_metadata.get('zone') or '').strip()
-        ocf.logger.debug(f"az_vm_name: {az_vm_name}, subscription_id: {subscription_id}, location: {location}, resource_group: {resource_group}, zone: {zone or 'None'}")
+        az_environment = (compute_metadata.get('azEnvironment') or '').strip()
+        ocf.logger.debug(f"az_vm_name: {az_vm_name}, subscription_id: {subscription_id}, location: {location}, resource_group: {resource_group}, zone: {zone or 'None'}, az_environment: {az_environment or 'None'}")
         if not az_vm_name or not subscription_id or not location or not resource_group:
             raise Exception("Failed to retrieve Azure metadata (az_vm_name, subscription_id, location, resource_group) from VM instance metadata API")
         ocf.logger.debug("get_instance_metadata: Finished")
-        return az_vm_name, subscription_id, location, resource_group, zone
+        return az_vm_name, subscription_id, location, resource_group, zone, az_environment
     
     @staticmethod
     def list_vms(node):
         ocf.logger.debug("list_vms: Started")
         node.refresh_token_if_needed()
-        url = f"{AzureHelper.MANAGEMENT_URL}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines"
+        url = f"{node.management_url}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines"
         params = {'api-version': AzureHelper.VM_API_VERSION}
         headers = {'Authorization': f'Bearer {node.access_token}', **AzureHelper.DEFAULT_HEADERS}
         response = AzureHelper.invoke_api(node, url, 'get', headers=headers, params=params)
@@ -282,7 +342,7 @@ class AzureHelper:
     def get_vm_status(node, vm_name):
         ocf.logger.debug("get_vm_status: Started")
         node.refresh_token_if_needed()
-        url = f"{AzureHelper.MANAGEMENT_URL}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}"
+        url = f"{node.management_url}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}"
         params = {'$expand': 'InstanceView', 'api-version': AzureHelper.VM_API_VERSION}
         headers = {'Authorization': f'Bearer {node.access_token}', **AzureHelper.DEFAULT_HEADERS}
         response = AzureHelper.invoke_api(node, url, 'get', headers=headers, params=params)
@@ -307,7 +367,7 @@ class AzureHelper:
             vm_status = AzureHelper.get_vm_status(node, vm_name)
             if vm_status != 'PowerState/running':
                 ocf.logger.debug(f"Starting VM: {vm_name}")
-                url = f"{AzureHelper.MANAGEMENT_URL}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}/start"
+                url = f"{node.management_url}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}/start"
                 params = {'api-version': AzureHelper.VM_API_VERSION}
                 headers = {'Authorization': f'Bearer {node.access_token}', **AzureHelper.DEFAULT_HEADERS}
                 responses.append(AzureHelper.invoke_api(node, url, 'post', headers=headers, params=params))
@@ -325,7 +385,7 @@ class AzureHelper:
             vm_status = AzureHelper.get_vm_status(node, vm_name)
             if vm_status == 'PowerState/running':
                 ocf.logger.debug(f"Stopping VM: {vm_name}")
-                url = f"{AzureHelper.MANAGEMENT_URL}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}/powerOff"
+                url = f"{node.management_url}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}/powerOff"
                 params = {'api-version': AzureHelper.VM_API_VERSION}
                 headers = {'Authorization': f'Bearer {node.access_token}', **AzureHelper.DEFAULT_HEADERS}
                 responses.append(AzureHelper.invoke_api(node, url, 'post', headers=headers, params=params))
@@ -343,7 +403,7 @@ class AzureHelper:
             vm_status = AzureHelper.get_vm_status(node, vm_name)
             if vm_status == 'PowerState/running':
                 ocf.logger.debug(f"Deallocating VM: {vm_name}")
-                url = f"{AzureHelper.MANAGEMENT_URL}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}/deallocate"
+                url = f"{node.management_url}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}/deallocate"
                 params = {'api-version': AzureHelper.VM_API_VERSION}
                 headers = {'Authorization': f'Bearer {node.access_token}', **AzureHelper.DEFAULT_HEADERS}
                 responses.append(AzureHelper.invoke_api(node, url, 'post', headers=headers, params=params))
@@ -378,7 +438,7 @@ class AzureHelper:
         node.refresh_token_if_needed()
 
         for vm_name in vm_names:
-            url = f"{AzureHelper.MANAGEMENT_URL}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}/runCommands/azure-sap-zone"
+            url = f"{node.management_url}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}/runCommands/azure-sap-zone"
             params = {'api-version': AzureHelper.VM_API_VERSION}
             headers = {'Authorization': f'Bearer {node.access_token}', **AzureHelper.DEFAULT_HEADERS}
             # Azure Run Command is represented as a child resource (runCommands/{name}). When we reuse the same
@@ -413,7 +473,7 @@ class AzureHelper:
             for item in output:
                 vm_name = item['vm_name']
                 ocf.logger.debug(f"Checking status for vm: {vm_name}")
-                url = f"{AzureHelper.MANAGEMENT_URL}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}/runCommands/azure-sap-zone"
+                url = f"{node.management_url}/subscriptions/{node.subscription_id}/resourceGroups/{node.resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}/runCommands/azure-sap-zone"
                 params = {'$expand': 'instanceView', 'api-version': AzureHelper.VM_API_VERSION}
                 headers = {'Authorization': f'Bearer {node.access_token}', **AzureHelper.DEFAULT_HEADERS}
                 status_response = AzureHelper.invoke_api(node, url, 'get', headers=headers, params=params)
@@ -735,6 +795,8 @@ class Node:
         self.wait_before_stop_sap = ocf.get_parameter("wait_before_stop_sap", 300)
         self.wait_time = ocf.get_parameter("wait_time", 600)
         self.resource_group = ocf.get_parameter("resource_group", "")
+        self.azure_environment = ocf.get_parameter("azure_environment", "")
+        self.azure_management_endpoint = ocf.get_parameter("azure_management_endpoint", "")
         self.hostname = subprocess.getoutput("hostname")
         self.clone_state = ClusterHelper.getStatusAttr(f"hana_{self.hana_sid.lower()}_clone_state", self.hostname)
         self.sync_state = ClusterHelper.getStatusAttr(f"hana_{self.hana_sid.lower()}_sync_state", self.hostname)
@@ -746,7 +808,12 @@ class Node:
             self.set_phase('None')
         
         # get the resource group, subscription_id, location and vm name using Azure meta data api
-        self.az_vm_name, self.subscription_id, self.location, resource_group, self.azure_zone = AzureHelper.get_instance_metadata(self)
+        self.az_vm_name, self.subscription_id, self.location, resource_group, self.azure_zone, self.detected_azure_environment = AzureHelper.get_instance_metadata(self)
+        self.management_url, self.resolved_azure_environment = AzureHelper.resolve_management_url(
+            self.azure_environment,
+            self.azure_management_endpoint,
+            self.detected_azure_environment,
+        )
 
         # Determine the effective "zone" used for alignment:
         # - If hana_vm_zones is provided, use the mapping for *this* VM.
@@ -1025,6 +1092,11 @@ class AzureSapZone:
         ocf.logger.debug(f"subscription_id: {self.node.subscription_id}")
         ocf.logger.debug(f"zone: {self.node.zone}")
         ocf.logger.debug(f"azure_zone: {getattr(self.node, 'azure_zone', None)}")
+        ocf.logger.debug(f"detected_azure_environment: {getattr(self.node, 'detected_azure_environment', None)}")
+        ocf.logger.debug(f"azure_environment: {getattr(self.node, 'azure_environment', None)}")
+        ocf.logger.debug(f"resolved_azure_environment: {getattr(self.node, 'resolved_azure_environment', None)}")
+        ocf.logger.debug(f"azure_management_endpoint: {getattr(self.node, 'azure_management_endpoint', None)}")
+        ocf.logger.debug(f"management_url: {getattr(self.node, 'management_url', None)}")
         ocf.logger.debug(f"hana_vm_zones: {getattr(self.node, 'hana_vm_zones', None)}")
         ocf.logger.debug(f"location: {self.node.location}")
         ocf.logger.debug(f"client_id: {self.node.client_id}")
@@ -1323,7 +1395,7 @@ def monitor_action():
     ocf.logger.debug(f"monitor_action: Finished (rc={rc})")
     return rc
 
-def validate_action(sid, soft_shutdown_timeout, app_vm_names, client_id, app_vm_name_pattern, hana_resource, app_vm_zones=None, hana_vm_zones=None):
+def validate_action(sid, soft_shutdown_timeout, app_vm_names, client_id, app_vm_name_pattern, hana_resource, app_vm_zones=None, hana_vm_zones=None, azure_environment=None, azure_management_endpoint=None):
     ocf.logger.debug("validate_action: Started")
 
     validation_errors = []
@@ -1367,6 +1439,22 @@ def validate_action(sid, soft_shutdown_timeout, app_vm_names, client_id, app_vm_
         except Exception as e:
             validation_errors.append(f"Invalid app_vm_zones: {e}")
 
+    # Validate Azure cloud endpoint overrides if provided
+    if azure_environment and azure_management_endpoint:
+        ocf.logger.warning("azure_management_endpoint is set; azure_environment will be ignored")
+
+    if azure_environment and not azure_management_endpoint:
+        try:
+            AzureHelper.get_management_url_for_environment(azure_environment)
+        except Exception as e:
+            validation_errors.append(f"Invalid azure_environment: {e}")
+
+    if azure_management_endpoint:
+        try:
+            AzureHelper.normalize_management_url(azure_management_endpoint)
+        except Exception as e:
+            validation_errors.append(f"Invalid azure_management_endpoint: {e}")
+
     if validation_errors:
         ocf.ocf_exit_reason("; ".join(validation_errors))
         return ocf.OCF_ERR_CONFIGURED
@@ -1374,9 +1462,11 @@ def validate_action(sid, soft_shutdown_timeout, app_vm_names, client_id, app_vm_
     ocf.logger.debug("validate_action: Finished")
     return ocf.OCF_SUCCESS
 
+SUPPORTED_AZURE_ENVIRONMENTS = ", ".join(sorted(AzureHelper.CLOUD_MANAGEMENT_URLS.keys()))
+
 description = (
     "Microsoft SAP Azure Zone Sync agent for SAP systems",
-    """This resource agent implements a monitor for aligning SAP application servers
+    f"""This resource agent implements a monitor for aligning SAP application servers
 in the same Availability zone as the HANA database server to avoid network latency issues.
 
     Application VM selection:
@@ -1388,6 +1478,12 @@ in the same Availability zone as the HANA database server to avoid network laten
         1. Either a user-assigned or system-assigned managed identity should be configured on both SAP HANA VMs and SAP application server VMs.
         2. The managed identity should have VM contributor access on the SAP application server VMs.
         3. SAP HANA VMs should have outbound access to call Azure API endpoints.
+
+    Azure cloud environments:
+        By default, the agent detects the Azure environment from instance metadata and uses the corresponding Azure
+        Resource Manager endpoint. Supported environments are {SUPPORTED_AZURE_ENVIRONMENTS}. Use azure_environment to
+        override the detected environment, or azure_management_endpoint to
+        provide a custom Azure Resource Manager endpoint for other sovereign clouds.
 
     Example deployment for SLES:
         Create the resource with the required parameters (using system-assigned managed identity):
@@ -1487,6 +1583,18 @@ def main():
         "client_id",
         shortdesc="User assigned managed identity client id (optional)",
         longdesc="The client ID of the user-assigned managed identity. If not provided, system-assigned managed identity will be used. The managed identity should be assigned to both SAP HANA VMs and should have VM contributor access on the SAP application server VMs provided in the app_vm_names parameter",
+        content_type="string",
+        default="")
+    agent.add_parameter(
+        "azure_environment",
+        shortdesc="Azure cloud environment (optional)",
+        longdesc=f"Optional Azure cloud environment override. If unset, the agent detects the environment from Azure instance metadata. Supported values: {SUPPORTED_AZURE_ENVIRONMENTS}. For other sovereign clouds, set azure_management_endpoint.",
+        content_type="string",
+        default="")
+    agent.add_parameter(
+        "azure_management_endpoint",
+        shortdesc="Azure Resource Manager endpoint override (optional)",
+        longdesc="Optional Azure Resource Manager endpoint override for custom or future sovereign clouds. If set, this endpoint takes precedence over azure_environment and Azure instance metadata, and is also used as the managed identity token resource/audience. Example: https://management.usgovcloudapi.net",
         content_type="string",
         default="")
     agent.add_parameter(
