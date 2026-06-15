@@ -2179,6 +2179,7 @@ podman_start()
 		local fnc_holder_count
 		fnc_holder_count=$(echo "$fnc_holders" | wc -w)
 		if [ "$fnc_holder_count" -gt 1 ]; then
+			# Tiebreaker: highest revision wins; tied or unavailable revisions fall back to alphabetical node name
 			ocf_log warn "force_new_cluster set on multiple nodes ($fnc_holders) — resolving with revision tiebreaker"
 			local tiebreaker_winner=""
 
@@ -2211,6 +2212,7 @@ podman_start()
 				fi
 			fi
 
+			# Tied revisions (or both unavailable): fall back to alphabetical node name
 			if [ -z "$tiebreaker_winner" ]; then
 				local node_names_sorted
 				node_names_sorted=$(echo "$OCF_RESKEY_node_ip_map" | sed 's/:[^;]*//g; s/;/ /g' | tr ' ' '\n' | sort | tr '\n' ' ')
@@ -2306,6 +2308,7 @@ podman_start()
 					# TODO: can we start "normally", regardless the revisions, if the container-id is the same on both nodes?
 					ocf_log info "peer starting"
 					if [ "$revision_compare_result" = "newer" ]; then
+						ocf_log warn "local revision is newer but peer is also starting — investigate if peer was fenced mid-operation"
 						if ! set_force_new_cluster; then
 							ocf_log err "could not set force_new_cluster (peer may already hold it)"
 							return "$OCF_ERR_GENERIC"
