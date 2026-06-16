@@ -370,18 +370,18 @@ nfsserver_systemd_monitor()
 			fi
 			return $OCF_NOT_RUNNING
 		fi
+	fi
 
-		ocf_log debug "Status: nfs-mountd"
-		ps axww | grep -q "[r]pc.mountd"
-		rc=$?
-		if [ "$rc" -ne "0" ]; then
-			if ocf_is_probe  || [ "$__OCF_ACTION" = "start" ]; then
-				ocf_log info "nfs-mountd is not running"
-			else
-				ocf_exit_reason "nfs-mountd is not running"
-			fi
-			return $OCF_NOT_RUNNING
+	ocf_log debug "Status: nfs-mountd"
+	ps axww | grep -q "[r]pc.mountd"
+	rc=$?
+	if [ "$rc" -ne "0" ]; then
+		if ocf_is_probe  || [ "$__OCF_ACTION" = "start" ]; then
+			ocf_log info "nfs-mountd is not running"
+		else
+			ocf_exit_reason "nfs-mountd is not running"
 		fi
+		return $OCF_NOT_RUNNING
 	fi
 
 	ocf_log debug "Status: nfs-idmapd"
@@ -411,6 +411,46 @@ nfsserver_systemd_monitor()
 			fi
 			return $OCF_NOT_RUNNING
 		fi
+	fi
+
+	local nfsdcld_unit_status
+	nfsdcld_unit_status=$(systemctl --no-legend list-unit-files "nfsdcld.service" 2>/dev/null)
+
+	if echo "$nfsdcld_unit_status" | grep -qE "nfsdcld.*masked"; then
+		ocf_log debug "Status: nfsdcld (masked, skipping monitor)"
+	elif echo "$nfsdcld_unit_status" | grep -q nfsdcld; then
+		local nfsdcld_state
+		nfsdcld_state=$(systemctl show -p ActiveState --value nfsdcld.service 2>/dev/null)
+
+		ocf_log debug "Status: nfsdcld (state: $nfsdcld_state)"
+
+		case "$nfsdcld_state" in
+			active)
+				ocf_log debug "Status: nfsdcld (monitoring as it is active)"
+				fn=`mktemp`
+				nfs_exec status nfsdcld > $fn 2>&1
+				rc=$?
+				ocf_log debug "$(cat $fn)"
+				rm -f $fn
+				if [ "$rc" -ne "0" ]; then
+					if ocf_is_probe || [ "$__OCF_ACTION" = "start" ]; then
+						ocf_log info "nfsdcld service is not running"
+					else
+						ocf_exit_reason "nfsdcld service is not running"
+					fi
+					return $OCF_NOT_RUNNING
+				fi
+				;;
+
+			failed|inactive|deactivating)
+				if ocf_is_probe || [ "$__OCF_ACTION" = "start" ]; then
+					ocf_log info "nfsdcld service is not running"
+				else
+					ocf_exit_reason "nfsdcld service is in '$nfsdcld_state' state"
+				fi
+				return $OCF_NOT_RUNNING
+				;;
+		esac
 	fi
 
 	nfs_exec is-active nfs-server
