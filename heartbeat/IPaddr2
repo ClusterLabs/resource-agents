@@ -51,7 +51,6 @@
 #	OCF_RESKEY_cidr_netmask
 #	OCF_RESKEY_iflabel
 #	OCF_RESKEY_mac
-#	OCF_RESKEY_clusterip_hash
 #	OCF_RESKEY_arp_interval
 #	OCF_RESKEY_arp_count
 #	OCF_RESKEY_arp_bg
@@ -77,7 +76,11 @@ OCF_RESKEY_iflabel_default=""
 OCF_RESKEY_lvs_support_default=false
 OCF_RESKEY_lvs_ipv6_addrlabel_default=true
 OCF_RESKEY_lvs_ipv6_addrlabel_value_default=99
-OCF_RESKEY_clusterip_hash_default="sourceip-sourceport"
+OCF_RESKEY_clusterip_firewall_default="auto"
+OCF_RESKEY_clusterip_hash_seed_default=""
+OCF_RESKEY_clusterip_table_default="mangle"
+OCF_RESKEY_clusterip_chain_default="PREROUTING"
+OCF_RESKEY_clusterip_mac_mangle_default=false
 OCF_RESKEY_mac_default=""
 OCF_RESKEY_unique_clone_address_default=false
 OCF_RESKEY_arp_interval_default=200
@@ -114,7 +117,11 @@ fi
 : ${OCF_RESKEY_lvs_support=${OCF_RESKEY_lvs_support_default}}
 : ${OCF_RESKEY_lvs_ipv6_addrlabel=${OCF_RESKEY_lvs_ipv6_addrlabel_default}}
 : ${OCF_RESKEY_lvs_ipv6_addrlabel_value=${OCF_RESKEY_lvs_ipv6_addrlabel_value_default}}
-: ${OCF_RESKEY_clusterip_hash=${OCF_RESKEY_clusterip_hash_default}}
+: ${OCF_RESKEY_clusterip_firewall=${OCF_RESKEY_clusterip_firewall_default}}
+: ${OCF_RESKEY_clusterip_hash_seed=${OCF_RESKEY_clusterip_hash_seed_default}}
+: ${OCF_RESKEY_clusterip_table=${OCF_RESKEY_clusterip_table_default}}
+: ${OCF_RESKEY_clusterip_chain=${OCF_RESKEY_clusterip_chain_default}}
+: ${OCF_RESKEY_clusterip_mac_mangle=${OCF_RESKEY_clusterip_mac_mangle_default}}
 : ${OCF_RESKEY_mac=${OCF_RESKEY_mac_default}}
 : ${OCF_RESKEY_unique_clone_address=${OCF_RESKEY_unique_clone_address_default}}
 : ${OCF_RESKEY_arp_interval=${OCF_RESKEY_arp_interval_default}}
@@ -142,8 +149,6 @@ VLDIR=$HA_RSCTMP
 SENDARPPIDDIR=$HA_RSCTMP
 CIP_lockfile=$HA_RSCTMP/IPaddr2-CIP-${OCF_RESKEY_ip}
 
-IPADDR2_CIP_IPTABLES=$IPTABLES
-
 #######################################################################
 
 meta_data() {
@@ -162,13 +167,6 @@ if invoked as a clone resource.
 If used as a clone, "shared address with a trivial, stateless
 (autonomous) load-balancing/mutual exclusion on ingress" mode gets
 applied (as opposed to "assume resource uniqueness" mode otherwise).
-For that, Linux firewall (kernel and userspace) is assumed, and since
-recent distributions are ambivalent in plain "iptables" command to
-particular back-end resolution, "iptables-legacy" (when present) gets
-prioritized so as to avoid incompatibilities (note that respective
-ipt_CLUSTERIP firewall extension in use here is, at the same time,
-marked deprecated, yet said "legacy" layer can make it workable,
-literally, to this day) with "netfilter" one (as in "iptables-nft").
 In that case, you should explicitly set clone-node-max &gt;= 2,
 and/or clone-max &lt; number of nodes. In case of node failure,
 clone instances need to be re-allocated on surviving nodes.
@@ -317,13 +315,49 @@ the Cluster IP Alias. Leave empty to chose automatically.
 <content type="string" default="${OCF_RESKEY_mac_default}"/>
 </parameter>
 
-<parameter name="clusterip_hash">
+<parameter name="clusterip_firewall" unique="0" required="0">
 <longdesc lang="en">
-Specify the hashing algorithm used for the Cluster IP functionality.
-
+Firewall backend to use for cluster match rules: auto (default), nft or iptables.
+The clusterip_table and clusterip_chain parameters apply only to iptables;
+with nft a dedicated table per cluster IP is created automatically.
 </longdesc>
-<shortdesc lang="en">Cluster IP hashing function</shortdesc>
-<content type="string" default="${OCF_RESKEY_clusterip_hash_default}"/>
+<shortdesc lang="en">Firewall backend for cluster rules</shortdesc>
+<content type="string" default="${OCF_RESKEY_clusterip_firewall_default}"/>
+</parameter>
+
+<parameter name="clusterip_hash_seed">
+<longdesc lang="en">
+Specify the seed value of the hash used for the Cluster IP functionality.
+If not specified, the value is computed from the IP address, netmask and broadcast
+address.
+</longdesc>
+<shortdesc lang="en">Cluster IP hash seed</shortdesc>
+<content type="string" default="${OCF_RESKEY_clusterip_hash_seed_default}"/>
+</parameter>
+
+<parameter name="clusterip_table">
+<longdesc lang="en">
+The iptables table to use for the cluster match rules.
+</longdesc>
+<shortdesc lang="en">iptables table for cluster rules</shortdesc>
+<content type="string" default="${OCF_RESKEY_clusterip_table_default}"/>
+</parameter>
+
+<parameter name="clusterip_chain">
+<longdesc lang="en">
+The iptables chain to use for the cluster match rules.
+</longdesc>
+<shortdesc lang="en">iptables chain for cluster rules</shortdesc>
+<content type="string" default="${OCF_RESKEY_clusterip_chain_default}"/>
+</parameter>
+
+<parameter name="clusterip_mac_mangle">
+<longdesc lang="en">
+If true, use arptables to mangle ARP responses so that the cluster IP
+address resolves to the multicast MAC address. Not supported for IPv6.
+</longdesc>
+<shortdesc lang="en">Mangle ARP responses for cluster MAC</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_clusterip_mac_mangle_default}"/>
 </parameter>
 
 <parameter name="unique_clone_address">
@@ -624,7 +658,11 @@ ip_init() {
 
 	if [ "$IP_INC_GLOBAL" -gt 1 ] && ! ocf_is_true "$OCF_RESKEY_unique_clone_address"; then
 		IP_CIP="yes"
-		IP_CIP_HASH="${OCF_RESKEY_clusterip_hash}"
+		IP_CIP_HASH_SEED="${OCF_RESKEY_clusterip_hash_seed}"
+		if [ -z "$IP_CIP_HASH_SEED" ]; then
+			IP_CIP_HASH_SEED=`echo $OCF_RESKEY_ip $NETMASK $BRDCAST \
+				| md5sum | sed -e 's#\(........\).*#\1#; s#^#0x#'`
+		fi
 		if [ -z "$IF_MAC" ]; then
 			# Choose a MAC
 			# 1. Concatenate some input together
@@ -639,8 +677,25 @@ ip_init() {
 				sed -e 's#\(............\).*#\1#'	\
 				    -e 's#..#&:#g; s#:$##'		\
 				    -e 's#^\(.\)[02468aAcCeE]#\11#'`
+			# For IPv6 multicast MAC needs to start with 33:33
+			if [ "$FAMILY" = "inet6" ]; then
+				IF_MAC=`echo "$IF_MAC" | sed -e 's#^..:..#33:33#'`
+			fi
 		fi
-		IP_CIP_FILE="/proc/net/ipt_CLUSTERIP/$OCF_RESKEY_ip"
+		if [ "$OCF_RESKEY_clusterip_firewall" = "nft" ]; then
+			CIP_NFT_TABLE="IPaddr2_$(echo "$OCF_RESKEY_ip" | tr './:' '_')"
+			if [ "$FAMILY" = "inet" ]; then
+				CIP_NFT_FAMILY="ip"
+			else
+				CIP_NFT_FAMILY="ip6"
+			fi
+		else
+			if [ "$FAMILY" = "inet" ]; then
+				CIP_IPTABLES="$IPTABLES"
+			else
+				CIP_IPTABLES=ip6tables
+			fi
+		fi
 	fi
 }
 
@@ -1006,6 +1061,142 @@ run_send_ua() {
 	fi
 }
 
+#
+# Ignore incoming packets not matching current cluster node
+#
+cip_drop() {
+	action="$1"
+
+	if [ "$OCF_RESKEY_clusterip_firewall" = "nft" ]; then
+		case "$action" in
+		insert)
+			nft add table "$CIP_NFT_FAMILY" "$CIP_NFT_TABLE" || return 1
+			nft add chain "$CIP_NFT_FAMILY" "$CIP_NFT_TABLE" prerouting \
+				"{ type filter hook prerouting priority mangle; }" || return 1
+			nft insert rule "$CIP_NFT_FAMILY" "$CIP_NFT_TABLE" prerouting \
+				iif "$NIC" "$CIP_NFT_FAMILY" daddr "$OCF_RESKEY_ip" drop || return 1
+
+			# Allow neighbour-advertisement packets to reach the cluster address.
+			if [ "$FAMILY" = "inet6" ]; then
+				nft insert rule "$CIP_NFT_FAMILY" "$CIP_NFT_TABLE" prerouting \
+					iif "$NIC" "$CIP_NFT_FAMILY" daddr "$OCF_RESKEY_ip" \
+					icmpv6 type nd-neighbor-advert accept || return 1
+			fi
+			;;
+		delete)
+			nft delete table "$CIP_NFT_FAMILY" "$CIP_NFT_TABLE" >/dev/null 2>&1 || true
+			;;
+		check)
+			nft list table "$CIP_NFT_FAMILY" "$CIP_NFT_TABLE" >/dev/null 2>&1
+			;;
+		esac
+	else
+		$CIP_IPTABLES "--$action" "$OCF_RESKEY_clusterip_chain" -t "$OCF_RESKEY_clusterip_table" \
+			-d "$OCF_RESKEY_ip" -i "$NIC" -j DROP || return 1
+
+		# Allow neighbour-advertisement packets to reach the cluster address.
+		if [ "$FAMILY" = "inet6" ]; then
+			$CIP_IPTABLES "--$action" "$OCF_RESKEY_clusterip_chain" -t "$OCF_RESKEY_clusterip_table" \
+				-d "$OCF_RESKEY_ip" -i "$NIC" \
+				-p ipv6-icmp -m icmp6 --icmpv6-type neighbour-advertisement -j ACCEPT || return 1
+		fi
+	fi
+}
+
+#
+# Mangle ARP responses to return multicast MAC for the IP address
+#
+cip_mangle() {
+	action="$1"
+
+	if ! ocf_is_true "$OCF_RESKEY_clusterip_mac_mangle"; then
+		return 0
+	fi
+
+	if [ "$OCF_RESKEY_clusterip_firewall" = "nft" ]; then
+		case "$action" in
+		insert)
+			nft add table arp "$CIP_NFT_TABLE" || return 1
+			nft add chain arp "$CIP_NFT_TABLE" output \
+				"{ type filter hook output priority 0; }" || return 1
+			nft add rule arp "$CIP_NFT_TABLE" output \
+				arp saddr ip "$OCF_RESKEY_ip" arp saddr ether set "$IF_MAC" || return 1
+			;;
+		delete)
+			nft delete table arp "$CIP_NFT_TABLE" >/dev/null 2>&1 || true
+			;;
+		esac
+	else
+		arptables "--$action" OUTPUT -s "$OCF_RESKEY_ip" -j mangle --mangle-mac-s "$IF_MAC"
+	fi
+}
+
+#
+# Setup cluster IP multicast MAC
+#
+cip_maddr() {
+	action="$1"
+
+	if [ "$action" = "insert" ]; then
+		$IP2UTIL maddr add "$IF_MAC" dev "$NIC"
+	else
+		$IP2UTIL maddr del "$IF_MAC" dev "$NIC"
+	fi
+}
+
+#
+# Setup cluster IP serving
+#
+cip_setup() {
+	action="$1"
+
+	failed=""
+	cip_drop $action   || failed="$failed cip_drop"
+	cip_mangle $action || failed="$failed cip_mangle"
+	cip_maddr $action  || failed="$failed cip_maddr"
+	[ -z "$failed" ]
+}
+
+#
+# Accept packets matching current cluster node
+#
+cip_node() {
+	action="$1"
+	node="$2"
+
+	if [ "$OCF_RESKEY_clusterip_firewall" = "nft" ]; then
+		case "$action" in
+		insert)
+			nft insert rule "$CIP_NFT_FAMILY" "$CIP_NFT_TABLE" prerouting \
+				iif "$NIC" "$CIP_NFT_FAMILY" daddr "$OCF_RESKEY_ip" \
+				jhash "$CIP_NFT_FAMILY" saddr mod "$IP_INC_GLOBAL" \
+				seed "$IP_CIP_HASH_SEED" offset 1 == "$node" \
+				meta pkttype set host accept comment "\"cip-node-$node\""
+			;;
+		delete)
+			local handle
+			handle=$(nft -a list chain "$CIP_NFT_FAMILY" "$CIP_NFT_TABLE" prerouting 2>/dev/null | \
+				sed -n "/\"cip-node-$node\"/s/.*handle \([0-9]*\).*/\1/p")
+			if [ -n "$handle" ]; then
+				nft delete rule "$CIP_NFT_FAMILY" "$CIP_NFT_TABLE" prerouting handle "$handle"
+			fi
+			;;
+		check)
+			nft list chain "$CIP_NFT_FAMILY" "$CIP_NFT_TABLE" prerouting 2>/dev/null | \
+				grep -q "\"cip-node-$node\""
+			;;
+		esac
+	else
+		$CIP_IPTABLES "--$action" "$OCF_RESKEY_clusterip_chain" -t "$OCF_RESKEY_clusterip_table" \
+			-d "$OCF_RESKEY_ip" -i "$NIC" \
+			-m cluster \
+			--cluster-hash-seed "$IP_CIP_HASH_SEED" \
+			--cluster-total-nodes "$IP_INC_GLOBAL" \
+			--cluster-local-node "$node" \
+			-j ACCEPT
+	fi
+}
+
 # Do we already serve this IP address on the given $NIC?
 #
 # returns:
@@ -1057,19 +1248,14 @@ ip_served() {
 	fi
 
 	# Special handling for the CIP:
-	if [ ! -e $IP_CIP_FILE ]; then
+	if ! cip_drop check; then
 		echo "partial2"
-		return 0
-	fi
-	if $EGREP -q "(^|,)${IP_INC_NO}(,|$)" $IP_CIP_FILE ; then
-		echo "ok"
-		return 0
-	else
+	elif ! cip_node check "$IP_INC_NO"; then
 		echo "partial"
-		return 0
+	else
+		echo "ok"
 	fi
-
-	exit $OCF_ERR_GENERIC
+	return 0
 }
 
 #######################################################################
@@ -1116,21 +1302,27 @@ ip_start() {
 	fi
 
 	if [ -n "$IP_CIP" ] && ([ $ip_status = "no" ] || [ $ip_status = "partial2" ]); then
-		$MODPROBE ip_conntrack
-		$IPADDR2_CIP_IPTABLES -I INPUT -d $OCF_RESKEY_ip -i $NIC -j CLUSTERIP \
-				--new \
-				--clustermac $IF_MAC \
-				--total-nodes $IP_INC_GLOBAL \
-				--local-node $IP_INC_NO \
-				--hashmode $IP_CIP_HASH
-		if [ $? -ne 0 ]; then
-			ocf_exit_reason "iptables failed"
+		if ! cip_setup insert; then
+			ocf_exit_reason "firewall setup failed"
 			exit $OCF_ERR_GENERIC
+		fi
+		if ! cip_node insert "$IP_INC_NO"; then
+			ocf_exit_reason "firewall insert failed"
+			exit $OCF_ERR_GENERIC
+		fi
+		if [ $ip_status = "partial2" ]; then
+			# Only cluster was missing, so we are done.
+			exit $OCF_SUCCESS
 		fi
 	fi
 
 	if [ -n "$IP_CIP" ] && [ $ip_status = "partial" ]; then
-		echo "+$IP_INC_NO" >$IP_CIP_FILE
+		if ! cip_node insert "$IP_INC_NO"; then
+			ocf_exit_reason "firewall insert failed"
+			exit $OCF_ERR_GENERIC
+		fi
+		# Only cluster node was missing
+		exit $OCF_SUCCESS
 	fi
 
 	if [ "$ip_status" != "ok" ]; then
@@ -1211,29 +1403,30 @@ ip_stop() {
 		if [ $ip_status = "partial" ]; then
 			exit $OCF_SUCCESS
 		fi
-		echo "-$IP_INC_NO" >$IP_CIP_FILE
-		if [ "x$(cat $IP_CIP_FILE)" = "x" ]; then
-			ocf_log info $OCF_RESKEY_ip, $IP_CIP_HASH
-			i=1
-			while [ $i -le $IP_INC_GLOBAL ]; do
-				ocf_log info $i
-				$IPADDR2_CIP_IPTABLES -D INPUT -d $OCF_RESKEY_ip -i $NIC -j CLUSTERIP \
-					--new \
-					--clustermac $IF_MAC \
-					--total-nodes $IP_INC_GLOBAL \
-					--local-node $i \
-					--hashmode $IP_CIP_HASH
-				i=`expr $i + 1`
-			done
-		else
-			ip_del_if="no"
+		if ! cip_node delete $IP_INC_NO; then
+			ocf_exit_reason "firewall delete failed"
+			exit $OCF_ERR_GENERIC
+		fi
+		i=1
+		while [ $i -le $IP_INC_GLOBAL ]; do
+			if cip_node check $i; then
+				ip_del_if="no"
+				break
+			fi
+			i=`expr $i + 1`
+		done
+		if [ "$ip_del_if" = "yes" ]; then
+			if ! cip_setup delete; then
+				ocf_exit_reason "firewall cleanup failed"
+				exit $OCF_ERR_GENERIC
+			fi
 		fi
 	fi
 
 	if [ "$ip_del_if" = "yes" ]; then
 		delete_interface $OCF_RESKEY_ip $NIC $NETMASK
 		if [ $? -ne 0 ]; then
-			ocf_exit_reason "Unable to remove IP [${OCF_RESKEY_ip} from interface [ $NIC ]"
+			ocf_exit_reason "Unable to remove IP [${OCF_RESKEY_ip}] from interface [$NIC]"
 			exit $OCF_ERR_GENERIC
 		fi
 
@@ -1310,16 +1503,38 @@ ip_validate() {
         OCF_RESKEY_network_namespace= exec $IP2UTIL netns exec "$OCF_RESKEY_network_namespace" "$0" "$__OCF_ACTION"
     fi
 
+    # Try to detect firewall type based on available tools.
+    if [ "$OCF_RESKEY_clusterip_firewall" = "auto" ]; then
+        if have_binary nft; then
+            nft_found=1
+            OCF_RESKEY_clusterip_firewall=nft
+        else
+            OCF_RESKEY_clusterip_firewall=iptables
+        fi
+    fi
+
     ip_init
 
     set_send_arp_program
 
     if [ -n "$IP_CIP" ]; then
-        if have_binary "$IPTABLES_LEGACY"; then
-            IPADDR2_CIP_IPTABLES="$IPTABLES_LEGACY"
+        if ocf_is_true $OCF_RESKEY_clusterip_mac_mangle && [ "$FAMILY" = "inet6" ]; then
+            ocf_exit_reason "clusterip_mac_mangle is not supported for IPv6"
+            exit $OCF_ERR_CONFIGURED
         fi
-        check_binary "$IPADDR2_CIP_IPTABLES"
-        check_binary $MODPROBE
+
+        if [ "$OCF_RESKEY_clusterip_firewall" = "nft" ]; then
+            [ "$nft_found" ] || check_binary nft
+        else
+            if [ "$FAMILY" = "inet" ]; then
+                check_binary "$IPTABLES"
+            else
+                check_binary ip6tables
+            fi
+            if ocf_is_true $OCF_RESKEY_clusterip_mac_mangle; then
+                check_binary arptables
+            fi
+        fi
     fi
 
 # $BASEIP, $NETMASK, $NIC , $IP_INC_GLOBAL, and $BRDCAST have been checked within ip_init,
@@ -1351,17 +1566,12 @@ ip_validate() {
     fi
 
     if [ -n "$IP_CIP" ]; then
-
 	local valid=1
 
-	case $IP_CIP_HASH in
-	sourceip|sourceip-sourceport|sourceip-sourceport-destport)
-		;;
-	*)
-		ocf_exit_reason "Invalid OCF_RESKEY_clusterip_hash [$IP_CIP_HASH]"
+	if ! echo "$OCF_RESKEY_clusterip_hash_seed" | grep -qE '^(0x[0-9a-fA-F]+|[0-9]+)?$'; then
+		ocf_exit_reason "Invalid OCF_RESKEY_clusterip_hash_seed [$OCF_RESKEY_clusterip_hash_seed]"
 		exit $OCF_ERR_CONFIGURED
-		;;
-	esac
+	fi
 
 	if ocf_is_true ${OCF_RESKEY_lvs_support}; then
 		ocf_exit_reason "LVS and load sharing not advised to try"
