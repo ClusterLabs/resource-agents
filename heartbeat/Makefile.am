@@ -168,7 +168,6 @@ ocf_SCRIPTS	      = AoEtarget		\
 			rabbitmq-cluster	\
 			rabbitmq-server-ha	\
 			redis			\
-			rkt			\
 			rsyncd			\
 			rsyslog			\
 			scsi2reservation	\
