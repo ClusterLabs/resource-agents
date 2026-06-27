@@ -196,7 +196,6 @@ man_MANS                = ocf_heartbeat_AoEtarget.7 \
                           ocf_heartbeat_rabbitmq-cluster.7 \
                           ocf_heartbeat_rabbitmq-server-ha.7 \
                           ocf_heartbeat_redis.7 \
-                          ocf_heartbeat_rkt.7 \
                           ocf_heartbeat_rsyncd.7 \
                           ocf_heartbeat_rsyslog.7 \
                           ocf_heartbeat_scsi2reservation.7 \
