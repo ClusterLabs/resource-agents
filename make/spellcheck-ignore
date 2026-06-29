@@ -114,7 +114,6 @@ qdisk
 qemu
 rabbitmq
 rk
-rkt
 rpc
 rsync
 rsyncd
