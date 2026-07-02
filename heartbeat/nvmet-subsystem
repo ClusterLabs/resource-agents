@@ -150,8 +150,15 @@ nvmet_subsystem_monitor() {
 
 nvmet_subsystem_validate() {
 	if [ ! -d /sys/kernel/config/nvmet ]; then
-		ocf_log err "/sys/kernel/config/nvmet does not exist -- Load the nvmet.ko linux kernel module."
-		exit $OCF_ERR_INSTALLED
+	    ocf_log info "nvmet kernel module not loaded, attempting to load it..."
+	    modprobe nvmet 2>/dev/null
+        
+		if [ ! -d /sys/kernel/config/nvmet ]; then
+		    ocf_log err "Failed to load nvmet.ko kernel module. Please check if the module exists and is compatible with your kernel."
+		    exit $OCF_ERR_INSTALLED
+		else
+		    ocf_log info "nvmet kernel module loaded successfully."
+		fi
 	fi
 	return $OCF_SUCCESS
 }
