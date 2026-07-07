@@ -1,0 +1,296 @@
+#!@PYTHON@ -tt
+# ------------------------------------------------------------------------
+# Description: Resource Agent to move a IBM Cloud Public Address Range (PAR)
+#              from one availability zone to another
+#
+# Authors:      Eran Gampel, Radhakrishnan Balasubramanian
+#
+# Copyright (c) 2026 International Business Machines, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ------------------------------------------------------------------------
+import subprocess
+import ipaddress
+import os
+import sys
+import textwrap
+import time
+
+OCF_FUNCTIONS_DIR = os.environ.get(
+    "OCF_FUNCTIONS_DIR", "%s/lib/heartbeat" % os.environ.get("OCF_ROOT")
+)
+
+sys.path.append(OCF_FUNCTIONS_DIR)
+
+RETRY_COUNT = 1
+SLEEP_TIME  = 1
+
+try:
+    import ocf
+except ImportError:
+    sys.stderr.write("ImportError: ocf module import failed.")
+    sys.exit(5)
+
+try:
+    import ibm_cloud_fail_over
+except ImportError:
+    ocf.logger.error("ImportError: import of ibm_cloud_fail_over module failed."   \
+                        "install using: pip install ibm_cloud_fail_over")
+    pass
+
+def os_ip(ip):
+    """Check if VSI own this IP address."""
+
+    command = ["ip", "a"]
+    response = subprocess.run(command, capture_output=True, text=True)
+    return ip in response.stdout
+
+def ip_address_validator(ip):
+    """validate ip address string
+
+    Args:
+        ip (string): ip address
+
+    Returns:
+        bool: true if the string is a valid ipv4 ip address
+    """
+    try:
+        ipaddress.ip_address(ip)
+        return True
+    except ValueError:
+        return False
+
+def validate_all_action(
+    vpc_url="",
+    address_prefix_range_id="",
+    nexthop_ip_1="",
+    nexthop_ip_2="",
+    api_key="",
+):
+    """validate all parameters
+
+    Args:
+        vpc_url (str, mandatory): vpc_url for the region.
+        address_prefix_range_id (str, mandatory): The ID of the public address range to update.
+        nexthop_ip_1 (str, mandatory): First instance IP address to be used as nexthop.
+        nexthop_ip_2 (str, mandatory): Second instance IP address to be used as nexthop.
+        api_key (str, optional): IBM Cloud API access key. Defaults to "".
+
+    Returns:
+        _type_: _description_
+    """
+    if not address_prefix_range_id:
+        ocf.logger.error("address_prefix_range_id is required")
+        return ocf.OCF_ERR_CONFIGURED
+    if not ip_address_validator(nexthop_ip_1):
+        ocf.logger.error("nexthop_ip_1 is not a valid IP address")
+        return ocf.OCF_ERR_CONFIGURED
+    if not ip_address_validator(nexthop_ip_2):
+        ocf.logger.error("nexthop_ip_2 is not a valid IP address")
+        return ocf.OCF_ERR_CONFIGURED
+    ocf.logger.debug(f"validate_all_action: {vpc_url} {api_key}")
+    return ocf.OCF_SUCCESS
+
+def stop_action(
+    vpc_url="",
+    address_prefix_range_id="",
+    nexthop_ip_1="",
+    nexthop_ip_2="",
+    api_key="",
+):
+    """Stop public address range failover
+
+    Args:
+        vpc_url (str, mandatory): vpc_url for the region.
+        address_prefix_range_id (str, mandatory): The ID of the public address range to update.
+        nexthop_ip_1 (str, mandatory): First instance IP address to be used as nexthop.
+        nexthop_ip_2 (str, mandatory): Second instance IP address to be used as nexthop.
+        api_key (str, optional): IBM Cloud API access key. Defaults to "".
+
+    Returns:
+        _type_: _description_
+    """
+    ocf.logger.info("stop_action: stopping")
+    res = monitor_action(vpc_url, address_prefix_range_id, nexthop_ip_1, nexthop_ip_2, api_key)
+    if res == ocf.OCF_NOT_RUNNING:
+        ocf.logger.info("Resource is already stopped")
+    if res == ocf.OCF_SUCCESS:
+        for i in range(0,RETRY_COUNT):
+            time.sleep(SLEEP_TIME)
+            res = monitor_action(vpc_url, address_prefix_range_id, nexthop_ip_1, nexthop_ip_2, api_key)
+            if res == ocf.OCF_NOT_RUNNING:
+                break
+    return ocf.OCF_SUCCESS
+
+def start_action(
+    vpc_url="",
+    address_prefix_range_id="",
+    nexthop_ip_1="",
+    nexthop_ip_2="",
+    api_key="",
+):
+    """start_action: update the public address range target zone.
+    Args:
+        vpc_url (str, mandatory): vpc_url for the region.
+        address_prefix_range_id (str, mandatory): The ID of the public address range to update.
+        nexthop_ip_1 (str, mandatory): First instance IP address to be used as nexthop.
+        nexthop_ip_2 (str, mandatory): Second instance IP address to be used as nexthop.
+        api_key (str, optional): IBM Cloud API access key. Defaults to "".
+
+    Updates the public address range target zone to match the VSI's local availability zone.
+    Only updates if this VSI is the active one.
+    """
+    try:
+        # update the public address range to point to the active availability zone
+        result = ibm_cloud_fail_over.fail_over_public_address_range(
+            range_id=address_prefix_range_id,
+            vpc_url=vpc_url,
+            nexthop_ip_1=nexthop_ip_1,
+            nexthop_ip_2=nexthop_ip_2,
+            api_key=api_key
+        )
+        ocf.logger.info(f"start_action: public address range result: {result}")
+    except Exception as e:
+        ocf.logger.error("Couldn't connect with IBM Cloud api: " + str(e))
+        sys.exit(ocf.OCF_ERR_GENERIC)
+
+    return ocf.OCF_SUCCESS
+
+def monitor_action(
+    vpc_url="",
+    address_prefix_range_id="",
+    nexthop_ip_1="",
+    nexthop_ip_2="",
+    api_key="",
+):
+    """monitor_action: check if next-hop for public address range is pointing to this VSI and zone is correct.
+
+    Args:
+        vpc_url (str, mandatory): vpc_url for the region.
+        address_prefix_range_id (str, mandatory): The ID of the public address range to update.
+        nexthop_ip_1 (str, mandatory): First instance IP address to be used as nexthop.
+        nexthop_ip_2 (str, mandatory): Second instance IP address to be used as nexthop.
+        api_key (str, optional): IBM Cloud API access key. Defaults to "".
+    """
+
+    ocf.logger.debug("monitor_action:")
+    try:
+        # First check if the next-hop for PAR is pointing to this VSI
+        next_hop_ip = ibm_cloud_fail_over.get_next_hop_for_par(
+            range_id=address_prefix_range_id,
+            vpc_url=vpc_url,
+            api_key=api_key
+        )
+        if not next_hop_ip:
+            ocf.logger.warning("No next-hop found for public address range")
+            return ocf.OCF_NOT_RUNNING
+
+        if not os_ip(next_hop_ip):
+            ocf.logger.warning(f"Next-hop IP {next_hop_ip} is not on this VSI")
+            return ocf.OCF_NOT_RUNNING
+
+        # Then check public address range zone compatibility
+        try:
+            zones_match, current_zone = ibm_cloud_fail_over.fail_over_check_par_zone_compatibility(
+                range_id=address_prefix_range_id,
+                vpc_url=vpc_url,
+                api_key=api_key
+            )
+            if zones_match:
+                ocf.logger.debug(f"Public address range is in the correct zone: {current_zone}")
+                return ocf.OCF_SUCCESS
+            ocf.logger.warning(f"Public address range is in different zone: {current_zone}")
+            return ocf.OCF_NOT_RUNNING
+        except Exception as e:
+            ocf.logger.error("Couldn't check public address range zone compatibility: " + str(e))
+            return ocf.OCF_NOT_RUNNING
+
+    except Exception as e:
+        ocf.logger.error("Couldn't connect with IBM Cloud api: " + str(e))
+        sys.exit(ocf.OCF_ERR_GENERIC)
+
+def main():
+    """Instantiate the resource agent."""
+
+    agent_description = textwrap.dedent("""\
+        Resource Agent to move a IBM Cloud Public Address Range (PAR) from one availability zone to another.
+        This agent manages the public address range zone updates during failover operations.
+        The prerequisites for the use of this resource agent are as follows:
+
+        1. A two-node (VSI or BM) cluster distributed in same Availability zone or across.
+        2. Enable Instance Metadata enabled on the two nodes
+        3. IBM Cloud API Key or Trusted profile
+        4. A public address range configured in IBM Cloud VPC
+        5. Floating IP configured and working
+    """)
+
+    agent = ocf.Agent(
+        "ibm-cloud-vpc-move-par",
+        shortdesc="Manages IBM Cloud Public Address Range failover",
+        longdesc=agent_description
+    )
+
+    agent.add_parameter(
+        "vpc_url",
+        shortdesc="VPC_URL",
+        longdesc="IBM Cloud Public VPC URL for your region or a VPE URL for IBM Cloud VPC",
+        content_type="string",
+        required=True,
+    )
+
+    agent.add_parameter(
+        "address_prefix_range_id",
+        shortdesc="Public Address Range ID",
+        longdesc="The ID of the public address range to update during failover",
+        content_type="string",
+        required=True,
+    )
+
+    agent.add_parameter(
+        "nexthop_ip_1",
+        shortdesc="IP address for first instance.",
+        longdesc="predefined private IP address for first instance to be used as nexthop.",
+        content_type="string",
+        required=True,
+    )
+
+    agent.add_parameter(
+        "nexthop_ip_2",
+        shortdesc="IP address for second instance.",
+        longdesc="predefined private IP address for second instance to be used as nexthop.",
+        content_type="string",
+        required=True,
+    )
+
+    agent.add_parameter(
+        "api_key",
+        shortdesc="API Key or @API_KEY_FILE_PATH",
+        longdesc=(
+            "API Key or @API_KEY_FILE_PATH for IBM Cloud access. "
+            "The API key content or the path of an API key file that is indicated by the @ symbol. "
+            "Not needed if trusted profile is used"
+        ),
+        content_type="string",
+        required=False,
+    )
+
+    agent.add_action("start", timeout=30, handler=start_action)
+    agent.add_action("stop", timeout=30, handler=stop_action)
+    agent.add_action(
+        "monitor", depth=0, timeout=60, interval=60, handler=monitor_action
+    )
+    agent.add_action("validate-all", timeout=30, handler=validate_all_action)
+    agent.run()
+
+if __name__ == "__main__":
+    main()
