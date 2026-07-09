@@ -460,6 +460,8 @@ All node names of synchronous standby nodes that may connect from outside
 the Pacemaker cluster. Please separate each node name with a space.
 When set, the RA automatically manages synchronous_standby_names for both
 in-cluster and external standby nodes during monitor.
+Each node name must match the application_name the standby uses to connect.
+This parameter requires rep_mode=sync.
 This is optional for replication.
 </longdesc>
 <shortdesc lang="en">external standby node list</shortdesc>
@@ -1199,6 +1201,7 @@ control_slave_status() {
     local number_of_nodes
     local target_list
     local standby_node
+    local standby_state
     local found
 
     all_data_status=`exec_sql "$OCF_RESKEY_monitor_user" "${CHECK_REPLICATION_STATE_SQL}"`
@@ -1277,11 +1280,18 @@ control_slave_status() {
         esac
     done
 
-    if [ -n "$OCF_RESKEY_external_standby_node_list" ]; then
+    if [ "$OCF_RESKEY_rep_mode" = "sync" -a -n "$OCF_RESKEY_external_standby_node_list" ]; then
         # Check whether nodes registered in the pg_stat_replication table should be managed by the resource agent.
         for tmp_data_status in $all_data_status; do
             found="false"
             standby_node=`echo $tmp_data_status | cut -d "|" -f 1`
+            standby_state=`echo $tmp_data_status | cut -d "|" -f 2`
+            if [ "$standby_state" != "STREAMING" ]; then
+                # Standbys that are still in catchup, backup or startup state
+                # must not block commits via synchronous_standby_names.
+                ocf_log debug "$standby_node is not streaming (state=$standby_state)."
+                continue
+            fi
             for target in $NODE_LIST; do
                 if [ "$standby_node" = "$target" ]; then
                     found="true"
@@ -1616,6 +1626,7 @@ set_async_mode() {
 }
 
 set_sync_mode() {
+    local rc
     local target_nodes=""
     local target_count=0
     local config_node_list
@@ -1632,6 +1643,22 @@ set_sync_mode() {
     else
         # If the setting does not contain the term FIRST, retrieve information from within the ''
         config_node_list=`cat $REP_MODE_CONF | cut -d "'" -f 2 | sed 's/[",]//g'`
+    fi
+
+    if [ -z "$OCF_RESKEY_external_standby_node_list" ]; then
+        # Without external standbys the RA keeps a single sync standby.
+        # Keep the node already in rep_mode.conf, otherwise every monitor
+        # would switch the sync standby back and forth between the
+        # remaining async standbys on clusters with 3 or more nodes.
+        if [ -n "$config_node_list" ]; then
+            ocf_log debug "$config_node_list is already sync mode."
+        else
+            ocf_log info "Setup $1 into sync mode."
+            runasowner -q err "echo \"synchronous_standby_names = '\\\"$1\\\"'\" > \"$REP_MODE_CONF\""
+            [ "$RE_CONTROL_SLAVE" = "false" ] && RE_CONTROL_SLAVE="true"
+            exec_with_retry 0 reload_conf
+        fi
+        return 0
     fi
 
     sorted1=$(echo "$1" | tr ' ' '\n' | sort)
@@ -2063,6 +2090,10 @@ validate_ocf_check_level_10() {
         fi
         if [ ! "$OCF_RESKEY_rep_mode" = "sync" -a ! "$OCF_RESKEY_rep_mode" = "async" ]; then
             ocf_exit_reason "Invalid rep_mode : $OCF_RESKEY_rep_mode"
+            return $OCF_ERR_CONFIGURED
+        fi
+        if [ -n "$OCF_RESKEY_external_standby_node_list" -a ! "$OCF_RESKEY_rep_mode" = "sync" ]; then
+            ocf_exit_reason "external_standby_node_list requires rep_mode=sync."
             return $OCF_ERR_CONFIGURED
         fi
         if [ ! -n "$NODE_LIST" ]; then
