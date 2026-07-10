@@ -1641,10 +1641,10 @@ set_sync_mode() {
     # correctly whether or not the commas are followed by spaces.
     if [ $rc -eq 0 ]; then
         # If the setting contains the term FIRST, retrieve the information from within the ()
-        config_node_list=`cat $REP_MODE_CONF | cut -d "(" -f 2 | cut -d ")" -f 1 | sed 's/[",]/ /g'`
+        config_node_list=`cat $REP_MODE_CONF | cut -d "(" -f 2 | cut -d ")" -f 1 | sed 's/[",] */ /g'`
     else
         # If the setting does not contain the term FIRST, retrieve information from within the ''
-        config_node_list=`cat $REP_MODE_CONF | cut -d "'" -f 2 | sed 's/[",]/ /g'`
+        config_node_list=`cat $REP_MODE_CONF | cut -d "'" -f 2 | sed 's/[",] */ /g'`
     fi
     # Normalize whitespace between node names.
     config_node_list=`echo $config_node_list`
