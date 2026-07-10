@@ -1265,14 +1265,14 @@ control_slave_status() {
             "DISCONNECT")
                 change_data_status "$target" "$data_status"
                 change_master_score "$target" "$CAN_NOT_PROMOTE"
-                if [ "$OCF_RESKEY_rep_mode" = "sync" -a -z "$OCF_RESKEY_external_standby_node_list" ]; then
+                if [ "$OCF_RESKEY_rep_mode" = "sync" ] && [ -z "$OCF_RESKEY_external_standby_node_list" ]; then
                     set_async_mode "$target"
                 fi
                 ;;
             *)
                 change_data_status "$target" "$data_status"
                 change_master_score "$target" "$CAN_NOT_PROMOTE"
-                if [ "$OCF_RESKEY_rep_mode" = "sync" -a -z "$OCF_RESKEY_external_standby_node_list" ]; then
+                if [ "$OCF_RESKEY_rep_mode" = "sync" ] && [ -z "$OCF_RESKEY_external_standby_node_list" ]; then
                     set_async_mode "$target"
                 fi
                 change_pgsql_status "$target" "HS:connected"
@@ -1280,12 +1280,12 @@ control_slave_status() {
         esac
     done
 
-    if [ "$OCF_RESKEY_rep_mode" = "sync" -a -n "$OCF_RESKEY_external_standby_node_list" ]; then
+    if [ "$OCF_RESKEY_rep_mode" = "sync" ] && [ -n "$OCF_RESKEY_external_standby_node_list" ]; then
         # Check whether nodes registered in the pg_stat_replication table should be managed by the resource agent.
-        for tmp_data_status in $all_data_status; do
+        for data_status in $all_data_status; do
             found="false"
-            standby_node=`echo $tmp_data_status | cut -d "|" -f 1`
-            standby_state=`echo $tmp_data_status | cut -d "|" -f 2`
+            standby_node=`echo $data_status | cut -d "|" -f 1`
+            standby_state=`echo $data_status | cut -d "|" -f 2`
             if [ "$standby_state" != "STREAMING" ]; then
                 # Standbys that are still in catchup, backup or startup state
                 # must not block commits via synchronous_standby_names.
@@ -1630,20 +1630,24 @@ set_sync_mode() {
     local target_nodes=""
     local target_count=0
     local config_node_list
-    local sorted1
-    local sorted2
+    local sorted_nodes
+    local sorted_config_nodes
     local found
 
     # Check whether the current settings contain the term FIRST
     cat $REP_MODE_CONF | cut -d "'" -f 2 | grep -q "^FIRST "
     rc=$?
+    # Replace quotes and commas with spaces so that node names are parsed
+    # correctly whether or not the commas are followed by spaces.
     if [ $rc -eq 0 ]; then
         # If the setting contains the term FIRST, retrieve the information from within the ()
-        config_node_list=`cat $REP_MODE_CONF | cut -d "(" -f 2 | cut -d ")" -f 1 | sed 's/[",]//g'`
+        config_node_list=`cat $REP_MODE_CONF | cut -d "(" -f 2 | cut -d ")" -f 1 | sed 's/[",]/ /g'`
     else
         # If the setting does not contain the term FIRST, retrieve information from within the ''
-        config_node_list=`cat $REP_MODE_CONF | cut -d "'" -f 2 | sed 's/[",]//g'`
+        config_node_list=`cat $REP_MODE_CONF | cut -d "'" -f 2 | sed 's/[",]/ /g'`
     fi
+    # Normalize whitespace between node names.
+    config_node_list=`echo $config_node_list`
 
     if [ -z "$OCF_RESKEY_external_standby_node_list" ]; then
         # Without external standbys the RA keeps a single sync standby.
@@ -1661,9 +1665,9 @@ set_sync_mode() {
         return 0
     fi
 
-    sorted1=$(echo "$1" | tr ' ' '\n' | sort)
-    sorted2=$(echo "$config_node_list" | tr ' ' '\n' | sort)
-    if [ "$sorted1" = "$sorted2" ]; then
+    sorted_nodes=$(echo "$1" | tr ' ' '\n' | sort)
+    sorted_config_nodes=$(echo "$config_node_list" | tr ' ' '\n' | sort)
+    if [ "$sorted_nodes" = "$sorted_config_nodes" ]; then
        # If the content is the same as the current settings, do not update rep_mode.conf
        ocf_log debug "The same settings already exist."
        return 0
@@ -2092,7 +2096,7 @@ validate_ocf_check_level_10() {
             ocf_exit_reason "Invalid rep_mode : $OCF_RESKEY_rep_mode"
             return $OCF_ERR_CONFIGURED
         fi
-        if [ -n "$OCF_RESKEY_external_standby_node_list" -a ! "$OCF_RESKEY_rep_mode" = "sync" ]; then
+        if [ -n "$OCF_RESKEY_external_standby_node_list" ] && [ ! "$OCF_RESKEY_rep_mode" = "sync" ]; then
             ocf_exit_reason "external_standby_node_list requires rep_mode=sync."
             return $OCF_ERR_CONFIGURED
         fi
