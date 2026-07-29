@@ -1,0 +1,384 @@
+#!/bin/sh
+#
+# mediationzone
+#
+# Description: OCF resource agent for MediationZone by DigitalRoute.
+#              Manages a single pico process as a cluster resource.
+#
+# Copyright (c) 2026 Red Hat, Inc.
+# Author:      Janine Fuchs
+# License:     GNU General Public License (GPL)
+#
+# OCF parameters:
+#   OCF_RESKEY_os_user          - OS user to run mzsh as
+#   OCF_RESKEY_mz_home          - MZ_HOME directory
+#   OCF_RESKEY_java_home        - JAVA_HOME directory
+#   OCF_RESKEY_pico_name        - name of the pico to manage
+#   OCF_RESKEY_pico_port        - web server port of the pico
+#   OCF_RESKEY_mzsh_timeout     - timeout in seconds for a single mzsh call
+#   OCF_RESKEY_monitor_retries  - number of mzsh status retries in the monitor action
+#
+# Resource start order:
+#   rsc_vip_platform -> rsc_mz_platform -> other containers (ui, ec, ...)
+#
+# The platform container must bind to the IP that is defined in the pico.rcp.platform.host
+# container property. If this is a virtual IP, then this VIP must be UP when the platform
+# container starts.
+#
+# Other containers like the ui can use this VIP in their own pico.rcp.platform.host property
+# to connect to the platform on any host in an HA setup.
+#
+# The platform resource should have meta priority=100 set - in a split-brain,
+# the node running the platform survives because it holds the highest-priority resource.
+# For the priority to take effect, the cluster property priority-fencing-delay must be
+# set to a value greater than 0 (e.g. 30s).
+#
+mediationzone_version="0.5.2"
+
+: "${OCF_FUNCTIONS_DIR:=${OCF_ROOT}/lib/heartbeat}"
+# shellcheck source=/dev/null
+. "${OCF_FUNCTIONS_DIR}/ocf-shellfuncs"
+
+# define parameter defaults
+OCF_RESKEY_os_user_default="mzadmin"
+OCF_RESKEY_mz_home_default="/opt/mz"
+OCF_RESKEY_java_home_default="/usr/lib/jvm/java-17-openjdk"
+OCF_RESKEY_pico_name_default="platform"
+OCF_RESKEY_pico_port_default=""
+OCF_RESKEY_mzsh_timeout_default=30
+OCF_RESKEY_monitor_retries_default=1
+
+# apply defaults for any parameter not set by Pacemaker
+: "${OCF_RESKEY_os_user:=${OCF_RESKEY_os_user_default}}"
+: "${OCF_RESKEY_mz_home:=${OCF_RESKEY_mz_home_default}}"
+: "${OCF_RESKEY_java_home:=${OCF_RESKEY_java_home_default}}"
+: "${OCF_RESKEY_pico_name:=${OCF_RESKEY_pico_name_default}}"
+: "${OCF_RESKEY_pico_port:=${OCF_RESKEY_pico_port_default}}"
+: "${OCF_RESKEY_mzsh_timeout:=${OCF_RESKEY_mzsh_timeout_default}}"
+: "${OCF_RESKEY_monitor_retries:=${OCF_RESKEY_monitor_retries_default}}"
+
+# derive pico_port from pico type if not set explicitly
+if [ -z "$OCF_RESKEY_pico_port" ]; then
+    case "$OCF_RESKEY_pico_name" in
+        platform) OCF_RESKEY_pico_port=9000 ;;
+        ui)       OCF_RESKEY_pico_port=9001 ;;
+    esac
+fi
+
+# assembled once here so each su call stays readable
+MEDIATIONZONE_MZSH_ENV="MZ_HOME=${OCF_RESKEY_mz_home} JAVA_HOME=${OCF_RESKEY_java_home}"
+# MZ_PLATFORM=http://localhost directs mzsh to connect to the local platform RCP (port 6790).
+# When the platform is on another node, the connection fails fast (ECONNREFUSED) and mzsh falls
+# back to the local pico RCP. Used for status/shutdown/kill but not startup: startup must route
+# through the remote platform RCP so the platform manages service initialization.
+MEDIATIONZONE_MZSH_LOCAL_ENV="${MEDIATIONZONE_MZSH_ENV} MZ_PLATFORM=http://localhost"
+
+mediationzone_meta_data() {
+    cat <<EOF
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="mediationzone" version="${mediationzone_version}">
+<version>1.0</version>
+<shortdesc lang="en">Manages a MediationZone pico process.</shortdesc>
+<longdesc lang="en">
+The mediationzone resource agent manages MediationZone (by DigitalRoute)
+pico processes as active/passive cluster resources.
+
+Use one resource per pico. The platform VIP must start first, then the
+platform container, followed by any other containers (ui, ec, etc.).
+
+Set meta priority=100 on the platform resource. The platform is the most
+critical pico - all other picos depend on it. In a split-brain, Pacemaker
+fences the lower-priority node first, ensuring the platform node survives.
+The cluster property priority-fencing-delay must be greater than 0 for this
+to take effect.
+</longdesc>
+<parameters>
+<parameter name="os_user" unique="0" required="0">
+    <shortdesc lang="en">OS user to run mzsh as.</shortdesc>
+    <longdesc lang="en">OS user that owns the MediationZone installation and runs mzsh commands.</longdesc>
+    <content type="string" default="${OCF_RESKEY_os_user_default}" />
+</parameter>
+<parameter name="mz_home" unique="0" required="0">
+    <shortdesc lang="en">MZ_HOME directory.</shortdesc>
+    <longdesc lang="en">Path to the MediationZone installation directory. Passed to mzsh as MZ_HOME. mzsh is expected at MZ_HOME/bin/mzsh.</longdesc>
+    <content type="string" default="${OCF_RESKEY_mz_home_default}" />
+</parameter>
+<parameter name="java_home" unique="0" required="0">
+    <shortdesc lang="en">JAVA_HOME directory.</shortdesc>
+    <longdesc lang="en">Path to the JDK or JRE used by MediationZone.</longdesc>
+    <content type="string" default="${OCF_RESKEY_java_home_default}" />
+</parameter>
+<parameter name="pico_name" unique="0" required="0">
+    <shortdesc lang="en">Name of the pico to manage.</shortdesc>
+    <longdesc lang="en">Name of the MediationZone pico to manage. Known names with default ports are platform (9000) and ui (9001). Set pico_port explicitly for other pico name and port combinations.</longdesc>
+    <content type="string" default="${OCF_RESKEY_pico_name_default}" />
+</parameter>
+<parameter name="pico_port" unique="0" required="0">
+    <shortdesc lang="en">Web server port of the pico.</shortdesc>
+    <longdesc lang="en">The port the pico web server listens on. Used to clear TIME-WAIT connections before startup. Defaults to 9000 for platform and 9001 for ui. Must be set explicitly when managing a different pico type, or when the default port has been changed in the container configuration.</longdesc>
+    <content type="integer" default="" />
+</parameter>
+<parameter name="mzsh_timeout" unique="0" required="0">
+    <shortdesc lang="en">Timeout in seconds for a single mzsh call.</shortdesc>
+    <longdesc lang="en">Maximum time in seconds to wait for a single mzsh call (status, shutdown, kill, and the pre-start kill that runs before startup). Minimum 10. The stop action chains shutdown then kill on failure, so worst-case stop time is 2 x mzsh_timeout. If mzsh_timeout is too short, both shutdown and kill time out and the stop action fails - Pacemaker then fences the node to recover. Additionally, set the stop operation timeout on the cluster resource to at least 2 x mzsh_timeout + 60s.</longdesc>
+    <content type="integer" default="${OCF_RESKEY_mzsh_timeout_default}" />
+</parameter>
+<parameter name="monitor_retries" unique="0" required="0">
+    <shortdesc lang="en">Number of mzsh status retries in the monitor action.</shortdesc>
+    <longdesc lang="en">How many times the monitor action retries mzsh status after an initial failure before reporting the pico as not running or failed. Applies only to the monitor action - start and stop are not affected. A value of 0 disables retries. Increase if transient status failures cause unwanted restarts in your environment. Minimum 0.</longdesc>
+    <content type="integer" default="${OCF_RESKEY_monitor_retries_default}" />
+</parameter>
+</parameters>
+<actions>
+    <action name="start"        timeout="360s" />
+    <action name="stop"         timeout="360s" />
+    <action name="monitor"      timeout="90s" interval="60s" />
+    <action name="validate-all" timeout="30s" />
+    <action name="meta-data"    timeout="5s" />
+    <action name="methods"      timeout="5s" />
+    <action name="usage"        timeout="5s" />
+</actions>
+</resource-agent>
+EOF
+}
+
+mediationzone_usage() {
+    echo "usage: $0 {start|stop|monitor|validate-all|meta-data|methods|usage}"
+}
+
+mediationzone_methods() {
+    echo "start stop monitor validate-all meta-data methods usage"
+}
+
+mediationzone_check() {
+    timeout "$OCF_RESKEY_mzsh_timeout" \
+        su - "$OCF_RESKEY_os_user" -c \
+        "${MEDIATIONZONE_MZSH_LOCAL_ENV} ${OCF_RESKEY_mz_home}/bin/mzsh status -q ${OCF_RESKEY_pico_name}"
+    case $? in
+        0) return "$OCF_SUCCESS" ;;
+        2) return "$OCF_NOT_RUNNING" ;;
+        *) return "$OCF_ERR_GENERIC" ;;
+    esac
+}
+
+mediationzone_monitor() {
+    attempt=0
+    # retry because pico status can transiently return not-running during normal operation
+    while [ "$attempt" -le "$OCF_RESKEY_monitor_retries" ]; do
+        # sleep before retry, not after the last attempt
+        [ "$attempt" -gt 0 ] && sleep 1
+        attempt=$((attempt + 1))
+        timeout "$OCF_RESKEY_mzsh_timeout" \
+            su - "$OCF_RESKEY_os_user" -c \
+            "${MEDIATIONZONE_MZSH_LOCAL_ENV} ${OCF_RESKEY_mz_home}/bin/mzsh status -q ${OCF_RESKEY_pico_name}"
+        rc=$?
+        case $rc in
+            0)   ocf_log debug "${OCF_RESKEY_pico_name} is running"
+                 return "$OCF_SUCCESS" ;;
+            2)   ocf_log info "${OCF_RESKEY_pico_name} is not running (attempt ${attempt}, retries ${OCF_RESKEY_monitor_retries})" ;;
+            # a timeout is usually not recoverable (e.g. a hung filesystem) - fail immediately
+            # instead of retrying; monitor_retries only applies to explicit mzsh failures
+            124) ocf_exit_reason "${OCF_RESKEY_pico_name} status timed out"
+                 return "$OCF_ERR_GENERIC" ;;
+            *)   ocf_log warn "${OCF_RESKEY_pico_name} status failed (mzsh rc=${rc}, attempt ${attempt}, retries ${OCF_RESKEY_monitor_retries})" ;;
+        esac
+    done
+    if [ "$rc" -eq 2 ]; then
+        return "$OCF_NOT_RUNNING"
+    fi
+    ocf_exit_reason "${OCF_RESKEY_pico_name} status failed after $((OCF_RESKEY_monitor_retries + 1)) attempts (mzsh rc=${rc})"
+    return "$OCF_ERR_GENERIC"
+}
+
+mediationzone_start() {
+    if mediationzone_check; then
+        ocf_log info "${OCF_RESKEY_pico_name} already running"
+        return "$OCF_SUCCESS"
+    fi
+    ocf_log debug "${OCF_RESKEY_pico_name} starting"
+    # evict any lingering JVM that mzsh considers stopped but that still holds its port
+    timeout "$OCF_RESKEY_mzsh_timeout" \
+        su - "$OCF_RESKEY_os_user" -c \
+        "${MEDIATIONZONE_MZSH_LOCAL_ENV} ${OCF_RESKEY_mz_home}/bin/mzsh kill ${OCF_RESKEY_pico_name}" \
+        > /dev/null 2>&1 || true
+    # clear kernel TIME-WAIT entries on the pico port - a graceful shutdown leaves the previous
+    # inter-pico TCP connection in TIME-WAIT, which can block the new JVM from binding the port
+    ss -K state time-wait "( sport = :${OCF_RESKEY_pico_port} )" > /dev/null 2>&1 || true
+    # -f forces start of a pico that is registered but unreachable (e.g. after a crash)
+    # stdout captured: rc=0 does not guarantee a healthy start - "Started with errors" indicates
+    # codeserver-only mode where the pico is up but the platform service is not fully running
+    startup_out=$(su - "$OCF_RESKEY_os_user" -c \
+        "${MEDIATIONZONE_MZSH_ENV} ${OCF_RESKEY_mz_home}/bin/mzsh startup -f ${OCF_RESKEY_pico_name}")
+    rc=$?
+    ocf_log debug "mzsh startup ${OCF_RESKEY_pico_name}: ${startup_out}"
+    # rc=104 is "failed critical" - mzsh startup is blocking so the JVM has already exited,
+    # but kill for safety then clear TIME-WAIT before retrying
+    if [ $rc -eq 104 ]; then
+        ocf_log warn "mzsh startup ${OCF_RESKEY_pico_name} failed (mzsh rc=104), evicting failed JVM and retrying"
+        timeout "$OCF_RESKEY_mzsh_timeout" \
+            su - "$OCF_RESKEY_os_user" -c \
+            "${MEDIATIONZONE_MZSH_LOCAL_ENV} ${OCF_RESKEY_mz_home}/bin/mzsh kill ${OCF_RESKEY_pico_name}" \
+            > /dev/null 2>&1 || true
+        ss -K state time-wait "( sport = :${OCF_RESKEY_pico_port} )" > /dev/null 2>&1 || true
+        startup_out=$(su - "$OCF_RESKEY_os_user" -c \
+            "${MEDIATIONZONE_MZSH_ENV} ${OCF_RESKEY_mz_home}/bin/mzsh startup -f ${OCF_RESKEY_pico_name}")
+        rc=$?
+        ocf_log debug "mzsh startup ${OCF_RESKEY_pico_name} (retry): ${startup_out}"
+    fi
+
+    if [ $rc -ne 0 ]; then
+        ocf_exit_reason "mzsh startup ${OCF_RESKEY_pico_name} failed (mzsh rc=${rc})"
+        return "$OCF_ERR_GENERIC"
+    fi
+    case $startup_out in
+        *[Ss]"tarted with errors"*)
+            ocf_exit_reason "mzsh startup ${OCF_RESKEY_pico_name} started in degraded mode (codeserver only)"
+            return "$OCF_ERR_GENERIC" ;;
+        *"no such server process"*)
+            ocf_exit_reason "mzsh startup ${OCF_RESKEY_pico_name}: pico not found or not registered"
+            return "$OCF_ERR_GENERIC" ;;
+    esac
+    ocf_log info "${OCF_RESKEY_pico_name} started"
+    return "$OCF_SUCCESS"
+}
+
+mediationzone_stop() {
+    ocf_log debug "${OCF_RESKEY_pico_name} stopping"
+    timeout "$OCF_RESKEY_mzsh_timeout" \
+        su - "$OCF_RESKEY_os_user" -c \
+        "${MEDIATIONZONE_MZSH_LOCAL_ENV} ${OCF_RESKEY_mz_home}/bin/mzsh shutdown -q ${OCF_RESKEY_pico_name}"
+    rc=$?
+    if [ $rc -eq 124 ]; then
+        ocf_log err "mzsh shutdown ${OCF_RESKEY_pico_name} timed out, escalating to mzsh kill"
+    elif [ $rc -eq 0 ]; then
+        ocf_log info "${OCF_RESKEY_pico_name} stopped"
+        return "$OCF_SUCCESS"
+    else
+        ocf_log err "mzsh shutdown ${OCF_RESKEY_pico_name} failed (mzsh rc=${rc}), escalating to mzsh kill"
+    fi
+    # escalate: force-kill via mzsh using the pid file
+    timeout "$OCF_RESKEY_mzsh_timeout" \
+        su - "$OCF_RESKEY_os_user" -c \
+        "${MEDIATIONZONE_MZSH_LOCAL_ENV} ${OCF_RESKEY_mz_home}/bin/mzsh kill ${OCF_RESKEY_pico_name}"
+    rc=$?
+    if [ $rc -eq 124 ]; then
+        ocf_exit_reason "mzsh kill ${OCF_RESKEY_pico_name} timed out"
+        return "$OCF_ERR_GENERIC"
+    elif [ $rc -eq 2 ]; then
+        ocf_log info "${OCF_RESKEY_pico_name} already stopped"
+        return "$OCF_SUCCESS"
+    elif [ $rc -ne 0 ]; then
+        ocf_exit_reason "mzsh kill ${OCF_RESKEY_pico_name} failed (mzsh rc=${rc})"
+        return "$OCF_ERR_GENERIC"
+    fi
+    ocf_log info "${OCF_RESKEY_pico_name} killed"
+    return "$OCF_SUCCESS"
+}
+
+mediationzone_validate() {
+    if ! id "$OCF_RESKEY_os_user" > /dev/null 2>&1; then
+        ocf_exit_reason "os_user \"${OCF_RESKEY_os_user}\" does not exist"
+        return "$OCF_ERR_CONFIGURED"
+    fi
+    case "$OCF_RESKEY_mz_home" in
+        *[![:alnum:]/_+.-]*)
+            ocf_exit_reason "mz_home \"${OCF_RESKEY_mz_home}\" contains unsupported characters"
+            return "$OCF_ERR_CONFIGURED" ;;
+    esac
+    case "$OCF_RESKEY_java_home" in
+        *[![:alnum:]/_+.-]*)
+            ocf_exit_reason "java_home \"${OCF_RESKEY_java_home}\" contains unsupported characters"
+            return "$OCF_ERR_CONFIGURED" ;;
+    esac
+    if ! ocf_is_decimal "$OCF_RESKEY_mzsh_timeout" || [ "$OCF_RESKEY_mzsh_timeout" -lt 10 ]; then
+        ocf_exit_reason "mzsh_timeout \"${OCF_RESKEY_mzsh_timeout}\" is invalid (minimum 10)"
+        return "$OCF_ERR_CONFIGURED"
+    fi
+    if ! ocf_is_decimal "$OCF_RESKEY_monitor_retries"; then
+        ocf_exit_reason "monitor_retries \"${OCF_RESKEY_monitor_retries}\" is not a non-negative integer"
+        return "$OCF_ERR_CONFIGURED"
+    fi
+
+    # verify paths exist and are accessible
+    if [ ! -d "$OCF_RESKEY_mz_home" ]; then
+        ocf_exit_reason "mz_home \"${OCF_RESKEY_mz_home}\" does not exist"
+        return "$OCF_ERR_CONFIGURED"
+    fi
+    if ! have_binary "${OCF_RESKEY_mz_home}/bin/mzsh"; then
+        ocf_exit_reason "mzsh not found or not executable at ${OCF_RESKEY_mz_home}/bin/mzsh"
+        return "$OCF_ERR_INSTALLED"
+    fi
+    if [ ! -d "$OCF_RESKEY_java_home" ]; then
+        ocf_exit_reason "java_home \"${OCF_RESKEY_java_home}\" does not exist"
+        return "$OCF_ERR_CONFIGURED"
+    fi
+
+    # validate pico name and port
+    case "$OCF_RESKEY_pico_name" in
+        -*)
+            ocf_exit_reason "pico_name \"${OCF_RESKEY_pico_name}\" must not start with a hyphen"
+            return "$OCF_ERR_CONFIGURED" ;;
+        *[!a-z0-9-]*)
+            ocf_exit_reason "pico_name \"${OCF_RESKEY_pico_name}\" contains unsupported characters"
+            return "$OCF_ERR_CONFIGURED" ;;
+    esac
+    case "$OCF_RESKEY_pico_name" in
+        platform|ui) ;;
+        *)
+            if [ -z "$OCF_RESKEY_pico_port" ]; then
+                ocf_exit_reason "pico_port is required for pico_name \"${OCF_RESKEY_pico_name}\" - no default available for this pico"
+                return "$OCF_ERR_CONFIGURED"
+            fi ;;
+    esac
+    if [ -n "$OCF_RESKEY_pico_port" ] && \
+       { ! ocf_is_decimal "$OCF_RESKEY_pico_port" || \
+         [ "$OCF_RESKEY_pico_port" -le 0 ] || \
+         [ "$OCF_RESKEY_pico_port" -gt 65535 ]; }; then
+        ocf_exit_reason "pico_port \"${OCF_RESKEY_pico_port}\" must be a valid port number (1-65535)"
+        return "$OCF_ERR_CONFIGURED"
+    fi
+    return "$OCF_SUCCESS"
+}
+
+# --- main ---
+
+if [ "$#" -ne 1 ]; then
+    mediationzone_usage
+    exit "$OCF_ERR_ARGS"
+fi
+
+case "$__OCF_ACTION" in
+    meta-data)  mediationzone_meta_data; exit "$OCF_SUCCESS" ;;
+    usage|help) mediationzone_usage;     exit "$OCF_SUCCESS" ;;
+    methods)    mediationzone_methods;   exit "$OCF_SUCCESS" ;;
+esac
+
+ocf_is_root || { ocf_exit_reason "must be run as root"; exit "$OCF_ERR_PERM"; }
+
+ocf_log debug "begin ${__OCF_ACTION} pico_name=${OCF_RESKEY_pico_name}"
+
+case "$__OCF_ACTION" in
+    start)
+        mediationzone_validate || exit "$?"
+        mediationzone_start
+        ;;
+    stop)
+        mediationzone_validate || exit "$?"
+        mediationzone_stop
+        ;;
+    monitor)
+        mediationzone_monitor
+        ;;
+    validate-all)
+        mediationzone_validate
+        ;;
+    *)
+        mediationzone_methods
+        exit "$OCF_ERR_UNIMPLEMENTED"
+        ;;
+esac
+
+rc=$?
+ocf_log debug "end ${__OCF_ACTION} pico_name=${OCF_RESKEY_pico_name} rc=${rc}"
+exit "$rc"
