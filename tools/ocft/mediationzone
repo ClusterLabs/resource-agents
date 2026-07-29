@@ -1,0 +1,194 @@
+# mediationzone
+#
+# Test cases for the mediationzone OCF resource agent.
+# Requires root. Runs on any node with resource-agents and pacemaker installed.
+# A real MediationZone installation is not required - SETUP-AGENT creates a
+# mock mzsh that tracks pico state via files.
+
+CONFIG
+    Agent mediationzone
+    AgentRoot /usr/lib/ocf/resource.d/heartbeat
+    HangTimeout 30
+
+SETUP-AGENT
+    TEST_DIR=/var/lib/ocft/mediationzone
+    mkdir -p ${TEST_DIR}/mz_home/bin ${TEST_DIR}/java_home ${TEST_DIR}/state
+    cat > ${TEST_DIR}/mz_home/bin/mzsh <<'EOF'
+#!/bin/sh
+STATE_DIR=/var/lib/ocft/mediationzone/state
+action="" pico=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        startup|shutdown|status|kill) action="$1" ;;
+        -f|-q) ;;
+        *) pico="$1" ;;
+    esac
+    shift
+done
+state_file="${STATE_DIR}/mzone_state_${pico}"
+case "$action" in
+    startup)  echo running > "$state_file"; exit 0 ;;
+    shutdown) rm -f "$state_file"; exit 0 ;;
+    status)   [ -f "$state_file" ] && exit 0 || exit 2 ;;
+    kill)     rm -f "$state_file"; exit 0 ;;
+    *)        exit 1 ;;
+esac
+EOF
+    chmod 755 ${TEST_DIR}/mz_home/bin/mzsh
+    chmod 777 ${TEST_DIR}/state
+    if id mzadmin >/dev/null 2>&1; then
+        touch ${TEST_DIR}/.mzadmin_preexisted
+    else
+        useradd -M -r -s /bin/bash mzadmin
+    fi
+
+CLEANUP-AGENT
+    if [ ! -f /var/lib/ocft/mediationzone/.mzadmin_preexisted ]; then
+        userdel mzadmin >/dev/null 2>&1 || true
+    fi
+    rm -rf /var/lib/ocft/mediationzone
+
+CASE-BLOCK required_args
+    Env OCF_RESKEY_os_user=mzadmin
+    Env OCF_RESKEY_mz_home=/var/lib/ocft/mediationzone/mz_home
+    Env OCF_RESKEY_java_home=/var/lib/ocft/mediationzone/java_home
+    Env OCF_RESKEY_pico_name=platform
+
+CASE-BLOCK default_status
+    AgentRun stop
+
+CASE-BLOCK prepare
+    Include required_args
+    Include default_status
+
+# --- validate-all ---
+
+CASE "validate-all passes with valid config"
+    Include prepare
+    AgentRun validate-all OCF_SUCCESS
+
+CASE "validate-all fails when os_user does not exist"
+    Include prepare
+    Env OCF_RESKEY_os_user=nosuchuser_mztest
+    AgentRun validate-all OCF_ERR_CONFIGURED
+
+CASE "validate-all fails when mz_home does not exist"
+    Include prepare
+    Env OCF_RESKEY_mz_home=/nosuchdir_mztest
+    AgentRun validate-all OCF_ERR_CONFIGURED
+
+CASE "validate-all fails when mz_home contains shell metacharacters"
+    Include prepare
+    Env OCF_RESKEY_mz_home=/opt/mz@home
+    AgentRun validate-all OCF_ERR_CONFIGURED
+
+CASE "validate-all fails when mzsh is not executable"
+    Include prepare
+    Bash chmod -x /var/lib/ocft/mediationzone/mz_home/bin/mzsh
+    AgentRun validate-all OCF_ERR_INSTALLED
+    Bash chmod +x /var/lib/ocft/mediationzone/mz_home/bin/mzsh
+
+CASE "validate-all fails when java_home does not exist"
+    Include prepare
+    Env OCF_RESKEY_java_home=/nosuchdir_mztest
+    AgentRun validate-all OCF_ERR_CONFIGURED
+
+CASE "validate-all fails when java_home contains shell metacharacters"
+    Include prepare
+    Env OCF_RESKEY_java_home=/usr/lib/jvm/java@evil
+    AgentRun validate-all OCF_ERR_CONFIGURED
+
+CASE "validate-all fails when mzsh_timeout is not an integer"
+    Include prepare
+    Env OCF_RESKEY_mzsh_timeout=30s
+    AgentRun validate-all OCF_ERR_CONFIGURED
+
+CASE "validate-all fails when mzsh_timeout is below minimum"
+    Include prepare
+    Env OCF_RESKEY_mzsh_timeout=9
+    AgentRun validate-all OCF_ERR_CONFIGURED
+
+CASE "validate-all fails when pico_name contains unsupported characters"
+    Include prepare
+    Env OCF_RESKEY_pico_name=Platform
+    AgentRun validate-all OCF_ERR_CONFIGURED
+
+CASE "validate-all fails when pico_name starts with a hyphen"
+    Include prepare
+    Env OCF_RESKEY_pico_name=-ec1
+    AgentRun validate-all OCF_ERR_CONFIGURED
+
+CASE "validate-all fails for unknown pico type without pico_port"
+    Include prepare
+    Env OCF_RESKEY_pico_name=custom
+    AgentRun validate-all OCF_ERR_CONFIGURED
+
+CASE "validate-all passes for unknown pico type with pico_port"
+    Include prepare
+    Env OCF_RESKEY_pico_name=custom
+    Env OCF_RESKEY_pico_port=9999
+    AgentRun validate-all OCF_SUCCESS
+
+CASE "validate-all fails when pico_port exceeds maximum"
+    Include prepare
+    Env OCF_RESKEY_pico_name=custom
+    Env OCF_RESKEY_pico_port=65536
+    AgentRun validate-all OCF_ERR_CONFIGURED
+
+CASE "validate-all fails when monitor_retries is not an integer"
+    Include prepare
+    Env OCF_RESKEY_monitor_retries=2x
+    AgentRun validate-all OCF_ERR_CONFIGURED
+
+CASE "validate-all passes when monitor_retries is 0 (no retries)"
+    Include prepare
+    Env OCF_RESKEY_monitor_retries=0
+    AgentRun validate-all OCF_SUCCESS
+
+# --- monitor ---
+
+CASE "monitor returns OCF_NOT_RUNNING when pico is stopped"
+    Include prepare
+    AgentRun monitor OCF_NOT_RUNNING
+
+CASE "monitor returns OCF_SUCCESS when pico is running"
+    Include prepare
+    AgentRun start
+    AgentRun monitor OCF_SUCCESS
+
+# --- start ---
+
+CASE "start brings pico from stopped to running"
+    Include prepare
+    AgentRun start OCF_SUCCESS
+
+CASE "start is idempotent when pico is already running"
+    Include prepare
+    AgentRun start
+    AgentRun start OCF_SUCCESS
+
+# --- stop ---
+
+CASE "stop brings pico from running to stopped"
+    Include prepare
+    AgentRun start
+    AgentRun stop OCF_SUCCESS
+
+CASE "stop is idempotent when pico is already stopped"
+    Include prepare
+    AgentRun stop OCF_SUCCESS
+
+CASE "stop fails with OCF_ERR_CONFIGURED when config is invalid"
+    Include prepare
+    AgentRun start
+    Env OCF_RESKEY_os_user=nosuchuser_mztest
+    AgentRun stop OCF_ERR_CONFIGURED
+
+# --- full lifecycle ---
+
+CASE "full lifecycle: start, monitor, stop, monitor"
+    Include prepare
+    AgentRun start OCF_SUCCESS
+    AgentRun monitor OCF_SUCCESS
+    AgentRun stop OCF_SUCCESS
+    AgentRun monitor OCF_NOT_RUNNING
