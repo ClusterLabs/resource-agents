@@ -52,6 +52,13 @@
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
 
+# Use runuser if available for SELinux.
+if [ -x /sbin/runuser ]; then
+    SU=runuser
+else
+    SU=su
+fi
+
 # Parameter defaults
 OCF_RESKEY_mquser_default="mqm"
 OCF_RESKEY_mq_installation_path_default=""
@@ -90,7 +97,7 @@ meta_data() {
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="ibmmq" version="1.1">
-<version>1.1</version>
+<version>1.0</version>
 
 <longdesc lang="en">
 Resource agent for an IBM MQ queue manager. Starts the queue manager
@@ -143,9 +150,10 @@ running MQ commands. Leave empty to use the primary installation.
 
 <parameter name="env_file" unique="0" required="0">
 <longdesc lang="en">
-Absolute path to a Bourne-shell compatible file sourced before every MQ
-command, e.g. to run setmqenv or export queue manager environment
-variables.
+Absolute path to a file sourced before every MQ command, e.g. to run
+setmqenv or export queue manager environment variables. The file is
+executed by the system's /bin/sh, so it must be compatible with that
+shell (POSIX sh syntax is safe on every distribution).
 </longdesc>
 <shortdesc lang="en">Environment file</shortdesc>
 <content type="string" default="${OCF_RESKEY_env_file_default}" />
@@ -259,7 +267,7 @@ mq_run() {
     if [ "$(id -un)" = "$OCF_RESKEY_mquser" ]; then
         /bin/sh -c "$cmd"
     else
-        su - "$OCF_RESKEY_mquser" -s /bin/sh -c "$cmd"
+        $SU - "$OCF_RESKEY_mquser" -s /bin/sh -c "$cmd"
     fi
 }
 
@@ -334,6 +342,15 @@ ibmmq_validate_all() {
         return $OCF_ERR_CONFIGURED
     fi
 
+    # -x (multi-instance standby) conflicts with this deployment model:
+    # Pacemaker, not MQ, provides the standby coordination.
+    case " $OCF_RESKEY_strmqm_opts " in
+        *" -x "*)
+            ocf_exit_reason "strmqm_opts must not contain -x (multi-instance standby); Pacemaker provides the failover in this deployment model"
+            return $OCF_ERR_CONFIGURED
+            ;;
+    esac
+
     if [ -n "$OCF_RESKEY_env_file" ] && [ ! -r "$OCF_RESKEY_env_file" ]; then
         ocf_exit_reason "env_file $OCF_RESKEY_env_file is not readable"
         return $OCF_ERR_INSTALLED
@@ -341,11 +358,9 @@ ibmmq_validate_all() {
 
     # dspmq must be resolvable in the MQ user's environment. During a
     # probe the MQ filesystem may legitimately not be mounted here, so
-    # only warn in that case.
+    # stay silent in that case (monitor answers NOT_RUNNING truthfully).
     if ! mq_run "command -v dspmq" >/dev/null 2>&1; then
-        if ocf_is_probe; then
-            ocf_log info "ibmmq: dspmq not found during probe (MQ possibly not available on this node yet)"
-        else
+        if ! ocf_is_probe; then
             ocf_exit_reason "dspmq not found in PATH for user $OCF_RESKEY_mquser"
             return $OCF_ERR_INSTALLED
         fi
@@ -370,7 +385,7 @@ ibmmq_monitor() {
         "RUNNING AS STANDBY")
             # We never start with -x, so a standby here means somebody
             # started the qmgr outside cluster control.
-            ocf_log warn "ibmmq: queue manager $OCF_RESKEY_qmgr is running as standby (unexpected in this deployment model)"
+            ocf_exit_reason "queue manager $OCF_RESKEY_qmgr is running as standby (started outside cluster control)"
             return $OCF_ERR_GENERIC
             ;;
         QUIESCING|"ENDING IMMEDIATELY"|"ENDING PRE-EMPTIVELY"|"ENDING PREEMPTIVELY")
@@ -385,7 +400,7 @@ ibmmq_monitor() {
             return $OCF_NOT_RUNNING
             ;;
         *)
-            ocf_log warn "ibmmq: unrecognised dspmq state '$state' for $OCF_RESKEY_qmgr"
+            ocf_exit_reason "unrecognised dspmq state '$state' for queue manager $OCF_RESKEY_qmgr"
             return $OCF_ERR_GENERIC
             ;;
     esac
