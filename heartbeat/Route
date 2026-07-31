@@ -88,7 +88,7 @@ of the Route resource agent:
 
 <parameters>
 
-<parameter name="destination" unique="1" required="1">
+<parameter name="destination" unique="0" required="1">
 <longdesc lang="en">
 The destination network (or host) to be configured for the route. 
 Specify the netmask suffix in CIDR notation (e.g. "/24").
