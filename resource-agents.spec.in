@@ -116,7 +116,7 @@ Recommends: /sbin/mount.nfs /sbin/mount.nfs4
 Requires: /sbin/mount.nfs /sbin/mount.nfs4
 %endif
 %endif
-%if (0%{?fedora} && 0%{?fedora} < 33) || (0%{?rhel} && 0%{?rhel} < 9) || (0%{?centos} && 0%{?centos} < 9) || 0%{?suse_version}
+%if (0%{?rhel} && 0%{?rhel} < 9) || (0%{?centos} && 0%{?centos} < 9) || 0%{?suse_version}
 %if (0%{?rhel} && 0%{?rhel} < 8) || (0%{?centos} && 0%{?centos} < 8)
 Requires: /usr/sbin/mount.cifs
 %else
@@ -173,17 +173,13 @@ License:	GPL-2.0-or-later
 Summary:	A Monitoring Daemon for Maintaining High Availability Resources
 Obsoletes:	heartbeat-ldirectord <= %{version}
 Provides:	heartbeat-ldirectord = %{version}
-%if 0%{?fedora} > 18 || 0%{?centos} > 6 || 0%{?rhel} > 6
+%if 0%{?fedora} || 0%{?centos} > 6 || 0%{?rhel} > 6
 BuildRequires: perl-podlators
 %endif
 Requires:       %{SSLeay} perl-libwww-perl perl-MailTools
 Requires:       ipvsadm logrotate
 %if 0%{?fedora}
 Requires:	perl-Net-IMAP-Simple-SSL perl-IO-Socket-INET6
-%endif
-%if 0%{?fedora} < 34
-Requires(post):  /sbin/chkconfig
-Requires(preun): /sbin/chkconfig
 %endif
 %if %{systemd_native}
 BuildRequires:  systemd
@@ -214,7 +210,7 @@ if [ ! -f configure ]; then
 	./autogen.sh
 fi
 
-%if 0%{?fedora} >= 11 || 0%{?centos} > 5 || 0%{?rhel} > 5
+%if 0%{?fedora} || 0%{?centos} > 5 || 0%{?rhel} > 5
 CFLAGS="$(echo '%{optflags}')"
 %global conf_opt_fatal "--enable-fatal-warnings=no"
 %else
