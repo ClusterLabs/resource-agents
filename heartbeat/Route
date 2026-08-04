@@ -88,13 +88,16 @@ of the Route resource agent:
 
 <parameters>
 
-<parameter name="destination" unique="0" required="1">
+<parameter name="destination" unique="1" required="1">
 <longdesc lang="en">
 The destination network (or host) to be configured for the route. 
 Specify the netmask suffix in CIDR notation (e.g. "/24").
 If no suffix is given, a host route will be created.
-Specify "0.0.0.0/0" or "default" if you want this resource to set 
-the system default route.
+Specify "0.0.0.0/0" or "::/0" if you want this resource to set
+the system default route. The keyword "default" is also accepted,
+but the unique constraint on this parameter will prevent from
+adding both IPv4 and IPv6 default routes at the same time in
+this way.
 </longdesc>
 <shortdesc lang="en">Destination network</shortdesc>
 <content type="string" />
@@ -262,6 +265,8 @@ route_validate() {
     if [ -z "${OCF_RESKEY_destination}" ]; then
 	ocf_exit_reason "Missing required parameter \"destination\"."
 	return $OCF_ERR_CONFIGURED
+    elif [ "${OCF_RESKEY_destination}" = "default" ]; then
+	ocf_log warn "While 'default' is accepted as 'destination', it is highly recommended to use explicit CIDR notation ('0.0.0.0/0' for IPv4 or '::/0' for IPv6) instead."
     fi
     # Did we get either a device or a gateway address?
     if [ -z "${OCF_RESKEY_device}" -a -z "${OCF_RESKEY_gateway}" ]; then
