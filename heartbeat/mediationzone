@@ -86,7 +86,6 @@ mediationzone_meta_data() {
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="mediationzone" version="${mediationzone_version}">
 <version>1.0</version>
-<shortdesc lang="en">Manages a MediationZone pico process.</shortdesc>
 <longdesc lang="en">
 The mediationzone resource agent manages MediationZone (by DigitalRoute)
 pico processes as active/passive cluster resources.
@@ -100,40 +99,41 @@ fences the lower-priority node first, ensuring the platform node survives.
 The cluster property priority-fencing-delay must be greater than 0 for this
 to take effect.
 </longdesc>
+<shortdesc lang="en">Manages a MediationZone pico process.</shortdesc>
 <parameters>
 <parameter name="os_user" unique="0" required="0">
-    <shortdesc lang="en">OS user to run mzsh as.</shortdesc>
     <longdesc lang="en">OS user that owns the MediationZone installation and runs mzsh commands.</longdesc>
+    <shortdesc lang="en">OS user to run mzsh as.</shortdesc>
     <content type="string" default="${OCF_RESKEY_os_user_default}" />
 </parameter>
 <parameter name="mz_home" unique="0" required="0">
-    <shortdesc lang="en">MZ_HOME directory.</shortdesc>
     <longdesc lang="en">Path to the MediationZone installation directory. Passed to mzsh as MZ_HOME. mzsh is expected at MZ_HOME/bin/mzsh.</longdesc>
+    <shortdesc lang="en">MZ_HOME directory.</shortdesc>
     <content type="string" default="${OCF_RESKEY_mz_home_default}" />
 </parameter>
 <parameter name="java_home" unique="0" required="0">
-    <shortdesc lang="en">JAVA_HOME directory.</shortdesc>
     <longdesc lang="en">Path to the JDK or JRE used by MediationZone.</longdesc>
+    <shortdesc lang="en">JAVA_HOME directory.</shortdesc>
     <content type="string" default="${OCF_RESKEY_java_home_default}" />
 </parameter>
 <parameter name="pico_name" unique="0" required="0">
-    <shortdesc lang="en">Name of the pico to manage.</shortdesc>
     <longdesc lang="en">Name of the MediationZone pico to manage. Known names with default ports are platform (9000) and ui (9001). Set pico_port explicitly for other pico name and port combinations.</longdesc>
+    <shortdesc lang="en">Name of the pico to manage.</shortdesc>
     <content type="string" default="${OCF_RESKEY_pico_name_default}" />
 </parameter>
 <parameter name="pico_port" unique="0" required="0">
-    <shortdesc lang="en">Web server port of the pico.</shortdesc>
     <longdesc lang="en">The port the pico web server listens on. Used to clear TIME-WAIT connections before startup. Defaults to 9000 for platform and 9001 for ui. Must be set explicitly when managing a different pico type, or when the default port has been changed in the container configuration.</longdesc>
+    <shortdesc lang="en">Web server port of the pico.</shortdesc>
 <content type="integer" default="${OCF_RESKEY_pico_port_default}" />
 </parameter>
 <parameter name="mzsh_timeout" unique="0" required="0">
-    <shortdesc lang="en">Timeout in seconds for a single mzsh call.</shortdesc>
     <longdesc lang="en">Maximum time in seconds to wait for a single mzsh call (status, shutdown, kill, and the pre-start kill that runs before startup). Must be 10 or higher. The stop action chains shutdown then kill on failure, so worst-case stop time is 2 x mzsh_timeout. If mzsh_timeout is too short, both shutdown and kill time out and the stop action fails - Pacemaker then fences the node to recover. Additionally, set the stop operation timeout on the cluster resource to at least 2 x mzsh_timeout + 60s.</longdesc>
+    <shortdesc lang="en">Timeout in seconds for a single mzsh call.</shortdesc>
     <content type="integer" default="${OCF_RESKEY_mzsh_timeout_default}" />
 </parameter>
 <parameter name="monitor_retries" unique="0" required="0">
-    <shortdesc lang="en">Number of mzsh status retries in the monitor action.</shortdesc>
     <longdesc lang="en">How many times the monitor action retries mzsh status after an initial failure before reporting the pico as not running or failed. Applies only to the monitor action - start and stop are not affected. A value of 0 disables retries. Increase if transient status failures cause unwanted restarts in your environment. Must be 0 or higher.</longdesc>
+    <shortdesc lang="en">Number of mzsh status retries in the monitor action.</shortdesc>
     <content type="integer" default="${OCF_RESKEY_monitor_retries_default}" />
 </parameter>
 </parameters>
