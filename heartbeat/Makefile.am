@@ -136,6 +136,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			machine-info		\
 			mariadb			\
 			mdraid			\
+			mediationzone		\
 			minio			\
 			mysql			\
 			mysql-proxy		\
