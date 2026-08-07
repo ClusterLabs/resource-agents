@@ -705,7 +705,7 @@ wipe_data_folder_for_learner()
 		ocf_log err "could not delete etcd member directory ($ETCD_MEMBER_DIR), error code: $?"
 		return $OCF_ERR_GENERIC
 	fi
-	sync
+	sync -f "$OCF_RESKEY_config_location"
 	return $OCF_SUCCESS
 }
 
