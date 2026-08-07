@@ -1,0 +1,592 @@
+#!/bin/sh
+#
+# ibmmq - OCF resource agent for an IBM MQ queue manager
+#
+# Manages a single IBM MQ queue manager instance under Pacemaker.
+#
+# Informed by:
+#   - IBM's Apache-2.0 licensed MQ_HA_QM OCF sample
+#     (github.com/ibm-messaging/mq-aws: strmqm start after stale process
+#     cleanup, endmqm -i with escalation, runmqsc "ping qmgr" liveness,
+#     starting-state grace period)
+#   - ClusterLabs OCF Resource Agent Developer's Guide
+#
+# Author: Sebastian Baszczyj <sbaszczy@redhat.com>
+# Copyright (c) 2026 Sebastian Baszczyj
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+#
+# OCF instance parameters:
+#   OCF_RESKEY_qmgr
+#   OCF_RESKEY_mquser
+#   OCF_RESKEY_mq_installation_path
+#   OCF_RESKEY_env_file
+#   OCF_RESKEY_strmqm_opts
+#   OCF_RESKEY_immediate_stop_timeout
+#   OCF_RESKEY_preemptive_stop_timeout
+#   OCF_RESKEY_monitor_command_server
+#   OCF_RESKEY_monitor_listener
+#   OCF_RESKEY_monitor_program
+#   OCF_RESKEY_test_queue
+#
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Use runuser if available for SELinux.
+if [ -x /sbin/runuser ]; then
+    SU=runuser
+else
+    SU=su
+fi
+
+# Parameter defaults
+OCF_RESKEY_mquser_default="mqm"
+OCF_RESKEY_mq_installation_path_default=""
+OCF_RESKEY_env_file_default=""
+OCF_RESKEY_strmqm_opts_default=""
+OCF_RESKEY_immediate_stop_timeout_default="30"
+OCF_RESKEY_preemptive_stop_timeout_default="10"
+OCF_RESKEY_monitor_command_server_default="false"
+OCF_RESKEY_monitor_listener_default="false"
+OCF_RESKEY_monitor_program_default=""
+OCF_RESKEY_test_queue_default=""
+
+: ${OCF_RESKEY_mquser=${OCF_RESKEY_mquser_default}}
+: ${OCF_RESKEY_mq_installation_path=${OCF_RESKEY_mq_installation_path_default}}
+: ${OCF_RESKEY_env_file=${OCF_RESKEY_env_file_default}}
+: ${OCF_RESKEY_strmqm_opts=${OCF_RESKEY_strmqm_opts_default}}
+: ${OCF_RESKEY_immediate_stop_timeout=${OCF_RESKEY_immediate_stop_timeout_default}}
+: ${OCF_RESKEY_preemptive_stop_timeout=${OCF_RESKEY_preemptive_stop_timeout_default}}
+: ${OCF_RESKEY_monitor_command_server=${OCF_RESKEY_monitor_command_server_default}}
+: ${OCF_RESKEY_monitor_listener=${OCF_RESKEY_monitor_listener_default}}
+: ${OCF_RESKEY_monitor_program=${OCF_RESKEY_monitor_program_default}}
+: ${OCF_RESKEY_test_queue=${OCF_RESKEY_test_queue_default}}
+
+# Queue manager process family. Used for stale-process cleanup before
+# start and for last-resort termination during stop escalation.
+# (Process names are public IBM MQ knowledge; list per IBM's MQ_HA_QM
+# sample plus amqzdmaa for MQ >= 8.)
+MQ_PROC_FAMILY="amqzmuc0 amqzxma0 amqfcxba amqfqpub amqpcsea amqzlaa0 \
+amqzlsa0 runmqchi runmqlsr amqcrsta amqrrmfa amqrmppa amqzfuma \
+amqzmuf0 amqzmur0 amqzmgr0 amqzdmaa"
+
+#######################################################################
+
+meta_data() {
+    cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="ibmmq" version="1.1">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource agent for an IBM MQ queue manager. Starts the queue manager
+with strmqm, stops it with endmqm -i escalating to endmqm -p and
+finally direct termination of the queue manager process family, and
+monitors it via dspmq run-state. A deep monitor (OCF_CHECK_LEVEL 10 or
+higher) additionally verifies responsiveness with runmqsc "ping qmgr".
+A deeper monitor (OCF_CHECK_LEVEL 20 or higher) additionally puts a
+probe message on a dedicated test queue (parameter test_queue) and gets
+it back, proving end-to-end message flow including the transaction log.
+Optional checks cover the command server (amqpcsea), a queue manager
+listener (runmqlsr) and a custom external monitor program.
+
+For failover configurations the queue manager data and log directories
+must live on storage that follows the resource (e.g. a Filesystem
+resource on shared or replicated storage) and the queue manager must be
+addressable on all eligible nodes. Order this resource after the
+filesystem and IP resources in a group.
+</longdesc>
+<shortdesc lang="en">Manages an IBM MQ queue manager</shortdesc>
+
+<parameters>
+
+<parameter name="qmgr" unique="1" required="1">
+<longdesc lang="en">
+Name of the IBM MQ queue manager managed by this resource.
+</longdesc>
+<shortdesc lang="en">Queue manager name</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="mquser" unique="0" required="0">
+<longdesc lang="en">
+Operating system user owning the IBM MQ installation. All MQ commands
+are executed as this user via a login shell.
+</longdesc>
+<shortdesc lang="en">MQ administrative user</shortdesc>
+<content type="string" default="${OCF_RESKEY_mquser_default}" />
+</parameter>
+
+<parameter name="mq_installation_path" unique="0" required="0">
+<longdesc lang="en">
+MQ installation path for multi-installation environments (MQ 7.1+).
+When set, PATH is prefixed with this path's bin directory before
+running MQ commands. Leave empty to use the primary installation.
+</longdesc>
+<shortdesc lang="en">MQ installation path</shortdesc>
+<content type="string" default="${OCF_RESKEY_mq_installation_path_default}" />
+</parameter>
+
+<parameter name="env_file" unique="0" required="0">
+<longdesc lang="en">
+Absolute path to a file sourced before every MQ command, e.g. to run
+setmqenv or export queue manager environment variables. The file is
+executed by the system's /bin/sh, so it must be compatible with that
+shell (POSIX sh syntax is safe on every distribution).
+</longdesc>
+<shortdesc lang="en">Environment file</shortdesc>
+<content type="string" default="${OCF_RESKEY_env_file_default}" />
+</parameter>
+
+<parameter name="strmqm_opts" unique="0" required="0">
+<longdesc lang="en">
+Additional options passed to strmqm on start. Do not use -x (multi
+instance standby mode); standby coordination is Pacemaker's job in this
+deployment model.
+</longdesc>
+<shortdesc lang="en">Extra strmqm options</shortdesc>
+<content type="string" default="${OCF_RESKEY_strmqm_opts_default}" />
+</parameter>
+
+<parameter name="immediate_stop_timeout" unique="0" required="0">
+<longdesc lang="en">
+Seconds to wait for "endmqm -i" (immediate shutdown) to complete before
+escalating to a pre-emptive shutdown.
+</longdesc>
+<shortdesc lang="en">Immediate stop timeout</shortdesc>
+<content type="integer" default="${OCF_RESKEY_immediate_stop_timeout_default}" />
+</parameter>
+
+<parameter name="preemptive_stop_timeout" unique="0" required="0">
+<longdesc lang="en">
+Seconds to wait for "endmqm -p" (pre-emptive shutdown) to complete
+before terminating the queue manager process family directly.
+</longdesc>
+<shortdesc lang="en">Pre-emptive stop timeout</shortdesc>
+<content type="integer" default="${OCF_RESKEY_preemptive_stop_timeout_default}" />
+</parameter>
+
+<parameter name="monitor_command_server" unique="0" required="0">
+<longdesc lang="en">
+When true, the monitor additionally requires the command server process
+(amqpcsea) of this queue manager to be running. Note that on modern MQ
+the command server is started with the queue manager by default.
+</longdesc>
+<shortdesc lang="en">Monitor the command server</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_monitor_command_server_default}" />
+</parameter>
+
+<parameter name="monitor_listener" unique="0" required="0">
+<longdesc lang="en">
+When true, the monitor additionally requires at least one runmqlsr
+listener process for this queue manager to be running. Use only when
+the listener is started via the queue manager service definitions
+(DEFINE SERVICE / runmqlsr under qmgr control), otherwise manage the
+listener as a separate resource.
+</longdesc>
+<shortdesc lang="en">Monitor a runmqlsr listener</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_monitor_listener_default}" />
+</parameter>
+
+<parameter name="test_queue" unique="0" required="0">
+<longdesc lang="en">
+Name of a dedicated local queue used by the OCF_CHECK_LEVEL 20 monitor
+for a put/get probe (via dmpmqmsg). The queue must exist, must be used
+exclusively by this agent, and is drained by every probe -- never point
+it at an application queue. Required when a monitor operation with
+OCF_CHECK_LEVEL 20 or higher is configured. Example definition:
+DEFINE QLOCAL(RA.PROBE.QUEUE) DEFPSIST(YES) MAXDEPTH(100).
+</longdesc>
+<shortdesc lang="en">Dedicated queue for the level-20 put/get probe</shortdesc>
+<content type="string" default="${OCF_RESKEY_test_queue_default}" />
+</parameter>
+
+<parameter name="monitor_program" unique="0" required="0">
+<longdesc lang="en">
+Absolute path (with optional arguments) of an external program executed
+as the MQ user during monitor. Exit code 0 means healthy; any other
+exit code marks the resource failed. The program must complete well
+within the monitor action timeout.
+</longdesc>
+<shortdesc lang="en">Custom monitor program</shortdesc>
+<content type="string" default="${OCF_RESKEY_monitor_program_default}" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="180s" />
+<action name="stop"         timeout="120s" />
+<action name="monitor"      timeout="60s" interval="30s" depth="0" />
+<action name="monitor"      timeout="60s" interval="120s" depth="10" />
+<action name="validate-all" timeout="30s" />
+<action name="meta-data"    timeout="5s" />
+</actions>
+</resource-agent>
+END
+}
+
+usage() {
+    cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data|usage}
+END
+}
+
+#######################################################################
+# Helpers
+
+# Run a command as the MQ user through a login shell, with optional
+# installation path prefix and environment file.
+mq_run() {
+    local cmd envprefix=""
+    [ -n "$OCF_RESKEY_env_file" ] && envprefix=". '$OCF_RESKEY_env_file'; "
+    [ -n "$OCF_RESKEY_mq_installation_path" ] && \
+        envprefix="${envprefix}PATH='$OCF_RESKEY_mq_installation_path/bin':\$PATH; export PATH; "
+    cmd="${envprefix}$*"
+    if [ "$(id -un)" = "$OCF_RESKEY_mquser" ]; then
+        /bin/sh -c "$cmd"
+    else
+        $SU - "$OCF_RESKEY_mquser" -s /bin/sh -c "$cmd"
+    fi
+}
+
+# Print the dspmq status word for the queue manager, e.g. RUNNING,
+# ENDED NORMALLY, STARTING... Prints UNKNOWN if the queue manager is
+# not defined on this node (or dspmq is unavailable).
+qm_state() {
+    local out
+    out=$(mq_run "dspmq -n -m '$OCF_RESKEY_qmgr'" 2>/dev/null | \
+          sed -n "s/^.*QMNAME(${OCF_RESKEY_qmgr})[^(]*STATUS(\([^)]*\)).*$/\1/p")
+    if [ -n "$out" ]; then
+        echo "$out"
+    else
+        echo "UNKNOWN"
+    fi
+}
+
+# List PIDs of the queue manager's process family. Anchors on the
+# process name AND the queue manager name to avoid touching other
+# queue managers on the same host.
+qm_family_pids() {
+    local process
+    for process in $MQ_PROC_FAMILY; do
+        ps -e -o pid=,comm=,args= | awk -v p="$process" -v qm="$OCF_RESKEY_qmgr" \
+            '$2 == p && ($0 ~ ("( |-m)" qm "( |$)")) {print $1}'
+    done | sort -u
+}
+
+# Kill every remaining process of the queue manager family.
+qm_family_kill() {
+    local pids
+    pids=$(qm_family_pids)
+    if [ -n "$pids" ]; then
+        ocf_log warn "ibmmq: terminating remaining processes of queue manager $OCF_RESKEY_qmgr: $pids"
+        kill -9 $pids >/dev/null 2>&1
+    fi
+}
+
+# True if the execution controller (amqzxma0) for this qmgr is gone.
+qm_ec_gone() {
+    ps -e -o comm=,args= | awk -v qm="$OCF_RESKEY_qmgr" \
+        '$1 == "amqzxma0" && ($0 ~ ("( |-m)" qm "( |$)")) {found=1} END {exit found?1:0}'
+}
+
+check_command_server() {
+    ps -e -o comm=,args= | awk -v qm="$OCF_RESKEY_qmgr" \
+        '$1 == "amqpcsea" && ($0 ~ ("( |-m)" qm "( |$)")) {found=1} END {exit found?0:1}'
+}
+
+check_listener() {
+    ps -e -o comm=,args= | awk -v qm="$OCF_RESKEY_qmgr" \
+        '$1 == "runmqlsr" && ($0 ~ ("( |-m)" qm "( |$)")) {found=1} END {exit found?0:1}'
+}
+
+#######################################################################
+# Actions
+
+ibmmq_validate_all() {
+    if [ -z "$OCF_RESKEY_qmgr" ]; then
+        ocf_exit_reason "required parameter qmgr is not set"
+        return $OCF_ERR_CONFIGURED
+    fi
+
+    if ! getent passwd "$OCF_RESKEY_mquser" >/dev/null 2>&1; then
+        ocf_exit_reason "MQ user $OCF_RESKEY_mquser does not exist"
+        return $OCF_ERR_INSTALLED
+    fi
+
+    if ! ocf_is_decimal "$OCF_RESKEY_immediate_stop_timeout" || \
+       ! ocf_is_decimal "$OCF_RESKEY_preemptive_stop_timeout"; then
+        ocf_exit_reason "stop timeouts must be integers"
+        return $OCF_ERR_CONFIGURED
+    fi
+
+    # -x (multi-instance standby) conflicts with this deployment model:
+    # Pacemaker, not MQ, provides the standby coordination.
+    case " $OCF_RESKEY_strmqm_opts " in
+        *" -x "*)
+            ocf_exit_reason "strmqm_opts must not contain -x (multi-instance standby); Pacemaker provides the failover in this deployment model"
+            return $OCF_ERR_CONFIGURED
+            ;;
+    esac
+
+    if [ -n "$OCF_RESKEY_env_file" ] && [ ! -r "$OCF_RESKEY_env_file" ]; then
+        ocf_exit_reason "env_file $OCF_RESKEY_env_file is not readable"
+        return $OCF_ERR_INSTALLED
+    fi
+
+    # dspmq must be resolvable in the MQ user's environment. During a
+    # probe the MQ filesystem may legitimately not be mounted here, so
+    # stay silent in that case (monitor answers NOT_RUNNING truthfully).
+    if ! mq_run "command -v dspmq" >/dev/null 2>&1; then
+        if ! ocf_is_probe; then
+            ocf_exit_reason "dspmq not found in PATH for user $OCF_RESKEY_mquser"
+            return $OCF_ERR_INSTALLED
+        fi
+    fi
+
+    return $OCF_SUCCESS
+}
+
+ibmmq_monitor() {
+    local state rc
+
+    state=$(qm_state)
+    case "$state" in
+        RUNNING)
+            ;;
+        STARTING)
+            # Grace: the queue manager is coming up; report success so
+            # start can converge (per IBM sample behaviour).
+            ocf_log info "ibmmq: queue manager $OCF_RESKEY_qmgr is starting"
+            return $OCF_SUCCESS
+            ;;
+        "RUNNING AS STANDBY")
+            # We never start with -x, so a standby here means somebody
+            # started the qmgr outside cluster control.
+            ocf_exit_reason "queue manager $OCF_RESKEY_qmgr is running as standby (started outside cluster control)"
+            return $OCF_ERR_GENERIC
+            ;;
+        QUIESCING|"ENDING IMMEDIATELY"|"ENDING PRE-EMPTIVELY"|"ENDING PREEMPTIVELY")
+            # Shutdown in progress: still alive.
+            ocf_log info "ibmmq: queue manager $OCF_RESKEY_qmgr is ending ($state)"
+            return $OCF_SUCCESS
+            ;;
+        ENDED*|UNKNOWN)
+            if [ "$state" = "UNKNOWN" ] && ! ocf_is_probe; then
+                ocf_log warn "ibmmq: queue manager $OCF_RESKEY_qmgr is not defined/visible on this node"
+            fi
+            return $OCF_NOT_RUNNING
+            ;;
+        *)
+            ocf_exit_reason "unrecognised dspmq state '$state' for queue manager $OCF_RESKEY_qmgr"
+            return $OCF_ERR_GENERIC
+            ;;
+    esac
+
+    # State is RUNNING. Deep monitor: verify responsiveness.
+    if [ "${OCF_CHECK_LEVEL:-0}" -ge 10 ]; then
+        if ! mq_run "echo 'ping qmgr' | runmqsc '$OCF_RESKEY_qmgr'" >/dev/null 2>&1; then
+            ocf_exit_reason "queue manager $OCF_RESKEY_qmgr is not responsive to runmqsc ping"
+            return $OCF_ERR_GENERIC
+        fi
+    fi
+
+    # Deeper monitor: end-to-end put/get probe on a dedicated queue.
+    # Catches a queue manager that answers runmqsc but can no longer
+    # move messages (e.g. full or deadlocked transaction log).
+    if [ "${OCF_CHECK_LEVEL:-0}" -ge 20 ]; then
+        if [ -z "$OCF_RESKEY_test_queue" ]; then
+            ocf_exit_reason "OCF_CHECK_LEVEL 20 monitor requires the test_queue parameter"
+            return $OCF_ERR_CONFIGURED
+        fi
+        local probe_in probe_out probe_cmd
+        probe_in="/tmp/.ocf_ibmmq_probe_${OCF_RESKEY_qmgr}.$$.in"
+        probe_out="/tmp/.ocf_ibmmq_probe_${OCF_RESKEY_qmgr}.$$.out"
+        # dmpmqmsg ships with the MQ server but is not among the
+        # commands setmqinst links into /usr/bin, so fall back to the
+        # bin directory dspmq really lives in. The payload is the hex
+        # of "ibmmq-ra-probe" in dmpmqmsg file format; the get must
+        # produce a non-empty file (an empty queue also unloads rc=0).
+        probe_cmd='dmpbin=$(command -v dmpmqmsg 2>/dev/null) || dmpbin=$(dirname $(readlink -f $(command -v dspmq)))/dmpmqmsg'
+        probe_cmd="$probe_cmd; printf '* DMPMQMSG Version:1.0\nA VER 2\nX 69626D6D712D72612D70726F6265\n' > '$probe_in'"
+        probe_cmd="$probe_cmd && \"\$dmpbin\" -m '$OCF_RESKEY_qmgr' -o '$OCF_RESKEY_test_queue' -f '$probe_in'"
+        probe_cmd="$probe_cmd && rm -f '$probe_out' && \"\$dmpbin\" -m '$OCF_RESKEY_qmgr' -I '$OCF_RESKEY_test_queue' -f '$probe_out'"
+        probe_cmd="$probe_cmd && [ -s '$probe_out' ]"
+        mq_run "$probe_cmd" >/dev/null 2>&1
+        rc=$?
+        mq_run "rm -f '$probe_in' '$probe_out'" >/dev/null 2>&1
+        if [ $rc -ne 0 ]; then
+            ocf_exit_reason "put/get probe on queue $OCF_RESKEY_test_queue failed for $OCF_RESKEY_qmgr"
+            return $OCF_ERR_GENERIC
+        fi
+    fi
+
+    if ocf_is_true "$OCF_RESKEY_monitor_command_server"; then
+        if ! check_command_server; then
+            ocf_exit_reason "command server (amqpcsea) for $OCF_RESKEY_qmgr is not running"
+            return $OCF_ERR_GENERIC
+        fi
+    fi
+
+    if ocf_is_true "$OCF_RESKEY_monitor_listener"; then
+        if ! check_listener; then
+            ocf_exit_reason "listener (runmqlsr) for $OCF_RESKEY_qmgr is not running"
+            return $OCF_ERR_GENERIC
+        fi
+    fi
+
+    if [ -n "$OCF_RESKEY_monitor_program" ]; then
+        if ! mq_run "$OCF_RESKEY_monitor_program" >/dev/null 2>&1; then
+            ocf_exit_reason "external monitor program failed for $OCF_RESKEY_qmgr"
+            return $OCF_ERR_GENERIC
+        fi
+    fi
+
+    return $OCF_SUCCESS
+}
+
+ibmmq_start() {
+    local rc
+
+    ibmmq_monitor
+    rc=$?
+    if [ $rc -eq $OCF_SUCCESS ]; then
+        ocf_log info "ibmmq: queue manager $OCF_RESKEY_qmgr already running"
+        return $OCF_SUCCESS
+    fi
+
+    # The queue manager must be defined on this node before start.
+    if [ "$(qm_state)" = "UNKNOWN" ]; then
+        ocf_exit_reason "queue manager $OCF_RESKEY_qmgr is not defined on this node (check shared storage / crtmqm)"
+        return $OCF_ERR_INSTALLED
+    fi
+
+    # Remove any stale processes left over from a crash so strmqm
+    # starts from a clean slate.
+    qm_family_kill
+
+    ocf_run mq_run "strmqm $OCF_RESKEY_strmqm_opts '$OCF_RESKEY_qmgr'"
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        ocf_exit_reason "strmqm $OCF_RESKEY_qmgr failed (rc=$rc)"
+        return $OCF_ERR_GENERIC
+    fi
+
+    # Wait for the queue manager to report healthy; the cluster manager
+    # enforces the start timeout.
+    while ! ibmmq_monitor; do
+        ocf_log info "ibmmq: waiting for queue manager $OCF_RESKEY_qmgr to start"
+        sleep 2
+    done
+
+    ocf_log info "ibmmq: queue manager $OCF_RESKEY_qmgr started"
+    return $OCF_SUCCESS
+}
+
+ibmmq_stop() {
+    local rc waited
+
+    ibmmq_monitor
+    rc=$?
+    if [ $rc -eq $OCF_NOT_RUNNING ]; then
+        ocf_log info "ibmmq: queue manager $OCF_RESKEY_qmgr already stopped"
+        # Belt and braces: no execution controller may survive a stop.
+        qm_family_kill
+        return $OCF_SUCCESS
+    fi
+
+    # Phase 1: immediate shutdown (severs client connections; a cluster
+    # stop must not wait for clients to disconnect).
+    ocf_log info "ibmmq: ending queue manager $OCF_RESKEY_qmgr (immediate)"
+    mq_run "endmqm -i '$OCF_RESKEY_qmgr'" >/dev/null 2>&1 &
+    waited=0
+    while [ $waited -lt "$OCF_RESKEY_immediate_stop_timeout" ]; do
+        qm_ec_gone && break
+        sleep 2
+        waited=$((waited + 2))
+    done
+
+    # Phase 2: pre-emptive shutdown.
+    if ! qm_ec_gone; then
+        ocf_log warn "ibmmq: immediate end timed out, ending queue manager $OCF_RESKEY_qmgr (pre-emptive)"
+        mq_run "endmqm -p '$OCF_RESKEY_qmgr'" >/dev/null 2>&1 &
+        waited=0
+        while [ $waited -lt "$OCF_RESKEY_preemptive_stop_timeout" ]; do
+            qm_ec_gone && break
+            sleep 2
+            waited=$((waited + 2))
+        done
+    fi
+
+    # Phase 3: direct termination of the process family.
+    if ! qm_ec_gone; then
+        ocf_log warn "ibmmq: pre-emptive end timed out, terminating process family of $OCF_RESKEY_qmgr"
+        qm_family_kill
+        sleep 2
+    fi
+
+    if ! qm_ec_gone; then
+        ocf_exit_reason "unable to stop queue manager $OCF_RESKEY_qmgr"
+        return $OCF_ERR_GENERIC
+    fi
+
+    # The execution controller is gone, but after a forced end other
+    # family members can outlive it (wedged or frozen agents, command
+    # server). Give them a moment to exit on their own, then sweep the
+    # leftovers -- a stop must leave nothing behind that could pin the
+    # queue manager filesystem during failover.
+    if [ -n "$(qm_family_pids)" ]; then
+        sleep 2
+        qm_family_kill
+    fi
+
+    ocf_log info "ibmmq: queue manager $OCF_RESKEY_qmgr stopped"
+    return $OCF_SUCCESS
+}
+
+#######################################################################
+
+case $__OCF_ACTION in
+meta-data)      meta_data
+                exit $OCF_SUCCESS
+                ;;
+usage|help)     usage
+                exit $OCF_SUCCESS
+                ;;
+esac
+
+ibmmq_validate_all || exit $?
+
+case $__OCF_ACTION in
+start)          ibmmq_start ;;
+stop)           ibmmq_stop ;;
+monitor|status) ibmmq_monitor ;;
+validate-all)   ;;
+*)              usage
+                exit $OCF_ERR_UNIMPLEMENTED
+                ;;
+esac
+rc=$?
+exit $rc

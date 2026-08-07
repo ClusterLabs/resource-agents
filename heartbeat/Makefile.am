@@ -121,6 +121,7 @@ ocf_SCRIPTS	      = AoEtarget		\
 			gcp-vpc-move-ip		\
 			iSCSILogicalUnit	\
 			iSCSITarget		\
+			ibmmq			\
 			ids			\
 			iface-bridge		\
 			iface-macvlan		\
