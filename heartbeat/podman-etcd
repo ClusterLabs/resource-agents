@@ -1148,6 +1148,10 @@ set_force_new_cluster()
 {
 	local rc
 
+	if [ -n "$OCF_RESKEY_test_race_delay" ]; then
+		ocf_log notice "TEST: race delay ${OCF_RESKEY_test_race_delay}s before force_new_cluster write"
+		sleep "$OCF_RESKEY_test_race_delay"
+	fi
 
 	crm_attribute --lifetime reboot --node "$NODENAME" --name "force_new_cluster" --update "$NODENAME"
 	rc=$?
@@ -2262,6 +2266,10 @@ podman_start()
 	attribute_node_cluster_id update
 	attribute_node_revision update
 
+	if [ -n "$OCF_RESKEY_test_race_delay" ]; then
+		ocf_log notice "TEST: race delay ${OCF_RESKEY_test_race_delay}s after revision update in podman_start"
+		sleep "$OCF_RESKEY_test_race_delay"
+	fi
 
 	# ensure the etcd pod is not running before starting the container
 	ocf_log info "ensure etcd pod is not running (retries: $etcd_pod_poll_retries, interval: $etcd_pod_poll_interval_sec)"
