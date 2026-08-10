@@ -907,7 +907,7 @@ wait_for_etcd_ports_release() {
 	return 0
 }
 
-# NOTE: 'get' reads the local disk JSON; use get_cib_attribute for CIB reads.
+# NOTE: 'get' reads the local disk JSON; use get_cib_permanent_attribute for CIB reads.
 attribute_node_cluster_id()
 {
 	local action="$1"
@@ -984,7 +984,7 @@ attribute_node_revision()
 
 attribute_node_revision_peer()
 {
-	get_cib_attribute "$(get_peer_node_name)" "revision"
+	get_cib_permanent_attribute "$(get_peer_node_name)" "revision"
 }
 
 # Converts a decimal number to hexadecimal format with validation
@@ -1181,8 +1181,8 @@ get_force_new_cluster()
 	fi
 
 	for node in $nodes; do
-		if ! value=$(crm_attribute --query --lifetime reboot --name "force_new_cluster" --node "$node" 2>/dev/null | awk -F'value=' '{print $2}' | tr -d "'"); then
-			ocf_log err "could not get force_new_cluster attribute, crm_attribut error code: $?"
+		if ! value=$(get_cib_transient_attribute "$node" "force_new_cluster"); then
+			ocf_log err "could not get force_new_cluster attribute, crm_attribute error code: $?"
 			return 1
 		fi
 		if [ -n "$value" ]; then
@@ -1230,10 +1230,40 @@ is_force_new_cluster()
 	return 1
 }
 
-# Read a node attribute from CIB (not local disk) for symmetric evaluation.
-get_cib_attribute()
+# Return 0 if 'restart_no_leave' is set on the current node, 1 otherwise.
+is_restart_no_leave()
 {
-	crm_attribute --query --type nodes --node "$1" --name "$2" 2>/dev/null | awk -F"value=" '{print $2}'
+	[ -n "$(get_cib_transient_attribute "$NODENAME" "restart_no_leave")" ]
+}
+
+# Delete the one-shot restart_no_leave flag after consumption in start().
+clear_restart_no_leave()
+{
+	if ! crm_attribute --delete --lifetime reboot --node "$NODENAME" --name "restart_no_leave"; then
+		ocf_log warn "could not clear restart_no_leave attribute"
+		return
+	fi
+	ocf_log info "$NODENAME: restart_no_leave attribute cleared"
+}
+
+# Read a permanent node attribute from CIB (not local disk) for symmetric evaluation.
+get_cib_permanent_attribute()
+{
+	local output rc
+	output=$(crm_attribute --query --type nodes --node "$1" --name "$2" 2>/dev/null)
+	rc=$?
+	[ $rc -ne 0 ] && return $rc
+	echo "$output" | awk -F"value=" '{print $2}'
+}
+
+# Read a transient node attribute from CIB (auto-cleared on reboot).
+get_cib_transient_attribute()
+{
+	local output rc
+	output=$(crm_attribute --query --lifetime reboot --node "$1" --name "$2" 2>/dev/null)
+	rc=$?
+	[ $rc -ne 0 ] && return $rc
+	echo "$output" | awk -F"value=" '{print $2}' | tr -d "'"
 }
 
 # Verdict for dual force_new_cluster claims. Echoes one of:
@@ -1250,8 +1280,8 @@ fnc_conflict_verdict()
 	local local_rev peer_rev peer_node_name
 
 	peer_node_name=$(get_peer_node_name)
-	local_rev=$(get_cib_attribute "$NODENAME" "revision")
-	peer_rev=$(get_cib_attribute "$peer_node_name" "revision")
+	local_rev=$(get_cib_permanent_attribute "$NODENAME" "revision")
+	peer_rev=$(get_cib_permanent_attribute "$peer_node_name" "revision")
 	ocf_log info "FNC conflict inputs: $NODENAME=$local_rev $peer_node_name=$peer_rev"
 
 	if ocf_is_decimal "$local_rev" && ocf_is_decimal "$peer_rev"; then
@@ -1261,8 +1291,8 @@ fnc_conflict_verdict()
 			echo "$peer_node_name"
 		else
 			local local_cid peer_cid
-			local_cid=$(get_cib_attribute "$NODENAME" "cluster_id")
-			peer_cid=$(get_cib_attribute "$peer_node_name" "cluster_id")
+			local_cid=$(get_cib_permanent_attribute "$NODENAME" "cluster_id")
+			peer_cid=$(get_cib_permanent_attribute "$peer_node_name" "cluster_id")
 			if [ -n "$local_cid" ] && [ -n "$peer_cid" ] && [ "$local_cid" = "$peer_cid" ]; then
 				echo "EQUAL"
 			else
@@ -2254,6 +2284,7 @@ podman_start()
 	local etcd_pod_poll_interval_sec=10
 	local etcd_pod_poll_retries=$((etcd_pod_wait_timeout_sec/etcd_pod_poll_interval_sec))
 	local pod_was_running=false
+	local restart_no_leave_flag=false
 
 	ocf_log notice "podman-etcd start"
 
@@ -2298,7 +2329,10 @@ podman_start()
 		return "$OCF_ERR_GENERIC"
 	fi
 
-	if ocf_is_true "$pod_was_running"; then
+	if is_restart_no_leave; then
+		ocf_log notice "restart_no_leave set: starting normally (non-destructive restart)"
+		restart_no_leave_flag=true
+	elif ocf_is_true "$pod_was_running"; then
 		ocf_log info "static pod was running: start normally"
 	else
 		local fnc_holders
@@ -2682,6 +2716,9 @@ podman_start()
 		monitor_cmd_exec
 		if [ $? -eq $OCF_SUCCESS ]; then
 			ocf_log notice "Container $CONTAINER started successfully"
+			if ocf_is_true "$restart_no_leave_flag"; then
+				clear_restart_no_leave
+			fi
 			if is_force_new_cluster; then
 				clear_force_new_cluster
 
@@ -2800,10 +2837,13 @@ podman_stop()
 		return $OCF_SUCCESS
 	fi
 
-	leave_etcd_member_list
-
-	# clear node_member_id CIB attribute only after leaving the member list
-	attribute_node_member_id clear
+	if is_restart_no_leave; then
+		ocf_log notice "restart_no_leave set: skipping leave_etcd_member_list"
+	else
+		leave_etcd_member_list
+		# clear node_member_id CIB attribute only after leaving the member list
+		attribute_node_member_id clear
+	fi
 
 	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
 		timeout=$(((OCF_RESKEY_CRM_meta_timeout/1000) -10 ))
