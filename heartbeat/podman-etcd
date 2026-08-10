@@ -907,6 +907,7 @@ wait_for_etcd_ports_release() {
 	return 0
 }
 
+# NOTE: 'get' reads the local disk JSON; use get_cib_attribute for CIB reads.
 attribute_node_cluster_id()
 {
 	local action="$1"
@@ -983,9 +984,7 @@ attribute_node_revision()
 
 attribute_node_revision_peer()
 {
-	local nodename
-	nodename=$(get_peer_node_name)
-	crm_attribute --query --type nodes --node "$nodename" --name "revision" | awk -F"value=" '{print $2}'
+	get_cib_attribute "$(get_peer_node_name)" "revision"
 }
 
 # Converts a decimal number to hexadecimal format with validation
@@ -1148,6 +1147,12 @@ add_member_as_learner()
 set_force_new_cluster()
 {
 	local rc
+
+	if [ -n "$OCF_RESKEY_test_race_delay" ]; then
+		ocf_log notice "TEST: race delay ${OCF_RESKEY_test_race_delay}s before force_new_cluster write"
+		sleep "$OCF_RESKEY_test_race_delay"
+	fi
+
 	crm_attribute --lifetime reboot --node "$NODENAME" --name "force_new_cluster" --update "$NODENAME"
 	rc=$?
 	if [ $rc -ne 0 ]; then
@@ -1223,6 +1228,131 @@ is_force_new_cluster()
 
 	ocf_log debug "force_new_cluster attribute is not set on $NODENAME"
 	return 1
+}
+
+# Read a node attribute from CIB (not local disk) for symmetric evaluation.
+get_cib_attribute()
+{
+	crm_attribute --query --type nodes --node "$1" --name "$2" 2>/dev/null | awk -F"value=" '{print $2}'
+}
+
+# Verdict for dual force_new_cluster claims. Echoes one of:
+#   <node name> - that node force-new-clusters, the other yields
+#   EQUAL       - same revision and cluster_id: nobody needs FNC,
+#                 both clear their claim and start normally
+#   ADMIN       - no data to decide safely: never guess, soft-fail
+#                 with recovery guidance
+# All inputs read from CIB (symmetric); each node wrote revision and
+# cluster_id before setting FNC, so both are visible wherever both
+# FNC attributes are.
+fnc_conflict_verdict()
+{
+	local local_rev peer_rev peer_node_name
+
+	peer_node_name=$(get_peer_node_name)
+	local_rev=$(get_cib_attribute "$NODENAME" "revision")
+	peer_rev=$(get_cib_attribute "$peer_node_name" "revision")
+	ocf_log info "FNC conflict inputs: $NODENAME=$local_rev $peer_node_name=$peer_rev"
+
+	if ocf_is_decimal "$local_rev" && ocf_is_decimal "$peer_rev"; then
+		if [ "$local_rev" -gt "$peer_rev" ]; then
+			echo "$NODENAME"
+		elif [ "$local_rev" -lt "$peer_rev" ]; then
+			echo "$peer_node_name"
+		else
+			local local_cid peer_cid
+			local_cid=$(get_cib_attribute "$NODENAME" "cluster_id")
+			peer_cid=$(get_cib_attribute "$peer_node_name" "cluster_id")
+			if [ -n "$local_cid" ] && [ -n "$peer_cid" ] && [ "$local_cid" = "$peer_cid" ]; then
+				echo "EQUAL"
+			else
+				echo "ADMIN"
+			fi
+		fi
+	elif ocf_is_decimal "$local_rev"; then
+		echo "$NODENAME"
+	elif ocf_is_decimal "$peer_rev"; then
+		echo "$peer_node_name"
+	else
+		echo "ADMIN"
+	fi
+}
+
+# EQUAL: clear our claim, then confirm the peer concluded the same.
+# Divergent replicas can make one node see EQUAL while the other sees
+# a winner; the re-check closes that gap.
+fnc_equal_clear_and_confirm()
+{
+	local holders peer_node_name
+
+	peer_node_name=$(get_peer_node_name)
+	if ! clear_force_new_cluster; then
+		ocf_exit_reason "fnc_equal_clear_and_confirm: failed to clear own FNC"
+		return $OCF_ERR_GENERIC
+	fi
+	sleep 2
+	if ! holders=$(get_force_new_cluster); then
+		ocf_exit_reason "fnc_equal_clear_and_confirm: CIB query failed"
+		return $OCF_ERR_GENERIC
+	fi
+	if echo "$holders" | grep -q -w "$peer_node_name"; then
+		ocf_log notice "FNC race: cleared own claim but peer still holds - joining as learner"
+		JOIN_AS_LEARNER=true
+	else
+		ocf_log notice "FNC race: equal revision and cluster_id - joint normal start"
+		JOIN_AS_LEARNER=false
+	fi
+}
+
+fnc_admin_escalate()
+{
+	ocf_exit_reason "force_new_cluster held by multiple nodes ($1) with no revision data to resolve safely; inspect both nodes' etcd data, then clear the stale claim: crm_attribute --delete --lifetime reboot --node <loser> --name force_new_cluster"
+}
+
+# Loser-side cleanup: clear all leadership-asserting state in one place.
+fnc_yield()
+{
+	ocf_log notice "$NODENAME: yielding force_new_cluster, joining as learner"
+	clear_force_new_cluster
+	if is_standalone; then
+		clear_standalone_node
+	fi
+	JOIN_AS_LEARNER=true
+}
+
+# Is the peer active as a voter (not merely our learner)?
+# Yielding to a learner-only peer would leave no voter.
+is_peer_active_voter()
+{
+	local active_count
+	active_count=$(get_truly_active_resources_count)
+
+	if [ "$active_count" -ge 1 ] \
+		&& ! is_standalone \
+		&& [ "$(attribute_learner_node get)" != "$(get_peer_node_name)" ]; then
+		return 0
+	fi
+	return 1
+}
+
+# A start dispatched in an earlier transition is invisible to this
+# transition's notify vars; the CIB status section still records it
+# as a pending op (record-pending, default since Pacemaker 1.1.16).
+# Scoped to the etcd resource to avoid false positives from co-located
+# resources (VIP, STONITH) that may have pending starts during cold boot.
+# Returns 0 (pending or unknown -- don't delete) unless cibadmin
+# confirms no pending start (exit 6 = no xpath match).
+peer_has_pending_start()
+{
+	local rc rsc_id
+	rsc_id="${OCF_RESOURCE_INSTANCE%%:*}"
+	cibadmin -Q --xpath "//node_state[@uname='$1']//lrm_resource[@id='$rsc_id']/lrm_rsc_op[@operation='start'][@op-status='-1']" >/dev/null 2>&1
+	rc=$?
+	# 105 = CRM_EX_NOSUCH (Pacemaker 2.x), 6 = legacy errno ENXIO (1.x)
+	if [ "$rc" -eq 6 ] || [ "$rc" -eq 105 ]; then
+		return 1
+	fi
+	return 0
 }
 
 is_standalone()
@@ -2136,6 +2266,11 @@ podman_start()
 	attribute_node_cluster_id update
 	attribute_node_revision update
 
+	if [ -n "$OCF_RESKEY_test_race_delay" ]; then
+		ocf_log notice "TEST: race delay ${OCF_RESKEY_test_race_delay}s after revision update in podman_start"
+		sleep "$OCF_RESKEY_test_race_delay"
+	fi
+
 	# ensure the etcd pod is not running before starting the container
 	ocf_log info "ensure etcd pod is not running (retries: $etcd_pod_poll_retries, interval: $etcd_pod_poll_interval_sec)"
 	for try in $(seq $etcd_pod_poll_retries); do
@@ -2175,15 +2310,67 @@ podman_start()
 		local fnc_holder_count
 		fnc_holder_count=$(echo "$fnc_holders" | wc -w)
 		if [ "$fnc_holder_count" -gt 1 ]; then
-			ocf_exit_reason "force_new_cluster attribute is set on multiple nodes ($fnc_holders)"
-			return "$OCF_ERR_CONFIGURED"
-		fi
-
-		if [ "$fnc_holder_count" -eq 1 ]; then
+			# Dual claim should be impossible by design - leave loud evidence
+			# even when auto-resolution succeeds.
+			ocf_log err "force_new_cluster set on multiple nodes ($fnc_holders): a startup race occurred"
+			if is_peer_active_voter; then
+				fnc_yield
+			else
+				local fnc_verdict
+				fnc_verdict=$(fnc_conflict_verdict)
+				case "$fnc_verdict" in
+				"$NODENAME")
+					ocf_log notice "$NODENAME wins FNC conflict resolution"
+					# Stale-claim cleanup: if the losing holder's resource is
+					# neither starting nor active (per this transition's fresh
+					# notify vars) and has no in-flight start in the CIB, its
+					# agent will never yield - a banned peer's reboot-lifetime
+					# attribute persists until membership loss. The data-backed
+					# winner clears it; winner-only deletion cannot double-fire.
+					local fnc_peer fnc_start_total fnc_active_total
+					fnc_peer=$(get_peer_node_name)
+					fnc_start_total=$(echo "$OCF_RESKEY_CRM_meta_notify_start_resource" | wc -w)
+					fnc_active_total=$(get_truly_active_resources_count)
+					if [ "$fnc_start_total" -le 1 ] && [ "$fnc_active_total" -eq 0 ] \
+						&& ! peer_has_pending_start "$fnc_peer"; then
+						ocf_log notice "peer $fnc_peer not starting/active - clearing its stale force_new_cluster claim"
+						if ! crm_attribute --delete --lifetime reboot --node "$fnc_peer" --name "force_new_cluster"; then
+							ocf_log err "failed to clear stale force_new_cluster claim of $fnc_peer"
+							return "$OCF_ERR_GENERIC"
+						fi
+					else
+						ocf_log info "peer $fnc_peer has in-flight start or is active, not clearing its claim"
+					fi
+					JOIN_AS_LEARNER=false
+					;;
+				EQUAL)
+					if ! fnc_equal_clear_and_confirm; then
+						return "$OCF_ERR_GENERIC"
+					fi
+					;;
+				ADMIN)
+					fnc_admin_escalate "$fnc_holders"
+					return "$OCF_ERR_GENERIC"
+					;;
+				*)
+					# Verdict named the peer: it has the newer data.
+					# Yield our claim and rejoin as learner.
+					fnc_yield
+					;;
+				esac
+			fi
+		elif [ "$fnc_holder_count" -eq 1 ]; then
 			if echo "$fnc_holders" | grep -q -w "$NODENAME"; then
 				# Attribute is set on the local node.
-				ocf_log notice "$NODENAME marked to force-new-cluster"
-				JOIN_AS_LEARNER=false
+				# Active-peer guard: a running voter peer trumps our recovery claim,
+				# but NOT if the peer is merely our learner or we are the standalone voter.
+				if is_peer_active_voter; then
+					ocf_log notice "$NODENAME holds force_new_cluster but peer is active as voter: yielding"
+					fnc_yield
+				else
+					ocf_log notice "$NODENAME marked to force-new-cluster"
+					JOIN_AS_LEARNER=false
+				fi
 			else
 				# Attribute is set on a peer node.
 				ocf_log info "$NODENAME shall join as learner because force_new_cluster is set on peer $fnc_holders"
@@ -2260,7 +2447,9 @@ podman_start()
 						# If our revision is the same as or newer than the peer's last saved
 						# revision, and the peer agent isn't currently starting, we can
 						# restore e-quorum by forcing a new cluster.
-						set_force_new_cluster
+						if ! set_force_new_cluster; then
+							return "$OCF_ERR_GENERIC"
+						fi
 					else
 						ocf_log err "local revision is older and peer is not starting: cannot start"
 						ocf_exit_reason "local revision is older and peer is not starting: cannot start"
@@ -2271,7 +2460,9 @@ podman_start()
 					# TODO: can we start "normally", regardless the revisions, if the container-id is the same on both nodes?
 					ocf_log info "peer starting"
 					if [ "$revision_compare_result" = "newer" ]; then
-						set_force_new_cluster
+						if ! set_force_new_cluster; then
+							return "$OCF_ERR_GENERIC"
+						fi
 					elif [ "$revision_compare_result" = "older" ]; then
 						ocf_log info "$NODENAME shall join as learner"
 						JOIN_AS_LEARNER=true
@@ -2297,6 +2488,51 @@ podman_start()
 				return "$OCF_ERR_GENERIC"
 				;;
 			esac
+		fi
+	fi
+
+	# Post-set safety guard: wait until our own FNC write is visible in
+	# the local CIB replica (write round-trip through the DC). CIB
+	# updates are totally ordered: once our write is visible, any peer
+	# claim ordered before ours is visible too, so the later claimant
+	# always detects the conflict. Adaptive: passes as soon as
+	# propagation completes instead of a fixed sleep. Residual risk is
+	# bounded by CIB ordering correctness, not timing.
+	if is_force_new_cluster; then
+		local fnc_guard_holders fnc_guard_wait=0
+		while :; do
+			if ! fnc_guard_holders=$(get_force_new_cluster); then
+				ocf_exit_reason "Failed to verify force_new_cluster holders"
+				return "$OCF_ERR_GENERIC"
+			fi
+			if echo "$fnc_guard_holders" | grep -q -w "$NODENAME"; then
+				break
+			fi
+			if [ "$fnc_guard_wait" -ge 10 ]; then
+				ocf_log err "own force_new_cluster write not visible after ${fnc_guard_wait}s: retrying"
+				return "$OCF_ERR_GENERIC"
+			fi
+			sleep 1
+			fnc_guard_wait=$((fnc_guard_wait + 1))
+		done
+		if [ "$(echo "$fnc_guard_holders" | wc -w)" -ne 1 ]; then
+			ocf_log err "force_new_cluster holders changed after decision ($fnc_guard_holders): retrying"
+			return "$OCF_ERR_GENERIC"
+		fi
+		ocf_log notice "post-set guard: $NODENAME is sole FNC holder, proceeding with force-new-cluster"
+	fi
+
+	# Both-yield guard: if CIB divergence caused both nodes to yield,
+	# nobody will set learner_node and the wait would burn 2 minutes.
+	# Notify vars can be stale; OCF_ERR_GENERIC triggers retry with fresh vars.
+	if ocf_is_true "$JOIN_AS_LEARNER"; then
+		local fnc_any_holder
+		fnc_any_holder=$(get_force_new_cluster 2>/dev/null)
+		local fnc_any_active
+		fnc_any_active=$(get_truly_active_resources_count)
+		if [ -z "$fnc_any_holder" ] && [ "$fnc_any_active" -eq 0 ]; then
+			ocf_log warn "both-yield detected: no FNC holder and no active peer - retrying"
+			return "$OCF_ERR_GENERIC"
 		fi
 	fi
 
