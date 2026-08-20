@@ -314,6 +314,11 @@ static int32_t sigchld_handler(int32_t sig, void *data)
 							if (!daemon_check_first_all_devices) {
 								daemon_check_first_all_devices = TRUE;
 							}
+							/* To prevent the timer from triggering when the timeout is set to a value greater */ 
+							/* than the interval, the io_timeout timer is stopped once the check of all devices is complete. */
+							if (qb_loop_timer_is_running(storage_mon_poll_handle, expire_handle)) { 
+								qb_loop_timer_del(storage_mon_poll_handle, expire_handle);
+							}
 						}
 					}
 				}
