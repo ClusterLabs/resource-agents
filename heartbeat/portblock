@@ -630,7 +630,7 @@ PortBLOCK()
         fi
         rc_in=$?
         if $try_reset ; then
-          NftDelete "OUTPUT" "$1" "s" "$ports"
+          NftDelete "OUTPUT" "$1" "s" "$3" "$2"
         fi
       else
         if $try_reset ; then
