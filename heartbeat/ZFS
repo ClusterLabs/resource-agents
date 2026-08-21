@@ -25,10 +25,12 @@
 OCF_RESKEY_pool_default=""
 OCF_RESKEY_importargs_default=""
 OCF_RESKEY_importforce_default=true
+OCF_RESKEY_settle_timeout_default="10"
 
 : ${OCF_RESKEY_pool=${OCF_RESKEY_pool_default}}
 : ${OCF_RESKEY_importargs=${OCF_RESKEY_importargs_default}}
 : ${OCF_RESKEY_importforce=${OCF_RESKEY_importforce_default}}
+: ${OCF_RESKEY_settle_timeout=${OCF_RESKEY_settle_timeout_default}}
 
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
@@ -68,6 +70,24 @@ zpool import is given the -f option.
 <shortdesc lang="en">Import is forced</shortdesc>
 <content type="boolean" default="${OCF_RESKEY_importforce_default}" />
 </parameter>
+<parameter name="settle_timeout" unique="0" required="0">
+<longdesc lang="en">
+Seconds to wait after a successful import for the pool state to settle before
+reporting the pool as started.
+
+/proc/spl/kstat/zfs/&lt;pool&gt;/state is a lock-free snapshot of the root vdev
+state, so shortly after an import it can still read OFFLINE or TRANSITIONING
+while vdevs are being reopened. Pacemaker starts the recurring monitor as soon
+as start returns, and the monitor treats anything other than ONLINE, DEGRADED
+or FAULTED as a hard error, so a reading taken inside that window fails a
+healthy pool and triggers a needless recovery.
+
+The pool state is read once before any waiting, so a pool that is already
+settled - the common case - costs nothing. Set to 0 to disable the wait.
+</longdesc>
+<shortdesc lang="en">Seconds to wait for the pool state to settle after import</shortdesc>
+<content type="integer" default="${OCF_RESKEY_settle_timeout_default}" />
+</parameter>
 </parameters>
 
 <actions>
@@ -96,6 +116,61 @@ zpool_is_imported () {
 	return $rc
 }
 
+# Reads the pool state kstat into $zpool_state.
+# Returns 0 when the pool is usable (ONLINE or DEGRADED), 1 otherwise.
+zpool_state_is_settled () {
+	zpool_state=$(cat "/proc/spl/kstat/zfs/$OCF_RESKEY_pool/state" 2>/dev/null)
+	case "$zpool_state" in
+		ONLINE|DEGRADED) return 0;;
+	esac
+	return 1
+}
+
+# Waits for the pool state to settle after an import.
+#
+# /proc/spl/kstat/zfs/<pool>/state is a lock-free snapshot of the root vdev
+# state, so right after an import it can still read OFFLINE (the root vdev is
+# briefly VDEV_STATE_CLOSED while vdevs are reopened) or TRANSITIONING.
+# Pacemaker starts the recurring monitor as soon as start returns, which is
+# precisely when that window is open, and zpool_monitor maps anything that is
+# not ONLINE, DEGRADED or FAULTED to OCF_ERR_GENERIC.
+#
+# This never fails the start. Judging the pool is the monitor's job, and the
+# wait must not become a new way for start to fail.
+zpool_settle () {
+	# Older ZFS has no state kstat, and a pool only has one once imported,
+	# so this is a runtime condition rather than a configuration check.
+	[ -f "/proc/spl/kstat/zfs/$OCF_RESKEY_pool/state" ] || return 0
+
+	[ "$OCF_RESKEY_settle_timeout" -gt 0 ] || return 0
+
+	# Never spend the whole start timeout waiting: settle_timeout is only an
+	# upper bound the admin asked for, the operation timeout is the real one.
+	settle_max="$OCF_RESKEY_settle_timeout"
+	# CRM_meta_timeout is supplied per operation by pacemaker, not configured,
+	# and is absent during validate-all, so it is checked here.
+	if ocf_is_decimal "$OCF_RESKEY_CRM_meta_timeout"; then
+		op_budget=$((OCF_RESKEY_CRM_meta_timeout / 1000 - 5))
+		if [ "$op_budget" -lt 1 ]; then
+			op_budget=1
+		fi
+		if [ "$settle_max" -gt "$op_budget" ]; then
+			settle_max="$op_budget"
+		fi
+	fi
+
+	waited=0
+	while [ "$waited" -lt "$settle_max" ]; do
+		zpool_state_is_settled && return 0
+		sleep 1
+		waited=$((waited + 1))
+	done
+	zpool_state_is_settled && return 0
+
+	ocf_log warn "${OCF_RESKEY_pool}: pool state is still '$zpool_state' after ${settle_max}s"
+	return 0
+}
+
 # Forcibly imports a ZFS pool, mounting all of its auto-mounted filesystems
 # (as configured in the 'mountpoint' and 'canmount' properties)
 # If the pool is already imported, no operation is taken.
@@ -117,6 +192,7 @@ zpool_import () {
 	fi
 		if zpool import $FORCE $OCF_RESKEY_importargs -o cachefile=none "$OCF_RESKEY_pool" ; then
 			ocf_log debug "${OCF_RESKEY_pool}:import successful"
+			zpool_settle
 			return $OCF_SUCCESS
 		else
 			ocf_log debug "${OCF_RESKEY_pool}:import failed"
@@ -177,6 +253,16 @@ zpool_validate () {
 		return $OCF_ERR_INSTALLED
 	fi
 
+	if ! ocf_is_decimal "$OCF_RESKEY_settle_timeout"; then
+		ocf_exit_reason "Invalid settle_timeout='${OCF_RESKEY_settle_timeout}': expected a non-negative integer"
+		return $OCF_ERR_CONFIGURED
+	fi
+
+	if [ -z "$OCF_RESKEY_pool" ]; then
+		ocf_exit_reason "pool is required"
+		return $OCF_ERR_CONFIGURED
+	fi
+
 	# If the pool is imported, then it is obviously valid
 	if zpool_is_imported; then
 		return $OCF_SUCCESS
@@ -202,7 +288,8 @@ fi
 
 case $1 in
 	meta-data)      meta_data;;
-	start)          zpool_import;;
+	start)          zpool_validate || exit $?
+	                zpool_import;;
 	stop)           zpool_export;;
 	status|monitor) zpool_monitor;;
 	validate-all)   zpool_validate;;
