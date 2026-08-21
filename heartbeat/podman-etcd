@@ -1246,6 +1246,60 @@ clear_restart_no_leave()
 	ocf_log info "$NODENAME: restart_no_leave attribute cleared"
 }
 
+# Set the member_removal_lock CIB permanent attribute on the current node.
+# Records which node successfully left the etcd member list during a
+# graceful shutdown, so the startup path can prefer the non-departed
+# node (which has fresher data).  The attribute is permanent
+# (--type nodes) so it survives reboots and is visible to the peer
+# even after this node's Pacemaker stops.
+set_member_removal_lock()
+{
+	local epoch="$1"
+
+	if ! crm_attribute --type nodes --node "$NODENAME" --name "member_removal_lock" --update "$epoch"; then
+		ocf_log err "could not set member_removal_lock attribute to $epoch"
+		return $OCF_ERR_GENERIC
+	fi
+	ocf_log info "$NODENAME: member_removal_lock set to $epoch"
+}
+
+# Clear the member_removal_lock CIB permanent attribute on the current node.
+# Called during podman_start() after a successful startup so that a
+# previous departure record does not influence future stop/start cycles.
+# Follows the same one-shot pattern as restart_no_leave.
+clear_member_removal_lock()
+{
+	local my_lock
+
+	my_lock=$(get_cib_permanent_attribute "$NODENAME" "member_removal_lock")
+	if [ -z "$my_lock" ]; then
+		return
+	fi
+	if ! crm_attribute --type nodes --node "$NODENAME" --name "member_removal_lock" --delete; then
+		ocf_log warn "could not clear member_removal_lock attribute"
+		return
+	fi
+	ocf_log info "$NODENAME: member_removal_lock attribute cleared"
+}
+
+# Clear the fnc_panic_rescue CIB permanent attribute on the current node.
+# Called during podman_start() after a successful startup so that the
+# panic rescue safety net can trigger again in a future cycle.
+clear_fnc_panic_rescue()
+{
+	local my_marker
+
+	my_marker=$(get_cib_permanent_attribute "$NODENAME" "fnc_panic_rescue")
+	if [ -z "$my_marker" ]; then
+		return
+	fi
+	if ! crm_attribute --type nodes --node "$NODENAME" --name "fnc_panic_rescue" --delete; then
+		ocf_log warn "could not clear fnc_panic_rescue attribute"
+		return
+	fi
+	ocf_log info "$NODENAME: fnc_panic_rescue attribute cleared"
+}
+
 # Read a permanent node attribute from CIB (not local disk) for symmetric evaluation.
 get_cib_permanent_attribute()
 {
@@ -1280,6 +1334,53 @@ fnc_conflict_verdict()
 	local local_rev peer_rev peer_node_name
 
 	peer_node_name=$(get_peer_node_name)
+
+	# Member-removal-lock verdict: if one node left the etcd member list
+	# during graceful shutdown, prefer the non-departed node — its WAL
+	# does not contain a self-removal ConfChange that would panic on
+	# FNC replay.
+	local local_lock peer_lock
+	local_lock=$(get_cib_permanent_attribute "$NODENAME" "member_removal_lock")
+	peer_lock=$(get_cib_permanent_attribute "$peer_node_name" "member_removal_lock")
+
+	if [ -n "$local_lock" ] && [ -z "$peer_lock" ]; then
+		ocf_log notice "fnc_conflict_verdict: $NODENAME holds member_removal_lock (epoch=$local_lock), peer does not — peer wins"
+		echo "$peer_node_name"
+		return
+	elif [ -z "$local_lock" ] && [ -n "$peer_lock" ]; then
+		ocf_log notice "fnc_conflict_verdict: peer $peer_node_name holds member_removal_lock (epoch=$peer_lock), we do not — we win"
+		echo "$NODENAME"
+		return
+	fi
+	# Both hold lock or neither — fall through to marker check
+
+	# Panic-rescue marker: a node that previously panicked on FNC
+	# ("removed all voters") is ineligible to win FNC while a viable
+	# voter peer exists.  This lets the clean peer take over.
+	local local_rescue peer_rescue
+	local_rescue=$(get_cib_permanent_attribute "$NODENAME" "fnc_panic_rescue")
+	peer_rescue=$(get_cib_permanent_attribute "$peer_node_name" "fnc_panic_rescue")
+	if [ -n "$local_rescue" ] && [ -z "$peer_rescue" ]; then
+		if is_peer_active_voter; then
+			ocf_log notice "fnc_conflict_verdict: $NODENAME has fnc_panic_rescue marker (=$local_rescue) and peer is active voter — peer wins"
+			echo "$peer_node_name"
+			return
+		fi
+		# Liveness backstop: peer is not an active voter.
+		if ! is_learner; then
+			ocf_log warn "fnc_conflict_verdict: $NODENAME has fnc_panic_rescue marker but no viable voter peer — proceeding as last viable seed (voter data intact)"
+			# Fall through to revision comparison; marker does not block.
+		else
+			ocf_log crit "fnc_conflict_verdict: $NODENAME has fnc_panic_rescue marker, is a learner, and no viable voter peer — cannot self-promote; needs healthy peer or operator intervention"
+			echo "ADMIN"
+			return
+		fi
+	elif [ -z "$local_rescue" ] && [ -n "$peer_rescue" ]; then
+		ocf_log notice "fnc_conflict_verdict: peer $peer_node_name has fnc_panic_rescue marker (=$peer_rescue), we do not — we win"
+		echo "$NODENAME"
+		return
+	fi
+
 	local_rev=$(get_cib_permanent_attribute "$NODENAME" "revision")
 	peer_rev=$(get_cib_permanent_attribute "$peer_node_name" "revision")
 	ocf_log info "FNC conflict inputs: $NODENAME=$local_rev $peer_node_name=$peer_rev"
@@ -2329,6 +2430,67 @@ podman_start()
 		return "$OCF_ERR_GENERIC"
 	fi
 
+	# FNC panic rescue: before starting etcd, check whether the PREVIOUS
+	# container panicked with the deterministic "removed all voters" crash.
+	# This happens when force-new-cluster replays a departed node's WAL
+	# that contains a self-removal ConfChange.  Catch it early and yield
+	# FNC to the peer whose WAL is clean.
+	# This is a SAFETY NET; the member_removal_lock -> fnc_conflict_verdict
+	# departure-aware verdict is the primary fix.
+	if is_force_new_cluster; then
+		local prev_logs prev_container
+		# The previous (possibly panicked) container still exists as
+		# ${CONTAINER} (stopped, not yet archived) or was already
+		# archived to ${CONTAINER}-previous by an earlier start cycle.
+		if podman inspect "${CONTAINER}" >/dev/null 2>&1; then
+			prev_container="${CONTAINER}"
+		elif podman inspect "${CONTAINER}-previous" >/dev/null 2>&1; then
+			prev_container="${CONTAINER}-previous"
+		fi
+		if [ -n "$prev_container" ]; then
+			prev_logs=$(podman logs --tail 200 "$prev_container" 2>&1 || true)
+			# Require BOTH the raw panic line AND the precursor
+			# "membership: ID removed" error to avoid false triggers.
+			if echo "$prev_logs" | grep -qF 'panic: removed all voters' \
+				&& echo "$prev_logs" | grep -qF 'membership: ID removed'; then
+				ocf_log crit "FNC panic rescue: previous container ($prev_container) panicked with 'removed all voters'"
+				# Consult the member_removal_lock departure record
+				# AND require the peer to be an active voter before
+				# yielding — never yield to a learner-only or down peer.
+				local rescue_peer_node
+				rescue_peer_node=$(get_peer_node_name)
+				local rescue_local_lock rescue_peer_lock
+				rescue_local_lock=$(get_cib_permanent_attribute "$NODENAME" "member_removal_lock")
+				rescue_peer_lock=$(get_cib_permanent_attribute "$rescue_peer_node" "member_removal_lock")
+				if [ -n "$rescue_local_lock" ] && [ -z "$rescue_peer_lock" ] \
+					&& is_peer_active_voter; then
+					# This node departed and peer is a confirmed active
+					# voter — safe to yield.  Check/set anti-loop marker.
+					local rescue_marker
+					rescue_marker=$(get_cib_permanent_attribute "$NODENAME" "fnc_panic_rescue")
+					if [ -n "$rescue_marker" ]; then
+						# Marker already set: keep yielding — the marker
+						# means "stay off FNC until a successful start".
+						ocf_log crit "FNC panic rescue: marker already set (=$rescue_marker), keeping yield — clearing FNC"
+						clear_force_new_cluster
+						return "$OCF_ERR_GENERIC"
+					else
+						ocf_log crit "FNC panic rescue: $NODENAME departed (member_removal_lock=$rescue_local_lock), peer $rescue_peer_node is active voter — yielding force-new-cluster"
+						clear_force_new_cluster
+						# Set durable CIB marker so the node cannot loop
+						# on this rescue path; cleared after successful start.
+						if ! crm_attribute --type nodes --node "$NODENAME" --name "fnc_panic_rescue" --update "$(date +%s)"; then
+							ocf_log err "FNC panic rescue: could not set fnc_panic_rescue marker"
+						fi
+						return "$OCF_ERR_GENERIC"
+					fi
+				else
+					ocf_log crit "FNC panic rescue: detected 'removed all voters' panic but yield conditions not met (local_lock=${rescue_local_lock:-empty}, peer_lock=${rescue_peer_lock:-empty}, peer_active_voter=$(is_peer_active_voter && echo yes || echo no)): not auto-yielding, falling through to existing behavior"
+				fi
+			fi
+		fi
+	fi
+
 	if is_restart_no_leave; then
 		ocf_log notice "restart_no_leave set: starting normally (non-destructive restart)"
 		restart_no_leave_flag=true
@@ -2554,6 +2716,16 @@ podman_start()
 			return "$OCF_ERR_GENERIC"
 		fi
 		ocf_log notice "post-set guard: $NODENAME is sole FNC holder, proceeding with force-new-cluster"
+
+		# FNC precondition: refuse force-new-cluster when this node is a
+		# learner — its data has no voter entry for itself, so FNC replay
+		# would hit "removed all voters" and panic.  Route to learner-rejoin
+		# or fail-safe instead.
+		if is_learner; then
+			ocf_log crit "FNC precondition failed: $NODENAME is a learner — force-new-cluster would panic on voterless data; clearing FNC and retrying as learner"
+			clear_force_new_cluster
+			JOIN_AS_LEARNER=true
+		fi
 	fi
 
 	# Both-yield guard: if CIB divergence caused both nodes to yield,
@@ -2719,6 +2891,8 @@ podman_start()
 			if ocf_is_true "$restart_no_leave_flag"; then
 				clear_restart_no_leave
 			fi
+			clear_member_removal_lock
+			clear_fnc_panic_rescue
 			if is_force_new_cluster; then
 				clear_force_new_cluster
 
@@ -2800,6 +2974,61 @@ leave_etcd_member_list()
 		return
 	fi
 
+	# Member removal lock for graceful shutdown restart selection.
+	#
+	# When both nodes stop gracefully, one node successfully leaves the
+	# etcd member list while etcd prevents the last member from being
+	# removed. Without a record of who left, the startup tie-break
+	# (fnc_conflict_verdict / revision comparison) may select the
+	# departed node over the surviving member. The departed node's WAL
+	# contains a ConfChangeRemoveNode(self) entry. If fnc_conflict_verdict
+	# selects the departed node for force-new-cluster, WAL replay hits
+	# "removed all voters" and panics. The member_removal_lock attribute
+	# lets the verdict prefer the non-departed node whose WAL is clean.
+	#
+	# Handshake protocol:
+	#   (a) If the peer already holds the lock, skip (we are the surviving member).
+	#   (b) Claim the lock by writing our epoch BEFORE the remove.
+	#   (c) Sleep briefly for CIB/CPG propagation.
+	#   (d) Re-check: if the peer also claimed and was first (or tied), undo
+	#       and skip. In a tie both nodes skip, which is safe — neither
+	#       leaves, so restart finds a healthy two-member cluster.
+	#
+	# The concurrent-stop delay above is kept as a first-pass guard; this
+	# handshake is the second-pass that catches sequential-stop and
+	# short-delay scenarios where notify vars are stale.
+	local peer_node_name
+	peer_node_name="$(get_peer_node_name)"
+
+	# (a) If peer already holds the lock, skip — we are the surviving member.
+	local peer_lock
+	peer_lock=$(get_cib_permanent_attribute "$peer_node_name" "member_removal_lock")
+	if [ -n "$peer_lock" ]; then
+		ocf_log info "peer $peer_node_name already holds member_removal_lock (epoch=$peer_lock): skipping leave to preserve cluster"
+		return
+	fi
+
+	# (b) Claim the lock BEFORE calling etcdctl member remove.
+	local my_epoch
+	my_epoch=$(date +%s)
+	if ! set_member_removal_lock "$my_epoch"; then
+		ocf_log warn "could not claim member_removal_lock: skipping leave as safety fallback"
+		return
+	fi
+
+	# (c) Brief settle for CIB/CPG propagation across both nodes.
+	sleep 2
+
+	# (d) Re-read peer's member_removal_lock after settle. If the peer also
+	#     wrote and its epoch is <= ours, the peer claimed first (or tied).
+	#     Undo our write and skip the leave.
+	peer_lock=$(get_cib_permanent_attribute "$peer_node_name" "member_removal_lock")
+	if [ -n "$peer_lock" ] && [ "$peer_lock" -le "$my_epoch" ] 2>/dev/null; then
+		ocf_log info "peer $peer_node_name claimed lock first or tied (peer=$peer_lock, ours=$my_epoch): undoing our lock"
+		crm_attribute --type nodes --node "$NODENAME" --name "member_removal_lock" --delete 2>/dev/null
+		return
+	fi
+
 	ocf_log info "leaving members list as member with ID $member_id"
 	local endpoint
 	endpoint="$(ip_url $(attribute_node_ip get)):2379"
@@ -2823,8 +3052,6 @@ podman_stop()
 	fi
 
 	attribute_learner_node clear
-	attribute_node_revision update
-	attribute_node_cluster_id update
 
 	# Use podman inspect instead of podman exec (podman_simple_status) to check
 	# container state. podman exec enters the container's process namespace and
@@ -2851,6 +3078,13 @@ podman_stop()
 			timeout=10
 		fi
 	fi
+
+	# Snapshot revision and cluster_id AFTER the leave decision so both
+	# nodes (leaver and stayer) capture their final state. The stayer's
+	# revision naturally includes the ConfChange bump from the leaver's
+	# departure, giving fnc_conflict_verdict() accurate data.
+	attribute_node_revision update
+	attribute_node_cluster_id update
 
 	if ocf_is_true "$OCF_RESKEY_force_kill"; then
 		ocf_run podman kill "$CONTAINER"
