@@ -1252,7 +1252,7 @@ get_cib_permanent_attribute()
 	local output rc
 	output=$(crm_attribute --query --type nodes --node "$1" --name "$2" 2>/dev/null)
 	rc=$?
-	[ $rc -ne 0 ] && return $rc
+	[ $rc -ne 0 ] && [ $rc -ne 105 ] && [ $rc -ne 6 ] && return $rc
 	echo "$output" | awk -F"value=" '{print $2}'
 }
 
@@ -1262,7 +1262,7 @@ get_cib_transient_attribute()
 	local output rc
 	output=$(crm_attribute --query --lifetime reboot --node "$1" --name "$2" 2>/dev/null)
 	rc=$?
-	[ $rc -ne 0 ] && return $rc
+	[ $rc -ne 0 ] && [ $rc -ne 105 ] && [ $rc -ne 6 ] && return $rc
 	echo "$output" | awk -F"value=" '{print $2}' | tr -d "'"
 }
 
