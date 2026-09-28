@@ -51,7 +51,8 @@ ocftcfgs_DATA      =  apache  	\
 		       	 Xinetd	\
 		       	 Xen	\
 		       	 VirtualDomain	\
-			 SendArp
+			 SendArp	\
+			 ZFS
 
 ocftdir			= $(datadir)/$(PACKAGE_NAME)/ocft
 ocft_DATA		= README	\

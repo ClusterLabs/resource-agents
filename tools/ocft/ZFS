@@ -1,0 +1,95 @@
+# ZFS
+#
+# The pool state kstat is a lock-free snapshot, so a monitor can sample a
+# transient OFFLINE, or an empty string, while the vdevs are being reopened
+# after an import. The agent re-reads before deciding, for at most
+# monitor_settle_ms (500ms by default) and never past the operation timeout.
+#
+# These cases drive that path against a fake kstat tree, so they need no ZFS,
+# no pool and no storage. The stub zpool is only there for validate-all, which
+# checks that the binary exists before it looks at anything else.
+
+CONFIG
+	Agent ZFS
+	AgentRoot /usr/lib/ocf/resource.d/heartbeat
+	HangTimeout 20
+
+VARIABLE
+	OCFT_rundir="`get_rundir`"
+	OCFT_root="$OCFT_rundir/resource-agents/ocft-ZFS"
+	OCFT_pool="ocft_zfs_pool"
+	OCFT_kstat="$OCFT_root/kstat"
+	OCFT_bin="$OCFT_root/bin"
+	OCFT_state="$OCFT_kstat/$OCFT_pool/state"
+
+SETUP-AGENT
+	mkdir -p $OCFT_kstat/$OCFT_pool $OCFT_bin
+	printf '#!/bin/sh\nexit 0\n' > $OCFT_bin/zpool
+	chmod +x $OCFT_bin/zpool
+	echo ONLINE > $OCFT_state
+
+CLEANUP-AGENT
+	rm -rf $OCFT_root
+
+# CRM_meta_timeout is what pacemaker supplies per operation, and the agent
+# clamps its retry budget to it, so the cases set one rather than leave the
+# clamp reading an empty value.
+CASE-BLOCK required_args
+	Env OCF_RESKEY_pool=$OCFT_pool
+	Env OCF_RESKEY_kstat_root=$OCFT_kstat
+	Env OCF_RESKEY_CRM_meta_timeout=30000
+	Env PATH=$OCFT_bin:$PATH
+
+CASE-BLOCK prepare
+	Include required_args
+
+CASE "a settled pool is healthy"
+	Include prepare
+	Bash echo ONLINE > $OCFT_state
+	AgentRun monitor OCF_SUCCESS
+
+CASE "a degraded pool is still usable"
+	Include prepare
+	Bash echo DEGRADED > $OCFT_state
+	AgentRun monitor OCF_SUCCESS
+
+# The reason this file exists. The pool reads OFFLINE, then settles ONLINE
+# well inside the default budget, and the monitor must not report a failure.
+CASE "a transient OFFLINE does not fail a healthy pool"
+	Include prepare
+	Bash echo OFFLINE > $OCFT_state
+	Bash (sleep 0.2; echo ONLINE > $OCFT_state) &
+	AgentRun monitor OCF_SUCCESS
+
+# The same window can also yield nothing at all, if the read races an export.
+CASE "an empty reading is treated the same way"
+	Include prepare
+	Bash : > $OCFT_state
+	Bash (sleep 0.2; echo ONLINE > $OCFT_state) &
+	AgentRun monitor OCF_SUCCESS
+
+# Re-reading must not turn a broken pool into a healthy one: this pool never
+# changes, so the budget runs out and the failure is reported as before.
+CASE "a pool that stays offline still fails"
+	Include prepare
+	Bash echo OFFLINE > $OCFT_state
+	AgentRun monitor OCF_ERR_GENERIC
+
+# Same pool as the transient case above - it would settle ONLINE - but with
+# the re-read disabled the first reading decides, as it did before.
+CASE "monitor_settle_ms=0 restores the previous behaviour"
+	Include prepare
+	Bash echo OFFLINE > $OCFT_state
+	Bash (sleep 0.2; echo ONLINE > $OCFT_state) &
+	Env OCF_RESKEY_monitor_settle_ms=0
+	AgentRun monitor OCF_ERR_GENERIC
+
+CASE "check base env: invalid 'OCF_RESKEY_settle_timeout'"
+	Include prepare
+	Env OCF_RESKEY_settle_timeout=abc
+	AgentRun validate-all OCF_ERR_CONFIGURED
+
+CASE "check base env: invalid 'OCF_RESKEY_monitor_settle_ms'"
+	Include prepare
+	Env OCF_RESKEY_monitor_settle_ms=abc
+	AgentRun validate-all OCF_ERR_CONFIGURED
