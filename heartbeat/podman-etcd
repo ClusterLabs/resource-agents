@@ -1173,13 +1173,18 @@ add_member_as_learner()
 	return $OCF_ERR_GENERIC
 }
 
-# Set the reboot-lifetime force_new_cluster attribute for this node,
-# unless another node already holds it.
+# Claim the reboot-lifetime force_new_cluster attribute for this node,
+# unless another node already holds it. The value is the claim time
+# (epoch seconds), the same scheme as member_removal_lock: if both nodes
+# end up holding a claim, the earlier claim wins (fnc_conflict_verdict).
 #
-# The holder pre-check is best-effort: a concurrent write can still land
-# between check and set. The post-set guard in podman_start and the
-# multi-holder tiebreaker (fnc_conflict_verdict) remain the authoritative
-# resolution for any race that slips through.
+# The holder pre-check is a fast path, not the atomicity mechanism: a
+# concurrent write can still land between check and set. The post-set
+# guard in podman_start (CIB total ordering) keeps two claimants from
+# both proceeding, and the claim-time verdict decides who yields.
+#
+# An existing own claim with a valid timestamp is kept, not rewritten, so
+# a retry does not make our claim look newer than it is.
 #
 # Return codes:
 #   0 - attribute set (holders were empty or self-only)
@@ -1187,7 +1192,7 @@ add_member_as_learner()
 #   2 - another node already holds force_new_cluster (caller: defer/yield)
 try_set_force_new_cluster()
 {
-	local rc fnc_holders holder
+	local rc fnc_holders holder own_claim claim_epoch
 
 	if ! fnc_holders=$(get_force_new_cluster); then
 		ocf_log err "could not query force_new_cluster holders before setting"
@@ -1201,18 +1206,40 @@ try_set_force_new_cluster()
 		fi
 	done
 
+	if [ -n "$fnc_holders" ]; then
+		if ! own_claim=$(get_fnc_claim "$NODENAME"); then
+			ocf_log err "could not read own force_new_cluster claim"
+			return 1
+		fi
+		if ocf_is_decimal "$own_claim"; then
+			ocf_log info "$NODENAME already holds force_new_cluster (claimed at $own_claim): keeping claim"
+			return 0
+		fi
+		# Legacy node-name value: rewrite it as a timestamp below.
+	fi
+
 	if [ -n "$OCF_RESKEY_test_race_delay" ]; then
 		ocf_log notice "TEST: race delay ${OCF_RESKEY_test_race_delay}s between force_new_cluster pre-check and write"
 		sleep "$OCF_RESKEY_test_race_delay"
 	fi
 
-	crm_attribute --lifetime reboot --node "$NODENAME" --name "force_new_cluster" --update "$NODENAME"
+	claim_epoch=$(date +%s)
+	crm_attribute --lifetime reboot --node "$NODENAME" --name "force_new_cluster" --update "$claim_epoch"
 	rc=$?
 	if [ $rc -ne 0 ]; then
-		ocf_log err "could not set force_new_cluster attribute to $NODENAME"
+		ocf_log err "could not set force_new_cluster attribute on $NODENAME"
 		return 1
 	fi
+	ocf_log info "$NODENAME: force_new_cluster claimed at $claim_epoch"
 	return 0
+}
+
+# Echo the force_new_cluster claim of node $1: epoch seconds, or a legacy
+# node-name value written by an older writer. Empty when unset; non-zero
+# return only on a CIB read error.
+get_fnc_claim()
+{
+	get_cib_transient_attribute "$1" "force_new_cluster"
 }
 
 # get_force_new_cluster returns a space-separated list of nodes that have the force_new_cluster attribute set.
@@ -1367,16 +1394,20 @@ get_cib_transient_attribute()
 
 # Verdict for dual force_new_cluster claims. Echoes one of:
 #   <node name> - that node force-new-clusters, the other yields
-#   EQUAL       - same revision and cluster_id: nobody needs FNC,
-#                 both clear their claim and start normally
-#   ADMIN       - no data to decide safely: never guess, soft-fail
-#                 with recovery guidance
-# All inputs read from CIB (symmetric); each node wrote revision and
-# cluster_id before setting FNC, so both are visible wherever both
-# FNC attributes are.
+#   ADMIN       - claims unreadable or not timestamps: never guess,
+#                 soft-fail with recovery guidance
+# Eligibility comes first (member_removal_lock: a node that left the
+# member list is never a safe seed), then claim time: the earlier claim
+# wins, exact-second ties go to the lexicographically-first node name.
+# All inputs are read from CIB, so both nodes reach the same verdict.
+#
+# The verdict only decides who yields. It never lets a node proceed while
+# the peer's claim still exists: the post-set guard enforces that via CIB
+# ordering, so wall-clock skew between the nodes cannot cause two
+# force-new-clusters, only an extra retry before the loser yields.
 fnc_conflict_verdict()
 {
-	local local_rev peer_rev peer_node_name
+	local peer_node_name
 
 	peer_node_name=$(get_peer_node_name)
 
@@ -1404,65 +1435,47 @@ fnc_conflict_verdict()
 		echo "$NODENAME"
 		return
 	fi
-	# Both hold lock or neither — fall through to revision comparison
+	# Both hold lock or neither — fall through to claim time
 
-	local_rev=$(get_cib_permanent_attribute "$NODENAME" "revision")
-	peer_rev=$(get_cib_permanent_attribute "$peer_node_name" "revision")
-	ocf_log info "FNC conflict inputs: $NODENAME=$local_rev $peer_node_name=$peer_rev"
+	local local_claim peer_claim
+	if ! local_claim=$(get_fnc_claim "$NODENAME") || \
+	   ! peer_claim=$(get_fnc_claim "$peer_node_name"); then
+		ocf_log err "fnc_conflict_verdict: could not read force_new_cluster claims (CIB error)"
+		echo "ADMIN"
+		return
+	fi
+	ocf_log info "FNC conflict claims: $NODENAME=$local_claim $peer_node_name=$peer_claim"
 
-	if ocf_is_decimal "$local_rev" && ocf_is_decimal "$peer_rev"; then
-		if [ "$local_rev" -gt "$peer_rev" ]; then
-			echo "$NODENAME"
-		elif [ "$local_rev" -lt "$peer_rev" ]; then
-			echo "$peer_node_name"
-		else
-			local local_cid peer_cid
-			local_cid=$(get_cib_permanent_attribute "$NODENAME" "cluster_id")
-			peer_cid=$(get_cib_permanent_attribute "$peer_node_name" "cluster_id")
-			if [ -n "$local_cid" ] && [ -n "$peer_cid" ] && [ "$local_cid" = "$peer_cid" ]; then
-				echo "EQUAL"
-			else
-				echo "ADMIN"
-			fi
-		fi
-	elif ocf_is_decimal "$local_rev"; then
+	# A claim cleared since the holder list was read (e.g. the peer already
+	# yielded) leaves a single holder: it wins.
+	if [ -z "$peer_claim" ]; then
 		echo "$NODENAME"
-	elif ocf_is_decimal "$peer_rev"; then
+		return
+	elif [ -z "$local_claim" ]; then
+		echo "$peer_node_name"
+		return
+	fi
+
+	# Older writers stored the node name instead of a claim time. Without
+	# both timestamps there is no safe winner: fail closed.
+	if ! ocf_is_decimal "$local_claim" || ! ocf_is_decimal "$peer_claim"; then
+		ocf_log err "fnc_conflict_verdict: force_new_cluster claim is not a timestamp (written by an older writer?)"
+		echo "ADMIN"
+		return
+	fi
+
+	if [ "$local_claim" -lt "$peer_claim" ]; then
+		echo "$NODENAME"
+	elif [ "$local_claim" -gt "$peer_claim" ]; then
 		echo "$peer_node_name"
 	else
-		echo "ADMIN"
-	fi
-}
-
-# EQUAL: clear our claim, then confirm the peer concluded the same.
-# Divergent replicas can make one node see EQUAL while the other sees
-# a winner; the re-check closes that gap.
-fnc_equal_clear_and_confirm()
-{
-	local holders peer_node_name
-
-	peer_node_name=$(get_peer_node_name)
-	if ! clear_force_new_cluster; then
-		ocf_exit_reason "fnc_equal_clear_and_confirm: failed to clear own FNC"
-		return $OCF_ERR_GENERIC
-	fi
-	sleep 2
-	if ! holders=$(get_force_new_cluster); then
-		ocf_exit_reason "fnc_equal_clear_and_confirm: CIB query failed"
-		return $OCF_ERR_GENERIC
-	fi
-	if echo "$holders" | grep -q -w "$peer_node_name"; then
-		ocf_log notice "FNC race: cleared own claim but peer still holds - joining as learner"
-		JOIN_AS_LEARNER=true
-	else
-		ocf_log notice "FNC race: equal revision and cluster_id - joint normal start"
-		JOIN_AS_LEARNER=false
+		printf '%s\n%s\n' "$NODENAME" "$peer_node_name" | sort | head -n1
 	fi
 }
 
 fnc_admin_escalate()
 {
-	ocf_exit_reason "force_new_cluster held by multiple nodes ($1) with no revision data to resolve safely; inspect both nodes' etcd data, then clear the stale claim: crm_attribute --delete --lifetime reboot --node <loser> --name force_new_cluster"
+	ocf_exit_reason "force_new_cluster held by multiple nodes ($1) without readable claim timestamps to resolve safely; inspect both nodes' etcd data, then clear the stale claim: crm_attribute --delete --lifetime reboot --node <loser> --name force_new_cluster"
 }
 
 # Loser-side cleanup: clear all leadership-asserting state in one place.
@@ -2686,7 +2699,7 @@ podman_start()
 					# neither starting nor active (per this transition's fresh
 					# notify vars) and has no in-flight start in the CIB, its
 					# agent will never yield - a banned peer's reboot-lifetime
-					# attribute persists until membership loss. The data-backed
+					# attribute persists until membership loss. The verdict
 					# winner clears it; winner-only deletion cannot double-fire.
 					local fnc_peer fnc_start_total fnc_active_total
 					fnc_peer=$(get_peer_node_name)
@@ -2704,17 +2717,12 @@ podman_start()
 					fi
 					JOIN_AS_LEARNER=false
 					;;
-				EQUAL)
-					if ! fnc_equal_clear_and_confirm; then
-						return "$OCF_ERR_GENERIC"
-					fi
-					;;
 				ADMIN)
 					fnc_admin_escalate "$fnc_holders"
 					return "$OCF_ERR_GENERIC"
 					;;
 				*)
-					# Verdict named the peer: it has the newer data.
+					# Verdict named the peer: it claimed first.
 					# Yield our claim and rejoin as learner.
 					fnc_yield
 					;;
@@ -2834,13 +2842,11 @@ podman_start()
 						case $? in
 						0) ;;
 						2)
-							# Peer won the race despite our "newer" verdict.
-							# Deferring is still safe: both nodes'
-							# comparisons and the tiebreaker all read the
-							# same saved CIB attributes, so contesting
-							# would not produce a better-informed winner.
-							# See the multi-holder branch above for the
-							# full adjudication logic.
+							# Peer claimed first despite our "newer"
+							# revision comparison. Deferring matches the
+							# dual-claim rule (earlier claim wins; see
+							# fnc_conflict_verdict), so contesting would
+							# only cost a retry before we yield anyway.
 							ocf_log notice "peer claimed force_new_cluster first: joining as learner"
 							JOIN_AS_LEARNER=true
 							;;
