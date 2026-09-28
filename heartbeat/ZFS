@@ -27,6 +27,7 @@ OCF_RESKEY_importargs_default=""
 OCF_RESKEY_importforce_default=true
 OCF_RESKEY_settle_timeout_default="10"
 OCF_RESKEY_monitor_settle_ms_default="500"
+OCF_RESKEY_kstat_root_default="/proc/spl/kstat/zfs"
 
 : ${OCF_RESKEY_pool=${OCF_RESKEY_pool_default}}
 : ${OCF_RESKEY_importargs=${OCF_RESKEY_importargs_default}}
@@ -34,10 +35,7 @@ OCF_RESKEY_monitor_settle_ms_default="500"
 : ${OCF_RESKEY_settle_timeout=${OCF_RESKEY_settle_timeout_default}}
 : ${OCF_RESKEY_monitor_settle_ms=${OCF_RESKEY_monitor_settle_ms_default}}
 
-# Root of the ZFS kstat tree. Not an OCF parameter: it exists so the agent can
-# be driven against a fake tree by tests, which is the only way to exercise the
-# transitional-state handling without a live pool.
-: ${OCF_RESKEY_kstat_root=/proc/spl/kstat/zfs}
+: ${OCF_RESKEY_kstat_root=${OCF_RESKEY_kstat_root_default}}
 
 USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
@@ -113,6 +111,17 @@ that is genuinely offline. Set to 0 to report the first reading, as before.
 </longdesc>
 <shortdesc lang="en">Milliseconds the monitor re-reads</shortdesc>
 <content type="integer" default="${OCF_RESKEY_monitor_settle_ms_default}" />
+</parameter>
+<parameter name="kstat_root" unique="0" required="0">
+<longdesc lang="en">
+Root of the ZFS kstat tree: the agent reads the pool state from
+kstat_root/&lt;pool&gt;/state, which is a lock-free snapshot and therefore safe
+to poll from the monitor. The default matches every known ZFS build; override
+it only when ZFS keeps its kstat tree elsewhere, or to point the agent at a
+fake tree when testing.
+</longdesc>
+<shortdesc lang="en">Root of the ZFS kstat tree</shortdesc>
+<content type="string" default="${OCF_RESKEY_kstat_root_default}" />
 </parameter>
 </parameters>
 
@@ -252,7 +261,7 @@ zpool_settle () {
 	budget_ms=$(( $(zpool_clamp_budget_s "$OCF_RESKEY_settle_timeout") * 1000 ))
 
 	if settled=$(zpool_stable_health 3 100 "$budget_ms"); then
-		ocf_log info "$OCF_RESKEY_pool: start settled on '$settled'"
+		ocf_log debug "$OCF_RESKEY_pool: start settled on '$settled'"
 	else
 		ocf_log warn "$OCF_RESKEY_pool: still '$settled' after ${budget_ms}ms"
 	fi
@@ -332,7 +341,7 @@ zpool_monitor () {
 			# empty if the read raced an export. Re-read before
 			# deciding; one that is really broken stays broken.
 			if zpool_kstat_state_exists; then k=present; else k=absent; fi
-			ocf_log info "$OCF_RESKEY_pool: '$HEALTH' (kstat=$k), re-reading"
+			ocf_log debug "$OCF_RESKEY_pool: '$HEALTH' (kstat=$k), re-reading"
 
 			if [ "$OCF_RESKEY_monitor_settle_ms" -gt 0 ]; then
 				budget=$(( $(zpool_clamp_budget_s 1) * 1000 ))
@@ -340,7 +349,7 @@ zpool_monitor () {
 					budget=$OCF_RESKEY_monitor_settle_ms
 				fi
 				HEALTH=$(zpool_stable_health 2 100 "$budget")
-				ocf_log info "$OCF_RESKEY_pool: settled on '$HEALTH'"
+				ocf_log debug "$OCF_RESKEY_pool: settled on '$HEALTH'"
 			fi
 			;;
 	esac
@@ -349,7 +358,7 @@ zpool_monitor () {
 		ONLINE|DEGRADED) return $OCF_SUCCESS;;
 		FAULTED)         return $OCF_NOT_RUNNING;;
 		*)
-			ocf_log err "$OCF_RESKEY_pool: failing on '$HEALTH'"
+			ocf_exit_reason "$OCF_RESKEY_pool: failing on '$HEALTH'"
 			return $OCF_ERR_GENERIC
 			;;
 	esac
