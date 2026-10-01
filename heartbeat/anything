@@ -233,6 +233,14 @@ anything_validate() {
 }
 
 anything_meta() {
+local reloadable_attr=""
+local reload_action=""
+ocf_version_cmp "${OCF_RESKEY_crm_feature_set:-3.10.0}" "3.10.0"
+local res=$?
+if [ $res -eq 0 ] || [ $res -eq 2 ]; then
+	reloadable_attr=' reloadable="1"'
+	reload_action='<action name="reload" timeout="20s" />'
+fi
 cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
@@ -308,11 +316,23 @@ before sending kill -SIGKILL. Defaults to 2/3 of the stop operation timeout.
 <shortdesc lang="en">Seconds to wait after having sent SIGTERM before sending SIGKILL in stop operation</shortdesc>
 <content type="string" default="${OCF_RESKEY_stop_timeout_default}"/>
 </parameter>
+
+<parameter name="trace_ra"${reloadable_attr}>
+<longdesc lang="en">
+Set to 1 to turn on resource agent tracing (expect large output)
+The trace output will be saved to trace_file, if set, or by default to
+$HA_VARLIB/trace_ra/&lt;type&gt;/&lt;id&gt;.&lt;action&gt;.&lt;timestamp&gt;
+e.g. $HA_VARLIB/trace_ra/oracle/db.start.2012-11-27.08:37:08
+</longdesc>
+<shortdesc lang="en">Set to 1 to turn on resource agent tracing (expect large output)</shortdesc>
+<content type="boolean"/>
+</parameter>
 </parameters>
 <actions>
 <action name="start"   timeout="20s" />
 <action name="stop"    timeout="20s" />
 <action name="monitor" depth="0"  timeout="20s" interval="10s" />
+${reload_action}
 <action name="meta-data"  timeout="5s" />
 <action name="validate-all"  timeout="5s" />
 </actions>
@@ -333,6 +353,9 @@ case "$1" in
 	;;
 	monitor)
 		anything_monitor
+	;;
+	reload)
+		exit $OCF_SUCCESS
 	;;
 	validate-all)
 		anything_validate
