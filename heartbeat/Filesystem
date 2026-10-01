@@ -1063,12 +1063,32 @@ Filesystem_status()
 #
 Filesystem_monitor_10()
 {
+	RDEVICE=$DEVICE
+	monitor_10_err_config="no"
 	if [ "$blockdevice" = "no" ] ; then
-		ocf_log warn "$DEVICE is not a block device, monitor 10 is noop"
-		return $OCF_SUCCESS
+		if [ ! -z "$use_check_blkid_opt" ] ; then
+			if [ "$use_check_blkid_opt" = "-L" ]; then
+				blkcount=$(blkid | grep LABEL=\"${DEVICE}\" | wc -l)
+				if [ $blkcount -ne 1 ]; then
+					ocf_exit_reason "$DEVICE is duplicated label device, monitor 10 cannot be executed. Please check OCF_RESKEY_device parameter and OCF_CHECK_LEVEL attribute for the monitor operation."
+					return $OCF_ERR_CONFIGURED
+				fi
+			fi
+			RDEVICE=`blkid ${use_check_blkid_opt} ${DEVICE}`
+			if [ -z "$RDEVICE" ]; then
+				monitor_10_err_config="yes"
+			fi
+		else
+			monitor_10_err_config="yes"
+		fi
+
+		if [ "$monitor_10_err_config" = "yes" ] ; then
+			ocf_exit_reason "$DEVICE is not a block device, monitor 10 cannot be executed. Please check OCF_RESKEY_device parameter and OCF_CHECK_LEVEL attribute for the monitor operation."
+			return $OCF_ERR_CONFIGURED
+		fi
 	fi
 	dd_opts="iflag=direct bs=4k count=1"
-	err_output=$(dd if="$DEVICE" $dd_opts 2>&1 >/dev/null)
+	err_output=$(dd if="$RDEVICE" $dd_opts 2>&1 >/dev/null)
 	if [ $? -ne 0 ]; then
 		ocf_exit_reason "Failed to read device $DEVICE"
 		ocf_log err "dd said: $err_output"
@@ -1164,7 +1184,7 @@ Filesystem_validate_all()
 #
 set_blockdevice_var() {
 	blockdevice=no
-
+	use_check_blkid_opt=""
 	# these are definitely not block devices
 	case "$FSTYPE" in
 	nfs4|nfs|aznfs|efs|smbfs|cifs|none|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|lustre) return;;
@@ -1176,10 +1196,26 @@ set_blockdevice_var() {
 
 	case "$DEVICE" in
 	--uuid=*|--uuid\ *|--label=*|--label\ *)
+		case "$DEVICE" in
+		--uuid=*|--uuid\ *)
+			use_check_blkid_opt="-U"
+			;;
+		*)
+			use_check_blkid_opt="-L"
+			;;
+		esac
 		device_opt=$(echo $DEVICE | sed "s/\([[:blank:]]\|=\).*//")
 		DEVICE=$(echo $DEVICE | sed -E "s/$device_opt([[:blank:]]*|=)//")
 		;;
 	-U*|-L*)  # short versions of --uuid/--label
+		case "$DEVICE" in
+		-U*)
+			use_check_blkid_opt="-U"
+			;;
+		*)
+			use_check_blkid_opt="-L"
+			;;
+		esac
 		device_opt=$(echo $DEVICE | cut -c1-2)
 		DEVICE=$(echo $DEVICE | sed "s/$device_opt[[:blank:]]*//")
 		;;
