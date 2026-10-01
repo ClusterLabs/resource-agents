@@ -164,10 +164,6 @@ force_stop="${OCF_RESKEY_force_stop}"
 use_clevis="${OCF_RESKEY_use_clevis}"
 
 crypt_validate_all() {
-	if ocf_is_clone; then
-		ocf_exit_reason "crypt cannot run as a cloned resource"
-		return $OCF_ERR_CONFIGURED
-	fi
 	if ! have_binary cryptsetup; then
 		ocf_exit_reason "Please install cryptsetup(8)"
 		return $OCF_ERR_INSTALLED
