@@ -262,7 +262,7 @@ findif()
       return $OCF_ERR_GENERIC
     fi
   fi
-  metric=$(echo "$@" | sed "s/.*metric[[:blank:]]\([^ ]\+\).*/\1/")
+  metric=$(echo "$routematch" | sed -n "s/.*metric[[:blank:]]\([^ ]\+\).*/\1/p")
   echo "$nic netmask $netmask broadcast $brdcast metric $metric"
   return $OCF_SUCCESS
 }
