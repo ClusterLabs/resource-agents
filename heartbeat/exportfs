@@ -365,7 +365,13 @@ exportfs_start ()
 unlock_fs() {
 	local dir=$1
 	local unlockfile
+	local nfsd_threads
 	unlockfile=/proc/fs/nfsd/unlock_filesystem
+	nfsd_threads=$(cat /proc/fs/nfsd/threads 2>/dev/null)
+	if [ -z "${nfsd_threads}" ] || [ "${nfsd_threads}" = "0" ]; then
+		ocf_log info "Skipping unlock of NFS export $dir: nfsd is not running"
+		return $OCF_SUCCESS
+	fi
 	if [ -w ${unlockfile} ]; then
 		echo "$dir" > ${unlockfile}
 		ocf_log info "Unlocked NFS export $dir"
