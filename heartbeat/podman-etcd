@@ -1173,26 +1173,26 @@ add_member_as_learner()
 	return $OCF_ERR_GENERIC
 }
 
-# Claim the reboot-lifetime force_new_cluster attribute for this node,
-# unless another node already holds it. The value is the claim time
-# (epoch seconds), the same scheme as member_removal_lock: if both nodes
-# end up holding a claim, the earlier claim wins (fnc_conflict_verdict).
+# Claim force_new_cluster for this node. The value is the claim time
+# (epoch seconds), the same scheme as member_removal_lock.
 #
-# The holder pre-check is a fast path, not the atomicity mechanism: a
-# concurrent write can still land between check and set. The post-set
-# guard in podman_start (CIB total ordering) keeps two claimants from
-# both proceeding, and the claim-time verdict decides who yields.
+# Pre-check: if we already hold the claim this is a no-op; if the peer
+# holds it we can't win, so return 2 without writing.
+# Post-check: after writing, let the CIB settle and re-read. If the peer
+# also claimed and wins (fnc_conflict_verdict), withdraw our claim and
+# return 2. If the claims can't be read, withdraw and return 1.
 #
-# An existing own claim with a valid timestamp is kept, not rewritten, so
-# a retry does not make our claim look newer than it is.
+# The post-set guard in podman_start still refuses to proceed while two
+# claims exist, for the case where the peer's write is slower to
+# propagate than the settle time.
 #
 # Return codes:
-#   0 - attribute set (holders were empty or self-only)
+#   0 - we hold force_new_cluster
 #   1 - crm/CIB error (caller: soft-fail)
-#   2 - another node already holds force_new_cluster (caller: defer/yield)
+#   2 - the peer holds force_new_cluster (caller: defer/yield)
 try_set_force_new_cluster()
 {
-	local rc fnc_holders holder own_claim claim_epoch
+	local rc fnc_holders holder claim_epoch fnc_verdict
 
 	if ! fnc_holders=$(get_force_new_cluster); then
 		ocf_log err "could not query force_new_cluster holders before setting"
@@ -1207,15 +1207,8 @@ try_set_force_new_cluster()
 	done
 
 	if [ -n "$fnc_holders" ]; then
-		if ! own_claim=$(get_fnc_claim "$NODENAME"); then
-			ocf_log err "could not read own force_new_cluster claim"
-			return 1
-		fi
-		if ocf_is_decimal "$own_claim"; then
-			ocf_log info "$NODENAME already holds force_new_cluster (claimed at $own_claim): keeping claim"
-			return 0
-		fi
-		# Legacy node-name value: rewrite it as a timestamp below.
+		ocf_log info "$NODENAME already holds force_new_cluster"
+		return 0
 	fi
 
 	if [ -n "$OCF_RESKEY_test_race_delay" ]; then
@@ -1231,7 +1224,55 @@ try_set_force_new_cluster()
 		return 1
 	fi
 	ocf_log info "$NODENAME: force_new_cluster claimed at $claim_epoch"
-	return 0
+
+	# Post-check: did the peer claim at the same time?
+	sleep "$FNC_CLAIM_SETTLE_SEC"
+	if ! fnc_holders=$(get_force_new_cluster); then
+		ocf_log err "could not re-read force_new_cluster holders after claiming: withdrawing our claim"
+		fnc_withdraw_claim
+		return 1
+	fi
+	if ! echo "$fnc_holders" | grep -q -w "$NODENAME"; then
+		# Our write isn't visible yet. If the peer's claim is, we can't
+		# show ours is earlier: withdraw (in case ours lands later) and
+		# defer. If nothing is visible, the post-set guard waits for it.
+		if [ -n "$(echo "$fnc_holders" | tr -d ' ')" ]; then
+			ocf_log notice "own force_new_cluster claim not visible after ${FNC_CLAIM_SETTLE_SEC}s but $fnc_holders holds one: withdrawing and deferring"
+			fnc_withdraw_claim
+			return 2
+		fi
+		return 0
+	fi
+	if [ "$(echo "$fnc_holders" | wc -w)" -le 1 ]; then
+		return 0
+	fi
+	fnc_verdict=$(fnc_conflict_verdict)
+	case "$fnc_verdict" in
+	"$NODENAME")
+		ocf_log notice "force_new_cluster claimed by both nodes ($fnc_holders): $NODENAME wins, keeping claim"
+		return 0
+		;;
+	ADMIN)
+		ocf_log err "force_new_cluster claimed by both nodes ($fnc_holders) and claims unreadable: withdrawing our claim"
+		fnc_withdraw_claim
+		return 1
+		;;
+	*)
+		ocf_log notice "force_new_cluster claimed by both nodes ($fnc_holders): peer wins, withdrawing our claim"
+		fnc_withdraw_claim
+		return 2
+		;;
+	esac
+}
+
+# Delete our own force_new_cluster claim. Unlike clear_force_new_cluster
+# this doesn't query holders first, so it also works after a CIB read
+# error; deleting an absent attribute is harmless.
+fnc_withdraw_claim()
+{
+	if ! crm_attribute --delete --lifetime reboot --node "$NODENAME" --name "force_new_cluster"; then
+		ocf_log err "could not withdraw force_new_cluster claim of $NODENAME"
+	fi
 }
 
 # Echo the force_new_cluster claim of node $1: epoch seconds, or a legacy
@@ -1394,11 +1435,13 @@ get_cib_transient_attribute()
 
 # Verdict for dual force_new_cluster claims. Echoes one of:
 #   <node name> - that node force-new-clusters, the other yields
-#   ADMIN       - claims unreadable or not timestamps: never guess,
-#                 soft-fail with recovery guidance
+#   ADMIN       - claims unreadable: never guess, soft-fail with
+#                 recovery guidance
 # Eligibility comes first (member_removal_lock: a node that left the
 # member list is never a safe seed), then claim time: the earlier claim
 # wins, exact-second ties go to the lexicographically-first node name.
+# A claim that isn't a timestamp was written by an older agent or an
+# older CEO, which can't yield to us, so it always wins.
 # All inputs are read from CIB, so both nodes reach the same verdict.
 #
 # The verdict only decides who yields. It never lets a node proceed while
@@ -1456,11 +1499,15 @@ fnc_conflict_verdict()
 		return
 	fi
 
-	# Older writers stored the node name instead of a claim time. Without
-	# both timestamps there is no safe winner: fail closed.
-	if ! ocf_is_decimal "$local_claim" || ! ocf_is_decimal "$peer_claim"; then
-		ocf_log err "fnc_conflict_verdict: force_new_cluster claim is not a timestamp (written by an older writer?)"
-		echo "ADMIN"
+	# Older writers store the node name instead of a claim time and can't
+	# yield to us (version skew): the non-timestamp claim wins.
+	if ! ocf_is_decimal "$peer_claim"; then
+		ocf_log notice "fnc_conflict_verdict: peer $peer_node_name claim is not a timestamp (older writer): peer wins"
+		echo "$peer_node_name"
+		return
+	elif ! ocf_is_decimal "$local_claim"; then
+		ocf_log notice "fnc_conflict_verdict: own claim is not a timestamp (older writer): $NODENAME wins"
+		echo "$NODENAME"
 		return
 	fi
 
@@ -1475,7 +1522,7 @@ fnc_conflict_verdict()
 
 fnc_admin_escalate()
 {
-	ocf_exit_reason "force_new_cluster held by multiple nodes ($1) without readable claim timestamps to resolve safely; inspect both nodes' etcd data, then clear the stale claim: crm_attribute --delete --lifetime reboot --node <loser> --name force_new_cluster"
+	ocf_exit_reason "force_new_cluster held by multiple nodes ($1) and the claims could not be read to resolve safely; inspect both nodes' etcd data, then clear the stale claim: crm_attribute --delete --lifetime reboot --node <loser> --name force_new_cluster"
 }
 
 # Loser-side cleanup: clear all leadership-asserting state in one place.
@@ -1792,8 +1839,8 @@ detect_cluster_leadership_loss()
 		ocf_log info "one endpoint only: checking status errors"
 		endpoint_status_errors=$(printf "%s" "$endpoint_status_json" | jq -r ".[0].Status.errors")
 		if echo "$endpoint_status_errors" | grep -q "no leader"; then
-			# Pre-check adds crm_node + attrd queries (small overhead)
-			# on an already-failing path that returns error regardless.
+			# The claim adds a few CIB queries and a short settle wait
+			# (FNC_CLAIM_SETTLE_SEC) on an already-failing path.
 			try_set_force_new_cluster
 			case $? in
 			0)
@@ -2650,17 +2697,23 @@ podman_start()
 			ocf_log notice "member_removal_lock held by peer $startup_peer_node (epoch=$peer_removal_lock): we are the surviving voter - forcing new cluster to seed"
 			if ! is_force_new_cluster; then
 				try_set_force_new_cluster
-				case $? in
-				0) ;;
-				2)
-					ocf_exit_reason "$NODENAME: cannot seed cluster: peer holds force_new_cluster despite having departed via member_removal_lock; clear the stale claim: crm_attribute --delete --lifetime reboot --node $startup_peer_node --name force_new_cluster"
-					return "$OCF_ERR_GENERIC"
-					;;
-				*)
+				rc=$?
+				if [ $rc -eq 2 ]; then
+					# The peer's member_removal_lock proves it left the member
+					# list, and its own start routes it to learner, so its
+					# force_new_cluster claim is stale: clear it and claim.
+					ocf_log notice "peer $startup_peer_node holds a stale force_new_cluster claim despite having departed via member_removal_lock: clearing it"
+					if ! crm_attribute --delete --lifetime reboot --node "$startup_peer_node" --name "force_new_cluster"; then
+						ocf_exit_reason "$NODENAME: could not clear stale force_new_cluster claim of departed peer $startup_peer_node"
+						return "$OCF_ERR_GENERIC"
+					fi
+					try_set_force_new_cluster
+					rc=$?
+				fi
+				if [ $rc -ne 0 ]; then
 					ocf_exit_reason "$NODENAME: could not set force_new_cluster to seed cluster"
 					return "$OCF_ERR_GENERIC"
-					;;
-				esac
+				fi
 			fi
 			JOIN_AS_LEARNER=false
 			removal_lock_decided=true
@@ -3556,6 +3609,7 @@ ETCD_BUMP_REV_DEFAULT=1000000000
 # This is intentional - reboots are controlled stops, not failures requiring detection.
 CONTAINER_HEARTBEAT_FILE=${HA_RSCTMP}/podman-container-last-running
 DELAY_SECOND_NODE_LEAVE_SEC=10
+FNC_CLAIM_SETTLE_SEC=2
 # Shorter etcdctl command-timeout for monitor-path calls to prevent
 # consuming the 25s monitor budget. Non-monitor callers use the default 5s.
 MONITOR_ETCDCTL_TIMEOUT="3s"
