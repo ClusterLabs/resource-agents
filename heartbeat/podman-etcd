@@ -1252,8 +1252,15 @@ try_set_force_new_cluster()
 		ocf_log notice "force_new_cluster claimed by both nodes ($fnc_holders): $NODENAME wins, keeping claim"
 		return 0
 		;;
+	EQUAL)
+		# Same revision and cluster_id: nobody needs force_new_cluster.
+		# Both sides withdraw; the next start takes the normal path.
+		ocf_log notice "force_new_cluster claimed by both nodes ($fnc_holders) with equal revision and cluster_id: withdrawing our claim"
+		fnc_withdraw_claim
+		return 2
+		;;
 	ADMIN)
-		ocf_log err "force_new_cluster claimed by both nodes ($fnc_holders) and claims unreadable: withdrawing our claim"
+		ocf_log err "force_new_cluster claimed by both nodes ($fnc_holders) and no data to decide safely: withdrawing our claim"
 		fnc_withdraw_claim
 		return 1
 		;;
@@ -1435,13 +1442,16 @@ get_cib_transient_attribute()
 
 # Verdict for dual force_new_cluster claims. Echoes one of:
 #   <node name> - that node force-new-clusters, the other yields
-#   ADMIN       - claims unreadable: never guess, soft-fail with
-#                 recovery guidance
+#   EQUAL       - same revision and cluster_id: nobody needs FNC,
+#                 both clear their claim and start normally
+#   ADMIN       - no data to decide safely: never guess, soft-fail
+#                 with recovery guidance
 # Eligibility comes first (member_removal_lock: a node that left the
 # member list is never a safe seed), then claim time: the earlier claim
-# wins, exact-second ties go to the lexicographically-first node name.
-# A claim that isn't a timestamp was written by an older agent or an
-# older CEO, which can't yield to us, so it always wins.
+# wins. When claim time isn't definitive (a claim that isn't a timestamp,
+# written by an older agent or an older CEO, or both claimed in the same
+# second), fall back to the revision comparison older agents use, so
+# both sides agree.
 # All inputs are read from CIB, so both nodes reach the same verdict.
 #
 # The verdict only decides who yields. It never lets a node proceed while
@@ -1450,7 +1460,7 @@ get_cib_transient_attribute()
 # force-new-clusters, only an extra retry before the loser yields.
 fnc_conflict_verdict()
 {
-	local peer_node_name
+	local local_rev peer_rev peer_node_name
 
 	peer_node_name=$(get_peer_node_name)
 
@@ -1499,30 +1509,76 @@ fnc_conflict_verdict()
 		return
 	fi
 
-	# Older writers store the node name instead of a claim time and can't
-	# yield to us (version skew): the non-timestamp claim wins.
-	if ! ocf_is_decimal "$peer_claim"; then
-		ocf_log notice "fnc_conflict_verdict: peer $peer_node_name claim is not a timestamp (older writer): peer wins"
-		echo "$peer_node_name"
-		return
-	elif ! ocf_is_decimal "$local_claim"; then
-		ocf_log notice "fnc_conflict_verdict: own claim is not a timestamp (older writer): $NODENAME wins"
-		echo "$NODENAME"
+	# Claim time decides when both claims are timestamps from different
+	# seconds.
+	if ocf_is_decimal "$local_claim" && ocf_is_decimal "$peer_claim" && \
+	   [ "$local_claim" -ne "$peer_claim" ]; then
+		if [ "$local_claim" -lt "$peer_claim" ]; then
+			echo "$NODENAME"
+		else
+			echo "$peer_node_name"
+		fi
 		return
 	fi
 
-	if [ "$local_claim" -lt "$peer_claim" ]; then
+	# Claim time isn't definitive: fall back to the revision comparison.
+	local_rev=$(get_cib_permanent_attribute "$NODENAME" "revision")
+	peer_rev=$(get_cib_permanent_attribute "$peer_node_name" "revision")
+	ocf_log info "FNC conflict inputs: $NODENAME=$local_rev $peer_node_name=$peer_rev"
+
+	if ocf_is_decimal "$local_rev" && ocf_is_decimal "$peer_rev"; then
+		if [ "$local_rev" -gt "$peer_rev" ]; then
+			echo "$NODENAME"
+		elif [ "$local_rev" -lt "$peer_rev" ]; then
+			echo "$peer_node_name"
+		else
+			local local_cid peer_cid
+			local_cid=$(get_cib_permanent_attribute "$NODENAME" "cluster_id")
+			peer_cid=$(get_cib_permanent_attribute "$peer_node_name" "cluster_id")
+			if [ -n "$local_cid" ] && [ -n "$peer_cid" ] && [ "$local_cid" = "$peer_cid" ]; then
+				echo "EQUAL"
+			else
+				echo "ADMIN"
+			fi
+		fi
+	elif ocf_is_decimal "$local_rev"; then
 		echo "$NODENAME"
-	elif [ "$local_claim" -gt "$peer_claim" ]; then
+	elif ocf_is_decimal "$peer_rev"; then
 		echo "$peer_node_name"
 	else
-		printf '%s\n%s\n' "$NODENAME" "$peer_node_name" | sort | head -n1
+		echo "ADMIN"
+	fi
+}
+
+# EQUAL: clear our claim, then confirm the peer concluded the same.
+# Divergent replicas can make one node see EQUAL while the other sees
+# a winner; the re-check closes that gap.
+fnc_equal_clear_and_confirm()
+{
+	local holders peer_node_name
+
+	peer_node_name=$(get_peer_node_name)
+	if ! clear_force_new_cluster; then
+		ocf_exit_reason "fnc_equal_clear_and_confirm: failed to clear own FNC"
+		return $OCF_ERR_GENERIC
+	fi
+	sleep 2
+	if ! holders=$(get_force_new_cluster); then
+		ocf_exit_reason "fnc_equal_clear_and_confirm: CIB query failed"
+		return $OCF_ERR_GENERIC
+	fi
+	if echo "$holders" | grep -q -w "$peer_node_name"; then
+		ocf_log notice "FNC race: cleared own claim but peer still holds - joining as learner"
+		JOIN_AS_LEARNER=true
+	else
+		ocf_log notice "FNC race: equal revision and cluster_id - joint normal start"
+		JOIN_AS_LEARNER=false
 	fi
 }
 
 fnc_admin_escalate()
 {
-	ocf_exit_reason "force_new_cluster held by multiple nodes ($1) and the claims could not be read to resolve safely; inspect both nodes' etcd data, then clear the stale claim: crm_attribute --delete --lifetime reboot --node <loser> --name force_new_cluster"
+	ocf_exit_reason "force_new_cluster held by multiple nodes ($1) with no revision data to resolve safely; inspect both nodes' etcd data, then clear the stale claim: crm_attribute --delete --lifetime reboot --node <loser> --name force_new_cluster"
 }
 
 # Loser-side cleanup: clear all leadership-asserting state in one place.
@@ -2770,13 +2826,18 @@ podman_start()
 					fi
 					JOIN_AS_LEARNER=false
 					;;
+				EQUAL)
+					if ! fnc_equal_clear_and_confirm; then
+						return "$OCF_ERR_GENERIC"
+					fi
+					;;
 				ADMIN)
 					fnc_admin_escalate "$fnc_holders"
 					return "$OCF_ERR_GENERIC"
 					;;
 				*)
-					# Verdict named the peer: it claimed first.
-					# Yield our claim and rejoin as learner.
+					# Verdict named the peer: it claimed first or
+					# has the newer data. Yield and rejoin as learner.
 					fnc_yield
 					;;
 				esac
