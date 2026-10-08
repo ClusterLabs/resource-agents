@@ -513,6 +513,7 @@ is_fsck_needed() {
 fstype_supported()
 {
 	local support="$FSTYPE"
+	local module=""
 	local rc
 
 	if [ "X${HOSTOS}" = "XOpenBSD" ];then
@@ -531,6 +532,8 @@ fstype_supported()
 		fuse.*|glusterfs|rozofs) support="fuse";;
 		efs) check_binary "mount.efs"; support="nfs4";;
 		aznfs) check_binary "mount.aznfs"; support="nfs4";;
+		# there is no lustre_tgt module, only the fs-lustre_tgt alias
+		lustre_tgt) module="fs-lustre_tgt";;
 	esac
 
 	if [ "$support" != "$FSTYPE" ]; then
@@ -545,7 +548,7 @@ fstype_supported()
 
 	# if here, we should attempt to load the module and then
 	# check the if the filesystem support exists again.
-	$MODPROBE $support >/dev/null
+	$MODPROBE ${module:-$support} >/dev/null
 	if [ $? -ne 0 ]; then
 		ocf_exit_reason "Couldn't find filesystem $support in /proc/filesystems and failed to load kernel module"
 		return $OCF_ERR_INSTALLED
