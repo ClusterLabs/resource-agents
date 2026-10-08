@@ -416,7 +416,7 @@ determine_blockdevice() {
 	# Get the current real device name, if possible.
 	# (specified devname could be -L or -U...)
 	case "$FSTYPE" in
-	nfs4|nfs|aznfs|efs|smbfs|cifs|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|none|lustre)
+	nfs4|nfs|aznfs|efs|smbfs|cifs|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|none|lustre|lustre_tgt)
 		: ;;
 	*)
 		match_string="${TAB}${CANONICALIZED_MOUNTPOINT}${TAB}"
@@ -498,7 +498,7 @@ is_fsck_needed() {
 		no)    false;;
 		""|auto)
 		case "$FSTYPE" in
-			ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs4|nfs|aznfs|efs|cifs|smbfs|ocfs2|gfs2|none|lustre|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs)
+			ext4|ext4dev|ext3|reiserfs|reiser4|nss|xfs|jfs|vfat|fat|nfs4|nfs|aznfs|efs|cifs|smbfs|ocfs2|gfs2|none|lustre|lustre_tgt|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs)
 			false;;
 			*)
 			true;;
@@ -1187,7 +1187,7 @@ set_blockdevice_var() {
 	use_check_blkid_opt=""
 	# these are definitely not block devices
 	case "$FSTYPE" in
-	nfs4|nfs|aznfs|efs|smbfs|cifs|none|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|lustre) return;;
+	nfs4|nfs|aznfs|efs|smbfs|cifs|none|glusterfs|ceph|tmpfs|overlay|overlayfs|rozofs|zfs|cvfs|lustre|lustre_tgt) return;;
 	esac
 
 	if $(is_option "loop"); then
