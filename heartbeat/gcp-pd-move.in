@@ -50,7 +50,6 @@ CONN = None
 PROJECT = None
 ZONE = None
 REGION = None
-LIST_DISK_ATTACHED_INSTANCES = None
 INSTANCE_NAME = None
 
 PARAMETERS = {
@@ -70,6 +69,8 @@ METADATA_HEADERS = {'Metadata-Flavor': 'Google'}
 METADATA_TIMEOUT_SECS = 5
 MAX_RETRIES = 3
 RETRY_BACKOFF_SECS = 1
+# How long start waits for an attached disk to show up in the metadata server.
+METADATA_ATTACH_WAIT_SECS = 60
 METADATA = '''<?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="gcp-pd-move" version="1.0">
@@ -205,14 +206,7 @@ def execute(request):
   return request.execute(num_retries=get_api_retries())
 
 
-def populate_vars():
-  global INSTANCE_NAME
-  global PROJECT
-  global ZONE
-  global REGION
-  global LIST_DISK_ATTACHED_INSTANCES
-
-  # Populate global vars
+def load_parameters():
   for param in PARAMETERS:
     value = os.environ.get('OCF_RESKEY_%s' % param, PARAMETERS[param])
     if not value and param in MANDATORY_PARAMETERS:
@@ -221,6 +215,15 @@ def populate_vars():
     elif value:
       PARAMETERS[param] = value
 
+
+def populate_vars():
+  global INSTANCE_NAME
+  global PROJECT
+  global ZONE
+  global REGION
+
+  # Populate global vars
+  load_parameters()
   try:
     INSTANCE_NAME = get_metadata('instance/name')
     PROJECT = get_metadata('project/project-id')
@@ -234,8 +237,6 @@ def populate_vars():
         'Couldn\'t query the metadata server, is this running inside GCE?: '
         + str(e))
     sys.exit(ocf.OCF_ERR_GENERIC)
-  LIST_DISK_ATTACHED_INSTANCES = get_disk_attached_instances(
-      PARAMETERS['disk_name'])
 
 
 def configure_logs():
@@ -316,8 +317,69 @@ def get_disk_users_aggregated(disk):
   raise Exception("Unable to find disk %s" % disk)
 
 
-def is_disk_attached(instance):
-  return instance in LIST_DISK_ATTACHED_INSTANCES
+def get_attached_device_name(instance, disk_name):
+  """Returns the deviceName of disk_name on instance, or None if not attached.
+
+  Uses a single instances.get request scoped to the instance's zone.
+  """
+  request = get_conn().instances().get(
+      project=PROJECT, zone=ZONE, instance=instance)
+  response = execute(request)
+  for disk in response.get('disks', []):
+    if disk_name == re.sub('.*disks/', "", disk.get('source', '')):
+      return disk['deviceName']
+  return None
+
+
+def get_local_device_names():
+  """Returns the deviceNames of the disks attached to this instance.
+
+  Reads the local metadata server; does not use the Compute Engine API.
+  """
+  disks = json.loads(get_metadata('instance/disks/', {'recursive': 'true'}))
+  return [d.get('deviceName') for d in disks]
+
+
+def device_name_cache_file():
+  rsctmp = os.environ.get('HA_RSCTMP', '@HA_RSCTMPDIR@')
+  return os.path.join(
+      rsctmp, 'gcp-pd-move-%s.device_name' % PARAMETERS['disk_name'])
+
+
+def read_cached_device_name():
+  try:
+    with open(device_name_cache_file()) as f:
+      return f.read().strip() or None
+  except (IOError, OSError):
+    return None
+
+
+def write_cached_device_name(device_name):
+  try:
+    with open(device_name_cache_file(), 'w') as f:
+      f.write(device_name)
+  except (IOError, OSError) as e:
+    logger.warning('Couldn\'t cache device name in %s: %s'
+                   % (device_name_cache_file(), e))
+
+
+def clear_cached_device_name():
+  try:
+    os.remove(device_name_cache_file())
+  except (IOError, OSError):
+    pass
+
+
+def wait_for_local_device(device_name):
+  """Waits until the metadata server lists device_name on this instance."""
+  deadline = time.time() + METADATA_ATTACH_WAIT_SECS
+  while device_name not in get_local_device_names():
+    if time.time() >= deadline:
+      raise Exception('Disk %s (device %s) is attached but not visible in the '
+                      'metadata server after %ds' % (
+                          PARAMETERS['disk_name'], device_name,
+                          METADATA_ATTACH_WAIT_SECS))
+    time.sleep(1)
 
 
 def detach_disk(instance, disk_name):
@@ -325,18 +387,9 @@ def detach_disk(instance, disk_name):
 
   # Detaching a disk is only possible by using deviceName, which is retrieved
   # as a disk parameter when listing the instance information
-  request = get_conn().instances().get(
-      project=PROJECT, zone=ZONE, instance=instance)
-  response = execute(request)
-
-  device_name = None
-  for disk in response['disks']:
-    if disk_name == re.sub('.*disks/',"",disk['source']):
-      device_name = disk['deviceName']
-      break
-
+  device_name = get_attached_device_name(instance, disk_name)
   if not device_name:
-    logger.error("Didn't find %(d)s deviceName attached to %(i)s" % {
+    logger.info("Disk %(d)s is not attached to %(i)s" % {
         'd': disk_name,
         'i': instance,
     })
@@ -347,7 +400,7 @@ def detach_disk(instance, disk_name):
   wait_for_operation(execute(request))
 
 
-def attach_disk(instance, disk_name):
+def attach_disk(instance, disk_name, other_instances=()):
   location = 'zones/%s' % ZONE
   if PARAMETERS['disk_scope'] == 'regional':
     location = 'regions/%s' % REGION
@@ -381,7 +434,7 @@ def attach_disk(instance, disk_name):
     force_attach = True
   else:
     # If this disk is attached to some instance, detach it first.
-    for other_instance in LIST_DISK_ATTACHED_INSTANCES:
+    for other_instance in other_instances:
       logger.info("Detaching disk %(disk_name)s from other instance %(i)s" % {
           'disk_name': PARAMETERS['disk_name'],
           'i': other_instance,
@@ -401,33 +454,69 @@ def fetch_data():
 
 def gcp_pd_move_start():
   fetch_data()
-  if not is_disk_attached(INSTANCE_NAME):
+  disk_name = PARAMETERS['disk_name']
+  device_name = get_attached_device_name(INSTANCE_NAME, disk_name)
+  if not device_name:
+    other_instances = []
+    if PARAMETERS['disk_scope'] != 'regional':
+      # Zonal disks must be detached from other instances first. Regional
+      # disks are force-attached instead.
+      other_instances = [i for i in get_disk_attached_instances(disk_name)
+                         if i != INSTANCE_NAME]
     logger.info("Attaching disk %(disk_name)s to %(instance)s" % {
-        'disk_name': PARAMETERS['disk_name'],
+        'disk_name': disk_name,
         'instance': INSTANCE_NAME,
     })
-    attach_disk(INSTANCE_NAME, PARAMETERS['disk_name'])
+    attach_disk(INSTANCE_NAME, disk_name, other_instances)
+    device_name = get_attached_device_name(INSTANCE_NAME, disk_name)
+    if not device_name:
+      raise Exception('Disk %s is not attached to %s after attachDisk '
+                      'completed' % (disk_name, INSTANCE_NAME))
+
+  # monitor uses the cached device name to check the attachment through the
+  # local metadata server, without calling the Compute Engine API.
+  write_cached_device_name(device_name)
+  wait_for_local_device(device_name)
 
 
 def gcp_pd_move_stop():
   fetch_data()
-  if is_disk_attached(INSTANCE_NAME):
-    logger.info("Detaching disk %(disk_name)s to %(instance)s" % {
-        'disk_name': PARAMETERS['disk_name'],
-        'instance': INSTANCE_NAME,
-    })
-    detach_disk(INSTANCE_NAME, PARAMETERS['disk_name'])
+  logger.info("Detaching disk %(disk_name)s from %(instance)s" % {
+      'disk_name': PARAMETERS['disk_name'],
+      'instance': INSTANCE_NAME,
+  })
+  detach_disk(INSTANCE_NAME, PARAMETERS['disk_name'])
+  clear_cached_device_name()
 
 
 def gcp_pd_move_status():
-  fetch_data()
-  if is_disk_attached(INSTANCE_NAME):
-    logger.debug("Disk %(disk_name)s is correctly attached to %(instance)s" % {
-        'disk_name': PARAMETERS['disk_name'],
-        'instance': INSTANCE_NAME,
+  configure_logs()
+  load_parameters()
+  disk_name = PARAMETERS['disk_name']
+
+  # Fast path: check the local metadata server only. This is the normal case
+  # for a running resource and does not depend on the Compute Engine API, so
+  # API latency or errors cannot fail the monitor.
+  device_name = read_cached_device_name() or PARAMETERS['device_name']
+  if device_name and device_name in get_local_device_names():
+    logger.debug("Disk %(disk_name)s is attached as %(device)s" % {
+        'disk_name': disk_name,
+        'device': device_name,
     })
-  else:
+    return
+
+  # Slow path: no known device name (probe, or first monitor after an
+  # upgrade), or the device is not visible locally. Ask the API once.
+  populate_vars()
+  device_name = get_attached_device_name(INSTANCE_NAME, disk_name)
+  if not device_name:
+    clear_cached_device_name()
     sys.exit(ocf.OCF_NOT_RUNNING)
+  write_cached_device_name(device_name)
+  logger.debug("Disk %(disk_name)s is correctly attached to %(instance)s" % {
+      'disk_name': disk_name,
+      'instance': INSTANCE_NAME,
+  })
 
 
 def main():
