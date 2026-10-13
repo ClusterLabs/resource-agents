@@ -128,6 +128,7 @@ exponential backoff, on transient errors (HTTP 429 and 5xx).
 <action name="stop" timeout="120s" />
 <action name="monitor" timeout="60s" interval="60s" depth="0" />
 <action name="meta-data" timeout="5s" />
+<action name="validate-all" timeout="15s" />
 </actions>
 </resource-agent>'''.format(PARAMETERS['disk_name'], PARAMETERS['disk_scope'],
   PARAMETERS['disk_csek_file'], PARAMETERS['mode'], PARAMETERS['device_name'],
@@ -519,6 +520,36 @@ def gcp_pd_move_status():
   })
 
 
+def gcp_pd_move_validate():
+  configure_logs()
+  load_parameters()
+  if 'googleapiclient.discovery' not in sys.modules:
+    logger.error('Couldn\'t import googleapiclient, is '
+                 'google-api-python-client installed?')
+    sys.exit(ocf.OCF_ERR_INSTALLED)
+  scope = PARAMETERS['disk_scope']
+  if scope not in ('detect', 'regional') and not re.match(
+      r'^[a-z]+-[a-z]+[0-9]+-[a-z]$', scope):
+    logger.error('Invalid disk_scope %r: use detect, regional or a zone name'
+                 % scope)
+    sys.exit(ocf.OCF_ERR_CONFIGURED)
+  if PARAMETERS['mode'] not in ('READ_WRITE', 'READ_ONLY'):
+    logger.error('Invalid mode %r: use READ_WRITE or READ_ONLY'
+                 % PARAMETERS['mode'])
+    sys.exit(ocf.OCF_ERR_CONFIGURED)
+  try:
+    if int(PARAMETERS['api_retries']) < 0:
+      raise ValueError()
+  except ValueError:
+    logger.error('Invalid api_retries %r: use a non-negative integer'
+                 % PARAMETERS['api_retries'])
+    sys.exit(ocf.OCF_ERR_CONFIGURED)
+  csek_file = PARAMETERS['disk_csek_file']
+  if csek_file and not os.access(csek_file, os.R_OK):
+    logger.error('Couldn\'t read disk_csek_file %s' % csek_file)
+    sys.exit(ocf.OCF_ERR_CONFIGURED)
+
+
 def main():
   if len(sys.argv) < 2:
     logger.error('Missing argument')
@@ -534,6 +565,7 @@ def main():
       'stop': gcp_pd_move_stop,
       'monitor': gcp_pd_move_status,
       'status': gcp_pd_move_status,
+      'validate-all': gcp_pd_move_validate,
   }
   if command not in actions:
     configure_logs()
