@@ -125,8 +125,8 @@ exponential backoff, on transient errors (HTTP 429 and 5xx).
 </parameters>
 <actions>
 <action name="start" timeout="300s" />
-<action name="stop" timeout="15s" />
-<action name="monitor" timeout="15s" interval="10s" depth="0" />
+<action name="stop" timeout="120s" />
+<action name="monitor" timeout="60s" interval="60s" depth="0" />
 <action name="meta-data" timeout="5s" />
 </actions>
 </resource-agent>'''.format(PARAMETERS['disk_name'], PARAMETERS['disk_scope'],
