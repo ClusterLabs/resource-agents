@@ -102,7 +102,7 @@ correctly.
 <parameter name="device_name">
 <longdesc lang="en">An optional name that indicates the disk name the guest operating system will see.</longdesc>
 <shortdesc lang="en">Optional device name</shortdesc>
-<content type="boolean" default="{}" />
+<content type="string" default="{}" />
 </parameter>
 <parameter name="stackdriver_logging">
 <longdesc lang="en">Use stackdriver_logging output to global resource (yes, true, enabled)</longdesc>
@@ -198,7 +198,7 @@ def configure_logs():
         handler = google.cloud.logging.handlers.CloudLoggingHandler(
             client, name=INSTANCE_NAME)
         handler.setLevel(logging.INFO)
-        formatter = logging.Formatter('gcp:alias "%(message)s"')
+        formatter = logging.Formatter('gcp:pd-move "%(message)s"')
         handler.setFormatter(formatter)
         ocf.log.addHandler(handler)
         logger = logging.LoggerAdapter(
@@ -233,14 +233,16 @@ def get_disk_attached_instances(disk):
         for d in location.get('disks', []):
           if d['name'] == disk:
             return d.get('users', [])
-      request = CONN.instances().aggregatedList_next(
+      request = CONN.disks().aggregatedList_next(
           previous_request=request, previous_response=response)
     raise Exception("Unable to find disk %s" % disk)
 
   def get_only_instance_name(user):
     return re.sub('.*/instances/', '', user)
 
-  return map(get_only_instance_name, get_users_list())
+  # Return a list (not a lazy map iterator): the result is checked with `in`
+  # and then iterated again when detaching a zonal disk from other instances.
+  return [get_only_instance_name(u) for u in get_users_list()]
 
 
 def is_disk_attached(instance):
