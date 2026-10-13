@@ -277,26 +277,43 @@ def wait_for_operation(operation):
 
 
 def get_disk_attached_instances(disk):
-  def get_users_list():
-    fl = 'name="%s"' % disk
+  """Returns the names of the instances the disk is attached to.
+
+  Uses a scoped regionDisks.get / disks.get request. A project-wide
+  disks.aggregatedList is only used for disk_scope=detect.
+  """
+  scope = PARAMETERS['disk_scope']
+  if scope == 'regional':
+    users = execute(get_conn().regionDisks().get(
+        project=PROJECT, region=REGION, disk=disk)).get('users', [])
+  elif scope != 'detect':
+    users = execute(get_conn().disks().get(
+        project=PROJECT, zone=ZONE, disk=disk)).get('users', [])
+  else:
+    users = get_disk_users_aggregated(disk)
+  return [re.sub('.*/instances/', '', user) for user in users]
+
+
+def get_disk_users_aggregated(disk):
+  # returnPartialSuccess prevents an outage in an unrelated zone or region
+  # from failing the whole project-wide request.
+  fl = 'name="%s"' % disk
+  try:
+    request = get_conn().disks().aggregatedList(
+        project=PROJECT, filter=fl, returnPartialSuccess=True)
+  except TypeError:
+    # Older discovery documents do not know returnPartialSuccess.
     request = get_conn().disks().aggregatedList(project=PROJECT, filter=fl)
-    while request is not None:
-      response = execute(request)
-      locations = response.get('items', {})
-      for location in locations.values():
-        for d in location.get('disks', []):
-          if d['name'] == disk:
-            return d.get('users', [])
-      request = get_conn().disks().aggregatedList_next(
-          previous_request=request, previous_response=response)
-    raise Exception("Unable to find disk %s" % disk)
-
-  def get_only_instance_name(user):
-    return re.sub('.*/instances/', '', user)
-
-  # Return a list (not a lazy map iterator): the result is checked with `in`
-  # and then iterated again when detaching a zonal disk from other instances.
-  return [get_only_instance_name(u) for u in get_users_list()]
+  while request is not None:
+    response = execute(request)
+    locations = response.get('items', {})
+    for location in locations.values():
+      for d in location.get('disks', []):
+        if d['name'] == disk:
+          return d.get('users', [])
+    request = get_conn().disks().aggregatedList_next(
+        previous_request=request, previous_response=response)
+  raise Exception("Unable to find disk %s" % disk)
 
 
 def is_disk_attached(instance):
