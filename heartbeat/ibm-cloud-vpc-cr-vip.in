@@ -20,6 +20,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ------------------------------------------------------------------------
+"""
+IBM Cloud VPC Custom Route VIP
+"""
 import subprocess
 import ipaddress
 import os
@@ -27,11 +30,9 @@ import sys
 import textwrap
 import time
 
-OCF_FUNCTIONS_DIR = os.environ.get(
-    "OCF_FUNCTIONS_DIR", "%s/lib/heartbeat" % os.environ.get("OCF_ROOT")
-)
-
-sys.path.append(OCF_FUNCTIONS_DIR)
+sys.path.append(os.environ.get(
+    "OCF_FUNCTIONS_DIR", f"{os.environ.get('OCF_ROOT')}/lib/heartbeat"
+))
 
 RETRY_COUNT = 1
 SLEEP_TIME  = 1
@@ -47,13 +48,11 @@ try:
 except ImportError:
     ocf.logger.error("ImportError: import of ibm_cloud_fail_over module failed."   \
                         "install using: pip install ibm_cloud_fail_over")
-    pass
 
 def os_ip(ip):
     """Check if VSI own this IP address."""
 
-    command = ["ip", "a"]
-    response = subprocess.run(command, capture_output=True, text=True)
+    response = subprocess.run(["ip", "a"], check=False, capture_output=True, text=True)
     return ip in response.stdout
 
 def ip_address_validator(ip):
@@ -112,7 +111,7 @@ def stop_action(
         api_key (str, optional): IBM Cloud API access key. Defaults to "".
         interface_name (str, optional): Local network interface to remove the
             VIP addresses from. Required when vip_addresses is set. Defaults to "".
-        vip_addresses (str, optional): Space-separated VIP addresses to remove
+        vip_addresses (str, optional): Comma-separated VIP addresses to remove
             locally. Defaults to "".
 
     Returns:
@@ -129,8 +128,8 @@ def stop_action(
     res = monitor_action(vpc_url, ext_ip_1, ext_ip_2, api_key)
     if res == ocf.OCF_NOT_RUNNING:
         ocf.logger.info("Resource is already stopped")
-    if res == ocf.OCF_SUCCESS:
-        for i in range(0,RETRY_COUNT):
+    elif res == ocf.OCF_SUCCESS:
+        for _ in range(0, RETRY_COUNT):
             time.sleep(SLEEP_TIME)
             res = monitor_action(vpc_url, ext_ip_1, ext_ip_2, api_key)
             if res == ocf.OCF_NOT_RUNNING:
@@ -153,7 +152,7 @@ def start_action(
         api_key (str, optional): IBM Cloud API access key. Defaults to "".
         interface_name (str, optional): Local network interface to assign the
             VIP addresses onto. Required when vip_addresses is set. Defaults to "".
-        vip_addresses (str, optional): Space-separated VIP addresses to assign
+        vip_addresses (str, optional): Comma-separated VIP addresses to assign
             locally. Defaults to "".
 
     Change custom route nexthop to point to this endpoint.
@@ -179,16 +178,29 @@ def monitor_action(
     ext_ip_1="",
     ext_ip_2="",
     api_key="",
+    vip_addresses="",
 ):
     """monitor_action: check if service ip and gateway are responding."""
-
     ocf.logger.debug("monitor_action:")
+
+    valid_found = False
+    for vip_address in vip_addresses.split(','):
+        if not ip_address_validator(vip_address):
+            ocf.logger.warning(f'Received malformed IP address: {vip_address}')
+        elif ip_address_validator(vip_address) and not os_ip(vip_address):
+            return ocf.OCF_NOT_RUNNING
+        elif ip_address_validator(vip_address):
+            valid_found = True
+
+    if not valid_found:
+        ocf.logger.error('Received all malformed IP addresses')
+        sys.exit(ocf.OCF_ERR_GENERIC)
+
     try:
         active_ip = ibm_cloud_fail_over.fail_over_cr_vip("GET", vpc_url , ext_ip_1,
             ext_ip_2, api_key)
-        if ip_address_validator(active_ip):
-            if os_ip(active_ip):
-                return ocf.OCF_SUCCESS
+        if ip_address_validator(active_ip) and os_ip(active_ip):
+            return ocf.OCF_SUCCESS
         return ocf.OCF_NOT_RUNNING
     except Exception as e:
         ocf.logger.error('Couldn\'t connect with IBM Cloud api: ' + str(e))
@@ -202,10 +214,10 @@ def main():
         from one virtual network interface (VNI) to another.
         The prerequisites for the use of this resource agent are as follows:
 
-        1. A two-node (VSI or BM) cluster distributed in same Availability zone or across.
+        1. A two-node (VSI or BM) cluster distributed in same Availability Zone or across
         2. Enable Instance Metadata enabled on the two nodes
-        3. allow_ip_spoofing enabled on the Virtual network interface
-        4. IBM Cloud API Key or Trusted profile:
+        3. Allow_ip_spoofing enabled on the VNI
+        4. IBM Cloud API Key or Trusted Profile
     """)
 
     agent = ocf.Agent(
@@ -266,7 +278,7 @@ def main():
         "vip_addresses",
         shortdesc="Virtual IP address(es) to assign locally on failover.",
         longdesc=(
-            "One or more virtual IP addresses, space-separated, to be assigned to "
+            "One or more virtual IP addresses, comma-separated, to be assigned to "
             "interface_name on the active node during start and removed during stop. "
         ),
         content_type="string",
@@ -275,9 +287,7 @@ def main():
 
     agent.add_action("start", timeout=30, handler=start_action)
     agent.add_action("stop", timeout=30, handler=stop_action)
-    agent.add_action(
-        "monitor", depth=0, timeout=60, interval=60, handler=monitor_action
-    )
+    agent.add_action("monitor", depth=0, timeout=60, interval=60, handler=monitor_action)
     agent.add_action("validate-all", timeout=30, handler=validate_all_action)
     agent.run()
 
