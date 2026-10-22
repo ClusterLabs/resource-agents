@@ -75,6 +75,8 @@ def validate_all_action(
     ext_ip_1="",
     ext_ip_2="",
     api_key="",
+    interface_name="",
+    vip_addresses="",
 ):
     """validate all parameters
 
@@ -83,6 +85,8 @@ def validate_all_action(
         ext_ip_1 (str, mandatory): First Instance IP.
         ext_ip_2 (str, mandatory): Second Instance IP.
         api_key (str, optional): IBM Cloud API access key. Defaults to "".
+        interface_name (str, optional): Local network interface name. Defaults to "".
+        vip_addresses (str, optional): Comma-separated VIP addresses. Defaults to "".
 
     Returns:
         _type_: _description_
@@ -91,6 +95,14 @@ def validate_all_action(
         return ocf.OCF_ERR_CONFIGURED
     if not ip_address_validator(ext_ip_2):
         return ocf.OCF_ERR_CONFIGURED
+    candidates = [v for v in vip_addresses.split(',') if v]
+    if candidates and not interface_name:
+        ocf.logger.error("interface_name is required when vip_addresses is set")
+        return ocf.OCF_ERR_CONFIGURED
+    for vip in candidates:
+        if not ip_address_validator(vip):
+            ocf.logger.error(f"vip_addresses contains invalid IP: {vip}")
+            return ocf.OCF_ERR_CONFIGURED
     ocf.logger.debug(f"validate_all_action: {vpc_url} {api_key}")
     return ocf.OCF_SUCCESS
 
@@ -122,16 +134,17 @@ def stop_action(
         ibm_cloud_fail_over.fail_over_cr_vip("UNSET", vpc_url, ext_ip_1,
             ext_ip_2, api_key, interface_name, vip_addresses)
     except Exception as e:
-        ocf.logger.error('Couldn\'t connect with IBM Cloud api: ' + str(e))
+        ocf.logger.error(f'stop_action failed: {e}')
         sys.exit(ocf.OCF_ERR_GENERIC)
 
-    res = monitor_action(vpc_url, ext_ip_1, ext_ip_2, api_key)
+    res = monitor_action(vpc_url, ext_ip_1, ext_ip_2, api_key, interface_name, vip_addresses)
     if res == ocf.OCF_NOT_RUNNING:
         ocf.logger.info("Resource is already stopped")
     elif res == ocf.OCF_SUCCESS:
         for _ in range(0, RETRY_COUNT):
             time.sleep(SLEEP_TIME)
-            res = monitor_action(vpc_url, ext_ip_1, ext_ip_2, api_key)
+            res = monitor_action(vpc_url, ext_ip_1, ext_ip_2, api_key,
+                interface_name, vip_addresses)
             if res == ocf.OCF_NOT_RUNNING:
                 break
     return ocf.OCF_SUCCESS
@@ -165,10 +178,10 @@ def start_action(
         ibm_cloud_fail_over.fail_over_cr_vip("SET", vpc_url, ext_ip_1,
             ext_ip_2, api_key, interface_name, vip_addresses)
         active_ip = ibm_cloud_fail_over.fail_over_cr_vip("GET", vpc_url,
-            ext_ip_1, ext_ip_2, api_key)
+            ext_ip_1, ext_ip_2, api_key, interface_name, vip_addresses)
         ocf.logger.info(f"start_action: active_ip: {active_ip}")
     except Exception as e:
-        ocf.logger.error('Couldn\'t connect with IBM Cloud api: ' + str(e))
+        ocf.logger.error(f'start_action failed: {e}')
         sys.exit(ocf.OCF_ERR_GENERIC)
 
     return ocf.OCF_SUCCESS
@@ -178,32 +191,35 @@ def monitor_action(
     ext_ip_1="",
     ext_ip_2="",
     api_key="",
+    interface_name="",
     vip_addresses="",
 ):
     """monitor_action: check if service ip and gateway are responding."""
     ocf.logger.debug("monitor_action:")
 
-    valid_found = False
-    for vip_address in vip_addresses.split(','):
-        if not ip_address_validator(vip_address):
-            ocf.logger.warning(f'Received malformed IP address: {vip_address}')
-        elif ip_address_validator(vip_address) and not os_ip(vip_address):
-            return ocf.OCF_NOT_RUNNING
-        elif ip_address_validator(vip_address):
-            valid_found = True
+    candidates = [v for v in vip_addresses.split(',') if v]
+    if candidates:
+        valid_found = False
+        for vip_address in candidates:
+            if not ip_address_validator(vip_address):
+                ocf.logger.warning(f'Received malformed IP address: {vip_address}')
+            elif not os_ip(vip_address):
+                return ocf.OCF_NOT_RUNNING
+            else:
+                valid_found = True
 
-    if not valid_found:
-        ocf.logger.error('Received all malformed IP addresses')
-        sys.exit(ocf.OCF_ERR_GENERIC)
+        if not valid_found:
+            ocf.logger.error('Received all malformed IP addresses')
+            sys.exit(ocf.OCF_ERR_GENERIC)
 
     try:
-        active_ip = ibm_cloud_fail_over.fail_over_cr_vip("GET", vpc_url , ext_ip_1,
-            ext_ip_2, api_key)
+        active_ip = ibm_cloud_fail_over.fail_over_cr_vip("GET", vpc_url, ext_ip_1,
+            ext_ip_2, api_key, interface_name, vip_addresses)
         if ip_address_validator(active_ip) and os_ip(active_ip):
             return ocf.OCF_SUCCESS
         return ocf.OCF_NOT_RUNNING
     except Exception as e:
-        ocf.logger.error('Couldn\'t connect with IBM Cloud api: ' + str(e))
+        ocf.logger.error(f'monitor_action failed: {e}')
         sys.exit(ocf.OCF_ERR_GENERIC)
 
 def main():
