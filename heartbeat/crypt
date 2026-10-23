@@ -38,6 +38,7 @@ OCF_RESKEY_key_file_default=""
 OCF_RESKEY_crypt_type_default=""
 OCF_RESKEY_force_stop_default="false"
 OCF_RESKEY_use_clevis_default="false"
+OCF_RESKEY_allow_clone_default="false"
 
 : ${OCF_RESKEY_encrypted_dev=${OCF_RESKEY_encrypted_dev_default}}
 : ${OCF_RESKEY_crypt_dev=${OCF_RESKEY_crypt_dev_default}}
@@ -45,6 +46,7 @@ OCF_RESKEY_use_clevis_default="false"
 : ${OCF_RESKEY_crypt_type=${OCF_RESKEY_crypt_type_default}}
 : ${OCF_RESKEY_force_stop=${OCF_RESKEY_force_stop_default}}
 : ${OCF_RESKEY_use_clevis=${OCF_RESKEY_use_clevis_default}}
+: ${OCF_RESKEY_allow_clone=${OCF_RESKEY_allow_clone_default}}
 
 #######################################################################
 
@@ -134,6 +136,17 @@ the "key_file" and "crypt_type" parameters.
 <content type="boolean" default="${OCF_RESKEY_use_clevis_default}" />
 </parameter>
 
+<parameter name="allow_clone" unique="0" required="0">
+<longdesc lang="en">
+Allow the resource to run as a clone. dm-crypt is not cluster aware.
+Only clone it when each node opens its own non-shared encrypted device,
+such as a LUKS device underneath DRBD. When cloned, define encrypted_dev
+by device path instead of UUID.
+</longdesc>
+<shortdesc lang="en">allow cloning for non-shared encrypted devices</shortdesc>
+<content type="boolean" default="${OCF_RESKEY_allow_clone_default}" />
+</parameter>
+
 </parameters>
 
 <actions>
@@ -162,10 +175,11 @@ key_file="${OCF_RESKEY_key_file}"
 crypt_type="${OCF_RESKEY_crypt_type}"
 force_stop="${OCF_RESKEY_force_stop}"
 use_clevis="${OCF_RESKEY_use_clevis}"
+allow_clone="${OCF_RESKEY_allow_clone}"
 
 crypt_validate_all() {
-	if ocf_is_clone; then
-		ocf_exit_reason "crypt cannot run as a cloned resource"
+	if ocf_is_clone && ! ocf_is_true "$allow_clone"; then
+		ocf_exit_reason "crypt cannot run as a cloned resource unless allow_clone is set"
 		return $OCF_ERR_CONFIGURED
 	fi
 	if ! have_binary cryptsetup; then
