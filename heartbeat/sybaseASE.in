@@ -454,6 +454,11 @@ ase_start()
 	then
 		rm -f $CONSOLE_LOG
 	fi
+        
+        ocf_log debug "Clean shmems/semaphores/queues for '$OCF_RESKEY_sybase_user'"
+        su $OCF_RESKEY_sybase_user -c ksh << EOF
+		ipcrm -a
+EOF
 
 	ocf_log debug "sybaseASE: Starting '$OCF_RESKEY_server_name'..."
 
