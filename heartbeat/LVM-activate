@@ -75,6 +75,7 @@ LV=${OCF_RESKEY_lvname}
 # 2: vg is clustered - clvmd (old)
 # 3: vg has system_id (new)
 # 4: vg has tagging (old)
+# 5: vg is local to one node - basic
 VG_access_mode=${OCF_RESKEY_vg_access_mode}
 VG_access_mode_num=0
 
@@ -108,6 +109,7 @@ It supports the following modes, controlled by the vg_access_mode parameter:
 * system_id
 * clvmd
 * tagging
+* basic
 
 Notes:
 
@@ -121,6 +123,12 @@ because some DLM lockspaces might be in use and cannot be closed automatically.
 
 3. The autoactivation property of volume group will be disabled when vg_access_mode
 is set to system_id.
+
+4. The "basic" vg_access_mode activates and deactivates LVs without any
+cluster protection. Use it only for volume groups whose physical volumes no
+other node can see, for example local VGs that hold DRBD backing devices,
+where the resource can be cloned so each node activates its own copy of the VG.
+Using "basic" on shared storage risks data corruption.
 
 Option: OCF_CHECK_LEVEL
 
@@ -156,8 +164,9 @@ If set, only the specified LV will be activated.
 <parameter name="vg_access_mode" unique="0" required="1">
 <longdesc lang="en">
 This option decides which solution will be used to protect the volume group in
-cluster environment. Optional solutions are: lvmlockd, clvmd, system_id and
-tagging.
+cluster environment. Optional solutions are: lvmlockd, clvmd, system_id,
+tagging and basic. "basic" provides no protection and is only safe for
+volume groups whose physical volumes are local to one node.
 </longdesc>
 <shortdesc lang="en">The VG access mode</shortdesc>
 <content type="string" default="${OCF_RESKEY_vg_access_mode_default}" />
@@ -171,7 +180,8 @@ filesystem. With "shared", an LV can be activated concurrently from multiple nod
 With "exclusive", an LV can be activated by one node at a time.
 
 This option only has effect on "lvmlockd"/"clvmd" vg_access_mode. For "system_id"
-and "tagging", they always mean exclusive activation.
+and "tagging", they always mean exclusive activation. For "basic", LVs are
+always activated with a plain "-ay".
 </longdesc>
 <shortdesc lang="en">Logical volume activation mode</shortdesc>
 <content type="string" default="${OCF_RESKEY_activation_mode_default}" />
@@ -245,6 +255,7 @@ END
 # 2: vg is clustered - clvmd (old)
 # 3: vg has system_id (new)
 # 4: vg has tagging (old)
+# 5: vg is local to one node - basic
 
 get_VG_access_mode_num()
 {
@@ -270,6 +281,8 @@ get_VG_access_mode_num()
 		# TODO:
 		# We don't have reliable way to test if tagging activation is used.
 		access_mode=4
+	elif [ "$VG_access_mode" = "basic" ]; then
+		access_mode=5
 	else
 		access_mode=0
 	fi
@@ -521,6 +534,9 @@ read_parameters()
 	tagging)
 		VG_access_mode_num=4
 		;;
+	basic)
+		VG_access_mode_num=5
+		;;
 	*)
 		# dont exit with error-code here or nodes will get fenced on
 		# e.g. "pcs resource create"
@@ -622,6 +638,8 @@ lvm_validate() {
 		;;
 	4)
 		tagging_check
+		;;
+	5)
 		;;
 	*)
 		ocf_exit_reason "Incorrect VG access mode detected!"
@@ -753,6 +771,15 @@ tagging_activate() {
 	return $OCF_SUCCESS
 }
 
+basic_activate() {
+	do_activate "-ay"
+	if [ $? -ne $OCF_SUCCESS ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
 lvmlockd_deactivate() {
 	do_activate "-an"
 	if [ $? -ne $OCF_SUCCESS ]; then
@@ -799,6 +826,15 @@ tagging_deactivate() {
 
 	if ! strip_tags ; then
 		ocf_exit_reason "Failed to remove tags on ${VG}."
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
+}
+
+basic_deactivate() {
+	do_activate "-an"
+	if [ $? -ne $OCF_SUCCESS ]; then
 		return $OCF_ERR_GENERIC
 	fi
 
@@ -915,6 +951,9 @@ lvm_start() {
 	4)
 		tagging_activate
 		;;
+	5)
+		basic_activate
+		;;
 	*)
 		ocf_exit_reason "VG [${VG}] is not properly configured in cluster. It's unsafe!"
 		exit $OCF_ERR_CONFIGURED
@@ -954,6 +993,9 @@ lvm_stop() {
 		;;
 	4)
 		tagging_deactivate
+		;;
+	5)
+		basic_deactivate
 		;;
 	*)
 		ocf_exit_reason "VG [${VG}] is not properly configured in cluster. It's unsafe!"
