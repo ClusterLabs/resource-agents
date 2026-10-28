@@ -288,6 +288,7 @@ def main():
         ),
         content_type="string",
         required=False,
+        default="",
     )
 
     agent.add_parameter(
@@ -299,6 +300,7 @@ def main():
         ),
         content_type="string",
         required=False,
+        default="",
     )
 
     agent.add_action("start", timeout=30, handler=start_action)
