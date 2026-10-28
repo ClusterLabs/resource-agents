@@ -100,6 +100,8 @@ def stop_action(
     ext_ip_1="",
     ext_ip_2="",
     api_key="",
+    interface_name="",
+    vip_addresses="",
 ):
     """Stop VIP
 
@@ -108,11 +110,22 @@ def stop_action(
         ext_ip_1 (str, mandatory): First Instance IP.
         ext_ip_2 (str, mandatory): Second Instance IP.
         api_key (str, optional): IBM Cloud API access key. Defaults to "".
+        interface_name (str, optional): Local network interface to remove the
+            VIP addresses from. Required when vip_addresses is set. Defaults to "".
+        vip_addresses (str, optional): Space-separated VIP addresses to remove
+            locally. Defaults to "".
 
     Returns:
         _type_: _description_
     """
     ocf.logger.info("stop_action: stopping")
+    try:
+        ibm_cloud_fail_over.fail_over_cr_vip("UNSET", vpc_url, ext_ip_1,
+		ext_ip_2, api_key, interface_name, vip_addresses)
+    except Exception as e:
+        ocf.logger.error('Couldn\'t connect with IBM Cloud api: ' + str(e))
+        sys.exit(ocf.OCF_ERR_GENERIC)
+
     res = monitor_action(vpc_url, ext_ip_1, ext_ip_2, api_key)
     if res == ocf.OCF_NOT_RUNNING:
         ocf.logger.info("Resource is already stopped")
@@ -129,6 +142,8 @@ def start_action(
     ext_ip_1="",
     ext_ip_2="",
     api_key="",
+    interface_name="",
+    vip_addresses="",
 ):
     """start_action: redirect  the service ip.
     Args:
@@ -136,15 +151,21 @@ def start_action(
         ext_ip_1 (str, mandatory): First Instance IP.
         ext_ip_2 (str, mandatory): Second Instance IP.
         api_key (str, optional): IBM Cloud API access key. Defaults to "".
+        interface_name (str, optional): Local network interface to assign the
+            VIP addresses onto. Required when vip_addresses is set. Defaults to "".
+        vip_addresses (str, optional): Space-separated VIP addresses to assign
+            locally. Defaults to "".
 
     Change custom route nexthop to point to this endpoint.
     In case of a cross AZ Active Passive the route advertize zone will
     be changed to the new active zone
+    If vip_addresses and interface_name are provided, each VIP is also
+    assigned to the local interface as secondary addresses.
     """
     try:
-        ibm_cloud_fail_over.fail_over_cr_vip("SET", vpc_url , ext_ip_1,
-		ext_ip_2, api_key)
-        active_ip = ibm_cloud_fail_over.fail_over_cr_vip("GET", vpc_url ,
+        ibm_cloud_fail_over.fail_over_cr_vip("SET", vpc_url, ext_ip_1,
+		ext_ip_2, api_key, interface_name, vip_addresses)
+        active_ip = ibm_cloud_fail_over.fail_over_cr_vip("GET", vpc_url,
 		ext_ip_1, ext_ip_2, api_key)
         ocf.logger.info(f"start_action: active_ip: {active_ip}")
     except Exception as e:
@@ -232,6 +253,30 @@ def main():
         required=False,
     )
 
+
+    agent.add_parameter(
+        "interface_name",
+        shortdesc="Network interface to assign VIP address(es) onto.",
+        longdesc=(
+            "Name of the local network interface on which "
+            "vip_addresses will be assigned during start and removed during stop. "
+            "Required when vip_addresses is set."
+        ),
+        content_type="string",
+        required=False,
+    )
+
+
+    agent.add_parameter(
+        "vip_addresses",
+        shortdesc="Virtual IP address(es) to assign locally on failover.",
+        longdesc=(
+            "One or more virtual IP addresses, space-separated, to be assigned to "
+            "interface_name on the active node during start and removed during stop. "
+        ),
+        content_type="string",
+        required=False,
+    )
 
     agent.add_action("start", timeout=30, handler=start_action)
     agent.add_action("stop", timeout=30, handler=stop_action)
