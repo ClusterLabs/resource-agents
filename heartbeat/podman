@@ -207,6 +207,7 @@ monitor_cmd_exec()
 	# 255: podman 2+: container not running
 	case "$rc" in
 		125|126|255)
+			ocf_log info "monitor cmd failed (rc=$rc), output: $out, assume container is not running"
 			rc=$OCF_NOT_RUNNING
 			;;
 		0)
