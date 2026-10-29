@@ -50,7 +50,6 @@ CONN = None
 PROJECT = None
 ZONE = None
 REGION = None
-LIST_DISK_ATTACHED_INSTANCES = None
 INSTANCE_NAME = None
 
 PARAMETERS = {
@@ -60,12 +59,18 @@ PARAMETERS = {
   'mode': "READ_WRITE",
   'device_name': '',
   'stackdriver_logging': 'no',
+  'api_retries': '3',
 }
 
 MANDATORY_PARAMETERS = ['disk_name', 'disk_scope']
 
 METADATA_SERVER = 'http://metadata.google.internal/computeMetadata/v1/'
 METADATA_HEADERS = {'Metadata-Flavor': 'Google'}
+METADATA_TIMEOUT_SECS = 5
+MAX_RETRIES = 3
+RETRY_BACKOFF_SECS = 1
+# How long start waits for an attached disk to show up in the metadata server.
+METADATA_ATTACH_WAIT_SECS = 60
 METADATA = '''<?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
 <resource-agent name="gcp-pd-move" version="1.0">
@@ -102,23 +107,32 @@ correctly.
 <parameter name="device_name">
 <longdesc lang="en">An optional name that indicates the disk name the guest operating system will see.</longdesc>
 <shortdesc lang="en">Optional device name</shortdesc>
-<content type="boolean" default="{}" />
+<content type="string" default="{}" />
 </parameter>
 <parameter name="stackdriver_logging">
 <longdesc lang="en">Use stackdriver_logging output to global resource (yes, true, enabled)</longdesc>
 <shortdesc lang="en">Use stackdriver_logging</shortdesc>
 <content type="string" default="{}" />
 </parameter>
+<parameter name="api_retries">
+<longdesc lang="en">
+Number of times a failed Compute Engine API request is retried, with
+exponential backoff, on transient errors (HTTP 429 and 5xx).
+</longdesc>
+<shortdesc lang="en">Compute Engine API retries</shortdesc>
+<content type="integer" default="{}" />
+</parameter>
 </parameters>
 <actions>
 <action name="start" timeout="300s" />
-<action name="stop" timeout="15s" />
-<action name="monitor" timeout="15s" interval="10s" depth="0" />
+<action name="stop" timeout="120s" />
+<action name="monitor" timeout="60s" interval="60s" depth="0" />
 <action name="meta-data" timeout="5s" />
+<action name="validate-all" timeout="15s" />
 </actions>
 </resource-agent>'''.format(PARAMETERS['disk_name'], PARAMETERS['disk_scope'],
   PARAMETERS['disk_csek_file'], PARAMETERS['mode'], PARAMETERS['device_name'],
-  PARAMETERS['stackdriver_logging'])
+  PARAMETERS['stackdriver_logging'], PARAMETERS['api_retries'])
 
 
 def get_metadata(metadata_key, params=None, timeout=None):
@@ -133,32 +147,67 @@ def get_metadata(metadata_key, params=None, timeout=None):
     HTTP response from the GET request.
 
   Raises:
-    urlerror.HTTPError: raises when the GET request fails.
+    Exception: the last error, when all MAX_RETRIES attempts failed.
   """
-  timeout = timeout or 60
+  timeout = timeout or METADATA_TIMEOUT_SECS
   metadata_url = os.path.join(METADATA_SERVER, metadata_key)
   params = urlparse.urlencode(params or {})
   url = '%s?%s' % (metadata_url, params)
-  request = urlrequest.Request(url, headers=METADATA_HEADERS)
-  request_opener = urlrequest.build_opener(urlrequest.ProxyHandler({}))
-  return request_opener.open(request, timeout=timeout * 1.1).read().decode("utf-8")
+  last_error = None
+  for attempt in range(MAX_RETRIES):
+    try:
+      request = urlrequest.Request(url, headers=METADATA_HEADERS)
+      request_opener = urlrequest.build_opener(urlrequest.ProxyHandler({}))
+      return request_opener.open(
+          request, timeout=timeout * 1.1).read().decode("utf-8")
+    except Exception as e:
+      last_error = e
+      logger.warning('Metadata server request for %s failed (attempt %d/%d): %s'
+                     % (metadata_key, attempt + 1, MAX_RETRIES, e))
+      if attempt < MAX_RETRIES - 1:
+        time.sleep(RETRY_BACKOFF_SECS * (attempt + 1))
+  raise last_error
 
 
-def populate_vars():
+def get_conn():
+  """Returns a Compute Engine API client, creating it on first use."""
   global CONN
-  global INSTANCE_NAME
-  global PROJECT
-  global ZONE
-  global REGION
-  global LIST_DISK_ATTACHED_INSTANCES
+  if CONN is not None:
+    return CONN
+  last_error = None
+  for attempt in range(MAX_RETRIES):
+    try:
+      CONN = googleapiclient.discovery.build(
+          'compute', 'v1', cache_discovery=False)
+      return CONN
+    except Exception as e:
+      last_error = e
+      logger.warning('Couldn\'t connect with google api (attempt %d/%d): %s'
+                     % (attempt + 1, MAX_RETRIES, e))
+      if attempt < MAX_RETRIES - 1:
+        time.sleep(RETRY_BACKOFF_SECS * (attempt + 1))
+  raise last_error
 
-  # Populate global vars
+
+def get_api_retries():
   try:
-    CONN = googleapiclient.discovery.build('compute', 'v1')
-  except Exception as e:
-    logger.error('Couldn\'t connect with google api: ' + str(e))
-    sys.exit(ocf.OCF_ERR_GENERIC)
+    return max(0, int(PARAMETERS['api_retries']))
+  except (TypeError, ValueError):
+    logger.warning('Invalid api_retries value %r, using 3'
+                   % PARAMETERS['api_retries'])
+    return 3
 
+
+def execute(request):
+  """Executes an API request, retrying transient (429/5xx) errors.
+
+  googleapiclient retries HTTP 429 and 5xx responses and connection errors
+  with randomized exponential backoff when num_retries > 0.
+  """
+  return request.execute(num_retries=get_api_retries())
+
+
+def load_parameters():
   for param in PARAMETERS:
     value = os.environ.get('OCF_RESKEY_%s' % param, PARAMETERS[param])
     if not value and param in MANDATORY_PARAMETERS:
@@ -167,21 +216,28 @@ def populate_vars():
     elif value:
       PARAMETERS[param] = value
 
+
+def populate_vars():
+  global INSTANCE_NAME
+  global PROJECT
+  global ZONE
+  global REGION
+
+  # Populate global vars
+  load_parameters()
   try:
     INSTANCE_NAME = get_metadata('instance/name')
+    PROJECT = get_metadata('project/project-id')
+    if PARAMETERS['disk_scope'] in ['detect', 'regional']:
+      ZONE = get_metadata('instance/zone').split('/')[-1]
+      REGION = ZONE[:-2]
+    else:
+      ZONE = PARAMETERS['disk_scope']
   except Exception as e:
     logger.error(
-        'Couldn\'t get instance name, is this running inside GCE?: ' + str(e))
+        'Couldn\'t query the metadata server, is this running inside GCE?: '
+        + str(e))
     sys.exit(ocf.OCF_ERR_GENERIC)
-
-  PROJECT = get_metadata('project/project-id')
-  if PARAMETERS['disk_scope'] in ['detect', 'regional']:
-    ZONE = get_metadata('instance/zone').split('/')[-1]
-    REGION = ZONE[:-2] 
-  else:
-    ZONE = PARAMETERS['disk_scope']
-  LIST_DISK_ATTACHED_INSTANCES = get_disk_attached_instances(
-      PARAMETERS['disk_name'])
 
 
 def configure_logs():
@@ -198,7 +254,7 @@ def configure_logs():
         handler = google.cloud.logging.handlers.CloudLoggingHandler(
             client, name=INSTANCE_NAME)
         handler.setLevel(logging.INFO)
-        formatter = logging.Formatter('gcp:alias "%(message)s"')
+        formatter = logging.Formatter('gcp:pd-move "%(message)s"')
         handler.setFormatter(formatter)
         ocf.log.addHandler(handler)
         logger = logging.LoggerAdapter(
@@ -210,10 +266,10 @@ def configure_logs():
 
 def wait_for_operation(operation):
   while True:
-    result = CONN.zoneOperations().get(
+    result = execute(get_conn().zoneOperations().get(
         project=PROJECT,
         zone=ZONE,
-        operation=operation['name']).execute()
+        operation=operation['name']))
 
     if result['status'] == 'DONE':
       if 'error' in result:
@@ -223,28 +279,108 @@ def wait_for_operation(operation):
 
 
 def get_disk_attached_instances(disk):
-  def get_users_list():
-    fl = 'name="%s"' % disk
-    request = CONN.disks().aggregatedList(project=PROJECT, filter=fl)
-    while request is not None:
-      response = request.execute()
-      locations = response.get('items', {})
-      for location in locations.values():
-        for d in location.get('disks', []):
-          if d['name'] == disk:
-            return d.get('users', [])
-      request = CONN.instances().aggregatedList_next(
-          previous_request=request, previous_response=response)
-    raise Exception("Unable to find disk %s" % disk)
+  """Returns the names of the instances the disk is attached to.
 
-  def get_only_instance_name(user):
-    return re.sub('.*/instances/', '', user)
-
-  return map(get_only_instance_name, get_users_list())
+  Uses a scoped regionDisks.get / disks.get request. A project-wide
+  disks.aggregatedList is only used for disk_scope=detect.
+  """
+  scope = PARAMETERS['disk_scope']
+  if scope == 'regional':
+    users = execute(get_conn().regionDisks().get(
+        project=PROJECT, region=REGION, disk=disk)).get('users', [])
+  elif scope != 'detect':
+    users = execute(get_conn().disks().get(
+        project=PROJECT, zone=ZONE, disk=disk)).get('users', [])
+  else:
+    users = get_disk_users_aggregated(disk)
+  return [re.sub('.*/instances/', '', user) for user in users]
 
 
-def is_disk_attached(instance):
-  return instance in LIST_DISK_ATTACHED_INSTANCES
+def get_disk_users_aggregated(disk):
+  # returnPartialSuccess prevents an outage in an unrelated zone or region
+  # from failing the whole project-wide request.
+  fl = 'name="%s"' % disk
+  try:
+    request = get_conn().disks().aggregatedList(
+        project=PROJECT, filter=fl, returnPartialSuccess=True)
+  except TypeError:
+    # Older discovery documents do not know returnPartialSuccess.
+    request = get_conn().disks().aggregatedList(project=PROJECT, filter=fl)
+  while request is not None:
+    response = execute(request)
+    locations = response.get('items', {})
+    for location in locations.values():
+      for d in location.get('disks', []):
+        if d['name'] == disk:
+          return d.get('users', [])
+    request = get_conn().disks().aggregatedList_next(
+        previous_request=request, previous_response=response)
+  raise Exception("Unable to find disk %s" % disk)
+
+
+def get_attached_device_name(instance, disk_name):
+  """Returns the deviceName of disk_name on instance, or None if not attached.
+
+  Uses a single instances.get request scoped to the instance's zone.
+  """
+  request = get_conn().instances().get(
+      project=PROJECT, zone=ZONE, instance=instance)
+  response = execute(request)
+  for disk in response.get('disks', []):
+    if disk_name == re.sub('.*disks/', "", disk.get('source', '')):
+      return disk['deviceName']
+  return None
+
+
+def get_local_device_names():
+  """Returns the deviceNames of the disks attached to this instance.
+
+  Reads the local metadata server; does not use the Compute Engine API.
+  """
+  disks = json.loads(get_metadata('instance/disks/', {'recursive': 'true'}))
+  return [d.get('deviceName') for d in disks]
+
+
+def device_name_cache_file():
+  rsctmp = os.environ.get('HA_RSCTMP', '@HA_RSCTMPDIR@')
+  return os.path.join(
+      rsctmp, 'gcp-pd-move-%s.device_name' % PARAMETERS['disk_name'])
+
+
+def read_cached_device_name():
+  try:
+    with open(device_name_cache_file()) as f:
+      return f.read().strip() or None
+  except (IOError, OSError):
+    return None
+
+
+def write_cached_device_name(device_name):
+  try:
+    with open(device_name_cache_file(), 'w') as f:
+      f.write(device_name)
+  except (IOError, OSError) as e:
+    logger.warning('Couldn\'t cache device name in %s: %s'
+                   % (device_name_cache_file(), e))
+
+
+def clear_cached_device_name():
+  try:
+    os.remove(device_name_cache_file())
+  except (IOError, OSError):
+    pass
+
+
+def wait_for_local_device(device_name):
+  """Waits until the metadata server lists device_name on this instance."""
+  deadline = time.time() + METADATA_ATTACH_WAIT_SECS
+  while device_name not in get_local_device_names():
+    if time.time() >= deadline:
+      raise Exception('Disk %s (device %s) is attached but not visible in the '
+                      'metadata server after %ds' % (
+                          PARAMETERS['disk_name'], device_name,
+                          METADATA_ATTACH_WAIT_SECS))
+    time.sleep(1)
 
 
 def detach_disk(instance, disk_name):
@@ -252,29 +388,20 @@ def detach_disk(instance, disk_name):
 
   # Detaching a disk is only possible by using deviceName, which is retrieved
   # as a disk parameter when listing the instance information
-  request = CONN.instances().get(
-      project=PROJECT, zone=ZONE, instance=instance)
-  response = request.execute()
-
-  device_name = None
-  for disk in response['disks']:
-    if disk_name == re.sub('.*disks/',"",disk['source']):
-      device_name = disk['deviceName']
-      break
-
+  device_name = get_attached_device_name(instance, disk_name)
   if not device_name:
-    logger.error("Didn't find %(d)s deviceName attached to %(i)s" % {
+    logger.info("Disk %(d)s is not attached to %(i)s" % {
         'd': disk_name,
         'i': instance,
     })
     return
 
-  request = CONN.instances().detachDisk(
+  request = get_conn().instances().detachDisk(
       project=PROJECT, zone=ZONE, instance=instance, deviceName=device_name)
-  wait_for_operation(request.execute())
+  wait_for_operation(execute(request))
 
 
-def attach_disk(instance, disk_name):
+def attach_disk(instance, disk_name, other_instances=()):
   location = 'zones/%s' % ZONE
   if PARAMETERS['disk_scope'] == 'regional':
     location = 'regions/%s' % REGION
@@ -308,17 +435,17 @@ def attach_disk(instance, disk_name):
     force_attach = True
   else:
     # If this disk is attached to some instance, detach it first.
-    for other_instance in LIST_DISK_ATTACHED_INSTANCES:
+    for other_instance in other_instances:
       logger.info("Detaching disk %(disk_name)s from other instance %(i)s" % {
           'disk_name': PARAMETERS['disk_name'],
           'i': other_instance,
       })
       detach_disk(other_instance, PARAMETERS['disk_name'])
 
-  request = CONN.instances().attachDisk(
+  request = get_conn().instances().attachDisk(
       project=PROJECT, zone=ZONE, instance=instance, body=body,
       forceAttach=force_attach)
-  wait_for_operation(request.execute())
+  wait_for_operation(execute(request))
 
 
 def fetch_data():
@@ -328,33 +455,99 @@ def fetch_data():
 
 def gcp_pd_move_start():
   fetch_data()
-  if not is_disk_attached(INSTANCE_NAME):
+  disk_name = PARAMETERS['disk_name']
+  device_name = get_attached_device_name(INSTANCE_NAME, disk_name)
+  if not device_name:
+    other_instances = []
+    if PARAMETERS['disk_scope'] != 'regional':
+      # Zonal disks must be detached from other instances first. Regional
+      # disks are force-attached instead.
+      other_instances = [i for i in get_disk_attached_instances(disk_name)
+                         if i != INSTANCE_NAME]
     logger.info("Attaching disk %(disk_name)s to %(instance)s" % {
-        'disk_name': PARAMETERS['disk_name'],
+        'disk_name': disk_name,
         'instance': INSTANCE_NAME,
     })
-    attach_disk(INSTANCE_NAME, PARAMETERS['disk_name'])
+    attach_disk(INSTANCE_NAME, disk_name, other_instances)
+    device_name = get_attached_device_name(INSTANCE_NAME, disk_name)
+    if not device_name:
+      raise Exception('Disk %s is not attached to %s after attachDisk '
+                      'completed' % (disk_name, INSTANCE_NAME))
+
+  # monitor uses the cached device name to check the attachment through the
+  # local metadata server, without calling the Compute Engine API.
+  write_cached_device_name(device_name)
+  wait_for_local_device(device_name)
 
 
 def gcp_pd_move_stop():
   fetch_data()
-  if is_disk_attached(INSTANCE_NAME):
-    logger.info("Detaching disk %(disk_name)s to %(instance)s" % {
-        'disk_name': PARAMETERS['disk_name'],
-        'instance': INSTANCE_NAME,
-    })
-    detach_disk(INSTANCE_NAME, PARAMETERS['disk_name'])
+  logger.info("Detaching disk %(disk_name)s from %(instance)s" % {
+      'disk_name': PARAMETERS['disk_name'],
+      'instance': INSTANCE_NAME,
+  })
+  detach_disk(INSTANCE_NAME, PARAMETERS['disk_name'])
+  clear_cached_device_name()
 
 
 def gcp_pd_move_status():
-  fetch_data()
-  if is_disk_attached(INSTANCE_NAME):
-    logger.debug("Disk %(disk_name)s is correctly attached to %(instance)s" % {
-        'disk_name': PARAMETERS['disk_name'],
-        'instance': INSTANCE_NAME,
+  configure_logs()
+  load_parameters()
+  disk_name = PARAMETERS['disk_name']
+
+  # Fast path: check the local metadata server only. This is the normal case
+  # for a running resource and does not depend on the Compute Engine API, so
+  # API latency or errors cannot fail the monitor.
+  device_name = read_cached_device_name() or PARAMETERS['device_name']
+  if device_name and device_name in get_local_device_names():
+    logger.debug("Disk %(disk_name)s is attached as %(device)s" % {
+        'disk_name': disk_name,
+        'device': device_name,
     })
-  else:
+    return
+
+  # Slow path: no known device name (probe, or first monitor after an
+  # upgrade), or the device is not visible locally. Ask the API once.
+  populate_vars()
+  device_name = get_attached_device_name(INSTANCE_NAME, disk_name)
+  if not device_name:
+    clear_cached_device_name()
     sys.exit(ocf.OCF_NOT_RUNNING)
+  write_cached_device_name(device_name)
+  logger.debug("Disk %(disk_name)s is correctly attached to %(instance)s" % {
+      'disk_name': disk_name,
+      'instance': INSTANCE_NAME,
+  })
+
+
+def gcp_pd_move_validate():
+  configure_logs()
+  load_parameters()
+  if 'googleapiclient.discovery' not in sys.modules:
+    logger.error('Couldn\'t import googleapiclient, is '
+                 'google-api-python-client installed?')
+    sys.exit(ocf.OCF_ERR_INSTALLED)
+  scope = PARAMETERS['disk_scope']
+  if scope not in ('detect', 'regional') and not re.match(
+      r'^[a-z]+-[a-z]+[0-9]+-[a-z]$', scope):
+    logger.error('Invalid disk_scope %r: use detect, regional or a zone name'
+                 % scope)
+    sys.exit(ocf.OCF_ERR_CONFIGURED)
+  if PARAMETERS['mode'] not in ('READ_WRITE', 'READ_ONLY'):
+    logger.error('Invalid mode %r: use READ_WRITE or READ_ONLY'
+                 % PARAMETERS['mode'])
+    sys.exit(ocf.OCF_ERR_CONFIGURED)
+  try:
+    if int(PARAMETERS['api_retries']) < 0:
+      raise ValueError()
+  except ValueError:
+    logger.error('Invalid api_retries %r: use a non-negative integer'
+                 % PARAMETERS['api_retries'])
+    sys.exit(ocf.OCF_ERR_CONFIGURED)
+  csek_file = PARAMETERS['disk_csek_file']
+  if csek_file and not os.access(csek_file, os.R_OK):
+    logger.error('Couldn\'t read disk_csek_file %s' % csek_file)
+    sys.exit(ocf.OCF_ERR_CONFIGURED)
 
 
 def main():
@@ -363,19 +556,30 @@ def main():
     return
 
   command = sys.argv[1]
-  if 'meta-data' in command:
+  if command == 'meta-data':
     print(METADATA)
     return
 
-  if command in 'start':
-    gcp_pd_move_start()
-  elif command in 'stop':
-    gcp_pd_move_stop()
-  elif command in ('monitor', 'status'):
-    gcp_pd_move_status()
-  else:
+  actions = {
+      'start': gcp_pd_move_start,
+      'stop': gcp_pd_move_stop,
+      'monitor': gcp_pd_move_status,
+      'status': gcp_pd_move_status,
+      'validate-all': gcp_pd_move_validate,
+  }
+  if command not in actions:
     configure_logs()
     logger.error('no such function %s' % str(command))
+    sys.exit(ocf.OCF_ERR_UNIMPLEMENTED)
+
+  try:
+    actions[command]()
+  except Exception as e:
+    # API and metadata errors that survive retries are reported as a generic
+    # (recoverable) error, never as OCF_ERR_CONFIGURED, so that Pacemaker
+    # recovers the resource instead of treating it as permanently failed.
+    logger.error('%s failed: %s' % (command, e))
+    sys.exit(ocf.OCF_ERR_GENERIC)
 
 
 if __name__ == "__main__":
