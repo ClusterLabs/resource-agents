@@ -4,6 +4,7 @@
 #
 # 	License:	GNU General Public License (GPL)
 #	(c) 2018 	Tobias Niekamp, Microsoft Corp.
+#	(c) 2026 	Tobias Schug, Microsoft Corp.
 #				and Linux-HA contributors
 
 import os
@@ -20,15 +21,15 @@ except ImportError:
 import socket
 from collections import defaultdict
 
-OCF_FUNCTIONS_DIR = os.environ.get("OCF_FUNCTIONS_DIR", "%s/lib/heartbeat" % os.environ.get("OCF_ROOT"))
+OCF_FUNCTIONS_DIR = os.environ.get("OCF_FUNCTIONS_DIR", f"{os.environ.get('OCF_ROOT')}/lib/heartbeat")
 sys.path.append(OCF_FUNCTIONS_DIR)
 import ocf
 
 ##############################################################################
 
 
-VERSION = "0.20"
-USER_AGENT = "Pacemaker-ResourceAgent/%s %s" % (VERSION, ocf.distro())
+VERSION = "0.21"
+USER_AGENT = f"Pacemaker-ResourceAgent/{VERSION} {ocf.distro()}"
 
 attr_lastDocVersion  = "azure-events-az_lastDocVersion"
 attr_curNodeState = "azure-events-az_curNodeState"
@@ -36,7 +37,8 @@ attr_pendingEventIDs = "azure-events-az_pendingEventIDs"
 attr_healthstate = "#health-azure"
 
 default_loglevel = ocf.logging.INFO
-default_relevantEventTypes = set(["Reboot", "Redeploy"])
+default_relevantEventTypes = {"Reboot", "Redeploy"}
+default_allEventTypes = {"Freeze", "Reboot", "Redeploy"}
 
 ##############################################################################
 
@@ -60,6 +62,16 @@ class attrDict(defaultdict):
 
 ##############################################################################
 
+# Little utility class for measuring elapsed time in milliseconds
+class Timer:
+    def __init__(self):
+        self.started = time.monotonic()
+
+    def elapsed_ms(self):
+    	return int((time.monotonic() - self.started) * 1000)
+
+ ##############################################################################
+
 class azHelper:
 	"""
 	Helper class for Azure's metadata API (including Scheduled Events)
@@ -80,10 +92,10 @@ class azHelper:
 		retryWaitTime = int(ocf.get_parameter("retry_wait",20))
 		requestTimeout = int(ocf.get_parameter("request_timeout",15))
 
-		url = "%s/%s?api-version=%s" % (azHelper.metadata_host, endpoint, api_version)
+		url = f"{azHelper.metadata_host}/{endpoint}?api-version={api_version}"
 		data = ""
-		ocf.logger.debug("_sendMetadataRequest: begin; endpoint = %s, postData = %s, retry_count = %s, retry_wait time = %s, request_timeout = %s" % (endpoint, postData, retryCount, retryWaitTime, requestTimeout))
-		ocf.logger.debug("_sendMetadataRequest: url = %s" % url)
+		ocf.logger.debug(f"_sendMetadataRequest: begin; endpoint = {endpoint!s}, postData = {postData!s}, retry_count = {retryCount!s}, retry_wait time = {retryWaitTime!s}, request_timeout = {requestTimeout!s}")
+		ocf.logger.debug(f"_sendMetadataRequest: url = {url!s}")
 
 		if postData and type(postData) != bytes:
 			postData = postData.encode()
@@ -97,30 +109,40 @@ class azHelper:
 
 		successful = None
 		for retry in range(retryCount+1):
+			ocf.logger.debug(f"_sendMetadataRequest: method={req.get_method()} endpoint={endpoint} api_version={api_version} attempt={retry + 1}/{retryCount + 1} timeout={requestTimeout}s")
+			timer = Timer()
 			try:
 				resp = urllib2.urlopen(req, timeout=requestTimeout)
 			except Exception as e:
+				ocf.logger.warning(f"_sendMetadataRequest: method={req.get_method()} endpoint={endpoint} attempt={retry + 1}/{retryCount + 1} status={getattr(e, 'code', None)} error_type={type(e).__name__} error={e!s} final_attempt={retry == retryCount} elapsed_ms={timer.elapsed_ms()}")
 				excType = e.__class__.__name__
 				if excType == TimeoutError.__name__:
-					ocf.logger.warning("Request timed out after %s seconds Error: %s" % (requestTimeout, e))
+					ocf.logger.warning(f"Request timed out after {requestTimeout!s} seconds Error: {e!s}")
 				if excType == URLError.__name__:
 					if hasattr(e, 'reason'):
-						ocf.logger.warning("Failed to reach the server: %s" % e.reason)
+						ocf.logger.warning(f"Failed to reach the server: {e.reason}")
 					elif hasattr(e, 'code'):
-						ocf.logger.warning("The server couldn\'t fulfill the request. Error code: %s" % e.code)
+						ocf.logger.warning(f"The server couldn't fulfill the request. Error code: {e.code}")
 
 				if retryCount > 1 and retry != retryCount:
-					ocf.logger.warning("Request failed, retry (%s/%s) wait %s seconds before retry (wait time)" % (retry + 1,retryCount,retryWaitTime))
+					ocf.logger.warning(f"Request failed, retry ({retry + 1!s}/{retryCount!s}) wait {retryWaitTime!s} seconds before retry (wait time)")
 					time.sleep(retryWaitTime)
 
 			else:
-				data = resp.read()
-				ocf.logger.debug("_sendMetadataRequest: response = %s" % data)
+				try:
+					data = resp.read()
+				finally:
+					ocf.logger.debug(f"_sendMetadataRequest: method={req.get_method()} endpoint={endpoint} attempt={retry + 1}/{retryCount + 1} status={resp.getcode()} outcome=response_received elapsed_ms={timer.elapsed_ms()}")
+
+				ocf.logger.debug(f"_sendMetadataRequest: endpoint={endpoint} response_bytes={len(data)} outcome=response_read")
 				successful = 1
 				break
 
+		ocf.logger.debug(f"_sendMetadataRequest: method={req.get_method()} endpoint={endpoint} request_succeeded={bool(successful)} max_attempts={retryCount + 1}")
 		if data:
+			ocf.logger.debug(f"_sendMetadataRequest: endpoint={endpoint} decoding_json response_bytes={len(data)}")
 			data = json.loads(data)
+			ocf.logger.debug(f"_sendMetadataRequest: endpoint={endpoint} outcome=json_decoded")
 
 		ocf.logger.debug("_sendMetadataRequest: finished")
 		return data
@@ -129,18 +151,19 @@ class azHelper:
 	def getInstanceInfo():
 		"""
 		Fetch details about the current VM from Azure's Azure Metadata Service API
+		Log only VM name, zone, SKU type, OS type, and location.
 		"""
 		ocf.logger.debug("getInstanceInfo: begin")
 
 		jsondata = azHelper._sendMetadataRequest(azHelper.instance_api, None, azHelper.instance_api_version)
-		ocf.logger.debug("getInstanceInfo: json = %s" % jsondata)
 
 		if jsondata:
-			ocf.logger.debug("getInstanceInfo: finished, returning {}".format(jsondata["compute"]))
+			compute = jsondata["compute"]
+			ocf.logger.debug(f"getInstanceInfo: vm_name={compute.get('name', '')} zone={compute.get('zone', '')} sku_type={compute.get('vmSize', '')} osType={compute.get('osType', '')} location={compute.get('location', '')}")
 			return attrDict(jsondata["compute"])
 		else:
-			apiCall = "%s/%s?api-version=%s" % (azHelper.metadata_host, azHelper.instance_api, azHelper.instance_api_version)
-			ocf.ocf_exit_reason("getInstanceInfo: Unable to get instance info - call: %s" % apiCall)
+			apiCall = f"{azHelper.metadata_host}/{azHelper.instance_api}?api-version={azHelper.instance_api_version}"
+			ocf.ocf_exit_reason(f"getInstanceInfo: Unable to get instance info - call: {apiCall}")
 			sys.exit(ocf.OCF_ERR_GENERIC)
 
 	@staticmethod
@@ -151,14 +174,13 @@ class azHelper:
 		ocf.logger.debug("pullScheduledEvents: begin")
 
 		jsondata = azHelper._sendMetadataRequest(azHelper.events_api, None, azHelper.events_api_version)
-		ocf.logger.debug("pullScheduledEvents: json = %s" % jsondata)
 
 		if jsondata:
 			ocf.logger.debug("pullScheduledEvents: finished")
 			return attrDict(jsondata)
 		else:
-			apiCall = "%s/%s?api-version=%s" % (azHelper.metadata_host, azHelper.events_api, azHelper.events_api_version)
-			ocf.ocf_exit_reason("pullScheduledEvents: Unable to get scheduledevents info - call: %s" % apiCall)
+			apiCall = f"{azHelper.metadata_host}/{azHelper.events_api}?api-version={azHelper.events_api_version}"
+			ocf.ocf_exit_reason(f"pullScheduledEvents: Unable to get scheduledevents info - call: {apiCall}")
 			sys.exit(ocf.OCF_ERR_GENERIC)
 
 
@@ -177,9 +199,11 @@ class azHelper:
 		postData = {
 			"StartRequests" : events
 		}
-		ocf.logger.info("forceEvents: postData = %s" % postData)
+		ocf.logger.info(f"forceEvents: postData = {postData!s}")
+		ocf.logger.debug(f"forceEvents: requesting acknowledgment event_count={len(events)}; request outcome is logged by _sendMetadataRequest")
 		resp = azHelper._sendMetadataRequest(azHelper.events_api, postData=json.dumps(postData))
 
+		ocf.logger.debug("forceEvents: request processing finished; event start must be confirmed by subsequent polling")
 		ocf.logger.debug("forceEvents: finished")
 		return
 
@@ -204,22 +228,32 @@ class clusterHelper:
 		"""
 		Helper function to execute a UNIX command
 		"""
+
 		args = list(args)
-		ocf.logger.debug("_exec: begin; command = %s, args = %s" % (command, str(args)))
+		ocf.logger.debug(f"_exec: begin; command = {command!s}, args = {args!s}")
 
 		def flatten(*n):
 			return (str(e) for a in n
 				for e in (flatten(*a) if isinstance(a, (tuple, list)) else (str(a),)))
 		command = list(flatten([command] + args))
-		ocf.logger.debug("_exec: cmd = %s" % " ".join(command))
+		ocf.logger.debug(f"_exec: cmd = {' '.join(command)}")
+		timer = Timer()
 		try:
-			ret = subprocess.check_output(command)
+			# Need to be without catpure_output=true because it has to be Python 3.6+ compatible
+			completed = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)  # noqa: UP022
+			ret = completed.stdout
+
 			if type(ret) != str:
 				ret = ret.decode()
-			ocf.logger.debug("_exec: return = %s" % ret)
+
+			stderr = completed.stderr[:4096].decode(errors="replace")
+			ocf.logger.debug(f"_exec: command={command!r} outcome=success rc={completed.returncode} elapsed_ms={timer.elapsed_ms()} stdout_chars={len(ret)} stderr={stderr!r}")
+			ocf.logger.debug(f"_exec: return = {ret!s}")
 			return ret.rstrip()
 		except Exception as err:
-			ocf.logger.exception(err)
+			stderr = (getattr(err, 'stderr', None) or b'')[:4096].decode(errors="replace")
+			ocf.logger.error(f"_exec: command={command!r} outcome=failed error_type={type(err).__name__} rc={getattr(err, 'returncode', None)} elapsed_ms={timer.elapsed_ms()} stdout={(getattr(err, 'output', None) or b'')[:4096]!r} stderr={stderr!r}")
+			ocf.logger.exception(f"{err!s}")
 			return None
 
 	@staticmethod
@@ -227,7 +261,7 @@ class clusterHelper:
 		"""
 		Set the value of a specific global/local attribute in the Pacemaker cluster
 		"""
-		ocf.logger.debug("setAttr: begin; key = %s, value = %s, node = %s" % (key, value, node))
+		ocf.logger.debug(f"setAttr: begin; key = {key!s}, value = {value!s}, node = {node!s}")
 
 		if value:
 			ret = clusterHelper._exec("crm_attribute",
@@ -240,6 +274,7 @@ class clusterHelper:
 									  "--delete",
 									  clusterHelper._getLocation(node))
 
+		ocf.logger.debug(f"setAttr: node={node} key={key} operation={'update' if value else 'delete'} value={value!r} command_succeeded={ret is not None}")
 		ocf.logger.debug("setAttr: finished")
 		return len(ret) == 0
 
@@ -248,13 +283,14 @@ class clusterHelper:
 		"""
 		Retrieve a global/local attribute from the Pacemaker cluster
 		"""
-		ocf.logger.debug("getAttr: begin; key = %s, node = %s" % (key, node))
+		ocf.logger.debug(f"getAttr: begin; key = {key!s}, node = {node!s}")
 
 		val = clusterHelper._exec("crm_attribute",
 								  "--name", key,
 								  "--query", "--quiet",
 								  "--default", "",
 								  clusterHelper._getLocation(node))
+		ocf.logger.debug(f"getAttr: node={node} key={key} raw_value={val!r} command_succeeded={val is not None}")
 		ocf.logger.debug("getAttr: finished")
 		if not val:
 			return None
@@ -271,7 +307,7 @@ class clusterHelper:
 		nodeList = clusterHelper._exec("crm_node", "--list")
 		for n in nodeList.split("\n"):
 			nodes.append(n.split()[1])
-		ocf.logger.debug("getAllNodes: finished; return %s" % str(nodes))
+		ocf.logger.debug(f"getAllNodes: finished; return {nodes!s}")
 
 		return nodes
 
@@ -280,7 +316,7 @@ class clusterHelper:
 		"""
 		Helper function to get the actual host name from an Azure node name
 		"""
-		return clusterHelper.getAttr("hostName_%s" % azName)
+		return clusterHelper.getAttr(f"hostName_{azName}")
 
 	@staticmethod
 	def removeHoldFromNodes():
@@ -292,7 +328,7 @@ class clusterHelper:
 		for n in clusterHelper.getAllNodes():
 			if clusterHelper.getAttr(attr_curNodeState, node=n) == "ON_HOLD":
 				clusterHelper.setAttr(attr_curNodeState, "AVAILABLE", node=n)
-				ocf.logger.info("removeHoldFromNodes: removed ON_HOLD from node %s" % n)
+				ocf.logger.info(f"removeHoldFromNodes: removed ON_HOLD from node {n!s}")
 
 		ocf.logger.debug("removeHoldFromNodes: finished")
 		return False
@@ -302,13 +338,14 @@ class clusterHelper:
 		"""
 		Check if there are any nodes (except a given node) in the Pacemaker cluster that have state AVAILABLE
 		"""
-		ocf.logger.debug("otherNodesAvailable: begin; exceptNode = %s" % exceptNode)
+		ocf.logger.debug(f"otherNodesAvailable: begin; exceptNode = {exceptNode!s}")
 
 		for n in clusterHelper.getAllNodes():
 			state = clusterHelper.getAttr(attr_curNodeState, node=n)
+			ocf.logger.debug(f"otherNodesAvailable: node={n} raw_state={state!r} excluded={n == exceptNode.hostName}")
 			state = stringToNodeState(state) if state else AVAILABLE
 			if state == AVAILABLE and n != exceptNode.hostName:
-				ocf.logger.info("otherNodesAvailable: at least %s is available" % n)
+				ocf.logger.info(f"otherNodesAvailable: at least {n!s} is available")
 				ocf.logger.debug("otherNodesAvailable: finished")
 				return True
 		ocf.logger.info("otherNodesAvailable: no other nodes are available")
@@ -337,13 +374,13 @@ class clusterHelper:
 			ocf.logger.warning("transitionSummary: could not load transition summary")
 			return ""
 		if summary.find("Transition Summary:") < 0:
-			ocf.logger.debug("transitionSummary: no transactions: %s" % summary)
+			ocf.logger.debug(f"transitionSummary: no transactions: {summary!s}")
 			return ""
 		j=summary.find('Transition Summary:') + len('Transition Summary:')
 		l=summary.lower().find('executing cluster transition:')
 		ret = list(filter(str.strip, summary[j:l].split("\n")))
 
-		ocf.logger.debug("transitionSummary: finished; return = %s" % str(ret))
+		ocf.logger.debug(f"transitionSummary: finished; return = {ret!s}")
 		return ret
 
 	@staticmethod
@@ -356,7 +393,7 @@ class clusterHelper:
 		# rsc_azure-events-az    (ocf::heartbeat:azure-events-az):      Started: rsc_azure-events-az_monitor_10000 (node=hsr3-db0, call=93, rc=0, last-rc-change=Fri Jun  8 22:37:47 2018, exec=197ms): complete
 		# rsc_SAPHana_HN1_HDB03   (ocf::suse:SAPHana):    Master: rsc_SAPHana_HN1_HDB03_start_0 (node=hsr3-db0, call=-1, rc=193, last-rc-change=Fri Jun  8 22:37:46 2018, exec=0ms): pending
 		# rsc_SAPHanaTopology_HN1_HDB03   (ocf::suse:SAPHanaTopology):    Started: rsc_SAPHanaTopology_HN1_HDB03_start_0 (node=hsr3-db0, call=90, rc=0, last-rc-change=Fri Jun  8 22:37:46 2018, exec=3214ms): complete
-		ocf.logger.debug("listOperationsOnNode: begin; node = %s" % node)
+		ocf.logger.debug(f"listOperationsOnNode: begin; node = {node!s}")
 
 		resources = clusterHelper._exec("crm_resource", "--list-operations", "-N", node)
 		if len(resources) == 0:
@@ -364,7 +401,7 @@ class clusterHelper:
 		else:
 			ret = resources.split("\n")
 
-		ocf.logger.debug("listOperationsOnNode: finished; return = %s" % str(ret))
+		ocf.logger.debug(f"listOperationsOnNode: finished; return = {ret!s}")
 		return ret
 
 	@staticmethod
@@ -372,16 +409,17 @@ class clusterHelper:
 		"""
 		Check that there are no pending resources on a given node
 		"""
-		ocf.logger.debug("noPendingResourcesOnNode: begin; node = %s" % node)
+		ocf.logger.debug(f"noPendingResourcesOnNode: begin; node = {node!s}")
 
 		for r in clusterHelper.listOperationsOnNode(node):
-			ocf.logger.debug("noPendingResourcesOnNode: * %s" % r)
+			ocf.logger.debug(f"noPendingResourcesOnNode: * {r!s}")
 			resource = r.split()[-1]
 			if resource == "pending":
-				ocf.logger.info("noPendingResourcesOnNode: found resource %s that is still pending" % resource)
+				ocf.logger.info(f"noPendingResourcesOnNode: node={node} resource={r.split()[0]} reason=operation_pending operation={r.strip()}")
+				ocf.logger.info(f"noPendingResourcesOnNode: found resource {resource!s} that is still pending")
 				ocf.logger.debug("noPendingResourcesOnNode: finished; return = False")
 				return False
-		ocf.logger.info("noPendingResourcesOnNode: no pending resources on node %s" % node)
+		ocf.logger.info(f"noPendingResourcesOnNode: no pending resources on node {node!s}")
 		ocf.logger.debug("noPendingResourcesOnNode: finished; return = True")
 
 		return True
@@ -391,18 +429,19 @@ class clusterHelper:
 		"""
 		Check that all resources on a given node are stopped
 		"""
-		ocf.logger.debug("allResourcesStoppedOnNode: begin; node = %s" % node)
+		ocf.logger.debug(f"allResourcesStoppedOnNode: begin; node = {node!s}")
 
 		if clusterHelper.noPendingResourcesOnNode(node):
 			if len(clusterHelper.transitionSummary()) == 0:
-				ocf.logger.info("allResourcesStoppedOnNode: no pending resources on node %s and empty transition summary" % node)
+				ocf.logger.info(f"allResourcesStoppedOnNode: no pending resources on node {node!s} and empty transition summary")
 				ocf.logger.debug("allResourcesStoppedOnNode: finished; return = True")
 				return True
+			ocf.logger.info(f"allResourcesStoppedOnNode: node={node} reason=global_cluster_transitions_pending; see transitionSummary for blocking actions")
 			ocf.logger.info("allResourcesStoppedOnNode: transition summary is not empty")
 			ocf.logger.debug("allResourcesStoppedOnNode: finished; return = False")
 			return False
 
-		ocf.logger.info("allResourcesStoppedOnNode: still pending resources on node %s" % node)
+		ocf.logger.info(f"allResourcesStoppedOnNode: still pending resources on node {node!s}")
 		ocf.logger.debug("allResourcesStoppedOnNode: finished; return = False")
 		return False
 
@@ -437,8 +476,9 @@ class Node:
 		self.azInfo   = azHelper.getInstanceInfo()
 		self.azName   = self.azInfo.name
 		self.hostName = clusterHelper._exec("crm_node", "-n")
+		ocf.logger.debug(f"Node: azure_name={self.azName} host_name={self.hostName}")
 		self.setAttr("azName", self.azName)
-		clusterHelper.setAttr("hostName_%s" % self.azName, self.hostName)
+		clusterHelper.setAttr(f"hostName_{self.azName}", self.hostName)
 
 	def getAttr(self, key):
 		"""
@@ -463,7 +503,7 @@ class Node:
 		Set the state for a given node (or self)
 		"""
 		node = self.selfOrOtherNode(node)
-		ocf.logger.debug("setState: begin; node = %s, state = %s" % (node, nodeStateToString(state)))
+		ocf.logger.debug(f"setState: begin; node = {node!s}, state = {nodeStateToString(state)!s}")
 
 		clusterHelper.setAttr(attr_curNodeState, nodeStateToString(state), node=node)
 
@@ -474,10 +514,10 @@ class Node:
 		Get the state for a given node (or self)
 		"""
 		node = self.selfOrOtherNode(node)
-		ocf.logger.debug("getState: begin; node = %s" % node)
+		ocf.logger.debug(f"getState: begin; node = {node!s}")
 
 		state = clusterHelper.getAttr(attr_curNodeState, node=node)
-		ocf.logger.debug("getState: state = %s" % state)
+		ocf.logger.debug(f"getState: state = {state!s}")
 		ocf.logger.debug("getState: finished")
 		if not state:
 			return AVAILABLE
@@ -488,7 +528,7 @@ class Node:
 		Set pending EventIDs for a given node (or self)
 		"""
 		node = self.selfOrOtherNode(node)
-		ocf.logger.debug("setEventIDs: begin; node = %s, eventIDs = %s" % (node, str(eventIDs)))
+		ocf.logger.debug(f"setEventIDs: begin; node = {node!s}, eventIDs = {eventIDs!s}")
 
 		if eventIDs:
 			eventIDStr = ",".join(eventIDs)
@@ -504,7 +544,7 @@ class Node:
 		Get pending EventIDs for a given node (or self)
 		"""
 		node = self.selfOrOtherNode(node)
-		ocf.logger.debug("getEventIDs: begin; node = %s" % node)
+		ocf.logger.debug(f"getEventIDs: begin; node = {node!s}")
 
 		eventIDStr = clusterHelper.getAttr(attr_pendingEventIDs, node=node)
 		if eventIDStr:
@@ -512,14 +552,14 @@ class Node:
 		else:
 			eventIDs = None
 
-		ocf.logger.debug("getEventIDs: finished; eventIDs = %s" % str(eventIDs))
+		ocf.logger.debug(f"getEventIDs: finished; eventIDs = {eventIDs!s}")
 		return eventIDs
 
 	def updateNodeStateAndEvents(self, state, eventIDs, node=None):
 		"""
 		Set the state and pending EventIDs for a given node (or self)
 		"""
-		ocf.logger.debug("updateNodeStateAndEvents: begin; node = %s, state = %s, eventIDs = %s" % (node, nodeStateToString(state), str(eventIDs)))
+		ocf.logger.debug(f"updateNodeStateAndEvents: begin; node = {node!s}, state = {nodeStateToString(state)!s}, eventIDs = {eventIDs!s}")
 
 		self.setState(state, node=node)
 		self.setEventIDs(eventIDs, node=node)
@@ -532,7 +572,7 @@ class Node:
 		Put self to standby
 		"""
 		node = self.selfOrOtherNode(node)
-		ocf.logger.debug("putNodeStandby: begin; node = %s" % node)
+		ocf.logger.debug(f"putNodeStandby: begin; node = {node!s}")
 
 		clusterHelper._exec("crm_attribute",
 							"--node", node,
@@ -547,7 +587,7 @@ class Node:
 		check if node is in standby
 		"""
 		node = self.selfOrOtherNode(node)
-		ocf.logger.debug("isNodeInStandby: begin; node = %s" % node)
+		ocf.logger.debug(f"isNodeInStandby: begin; node = {node!s}")
 		isInStandby = False
 
 		healthAttributeStr = clusterHelper.getAttr(attr_healthstate, node)
@@ -557,9 +597,10 @@ class Node:
 				isInStandby = healthAttribute < 0
 			except ValueError:
 				# Handle the exception
-				ocf.logger.warn("Health attribute %s on node %s cannot be converted to an integer value" % (healthAttributeStr, node))
+				ocf.logger.warn(f"Health attribute {healthAttributeStr!s} on node {node!s} cannot be converted to an integer value")
 
-		ocf.logger.debug("isNodeInStandby: finished - result %s" % isInStandby)
+		ocf.logger.debug(f"isNodeInStandby: node={node} health_attribute={healthAttributeStr!r} in_standby={isInStandby}")
+		ocf.logger.debug(f"isNodeInStandby: finished - result {isInStandby!s}")
 		return isInStandby
 
 	def putNodeOnline(self, node=None):
@@ -567,7 +608,7 @@ class Node:
 		Put self back online
 		"""
 		node = self.selfOrOtherNode(node)
-		ocf.logger.debug("putNodeOnline: begin; node = %s" % node)
+		ocf.logger.debug(f"putNodeOnline: begin; node = {node!s}")
 
 		clusterHelper._exec("crm_attribute",
 							"--node", node,
@@ -581,19 +622,21 @@ class Node:
 		"""
 		Split own/other nodes' events
 		"""
-		ocf.logger.debug("separateEvents: begin; events = %s" % str(events))
+		ocf.logger.debug(f"separateEvents: begin; events = {events!s}")
 
 		localEvents = []
 		remoteEvents = []
 		for e in events:
 			e = attrDict(e)
 			if e.EventType not in self.raOwner.relevantEventTypes:
+				ocf.logger.debug(f"separateEvents: event_id={e.get('EventId')} type={e.EventType} decision=ignore reason=event_type_not_configured configured_types={sorted(self.raOwner.relevantEventTypes)}")
 				continue
+			ocf.logger.debug(f"separateEvents: event_id={e.get('EventId')} type={e.EventType} status={e.get('EventStatus')} resources={e.Resources} not_before={e.get('NotBefore')} decision={'local' if self.azName in e.Resources else 'other_node'} azure_name={self.azName}")
 			if self.azName in e.Resources:
 				localEvents.append(e)
 			else:
 				remoteEvents.append(e)
-		ocf.logger.debug("separateEvents: finished; localEvents = %s, remoteEvents = %s" % (str(localEvents), str(remoteEvents)))
+		ocf.logger.debug(f"separateEvents: finished; localEvents = {localEvents!s}, remoteEvents = {remoteEvents!s}")
 		return (localEvents, remoteEvents)
 
 ##############################################################################
@@ -607,29 +650,37 @@ class raAzEvents:
 		self.relevantEventTypes = relevantEventTypes
 
 	def monitor(self):
+		# Record summary fields from observed data and requested transitions.
+		self.monitorSummary = {"state": "unknown", "document": "unknown", "events": "unknown", "decision": "unknown"}
 		ocf.logger.debug("monitor: begin")
 
 		events = azHelper.pullScheduledEvents()
 
 		# get current document version
 		curDocVersion  = events.DocumentIncarnation
+		self.monitorSummary.update(document=curDocVersion, events=len(events.Events))
 		lastDocVersion = self.node.getAttr(attr_lastDocVersion)
-		ocf.logger.debug("monitor: lastDocVersion = %s; curDocVersion = %s" % (lastDocVersion, curDocVersion))
+		ocf.logger.debug(f"monitor: lastDocVersion = {lastDocVersion!s}; curDocVersion = {curDocVersion!s}")
 
 		# split events local/remote
 		(localEvents, remoteEvents) = self.node.separateEvents(events.Events)
+		ocf.logger.debug(f"monitor: node={self.node.hostName} azure_name={self.node.azName} document={curDocVersion} last_handled={lastDocVersion} total_events={len(events.Events)} local_events={len(localEvents)} other_node_events={len(remoteEvents)} ignored_events={len(events.Events) - len(localEvents) - len(remoteEvents)}")
 
 		# ensure local events are only executing once
 		if curDocVersion == lastDocVersion:
+			self.monitorSummary.update(decision="skip")
 			ocf.logger.info("monitor: already handled curDocVersion, skip")
+			ocf.logger.debug(f"monitor: node={self.node.hostName} decision=skip reason=document_already_handled document={curDocVersion} last_handled={lastDocVersion}")
 			return ocf.OCF_SUCCESS
 
-		localAzEventIds = dict()
+		localAzEventIds = {}
 		for e in localEvents:
 			localAzEventIds[e.EventId] = json.dumps(e)
 
 		curState = self.node.getState()
+		self.monitorSummary.update(state=nodeStateToString(curState), decision="wait")
 		clusterEventIDs = self.node.getEventIDs()
+		ocf.logger.debug(f"monitor: node={self.node.hostName} state_at_entry={nodeStateToString(curState)} pending_event_ids={clusterEventIDs}")
 
 		ocf.logger.debug("monitor: curDocVersion has not been handled yet")
 
@@ -639,25 +690,30 @@ class raAzEvents:
 			while i < len(clusterEventIDs):
 				# clean up pending events that are already finished according to AZ
 				if clusterEventIDs[i] not in localAzEventIds.keys():
-					ocf.logger.info("monitor: remove finished local clusterEvent %s" % (clusterEventIDs[i]))
+					ocf.logger.info(f"monitor: remove finished local clusterEvent {clusterEventIDs[i]!s}")
 					clusterEventIDs.pop(i)
 					touchedEventIDs = True
 				else:
 					i += 1
 			if len(clusterEventIDs) > 0:
+				ocf.logger.debug(f"monitor: node={self.node.hostName} decision=wait reason=pending_events event_ids={clusterEventIDs}")
 				# there are still pending events (either because we're still stopping, or because the event is still in place)
 				# either way, we need to wait
 				if touchedEventIDs:
-					ocf.logger.info("monitor: added new local clusterEvent %s" % str(clusterEventIDs))
+					ocf.logger.info(f"monitor: added new local clusterEvent {clusterEventIDs!s}")
+					ocf.logger.info(f"monitor: removed finished event IDs; remaining local clusterEvents={clusterEventIDs}")
 					self.node.setEventIDs(clusterEventIDs)
 				else:
 					ocf.logger.info("monitor: no local clusterEvents were updated")
 			else:
 				# there are no more pending events left after cleanup
 				if clusterHelper.noPendingResourcesOnNode(self.node.hostName):
+					self.monitorSummary.update(decision="cleanup")
+					ocf.logger.debug(f"monitor: node={self.node.hostName} decision=cleanup reason=events_finished_no_pending_operations")
 					# and no pending resources on the node -> set it back online
 					ocf.logger.info("monitor: all local events finished -> clean up, put node online and AVAILABLE")
 					curState = self.node.updateNodeStateAndEvents(AVAILABLE, None)
+					self.monitorSummary.update(state=nodeStateToString(curState))
 					self.node.putNodeOnline()
 					clusterHelper.removeHoldFromNodes()
 					# If Azure Scheduled Events are not used for 24 hours (e.g. because the cluster was asleep), it will be disabled for a VM.
@@ -665,47 +721,65 @@ class raAzEvents:
 					# We need to remove it during cleanup, otherwise azure-events-az will not process the event after wakeup
 					self.node.setAttr(attr_lastDocVersion, None)
 				else:
+					ocf.logger.debug(f"monitor: node={self.node.hostName} decision=wait reason=pending_operations_before_cleanup")
 					ocf.logger.info("monitor: all local events finished, but some resources have not completed startup yet -> wait")
 		else:
 			if curState == AVAILABLE:
 				if len(localAzEventIds) > 0:
 					if clusterHelper.otherNodesAvailable(self.node):
-						ocf.logger.info("monitor: can handle local events %s -> set state STOPPING - %s" % (str(list(localAzEventIds.keys())), str(list(localAzEventIds.values()))))
+						self.monitorSummary.update(decision="stop")
+						ocf.logger.debug(f"monitor: node={self.node.hostName} requested_transition={nodeStateToString(curState)}->STOPPING reason=local_events_other_node_available")
+						ocf.logger.info(f"monitor: can handle local events {list(localAzEventIds.keys())!s} -> set state STOPPING - {list(localAzEventIds.values())!s}")
 						curState = self.node.updateNodeStateAndEvents(STOPPING, localAzEventIds.keys())
+						self.monitorSummary.update(state=nodeStateToString(curState))
 					else:
-						ocf.logger.info("monitor: cannot handle azEvents %s (only node available) -> set state ON_HOLD - %s" % (str(list(localAzEventIds.keys())), str(list(localAzEventIds.values()))))
+						self.monitorSummary.update(decision="hold")
+						ocf.logger.debug(f"monitor: node={self.node.hostName} requested_transition={nodeStateToString(curState)}->ON_HOLD reason=no_other_node_available")
+						ocf.logger.info(f"monitor: cannot handle azEvents {list(localAzEventIds.keys())!s} (only node available) -> set state ON_HOLD - {list(localAzEventIds.values())!s}")
 						self.node.setState(ON_HOLD)
+						self.monitorSummary.update(state="ON_HOLD")
 				else:
+					self.monitorSummary.update(decision="idle")
+					ocf.logger.debug(f"monitor: node={self.node.hostName} decision=idle reason=no_local_events")
 					ocf.logger.debug("monitor: no local azEvents to handle")
 
 		if curState == STOPPING:
+			self.monitorSummary.update(decision="wait")
+			ocf.logger.debug(f"monitor: node={self.node.hostName} state=STOPPING checking_event_readiness")
 			eventIDsForNode = {}
 			if clusterHelper.noPendingResourcesOnNode(self.node.hostName):
 				if not self.node.isNodeInStandby():
+					self.monitorSummary.update(decision="request_standby")
 					ocf.logger.info("monitor: all local resources are started properly -> put node standby and exit")
+					ocf.logger.info(f"monitor: node={self.node.hostName} decision=request_standby reason=no_pending_operations")
 					self.node.putNodeStandby()
 					return ocf.OCF_SUCCESS
 
 				for e in localEvents:
-					ocf.logger.info("monitor: handling remote event %s (%s; nodes = %s)" % (e.EventId, e.EventType, str(e.Resources)))
+					ocf.logger.info(f"monitor: handling remote event {e.EventId!s} ({e.EventType!s}; nodes = {e.Resources!s})")
+					ocf.logger.info(f"monitor: evaluating local event={e.EventId} type={e.EventType} status={e.EventStatus} nodes={e.Resources}")
 					# before we can force an event to start, we need to ensure all nodes involved have stopped their resources
 					if e.EventStatus == "Scheduled":
 						allResourcesNowStopped = True
 						for azName in e.Resources:
 							hostName = clusterHelper.getHostNameFromAzName(azName)
+							ocf.logger.debug(f"monitor: event_id={e.EventId} azure_name={azName} mapped_host={hostName!r} effective_state_lookup_node={hostName or self.node.hostName}")
 							state = self.node.getState(node=hostName)
+							ocf.logger.debug(f"monitor: event_id={e.EventId} azure_name={azName} host_name={hostName} state={nodeStateToString(state)}")
 							if state == STOPPING:
 								# the only way we can continue is when node state is STOPPING, but all resources have been stopped
 								if not clusterHelper.allResourcesStoppedOnNode(hostName):
-									ocf.logger.info("monitor: (at least) node %s still has resources running -> wait" % hostName)
+									ocf.logger.info(f"monitor: (at least) node {hostName!s} still has resources running -> wait")
+									ocf.logger.info(f"monitor: event_id={e.EventId} node={hostName} decision=wait reason=resource_drain_incomplete")
 									allResourcesNowStopped = False
 									break
 							elif state in (AVAILABLE, IN_EVENT, ON_HOLD):
-								ocf.logger.info("monitor: node %s is still %s -> remote event needs to be picked up locally" % (hostName, nodeStateToString(state)))
+								ocf.logger.info(f"monitor: node {hostName!s} is still {nodeStateToString(state)!s} -> remote event needs to be picked up locally")
 								allResourcesNowStopped = False
 								break
 						if allResourcesNowStopped:
-							ocf.logger.info("monitor: nodes %s are stopped -> add remote event %s to force list" % (str(e.Resources), e.EventId))
+							ocf.logger.info(f"monitor: nodes {e.Resources!s} are stopped -> add remote event {e.EventId!s} to force list")
+							ocf.logger.info(f"monitor: nodes {e.Resources!s} are stopped -> add event {e.EventId!s} to acknowledgment list")
 							for n in e.Resources:
 								hostName = clusterHelper.getHostNameFromAzName(n)
 								if hostName in eventIDsForNode:
@@ -714,18 +788,25 @@ class raAzEvents:
 									eventIDsForNode[hostName] = [e.EventId]
 					elif e.EventStatus == "Started":
 						ocf.logger.info("monitor: remote event already started")
+						ocf.logger.info(f"monitor: event_id={e.EventId} decision=wait reason=event_already_started")
 
 				# force the start of all events whose nodes are ready (i.e. have no more resources running)
 				if len(eventIDsForNode.keys()) > 0:
-					eventIDsToForce = set([item for sublist in eventIDsForNode.values() for item in sublist])
-					ocf.logger.info("monitor: set nodes %s to IN_EVENT; force remote events %s" % (str(eventIDsForNode.keys()), str(eventIDsToForce)))
+					self.monitorSummary.update(decision="acknowledge")
+					eventIDsToForce = {item for sublist in eventIDsForNode.values() for item in sublist}
+					ocf.logger.info(f"monitor: set nodes {eventIDsForNode.keys()!s} to IN_EVENT; force remote events {eventIDsToForce!s}")
+					ocf.logger.info(f"monitor: request state=IN_EVENT nodes={list(eventIDsForNode.keys())} event_ids={eventIDsToForce}; acknowledgment not yet sent")
 					for node, eventId in eventIDsForNode.items():
 						self.node.updateNodeStateAndEvents(IN_EVENT, eventId, node=node)
+						if node == self.node.hostName:
+							self.monitorSummary.update(state="IN_EVENT")
 					azHelper.forceEvents(eventIDsToForce)
 					self.node.setAttr(attr_lastDocVersion, curDocVersion)
 			else:
 				ocf.logger.info("monitor: some local resources are not stopped yet -> wait")
+				ocf.logger.info(f"monitor: node={self.node.hostName} decision=wait reason=operations_pending")
 
+		ocf.logger.debug(f"monitor: node={self.node.hostName} document={curDocVersion} return_code={ocf.OCF_SUCCESS}")
 		ocf.logger.debug("monitor: finished")
 		return ocf.OCF_SUCCESS
 
@@ -738,7 +819,41 @@ def setLoglevel(verbose):
 		opener = urllib2.build_opener(urllib2.HTTPHandler(debuglevel=1))
 		urllib2.install_opener(opener)
 		loglevel = ocf.logging.DEBUG
+		# Configure a file logger
+		configureLogger()
 	ocf.log.setLevel(loglevel)
+
+def configureLogger():
+	traceDir = ocf.get_parameter("trace_dir")
+	if not traceDir:
+		try:
+			traceDir = subprocess.check_output(
+				["/bin/sh", "-c", '. "$1" && printf "%s" "$HA_VARLIB/trace_ra"',
+				 "sh", os.path.join(OCF_FUNCTIONS_DIR, "ocf-directories")],
+				universal_newlines=True)
+		except (OSError, subprocess.CalledProcessError) as error:
+			ocf.logger.warning(f"Unable to determine default trace directory: {error}")
+			return
+
+	# Remove all existing handlers that the log is only written into the trace dir folder
+	for handler in ocf.log.handlers[:]:
+		ocf.log.removeHandler(handler)
+
+	# Ensure the trace directory exists and is an absolute path
+	traceDir = os.path.abspath(os.path.join(traceDir, "azure-events-az"))
+	action = ocf.OCF_ACTION
+
+	logPath = os.path.join(traceDir, f"azure-events-az.{action}.{time.strftime('%Y-%m-%d.%H:%M:%S')}")
+	try:
+		os.makedirs(traceDir, exist_ok=True)
+		handler = ocf.logging.FileHandler(logPath, encoding="utf-8")
+	except OSError as error:
+		ocf.logger.warning(f"Unable to configure trace_dir file logging at {logPath}: {error}")
+		return
+	handler.setFormatter(ocf.logging.Formatter(
+		'%(filename)s(%(OCF_RESOURCE_INSTANCE)s)[%(process)s]:\t%(asctime)s %(levelname)s: %(message)s',
+		datefmt=ocf.HA_DATEFMT))
+	ocf.log.addHandler(handler)
 
 description = (
 	"Microsoft Azure Scheduled Events monitoring agent",
@@ -754,9 +869,9 @@ away from the affected node to allow for a graceful shutdown.
  		crm configure property node-health-strategy=custom
    		crm configure location loc_azure_health /'!health-.*'/ rule '#health-azure': defined '#uname'
 
-     	Set #health-azure attribute to 0 (healthy) for every node in the cluster (example of node1 only): 
+     	Set #health-azure attribute to 0 (healthy) for every node in the cluster (example of node1 only):
       		crm_attribute --node node1 --name '#health-azure' --update 0
-	
+
  	Configure the RA:
 		crm configure primitive health-azure-events ocf:heartbeat:azure-events-az \
   			params eventTypes="Reboot,Redeploy" verbose=false retry_count=3 retry_wait=20 request_timeout=15 \
@@ -766,21 +881,48 @@ away from the affected node to allow for a graceful shutdown.
 		crm configure clone health-azure-events-cln health-azure-events \
   			meta allow-unhealthy-nodes=true
 
+When verbose logging is enabled (via verbose or trace_ra), logs are written
+under trace_dir/azure-events-az/. If trace_dir is unset or empty, it defaults
+to $HA_VARLIB/trace_ra, with HA_VARLIB loaded from ocf-directories.
+Log files are named azure-events-az.{action}.yyyy-mm-dd.hh:mm:ss.
+
 For further information on Microsoft Azure Scheduled Events, please
 refer to the following documentation:
 https://docs.microsoft.com/en-us/azure/virtual-machines/linux/scheduled-events
 """)
 
 def monitor_action(eventTypes):
-	relevantEventTypes = set(eventTypes.split(",") if eventTypes else [])
-	ra = raAzEvents(relevantEventTypes)
-	return ra.monitor()
+	timer = Timer()
+	result = ocf.OCF_ERR_GENERIC
+	ra = None
+	try:
+		relevantEventTypes = set(eventTypes.split(",") if eventTypes else [])
+		ocf.logger.debug(f"monitor_action: action=monitor resource={ocf.OCF_RESOURCE_INSTANCE} configured_event_types={sorted(relevantEventTypes)}")
+		ra = raAzEvents(relevantEventTypes)
+		result = ra.monitor()
+		return result
+	except SystemExit as error:
+		result = error.code if isinstance(error.code, int) else ocf.OCF_SUCCESS if error.code is None else ocf.OCF_ERR_GENERIC
+		raise
+	finally:
+		elapsedMs = timer.elapsed_ms()
+		summary = getattr(ra, "monitorSummary", {})
+		node = ra.node.hostName if ra is not None else "unknown"
+		ocf.logger.info(f"monitor_summary resource={ocf.OCF_RESOURCE_INSTANCE} node={node} state={summary.get('state', 'unknown')} document={summary.get('document', 'unknown')} events={summary.get('events', 'unknown')} decision={summary.get('decision', 'unknown')} rc={result} elapsed_ms={elapsedMs}")
+
+def start_action():
+	ocf.logger.debug(f"start_action: action=start resource={ocf.OCF_RESOURCE_INSTANCE} outcome=success rc={ocf.OCF_SUCCESS} mode=noop")
+	return ocf.OCF_SUCCESS
+
+def stop_action():
+	ocf.logger.debug(f"stop_action: action=stop resource={ocf.OCF_RESOURCE_INSTANCE} outcome=success rc={ocf.OCF_SUCCESS} mode=noop")
+	return ocf.OCF_SUCCESS
 
 def validate_action(eventTypes):
 	if eventTypes:
 		for event in eventTypes.split(","):
-			if event not in ("Freeze", "Reboot", "Redeploy"):
-				ocf.ocf_exit_reason("Event type not one of Freeze, Reboot, Redeploy: " + eventTypes)
+			if event not in default_allEventTypes:
+				ocf.ocf_exit_reason(f"Event type not one of {','.join(default_allEventTypes)}: {eventTypes}")
 				return ocf.OCF_ERR_CONFIGURED
 	return ocf.OCF_SUCCESS
 
@@ -788,14 +930,14 @@ def main():
 	agent = ocf.Agent("azure-events-az", shortdesc=description[0], longdesc=description[1])
 	agent.add_parameter(
 		"eventTypes",
-		shortdesc="List of resources to be considered",
-		longdesc="A comma-separated list of event types that will be handled by this resource agent. (Possible values: Freeze,Reboot,Redeploy)",
+		shortdesc="List of event types to be considered",
+		longdesc=f"A comma-separated list of event types that will be handled by this resource agent. (Possible values: {','.join(default_allEventTypes)})",
 		content_type="string",
 		default="Reboot,Redeploy")
 	agent.add_parameter(
 		"verbose",
 		shortdesc="Enable verbose agent logging",
-		longdesc="Set to true to enable verbose logging",
+		longdesc="Set to true to enable verbose logging. If unset, use trace_ra (OCF_RESKEY_trace_ra); if both are unset, default to false.",
 		content_type="boolean",
 		default="false")
 	agent.add_parameter(
@@ -816,11 +958,11 @@ def main():
 		longdesc="Set request timeout in seconds",
 		content_type="integer",
 		default="15")
-	agent.add_action("start", timeout=10, handler=lambda: ocf.OCF_SUCCESS)
-	agent.add_action("stop", timeout=10, handler=lambda: ocf.OCF_SUCCESS)
+	agent.add_action("start", timeout=10, handler=start_action)
+	agent.add_action("stop", timeout=10, handler=stop_action)
 	agent.add_action("validate-all", timeout=20, handler=validate_action)
 	agent.add_action("monitor", timeout=240, interval=10, handler=monitor_action)
-	setLoglevel(ocf.is_true(ocf.get_parameter("verbose", "false")))
+	setLoglevel(ocf.is_true(ocf.get_parameter("verbose", ocf.get_parameter("trace_ra", "false"))))
 	agent.run()
 
 if __name__ == '__main__':
