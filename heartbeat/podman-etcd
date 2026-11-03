@@ -638,7 +638,8 @@ snapshot-count: 10000
 name: $NODENAME
 data-dir: $ETCD_DATA_DIR
 $FORCE_NEW_CLUSTER_CONFIG
-socket-reuse-address: $ETCD_SOCKET_REUSE_ADDRESS
+socket-options:
+  reuse-address: $ETCD_SOCKET_REUSE_ADDRESS
 election-timeout: $ETCD_ELECTION_TIMEOUT
 enable-pprof: $ETCD_ENABLE_PPROF
 heartbeat-interval: $ETCD_HEARTBEAT_INTERVAL
