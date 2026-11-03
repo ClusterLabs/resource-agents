@@ -3508,11 +3508,10 @@ podman_stop()
 
 	# Snapshot cluster_id and revision from disk BEFORE checking container
 	# state. Both read /var/lib/etcd/revision.json (not the container), so they
-	# are available even when the container has already crashed. On the graceful
-	# path the container flushes its final state during podman stop and the
-	# revision snapshot at the END of this function overwrites this one with the
-	# newest maxRaftIndex; on the crashed-container path (early return below)
-	# this is the only snapshot, preserving the peer's startup revision fallback.
+	# are available even when the container has already crashed. That file is
+	# written by the CEO etcd-rev sidecar (maxRaftIndex, polled every 10s), not
+	# by etcd itself. On the crashed-container path (early return below) this
+	# is the only snapshot, preserving the peer's startup revision fallback.
 	attribute_node_cluster_id update
 	attribute_node_revision update
 
@@ -3592,12 +3591,11 @@ podman_stop()
 		fi
 	fi
 
-	# Revision update is the LAST action on the graceful-stop path: etcd
-	# flushes its final state during podman stop, so reading revision.json
-	# after the container has stopped captures the newest maxRaftIndex sync and
-	# overwrites the pre-check snapshot taken at the top of this function. This
-	# is the fallback the peer's startup revision comparison relies on when no
-	# member_removal_lock is present.
+	# Re-read revision.json as the LAST action: it picks up any etcd-rev
+	# sidecar write that landed while the container was stopping. etcd does
+	# not write the file on shutdown, so it is at most one sidecar poll (10s)
+	# old either way. This is the fallback the peer's startup revision
+	# comparison relies on when no member_removal_lock is present.
 	attribute_node_revision update
 
 	return $OCF_SUCCESS
