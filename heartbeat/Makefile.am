@@ -276,3 +276,18 @@ spellcheck:
 
 clean-local:
 	rm -rf __pycache__ *.pyc
+
+all-local: valkey
+
+valkey: redis
+	cp -p -f redis valkey
+
+install-data-hook:
+	$(INSTALL) -d -m 755 $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat
+	cp -p -f $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/redis $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/valkey
+
+uninstall-hook:
+	rm -f $(DESTDIR)${OCF_RA_DIR_PREFIX}/heartbeat/valkey
+
+distclean-local:
+	rm -f valkey
