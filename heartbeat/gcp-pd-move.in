@@ -166,6 +166,8 @@ def get_metadata(metadata_key, params=None, timeout=None):
                      % (metadata_key, attempt + 1, MAX_RETRIES, e))
       if attempt < MAX_RETRIES - 1:
         time.sleep(RETRY_BACKOFF_SECS * (attempt + 1))
+      else:
+        break
   raise last_error
 
 
@@ -186,6 +188,8 @@ def get_conn():
                      % (attempt + 1, MAX_RETRIES, e))
       if attempt < MAX_RETRIES - 1:
         time.sleep(RETRY_BACKOFF_SECS * (attempt + 1))
+      else:
+        break
   raise last_error
 
 
@@ -211,7 +215,7 @@ def load_parameters():
   for param in PARAMETERS:
     value = os.environ.get('OCF_RESKEY_%s' % param, PARAMETERS[param])
     if not value and param in MANDATORY_PARAMETERS:
-      logger.error('Missing %s mandatory parameter' % param)
+      ocf.ocf_exit_reason('Missing %s mandatory parameter' % param)
       sys.exit(ocf.OCF_ERR_CONFIGURED)
     elif value:
       PARAMETERS[param] = value
@@ -234,7 +238,7 @@ def populate_vars():
     else:
       ZONE = PARAMETERS['disk_scope']
   except Exception as e:
-    logger.error(
+    ocf.ocf_exit_reason(
         'Couldn\'t query the metadata server, is this running inside GCE?: '
         + str(e))
     sys.exit(ocf.OCF_ERR_GENERIC)
@@ -321,7 +325,9 @@ def get_disk_users_aggregated(disk):
 def get_attached_device_name(instance, disk_name):
   """Returns the deviceName of disk_name on instance, or None if not attached.
 
-  Uses a single instances.get request scoped to the instance's zone.
+  Uses a single instances.get request scoped to the instance's zone. Instances
+  are always zonal resources, so no regional variant is needed, even for
+  regional disks.
   """
   request = get_conn().instances().get(
       project=PROJECT, zone=ZONE, instance=instance)
@@ -524,29 +530,29 @@ def gcp_pd_move_validate():
   configure_logs()
   load_parameters()
   if 'googleapiclient.discovery' not in sys.modules:
-    logger.error('Couldn\'t import googleapiclient, is '
-                 'google-api-python-client installed?')
+    ocf.ocf_exit_reason('Couldn\'t import googleapiclient, is '
+                        'google-api-python-client installed?')
     sys.exit(ocf.OCF_ERR_INSTALLED)
   scope = PARAMETERS['disk_scope']
   if scope not in ('detect', 'regional') and not re.match(
       r'^[a-z]+-[a-z]+[0-9]+-[a-z]$', scope):
-    logger.error('Invalid disk_scope %r: use detect, regional or a zone name'
-                 % scope)
+    ocf.ocf_exit_reason(
+        'Invalid disk_scope %r: use detect, regional or a zone name' % scope)
     sys.exit(ocf.OCF_ERR_CONFIGURED)
   if PARAMETERS['mode'] not in ('READ_WRITE', 'READ_ONLY'):
-    logger.error('Invalid mode %r: use READ_WRITE or READ_ONLY'
-                 % PARAMETERS['mode'])
+    ocf.ocf_exit_reason('Invalid mode %r: use READ_WRITE or READ_ONLY'
+                        % PARAMETERS['mode'])
     sys.exit(ocf.OCF_ERR_CONFIGURED)
   try:
     if int(PARAMETERS['api_retries']) < 0:
       raise ValueError()
   except ValueError:
-    logger.error('Invalid api_retries %r: use a non-negative integer'
-                 % PARAMETERS['api_retries'])
+    ocf.ocf_exit_reason('Invalid api_retries %r: use a non-negative integer'
+                        % PARAMETERS['api_retries'])
     sys.exit(ocf.OCF_ERR_CONFIGURED)
   csek_file = PARAMETERS['disk_csek_file']
   if csek_file and not os.access(csek_file, os.R_OK):
-    logger.error('Couldn\'t read disk_csek_file %s' % csek_file)
+    ocf.ocf_exit_reason('Couldn\'t read disk_csek_file %s' % csek_file)
     sys.exit(ocf.OCF_ERR_CONFIGURED)
 
 
@@ -569,7 +575,7 @@ def main():
   }
   if command not in actions:
     configure_logs()
-    logger.error('no such function %s' % str(command))
+    ocf.ocf_exit_reason('no such function %s' % str(command))
     sys.exit(ocf.OCF_ERR_UNIMPLEMENTED)
 
   try:
@@ -578,7 +584,7 @@ def main():
     # API and metadata errors that survive retries are reported as a generic
     # (recoverable) error, never as OCF_ERR_CONFIGURED, so that Pacemaker
     # recovers the resource instead of treating it as permanently failed.
-    logger.error('%s failed: %s' % (command, e))
+    ocf.ocf_exit_reason('%s failed: %s' % (command, e))
     sys.exit(ocf.OCF_ERR_GENERIC)
 
 
