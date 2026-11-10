@@ -888,16 +888,20 @@ etcd_pod_container_exists() {
 	return 1
 }
 
+# Only a listener blocks etcd's bind. Non-listening sockets on these local
+# ports (TIME-WAIT, ESTAB) are harmless: Go sets SO_REUSEADDR on listeners.
+# TIME-WAIT lasts a fixed 60s, so matching it here can outlast the timeout
+# and fail the start after a graceful etcd stop.
 wait_for_etcd_ports_release() {
 	local timeout=${1:-60}
 	local elapsed=0
-	if [ -z "$(ss -Htan '( sport = 2379 or sport = 2380 )')" ]; then
+	if [ -z "$(ss -Hltn '( sport = 2379 or sport = 2380 )')" ]; then
 		return 0
 	fi
-	ocf_log info "waiting for etcd ports 2379/2380 to be released (timeout: ${timeout}s)"
-	while [ -n "$(ss -Htan '( sport = 2379 or sport = 2380 )')" ]; do
+	ocf_log info "waiting for listeners on etcd ports 2379/2380 to close (timeout: ${timeout}s)"
+	while [ -n "$(ss -Hltn '( sport = 2379 or sport = 2380 )')" ]; do
 		if [ "$elapsed" -ge "$timeout" ]; then
-			ocf_log err "etcd ports still in use after ${timeout}s"
+			ocf_log err "etcd ports still in use (LISTEN) after ${timeout}s"
 			return 1
 		fi
 		sleep 1
