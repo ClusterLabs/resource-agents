@@ -33,17 +33,26 @@
 
 # Parameter defaults
 
-OCF_RESKEY_bin_default="/usr/bin/redis-server"
-OCF_RESKEY_client_bin_default="/usr/bin/redis-cli"
-if [ -f "/etc/redis.conf" ]; then
-	OCF_RESKEY_config_default="/etc/redis.conf"
+OCF_RESKEY_bin_default="/usr/bin/${__SCRIPT_NAME}-server"
+OCF_RESKEY_client_bin_default="/usr/bin/${__SCRIPT_NAME}-cli"
+OCF_RESKEY_user_default="${__SCRIPT_NAME}"
+OCF_RESKEY_rundir_default="/var/run/${__SCRIPT_NAME}"
+OCF_RESKEY_socket_name_default="${__SCRIPT_NAME}.sock"
+
+if [ -f "/etc/${__SCRIPT_NAME}.conf" ]; then
+	OCF_RESKEY_config_default="/etc/${__SCRIPT_NAME}.conf"
 else
-	OCF_RESKEY_config_default="/etc/redis/redis.conf"
+	OCF_RESKEY_config_default="/etc/${__SCRIPT_NAME}/${__SCRIPT_NAME}.conf"
 fi
-OCF_RESKEY_user_default="redis"
-OCF_RESKEY_rundir_default="/var/run/redis"
-OCF_RESKEY_pidfile_name_default="redis-server.pid"
-OCF_RESKEY_socket_name_default="redis.sock"
+
+if [ "$__SCRIPT_NAME" = "valkey" ]; then
+	OCF_RESKEY_pidfile_name_default="valkey.pid"
+	REDIS_CHECK_DUMP="/usr/bin/valkey-check-rdb"
+else
+	OCF_RESKEY_pidfile_name_default="redis-server.pid"
+	REDIS_CHECK_DUMP="/usr/bin/redis-check-dump"
+fi
+
 OCF_RESKEY_port_default="6379"
 OCF_RESKEY_tunnel_host_default="127.0.0.1"
 OCF_RESKEY_tunnel_port_map_default=""
@@ -63,7 +72,6 @@ OCF_RESKEY_wait_last_known_master_default="false"
 
 CHECK_SLAVE_STATE=0
 
-REDIS_CHECK_DUMP="/usr/bin/redis-check-dump"
 REDIS_SERVER="$OCF_RESKEY_bin"
 REDIS_CLIENT="$OCF_RESKEY_client_bin"
 REDIS_CONFIG="$OCF_RESKEY_config"
@@ -74,63 +82,63 @@ REDIS_SOCKET="$OCF_RESKEY_rundir/$OCF_RESKEY_socket_name"
 REDIS_REPLICATION_PORT="$OCF_RESKEY_port"
 
 if ! [ -f $REDIS_CHECK_DUMP ]; then
-	REDIS_CHECK_DUMP="$(which redis-check-dump 2>/dev/null)"
+	REDIS_CHECK_DUMP="$(which ${__SCRIPT_NAME}-check-dump 2>/dev/null)"
 fi
 if [ -z "$REDIS_CHECK_DUMP" ]; then
-	REDIS_CHECK_DUMP="$(which redis-check-rdb 2>/dev/null)"
+	REDIS_CHECK_DUMP="$(which ${__SCRIPT_NAME}-check-rdb 2>/dev/null)"
 fi
 
 if [ -r "$REDIS_CONFIG" ]; then
 	REDIS_DUMP_DIR="$(grep "^\s*dir\s" < "$REDIS_CONFIG" | awk '{ print $2 }' 2>/dev/null)"
 	REDIS_DUMP_FILE="$(grep "^\s*dbfilename\s" < "$REDIS_CONFIG" | awk '{ print $2 }' 2>/dev/null)"
 fi
-: ${REDIS_DUMP_DIR:=/var/lib/redis/}
+: ${REDIS_DUMP_DIR:=/var/lib/${__SCRIPT_NAME}/}
 : ${REDIS_DUMP_FILE:=dump.rdb}
 
 redis_meta_data() {
 	cat <<EOI
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="redis" version="1.0">
+<resource-agent name="${__SCRIPT_NAME}" version="1.0">
 <version>1.0</version>
 
 <longdesc lang="en">
-Resource agent script for redis server. 
+Resource agent script for ${__SCRIPT_NAME} server. 
 
-This resource fully supports master/slave replication. The master preference of a node is determined by the 'slave_priority' parameter of the redis config.
+This resource fully supports master/slave replication. The master preference of a node is determined by the 'slave_priority' parameter of the ${__SCRIPT_NAME} config.
 When taking the resource from 'unmanaged' to 'managed', the currently active master will be given a priority of 1000 (plus 1 for each active connection). The default 'slave_priority' is 100, so the master will stay master. For a slave to become master after converting the resource to managed, set a slave_priority greater than 1000.
 </longdesc>
 
-<shortdesc lang="en">Redis server</shortdesc>
+<shortdesc lang="en">${__SCRIPT_NAME} server</shortdesc>
 
 <parameters>
 <parameter name="bin" unique="0" required="0">
 <longdesc lang="en">
-Path to \`redis-server\`
+Path to \`${__SCRIPT_NAME}-server\`
 </longdesc>
-<shortdesc lang="en">Path to \`redis-server\`</shortdesc>
+<shortdesc lang="en">Path to \`${__SCRIPT_NAME}-server\`</shortdesc>
 <content type="string" default="${OCF_RESKEY_bin_default}" />
 </parameter>
 
 <parameter name="client_bin" unique="0" required="0">
 <longdesc lang="en">
-Path to \`redis-cli\`
+Path to \`${__SCRIPT_NAME}-cli\`
 </longdesc>
-<shortdesc lang="en">Path to \`redis-cli\`</shortdesc>
+<shortdesc lang="en">Path to \`${__SCRIPT_NAME}-cli\`</shortdesc>
 <content type="string" default="${OCF_RESKEY_client_bin_default}" />
 </parameter>
 
 <parameter name="config" unique="1" required="0">
 <longdesc lang="en">
-Path to 'redis.conf'
+Path to '${__SCRIPT_NAME}.conf'
 </longdesc>
-<shortdesc lang="en">Path to 'redis.conf'</shortdesc>
+<shortdesc lang="en">Path to '${__SCRIPT_NAME}.conf'</shortdesc>
 <content type="string" default="${OCF_RESKEY_config_default}" />
 </parameter>
 
 <parameter name="user" unique="0" required="0">
 <longdesc lang="en">
-User to run redis as
+User to run ${__SCRIPT_NAME} as
 </longdesc>
 <shortdesc lang="en">Redis user</shortdesc>
 <content type="string" default="${OCF_RESKEY_user_default}" />
@@ -140,7 +148,7 @@ User to run redis as
 <longdesc lang="en">
 Directory to store socket and pid file in
 </longdesc>
-<shortdesc lang="en">Redis var/run dir</shortdesc>
+<shortdesc lang="en">${__SCRIPT_NAME} var/run dir</shortdesc>
 <content type="string" default="${OCF_RESKEY_rundir_default}"/>
 </parameter>
 
@@ -149,7 +157,7 @@ Directory to store socket and pid file in
 The filename to use for the pidfile. Will be created in the rundir. 
 Should only be a basename, not a full path.
 </longdesc>
-<shortdesc lang="en">Redis pidfile name</shortdesc>
+<shortdesc lang="en">${__SCRIPT_NAME} pidfile name</shortdesc>
 <content type="string" default="${OCF_RESKEY_pidfile_name_default}"/>
 </parameter>
 
@@ -158,7 +166,7 @@ Should only be a basename, not a full path.
 The filename to use for the socket. Will be crated in the rundir. 
 Should only be a basename, not a full path.
 </longdesc>
-<shortdesc lang="en">Redis socket name</shortdesc>
+<shortdesc lang="en">${__SCRIPT_NAME} socket name</shortdesc>
 <content type="string" default="${OCF_RESKEY_socket_name_default}"/>
 </parameter>
 
@@ -173,8 +181,8 @@ Port for replication client to connect to on remote server
 <parameter name="tunnel_host" unique="0" required="0">
 <longdesc lang="en">
 When replication traffic is tunnelled, this is the host to target
-to forward outgoing traffic to the redis master. The resource
-agent configures the redis slave to target the master via
+to forward outgoing traffic to the ${__SCRIPT_NAME} master. The resource
+agent configures the ${__SCRIPT_NAME} slave to target the master via
 tunnel_host:tunnel_port.
 
 Note that in order to enable replication traffic tunneling,
@@ -186,26 +194,26 @@ parameter {tunnel_port_map} must be populated.
 
 <parameter name="tunnel_port_map" unique="0" required="0">
 <longdesc lang="en">
-A mapping of pacemaker node names to redis port number.
+A mapping of pacemaker node names to ${__SCRIPT_NAME} port number.
 
-To be used when redis servers need to tunnel replication traffic.
-On every node where the redis resource is running, the redis server
-listens to a different port. Each redis server can access its peers
+To be used when ${__SCRIPT_NAME} servers need to tunnel replication traffic.
+On every node where the ${__SCRIPT_NAME} resource is running, the ${__SCRIPT_NAME} server
+listens to a different port. Each ${__SCRIPT_NAME} server can access its peers
 for replication traffic via a tunnel accessible at {tunnel_host}:port.
 
 The mapping the form of:
-pcmk1-name:port-for-redis1;pcmk2-name:port-for-redis2;pcmk3-name:port-for-redis3
+pcmk1-name:port-for-${__SCRIPT_NAME}1;pcmk2-name:port-for-${__SCRIPT_NAME}2;pcmk3-name:port-for-${__SCRIPT_NAME}3
 
-where the redis resource started on node pcmk1-name would listen on
-port port-for-redis1
+where the ${__SCRIPT_NAME} resource started on node pcmk1-name would listen on
+port port-for-${__SCRIPT_NAME}1
 </longdesc>
-<shortdesc lang="en">Mapping of Redis server name to redis port</shortdesc>
+<shortdesc lang="en">Mapping of ${__SCRIPT_NAME} server name to ${__SCRIPT_NAME} port</shortdesc>
 <content type="string" default="${OCF_RESKEY_tunnel_port_map_default}"/>
 </parameter>
 
 <parameter name="wait_last_known_master" unique="0" required="0">
 <longdesc lang="en">
-During redis cluster bootstrap, wait for the last known master to be
+During ${__SCRIPT_NAME} cluster bootstrap, wait for the last known master to be
 promoted before allowing any other instances in the cluster to be
 promoted. This lessens the risk of data loss when persistent data
 is in use.
@@ -232,7 +240,7 @@ EOI
 }
 
 INSTANCE_ATTR_NAME=$(echo "${OCF_RESOURCE_INSTANCE}" | awk -F : '{print $1}')
-CRM_ATTR_REPL_INFO="${HA_SBIN_DIR}/crm_attribute --type crm_config --name ${INSTANCE_ATTR_NAME}_REPL_INFO -s redis_replication"
+CRM_ATTR_REPL_INFO="${HA_SBIN_DIR}/crm_attribute --type crm_config --name ${INSTANCE_ATTR_NAME}_REPL_INFO -s ${__SCRIPT_NAME}_replication"
 MASTER_HOST=""
 MASTER_ACTIVE_CACHED=""
 MASTER_ACTIVE=""
@@ -242,8 +250,11 @@ CLI_HAVE_ENV_AUTH=0
 
 redis_cli_features()
 {
-
-        CLI_VER=$("$REDIS_CLIENT" -v | awk '{print $NF}')
+	if [ -x "$REDIS_CLIENT" ]; then
+        	CLI_VER=$("$REDIS_CLIENT" -v | awk '{print $NF}')
+	else
+		CLI_VER="0.0.0" # So to by-pass build for Valkey
+	fi
         # Starting with 4.0.10 there is a warning on stderr when using a pass
         # Starting with 5.0.0 there is an argument to silence the warning: --no-auth-warning
         # Starting with 5.0.3 there is an option to use REDISCLI_AUTH evironment variable for password, no warning in this case
@@ -356,9 +367,9 @@ set_score()
 }
 
 redis_client() {
-	ocf_log debug "redis_client: '$REDIS_CLIENT' -s '$REDIS_SOCKET' $*"
+	ocf_log debug "${__SCRIPT_NAME}_client: '$REDIS_CLIENT' -s '$REDIS_SOCKET' $*"
 	if [ -n "$clientpasswd" ]; then
-		# Consider redis-cli features to choose optimal password passing method and warning filtering workaround
+		# Consider ${__SCRIPT_NAME}-cli features to choose optimal password passing method and warning filtering workaround
 		if [[ CLI_HAVE_ENV_AUTH -eq 1 ]]; then
 			REDISCLI_AUTH=$clientpasswd "$REDIS_CLIENT" -s "$REDIS_SOCKET" "$@" | sed 's/\r//'
 		elif [[ CLI_HAVE_ARG_NO_AUTH_WARNING -eq 1 ]]; then
@@ -383,7 +394,7 @@ simple_status() {
 	pid="$(<"$REDIS_PIDFILE")"
 	pidof $(basename "$REDIS_SERVER") | grep -q "\<$pid\>" || return $OCF_NOT_RUNNING
 
-	ocf_log debug "monitor: redis-server running under pid $pid"
+	ocf_log debug "monitor: ${__SCRIPT_NAME}-server running under pid $pid"
 
 	return $OCF_SUCCESS
 }
@@ -413,7 +424,7 @@ redis_monitor() {
 
 	if ocf_is_ms; then
 		# Here we see if a score has already been set.
-		# If score isn't set we the redis setting 'slave_priority'.
+		# If score isn't set we the redis/valkey setting 'slave_priority'.
 		# If that isn't set, we default to 1000 for a master, and 1 for slave.
 		# We then add 1 for each connected client
 		score="$(crm_master_reboot -G --quiet 2>/dev/null)"
@@ -440,7 +451,7 @@ redis_monitor() {
 					last_known_master_port=$(redis_node_to_port $(last_known_master))
 					if [[ "${info[master_host]}" != "${OCF_RESKEY_tunnel_host}" ]] ||
 					   [[  "${info[master_port]}" != "${last_known_master_port}" ]]; then
-						ocf_log err "monitor: Slave mode current tunnelled connection to redis server does not match running master. tunnelled='${info[master_host]}:${info[master_port]} (${master_name})', running='$(last_known_master)'"
+						ocf_log err "monitor: Slave mode current tunnelled connection to ${__SCRIPT_NAME} server does not match running master. tunnelled='${info[master_host]}:${info[master_port]} (${master_name})', running='$(last_known_master)'"
 						return $OCF_ERR_GENERIC
 					fi
 				else
@@ -492,7 +503,7 @@ redis_start() {
 	status=$?
 
 	if (( status == OCF_SUCCESS )) || (( status == OCF_RUNNING_MASTER )); then
-		ocf_log info "start: redis is already running"
+		ocf_log info "start: ${__SCRIPT_NAME} is already running"
 		return $OCF_SUCCESS
 	fi
 
@@ -517,7 +528,7 @@ redis_start() {
 	output="$(su "$REDIS_USER" -s /bin/sh -c "cd '$REDIS_RUNDIR'; exec '$REDIS_SERVER' '$REDIS_CONFIG' --daemonize yes --unixsocket '$REDIS_SOCKET' --pidfile '$REDIS_PIDFILE'" 2>&1)"
 
 	while true; do
-		# wait for redis to start
+		# wait for redis/valkey to start
 		typeset -A info
 		while read line; do
 			[[ "$line" == "#"* ]] && continue
@@ -538,7 +549,7 @@ redis_start() {
 			sleep 1
 		else
 			check_output="$(check_dump_file)"
-			ocf_log err "start: Unknown error waiting for redis to start. redis-check-dump output=${check_output//$'\n'/; }"
+			ocf_log err "start: Unknown error waiting for ${__SCRIPT_NAME} to start. ${__SCRIPT_NAME}-check-dump output=${check_output//$'\n'/; }"
 			return $OCF_ERR_GENERIC
 		fi
 	done
@@ -557,7 +568,7 @@ redis_start() {
 	fi
 
 	check_output="$(check_dump_file)"
-	ocf_log err "start: Unknown error starting redis. redis-server output=${output//$'\n'/; } redis-check-dump output=${check_output//$'\n'/; }"
+	ocf_log err "start: Unknown error starting ${__SCRIPT_NAME}. ${__SCRIPT_NAME}-server output=${output//$'\n'/; } ${__SCRIPT_NAME}-check-dump output=${check_output//$'\n'/; }"
 	return $status
 }
 
@@ -566,7 +577,7 @@ redis_stop() {
 	status=$?
 
 	if (( status == OCF_NOT_RUNNING )); then
-		ocf_log info "stop: redis is already stopped"
+		ocf_log info "stop: ${__SCRIPT_NAME} is already stopped"
 		crm_master_reboot -D
 		return $OCF_SUCCESS
 	fi
@@ -629,7 +640,7 @@ redis_demote() {
 		ocf_log info "demote: Already running as slave"
 		return $OCF_SUCCESS
 	elif (( status == OCF_NOT_RUNNING )); then
-		ocf_log err "demote: Failed to demote, redis not running."
+		ocf_log err "demote: Failed to demote, ${__SCRIPT_NAME} not running."
 		return $OCF_NOT_RUNNING
 	fi
 
@@ -667,7 +678,7 @@ redis_demote() {
 	# Wait forever for the slave to connect to the master and finish the 
 	# sync. Timeout is controlled by Pacemaker "op start timeout=XX".
 	#
-	# hint: redis master_link_status will only come "up" when 
+	# hint: redis/valkey master_link_status will only come "up" when 
 	#       the SYNC with the master has completed.
 	#       This can take an arbitraty time (data) and should 
 	#       only be parametrized by the start operation timeout
