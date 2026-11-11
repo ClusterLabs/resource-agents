@@ -2994,7 +2994,11 @@ podman_start()
 						JOIN_AS_LEARNER=true
 					else
 						if [ "$(attribute_node_cluster_id get)" = "$(attribute_node_cluster_id_peer)" ]; then
-							ocf_log info "same cluster_id and revision: start normal"
+							if [ -n "$revision_compare_result" ]; then
+								ocf_log info "same cluster_id and revision: start normal"
+							else
+								ocf_log info "same cluster_id, no revision compared: start normal"
+							fi
 						else
 							ocf_exit_reason "same revision but different cluster id"
 							return "$OCF_ERR_CONFIGURED"
