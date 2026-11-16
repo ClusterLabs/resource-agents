@@ -49,6 +49,7 @@
 #	OCF_RESKEY_broadcast
 #	OCF_RESKEY_nic
 #	OCF_RESKEY_cidr_netmask
+#	OCF_RESKEY_metric
 #	OCF_RESKEY_iflabel
 #	OCF_RESKEY_mac
 #	OCF_RESKEY_arp_interval
@@ -70,6 +71,7 @@
 # Defaults
 OCF_RESKEY_ip_default=""
 OCF_RESKEY_cidr_netmask_default=""
+OCF_RESKEY_metric_default=""
 OCF_RESKEY_broadcast_default=""
 OCF_RESKEY_proto_default=""
 OCF_RESKEY_iflabel_default=""
@@ -111,6 +113,7 @@ fi
 
 : ${OCF_RESKEY_ip=${OCF_RESKEY_ip_default}}
 : ${OCF_RESKEY_cidr_netmask=${OCF_RESKEY_cidr_netmask_default}}
+: ${OCF_RESKEY_metric=${OCF_RESKEY_metric_default}}
 : ${OCF_RESKEY_broadcast=${OCF_RESKEY_broadcast_default}}
 : ${OCF_RESKEY_proto=${OCF_RESKEY_proto_default}}
 : ${OCF_RESKEY_iflabel=${OCF_RESKEY_iflabel_default}}
@@ -226,6 +229,17 @@ routing table.
 </longdesc>
 <shortdesc lang="en">CIDR netmask</shortdesc>
 <content type="string" default="${OCF_RESKEY_cidr_netmask_default}"/>
+</parameter>
+
+<parameter name="metric" unique="0">
+<longdesc lang="en">
+Metric of the IP address.
+
+Note: This configuration is supported with Linux kernel 5.14.0
+(or newer) and iproute 5.15.0 (or newer).
+</longdesc>
+<shortdesc lang="en">Metric of the IP address</shortdesc>
+<content type="integer" default=""/>
 </parameter>
 
 <parameter name="broadcast">
@@ -756,7 +770,7 @@ add_interface () {
 	broadcast="$3"
 	iface="$4"
 	label="$5"
-	metric="$6"
+	metric="${OCF_RESKEY_metric:-$6}"
 
 	if [ "$FAMILY" = "inet" ] && ocf_is_true $OCF_RESKEY_run_arping &&
 	   check_binary arping; then
@@ -779,7 +793,7 @@ add_interface () {
 	fi
 
 	extra_opts=""
-	if [ "$FAMILY" = "inet6" ] && [ -n "$metric" ]; then
+	if [ -n "$metric" ]; then
 		extra_opts="$extra_opts metric $metric"
 	fi
 	if [ "$FAMILY" = "inet6" ] && ocf_is_true "${OCF_RESKEY_nodad}"; then
@@ -1543,6 +1557,11 @@ ip_validate() {
     if ocf_is_true "$OCF_RESKEY_unique_clone_address" &&
 	    ! ocf_is_true "$OCF_RESKEY_CRM_meta_globally_unique"; then
 	ocf_exit_reason "unique_clone_address makes sense only with meta globally_unique set"
+	exit $OCF_ERR_CONFIGURED
+    fi
+
+    if [ -n "$OCF_RESKEY_metric" ] && ! ocf_is_decimal "$OCF_RESKEY_metric"; then
+	ocf_exit_reason "Invalid metric [$OCF_RESKEY_metric]: must be an integer."
 	exit $OCF_ERR_CONFIGURED
     fi
 
