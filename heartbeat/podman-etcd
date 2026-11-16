@@ -356,7 +356,7 @@ container_exists()
 	local rc
 	local out
 
-	out=$(podman exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
+	out=$(deadline_run podman exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
 	rc=$?
 	# 125: no container with name or ID ${CONTAINER} found
 	if [ $rc -ne 125 ]; then
@@ -913,7 +913,7 @@ attribute_node_cluster_id()
 	local action="$1"
 	local value
 	local rc
-	value=$(jq -r ".clusterId" "$ETCD_REVISION_JSON")
+	value=$(deadline_run jq -r ".clusterId" "$ETCD_REVISION_JSON")
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		# Log the error but return success to avoid monitor failure if the file is not available yet. 
@@ -927,7 +927,7 @@ attribute_node_cluster_id()
 			echo "$value"
 			;;
 		update)
-			crm_attribute --type nodes --node "$NODENAME" --name "cluster_id" --update "$value"
+			deadline_run crm_attribute --type nodes --node "$NODENAME" --name "cluster_id" --update "$value"
 			rc=$?
 			if [ $rc -ne 0 ]; then
 			 	# Log the error but return success to avoid monitor failure if we can not update the attribute.
@@ -956,7 +956,7 @@ attribute_node_revision()
 	local value
 	local attribute="revision"
 
-	if ! value=$(jq -r ".maxRaftIndex" "$ETCD_REVISION_JSON"); then
+	if ! value=$(deadline_run jq -r ".maxRaftIndex" "$ETCD_REVISION_JSON"); then
 		rc=$?
 		ocf_log err "could not get $attribute, error code: $rc"
 		return "$rc"
@@ -967,7 +967,7 @@ attribute_node_revision()
 			echo "$value"
 			;;
 		update)
-			crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"
+			deadline_run crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"
 			rc=$?
 			if [ $rc -ne 0 ]; then
 				# Log the error but return success to avoid monitor failure if we can not update the attribute.
@@ -1017,7 +1017,7 @@ attribute_node_member_id()
 		get)
 			# When we need this value at the agent startup we don't have a etcd
 			# container running, so we always get this value from CIB
-			crm_attribute --query --type nodes --node "$NODENAME" --name "$attribute" | awk -F"value=" '{print $2}'
+			deadline_run crm_attribute --query --type nodes --node "$NODENAME" --name "$attribute" | awk -F"value=" '{print $2}'
 			;;
 		update)
 			local member_list_json
@@ -1053,7 +1053,7 @@ attribute_node_member_id()
 			fi
 			;;
 		clear)
-			crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --delete
+			deadline_run crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --delete
 			;;
 		*)
 			ocf_log err "unsupported $action for attribute_node_member_id"
@@ -1434,7 +1434,7 @@ get_cib_permanent_attribute()
 get_cib_transient_attribute()
 {
 	local output rc
-	output=$(crm_attribute --query --lifetime reboot --node "$1" --name "$2" 2>/dev/null)
+	output=$(deadline_run crm_attribute --query --lifetime reboot --node "$1" --name "$2" 2>/dev/null)
 	rc=$?
 	[ $rc -ne 0 ] && [ $rc -ne 105 ] && [ $rc -ne 6 ] && return $rc
 	echo "$output" | awk -F"value=" '{print $2}' | tr -d "'"
@@ -1778,17 +1778,17 @@ attribute_learner_node()
 
 	case "$action" in
 		get)
-			crm_attribute --query --name "$attribute" | awk -F"value=" '{print $2}'
+			deadline_run crm_attribute --query --name "$attribute" | awk -F"value=" '{print $2}'
 			;;
 		update)
-			if ! crm_attribute --name "$attribute" --update "$value"; then
+			if ! deadline_run crm_attribute --name "$attribute" --update "$value"; then
 				rc="$?"
 				ocf_log err "could not set $attribute to $value, error code: $rc"
 				return "$rc"
 			fi
 			;;
 		clear)
-			crm_attribute --name "$attribute" --delete
+			deadline_run crm_attribute --name "$attribute" --delete
 			;;
 		*)
 			ocf_log err "unsupported $action for $attribute"
@@ -3473,11 +3473,73 @@ leave_etcd_member_list()
 	fi
 }
 
+# Stop budget: podman_stop must return before Pacemaker's stop timeout, or the
+# node is fenced. STOP_DEADLINE is an absolute $SECONDS value, set only inside
+# podman_stop; empty means no deadline and leaves every wrapped command
+# unbounded, as before. $SECONDS rather than date(1): on a degraded node each
+# process spawn can take tens of seconds, which is exactly when the budget
+# matters. STOP_PHASE is "pre" until podman stop/kill returns, then "post".
+STOP_DEADLINE=""
+STOP_PHASE=""
+
+stop_deadline_init()
+{
+	STOP_DEADLINE=""
+	STOP_PHASE="pre"
+	# shellcheck disable=SC3028 # bash/ksh builtin; empty in a shell without it, which disables the deadline
+	if [ -z "$OCF_RESKEY_CRM_meta_timeout" ] || [ -z "$SECONDS" ]; then
+		return
+	fi
+	# shellcheck disable=SC3028
+	STOP_DEADLINE=$((SECONDS + OCF_RESKEY_CRM_meta_timeout / 1000 - STOP_SAFETY_SEC))
+}
+
+# Seconds left until STOP_DEADLINE, floored at 0.
+stop_remaining()
+{
+	# shellcheck disable=SC3028
+	local left=$((STOP_DEADLINE - SECONDS))
+	[ "$left" -lt 0 ] && left=0
+	echo "$left"
+}
+
+# Seconds pre-stop steps may still spend, keeping the reserve and the minimum
+# SIGTERM grace for podman stop. Floored at 0.
+stop_step_budget()
+{
+	local left=$(($(stop_remaining) - STOP_RESERVE_SEC - STOP_MIN_GRACE_SEC))
+	[ "$left" -lt 0 ] && left=0
+	echo "$left"
+}
+
+# Run an external command bounded by the stop budget. Without a deadline it
+# runs unbounded. Returns 124 (as timeout(1) does) when the budget is spent.
+deadline_run()
+{
+	local budget
+
+	if [ -z "$STOP_DEADLINE" ]; then
+		"$@"
+		return
+	fi
+	if [ "$STOP_PHASE" = "pre" ]; then
+		budget=$(stop_step_budget)
+	else
+		budget=$(stop_remaining)
+	fi
+	if [ "$budget" -le 0 ]; then
+		ocf_log warn "stop budget exhausted: skipping $1"
+		return 124
+	fi
+	timeout "$budget" "$@"
+}
+
 podman_stop()
 {
 	local timeout=60
 	local rc
 
+	stop_deadline_init
 	ocf_log notice "podman-etcd stop"
 
 	# Clear container health check state file
@@ -3501,7 +3563,13 @@ podman_stop()
 	# container state. podman exec enters the container's process namespace and
 	# hangs when etcd is unresponsive — the typical scenario that triggers a stop.
 	local container_running
-	container_running=$(podman inspect --format '{{.State.Running}}' "$CONTAINER" 2>/dev/null)
+	container_running=$(deadline_run podman inspect --format '{{.State.Running}}' "$CONTAINER" 2>/dev/null)
+	if [ $? -eq 124 ]; then
+		# Unknown state: stopping an already-stopped container is harmless,
+		# returning success with the container still running is not.
+		ocf_log warn "could not inspect $CONTAINER within the stop budget: assuming it is running"
+		container_running=true
+	fi
 	if [ "$container_running" != "true" ]; then
 		ocf_log info "could not leave members list: $CONTAINER container not running, running state: ${container_running}"
 		attribute_node_member_id clear
@@ -3516,7 +3584,16 @@ podman_stop()
 		attribute_node_member_id clear
 	fi
 
-	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+	local budget_note=""
+	if [ -n "$STOP_DEADLINE" ]; then
+		# The SIGTERM grace is whatever the earlier steps left, so a slow
+		# stop still returns before Pacemaker's timeout.
+		timeout=$(($(stop_remaining) - STOP_RESERVE_SEC))
+		if [ $timeout -lt 0 ]; then
+			timeout=0
+		fi
+		budget_note=" (stop budget: $(stop_remaining)s left)"
+	elif [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
 		timeout=$(((OCF_RESKEY_CRM_meta_timeout/1000) -10 ))
 		if [ $timeout -lt 10 ]; then
 			timeout=10
@@ -3527,12 +3604,13 @@ podman_stop()
 		ocf_run podman kill "$CONTAINER"
 		rc=$?
 	else
-		ocf_log info "waiting $timeout second[s] before killing container"
+		ocf_log info "waiting $timeout second[s] before killing container${budget_note}"
 		ocf_run podman stop -t="$timeout" "$CONTAINER"
 		rc=$?
 		# on stop, systemd will automatically delete any transient
 		# drop-in conf that has been created earlier
 	fi
+	STOP_PHASE="post"
 
 	if [ $rc -ne 0 ]; then
 		# If the stop failed, it could be because the controlling conmon
@@ -3670,6 +3748,13 @@ ETCD_BUMP_REV_DEFAULT=1000000000
 # This is intentional - reboots are controlled stops, not failures requiring detection.
 CONTAINER_HEARTBEAT_FILE=${HA_RSCTMP}/podman-container-last-running
 DELAY_SECOND_NODE_LEAVE_SEC=10
+# Stop budget, derived from Pacemaker's stop timeout (see stop_deadline_init).
+# Margin kept from Pacemaker's timeout.
+STOP_SAFETY_SEC=3
+# Time needed after podman stop returns: SIGKILL wait, post-stop CIB updates.
+STOP_RESERVE_SEC=10
+# SIGTERM grace period that pre-stop steps may not eat into.
+STOP_MIN_GRACE_SEC=10
 FNC_CLAIM_SETTLE_SEC=2
 # Shorter etcdctl command-timeout for monitor-path calls to prevent
 # consuming the 25s monitor budget. Non-monitor callers use the default 5s.
