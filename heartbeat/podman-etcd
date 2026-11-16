@@ -356,7 +356,7 @@ container_exists()
 	local rc
 	local out
 
-	out=$(podman exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
+	out=$(deadline_run podman exec ${CONTAINER} $OCF_RESKEY_monitor_cmd 2>&1)
 	rc=$?
 	# 125: no container with name or ID ${CONTAINER} found
 	if [ $rc -ne 125 ]; then
@@ -913,7 +913,7 @@ attribute_node_cluster_id()
 	local action="$1"
 	local value
 	local rc
-	value=$(jq -r ".clusterId" "$ETCD_REVISION_JSON")
+	value=$(deadline_run jq -r ".clusterId" "$ETCD_REVISION_JSON")
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		# Log the error but return success to avoid monitor failure if the file is not available yet. 
@@ -927,7 +927,7 @@ attribute_node_cluster_id()
 			echo "$value"
 			;;
 		update)
-			crm_attribute --type nodes --node "$NODENAME" --name "cluster_id" --update "$value"
+			deadline_run crm_attribute --type nodes --node "$NODENAME" --name "cluster_id" --update "$value"
 			rc=$?
 			if [ $rc -ne 0 ]; then
 			 	# Log the error but return success to avoid monitor failure if we can not update the attribute.
@@ -956,7 +956,10 @@ attribute_node_revision()
 	local value
 	local attribute="revision"
 
-	if ! value=$(jq -r ".maxRaftIndex" "$ETCD_REVISION_JSON"); then
+	# Pre-existing: after "if !", $? is the negated status (always 0), so this
+	# logs "error code: 0" and returns success with an empty value. A jq call
+	# skipped by an exhausted stop budget (124) also shows up as rc=0.
+	if ! value=$(deadline_run jq -r ".maxRaftIndex" "$ETCD_REVISION_JSON"); then
 		rc=$?
 		ocf_log err "could not get $attribute, error code: $rc"
 		return "$rc"
@@ -967,7 +970,7 @@ attribute_node_revision()
 			echo "$value"
 			;;
 		update)
-			crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"
+			deadline_run crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --update "$value"
 			rc=$?
 			if [ $rc -ne 0 ]; then
 				# Log the error but return success to avoid monitor failure if we can not update the attribute.
@@ -1017,7 +1020,7 @@ attribute_node_member_id()
 		get)
 			# When we need this value at the agent startup we don't have a etcd
 			# container running, so we always get this value from CIB
-			crm_attribute --query --type nodes --node "$NODENAME" --name "$attribute" | awk -F"value=" '{print $2}'
+			deadline_run crm_attribute --query --type nodes --node "$NODENAME" --name "$attribute" | awk -F"value=" '{print $2}'
 			;;
 		update)
 			local member_list_json
@@ -1053,7 +1056,7 @@ attribute_node_member_id()
 			fi
 			;;
 		clear)
-			crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --delete
+			deadline_run crm_attribute --type nodes --node "$NODENAME" --name "$attribute" --delete
 			;;
 		*)
 			ocf_log err "unsupported $action for attribute_node_member_id"
@@ -1434,7 +1437,7 @@ get_cib_permanent_attribute()
 get_cib_transient_attribute()
 {
 	local output rc
-	output=$(crm_attribute --query --lifetime reboot --node "$1" --name "$2" 2>/dev/null)
+	output=$(deadline_run crm_attribute --query --lifetime reboot --node "$1" --name "$2" 2>/dev/null)
 	rc=$?
 	[ $rc -ne 0 ] && [ $rc -ne 105 ] && [ $rc -ne 6 ] && return $rc
 	echo "$output" | awk -F"value=" '{print $2}' | tr -d "'"
@@ -1661,7 +1664,7 @@ set_standalone_node()
 
 get_standalone_node()
 {
-	crm_attribute --query --name "standalone_node" | awk -F"value=" '{print $2}'
+	deadline_run crm_attribute --query --name "standalone_node" | awk -F"value=" '{print $2}'
 }
 
 clear_standalone_node()
@@ -1778,17 +1781,17 @@ attribute_learner_node()
 
 	case "$action" in
 		get)
-			crm_attribute --query --name "$attribute" | awk -F"value=" '{print $2}'
+			deadline_run crm_attribute --query --name "$attribute" | awk -F"value=" '{print $2}'
 			;;
 		update)
-			if ! crm_attribute --name "$attribute" --update "$value"; then
+			if ! deadline_run crm_attribute --name "$attribute" --update "$value"; then
 				rc="$?"
 				ocf_log err "could not set $attribute to $value, error code: $rc"
 				return "$rc"
 			fi
 			;;
 		clear)
-			crm_attribute --name "$attribute" --delete
+			deadline_run crm_attribute --name "$attribute" --delete
 			;;
 		*)
 			ocf_log err "unsupported $action for $attribute"
@@ -1806,7 +1809,7 @@ is_learner()
 }
 
 get_peer_node_name() {
-	crm_node -l | awk '{print $2}' | grep -v "$NODENAME"
+	deadline_run crm_node -l | awk '{print $2}' | grep -v "$NODENAME"
 }
 
 # Calculate the count of truly active resources by excluding those being stopped.
@@ -3303,6 +3306,12 @@ podman_start()
 # could corrupt the etcd WAL.
 leave_etcd_member_list()
 {
+	# All or nothing: the lock protocol below must never be interrupted (a
+	# claim left behind while still a voter misroutes the next start), so
+	# skip the whole leave when the stop budget cannot cover its worst case.
+	# A skipped leave is the same state as a crash: still a voter, no lock.
+	leave_budget_ok || return
+
 	if ! member_id=$(attribute_node_member_id get); then
 		ocf_log err "error leaving members list: could not get member-id"
 		return
@@ -3332,6 +3341,7 @@ leave_etcd_member_list()
 		if [ "$NODENAME" = "$delayed_node" ]; then
 			ocf_log info "delaying stop for ${DELAY_SECOND_NODE_LEAVE_SEC}s to prevent simultaneous etcd member removal"
 			sleep $DELAY_SECOND_NODE_LEAVE_SEC
+			leave_budget_ok || return
 		fi
 	fi
 
@@ -3378,6 +3388,10 @@ leave_etcd_member_list()
 		ocf_log warn "could not resolve peer node name: skipping leave as safety fallback"
 		return
 	fi
+
+	# Last budget check before the lock protocol: the reads above may have
+	# spent part of the budget the entry check saw. Nothing is claimed yet.
+	leave_budget_ok || return
 
 	# (1) If the peer already holds the lock, it is leaving/left first, so we
 	#     are the surviving member — skip.
@@ -3473,11 +3487,87 @@ leave_etcd_member_list()
 	fi
 }
 
+# Stop budget: podman_stop must return before Pacemaker's stop timeout, or the
+# node is fenced. STOP_DEADLINE is an absolute $SECONDS value, set only inside
+# podman_stop; empty means no deadline and leaves every wrapped command
+# unbounded, as before. $SECONDS rather than date(1): on a degraded node each
+# process spawn can take tens of seconds, which is exactly when the budget
+# matters. STOP_PHASE is "pre" until podman stop/kill returns, then "post".
+STOP_DEADLINE=""
+STOP_PHASE=""
+STOP_LEFT=""
+
+stop_deadline_init()
+{
+	STOP_DEADLINE=""
+	STOP_PHASE="pre"
+	# shellcheck disable=SC3028 # bash/ksh builtin; empty in a shell without it, which disables the deadline
+	if [ -z "$OCF_RESKEY_CRM_meta_timeout" ] || [ -z "$SECONDS" ]; then
+		return
+	fi
+	# shellcheck disable=SC3028
+	STOP_DEADLINE=$((SECONDS + OCF_RESKEY_CRM_meta_timeout / 1000 - STOP_SAFETY_SEC))
+}
+
+# Set STOP_LEFT to the seconds left until STOP_DEADLINE minus $1, floored at
+# 0. Sets a variable rather than echoing, so no subshell is forked.
+stop_left()
+{
+	# shellcheck disable=SC3028
+	STOP_LEFT=$((STOP_DEADLINE - SECONDS - $1))
+	if [ "$STOP_LEFT" -lt 0 ]; then
+		STOP_LEFT=0
+	fi
+}
+
+# Set STOP_LEFT to what pre-stop steps may still spend, keeping the reserve
+# and the minimum SIGTERM grace for podman stop.
+stop_step_left()
+{
+	stop_left $((STOP_RESERVE_SEC + STOP_MIN_GRACE_SEC))
+}
+
+# Run an external command bounded by the stop budget. Without a deadline it
+# runs unbounded. Returns 124 (as timeout(1) does) when the budget is spent,
+# without logging: callers already log their failure, podman_stop logs one
+# summary, and on a degraded node every log call may cost a slow spawn.
+deadline_run()
+{
+	if [ -z "$STOP_DEADLINE" ]; then
+		"$@"
+		return
+	fi
+	if [ "$STOP_PHASE" = "pre" ]; then
+		stop_step_left
+	else
+		stop_left 0
+	fi
+	if [ "$STOP_LEFT" -le 0 ]; then
+		return 124
+	fi
+	timeout "$STOP_LEFT" "$@"
+}
+
+# Return 0 when the stop budget covers a full leave (or there is no deadline).
+leave_budget_ok()
+{
+	if [ -z "$STOP_DEADLINE" ]; then
+		return 0
+	fi
+	stop_step_left
+	if [ "$STOP_LEFT" -lt "$LEAVE_BUDGET_SEC" ]; then
+		ocf_log warn "stop budget: ${STOP_LEFT}s left, need ${LEAVE_BUDGET_SEC}s: skipping leave_etcd_member_list"
+		return 1
+	fi
+	return 0
+}
+
 podman_stop()
 {
 	local timeout=60
 	local rc
 
+	stop_deadline_init
 	ocf_log notice "podman-etcd stop"
 
 	# Clear container health check state file
@@ -3487,24 +3577,26 @@ podman_stop()
 
 	attribute_learner_node clear
 
-	# Snapshot cluster_id and revision from disk BEFORE checking container
-	# state. Both read /var/lib/etcd/revision.json (not the container), so they
-	# are available even when the container has already crashed. On the graceful
-	# path the container flushes its final state during podman stop and the
-	# revision snapshot at the END of this function overwrites this one with the
-	# newest maxRaftIndex; on the crashed-container path (early return below)
-	# this is the only snapshot, preserving the peer's startup revision fallback.
-	attribute_node_cluster_id update
-	attribute_node_revision update
-
 	# Use podman inspect instead of podman exec (podman_simple_status) to check
 	# container state. podman exec enters the container's process namespace and
 	# hangs when etcd is unresponsive — the typical scenario that triggers a stop.
 	local container_running
-	container_running=$(podman inspect --format '{{.State.Running}}' "$CONTAINER" 2>/dev/null)
+	container_running=$(deadline_run podman inspect --format '{{.State.Running}}' "$CONTAINER" 2>/dev/null)
+	if [ $? -eq 124 ]; then
+		# Unknown state: stopping an already-stopped container is harmless,
+		# returning success with the container still running is not.
+		ocf_log warn "could not inspect $CONTAINER within the stop budget: assuming it is running"
+		container_running=true
+	fi
 	if [ "$container_running" != "true" ]; then
 		ocf_log info "could not leave members list: $CONTAINER container not running, running state: ${container_running}"
 		attribute_node_member_id clear
+		# Crashed container: no podman stop will flush a newer state, so
+		# snapshot cluster_id and revision now. Both read
+		# /var/lib/etcd/revision.json, not the container. This preserves the
+		# peer's startup revision fallback.
+		attribute_node_cluster_id update
+		attribute_node_revision update
 		return $OCF_SUCCESS
 	fi
 
@@ -3516,7 +3608,18 @@ podman_stop()
 		attribute_node_member_id clear
 	fi
 
-	if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+	local budget_note=""
+	if [ -n "$STOP_DEADLINE" ]; then
+		stop_step_left
+		if [ "$STOP_LEFT" -le 0 ]; then
+			ocf_log warn "stop budget exhausted: best-effort steps before podman stop were cut short or skipped"
+		fi
+		# The SIGTERM grace is whatever the earlier steps left, so a slow
+		# stop still returns before Pacemaker's timeout.
+		stop_left "$STOP_RESERVE_SEC"
+		timeout=$STOP_LEFT
+		budget_note=" (stop budget: $((timeout + STOP_RESERVE_SEC))s left)"
+	elif [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
 		timeout=$(((OCF_RESKEY_CRM_meta_timeout/1000) -10 ))
 		if [ $timeout -lt 10 ]; then
 			timeout=10
@@ -3527,12 +3630,13 @@ podman_stop()
 		ocf_run podman kill "$CONTAINER"
 		rc=$?
 	else
-		ocf_log info "waiting $timeout second[s] before killing container"
+		ocf_log info "waiting $timeout second[s] before killing container${budget_note}"
 		ocf_run podman stop -t="$timeout" "$CONTAINER"
 		rc=$?
 		# on stop, systemd will automatically delete any transient
 		# drop-in conf that has been created earlier
 	fi
+	STOP_PHASE="post"
 
 	if [ $rc -ne 0 ]; then
 		# If the stop failed, it could be because the controlling conmon
@@ -3548,12 +3652,19 @@ podman_stop()
 		fi
 	fi
 
-	# Revision update is the LAST action on the graceful-stop path: etcd
-	# flushes its final state during podman stop, so reading revision.json
-	# after the container has stopped captures the newest maxRaftIndex sync and
-	# overwrites the pre-check snapshot taken at the top of this function. This
-	# is the fallback the peer's startup revision comparison relies on when no
+	# Snapshot cluster_id and revision as the LAST action on the graceful-stop
+	# path: etcd flushes its final state during podman stop, so reading
+	# revision.json now captures the newest maxRaftIndex, and doing it here
+	# keeps these CIB writes out of the time budget of the stop itself. This is
+	# the fallback the peer's startup revision comparison relies on when no
 	# member_removal_lock is present.
+	#
+	# Taking the snapshot after leave_etcd_member_list is safe only because of
+	# member_removal_lock: the recorded revision includes our own removal
+	# ConfChange, so it can beat the peer's, but a node that left holds the
+	# lock and is routed to the learner path regardless. Code without the lock
+	# must snapshot before leaving.
+	attribute_node_cluster_id update
 	attribute_node_revision update
 
 	return $OCF_SUCCESS
@@ -3670,6 +3781,16 @@ ETCD_BUMP_REV_DEFAULT=1000000000
 # This is intentional - reboots are controlled stops, not failures requiring detection.
 CONTAINER_HEARTBEAT_FILE=${HA_RSCTMP}/podman-container-last-running
 DELAY_SECOND_NODE_LEAVE_SEC=10
+# Stop budget, derived from Pacemaker's stop timeout (see stop_deadline_init).
+# Margin kept from Pacemaker's timeout.
+STOP_SAFETY_SEC=3
+# Time needed after podman stop returns: SIGKILL wait, post-stop CIB updates.
+STOP_RESERVE_SEC=10
+# SIGTERM grace period that pre-stop steps may not eat into.
+STOP_MIN_GRACE_SEC=10
+# Worst case of leave_etcd_member_list once its lock protocol starts: 2s
+# settle + 30s member remove + 10s member list + CIB calls.
+LEAVE_BUDGET_SEC=50
 FNC_CLAIM_SETTLE_SEC=2
 # Shorter etcdctl command-timeout for monitor-path calls to prevent
 # consuming the 25s monitor budget. Non-monitor callers use the default 5s.
