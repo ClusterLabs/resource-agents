@@ -638,7 +638,8 @@ snapshot-count: 10000
 name: $NODENAME
 data-dir: $ETCD_DATA_DIR
 $FORCE_NEW_CLUSTER_CONFIG
-socket-reuse-address: $ETCD_SOCKET_REUSE_ADDRESS
+socket-options:
+  reuse-address: $ETCD_SOCKET_REUSE_ADDRESS
 election-timeout: $ETCD_ELECTION_TIMEOUT
 enable-pprof: $ETCD_ENABLE_PPROF
 heartbeat-interval: $ETCD_HEARTBEAT_INTERVAL
@@ -888,16 +889,20 @@ etcd_pod_container_exists() {
 	return 1
 }
 
+# Only a listener blocks etcd's bind. Non-listening sockets on these local
+# ports (TIME-WAIT, ESTAB) are harmless: Go sets SO_REUSEADDR on listeners.
+# TIME-WAIT lasts a fixed 60s, so matching it here can outlast the timeout
+# and fail the start after a graceful etcd stop.
 wait_for_etcd_ports_release() {
 	local timeout=${1:-60}
 	local elapsed=0
-	if [ -z "$(ss -Htan '( sport = 2379 or sport = 2380 )')" ]; then
+	if [ -z "$(ss -Hltn '( sport = 2379 or sport = 2380 )')" ]; then
 		return 0
 	fi
-	ocf_log info "waiting for etcd ports 2379/2380 to be released (timeout: ${timeout}s)"
-	while [ -n "$(ss -Htan '( sport = 2379 or sport = 2380 )')" ]; do
+	ocf_log info "waiting for listeners on etcd ports 2379/2380 to close (timeout: ${timeout}s)"
+	while [ -n "$(ss -Hltn '( sport = 2379 or sport = 2380 )')" ]; do
 		if [ "$elapsed" -ge "$timeout" ]; then
-			ocf_log err "etcd ports still in use after ${timeout}s"
+			ocf_log err "etcd ports still in use (LISTEN) after ${timeout}s"
 			return 1
 		fi
 		sleep 1
@@ -1875,6 +1880,21 @@ get_endpoint_status_json()
 
 	all_etcd_endpoints=$(get_all_etcd_endpoints)
 	podman exec "${CONTAINER}" etcdctl endpoint status --command-timeout="$MONITOR_ETCDCTL_TIMEOUT" --endpoints="$all_etcd_endpoints" -w json
+}
+
+# Return 0 only when the local etcd confirms it has no leader (no quorum).
+# Any failure to confirm returns 1, so callers fall back to the safe path.
+# podman exec hangs on an unresponsive etcd, hence the outer timeout.
+local_etcd_has_no_leader()
+{
+	local local_ip
+	if ! local_ip=$(attribute_node_ip get); then
+		return 1
+	fi
+	timeout 5 podman exec "${CONTAINER}" etcdctl endpoint status \
+		--command-timeout="$MONITOR_ETCDCTL_TIMEOUT" \
+		--endpoints="$(ip_url "$local_ip"):2379" -w json 2>/dev/null \
+		| jq -r ".[0].Status.errors" 2>/dev/null | grep -q "no leader"
 }
 
 get_member_list_json() {
@@ -2974,7 +2994,11 @@ podman_start()
 						JOIN_AS_LEARNER=true
 					else
 						if [ "$(attribute_node_cluster_id get)" = "$(attribute_node_cluster_id_peer)" ]; then
-							ocf_log info "same cluster_id and revision: start normal"
+							if [ -n "$revision_compare_result" ]; then
+								ocf_log info "same cluster_id and revision: start normal"
+							else
+								ocf_log info "same cluster_id, no revision compared: start normal"
+							fi
 						else
 							ocf_exit_reason "same revision but different cluster id"
 							return "$OCF_ERR_CONFIGURED"
@@ -3489,11 +3513,10 @@ podman_stop()
 
 	# Snapshot cluster_id and revision from disk BEFORE checking container
 	# state. Both read /var/lib/etcd/revision.json (not the container), so they
-	# are available even when the container has already crashed. On the graceful
-	# path the container flushes its final state during podman stop and the
-	# revision snapshot at the END of this function overwrites this one with the
-	# newest maxRaftIndex; on the crashed-container path (early return below)
-	# this is the only snapshot, preserving the peer's startup revision fallback.
+	# are available even when the container has already crashed. That file is
+	# written by the CEO etcd-rev sidecar (maxRaftIndex, polled every 10s), not
+	# by etcd itself. On the crashed-container path (early return below) this
+	# is the only snapshot, preserving the peer's startup revision fallback.
 	attribute_node_cluster_id update
 	attribute_node_revision update
 
@@ -3523,7 +3546,32 @@ podman_stop()
 		fi
 	fi
 
-	if ocf_is_true "$OCF_RESKEY_force_kill"; then
+	# After the peer is fenced, the monitor sees leadership loss and claims
+	# force_new_cluster; this member is about to be replaced by a
+	# force-new-cluster start, so a graceful shutdown only delays recovery.
+	# SIGKILL is safe only without quorum: nothing can commit, so every
+	# acked entry is already covered by the backend's consistent_index,
+	# which force-new-cluster honors. The claim alone does not prove that
+	# (it is also set before a cold-start force-new-cluster, and can outlive
+	# a failed clear), so confirm quorum loss with etcd before killing.
+	local fnc_claim recovery_kill=false
+	if ! fnc_claim=$(get_fnc_claim "$NODENAME"); then
+		ocf_log warn "could not read local force_new_cluster claim; retaining ordinary stop behavior"
+		fnc_claim=""
+	fi
+	if [ -n "$fnc_claim" ]; then
+		if local_etcd_has_no_leader; then
+			recovery_kill=true
+		else
+			ocf_log notice "force_new_cluster claim set but etcd quorum loss not confirmed: stopping gracefully"
+		fi
+	fi
+
+	if ocf_is_true "$recovery_kill"; then
+		ocf_log notice "force_new_cluster recovery stop: sending SIGKILL to $CONTAINER"
+		ocf_run podman kill --signal KILL "$CONTAINER"
+		rc=$?
+	elif ocf_is_true "$OCF_RESKEY_force_kill"; then
 		ocf_run podman kill "$CONTAINER"
 		rc=$?
 	else
@@ -3548,12 +3596,11 @@ podman_stop()
 		fi
 	fi
 
-	# Revision update is the LAST action on the graceful-stop path: etcd
-	# flushes its final state during podman stop, so reading revision.json
-	# after the container has stopped captures the newest maxRaftIndex sync and
-	# overwrites the pre-check snapshot taken at the top of this function. This
-	# is the fallback the peer's startup revision comparison relies on when no
-	# member_removal_lock is present.
+	# Re-read revision.json as the LAST action: it picks up any etcd-rev
+	# sidecar write that landed while the container was stopping. etcd does
+	# not write the file on shutdown, so it is at most one sidecar poll (10s)
+	# old either way. This is the fallback the peer's startup revision
+	# comparison relies on when no member_removal_lock is present.
 	attribute_node_revision update
 
 	return $OCF_SUCCESS
