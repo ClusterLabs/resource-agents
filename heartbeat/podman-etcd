@@ -956,6 +956,9 @@ attribute_node_revision()
 	local value
 	local attribute="revision"
 
+	# Pre-existing: after "if !", $? is the negated status (always 0), so this
+	# logs "error code: 0" and returns success with an empty value. A jq call
+	# skipped by an exhausted stop budget (124) also shows up as rc=0.
 	if ! value=$(deadline_run jq -r ".maxRaftIndex" "$ETCD_REVISION_JSON"); then
 		rc=$?
 		ocf_log err "could not get $attribute, error code: $rc"
