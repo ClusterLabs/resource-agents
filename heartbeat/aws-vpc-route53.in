@@ -133,18 +133,15 @@ or "role" to use AWS Policies.
 
 <parameter name="profile">
 <longdesc lang="en">
-The name of the AWS CLI profile of the root account. This
-profile will have to use the "text" format for CLI output.
+The name of the AWS CLI profile of the root account.
 The file /root/.aws/config should have an entry which looks
 like:
 
   [profile cluster]
 	region = us-east-1
-	output = text
 
 "cluster" is the name which has to be used in the cluster
-configuration. The region has to be the current one. The
-output has to be "text".
+configuration. The region has to be the current one.
 </longdesc>
 <shortdesc lang="en">AWS Profile Name</shortdesc>
 <content type="string" default="${OCF_RESKEY_profile_default}" />
@@ -306,7 +303,7 @@ r53_monitor() {
 	#
 	if [ "$__OCF_ACTION" = "start" ] || ocf_is_probe ; then
 		#
-		cmd="$OCF_RESKEY_awscli $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']"
+		cmd="$OCF_RESKEY_awscli $AWS_PROFILE_OPT --output text route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']"
 		ocf_log info "Route53 Agent Starting or probing - executing monitoring API call: $cmd"
 		CLIRES="$($cmd 2>&1)"
 		rc=$?
@@ -338,7 +335,7 @@ r53_monitor() {
 		#
 		if  [[ ! $ARECORD =~ $IPREGEX ]] || [ $rc -ne 0 ]; then
 			ocf_log info "Fallback to Route53 API query due to DNS resolution failure"
-			cmd="$OCF_RESKEY_awscli $AWS_PROFILE_OPT route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']"
+			cmd="$OCF_RESKEY_awscli $AWS_PROFILE_OPT --output text route53 list-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --query ResourceRecordSets[?Name=='$OCF_RESKEY_fullname']"
 			ocf_log debug "executing monitoring API call: $cmd"
 			CLIRES="$($cmd 2>&1)"
 			rc=$?
@@ -421,7 +418,7 @@ _update_record() {
 		  ]
 	}
 	EOF
-	cmd="$OCF_RESKEY_awscli $AWS_PROFILE_OPT route53 change-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --change-batch file://$ROUTE53RECORD "
+	cmd="$OCF_RESKEY_awscli $AWS_PROFILE_OPT --output text route53 change-resource-record-sets --hosted-zone-id $OCF_RESKEY_hostedzoneid --change-batch file://$ROUTE53RECORD "
 	ocf_log debug "Executing command: $cmd"
 	CLIRES="$($cmd 2>&1)"
 	rc=$?
@@ -441,7 +438,7 @@ _update_record() {
 	MYSECONDS=20
 	while [ "$STATUS" = 'PENDING' ]; do
 		sleep $MYSECONDS
-		STATUS="$($OCF_RESKEY_awscli $AWS_PROFILE_OPT route53 get-change --id $CHANGEID | grep CHANGEINFO | awk -F'\t' '{ print $4 }' |cut -d'"' -f 2 )"
+		STATUS="$($OCF_RESKEY_awscli $AWS_PROFILE_OPT --output text route53 get-change --id $CHANGEID | grep CHANGEINFO | awk -F'\t' '{ print $4 }' |cut -d'"' -f 2 )"
 		ocf_log debug "Waited for $MYSECONDS seconds and checked execution of Route 53 update status: $STATUS "
 	done
 }
