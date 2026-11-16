@@ -3386,6 +3386,10 @@ leave_etcd_member_list()
 		return
 	fi
 
+	# Last budget check before the lock protocol: the reads above may have
+	# spent part of the budget the entry check saw. Nothing is claimed yet.
+	leave_budget_ok || return
+
 	# (1) If the peer already holds the lock, it is leaving/left first, so we
 	#     are the surviving member — skip.
 	#
@@ -3488,6 +3492,7 @@ leave_etcd_member_list()
 # matters. STOP_PHASE is "pre" until podman stop/kill returns, then "post".
 STOP_DEADLINE=""
 STOP_PHASE=""
+STOP_LEFT=""
 
 stop_deadline_init()
 {
@@ -3501,57 +3506,54 @@ stop_deadline_init()
 	STOP_DEADLINE=$((SECONDS + OCF_RESKEY_CRM_meta_timeout / 1000 - STOP_SAFETY_SEC))
 }
 
-# Seconds left until STOP_DEADLINE, floored at 0.
-stop_remaining()
+# Set STOP_LEFT to the seconds left until STOP_DEADLINE minus $1, floored at
+# 0. Sets a variable rather than echoing, so no subshell is forked.
+stop_left()
 {
 	# shellcheck disable=SC3028
-	local left=$((STOP_DEADLINE - SECONDS))
-	[ "$left" -lt 0 ] && left=0
-	echo "$left"
+	STOP_LEFT=$((STOP_DEADLINE - SECONDS - $1))
+	if [ "$STOP_LEFT" -lt 0 ]; then
+		STOP_LEFT=0
+	fi
 }
 
-# Seconds pre-stop steps may still spend, keeping the reserve and the minimum
-# SIGTERM grace for podman stop. Floored at 0.
-stop_step_budget()
+# Set STOP_LEFT to what pre-stop steps may still spend, keeping the reserve
+# and the minimum SIGTERM grace for podman stop.
+stop_step_left()
 {
-	local left=$(($(stop_remaining) - STOP_RESERVE_SEC - STOP_MIN_GRACE_SEC))
-	[ "$left" -lt 0 ] && left=0
-	echo "$left"
+	stop_left $((STOP_RESERVE_SEC + STOP_MIN_GRACE_SEC))
 }
 
 # Run an external command bounded by the stop budget. Without a deadline it
-# runs unbounded. Returns 124 (as timeout(1) does) when the budget is spent.
+# runs unbounded. Returns 124 (as timeout(1) does) when the budget is spent,
+# without logging: callers already log their failure, podman_stop logs one
+# summary, and on a degraded node every log call may cost a slow spawn.
 deadline_run()
 {
-	local budget
-
 	if [ -z "$STOP_DEADLINE" ]; then
 		"$@"
 		return
 	fi
 	if [ "$STOP_PHASE" = "pre" ]; then
-		budget=$(stop_step_budget)
+		stop_step_left
 	else
-		budget=$(stop_remaining)
+		stop_left 0
 	fi
-	if [ "$budget" -le 0 ]; then
-		ocf_log warn "stop budget exhausted: skipping $1"
+	if [ "$STOP_LEFT" -le 0 ]; then
 		return 124
 	fi
-	timeout "$budget" "$@"
+	timeout "$STOP_LEFT" "$@"
 }
 
 # Return 0 when the stop budget covers a full leave (or there is no deadline).
 leave_budget_ok()
 {
-	local budget
-
 	if [ -z "$STOP_DEADLINE" ]; then
 		return 0
 	fi
-	budget=$(stop_step_budget)
-	if [ "$budget" -lt "$LEAVE_BUDGET_SEC" ]; then
-		ocf_log warn "stop budget: ${budget}s left, need ${LEAVE_BUDGET_SEC}s: skipping leave_etcd_member_list"
+	stop_step_left
+	if [ "$STOP_LEFT" -lt "$LEAVE_BUDGET_SEC" ]; then
+		ocf_log warn "stop budget: ${STOP_LEFT}s left, need ${LEAVE_BUDGET_SEC}s: skipping leave_etcd_member_list"
 		return 1
 	fi
 	return 0
@@ -3605,13 +3607,15 @@ podman_stop()
 
 	local budget_note=""
 	if [ -n "$STOP_DEADLINE" ]; then
+		stop_step_left
+		if [ "$STOP_LEFT" -le 0 ]; then
+			ocf_log warn "stop budget exhausted: best-effort steps before podman stop were cut short or skipped"
+		fi
 		# The SIGTERM grace is whatever the earlier steps left, so a slow
 		# stop still returns before Pacemaker's timeout.
-		timeout=$(($(stop_remaining) - STOP_RESERVE_SEC))
-		if [ $timeout -lt 0 ]; then
-			timeout=0
-		fi
-		budget_note=" (stop budget: $(stop_remaining)s left)"
+		stop_left "$STOP_RESERVE_SEC"
+		timeout=$STOP_LEFT
+		budget_note=" (stop budget: $((timeout + STOP_RESERVE_SEC))s left)"
 	elif [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
 		timeout=$(((OCF_RESKEY_CRM_meta_timeout/1000) -10 ))
 		if [ $timeout -lt 10 ]; then
