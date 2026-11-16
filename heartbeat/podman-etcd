@@ -1661,7 +1661,7 @@ set_standalone_node()
 
 get_standalone_node()
 {
-	crm_attribute --query --name "standalone_node" | awk -F"value=" '{print $2}'
+	deadline_run crm_attribute --query --name "standalone_node" | awk -F"value=" '{print $2}'
 }
 
 clear_standalone_node()
@@ -1806,7 +1806,7 @@ is_learner()
 }
 
 get_peer_node_name() {
-	crm_node -l | awk '{print $2}' | grep -v "$NODENAME"
+	deadline_run crm_node -l | awk '{print $2}' | grep -v "$NODENAME"
 }
 
 # Calculate the count of truly active resources by excluding those being stopped.
@@ -3303,6 +3303,12 @@ podman_start()
 # could corrupt the etcd WAL.
 leave_etcd_member_list()
 {
+	# All or nothing: the lock protocol below must never be interrupted (a
+	# claim left behind while still a voter misroutes the next start), so
+	# skip the whole leave when the stop budget cannot cover its worst case.
+	# A skipped leave is the same state as a crash: still a voter, no lock.
+	leave_budget_ok || return
+
 	if ! member_id=$(attribute_node_member_id get); then
 		ocf_log err "error leaving members list: could not get member-id"
 		return
@@ -3332,6 +3338,7 @@ leave_etcd_member_list()
 		if [ "$NODENAME" = "$delayed_node" ]; then
 			ocf_log info "delaying stop for ${DELAY_SECOND_NODE_LEAVE_SEC}s to prevent simultaneous etcd member removal"
 			sleep $DELAY_SECOND_NODE_LEAVE_SEC
+			leave_budget_ok || return
 		fi
 	fi
 
@@ -3532,6 +3539,22 @@ deadline_run()
 		return 124
 	fi
 	timeout "$budget" "$@"
+}
+
+# Return 0 when the stop budget covers a full leave (or there is no deadline).
+leave_budget_ok()
+{
+	local budget
+
+	if [ -z "$STOP_DEADLINE" ]; then
+		return 0
+	fi
+	budget=$(stop_step_budget)
+	if [ "$budget" -lt "$LEAVE_BUDGET_SEC" ]; then
+		ocf_log warn "stop budget: ${budget}s left, need ${LEAVE_BUDGET_SEC}s: skipping leave_etcd_member_list"
+		return 1
+	fi
+	return 0
 }
 
 podman_stop()
@@ -3755,6 +3778,9 @@ STOP_SAFETY_SEC=3
 STOP_RESERVE_SEC=10
 # SIGTERM grace period that pre-stop steps may not eat into.
 STOP_MIN_GRACE_SEC=10
+# Worst case of leave_etcd_member_list once its lock protocol starts: 2s
+# settle + 30s member remove + 10s member list + CIB calls.
+LEAVE_BUDGET_SEC=50
 FNC_CLAIM_SETTLE_SEC=2
 # Shorter etcdctl command-timeout for monitor-path calls to prevent
 # consuming the 25s monitor budget. Non-monitor callers use the default 5s.
