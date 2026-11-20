@@ -823,7 +823,7 @@ PortValidateAll()
   fi
 
   if [ -n "$OCF_RESKEY_tickle_dir" ]; then
-	if [ x"$action" != x"unblock" ]; then
+	if [ x"$OCF_RESKEY_action" != x"unblock" ]; then
 		ocf_log err "Tickles are only useful with action=unblock!"
 		exit $OCF_ERR_CONFIGURED
 	fi
@@ -843,7 +843,7 @@ PortValidateAll()
   esac
 
   if ocf_is_true $reset_local_on_unblock_stop; then
-	if [ $action != unblock ] ; then
+	if [ "$OCF_RESKEY_action" != unblock ] ; then
 		ocf_log err "reset_local_on_unblock_stop is only relevant with action=unblock"
 		exit $OCF_ERR_CONFIGURED
 	fi
