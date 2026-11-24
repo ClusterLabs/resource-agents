@@ -95,7 +95,7 @@ def validate_all_action(
         return ocf.OCF_ERR_CONFIGURED
     if not ip_address_validator(ext_ip_2):
         return ocf.OCF_ERR_CONFIGURED
-    candidates = [v for v in vip_addresses.split(',') if v]
+    candidates = [v.strip() for v in vip_addresses.split(',') if v.strip()]
     if candidates and not interface_name:
         ocf.logger.error("interface_name is required when vip_addresses is set")
         return ocf.OCF_ERR_CONFIGURED
@@ -197,7 +197,7 @@ def monitor_action(
     """monitor_action: check if service ip and gateway are responding."""
     ocf.logger.debug("monitor_action:")
 
-    candidates = [v for v in vip_addresses.split(',') if v]
+    candidates = [v.strip() for v in vip_addresses.split(',') if v.strip()]
     if candidates:
         valid_found = False
         for vip_address in candidates:
