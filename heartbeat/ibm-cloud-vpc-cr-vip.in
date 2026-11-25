@@ -20,6 +20,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ------------------------------------------------------------------------
+"""
+IBM Cloud VPC Custom Route VIP
+"""
 import subprocess
 import ipaddress
 import os
@@ -27,11 +30,9 @@ import sys
 import textwrap
 import time
 
-OCF_FUNCTIONS_DIR = os.environ.get(
-    "OCF_FUNCTIONS_DIR", "%s/lib/heartbeat" % os.environ.get("OCF_ROOT")
-)
-
-sys.path.append(OCF_FUNCTIONS_DIR)
+sys.path.append(os.environ.get(
+    "OCF_FUNCTIONS_DIR", f"{os.environ.get('OCF_ROOT')}/lib/heartbeat"
+))
 
 RETRY_COUNT = 1
 SLEEP_TIME  = 1
@@ -47,14 +48,12 @@ try:
 except ImportError:
     ocf.logger.error("ImportError: import of ibm_cloud_fail_over module failed."   \
                         "install using: pip install ibm_cloud_fail_over")
-    pass
 
 def os_ip(ip):
     """Check if VSI own this IP address."""
 
-    command = ["ip", "a"]
-    response = subprocess.run(command, capture_output=True, text=True)
-    return ip in  response.stdout
+    response = subprocess.run(["ip", "a"], check=False, capture_output=True, text=True)
+    return ip in response.stdout
 
 def ip_address_validator(ip):
     """validate ip address string
@@ -63,7 +62,7 @@ def ip_address_validator(ip):
         ip (string): ip address
 
     Returns:
-        bool: true if the strig is a valid ipv4 ip address
+        bool: true if the string is a valid ipv4 ip address
     """
     try:
         ipaddress.ip_address(ip)
@@ -76,14 +75,18 @@ def validate_all_action(
     ext_ip_1="",
     ext_ip_2="",
     api_key="",
+    interface_name="",
+    vip_addresses="",
 ):
-    """validate all paramters
+    """validate all parameters
 
     Args:
         vpc_url (str, mandatory): vpc_url for the region.
         ext_ip_1 (str, mandatory): First Instance IP.
         ext_ip_2 (str, mandatory): Second Instance IP.
         api_key (str, optional): IBM Cloud API access key. Defaults to "".
+        interface_name (str, optional): Local network interface name. Defaults to "".
+        vip_addresses (str, optional): Comma-separated VIP addresses. Defaults to "".
 
     Returns:
         _type_: _description_
@@ -92,6 +95,14 @@ def validate_all_action(
         return ocf.OCF_ERR_CONFIGURED
     if not ip_address_validator(ext_ip_2):
         return ocf.OCF_ERR_CONFIGURED
+    candidates = [v.strip() for v in vip_addresses.split(',') if v.strip()]
+    if candidates and not interface_name:
+        ocf.logger.error("interface_name is required when vip_addresses is set")
+        return ocf.OCF_ERR_CONFIGURED
+    for vip in candidates:
+        if not ip_address_validator(vip):
+            ocf.logger.error(f"vip_addresses contains invalid IP: {vip}")
+            return ocf.OCF_ERR_CONFIGURED
     ocf.logger.debug(f"validate_all_action: {vpc_url} {api_key}")
     return ocf.OCF_SUCCESS
 
@@ -100,6 +111,8 @@ def stop_action(
     ext_ip_1="",
     ext_ip_2="",
     api_key="",
+    interface_name="",
+    vip_addresses="",
 ):
     """Stop VIP
 
@@ -108,18 +121,30 @@ def stop_action(
         ext_ip_1 (str, mandatory): First Instance IP.
         ext_ip_2 (str, mandatory): Second Instance IP.
         api_key (str, optional): IBM Cloud API access key. Defaults to "".
+        interface_name (str, optional): Local network interface to remove the
+            VIP addresses from. Required when vip_addresses is set. Defaults to "".
+        vip_addresses (str, optional): Comma-separated VIP addresses to remove
+            locally. Defaults to "".
 
     Returns:
         _type_: _description_
     """
     ocf.logger.info("stop_action: stopping")
-    res = monitor_action(vpc_url, ext_ip_1, ext_ip_2, api_key)
+    try:
+        ibm_cloud_fail_over.fail_over_cr_vip("UNSET", vpc_url, ext_ip_1,
+            ext_ip_2, api_key, interface_name, vip_addresses)
+    except Exception as e:
+        ocf.logger.error(f'stop_action failed: {e}')
+        sys.exit(ocf.OCF_ERR_GENERIC)
+
+    res = monitor_action(vpc_url, ext_ip_1, ext_ip_2, api_key, interface_name, vip_addresses)
     if res == ocf.OCF_NOT_RUNNING:
         ocf.logger.info("Resource is already stopped")
-    if res == ocf.OCF_SUCCESS:
-        for i in range(0,RETRY_COUNT):
+    elif res == ocf.OCF_SUCCESS:
+        for _ in range(0, RETRY_COUNT):
             time.sleep(SLEEP_TIME)
-            res = monitor_action(vpc_url, ext_ip_1, ext_ip_2, api_key)
+            res = monitor_action(vpc_url, ext_ip_1, ext_ip_2, api_key,
+                interface_name, vip_addresses)
             if res == ocf.OCF_NOT_RUNNING:
                 break
     return ocf.OCF_SUCCESS
@@ -129,6 +154,8 @@ def start_action(
     ext_ip_1="",
     ext_ip_2="",
     api_key="",
+    interface_name="",
+    vip_addresses="",
 ):
     """start_action: redirect  the service ip.
     Args:
@@ -136,19 +163,25 @@ def start_action(
         ext_ip_1 (str, mandatory): First Instance IP.
         ext_ip_2 (str, mandatory): Second Instance IP.
         api_key (str, optional): IBM Cloud API access key. Defaults to "".
+        interface_name (str, optional): Local network interface to assign the
+            VIP addresses onto. Required when vip_addresses is set. Defaults to "".
+        vip_addresses (str, optional): Comma-separated VIP addresses to assign
+            locally. Defaults to "".
 
     Change custom route nexthop to point to this endpoint.
-    In case of a cross AZ Active Passive the route advertize zone will
+    In case of a cross AZ Active Passive the route advertise zone will
     be changed to the new active zone
+    If vip_addresses and interface_name are provided, each VIP is also
+    assigned to the local interface as secondary addresses.
     """
     try:
-        ibm_cloud_fail_over.fail_over_cr_vip("SET", vpc_url , ext_ip_1,
-		ext_ip_2, api_key)
-        active_ip = ibm_cloud_fail_over.fail_over_cr_vip("GET", vpc_url ,
-		ext_ip_1, ext_ip_2, api_key)
+        ibm_cloud_fail_over.fail_over_cr_vip("SET", vpc_url, ext_ip_1,
+            ext_ip_2, api_key, interface_name, vip_addresses)
+        active_ip = ibm_cloud_fail_over.fail_over_cr_vip("GET", vpc_url,
+            ext_ip_1, ext_ip_2, api_key, interface_name, vip_addresses)
         ocf.logger.info(f"start_action: active_ip: {active_ip}")
     except Exception as e:
-        ocf.logger.error('Couldn\'t connect with IBM Cloud api: ' + str(e))
+        ocf.logger.error(f'start_action failed: {e}')
         sys.exit(ocf.OCF_ERR_GENERIC)
 
     return ocf.OCF_SUCCESS
@@ -158,21 +191,36 @@ def monitor_action(
     ext_ip_1="",
     ext_ip_2="",
     api_key="",
+    interface_name="",
+    vip_addresses="",
 ):
     """monitor_action: check if service ip and gateway are responding."""
-
     ocf.logger.debug("monitor_action:")
+
+    candidates = [v.strip() for v in vip_addresses.split(',') if v.strip()]
+    if candidates:
+        valid_found = False
+        for vip_address in candidates:
+            if not ip_address_validator(vip_address):
+                ocf.logger.warning(f'Received malformed IP address: {vip_address}')
+            elif not os_ip(vip_address):
+                return ocf.OCF_NOT_RUNNING
+            else:
+                valid_found = True
+
+        if not valid_found:
+            ocf.logger.error('Received all malformed IP addresses')
+            sys.exit(ocf.OCF_ERR_GENERIC)
+
     try:
-        active_ip = ibm_cloud_fail_over.fail_over_cr_vip("GET", vpc_url , ext_ip_1,
-			ext_ip_2, api_key)
-        if ip_address_validator(active_ip):
-            if os_ip(active_ip):
-            	return ocf.OCF_SUCCESS
+        active_ip = ibm_cloud_fail_over.fail_over_cr_vip("GET", vpc_url, ext_ip_1,
+            ext_ip_2, api_key, interface_name, vip_addresses)
+        if ip_address_validator(active_ip) and os_ip(active_ip):
+            return ocf.OCF_SUCCESS
         return ocf.OCF_NOT_RUNNING
     except Exception as e:
-        ocf.logger.error('Couldn\'t connect with IBM Cloud api: ' + str(e))
+        ocf.logger.error(f'monitor_action failed: {e}')
         sys.exit(ocf.OCF_ERR_GENERIC)
-
 
 def main():
     """Instantiate the resource agent."""
@@ -182,10 +230,10 @@ def main():
         from one virtual network interface (VNI) to another.
         The prerequisites for the use of this resource agent are as follows:
 
-        1. A two-node (VSI or BM) cluster distributed in same Avilability zone or across.
+        1. A two-node (VSI or BM) cluster distributed in same Availability Zone or across
         2. Enable Instance Metadata enabled on the two nodes
-        3. allow_ip_spoofing enabled on the Virtual network interface
-        3. IBM Cloud API Key or Trused profile:
+        3. Allow_ip_spoofing enabled on the VNI
+        4. IBM Cloud API Key or Trusted Profile
     """)
 
     agent = ocf.Agent(
@@ -193,7 +241,6 @@ def main():
         shortdesc="Manages moving an IBM Cloud VIP based on Custom Route",
         longdesc=agent_description
     )
-
 
     agent.add_parameter(
         "vpc_url",
@@ -219,7 +266,6 @@ def main():
         required=True,
     )
 
-
     agent.add_parameter(
         "api_key",
         shortdesc="API Key or @API_KEY_FILE_PATH",
@@ -232,15 +278,36 @@ def main():
         required=False,
     )
 
+    agent.add_parameter(
+        "interface_name",
+        shortdesc="Network interface to assign VIP address(es) onto.",
+        longdesc=(
+            "Name of the local network interface on which "
+            "vip_addresses will be assigned during start and removed during stop. "
+            "Required when vip_addresses is set."
+        ),
+        content_type="string",
+        required=False,
+        default="",
+    )
+
+    agent.add_parameter(
+        "vip_addresses",
+        shortdesc="Virtual IP address(es) to assign locally on failover.",
+        longdesc=(
+            "One or more virtual IP addresses, comma-separated, to be assigned to "
+            "interface_name on the active node during start and removed during stop. "
+        ),
+        content_type="string",
+        required=False,
+        default="",
+    )
 
     agent.add_action("start", timeout=30, handler=start_action)
     agent.add_action("stop", timeout=30, handler=stop_action)
-    agent.add_action(
-        "monitor", depth=0, timeout=60, interval=60, handler=monitor_action
-    )
+    agent.add_action("monitor", depth=0, timeout=60, interval=60, handler=monitor_action)
     agent.add_action("validate-all", timeout=30, handler=validate_all_action)
     agent.run()
-
 
 if __name__ == "__main__":
     main()
