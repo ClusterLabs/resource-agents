@@ -3577,6 +3577,17 @@ podman_stop()
 
 	attribute_learner_node clear
 
+	# Snapshot revision and cluster_id from disk BEFORE checking container
+	# state and before leaving. Both read /var/lib/etcd/revision.json, not the
+	# container, so they work when the container has crashed. This is the
+	# fallback the peer's startup revision comparison relies on when no
+	# member_removal_lock is present: the refresh after podman stop may not
+	# get to run within the stop budget, and a stale revision could let an
+	# older peer start alone. Revision first: it guards against data loss.
+	# Bounded by the pre-stop budget, which keeps the minimum SIGTERM grace.
+	attribute_node_revision update
+	attribute_node_cluster_id update
+
 	# Use podman inspect instead of podman exec (podman_simple_status) to check
 	# container state. podman exec enters the container's process namespace and
 	# hangs when etcd is unresponsive — the typical scenario that triggers a stop.
@@ -3591,12 +3602,6 @@ podman_stop()
 	if [ "$container_running" != "true" ]; then
 		ocf_log info "could not leave members list: $CONTAINER container not running, running state: ${container_running}"
 		attribute_node_member_id clear
-		# Crashed container: no podman stop will flush a newer state, so
-		# snapshot cluster_id and revision now. Both read
-		# /var/lib/etcd/revision.json, not the container. This preserves the
-		# peer's startup revision fallback.
-		attribute_node_cluster_id update
-		attribute_node_revision update
 		return $OCF_SUCCESS
 	fi
 
@@ -3652,20 +3657,17 @@ podman_stop()
 		fi
 	fi
 
-	# Snapshot cluster_id and revision as the LAST action on the graceful-stop
+	# Refresh revision and cluster_id as the LAST action on the graceful-stop
 	# path: etcd flushes its final state during podman stop, so reading
-	# revision.json now captures the newest maxRaftIndex, and doing it here
-	# keeps these CIB writes out of the time budget of the stop itself. This is
-	# the fallback the peer's startup revision comparison relies on when no
-	# member_removal_lock is present.
+	# revision.json now captures the newest maxRaftIndex. Best effort within
+	# the reserve: if the budget runs out, the pre-stop snapshot stands.
 	#
-	# Taking the snapshot after leave_etcd_member_list is safe only because of
-	# member_removal_lock: the recorded revision includes our own removal
-	# ConfChange, so it can beat the peer's, but a node that left holds the
-	# lock and is routed to the learner path regardless. Code without the lock
-	# must snapshot before leaving.
-	attribute_node_cluster_id update
+	# This refresh runs after leave_etcd_member_list, so the recorded revision
+	# includes our own removal ConfChange and can beat the peer's. That is
+	# safe only because a node that left holds member_removal_lock and is
+	# routed to the learner path regardless.
 	attribute_node_revision update
+	attribute_node_cluster_id update
 
 	return $OCF_SUCCESS
 }
